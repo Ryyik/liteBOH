@@ -1,0 +1,510 @@
+/**
+ * 登录弹窗样式文件 - Login Modal CSS
+ * 为统一用户登录模块提供样式支持
+ * 用于三个页面：newsroom, shop, service
+ */
+
+/* ==================== 弹窗遮罩层 ==================== */
+.boh-login-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  -moz-backdrop-filter: blur(8px);
+  -ms-backdrop-filter: blur(8px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: boh-modal-fadeIn 0.3s ease;
+}
+
+/* 弹窗淡入动画 */
+@keyframes boh-modal-fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ==================== 弹窗容器 ==================== */
+.boh-login-modal-container {
+  width: 100%;
+  max-width: 400px;
+  margin: 20px;
+  padding: 40px 30px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  -moz-backdrop-filter: blur(24px);
+  -ms-backdrop-filter: blur(24px);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  position: relative;
+  animation: boh-modal-slideUp 0.3s ease;
+}
+
+/* 弹窗上滑动画 */
+@keyframes boh-modal-slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ==================== 关闭按钮 ==================== */
+.boh-login-modal-close {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  color: #666;
+  line-height: 1;
+}
+
+.boh-login-modal-close:hover {
+  background: rgba(0, 0, 0, 0.2);
+  transform: rotate(90deg);
+}
+
+/* ==================== 弹窗头部 ==================== */
+.boh-login-modal-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.boh-login-logo {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 15px;
+  background-image: url("../images/favicon.png");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.boh-login-modal-header h2 {
+  margin: 0 0 8px;
+  font-size: 24px;
+  color: #1d1d1f;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 600;
+}
+
+.boh-login-modal-header p {
+  margin: 0;
+  color: rgba(0, 0, 0, 0.5);
+  font-size: 14px;
+}
+
+/* ==================== 登录表单 ==================== */
+.boh-login-form .boh-form-group {
+  margin-bottom: 20px;
+}
+
+.boh-login-form label {
+  display: block;
+  margin-bottom: 8px;
+  color: #515154;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* ==================== 输入框样式 ==================== */
+.boh-login-form input {
+  width: 100%;
+  padding: 14px 16px;
+  background: rgba(118, 75, 162, 0.05);
+  border: 2px solid rgba(102, 126, 234, 0.2);
+  border-radius: 12px;
+  font-size: 16px;
+  color: #1d1d1f;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.boh-login-form input:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15);
+  background: rgba(118, 75, 162, 0.08);
+}
+
+.boh-login-form input::placeholder {
+  color: rgba(0, 0, 0, 0.3);
+}
+
+.boh-login-form input.boh-invalid {
+  border-color: #ff5555;
+}
+
+/* ==================== 密码输入框容器 ==================== */
+.boh-password-wrap {
+  position: relative;
+}
+
+.boh-toggle-password {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(102, 126, 234, 0.1);
+  border: none;
+  color: #667eea;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.boh-toggle-password:hover {
+  background: rgba(102, 126, 234, 0.2);
+}
+
+/* ==================== 错误提示 ==================== */
+.boh-error-message {
+  color: #ff5555;
+  font-size: 12px;
+  margin-top: 6px;
+  display: none;
+}
+
+.boh-auth-error {
+  color: #ff5555;
+  font-size: 13px;
+  text-align: center;
+  margin-bottom: 15px;
+  display: none;
+  padding: 10px;
+  background: rgba(255, 85, 85, 0.1);
+  border-radius: 8px;
+}
+
+input.boh-invalid + .boh-error-message {
+  display: block;
+}
+
+/* ==================== 表单链接 ==================== */
+.boh-form-links {
+  display: flex;
+  justify-content: space-between;
+  margin: 15px 0 25px;
+  font-size: 13px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.boh-form-links a {
+  color: #667eea;
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+.boh-form-links a:hover {
+  color: #764ba2;
+  text-decoration: underline;
+}
+
+/* ==================== 登录按钮 ==================== */
+.boh-login-btn {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  letter-spacing: 1px;
+  position: relative;
+  overflow: hidden;
+}
+
+.boh-login-btn::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transition: left 0.5s ease;
+}
+
+.boh-login-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+}
+
+.boh-login-btn:hover::before {
+  left: 100%;
+}
+
+.boh-login-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.boh-login-btn:active {
+  transform: translateY(0);
+}
+
+/* ==================== 导航栏登录按钮 ==================== */
+.nav-login-btn {
+  padding: 8px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.nav-login-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.nav-login-btn:active {
+  transform: translateY(0);
+}
+
+/* ==================== 用户信息区域 ==================== */
+.nav-user-info {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 5px 10px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.nav-user-info:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.nav-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.nav-username {
+  color: #1d1d1f;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* ==================== 用户下拉菜单 ==================== */
+.nav-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  min-width: 180px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px);
+  transition: all 0.3s ease;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.nav-user-info.show-dropdown .nav-dropdown {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.nav-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  color: #515154;
+  text-decoration: none;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.nav-dropdown-item:hover {
+  background: rgba(102, 126, 234, 0.1);
+  color: #667eea;
+}
+
+.dropdown-icon {
+  font-size: 16px;
+}
+
+.nav-dropdown-divider {
+  height: 1px;
+  background: rgba(0, 0, 0, 0.1);
+  margin: 4px 0;
+}
+
+/* ==================== 响应式设计 ==================== */
+
+/* 小屏幕设备 */
+@media (max-width: 480px) {
+  .boh-login-modal-container {
+    margin: 15px;
+    padding: 30px 20px;
+  }
+
+  .boh-login-modal-header h2 {
+    font-size: 20px;
+  }
+
+  .boh-login-form input {
+    padding: 12px 14px;
+    font-size: 16px;
+  }
+
+  .boh-form-links {
+    flex-direction: column;
+    gap: 10px;
+    text-align: center;
+  }
+
+  .boh-login-btn {
+    padding: 12px;
+    font-size: 15px;
+  }
+}
+
+/* 超小屏幕设备 */
+@media (max-width: 360px) {
+  .boh-login-modal-container {
+    padding: 25px 15px;
+    margin: 10px;
+  }
+
+  .boh-login-logo {
+    width: 50px;
+    height: 50px;
+  }
+
+  .boh-login-modal-header h2 {
+    font-size: 18px;
+  }
+
+  .nav-login-btn {
+    padding: 6px 14px;
+    font-size: 13px;
+  }
+}
+
+/* 平板设备 */
+@media (min-width: 481px) and (max-width: 768px) {
+  .boh-login-modal-container {
+    max-width: 380px;
+  }
+}
+
+/* 大屏幕设备 */
+@media (min-width: 1200px) {
+  .boh-login-modal-container {
+    max-width: 420px;
+  }
+}
+
+/* ==================== 暗色模式支持 ==================== */
+@media (prefers-color-scheme: dark) {
+  .boh-login-modal-container {
+    background: rgba(30, 30, 30, 0.95);
+  }
+
+  .boh-login-modal-header h2 {
+    background: linear-gradient(135deg, #a8b4ff 0%, #b8a4ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+
+  .boh-login-form label {
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  .boh-login-form input {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(102, 126, 234, 0.3);
+    color: #ffffff;
+  }
+
+  .boh-login-form input::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+  }
+
+  .boh-login-modal-header p {
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .nav-username {
+    color: #ffffff;
+  }
+}
+
+/* ==================== 打印样式 ==================== */
+@media print {
+  .boh-login-modal-overlay {
+    position: static;
+    background: none;
+    backdrop-filter: none;
+    display: block;
+  }
+
+  .boh-login-modal-container {
+    box-shadow: none;
+    max-width: 100%;
+  }
+
+  .boh-login-modal-close {
+    display: none;
+  }
+}

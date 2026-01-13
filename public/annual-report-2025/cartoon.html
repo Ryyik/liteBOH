@@ -1,0 +1,1371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>2025年度总结 - 方块之家</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        background-image: url("../assets/images/2025winterQA.webp");
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+        font-family: "Microsoft YaHei", sans-serif;
+        overflow-x: hidden;
+        position: relative;
+        min-height: 100vh;
+        color: #fff;
+      }
+
+      /* 活动卡片轮播组件样式 */
+      .activity-carousel {
+        position: relative;
+        width: 100%;
+        height: 100vh;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .carousel-container {
+        position: relative;
+        width: 90%;
+        max-width: 800px;
+        height: 60vh;
+        perspective: 1000px;
+      }
+
+      .carousel-slide {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        transform: translateX(100%) rotateY(20deg);
+        transition: all 0.6s ease;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        padding: 30px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+
+      .carousel-slide.active {
+        opacity: 1;
+        transform: translateX(0) rotateY(0deg);
+        z-index: 10;
+      }
+
+      .carousel-slide.prev {
+        opacity: 0.6;
+        transform: translateX(-100%) rotateY(-20deg);
+        z-index: 5;
+      }
+
+      .carousel-slide.next {
+        opacity: 0.6;
+        transform: translateX(100%) rotateY(20deg);
+        z-index: 5;
+      }
+
+      .activity-date {
+        font-size: 1.2rem;
+        color: #42b983;
+        font-weight: bold;
+        margin-bottom: 10px;
+      }
+
+      .activity-title {
+        font-size: 2rem;
+        font-weight: bold;
+        margin-bottom: 20px;
+        background: linear-gradient(90deg, #ffffff, #42b983);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+
+      .activity-content {
+        font-size: 1.1rem;
+        line-height: 1.6;
+        color: #ddd;
+        flex: 1;
+      }
+
+      .activity-image {
+        width: 100%;
+        height: 200px;
+        object-fit: cover;
+        border-radius: 10px;
+        margin-top: 10px;
+      }
+
+      .carousel-nav {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        padding: 0 20px;
+        z-index: 20;
+      }
+
+      .nav-btn {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        color: #fff;
+        font-size: 2rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(10px);
+      }
+
+      .nav-btn:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: scale(1.1);
+      }
+
+      .carousel-indicators {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 10px;
+        z-index: 20;
+      }
+
+      .indicator {
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.3);
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .indicator.active {
+        background: #42b983;
+        transform: scale(1.2);
+      }
+
+      /* 个性化标签展示区域 */
+      .tags-section {
+        padding: 100px 40px;
+        text-align: center;
+        display: none;
+      }
+
+      .tags-title {
+        font-size: 2.5rem;
+        margin-bottom: 50px;
+        background: linear-gradient(90deg, #000000, #ffffff);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+
+      .tags-container {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 20px;
+        max-width: 1000px;
+        margin: 0 auto;
+      }
+
+      .tag-item {
+        font-size: 1.3rem;
+        padding: 15px 30px;
+        border-radius: 50px;
+        background: #ffffff;
+        color: #000000;
+        font-weight: bold;
+        opacity: 0;
+        transform: scale(0.5);
+        transition: all 0.6s ease;
+        cursor: pointer;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+      }
+
+      .tag-item.show {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      /* 个性化标签动画效果 */
+      @keyframes tagPulse {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.1);
+        }
+      }
+
+      .tag-item:hover {
+        animation: tagPulse 0.5s ease-in-out;
+      }
+
+      /* 年度总结内容区域 */
+      .summary-container {
+        width: 100%;
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 30px;
+        color: #fff;
+        opacity: 0;
+        transition: all 0.6s ease;
+        position: relative;
+        z-index: 10;
+        display: none;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        min-height: 60vh;
+      }
+
+      .summary-container.show {
+        opacity: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        transform: translateX(0) rotateY(0deg);
+      }
+
+      .summary-header {
+        text-align: center;
+        margin-bottom: 50px;
+        padding-bottom: 30px;
+        border-bottom: 1px solid #333;
+        width: 100%;
+      }
+
+      .summary-title {
+        font-size: clamp(1.8rem, 5vw, 2.8rem);
+        margin-bottom: 15px;
+        background: linear-gradient(90deg, #ffffff, #bbbbbb);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        display: block;
+      }
+
+      .summary-subtitle {
+        font-size: clamp(1.2rem, 3vw, 1.8rem);
+        color: #aaa;
+      }
+
+      .summary-content {
+        line-height: 1.8;
+        font-size: clamp(1rem, 2.5vw, 1.2rem);
+        color: #ddd;
+        text-align: justify;
+        padding-right: 10px;
+      }
+
+      .summary-content p {
+        margin-bottom: 25px;
+        text-indent: 2em;
+      }
+
+      .summary-content strong {
+        color: #42b983;
+        font-weight: bold;
+      }
+
+      .summary-footer {
+        margin-top: 60px;
+        padding-top: 30px;
+        border-top: 1px solid #333;
+        text-align: center;
+      }
+
+      .signature {
+        font-size: 1.2rem;
+        color: #888;
+        margin-bottom: 10px;
+      }
+
+      .date {
+        font-size: 1rem;
+        color: #666;
+      }
+
+      /* 响应式设计 */
+      @media (max-width: 768px) {
+        .carousel-container {
+          width: 95%;
+          height: 70vh;
+        }
+
+        .carousel-slide {
+          padding: 20px;
+        }
+
+        .activity-title {
+          font-size: 1.5rem;
+        }
+
+        .activity-content {
+          font-size: 1rem;
+        }
+
+        .nav-btn {
+          width: 50px;
+          height: 50px;
+          font-size: 1.5rem;
+        }
+
+        .tags-section {
+          padding: 60px 20px;
+        }
+
+        .tags-title {
+          font-size: 2rem;
+        }
+
+        .tag-item {
+          font-size: 1rem;
+          padding: 12px 24px;
+        }
+
+        .summary-container {
+          padding: 40px 20px;
+          margin: 0 15px;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .carousel-container {
+          height: 80vh;
+        }
+
+        .activity-image {
+          height: 150px;
+        }
+
+        .tags-container {
+          gap: 10px;
+        }
+
+        .tag-item {
+          font-size: 0.9rem;
+          padding: 10px 20px;
+        }
+      }
+
+      /* 开屏动画样式 */
+
+      /* 全屏动画容器 */
+      #introAnimationContainer {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: #000;
+        z-index: 1000;
+        overflow: hidden;
+      }
+
+      /* 玩家ID动画样式 */
+      .player-id {
+        position: absolute;
+        font-size: 1.2em;
+        color: #ffffff;
+        opacity: 0;
+        z-index: 1001;
+        text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+        animation: nameDisplayAnimation 3s ease-in-out forwards;
+        white-space: nowrap;
+      }
+
+      @keyframes nameDisplayAnimation {
+        0% {
+          opacity: 0;
+          transform: scale(0.8);
+        }
+        20% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        100% {
+          opacity: 0;
+          transform: scale(2);
+        }
+      }
+
+      /* 方块之家标题 */
+      #mainTitle {
+        opacity: 0;
+        position: fixed;
+        top: 30%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 7em;
+        font-weight: bold;
+        color: #ffffff;
+        text-align: center;
+        z-index: 1001;
+        animation: colorGlow 4s ease-in-out infinite;
+        white-space: nowrap;
+        text-wrap: nowrap;
+        word-spacing: 0;
+        letter-spacing: 0;
+      }
+
+      /* 白色淡色系渐变发光效果 */
+      @keyframes colorGlow {
+        0% {
+          text-shadow: 0 0 10px rgba(255, 255, 255, 0.8),
+            0 0 15px rgba(255, 255, 255, 0.6), 0 0 20px rgba(255, 255, 255, 0.4),
+            0 0 30px rgba(255, 255, 255, 0.2);
+        }
+        50% {
+          text-shadow: 0 0 15px rgba(255, 255, 255, 0.9),
+            0 0 20px rgba(255, 255, 255, 0.7), 0 0 25px rgba(255, 255, 255, 0.5),
+            0 0 35px rgba(255, 255, 255, 0.3);
+        }
+        100% {
+          text-shadow: 0 0 10px rgba(255, 255, 255, 0.8),
+            0 0 15px rgba(255, 255, 255, 0.6), 0 0 20px rgba(255, 255, 255, 0.4),
+            0 0 30px rgba(255, 255, 255, 0.2);
+        }
+      }
+
+      /* 副标题 */
+      #subTitle {
+        opacity: 0;
+        position: fixed;
+        top: 45%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 2.5em;
+        color: #cccccc;
+        text-align: center;
+        z-index: 1001;
+        font-family: "Microsoft YaHei", "微软雅黑", sans-serif;
+        text-shadow: none;
+      }
+
+      /* 滚动文字容器 - 已删除 */
+
+      /* 年份 - 已删除 */
+
+      /* 动画显示类 */
+      .fade-in {
+        opacity: 1 !important;
+        transition: opacity 1s ease-in-out;
+      }
+
+      /* 延迟动画类 */
+      .delay-1 {
+        transition-delay: 0.5s !important;
+      }
+
+      .delay-2 {
+        transition-delay: 1s !important;
+      }
+
+      .delay-3 {
+        transition-delay: 1.5s !important;
+      }
+
+      /* 响应式设计 */
+      @media (max-width: 768px) {
+        #mainTitle {
+          font-size: 4em;
+        }
+
+        #subTitle {
+          font-size: 1.8em;
+        }
+
+        .player-id {
+          font-size: 1em;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .player-id {
+          font-size: 0.8em;
+        }
+      }
+
+      /* 动画显示类 */
+      .fade-in {
+        opacity: 1 !important;
+      }
+
+      /* 加载动画 */
+      .loading {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: #000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        transition: opacity 0.5s ease;
+      }
+
+      .loading.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .loading-text {
+        font-size: 2rem;
+        color: #42b983;
+        animation: pulse 1s infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+
+      /* 年度最佳内容板块样式 */
+      .best-content-section {
+        text-align: center;
+        padding: 4rem 2rem;
+        margin: 2rem auto;
+        max-width: 1200px;
+      }
+
+      .best-content-header {
+        margin-bottom: 3rem;
+      }
+
+      /* 英雄字设计风格标题 */
+      .best-content-title {
+        font-size: 3.5rem;
+        font-weight: 800;
+        color: #fff;
+        margin-bottom: 0.5rem;
+        padding: 1.5rem;
+        display: inline-block;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        text-shadow: 0 0 30px rgba(255, 255, 255, 0.8),
+          0 0 60px rgba(0, 200, 255, 0.5);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1),
+          inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        transition: all 0.3s ease;
+      }
+
+      .best-content-title:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15),
+          inset 0 1px 0 rgba(255, 255, 255, 0.5);
+        border-color: rgba(255, 255, 255, 0.4);
+      }
+
+      .best-content-subtitle {
+        font-size: 1.2rem;
+        color: rgba(255, 255, 255, 0.8);
+        margin-bottom: 2rem;
+      }
+
+      /* 玻璃质感按钮样式 */
+      .best-content-button-container {
+        position: relative;
+        display: inline-block;
+        margin-top: 2rem;
+      }
+
+      .glass-button {
+        position: relative;
+        display: inline-block;
+        padding: 1.5rem 3rem;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 50px;
+        color: #fff;
+        font-size: 1.2rem;
+        font-weight: bold;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+      }
+
+      .glass-button:hover {
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(255, 255, 255, 0.3);
+      }
+
+      /* 按钮文字样式 */
+      .button-text {
+        position: relative;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 加载动画 -->
+    <div class="loading" id="loading">
+      <div class="loading-text"></div>
+    </div>
+
+    <!-- 开屏动画容器 -->
+    <div id="introAnimationContainer">
+      <div id="mainTitle">方块之家</div>
+      <div id="subTitle">2025年度专属总结</div>
+    </div>
+
+    <!-- 活动卡片轮播组件 -->
+    <div class="activity-carousel" id="activityCarousel">
+      <div class="carousel-container" id="carouselContainer">
+        <!-- 活动卡片将通过JavaScript动态生成 -->
+      </div>
+      <div class="carousel-nav">
+        <button class="nav-btn" id="prevBtn">&lt;</button>
+        <button class="nav-btn" id="nextBtn">&gt;</button>
+      </div>
+      <div class="carousel-indicators" id="carouselIndicators">
+        <!-- 指示器将通过JavaScript动态生成 -->
+      </div>
+    </div>
+
+    <!-- 个性化标签展示区域 -->
+    <div class="tags-section" id="tagsSection">
+      <h2 class="tags-title">你的专属标签</h2>
+      <div class="tags-container" id="tagsContainer">
+        <!-- 个性化标签将通过JavaScript动态生成 -->
+      </div>
+    </div>
+
+    <!-- 年度最佳内容板块 -->
+    <div class="best-content-section" id="bestContentSection">
+      <div class="best-content-header">
+        <h2 class="best-content-title">2025方块年度最佳</h2>
+        <p class="best-content-subtitle">
+          回顾年度精彩内容，见证方块世界的创意与精彩
+        </p>
+      </div>
+      <div class="best-content-button-container">
+        <a id="bestButton" href="best.html" class="glass-button">
+          <span class="button-text">点击查看</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- 年度总结内容区域 -->
+    <div class="summary-container" id="summaryContainer">
+      <div class="summary-header">
+        <h1 class="summary-title" id="summaryTitle"></h1>
+        <div class="summary-subtitle">方块之家2025年度总结</div>
+      </div>
+      <div class="summary-content" id="summaryContent"></div>
+      <div class="summary-footer">
+        <div class="signature">方块之家运营团队 敬上</div>
+        <div class="date" id="summaryDate"></div>
+      </div>
+    </div>
+
+    <script>
+      // 活动数据
+      const activities = [
+        {
+          date: "2025年1月",
+          title: "新年派对活动",
+          content:
+            "新年新气象，方块之家举办了盛大的新年派对活动，大家一起跨年，2025，方块之家，新年快乐！",
+          image: "../assets/images/2025-newyear.webp",
+        },
+        {
+          date: "2025年7月",
+          title: "七周年庆典",
+          content:
+            "方块之家来了七岁生日！我们举办了庆典活动，还发布了七周年遇见系列视频。另外赠送了大家七周年礼盒。",
+          image: "../assets/images/2025-7years.webp",
+        },
+        {
+          date: "2025年10月",
+          title: "生日特别活动",
+          content:
+            "我们组织了一场10月生日活动。活动包括盲盒抽奖，但是剧本杀被放鸽子了。",
+          image: "../assets/images/2025-10-shengri.webp",
+        },
+        {
+          date: "2025年12月12日",
+          title: "方块博物馆来袭",
+          content:
+            "2025年12月12日，方块街将举办圣诞&生日会特别活动。我们一起庆祝这个充满欢乐的节日！",
+          image: "../assets/images/2025wintermuseam.webp",
+        },
+      ];
+
+      // 用户标签数据
+      const userTags = {
+        LF: ["梗王", "活跃之星", "活动策划", "摄影", "一个听不懂一个听不清"],
+        小牛无聊: ["技术大佬", "建筑大师", "活动达人", "手工"],
+        雨芙蕖喵: ["人气新人", "氛围担当", "表情包达人", "牛派", "听不懂"],
+        Ryyik: ["创意引擎", "策划", "视频制作", "羽毛球"],
+        admin: ["定海神针", "幕后英雄", "统筹者", "守护者"],
+        Endgalaxy: ["游戏大神", "实力担当", "英雄联盟", "可靠队友"],
+        chengzi: ["岁月静好", "元老成员", "瓦罗兰特"],
+        CELLINIA: ["文学", "ow大王", "丁老师", "cos"],
+        lzaQ: ["跑酷大神", "音游", "萌"],
+        mcplayer: ["探索精神", "团队合作", "友好热情", "中坚力量"],
+        xiaoniu: ["建筑高手", "PVP达人", "全能选手", "技术之星"],
+        Eleven: ["凯影", "铁男", "跑酷大神", "剧本杀放鸽子", "荷兰高三"],
+        HYP: ["技术流", "暖场", "eleven慈父", "陪玩"],
+        LiulanTuT: ["PVP", "最佳粉丝", "实力新人"],
+        DRWEKS: ["建筑大师", "小牛最佳拍档"],
+        hamburger: ["PVP", "整活之王", "eleven严父", "carry全场"],
+        MrXue_: ["方块之家新人"],
+      };
+
+      // 用户加入时间数据
+      const joinTimeData = {
+        LF: "2018-07-21",
+        小牛无聊: "2018-07-21",
+        雨芙蕖喵: "2025-08-27",
+        Ryyik: "2018-07-21",
+        Endgalaxy: "2018-07-21",
+        chengzi: "2018-07-21",
+        CELLINIA: "2023-09-16",
+        lzaQ: "2022-02-12",
+        admin: "2018-07-21",
+        mcplayer: "2021-02-18",
+        xiaoniu: "2020-08-25",
+        Eleven: "2022-02-12",
+        HYP: "2019-7-21",
+        LiulanTuT: "2025-8-29",
+        DRWEKS: "2025-9-06",
+        hamburger: "2022-01-01",
+        MrXue_: "2025-11-27",
+      };
+
+      // 2026年度专属总结内容
+      const year2026SummaryData = {
+        LF: {
+          greeting: "LF！你的方块之家2026年度总结：",
+          content: `
+                    <p><strong>致LF：</strong></p>
+                    <p>LF，你知道吗，你吐槽完了我真的重新推翻整个页面做了不煽情版本！工作量老鼻大了。总结今年，真的蛮特别哦。七月居然见到了这头牛的本尊，相处之愉远超预期（哼哼？）。本来以为会有更多机会来找你玩，但你故意躲着我居然跑到这么西北的地方。你赢了。最后你问我方块之家什么时候解散啊。那我要立flag，愿方块之家继续陪伴我们，年复一年。新年快乐，愿你在未来顺利实现研究生的计划！诸事顺遂！</p>
+                `,
+        },
+        小牛无聊: {
+          greeting: "小牛无聊！你的方块之家2026年度总结：",
+          content: `
+                    <p><strong>致小牛无聊：</strong></p>
+                    <p>方块之家今年的活动虽不多，但你的创造力从未缺席。我的创意在前面跑，而你始终默默在后方将它们化为现实。从七周年惊艳的转场设计，到冬季特别活动的精雕细琢；把时光倒回2018年，你第一次为我们打造空岛地图的那个遥远午后——每一年，每一次活动，正是这些点滴构筑了方块之家的内核。我们不断革新，只为带来全新体验，而你，是其中不可或缺的一环。甚至2025年的收官之作，也是由你与黑白联袂呈现。方块之家的每位成员，都欠你一句感谢。而于我而言，更得再次磕头（不是）：谢谢你，小牛。愿你的2026年学业和生活都更顺利，早日遇见ta，哈哈哈哈，新年快乐！</p>
+                `,
+        },
+        雨芙蕖喵: {
+          greeting: "雨芙蕖喵！你的方块之家2026年度总结：",
+          content: `
+                    <p><strong>致yufuqu：</strong></p>
+                    <p>2025年8月，你加入方块之家。无论在直播间还是群聊中，你的到来都为这个大家庭注入了灵动的新意。女孩子的加入让沉寂的群聊再现涟漪，活跃度随之攀升，我们甚至因此形成了更亲密的小圈子，氛围愈发温馨融洽。这份活力，值得一句真挚的感谢。2026新年快乐，愿你在新的一年里生活顺遂，笑容常伴，在方块之家续写更多精彩故事！哞！</p>
+                `,
+        },
+        Ryyik: {
+          greeting: "Ryyik！你的方块之家2026年度总结：",
+          content: `
+                    <p><strong>致Ryyik：</strong></p>
+                    <p>Ryyik，群里的"技术担当"与"冷笑话宝库"！从服务器优化到Bug排查，你总能在关键时刻用一行行代码拯救世界。2025年，你默默守护了无数个小时的服务器稳定，让大家能安心挖矿、安心建造。感谢你作为背后的技术支柱，让方块之家的世界始终运转如初。2026年，愿你的代码永无Bug，生活充满欢笑，头发浓密如初！</p>
+                `,
+        },
+        admin: {
+          greeting: "admin！你的方块之家2025年度总结：",
+          content: `
+                    <p><strong>尊敬的管理员：</strong></p>
+                    <p>2025年，你像一位无声的守护者，在幕后默默维护着方块之家的秩序与温暖。你的统筹让每一次活动顺利进行，你的决策让社群健康发展。</p>
+                    <p>这一年，你处理了127次群管理事务，协助解决23次技术故障，审核通过了15个新项目。你的日均在线时长超过10小时。</p>
+                    <p>你获得"定海神针"、"幕后英雄"等称号，你是定海神针，有你在，我们就安心。感谢你无私的付出与专业的管理！</p>
+                    <p><strong>2026，方块之家因你更美好！</strong></p>
+                `,
+        },
+        Endgalaxy: {
+          greeting: "Endgalaxy！你的方块之家2026年度总结：",
+          content: `
+                    <p><strong>致Endgalaxy：</strong></p>
+                    <p>Endgalaxy，哎我真没招了，我和11绝对不是故意这么坑的！新的一年end再变得更C一点吧。（骗你的，我俩会努力的）。方块之家就这样陪伴着我们度过一年又一年，新的一年指望LOL段位越高，校园生活也更加顺利，新年快乐！</p>
+                `,
+        },
+        chengzi: {
+          greeting: "chengzi！你的方块之家2026年度总结：",
+          content: `
+                    <p><strong>致chengzi（橙子）：</strong></p>
+                    <p>你好呀，橙子～还记得你当年加入方块之家时还是稚气未脱的小学生，转眼间已成长为朝气蓬勃的大学生。时光荏苒，感谢你一路的陪伴与见证，那些年一起挖矿、建城、冒险的MC时光，早已沉淀为我们共同的美好记忆。虽不知你近况如何，但方块之家永远为你留着一席之地。愿你生活顺遂，万事胜意，新年快乐！</p>
+                `,
+        },
+        CELLINIA: {
+          greeting: "CELLINIA！你的方块之家2026年度总结：",
+          content: `
+                    <p><strong>致CELLINIA：</strong></p>
+                    <p>丁老师，今年差点就见到你了，太可惜了，希望以后还有这个机会。你刚入群是大四，到现在工作，身份在变，却始终不变的是你对方块之家的关注。虽然平时繁忙，或许无暇常来参与活动，但你始终在屏幕后默默关注着我们。经常语出惊人，我现在遇到不顺的事情就想起丁老师那句"你咋不敢跟他干一架"。笑死我了。感谢你的陪伴，祝丁老师生活越来越精彩，新的一年事业步步高升，感情顺利。新年快乐！</p>
+                `,
+        },
+        lzaQ: {
+          greeting: "lzaQ！你的方块之家2026年度总结：",
+          content: `
+                    <p><strong>致lzaQ：</strong></p>
+                    <p>可爱的河豚～（骗你的）依旧是跑酷大蛇。新的一年，愿你在大学一切顺利，跑酷技术日益精进！也愿你在大学一切顺利，跑酷技术日益精进！也祝愿你早日遇见那个特别的人，新年快乐，诸事顺遂！</p>
+                `,
+        },
+        mcplayer: {
+          greeting: "mcplayer！你的方块之家2025年度总结：",
+          content: `
+                    <p><strong>亲爱的mcplayer：</strong></p>
+                    <p>2025年，你在方块之家度过了充实而快乐的一年。从2021年加入至今，你已经成为了社区中不可或缺的一员。</p>
+                    <p>这一年，你参与了20+次服务器活动，建造了3个主题基地，收集了全套稀有物品。你的探索精神让我们印象深刻。</p>
+                    <p>你总能在大家需要帮助时伸出援手，展现了极强的团队精神。你的友好态度让每位新成员都感到温暖。</p>
+                    <p>虽然你的用户名很普通，但你的存在让方块之家变得不普通。你是社区的中坚力量！</p>
+                    <p><strong>2026，继续探索无限可能的方块世界！</strong></p>
+                `,
+        },
+        xiaoniu: {
+          greeting: "xiaoniu！你的方块之家2025年度总结：",
+          content: `
+                    <p><strong>亲爱的xiaoniu：</strong></p>
+                    <p>2025年，你以2020年加入的"中生代"身份，展现了不输元老的技术实力。你的成长速度令人瞩目。</p>
+                    <p>这一年，你在建筑方面完成了5个大型项目，在PVP方面取得了12连胜，还独立开发了3个实用插件。</p>
+                    <p>你耐心指导了6位新人，你的教程被收藏了200+次。你展现了作为技术大神的潜质和担当。</p>
+                    <p>你获得"建筑高手"、"PVP达人"等称号，你的全能表现让大家看到了你的无限潜力。</p>
+                    <p><strong>2026，继续发光发热，成为更耀眼的技术之星！</strong></p>
+                `,
+        },
+        Eleven: {
+          greeting: "Eleven！你的方块之家2026年度总结：",
+          content: `
+                    <p><strong>致Eleven：</strong></p>
+                    <p>Eleven，首先希望你3月11日的考试顺利！你联盟还得练。别我俩又给end上压力，到时候end打完一局一路alt+F4到关机了，笑死我了。不过还是和感谢你对方块之家长久以来的支持，希望这些年我们的社群能给你带来欢笑与难忘的回忆。指望未来考试顺利，2026一切都会更好，加油！</p>
+                `,
+        },
+        HYP: {
+          greeting: "HYP！你的方块之家2026年度总结：",
+          content: `
+                    <p><strong>致HYP：</strong></p>
+                    <p>HYP，华少，今年看到你朋友圈主持校园活动，然后暑假那会你的陪玩做的太强了，以前华少是开玩笑的，现在感觉真得叫华少了哥。谢谢你对方块之家的支持，愿你在方块之家收获更多温暖，新的一年陪玩单子更多！生活顺心如意，新年快乐！</p>
+                `,
+        },
+        LiulanTuT: {
+          greeting: "LiulanTuT！你的方块之家2026年度总结：",
+          content: `
+                    <p><strong>致LiulanTuT：</strong></p>
+                    <p>LiulanTuT，感谢你支持LF和我，也欢迎你加入方块之家，初印象：起床带飞的神秘大佬！哈哈哈哈，新年快乐！在方块之家希望你有更多美好回忆！</p>
+                `,
+        },
+        DRWEKS: {
+          greeting: "DRWEKS！你的方块之家2026年度总结：",
+          content: `
+                    <p><strong>致DRWEKS（黑白）：</strong></p>
+                    <p>欢迎你加入方块之家！初入大家庭，你便与小牛携手打造了全新的活动地图，更一直热切关注着群内的每个动向。感谢你对方块之家的支持——如今我们的活动离不开小牛，更缺不了你。感谢你在繁忙学业之余，仍为我们构筑如此精美的地图。万分期待未来能见证你更多充满奇思妙想的创作！新年快乐！</p>
+                `,
+        },
+        hamburger: {
+          greeting: "hamburger！你的方块之家2026年度总结：",
+          content: `
+                    <p><strong>致hamburger：</strong></p>
+                    <p>hamburger，抽象大神汉堡，轩轩的严父，新的一年祝你一切顺利，新年快乐！赶紧带我上黄金。</p>
+                `,
+        },
+        MrXue_: {
+          greeting: "MrXue_！你的方块之家2026年度总结：",
+          content: `
+                    <p><strong>致MrXue_：</strong></p>
+                    <p>MrXue_，欢迎你加入方块之家，希望新的一年在方块之家你可以收获更多美好的回忆，我们有特别的活动，好玩的抽奖。新年快乐！</p>
+                `,
+        },
+      };
+
+      // 初始化活动轮播
+      function initCarousel() {
+        const container = document.getElementById("carouselContainer");
+        const indicators = document.getElementById("carouselIndicators");
+        let currentIndex = 0;
+
+        // 创建活动卡片
+        activities.forEach((activity, index) => {
+          const slide = document.createElement("div");
+          slide.className = `carousel-slide ${index === 0 ? "active" : ""}`;
+          slide.innerHTML = `
+                    <div class="activity-date">${activity.date}</div>
+                    <h2 class="activity-title">${activity.title}</h2>
+                    <div class="activity-content">${activity.content}</div>
+                    <img src="${activity.image}" alt="${activity.title}" class="activity-image" loading="lazy">
+                `;
+          container.appendChild(slide);
+
+          // 创建指示器
+          const indicator = document.createElement("div");
+          indicator.className = `indicator ${index === 0 ? "active" : ""}`;
+          indicator.addEventListener("click", () => goToSlide(index));
+          indicators.appendChild(indicator);
+        });
+
+        // 翻页按钮事件
+        document.getElementById("prevBtn").addEventListener("click", () => {
+          if (currentIndex > 0) {
+            goToSlide(currentIndex - 1);
+          }
+        });
+
+        document.getElementById("nextBtn").addEventListener("click", () => {
+          if (currentIndex < activities.length - 1) {
+            goToSlide(currentIndex + 1);
+          } else {
+            // 最后一个活动，点击后滚动到标签区域
+            scrollToTagsSection();
+          }
+        });
+
+        // 翻页函数
+        function goToSlide(index) {
+          const slides = document.querySelectorAll(".carousel-slide");
+          const indicators = document.querySelectorAll(".indicator");
+
+          // 更新当前索引
+          currentIndex = index;
+
+          // 更新幻灯片状态
+          slides.forEach((slide, i) => {
+            slide.className = "carousel-slide";
+            if (i === currentIndex) {
+              slide.classList.add("active");
+            } else if (i === currentIndex - 1) {
+              slide.classList.add("prev");
+            } else if (i === currentIndex + 1) {
+              slide.classList.add("next");
+            }
+          });
+
+          // 更新指示器状态
+          indicators.forEach((indicator, i) => {
+            indicator.className = `indicator ${
+              i === currentIndex ? "active" : ""
+            }`;
+          });
+        }
+      }
+
+      // 滚动到标签区域
+      function scrollToTagsSection() {
+        const tagsSection = document.getElementById("tagsSection");
+        tagsSection.scrollIntoView({ behavior: "smooth" });
+      }
+
+      // 初始化用户标签
+      function initUserTags(username) {
+        const container = document.getElementById("tagsContainer");
+        const tags = userTags[username] || ["友好成员", "积极参与", "未来之星"];
+
+        tags.forEach((tag, index) => {
+          const tagItem = document.createElement("div");
+          tagItem.className = "tag-item";
+          tagItem.textContent = tag;
+          container.appendChild(tagItem);
+
+          // 延迟显示标签，创建动画效果
+          setTimeout(() => {
+            tagItem.classList.add("show");
+          }, index * 200);
+        });
+      }
+
+      // 开屏动画控制函数
+      function playIntroAnimation(username) {
+        const animationContainer = document.getElementById(
+          "introAnimationContainer"
+        );
+        const allPlayerIds = Object.keys(joinTimeData);
+        const usedPositions = [];
+        let currentIndex = 0;
+        let animationSkipped = false;
+
+        // 创建跳过按钮
+        const skipButton = document.createElement("button");
+        skipButton.id = "skipAnimationBtn";
+        skipButton.textContent = "跳过动画";
+        skipButton.style.cssText = `
+          position: fixed;
+          bottom: 30px;
+          right: 30px;
+          padding: 12px 24px;
+          background: rgba(255, 255, 255, 0.2);
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.3);
+          border-radius: 25px;
+          color: #fff;
+          font-size: 16px;
+          font-weight: 500;
+          cursor: pointer;
+          z-index: 10000;
+          opacity: 0;
+          transition: all 0.3s ease;
+          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        `;
+        skipButton.addEventListener("mouseenter", () => {
+          skipButton.style.background = "rgba(255, 255, 255, 0.3)";
+          skipButton.style.transform = "translateY(-2px)";
+          skipButton.style.boxShadow = "0 6px 20px rgba(0, 0, 0, 0.3)";
+        });
+        skipButton.addEventListener("mouseleave", () => {
+          skipButton.style.background = "rgba(255, 255, 255, 0.2)";
+          skipButton.style.transform = "translateY(0)";
+          skipButton.style.boxShadow = "0 4px 15px rgba(0, 0, 0, 0.2)";
+        });
+
+        // 跳过动画功能
+        skipButton.addEventListener("click", () => {
+          animationSkipped = true;
+          // 立即隐藏动画容器
+          animationContainer.style.transition = "opacity 0.5s ease-out";
+          animationContainer.style.opacity = "0";
+          setTimeout(() => {
+            animationContainer.style.display = "none";
+            skipButton.remove();
+          }, 500);
+          // 立即触发内容显示
+          showMainContent();
+        });
+
+        document.body.appendChild(skipButton);
+
+        // 1.5秒后显示跳过按钮
+        setTimeout(() => {
+          if (!animationSkipped) {
+            skipButton.style.opacity = "1";
+          }
+        }, 1500);
+
+        // 检查位置是否重叠的函数
+        function isPositionOverlapping(x, y, usedPositions, minDistance) {
+          for (const pos of usedPositions) {
+            const distance = Math.sqrt(
+              Math.pow(x - pos.x, 2) + Math.pow(y - pos.y, 2)
+            );
+            if (distance < minDistance) {
+              return true;
+            }
+          }
+          return false;
+        }
+
+        // 获取不重叠的随机位置
+        function getRandomNonOverlappingPosition(minDistance = 100) {
+          let x, y;
+          let isOverlapping;
+          let attempts = 0;
+          const maxAttempts = 15;
+          const padding = 50; // 避免元素出现在屏幕边缘
+
+          do {
+            isOverlapping = false;
+            x = Math.random() * (window.innerWidth - padding * 2) + padding;
+            y = Math.random() * (window.innerHeight - padding * 2) + padding;
+
+            if (isPositionOverlapping(x, y, usedPositions, minDistance)) {
+              isOverlapping = true;
+            }
+            attempts++;
+          } while (isOverlapping && attempts < maxAttempts);
+
+          return { x, y };
+        }
+
+        // 显示单个名字的函数
+        function displaySingleName() {
+          if (currentIndex >= allPlayerIds.length) {
+            // 所有名字显示完毕，进入第二阶段
+            setTimeout(() => {
+              startPhaseTwo();
+            }, 2000);
+            return;
+          }
+
+          const playerId = allPlayerIds[currentIndex];
+          const idElement = document.createElement("div");
+          idElement.className = "player-id";
+          idElement.textContent = playerId;
+          animationContainer.appendChild(idElement);
+
+          // 获取不重叠的随机位置
+          const { x, y } = getRandomNonOverlappingPosition();
+          usedPositions.push({ x, y });
+
+          // 设置位置
+          idElement.style.left = x + "px";
+          idElement.style.top = y + "px";
+
+          // 启动动画
+          idElement.style.animationPlayState = "running";
+
+          // 监听动画结束事件，移除元素
+          idElement.addEventListener("animationend", () => {
+            animationContainer.removeChild(idElement);
+            // 从已使用位置中移除
+            const index = usedPositions.findIndex(
+              (pos) => pos.x === x && pos.y === y
+            );
+            if (index > -1) {
+              usedPositions.splice(index, 1);
+            }
+          });
+
+          currentIndex++;
+
+          // 设置下一个名字的显示时间间隔（0.3-0.8秒随机）
+          const nextDelay = Math.random() * 0.5 + 0.3;
+          setTimeout(displaySingleName, nextDelay * 1000);
+        }
+
+        // 第一阶段：前4秒 - 玩家ID随机上升动画
+        function startPhaseOne() {
+          // 开始显示名字
+          displaySingleName();
+        }
+
+        // 第二阶段：后4秒 - 方块之家元素显示
+        function startPhaseTwo() {
+          if (animationSkipped) return;
+
+          // 依次显示标题元素
+          const mainTitle = document.getElementById("mainTitle");
+          const subTitle = document.getElementById("subTitle");
+
+          // 添加过渡效果
+          [mainTitle, subTitle].forEach((el) => {
+            if (el) {
+              el.style.transition =
+                "opacity 1.5s ease-in-out, transform 1.5s ease-in-out";
+            }
+          });
+
+          // 显示主标题
+          if (mainTitle) {
+            mainTitle.style.opacity = "1";
+            mainTitle.style.transform = "translate(-50%, -50%) scale(1.1)";
+          }
+
+          // 显示副标题
+          setTimeout(() => {
+            if (animationSkipped) return;
+            if (subTitle) {
+              subTitle.style.opacity = "1";
+              subTitle.style.transform = "translate(-50%, -50%) scale(1.05)";
+            }
+          }, 500);
+
+          // 4秒后隐藏动画并显示主要内容
+          setTimeout(() => {
+            if (animationSkipped) return;
+            const animationElements = document.querySelectorAll(
+              "#mainTitle, #subTitle"
+            );
+            animationElements.forEach((el) => {
+              if (el) {
+                el.style.transition = "opacity 1s ease-out";
+                el.style.opacity = "0";
+              }
+            });
+
+            // 等待动画结束后隐藏动画容器
+            setTimeout(() => {
+              if (animationSkipped) return;
+              animationContainer.style.display = "none";
+              const skipBtn = document.getElementById("skipAnimationBtn");
+              if (skipBtn) skipBtn.remove();
+            }, 1000);
+          }, 4000);
+        }
+
+        // 启动第一阶段动画
+        startPhaseOne();
+      }
+
+      // 辅助函数：计算加入时长
+      function calculateDuration(joinDateStr) {
+        const joinDate = new Date(joinDateStr);
+        const now = new Date();
+        const diffTime = Math.abs(now - joinDate);
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        const diffMonths = Math.floor(diffDays / 30);
+        const diffYears = Math.floor(diffMonths / 12);
+        const remainingMonths = diffMonths % 12;
+        const remainingDays = diffDays % 30;
+        return diffYears > 0
+          ? `${diffYears}年${remainingMonths}个月${remainingDays}天`
+          : diffMonths > 0
+          ? `${diffMonths}个月${remainingDays}天`
+          : `${diffDays}天`;
+      }
+
+      // 渲染年度总结
+      function renderSummary(username) {
+        const data = year2026SummaryData[username];
+        const joinData = joinTimeData[username];
+        const summaryContainer = document.getElementById("summaryContainer");
+        const summaryTitle = document.getElementById("summaryTitle");
+        const summaryContent = document.getElementById("summaryContent");
+        const summaryDate = document.getElementById("summaryDate");
+
+        if (data && joinData) {
+          summaryTitle.textContent = data.greeting;
+          summaryContent.innerHTML = data.content;
+          summaryDate.textContent = new Date().toLocaleDateString("zh-CN", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          });
+        } else {
+          summaryTitle.textContent = `${username}！你的方块之家2026年度总结：`;
+          summaryContent.innerHTML = `
+                    <p><strong>亲爱的${username}：</strong></p>
+                    <p>2026年是你在方块之家留下足迹的一年。感谢你的每一次参与和贡献！</p>
+                    <p>由于你的专属总结正在撰写中，敬请期待完整版本。</p>
+                    <p>入群时长：${calculateDuration(
+                      joinData || new Date().toISOString().split("T")[0]
+                    )}</p>
+                    <p><strong>2027，我们继续同行！</strong></p>
+                `;
+        }
+        summaryContainer.classList.add("show");
+      }
+
+      // 磨砂玻璃效果实现
+      function applyGlassmorphism() {
+        // 添加磨砂玻璃样式到关系网容器
+        const container = document.getElementById("relationship-network");
+        if (container) {
+          container.style.background = "rgba(255, 255, 255, 0.2)";
+          container.style.backdropFilter = "blur(10px)";
+          container.style.border = "1px solid rgba(255, 255, 255, 0.3)";
+          container.style.borderRadius = "15px";
+          container.style.boxShadow = "0 8px 32px rgba(0, 0, 0, 0.1)";
+        }
+      }
+
+      // 入口函数
+      async function initPage() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const username = urlParams.get("username")
+          ? decodeURIComponent(urlParams.get("username"))
+          : null;
+
+        // 隐藏加载动画
+        setTimeout(() => {
+          document.getElementById("loading").classList.add("hidden");
+        }, 1000);
+
+        // 初始化活动轮播（在后台进行，不影响开屏动画）
+        initCarousel();
+
+        // 播放开屏动画
+        playIntroAnimation(username);
+
+        // 定义显示主要内容的函数
+        window.showMainContent = function() {
+          // 年度最佳内容板块
+          const bestContentSection =
+            document.getElementById("bestContentSection");
+
+          // 无论是否登录，都显示活动轮播
+          const activityCarousel = document.getElementById("activityCarousel");
+          if (activityCarousel) {
+            activityCarousel.style.display = "flex";
+          }
+
+          // 无论是否登录，都显示标签区域
+          const tagsSection = document.getElementById("tagsSection");
+          if (tagsSection) {
+            tagsSection.style.display = "block";
+          }
+
+          if (username && joinTimeData[username]) {
+            // 登录状态：显示所有内容
+            // 显示年度最佳内容板块
+            if (bestContentSection) {
+              bestContentSection.style.display = "block";
+            }
+
+            // 更新"点击查看"按钮的链接，添加username参数
+            const bestButton = document.getElementById("bestButton");
+            if (bestButton) {
+              bestButton.href = `best.html?username=${encodeURIComponent(
+                username
+              )}`;
+            }
+
+            // 隐藏不必要的人物名单（如果存在）
+            const memberList = document.getElementById("memberList");
+            if (memberList) {
+              memberList.style.display = "none";
+            }
+
+            // 初始化用户标签
+            initUserTags(username);
+
+            // 应用磨砂玻璃效果
+            applyGlassmorphism();
+
+            // 渲染年度总结
+            renderSummary(username);
+          } else {
+            // 未登录状态：只显示登录提示，隐藏年度最佳内容板块
+            if (bestContentSection) {
+              bestContentSection.style.display = "none";
+            }
+
+            document.getElementById("summaryContainer").style.display = "block";
+            document.getElementById("summaryContainer").classList.add("show");
+            document.getElementById("summaryTitle").textContent = "请先登录";
+            document.getElementById(
+              "summaryContent"
+            ).innerHTML = `<p style="text-align: center; color: #888;">你尚未登录，请<a href="login.html" style="color: #42b983;">前往登录</a>后查看专属年度总结。</p>`;
+          }
+        };
+
+        // 开屏动画结束后执行的操作
+        setTimeout(() => {
+          showMainContent();
+        }, 9000); // 与开屏动画持续时间一致（8秒动画 + 1秒淡出）
+      }
+
+      // 页面加载完成后初始化
+      document.addEventListener("DOMContentLoaded", initPage);
+    </script>
+  </body>
+</html>

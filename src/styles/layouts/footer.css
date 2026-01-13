@@ -1,0 +1,210 @@
+/************************** 
+* Import Style
+***************************/
+/************************** 
+* Main Color
+***************************/
+/* 1-  Color */
+/* 2-  Background */
+/* 3-  Border */
+/************************** 
+* Alert
+***************************/
+/************************** 
+* Main Fonts
+***************************/
+/************************** 
+* Float fixing
+***************************/
+/************************** 
+* Text Align
+***************************/
+/************************** 
+* Font-weight
+***************************/
+/************************** 
+* Transition
+***************************/
+.transition, .menu-social-links-container ul li a, .menu-social-links-container ul li a:hover, .privacy-policy-link a, .privacy-policy-link a:hover {
+  -webkit-transition: all 0.5s ease-in-out !important;
+  -o-transition: all 0.5s ease-in-out !important;
+  transition: all 0.5s ease-in-out !important; }
+
+/************************** 
+* Box Shadow
+***************************/
+.box-shadownone {
+  -webkit-box-shadow: none;
+  box-shadow: none; }
+
+/************************** 
+* Box Sizing
+***************************/
+.box-sizing {
+  -moz-box-sizing: border-box;
+  -ms-box-sizing: border-box;
+  -o-box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box; }
+
+/************************** 
+* Padding
+***************************/
+.padding {
+  padding: 30px 20px; }
+
+/************************** 
+* Boreder None
+***************************/
+.border-none, .footer-home .main-nav-bottom {
+  border: none; }
+
+/************************** 
+* Media Queries
+***************************/
+/* 
+  ##Device = Tablets, Ipads (landscape)
+  ##Screen = B/w 768px to 1024px
+*/
+/************************** 
+* Border radius
+***************************/
+/************************** 
+* Transition Delay
+***************************/
+/************************** 
+* Text Transform
+***************************/
+/************************** 
+* Border T R B L
+***************************/
+/************************** 
+* General Style
+***************************/
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus {
+  -webkit-text-fill-color: #8f8f8f;
+  -webkit-box-shadow: 0 0 0px 1000px #191a1c inset;
+  transition: background-color 5000s ease-in-out 0s; }
+
+/************************** 
+* Social Media
+***************************/
+.menu-social-links-container ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  width: auto;
+  float: left; }
+  @media (min-width: 320px) and (max-width: 480px) {
+    .menu-social-links-container ul {
+      width: 100%;
+      display: flex;
+      justify-content: center; } }
+  .menu-social-links-container ul li {
+    display: block;
+    font-size: 12px;
+    text-align: center;
+    float: left;
+    margin-right: 15px; }
+    .menu-social-links-container ul li a {
+      font-size: 12px;
+      line-height: 24px;
+      position: relative;
+      color: #8f8f8f; }
+      .menu-social-links-container ul li a:after {
+        height: 1px;
+        background-color: #8f8f8f; }
+      .menu-social-links-container ul li a:hover {
+        color: #ffffff; }
+      .menu-social-links-container ul li a.link-underline:hover:after {
+        -webkit-animation: swipe-line 1.25s cubic-bezier(0.475, 0.425, 0, 0.995) forwards;
+        animation: swipe-line 1.25s cubic-bezier(0.475, 0.425, 0, 0.995) forwards;
+        background-color: #ffffff;
+        height: 1px; }
+
+/* Privacy link */
+.privacy-policy-link {
+  float: right;
+  font-size: 12px; }
+  @media (max-width: 480px) {
+    .privacy-policy-link {
+      display: inline-block;
+      width: 100%;
+      text-align: center; } }
+  .privacy-policy-link span {
+    color: #8f8f8f;
+    margin: 0; }
+  .privacy-policy-link a {
+    color: #8f8f8f;
+    font-size: 12px;
+    font-weight: 400; }
+    .privacy-policy-link a:hover {
+      color: #ffffff; }
+
+.main-nav-bottom {
+  border-top: 1px solid #8f8f8f;
+  padding-top: 30px;
+  display: flex;
+  width: 100%; }
+  .main-nav-bottom .main-nav__row {
+    width: 100%;
+    display: inline-block;
+    padding-right: 0;
+    padding-left: 0; }
+    @media (max-width: 480px) {
+      .main-nav-bottom .main-nav__row .menu-social-links-container {
+        display: inline-block;
+        width: 100%;
+        margin-bottom: 30px; } }
+
+/************************** 
+* Footer Style One - Index
+***************************/
+.footer-home {
+  width: calc(100% - 100px);
+  display: inline-block;
+  margin-right: auto;
+  margin-left: auto;
+  left: 0;
+  right: 0;
+  align-items: center;
+  padding: 36px 40px 22px;
+  overflow: hidden;
+  position: absolute;
+  z-index: 7;
+  bottom: 0;
+  padding-left: 0;
+  padding-right: 0;
+  padding-top: 0; }
+  @media (max-width: 992px) {
+    .footer-home {
+      display: none; } }
+  .footer-home .main-nav-bottom {
+    padding-top: 0;
+    display: flex; }
+
+/********************************** 
+* Footer Style Thre - Pages
+***********************************/
+.footer-pages {
+  padding-top: 2.625rem;
+  padding-bottom: 2.625rem;
+  margin-top: 0px; }
+  @media (max-width: 767px) {
+    .footer-pages {
+      margin-top: 0px;
+      padding-bottom: 30px;
+      padding-top: 30px; } }
+  .footer-pages .main-nav-bottom {
+    border-top: none;
+    padding-top: 0; }
+
+/*# sourceMappingURL=footer.css.map */

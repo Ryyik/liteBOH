@@ -1,0 +1,171 @@
+/************************** 
+*  Import style
+***************************/
+
+@import '../helpers/variabls.scss';
+@import '../helpers/mixins.scss';
+
+/************************** 
+* Contact
+***************************/
+
+#contact {
+  height: auto;
+  width: 100%;
+  position: relative;
+  .section-title {
+    text-align: $text-center !important;
+    .descritipn-title {
+      max-width: 56%;
+      @media #{$maxMobile} {
+        max-width: 80%;
+      }
+    }
+  }
+  .infcontactfull {
+    padding-bottom: 30px;
+    .information {
+      display: inline-block;
+      margin-bottom: 70px;
+    }
+    .contact-block {
+      margin-bottom: 10px;
+      display: inline-block;
+      width: 100%;
+      .icon {
+        float: $flot-left;
+        color: $colorLight;
+        margin-right: 30px;
+        left: 0;
+        margin-top: -2px;
+        font-size: 18px;
+        i {
+          color: $colorLight;
+        }
+      }
+      .link-underline {
+        margin: 0;
+        color: $colorLight;
+
+        font-weight: $font-700;
+        font-size: 32px;
+        line-height: 48px;
+        display: inline-block;
+        @include textTransform(capitalize);
+      }
+      .separator {
+        color: $mainColorTwo !important;
+      }
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+  }
+  .contact-formone {
+    .form-inline {
+      textarea + label {
+        top: auto;
+        bottom: 0;
+      }
+      .form-group {
+        margin-bottom: 40px;
+      }
+      .btn {
+        width: auto;
+        img {
+          margin-right: 10px;
+          width: 16px;
+        }
+        i {
+          margin-right: 10px;
+          color: $colorLight;
+        }
+      }
+      .form-message {
+        position: absolute;
+        left: 16px;
+        bottom: -58px;
+        width: 91%;
+        background: $mainColorThree;
+        border: medium none;
+        height: 50px;
+        line-height: 50px;
+        padding: 0 30px;
+        color: $colorLight;
+        font-weight: $font-500;
+        font-family: $fontTwo;
+        font-size: 16px;
+        letter-spacing: 0.5px;
+
+        display: none;
+        @include borderRadius(0);
+        @include textTransform(capitalize);
+        &.success {
+          background-color: $alertSuccess;
+          display: inherit;
+        }
+        &.error {
+          background-color: $alertDanger;
+          display: inherit;
+        }
+        span {
+          margin: 0;
+          font-size: 15px;
+        }
+      }
+      label {
+        display: block;
+        position: absolute;
+        top: 54px;
+        left: 14px;
+        font-size: 14px;
+      }
+    }
+  }
+  .socials-media {
+    margin-top: 70px;
+    padding-bottom: 70px;
+    width: 100%;
+    ul {
+      display: flex;
+      justify-content: center;
+      @media #{$maxMobile} {
+        display: inline-block;
+      }
+      li {
+        float: $flot-left;
+        margin: 0 20px;
+        @media #{$maxMobile} {
+          float: none;
+          margin: 0 0 10px 0;
+        }
+        a {
+          color: $colorLight;
+          font-weight: $font-700;
+          font-size: 32px;
+          line-height: 48px;
+        }
+        @extend .transition;
+        .fa {
+          font-size: 16px;
+          color: $colorLight;
+        }
+        &:hover {
+          @extend .transition;
+        }
+      }
+    }
+  }
+}
+
+.map-section {
+  .map-block {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 400px;
+    top: 0;
+    left: 0;
+    z-index: 0;
+  }
+}

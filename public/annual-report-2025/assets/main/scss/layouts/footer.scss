@@ -1,0 +1,174 @@
+/************************** 
+* Import Style
+***************************/
+
+@import '../helpers/variabls.scss';
+@import '../helpers/mixins.scss';
+
+/************************** 
+* General Style
+***************************/
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus {
+  -webkit-text-fill-color: $mainColorTwo;
+  -webkit-box-shadow: 0 0 0px 1000px $mainbgone inset;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/************************** 
+* Social Media
+***************************/
+
+.menu-social-links-container {
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    width: auto;
+    float: $flot-left;
+    @media #{$mediaOne}{
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    };
+    li {
+      display: block;
+      font-size: 12px;
+      text-align: $text-center;
+      float: $flot-left;
+      margin-right: 15px;
+      a {
+        font-size: 12px;
+        line-height: 24px;
+        position: relative;
+        color: $mainColorTwo;
+        @extend .transition;
+        &:after {
+          height: 1px;
+          background-color: $mainColorTwo;
+        }
+        &:hover {
+          color: $colorLight;
+          @extend .transition;
+        }
+        &.link-underline {
+          &:hover {
+            &:after {
+              -webkit-animation: swipe-line 1.25s
+                cubic-bezier(0.475, 0.425, 0, 0.995) forwards;
+              animation: swipe-line 1.25s cubic-bezier(0.475, 0.425, 0, 0.995)
+                forwards;
+              background-color: $mainbgthre;
+              height: 1px;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+/* Privacy link */
+
+.privacy-policy-link {
+  float: $flot-right;
+  font-size: 12px;
+
+  @media #{$galMobile} {
+    display: inline-block;
+    width: 100%;
+    text-align: center;
+  }
+  span {
+    color: $mainColorTwo;
+    margin: 0;
+  }
+  a {
+    color: $mainColorTwo;
+    font-size: 12px;
+
+    font-weight: $font-400;
+    @extend .transition;
+    &:hover {
+      color: $colorLight;
+      @extend .transition;
+    }
+  }
+}
+
+.main-nav-bottom {
+  border-top: 1px solid #8f8f8f;
+  padding-top: 30px;
+  display: flex;
+  width: 100%;
+  .main-nav__row {
+    width: 100%;
+    display: inline-block;
+    padding-right: 0;
+    padding-left: 0;
+    .menu-social-links-container {
+      @media #{$galMobile} {
+        display: inline-block;
+        width: 100%;
+        margin-bottom: 30px;
+      }
+    }
+  }
+}
+
+/************************** 
+* Footer Style One - Index
+***************************/
+
+.footer-home {
+  width: calc(100% - 100px);
+  display: inline-block;
+  margin-right: auto;
+  margin-left: auto;
+  left: 0;
+  right: 0;
+  align-items: center;
+  padding: 36px 40px 22px;
+  overflow: hidden;
+  position: absolute;
+  z-index: 7;
+  bottom: 0;
+  padding-left: 0;
+  padding-right: 0;
+  padding-top: 0;
+  @media #{$maxMedieum} {
+    display: none;
+  }
+  .main-nav-bottom {
+    padding-top: 0;
+    @extend .border-none;
+    display: flex;
+  }
+}
+
+/********************************** 
+* Footer Style Thre - Pages
+***********************************/
+
+.footer-pages {
+  padding-top: 2.625rem;
+  padding-bottom: 2.625rem;
+  margin-top: 0px;
+  @media #{$maxMobile} {
+    margin-top: 0px;
+    padding-bottom: 30px;
+    padding-top: 30px;
+  }
+  .main-nav-bottom {
+    border-top: none;
+    padding-top: 0;
+  }
+}

@@ -1,0 +1,144 @@
+/************************** 
+* Main Color
+***************************/
+
+/* 1-  Color */
+
+$mainColor: #b8a07e;
+$colorLight: #ffffff;
+$mainColorTwo: #8f8f8f;
+$mainColorThree: #333333;
+$mainColorSix: #000000;
+
+/* 2-  Background */
+$primaryBgColor: #141414;
+$secondaryBgColor: #191919;
+
+
+
+$mainbgone: #191a1c;
+$mainbgthre: #ffffff;
+$mainbgSeven: #000000;
+
+
+
+$bgOverlay: #181818;
+
+/* 3-  Border */
+
+$brdcolor: rgba(#fff, 0.1);
+
+/************************** 
+* Alert
+***************************/
+
+$alertSuccess: #37983b;
+
+$alertDanger: #f54033;
+
+/************************** 
+* Main Fonts
+***************************/
+
+$fontOne: 'Poppins', sans-serif;
+$fontTwo: 'Saira';
+
+/************************** 
+* Float fixing
+***************************/
+
+$flot-left: left;
+$flot-right: right;
+
+/************************** 
+* Text Align
+***************************/
+
+$text-left: left;
+$text-center: center;
+$text-right: right;
+
+/************************** 
+* Font-weight
+***************************/
+
+$font-400: 400;
+$font-500: 500;
+$font-600: 600;
+$font-700: 700;
+
+/************************** 
+* Transition
+***************************/
+
+.transition {
+  -webkit-transition: all 0.5s ease-in-out !important;
+  -o-transition: all 0.5s ease-in-out !important;
+  transition: all 0.5s ease-in-out !important;
+}
+
+/************************** 
+* Box Shadow
+***************************/
+
+.box-shadownone {
+  -webkit-box-shadow: none;
+  box-shadow: none;
+}
+
+/************************** 
+* Box Sizing
+***************************/
+
+.box-sizing {
+  -moz-box-sizing: border-box;
+  -ms-box-sizing: border-box;
+  -o-box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+/************************** 
+* Padding
+***************************/
+.padding {
+  padding: 30px 20px;
+}
+
+/************************** 
+* Boreder None
+***************************/
+.border-none {
+  border: none;
+}
+
+/************************** 
+* Media Queries
+***************************/
+
+$minMobile: '(max-width: 320px)';
+$galMobile: '(max-width: 480px)';
+$kindlefire: '(max-width: 600px)';
+$maxMobile: '(max-width: 767px)';
+$ipSmall: '(max-width: 768px)';
+$maxSmall: '(max-width: 991px)';
+$maxMedieum: '(max-width: 992px)';
+$minlarge: '(min-width: 1200px)';
+$minmax: '(min-width: 768px) and (max-width: 991px)';
+
+/* 
+  ##Device = Tablets, Ipads (landscape)
+  ##Screen = B/w 768px to 1024px
+*/
+
+$mediaThre: '(min-width: 768px) and (max-width: 1024px)';
+
+//   ##Device = Low Resolution Tablets, Mobiles (Landscape)
+//   ##Screen = B/w 481px to 767px
+
+$mediaTwo: '(min-width: 481px) and (max-width: 767px)';
+
+// ##Device = Most of the Smartphones Mobiles (Portrait)
+// ##Screen = B/w 320px to 479px
+
+$mediaOne: '(min-width: 320px) and (max-width: 480px)';

@@ -1,0 +1,122 @@
+/************************** 
+*  Import style
+***************************/
+/************************** 
+* Main Color
+***************************/
+/* 1-  Color */
+/* 2-  Background */
+/* 3-  Border */
+/************************** 
+* Alert
+***************************/
+/************************** 
+* Main Fonts
+***************************/
+/************************** 
+* Float fixing
+***************************/
+/************************** 
+* Text Align
+***************************/
+/************************** 
+* Font-weight
+***************************/
+/************************** 
+* Transition
+***************************/
+.transition {
+  -webkit-transition: all 0.5s ease-in-out !important;
+  -o-transition: all 0.5s ease-in-out !important;
+  transition: all 0.5s ease-in-out !important; }
+
+/************************** 
+* Box Shadow
+***************************/
+.box-shadownone {
+  -webkit-box-shadow: none;
+  box-shadow: none; }
+
+/************************** 
+* Box Sizing
+***************************/
+.box-sizing {
+  -moz-box-sizing: border-box;
+  -ms-box-sizing: border-box;
+  -o-box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box; }
+
+/************************** 
+* Padding
+***************************/
+.padding {
+  padding: 30px 20px; }
+
+/************************** 
+* Boreder None
+***************************/
+.border-none {
+  border: none; }
+
+/************************** 
+* Media Queries
+***************************/
+/* 
+  ##Device = Tablets, Ipads (landscape)
+  ##Screen = B/w 768px to 1024px
+*/
+/************************** 
+* Border radius
+***************************/
+/************************** 
+* Transition Delay
+***************************/
+/************************** 
+* Text Transform
+***************************/
+/************************** 
+* Border T R B L
+***************************/
+/************************** 
+* General style
+***************************/
+.lightbox-wrapper .lightbox-close {
+  position: fixed;
+  right: 4vw;
+  top: 35px;
+  z-index: 1; }
+
+.close-btn {
+  -ms-flex-direction: column;
+  -ms-flex-pack: justify;
+  -ms-flex-pack: center;
+  cursor: pointer;
+  display: -ms-flexbox;
+  display: flex;
+  flex-direction: column;
+  height: 19px;
+  justify-content: space-between;
+  justify-content: center;
+  position: relative;
+  width: 30px; }
+  .close-btn:before {
+    content: '';
+    -webkit-transform: rotate(45deg);
+    transform: rotate(45deg); }
+  .close-btn .btn-line {
+    width: 55%;
+    display: none; }
+  .close-btn:after {
+    content: '';
+    -webkit-transform: rotate(-45deg);
+    transform: rotate(-45deg); }
+  .close-btn .btn-line, .close-btn:before, .close-btn:after {
+    -ms-flex-item-align: end;
+    align-self: flex-end;
+    position: absolute;
+    width: 100%;
+    background-color: #ffffff;
+    height: 2px; }
+
+/*# sourceMappingURL=close-button.css.map */

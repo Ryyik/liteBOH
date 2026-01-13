@@ -1,0 +1,60 @@
+/************************** 
+*  Import style
+***************************/
+
+@import "../helpers/variabls.scss";
+@import "../helpers/mixins.scss";
+
+/************************** 
+* General style
+***************************/
+
+.lightbox-wrapper {
+    .lightbox-close {
+        position: fixed;
+        right: 4vw;
+        top: 35px;
+        z-index: 1;
+    }
+}
+
+
+
+    .close-btn {
+        -ms-flex-direction: column;
+        -ms-flex-pack: justify;
+        -ms-flex-pack: center;
+        cursor: pointer;
+        display: -ms-flexbox;
+        display: flex;
+        flex-direction: column;
+        height: 19px;
+        justify-content: space-between;
+        justify-content: center;
+        position: relative;
+        width: 30px;
+        &:before {
+            content: '';
+            -webkit-transform: rotate(45deg);
+            transform: rotate(45deg);
+        }
+        .btn-line {
+            width: 55%;
+            display: none;
+        }
+        &:after {
+            content: '';
+            -webkit-transform: rotate(-45deg);
+            transform: rotate(-45deg);
+        }
+        .btn-line,
+        &:before,
+        &:after {
+            -ms-flex-item-align: end;
+            align-self: flex-end;
+            position: absolute;
+            width: 100%;
+            background-color: $mainbgthre;
+            height: 2px;
+        }
+    }

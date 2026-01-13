@@ -1,0 +1,84 @@
+/************************** 
+*  Import style
+***************************/
+
+@import '../helpers/variabls.scss';
+@import '../helpers/mixins.scss';
+
+/************************** 
+* General style
+***************************/
+
+.page__style {
+  background: $primaryBgColor;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  margin: auto auto;
+  overflow-x: auto;
+  &.fadeIn {
+    z-index: 99;
+  }
+}
+
+[data-scrollbar] {
+  position: absolute !important;
+}
+
+.overlay {
+  width: 100%;
+  height: 100vh;
+  background: #222327;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  h4 {
+    font-weight: $font-700;
+    font-size: 60px;
+    color: $colorLight;
+    @include textTransform(capitalize);
+  }
+  p {
+    color: $colorLight;
+  }
+}
+
+.container {
+  &.portfolio_fix_container {
+    padding-bottom: 90px;
+    padding-top: 90px;
+    position: relative;
+    overflow: hidden;
+    @media #{$mediaOne} {
+      padding-bottom: 0px;
+      margin-bottom: 30px;
+    }
+  }
+}
+
+.portfolio_fix_container {
+  .section-title {
+    h2 {
+      color: $colorLight;
+      display: inherit;
+      mix-blend-mode: difference;
+    }
+  }
+}
+
+// Stoped Animation AOS In Mobile
+
+@media screen and (max-width: 600px) {
+  [data-aos-delay] {
+    transition-delay: 0 !important;
+  }
+}

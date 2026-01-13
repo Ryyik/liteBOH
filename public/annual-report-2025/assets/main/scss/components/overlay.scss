@@ -1,0 +1,100 @@
+/************************** 
+*  Import style
+***************************/
+
+@import "../helpers/variabls.scss";
+@import "../helpers/mixins.scss";
+
+/************************** 
+* General style
+***************************/
+
+.overlay-effect {
+    background-color: $bgOverlay;
+    display: block;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    width: 100%;
+    -webkit-transform: translateY(100%);
+    transform: translateY(100%);
+    z-index: 99999;
+    -webkit-animation-duration: 1s;
+    -webkit-animation-fill-mode: both;
+    -webkit-animation-timing-function: ease-in-out;
+    animation-duration: 1s;
+    animation-fill-mode: both;
+    animation-timing-function: ease-in-out;
+    &.animate-up {
+        -webkit-animation-name: overlayEffectUp;
+        animation-name: overlayEffectUp;
+    }
+    &.animate-down {
+        -webkit-animation-name: overlayEffectDown;
+        animation-name: overlayEffectDown;
+    }
+}
+
+@-webkit-keyframes overlayEffectUp {
+    0% {
+        -webkit-transform: translateY(100%);
+        transform: translateY(100%)
+    }
+    35%,
+    65% {
+        -webkit-transform: translateY(0);
+        transform: translateY(0)
+    }
+    100% {
+        -webkit-transform: translateY(-100%);
+        transform: translateY(-100%)
+    }
+}
+
+@keyframes overlayEffectUp {
+    0% {
+        -webkit-transform: translateY(100%);
+        transform: translateY(100%)
+    }
+    35%,
+    65% {
+        -webkit-transform: translateY(0);
+        transform: translateY(0)
+    }
+    100% {
+        -webkit-transform: translateY(-100%);
+        transform: translateY(-100%)
+    }
+}
+
+@-webkit-keyframes overlayEffectDown {
+    0% {
+        -webkit-transform: translateY(-100%);
+        transform: translateY(-100%)
+    }
+    35%,
+    65% {
+        -webkit-transform: translateY(0);
+        transform: translateY(0)
+    }
+    100% {
+        -webkit-transform: translateY(100%);
+        transform: translateY(100%)
+    }
+}
+
+@keyframes overlayEffectDown {
+    0% {
+        -webkit-transform: translateY(-100%);
+        transform: translateY(-100%)
+    }
+    35%,
+    65% {
+        -webkit-transform: translateY(0);
+        transform: translateY(0)
+    }
+    100% {
+        -webkit-transform: translateY(100%);
+        transform: translateY(100%)
+    }
+}

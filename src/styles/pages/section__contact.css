@@ -1,0 +1,208 @@
+/************************** 
+*  Import style
+***************************/
+/************************** 
+* Main Color
+***************************/
+/* 1-  Color */
+/* 2-  Background */
+/* 3-  Border */
+/************************** 
+* Alert
+***************************/
+/************************** 
+* Main Fonts
+***************************/
+/************************** 
+* Float fixing
+***************************/
+/************************** 
+* Text Align
+***************************/
+/************************** 
+* Font-weight
+***************************/
+/************************** 
+* Transition
+***************************/
+.transition, #contact .socials-media ul li, #contact .socials-media ul li:hover {
+  -webkit-transition: all 0.5s ease-in-out !important;
+  -o-transition: all 0.5s ease-in-out !important;
+  transition: all 0.5s ease-in-out !important; }
+
+/************************** 
+* Box Shadow
+***************************/
+.box-shadownone {
+  -webkit-box-shadow: none;
+  box-shadow: none; }
+
+/************************** 
+* Box Sizing
+***************************/
+.box-sizing {
+  -moz-box-sizing: border-box;
+  -ms-box-sizing: border-box;
+  -o-box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box; }
+
+/************************** 
+* Padding
+***************************/
+.padding {
+  padding: 30px 20px; }
+
+/************************** 
+* Boreder None
+***************************/
+.border-none {
+  border: none; }
+
+/************************** 
+* Media Queries
+***************************/
+/* 
+  ##Device = Tablets, Ipads (landscape)
+  ##Screen = B/w 768px to 1024px
+*/
+/************************** 
+* Border radius
+***************************/
+/************************** 
+* Transition Delay
+***************************/
+/************************** 
+* Text Transform
+***************************/
+/************************** 
+* Border T R B L
+***************************/
+/************************** 
+* Contact
+***************************/
+#contact {
+  height: auto;
+  width: 100%;
+  position: relative; }
+  #contact .section-title {
+    text-align: center !important; }
+    #contact .section-title .descritipn-title {
+      max-width: 56%; }
+      @media (max-width: 767px) {
+        #contact .section-title .descritipn-title {
+          max-width: 80%; } }
+  #contact .infcontactfull {
+    padding-bottom: 30px; }
+    #contact .infcontactfull .information {
+      display: inline-block;
+      margin-bottom: 70px; }
+    #contact .infcontactfull .contact-block {
+      margin-bottom: 10px;
+      display: inline-block;
+      width: 100%; }
+      #contact .infcontactfull .contact-block .icon {
+        float: left;
+        color: #ffffff;
+        margin-right: 30px;
+        left: 0;
+        margin-top: -2px;
+        font-size: 18px; }
+        #contact .infcontactfull .contact-block .icon i {
+          color: #ffffff; }
+      #contact .infcontactfull .contact-block .link-underline {
+        margin: 0;
+        color: #ffffff;
+        font-weight: 700;
+        font-size: 32px;
+        line-height: 48px;
+        display: inline-block;
+        text-transform: capitalize; }
+      #contact .infcontactfull .contact-block .separator {
+        color: #8f8f8f !important; }
+      #contact .infcontactfull .contact-block:last-child {
+        margin-bottom: 0; }
+  #contact .contact-formone .form-inline textarea + label {
+    top: auto;
+    bottom: 0; }
+  #contact .contact-formone .form-inline .form-group {
+    margin-bottom: 40px; }
+  #contact .contact-formone .form-inline .btn {
+    width: auto; }
+    #contact .contact-formone .form-inline .btn img {
+      margin-right: 10px;
+      width: 16px; }
+    #contact .contact-formone .form-inline .btn i {
+      margin-right: 10px;
+      color: #ffffff; }
+  #contact .contact-formone .form-inline .form-message {
+    position: absolute;
+    left: 16px;
+    bottom: -58px;
+    width: 91%;
+    background: #333333;
+    border: medium none;
+    height: 50px;
+    line-height: 50px;
+    padding: 0 30px;
+    color: #ffffff;
+    font-weight: 500;
+    font-family: "Saira";
+    font-size: 16px;
+    letter-spacing: 0.5px;
+    display: none;
+    -webkit-border-radius: 0;
+    -moz-border-radius: 0;
+    border-radius: 0;
+    text-transform: capitalize; }
+    #contact .contact-formone .form-inline .form-message.success {
+      background-color: #37983b;
+      display: inherit; }
+    #contact .contact-formone .form-inline .form-message.error {
+      background-color: #f54033;
+      display: inherit; }
+    #contact .contact-formone .form-inline .form-message span {
+      margin: 0;
+      font-size: 15px; }
+  #contact .contact-formone .form-inline label {
+    display: block;
+    position: absolute;
+    top: 54px;
+    left: 14px;
+    font-size: 14px; }
+  #contact .socials-media {
+    margin-top: 70px;
+    padding-bottom: 70px;
+    width: 100%; }
+    #contact .socials-media ul {
+      display: flex;
+      justify-content: center; }
+      @media (max-width: 767px) {
+        #contact .socials-media ul {
+          display: inline-block; } }
+      #contact .socials-media ul li {
+        float: left;
+        margin: 0 20px; }
+        @media (max-width: 767px) {
+          #contact .socials-media ul li {
+            float: none;
+            margin: 0 0 10px 0; } }
+        #contact .socials-media ul li a {
+          color: #ffffff;
+          font-weight: 700;
+          font-size: 32px;
+          line-height: 48px; }
+        #contact .socials-media ul li .fa {
+          font-size: 16px;
+          color: #ffffff; }
+
+.map-section .map-block {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 400px;
+  top: 0;
+  left: 0;
+  z-index: 0; }
+
+/*# sourceMappingURL=section__contact.css.map */
