@@ -1,0 +1,602 @@
+/**
+ * ==============================================
+ * 登录模态框样式 (Login Modal Styles)
+ * ==============================================
+ * 统一的登录弹窗样式
+ * 适用于所有页面的登录功能
+ * ==============================================
+ */
+
+/* ===================
+   模态框遮罩层
+   =================== */
+
+/**
+ * 遮罩层 - 背景模糊效果
+ * 覆盖整个视口，提供毛玻璃背景
+ */
+.boh-login-modal-overlay {
+  /* 布局定位 */
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10000;
+
+  /* 视觉效果 */
+  background-color: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  -moz-backdrop-filter: blur(8px);
+  -ms-backdrop-filter: blur(8px);
+
+  /* 布局方式 - Flexbox居中 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+
+  /* 动画效果 */
+  animation: fadeIn 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ===================
+   模态框容器
+   =================== */
+
+/**
+ * 模态框容器 - 主体内容区域
+ * 使用增强的毛玻璃效果
+ */
+.boh-login-modal-container {
+  /* 尺寸控制 */
+  width: 90%;
+  max-width: 420px;
+  max-height: calc(100vh - 40px);
+  padding: 40px 30px;
+
+  /* 毛玻璃效果 */
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  -moz-backdrop-filter: blur(24px);
+  -ms-backdrop-filter: blur(24px);
+
+  /* 边框和圆角 */
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 16px;
+
+  /* 阴影效果 - 多层阴影增加层次感 */
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+
+  /* 布局 */
+  position: relative;
+  overflow-y: auto;
+  box-sizing: border-box;
+
+  /* 动画效果 */
+  animation: modalSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ===================
+   关闭按钮
+   =================== */
+
+/**
+ * 关闭按钮 - 右上角X按钮
+ * 使用圆形设计，悬停有旋转效果
+ */
+.boh-login-modal-close {
+  /* 定位 */
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  z-index: 10;
+
+  /* 尺寸 */
+  width: 36px;
+  height: 36px;
+
+  /* 样式 */
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 24px;
+  cursor: pointer;
+
+  /* 布局 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  /* 动画 */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/**
+ * 关闭按钮悬停效果
+ */
+.boh-login-modal-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: rotate(90deg) scale(1.1);
+}
+
+/* ===================
+   模态框头部
+   =================== */
+
+/**
+ * 头部区域 - Logo和标题
+ */
+.boh-login-modal-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+/**
+ * Logo图标
+ */
+.boh-login-logo {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 15px;
+  background-image: url("@/assets/images/favicon.png");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  /* 为无图片时提供备选方案 */
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+}
+
+/**
+ * 标题文字
+ */
+.boh-login-modal-header h2 {
+  margin: 10px 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  letter-spacing: 2px;
+}
+
+/**
+ * 副标题文字
+ */
+.boh-login-modal-header p {
+  margin: 0;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* ===================
+   表单样式
+   =================== */
+
+/**
+ * 表单组容器
+ */
+.boh-login-form .boh-form-group {
+  margin-bottom: 20px;
+}
+
+/**
+ * 表单标签
+ */
+.boh-login-form label {
+  display: block;
+  margin-bottom: 8px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/**
+ * 输入框 - 毛玻璃风格
+ */
+.boh-login-form input {
+  /* 尺寸 */
+  width: 100%;
+  padding: 14px 16px;
+  box-sizing: border-box;
+
+  /* 毛玻璃效果 */
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+
+  /* 边框 */
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+
+  /* 文字 */
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.95);
+
+  /* 动画 */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+}
+
+/**
+ * 输入框占位符文字
+ */
+.boh-login-form input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/**
+ * 输入框聚焦效果
+ */
+.boh-login-form input:focus {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(102, 126, 234, 0.6);
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.2);
+}
+
+/**
+ * 输入框错误状态
+ */
+.boh-login-form input.boh-invalid {
+  border-color: rgba(255, 85, 85, 0.8);
+}
+
+.boh-login-form input.boh-invalid:focus {
+  box-shadow: 0 0 0 4px rgba(255, 85, 85, 0.2);
+}
+
+/* ===================
+   密码输入框
+   =================== */
+
+/**
+ * 密码输入框容器
+ */
+.boh-password-wrap {
+  position: relative;
+}
+
+/**
+ * 密码显示/隐藏按钮
+ */
+.boh-toggle-password {
+  /* 定位 */
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+
+  /* 样式 */
+  background: rgba(102, 126, 234, 0.2);
+  border: 1px solid rgba(102, 126, 234, 0.3);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  padding: 6px 12px;
+  cursor: pointer;
+
+  /* 动画 */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/**
+ * 密码按钮悬停效果
+ */
+.boh-toggle-password:hover {
+  background: rgba(102, 126, 234, 0.3);
+  border-color: rgba(102, 126, 234, 0.4);
+}
+
+/* ===================
+   错误提示
+   =================== */
+
+/**
+ * 字段级错误提示
+ */
+.boh-error-message {
+  color: rgba(255, 85, 85, 0.9);
+  font-size: 12px;
+  margin-top: 6px;
+  display: none;
+}
+
+/**
+ * 显示错误提示
+ */
+input.boh-invalid + .boh-error-message {
+  display: block;
+}
+
+/**
+ * 认证错误提示
+ */
+.boh-auth-error {
+  color: rgba(255, 85, 85, 0.9);
+  background: rgba(255, 85, 85, 0.15);
+  border: 1px solid rgba(255, 85, 85, 0.3);
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 13px;
+  text-align: center;
+  margin-bottom: 15px;
+}
+
+/* ===================
+   表单链接
+   =================== */
+
+/**
+ * 链接容器 - 忘记密码和注册
+ */
+.boh-form-links {
+  display: flex;
+  justify-content: space-between;
+  margin: 15px 0 25px;
+  font-size: 13px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/**
+ * 链接样式
+ */
+.boh-form-links a {
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+/**
+ * 链接悬停效果
+ */
+.boh-form-links a:hover {
+  color: rgba(102, 126, 234, 0.9);
+  text-decoration: underline;
+}
+
+/* ===================
+   提交按钮
+   =================== */
+
+/**
+ * 登录按钮 - 渐变背景
+ */
+.boh-login-btn {
+  /* 尺寸 */
+  width: 100%;
+  padding: 14px;
+
+  /* 样式 */
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  cursor: pointer;
+
+  /* 毛玻璃效果 */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+
+  /* 动画 */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+/**
+ * 按钮光扫效果（伪元素）
+ */
+.boh-login-btn::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transition: left 0.5s ease;
+}
+
+/**
+ * 按钮悬停效果
+ */
+.boh-login-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+}
+
+/**
+ * 按钮悬停时的光扫动画
+ */
+.boh-login-btn:hover::before {
+  left: 100%;
+}
+
+/**
+ * 按钮按下效果
+ */
+.boh-login-btn:active {
+  transform: translateY(0);
+}
+
+/**
+ * 按钮禁用状态
+ */
+.boh-login-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ===================
+   动画定义
+   =================== */
+
+/**
+ * 淡入动画
+ */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/**
+ * 上滑动画
+ */
+@keyframes modalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ===================
+   响应式设计
+   =================== */
+
+/**
+ * 平板设备适配
+ */
+@media (max-width: 768px) {
+  .boh-login-modal-container {
+    max-width: 400px;
+  }
+}
+
+/**
+ * 移动设备适配
+ */
+@media (max-width: 480px) {
+  .boh-login-modal-overlay {
+    padding: 15px;
+  }
+
+  .boh-login-modal-container {
+    padding: 30px 20px;
+    max-width: 100%;
+  }
+
+  .boh-login-modal-header h2 {
+    font-size: 20px;
+  }
+
+  .boh-login-form input {
+    padding: 12px 14px;
+    font-size: 16px;
+  }
+
+  .boh-form-links {
+    flex-direction: column;
+    gap: 10px;
+    text-align: center;
+  }
+
+  .boh-login-btn {
+    padding: 12px;
+    font-size: 15px;
+  }
+}
+
+/**
+ * 超小屏幕设备
+ */
+@media (max-width: 360px) {
+  .boh-login-modal-container {
+    padding: 25px 15px;
+  }
+
+  .boh-login-logo {
+    width: 50px;
+    height: 50px;
+  }
+
+  .boh-login-modal-header h2 {
+    font-size: 18px;
+  }
+}
+
+/* ===================
+   暗色模式支持
+   =================== */
+
+/**
+ * 暗色模式适配
+ */
+@media (prefers-color-scheme: dark) {
+  .boh-login-modal-container {
+    background: rgba(30, 30, 30, 0.9);
+  }
+
+  .boh-login-modal-header h2 {
+    color: rgba(255, 255, 255, 0.95);
+  }
+
+  .boh-login-form input {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+}
+
+/* ===================
+   打印样式
+   =================== */
+
+/**
+ * 打印时隐藏模态框
+ */
+@media print {
+  .boh-login-modal-overlay {
+    display: none !important;
+  }
+}
+
+/* ===================
+   无障碍优化
+   =================== */
+
+/**
+ * 键盘焦点可见性
+ */
+.boh-login-form input:focus-visible,
+.boh-login-btn:focus-visible,
+.boh-toggle-password:focus-visible,
+.boh-login-modal-close:focus-visible {
+  outline: 2px solid rgba(102, 126, 234, 0.8);
+  outline-offset: 2px;
+}
+
+/**
+ * 减少动画（用户偏好设置）
+ */
+@media (prefers-reduced-motion: reduce) {
+  .boh-login-modal-overlay,
+  .boh-login-modal-container,
+  .boh-login-form input,
+  .boh-toggle-password,
+  .boh-login-btn,
+  .boh-login-modal-close {
+    animation: none !important;
+    transition: none !important;
+  }
+}

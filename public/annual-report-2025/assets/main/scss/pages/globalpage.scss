@@ -1,0 +1,29 @@
+/************************** 
+*  Import style
+***************************/
+
+@import "../helpers/variabls.scss";
+@import "../helpers/mixins.scss";
+
+/************************** 
+*  Global Style
+***************************/
+
+body {
+    font: {
+        family: $fontOne;
+        size: 16px;
+        weight: $font-400;
+    }
+    color: #e0e0e0;
+    line-height: 1.9;
+    letter-spacing: 0.5px;
+    overflow-x: hidden;
+    margin: 0 auto;
+    padding: 0;
+    word-wrap: break-word;
+    background-color: $primaryBgColor;
+    width: 100%;
+    height: 100%;
+    @extend .box-sizing;
+}

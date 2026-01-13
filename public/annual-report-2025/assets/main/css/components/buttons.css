@@ -1,0 +1,107 @@
+/************************** 
+*  Import style
+***************************/
+/************************** 
+* Main Color
+***************************/
+/* 1-  Color */
+/* 2-  Background */
+/* 3-  Border */
+/************************** 
+* Alert
+***************************/
+/************************** 
+* Main Fonts
+***************************/
+/************************** 
+* Float fixing
+***************************/
+/************************** 
+* Text Align
+***************************/
+/************************** 
+* Font-weight
+***************************/
+/************************** 
+* Transition
+***************************/
+.transition, .btn, .btn:hover,
+.btn:focus {
+  -webkit-transition: all 0.5s ease-in-out !important;
+  -o-transition: all 0.5s ease-in-out !important;
+  transition: all 0.5s ease-in-out !important; }
+
+/************************** 
+* Box Shadow
+***************************/
+.box-shadownone, .btn:hover,
+.btn:focus {
+  -webkit-box-shadow: none;
+  box-shadow: none; }
+
+/************************** 
+* Box Sizing
+***************************/
+.box-sizing {
+  -moz-box-sizing: border-box;
+  -ms-box-sizing: border-box;
+  -o-box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box; }
+
+/************************** 
+* Padding
+***************************/
+.padding {
+  padding: 30px 20px; }
+
+/************************** 
+* Boreder None
+***************************/
+.border-none {
+  border: none; }
+
+/************************** 
+* Media Queries
+***************************/
+/* 
+  ##Device = Tablets, Ipads (landscape)
+  ##Screen = B/w 768px to 1024px
+*/
+/************************** 
+* Border radius
+***************************/
+/************************** 
+* Transition Delay
+***************************/
+/************************** 
+* Text Transform
+***************************/
+/************************** 
+* Border T R B L
+***************************/
+/************************** 
+* General style
+***************************/
+.btn {
+  background: #333333;
+  border: medium none;
+  height: 50px;
+  line-height: 50px;
+  padding: 0 30px;
+  color: #ffffff;
+  display: inline-block;
+  font-weight: 500;
+  font-family: "Saira";
+  font-size: 16px;
+  letter-spacing: 0.5px;
+  -webkit-border-radius: 0;
+  -moz-border-radius: 0;
+  border-radius: 0;
+  text-transform: capitalize; }
+
+.btn:hover,
+.btn:focus {
+  color: #ffffff; }
+
+/*# sourceMappingURL=buttons.css.map */

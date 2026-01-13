@@ -1,0 +1,103 @@
+// 活动数据文件
+// 所有活动信息集中管理，供各组件共享使用
+
+export const activitiesData = [
+  {
+    id: 1,
+    title: "方块之家4周年庆典",
+    date: "2022/7/21",
+    image: "@/assets/images/2022-7-4years.webp",
+    description: "方块之家4周年庆典，感谢大家的陪伴与支持！",
+  },
+  {
+    id: 2,
+    title: "国庆特别活动[2022]",
+    date: "2022/10",
+    image: "@/assets/images/2022-10m-gq.webp",
+    description: "2022年国庆特别活动，祝祖国生日快乐！",
+  },
+  {
+    id: 3,
+    title: "圣诞活动[2022]",
+    date: "2022/12/26",
+    image: "@/assets/images/2022-12-sd.webp",
+    description: "2022年圣诞活动，一起度过温馨的节日！",
+  },
+  {
+    id: 4,
+    title: "农夫乐事",
+    date: "2023/8",
+    image: "@/assets/images/2023-8-nfls.webp",
+    description: "农夫乐事活动，体验乡村生活！",
+  },
+  {
+    id: 5,
+    title: "方块之家5周年庆典",
+    date: "2023/7/21",
+    image: "@/assets/images/2023-7-5years.webp",
+    description: "方块之家5周年庆典，感谢大家的一路陪伴！",
+  },
+  {
+    id: 6,
+    title: "国庆特别活动[2023]",
+    date: "2023/10",
+    image: "@/assets/images/2023-10m-shengri.webp",
+    description: "2023年国庆特别活动，庆祝祖国繁荣昌盛！",
+  },
+  {
+    id: 7,
+    title: "冬眠生存",
+    date: "2023/12/1",
+    image: "@/assets/images/2023-12m-dongmian.webp",
+    description: "冬眠生存活动，挑战极限生存！",
+  },
+  {
+    id: 8,
+    title: "农夫乐事方块街",
+    date: "2024/2",
+    image: "@/assets/images/2024-1-fangkuai.webp",
+    description: "农夫乐事方块街活动，体验方块世界的乡村生活！",
+  },
+  {
+    id: 9,
+    title: "MC卡车",
+    date: "2024/7",
+    image: "@/assets/images/2024-07-15_13.26.19.webp",
+    description: "MC卡车活动，驾驶卡车穿越方块世界！",
+  },
+  {
+    id: 10,
+    title: "2024新年活动",
+    date: "2024/12/31",
+    image: "@/assets/images/2024-newyears.webp",
+    description: "2024新年活动，迎接新年的到来！",
+  },
+  {
+    id: 11,
+    title: "新年跑酷",
+    date: "2024/12/31",
+    image: "@/assets/images/2024-newyearspaoku.webp",
+    description: "新年跑酷活动，挑战极限跳跃！",
+  },
+  {
+    id: 12,
+    title: "方块之家7周年庆典",
+    date: "2025/7/21",
+    image: "@/assets/images/2025-7years.webp",
+    description: "方块之家7周年庆典，感谢大家的一路陪伴！",
+  },
+  {
+    id: 13,
+    title: "国庆特别活动[2025]",
+    date: "2025/10",
+    image: "@/assets/images/2025-10-shengri.webp",
+    description: "2025年国庆特别活动，庆祝祖国生日！",
+  },
+  {
+    id: 14,
+    title: "方块博物馆来袭",
+    date: "2025/12/12",
+    image: "@/assets/images/2025wintermuseam.webp",
+    description: "方块博物馆来袭，12月方块街圣诞&生日会特别活动！",
+  },
+];

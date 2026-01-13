@@ -1,0 +1,67 @@
+/************************** 
+* Main Color
+***************************/
+/* 1-  Color */
+/* 2-  Background */
+/* 3-  Border */
+/************************** 
+* Alert
+***************************/
+/************************** 
+* Main Fonts
+***************************/
+/************************** 
+* Float fixing
+***************************/
+/************************** 
+* Text Align
+***************************/
+/************************** 
+* Font-weight
+***************************/
+/************************** 
+* Transition
+***************************/
+.transition {
+  -webkit-transition: all 0.5s ease-in-out !important;
+  -o-transition: all 0.5s ease-in-out !important;
+  transition: all 0.5s ease-in-out !important; }
+
+/************************** 
+* Box Shadow
+***************************/
+.box-shadownone {
+  -webkit-box-shadow: none;
+  box-shadow: none; }
+
+/************************** 
+* Box Sizing
+***************************/
+.box-sizing {
+  -moz-box-sizing: border-box;
+  -ms-box-sizing: border-box;
+  -o-box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box; }
+
+/************************** 
+* Padding
+***************************/
+.padding {
+  padding: 30px 20px; }
+
+/************************** 
+* Boreder None
+***************************/
+.border-none {
+  border: none; }
+
+/************************** 
+* Media Queries
+***************************/
+/* 
+  ##Device = Tablets, Ipads (landscape)
+  ##Screen = B/w 768px to 1024px
+*/
+
+/*# sourceMappingURL=variabls.css.map */

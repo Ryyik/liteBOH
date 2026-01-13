@@ -1,0 +1,121 @@
+/************************** 
+*  Import style
+***************************/
+
+@import "../helpers/variabls.scss";
+@import "../helpers/mixins.scss";
+
+/************************** 
+* Portfolio
+***************************/
+
+#portfolio {
+  position: relative;
+  .allprojecrt {
+    text-align: $text-right;
+    @media #{$maxMobile} {
+      text-align: $text-left;
+    }
+  }
+  .portfolio-item {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+    .portfolio_single-item {
+      display: flex;
+      width: 100%;
+
+      @media #{$mediaThre} {
+        display: flex;
+      }
+      @media #{$mediaTwo} {
+        display: inline-block;
+      }
+      @media #{$kindlefire} {
+        display: inline-block;
+      }
+      @media #{$mediaOne} {
+        display: inline-block;
+      }
+      .portfolio-thumbnail {
+        margin-bottom: 30px;
+        position: relative;
+        overflow: hidden;
+        cursor: pointer;
+        @extend .transition;
+        transform: scale(1);
+        .top-thumbnail {
+          height: 600px;
+          @extend .transition;
+
+          @media #{$mediaThre} {
+            height: 320px;
+          }
+
+          @media #{$mediaTwo} {
+            height: 320px;
+          }
+          @media #{$kindlefire} {
+            height: 320px;
+          }
+          @media #{$mediaOne} {
+            height: 320px;
+          }
+          img {
+            height: 100%;
+            object-fit: cover;
+            width: 100%;
+            z-index: 1;
+            opacity: 0.8;
+            -webkit-filter: grayscale(1);
+            filter: grayscale(1);
+            @extend .transition;
+          }
+          &:hover {
+            @extend .transition;
+            img {
+              opacity: 1;
+              -webkit-filter: grayscale(0);
+              filter: grayscale(0);
+              @extend .transition;
+            }
+          }
+        }
+        .botom-thumbnail {
+          padding: 20px;
+          padding-left: 0;
+          width: 100%;
+          @extend .transition;
+          h4 {
+            margin-bottom: 0;
+          }
+          p {
+            font-weight: $font-500;
+            font-size: 15px;
+            display: inline-block;
+            color: $mainColorTwo;
+            @include textTransform(capitalize);
+          }
+        }
+        &:hover {
+          transform: scale(0.96);
+        }
+      }
+    }
+  }
+}
+
+.load-more {
+  text-align: $text-center;
+  margin-top: 40px;
+  .lm-btn {
+    padding: 10px 15px;
+    box-shadow: 0px 9px 31px 6px rgba($mainColorSix, 0.2) !important;
+    background: transparent;
+    @extend .border-none;
+    @include borderRadius(100px);
+  }
+  span {
+    margin-bottom: 0;
+  }
+}

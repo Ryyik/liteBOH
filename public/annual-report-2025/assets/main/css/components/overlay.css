@@ -1,0 +1,152 @@
+/************************** 
+*  Import style
+***************************/
+/************************** 
+* Main Color
+***************************/
+/* 1-  Color */
+/* 2-  Background */
+/* 3-  Border */
+/************************** 
+* Alert
+***************************/
+/************************** 
+* Main Fonts
+***************************/
+/************************** 
+* Float fixing
+***************************/
+/************************** 
+* Text Align
+***************************/
+/************************** 
+* Font-weight
+***************************/
+/************************** 
+* Transition
+***************************/
+.transition {
+  -webkit-transition: all 0.5s ease-in-out !important;
+  -o-transition: all 0.5s ease-in-out !important;
+  transition: all 0.5s ease-in-out !important; }
+
+/************************** 
+* Box Shadow
+***************************/
+.box-shadownone {
+  -webkit-box-shadow: none;
+  box-shadow: none; }
+
+/************************** 
+* Box Sizing
+***************************/
+.box-sizing {
+  -moz-box-sizing: border-box;
+  -ms-box-sizing: border-box;
+  -o-box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box; }
+
+/************************** 
+* Padding
+***************************/
+.padding {
+  padding: 30px 20px; }
+
+/************************** 
+* Boreder None
+***************************/
+.border-none {
+  border: none; }
+
+/************************** 
+* Media Queries
+***************************/
+/* 
+  ##Device = Tablets, Ipads (landscape)
+  ##Screen = B/w 768px to 1024px
+*/
+/************************** 
+* Border radius
+***************************/
+/************************** 
+* Transition Delay
+***************************/
+/************************** 
+* Text Transform
+***************************/
+/************************** 
+* Border T R B L
+***************************/
+/************************** 
+* General style
+***************************/
+.overlay-effect {
+  background-color: #181818;
+  display: block;
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: 100%;
+  -webkit-transform: translateY(100%);
+  transform: translateY(100%);
+  z-index: 99999;
+  -webkit-animation-duration: 1s;
+  -webkit-animation-fill-mode: both;
+  -webkit-animation-timing-function: ease-in-out;
+  animation-duration: 1s;
+  animation-fill-mode: both;
+  animation-timing-function: ease-in-out; }
+  .overlay-effect.animate-up {
+    -webkit-animation-name: overlayEffectUp;
+    animation-name: overlayEffectUp; }
+  .overlay-effect.animate-down {
+    -webkit-animation-name: overlayEffectDown;
+    animation-name: overlayEffectDown; }
+
+@-webkit-keyframes overlayEffectUp {
+  0% {
+    -webkit-transform: translateY(100%);
+    transform: translateY(100%); }
+  35%,
+    65% {
+    -webkit-transform: translateY(0);
+    transform: translateY(0); }
+  100% {
+    -webkit-transform: translateY(-100%);
+    transform: translateY(-100%); } }
+@keyframes overlayEffectUp {
+  0% {
+    -webkit-transform: translateY(100%);
+    transform: translateY(100%); }
+  35%,
+    65% {
+    -webkit-transform: translateY(0);
+    transform: translateY(0); }
+  100% {
+    -webkit-transform: translateY(-100%);
+    transform: translateY(-100%); } }
+@-webkit-keyframes overlayEffectDown {
+  0% {
+    -webkit-transform: translateY(-100%);
+    transform: translateY(-100%); }
+  35%,
+    65% {
+    -webkit-transform: translateY(0);
+    transform: translateY(0); }
+  100% {
+    -webkit-transform: translateY(100%);
+    transform: translateY(100%); } }
+@keyframes overlayEffectDown {
+  0% {
+    -webkit-transform: translateY(-100%);
+    transform: translateY(-100%); }
+  35%,
+    65% {
+    -webkit-transform: translateY(0);
+    transform: translateY(0); }
+  100% {
+    -webkit-transform: translateY(100%);
+    transform: translateY(100%); } }
+
+/*# sourceMappingURL=overlay.css.map */

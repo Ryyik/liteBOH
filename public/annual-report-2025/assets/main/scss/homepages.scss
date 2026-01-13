@@ -1,0 +1,290 @@
+/***************************************************************************************************************
+||||||||||||||||||||||||||||       MASTER STYLESHEET FOR Invest               ||||||||||||||||||||||||||||||||||
+****************************************************************************************************************
+    Project:        ********* | Personal Portfolio / CV / Resume Template
+    Version:        1.0
+    Author:         *********
+
+||||||||||||||||||||||||||||              TABLE OF CONTENT                  ||||||||||||||||||||||||||||||||||||
+****************************************************************************************************************
+****************************************************************************************************************
+
+1- General Style
+
+
+               ||||||||||||||||||||||||||||              Typography                        ||||||||||||||||||||||||||||||||||||
+****************************************************************************************************************
+****************************************************************************************************************
+
+Fonts One: "Nunito"
+Fonts Two: "Saira"
+
+Notes:  Google Fonts
+
+
+****************************************************************************************************************
+||||||||||||||||||||||||||||            End TABLE OF CONTENT                ||||||||||||||||||||||||||||||||||||
+****************************************************************************************************************/
+
+/************************** 
+* 1. General Style
+***************************/
+
+/* Import style scss - Fonts  */
+
+@import url('https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i&display=swap');
+@import url('https://fonts.googleapis.com/css?family=Saira:100,200,300,400,500,600,700,800,900&display=swap');
+
+/* Import style scss - Vendor  */
+
+@import url('../vendor/bootstrap.css');
+// @import url('../vendor/fontawesome.css');
+@import url('../vendor/fonts.css');
+// @import url('../vendor/fontsicon.css');
+@import url('../vendor/animate.css');
+@import url('../vendor/hover-min.css');
+@import url('../vendor/magnific-popup.css');
+
+/* Import style scss - Main Css  */
+
+@import 'helpers/variabls.scss';
+@import 'helpers/mixins.scss';
+@import 'pages/globalpage.scss';
+@import 'pages/homepages';
+@import 'layouts/footer.scss';
+@import 'pages/section__header.scss';
+@import 'pages/section__about.scss';
+@import 'pages/section__resume.scss';
+@import 'pages/section__portfolio.scss';
+@import 'pages/section__blog.scss';
+@import 'pages/section__contact.scss';
+@import 'components/page__animate.scss';
+@import 'components/overlay.scss';
+@import 'components/buttons.scss';
+@import 'components/headings.scss';
+@import 'components/cursor.scss';
+@import 'components/close-button.scss';
+@import 'components/link_underline.scss';
+@import '../vendor/owl.carousel.min.css';
+@import '../vendor/map.css';
+a:hover,
+a:focus,
+.fa:hover,
+.navbar-header .navbar-brand span,
+.navbar-inverse .navbar-nav li a:hover,
+.navbar-inverse .navbar-nav li a:focus,
+.cont-services .services-block .fa,
+#portfolio .portfolio-list .nav li:hover {
+  @extend .transition;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+}
+
+h2 {
+  color: $mainColorThree;
+  font-weight: $font-600;
+}
+
+h4 {
+  color: $mainColorSix;
+  font-size: 14px;
+  font-weight: $font-600;
+  letter-spacing: 2px;
+  @include textTransform(uppercase);
+}
+
+h5 {
+  font-size: 14px;
+  font-weight: $font-500;
+}
+
+a {
+  text-decoration: none !important;
+}
+
+ul {
+  margin-bottom: 0;
+}
+
+span {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 20px;
+  margin-top: 20px;
+  @include textTransform(uppercase);
+}
+
+.fa {
+  font-size: 13px;
+}
+
+.fa,
+.fa:hover {
+  @extend .transition;
+}
+
+input {
+  display: inline-block !important;
+  letter-spacing: 1px;
+  width: 100% !important;
+}
+
+textarea {
+  height: auto !important;
+  width: 100% !important;
+}
+
+.form-control {
+  background-color: transparent;
+  height: 50px;
+  text-align: $text-center;
+  color: $colorLight;
+  font-size: 16px;
+  min-width: auto;
+  vertical-align: middle;
+  font-weight: $font-400;
+  font-family: $fontOne;
+  line-height: 1.9;
+  letter-spacing: 0.5px;
+  border-top: borderTop(none);
+  border-left: borderLeft(none);
+  border-right: borderRight(none);
+  text-align: $text-left;
+  border-color: $brdcolor;
+  @include borderRadius(0);
+}
+
+.form-control:focus {
+  outline: 0 none;
+  background: transparent;
+  @extend .box-shadownone;
+}
+
+::-webkit-input-placeholder {
+  color: $colorLight;
+}
+
+:-ms-input-placeholder {
+  color: $colorLight;
+}
+
+::placeholder {
+  color: $colorLight;
+}
+
+.hvr-shutter-in-horizontal::before {
+  background: #222222 none repeat scroll 0 0;
+}
+
+/* Padding & margin */
+
+.pt-60 {
+  padding-top: 60px;
+}
+
+.pt-90 {
+  padding-top: 90px;
+}
+
+.pb-60 {
+  padding-bottom: 60px;
+}
+
+.pb-90 {
+  padding-bottom: 90px;
+}
+
+.mb-10 {
+  margin-bottom: 10px;
+}
+
+.mb-30 {
+  margin-bottom: 30px;
+}
+
+/* Media Fix */
+
+.r-mb-30 {
+  @media #{$maxMobile} {
+    margin-bottom: 30px !important;
+  }
+  @media #{$minmax} {
+    margin-bottom: 30px !important;
+  }
+}
+
+/* Input */
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus {
+  -webkit-box-shadow: none;
+}
+
+::-webkit-selection {
+  background: $mainColor;
+}
+
+::-moz-selection {
+  background: $mainColor;
+}
+
+::selection {
+  background: $mainColor;
+}
+
+/************************** 
+* Counetr 
+***************************/
+
+.error {
+  font-size: 16px;
+  margin: 0;
+  font-weight: $font-400;
+  color: $mainColor !important;
+  @include textTransform(capitalize);
+}
+
+/************************** 
+* Nice scroll
+***************************/
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  @include borderRadius(20px);
+}
+
+::-webkit-scrollbar-thumb {
+  @include borderRadius(10px);
+}
+
+/* Map */
+
+.btn:hover,
+.btn:focus {
+  background: $mainColor;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.5);
+}

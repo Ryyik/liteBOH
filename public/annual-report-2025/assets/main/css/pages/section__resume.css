@@ -1,0 +1,265 @@
+/************************** 
+*  Import style
+***************************/
+/************************** 
+* Main Color
+***************************/
+/* 1-  Color */
+/* 2-  Background */
+/* 3-  Border */
+/************************** 
+* Alert
+***************************/
+/************************** 
+* Main Fonts
+***************************/
+/************************** 
+* Float fixing
+***************************/
+/************************** 
+* Text Align
+***************************/
+/************************** 
+* Font-weight
+***************************/
+/************************** 
+* Transition
+***************************/
+.transition {
+  -webkit-transition: all 0.5s ease-in-out !important;
+  -o-transition: all 0.5s ease-in-out !important;
+  transition: all 0.5s ease-in-out !important; }
+
+/************************** 
+* Box Shadow
+***************************/
+.box-shadownone, #resume .resume-info {
+  -webkit-box-shadow: none;
+  box-shadow: none; }
+
+/************************** 
+* Box Sizing
+***************************/
+.box-sizing {
+  -moz-box-sizing: border-box;
+  -ms-box-sizing: border-box;
+  -o-box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box; }
+
+/************************** 
+* Padding
+***************************/
+.padding, #resume .resume-info {
+  padding: 30px 20px; }
+
+/************************** 
+* Boreder None
+***************************/
+.border-none {
+  border: none; }
+
+/************************** 
+* Media Queries
+***************************/
+/* 
+  ##Device = Tablets, Ipads (landscape)
+  ##Screen = B/w 768px to 1024px
+*/
+/************************** 
+* Border radius
+***************************/
+/************************** 
+* Transition Delay
+***************************/
+/************************** 
+* Text Transform
+***************************/
+/************************** 
+* Border T R B L
+***************************/
+/************************** 
+* resume
+***************************/
+#resume {
+  width: 100%;
+  height: auto;
+  position: relative; }
+  #resume .resume-info {
+    position: relative;
+    box-shadow: 0px 9px 31px 6px rgba(0, 0, 0, 0.2) !important;
+    background: #191919; }
+    #resume .resume-info .res-list {
+      padding: 0;
+      margin-top: 20px; }
+      #resume .resume-info .res-list li {
+        display: block;
+        color: #ffffff;
+        margin-bottom: 20px;
+        font-size: 17px; }
+        #resume .resume-info .res-list li:last-child {
+          margin-bottom: 0; }
+
+.res-line {
+  margin-top: 40px;
+  width: 100px;
+  height: 3px;
+  background: #ffffff; }
+
+/************************** 
+* Skills
+***************************/
+#skills {
+  width: 100%;
+  height: auto;
+  position: relative;
+  overflow: hidden; }
+  #skills .skills-block .skils-information {
+    display: flex;
+    width: 100%; }
+    @media (max-width: 991px) {
+      #skills .skills-block .skils-information {
+        display: inline-block; } }
+    @media (max-width: 991px) {
+      #skills .skills-block .skils-information .skills-list {
+        margin-bottom: 30px; } }
+    #skills .skills-block .skils-information .skills-list .skills-bar-container {
+      position: relative;
+      text-align: left;
+      display: inline-block;
+      width: 100%; }
+      #skills .skills-block .skils-information .skills-list .skills-bar-container li {
+        position: relative;
+        width: 100%;
+        margin-bottom: 30px; }
+        #skills .skills-block .skils-information .skills-list .skills-bar-container li:last-child {
+          margin-bottom: 0; }
+        #skills .skills-block .skils-information .skills-list .skills-bar-container li .progressbar-title {
+          color: #ffffff; }
+          #skills .skills-block .skils-information .skills-list .skills-bar-container li .progressbar-title h3 {
+            display: inline-block;
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1.9;
+            letter-spacing: 0.5px;
+            color: #ffffff;
+            text-transform: capitalize; }
+          #skills .skills-block .skils-information .skills-list .skills-bar-container li .progressbar-title .percent {
+            margin-top: 9px;
+            margin-bottom: 0;
+            font-size: 13px;
+            font-weight: 700;
+            float: right;
+            color: #ffffff; }
+        #skills .skills-block .skils-information .skills-list .skills-bar-container li .bar-container {
+          position: relative;
+          width: 100%;
+          height: 3px;
+          margin-top: 5px;
+          display: block;
+          background: #8f8f8f; }
+          #skills .skills-block .skils-information .skills-list .skills-bar-container li .bar-container .progressbar {
+            position: absolute;
+            width: 0%;
+            height: 100%;
+            -webkit-animation-duration: 2s;
+            animation-duration: 2s;
+            -webkit-animation-timing-function: ease-out;
+            animation-timing-function: ease-out;
+            -webkit-animation-fill-mode: both;
+            animation-fill-mode: both;
+            background: #ffffff;
+            margin: 0; }
+          #skills .skills-block .skils-information .skills-list .skills-bar-container li .bar-container #progress-html {
+            -webkit-animation-name: progress-html;
+            animation-name: progress-html;
+            -webkit-animation-delay: 0.7s;
+            animation-delay: 0.7s;
+            margin: 0; }
+          #skills .skills-block .skils-information .skills-list .skills-bar-container li .bar-container #progress-css {
+            -webkit-animation-name: progress-css;
+            animation-name: progress-css;
+            -webkit-animation-delay: 1.4s;
+            animation-delay: 1.4s;
+            margin: 0; }
+          #skills .skills-block .skils-information .skills-list .skills-bar-container li .bar-container #progress-javascript {
+            -webkit-animation-name: progress-javascript;
+            animation-name: progress-javascript;
+            -webkit-animation-delay: 2.1s;
+            animation-delay: 2.1s;
+            margin: 0; }
+          #skills .skills-block .skils-information .skills-list .skills-bar-container li .bar-container #progress-php {
+            -webkit-animation-name: progress-php;
+            animation-name: progress-php;
+            -webkit-animation-delay: 2.8s;
+            animation-delay: 2.8s;
+            margin: 0; }
+          #skills .skills-block .skils-information .skills-list .skills-bar-container li .bar-container #progress-angular {
+            -webkit-animation-name: progress-angular;
+            animation-name: progress-angular;
+            -webkit-animation-delay: 3.5s;
+            animation-delay: 3.5s;
+            margin: 0; }
+          #skills .skills-block .skils-information .skills-list .skills-bar-container li .bar-container #progress-Expressjs {
+            -webkit-animation-name: progress-Expressjs;
+            animation-name: progress-Expressjs;
+            -webkit-animation-delay: 2.5s;
+            animation-delay: 2.5s;
+            margin: 0; }
+
+@-webkit-keyframes progress-html {
+  0% {
+    width: 0%; }
+  100% {
+    width: 100%; } }
+@-webkit-keyframes progress-css {
+  0% {
+    width: 0%; }
+  100% {
+    width: 90%; } }
+@-webkit-keyframes progress-javascript {
+  0% {
+    width: 0%; }
+  100% {
+    width: 70%; } }
+@-webkit-keyframes progress-php {
+  0% {
+    width: 0%; }
+  100% {
+    width: 55%; } }
+@-webkit-keyframes progress-angular {
+  0% {
+    width: 0%; }
+  100% {
+    width: 65%; } }
+@-webkit-keyframes progress-Expressjs {
+  0% {
+    width: 0%; }
+  100% {
+    width: 65%; } }
+/************************** 
+* My Office
+***************************/
+#myoffice .item-office h2 {
+  position: relative;
+  display: inline-block;
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  line-height: 36px;
+  text-transform: capitalize; }
+#myoffice .item-office .separator {
+  margin-bottom: 15px; }
+  #myoffice .item-office .separator:last-child {
+    margin-bottom: 0; }
+#myoffice .contact-myoffice {
+  display: inline-block;
+  margin-top: 30px; }
+  #myoffice .contact-myoffice .link-contact {
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 32px;
+    line-height: 48px; }
+
+/*# sourceMappingURL=section__resume.css.map */

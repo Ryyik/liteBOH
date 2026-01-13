@@ -1,0 +1,35 @@
+/************************** 
+*  Import style
+***************************/
+
+@import "../helpers/variabls.scss";
+@import "../helpers/mixins.scss";
+
+
+/************************** 
+* General style
+***************************/
+
+.btn {
+    background: $mainColorThree;
+    border: medium none;
+    height: 50px;
+    line-height: 50px;
+    padding: 0 30px;
+    color: $colorLight;
+    display: inline-block;
+    font-weight: $font-500;
+    font-family: $fontTwo;
+    font-size: 16px;
+    letter-spacing: 0.5px;
+    @extend .transition;
+    @include borderRadius(0);
+    @include textTransform(capitalize);
+}
+
+.btn:hover,
+.btn:focus {
+    color: $colorLight;
+    @extend .box-shadownone;
+    @extend .transition;
+}
