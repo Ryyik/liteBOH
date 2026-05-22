@@ -1,0 +1,1052 @@
+[
+  {
+    "table_name": "activities",
+    "column_name": "id",
+    "data_type": "bigint",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": 64,
+    "numeric_scale": 0
+  },
+  {
+    "table_name": "activities",
+    "column_name": "title",
+    "data_type": "character varying",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": 255,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "activities",
+    "column_name": "date",
+    "data_type": "character varying",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": 50,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "activities",
+    "column_name": "image",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "activities",
+    "column_name": "description",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "activities",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES",
+    "column_default": "now()",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "activities",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES",
+    "column_default": "now()",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "addresses",
+    "column_name": "id",
+    "data_type": "uuid",
+    "is_nullable": "NO",
+    "column_default": "gen_random_uuid()",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "addresses",
+    "column_name": "user_username",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "addresses",
+    "column_name": "address_data",
+    "data_type": "jsonb",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "comments",
+    "column_name": "id",
+    "data_type": "uuid",
+    "is_nullable": "NO",
+    "column_default": "gen_random_uuid()",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "comments",
+    "column_name": "post_id",
+    "data_type": "uuid",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "comments",
+    "column_name": "author_id",
+    "data_type": "uuid",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "comments",
+    "column_name": "author_username",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "comments",
+    "column_name": "content",
+    "data_type": "text",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "comments",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES",
+    "column_default": "now()",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "comments",
+    "column_name": "status",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": "'approved'::text",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "comments",
+    "column_name": "parent_id",
+    "data_type": "uuid",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "comments",
+    "column_name": "reply_to_username",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "likes",
+    "column_name": "id",
+    "data_type": "uuid",
+    "is_nullable": "NO",
+    "column_default": "gen_random_uuid()",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "likes",
+    "column_name": "post_id",
+    "data_type": "uuid",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "likes",
+    "column_name": "user_id",
+    "data_type": "uuid",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "messages",
+    "column_name": "id",
+    "data_type": "uuid",
+    "is_nullable": "NO",
+    "column_default": "gen_random_uuid()",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "messages",
+    "column_name": "sender_id",
+    "data_type": "uuid",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "messages",
+    "column_name": "sender_name",
+    "data_type": "text",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "messages",
+    "column_name": "receiver_id",
+    "data_type": "uuid",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "messages",
+    "column_name": "receiver_name",
+    "data_type": "text",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "messages",
+    "column_name": "subject",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "messages",
+    "column_name": "content",
+    "data_type": "text",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "messages",
+    "column_name": "status",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": "'unread'::text",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "messages",
+    "column_name": "moderation_status",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": "'approved'::text",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "messages",
+    "column_name": "moderation_reason",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "messages",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES",
+    "column_default": "now()",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "moderation_logs",
+    "column_name": "id",
+    "data_type": "uuid",
+    "is_nullable": "NO",
+    "column_default": "gen_random_uuid()",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "moderation_logs",
+    "column_name": "target_id",
+    "data_type": "uuid",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "moderation_logs",
+    "column_name": "target_type",
+    "data_type": "text",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "moderation_logs",
+    "column_name": "ai_result",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "moderation_logs",
+    "column_name": "ai_reason",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "moderation_logs",
+    "column_name": "moderator_id",
+    "data_type": "uuid",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "moderation_logs",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES",
+    "column_default": "now()",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "news",
+    "column_name": "id",
+    "data_type": "bigint",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": 64,
+    "numeric_scale": 0
+  },
+  {
+    "table_name": "news",
+    "column_name": "category",
+    "data_type": "character varying",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": 50,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "news",
+    "column_name": "title",
+    "data_type": "character varying",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": 255,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "news",
+    "column_name": "excerpt",
+    "data_type": "text",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "news",
+    "column_name": "date",
+    "data_type": "date",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "news",
+    "column_name": "author",
+    "data_type": "character varying",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": 100,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "news",
+    "column_name": "image",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "news",
+    "column_name": "content",
+    "data_type": "text",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "news",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES",
+    "column_default": "now()",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "news",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES",
+    "column_default": "now()",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "notifications",
+    "column_name": "id",
+    "data_type": "uuid",
+    "is_nullable": "NO",
+    "column_default": "gen_random_uuid()",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "notifications",
+    "column_name": "recipient_id",
+    "data_type": "uuid",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "notifications",
+    "column_name": "sender_id",
+    "data_type": "uuid",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "notifications",
+    "column_name": "type",
+    "data_type": "text",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "notifications",
+    "column_name": "post_id",
+    "data_type": "uuid",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "notifications",
+    "column_name": "comment_id",
+    "data_type": "uuid",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "notifications",
+    "column_name": "status",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": "'unread'::text",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "notifications",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES",
+    "column_default": "now()",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "notifications",
+    "column_name": "content",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "posts",
+    "column_name": "id",
+    "data_type": "uuid",
+    "is_nullable": "NO",
+    "column_default": "gen_random_uuid()",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "posts",
+    "column_name": "content",
+    "data_type": "text",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "posts",
+    "column_name": "author_id",
+    "data_type": "uuid",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "posts",
+    "column_name": "author_username",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "posts",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES",
+    "column_default": "now()",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "posts",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES",
+    "column_default": "timezone('utc'::text, now())",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "posts",
+    "column_name": "status",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": "'approved'::text",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "id",
+    "data_type": "uuid",
+    "is_nullable": "NO",
+    "column_default": "gen_random_uuid()",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "username",
+    "data_type": "text",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "join_date",
+    "data_type": "date",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "tags",
+    "data_type": "ARRAY",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "role",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": "'user'::text",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "points",
+    "data_type": "integer",
+    "is_nullable": "YES",
+    "column_default": "0",
+    "character_maximum_length": null,
+    "numeric_precision": 32,
+    "numeric_scale": 0
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "birth_month",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "birth_day",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "email",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "bio",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "avatar_url",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "profile_background_url",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "profile_background_public_id",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "experience",
+    "data_type": "integer",
+    "is_nullable": "YES",
+    "column_default": "0",
+    "character_maximum_length": null,
+    "numeric_precision": 32,
+    "numeric_scale": 0
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "shipping_recipient",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "shipping_phone",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "shipping_address",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "gift_status",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": "'preparing'::text",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "gift_content",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "gift_no",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "gift_price",
+    "data_type": "numeric",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "pushplus_token",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "profiles",
+    "column_name": "pushplus_enabled",
+    "data_type": "boolean",
+    "is_nullable": "YES",
+    "column_default": "false",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "user_gifts",
+    "column_name": "id",
+    "data_type": "uuid",
+    "is_nullable": "NO",
+    "column_default": "gen_random_uuid()",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "user_gifts",
+    "column_name": "user_id",
+    "data_type": "uuid",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "user_gifts",
+    "column_name": "gift_no",
+    "data_type": "text",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "user_gifts",
+    "column_name": "gift_content",
+    "data_type": "text",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "user_gifts",
+    "column_name": "gift_price",
+    "data_type": "numeric",
+    "is_nullable": "YES",
+    "column_default": "0",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "user_gifts",
+    "column_name": "gift_image",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "user_gifts",
+    "column_name": "gift_status",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": "'preparing'::text",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "user_gifts",
+    "column_name": "is_active",
+    "data_type": "boolean",
+    "is_nullable": "YES",
+    "column_default": "true",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "user_gifts",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES",
+    "column_default": "now()",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "user_gifts",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES",
+    "column_default": "now()",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "user_impressions",
+    "column_name": "id",
+    "data_type": "uuid",
+    "is_nullable": "NO",
+    "column_default": "gen_random_uuid()",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "user_impressions",
+    "column_name": "author_id",
+    "data_type": "uuid",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "user_impressions",
+    "column_name": "target_id",
+    "data_type": "uuid",
+    "is_nullable": "YES",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "user_impressions",
+    "column_name": "content",
+    "data_type": "text",
+    "is_nullable": "NO",
+    "column_default": null,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "user_impressions",
+    "column_name": "category",
+    "data_type": "text",
+    "is_nullable": "YES",
+    "column_default": "'general'::text",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  },
+  {
+    "table_name": "user_impressions",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone",
+    "is_nullable": "YES",
+    "column_default": "now()",
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null
+  }
+]

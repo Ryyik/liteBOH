@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BOH 方块之家 - 宣传海报</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@100;300;400;500;700;900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --black: #0a0a0a;
+    --pure-white: #FFFFFF;
+    --off-white: #F8F8FA;
+    --gray-100: #EAEAED;
+    --gray-300: #C7C7CC;
+    --gray-500: #8E8E93;
+    --gray-700: #48484A;
+    --gray-900: #1C1C1E;
+    --accent: #0071E3;
+    --accent-light: rgba(0, 113, 227, 0.08);
+    --accent-glow: rgba(0, 113, 227, 0.15);
+    --warm: #FF6B35;
+    --warm-soft: rgba(255, 107, 53, 0.08);
+  }
+
+  body {
+    font-family: "Space Grotesk", "Noto Sans SC", sans-serif;
+    background: #111;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 40px 20px;
+  }
+
+  .poster {
+    width: 1080px;
+    height: 1520px;
+    background: var(--pure-white);
+    border-radius: 0;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ====== TOP NAV BAR ====== */
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 28px 56px;
+  }
+
+  .topbar-logo {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .logo-mark {
+    width: 40px;
+    height: 40px;
+    background: var(--black);
+    border-radius: 12px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .logo-mark::before {
+    content: '';
+    position: absolute;
+    top: 8px; left: 8px;
+    width: 12px; height: 12px;
+    background: var(--accent);
+    border-radius: 3px;
+  }
+
+  .logo-mark::after {
+    content: '';
+    position: absolute;
+    bottom: 8px; right: 8px;
+    width: 12px; height: 12px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 3px;
+  }
+
+  .logo-text {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--black);
+    letter-spacing: -0.02em;
+  }
+
+  .logo-text span {
+    color: var(--gray-500);
+    font-weight: 400;
+    margin-left: 6px;
+    font-size: 13px;
+  }
+
+  .topbar-tag {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--gray-500);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border: 1px solid var(--gray-100);
+    padding: 6px 16px;
+    border-radius: 100px;
+  }
+
+  /* ====== HERO ====== */
+  .hero {
+    padding: 40px 56px 0;
+    position: relative;
+  }
+
+  .hero-eyebrow {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .hero-eyebrow::before {
+    content: '';
+    width: 24px;
+    height: 1.5px;
+    background: var(--accent);
+  }
+
+  .hero-headline {
+    font-size: 88px;
+    font-weight: 900;
+    line-height: 0.95;
+    letter-spacing: -0.05em;
+    color: var(--black);
+    margin-bottom: 28px;
+  }
+
+  .hero-headline .line-2 {
+    display: block;
+    color: transparent;
+    -webkit-text-stroke: 2px var(--black);
+  }
+
+  .hero-headline .dot {
+    color: var(--accent);
+    -webkit-text-stroke: 0;
+  }
+
+  .hero-desc {
+    font-size: 17px;
+    font-weight: 400;
+    color: var(--gray-500);
+    line-height: 1.7;
+    max-width: 440px;
+    letter-spacing: 0.01em;
+  }
+
+  /* ====== STATS ROW ====== */
+  .stats-row {
+    display: flex;
+    gap: 0;
+    margin: 48px 56px 0;
+    border-top: 1px solid var(--gray-100);
+    border-bottom: 1px solid var(--gray-100);
+  }
+
+  .stat-item {
+    flex: 1;
+    padding: 28px 0;
+    text-align: center;
+    position: relative;
+  }
+
+  .stat-item:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 20%;
+    height: 60%;
+    width: 1px;
+    background: var(--gray-100);
+  }
+
+  .stat-value {
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--black);
+    letter-spacing: -0.04em;
+    line-height: 1;
+    font-family: "Space Grotesk", sans-serif;
+  }
+
+  .stat-value .unit {
+    font-size: 22px;
+    font-weight: 400;
+    color: var(--gray-500);
+    margin-left: 2px;
+  }
+
+  .stat-unit {
+    font-size: 12px;
+    color: var(--gray-500);
+    margin-top: 8px;
+    letter-spacing: 0.04em;
+    font-weight: 400;
+  }
+
+  /* ====== FEATURES ====== */
+  .features {
+    padding: 48px 56px 0;
+  }
+
+  .features-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 28px;
+  }
+
+  .features-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gray-500);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .features-count {
+    font-size: 11px;
+    color: var(--gray-300);
+    font-weight: 400;
+  }
+
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+
+  .feature-card {
+    background: var(--off-white);
+    border-radius: 20px;
+    padding: 28px 24px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .feature-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.06);
+  }
+
+  .feature-card.featured {
+    background: var(--black);
+    color: var(--pure-white);
+  }
+
+  .feature-card.featured .feature-name {
+    color: var(--pure-white);
+  }
+
+  .feature-card.featured .feature-desc {
+    color: rgba(255,255,255,0.45);
+  }
+
+  .feature-card.featured .feature-num {
+    color: rgba(255,255,255,0.1);
+  }
+
+  .feature-card.featured .feature-tag {
+    background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.7);
+  }
+
+  .feature-num {
+    font-size: 64px;
+    font-weight: 700;
+    color: var(--gray-100);
+    position: absolute;
+    top: -8px;
+    right: 16px;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    font-family: "Space Grotesk", sans-serif;
+  }
+
+  .feature-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--black);
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .feature-desc {
+    font-size: 12.5px;
+    color: var(--gray-500);
+    line-height: 1.55;
+    position: relative;
+    z-index: 1;
+  }
+
+  .feature-tag {
+    display: inline-block;
+    margin-top: 14px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-light);
+    padding: 4px 10px;
+    border-radius: 6px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ====== TIMELINE ====== */
+  .timeline-section {
+    padding: 48px 56px 0;
+  }
+
+  .timeline-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gray-500);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+
+  .timeline-track {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    position: relative;
+  }
+
+  .timeline-track::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--gray-100);
+  }
+
+  .tl-node {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    z-index: 1;
+  }
+
+  .tl-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--pure-white);
+    border: 2.5px solid var(--gray-300);
+    margin-bottom: 14px;
+    transition: all 0.3s ease;
+  }
+
+  .tl-node.active .tl-dot {
+    background: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 5px var(--accent-glow);
+  }
+
+  .tl-year {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--black);
+    letter-spacing: -0.03em;
+    font-family: "Space Grotesk", sans-serif;
+  }
+
+  .tl-text {
+    font-size: 11px;
+    color: var(--gray-500);
+    margin-top: 4px;
+    font-weight: 400;
+  }
+
+  /* ====== ACTIVITY STRIP ====== */
+  .activity-strip {
+    padding: 44px 56px 0;
+  }
+
+  .strip-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gray-500);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+  }
+
+  .strip-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .strip-item {
+    padding: 9px 20px;
+    border-radius: 100px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--gray-700);
+    background: var(--off-white);
+    letter-spacing: 0.01em;
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
+  }
+
+  .strip-item:hover {
+    border-color: var(--gray-100);
+    background: var(--pure-white);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+  }
+
+  .strip-item.dark {
+    background: var(--black);
+    color: var(--pure-white);
+  }
+
+  .strip-item.accent {
+    background: var(--accent);
+    color: var(--pure-white);
+  }
+
+  .strip-item.warm {
+    background: var(--warm-soft);
+    color: var(--warm);
+  }
+
+  /* ====== CTA ====== */
+  .cta-block {
+    margin: 48px 56px 0;
+    background: var(--black);
+    border-radius: 28px;
+    padding: 44px 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cta-block::before {
+    content: '';
+    position: absolute;
+    top: -100px;
+    right: -40px;
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(circle, rgba(0,113,227,0.12) 0%, transparent 65%);
+    border-radius: 50%;
+  }
+
+  .cta-block::after {
+    content: '';
+    position: absolute;
+    bottom: -80px;
+    left: 30%;
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, rgba(255,107,53,0.06) 0%, transparent 65%);
+    border-radius: 50%;
+  }
+
+  .cta-content {
+    position: relative;
+    z-index: 1;
+  }
+
+  .cta-heading {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--pure-white);
+    letter-spacing: -0.03em;
+    margin-bottom: 6px;
+  }
+
+  .cta-sub {
+    font-size: 14px;
+    color: rgba(255,255,255,0.4);
+    font-weight: 400;
+  }
+
+  .cta-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 15px 34px;
+    background: var(--pure-white);
+    color: var(--black);
+    border: none;
+    border-radius: 100px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    position: relative;
+    z-index: 1;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    text-decoration: none;
+    font-family: inherit;
+    letter-spacing: -0.01em;
+  }
+
+  .cta-btn:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 8px 30px rgba(255,255,255,0.15);
+  }
+
+  .cta-btn svg {
+    width: 16px;
+    height: 16px;
+    transition: transform 0.3s ease;
+  }
+
+  .cta-btn:hover svg {
+    transform: translateX(3px);
+  }
+
+  /* ====== FOOTER ====== */
+  .poster-footer {
+    padding: 28px 56px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 36px;
+  }
+
+  .footer-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .footer-copy {
+    font-size: 12px;
+    color: var(--gray-300);
+    font-weight: 400;
+  }
+
+  .footer-copy strong {
+    color: var(--gray-700);
+    font-weight: 600;
+  }
+
+  .footer-url {
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    text-decoration: none;
+  }
+
+  /* ====== GEOMETRIC DECORATIONS ====== */
+  .geo {
+    position: absolute;
+    pointer-events: none;
+    opacity: 0.04;
+  }
+
+  .geo-1 {
+    width: 120px;
+    height: 120px;
+    border: 2px solid var(--black);
+    border-radius: 24px;
+    top: 140px;
+    right: 56px;
+    transform: rotate(18deg);
+  }
+
+  .geo-2 {
+    width: 60px;
+    height: 60px;
+    background: var(--accent);
+    border-radius: 16px;
+    top: 290px;
+    right: 140px;
+    transform: rotate(-12deg);
+  }
+
+  .geo-3 {
+    width: 32px;
+    height: 32px;
+    background: var(--black);
+    border-radius: 8px;
+    top: 230px;
+    right: 200px;
+    transform: rotate(30deg);
+  }
+
+  .geo-4 {
+    width: 80px;
+    height: 80px;
+    border: 2px solid var(--black);
+    border-radius: 50%;
+    bottom: 200px;
+    left: 56px;
+    opacity: 0.03;
+  }
+
+  /* ====== QUOTE ====== */
+  .quote-block {
+    padding: 40px 56px 0;
+  }
+
+  .quote-text {
+    font-size: 15px;
+    font-weight: 300;
+    color: var(--gray-700);
+    line-height: 1.8;
+    border-left: 2px solid var(--accent);
+    padding-left: 20px;
+    max-width: 520px;
+  }
+
+  .quote-text em {
+    font-style: normal;
+    font-weight: 600;
+    color: var(--black);
+  }
+
+  @media print {
+    body { background: white; padding: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="poster">
+  <!-- Geometric decorations -->
+  <div class="geo geo-1"></div>
+  <div class="geo geo-2"></div>
+  <div class="geo geo-3"></div>
+  <div class="geo geo-4"></div>
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="topbar-logo">
+      <div class="logo-mark"></div>
+      <div class="logo-text">BOH<span>方块之家</span></div>
+    </div>
+    <div class="topbar-tag">Since 2018</div>
+  </div>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-eyebrow">Minecraft Creative Community</div>
+    <h1 class="hero-headline">
+      不止于
+      <span class="line-2">方块<span class="dot">。</span></span>
+    </h1>
+    <p class="hero-desc">
+      一个拥有 150+ 成员的创意社群。<br>
+      无论线上或现实，共同缔造我们的世界。
+    </p>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats-row">
+    <div class="stat-item">
+      <div class="stat-value">8<span class="unit">+</span></div>
+      <div class="stat-unit">年社群历史</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value">150<span class="unit">+</span></div>
+      <div class="stat-unit">社群成员</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value">6</div>
+      <div class="stat-unit">功能板块</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value">9</div>
+      <div class="stat-unit">年，我们还在</div>
+    </div>
+  </div>
+
+  <!-- FEATURES -->
+  <div class="features">
+    <div class="features-header">
+      <div class="features-title">Core Features</div>
+      <div class="features-count">6 modules</div>
+    </div>
+    <div class="feature-grid">
+      <div class="feature-card featured">
+        <div class="feature-num">01</div>
+        <div class="feature-name">BOH AI 智能助手</div>
+        <div class="feature-desc">内置社区记忆库，支持多模型切换、联网搜索与 OCR 识别</div>
+        <div class="feature-tag">AI Powered</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-num">02</div>
+        <div class="feature-name">方块人格测试</div>
+        <div class="feature-desc">48 题 Minecraft 风格 MBTI 深度人格分析</div>
+        <div class="feature-tag">Personality</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-num">03</div>
+        <div class="feature-name">社区论坛</div>
+        <div class="feature-desc">自由交流空间，AI 安全审核守护社区氛围</div>
+        <div class="feature-tag">Community</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-num">04</div>
+        <div class="feature-name">创作者工作室</div>
+        <div class="feature-desc">一站式内容创作工具平台，释放你的创造力</div>
+        <div class="feature-tag">Create</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-num">05</div>
+        <div class="feature-name">周边商城</div>
+        <div class="feature-desc">BOH BAG、纪念册、定制流麻等实体周边</div>
+        <div class="feature-tag">Shop</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-num">06</div>
+        <div class="feature-name">活动中心</div>
+        <div class="feature-desc">冬眠生存、周年庆典、遇见系列等丰富活动</div>
+        <div class="feature-tag">Events</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUOTE -->
+  <div class="quote-block">
+    <div class="quote-text">
+      <em>方块之家，这里不只有方块。</em><br>
+      每一个热爱方块、有想法的人，<br>
+      共同缔造我们的社群。
+    </div>
+  </div>
+
+  <!-- TIMELINE -->
+  <div class="timeline-section">
+    <div class="timeline-label">Milestones</div>
+    <div class="timeline-track">
+      <div class="tl-node active">
+        <div class="tl-dot"></div>
+        <div class="tl-year">2018</div>
+        <div class="tl-text">社群创立</div>
+      </div>
+      <div class="tl-node">
+        <div class="tl-dot"></div>
+        <div class="tl-year">2021</div>
+        <div class="tl-text">冬眠传统</div>
+      </div>
+      <div class="tl-node">
+        <div class="tl-dot"></div>
+        <div class="tl-year">2023</div>
+        <div class="tl-text">五周年纪录片</div>
+      </div>
+      <div class="tl-node">
+        <div class="tl-dot"></div>
+        <div class="tl-year">2025</div>
+        <div class="tl-text">遇见系列</div>
+      </div>
+      <div class="tl-node active">
+        <div class="tl-dot"></div>
+        <div class="tl-year">2026</div>
+        <div class="tl-text">八周年</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACTIVITY STRIP -->
+  <div class="activity-strip">
+    <div class="strip-label">Activities</div>
+    <div class="strip-items">
+      <span class="strip-item accent">冬眠生存</span>
+      <span class="strip-item dark">周年庆典</span>
+      <span class="strip-item">遇见系列</span>
+      <span class="strip-item warm">狼人杀</span>
+      <span class="strip-item">生日会</span>
+      <span class="strip-item">建筑服</span>
+      <span class="strip-item dark">新年抽奖</span>
+      <span class="strip-item">周边共创</span>
+      <span class="strip-item">纪录片</span>
+    </div>
+  </div>
+
+  <!-- CTA -->
+  <div class="cta-block">
+    <div class="cta-content">
+      <div class="cta-heading">第九年，我们还在。</div>
+      <div class="cta-sub">加入方块之家，开启你的方块旅程</div>
+    </div>
+    <a href="https://www.blockofhome.cn" class="cta-btn">
+      立即加入
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 8h10M9 4l4 4-4 4"/>
+      </svg>
+    </a>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="poster-footer">
+    <div class="footer-left">
+      <div class="footer-copy"><strong>Block of Home</strong> · 方块之家</div>
+    </div>
+    <a href="https://www.blockofhome.cn" class="footer-url">www.blockofhome.cn</a>
+  </div>
+</div>
+
+</body>
+</html>

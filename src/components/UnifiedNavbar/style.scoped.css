@@ -1,0 +1,109 @@
+/* ============================================
+   引入统一导航栏样式
+   ============================================ */
+/* @import url("../styles/vendor/unified-nav.css"); - 已在 main.js 中全局引入，此处移除冗余引用 */
+
+/* 统一导航栏毛玻璃效果优化 - 降低模糊效果 */
+#unified-nav-container {
+  background-color: rgba(255, 255, 255, 0.4) !important;
+  backdrop-filter: blur(10px) !important;
+  /* 降低模糊半径至 10px */
+  -webkit-backdrop-filter: blur(10px) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.02) !important;
+  transition: all 0.3s ease !important;
+}
+
+.unified-nav {
+  background-color: rgba(255, 255, 255, 0.4) !important;
+}
+
+/* ============================================
+   移动端菜单切换动画
+   ============================================ */
+
+/**
+ * 移动端菜单显示状态
+ */
+.nav-menu-mobile.active {
+  display: flex;
+}
+
+/**
+ * 汉堡菜单按钮动画 - X形态
+ */
+.nav-hamburger.active span:nth-child(1) {
+  transform: rotate(45deg) translate(6px, 6px);
+}
+
+.nav-hamburger.active span:nth-child(2) {
+  opacity: 0;
+  transform: scaleX(0);
+}
+
+.nav-hamburger.active span:nth-child(3) {
+  transform: rotate(-45deg) translate(6px, -6px);
+}
+
+/* ============================================
+   确保页面加载时导航栏显示
+   ============================================ */
+.unified-nav {
+  display: flex;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ============================================
+   未读消息红点 (导航栏)
+   ============================================ */
+/* 用户区域加载状态 */
+.nav-user-loading {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  animation: pulse 1.5s infinite ease-in-out;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 0.8;
+  }
+
+  100% {
+    opacity: 0.5;
+  }
+}
+
+.nav-avatar {
+  width: 32px;
+  height: 32px;
+  background: #000000;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.unread-dot-nav {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  background-color: #ff4d4f;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 4px rgba(255, 77, 79, 0.4);
+  z-index: 10;
+}

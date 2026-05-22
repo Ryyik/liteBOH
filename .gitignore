@@ -26,3 +26,15 @@ dist-ssr
 
 # 用户配置文件（包含敏感信息）
 src/config/users.config.js
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.p12
+*.pfx
+auth.json
+secrets*.json

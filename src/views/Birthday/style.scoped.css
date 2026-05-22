@@ -1,0 +1,966 @@
+.birthday-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: #f5f5f2;
+  color: #151519;
+  font-family: "SF Pro Text", "SF Pro Display", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow-x: hidden;
+}
+
+.birthday-confetti {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.confetti-strip {
+  position: absolute;
+  top: -12vh;
+  left: calc(var(--x) * 1%);
+  width: calc(var(--w) * 1px);
+  height: calc(var(--h) * 1px);
+  border-radius: 3px;
+  background: hsl(calc(var(--i) * 31), 86%, 60%);
+  opacity: 0.58;
+  animation: birthdayConfettiFall calc(7s + var(--speed) * 0.8s) linear infinite;
+  animation-delay: calc(var(--i) * -0.24s);
+}
+
+.birthday-hero {
+  position: relative;
+  min-height: clamp(680px, 96vh, 900px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 0.92fr);
+  align-items: center;
+  gap: clamp(30px, 5vw, 86px);
+  padding: 120px min(7vw, 100px) 80px;
+  color: #fff;
+  background:
+    radial-gradient(circle at 16% 24%, rgba(255, 205, 71, 0.22), transparent 26%),
+    radial-gradient(circle at 84% 16%, rgba(255, 72, 98, 0.26), transparent 30%),
+    #101114;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.birthday-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(100deg, rgba(0, 0, 0, 0.28), transparent 60%);
+}
+
+.birthday-hero-media {
+  position: relative;
+  min-height: 500px;
+  height: min(68vh, 650px);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.36);
+  transform: rotate(1.2deg);
+}
+
+.birthday-hero-media::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to top, rgba(0, 0, 0, 0.36), transparent 56%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent 34%);
+}
+
+.birthday-hero-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.04);
+}
+
+.birthday-hero-copy {
+  position: relative;
+  z-index: 1;
+  max-width: 780px;
+  order: -1;
+}
+
+.birthday-kicker,
+.section-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.birthday-kicker {
+  padding: 10px 14px;
+  margin-bottom: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(18px);
+}
+
+.birthday-hero h1 {
+  margin: 0;
+  max-width: 920px;
+  font-size: clamp(56px, 10vw, 132px);
+  line-height: 0.9;
+  letter-spacing: 0;
+  font-weight: 900;
+}
+
+.birthday-hero p {
+  width: min(600px, 100%);
+  margin: 26px 0 0;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: clamp(18px, 2vw, 25px);
+  line-height: 1.44;
+  font-weight: 500;
+}
+
+.hero-actions,
+.gift-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 40px;
+}
+
+.primary-action,
+.ghost-action,
+.candle-button {
+  min-height: 50px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 22px;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
+}
+
+.primary-action {
+  color: #111214;
+  background: #fff;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.24);
+}
+
+.primary-action.dark {
+  color: #fff;
+  background: #151519;
+}
+
+.ghost-action {
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px);
+}
+
+.ghost-action.dark {
+  color: #151519;
+  border-color: rgba(21, 21, 25, 0.12);
+  background: rgba(21, 21, 25, 0.06);
+}
+
+.primary-action:hover,
+.ghost-action:hover,
+.candle-button:hover {
+  transform: translateY(-2px);
+}
+
+.primary-action:disabled,
+.candle-button:disabled {
+  cursor: default;
+  opacity: 0.7;
+  transform: none;
+}
+
+.birthday-ticket {
+  width: fit-content;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 24px;
+  padding: 13px 16px;
+  border-radius: 8px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(18px);
+  font-weight: 700;
+}
+
+.birthday-ticket.muted {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.ceremony-section,
+.memories-section,
+.blessing-section,
+.gift-section {
+  padding: clamp(72px, 10vw, 130px) min(7vw, 100px);
+}
+
+.section-heading {
+  max-width: 720px;
+  margin: 0 auto 46px;
+  text-align: center;
+}
+
+.section-heading.compact {
+  margin-bottom: 30px;
+}
+
+.section-heading h2 {
+  margin: 10px 0 0;
+  font-size: clamp(34px, 5vw, 72px);
+  line-height: 0.98;
+  letter-spacing: 0;
+  font-weight: 900;
+}
+
+.section-heading p {
+  margin: 18px auto 0;
+  max-width: 580px;
+  color: #62646b;
+  font-size: clamp(16px, 1.7vw, 20px);
+  line-height: 1.65;
+}
+
+.section-label {
+  color: #d33a4c;
+}
+
+.ceremony-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.88fr) minmax(0, 1.12fr);
+  gap: clamp(24px, 5vw, 72px);
+  align-items: stretch;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.candle-scene,
+.ceremony-card,
+.gift-card-panel {
+  border: 1px solid rgba(21, 21, 25, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 22px 70px rgba(21, 21, 25, 0.08);
+}
+
+.candle-scene {
+  position: relative;
+  min-height: 520px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.candle-glow {
+  position: absolute;
+  top: 18%;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 187, 70, 0.36), transparent 68%);
+  transition: opacity 0.6s ease;
+}
+
+.candle-scene.wished .candle-glow {
+  opacity: 0.32;
+}
+
+.candle {
+  position: relative;
+  width: 74px;
+  height: 260px;
+  border-radius: 40px;
+  background:
+    repeating-linear-gradient(135deg, transparent 0 22px, rgba(255, 77, 95, 0.16) 22px 34px),
+    #fff;
+  box-shadow: inset -14px 0 26px rgba(21, 21, 25, 0.08), 0 26px 60px rgba(21, 21, 25, 0.18);
+}
+
+.candle span {
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  width: 3px;
+  height: 18px;
+  border-radius: 4px;
+  background: #232326;
+  transform: translateX(-50%);
+}
+
+.flame {
+  position: absolute;
+  top: calc(50% - 180px);
+  left: 50%;
+  width: 46px;
+  height: 66px;
+  border-radius: 50% 50% 46% 46%;
+  background: linear-gradient(to bottom, #fff8b6, #ff9a2f 62%, #ff4d5f);
+  filter: blur(0.4px);
+  transform: translateX(-50%) rotate(4deg);
+  transform-origin: center bottom;
+  animation: flameFlicker 1.2s ease-in-out infinite alternate;
+  box-shadow: 0 0 54px rgba(255, 169, 46, 0.48);
+  transition: opacity 0.34s ease, transform 0.34s ease;
+}
+
+.flame.hidden {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-16px) scale(0.2);
+}
+
+.smoke {
+  position: absolute;
+  top: calc(50% - 198px);
+  left: 50%;
+  width: 34px;
+  height: 110px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(142, 145, 151, 0.5), transparent 68%);
+  filter: blur(10px);
+  opacity: 0;
+  transform: translateX(-50%) translateY(18px) scale(0.5);
+  pointer-events: none;
+}
+
+.smoke.visible {
+  animation: smokeRise 2.4s ease-out forwards;
+}
+
+.candle-button {
+  position: absolute;
+  left: 50%;
+  bottom: 44px;
+  color: #fff;
+  background: #151519;
+  transform: translateX(-50%);
+}
+
+.candle-button:hover {
+  transform: translateX(-50%) translateY(-2px);
+}
+
+.ceremony-card {
+  padding: clamp(28px, 4vw, 54px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.card-eyebrow {
+  color: #d33a4c;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ceremony-card h3 {
+  margin: 16px 0 0;
+  font-size: clamp(30px, 4vw, 58px);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.ceremony-card p {
+  margin: 24px 0 0;
+  color: #5f6168;
+  font-size: 18px;
+  line-height: 1.8;
+}
+
+.mini-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 34px;
+}
+
+.mini-metrics div {
+  min-width: 0;
+  padding: 16px;
+  border-radius: 8px;
+  background: #f2f2ee;
+}
+
+.mini-metrics strong,
+.mini-metrics span {
+  display: block;
+}
+
+.mini-metrics strong {
+  font-size: clamp(18px, 2.5vw, 27px);
+}
+
+.mini-metrics span {
+  margin-top: 4px;
+  color: #767982;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.memories-section {
+  background: #fff;
+}
+
+.memory-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+.memory-card {
+  min-width: 0;
+  border: 1px solid rgba(21, 21, 25, 0.08);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f7f7f4;
+  box-shadow: 0 16px 46px rgba(21, 21, 25, 0.06);
+}
+
+.memory-card img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: block;
+}
+
+.memory-card div {
+  padding: 18px;
+}
+
+.memory-card span {
+  color: #d33a4c;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.memory-card h3 {
+  margin: 8px 0 0;
+  font-size: 21px;
+  letter-spacing: 0;
+}
+
+.memory-card p {
+  margin: 10px 0 0;
+  color: #646770;
+  line-height: 1.62;
+  font-size: 14px;
+}
+
+.blessing-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 430px);
+  gap: clamp(22px, 4vw, 56px);
+  max-width: 1120px;
+  margin: 0 auto;
+  align-items: center;
+}
+
+.balloon-field {
+  min-height: 460px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  align-items: center;
+}
+
+.blessing-balloon {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1.18;
+  border: 0;
+  border-radius: 50% 50% 48% 48%;
+  background:
+    radial-gradient(circle at 35% 22%, rgba(255, 255, 255, 0.62), transparent 18%),
+    var(--accent);
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: inset -12px -18px 28px rgba(0, 0, 0, 0.12), 0 18px 38px rgba(21, 21, 25, 0.12);
+  animation: balloonFloat 3.8s ease-in-out infinite alternate;
+  animation-delay: var(--delay);
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+}
+
+.blessing-balloon::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -52px;
+  width: 2px;
+  height: 58px;
+  background: rgba(21, 21, 25, 0.22);
+  transform: translateX(-50%);
+}
+
+.blessing-balloon span {
+  display: inline-block;
+  max-width: 88%;
+  overflow-wrap: anywhere;
+  font-size: clamp(14px, 2vw, 18px);
+}
+
+.blessing-balloon:hover,
+.blessing-balloon.active {
+  transform: translateY(-8px) scale(1.03);
+  box-shadow: inset -12px -18px 28px rgba(0, 0, 0, 0.12), 0 24px 54px rgba(21, 21, 25, 0.18);
+}
+
+.selected-blessing {
+  padding: clamp(26px, 4vw, 42px);
+  border-radius: 8px;
+  background: #151519;
+  color: #fff;
+  box-shadow: 0 28px 74px rgba(21, 21, 25, 0.2);
+}
+
+.selected-avatar {
+  width: 60px;
+  height: 60px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 26px;
+  border-radius: 50%;
+  background: #fff;
+  color: #151519;
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.selected-blessing span {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.selected-blessing p {
+  margin: 16px 0 0;
+  font-size: clamp(22px, 3vw, 34px);
+  line-height: 1.45;
+  font-weight: 800;
+}
+
+.gift-section {
+  background: #fff;
+}
+
+.gift-card-panel {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: clamp(24px, 5vw, 58px);
+}
+
+.gift-heading {
+  margin-bottom: 34px;
+}
+
+.premium-card {
+  position: relative;
+  max-width: 640px;
+  min-height: 355px;
+  margin: 0 auto;
+  padding: clamp(24px, 4vw, 40px);
+  border-radius: 8px;
+  overflow: hidden;
+  color: #fff;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.14), transparent 40%),
+    linear-gradient(135deg, #151519, #2e3138);
+  box-shadow: 0 26px 70px rgba(21, 21, 25, 0.28);
+}
+
+.card-shine {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 20%, rgba(255, 255, 255, 0.18) 48%, transparent 72%);
+  transform: translateX(-80%);
+  animation: cardShine 4.6s ease-in-out infinite;
+}
+
+.premium-card-top,
+.premium-card-bottom {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.premium-card-top span,
+.premium-card-bottom span {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.premium-card-code {
+  position: relative;
+  z-index: 1;
+  margin: 76px 0 58px;
+  min-height: 68px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.premium-card-code strong {
+  font-size: clamp(19px, 4vw, 34px);
+  letter-spacing: 0;
+}
+
+.scratch-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.premium-card-bottom strong {
+  display: block;
+  margin-top: 6px;
+  font-size: clamp(18px, 3vw, 26px);
+}
+
+.gift-actions {
+  justify-content: center;
+}
+
+.blessing-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  z-index: 80;
+  width: min(560px, calc(100vw - 32px));
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 16px 18px;
+  border-radius: 8px;
+  color: #fff;
+  background: rgba(21, 21, 25, 0.9);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(18px);
+  transform: translateX(-50%);
+}
+
+.blessing-toast strong {
+  flex: 0 0 auto;
+}
+
+.blessing-toast span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
+.poster-render-root {
+  position: fixed;
+  left: -9999px;
+  top: 0;
+  width: 375px;
+  height: 667px;
+  overflow: hidden;
+}
+
+.share-poster {
+  position: relative;
+  width: 375px;
+  height: 667px;
+  overflow: hidden;
+  color: #fff;
+  background: #101114;
+  font-family: "SF Pro Display", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.share-poster img,
+.poster-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.share-poster img {
+  object-fit: cover;
+}
+
+.poster-overlay {
+  background:
+    linear-gradient(to top, rgba(0, 0, 0, 0.82), transparent 56%),
+    linear-gradient(135deg, rgba(0, 0, 0, 0.5), rgba(255, 77, 95, 0.14));
+}
+
+.poster-content {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 30px;
+}
+
+.poster-top,
+.poster-bottom {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.poster-main {
+  margin-top: auto;
+  padding-bottom: 42px;
+}
+
+.poster-main span {
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.poster-main h2 {
+  margin: 10px 0 0;
+  font-size: 58px;
+  line-height: 0.96;
+  letter-spacing: 0;
+}
+
+.poster-main p {
+  margin: 24px 0 0;
+  font-size: 22px;
+  line-height: 1.45;
+  font-weight: 800;
+}
+
+.poster-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(18px);
+}
+
+.poster-preview {
+  position: relative;
+  width: min(420px, 100%);
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+}
+
+.poster-preview img {
+  width: min(375px, 100%);
+  max-height: 78vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 26px 80px rgba(0, 0, 0, 0.42);
+}
+
+.poster-preview p {
+  color: rgba(255, 255, 255, 0.78);
+  margin: 0;
+  font-size: 14px;
+}
+
+.close-modal-btn {
+  position: absolute;
+  top: -14px;
+  right: 4px;
+  z-index: 1;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 50%;
+  color: #151519;
+  background: #fff;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.toast-enter-active,
+.toast-leave-active {
+  transition: opacity 0.24s ease, transform 0.24s ease;
+}
+
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(12px);
+}
+
+@keyframes birthdayConfettiFall {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+
+  100% {
+    transform: translate3d(calc(var(--drift) * 1px), 116vh, 0) rotate(520deg);
+  }
+}
+
+@keyframes flameFlicker {
+  0% {
+    transform: translateX(-50%) rotate(-3deg) scaleY(0.94);
+  }
+
+  100% {
+    transform: translateX(-50%) rotate(5deg) scaleY(1.08);
+  }
+}
+
+@keyframes smokeRise {
+  0% {
+    opacity: 0.58;
+    transform: translateX(-50%) translateY(16px) scale(0.5);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-86px) scale(2.2);
+  }
+}
+
+@keyframes balloonFloat {
+  0% {
+    transform: translateY(0) rotate(-1deg);
+  }
+
+  100% {
+    transform: translateY(-18px) rotate(2deg);
+  }
+}
+
+@keyframes cardShine {
+  0%,
+  38% {
+    transform: translateX(-84%);
+  }
+
+  72%,
+  100% {
+    transform: translateX(84%);
+  }
+}
+
+@media (max-width: 980px) {
+  .birthday-hero,
+  .ceremony-layout,
+  .blessing-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .birthday-hero {
+    padding: 104px 22px 58px;
+  }
+
+  .birthday-hero-copy {
+    order: 0;
+  }
+
+  .birthday-hero-media {
+    min-height: 310px;
+    height: 42vh;
+    transform: none;
+  }
+
+  .memory-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .ceremony-section,
+  .memories-section,
+  .blessing-section,
+  .gift-section {
+    padding: 68px 18px;
+  }
+
+  .hero-actions,
+  .gift-actions {
+    align-items: stretch;
+  }
+
+  .primary-action,
+  .ghost-action {
+    width: 100%;
+  }
+
+  .candle-scene {
+    min-height: 460px;
+  }
+
+  .mini-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .memory-grid,
+  .balloon-field {
+    grid-template-columns: 1fr;
+  }
+
+  .balloon-field {
+    min-height: auto;
+    gap: 72px;
+    padding-bottom: 36px;
+  }
+
+  .premium-card-bottom {
+    flex-direction: column;
+  }
+
+  .blessing-toast {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confetti-strip,
+  .flame,
+  .blessing-balloon,
+  .card-shine {
+    animation: none;
+  }
+
+  .primary-action,
+  .ghost-action,
+  .candle-button {
+    transition: none;
+  }
+}

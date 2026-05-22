@@ -1,0 +1,322 @@
+/**
+ * BOH AI dark theme, matched to the ChatGPT-like chat surface.
+ */
+
+.bohai-page[data-theme="dark"],
+[data-theme="dark"] .bohai-page {
+  --bohai-bg: #212121;
+  --bohai-panel: #2f2f2f;
+  --bohai-surface: #303030;
+  --bohai-surface-hover: #3a3a3a;
+  --bohai-border: rgba(255, 255, 255, 0.13);
+  --bohai-border-strong: rgba(255, 255, 255, 0.2);
+  --bohai-text: #ececec;
+  --bohai-muted: #b4b4b4;
+  --bohai-muted-soft: #8f8f8f;
+  background: var(--bohai-bg) !important;
+  color: var(--bohai-text);
+}
+
+.bohai-page[data-theme="dark"] .bohai-container,
+[data-theme="dark"] .bohai-page .bohai-container,
+.bohai-page[data-theme="dark"] .main-content,
+[data-theme="dark"] .bohai-page .main-content,
+.bohai-page[data-theme="dark"] .chat-container,
+[data-theme="dark"] .bohai-page .chat-container {
+  background: var(--bohai-bg) !important;
+}
+
+.bohai-page[data-theme="dark"] .chat-header,
+[data-theme="dark"] .bohai-page .chat-header {
+  background: rgba(33, 33, 33, 0.92);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+.bohai-page[data-theme="dark"] .header-content,
+[data-theme="dark"] .bohai-page .header-content,
+.bohai-page[data-theme="dark"] .header-title,
+[data-theme="dark"] .bohai-page .header-title,
+.bohai-page[data-theme="dark"] .empty-state h2,
+[data-theme="dark"] .bohai-page .empty-state h2,
+.bohai-page[data-theme="dark"] .logo-container,
+[data-theme="dark"] .bohai-page .logo-container {
+  color: #ececec;
+}
+
+.bohai-page[data-theme="dark"] .header-content:hover,
+[data-theme="dark"] .bohai-page .header-content:hover,
+.bohai-page[data-theme="dark"] .header-icon-btn:hover,
+[data-theme="dark"] .bohai-page .header-icon-btn:hover,
+.bohai-page[data-theme="dark"] .message-action-btn:hover,
+[data-theme="dark"] .bohai-page .message-action-btn:hover,
+.bohai-page[data-theme="dark"] .features-btn:hover,
+[data-theme="dark"] .bohai-page .features-btn:hover,
+.bohai-page[data-theme="dark"] .mic-btn:hover,
+[data-theme="dark"] .bohai-page .mic-btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: #ffffff;
+}
+
+.bohai-page[data-theme="dark"] .header-icon-btn,
+[data-theme="dark"] .bohai-page .header-icon-btn,
+.bohai-page[data-theme="dark"] .message-action-btn,
+[data-theme="dark"] .bohai-page .message-action-btn,
+.bohai-page[data-theme="dark"] .features-btn,
+[data-theme="dark"] .bohai-page .features-btn,
+.bohai-page[data-theme="dark"] .mic-btn,
+[data-theme="dark"] .bohai-page .mic-btn {
+  color: #b4b4b4;
+}
+
+.bohai-page[data-theme="dark"] .sidebar,
+[data-theme="dark"] .bohai-page .sidebar {
+  background: #171717;
+  border-right-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 22px 0 50px rgba(0, 0, 0, 0.38);
+}
+
+.bohai-page[data-theme="dark"] .new-chat-btn,
+[data-theme="dark"] .bohai-page .new-chat-btn,
+.bohai-page[data-theme="dark"] .session-item,
+[data-theme="dark"] .bohai-page .session-item,
+.bohai-page[data-theme="dark"] .sidebar-close-btn,
+[data-theme="dark"] .bohai-page .sidebar-close-btn {
+  color: #ececec;
+}
+
+.bohai-page[data-theme="dark"] .new-chat-btn:hover,
+[data-theme="dark"] .bohai-page .new-chat-btn:hover,
+.bohai-page[data-theme="dark"] .session-item:hover,
+[data-theme="dark"] .bohai-page .session-item:hover,
+.bohai-page[data-theme="dark"] .session-item.active,
+[data-theme="dark"] .bohai-page .session-item.active,
+.bohai-page[data-theme="dark"] .sidebar-close-btn:hover,
+[data-theme="dark"] .bohai-page .sidebar-close-btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.bohai-page[data-theme="dark"] .sidebar-overlay,
+[data-theme="dark"] .bohai-page .sidebar-overlay {
+  background: rgba(0, 0, 0, 0.48);
+}
+
+.bohai-page[data-theme="dark"] .empty-subtitle,
+[data-theme="dark"] .bohai-page .empty-subtitle,
+.bohai-page[data-theme="dark"] .message-content,
+[data-theme="dark"] .bohai-page .message-content,
+.bohai-page[data-theme="dark"] .message.assistant .message-content,
+[data-theme="dark"] .bohai-page .message.assistant .message-content {
+  color: #ececec !important;
+}
+
+.bohai-page[data-theme="dark"] .message.user .message-content,
+[data-theme="dark"] .bohai-page .message.user .message-content {
+  background: #303030;
+  color: #ececec !important;
+}
+
+.bohai-page[data-theme="dark"] .message-content h1,
+.bohai-page[data-theme="dark"] .message-content h2,
+.bohai-page[data-theme="dark"] .message-content h3,
+.bohai-page[data-theme="dark"] .message-content h4,
+.bohai-page[data-theme="dark"] .message-content h5,
+.bohai-page[data-theme="dark"] .message-content h6,
+[data-theme="dark"] .bohai-page .message-content h1,
+[data-theme="dark"] .bohai-page .message-content h2,
+[data-theme="dark"] .bohai-page .message-content h3,
+[data-theme="dark"] .bohai-page .message-content h4,
+[data-theme="dark"] .bohai-page .message-content h5,
+[data-theme="dark"] .bohai-page .message-content h6 {
+  color: #ffffff !important;
+}
+
+.bohai-page[data-theme="dark"] .message-content pre,
+[data-theme="dark"] .bohai-page .message-content pre {
+  background: #171717 !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+.bohai-page[data-theme="dark"] .message-content code,
+[data-theme="dark"] .bohai-page .message-content code {
+  background: #303030 !important;
+  color: #f4f4f4 !important;
+}
+
+.bohai-page[data-theme="dark"] .message-content pre code,
+[data-theme="dark"] .bohai-page .message-content pre code {
+  background: transparent !important;
+}
+
+.bohai-page[data-theme="dark"] .message-content blockquote,
+[data-theme="dark"] .bohai-page .message-content blockquote {
+  border-left-color: rgba(255, 255, 255, 0.2) !important;
+  color: #d1d5db !important;
+}
+
+.bohai-page[data-theme="dark"] .message-content a,
+[data-theme="dark"] .bohai-page .message-content a {
+  color: #8ab4f8 !important;
+}
+
+.bohai-page[data-theme="dark"] .message-content th,
+[data-theme="dark"] .bohai-page .message-content th {
+  background: #303030 !important;
+}
+
+.bohai-page[data-theme="dark"] .message-content th,
+.bohai-page[data-theme="dark"] .message-content td,
+[data-theme="dark"] .bohai-page .message-content th,
+[data-theme="dark"] .bohai-page .message-content td {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+.bohai-page[data-theme="dark"] .action-draft-card,
+[data-theme="dark"] .bohai-page .action-draft-card,
+.bohai-page[data-theme="dark"] .consent-card,
+[data-theme="dark"] .bohai-page .consent-card,
+.bohai-page[data-theme="dark"] .quick-note-card,
+[data-theme="dark"] .bohai-page .quick-note-card {
+  background: #2f2f2f;
+  border-color: rgba(255, 255, 255, 0.13);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.28);
+}
+
+.bohai-page[data-theme="dark"] .action-draft-title,
+[data-theme="dark"] .bohai-page .action-draft-title,
+.bohai-page[data-theme="dark"] .draft-field-label,
+[data-theme="dark"] .bohai-page .draft-field-label,
+.bohai-page[data-theme="dark"] .quick-note-preview strong,
+[data-theme="dark"] .bohai-page .quick-note-preview strong {
+  color: #ececec;
+}
+
+.bohai-page[data-theme="dark"] .draft-input,
+.bohai-page[data-theme="dark"] .draft-textarea,
+[data-theme="dark"] .bohai-page .draft-input,
+[data-theme="dark"] .bohai-page .draft-textarea {
+  background: #212121;
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #ececec;
+}
+
+.bohai-page[data-theme="dark"] .quick-note-preview,
+[data-theme="dark"] .bohai-page .quick-note-preview {
+  background: #212121;
+  border-color: rgba(255, 255, 255, 0.13);
+}
+
+.bohai-page[data-theme="dark"] .quick-note-preview p,
+[data-theme="dark"] .bohai-page .quick-note-preview p,
+.bohai-page[data-theme="dark"] .consent-copy,
+[data-theme="dark"] .bohai-page .consent-copy {
+  color: #d1d5db;
+}
+
+.bohai-page[data-theme="dark"] .draft-btn.primary,
+[data-theme="dark"] .bohai-page .draft-btn.primary,
+.bohai-page[data-theme="dark"] .send-btn,
+.bohai-page[data-theme="dark"] .stop-btn,
+[data-theme="dark"] .bohai-page .send-btn,
+[data-theme="dark"] .bohai-page .stop-btn {
+  background: #ffffff;
+  color: #212121;
+}
+
+.bohai-page[data-theme="dark"] .draft-btn.primary:hover:not(:disabled),
+[data-theme="dark"] .bohai-page .draft-btn.primary:hover:not(:disabled),
+.bohai-page[data-theme="dark"] .send-btn:hover:not(:disabled),
+.bohai-page[data-theme="dark"] .stop-btn:hover,
+[data-theme="dark"] .bohai-page .send-btn:hover:not(:disabled),
+[data-theme="dark"] .bohai-page .stop-btn:hover {
+  background: #ececec;
+}
+
+.bohai-page[data-theme="dark"] .draft-btn.secondary,
+[data-theme="dark"] .bohai-page .draft-btn.secondary,
+.bohai-page[data-theme="dark"] .quick-prompt-btn,
+[data-theme="dark"] .bohai-page .quick-prompt-btn {
+  background: #2f2f2f;
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #ececec;
+}
+
+.bohai-page[data-theme="dark"] .draft-btn.secondary:hover:not(:disabled),
+[data-theme="dark"] .bohai-page .draft-btn.secondary:hover:not(:disabled),
+.bohai-page[data-theme="dark"] .quick-prompt-btn:hover,
+[data-theme="dark"] .bohai-page .quick-prompt-btn:hover,
+.bohai-page[data-theme="dark"] .draft-btn.ghost:hover:not(:disabled),
+[data-theme="dark"] .bohai-page .draft-btn.ghost:hover:not(:disabled) {
+  background: #3a3a3a;
+}
+
+.bohai-page[data-theme="dark"] .input-area,
+[data-theme="dark"] .bohai-page .input-area {
+  background: linear-gradient(180deg, rgba(33, 33, 33, 0), #212121 24%);
+}
+
+.bohai-page[data-theme="dark"] .input-box,
+[data-theme="dark"] .bohai-page .input-box {
+  background: #2f2f2f;
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 12px 38px rgba(0, 0, 0, 0.28);
+}
+
+.bohai-page[data-theme="dark"] .input-box:focus-within,
+[data-theme="dark"] .bohai-page .input-box:focus-within {
+  border-color: rgba(255, 255, 255, 0.23);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.36);
+}
+
+.bohai-page[data-theme="dark"] .input-textarea,
+[data-theme="dark"] .bohai-page .input-textarea {
+  color: #ececec;
+}
+
+.bohai-page[data-theme="dark"] .input-textarea::placeholder,
+[data-theme="dark"] .bohai-page .input-textarea::placeholder {
+  color: #b4b4b4;
+}
+
+.bohai-page[data-theme="dark"] .features-btn.active,
+[data-theme="dark"] .bohai-page .features-btn.active {
+  background: #ffffff;
+  color: #212121;
+}
+
+.bohai-page[data-theme="dark"] .features-menu,
+[data-theme="dark"] .bohai-page .features-menu {
+  background: #2f2f2f;
+  border-color: rgba(255, 255, 255, 0.13);
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.38);
+}
+
+.bohai-page[data-theme="dark"] .feature-item,
+[data-theme="dark"] .bohai-page .feature-item,
+.bohai-page[data-theme="dark"] .feature-name,
+[data-theme="dark"] .bohai-page .feature-name {
+  color: #ececec;
+}
+
+.bohai-page[data-theme="dark"] .feature-item:hover,
+[data-theme="dark"] .bohai-page .feature-item:hover {
+  background: #3a3a3a;
+}
+
+.bohai-page[data-theme="dark"] .composer-chip,
+[data-theme="dark"] .bohai-page .composer-chip {
+  background: rgba(16, 163, 127, 0.16);
+  border-color: rgba(16, 163, 127, 0.28);
+  color: #78dec7;
+}
+
+.bohai-page[data-theme="dark"] .send-btn:disabled,
+[data-theme="dark"] .bohai-page .send-btn:disabled {
+  background: #676767;
+  color: #2f2f2f;
+}
+
+.bohai-page[data-theme="dark"] .custom-scrollbar::-webkit-scrollbar-thumb,
+[data-theme="dark"] .bohai-page .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #5f5f5f;
+  background-clip: content-box;
+}

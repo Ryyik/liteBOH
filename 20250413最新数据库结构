@@ -1,0 +1,265 @@
+| 表名                             | 字段名                         | 数据类型                     | 是否可为空 |
+| ------------------------------ | --------------------------- | ------------------------ | ----- |
+| activities                     | id                          | bigint                   | NO    |
+| activities                     | title                       | character varying        | NO    |
+| activities                     | date                        | character varying        | NO    |
+| activities                     | image                       | text                     | YES   |
+| activities                     | description                 | text                     | YES   |
+| activities                     | created_at                  | timestamp with time zone | YES   |
+| activities                     | updated_at                  | timestamp with time zone | YES   |
+| addresses                      | id                          | uuid                     | NO    |
+| addresses                      | user_username               | text                     | YES   |
+| addresses                      | address_data                | jsonb                    | YES   |
+| boh_ai_shared_memories         | id                          | uuid                     | NO    |
+| boh_ai_shared_memories         | owner_user_id               | uuid                     | NO    |
+| boh_ai_shared_memories         | content                     | text                     | NO    |
+| boh_ai_shared_memories         | mood                        | text                     | NO    |
+| boh_ai_shared_memories         | tags                        | jsonb                    | NO    |
+| boh_ai_shared_memories         | confidence                  | numeric                  | NO    |
+| boh_ai_shared_memories         | evidence                    | jsonb                    | NO    |
+| boh_ai_shared_memories         | source                      | text                     | NO    |
+| boh_ai_shared_memories         | status                      | text                     | NO    |
+| boh_ai_shared_memories         | created_at                  | timestamp with time zone | NO    |
+| boh_ai_shared_memories         | updated_at                  | timestamp with time zone | NO    |
+| boh_creator_shows              | id                          | uuid                     | NO    |
+| boh_creator_shows              | author_id                   | uuid                     | NO    |
+| boh_creator_shows              | author_username             | text                     | NO    |
+| boh_creator_shows              | creator_platform            | text                     | NO    |
+| boh_creator_shows              | creator_platform_id         | text                     | NO    |
+| boh_creator_shows              | title                       | text                     | NO    |
+| boh_creator_shows              | description                 | text                     | NO    |
+| boh_creator_shows              | video_url                   | text                     | NO    |
+| boh_creator_shows              | created_at                  | timestamp with time zone | NO    |
+| boh_creator_shows              | updated_at                  | timestamp with time zone | NO    |
+| boh_treehole_memories          | id                          | uuid                     | NO    |
+| boh_treehole_memories          | user_id                     | uuid                     | NO    |
+| boh_treehole_memories          | content                     | text                     | NO    |
+| boh_treehole_memories          | mood                        | text                     | NO    |
+| boh_treehole_memories          | tags                        | jsonb                    | NO    |
+| boh_treehole_memories          | is_starred                  | boolean                  | NO    |
+| boh_treehole_memories          | source                      | text                     | NO    |
+| boh_treehole_memories          | created_at                  | timestamp with time zone | NO    |
+| boh_treehole_memories          | updated_at                  | timestamp with time zone | NO    |
+| boh_treehole_memory_candidates | id                          | uuid                     | NO    |
+| boh_treehole_memory_candidates | user_id                     | uuid                     | NO    |
+| boh_treehole_memory_candidates | content                     | text                     | NO    |
+| boh_treehole_memory_candidates | mood                        | text                     | NO    |
+| boh_treehole_memory_candidates | tags                        | jsonb                    | NO    |
+| boh_treehole_memory_candidates | confidence                  | numeric                  | NO    |
+| boh_treehole_memory_candidates | evidence                    | jsonb                    | NO    |
+| boh_treehole_memory_candidates | status                      | text                     | NO    |
+| boh_treehole_memory_candidates | session_id                  | text                     | NO    |
+| boh_treehole_memory_candidates | reason                      | text                     | NO    |
+| boh_treehole_memory_candidates | model                       | text                     | NO    |
+| boh_treehole_memory_candidates | memory_id                   | uuid                     | YES   |
+| boh_treehole_memory_candidates | created_at                  | timestamp with time zone | NO    |
+| boh_treehole_memory_candidates | updated_at                  | timestamp with time zone | NO    |
+| boh_treehole_spaces            | user_id                     | uuid                     | NO    |
+| boh_treehole_spaces            | title                       | text                     | NO    |
+| boh_treehole_spaces            | description                 | text                     | NO    |
+| boh_treehole_spaces            | created_at                  | timestamp with time zone | NO    |
+| boh_treehole_spaces            | updated_at                  | timestamp with time zone | NO    |
+| comments                       | id                          | uuid                     | NO    |
+| comments                       | post_id                     | uuid                     | YES   |
+| comments                       | author_id                   | uuid                     | YES   |
+| comments                       | author_username             | text                     | YES   |
+| comments                       | content                     | text                     | NO    |
+| comments                       | created_at                  | timestamp with time zone | YES   |
+| comments                       | status                      | text                     | NO    |
+| comments                       | parent_id                   | uuid                     | YES   |
+| comments                       | reply_to_username           | text                     | YES   |
+| creator_studio_projects        | user_id                     | uuid                     | NO    |
+| creator_studio_projects        | project_id                  | text                     | NO    |
+| creator_studio_projects        | title                       | text                     | NO    |
+| creator_studio_projects        | mode                        | text                     | NO    |
+| creator_studio_projects        | template                    | text                     | NO    |
+| creator_studio_projects        | duration                    | integer                  | NO    |
+| creator_studio_projects        | storage_type                | text                     | NO    |
+| creator_studio_projects        | resolution                  | text                     | NO    |
+| creator_studio_projects        | frame_rate                  | integer                  | NO    |
+| creator_studio_projects        | video_platform              | text                     | NO    |
+| creator_studio_projects        | mc_version                  | text                     | NO    |
+| creator_studio_projects        | mc_tick_rate                | integer                  | NO    |
+| creator_studio_projects        | mc_runtime                  | text                     | NO    |
+| creator_studio_projects        | scene_count                 | integer                  | NO    |
+| creator_studio_projects        | node_count                  | integer                  | NO    |
+| creator_studio_projects        | workspace                   | jsonb                    | NO    |
+| creator_studio_projects        | created_at                  | timestamp with time zone | NO    |
+| creator_studio_projects        | updated_at                  | timestamp with time zone | NO    |
+| creator_studio_team_members    | team_id                     | uuid                     | NO    |
+| creator_studio_team_members    | user_id                     | uuid                     | NO    |
+| creator_studio_team_members    | role                        | text                     | NO    |
+| creator_studio_team_members    | joined_at                   | timestamp with time zone | NO    |
+| creator_studio_team_scripts    | team_id                     | uuid                     | NO    |
+| creator_studio_team_scripts    | script_payload              | jsonb                    | NO    |
+| creator_studio_team_scripts    | version                     | integer                  | NO    |
+| creator_studio_team_scripts    | updated_by                  | uuid                     | YES   |
+| creator_studio_team_scripts    | updated_at                  | timestamp with time zone | NO    |
+| creator_studio_teams           | id                          | uuid                     | NO    |
+| creator_studio_teams           | name                        | text                     | NO    |
+| creator_studio_teams           | invite_code                 | text                     | NO    |
+| creator_studio_teams           | owner_user_id               | uuid                     | NO    |
+| creator_studio_teams           | created_at                  | timestamp with time zone | NO    |
+| creator_studio_teams           | updated_at                  | timestamp with time zone | NO    |
+| creator_workflows              | user_id                     | uuid                     | NO    |
+| creator_workflows              | name                        | text                     | NO    |
+| creator_workflows              | graph                       | jsonb                    | NO    |
+| creator_workflows              | status                      | text                     | NO    |
+| creator_workflows              | version                     | integer                  | NO    |
+| creator_workflows              | last_run_summary            | jsonb                    | NO    |
+| creator_workflows              | created_at                  | timestamp with time zone | NO    |
+| creator_workflows              | updated_at                  | timestamp with time zone | NO    |
+| forum_weekly_checkins          | id                          | bigint                   | NO    |
+| forum_weekly_checkins          | user_id                     | uuid                     | NO    |
+| forum_weekly_checkins          | week_start_date             | date                     | NO    |
+| forum_weekly_checkins          | signed_at                   | timestamp with time zone | NO    |
+| forum_weekly_checkins          | created_at                  | timestamp with time zone | NO    |
+| likes                          | id                          | uuid                     | NO    |
+| likes                          | post_id                     | uuid                     | YES   |
+| likes                          | user_id                     | uuid                     | YES   |
+| messages                       | id                          | uuid                     | NO    |
+| messages                       | sender_id                   | uuid                     | NO    |
+| messages                       | sender_name                 | text                     | NO    |
+| messages                       | receiver_id                 | uuid                     | NO    |
+| messages                       | receiver_name               | text                     | NO    |
+| messages                       | subject                     | text                     | YES   |
+| messages                       | content                     | text                     | NO    |
+| messages                       | status                      | text                     | YES   |
+| messages                       | moderation_status           | text                     | NO    |
+| messages                       | moderation_reason           | text                     | YES   |
+| messages                       | created_at                  | timestamp with time zone | YES   |
+| moderation_logs                | id                          | uuid                     | NO    |
+| moderation_logs                | target_id                   | uuid                     | NO    |
+| moderation_logs                | target_type                 | text                     | NO    |
+| moderation_logs                | ai_result                   | text                     | YES   |
+| moderation_logs                | ai_reason                   | text                     | YES   |
+| moderation_logs                | moderator_id                | uuid                     | YES   |
+| moderation_logs                | created_at                  | timestamp with time zone | YES   |
+| news                           | id                          | bigint                   | NO    |
+| news                           | category                    | character varying        | NO    |
+| news                           | title                       | character varying        | NO    |
+| news                           | excerpt                     | text                     | NO    |
+| news                           | date                        | date                     | NO    |
+| news                           | author                      | character varying        | NO    |
+| news                           | image                       | text                     | YES   |
+| news                           | content                     | text                     | NO    |
+| news                           | created_at                  | timestamp with time zone | YES   |
+| news                           | updated_at                  | timestamp with time zone | YES   |
+| notifications                  | id                          | uuid                     | NO    |
+| notifications                  | recipient_id                | uuid                     | NO    |
+| notifications                  | sender_id                   | uuid                     | YES   |
+| notifications                  | type                        | text                     | NO    |
+| notifications                  | post_id                     | uuid                     | YES   |
+| notifications                  | comment_id                  | uuid                     | YES   |
+| notifications                  | status                      | text                     | YES   |
+| notifications                  | created_at                  | timestamp with time zone | YES   |
+| notifications                  | content                     | text                     | YES   |
+| posts                          | id                          | uuid                     | NO    |
+| posts                          | content                     | text                     | NO    |
+| posts                          | author_id                   | uuid                     | YES   |
+| posts                          | author_username             | text                     | YES   |
+| posts                          | created_at                  | timestamp with time zone | YES   |
+| posts                          | updated_at                  | timestamp with time zone | YES   |
+| posts                          | status                      | text                     | NO    |
+| products                       | id                          | bigint                   | NO    |
+| products                       | category                    | text                     | NO    |
+| products                       | title                       | text                     | NO    |
+| products                       | description                 | text                     | YES   |
+| products                       | stock                       | integer                  | NO    |
+| products                       | image                       | text                     | YES   |
+| products                       | specifications              | jsonb                    | NO    |
+| products                       | is_active                   | boolean                  | NO    |
+| products                       | created_at                  | timestamp with time zone | NO    |
+| products                       | updated_at                  | timestamp with time zone | NO    |
+| products                       | points_cost                 | integer                  | NO    |
+| profiles                       | id                          | uuid                     | NO    |
+| profiles                       | username                    | text                     | NO    |
+| profiles                       | join_date                   | date                     | YES   |
+| profiles                       | tags                        | ARRAY                    | YES   |
+| profiles                       | role                        | text                     | YES   |
+| profiles                       | points                      | integer                  | YES   |
+| profiles                       | birth_month                 | text                     | YES   |
+| profiles                       | birth_day                   | text                     | YES   |
+| profiles                       | email                       | text                     | YES   |
+| profiles                       | bio                         | text                     | YES   |
+| profiles                       | avatar_url                  | text                     | YES   |
+| profiles                       | experience                  | integer                  | YES   |
+| profiles                       | shipping_recipient          | text                     | YES   |
+| profiles                       | shipping_phone              | text                     | YES   |
+| profiles                       | shipping_address            | text                     | YES   |
+| profiles                       | gift_status                 | text                     | YES   |
+| profiles                       | gift_content                | text                     | YES   |
+| profiles                       | gift_no                     | text                     | YES   |
+| profiles                       | gift_price                  | numeric                  | YES   |
+| profiles                       | pushplus_token              | text                     | YES   |
+| profiles                       | pushplus_enabled            | boolean                  | YES   |
+| profiles                       | gift_points                 | integer                  | NO    |
+| profiles                       | is_boh_creator              | boolean                  | NO    |
+| profiles                       | creator_platform_ids        | jsonb                    | NO    |
+| profiles                       | creator_platform_visibility | jsonb                    | NO    |
+| profiles                       | creator_platform_order      | jsonb                    | NO    |
+| profiles                       | showcase_post_ids           | jsonb                    | NO    |
+| shop_order_items               | id                          | uuid                     | NO    |
+| shop_order_items               | order_id                    | uuid                     | NO    |
+| shop_order_items               | user_id                     | uuid                     | NO    |
+| shop_order_items               | product_id                  | bigint                   | NO    |
+| shop_order_items               | product_title               | text                     | NO    |
+| shop_order_items               | spec_value                  | text                     | YES   |
+| shop_order_items               | spec_label                  | text                     | YES   |
+| shop_order_items               | quantity                    | integer                  | NO    |
+| shop_order_items               | unit_points                 | integer                  | NO    |
+| shop_order_items               | line_points                 | integer                  | NO    |
+| shop_order_items               | product_image               | text                     | YES   |
+| shop_order_items               | created_at                  | timestamp with time zone | NO    |
+| shop_orders                    | id                          | uuid                     | NO    |
+| shop_orders                    | user_id                     | uuid                     | NO    |
+| shop_orders                    | contact_type                | text                     | NO    |
+| shop_orders                    | contact_value               | text                     | NO    |
+| shop_orders                    | items_count                 | integer                  | NO    |
+| shop_orders                    | total_points                | integer                  | NO    |
+| shop_orders                    | status                      | text                     | NO    |
+| shop_orders                    | items_snapshot              | jsonb                    | NO    |
+| shop_orders                    | metadata                    | jsonb                    | NO    |
+| shop_orders                    | created_at                  | timestamp with time zone | NO    |
+| shop_orders                    | updated_at                  | timestamp with time zone | NO    |
+| shop_points_orders             | id                          | uuid                     | NO    |
+| shop_points_orders             | user_id                     | uuid                     | NO    |
+| shop_points_orders             | order_no                    | text                     | NO    |
+| shop_points_orders             | contact_type                | text                     | NO    |
+| shop_points_orders             | contact_value               | text                     | NO    |
+| shop_points_orders             | items                       | jsonb                    | NO    |
+| shop_points_orders             | total_points                | integer                  | NO    |
+| shop_points_orders             | status                      | text                     | NO    |
+| shop_points_orders             | created_at                  | timestamp with time zone | NO    |
+| shop_points_orders             | updated_at                  | timestamp with time zone | NO    |
+| user_gifts                     | id                          | uuid                     | NO    |
+| user_gifts                     | user_id                     | uuid                     | YES   |
+| user_gifts                     | gift_no                     | text                     | NO    |
+| user_gifts                     | gift_content                | text                     | NO    |
+| user_gifts                     | gift_price                  | numeric                  | YES   |
+| user_gifts                     | gift_image                  | text                     | YES   |
+| user_gifts                     | gift_status                 | text                     | YES   |
+| user_gifts                     | is_active                   | boolean                  | YES   |
+| user_gifts                     | created_at                  | timestamp with time zone | YES   |
+| user_gifts                     | updated_at                  | timestamp with time zone | YES   |
+| user_gifts                     | completed_at                | timestamp with time zone | YES   |
+| user_gifts                     | gift_points                 | integer                  | NO    |
+| user_impressions               | id                          | uuid                     | NO    |
+| user_impressions               | author_id                   | uuid                     | YES   |
+| user_impressions               | target_id                   | uuid                     | YES   |
+| user_impressions               | content                     | text                     | NO    |
+| user_impressions               | category                    | text                     | YES   |
+| user_impressions               | created_at                  | timestamp with time zone | YES   |
+| user_subscriptions             | id                          | uuid                     | NO    |
+| user_subscriptions             | user_id                     | uuid                     | NO    |
+| user_subscriptions             | plan_code                   | text                     | NO    |
+| user_subscriptions             | plan_name                   | text                     | NO    |
+| user_subscriptions             | billing_cycle               | text                     | NO    |
+| user_subscriptions             | points_cost                 | integer                  | NO    |
+| user_subscriptions             | duration_months             | integer                  | NO    |
+| user_subscriptions             | started_at                  | timestamp with time zone | NO    |
+| user_subscriptions             | expires_at                  | timestamp with time zone | NO    |
+| user_subscriptions             | status                      | text                     | NO    |
+| user_subscriptions             | metadata                    | jsonb                    | YES   |
+| user_subscriptions             | created_at                  | timestamp with time zone | NO    |
+| user_subscriptions             | updated_at                  | timestamp with time zone | NO    |

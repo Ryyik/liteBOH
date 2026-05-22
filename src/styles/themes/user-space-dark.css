@@ -1,0 +1,775 @@
+/**
+ * ============================================
+ * 用户空间深色模式样式 - 优化可读性版本
+ * ============================================
+ */
+
+/* 页面基础 */
+.user-space-page[data-theme="dark"] {
+  background:
+    radial-gradient(1200px 320px at 50% -120px, rgba(59, 130, 246, 0.08), transparent 60%),
+    #0d0d12 !important;
+  --surface: #1a1a24;
+  --surface-soft: #252532;
+  --stroke: rgba(255, 255, 255, 0.1);
+  --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 10px 24px rgba(0, 0, 0, 0.5);
+  --text-primary: #ffffff;
+  --text-secondary: #c4c4cc;
+}
+
+/* ============================================
+   底部导航
+   ============================================ */
+.user-space-page[data-theme="dark"] .bottom-nav-glass,
+[data-theme="dark"] .user-space-page .bottom-nav-glass {
+  background: rgba(26, 26, 36, 0.85) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+}
+
+.user-space-page[data-theme="dark"] .nav-item,
+[data-theme="dark"] .user-space-page .nav-item {
+  color: #a1a1aa !important;
+}
+
+.user-space-page[data-theme="dark"] .nav-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e4e4e7 !important;
+}
+
+.user-space-page[data-theme="dark"] .nav-item.active {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.user-space-page[data-theme="dark"] .unread-badge {
+  background: #ff5252;
+  border-color: rgba(13, 13, 18, 0.5);
+  box-shadow: 0 2px 6px rgba(255, 82, 82, 0.5);
+}
+
+/* ============================================
+   Apple 风格卡片 - 提高对比度
+   ============================================ */
+.user-space-page[data-theme="dark"] .apple-page-container {
+  background: transparent;
+}
+
+.user-space-page[data-theme="dark"] .apple-card,
+[data-theme="dark"] .user-space-page .apple-card {
+  background-color: #1e1e2a !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.user-space-page[data-theme="dark"] .apple-card:hover,
+[data-theme="dark"] .user-space-page .apple-card:hover {
+  box-shadow: var(--shadow-md);
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* 分组标题 */
+.user-space-page[data-theme="dark"] .group-header-title {
+  color: #a1a1aa !important;
+  font-weight: 600;
+}
+
+/* 列表项 */
+.user-space-page[data-theme="dark"] .apple-item {
+  background-color: transparent;
+}
+
+.user-space-page[data-theme="dark"] .apple-item.clickable:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.user-space-page[data-theme="dark"] .apple-item:not(:last-child)::after {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.user-space-page[data-theme="dark"] .item-label {
+  color: #ffffff !important;
+  font-weight: 500;
+}
+
+.user-space-page[data-theme="dark"] .text-secondary {
+  color: #c4c4cc !important;
+}
+
+.user-space-page[data-theme="dark"] .chevron {
+  color: #71717a !important;
+  font-size: 20px;
+}
+
+/* ============================================
+   图标背景 - 提高对比度
+   ============================================ */
+.user-space-page[data-theme="dark"] .icon-wrapper {
+  background-color: #2a2a3a;
+}
+
+.user-space-page[data-theme="dark"] .icon-wrapper svg {
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+
+.user-space-page[data-theme="dark"] .bg-blue {
+  background-color: rgba(59, 130, 246, 0.2);
+}
+
+.user-space-page[data-theme="dark"] .bg-blue svg {
+  stroke: #60a5fa;
+}
+
+.user-space-page[data-theme="dark"] .bg-green {
+  background-color: rgba(74, 222, 128, 0.2);
+}
+
+.user-space-page[data-theme="dark"] .bg-green svg {
+  stroke: #4ade80;
+}
+
+.user-space-page[data-theme="dark"] .bg-purple {
+  background-color: rgba(168, 85, 247, 0.2);
+}
+
+.user-space-page[data-theme="dark"] .bg-purple svg {
+  stroke: #c084fc;
+}
+
+.user-space-page[data-theme="dark"] .bg-gray {
+  background-color: #2a2a3a;
+}
+
+.user-space-page[data-theme="dark"] .bg-gray svg {
+  stroke: #c4c4cc;
+}
+
+.user-space-page[data-theme="dark"] .bg-pink {
+  background-color: rgba(236, 72, 153, 0.2);
+}
+
+.user-space-page[data-theme="dark"] .bg-pink svg {
+  stroke: #f472b6;
+}
+
+.user-space-page[data-theme="dark"] .bg-indigo {
+  background-color: rgba(99, 102, 241, 0.2);
+}
+
+.user-space-page[data-theme="dark"] .bg-indigo svg {
+  stroke: #818cf8;
+}
+
+.user-space-page[data-theme="dark"] .bg-teal {
+  background-color: rgba(45, 212, 191, 0.2);
+}
+
+.user-space-page[data-theme="dark"] .bg-teal svg {
+  stroke: #2dd4bf;
+}
+
+.user-space-page[data-theme="dark"] .bg-yellow {
+  background-color: rgba(250, 204, 21, 0.2);
+}
+
+.user-space-page[data-theme="dark"] .bg-yellow svg {
+  stroke: #facc15;
+}
+
+.user-space-page[data-theme="dark"] .bg-red {
+  background-color: rgba(239, 68, 68, 0.2);
+}
+
+.user-space-page[data-theme="dark"] .bg-red svg {
+  stroke: #f87171;
+}
+
+/* ============================================
+   个人资料卡片 - 提高可读性
+   ============================================ */
+.user-space-page[data-theme="dark"] .profile-card {
+  background: #1a1a24 !important;
+}
+
+.user-space-page[data-theme="dark"] .apple-avatar {
+  background: #2a2a3a;
+  color: #ffffff;
+}
+
+.user-space-page[data-theme="dark"] .apple-name,
+.user-space-page[data-theme="dark"] .profile-name,
+[data-theme="dark"] .user-space-page .profile-name {
+  color: #ffffff !important;
+}
+
+/* 用户邮箱 - 使用极高优先级选择器 */
+html body .user-space-page[data-theme="dark"] .apple-email,
+html body .user-space-page[data-theme="dark"] .profile-email,
+html [data-theme="dark"] .user-space-page .apple-email,
+html [data-theme="dark"] .user-space-page .profile-email,
+.user-space-page[data-theme="dark"] .profile-card .apple-email,
+.user-space-page[data-theme="dark"] .profile-card .profile-email,
+[data-theme="dark"] .user-space-page .profile-card .apple-email,
+[data-theme="dark"] .user-space-page .profile-card .profile-email {
+  color: #ffffff !important;
+}
+
+.user-space-page[data-theme="dark"] .admin-badge-mini,
+.user-space-page[data-theme="dark"] .admin-badge,
+[data-theme="dark"] .user-space-page .admin-badge {
+  background: #ffffff;
+  color: #0d0d12;
+}
+
+.user-space-page[data-theme="dark"] .avatar-edit-icon-mini {
+  background-color: #ffffff;
+  border-color: #1e1e2a;
+}
+
+.user-space-page[data-theme="dark"] .my-space-btn {
+  background: linear-gradient(135deg, #ffffff, #d4d4d8);
+  color: #0d0d12;
+  box-shadow: 0 8px 16px rgba(255, 255, 255, 0.15);
+}
+
+.user-space-page[data-theme="dark"] .profile-basics-list,
+.user-space-page[data-theme="dark"] .profile-basic-row:not(:last-child) {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.user-space-page[data-theme="dark"] .profile-basics-title,
+.user-space-page[data-theme="dark"] .profile-basic-label,
+.user-space-page[data-theme="dark"] .profile-basic-value {
+  color: #ffffff;
+}
+
+.user-space-page[data-theme="dark"] .profile-basics-kicker,
+.user-space-page[data-theme="dark"] .profile-basic-value.empty {
+  color: #c4c4cc;
+}
+
+.user-space-page[data-theme="dark"] .profile-completion-pill {
+  background: rgba(96, 165, 250, 0.18);
+  color: #93c5fd;
+}
+
+.user-space-page[data-theme="dark"] .profile-completion-pill.complete {
+  background: rgba(74, 222, 128, 0.18);
+  color: #86efac;
+}
+
+/* 个人数据概览 */
+.user-space-page[data-theme="dark"] .profile-stats {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.user-space-page[data-theme="dark"] .stat-value {
+  color: #ffffff !important;
+}
+
+.user-space-page[data-theme="dark"] .stat-label {
+  color: #a1a1aa !important;
+}
+
+.user-space-page[data-theme="dark"] .stat-divider {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ============================================
+   社区/用户列表
+   ============================================ */
+.user-space-page[data-theme="dark"] .community-group {
+  background: #1a1a24 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.user-space-page[data-theme="dark"] .community-group:hover {
+  background: #252532 !important;
+  box-shadow: var(--shadow-md);
+}
+
+.user-space-page[data-theme="dark"] .group-title {
+  color: #ffffff !important;
+}
+
+.user-space-page[data-theme="dark"] .group-count {
+  color: #c4c4cc !important;
+}
+
+.user-space-page[data-theme="dark"] .expand-icon {
+  color: #c4c4cc !important;
+}
+
+/* 用户项 */
+.user-space-page[data-theme="dark"] .user-item {
+  background: #1a1a24 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.user-space-page[data-theme="dark"] .user-item:hover {
+  background: #252532 !important;
+  box-shadow: var(--shadow-md);
+}
+
+.user-space-page[data-theme="dark"] .user-name {
+  color: #ffffff !important;
+}
+
+.user-space-page[data-theme="dark"] .user-name:hover {
+  color: #a1a1aa !important;
+}
+
+.user-space-page[data-theme="dark"] .user-bio {
+  color: #c4c4cc !important;
+}
+
+.user-space-page[data-theme="dark"] .meta-item {
+  color: #c4c4cc !important;
+  background: #2a2a3a;
+}
+
+/* 搜索输入 */
+.user-space-page[data-theme="dark"] .community-search-input {
+  background: #1a1a24 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff !important;
+}
+
+.user-space-page[data-theme="dark"] .community-search-input:focus {
+  border-color: rgba(59, 130, 246, 0.4);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+  background: #1e1e2a !important;
+}
+
+.user-space-page[data-theme="dark"] .community-toolbar-meta {
+  color: #c4c4cc !important;
+}
+
+/* 分页按钮 */
+.user-space-page[data-theme="dark"] .community-page-btn {
+  background: #1a1a24 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff !important;
+}
+
+.user-space-page[data-theme="dark"] .community-page-btn:hover:not(:disabled) {
+  background: #252532 !important;
+}
+
+.user-space-page[data-theme="dark"] .community-page-info {
+  color: #c4c4cc !important;
+}
+
+/* ============================================
+   登录提示
+   ============================================ */
+.user-space-page[data-theme="dark"] .login-prompt {
+  background: #1a1a24 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.user-space-page[data-theme="dark"] .login-prompt-title {
+  color: #ffffff !important;
+}
+
+.user-space-page[data-theme="dark"] .login-prompt-desc {
+  color: #c4c4cc !important;
+}
+
+.user-space-page[data-theme="dark"] .login-prompt-btn {
+  background: #ffffff;
+  color: #0d0d12;
+}
+
+.user-space-page[data-theme="dark"] .login-prompt-btn:hover {
+  background: #f5f5f7;
+}
+
+/* ============================================
+   标签
+   ============================================ */
+.user-space-page[data-theme="dark"] .mobile-mini-tag {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+}
+
+.user-space-page[data-theme="dark"] .mobile-more-tag {
+  background: #2a2a3a;
+  color: #a1a1aa;
+}
+
+/* ============================================
+   邮件徽章
+   ============================================ */
+.user-space-page[data-theme="dark"] .mail-badge {
+  background: #ff5252;
+  color: #fff;
+}
+
+/* ============================================
+   礼物进度标签
+   ============================================ */
+.user-space-page[data-theme="dark"] .gift-progress-tag {
+  background: #ff5252;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(255, 82, 82, 0.4);
+}
+
+/* ============================================
+   文字强调
+   ============================================ */
+.user-space-page[data-theme="dark"] .text-danger {
+  color: #ff5252 !important;
+}
+
+.user-space-page[data-theme="dark"] .text-neutral-strong {
+  color: #ffffff !important;
+}
+
+.user-space-page[data-theme="dark"] .text-danger-strong {
+  color: #ff6b6b !important;
+}
+
+.user-space-page[data-theme="dark"] .highlight-1200 {
+  color: #ffffff !important;
+}
+
+/* 注销卡片 */
+.user-space-page[data-theme="dark"] .logout-card .apple-item.clickable:hover {
+  background: rgba(255, 82, 82, 0.1);
+}
+
+.user-space-page[data-theme="dark"] .delete-account-item:hover {
+  background: rgba(255, 82, 82, 0.12) !important;
+}
+
+/* ============================================
+   加载与空状态
+   ============================================ */
+.user-space-page[data-theme="dark"] .loading-spinner {
+  border-color: rgba(255, 255, 255, 0.1);
+  border-top-color: #3b82f6;
+}
+
+.user-space-page[data-theme="dark"] .loading-text {
+  color: #a1a1aa;
+}
+
+.user-space-page[data-theme="dark"] .empty-state {
+  background: #1a1a24 !important;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  box-shadow: var(--shadow-sm);
+}
+
+.user-space-page[data-theme="dark"] .empty-state p {
+  color: #a1a1aa;
+}
+
+/* ============================================
+   模态框
+   ============================================ */
+.user-space-page[data-theme="dark"] .modal-overlay {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.user-space-page[data-theme="dark"] .modal-card {
+  background: #252532;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+.user-space-page[data-theme="dark"] .modal-visual-header {
+  background: #1e1e2a;
+}
+
+.user-space-page[data-theme="dark"] .modal-icon-circle {
+  background: #2a2a3a;
+}
+
+.user-space-page[data-theme="dark"] .close-icon-btn {
+  background: rgba(255, 255, 255, 0.08);
+  color: #a1a1aa;
+}
+
+.user-space-page[data-theme="dark"] .close-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.user-space-page[data-theme="dark"] .clean-title {
+  color: #ffffff !important;
+}
+
+.user-space-page[data-theme="dark"] .clean-desc {
+  color: #a1a1aa !important;
+}
+
+.user-space-page[data-theme="dark"] .feature-pill {
+  background: #2a2a3a;
+  color: #c4c4cc;
+}
+
+/* 日期选择器 */
+.user-space-page[data-theme="dark"] .modal-selector {
+  background: #2a2a3a;
+}
+
+.user-space-page[data-theme="dark"] .date-select {
+  color: #ffffff;
+  background: transparent;
+}
+
+.user-space-page[data-theme="dark"] .date-sep {
+  color: #71717a;
+}
+
+.user-space-page[data-theme="dark"] .date-input-wrapper {
+  background: #1e1e2a;
+}
+
+.user-space-page[data-theme="dark"] .date-input-wrapper:hover {
+  background: #2a2a3a;
+}
+
+.user-space-page[data-theme="dark"] .date-input-wrapper:focus-within {
+  background: #1e1e2a;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
+}
+
+.user-space-page[data-theme="dark"] .date-input {
+  color: #ffffff;
+}
+
+.user-space-page[data-theme="dark"] .date-input-icon {
+  color: #a1a1aa;
+}
+
+.user-space-page[data-theme="dark"] .date-input-label {
+  color: #a1a1aa;
+}
+
+.user-space-page[data-theme="dark"] .date-input-hint {
+  color: #a1a1aa;
+}
+
+/* 受信任设备 */
+.user-space-page[data-theme="dark"] .trusted-devices-header {
+  background: linear-gradient(180deg, #1a2d4a 0%, #252532 100%);
+}
+
+.user-space-page[data-theme="dark"] .trusted-devices-loading,
+.user-space-page[data-theme="dark"] .trusted-devices-empty {
+  background: #1e1e2a;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #a1a1aa;
+}
+
+.user-space-page[data-theme="dark"] .trusted-device-row {
+  background: #1e1e2a;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.user-space-page[data-theme="dark"] .trusted-device-title {
+  color: #ffffff !important;
+}
+
+.user-space-page[data-theme="dark"] .current-device-pill {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+}
+
+.user-space-page[data-theme="dark"] .trusted-device-agent {
+  color: #c4c4cc;
+}
+
+.user-space-page[data-theme="dark"] .trusted-device-meta {
+  color: #a1a1aa;
+}
+
+.user-space-page[data-theme="dark"] .trusted-device-revoke-btn {
+  background: transparent;
+  border-color: rgba(255, 82, 82, 0.5);
+  color: #ff5252;
+}
+
+.user-space-page[data-theme="dark"] .trusted-device-revoke-btn:hover {
+  background: rgba(255, 82, 82, 0.15);
+}
+
+/* 删除账户 */
+.user-space-page[data-theme="dark"] .delete-account-header {
+  background: linear-gradient(180deg, #3a1a1a 0%, #252532 100%);
+}
+
+.user-space-page[data-theme="dark"] .delete-step-label {
+  color: #ff5252;
+}
+
+.user-space-page[data-theme="dark"] .delete-risk-list {
+  color: #c4c4cc;
+}
+
+.user-space-page[data-theme="dark"] .delete-check-row {
+  color: #c4c4cc;
+}
+
+.user-space-page[data-theme="dark"] .delete-account-input {
+  background: #1e1e2a;
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.user-space-page[data-theme="dark"] .delete-account-input:focus {
+  border-color: rgba(255, 82, 82, 0.6);
+  box-shadow: 0 0 0 3px rgba(255, 82, 82, 0.15);
+}
+
+.user-space-page[data-theme="dark"] .delete-account-email {
+  color: #a1a1aa;
+}
+
+.user-space-page[data-theme="dark"] .delete-account-error {
+  color: #ff5252;
+}
+
+.user-space-page[data-theme="dark"] .danger-btn {
+  background: #ff5252;
+}
+
+.user-space-page[data-theme="dark"] .danger-btn:hover {
+  background: #ff6b6b;
+}
+
+/* ============================================
+   赞助页面深色模式
+   ============================================ */
+.user-space-page[data-theme="dark"] .sponsor-hero {
+  background:
+    linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(214, 158, 46, 0.08)),
+    var(--surface) !important;
+}
+
+.user-space-page[data-theme="dark"] .sponsor-kicker {
+  color: #facc15;
+}
+
+.user-space-page[data-theme="dark"] .sponsor-primary-btn {
+  box-shadow: 0 10px 24px rgba(183, 121, 31, 0.34);
+}
+
+.user-space-page[data-theme="dark"] .sponsor-status-pill {
+  background: rgba(250, 204, 21, 0.12);
+  color: #fbbf24;
+}
+
+.user-space-page[data-theme="dark"] .sponsor-method {
+  background: var(--surface-soft);
+  border-color: var(--stroke);
+}
+
+.user-space-page[data-theme="dark"] .sponsor-method.active {
+  background: rgba(250, 204, 21, 0.08);
+  border-color: rgba(250, 204, 21, 0.36);
+}
+
+.user-space-page[data-theme="dark"] .sponsor-method-icon {
+  background: var(--surface);
+  color: #fbbf24;
+}
+
+.user-space-page[data-theme="dark"] .sponsor-qr-card {
+  background: var(--surface);
+  border-color: var(--stroke);
+}
+
+.user-space-page[data-theme="dark"] .sponsor-qr-card figcaption {
+  color: #cbd5e1;
+}
+
+.user-space-page[data-theme="dark"] .sponsor-qr-loading {
+  background: rgba(15, 23, 42, 0.72);
+  color: #fbbf24;
+}
+
+.user-space-page[data-theme="dark"] .sponsor-qr-placeholder {
+  background: rgba(250, 204, 21, 0.06);
+  border-color: rgba(250, 204, 21, 0.26);
+}
+
+.user-space-page[data-theme="dark"] .sponsor-qr-placeholder h4 {
+  color: #ffffff;
+}
+
+.user-space-page[data-theme="dark"] .sponsor-qr-placeholder p {
+  color: #c4c4cc;
+}
+
+.user-space-page[data-theme="dark"] .bg-gold {
+  background-color: rgba(250, 204, 21, 0.14);
+}
+
+.user-space-page[data-theme="dark"] .bg-gold svg {
+  stroke: #fbbf24;
+}
+
+.user-space-page[data-theme="dark"] .cloud-quota-pill {
+  background: rgba(45, 212, 191, 0.14);
+  color: #5eead4;
+}
+
+.user-space-page[data-theme="dark"] .cloud-quota-pill.full {
+  background: rgba(248, 113, 113, 0.14);
+  color: #fca5a5;
+}
+
+.user-space-page[data-theme="dark"] .cloud-quota-caption {
+  color: #9ca3af;
+}
+
+/* ============================================
+   主题设置模态框深色模式
+   ============================================ */
+.user-space-page[data-theme="dark"] .theme-header {
+  background: linear-gradient(180deg, #1a2d4a 0%, #252532 100%);
+}
+
+.user-space-page[data-theme="dark"] .theme-option {
+  background: #2a2a3a;
+}
+
+.user-space-page[data-theme="dark"] .theme-option:hover {
+  background: #353545;
+}
+
+.user-space-page[data-theme="dark"] .theme-option.active {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.2);
+}
+
+.user-space-page[data-theme="dark"] .theme-name {
+  color: #ffffff !important;
+}
+
+.user-space-page[data-theme="dark"] .light-preview {
+  background: #ffffff;
+}
+
+.user-space-page[data-theme="dark"] .dark-preview {
+  background: #1e1e2a;
+}
+
+.user-space-page[data-theme="dark"] .dark-preview .preview-header {
+  background: #2a2a3a;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.user-space-page[data-theme="dark"] .dark-preview .preview-line {
+  background: #3a3a4a;
+}

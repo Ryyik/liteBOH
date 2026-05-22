@@ -204,7 +204,7 @@
   opacity: 0;
   position: fixed;
   top: 0;
-  overflow-y: scroll;
+  overflow-y: auto;
   z-index: 20;
   left: 0;
   background-color: #141414;

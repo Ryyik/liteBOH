@@ -1,0 +1,795 @@
+/**
+ * ============================================
+ * 消息页面深色模式样式
+ * ============================================
+ */
+
+/* 页面基础 */
+.x-notifications-container[data-theme="dark"],
+[data-theme="dark"] .x-notifications-container {
+  background: #0d0d12 !important;
+}
+
+/* ============================================
+   页面头部
+   ============================================ */
+.x-notifications-container[data-theme="dark"] .x-header {
+  background: rgba(13, 13, 18, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+}
+
+.x-notifications-container[data-theme="dark"] .x-header-title {
+  color: #ffffff;
+}
+
+.x-notifications-container[data-theme="dark"] .x-header-subtitle,
+[data-theme="dark"] .x-notifications-container .x-header-subtitle {
+  color: #a1a1aa;
+}
+
+.x-notifications-container[data-theme="dark"] .x-mark-all-btn {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
+.x-notifications-container[data-theme="dark"] .x-mark-all-btn:hover {
+  background: #60a5fa;
+  color: #ffffff;
+}
+
+/* ============================================
+   标签页
+   ============================================ */
+.x-notifications-container[data-theme="dark"] .x-tab {
+  color: #a1a1aa;
+  background: #2a2a3a;
+}
+
+.x-notifications-container[data-theme="dark"] .x-tab:hover {
+  background: #353545;
+  color: #c4c4cc;
+}
+
+.x-notifications-container[data-theme="dark"] .x-tab.active {
+  color: #ffffff;
+  background: #3a3a4a;
+}
+
+.x-notifications-container[data-theme="dark"] .x-tab-indicator {
+  background: #60a5fa;
+}
+
+.x-notifications-container[data-theme="dark"] .x-section-switch,
+[data-theme="dark"] .x-notifications-container .x-section-switch,
+.x-notifications-container[data-theme="dark"] .x-mail-folder-tabs,
+[data-theme="dark"] .x-notifications-container .x-mail-folder-tabs {
+  background: #171722;
+}
+
+.x-notifications-container[data-theme="dark"] .x-section-switch button,
+[data-theme="dark"] .x-notifications-container .x-section-switch button,
+.x-notifications-container[data-theme="dark"] .x-mail-folder-tabs button,
+[data-theme="dark"] .x-notifications-container .x-mail-folder-tabs button {
+  color: #a1a1aa;
+}
+
+.x-notifications-container[data-theme="dark"] .x-section-switch button.active,
+[data-theme="dark"] .x-notifications-container .x-section-switch button.active,
+.x-notifications-container[data-theme="dark"] .x-mail-folder-tabs button.active,
+[data-theme="dark"] .x-notifications-container .x-mail-folder-tabs button.active {
+  background: #2a2a3a;
+  color: #ffffff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+}
+
+.x-notifications-container[data-theme="dark"] .x-mail-filter-select,
+[data-theme="dark"] .x-notifications-container .x-mail-filter-select {
+  background: #1e1e2a;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #a1a1aa;
+}
+
+.x-notifications-container[data-theme="dark"] .x-mail-filter-select select,
+[data-theme="dark"] .x-notifications-container .x-mail-filter-select select {
+  color: #ffffff;
+  background: #1e1e2a;
+}
+
+/* ============================================
+   通知列表
+   ============================================ */
+.x-notifications-container[data-theme="dark"] .x-notifications-list,
+.x-notifications-container[data-theme="dark"] .x-list {
+  background: transparent;
+}
+
+.x-notifications-container[data-theme="dark"] .x-inbox-list,
+[data-theme="dark"] .x-notifications-container .x-inbox-list,
+.x-notifications-container[data-theme="dark"] .x-mail-list,
+[data-theme="dark"] .x-notifications-container .x-mail-list {
+  background: #1e1e2a;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* 通知项 - 修复：使用正确的类名 */
+.x-notifications-container[data-theme="dark"] .x-notification-item,
+.x-notifications-container[data-theme="dark"] .x-item {
+  background: #1e1e2a;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.x-notifications-container[data-theme="dark"] .x-notification-item:hover,
+.x-notifications-container[data-theme="dark"] .x-item:hover {
+  background: #252532;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.x-notifications-container[data-theme="dark"] .x-notification-item.unread,
+.x-notifications-container[data-theme="dark"] .x-item.unread {
+  border-left: 3px solid #60a5fa;
+  background: rgba(59, 130, 246, 0.08);
+}
+
+/* 通知头像 */
+.x-notifications-container[data-theme="dark"] .x-avatar,
+.x-notifications-container[data-theme="dark"] .x-avatar-wrapper {
+  background: #2a2a3a;
+}
+
+.x-notifications-container[data-theme="dark"] .x-avatar img,
+.x-notifications-container[data-theme="dark"] .x-avatar-img {
+  border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+/* 通知内容 */
+.x-notifications-container[data-theme="dark"] .x-notification-content,
+.x-notifications-container[data-theme="dark"] .x-item-main {
+  background: transparent;
+}
+
+.x-notifications-container[data-theme="dark"] .x-notification-text,
+.x-notifications-container[data-theme="dark"] .x-text,
+.x-notifications-container[data-theme="dark"] .x-sender-name {
+  color: #ffffff;
+}
+
+.x-notifications-container[data-theme="dark"] .x-notification-text strong,
+.x-notifications-container[data-theme="dark"] .x-sender-name {
+  color: #60a5fa;
+}
+
+.x-notifications-container[data-theme="dark"] .x-action-type,
+[data-theme="dark"] .x-notifications-container .x-action-type {
+  background: #2a2a3a;
+  color: #a1a1aa;
+}
+
+.x-notifications-container[data-theme="dark"] .x-notification-time,
+.x-notifications-container[data-theme="dark"] .x-date {
+  color: #71717a;
+}
+
+.x-notifications-container[data-theme="dark"] .x-notification-item.unread .x-notification-time,
+.x-notifications-container[data-theme="dark"] .x-item.unread .x-date {
+  color: #60a5fa;
+}
+
+/* 预览框 */
+.x-notifications-container[data-theme="dark"] .x-preview-box {
+  background: transparent;
+  border-color: transparent;
+  color: #a1a1aa;
+}
+
+.x-notifications-container[data-theme="dark"] .x-quick-btn,
+[data-theme="dark"] .x-notifications-container .x-quick-btn {
+  background: #252532;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #c4c4cc;
+}
+
+.x-notifications-container[data-theme="dark"] .x-quick-btn:hover,
+[data-theme="dark"] .x-notifications-container .x-quick-btn:hover {
+  background: #60a5fa;
+  color: #0d0d12;
+}
+
+/* 类型徽章 */
+.x-notifications-container[data-theme="dark"] .x-type-badge {
+  background: #1e1e2a;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* 未读标记 */
+.x-notifications-container[data-theme="dark"] .x-unread-dot {
+  background: #60a5fa;
+  box-shadow: 0 0 8px rgba(96, 165, 250, 0.5);
+}
+
+/* 删除按钮 */
+.x-notifications-container[data-theme="dark"] .x-delete-btn {
+  color: #71717a;
+}
+
+.x-notifications-container[data-theme="dark"] .x-delete-btn:hover {
+  color: #ff5252;
+  background: rgba(255, 82, 82, 0.1);
+}
+
+/* ============================================
+   空状态
+   ============================================ */
+.x-notifications-container[data-theme="dark"] .x-empty-state,
+.x-notifications-container[data-theme="dark"] .x-empty {
+  background: transparent;
+}
+
+.x-notifications-container[data-theme="dark"] .x-empty-icon,
+.x-notifications-container[data-theme="dark"] .empty-icon-circle {
+  color: #3f3f46;
+  background: #1e1e2a;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.x-notifications-container[data-theme="dark"] .x-empty-title,
+.x-notifications-container[data-theme="dark"] .x-empty h3 {
+  color: #ffffff;
+}
+
+.x-notifications-container[data-theme="dark"] .x-empty-desc,
+.x-notifications-container[data-theme="dark"] .x-empty p {
+  color: #a1a1aa;
+}
+
+.x-notifications-container[data-theme="dark"] .empty-glow {
+  background: radial-gradient(circle, rgba(96, 165, 250, 0.15) 0%, transparent 70%);
+}
+
+.x-notifications-container[data-theme="dark"] .refresh-btn {
+  background: #3a3a4a;
+  color: #ffffff;
+}
+
+.x-notifications-container[data-theme="dark"] .refresh-btn:hover {
+  background: #4a4a5a;
+}
+
+/* ============================================
+   加载状态
+   ============================================ */
+.x-notifications-container[data-theme="dark"] .x-loading-spinner,
+.x-notifications-container[data-theme="dark"] .x-spinner {
+  border-color: rgba(255, 255, 255, 0.1);
+  border-top-color: #60a5fa;
+}
+
+.x-notifications-container[data-theme="dark"] .x-loading-text,
+.x-notifications-container[data-theme="dark"] .loading-text {
+  color: #71717a;
+}
+
+/* ============================================
+   写信按钮
+   ============================================ */
+.x-notifications-container[data-theme="dark"] .compose-btn {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
+.x-notifications-container[data-theme="dark"] .compose-btn:hover {
+  background: #60a5fa;
+  color: #ffffff;
+}
+
+.x-notifications-container[data-theme="dark"] .compose-btn-mini {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
+.x-notifications-container[data-theme="dark"] .compose-btn-mini:hover {
+  background: #60a5fa;
+  color: #ffffff;
+}
+
+/* ============================================
+   模态框
+   ============================================ */
+.x-notifications-container[data-theme="dark"] .x-modal-overlay,
+.x-notifications-container[data-theme="dark"] .compose-modal-overlay {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.x-notifications-container[data-theme="dark"] .x-modal,
+.x-notifications-container[data-theme="dark"] .compose-modal-container {
+  background: #1e1e2a;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+.x-notifications-container[data-theme="dark"] .x-modal-header,
+.x-notifications-container[data-theme="dark"] .compose-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.x-notifications-container[data-theme="dark"] .x-modal-title,
+.x-notifications-container[data-theme="dark"] .compose-header h3 {
+  color: #ffffff;
+}
+
+.x-notifications-container[data-theme="dark"] .x-modal-close,
+.x-notifications-container[data-theme="dark"] .close-modal-btn {
+  color: #71717a;
+  background: #2a2a3a;
+}
+
+.x-notifications-container[data-theme="dark"] .x-modal-close:hover,
+.x-notifications-container[data-theme="dark"] .close-modal-btn:hover {
+  color: #ffffff;
+  background: #353545;
+}
+
+.x-notifications-container[data-theme="dark"] .x-modal-body,
+.x-notifications-container[data-theme="dark"] .compose-body {
+  color: #c4c4cc;
+}
+
+.x-notifications-container[data-theme="dark"] .x-modal-footer,
+.x-notifications-container[data-theme="dark"] .compose-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ============================================
+   表单输入
+   ============================================ */
+.x-notifications-container[data-theme="dark"] .x-input,
+.x-notifications-container[data-theme="dark"] .compose-field input,
+.x-notifications-container[data-theme="dark"] .recipient-input-wrapper input {
+  background: #2a2a3a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.x-notifications-container[data-theme="dark"] .x-input:focus,
+.x-notifications-container[data-theme="dark"] .compose-field input:focus,
+.x-notifications-container[data-theme="dark"] .recipient-input-wrapper input:focus {
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.x-notifications-container[data-theme="dark"] .x-input::placeholder,
+.x-notifications-container[data-theme="dark"] .compose-field input::placeholder {
+  color: #71717a;
+}
+
+.x-notifications-container[data-theme="dark"] .x-textarea,
+.x-notifications-container[data-theme="dark"] .content-field textarea,
+.x-notifications-container[data-theme="dark"] .reply-textarea {
+  background: #2a2a3a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.x-notifications-container[data-theme="dark"] .x-textarea:focus,
+.x-notifications-container[data-theme="dark"] .content-field textarea:focus,
+.x-notifications-container[data-theme="dark"] .reply-textarea:focus {
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.x-notifications-container[data-theme="dark"] .compose-field {
+  background: #252532;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.x-notifications-container[data-theme="dark"] .compose-field label {
+  color: #a1a1aa;
+}
+
+.x-notifications-container[data-theme="dark"] .compose-count,
+[data-theme="dark"] .x-notifications-container .compose-count,
+.x-notifications-container[data-theme="dark"] .moderation-info.muted,
+[data-theme="dark"] .x-notifications-container .moderation-info.muted {
+  color: #71717a;
+}
+
+/* ============================================
+   按钮
+   ============================================ */
+.x-notifications-container[data-theme="dark"] .x-btn-primary,
+.x-notifications-container[data-theme="dark"] .send-mail-btn,
+.x-notifications-container[data-theme="dark"] .submit-reply-btn {
+  background: #60a5fa;
+  color: #0d0d12;
+}
+
+.x-notifications-container[data-theme="dark"] .x-btn-primary:hover,
+.x-notifications-container[data-theme="dark"] .send-mail-btn:hover:not(:disabled),
+.x-notifications-container[data-theme="dark"] .submit-reply-btn:hover:not(:disabled) {
+  background: #3b82f6;
+}
+
+.x-notifications-container[data-theme="dark"] .x-btn-secondary,
+.x-notifications-container[data-theme="dark"] .cancel-reply-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #c4c4cc;
+}
+
+.x-notifications-container[data-theme="dark"] .x-btn-secondary:hover,
+.x-notifications-container[data-theme="dark"] .cancel-reply-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+/* ============================================
+   抽屉详情 - 全局深色模式支持
+   ============================================ */
+[data-theme="dark"] .x-detail-drawer-overlay {
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+}
+
+[data-theme="dark"] .x-detail-drawer {
+  background: #1e1e2a;
+  box-shadow: -20px 0 60px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .drawer-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .drawer-header h3 {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .detail-user-card {
+  background: #252532;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="dark"] .user-info .name {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .user-info .type {
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.15);
+}
+
+[data-theme="dark"] .detail-title {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .main-text {
+  color: #c4c4cc;
+}
+
+[data-theme="dark"] .source-content {
+  background: #252532;
+  border-left: 4px solid #60a5fa;
+}
+
+[data-theme="dark"] .source-label {
+  color: #71717a;
+}
+
+[data-theme="dark"] .source-text {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .full-date {
+  color: #71717a;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .reply-input-section {
+  background: #252532;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="dark"] .notification-actions,
+[data-theme="dark"] .mail-actions {
+  background: rgba(30, 30, 42, 0.94);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .notif-action-btn,
+[data-theme="dark"] .mail-action-btn {
+  background: #2a2a3a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .notif-action-btn.reply,
+[data-theme="dark"] .mail-action-btn.reply {
+  color: #60a5fa;
+}
+
+[data-theme="dark"] .notif-action-btn.reply:hover,
+[data-theme="dark"] .mail-action-btn.reply:hover {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: #60a5fa;
+}
+
+[data-theme="dark"] .notif-action-btn.view-post {
+  color: #60a5fa;
+}
+
+[data-theme="dark"] .notif-action-btn.view-post:hover {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: #60a5fa;
+}
+
+[data-theme="dark"] .mail-action-btn.delete {
+  color: #ff5252;
+}
+
+[data-theme="dark"] .mail-action-btn.delete:hover {
+  background: rgba(255, 82, 82, 0.15);
+  border-color: #ff5252;
+}
+
+/* ============================================
+   邮件相关
+   ============================================ */
+.x-notifications-container[data-theme="dark"] .x-mail-folder-tabs span {
+  color: #a1a1aa;
+}
+
+.x-notifications-container[data-theme="dark"] .x-mail-folder-tabs span:hover {
+  color: #ffffff;
+}
+
+.x-notifications-container[data-theme="dark"] .x-mail-folder-tabs span.active {
+  color: #60a5fa;
+  border-bottom-color: #60a5fa;
+}
+
+.x-notifications-container[data-theme="dark"] .x-mail-time-filter {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.x-notifications-container[data-theme="dark"] .x-mail-time-filter span {
+  color: #71717a;
+  background: #2a2a3a;
+}
+
+.x-notifications-container[data-theme="dark"] .x-mail-time-filter span:hover {
+  color: #ffffff;
+  background: #353545;
+}
+
+.x-notifications-container[data-theme="dark"] .x-mail-time-filter span.active {
+  color: #0d0d12;
+  background: #60a5fa;
+}
+
+.x-notifications-container[data-theme="dark"] .x-mail-item {
+  background: #1e1e2a;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.x-notifications-container[data-theme="dark"] .x-mail-item:hover {
+  background: #252532;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.x-notifications-container[data-theme="dark"] .x-mail-item.unread {
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(96, 165, 250, 0.2);
+}
+
+.x-notifications-container[data-theme="dark"] .x-mail-avatar {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.x-notifications-container[data-theme="dark"] .x-mail-sender {
+  color: #ffffff;
+}
+
+.x-notifications-container[data-theme="dark"] .x-mail-subject {
+  color: #c4c4cc;
+}
+
+.x-notifications-container[data-theme="dark"] .x-mail-excerpt {
+  color: #71717a;
+}
+
+.x-notifications-container[data-theme="dark"] .x-mail-date {
+  color: #71717a;
+}
+
+.x-notifications-container[data-theme="dark"] .mail-moderation-badge {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.x-notifications-container[data-theme="dark"] .mail-badge {
+  background: #60a5fa;
+  color: #0d0d12;
+}
+
+/* ============================================
+   收件人选择
+   ============================================ */
+.x-notifications-container[data-theme="dark"] .recipient-tag {
+  background: #2a2a3a;
+  color: #ffffff;
+}
+
+.x-notifications-container[data-theme="dark"] .remove-tag {
+  color: #71717a;
+}
+
+.x-notifications-container[data-theme="dark"] .remove-tag:hover {
+  color: #ff5252;
+}
+
+.x-notifications-container[data-theme="dark"] .recipient-dropdown {
+  background: #1e1e2a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.x-notifications-container[data-theme="dark"] .dropdown-loading {
+  color: #71717a;
+}
+
+.x-notifications-container[data-theme="dark"] .dropdown-item:hover {
+  background: #252532;
+}
+
+.x-notifications-container[data-theme="dark"] .item-name {
+  color: #ffffff;
+}
+
+.x-notifications-container[data-theme="dark"] .item-role {
+  color: #71717a;
+}
+
+.x-notifications-container[data-theme="dark"] .item-check {
+  color: #60a5fa;
+}
+
+.x-notifications-container[data-theme="dark"] .moderation-info {
+  color: #60a5fa;
+}
+
+.x-notifications-container[data-theme="dark"] .spinner-mini {
+  border-color: rgba(255, 255, 255, 0.1);
+  border-top-color: #60a5fa;
+}
+
+/* ============================================
+   最小化模式
+   ============================================ */
+.x-notifications-container[data-theme="dark"].minimal-mode {
+  background: transparent;
+}
+
+.x-notifications-container[data-theme="dark"] .x-header-minimal {
+  background: rgba(13, 13, 18, 0.8);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.x-notifications-container[data-theme="dark"] .x-header-minimal .x-tab {
+  background: #2a2a3a;
+  color: #a1a1aa;
+}
+
+.x-notifications-container[data-theme="dark"] .x-header-minimal .x-tab:hover {
+  background: #353545;
+  color: #c4c4cc;
+}
+
+.x-notifications-container[data-theme="dark"] .x-header-minimal .x-tab.active {
+  background: #3a3a4a;
+  color: #ffffff;
+}
+
+.x-notifications-container[data-theme="dark"] .x-mark-all-btn-minimal {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
+.x-notifications-container[data-theme="dark"] .x-mark-all-btn-minimal:hover {
+  background: #60a5fa;
+  color: #0d0d12;
+}
+
+/* ============================================
+   自定义滚动条
+   ============================================ */
+.x-notifications-container[data-theme="dark"] .custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.x-notifications-container[data-theme="dark"] .custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.x-notifications-container[data-theme="dark"] .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 3px;
+}
+
+.x-notifications-container[data-theme="dark"] .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
+
+/* ============================================
+   全局深色模式适配 (data-theme="dark" 在父元素)
+   ============================================ */
+[data-theme="dark"] .x-notifications-container .x-item {
+  background: #1e1e2a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .x-notifications-container .x-item:hover {
+  background: #252532;
+}
+
+[data-theme="dark"] .x-notifications-container .x-tab {
+  background: #2a2a3a;
+  color: #a1a1aa;
+}
+
+[data-theme="dark"] .x-notifications-container .x-tab.active {
+  background: #3a3a4a;
+  color: #ffffff;
+}
+
+[data-theme="dark"] .x-notifications-container .x-sender-name,
+[data-theme="dark"] .x-notifications-container .x-text {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .x-notifications-container .x-date {
+  color: #71717a;
+}
+
+[data-theme="dark"] .x-notifications-container .x-preview-box {
+  background: #2a2a3a;
+  color: #a1a1aa;
+}
+
+/* 新版收件箱式消息中心兜底覆盖 */
+.x-notifications-container[data-theme="dark"] .x-inbox-list .x-item,
+[data-theme="dark"] .x-notifications-container .x-inbox-list .x-item,
+.x-notifications-container[data-theme="dark"] .x-mail-list .x-mail-item,
+[data-theme="dark"] .x-notifications-container .x-mail-list .x-mail-item {
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+}
+
+.x-notifications-container[data-theme="dark"] .x-inbox-list .x-item:last-child,
+[data-theme="dark"] .x-notifications-container .x-inbox-list .x-item:last-child,
+.x-notifications-container[data-theme="dark"] .x-mail-list .x-mail-item:last-child,
+[data-theme="dark"] .x-notifications-container .x-mail-list .x-mail-item:last-child {
+  border-bottom: 0;
+}
+
+.x-notifications-container[data-theme="dark"] .x-inbox-list .x-preview-box,
+[data-theme="dark"] .x-notifications-container .x-inbox-list .x-preview-box {
+  background: transparent;
+  border: 0;
+}
+
+.x-notifications-container[data-theme="dark"] .x-skeleton-item,
+[data-theme="dark"] .x-notifications-container .x-skeleton-item {
+  background: #1e1e2a;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.x-notifications-container[data-theme="dark"] .x-skeleton-avatar,
+.x-notifications-container[data-theme="dark"] .x-skeleton-line,
+[data-theme="dark"] .x-notifications-container .x-skeleton-avatar,
+[data-theme="dark"] .x-notifications-container .x-skeleton-line {
+  background: linear-gradient(90deg, #252532 25%, #303044 50%, #252532 75%);
+  background-size: 200% 100%;
+}

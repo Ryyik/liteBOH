@@ -1,0 +1,412 @@
+[
+  {
+    "schemaname": "public",
+    "tablename": "activities",
+    "policyname": "允许所有人读取活动",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "activities",
+    "policyname": "只允许认证用户创建活动",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "(auth.role() = 'authenticated'::text)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "activities",
+    "policyname": "只允许认证用户删除活动",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "using_expression": "(auth.role() = 'authenticated'::text)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "activities",
+    "policyname": "只允许认证用户更新活动",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "(auth.role() = 'authenticated'::text)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "comments",
+    "policyname": "Auth insert comment",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "(auth.role() = 'authenticated'::text)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "comments",
+    "policyname": "Public can view all comments",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "comments",
+    "policyname": "Public read comments",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "comments",
+    "policyname": "Users can delete their own comments",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "using_expression": "(auth.uid() = author_id)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "comments",
+    "policyname": "Users can update their own comments",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "(auth.uid() = author_id)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "likes",
+    "policyname": "Auth delete like",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "using_expression": "(auth.uid() = user_id)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "likes",
+    "policyname": "Auth insert like",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "(auth.role() = 'authenticated'::text)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "likes",
+    "policyname": "Public read likes",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "messages",
+    "policyname": "Receivers can update message status",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "(auth.uid() = receiver_id)",
+    "with_check_expression": "(auth.uid() = receiver_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "messages",
+    "policyname": "Users can delete their own messages",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "using_expression": "((auth.uid() = sender_id) OR (auth.uid() = receiver_id))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "messages",
+    "policyname": "Users can insert their own sent messages",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "(auth.uid() = sender_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "messages",
+    "policyname": "Users can manage their own messages",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "((auth.uid() = sender_id) OR (auth.uid() = receiver_id))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "messages",
+    "policyname": "Users can send messages",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "(auth.uid() = sender_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "messages",
+    "policyname": "Users can view their own messages",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "((auth.uid() = sender_id) OR (auth.uid() = receiver_id))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "news",
+    "policyname": "允许所有人读取新闻",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "news",
+    "policyname": "只允许认证用户创建新闻",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "(auth.role() = 'authenticated'::text)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "news",
+    "policyname": "只允许认证用户删除新闻",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "using_expression": "(auth.role() = 'authenticated'::text)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "news",
+    "policyname": "只允许认证用户更新新闻",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "(auth.role() = 'authenticated'::text)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "notifications",
+    "policyname": "Users can view their own notifications",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "SELECT",
+    "using_expression": "(auth.uid() = recipient_id)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "posts",
+    "policyname": "Public can view all posts",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "posts",
+    "policyname": "Users can create their own posts",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "(auth.uid() = author_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "posts",
+    "policyname": "Users can delete their own posts",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "using_expression": "(auth.uid() = author_id)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "posts",
+    "policyname": "Users can update their own posts",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "(auth.uid() = author_id)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "posts",
+    "policyname": "任何人都可以查看帖子",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "posts",
+    "policyname": "登录用户可以发布帖子",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "(auth.role() = 'authenticated'::text)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profiles",
+    "policyname": "Authenticated users can view all profiles",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profiles",
+    "policyname": "Public profiles are viewable by everyone",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profiles",
+    "policyname": "Users can insert own profile",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "(auth.uid() = id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profiles",
+    "policyname": "Users can insert their own profile",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "(auth.uid() = id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profiles",
+    "policyname": "Users can update own profile",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "(auth.uid() = id)",
+    "with_check_expression": "((auth.uid() = id) AND (points IS NOT DISTINCT FROM ( SELECT p.points\n   FROM profiles p\n  WHERE (p.id = auth.uid()))))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profiles",
+    "policyname": "Users can update their own profile",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "(auth.uid() = id)",
+    "with_check_expression": "((auth.uid() = id) AND (points IS NOT DISTINCT FROM ( SELECT p.points\n   FROM profiles p\n  WHERE (p.id = auth.uid()))))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "user_gifts",
+    "policyname": "Admins can manage gifts",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "user_gifts",
+    "policyname": "Admins can view all gifts",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "user_gifts",
+    "policyname": "Users can view their own gifts",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "(auth.uid() = user_id)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "user_impressions",
+    "policyname": "Author or Target can delete impression",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "using_expression": "((auth.uid() = author_id) OR (auth.uid() = target_id))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "user_impressions",
+    "policyname": "Impressions are viewable by everyone",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "user_impressions",
+    "policyname": "Users can write impressions",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "(auth.uid() = author_id)"
+  }
+]

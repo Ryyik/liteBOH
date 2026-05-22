@@ -1,217 +1,364 @@
 <template>
   <div class="activities-list-page">
-    <!-- 页面标题 -->
-    <div class="page-title">
-      <h1>方块之家活动列表</h1>
-      <p>回顾我们曾经举办的精彩活动</p>
-    </div>
+    <!-- 统一导航栏 -->
+    <UnifiedNavbar />
+
+    <!-- 活动列表标题区域 -->
+    <header class="activities-header">
+      <h1 class="page-title-text">方块之家活动列表</h1>
+      <p class="page-subtitle-text">回顾我们曾经举办的精彩活动</p>
+    </header>
 
     <!-- 活动列表容器 -->
     <div class="activities-container">
-      <!-- 活动卡片 -->
-      <div
-        v-for="activity in activities"
-        :key="activity.id"
-        class="activity-card glass-ui"
-      >
-        <!-- 活动图片 -->
-        <div class="activity-card-image">
-          <img
-            :src="getImageUrl(activity.image)"
-            :alt="activity.title"
-            class="activity-image"
-            loading="lazy"
-          />
+      <!-- 加载状态 -->
+      <template v-if="loading">
+        <div v-for="item in 6" :key="`activity-loading-${item}`" class="activity-card activity-card-skeleton"
+          aria-hidden="true">
+          <div class="activity-skeleton-image">
+            <div class="activity-skeleton-block activity-skeleton-date"></div>
+          </div>
+          <div class="activity-card-content">
+            <div class="activity-skeleton-block activity-skeleton-title"></div>
+            <div class="activity-skeleton-block activity-skeleton-line wide"></div>
+            <div class="activity-skeleton-block activity-skeleton-line"></div>
+          </div>
         </div>
+      </template>
+      <template v-else>
+        <!-- 活动卡片 -->
+        <div v-for="activity in activities" :key="activity.id" class="activity-card">
+          <!-- 活动图片 -->
+          <div class="activity-card-image">
+            <img :src="getImageUrl(activity.image)" :alt="activity.title" class="activity-image" loading="lazy" />
+            <div class="activity-date-badge">{{ activity.date }}</div>
+          </div>
 
-        <!-- 活动信息 -->
-        <div class="activity-card-content">
-          <div class="activity-date">{{ activity.date }}</div>
-          <h3 class="activity-title">{{ activity.title }}</h3>
-          <p class="activity-description">{{ activity.description }}</p>
+          <!-- 活动信息 -->
+          <div class="activity-card-content">
+            <h3 class="activity-title">{{ activity.title }}</h3>
+            <p class="activity-description">{{ activity.description }}</p>
+          </div>
         </div>
-      </div>
+      </template>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from "vue";
-// 导入本地活动数据
-import { activitiesData } from "../../data/activities.js";
-import { getImageUrl } from "../../utils/asset-helper.js";
+import UnifiedNavbar from "@/components/UnifiedNavbar/index.vue";
+import { getImageUrl } from "@/utils/asset-helper.js";
+// 导入活动 composable
+import { initActivities, getAllActivities } from "@/composables/useActivities";
 
-// 使用本地数据
-const activities = ref(activitiesData);
+// 活动数据
+const activities = ref([]);
+const loading = ref(true);
 
-onMounted(() => {
+// 加载活动数据
+const loadActivities = async () => {
+  loading.value = true;
+  await initActivities();
+  activities.value = getAllActivities();
+  loading.value = false;
+};
+
+onMounted(async () => {
   // 添加页面加载完成类
   document.body.classList.add("is-loaded");
+  
+  // 加载活动数据
+  await loadActivities();
 });
 </script>
 
 <style scoped>
+/* 加载状态容器 */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 120px 20px;
+  min-height: 400px;
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.loading-spinner {
+  width: 60px;
+  height: 60px;
+  border: 4px solid #f5f5f7;
+  border-top: 4px solid #1d1d1f;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+  margin-top: 24px;
+  font-size: 16px;
+  color: #86868b;
+  font-weight: 500;
+}
+
+.activity-card-skeleton {
+  cursor: default;
+  pointer-events: none;
+}
+
+.activity-skeleton-block,
+.activity-skeleton-image {
+  position: relative;
+  overflow: hidden;
+  background: #edf0f4;
+}
+
+.activity-skeleton-block::after,
+.activity-skeleton-image::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.78), transparent);
+  animation: activitySkeletonShimmer 1.35s ease-in-out infinite;
+}
+
+.activity-skeleton-image {
+  width: 100%;
+  height: 280px;
+}
+
+.activity-skeleton-date {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  width: 112px;
+  height: 38px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.activity-skeleton-title {
+  width: 76%;
+  height: 28px;
+  border-radius: 12px;
+  margin-bottom: 18px;
+}
+
+.activity-skeleton-line {
+  width: 68%;
+  height: 15px;
+  border-radius: 999px;
+  margin-top: 12px;
+}
+
+.activity-skeleton-line.wide {
+  width: 100%;
+}
+
+@keyframes activitySkeletonShimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 /* 页面基础样式 */
 .activities-list-page {
   width: 100%;
-  padding: 0 20px;
-  background-color: #ffffff;
+  background: #ffffff; /* 纯白背景 */
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  min-height: 100vh;
+  color: #1d1d1f;
 }
 
-/* 页面标题 */
-.page-title {
+/* 头部区域 */
+.activities-header {
   text-align: center;
-  margin-bottom: 40px;
-  padding: 20px 0;
+  padding: 160px 20px 100px; /* 增加留白 */
+  max-width: 1000px;
+  margin: 0 auto;
 }
 
-.page-title h1 {
-  font-size: 3rem;
-  font-weight: 700;
-  color: #333333;
-  margin-bottom: 10px;
+.page-title-text {
+  font-size: 72px; /* 更大的标题 */
+  font-weight: 800; /* 醒目的粗体 */
+  margin-bottom: 24px;
+  letter-spacing: -0.03em;
+  color: #1d1d1f;
+  line-height: 1.05;
 }
 
-.page-title p {
-  font-size: 1.2rem;
-  color: rgba(0, 0, 0, 0.7);
+.page-subtitle-text {
+  font-size: 24px;
+  color: #86868b;
+  font-weight: 400;
+  line-height: 1.4;
+  max-width: 600px;
+  margin: 0 auto;
 }
 
 /* 活动列表容器 */
 .activities-container {
-  max-width: 1200px;
+  max-width: 1400px; /* 更宽的容器 */
   margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 30px;
-  padding: 20px 0;
-}
-
-/* 玻璃UI样式 */
-.glass-ui {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 48px; /* 更大的间距 */
+  padding: 0 40px 160px;
 }
 
 /* 活动卡片 */
 .activity-card {
+  background-color: #ffffff;
+  border-radius: 32px; /* 更大的圆角 */
+  overflow: hidden;
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.04); /* 柔和阴影 */
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid rgba(0, 0, 0, 0.03); /* 极细边框 */
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   height: 100%;
+  cursor: pointer;
+}
+
+.activity-card.activity-card-skeleton {
+  cursor: default;
+  pointer-events: none;
 }
 
 .activity-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
-  border-color: rgba(100, 108, 255, 0.3);
+  transform: translateY(-12px);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.12);
 }
 
 /* 活动卡片图片 */
 .activity-card-image {
   width: 100%;
-  height: 200px;
+  height: 280px; /* 更高的图片区域 */
+  position: relative;
   overflow: hidden;
+  background-color: #f5f5f7;
 }
 
 .activity-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.3s ease;
+  transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .activity-card:hover .activity-image {
-  transform: scale(1.05);
+  transform: scale(1.08);
+}
+
+.activity-date-badge {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  background-color: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  color: #1d1d1f;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  letter-spacing: -0.01em;
 }
 
 /* 活动卡片内容 */
 .activity-card-content {
-  padding: 24px;
+  padding: 40px;
   flex: 1;
   display: flex;
   flex-direction: column;
 }
 
-/* 活动日期 */
-.activity-date {
-  font-size: 0.9rem;
-  color: #646cff;
-  font-weight: 600;
-  margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
 /* 活动标题 */
 .activity-title {
-  font-size: 1.4rem;
-  font-weight: 600;
-  color: #333333;
-  margin-bottom: 12px;
+  font-size: 24px;
+  font-weight: 800; /* 醒目的粗体 */
+  color: #1d1d1f;
+  margin-bottom: 16px;
   line-height: 1.3;
+  letter-spacing: -0.02em;
 }
 
 /* 活动描述 */
 .activity-description {
-  font-size: 1rem;
-  color: rgba(0, 0, 0, 0.7);
-  line-height: 1.5;
+  font-size: 16px;
+  color: #86868b;
+  line-height: 1.7;
   flex: 1;
+  margin-bottom: 32px;
+}
+
+.activity-action {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1d1d1f;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.activity-action span {
+  transition: transform 0.2s ease;
+}
+
+.activity-card:hover .activity-action span {
+  transform: translateX(4px);
 }
 
 /* 响应式设计 */
 @media (max-width: 1200px) {
   .activities-container {
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 24px;
+    gap: 32px;
   }
 }
 
 @media (max-width: 768px) {
-  .page-title h1 {
-    font-size: 2rem;
+  .activities-header {
+    padding: 100px 20px 40px;
   }
 
-  .page-title p {
-    font-size: 1rem;
+  .page-title-text {
+    font-size: 36px;
+    margin-bottom: 16px;
+  }
+
+  .page-subtitle-text {
+    font-size: 16px;
+  }
+  
+  .view-switcher {
+    margin-top: 32px;
+  }
+  
+  .switcher-btn {
+    padding: 10px 20px;
+    font-size: 14px;
   }
 
   .activities-container {
     grid-template-columns: 1fr;
-    gap: 20px;
-    padding: 10px 0;
+    gap: 32px;
+    padding: 0 20px 80px;
   }
 
   .activity-card-content {
-    padding: 20px;
+    padding: 24px;
   }
-
-  .activity-title {
-    font-size: 1.2rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .page-title {
-    margin-bottom: 30px;
-  }
-
-  .page-title h1 {
-    font-size: 1.8rem;
-  }
-
+  
   .activity-card-image {
-    height: 180px;
-  }
-
-  .activity-card-content {
-    padding: 16px;
+    height: 240px;
   }
 }
 </style>

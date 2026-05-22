@@ -1,0 +1,101 @@
+/**
+ * ============================================
+ * 导航栏深色模式样式
+ * ============================================
+ */
+
+/* 统一导航栏容器 - 使用双重选择器提高优先级 */
+#unified-nav-container[data-theme="dark"],
+[data-theme="dark"] #unified-nav-container {
+  background-color: rgba(10, 10, 15, 0.85) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3) !important;
+}
+
+#unified-nav-container[data-theme="dark"] .unified-nav,
+[data-theme="dark"] #unified-nav-container .unified-nav {
+  background-color: transparent !important;
+}
+
+/* 导航链接 */
+#unified-nav-container[data-theme="dark"] .nav-link,
+[data-theme="dark"] #unified-nav-container .nav-link {
+  color: #a1a1aa !important;
+}
+
+#unified-nav-container[data-theme="dark"] .nav-link:hover,
+[data-theme="dark"] #unified-nav-container .nav-link:hover {
+  color: #f5f5f7 !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+#unified-nav-container[data-theme="dark"] .nav-link.active,
+[data-theme="dark"] #unified-nav-container .nav-link.active {
+  color: #f5f5f7 !important;
+}
+
+/* 导航品牌/Logo */
+#unified-nav-container[data-theme="dark"] .nav-brand,
+[data-theme="dark"] #unified-nav-container .nav-brand {
+  color: #f5f5f7 !important;
+}
+
+/* 用户头像 */
+#unified-nav-container[data-theme="dark"] .nav-avatar,
+[data-theme="dark"] #unified-nav-container .nav-avatar {
+  background: #f5f5f7 !important;
+  color: #0a0a0f !important;
+}
+
+/* 未读消息红点 */
+#unified-nav-container[data-theme="dark"] .unread-dot-nav,
+[data-theme="dark"] #unified-nav-container .unread-dot-nav {
+  background-color: #ff5252 !important;
+  border-color: rgba(10, 10, 15, 0.8) !important;
+  box-shadow: 0 0 4px rgba(255, 82, 82, 0.4) !important;
+}
+
+/* 汉堡菜单按钮 */
+#unified-nav-container[data-theme="dark"] .nav-hamburger span,
+[data-theme="dark"] #unified-nav-container .nav-hamburger span {
+  background: #f5f5f7 !important;
+}
+
+/* 移动端菜单 */
+#unified-nav-container[data-theme="dark"] .nav-menu-mobile,
+[data-theme="dark"] #unified-nav-container .nav-menu-mobile {
+  background: rgba(18, 18, 26, 0.98) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+#unified-nav-container[data-theme="dark"] .nav-menu-mobile .nav-link,
+[data-theme="dark"] #unified-nav-container .nav-menu-mobile .nav-link {
+  color: #a1a1aa !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+#unified-nav-container[data-theme="dark"] .nav-menu-mobile .nav-link:hover,
+[data-theme="dark"] #unified-nav-container .nav-menu-mobile .nav-link:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: #f5f5f7 !important;
+}
+
+/* 加载状态 */
+#unified-nav-container[data-theme="dark"] .nav-user-loading,
+[data-theme="dark"] #unified-nav-container .nav-user-loading {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* 主题切换按钮（如果放在导航栏） */
+#unified-nav-container[data-theme="dark"] .theme-toggle-btn,
+[data-theme="dark"] #unified-nav-container .theme-toggle-btn {
+  color: #a1a1aa !important;
+}
+
+#unified-nav-container[data-theme="dark"] .theme-toggle-btn:hover,
+[data-theme="dark"] #unified-nav-container .theme-toggle-btn:hover {
+  color: #f5f5f7 !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+}

@@ -12,21 +12,29 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      VITE_CLOUDINARY_DELIVERY_BASE_URL: https://cdn.blockofhome.cn
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Node
-        uses: actions/node-latest@v4
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Build
-        run: npm run build
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test
+
+      - name: Build with Bundle Gate
+        run: npm run build:ci
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

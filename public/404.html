@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>正在返回方块之家</title>
+    <script>
+      (function () {
+        var knownRouteSegments = [
+          'about',
+          'activities',
+          'ai-chat',
+          'download',
+          'forum',
+          'gift',
+          'join',
+          'lotteries',
+          'newsroom',
+          'profile',
+          'shop',
+          'tutorial',
+          'user-center',
+          'user-space'
+        ];
+        var pathSegments = window.location.pathname.split('/').filter(Boolean);
+        var routeIndex = pathSegments.findIndex(function (segment) {
+          return knownRouteSegments.indexOf(segment) >= 0;
+        });
+        var baseSegments = routeIndex >= 0 ? pathSegments.slice(0, routeIndex) : [];
+        var routeSegments = routeIndex >= 0 ? pathSegments.slice(routeIndex) : [];
+        var basePath = '/' + (baseSegments.length ? baseSegments.join('/') + '/' : '');
+        var routePath = '/' + routeSegments.join('/');
+        if (routePath === '/') {
+          routePath = '/';
+        }
+        window.location.replace(
+          window.location.origin
+          + basePath
+          + '#'
+          + routePath
+          + window.location.search
+        );
+      }());
+    </script>
+  </head>
+  <body>
+    正在跳转...
+  </body>
+</html>

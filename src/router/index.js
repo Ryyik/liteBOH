@@ -1,112 +1,26 @@
 import { createRouter, createWebHashHistory } from "vue-router";
+import { useAuthStore } from "../stores/auth";
+import { adminRoutes } from "./routes/admin";
+import { communityRoutes } from "./routes/community";
+import { creatorRoutes } from "./routes/creator";
+import { publicRoutes } from "./routes/public";
+import { userSpaceRoutes } from "./routes/user-space";
+
+let authStore = null;
+const UPCOMING_CONTENT_NOTICE = "当前内容即将上线";
+
+const initAuthStore = () => {
+  if (!authStore) {
+    authStore = useAuthStore();
+  }
+};
 
 const routes = [
-  {
-    path: "/",
-    name: "Home",
-    component: () => import("../views/Home.vue"),
-  },
-  {
-    path: "/service",
-    name: "Service",
-    component: () => import("../views/Service.vue"),
-  },
-  {
-    path: "/game",
-    name: "Game",
-    component: () => import("../views/Game.vue"),
-  },
-  {
-    path: "/newsroom",
-    name: "Newsroom",
-    component: () => import("../views/Newsroom.vue"),
-  },
-  {
-    path: "/shop",
-    name: "Shop",
-    component: () => import("../views/Shop.vue"),
-  },
-  {
-    path: "/login",
-    name: "Login",
-    component: () => import("../views/Login.vue"),
-  },
-  {
-    path: "/annual-report-2025",
-    name: "AnnualReport2025",
-    component: () => import("../views/AnnualReport2025.vue"),
-  },
-  {
-    path: "/mbti",
-    name: "MBTI",
-    component: () => import("../views/MBTI.vue"),
-  },
-  {
-    path: "/health",
-    name: "Health",
-    component: () => import("../views/Health.vue"),
-  },
-  {
-    path: "/about",
-    name: "About",
-    component: () => import("../views/About.vue"),
-  },
-  {
-    path: "/activities",
-    name: "Activities",
-    component: () => import("../views/Activities.vue"),
-    redirect: "/activities/list",
-    children: [
-      {
-        path: "photo-wall",
-        name: "ActivitiesPhotoWall",
-        component: () => import("../views/activities/ActivitiesPhotoWall.vue"),
-      },
-      {
-        path: "list",
-        name: "ActivitiesList",
-        component: () => import("../views/activities/ActivitiesList.vue"),
-      },
-    ],
-  },
-  {
-    path: "/tutorial",
-    name: "Tutorial",
-    component: () => import("../views/Tutorial.vue"),
-  },
-  {
-    path: "/user-center",
-    name: "UserCenter",
-    component: () => import("../views/UserCenter.vue"),
-    redirect: "/user-center/info",
-    children: [
-      {
-        path: "info",
-        name: "UserInfo",
-        component: () => import("../views/user-center/UserInfo.vue"),
-      },
-      {
-        path: "points",
-        name: "Points",
-        component: () => import("../views/user-center/Points.vue"),
-      },
-      {
-        path: "subscriptions",
-        name: "Subscriptions",
-        component: () => import("../views/user-center/Points.vue"),
-      },
-      {
-        path: "address",
-        name: "Address",
-        component: () => import("../views/user-center/Address.vue"),
-      },
-      {
-        path: "messages",
-        name: "Messages",
-        component: () => import("../views/user-center/Messages.vue"),
-      },
-    ],
-  },
+  ...publicRoutes,
+  ...communityRoutes,
+  ...adminRoutes,
+  ...creatorRoutes,
+  ...userSpaceRoutes
 ];
 
 const router = createRouter({
@@ -115,30 +29,54 @@ const router = createRouter({
   scrollBehavior(to, from, savedPosition) {
     if (savedPosition) {
       return savedPosition;
-    } else {
-      return { top: 0 };
     }
+
+    if (to.matched.length > 1 && from.matched.length > 1 && to.matched[0].path === from.matched[0].path) {
+      return false;
+    }
+
+    return { top: 0, behavior: "auto" };
   },
 });
 
-// 强力全局后置守卫，确保在所有组件渲染后重置滚动
-router.afterEach(() => {
-  // 1. 立即尝试滚动
-  window.scrollTo(0, 0);
-  document.documentElement.scrollTop = 0;
-  document.body.scrollTop = 0;
+router.beforeEach(async (to, from, next) => {
+  if (to.meta?.upcoming) {
+    alert(UPCOMING_CONTENT_NOTICE);
+    if (from.matched.length === 0) {
+      return next("/");
+    }
+    return next(false);
+  }
 
-  // 2. 针对异步加载和拼图动画等延迟内容，多阶段尝试滚动
-  const forceScroll = () => {
-    window.scrollTo(0, 0);
-    document.documentElement.scrollTop = 0;
-    document.body.scrollTop = 0;
-  };
+  initAuthStore();
+  const requiresLogin = to.matched.some((record) => record.meta?.requiresLogin);
+  const requiresAdmin = to.matched.some((record) => record.meta?.requiresAdmin);
+  const requiresAuth = requiresLogin || requiresAdmin;
 
-  requestAnimationFrame(forceScroll);
-  
-  // 3. 针对首页这类有大量动画和图片的页面，延迟 100ms 再做一次最终确认
-  setTimeout(forceScroll, 100);
+  if (requiresAuth && !authStore.isInitialized && typeof authStore.initLoginState === "function") {
+    await authStore.initLoginState();
+  }
+
+  const { isLoggedIn } = authStore;
+
+  if (requiresLogin && !isLoggedIn) {
+    alert("请先登录");
+    return next("/login");
+  }
+
+  if (requiresAdmin) {
+    if (!isLoggedIn) {
+      alert("请先登录");
+      return next("/login");
+    }
+
+    if (!authStore.isAdmin) {
+      alert("您没有权限访问该页面");
+      return next("/");
+    }
+  }
+
+  return next();
 });
 
 export default router;

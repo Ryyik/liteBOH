@@ -7,8 +7,15 @@
  * ==============================================
  */
 
+:root {
+  --glass-blur-light: 10px;
+  --glass-blur-medium: 12px;
+  --glass-blur-heavy: 16px;
+  --glass-blur-overlay: 8px;
+}
+
 /* ===================
-   基础毛玻璃效果
+   浅色主题毛玻璃效果 (适用于 BOHAI)
    =================== */
 
 /**
@@ -16,13 +23,13 @@
  * 适用于：导航栏、侧边栏
  */
 .glass-container-light {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  -moz-backdrop-filter: blur(10px);
-  -ms-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(var(--glass-blur-light));
+  -webkit-backdrop-filter: blur(var(--glass-blur-light));
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.08);
+  isolation: isolate;
+  contain: paint;
 }
 
 /**
@@ -30,13 +37,13 @@
  * 适用于：卡片、弹出框
  */
 .glass-container-medium {
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  -moz-backdrop-filter: blur(20px);
-  -ms-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(var(--glass-blur-medium));
+  -webkit-backdrop-filter: blur(var(--glass-blur-medium));
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  isolation: isolate;
+  contain: paint;
 }
 
 /**
@@ -44,13 +51,13 @@
  * 适用于：模态框、弹窗
  */
 .glass-container-heavy {
-  background: rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(30px);
-  -moz-backdrop-filter: blur(30px);
-  -ms-backdrop-filter: blur(30px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(var(--glass-blur-heavy));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  isolation: isolate;
+  contain: paint;
 }
 
 /* ===================
@@ -60,23 +67,88 @@
 /**
  * 遮罩层 - 用于模态框背景
  */
-.glass-overlay {
+.glass-overlay, .glass-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  -moz-backdrop-filter: blur(8px);
-  -ms-backdrop-filter: blur(8px);
+  backdrop-filter: blur(var(--glass-blur-overlay));
+  -webkit-backdrop-filter: blur(var(--glass-blur-overlay));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
 }
 
 /**
- * 遮罩层 - 浅色版本
+ * 遮罩层 - 浅色版本 (常用于全屏背景模糊)
  */
-.glass-overlay-light {
-  background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
-  -moz-backdrop-filter: blur(5px);
-  -ms-backdrop-filter: blur(5px);
+.glass-overlay-light, .glass-modal-overlay-light {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(var(--glass-blur-medium));
+  -webkit-backdrop-filter: blur(var(--glass-blur-medium));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+/* ===================
+   毛玻璃容器/卡片
+   =================== */
+
+/**
+ * 模态框主体内容
+ */
+.glass-modal-content {
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(var(--glass-blur-heavy));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 24px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.12);
+  max-width: 420px;
+  width: 90%;
+  padding: 40px;
+  text-align: center;
+}
+
+/**
+ * 通用毛玻璃卡片
+ */
+.glass-card {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(var(--glass-blur-medium));
+  -webkit-backdrop-filter: blur(var(--glass-blur-medium));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  transition: transform 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.glass-card-hover:hover {
+  background: rgba(255, 255, 255, 0.12);
+  transform: translateY(-5px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+/**
+ * 模态框内容容器
+ */
+.glass-modal-container {
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(var(--glass-blur-heavy));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 24px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.12);
+  position: relative;
 }
 
 /* ===================
@@ -88,10 +160,8 @@
  */
 .glass-button {
   background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  -moz-backdrop-filter: blur(10px);
-  -ms-backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--glass-blur-light));
+  -webkit-backdrop-filter: blur(var(--glass-blur-light));
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 12px;
   padding: 12px 24px;
@@ -99,7 +169,7 @@
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   text-decoration: none;
   display: inline-flex;
   align-items: center;
@@ -142,15 +212,15 @@
  */
 .glass-card {
   background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(15px);
-  -webkit-backdrop-filter: blur(15px);
-  -moz-backdrop-filter: blur(15px);
-  -ms-backdrop-filter: blur(15px);
+  backdrop-filter: blur(var(--glass-blur-medium));
+  -webkit-backdrop-filter: blur(var(--glass-blur-medium));
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 16px;
   padding: 24px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  isolation: isolate;
+  contain: paint;
 }
 
 /**
@@ -172,10 +242,8 @@
  */
 .glass-input {
   background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  -moz-backdrop-filter: blur(10px);
-  -ms-backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--glass-blur-light));
+  -webkit-backdrop-filter: blur(var(--glass-blur-light));
   border: 2px solid rgba(255, 255, 255, 0.2);
   border-radius: 12px;
   padding: 12px 16px;
@@ -183,7 +251,7 @@
   font-size: 14px;
   width: 100%;
   outline: none;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /**
@@ -211,13 +279,11 @@
  */
 .glass-navbar {
   background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  -moz-backdrop-filter: blur(10px);
-  -ms-backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--glass-blur-light));
+  -webkit-backdrop-filter: blur(var(--glass-blur-light));
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /**
@@ -225,8 +291,8 @@
  */
 .glass-navbar.scrolled {
   background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(var(--glass-blur-heavy));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15);
 }
 
@@ -239,15 +305,15 @@
  */
 .glass-modal {
   background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  -moz-backdrop-filter: blur(24px);
-  -ms-backdrop-filter: blur(24px);
+  backdrop-filter: blur(var(--glass-blur-heavy));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 16px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2),
     0 0 0 1px rgba(255, 255, 255, 0.1);
   padding: 32px;
+  isolation: isolate;
+  contain: paint;
 }
 
 /* ===================
@@ -292,19 +358,19 @@
   .glass-card,
   .glass-input,
   .glass-navbar {
-    backdrop-filter: blur(5px);
-    -webkit-backdrop-filter: blur(5px);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
   }
 
   .glass-container-medium {
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
   }
 
   .glass-container-heavy,
   .glass-modal {
-    backdrop-filter: blur(15px);
-    -webkit-backdrop-filter: blur(15px);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
 }
 
@@ -334,21 +400,21 @@
  * 增加边框亮度
  */
 .glass-border-bright {
-  border-color: rgba(255, 255, 255, 0.4) !important;
+  border-color: rgba(255, 255, 255, 0.9) !important;
 }
 
 /**
  * 增加背景透明度
  */
 .glass-bg-more-transparent {
-  background: rgba(255, 255, 255, 0.05) !important;
+  background: rgba(255, 255, 255, 0.5) !important;
 }
 
 /**
  * 降低背景透明度
  */
 .glass-bg-less-transparent {
-  background: rgba(255, 255, 255, 0.3) !important;
+  background: rgba(255, 255, 255, 0.9) !important;
 }
 
 /**
@@ -379,4 +445,139 @@
 
 .glass-rounded-full {
   border-radius: 9999px;
+}
+
+/* ===================
+   BOHAI 特定毛玻璃样式
+   =================== */
+
+/**
+ * 聊天输入框毛玻璃效果
+ */
+.glass-chat-input {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(var(--glass-blur-heavy));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.glass-chat-input:focus-within {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(0, 113, 227, 0.3);
+  box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.1), 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+/**
+ * 侧边栏毛玻璃效果
+ */
+.glass-sidebar {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(var(--glass-blur-medium));
+  -webkit-backdrop-filter: blur(var(--glass-blur-medium));
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/**
+ * 消息气泡毛玻璃效果
+ */
+.glass-message-bubble {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(var(--glass-blur-light));
+  -webkit-backdrop-filter: blur(var(--glass-blur-light));
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/**
+ * 用户消息气泡
+ */
+.glass-user-bubble {
+  background: rgba(0, 113, 227, 0.1);
+  backdrop-filter: blur(var(--glass-blur-overlay));
+  -webkit-backdrop-filter: blur(var(--glass-blur-overlay));
+  border: 1px solid rgba(0, 113, 227, 0.15);
+}
+
+/**
+ * 按钮毛玻璃效果
+ */
+.glass-button-primary {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(var(--glass-blur-light));
+  -webkit-backdrop-filter: blur(var(--glass-blur-light));
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.glass-button-primary:hover {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/**
+ * 聊天头部毛玻璃
+ */
+.glass-chat-header {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(var(--glass-blur-light));
+  -webkit-backdrop-filter: blur(var(--glass-blur-light));
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/**
+ * Toast 通知毛玻璃
+ */
+.glass-toast {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(var(--glass-blur-light));
+  -webkit-backdrop-filter: blur(var(--glass-blur-light));
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+}
+
+/**
+ * 模态框毛玻璃
+ */
+.glass-modal-content {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(var(--glass-blur-heavy));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+/**
+ * 代码块毛玻璃
+ */
+.glass-code-block {
+  background: rgba(245, 245, 247, 0.85);
+  backdrop-filter: blur(var(--glass-blur-overlay));
+  -webkit-backdrop-filter: blur(var(--glass-blur-overlay));
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-container-light,
+  .glass-container-medium,
+  .glass-container-heavy,
+  .glass-card,
+  .glass-modal,
+  .glass-modal-content,
+  .glass-navbar,
+  .glass-button,
+  .glass-input {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-card,
+  .glass-button,
+  .glass-input,
+  .glass-navbar,
+  .glass-button-primary {
+    transition: none !important;
+  }
 }

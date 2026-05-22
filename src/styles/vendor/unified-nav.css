@@ -1,8 +1,7 @@
 /* 
   统一导航栏样式 - Unified Navigation Bar Styles
-  用于三个页面：newsroom, service, shop
-  设计目标：视觉一致、响应式适配、功能完整
-  特性：毛玻璃效果（Glass Morphism）
+  设计灵感：Figma & Dribbble 现代极简风格
+  特点：大量留白、柔和分割线、圆角元素、无衬线字体、专业高效
 */
 
 /* 导航栏容器 - 使用position: fixed确保固定在顶部 */
@@ -12,18 +11,18 @@
   left: 0;
   width: 100%;
   z-index: 9999;
-  font-family: "Microsoft YaHei", "微软雅黑", "PingFang SC", "Hiragino Sans GB", Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-/* 导航栏主体毛玻璃化处理 */
+/* 导航栏主体 - Figma风格极简设计 */
 .unified-nav {
-  background-color: rgba(255, 255, 255, 0.92); /* 进一步提高不透明度，使其更白、可读性更高 */
-  backdrop-filter: blur(25px); 
-  -webkit-backdrop-filter: blur(25px);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05); /* 稍微减淡边框，让整体更干净 */
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
-  height: 64px;
+  background-color: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 1px solid #f0f0f0;
+  box-shadow: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  height: 72px;
   display: flex;
   align-items: center;
 }
@@ -34,62 +33,53 @@
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05) !important;
 }
 
-/* 导航栏容器 */
+/* 导航栏容器 - 增加留白 */
 .unified-nav .nav-container {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 0 24px;
+  padding: 0 48px;
   width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-/* Logo区域 */
+/* Logo区域 - Figma风格极简设计 */
 .unified-nav .nav-logo {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 700;
-  color: #000000; /* 纯黑 */
+  color: #1a1a1a;
   text-decoration: none;
-  transition: all 0.3s ease;
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-
-.unified-nav .nav-logo:hover {
-  transform: scale(1.02);
+  gap: 12px;
+  letter-spacing: -0.02em;
 }
 
 .unified-nav .nav-logo-icon {
-  width: 36px;
-  height: 36px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 10px;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  font-size: 16px;
-  font-weight: 600;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-  transition: all 0.3s ease;
+  color: #1a1a1a;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: none;
 }
 
-.unified-nav .nav-logo-icon:hover {
-  transform: rotate(10deg) scale(1.1);
-}
-
-/* 导航菜单 */
+/* 导航菜单 - Figma风格大量留白 */
 .unified-nav .nav-menu {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 32px;
   list-style: none;
   margin: 0;
   padding: 0;
-  max-width: 600px;
-  overflow: hidden;
+  max-width: 800px;
+  overflow: visible;
 }
 
 .unified-nav .nav-menu li {
@@ -99,57 +89,21 @@
 .unified-nav .nav-menu a {
   display: flex;
   align-items: center;
-  padding: 10px 18px;
+  padding: 8px 0;
   text-decoration: none;
-  color: #000000; /* 纯黑 */
-  font-size: 14px;
-  font-weight: 500;
-  border-radius: 12px;
-  transition: all 0.25s ease;
+  color: #1a1a1a;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 0;
   position: relative;
   overflow: hidden;
   white-space: nowrap;
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.unified-nav .nav-menu a::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(255, 255, 255, 0.06); /* 保留悬停交互的极简背景 */
-  border-radius: 12px;
-  opacity: 0;
-  transition: all 0.25s ease;
-  transform: scale(0.8);
-}
-
-.unified-nav .nav-menu a:hover {
-  color: #000000; /* 悬停文字保持黑色 */
-}
-
-.unified-nav .nav-menu a:hover::before {
-  opacity: 1;
-  transform: scale(1);
+  letter-spacing: -0.01em;
 }
 
 .unified-nav .nav-menu a.active {
-  color: #000000;
-  background-color: transparent;
-}
-
-.unified-nav .nav-menu a.active::before {
-  opacity: 1;
-  transform: scale(1);
-  background: linear-gradient(
-    135deg,
-    rgba(0, 113, 227, 0.15) 0%,
-    rgba(0, 113, 227, 0.1) 100%
-  );
+  color: #1a1a1a;
+  font-weight: 700;
 }
 
 .unified-nav .nav-menu a .nav-icon {
@@ -159,16 +113,118 @@
   z-index: 1;
 }
 
-/* 下拉菜单箭头 */
-.unified-nav .nav-menu .has-dropdown > a::after {
-  content: " ▾";
+/* 下拉菜单箭头 - 已移除 */
+
+/* ============================================
+   二级导航菜单样式 - 桌面端
+   ============================================ */
+
+/* 导航菜单项 */
+.unified-nav .nav-menu-item {
+  position: relative;
+  overflow: visible !important;
+}
+
+/* 带有下拉菜单的链接包装器 - 粗体无Hover */
+.unified-nav .nav-link-wrapper {
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+  text-decoration: none;
+  color: #1a1a1a;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 0;
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+}
+
+.unified-nav .nav-link-wrapper.active {
+  color: #1a1a1a;
+  font-weight: 700;
+}
+
+/* 下拉箭头 */
+.unified-nav .dropdown-arrow {
   font-size: 10px;
   margin-left: 4px;
   transition: transform 0.3s ease;
 }
 
-.unified-nav .nav-menu .has-dropdown:hover > a::after {
+.unified-nav .dropdown-arrow.rotated {
   transform: rotate(180deg);
+}
+
+/* 二级菜单 - 桌面端悬浮下拉 - Figma风格 */
+.unified-nav .nav-submenu {
+  position: fixed;
+  top: 72px;
+  left: 0;
+  right: 0;
+  width: 100%;
+  background-color: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid #f0f0f0;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  padding: 48px 48px;
+  display: block;
+  z-index: 10001;
+  list-style: none;
+  margin: 0;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-12px) scaleY(0.96);
+  transform-origin: top center;
+  transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+              visibility 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+              transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.unified-nav .nav-submenu.active {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scaleY(1);
+}
+
+.unified-nav .nav-submenu li {
+  list-style: none;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.unified-nav .nav-submenu.active li {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.unified-nav .nav-submenu.active li:nth-child(1) { transition-delay: 0.05s; }
+.unified-nav .nav-submenu.active li:nth-child(2) { transition-delay: 0.1s; }
+.unified-nav .nav-submenu.active li:nth-child(3) { transition-delay: 0.15s; }
+.unified-nav .nav-submenu.active li:nth-child(4) { transition-delay: 0.2s; }
+.unified-nav .nav-submenu.active li:nth-child(5) { transition-delay: 0.25s; }
+
+.unified-nav .nav-submenu a {
+  display: inline-block;
+  padding: 12px 20px;
+  text-decoration: none;
+  color: #1a1a1a;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 6px;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+
+.unified-nav .nav-submenu a.active {
+  color: #1a1a1a;
+  font-weight: 700;
 }
 
 /* 用户信息区域 */
@@ -189,23 +245,21 @@
   padding: 4px 12px;
   border-radius: 20px;
   cursor: pointer;
-  transition: all 0.3s ease;
-  background-color: transparent; /* 透明化处理 */
-  border: 1px solid #000000;     /* 极简黑色边框 */
+  background-color: transparent;
+  border: 1px solid #1a1a1a;
   max-width: 200px;
   height: 32px;
   position: relative;
 }
 
-.unified-nav .nav-user-info:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+.unified-nav .nav-user-profile {
+  color: #1a1a1a;
+  text-decoration: none;
 }
 
 .unified-nav .nav-avatar {
-  width: 24px;
-  height: 24px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   background: #000000; /* 纯黑 */
   display: flex;
@@ -213,9 +267,38 @@
   justify-content: center;
   color: #ffffff;
   font-weight: 600;
-  font-size: 11px;
+  font-size: 14px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
   flex-shrink: 0;
+  position: relative;
+}
+
+.unified-nav .nav-avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+  display: block;
+}
+
+.unified-nav .unread-badge-nav {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #f4212e;
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: 10;
 }
 
 .unified-nav .nav-username {
@@ -247,10 +330,7 @@
   line-height: 1;
 }
 
-.unified-nav .nav-login-btn:hover {
-  transform: translateY(-1px);
-  background-color: rgba(0, 0, 0, 0.06); /* 保留悬停反馈 */
-}
+
 
 /* 下拉菜单 */
 .unified-nav .nav-dropdown {
@@ -271,9 +351,7 @@
   z-index: 10000;
 }
 
-.unified-nav .nav-user-info:hover .nav-dropdown,
-.unified-nav .nav-user-info.show-dropdown .nav-dropdown,
-.unified-nav .nav-dropdown:hover {
+.unified-nav .nav-user-info.show-dropdown .nav-dropdown {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);
@@ -291,11 +369,7 @@
   transition: all 0.2s ease;
 }
 
-.unified-nav .nav-dropdown-item:hover {
-  background-color: rgba(0, 0, 0, 0.08);
-  color: #000000;
-  transform: translateX(2px);
-}
+
 
 .unified-nav .nav-dropdown-divider {
   height: 1px;
@@ -342,10 +416,7 @@
   border: 1px solid #000000;     /* 极简黑色边框 */
 }
 
-.unified-nav .nav-hamburger:hover {
-  background-color: rgba(255, 255, 255, 0.8);
-  transform: scale(1.05);
-}
+
 
 .unified-nav .nav-hamburger span {
   display: block;
@@ -370,25 +441,38 @@
   transform: rotate(-45deg) translate(6px, -6px);
 }
 
-/* 移动端菜单 - 纯白背景 */
+/* 移动端菜单 - 极简黑白灰背景 */
 .unified-nav .nav-menu-mobile {
   display: none;
   position: fixed;
   top: 64px;
   left: 0;
   width: 100%;
-  background-color: #ffffff; /* 纯白背景 */
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
-  padding: 20px;
-  flex-direction: column;
-  gap: 8px;
+  height: calc(100vh - 64px);
+  max-height: calc(100vh - 64px);
+  background-color: #f5f5f5;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
   z-index: 9998;
+  overflow: hidden;
 }
 
 .unified-nav .nav-menu-mobile.active {
   display: flex;
   animation: slideDown 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 移动端菜单内容区域 - 可滚动 */
+.unified-nav .nav-menu-mobile-content {
+  width: 100%;
+  height: 100%;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
 }
 
 @keyframes slideDown {
@@ -402,51 +486,167 @@
   }
 }
 
-.unified-nav .nav-menu-mobile a {
+/* 移动端一级菜单链接 */
+.unified-nav .nav-mobile-link {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 14px 18px;
   text-decoration: none;
-  color: #515154;
+  color: #1a1a1a;
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 600;
   border-radius: 12px;
-  transition: all 0.25s ease;
   position: relative;
   overflow: hidden;
+  cursor: pointer;
 }
 
-.unified-nav .nav-menu-mobile a::before {
-  content: "";
+.unified-nav .nav-mobile-link.active {
+  color: #000000;
+  font-weight: 700;
+}
+
+/* 移动端下拉箭头 */
+.unified-nav .dropdown-arrow-mobile {
+  font-size: 12px;
+  transition: transform 0.3s ease;
+}
+
+.unified-nav .dropdown-arrow-mobile.rotated {
+  transform: rotate(180deg);
+}
+
+/* 移动端带子菜单的菜单项 */
+.unified-nav .nav-mobile-item.has-children {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 移动端返回按钮 */
+.unified-nav .nav-mobile-back {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px;
+  color: #1a1a1a;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 12px;
+  margin-bottom: 8px;
+}
+
+.unified-nav .nav-mobile-back .back-arrow {
+  font-size: 20px;
+  font-weight: 400;
+}
+
+/* 移动端一级菜单 */
+.unified-nav .nav-mobile-main-menu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+  transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              visibility 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.unified-nav .nav-mobile-main-menu.hidden {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-20px);
+}
+
+/* 移动端二级菜单容器 */
+.unified-nav .nav-mobile-submenu-container {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(20px);
+  transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              visibility 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(
-    135deg,
-    rgba(102, 126, 234, 0.1) 0%,
-    rgba(118, 75, 162, 0.1) 100%
-  );
-  opacity: 0;
-  transition: all 0.25s ease;
+  background: #f5f5f5;
+  padding: 20px;
+  overflow-y: auto;
 }
 
-.unified-nav .nav-menu-mobile a:hover,
-.unified-nav .nav-menu-mobile a.active {
-  color: #0071e3;
-}
-
-.unified-nav .nav-menu-mobile a:hover::before,
-.unified-nav .nav-menu-mobile a.active::before {
+.unified-nav .nav-mobile-submenu-container.active {
   opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
 }
 
-.unified-nav .nav-menu-mobile a .nav-icon {
-  margin-right: 12px;
+/* 移动端二级菜单区域 */
+.unified-nav .nav-mobile-submenu-section {
+  padding: 24px 0;
+}
+
+/* 移动端二级菜单醒目标题 - 粗体风格 */
+.unified-nav .nav-mobile-submenu-heading {
+  font-size: 28px;
+  font-weight: 800;
+  color: #1a1a1a;
+  padding: 0 18px;
+  margin-bottom: 24px;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+/* 移动端二级菜单 */
+.unified-nav .nav-mobile-submenu {
+  display: block;
+  padding-left: 0;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-12px) scaleY(0.96);
+  transform-origin: top center;
+  transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+              visibility 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+              transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.unified-nav .nav-mobile-submenu.active {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scaleY(1);
+}
+
+.unified-nav .nav-mobile-submenu a {
+  display: flex;
+  align-items: center;
+  padding: 12px 18px;
+  text-decoration: none;
+  color: #1a1a1a;
   font-size: 18px;
+  font-weight: 600;
+  border-radius: 8px;
   position: relative;
-  z-index: 1;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.unified-nav .nav-mobile-submenu.active a {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.unified-nav .nav-mobile-submenu.active a:nth-child(1) { transition-delay: 0.05s; }
+.unified-nav .nav-mobile-submenu.active a:nth-child(2) { transition-delay: 0.1s; }
+.unified-nav .nav-mobile-submenu.active a:nth-child(3) { transition-delay: 0.15s; }
+.unified-nav .nav-mobile-submenu.active a:nth-child(4) { transition-delay: 0.2s; }
+.unified-nav .nav-mobile-submenu.active a:nth-child(5) { transition-delay: 0.25s; }
+
+.unified-nav .nav-mobile-submenu a.active {
+  color: #000000;
+  font-weight: 700;
 }
 
 /* 滚动效果 - 滚动时导航栏变化 */
@@ -488,11 +688,9 @@
     display: flex;
   }
 
-  /* 确保登录按钮在竖屏状态下正常显示 */
   .unified-nav .nav-user {
     display: flex;
     gap: 8px;
-    /* 移除max-width和overflow限制，确保下拉菜单能正确显示 */
   }
 
   .unified-nav .nav-login-btn {
@@ -503,7 +701,6 @@
   .unified-nav .nav-user-info {
     gap: 6px;
     padding: 4px 8px;
-    /* 确保nav-user-info有正确的定位，以便下拉菜单能正确显示 */
     position: relative !important;
   }
 
@@ -527,9 +724,10 @@
 
   .unified-nav .nav-menu-mobile {
     top: 58px;
+    height: calc(100vh - 58px);
+    max-height: calc(100vh - 58px);
   }
 
-  /* 移动端下拉菜单样式优化 */
   .unified-nav .nav-user-info.show-dropdown .nav-dropdown {
     position: absolute !important;
     top: 100% !important;
@@ -564,6 +762,11 @@
 
   .unified-nav .nav-menu-mobile {
     top: 56px;
+    height: calc(100vh - 56px);
+    max-height: calc(100vh - 56px);
+  }
+
+  .unified-nav .nav-menu-mobile-content {
     padding: 16px;
   }
 
@@ -742,9 +945,7 @@ body.page-shop .page-header {
   transition: all 0.2s ease;
 }
 
-.unified-nav .nav-modal-close:hover {
-  background-color: rgba(0, 0, 0, 0.1);
-}
+
 
 .unified-nav .nav-form-group {
   margin-bottom: 16px;
@@ -787,9 +988,7 @@ body.page-shop .page-header {
   margin-top: 8px;
 }
 
-.unified-nav .nav-form-btn:hover {
-  background-color: #0077ed;
-}
+
 
 .unified-nav .nav-form-btn:active {
   transform: scale(0.98);
@@ -807,9 +1006,7 @@ body.page-shop .page-header {
   text-decoration: none;
 }
 
-.unified-nav .nav-modal-footer a:hover {
-  text-decoration: underline;
-}
+
 
 /* 页面加载动画 */
 .unified-nav {
@@ -845,9 +1042,7 @@ body.page-shop .page-header {
     color: #000 !important;
   }
 
-  .unified-nav .nav-menu a:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-  }
+  
 
   .unified-nav .nav-hamburger span {
     background-color: #f5f5f7;
@@ -856,8 +1051,8 @@ body.page-shop .page-header {
   /* 确保下拉菜单在深色模式下也保持白色透明磨砂玻璃效果 */
   .unified-nav .nav-dropdown {
     background-color: rgba(255, 255, 255, 0.95) !important;
-    backdrop-filter: blur(30px) !important;
-    -webkit-backdrop-filter: blur(30px) !important;
+    backdrop-filter: blur(14px) !important;
+    -webkit-backdrop-filter: blur(14px) !important;
     border: 1px solid rgba(255, 255, 255, 0.3) !important;
   }
 
@@ -868,8 +1063,8 @@ body.page-shop .page-header {
 
   .unified-nav .nav-modal {
     background-color: rgba(30, 30, 30, 0.95);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
   }
 
   .unified-nav .nav-modal-title,
@@ -935,15 +1130,11 @@ body.page-shop-user .unified-nav .nav-username {
   color: #000 !important;
 }
 
-body.page-newsroom .unified-nav .nav-menu a:hover,
-body.page-service .unified-nav .nav-menu a:hover,
-body.page-shop .unified-nav .nav-menu a:hover,
-body.page-shop-user .unified-nav .nav-menu a:hover {
-  color: #0071e3 !important;
-}
+
 
 /* 确保汉堡菜单图标在所有页面正确显示为黑色 */
 body.page-home .unified-nav .nav-hamburger span,
+body.page-homenew .unified-nav .nav-hamburger span,
 body.page-newsroom .unified-nav .nav-hamburger span,
 body.page-service .unified-nav .nav-hamburger span,
 body.page-shop .unified-nav .nav-hamburger span,
@@ -953,6 +1144,7 @@ body.page-shop-user .unified-nav .nav-hamburger span {
 
 /* 确保下拉菜单在所有页面正确显示 */
 body.page-home .unified-nav .nav-dropdown,
+body.page-homenew .unified-nav .nav-dropdown,
 body.page-newsroom .unified-nav .nav-dropdown,
 body.page-service .unified-nav .nav-dropdown,
 body.page-shop .unified-nav .nav-dropdown,
@@ -963,31 +1155,10 @@ body.page-shop-user .unified-nav .nav-dropdown {
   border: 1px solid rgba(255, 255, 255, 0.3) !important;
   /* 确保过渡动画正常工作 */
   transition: all 0.25s ease !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
-  transform: translateY(6px) !important;
 }
 
 /* 确保下拉菜单在鼠标悬停或点击时正确显示 */
-body.page-home .unified-nav .nav-user-info:hover .nav-dropdown,
-body.page-home .unified-nav .nav-user-info.show-dropdown .nav-dropdown,
-body.page-home .unified-nav .nav-dropdown:hover,
-body.page-newsroom .unified-nav .nav-user-info:hover .nav-dropdown,
-body.page-newsroom .unified-nav .nav-user-info.show-dropdown .nav-dropdown,
-body.page-newsroom .unified-nav .nav-dropdown:hover,
-body.page-service .unified-nav .nav-user-info:hover .nav-dropdown,
-body.page-service .unified-nav .nav-user-info.show-dropdown .nav-dropdown,
-body.page-service .unified-nav .nav-dropdown:hover,
-body.page-shop .unified-nav .nav-user-info:hover .nav-dropdown,
-body.page-shop .unified-nav .nav-user-info.show-dropdown .nav-dropdown,
-body.page-shop .unified-nav .nav-dropdown:hover,
-body.page-shop-user .unified-nav .nav-user-info:hover .nav-dropdown,
-body.page-shop-user .unified-nav .nav-user-info.show-dropdown .nav-dropdown,
-body.page-shop-user .unified-nav .nav-dropdown:hover {
-  opacity: 1 !important;
-  visibility: visible !important;
-  transform: translateY(0) !important;
-}
+
 
 /* 确保.show-dropdown类样式在所有情况下都能正确应用 */
 .unified-nav .nav-user-info.show-dropdown .nav-dropdown {
@@ -1044,15 +1215,10 @@ body.page-shop-user .unified-nav .nav-dropdown:hover {
   cursor: pointer !important;
 }
 
-/* 确保下拉菜单项在悬停时能正确显示 */
-.unified-nav .nav-dropdown-item:hover {
-  background-color: rgba(0, 113, 227, 0.1) !important;
-  color: #0071e3 !important;
-  border-radius: 8px !important;
-  transform: translateX(2px) !important;
-}
+
 
 body.page-home .unified-nav .nav-dropdown-item,
+body.page-homenew .unified-nav .nav-dropdown-item,
 body.page-newsroom .unified-nav .nav-dropdown-item,
 body.page-service .unified-nav .nav-dropdown-item,
 body.page-shop .unified-nav .nav-dropdown-item,
@@ -1144,10 +1310,7 @@ body.page-shop-user .unified-nav .nav-dropdown-item {
   transition: all 0.2s ease;
 }
 
-.nav-login-modal-close:hover {
-  background-color: rgba(255, 255, 255, 0.3);
-  transform: scale(1.1);
-}
+
 
 .nav-login-logo {
   text-align: center;
@@ -1165,7 +1328,7 @@ body.page-shop-user .unified-nav .nav-dropdown-item {
   width: 60px;
   height: 60px;
   margin: 0 auto;
-  background-image: url("@/assets/images/favicon.png");
+  background-image: url("@/assets/images/favicon.webp");
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
@@ -1224,10 +1387,7 @@ body.page-shop-user .unified-nav .nav-dropdown-item {
   transition: all 0.3s;
 }
 
-.nav-toggle-password:hover {
-  background: rgba(255, 255, 255, 0.3);
-  border-color: rgba(255, 255, 255, 0.4);
-}
+
 
 .nav-error-message {
   color: rgba(255, 85, 85, 0.9);
@@ -1264,12 +1424,7 @@ body.page-shop-user .unified-nav .nav-dropdown-item {
   -webkit-backdrop-filter: blur(10px);
 }
 
-.nav-login-btn:hover {
-  background: rgba(66, 185, 131, 1);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(66, 185, 131, 0.4);
-  border-color: rgba(255, 255, 255, 0.3);
-}
+
 
 .nav-login-btn:disabled {
   background: rgba(255, 255, 255, 0.3);
@@ -1291,10 +1446,7 @@ body.page-shop-user .unified-nav .nav-dropdown-item {
   transition: all 0.3s;
 }
 
-.nav-form-links a:hover {
-  color: #42b983;
-  text-decoration: underline;
-}
+
 
 /* 响应式适配 */
 @media (max-width: 576px) {

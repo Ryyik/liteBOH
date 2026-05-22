@@ -1,0 +1,221 @@
+/**
+ * ============================================
+ * BOHLITE 深色模式全局样式
+ * ============================================
+ */
+
+/* ============================================
+   CSS 变量定义
+   ============================================ */
+:root {
+  /* 浅色模式默认值 */
+  --boh-bg-primary: #ffffff;
+  --boh-bg-secondary: #f5f5f7;
+  --boh-bg-tertiary: #fbfbfd;
+  --boh-bg-elevated: #ffffff;
+  
+  --boh-text-primary: #1d1d1f;
+  --boh-text-secondary: #86868b;
+  --boh-text-tertiary: #a1a1a6;
+  --boh-text-muted: #c7c7cc;
+  
+  --boh-border-primary: rgba(0, 0, 0, 0.08);
+  --boh-border-secondary: rgba(0, 0, 0, 0.05);
+  --boh-divider: rgba(0, 0, 0, 0.06);
+  
+  --boh-brand-blue: #0071e3;
+  --boh-brand-blue-soft: rgba(0, 113, 227, 0.08);
+  --boh-brand-red: #ff3b30;
+  --boh-brand-green: #34c759;
+  
+  --boh-shadow-sm: 0 4px 16px rgba(15, 23, 42, 0.06);
+  --boh-shadow-md: 0 10px 24px rgba(15, 23, 42, 0.1);
+  --boh-shadow-lg: 0 20px 60px rgba(15, 23, 42, 0.15);
+  
+  --boh-glass-bg: rgba(255, 255, 255, 0.75);
+  --boh-glass-border: rgba(0, 0, 0, 0.05);
+}
+
+/* 深色模式覆盖 */
+[data-theme="dark"] {
+  --boh-bg-primary: #0a0a0f;
+  --boh-bg-secondary: #12121a;
+  --boh-bg-tertiary: #1a1a25;
+  --boh-bg-elevated: #222230;
+  
+  --boh-text-primary: #f5f5f7;
+  --boh-text-secondary: #a1a1aa;
+  --boh-text-tertiary: #71717a;
+  --boh-text-muted: #52525b;
+  
+  --boh-border-primary: rgba(255, 255, 255, 0.08);
+  --boh-border-secondary: rgba(255, 255, 255, 0.05);
+  --boh-divider: rgba(255, 255, 255, 0.06);
+  
+  --boh-brand-blue: #3b82f6;
+  --boh-brand-blue-soft: rgba(59, 130, 246, 0.15);
+  --boh-brand-red: #ff5252;
+  --boh-brand-green: #4ade80;
+  
+  --boh-shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.3);
+  --boh-shadow-md: 0 10px 24px rgba(0, 0, 0, 0.4);
+  --boh-shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.5);
+  
+  --boh-glass-bg: rgba(30, 30, 40, 0.75);
+  --boh-glass-border: rgba(255, 255, 255, 0.08);
+}
+
+/* ============================================
+   全局深色模式基础样式
+   ============================================ */
+[data-theme="dark"] body {
+  background-color: var(--boh-bg-primary);
+  color: var(--boh-text-primary);
+}
+
+/* 深色模式滚动条 */
+[data-theme="dark"] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: var(--boh-bg-secondary);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 4px;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
+
+/* 深色模式选中文字 */
+[data-theme="dark"] ::selection {
+  background: rgba(59, 130, 246, 0.3);
+  color: var(--boh-text-primary);
+}
+
+/* ============================================
+   通用组件深色模式
+   ============================================ */
+
+/* 玻璃效果 */
+[data-theme="dark"] .glass-container-light,
+[data-theme="dark"] .glass-container-medium,
+[data-theme="dark"] .glass-container-heavy {
+  background: var(--boh-glass-bg);
+  border-color: var(--boh-glass-border);
+}
+
+[data-theme="dark"] .glass-card {
+  background: rgba(30, 30, 40, 0.8);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .glass-navbar {
+  background: rgba(10, 10, 15, 0.85);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* 模态框 */
+[data-theme="dark"] .modal-overlay {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+[data-theme="dark"] .modal-card {
+  background: var(--boh-bg-tertiary);
+  box-shadow: var(--boh-shadow-lg);
+}
+
+[data-theme="dark"] .clean-title {
+  color: var(--boh-text-primary);
+}
+
+[data-theme="dark"] .clean-desc {
+  color: var(--boh-text-secondary);
+}
+
+[data-theme="dark"] .feature-pill {
+  background: var(--boh-bg-elevated);
+  color: var(--boh-text-secondary);
+}
+
+/* 按钮 */
+[data-theme="dark"] .primary-btn-clean {
+  background: var(--boh-text-primary);
+  color: var(--boh-bg-primary);
+}
+
+[data-theme="dark"] .primary-btn-clean:hover {
+  background: #ffffff;
+}
+
+[data-theme="dark"] .ghost-btn-clean {
+  color: var(--boh-text-secondary);
+}
+
+[data-theme="dark"] .ghost-btn-clean:hover {
+  color: var(--boh-text-primary);
+}
+
+/* 输入框 */
+[data-theme="dark"] input,
+[data-theme="dark"] textarea {
+  background: var(--boh-bg-tertiary);
+  border-color: var(--boh-border-primary);
+  color: var(--boh-text-primary);
+}
+
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: var(--boh-text-muted);
+}
+
+[data-theme="dark"] input:focus,
+[data-theme="dark"] textarea:focus {
+  border-color: rgba(59, 130, 246, 0.4);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+/* 加载状态 */
+[data-theme="dark"] .loading-spinner,
+[data-theme="dark"] .loading-spinner-v2 {
+  border-color: rgba(255, 255, 255, 0.1);
+  border-top-color: var(--boh-text-primary);
+}
+
+[data-theme="dark"] .loading-text,
+[data-theme="dark"] .loading-text-v2 {
+  color: var(--boh-text-secondary);
+}
+
+/* 空状态 */
+[data-theme="dark"] .empty-state {
+  background: var(--boh-bg-secondary);
+  border-color: var(--boh-border-primary);
+}
+
+[data-theme="dark"] .empty-state p {
+  color: var(--boh-text-secondary);
+}
+
+/* ============================================
+   焦点状态与无障碍
+   ============================================ */
+[data-theme="dark"] :focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.8);
+  outline-offset: 2px;
+}
+
+/* 减少动画偏好 */
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="dark"] *,
+  [data-theme="dark"] *::before,
+  [data-theme="dark"] *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

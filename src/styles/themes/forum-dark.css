@@ -1,0 +1,970 @@
+/**
+ * ============================================
+ * 论坛页面深色模式样式 - 优化可读性版本
+ * ============================================
+ */
+
+/* ============================================
+   论坛页面基础
+   ============================================ */
+.forum-page[data-theme="dark"],
+[data-theme="dark"] .forum-page {
+  background-color: #0d0d12 !important;
+  background-image:
+    radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.1) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(255, 82, 82, 0.06) 0px, transparent 50%) !important;
+  color: #ffffff !important;
+}
+
+/* 头部样式 */
+.forum-page[data-theme="dark"] .header-title {
+  background: linear-gradient(180deg, #ffffff 0%, #c4c4cc 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.forum-page[data-theme="dark"] .header-subtitle {
+  color: #a1a1aa;
+}
+
+.forum-page[data-theme="dark"] .header-tag {
+  color: #a1a1aa;
+}
+
+/* ============================================
+   玻璃面板
+   ============================================ */
+.forum-page[data-theme="dark"] .glass-panel {
+  background: rgba(26, 26, 36, 0.85);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+.forum-page[data-theme="dark"] .glass-panel:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+/* ============================================
+   编辑器卡片 - 提高对比度
+   ============================================ */
+.forum-page[data-theme="dark"] .editor-card,
+[data-theme="dark"] .forum-page .editor-card {
+  background: #1e1e2a !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.forum-page[data-theme="dark"] .user-greeting,
+[data-theme="dark"] .forum-page .user-greeting {
+  color: #ffffff !important;
+}
+
+.forum-page[data-theme="dark"] .editor-prompt,
+[data-theme="dark"] .forum-page .editor-prompt {
+  color: #a1a1aa !important;
+}
+
+.forum-page[data-theme="dark"] .post-title-input,
+[data-theme="dark"] .forum-page .post-title-input {
+  color: #ffffff !important;
+  background: transparent !important;
+}
+
+.forum-page[data-theme="dark"] .post-title-input::placeholder,
+[data-theme="dark"] .forum-page .post-title-input::placeholder {
+  color: #71717a !important;
+}
+
+.forum-page[data-theme="dark"] .post-content-input,
+[data-theme="dark"] .forum-page .post-content-input {
+  color: #c4c4cc !important;
+  background: transparent !important;
+}
+
+.forum-page[data-theme="dark"] .post-content-input::placeholder,
+[data-theme="dark"] .forum-page .post-content-input::placeholder {
+  color: #71717a !important;
+}
+
+.forum-page[data-theme="dark"] .editor-footer,
+[data-theme="dark"] .forum-page .editor-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.forum-page[data-theme="dark"] .tool-hint {
+  color: #a1a1aa;
+}
+
+.forum-page[data-theme="dark"] .checkin-hint {
+  color: #a1a1aa;
+}
+
+.forum-page[data-theme="dark"] .weekly-checkin-status-skeleton .skeleton-item,
+.forum-page[data-theme="dark"] .weekly-checkin-btn .checkin-skeleton-button-label,
+[data-theme="dark"] .forum-page .weekly-checkin-status-skeleton .skeleton-item,
+[data-theme="dark"] .forum-page .weekly-checkin-btn .checkin-skeleton-button-label {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.08) 25%,
+    rgba(255, 255, 255, 0.16) 50%,
+    rgba(255, 255, 255, 0.08) 75%
+  );
+  background-size: 200% 100%;
+}
+
+/* 发布按钮 */
+.forum-page[data-theme="dark"] .post-btn {
+  background: #ffffff;
+  color: #0d0d12;
+}
+
+.forum-page[data-theme="dark"] .post-btn:hover {
+  background: #f5f5f7;
+  box-shadow: 0 15px 35px rgba(255, 255, 255, 0.15);
+}
+
+/* 签到按钮 */
+.forum-page[data-theme="dark"] .weekly-checkin-btn {
+  background: #2a2a3a;
+  color: #ffffff;
+}
+
+.forum-page[data-theme="dark"] .weekly-checkin-btn:hover:not(:disabled) {
+  background: #353545;
+}
+
+.forum-page[data-theme="dark"] .weekly-checkin-btn.is-done {
+  background: #2a2a3a;
+  color: #71717a;
+}
+
+/* ============================================
+   登录提示卡片
+   ============================================ */
+.forum-page[data-theme="dark"] .login-prompt-card {
+  background: #1e1e2a;
+  border: 2px dashed rgba(255, 255, 255, 0.1);
+}
+
+.forum-page[data-theme="dark"] .login-prompt-card:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.forum-page[data-theme="dark"] .prompt-text h3 {
+  color: #ffffff;
+}
+
+.forum-page[data-theme="dark"] .prompt-text p {
+  color: #a1a1aa;
+}
+
+.forum-page[data-theme="dark"] .login-trigger-btn {
+  background: #ffffff;
+  color: #0d0d12;
+}
+
+.forum-page[data-theme="dark"] .login-trigger-btn:hover {
+  background: #f5f5f7;
+}
+
+/* ============================================
+   侧边栏 - 提高对比度
+   ============================================ */
+.forum-page[data-theme="dark"] .sidebar-card,
+[data-theme="dark"] .forum-page .sidebar-card {
+  background: #1e1e2a !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.forum-page[data-theme="dark"] .hot-tags-card,
+[data-theme="dark"] .forum-page .hot-tags-card {
+  background: #1e1e2a !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.forum-page[data-theme="dark"] .hot-tag-item,
+[data-theme="dark"] .forum-page .hot-tag-item {
+  background: #2a2a3a !important;
+  color: #ffffff !important;
+}
+
+.forum-page[data-theme="dark"] .hot-tag-item:hover,
+[data-theme="dark"] .forum-page .hot-tag-item:hover {
+  background: #353545 !important;
+}
+
+.forum-page[data-theme="dark"] .hot-tag-item.active,
+[data-theme="dark"] .forum-page .hot-tag-item.active {
+  background: #ffffff !important;
+  color: #0d0d12 !important;
+}
+
+.forum-page[data-theme="dark"] .hot-tag-count,
+[data-theme="dark"] .forum-page .hot-tag-count {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #c4c4cc !important;
+}
+
+.forum-page[data-theme="dark"] .hot-tag-item.active .hot-tag-count,
+[data-theme="dark"] .forum-page .hot-tag-item.active .hot-tag-count {
+  background: rgba(13, 13, 18, 0.1) !important;
+  color: #0d0d12 !important;
+}
+
+.forum-page[data-theme="dark"] .sidebar-tag {
+  color: #60a5fa;
+}
+
+.forum-page[data-theme="dark"] .sidebar-header h3 {
+  color: #ffffff;
+}
+
+.forum-page[data-theme="dark"] .sidebar-divider {
+  background: #ffffff;
+}
+
+/* 新闻项 */
+.forum-page[data-theme="dark"] .sidebar-news-item:hover {
+  transform: translateX(6px);
+}
+
+.forum-page[data-theme="dark"] .news-category {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+}
+
+.forum-page[data-theme="dark"] .news-date {
+  color: #71717a;
+}
+
+.forum-page[data-theme="dark"] .news-title {
+  color: #ffffff;
+}
+
+.forum-page[data-theme="dark"] .news-excerpt {
+  color: #a1a1aa;
+}
+
+.forum-page[data-theme="dark"] .view-all-news-btn,
+[data-theme="dark"] .forum-page .view-all-news-btn {
+  background: #2a2a3a !important;
+  color: #ffffff !important;
+}
+
+.forum-page[data-theme="dark"] .view-all-news-btn:hover,
+[data-theme="dark"] .forum-page .view-all-news-btn:hover {
+  background: #353545 !important;
+}
+
+/* 统计卡片 */
+.forum-page[data-theme="dark"] .stats-header h4,
+[data-theme="dark"] .forum-page .stats-header h4 {
+  color: #a1a1aa !important;
+}
+
+.forum-page[data-theme="dark"] .stat-item,
+[data-theme="dark"] .forum-page .stat-item {
+  background: #2a2a3a !important;
+}
+
+.forum-page[data-theme="dark"] .stat-item:hover,
+[data-theme="dark"] .forum-page .stat-item:hover {
+  background: #353545 !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4) !important;
+}
+
+.forum-page[data-theme="dark"] .stat-value,
+[data-theme="dark"] .forum-page .stat-value {
+  color: #ffffff !important;
+}
+
+.forum-page[data-theme="dark"] .stat-label,
+[data-theme="dark"] .forum-page .stat-label {
+  color: #a1a1aa !important;
+}
+
+/* ============================================
+   搜索与筛选
+   ============================================ */
+.forum-page[data-theme="dark"] .feed-title-v2,
+[data-theme="dark"] .forum-page .feed-title-v2 {
+  color: #a1a1aa !important;
+}
+
+.forum-page[data-theme="dark"] .search-input,
+[data-theme="dark"] .forum-page .search-input {
+  background: #1e1e2a !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff !important;
+}
+
+.forum-page[data-theme="dark"] .search-input::placeholder,
+[data-theme="dark"] .forum-page .search-input::placeholder {
+  color: #71717a !important;
+}
+
+.forum-page[data-theme="dark"] .search-input:focus,
+[data-theme="dark"] .forum-page .search-input:focus {
+  border-color: rgba(59, 130, 246, 0.5) !important;
+  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.15) !important;
+}
+
+.forum-page[data-theme="dark"] .search-btn-inner,
+[data-theme="dark"] .forum-page .search-btn-inner {
+  color: #a1a1aa !important;
+}
+
+.forum-page[data-theme="dark"] .search-btn-inner:hover,
+[data-theme="dark"] .forum-page .search-btn-inner:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+}
+
+.forum-page[data-theme="dark"] .filter-btn-v2,
+[data-theme="dark"] .forum-page .filter-btn-v2 {
+  background: #2a2a3a !important;
+  color: #a1a1aa !important;
+}
+
+.forum-page[data-theme="dark"] .filter-btn-v2.active,
+[data-theme="dark"] .forum-page .filter-btn-v2.active {
+  background: #353545 !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+.forum-page[data-theme="dark"] .post-tag-option,
+.forum-page[data-theme="dark"] .tag-filter-btn,
+[data-theme="dark"] .forum-page .post-tag-option,
+[data-theme="dark"] .forum-page .tag-filter-btn {
+  background: #2a2a3a !important;
+  color: #a1a1aa !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.forum-page[data-theme="dark"] .post-tag-option.active,
+.forum-page[data-theme="dark"] .tag-filter-btn.active,
+[data-theme="dark"] .forum-page .post-tag-option.active,
+[data-theme="dark"] .forum-page .tag-filter-btn.active {
+  background: #ffffff !important;
+  color: #0d0d12 !important;
+}
+
+.forum-page[data-theme="dark"] .post-card-tag,
+[data-theme="dark"] .forum-page .post-card-tag {
+  background: rgba(96, 165, 250, 0.16) !important;
+  color: #93c5fd !important;
+}
+
+.forum-page[data-theme="dark"] .my-posts-btn-v2,
+[data-theme="dark"] .forum-page .my-posts-btn-v2 {
+  background: #2a2a3a !important;
+  color: #ffffff !important;
+}
+
+.forum-page[data-theme="dark"] .my-posts-btn-v2:hover,
+[data-theme="dark"] .forum-page .my-posts-btn-v2:hover {
+  background: #353545 !important;
+}
+
+/* ============================================
+   帖子卡片 - 提高对比度
+   ============================================ */
+.forum-page[data-theme="dark"] .post-card-v2,
+[data-theme="dark"] .forum-page .post-card-v2 {
+  background: #1e1e2a !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+}
+
+.forum-page[data-theme="dark"] .post-card-v2:hover,
+[data-theme="dark"] .forum-page .post-card-v2:hover {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5) !important;
+}
+
+.forum-page[data-theme="dark"] .post-author-v2,
+[data-theme="dark"] .forum-page .post-author-v2 {
+  color: #ffffff !important;
+}
+
+.forum-page[data-theme="dark"] .post-date-v2,
+[data-theme="dark"] .forum-page .post-date-v2 {
+  color: #a1a1aa !important;
+}
+
+.forum-page[data-theme="dark"] .post-title-v2,
+[data-theme="dark"] .forum-page .post-title-v2 {
+  color: #ffffff !important;
+}
+
+.forum-page[data-theme="dark"] .post-text-v2,
+[data-theme="dark"] .forum-page .post-text-v2 {
+  color: #c4c4cc !important;
+}
+
+.forum-page[data-theme="dark"] .search-highlight-snippet {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+}
+
+/* 操作按钮 */
+.forum-page[data-theme="dark"] .post-actions-v2 {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.forum-page[data-theme="dark"] .action-item-v2 {
+  color: #c4c4cc;
+}
+
+.forum-page[data-theme="dark"] .action-item-v2:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.forum-page[data-theme="dark"] .action-count-v2,
+[data-theme="dark"] .forum-page .action-count-v2 {
+  color: #a1a1aa !important;
+}
+
+.forum-page[data-theme="dark"] .like-btn-v2 .action-count-v2,
+[data-theme="dark"] .forum-page .like-btn-v2 .action-count-v2 {
+  color: #a1a1aa !important;
+}
+
+.forum-page[data-theme="dark"] .like-btn-v2.is-liked .action-count-v2,
+[data-theme="dark"] .forum-page .like-btn-v2.is-liked .action-count-v2 {
+  color: #ff5252 !important;
+}
+
+.forum-page[data-theme="dark"] .is-liked .action-icon-v2,
+[data-theme="dark"] .forum-page .is-liked .action-icon-v2 {
+  color: #ff5252 !important;
+}
+
+.forum-page[data-theme="dark"] .replies-btn-v2,
+.forum-page[data-theme="dark"] .reply-btn-v2,
+.forum-page[data-theme="dark"] .share-btn-v2 {
+  color: #a1a1aa;
+}
+
+.forum-page[data-theme="dark"] .delete-btn-v2 {
+  color: #ff5252;
+}
+
+.forum-page[data-theme="dark"] .more-actions-btn-v2 {
+  color: #a1a1aa;
+}
+
+.forum-page[data-theme="dark"] .more-actions-btn-v2:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.forum-page[data-theme="dark"] .more-actions-menu {
+  background: #252532;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.forum-page[data-theme="dark"] .more-action-item {
+  color: #ffffff;
+}
+
+.forum-page[data-theme="dark"] .more-action-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.forum-page[data-theme="dark"] .more-action-item.delete-action {
+  color: #ff5252;
+}
+
+/* ============================================
+   回复区域 - 提高可读性
+   ============================================ */
+.forum-page[data-theme="dark"] .reply-input-section-v2 {
+  background: #252532;
+}
+
+.forum-page[data-theme="dark"] .reply-textarea-v2 {
+  background: #1e1e2a;
+  color: #ffffff;
+}
+
+.forum-page[data-theme="dark"] .cancel-reply-btn-v2 {
+  color: #a1a1aa;
+}
+
+.forum-page[data-theme="dark"] .submit-reply-btn-v2 {
+  background: #ffffff;
+  color: #0d0d12;
+}
+
+.forum-page[data-theme="dark"] .reply-item-v2 {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.forum-page[data-theme="dark"] .reply-author-v2 {
+  color: #ffffff;
+}
+
+.forum-page[data-theme="dark"] .reply-to-tag {
+  color: #a1a1aa;
+}
+
+.forum-page[data-theme="dark"] .target-name {
+  color: #60a5fa;
+}
+
+.forum-page[data-theme="dark"] .reply-date-v2 {
+  color: #a1a1aa;
+}
+
+.forum-page[data-theme="dark"] .reply-text-v2 {
+  color: #c4c4cc;
+}
+
+.forum-page[data-theme="dark"] .reply-action-btn {
+  color: #60a5fa;
+}
+
+.forum-page[data-theme="dark"] .reply-action-btn:hover {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.forum-page[data-theme="dark"] .delete-comment-btn-v2 {
+  color: #ff5252;
+}
+
+.forum-page[data-theme="dark"] .reply-target-hint {
+  background: #252532;
+  color: #a1a1aa;
+}
+
+.forum-page[data-theme="dark"] .target-user {
+  color: #60a5fa;
+}
+
+.forum-page[data-theme="dark"] .clear-target-btn {
+  color: #a1a1aa;
+}
+
+/* ============================================
+   回复列表
+   ============================================ */
+.forum-page[data-theme="dark"] .replies-list {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.forum-page[data-theme="dark"] .reply-item {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.forum-page[data-theme="dark"] .reply-author {
+  color: #60a5fa;
+}
+
+.forum-page[data-theme="dark"] .reply-date {
+  color: #a1a1aa;
+}
+
+.forum-page[data-theme="dark"] .reply-text {
+  color: #c4c4cc;
+}
+
+.forum-page[data-theme="dark"] .delete-comment-btn {
+  color: #ff5252;
+}
+
+/* ============================================
+   加载与空状态
+   ============================================ */
+.forum-page[data-theme="dark"] .loading-spinner-v2 {
+  border-color: rgba(255, 255, 255, 0.1);
+  border-top-color: #ffffff;
+}
+
+.forum-page[data-theme="dark"] .loading-text-v2 {
+  color: #a1a1aa;
+}
+
+.forum-page[data-theme="dark"] .forum-load-error {
+  color: #ff5252;
+}
+
+.forum-page[data-theme="dark"] .loading-more {
+  background: #1e1e2a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.forum-page[data-theme="dark"] .loading-more p {
+  color: #a1a1aa;
+}
+
+.forum-page[data-theme="dark"] .no-more-data {
+  background: #1e1e2a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.forum-page[data-theme="dark"] .no-more-data p {
+  color: #a1a1aa;
+}
+
+/* ============================================
+   通知抽屉
+   ============================================ */
+.forum-page[data-theme="dark"] .notification-drawer-overlay {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.forum-page[data-theme="dark"] .notification-drawer {
+  background: rgba(26, 26, 36, 0.98);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: -20px 0 60px rgba(0, 0, 0, 0.6);
+}
+
+.forum-page[data-theme="dark"] .drawer-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.forum-page[data-theme="dark"] .drawer-title {
+  color: #ffffff;
+}
+
+.forum-page[data-theme="dark"] .unread-badge-inline {
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.2);
+}
+
+.forum-page[data-theme="dark"] .mark-all-btn-v2 {
+  color: #60a5fa;
+}
+
+.forum-page[data-theme="dark"] .mark-all-btn-v2:hover {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.forum-page[data-theme="dark"] .close-drawer-btn {
+  background: #2a2a3a;
+  color: #ffffff;
+}
+
+.forum-page[data-theme="dark"] .close-drawer-btn:hover {
+  background: #353545;
+}
+
+/* 通知项 */
+.forum-page[data-theme="dark"] .notification-item-v2 {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.forum-page[data-theme="dark"] .notification-item-v2:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.forum-page[data-theme="dark"] .notification-item-v2.is-unread {
+  background: rgba(59, 130, 246, 0.1);
+  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.08);
+}
+
+.forum-page[data-theme="dark"] .n-icon-v2 {
+  background: #2a2a3a;
+}
+
+.forum-page[data-theme="dark"] .n-text-v2 {
+  color: #ffffff;
+}
+
+.forum-page[data-theme="dark"] .n-date-v2 {
+  color: #a1a1aa;
+}
+
+.forum-page[data-theme="dark"] .n-unread-dot {
+  background: #60a5fa;
+  box-shadow: 0 0 10px rgba(96, 165, 250, 0.5);
+}
+
+/* ============================================
+   悬浮操作按钮
+   ============================================ */
+.forum-page[data-theme="dark"] .notification-fab {
+  background: rgba(26, 26, 36, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+.forum-page[data-theme="dark"] .notification-fab:hover {
+  background: #2a2a3a;
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5);
+}
+
+.forum-page[data-theme="dark"] .fab-badge {
+  background: #ff5252;
+  border-color: #0d0d12;
+  box-shadow: 0 2px 10px rgba(255, 82, 82, 0.4);
+}
+
+/* ============================================
+   移动端新闻切换按钮
+   ============================================ */
+.forum-page[data-theme="dark"] .mobile-news-toggle-btn {
+  background: #ffffff;
+  color: #0d0d12;
+}
+
+/* ============================================
+   移动端签到卡片
+   ============================================ */
+.forum-page[data-theme="dark"] .weekly-checkin-mobile-card {
+  border-color: rgba(42, 167, 93, 0.4);
+  background: linear-gradient(160deg, #0f2a18 0%, #0a1f12 100%);
+  box-shadow: 0 10px 20px rgba(29, 94, 58, 0.25);
+}
+
+.forum-page[data-theme="dark"] .weekly-checkin-mobile-card .tool-hint {
+  color: #4ade80;
+}
+
+.forum-page[data-theme="dark"] .weekly-checkin-mobile-card .checkin-hint {
+  color: #6ee7b7;
+}
+
+.forum-page[data-theme="dark"] .weekly-checkin-mobile-card .checkin-progress-track {
+  background: #1a4a2a;
+}
+
+.forum-page[data-theme="dark"] .weekly-checkin-mobile-card .checkin-progress-fill {
+  background: linear-gradient(90deg, #37c871 0%, #2aa75d 100%);
+}
+
+.forum-page[data-theme="dark"] .weekly-checkin-mobile-card .weekly-checkin-btn {
+  background: linear-gradient(90deg, #2ebd69 0%, #249f58 100%);
+  color: #ffffff;
+}
+
+.forum-page[data-theme="dark"] .weekly-checkin-mobile-card .weekly-checkin-btn:disabled,
+.forum-page[data-theme="dark"] .weekly-checkin-mobile-card .weekly-checkin-btn.is-done {
+  background: #2a2a3a;
+  color: #71717a;
+}
+
+/* ============================================
+   用户头像
+   ============================================ */
+.forum-page[data-theme="dark"] .user-avatar,
+[data-theme="dark"] .forum-page .user-avatar {
+  background: #3b82f6 !important;
+  color: #fff !important;
+}
+
+.forum-page[data-theme="dark"] .post-author-avatar,
+[data-theme="dark"] .forum-page .post-author-avatar {
+  background: #3b82f6 !important;
+  color: #fff !important;
+}
+
+.forum-page[data-theme="dark"] .reply-avatar,
+[data-theme="dark"] .forum-page .reply-avatar {
+  background: #3b82f6 !important;
+  color: #fff !important;
+}
+
+/* ============================================
+   通知面板
+   ============================================ */
+.forum-page[data-theme="dark"] .notification-panel-portal,
+[data-theme="dark"] .forum-page .notification-panel-portal {
+  background: rgba(26, 26, 36, 0.98) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.forum-page[data-theme="dark"] .panel-header,
+[data-theme="dark"] .forum-page .panel-header {
+  background: rgba(26, 26, 36, 0.5) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.forum-page[data-theme="dark"] .panel-header h3,
+[data-theme="dark"] .forum-page .panel-header h3 {
+  color: #ffffff !important;
+}
+
+.forum-page[data-theme="dark"] .mark-all-btn,
+[data-theme="dark"] .forum-page .mark-all-btn {
+  color: #60a5fa !important;
+  background: rgba(59, 130, 246, 0.1) !important;
+}
+
+.forum-page[data-theme="dark"] .close-panel-btn,
+[data-theme="dark"] .forum-page .close-panel-btn {
+  color: #a1a1aa !important;
+}
+
+.forum-page[data-theme="dark"] .close-panel-btn:hover,
+[data-theme="dark"] .forum-page .close-panel-btn:hover {
+  color: #ffffff !important;
+}
+
+.forum-page[data-theme="dark"] .panel-loading-v2,
+[data-theme="dark"] .forum-page .panel-loading-v2 {
+  color: #a1a1aa !important;
+}
+
+.forum-page[data-theme="dark"] .notification-item,
+[data-theme="dark"] .forum-page .notification-item {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+.forum-page[data-theme="dark"] .notification-item:hover,
+[data-theme="dark"] .forum-page .notification-item:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.forum-page[data-theme="dark"] .notification-item.is-unread,
+[data-theme="dark"] .forum-page .notification-item.is-unread {
+  background: rgba(59, 130, 246, 0.08) !important;
+}
+
+.forum-page[data-theme="dark"] .n-icon,
+[data-theme="dark"] .forum-page .n-icon {
+  background: #2a2a3a !important;
+}
+
+.forum-page[data-theme="dark"] .n-text,
+[data-theme="dark"] .forum-page .n-text {
+  color: #ffffff !important;
+}
+
+.forum-page[data-theme="dark"] .n-date,
+[data-theme="dark"] .forum-page .n-date {
+  color: #a1a1aa !important;
+}
+
+.forum-page[data-theme="dark"] .n-dot,
+[data-theme="dark"] .forum-page .n-dot {
+  background: #60a5fa !important;
+  box-shadow: 0 0 10px rgba(96, 165, 250, 0.5) !important;
+}
+
+/* ============================================
+   详情抽屉
+   ============================================ */
+.forum-page[data-theme="dark"] .x-detail-drawer-overlay,
+[data-theme="dark"] .forum-page .x-detail-drawer-overlay {
+  background: rgba(0, 0, 0, 0.7) !important;
+}
+
+.forum-page[data-theme="dark"] .x-detail-drawer,
+[data-theme="dark"] .forum-page .x-detail-drawer {
+  background: rgba(26, 26, 36, 0.98) !important;
+  box-shadow: -30px 0 80px rgba(0, 0, 0, 0.5) !important;
+}
+
+.forum-page[data-theme="dark"] .x-detail-drawer .drawer-header,
+[data-theme="dark"] .forum-page .x-detail-drawer .drawer-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.forum-page[data-theme="dark"] .x-detail-drawer .drawer-header h3,
+[data-theme="dark"] .forum-page .x-detail-drawer .drawer-header h3 {
+  color: #ffffff !important;
+}
+
+.forum-page[data-theme="dark"] .x-detail-drawer .back-btn,
+[data-theme="dark"] .forum-page .x-detail-drawer .back-btn {
+  background: #2a2a3a !important;
+  color: #ffffff !important;
+}
+
+.forum-page[data-theme="dark"] .x-detail-drawer .back-btn:hover,
+[data-theme="dark"] .forum-page .x-detail-drawer .back-btn:hover {
+  background: #353545 !important;
+}
+
+.forum-page[data-theme="dark"] .x-detail-drawer .detail-user-card,
+[data-theme="dark"] .forum-page .x-detail-drawer .detail-user-card {
+  background: #252532 !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+.forum-page[data-theme="dark"] .x-detail-drawer .large-avatar,
+[data-theme="dark"] .forum-page .x-detail-drawer .large-avatar {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+  color: #fff !important;
+}
+
+.forum-page[data-theme="dark"] .x-detail-drawer .user-info .name,
+[data-theme="dark"] .forum-page .x-detail-drawer .user-info .name {
+  color: #ffffff !important;
+}
+
+.forum-page[data-theme="dark"] .x-detail-drawer .user-info .type,
+[data-theme="dark"] .forum-page .x-detail-drawer .user-info .type {
+  color: #60a5fa !important;
+  background: rgba(59, 130, 246, 0.15) !important;
+}
+
+.forum-page[data-theme="dark"] .x-detail-drawer .detail-title,
+[data-theme="dark"] .forum-page .x-detail-drawer .detail-title {
+  color: #ffffff !important;
+}
+
+.forum-page[data-theme="dark"] .x-detail-drawer .main-text,
+[data-theme="dark"] .forum-page .x-detail-drawer .main-text {
+  color: #c4c4cc !important;
+}
+
+.forum-page[data-theme="dark"] .x-detail-drawer .source-content,
+[data-theme="dark"] .forum-page .x-detail-drawer .source-content {
+  background: #252532 !important;
+  border-left: 4px solid #3b82f6 !important;
+}
+
+.forum-page[data-theme="dark"] .x-detail-drawer .source-label,
+[data-theme="dark"] .forum-page .x-detail-drawer .source-label {
+  color: #71717a !important;
+}
+
+.forum-page[data-theme="dark"] .x-detail-drawer .source-text,
+[data-theme="dark"] .forum-page .x-detail-drawer .source-text {
+  color: #ffffff !important;
+}
+
+.forum-page[data-theme="dark"] .x-detail-drawer .full-date,
+[data-theme="dark"] .forum-page .x-detail-drawer .full-date {
+  color: #71717a !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.forum-page[data-theme="dark"] .x-detail-drawer .notif-action-btn,
+[data-theme="dark"] .forum-page .x-detail-drawer .notif-action-btn {
+  background: rgba(59, 130, 246, 0.15) !important;
+  color: #60a5fa !important;
+}
+
+.forum-page[data-theme="dark"] .x-detail-drawer .notif-action-btn:hover:not(:disabled),
+[data-theme="dark"] .forum-page .x-detail-drawer .notif-action-btn:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.25) !important;
+}
+
+.forum-page[data-theme="dark"] .x-detail-drawer .notif-action-btn.retry,
+[data-theme="dark"] .forum-page .x-detail-drawer .notif-action-btn.retry {
+  background: rgba(255, 149, 0, 0.15) !important;
+  color: #fbbf24 !important;
+}
+
+/* ============================================
+   加载状态
+   ============================================ */
+.forum-page[data-theme="dark"] .loading-state-v2,
+[data-theme="dark"] .forum-page .loading-state-v2 {
+  color: #a1a1aa !important;
+}
+
+.forum-page[data-theme="dark"] .mini-spinner,
+[data-theme="dark"] .forum-page .mini-spinner {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  border-top-color: #ffffff !important;
+}

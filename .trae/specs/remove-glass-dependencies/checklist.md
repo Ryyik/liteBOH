@@ -1,0 +1,6 @@
+- [x] package.json 中已移除 glass-ui-vue 和 @wxperia/liquid-glass-vue 依赖
+- [x] main.js 中已移除所有 GlassUI 相关导入和注册代码
+- [x] liquid-glass-vue-main 目录已删除（该目录不存在）
+- [x] npm install 执行成功，无错误（移除了 530 个包）
+- [x] 项目构建正常，无运行时错误
+- [x] 毛玻璃效果通过 CSS 正常显示

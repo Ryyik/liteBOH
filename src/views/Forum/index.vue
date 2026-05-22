@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { Check, Heart, MessageCircle, Reply, Share2 } from 'lucide-vue-next';
 import UnifiedNavbar from '../../components/UnifiedNavbar/index.vue';
 import PostComposer from './components/PostComposer.vue';
 import { useAuthStore } from '@/stores/auth';
@@ -2024,24 +2025,30 @@ const openPostDetail = (postId) => {
                   <div class="actions-left-v2">
                     <button class="action-item-v2 like-btn-v2" @click="handleToggleLike(post)"
                       :class="{ 'is-liked': post.isLiked, 'is-pulsing': isPostLikePulsing(post.id) }" :disabled="isLikeSubmitting[post.id]">
-                      <span class="action-icon-v2">{{ post.isLiked ? '❤️' : '🤍' }}</span>
+                      <Heart class="action-svg-v2" :size="17" :stroke-width="1.8"
+                        :fill="post.isLiked ? 'currentColor' : 'none'" aria-hidden="true" />
                       <span class="action-count-v2">{{ post.like_count || 0 }}</span>
                     </button>
 
-                    <button class="action-item-v2 replies-btn-v2" @click="toggleRepliesList(post)">
-                      <span class="action-icon-v2">💬</span>
+                    <button class="action-item-v2 replies-btn-v2" @click="toggleRepliesList(post)" aria-label="查看评论">
+                      <MessageCircle class="action-svg-v2" :size="17" :stroke-width="1.8" aria-hidden="true" />
                       <span class="action-count-v2">{{ post.comment_count || 0 }}</span>
                     </button>
                   </div>
 
                   <div class="actions-right-v2">
-                    <button class="action-item-v2 reply-btn-v2" @click="toggleReplyInput(post.id)">
-                      回复
+                    <button class="action-item-v2 icon-only-action-v2 reply-btn-v2" @click="toggleReplyInput(post.id)"
+                      aria-label="回复" title="回复">
+                      <Reply class="action-svg-v2" :size="17" :stroke-width="1.8" aria-hidden="true" />
                     </button>
-                    <button class="action-item-v2 share-btn-v2"
+                    <button class="action-item-v2 icon-only-action-v2 share-btn-v2"
                       :class="{ 'is-copy-success': isPostShareCopied(post.id) }"
+                      :aria-label="isPostShareCopied(post.id) ? '链接已复制' : '分享'"
+                      :title="isPostShareCopied(post.id) ? '已复制' : '分享'"
                       @click="sharePost(post)">
-                      {{ isPostShareCopied(post.id) ? '已复制' : '分享' }}
+                      <Check v-if="isPostShareCopied(post.id)" class="action-svg-v2" :size="17" :stroke-width="2"
+                        aria-hidden="true" />
+                      <Share2 v-else class="action-svg-v2" :size="17" :stroke-width="1.8" aria-hidden="true" />
                     </button>
                   </div>
                 </div>

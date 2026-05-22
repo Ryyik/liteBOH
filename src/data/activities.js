@@ -100,4 +100,11 @@ export const activitiesData = [
     image: "@/assets/images/2025wintermuseam.webp",
     description: "方块博物馆来袭，12月方块街圣诞&生日会特别活动！",
   },
+  {
+    id: 15,
+    title: "冬眠生存第四季",
+    date: "2026/2/3",
+    image: "@/assets/images/26lfhome.webp",
+    description: "方块之家传统活动发布第四弹啦！",
+  },
 ];
