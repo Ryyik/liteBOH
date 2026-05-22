@@ -2431,7 +2431,7 @@ const uploadProfileBackgroundFile = async (file) => {
       if (!cleanupResult.ok) {
         console.warn('清理旧个人卡片背景失败:', cleanupResult.error);
         showAlert('warning', '背景已更新', cleanupResult.error?.message || '旧背景图云端清理失败，请稍后重试');
-        return;
+        return true;
       }
     }
 
