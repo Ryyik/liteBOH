@@ -1423,27 +1423,6 @@
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.1);
 }
 
-.my-posts-btn-v2 {
-  width: 100%;
-  padding: 12px;
-  border-radius: 12px;
-  border: none;
-  background: #f5f5f7;
-  color: #1d1d1f;
-  font-weight: 700;
-  font-size: 15px;
-  cursor: pointer;
-  transition: transform 0.2s, opacity 0.2s, background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
-}
-
-.my-posts-btn-v2:hover {
-  background: #e8e8ed;
-}
-
-.feed-action-row-v2 {
-  display: flex;
-}
-
 /* Post Card V2 */
 .post-card-v2 {
   padding: 24px;
