@@ -1003,10 +1003,27 @@ const submitEditPost = async () => {
   }
 };
 
+const getQueryString = (value) => {
+  if (Array.isArray(value)) {
+    return String(value[0] || '').trim();
+  }
+  return String(value || '').trim();
+};
+
 const goBack = () => {
-  if (route.query.from === 'user-space') {
-    router.push({ path: '/user-space', query: { tab: route.query.tab || 'posts' } });
+  const source = getQueryString(route.query.from);
+
+  if (source === 'user-space') {
+    router.push({ path: '/user-space', query: { tab: getQueryString(route.query.tab) || 'posts' } });
     return;
+  }
+
+  if (source === 'profile') {
+    const sourceUsername = getQueryString(route.query.username);
+    if (sourceUsername) {
+      router.push(`/profile/${encodeURIComponent(sourceUsername)}`);
+      return;
+    }
   }
 
   router.push('/forum');

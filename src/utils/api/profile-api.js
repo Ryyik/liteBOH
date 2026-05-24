@@ -3,6 +3,7 @@ import { executeRead, normalizeDbError, invalidateByTags } from '../request-core
 import { createNotification } from './notifications-api.js';
 import { logger } from '../logger.js';
 import { getForumPostParts } from '../forum-post-format.js';
+import { getCloudinaryTransformedUrl } from '../cloudinary-client.js';
 import {
   UNIFIED_APPROVED_STATUS,
   UNIFIED_REJECTED_STATUS,
@@ -14,6 +15,7 @@ import {
 
 const CONTENT_STATUS_FILTER = 'status.is.null,status.eq.approved';
 const IMPRESSION_ASYNC_MODERATION_TIMEOUT_MS = 45000;
+const PROFILE_POST_IMAGE_TRANSFORM = 'f_auto,q_auto:good,c_fill,w_720,h_540';
 
 function normalizePageArgs(options = {}) {
   const hasPagingOption =
@@ -46,6 +48,35 @@ function normalizeProfileCommentRows(rows = []) {
         : comment?.post
     };
   });
+}
+
+function normalizeProfilePostImages(images = []) {
+  return (Array.isArray(images) ? images : [])
+    .filter((image) => String(image?.moderation_status || 'approved') === UNIFIED_APPROVED_STATUS)
+    .map((image) => {
+      const originalUrl = String(image?.url || image?.original_url || '').trim();
+      if (!originalUrl) return null;
+      return {
+        id: String(image?.id || '').trim(),
+        url: getCloudinaryTransformedUrl(originalUrl, PROFILE_POST_IMAGE_TRANSFORM),
+        originalUrl,
+        publicId: String(image?.public_id || image?.publicId || '').trim(),
+        width: Number(image?.width || 0),
+        height: Number(image?.height || 0),
+        format: String(image?.format || '').trim(),
+        sortOrder: Number(image?.sort_order ?? image?.sortOrder ?? 0) || 0
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+}
+
+function getProfilePostCoverFromImages(post = {}, images = []) {
+  const firstImage = images[0] || null;
+  if (firstImage?.url) return firstImage.url;
+
+  const coverUrl = String(post.cover_image_url || '').trim();
+  return coverUrl ? getCloudinaryTransformedUrl(coverUrl, PROFILE_POST_IMAGE_TRANSFORM) : '';
 }
 
 export async function getUserImpressions(targetId, options = {}) {
@@ -343,6 +374,7 @@ export async function getPostsByUsername(username, userId = null, options = {}) 
         .from('posts')
         .select(`
           *,
+          forum_post_images(id, url, public_id, width, height, format, sort_order, moderation_status),
           comments:comments(count),
           likes:likes(count)
         `)
@@ -390,11 +422,16 @@ export async function getPostsByUsername(username, userId = null, options = {}) 
 
       const formattedData = (data || []).map((post) => {
         const parsed = getForumPostParts(post);
+        const images = normalizeProfilePostImages(post.forum_post_images || post.images || []);
 
         return {
           ...post,
           title: parsed.title,
           content: parsed.body,
+          body: parsed.body,
+          cover_image_url: getProfilePostCoverFromImages(post, images),
+          images,
+          image_count: Math.max(Number(post.image_count || 0), images.length),
           comment_count: post.comments?.[0]?.count || 0,
           like_count: post.likes?.[0]?.count || 0
         };

@@ -1353,7 +1353,18 @@ const calculateBlockAge = (dateStr) => {
 // formatTime 逻辑已由 formatSmartTime 提供
 
 const navigateToPost = (postId) => {
-  router.push('/forum/post/' + postId);
+  const safePostId = String(postId || '').trim();
+  if (!safePostId) return;
+  const sourceUsername = String(profile.value?.username || route.params.username || '').trim();
+  const query = sourceUsername
+    ? { from: 'profile', username: sourceUsername }
+    : undefined;
+
+  router.push({
+    name: 'PostDetail',
+    params: { id: safePostId },
+    query
+  });
 };
 
 const goToProfileRoute = (usernameVal) => {

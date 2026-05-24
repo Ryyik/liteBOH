@@ -1361,11 +1361,11 @@ const getProfilePostSummary = (post = {}) => {
 };
 
 const getProfilePostCover = (post = {}) => {
-  const cover = String(post.cover_image_url || '').trim();
-  if (cover) return cover;
   const images = Array.isArray(post.images) ? post.images : [];
   const firstImage = images[0] || null;
-  return String(firstImage?.url || firstImage?.originalUrl || '').trim();
+  const imageCover = String(firstImage?.url || firstImage?.thumbUrl || firstImage?.originalUrl || '').trim();
+  if (imageCover) return imageCover;
+  return String(post.cover_image_url || '').trim();
 };
 
 const formatProfilePostDate = (post = {}) => {

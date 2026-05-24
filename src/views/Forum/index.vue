@@ -724,6 +724,14 @@ const showDetail = async (msg) => {
   }
 };
 
+const handleNotificationItemClick = (notification, event) => {
+  const target = event?.target;
+  if (target?.closest?.('.clickable-username-inline')) {
+    return;
+  }
+  showDetail(notification);
+};
+
 const closeDetail = () => {
   selectedMessage.value = null;
 };
@@ -809,10 +817,14 @@ const getNotificationIcon = (type) => {
 };
 
 const getNotificationText = (n) => {
-  const senderName = String(n.sender?.username || '有人');
+  const rawSenderName = String(n.sender?.username || '').trim();
+  const senderName = rawSenderName || '有人';
+  const escapedSenderName = escapeHtml(senderName);
   const senderProfileUrl = `#/profile/${encodeURIComponent(senderName)}`;
-  const senderLink = `<a class="clickable-username-inline" href="${senderProfileUrl}">${senderName}</a>`;
-  const safeCommentSnippet = String(n.comment?.content || '').substring(0, 20);
+  const senderLink = rawSenderName
+    ? `<a class="clickable-username-inline" href="${senderProfileUrl}">${escapedSenderName}</a>`
+    : escapedSenderName;
+  const safeCommentSnippet = escapeHtml(String(n.comment?.content || '').substring(0, 20));
 
   let rawHtml = '';
   switch (n.type) {
@@ -1643,7 +1655,7 @@ const handleToggleLike = async (post) => {
   }
 };
 
-const toggleViewMode = () => {
+const _toggleViewMode = () => {
   feedMode.value = 'posts';
   viewMode.value = viewMode.value === 'all' ? 'my' : 'all';
   fetchForumData();
@@ -1819,7 +1831,7 @@ const openPostDetail = (postId) => {
                   </div>
                   <div v-else class="notification-items-group">
                     <div v-for="n in notifications" :key="n.id" class="notification-item-v2"
-                      :class="{ 'is-unread': n.status === 'unread' }" @click="showDetail(n)">
+                      :class="{ 'is-unread': n.status === 'unread' }" @click="handleNotificationItemClick(n, $event)">
                       <div class="n-icon-v2">{{ getNotificationIcon(n.type) }}</div>
                       <div class="n-content-v2">
                         <p class="n-text-v2" v-html="getNotificationText(n)"></p>
