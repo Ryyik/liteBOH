@@ -981,9 +981,9 @@ const getNotificationSourceText = (notification) => {
   return String(notification?.comment?.content || '').trim();
 };
 
-// 帖子内容折叠相关
-const postExpandStates = ref(new Set());
-const CONTENT_LIMIT = 200;
+// 帖子列表预览：保留用户原始排版，溢出交给 CSS 控制。
+const LIST_BODY_PREVIEW_CHAR_LIMIT = 180;
+const LIST_BODY_PREVIEW_LINE_LIMIT = 5;
 
 const extractPostTitle = (postOrContent) => {
   if (postOrContent && typeof postOrContent === 'object') {
@@ -1017,14 +1017,10 @@ const extractPostBody = (postOrContent) => {
   return stripLegacyTitlePrefix(String(rawContent || '').replace(/【.*?】\n?/, ''), title);
 };
 
-const isContentLong = (content) => String(content || '').length > CONTENT_LIMIT;
-
-const getDisplayContent = (post) => {
-  const bodyText = String(post?.displayBody || extractPostBody(post) || '').trim();
-  if (!isContentLong(bodyText) || postExpandStates.value.has(post?.id)) {
-    return bodyText;
-  }
-  return bodyText.substring(0, CONTENT_LIMIT) + '...';
+const isBodyPreviewOverflowLikely = (content = '') => {
+  const text = String(content || '');
+  if (text.length > LIST_BODY_PREVIEW_CHAR_LIMIT) return true;
+  return text.split(/\r\n|\r|\n/).length > LIST_BODY_PREVIEW_LINE_LIMIT;
 };
 
 const getPostImages = (post) => {
@@ -1054,6 +1050,7 @@ const prepareForumPostForDisplay = (post, index = 0) => {
 
   preparedPost.displayTitle = extractPostTitle(preparedPost);
   preparedPost.displayBody = extractPostBody(preparedPost);
+  preparedPost.isBodyOverflowLikely = isBodyPreviewOverflowLikely(preparedPost.displayBody);
   preparedPost.tag = normalizeForumTagValue(preparedPost.tag);
   preparedPost.tagLabel = getForumTagLabel(preparedPost.tag);
   preparedPost.previewImages = images;
@@ -1082,14 +1079,6 @@ const renderSearchExcerpt = (excerpt) => {
     ALLOWED_TAGS: ['mark'],
     ALLOWED_ATTR: []
   });
-};
-
-const _togglePostExpand = (postId) => {
-  if (postExpandStates.value.has(postId)) {
-    postExpandStates.value.delete(postId);
-  } else {
-    postExpandStates.value.add(postId);
-  }
 };
 
 const getWeeklyCheckinCycleProgress = (status) => {
@@ -2029,7 +2018,7 @@ const openPostDetail = (postId) => {
                   <p v-if="searchKeyword && post.search_excerpt" class="search-highlight-snippet"
                     v-html="renderSearchExcerpt(post.search_excerpt)">
                   </p>
-                  <p class="post-text-v2">{{ getDisplayContent(post) }}</p>
+                  <p class="post-text-v2" :class="{ 'is-overflowing': post.isBodyOverflowLikely }">{{ post.displayBody }}</p>
                 </div>
 
                 <!-- 操作栏 -->

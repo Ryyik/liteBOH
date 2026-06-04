@@ -21,6 +21,11 @@ import { createMyCloudEntry, getMyCloudEntriesForAI } from '@/utils/api/boh-clou
 import { getMySubscriptions } from '@/utils/api/subscription-api.js';
 import { sendModeratedMessages } from '@/utils/api/messages-api.js';
 import {
+  detectBohAIResourceSearchIntent,
+  getResourceTypeLabel,
+  searchMinecraftResourcesForBohAI
+} from '@/utils/api/resource-search-api.js';
+import {
   isLikelyBohInternalFactualQuestion,
   isLikelyFactualQuestion,
   extractCitationIdsFromText,
@@ -36,7 +41,8 @@ import {
   isPostDraftConfirmIntent,
   isMailDraftConfirmIntent,
   isPostDraftRequest,
-  isMailDraftRequest
+  isMailDraftRequest,
+  isCreatePageRequest
 } from '@/utils/bohai-action-draft-intent.js';
 import {
   BOH_AUTO_MODE_ID,
@@ -52,6 +58,19 @@ import {
   runBohAIReadConnectors,
   summarizeBohAIConnectorResults
 } from '@/utils/bohai-connectors.js';
+import {
+  appendBohAIActionAudit,
+  clearBohAIActionAuditsStorage,
+  createBohAIActionAuditEntry,
+  loadBohAIActionAuditsFromStorage
+} from '@/utils/bohai-action-audit.js';
+import {
+  clearBohAIChatSessionsStorage,
+  createBohAIChatSessionSanitizer,
+  loadBohAIChatSessionsFromStorage,
+  saveBohAIChatSessionsToStorage
+} from '@/utils/bohai-chat-session-store.js';
+import { createBohAIRetrievalTrace } from '@/utils/bohai-observability.js';
 import { SITE_OPERATION_MEMORY } from '@/data/ai-site-guide.js';
 import { logger } from '@/utils/logger.js';
 import {
@@ -59,26 +78,15 @@ import {
   ACTION_DRAFT_CONTENT_MAX_CHARS,
   ACTION_DRAFT_SUBJECT_MAX_CHARS,
   ACTION_DRAFT_TITLE_MAX_CHARS,
-  ACTION_MAIL_TRIGGER_PATTERN,
-  ACTION_POST_TRIGGER_PATTERN,
   AUTO_ROUTER_MODEL_ID,
   BASE_SYSTEM_PROMPT,
   BLOCK_DURATION_MS,
   CLOUD_REFERENCE_CONSENT_KEY,
-  DEGENERATE_PUNCT_REPEAT_COUNT,
-  DEGENERATE_PUNCTUATION_RATIO,
-  DEGENERATE_REPEAT_COUNT,
-  DEGENERATE_STREAM_MIN_CHARS,
-  DEGENERATE_STREAM_PUNCTUATION_RATIO,
-  DEGENERATE_STREAM_REPEAT_COUNT,
-  DEGENERATE_STREAM_WINDOW_CHARS,
   FORUM_MAX_CHARS_PER_POST,
   FORUM_MAX_POSTS,
-  GENERATION_PROFILE_BY_MODE,
   GIFT_STATUS_LABELS,
   KNOWLEDGE_CONTEXT_MAX_BLOCK_CHARS,
   KNOWLEDGE_CONTEXT_MAX_CHARS,
-  KNOWLEDGE_MAX_CHUNKS,
   LEGACY_TREEHOLE_MEMORY_SYNC_SETTING_KEY,
   MAX_CONTEXT_MESSAGES,
   MAX_FINAL_PROMPT_CHARS,
@@ -86,7 +94,6 @@ import {
   MAX_HISTORY_MESSAGE_CHARS,
   MAX_MESSAGES_PER_WINDOW,
   MAX_PROMPT_EXTRA_CHARS,
-  MAX_SEARCH_RESULT_CONTENT_CHARS,
   MAX_USER_INPUT_CHARS,
   MEMORY_CAPTURE_CONTEXT_ITEMS,
   MEMORY_CAPTURE_MIN_DIALOGUE_ITEMS,
@@ -97,11 +104,16 @@ import {
   MEMORY_NOTICE_MAX_ITEMS,
   MIN_INTERVAL_MS,
   OPERATION_MAX_STEPS,
+  PLAN_MODE_SETTING_KEY,
+  PLAN_MODE_PROMPT_APPENDIX,
+  PAGE_CREATION_PROMPT_APPENDIX,
   QUICK_NOTE_CONTENT_MAX_CHARS,
   QUICK_NOTE_SETTING_KEY,
   QUICK_NOTE_TITLE_MAX_CHARS,
   RAG_PREFERRED_MODEL_ID,
   RATE_LIMIT_WINDOW_MS,
+  RESPONSE_STYLE_OPTIONS,
+  RESPONSE_STYLE_SETTING_KEY,
   ROUTING_FORUM_REALTIME_PATTERN,
   ROUTING_HISTORY_FACT_PATTERN,
   SESSION_SAVE_DEBOUNCE_MS,
@@ -115,7 +127,6 @@ import {
   SHOW_INTERNAL_PROGRESS_NOTES,
   SITE_GUIDE_MAX_CHUNKS,
   SUBSCRIPTION_STATUS_LABELS,
-  TAVILY_API_KEY,
   TREEHOLE_CONTEXT_MAX_ITEM_CHARS,
   TREEHOLE_CONTEXT_MAX_ITEMS,
   TREEHOLE_MEMORY_CACHE_TTL_MS,
@@ -141,640 +152,69 @@ import {
 } from './chat-engine-config.js';
 
 export { availableModels, chatModes } from './chat-engine-config.js';
+import {
+  CONVERSATION_SUMMARY_RECENT_MESSAGES,
+  CONVERSATION_SUMMARY_MIN_MESSAGES,
+  CONVERSATION_SUMMARY_MAX_CHARS,
+  CONVERSATION_SUMMARY_STORAGE_VERSION,
+  GENERATION_STALL_TIMEOUT_MS,
+  getAIMemory,
+  normalizeText,
+  extractQueryKeywords,
+  scoreChunk,
+  selectRelevantChunks,
+  trimKnowledgeChunk,
+  truncateText,
+  isLikelyMemoryDuplicate,
+  extractExplicitMemoryContent,
+  appendPromptSection,
+  normalizePromptLine,
+  buildHistoryMessagesWithinBudget,
+  getStorableDialogueMessages,
+  buildConversationSummaryFingerprint,
+  buildHistoryMessagesWithCachedSummary,
+  rankEvidenceContextBlocks,
+  buildStructuredUserPrompt,
+  containsAnyKeyword,
+  isMissingRelationError,
+  parsePostTitleAndBody,
+  getPostTitleAndBody,
+  formatPromptDate,
+  formatPromptDateTime,
+  getBirthdayCountdown,
+  formatBillingCycleLabel,
+  searchWebForPrompt,
+  isOperationQuestion,
+  shouldUseSiteGuide,
+  extractSingleLineField,
+  extractMultilineField,
+  extractFieldUntilNextLabel,
+  isWeakPostDraftTitle,
+  buildPostDraftFromText,
+  POST_DRAFT_PLACEHOLDER_PATTERN,
+  hasPostDraftUserIdea,
+  extractRecipientName,
+  buildMailDraftFromText,
+  buildPageDraftFromText,
+  compressKnowledgeContextBlocks,
+  getGenerationProfile,
+  cleanAssistantVisibleReply,
+  normalizeEscapedLineBreaks,
+  isDegenerateAssistantReply,
+  isDegenerateStreamOutput
+} from './bohai-engine-helpers.js';
+import {
+  runAgentClusterBranch,
+  isAgentClusterMode,
+  useAgentClusterState
+} from './agent-cluster-helpers.js';
 
-let aiMemoryCache = '';
-let aiMemoryLoader = null;
-
-async function getAIMemory() {
-  if (aiMemoryCache) return aiMemoryCache;
-  if (!aiMemoryLoader) {
-    aiMemoryLoader = import('@/data/ai-memory.js')
-      .then((module) => {
-        aiMemoryCache = typeof module.AI_MEMORY === 'string' ? module.AI_MEMORY : '';
-        return aiMemoryCache;
-      })
-      .catch((error) => {
-        logger.error('boh-ai', 'Load AI memory failed', error);
-        return '';
-      });
-  }
-  return aiMemoryLoader;
-}
-
-const normalizeText = (text) => String(text || '').toLowerCase().trim();
-
-const splitKnowledgeChunks = (rawText) => {
-  return String(rawText || '')
-    .split(/\n{2,}/)
-    .map((chunk) => chunk.trim())
-    .filter((chunk) => chunk.length >= 16);
-};
-
-const extractQueryKeywords = (text) => {
-  const normalized = normalizeText(text);
-  const tokens = normalized.match(/[a-z0-9_/-]{2,}|[\u4e00-\u9fa5]{2,}/g) || [];
-  const stopwords = new Set(['这个', '那个', '什么', '怎么', '如何', '请问', '一下', '以及', '然后', '可以', '一个', '我们', '你们']);
-  const expanded = new Set();
-
-  tokens.forEach((token) => {
-    if (stopwords.has(token)) return;
-    expanded.add(token);
-
-    // 中文长词做子串切分，提升“如何给别人写印象”这类问题的召回率
-    if (/^[\u4e00-\u9fa5]+$/.test(token) && token.length >= 4) {
-      for (let len = 2; len <= 4; len += 1) {
-        for (let i = 0; i <= token.length - len; i += 1) {
-          expanded.add(token.slice(i, i + len));
-        }
-      }
-    }
-  });
-
-  return [...expanded];
-};
-
-const scoreChunk = (chunk, keywords) => {
-  if (!chunk || keywords.length === 0) return 0;
-  const normalizedChunk = normalizeText(chunk);
-  return keywords.reduce((score, keyword) => {
-    return score + (normalizedChunk.includes(keyword) ? Math.min(3, Math.ceil(keyword.length / 2)) : 0);
-  }, 0);
-};
-
-const selectRelevantChunks = (rawText, query, maxChunks = KNOWLEDGE_MAX_CHUNKS, { fallback = 'none' } = {}) => {
-  const chunks = splitKnowledgeChunks(rawText);
-  if (chunks.length === 0) return [];
-  const keywords = extractQueryKeywords(query);
-  const scored = chunks
-    .map((chunk) => ({ chunk, score: scoreChunk(chunk, keywords) }))
-    .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score);
-
-  if (scored.length === 0 && fallback === 'head') {
-    return chunks.slice(0, Math.min(2, maxChunks));
-  }
-
-  if (scored.length === 0) return [];
-
-  return scored.slice(0, maxChunks).map((item) => item.chunk);
-};
-
-const trimKnowledgeChunk = (text, maxLength = 320) => {
-  const normalized = String(text || '').replace(/\s+/g, ' ').trim();
-  if (normalized.length <= maxLength) return normalized;
-  return `${normalized.slice(0, maxLength)}...`;
-};
-
-const truncateText = (text, maxChars) => {
-  const normalized = String(text ?? '');
-  if (!Number.isFinite(maxChars) || maxChars <= 0) return '';
-  if (normalized.length <= maxChars) return normalized;
-  return `${normalized.slice(0, Math.max(0, maxChars - 3))}...`;
-};
-
-const normalizeMemoryCompareText = (text) => String(text || '')
-  .toLowerCase()
-  .replace(/[^\u4e00-\u9fa5a-z0-9]+/g, '')
-  .trim();
-
-const isLikelyMemoryDuplicate = (candidate, existingItems = []) => {
-  const normalizedCandidate = normalizeMemoryCompareText(candidate);
-  if (!normalizedCandidate) return false;
-
-  return existingItems.some((item) => {
-    const content = typeof item === 'string' ? item : item?.content;
-    const normalized = normalizeMemoryCompareText(content);
-    if (!normalized) return false;
-    return normalized === normalizedCandidate
-      || normalized.includes(normalizedCandidate)
-      || normalizedCandidate.includes(normalized);
-  });
-};
-
-const stripWrappingQuotes = (text) => {
-  let output = String(text || '').trim();
-  output = output.replace(/^[「『“"']+/, '');
-  output = output.replace(/[」』”"']+$/, '');
-  return output.trim();
-};
-
-const extractExplicitMemoryContent = (text) => {
-  const raw = String(text || '').trim();
-  if (!raw) return '';
-
-  const patterns = [
-    /^(?:请|麻烦|帮我)?(?:记住|记下来|保存到记忆(?:库)?|加入记忆(?:库)?|存到记忆(?:库)?)[：:，,\s]*(.+)$/u,
-    /^(?:我要|我想|请)?(?:上传|添加|保存|沉淀)(?:一条)?记忆[：:，,\s]*(.+)$/u,
-    /^(?:记忆沉淀|记忆)[：:，,\s]*(.+)$/u,
-    /^(?:请|麻烦|帮我)?把(.+?)(?:记住|记下来|保存到记忆(?:库)?|加入记忆(?:库)?|存到记忆(?:库)?)(?:吧|一下)?$/u
-  ];
-
-  for (const pattern of patterns) {
-    const matched = raw.match(pattern);
-    if (!matched?.[1]) continue;
-    const cleaned = stripWrappingQuotes(matched[1]);
-    if (cleaned.length >= 2) return truncateText(cleaned, 320);
-  }
-
-  return '';
-};
-
-const appendPromptSection = (base, section, maxChars = MAX_FINAL_PROMPT_CHARS) => {
-  const current = String(base || '');
-  const addition = String(section || '');
-  if (!addition) return current;
-  const remaining = maxChars - current.length;
-  if (remaining <= 0) return current;
-  if (addition.length <= remaining) return current + addition;
-  return current + addition.slice(0, Math.max(0, remaining));
-};
-
-const normalizePromptLine = (text, maxChars = MAX_HISTORY_MESSAGE_CHARS) => {
-  const normalized = String(text ?? '').replace(/\s+/g, ' ').trim();
-  return truncateText(normalized, maxChars);
-};
-
-const buildHistoryMessagesWithinBudget = (
-  messages,
-  { maxChars = MAX_HISTORY_CONTEXT_CHARS, maxMessages = MAX_CONTEXT_MESSAGES, maxPerMessage = MAX_HISTORY_MESSAGE_CHARS } = {}
-) => {
-  const source = Array.isArray(messages) ? messages : [];
-  const selected = [];
-  let usedChars = 0;
-
-  for (let index = source.length - 1; index >= 0; index -= 1) {
-    const item = source[index];
-    if (item?.meta?.kind === 'memory_saved_notice') continue;
-    const content = normalizePromptLine(item?.content, maxPerMessage);
-    if (!content) continue;
-
-    const role = item?.role === 'assistant' || item?.role === 'system' ? item.role : 'user';
-    const estimated = content.length + 20;
-    if (selected.length > 0 && usedChars + estimated > maxChars) {
-      break;
-    }
-
-    selected.unshift({ role, content });
-    usedChars += estimated;
-    if (selected.length >= maxMessages) break;
-  }
-
-  return selected;
-};
-
-const containsAnyKeyword = (normalizedText, keywords = []) => {
-  const source = String(normalizedText || '');
-  if (!source) return false;
-  return keywords.some((keyword) => source.includes(String(keyword || '').toLowerCase()));
-};
-
-const isMissingRelationError = (error, relation = '') => {
-  const code = String(error?.code || '').toUpperCase();
-  const message = String(error?.message || '').toLowerCase();
-  const target = String(relation || '').toLowerCase();
-  if (code === '42P01') return true;
-  if (!target) return false;
-  return message.includes(target);
-};
-
-const parsePostTitleAndBody = (rawContent) => {
-  const raw = String(rawContent || '').trim();
-  if (!raw) {
-    return { title: '无标题', body: '' };
-  }
-
-  const matched = raw.match(/^【([^】]{1,80})】\s*([\s\S]*)$/u);
-  if (matched) {
-    const parsedTitle = normalizePromptLine(matched[1], 48) || '无标题';
-    const parsedBody = normalizePromptLine(matched[2], 600);
-    return { title: parsedTitle, body: parsedBody };
-  }
-
-  const lines = raw.split(/\r?\n/).filter(Boolean);
-  const firstLine = normalizePromptLine(lines[0], 48) || '无标题';
-  return { title: firstLine, body: normalizePromptLine(raw, 600) };
-};
-
-const formatPromptDate = (value, fallback = '未知') => {
-  if (!value) return fallback;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return normalizePromptLine(value, 32) || fallback;
-  }
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-const parseBirthdayValue = (monthText, dayText) => {
-  const month = Number(String(monthText || '').trim());
-  const day = Number(String(dayText || '').trim());
-  if (!Number.isInteger(month) || !Number.isInteger(day)) return null;
-  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-  return { month, day };
-};
-
-const getBirthdayCountdown = (monthText, dayText) => {
-  const parsed = parseBirthdayValue(monthText, dayText);
-  if (!parsed) return null;
-
-  const now = new Date();
-  const year = now.getFullYear();
-  let nextBirthday = new Date(year, parsed.month - 1, parsed.day, 0, 0, 0, 0);
-  if (Number.isNaN(nextBirthday.getTime())) return null;
-
-  if (nextBirthday < new Date(year, now.getMonth(), now.getDate(), 0, 0, 0, 0)) {
-    nextBirthday = new Date(year + 1, parsed.month - 1, parsed.day, 0, 0, 0, 0);
-  }
-
-  const diffMs = nextBirthday.getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
-  const days = Math.max(0, Math.round(diffMs / 86400000));
-  return {
-    month: parsed.month,
-    day: parsed.day,
-    nextDate: formatPromptDate(nextBirthday, '未知'),
-    daysUntil: days
-  };
-};
-
-const formatBillingCycleLabel = (cycle) => {
-  const normalized = String(cycle || '').toLowerCase().trim();
-  if (normalized === 'yearly') return '年付';
-  if (normalized === 'monthly') return '月付';
-  return '未知';
-};
-
-const escapePromptXmlAttr = (text) => String(text || '')
-  .replace(/&/g, '&amp;')
-  .replace(/"/g, '&quot;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;');
-
-const buildSearchResultsContext = (results = []) => {
-  if (!Array.isArray(results) || results.length === 0) return '';
-
-  let body = '';
-  for (let i = 0; i < results.length; i += 1) {
-    const item = results[i];
-    const ref = `W${i + 1}`;
-    const title = escapePromptXmlAttr(normalizePromptLine(item?.title, 120));
-    const url = escapePromptXmlAttr(normalizePromptLine(item?.url, 240));
-    const content = escapePromptXmlAttr(normalizePromptLine(item?.content, MAX_SEARCH_RESULT_CONTENT_CHARS));
-    const line = `<result index="${i + 1}" ref="${ref}" title="${title}" url="${url}">${content}</result>\n`;
-    if (body.length + line.length > MAX_PROMPT_EXTRA_CHARS) break;
-    body += line;
-  }
-
-  if (!body) return '';
-
-  return `\n\n以下是实时搜索结果，请根据这些信息回答用户，如果搜索结果不相关，请忽略：\n<search_results>\n${body}</search_results>\n\n请在回答时，在引用搜索结果的地方标注编号，如 [W1], [W2]。并在回答结束时列出参考来源。\n\n`;
-};
-
-const searchWebForPrompt = async (queryText, requestSignal = undefined) => {
-  if (!TAVILY_API_KEY) {
-    return {
-      ok: false,
-      disabled: true,
-      count: 0,
-      context: '',
-      message: '未配置联网搜索 Key（VITE_TAVILY_API_KEY）'
-    };
-  }
-
-  const searchResponse = await fetch('https://api.tavily.com/search', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    signal: requestSignal,
-    body: JSON.stringify({
-      api_key: TAVILY_API_KEY,
-      query: queryText,
-      search_depth: 'basic',
-      include_answer: false,
-      max_results: 3
-    })
-  });
-
-  if (!searchResponse.ok) {
-    let searchErrorMessage = `HTTP ${searchResponse.status}`;
-    try {
-      const searchErrorData = await searchResponse.json();
-      const maybeMessage = String(
-        searchErrorData?.message
-        || searchErrorData?.error
-        || searchErrorData?.detail
-        || ''
-      ).trim();
-      if (maybeMessage) {
-        searchErrorMessage = maybeMessage;
-      }
-    } catch (_parseError) {
-      // Ignore non-json error body.
-    }
-    return {
-      ok: false,
-      disabled: false,
-      count: 0,
-      context: '',
-      message: searchErrorMessage
-    };
-  }
-
-  const searchData = await searchResponse.json();
-  const results = Array.isArray(searchData?.results) ? searchData.results : [];
-  return {
-    ok: true,
-    disabled: false,
-    count: results.length,
-    context: buildSearchResultsContext(results),
-    results
-  };
-};
-
-const isOperationQuestion = (text) => {
-  const normalized = normalizeText(text);
-  const operationKeywords = [
-    '如何', '怎么', '步骤', '入口', '路径', '路由', '在哪', '在哪里', '使用', '操作', '教程', '指引',
-    '写印象', '发帖', '发布', '查看', '进入', '打开'
-  ];
-  return operationKeywords.some((keyword) => normalized.includes(keyword));
-};
-
-const shouldUseSiteGuide = (text) => {
-  return isOperationQuestion(text);
-};
-
-const normalizeActionInput = (text) => String(text || '')
-  .replace(/\r/g, '')
-  .trim();
-
-const stripLeadingActionPhrase = (text) => {
-  let output = String(text || '').trim();
-  output = output.replace(/^(请你|请帮我|帮我|替我|代我|我想|我要|帮忙)\s*/i, '');
-  output = output.replace(/^(给我|帮我)\s*/i, '');
-  return output.trim();
-};
-
-const extractSingleLineField = (text, labels = []) => {
-  const safeText = String(text || '');
-  const joined = labels
-    .map((label) => String(label || '').trim())
-    .filter(Boolean)
-    .map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    .join('|');
-  if (!joined) return '';
-  const pattern = new RegExp(`(?:^|\\n)\\s*(?:${joined})\\s*[：:]\\s*([^\\n]{1,220})`, 'i');
-  const matched = safeText.match(pattern);
-  return normalizePromptLine(matched?.[1] || '', 220);
-};
-
-const extractMultilineField = (text, labels = [], maxChars = ACTION_DRAFT_CONTENT_MAX_CHARS) => {
-  const safeText = String(text || '');
-  const joined = labels
-    .map((label) => String(label || '').trim())
-    .filter(Boolean)
-    .map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    .join('|');
-  if (!joined) return '';
-  const pattern = new RegExp(`(?:^|\\n)\\s*(?:${joined})\\s*[：:]\\s*([\\s\\S]+)$`, 'i');
-  const matched = safeText.match(pattern);
-  return normalizePromptLine(matched?.[1] || '', maxChars);
-};
-
-const trimLeadingDraftDelimiters = (text) => String(text || '').replace(/^[，,。；;、\s]+/g, '').trim();
-
-const extractFieldUntilNextLabel = (
-  text,
-  labels = [],
-  nextLabels = [],
-  maxChars = ACTION_DRAFT_CONTENT_MAX_CHARS
-) => {
-  const safeText = String(text || '');
-  const joined = labels
-    .map((label) => String(label || '').trim())
-    .filter(Boolean)
-    .map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    .join('|');
-  if (!joined) return '';
-
-  const nextJoined = nextLabels
-    .map((label) => String(label || '').trim())
-    .filter(Boolean)
-    .map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    .join('|');
-  const lookAhead = nextJoined ? `(?=(?:\\s*(?:${nextJoined})\\s*[：:])|$)` : '$';
-  const pattern = new RegExp(`(?:${joined})\\s*[：:]\\s*([\\s\\S]*?)${lookAhead}`, 'i');
-  const matched = safeText.match(pattern);
-  return normalizePromptLine(trimLeadingDraftDelimiters(matched?.[1] || ''), maxChars);
-};
-
-
-const buildPostDraftFromText = (text) => {
-  const safeText = normalizeActionInput(text);
-  const normalized = stripLeadingActionPhrase(safeText);
-  const explicitTitle = extractFieldUntilNextLabel(
-    normalized,
-    ['标题', 'title'],
-    ['内容', '正文', 'body'],
-    ACTION_DRAFT_TITLE_MAX_CHARS
-  ) || extractSingleLineField(normalized, ['标题', 'title']);
-  let content = extractFieldUntilNextLabel(
-    normalized,
-    ['内容', '正文', 'body'],
-    [],
-    ACTION_DRAFT_CONTENT_MAX_CHARS
-  ) || extractMultilineField(normalized, ['内容', '正文', 'body'], ACTION_DRAFT_CONTENT_MAX_CHARS);
-
-  if (!content) {
-    let fallback = normalized;
-    fallback = fallback.replace(new RegExp(ACTION_POST_TRIGGER_PATTERN.source, 'ig'), ' ');
-    fallback = fallback.replace(/(?:标题|title)\s*[：:][^\n]+/ig, '');
-    fallback = fallback.replace(/(?:内容|正文|body)\s*[：:]/ig, '');
-    content = normalizePromptLine(trimLeadingDraftDelimiters(fallback), ACTION_DRAFT_CONTENT_MAX_CHARS);
-  }
-
-  if (!content) {
-    content = '（请在这里填写帖子正文）';
-  }
-
-  const compact = content.replace(/\s+/g, '');
-  const suggestedTitle = compact
-    ? `AI草稿：${compact.slice(0, 18)}${compact.length > 18 ? '...' : ''}`
-    : 'AI草稿';
-  const title = normalizePromptLine(explicitTitle || suggestedTitle, ACTION_DRAFT_TITLE_MAX_CHARS);
-
-  return {
-    title,
-    content: normalizePromptLine(content, ACTION_DRAFT_CONTENT_MAX_CHARS)
-  };
-};
-
-const extractRecipientName = (text) => {
-  const safeText = normalizeActionInput(text);
-  const byLabel = extractSingleLineField(safeText, ['收件人', '接收人', 'recipient', 'to']);
-  if (byLabel) {
-    return normalizePromptLine(byLabel.replace(/^@/, ''), 40);
-  }
-
-  const normalized = stripLeadingActionPhrase(safeText);
-  const matched = normalized.match(/给\s*([^\s，,。；;:：]{1,30})\s*发(?:邮件|私信|信)/i);
-  return normalizePromptLine((matched?.[1] || '').replace(/^@/, ''), 40);
-};
-
-const buildMailDraftFromText = (text) => {
-  const safeText = normalizeActionInput(text);
-  const normalized = stripLeadingActionPhrase(safeText);
-  const recipientName = extractRecipientName(normalized);
-  const subject = extractSingleLineField(normalized, ['主题', '标题', 'subject']) || 'AI草稿私信';
-
-  let content = extractMultilineField(normalized, ['内容', '正文', 'body'], ACTION_DRAFT_CONTENT_MAX_CHARS);
-  if (!content) {
-    let fallback = normalized;
-    fallback = fallback.replace(ACTION_MAIL_TRIGGER_PATTERN, '');
-    fallback = fallback.replace(/给\s*[^\s，,。；;:：]{1,30}\s*发(?:邮件|私信|信)/ig, '');
-    fallback = fallback.replace(/(?:收件人|接收人|recipient|to)\s*[：:][^\n]+/ig, '');
-    fallback = fallback.replace(/(?:主题|标题|subject)\s*[：:][^\n]+/ig, '');
-    fallback = fallback.replace(/(?:内容|正文|body)\s*[：:]/ig, '');
-    content = normalizePromptLine(fallback, ACTION_DRAFT_CONTENT_MAX_CHARS);
-  }
-  if (!content) {
-    content = '（请在这里填写信件正文）';
-  }
-
-  return {
-    recipientName,
-    subject: normalizePromptLine(subject, ACTION_DRAFT_SUBJECT_MAX_CHARS),
-    content: normalizePromptLine(content, ACTION_DRAFT_CONTENT_MAX_CHARS)
-  };
-};
-
-const compressKnowledgeContextBlocks = (
-  blocks = [],
-  { maxChars = KNOWLEDGE_CONTEXT_MAX_CHARS, maxPerBlock = KNOWLEDGE_CONTEXT_MAX_BLOCK_CHARS } = {}
-) => {
-  const source = Array.isArray(blocks) ? blocks : [];
-  const normalizedBlocks = source
-    .map((block) => normalizePromptLine(block, maxPerBlock))
-    .filter(Boolean);
-  if (normalizedBlocks.length === 0) return '';
-
-  let merged = '';
-  for (let i = 0; i < normalizedBlocks.length; i += 1) {
-    const block = normalizedBlocks[i];
-    const candidate = merged ? `${merged}\n\n${block}` : block;
-    if (candidate.length <= maxChars) {
-      merged = candidate;
-      continue;
-    }
-    const remain = maxChars - merged.length - (merged ? 2 : 0);
-    if (remain <= 48) break;
-    const clipped = truncateText(block, remain);
-    merged = merged ? `${merged}\n\n${clipped}` : clipped;
-    break;
-  }
-
-  return merged;
-};
-
-const getGenerationProfile = (modeId, { factualQuestion = false, operationQuestion = false } = {}) => {
-  const fallback = { temperature: 0.24, top_p: 0.76, frequency_penalty: 0.08, max_tokens: 1800 };
-  const base = GENERATION_PROFILE_BY_MODE[modeId] || fallback;
-  const profile = { ...base };
-  if (factualQuestion || operationQuestion) {
-    profile.temperature = Math.min(profile.temperature, operationQuestion ? 0.14 : 0.16);
-    profile.top_p = Math.min(profile.top_p, operationQuestion ? 0.68 : 0.72);
-    profile.frequency_penalty = Math.min(profile.frequency_penalty, 0.08);
-  }
-  return profile;
-};
-
-const INTERNAL_PROGRESS_LINE_PATTERNS = [
-  /^\s*>\s*\*\*(?:正在搜索|找到|未找到|自动检索中|知识路由|已完成内部检索|未检索到匹配内部资料)\*\*.*$/u,
-  /^\s*>\s*(?:⚠️|✅|❌|⚙️)\s*\*\*.*\*\*.*$/u,
-  /^\s*>\s*\d+\.\s*\[[^\]]+\]\((?:https?:\/\/|www\.)[^)]+\)\s*$/u
-];
-
-const cleanAssistantVisibleReply = (text) => {
-  const raw = String(text || '');
-  if (!raw) return '';
-
-  const filteredLines = raw
-    .split('\n')
-    .filter((line) => !INTERNAL_PROGRESS_LINE_PATTERNS.some((pattern) => pattern.test(line)));
-
-  const compacted = [];
-  for (let i = 0; i < filteredLines.length; i += 1) {
-    const current = filteredLines[i];
-    const prev = compacted[compacted.length - 1];
-    if (current.trim() === '' && String(prev || '').trim() === '') continue;
-    compacted.push(current);
-  }
-  return compacted.join('\n').trim();
-};
-
-const normalizeCompactText = (text) => String(text || '').replace(/\s+/g, '');
-
-const normalizeEscapedLineBreaks = (text) => {
-  const raw = String(text || '');
-  const escapedBreakCount = (raw.match(/\\[rn]/g) || []).length;
-  if (escapedBreakCount < 2) return raw;
-
-  return raw
-    .replace(/\\r\\n/g, '\n')
-    .replace(/\\n/g, '\n')
-    .replace(/\\r/g, '\n');
-};
-
-const hasEscapedLineBreakFlood = (text) => {
-  const raw = String(text || '');
-  if (raw.length < 24) return false;
-
-  const escapedBreaks = raw.match(/\\[rn]/g) || [];
-  if (escapedBreaks.length >= 14) return true;
-
-  const compact = raw.replace(/\s+/g, '');
-  if (/(?:\\[rn]["'`]?){8,}/i.test(compact)) return true;
-
-  const tail = compact.slice(-DEGENERATE_STREAM_WINDOW_CHARS);
-  return /(?:\\[rn]["'`]?){6,}$/i.test(tail);
-};
-
-const isDegenerateAssistantReply = (text) => {
-  const normalized = normalizeEscapedLineBreaks(text).trim();
-  if (!normalized) return true;
-  if (hasEscapedLineBreakFlood(text)) return true;
-
-  const compact = normalizeCompactText(normalized);
-  if (!compact) return true;
-  if (new RegExp(`(.)\\1{${DEGENERATE_REPEAT_COUNT},}`, 'u').test(compact)) return true;
-  if (new RegExp(`([!！?？。．.，,、~～\\-_=+*#@%^&|/\\\\:;\`'"])\\1{${DEGENERATE_PUNCT_REPEAT_COUNT},}`, 'u').test(compact)) return true;
-
-  if (compact.length < 40) return false;
-  const punctCount = (compact.match(/[!！?？。．.，,、~～\-_=+*#@%^&|/\\:;`'"]/gu) || []).length;
-  return punctCount / compact.length >= DEGENERATE_PUNCTUATION_RATIO;
-};
-
-const isDegenerateStreamOutput = (text) => {
-  const normalized = String(text || '').trim();
-  if (!normalized) return false;
-  if (hasEscapedLineBreakFlood(normalized)) return true;
-
-  const compact = normalizeCompactText(normalized.slice(-DEGENERATE_STREAM_WINDOW_CHARS));
-  if (compact.length < DEGENERATE_STREAM_MIN_CHARS) return false;
-
-  if (new RegExp(`([!！?？。．.，,、~～\\-_=+*#@%^&|/\\\\:;\`'"])\\1{${DEGENERATE_STREAM_REPEAT_COUNT},}`, 'u').test(compact)) {
-    return true;
-  }
-
-  const punctCount = (compact.match(/[!！?？。．.，,、~～\-_=+*#@%^&|/\\:;`'"]/gu) || []).length;
-  return punctCount / compact.length >= DEGENERATE_STREAM_PUNCTUATION_RATIO;
-};
 
 export function useChatEngine() {
   const authStore = useAuthStore();
   const { isLoggedIn, userInfo } = storeToRefs(authStore);
+
+  const { state: agentClusterState, reset: resetAgentClusterState, apply: applyAgentClusterEvent } = useAgentClusterState();
 
   // State
   const chatSessions = reactive([
@@ -792,6 +232,7 @@ export function useChatEngine() {
     items: []
   });
   const sharedMemorySearchCache = new Map();
+  const actionAuditLog = ref(loadBohAIActionAuditsFromStorage());
   const pendingTreeholeCreation = reactive({
     awaitingConfirmation: false,
     userId: '',
@@ -824,8 +265,12 @@ export function useChatEngine() {
     type: '',
     userId: '',
     sessionIndex: -1,
+    awaitingIdea: false,
     postTitle: '',
     postContent: '',
+    pageType: '',
+    pageDescription: '',
+    pageHtml: '',
     mailReceiverId: '',
     mailReceiverName: '',
     mailSubject: '',
@@ -879,12 +324,16 @@ export function useChatEngine() {
     pendingActionDraft.type = '';
     pendingActionDraft.userId = '';
     pendingActionDraft.sessionIndex = -1;
+    pendingActionDraft.awaitingIdea = false;
     pendingActionDraft.postTitle = '';
     pendingActionDraft.postContent = '';
     pendingActionDraft.mailReceiverId = '';
     pendingActionDraft.mailReceiverName = '';
     pendingActionDraft.mailSubject = '';
     pendingActionDraft.mailContent = '';
+    pendingActionDraft.pageType = '';
+    pendingActionDraft.pageDescription = '';
+    pendingActionDraft.pageHtml = '';
   };
 
   const isEmptyAssistantPlaceholder = (message) => {
@@ -894,47 +343,29 @@ export function useChatEngine() {
     return !meta || Object.keys(meta).length === 0;
   };
 
-  const sanitizeChatSessionForStorage = (session = {}) => {
-    const rawMessages = Array.isArray(session.messages) ? session.messages : [];
-    const messages = rawMessages
-      .filter((message) => !isEmptyAssistantPlaceholder(message))
-      .map((message) => ({
-        ...message,
-        content: typeof message.content === 'string'
-          ? message.content
-          : String(message.content || '')
-      }));
-
-    return {
-      title: String(session.title || '新对话'),
-      messages,
-      timestamp: Number.isFinite(Number(session.timestamp)) ? Number(session.timestamp) : Date.now(),
-      isLoading: false,
-      isThinking: false
-    };
-  };
+  const sanitizeChatSessionForStorage = createBohAIChatSessionSanitizer({
+    normalizeText: (value) => normalizePromptLine(value, CONVERSATION_SUMMARY_MAX_CHARS),
+    maxSummaryChars: CONVERSATION_SUMMARY_MAX_CHARS,
+    isEmptyAssistantPlaceholder
+  });
 
   // Load sessions from local storage
   const loadSessions = () => {
-    const savedSessions = localStorage.getItem('boh_chat_sessions');
-    if (savedSessions) {
-      try {
-        const parsed = JSON.parse(savedSessions);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // 兼容旧数据：清掉生成中的瞬时状态和空白助手占位，避免刷新后白屏/发送被锁住。
-          const migratedSessions = parsed.map(sanitizeChatSessionForStorage);
-          chatSessions.splice(0, chatSessions.length, ...migratedSessions);
-        }
-      } catch (e) {
-        logger.error('boh-ai', 'Failed to load chat sessions', e);
-      }
+    const migratedSessions = loadBohAIChatSessionsFromStorage({
+      sanitizeSession: sanitizeChatSessionForStorage,
+      onError: (error) => logger.error('boh-ai', 'Failed to load chat sessions', error)
+    });
+    if (migratedSessions.length > 0) {
+      chatSessions.splice(0, chatSessions.length, ...migratedSessions);
     }
   };
 
   // Save sessions to local storage
   const saveSessions = () => {
-    const sessionsToSave = chatSessions.slice(0, 20).map(sanitizeChatSessionForStorage);
-    localStorage.setItem('boh_chat_sessions', JSON.stringify(sessionsToSave));
+    saveBohAIChatSessionsToStorage({
+      sessions: chatSessions,
+      sanitizeSession: sanitizeChatSessionForStorage
+    });
   };
   let saveDebounceTimer = null;
   let saveIdleTimer = null;
@@ -983,7 +414,9 @@ export function useChatEngine() {
       memoryCaptureStatusTimer = null;
     }
     memoryCaptureStatusMessage.value = '';
-    localStorage.removeItem('boh_chat_sessions');
+    clearBohAIChatSessionsStorage();
+    clearBohAIActionAuditsStorage();
+    actionAuditLog.value = [];
     chatSessions.splice(0, chatSessions.length, { title: '新对话', messages: [], timestamp: Date.now(), isLoading: false, isThinking: false });
     currentSessionIndex.value = 0;
     activeGenerationSessionIndex.value = null;
@@ -1050,6 +483,7 @@ export function useChatEngine() {
 
   const isCommandMode = ref(false);
   const isSearching = ref(false);
+  const isForumSearchEnabled = ref(false);
   const isMemoryCaptureEnabled = ref(
     typeof window === 'undefined' ? false : localStorage.getItem(MEMORY_CAPTURE_SETTING_KEY) === '1'
   );
@@ -1064,6 +498,20 @@ export function useChatEngine() {
   const isQuickNoteEnabled = ref(
     typeof window === 'undefined' ? false : localStorage.getItem(QUICK_NOTE_SETTING_KEY) === '1'
   );
+  const isPlanModeEnabled = ref(
+    typeof window === 'undefined' ? false : localStorage.getItem(PLAN_MODE_SETTING_KEY) === '1'
+  );
+  const normalizeResponseStyleId = (styleId) => {
+    const safeId = String(styleId || '').trim();
+    return RESPONSE_STYLE_OPTIONS.some((item) => item.id === safeId) ? safeId : 'default';
+  };
+  const currentResponseStyleId = ref(
+    normalizeResponseStyleId(typeof window === 'undefined' ? 'default' : localStorage.getItem(RESPONSE_STYLE_SETTING_KEY))
+  );
+  const currentResponseStyle = computed(() => (
+    RESPONSE_STYLE_OPTIONS.find((item) => item.id === currentResponseStyleId.value)
+    || RESPONSE_STYLE_OPTIONS[0]
+  ));
   const cloudReferenceConsent = ref(
     typeof window === 'undefined'
       ? 'unknown'
@@ -1080,6 +528,31 @@ export function useChatEngine() {
   const isTreeholeMemoryToggling = ref(false);
   const memoryCaptureStatusMessage = ref('');
   let memoryCaptureStatusTimer = null;
+
+  const persistPlanModeSetting = () => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(PLAN_MODE_SETTING_KEY, isPlanModeEnabled.value ? '1' : '0');
+  };
+
+  const togglePlanMode = () => {
+    isPlanModeEnabled.value = !isPlanModeEnabled.value;
+    persistPlanModeSetting();
+  };
+
+  const persistResponseStyleSetting = () => {
+    if (typeof window === 'undefined') return;
+    const styleId = currentResponseStyleId.value === 'default' ? '' : currentResponseStyleId.value;
+    if (styleId) {
+      localStorage.setItem(RESPONSE_STYLE_SETTING_KEY, styleId);
+    } else {
+      localStorage.removeItem(RESPONSE_STYLE_SETTING_KEY);
+    }
+  };
+
+  const setResponseStyle = (styleId) => {
+    currentResponseStyleId.value = normalizeResponseStyleId(styleId);
+    persistResponseStyleSetting();
+  };
 
   const setMemoryCaptureStatusMessage = (text) => {
     memoryCaptureStatusMessage.value = String(text || '').trim();
@@ -1116,6 +589,18 @@ export function useChatEngine() {
     )].slice(0, 4);
   };
 
+  const mergeAssistantMessageMeta = (sessionIndex, messageIndex, metaPatch = {}) => {
+    const targetSession = getSessionByIndex(sessionIndex);
+    const targetMessage = targetSession?.messages?.[messageIndex];
+    if (!targetMessage || targetMessage.role !== 'assistant') return false;
+    if (!metaPatch || typeof metaPatch !== 'object') return false;
+    targetMessage.meta = {
+      ...(targetMessage.meta && typeof targetMessage.meta === 'object' ? targetMessage.meta : {}),
+      ...metaPatch
+    };
+    return true;
+  };
+
   const updateAssistantActionNotes = (sessionIndex, messageIndex, notes = []) => {
     const targetSession = getSessionByIndex(sessionIndex);
     const targetMessage = targetSession?.messages?.[messageIndex];
@@ -1125,10 +610,7 @@ export function useChatEngine() {
       : [];
     const nextNotes = normalizeActionNotes([...currentNotes, ...normalizeActionNotes(notes)]);
     if (nextNotes.length === 0) return;
-    targetMessage.meta = {
-      ...(targetMessage.meta && typeof targetMessage.meta === 'object' ? targetMessage.meta : {}),
-      actionNotes: nextNotes
-    };
+    mergeAssistantMessageMeta(sessionIndex, messageIndex, { actionNotes: nextNotes });
   };
 
   const appendUserMessageWithTitle = (sessionIndex, text) => {
@@ -1347,6 +829,18 @@ export function useChatEngine() {
       '',
       '你可以继续发来新的收件人、主题或正文。',
       '确认后回复“确认发送”，放弃回复“取消”。'
+    ].join('\n');
+  };
+
+  const formatPageDraftPreview = () => {
+    return [
+      '我已为你生成网页代码。',
+      `页面类型：${pendingActionDraft.pageType || '展示页'}`,
+      '',
+      pendingActionDraft.pageHtml || '（正在生成代码...）',
+      '',
+      '你可以继续描述修改要求。',
+      '确认后回复"发送到创作工作台"进入可视化编辑，或直接复制代码。'
     ].join('\n');
   };
 
@@ -1619,12 +1113,25 @@ export function useChatEngine() {
 
   const runRegisteredAction = async (actionId, payload = {}) => {
     const registry = createActionRegistry();
-    return runBohAIAction({
+    const auth = getActionAuthContext();
+    const result = await runBohAIAction({
       action: registry[actionId],
       payload,
-      auth: getActionAuthContext(),
+      auth,
       logger
     });
+    const audit = createBohAIActionAuditEntry({ result, payload, auth });
+    actionAuditLog.value = appendBohAIActionAudit({
+      audits: actionAuditLog.value,
+      entry: audit
+    });
+    return {
+      ...result,
+      metadata: {
+        ...(result.metadata && typeof result.metadata === 'object' ? result.metadata : {}),
+        audit
+      }
+    };
   };
 
   const submitPostDraft = async (sessionIndex) => {
@@ -1646,7 +1153,7 @@ export function useChatEngine() {
       sessionIndex,
       'assistant',
       result.message || '帖子已发布成功，系统将异步完成内容审查。',
-      { kind: 'action_committed' }
+      { kind: 'action_committed', actionAudit: result.metadata?.audit || null }
     );
 
   };
@@ -1674,7 +1181,12 @@ export function useChatEngine() {
     }
 
     resetPendingActionDraft();
-    appendSessionMessage(sessionIndex, 'assistant', result.message || `私信已成功发送给 ${receiverName}。`, { kind: 'action_committed' });
+    appendSessionMessage(
+      sessionIndex,
+      'assistant',
+      result.message || `私信已成功发送给 ${receiverName}。`,
+      { kind: 'action_committed', actionAudit: result.metadata?.audit || null }
+    );
   };
 
   const handlePendingActionDraftReply = async (rawText) => {
@@ -1699,13 +1211,76 @@ export function useChatEngine() {
     resetComposerInput();
 
     if (isActionDraftCancelIntent(safeText)) {
-      const draftTypeLabel = pendingActionDraft.type === 'mail' ? '私信' : '发帖';
+      const draftTypeLabel = pendingActionDraft.type === 'mail' ? '私信' : pendingActionDraft.type === 'page' ? '网页草稿' : '发帖';
       resetPendingActionDraft();
       appendSessionMessage(currentSession, 'assistant', `好的，已取消本次${draftTypeLabel}草稿。`);
       return true;
     }
 
     if (pendingActionDraft.type === 'post') {
+      if (pendingActionDraft.awaitingIdea) {
+        targetSession.isLoading = true;
+        targetSession.isThinking = true;
+        activeGenerationSessionIndex.value = currentSession;
+        startThinkingTimer();
+        setThinkingStatus('正在根据你的想法整理发帖草稿...');
+
+        const draftController = new AbortController();
+        abortController.value = draftController;
+        const draftMessageIndex = targetSession.messages.length;
+        targetSession.messages.push({
+          role: 'assistant',
+          content: '正在整理发帖草稿...'
+        });
+        await nextTick();
+        scrollToBottom();
+
+        const updateDraftMessage = (content, meta = null) => {
+          const latestSession = getSessionByIndex(currentSession);
+          const targetMessage = latestSession?.messages?.[draftMessageIndex];
+          if (!targetMessage || targetMessage.role !== 'assistant') return;
+          targetMessage.content = String(content || '').trim();
+          if (meta && typeof meta === 'object') {
+            targetMessage.meta = meta;
+          } else if (targetMessage.meta) {
+            delete targetMessage.meta;
+          }
+          nextTick(() => scrollToBottom());
+        };
+
+        try {
+          const draft = await generatePostDraftFromUserIdea(safeText, draftController.signal);
+          if (draft.needsIdea) {
+            pendingActionDraft.awaitingIdea = true;
+            updateDraftMessage('我还需要一点具体想法，比如想吐槽什么、分享什么、问大家什么。你可以直接发一句原始想法，我会只按你的内容整理成标题和正文，不联网搜索。');
+            return true;
+          }
+
+          pendingActionDraft.awaitingIdea = false;
+          pendingActionDraft.postTitle = draft.title;
+          pendingActionDraft.postContent = draft.content;
+          updateDraftMessage(formatPostDraftPreview(), { kind: 'action_draft_preview' });
+        } catch (error) {
+          resetPendingActionDraft();
+          updateDraftMessage(error?.name === 'AbortError' ? '已停止整理发帖草稿。' : '发帖草稿生成失败，请稍后再试。');
+        } finally {
+          const latestSession = getSessionByIndex(currentSession);
+          if (latestSession) {
+            latestSession.isLoading = false;
+            latestSession.isThinking = false;
+          }
+          if (activeGenerationSessionIndex.value === currentSession) {
+            activeGenerationSessionIndex.value = null;
+          }
+          if (abortController.value === draftController) {
+            abortController.value = null;
+          }
+          clearThinkingStatus();
+          stopThinkingTimer();
+        }
+        return true;
+      }
+
       if (isPostDraftConfirmIntent(safeText)) {
         await submitPostDraft(currentSession);
         return true;
@@ -1734,6 +1309,49 @@ export function useChatEngine() {
         appendSessionMessage(currentSession, 'assistant', formatMailDraftPreview(), { kind: 'action_draft_preview' });
       } else if (!updateResult.feedback) {
         appendSessionMessage(currentSession, 'assistant', '我没识别到可更新字段。你可以直接发来新的收件人、主题或正文。');
+      }
+      return true;
+    }
+
+    if (pendingActionDraft.type === 'page') {
+      const safeText = String(rawText || '').trim();
+      pendingActionDraft.pageDescription = safeText;
+      pendingActionDraft.pageHtml = '';
+
+      const targetSession = getSessionByIndex(currentSession);
+      if (targetSession) {
+        targetSession.isLoading = true;
+        targetSession.isThinking = true;
+        activeGenerationSessionIndex.value = currentSession;
+        startThinkingTimer();
+        setThinkingStatus('正在根据你的修改要求重新生成网页...');
+      }
+
+      const draftController = new AbortController();
+      abortController.value = draftController;
+
+      try {
+        const generatedHtml = await generatePageHtmlFromUserIdea({
+          pageType: pendingActionDraft.pageType,
+          description: pendingActionDraft.pageDescription
+        }, draftController.signal);
+        pendingActionDraft.pageHtml = generatedHtml;
+        appendSessionMessage(currentSession, 'assistant', formatPageDraftPreview(), { kind: 'action_draft_preview' });
+      } catch (error) {
+        appendSessionMessage(currentSession, 'assistant', error?.name === 'AbortError' ? '已停止生成网页。' : '网页修改失败，请稍后再试。');
+      } finally {
+        if (targetSession) {
+          targetSession.isLoading = false;
+          targetSession.isThinking = false;
+        }
+        if (activeGenerationSessionIndex.value === currentSession) {
+          activeGenerationSessionIndex.value = null;
+        }
+        if (abortController.value === draftController) {
+          abortController.value = null;
+        }
+        clearThinkingStatus();
+        stopThinkingTimer();
       }
       return true;
     }
@@ -1773,11 +1391,66 @@ export function useChatEngine() {
     pendingActionDraft.sessionIndex = sessionIndex;
 
     if (wantsPostDraft) {
-      const draft = buildPostDraftFromText(safeText);
       pendingActionDraft.type = 'post';
-      pendingActionDraft.postTitle = draft.title;
-      pendingActionDraft.postContent = draft.content;
-      appendSessionMessage(sessionIndex, 'assistant', formatPostDraftPreview(), { kind: 'action_draft_preview' });
+      targetSession.isLoading = true;
+      targetSession.isThinking = true;
+      activeGenerationSessionIndex.value = sessionIndex;
+      startThinkingTimer();
+      setThinkingStatus('正在根据你的想法整理发帖草稿...');
+
+      const draftController = new AbortController();
+      abortController.value = draftController;
+      const draftMessageIndex = targetSession.messages.length;
+      targetSession.messages.push({
+        role: 'assistant',
+        content: '正在整理发帖草稿...'
+      });
+      await nextTick();
+      scrollToBottom();
+
+      const updateDraftMessage = (content, meta = null) => {
+        const latestSession = getSessionByIndex(sessionIndex);
+        const targetMessage = latestSession?.messages?.[draftMessageIndex];
+        if (!targetMessage || targetMessage.role !== 'assistant') return;
+        targetMessage.content = String(content || '').trim();
+        if (meta && typeof meta === 'object') {
+          targetMessage.meta = meta;
+        } else if (targetMessage.meta) {
+          delete targetMessage.meta;
+        }
+        nextTick(() => scrollToBottom());
+      };
+
+      try {
+        const draft = await generatePostDraftFromUserIdea(safeText, draftController.signal);
+        if (draft.needsIdea) {
+          pendingActionDraft.awaitingIdea = true;
+          updateDraftMessage('可以，先把你想发布到论坛的想法发给我；我会自动整理成标题和正文，然后弹出可编辑的发帖草稿框。');
+          return true;
+        }
+
+        pendingActionDraft.awaitingIdea = false;
+        pendingActionDraft.postTitle = draft.title;
+        pendingActionDraft.postContent = draft.content;
+        updateDraftMessage(formatPostDraftPreview(), { kind: 'action_draft_preview' });
+      } catch (error) {
+        resetPendingActionDraft();
+        updateDraftMessage(error?.name === 'AbortError' ? '已停止整理发帖草稿。' : '发帖草稿生成失败，请稍后再试。');
+      } finally {
+        const latestSession = getSessionByIndex(sessionIndex);
+        if (latestSession) {
+          latestSession.isLoading = false;
+          latestSession.isThinking = false;
+        }
+        if (activeGenerationSessionIndex.value === sessionIndex) {
+          activeGenerationSessionIndex.value = null;
+        }
+        if (abortController.value === draftController) {
+          abortController.value = null;
+        }
+        clearThinkingStatus();
+        stopThinkingTimer();
+      }
       return true;
     }
 
@@ -1805,6 +1478,146 @@ export function useChatEngine() {
     return true;
   };
 
+  const tryStartPageCreationFromUserInput = async (rawText, sessionIndex) => {
+    const safeText = String(rawText || '').trim();
+    if (!safeText) return false;
+    if (pendingActionDraft.active) return false;
+    if (!isCreatePageRequest(safeText)) return false;
+
+    const targetSession = getSessionByIndex(sessionIndex);
+    if (!targetSession) return false;
+
+    appendUserMessageWithTitle(sessionIndex, safeText);
+    resetComposerInput();
+
+    if (!isLoggedIn.value || !userInfo.value?.id) {
+      appendSessionMessage(sessionIndex, 'assistant', '请先登录，登录后我就可以帮你生成网页代码。');
+      return true;
+    }
+
+    const pageDraft = buildPageDraftFromText(safeText);
+    const userId = String(userInfo.value?.id || '').trim();
+    pendingActionDraft.active = true;
+    pendingActionDraft.userId = userId;
+    pendingActionDraft.sessionIndex = sessionIndex;
+    pendingActionDraft.type = 'page';
+    pendingActionDraft.pageType = pageDraft.pageType;
+    pendingActionDraft.pageDescription = pageDraft.description;
+    pendingActionDraft.pageHtml = '';
+
+    targetSession.isLoading = true;
+    targetSession.isThinking = true;
+    activeGenerationSessionIndex.value = sessionIndex;
+    startThinkingTimer();
+    setThinkingStatus('正在根据你的描述生成网页...');
+
+    const draftController = new AbortController();
+    abortController.value = draftController;
+    const draftMessageIndex = targetSession.messages.length;
+    targetSession.messages.push({
+      role: 'assistant',
+      content: '正在生成网页代码...'
+    });
+    await nextTick();
+    scrollToBottom();
+
+    const updateDraftMessage = (content, meta = null) => {
+      const latestSession = getSessionByIndex(sessionIndex);
+      const targetMessage = latestSession?.messages?.[draftMessageIndex];
+      if (!targetMessage || targetMessage.role !== 'assistant') return;
+      targetMessage.content = String(content || '').trim();
+      if (meta && typeof meta === 'object') {
+        targetMessage.meta = meta;
+      } else if (targetMessage.meta) {
+        delete targetMessage.meta;
+      }
+      nextTick(() => scrollToBottom());
+    };
+
+    try {
+      const generatedHtml = await generatePageHtmlFromUserIdea(pageDraft, draftController.signal);
+      pendingActionDraft.pageHtml = generatedHtml;
+      updateDraftMessage(formatPageDraftPreview(), { kind: 'action_draft_preview' });
+    } catch (error) {
+      resetPendingActionDraft();
+      updateDraftMessage(error?.name === 'AbortError' ? '已停止生成网页。' : '网页生成失败，请稍后再试。');
+    } finally {
+      const latestSession = getSessionByIndex(sessionIndex);
+      if (latestSession) {
+        latestSession.isLoading = false;
+        latestSession.isThinking = false;
+      }
+      if (activeGenerationSessionIndex.value === sessionIndex) {
+        activeGenerationSessionIndex.value = null;
+      }
+      if (abortController.value === draftController) {
+        abortController.value = null;
+      }
+      clearThinkingStatus();
+      stopThinkingTimer();
+    }
+    return true;
+  };
+
+  const generatePageHtmlFromUserIdea = async (pageDraft, requestSignal = undefined) => {
+    try {
+      const htmlResponse = await callAIToGenerate({
+        systemPrompt: [
+          BASE_SYSTEM_PROMPT,
+          PAGE_CREATION_PROMPT_APPENDIX
+        ].filter(Boolean).join('\n'),
+        userInput: [
+          `请帮我生成一个${pageDraft.pageType}的网页HTML代码。`,
+          `要求：${pageDraft.description}`,
+          '',
+          '请直接输出完整可用的 HTML 片段（含内联 CSS），不包含 <html>/<head>/<body> 标签。',
+          '使用 BOH Creator Studio 兼容的样式风格。'
+        ].join('\n'),
+        modeId: 'pro',
+        signal: requestSignal
+      });
+      const code = extractHtmlBlock(htmlResponse);
+      return code || htmlResponse;
+    } catch (error) {
+      if (error?.name === 'AbortError') throw error;
+      throw new Error('AI 生成网页失败：' + (error.message || '未知错误'));
+    }
+  };
+
+  const extractHtmlBlock = (text) => {
+    const match = String(text || '').match(/```html\n([\s\S]*?)```/);
+    if (match) return match[1].trim();
+    const styleMatch = text.match(/<section[\s\S]*?(?:<\/section>\s*)*<style>[\s\S]*?<\/style>/);
+    if (styleMatch) return styleMatch[0].trim();
+    const sectionMatch = text.match(/<section[\s\S]*?(?:<\/section>[\s\S]*?)*(?:<\/style>)?/);
+    if (sectionMatch) return sectionMatch[0].trim();
+    return text.trim();
+  };
+
+  const callAIToGenerate = async ({ systemPrompt, userInput, modeId = 'pro', signal = undefined }) => {
+    const profile = getGenerationProfile(modeId);
+    try {
+      const response = await callModelInternal(
+        profile.defaultModel || 'Qwen/Qwen3.5-4B',
+        userInput,
+        systemPrompt,
+        [],
+        signal,
+        0,
+        {
+          temperature: profile.temperature ?? 0.22,
+          top_p: profile.top_p ?? 0.75,
+          frequency_penalty: profile.frequency_penalty ?? 0.08,
+          max_tokens: 2048
+        }
+      );
+      return response;
+    } catch (error) {
+      if (error?.name === 'AbortError') throw error;
+      throw new Error('AI 生成失败：' + (error.message || '未知错误'));
+    }
+  };
+
   const activeActionDraft = computed(() => {
     if (!pendingActionDraft.active) return null;
     if (pendingActionDraft.sessionIndex !== currentSessionIndex.value) return null;
@@ -1817,7 +1630,10 @@ export function useChatEngine() {
       mailReceiverId: pendingActionDraft.mailReceiverId,
       mailReceiverName: pendingActionDraft.mailReceiverName,
       mailSubject: pendingActionDraft.mailSubject,
-      mailContent: pendingActionDraft.mailContent
+      mailContent: pendingActionDraft.mailContent,
+      pageType: pendingActionDraft.pageType,
+      pageDescription: pendingActionDraft.pageDescription,
+      pageHtml: pendingActionDraft.pageHtml
     };
   });
 
@@ -1900,6 +1716,10 @@ export function useChatEngine() {
     }
     if (pendingActionDraft.type === 'mail') {
       await submitMailDraft(sessionIndex);
+      return true;
+    }
+    if (pendingActionDraft.type === 'page') {
+      resetPendingActionDraft();
       return true;
     }
     return false;
@@ -2501,6 +2321,12 @@ export function useChatEngine() {
     }
   });
 
+  watch(isForumSearchEnabled, (enabled) => {
+    if (enabled && isCommandMode.value) {
+      isCommandMode.value = false;
+    }
+  });
+
   // Rate Limiting
   const lastMessageTime = ref(0);
   const messageCount = ref(0);
@@ -2551,6 +2377,33 @@ export function useChatEngine() {
     }
   };
 
+  const sleep = (ms) => new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+  const animateAssistantContent = async (text, updateContent, {
+    requestSignal = undefined,
+    charDelayMs = 12,
+    chunkSize = 2
+  } = {}) => {
+    const content = String(text || '');
+    if (!content) {
+      updateContent('');
+      return;
+    }
+
+    const chars = Array.from(content);
+    let visible = '';
+    for (let index = 0; index < chars.length; index += chunkSize) {
+      if (requestSignal?.aborted) {
+        throw new DOMException('Animation aborted', 'AbortError');
+      }
+      visible += chars.slice(index, index + chunkSize).join('');
+      updateContent(visible);
+      await sleep(charDelayMs);
+    }
+  };
+
   // Session Management
   const startNewChat = () => {
     chatSessions.unshift({
@@ -2563,6 +2416,7 @@ export function useChatEngine() {
     currentSessionIndex.value = 0;
     isCommandMode.value = false; // Reset modes
     isSearching.value = false;
+    isForumSearchEnabled.value = false;
     currentModeId.value = BOH_AUTO_MODE_ID;
   };
 
@@ -2866,6 +2720,7 @@ export function useChatEngine() {
         requestSignal: activeCommandSignal,
         modelId: commandModel.id
       });
+      void refreshConversationSummaryCache(sessionIndex);
 
     } catch (error) {
       if (error.name === 'AbortError') {
@@ -2960,7 +2815,8 @@ export function useChatEngine() {
 
       if (!response.ok) throw new Error(`API Error: ${response.status}`);
       const data = await response.json();
-      return data.choices[0].message.content;
+      const message = data?.choices?.[0]?.message || {};
+      return safeChunkToString(message.content || message.reasoning_content || '');
     } catch (error) {
       if (retryCount < 1 && error.name !== 'AbortError') {
         logger.warn('boh-ai', `Model ${modelId} failed, trying fallback`, error);
@@ -2981,6 +2837,78 @@ export function useChatEngine() {
     }
   };
 
+  const generatePostDraftFromUserIdea = async (rawText, requestSignal = undefined) => {
+    const fallbackDraft = buildPostDraftFromText(rawText);
+    if (!hasPostDraftUserIdea(rawText, fallbackDraft)) {
+      return { ...fallbackDraft, needsIdea: true };
+    }
+
+    const draftModel = availableModels.find((item) => item.id === 'Qwen/Qwen2.5-7B-Instruct')
+      || getModelForModeId('fast')
+      || availableModels[0];
+    if (!draftModel?.id) {
+      return { ...fallbackDraft, needsIdea: false };
+    }
+
+    try {
+      const raw = await callModelInternal(
+        draftModel.id,
+        [
+          '请根据用户的真实想法生成一份“论坛发帖草稿”，必须体现“AI 提炼标题”和“AI 改写正文”。',
+          '只输出 JSON，不要解释，不要 Markdown。',
+          '',
+          '字段：',
+          '- needsIdea: boolean。如果用户只说要发帖/起草，但没有给出具体想法，设为 true。',
+          '- title: string。你提炼后的论坛标题，清楚自然，最多 32 个中文字符。',
+          '- content: string。你改写后的论坛正文，使用第一人称或自然口吻，保留用户原本态度和事实。',
+          '',
+          '规则：',
+          '1. 必须严格基于用户消息，不要添加原文没有的事实、时间、人物、结论或夸张细节。',
+          '2. 不要把“小”写成“大”，不要把“喜欢”写成“不喜欢”，不要改反用户态度。',
+          '3. 如果用户只是让你“起草标题和正文”但没给想法，needsIdea=true，title/content 留空。',
+          '4. 标题不能复制用户整句指令，不能包含“AI草稿/帮我/请帮我/发帖/起草”等操作词。',
+          '5. 正文不能只是复述用户指令，要改写成用户可直接发布的帖子正文，通常 2-4 句话。',
+          '6. 正文不要像公告，不要说“AI认为”，不要声称已经发布。',
+          '',
+          '输出示例：{"needsIdea":false,"title":"上传图片安全检测一直加载怎么办","content":"我想和大家请教一下：上传图片时安全检测一直加载，页面迟迟没有下一步。有没有人遇到过类似情况，通常是什么原因导致的？也欢迎分享一下处理办法。"}',
+          '',
+          `用户消息：${truncateText(rawText, 1200)}`
+        ].join('\n'),
+        '你是 BOH AI 的论坛草稿整理器。你只输出严格 JSON。',
+        [],
+        requestSignal,
+        0,
+        { max_tokens: 700, temperature: 0.08, top_p: 0.5, frequency_penalty: 0.04 }
+      );
+
+      const parsed = _safeJsonParse(String(raw || '').trim());
+      if (parsed?.needsIdea === true) {
+        return { ...fallbackDraft, needsIdea: true };
+      }
+
+      const parsedTitle = normalizePromptLine(parsed?.title, ACTION_DRAFT_TITLE_MAX_CHARS);
+      const content = normalizePromptLine(parsed?.content, ACTION_DRAFT_CONTENT_MAX_CHARS)
+        || fallbackDraft.content;
+      const title = isWeakPostDraftTitle(parsedTitle, rawText, content)
+        ? fallbackDraft.title
+        : parsedTitle;
+
+      if (!title || !content || POST_DRAFT_PLACEHOLDER_PATTERN.test(content)) {
+        return { ...fallbackDraft, needsIdea: !hasPostDraftUserIdea(rawText, fallbackDraft) };
+      }
+
+      return {
+        title,
+        content,
+        needsIdea: false
+      };
+    } catch (error) {
+      if (error?.name === 'AbortError') throw error;
+      logger.warn('boh-ai', 'AI 发帖草稿生成失败，使用本地草稿兜底', error);
+      return { ...fallbackDraft, needsIdea: !hasPostDraftUserIdea(rawText, fallbackDraft) };
+    }
+  };
+
   const normalizeAutoClassifierBoolean = (value) => value === true || value === 'true' || value === 1 || value === '1';
 
   const createNeutralAutoDecision = () => ({
@@ -2988,6 +2916,7 @@ export function useChatEngine() {
     codeOrCommand: false,
     minecraftCommand: false,
     dailySummary: false,
+    planMode: false,
     bohInternalFactual: false,
     complexQuestion: false,
     communityMemoryShare: false,
@@ -3012,9 +2941,24 @@ export function useChatEngine() {
     })
   });
 
-  const shouldAskModelForAutoDecision = (userText) => {
+  const shouldAskModelForAutoDecision = (userText, fallback = null) => {
     const normalized = normalizePromptLine(userText, 1000);
     if (!normalized) return false;
+    if (fallback && Number(fallback.confidence || 0) >= 0.92) {
+      const hardRouted = fallback.codeOrCommand
+        || fallback.minecraftCommand
+        || fallback.dailySummary
+        || fallback.planMode
+        || fallback.shouldReferenceCloud
+        || fallback.shouldSearchWeb
+        || fallback.shouldSaveCloud
+        || fallback.shouldSaveSharedMemory
+        || fallback.shouldAskMemoryDestination;
+      if (hardRouted) return false;
+    }
+    if (normalized.length <= 28 && !/[?？]/.test(normalized)) {
+      return false;
+    }
     return true;
   };
 
@@ -3034,6 +2978,20 @@ export function useChatEngine() {
 
   const sanitizeAutoDecisionForUserText = (decision, userText) => {
     if (!decision) return decision;
+    if (isPostDraftRequest(userText)) {
+      return {
+        ...decision,
+        shouldSearchWeb: false,
+        shouldSaveCloud: false,
+        shouldSaveSharedMemory: false,
+        saveDestination: 'none',
+        shouldAskMemoryDestination: false,
+        shouldAskSharedMemory: false,
+        actionNotes: normalizeActionNotes(
+          (decision.actionNotes || []).filter((note) => !/联网|搜索|记忆|保存|写入/.test(String(note || '')))
+        )
+      };
+    }
     const explicitSave = hasExplicitAutoSaveIntent(userText);
     if (explicitSave || !isLookupOrSummaryRequest(userText)) return decision;
 
@@ -3063,10 +3021,10 @@ export function useChatEngine() {
     return 'none';
   };
 
-  const AUTO_MODE_RANK = { fast: 1, think: 2, pro: 3 };
+  const AUTO_MODE_RANK = { fast: 1, think: 2, plan: 3, pro: 4 };
   const pickMoreCapableAutoMode = (left = 'fast', right = 'fast') => {
-    const safeLeft = ['fast', 'think', 'pro'].includes(left) ? left : 'fast';
-    const safeRight = ['fast', 'think', 'pro'].includes(right) ? right : 'fast';
+    const safeLeft = ['fast', 'think', 'plan', 'pro'].includes(left) ? left : 'fast';
+    const safeRight = ['fast', 'think', 'plan', 'pro'].includes(right) ? right : 'fast';
     return (AUTO_MODE_RANK[safeLeft] >= AUTO_MODE_RANK[safeRight]) ? safeLeft : safeRight;
   };
 
@@ -3080,6 +3038,7 @@ export function useChatEngine() {
       'codeOrCommand',
       'minecraftCommand',
       'dailySummary',
+      'planMode',
       'complexQuestion',
       'shouldSearchWeb',
       'shouldReferenceCloud',
@@ -3100,6 +3059,8 @@ export function useChatEngine() {
 
     if (merged.codeOrCommand || merged.minecraftCommand) {
       merged.modeId = 'pro';
+    } else if (merged.planMode) {
+      merged.modeId = pickMoreCapableAutoMode(merged.modeId, 'plan');
     } else if (
       merged.dailySummary
       || merged.complexQuestion
@@ -3125,7 +3086,7 @@ export function useChatEngine() {
 
   const resolveAutoModeDecisionWithFastModel = async (userText, requestSignal = undefined) => {
     const fallback = resolveAutoModeDecisionLocally(userText);
-    if (!shouldAskModelForAutoDecision(userText)) {
+    if (!shouldAskModelForAutoDecision(userText, fallback)) {
       return sanitizeAutoDecisionForUserText(fallback, userText);
     }
 
@@ -3140,10 +3101,11 @@ export function useChatEngine() {
           '只输出 JSON，不要解释，不要 Markdown。',
           '',
           '字段要求：',
-          '- modeId: "fast" | "think" | "pro"',
+          '- modeId: "fast" | "think" | "plan" | "pro"',
           '- codeOrCommand: boolean，代码、报错、编程、SQL、终端命令、Minecraft 指令等为 true',
           '- minecraftCommand: boolean，仅 Minecraft/我的世界指令需求为 true',
           '- dailySummary: boolean，总结/复盘“我的最近日常、生活、状态、Cloud+记录”等为 true',
+          '- planMode: boolean，用户需要持续推进、分阶段计划、里程碑、风险跟进、任务拆解、先计划再执行或降低幻觉率时为 true',
           '- complexQuestion: boolean，复杂方案、设计、优化、深度分析、推理、排查为 true',
           '- communityMemoryShare: boolean，用户在陈述/分享方块之家社群事实、成员事件、活动经过，且不是提问时为 true',
           '- shouldSearchWeb: boolean，用户需要外部世界资料时为 true，包括实时信息、新闻、官网资料、价格、政策法规、版本、天气、赛程比分、健康/医学/营养/补剂/训练安全、通用事实、产品、软件/API/技术文档、研究资料等；BOH 站内/Cloud+/公共记忆/用户私域问题不要设为 true',
@@ -3156,18 +3118,20 @@ export function useChatEngine() {
           '',
           '路由规则：',
           '1. codeOrCommand 或 minecraftCommand 为 true 时，modeId 必须是 "pro"。',
-          '2. dailySummary、complexQuestion、shouldReferenceCloud、shouldSearchWeb 为 true 时，modeId 至少必须是 "think"，除非同时是 codeOrCommand。',
-          '3. 普通闲聊和简单问答用 "fast"。',
-          '4. 涉及写入 Cloud+ 或公共记忆时，只做判断，不要代替用户确认。',
-          '5. 如果用户在分享社群事实但没有明确说存到哪里，shouldAskMemoryDestination=true，saveDestination="ask"。',
-          '6. 如果用户明确说“同时上传/两边都存/Cloud+和公共记忆都保存”，saveDestination="both"。',
-          '7. 只要问题明显和 BOH 记忆库、Cloud+、论坛/社区、用户私域、站点操作无关，而是在问外部世界/通用知识/专业建议，就必须设 shouldSearchWeb=true，不要硬走记忆库。',
-          '8. 外部实时信息、健康/医学/营养/补剂/训练安全、产品/软件/API/技术文档、研究资料、法律政策、旅游学校等外部问题都设 shouldSearchWeb=true。',
-          '9. BOH 站内资料、用户私有资料和公共记忆优先走内部检索，不要联网，除非用户明确要求官网/外部/网上资料。',
-          '10. “总结/复盘/看看/查询/说说论坛或社区最近发生的事、最新动态、热帖、公告”是读取和回答请求，不是保存请求；这类消息 shouldSaveCloud=false、shouldSaveSharedMemory=false、shouldAskMemoryDestination=false。',
-          '11. 只有用户明确表达“保存/存到/写入/记录到/加入 Cloud+ 或公共记忆”，或用户是在陈述一条新的社群事实而不是提问/总结请求，才可以触发保存相关字段。',
-          '12. 用户要求你“判断/选择/权衡/比较/给方案/排查/优化/分析原因/要不要/该不该/值不值得/怎么处理”时，complexQuestion=true，modeId="think"。',
-          '13. 用户只要贴了报错、代码片段、SQL、终端输出、API 字段、前端组件/样式问题，codeOrCommand=true，modeId="pro"。',
+          '2. planMode 为 true 时，modeId 必须是 "plan"，除非同时是 codeOrCommand。',
+          '3. dailySummary、complexQuestion、shouldReferenceCloud、shouldSearchWeb 为 true 时，modeId 至少必须是 "think"，除非同时是 codeOrCommand 或 planMode。',
+          '4. 普通闲聊和简单问答用 "fast"。',
+          '5. 涉及写入 Cloud+ 或公共记忆时，只做判断，不要代替用户确认。',
+          '6. 如果用户在分享社群事实但没有明确说存到哪里，shouldAskMemoryDestination=true，saveDestination="ask"。',
+          '7. 如果用户明确说“同时上传/两边都存/Cloud+和公共记忆都保存”，saveDestination="both"。',
+          '8. 只要问题明显和 BOH 记忆库、Cloud+、论坛/社区、用户私域、站点操作无关，而是在问外部世界/通用知识/专业建议，就必须设 shouldSearchWeb=true，不要硬走记忆库。',
+          '9. 外部实时信息、健康/医学/营养/补剂/训练安全、产品/软件/API/技术文档、研究资料、法律政策、旅游学校等外部问题都设 shouldSearchWeb=true。',
+          '10. BOH 站内资料、用户私有资料和公共记忆优先走内部检索，不要联网，除非用户明确要求官网/外部/网上资料。',
+          '11. “总结/复盘/看看/查询/说说论坛或社区最近发生的事、最新动态、热帖、公告”是读取和回答请求，不是保存请求；这类消息 shouldSaveCloud=false、shouldSaveSharedMemory=false、shouldAskMemoryDestination=false。',
+          '12. 只有用户明确表达“保存/存到/写入/记录到/加入 Cloud+ 或公共记忆”，或用户是在陈述一条新的社群事实而不是提问/总结请求，才可以触发保存相关字段。',
+          '13. “起草/写/生成/整理/发布/发一条论坛帖子/论坛发布文案/发帖”是论坛发帖动作，不是 Cloud+ 保存；shouldSaveCloud=false、shouldSaveSharedMemory=false、shouldAskMemoryDestination=false。',
+          '14. 用户要求你“判断/选择/权衡/比较/给方案/排查/优化/分析原因/要不要/该不该/值不值得/怎么处理”时，complexQuestion=true，modeId="think"；如果同时要求持续推进、阶段计划、里程碑或下一步行动，则 planMode=true，modeId="plan"。',
+          '15. 用户只要贴了报错、代码片段、SQL、终端输出、API 字段、前端组件/样式问题，codeOrCommand=true，modeId="pro"。',
           '',
           `用户消息：${truncateText(userText, 900)}`
         ].join('\n'),
@@ -3184,10 +3148,11 @@ export function useChatEngine() {
       }
 
       const modelDecision = {
-        modeId: ['fast', 'think', 'pro'].includes(parsed?.modeId) ? parsed.modeId : fallback.modeId,
+        modeId: ['fast', 'think', 'plan', 'pro'].includes(parsed?.modeId) ? parsed.modeId : fallback.modeId,
         codeOrCommand: normalizeAutoClassifierBoolean(parsed?.codeOrCommand),
         minecraftCommand: normalizeAutoClassifierBoolean(parsed?.minecraftCommand),
         dailySummary: normalizeAutoClassifierBoolean(parsed?.dailySummary),
+        planMode: normalizeAutoClassifierBoolean(parsed?.planMode),
         complexQuestion: normalizeAutoClassifierBoolean(parsed?.complexQuestion),
         communityMemoryShare: normalizeAutoClassifierBoolean(parsed?.communityMemoryShare),
         shouldSearchWeb: normalizeAutoClassifierBoolean(parsed?.shouldSearchWeb),
@@ -3212,6 +3177,8 @@ export function useChatEngine() {
 
       if (decision.codeOrCommand || decision.minecraftCommand) {
         decision.modeId = 'pro';
+      } else if (decision.planMode) {
+        decision.modeId = pickMoreCapableAutoMode(decision.modeId, 'plan');
       } else if (decision.dailySummary || decision.complexQuestion || decision.shouldReferenceCloud || decision.shouldSearchWeb || decision.bohInternalFactual) {
         decision.modeId = pickMoreCapableAutoMode(decision.modeId, 'think');
       } else {
@@ -3231,6 +3198,14 @@ export function useChatEngine() {
   const safeChunkToString = (value) => {
     if (value === null || value === undefined) return ''
     if (typeof value === 'string') return value
+    if (Array.isArray(value)) {
+      return value.map((item) => {
+        if (typeof item === 'string') return item
+        if (item?.type === 'text') return item.text || ''
+        if (item?.text) return item.text
+        return safeChunkToString(item)
+      }).join('')
+    }
     if (typeof value === 'object') {
       try {
         return JSON.stringify(value)
@@ -3491,7 +3466,8 @@ export function useChatEngine() {
   const shouldUseForumPosts = (text) => {
     const normalized = normalizeText(text);
     const forumKeywords = [
-      '论坛', '帖子', '发帖', '热帖', '最新', '最近', '动态', '讨论', '公告', '活动', '大家在聊'
+      '论坛', '帖子', '发帖', '热帖', '最新', '最近', '动态', '讨论', '公告', '活动', '大家在聊',
+      '社区搜索', '社区检索', '搜帖子', '找帖子', '查看帖子', '有哪些帖子', '有人聊', '大家聊'
     ];
     const asksRealtime = /(现在|最近|最新|今天|近期)/.test(normalized) && isCommunityQuestion(normalized);
     if (isOperationQuestion(normalized)) return false;
@@ -3953,40 +3929,335 @@ export function useChatEngine() {
     const keywords = extractQueryKeywords(queryText);
     return [...posts]
       .map((post) => {
-        const content = String(post?.content || '');
-        const parsed = parsePostTitleAndBody(content);
-        const merged = `${parsed.title}\n${parsed.body}`;
+        const parsed = getPostTitleAndBody(post);
+        const merged = [
+          parsed.title,
+          parsed.body,
+          post?.author_username,
+          post?.tagLabel,
+          post?.tag
+        ].join('\n');
         return {
           post,
-          score: scoreChunk(merged, keywords)
+          score: scoreChunk(merged, keywords) + Number(post?.search_rank || 0) * 10
         };
       })
-      .sort((a, b) => b.score - a.score)
+      .sort((a, b) => b.score - a.score || new Date(b.post?.created_at || 0) - new Date(a.post?.created_at || 0))
       .map((item) => item.post);
+  };
+
+  const getForumTagFilterFromQuery = (queryText = '') => {
+    const normalized = normalizeText(queryText);
+    if (/(服务器|server|服主|开服|联机)/.test(normalized)) return 'server';
+    if (/(活动|报名|赛事|周年|庆典|event)/.test(normalized)) return 'activity';
+    if (/(提问|问题|求助|怎么|如何|为什么|question)/.test(normalized)) return 'question';
+    if (/(日常|生活|闲聊|daily)/.test(normalized)) return 'daily';
+    return '';
+  };
+
+  const getForumSortModeFromQuery = (queryText = '') => {
+    const normalized = normalizeText(queryText);
+    if (/(热帖|热门|最热|最多赞|点赞最多|评论最多|火)/.test(normalized)) return 'hottest';
+    return 'latest';
+  };
+
+  const isLatestForumSummaryQuery = (queryText = '') => {
+    const normalized = normalizeText(queryText);
+    const forumIntent = /(论坛|帖子|社区|社群|方块之家|boh)/.test(normalized);
+    const summaryIntent = /(总结|复盘|回顾|梳理|概括|整理|看看|近况|动态|发生了什么|大家在聊)/.test(normalized);
+    const latestIntent = /(最新|最近|近期|近况|今天|当前|刚刚|发布|往下|前\s*5|五条|5\s*条)/.test(normalized);
+    return forumIntent && summaryIntent && (latestIntent || /(总结|整理|概括).{0,8}(论坛|帖子|社区|社群)/.test(normalized));
+  };
+
+  const sortForumPostsByCreatedAtDesc = (posts = []) => {
+    return [...(Array.isArray(posts) ? posts : [])].sort((a, b) => {
+      const timeDiff = new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime();
+      if (timeDiff !== 0) return timeDiff;
+      return String(b?.id || '').localeCompare(String(a?.id || ''));
+    });
+  };
+
+  const normalizeForumSummaryText = (text = '', maxChars = 260) => {
+    const normalized = String(text || '')
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!normalized) return '这条帖子没有可直接读取的文字正文，可能主要是图片或附件内容。';
+    return truncateText(normalized, maxChars);
+  };
+
+  const buildForumPostNaturalSummary = ({ title = '', body = '' } = {}) => {
+    const safeTitle = normalizePromptLine(title, 80);
+    const content = normalizeForumSummaryText(body, 220);
+    if (!body || content.startsWith('这条帖子没有可直接读取')) {
+      return safeTitle
+        ? `这条帖子主要围绕《${safeTitle}》展开，但当前没有可读取的正文细节，所以只能确认它是一条以标题为主的社区动态。`
+        : '这条帖子没有可读取的正文细节，只能确认它是一条较轻量的社区动态。';
+    }
+
+    const source = `${safeTitle} ${content}`;
+    const hasQuestionTone = /[?？]|请问|求助|怎么|如何|为什么|有没有|能不能|可以吗/.test(source);
+    const hasReminderTone = /(提醒|注意|千万|不要|别|小心|避开|记得)/.test(source);
+    const hasShareTone = /(分享|记录|今天|刚刚|发现|看到|觉得|感觉|喜欢|萌|可爱|喵|哈哈|hhh|！|!)/i.test(source);
+    const hasEventTone = /(活动|报名|更新|公告|上线|发布|安排|通知|时间|规则)/.test(source);
+
+    const cleanedContent = content
+      .replace(/[“”"']/g, '')
+      .replace(/[!?！？。~～…]+/g, '，')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const detail = truncateText(cleanedContent, 96);
+    const topic = safeTitle ? `《${safeTitle}》` : '这条动态';
+
+    if (hasQuestionTone) {
+      return `这条帖子更像是在围绕 ${topic} 提问或征求看法，作者想讨论的核心内容是：${detail}`;
+    }
+    if (hasReminderTone) {
+      return `这条帖子主要是在做一个轻量提醒，作者围绕 ${topic} 表达了需要注意或避免的事情：${detail}`;
+    }
+    if (hasEventTone) {
+      return `这条帖子偏向社区信息更新，重点和 ${topic} 有关，正文提到的关键信息是：${detail}`;
+    }
+    if (hasShareTone) {
+      return `这是一条偏日常的社区分享，作者围绕 ${topic} 表达了即时感受或小发现，整体语气比较轻松：${detail}`;
+    }
+    return `这条帖子主要围绕 ${topic} 展开，正文核心内容可以概括为：${detail}`;
+  };
+
+  const buildExtractiveForumSummaryAnswer = (posts = []) => {
+    const source = Array.isArray(posts) ? posts.slice(0, FORUM_MAX_POSTS) : [];
+    if (source.length === 0) {
+      return '未检索到论坛帖子，无法生成最新 5 条总结。';
+    }
+
+    const lines = [`我按发布时间从新到旧看了最新 ${source.length} 条论坛帖子。下面是基于标题、正文和互动数据整理出的自然概括，不补充帖子里没有写到的背景。`];
+
+    source.forEach((post, index) => {
+      const parsed = getPostTitleAndBody(post);
+      const title = parsed.title || '无标题';
+      const author = normalizePromptLine(post?.author_username, 40) || '未知作者';
+      const authorIdLabel = author === '未知作者' ? '未知作者' : `@${author.replace(/^@+/, '')}`;
+      const time = formatPromptDateTime(post?.created_at, '未知');
+      const postId = String(post?.id || '').trim();
+      const url = postId ? `#/forum/post/${postId}` : '#/forum';
+      const body = parsed.body || post?.content || '';
+      const summary = buildForumPostNaturalSummary({ title, body });
+      const likes = Number(post?.like_count || post?.likes_count || 0);
+      const comments = Number(post?.comment_count || 0);
+      const interaction = likes > 0 || comments > 0
+        ? `目前有 ${likes} 个赞、${comments} 条评论`
+        : '目前还没有明显互动';
+
+      lines.push([
+        '',
+        `${index + 1}. ${authorIdLabel} 在 ${time} 发布了《${title}》。`,
+        `${summary}`,
+        `${interaction}。`,
+        `链接：${url}`
+      ].join('\n'));
+    });
+
+    return lines.join('\n');
+  };
+
+  const buildForumNarrativeSummaryPrompt = (posts = []) => {
+    const source = Array.isArray(posts) ? posts.slice(0, FORUM_MAX_POSTS) : [];
+    const body = source.map((post, index) => {
+      const parsed = getPostTitleAndBody(post);
+      const title = normalizePromptLine(parsed.title || '无标题', 90);
+      const author = normalizePromptLine(post?.author_username, 40) || '未知作者';
+      const time = formatPromptDateTime(post?.created_at, '未知');
+      const tag = normalizePromptLine(post?.tagLabel || post?.tag, 24) || '未标注';
+      const likes = Number(post?.like_count || post?.likes_count || 0);
+      const comments = Number(post?.comment_count || 0);
+      const content = normalizeForumSummaryText(parsed.body || post?.content || '', 700);
+      return [
+        `P${index + 1}`,
+        `标题：${title}`,
+        `作者：${author}`,
+        `发布时间：${time}`,
+        `标签：${tag}`,
+        `互动：${likes}赞，${comments}评论`,
+        `正文：${content}`
+      ].join('\n');
+    }).join('\n\n');
+
+    return `你是 BOH 社区动态整理助手。请基于下面按发布时间从新到旧排列的真实论坛帖子，写一段自然语言总结。
+
+【真实帖子资料】
+${body || '无'}
+
+【输出要求】
+1. 只输出一个自然语言段落，不要分条、不要列表、不要表格、不要字段名。
+2. 必须覆盖每条资料中的帖子，且按 P1、P2、P3、P4、P5 的顺序叙述；P1 是最新发布，后面依次更早。
+3. 每条帖子都要明确写出“用户「作者名」”发了什么，并紧跟对应帖子内容的准确概括；作者名必须逐字来自资料中的“作者”，不能替换、猜测或混淆。
+4. 像给朋友讲社区刚刚发生了什么一样自然概括，语气克制、清楚、有一点叙事感。
+5. 可以概括、改写、合并语气相近的表达，但不能合并错作者，不能添加资料中没有的事件、人物关系、动机、背景、结论或情绪。
+6. 不要直接复制原文句子；尽量用自己的话概括每条帖子在表达什么。
+7. 不输出查看链接、URL、证据编号、帖子 ID。
+8. 如果某条帖子正文很短或只有标题，只能说它是一条简短动态，不要扩写细节。
+9. 在输出前自检：每一个“用户「作者名」”后面的概括必须来自同一个 P 条目，不得串帖。
+10. 必须保留原文的语义方向，尤其是“大/小、太多/太少、喜欢/不喜欢、要/不要、能/不能、已经/还没”等极性表达，绝不能改成相反意思。
+11. 控制在 260-560 个中文字符。`;
+  };
+
+  const removeForumSummaryLinks = (text = '') => String(text || '')
+    .replace(/#\/forum\/post\/[a-z0-9-]+/gi, '')
+    .replace(/\[[FP]\d+\]/g, '')
+    .replace(/查看(?:帖子)?[：:]\s*/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const getForumSummarySourceText = (posts = []) => {
+    return (Array.isArray(posts) ? posts : [])
+      .slice(0, FORUM_MAX_POSTS)
+      .map((post) => {
+        const parsed = getPostTitleAndBody(post);
+        return `${parsed.title || ''} ${parsed.body || post?.content || ''}`;
+      })
+      .join('\n')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  const FORUM_SUMMARY_POLARITY_RULES = [
+    { source: ['太小', '偏小', '小了', '很小', '太迷你'], forbidden: ['太大', '偏大', '大了', '很大', '过大'] },
+    { source: ['太大', '偏大', '大了', '很大', '过大'], forbidden: ['太小', '偏小', '小了', '很小', '太迷你'] },
+    { source: ['太少', '偏少', '少了', '不够多'], forbidden: ['太多', '偏多', '多了', '过多'] },
+    { source: ['太多', '偏多', '多了', '过多'], forbidden: ['太少', '偏少', '少了', '不够多'] },
+    { source: ['不喜欢', '不太喜欢', '没那么喜欢', '讨厌'], forbidden: ['喜欢', '很喜欢', '挺喜欢'] },
+    { source: ['不要', '别 ', '别去', '别拿', '千万不要'], forbidden: ['要去', '要拿', '应该去', '应该拿'] },
+    { source: ['不能', '不可以', '无法'], forbidden: ['能 ', '可以', '能够'] },
+    { source: ['还没', '没有', '未完成'], forbidden: ['已经', '完成了', '已完成'] }
+  ];
+
+  const detectForumSummaryPolarityConflicts = (sourceText = '', summaryText = '') => {
+    const source = String(sourceText || '');
+    const summary = String(summaryText || '');
+    if (!source || !summary) return [];
+
+    return FORUM_SUMMARY_POLARITY_RULES.flatMap((rule) => {
+      const sourceHits = rule.source.filter((term) => source.includes(term));
+      if (sourceHits.length === 0) return [];
+      const sourceHasForbidden = rule.forbidden.some((term) => source.includes(term));
+      if (sourceHasForbidden) return [];
+      const forbiddenHits = rule.forbidden.filter((term) => summary.includes(term));
+      if (forbiddenHits.length === 0) return [];
+      return [`原文出现「${sourceHits.join(' / ')}」，总结却出现相反表达「${forbiddenHits.join(' / ')}」`];
+    });
+  };
+
+  const buildForumSearchQueries = (queryText = '') => {
+    const raw = normalizePromptLine(queryText, 120);
+    const keywords = extractQueryKeywords(raw)
+      .filter((keyword) => ![
+        '论坛', '帖子', '发帖', '搜索', '检索', '查看', '社区', '动态', '最近', '最新',
+        '今天', '近期', '本周', '本月', '有没有', '哪些', '什么', '大家', '有人'
+      ].includes(keyword))
+      .filter((keyword) => keyword.length >= 2)
+      .sort((a, b) => b.length - a.length);
+
+    const candidates = [
+      raw,
+      keywords.slice(0, 3).join(' '),
+      ...keywords.slice(0, 4)
+    ]
+      .map((item) => normalizePromptLine(item, 80))
+      .filter(Boolean);
+
+    return [...new Set(candidates)].slice(0, 5);
+  };
+
+  const mergeForumPosts = (target = [], nextPosts = []) => {
+    const seen = new Set(target.map((post) => String(post?.id || '').trim()).filter(Boolean));
+    for (const post of Array.isArray(nextPosts) ? nextPosts : []) {
+      const id = String(post?.id || '').trim();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      target.push(post);
+    }
+    return target;
   };
 
   // 获取论坛数据
   const getForumContext = async (queryText = '') => {
     try {
-      const { data: posts } = await getPosts(null, { page: 1, pageSize: 12, limit: 12 });
+      const latestSummaryMode = isLatestForumSummaryQuery(queryText);
+      const sortMode = latestSummaryMode ? 'latest' : getForumSortModeFromQuery(queryText);
+      const tagFilter = getForumTagFilterFromQuery(queryText);
+      const candidateQueries = latestSummaryMode ? [] : buildForumSearchQueries(queryText);
+      const mergedPosts = [];
+
+      for (const searchQuery of candidateQueries) {
+        const { data: searchPosts } = await getPosts(null, {
+          page: 1,
+          pageSize: 8,
+          limit: 8,
+          sortMode,
+          searchQuery,
+          tagFilter
+        });
+        mergeForumPosts(mergedPosts, searchPosts);
+        if (mergedPosts.length >= Math.max(FORUM_MAX_POSTS, 6)) break;
+      }
+
+      if (mergedPosts.length < FORUM_MAX_POSTS) {
+        const { data: fallbackPosts } = await getPosts(null, {
+          page: 1,
+          pageSize: latestSummaryMode ? FORUM_MAX_POSTS : 10,
+          limit: latestSummaryMode ? FORUM_MAX_POSTS : 10,
+          sortMode,
+          tagFilter
+        });
+        mergeForumPosts(mergedPosts, fallbackPosts);
+      }
+
+      const posts = mergedPosts;
       if (!Array.isArray(posts) || posts.length === 0) return '';
 
-      const rankedPosts = rankForumPostsByQuery(posts, queryText);
+      const rankedPosts = latestSummaryMode
+        ? sortForumPostsByCreatedAtDesc(posts)
+        : rankForumPostsByQuery(posts, queryText);
       const selectedPosts = rankedPosts.slice(0, FORUM_MAX_POSTS);
       const forumContext = selectedPosts.map((post, index) => {
-        const parsed = parsePostTitleAndBody(post?.content);
+        const parsed = getPostTitleAndBody(post);
         const title = parsed.title || '无标题';
-        const author = String(post?.author_username || '未知作者');
+        const author = normalizePromptLine(post?.author_username, 40) || '未知作者';
+        const authorIdLabel = author === '未知作者' ? '未知作者' : `@${author.replace(/^@+/, '')}`;
         const preview = String(parsed.body || '').slice(0, FORUM_MAX_CHARS_PER_POST);
         const likes = Number(post?.like_count || post?.likes_count || 0);
         const comments = Number(post?.comment_count || 0);
-        return `[F${index + 1}] 【帖子】${title}\n作者：${author}\n内容：${preview}${parsed.body.length > FORUM_MAX_CHARS_PER_POST ? '...' : ''}\n点赞：${likes}  评论：${comments}`;
+        const tag = normalizePromptLine(post?.tagLabel || post?.tag, 24) || '未标注';
+        const time = formatPromptDate(post?.created_at, '未知');
+        const postId = String(post?.id || '').trim();
+        const url = postId ? `#/forum/post/${postId}` : '#/forum';
+        const excerpt = normalizePromptLine(post?.search_excerpt, FORUM_MAX_CHARS_PER_POST);
+        return [
+          `[F${index + 1}] 【论坛帖子】${title}`,
+          `发帖ID：${authorIdLabel} ｜ 标签：${tag} ｜ 时间：${time}`,
+          `查看：${url}`,
+          `内容：${excerpt || preview}${!excerpt && parsed.body.length > FORUM_MAX_CHARS_PER_POST ? '...' : ''}`,
+          `互动：点赞 ${likes}，评论 ${comments}`
+        ].join('\n');
       }).join('\n\n');
 
-      return `【社区帖子检索结果】\n${forumContext}`;
+      return {
+        context: `【社区帖子检索结果】\n检索词：${candidateQueries.join(' / ') || '最新社区帖子'}\n排序：${sortMode === 'hottest' ? '热门优先' : '最新优先'}${tagFilter ? `\n标签过滤：${tagFilter}` : ''}${latestSummaryMode ? `\n输出约束：必须严格按 [F1] 到 [F${selectedPosts.length}] 的顺序总结；[F1] 是当前检索到的最新发布帖子，后续依次按发布时间从新到旧排列。不要按热度、重要性或相关性重排。` : ''}\n\n${forumContext}`,
+        total: selectedPosts.length,
+        evidenceRefs: selectedPosts.map((_, index) => `F${index + 1}`),
+        labels: [`社区帖子(${selectedPosts.length}条)`],
+        confidence: selectedPosts.length > 0 ? 0.86 : 0,
+        metadata: {
+          sortMode,
+          tagFilter,
+          query: candidateQueries[0] || '',
+          latestSummaryMode,
+          posts: selectedPosts
+        }
+      };
     } catch (error) {
       logger.error('boh-ai', '获取论坛数据失败', error);
-      return '';
+      return { context: '', total: 0 };
     }
   };
 
@@ -4601,7 +4872,10 @@ export function useChatEngine() {
       source: '社区帖子',
       evidencePrefix: 'F',
       read: getForumContext,
-      describeAction: () => '浏览了社区帖子'
+      describeAction: (result) => {
+        const total = Number(result?.total || 0);
+        return total > 0 ? `检索了社区帖子 ${total} 条` : '检索了社区帖子';
+      }
     }),
     createBohAIConnector({
       id: BOHAI_CONNECTOR_IDS.userPrivate,
@@ -4625,6 +4899,9 @@ export function useChatEngine() {
     if (forceTreehole && isLoggedIn.value && userInfo.value?.id && isTreeholeMemoryEnabled.value) {
       retrievalPlan.treehole = true;
     }
+    if (isForumSearchEnabled.value) {
+      retrievalPlan.forum = true;
+    }
     const routingReasons = Array.isArray(routingDecision.reasons) ? routingDecision.reasons : [];
     const connectorResults = await runBohAIReadConnectors({
       connectors: createReadConnectors(),
@@ -4633,19 +4910,27 @@ export function useChatEngine() {
       logger
     });
     const connectorSummary = summarizeBohAIConnectorResults(connectorResults);
+    const rankedContextBlocks = rankEvidenceContextBlocks(connectorResults, queryText).map((item) => item.context);
 
-    const contextText = compressKnowledgeContextBlocks(connectorSummary.contextBlocks, {
+    const contextText = compressKnowledgeContextBlocks(rankedContextBlocks.length > 0 ? rankedContextBlocks : connectorSummary.contextBlocks, {
       maxChars: KNOWLEDGE_CONTEXT_MAX_CHARS,
       maxPerBlock: KNOWLEDGE_CONTEXT_MAX_BLOCK_CHARS
     });
     const evidenceRefs = connectorSummary.evidenceRefs.length > 0
       ? connectorSummary.evidenceRefs
       : extractCitationIdsFromText(contextText);
+    const retrievalTrace = createBohAIRetrievalTrace({
+      queryText,
+      retrievalPlan,
+      routingReasons,
+      connectorResults
+    });
 
     return {
       retrievalPlan,
       routingReasons,
       connectorResults,
+      retrievalTrace,
       treeholeTotal: Number(connectorSummary.totalsById[BOHAI_CONNECTOR_IDS.cloud] || 0),
       sharedMemoryTotal: Number(connectorSummary.totalsById[BOHAI_CONNECTOR_IDS.sharedMemory] || 0),
       userPrivateLabels: connectorSummary.labelsById[BOHAI_CONNECTOR_IDS.userPrivate] || [],
@@ -4855,6 +5140,589 @@ export function useChatEngine() {
     }
   };
 
+  const refreshConversationSummaryCache = async (sessionIndex, requestSignal = undefined) => {
+    const targetSession = getSessionByIndex(sessionIndex);
+    if (!targetSession) return;
+
+    const dialogueMessages = getStorableDialogueMessages(targetSession.messages);
+    if (dialogueMessages.length < CONVERSATION_SUMMARY_MIN_MESSAGES) return;
+
+    const fingerprint = buildConversationSummaryFingerprint(targetSession.messages);
+    if (!fingerprint) return;
+    if (
+      targetSession.contextSummary?.version === CONVERSATION_SUMMARY_STORAGE_VERSION
+      && targetSession.contextSummary?.fingerprint === fingerprint
+      && normalizePromptLine(targetSession.contextSummary?.content, 20)
+    ) {
+      return;
+    }
+
+    const olderMessages = dialogueMessages.slice(0, -CONVERSATION_SUMMARY_RECENT_MESSAGES);
+    if (olderMessages.length < 4) return;
+
+    const summaryModel = availableModels.find(m => m.id === 'Qwen/Qwen2.5-7B-Instruct') || availableModels[0];
+    if (!summaryModel?.id) return;
+    const summarySignal = requestSignal || (typeof AbortController !== 'undefined' ? new AbortController().signal : undefined);
+
+    try {
+      const summaryPrompt = [
+        '请把以下 BOH AI 对话历史压缩成一段可复用上下文摘要。',
+        '要求：',
+        '- 最多 220 中文字。',
+        '- 保留用户目标、偏好、已确认事实、当前任务状态。',
+        '- 删除寒暄、重复内容、无效报错和已解决细节。',
+        '- 不要添加原文没有的信息。',
+        '',
+        olderMessages.map((message) => `${message.role}: ${message.content}`).join('\n')
+      ].join('\n');
+
+      const summary = await callModelInternal(
+        summaryModel.id,
+        summaryPrompt,
+        '你是 BOH AI 的本地对话摘要器，只输出摘要正文。',
+        [],
+        summarySignal,
+        0,
+        { max_tokens: 420, temperature: 0.08, top_p: 0.55, frequency_penalty: 0.05 }
+      );
+
+      const latestSession = getSessionByIndex(sessionIndex);
+      if (!latestSession) return;
+      latestSession.contextSummary = {
+        version: CONVERSATION_SUMMARY_STORAGE_VERSION,
+        fingerprint,
+        content: normalizePromptLine(filterThinkingContent(summary), CONVERSATION_SUMMARY_MAX_CHARS),
+        updatedAt: Date.now()
+      };
+      scheduleSaveSessions();
+    } catch (error) {
+      if (error?.name !== 'AbortError') {
+        logger.warn('boh-ai', 'Conversation summary refresh failed', error);
+      }
+    }
+  };
+
+  const buildResourceSearchReply = (searchPayload = {}) => {
+    const results = Array.isArray(searchPayload.results) ? searchPayload.results : [];
+    const typeLabel = searchPayload.typeLabel || getResourceTypeLabel(searchPayload.type);
+    const keywordText = Array.isArray(searchPayload.displayKeywords) && searchPayload.displayKeywords.length > 0
+      ? searchPayload.displayKeywords.slice(0, 5).join('、')
+      : (searchPayload.query || (searchPayload.isGenericRecommendation ? `热门${typeLabel === '全部' ? '资源' : typeLabel}` : '这个关键词'));
+    const filters = [
+      typeLabel && searchPayload.type !== 'all' ? typeLabel : '',
+      searchPayload.loader ? searchPayload.loader : '',
+      searchPayload.version ? searchPayload.version : ''
+    ].filter(Boolean);
+    const filterText = filters.length > 0 ? `（${filters.join(' / ')}）` : '';
+    const searchIntro = searchPayload.isGenericRecommendation
+      ? `我按热门和下载量帮你筛了一批${typeLabel === '全部' ? '资源' : typeLabel}${filterText}。`
+      : `我先理解了你的需求，提取关键词：${keywordText}${filterText}。`;
+    if (results.length === 0) {
+      return searchPayload.isGenericRecommendation
+        ? `我按热门和下载量搜索了${typeLabel === '全部' ? '资源' : typeLabel}${filterText}，但资源库暂时没有返回结果。可以换个类型、版本或加载器再试。`
+        : `我理解你的需求后提取了关键词：${keywordText}${filterText}。但资源库里暂时没有找到匹配结果，可以换个描述，或放宽版本/加载器再试。`;
+    }
+
+    return [
+      searchIntro,
+      `在资源库里找到了 ${results.length} 个相关资源。`,
+      '',
+      '下面已经展示前几条结果，也可以点击“查看资源列表”打开完整面板。'
+    ].join('\n');
+  };
+
+  const RESOURCE_QUERY_NOISE_PATTERN = /(帮我找一下|帮我找找|帮我找|我想要|我需要|我要|想要|需要|找一下|找几个|找找|找|求|来点|给点|再来点|再推荐|继续推荐|再|继续|接着|推荐|搜索|搜一下|搜|查找|下载|看看|有没有|可以|一下|一点点|一点|一些|几个|随便|好玩|热门|优秀|高质量|有趣|更多|资源中心|资源|列表|整合包|整合|模组|资源包|材质包|材质|光影|minecraft|我的世界|mc|modpack|mods?|shader|resource\s*pack|texture\s*pack|recommendations?|popular|best|top|download|search|find|look\s*for)/ig;
+  const WEAK_RESOURCE_QUERY_PATTERN = /^(一点点|一点|一些|几个|随便|好玩|热门|优秀|高质量|有趣|更多|推荐|资源|列表|整合包|整合|模组|mod|mods|modpack|modpacks|材质|材质包|资源包|resourcepack|resource pack|shader|光影|minecraft|mc|popular|best|top|recommend|recommendation)$/i;
+  const RESOURCE_FOLLOW_UP_PATTERN = /(再|继续|接着|还是|类似|同类|相关|刚刚|刚才|上面|这些|这种|那个)/;
+  const RESOURCE_RECOMMENDATION_PATTERN = /(推荐|来点|给点|找几个|找一些|随便|好玩|热门|优秀|高质量|有趣|有什么|有啥|有没有)/i;
+  const KNOWN_RESOURCE_NAME_ALIASES = [
+    { pattern: /(植物魔法|植物学|botania)/i, terms: ['botania'] },
+    { pattern: /(暮色森林|twilight\s*forest)/i, terms: ['twilight forest'] },
+    { pattern: /(匠魂|tinkers?\s*construct|tconstruct)/i, terms: ['tinkers construct'] },
+    { pattern: /(机械动力|机械动能|create)/i, terms: ['create'] },
+    { pattern: /(应用能源|ae2|applied\s*energistics)/i, terms: ['applied energistics 2', 'ae2'] },
+    { pattern: /(热力膨胀|thermal\s*expansion|thermal\s*series)/i, terms: ['thermal series'] },
+    { pattern: /(通用机械|mekanism)/i, terms: ['mekanism'] },
+    { pattern: /(末影接口|ender\s*io)/i, terms: ['ender io'] },
+    { pattern: /(沉浸工程|immersive\s*engineering)/i, terms: ['immersive engineering'] },
+    { pattern: /(农夫乐事|farmers?\s*delight)/i, terms: ["farmer's delight"] },
+    { pattern: /(暮色|twilight)/i, terms: ['twilight forest'] },
+    { pattern: /(jei|just\s*enough\s*items|足够物品|物品管理器)/i, terms: ['jei', 'just enough items'] },
+    { pattern: /(rei|roughly\s*enough\s*items)/i, terms: ['rei', 'roughly enough items'] },
+    { pattern: /(jade|玉|waila|hwyla)/i, terms: ['jade'] },
+    { pattern: /(旅行地图|journey\s*map|journeymap)/i, terms: ['journeymap'] },
+    { pattern: /(xaero|小地图)/i, terms: ['xaero minimap'] }
+  ];
+
+  const stripResourceQueryNoise = (value = '') => {
+    return normalizePromptLine(value, 120)
+      .toLowerCase()
+      .replace(RESOURCE_QUERY_NOISE_PATTERN, ' ')
+      .replace(/\b1\.(?:7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22)(?:\.\d+)?\b/g, ' ')
+      .replace(/[，。！？、；："'“”‘’()[\]{}<>]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  const isWeakResourceQuery = (value = '') => {
+    const raw = normalizePromptLine(value, 80).toLowerCase();
+    if (!raw) return true;
+    const stripped = stripResourceQueryNoise(raw);
+    return !stripped || WEAK_RESOURCE_QUERY_PATTERN.test(raw) || WEAK_RESOURCE_QUERY_PATTERN.test(stripped);
+  };
+
+  const normalizeResourceSearchQueries = (queries = []) => {
+    const source = Array.isArray(queries) ? queries : [queries];
+    return [...new Set(
+      source
+        .map((item) => normalizePromptLine(item, 80).toLowerCase())
+        .map((item) => stripResourceQueryNoise(item))
+        .filter(Boolean)
+        .filter((item) => !isWeakResourceQuery(item))
+        .filter((item) => item.length >= 2)
+    )].slice(0, 5);
+  };
+
+  const normalizeResourceDisplayKeywords = (keywords = []) => {
+    const source = Array.isArray(keywords) ? keywords : [keywords];
+    return [...new Set(
+      source
+        .map((item) => normalizePromptLine(item, 40))
+        .filter(Boolean)
+        .filter((item) => /^热门/.test(item) || !isWeakResourceQuery(item))
+    )].slice(0, 5);
+  };
+
+  const getKnownResourceNameQueries = (userText = '') => {
+    const source = String(userText || '');
+    const terms = [];
+    KNOWN_RESOURCE_NAME_ALIASES.forEach((item) => {
+      if (item.pattern.test(source)) terms.push(...item.terms);
+    });
+    return normalizeResourceSearchQueries(terms);
+  };
+
+  const getResourceTopicQueryOverride = (userText = '') => {
+    const source = String(userText || '');
+    const knownResourceQueries = getKnownResourceNameQueries(source);
+    if (knownResourceQueries.length > 0) return knownResourceQueries;
+    const terms = [];
+    const add = (...items) => terms.push(...items);
+    if (/宝可梦|神奇宝贝|精灵宝可梦|口袋妖怪|pokemon|pixelmon|cobblemon/i.test(source)) add('cobblemon', 'pixelmon', 'pokemon');
+    if (/家具|家居|沙发|椅子|桌子|柜子/i.test(source)) add('furniture', 'decoration');
+    if (/优化|性能|帧数|卡顿|流畅|低配|轻量/i.test(source)) add('performance', 'optimization');
+    if (/小地图|地图导航|导航/i.test(source)) add('minimap', 'map');
+    if (/科技|工业|机械|自动化/i.test(source)) add('tech', 'automation');
+    if (/魔法|法术/i.test(source)) add('magic');
+    if (/冒险|探索|地牢/i.test(source)) add('adventure', 'exploration', 'dungeon');
+    if (/建筑|建造|装饰|室内|摆件/i.test(source)) add('building', 'decoration');
+    if (/农业|种田|食物|料理/i.test(source)) add('farming', 'food');
+    if (/生存|养老/i.test(source)) add('survival');
+    if (/服务端|服务器/i.test(source)) add('server');
+    if (/菜单|物品栏|背包|库存/i.test(source)) add('inventory', 'menu');
+    if (/高清|真实|写实/i.test(source)) add('realistic', 'high resolution');
+    return normalizeResourceSearchQueries(terms);
+  };
+
+  const getGenericResourceDisplayKeywords = (type = 'all') => {
+    const label = getResourceTypeLabel(type);
+    return [`热门${label === '全部' ? '资源' : label}`];
+  };
+
+  const isGenericResourceRecommendation = (userText = '', intent = {}) => {
+    const source = String(userText || '');
+    if (!RESOURCE_RECOMMENDATION_PATTERN.test(source)) return false;
+    if (getResourceTopicQueryOverride(source).length > 0) return false;
+    if (intent.type && intent.type !== 'all') return true;
+    return /(资源|东西|mod|模组|整合包|材质包|资源包|光影|minecraft|我的世界|mc)/i.test(source);
+  };
+
+  const finalizeResourceSearchPlan = (userText = '', intent = {}, plan = {}) => {
+    const safeIntentType = ['all', 'mod', 'modpack', 'resourcepack', 'shader'].includes(intent.type) ? intent.type : 'all';
+    const safePlanType = ['all', 'mod', 'modpack', 'resourcepack', 'shader'].includes(plan.type) ? plan.type : 'all';
+    const type = safeIntentType !== 'all' ? safeIntentType : safePlanType;
+    const topicQueries = getResourceTopicQueryOverride(userText);
+    const planQueries = normalizeResourceSearchQueries(plan.searchQueries);
+    const genericRecommendation = topicQueries.length === 0
+      && !plan.inheritedResourceTopic
+      && (
+        isGenericResourceRecommendation(userText, { ...intent, type })
+        || (planQueries.length === 0 && Boolean(plan.isGenericRecommendation))
+      );
+    const searchQueries = topicQueries.length > 0
+      ? topicQueries
+      : (genericRecommendation ? [] : planQueries);
+    const displayKeywords = topicQueries.length > 0
+      ? topicQueries
+      : (
+          genericRecommendation
+            ? getGenericResourceDisplayKeywords(type)
+            : (
+                normalizeResourceDisplayKeywords(plan.displayKeywords).length > 0
+                  ? normalizeResourceDisplayKeywords(plan.displayKeywords)
+                  : searchQueries
+              )
+        );
+
+    return {
+      ...plan,
+      type,
+      loader: normalizePromptLine(plan.loader, 24) || normalizePromptLine(intent.loader, 24),
+      version: normalizePromptLine(plan.version, 24) || normalizePromptLine(intent.version, 24),
+      searchQueries,
+      displayKeywords,
+      sort: genericRecommendation ? 'downloads' : (plan.sort === 'downloads' ? 'downloads' : 'relevance'),
+      isGenericRecommendation: genericRecommendation,
+      reason: genericRecommendation
+        ? '按资源类型进行热门推荐。'
+        : (plan.reason || '已根据资源类型和中文需求提取关键词。')
+    };
+  };
+
+  const createFallbackResourceSearchPlan = (userText = '', intent = {}) => {
+    const fallbackQuery = normalizePromptLine(intent.query, 120) || normalizePromptLine(userText, 120);
+    const topicQueries = getResourceTopicQueryOverride(userText);
+    const fallbackQueries = normalizeResourceSearchQueries([
+      ...topicQueries,
+      fallbackQuery
+    ]);
+    const isGenericRecommendation = fallbackQueries.length === 0 && isGenericResourceRecommendation(userText, intent);
+    return {
+      type: intent.type || 'all',
+      loader: intent.loader || '',
+      version: intent.version || '',
+      searchQueries: fallbackQueries,
+      displayKeywords: fallbackQueries.length > 0 ? fallbackQueries : getGenericResourceDisplayKeywords(intent.type || 'all'),
+      reason: isGenericRecommendation ? '按资源类型进行热门推荐。' : '已根据资源类型和中文需求提取关键词。',
+      sort: isGenericRecommendation ? 'downloads' : 'relevance',
+      isGenericRecommendation,
+      usedModel: false
+    };
+  };
+
+  const getResourceDisplayKeywordOverride = (userText = '') => {
+    return getResourceTopicQueryOverride(userText);
+  };
+
+  const getLastResourceSearchPayload = (sessionIndex, beforeMessageIndex = Infinity) => {
+    const session = getSessionByIndex(sessionIndex);
+    const messages = Array.isArray(session?.messages) ? session.messages : [];
+    const maxIndex = Math.min(messages.length - 1, Number.isFinite(beforeMessageIndex) ? beforeMessageIndex - 1 : messages.length - 1);
+    for (let index = maxIndex; index >= 0; index -= 1) {
+      const message = messages[index];
+      const payload = message?.role === 'assistant' && message?.meta?.kind === 'resource_search_results'
+        ? message.meta.resourceSearch
+        : null;
+      if (payload && typeof payload === 'object') return payload;
+    }
+    return null;
+  };
+
+  const shouldInheritPreviousResourceTopic = (userText = '', plan = {}) => {
+    if (!RESOURCE_FOLLOW_UP_PATTERN.test(String(userText || ''))) return false;
+    return normalizeResourceSearchQueries(plan.searchQueries).length === 0
+      || Boolean(plan.isGenericRecommendation);
+  };
+
+  const resolveResourceSearchPlanWithModel = async (userText, intent, requestSignal = undefined) => {
+    const fallback = createFallbackResourceSearchPlan(userText, intent);
+    const plannerModel = getModelForModeId('fast')
+      || availableModels.find((item) => item.id === AUTO_ROUTER_MODEL_ID)
+      || availableModels[0];
+    if (!plannerModel?.id) return fallback;
+
+    const plannerController = new AbortController();
+    const handleParentAbort = () => plannerController.abort();
+    const plannerTimeout = window.setTimeout(() => plannerController.abort(), 8000);
+    if (requestSignal) {
+      if (requestSignal.aborted) plannerController.abort();
+      else requestSignal.addEventListener('abort', handleParentAbort, { once: true });
+    }
+
+    try {
+      const raw = await callModelInternal(
+        plannerModel.id,
+        [
+          '请把用户的 Minecraft 资源搜索需求改写成适合 Modrinth / CurseForge 等资源库检索的英文关键词。',
+          '只输出 JSON，不要解释，不要 Markdown。',
+          '',
+          '字段：',
+          '- type: "all" | "mod" | "modpack" | "resourcepack" | "shader"',
+          '- loader: "fabric" | "forge" | "neoforge" | "quilt" | ""',
+          '- version: 例如 "1.21.1"，没有就空字符串',
+          '- searchQueries: string[]，0 到 5 个英文检索词，按优先级排序，短词优先，不要把中文原句直接翻译成无效长句',
+          '- displayKeywords: string[]，给用户看的中文/英文关键词，最多 5 个',
+          '- targetKind: "exact_resource" | "category" | "generic_recommendation"',
+          '- normalizedTarget: string，用户真正想找的资源名或类别，例如 "Botania"、"magic mods"、"popular modpacks"',
+          '- reason: string，一句话说明你提取了什么方向，最多 40 字',
+          '- sort: "relevance" | "downloads"，泛推荐用 downloads，明确主题用 relevance',
+          '',
+          '规则：',
+          '0. 先判断用户说的是具体 Mod 名还是泛类别。具体 Mod 名必须映射到英文项目名/常用 slug，不要降级成类别词。',
+          '1. “我要家具mod/家具模组/家居”应输出 furniture、decoration、furnish 等关键词，而不是搜索“我要家具”。',
+          '2. “宝可梦/神奇宝贝/口袋妖怪/Pixelmon/Cobblemon”必须输出 cobblemon、pixelmon、pokemon，不要输出“找宝可梦/宝可梦整合包”。',
+          '3. “植物魔法”是具体 Mod Botania，必须输出 botania；不能只输出 magic。',
+          "4. 常见中文名映射：暮色森林=twilight forest，匠魂=tinkers construct，机械动力=create，应用能源=applied energistics 2，农夫乐事=farmer's delight，通用机械=mekanism。",
+          '5. “优化/帧数/低配”应输出 performance、optimization 等关键词。',
+          '6. “小地图”如果是泛需求可输出 minimap、map；如果提到 Xaero 输出 xaero minimap。',
+          '7. 如果用户说 Mod，就 type=mod；整合包 type=modpack；材质 type=resourcepack；光影 type=shader。',
+          '8. searchQueries 不要包含 mod、modpack、minecraft、版本号或加载器，类型/版本/加载器走字段。',
+          '9. 如果用户只是说“推荐一点整合包/推荐一些 mod/来点材质”这类泛推荐，没有具体主题，searchQueries 必须是 []，sort 必须是 downloads，displayKeywords 用“热门整合包/热门Mod”等。',
+          '',
+          `本地初判：${JSON.stringify({
+            type: intent.type,
+            loader: intent.loader,
+            version: intent.version,
+            query: intent.query
+          })}`,
+          `用户消息：${truncateText(userText, 500)}`
+        ].join('\n'),
+        '你是 BOH AI 的 Minecraft 资源搜索规划器。先判断用户真正想找什么，再把它改写成资源库检索词。你只返回严格 JSON。',
+        [],
+        plannerController.signal,
+        0,
+        { max_tokens: 520, temperature: 0.05, top_p: 0.45, frequency_penalty: 0.02 }
+      );
+      const parsed = _safeJsonParse(String(raw || '').trim());
+      const safeType = ['all', 'mod', 'modpack', 'resourcepack', 'shader'].includes(parsed?.type) ? parsed.type : fallback.type;
+      const parsedSearchQueries = normalizeResourceSearchQueries(parsed?.searchQueries);
+      const searchQueries = parsedSearchQueries.length > 0 ? parsedSearchQueries : fallback.searchQueries;
+      const displayOverride = normalizeResourceDisplayKeywords(getResourceDisplayKeywordOverride(userText));
+      const isGenericRecommendation = searchQueries.length === 0 && (
+        Boolean(fallback.isGenericRecommendation)
+        || normalizeResourceDisplayKeywords(parsed?.displayKeywords).some((item) => /^热门/.test(item))
+      );
+      const parsedDisplayKeywords = normalizeResourceDisplayKeywords(parsed?.displayKeywords);
+      return {
+        type: safeType || fallback.type,
+        loader: normalizePromptLine(parsed?.loader, 24) || fallback.loader,
+        version: normalizePromptLine(parsed?.version, 24) || fallback.version,
+        searchQueries,
+        displayKeywords: displayOverride.length > 0
+          ? displayOverride
+          : parsedDisplayKeywords.length > 0
+          ? parsedDisplayKeywords
+          : (searchQueries.length > 0 ? searchQueries : getGenericResourceDisplayKeywords(safeType || fallback.type)),
+        reason: normalizePromptLine(parsed?.reason, 80) || fallback.reason,
+        targetKind: ['exact_resource', 'category', 'generic_recommendation'].includes(parsed?.targetKind) ? parsed.targetKind : '',
+        normalizedTarget: normalizePromptLine(parsed?.normalizedTarget, 80),
+        sort: parsed?.sort === 'downloads' || fallback.sort === 'downloads' ? 'downloads' : 'relevance',
+        isGenericRecommendation,
+        usedModel: true
+      };
+    } catch (error) {
+      if (error?.name === 'AbortError' && requestSignal?.aborted) throw error;
+      logger.warn('boh-ai', 'Resource search planning failed, using fallback', error);
+      return fallback;
+    } finally {
+      window.clearTimeout(plannerTimeout);
+      if (requestSignal) requestSignal.removeEventListener('abort', handleParentAbort);
+    }
+  };
+
+  const searchResourcesByPlan = async (plan = {}, requestSignal = undefined) => {
+    const queries = normalizeResourceSearchQueries(plan.searchQueries);
+    const effectiveQueries = queries.length > 0 ? queries : [''];
+    const sortMode = plan.sort === 'downloads' || queries.length === 0 ? 'downloads' : 'relevance';
+    const seen = new Set();
+    const results = [];
+    const searchedQueries = [];
+    let totalHits = 0;
+
+    for (const query of effectiveQueries) {
+      if (requestSignal?.aborted) throw new DOMException('Aborted', 'AbortError');
+      const result = await searchMinecraftResourcesForBohAI({
+        query,
+        type: plan.type || 'all',
+        loader: plan.loader || '',
+        version: plan.version || '',
+        limit: 8,
+        sort: sortMode,
+        signal: requestSignal
+      });
+      searchedQueries.push(query);
+      totalHits += Number(result.totalHits || 0);
+      for (const item of result.results || []) {
+        const key = item.project_id || `${item.source}:${item.slug || item.title}`;
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        results.push({ ...item, matchedQuery: query });
+        if (results.length >= 12) break;
+      }
+      if (results.length >= 12) break;
+    }
+
+    return {
+      ok: true,
+      query: queries[0] || '',
+      queries,
+      searchedQueries: searchedQueries.filter(Boolean),
+      type: plan.type || 'all',
+      typeLabel: getResourceTypeLabel(plan.type || 'all'),
+      version: normalizePromptLine(plan.version, 24),
+      loader: normalizePromptLine(plan.loader, 24),
+      totalHits,
+      results,
+      sort: sortMode,
+      isGenericRecommendation: queries.length === 0 || Boolean(plan.isGenericRecommendation)
+    };
+  };
+
+  const handleResourceSearchRequest = async (rawUserText = '') => {
+    const userText = String(rawUserText || '').trim();
+    const sessionIndex = currentSessionIndex.value;
+    const session = getSessionByIndex(sessionIndex);
+    if (!session) return false;
+    let intent = detectBohAIResourceSearchIntent(userText);
+    if (!intent.matched && RESOURCE_RECOMMENDATION_PATTERN.test(userText)) {
+      const previousResourceSearch = getLastResourceSearchPayload(sessionIndex);
+      if (previousResourceSearch) {
+        intent = {
+          matched: true,
+          query: '',
+          type: previousResourceSearch.type || 'all',
+          loader: previousResourceSearch.loader || '',
+          version: previousResourceSearch.version || ''
+        };
+      }
+    }
+    if (!intent.matched) return false;
+
+    appendUserMessageWithTitle(sessionIndex, userText);
+    resetComposerInput();
+    scrollToBottom(true);
+
+    session.isLoading = true;
+    session.isThinking = true;
+    activeGenerationSessionIndex.value = sessionIndex;
+    startThinkingTimer();
+    const requestController = new AbortController();
+    abortController.value = requestController;
+    session.messages.push({
+      role: 'assistant',
+      content: ''
+    });
+    const messageIndex = session.messages.length - 1;
+    setThinkingStatus('意图理解中...');
+    await nextTick();
+    scrollToBottom();
+
+    try {
+      let plan = finalizeResourceSearchPlan(
+        userText,
+        intent,
+        await resolveResourceSearchPlanWithModel(userText, intent, requestController.signal)
+      );
+      const previousResourceSearch = getLastResourceSearchPayload(sessionIndex, messageIndex);
+      if (previousResourceSearch && shouldInheritPreviousResourceTopic(userText, plan)) {
+        const previousQueries = normalizeResourceSearchQueries(previousResourceSearch.displayKeywords).length > 0
+          ? normalizeResourceSearchQueries(previousResourceSearch.displayKeywords)
+          : normalizeResourceSearchQueries(previousResourceSearch.queries || previousResourceSearch.query);
+        if (previousQueries.length > 0) {
+          plan.searchQueries = previousQueries;
+          plan.displayKeywords = previousQueries;
+          plan.sort = 'relevance';
+          plan.isGenericRecommendation = false;
+          plan.inheritedResourceTopic = true;
+          plan.reason = '沿用上一轮资源主题继续搜索。';
+        }
+      }
+      plan = finalizeResourceSearchPlan(userText, intent, plan);
+      const plannedKeywords = normalizeResourceDisplayKeywords(plan.displayKeywords).join('、') || normalizeResourceSearchQueries(plan.searchQueries).join('、');
+      setThinkingStatus(plan.isGenericRecommendation
+        ? `正在搜索热门${getResourceTypeLabel(plan.type || intent.type || 'all')}...`
+        : `正在搜索资源：${plannedKeywords || intent.query || userText}`);
+
+      const searchPayload = await searchResourcesByPlan(plan, requestController.signal);
+      const payload = {
+        ...searchPayload,
+        rawQuery: userText,
+        displayKeywords: normalizeResourceDisplayKeywords(plan.displayKeywords).length > 0
+          ? normalizeResourceDisplayKeywords(plan.displayKeywords)
+          : (searchPayload.isGenericRecommendation ? getGenericResourceDisplayKeywords(plan.type || 'all') : normalizeResourceSearchQueries(plan.searchQueries)),
+        plannerReason: plan.reason || '',
+        usedModelPlanner: Boolean(plan.usedModel),
+        isGenericRecommendation: Boolean(searchPayload.isGenericRecommendation || plan.isGenericRecommendation),
+        requestedAt: Date.now()
+      };
+      if (payload.results.length === 0 && intent.query && !payload.queries.includes(intent.query)) {
+        const fallbackPayload = await searchResourcesByPlan({
+          ...plan,
+          searchQueries: [intent.query]
+        }, requestController.signal);
+        payload.results = fallbackPayload.results;
+        payload.totalHits += Number(fallbackPayload.totalHits || 0);
+        payload.searchedQueries = [...new Set([...(payload.searchedQueries || []), ...(fallbackPayload.searchedQueries || [])])];
+      }
+      if (payload.results.length === 0 && payload.isGenericRecommendation) {
+        const popularPayload = await searchResourcesByPlan({
+          ...plan,
+          searchQueries: [],
+          sort: 'downloads'
+        }, requestController.signal);
+        payload.results = popularPayload.results;
+        payload.totalHits += Number(popularPayload.totalHits || 0);
+        payload.searchedQueries = [...new Set([...(payload.searchedQueries || []), ...(popularPayload.searchedQueries || [])])];
+      }
+      payload.query = payload.searchedQueries?.[0] || payload.query;
+      payload.queries = payload.searchedQueries || payload.queries;
+      payload.typeLabel = getResourceTypeLabel(payload.type);
+
+      const targetSession = getSessionByIndex(sessionIndex);
+      if (!targetSession?.messages?.[messageIndex]) return true;
+      targetSession.messages[messageIndex].content = buildResourceSearchReply(payload);
+      mergeAssistantMessageMeta(sessionIndex, messageIndex, {
+        kind: 'resource_search_results',
+        resourceSearch: payload
+      });
+      nextTick(scrollToBottom);
+      void refreshConversationSummaryCache(sessionIndex);
+      return true;
+    } catch (error) {
+      const targetSession = getSessionByIndex(sessionIndex);
+      if (error?.name === 'AbortError') {
+        if (targetSession?.messages?.[messageIndex]) {
+          targetSession.messages[messageIndex].content = '资源搜索已停止。';
+        }
+        return true;
+      }
+      logger.warn('boh-ai', 'Resource search failed', error);
+      if (targetSession?.messages?.[messageIndex]) {
+        targetSession.messages[messageIndex].content = `资源搜索暂时失败：${error?.message || '网络请求异常'}。你也可以先打开资源中心手动搜索。`;
+        mergeAssistantMessageMeta(sessionIndex, messageIndex, {
+          kind: 'resource_search_results',
+          resourceSearch: {
+            ok: false,
+            query: intent.query,
+            rawQuery: userText,
+            type: intent.type,
+            typeLabel: getResourceTypeLabel(intent.type),
+            loader: intent.loader,
+            version: intent.version,
+            totalHits: 0,
+            results: [],
+            errorMessage: error?.message || '网络请求异常'
+          }
+        });
+      }
+      return true;
+    } finally {
+      clearThinkingStatus();
+      const targetSession = getSessionByIndex(sessionIndex);
+      if (targetSession) {
+        targetSession.isLoading = false;
+        targetSession.isThinking = false;
+      }
+      if (abortController.value === requestController) {
+        abortController.value = null;
+      }
+      if (activeGenerationSessionIndex.value === sessionIndex) {
+        activeGenerationSessionIndex.value = null;
+      }
+      stopThinkingTimer();
+    }
+  };
+
   const sendMessage = async () => {
     if (!inputMessage.value.trim() || isLoading.value || abortController.value) return;
     if (await handlePendingCloudReferenceConsentReply(inputMessage.value.trim())) return;
@@ -4913,6 +5781,78 @@ export function useChatEngine() {
 
     const userText = inputMessage.value.trim();
     if (await tryStartActionDraftFromUserInput(userText, sessionIndex)) return;
+    if (await tryStartPageCreationFromUserInput(userText, sessionIndex)) return;
+    if (await handleResourceSearchRequest(userText)) return;
+
+    if (isAgentClusterMode(currentModeId.value)) {
+      appendUserMessageWithTitle(sessionIndex, userText);
+      resetComposerInput();
+      scrollToBottom(true);
+      session.isLoading = true;
+      session.isThinking = true;
+      activeGenerationSessionIndex.value = sessionIndex;
+      const clusterController = new AbortController();
+      abortController.value = clusterController;
+      session.messages.push({ role: 'assistant', content: '' });
+      const clusterMessageIndex = session.messages.length - 1;
+      await nextTick();
+      scrollToBottom();
+      resetAgentClusterState();
+      try {
+        const historyForCluster = Array.isArray(session.messages) ? session.messages.slice(0, -1) : [];
+        const result = await runAgentClusterBranch({
+          userText,
+          history: historyForCluster,
+          historySummary: '',
+          clusterMode: 'auto',
+          signal: clusterController.signal,
+          onEvent: applyAgentClusterEvent,
+          onStream: (text) => {
+            const target = getSessionByIndex(sessionIndex);
+            const message = target?.messages?.[clusterMessageIndex];
+            if (message) {
+              message.content = String(text || '');
+              scrollToBottom();
+            }
+          }
+        });
+        if (result?.degraded) {
+          const target = getSessionByIndex(sessionIndex);
+          const message = target?.messages?.[clusterMessageIndex];
+          if (message) {
+            const note = agentClusterState.lastError ? `\n\n（Agent 集群已降级：${String(agentClusterState.lastError).slice(0, 80)}）` : '';
+            message.content = `${message.content || ''}${note}`;
+          }
+        }
+        return;
+      } catch (clusterError) {
+        if (clusterError?.name !== 'AbortError') {
+          logger.error('boh-ai', 'Agent cluster branch failed', clusterError);
+        }
+        applyAgentClusterEvent({
+          type: clusterError?.name === 'AbortError' ? 'cancelled' : 'error',
+          payload: { message: clusterError?.message || String(clusterError || '') },
+          createdAt: Date.now()
+        });
+        const target = getSessionByIndex(sessionIndex);
+        if (target?.messages?.[clusterMessageIndex]) {
+          target.messages[clusterMessageIndex].content = clusterError?.name === 'AbortError'
+            ? '已停止生成。'
+            : `Agent 集群运行失败：${String(clusterError?.message || clusterError).slice(0, 200)}`;
+        }
+        return;
+      } finally {
+        session.isLoading = false;
+        session.isThinking = false;
+        if (activeGenerationSessionIndex.value === sessionIndex) {
+          activeGenerationSessionIndex.value = null;
+        }
+        if (abortController.value === clusterController) {
+          abortController.value = null;
+        }
+        stopThinkingTimer();
+      }
+    }
 
     appendUserMessageWithTitle(sessionIndex, userText);
     resetComposerInput();
@@ -4962,7 +5902,7 @@ export function useChatEngine() {
       if (!preflightController.signal.aborted) {
         preflightController.abort();
       }
-    }, 3500);
+    }, 1600);
     try {
       autoDecision = currentModeId.value === BOH_AUTO_MODE_ID
         ? await resolveAutoModeDecisionWithFastModel(userText, preflightController.signal)
@@ -5043,6 +5983,9 @@ export function useChatEngine() {
     activeGenerationSessionIndex.value = sessionIndex;
     startThinkingTimer();
     setThinkingStatus(`正在分析问题：${summarizeThinkingSubject(userText)}`);
+    let generationTimedOut = false;
+    let generationTimeoutReason = '生成服务长时间没有返回新内容';
+    let generationTimeoutTimer = null;
 
     const updateContent = (text) => {
       const targetSession = getSessionByIndex(sessionIndex);
@@ -5050,24 +5993,43 @@ export function useChatEngine() {
       targetSession.messages[messageIndex].content = text;
       scrollToBottom();
     };
+    const resetGenerationStallTimeout = (reason = generationTimeoutReason) => {
+      generationTimeoutReason = reason;
+      clearTimeout(generationTimeoutTimer);
+      generationTimeoutTimer = setTimeout(() => {
+        generationTimedOut = true;
+        if (!requestController.signal.aborted) {
+          requestController.abort();
+        }
+      }, GENERATION_STALL_TIMEOUT_MS);
+    };
+    const markGenerationProgress = (status = '') => {
+      if (status) setThinkingStatus(status);
+      resetGenerationStallTimeout(status || generationTimeoutReason);
+    };
+    resetGenerationStallTimeout('等待生成服务响应');
 
     try {
       let finalPrompt = truncateText(userText, MAX_USER_INPUT_CHARS);
-      let promptExtras = '';
+      let internalEvidenceContext = '';
+      let webEvidenceContext = '';
       let currentContent = '';
       let groundingEvidenceRefs = [];
       let searchResultCount = 0;
       let hasKnowledgeContext = false;
+      let latestForumSummaryPosts = [];
       const showProgress = SHOW_INTERNAL_PROGRESS_NOTES;
 
       const setProgressContent = (nextText) => {
         if (!showProgress) return;
+        resetGenerationStallTimeout('正在更新检索进度');
         currentContent = String(nextText || '');
         updateContent(currentContent);
       };
 
       const appendProgressContent = (appendText) => {
         if (!showProgress) return;
+        resetGenerationStallTimeout('正在更新检索进度');
         currentContent += String(appendText || '');
         updateContent(currentContent);
       };
@@ -5088,23 +6050,27 @@ export function useChatEngine() {
         if (autoSearchEnabled) {
           updateAssistantActionNotes(sessionIndex, messageIndex, ['联网搜索最新资料。']);
         }
-        setThinkingStatus('正在并行搜索网络资料...');
+        markGenerationProgress('正在并行搜索网络资料...');
         setProgressContent(`> **正在搜索**: "${userText}"...\n\n`);
       }
 
       // 自动知识路由：回答前先做关键词判断，再决定是否检索对应知识源
       try {
-        setThinkingStatus('正在判断需要查看哪些 BOH 资料...');
+        markGenerationProgress('正在判断需要查看哪些 BOH 资料...');
         const routingPreview = resolveKnowledgeRoutingPlan(userText);
+        if (isForumSearchEnabled.value) {
+          routingPreview.plan.forum = true;
+        }
         const previewTargets = getRetrievalTargetLabels(routingPreview.plan);
         if (previewTargets.length > 0) {
-          setThinkingStatus(`正在查看 ${previewTargets.join('、')}...`);
+          markGenerationProgress(`正在查看 ${previewTargets.join('、')}...`);
         }
 
         const {
           retrievalPlan,
           routingReasons,
           connectorResults,
+          retrievalTrace,
           treeholeTotal,
           sharedMemoryTotal,
           userPrivateLabels,
@@ -5116,6 +6082,10 @@ export function useChatEngine() {
         const successfulConnectorResults = Array.isArray(connectorResults)
           ? connectorResults.filter((item) => item?.ok)
           : [];
+        const forumConnectorResult = successfulConnectorResults.find((item) => item?.connectorId === BOHAI_CONNECTOR_IDS.forum);
+        if (isLatestForumSummaryQuery(userText) && Array.isArray(forumConnectorResult?.metadata?.posts)) {
+          latestForumSummaryPosts = forumConnectorResult.metadata.posts;
+        }
         const retrievalTargets = [];
         if (retrievalPlan.treehole) retrievalTargets.push(treeholeTotal > 0 ? `BOH Cloud+(${treeholeTotal}条)` : 'BOH Cloud+');
         if (retrievalPlan.sharedMemory && sharedMemoryTotal > 0) {
@@ -5138,6 +6108,7 @@ export function useChatEngine() {
         if (visibleRetrievalNote) {
           updateAssistantActionNotes(sessionIndex, messageIndex, [visibleRetrievalNote]);
         }
+        mergeAssistantMessageMeta(sessionIndex, messageIndex, { ragTrace: retrievalTrace });
 
         if (retrievalTargets.length > 0) {
           appendProgressContent(`> **自动检索中**: ${retrievalTargets.join('、')}...\n\n`);
@@ -5149,21 +6120,20 @@ export function useChatEngine() {
 
         if (contextText) {
           hasKnowledgeContext = true;
-          const contextSection = `\n\n以下是系统检索到的内部资料，请优先依据这些内容回答：\n${contextText}\n`;
-          promptExtras = appendPromptSection(promptExtras, contextSection, MAX_PROMPT_EXTRA_CHARS);
+          internalEvidenceContext = truncateText(contextText, MAX_PROMPT_EXTRA_CHARS);
           groundingEvidenceRefs = Array.isArray(evidenceRefs) ? evidenceRefs.slice(0, 32) : [];
           if (retrievalTargets.length > 0) {
             appendProgressContent('> ✅ **已完成内部检索**\n\n');
-            setThinkingStatus('已找到相关资料，正在整理回答依据...');
+            markGenerationProgress('已找到相关资料，正在整理回答依据...');
           }
         } else if (retrievalTargets.length > 0) {
           appendProgressContent('> ⚠️ **未检索到匹配内部资料**\n\n');
-          setThinkingStatus('未找到明确资料，正在分析问题本身...');
+          markGenerationProgress('未找到明确资料，正在分析问题本身...');
         }
       } catch (knowledgeError) {
         logger.error('boh-ai', 'Knowledge retrieval failed', knowledgeError);
         appendProgressContent(`> ❌ **内部检索失败**: ${knowledgeError.message}\n\n`);
-        setThinkingStatus('资料检索失败，正在尝试直接回答...');
+        markGenerationProgress('资料检索失败，正在尝试直接回答...');
       }
 
       if (enableSearch) {
@@ -5178,7 +6148,7 @@ export function useChatEngine() {
           } else if (webSearchResult?.ok) {
             searchResultCount = Number(webSearchResult.count || 0);
             if (webSearchResult.context) {
-              promptExtras = appendPromptSection(promptExtras, webSearchResult.context, MAX_PROMPT_EXTRA_CHARS);
+              webEvidenceContext = truncateText(webSearchResult.context, MAX_PROMPT_EXTRA_CHARS);
             }
             const results = Array.isArray(webSearchResult.results) ? webSearchResult.results : [];
             updateAssistantActionNotes(
@@ -5207,52 +6177,68 @@ export function useChatEngine() {
         }
       }
 
-      finalPrompt = appendPromptSection(finalPrompt, promptExtras, MAX_FINAL_PROMPT_CHARS - 1600);
       const shouldEnforceGrounding = factualQuestion || operationQuestion || enableSearch || communityNeedsEvidence || bohInternalFactualQuestion;
 
-      finalPrompt = appendPromptSection(finalPrompt, `\n\n【回答要求】：
+      const latestForumSummaryMode = isLatestForumSummaryQuery(userText);
+      const routedModeId = autoDecision?.modeId || (currentModeId.value === BOH_AUTO_MODE_ID ? 'fast' : currentModeId.value);
+      const activeModeId = isPlanModeEnabled.value ? 'plan' : routedModeId;
+      const isPlanMode = activeModeId === 'plan';
+      if (isPlanModeEnabled.value) {
+        updateAssistantActionNotes(sessionIndex, messageIndex, ['Plan 模式已开启，显示实时进度。']);
+      }
+      const responseRules = `【回答要求】：
 1. 涉及网站操作时，优先给出“入口路径 + 步骤”。
 2. 涉及社区事实时，优先依据检索内容回答。
 3. 不确定时请直接说明不确定，不要编造。
 4. 涉及用户个人复盘时，优先结合 BOH Cloud+ 私有内容给出总结和建议。
 5. 不要复述或粘贴“内部检索资料”的原文段落。
-6. 优先用自然表达，除非用户要求，不强制套用固定模板。`, MAX_FINAL_PROMPT_CHARS);
+6. 如果引用论坛帖子证据 [F1]、[F2] 等，可以给出“查看帖子”链接，链接必须来自检索资料中的“查看”字段。
+7. 总结论坛帖子时，若检索资料提供了“发帖ID”，必须用该 ID（如 @name）指代发帖者；不要泛称“用户分享/用户提到/有人提到”。
+8. 优先用自然表达，除非用户要求，不强制套用固定模板。
+${isPlanMode ? '- Plan 模式下必须给出可继续接力的“小步计划/下一步行动”，并把缺少依据的内容标成不确定，不要编造成已确认事实。' : ''}
+${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须严格按 [F1]、[F2]、[F3]、[F4]、[F5] 的顺序输出；[F1] 是最新发布，后面依次更早。不得按热度、重要性或主题重排；若不足 5 条，只输出已检索到的条目。' : ''}`;
 
+      let communityRules = '';
       if (communityQuestion || bohInternalFactualQuestion) {
-        finalPrompt = appendPromptSection(finalPrompt, `\n\n【社群内容防编造规则】
+        communityRules = `【社群内容防编造规则】
 1. 涉及方块之家、BOH、论坛帖子、成员、活动、历史、服务器、社群动态等内容时，只能依据本轮检索到的资料或联网搜索结果回答。
 2. 禁止凭印象补全人物、事件、时间线、动机、关系、帖子内容、活动细节或统计数字。
 3. 如果资料没有覆盖用户问到的点，必须明确说“未检索到明确依据，无法确认”，不要给出猜测版答案。
-4. 如果用户要求创作、改写或生成文案，可以创作，但必须说明“以下是创作内容，不代表社群事实”。`, MAX_FINAL_PROMPT_CHARS);
+4. 如果用户要求创作、改写或生成文案，可以创作，但必须说明“以下是创作内容，不代表社群事实”。`;
       }
 
+      let evidenceRules = '';
       if (shouldEnforceGrounding) {
-        finalPrompt = appendPromptSection(finalPrompt, `\n\n【证据要求】：
+        evidenceRules = `【证据要求】：
 1. 若引用内部资料中的事实，请在对应句尾标注证据编号（如 [S2]、[T1]、[F3]）。
 2. 若引用联网搜索结果，请使用 [W1]、[W2]。
-3. 若某结论缺乏证据，请明确写“未检索到明确依据”。`, MAX_FINAL_PROMPT_CHARS);
+3. 若某结论缺乏证据，请明确写“未检索到明确依据”。
+4. 引用内部证据时仅可使用 <available_internal_refs> 中的编号，不可自造编号。`;
       }
 
-      if (shouldEnforceGrounding && groundingEvidenceRefs.length > 0) {
-        finalPrompt = appendPromptSection(
-          finalPrompt,
-          `\n\n【本轮可用证据编号】\n${groundingEvidenceRefs.join('、')}\n引用时仅可使用以上编号，不可自造编号。`,
-          MAX_FINAL_PROMPT_CHARS
-        );
-      }
-
+      let operationRules = '';
       if (operationQuestion) {
-        finalPrompt = appendPromptSection(finalPrompt, `\n\n【操作类问题专用格式】
+        operationRules = `【操作类问题专用格式】
 - 入口路径：给出最相关路径（例如 /user-space、/profile/:username）
 - 操作步骤：用 1-${OPERATION_MAX_STEPS} 条编号步骤说明
 - 注意事项：仅在必要时给出
 
 【强约束】
 - 如果无法从已检索资料确认路径，直接说“我目前无法确认该功能的准确路径”。
-- 禁止猜测未出现过的页面路径或按钮文案。`, MAX_FINAL_PROMPT_CHARS);
+- 禁止猜测未出现过的页面路径或按钮文案。`;
       }
 
-      const activeModeId = autoDecision?.modeId || (currentModeId.value === BOH_AUTO_MODE_ID ? 'fast' : currentModeId.value);
+      finalPrompt = buildStructuredUserPrompt({
+        userText,
+        evidenceContext: internalEvidenceContext,
+        searchContext: webEvidenceContext,
+        responseRules,
+        communityRules,
+        evidenceRules,
+        operationRules,
+        availableEvidenceRefs: shouldEnforceGrounding ? groundingEvidenceRefs : []
+      });
+
       const preferAccuracyModel = factualQuestion || operationQuestion || enableSearch || communityNeedsEvidence;
       const preferredModel = availableModels.find((item) => item.id === ACCURACY_PREFERRED_MODEL_ID);
       const ragPreferredModel = availableModels.find((item) => item.id === RAG_PREFERRED_MODEL_ID);
@@ -5260,7 +6246,7 @@ export function useChatEngine() {
       const generationModel = preferAccuracyModel && preferredModel
         ? preferredModel
         : (hasKnowledgeContext && ragPreferredModel ? ragPreferredModel : routedModeModel);
-      setThinkingStatus('正在生成回答...');
+      markGenerationProgress('正在生成回答...');
 
       let url = generationModel.url;
       let headers = {
@@ -5268,17 +6254,100 @@ export function useChatEngine() {
         'Authorization': `Bearer ${generationModel.apiKey}`
       };
       let requestBody = {};
-      const systemPromptContent = BASE_SYSTEM_PROMPT;
+      const stylePromptAppendix = String(currentResponseStyle.value?.promptAppendix || '').trim();
+      const systemPromptContent = [
+        BASE_SYSTEM_PROMPT,
+        isPlanMode ? PLAN_MODE_PROMPT_APPENDIX : '',
+        stylePromptAppendix
+      ].filter((section) => String(section || '').trim()).join('\n');
       const generationProfile = getGenerationProfile(activeModeId, {
         factualQuestion: factualQuestion || communityNeedsEvidence,
         operationQuestion
       });
 
-      const recentMessages = buildHistoryMessagesWithinBudget(session.messages.slice(0, -2), {
+      const recentMessages = buildHistoryMessagesWithCachedSummary({
+        ...session,
+        messages: session.messages.slice(0, -2)
+      }, {
         maxChars: MAX_HISTORY_CONTEXT_CHARS,
         maxMessages: MAX_CONTEXT_MESSAGES,
         maxPerMessage: MAX_HISTORY_MESSAGE_CHARS
       });
+
+      if (latestForumSummaryMode && latestForumSummaryPosts.length > 0 && !enableSearch) {
+        markGenerationProgress('正在把社区动态整理成自然叙述...');
+        let narrativeAnswer = '';
+        const forumSummarySourceText = getForumSummarySourceText(latestForumSummaryPosts);
+        const forumNarrativePrompt = buildForumNarrativeSummaryPrompt(latestForumSummaryPosts);
+        try {
+          const rawNarrative = await callModelInternal(
+            generationModel.id,
+            forumNarrativePrompt,
+            `${systemPromptContent}\n你必须严格基于用户提供的论坛帖子资料写总结。禁止编造，禁止输出链接，禁止输出列表。`,
+            [],
+            requestController.signal,
+            0,
+            {
+              ...generationProfile,
+              temperature: 0.03,
+              top_p: 0.42,
+              max_tokens: Math.min(Number(generationProfile.max_tokens || 1200), 900)
+            }
+          );
+          narrativeAnswer = removeForumSummaryLinks(cleanAssistantVisibleReply(filterThinkingContent(rawNarrative)));
+
+          const polarityConflicts = detectForumSummaryPolarityConflicts(forumSummarySourceText, narrativeAnswer);
+          if (polarityConflicts.length > 0) {
+            logger.warn('boh-ai', '论坛总结检测到极性冲突，准备重写', polarityConflicts);
+            markGenerationProgress('正在核对总结准确性...');
+            const repairedNarrative = await callModelInternal(
+              generationModel.id,
+              `${forumNarrativePrompt}\n\n【上次总结存在的准确性问题】\n${polarityConflicts.map((item) => `- ${item}`).join('\n')}\n\n【上次总结】\n${narrativeAnswer}\n\n请重写总结，必须修正上述问题，尤其不能把“大/小、多少、喜欢/不喜欢、要/不要”等语义方向写反。`,
+              `${systemPromptContent}\n你正在修正论坛总结。必须严格基于资料，优先准确，其次自然。禁止编造，禁止输出链接，禁止输出列表。`,
+              [],
+              requestController.signal,
+              0,
+              {
+                ...generationProfile,
+                temperature: 0,
+                top_p: 0.35,
+                max_tokens: Math.min(Number(generationProfile.max_tokens || 1200), 900)
+              }
+            );
+            const repairedAnswer = removeForumSummaryLinks(cleanAssistantVisibleReply(filterThinkingContent(repairedNarrative)));
+            const repairedConflicts = detectForumSummaryPolarityConflicts(forumSummarySourceText, repairedAnswer);
+            narrativeAnswer = repairedAnswer && repairedConflicts.length === 0
+              ? repairedAnswer
+              : '';
+          }
+        } catch (summaryError) {
+          if (summaryError?.name === 'AbortError') throw summaryError;
+          logger.warn('boh-ai', 'AI 论坛叙述总结失败，降级为规则总结', summaryError);
+        }
+
+        const finalNarrativeAnswer = narrativeAnswer || buildExtractiveForumSummaryAnswer(latestForumSummaryPosts);
+        markGenerationProgress('正在输出论坛总结...');
+        clearThinkingStatus();
+        const targetSession = getSessionByIndex(sessionIndex);
+        if (targetSession) {
+          targetSession.isThinking = false;
+        }
+        await animateAssistantContent(finalNarrativeAnswer, updateContent, {
+          requestSignal: requestController.signal,
+          charDelayMs: 10,
+          chunkSize: 2
+        });
+        nextTick(scrollToBottom);
+
+        void captureMemoryFromConversation({
+          sessionIndex,
+          userText,
+          assistantText: finalNarrativeAnswer
+        });
+        void refreshConversationSummaryCache(sessionIndex);
+        return;
+      }
+
       const groundingRefSet = new Set(
         (Array.isArray(groundingEvidenceRefs) ? groundingEvidenceRefs : []).map((id) => String(id).toUpperCase())
       );
@@ -5319,7 +6388,7 @@ export function useChatEngine() {
         }
 
         appendProgressContent('> ⚙️ **正在核验回答依据并自动修复...**\n\n');
-        setThinkingStatus('正在核验回答依据并修正引用...');
+        markGenerationProgress('正在核验回答依据并修正引用...');
 
         const groundedRepairPrompt = appendPromptSection(
           finalPrompt,
@@ -5368,6 +6437,7 @@ export function useChatEngine() {
         max_tokens: generationProfile.max_tokens
       };
 
+      markGenerationProgress('正在请求模型生成回答...');
       const response = await fetch(url, {
         method: 'POST',
         headers: headers,
@@ -5382,11 +6452,12 @@ export function useChatEngine() {
 
       // 重置思考过滤状态
       resetThinkingState();
-      setThinkingStatus('正在生成回答...');
+      markGenerationProgress('正在生成回答...');
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let assistantMessage = getSessionByIndex(sessionIndex)?.messages?.[messageIndex]?.content || '';
+      let lastVisibleStreamContent = cleanAssistantVisibleReply(filterThinkingContent(assistantMessage));
       let shouldRepairDegenerateStream = false;
       let hasReceivedVisibleAnswer = false;
       let streamIdleTimer = null;
@@ -5422,6 +6493,7 @@ export function useChatEngine() {
           const rawContent = delta.content || '';
 
           if (rawContent) {
+            resetGenerationStallTimeout('正在接收模型输出');
             const content = safeChunkToString(rawContent);
             const filteredContent = filterThinkingContentStream(content);
             if (filteredContent && filteredContent !== '[object Object]') {
@@ -5432,12 +6504,16 @@ export function useChatEngine() {
                 stopThinkingWhenAnswerVisible();
               }
               assistantMessage += filteredContent;
+              const visibleStreamContent = cleanAssistantVisibleReply(filterThinkingContent(assistantMessage));
+              if (visibleStreamContent) {
+                lastVisibleStreamContent = visibleStreamContent;
+              }
               updateContent(assistantMessage);
               nextTick(scrollToBottom);
 
               if (isDegenerateStreamOutput(assistantMessage)) {
                 shouldRepairDegenerateStream = true;
-                setThinkingStatus('生成内容异常，正在自动修复...');
+                markGenerationProgress('生成内容异常，正在自动修复...');
                 appendProgressContent('> ⚠️ **生成内容异常，正在自动修复...**\n\n');
               }
             }
@@ -5479,6 +6555,12 @@ export function useChatEngine() {
         const remainingContent = flushThinkingBuffer();
         if (remainingContent) {
           assistantMessage += remainingContent;
+          const visibleStreamContent = cleanAssistantVisibleReply(filterThinkingContent(assistantMessage));
+          if (visibleStreamContent) {
+            lastVisibleStreamContent = visibleStreamContent;
+            updateContent(assistantMessage);
+            nextTick(scrollToBottom);
+          }
         }
       } else {
         resetThinkingState();
@@ -5525,6 +6607,7 @@ export function useChatEngine() {
           userText,
           assistantText: groundedRepairedContent
         });
+        void refreshConversationSummaryCache(sessionIndex);
         return;
       }
 
@@ -5534,9 +6617,36 @@ export function useChatEngine() {
         stopThinkingWhenAnswerVisible();
       }
 
+      if (!cleanAssistantVisibleReply(finalFilteredContent)) {
+        logger.warn('boh-ai', 'Stream completed without visible assistant content, retrying non-stream fallback');
+        markGenerationProgress('正在补全回答...');
+        try {
+          const fallbackModel = getFallbackModel(generationModel.id);
+          const fallbackReply = await callModelInternal(
+            fallbackModel?.id || generationModel.id,
+            appendPromptSection(
+              finalPrompt,
+              '\n\n【补答要求】\n上一轮流式输出没有生成可见正文。请直接给出最终回答，不要输出思考过程、检索日志或空内容。',
+              MAX_FINAL_PROMPT_CHARS
+            ),
+            systemPromptContent,
+            recentMessages,
+            requestController.signal,
+            0,
+            {
+              ...generationProfile,
+              max_tokens: Math.min(Number(generationProfile.max_tokens || 1200), 1200)
+            }
+          );
+          finalFilteredContent = filterThinkingContent(fallbackReply);
+        } catch (fallbackError) {
+          logger.warn('boh-ai', 'Non-stream fallback after empty stream failed', fallbackError);
+        }
+      }
+
       if (isDegenerateAssistantReply(finalFilteredContent)) {
         logger.warn('boh-ai', 'Detected degenerate output, retrying once with strict settings');
-        setThinkingStatus('生成内容异常，正在自动重试...');
+        markGenerationProgress('生成内容异常，正在自动重试...');
         appendProgressContent('> ⚠️ **生成内容异常，正在自动重试...**\n\n');
 
         const retryPrompt = appendPromptSection(
@@ -5565,10 +6675,12 @@ export function useChatEngine() {
         }
       }
 
-      finalFilteredContent = await ensureGroundedReply(finalFilteredContent, { allowModelRepair: false });
+      finalFilteredContent = await ensureGroundedReply(finalFilteredContent, {
+        allowModelRepair: shouldEnforceGrounding && totalGroundingRefCount > 0
+      });
       finalFilteredContent = cleanAssistantVisibleReply(finalFilteredContent);
       if (!finalFilteredContent) {
-        finalFilteredContent = '我暂时没有生成到有效内容，请再试一次。';
+        finalFilteredContent = lastVisibleStreamContent || '我暂时没有生成到有效内容，请再试一次。';
       }
 
       updateContent(finalFilteredContent);
@@ -5586,6 +6698,7 @@ export function useChatEngine() {
         userText,
         assistantText: finalFilteredContent
       });
+      void refreshConversationSummaryCache(sessionIndex);
     } catch (error) {
       const targetSession = getSessionByIndex(sessionIndex);
       const currentContent = targetSession?.messages?.[messageIndex]?.content || '';
@@ -5593,7 +6706,9 @@ export function useChatEngine() {
       if (error.name === 'AbortError') {
         logger.debug('boh-ai', 'Generation stopped');
         const filteredStoppedContent = cleanAssistantVisibleReply(filterThinkingContent(currentContent));
-        if (isDegenerateAssistantReply(filteredStoppedContent)) {
+        if (generationTimedOut) {
+          updateContent(`这次生成长时间没有新进展，我已自动停止（${generationTimeoutReason}）。你可以重试；如果是论坛最新总结，我会优先使用真实帖子做抽取式总结。`);
+        } else if (isDegenerateAssistantReply(filteredStoppedContent)) {
           updateContent('检测到生成内容异常，本次已停止。你可以重试，我会自动使用更稳的参数。');
         } else {
           updateContent(`${filteredStoppedContent}\n\n（已停止生成）`);
@@ -5609,6 +6724,7 @@ export function useChatEngine() {
       stopThinkingTimer();
       nextTick(scrollToBottom);
     } finally {
+      clearTimeout(generationTimeoutTimer);
       clearThinkingStatus();
       const targetSession = getSessionByIndex(sessionIndex);
       if (targetSession) {
@@ -5640,12 +6756,20 @@ export function useChatEngine() {
     currentModel,
     isCommandMode,
     isSearching,
+    isForumSearchEnabled,
     isMemoryCaptureEnabled,
     isTreeholeMemoryEnabled,
     isTreeholeMemoryToggling,
     isQuickNoteEnabled,
+    isPlanModeEnabled,
+    agentClusterState,
+    resetAgentClusterState,
+    currentResponseStyleId,
+    currentResponseStyle,
+    responseStyleOptions: RESPONSE_STYLE_OPTIONS,
     pendingCloudReferenceConsent,
     pendingQuickNote,
+    actionAuditLog,
     memoryCaptureTip,
     isRateLimited,
     rateLimitMessage,
@@ -5659,6 +6783,8 @@ export function useChatEngine() {
     toggleMemoryCapture,
     toggleTreeholeMemory,
     toggleQuickNoteMode,
+    togglePlanMode,
+    setResponseStyle,
     updatePendingQuickNoteDraft,
     dismissQuickNoteDraft,
     confirmQuickNoteDraft,

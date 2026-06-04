@@ -333,6 +333,37 @@ export const useAuthStore = defineStore('auth', () => {
     userInfo.showcasePostIds = normalizeShowcasePostIds(data.showcase_post_ids);
   };
 
+  const refreshCurrentUserProfile = async ({ force = true } = {}) => {
+    const { supabase } = await loadAuthApi();
+    const { data: { session }, error: sessionError } = await withTimeout(
+      supabase.auth.getSession(),
+      AUTH_TIMEOUT_MS,
+      '确认登录状态超时'
+    );
+    if (sessionError) throw sessionError;
+
+    const sessionUser = session?.user || null;
+    if (!sessionUser) {
+      await updateLocalState(null);
+      return null;
+    }
+
+    await updateLocalState(sessionUser, { force });
+    return sessionUser;
+  };
+
+  const ensureAdminAccess = async () => {
+    if (isAdmin.value) return true;
+
+    try {
+      await refreshCurrentUserProfile({ force: true });
+      return isAdmin.value;
+    } catch (error) {
+      logger.warn('auth-store', '确认管理员权限失败', error);
+      return false;
+    }
+  };
+
   const updateLocalState = async (user, options = {}) => {
     const {
       force = false,
@@ -796,6 +827,8 @@ export const useAuthStore = defineStore('auth', () => {
     deleteAccount,
     logout,
     initLoginState,
+    refreshCurrentUserProfile,
+    ensureAdminAccess,
     deductPoints,
     resetState,
     updateUserProfile,

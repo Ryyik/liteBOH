@@ -1508,7 +1508,6 @@
 }
 
 .image-post-card-v2 .post-title-v2,
-.image-post-card-v2 .post-text-v2,
 .image-post-card-v2 .search-highlight-snippet {
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -1671,7 +1670,7 @@
 }
 
 .image-post-card-v2 .post-text-v2 {
-  -webkit-line-clamp: 2;
+  max-height: calc(1.62em * 3);
   margin-bottom: 0;
 }
 
@@ -1808,6 +1807,24 @@
   line-height: 1.62;
   color: #4b5563;
   margin-bottom: 18px;
+  max-height: calc(1.62em * 5);
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  position: relative;
+  white-space: pre-wrap;
+}
+
+.post-text-v2.is-overflowing::after {
+  content: "...";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  min-width: 72px;
+  padding-left: 28px;
+  text-align: right;
+  color: #4b5563;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.94) 42%);
+  pointer-events: none;
 }
 
 .search-highlight-snippet {
@@ -3287,9 +3304,12 @@
     min-width: 64px;
   }
 
-  .image-post-card-v2 .post-text-v2,
   .image-post-card-v2 .search-highlight-snippet {
     -webkit-line-clamp: 2;
+  }
+
+  .image-post-card-v2 .post-text-v2 {
+    max-height: calc(1.6em * 3);
   }
 
   .image-post-card-v2 .post-actions-v2 {

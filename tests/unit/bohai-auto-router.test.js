@@ -4,6 +4,7 @@ import {
   isLikelyBohInternalFactualRequest,
   isLikelyCommunityMemoryShare,
   isLikelyDailySummaryRequest,
+  isLikelyPlanModeRequest,
   isLikelyMinecraftCommandRequest,
   isLikelyWebSearchRequest,
   resolveBOHAIAutoModeDecision
@@ -42,6 +43,17 @@ describe('bohai auto router: mode routing', () => {
 
     expect(decision.modeId).toBe('think');
     expect(decision.complexQuestion).toBe(true);
+  });
+
+  it('routes long-running execution plans to Plan mode', () => {
+    const decision = resolveBOHAIAutoModeDecision('帮我制定一个三阶段推进计划，并持续跟进风险和下一步行动', {
+      isAutoMode: true
+    });
+
+    expect(isLikelyPlanModeRequest('这个项目请一步步推进，先计划再执行')).toBe(true);
+    expect(decision.modeId).toBe('plan');
+    expect(decision.planMode).toBe(true);
+    expect(decision.actionNotes).toContain('切换到 Plan 模式分步推进。');
   });
 
   it('routes BOH internal factual questions to think mode', () => {

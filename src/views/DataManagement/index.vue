@@ -13,18 +13,89 @@
         </div>
 
         <nav class="sidebar-nav" aria-label="网站管理导航">
-          <button
-            v-for="item in adminNavigation"
-            :key="item.id"
-            class="sidebar-link"
-            :class="{ active: item.active }"
-            type="button"
-            @click="handleAdminNavClick(item)"
-          >
-            <component :is="item.icon" :size="17" />
-            <span>{{ item.label }}</span>
-            <span v-if="item.badge" class="sidebar-badge">{{ item.badge }}</span>
-          </button>
+          <template v-for="item in adminNavigation" :key="item.id">
+            <button
+              class="sidebar-link"
+              :class="{ active: item.active }"
+              type="button"
+              @click="handleAdminNavClick(item)"
+            >
+              <component :is="item.icon" :size="17" />
+              <span>{{ item.label }}</span>
+              <span v-if="item.badge" class="sidebar-badge">{{ item.badge }}</span>
+              <span
+                v-if="item.id === 'data'"
+                class="sidebar-collapse-indicator"
+                :class="{ collapsed: isDataTreeCollapsed }"
+              >
+                ▾
+              </span>
+            </button>
+
+            <div v-if="item.id === 'data' && !isDataTreeCollapsed" class="sidebar-data-tree">
+              <div v-if="currentPinnedTabs.length" class="sidebar-quick-block">
+                <div class="sidebar-quick-title">置顶表</div>
+                <button
+                  v-for="tab in currentPinnedTabs"
+                  :key="`pinned-${tab.id}`"
+                  class="sidebar-sub-link"
+                  :class="{ active: activeAdminSection === 'data' && currentTab === tab.id }"
+                  type="button"
+                  @click="handleSidebarTabClick(tab.id)"
+                >
+                  <span>{{ tab.label }}</span>
+                  <span v-if="getTabCount(tab.id) > 0" class="sidebar-mini-badge">{{ getTabCount(tab.id) }}</span>
+                </button>
+              </div>
+              <div
+                v-for="group in tabGroupsWithCounts"
+                :key="group.id"
+                class="sidebar-tab-group"
+              >
+                <button
+                  class="sidebar-group-link"
+                  :class="{ active: activeAdminSection === 'data' && activeTabGroupId === group.id }"
+                  type="button"
+                  @click="handleSidebarGroupClick(group)"
+                >
+                  <span>{{ group.label }}</span>
+                  <span class="sidebar-badge">{{ group.count }}</span>
+                  <span
+                    class="sidebar-collapse-indicator"
+                    :class="{ collapsed: isSidebarGroupCollapsed(group.id) }"
+                  >
+                    ▾
+                  </span>
+                </button>
+                <div v-if="!isSidebarGroupCollapsed(group.id)" class="sidebar-subnav">
+                  <button
+                    v-for="tab in getTabsByGroup(group)"
+                    :key="tab.id"
+                    class="sidebar-sub-link"
+                    :class="{ active: activeAdminSection === 'data' && currentTab === tab.id }"
+                    type="button"
+                    @click="handleSidebarTabClick(tab.id)"
+                  >
+                    <span>{{ tab.label }}</span>
+                    <span v-if="getTabCount(tab.id) > 0" class="sidebar-mini-badge">{{ getTabCount(tab.id) }}</span>
+                  </button>
+                </div>
+              </div>
+              <div v-if="recentRecordsForSidebar.length" class="sidebar-quick-block">
+                <div class="sidebar-quick-title">最近查看</div>
+                <button
+                  v-for="record in recentRecordsForSidebar"
+                  :key="`${record.tabId}-${record.id}`"
+                  class="sidebar-recent-link"
+                  type="button"
+                  @click="jumpToRecentRecord(record)"
+                >
+                  <span>{{ record.title }}</span>
+                  <small>{{ record.tabLabel }}</small>
+                </button>
+              </div>
+            </div>
+          </template>
         </nav>
 
         <div class="sidebar-status">
@@ -60,7 +131,7 @@
                 <RefreshCw :size="17" />
                 <span>刷新数据</span>
               </button>
-              <button v-if="!isModerationTab && canCreateCurrentTab" class="publish-btn" @click="openEditModal()">
+              <button v-if="isDataConsoleSection && !isModerationTab && canCreateCurrentTab" class="publish-btn" @click="openEditModal()">
                 <Plus :size="17" />
                 <span>新增记录</span>
               </button>
@@ -69,14 +140,14 @@
         </header>
 
         <div class="main-container">
-          <section class="dashboard-hero">
+          <section v-if="activeAdminSection === 'overview'" class="dashboard-hero">
             <div class="hero-copy">
               <div class="hero-kicker">
                 <span class="live-dot"></span>
                 方块之家管理控制台
               </div>
               <h2>站点运行、内容发布和数据维护集中处理。</h2>
-              <p>当前正在管理 {{ currentTabLabel }}，共 {{ totalRecordCount }} 条记录。管理员可以快速刷新、筛选、导出或打开右侧抽屉编辑数据。</p>
+              <p>当前正在管理 {{ currentTabLabel }}，共 {{ totalRecordCount }} 条记录。{{ activeFilterSummary }}。</p>
             </div>
             <div class="hero-status-grid">
               <div v-for="item in siteHealthCards" :key="item.label" class="hero-status-card">
@@ -90,7 +161,7 @@
           </section>
 
           <!-- 统计概览卡片 -->
-          <section class="stats-section">
+          <section v-if="activeAdminSection === 'overview'" class="stats-section">
             <div class="stat-card" v-for="stat in statsCards" :key="stat.id" :class="`stat-${stat.type}`">
               <div class="stat-icon">
                 <component :is="stat.icon" :size="22" />
@@ -113,7 +184,7 @@
             </div>
           </section>
 
-          <section class="dashboard-grid">
+          <section v-if="activeAdminSection === 'overview'" class="dashboard-grid">
             <div class="overview-panel">
               <div class="panel-heading">
                 <div>
@@ -141,17 +212,18 @@
             <div class="overview-panel">
               <div class="panel-heading">
                 <div>
-                  <h2>待处理事项</h2>
-                  <p>审核、风控和抽奖任务</p>
+                  <h2>异常诊断</h2>
+                  <p>审核、风控和调度状态</p>
                 </div>
                 <ShieldCheck :size="19" />
               </div>
               <div class="operations-list">
                 <button
-                  v-for="item in activeOperations"
+                  v-for="item in activeDiagnostics"
                   :key="item.id"
                   type="button"
                   class="operation-item"
+                  :class="`tone-${item.tone}`"
                   @click="switchTab(item.tab)"
                 >
                   <span class="operation-status" :class="item.tone"></span>
@@ -184,41 +256,75 @@
             </div>
           </section>
 
-      <!-- 管理模块标签页 -->
-          <section id="data-console" class="management-section">
-        <div class="tabs-header" @touchstart.passive="onTabsHeaderTouchStart" @touchend.passive="onTabsHeaderTouchEnd">
-          <div class="mobile-tab-switcher">
-            <button class="mobile-tab-toggle" type="button" @click="isMobileTabMenuOpen = !isMobileTabMenuOpen">
-              <span class="mobile-tab-toggle-label">切换管理视图</span>
-              <span class="mobile-tab-toggle-current">{{ currentTabMeta.icon }} {{ currentTabMeta.label }}</span>
-              <span class="mobile-tab-toggle-arrow" :class="{ open: isMobileTabMenuOpen }">⌄</span>
-            </button>
-            <div v-if="isMobileTabMenuOpen" class="mobile-tab-panel">
+          <section v-if="activeAdminSection !== 'overview'" class="admin-section-hero">
+            <div>
+              <span class="admin-section-eyebrow">{{ currentAdminPageMeta.eyebrow }}</span>
+              <h2>{{ currentAdminPageMeta.title }}</h2>
+              <p>{{ currentAdminPageMeta.description }}</p>
+            </div>
+            <div class="admin-section-metrics">
+              <div v-for="item in currentAdminPageMetrics" :key="item.label" class="admin-section-metric">
+                <span>{{ item.label }}</span>
+                <strong>{{ item.value }}</strong>
+              </div>
+            </div>
+          </section>
+
+          <section v-if="isPlaceholderAdminSection" class="admin-placeholder-panel">
+            <div class="panel-heading">
+              <div>
+                <h2>{{ currentAdminPageMeta.title }}</h2>
+                <p>{{ currentAdminPageMeta.placeholder }}</p>
+              </div>
+              <component :is="currentAdminPageMeta.icon" :size="19" />
+            </div>
+            <div class="placeholder-actions">
               <button
-                v-for="tab in tabs"
-                :key="`mobile-${tab.id}`"
+                v-for="action in currentAdminPageActions"
+                :key="action.label"
                 type="button"
-                class="mobile-tab-option"
-                :class="{ active: currentTab === tab.id }"
-                @click="switchTabFromMobile(tab.id)"
+                class="table-summary-item"
+                @click="handlePlaceholderAction(action)"
               >
-                <span class="mobile-tab-option-icon">{{ tab.icon }}</span>
-                <span class="mobile-tab-option-label">{{ tab.label }}</span>
-                <span class="mobile-tab-option-count" v-if="getTabCount(tab.id) > 0">{{ getTabCount(tab.id) }}</span>
+                <component :is="action.icon" :size="17" />
+                <span class="table-summary-label">{{ action.label }}</span>
+                <strong>{{ action.value }}</strong>
               </button>
             </div>
-          </div>
+          </section>
 
-          <div ref="tabsNavRef" class="tabs-nav">
-            <button v-for="tab in tabs" :key="tab.id" class="tab-btn" :class="{ active: currentTab === tab.id }"
-              :ref="(el) => setTabButtonRef(tab.id, el)"
-              @click="switchTab(tab.id)">
-              <span class="tab-icon">{{ tab.icon }}</span>
-              <span class="tab-label">{{ tab.label }}</span>
-              <span class="tab-count" v-if="getTabCount(tab.id) > 0">{{ getTabCount(tab.id) }}</span>
-            </button>
-          </div>
+      <!-- 管理模块标签页 -->
+          <section v-if="isDataConsoleSection" id="data-console" class="management-section">
+        <div class="tabs-header">
           <div class="tabs-actions">
+            <button class="clear-filters-btn" type="button" @click="showGlobalSearchPanel = !showGlobalSearchPanel">
+              跨表搜索
+            </button>
+            <button class="clear-filters-btn" type="button" @click="showAdvancedFilterPanel = !showAdvancedFilterPanel">
+              高级筛选
+            </button>
+            <button class="clear-filters-btn" type="button" @click="saveCurrentFilterView">
+              保存视图
+            </button>
+            <button class="clear-filters-btn" type="button" @click="togglePinnedTab(currentTab)">
+              {{ isTabPinned(currentTab) ? '取消置顶' : '置顶表' }}
+            </button>
+            <div v-if="statusFilterOptions.length > 0" class="filter-select">
+              <select v-model="statusFilter" @change="handleFilterChange">
+                <option value="">全部状态</option>
+                <option v-for="option in statusFilterOptions" :key="String(option.value)" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+            </div>
+            <div v-if="currentDateFilterField" class="date-filter">
+              <input v-model="dateFromFilter" type="date" aria-label="开始日期" @change="handleFilterChange" />
+              <span>至</span>
+              <input v-model="dateToFilter" type="date" aria-label="结束日期" @change="handleFilterChange" />
+            </div>
+            <button v-if="hasActiveFilters" class="clear-filters-btn" type="button" @click="clearAllFilters">
+              清空筛选
+            </button>
             <div class="search-box">
               <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                 stroke-width="2">
@@ -231,14 +337,84 @@
           </div>
         </div>
 
+        <div v-if="showGlobalSearchPanel" class="editor-panel search-panel">
+          <div class="panel-inline-form">
+            <input v-model="globalSearchQuery" class="form-input" type="text" placeholder="跨表搜索用户 ID / 邮箱 / 抽奖 ID / 帖子关键词" @keydown.enter.prevent="runGlobalSearch" />
+            <button class="btn btn-primary" type="button" :disabled="isGlobalSearching" @click="runGlobalSearch">
+              {{ isGlobalSearching ? '搜索中...' : '搜索' }}
+            </button>
+          </div>
+          <div v-if="globalSearchResults.length" class="global-result-list">
+            <button
+              v-for="result in globalSearchResults"
+              :key="`${result.tabId}-${result.id}`"
+              type="button"
+              class="global-result-item"
+              @click="openGlobalSearchResult(result)"
+            >
+              <strong>{{ result.tabLabel }} · {{ result.title || result.id }}</strong>
+              <span v-html="highlightCellValue(result.preview, 120)"></span>
+            </button>
+          </div>
+        </div>
+
+        <div v-if="showAdvancedFilterPanel" class="editor-panel">
+          <div class="advanced-filter-head">
+            <strong>高级筛选</strong>
+            <button class="btn btn-secondary" type="button" @click="addAdvancedFilterRule">添加条件</button>
+          </div>
+          <div v-if="currentSavedViews.length" class="saved-view-list">
+            <button v-for="view in currentSavedViews" :key="view.id" type="button" class="saved-view-chip" @click="applySavedFilterView(view)">
+              {{ view.name }}
+              <span @click.stop="removeSavedFilterView(view.id)">×</span>
+            </button>
+          </div>
+          <div v-for="rule in advancedFilterRules" :key="rule.id" class="advanced-filter-row">
+            <select v-model="rule.field" class="form-select">
+              <option v-for="col in currentColumns" :key="col.key" :value="col.key">{{ col.label }}</option>
+            </select>
+            <select v-model="rule.operator" class="form-select">
+              <option value="contains">包含</option>
+              <option value="eq">等于</option>
+              <option value="neq">不等于</option>
+              <option value="gt">大于</option>
+              <option value="gte">大于等于</option>
+              <option value="lt">小于</option>
+              <option value="lte">小于等于</option>
+              <option value="starts">开头是</option>
+            </select>
+            <input v-model="rule.value" class="form-input" type="text" placeholder="筛选值" @keydown.enter.prevent="handleFilterChange" />
+            <button class="btn btn-secondary" type="button" @click="removeAdvancedFilterRule(rule.id)">删除</button>
+          </div>
+          <div class="panel-actions">
+            <button class="btn btn-primary" type="button" @click="handleFilterChange">应用筛选</button>
+          </div>
+        </div>
+
         <!-- 数据表格区域 -->
         <div class="data-content">
           <div class="content-toolbar">
             <div class="toolbar-left">
-              <h2 class="section-title">{{ currentTabLabel }}</h2>
+              <div>
+                <h2 class="section-title">{{ currentTabLabel }}</h2>
+                <div class="view-context">
+                  <span>{{ currentTabGroup?.label || '全部' }}</span>
+                  <span>{{ activeFilterSummary }}</span>
+                  <span>{{ lastRefreshLabel }}</span>
+                </div>
+              </div>
               <span class="data-badge">{{ totalRecordCount }} 条记录</span>
             </div>
             <div class="toolbar-right">
+              <button class="btn btn-secondary" type="button" @click="showColumnPanel = !showColumnPanel">
+                列配置
+              </button>
+              <button class="btn btn-secondary" type="button" @click="showChangeLogPanel = !showChangeLogPanel">
+                变更日志
+              </button>
+              <button v-if="selectedItems.length > 0 && editableFields.length && !isReadOnlyTab" class="btn btn-secondary" type="button" @click="showBatchEditPanel = !showBatchEditPanel">
+                批量编辑 ({{ selectedItems.length }})
+              </button>
               <button v-if="selectedItems.length > 0 && !isModerationTab && !isProfileDerivedTab && !isReadOnlyTab" class="btn btn-danger" @click="batchDelete">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="3 6 5 6 21 6"></polyline>
@@ -252,7 +428,11 @@
                   <polyline points="7 10 12 15 17 10"></polyline>
                   <line x1="12" y1="15" x2="12" y2="3"></line>
                 </svg>
-                导出
+                导出当前表
+              </button>
+              <button class="btn btn-secondary" :disabled="isExportingBackup" @click="exportBackupData">
+                <Database :size="16" />
+                {{ isExportingBackup ? '备份中' : '备份全部' }}
               </button>
               <button v-if="isLotteryOpsTab" class="btn btn-secondary" :disabled="lotteryDueDrawPending" @click="runDueLotteryDraws">
                 <RefreshCw :size="16" :class="{ spinning: lotteryDueDrawPending }" />
@@ -268,14 +448,73 @@
             </div>
           </div>
 
+          <div class="table-mini-stats">
+            <div v-for="item in tableMiniStats" :key="item.label" class="table-mini-stat">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+            </div>
+          </div>
+
+          <div v-if="showColumnPanel" class="editor-panel column-panel">
+            <div class="advanced-filter-head">
+              <strong>列配置</strong>
+              <button class="btn btn-secondary" type="button" @click="resetColumnSettings">恢复默认</button>
+            </div>
+            <div class="column-config-list">
+              <div v-for="col in currentColumns" :key="col.key" class="column-config-item">
+                <label>
+                  <input
+                    type="checkbox"
+                    :checked="visibleCurrentColumns.some((item) => item.key === col.key)"
+                    @change="setColumnVisible(col.key, $event.target.checked)"
+                  />
+                  <span>{{ col.label }}</span>
+                </label>
+                <div class="column-move-actions">
+                  <button type="button" @click="moveColumn(col.key, -1)">上移</button>
+                  <button type="button" @click="moveColumn(col.key, 1)">下移</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="showBatchEditPanel" class="editor-panel">
+            <div class="advanced-filter-head">
+              <strong>批量编辑预览</strong>
+              <span>已选 {{ selectedItems.length }} 条记录</span>
+            </div>
+            <div class="panel-inline-form">
+              <select v-model="batchEditState.fieldKey" class="form-select">
+                <option value="">选择字段</option>
+                <option v-for="field in editableFields" :key="field.key" :value="field.key">{{ field.label }}</option>
+              </select>
+              <select v-if="getFieldByKey(batchEditState.fieldKey)?.type === 'select'" v-model="batchEditState.value" class="form-select">
+                <option v-for="opt in (getFieldByKey(batchEditState.fieldKey)?.options || [])" :key="String(opt.value)" :value="opt.value">{{ opt.label }}</option>
+              </select>
+              <input v-else v-model="batchEditState.value" class="form-input" type="text" placeholder="新值" />
+              <button class="btn btn-primary" type="button" @click="applyBatchEdit">预览并执行</button>
+            </div>
+          </div>
+
+          <div v-if="showChangeLogPanel" class="editor-panel">
+            <div class="advanced-filter-head">
+              <strong>变更日志</strong>
+              <span>最近 {{ currentChangeLogEntries.length }} 条</span>
+            </div>
+            <div class="change-log-list">
+              <div v-for="entry in currentChangeLogEntries" :key="entry.id" class="change-log-item">
+                <strong>{{ entry.action }} · {{ entry.recordId || '-' }}</strong>
+                <span>{{ formatDateTime(entry.createdAt) }} · {{ entry.operator }}</span>
+              </div>
+              <p v-if="!currentChangeLogEntries.length" class="panel-empty-text">暂无本地变更日志</p>
+            </div>
+          </div>
+
           <div v-if="isLotteryOpsTab" class="lottery-scheduler-panel">
             <div class="lottery-scheduler-card" v-for="item in lotterySchedulerCards" :key="item.label" :class="`tone-${item.tone}`">
               <span>{{ item.label }}</span>
               <strong>{{ lotterySchedulerStatusLoading ? '加载中' : item.value }}</strong>
             </div>
-            <button class="lottery-scheduler-link" type="button" @click="switchTab('lotterySchedulerLogs')">
-              查看调度日志
-            </button>
           </div>
 
           <!-- 加载状态 -->
@@ -322,7 +561,7 @@
                       <span class="checkmark"></span>
                     </label>
                   </th>
-                  <th v-for="col in currentColumns" :key="col.key" :class="{ sortable: col.sortable }"
+                  <th v-for="col in visibleCurrentColumns" :key="col.key" :class="{ sortable: col.sortable }"
                     @click="col.sortable && sortBy(col.key)">
                     {{ col.label }}
                     <span v-if="sortKey === col.key" class="sort-indicator">
@@ -334,21 +573,52 @@
               </thead>
               <tbody>
                 <tr v-for="item in paginatedData" :key="item.id || itemIndex(item)"
-                  :class="{ selected: isSelected(item) }">
+                  :class="{ selected: isSelected(item), anomaly: isAnomalyRow(item) }">
                   <td class="checkbox-col">
                     <label class="checkbox-wrapper">
                       <input type="checkbox" :checked="isSelected(item)" @change="toggleSelect(item)" />
                       <span class="checkmark"></span>
                     </label>
                   </td>
-                  <td v-for="col in currentColumns" :key="col.key">
-                    <template v-if="col.type === 'image'">
+                  <td v-for="col in visibleCurrentColumns" :key="col.key">
+                    <template v-if="isInlineEditing(item, col)">
+                      <div class="inline-edit-box">
+                        <select
+                          v-if="getFieldByKey(col.key)?.type === 'select'"
+                          v-model="inlineEditState.value"
+                          class="inline-edit-input"
+                        >
+                          <option
+                            v-for="opt in (getFieldByKey(col.key)?.options || [])"
+                            :key="String(opt.value)"
+                            :value="opt.value"
+                          >
+                            {{ opt.label }}
+                          </option>
+                        </select>
+                        <input
+                          v-else
+                          v-model="inlineEditState.value"
+                          class="inline-edit-input"
+                          :type="getFieldByKey(col.key)?.type === 'number' ? 'number' : getFieldByKey(col.key)?.type === 'date' ? 'date' : getFieldByKey(col.key)?.type === 'datetime' ? 'datetime-local' : 'text'"
+                          @keydown.enter.prevent="saveInlineEdit(item, col)"
+                          @keydown.esc.prevent="cancelInlineEdit"
+                        />
+                        <button type="button" class="inline-edit-action" :disabled="inlineEditState.saving" @click="saveInlineEdit(item, col)">保存</button>
+                        <button type="button" class="inline-edit-action" @click="cancelInlineEdit">取消</button>
+                      </div>
+                    </template>
+                    <template v-else-if="col.type === 'image'">
                       <div class="cell-image">
                         <img :src="getImageUrl(item[col.key])" :alt="item.title || 'Image'" loading="lazy" />
                       </div>
                     </template>
                     <template v-else-if="col.type === 'badge'">
-                      <span class="cell-badge" :class="`badge-${getBadgeType(item[col.key])}`">
+                      <span
+                        class="cell-badge"
+                        :class="`badge-${getBadgeType(item[col.key])}`"
+                        @dblclick="startInlineEdit(item, col)"
+                      >
                         {{ item[col.key] || '-' }}
                       </span>
                     </template>
@@ -358,13 +628,13 @@
                       </div>
                     </template>
                     <template v-else-if="col.type === 'price'">
-                      <span class="cell-price">{{ item[col.key] || '-' }}</span>
+                      <span class="cell-price" @dblclick="startInlineEdit(item, col)">{{ item[col.key] || '-' }}</span>
                     </template>
                     <template v-else-if="col.type === 'date'">
-                      <span class="cell-date">{{ formatDate(item[col.key]) }}</span>
+                      <span class="cell-date" @dblclick="startInlineEdit(item, col)">{{ formatDate(item[col.key]) }}</span>
                     </template>
                     <template v-else-if="col.type === 'datetime'">
-                      <span class="cell-date">{{ formatDateTime(item[col.key]) }}</span>
+                      <span class="cell-date" @dblclick="startInlineEdit(item, col)">{{ formatDateTime(item[col.key]) }}</span>
                     </template>
                     <template v-else-if="col.type === 'json'">
                       <span class="cell-json" :title="JSON.stringify(item[col.key])">
@@ -372,8 +642,23 @@
                       </span>
                     </template>
                     <template v-else>
-                      <span class="cell-text" :title="item[col.key]">{{ formatCellValue(item[col.key], col.maxLength)
-                        }}</span>
+                      <button
+                        v-if="getRelatedJump(col, item)"
+                        type="button"
+                        class="cell-link"
+                        :title="`跳转到关联记录：${item[col.key]}`"
+                        @click="jumpToRelatedRecord(getRelatedJump(col, item), item)"
+                      >
+                        <span v-html="highlightCellValue(item[col.key], col.maxLength)"></span>
+                      </button>
+                      <span
+                        v-else
+                        class="cell-text"
+                        :class="{ editable: isInlineEditable(col, item) }"
+                        :title="`${item[col.key] || ''}${isAnomalyRow(item) && col.key === visibleCurrentColumns[0]?.key ? ` · ${getAnomalyReason(item)}` : ''}`"
+                        @dblclick="startInlineEdit(item, col)"
+                        v-html="highlightCellValue(item[col.key], col.maxLength)"
+                      ></span>
                     </template>
                   </td>
                   <td class="actions-col">
@@ -861,6 +1146,7 @@ import {
   TAB_WRITABLE_FIELDS,
   dataConfig,
   invalidateProductsCache,
+  tabGroups,
   tabs
 } from './config.js';
 
@@ -878,23 +1164,38 @@ const currentTab = ref('users');
 const isLoading = ref(false);
 const isRefreshing = ref(false);
 const isSaving = ref(false);
+const isExportingBackup = ref(false);
 const showModal = ref(false);
 const showUserPickerModal = ref(false);
+const showGlobalSearchPanel = ref(false);
+const showAdvancedFilterPanel = ref(false);
+const showColumnPanel = ref(false);
+const showBatchEditPanel = ref(false);
+const showChangeLogPanel = ref(false);
 const isEditing = ref(false);
 const editingItem = ref({});
+const editingOriginalItem = ref(null);
 const jsonBuffers = ref({});
 const fieldErrors = reactive({});
 const searchQuery = ref('');
+const globalSearchQuery = ref('');
+const globalSearchResults = ref([]);
+const isGlobalSearching = ref(false);
+const statusFilter = ref('');
+const dateFromFilter = ref('');
+const dateToFilter = ref('');
+const advancedFilterRules = ref([]);
+const activeTabGroupId = ref(tabGroups[0]?.id || 'people');
 const userPickerKeyword = ref('');
 const selectedItems = ref([]);
 const currentPage = ref(1);
 const pageSize = ref(20);
 const sortKey = ref('');
 const sortOrder = ref('asc');
-const tabsNavRef = ref(null);
-const tabButtonRefs = ref({});
-const isMobileTabMenuOpen = ref(false);
 const isAdminSidebarOpen = ref(false);
+const activeAdminSection = ref('overview');
+const isDataTreeCollapsed = ref(false);
+const collapsedSidebarGroupIds = ref([]);
 const uploadingImageFields = ref([]);
 const tabTotals = reactive(tabs.reduce((acc, tab) => {
   acc[tab.id] = 0;
@@ -903,20 +1204,32 @@ const tabTotals = reactive(tabs.reduce((acc, tab) => {
 const activeFetchId = ref(0);
 const searchDebounceTimer = ref(null);
 const suppressNextPageFetch = ref(false);
+const tabFetchCache = reactive({});
 const userPickerUsers = ref([]);
 const userPickerLoading = ref(false);
 const userPickerFetchId = ref(0);
 const userPickerSearchDebounceTimer = ref(null);
-const tabsTouchState = reactive({
-  active: false,
-  startX: 0,
-  startY: 0,
-  startAt: 0
-});
 const moderationPendingIds = ref([]);
 const lotterySchedulerStatus = ref(null);
 const lotterySchedulerStatusLoading = ref(false);
 const lotteryDueDrawPending = ref(false);
+const lastRefreshedAt = ref(null);
+const columnSettings = ref({});
+const savedFilterViews = ref({});
+const pinnedTabIds = ref([]);
+const recentRecords = ref([]);
+const changeLogEntries = ref([]);
+const inlineEditState = reactive({
+  rowId: '',
+  fieldKey: '',
+  value: '',
+  saving: false
+});
+const batchEditState = reactive({
+  fieldKey: '',
+  value: ''
+});
+const suppressDraftSave = ref(false);
 
 // 提示消息
 const toast = reactive({
@@ -934,6 +1247,42 @@ const showToast = (message, type = 'info') => {
   toast.timer = setTimeout(() => {
     toast.show = false;
   }, 3000);
+};
+
+const STORAGE_KEYS = {
+  columns: 'boh-admin-table-columns-v1',
+  savedViews: 'boh-admin-saved-filter-views-v1',
+  pinnedTabs: 'boh-admin-pinned-tabs-v1',
+  recentRecords: 'boh-admin-recent-records-v1',
+  changeLog: 'boh-admin-change-log-v1',
+  drafts: 'boh-admin-edit-drafts-v1'
+};
+
+const readLocalJson = (key, fallback) => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw);
+  } catch (error) {
+    console.warn('读取本地配置失败:', key, error);
+    return fallback;
+  }
+};
+
+const writeLocalJson = (key, value) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.warn('写入本地配置失败:', key, error);
+  }
+};
+
+const hydrateEditorPreferences = () => {
+  columnSettings.value = readLocalJson(STORAGE_KEYS.columns, {});
+  savedFilterViews.value = readLocalJson(STORAGE_KEYS.savedViews, {});
+  pinnedTabIds.value = readLocalJson(STORAGE_KEYS.pinnedTabs, []);
+  recentRecords.value = readLocalJson(STORAGE_KEYS.recentRecords, []);
+  changeLogEntries.value = readLocalJson(STORAGE_KEYS.changeLog, []);
 };
 
 const clearFieldErrors = () => {
@@ -1025,8 +1374,47 @@ const stats = reactive({
 const currentConfig = computed(() => dataConfig[currentTab.value]);
 const currentColumns = computed(() => currentConfig.value?.columns || []);
 const currentFields = computed(() => currentConfig.value?.fields || []);
+const visibleCurrentColumns = computed(() => {
+  const configured = columnSettings.value[currentTab.value];
+  if (!configured || !Array.isArray(configured.visibleKeys)) return currentColumns.value;
+  const visibleKeys = new Set(configured.visibleKeys);
+  const orderedKeys = Array.isArray(configured.orderKeys) ? configured.orderKeys : currentColumns.value.map((col) => col.key);
+  const columnsByKey = new Map(currentColumns.value.map((col) => [col.key, col]));
+  const orderedColumns = orderedKeys
+    .map((key) => columnsByKey.get(key))
+    .filter((col) => col && visibleKeys.has(col.key));
+  const missingColumns = currentColumns.value.filter((col) => visibleKeys.has(col.key) && !orderedKeys.includes(col.key));
+  return [...orderedColumns, ...missingColumns];
+});
+const editableFields = computed(() => {
+  const writable = new Set(TAB_WRITABLE_FIELDS[currentTab.value] || []);
+  return currentFields.value.filter((field) =>
+    writable.has(field.key)
+    && !field.disabled
+    && !['json', 'tags', 'specifications', 'image', 'user-picker', 'textarea'].includes(field.type)
+  );
+});
+const inlineEditableFieldKeys = computed(() => new Set(
+  editableFields.value
+    .filter((field) => ['select', 'number', 'text', 'email', 'date', 'datetime'].includes(field.type))
+    .map((field) => field.key)
+));
 const currentTabLabel = computed(() => tabs.find(t => t.id === currentTab.value)?.label || '');
 const currentTabMeta = computed(() => tabs.find((tab) => tab.id === currentTab.value) || tabs[0]);
+const currentTabGroup = computed(() =>
+  tabGroups.find((group) => group.tabIds.includes(currentTab.value)) || tabGroups[0]
+);
+const visibleTabs = computed(() => {
+  const group = tabGroups.find((item) => item.id === activeTabGroupId.value) || currentTabGroup.value;
+  const tabIds = new Set(group?.tabIds || []);
+  return tabs.filter((tab) => tabIds.has(tab.id));
+});
+const tabGroupsWithCounts = computed(() =>
+  tabGroups.map((group) => ({
+    ...group,
+    count: group.tabIds.reduce((total, tabId) => total + getTabCount(tabId), 0)
+  }))
+);
 const isNewsTab = computed(() => currentTab.value === 'news');
 const isCurrentUserAdmin = computed(() => String(userInfo?.role || '').trim() === 'admin');
 const canRegenerateAutoId = computed(() =>
@@ -1082,6 +1470,141 @@ const isRejectedModerationTab = computed(() => ['reviewPosts', 'reviewComments']
 const isMessageModerationTab = computed(() => currentTab.value === 'reviewMessages');
 const isReportedPostModerationTab = computed(() => currentTab.value === 'reportedPosts');
 const lotteryActionPendingIds = ref([]);
+
+const ADMIN_SECTION_DEFAULT_TABS = {
+  data: 'users'
+};
+
+const DATA_CONSOLE_SECTIONS = new Set(['data']);
+const PLACEHOLDER_ADMIN_SECTIONS = new Set(['media', 'settings']);
+const isDataConsoleSection = computed(() => DATA_CONSOLE_SECTIONS.has(activeAdminSection.value));
+const isPlaceholderAdminSection = computed(() => PLACEHOLDER_ADMIN_SECTIONS.has(activeAdminSection.value));
+
+const STATUS_FILTER_FIELDS = {
+  users: 'role',
+  points: 'role',
+  subscriptions: 'status',
+  gifts: 'gift_status',
+  forum: 'status',
+  reportedPosts: 'status',
+  reviewPosts: 'status',
+  reviewComments: 'status',
+  reviewMessages: 'moderation_status',
+  coreMemories: 'status',
+  lotteries: 'status',
+  lotterySchedulerLogs: 'status',
+  lotteryNotificationJobs: 'status',
+  lotteryJoinAttempts: 'result_code',
+  news: 'category',
+  products: 'category'
+};
+
+const DATE_FILTER_FIELDS = {
+  users: 'created_at',
+  points: 'join_date',
+  subscriptions: 'expires_at',
+  gifts: 'created_at',
+  forum: 'created_at',
+  reportedPosts: 'updated_at',
+  reviewPosts: 'created_at',
+  reviewComments: 'created_at',
+  reviewMessages: 'created_at',
+  coreMemories: 'updated_at',
+  lotteries: 'draw_at',
+  lotteryEntries: 'created_at',
+  lotteryDrawLogs: 'created_at',
+  lotterySchedulerLogs: 'started_at',
+  lotteryNotificationJobs: 'created_at',
+  lotteryJoinAttempts: 'created_at',
+  news: 'date',
+  activities: 'date'
+};
+
+const currentStatusFilterField = computed(() => STATUS_FILTER_FIELDS[currentTab.value] || '');
+const currentDateFilterField = computed(() => DATE_FILTER_FIELDS[currentTab.value] || '');
+const statusFilterOptions = computed(() => {
+  const field = currentStatusFilterField.value;
+  if (!field) return [];
+
+  const configuredField = currentFields.value.find((item) => item.key === field);
+  if (Array.isArray(configuredField?.options)) {
+    return configuredField.options.map((item) => ({
+      value: item.value,
+      label: item.label
+    }));
+  }
+
+  const values = new Map();
+  (currentData.value || []).forEach((row) => {
+    const raw = row?.[field];
+    if (raw === null || raw === undefined || raw === '') return;
+    const key = String(raw);
+    values.set(key, { value: raw, label: key });
+  });
+  return [...values.values()].slice(0, 12);
+});
+const hasActiveFilters = computed(() =>
+  Boolean(searchQuery.value.trim() || statusFilter.value || dateFromFilter.value || dateToFilter.value || activeAdvancedRules.value.length)
+);
+const activeAdvancedRules = computed(() =>
+  advancedFilterRules.value.filter((rule) =>
+    String(rule.field || '').trim()
+    && String(rule.operator || '').trim()
+    && rule.value !== undefined
+    && rule.value !== null
+    && String(rule.value).trim() !== ''
+  )
+);
+const activeFilterSummary = computed(() => {
+  const parts = [];
+  if (searchQuery.value.trim()) parts.push(`关键词「${searchQuery.value.trim()}」`);
+  if (statusFilter.value) parts.push(`状态 ${statusFilterLabel.value}`);
+  if (dateFromFilter.value || dateToFilter.value) {
+    parts.push(`${currentDateFilterLabel.value}${dateFromFilter.value || '最早'} - ${dateToFilter.value || '现在'}`);
+  }
+  if (activeAdvancedRules.value.length) parts.push(`${activeAdvancedRules.value.length} 个高级条件`);
+  return parts.length ? `已应用 ${parts.join('、')}` : '未应用筛选';
+});
+const statusFilterLabel = computed(() => {
+  if (!statusFilter.value) return '';
+  return statusFilterOptions.value.find((item) => String(item.value) === String(statusFilter.value))?.label || statusFilter.value;
+});
+const currentDateFilterLabel = computed(() => {
+  const field = currentColumns.value.find((item) => item.key === currentDateFilterField.value)
+    || currentFields.value.find((item) => item.key === currentDateFilterField.value);
+  return field?.label || '日期';
+});
+const lastRefreshLabel = computed(() =>
+  lastRefreshedAt.value ? `刷新于 ${formatDateTime(lastRefreshedAt.value)}` : '尚未刷新'
+);
+const currentSavedViews = computed(() => savedFilterViews.value[currentTab.value] || []);
+const currentPinnedTabs = computed(() => {
+  const pinned = new Set(pinnedTabIds.value);
+  return tabs.filter((tab) => pinned.has(tab.id));
+});
+const recentRecordsForSidebar = computed(() => recentRecords.value.slice(0, 8));
+const currentChangeLogEntries = computed(() =>
+  changeLogEntries.value
+    .filter((entry) => !entry.tabId || entry.tabId === currentTab.value)
+    .slice(0, 30)
+);
+const anomalyRows = computed(() => currentData.value.filter((item) => isAnomalyRow(item)));
+const tableMiniStats = computed(() => [
+  { label: '当前页', value: currentData.value.length },
+  { label: '已选中', value: selectedItems.value.length },
+  { label: '异常', value: anomalyRows.value.length },
+  { label: '列显示', value: `${visibleCurrentColumns.value.length}/${currentColumns.value.length}` }
+]);
+
+const diagnosticIssueCount = computed(() => {
+  const dueDraws = Number(lotterySchedulerStatus.value?.due_count || 0);
+  const schedulerFailed = ['failed', 'partial_failure'].includes(String(lotterySchedulerStatus.value?.last_run?.status || ''));
+  return moderationPendingCount.value
+    + dueDraws
+    + getTabCount('lotteryNotificationJobs')
+    + (schedulerFailed ? 1 : 0);
+});
+const healthScore = computed(() => Math.max(70, 100 - Math.min(diagnosticIssueCount.value * 3, 30)));
 
 const lotterySchedulerCards = computed(() => {
   const status = lotterySchedulerStatus.value || {};
@@ -1183,27 +1706,93 @@ const moderationPendingCount = computed(() =>
   ['reportedPosts', 'reviewPosts', 'reviewComments', 'reviewMessages']
     .reduce((total, tabId) => total + getTabCount(tabId), 0)
 );
-const currentAdminSection = computed(() => {
-  if (['users', 'points', 'subscriptions', 'gifts'].includes(currentTab.value)) return 'users';
-  if (isModerationTab.value || ['lotteryJoinAttempts'].includes(currentTab.value)) return 'feedback';
-  if (['forum', 'news', 'activities', 'products', 'coreMemories', 'lotteries', 'lotteryEntries', 'lotteryDrawLogs', 'lotterySchedulerLogs', 'lotteryNotificationJobs'].includes(currentTab.value)) return 'content';
-  return 'data';
-});
-
 const adminNavigation = computed(() => [
-  { id: 'overview', label: '概览', icon: Home, active: false },
-  { id: 'data', label: '数据管理', icon: Database, active: currentAdminSection.value === 'data', badge: totalRecordCount.value || '' },
-  { id: 'content', label: '内容管理', icon: FileText, active: currentAdminSection.value === 'content' },
-  { id: 'media', label: '媒体资源', icon: Image, active: false },
-  { id: 'users', label: '用户与权限', icon: Users, active: currentAdminSection.value === 'users' },
-  { id: 'feedback', label: '表单与反馈', icon: MessageSquare, active: currentAdminSection.value === 'feedback', badge: moderationPendingCount.value || '' },
-  { id: 'settings', label: '网站设置', icon: Settings, active: false }
+  { id: 'overview', label: '概览', icon: Home, active: activeAdminSection.value === 'overview' },
+  { id: 'data', label: '数据管理', icon: Database, active: activeAdminSection.value === 'data', badge: dataConsoleTotalCount.value || '' },
+  { id: 'media', label: '媒体资源', icon: Image, active: activeAdminSection.value === 'media' },
+  { id: 'settings', label: '网站设置', icon: Settings, active: activeAdminSection.value === 'settings' }
 ]);
+
+const ADMIN_PAGE_META = {
+  overview: {
+    eyebrow: 'Overview',
+    title: '站点运行概览',
+    description: '查看核心数据规模、异常诊断和最近活动。',
+    icon: Gauge
+  },
+  data: {
+    eyebrow: 'Data Console',
+    title: '数据管理',
+    description: '通过用户、内容、审核和抽奖分组，集中管理所有站点数据表。',
+    icon: Database
+  },
+  media: {
+    eyebrow: 'Media',
+    title: '媒体资源',
+    description: '汇总商品、新闻、活动、抽奖封面等图片资源入口。',
+    placeholder: '媒体库页面已独立出来，先提供常用图片数据入口。',
+    icon: Image
+  },
+  settings: {
+    eyebrow: 'Settings',
+    title: '网站设置',
+    description: '集中查看后台配置、权限状态和自动任务入口。',
+    placeholder: '设置页目前提供管理状态和关键任务入口，后续可继续拆出站点配置表单。',
+    icon: Settings
+  }
+};
+
+const currentAdminPageMeta = computed(() => ADMIN_PAGE_META[activeAdminSection.value] || ADMIN_PAGE_META.overview);
+const currentAdminPageActions = computed(() => {
+  if (activeAdminSection.value === 'media') {
+    return [
+      { label: '商品图片', value: getTabCount('products'), tab: 'products', icon: Image, section: 'data' },
+      { label: '新闻封面', value: getTabCount('news'), tab: 'news', icon: FileText, section: 'data' },
+      { label: '活动图片', value: getTabCount('activities'), tab: 'activities', icon: Activity, section: 'data' },
+      { label: '抽奖封面', value: getTabCount('lotteries'), tab: 'lotteries', icon: ShieldCheck, section: 'data' }
+    ];
+  }
+  if (activeAdminSection.value === 'settings') {
+    return [
+      { label: '官方事实配置', value: getTabCount('coreMemories'), tab: 'coreMemories', icon: Database, section: 'data' },
+      { label: '中奖通知', value: getTabCount('lotteryNotificationJobs'), tab: 'lotteryNotificationJobs', icon: MessageSquare, section: 'data' },
+      { label: '管理员权限', value: isCurrentUserAdmin.value ? 'Admin' : '受限', tab: 'users', icon: ShieldCheck, section: 'data' }
+    ];
+  }
+  return [];
+});
+const currentAdminPageMetrics = computed(() => {
+  const section = activeAdminSection.value;
+  if (section === 'data') {
+    return [
+      { label: '当前分组', value: currentTabGroup.value?.label || '用户' },
+      { label: '当前数据表', value: currentTabLabel.value || '未选择' },
+      { label: '当前记录', value: totalRecordCount.value },
+      { label: '待复核', value: moderationPendingCount.value }
+    ];
+  }
+  if (section === 'media') {
+    return [
+      { label: '商品图', value: getTabCount('products') },
+      { label: '新闻图', value: getTabCount('news') },
+      { label: '活动图', value: getTabCount('activities') },
+      { label: '抽奖图', value: getTabCount('lotteries') }
+    ];
+  }
+  if (section === 'settings') {
+    return [
+      { label: '健康度', value: `${healthScore.value}%` },
+      { label: '通知任务', value: getTabCount('lotteryNotificationJobs') },
+      { label: '最近刷新', value: lastRefreshLabel.value }
+    ];
+  }
+  return [];
+});
 
 const siteHealthCards = computed(() => [
   { label: '环境', value: 'Production', icon: Server },
   { label: '权限', value: isCurrentUserAdmin.value ? 'Admin' : '受限', icon: ShieldCheck },
-  { label: '健康度', value: `${Math.max(92, 100 - Math.min(moderationPendingCount.value, 8))}%`, icon: Gauge },
+  { label: '健康度', value: `${healthScore.value}%`, icon: Gauge },
   { label: '当前数据表', value: currentTabLabel.value || '未选择', icon: Database }
 ]);
 
@@ -1219,7 +1808,7 @@ const tableSummaryCards = computed(() =>
   })
 );
 
-const activeOperations = computed(() => [
+const activeDiagnostics = computed(() => [
   {
     id: 'reported-posts',
     tab: 'reportedPosts',
@@ -1245,12 +1834,12 @@ const activeOperations = computed(() => [
     tone: 'info'
   },
   {
-    id: 'lottery-scheduler',
-    tab: 'lotterySchedulerLogs',
-    title: '定时开奖',
-    description: '数据库调度运行日志',
-    count: Number(lotterySchedulerStatus.value?.due_count || 0),
-    tone: Number(lotterySchedulerStatus.value?.due_count || 0) > 0 ? 'warning' : 'success'
+    id: 'lottery-notifications',
+    tab: 'lotteryNotificationJobs',
+    title: '中奖通知',
+    description: '待发送或失败通知任务',
+    count: getTabCount('lotteryNotificationJobs'),
+    tone: getTabCount('lotteryNotificationJobs') > 0 ? 'warning' : 'success'
   }
 ]);
 
@@ -1270,16 +1859,63 @@ const recentActivityItems = computed(() => {
 });
 
 const handleAdminNavClick = (item) => {
-  const tabMap = {
-    data: currentTab.value,
-    content: 'news',
-    users: 'users',
-    feedback: 'reportedPosts'
-  };
-  if (tabMap[item.id]) {
-    switchTab(tabMap[item.id]);
+  if (item.id === 'data' && activeAdminSection.value === 'data') {
+    isDataTreeCollapsed.value = !isDataTreeCollapsed.value;
+    return;
+  }
+  activeAdminSection.value = item.id;
+  if (item.id === 'data') {
+    isDataTreeCollapsed.value = false;
+  }
+  const defaultTab = ADMIN_SECTION_DEFAULT_TABS[item.id];
+  if (defaultTab) {
+    switchTab(defaultTab);
   }
   isAdminSidebarOpen.value = false;
+};
+
+const getTabsByGroup = (group) => {
+  const tabIds = new Set(group?.tabIds || []);
+  return tabs.filter((tab) => tabIds.has(tab.id));
+};
+
+const isSidebarGroupCollapsed = (groupId) => collapsedSidebarGroupIds.value.includes(groupId);
+
+const toggleSidebarGroupCollapsed = (groupId) => {
+  if (isSidebarGroupCollapsed(groupId)) {
+    collapsedSidebarGroupIds.value = collapsedSidebarGroupIds.value.filter((id) => id !== groupId);
+    return;
+  }
+  collapsedSidebarGroupIds.value = [...collapsedSidebarGroupIds.value, groupId];
+};
+
+const ensureSidebarGroupExpanded = (groupId) => {
+  collapsedSidebarGroupIds.value = collapsedSidebarGroupIds.value.filter((id) => id !== groupId);
+};
+
+const handleSidebarGroupClick = (group) => {
+  activeAdminSection.value = 'data';
+  isDataTreeCollapsed.value = false;
+  if (activeTabGroupId.value === group.id) {
+    toggleSidebarGroupCollapsed(group.id);
+    return;
+  }
+  ensureSidebarGroupExpanded(group.id);
+  setActiveTabGroup(group.id);
+  isAdminSidebarOpen.value = false;
+};
+
+const handleSidebarTabClick = (tabId) => {
+  activeAdminSection.value = 'data';
+  isDataTreeCollapsed.value = false;
+  switchTab(tabId);
+  isAdminSidebarOpen.value = false;
+};
+
+const handlePlaceholderAction = (action) => {
+  if (!action?.tab) return;
+  activeAdminSection.value = action.section || 'data';
+  switchTab(action.tab);
 };
 
 // 统计卡片
@@ -1291,6 +1927,11 @@ const statsCards = computed(() => [
 ]);
 
 const totalRecordCount = computed(() => tabTotals[currentTab.value] || currentData.value.length || 0);
+const dataConsoleTotalCount = computed(() =>
+  tabGroups.reduce((groupTotal, group) =>
+    groupTotal + group.tabIds.reduce((tabTotal, tabId) => tabTotal + getTabCount(tabId), 0),
+  0)
+);
 const filteredData = computed(() => currentData.value);
 
 // 分页
@@ -1780,95 +2421,198 @@ const getTabCount = (tabId) => {
   }
 };
 
-const setTabButtonRef = (tabId, el) => {
-  if (!el) return;
-  tabButtonRefs.value[tabId] = el;
+const resetFiltersForTab = () => {
+  statusFilter.value = '';
+  dateFromFilter.value = '';
+  dateToFilter.value = '';
+  advancedFilterRules.value = [];
 };
 
-const isMobileViewport = () => window.matchMedia('(max-width: 768px)').matches;
+const persistColumnSettings = () => writeLocalJson(STORAGE_KEYS.columns, columnSettings.value);
+const persistSavedViews = () => writeLocalJson(STORAGE_KEYS.savedViews, savedFilterViews.value);
+const persistPinnedTabs = () => writeLocalJson(STORAGE_KEYS.pinnedTabs, pinnedTabIds.value);
+const persistRecentRecords = () => writeLocalJson(STORAGE_KEYS.recentRecords, recentRecords.value);
+const persistChangeLog = () => writeLocalJson(STORAGE_KEYS.changeLog, changeLogEntries.value);
 
-const scrollActiveTabIntoView = (smooth = true) => {
-  const currentBtn = tabButtonRefs.value[currentTab.value];
-  if (!currentBtn || !tabsNavRef.value) return;
+const getRowIdentity = (item) => String(item?.id || itemIndex(item));
 
-  currentBtn.scrollIntoView({
-    block: 'nearest',
-    inline: 'center',
-    behavior: smooth ? 'smooth' : 'auto'
-  });
+const addChangeLogEntry = (action, item = {}, detail = {}) => {
+  const entry = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    action,
+    tabId: currentTab.value,
+    tabLabel: currentTabLabel.value,
+    recordId: item?.id || detail.recordId || '',
+    detail,
+    operator: userInfo?.username || userInfo?.email || 'admin',
+    createdAt: new Date().toISOString()
+  };
+  changeLogEntries.value = [entry, ...changeLogEntries.value].slice(0, 300);
+  persistChangeLog();
 };
 
-const switchToAdjacentTab = (offset) => {
-  const currentIndex = tabs.findIndex((tab) => tab.id === currentTab.value);
-  if (currentIndex < 0) return;
-  const nextIndex = Math.min(Math.max(currentIndex + offset, 0), tabs.length - 1);
-  if (nextIndex !== currentIndex) {
-    switchTab(tabs[nextIndex].id);
+const addRecentRecord = (item, tabId = currentTab.value) => {
+  const id = String(item?.id || '').trim();
+  if (!id) return;
+  const tabLabel = tabs.find((tab) => tab.id === tabId)?.label || tabId;
+  const title = String(item.title || item.username || item.email || item.plan_name || item.prize_title || item.gift_content || id).trim();
+  const record = {
+    tabId,
+    tabLabel,
+    id,
+    title,
+    visitedAt: new Date().toISOString()
+  };
+  recentRecords.value = [
+    record,
+    ...recentRecords.value.filter((entry) => !(entry.tabId === tabId && String(entry.id) === id))
+  ].slice(0, 20);
+  persistRecentRecords();
+};
+
+const togglePinnedTab = (tabId) => {
+  if (pinnedTabIds.value.includes(tabId)) {
+    pinnedTabIds.value = pinnedTabIds.value.filter((id) => id !== tabId);
+  } else {
+    pinnedTabIds.value = [tabId, ...pinnedTabIds.value].slice(0, 8);
+  }
+  persistPinnedTabs();
+};
+
+const isTabPinned = (tabId) => pinnedTabIds.value.includes(tabId);
+
+const jumpToRecentRecord = (record) => {
+  if (!record?.tabId) return;
+  switchTab(record.tabId, { search: String(record.id || record.title || '') });
+};
+
+const saveCurrentFilterView = () => {
+  const name = window.prompt('请输入筛选视图名称');
+  const normalizedName = String(name || '').trim();
+  if (!normalizedName) return;
+  const view = {
+    id: `${Date.now()}`,
+    name: normalizedName,
+    search: searchQuery.value,
+    status: statusFilter.value,
+    dateFrom: dateFromFilter.value,
+    dateTo: dateToFilter.value,
+    advancedRules: activeAdvancedRules.value.map((rule) => ({ ...rule }))
+  };
+  savedFilterViews.value = {
+    ...savedFilterViews.value,
+    [currentTab.value]: [view, ...(savedFilterViews.value[currentTab.value] || []).filter((item) => item.name !== normalizedName)].slice(0, 8)
+  };
+  persistSavedViews();
+  showToast('筛选视图已保存', 'success');
+};
+
+const applySavedFilterView = (view) => {
+  searchQuery.value = view.search || '';
+  statusFilter.value = view.status || '';
+  dateFromFilter.value = view.dateFrom || '';
+  dateToFilter.value = view.dateTo || '';
+  advancedFilterRules.value = Array.isArray(view.advancedRules) ? view.advancedRules.map((rule) => ({ ...rule })) : [];
+  handleFilterChange();
+};
+
+const removeSavedFilterView = (viewId) => {
+  savedFilterViews.value = {
+    ...savedFilterViews.value,
+    [currentTab.value]: (savedFilterViews.value[currentTab.value] || []).filter((view) => view.id !== viewId)
+  };
+  persistSavedViews();
+};
+
+const addAdvancedFilterRule = () => {
+  const firstField = currentColumns.value[0]?.key || currentFields.value[0]?.key || 'id';
+  advancedFilterRules.value = [
+    ...advancedFilterRules.value,
+    { id: `${Date.now()}`, field: firstField, operator: 'contains', value: '' }
+  ];
+};
+
+const removeAdvancedFilterRule = (ruleId) => {
+  advancedFilterRules.value = advancedFilterRules.value.filter((rule) => rule.id !== ruleId);
+  handleFilterChange();
+};
+
+const setColumnVisible = (columnKey, visible) => {
+  const current = columnSettings.value[currentTab.value] || {
+    visibleKeys: currentColumns.value.map((col) => col.key),
+    orderKeys: currentColumns.value.map((col) => col.key)
+  };
+  const visibleKeys = new Set(current.visibleKeys || []);
+  if (visible) visibleKeys.add(columnKey);
+  else visibleKeys.delete(columnKey);
+  columnSettings.value = {
+    ...columnSettings.value,
+    [currentTab.value]: {
+      visibleKeys: currentColumns.value.filter((col) => visibleKeys.has(col.key)).map((col) => col.key),
+      orderKeys: current.orderKeys || currentColumns.value.map((col) => col.key)
+    }
+  };
+  persistColumnSettings();
+};
+
+const moveColumn = (columnKey, direction) => {
+  const current = columnSettings.value[currentTab.value] || {
+    visibleKeys: currentColumns.value.map((col) => col.key),
+    orderKeys: currentColumns.value.map((col) => col.key)
+  };
+  const orderKeys = [...(current.orderKeys || currentColumns.value.map((col) => col.key))];
+  const index = orderKeys.indexOf(columnKey);
+  const nextIndex = index + direction;
+  if (index < 0 || nextIndex < 0 || nextIndex >= orderKeys.length) return;
+  [orderKeys[index], orderKeys[nextIndex]] = [orderKeys[nextIndex], orderKeys[index]];
+  columnSettings.value = {
+    ...columnSettings.value,
+    [currentTab.value]: {
+      visibleKeys: current.visibleKeys || currentColumns.value.map((col) => col.key),
+      orderKeys
+    }
+  };
+  persistColumnSettings();
+};
+
+const resetColumnSettings = () => {
+  const next = { ...columnSettings.value };
+  delete next[currentTab.value];
+  columnSettings.value = next;
+  persistColumnSettings();
+};
+
+const setActiveTabGroup = (groupId) => {
+  activeTabGroupId.value = groupId;
+  const group = tabGroups.find((item) => item.id === groupId);
+  const firstTabId = group?.tabIds?.[0];
+  if (firstTabId && !group.tabIds.includes(currentTab.value)) {
+    switchTab(firstTabId);
   }
 };
 
 const switchTab = (tabId, options = {}) => {
+  if (activeAdminSection.value === 'overview' || isPlaceholderAdminSection.value) {
+    activeAdminSection.value = 'data';
+  }
   currentTab.value = tabId;
-  isMobileTabMenuOpen.value = false;
+  activeTabGroupId.value = currentTabGroup.value?.id || activeTabGroupId.value;
+  isDataTreeCollapsed.value = false;
+  ensureSidebarGroupExpanded(activeTabGroupId.value);
   if (currentPage.value !== 1) {
     suppressNextPageFetch.value = true;
     currentPage.value = 1;
   }
   selectedItems.value = [];
   searchQuery.value = options.search || '';
+  resetFiltersForTab();
   userPickerKeyword.value = '';
   showUserPickerModal.value = false;
   sortKey.value = '';
   clearFieldErrors();
-  nextTick(() => scrollActiveTabIntoView(true));
-  fetchTabData(tabId);
+  fetchTabData(tabId, { useCache: true });
   if (lotteryOpsTabs.has(tabId)) {
     loadLotterySchedulerStatus();
-  }
-};
-
-const switchTabFromMobile = (tabId) => {
-  switchTab(tabId);
-  isMobileTabMenuOpen.value = false;
-};
-
-const onTabsHeaderTouchStart = (event) => {
-  if (!isMobileViewport()) return;
-  const touch = event.touches?.[0];
-  if (!touch) return;
-
-  const target = event.target;
-  if (target instanceof Element && (target.closest('.search-box') || target.closest('.mobile-tab-switcher'))) {
-    tabsTouchState.active = false;
-    return;
-  }
-
-  tabsTouchState.active = true;
-  tabsTouchState.startX = touch.clientX;
-  tabsTouchState.startY = touch.clientY;
-  tabsTouchState.startAt = Date.now();
-};
-
-const onTabsHeaderTouchEnd = (event) => {
-  if (!tabsTouchState.active || !isMobileViewport()) return;
-  tabsTouchState.active = false;
-
-  const touch = event.changedTouches?.[0];
-  if (!touch) return;
-
-  const deltaX = touch.clientX - tabsTouchState.startX;
-  const deltaY = touch.clientY - tabsTouchState.startY;
-  const absX = Math.abs(deltaX);
-  const absY = Math.abs(deltaY);
-  const duration = Date.now() - tabsTouchState.startAt;
-
-  const isHorizontalSwipe = absX >= 42 && absX > absY * 1.2 && duration <= 700;
-  if (!isHorizontalSwipe) return;
-
-  if (deltaX < 0) {
-    switchToAdjacentTab(1);
-  } else {
-    switchToAdjacentTab(-1);
   }
 };
 
@@ -1883,6 +2627,14 @@ const handleSearch = () => {
   }, 300);
 };
 
+const handleFilterChange = () => {
+  if (currentPage.value !== 1) {
+    suppressNextPageFetch.value = true;
+    currentPage.value = 1;
+  }
+  fetchTabData(currentTab.value);
+};
+
 const clearSearch = () => {
   searchQuery.value = '';
   if (currentPage.value !== 1) {
@@ -1890,6 +2642,12 @@ const clearSearch = () => {
     currentPage.value = 1;
   }
   fetchTabData(currentTab.value);
+};
+
+const clearAllFilters = () => {
+  searchQuery.value = '';
+  resetFiltersForTab();
+  handleFilterChange();
 };
 
 const copyGiftAddressBundle = async () => {
@@ -2353,12 +3111,50 @@ const buildSearchFilters = (tabId) => {
   });
 };
 
+const normalizeFilterValue = (value) => String(value || '').trim().replace(/[,%()]/g, ' ').slice(0, 160);
+
+const applyAdvancedFilters = (query) => {
+  let nextQuery = query;
+  activeAdvancedRules.value.forEach((rule) => {
+    const field = String(rule.field || '').trim();
+    const operator = String(rule.operator || 'contains').trim();
+    const value = normalizeFilterValue(rule.value);
+    if (!field || !value) return;
+
+    if (operator === 'eq') nextQuery = nextQuery.eq(field, value);
+    else if (operator === 'neq') nextQuery = nextQuery.neq(field, value);
+    else if (operator === 'gt') nextQuery = nextQuery.gt(field, value);
+    else if (operator === 'gte') nextQuery = nextQuery.gte(field, value);
+    else if (operator === 'lt') nextQuery = nextQuery.lt(field, value);
+    else if (operator === 'lte') nextQuery = nextQuery.lte(field, value);
+    else if (operator === 'starts') nextQuery = nextQuery.ilike(field, `${value}%`);
+    else nextQuery = nextQuery.ilike(field, `%${value}%`);
+  });
+  return nextQuery;
+};
+
 const applySearchAndSort = (query, tabId) => {
   const searchFilters = buildSearchFilters(tabId);
   let nextQuery = query;
   if (searchFilters.length > 0) {
     nextQuery = nextQuery.or(searchFilters.join(','));
   }
+
+  const statusField = STATUS_FILTER_FIELDS[tabId];
+  if (statusField && statusFilter.value !== '') {
+    nextQuery = nextQuery.eq(statusField, statusFilter.value);
+  }
+
+  const dateField = DATE_FILTER_FIELDS[tabId];
+  if (dateField && dateFromFilter.value) {
+    nextQuery = nextQuery.gte(dateField, dateFromFilter.value);
+  }
+  if (dateField && dateToFilter.value) {
+    const endDate = new Date(`${dateToFilter.value}T23:59:59`);
+    nextQuery = nextQuery.lte(dateField, Number.isNaN(endDate.getTime()) ? dateToFilter.value : endDate.toISOString());
+  }
+
+  nextQuery = applyAdvancedFilters(nextQuery);
 
   const sortableColumns = TAB_SORT_COLUMNS[tabId] || new Set();
   const configuredSort = sortableColumns.has(sortKey.value)
@@ -2373,6 +3169,101 @@ const applySearchAndSort = (query, tabId) => {
   }
 
   return nextQuery;
+};
+
+const buildSearchFiltersForKeyword = (tabId, keywordValue) => {
+  const keyword = sanitizeSearchTerm(keywordValue);
+  if (!keyword) return [];
+
+  const isUuid = UUID_REGEX.test(keyword);
+  const isInteger = /^\d+$/.test(keyword);
+
+  return (TAB_SEARCH_FIELDS[tabId] || []).flatMap((field) => {
+    if (field.type === 'uuid') return isUuid ? [`${field.column}.eq.${keyword}`] : [];
+    if (field.type === 'number') return isInteger ? [`${field.column}.eq.${keyword}`] : [];
+    return [`${field.column}.ilike.%${keyword}%`];
+  });
+};
+
+const getSearchablePreviewFields = (tabId) => {
+  const config = dataConfig[tabId] || {};
+  return [
+    ...(config.columns || []).map((col) => col.key),
+    ...(TAB_SEARCH_FIELDS[tabId] || []).map((field) => field.column)
+  ].filter((value, index, list) => value && list.indexOf(value) === index);
+};
+
+const runGlobalSearch = async () => {
+  const keyword = sanitizeSearchTerm(globalSearchQuery.value || searchQuery.value);
+  if (!keyword) {
+    showToast('请输入跨表搜索关键词', 'error');
+    return;
+  }
+
+  isGlobalSearching.value = true;
+  showGlobalSearchPanel.value = true;
+  globalSearchResults.value = [];
+
+  try {
+    const tasks = tabs.map(async (tab) => {
+      const table = dataConfig[tab.id]?.table;
+      const selectColumns = TAB_SELECT_COLUMNS[tab.id];
+      const filters = buildSearchFiltersForKeyword(tab.id, keyword);
+      if (!table || !selectColumns || filters.length === 0) return [];
+
+      let query = supabase
+        .from(table)
+        .select(selectColumns)
+        .or(filters.join(','))
+        .limit(5);
+
+      if (tab.id === 'reportedPosts') query = query.eq('status', 'limited');
+      if (tab.id === 'reviewPosts') query = query.ilike('status', 'rejected');
+      if (tab.id === 'reviewComments') query = query.ilike('status', 'rejected');
+      if (tab.id === 'reviewMessages') query = query.ilike('moderation_status', 'rejected');
+
+      const { data, error } = await query;
+      if (error) {
+        console.warn(`跨表搜索 ${tab.id} 失败:`, error);
+        return [];
+      }
+
+      return (Array.isArray(data) ? data : []).map((row) => {
+        const previewFields = getSearchablePreviewFields(tab.id);
+        const preview = previewFields
+          .map((field) => row?.[field])
+          .find((value) => String(value || '').toLowerCase().includes(keyword.toLowerCase()))
+          || row.title
+          || row.username
+          || row.email
+          || row.content
+          || row.id;
+        return {
+          tabId: tab.id,
+          tabLabel: tab.label,
+          id: row.id,
+          title: String(row.title || row.username || row.email || row.plan_name || row.prize_title || row.gift_content || row.id || '').slice(0, 80),
+          preview: String(preview || '').slice(0, 160),
+          row
+        };
+      });
+    });
+
+    const settled = await Promise.allSettled(tasks);
+    globalSearchResults.value = settled.flatMap((entry) => entry.status === 'fulfilled' ? entry.value : []);
+    showToast(globalSearchResults.value.length ? `跨表搜索完成，命中 ${globalSearchResults.value.length} 条` : '没有找到跨表结果', globalSearchResults.value.length ? 'success' : 'info');
+  } catch (error) {
+    console.error('跨表搜索失败:', error);
+    showToast('跨表搜索失败: ' + buildActionErrorMessage(error, '跨表搜索失败'), 'error');
+  } finally {
+    isGlobalSearching.value = false;
+  }
+};
+
+const openGlobalSearchResult = (result) => {
+  if (!result?.tabId) return;
+  addRecentRecord(result.row || { id: result.id, title: result.title }, result.tabId);
+  switchTab(result.tabId, { search: String(result.id || globalSearchQuery.value) });
 };
 
 const paginateQuery = (query) => {
@@ -2415,9 +3306,47 @@ const updateCountsForTab = (tabId, total) => {
   setTabTotal(tabId, total);
 };
 
+const getTabFetchCacheKey = (tabId = currentTab.value) => JSON.stringify({
+  tabId,
+  page: currentPage.value,
+  pageSize: pageSize.value,
+  search: searchQuery.value,
+  status: statusFilter.value,
+  dateFrom: dateFromFilter.value,
+  dateTo: dateToFilter.value,
+  sortKey: sortKey.value,
+  sortOrder: sortOrder.value
+});
+
+const clearTabFetchCache = (tabId = '') => {
+  Object.keys(tabFetchCache).forEach((key) => {
+    if (!tabId || key.includes(`"tabId":"${tabId}"`)) {
+      delete tabFetchCache[key];
+    }
+  });
+};
+
 const assignTabRows = (tabId, rows, total) => {
   dataStore[tabId] = rows;
-  updateCountsForTab(tabId, Number.isFinite(Number(total)) ? Number(total) : rows.length);
+  const nextTotal = Number.isFinite(Number(total)) ? Number(total) : rows.length;
+  updateCountsForTab(tabId, nextTotal);
+  if (tabId === currentTab.value) {
+    tabFetchCache[getTabFetchCacheKey(tabId)] = {
+      rows: [...rows],
+      total: nextTotal,
+      cachedAt: Date.now()
+    };
+  }
+};
+
+const runAfterFirstPaint = (callback) => {
+  if (typeof window === 'undefined') return;
+  const runner = () => callback();
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(runner, { timeout: 1200 });
+    return;
+  }
+  window.setTimeout(runner, 160);
 };
 
 const fetchCount = async (table, configure = (query) => query) => {
@@ -2505,7 +3434,15 @@ const fetchStats = async () => {
   applyCountMap(fallbackCounts);
 };
 
-const fetchTabData = async (tabId = currentTab.value) => {
+const fetchTabData = async (tabId = currentTab.value, options = {}) => {
+  const cacheKey = getTabFetchCacheKey(tabId);
+  const cached = options.useCache ? tabFetchCache[cacheKey] : null;
+  if (cached && Date.now() - Number(cached.cachedAt || 0) < 45000) {
+    dataStore[tabId] = [...cached.rows];
+    setTabTotal(tabId, cached.total);
+    return;
+  }
+
   const fetchId = activeFetchId.value + 1;
   activeFetchId.value = fetchId;
   isLoading.value = true;
@@ -2750,16 +3687,44 @@ const fetchTabData = async (tabId = currentTab.value) => {
 };
 
 // ==================== 数据操作 ====================
-const fetchData = async () => {
+const fetchSecondaryData = async () => {
   await Promise.allSettled([
     fetchStats(),
-    fetchTabData(currentTab.value),
     isLotteryOpsTab.value ? loadLotterySchedulerStatus() : Promise.resolve()
   ]);
 };
 
+const fetchData = async ({ deferSecondary = false } = {}) => {
+  if (deferSecondary) {
+    await fetchTabData(currentTab.value);
+    lastRefreshedAt.value = new Date().toISOString();
+    runAfterFirstPaint(async () => {
+      await fetchSecondaryData();
+      lastRefreshedAt.value = new Date().toISOString();
+    });
+    return;
+  }
+
+  await Promise.allSettled([
+    fetchTabData(currentTab.value),
+    fetchSecondaryData()
+  ]);
+  lastRefreshedAt.value = new Date().toISOString();
+};
+
+const refreshCurrentViewAfterMutation = async () => {
+  clearTabFetchCache(currentTab.value);
+  await fetchTabData(currentTab.value);
+  lastRefreshedAt.value = new Date().toISOString();
+  runAfterFirstPaint(async () => {
+    await fetchSecondaryData();
+    lastRefreshedAt.value = new Date().toISOString();
+  });
+};
+
 const refreshAllData = async () => {
   isRefreshing.value = true;
+  clearTabFetchCache();
   await fetchData();
   isRefreshing.value = false;
   showToast('数据已刷新', 'success');
@@ -2799,7 +3764,7 @@ const runDueLotteryDraws = async () => {
       throw new Error(String(data?.message || '执行到期开奖任务失败'));
     }
     showToast(`已扫描 ${Number(data.checked || 0)} 个，到期开奖 ${Number(data.drawn || 0)} 个，失败 ${Number(data.failed || 0)} 个`, Number(data.failed || 0) > 0 ? 'error' : 'success');
-    await fetchData();
+    await refreshCurrentViewAfterMutation();
   } catch (error) {
     console.error('执行到期开奖任务失败:', error);
     showToast('执行失败: ' + buildActionErrorMessage(error, '执行到期开奖任务失败'), 'error');
@@ -2828,6 +3793,71 @@ const toISOStringFromInput = (dateInput) => {
   return date.toISOString();
 };
 
+const getDraftKey = () => `${currentTab.value}:${isEditing.value ? editingItem.value?.id || 'unknown' : 'new'}`;
+
+const readDrafts = () => readLocalJson(STORAGE_KEYS.drafts, {});
+
+const saveCurrentDraft = () => {
+  if (!showModal.value || suppressDraftSave.value) return;
+  const key = getDraftKey();
+  if (!key) return;
+  const drafts = readDrafts();
+  drafts[key] = {
+    tabId: currentTab.value,
+    recordId: isEditing.value ? editingItem.value?.id || '' : '',
+    isEditing: isEditing.value,
+    editingItem: editingItem.value,
+    jsonBuffers: jsonBuffers.value,
+    updatedAt: new Date().toISOString()
+  };
+  writeLocalJson(STORAGE_KEYS.drafts, drafts);
+};
+
+const clearCurrentDraft = () => {
+  const drafts = readDrafts();
+  delete drafts[getDraftKey()];
+  writeLocalJson(STORAGE_KEYS.drafts, drafts);
+};
+
+const maybeRestoreDraft = () => {
+  const draft = readDrafts()[getDraftKey()];
+  if (!draft?.editingItem) return;
+  const updatedAt = draft.updatedAt ? formatDateTime(draft.updatedAt) : '上次';
+  if (!confirm(`发现 ${updatedAt} 未保存草稿，是否恢复？`)) return;
+  suppressDraftSave.value = true;
+  editingItem.value = { ...editingItem.value, ...draft.editingItem };
+  jsonBuffers.value = { ...jsonBuffers.value, ...(draft.jsonBuffers || {}) };
+  nextTick(() => {
+    suppressDraftSave.value = false;
+  });
+};
+
+const cloneComparable = (value) => JSON.parse(JSON.stringify(value || {}));
+
+const getPayloadDiffs = (before = {}, after = {}) => {
+  const diffs = [];
+  Object.keys(after || {}).forEach((key) => {
+    const fromValue = before?.[key];
+    const toValue = after?.[key];
+    if (JSON.stringify(fromValue ?? null) === JSON.stringify(toValue ?? null)) return;
+    diffs.push({ key, from: fromValue, to: toValue });
+  });
+  return diffs;
+};
+
+const confirmPayloadDiffs = (payload) => {
+  if (!isEditing.value) {
+    return confirm(`确定要新增 1 条「${currentTabLabel.value}」记录吗？`);
+  }
+  const diffs = getPayloadDiffs(editingOriginalItem.value || {}, payload);
+  if (!diffs.length) return true;
+  const preview = diffs
+    .slice(0, 8)
+    .map((diff) => `${diff.key}: ${String(diff.from ?? '-').slice(0, 40)} -> ${String(diff.to ?? '-').slice(0, 40)}`)
+    .join('\n');
+  return confirm(`保存前差异预览（${diffs.length} 项）：\n${preview}${diffs.length > 8 ? '\n...' : ''}\n\n确认保存？`);
+};
+
 // ==================== 编辑模态框 ====================
 const openEditModal = async (item = null) => {
   jsonBuffers.value = {};
@@ -2837,6 +3867,8 @@ const openEditModal = async (item = null) => {
   if (item) {
     isEditing.value = true;
     editingItem.value = { ...item };
+    editingOriginalItem.value = cloneComparable(item);
+    addRecentRecord(item);
 
     if (currentTab.value === 'forum') {
       const { title, body } = splitForumContent(item.content);
@@ -2875,6 +3907,7 @@ const openEditModal = async (item = null) => {
   } else {
     isEditing.value = false;
     editingItem.value = {};
+    editingOriginalItem.value = null;
     // 初始化默认值
     currentFields.value.forEach(field => {
       if (field.type === 'tags' || field.type === 'specifications') {
@@ -2987,13 +4020,20 @@ const openEditModal = async (item = null) => {
     }
   }
   showModal.value = true;
+  nextTick(maybeRestoreDraft);
 };
 
-const closeModal = () => {
+const closeModal = ({ askDraft = true } = {}) => {
+  if (askDraft && showModal.value && Object.keys(editingItem.value || {}).length > 0) {
+    const shouldKeepDraft = confirm('是否保留本次未保存草稿？选择“取消”会丢弃草稿并关闭。');
+    if (shouldKeepDraft) saveCurrentDraft();
+    else clearCurrentDraft();
+  }
   showModal.value = false;
   showUserPickerModal.value = false;
   userPickerKeyword.value = '';
   editingItem.value = {};
+  editingOriginalItem.value = null;
   jsonBuffers.value = {};
   clearFieldErrors();
 };
@@ -3546,6 +4586,11 @@ const saveData = async () => {
       delete dataToSave.id;
     }
 
+    if (!confirmPayloadDiffs(dataToSave)) {
+      isSaving.value = false;
+      return;
+    }
+
     if (isEditing.value) {
       const { data, error } = await supabase
         .from(table)
@@ -3559,6 +4604,9 @@ const saveData = async () => {
       if (currentTab.value === 'products') invalidateProductsCache();
       if (currentTab.value === 'subscriptions') invalidateSubscriptionCache(dataToSave.user_id || editingItem.value.user_id);
       if (currentTab.value === 'coreMemories') await syncCoreMemoriesIndex();
+      addChangeLogEntry('update', editingItem.value, {
+        diffs: getPayloadDiffs(editingOriginalItem.value || {}, dataToSave).slice(0, 20)
+      });
       showToast('数据更新成功', 'success');
     } else {
       if (currentTab.value === 'gifts' && dataToSave.is_active) {
@@ -3575,11 +4623,15 @@ const saveData = async () => {
       if (currentTab.value === 'coreMemories') await syncCoreMemoriesIndex();
       searchQuery.value = '';
       currentPage.value = 1;
+      addChangeLogEntry('create', { id: dataToSave.id || editingItem.value.id || '' }, {
+        fields: Object.keys(dataToSave)
+      });
       showToast('数据添加成功', 'success');
     }
 
-    await fetchData();
-    closeModal();
+    clearCurrentDraft();
+    await refreshCurrentViewAfterMutation();
+    closeModal({ askDraft: false });
   } catch (error) {
     console.error('保存失败:', error);
     showToast('保存失败: ' + buildActionErrorMessage(error, '保存失败'), 'error');
@@ -3625,8 +4677,9 @@ const deleteItem = async (item) => {
     }
     if (currentTab.value === 'products') invalidateProductsCache();
     if (currentTab.value === 'subscriptions') invalidateSubscriptionCache(item?.user_id);
+    addChangeLogEntry('delete', item, { recordId: item?.id || '' });
     showToast('删除成功', 'success');
-    await fetchData();
+    await refreshCurrentViewAfterMutation();
   } catch (error) {
     console.error('删除失败:', error);
     showToast('删除失败: ' + buildActionErrorMessage(error, '删除失败'), 'error');
@@ -3657,8 +4710,9 @@ const drawLotteryNow = async (item) => {
     const winnerNames = Array.isArray(data?.winners)
       ? data.winners.map((winner) => String(winner?.username || '').trim()).filter(Boolean)
       : [];
+    addChangeLogEntry('lottery_draw', item, { winners: winnerNames, entryCount });
     showToast(winnerNames.length ? `开奖完成，中奖者：${winnerNames.join('、')}` : '开奖完成，本期暂无中奖者', 'success');
-    await fetchData();
+    await refreshCurrentViewAfterMutation();
   } catch (error) {
     console.error('抽奖开奖失败:', error);
     showToast('开奖失败: ' + buildActionErrorMessage(error, '开奖失败'), 'error');
@@ -3694,8 +4748,9 @@ const redrawLottery = async (item) => {
     const winnerNames = Array.isArray(data?.winners)
       ? data.winners.map((winner) => String(winner?.username || '').trim()).filter(Boolean)
       : [];
+    addChangeLogEntry('lottery_redraw', item, { reason: normalizedReason, winners: winnerNames });
     showToast(winnerNames.length ? `重抽完成，中奖者：${winnerNames.join('、')}` : '重抽完成，本期暂无中奖者', 'success');
-    await fetchData();
+    await refreshCurrentViewAfterMutation();
   } catch (error) {
     console.error('抽奖重抽失败:', error);
     showToast('重抽失败: ' + buildActionErrorMessage(error, '重抽失败'), 'error');
@@ -3706,11 +4761,13 @@ const redrawLottery = async (item) => {
 
 const viewLotteryEntries = (item) => {
   if (!item?.id) return;
+  addRecentRecord(item);
   switchTab('lotteryEntries', { search: String(item.id) });
 };
 
 const viewLotteryDrawLogs = (item) => {
   if (!item?.id) return;
+  addRecentRecord(item);
   switchTab('lotteryDrawLogs', { search: String(item.id) });
 };
 
@@ -3733,8 +4790,9 @@ const closeLottery = async (item) => {
     if (!Array.isArray(data) || data.length === 0) {
       throw new Error('关闭失败：没有记录被更新，请检查管理员权限或记录是否存在');
     }
+    addChangeLogEntry('lottery_close', item, { status: 'closed' });
     showToast('抽奖已关闭，已保留在历史抽奖中', 'success');
-    await fetchData();
+    await refreshCurrentViewAfterMutation();
   } catch (error) {
     console.error('关闭抽奖失败:', error);
     showToast('关闭失败: ' + buildActionErrorMessage(error, '关闭失败'), 'error');
@@ -3881,8 +4939,12 @@ const applyModerationAction = async (item, action) => {
     await updateModerationStatus(item, config, updateData);
 
     await saveModerationLog(item, updateData[config.statusField], reason);
+    addChangeLogEntry(`moderation_${action}`, item, {
+      status: updateData[config.statusField],
+      reason
+    });
     showToast(isApprove ? '审核通过已生效' : isKeepLimited ? '已维持下架并结案举报' : '已拒绝并记录原因', 'success');
-    await fetchData();
+    await refreshCurrentViewAfterMutation();
   } catch (error) {
     console.error('审核操作失败:', error);
     showToast('审核操作失败: ' + buildModerationErrorMessage(error), 'error');
@@ -3913,8 +4975,9 @@ const deleteModerationItem = async (item) => {
   try {
     await deleteModerationTarget(item, config);
     await saveModerationLog(item, 'deleted', 'admin_delete');
+    addChangeLogEntry('moderation_delete', item, { targetType: config.targetType });
     showToast('删除成功', 'success');
-    await fetchData();
+    await refreshCurrentViewAfterMutation();
   } catch (error) {
     console.error('删除审核记录失败:', error);
     showToast('删除失败: ' + buildModerationErrorMessage(error), 'error');
@@ -3951,9 +5014,10 @@ const batchDelete = async () => {
     if (currentTab.value === 'subscriptions') {
       selectedItems.value.forEach((item) => invalidateSubscriptionCache(item?.user_id));
     }
+    addChangeLogEntry('batch_delete', { id: ids.join(',') }, { count: ids.length });
     showToast('批量删除成功', 'success');
     selectedItems.value = [];
-    await fetchData();
+    await refreshCurrentViewAfterMutation();
   } catch (error) {
     console.error('批量删除失败:', error);
     showToast('批量删除失败: ' + buildActionErrorMessage(error, '批量删除失败'), 'error');
@@ -4013,15 +5077,202 @@ const getTags = (value) => {
   return [String(value)];
 };
 
+const getHighlightKeyword = () => sanitizeSearchTerm(searchQuery.value || globalSearchQuery.value);
+
+const highlightCellValue = (value, maxLength) => {
+  const display = formatCellValue(value, maxLength);
+  const escaped = escapeHtml(display);
+  const keyword = getHighlightKeyword();
+  if (!keyword || display === '-') return escaped;
+  const safeKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return escaped.replace(new RegExp(`(${safeKeyword})`, 'ig'), '<mark>$1</mark>');
+};
+
+const getRelatedJump = (col, item) => {
+  const key = String(col?.key || '');
+  const value = item?.[key];
+  if (!value) return null;
+  const relationMap = {
+    user_id: 'users',
+    author_id: 'users',
+    sender_id: 'users',
+    receiver_id: 'users',
+    winner_user_id: 'users',
+    drawn_by: 'users',
+    post_id: 'forum',
+    lottery_id: 'lotteries',
+    entry_id: 'lotteryEntries',
+    winner_entry_id: 'lotteryEntries'
+  };
+  const targetTab = relationMap[key];
+  if (!targetTab || targetTab === currentTab.value) return null;
+  return {
+    tabId: targetTab,
+    search: String(value)
+  };
+};
+
+const jumpToRelatedRecord = (jump, item) => {
+  if (!jump?.tabId) return;
+  addRecentRecord(item);
+  switchTab(jump.tabId, { search: jump.search });
+};
+
+const isInlineEditable = (col, item) => {
+  if (!item?.id || isReadOnlyTab.value || isModerationTab.value) return false;
+  return inlineEditableFieldKeys.value.has(col.key);
+};
+
+const startInlineEdit = (item, col) => {
+  if (!isInlineEditable(col, item)) return;
+  inlineEditState.rowId = getRowIdentity(item);
+  inlineEditState.fieldKey = col.key;
+  inlineEditState.value = item[col.key] ?? '';
+};
+
+const cancelInlineEdit = () => {
+  inlineEditState.rowId = '';
+  inlineEditState.fieldKey = '';
+  inlineEditState.value = '';
+  inlineEditState.saving = false;
+};
+
+const isInlineEditing = (item, col) =>
+  inlineEditState.rowId === getRowIdentity(item) && inlineEditState.fieldKey === col.key;
+
+const getFieldByKey = (fieldKey) => currentFields.value.find((field) => field.key === fieldKey);
+
+const normalizeQuickEditValue = (field, value) => {
+  if (!field) return value;
+  if (field.type === 'number') {
+    const numberValue = Number(value);
+    if (!Number.isFinite(numberValue)) throw new Error(`${field.label}必须是有效数字`);
+    return Math.round(numberValue);
+  }
+  if (field.type === 'datetime') return toISOStringFromInput(value);
+  if (field.type === 'date') return toDateInputValue(value);
+  if (field.type === 'select') return value;
+  return String(value ?? '').trim();
+};
+
+const saveInlineEdit = async (item, col) => {
+  if (inlineEditState.saving) return;
+  const field = getFieldByKey(col.key);
+  try {
+    assertAdminAction();
+    inlineEditState.saving = true;
+    const normalizedValue = normalizeQuickEditValue(field, inlineEditState.value);
+    const oldValue = item[col.key];
+    if (String(oldValue ?? '') === String(normalizedValue ?? '')) {
+      cancelInlineEdit();
+      return;
+    }
+    const payload = pickWritableFields(currentTab.value, { [col.key]: normalizedValue });
+    const { data, error } = await supabase
+      .from(currentConfig.value.table)
+      .update(payload)
+      .eq('id', item.id)
+      .select('id');
+    if (error) throw error;
+    if (!Array.isArray(data) || data.length === 0) {
+      throw new Error('行内编辑未生效，请检查权限或记录是否存在');
+    }
+    addChangeLogEntry('inline_update', item, { field: col.key, from: oldValue, to: normalizedValue });
+    if (currentTab.value === 'products') invalidateProductsCache();
+    if (currentTab.value === 'subscriptions') invalidateSubscriptionCache(item?.user_id);
+    showToast('行内编辑已保存', 'success');
+    cancelInlineEdit();
+    await refreshCurrentViewAfterMutation();
+  } catch (error) {
+    console.error('行内编辑失败:', error);
+    showToast('行内编辑失败: ' + buildActionErrorMessage(error, '行内编辑失败'), 'error');
+  } finally {
+    inlineEditState.saving = false;
+  }
+};
+
+const isAnomalyRow = (item) => {
+  const now = Date.now();
+  if (currentTab.value === 'products') return Number(item?.stock ?? 0) <= 0;
+  if (currentTab.value === 'subscriptions') {
+    const expiresAt = Date.parse(item?.expires_at || '');
+    return String(item?.status || '') === 'expired' || (Number.isFinite(expiresAt) && expiresAt < now);
+  }
+  if (currentTab.value === 'lotteries') {
+    const drawAt = Date.parse(item?.draw_at || '');
+    return String(item?.status || '') === 'open' && Number.isFinite(drawAt) && drawAt < now;
+  }
+  if (['reportedPosts', 'reviewPosts', 'reviewComments', 'reviewMessages'].includes(currentTab.value)) return true;
+  if (currentTab.value === 'lotteryNotificationJobs') return ['failed', 'pending'].includes(String(item?.status || ''));
+  if (currentTab.value === 'lotteryJoinAttempts') return !['joined', 'success'].includes(String(item?.result_code || ''));
+  return false;
+};
+
+const getAnomalyReason = (item) => {
+  if (!isAnomalyRow(item)) return '';
+  if (currentTab.value === 'products') return '库存不足';
+  if (currentTab.value === 'subscriptions') return '订阅已过期';
+  if (currentTab.value === 'lotteries') return '到期未开奖';
+  if (currentTab.value === 'lotteryNotificationJobs') return '通知待处理/失败';
+  if (currentTab.value === 'lotteryJoinAttempts') return '报名风控命中';
+  return '需要复核';
+};
+
+const applyBatchEdit = async () => {
+  if (!selectedItems.value.length || !batchEditState.fieldKey) return;
+  const field = getFieldByKey(batchEditState.fieldKey);
+  try {
+    assertAdminAction();
+    const normalizedValue = normalizeQuickEditValue(field, batchEditState.value);
+    const ids = selectedItems.value.map((item) => item.id).filter(Boolean);
+    const preview = `将修改 ${ids.length} 条「${currentTabLabel.value}」记录\n字段：${field?.label || batchEditState.fieldKey}\n新值：${normalizedValue}`;
+    if (!confirm(preview)) return;
+
+    const payload = pickWritableFields(currentTab.value, { [batchEditState.fieldKey]: normalizedValue });
+    const { data, error } = await supabase
+      .from(currentConfig.value.table)
+      .update(payload)
+      .in('id', ids)
+      .select('id');
+    if (error) throw error;
+    if (!Array.isArray(data) || data.length !== ids.length) {
+      throw new Error(`批量编辑未完全生效：请求 ${ids.length} 条，实际更新 ${Array.isArray(data) ? data.length : 0} 条`);
+    }
+    addChangeLogEntry('batch_update', { id: ids.join(',') }, { field: batchEditState.fieldKey, to: normalizedValue, count: ids.length });
+    if (currentTab.value === 'products') invalidateProductsCache();
+    if (currentTab.value === 'subscriptions') selectedItems.value.forEach((item) => invalidateSubscriptionCache(item?.user_id));
+    showToast('批量编辑成功', 'success');
+    selectedItems.value = [];
+    batchEditState.fieldKey = '';
+    batchEditState.value = '';
+    showBatchEditPanel.value = false;
+    await refreshCurrentViewAfterMutation();
+  } catch (error) {
+    console.error('批量编辑失败:', error);
+    showToast('批量编辑失败: ' + buildActionErrorMessage(error, '批量编辑失败'), 'error');
+  }
+};
+
 const getJsonPreview = (val) => {
   if (!val) return '{}';
   const str = JSON.stringify(val);
   return str.length > 30 ? str.substring(0, 30) + '...' : str;
 };
 
+const downloadBlob = (blob, filename) => {
+  const link = document.createElement('a');
+  const objectUrl = URL.createObjectURL(blob);
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(objectUrl);
+};
+
 const exportData = () => {
   const data = filteredData.value;
-  const columns = currentColumns.value;
+  const columns = visibleCurrentColumns.value;
 
   const csvContent = [
     columns.map(col => col.label).join(','),
@@ -4033,12 +5284,110 @@ const exportData = () => {
   ].join('\n');
 
   const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = `${currentTab.value}_${new Date().toISOString().split('T')[0]}.csv`;
-  link.click();
+  downloadBlob(blob, `${currentTab.value}_${new Date().toISOString().split('T')[0]}.csv`);
 
   showToast('数据导出成功', 'success');
+};
+
+const getBackupTableTargets = () => {
+  const targets = new Map();
+  tabGroups.forEach((group) => {
+    group.tabIds.forEach((tabId) => {
+      const table = dataConfig[tabId]?.table;
+      if (!table || targets.has(table)) return;
+      targets.set(table, {
+        table,
+        sourceTabId: tabId,
+        sourceLabel: tabs.find((tab) => tab.id === tabId)?.label || tabId,
+        groupId: group.id,
+        groupLabel: group.label
+      });
+    });
+  });
+  return Array.from(targets.values());
+};
+
+const fetchBackupTableRows = async (target) => {
+  const batchSize = 1000;
+  const rows = [];
+  let from = 0;
+  let total = null;
+
+  while (true) {
+    const to = from + batchSize - 1;
+    const { data, error, count } = await supabase
+      .from(target.table)
+      .select('*', { count: from === 0 ? 'exact' : undefined })
+      .range(from, to);
+
+    if (error) throw error;
+
+    const batch = Array.isArray(data) ? data : [];
+    rows.push(...batch);
+    if (from === 0 && Number.isFinite(Number(count))) {
+      total = Number(count);
+    }
+    if (batch.length < batchSize) break;
+    from += batchSize;
+  }
+
+  return {
+    ...target,
+    total: total ?? rows.length,
+    exported: rows.length,
+    rows
+  };
+};
+
+const exportBackupData = async () => {
+  if (isExportingBackup.value) return;
+
+  try {
+    assertAdminAction();
+    isExportingBackup.value = true;
+    const exportedAt = new Date().toISOString();
+    const targets = getBackupTableTargets();
+    const tablesPayload = {};
+    const summary = [];
+
+    for (const target of targets) {
+      const result = await fetchBackupTableRows(target);
+      tablesPayload[result.table] = result.rows;
+      summary.push({
+        table: result.table,
+        sourceTabId: result.sourceTabId,
+        sourceLabel: result.sourceLabel,
+        groupId: result.groupId,
+        groupLabel: result.groupLabel,
+        total: result.total,
+        exported: result.exported
+      });
+    }
+
+    const backupPayload = {
+      type: 'boh-admin-data-backup',
+      version: 1,
+      exportedAt,
+      exportedBy: {
+        id: userInfo?.id || '',
+        username: userInfo?.username || '',
+        email: userInfo?.email || '',
+        role: userInfo?.role || ''
+      },
+      summary,
+      tables: tablesPayload
+    };
+
+    const blob = new Blob([JSON.stringify(backupPayload, null, 2)], { type: 'application/json;charset=utf-8;' });
+    const timestamp = exportedAt.replace(/[:.]/g, '-');
+    downloadBlob(blob, `boh-data-backup_${timestamp}.json`);
+    showToast(`备份导出成功，共 ${summary.length} 张表`, 'success');
+  } catch (error) {
+    console.error('备份导出失败:', error);
+    showToast('备份导出失败: ' + buildActionErrorMessage(error, '备份导出失败'), 'error');
+  } finally {
+    isExportingBackup.value = false;
+  }
 };
 
 // 标签输入
@@ -4073,8 +5422,8 @@ const removeSpec = (fieldKey, index) => {
 
 // ==================== 生命周期 ====================
 onMounted(() => {
-  fetchData();
-  nextTick(() => scrollActiveTabIntoView(false));
+  hydrateEditorPreferences();
+  fetchData({ deferSecondary: true });
 });
 
 // 监听分页大小变化
@@ -4121,6 +5470,11 @@ watch(userPickerKeyword, () => {
     fetchUserPickerUsers();
   }, 300);
 });
+
+watch(editingItem, () => {
+  if (!showModal.value || suppressDraftSave.value) return;
+  saveCurrentDraft();
+}, { deep: true });
 
 </script>
 

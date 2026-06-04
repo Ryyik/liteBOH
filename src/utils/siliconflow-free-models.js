@@ -1,0 +1,52 @@
+export const SILICONFLOW_FREE_CHAT_MODELS = Object.freeze([
+  { id: 'Qwen/Qwen3.5-4B', name: 'Qwen 3.5 4B', familyLabel: '通用', bestFor: '轻量问答' },
+  { id: 'Qwen/Qwen3-8B', name: 'Qwen 3 8B', familyLabel: '通用', bestFor: '多场景聊天' },
+  { id: 'deepseek-ai/DeepSeek-R1-0528-Qwen3-8B', name: 'DeepSeek R1 0528 8B', familyLabel: '推理', bestFor: '高强推理' },
+  { id: 'THUDM/GLM-Z1-9B-0414', name: 'GLM Z1 9B', familyLabel: '通用', bestFor: '综合任务' },
+  { id: 'Qwen/Qwen2.5-7B-Instruct', name: 'Qwen 2.5 7B Instruct', familyLabel: '指令', bestFor: '稳定执行' },
+  { id: 'THUDM/GLM-4-9B-0414', name: 'GLM 4 9B', familyLabel: '通用', bestFor: '快速响应' },
+  { id: 'tencent/Hunyuan-MT-7B', name: 'Hunyuan MT 7B', familyLabel: '翻译', bestFor: '多语翻译' }
+]);
+
+export const SILICONFLOW_FREE_MULTIMODAL_MODEL_IDS = Object.freeze([
+  'deepseek-ai/DeepSeek-OCR',
+  'PaddlePaddle/PaddleOCR-VL-1.5',
+  'FunAudioLLM/SenseVoiceSmall',
+  'TeleAI/TeleSpeechASR',
+  'Kwai-Kolors/Kolors'
+]);
+
+export const SILICONFLOW_FREE_EMBEDDING_MODEL_IDS = Object.freeze([
+  'BAAI/bge-m3',
+  'netease-youdao/bce-embedding-base_v1'
+]);
+
+export const SILICONFLOW_FREE_RERANK_MODEL_IDS = Object.freeze([
+  'netease-youdao/bce-reranker-base_v1',
+  'BAAI/bge-reranker-v2-m3'
+]);
+
+export const SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID = 'Qwen/Qwen3-8B';
+export const SILICONFLOW_DEFAULT_FREE_EMBEDDING_MODEL_ID = 'BAAI/bge-m3';
+export const SILICONFLOW_DEFAULT_FREE_RERANK_MODEL_ID = 'netease-youdao/bce-reranker-base_v1';
+
+const SILICONFLOW_FREE_MODEL_ID_SET = new Set([
+  ...SILICONFLOW_FREE_CHAT_MODELS.map((model) => model.id),
+  ...SILICONFLOW_FREE_MULTIMODAL_MODEL_IDS,
+  ...SILICONFLOW_FREE_EMBEDDING_MODEL_IDS,
+  ...SILICONFLOW_FREE_RERANK_MODEL_IDS
+]);
+
+export const isSiliconFlowFreeModel = (modelId = '') => (
+  SILICONFLOW_FREE_MODEL_ID_SET.has(String(modelId || '').trim())
+);
+
+export const resolveSiliconFlowFreeModelId = (
+  modelId = '',
+  fallbackModelId = SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID
+) => {
+  const safeModelId = String(modelId || '').trim();
+  if (isSiliconFlowFreeModel(safeModelId)) return safeModelId;
+  if (isSiliconFlowFreeModel(fallbackModelId)) return fallbackModelId;
+  return SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID;
+};

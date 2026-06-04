@@ -70,7 +70,10 @@ router.beforeEach(async (to, from, next) => {
       return next("/login");
     }
 
-    if (!authStore.isAdmin) {
+    const hasAdminAccess = authStore.isAdmin
+      || (typeof authStore.ensureAdminAccess === "function" && await authStore.ensureAdminAccess());
+
+    if (!hasAdminAccess) {
       alert("您没有权限访问该页面");
       return next("/");
     }

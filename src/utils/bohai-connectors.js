@@ -1,4 +1,15 @@
 import { extractCitationIdsFromText } from './ai-chat-grounding.js';
+import {
+  CONNECTOR_TIMEOUT_MS,
+  ACTION_RETRY_DELAY_MS,
+  MAX_ACTION_RETRY_COUNT,
+  BOHAI_ERROR_TYPES,
+  BOHAI_ERROR_MESSAGES,
+  categorizeError,
+  shouldSkipConnector,
+  recordConnectorFailure,
+  resetConnectorFailures
+} from './bohai-constants.js';
 
 export const BOHAI_CONNECTOR_IDS = {
   cloud: 'cloud',
@@ -17,7 +28,8 @@ export const BOHAI_ACTION_IDS = {
   saveSharedMemory: 'saveSharedMemory',
   saveBothMemories: 'saveBothMemories',
   quickNote: 'quickNote',
-  cloudReferenceConsent: 'cloudReferenceConsent'
+  cloudReferenceConsent: 'cloudReferenceConsent',
+  createPage: 'createPage'
 };
 
 export const BOHAI_CONNECTOR_LAYERS = {
@@ -33,6 +45,19 @@ const toArray = (value) => {
 };
 
 const normalizeLabel = (value) => String(value || '').trim();
+
+const withTimeout = (promise, timeoutMs, timeoutMessage) => {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return promise;
+  let timerId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timerId = setTimeout(() => {
+      reject(new DOMException(timeoutMessage || '操作超时', 'TimeoutError'));
+    }, timeoutMs);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timerId) clearTimeout(timerId);
+  });
+};
 
 export const createBohAIConnector = ({
   id = '',
@@ -100,7 +125,9 @@ export const runBohAIAction = async ({
   action = null,
   payload = {},
   auth = {},
-  logger = null
+  logger = null,
+  retryCount = 0,
+  actionTimeoutMs = CONNECTOR_TIMEOUT_MS
 } = {}) => {
   if (!action || typeof action !== 'object') {
     return {
@@ -109,7 +136,7 @@ export const runBohAIAction = async ({
       label: '',
       source: '',
       message: '',
-      errorMessage: '动作不存在',
+      errorMessage: BOHAI_ERROR_MESSAGES.actionNotFound,
       data: null,
       metadata: {}
     };
@@ -124,9 +151,9 @@ export const runBohAIAction = async ({
       label: action.label || '',
       source: action.source || action.label || '',
       message: '',
-      errorMessage: '请先登录后再执行此操作。',
+      errorMessage: BOHAI_ERROR_MESSAGES.loginRequired,
       data: null,
-      metadata: { reason: 'login_required' }
+      metadata: { reason: BOHAI_ERROR_TYPES.AUTH_ERROR }
     };
   }
 
@@ -144,28 +171,57 @@ export const runBohAIAction = async ({
       label: action.label || '',
       source: action.source || action.label || '',
       message: '',
-      errorMessage: '动作未配置执行器',
+      errorMessage: BOHAI_ERROR_MESSAGES.missingExecutor,
       data: null,
-      metadata: { reason: 'missing_executor' }
+      metadata: { reason: BOHAI_ERROR_TYPES.VALIDATION_ERROR }
     };
   }
 
   try {
-    const rawResult = await action.execute(payload, { auth, action });
+    const executePromise = action.execute(payload, { auth, action });
+    const rawResult = await withTimeout(executePromise, actionTimeoutMs, BOHAI_ERROR_MESSAGES.connectorTimeout);
+    resetConnectorFailures(action.id || 'action');
     return normalizeBohAIActionResult(action, rawResult);
   } catch (error) {
+    const errorInfo = categorizeError(error);
+    const actionId = action.id || 'action';
+
     if (logger && typeof logger.warn === 'function') {
-      logger.warn('boh-ai', `${action.label || action.id || 'Action'} 执行失败`, error);
+      logger.warn('boh-ai', `${action.label || actionId} 执行失败`, {
+        error: error.message,
+        type: errorInfo.type,
+        recoverable: errorInfo.recoverable,
+        retry: retryCount
+      });
     }
+
+    if (errorInfo.recoverable && retryCount < MAX_ACTION_RETRY_COUNT) {
+      await new Promise((resolve) => setTimeout(resolve, ACTION_RETRY_DELAY_MS * (retryCount + 1)));
+      return runBohAIAction({
+        action,
+        payload,
+        auth,
+        logger,
+        retryCount: retryCount + 1,
+        actionTimeoutMs
+      });
+    }
+
+    recordConnectorFailure(actionId);
+
     return {
       ok: false,
       actionId: action.id || '',
       label: action.label || '',
       source: action.source || action.label || '',
       message: '',
-      errorMessage: error?.message || '动作执行失败',
+      errorMessage: error?.message || BOHAI_ERROR_MESSAGES.executionFailed,
       data: null,
-      metadata: { reason: 'exception' }
+      metadata: {
+        reason: errorInfo.type,
+        recoverable: errorInfo.recoverable,
+        retries: retryCount
+      }
     };
   }
 };
@@ -234,16 +290,37 @@ export const runBohAIReadConnectors = async ({
   connectors = [],
   plan = {},
   queryText = '',
-  logger = null
+  logger = null,
+  timeoutMs = CONNECTOR_TIMEOUT_MS
 } = {}) => {
-  const activeConnectors = connectors.filter((connector) => isConnectorActiveForPlan(connector, plan));
+  const activeConnectors = connectors.filter((connector) => {
+    if (!isConnectorActiveForPlan(connector, plan)) return false;
+    const connectorId = connector.id || connector.planKey || '';
+    return !shouldSkipConnector(connectorId);
+  });
+
   const settled = await Promise.allSettled(
     activeConnectors.map(async (connector) => {
+      const connectorId = connector.id || '';
       if (typeof connector.read !== 'function') {
         return normalizeConnectorReadResult(connector, null);
       }
-      const rawResult = await connector.read(queryText, { plan, connector });
-      return normalizeConnectorReadResult(connector, rawResult);
+      try {
+        const readPromise = connector.read(queryText, { plan, connector });
+        const rawResult = await withTimeout(readPromise, timeoutMs, BOHAI_ERROR_MESSAGES.connectorTimeout);
+        resetConnectorFailures(connectorId);
+        return normalizeConnectorReadResult(connector, rawResult);
+      } catch (error) {
+        const errorInfo = categorizeError(error);
+        if (logger && typeof logger.warn === 'function') {
+          logger.warn('boh-ai', `${connector?.label || connectorId || 'Connector'} 检索失败`, {
+            error: error.message,
+            type: errorInfo.type
+          });
+        }
+        recordConnectorFailure(connectorId);
+        throw error;
+      }
     })
   );
 
@@ -257,8 +334,90 @@ export const runBohAIReadConnectors = async ({
       };
     }
 
-    if (logger && typeof logger.warn === 'function') {
-      logger.warn('boh-ai', `${connector?.label || connector?.id || 'Connector'} 检索失败`, result.reason);
+    return {
+      ok: false,
+      connector,
+      connectorId: connector?.id || '',
+      label: connector?.label || '',
+      source: connector?.source || connector?.label || '',
+      context: '',
+      total: 0,
+      labels: [],
+      confidence: 0,
+      evidenceRefs: [],
+      metadata: {},
+      error: result.reason
+    };
+  });
+};
+
+export const runBohAIReadConnectorsWithProgress = async ({
+  connectors = [],
+  plan = {},
+  queryText = '',
+  logger = null,
+  timeoutMs = CONNECTOR_TIMEOUT_MS,
+  onProgress = null
+} = {}) => {
+  const activeConnectors = connectors.filter((connector) => {
+    if (!isConnectorActiveForPlan(connector, plan)) return false;
+    const connectorId = connector.id || connector.planKey || '';
+    return !shouldSkipConnector(connectorId);
+  });
+
+  const total = activeConnectors.length;
+  let completed = 0;
+
+  const notifyProgress = (currentConnector) => {
+    if (onProgress && typeof onProgress === 'function') {
+      completed += 1;
+      onProgress({
+        completed,
+        total,
+        percentage: total > 0 ? Math.round((completed / total) * 100) : 100,
+        currentConnector: currentConnector || null,
+        status: completed >= total ? 'completed' : 'loading'
+      });
+    }
+  };
+
+  const settled = await Promise.allSettled(
+    activeConnectors.map(async (connector) => {
+      const connectorId = connector.id || '';
+      const connectorLabel = connector.label || connectorId;
+      if (typeof connector.read !== 'function') {
+        notifyProgress(connectorLabel);
+        return normalizeConnectorReadResult(connector, null);
+      }
+      try {
+        const readPromise = connector.read(queryText, { plan, connector });
+        const rawResult = await withTimeout(readPromise, timeoutMs, BOHAI_ERROR_MESSAGES.connectorTimeout);
+        resetConnectorFailures(connectorId);
+        notifyProgress(connectorLabel);
+        return normalizeConnectorReadResult(connector, rawResult);
+      } catch (error) {
+        const errorInfo = categorizeError(error);
+        if (logger && typeof logger.warn === 'function') {
+          logger.warn('boh-ai', `${connectorLabel} 检索失败`, {
+            error: error.message,
+            type: errorInfo.type
+          });
+        }
+        recordConnectorFailure(connectorId);
+        notifyProgress(connectorLabel);
+        throw error;
+      }
+    })
+  );
+
+  return settled.map((result, index) => {
+    const connector = activeConnectors[index];
+    if (result.status === 'fulfilled') {
+      return {
+        ok: true,
+        connector,
+        ...result.value
+      };
     }
 
     return {

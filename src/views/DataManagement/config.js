@@ -13,12 +13,38 @@ export const tabs = [
   { id: 'lotteries', label: '抽奖管理', icon: '🎲' },
   { id: 'lotteryEntries', label: '抽奖报名', icon: '🧾' },
   { id: 'lotteryDrawLogs', label: '开奖日志', icon: '🏆' },
-  { id: 'lotterySchedulerLogs', label: '开奖调度', icon: '⏱️' },
   { id: 'lotteryNotificationJobs', label: '中奖通知', icon: '📣' },
   { id: 'lotteryJoinAttempts', label: '报名风控', icon: '🛡️' },
   { id: 'news', label: '新闻管理', icon: '📰' },
   { id: 'activities', label: '活动管理', icon: '🎉' },
   { id: 'products', label: '商品管理', icon: '🎁' }
+];
+
+export const tabGroups = [
+  {
+    id: 'people',
+    label: '用户',
+    description: '账号、积分、订阅和礼物履约',
+    tabIds: ['users', 'points', 'subscriptions', 'gifts']
+  },
+  {
+    id: 'content',
+    label: '内容',
+    description: '论坛、官方事实、新闻、活动和商品',
+    tabIds: ['forum', 'coreMemories', 'news', 'activities', 'products']
+  },
+  {
+    id: 'moderation',
+    label: '审核',
+    description: '举报、拒绝内容和私信复核',
+    tabIds: ['reportedPosts', 'reviewPosts', 'reviewComments', 'reviewMessages']
+  },
+  {
+    id: 'lottery',
+    label: '抽奖',
+    description: '抽奖配置、开奖、通知和报名风控',
+    tabIds: ['lotteries', 'lotteryEntries', 'lotteryDrawLogs', 'lotteryNotificationJobs', 'lotteryJoinAttempts']
+  }
 ];
 
 export const NEWS_CATEGORY_OPTIONS = [
