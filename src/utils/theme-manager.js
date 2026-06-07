@@ -7,6 +7,7 @@ class ThemeManager {
   constructor() {
     this.theme = 'light';
     this.preference = 'light';
+    this.uiStyle = 'glass';
     this.listeners = [];
     this.initialized = false;
     this.systemThemeQuery = null;
@@ -26,8 +27,10 @@ class ThemeManager {
 
     // 优先从 localStorage 读取用户设置；未设置时保持默认浅色。
     const savedTheme = localStorage.getItem('boh-theme');
+    const savedUiStyle = localStorage.getItem('boh-ui-style');
 
     this.preference = ['light', 'dark', 'system'].includes(savedTheme) ? savedTheme : 'light';
+    this.uiStyle = ['flat', 'glass'].includes(savedUiStyle) ? savedUiStyle : 'glass';
     this.theme = this.resolveTheme(this.preference);
     this.updateSystemThemeListener();
 
@@ -101,19 +104,20 @@ class ThemeManager {
       elements.forEach(el => {
         if (el) {
           el.setAttribute('data-theme', theme);
+          el.setAttribute('data-ui-style', this.uiStyle);
         }
       });
     });
 
     // 触发主题变化事件
-    this.notifyListeners(theme, this.preference);
+    this.notifyListeners(theme, this.preference, this.uiStyle);
 
     // 更新 meta theme-color
     this.updateMetaThemeColor(theme);
 
     // 触发自定义事件，通知所有页面组件
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme } }));
+      window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme, uiStyle: this.uiStyle } }));
     }
   }
 
@@ -160,6 +164,25 @@ class ThemeManager {
   }
 
   /**
+   * 获取当前界面材质风格
+   * @returns {'flat'|'glass'}
+   */
+  getUiStyle() {
+    return this.uiStyle;
+  }
+
+  /**
+   * 设置界面材质风格
+   * @param {'flat'|'glass'} uiStyle
+   */
+  setUiStyle(uiStyle) {
+    if (!['flat', 'glass'].includes(uiStyle)) return;
+    this.uiStyle = uiStyle;
+    localStorage.setItem('boh-ui-style', uiStyle);
+    this.applyTheme(this.theme, this.preference);
+  }
+
+  /**
    * 检查是否为深色模式
    * @returns {boolean}
    */
@@ -202,10 +225,10 @@ class ThemeManager {
    * 通知所有监听器
    * @param {string} theme - 当前主题
    */
-  notifyListeners(theme, preference = this.preference) {
+  notifyListeners(theme, preference = this.preference, uiStyle = this.uiStyle) {
     this.listeners.forEach(callback => {
       try {
-        callback(theme, preference);
+        callback(theme, preference, uiStyle);
       } catch (e) {
         console.error('Theme change listener error:', e);
       }

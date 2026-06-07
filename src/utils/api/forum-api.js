@@ -3,9 +3,11 @@ import { executeRead, normalizeDbError, invalidateByTags } from '../request-core
 import { logger } from '../logger.js';
 import { createNotification, sendPushplusForNotification } from './notifications-api.js';
 import {
+  assertCloudinaryUploadAllowed,
   deleteCloudinaryAssetByToken,
   deleteCloudinaryAssetsByPublicIds,
   getCloudinaryTransformedUrl,
+  markCloudinaryUploadsClaimed,
   uploadImageToCloudinary
 } from '../cloudinary-client.js';
 import {
@@ -22,13 +24,19 @@ const ALLOWED_SORT_MODE = new Set(['latest', 'hottest']);
 const ALLOWED_FORUM_TAGS = new Set(['server', 'activity', 'daily', 'question']);
 const DEFAULT_FORUM_TAG = 'daily';
 const COMMENT_ASYNC_MODERATION_TIMEOUT_MS = 45000;
+const COMMENT_SYNC_MODERATION_TIMEOUT_MS = 12000;
 const POST_ASYNC_MODERATION_TIMEOUT_MS = 45000;
 const POST_REJECTED_NOTIFICATION_TYPE = 'post_rejected';
 const COMMENT_REJECTED_NOTIFICATION_TYPE = 'comment_rejected';
-const FORUM_IMAGE_MAX_COUNT = 3;
-const FORUM_IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
+const FORUM_IMAGE_MAX_COUNT = 6;
+const FORUM_IMAGE_MAX_SIZE_MB = 10;
+const FORUM_IMAGE_MAX_SIZE_BYTES = FORUM_IMAGE_MAX_SIZE_MB * 1024 * 1024;
 const FORUM_ALLOWED_IMAGE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+const FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT = 4;
 const FORUM_LIST_IMAGE_TRANSFORM = 'f_auto,q_auto:good,c_fill,w_720,h_540';
+const FORUM_LIST_IMAGE_TRANSFORM_SM = 'f_auto,q_auto:good,c_fill,w_360,h_270';
+const FORUM_LIST_IMAGE_TRANSFORM_MD = 'f_auto,q_auto:good,c_fill,w_540,h_405';
+const FORUM_LIST_LQIP_TRANSFORM = 'f_auto,q_auto:low,c_fill,w_72,h_54,e_blur:1000';
 const FORUM_DETAIL_IMAGE_TRANSFORM = 'f_auto,q_auto:good,c_limit,w_1600';
 const FORUM_CLOUDINARY_FOLDER = String(
   import.meta.env.VITE_CLOUDINARY_FORUM_FOLDER
@@ -93,6 +101,30 @@ function buildNextPostCursor(rows = [], hasMore = false) {
 function normalizeContentStatus(status, fallback = APPROVED_STATUS) {
   const normalized = String(status || '').trim().toLowerCase();
   return ALLOWED_CONTENT_STATUS.has(normalized) ? normalized : fallback;
+}
+
+function withAbortSignal(query, signal) {
+  if (!signal || typeof query?.abortSignal !== 'function') return query;
+  return query.abortSignal(signal);
+}
+
+function shouldSyncModerateComment(content = '') {
+  const text = String(content || '').trim();
+  if (!text) return false;
+  const lowerText = text.toLowerCase();
+  const repeatedChars = /(.)\1{8,}/u.test(text);
+  const repeatedSegments = /(.{2,12})\1{4,}/u.test(text);
+  const hasLink = /https?:\/\/|www\.|[a-z0-9-]+\.(com|cn|net|org|top|xyz|cc|io|me)(\/|\s|$)/iu.test(text);
+  const hasContactHook = /(加我|私聊|联系我|联系方式|vx|微信|qq|群号|代购|出售|购买|交易|带价|渠道)/iu.test(text);
+  const hasRiskyAction = /(教程|配方|怎么做|怎么买|怎么卖|求购|接单|外挂|破解|刷号)/iu.test(text);
+  return text.length > 500
+    || hasLink
+    || repeatedChars
+    || repeatedSegments
+    || hasContactHook
+    || hasRiskyAction
+    || lowerText.includes('telegram')
+    || lowerText.includes('discord.gg');
 }
 
 export function normalizeForumTag(tag = '') {
@@ -225,7 +257,9 @@ function normalizePostListRecord(post = {}) {
     || ''
   ).trim();
   const coverImageUrl = getCloudinaryTransformedUrl(rawCoverUrl, FORUM_LIST_IMAGE_TRANSFORM);
-  const previewImages = coverImageUrl
+  const previewImages = explicitImages.length
+    ? explicitImages.slice(0, FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT)
+    : coverImageUrl
     ? normalizeForumImages([{
       id: `${String(post.id || 'post').trim() || 'post'}-cover`,
       url: rawCoverUrl || coverImageUrl,
@@ -262,11 +296,12 @@ function normalizeForumImage(image = {}, { variant = 'detail' } = {}) {
   ).trim();
   if (!originalUrl) return null;
 
-  const transform = variant === 'list' ? FORUM_LIST_IMAGE_TRANSFORM : FORUM_DETAIL_IMAGE_TRANSFORM;
+  const isList = variant === 'list';
+  const transform = isList ? FORUM_LIST_IMAGE_TRANSFORM : FORUM_DETAIL_IMAGE_TRANSFORM;
   const detailUrl = getCloudinaryTransformedUrl(originalUrl, FORUM_DETAIL_IMAGE_TRANSFORM);
   const thumbUrl = getCloudinaryTransformedUrl(originalUrl, FORUM_LIST_IMAGE_TRANSFORM);
 
-  return {
+  const result = {
     id: String(image.id || '').trim(),
     url: getCloudinaryTransformedUrl(originalUrl, transform),
     originalUrl,
@@ -280,20 +315,41 @@ function normalizeForumImage(image = {}, { variant = 'detail' } = {}) {
     moderationStatus: String(image.moderationStatus || image.moderation_status || 'approved').trim() || 'approved',
     moderationScore: Number(image.moderationScore ?? image.moderation_score ?? 0) || 0,
     moderationReason: String(image.moderationReason || image.moderation_reason || '').trim(),
+    isCover: normalizeForumBoolean(image.isCover ?? image.is_cover),
     sortOrder: Number(image.sortOrder ?? image.sort_order ?? 0) || 0
   };
+
+  if (isList) {
+    result.srcset = [
+      `${getCloudinaryTransformedUrl(originalUrl, FORUM_LIST_IMAGE_TRANSFORM_SM)} 360w`,
+      `${getCloudinaryTransformedUrl(originalUrl, FORUM_LIST_IMAGE_TRANSFORM_MD)} 540w`,
+      `${thumbUrl} 720w`
+    ].join(', ');
+    result.lqipUrl = getCloudinaryTransformedUrl(originalUrl, FORUM_LIST_LQIP_TRANSFORM);
+  }
+
+  return result;
+}
+
+function normalizeForumBoolean(value) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value === 1;
+  return ['true', '1', 'yes'].includes(String(value || '').trim().toLowerCase());
 }
 
 function normalizeForumImages(images = [], options = {}) {
   const source = Array.isArray(images) ? images : [];
   return source
     .map((image) => normalizeForumImage(image, options))
-    .filter(Boolean)
+    .filter((image) => image && image.moderationStatus === 'approved')
     .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
 }
 
 function toForumImageRpcPayload(images = []) {
-  return normalizeForumImages(images).slice(0, FORUM_IMAGE_MAX_COUNT).map((image) => ({
+  const normalizedImages = normalizeForumImages(images).slice(0, FORUM_IMAGE_MAX_COUNT);
+  const coverIndex = normalizedImages.findIndex((image) => image.isCover);
+  const effectiveCoverIndex = coverIndex >= 0 ? coverIndex : (normalizedImages.length > 0 ? 0 : -1);
+  return normalizedImages.map((image, index) => ({
     url: image.originalUrl || image.url,
     publicId: image.publicId,
     width: image.width,
@@ -301,7 +357,8 @@ function toForumImageRpcPayload(images = []) {
     format: image.format,
     moderationStatus: image.moderationStatus || 'approved',
     moderationScore: image.moderationScore || 0,
-    moderationReason: image.moderationReason || ''
+    moderationReason: image.moderationReason || '',
+    isCover: index === effectiveCoverIndex
   }));
 }
 
@@ -353,6 +410,7 @@ function normalizeForumImagePostError(error) {
     CLOUD_IMAGE_LIMIT_EXCEEDED: 'Cloud+ 图片额度已满：论坛图片和 Cloud+ 共享额度，请删除旧图片或升级方案',
     CLOUD_IMAGE_RATE_LIMITED: '图片上传过于频繁，请稍后再试',
     CLOUD_ENTRY_RATE_LIMITED: '发布过于频繁，请稍后再试',
+    DAILY_IMAGE_POST_LIMIT: '今天带图帖子发布额度已满，每天最多 5 条',
     INVALID_CLOUD_IMAGE_URL: '图片来源异常，已阻止发布，请重新上传图片',
     INVALID_CLOUD_COVER_IMAGE_URL: '封面图片来源异常，已阻止发布，请重新上传图片',
     INVALID_CLOUD_IMAGE_PUBLIC_ID: '图片资源标识异常，已阻止发布，请重新上传图片',
@@ -900,6 +958,7 @@ export async function getPosts(userId = null, pagination = {}) {
   const includeUnapprovedForAuthor = Boolean(pagination.includeUnapprovedForAuthor);
   const cursorMode = String(pagination.cursorMode || '').trim().toLowerCase();
   const cursorToken = String(pagination.cursor || '').trim();
+  const abortSignal = pagination.signal;
   const parsedCursor = decodePostCursor(cursorToken);
   const useCursorMode = (cursorMode === 'keyset' || Boolean(parsedCursor))
     && sortMode === 'latest'
@@ -932,7 +991,8 @@ export async function getPosts(userId = null, pagination = {}) {
               comments:comments(count),
               likes_count:likes(count),
               user_likes:likes!left(user_id),
-              author:author_id(avatar_url)
+              author:author_id(avatar_url),
+              forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
             `);
         } else {
           query = supabase
@@ -941,7 +1001,8 @@ export async function getPosts(userId = null, pagination = {}) {
               *,
               comments:comments(count),
               likes_count:likes(count),
-              author:author_id(avatar_url)
+              author:author_id(avatar_url),
+              forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
             `);
         }
 
@@ -959,7 +1020,7 @@ export async function getPosts(userId = null, pagination = {}) {
           );
         }
 
-        const { data, error } = await query;
+        const { data, error } = await withAbortSignal(query, abortSignal);
         if (error) return { data: [], error };
 
         const formattedRows = normalizePostListRows(formatPosts(data || [], userId));
@@ -983,11 +1044,17 @@ export async function getPosts(userId = null, pagination = {}) {
         p_tag_filter: tagFilter || null
       };
 
-      let { data: rpcData, error: rpcError } = await supabase.rpc('list_forum_posts', rpcPayload);
+      let { data: rpcData, error: rpcError } = await withAbortSignal(
+        supabase.rpc('list_forum_posts', rpcPayload),
+        abortSignal
+      );
       if (rpcError && isMissingRpcFunctionError(rpcError, 'list_forum_posts')) {
         const legacyPayload = { ...rpcPayload };
         delete legacyPayload.p_tag_filter;
-        const legacyResult = await supabase.rpc('list_forum_posts', legacyPayload);
+        const legacyResult = await withAbortSignal(
+          supabase.rpc('list_forum_posts', legacyPayload),
+          abortSignal
+        );
         rpcData = tagFilter && Array.isArray(legacyResult.data)
           ? legacyResult.data.filter((row) => matchesForumTagFilter(row?.tag, tagFilter))
           : legacyResult.data;
@@ -1010,7 +1077,8 @@ export async function getPosts(userId = null, pagination = {}) {
               comments:comments(count),
               likes_count:likes(count),
               user_likes:likes!left(user_id),
-              author:author_id(avatar_url)
+              author:author_id(avatar_url),
+              forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
             `);
         } else {
           query = supabase
@@ -1019,16 +1087,20 @@ export async function getPosts(userId = null, pagination = {}) {
               *,
               comments:comments(count),
               likes_count:likes(count),
-              author:author_id(avatar_url)
+              author:author_id(avatar_url),
+              forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
             `);
         }
 
         query = query.or(statusFilter);
         query = applyForumTagFilter(query, tagFilter);
 
-        const { data, error } = await query
-          .order('created_at', { ascending: false })
-          .range(offset, offset + fallbackLimit - 1);
+        const { data, error } = await withAbortSignal(
+          query
+            .order('created_at', { ascending: false })
+            .range(offset, offset + fallbackLimit - 1),
+          abortSignal
+        );
 
         if (error) return { data: [], error };
         const formattedRows = normalizePostListRows(formatPosts(data || [], userId));
@@ -1182,8 +1254,10 @@ export async function uploadForumImage(file) {
       throw new Error('论坛图片仅支持 PNG、JPG 或 WebP，暂不开放 GIF');
     }
     if (Number(file.size || 0) > FORUM_IMAGE_MAX_SIZE_BYTES) {
-      throw new Error('单张论坛图片大小不能超过 5MB');
+      throw new Error(`单张论坛图片大小不能超过 ${FORUM_IMAGE_MAX_SIZE_MB}MB`);
     }
+
+    await assertCloudinaryUploadAllowed({ source: 'forum' });
 
     const { moderateForumImageFile } = await loadForumImageModeration();
     const moderation = await moderateForumImageFile(file);
@@ -1192,7 +1266,9 @@ export async function uploadForumImage(file) {
     }
 
     const uploaded = await uploadImageToCloudinary(file, {
-      folder: FORUM_CLOUDINARY_FOLDER
+      folder: FORUM_CLOUDINARY_FOLDER,
+      pendingSource: 'forum',
+      skipUploadPreflight: true
     });
 
     return {
@@ -1421,6 +1497,10 @@ export async function createPostWithImages(content, authorId, authorUsername, st
       author_id: resolvedAuthorId,
       content: finalContent
     });
+  }
+  const claimResult = await markCloudinaryUploadsClaimed(safeImages);
+  if (!claimResult.ok) {
+    logger.warn('forum-api', '论坛图片 pending 归属标记失败', claimResult.error);
   }
 
   return { ok: true, data: [insertedPost], error: null };
@@ -1773,6 +1853,23 @@ export async function createComment(postId, content, authorId, authorUsername, s
     };
   }
 
+  if (normalizedStatus === APPROVED_STATUS && shouldSyncModerateComment(content)) {
+    const strictModerationResult = await runSyncStrictModeration(moderationInput, {
+      scene: 'forum_comment',
+      timeoutMs: COMMENT_SYNC_MODERATION_TIMEOUT_MS
+    });
+    if (strictModerationResult.status === REJECTED_STATUS) {
+      return {
+        ok: false,
+        data: null,
+        error: normalizeDbError({
+          code: 'SYNC_MODERATION_BLOCK',
+          message: strictModerationResult.message || '评论需要先通过内容审查，请调整后再发送'
+        })
+      };
+    }
+  }
+
   const commentData = {
     post_id: postId,
     content,
@@ -1978,6 +2075,7 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
   const tagFilter = normalizeForumTag(pagination.tag || pagination.tagFilter || '');
   const cursorMode = String(pagination.cursorMode || '').trim().toLowerCase();
   const cursorToken = String(pagination.cursor || '').trim();
+  const abortSignal = pagination.signal;
   const parsedCursor = decodePostCursor(cursorToken);
   const useCursorMode = (cursorMode === 'keyset' || Boolean(parsedCursor))
     && sortMode === 'latest'
@@ -2015,7 +2113,8 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
               comments:comments(count),
               likes_count:likes(count),
               user_likes:likes!left(user_id),
-              author:author_id(avatar_url)
+              author:author_id(avatar_url),
+              forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
             `);
         } else {
           query = supabase
@@ -2024,7 +2123,8 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
               *,
               comments:comments(count),
               likes_count:likes(count),
-              author:author_id(avatar_url)
+              author:author_id(avatar_url),
+              forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
             `);
         }
 
@@ -2046,7 +2146,7 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
           );
         }
 
-        const { data, error } = await query;
+        const { data, error } = await withAbortSignal(query, abortSignal);
         if (error) return { data: [], error };
 
         const formattedRows = normalizePostListRows(formatPosts(data || [], currentUserId));
@@ -2070,11 +2170,17 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
         p_tag_filter: tagFilter || null
       };
 
-      let { data: rpcData, error: rpcError } = await supabase.rpc('list_forum_posts', rpcPayload);
+      let { data: rpcData, error: rpcError } = await withAbortSignal(
+        supabase.rpc('list_forum_posts', rpcPayload),
+        abortSignal
+      );
       if (rpcError && isMissingRpcFunctionError(rpcError, 'list_forum_posts')) {
         const legacyPayload = { ...rpcPayload };
         delete legacyPayload.p_tag_filter;
-        const legacyResult = await supabase.rpc('list_forum_posts', legacyPayload);
+        const legacyResult = await withAbortSignal(
+          supabase.rpc('list_forum_posts', legacyPayload),
+          abortSignal
+        );
         rpcData = tagFilter && Array.isArray(legacyResult.data)
           ? legacyResult.data.filter((row) => matchesForumTagFilter(row?.tag, tagFilter))
           : legacyResult.data;
@@ -2095,7 +2201,8 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
               comments:comments(count),
               likes_count:likes(count),
               user_likes:likes!left(user_id),
-              author:author_id(avatar_url)
+              author:author_id(avatar_url),
+              forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
             `);
         } else {
           query = supabase
@@ -2104,7 +2211,8 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
               *,
               comments:comments(count),
               likes_count:likes(count),
-              author:author_id(avatar_url)
+              author:author_id(avatar_url),
+              forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
             `);
         }
 
@@ -2113,10 +2221,13 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
         }
         query = applyForumTagFilter(query, tagFilter);
 
-        const { data, error } = await query
-          .eq('author_id', targetUserId)
-          .order('created_at', { ascending: false })
-          .range(offset, offset + fallbackLimit - 1);
+        const { data, error } = await withAbortSignal(
+          query
+            .eq('author_id', targetUserId)
+            .order('created_at', { ascending: false })
+            .range(offset, offset + fallbackLimit - 1),
+          abortSignal
+        );
 
         if (error) return { data: [], error };
         const formattedRows = normalizePostListRows(formatPosts(data || [], currentUserId));

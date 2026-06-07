@@ -124,7 +124,7 @@ begin
          or v_height <= 0
          or v_width > 8192
          or v_height > 8192
-         or (v_width::bigint * v_height::bigint) > 24000000 then
+         or (v_width::bigint * v_height::bigint) > 25000000 then
         raise exception 'INVALID_CLOUD_IMAGE_DIMENSIONS';
       end if;
     else

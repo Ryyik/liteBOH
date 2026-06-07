@@ -8,7 +8,7 @@ export const CLOUD_UPLOAD_ALLOWED_MIME_TYPES = new Set([
 export const CLOUD_UPLOAD_ALLOWED_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif']);
 export const CLOUD_UPLOAD_MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 export const CLOUD_UPLOAD_MAX_DIMENSION = 8192;
-export const CLOUD_UPLOAD_MAX_PIXELS = 24 * 1000 * 1000;
+export const CLOUD_UPLOAD_MAX_PIXELS = 25 * 1000 * 1000;
 export const CLOUD_UPLOAD_BURST_WINDOW_MS = 60 * 1000;
 export const CLOUD_UPLOAD_BURST_LIMIT = 18;
 

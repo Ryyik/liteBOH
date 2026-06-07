@@ -1,6 +1,18 @@
 <script setup>
-import { computed, ref } from 'vue';
-import { Camera, Hash, Image as ImageIcon } from 'lucide-vue-next';
+import { computed, nextTick, ref } from 'vue';
+import {
+  ArrowLeft,
+  ArrowRight,
+  AtSign,
+  Camera,
+  Eye,
+  GripVertical,
+  Hash,
+  Image as ImageIcon,
+  RefreshCcw,
+  Star,
+  X
+} from 'lucide-vue-next';
 
 const props = defineProps({
   isLoggedIn: { type: Boolean, default: false },
@@ -12,6 +24,8 @@ const props = defineProps({
   isUploadingPostImage: { type: Boolean, default: false },
   postImageUploadStatus: { type: String, default: '' },
   postCooldownSeconds: { type: Number, default: 0 },
+  maxPostImages: { type: Number, default: 6 },
+  mentionUsers: { type: Array, default: () => [] },
   weeklyCheckinStatus: { type: Object, default: () => ({}) },
   weeklyCheckinProgressText: { type: String, default: '' },
   weeklyCheckinProgressPercent: { type: Number, default: 0 },
@@ -33,6 +47,9 @@ const emit = defineEmits([
   'request-camera',
   'image-selection',
   'remove-image',
+  'retry-image',
+  'reorder-image',
+  'set-cover-image',
   'clear-images',
   'weekly-checkin',
   'open-draft'
@@ -40,12 +57,46 @@ const emit = defineEmits([
 
 const postImageInputRef = ref(null);
 const postCameraInputRef = ref(null);
+const postContentInputRef = ref(null);
 const showMobileTagMenu = ref(false);
+const draggedImageIndex = ref(null);
+const dragOverImageIndex = ref(null);
+const isPreviewMode = ref(false);
+const mentionQuery = ref('');
+const showMentionMenu = ref(false);
+const mentionStartIndex = ref(-1);
+const previewImage = ref(null);
 
 const selectedTagLabel = computed(() => (
   (props.forumTagOptions.find((tag) => tag.value === props.selectedPostTag)?.label || '')
     .replace(/^#\s*/, '')
 ));
+const hasPostContent = computed(() => Boolean(
+  String(props.newPost.title || '').trim() || String(props.newPost.content || '').trim()
+));
+const normalizedMentionUsers = computed(() => {
+  const seen = new Set();
+  return props.mentionUsers
+    .map((user) => String(user?.username || user?.author_username || user || '').trim())
+    .filter((username) => {
+      if (!username || seen.has(username)) return false;
+      seen.add(username);
+      return true;
+    })
+    .slice(0, 24);
+});
+const mentionSuggestions = computed(() => {
+  const query = mentionQuery.value.toLowerCase();
+  return normalizedMentionUsers.value
+    .filter((username) => !query || username.toLowerCase().includes(query))
+    .slice(0, 6);
+});
+const currentPreviewImageUrl = computed(() => String(
+  previewImage.value?.detailUrl
+  || previewImage.value?.originalUrl
+  || previewImage.value?.url
+  || ''
+).trim());
 
 const updateTitle = (value) => {
   emit('update:newPost', { ...props.newPost, title: value });
@@ -53,6 +104,51 @@ const updateTitle = (value) => {
 
 const updateContent = (value) => {
   emit('update:newPost', { ...props.newPost, content: value });
+};
+
+const replaceContentRange = (start, end, replacement, nextCursor = start + replacement.length) => {
+  const content = String(props.newPost.content || '');
+  updateContent(`${content.slice(0, start)}${replacement}${content.slice(end)}`);
+  nextTick(() => {
+    const input = postContentInputRef.value;
+    input?.focus?.();
+    input?.setSelectionRange?.(nextCursor, nextCursor);
+  });
+};
+
+const updateMentionState = (event) => {
+  const input = event?.target;
+  const value = String(input?.value || '');
+  const cursor = Number(input?.selectionStart ?? value.length);
+  const beforeCursor = value.slice(0, cursor);
+  const match = beforeCursor.match(/(^|\s)@([\u4e00-\u9fa5\w.-]{0,24})$/u);
+  if (!match) {
+    showMentionMenu.value = false;
+    mentionQuery.value = '';
+    mentionStartIndex.value = -1;
+    return;
+  }
+  mentionQuery.value = match[2] || '';
+  mentionStartIndex.value = cursor - mentionQuery.value.length - 1;
+  showMentionMenu.value = mentionSuggestions.value.length > 0;
+};
+
+const handleContentInput = (event) => {
+  updateContent(event.target.value);
+  updateMentionState(event);
+};
+
+const insertMention = (username) => {
+  const safeUsername = String(username || '').trim();
+  if (!safeUsername || mentionStartIndex.value < 0) return;
+  const content = String(props.newPost.content || '');
+  const input = postContentInputRef.value;
+  const cursor = Number(input?.selectionStart ?? content.length);
+  const replacement = `@${safeUsername} `;
+  replaceContentRange(mentionStartIndex.value, cursor, replacement, mentionStartIndex.value + replacement.length);
+  showMentionMenu.value = false;
+  mentionQuery.value = '';
+  mentionStartIndex.value = -1;
 };
 
 const handleTagSelect = (tag) => {
@@ -79,6 +175,55 @@ const handleImageChange = (event) => {
   if (postCameraInputRef.value) postCameraInputRef.value.value = '';
   emit('image-selection', { files, event });
 };
+
+const requestImageReorder = (fromIndex, toIndex) => {
+  if (props.isSubmitting || props.isUploadingPostImage) return;
+  const total = props.postImages.length;
+  const from = Number(fromIndex);
+  const to = Number(toIndex);
+  if (!Number.isInteger(from) || !Number.isInteger(to)) return;
+  if (from < 0 || from >= total || to < 0 || to >= total || from === to) return;
+  emit('reorder-image', { fromIndex: from, toIndex: to });
+};
+
+const handleImageDragStart = (index, event) => {
+  if (props.isSubmitting || props.isUploadingPostImage) {
+    event?.preventDefault?.();
+    return;
+  }
+  draggedImageIndex.value = index;
+  if (event?.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(index));
+  }
+};
+
+const handleImageDrop = (index, event) => {
+  event?.preventDefault?.();
+  const fromIndex = draggedImageIndex.value ?? Number(event?.dataTransfer?.getData('text/plain'));
+  draggedImageIndex.value = null;
+  dragOverImageIndex.value = null;
+  requestImageReorder(fromIndex, index);
+};
+
+const handleImageDragEnd = () => {
+  draggedImageIndex.value = null;
+  dragOverImageIndex.value = null;
+};
+
+const handleImageDragEnter = (index) => {
+  if (draggedImageIndex.value === null || draggedImageIndex.value === index) return;
+  dragOverImageIndex.value = index;
+};
+
+const openImagePreview = (image) => {
+  if (!image?.url) return;
+  previewImage.value = image;
+};
+
+const closeImagePreview = () => {
+  previewImage.value = null;
+};
 </script>
 
 <template>
@@ -102,8 +247,33 @@ const handleImageChange = (event) => {
       </div>
 
       <div class="input-group post-body-input-group">
-        <textarea :value="newPost.content" :placeholder="isMobileComposer ? '有什么新鲜事？' : '正文内容...'"
-          class="post-content-input" rows="3" @input="updateContent($event.target.value)"></textarea>
+        <div class="composer-preview-toolbar" aria-label="发帖预览工具">
+          <button type="button" class="composer-mention-trigger" title="@用户" @click="replaceContentRange(String(newPost.content || '').length, String(newPost.content || '').length, '@')">
+            <AtSign :size="16" :stroke-width="2.4" aria-hidden="true" />
+          </button>
+          <button type="button" class="composer-preview-toggle" :class="{ active: isPreviewMode }"
+            :disabled="!hasPostContent" @click="isPreviewMode = !isPreviewMode">
+            <Eye :size="16" :stroke-width="2.2" aria-hidden="true" />
+            <span>{{ isPreviewMode ? '编辑' : '预览' }}</span>
+          </button>
+        </div>
+        <div class="composer-body-shell">
+          <textarea v-if="!isPreviewMode" ref="postContentInputRef" :value="newPost.content"
+            :placeholder="isMobileComposer ? '有什么新鲜事？' : '正文内容...'"
+            class="post-content-input" rows="3" @input="handleContentInput"
+            @keyup="updateMentionState" @click="updateMentionState" @focus="updateMentionState"></textarea>
+          <div v-else class="composer-post-preview">
+            <h3 v-if="newPost.title">{{ newPost.title }}</h3>
+            <p v-if="String(newPost.content || '').trim()" class="composer-preview-body">{{ newPost.content }}</p>
+            <p v-else class="composer-preview-empty">正文还没有内容</p>
+          </div>
+          <div v-if="showMentionMenu && mentionSuggestions.length" class="composer-mention-menu">
+            <button v-for="username in mentionSuggestions" :key="username" type="button"
+              class="composer-mention-item" @click="insertMention(username)">
+              @{{ username }}
+            </button>
+          </div>
+        </div>
       </div>
 
       <div class="post-tag-selector" role="radiogroup" aria-label="帖子标签">
@@ -120,8 +290,57 @@ const handleImageChange = (event) => {
 
       <div v-if="postImages.length > 0 || isUploadingPostImage || postImageUploadStatus" class="post-image-panel">
         <div v-if="postImages.length > 0" class="post-image-preview-grid">
-          <div v-for="(image, index) in postImages" :key="image.publicId || image.url" class="post-image-preview-item">
-            <img :src="image.url" :alt="`帖子图片 ${index + 1}`" loading="lazy" decoding="async" />
+          <div v-for="(image, index) in postImages" :key="image.publicId || image.url" class="post-image-preview-item"
+            :class="{
+              'is-dragging': draggedImageIndex === index,
+              'is-drop-target': dragOverImageIndex === index,
+              'is-failed': image.uploadStatus === 'failed'
+            }"
+            :draggable="image.uploadStatus !== 'failed'"
+            @dragstart="handleImageDragStart(index, $event)"
+            @dragenter.prevent="handleImageDragEnter(index)"
+            @dragover.prevent
+            @drop="handleImageDrop(index, $event)"
+            @dragend="handleImageDragEnd">
+            <button v-if="image.url" type="button" class="post-image-preview-open"
+              :aria-label="`预览第 ${index + 1} 张图片大图`" @click="openImagePreview(image)">
+              <img :src="image.url" :alt="`帖子图片 ${index + 1}`" loading="lazy" decoding="async" />
+            </button>
+            <div v-else class="post-image-failed-placeholder">
+              <ImageIcon :size="24" :stroke-width="1.8" aria-hidden="true" />
+              <span>{{ image.name || '图片上传失败' }}</span>
+            </div>
+            <span class="post-image-drag-handle" aria-hidden="true">
+              <GripVertical :size="15" :stroke-width="2" />
+            </span>
+            <span class="post-image-status-badge" :class="image.uploadStatus === 'failed' ? 'failed' : 'approved'">
+              {{ image.uploadStatus === 'failed' ? '未通过' : '已检测' }}
+            </span>
+            <button v-if="image.uploadStatus !== 'failed'" type="button" class="post-image-cover-btn" :class="{ active: image.isCover }"
+              :disabled="isSubmitting || isUploadingPostImage || image.isCover"
+              :aria-label="image.isCover ? `第 ${index + 1} 张图片已设为封面` : `将第 ${index + 1} 张图片设为封面`"
+              @click.stop="emit('set-cover-image', image, index)">
+              <Star :size="14" :stroke-width="2.3" :fill="image.isCover ? 'currentColor' : 'none'" aria-hidden="true" />
+              <span>{{ image.isCover ? '封面' : '设封面' }}</span>
+            </button>
+            <button v-if="image.uploadStatus === 'failed' && image.file" type="button" class="post-image-retry-btn"
+              :disabled="isSubmitting || isUploadingPostImage" @click="emit('retry-image', image, index)">
+              <RefreshCcw :size="14" :stroke-width="2.3" aria-hidden="true" />
+              <span>重试</span>
+            </button>
+            <div v-if="image.uploadStatus !== 'failed'" class="post-image-sort-actions" aria-label="调整图片顺序">
+              <button type="button" class="post-image-sort-btn" :disabled="isSubmitting || isUploadingPostImage || index === 0"
+                :aria-label="`将第 ${index + 1} 张图片前移`"
+                @click="requestImageReorder(index, index - 1)">
+                <ArrowLeft :size="15" :stroke-width="2.2" aria-hidden="true" />
+              </button>
+              <button type="button" class="post-image-sort-btn"
+                :disabled="isSubmitting || isUploadingPostImage || index === postImages.length - 1"
+                :aria-label="`将第 ${index + 1} 张图片后移`"
+                @click="requestImageReorder(index, index + 1)">
+                <ArrowRight :size="15" :stroke-width="2.2" aria-hidden="true" />
+              </button>
+            </div>
             <button type="button" class="post-image-remove-btn" :disabled="isSubmitting"
               @click="emit('remove-image', image, index)">×</button>
           </div>
@@ -152,15 +371,15 @@ const handleImageChange = (event) => {
               </button>
             </div>
           </div>
-          <button type="button" class="mobile-post-tool-btn" :class="{ 'is-full': postImages.length >= 3 }"
-            :disabled="isUploadingPostImage || isSubmitting || postImages.length >= 3"
-            :aria-label="`从相册选择图片，已添加 ${postImages.length} 张，最多 3 张`"
+          <button type="button" class="mobile-post-tool-btn" :class="{ 'is-full': postImages.length >= maxPostImages }"
+            :disabled="isUploadingPostImage || isSubmitting || postImages.length >= maxPostImages"
+            :aria-label="`从相册选择图片，已添加 ${postImages.length} 张，最多 ${maxPostImages} 张`"
             @click="handleImagePickerRequest">
             <ImageIcon :size="24" :stroke-width="1.8" aria-hidden="true" />
           </button>
-          <button type="button" class="mobile-post-tool-btn" :class="{ 'is-full': postImages.length >= 3 }"
-            :disabled="isUploadingPostImage || isSubmitting || postImages.length >= 3"
-            :aria-label="`拍照添加图片，已添加 ${postImages.length} 张，最多 3 张`"
+          <button type="button" class="mobile-post-tool-btn" :class="{ 'is-full': postImages.length >= maxPostImages }"
+            :disabled="isUploadingPostImage || isSubmitting || postImages.length >= maxPostImages"
+            :aria-label="`拍照添加图片，已添加 ${postImages.length} 张，最多 ${maxPostImages} 张`"
             @click="handleCameraRequest">
             <Camera :size="24" :stroke-width="1.8" aria-hidden="true" />
           </button>
@@ -209,12 +428,12 @@ const handleImageChange = (event) => {
                 </button>
               </div>
             </div>
-            <button type="button" class="desktop-post-tool-btn" :class="{ 'is-full': postImages.length >= 3 }"
-              :disabled="isUploadingPostImage || isSubmitting || postImages.length >= 3"
-              :aria-label="`从相册选择图片，已添加 ${postImages.length} 张，最多 3 张`"
+            <button type="button" class="desktop-post-tool-btn" :class="{ 'is-full': postImages.length >= maxPostImages }"
+              :disabled="isUploadingPostImage || isSubmitting || postImages.length >= maxPostImages"
+              :aria-label="`从相册选择图片，已添加 ${postImages.length} 张，最多 ${maxPostImages} 张`"
               @click="handleImagePickerRequest">
               <ImageIcon :size="23" :stroke-width="1.8" aria-hidden="true" />
-              <span class="desktop-image-count">{{ postImages.length }}/3</span>
+              <span class="desktop-image-count">{{ postImages.length }}/{{ maxPostImages }}</span>
             </button>
           </div>
           <button class="post-btn" @click="handleSubmit"
@@ -236,6 +455,24 @@ const handleImageChange = (event) => {
         <button class="login-trigger-btn">立即登录</button>
       </div>
     </div>
+
+    <Teleport to="body">
+      <transition name="fade">
+        <div v-if="previewImage" class="composer-image-preview-overlay" @click="closeImagePreview">
+          <section class="composer-image-preview-modal" aria-label="发布前图片预览" @click.stop>
+            <button type="button" class="composer-image-preview-close" aria-label="关闭图片预览"
+              @click="closeImagePreview">
+              <X :size="22" :stroke-width="2.2" aria-hidden="true" />
+            </button>
+            <img :src="currentPreviewImageUrl" :alt="previewImage.name || '发布前图片预览'" decoding="async" />
+            <div class="composer-image-preview-meta">
+              <span>{{ previewImage.isCover ? '封面图片' : '帖子图片' }}</span>
+              <strong>{{ previewImage.format ? previewImage.format.toUpperCase() : 'IMAGE' }}</strong>
+            </div>
+          </section>
+        </div>
+      </transition>
+    </Teleport>
   </section>
 </template>
 

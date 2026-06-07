@@ -53,7 +53,7 @@ create table if not exists public.forum_post_images (
     and height > 0
     and width <= 8192
     and height <= 8192
-    and (width::bigint * height::bigint) <= 24000000
+    and (width::bigint * height::bigint) <= 25000000
   ),
   constraint forum_post_images_order_chk check (sort_order >= 0 and sort_order < 3)
 );
@@ -262,7 +262,7 @@ begin
          or v_height <= 0
          or v_width > 8192
          or v_height > 8192
-         or (v_width::bigint * v_height::bigint) > 24000000 then
+         or (v_width::bigint * v_height::bigint) > 25000000 then
         raise exception using
           errcode = 'P0001',
           message = 'FORUM_IMAGE:INVALID_DIMENSIONS:图片尺寸异常，请换一张图片';

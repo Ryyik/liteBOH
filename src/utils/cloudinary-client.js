@@ -49,6 +49,112 @@ export function supportsCloudinaryClientDeleteToken(payload = {}) {
   return Boolean(String(payload?.delete_token || payload?.deleteToken || '').trim());
 }
 
+function normalizeCloudinaryPendingPublicIds(publicIds = []) {
+  return Array.from(new Set(
+    (Array.isArray(publicIds) ? publicIds : [publicIds])
+      .map((item) => String(item?.publicId || item?.public_id || item || '').trim())
+      .filter(Boolean)
+  ));
+}
+
+function isMissingPendingUploadStoreError(error = {}) {
+  const code = String(error?.code || '').trim().toUpperCase();
+  const message = String(error?.message || '').toLowerCase();
+  return code === '42P01'
+    || code === 'PGRST202'
+    || code === 'PGRST205'
+    || message.includes('cloudinary_pending_uploads')
+    || message.includes('could not find the table')
+    || message.includes('could not find the function');
+}
+
+async function getCurrentSupabaseUserId() {
+  const { data } = await supabase.auth.getUser();
+  return String(data?.user?.id || '').trim();
+}
+
+export async function registerCloudinaryPendingUpload(uploaded = {}, options = {}) {
+  const publicId = String(uploaded.publicId || uploaded.public_id || '').trim();
+  if (!publicId) return { ok: true, skipped: true, error: null };
+
+  try {
+    const userId = await getCurrentSupabaseUserId();
+    if (!userId) return { ok: true, skipped: true, error: null };
+
+    const { error } = await supabase
+      .from('cloudinary_pending_uploads')
+      .upsert({
+        user_id: userId,
+        public_id: publicId,
+        url: String(uploaded.url || uploaded.secure_url || '').trim(),
+        resource_type: 'image',
+        source: String(options.source || 'generic').trim().slice(0, 40) || 'generic',
+        folder: String(options.folder || '').trim().slice(0, 255),
+        claimed_at: null,
+        deleted_at: null
+      }, {
+        onConflict: 'public_id'
+      });
+
+    if (error) {
+      if (isMissingPendingUploadStoreError(error)) {
+        return { ok: true, skipped: true, error: null };
+      }
+      throw error;
+    }
+    return { ok: true, skipped: false, error: null };
+  } catch (error) {
+    return { ok: false, skipped: false, error: normalizeDbError(error, 'Cloudinary 上传归属记录失败') };
+  }
+}
+
+export async function markCloudinaryUploadsClaimed(publicIds = []) {
+  const normalizedPublicIds = normalizeCloudinaryPendingPublicIds(publicIds);
+  if (!normalizedPublicIds.length) return { ok: true, error: null };
+
+  try {
+    const userId = await getCurrentSupabaseUserId();
+    if (!userId) return { ok: false, error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }) };
+
+    const { error } = await supabase
+      .from('cloudinary_pending_uploads')
+      .update({ claimed_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .in('public_id', normalizedPublicIds)
+      .is('deleted_at', null);
+
+    if (error) {
+      if (isMissingPendingUploadStoreError(error)) {
+        return { ok: true, skipped: true, error: null };
+      }
+      throw error;
+    }
+    return { ok: true, error: null };
+  } catch (error) {
+    return { ok: false, error: normalizeDbError(error, 'Cloudinary 上传归属标记失败') };
+  }
+}
+
+export async function assertCloudinaryUploadAllowed(options = {}) {
+  try {
+    const userId = await getCurrentSupabaseUserId();
+    if (!userId) return;
+
+    const { error } = await supabase.rpc('assert_cloudinary_upload_allowed', {
+      p_source: String(options.source || 'generic').trim().slice(0, 40) || 'generic'
+    });
+
+    if (!error) return;
+    const message = String(error.message || '').toLowerCase();
+    if (String(error.code || '').trim().toUpperCase() === 'PGRST202' || message.includes('could not find the function')) {
+      return;
+    }
+    throw error;
+  } catch (error) {
+    throw normalizeDbError(error, '图片上传过于频繁，请稍后再试');
+  }
+}
+
 export function getCloudinaryDisplayUrl(url = '') {
   const safeUrl = String(url || '').trim();
   if (!safeUrl || !CLOUDINARY_DELIVERY_BASE_URL) return safeUrl;
@@ -132,6 +238,12 @@ export async function uploadImageToCloudinary(file, options = {}) {
       throw new Error('缺少 Cloudinary 配置：请设置 VITE_CLOUDINARY_CLOUD_PLUS_UPLOAD_PRESET、VITE_CLOUDINARY_NOTE_UPLOAD_PRESET 或 VITE_CLOUDINARY_UPLOAD_PRESET');
     }
 
+    if (options.skipUploadPreflight !== true) {
+      await assertCloudinaryUploadAllowed({
+        source: options.pendingSource || options.source || 'generic'
+      });
+    }
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', uploadPreset);
@@ -153,7 +265,7 @@ export async function uploadImageToCloudinary(file, options = {}) {
       folder
     });
 
-    return {
+    const uploaded = {
       url: String(data.secure_url || ''),
       publicId: String(data.public_id || ''),
       deleteToken: String(data.delete_token || ''),
@@ -162,6 +274,19 @@ export async function uploadImageToCloudinary(file, options = {}) {
       format: String(data.format || ''),
       originalFilename: stripFileExtension(data.original_filename || file.name)
     };
+
+    const pendingSource = String(options.pendingSource || '').trim();
+    if (options.registerPendingUpload !== false && pendingSource) {
+      const pendingResult = await registerCloudinaryPendingUpload(uploaded, {
+        source: pendingSource,
+        folder
+      });
+      if (!pendingResult.ok) {
+        throw pendingResult.error || new Error('Cloudinary 上传归属记录失败，请稍后重试');
+      }
+    }
+
+    return uploaded;
   } catch (error) {
     throw normalizeDbError(error, 'Cloudinary 上传失败');
   }

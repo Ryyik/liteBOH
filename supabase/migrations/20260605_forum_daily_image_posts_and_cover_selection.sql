@@ -1,9 +1,9 @@
--- Replace the old daily forum image quota with short-window image-post rate limits.
--- Rules after this migration:
--- - max 6 images per forum post
--- - no hidden daily image total cap
--- - image posts: 1 per 3 minutes, max 9 forum images per 10 minutes
--- - admins are exempt from image-post rate limits
+-- Restore natural-day image-post quota and support manual forum cover selection.
+-- Rules:
+-- - max 6 images per post
+-- - max 5 image posts per Asia/Shanghai natural day
+-- - keep short-window image-post safeguards
+-- - first image remains fallback cover when no manual cover is selected
 
 begin;
 
@@ -32,9 +32,16 @@ declare
   v_image jsonb;
   v_image_count integer := 0;
   v_recent_image_count integer := 0;
+  v_daily_image_post_count integer := 0;
+  v_oldest_recent_image_at timestamptz;
+  v_today_start timestamptz := ((timezone('Asia/Shanghai', now())::date)::timestamp at time zone 'Asia/Shanghai');
+  v_tomorrow_start timestamptz := (((timezone('Asia/Shanghai', now())::date + 1)::timestamp) at time zone 'Asia/Shanghai');
+  v_retry_after_seconds integer := 60;
   v_post_id uuid;
   v_cloud_entry_id uuid;
   v_content text;
+  v_first_image_url text := '';
+  v_manual_cover_url text := '';
   v_cover_url text := '';
   v_cloud_blocks jsonb := '[]'::jsonb;
   v_cloud_image_blocks jsonb := '[]'::jsonb;
@@ -48,6 +55,7 @@ declare
   v_format text;
   v_score numeric;
   v_reason text;
+  v_is_cover boolean;
   v_order integer := 0;
 begin
   if v_user_id is null then
@@ -86,33 +94,55 @@ begin
   end if;
 
   if v_image_count > 0 and not public.current_user_is_admin() then
-    if exists (
-      select 1
-        from public.posts p
-       where p.author_id = v_user_id
-         and coalesce(p.image_count, 0) > 0
-         and coalesce(p.status, 'approved') <> 'rejected'
-         and p.created_at >= now() - interval '3 minutes'
-       limit 1
-    ) then
+    select count(*)
+      into v_daily_image_post_count
+      from public.posts p
+     where p.author_id = v_user_id
+       and coalesce(p.image_count, 0) > 0
+       and coalesce(p.status, 'approved') <> 'rejected'
+       and p.created_at >= v_today_start
+       and p.created_at < v_tomorrow_start;
+
+    if v_daily_image_post_count >= 5 then
+      v_retry_after_seconds := greatest(1, ceil(extract(epoch from (v_tomorrow_start - now())))::integer);
+      perform public.log_forum_rate_limit_event(v_user_id, 'post', 'DAILY_IMAGE_POST_LIMIT', null);
+      raise exception using
+        errcode = 'P0001',
+        message = 'FORUM_RATE_LIMIT:DAILY_IMAGE_POST_LIMIT:今天带图帖子发布额度已满，每天最多 5 条',
+        hint = v_retry_after_seconds::text;
+    end if;
+
+    select min(p.created_at)
+      into v_oldest_recent_image_at
+      from public.posts p
+     where p.author_id = v_user_id
+       and coalesce(p.image_count, 0) > 0
+       and coalesce(p.status, 'approved') <> 'rejected'
+       and p.created_at >= now() - interval '3 minutes';
+
+    if v_oldest_recent_image_at is not null then
+      v_retry_after_seconds := greatest(1, ceil(extract(epoch from (v_oldest_recent_image_at + interval '3 minutes' - now())))::integer);
       perform public.log_forum_rate_limit_event(v_user_id, 'post', 'IMAGE_POST_COOLDOWN', null);
       raise exception using
         errcode = 'P0001',
-        message = 'FORUM_RATE_LIMIT:IMAGE_POST_COOLDOWN:图片帖发布太频繁了，请 3 分钟后再试';
+        message = 'FORUM_RATE_LIMIT:IMAGE_POST_COOLDOWN:图片帖发布太频繁了，请 3 分钟后再试',
+        hint = v_retry_after_seconds::text;
     end if;
 
-    select coalesce(sum(coalesce(p.image_count, 0)), 0)
-      into v_recent_image_count
+    select coalesce(sum(coalesce(p.image_count, 0)), 0), min(p.created_at)
+      into v_recent_image_count, v_oldest_recent_image_at
       from public.posts p
      where p.author_id = v_user_id
        and coalesce(p.status, 'approved') <> 'rejected'
        and p.created_at >= now() - interval '10 minutes';
 
     if v_recent_image_count + v_image_count > 9 then
+      v_retry_after_seconds := greatest(1, ceil(extract(epoch from (v_oldest_recent_image_at + interval '10 minutes' - now())))::integer);
       perform public.log_forum_rate_limit_event(v_user_id, 'post', 'IMAGE_10M_LIMIT', null);
       raise exception using
         errcode = 'P0001',
-        message = 'FORUM_RATE_LIMIT:IMAGE_10M_LIMIT:短时间内发布图片较多，请稍后再试';
+        message = 'FORUM_RATE_LIMIT:IMAGE_10M_LIMIT:短时间内发布图片较多，请稍后再试',
+        hint = v_retry_after_seconds::text;
     end if;
   end if;
 
@@ -134,6 +164,7 @@ begin
       v_score_text := trim(coalesce(v_image ->> 'moderationScore', ''));
       v_format := left(lower(trim(coalesce(v_image ->> 'format', ''))), 16);
       v_reason := left(trim(coalesce(v_image ->> 'moderationReason', '')), 160);
+      v_is_cover := lower(trim(coalesce(v_image ->> 'isCover', v_image ->> 'is_cover', 'false'))) in ('true', '1', 'yes');
 
       if trim(coalesce(v_image ->> 'moderationStatus', '')) <> 'approved' then
         raise exception using
@@ -185,8 +216,12 @@ begin
       end if;
       v_score := nullif(v_score_text, '')::numeric;
 
-      if v_cover_url = '' then
-        v_cover_url := v_url;
+      if v_first_image_url = '' then
+        v_first_image_url := v_url;
+      end if;
+
+      if v_is_cover and v_manual_cover_url = '' then
+        v_manual_cover_url := v_url;
       end if;
 
       v_cloud_image_blocks := v_cloud_image_blocks || jsonb_build_array(jsonb_build_object(
@@ -199,6 +234,8 @@ begin
       ));
     end loop;
   end if;
+
+  v_cover_url := coalesce(nullif(v_manual_cover_url, ''), v_first_image_url);
 
   insert into public.posts (
     content,
@@ -302,6 +339,15 @@ begin
         v_order
       );
 
+      if to_regclass('public.cloudinary_pending_uploads') is not null then
+        update public.cloudinary_pending_uploads
+           set claimed_at = coalesce(claimed_at, now()),
+               updated_at = now()
+         where user_id = v_user_id
+           and public_id = v_public_id
+           and deleted_at is null;
+      end if;
+
       v_order := v_order + 1;
     end loop;
   end if;
@@ -319,7 +365,8 @@ begin
               'width', i.width,
               'height', i.height,
               'format', i.format,
-              'sortOrder', i.sort_order
+              'sortOrder', i.sort_order,
+              'isCover', i.url = p.cover_image_url
             ) order by i.sort_order, i.created_at)
               from public.forum_post_images i
              where i.post_id = p.id
@@ -337,7 +384,7 @@ grant execute on function public.create_forum_post_with_images(text, text, text,
 grant execute on function public.create_forum_post_with_images(text, text, text, jsonb, text) to service_role;
 
 comment on function public.create_forum_post_with_images(text, text, text, jsonb, text) is
-  '创建论坛图片帖；单帖最多 6 张，图片帖按短窗口限频，不再使用每日 5 张总量限制。';
+  '创建论坛图片帖；单帖最多 6 张，每个用户每天最多 5 条带图帖，支持手动选择封面图。';
 
 notify pgrst, 'reload schema';
 

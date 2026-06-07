@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
-import { Check, Heart, MessageCircle, Reply, Share2 } from 'lucide-vue-next';
+import { Check, ChevronLeft, ChevronRight, Heart, MessageCircle, Reply, RotateCcw, Share2, X, ZoomIn, ZoomOut } from 'lucide-vue-next';
 import UnifiedNavbar from '../../components/UnifiedNavbar/index.vue';
 import UserCenterPageHeader from '../../components/UserCenterPageHeader.vue';
 import {
@@ -40,6 +40,11 @@ const isLikePulsing = ref(false);
 const isShareCopied = ref(false);
 const isEditSubmitting = ref(false);
 const loadedDetailImageKeys = ref(new Set());
+const isDetailImageViewerOpen = ref(false);
+const isDetailViewerImageLoading = ref(false);
+const detailViewerZoom = ref(1);
+const detailViewerPan = ref({ x: 0, y: 0 });
+const isDetailViewerPanning = ref(false);
 const replyContent = ref('');
 const activeReplyId = ref(null); // 当前正在回复的对象ID (postId 或 commentId)
 const replyToUser = ref(null); // 当前正在回复的用户名
@@ -51,6 +56,10 @@ let cooldownTimer = null;
 let detailFetchSeq = 0;
 let likePulseTimer = null;
 let shareCopiedTimer = null;
+let detailViewerPanStart = { x: 0, y: 0 };
+const DETAIL_VIEWER_MIN_ZOOM = 0.5;
+const DETAIL_VIEWER_MAX_ZOOM = 4;
+const DETAIL_VIEWER_ZOOM_STEP = 0.25;
 
 // 编辑功能相关
 const isEditingPost = ref(false);
@@ -144,6 +153,20 @@ const detailImageKey = computed(() => String(
   || ''
 ).trim());
 const hasMultipleDetailImages = computed(() => detailImages.value.length > 1);
+const currentDetailImageViewerSources = computed(() => {
+  const image = currentDetailImage.value || {};
+  return Array.from(new Set([
+    image.detailUrl,
+    image.originalUrl,
+    image.url,
+    image.thumbUrl
+  ].map((url) => String(url || '').trim()).filter(Boolean)));
+});
+const currentDetailImageLargeUrl = computed(() => currentDetailImageViewerSources.value[0] || '');
+const detailViewerZoomPercent = computed(() => `${Math.round(detailViewerZoom.value * 100)}%`);
+const detailViewerImageStyle = computed(() => ({
+  transform: `translate3d(${detailViewerPan.value.x}px, ${detailViewerPan.value.y}px, 0) scale(${detailViewerZoom.value})`
+}));
 
 const toggleExpand = () => {
   isExpanded.value = !isExpanded.value;
@@ -155,19 +178,151 @@ const goToDetailImage = (index) => {
     detailImageIndex.value = 0;
     return;
   }
-  detailImageIndex.value = Math.min(Math.max(Number(index || 0), 0), total - 1);
+  const nextIndex = Math.min(Math.max(Number(index || 0), 0), total - 1);
+  if (nextIndex !== detailImageIndex.value) {
+    resetDetailViewerTransform();
+    isDetailViewerImageLoading.value = true;
+  }
+  detailImageIndex.value = nextIndex;
 };
 
 const showPrevDetailImage = () => {
   const total = detailImages.value.length;
   if (total <= 1) return;
+  resetDetailViewerTransform();
+  isDetailViewerImageLoading.value = true;
   detailImageIndex.value = (detailImageIndex.value - 1 + total) % total;
 };
 
 const showNextDetailImage = () => {
   const total = detailImages.value.length;
   if (total <= 1) return;
+  resetDetailViewerTransform();
+  isDetailViewerImageLoading.value = true;
   detailImageIndex.value = (detailImageIndex.value + 1) % total;
+};
+
+const openDetailImageViewer = (index = detailImageIndex.value) => {
+  if (!detailImages.value.length) return;
+  goToDetailImage(index);
+  resetDetailViewerTransform();
+  isDetailViewerImageLoading.value = true;
+  isDetailImageViewerOpen.value = true;
+};
+
+const closeDetailImageViewer = () => {
+  isDetailImageViewerOpen.value = false;
+  isDetailViewerImageLoading.value = false;
+  resetDetailViewerTransform();
+};
+
+function clampDetailViewerZoom(value) {
+  return Math.min(DETAIL_VIEWER_MAX_ZOOM, Math.max(DETAIL_VIEWER_MIN_ZOOM, Number(value) || 1));
+}
+
+function resetDetailViewerTransform() {
+  detailViewerZoom.value = 1;
+  detailViewerPan.value = { x: 0, y: 0 };
+  isDetailViewerPanning.value = false;
+}
+
+const setDetailViewerZoom = (value) => {
+  const nextZoom = clampDetailViewerZoom(value);
+  detailViewerZoom.value = nextZoom;
+  if (nextZoom <= 1) {
+    detailViewerPan.value = { x: 0, y: 0 };
+  }
+};
+
+const zoomInDetailViewer = () => {
+  setDetailViewerZoom(detailViewerZoom.value + DETAIL_VIEWER_ZOOM_STEP);
+};
+
+const zoomOutDetailViewer = () => {
+  setDetailViewerZoom(detailViewerZoom.value - DETAIL_VIEWER_ZOOM_STEP);
+};
+
+const handleDetailViewerWheel = (event) => {
+  const direction = Number(event?.deltaY || 0) < 0 ? 1 : -1;
+  setDetailViewerZoom(detailViewerZoom.value + direction * DETAIL_VIEWER_ZOOM_STEP);
+};
+
+const startDetailViewerPan = (event) => {
+  if (detailViewerZoom.value <= 1) return;
+  isDetailViewerPanning.value = true;
+  event?.currentTarget?.setPointerCapture?.(event.pointerId);
+  detailViewerPanStart = {
+    x: Number(event?.clientX || 0) - detailViewerPan.value.x,
+    y: Number(event?.clientY || 0) - detailViewerPan.value.y
+  };
+};
+
+const moveDetailViewerPan = (event) => {
+  if (!isDetailViewerPanning.value || detailViewerZoom.value <= 1) return;
+  detailViewerPan.value = {
+    x: Number(event?.clientX || 0) - detailViewerPanStart.x,
+    y: Number(event?.clientY || 0) - detailViewerPanStart.y
+  };
+};
+
+const stopDetailViewerPan = (event) => {
+  if (!isDetailViewerPanning.value) return;
+  isDetailViewerPanning.value = false;
+  event?.currentTarget?.releasePointerCapture?.(event.pointerId);
+};
+
+const handleDetailViewerImageError = (event) => {
+  const target = event?.target;
+  if (!target) {
+    isDetailViewerImageLoading.value = false;
+    return;
+  }
+  const currentSourceIndex = Number(target.dataset?.sourceIndex || 0);
+  const nextSourceIndex = currentSourceIndex + 1;
+  const nextSource = currentDetailImageViewerSources.value[nextSourceIndex];
+  if (!nextSource) {
+    isDetailViewerImageLoading.value = false;
+    return;
+  }
+  isDetailViewerImageLoading.value = true;
+  target.dataset.sourceIndex = String(nextSourceIndex);
+  target.src = nextSource;
+};
+
+const handleDetailViewerImageLoad = () => {
+  isDetailViewerImageLoading.value = false;
+};
+
+const handleDetailKeydown = (event) => {
+  if (!isDetailImageViewerOpen.value) return;
+  if (event.key === 'Escape') {
+    closeDetailImageViewer();
+    return;
+  }
+  if (event.key === 'ArrowLeft') {
+    event.preventDefault();
+    showPrevDetailImage();
+    return;
+  }
+  if (event.key === 'ArrowRight') {
+    event.preventDefault();
+    showNextDetailImage();
+    return;
+  }
+  if (event.key === '+' || event.key === '=') {
+    event.preventDefault();
+    zoomInDetailViewer();
+    return;
+  }
+  if (event.key === '-' || event.key === '_') {
+    event.preventDefault();
+    zoomOutDetailViewer();
+    return;
+  }
+  if (event.key === '0') {
+    event.preventDefault();
+    resetDetailViewerTransform();
+  }
 };
 
 const triggerLikePulse = () => {
@@ -215,10 +370,44 @@ const modalState = ref({
   title: '',
   message: ''
 });
+const confirmState = ref({
+  show: false,
+  title: '',
+  message: '',
+  confirmText: '确定',
+  cancelText: '取消',
+  resolve: null
+});
 
 const showModal = (type, title, message) => {
   modalState.value = { show: true, type, title, message };
 };
+
+const closeConfirm = (confirmed = false) => {
+  const resolver = confirmState.value.resolve;
+  confirmState.value = {
+    show: false,
+    title: '',
+    message: '',
+    confirmText: '确定',
+    cancelText: '取消',
+    resolve: null
+  };
+  if (typeof resolver === 'function') {
+    resolver(Boolean(confirmed));
+  }
+};
+
+const requestConfirm = ({ title, message, confirmText = '确定', cancelText = '取消' }) => new Promise((resolve) => {
+  confirmState.value = {
+    show: true,
+    title,
+    message,
+    confirmText,
+    cancelText,
+    resolve
+  };
+});
 
 const goToProfile = (usernameVal) => {
   const safeUsername = String(usernameVal || '').trim();
@@ -697,10 +886,13 @@ const fetchPostDetail = async () => {
 onMounted(() => {
   fetchPostDetail();
   document.addEventListener('click', handleDocumentClick);
+  window.addEventListener('keydown', handleDetailKeydown);
 });
 
 onUnmounted(() => {
   document.removeEventListener('click', handleDocumentClick);
+  window.removeEventListener('keydown', handleDetailKeydown);
+  document.body.style.overflow = '';
   if (cooldownTimer) {
     clearInterval(cooldownTimer);
     cooldownTimer = null;
@@ -713,6 +905,7 @@ onUnmounted(() => {
     clearTimeout(shareCopiedTimer);
     shareCopiedTimer = null;
   }
+  closeConfirm(false);
 });
 
 watch(
@@ -726,12 +919,17 @@ watch(
     isExpanded.value = false;
     isLikePulsing.value = false;
     isShareCopied.value = false;
+    isDetailImageViewerOpen.value = false;
     closePostMenu();
     detailImageIndex.value = 0;
     resetCommentState();
     fetchPostDetail();
   }
 );
+
+watch(isDetailImageViewerOpen, (isOpen) => {
+  document.body.style.overflow = isOpen ? 'hidden' : '';
+});
 
 watch(
   () => detailImages.value.length,
@@ -741,6 +939,12 @@ watch(
     }
   }
 );
+
+watch(detailImageKey, () => {
+  if (isDetailImageViewerOpen.value) {
+    isDetailViewerImageLoading.value = true;
+  }
+});
 
 watch(
   () => route.query.comment,
@@ -890,19 +1094,29 @@ const submitReply = async () => {
 
 const handleDeletePost = async () => {
   closePostMenu();
-  if (!confirm('确定要删除这个帖子吗？')) return;
+  const confirmed = await requestConfirm({
+    title: '删除帖子',
+    message: '帖子和评论将一并删除，且无法恢复，确定继续吗？',
+    confirmText: '删除'
+  });
+  if (!confirmed) return;
+
   try {
-    const { success } = await deletePost(post.value.id, userInfo.id, userInfo.role);
-    if (success) {
-      emitProfileSync({
-        userId: post.value.author_id,
-        username: post.value.author_username,
-        reason: 'post_deleted'
-      });
-      router.push('/forum');
+    const { success, error } = await deletePost(post.value.id, userInfo.id, userInfo.role);
+    if (!success) {
+      showModal('error', '删除失败', error || '请稍后重试');
+      return;
     }
+
+    emitProfileSync({
+      userId: post.value.author_id,
+      username: post.value.author_username,
+      reason: 'post_deleted'
+    });
+    router.push('/forum');
   } catch (error) {
     console.error('删除失败:', error);
+    showModal('error', '删除失败', error?.message || '请稍后重试');
   }
 };
 
@@ -1043,25 +1257,35 @@ const sharePost = async () => {
 
 const handleDeleteComment = async (comment, parentId = null) => {
   if (!comment?.id) return;
-  if (!confirm('确定删除评论吗？')) return;
-  try {
-    const { success } = await deleteComment(comment.id, userInfo.id, userInfo.role);
-    if (success) {
-      emitProfileSync({
-        userId: comment.author_id,
-        username: comment.author_username,
-        reason: 'comment_deleted'
-      });
+  const confirmed = await requestConfirm({
+    title: '删除评论',
+    message: '这条评论删除后无法恢复，确定继续吗？',
+    confirmText: '删除'
+  });
+  if (!confirmed) return;
 
-      if (parentId) {
-        await loadChildReplies(parentId, { reset: true });
-      } else {
-        await loadTopComments({ reset: true });
-      }
-      await refreshPostStats();
+  try {
+    const { success, error } = await deleteComment(comment.id, userInfo.id, userInfo.role);
+    if (!success) {
+      showModal('error', '删除失败', error || '请稍后重试');
+      return;
     }
+
+    emitProfileSync({
+      userId: comment.author_id,
+      username: comment.author_username,
+      reason: 'comment_deleted'
+    });
+
+    if (parentId) {
+      await loadChildReplies(parentId, { reset: true });
+    } else {
+      await loadTopComments({ reset: true });
+    }
+    await refreshPostStats();
   } catch (error) {
     console.error('删除评论失败:', error);
+    showModal('error', '删除失败', error?.message || '请稍后重试');
   }
 };
 </script>
@@ -1178,10 +1402,11 @@ const handleDeleteComment = async (comment, parentId = null) => {
                 <div v-if="detailImages.length" class="post-detail-image-carousel">
                   <div class="post-detail-image-stage">
                     <transition name="detail-image-fade" mode="out-in">
-                      <a :key="detailImageKey"
-                        :href="currentDetailImage.originalUrl || currentDetailImage.detailUrl || currentDetailImage.url" target="_blank" rel="noopener noreferrer"
+                      <button :key="detailImageKey" type="button"
                         class="post-detail-image-link"
-                        :class="{ 'is-loaded': isDetailImageLoaded(detailImageKey) }">
+                        :class="{ 'is-loaded': isDetailImageLoaded(detailImageKey) }"
+                        :aria-label="`查看${postTitle}第 ${detailImageIndex + 1} 张大图`"
+                        @click="openDetailImageViewer(detailImageIndex)">
                         <img :src="currentDetailImage.url" :alt="`${postTitle} 图片 ${detailImageIndex + 1}`"
                           loading="eager" decoding="async" fetchpriority="high" class="post-detail-image"
                           :class="{ 'is-loaded': isDetailImageLoaded(detailImageKey) }"
@@ -1192,7 +1417,7 @@ const handleDeleteComment = async (comment, parentId = null) => {
                         <span v-if="currentDetailImage.width && currentDetailImage.height" class="post-detail-image-meta">
                           {{ currentDetailImage.width }} × {{ currentDetailImage.height }}
                         </span>
-                      </a>
+                      </button>
                     </transition>
                     <button v-if="hasMultipleDetailImages" type="button"
                       class="post-detail-image-nav prev" aria-label="上一张图片" @click.stop="showPrevDetailImage">
@@ -1382,6 +1607,25 @@ const handleDeleteComment = async (comment, parentId = null) => {
       </main>
     </div>
 
+    <Teleport to="body">
+      <Transition name="detail-confirm-fade">
+        <div v-if="confirmState.show" class="detail-confirm-overlay" @click.self="closeConfirm(false)">
+          <div class="detail-confirm-modal" role="dialog" aria-modal="true" :aria-label="confirmState.title">
+            <h3>{{ confirmState.title }}</h3>
+            <p>{{ confirmState.message }}</p>
+            <div class="detail-confirm-actions">
+              <button type="button" class="detail-confirm-btn secondary" @click="closeConfirm(false)">
+                {{ confirmState.cancelText }}
+              </button>
+              <button type="button" class="detail-confirm-btn danger" @click="closeConfirm(true)">
+                {{ confirmState.confirmText }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
     <CommonAlertModal v-model:visible="modalState.show" :type="modalState.type" :title="modalState.title"
       :message="modalState.message" />
 
@@ -1450,6 +1694,60 @@ const handleDeleteComment = async (comment, parentId = null) => {
         </div>
       </div>
     </div>
+
+    <Teleport to="body">
+      <transition name="detail-viewer-fade">
+        <div v-if="isDetailImageViewerOpen" class="detail-image-viewer" role="dialog" aria-modal="true"
+          aria-label="查看帖子大图" @click.self="closeDetailImageViewer">
+          <button type="button" class="detail-image-viewer-close" aria-label="关闭大图"
+            @click="closeDetailImageViewer">
+            <X :size="24" :stroke-width="2.2" aria-hidden="true" />
+          </button>
+          <div class="detail-image-viewer-toolbar" aria-label="大图缩放工具">
+            <button type="button" class="detail-image-viewer-tool" :disabled="detailViewerZoom <= DETAIL_VIEWER_MIN_ZOOM"
+              aria-label="缩小图片" @click.stop="zoomOutDetailViewer">
+              <ZoomOut :size="20" :stroke-width="2" aria-hidden="true" />
+            </button>
+            <span class="detail-image-viewer-zoom">{{ detailViewerZoomPercent }}</span>
+            <button type="button" class="detail-image-viewer-tool" :disabled="detailViewerZoom >= DETAIL_VIEWER_MAX_ZOOM"
+              aria-label="放大图片" @click.stop="zoomInDetailViewer">
+              <ZoomIn :size="20" :stroke-width="2" aria-hidden="true" />
+            </button>
+            <button type="button" class="detail-image-viewer-tool" aria-label="重置缩放"
+              @click.stop="resetDetailViewerTransform">
+              <RotateCcw :size="19" :stroke-width="2" aria-hidden="true" />
+            </button>
+          </div>
+          <button v-if="hasMultipleDetailImages" type="button" class="detail-image-viewer-nav prev"
+            aria-label="上一张大图" @click.stop="showPrevDetailImage">
+            <ChevronLeft :size="34" :stroke-width="1.8" aria-hidden="true" />
+          </button>
+          <div class="detail-image-viewer-stage"
+            :class="{ 'is-zoomed': detailViewerZoom > 1, 'is-panning': isDetailViewerPanning }"
+            @wheel.prevent="handleDetailViewerWheel"
+            @pointerdown="startDetailViewerPan"
+            @pointermove="moveDetailViewerPan"
+            @pointerup="stopDetailViewerPan"
+            @pointercancel="stopDetailViewerPan"
+            @pointerleave="stopDetailViewerPan">
+            <div v-if="isDetailViewerImageLoading" class="detail-image-viewer-loader" aria-label="图片加载中">
+              <span class="detail-image-viewer-spinner"></span>
+            </div>
+            <img :key="`${detailImageKey}-viewer`" class="detail-image-viewer-img" :src="currentDetailImageLargeUrl"
+              data-source-index="0" :style="detailViewerImageStyle"
+              :alt="`${postTitle} 大图 ${detailImageIndex + 1}`" decoding="async"
+              @load="handleDetailViewerImageLoad" @error="handleDetailViewerImageError" />
+          </div>
+          <button v-if="hasMultipleDetailImages" type="button" class="detail-image-viewer-nav next"
+            aria-label="下一张大图" @click.stop="showNextDetailImage">
+            <ChevronRight :size="34" :stroke-width="1.8" aria-hidden="true" />
+          </button>
+          <div v-if="hasMultipleDetailImages" class="detail-image-viewer-count">
+            {{ detailImageIndex + 1 }} / {{ detailImages.length }}
+          </div>
+        </div>
+      </transition>
+    </Teleport>
   </div>
 </template>
 
