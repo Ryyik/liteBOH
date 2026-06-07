@@ -247,16 +247,6 @@ const closeImagePreview = () => {
       </div>
 
       <div class="input-group post-body-input-group">
-        <div class="composer-preview-toolbar" aria-label="发帖预览工具">
-          <button type="button" class="composer-mention-trigger" title="@用户" @click="replaceContentRange(String(newPost.content || '').length, String(newPost.content || '').length, '@')">
-            <AtSign :size="16" :stroke-width="2.4" aria-hidden="true" />
-          </button>
-          <button type="button" class="composer-preview-toggle" :class="{ active: isPreviewMode }"
-            :disabled="!hasPostContent" @click="isPreviewMode = !isPreviewMode">
-            <Eye :size="16" :stroke-width="2.2" aria-hidden="true" />
-            <span>{{ isPreviewMode ? '编辑' : '预览' }}</span>
-          </button>
-        </div>
         <div class="composer-body-shell">
           <textarea v-if="!isPreviewMode" ref="postContentInputRef" :value="newPost.content"
             :placeholder="isMobileComposer ? '有什么新鲜事？' : '正文内容...'"
@@ -371,6 +361,15 @@ const closeImagePreview = () => {
               </button>
             </div>
           </div>
+          <button type="button" class="mobile-post-tool-btn mobile-mention-tool-btn"
+            aria-label="@用户" @click="replaceContentRange(String(newPost.content || '').length, String(newPost.content || '').length, '@')">
+            <AtSign :size="23" :stroke-width="2" aria-hidden="true" />
+          </button>
+          <button type="button" class="mobile-post-tool-btn mobile-preview-tool-btn" :class="{ active: isPreviewMode }"
+            :disabled="!hasPostContent" :aria-label="isPreviewMode ? '返回编辑' : '预览帖子'"
+            @click="isPreviewMode = !isPreviewMode">
+            <Eye :size="23" :stroke-width="2" aria-hidden="true" />
+          </button>
           <button type="button" class="mobile-post-tool-btn" :class="{ 'is-full': postImages.length >= maxPostImages }"
             :disabled="isUploadingPostImage || isSubmitting || postImages.length >= maxPostImages"
             :aria-label="`从相册选择图片，已添加 ${postImages.length} 张，最多 ${maxPostImages} 张`"
@@ -413,6 +412,16 @@ const closeImagePreview = () => {
           <div class="desktop-post-tools" @click.stop>
             <button type="button" class="desktop-post-tool-btn desktop-draft-tool-btn" @click="handleDraftOpen">
               草稿
+            </button>
+            <button type="button" class="desktop-post-tool-btn desktop-mention-tool-btn"
+              aria-label="@用户" @click="replaceContentRange(String(newPost.content || '').length, String(newPost.content || '').length, '@')">
+              <AtSign :size="22" :stroke-width="2" aria-hidden="true" />
+            </button>
+            <button type="button" class="desktop-post-tool-btn desktop-preview-tool-btn" :class="{ active: isPreviewMode }"
+              :disabled="!hasPostContent" :aria-label="isPreviewMode ? '返回编辑' : '预览帖子'"
+              @click="isPreviewMode = !isPreviewMode">
+              <Eye :size="22" :stroke-width="2" aria-hidden="true" />
+              <span>{{ isPreviewMode ? '编辑' : '预览' }}</span>
             </button>
             <div class="desktop-tag-tool-wrap">
               <button type="button" class="desktop-post-tool-btn desktop-tag-tool-btn"
