@@ -8,6 +8,25 @@
       :username="birthdayHeroName"
     />
 
+    <!-- BOH 小猫主题英雄区域 -->
+    <section class="cat-theme-hero">
+      <div class="cat-theme-copy">
+        <h1 class="cat-theme-title">BOH X 小猫主题</h1>
+        <p class="cat-theme-subtitle">快来体验萌萌小猫～</p>
+        <router-link
+          to="/user-space?tab=profile&view=settings&setting=theme"
+          class="cat-theme-action"
+        >
+          去设置
+        </router-link>
+      </div>
+      <div class="cat-theme-stage" aria-hidden="true">
+        <HomeCatMascot class="cat-theme-main-cat" type="theme" size="lg" decorative />
+        <HomeCatMascot class="cat-theme-side-cat cat-theme-side-cat-left" type="decorAlt" size="md" decorative />
+        <HomeCatMascot class="cat-theme-side-cat cat-theme-side-cat-right" type="like" size="md" decorative />
+      </div>
+    </section>
+
     <!-- BOH 设定集英雄区域 - Apple Style -->
     <section class="boh-school-hero">
       <div class="boh-school-container">
@@ -551,6 +570,7 @@
 import { computed, ref, onMounted, onUnmounted, defineAsyncComponent } from "vue";
 import UnifiedNavbar from "../../components/UnifiedNavbar/index.vue";
 import BirthdayHeroBanner from "@/components/BirthdayHeroBanner.vue";
+import HomeCatMascot from "@/components/HomeCatMascot.vue";
 // 异步组件
 const MemberDetailModal = defineAsyncComponent(() => import('../../components/MemberDetailModal.vue'));
 import { useRouter } from "vue-router";

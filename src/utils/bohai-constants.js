@@ -34,6 +34,7 @@ export const CIRCUIT_BREAKER = {
 export const BOHAI_ERROR_TYPES = {
   NETWORK_ERROR: 'network_error',
   AUTH_ERROR: 'auth_error',
+  LOGIN_REQUIRED: 'login_required',
   TIMEOUT_ERROR: 'timeout_error',
   VALIDATION_ERROR: 'validation_error',
   EXECUTION_ERROR: 'execution_error',
@@ -108,6 +109,9 @@ export const getUserFriendlyError = (error) => {
 };
 
 const connectorFailureTracker = new Map();
+// 写动作（createPost / sendMail 等）单独的失败追踪器，与读连接器熔断解耦，
+// 避免写动作的业务错误污染 connector 熔断窗口。
+const actionFailureTracker = new Map();
 
 export const shouldSkipConnector = (connectorId) => {
   const failures = connectorFailureTracker.get(connectorId) || { count: 0, lastFailure: 0 };
@@ -135,4 +139,25 @@ export const recordConnectorFailure = (connectorId) => {
 
 export const resetConnectorFailures = (connectorId) => {
   connectorFailureTracker.set(connectorId, { count: 0, lastFailure: 0 });
+};
+
+// 写动作的失败追踪与查询（独立于 connector 熔断器，仅用于后续统计 / 慢失败告警，
+// 不会影响 runBohAIAction 入口处是否跳过该动作）。
+export const recordActionFailure = (actionId) => {
+  if (!actionId) return;
+  const current = actionFailureTracker.get(actionId) || { count: 0, lastFailure: 0 };
+  actionFailureTracker.set(actionId, {
+    count: current.count + 1,
+    lastFailure: Date.now()
+  });
+};
+
+export const resetActionFailures = (actionId) => {
+  if (!actionId) return;
+  actionFailureTracker.set(actionId, { count: 0, lastFailure: 0 });
+};
+
+export const getActionFailureStats = (actionId) => {
+  if (!actionId) return { count: 0, lastFailure: 0 };
+  return actionFailureTracker.get(actionId) || { count: 0, lastFailure: 0 };
 };

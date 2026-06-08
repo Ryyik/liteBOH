@@ -54,6 +54,29 @@
   transform: translateY(0);
 }
 
+.nav-menu-mobile-content {
+  position: relative;
+  overflow: hidden;
+}
+
+.nav-mobile-menu-cat {
+  position: absolute;
+  right: -2px;
+  bottom: 8px;
+  width: 156px;
+  height: 132px;
+  opacity: 0.18;
+  transform: rotate(3deg);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.nav-mobile-main-menu,
+.nav-mobile-submenu-container {
+  position: relative;
+  z-index: 1;
+}
+
 /* ============================================
    未读消息红点 (导航栏)
    ============================================ */

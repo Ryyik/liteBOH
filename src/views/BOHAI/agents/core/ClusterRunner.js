@@ -83,7 +83,8 @@ export const createClusterRunner = ({
       query: safeQuery,
       clusterMode: mode,
       historySummary: historySummary || (historySummaryFn ? historySummaryFn({ bus, history }) : ''),
-      context: { bus, history, clusterMode: mode }
+      context: { bus, history, clusterMode: mode },
+      signal
     });
     bus.setPlan(planResult.tasks);
     emit(createAgentEvent('agent-end', {

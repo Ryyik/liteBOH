@@ -18,6 +18,12 @@ const CREATIVE_REQUEST_PATTERN = /(写|生成|创作|改写|润色|设计|起草
 
 export const INTERNAL_CITATION_ID_PATTERN = /^(?:T|S|K|G|F|U)\d+$/i;
 export const SEARCH_CITATION_ID_PATTERN = /^W\d+$/i;
+const FORUM_CITATION_ID_PATTERN = /^F\d+$/i;
+const FORUM_URL_PATTERN = /(boh\.community\/post|(?:^|[\s"'(（<])#?\/forum\/post\/|(?:^|[\s"'(（<])https?:\/\/[^\s)\]）>]*\/forum\/post\/)/i;
+const FORUM_REF_PATTERN = /\[F\d+\]/i;
+const FORUM_HANDLE_CLAIM_PATTERN = /(?:论坛|帖子|社区|社群|BOH|方块之家)[^。！？\n]{0,40}@[A-Za-z0-9_-]{2,32}|@[A-Za-z0-9_-]{2,32}[^。！？\n]{0,40}(?:论坛|帖子|社区|社群|BOH|方块之家)/i;
+const FORUM_SOURCE_CLAIM_PATTERN = /(论坛|帖子|社区|社群|BOH|方块之家)[^。！？\n]{0,36}(用户|成员|作者|楼主|有人|大家)[^。！？\n]{0,36}(分享|提到|说|表示|发了|发布|讨论|链接|帖子)/i;
+const FORUM_LINK_LABEL_PATTERN = /(查看帖子|帖子链接|原帖|原文链接|发帖ID|帖子ID)/i;
 
 export const normalizeGroundingText = (text) => String(text || '').toLowerCase().trim();
 
@@ -175,6 +181,59 @@ export const shouldRepairUngroundedReply = (
   if (hits >= Math.max(1, Number(minRequiredCitations) || 1)) return false;
   if (hits === 0 && isUncertaintyOnlyReply(text)) return false;
   return true;
+};
+
+export const hasAvailableForumEvidence = (availableEvidenceRefs = []) => {
+  return (Array.isArray(availableEvidenceRefs) ? availableEvidenceRefs : [])
+    .some((ref) => FORUM_CITATION_ID_PATTERN.test(String(ref || '').trim()));
+};
+
+export const hasUnsupportedCommunityEvidenceClaim = (
+  text,
+  {
+    availableEvidenceRefs = []
+  } = {}
+) => {
+  const raw = String(text || '');
+  if (!raw.trim()) return false;
+  if (hasAvailableForumEvidence(availableEvidenceRefs)) return false;
+  return FORUM_URL_PATTERN.test(raw)
+    || FORUM_REF_PATTERN.test(raw)
+    || FORUM_HANDLE_CLAIM_PATTERN.test(raw)
+    || FORUM_SOURCE_CLAIM_PATTERN.test(raw)
+    || FORUM_LINK_LABEL_PATTERN.test(raw);
+};
+
+export const sanitizeUnsupportedCommunityEvidenceClaims = (
+  text,
+  {
+    availableEvidenceRefs = [],
+    fallbackText = '我没有检索到对应的 BOH 论坛帖子或用户，不能把这件事说成社区里有人分享过。'
+  } = {}
+) => {
+  const raw = String(text || '').trim();
+  if (!raw) return raw;
+  if (!hasUnsupportedCommunityEvidenceClaim(raw, { availableEvidenceRefs })) return raw;
+
+  const unsafeSegmentPattern = new RegExp([
+    FORUM_URL_PATTERN.source,
+    FORUM_REF_PATTERN.source,
+    FORUM_HANDLE_CLAIM_PATTERN.source,
+    FORUM_SOURCE_CLAIM_PATTERN.source,
+    FORUM_LINK_LABEL_PATTERN.source
+  ].join('|'), 'i');
+
+  const segments = raw
+    .split(/(?<=[。！？!?])\s+|\n+/)
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .filter((segment) => !unsafeSegmentPattern.test(segment));
+
+  const cleaned = segments.join('\n').trim();
+  if (cleaned.length >= 20) {
+    return `${fallbackText}\n\n${cleaned}`;
+  }
+  return fallbackText;
 };
 
 export const resolveKnowledgeRoutingPlanCore = ({

@@ -34,6 +34,10 @@ export const useAgentCluster = (options = {}) => {
   const lastError = ref(null);
   const agentStatuses = reactive({});
   const agentOutputs = reactive({});
+  // 持有当前进行中的 AbortController，用于在新的 run 启动时主动 abort 上一次。
+  let activeController = null;
+  // 每次 run 启动时递增的 epoch 标识，用于让旧 run 的事件回调在到达时早退。
+  let runEpoch = 0;
 
   const runnerOptions = {
     ...(options.runnerOptions || {}),
@@ -163,9 +167,29 @@ export const useAgentCluster = (options = {}) => {
   };
 
   const run = async (params = {}) => {
+    // 取消上一次仍在进行的 run，避免两个 run 的事件流并发改 reactive 状态。
+    if (activeController) {
+      try { activeController.abort(); } catch (_err) { /* noop */ }
+      activeController = null;
+    }
+    const myEpoch = ++runEpoch;
+
     resetTrace();
     isRunning.value = true;
-    const signal = params.signal || (typeof AbortController !== 'undefined' ? new AbortController().signal : undefined);
+
+    const externalSignal = params.signal;
+    const controller = new AbortController();
+    activeController = controller;
+    // 若调用方传入了 signal，则在它 abort 时同步 abort 内部 controller。
+    const forwardAbort = () => {
+      try { controller.abort(); } catch (_err) { /* noop */ }
+    };
+    if (externalSignal) {
+      if (externalSignal.aborted) forwardAbort();
+      else externalSignal.addEventListener('abort', forwardAbort, { once: true });
+    }
+    const signal = controller.signal;
+
     try {
       const result = await runner.run({
         query: params.query,
@@ -174,6 +198,8 @@ export const useAgentCluster = (options = {}) => {
         clusterMode: params.clusterMode || settings.mode,
         signal,
         onEvent: (event) => {
+          // 仅当本次 run 仍是最新一次时才把事件应用到 UI。
+          if (myEpoch !== runEpoch) return;
           applyEvent(event);
           if (event.type === AGENT_EVENT_TYPES.AGENT_END && event.payload?.agent) {
             const agent = event.payload.agent;
@@ -183,13 +209,19 @@ export const useAgentCluster = (options = {}) => {
           }
         }
       });
+      if (myEpoch !== runEpoch) return result;
       return result;
     } catch (error) {
+      if (myEpoch !== runEpoch) return null;
       lastError.value = error?.message || String(error);
       logger.error('bohai-cluster', 'useAgentCluster.run 失败', error);
       throw error;
     } finally {
-      isRunning.value = false;
+      if (myEpoch === runEpoch) {
+        isRunning.value = false;
+        if (activeController === controller) activeController = null;
+      }
+      if (externalSignal) externalSignal.removeEventListener('abort', forwardAbort);
     }
   };
 

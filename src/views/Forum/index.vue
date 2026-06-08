@@ -37,6 +37,17 @@ const { userInfo } = authStore;
 const notificationStoreRef = ref(getNotificationStoreSync());
 const unreadCount = computed(() => notificationStoreRef.value?.unreadCount || 0);
 const currentUiStyle = ref('glass');
+const currentTheme = ref(themeManager.getTheme());
+
+const readActiveForumTheme = () => {
+  if (typeof document === 'undefined') return themeManager.getTheme();
+  const selectors = ['.forum-page', '.user-space-page', 'html'];
+  for (const selector of selectors) {
+    const theme = document.querySelector(selector)?.getAttribute('data-theme');
+    if (isHomeCatTheme(theme)) return theme;
+  }
+  return themeManager.getTheme();
+};
 
 const ensureNotificationStore = async () => {
   if (notificationStoreRef.value) {
@@ -57,6 +68,7 @@ const refreshUnreadCount = async () => {
 };
 
 import CommonAlertModal from '../../components/CommonAlertModal.vue';
+import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import {
   getPosts,
   createPost,
@@ -103,6 +115,7 @@ import {
 } from '@/utils/forum-return-state.js';
 import { supabase } from '../../utils/supabase-client.js';
 import { themeManager } from '@/utils/theme-manager.js';
+import { getHomeCatAsset, getHomeCatTypeBySeed, isHomeCatTheme } from '@/utils/home-cat-theme.js';
 import { formatSmartTime } from '../../utils/time.js';
 import { addExperience, XP_REWARDS } from '../../utils/xp.js';
 import DOMPurify from '@/utils/dompurify.js';
@@ -143,6 +156,7 @@ const selectedTagFilter = ref('');
 const feedMode = ref('posts');
 const highlightedPostIds = ref(new Set());
 const likePulsePostIds = ref(new Set());
+const replySuccessPostIds = ref(new Set());
 const shareCopiedPostIds = ref(new Set());
 const loadedForumImageKeys = ref(new Set());
 const uiAnimationTimers = new Map();
@@ -1094,11 +1108,13 @@ const closeMobileComposer = () => {
   isMobileComposerOpen.value = false;
 };
 
-const handleThemeChange = (_theme, _preference, uiStyle = themeManager.getUiStyle?.() || currentUiStyle.value) => {
+const handleThemeChange = (theme, _preference, uiStyle = themeManager.getUiStyle?.() || currentUiStyle.value) => {
+  currentTheme.value = theme;
   currentUiStyle.value = uiStyle;
 };
 
 onMounted(() => {
+  currentTheme.value = readActiveForumTheme();
   currentUiStyle.value = themeManager.getUiStyle?.() || 'glass';
   themeManager.addListener(handleThemeChange);
   loadRetriedNotificationIds();
@@ -2195,6 +2211,13 @@ const loadHotTagStats = async () => {
 // formatDate 已由 formatSmartTime 提供
 
 const modalState = ref({ show: false, type: 'success', title: '', message: '' });
+const isHomeCatActive = computed(() => isHomeCatTheme(currentTheme.value));
+const modalMascotSrc = computed(() => {
+  if (!isHomeCatActive.value || !modalState.value.show) return '';
+  if (modalState.value.type === 'success') return getHomeCatAsset('success');
+  if (modalState.value.type === 'error' || modalState.value.type === 'warning') return getHomeCatAsset('failed');
+  return getHomeCatAsset('decor');
+});
 const confirmState = ref({
   show: false,
   title: '',
@@ -2202,6 +2225,12 @@ const confirmState = ref({
   confirmText: '确定',
   cancelText: '取消',
   resolve: null
+});
+const confirmMascotSrc = computed(() => {
+  if (!confirmState.value.show) return '';
+  const confirmText = String(confirmState.value.confirmText || '');
+  const title = String(confirmState.value.title || '');
+  return confirmText.includes('删除') || title.includes('删除') ? getHomeCatAsset('delete') : '';
 });
 
 const showModal = (type, title, message) => {
@@ -2269,7 +2298,10 @@ const addUiMarker = (markerRef, key, durationMs, timerPrefix) => {
   }, durationMs));
 };
 
-const hasUiMarker = (markerRef, key) => markerRef.value.has(String(key || '').trim());
+const hasUiMarker = (markerRef, key) => {
+  const markerSet = markerRef?.value || markerRef;
+  return markerSet instanceof Set && markerSet.has(String(key || '').trim());
+};
 
 const getForumImageKey = (postId, imageUrl) => `${String(postId || '').trim()}:${String(imageUrl || '').trim()}`;
 
@@ -2283,6 +2315,23 @@ const isForumImageLoaded = (postId, imageUrl) => hasUiMarker(loadedForumImageKey
 const isPostHighlighted = (postId) => hasUiMarker(highlightedPostIds, postId);
 const isPostLikePulsing = (postId) => hasUiMarker(likePulsePostIds, postId);
 const isPostShareCopied = (postId) => hasUiMarker(shareCopiedPostIds, postId);
+const getPostCardCatType = (index, post) => {
+  if (post?.isLiked || Number(post?.like_count || 0) >= 8) return 'like';
+  return ['decorAlt', 'decor', 'theme', 'cardExtra', 'mobileGap'][Number(index) % 5];
+};
+const getPostCardCatVariant = (index) => `cat-variant-${Number(index) % 4}`;
+const getPostCardCatSeed = (post, index, suffix = 'card') => `${post?.id || index}:${suffix}`;
+const getPostCardCatSrc = (post, index) => getHomeCatAsset(getPostCardCatType(index, post));
+const getPostBackgroundCatSrc = (post, index) => {
+  const type = getHomeCatTypeBySeed(getPostCardCatSeed(post, index, 'bg'), 'background');
+  return getHomeCatAsset(type);
+};
+const shouldShowPostBackgroundCat = (post, index) => {
+  const raw = String(post?.id || index || '');
+  let sum = 0;
+  for (let i = 0; i < raw.length; i += 1) sum += raw.charCodeAt(i);
+  return sum % 3 === 1;
+};
 
 const shouldCleanupImagesAfterPostError = (error) => {
   const code = String(error?.code || '').trim().toUpperCase();
@@ -2503,6 +2552,7 @@ const submitReply = async (post) => {
     );
 
     addExperience(supabase, userInfo.id, XP_REWARDS.REPLY);
+    addUiMarker(replySuccessPostIds, post.id, 1800, 'reply-success');
     emitProfileSync({
       userId: userInfo.id,
       username: userInfo.username,
@@ -2549,7 +2599,7 @@ const handleToggleLike = async (post) => {
         : Math.max(0, Number(post.like_count || 0) - 1);
       post.isLiked = false;
     }
-    addUiMarker(likePulsePostIds, post.id, 620, 'like-pulse');
+    addUiMarker(likePulsePostIds, post.id, 1900, 'like-pulse');
 
     emitProfileSync({
       userId: post.author_id,
@@ -2896,6 +2946,7 @@ const openPostDetail = (postId) => {
             :is-weekly-checkin-submitting="isWeeklyCheckinSubmitting" :forum-tag-options="FORUM_TAG_OPTIONS"
             :max-post-images="FORUM_POST_IMAGE_MAX_COUNT"
             :mention-users="forumMentionUsers"
+            :is-home-cat-theme="isHomeCatActive"
             :show-post-image-source-menu="showPostImageSourceMenu" @submit="handlePost"
             @login="showLoginModal = true" @toggle-image-source-menu="togglePostImageSourceMenu"
             @request-image-picker="openPostImagePicker" @request-camera="openPostCamera"
@@ -2907,6 +2958,7 @@ const openPostDetail = (postId) => {
           <!-- 帖子列表 -->
           <section class="posts-feed fade-in-up" style="animation-delay: 0.2s;">
             <div class="feed-header-v2">
+              <HomeCatMascot v-if="isHomeCatActive" class="mobile-feed-gap-cat" type="mobileGap" size="lg" decorative />
               <div class="feed-title-row">
                 <h2 class="feed-title-v2">社区动态</h2>
                 <button v-if="isLoggedIn" type="button" class="weekly-checkin-trigger"
@@ -2967,6 +3019,8 @@ const openPostDetail = (postId) => {
             <!-- 骨架屏加载状态 -->
             <div v-if="isLoading" class="skeleton-feed">
               <div v-for="n in 5" :key="n" class="skeleton-post-card">
+                <HomeCatMascot v-if="isHomeCatActive && n === 1" class="skeleton-thinking-cat" pool="state"
+                  seed="forum-skeleton-thinking" size="md" decorative />
                 <div class="skeleton-header">
                   <div class="skeleton-avatar skeleton-item"></div>
                   <div class="skeleton-header-info">
@@ -2990,6 +3044,7 @@ const openPostDetail = (postId) => {
 
             <div v-else class="posts-list">
               <div v-if="forumData.length === 0" class="empty-state glass-panel">
+                <HomeCatMascot v-if="isHomeCatActive" type="decor" size="lg" decorative />
                 <span class="empty-icon">🔍</span>
                 <p v-if="forumLoadError" class="forum-load-error">{{ forumLoadError }}</p>
                 <p v-else-if="searchKeyword.trim() || selectedTagFilter">
@@ -3007,6 +3062,14 @@ const openPostDetail = (postId) => {
                 }"
                 :style="{ '--post-appear-delay': `${Math.min(index, 8) * 45}ms` }"
                 @click="openPostDetail(post.id)">
+                <figure v-if="isHomeCatActive" class="post-card-theme-cat"
+                  :class="getPostCardCatVariant(index)" aria-hidden="true">
+                  <img :src="getPostCardCatSrc(post, index)" alt="" draggable="false" />
+                </figure>
+                <figure v-if="isHomeCatActive && shouldShowPostBackgroundCat(post, index)"
+                  class="post-card-background-cat" aria-hidden="true">
+                  <img :src="getPostBackgroundCatSrc(post, index)" alt="" draggable="false" />
+                </figure>
                 <div class="post-header-v2">
                   <div class="post-author-section">
                     <div class="post-author-avatar">
@@ -3092,6 +3155,8 @@ const openPostDetail = (postId) => {
                   <div class="actions-left-v2">
                     <button class="action-item-v2 like-btn-v2" @click="handleToggleLike(post)"
                       :class="{ 'is-liked': post.isLiked, 'is-pulsing': isPostLikePulsing(post.id) }" :disabled="isLikeSubmitting[post.id]">
+                      <img v-if="isHomeCatActive && isPostLikePulsing(post.id)" class="like-pop-cat-img"
+                        :src="getHomeCatAsset('like')" alt="" draggable="false" />
                       <Heart class="action-svg-v2" :size="17" :stroke-width="1.8"
                         :fill="post.isLiked ? 'currentColor' : 'none'" aria-hidden="true" />
                       <span class="action-count-v2">{{ post.like_count || 0 }}</span>
@@ -3124,6 +3189,8 @@ const openPostDetail = (postId) => {
                 <transition name="fade-slide">
                   <div v-if="activeReplyTarget && activeReplyTarget.postId === post.id" class="reply-input-section-v2"
                     @click.stop>
+                    <img v-if="isHomeCatActive && hasUiMarker(replySuccessPostIds, post.id)"
+                      class="reply-success-pop-cat-img" :src="getHomeCatAsset('success')" alt="" draggable="false" />
                     <div v-if="activeReplyTarget.username" class="reply-target-hint">
                       正在回复 <span class="target-user">@{{ activeReplyTarget.username }}</span>
                       <button class="clear-target-btn"
@@ -3284,6 +3351,7 @@ const openPostDetail = (postId) => {
               :is-weekly-checkin-submitting="isWeeklyCheckinSubmitting" :forum-tag-options="FORUM_TAG_OPTIONS"
               :max-post-images="FORUM_POST_IMAGE_MAX_COUNT"
               :mention-users="forumMentionUsers"
+              :is-home-cat-theme="isHomeCatActive"
               :show-post-image-source-menu="showPostImageSourceMenu" is-mobile-composer @submit="handlePost"
               @login="showLoginModal = true" @toggle-image-source-menu="togglePostImageSourceMenu"
               @request-image-picker="openPostImagePicker" @request-camera="openPostCamera"
@@ -3491,6 +3559,7 @@ const openPostDetail = (postId) => {
       <Transition name="forum-confirm-fade">
         <div v-if="confirmState.show" class="forum-confirm-overlay" @click.self="closeConfirm(false)">
           <div class="forum-confirm-modal" role="dialog" aria-modal="true" :aria-label="confirmState.title">
+            <img v-if="confirmMascotSrc" class="forum-confirm-cat-img" :src="confirmMascotSrc" alt="" draggable="false" />
             <h3>{{ confirmState.title }}</h3>
             <p>{{ confirmState.message }}</p>
             <div class="forum-confirm-actions">
@@ -3508,7 +3577,7 @@ const openPostDetail = (postId) => {
 
     <!-- 弹窗 -->
     <CommonAlertModal v-model:visible="modalState.show" :type="modalState.type" :title="modalState.title"
-      :message="modalState.message" />
+      :message="modalState.message" :mascot-src="modalMascotSrc" mascot-alt="方块小窝提示小猫" />
 
     <!-- 消息详情抽屉 -->
     <Teleport to="body">

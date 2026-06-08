@@ -3,6 +3,8 @@ import {
   isLikelyBohInternalFactualQuestion,
   isLikelyBohInternalQuestion,
   isLikelyFactualQuestion,
+  hasUnsupportedCommunityEvidenceClaim,
+  sanitizeUnsupportedCommunityEvidenceClaims,
   shouldRepairUngroundedReply,
   resolveKnowledgeRoutingPlanCore
 } from '../../src/utils/ai-chat-grounding.js';
@@ -118,6 +120,39 @@ describe('ai-chat-grounding: repair gating', () => {
 
     expect(uncertaintyOnly).toBe(false);
     expect(mixedAssertion).toBe(true);
+  });
+});
+
+describe('ai-chat-grounding: community evidence guard', () => {
+  it('detects fabricated forum users and post links when no forum evidence is available', () => {
+    const fabricated = '论坛里 @resonance_breath 分享过共振呼吸法，查看帖子：https://boh.community/post/123456 [F1]';
+
+    expect(hasUnsupportedCommunityEvidenceClaim(fabricated, {
+      availableEvidenceRefs: []
+    })).toBe(true);
+
+    expect(hasUnsupportedCommunityEvidenceClaim(fabricated, {
+      availableEvidenceRefs: ['F1']
+    })).toBe(false);
+  });
+
+  it('replaces unsupported forum evidence claims with a safe uncertainty notice', () => {
+    const fabricated = '可以参考论坛用户 @resonance_breath 的分享。查看帖子：https://boh.community/post/123456';
+    const cleaned = sanitizeUnsupportedCommunityEvidenceClaims(fabricated, {
+      availableEvidenceRefs: []
+    });
+
+    expect(cleaned).toContain('没有检索到对应的 BOH 论坛帖子或用户');
+    expect(cleaned).not.toContain('@resonance_breath');
+    expect(cleaned).not.toContain('boh.community/post/123456');
+  });
+
+  it('keeps ordinary unsupported-free guidance untouched', () => {
+    const reply = '共振呼吸可以先从慢吸慢呼开始，找一个舒服节奏，不需要憋气。';
+
+    expect(sanitizeUnsupportedCommunityEvidenceClaims(reply, {
+      availableEvidenceRefs: []
+    })).toBe(reply);
   });
 });
 

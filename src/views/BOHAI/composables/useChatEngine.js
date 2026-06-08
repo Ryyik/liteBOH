@@ -30,6 +30,7 @@ import {
   isLikelyFactualQuestion,
   extractCitationIdsFromText,
   shouldRepairUngroundedReply,
+  sanitizeUnsupportedCommunityEvidenceClaims,
   resolveKnowledgeRoutingPlanCore
 } from '@/utils/ai-chat-grounding.js';
 import { useAuthStore } from '@/stores/auth.js';
@@ -46,6 +47,7 @@ import {
 } from '@/utils/bohai-action-draft-intent.js';
 import {
   BOH_AUTO_MODE_ID,
+  isLikelyPersonalSupportRequest,
   resolveBOHAIAutoModeDecision
 } from '@/utils/bohai-auto-router.js';
 import {
@@ -169,6 +171,7 @@ import {
   extractExplicitMemoryContent,
   appendPromptSection,
   normalizePromptLine,
+  buildContextualFollowUpQuery,
   buildHistoryMessagesWithinBudget,
   getStorableDialogueMessages,
   buildConversationSummaryFingerprint,
@@ -208,6 +211,26 @@ import {
   isAgentClusterMode,
   useAgentClusterState
 } from './agent-cluster-helpers.js';
+
+// ============================================================
+// BOH AI Chat Engine 主 composable
+// ------------------------------------------------------------
+// 单一 useChatEngine 函数体很长（6825 行）。闭包依赖较多，完整
+// 拆分需在外部补全上下文。建议后续按以下分区逐步抽出子 composable：
+//   SECTION A (~L220-)    state / reactive（chatSessions、treehole cache 等）
+//   SECTION B (~L340-)    session 持久化（load/migrate/save）
+//   SECTION C (~L470-)    mode / style / settings 选择
+//   SECTION D (~L560-)    session CRUD（addMessage、editMessage、delete 等）
+//   SECTION E (~L640-)    Quick Note 草稿与保存
+//   SECTION F (~L700-)    路由：发件人查找、用户私域获取
+//   SECTION G (~L840-)    Action 草稿解析（post / mail / page）
+//   SECTION H (~L1050-)   Action 注册与执行
+//   SECTION I (~L1200-)   答案生成主流程（retrieval、grounding、stream）
+//   SECTION J (~L5500-)   工具函数（citation 抽取、降级处理、moderation）
+//   SECTION K (~L6500-)   暴露给模板的接口
+// 计划在下一次重构里把每个 SECTION 抽到独立 composable / 纯函数模块，
+// useChatEngine 仅做编排。本文件先保留分节注释，行为不变。
+// ============================================================
 
 
 export function useChatEngine() {
@@ -5895,6 +5918,15 @@ ${body || '无'}
       stopThinkingTimer();
     };
 
+    const historyMessagesForCurrentTurn = Array.isArray(session.messages)
+      ? session.messages.slice(0, -2)
+      : [];
+    const contextualQuery = buildContextualFollowUpQuery(userText, historyMessagesForCurrentTurn, {
+      maxChars: MAX_USER_INPUT_CHARS
+    });
+    const shouldUseContextualQuery = contextualQuery && contextualQuery !== userText;
+    const routingQueryText = shouldUseContextualQuery ? contextualQuery : userText;
+
     let autoDecision = null;
     let autoDecisionTimedOut = false;
     const autoDecisionTimeout = setTimeout(() => {
@@ -5905,7 +5937,7 @@ ${body || '无'}
     }, 1600);
     try {
       autoDecision = currentModeId.value === BOH_AUTO_MODE_ID
-        ? await resolveAutoModeDecisionWithFastModel(userText, preflightController.signal)
+        ? await resolveAutoModeDecisionWithFastModel(routingQueryText, preflightController.signal)
         : null;
     } finally {
       clearTimeout(autoDecisionTimeout);
@@ -5913,7 +5945,7 @@ ${body || '无'}
     if (autoDecisionTimedOut) {
       logger.warn('boh-ai', 'Auto 分类超时，使用本地规则路由继续回答');
       autoDecision = currentModeId.value === BOH_AUTO_MODE_ID
-        ? resolveAutoModeDecisionLocally(userText)
+        ? resolveAutoModeDecisionLocally(routingQueryText)
         : null;
     }
     if (preflightController.signal.aborted && !autoDecisionTimedOut) {
@@ -5968,12 +6000,12 @@ ${body || '无'}
       setMemoryCaptureStatusMessage('Auto 已为你开启 Cloud+ 参考。');
     }
 
-    const operationQuestion = isOperationQuestion(userText);
-    const communityQuestion = isCommunityQuestion(userText);
+    const operationQuestion = isOperationQuestion(routingQueryText);
+    const communityQuestion = isCommunityQuestion(routingQueryText);
     const communityCreativeRequest = communityQuestion && isCommunityCreativeRequest(userText);
     const communityNeedsEvidence = communityQuestion && !communityCreativeRequest;
-    const bohInternalFactualQuestion = isLikelyBohInternalFactualQuestion(userText, { operationQuestion });
-    const factualQuestion = isLikelyFactualQuestion(userText, { operationQuestion }) || bohInternalFactualQuestion;
+    const bohInternalFactualQuestion = isLikelyBohInternalFactualQuestion(routingQueryText, { operationQuestion });
+    const factualQuestion = isLikelyFactualQuestion(routingQueryText, { operationQuestion }) || bohInternalFactualQuestion;
     const autoSearchEnabled = currentModeId.value === BOH_AUTO_MODE_ID && Boolean(autoDecision?.shouldSearchWeb);
     const enableSearch = isSearching.value || autoSearchEnabled;
     session.isLoading = true;
@@ -6035,7 +6067,7 @@ ${body || '无'}
       };
 
       const webSearchPromise = enableSearch
-        ? searchWebForPrompt(userText, requestController.signal).catch((error) => ({
+        ? searchWebForPrompt(routingQueryText, requestController.signal).catch((error) => ({
             ok: false,
             disabled: false,
             count: 0,
@@ -6051,13 +6083,13 @@ ${body || '无'}
           updateAssistantActionNotes(sessionIndex, messageIndex, ['联网搜索最新资料。']);
         }
         markGenerationProgress('正在并行搜索网络资料...');
-        setProgressContent(`> **正在搜索**: "${userText}"...\n\n`);
+        setProgressContent(`> **正在搜索**: "${routingQueryText}"...\n\n`);
       }
 
       // 自动知识路由：回答前先做关键词判断，再决定是否检索对应知识源
       try {
         markGenerationProgress('正在判断需要查看哪些 BOH 资料...');
-        const routingPreview = resolveKnowledgeRoutingPlan(userText);
+        const routingPreview = resolveKnowledgeRoutingPlan(routingQueryText);
         if (isForumSearchEnabled.value) {
           routingPreview.plan.forum = true;
         }
@@ -6076,14 +6108,14 @@ ${body || '无'}
           userPrivateLabels,
           evidenceRefs,
           contextText
-        } = await buildAutoKnowledgeContext(userText, {
+        } = await buildAutoKnowledgeContext(routingQueryText, {
           forceTreehole: Boolean(autoDecision?.shouldReferenceCloud)
         });
         const successfulConnectorResults = Array.isArray(connectorResults)
           ? connectorResults.filter((item) => item?.ok)
           : [];
         const forumConnectorResult = successfulConnectorResults.find((item) => item?.connectorId === BOHAI_CONNECTOR_IDS.forum);
-        if (isLatestForumSummaryQuery(userText) && Array.isArray(forumConnectorResult?.metadata?.posts)) {
+        if (isLatestForumSummaryQuery(routingQueryText) && Array.isArray(forumConnectorResult?.metadata?.posts)) {
           latestForumSummaryPosts = forumConnectorResult.metadata.posts;
         }
         const retrievalTargets = [];
@@ -6179,7 +6211,8 @@ ${body || '无'}
 
       const shouldEnforceGrounding = factualQuestion || operationQuestion || enableSearch || communityNeedsEvidence || bohInternalFactualQuestion;
 
-      const latestForumSummaryMode = isLatestForumSummaryQuery(userText);
+      const latestForumSummaryMode = isLatestForumSummaryQuery(routingQueryText);
+      const personalSupportMode = isLikelyPersonalSupportRequest(userText);
       const routedModeId = autoDecision?.modeId || (currentModeId.value === BOH_AUTO_MODE_ID ? 'fast' : currentModeId.value);
       const activeModeId = isPlanModeEnabled.value ? 'plan' : routedModeId;
       const isPlanMode = activeModeId === 'plan';
@@ -6195,6 +6228,8 @@ ${body || '无'}
 6. 如果引用论坛帖子证据 [F1]、[F2] 等，可以给出“查看帖子”链接，链接必须来自检索资料中的“查看”字段。
 7. 总结论坛帖子时，若检索资料提供了“发帖ID”，必须用该 ID（如 @name）指代发帖者；不要泛称“用户分享/用户提到/有人提到”。
 8. 优先用自然表达，除非用户要求，不强制套用固定模板。
+9. 严禁编造 BOH 论坛用户、帖子、@用户名、帖子 ID、帖子链接或“论坛里有人分享/提到”的说法；只有 <available_internal_refs> 中存在 [F] 证据，且资料字段明确给出时，才可引用这些社区证据。没有 [F] 证据时，不要提 BOH 论坛证据。
+${personalSupportMode ? '10. 用户在表达自己的困扰、情绪或身体状态时，先用 1-2 句接住他的处境和感受，再给最多 2-3 个低压力、今晚就能做的小动作；不要上来就列长清单，不要把普通困扰写成医学建议。结尾可以轻轻问一句具体情况，让用户愿意继续说。' : ''}
 ${isPlanMode ? '- Plan 模式下必须给出可继续接力的“小步计划/下一步行动”，并把缺少依据的内容标成不确定，不要编造成已确认事实。' : ''}
 ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须严格按 [F1]、[F2]、[F3]、[F4]、[F5] 的顺序输出；[F1] 是最新发布，后面依次更早。不得按热度、重要性或主题重排；若不足 5 条，只输出已检索到的条目。' : ''}`;
 
@@ -6229,7 +6264,9 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
       }
 
       finalPrompt = buildStructuredUserPrompt({
-        userText,
+        userText: shouldUseContextualQuery
+          ? `${userText}\n\n【上下文理解提示】这是一条追问；请结合最近对话理解，不要把它当成脱离上下文的新问题。\n${contextualQuery}`
+          : userText,
         evidenceContext: internalEvidenceContext,
         searchContext: webEvidenceContext,
         responseRules,
@@ -6267,7 +6304,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
 
       const recentMessages = buildHistoryMessagesWithCachedSummary({
         ...session,
-        messages: session.messages.slice(0, -2)
+        messages: historyMessagesForCurrentTurn
       }, {
         maxChars: MAX_HISTORY_CONTEXT_CHARS,
         maxMessages: MAX_CONTEXT_MESSAGES,
@@ -6365,6 +6402,11 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         nextTick(scrollToBottom);
         return;
       }
+
+      const sanitizeCommunityEvidenceClaims = (reply) => sanitizeUnsupportedCommunityEvidenceClaims(reply, {
+        availableEvidenceRefs: groundingEvidenceRefs,
+        fallbackText: '我没有检索到对应的 BOH 论坛帖子或用户，不能把这件事说成社区里有人分享过。'
+      });
 
       const ensureGroundedReply = async (rawReply, { allowModelRepair = true } = {}) => {
         const safeReply = String(rawReply || '').trim();
@@ -6593,7 +6635,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
 
         const groundedRepairedContent = cleanAssistantVisibleReply(await ensureGroundedReply(repairedContent))
           || '我暂时没有生成到有效内容，请再试一次。';
-        updateContent(groundedRepairedContent);
+        updateContent(sanitizeCommunityEvidenceClaims(groundedRepairedContent));
         nextTick(scrollToBottom);
         await queueQuickNoteConfirmation({
           rawText: userText,
@@ -6679,8 +6721,10 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         allowModelRepair: shouldEnforceGrounding && totalGroundingRefCount > 0
       });
       finalFilteredContent = cleanAssistantVisibleReply(finalFilteredContent);
+      finalFilteredContent = sanitizeCommunityEvidenceClaims(finalFilteredContent);
       if (!finalFilteredContent) {
         finalFilteredContent = lastVisibleStreamContent || '我暂时没有生成到有效内容，请再试一次。';
+        finalFilteredContent = sanitizeCommunityEvidenceClaims(finalFilteredContent);
       }
 
       updateContent(finalFilteredContent);

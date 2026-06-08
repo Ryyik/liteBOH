@@ -8,7 +8,10 @@
 
           <!-- Content -->
           <div class="alert-content">
-            <div class="alert-icon-wrapper" :class="type" :style="iconStyle">
+            <div v-if="mascotSrc" class="alert-mascot-wrapper">
+              <img :src="mascotSrc" :alt="mascotAlt" draggable="false" />
+            </div>
+            <div v-else class="alert-icon-wrapper" :class="type" :style="iconStyle">
               <span class="alert-icon">{{ icon }}</span>
             </div>
             <h3 class="alert-title" :style="titleStyle">{{ title }}</h3>
@@ -60,6 +63,14 @@ const props = defineProps({
   styles: {
     type: Object,
     default: () => ({})
+  },
+  mascotSrc: {
+    type: String,
+    default: ''
+  },
+  mascotAlt: {
+    type: String,
+    default: '提示插画'
   }
 });
 
@@ -232,6 +243,23 @@ function getTypeColor(type, alpha) {
 
 .alert-icon-wrapper:hover {
   transform: scale(1.05);
+}
+
+.alert-mascot-wrapper {
+  width: 106px;
+  height: 86px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: -4px 0 14px;
+}
+
+.alert-mascot-wrapper img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
 }
 
 .alert-title {

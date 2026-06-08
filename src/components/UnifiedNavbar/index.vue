@@ -71,6 +71,8 @@
 
     <div class="nav-menu-mobile" id="nav-menu-mobile" :class="{ active: isMobileMenuOpen }">
       <div class="nav-menu-mobile-content">
+        <HomeCatMascot v-if="isHomeCatActive" class="nav-mobile-menu-cat" pool="background"
+          :seed="`mobile-menu-${mobileMenuOpenCount}`" size="lg" decorative />
         <div class="nav-mobile-main-menu" :class="{ hidden: expandedMenu }">
           <template v-for="item in navItems" :key="item.name">
             <template v-if="hasChildren(item)">
@@ -124,10 +126,18 @@ import { getImageUrl } from "../../utils/asset-helper.js";
 import { useAuthStore } from "@/stores/auth";
 import { storeToRefs } from "pinia";
 import { loadNotificationStore, getNotificationStoreSync } from "@/stores/notification-loader.js";
+import HomeCatMascot from "@/components/HomeCatMascot.vue";
+import { themeManager } from "@/utils/theme-manager.js";
+import { isHomeCatTheme } from "@/utils/home-cat-theme.js";
 
 const authStore = useAuthStore();
 const { isLoggedIn, isInitialized, showLoginModal } = storeToRefs(authStore);
 const notificationStoreRef = ref(getNotificationStoreSync());
+const currentTheme = ref(themeManager.getTheme());
+const currentThemePreference = ref(themeManager.getPreference?.() || currentTheme.value);
+const isHomeCatActive = computed(() => (
+  isHomeCatTheme(currentTheme.value) || isHomeCatTheme(currentThemePreference.value)
+));
 
 const ensureNotificationStore = async () => {
   if (notificationStoreRef.value) {
@@ -170,7 +180,6 @@ const navMenuItems = [
     name: "community",
     label: "社区",
     children: [
-      { name: "newsroom", path: "/newsroom", label: "新闻" },
       { name: "forum", path: "/forum", label: "论坛" },
       { name: "lotteries", path: "/lotteries", label: "抽奖" },
       { name: "activities", path: "/activities", label: "活动" },
@@ -330,6 +339,7 @@ const navItems = computed(() => {
  * 移动端菜单开关状态
  */
 const isMobileMenuOpen = ref(false);
+const mobileMenuOpenCount = ref(0);
 
 /**
  * 切换移动端菜单
@@ -338,6 +348,9 @@ const isMobileMenuOpen = ref(false);
  */
 const toggleMobileMenu = () => {
   isMobileMenuOpen.value = !isMobileMenuOpen.value;
+  if (isMobileMenuOpen.value) {
+    mobileMenuOpenCount.value += 1;
+  }
 
   // 检查是否为竖屏模式（高度大于宽度）
   const isPortrait = window.innerHeight > window.innerWidth;
@@ -482,6 +495,11 @@ const handleUnreadRefresh = () => {
   checkUnreadMessages();
 };
 
+const handleThemeChange = (theme, preference = themeManager.getPreference?.() || theme) => {
+  currentTheme.value = theme;
+  currentThemePreference.value = preference;
+};
+
 /**
  * 组件挂载时初始化
  */
@@ -503,6 +521,7 @@ onMounted(() => {
   window.addEventListener("resize", handleResize);
   window.addEventListener("storage", handleStorageChange);
   window.addEventListener("boh_unread_refresh", handleUnreadRefresh);
+  themeManager.addListener(handleThemeChange);
   // 添加点击外部关闭下拉菜单的事件监听
   document.addEventListener("click", handleClickOutside);
 });
@@ -517,6 +536,7 @@ onUnmounted(() => {
   window.removeEventListener("resize", handleResize);
   window.removeEventListener("storage", handleStorageChange);
   window.removeEventListener("boh_unread_refresh", handleUnreadRefresh);
+  themeManager.removeListener(handleThemeChange);
   // 移除点击外部关闭下拉菜单的事件监听
   document.removeEventListener("click", handleClickOutside);
 });

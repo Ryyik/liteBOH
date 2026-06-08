@@ -1,6 +1,12 @@
-import { callBohAIModel, extractBohAIJsonObject } from '@/utils/bohai-model-client.js';
+import {
+  callBohAIModel,
+  extractBohAIJsonObject,
+  ORCHESTRATOR_TIMEOUT_MS,
+  ORCHESTRATOR_MODEL_FALLBACK
+} from '@/utils/bohai-model-client.js';
 import { logger } from '@/utils/logger.js';
 import { SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID, resolveSiliconFlowFreeModelId } from '@/utils/siliconflow-free-models.js';
+import { AGENT_ORCHESTRATOR_DEFAULT_MODEL_ID } from '../../composables/chat-engine-config.js';
 import {
   AGENT_AGENT_ROLES,
   createAgentEvent,
@@ -16,7 +22,7 @@ import {
   isFanoutTrigger
 } from './agent-cluster-config.js';
 
-const DEFAULT_ORCHESTRATOR_MODEL = 'Qwen/Qwen3.5-4B';
+const DEFAULT_ORCHESTRATOR_MODEL = AGENT_ORCHESTRATOR_DEFAULT_MODEL_ID;
 
 const buildSnapshot = (registry) => {
   if (!registry || typeof registry.list !== 'function') return [];
@@ -55,7 +61,8 @@ export const createOrchestrator = ({
     query,
     clusterMode = 'auto',
     historySummary,
-    context = {}
+    context = {},
+    signal
   } = {}) => {
     const safeQuery = String(query || '').trim();
     const available = safeListAvailable(registry);
@@ -78,12 +85,32 @@ export const createOrchestrator = ({
           { role: 'user', content: userPrompt }
         ],
         temperature: 0.12,
-        maxTokens: 700
+        maxTokens: 400,
+        timeoutMs: ORCHESTRATOR_TIMEOUT_MS,
+        signal
       });
       parsed = parseOrchestratorPlan(content);
     } catch (error) {
       rawError = error;
-      logger.warn('bohai-cluster', 'Orchestrator 模型调用失败，使用兜底计划', { error: String(error?.message || error) });
+      // 主模型失败时，用更小的兜底模型再试一次。
+      try {
+        const { content } = await client.call({
+          model: ORCHESTRATOR_MODEL_FALLBACK,
+          messages: [
+            { role: 'system', content: '你是 BOH AI 集群的编排者。' },
+            { role: 'user', content: userPrompt }
+          ],
+          temperature: 0.12,
+          maxTokens: 400,
+          timeoutMs: ORCHESTRATOR_TIMEOUT_MS,
+          signal
+        });
+        parsed = parseOrchestratorPlan(content);
+        logger.warn('bohai-cluster', 'Orchestrator 主模型超时，已使用兜底小模型', { error: String(error?.message || error) });
+      } catch (fallbackError) {
+        rawError = fallbackError;
+        logger.warn('bohai-cluster', 'Orchestrator 模型调用失败，使用兜底计划', { error: String(fallbackError?.message || fallbackError) });
+      }
     }
 
     if (!parsed || !parsed.tasks || parsed.tasks.length === 0) {

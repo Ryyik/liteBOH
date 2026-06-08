@@ -12,6 +12,7 @@ import {
   RefreshCcw,
   X
 } from 'lucide-vue-next';
+import HomeCatMascot from '@/components/HomeCatMascot.vue';
 
 const props = defineProps({
   isLoggedIn: { type: Boolean, default: false },
@@ -33,7 +34,8 @@ const props = defineProps({
   isWeeklyCheckinSubmitting: { type: Boolean, default: false },
   forumTagOptions: { type: Array, default: () => [] },
   showPostImageSourceMenu: { type: Boolean, default: false },
-  isMobileComposer: { type: Boolean, default: false }
+  isMobileComposer: { type: Boolean, default: false },
+  isHomeCatTheme: { type: Boolean, default: false }
 });
 
 const emit = defineEmits([
@@ -71,6 +73,16 @@ const selectedTagLabel = computed(() => (
 ));
 const hasPostContent = computed(() => Boolean(
   String(props.newPost.title || '').trim() || String(props.newPost.content || '').trim()
+));
+const composerCatSeed = computed(() => [
+  props.selectedPostTag,
+  props.isUploadingPostImage ? 'uploading' : 'idle',
+  String(props.newPost.title || '').trim().length,
+  String(props.newPost.content || '').trim().length,
+  props.postImages.length
+].join(':'));
+const isComposerCatAwake = computed(() => (
+  String(props.newPost.content || '').trim().length >= 80 || props.postImages.length > 0
 ));
 const normalizedMentionUsers = computed(() => {
   const seen = new Set();
@@ -237,6 +249,12 @@ const closeImagePreview = () => {
           <span class="editor-prompt">今天想和大家分享什么？</span>
         </div>
       </div>
+      <HomeCatMascot v-if="isHomeCatTheme" class="composer-theme-cat"
+        :class="{ 'is-awake': isComposerCatAwake }"
+        :type="isUploadingPostImage ? 'uploading' : 'decor'"
+        :pool="isUploadingPostImage ? '' : 'background'"
+        :seed="composerCatSeed"
+        size="lg" decorative />
 
       <div class="input-group post-title-input-group">
         <input :value="newPost.title" type="text" :placeholder="isMobileComposer ? '标题' : '起个响亮的标题...'"
@@ -327,6 +345,7 @@ const closeImagePreview = () => {
           </div>
         </div>
         <div v-if="postImageUploadStatus || isUploadingPostImage" class="post-image-upload-status">
+          <HomeCatMascot v-if="isHomeCatTheme" type="uploading" size="sm" decorative />
           <span v-if="isUploadingPostImage" class="mini-spinner"></span>
           <span>{{ postImageUploadStatus }}</span>
         </div>

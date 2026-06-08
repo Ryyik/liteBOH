@@ -591,6 +591,72 @@ export async function getProfilesPage({ page = 1, pageSize = 10, search = '', co
   );
 }
 
+export async function getRecentBirthdayProfiles({ limit = 8 } = {}) {
+  const safeLimit = Number.isFinite(limit) ? Math.min(24, Math.max(1, Math.trunc(limit))) : 8;
+
+  return executeRead(
+    'profiles.getRecentBirthdayProfiles',
+    { limit: safeLimit },
+    async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select(`
+          id,
+          username,
+          avatar_url,
+          bio,
+          join_date,
+          birth_month,
+          birth_day
+        `)
+        .not('birth_month', 'is', null)
+        .not('birth_day', 'is', null)
+        .limit(200);
+
+      if (error) {
+        return { data: [], error };
+      }
+
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const todayStart = new Date(currentYear, now.getMonth(), now.getDate()).getTime();
+      const withDistance = (data || []).map((profile) => {
+        const month = Number(profile.birth_month);
+        const day = Number(profile.birth_day);
+        let nextBirthday = new Date(currentYear, month - 1, day);
+        if (Number.isNaN(nextBirthday.getTime())) {
+          return null;
+        }
+        if (nextBirthday.getTime() < todayStart) {
+          nextBirthday = new Date(currentYear + 1, month - 1, day);
+        }
+        return {
+          ...profile,
+          birthday_days_until: Math.max(0, Math.round((nextBirthday.getTime() - todayStart) / 86400000))
+        };
+      }).filter(Boolean);
+
+      withDistance.sort((a, b) => {
+        if (a.birthday_days_until !== b.birthday_days_until) {
+          return a.birthday_days_until - b.birthday_days_until;
+        }
+        return String(a.username || '').localeCompare(String(b.username || ''), 'zh-Hans-CN');
+      });
+
+      return {
+        data: withDistance.slice(0, safeLimit),
+        error: null
+      };
+    },
+    {
+      ttlMs: 5 * 60 * 1000,
+      tags: ['profiles'],
+      timeoutMs: 8000,
+      retry: 1
+    }
+  );
+}
+
 export async function getUserInfo(userId) {
   return executeRead(
     'profiles.getUserInfo',

@@ -29,7 +29,7 @@ class ThemeManager {
     const savedTheme = localStorage.getItem('boh-theme');
     const savedUiStyle = localStorage.getItem('boh-ui-style');
 
-    this.preference = ['light', 'dark', 'system'].includes(savedTheme) ? savedTheme : 'light';
+    this.preference = ['light', 'dark', 'system', 'home-cat'].includes(savedTheme) ? savedTheme : 'light';
     this.uiStyle = ['flat', 'glass'].includes(savedUiStyle) ? savedUiStyle : 'glass';
     this.theme = this.resolveTheme(this.preference);
     this.updateSystemThemeListener();
@@ -69,7 +69,7 @@ class ThemeManager {
 
   /**
    * 应用指定主题
-   * @param {string} theme - 'light' 或 'dark'
+   * @param {string} theme - 'light'、'dark' 或自定义主题
    */
   applyTheme(theme, preference = this.preference) {
     this.theme = theme;
@@ -136,10 +136,10 @@ class ThemeManager {
 
   /**
    * 设置指定主题
-   * @param {string} theme - 'light' 或 'dark'
+   * @param {string} theme - 'light'、'dark' 或自定义主题
    */
   setTheme(theme) {
-    if (theme === 'light' || theme === 'dark') {
+    if (theme === 'light' || theme === 'dark' || theme === 'home-cat') {
       this.preference = theme;
       this.updateSystemThemeListener();
       this.applyTheme(theme, theme);
@@ -157,7 +157,7 @@ class ThemeManager {
 
   /**
    * 获取用户选择的主题偏好
-   * @returns {'light'|'dark'|'system'}
+   * @returns {'light'|'dark'|'system'|'home-cat'}
    */
   getPreference() {
     return this.preference;
@@ -244,7 +244,7 @@ class ThemeManager {
     if (metaThemeColor) {
       metaThemeColor.setAttribute(
         'content',
-        theme === 'dark' ? '#0a0a0f' : '#ffffff'
+        theme === 'dark' ? '#0a0a0f' : (theme === 'home-cat' ? '#fffdf8' : '#ffffff')
       );
     }
   }

@@ -36,19 +36,28 @@ export const CONVERSATION_SUMMARY_MAX_CHARS = 900;
 export const CONVERSATION_SUMMARY_STORAGE_VERSION = 1;
 export const GENERATION_STALL_TIMEOUT_MS = 90000;
 
-export async function getAIMemory() {
-  if (aiMemoryCache) return aiMemoryCache;
-  if (!aiMemoryLoader) {
-    aiMemoryLoader = import('@/data/ai-memory.js')
-      .then((module) => {
-        aiMemoryCache = typeof module.AI_MEMORY === 'string' ? module.AI_MEMORY : '';
-        return aiMemoryCache;
-      })
-      .catch((error) => {
-        logger.error('boh-ai', 'Load AI memory failed', error);
-        return '';
-      });
+const AI_MEMORY_RETRY_DELAY_MS = 30000;
+
+export async function getAIMemory({ forceReload = false } = {}) {
+  if (!forceReload && aiMemoryCache) return aiMemoryCache;
+  if (!forceReload && aiMemoryLoader) return aiMemoryLoader;
+  if (forceReload) {
+    aiMemoryCache = '';
+    aiMemoryLoader = null;
   }
+  aiMemoryLoader = import('@/data/ai-memory.js')
+    .then((module) => {
+      aiMemoryCache = typeof module.AI_MEMORY === 'string' ? module.AI_MEMORY : '';
+      return aiMemoryCache;
+    })
+    .catch((error) => {
+      logger.error('boh-ai', 'Load AI memory failed', error);
+      aiMemoryLoader = null;
+      setTimeout(() => {
+        if (aiMemoryCache === '') aiMemoryLoader = null;
+      }, AI_MEMORY_RETRY_DELAY_MS).unref?.();
+      return '';
+    });
   return aiMemoryLoader;
 }
 
@@ -61,6 +70,8 @@ export const splitKnowledgeChunks = (rawText) => {
     .filter((chunk) => chunk.length >= 16);
 };
 
+// 注意：当前实现是 FIFO 容量上限（按插入顺序淘汰最旧的 key），不是真 LRU。
+// 命中率足够支撑现有调用频次；若未来需要 LRU，可改用 Map + 重新插入实现。
 const keywordCache = new Map();
 
 export const clearKeywordCache = () => {
@@ -201,6 +212,39 @@ export const appendPromptSection = (base, section, maxChars = MAX_FINAL_PROMPT_C
 export const normalizePromptLine = (text, maxChars = MAX_HISTORY_MESSAGE_CHARS) => {
   const normalized = String(text ?? '').replace(/\s+/g, ' ').trim();
   return truncateText(normalized, maxChars);
+};
+
+export const isContextDependentFollowUp = (text = '') => {
+  const normalized = normalizePromptLine(text, 160);
+  if (!normalized) return false;
+  const explicitFollowUpPattern = /(这个|那个|上面|刚才|刚刚|前面|继续|展开|详细|多说|那|它|其|然后呢|还有呢)/i;
+  const shortAttributeQuestionPattern = /^(?:这个|那个|它|那)?(?:作用|用途|原理|好处|区别|怎么做|怎么练|有什么用|为什么|是什么|怎么办|咋办)(?:是?什么|呢|吗|呀|啊)?$/i;
+  return (explicitFollowUpPattern.test(normalized) || shortAttributeQuestionPattern.test(normalized))
+    && normalized.length <= 42;
+};
+
+export const buildContextualFollowUpQuery = (
+  userText = '',
+  historyMessages = [],
+  { maxChars = 900 } = {}
+) => {
+  const current = normalizePromptLine(userText, MAX_HISTORY_MESSAGE_CHARS);
+  if (!current || !isContextDependentFollowUp(current)) return current;
+
+  const source = Array.isArray(historyMessages) ? historyMessages : [];
+  const previousTurns = [];
+  for (let index = source.length - 1; index >= 0; index -= 1) {
+    const item = source[index];
+    if (item?.meta?.kind === 'memory_saved_notice') continue;
+    if (item?.role !== 'assistant' && item?.role !== 'user') continue;
+    const content = normalizePromptLine(item?.content, 260);
+    if (!content) continue;
+    previousTurns.unshift(`${item.role === 'assistant' ? '助手' : '用户'}：${content}`);
+    if (previousTurns.length >= 4) break;
+  }
+
+  if (previousTurns.length === 0) return current;
+  return truncateText(`最近对话：${previousTurns.join(' | ')}\n当前追问：${current}`, maxChars);
 };
 
 export const buildHistoryMessagesWithinBudget = (
@@ -896,6 +940,15 @@ export const hasEscapedLineBreakFlood = (text) => {
   return /(?:\\[rn]["'`]?){6,}$/i.test(tail);
 };
 
+// 退化判定中识别的标点/符号字符集。中英文、全半角混排统一纳入。
+// 字符级正则源串：用于构造 RegExp。已对 \ ] 等字符做转义。
+const PUNCT_REPEAT_CHAR_CLASS = '[!！?？。．.，,、~～\\-_=+*#@%^&|/\\\\:;\`\'"\\[\\]{}]';
+// 字符级正则源串：用于 match 中提取标点（不含 [ ] { }，与原始实现保持一致）。
+const PUNCT_DENSITY_CHAR_CLASS = '[!！?？。．.，,、~～\\-_=+*#@%^&|/\\\\:;\`\'"]';
+
+const buildPunctRepeatRegex = (repeatCount) => new RegExp(`(${PUNCT_REPEAT_CHAR_CLASS})\\1{${repeatCount},}`, 'u');
+const buildPunctDensityRegex = () => new RegExp(PUNCT_DENSITY_CHAR_CLASS, 'gu');
+
 export const isDegenerateAssistantReply = (text) => {
   const normalized = normalizeEscapedLineBreaks(text).trim();
   if (!normalized) return true;
@@ -904,10 +957,10 @@ export const isDegenerateAssistantReply = (text) => {
   const compact = normalizeCompactText(normalized);
   if (!compact) return true;
   if (new RegExp(`(.)\\1{${DEGENERATE_REPEAT_COUNT},}`, 'u').test(compact)) return true;
-  if (new RegExp(`([!！?？。．.，,、~～\\-_=+*#@%^&|/\\\\:;\`'"])\\1{${DEGENERATE_PUNCT_REPEAT_COUNT},}`, 'u').test(compact)) return true;
+  if (buildPunctRepeatRegex(DEGENERATE_PUNCT_REPEAT_COUNT).test(compact)) return true;
 
   if (compact.length < 40) return false;
-  const punctCount = (compact.match(/[!！?？。．.，,、~～\-_=+*#@%^&|/\\:;`'"]/gu) || []).length;
+  const punctCount = (compact.match(buildPunctDensityRegex()) || []).length;
   return punctCount / compact.length >= DEGENERATE_PUNCTUATION_RATIO;
 };
 
@@ -917,16 +970,16 @@ export const isDegenerateStreamOutput = (text) => {
   if (hasEscapedLineBreakFlood(normalized)) return true;
 
   const compact = normalizeCompactText(normalized.slice(-DEGENERATE_STREAM_WINDOW_CHARS));
-  const tailPunctuationRun = compact.match(/([!！?？。．.，,、~～\-_=+*#@%^&|/\\:;`'"]{18,})$/u);
+  const tailPunctuationRun = compact.match(new RegExp(`(${PUNCT_DENSITY_CHAR_CLASS.slice(1, -1)}){18,}$`, 'u'));
   if (tailPunctuationRun && tailPunctuationRun[1].length / Math.max(1, compact.length) >= 0.08) {
     return true;
   }
   if (compact.length < DEGENERATE_STREAM_MIN_CHARS) return false;
 
-  if (new RegExp(`([!！?？。．.，,、~～\\-_=+*#@%^&|/\\\\:;\`'"])\\1{${DEGENERATE_STREAM_REPEAT_COUNT},}`, 'u').test(compact)) {
+  if (buildPunctRepeatRegex(DEGENERATE_STREAM_REPEAT_COUNT).test(compact)) {
     return true;
   }
 
-  const punctCount = (compact.match(/[!！?？。．.，,、~～\-_=+*#@%^&|/\\:;`'"]/gu) || []).length;
+  const punctCount = (compact.match(buildPunctDensityRegex()) || []).length;
   return punctCount / compact.length >= DEGENERATE_STREAM_PUNCTUATION_RATIO;
 };

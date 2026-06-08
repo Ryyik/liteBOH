@@ -55,6 +55,29 @@
   box-shadow: none !important;
   background: transparent !important;
   padding: clamp(28px, 4vw, 56px) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.detail-post-decor-cat {
+  position: absolute;
+  right: clamp(18px, 2.6vw, 36px);
+  top: clamp(18px, 2.4vw, 32px);
+  width: clamp(76px, 8vw, 118px);
+  height: clamp(62px, 7vw, 98px);
+  opacity: 0.34;
+  transform: rotate(5deg);
+  filter: drop-shadow(0 14px 22px rgba(124, 96, 61, 0.12));
+  z-index: 0;
+}
+
+.x-post-card .post-header,
+.x-post-card .post-content,
+.x-post-card .post-footer,
+.x-post-card .post-detail-image-carousel,
+.x-post-card .edit-form {
+  position: relative;
+  z-index: 1;
 }
 
 .x-side-column {
@@ -1039,6 +1062,7 @@
   font-weight: 650;
   font-size: 13px;
   cursor: pointer;
+  position: relative;
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
 }
 
@@ -1114,6 +1138,66 @@
 
 .like-btn.is-liked .action-svg {
   animation: heartBeat 0.4s ease;
+}
+
+.detail-like-pop-cat-img {
+  position: absolute;
+  left: 50%;
+  top: -44px;
+  width: 46px;
+  height: 46px;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 8px 14px rgba(255, 143, 179, 0.22));
+  animation: detailHomeCatLikePop 1.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes detailHomeCatLikePop {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px) scale(0.76);
+  }
+  24% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-2px) scale(1);
+  }
+  66% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-6px) scale(0.98);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-22px) scale(0.88);
+  }
+}
+
+.detail-reply-success-cat-img {
+  position: absolute;
+  right: 20px;
+  top: -32px;
+  width: 54px;
+  height: 54px;
+  pointer-events: none;
+  filter: drop-shadow(0 10px 18px rgba(124, 96, 61, 0.16));
+  animation: detailReplySuccessPop 1.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  z-index: 2;
+}
+
+@keyframes detailReplySuccessPop {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.78) rotate(-4deg);
+  }
+  18% {
+    opacity: 0.95;
+  }
+  58% {
+    opacity: 0.95;
+    transform: translateY(-8px) scale(1) rotate(3deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-18px) scale(0.94) rotate(0deg);
+  }
 }
 
 @keyframes heartBeat {
@@ -1428,6 +1512,11 @@
   color: #86868b;
 }
 
+.no-comments-state :deep(.home-cat-mascot) {
+  display: flex;
+  margin: 0 auto 10px;
+}
+
 .no-comments-icon {
   font-size: 48px;
   margin-bottom: 16px;
@@ -1475,6 +1564,27 @@
 .post-skeleton-main,
 .comments-skeleton-side {
   min-height: 360px;
+  position: relative;
+  overflow: hidden;
+}
+
+.detail-skeleton-thinking-cat {
+  position: absolute;
+  right: 28px;
+  top: 24px;
+  width: 90px;
+  height: 78px;
+  opacity: 0.56;
+  animation: detailHomeCatThinking 1.8s ease-in-out infinite;
+}
+
+@keyframes detailHomeCatThinking {
+  0%, 100% {
+    transform: translateY(0) rotate(2deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(-2deg);
+  }
 }
 
 .post-skeleton-header {
@@ -2173,6 +2283,15 @@
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
 }
 
+.detail-confirm-cat-img {
+  display: block;
+  width: 88px;
+  height: 76px;
+  object-fit: contain;
+  margin: -6px auto 8px;
+  user-select: none;
+}
+
 .detail-confirm-modal h3 {
   margin: 0 0 8px;
   font-size: 18px;
@@ -2228,6 +2347,68 @@
 .detail-confirm-fade-enter-from,
 .detail-confirm-fade-leave-to {
   opacity: 0;
+}
+
+.post-detail-page[data-theme="home-cat"] {
+  --detail-ink: #2f2f2f;
+  --detail-muted: #7b756d;
+  --detail-line: rgba(232, 222, 209, 0.92);
+  background-color: #fffdf8;
+  background-image:
+    radial-gradient(760px 300px at 10% -40px, rgba(255, 216, 168, 0.26), transparent 62%),
+    radial-gradient(620px 260px at 96% 0%, rgba(255, 232, 239, 0.3), transparent 60%),
+    linear-gradient(180deg, #fffdf8 0%, #f8f2ea 100%);
+}
+
+.post-detail-page[data-theme="home-cat"] .x-main-column,
+.post-detail-page[data-theme="home-cat"] .x-side-content {
+  border-color: rgba(232, 222, 209, 0.95) !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+  box-shadow: 0 16px 42px rgba(124, 96, 61, 0.075) !important;
+}
+
+.post-detail-page[data-theme="home-cat"] .like-btn.is-liked {
+  color: #ff8fb3;
+  background: #ffe8ef;
+  border-color: rgba(255, 143, 179, 0.28);
+}
+
+.post-detail-page[data-theme="home-cat"] .no-comments-icon {
+  display: none;
+}
+
+.post-detail-page[data-theme="home-cat"] .detail-confirm-overlay {
+  background: rgba(47, 47, 47, 0.26);
+}
+
+.post-detail-page[data-theme="home-cat"] .detail-confirm-modal {
+  border-color: rgba(232, 222, 209, 0.95);
+  background: rgba(255, 253, 248, 0.98);
+  box-shadow: 0 24px 64px rgba(124, 96, 61, 0.16);
+  text-align: center;
+}
+
+.post-detail-page[data-theme="home-cat"] .detail-confirm-modal h3 {
+  color: #2f2f2f;
+}
+
+.post-detail-page[data-theme="home-cat"] .detail-confirm-modal p {
+  color: #7b756d;
+}
+
+.post-detail-page[data-theme="home-cat"] .detail-confirm-actions {
+  justify-content: center;
+}
+
+.post-detail-page[data-theme="home-cat"] .detail-confirm-btn.secondary {
+  background: #f8f2ea;
+  color: #2f2f2f;
+}
+
+.post-detail-page[data-theme="home-cat"] .detail-confirm-btn.danger {
+  background: #2f2f2f;
+  color: #fffdf8;
+  box-shadow: 0 10px 24px rgba(47, 47, 47, 0.14);
 }
 
 @media (max-width: 768px) {

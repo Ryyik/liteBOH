@@ -1,5 +1,6 @@
 import { AGENT_AGENT_ROLES } from '../core/agent-events.js';
 import { logger } from '@/utils/logger.js';
+import { AGENT_OPS_DEFAULT_MODEL_ID } from '../../composables/chat-engine-config.js';
 
 const safeString = (value, max = 1500) => (value == null ? '' : String(value)).slice(0, max);
 
@@ -24,7 +25,7 @@ export const createOpsAgent = (options = {}) => {
   const {
     invokeSiteGuide,
     invokeDraft,
-    defaultModel = 'Qwen/Qwen2.5-7B-Instruct',
+    defaultModel = AGENT_OPS_DEFAULT_MODEL_ID,
     modelClient
   } = options;
 

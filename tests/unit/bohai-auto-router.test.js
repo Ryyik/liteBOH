@@ -6,6 +6,7 @@ import {
   isLikelyDailySummaryRequest,
   isLikelyPlanModeRequest,
   isLikelyMinecraftCommandRequest,
+  isLikelyPersonalSupportRequest,
   isLikelyWebSearchRequest,
   resolveBOHAIAutoModeDecision
 } from '../../src/utils/bohai-auto-router.js';
@@ -108,6 +109,17 @@ describe('bohai auto router: mode routing', () => {
     expect(generalDecision.shouldSearchWeb).toBe(true);
     expect(latestDecision.actionNotes).toContain('准备联网搜索最新资料。');
     expect(internalDecision.shouldSearchWeb).toBe(false);
+  });
+
+  it('treats everyday personal distress as support instead of web health research', () => {
+    const decision = resolveBOHAIAutoModeDecision('感觉睡不好咋办', {
+      isAutoMode: true
+    });
+
+    expect(isLikelyPersonalSupportRequest('感觉睡不好咋办')).toBe(true);
+    expect(isLikelyWebSearchRequest('感觉睡不好咋办')).toBe(false);
+    expect(decision.shouldSearchWeb).toBe(false);
+    expect(decision.modeId).toBe('fast');
   });
 });
 

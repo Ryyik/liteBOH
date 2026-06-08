@@ -2,13 +2,14 @@ import { callBohAIModel, extractBohAIJsonObject } from '@/utils/bohai-model-clie
 import { logger } from '@/utils/logger.js';
 import { SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID, resolveSiliconFlowFreeModelId } from '@/utils/siliconflow-free-models.js';
 import { AGENT_AGENT_ROLES, createAgentEvent } from './agent-events.js';
+import { AGENT_SYNTHESIZER_DEFAULT_MODEL_ID } from '../../composables/chat-engine-config.js';
 import {
   SYNTHESIZER_SYSTEM_PROMPT,
   buildSynthesizerUserPrompt,
   splitSynthesizerStream
 } from '../prompts/synthesizer-prompt.js';
 
-const DEFAULT_SYNTH_MODEL = 'Qwen/Qwen3-8B';
+const DEFAULT_SYNTH_MODEL = AGENT_SYNTHESIZER_DEFAULT_MODEL_ID;
 const MAX_SYNTH_TOKENS = 1600;
 
 const fallbackAnswer = ({ bus, reason }) => {

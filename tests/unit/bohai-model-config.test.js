@@ -44,9 +44,13 @@ describe('BOH AI SiliconFlow model config', () => {
 
     expect(RESPONSE_STYLE_SETTING_KEY).toBe('boh_ai_response_style_v1');
     expect(ids).toEqual(['default', 'socratic', 'psychologist', 'crisp']);
+    expect(RESPONSE_STYLE_OPTIONS.find((item) => item.id === 'default')?.promptAppendix).toContain('可靠、自然的朋友兼助手');
     expect(RESPONSE_STYLE_OPTIONS.find((item) => item.id === 'socratic')?.promptAppendix).toContain('苏格拉底');
+    expect(RESPONSE_STYLE_OPTIONS.find((item) => item.id === 'socratic')?.promptAppendix).toContain('思辨伙伴');
     expect(RESPONSE_STYLE_OPTIONS.find((item) => item.id === 'psychologist')?.promptAppendix).toContain('心理专家');
+    expect(RESPONSE_STYLE_OPTIONS.find((item) => item.id === 'psychologist')?.promptAppendix).toContain('陪伴者');
     expect(RESPONSE_STYLE_OPTIONS.find((item) => item.id === 'crisp')?.promptAppendix).toContain('高冷干练');
+    expect(RESPONSE_STYLE_OPTIONS.find((item) => item.id === 'crisp')?.promptAppendix).toContain('话不多的专业搭档');
   });
 
   it('documents embedding and rerank models for BOH AI retrieval', () => {

@@ -203,6 +203,177 @@
   }
 }
 
+/* BOH 小猫主题 Hero Section */
+.cat-theme-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr);
+  align-items: center;
+  gap: 36px;
+  min-height: 520px;
+  padding: 124px 8vw 78px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 84% 24%, rgba(255, 194, 209, 0.46), transparent 32%),
+    linear-gradient(135deg, #fff8fb 0%, #f7fbff 48%, #fff7e8 100%);
+}
+
+.cat-theme-hero::before {
+  content: "";
+  position: absolute;
+  inset: 88px 28px 28px;
+  border: 1px solid rgba(244, 131, 166, 0.24);
+  border-radius: 32px;
+  pointer-events: none;
+}
+
+.cat-theme-copy,
+.cat-theme-stage {
+  position: relative;
+  z-index: 1;
+}
+
+.cat-theme-title {
+  max-width: 760px;
+  margin: 0;
+  color: #202124;
+  font-size: clamp(42px, 6vw, 82px);
+  font-weight: 850;
+  line-height: 1.02;
+  letter-spacing: 0;
+}
+
+.cat-theme-subtitle {
+  margin: 20px 0 0;
+  color: #5e6470;
+  font-size: clamp(18px, 2.4vw, 28px);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.cat-theme-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  margin-top: 30px;
+  padding: 0 26px;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  text-decoration: none;
+  background: #ff6f9f;
+  border-radius: 999px;
+  box-shadow: 0 14px 32px rgba(255, 111, 159, 0.24);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+}
+
+.cat-theme-action:hover,
+.cat-theme-action:focus-visible {
+  background: #f45f91;
+  box-shadow: 0 18px 40px rgba(255, 111, 159, 0.32);
+  transform: translateY(-2px);
+}
+
+.cat-theme-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+}
+
+.cat-theme-main-cat {
+  width: min(48vw, 260px);
+  height: min(48vw, 260px);
+  filter: drop-shadow(0 24px 34px rgba(255, 134, 168, 0.24));
+}
+
+.cat-theme-side-cat {
+  position: absolute;
+  filter: drop-shadow(0 16px 22px rgba(75, 86, 113, 0.12));
+}
+
+.cat-theme-side-cat-left {
+  left: 4%;
+  bottom: 8%;
+  transform: rotate(-9deg);
+}
+
+.cat-theme-side-cat-right {
+  top: 7%;
+  right: 6%;
+  transform: rotate(8deg);
+}
+
+@media (max-width: 900px) {
+  .cat-theme-hero {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    min-height: auto;
+    padding: 112px 24px 60px;
+    text-align: center;
+  }
+
+  .cat-theme-title {
+    margin: 0 auto;
+  }
+
+  .cat-theme-stage {
+    min-height: 230px;
+  }
+
+  .cat-theme-main-cat {
+    width: 190px;
+    height: 190px;
+  }
+
+  .cat-theme-side-cat-left {
+    left: 16%;
+  }
+
+  .cat-theme-side-cat-right {
+    right: 16%;
+  }
+}
+
+@media (max-width: 480px) {
+  .cat-theme-hero {
+    padding: 104px 18px 46px;
+  }
+
+  .cat-theme-hero::before {
+    inset: 78px 14px 14px;
+    border-radius: 22px;
+  }
+
+  .cat-theme-title {
+    font-size: 38px;
+  }
+
+  .cat-theme-subtitle {
+    font-size: 18px;
+  }
+
+  .cat-theme-action {
+    width: 100%;
+    max-width: 210px;
+  }
+
+  .cat-theme-stage {
+    min-height: 190px;
+  }
+
+  .cat-theme-main-cat {
+    width: 150px;
+    height: 150px;
+  }
+
+  .cat-theme-side-cat {
+    width: 68px;
+    height: 68px;
+  }
+}
+
 /* BOH 设定集 Hero Section - Apple Style */
 .boh-school-hero {
   background: #ffffff;
@@ -4311,6 +4482,7 @@
   }
 
   #unified-nav-container,
+  .cat-theme-hero,
   .boh-school-hero,
   .anniversary-hero,
   .halo-hero-apple {
@@ -4322,10 +4494,16 @@
   }
 
   .boh-school-hero {
-    order: -10;
+    order: -9;
     min-height: calc(100vh - 60px);
     padding: 72px 40px 0;
     background: #ffffff;
+  }
+
+  .cat-theme-hero {
+    order: -10;
+    min-height: calc(100vh - 60px);
+    padding: 116px 8vw 72px;
   }
 
   .boh-school-container {
@@ -4347,7 +4525,7 @@
   }
 
   .anniversary-hero {
-    order: -9;
+    order: -8;
     min-height: 86vh;
     padding: 76px 40px 56px;
     background: #ffffff;
@@ -4379,7 +4557,7 @@
   }
 
   .halo-hero-apple {
-    order: -8;
+    order: -7;
     min-height: 92vh;
     padding: 76px 40px 0;
     background: #ffffff;

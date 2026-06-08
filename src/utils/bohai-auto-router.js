@@ -77,6 +77,14 @@ export const ROUTING_PATTERNS = {
     pattern: /(健康|医学|医疗|疾病|症状|诊断|治疗|用药|药物|药品|处方|副作用|禁忌|剂量|服用|能不能吃|要不要吃|要喝吗|要吃吗|怀孕|过敏|营养|补剂|补充剂|肌酸|蛋白粉|咖啡因|维生素|鱼油|健身|训练|增肌|减脂|运动损伤|拉伤|疼痛|康复|睡眠)/i,
     label: '健康安全'
   },
+  personalSupport: {
+    pattern: /(睡不好|睡不着|失眠|焦虑|难过|伤心|低落|不开心|委屈|孤独|害怕|心里堵|压力大|内耗|烦躁|崩溃|撑不住|想哭|关系.{0,8}(难受|冲突|紧张|别扭)|朋友.{0,8}(吵架|冲突|疏远)|家人.{0,8}(冲突|吵架|压力)|恋爱.{0,8}(难受|分手|冲突)|分手).{0,24}(咋办|怎么办|怎么处理|怎么缓解|怎么调节|有点|很|太|一直|老是|总是)?/i,
+    label: '个人支持'
+  },
+  professionalHealth: {
+    pattern: /(诊断|治疗|疗法|药物|用药|处方|剂量|副作用|禁忌|疾病|病症|症状|抑郁症|焦虑症|双相|精神分裂|创伤后|ptsd|adhd|ocd|心理学研究|论文|量表|指南|咨询师|心理医生|精神科|医院|危机干预|自杀|自残|轻生|严重失眠|连续.*睡不着|几天.*没睡)/i,
+    label: '专业健康'
+  },
   externalKnowledge: {
     pattern: /(是什么|为什么|怎么|如何|能不能|要不要|是否|区别|对比|推荐|建议|原理|用法|风险|安全吗|靠谱吗|指南|教程|资料|文档|官网|研究|论文|科学|历史|地理|法律|税务|保险|签证|旅游|学校|大学|专业|产品|品牌|型号|软件|app|api|框架|库|插件|vue|react|node|npm|python|javascript|typescript|css|html|sql|what|why|how|when|where|which|should i|can i)/i,
     label: '外部知识'
@@ -99,7 +107,24 @@ export const isLikelyDailySummaryRequest = (text) => ROUTING_PATTERNS.dailySumma
 
 export const isLikelyCloudReferenceRequest = (text) => {
   const normalized = normalizeText(text);
-  return ROUTING_PATTERNS.dailySummary.pattern.test(normalized) || ROUTING_PATTERNS.cloudReference.pattern.test(normalized);
+  if (!normalized) return false;
+  if (ROUTING_PATTERNS.dailySummary.pattern.test(normalized)) return true;
+  if (ROUTING_PATTERNS.cloudReference.pattern.test(normalized)) return true;
+  // 兜底：只要用户文本里命中 internalSource（cloud / cloud+ / 随手记 / 日记 /
+  // 笔记 / 私有记录），并且问题表达涉及"自己/我的/我"语义，就倾向于需要参考 Cloud+。
+  // 覆盖"我 cloud+ 里的笔记""翻一下随手记""cloud+ 上面的内容""读一下我的日记"等自然表达。
+  if (ROUTING_PATTERNS.internalSource.pattern.test(normalized)
+      && /(我|我的|自己|本人)/.test(normalized)) {
+    return true;
+  }
+  return false;
+};
+
+export const isLikelyPersonalSupportRequest = (text) => {
+  const normalized = normalizeText(text);
+  if (!normalized) return false;
+  if (ROUTING_PATTERNS.professionalHealth.pattern.test(normalized)) return false;
+  return ROUTING_PATTERNS.personalSupport.pattern.test(normalized);
 };
 
 export const isLikelyWebSearchRequest = (text) => {
@@ -108,6 +133,7 @@ export const isLikelyWebSearchRequest = (text) => {
   if (ROUTING_PATTERNS.forumPost.pattern.test(normalized)) return false;
   if (ROUTING_PATTERNS.explicitWebSearch.pattern.test(normalized)) return true;
   const isInternalSource = ROUTING_PATTERNS.internalSource.pattern.test(normalized);
+  if (!isInternalSource && isLikelyPersonalSupportRequest(normalized)) return false;
   if (!isInternalSource && ROUTING_PATTERNS.healthOrSafety.pattern.test(normalized)) return true;
   if (!isInternalSource && ROUTING_PATTERNS.externalKnowledge.pattern.test(normalized)) return true;
   if (!ROUTING_PATTERNS.webFreshness.pattern.test(normalized)) return false;

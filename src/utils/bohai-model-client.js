@@ -15,6 +15,12 @@ const MODEL_RETRY_MAX = 2;
 const MODEL_RETRY_BACKOFF_BASE_MS = 800;
 const MODEL_HARD_TIMEOUT_MS = CONNECTOR_TIMEOUT_MS * 4;
 
+// Orchestrator 单独的超时（毫秒），比通用超时短，避免 plan 阶段卡住。
+// Orchestrator 只需要结构化 plan 输出，token 较少，3B 级别模型即可胜任。
+export const ORCHESTRATOR_TIMEOUT_MS = 18000;
+// Orchestrator 失败时的兜底模型（更小的 3B 模型，响应更快）。
+export const ORCHESTRATOR_MODEL_FALLBACK = 'Qwen/Qwen2.5-3B-Instruct';
+
 const isRetryableStatus = (status) => status === 429 || (status >= 500 && status <= 599);
 
 const withTimeout = (promise, timeoutMs, timeoutMessage) => {
@@ -118,7 +124,7 @@ export const callBohAIModel = async ({
           await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
-        throw new Error('BOHAI 模型请求超时，已重试2次仍失败。请检查网络或稍后再试。');
+        throw new Error(`BOHAI 模型请求超时，已重试 ${MODEL_RETRY_MAX} 次仍失败。请检查网络或稍后再试。`);
       }
       if (isRetryableStatus(error.status) && attempt < MODEL_RETRY_MAX) {
         lastError = error;

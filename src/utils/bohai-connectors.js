@@ -8,7 +8,9 @@ import {
   categorizeError,
   shouldSkipConnector,
   recordConnectorFailure,
-  resetConnectorFailures
+  resetConnectorFailures,
+  recordActionFailure,
+  resetActionFailures
 } from './bohai-constants.js';
 
 export const BOHAI_CONNECTOR_IDS = {
@@ -69,17 +71,25 @@ export const createBohAIConnector = ({
   requiresLogin = false,
   read = null,
   describeAction = null
-} = {}) => ({
-  id,
-  planKey,
-  label,
-  source: source || label,
-  layer,
-  evidencePrefix,
-  requiresLogin: Boolean(requiresLogin),
-  read,
-  describeAction
-});
+} = {}) => {
+  // 强制要求 id 必填，避免后续熔断 key 漂移：不同 connector 共用空串或 planKey
+  // 会让 circuit breaker 状态互相污染。
+  const finalId = String(id || '').trim() || String(planKey || '').trim();
+  if (!finalId) {
+    throw new Error('createBohAIConnector: 必须提供 id 或 planKey');
+  }
+  return {
+    id: finalId,
+    planKey,
+    label,
+    source: source || label,
+    layer,
+    evidencePrefix,
+    requiresLogin: Boolean(requiresLogin),
+    read,
+    describeAction
+  };
+};
 
 export const createBohAIAction = ({
   id = '',
@@ -153,7 +163,7 @@ export const runBohAIAction = async ({
       message: '',
       errorMessage: BOHAI_ERROR_MESSAGES.loginRequired,
       data: null,
-      metadata: { reason: BOHAI_ERROR_TYPES.AUTH_ERROR }
+      metadata: { reason: BOHAI_ERROR_TYPES.LOGIN_REQUIRED }
     };
   }
 
@@ -180,7 +190,7 @@ export const runBohAIAction = async ({
   try {
     const executePromise = action.execute(payload, { auth, action });
     const rawResult = await withTimeout(executePromise, actionTimeoutMs, BOHAI_ERROR_MESSAGES.connectorTimeout);
-    resetConnectorFailures(action.id || 'action');
+    resetActionFailures(action.id || 'action');
     return normalizeBohAIActionResult(action, rawResult);
   } catch (error) {
     const errorInfo = categorizeError(error);
@@ -207,7 +217,8 @@ export const runBohAIAction = async ({
       });
     }
 
-    recordConnectorFailure(actionId);
+    // 写动作失败单独记录到 actionFailureTracker，不再污染 connector 熔断窗口。
+    recordActionFailure(actionId);
 
     return {
       ok: false,
@@ -286,72 +297,9 @@ export const normalizeConnectorReadResult = (connector = {}, rawResult = null) =
   };
 };
 
-export const runBohAIReadConnectors = async ({
-  connectors = [],
-  plan = {},
-  queryText = '',
-  logger = null,
-  timeoutMs = CONNECTOR_TIMEOUT_MS
-} = {}) => {
-  const activeConnectors = connectors.filter((connector) => {
-    if (!isConnectorActiveForPlan(connector, plan)) return false;
-    const connectorId = connector.id || connector.planKey || '';
-    return !shouldSkipConnector(connectorId);
-  });
-
-  const settled = await Promise.allSettled(
-    activeConnectors.map(async (connector) => {
-      const connectorId = connector.id || '';
-      if (typeof connector.read !== 'function') {
-        return normalizeConnectorReadResult(connector, null);
-      }
-      try {
-        const readPromise = connector.read(queryText, { plan, connector });
-        const rawResult = await withTimeout(readPromise, timeoutMs, BOHAI_ERROR_MESSAGES.connectorTimeout);
-        resetConnectorFailures(connectorId);
-        return normalizeConnectorReadResult(connector, rawResult);
-      } catch (error) {
-        const errorInfo = categorizeError(error);
-        if (logger && typeof logger.warn === 'function') {
-          logger.warn('boh-ai', `${connector?.label || connectorId || 'Connector'} 检索失败`, {
-            error: error.message,
-            type: errorInfo.type
-          });
-        }
-        recordConnectorFailure(connectorId);
-        throw error;
-      }
-    })
-  );
-
-  return settled.map((result, index) => {
-    const connector = activeConnectors[index];
-    if (result.status === 'fulfilled') {
-      return {
-        ok: true,
-        connector,
-        ...result.value
-      };
-    }
-
-    return {
-      ok: false,
-      connector,
-      connectorId: connector?.id || '',
-      label: connector?.label || '',
-      source: connector?.source || connector?.label || '',
-      context: '',
-      total: 0,
-      labels: [],
-      confidence: 0,
-      evidenceRefs: [],
-      metadata: {},
-      error: result.reason
-    };
-  });
-};
-
-export const runBohAIReadConnectorsWithProgress = async ({
+// 公共 core：activeConnectors 过滤 + Promise.allSettled + 错误归一化
+// 行为：onProgress 缺失时退化为与原 runBohAIReadConnectors 完全一致；存在时按完成顺序回调。
+const runBohAIReadConnectorsCore = async ({
   connectors = [],
   plan = {},
   queryText = '',
@@ -361,21 +309,22 @@ export const runBohAIReadConnectorsWithProgress = async ({
 } = {}) => {
   const activeConnectors = connectors.filter((connector) => {
     if (!isConnectorActiveForPlan(connector, plan)) return false;
+    // createBohAIConnector 已强制 id 必填；这里再做一次防御，避免外部直接传入
+    // 匿名对象时熔断 key 漂移到空串。
     const connectorId = connector.id || connector.planKey || '';
     return !shouldSkipConnector(connectorId);
   });
 
   const total = activeConnectors.length;
   let completed = 0;
-
-  const notifyProgress = (currentConnector) => {
-    if (onProgress && typeof onProgress === 'function') {
+  const notifyProgress = (currentLabel) => {
+    if (typeof onProgress === 'function') {
       completed += 1;
       onProgress({
         completed,
         total,
         percentage: total > 0 ? Math.round((completed / total) * 100) : 100,
-        currentConnector: currentConnector || null,
+        currentConnector: currentLabel || null,
         status: completed >= total ? 'completed' : 'loading'
       });
     }
@@ -436,6 +385,10 @@ export const runBohAIReadConnectorsWithProgress = async ({
     };
   });
 };
+
+export const runBohAIReadConnectors = async (options = {}) => runBohAIReadConnectorsCore(options);
+
+export const runBohAIReadConnectorsWithProgress = async (options = {}) => runBohAIReadConnectorsCore(options);
 
 export const summarizeBohAIConnectorResults = (results = []) => {
   const source = Array.isArray(results) ? results : [];

@@ -14,7 +14,7 @@
 
     <div v-if="currentTab === 'community'" class="tab-page">
       <div class="page-content">
-        <div v-if="isLoadingCommunity" class="community-skeleton" aria-hidden="true">
+        <div v-if="isLoadingCommunity && !hasLoadedCommunity" class="community-skeleton" aria-hidden="true">
           <div v-for="group in 3" :key="`community-group-loading-${group}`" class="community-group skeleton">
             <div class="group-header">
               <div class="group-info">
@@ -38,10 +38,12 @@
         <div v-else>
           <button type="button" class="community-group" @click="toggleCommunityExpand"
             :aria-expanded="isCommunityExpanded">
+            <HomeCatMascot v-if="isHomeCatActive" class="community-group-cat" pool="ambient" seed="community-recent"
+              size="sm" decorative />
             <div class="group-header">
               <div class="group-info">
-                <h3 class="group-title">方块社区</h3>
-                <p class="group-count">{{ totalCommunityUsers }} 位伙伴</p>
+                <h3 class="group-title">最近加入的伙伴</h3>
+                <p class="group-count">{{ totalCommunityUsers }} 位伙伴 · 按加入时间排序</p>
               </div>
               <div class="expand-icon" :class="{ expanded: isCommunityExpanded }">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -56,7 +58,7 @@
               <div class="community-toolbar">
                 <input v-model="communitySearchQuery" type="text" placeholder="搜索社区伙伴..."
                   class="community-search-input" />
-                <span class="community-toolbar-meta">第 {{ currentCommunityPage }} / {{ totalCommunityPages }} 页</span>
+                <span class="community-toolbar-meta">最近加入 · 第 {{ currentCommunityPage }} / {{ totalCommunityPages }} 页</span>
               </div>
 
               <div v-if="communityUsers.length === 0" class="empty-state">
@@ -109,7 +111,64 @@
             </div>
           </transition>
 
+          <button type="button" class="community-group birthday-group" @click="toggleBirthdaysExpand"
+            :aria-expanded="isBirthdaysExpanded">
+            <HomeCatMascot v-if="isHomeCatActive" class="community-group-cat birthday-cat" pool="reaction"
+              seed="community-birthday" size="sm" decorative />
+            <div class="group-header">
+              <div class="group-info">
+                <h3 class="group-title">最近生日</h3>
+                <p class="group-count">{{ birthdayGroupSummary }}</p>
+              </div>
+              <div class="expand-icon" :class="{ expanded: isBirthdaysExpanded }">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              </div>
+            </div>
+          </button>
+
+          <transition name="expand">
+            <div v-if="isBirthdaysExpanded" class="community-users-list birthday-users-list">
+              <div v-if="isLoadingBirthdays && recentBirthdayUsers.length === 0" class="loading-state compact">
+                <div class="loading-spinner"></div>
+                <p class="loading-text">正在加载最近生日...</p>
+              </div>
+
+              <div v-else-if="recentBirthdayUsers.length === 0" class="empty-state">
+                <Cake class="empty-icon" :size="30" :stroke-width="1.7" aria-hidden="true" />
+                <p>暂时没有伙伴设置生日。</p>
+              </div>
+
+              <div v-for="user in recentBirthdayUsers" :key="`birthday-${user.id}`" class="user-item birthday-user-item"
+                @click="goToProfile(user.username)">
+                <div class="user-avatar birthday-avatar">
+                  <img v-if="user.avatar_url" :src="user.avatar_url" alt="用户头像" class="avatar-image" loading="lazy"
+                    decoding="async" />
+                  <span v-else>{{ user.username ? user.username.charAt(0).toUpperCase() : 'U' }}</span>
+                </div>
+                <div class="user-info">
+                  <span class="user-name">@{{ user.username }}</span>
+                  <p class="user-bio">{{ formatBirthdayDistance(user) }}</p>
+                  <div class="user-meta">
+                    <span class="meta-item">
+                      <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                      </svg>
+                      {{ String(user.birth_month).padStart(2, '0') }}/{{ String(user.birth_day).padStart(2, '0') }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </transition>
+
           <button type="button" class="community-group" @click="toggleShowsExpand" :aria-expanded="isShowsExpanded">
+            <HomeCatMascot v-if="isHomeCatActive" class="community-group-cat alt" pool="background"
+              seed="community-shows" size="sm" decorative />
             <div class="group-header">
               <div class="group-info">
                 <h3 class="group-title">社区节目</h3>
@@ -147,6 +206,8 @@
     </div>
 
     <div v-if="mountedTabs.messages" v-show="currentTab === 'messages'" class="tab-page messages-tab">
+      <HomeCatMascot v-if="isHomeCatActive" class="messages-tab-cat" pool="background" seed="messages-tab"
+        size="lg" decorative />
       <AsyncMessages :minimal="true" />
     </div>
 
@@ -173,9 +234,10 @@
                     {{ isUploadingProfileBackground ? '上传中' : '更换背景' }}
                   </span>
                 </button>
-                <button type="button" class="profile-settings-btn" @click="openProfileSettings" aria-label="设置" title="设置">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
+                <button type="button" class="profile-settings-btn" @click="openProfileSettings" aria-label="设置"
+                  title="设置">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round">
                     <circle cx="12" cy="12" r="3"></circle>
                     <path
                       d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06A2 2 0 1 1 20.53 7l-.06.06A1.7 1.7 0 0 0 19.4 9c.2.4.6.7 1 .6h.6a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15z">
@@ -257,8 +319,8 @@
               <section class="profile-action-panel" aria-label="我的功能">
                 <button type="button" class="profile-action-row" @click="openCloudPlusArea('content')">
                   <span class="profile-action-icon bg-teal">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                      stroke-linecap="round" stroke-linejoin="round">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                      stroke-linejoin="round">
                       <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>
                       <path d="M8 9h8"></path>
                     </svg>
@@ -269,10 +331,11 @@
                   </span>
                   <span class="profile-action-chevron">›</span>
                 </button>
-                <button type="button" class="profile-action-row" @click="router.push('/user-space/subscriptions?from=userspace')">
+                <button type="button" class="profile-action-row"
+                  @click="router.push('/user-space/subscriptions?from=userspace')">
                   <span class="profile-action-icon bg-yellow">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                      stroke-linecap="round" stroke-linejoin="round">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                      stroke-linejoin="round">
                       <path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"></path>
                     </svg>
                   </span>
@@ -282,10 +345,11 @@
                   </span>
                   <span class="profile-action-chevron">›</span>
                 </button>
-                <button type="button" class="profile-action-row" @click="router.push('/user-space/gifts?from=userspace')">
+                <button type="button" class="profile-action-row"
+                  @click="router.push('/user-space/gifts?from=userspace')">
                   <span class="profile-action-icon bg-green">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                      stroke-linecap="round" stroke-linejoin="round">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                      stroke-linejoin="round">
                       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                       <circle cx="12" cy="10" r="3"></circle>
                     </svg>
@@ -298,8 +362,8 @@
                 </button>
                 <button type="button" class="profile-action-row" @click="openSponsorPage">
                   <span class="profile-action-icon bg-gold">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                      stroke-linecap="round" stroke-linejoin="round">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                      stroke-linejoin="round">
                       <path d="M12 2v20"></path>
                       <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6"></path>
                     </svg>
@@ -346,11 +410,10 @@
                   </div>
                   <div v-else-if="profilePosts.length" class="profile-post-grid">
                     <article v-for="post in profilePosts" :key="post.id" class="profile-post-card"
-                      :class="{ 'text-only': !getProfilePostCover(post) }"
-                      @click="openProfilePost(post.id)">
+                      :class="{ 'text-only': !getProfilePostCover(post) }" @click="openProfilePost(post.id)">
                       <div v-if="getProfilePostCover(post)" class="profile-post-cover">
-                        <img v-if="getProfilePostCover(post)" :src="getProfilePostCover(post)" :alt="getProfilePostTitle(post)"
-                          loading="lazy" decoding="async">
+                        <img v-if="getProfilePostCover(post)" :src="getProfilePostCover(post)"
+                          :alt="getProfilePostTitle(post)" loading="lazy" decoding="async">
                       </div>
                       <div class="profile-post-copy">
                         <h3>{{ getProfilePostTitle(post) }}</h3>
@@ -444,15 +507,18 @@
                     <div class="profile-date-selector">
                       <select v-model="editProfileForm.joinYear" class="profile-date-select">
                         <option value="">年</option>
-                        <option v-for="year in joinDateYears" :key="`page-join-year-${year}`" :value="year">{{ year }}年</option>
+                        <option v-for="year in joinDateYears" :key="`page-join-year-${year}`" :value="year">{{ year }}年
+                        </option>
                       </select>
                       <select v-model="editProfileForm.joinMonth" class="profile-date-select">
                         <option value="">月</option>
-                        <option v-for="month in months" :key="`page-join-month-${month}`" :value="month">{{ month }}月</option>
+                        <option v-for="month in months" :key="`page-join-month-${month}`" :value="month">{{ month }}月
+                        </option>
                       </select>
                       <select v-model="editProfileForm.joinDay" class="profile-date-select">
                         <option value="">日</option>
-                        <option v-for="day in daysForEditJoinDate" :key="`page-join-day-${day}`" :value="day">{{ day }}日</option>
+                        <option v-for="day in daysForEditJoinDate" :key="`page-join-day-${day}`" :value="day">{{ day }}日
+                        </option>
                       </select>
                     </div>
                   </label>
@@ -487,6 +553,8 @@
 
               <div class="profile-subpage-body">
                 <section class="sponsor-hero apple-card">
+                  <HomeCatMascot v-if="isHomeCatActive" class="sponsor-hero-cat" pool="background"
+                    seed="sponsor-hero" size="lg" decorative />
                   <div class="sponsor-hero-copy">
                     <p class="sponsor-kicker">Sponsor</p>
                     <h3>助力我喝杯咖啡</h3>
@@ -498,6 +566,8 @@
                 </section>
 
                 <section class="apple-card sponsor-panel">
+                  <HomeCatMascot v-if="isHomeCatActive" class="sponsor-panel-cat" pool="ambient"
+                    seed="sponsor-panel" size="md" decorative />
                   <div class="sponsor-section-head">
                     <div>
                       <p class="sponsor-kicker">Payment</p>
@@ -507,15 +577,9 @@
                   </div>
 
                   <div class="sponsor-method-grid">
-                    <button
-                      v-for="method in sponsorMethods"
-                      :key="method.id"
-                      type="button"
-                      class="sponsor-method"
+                    <button v-for="method in sponsorMethods" :key="method.id" type="button" class="sponsor-method"
                       :class="{ active: sponsorMethod === method.id, disabled: method.disabled }"
-                      :aria-disabled="method.disabled ? 'true' : 'false'"
-                      @click="selectSponsorMethod(method.id)"
-                    >
+                      :aria-disabled="method.disabled ? 'true' : 'false'" @click="selectSponsorMethod(method.id)">
                       <span class="sponsor-method-icon">{{ method.icon }}</span>
                       <span>
                         <strong>{{ method.label }}</strong>
@@ -533,6 +597,14 @@
 
                   <transition name="profile-panel-fade">
                     <div v-if="sponsorQrVisible" class="sponsor-qr-stage">
+                      <div v-if="isHomeCatActive" :key="sponsorCatBurstKey" class="sponsor-cat-party" aria-hidden="true">
+                        <HomeCatMascot class="sponsor-party-cat cat-one" pool="reaction"
+                          :seed="`sponsor-party-${sponsorCatBurstKey}-one`" size="sm" decorative />
+                        <HomeCatMascot class="sponsor-party-cat cat-two" pool="ambient"
+                          :seed="`sponsor-party-${sponsorCatBurstKey}-two`" size="sm" decorative />
+                        <HomeCatMascot class="sponsor-party-cat cat-three" type="like" size="sm" decorative />
+                        <HomeCatMascot class="sponsor-party-cat cat-four" type="success" size="sm" decorative />
+                      </div>
                       <div v-if="sponsorQrLoadFailed" class="sponsor-qr-placeholder">
                         <div class="sponsor-placeholder-icon">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -568,7 +640,11 @@
               <UserCenterPageHeader title="设置" back-label="返回我的" max-width="650px" @back="backToProfileHome" />
 
               <div class="profile-subpage-body">
+                <HomeCatMascot v-if="isHomeCatActive" class="settings-page-cat" pool="background"
+                  seed="settings-page" size="lg" decorative />
                 <div class="apple-card settings-section-card">
+                  <HomeCatMascot v-if="isHomeCatActive" class="settings-card-cat" pool="ambient"
+                    seed="settings-appearance" size="sm" decorative />
                   <div class="group-header-title">外观与浏览</div>
                   <div class="apple-list-group">
                     <div class="apple-item clickable" @click="openThemeModal">
@@ -635,6 +711,8 @@
                 </div>
 
                 <div class="apple-card settings-section-card">
+                  <HomeCatMascot v-if="isHomeCatActive" class="settings-card-cat alt" pool="ambient"
+                    seed="settings-cloud" size="sm" decorative />
                   <div class="group-header-title">Cloud+</div>
                   <div class="apple-list-group">
                     <div class="apple-item clickable" @click="openCloudPlusArea('settings')">
@@ -663,7 +741,8 @@
                 <div class="apple-card settings-section-card">
                   <div class="group-header-title">账户与安全</div>
                   <div class="apple-list-group">
-                    <div class="apple-item clickable" @click="router.push('/user-space/account-security?from=userspace-settings')">
+                    <div class="apple-item clickable"
+                      @click="router.push('/user-space/account-security?from=userspace-settings')">
                       <div class="item-left">
                         <div class="icon-wrapper bg-blue">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -685,9 +764,12 @@
                 </div>
 
                 <div class="apple-card settings-section-card">
+                  <HomeCatMascot v-if="isHomeCatActive" class="settings-card-cat" pool="ambient"
+                    seed="settings-notification" size="sm" decorative />
                   <div class="group-header-title">通知</div>
                   <div class="apple-list-group">
-                    <div class="apple-item clickable" @click="router.push('/user-space/pushplus-settings?from=userspace-settings')">
+                    <div class="apple-item clickable"
+                      @click="router.push('/user-space/pushplus-settings?from=userspace-settings')">
                       <div class="item-left">
                         <div class="icon-wrapper bg-blue">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -795,7 +877,8 @@
               <div class="profile-subpage-body">
                 <div class="apple-card">
                   <div class="apple-list-group">
-                    <div class="apple-item clickable" @click="router.push('/user-space/shared-memories?from=userspace-data')">
+                    <div class="apple-item clickable"
+                      @click="router.push('/user-space/shared-memories?from=userspace-data')">
                       <div class="item-left">
                         <div class="icon-wrapper bg-indigo">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -971,8 +1054,8 @@
                   </div>
                 </div>
                 <span class="theme-name">浅色模式</span>
-                <Check v-if="currentThemePreference === 'light'" class="theme-check" :size="16"
-                  :stroke-width="2.2" aria-hidden="true" />
+                <Check v-if="currentThemePreference === 'light'" class="theme-check" :size="16" :stroke-width="2.2"
+                  aria-hidden="true" />
               </div>
 
               <div class="theme-option" :class="{ active: currentThemePreference === 'dark' }"
@@ -985,8 +1068,8 @@
                   </div>
                 </div>
                 <span class="theme-name">深色模式</span>
-                <Check v-if="currentThemePreference === 'dark'" class="theme-check" :size="16"
-                  :stroke-width="2.2" aria-hidden="true" />
+                <Check v-if="currentThemePreference === 'dark'" class="theme-check" :size="16" :stroke-width="2.2"
+                  aria-hidden="true" />
               </div>
 
               <div class="theme-option" :class="{ active: currentThemePreference === 'system' }"
@@ -1008,8 +1091,22 @@
                   </div>
                 </div>
                 <span class="theme-name">跟随系统</span>
-                <Check v-if="currentThemePreference === 'system'" class="theme-check" :size="16"
-                  :stroke-width="2.2" aria-hidden="true" />
+                <Check v-if="currentThemePreference === 'system'" class="theme-check" :size="16" :stroke-width="2.2"
+                  aria-hidden="true" />
+              </div>
+
+              <div class="theme-option home-cat-theme-option" :class="{ active: currentThemePreference === 'home-cat' }"
+                @click="setThemePreference('home-cat')">
+                <div class="theme-preview home-cat-preview">
+                  <HomeCatMascot type="theme" size="sm" decorative />
+                  <div class="home-cat-preview-lines" aria-hidden="true">
+                    <span></span>
+                    <span></span>
+                  </div>
+                </div>
+                <span class="theme-name">方块小窝</span>
+                <Check v-if="currentThemePreference === 'home-cat'" class="theme-check" :size="16" :stroke-width="2.2"
+                  aria-hidden="true" />
               </div>
             </div>
 
@@ -1030,9 +1127,8 @@
       :message="alertState.message" />
 
     <AvatarCropModal v-model:visible="showCropModal" :image-src="cropImageSrc" :loading="isProcessingCrop"
-      :title="cropModalTitle" :hint="cropModalHint" :sub-hint="cropModalSubHint"
-      :aspect-ratio="cropModalAspectRatio" :shape="cropModalShape"
-      @confirm="handleCropConfirm" />
+      :title="cropModalTitle" :hint="cropModalHint" :sub-hint="cropModalSubHint" :aspect-ratio="cropModalAspectRatio"
+      :shape="cropModalShape" @confirm="handleCropConfirm" />
   </div>
 </template>
 
@@ -1044,9 +1140,10 @@ import { Cake, CalendarDays, Check, Gift, Palette, Sparkles, User, Users, X } fr
 import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import AvatarCropModal from '@/components/AvatarCropModal.vue';
+import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import { supabase } from '@/utils/supabase-client.js';
-import { getProfilesPage } from '@/utils/api/auth-api.js';
+import { getProfilesPage, getRecentBirthdayProfiles } from '@/utils/api/auth-api.js';
 import { deleteUserImpression, getPostsByUsername, getUserImpressions, updateProfileAvatar } from '@/utils/api/profile-api.js';
 import { getPushplusSettings } from '@/utils/api/pushplus-api.js';
 import { getMySubscriptions } from '@/utils/api/subscription-api.js';
@@ -1062,6 +1159,7 @@ import sponsorQrImage from '@/assets/images/qrcode.webp';
 import { useAuthStore } from '@/stores/auth';
 import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader.js';
 import { themeManager } from '@/utils/theme-manager.js';
+import { isHomeCatTheme } from '@/utils/home-cat-theme.js';
 import { DEFAULT_CLOUD_IMAGE_LIMIT, resolveCloudBenefitFromSubscriptions } from '@/utils/subscription-benefits.js';
 
 const forumComponentLoader = () => import('@/views/Forum/index.vue');
@@ -1178,16 +1276,21 @@ let giftProgressInflight = null;
 
 const currentTab = ref('posts');
 const profileSection = ref('home');
-const isLoadingCommunity = ref(true);
+const isLoadingCommunity = ref(false);
+const isLoadingBirthdays = ref(false);
 const isCommunityExpanded = ref(false);
+const isBirthdaysExpanded = ref(false);
 const isShowsExpanded = ref(false);
 const communityUsers = ref([]);
+const recentBirthdayUsers = ref([]);
 const communitySearchQuery = ref('');
 const debouncedCommunitySearchQuery = ref('');
 const currentCommunityPage = ref(1);
 const totalCommunityUsers = ref(0);
 const COMMUNITY_PAGE_SIZE = 10;
+const COMMUNITY_BIRTHDAY_LIMIT = 8;
 const hasLoadedCommunity = ref(false);
+const hasLoadedBirthdays = ref(false);
 const mountedTabs = reactive({
   posts: true,
   messages: false,
@@ -1198,6 +1301,7 @@ const forumRenderKey = ref(0);
 const shouldRefreshForumAfterThemeChange = ref(false);
 let communitySearchDebounceTimer = null;
 let latestCommunityFetchId = 0;
+let latestBirthdayFetchId = 0;
 
 const navItems = [
   { id: 'posts', label: '帖子' },
@@ -1215,6 +1319,7 @@ const sponsorMethod = ref('wechat');
 const sponsorQrVisible = ref(false);
 const sponsorQrLoading = ref(false);
 const sponsorQrLoadFailed = ref(false);
+const sponsorCatBurstKey = ref(0);
 const sponsorQrImageUrl = sponsorQrImage;
 const sponsorMethods = [
   {
@@ -1248,10 +1353,19 @@ const resolveProfileSectionFromRoute = () => {
   }
 };
 
+const openSettingsPanelFromRoute = async () => {
+  if (currentTab.value !== 'profile' || profileSection.value !== 'settings') return;
+  if (String(route.query.setting || '').trim() !== 'theme') return;
+
+  await nextTick();
+  openThemeModal();
+};
+
 const setProfileSectionRoute = (section) => {
   const nextQuery = { ...route.query, tab: 'profile' };
   if (section === 'home') {
     delete nextQuery.view;
+    delete nextQuery.setting;
   } else {
     nextQuery.view = section;
   }
@@ -1614,6 +1728,7 @@ const PROFILE_BACKGROUND_MAX_FILE_SIZE_BYTES = CLOUD_UPLOAD_MAX_IMAGE_SIZE_BYTES
 const showThemeModal = ref(false);
 const currentTheme = ref(themeManager.getTheme());
 const currentThemePreference = ref(themeManager.getPreference?.() || currentTheme.value);
+const isHomeCatActive = computed(() => isHomeCatTheme(currentTheme.value) || isHomeCatTheme(currentThemePreference.value));
 const IMMERSIVE_BROWSING_STORAGE_KEY = 'boh-userspace-immersive-browsing-beta';
 const NAV_HIDE_SCROLL_THRESHOLD = 44;
 const NAV_SHOW_SCROLL_THRESHOLD = 12;
@@ -1634,6 +1749,9 @@ const shouldHideBottomNav = computed(() => {
     && !showCropModal.value;
 });
 const themeDisplayText = computed(() => {
+  if (currentThemePreference.value === 'home-cat') {
+    return '方块小窝';
+  }
   if (currentThemePreference.value === 'system') {
     return currentTheme.value === 'dark' ? '跟随系统：深色' : '跟随系统：浅色';
   }
@@ -1894,6 +2012,7 @@ const openSponsorPage = () => {
   sponsorQrVisible.value = false;
   sponsorQrLoadFailed.value = false;
   sponsorQrLoading.value = false;
+  sponsorCatBurstKey.value += 1;
 };
 
 const backToProfileHome = () => {
@@ -1930,6 +2049,7 @@ const startSponsorFlow = () => {
 
 const showSponsorQr = () => {
   if (sponsorMethod.value !== 'wechat') return;
+  sponsorCatBurstKey.value += 1;
   if (sponsorQrVisible.value && !sponsorQrLoadFailed.value) {
     sponsorQrLoading.value = false;
     return;
@@ -2280,6 +2400,13 @@ const toggleCommunityExpand = () => {
   isCommunityExpanded.value = !isCommunityExpanded.value;
 };
 
+const toggleBirthdaysExpand = () => {
+  isBirthdaysExpanded.value = !isBirthdaysExpanded.value;
+  if (isBirthdaysExpanded.value && !hasLoadedBirthdays.value && !isLoadingBirthdays.value) {
+    fetchRecentBirthdays();
+  }
+};
+
 const toggleShowsExpand = () => {
   isShowsExpanded.value = !isShowsExpanded.value;
 };
@@ -2300,7 +2427,7 @@ const fetchCommunityUsers = async () => {
       page: currentCommunityPage.value,
       pageSize: COMMUNITY_PAGE_SIZE,
       search: debouncedCommunitySearchQuery.value,
-      countMode: 'exact'
+      countMode: 'planned'
     });
 
     if (fetchId !== latestCommunityFetchId) {
@@ -2333,6 +2460,72 @@ const fetchCommunityUsers = async () => {
 
 const totalCommunityPages = computed(() => Math.max(1, Math.ceil(totalCommunityUsers.value / COMMUNITY_PAGE_SIZE)));
 
+const birthdayGroupSummary = computed(() => {
+  if (isLoadingBirthdays.value && recentBirthdayUsers.value.length === 0) {
+    return '正在加载最近生日';
+  }
+  if (!recentBirthdayUsers.value.length) {
+    return '查看即将过生日的伙伴';
+  }
+  const firstBirthday = recentBirthdayUsers.value[0];
+  return `${recentBirthdayUsers.value.length} 位伙伴 · ${formatBirthdayDistance(firstBirthday)}`;
+});
+
+const formatBirthdayDistance = (user = {}) => {
+  const daysUntil = Number(user.birthday_days_until);
+  if (!Number.isFinite(daysUntil)) {
+    return '生日即将到来';
+  }
+  if (daysUntil === 0) {
+    return '今天生日';
+  }
+  if (daysUntil === 1) {
+    return '明天生日';
+  }
+  return `${daysUntil} 天后生日`;
+};
+
+const fetchRecentBirthdays = async () => {
+  const fetchId = ++latestBirthdayFetchId;
+  isLoadingBirthdays.value = true;
+
+  try {
+    const { data, error } = await getRecentBirthdayProfiles({
+      limit: COMMUNITY_BIRTHDAY_LIMIT
+    });
+
+    if (fetchId !== latestBirthdayFetchId) {
+      return;
+    }
+
+    if (!error) {
+      recentBirthdayUsers.value = data || [];
+      hasLoadedBirthdays.value = true;
+    } else {
+      recentBirthdayUsers.value = [];
+      console.error('获取最近生日失败:', error);
+    }
+  } catch (err) {
+    if (fetchId !== latestBirthdayFetchId) {
+      return;
+    }
+
+    recentBirthdayUsers.value = [];
+    console.error('加载最近生日异常:', err);
+  } finally {
+    if (fetchId === latestBirthdayFetchId) {
+      isLoadingBirthdays.value = false;
+    }
+  }
+};
+
+const fetchCommunityOverview = async () => {
+  await Promise.all([
+    fetchCommunityUsers(),
+    hasLoadedBirthdays.value ? Promise.resolve() : fetchRecentBirthdays()
+  ]);
+};
+
 const ensureTabMounted = (tabId) => {
   if (Object.prototype.hasOwnProperty.call(mountedTabs, tabId)) {
     mountedTabs[tabId] = true;
@@ -2350,7 +2543,7 @@ const switchTab = (tabId) => {
     void refreshForumAfterThemeChange();
   }
   if (tabId === 'community' && !hasLoadedCommunity.value) {
-    fetchCommunityUsers();
+    fetchCommunityOverview();
   }
 };
 
@@ -2767,12 +2960,13 @@ onMounted(() => {
     currentTab.value = route.query.tab;
   }
   resolveProfileSectionFromRoute();
+  void openSettingsPanelFromRoute();
   ensureTabMounted(currentTab.value);
   if (currentTab.value === 'posts') {
     scheduleForumPreload();
   }
   if (currentTab.value === 'community') {
-    fetchCommunityUsers();
+    fetchCommunityOverview();
     syncCommunityViewFromRoute();
   }
   if (isLoggedIn.value) {
@@ -2807,7 +3001,7 @@ watch(() => route.query.tab, (newTab) => {
     void refreshForumAfterThemeChange();
   }
   if (newTab === 'community' && !hasLoadedCommunity.value) {
-    fetchCommunityUsers();
+    fetchCommunityOverview();
   }
   if (newTab === 'community') {
     syncCommunityViewFromRoute();
@@ -2815,12 +3009,18 @@ watch(() => route.query.tab, (newTab) => {
   if (newTab === 'profile') {
     void fetchCloudPlusUsage();
     void fetchProfileContent();
+    void openSettingsPanelFromRoute();
   }
 });
 
 watch(() => route.query.view, () => {
   syncCommunityViewFromRoute();
   resolveProfileSectionFromRoute();
+  void openSettingsPanelFromRoute();
+});
+
+watch(() => route.query.setting, () => {
+  void openSettingsPanelFromRoute();
 });
 
 watch(currentTab, (newTab, oldTab) => {

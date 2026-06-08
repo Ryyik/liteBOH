@@ -22,7 +22,10 @@ import {
 import { supabase } from '../../utils/supabase-client.js';
 import { formatSmartTime } from '../../utils/time.js';
 import CommonAlertModal from '../../components/CommonAlertModal.vue';
+import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { getForumReturnKeyFromQuery } from '@/utils/forum-return-state.js';
+import { getHomeCatAsset, isHomeCatTheme } from '@/utils/home-cat-theme.js';
+import { themeManager } from '@/utils/theme-manager.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -38,6 +41,7 @@ const isLikeSubmitting = ref(false);
 const isReportSubmitting = ref(false);
 const isPostMenuOpen = ref(false);
 const isLikePulsing = ref(false);
+const isReplySuccessPopping = ref(false);
 const isShareCopied = ref(false);
 const isEditSubmitting = ref(false);
 const loadedDetailImageKeys = ref(new Set());
@@ -53,9 +57,11 @@ const activeReplyQuote = ref('');
 const cooldownNow = ref(Date.now());
 const replyCooldownUntil = ref(0);
 const detailImageIndex = ref(0);
+const currentTheme = ref(themeManager.getTheme());
 let cooldownTimer = null;
 let detailFetchSeq = 0;
 let likePulseTimer = null;
+let replySuccessTimer = null;
 let shareCopiedTimer = null;
 let detailViewerPanStart = { x: 0, y: 0 };
 const DETAIL_VIEWER_MIN_ZOOM = 0.5;
@@ -88,6 +94,19 @@ const highlightedCommentId = ref('');
 
 const TOP_LEVEL_PAGE_SIZE = 20;
 const CHILD_REPLY_PAGE_SIZE = 5;
+const isHomeCatActive = computed(() => isHomeCatTheme(currentTheme.value));
+const confirmMascotSrc = computed(() => {
+  if (!confirmState.value.show) return '';
+  const confirmText = String(confirmState.value.confirmText || '');
+  const title = String(confirmState.value.title || '');
+  return confirmText.includes('删除') || title.includes('删除') ? getHomeCatAsset('delete') : '';
+});
+const modalMascotSrc = computed(() => {
+  if (!isHomeCatActive.value || !modalState.value.show) return '';
+  if (modalState.value.type === 'success') return getHomeCatAsset('success');
+  if (modalState.value.type === 'error' || modalState.value.type === 'warning') return getHomeCatAsset('failed');
+  return getHomeCatAsset('decor');
+});
 
 // 内容折叠相关
 const isExpanded = ref(false);
@@ -332,7 +351,16 @@ const triggerLikePulse = () => {
   likePulseTimer = setTimeout(() => {
     isLikePulsing.value = false;
     likePulseTimer = null;
-  }, 620);
+  }, 1900);
+};
+
+const triggerReplySuccessPop = () => {
+  isReplySuccessPopping.value = true;
+  if (replySuccessTimer) clearTimeout(replySuccessTimer);
+  replySuccessTimer = setTimeout(() => {
+    isReplySuccessPopping.value = false;
+    replySuccessTimer = null;
+  }, 1800);
 };
 
 const showShareCopiedState = () => {
@@ -342,6 +370,10 @@ const showShareCopiedState = () => {
     isShareCopied.value = false;
     shareCopiedTimer = null;
   }, 1500);
+};
+
+const handleThemeChange = (theme) => {
+  currentTheme.value = theme;
 };
 
 const markDetailImageLoaded = (key = detailImageKey.value) => {
@@ -885,12 +917,15 @@ const fetchPostDetail = async () => {
 };
 
 onMounted(() => {
+  currentTheme.value = themeManager.getTheme();
+  themeManager.addListener(handleThemeChange);
   fetchPostDetail();
   document.addEventListener('click', handleDocumentClick);
   window.addEventListener('keydown', handleDetailKeydown);
 });
 
 onUnmounted(() => {
+  themeManager.removeListener(handleThemeChange);
   document.removeEventListener('click', handleDocumentClick);
   window.removeEventListener('keydown', handleDetailKeydown);
   document.body.style.overflow = '';
@@ -901,6 +936,10 @@ onUnmounted(() => {
   if (likePulseTimer) {
     clearTimeout(likePulseTimer);
     likePulseTimer = null;
+  }
+  if (replySuccessTimer) {
+    clearTimeout(replySuccessTimer);
+    replySuccessTimer = null;
   }
   if (shareCopiedTimer) {
     clearTimeout(shareCopiedTimer);
@@ -919,6 +958,7 @@ watch(
     replyContent.value = '';
     isExpanded.value = false;
     isLikePulsing.value = false;
+    isReplySuccessPopping.value = false;
     isShareCopied.value = false;
     isDetailImageViewerOpen.value = false;
     closePostMenu();
@@ -1076,6 +1116,7 @@ const submitReply = async () => {
 
     await refreshPostStats();
 
+    triggerReplySuccessPop();
     showModal('success', '回复成功', '您的回复已发布');
     emitProfileSync({
       userId: userInfo.id,
@@ -1114,7 +1155,7 @@ const handleDeletePost = async () => {
       username: post.value.author_username,
       reason: 'post_deleted'
     });
-    router.push('/forum');
+    goBack();
   } catch (error) {
     console.error('删除失败:', error);
     showModal('error', '删除失败', error?.message || '请稍后重试');
@@ -1311,7 +1352,7 @@ const handleDeleteComment = async (comment, parentId = null) => {
 </script>
 
 <template>
-  <div class="post-detail-page" data-theme>
+  <div class="post-detail-page" :data-theme="currentTheme">
     <UnifiedNavbar />
     <UserCenterPageHeader title="帖子详情" max-width="1400px" @back="goBack" />
 
@@ -1319,6 +1360,8 @@ const handleDeleteComment = async (comment, parentId = null) => {
       <main class="detail-content fade-in-up" style="animation-delay: 0.1s;">
         <div v-if="isLoading" class="post-detail-skeleton" aria-hidden="true">
           <div class="post-skeleton-main glass-panel">
+            <HomeCatMascot v-if="isHomeCatActive" class="detail-skeleton-thinking-cat" pool="state"
+              seed="detail-skeleton-thinking" size="md" decorative />
             <div class="post-skeleton-header">
               <div class="detail-skeleton-block skeleton-avatar"></div>
               <div class="post-skeleton-author">
@@ -1359,6 +1402,8 @@ const handleDeleteComment = async (comment, parentId = null) => {
         <div v-else class="post-x-layout">
           <div class="x-main-column">
             <article class="x-post-card glass-panel">
+              <HomeCatMascot v-if="isHomeCatActive" class="detail-post-decor-cat" pool="card"
+                :seed="`${post.id}:detail`" size="md" decorative />
               <div class="post-header">
                 <div class="author-section" @click="goToProfile(post.author_username)">
                   <div class="author-avatar">
@@ -1462,6 +1507,8 @@ const handleDeleteComment = async (comment, parentId = null) => {
                 <div class="action-bar">
                   <button class="action-btn like-btn" :class="{ 'is-liked': post.isLiked, 'is-pulsing': isLikePulsing }" @click="handleToggleLike"
                     :disabled="isLikeSubmitting">
+                    <img v-if="isHomeCatActive && isLikePulsing" class="detail-like-pop-cat-img"
+                      :src="getHomeCatAsset('like')" alt="" draggable="false" />
                     <Heart class="action-svg" :size="18" :stroke-width="1.8" :fill="post.isLiked ? 'currentColor' : 'none'"
                       aria-hidden="true" />
                     <span class="action-count-bold">{{ post.like_count }}</span>
@@ -1488,6 +1535,8 @@ const handleDeleteComment = async (comment, parentId = null) => {
             <div class="x-side-content glass-panel">
               <transition name="fade-slide">
                 <div v-if="activeReplyId" class="x-reply-box" :class="{ 'is-thread-reply': Boolean(replyToUser) }">
+                  <img v-if="isHomeCatActive && isReplySuccessPopping" class="detail-reply-success-cat-img"
+                    :src="getHomeCatAsset('success')" alt="" draggable="false" />
                   <div class="reply-input-wrapper">
                     <div class="reply-context-bar">
                       <div class="reply-context-main">
@@ -1617,6 +1666,7 @@ const handleDeleteComment = async (comment, parentId = null) => {
                 </div>
 
                 <div v-else class="no-comments-state">
+                  <HomeCatMascot v-if="isHomeCatActive" type="decorAlt" size="md" decorative />
                   <div class="no-comments-icon">☕️</div>
                   <p>暂无评论</p>
                 </div>
@@ -1631,6 +1681,7 @@ const handleDeleteComment = async (comment, parentId = null) => {
       <Transition name="detail-confirm-fade">
         <div v-if="confirmState.show" class="detail-confirm-overlay" @click.self="closeConfirm(false)">
           <div class="detail-confirm-modal" role="dialog" aria-modal="true" :aria-label="confirmState.title">
+            <img v-if="confirmMascotSrc" class="detail-confirm-cat-img" :src="confirmMascotSrc" alt="" draggable="false" />
             <h3>{{ confirmState.title }}</h3>
             <p>{{ confirmState.message }}</p>
             <div class="detail-confirm-actions">
@@ -1647,7 +1698,7 @@ const handleDeleteComment = async (comment, parentId = null) => {
     </Teleport>
 
     <CommonAlertModal v-model:visible="modalState.show" :type="modalState.type" :title="modalState.title"
-      :message="modalState.message" />
+      :message="modalState.message" :mascot-src="modalMascotSrc" mascot-alt="方块小窝提示小猫" />
 
     <!-- 编辑模态框 -->
     <div v-if="isEditingPost" class="modal-overlay" @click.self="cancelEditPost">
