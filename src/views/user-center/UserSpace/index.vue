@@ -932,99 +932,6 @@
       </div>
     </div>
 
-    <transition name="fade">
-      <div v-if="showBirthdayModal" class="modal-overlay" @click.self="closeBirthdayModal">
-        <div class="modal-card birthday-modal-card glass-card">
-          <div class="modal-visual-header">
-            <div class="modal-icon-circle">
-              <Cake class="emoji-icon" :size="30" :stroke-width="1.7" aria-hidden="true" />
-            </div>
-          </div>
-          <div class="modal-body-clean">
-            <h3 class="clean-title">告诉我们您的生日</h3>
-            <p class="clean-desc">
-              在您生日当天，方块之家会为您准备一份<span class="highlight-1200">特别的惊喜</span>。
-            </p>
-
-            <div class="feature-pills">
-              <div class="feature-pill">
-                <Gift :size="14" :stroke-width="1.8" aria-hidden="true" />
-                专属祝福
-              </div>
-              <div class="feature-pill">
-                <Sparkles :size="14" :stroke-width="1.8" aria-hidden="true" />
-                节日特效
-              </div>
-            </div>
-
-            <div class="birthday-selector modal-selector">
-              <select v-model="submissionBirthday.month" class="date-select">
-                <option value="" disabled>月</option>
-                <option v-for="m in months" :key="m" :value="m">{{ m }}月</option>
-              </select>
-              <span class="date-sep">/</span>
-              <select v-model="submissionBirthday.day" class="date-select">
-                <option value="" disabled>日</option>
-                <option v-for="d in daysForSubmission" :key="d" :value="d">{{ d }}日</option>
-              </select>
-            </div>
-
-            <div class="clean-actions">
-              <button class="primary-btn-clean" @click="submitBirthdayRequest" :disabled="isSubmitting">
-                {{ isSubmitting ? '提交中...' : '确认提交' }}
-              </button>
-              <button class="ghost-btn-clean" @click="closeBirthdayModal">暂时跳过</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </transition>
-
-    <transition name="fade">
-      <div v-if="showJoinDateModal" class="modal-overlay" @click.self="closeJoinDateModal">
-        <div class="modal-card join-date-modal-card">
-          <div class="modal-visual-header join-date-header">
-            <div class="modal-icon-circle">
-              <CalendarDays class="emoji-icon" :size="30" :stroke-width="1.7" aria-hidden="true" />
-            </div>
-            <button class="close-icon-btn" @click="closeJoinDateModal" aria-label="关闭">
-              <X :size="18" :stroke-width="1.9" aria-hidden="true" />
-            </button>
-          </div>
-          <div class="modal-body-clean">
-            <h3 class="clean-title">设置加群时间</h3>
-            <p class="clean-desc">
-              请选择您加入方块之家的日期，这将用于计算您的方块年龄。
-            </p>
-
-            <div class="date-input-container">
-              <div class="date-input-wrapper">
-                <input type="date" v-model="submissionJoinDate" class="date-input" :max="getTodayDate()" required>
-                <div class="date-input-icon">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                    <line x1="16" y1="2" x2="16" y2="6"></line>
-                    <line x1="8" y1="2" x2="8" y2="6"></line>
-                    <line x1="3" y1="10" x2="21" y2="10"></line>
-                  </svg>
-                </div>
-                <label class="date-input-label">选择加群日期</label>
-              </div>
-              <p class="date-input-hint">请选择您加入方块之家的日期</p>
-            </div>
-
-            <div class="clean-actions">
-              <button class="primary-btn-clean" @click="submitJoinDateRequest" :disabled="isSubmittingJoinDate">
-                {{ isSubmittingJoinDate ? '提交中...' : '确认设置' }}
-              </button>
-              <button class="ghost-btn-clean" @click="closeJoinDateModal">取消</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </transition>
-
     <!-- 主题设置模态框 -->
     <transition name="fade">
       <div v-if="showThemeModal" class="modal-overlay" @click.self="closeThemeModal">
@@ -1136,7 +1043,7 @@
 import { ref, computed, nextTick, onMounted, onUnmounted, reactive, watch, defineAsyncComponent } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import { Cake, CalendarDays, Check, Gift, Palette, Sparkles, User, Users, X } from 'lucide-vue-next';
+import { Cake, Check, Palette, User, Users, X } from 'lucide-vue-next';
 import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import AvatarCropModal from '@/components/AvatarCropModal.vue';
@@ -1704,13 +1611,7 @@ const fetchUserStats = async ({ retryCount = 0 } = {}) => {
   }
 };
 
-const showBirthdayModal = ref(false);
-const showJoinDateModal = ref(false);
-const showEditProfileModal = ref(false);
-const isSubmitting = ref(false);
-const isSubmittingJoinDate = ref(false);
 const isSubmittingProfileEdit = ref(false);
-const submissionJoinDate = ref('');
 const editProfileForm = reactive({
   bio: '',
   joinDate: '',
@@ -1743,8 +1644,6 @@ const shouldHideBottomNav = computed(() => {
   return immersiveBrowsingEnabled.value
     && currentTab.value === 'posts'
     && isBottomNavHidden.value
-    && !showBirthdayModal.value
-    && !showJoinDateModal.value
     && !showThemeModal.value
     && !showCropModal.value;
 });
@@ -1816,8 +1715,6 @@ const resetImmersiveNavState = () => {
 const isImmersiveNavEligible = () => {
   return immersiveBrowsingEnabled.value
     && currentTab.value === 'posts'
-    && !showBirthdayModal.value
-    && !showJoinDateModal.value
     && !showThemeModal.value
     && !showCropModal.value;
 };
@@ -2069,12 +1966,6 @@ const handleSponsorQrError = () => {
   sponsorQrLoadFailed.value = true;
 };
 
-const submissionBirthday = reactive({
-  year: '',
-  month: '',
-  day: ''
-});
-
 const alertState = reactive({
   visible: false,
   type: 'success',
@@ -2085,13 +1976,6 @@ const alertState = reactive({
 const months = Array.from({ length: 12 }, (_, i) => i + 1);
 const currentYear = new Date().getFullYear();
 const joinDateYears = Array.from({ length: Math.max(1, currentYear - 2014 + 1) }, (_, i) => currentYear - i);
-
-const daysForSubmission = computed(() => {
-  if (!submissionBirthday.month) return Array.from({ length: 31 }, (_, i) => i + 1);
-  const year = submissionBirthday.year || 2024;
-  const d = new Date(year, submissionBirthday.month, 0).getDate();
-  return Array.from({ length: d }, (_, i) => i + 1);
-});
 
 const daysForEditProfile = computed(() => {
   const month = Number(editProfileForm.birthMonth || 0);
@@ -2124,19 +2008,6 @@ const splitDateValue = (dateValue) => {
     month: Number(match[2]),
     day: Number(match[3])
   };
-};
-
-const normalizeBirthdayDay = () => {
-  if (!submissionBirthday.day) return;
-  const maxDay = daysForSubmission.value.length;
-  const safeDay = Number(submissionBirthday.day);
-  if (!Number.isFinite(safeDay) || safeDay < 1) {
-    submissionBirthday.day = '';
-    return;
-  }
-  if (safeDay > maxDay) {
-    submissionBirthday.day = maxDay;
-  }
 };
 
 const normalizeEditProfileBirthdayDay = () => {
@@ -2203,36 +2074,6 @@ const formatJoinDateLabel = (dateStr) => {
   return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
 };
 
-const checkBirthday = () => {
-  if (!userBirthday.value) return;
-  const today = new Date();
-  const birthMonth = Number(userBirthday.value.month);
-  const birthDay = Number(userBirthday.value.day);
-
-  if (birthMonth === (today.getMonth() + 1) && birthDay === today.getDate()) {
-    router.push('/birthday');
-  } else {
-    let nextBirthday = new Date(today.getFullYear(), birthMonth - 1, birthDay);
-    if (nextBirthday < today) nextBirthday.setFullYear(today.getFullYear() + 1);
-    const diffDays = Math.ceil((nextBirthday - today) / (1000 * 60 * 60 * 24));
-    showAlert('info', '还没到时间哦', `距离您的生日还有 ${diffDays} 天，请耐心等待惊喜！`);
-  }
-};
-
-const openBirthdayModal = () => {
-  submissionBirthday.year = '';
-  if (userBirthday.value) {
-    submissionBirthday.month = userBirthday.value.month;
-    submissionBirthday.day = userBirthday.value.day;
-  } else {
-    submissionBirthday.month = '';
-    submissionBirthday.day = '';
-  }
-  showBirthdayModal.value = true;
-};
-
-const closeBirthdayModal = () => showBirthdayModal.value = false;
-
 const prepareEditProfileForm = () => {
   const parsedJoinDate = splitDateValue(joinDate.value || '');
   editProfileForm.bio = String(userInfo.value.bio || '');
@@ -2246,13 +2087,11 @@ const prepareEditProfileForm = () => {
 
 const openEditProfileModal = () => {
   prepareEditProfileForm();
-  showEditProfileModal.value = false;
   profileSection.value = 'edit-profile';
   setProfileSectionRoute('edit-profile');
 };
 
 const closeEditProfileModal = () => {
-  showEditProfileModal.value = false;
   profileSection.value = 'home';
   setProfileSectionRoute('home');
 };
@@ -2301,45 +2140,6 @@ const submitEditProfile = async () => {
   }
 };
 
-const submitBirthdayRequest = async () => {
-  if (!submissionBirthday.month || !submissionBirthday.day) {
-    showAlert('warning', '提示', '请完整选择出生日期');
-    return;
-  }
-  normalizeBirthdayDay();
-  if (Number(submissionBirthday.day) > daysForSubmission.value.length) {
-    showAlert('warning', '提示', '请选择有效的出生日期');
-    return;
-  }
-  isSubmitting.value = true;
-  try {
-    const monthStr = String(submissionBirthday.month);
-    const dayStr = String(submissionBirthday.day);
-
-    const result = await authStore.updateUserProfile({
-      birth_month: monthStr,
-      birth_day: dayStr
-    });
-
-    if (!result.success) {
-      throw new Error(result.message || '更新失败');
-    }
-
-    showAlert('success', '提交成功', '生日信息已更新！');
-    closeBirthdayModal();
-  } catch (error) {
-    console.error('生日提交失败:', error);
-    showAlert('error', '提交失败', `错误: ${error.message || '未知错误'}`);
-  } finally {
-    isSubmitting.value = false;
-  }
-};
-
-const openJoinDateModal = () => {
-  submissionJoinDate.value = joinDate.value || '';
-  showJoinDateModal.value = true;
-};
-
 const openCreatorStudio = () => {
   showAlert('info', '功能即将上线', 'Creator Studio 功能即将上线，敬请期待！');
   return;
@@ -2357,43 +2157,12 @@ const openCloudPlusArea = (view = 'content') => {
   });
 };
 
-const closeJoinDateModal = () => {
-  showJoinDateModal.value = false;
-  submissionJoinDate.value = '';
-};
-
 const getTodayDate = () => {
   const today = new Date();
   const year = today.getFullYear();
   const month = String(today.getMonth() + 1).padStart(2, '0');
   const day = String(today.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
-};
-
-const submitJoinDateRequest = async () => {
-  if (!submissionJoinDate.value) {
-    showAlert('warning', '提示', '请选择加群日期');
-    return;
-  }
-
-  isSubmittingJoinDate.value = true;
-  try {
-    const result = await authStore.updateUserProfile({
-      join_date: submissionJoinDate.value
-    });
-
-    if (!result.success) {
-      throw new Error(result.message || '更新失败');
-    }
-
-    showAlert('success', '设置成功', '加群时间已更新！');
-    closeJoinDateModal();
-  } catch (error) {
-    console.error('加群时间设置失败:', error);
-    showAlert('error', '设置失败', `错误: ${error.message || '未知错误'}`);
-  } finally {
-    isSubmittingJoinDate.value = false;
-  }
 };
 
 const toggleCommunityExpand = () => {
@@ -2931,10 +2700,6 @@ watch(() => isInitialized.value, (ready) => {
 watch(() => userInfo.value.points, (newPoints) => {
   if (!isLoggedIn.value) return;
   userStats.points = normalizeStatInt(newPoints, userStats.points);
-});
-
-watch(() => submissionBirthday.month, () => {
-  normalizeBirthdayDay();
 });
 
 watch(() => editProfileForm.birthMonth, () => {

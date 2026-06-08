@@ -121,7 +121,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute } from "vue-router";
 import { getImageUrl } from "../../utils/asset-helper.js";
 import { useAuthStore } from "@/stores/auth";
 import { storeToRefs } from "pinia";
@@ -153,7 +153,6 @@ const unreadCount = computed(() => notificationStoreRef.value?.unreadCount || 0)
 // ============================================
 
 const route = useRoute();
-const router = useRouter();
 const isActive = (path) => {
   if (path === '/') {
     return route.path === '/';
@@ -373,34 +372,10 @@ const closeMobileMenu = () => {
   expandedMenu.value = null;
   document.body.style.overflow = "";
 };
-// ============================================
-// 下拉菜单控制
-// ============================================
-
-/**
- * 下拉菜单显示状态
- */
-const showDropdown = ref(false);
-const dropdownRef = ref(null);
-
-/**
- * 切换下拉菜单显示状态
- */
-const toggleDropdown = () => {
-  showDropdown.value = !showDropdown.value;
-};
-
 /**
  * 点击外部关闭下拉菜单和二级菜单
  */
 const handleClickOutside = (event) => {
-  if (
-    dropdownRef.value &&
-    !dropdownRef.value.contains(event.target) &&
-    !event.target.closest(".nav-user-info")
-  ) {
-    showDropdown.value = false;
-  }
   if (
     expandedMenu.value &&
     !event.target.closest(".nav-menu-item") &&
@@ -432,25 +407,6 @@ const checkUnreadMessages = async () => {
     await notificationStore.refreshUnreadCount();
   } catch (_error) {
     console.error("Error checking unread messages:", _error);
-  }
-};
-
-// ============================================
-// 登录模态框控制
-// ============================================
-
-/**
- * 处理登出
- */
-const handleLogout = async () => {
-  try {
-    showDropdown.value = false;
-    await authStore.logout();
-    if (route.path.includes('profile') || route.path.includes('user-center') || route.path.includes('user-space')) {
-      router.push('/');
-    }
-  } catch (error) {
-    console.error("Logout error:", error);
   }
 };
 
