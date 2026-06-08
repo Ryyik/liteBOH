@@ -1487,11 +1487,11 @@ const handleDeleteComment = async (comment, parentId = null) => {
           <div class="x-side-column">
             <div class="x-side-content glass-panel">
               <transition name="fade-slide">
-                <div v-if="activeReplyId" class="x-reply-box">
+                <div v-if="activeReplyId" class="x-reply-box" :class="{ 'is-thread-reply': Boolean(replyToUser) }">
                   <div class="reply-input-wrapper">
                     <div class="reply-context-bar">
                       <div class="reply-context-main">
-                        <span class="reply-context-label">{{ replyToUser ? '回复' : '回复帖子' }}</span>
+                        <span class="reply-context-label">{{ replyToUser ? '正在回复' : '写评论' }}</span>
                         <span v-if="replyToUser" class="reply-context-user">@{{ replyToUser }}</span>
                       </div>
                       <p v-if="replyToUser && activeReplyQuote" class="reply-context-quote">{{ activeReplyQuote }}</p>
@@ -1544,10 +1544,9 @@ const handleDeleteComment = async (comment, parentId = null) => {
                         </div>
                         <div class="author-details">
                           <span class="comment-author-name">{{ reply.author_username }}</span>
+                          <span class="comment-date">{{ formatDate(reply.created_at) }}</span>
+                          <span v-if="String(reply.author_id || '') === String(post.author_id || '')" class="comment-author-badge">楼主</span>
                         </div>
-                      </div>
-                      <div class="comment-meta">
-                        <span class="comment-date">{{ formatDate(reply.created_at) }}</span>
                       </div>
                     </div>
                     <div class="comment-content">
@@ -1564,7 +1563,7 @@ const handleDeleteComment = async (comment, parentId = null) => {
                         {{ getChildReplyToggleLabel(reply.id) }}
                       </button>
                       <button v-if="isLoggedIn && (reply.author_id === userInfo.id || userInfo.role === 'admin')"
-                        class="del-comment-btn-mini" @click="handleDeleteComment(reply)">×</button>
+                        class="del-comment-btn-mini" aria-label="删除评论" title="删除评论" @click="handleDeleteComment(reply)">删除</button>
                     </div>
 
                     <div v-if="getChildReplyState(reply.id).totalCount > 0 || getChildReplyState(reply.id).isLoading"
@@ -1585,6 +1584,7 @@ const handleDeleteComment = async (comment, parentId = null) => {
                         <div class="child-reply-head" @click="goToProfile(child.author_username)">
                           <span class="child-reply-author-wrap">
                             <span class="child-reply-author">{{ child.author_username }}</span>
+                            <span v-if="String(child.author_id || '') === String(post.author_id || '')" class="comment-author-badge compact">楼主</span>
                             <span v-if="child.reply_to_username" class="child-reply-target">
                               回复 @{{ child.reply_to_username }}
                             </span>
@@ -1596,7 +1596,7 @@ const handleDeleteComment = async (comment, parentId = null) => {
                           <button class="comment-reply-btn-mini"
                             @click="toggleReplyInput(reply.id, child.author_username, child.content)">回复</button>
                           <button v-if="isLoggedIn && (child.author_id === userInfo.id || userInfo.role === 'admin')"
-                            class="del-comment-btn-mini" @click="handleDeleteComment(child, reply.id)">×</button>
+                            class="del-comment-btn-mini" aria-label="删除回复" title="删除回复" @click="handleDeleteComment(child, reply.id)">删除</button>
                         </div>
                       </div>
 
