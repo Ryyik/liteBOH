@@ -10,7 +10,6 @@ import {
   Hash,
   Image as ImageIcon,
   RefreshCcw,
-  Star,
   X
 } from 'lucide-vue-next';
 
@@ -49,7 +48,6 @@ const emit = defineEmits([
   'remove-image',
   'retry-image',
   'reorder-image',
-  'set-cover-image',
   'clear-images',
   'weekly-checkin',
   'open-draft'
@@ -306,13 +304,6 @@ const closeImagePreview = () => {
             <span class="post-image-status-badge" :class="image.uploadStatus === 'failed' ? 'failed' : 'approved'">
               {{ image.uploadStatus === 'failed' ? '未通过' : '已检测' }}
             </span>
-            <button v-if="image.uploadStatus !== 'failed'" type="button" class="post-image-cover-btn" :class="{ active: image.isCover }"
-              :disabled="isSubmitting || isUploadingPostImage || image.isCover"
-              :aria-label="image.isCover ? `第 ${index + 1} 张图片已设为封面` : `将第 ${index + 1} 张图片设为封面`"
-              @click.stop="emit('set-cover-image', image, index)">
-              <Star :size="14" :stroke-width="2.3" :fill="image.isCover ? 'currentColor' : 'none'" aria-hidden="true" />
-              <span>{{ image.isCover ? '封面' : '设封面' }}</span>
-            </button>
             <button v-if="image.uploadStatus === 'failed' && image.file" type="button" class="post-image-retry-btn"
               :disabled="isSubmitting || isUploadingPostImage" @click="emit('retry-image', image, index)">
               <RefreshCcw :size="14" :stroke-width="2.3" aria-hidden="true" />
@@ -475,7 +466,7 @@ const closeImagePreview = () => {
             </button>
             <img :src="currentPreviewImageUrl" :alt="previewImage.name || '发布前图片预览'" decoding="async" />
             <div class="composer-image-preview-meta">
-              <span>{{ previewImage.isCover ? '封面图片' : '帖子图片' }}</span>
+              <span>帖子图片</span>
               <strong>{{ previewImage.format ? previewImage.format.toUpperCase() : 'IMAGE' }}</strong>
             </div>
           </section>

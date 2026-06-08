@@ -260,3 +260,8 @@ export async function moderateForumImageFile(file) {
     URL.revokeObjectURL(objectUrl);
   }
 }
+
+export async function preloadForumImageModerationModel() {
+  await getNsfwModel();
+  return { ok: true };
+}

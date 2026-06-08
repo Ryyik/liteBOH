@@ -56,6 +56,20 @@ async function loadForumImageModeration() {
   }
 }
 
+export async function preloadForumImageModeration() {
+  try {
+    const { preloadForumImageModerationModel } = await loadForumImageModeration();
+    if (typeof preloadForumImageModerationModel !== 'function') {
+      return { ok: false, skipped: true, error: null };
+    }
+    await preloadForumImageModerationModel();
+    return { ok: true, skipped: false, error: null };
+  } catch (error) {
+    logger.warn('forum-api', '论坛图片安全检测模型预加载失败（不阻断发帖）', error);
+    return { ok: false, skipped: false, error: normalizeDbError(error, '图片安全检测模型预加载失败') };
+  }
+}
+
 function normalizePagination(pagination = {}) {
   const page = Math.max(1, Number(pagination.page || 1));
   const pageSize = Math.max(1, Number(pagination.pageSize || 10));
@@ -315,7 +329,6 @@ function normalizeForumImage(image = {}, { variant = 'detail' } = {}) {
     moderationStatus: String(image.moderationStatus || image.moderation_status || 'approved').trim() || 'approved',
     moderationScore: Number(image.moderationScore ?? image.moderation_score ?? 0) || 0,
     moderationReason: String(image.moderationReason || image.moderation_reason || '').trim(),
-    isCover: normalizeForumBoolean(image.isCover ?? image.is_cover),
     sortOrder: Number(image.sortOrder ?? image.sort_order ?? 0) || 0
   };
 
@@ -331,12 +344,6 @@ function normalizeForumImage(image = {}, { variant = 'detail' } = {}) {
   return result;
 }
 
-function normalizeForumBoolean(value) {
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'number') return value === 1;
-  return ['true', '1', 'yes'].includes(String(value || '').trim().toLowerCase());
-}
-
 function normalizeForumImages(images = [], options = {}) {
   const source = Array.isArray(images) ? images : [];
   return source
@@ -347,9 +354,7 @@ function normalizeForumImages(images = [], options = {}) {
 
 function toForumImageRpcPayload(images = []) {
   const normalizedImages = normalizeForumImages(images).slice(0, FORUM_IMAGE_MAX_COUNT);
-  const coverIndex = normalizedImages.findIndex((image) => image.isCover);
-  const effectiveCoverIndex = coverIndex >= 0 ? coverIndex : (normalizedImages.length > 0 ? 0 : -1);
-  return normalizedImages.map((image, index) => ({
+  return normalizedImages.map((image) => ({
     url: image.originalUrl || image.url,
     publicId: image.publicId,
     width: image.width,
@@ -357,8 +362,7 @@ function toForumImageRpcPayload(images = []) {
     format: image.format,
     moderationStatus: image.moderationStatus || 'approved',
     moderationScore: image.moderationScore || 0,
-    moderationReason: image.moderationReason || '',
-    isCover: index === effectiveCoverIndex
+    moderationReason: image.moderationReason || ''
   }));
 }
 
@@ -412,7 +416,7 @@ function normalizeForumImagePostError(error) {
     CLOUD_ENTRY_RATE_LIMITED: '发布过于频繁，请稍后再试',
     DAILY_IMAGE_POST_LIMIT: '今天带图帖子发布额度已满，每天最多 5 条',
     INVALID_CLOUD_IMAGE_URL: '图片来源异常，已阻止发布，请重新上传图片',
-    INVALID_CLOUD_COVER_IMAGE_URL: '封面图片来源异常，已阻止发布，请重新上传图片',
+    INVALID_CLOUD_COVER_IMAGE_URL: '图片来源异常，已阻止发布，请重新上传图片',
     INVALID_CLOUD_IMAGE_PUBLIC_ID: '图片资源标识异常，已阻止发布，请重新上传图片',
     INVALID_CLOUD_IMAGE_DIMENSIONS: '图片尺寸异常，请换一张图片',
     CLOUD_ENTRY_IMAGE_LIMIT_EXCEEDED: '单条 Cloud+ 图片数量超限，请减少图片后再发布',

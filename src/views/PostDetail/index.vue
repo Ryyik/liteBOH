@@ -22,6 +22,7 @@ import {
 import { supabase } from '../../utils/supabase-client.js';
 import { formatSmartTime } from '../../utils/time.js';
 import CommonAlertModal from '../../components/CommonAlertModal.vue';
+import { getForumReturnKeyFromQuery } from '@/utils/forum-return-state.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -1226,9 +1227,28 @@ const getQueryString = (value) => {
 
 const goBack = () => {
   const source = getQueryString(route.query.from);
+  const returnKey = getForumReturnKeyFromQuery(route.query, source === 'user-space' ? 'user-space' : 'forum');
 
   if (source === 'user-space') {
-    router.push({ path: '/user-space', query: { tab: getQueryString(route.query.tab) || 'posts' } });
+    router.push({
+      path: '/user-space',
+      query: {
+        tab: getQueryString(route.query.tab) || 'posts',
+        restore: '1',
+        returnKey
+      }
+    });
+    return;
+  }
+
+  if (source === 'forum') {
+    router.push({
+      path: '/forum',
+      query: {
+        restore: '1',
+        returnKey
+      }
+    });
     return;
   }
 

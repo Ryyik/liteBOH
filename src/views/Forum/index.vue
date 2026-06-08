@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import {
   CalendarDays,
   Check,
@@ -30,6 +30,7 @@ const props = defineProps({
 const emit = defineEmits(['immersive-scroll']);
 
 const router = useRouter();
+const route = useRoute();
 const authStore = useAuthStore();
 const { isLoggedIn, showLoginModal } = storeToRefs(authStore);
 const { userInfo } = authStore;
@@ -55,7 +56,6 @@ const refreshUnreadCount = async () => {
   await notificationStore.refreshUnreadCount();
 };
 
-import { getAllNews, getCategoryName } from '../../composables/useNews.js';
 import CommonAlertModal from '../../components/CommonAlertModal.vue';
 import {
   getPosts,
@@ -75,7 +75,8 @@ import {
   submitWeeklyCheckin,
   getForumPostDraft,
   upsertForumPostDraft,
-  deleteForumPostDraft
+  deleteForumPostDraft,
+  preloadForumImageModeration
 } from '../../utils/api/forum-api.js';
 import {
   getUserNotifications,
@@ -94,6 +95,12 @@ import {
   getForumPostExcerpt,
   getForumPostTitle
 } from '@/utils/forum-post-format.js';
+import {
+  clearForumReturnState,
+  getForumReturnKeyFromQuery,
+  readForumReturnState,
+  saveForumReturnState
+} from '@/utils/forum-return-state.js';
 import { supabase } from '../../utils/supabase-client.js';
 import { themeManager } from '@/utils/theme-manager.js';
 import { formatSmartTime } from '../../utils/time.js';
@@ -140,6 +147,9 @@ const shareCopiedPostIds = ref(new Set());
 const loadedForumImageKeys = ref(new Set());
 const uiAnimationTimers = new Map();
 const hotTagStats = ref([]);
+let imageModerationPreloadTimer = null;
+let imageModerationPreloadIdleId = null;
+let hasScheduledImageModerationPreload = false;
 const POSTS_PER_PAGE = 10;
 const LIST_REPLY_PREVIEW_COUNT = 3;
 const WEEKLY_CHECKIN_REWARD_POINTS = 5;
@@ -148,6 +158,7 @@ const FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT = 4;
 const FORUM_POST_DRAFT_PREFIX = 'boh_forum_post_draft';
 const FORUM_POST_DRAFT_VERSION_LIMIT = 5;
 const SEARCH_DEBOUNCE_MS = 350;
+const FORUM_IMAGE_UPLOAD_CONCURRENCY = 2;
 const AI_SEARCH_MODEL_ID = import.meta.env.VITE_FORUM_AI_SEARCH_MODEL || getBohAIModelStatus().defaultModelId;
 const FORUM_LIST_IMAGE_TRANSFORM_SM = 'f_auto,q_auto:good,c_fill,w_360,h_270';
 const FORUM_LIST_IMAGE_TRANSFORM_MD = 'f_auto,q_auto:good,c_fill,w_540,h_405';
@@ -159,6 +170,45 @@ const FORUM_TAG_OPTIONS = [
   { value: 'question', label: '#提问' }
 ];
 const FORUM_TAG_MAP = Object.fromEntries(FORUM_TAG_OPTIONS.map((tag) => [tag.value, tag]));
+const shouldPreloadForumImageModeration = () => {
+  if (typeof window === 'undefined') return false;
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  const effectiveType = String(connection?.effectiveType || '').toLowerCase();
+  if (connection?.saveData) return false;
+  if (effectiveType === 'slow-2g' || effectiveType === '2g') return false;
+  return true;
+};
+
+const clearForumImageModerationPreloadTask = () => {
+  if (imageModerationPreloadTimer) {
+    clearTimeout(imageModerationPreloadTimer);
+    imageModerationPreloadTimer = null;
+  }
+  if (imageModerationPreloadIdleId && typeof window.cancelIdleCallback === 'function') {
+    window.cancelIdleCallback(imageModerationPreloadIdleId);
+    imageModerationPreloadIdleId = null;
+  }
+};
+
+const scheduleForumImageModerationPreload = () => {
+  if (hasScheduledImageModerationPreload || !shouldPreloadForumImageModeration()) return;
+  hasScheduledImageModerationPreload = true;
+
+  const runPreload = () => {
+    imageModerationPreloadIdleId = null;
+    void preloadForumImageModeration();
+  };
+
+  imageModerationPreloadTimer = setTimeout(() => {
+    imageModerationPreloadTimer = null;
+    if (typeof window.requestIdleCallback === 'function') {
+      imageModerationPreloadIdleId = window.requestIdleCallback(runPreload, { timeout: 12000 });
+      return;
+    }
+    runPreload();
+  }, 2500);
+};
+
 const normalizeForumTagValue = (tag = '') => {
   const safeTag = String(tag || '').trim().toLowerCase();
   return FORUM_TAG_MAP[safeTag] ? safeTag : '';
@@ -167,6 +217,90 @@ const getForumTagLabel = (tag = '') => FORUM_TAG_MAP[normalizeForumTagValue(tag)
 const normalizeForumSortMode = (mode = '', fallback = 'latest') => {
   const safeMode = String(mode || '').trim().toLowerCase();
   return ['latest', 'hottest'].includes(safeMode) ? safeMode : fallback;
+};
+const getQueryString = (value) => String(Array.isArray(value) ? value[0] || '' : value || '').trim();
+const shouldRestoreForumReturnState = () => getQueryString(route.query.restore) === '1';
+const getForumReturnKey = () => getForumReturnKeyFromQuery(route.query, props.embedded ? 'user-space' : 'forum');
+const getCurrentPageScrollY = () => {
+  if (typeof window === 'undefined') return 0;
+  return window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+};
+
+const buildForumReturnState = (postId = '') => ({
+  source: props.embedded ? 'user-space' : 'forum',
+  postId: String(postId || '').trim(),
+  scrollY: getCurrentPageScrollY(),
+  viewMode: viewMode.value,
+  sortMode: sortMode.value,
+  searchQuery: searchQuery.value,
+  searchKeyword: searchKeyword.value,
+  selectedTagFilter: selectedTagFilter.value,
+  feedMode: feedMode.value,
+  currentPage: currentPage.value,
+  hasMoreData: hasMoreData.value
+});
+
+const applyForumReturnStateFilters = (state = {}) => {
+  viewMode.value = state.viewMode === 'my' ? 'my' : 'all';
+  sortMode.value = normalizeForumSortMode(state.sortMode, 'latest');
+  searchQuery.value = String(state.searchQuery ?? state.searchKeyword ?? '');
+  searchKeyword.value = String(state.searchKeyword ?? state.searchQuery ?? '').trim();
+  selectedTagFilter.value = normalizeForumTagValue(state.selectedTagFilter || '');
+  feedMode.value = state.feedMode === 'posts' ? 'posts' : 'posts';
+};
+
+const restoreForumScrollPosition = async (state = {}) => {
+  if (typeof window === 'undefined') return;
+  const targetScrollY = Math.max(0, Number(state.scrollY || 0));
+  const targetPostId = String(state.postId || '').trim();
+  await nextTick();
+
+  const runRestore = () => {
+    if (targetScrollY > 0) {
+      window.scrollTo({ top: targetScrollY, behavior: 'auto' });
+    }
+    if (!targetPostId) return;
+    window.requestAnimationFrame(() => {
+      const escapedPostId = typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+        ? CSS.escape(targetPostId)
+        : targetPostId.replace(/"/g, '\\"');
+      const selector = `[data-forum-post-id="${escapedPostId}"]`;
+      const postEl = document.querySelector(selector);
+      if (!postEl) return;
+      const rect = postEl.getBoundingClientRect();
+      const isVisible = rect.top >= 80 && rect.top <= window.innerHeight * 0.72;
+      if (!isVisible) {
+        postEl.scrollIntoView({ block: 'center', behavior: 'auto' });
+      }
+    });
+  };
+
+  window.requestAnimationFrame(runRestore);
+};
+
+const initializeForumData = async () => {
+  if (!shouldRestoreForumReturnState()) {
+    await fetchForumData();
+    return;
+  }
+
+  const returnKey = getForumReturnKey();
+  const savedState = readForumReturnState(returnKey);
+  if (!savedState) {
+    await fetchForumData();
+    return;
+  }
+
+  applyForumReturnStateFilters(savedState);
+  await fetchForumData();
+
+  const desiredPage = Math.max(1, Math.min(12, Number(savedState.currentPage || 1)));
+  while (currentPage.value < desiredPage && hasMoreData.value) {
+    await fetchForumData(true);
+  }
+
+  await restoreForumScrollPosition(savedState);
+  clearForumReturnState(returnKey);
 };
 const forumMentionUsers = computed(() => {
   const seen = new Set();
@@ -677,6 +811,44 @@ const openPostCamera = (triggerCamera) => {
   }
 };
 
+const runForumImageUploadQueue = async (items = []) => {
+  const uploadResults = new Array(items.length);
+  let nextIndex = 0;
+  let completedCount = 0;
+  const totalCount = items.length;
+  const workerCount = Math.min(FORUM_IMAGE_UPLOAD_CONCURRENCY, totalCount);
+
+  const runWorker = async () => {
+    while (nextIndex < totalCount) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      const item = items[currentIndex];
+      const displayIndex = item.fileIndex + 1;
+      postImageUploadStatus.value = `正在检测并上传第 ${displayIndex}/${item.totalCount} 张图片...`;
+      try {
+        const result = await uploadForumImage(item.file);
+        uploadResults[currentIndex] = { ...item, result };
+      } catch (error) {
+        uploadResults[currentIndex] = {
+          ...item,
+          result: {
+            ok: false,
+            error: {
+              message: error?.message || '图片上传或安全检测失败'
+            }
+          }
+        };
+      } finally {
+        completedCount += 1;
+        postImageUploadStatus.value = `已处理 ${completedCount}/${totalCount} 张图片`;
+      }
+    }
+  };
+
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+  return uploadResults;
+};
+
 const handlePostImageSelection = async (payload) => {
   const files = Array.from(payload?.files || payload?.event?.target?.files || payload?.target?.files || []);
   if (!files.length) return;
@@ -694,11 +866,12 @@ const handlePostImageSelection = async (payload) => {
 
   isUploadingPostImage.value = true;
   const failures = [];
+  const uploadItems = [];
   let successCount = 0;
   try {
     for (const [fileIndex, file] of selectedFiles.entries()) {
       const fileName = String(file?.name || `第 ${fileIndex + 1} 张图片`).trim();
-      postImageUploadStatus.value = `正在检测第 ${fileIndex + 1}/${selectedFiles.length} 张图片...`;
+      postImageUploadStatus.value = `正在准备第 ${fileIndex + 1}/${selectedFiles.length} 张图片...`;
       let uploadFile;
       try {
         uploadFile = await prepareForumImageForUpload(file, fileIndex, selectedFiles.length);
@@ -710,24 +883,36 @@ const handlePostImageSelection = async (payload) => {
         });
         continue;
       }
-      postImageUploadStatus.value = `正在检测第 ${fileIndex + 1}/${selectedFiles.length} 张图片...`;
-      const result = await uploadForumImage(uploadFile);
+      uploadItems.push({
+        file: uploadFile,
+        fileIndex,
+        fileName,
+        totalCount: selectedFiles.length
+      });
+    }
+
+    const uploadResults = await runForumImageUploadQueue(uploadItems);
+    const uploadedImages = [];
+    for (const item of uploadResults) {
+      if (!item) continue;
+      const result = item.result;
       if (!result.ok) {
         applyImageUploadRateLimitCooldown(result.error);
         failures.push({
-          name: fileName,
-          file: uploadFile || file,
+          name: item.fileName,
+          file: item.file,
           message: result.error?.message || '图片上传或安全检测失败'
         });
         continue;
       }
-      const shouldSetCover = !postImages.value.some((image) => image?.isCover);
-      postImages.value = [...postImages.value, {
+      uploadedImages.push({
         ...result.data,
-        isCover: shouldSetCover,
-        sortOrder: postImages.value.length
-      }];
-      successCount += 1;
+        sortOrder: postImages.value.length + uploadedImages.length
+      });
+    }
+    if (uploadedImages.length > 0) {
+      postImages.value = normalizePostImageSortState([...postImages.value, ...uploadedImages]);
+      successCount = uploadedImages.length;
       postImageUploadStatus.value = `已添加 ${successCount} 张图片`;
     }
 
@@ -740,7 +925,7 @@ const handlePostImageSelection = async (payload) => {
         uploadError: failure.message,
         sortOrder: postImages.value.length + failureIndex
       }));
-      postImages.value = normalizePostImageCoverState([...postImages.value, ...failedPlaceholders]);
+      postImages.value = normalizePostImageSortState([...postImages.value, ...failedPlaceholders]);
       const firstFailure = failures[0];
       const extraCount = failures.length - 1;
       showModal(
@@ -768,7 +953,7 @@ const retryPostImageUpload = async (image, index) => {
     showModal('warning', '无法重试', '这张图片缺少本地文件，请重新选择');
     return;
   }
-  postImages.value = normalizePostImageCoverState(
+  postImages.value = normalizePostImageSortState(
     postImages.value.filter((_, itemIndex) => itemIndex !== index)
   );
   await handlePostImageSelection({ files: [retryFile] });
@@ -820,33 +1005,18 @@ const prepareForumImageForUpload = async (file, fileIndex, totalCount) => {
   return compressedFile;
 };
 
-const normalizePostImageCoverState = (images = []) => {
+const normalizePostImageSortState = (images = []) => {
   const source = Array.isArray(images) ? images : [];
-  const isCoverEligible = (image) => Boolean(image?.url && image?.uploadStatus !== 'failed');
-  const coverIndex = source.findIndex((image) => image?.isCover && isCoverEligible(image));
-  const effectiveCoverIndex = coverIndex >= 0 ? coverIndex : source.findIndex(isCoverEligible);
   return source.map((item, itemIndex) => ({
     ...item,
-    isCover: isCoverEligible(item) && itemIndex === effectiveCoverIndex,
     sortOrder: itemIndex
   }));
 };
 
 const removePostImage = async (image, index) => {
   const nextImages = postImages.value.filter((_, itemIndex) => itemIndex !== index);
-  postImages.value = normalizePostImageCoverState(nextImages);
+  postImages.value = normalizePostImageSortState(nextImages);
   await cleanupUploadedForumImage(image, { silent: false });
-};
-
-const setPostCoverImage = (_image, index) => {
-  const coverIndex = Number(index);
-  if (!Number.isInteger(coverIndex) || coverIndex < 0 || coverIndex >= postImages.value.length) return;
-  if (!postImages.value[coverIndex]?.url || postImages.value[coverIndex]?.uploadStatus === 'failed') return;
-  postImages.value = postImages.value.map((item, itemIndex) => ({
-    ...item,
-    isCover: item.url && item.uploadStatus !== 'failed' && itemIndex === coverIndex,
-    sortOrder: itemIndex
-  }));
 };
 
 const reorderPostImage = ({ fromIndex, toIndex } = {}) => {
@@ -858,7 +1028,7 @@ const reorderPostImage = ({ fromIndex, toIndex } = {}) => {
   const images = [...postImages.value];
   const [moved] = images.splice(from, 1);
   images.splice(to, 0, moved);
-  postImages.value = normalizePostImageCoverState(images);
+  postImages.value = normalizePostImageSortState(images);
 };
 
 const cleanupUploadedForumImage = async (image, { silent = true } = {}) => {
@@ -937,15 +1107,17 @@ onMounted(() => {
   window.addEventListener('scroll', handleScroll);
   document.addEventListener('click', closePostImageSourceMenu);
   window.addEventListener('keydown', handleForumImageViewerKeydown);
-  fetchForumData();
+  void initializeForumData();
   loadHotTagStats();
   if (isLoggedIn.value) {
     loadWeeklyCheckinStatus();
+    scheduleForumImageModerationPreload();
   }
 });
 
 onUnmounted(() => {
   themeManager.removeListener(handleThemeChange);
+  clearForumImageModerationPreloadTask();
   forumFetchAbortController?.abort?.();
   forumFetchAbortController = null;
   window.removeEventListener('resize', updateMobileStatus);
@@ -1003,6 +1175,7 @@ watch(isLoggedIn, (loggedIn) => {
   if (loggedIn) {
     loadWeeklyCheckinStatus();
     restorePostDraft();
+    scheduleForumImageModerationPreload();
     return;
   }
   void discardDraftPostImages({ silent: true });
@@ -1986,8 +2159,6 @@ const fetchForumData = async (isLoadMore = false) => {
   }
 };
 
-const latestNews = computed(() => getAllNews().slice(0, 3));
-
 const cdnDeliveryBase = computed(() => {
   const envUrl = String(import.meta.env.VITE_CLOUDINARY_DELIVERY_BASE_URL || '').trim();
   if (envUrl) return envUrl;
@@ -2453,11 +2624,6 @@ const sharePost = async (post) => {
   }
 };
 
-const showMobileNews = ref(false);
-const toggleMobileNews = () => {
-  showMobileNews.value = !showMobileNews.value;
-};
-
 // 懒加载滚动处理
 let scrollTimeout = null;
 
@@ -2619,9 +2785,11 @@ watch(searchQuery, (nextVal) => {
 });
 
 const openPostDetail = (postId) => {
+  const returnKey = props.embedded ? 'user-space' : 'forum';
+  saveForumReturnState(returnKey, buildForumReturnState(postId));
   const query = props.embedded
-    ? { from: 'user-space', tab: 'posts' }
-    : undefined;
+    ? { from: 'user-space', tab: 'posts', returnKey }
+    : { from: 'forum', returnKey };
 
   router.push({
     name: 'PostDetail',
@@ -2712,12 +2880,6 @@ const openPostDetail = (postId) => {
         </div>
       </header>
 
-      <!-- 移动端 NewsRoom 切换按钮 -->
-      <button class="mobile-news-toggle-btn fade-in-up" @click="toggleMobileNews">
-        <span>{{ showMobileNews ? '隐藏 News Room' : '查看 News Room' }}</span>
-        <span class="toggle-icon">{{ showMobileNews ? '×' : '+' }}</span>
-      </button>
-
       <!-- 主要内容区 -->
       <main class="forum-main-grid">
 
@@ -2739,7 +2901,7 @@ const openPostDetail = (postId) => {
             @request-image-picker="openPostImagePicker" @request-camera="openPostCamera"
             @image-selection="handlePostImageSelection" @remove-image="removePostImage"
             @retry-image="retryPostImageUpload"
-            @reorder-image="reorderPostImage" @set-cover-image="setPostCoverImage"
+            @reorder-image="reorderPostImage"
             @clear-images="clearPostImages" @weekly-checkin="handleWeeklyCheckin" @open-draft="openMobileDraftPanel" />
 
           <!-- 帖子列表 -->
@@ -2837,6 +2999,7 @@ const openPostDetail = (postId) => {
               </div>
 
               <article v-for="(post, index) in forumData" :key="post.id" class="post-card-v2 glass-panel"
+                :data-forum-post-id="post.id"
                 :class="{
                   'image-post-card-v2': post.hasImages,
                   'is-expanded': expandedPostIds.has(post.id) || (activeReplyTarget && activeReplyTarget.postId === post.id),
@@ -3032,34 +3195,9 @@ const openPostDetail = (postId) => {
           </section>
         </div>
 
-        <!-- 右侧：新闻侧边栏 -->
-        <aside id="forum-newsroom" class="forum-sidebar fade-in-up" :class="{ 'mobile-hidden': !showMobileNews }"
-          style="animation-delay: 0.3s;">
-          <div class="sidebar-card glass-panel">
-            <div class="sidebar-header">
-              <span class="sidebar-tag">LATEST NEWS</span>
-              <h3>NEWS ROOM</h3>
-              <div class="sidebar-divider"></div>
-            </div>
-
-            <div class="news-list-sidebar">
-              <div v-for="news in latestNews" :key="news.id" class="sidebar-news-item">
-                <div class="news-meta">
-                  <span class="news-category">{{ getCategoryName(news.category) }}</span>
-                  <span class="news-date">{{ formatDate(news.date) }}</span>
-                </div>
-                <h4 class="news-title">{{ news.title }}</h4>
-                <p class="news-excerpt">{{ news.excerpt }}</p>
-              </div>
-            </div>
-
-            <router-link to="/newsroom" class="view-all-news-btn">
-              查看全部新闻
-              <span class="btn-arrow">→</span>
-            </router-link>
-          </div>
-
-          <div class="hot-tags-card glass-panel fade-in-up" style="animation-delay: 0.35s; margin-top: 24px;">
+        <!-- 右侧：热门标签 -->
+        <aside class="forum-sidebar fade-in-up" style="animation-delay: 0.3s;">
+          <div class="hot-tags-card glass-panel fade-in-up" style="animation-delay: 0.35s;">
             <div class="stats-header">
               <h4>热门标签</h4>
             </div>
@@ -3151,7 +3289,7 @@ const openPostDetail = (postId) => {
               @request-image-picker="openPostImagePicker" @request-camera="openPostCamera"
               @image-selection="handlePostImageSelection" @remove-image="removePostImage"
               @retry-image="retryPostImageUpload"
-              @reorder-image="reorderPostImage" @set-cover-image="setPostCoverImage"
+              @reorder-image="reorderPostImage"
               @clear-images="clearPostImages" @weekly-checkin="handleWeeklyCheckin" />
           </div>
         </div>
