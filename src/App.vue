@@ -88,6 +88,28 @@ onUnmounted(() => {
 // 监听路由变化
 watch(() => route.name, updateBodyClass);
 
+// 监听 notify 自定义事件（来自路由守卫等非组件上下文）
+let notifyListener = null;
+onMounted(() => {
+  notifyListener = (event) => {
+    const { message, type } = event.detail || {};
+    if (message && notificationStoreRef.value) {
+      const iconMap = { info: 'ℹ️', warning: '⚠️', error: '❌', success: '✅' };
+      notificationStoreRef.value.displayToast(
+        type === 'error' ? '操作受限' : type === 'warning' ? '提示' : '通知',
+        message,
+        iconMap[type] || 'ℹ️'
+      );
+    }
+  };
+  window.addEventListener('boh_notify', notifyListener);
+});
+onUnmounted(() => {
+  if (notifyListener) {
+    window.removeEventListener('boh_notify', notifyListener);
+  }
+});
+
 // 监听用户ID变化，开启通知监听
 watch(() => userInfo.id, (newId) => {
   if (newId && isInitialized.value && isLoggedIn.value) {

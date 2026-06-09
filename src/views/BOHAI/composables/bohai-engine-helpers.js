@@ -776,7 +776,14 @@ export const buildPostDraftFromText = (text) => {
   };
 };
 
-export const POST_DRAFT_IDEA_NOISE_PATTERN = /(帮我|替我|代我|请帮我|请你|我想|我要|想要|需要|可以|能不能|麻烦|先|直接|自动|起草|生成|写|整理|发布|发出去|标题|正文|内容|文案|草稿|一下|一条|一篇|一个|论坛|社区|帖子|发帖|发布文案|和|与|并且|然后|编辑后|可直接)/g;
+/**
+ * Noise pattern for post draft idea extraction.
+ *
+ * NOTE (2026-06-09): Core Chinese conjunctions (和/与/并且/然后/可以/需要)
+ * are intentionally excluded from noise removal per P1-B-6 fix.
+ * Only directive/action verbs are stripped.
+ */
+export const POST_DRAFT_IDEA_NOISE_PATTERN = /(帮我|替我|代我|请帮我|请你|我想|我要|想要|麻烦|先|直接|自动|起草|生成|写|整理|发布|发出去|标题|正文|内容|文案|草稿|一下|一条|一篇|一个|论坛|社区|帖子|发帖|发布文案|编辑后|可直接)/g;
 export const POST_DRAFT_PLACEHOLDER_PATTERN = /(请在这里填写帖子正文|先起草标题和正文|起草标题和正文|标题和正文|发帖内容|发布文案)/;
 
 export const hasPostDraftUserIdea = (rawText, draft = {}) => {

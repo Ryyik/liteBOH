@@ -1299,10 +1299,6 @@ const userProfileBio = computed(() => {
 
 const joinDate = computed(() => userInfo.value.joinDate || '');
 const isProfileBasicsComplete = computed(() => Boolean(joinDate.value && userBirthday.value));
-const profileBasicsCompletionText = computed(() => {
-  const completed = Number(Boolean(joinDate.value)) + Number(Boolean(userBirthday.value));
-  return `${completed}/2`;
-});
 const profileBirthdayText = computed(() => userBirthday.value ? formatBirthdayLabel(userBirthday.value) : '未设置');
 const profileJoinDateText = computed(() => joinDate.value ? formatJoinDateLabel(joinDate.value) : '未设置');
 const avatarInputRef = ref(null);
@@ -1679,12 +1675,6 @@ const cloudPlusUsageText = computed(() => {
   if (cloudPlusUsage.loading) return '读取中';
   if (!cloudPlusUsage.loaded) return '未检查';
   return `已使用 ${cloudPlusUsage.used}/${cloudPlusUsage.limit}`;
-});
-const cloudPlusUsageCaption = computed(() => {
-  if (cloudPlusUsage.loading) return 'Cloud+ 图片额度';
-  if (!cloudPlusUsage.loaded) return 'Cloud+ 图片额度';
-  const remaining = Math.max(0, cloudPlusUsage.limit - cloudPlusUsage.used);
-  return remaining > 0 ? `剩余 ${remaining} 张` : '额度已满';
 });
 let lastImmersiveScrollY = 0;
 let immersiveDownDistance = 0;

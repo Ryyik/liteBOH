@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from "vue-router";
 import { useAuthStore } from "../stores/auth";
+import { notify } from "../utils/notify";
 import { adminRoutes } from "./routes/admin";
 import { communityRoutes } from "./routes/community";
 import { creatorRoutes } from "./routes/creator";
@@ -7,7 +8,6 @@ import { publicRoutes } from "./routes/public";
 import { userSpaceRoutes } from "./routes/user-space";
 
 let authStore = null;
-const UPCOMING_CONTENT_NOTICE = "当前内容即将上线";
 
 const initAuthStore = () => {
   if (!authStore) {
@@ -41,7 +41,7 @@ const router = createRouter({
 
 router.beforeEach(async (to, from, next) => {
   if (to.meta?.upcoming) {
-    alert(UPCOMING_CONTENT_NOTICE);
+    notify('当前内容即将上线', 'info');
     if (from.matched.length === 0) {
       return next("/");
     }
@@ -60,13 +60,13 @@ router.beforeEach(async (to, from, next) => {
   const { isLoggedIn } = authStore;
 
   if (requiresLogin && !isLoggedIn) {
-    alert("请先登录");
+    notify('请先登录', 'warning');
     return next("/login");
   }
 
   if (requiresAdmin) {
     if (!isLoggedIn) {
-      alert("请先登录");
+      notify('请先登录', 'warning');
       return next("/login");
     }
 
@@ -74,7 +74,7 @@ router.beforeEach(async (to, from, next) => {
       || (typeof authStore.ensureAdminAccess === "function" && await authStore.ensureAdminAccess());
 
     if (!hasAdminAccess) {
-      alert("您没有权限访问该页面");
+      notify('您没有权限访问该页面', 'error');
       return next("/");
     }
   }

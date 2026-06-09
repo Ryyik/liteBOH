@@ -116,7 +116,7 @@ const stripSearchNoise = (text = '') => {
   return normalizeText(next);
 };
 
-export const buildResourceSearchQuery = (text = '', { type = 'all', loader = '', version = '' } = {}) => {
+export const buildResourceSearchQuery = (text = '', { type: _type = 'all', loader: _loader = '', version: _version = '' } = {}) => {
   const raw = normalizeText(text);
   const stripped = stripSearchNoise(raw);
   const terms = [];

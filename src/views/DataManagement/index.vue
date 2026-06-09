@@ -1400,15 +1400,9 @@ const inlineEditableFieldKeys = computed(() => new Set(
     .map((field) => field.key)
 ));
 const currentTabLabel = computed(() => tabs.find(t => t.id === currentTab.value)?.label || '');
-const currentTabMeta = computed(() => tabs.find((tab) => tab.id === currentTab.value) || tabs[0]);
 const currentTabGroup = computed(() =>
   tabGroups.find((group) => group.tabIds.includes(currentTab.value)) || tabGroups[0]
 );
-const visibleTabs = computed(() => {
-  const group = tabGroups.find((item) => item.id === activeTabGroupId.value) || currentTabGroup.value;
-  const tabIds = new Set(group?.tabIds || []);
-  return tabs.filter((tab) => tabIds.has(tab.id));
-});
 const tabGroupsWithCounts = computed(() =>
   tabGroups.map((group) => ({
     ...group,
