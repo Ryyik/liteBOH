@@ -6,25 +6,15 @@
       <section class="workspace">
         <header class="workspace-header">
           <div class="workspace-header-main">
-            <button
-              type="button"
-              class="model-trigger"
-              aria-haspopup="dialog"
-              :aria-expanded="isModelPickerOpen"
-              @click="openModelPicker"
-            >
+            <button type="button" class="model-trigger" aria-haspopup="dialog" :aria-expanded="isModelPickerOpen"
+              @click="openModelPicker">
               <span class="model-trigger-label">当前模型</span>
               <strong>{{ selectedModel.name }}</strong>
               <small>{{ selectedModel.id }}</small>
             </button>
             <div class="mode-switch">
-              <button
-                v-for="mode in MODE_OPTIONS"
-                :key="mode.id"
-                type="button"
-                :class="{ active: workMode === mode.id }"
-                @click="workMode = mode.id"
-              >
+              <button v-for="mode in MODE_OPTIONS" :key="mode.id" type="button"
+                :class="{ active: workMode === mode.id }" @click="workMode = mode.id">
                 {{ mode.label }}
               </button>
             </div>
@@ -36,14 +26,11 @@
             <h3>有什么可以帮你？</h3>
             <p>选择模型后输入问题即可。</p>
           </div>
-          <article
-            v-for="(item, index) in messages"
-            :key="`${item.role}-${index}-${item.timestamp}`"
-            class="chat-item"
-            :class="item.role"
-          >
+          <article v-for="(item, index) in messages" :key="`${item.role}-${index}-${item.timestamp}`" class="chat-item"
+            :class="item.role">
             <header class="chat-meta">
-              <div class="chat-role">{{ item.role === 'assistant' ? (item.modelName || selectedModel.name) : '你' }}</div>
+              <div class="chat-role">{{ item.role === 'assistant' ? (item.modelName || selectedModel.name) : '你' }}
+              </div>
               <time class="chat-time">{{ formatChatTime(item.timestamp) }}</time>
             </header>
             <div class="chat-content" v-html="renderMarkdown(item.content)"></div>
@@ -67,48 +54,26 @@
         <footer class="composer">
           <div class="input-box-wrapper">
             <div class="input-box">
-              <textarea
-                ref="textareaRef"
-                v-model="userInput"
-                class="composer-textarea"
-                :placeholder="currentMode.placeholder"
-                rows="1"
-                maxlength="12000"
-                @keydown="handleEnter"
-                @input="autoResize"
-              ></textarea>
+              <textarea ref="textareaRef" v-model="userInput" class="composer-textarea"
+                :placeholder="currentMode.placeholder" rows="1" maxlength="12000" @keydown="handleEnter"
+                @input="autoResize"></textarea>
             </div>
 
             <div v-if="workMode === 'translate'" class="extra-row">
               <label for="target-lang">目标语言</label>
-              <input
-                id="target-lang"
-                v-model.trim="targetLanguage"
-                type="text"
-                maxlength="24"
-                placeholder="如：英文 / 日文 / 法文"
-              />
+              <input id="target-lang" v-model.trim="targetLanguage" type="text" maxlength="24"
+                placeholder="如：英文 / 日文 / 法文" />
             </div>
 
             <div class="action-row">
-              <button type="button" class="ghost-btn" @click="clearConversation" :disabled="isLoading || messages.length === 0">
+              <button type="button" class="ghost-btn" @click="clearConversation"
+                :disabled="isLoading || messages.length === 0">
                 清空对话
               </button>
-              <button
-                v-if="isLoading"
-                type="button"
-                class="danger-btn"
-                @click="stopRequest"
-              >
+              <button v-if="isLoading" type="button" class="danger-btn" @click="stopRequest">
                 停止生成
               </button>
-              <button
-                v-else
-                type="button"
-                class="primary-btn"
-                @click="sendMessage"
-                :disabled="!canSend"
-              >
+              <button v-else type="button" class="primary-btn" @click="sendMessage" :disabled="!canSend">
                 发送
               </button>
             </div>
@@ -120,19 +85,8 @@
       </section>
     </main>
 
-    <div
-      v-if="isModelPickerOpen"
-      class="model-picker-overlay"
-      role="presentation"
-      @click="closeModelPicker"
-    >
-      <section
-        class="model-picker"
-        role="dialog"
-        aria-modal="true"
-        aria-label="选择 AI 模型"
-        @click.stop
-      >
+    <div v-if="isModelPickerOpen" class="model-picker-overlay" role="presentation" @click="closeModelPicker">
+      <section class="model-picker" role="dialog" aria-modal="true" aria-label="选择 AI 模型" @click.stop>
         <header class="model-picker-header">
           <div>
             <h3>选择模型</h3>
@@ -141,14 +95,8 @@
           <button type="button" class="picker-close-btn" @click="closeModelPicker">关闭</button>
         </header>
         <div class="model-picker-list custom-scrollbar">
-          <button
-            v-for="model in AI_MODELS"
-            :key="model.id"
-            type="button"
-            class="model-card"
-            :class="{ active: selectedModelId === model.id }"
-            @click="selectModel(model.id); closeModelPicker()"
-          >
+          <button v-for="model in AI_MODELS" :key="model.id" type="button" class="model-card"
+            :class="{ active: selectedModelId === model.id }" @click="selectModel(model.id); closeModelPicker()">
             <div class="model-main">
               <strong>{{ model.name }}</strong>
               <span class="model-id">{{ model.id }}</span>
@@ -187,14 +135,13 @@ const HISTORY_LIMIT = 12;
 
 const AI_MODELS = [
   { id: "Qwen/Qwen3.5-4B", name: "Qwen 3.5 4B", familyLabel: "通用", bestFor: "轻量问答", supportsImage: false },
-  { id: "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B", name: "DeepSeek R1 Distill 7B", familyLabel: "推理", bestFor: "逻辑推理", supportsImage: false },
   { id: "Qwen/Qwen3-8B", name: "Qwen 3 8B", familyLabel: "通用", bestFor: "多场景聊天", supportsImage: false },
   { id: "tencent/Hunyuan-MT-7B", name: "Hunyuan MT 7B", familyLabel: "翻译", bestFor: "多语翻译", supportsImage: false },
   { id: "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B", name: "DeepSeek R1 0528 8B", familyLabel: "推理", bestFor: "高强推理", supportsImage: false },
   { id: "THUDM/GLM-Z1-9B-0414", name: "GLM Z1 9B", familyLabel: "通用", bestFor: "综合任务", supportsImage: false },
   { id: "Qwen/Qwen2.5-7B-Instruct", name: "Qwen 2.5 7B Instruct", familyLabel: "指令", bestFor: "稳定执行", supportsImage: false },
-  { id: "THUDM/GLM-4-9B-0414", name: "GLM 4 9B", familyLabel: "通用", bestFor: "快速响应", supportsImage: false },
-  { id: "internlm/internlm2_5-7b-chat", name: "InternLM 2.5 7B", familyLabel: "通用", bestFor: "聊天对话", supportsImage: false }
+  { id: "nex-agi/Nex-N2-Pro", name: "Nex N2 Pro", familyLabel: "通用", bestFor: "轻量通用对话", supportsImage: false },
+  { id: "THUDM/GLM-4-9B-0414", name: "GLM 4 9B", familyLabel: "通用", bestFor: "快速响应", supportsImage: false }
 ];
 
 const MODE_OPTIONS = [

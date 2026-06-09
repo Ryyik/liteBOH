@@ -66,9 +66,12 @@ export const createAgentRuntime = (definition = {}) => {
   const tag = String(definition.tag || role).trim();
   const label = String(definition.label || tag).trim();
 
-  const execute = async ({ task, context, signal } = {}) => {
+  const execute = async ({ task, context, signal, overrideTimeoutMs } = {}) => {
     const startedAt = Date.now();
-    const timeoutMs = Number.isFinite(definition.timeoutMs) ? Number(definition.timeoutMs) : 25000;
+    const defaultTimeout = Number.isFinite(definition.timeoutMs) ? Number(definition.timeoutMs) : 25000;
+    const timeoutMs = Number.isFinite(overrideTimeoutMs) && overrideTimeoutMs > 0
+      ? Math.min(defaultTimeout, Number(overrideTimeoutMs))
+      : defaultTimeout;
     metrics.runs += 1;
 
     const onProgress = typeof context?.onProgress === 'function' ? context.onProgress : null;
@@ -119,6 +122,14 @@ export const createAgentRuntime = (definition = {}) => {
           errorMessage: '用户取消'
         });
         if (onProgress) onProgress(endEvent);
+        if (onProgress) onProgress(createAgentEvent('error', {
+          agent: name,
+          role,
+          taskId: safeTask.id,
+          stage: 'agent',
+          message: '用户取消',
+          fatal: false
+        }));
         if (bus) bus.addError(name, error);
         return { ok: false, status: AGENT_AGENT_STATUS.CANCELLED, output: null, error, ms: elapsed };
       }
@@ -134,6 +145,14 @@ export const createAgentRuntime = (definition = {}) => {
         errorMessage: String(error?.message || error)
       });
       if (onProgress) onProgress(endEvent);
+      if (onProgress) onProgress(createAgentEvent('error', {
+        agent: name,
+        role,
+        taskId: safeTask.id,
+        stage: 'agent',
+        message: String(error?.message || error),
+        fatal: true
+      }));
       if (bus) bus.addError(name, error);
       return { ok: false, status: AGENT_AGENT_STATUS.FAILED, output: null, error, ms: elapsed };
     }

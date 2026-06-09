@@ -7,6 +7,7 @@ export const AGENT_EVENT_TYPES = Object.freeze({
   SYNTH_CHUNK: 'synth-chunk',
   SYNTH_END: 'synth-end',
   CRITIC_REVISE: 'critic-revise',
+  USAGE: 'usage',
   FINAL: 'final',
   DEGRADED: 'degraded',
   ERROR: 'error',

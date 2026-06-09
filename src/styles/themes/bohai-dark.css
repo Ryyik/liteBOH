@@ -320,3 +320,504 @@
   background: #5f5f5f;
   background-clip: content-box;
 }
+
+/* ChatGPT-like compact dark layer */
+.bohai-page[data-theme="dark"],
+[data-theme="dark"] .bohai-page {
+  --bohai-bg: #212121;
+  --bohai-panel: #171717;
+  --bohai-panel-strong: #2f2f2f;
+  --bohai-surface: #2f2f2f;
+  --bohai-surface-hover: #3a3a3a;
+  --bohai-border: rgba(255, 255, 255, 0.12);
+  --bohai-border-strong: rgba(255, 255, 255, 0.20);
+  --bohai-text: #ececec;
+  --bohai-muted: #b4b4b4;
+  --bohai-muted-soft: #8f8f8f;
+  --bohai-accent: #10a37f;
+  --bohai-liquid-fill: #2f2f2f;
+  --bohai-liquid-fill-strong: #3a3a3a;
+  --bohai-liquid-border: rgba(255, 255, 255, 0.12);
+  --bohai-glass-shadow: none;
+  background: #212121 !important;
+}
+
+.bohai-page[data-theme="dark"] .sidebar,
+[data-theme="dark"] .bohai-page .sidebar {
+  background: #171717;
+  border-right-color: rgba(255, 255, 255, 0.10);
+  box-shadow: none;
+}
+
+.bohai-page[data-theme="dark"] .new-chat-btn,
+[data-theme="dark"] .bohai-page .new-chat-btn {
+  background: #171717;
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #ececec;
+}
+
+.bohai-page[data-theme="dark"] .new-chat-btn:hover,
+[data-theme="dark"] .bohai-page .new-chat-btn:hover,
+.bohai-page[data-theme="dark"] .session-item:hover,
+[data-theme="dark"] .bohai-page .session-item:hover,
+.bohai-page[data-theme="dark"] .session-item.active,
+[data-theme="dark"] .bohai-page .session-item.active {
+  background: #2f2f2f;
+  color: #ffffff;
+}
+
+.bohai-page[data-theme="dark"] .chat-header,
+[data-theme="dark"] .bohai-page .chat-header {
+  background: rgba(33, 33, 33, 0.92);
+  border-bottom-color: transparent;
+}
+
+.bohai-page[data-theme="dark"] .header-content:hover,
+[data-theme="dark"] .bohai-page .header-content:hover,
+.bohai-page[data-theme="dark"] .header-icon-btn:hover,
+[data-theme="dark"] .bohai-page .header-icon-btn:hover,
+.bohai-page[data-theme="dark"] .header-icon-btn.active,
+[data-theme="dark"] .bohai-page .header-icon-btn.active,
+.bohai-page[data-theme="dark"] .plan-header-btn.active,
+[data-theme="dark"] .bohai-page .plan-header-btn.active,
+.bohai-page[data-theme="dark"] .context-budget-ring:hover,
+[data-theme="dark"] .bohai-page .context-budget-ring:hover {
+  background: #2f2f2f;
+  color: #ffffff;
+}
+
+.bohai-page[data-theme="dark"] .header-session,
+[data-theme="dark"] .bohai-page .header-session {
+  color: #b4b4b4;
+}
+
+.bohai-page[data-theme="dark"] .auto-routed-chip,
+[data-theme="dark"] .bohai-page .auto-routed-chip {
+  background: #2f2f2f;
+  color: #ececec;
+}
+
+.bohai-page[data-theme="dark"] .plan-progress-dock,
+[data-theme="dark"] .bohai-page .plan-progress-dock,
+.bohai-page[data-theme="dark"] .agent-cluster-dock,
+[data-theme="dark"] .bohai-page .agent-cluster-dock {
+  background: #2a2a2a;
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+}
+
+.bohai-page[data-theme="dark"] .plan-dock-copy strong,
+[data-theme="dark"] .bohai-page .plan-dock-copy strong,
+.bohai-page[data-theme="dark"] .agent-cluster-dock-copy strong,
+[data-theme="dark"] .bohai-page .agent-cluster-dock-copy strong,
+.bohai-page[data-theme="dark"] .plan-todo-card-head strong,
+[data-theme="dark"] .bohai-page .plan-todo-card-head strong,
+.bohai-page[data-theme="dark"] .plan-todo-copy strong,
+[data-theme="dark"] .bohai-page .plan-todo-copy strong {
+  color: #ececec;
+}
+
+.bohai-page[data-theme="dark"] .plan-dock-copy span,
+[data-theme="dark"] .bohai-page .plan-dock-copy span,
+.bohai-page[data-theme="dark"] .agent-cluster-dock-copy span,
+[data-theme="dark"] .bohai-page .agent-cluster-dock-copy span,
+.bohai-page[data-theme="dark"] .plan-todo-copy span,
+[data-theme="dark"] .bohai-page .plan-todo-copy span {
+  color: #b4b4b4;
+}
+
+.bohai-page[data-theme="dark"] .plan-step-chip,
+[data-theme="dark"] .bohai-page .plan-step-chip,
+.bohai-page[data-theme="dark"] .agent-cluster-chip,
+[data-theme="dark"] .bohai-page .agent-cluster-chip {
+  background: #212121;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.bohai-page[data-theme="dark"] .logo-container,
+[data-theme="dark"] .bohai-page .logo-container {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: #ececec;
+}
+
+.bohai-page[data-theme="dark"] .empty-suggestion-card,
+[data-theme="dark"] .bohai-page .empty-suggestion-card {
+  background: #2f2f2f;
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+}
+
+.bohai-page[data-theme="dark"] .empty-suggestion-card:hover:not(:disabled),
+[data-theme="dark"] .bohai-page .empty-suggestion-card:hover:not(:disabled) {
+  background: #3a3a3a;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.bohai-page[data-theme="dark"] .empty-suggestion-icon,
+[data-theme="dark"] .bohai-page .empty-suggestion-icon {
+  background: #212121;
+  color: #ececec;
+}
+
+.bohai-page[data-theme="dark"] .empty-suggestion-text,
+[data-theme="dark"] .bohai-page .empty-suggestion-text {
+  color: #ececec;
+}
+
+.bohai-page[data-theme="dark"] .message.user .message-content,
+[data-theme="dark"] .bohai-page .message.user .message-content {
+  background: #2f2f2f;
+  color: #ececec !important;
+  border: none;
+  box-shadow: none;
+}
+
+.bohai-page[data-theme="dark"] .message-action-btn:hover,
+[data-theme="dark"] .bohai-page .message-action-btn:hover,
+.bohai-page[data-theme="dark"] .message-action-btn.active,
+[data-theme="dark"] .bohai-page .message-action-btn.active {
+  background: #2f2f2f;
+  color: #ffffff;
+}
+
+.bohai-page[data-theme="dark"] .message-meta-panel,
+[data-theme="dark"] .bohai-page .message-meta-panel,
+.bohai-page[data-theme="dark"] .plan-todo-card,
+[data-theme="dark"] .bohai-page .plan-todo-card,
+.bohai-page[data-theme="dark"] .resource-results-card,
+[data-theme="dark"] .bohai-page .resource-results-card {
+  background: #2f2f2f;
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+}
+
+.bohai-page[data-theme="dark"] .plan-todo-item,
+[data-theme="dark"] .bohai-page .plan-todo-item,
+.bohai-page[data-theme="dark"] .quick-note-preview,
+[data-theme="dark"] .bohai-page .quick-note-preview,
+.bohai-page[data-theme="dark"] .resource-inline-item,
+[data-theme="dark"] .bohai-page .resource-inline-item {
+  background: #212121;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.bohai-page[data-theme="dark"] .input-area::before,
+[data-theme="dark"] .bohai-page .input-area::before {
+  background: linear-gradient(180deg, rgba(33, 33, 33, 0), #212121 34%);
+}
+
+.bohai-page[data-theme="dark"] .input-area,
+[data-theme="dark"] .bohai-page .input-area {
+  background: transparent;
+}
+
+.bohai-page[data-theme="dark"] .input-box,
+[data-theme="dark"] .bohai-page .input-box {
+  background: #2f2f2f;
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: none;
+}
+
+.bohai-page[data-theme="dark"] .input-box:focus-within,
+[data-theme="dark"] .bohai-page .input-box:focus-within {
+  border-color: rgba(255, 255, 255, 0.24);
+  box-shadow: none;
+}
+
+.bohai-page[data-theme="dark"] .features-btn:hover,
+[data-theme="dark"] .bohai-page .features-btn:hover,
+.bohai-page[data-theme="dark"] .mic-btn:hover,
+[data-theme="dark"] .bohai-page .mic-btn:hover {
+  background: #3a3a3a;
+}
+
+.bohai-page[data-theme="dark"] .features-btn.active,
+[data-theme="dark"] .bohai-page .features-btn.active,
+.bohai-page[data-theme="dark"] .send-btn,
+.bohai-page[data-theme="dark"] .stop-btn,
+[data-theme="dark"] .bohai-page .send-btn,
+[data-theme="dark"] .bohai-page .stop-btn {
+  background: #ffffff;
+  color: #212121;
+}
+
+.bohai-page[data-theme="dark"] .send-btn:hover:not(:disabled),
+.bohai-page[data-theme="dark"] .stop-btn:hover,
+[data-theme="dark"] .bohai-page .send-btn:hover:not(:disabled),
+[data-theme="dark"] .bohai-page .stop-btn:hover {
+  background: #ececec;
+}
+
+.bohai-page[data-theme="dark"] .features-menu,
+[data-theme="dark"] .bohai-page .features-menu {
+  background: #2f2f2f;
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
+}
+
+.bohai-page[data-theme="dark"] .feature-style-option,
+[data-theme="dark"] .bohai-page .feature-style-option,
+.bohai-page[data-theme="dark"] .composer-chip.neutral,
+[data-theme="dark"] .bohai-page .composer-chip.neutral,
+.bohai-page[data-theme="dark"] .quick-prompt-btn,
+[data-theme="dark"] .bohai-page .quick-prompt-btn {
+  background: #212121;
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #ececec;
+}
+
+.bohai-page[data-theme="dark"] .feature-style-option:hover,
+[data-theme="dark"] .bohai-page .feature-style-option:hover,
+.bohai-page[data-theme="dark"] .quick-prompt-btn:hover,
+[data-theme="dark"] .bohai-page .quick-prompt-btn:hover {
+  background: #3a3a3a;
+}
+
+.bohai-page[data-theme="dark"] .resource-modal,
+[data-theme="dark"] .bohai-page .resource-modal,
+.bohai-page[data-theme="dark"] .plan-modal,
+[data-theme="dark"] .bohai-page .plan-modal,
+.bohai-page[data-theme="dark"] .resource-modal-footer,
+[data-theme="dark"] .bohai-page .resource-modal-footer,
+.bohai-page[data-theme="dark"] .plan-modal-footer,
+[data-theme="dark"] .bohai-page .plan-modal-footer {
+  background: #2f2f2f;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.bohai-page[data-theme="dark"].empty-chat-mode .empty-state h2,
+[data-theme="dark"] .bohai-page.empty-chat-mode .empty-state h2 {
+  color: #f4f4f4;
+}
+
+.bohai-page[data-theme="dark"].empty-chat-mode .input-box,
+[data-theme="dark"] .bohai-page.empty-chat-mode .input-box {
+  background: #2f2f2f;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 22px 58px rgba(0, 0, 0, 0.28);
+}
+
+.bohai-page[data-theme="dark"].empty-chat-mode .features-btn,
+[data-theme="dark"] .bohai-page.empty-chat-mode .features-btn {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #b4b4b4;
+}
+
+.bohai-page[data-theme="dark"].empty-chat-mode .features-btn:hover,
+[data-theme="dark"] .bohai-page.empty-chat-mode .features-btn:hover,
+.bohai-page[data-theme="dark"].empty-chat-mode .mic-btn:hover,
+[data-theme="dark"] .bohai-page.empty-chat-mode .mic-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.bohai-page[data-theme="dark"].empty-chat-mode .send-btn,
+.bohai-page[data-theme="dark"].empty-chat-mode .stop-btn,
+[data-theme="dark"] .bohai-page.empty-chat-mode .send-btn,
+[data-theme="dark"] .bohai-page.empty-chat-mode .stop-btn {
+  background: #9b9b9b;
+  color: #212121;
+}
+
+.bohai-page[data-theme="dark"].empty-chat-mode .send-btn:not(:disabled),
+.bohai-page[data-theme="dark"].empty-chat-mode .stop-btn,
+[data-theme="dark"] .bohai-page.empty-chat-mode .send-btn:not(:disabled),
+[data-theme="dark"] .bohai-page.empty-chat-mode .stop-btn {
+  background: #d7d7d7;
+  color: #212121;
+}
+
+.bohai-page[data-theme="dark"].empty-chat-mode .empty-suggestion-grid,
+[data-theme="dark"] .bohai-page.empty-chat-mode .empty-suggestion-grid {
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+.bohai-page[data-theme="dark"].empty-chat-mode .empty-suggestion-card,
+[data-theme="dark"] .bohai-page.empty-chat-mode .empty-suggestion-card {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+  background: transparent;
+}
+
+.bohai-page[data-theme="dark"].empty-chat-mode .empty-suggestion-icon,
+[data-theme="dark"] .bohai-page.empty-chat-mode .empty-suggestion-icon {
+  background: transparent;
+  color: #8f8f8f;
+}
+
+.bohai-page[data-theme="dark"].empty-chat-mode .empty-suggestion-text,
+[data-theme="dark"] .bohai-page.empty-chat-mode .empty-suggestion-text {
+  color: #9b9b9b;
+}
+
+.bohai-page[data-theme="dark"].empty-chat-mode .empty-suggestion-card:hover .empty-suggestion-text,
+[data-theme="dark"] .bohai-page.empty-chat-mode .empty-suggestion-card:hover .empty-suggestion-text {
+  color: #ececec;
+}
+
+.bohai-page[data-theme="dark"] .sidebar-footer,
+[data-theme="dark"] .bohai-page .sidebar-footer {
+  border-top-color: rgba(255, 255, 255, 0.10);
+}
+
+.bohai-page[data-theme="dark"] .sidebar-status,
+.bohai-page[data-theme="dark"] .sidebar-footer-btn,
+[data-theme="dark"] .bohai-page .sidebar-status,
+[data-theme="dark"] .bohai-page .sidebar-footer-btn {
+  color: #b4b4b4;
+}
+
+.bohai-page[data-theme="dark"] .sidebar-footer-btn:hover,
+[data-theme="dark"] .bohai-page .sidebar-footer-btn:hover {
+  background: #2f2f2f;
+  color: #ffffff;
+}
+
+.bohai-page[data-theme="dark"] .task-status-pill,
+[data-theme="dark"] .bohai-page .task-status-pill {
+  background: #2f2f2f;
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #ececec;
+}
+
+.bohai-page[data-theme="dark"] .task-status-pill:hover,
+[data-theme="dark"] .bohai-page .task-status-pill:hover {
+  background: #3a3a3a;
+}
+
+.bohai-page[data-theme="dark"] .task-status-muted,
+[data-theme="dark"] .bohai-page .task-status-muted {
+  color: #8f8f8f;
+}
+
+.bohai-page[data-theme="dark"] .message.assistant .message-content,
+.bohai-page[data-theme="dark"] .message-meta-panel,
+[data-theme="dark"] .bohai-page .message.assistant .message-content,
+[data-theme="dark"] .bohai-page .message-meta-panel {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.bohai-page[data-theme="dark"] .task-drawer-backdrop,
+[data-theme="dark"] .bohai-page .task-drawer-backdrop {
+  background: rgba(0, 0, 0, 0.34);
+}
+
+.bohai-page[data-theme="dark"] .task-drawer,
+[data-theme="dark"] .bohai-page .task-drawer {
+  background: #2f2f2f;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.bohai-page[data-theme="dark"] .ai-settings-backdrop,
+[data-theme="dark"] .bohai-page .ai-settings-backdrop {
+  background: rgba(0, 0, 0, 0.34);
+}
+
+.bohai-page[data-theme="dark"] .ai-settings-drawer,
+[data-theme="dark"] .bohai-page .ai-settings-drawer {
+  background: #2f2f2f;
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+}
+
+.bohai-page[data-theme="dark"] .ai-settings-header,
+[data-theme="dark"] .bohai-page .ai-settings-header {
+  border-bottom-color: rgba(255, 255, 255, 0.10);
+}
+
+.bohai-page[data-theme="dark"] .ai-settings-header h2,
+[data-theme="dark"] .bohai-page .ai-settings-header h2,
+.bohai-page[data-theme="dark"] .ai-setting-copy strong,
+[data-theme="dark"] .bohai-page .ai-setting-copy strong {
+  color: #ececec;
+}
+
+.bohai-page[data-theme="dark"] .ai-settings-kicker,
+.bohai-page[data-theme="dark"] .ai-settings-section h3,
+.bohai-page[data-theme="dark"] .ai-setting-copy span,
+[data-theme="dark"] .bohai-page .ai-settings-kicker,
+[data-theme="dark"] .bohai-page .ai-settings-section h3,
+[data-theme="dark"] .bohai-page .ai-setting-copy span {
+  color: #8f8f8f;
+}
+
+.bohai-page[data-theme="dark"] .ai-settings-close,
+[data-theme="dark"] .bohai-page .ai-settings-close {
+  color: #b4b4b4;
+}
+
+.bohai-page[data-theme="dark"] .ai-settings-close:hover,
+.bohai-page[data-theme="dark"] .ai-setting-row:hover,
+[data-theme="dark"] .bohai-page .ai-settings-close:hover,
+[data-theme="dark"] .bohai-page .ai-setting-row:hover {
+  background: #3a3a3a;
+}
+
+.bohai-page[data-theme="dark"] .ai-setting-icon,
+[data-theme="dark"] .bohai-page .ai-setting-icon {
+  background: #212121;
+  color: #b4b4b4;
+}
+
+.bohai-page[data-theme="dark"] .ai-setting-switch,
+[data-theme="dark"] .bohai-page .ai-setting-switch {
+  background: #5f5f5f;
+}
+
+.bohai-page[data-theme="dark"] .ai-setting-switch.enabled,
+[data-theme="dark"] .bohai-page .ai-setting-switch.enabled {
+  background: #10a37f;
+}
+
+.bohai-page[data-theme="dark"] .ai-style-option,
+[data-theme="dark"] .bohai-page .ai-style-option {
+  background: #212121;
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #ececec;
+}
+
+.bohai-page[data-theme="dark"] .ai-style-option:hover,
+[data-theme="dark"] .bohai-page .ai-style-option:hover {
+  background: #3a3a3a;
+}
+
+.bohai-page[data-theme="dark"] .ai-style-option.active,
+[data-theme="dark"] .bohai-page .ai-style-option.active {
+  border-color: rgba(16, 163, 127, 0.38);
+  background: rgba(16, 163, 127, 0.16);
+  color: #78dec7;
+}
+
+.bohai-page[data-theme="dark"] .features-menu,
+[data-theme="dark"] .bohai-page .features-menu {
+  background: rgba(31, 31, 31, 0.96);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.46);
+}
+
+.bohai-page[data-theme="dark"] .feature-menu-handle,
+[data-theme="dark"] .bohai-page .feature-menu-handle {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.bohai-page[data-theme="dark"] .feature-menu-title,
+.bohai-page[data-theme="dark"] .feature-action-copy strong,
+.bohai-page[data-theme="dark"] .feature-action-icon,
+[data-theme="dark"] .bohai-page .feature-menu-title,
+[data-theme="dark"] .bohai-page .feature-action-copy strong,
+[data-theme="dark"] .bohai-page .feature-action-icon {
+  color: #f4f4f4;
+}
+
+.bohai-page[data-theme="dark"] .feature-action-copy span,
+[data-theme="dark"] .bohai-page .feature-action-copy span {
+  color: #a8a8a8;
+}
+
+.bohai-page[data-theme="dark"] .feature-action-row:hover,
+[data-theme="dark"] .bohai-page .feature-action-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+}

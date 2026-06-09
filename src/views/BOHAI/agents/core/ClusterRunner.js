@@ -1,6 +1,7 @@
 import { AGENT_CLUSTER_AGENT_STATUS, AGENT_CLUSTER_MODE, AGENT_CLUSTER_PLAN_STRATEGY, estimateClusterBudget, resolveClusterMode } from './agent-cluster-config.js';
 import {
   AGENT_AGENT_ROLES,
+  AGENT_AGENT_STATUS,
   buildAgentRunId,
   createAgentEvent
 } from './agent-events.js';
@@ -118,18 +119,72 @@ export const createClusterRunner = ({
       schedulerResult = await scheduler.run(finalPlan);
     }
 
+    // SINGLE-worker 早出口：当 plan 只有一个非 synth 的工作节点时，跳过 Synthesizer 的一次大模型调用，
+    // 直接把 worker 产出作为 final answer。省一次 LLM 调用 + 节省合成 prompt 的 token。
+    const hasOnlySingleTask = schedulerResult.results.length === 1
+      && schedulerResult.results[0]?.status !== AGENT_AGENT_STATUS.SKIPPED
+      && schedulerResult.results[0]?.status !== AGENT_AGENT_STATUS.FAILED
+      && schedulerResult.results[0]?.status !== AGENT_AGENT_STATUS.CANCELLED;
+
     const sources = bus.getSources();
-    const synthResult = await synthesizer.synthesize({
-      query: safeQuery,
-      bus,
-      historySummary,
-      sources
-    });
+    let synthResult;
+    if (hasOnlySingleTask) {
+      const onlyResult = schedulerResult.results[0];
+      const answer = typeof onlyResult.output === 'string'
+        ? onlyResult.output
+        : (onlyResult.output?.answer || onlyResult.output?.summary || onlyResult.output?.text || '');
+      synthResult = {
+        answer: String(answer || '').trim() || '当前 Agent 未返回可读结果。',
+        sources: onlyResult.sources || sources,
+        internal: '',
+        degraded: false,
+        totalFailure: false,
+        hadMarker: false
+      };
+      emit(createAgentEvent('synth-end', {
+        answerChars: synthResult.answer.length,
+        degraded: false,
+        skipped: true,
+        reason: '单 worker 早出口'
+      }));
+    } else {
+      synthResult = await synthesizer.synthesize({
+        query: safeQuery,
+        bus,
+        historySummary,
+        sources,
+        onStream: typeof onStream === 'function' ? (text) => {
+          // 打字机流式推送给上层
+          try { onStream(text); } catch (_err) { /* ignore */ }
+        } : undefined
+      });
+    }
 
     if (synthResult.degraded) {
       emit(createAgentEvent('degraded', { reason: synthResult.answer?.slice?.(0, 120) || '合成器已降级' }));
     }
-    emit(createAgentEvent('synth-end', { answerChars: synthResult.answer.length, degraded: synthResult.degraded }));
+    if (!hasOnlySingleTask) {
+      emit(createAgentEvent('synth-end', { answerChars: synthResult.answer.length, degraded: synthResult.degraded }));
+    }
+
+    // 聚合 token 使用：worker 自身 tokens 字段 + 合成器估算 + Orchestrator 输入估算。
+    // 透出 usage 事件，让 UI 可视化每轮成本。
+    const workerTokens = schedulerResult.results.reduce((sum, r) => sum + (Number(r?.tokens) || 0), 0);
+    const synthTokens = hasOnlySingleTask
+      ? 0
+      : Math.max(400, Math.round((synthResult.answer || '').length / 1.5));
+    const orchestratorTokens = Math.max(300, Math.round((historySummary?.length || 0) / 2.5) + 200);
+    const totalTokens = workerTokens + synthTokens + orchestratorTokens;
+    emit(createAgentEvent('usage', {
+      total: totalTokens,
+      byAgent: schedulerResult.results.reduce((acc, r) => {
+        if (r?.agent) acc[r.agent] = Number(r.tokens) || 0;
+        return acc;
+      }, {}),
+      orchestrator: orchestratorTokens,
+      synthesizer: synthTokens,
+      workers: workerTokens
+    }));
 
     if (typeof onStream === 'function') {
       onStream(synthResult.answer);
@@ -165,6 +220,7 @@ export const createClusterRunner = ({
     registry,
     run,
     orchestrator,
-    synthesizer
+    synthesizer,
+    setAgentEnabled: (name, enabled) => registry.setEnabled(name, enabled)
   };
 };

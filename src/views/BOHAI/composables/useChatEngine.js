@@ -46,10 +46,12 @@ import {
   isCreatePageRequest
 } from '@/utils/bohai-action-draft-intent.js';
 import {
-  BOH_AUTO_MODE_ID,
   isLikelyPersonalSupportRequest,
   resolveBOHAIAutoModeDecision
 } from '@/utils/bohai-auto-router.js';
+import {
+  createNeutralAutoDecision
+} from '@/utils/bohai-auto-decision.js';
 import {
   BOHAI_ACTION_IDS,
   BOHAI_CONNECTOR_IDS,
@@ -146,6 +148,7 @@ import {
   USER_PRIVATE_PERSONAL_PATTERN,
   USER_PRIVATE_POST_KEYWORDS,
   USER_PRIVATE_POSTS_FETCH_LIMIT,
+  BOH_DEFAULT_MODE_ID,
   USER_PRIVATE_PUSHPLUS_KEYWORDS,
   USER_PRIVATE_SUBSCRIPTION_KEYWORDS,
   USER_PRIVATE_SUMMARY_KEYWORDS,
@@ -211,6 +214,13 @@ import {
   isAgentClusterMode,
   useAgentClusterState
 } from './agent-cluster-helpers.js';
+import {
+  RESOURCE_FOLLOW_UP_PATTERN,
+  RESOURCE_RECOMMENDATION_PATTERN,
+  WEAK_RESOURCE_QUERY_PATTERN,
+  KNOWN_RESOURCE_NAME_ALIASES,
+  stripResourceQueryNoise as stripResourceQueryNoiseShared
+} from '../agents/core/agent-patterns.js';
 
 // ============================================================
 // BOH AI Chat Engine 主 composable
@@ -493,15 +503,29 @@ export function useChatEngine() {
   const isLoading = computed(() => chatSessions[currentSessionIndex.value]?.isLoading || false);
   const isThinking = computed(() => chatSessions[currentSessionIndex.value]?.isThinking || false);
 
-  // 当前模式 - 默认 Auto，由路由器根据用户意图选择快速/思考/专业。
-  const currentModeId = ref(BOH_AUTO_MODE_ID);
+  // 当前模式 - 默认 Fast（极速响应）。4 模式之间不自动切换；
+  // 用户主动选择什么就走什么（语义：Fast=极速 / Pro=质量 / Plan=超级高质量 / Agent=工作）。
+  const currentModeId = ref(BOH_DEFAULT_MODE_ID);
   const currentMode = computed(() => chatModes.find(m => m.id === currentModeId.value) || chatModes[0]);
   const currentModelId = computed(() => currentMode.value.model);
   const currentModel = computed(() => availableModels.find(m => m.id === currentModelId.value) || availableModels[0]);
 
-  const getModelForModeId = (modeId) => {
-    const mode = chatModes.find((item) => item.id === modeId) || chatModes.find((item) => item.id === 'fast') || chatModes[0];
-    return availableModels.find((item) => item.id === mode?.model) || currentModel.value || availableModels[0];
+  // 本轮 Auto 路由到的具体模式：在 sendMessage 中赋值，UI 可读。
+  // 当用户手动点击 chip 重置或新会话时清空。
+  const lastRoutedMode = ref('');
+
+  // 会话级"联网搜索未配置"提示去重：避免每轮都刷一条。
+  const webSearchDisabledNoticeShownFor = new Set();
+
+  const getModelForModeId = (modeId, _context = {}) => {
+    // 4 模式下,模型与模式 1:1 固定绑定,不再按文本复杂度做二级判断。
+    const mode = chatModes.find((item) => item.id === modeId)
+      || chatModes.find((item) => item.id === BOH_DEFAULT_MODE_ID)
+      || chatModes[0];
+    const targetModelId = mode?.model;
+    return availableModels.find((item) => item.id === targetModelId)
+      || currentModel.value
+      || availableModels[0];
   };
 
   const isCommandMode = ref(false);
@@ -2359,6 +2383,81 @@ export function useChatEngine() {
 
   const messages = computed(() => chatSessions[currentSessionIndex.value]?.messages || []);
 
+  // 与真正发送给 BOH AI 的历史消息窗口保持一致：复用 buildHistoryMessagesWithCachedSummary 的预算与截断规则，
+  // 实时统计下一轮 BOH AI 实际能看到的上下文占用情况。提取为独立函数以便在 sendMessage 等非响应式场景下复用。
+  const computeContextBudgetUsage = (session) => {
+    const source = Array.isArray(session?.messages) ? session.messages : [];
+    // 真正送入模型的窗口排除正在输入的 user 与刚返回的 assistant 占位（与 sendMessage 内 historyMessagesForCurrentTurn = slice(0, -2) 一致）
+    const historySource = source.length > 2 ? source.slice(0, -2) : [];
+    const recentBuilt = buildHistoryMessagesWithCachedSummary({
+      ...(session || {}),
+      messages: historySource
+    }, {
+      maxChars: MAX_HISTORY_CONTEXT_CHARS,
+      maxMessages: MAX_CONTEXT_MESSAGES,
+      maxPerMessage: MAX_HISTORY_MESSAGE_CHARS
+    });
+
+    // 复用 normalizePromptLine/maxChars 的实际配额估算：与 buildHistoryMessagesWithinBudget 内部口径一致
+    let usedChars = 0;
+    recentBuilt.forEach((item) => {
+      usedChars += String(item?.content || '').length + 20;
+    });
+
+    const max = MAX_HISTORY_CONTEXT_CHARS;
+    const rawPercent = max > 0 ? (usedChars / max) * 100 : 0;
+    const percent = Math.max(0, Math.min(100, rawPercent));
+    const includedMessageCount = recentBuilt.length;
+    const hasSummary = recentBuilt.some((item) => item?.role === 'system' && /【此前对话摘要】/.test(String(item?.content || '')));
+
+    return {
+      used: usedChars,
+      max,
+      percent,
+      includedMessageCount,
+      hasSummary,
+      // 颜色档位（low / mid / high / full）由 UI 直接使用，避免在模板中重复阈值判断
+      level: percent >= 95 ? 'full' : percent >= 80 ? 'high' : percent >= 55 ? 'mid' : 'low'
+    };
+  };
+
+  // 响应式版本：与上述函数口径一致，供顶栏圆环 UI 使用
+  const contextBudgetUsage = computed(() => computeContextBudgetUsage(chatSessions[currentSessionIndex.value]));
+
+  // 自动上下文压缩：当下一轮 BOH AI 实际可见的上下文达到 high/full 时，
+  // 在 sendMessage 中主动调用 ensureContextCompression 让刷新出的摘要赶上本轮请求，
+  // 这样 BOH AI 真正看到的就是压缩后的窗口。isCompressingContext 暴露给 UI 用于显示"压缩中"状态。
+  const isCompressingContext = ref(false);
+  const compressingSessionIndex = ref(-1);
+
+  const ensureContextCompression = async (sessionIndex, { force = false } = {}) => {
+    const targetSession = getSessionByIndex(sessionIndex);
+    if (!targetSession) return false;
+
+    // 已在压缩同一会话：避免并发触发
+    if (isCompressingContext.value && compressingSessionIndex.value === sessionIndex) {
+      return true;
+    }
+
+    const usage = computeContextBudgetUsage(targetSession);
+    const needsCompression = force || usage.level === 'high' || usage.level === 'full';
+    if (!needsCompression) return false;
+
+    isCompressingContext.value = true;
+    compressingSessionIndex.value = sessionIndex;
+    try {
+      await refreshConversationSummaryCache(sessionIndex);
+    } catch (error) {
+      logger.warn('boh-ai', 'Auto context compression failed', error);
+    } finally {
+      if (compressingSessionIndex.value === sessionIndex) {
+        isCompressingContext.value = false;
+        compressingSessionIndex.value = -1;
+      }
+    }
+    return true;
+  };
+
   const getSessionByIndex = (index) => {
     if (!Number.isInteger(index)) return null;
     if (index < 0 || index >= chatSessions.length) return null;
@@ -2440,7 +2539,9 @@ export function useChatEngine() {
     isCommandMode.value = false; // Reset modes
     isSearching.value = false;
     isForumSearchEnabled.value = false;
-    currentModeId.value = BOH_AUTO_MODE_ID;
+    currentModeId.value = BOH_DEFAULT_MODE_ID;
+    // Auto 路由相关状态重置
+    lastRoutedMode.value = '';
   };
 
   const deleteSession = (index) => {
@@ -2932,290 +3033,15 @@ export function useChatEngine() {
     }
   };
 
-  const normalizeAutoClassifierBoolean = (value) => value === true || value === 'true' || value === 1 || value === '1';
-
-  const createNeutralAutoDecision = () => ({
-    modeId: 'fast',
-    codeOrCommand: false,
-    minecraftCommand: false,
-    dailySummary: false,
-    planMode: false,
-    bohInternalFactual: false,
-    complexQuestion: false,
-    communityMemoryShare: false,
-    shouldSearchWeb: false,
-    shouldReferenceCloud: false,
-    shouldSaveCloud: false,
-    shouldSaveSharedMemory: false,
-    saveDestination: 'none',
-    shouldAskMemoryDestination: false,
-    forceCloudReference: false,
-    shouldAskSharedMemory: false,
-    actionNotes: [],
-    confidence: 0
-  });
-
   const resolveAutoModeDecisionLocally = (userText) => ({
     ...createNeutralAutoDecision(),
     ...resolveBOHAIAutoModeDecision(userText, {
-      isAutoMode: currentModeId.value === BOH_AUTO_MODE_ID,
+      // AUTO 模式已于 2026-06-08 移除,此 flag 恒为 false,保留仅为兼容下游签名。
+      isAutoMode: false,
       cloudReferenceEnabled: Boolean(isTreeholeMemoryEnabled.value),
       isLoggedIn: Boolean(isLoggedIn.value && userInfo.value?.id)
     })
   });
-
-  const shouldAskModelForAutoDecision = (userText, fallback = null) => {
-    const normalized = normalizePromptLine(userText, 1000);
-    if (!normalized) return false;
-    if (fallback && Number(fallback.confidence || 0) >= 0.92) {
-      const hardRouted = fallback.codeOrCommand
-        || fallback.minecraftCommand
-        || fallback.dailySummary
-        || fallback.planMode
-        || fallback.shouldReferenceCloud
-        || fallback.shouldSearchWeb
-        || fallback.shouldSaveCloud
-        || fallback.shouldSaveSharedMemory
-        || fallback.shouldAskMemoryDestination;
-      if (hardRouted) return false;
-    }
-    if (normalized.length <= 28 && !/[?？]/.test(normalized)) {
-      return false;
-    }
-    return true;
-  };
-
-  const hasExplicitAutoSaveIntent = (text) => {
-    const normalized = normalizeText(text);
-    if (!normalized) return false;
-    return /((存|保存|记录|记下|写入|加入|放到|同步到|上传到).{0,20}(cloud\+|cloud|随手记|日记|笔记|公共记忆|共享记忆|社群记忆|记忆库|私有记录|私人记录))|((记一下|记录一下|帮我记|帮我保存|帮我存一下).{0,20}(这|这条|这段|内容|事情|事|到|进)?)/i.test(normalized);
-  };
-
-  const isLookupOrSummaryRequest = (text) => {
-    const normalized = normalizeText(text);
-    if (!normalized) return false;
-    const requestPattern = /(总结|复盘|回顾|梳理|概括|说说|讲讲|介绍|查询|搜索|找一下|看看|最近发生|发生了什么|最新动态|热帖|公告|大家在聊)/i;
-    const sourcePattern = /(论坛|帖子|社区|社群|方块之家|boh|公共记忆|共享记忆|记忆库|cloud\+|cloud|随手记|日记|笔记|记录)/i;
-    return requestPattern.test(normalized) && sourcePattern.test(normalized);
-  };
-
-  const sanitizeAutoDecisionForUserText = (decision, userText) => {
-    if (!decision) return decision;
-    if (isPostDraftRequest(userText)) {
-      return {
-        ...decision,
-        shouldSearchWeb: false,
-        shouldSaveCloud: false,
-        shouldSaveSharedMemory: false,
-        saveDestination: 'none',
-        shouldAskMemoryDestination: false,
-        shouldAskSharedMemory: false,
-        actionNotes: normalizeActionNotes(
-          (decision.actionNotes || []).filter((note) => !/联网|搜索|记忆|保存|写入/.test(String(note || '')))
-        )
-      };
-    }
-    const explicitSave = hasExplicitAutoSaveIntent(userText);
-    if (explicitSave || !isLookupOrSummaryRequest(userText)) return decision;
-
-    return {
-      ...decision,
-      communityMemoryShare: false,
-      shouldSaveCloud: false,
-      shouldSaveSharedMemory: false,
-      saveDestination: 'none',
-      shouldAskMemoryDestination: false,
-      shouldAskSharedMemory: false,
-      actionNotes: normalizeActionNotes(
-        (decision.actionNotes || []).filter((note) => !/记忆|保存|写入/.test(String(note || '')))
-      )
-    };
-  };
-
-  const normalizeAutoSaveDestination = (value, decision = {}) => {
-    const normalized = String(value || '').toLowerCase().trim();
-    if (['cloud', 'cloud+', 'private', 'quick_note', 'note'].includes(normalized)) return 'cloud';
-    if (['shared', 'public', 'memory', 'public_memory', 'shared_memory'].includes(normalized)) return 'shared';
-    if (['both', 'all', 'cloud_and_shared', 'cloud+public'].includes(normalized)) return 'both';
-    if (['ask', 'unclear'].includes(normalized)) return 'ask';
-    if (decision.shouldSaveCloud && decision.shouldSaveSharedMemory) return 'both';
-    if (decision.shouldSaveCloud) return 'cloud';
-    if (decision.shouldSaveSharedMemory) return 'shared';
-    return 'none';
-  };
-
-  const AUTO_MODE_RANK = { fast: 1, think: 2, plan: 3, pro: 4 };
-  const pickMoreCapableAutoMode = (left = 'fast', right = 'fast') => {
-    const safeLeft = ['fast', 'think', 'plan', 'pro'].includes(left) ? left : 'fast';
-    const safeRight = ['fast', 'think', 'plan', 'pro'].includes(right) ? right : 'fast';
-    return (AUTO_MODE_RANK[safeLeft] >= AUTO_MODE_RANK[safeRight]) ? safeLeft : safeRight;
-  };
-
-  const mergeAutoDecisionWithLocalGuardrails = (modelDecision = {}, localDecision = {}) => {
-    const merged = {
-      ...createNeutralAutoDecision(),
-      ...modelDecision
-    };
-
-    const hardBooleanFields = [
-      'codeOrCommand',
-      'minecraftCommand',
-      'dailySummary',
-      'planMode',
-      'complexQuestion',
-      'shouldSearchWeb',
-      'shouldReferenceCloud',
-      'forceCloudReference',
-      'bohInternalFactual'
-    ];
-    hardBooleanFields.forEach((field) => {
-      merged[field] = Boolean(merged[field] || localDecision[field]);
-    });
-
-    if (localDecision.shouldSaveCloud || localDecision.shouldSaveSharedMemory || localDecision.shouldAskMemoryDestination) {
-      merged.shouldSaveCloud = Boolean(merged.shouldSaveCloud || localDecision.shouldSaveCloud);
-      merged.shouldSaveSharedMemory = Boolean(merged.shouldSaveSharedMemory || localDecision.shouldSaveSharedMemory);
-      merged.shouldAskMemoryDestination = Boolean(merged.shouldAskMemoryDestination || localDecision.shouldAskMemoryDestination);
-      merged.communityMemoryShare = Boolean(merged.communityMemoryShare || localDecision.communityMemoryShare);
-      merged.saveDestination = localDecision.saveDestination || merged.saveDestination || 'ask';
-    }
-
-    if (merged.codeOrCommand || merged.minecraftCommand) {
-      merged.modeId = 'pro';
-    } else if (merged.planMode) {
-      merged.modeId = pickMoreCapableAutoMode(merged.modeId, 'plan');
-    } else if (
-      merged.dailySummary
-      || merged.complexQuestion
-      || merged.shouldReferenceCloud
-      || merged.bohInternalFactual
-      || merged.shouldSearchWeb
-    ) {
-      merged.modeId = pickMoreCapableAutoMode(merged.modeId, 'think');
-    } else {
-      merged.modeId = pickMoreCapableAutoMode(merged.modeId, localDecision.modeId || 'fast');
-    }
-
-    merged.forceCloudReference = Boolean(merged.forceCloudReference || merged.shouldReferenceCloud || merged.dailySummary);
-    merged.shouldAskSharedMemory = Boolean(merged.shouldSaveSharedMemory || merged.communityMemoryShare || localDecision.shouldAskSharedMemory);
-    merged.confidence = Math.max(Number(merged.confidence || 0), Number(localDecision.confidence || 0));
-    merged.actionNotes = normalizeActionNotes([
-      ...(Array.isArray(localDecision.actionNotes) ? localDecision.actionNotes : []),
-      ...(Array.isArray(merged.actionNotes) ? merged.actionNotes : [])
-    ]);
-
-    return merged;
-  };
-
-  const resolveAutoModeDecisionWithFastModel = async (userText, requestSignal = undefined) => {
-    const fallback = resolveAutoModeDecisionLocally(userText);
-    if (!shouldAskModelForAutoDecision(userText, fallback)) {
-      return sanitizeAutoDecisionForUserText(fallback, userText);
-    }
-
-    const autoRouterModel = availableModels.find((item) => item.id === AUTO_ROUTER_MODEL_ID) || getModelForModeId('fast');
-    if (!autoRouterModel?.id) return sanitizeAutoDecisionForUserText(fallback, userText);
-
-    try {
-      const raw = await callModelInternal(
-        autoRouterModel.id,
-        [
-          '请判断下面这条用户消息应该如何路由。',
-          '只输出 JSON，不要解释，不要 Markdown。',
-          '',
-          '字段要求：',
-          '- modeId: "fast" | "think" | "plan" | "pro"',
-          '- codeOrCommand: boolean，代码、报错、编程、SQL、终端命令、Minecraft 指令等为 true',
-          '- minecraftCommand: boolean，仅 Minecraft/我的世界指令需求为 true',
-          '- dailySummary: boolean，总结/复盘“我的最近日常、生活、状态、Cloud+记录”等为 true',
-          '- planMode: boolean，用户需要持续推进、分阶段计划、里程碑、风险跟进、任务拆解、先计划再执行或降低幻觉率时为 true',
-          '- complexQuestion: boolean，复杂方案、设计、优化、深度分析、推理、排查为 true',
-          '- communityMemoryShare: boolean，用户在陈述/分享方块之家社群事实、成员事件、活动经过，且不是提问时为 true',
-          '- shouldSearchWeb: boolean，用户需要外部世界资料时为 true，包括实时信息、新闻、官网资料、价格、政策法规、版本、天气、赛程比分、健康/医学/营养/补剂/训练安全、通用事实、产品、软件/API/技术文档、研究资料等；BOH 站内/Cloud+/公共记忆/用户私域问题不要设为 true',
-          '- shouldReferenceCloud: boolean，回答前应该参考用户 BOH Cloud+ 私有内容时为 true，例如总结我的最近日常/根据我的记录复盘/结合我的 Cloud+',
-          '- shouldSaveCloud: boolean，用户想把当前内容保存为自己的 Cloud+ 随手记/日记/私有记录时为 true',
-          '- shouldSaveSharedMemory: boolean，用户想把当前内容保存到 BOH AI 公共记忆/社群记忆库，或内容明显是社群公共事实且适合询问写入时为 true',
-          '- saveDestination: "none" | "cloud" | "shared" | "both" | "ask"，用户明确说同时保存到 Cloud+ 和公共记忆时输出 "both"；只明确一种就输出对应值；不清楚存哪里但应该询问时输出 "ask"',
-          '- shouldAskMemoryDestination: boolean，当应该主动询问“存到 Cloud+、公共记忆还是两者”时为 true',
-          '- confidence: 0 到 1',
-          '',
-          '路由规则：',
-          '1. codeOrCommand 或 minecraftCommand 为 true 时，modeId 必须是 "pro"。',
-          '2. planMode 为 true 时，modeId 必须是 "plan"，除非同时是 codeOrCommand。',
-          '3. dailySummary、complexQuestion、shouldReferenceCloud、shouldSearchWeb 为 true 时，modeId 至少必须是 "think"，除非同时是 codeOrCommand 或 planMode。',
-          '4. 普通闲聊和简单问答用 "fast"。',
-          '5. 涉及写入 Cloud+ 或公共记忆时，只做判断，不要代替用户确认。',
-          '6. 如果用户在分享社群事实但没有明确说存到哪里，shouldAskMemoryDestination=true，saveDestination="ask"。',
-          '7. 如果用户明确说“同时上传/两边都存/Cloud+和公共记忆都保存”，saveDestination="both"。',
-          '8. 只要问题明显和 BOH 记忆库、Cloud+、论坛/社区、用户私域、站点操作无关，而是在问外部世界/通用知识/专业建议，就必须设 shouldSearchWeb=true，不要硬走记忆库。',
-          '9. 外部实时信息、健康/医学/营养/补剂/训练安全、产品/软件/API/技术文档、研究资料、法律政策、旅游学校等外部问题都设 shouldSearchWeb=true。',
-          '10. BOH 站内资料、用户私有资料和公共记忆优先走内部检索，不要联网，除非用户明确要求官网/外部/网上资料。',
-          '11. “总结/复盘/看看/查询/说说论坛或社区最近发生的事、最新动态、热帖、公告”是读取和回答请求，不是保存请求；这类消息 shouldSaveCloud=false、shouldSaveSharedMemory=false、shouldAskMemoryDestination=false。',
-          '12. 只有用户明确表达“保存/存到/写入/记录到/加入 Cloud+ 或公共记忆”，或用户是在陈述一条新的社群事实而不是提问/总结请求，才可以触发保存相关字段。',
-          '13. “起草/写/生成/整理/发布/发一条论坛帖子/论坛发布文案/发帖”是论坛发帖动作，不是 Cloud+ 保存；shouldSaveCloud=false、shouldSaveSharedMemory=false、shouldAskMemoryDestination=false。',
-          '14. 用户要求你“判断/选择/权衡/比较/给方案/排查/优化/分析原因/要不要/该不该/值不值得/怎么处理”时，complexQuestion=true，modeId="think"；如果同时要求持续推进、阶段计划、里程碑或下一步行动，则 planMode=true，modeId="plan"。',
-          '15. 用户只要贴了报错、代码片段、SQL、终端输出、API 字段、前端组件/样式问题，codeOrCommand=true，modeId="pro"。',
-          '',
-          `用户消息：${truncateText(userText, 900)}`
-        ].join('\n'),
-        '你是 BOH AI 的轻量 Auto 路由分类器。你只输出严格 JSON。',
-        [],
-        requestSignal,
-        0,
-        { max_tokens: 320, temperature: 0.02, top_p: 0.45, frequency_penalty: 0 }
-      );
-      const parsed = _safeJsonParse(String(raw || '').trim());
-      const confidence = Number(parsed?.confidence);
-      if (!Number.isFinite(confidence) || confidence < 0.35) {
-        return sanitizeAutoDecisionForUserText(fallback, userText);
-      }
-
-      const modelDecision = {
-        modeId: ['fast', 'think', 'plan', 'pro'].includes(parsed?.modeId) ? parsed.modeId : fallback.modeId,
-        codeOrCommand: normalizeAutoClassifierBoolean(parsed?.codeOrCommand),
-        minecraftCommand: normalizeAutoClassifierBoolean(parsed?.minecraftCommand),
-        dailySummary: normalizeAutoClassifierBoolean(parsed?.dailySummary),
-        planMode: normalizeAutoClassifierBoolean(parsed?.planMode),
-        complexQuestion: normalizeAutoClassifierBoolean(parsed?.complexQuestion),
-        communityMemoryShare: normalizeAutoClassifierBoolean(parsed?.communityMemoryShare),
-        shouldSearchWeb: normalizeAutoClassifierBoolean(parsed?.shouldSearchWeb),
-        shouldReferenceCloud: normalizeAutoClassifierBoolean(parsed?.shouldReferenceCloud),
-        shouldSaveCloud: normalizeAutoClassifierBoolean(parsed?.shouldSaveCloud),
-        shouldSaveSharedMemory: normalizeAutoClassifierBoolean(parsed?.shouldSaveSharedMemory),
-        shouldAskMemoryDestination: normalizeAutoClassifierBoolean(parsed?.shouldAskMemoryDestination)
-      };
-
-      const decision = mergeAutoDecisionWithLocalGuardrails(modelDecision, fallback);
-      decision.saveDestination = normalizeAutoSaveDestination(parsed?.saveDestination, decision);
-      if (decision.saveDestination === 'both') {
-        decision.shouldSaveCloud = true;
-        decision.shouldSaveSharedMemory = true;
-      } else if (decision.saveDestination === 'cloud') {
-        decision.shouldSaveCloud = true;
-      } else if (decision.saveDestination === 'shared') {
-        decision.shouldSaveSharedMemory = true;
-      } else if (decision.saveDestination === 'ask' && (decision.communityMemoryShare || decision.shouldAskMemoryDestination)) {
-        decision.shouldAskMemoryDestination = true;
-      }
-
-      if (decision.codeOrCommand || decision.minecraftCommand) {
-        decision.modeId = 'pro';
-      } else if (decision.planMode) {
-        decision.modeId = pickMoreCapableAutoMode(decision.modeId, 'plan');
-      } else if (decision.dailySummary || decision.complexQuestion || decision.shouldReferenceCloud || decision.shouldSearchWeb || decision.bohInternalFactual) {
-        decision.modeId = pickMoreCapableAutoMode(decision.modeId, 'think');
-      } else {
-        decision.modeId = decision.modeId || 'fast';
-      }
-
-      decision.forceCloudReference = Boolean(decision.shouldReferenceCloud || decision.dailySummary);
-      decision.shouldAskSharedMemory = Boolean(decision.shouldSaveSharedMemory || decision.communityMemoryShare);
-      return sanitizeAutoDecisionForUserText(decision, userText);
-    } catch (error) {
-      logger.warn('boh-ai', 'Auto 快速分类失败，使用中性路由兜底', error);
-      return sanitizeAutoDecisionForUserText(fallback, userText);
-    }
-  };
 
   // Helper to safely convert to string
   const safeChunkToString = (value) => {
@@ -5188,10 +5014,12 @@ ${body || '无'}
     const summarySignal = requestSignal || (typeof AbortController !== 'undefined' ? new AbortController().signal : undefined);
 
     try {
+      // 摘要容量已从 220 中文字 / max_tokens 420 提到 500 中文字 / max_tokens 1100，
+      // 与 CONVERSATION_SUMMARY_MAX_CHARS=2000 对齐，让早期对话细节尽量保留。
       const summaryPrompt = [
         '请把以下 BOH AI 对话历史压缩成一段可复用上下文摘要。',
         '要求：',
-        '- 最多 220 中文字。',
+        '- 最多 500 中文字。',
         '- 保留用户目标、偏好、已确认事实、当前任务状态。',
         '- 删除寒暄、重复内容、无效报错和已解决细节。',
         '- 不要添加原文没有的信息。',
@@ -5206,7 +5034,7 @@ ${body || '无'}
         [],
         summarySignal,
         0,
-        { max_tokens: 420, temperature: 0.08, top_p: 0.55, frequency_penalty: 0.05 }
+        { max_tokens: 1100, temperature: 0.08, top_p: 0.55, frequency_penalty: 0.05 }
       );
 
       const latestSession = getSessionByIndex(sessionIndex);
@@ -5254,38 +5082,10 @@ ${body || '无'}
     ].join('\n');
   };
 
-  const RESOURCE_QUERY_NOISE_PATTERN = /(帮我找一下|帮我找找|帮我找|我想要|我需要|我要|想要|需要|找一下|找几个|找找|找|求|来点|给点|再来点|再推荐|继续推荐|再|继续|接着|推荐|搜索|搜一下|搜|查找|下载|看看|有没有|可以|一下|一点点|一点|一些|几个|随便|好玩|热门|优秀|高质量|有趣|更多|资源中心|资源|列表|整合包|整合|模组|资源包|材质包|材质|光影|minecraft|我的世界|mc|modpack|mods?|shader|resource\s*pack|texture\s*pack|recommendations?|popular|best|top|download|search|find|look\s*for)/ig;
-  const WEAK_RESOURCE_QUERY_PATTERN = /^(一点点|一点|一些|几个|随便|好玩|热门|优秀|高质量|有趣|更多|推荐|资源|列表|整合包|整合|模组|mod|mods|modpack|modpacks|材质|材质包|资源包|resourcepack|resource pack|shader|光影|minecraft|mc|popular|best|top|recommend|recommendation)$/i;
-  const RESOURCE_FOLLOW_UP_PATTERN = /(再|继续|接着|还是|类似|同类|相关|刚刚|刚才|上面|这些|这种|那个)/;
-  const RESOURCE_RECOMMENDATION_PATTERN = /(推荐|来点|给点|找几个|找一些|随便|好玩|热门|优秀|高质量|有趣|有什么|有啥|有没有)/i;
-  const KNOWN_RESOURCE_NAME_ALIASES = [
-    { pattern: /(植物魔法|植物学|botania)/i, terms: ['botania'] },
-    { pattern: /(暮色森林|twilight\s*forest)/i, terms: ['twilight forest'] },
-    { pattern: /(匠魂|tinkers?\s*construct|tconstruct)/i, terms: ['tinkers construct'] },
-    { pattern: /(机械动力|机械动能|create)/i, terms: ['create'] },
-    { pattern: /(应用能源|ae2|applied\s*energistics)/i, terms: ['applied energistics 2', 'ae2'] },
-    { pattern: /(热力膨胀|thermal\s*expansion|thermal\s*series)/i, terms: ['thermal series'] },
-    { pattern: /(通用机械|mekanism)/i, terms: ['mekanism'] },
-    { pattern: /(末影接口|ender\s*io)/i, terms: ['ender io'] },
-    { pattern: /(沉浸工程|immersive\s*engineering)/i, terms: ['immersive engineering'] },
-    { pattern: /(农夫乐事|farmers?\s*delight)/i, terms: ["farmer's delight"] },
-    { pattern: /(暮色|twilight)/i, terms: ['twilight forest'] },
-    { pattern: /(jei|just\s*enough\s*items|足够物品|物品管理器)/i, terms: ['jei', 'just enough items'] },
-    { pattern: /(rei|roughly\s*enough\s*items)/i, terms: ['rei', 'roughly enough items'] },
-    { pattern: /(jade|玉|waila|hwyla)/i, terms: ['jade'] },
-    { pattern: /(旅行地图|journey\s*map|journeymap)/i, terms: ['journeymap'] },
-    { pattern: /(xaero|小地图)/i, terms: ['xaero minimap'] }
-  ];
-
-  const stripResourceQueryNoise = (value = '') => {
-    return normalizePromptLine(value, 120)
-      .toLowerCase()
-      .replace(RESOURCE_QUERY_NOISE_PATTERN, ' ')
-      .replace(/\b1\.(?:7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22)(?:\.\d+)?\b/g, ' ')
-      .replace(/[，。！？、；："'“”‘’()[\]{}<>]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-  };
+  // 资源查询相关正则与别名已迁移到 agents/core/agent-patterns.js 统一管理，
+  // 这里直接使用顶部 import 的 RESOURCE_FOLLOW_UP_PATTERN /
+  // RESOURCE_RECOMMENDATION_PATTERN / WEAK_RESOURCE_QUERY_PATTERN / KNOWN_RESOURCE_NAME_ALIASES。
+  const stripResourceQueryNoise = (value = '') => stripResourceQueryNoiseShared(normalizePromptLine, value);
 
   const isWeakResourceQuery = (value = '') => {
     const raw = normalizePromptLine(value, 80).toLowerCase();
@@ -5811,6 +5611,8 @@ ${body || '无'}
       appendUserMessageWithTitle(sessionIndex, userText);
       resetComposerInput();
       scrollToBottom(true);
+      // Agent 集群分支同样会携带历史消息，先压缩上下文让 BOH AI 看到的就是压缩后窗口
+      await ensureContextCompression(sessionIndex);
       session.isLoading = true;
       session.isThinking = true;
       activeGenerationSessionIndex.value = sessionIndex;
@@ -5823,12 +5625,55 @@ ${body || '无'}
       resetAgentClusterState();
       try {
         const historyForCluster = Array.isArray(session.messages) ? session.messages.slice(0, -1) : [];
+        // 真实 contextSummary：把已经压缩过的旧历史摘要喂给 Orchestrator，避免它把全量历史当 cold start 处理
+        const sessionSummaryContent = (session?.contextSummary && typeof session.contextSummary === 'object'
+          ? String(session.contextSummary.content || '').trim()
+          : '');
+        // P1-7：把主 ChatEngine 的真实调用链注入 cluster 的 chat-engine Agent，
+        // 这样集群里的"对话"Agent 与主 ChatEngine 共享 system prompt、上下文压缩与所有自动注入。
+        const clusterInvokeChatEngine = async ({ query, history, signal, onStream }) => {
+          try {
+            const { content } = await callModelInternal(
+              activeModelId.value,
+              String(query || ''),
+              activeModeSystemPrompt.value || '',
+              Array.isArray(history) ? history : [],
+              signal,
+              0,
+              { max_tokens: 1800, temperature: 0.22, top_p: 0.75 }
+            );
+            const answerText = String(content || '').trim();
+            if (typeof onStream === 'function' && answerText) {
+              onStream(answerText);
+            }
+            return {
+              ok: true,
+              answer: answerText,
+              mode: currentModeId.value,
+              sources: [],
+              notes: ['对话 Agent 走主 ChatEngine'],
+              tokens: Math.max(400, Math.round(answerText.length / 1.5))
+            };
+          } catch (error) {
+            if (error?.name === 'AbortError') {
+              return { ok: false, status: 'cancelled', answer: '', error: { message: '已取消' } };
+            }
+            return {
+              ok: false,
+              status: 'failed',
+              answer: '',
+              error: { message: error?.message || String(error) },
+              notes: [`对话 Agent 失败：${error?.message || String(error)}`]
+            };
+          }
+        };
         const result = await runAgentClusterBranch({
           userText,
           history: historyForCluster,
-          historySummary: '',
+          historySummary: sessionSummaryContent,
           clusterMode: 'auto',
           signal: clusterController.signal,
+          invokeChatEngine: clusterInvokeChatEngine,
           onEvent: applyAgentClusterEvent,
           onStream: (text) => {
             const target = getSessionByIndex(sessionIndex);
@@ -5885,6 +5730,9 @@ ${body || '无'}
     session.isThinking = true;
     activeGenerationSessionIndex.value = sessionIndex;
     startThinkingTimer();
+    // 上下文窗口接近上限时，先把会话历史压成摘要，再让模型拿到真正"压缩后"的上下文。
+    // 摘要生成失败/无更新会快速 no-op 退出，不会阻塞发送。
+    await ensureContextCompression(sessionIndex);
     const preflightController = new AbortController();
     abortController.value = preflightController;
     session.messages.push({
@@ -5927,35 +5775,9 @@ ${body || '无'}
     const shouldUseContextualQuery = contextualQuery && contextualQuery !== userText;
     const routingQueryText = shouldUseContextualQuery ? contextualQuery : userText;
 
-    let autoDecision = null;
-    let autoDecisionTimedOut = false;
-    const autoDecisionTimeout = setTimeout(() => {
-      autoDecisionTimedOut = true;
-      if (!preflightController.signal.aborted) {
-        preflightController.abort();
-      }
-    }, 1600);
-    try {
-      autoDecision = currentModeId.value === BOH_AUTO_MODE_ID
-        ? await resolveAutoModeDecisionWithFastModel(routingQueryText, preflightController.signal)
-        : null;
-    } finally {
-      clearTimeout(autoDecisionTimeout);
-    }
-    if (autoDecisionTimedOut) {
-      logger.warn('boh-ai', 'Auto 分类超时，使用本地规则路由继续回答');
-      autoDecision = currentModeId.value === BOH_AUTO_MODE_ID
-        ? resolveAutoModeDecisionLocally(routingQueryText)
-        : null;
-    }
-    if (preflightController.signal.aborted && !autoDecisionTimedOut) {
-      removePreflightLoader();
-      finishPreflightOnly();
-      return;
-    }
-    if (abortController.value === preflightController) {
-      abortController.value = null;
-    }
+    // 4 模式不再做"自动路由"，但 capability 决策（联网/Cloud+ 引用/保存/指令）仍统一由
+    // resolveAutoModeDecisionLocally 提供，本地纯函数判定，不再调 LLM 二次校验。
+    const autoDecision = resolveAutoModeDecisionLocally(routingQueryText);
 
     if (autoDecision?.minecraftCommand) {
       removePreflightLoader();
@@ -6006,7 +5828,8 @@ ${body || '无'}
     const communityNeedsEvidence = communityQuestion && !communityCreativeRequest;
     const bohInternalFactualQuestion = isLikelyBohInternalFactualQuestion(routingQueryText, { operationQuestion });
     const factualQuestion = isLikelyFactualQuestion(routingQueryText, { operationQuestion }) || bohInternalFactualQuestion;
-    const autoSearchEnabled = currentModeId.value === BOH_AUTO_MODE_ID && Boolean(autoDecision?.shouldSearchWeb);
+    // 联网：用户显式开启 OR 本地决策建议开启（能力决策不再依赖 AUTO 模式）
+    const autoSearchEnabled = Boolean(autoDecision?.shouldSearchWeb);
     const enableSearch = isSearching.value || autoSearchEnabled;
     session.isLoading = true;
     session.isThinking = true;
@@ -6175,7 +5998,11 @@ ${body || '无'}
             if (isSearching.value) {
               isSearching.value = false;
             }
-            updateAssistantActionNotes(sessionIndex, messageIndex, ['联网搜索未配置，已跳过外部检索。']);
+            // 会话级去重：同一会话已经提示过"联网搜索未配置"就不再刷一次。
+            if (!webSearchDisabledNoticeShownFor.has(sessionIndex)) {
+              webSearchDisabledNoticeShownFor.add(sessionIndex);
+              updateAssistantActionNotes(sessionIndex, messageIndex, ['联网搜索未配置，已跳过外部检索。']);
+            }
             setProgressContent(`> ⚠️ **${webSearchResult.message}**，已跳过网络检索。\n\n`);
           } else if (webSearchResult?.ok) {
             searchResultCount = Number(webSearchResult.count || 0);
@@ -6213,8 +6040,19 @@ ${body || '无'}
 
       const latestForumSummaryMode = isLatestForumSummaryQuery(routingQueryText);
       const personalSupportMode = isLikelyPersonalSupportRequest(userText);
-      const routedModeId = autoDecision?.modeId || (currentModeId.value === BOH_AUTO_MODE_ID ? 'fast' : currentModeId.value);
-      const activeModeId = isPlanModeEnabled.value ? 'plan' : routedModeId;
+
+      // 模式选择（4 模式下不再做自动路由）：
+      // 1) 当前模式 (currentModeId.value)
+      // 2) isPlanModeEnabled 开启时强制 plan（不覆盖 agent 自身）
+      // 3) 兜底 fast
+      let activeModeId = currentModeId.value;
+      if (isPlanModeEnabled.value && activeModeId !== 'agent-cluster') {
+        activeModeId = 'plan';
+      }
+      // 暴露给 UI：本轮路由到的具体模式（含 plan 模式提升）
+      lastRoutedMode.value = activeModeId;
+      // 在消息 meta 中记录 routedMode：供后续追问场景做"沿用上一轮模式"判断
+      mergeAssistantMessageMeta(sessionIndex, messageIndex, { routedMode: activeModeId });
       const isPlanMode = activeModeId === 'plan';
       if (isPlanModeEnabled.value) {
         updateAssistantActionNotes(sessionIndex, messageIndex, ['Plan 模式已开启，显示实时进度。']);
@@ -6279,7 +6117,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
       const preferAccuracyModel = factualQuestion || operationQuestion || enableSearch || communityNeedsEvidence;
       const preferredModel = availableModels.find((item) => item.id === ACCURACY_PREFERRED_MODEL_ID);
       const ragPreferredModel = availableModels.find((item) => item.id === RAG_PREFERRED_MODEL_ID);
-      const routedModeModel = getModelForModeId(activeModeId);
+      const routedModeModel = getModelForModeId(activeModeId, { userText });
       const generationModel = preferAccuracyModel && preferredModel
         ? preferredModel
         : (hasKnowledgeContext && ragPreferredModel ? ragPreferredModel : routedModeModel);
@@ -6819,7 +6657,11 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
     rateLimitMessage,
     chatModes,
     messages,
+    contextBudgetUsage,
+    isCompressingContext,
     onScrollToBottom,
+    // Auto 路由相关：让 UI 能看到本轮路由结果
+    lastRoutedMode,
     startNewChat,
     deleteSession,
     switchSession,

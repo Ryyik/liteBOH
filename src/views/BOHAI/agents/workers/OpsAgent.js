@@ -47,54 +47,76 @@ export const createOpsAgent = (options = {}) => {
       let summaryParts = [];
       let draft = null;
 
-      if (typeof invokeSiteGuide === 'function') {
+      // siteGuide 与 draft 生成相互独立（draft 只看 query+description），
+      // 并行拉取以减少端到端等待
+      const draftType = inferDraftType(query, description);
+
+      const siteGuidePromise = (async () => {
+        if (typeof invokeSiteGuide !== 'function') return null;
         try {
-          const res = await invokeSiteGuide({ query, bus });
-          if (res?.evidence) evidence.push(...normalizeEvidence(res.evidence));
-          if (res?.sources) sources.push(...res.sources.map((s) => ({ id: s.id || 'site-guide', label: s.label || '操作手册', source: s.source || 'SiteGuide' })));
-          if (res?.context) summaryParts.push(`[操作手册] ${safeString(res.context, 1500)}`);
+          return await invokeSiteGuide({ query, bus });
         } catch (error) {
           notes.push(`操作手册查询失败：${safeString(error?.message || error, 80)}`);
           logger.warn('bohai-cluster', 'Ops SiteGuide 失败', error);
+          return null;
         }
-      }
+      })();
 
-      const draftType = inferDraftType(query, description);
-
-      if (draftType !== 'none' && modelClient?.call) {
-        try {
-          const sysPrompt = draftType === 'post'
-            ? '你是 BOH AI 的发帖起草助手。基于用户问题输出 JSON：{ title, content }。内容控制在 280 字内。'
-            : draftType === 'mail'
-              ? '你是 BOH AI 的私信起草助手。基于用户问题输出 JSON：{ subject, content, receiver }。内容控制在 200 字内。'
-              : '你是 BOH AI 的网页生成助手。基于用户问题输出 JSON：{ html }，使用 BOH Creator Studio 风格（Inter 字体、#1459d9 主色、#f7f8fb 背景）。';
-          const userPrompt = `用户问题：${query}\n任务描述：${description}\n请输出 JSON。`;
-          const { content } = await modelClient.call({
-            model: defaultModel,
-            messages: [
-              { role: 'system', content: sysPrompt },
-              { role: 'user', content: userPrompt }
-            ],
-            temperature: 0.2,
-            maxTokens: 1200
-          });
-          const parsed = modelClient.extractJson ? modelClient.extractJson(content) : null;
-          if (parsed) {
-            draft = { type: draftType, ...parsed };
-          } else {
+      const draftPromise = (async () => {
+        if (draftType === 'none') return null;
+        if (modelClient?.call) {
+          try {
+            const sysPrompt = draftType === 'post'
+              ? '你是 BOH AI 的发帖起草助手。基于用户问题输出 JSON：{ title, content }。内容控制在 280 字内。'
+              : draftType === 'mail'
+                ? '你是 BOH AI 的私信起草助手。基于用户问题输出 JSON：{ subject, content, receiver }。内容控制在 200 字内。'
+                : '你是 BOH AI 的网页生成助手。基于用户问题输出 JSON：{ html }，使用 BOH Creator Studio 风格（Inter 字体、#1459d9 主色、#f7f8fb 背景）。';
+            const userPrompt = `用户问题：${query}\n任务描述：${description}\n请输出 JSON。`;
+            const { content } = await modelClient.call({
+              model: defaultModel,
+              messages: [
+                { role: 'system', content: sysPrompt },
+                { role: 'user', content: userPrompt }
+              ],
+              temperature: 0.2,
+              maxTokens: 1200
+            });
+            const parsed = modelClient.extractJson ? modelClient.extractJson(content) : null;
+            if (parsed) {
+              return { type: draftType, ...parsed };
+            }
             notes.push('Ops 草稿解析失败，已跳过。');
+            return null;
+          } catch (error) {
+            notes.push(`Ops 草稿生成失败：${safeString(error?.message || error, 80)}`);
+            logger.warn('bohai-cluster', 'Ops 起草失败', error);
+            return null;
           }
-        } catch (error) {
-          notes.push(`Ops 草稿生成失败：${safeString(error?.message || error, 80)}`);
-          logger.warn('bohai-cluster', 'Ops 起草失败', error);
         }
-      } else if (draftType !== 'none' && typeof invokeDraft === 'function') {
-        try {
-          draft = await invokeDraft({ query, description, type: draftType, bus });
-        } catch (error) {
-          notes.push(`Ops 起草失败：${safeString(error?.message || error, 80)}`);
+        if (typeof invokeDraft === 'function') {
+          try {
+            return await invokeDraft({ query, description, type: draftType, bus });
+          } catch (error) {
+            notes.push(`Ops 起草失败：${safeString(error?.message || error, 80)}`);
+            return null;
+          }
         }
+        return null;
+      })();
+
+      const [siteGuideRes, draftRes] = await Promise.all([siteGuidePromise, draftPromise]);
+
+      if (siteGuideRes) {
+        if (siteGuideRes?.evidence) evidence.push(...normalizeEvidence(siteGuideRes.evidence));
+        if (siteGuideRes?.sources) sources.push(...siteGuideRes.sources.map((s) => ({
+          id: s.id || 'site-guide',
+          label: s.label || '操作手册',
+          source: s.source || 'SiteGuide'
+        })));
+        if (siteGuideRes?.context) summaryParts.push(`[操作手册] ${safeString(siteGuideRes.context, 1500)}`);
       }
+
+      if (draftRes) draft = draftRes;
 
       return {
         ok: evidence.length > 0 || Boolean(draft),

@@ -1,8 +1,75 @@
+// BOH AI Auto 模式路由工具
+// ------------------------------------------------------------
+// 维护约定：
+// 1. ROUTING_PATTERNS 仍按"意图"维度声明，保持与历史单测的稳定行为。
+// 2. resolveBOHAIAutoModeDecision 是"本地兜底路由"，会缓存结果。
+// 3. _safeJsonParse / computeModeFromDecision / mergeAutoDecisionWithLocalGuardrails
+//    等纯函数从 useChatEngine 抽出到 bohai-auto-decision.js，供单测覆盖。
+// ------------------------------------------------------------
+
 export const BOH_AUTO_MODE_ID = 'auto';
 
 import { ROUTE_DECISION_CACHE_MAX_SIZE } from './bohai-constants.js';
 
+// ------------------------------------------------------------
+// LRU 缓存：最近访问的 key 排在最前，超过容量时淘汰最久未访问的。
+// 之前的实现使用 Map 的插入顺序做 FIFO，长会话中最久的决策反而
+// 容易被踢出，命中率较差。
+// ------------------------------------------------------------
+class LRUCache {
+  constructor(maxSize) {
+    this.maxSize = Math.max(1, Number(maxSize) || 1);
+    this.map = new Map();
+  }
+  get(key) {
+    if (!this.map.has(key)) return undefined;
+    const value = this.map.get(key);
+    // 读取即刷新顺序
+    this.map.delete(key);
+    this.map.set(key, value);
+    return value;
+  }
+  set(key, value) {
+    if (this.map.has(key)) {
+      this.map.delete(key);
+    } else if (this.map.size >= this.maxSize) {
+      const oldest = this.map.keys().next().value;
+      this.map.delete(oldest);
+    }
+    this.map.set(key, value);
+  }
+  has(key) {
+    return this.map.has(key);
+  }
+  clear() {
+    this.map.clear();
+  }
+  get size() {
+    return this.map.size;
+  }
+}
+
 const normalizeText = (text) => String(text || '').toLowerCase().trim();
+
+// 轻量哈希（FNV-1a 32 位），用于把长文本压缩为定长 key。
+// 浏览器/Node 都不缺 String 哈希，但 FNV-1a 在 JS 中足够快且零依赖。
+const fnv1a32 = (str) => {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < str.length; i += 1) {
+    hash ^= str.charCodeAt(i);
+    hash = (hash + ((hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24))) >>> 0;
+  }
+  return hash.toString(36);
+};
+
+// 文本指纹：取归一化前 200 字符 + 长度哈希，足以区分绝大多数短/中/长 query，
+// 同时避免把 1w+ 字直接拼进 Map key 占用过多内存。
+const buildTextFingerprint = (text) => {
+  const normalized = normalizeText(text);
+  if (!normalized) return '0:0';
+  const head = normalized.slice(0, 200);
+  return `${normalized.length}:${fnv1a32(head)}`;
+};
 
 export const ROUTING_PATTERNS = {
   question: {
@@ -167,10 +234,55 @@ export const isLikelyCommunityMemoryShare = (text) => {
   return ROUTING_PATTERNS.memoryShare.pattern.test(normalized) || normalized.length >= 32;
 };
 
-const decisionCache = new Map();
+// 冻结的"中性空决策"：空文本直接返回同一引用，避免每次新建对象造成 GC 压力，
+// 同时给消费者一个稳定的"零决策"标志。
+export const EMPTY_AUTO_DECISION = Object.freeze({
+  modeId: 'fast',
+  codeOrCommand: false,
+  minecraftCommand: false,
+  dailySummary: false,
+  planMode: false,
+  bohInternalFactual: false,
+  complexQuestion: false,
+  communityMemoryShare: false,
+  personalSupport: false,
+  shouldSearchWeb: false,
+  shouldReferenceCloud: false,
+  shouldSaveCloud: false,
+  shouldSaveSharedMemory: false,
+  saveDestination: 'none',
+  shouldAskMemoryDestination: false,
+  forceCloudReference: false,
+  shouldAskSharedMemory: false,
+  actionNotes: Object.freeze([]),
+  confidence: 0
+});
+
+// LRU 缓存：保留一份模块级单例，所有路由结果共享。
+// 比原来 FIFO 更贴合实际使用（最近问过的问题最可能再问）。
+const decisionCache = new LRUCache(ROUTE_DECISION_CACHE_MAX_SIZE);
 
 export const clearRouteDecisionCache = () => {
   decisionCache.clear();
+};
+
+// 计算 confidence：对每个布尔字段独立打分（命中关键词数 / 模式中可枚举关键词数 × 权重），
+// 取最高者作为最终 confidence。0.5 表示"无任何命中"，0.85+ 表示"多维度命中"。
+// 这套打分仅用于决定是否需要 fast-model 二次校验，不参与 prompt 拼接。
+const computeRoutingConfidence = (signals) => {
+  let max = 0;
+  let sum = 0;
+  let count = 0;
+  for (const value of Object.values(signals)) {
+    if (typeof value !== 'number' || value <= 0) continue;
+    sum += value;
+    count += 1;
+    if (value > max) max = value;
+  }
+  if (count === 0) return 0.5;
+  // 峰值优先 + 多命中加权：0.78 (单 hit) ~ 0.97 (三维度以上)
+  const aggregate = max * 0.7 + (sum / count) * 0.3;
+  return Math.min(0.97, Math.max(0.5, Number(aggregate.toFixed(2))));
 };
 
 export const resolveBOHAIAutoModeDecision = (text, {
@@ -179,30 +291,11 @@ export const resolveBOHAIAutoModeDecision = (text, {
   isLoggedIn = false
 } = {}) => {
   const safeText = String(text || '').trim();
-  if (!safeText) {
-    return {
-      modeId: 'fast',
-      codeOrCommand: false,
-      minecraftCommand: false,
-      dailySummary: false,
-      planMode: false,
-      bohInternalFactual: false,
-      complexQuestion: false,
-      communityMemoryShare: false,
-      shouldSearchWeb: false,
-      shouldReferenceCloud: false,
-      shouldSaveCloud: false,
-      shouldSaveSharedMemory: false,
-      saveDestination: 'none',
-      shouldAskMemoryDestination: false,
-      forceCloudReference: false,
-      shouldAskSharedMemory: false,
-      actionNotes: [],
-      confidence: 0.5
-    };
-  }
+  if (!safeText) return EMPTY_AUTO_DECISION;
 
-  const cacheKey = `${safeText}|${isAutoMode}|${cloudReferenceEnabled}|${isLoggedIn}`;
+  // 缓存 key 改用指纹：原 key 直接拼接 safeText + 3 个布尔 flag，
+  // 长文本会占用大量 Map key 内存；现在用短哈希 + flag 组合。
+  const cacheKey = `${buildTextFingerprint(safeText)}|${Boolean(isAutoMode)}|${Boolean(cloudReferenceEnabled)}|${Boolean(isLoggedIn)}`;
   const cached = decisionCache.get(cacheKey);
   if (cached) return cached;
 
@@ -214,6 +307,7 @@ export const resolveBOHAIAutoModeDecision = (text, {
   const planMode = isLikelyPlanModeRequest(safeText);
   const bohInternalFactual = isLikelyBohInternalFactualRequest(safeText);
   const communityMemoryShare = isLikelyCommunityMemoryShare(safeText);
+  const personalSupport = isLikelyPersonalSupportRequest(safeText);
   const shouldSearchWeb = isLikelyWebSearchRequest(safeText);
   const forumPostAction = ROUTING_PATTERNS.forumPost.pattern.test(safeText);
   const wantsCloudSave = !forumPostAction && ROUTING_PATTERNS.cloudSave.pattern.test(safeText);
@@ -232,9 +326,17 @@ export const resolveBOHAIAutoModeDecision = (text, {
     saveDestination = 'ask';
   }
 
-  const modeId = codeOrCommand
-    ? 'pro'
-    : (planMode ? 'plan' : (dailySummary || shouldReferenceCloud || complexQuestion || bohInternalFactual || shouldSearchWeb ? 'think' : 'fast'));
+  // modeId 选择由 computeModeFromDecision 统一负责（见 bohai-auto-decision.js）。
+  // 这里直接复用，避免三处重复。
+  const modeId = pickModeFromLocalSignals({
+    codeOrCommand,
+    planMode,
+    dailySummary,
+    shouldReferenceCloud,
+    complexQuestion,
+    bohInternalFactual,
+    shouldSearchWeb
+  }) || 'fast';
 
   const actionNotes = [];
   if (isAutoMode) {
@@ -243,11 +345,13 @@ export const resolveBOHAIAutoModeDecision = (text, {
     } else if (dailySummary) {
       actionNotes.push('切换到思考模式总结最近日常。');
     } else if (planMode) {
-      actionNotes.push('切换到 Plan 模式分步推进。');
+      actionNotes.push('检测到规划意图；如需完整 Plan 模式请从顶部下拉框选择。');
     } else if (complexQuestion) {
       actionNotes.push('切换到思考模式拆解复杂问题。');
     } else if (bohInternalFactual) {
       actionNotes.push('切换到思考模式核对 BOH 内部资料。');
+    } else if (personalSupport) {
+      actionNotes.push('已识别为个人支持场景，倾向使用快速/思考模式。');
     } else {
       actionNotes.push('使用快速模式处理日常问答。');
     }
@@ -269,6 +373,17 @@ export const resolveBOHAIAutoModeDecision = (text, {
     actionNotes.push('识别到社群记忆，准备询问是否写入公共记忆库。');
   }
 
+  const confidence = computeRoutingConfidence({
+    codeOrCommand: codeOrCommand ? 0.85 : 0,
+    planMode: planMode ? 0.8 : 0,
+    dailySummary: dailySummary ? 0.78 : 0,
+    cloudReference: shouldReferenceCloud ? 0.7 : 0,
+    complexQuestion: complexQuestion ? 0.72 : 0,
+    bohInternalFactual: bohInternalFactual ? 0.7 : 0,
+    shouldSearchWeb: shouldSearchWeb ? 0.7 : 0,
+    communityMemoryShare: communityMemoryShare ? 0.65 : 0
+  });
+
   const decision = {
     modeId,
     codeOrCommand,
@@ -278,6 +393,7 @@ export const resolveBOHAIAutoModeDecision = (text, {
     bohInternalFactual,
     complexQuestion,
     communityMemoryShare,
+    personalSupport,
     shouldSearchWeb,
     shouldReferenceCloud,
     shouldSaveCloud: saveDestination === 'cloud' || saveDestination === 'both',
@@ -287,25 +403,47 @@ export const resolveBOHAIAutoModeDecision = (text, {
     forceCloudReference: shouldReferenceCloud,
     shouldAskSharedMemory: communityMemoryShare || wantsSharedSave || wantsBothSave,
     actionNotes,
-    confidence: (
-      codeOrCommand
-      || minecraftCommand
-      || dailySummary
-      || planMode
-      || shouldReferenceCloud
-      || shouldSearchWeb
-      || complexQuestion
-      || communityMemoryShare
-      || wantsCloudSave
-      || wantsSharedSave
-    ) ? 0.94 : 0.78
+    confidence
   };
 
-  if (decisionCache.size >= ROUTE_DECISION_CACHE_MAX_SIZE) {
-    const firstKey = decisionCache.keys().next().value;
-    decisionCache.delete(firstKey);
-  }
   decisionCache.set(cacheKey, decision);
-
   return decision;
 };
+
+// 在 bohai-auto-decision.js 完整拆分前，这里内联一份轻量选择函数，
+// 避免对 useChatEngine 的循环依赖。所有路由路径（local / merged / post-parse）
+// 都应该经过同一个 modeId 选择函数，保证规则一致。
+//
+// 设计约束: AUTO 严格只在 Pro / Fast 之间二选一(2026-06-08 决定)。
+//   - Plan: 用户必须从下拉框主动选择,AUTO 不再越权
+//   - Agent: 同上,用户主动选,AUTO 不再触发
+// 旧 design 还会在 planMode 信号触发时拉高到 plan,会与用户对 AUTO 的
+// 心理预期("智能选 Pro 还是 Fast")冲突,改为二选一更可预测。
+// 模式等级: fast(1) < pro(2)。pro 比 fast 更"重",需要在复杂场景被选中。
+const AUTO_MODE_RANK = { fast: 1, pro: 2 };
+
+const pickMoreCapableMode = (left = 'fast', right = 'fast') => {
+  const safeLeft = ['fast', 'pro'].includes(left) ? left : 'fast';
+  const safeRight = ['fast', 'pro'].includes(right) ? right : 'fast';
+  return (AUTO_MODE_RANK[safeLeft] >= AUTO_MODE_RANK[safeRight]) ? safeLeft : safeRight;
+};
+
+const pickModeFromLocalSignals = (signals) => {
+  // 代码/指令类 → Pro(Pro 内部可能再升级到 DeepSeek)
+  if (signals.codeOrCommand) return 'pro';
+  // 数据/搜索/写作/复杂问题类 → Pro
+  if (
+    signals.dailySummary
+    || signals.shouldReferenceCloud
+    || signals.complexQuestion
+    || signals.bohInternalFactual
+    || signals.shouldSearchWeb
+  ) {
+    return 'pro';
+  }
+  // 默认走 Fast
+  return 'fast';
+};
+
+// 暴露给 useChatEngine 与新拆分文件复用。
+export { pickMoreCapableMode, pickModeFromLocalSignals, buildTextFingerprint, LRUCache };

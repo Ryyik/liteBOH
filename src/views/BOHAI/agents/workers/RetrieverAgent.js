@@ -13,12 +13,6 @@ const normalizeEvidence = (items, fallbackSource) => safeArray(items).map((item,
   confidence: Number.isFinite(Number(item?.confidence)) ? Number(item.confidence) : 0.6
 })).filter((item) => item.text);
 
-const normalizeSources = (items) => safeArray(items).map((item) => ({
-  id: safeString(item?.id || item?.connector || 'unknown', 80),
-  label: safeString(item?.label || item?.connector || item?.id || '', 80),
-  source: safeString(item?.source || item?.label || '', 80)
-})).filter((item) => item.id);
-
 export const createRetrieverAgent = (options = {}) => {
   const {
     invokeRetrieval,
@@ -43,6 +37,23 @@ export const createRetrieverAgent = (options = {}) => {
       const hints = safeArray(task?.input?.hints);
       const bus = context?.bus;
 
+      // LRU 缓存：同会话里同 query 复跑时直接复用之前的证据，避免重复打到外部数据源 / LLM
+      const cacheKey = 'retriever';
+      const cacheParts = [query, hints.map((h) => safeString(h, 60)).join('|')];
+      if (bus && typeof bus.cacheGet === 'function') {
+        const cached = bus.cacheGet(cacheKey, cacheParts);
+        if (cached) {
+          return {
+            ok: cached.evidence.length > 0,
+            output: cached.output,
+            evidence: cached.evidence,
+            sources: cached.sources,
+            notes: [...(cached.notes || []), 'LRU 命中'],
+            tokens: cached.tokens || 0
+          };
+        }
+      }
+
       const result = {
         summary: '',
         evidence: [],
@@ -51,42 +62,43 @@ export const createRetrieverAgent = (options = {}) => {
         contextBlocks: []
       };
 
-      const runConnector = async (label, sourceName, reader) => {
-        if (typeof reader !== 'function') return;
-        try {
-          const res = await reader({ query, hints, bus });
-          const evidence = normalizeEvidence(res?.evidence, sourceName);
-          if (evidence.length) {
-            result.evidence.push(...evidence);
-            result.sources.push({ id: sourceName, label, source: sourceName });
-            if (res?.context) {
-              result.contextBlocks.push({ source: sourceName, text: safeString(res.context, 1500) });
-            }
-          }
-          if (res?.error) {
-            result.notes.push(`${label} 失败：${safeString(res.error?.message || res.error, 80)}`);
-          }
-        } catch (error) {
-          logger.warn('bohai-cluster', `Retriever connector ${sourceName} failed`, error);
-          result.notes.push(`${label} 失败：${safeString(error?.message || error, 80)}`);
-        }
-      };
-
+      // 把每个数据源封装成同构的 connector，统一通过 Promise.allSettled 并行拉取
+      const connectors = [];
       if (typeof invokeRetrieval === 'function') {
-        try {
-          const res = await invokeRetrieval({ query, hints, bus });
-          if (res?.evidence) result.evidence.push(...normalizeEvidence(res.evidence, 'RAG'));
-          if (res?.sources) result.sources.push(...normalizeSources(res.sources));
-          if (res?.context) result.contextBlocks.push({ source: 'RAG', text: safeString(res.context, 1500) });
-        } catch (error) {
-          result.notes.push(`RAG 总入口失败：${safeString(error?.message || error, 80)}`);
-        }
+        connectors.push({
+          label: 'RAG 总入口',
+          sourceName: 'RAG',
+          run: async () => invokeRetrieval({ query, hints, bus })
+        });
       } else {
-        await runConnector('知识库', 'RAG-Knowledge', ragKnowledge);
-        await runConnector('操作手册', 'RAG-SiteGuide', siteGuide);
-        await runConnector('论坛', 'Forum', forumPosts);
-        await runConnector('联网', 'Web', webSearch);
+        if (typeof ragKnowledge === 'function') connectors.push({ label: '知识库', sourceName: 'RAG-Knowledge', run: () => ragKnowledge({ query, hints, bus }) });
+        if (typeof siteGuide === 'function') connectors.push({ label: '操作手册', sourceName: 'RAG-SiteGuide', run: () => siteGuide({ query, hints, bus }) });
+        if (typeof forumPosts === 'function') connectors.push({ label: '论坛', sourceName: 'Forum', run: () => forumPosts({ query, hints, bus }) });
+        if (typeof webSearch === 'function') connectors.push({ label: '联网', sourceName: 'Web', run: () => webSearch({ query, hints, bus }) });
       }
+
+      const settled = await Promise.allSettled(connectors.map((c) => c.run()));
+      settled.forEach((outcome, index) => {
+        const { label, sourceName } = connectors[index];
+        if (outcome.status === 'rejected') {
+          const message = safeString(outcome.reason?.message || outcome.reason, 80);
+          result.notes.push(`${label} 失败：${message}`);
+          logger.warn('bohai-cluster', `Retriever connector ${sourceName} failed`, outcome.reason);
+          return;
+        }
+        const res = outcome.value;
+        const evidence = normalizeEvidence(res?.evidence, sourceName);
+        if (evidence.length) {
+          result.evidence.push(...evidence);
+          result.sources.push({ id: sourceName, label, source: sourceName });
+          if (res?.context) {
+            result.contextBlocks.push({ source: sourceName, text: safeString(res.context, 1500) });
+          }
+        }
+        if (res?.error) {
+          result.notes.push(`${label} 失败：${safeString(res.error?.message || res.error, 80)}`);
+        }
+      });
 
       result.summary = result.contextBlocks.length
         ? result.contextBlocks.map((c) => `[${c.source}] ${c.text}`).join('\n').slice(0, 1500)
@@ -115,16 +127,29 @@ export const createRetrieverAgent = (options = {}) => {
         }
       }
 
+      const finalOutput = {
+        summary: result.summary,
+        evidenceCount: result.evidence.length
+      };
+      const finalTokens = Math.max(300, result.evidence.length * 80);
+      const finalNotes = result.notes.length ? result.notes : ['无可用证据'];
+      if (bus && typeof bus.cacheSet === 'function') {
+        bus.cacheSet(cacheKey, cacheParts, {
+          output: finalOutput,
+          evidence: result.evidence,
+          sources: result.sources,
+          notes: finalNotes,
+          tokens: finalTokens
+        });
+      }
+
       return {
         ok: result.evidence.length > 0,
-        output: {
-          summary: result.summary,
-          evidenceCount: result.evidence.length
-        },
+        output: finalOutput,
         evidence: result.evidence,
         sources: result.sources,
-        notes: result.notes.length ? result.notes : ['无可用证据'],
-        tokens: Math.max(300, result.evidence.length * 80)
+        notes: finalNotes,
+        tokens: finalTokens
       };
     }
   };

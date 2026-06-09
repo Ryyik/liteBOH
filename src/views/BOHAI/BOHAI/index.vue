@@ -1,34 +1,108 @@
 <template>
-    <div class="bohai-page" :class="{ 'embedded-mode': embedded }" :data-ui-style="currentUiStyle">
+    <div class="bohai-page" :class="{ 'embedded-mode': embedded, 'empty-chat-mode': messages.length === 0 }"
+        :data-ui-style="currentUiStyle">
         <div class="bohai-container">
             <aside :class="['sidebar', { open: isSidebarOpen }]">
                 <div class="sidebar-header">
-                    <button @click="startNewChat" class="new-chat-btn">
-                        <Plus size="16" />
+                    <span class="sidebar-brand">BOH AI</span>
+                    <button class="sidebar-icon-btn" type="button" title="搜索对话" @click="toggleSidebarSearch">
+                        <Search size="18" />
+                    </button>
+                    <button class="sidebar-icon-btn" type="button" :title="`切换到${isDarkTheme ? '浅色' : '深色'}主题`"
+                        @click="toggleTheme">
+                        <Moon v-if="!isDarkTheme" size="18" />
+                        <Sun v-else size="18" />
+                    </button>
+                    <button class="sidebar-icon-btn sidebar-close-btn" type="button" title="收起侧栏"
+                        @click="isSidebarOpen = false">
+                        <X size="18" />
+                    </button>
+                </div>
+
+                <div v-if="showSidebarSearch" class="sidebar-search-row">
+                    <Search size="15" class="sidebar-search-icon" />
+                    <input v-model="sidebarSearchQuery" type="text" class="sidebar-search-input" placeholder="搜索对话"
+                        autofocus @keydown.escape="showSidebarSearch = false" />
+                </div>
+
+                <div class="sidebar-quick-actions">
+                    <button class="sidebar-quick-action" type="button" @click="startNewChat">
+                        <span class="quick-action-icon">
+                            <Plus size="18" />
+                        </span>
                         <span>新对话</span>
                     </button>
-                    <button class="sidebar-close-btn" @click="isSidebarOpen = false">
-                        <X size="20" />
+                    <button class="sidebar-quick-action" type="button" @click="openProjectsView">
+                        <span class="quick-action-icon">
+                            <Folder size="18" />
+                        </span>
+                        <span>项目</span>
+                    </button>
+                    <button class="sidebar-quick-action" type="button" @click="openImagesView">
+                        <span class="quick-action-icon">
+                            <ImageIcon size="18" />
+                        </span>
+                        <span>图片</span>
+                    </button>
+                    <button class="sidebar-quick-action" type="button" @click="openAiSettings">
+                        <span class="quick-action-icon">
+                            <MoreHorizontal size="18" />
+                        </span>
+                        <span>更多</span>
+                    </button>
+                </div>
+
+                <div class="sidebar-section-title">
+                    <span>最近</span>
+                    <button class="sidebar-section-link" type="button" @click="openAllSessionsView">
+                        全部
+                        <ChevronRight size="12" />
                     </button>
                 </div>
 
                 <div class="session-list custom-scrollbar">
-                    <div v-for="group in groupedChatSessions" :key="group.id" class="session-group">
-                        <div class="session-group-title">{{ group.label }}</div>
+                    <div v-for="group in filteredGroupedChatSessions" :key="group.id" class="session-group">
+                        <div v-if="group.label && filteredGroupedChatSessions.length > 1" class="session-group-title">
+                            {{ group.label }}
+                        </div>
                         <div v-for="item in group.items" :key="item.session.timestamp"
                             @click="switchSession(item.index); isSidebarOpen = false"
                             :class="['session-item', { active: currentSessionIndex === item.index }]">
-                            <MessageSquare size="16" />
+                            <MessageSquare :size="16" class="session-icon" />
                             <span class="session-title">{{ item.session.title || '新对话' }}</span>
-                            <button v-if="chatSessions.length > 1" @click.stop="deleteSession(item.index)" class="delete-btn">
+                            <button v-if="chatSessions.length > 1" @click.stop="deleteSession(item.index)"
+                                class="delete-btn" title="删除">
                                 <Trash2 size="14" />
                             </button>
                         </div>
                     </div>
+                    <div v-if="filteredGroupedChatSessions.length === 0" class="session-empty">
+                        没有匹配的对话
+                    </div>
+                </div>
+
+                <div class="sidebar-footer">
+                    <div class="sidebar-status" :title="`当前模式：${currentMode.name}`">
+                        <span class="sidebar-status-dot" aria-hidden="true"></span>
+                        <span class="sidebar-mode-text">{{ currentMode.name }}</span>
+                        <span v-if="activeCapabilityLabels.length" class="sidebar-mode-capabilities">
+                            · {{ activeCapabilityLabels.join(' · ') }}
+                        </span>
+                    </div>
+                    <button type="button" class="sidebar-footer-btn" @click="openAiSettings" title="AI 设置">
+                        <SettingsIcon size="14" />
+                    </button>
                 </div>
             </aside>
 
             <div v-if="isSidebarOpen" class="sidebar-overlay" @click="isSidebarOpen = false"></div>
+
+            <button v-if="!isSidebarOpen" type="button" class="bohai-chat-fab" @click="openChatFromFab" title="新对话">
+                <span class="bohai-chat-fab-icon">
+                    <PenLine size="14" />
+                </span>
+                <span>聊天</span>
+            </button>
 
             <main class="main-content">
                 <header class="chat-header">
@@ -38,7 +112,8 @@
                             <span class="control-dot yellow"></span>
                             <span class="control-dot green"></span>
                         </div>
-                        <button class="header-icon-btn sidebar-toggle-btn" title="打开侧边栏" @click="isSidebarOpen = !isSidebarOpen">
+                        <button class="header-icon-btn sidebar-toggle-btn" title="打开侧边栏"
+                            @click="isSidebarOpen = !isSidebarOpen">
                             <PanelLeft size="18" />
                         </button>
                         <button class="header-icon-btn header-new-chat-btn" title="新对话" @click="startNewChat">
@@ -48,8 +123,10 @@
 
                     <div class="header-content" :title="currentSessionTitle">
                         <span class="header-title">BOH AI</span>
+                        <span class="header-session">{{ currentMode.name }}</span>
                         <ChevronDown size="15" aria-hidden="true" />
-                        <select v-model="currentModeId" class="header-mode-select" :aria-label="`当前模式：${currentMode.name}`">
+                        <select v-model="currentModeId" class="header-mode-select"
+                            :aria-label="`当前模式：${currentMode.name}`">
                             <option v-for="mode in chatModes" :key="mode.id" :value="mode.id">
                                 {{ mode.name }}
                             </option>
@@ -57,83 +134,36 @@
                     </div>
 
                     <div class="header-actions">
-                        <button v-if="isPlanExperienceActive" class="header-icon-btn plan-header-btn"
-                            :class="{ active: planPanelOpen }" title="计划面板" @click="planPanelOpen = true">
-                            <ListChecks size="18" />
-                        </button>
                         <button class="header-icon-btn" title="分享当前对话" @click="shareCurrentConversation">
                             <Share2 size="18" />
                         </button>
                     </div>
                 </header>
 
-                <section v-if="isPlanExperienceActive" class="plan-progress-dock" aria-label="计划进度">
-                    <div class="plan-dock-head">
-                        <span class="plan-dock-icon">
-                            <ListChecks size="18" />
-                        </span>
-                        <div class="plan-dock-copy">
-                            <strong>{{ planPanelTitle }}</strong>
-                            <span>{{ planPanelSubtitle }}</span>
-                        </div>
-                        <button type="button" class="plan-dock-open" @click="planPanelOpen = true">
-                            展开
-                        </button>
-                    </div>
-                    <div class="plan-step-strip">
-                        <div v-for="step in planTodoItems" :key="step.id"
-                            class="plan-step-chip" :class="step.state">
-                            <span class="plan-step-dot" aria-hidden="true"></span>
-                            <span>{{ step.title }}</span>
-                        </div>
-                    </div>
+                <section v-if="taskStatusActive" class="task-status-pill-row" aria-label="任务状态">
+                    <button type="button" class="task-status-pill" @click="taskPanelOpen = true">
+                        <ListChecks v-if="isPlanExperienceActive" size="15" />
+                        <Network v-else size="15" />
+                        <span>{{ taskStatusTitle }}</span>
+                        <span class="task-status-muted">{{ taskStatusSubtitle }}</span>
+                    </button>
                 </section>
 
-                <section v-if="isAgentClusterModeActive" class="agent-cluster-dock" aria-label="Agent 集群进度">
-                    <div class="agent-cluster-dock-head">
-                        <span class="agent-cluster-dock-icon">
-                            <Network size="18" />
-                        </span>
-                        <div class="agent-cluster-dock-copy">
-                            <strong>{{ agentClusterPanelTitle }}</strong>
-                            <span>{{ agentClusterPanelSubtitle }}</span>
-                        </div>
-                        <span v-if="agentClusterState?.isRunning" class="agent-cluster-dock-badge running">
-                            运行中
-                        </span>
-                        <span v-else-if="agentClusterState?.degraded" class="agent-cluster-dock-badge degraded">
-                            已降级
-                        </span>
-                        <span v-else-if="agentClusterState?.answer" class="agent-cluster-dock-badge done">
-                            已完成
-                        </span>
-                    </div>
-                    <div class="agent-cluster-strip">
-                        <div v-for="entry in agentClusterEntries" :key="entry.key"
-                            class="agent-cluster-chip" :class="entry.status">
-                            <span class="agent-cluster-dot" aria-hidden="true"></span>
-                            <span class="agent-cluster-chip-label">{{ entry.label }}</span>
-                            <span v-if="entry.status === 'running'" class="agent-cluster-chip-meta">…</span>
-                            <span v-else-if="Number.isFinite(entry.ms) && entry.ms > 0" class="agent-cluster-chip-meta">
-                                {{ formatAgentClusterMs(entry.ms) }}
-                            </span>
-                        </div>
-                    </div>
-                </section>
-
-                <div ref="chatContainer" class="chat-container custom-scrollbar" @scroll="updateActiveUserMessageFromScroll">
+                <div ref="chatContainer" class="chat-container custom-scrollbar"
+                    @scroll="updateActiveUserMessageFromScroll">
                     <div v-if="messages.length === 0" class="empty-state">
                         <div class="logo-container">
                             <Bot size="64" />
                         </div>
-                        <h2>Hello，{{ userInfo?.username || '朋友' }}</h2>
-                        <p class="empty-subtitle">我可以帮你整理、创作、查询和执行社区操作。</p>
+                        <h2>今天想让 BOH AI 做什么？</h2>
+                        <p class="empty-subtitle">把想法、问题、文件线索或社区任务交给 BOH AI。</p>
                         <div class="empty-suggestion-grid" aria-label="对话建议">
                             <button v-for="card in emptySuggestionCards" :key="card.prompt" type="button"
                                 class="empty-suggestion-card" :disabled="isLoading" @click="sendEmptySuggestion(card)">
                                 <span class="empty-suggestion-icon">
                                     <MessageSquare v-if="card.icon === 'forum'" size="18" />
                                     <Archive v-else-if="card.icon === 'cloud'" size="18" />
+                                    <Code v-else-if="card.icon === 'code'" size="18" />
                                     <Code v-else size="18" />
                                 </span>
                                 <span class="empty-suggestion-copy">
@@ -144,12 +174,13 @@
                         </div>
                     </div>
 
-                    <button v-if="hiddenMessageCount > 0" type="button" class="load-earlier-btn" @click="showMoreMessages">
+                    <button v-if="hiddenMessageCount > 0" type="button" class="load-earlier-btn"
+                        @click="showMoreMessages">
                         显示更早 {{ hiddenMessageCount }} 条消息
                     </button>
 
-                    <div v-for="({ message: msg, index: idx }) in visibleMessageItems" :key="idx" :class="['message-wrapper', msg.role]"
-                        :data-message-index="idx">
+                    <div v-for="({ message: msg, index: idx }) in visibleMessageItems" :key="idx"
+                        :class="['message-wrapper', msg.role]" :data-message-index="idx">
                         <div class="message-content-inner">
                             <div class="message-header">
                                 <span v-if="msg.role === 'assistant'" class="message-role">BOH AI</span>
@@ -173,8 +204,8 @@
                                         </div>
                                     </div>
                                     <div class="plan-todo-list">
-                                        <div v-for="todo in planTodoItems" :key="todo.id"
-                                            class="plan-todo-item" :class="todo.state">
+                                        <div v-for="todo in planTodoItems" :key="todo.id" class="plan-todo-item"
+                                            :class="todo.state">
                                             <span class="plan-todo-check">
                                                 <CheckCircle2 v-if="todo.state === 'done'" size="16" />
                                                 <LoaderCircle v-else-if="todo.state === 'active'" size="16" />
@@ -244,22 +275,27 @@
                                         </button>
                                     </div>
                                 </div>
-                                <div v-else-if="shouldRenderCloudReferenceConsent(msg, idx)" class="consent-card action-draft-card">
+                                <div v-else-if="shouldRenderCloudReferenceConsent(msg, idx)"
+                                    class="consent-card action-draft-card">
                                     <div class="action-draft-head consent-card-head">
                                         <span class="action-draft-title">允许 Cloud+ 私有参考</span>
                                         <span class="action-draft-subtitle">仅用于当前账号回答，不会公开</span>
                                     </div>
-                                    <div class="message-content consent-copy" v-html="renderMarkdown(msg.content)"></div>
+                                    <div class="message-content consent-copy" v-html="renderMarkdown(msg.content)">
+                                    </div>
                                     <div class="draft-actions consent-actions">
-                                        <button type="button" class="draft-btn primary" @click="approveCloudReferenceConsent">
+                                        <button type="button" class="draft-btn primary"
+                                            @click="approveCloudReferenceConsent">
                                             同意
                                         </button>
-                                        <button type="button" class="draft-btn secondary" @click="rejectCloudReferenceConsent">
+                                        <button type="button" class="draft-btn secondary"
+                                            @click="rejectCloudReferenceConsent">
                                             拒绝
                                         </button>
                                     </div>
                                 </div>
-                                <div v-else-if="shouldRenderQuickNoteConfirm(msg, idx)" class="quick-note-card action-draft-card">
+                                <div v-else-if="shouldRenderQuickNoteConfirm(msg, idx)"
+                                    class="quick-note-card action-draft-card">
                                     <div class="action-draft-head consent-card-head">
                                         <span class="action-draft-title">记录到 Cloud+？</span>
                                         <span class="action-draft-subtitle">标题由 BOH AI 自动生成</span>
@@ -272,7 +308,8 @@
                                         <span class="quick-note-preview-label">原文摘录</span>
                                         <p>{{ pendingQuickNote.content }}</p>
                                     </div>
-                                    <p v-if="pendingQuickNote.error" class="draft-feedback">{{ pendingQuickNote.error }}</p>
+                                    <p v-if="pendingQuickNote.error" class="draft-feedback">{{ pendingQuickNote.error }}
+                                    </p>
                                     <div class="draft-actions consent-actions">
                                         <button type="button" class="draft-btn primary"
                                             :disabled="pendingQuickNote.busy" @click="confirmQuickNoteDraft">
@@ -324,24 +361,22 @@
                                             </div>
                                         </div>
                                         <div class="resource-results-actions">
-                                            <button type="button" class="draft-btn primary" @click="openResourceResults(msg)">
+                                            <button type="button" class="draft-btn primary"
+                                                @click="openResourceResults(msg)">
                                                 查看资源列表
                                             </button>
-                                        <button type="button" class="draft-btn secondary" @click="openResourceCenter(msg)">
+                                            <button type="button" class="draft-btn secondary"
+                                                @click="openResourceCenter(msg)">
                                                 打开资源中心
                                             </button>
                                         </div>
                                     </div>
                                     <div v-if="getInlineResourceResults(msg).length" class="resource-inline-list">
-                                        <a
-                                            v-for="resource in getInlineResourceResults(msg)"
-                                            :key="resource.project_id"
-                                            class="resource-inline-item"
-                                            :href="resource.url"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                        >
-                                            <img v-if="resource.icon_url" :src="resource.icon_url" :alt="resource.title" loading="lazy" />
+                                        <a v-for="resource in getInlineResourceResults(msg)" :key="resource.project_id"
+                                            class="resource-inline-item" :href="resource.url" target="_blank"
+                                            rel="noopener noreferrer">
+                                            <img v-if="resource.icon_url" :src="resource.icon_url" :alt="resource.title"
+                                                loading="lazy" />
                                             <span v-else class="resource-inline-fallback">
                                                 <Package size="16" />
                                             </span>
@@ -368,10 +403,12 @@
                             </div>
                             <div v-if="msg.role === 'assistant' && !(isThinking && idx === messages.length - 1)"
                                 class="message-actions" aria-label="回复操作">
-                                <button type="button" class="message-action-btn" title="复制" @click="copyMessage(msg.content)">
+                                <button type="button" class="message-action-btn" title="复制"
+                                    @click="copyMessage(msg.content)">
                                     <Copy size="15" />
                                 </button>
-                                <button type="button" class="message-action-btn" title="朗读" @click="readMessageAloud(msg.content)">
+                                <button type="button" class="message-action-btn" title="朗读"
+                                    @click="readMessageAloud(msg.content)">
                                     <Volume2 size="15" />
                                 </button>
                                 <button type="button" class="message-action-btn" title="赞同"
@@ -385,8 +422,7 @@
                                     <ThumbsDown size="15" />
                                 </button>
                                 <button type="button" class="message-action-btn" title="更多"
-                                    :class="{ active: isMessageDetailsOpen(idx) }"
-                                    @click="toggleMessageDetails(idx)">
+                                    :class="{ active: isMessageDetailsOpen(idx) }" @click="toggleMessageDetails(idx)">
                                     <MoreHorizontal size="16" />
                                 </button>
                             </div>
@@ -395,9 +431,11 @@
                                     <strong>检索观察</strong>
                                     <p>{{ getRetrievalTraceSummary(msg) }}</p>
                                     <div v-if="getRetrievalTraceSources(msg).length" class="meta-chip-row">
-                                        <span v-for="source in getRetrievalTraceSources(msg)" :key="source.connectorId || source.label"
-                                            class="meta-chip" :class="{ failed: !source.ok }">
-                                            {{ source.label || source.source }} · {{ source.ok ? `${source.total || 0}条` : '失败' }}
+                                        <span v-for="source in getRetrievalTraceSources(msg)"
+                                            :key="source.connectorId || source.label" class="meta-chip"
+                                            :class="{ failed: !source.ok }">
+                                            {{ source.label || source.source }} · {{ source.ok ? `${source.total || 0}条`
+                                                : '失败' }}
                                         </span>
                                     </div>
                                 </div>
@@ -405,7 +443,8 @@
                                     <strong>动作审计</strong>
                                     <p>{{ formatActionAudit(getMessageActionAudit(msg)) }}</p>
                                 </div>
-                                <div v-if="!getMessageRetrievalTrace(msg) && !getMessageActionAudit(msg)" class="message-meta-section">
+                                <div v-if="!getMessageRetrievalTrace(msg) && !getMessageActionAudit(msg)"
+                                    class="message-meta-section">
                                     <p>这条回复没有可展示的检索或动作记录。</p>
                                 </div>
                             </div>
@@ -416,10 +455,8 @@
 
                 <nav v-if="userMessageNavItems.length > 1" class="conversation-jump-nav" aria-label="用户消息导航">
                     <button v-for="item in userMessageNavItems" :key="item.index" type="button"
-                        class="conversation-jump-item"
-                        :class="{ active: activeUserMessageIndex === item.index }"
-                        :title="item.fullText"
-                        @click="scrollToMessage(item.index)">
+                        class="conversation-jump-item" :class="{ active: activeUserMessageIndex === item.index }"
+                        :title="item.fullText" @click="scrollToMessage(item.index)">
                         <span class="conversation-jump-label">{{ item.label }}</span>
                         <span class="conversation-jump-mark" aria-hidden="true"></span>
                     </button>
@@ -440,74 +477,48 @@
                                 <Plus size="18" />
                             </button>
                             <div v-if="showFeaturesMenu" class="features-menu">
-                                <div class="feature-item" @click="toggleCommandMode">
-                                    <span class="feature-icon">
-                                        <Code size="16" />
-                                    </span>
-                                    <span class="feature-name">指令模式</span>
-                                    <span v-if="isCommandMode" class="feature-status active">开启</span>
-                                    <span v-else class="feature-status">关闭</span>
-                                </div>
-                                <div class="feature-item" @click="toggleSearch">
-                                    <span class="feature-icon">
-                                        <Globe size="16" />
-                                    </span>
-                                    <span class="feature-name">联网搜索</span>
-                                    <span v-if="isSearching" class="feature-status active">开启</span>
-                                    <span v-else class="feature-status">关闭</span>
-                                </div>
-                                <div class="feature-item" @click="toggleForumSearch">
-                                    <span class="feature-icon">
-                                        <MessageSquare size="16" />
-                                    </span>
-                                    <span class="feature-name">论坛检索</span>
-                                    <span v-if="isForumSearchEnabled" class="feature-status active">开启</span>
-                                    <span v-else class="feature-status">关闭</span>
-                                </div>
-                                <div class="feature-item" @click="toggleMemoryCaptureMode">
-                                    <span class="feature-icon">
-                                        <Archive size="16" />
-                                    </span>
-                                    <span class="feature-name">公共记忆</span>
-                                    <span v-if="isMemoryCaptureEnabled" class="feature-status active">开启</span>
-                                    <span v-else class="feature-status">关闭</span>
-                                </div>
-                                <div class="feature-item" :class="{ disabled: isTreeholeMemoryToggling }"
-                                    @click="toggleTreeholeMemoryMode">
-                                    <span class="feature-icon">
-                                        <Database size="16" />
-                                    </span>
-                                    <span class="feature-name">Cloud+ 参考</span>
-                                    <span v-if="isTreeholeMemoryToggling" class="feature-status">检查中...</span>
-                                    <span v-else-if="isTreeholeMemoryEnabled" class="feature-status active">开启</span>
-                                    <span v-else class="feature-status">关闭</span>
-                                </div>
-                                <div class="feature-item" @click="toggleQuickNoteCaptureMode">
-                                    <span class="feature-icon">
-                                        <NotebookPen size="16" />
-                                    </span>
-                                    <span class="feature-name">随手记</span>
-                                    <span v-if="isQuickNoteEnabled" class="feature-status active">开启</span>
-                                    <span v-else class="feature-status">关闭</span>
-                                </div>
-                                <div class="feature-item" @click="togglePlanModeFromMenu">
-                                    <span class="feature-icon">
-                                        <ListChecks size="16" />
-                                    </span>
-                                    <span class="feature-name">Plan 模式</span>
-                                    <span v-if="isPlanModeEnabled" class="feature-status active">开启</span>
-                                    <span v-else class="feature-status">关闭</span>
-                                </div>
-                                <div class="feature-style-panel">
-                                    <div class="feature-style-title">回答风格</div>
-                                    <div class="feature-style-options">
-                                        <button v-for="style in responseStyleOptions" :key="style.id" type="button"
-                                            class="feature-style-option"
-                                            :class="{ active: currentResponseStyleId === style.id }"
-                                            @click="selectResponseStyle(style.id)">
-                                            {{ style.shortName || style.name }}
-                                        </button>
-                                    </div>
+                                <div class="feature-menu-handle" aria-hidden="true"></div>
+                                <div class="feature-menu-title">BOH AI</div>
+                                <div class="feature-action-list">
+                                    <button type="button" class="feature-action-row" @click="toggleSearch">
+                                        <span class="feature-action-icon">
+                                            <Globe size="22" />
+                                        </span>
+                                        <span class="feature-action-copy">
+                                            <strong>联网搜索</strong>
+                                            <span>获取最新网页信息</span>
+                                        </span>
+                                        <span v-if="isSearching" class="feature-action-check"></span>
+                                    </button>
+                                    <button type="button" class="feature-action-row" @click="toggleForumSearch">
+                                        <span class="feature-action-icon">
+                                            <MessageSquare size="22" />
+                                        </span>
+                                        <span class="feature-action-copy">
+                                            <strong>论坛检索</strong>
+                                            <span>查找社区帖子与动态</span>
+                                        </span>
+                                        <span v-if="isForumSearchEnabled" class="feature-action-check"></span>
+                                    </button>
+                                    <button type="button" class="feature-action-row"
+                                        @click="notifyUnavailable('文件上传暂未开放'); showFeaturesMenu = false">
+                                        <span class="feature-action-icon">
+                                            <Archive size="22" />
+                                        </span>
+                                        <span class="feature-action-copy">
+                                            <strong>添加文件</strong>
+                                            <span>分析或总结</span>
+                                        </span>
+                                    </button>
+                                    <button type="button" class="feature-action-row" @click="openAiSettings">
+                                        <span class="feature-action-icon">
+                                            <SettingsIcon size="22" />
+                                        </span>
+                                        <span class="feature-action-copy">
+                                            <strong>AI 设置</strong>
+                                            <span>记忆、模式与回答风格</span>
+                                        </span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -515,7 +526,8 @@
                         <div class="composer-main">
                             <div v-if="isCommandMode || isSearching || isForumSearchEnabled || isMemoryCaptureEnabled || isTreeholeMemoryEnabled || isQuickNoteEnabled || isPlanModeEnabled || currentResponseStyleId !== 'default'"
                                 class="composer-chips">
-                                <button v-if="isCommandMode" type="button" class="composer-chip" @click="toggleCommandMode">
+                                <button v-if="isCommandMode" type="button" class="composer-chip"
+                                    @click="toggleCommandMode">
                                     <Code size="14" />
                                     <span>指令模式</span>
                                     <X size="13" />
@@ -525,12 +537,14 @@
                                     <span>联网搜索</span>
                                     <X size="13" />
                                 </button>
-                                <button v-if="isForumSearchEnabled" type="button" class="composer-chip" @click="toggleForumSearch">
+                                <button v-if="isForumSearchEnabled" type="button" class="composer-chip"
+                                    @click="toggleForumSearch">
                                     <MessageSquare size="14" />
                                     <span>论坛检索</span>
                                     <X size="13" />
                                 </button>
-                                <button v-if="isMemoryCaptureEnabled" type="button" class="composer-chip" @click="toggleMemoryCaptureMode">
+                                <button v-if="isMemoryCaptureEnabled" type="button" class="composer-chip"
+                                    @click="toggleMemoryCaptureMode">
                                     <Archive size="14" />
                                     <span>公共记忆</span>
                                     <X size="13" />
@@ -541,18 +555,20 @@
                                     <span>Cloud+ 参考</span>
                                     <X size="13" />
                                 </button>
-                                <button v-if="isQuickNoteEnabled" type="button" class="composer-chip" @click="toggleQuickNoteCaptureMode">
+                                <button v-if="isQuickNoteEnabled" type="button" class="composer-chip"
+                                    @click="toggleQuickNoteCaptureMode">
                                     <NotebookPen size="14" />
                                     <span>随手记</span>
                                     <X size="13" />
                                 </button>
-                                <button v-if="isPlanModeEnabled" type="button" class="composer-chip" @click="togglePlanModeFromMenu">
+                                <button v-if="isPlanModeEnabled" type="button" class="composer-chip"
+                                    @click="togglePlanModeFromMenu">
                                     <ListChecks size="14" />
                                     <span>Plan 模式</span>
                                     <X size="13" />
                                 </button>
-                                <button v-if="currentResponseStyleId !== 'default'" type="button" class="composer-chip neutral"
-                                    @click="selectResponseStyle('default')">
+                                <button v-if="currentResponseStyleId !== 'default'" type="button"
+                                    class="composer-chip neutral" @click="selectResponseStyle('default')">
                                     <MessageSquare size="14" />
                                     <span>{{ currentResponseStyle.name }}</span>
                                     <X size="13" />
@@ -563,7 +579,8 @@
                         </div>
 
                         <div class="input-right">
-                            <button type="button" class="mic-btn" title="语音输入暂未开放" @click="notifyUnavailable('语音输入暂未开放')">
+                            <button type="button" class="mic-btn" title="语音输入暂未开放"
+                                @click="notifyUnavailable('语音输入暂未开放')">
                                 <Mic size="18" />
                             </button>
                             <div class="input-actions">
@@ -583,24 +600,103 @@
         </div>
 
         <Teleport to="body">
-            <div v-if="planPanelOpen" class="plan-modal-backdrop" role="presentation" @click.self="planPanelOpen = false">
-                <section class="plan-modal" role="dialog" aria-modal="true" aria-labelledby="plan-modal-title">
+            <div v-if="aiSettingsOpen" class="ai-settings-backdrop" role="presentation"
+                @click.self="aiSettingsOpen = false">
+                <section class="ai-settings-drawer" role="dialog" aria-modal="true" aria-labelledby="ai-settings-title">
+                    <header class="ai-settings-header">
+                        <div>
+                            <span class="ai-settings-kicker">BOH AI</span>
+                            <h2 id="ai-settings-title">AI 设置</h2>
+                        </div>
+                        <button type="button" class="ai-settings-close" title="关闭" @click="aiSettingsOpen = false">
+                            <X size="18" />
+                        </button>
+                    </header>
+
+                    <div class="ai-settings-body custom-scrollbar">
+                        <section class="ai-settings-section">
+                            <h3>会话能力</h3>
+                            <button type="button" class="ai-setting-row" @click="toggleCommandMode">
+                                <span class="ai-setting-icon"><Code size="17" /></span>
+                                <span class="ai-setting-copy">
+                                    <strong>指令模式</strong>
+                                    <span>适合 Minecraft 命令和结构化执行。</span>
+                                </span>
+                                <span class="ai-setting-switch" :class="{ enabled: isCommandMode }"></span>
+                            </button>
+                            <button type="button" class="ai-setting-row" @click="togglePlanModeFromMenu">
+                                <span class="ai-setting-icon"><ListChecks size="17" /></span>
+                                <span class="ai-setting-copy">
+                                    <strong>Plan 模式</strong>
+                                    <span>让 BOH AI 分步推进复杂任务。</span>
+                                </span>
+                                <span class="ai-setting-switch" :class="{ enabled: isPlanModeEnabled }"></span>
+                            </button>
+                        </section>
+
+                        <section class="ai-settings-section">
+                            <h3>记忆与参考</h3>
+                            <button type="button" class="ai-setting-row" @click="toggleMemoryCaptureMode">
+                                <span class="ai-setting-icon"><Archive size="17" /></span>
+                                <span class="ai-setting-copy">
+                                    <strong>公共记忆</strong>
+                                    <span>允许记录适合公开复用的信息。</span>
+                                </span>
+                                <span class="ai-setting-switch" :class="{ enabled: isMemoryCaptureEnabled }"></span>
+                            </button>
+                            <button type="button" class="ai-setting-row" :disabled="isTreeholeMemoryToggling"
+                                @click="toggleTreeholeMemoryMode">
+                                <span class="ai-setting-icon"><Database size="17" /></span>
+                                <span class="ai-setting-copy">
+                                    <strong>Cloud+ 参考</strong>
+                                    <span>{{ isTreeholeMemoryToggling ? '正在检查权限...' : '参考你的 Cloud+ 私有内容。' }}</span>
+                                </span>
+                                <span class="ai-setting-switch" :class="{ enabled: isTreeholeMemoryEnabled }"></span>
+                            </button>
+                            <button type="button" class="ai-setting-row" @click="toggleQuickNoteCaptureMode">
+                                <span class="ai-setting-icon"><NotebookPen size="17" /></span>
+                                <span class="ai-setting-copy">
+                                    <strong>随手记</strong>
+                                    <span>把当前想法整理为 Cloud+ 笔记草稿。</span>
+                                </span>
+                                <span class="ai-setting-switch" :class="{ enabled: isQuickNoteEnabled }"></span>
+                            </button>
+                        </section>
+
+                        <section class="ai-settings-section">
+                            <h3>回答风格</h3>
+                            <div class="ai-style-grid">
+                                <button v-for="style in responseStyleOptions" :key="style.id" type="button"
+                                    class="ai-style-option" :class="{ active: currentResponseStyleId === style.id }"
+                                    @click="selectResponseStyle(style.id)">
+                                    {{ style.shortName || style.name }}
+                                </button>
+                            </div>
+                        </section>
+                    </div>
+                </section>
+            </div>
+
+            <div v-if="taskPanelOpen" class="plan-modal-backdrop task-drawer-backdrop" role="presentation"
+                @click.self="taskPanelOpen = false">
+                <section class="plan-modal task-drawer" role="dialog" aria-modal="true"
+                    aria-labelledby="plan-modal-title">
                     <header class="plan-modal-header">
                         <div>
-                            <span class="plan-modal-kicker">Plan 模式</span>
-                            <h2 id="plan-modal-title">{{ planPanelTitle }}</h2>
-                            <p>{{ currentPlanGoal }}</p>
+                            <span class="plan-modal-kicker">任务状态</span>
+                            <h2 id="plan-modal-title">{{ taskStatusTitle }}</h2>
+                            <p>{{ taskStatusSubtitle }}</p>
                         </div>
-                        <button type="button" class="plan-modal-close" title="关闭" @click="planPanelOpen = false">
+                        <button type="button" class="plan-modal-close" title="关闭" @click="taskPanelOpen = false">
                             <X size="18" />
                         </button>
                     </header>
                     <div class="plan-modal-body custom-scrollbar">
-                        <section class="plan-modal-section">
+                        <section v-if="isPlanExperienceActive" class="plan-modal-section">
                             <h3>执行进度</h3>
                             <div class="plan-step-list">
-                                <article v-for="step in planTodoItems" :key="step.id"
-                                    class="plan-step-row" :class="step.state">
+                                <article v-for="step in planTodoItems" :key="step.id" class="plan-step-row"
+                                    :class="step.state">
                                     <span class="plan-step-status">
                                         <CheckCircle2 v-if="step.state === 'done'" size="16" />
                                         <LoaderCircle v-else-if="step.state === 'active'" size="16" />
@@ -627,16 +723,32 @@
                             <h3>下一步行动</h3>
                             <p>{{ planNextAction }}</p>
                         </section>
+                        <section v-if="isAgentClusterModeActive" class="plan-modal-section">
+                            <h3>Agent 集群</h3>
+                            <div class="agent-cluster-strip drawer-agent-strip">
+                                <div v-for="entry in agentClusterEntries" :key="entry.key" class="agent-cluster-chip"
+                                    :class="entry.status">
+                                    <span class="agent-cluster-dot" aria-hidden="true"></span>
+                                    <span class="agent-cluster-chip-label">{{ entry.label }}</span>
+                                    <span v-if="entry.status === 'running'" class="agent-cluster-chip-meta">…</span>
+                                    <span v-else-if="Number.isFinite(entry.ms) && entry.ms > 0"
+                                        class="agent-cluster-chip-meta">
+                                        {{ formatAgentClusterMs(entry.ms) }}
+                                    </span>
+                                </div>
+                            </div>
+                        </section>
                     </div>
                     <footer class="plan-modal-footer">
-                        <button type="button" class="draft-btn secondary" @click="planPanelOpen = false">
+                        <button type="button" class="draft-btn secondary" @click="taskPanelOpen = false">
                             收起
                         </button>
                     </footer>
                 </section>
             </div>
 
-            <div v-if="resourceModalOpen" class="resource-modal-backdrop" role="presentation" @click.self="closeResourceResults">
+            <div v-if="resourceModalOpen" class="resource-modal-backdrop" role="presentation"
+                @click.self="closeResourceResults">
                 <section class="resource-modal" role="dialog" aria-modal="true" aria-labelledby="resource-modal-title">
                     <header class="resource-modal-header">
                         <div>
@@ -649,18 +761,22 @@
                         </button>
                     </header>
                     <div class="resource-modal-list custom-scrollbar">
-                        <article v-for="resource in activeResourceResults" :key="resource.project_id" class="resource-modal-item">
-                            <img v-if="resource.icon_url" :src="resource.icon_url" :alt="resource.title" class="resource-modal-icon" loading="lazy" />
+                        <article v-for="resource in activeResourceResults" :key="resource.project_id"
+                            class="resource-modal-item">
+                            <img v-if="resource.icon_url" :src="resource.icon_url" :alt="resource.title"
+                                class="resource-modal-icon" loading="lazy" />
                             <div v-else class="resource-modal-icon fallback">
                                 <Package size="22" />
                             </div>
                             <div class="resource-modal-body">
                                 <div class="resource-modal-item-head">
                                     <div>
-                                        <span class="resource-type-pill">{{ resource.project_type_label || getResourceTypeLabel(resource.project_type) }}</span>
+                                        <span class="resource-type-pill">{{ resource.project_type_label ||
+                                            getResourceTypeLabel(resource.project_type) }}</span>
                                         <h3>{{ resource.title }}</h3>
                                     </div>
-                                    <a class="resource-open-link" :href="resource.url" target="_blank" rel="noopener noreferrer" title="打开原站">
+                                    <a class="resource-open-link" :href="resource.url" target="_blank"
+                                        rel="noopener noreferrer" title="打开原站">
                                         <ExternalLink size="16" />
                                     </a>
                                 </div>
@@ -675,7 +791,8 @@
                                         <Users size="14" />
                                         {{ formatResourceCount(resource.follows) }}
                                     </span>
-                                    <span v-if="formatResourceDate(resource.date_modified)">{{ formatResourceDate(resource.date_modified) }}</span>
+                                    <span v-if="formatResourceDate(resource.date_modified)">{{
+                                        formatResourceDate(resource.date_modified) }}</span>
                                 </div>
                             </div>
                         </article>
@@ -699,7 +816,7 @@
 
 <script setup>
 import { ref, computed, onMounted, nextTick, watch, onUnmounted } from 'vue';
-import { Plus, MessageSquare, Trash2, Square, Bot, Globe, Code, X, Archive, Database, NotebookPen, PanelLeft, PenLine, ChevronDown, Share2, Copy, Volume2, ThumbsUp, ThumbsDown, MoreHorizontal, ArrowUp, Mic, Package, ExternalLink, Download, Users, ListChecks, CheckCircle2, LoaderCircle, Circle, Network } from 'lucide-vue-next';
+import { Plus, MessageSquare, Trash2, Square, Bot, Globe, Code, X, Archive, Database, NotebookPen, PanelLeft, PenLine, ChevronDown, ChevronRight, Share2, Copy, Volume2, ThumbsUp, ThumbsDown, MoreHorizontal, ArrowUp, Mic, Package, ExternalLink, Download, Users, ListChecks, CheckCircle2, LoaderCircle, Circle, Network, Wand2, Search, Image as ImageIcon, Sun, Moon, Folder, Settings as SettingsIcon } from 'lucide-vue-next';
 import { useChatEngine } from '../composables/useChatEngine';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
@@ -732,6 +849,7 @@ defineProps({
 
 const isSidebarOpen = ref(false);
 const showFeaturesMenu = ref(false);
+const featureMenuView = ref('root');
 const currentUiStyle = ref(themeManager.getUiStyle?.() || 'glass');
 const uiNotice = ref('');
 const visibleMessageLimit = ref(80);
@@ -740,7 +858,11 @@ const expandedMessageDetails = ref(new Set());
 const resourceModalOpen = ref(false);
 const activeResourceSearch = ref(null);
 const lastAutoOpenedResourceRequest = ref(0);
-const planPanelOpen = ref(false);
+const taskPanelOpen = ref(false);
+const aiSettingsOpen = ref(false);
+const showSidebarSearch = ref(false);
+const sidebarSearchQuery = ref('');
+const isDarkTheme = ref(false);
 let uiNoticeTimer = null;
 
 const {
@@ -770,6 +892,8 @@ const {
     rateLimitMessage,
     chatModes,
     messages,
+    contextBudgetUsage,
+    isCompressingContext,
     onScrollToBottom,
     startNewChat,
     deleteSession,
@@ -799,6 +923,38 @@ const activeUserMessageIndex = ref(-1);
 const currentSessionTitle = computed(() => {
     const title = String(chatSessions[currentSessionIndex.value]?.title || '').trim();
     return title && title !== '新对话' ? title : currentMode.value.name;
+});
+
+// BOH AI 实际可见上下文窗口：与 useChatEngine 中送入模型的预算口径保持一致
+const contextBudgetPercentText = computed(() => {
+    const percent = contextBudgetUsage.value?.percent || 0;
+    return `${Math.round(percent)}%`;
+});
+
+// 顶层模式（4 个）：Fast / Pro / Plan / Agent。
+// - Fast: 极速响应（默认）
+// - Pro:  质量
+// - Plan: 超级高质量
+// - Agent: 工作
+// AUTO 模式已于 2026-06-08 移除，不再有"自动路由到哪个子模式"的 chip 概念。
+
+const activeCapabilityLabels = computed(() => {
+    const labels = [];
+    if (isSearching.value) labels.push('联网');
+    if (isForumSearchEnabled.value) labels.push('论坛');
+    if (isTreeholeMemoryEnabled.value) labels.push('Cloud+');
+    if (isCommandMode.value) labels.push('指令');
+    if (isPlanModeEnabled.value) labels.push('Plan');
+    return labels;
+});
+
+const contextBudgetTitle = computed(() => {
+    const usage = contextBudgetUsage.value || { used: 0, max: 0, percent: 0, includedMessageCount: 0, hasSummary: false };
+    const summaryHint = usage.hasSummary ? '（已包含此前对话摘要）' : '';
+    if (isCompressingContext.value) {
+        return `上下文已满，正在自动压缩 BOH AI 历史窗口：已用 ${usage.used} / ${usage.max} 字符 · ${contextBudgetPercentText.value} · 实际携带 ${usage.includedMessageCount} 条消息${summaryHint}`;
+    }
+    return `BOH AI 上下文窗口：已用 ${usage.used} / ${usage.max} 字符 · ${contextBudgetPercentText.value} · 实际携带 ${usage.includedMessageCount} 条消息${summaryHint}`;
 });
 
 const getSessionGroupId = (timestamp) => {
@@ -831,6 +987,24 @@ const groupedChatSessions = computed(() => {
         group.items.push({ session, index });
     });
     return groups.filter((group) => group.items.length > 0);
+});
+
+// 搜索过滤后的会话分组：空 query 时直接返回全量；否则按标题/消息内容匹配。
+const filteredGroupedChatSessions = computed(() => {
+    const query = String(sidebarSearchQuery.value || '').trim().toLowerCase();
+    if (!query) return groupedChatSessions.value;
+    const matchedItems = (group) => group.items.filter((item) => {
+        const title = String(item.session?.title || '').toLowerCase();
+        if (title.includes(query)) return true;
+        const messages = Array.isArray(item.session?.messages) ? item.session.messages : [];
+        return messages.some((msg) => {
+            const text = String(msg?.content || msg?.text || '').toLowerCase();
+            return text.includes(query);
+        });
+    }).map((item) => ({ ...item, _matched: true }));
+    return groupedChatSessions.value
+        .map((group) => ({ ...group, items: matchedItems(group) }))
+        .filter((group) => group.items.length > 0);
 });
 
 const hiddenMessageCount = computed(() => {
@@ -994,19 +1168,28 @@ const agentClusterPanelSubtitle = computed(() => {
     const finished = agentClusterEntries.value.filter((entry) =>
         entry.status === 'ok' || entry.status === 'failed' || entry.status === 'skipped' || entry.status === 'cancelled'
     ).length;
+    const tokens = Number(agentClusterState?.usage?.total || agentClusterState?.tokenEstimate || 0);
+    const tokensHint = tokens > 0 ? ` · ${formatAgentClusterTokens(tokens)}` : '';
     if (agentClusterState?.isRunning) {
-        return `${finished}/${total} 个 Agent 已完成 · ${agentClusterState.clusterMode || 'auto'}`;
+        return `${finished}/${total} 个 Agent 已完成 · ${agentClusterState.clusterMode || 'auto'}${tokensHint}`;
     }
     if (agentClusterState?.strategy) {
-        return `${total} 个 Agent · 策略 ${agentClusterState.strategy} · ${agentClusterState.totalMs || 0}ms`;
+        return `${total} 个 Agent · 策略 ${agentClusterState.strategy} · ${agentClusterState.totalMs || 0}ms${tokensHint}`;
     }
-    return `${total} 个 Agent · ${finished} 已完成`;
+    return `${total} 个 Agent · ${finished} 已完成${tokensHint}`;
 });
 
 const formatAgentClusterMs = (ms) => {
     const value = Number(ms) || 0;
     if (value < 1000) return `${value}ms`;
     return `${(value / 1000).toFixed(1)}s`;
+};
+
+const formatAgentClusterTokens = (tokens) => {
+    const value = Number(tokens) || 0;
+    if (value < 1000) return `${value} tok`;
+    if (value < 10000) return `${(value / 1000).toFixed(1)}k tok`;
+    return `${Math.round(value / 1000)}k tok`;
 };
 
 const currentPlanGoal = computed(() => {
@@ -1137,13 +1320,24 @@ const planTodoSummary = computed(() => {
     return `${done}/${planTodoItems.value.length} 已完成`;
 });
 
-const shouldRenderPlanTodoCard = (msg, idx) => {
-    if (!msg || msg.role !== 'assistant') return false;
-    if (!isPlanExperienceActive.value) return false;
-    const list = Array.isArray(messages.value) ? messages.value : [];
-    for (let i = list.length - 1; i >= 0; i -= 1) {
-        if (list[i]?.role === 'assistant') return i === idx;
+const taskStatusActive = computed(() => isPlanExperienceActive.value || isAgentClusterModeActive.value);
+
+const taskStatusTitle = computed(() => {
+    if (isPlanExperienceActive.value) {
+        const activeStep = planTodoItems.value.find((item) => item.state === 'active');
+        const done = planTodoItems.value.filter((item) => item.state === 'done').length;
+        if (isLoading.value && activeStep) return `正在规划 ${planTodoItems.value.length} 步`;
+        return `${planPanelTitle.value} · ${done}/${planTodoItems.value.length}`;
     }
+    return agentClusterPanelTitle.value;
+});
+
+const taskStatusSubtitle = computed(() => {
+    if (isPlanExperienceActive.value) return planPanelSubtitle.value;
+    return agentClusterPanelSubtitle.value;
+});
+
+const shouldRenderPlanTodoCard = (msg, idx) => {
     return false;
 };
 
@@ -1512,7 +1706,7 @@ const sendPageToStudio = () => {
         }));
         actionDraftFeedback.value = '代码已发送到创作工作台';
         window.location.hash = '#/creator-studio';
-    } catch (error) {
+    } catch {
         actionDraftFeedback.value = '发送失败，请手动复制代码';
     }
 };
@@ -1671,29 +1865,29 @@ const commandQuickPrompts = [
 const emptySuggestionCards = [
     {
         category: '社区',
-        label: '整理论坛最近发生的事',
-        prompt: '总结一下论坛近况',
+        label: '帮我写一篇社区帖子',
+        prompt: '帮我写一篇社区帖子，主题是：',
         icon: 'forum',
         enableForumSearch: true
     },
     {
-        category: '创作',
-        label: '起草一条论坛发布文案',
-        prompt: '帮我发一条论坛帖子，想法是：',
+        category: '通知',
+        label: '总结最近通知',
+        prompt: '总结一下最近通知和社区近况，按重要程度列出要点。',
         icon: 'command'
     },
     {
         category: 'Cloud+',
-        label: '记录一段 Cloud+ 笔记',
-        prompt: '帮我把这段想法整理成一条 Cloud+ 笔记：',
+        label: '整理 BOHcloud 文件',
+        prompt: '帮我整理 BOHcloud / Cloud+ 里的内容，并给出分类建议：',
         icon: 'cloud',
-        enableQuickNote: true
+        enableTreeholeMemory: true
     },
     {
-        category: '网页',
-        label: '生成一个活动落地页',
-        prompt: '帮我做个活动落地页，用来宣传方块之家社区的夏日活动',
-        icon: 'command'
+        category: '代码',
+        label: '检查这段代码的问题',
+        prompt: '检查这段代码的问题，指出 bug、风险和可以改进的地方：\n',
+        icon: 'code'
     }
 ];
 
@@ -1721,6 +1915,9 @@ const sendEmptySuggestion = async (card) => {
     }
     if (card.enableQuickNote) {
         isQuickNoteEnabled.value = true;
+    }
+    if (card.enableTreeholeMemory && !isTreeholeMemoryEnabled.value && !isTreeholeMemoryToggling.value) {
+        await toggleTreeholeMemoryMode();
     }
     showFeaturesMenu.value = false;
     await nextTick();
@@ -1755,6 +1952,15 @@ const scrollToBottom = (force = false) => {
 
 const toggleFeaturesMenu = () => {
     showFeaturesMenu.value = !showFeaturesMenu.value;
+    if (showFeaturesMenu.value) {
+        featureMenuView.value = 'root';
+    }
+};
+
+const openAiSettings = () => {
+    showFeaturesMenu.value = false;
+    featureMenuView.value = 'root';
+    aiSettingsOpen.value = true;
 };
 
 const toggleCommandMode = () => {
@@ -1873,6 +2079,53 @@ const shareCurrentConversation = async () => {
     notifyUnavailable('对话已复制，可直接分享');
 };
 
+// 侧栏搜索：单次点击展开输入框，再点收起；展开时把焦点送到 input。
+const toggleSidebarSearch = () => {
+    showSidebarSearch.value = !showSidebarSearch.value;
+    if (!showSidebarSearch.value) {
+        sidebarSearchQuery.value = '';
+    }
+};
+
+// 浅/深主题切换：当前默认浅色（由 CSS 决定），切换仅记录偏好并改 data-ui-style。
+// 完整主题由 themeManager 维护，这里只同步本组件内的 isDarkTheme 标记。
+const toggleTheme = () => {
+    isDarkTheme.value = !isDarkTheme.value;
+    if (isDarkTheme.value) {
+        document.documentElement.setAttribute('data-boh-theme', 'dark');
+    } else {
+        document.documentElement.removeAttribute('data-boh-theme');
+    }
+    try {
+        localStorage.setItem('boh_ai_theme_preference_v1', isDarkTheme.value ? 'dark' : 'light');
+    } catch (_e) {
+        // localStorage 不可用时静默忽略；视觉上不会持久化但功能可用。
+    }
+};
+
+// 侧栏快捷入口：项目/图片/更多 当前都先打开 features menu 占位，
+// 未来可路由到对应视图（社区项目、BOH Creator Studio 图片库、设置面板）。
+const openProjectsView = () => {
+    notifyUnavailable('项目视图待接入');
+    isSidebarOpen.value = false;
+};
+
+const openImagesView = () => {
+    notifyUnavailable('图片视图待接入');
+    isSidebarOpen.value = false;
+};
+
+const openAllSessionsView = () => {
+    notifyUnavailable('全部会话视图待接入');
+    isSidebarOpen.value = false;
+};
+
+// 浮起"聊天"按钮：收起侧栏并开启新对话。
+const openChatFromFab = () => {
+    isSidebarOpen.value = true;
+    startNewChat();
+};
+
 const readMessageAloud = (content) => {
     const text = String(content || '').replace(/```[\s\S]*?```/g, ' ').replace(/\s+/g, ' ').trim();
     if (!text) {
@@ -1927,14 +2180,14 @@ watch(currentSessionIndex, () => {
     messageFeedbackByIndex.value = {};
     activeResourceSearch.value = null;
     resourceModalOpen.value = false;
-    planPanelOpen.value = false;
+    taskPanelOpen.value = false;
     markdownRenderCache.clear();
     nextTick(updateActiveUserMessageFromScroll);
 });
 
-watch(isPlanExperienceActive, (active) => {
+watch(taskStatusActive, (active) => {
     if (!active) {
-        planPanelOpen.value = false;
+        taskPanelOpen.value = false;
     }
 });
 

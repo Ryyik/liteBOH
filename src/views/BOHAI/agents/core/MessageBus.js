@@ -6,10 +6,19 @@ const DEFAULT_LIMITS = Object.freeze({
   maxAgentOutputs: 16
 });
 
+const CACHE_DEFAULTS = Object.freeze({
+  maxEntries: 32
+});
+
 const truncateText = (text, limit) => {
   const safe = String(text || '');
   if (safe.length <= limit) return safe;
   return `${safe.slice(0, limit)}…(已截断)`;
+};
+
+const normalizeCacheKey = (parts) => {
+  if (!Array.isArray(parts)) return String(parts || '');
+  return parts.map((part) => String(part ?? '').trim().toLowerCase()).filter(Boolean).join('|');
 };
 
 export const createMessageBus = ({
@@ -28,7 +37,8 @@ export const createMessageBus = ({
     agentOutputs: {},
     sharedContext: {},
     errors: [],
-    sources: new Map()
+    sources: new Map(),
+    caches: new Map()
   };
 
   const ensureLimit = (collection, limit) => {
@@ -147,6 +157,43 @@ export const createMessageBus = ({
         ...item,
         text: truncateText(item?.text || '', limit)
       }));
+    },
+    /**
+     * 简单 LRU：每 cacheKey 一个 Map<key, { value, at }>，超过 maxEntries 时按 at 升序淘汰。
+     * Worker 在"同会话里同 query 复跑"时复用历史结果，避免重复打到外部数据源 / LLM。
+     */
+    cacheGet(cacheKey, keyParts) {
+      const bucket = state.caches.get(String(cacheKey || 'default'));
+      if (!bucket) return undefined;
+      const key = normalizeCacheKey(keyParts);
+      const entry = bucket.get(key);
+      if (!entry) return undefined;
+      entry.at = Date.now();
+      return entry.value;
+    },
+    cacheSet(cacheKey, keyParts, value, { maxEntries = CACHE_DEFAULTS.maxEntries } = {}) {
+      const safeKey = String(cacheKey || 'default');
+      let bucket = state.caches.get(safeKey);
+      if (!bucket) {
+        bucket = new Map();
+        state.caches.set(safeKey, bucket);
+      }
+      const key = normalizeCacheKey(keyParts);
+      bucket.set(key, { value, at: Date.now() });
+      if (bucket.size > maxEntries) {
+        const overflow = bucket.size - maxEntries;
+        const sorted = Array.from(bucket.entries()).sort((a, b) => a[1].at - b[1].at);
+        for (let i = 0; i < overflow; i += 1) {
+          bucket.delete(sorted[i][0]);
+        }
+      }
+    },
+    cacheClear(cacheKey) {
+      if (cacheKey == null) {
+        state.caches.clear();
+        return;
+      }
+      state.caches.delete(String(cacheKey));
     }
   };
 };

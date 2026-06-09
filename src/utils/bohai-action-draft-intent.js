@@ -83,7 +83,6 @@ export const isMailDraftRequest = (text) => {
 };
 
 const ACTION_CREATE_PAGE_TRIGGER_PATTERN = /(创建网页|创建页面|生成网页|生成页面|做个网页|做个页面|做个主页|做个落地页|搭建网页|搭建页面|设计网页|设计页面|建个网页|建个页面|制作网页|制作页面|网页设计|页面设计)/;
-const ACTION_PAGE_TEMPLATE_PATTERN = /(首页|主页|落地页|活动页|公告页|展示页|介绍页|个人介绍|作品集|登录页|注册页|关于页|联系我们|产品页|宣传页|推广页|营销页)/;
 
 export const isCreatePageRequest = (text) => {
   const normalized = String(text || '').toLowerCase().trim();

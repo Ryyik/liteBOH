@@ -143,6 +143,12 @@ export const useAgentCluster = (options = {}) => {
         trace.synth = { ...(trace.synth || {}), ...(event.payload || {}) };
         break;
       }
+      case AGENT_EVENT_TYPES.USAGE: {
+        const total = Number(event.payload?.total) || 0;
+        trace.tokenEstimate = Math.max(trace.tokenEstimate || 0, total);
+        trace.usage = event.payload || { total };
+        break;
+      }
       case AGENT_EVENT_TYPES.FINAL: {
         trace.endedAt = Date.now();
         trace.totalMs = (trace.startedAt ? trace.endedAt - trace.startedAt : 0);
@@ -242,6 +248,9 @@ export const useAgentCluster = (options = {}) => {
     lastError,
     clusterModeLabel,
     resolveEffectiveMode: (text) => resolveClusterMode(settings.mode, Boolean(text && /fanout/i.test(safeString(text)))),
+    setAgentEnabled: (name, enabled) => runner.setAgentEnabled?.(name, enabled),
+    isAgentEnabled: (name) => runner.registry?.isEnabled?.(name) ?? true,
+    listAgents: () => runner.registry?.list?.() || [],
     resetTrace
   };
 };

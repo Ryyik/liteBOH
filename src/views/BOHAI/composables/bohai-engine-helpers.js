@@ -30,9 +30,13 @@ import { EVIDENCE_SOURCE_WEIGHTS, RANKING_SCORE_WEIGHTS, KEYWORD_CACHE_MAX_SIZE 
 let aiMemoryCache = '';
 let aiMemoryLoader = null;
 
-export const CONVERSATION_SUMMARY_RECENT_MESSAGES = 6;
-export const CONVERSATION_SUMMARY_MIN_MESSAGES = 12;
-export const CONVERSATION_SUMMARY_MAX_CHARS = 900;
+// 历史摘要参数：配合放大的上下文窗口同步上调。
+// - RECENT_MESSAGES=8: 摘要只覆盖"倒数第 8 条之前"，保留更多原文以减少摘要信息损失。
+// - MIN_MESSAGES=16: 至少 16 条历史才触发摘要（避免短对话浪费一次摘要调用）。
+// - MAX_CHARS=2000: 摘要本体上限 2000 字符（之前 900），让压缩后的早期上下文也尽量详细。
+export const CONVERSATION_SUMMARY_RECENT_MESSAGES = 8;
+export const CONVERSATION_SUMMARY_MIN_MESSAGES = 16;
+export const CONVERSATION_SUMMARY_MAX_CHARS = 2000;
 export const CONVERSATION_SUMMARY_STORAGE_VERSION = 1;
 export const GENERATION_STALL_TIMEOUT_MS = 90000;
 

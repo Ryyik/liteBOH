@@ -83,6 +83,22 @@ export const createAgentRegistry = ({ onChange } = {}) => {
     return list().find((agent) => predicate(agent)) || null;
   };
 
+  const setEnabled = (name, enabled) => {
+    const safeName = String(name || '').trim();
+    const agent = agents.get(safeName) || agents.get(aliases.get(safeName) || '');
+    if (!agent) return false;
+    const next = enabled !== false;
+    if (agent.enabled === next) return true;
+    agent.enabled = next;
+    emitChange({ type: 'toggle', name: agent.name, enabled: next });
+    return true;
+  };
+
+  const isEnabled = (name) => {
+    const agent = get(name);
+    return Boolean(agent && agent.enabled !== false);
+  };
+
   return {
     register,
     unregister,
@@ -91,6 +107,8 @@ export const createAgentRegistry = ({ onChange } = {}) => {
     list,
     listByCategory,
     findByPredicate,
+    setEnabled,
+    isEnabled,
     size: () => agents.size,
     CATEGORIES: AGENT_AGENT_CATEGORIES
   };

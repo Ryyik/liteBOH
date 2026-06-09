@@ -77,36 +77,67 @@ export const createOrchestrator = ({
 
     let parsed = null;
     let rawError = null;
+    const callOrchestrator = (model, maxTokens) => client.call({
+      model,
+      messages: [
+        { role: 'system', content: '你是 BOH AI 集群的编排者。' },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.12,
+      maxTokens,
+      timeoutMs: ORCHESTRATOR_TIMEOUT_MS,
+      signal
+    });
+
+    // 主+兜底并发跑：主模型按时返回就用主，兜底仅作"冷启动"备胎。
+    // 这样最坏情况 ≈ 主模型 timeout（一个 RTT），主模型健康时无回归。
     try {
-      const { content } = await client.call({
-        model: modelId,
-        messages: [
-          { role: 'system', content: '你是 BOH AI 集群的编排者。' },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.12,
-        maxTokens: 400,
-        timeoutMs: ORCHESTRATOR_TIMEOUT_MS,
-        signal
-      });
-      parsed = parseOrchestratorPlan(content);
+      const mainPromise = callOrchestrator(modelId, 400);
+      const fallbackPromise = (async () => {
+        try {
+          return { ok: true, value: await callOrchestrator(ORCHESTRATOR_MODEL_FALLBACK, 320) };
+        } catch (error) {
+          return { ok: false, error };
+        }
+      })();
+
+      // 给主模型加一个最大容忍时间，超出则取消主并采纳兜底
+      const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve({ ok: false, timeout: true }), ORCHESTRATOR_TIMEOUT_MS));
+
+      const result = await Promise.race([
+        mainPromise.then((value) => ({ kind: 'main', value })),
+        timeoutPromise
+      ]);
+
+      if (result.kind === 'main') {
+        const content = result.value?.content;
+        const trial = parseOrchestratorPlan(content);
+        if (trial) {
+          parsed = trial;
+        } else {
+          // 主模型返回了但解析不出 JSON：直接使用兜底
+          const fallbackResult = await fallbackPromise;
+          if (fallbackResult?.ok) {
+            parsed = parseOrchestratorPlan(fallbackResult.value?.content);
+          }
+        }
+      } else {
+        // 超时：取消主（如果还活着），采纳兜底结果
+        const fallbackResult = await fallbackPromise;
+        if (fallbackResult?.ok) {
+          parsed = parseOrchestratorPlan(fallbackResult.value?.content);
+          logger.warn('bohai-cluster', 'Orchestrator 主模型超时，已切换兜底小模型');
+        } else {
+          rawError = fallbackResult?.error || new Error('Orchestrator 主模型超时且兜底失败');
+          logger.warn('bohai-cluster', 'Orchestrator 模型调用失败，使用兜底计划', { error: String(rawError?.message || rawError) });
+        }
+      }
     } catch (error) {
       rawError = error;
-      // 主模型失败时，用更小的兜底模型再试一次。
+      // 进入这里的可能性：主模型立刻抛错（如 4xx），降级走兜底
       try {
-        const { content } = await client.call({
-          model: ORCHESTRATOR_MODEL_FALLBACK,
-          messages: [
-            { role: 'system', content: '你是 BOH AI 集群的编排者。' },
-            { role: 'user', content: userPrompt }
-          ],
-          temperature: 0.12,
-          maxTokens: 400,
-          timeoutMs: ORCHESTRATOR_TIMEOUT_MS,
-          signal
-        });
+        const { content } = await callOrchestrator(ORCHESTRATOR_MODEL_FALLBACK, 320);
         parsed = parseOrchestratorPlan(content);
-        logger.warn('bohai-cluster', 'Orchestrator 主模型超时，已使用兜底小模型', { error: String(error?.message || error) });
       } catch (fallbackError) {
         rawError = fallbackError;
         logger.warn('bohai-cluster', 'Orchestrator 模型调用失败，使用兜底计划', { error: String(fallbackError?.message || fallbackError) });

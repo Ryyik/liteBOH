@@ -12,8 +12,11 @@ export const SYNTHESIZER_SYSTEM_PROMPT = `你是 BOH AI 集群的合成器（Syn
 4. 回答要自然、简洁、可执行，遵循用户提问语言。
 5. 不要在回复中暴露内部 Agent 名称、模型名、prompt 等技术词。
 6. 不输出 JSON / 代码块（除非用户明确要求代码）。
-7. 严格使用 \`synth-final\` 标记结尾，便于前端解析。
+7. 严格使用 \`<<<synth-final>>>\` 标记结尾（保留前后空行），便于前端解析；标记之后不要输出任何内容。
 `;
+
+// 强 sentinel：前后各保留换行避免被模型误当成行内词。`synth-final` 单独使用容易被模型在答案中复述。
+export const SYNTH_FINAL_MARKER = '<<<synth-final>>>';
 
 export const buildSynthesizerUserPrompt = ({
   query = '',
@@ -68,15 +71,24 @@ export const buildSynthesizerUserPrompt = ({
   return lines.join('\n');
 };
 
+/**
+ * 解析合成器输出：把 marker 之前的部分作为 visible，之后作为 internal（不向用户展示）。
+ * 使用 `<<<synth-final>>>` 强 sentinel + 校验"它出现在末尾 200 字符内"以降低误切风险。
+ */
 export const splitSynthesizerStream = (rawText = '') => {
   const text = String(rawText || '');
-  const marker = 'synth-final';
-  const idx = text.lastIndexOf(marker);
+  const idx = text.lastIndexOf(SYNTH_FINAL_MARKER);
   if (idx < 0) {
-    return { visible: text.trim(), internal: '' };
+    return { visible: text.trim(), internal: '', hadMarker: false };
+  }
+  // 健壮性：marker 必须出现在文本末尾 200 字符内，否则视为模型忘了在结尾放 marker
+  const tail = text.length - idx - SYNTH_FINAL_MARKER.length;
+  if (tail > 200) {
+    return { visible: text.trim(), internal: '', hadMarker: false };
   }
   return {
     visible: text.slice(0, idx).trim(),
-    internal: text.slice(idx + marker.length).trim()
+    internal: text.slice(idx + SYNTH_FINAL_MARKER.length).trim(),
+    hadMarker: true
   };
 };

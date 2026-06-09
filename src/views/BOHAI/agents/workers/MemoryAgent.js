@@ -32,69 +32,118 @@ export const createMemoryAgent = (options = {}) => {
       const bus = context?.bus;
       const userId = context?.userId || bus?.getSharedContext?.('userId') || null;
 
+      // LRU 缓存：同会话里同 query 复跑时直接复用（userId 也作为 key 的一部分）
+      const cacheKey = 'memory';
+      const cacheParts = [userId || 'anon', query];
+      if (bus && typeof bus.cacheGet === 'function') {
+        const cached = bus.cacheGet(cacheKey, cacheParts);
+        if (cached) {
+          return {
+            ok: cached.evidence.length > 0,
+            output: cached.output,
+            evidence: cached.evidence,
+            sources: cached.sources,
+            notes: [...(cached.notes || []), 'LRU 命中'],
+            tokens: cached.tokens || 0
+          };
+        }
+      }
+
       const notes = [];
       const evidence = [];
       const sources = [];
-      let summaryParts = [];
+      const summaryParts = [];
 
-      const ensureUser = () => {
-        if (requireUser && !userId) {
-          notes.push('需要登录后才能访问私域数据。');
-          return false;
-        }
-        return true;
-      };
-
-      if (typeof invokeCloud === 'function' && ensureUser()) {
-        try {
-          const res = await invokeCloud({ query, userId, bus });
-          if (res?.evidence) evidence.push(...normalizeEvidence(res.evidence, 'Cloud+'));
-          if (res?.sources) sources.push(...res.sources.map((s) => ({ id: s.id || 'cloud', label: s.label || 'Cloud+', source: s.source || 'Cloud+' })));
-          if (res?.context) summaryParts.push(`[Cloud+] ${safeString(res.context, 800)}`);
-        } catch (error) {
-          notes.push(`Cloud+ 查询失败：${safeString(error?.message || error, 80)}`);
-          logger.warn('bohai-cluster', 'Memory Cloud+ 失败', error);
-        }
+      // 登录守门：所有 userId-required 源在并行前先确认 userId，避免无效调用
+      const hasUser = Boolean(userId);
+      if (requireUser && !hasUser) {
+        notes.push('需要登录后才能访问私域数据。');
       }
 
+      // 并行调用所有可用的 memory 源；空 invoke 直接跳过
+      const tasks = [];
+      if (typeof invokeCloud === 'function') {
+        tasks.push({
+          label: 'Cloud+',
+          sourceId: 'cloud',
+          sourceLabel: 'Cloud+',
+          sourceKind: 'Cloud+',
+          gate: () => !requireUser || hasUser,
+          run: () => invokeCloud({ query, userId, bus })
+        });
+      }
       if (typeof invokeSharedMemory === 'function') {
-        try {
-          const res = await invokeSharedMemory({ query, bus });
-          if (res?.evidence) evidence.push(...normalizeEvidence(res.evidence, 'PublicMemory'));
-          if (res?.sources) sources.push(...res.sources.map((s) => ({ id: s.id || 'memory', label: s.label || '公共记忆', source: s.source || 'PublicMemory' })));
-          if (res?.context) summaryParts.push(`[PublicMemory] ${safeString(res.context, 800)}`);
-        } catch (error) {
-          notes.push(`公共记忆查询失败：${safeString(error?.message || error, 80)}`);
-          logger.warn('bohai-cluster', 'Memory SharedMemory 失败', error);
-        }
+        tasks.push({
+          label: '公共记忆',
+          sourceId: 'memory',
+          sourceLabel: '公共记忆',
+          sourceKind: 'PublicMemory',
+          gate: () => true,
+          run: () => invokeSharedMemory({ query, bus })
+        });
+      }
+      if (typeof invokeUserPrivate === 'function') {
+        tasks.push({
+          label: '账号私域',
+          sourceId: 'user',
+          sourceLabel: '账号资料',
+          sourceKind: 'UserPrivate',
+          gate: () => !requireUser || hasUser,
+          run: () => invokeUserPrivate({ query, userId, bus })
+        });
       }
 
-      if (typeof invokeUserPrivate === 'function' && ensureUser()) {
-        try {
-          const res = await invokeUserPrivate({ query, userId, bus });
-          if (res?.evidence) evidence.push(...normalizeEvidence(res.evidence, 'UserPrivate'));
-          if (res?.sources) sources.push(...res.sources.map((s) => ({ id: s.id || 'user', label: s.label || '账号资料', source: s.source || 'UserPrivate' })));
-          if (res?.context) summaryParts.push(`[UserPrivate] ${safeString(res.context, 800)}`);
-        } catch (error) {
-          notes.push(`账号私域查询失败：${safeString(error?.message || error, 80)}`);
-          logger.warn('bohai-cluster', 'Memory UserPrivate 失败', error);
+      const allowedTasks = tasks.filter((t) => {
+        if (t.gate()) return true;
+        notes.push(`${t.label} 跳过：未登录。`);
+        return false;
+      });
+
+      const settled = await Promise.allSettled(allowedTasks.map((t) => t.run()));
+      settled.forEach((outcome, index) => {
+        const t = allowedTasks[index];
+        if (outcome.status === 'rejected') {
+          const message = safeString(outcome.reason?.message || outcome.reason, 80);
+          notes.push(`${t.label} 失败：${message}`);
+          logger.warn('bohai-cluster', `Memory ${t.sourceKind} 失败`, outcome.reason);
+          return;
         }
-      }
+        const res = outcome.value;
+        if (res?.evidence) evidence.push(...normalizeEvidence(res.evidence, t.sourceKind));
+        if (res?.sources) sources.push(...res.sources.map((s) => ({
+          id: s.id || t.sourceId,
+          label: s.label || t.sourceLabel,
+          source: s.source || t.sourceKind
+        })));
+        if (res?.context) summaryParts.push(`[${t.sourceKind}] ${safeString(res.context, 800)}`);
+      });
 
       if (!evidence.length && !summaryParts.length) {
         notes.push('没有可用的记忆数据。');
       }
 
+      const finalOutput = {
+        summary: summaryParts.join('\n').slice(0, 1500),
+        evidenceCount: evidence.length
+      };
+      const finalTokens = Math.max(200, evidence.length * 60);
+      if (bus && typeof bus.cacheSet === 'function') {
+        bus.cacheSet(cacheKey, cacheParts, {
+          output: finalOutput,
+          evidence,
+          sources,
+          notes,
+          tokens: finalTokens
+        });
+      }
+
       return {
         ok: evidence.length > 0,
-        output: {
-          summary: summaryParts.join('\n').slice(0, 1500),
-          evidenceCount: evidence.length
-        },
+        output: finalOutput,
         evidence,
         sources,
         notes,
-        tokens: Math.max(200, evidence.length * 60)
+        tokens: finalTokens
       };
     }
   };

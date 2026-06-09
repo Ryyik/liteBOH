@@ -24,7 +24,7 @@ describe('bohai auto router: mode routing', () => {
     expect(decision.actionNotes).toContain('切换到专业模式处理代码或指令。');
   });
 
-  it('routes daily summary requests to think mode and asks for Cloud+ when needed', () => {
+  it('routes daily summary requests to pro mode and asks for Cloud+ when needed', () => {
     const decision = resolveBOHAIAutoModeDecision('总结一下我的最近日常', {
       isAutoMode: true,
       isLoggedIn: true,
@@ -32,40 +32,45 @@ describe('bohai auto router: mode routing', () => {
     });
 
     expect(isLikelyDailySummaryRequest('帮我复盘我的近期生活状态')).toBe(true);
-    expect(decision.modeId).toBe('think');
+    // 新设计: 日常总结路由到 pro(由 Pro 内部判 Qwen/DeepSeek)
+    expect(decision.modeId).toBe('pro');
     expect(decision.forceCloudReference).toBe(true);
     expect(decision.actionNotes).toContain('需要先确认是否允许参考你的 BOH Cloud+。');
   });
 
-  it('routes complex design questions to think mode', () => {
+  it('routes complex design questions to pro mode', () => {
     const decision = resolveBOHAIAutoModeDecision('根据我的思路设计方案并给出优化建议，要考虑产品体验和技术落地', {
       isAutoMode: true
     });
 
-    expect(decision.modeId).toBe('think');
+    // 新设计: 复杂问题直接路由到 pro
+    expect(decision.modeId).toBe('pro');
     expect(decision.complexQuestion).toBe(true);
   });
 
-  it('routes long-running execution plans to Plan mode', () => {
+  it('detects Plan-mode requests but does NOT let AUTO route to plan', () => {
     const decision = resolveBOHAIAutoModeDecision('帮我制定一个三阶段推进计划，并持续跟进风险和下一步行动', {
       isAutoMode: true
     });
 
+    // isLikelyPlanModeRequest 仍能识别规划意图(供其他模块使用)
     expect(isLikelyPlanModeRequest('这个项目请一步步推进，先计划再执行')).toBe(true);
-    expect(decision.modeId).toBe('plan');
+    // 新设计: AUTO 严格不越权切到 plan,规划意图下放到 Pro(由 Pro 内部决定是否升级到 DeepSeek)
+    expect(decision.modeId).toBe('pro');
     expect(decision.planMode).toBe(true);
-    expect(decision.actionNotes).toContain('切换到 Plan 模式分步推进。');
+    // 旧的 "切换到 Plan 模式分步推进。" 文案不再适用,改用 "已识别为规划型问题" 之类提示
+    expect(decision.actionNotes).toContain('检测到规划意图；如需完整 Plan 模式请从顶部下拉框选择。');
   });
 
-  it('routes BOH internal factual questions to think mode', () => {
+  it('routes BOH internal factual questions to pro mode', () => {
     const decision = resolveBOHAIAutoModeDecision('BOH Cloud+ 是什么，入口在哪里？', {
       isAutoMode: true
     });
 
     expect(isLikelyBohInternalFactualRequest('方块之家最近有什么公告')).toBe(true);
-    expect(decision.modeId).toBe('think');
+    // 新设计: 内部资料查询路由到 pro
+    expect(decision.modeId).toBe('pro');
     expect(decision.bohInternalFactual).toBe(true);
-    expect(decision.actionNotes).toContain('切换到思考模式核对 BOH 内部资料。');
   });
 
   it('detects cloud save and shared save intents', () => {
