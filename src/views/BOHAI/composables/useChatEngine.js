@@ -499,6 +499,24 @@ export function useChatEngine() {
   const abortController = ref(null);
   const textareaRef = ref(null);
 
+  // --------------------------------------------------------------
+  // AI 生成管线（从 useGenerationPipeline 导入）
+  // --------------------------------------------------------------
+  const {
+    callModelInternal,
+    callModelStream,
+    _getSmartContext,
+    filterThinkingContent,
+    filterThinkingContentStream,
+    flushThinkingBuffer,
+    resetThinkingState,
+    createSseLineParser,
+    getFallbackModel,
+    toFiniteNumber,
+    safeChunkToString
+  } = useGenerationPipeline({ availableModels, abortController });
+  // --------------------------------------------------------------
+
   // 计算属性：当前会话的加载状态
   const isLoading = computed(() => chatSessions[currentSessionIndex.value]?.isLoading || false);
   const isThinking = computed(() => chatSessions[currentSessionIndex.value]?.isThinking || false);
@@ -538,9 +556,9 @@ export function useChatEngine() {
     typeof window === 'undefined'
       ? false
       : (
-          localStorage.getItem(TREEHOLE_MEMORY_SYNC_SETTING_KEY) === '1'
-          || localStorage.getItem(LEGACY_TREEHOLE_MEMORY_SYNC_SETTING_KEY) === '1'
-        )
+        localStorage.getItem(TREEHOLE_MEMORY_SYNC_SETTING_KEY) === '1'
+        || localStorage.getItem(LEGACY_TREEHOLE_MEMORY_SYNC_SETTING_KEY) === '1'
+      )
   );
   const isQuickNoteEnabled = ref(
     typeof window === 'undefined' ? false : localStorage.getItem(QUICK_NOTE_SETTING_KEY) === '1'
@@ -563,14 +581,14 @@ export function useChatEngine() {
     typeof window === 'undefined'
       ? 'unknown'
       : (
-          localStorage.getItem(CLOUD_REFERENCE_CONSENT_KEY)
-          || (
-            localStorage.getItem(TREEHOLE_MEMORY_SYNC_SETTING_KEY) === '1'
+        localStorage.getItem(CLOUD_REFERENCE_CONSENT_KEY)
+        || (
+          localStorage.getItem(TREEHOLE_MEMORY_SYNC_SETTING_KEY) === '1'
             || localStorage.getItem(LEGACY_TREEHOLE_MEMORY_SYNC_SETTING_KEY) === '1'
-              ? 'granted'
-              : 'unknown'
-          )
+            ? 'granted'
+            : 'unknown'
         )
+      )
   );
   const isTreeholeMemoryToggling = ref(false);
   const memoryCaptureStatusMessage = ref('');
@@ -2196,7 +2214,7 @@ export function useChatEngine() {
         content: safeContent
       });
       if (saveResult.ok) {
-          savedTargets.push('BOH AI 公共记忆库');
+        savedTargets.push('BOH AI 公共记忆库');
       } else if (saveResult.metadata?.duplicate) {
         errors.push('公共记忆库：已有相近内容，已跳过重复写入');
       } else {
@@ -2592,716 +2610,6 @@ export function useChatEngine() {
     nextTick(() => {
       if (textareaRef.value) textareaRef.value.focus();
     });
-  };
-
-  const handleSsePayloadLine = (line, onPayload) => {
-    const normalized = String(line || '').trim();
-    if (!normalized || !normalized.startsWith('data:')) {
-      return false;
-    }
-    const payload = normalized.slice(5).trimStart();
-    if (!payload) {
-      return false;
-    }
-    if (payload === '[DONE]') {
-      return true;
-    }
-    onPayload(payload);
-    return false;
-  };
-
-  const createSseLineParser = (onPayload) => {
-    let lineBuffer = '';
-    let done = false;
-
-    return {
-      push(chunkText) {
-        if (!chunkText || done) return;
-        lineBuffer += chunkText;
-        const lines = lineBuffer.split(/\r?\n/);
-        lineBuffer = lines.pop() || '';
-        for (const line of lines) {
-          if (handleSsePayloadLine(line, onPayload)) {
-            done = true;
-            lineBuffer = '';
-            break;
-          }
-        }
-      },
-      flush() {
-        if (!lineBuffer || done) return;
-        if (handleSsePayloadLine(lineBuffer, onPayload)) {
-          done = true;
-        }
-        lineBuffer = '';
-      },
-      isDone() {
-        return done;
-      }
-    };
-  };
-
-  onScopeDispose(() => {
-    clearSaveTimers();
-    if (memoryCaptureStatusTimer) {
-      clearTimeout(memoryCaptureStatusTimer);
-      memoryCaptureStatusTimer = null;
-    }
-    resetPendingTreeholeCreation();
-    resetPendingCloudReferenceConsent();
-    resetPendingSharedMemoryCapture();
-    resetPendingQuickNote();
-    resetPendingActionDraft();
-    stopThinkingTimer();
-    // B-9 fix: reset thinking state on scope dispose
-    resetThinkingState();
-    if (abortController.value) {
-      abortController.value.abort();
-      abortController.value = null;
-    }
-    activeGenerationSessionIndex.value = null;
-  });
-
-  // Helper Functions
-  const _safeJsonParse = (str) => {
-    try {
-      return JSON.parse(str);
-    } catch (e) {
-      // Try to find the first '{' and the last '}'
-      const start = str.indexOf('{');
-      const end = str.lastIndexOf('}');
-      if (start !== -1 && end !== -1) {
-        try {
-          return JSON.parse(str.substring(start, end + 1));
-        } catch (_e2) {
-          throw new Error("JSON Parsing Failed after cleanup");
-        }
-      }
-      throw e;
-    }
-  };
-
-  // 指令模式 - 优化版
-  const handleCommandModeGeneration = async (rawUserText = '', { appendUser = true } = {}) => {
-    if (abortController.value) return;
-
-    const userText = String(rawUserText || inputMessage.value || '').trim();
-    if (!userText) return;
-    const sessionIndex = currentSessionIndex.value;
-    const session = getSessionByIndex(sessionIndex);
-    if (!session) return;
-
-    if (appendUser) {
-      inputMessage.value = '';
-      if (textareaRef.value) textareaRef.value.style.height = 'auto';
-      session.messages.push({ role: 'user', content: userText });
-      if (session.messages.length === 1) {
-        session.title = userText.slice(0, 30) + (userText.length > 30 ? '...' : '');
-      }
-    }
-
-    nextTick(() => scrollToBottom());
-    session.isLoading = true;
-    session.isThinking = true;
-    const requestController = new AbortController();
-    abortController.value = requestController;
-    let activeCommandController = requestController;
-    let activeCommandSignal = requestController.signal;
-    activeGenerationSessionIndex.value = sessionIndex;
-    startThinkingTimer();
-
-    session.messages.push({ role: 'assistant', content: '' });
-    const messageIndex = session.messages.length - 1;
-    setThinkingStatus(`正在分析 Minecraft 指令需求：${summarizeThinkingSubject(userText)}`);
-
-    const updateContent = (text) => {
-      const targetSession = getSessionByIndex(sessionIndex);
-      if (!targetSession || !targetSession.messages[messageIndex]) return;
-      targetSession.messages[messageIndex].content = text;
-      nextTick(() => scrollToBottom());
-    };
-
-    try {
-      const commandModel = getModelForModeId('pro') || currentModel.value || availableModels.find((m) => m.id === 'Qwen/Qwen2.5-7B-Instruct') || availableModels[0];
-      if (!commandModel) throw new Error('指令模式模型不可用');
-      const commandIntent = detectCommandIntent(userText);
-      const formattedInstructions = getRelevantCommandInstructions(userText, commandIntent);
-      const recentHistory = buildHistoryMessagesWithinBudget(session.messages.slice(0, -2), {
-        maxChars: 5200,
-        maxMessages: 6,
-        maxPerMessage: 900
-      });
-      const systemPrompt = getCommandSystemPrompt(formattedInstructions, commandIntent);
-      let streamedContent = '';
-      let shouldRepairDegenerateCommandStream = false;
-
-      try {
-        setThinkingStatus('正在生成可直接执行的指令...');
-        await callModelStream(
-          commandModel.id,
-          userText,
-          systemPrompt,
-          recentHistory,
-          (chunk) => {
-            if (shouldRepairDegenerateCommandStream) return;
-            const targetSession = getSessionByIndex(sessionIndex);
-            const previous = targetSession?.messages?.[messageIndex]?.content || '';
-            streamedContent = previous + chunk;
-            if (String(chunk || '').trim()) {
-              clearThinkingStatus();
-            }
-            updateContent(streamedContent);
-            if (isDegenerateStreamOutput(streamedContent)) {
-              shouldRepairDegenerateCommandStream = true;
-              setThinkingStatus('检测到指令输出异常，正在自动修复...');
-              if (requestController.signal.aborted === false) {
-                requestController.abort();
-              }
-            }
-          },
-          { max_tokens: 4096, temperature: 0.3 },
-          requestController.signal
-        );
-      } catch (streamError) {
-        if (!shouldRepairDegenerateCommandStream || streamError.name !== 'AbortError') {
-          throw streamError;
-        }
-      }
-
-      let finalContent = getSessionByIndex(sessionIndex)?.messages?.[messageIndex]?.content || '';
-      let finalFilteredContent = normalizeEscapedLineBreaks(filterThinkingContent(finalContent));
-      if (shouldRepairDegenerateCommandStream || isDegenerateAssistantReply(finalFilteredContent)) {
-        setThinkingStatus('检测到指令输出异常，正在自动修复...');
-        const retryPrompt = `${userText}
-
-【稳定性约束】
-- 直接输出最终 Minecraft 指令方案。
-- 禁止输出字面量 \\n、\\r、JSON 字符串或连续重复占位符。
-- 使用真实 Markdown 换行和 mcfunction 代码块。
-- 如果基岩版能力不足，请给出可执行的分步替代方案。`;
-
-        try {
-          const repaired = await callModelInternal(
-            commandModel.id,
-            retryPrompt,
-            systemPrompt,
-            recentHistory,
-            activeCommandSignal,
-            0,
-            { max_tokens: 2200, temperature: 0.16, top_p: 0.7, frequency_penalty: 0.6 }
-          );
-          const repairedContent = normalizeEscapedLineBreaks(filterThinkingContent(repaired));
-          finalFilteredContent = (!isDegenerateAssistantReply(repairedContent) && repairedContent.trim())
-            ? repairedContent
-            : '抱歉，指令模式本轮输出异常。请再试一次，或切换到“专业”模式后重新发送需求。';
-        } catch (repairError) {
-          if (repairError.name === 'AbortError' && shouldRepairDegenerateCommandStream) {
-            const retryController = new AbortController();
-            activeCommandController = retryController;
-            activeCommandSignal = retryController.signal;
-            abortController.value = retryController;
-            const repaired = await callModelInternal(
-              commandModel.id,
-              retryPrompt,
-              systemPrompt,
-              recentHistory,
-              retryController.signal,
-              0,
-              { max_tokens: 2200, temperature: 0.16, top_p: 0.7, frequency_penalty: 0.6 }
-            );
-            const repairedContent = normalizeEscapedLineBreaks(filterThinkingContent(repaired));
-            finalFilteredContent = (!isDegenerateAssistantReply(repairedContent) && repairedContent.trim())
-              ? repairedContent
-              : '抱歉，指令模式本轮输出异常。请再试一次，或切换到“专业”模式后重新发送需求。';
-          } else {
-            throw repairError;
-          }
-        }
-      }
-
-      const validation = validateCommandOutput(finalFilteredContent, commandIntent);
-      if (!validation.ok) {
-        setThinkingStatus('正在核验指令语法并修正冲突...');
-        updateContent(`${finalFilteredContent}\n\n> ⚙️ 检测到指令语法冲突，正在自动修正...`);
-        try {
-          const repairPrompt = buildCommandRepairPrompt(userText, finalFilteredContent, validation);
-          const repaired = await callModelInternal(
-            commandModel.id,
-            repairPrompt,
-            systemPrompt,
-            recentHistory,
-            activeCommandSignal
-          );
-          const repairedContent = normalizeEscapedLineBreaks(filterThinkingContent(repaired));
-          updateContent(`${repairedContent}\n\n> ✅ 已完成自动语法修正`);
-        } catch (repairError) {
-          logger.warn('boh-ai', 'Command output repair failed, fallback to original output', repairError);
-          updateContent(`${finalFilteredContent}\n\n> ⚠️ 自动修正失败，已保留原始结果。`);
-        }
-      } else {
-        updateContent(finalFilteredContent);
-      }
-      nextTick(() => scrollToBottom());
-      await queueQuickNoteConfirmation({
-        rawText: userText,
-        sessionIndex,
-        requestSignal: activeCommandSignal,
-        modelId: commandModel.id
-      });
-      void refreshConversationSummaryCache(sessionIndex);
-
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        const currentContent = getSessionByIndex(sessionIndex)?.messages?.[messageIndex]?.content || '';
-        updateContent(currentContent + '\n\n(已停止生成)');
-      } else {
-        logger.error('boh-ai', 'Command Mode Error', error);
-        const currentContent = getSessionByIndex(sessionIndex)?.messages?.[messageIndex]?.content || '';
-        updateContent(currentContent + `\n\n❌ **Error**: ${error.message}`);
-      }
-    } finally {
-      clearThinkingStatus();
-      const targetSession = getSessionByIndex(sessionIndex);
-      if (targetSession) {
-        targetSession.isLoading = false;
-        targetSession.isThinking = false;
-      }
-      if (abortController.value === requestController || abortController.value === activeCommandController) {
-        abortController.value = null;
-      }
-      if (activeGenerationSessionIndex.value === sessionIndex) {
-        activeGenerationSessionIndex.value = null;
-      }
-      stopThinkingTimer();
-    }
-  };
-
-  // Helper: Get Fallback Model
-  const getFallbackModel = (failedModelId) => {
-    const fallbackIdsByModel = {
-      [AUTO_ROUTER_MODEL_ID]: ['Qwen/Qwen3-8B', 'THUDM/GLM-4-9B-0414'],
-      [ACCURACY_PREFERRED_MODEL_ID]: [RAG_PREFERRED_MODEL_ID, 'Qwen/Qwen3-8B', 'THUDM/GLM-4-9B-0414'],
-      [RAG_PREFERRED_MODEL_ID]: [ACCURACY_PREFERRED_MODEL_ID, 'Qwen/Qwen3-8B', 'THUDM/GLM-4-9B-0414'],
-      'Qwen/Qwen3-8B': ['THUDM/GLM-4-9B-0414', 'Qwen/Qwen2.5-7B-Instruct'],
-      'Qwen/Qwen2.5-7B-Instruct': ['Qwen/Qwen3-8B', 'THUDM/GLM-4-9B-0414'],
-      'THUDM/GLM-4-9B-0414': ['Qwen/Qwen3-8B', 'Qwen/Qwen2.5-7B-Instruct']
-    };
-    const candidates = fallbackIdsByModel[failedModelId] || ['Qwen/Qwen3-8B', 'THUDM/GLM-4-9B-0414', 'Qwen/Qwen2.5-7B-Instruct'];
-    const fallback = candidates
-      .map((id) => availableModels.find((model) => model.id === id))
-      .find((model) => model && model.id !== failedModelId);
-    return fallback || availableModels.find((model) => model.id !== AUTO_ROUTER_MODEL_ID && model.id !== failedModelId) || availableModels[0];
-  };
-
-  const toFiniteNumber = (value, fallback, { min = Number.NEGATIVE_INFINITY, max = Number.POSITIVE_INFINITY } = {}) => {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) return fallback;
-    return Math.min(max, Math.max(min, parsed));
-  };
-
-  const callModelInternal = async (
-    modelId,
-    prompt,
-    systemPrompt,
-    history = [],
-    requestSignal = undefined,
-    retryCount = 0,
-    options = {}
-  ) => {
-    const model = availableModels.find(m => m.id === modelId);
-    if (!model) throw new Error(`Model ${modelId} not found`);
-
-    const resolvedOptions = {
-      max_tokens: Math.trunc(toFiniteNumber(options.max_tokens, 1800, { min: 256, max: 4096 })),
-      temperature: toFiniteNumber(options.temperature, 0.22, { min: 0, max: 1.2 }),
-      top_p: toFiniteNumber(options.top_p, 0.75, { min: 0.1, max: 1 }),
-      frequency_penalty: toFiniteNumber(options.frequency_penalty, 0.08, { min: 0, max: 2 })
-    };
-
-    try {
-      const response = await fetch(model.url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${model.apiKey}`
-        },
-        body: JSON.stringify({
-          model: model.id,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...history,
-            { role: 'user', content: prompt }
-          ],
-          stream: false,
-          max_tokens: resolvedOptions.max_tokens,
-          temperature: resolvedOptions.temperature,
-          top_p: resolvedOptions.top_p,
-          frequency_penalty: resolvedOptions.frequency_penalty
-        }),
-        signal: requestSignal || (abortController.value ? abortController.value.signal : undefined)
-      });
-
-      if (!response.ok) throw new Error(`API Error: ${response.status}`);
-      const data = await response.json();
-      const message = data?.choices?.[0]?.message || {};
-      return safeChunkToString(message.content || message.reasoning_content || '');
-    } catch (error) {
-      if (retryCount < 1 && error.name !== 'AbortError') {
-        logger.warn('boh-ai', `Model ${modelId} failed, trying fallback`, error);
-        const fallbackModel = getFallbackModel(modelId);
-        if (fallbackModel && fallbackModel.id !== modelId) {
-          // B-15 fix: tighten max_tokens on fallback to avoid 400 errors
-          // from smaller models that reject large max_tokens values
-          const fallbackOptions = {
-            ...options,
-            max_tokens: Math.min(toFiniteNumber(options.max_tokens, 1200, { min: 256, max: 4096 }), 2048)
-          };
-          return callModelInternal(
-            fallbackModel.id,
-            prompt,
-            systemPrompt,
-            history,
-            requestSignal,
-            retryCount + 1,
-            fallbackOptions
-          );
-        }
-      }
-      throw error;
-    }
-  };
-
-  const generatePostDraftFromUserIdea = async (rawText, requestSignal = undefined) => {
-    const fallbackDraft = buildPostDraftFromText(rawText);
-    if (!hasPostDraftUserIdea(rawText, fallbackDraft)) {
-      return { ...fallbackDraft, needsIdea: true };
-    }
-
-    const draftModel = availableModels.find((item) => item.id === 'Qwen/Qwen2.5-7B-Instruct')
-      || getModelForModeId('fast')
-      || availableModels[0];
-    if (!draftModel?.id) {
-      return { ...fallbackDraft, needsIdea: false };
-    }
-
-    try {
-      const raw = await callModelInternal(
-        draftModel.id,
-        [
-          '请根据用户的真实想法生成一份“论坛发帖草稿”，必须体现“AI 提炼标题”和“AI 改写正文”。',
-          '只输出 JSON，不要解释，不要 Markdown。',
-          '',
-          '字段：',
-          '- needsIdea: boolean。如果用户只说要发帖/起草，但没有给出具体想法，设为 true。',
-          '- title: string。你提炼后的论坛标题，清楚自然，最多 32 个中文字符。',
-          '- content: string。你改写后的论坛正文，使用第一人称或自然口吻，保留用户原本态度和事实。',
-          '',
-          '规则：',
-          '1. 必须严格基于用户消息，不要添加原文没有的事实、时间、人物、结论或夸张细节。',
-          '2. 不要把“小”写成“大”，不要把“喜欢”写成“不喜欢”，不要改反用户态度。',
-          '3. 如果用户只是让你“起草标题和正文”但没给想法，needsIdea=true，title/content 留空。',
-          '4. 标题不能复制用户整句指令，不能包含“AI草稿/帮我/请帮我/发帖/起草”等操作词。',
-          '5. 正文不能只是复述用户指令，要改写成用户可直接发布的帖子正文，通常 2-4 句话。',
-          '6. 正文不要像公告，不要说“AI认为”，不要声称已经发布。',
-          '',
-          '输出示例：{"needsIdea":false,"title":"上传图片安全检测一直加载怎么办","content":"我想和大家请教一下：上传图片时安全检测一直加载，页面迟迟没有下一步。有没有人遇到过类似情况，通常是什么原因导致的？也欢迎分享一下处理办法。"}',
-          '',
-          `用户消息：${truncateText(rawText, 1200)}`
-        ].join('\n'),
-        '你是 BOH AI 的论坛草稿整理器。你只输出严格 JSON。',
-        [],
-        requestSignal,
-        0,
-        { max_tokens: 700, temperature: 0.08, top_p: 0.5, frequency_penalty: 0.04 }
-      );
-
-      const parsed = _safeJsonParse(String(raw || '').trim());
-      if (parsed?.needsIdea === true) {
-        return { ...fallbackDraft, needsIdea: true };
-      }
-
-      const parsedTitle = normalizePromptLine(parsed?.title, ACTION_DRAFT_TITLE_MAX_CHARS);
-      const content = normalizePromptLine(parsed?.content, ACTION_DRAFT_CONTENT_MAX_CHARS)
-        || fallbackDraft.content;
-      const title = isWeakPostDraftTitle(parsedTitle, rawText, content)
-        ? fallbackDraft.title
-        : parsedTitle;
-
-      if (!title || !content || POST_DRAFT_PLACEHOLDER_PATTERN.test(content)) {
-        return { ...fallbackDraft, needsIdea: !hasPostDraftUserIdea(rawText, fallbackDraft) };
-      }
-
-      return {
-        title,
-        content,
-        needsIdea: false
-      };
-    } catch (error) {
-      if (error?.name === 'AbortError') throw error;
-      logger.warn('boh-ai', 'AI 发帖草稿生成失败，使用本地草稿兜底', error);
-      return { ...fallbackDraft, needsIdea: !hasPostDraftUserIdea(rawText, fallbackDraft) };
-    }
-  };
-
-  const resolveAutoModeDecisionLocally = (userText) => ({
-    ...createNeutralAutoDecision(),
-    ...resolveBOHAIAutoModeDecision(userText, {
-      // AUTO 模式已于 2026-06-08 移除,此 flag 恒为 false,保留仅为兼容下游签名。
-      isAutoMode: false,
-      cloudReferenceEnabled: Boolean(isTreeholeMemoryEnabled.value),
-      isLoggedIn: Boolean(isLoggedIn.value && userInfo.value?.id)
-    })
-  });
-
-  // Helper to safely convert to string
-  const safeChunkToString = (value) => {
-    if (value === null || value === undefined) return ''
-    if (typeof value === 'string') return value
-    if (Array.isArray(value)) {
-      return value.map((item) => {
-        if (typeof item === 'string') return item
-        if (item?.type === 'text') return item.text || ''
-        if (item?.text) return item.text
-        return safeChunkToString(item)
-      }).join('')
-    }
-    if (typeof value === 'object') {
-      try {
-        return JSON.stringify(value)
-      } catch (_e) {
-        return '[Invalid Object Content]'
-      }
-    }
-    return String(value)
-  }
-
-  // 用于流式处理的思考内容过滤状态（使用普通变量，非响应式）
-  let inThinkingBlock = false
-  let thinkingBuffer = ''
-
-  // 重置思考过滤状态
-  const resetThinkingState = () => {
-    inThinkingBlock = false
-    thinkingBuffer = ''
-  }
-
-  // Filter out thinking content (between <think> and </think> tags)
-  const filterThinkingContent = (content) => {
-    if (!content) return ''
-    let filtered = content
-
-    // 循环多次过滤，确保所有嵌套的标签都被清除
-    let previousFiltered
-    do {
-      previousFiltered = filtered
-
-      // 1. 过滤完整的 <think>...</think> 标签（不区分大小写，包括属性）
-      filtered = filtered.replace(/<think[^>]*>[\s\S]*?<\/think>/gi, '')
-
-      // 2. 过滤不完整的 <think> 标签（只有开头，直到结束）
-      filtered = filtered.replace(/<think[^>]*>[\s\S]*$/gi, '')
-
-      // 3. 过滤不完整的 </think> 标签（从开头到结束标签）
-      filtered = filtered.replace(/^[\s\S]*<\/think>/gi, '')
-
-      // 4. 过滤单独的标签残留
-      filtered = filtered.replace(/<\/?think[^>]*>/gi, '')
-
-      // 5. 过滤中文的思考内容标记
-      filtered = filtered.replace(/\*\*思考\*\*[\s\S]*?(?=\*\*回答\*\*|$)/g, '')
-      filtered = filtered.replace(/思考过程[\s\S]*?(?=回答|$)/g, '')
-
-    } while (previousFiltered !== filtered)
-
-    // 6. 去除多余的空行
-    filtered = filtered.replace(/\n{3,}/g, '\n\n')
-
-    return filtered.trim()
-  }
-
-  // 流式处理时的思考内容过滤（带状态跟踪）
-  const filterThinkingContentStream = (chunk) => {
-    if (!chunk) return ''
-
-    // 将新内容添加到缓冲区
-    thinkingBuffer += chunk
-    let output = ''
-
-    // 循环处理，直到没有更多可处理的内容
-    while (true) {
-      // 如果在思考块内，寻找结束标签
-      if (inThinkingBlock) {
-        const endMatch = thinkingBuffer.match(/<\/think>/i)
-        if (endMatch) {
-          // 找到了结束标签，保留结束标签之后的内容并继续处理
-          thinkingBuffer = thinkingBuffer.slice(endMatch.index + endMatch[0].length)
-          inThinkingBlock = false
-          continue // 继续循环处理剩余内容
-        } else {
-          // 还在思考块内，清空缓冲区
-          thinkingBuffer = ''
-          return output
-        }
-      }
-
-      // 检查是否有开始标签（支持带属性的标签，如 <think lang="zh">）
-      const startMatch = thinkingBuffer.match(/<think[^>]*>/i)
-      if (startMatch) {
-        // 找到了开始标签
-        const beforeThink = thinkingBuffer.slice(0, startMatch.index)
-        const afterThink = thinkingBuffer.slice(startMatch.index + startMatch[0].length)
-
-        // 检查是否有结束标签
-        const endMatch = afterThink.match(/<\/think>/i)
-        if (endMatch) {
-          // 完整的思考块，过滤掉，保留之前的内容和之后的内容
-          output += beforeThink
-          thinkingBuffer = afterThink.slice(endMatch.index + endMatch[0].length)
-          continue // 继续循环处理剩余内容
-        } else {
-          // 不完整的思考块，标记状态，输出之前的内容
-          inThinkingBlock = true
-          output += beforeThink
-          thinkingBuffer = ''
-          return output
-        }
-      }
-
-      // 没有更多标签，跳出循环
-      break
-    }
-
-    // 检查是否有可能是不完整标签的结尾
-    // 匹配可能的不完整标签：<, </, <t, <th, <thi, <thin, <think 等
-    const potentialTagMatch = thinkingBuffer.match(/<\/?(?:t(?:h(?:i(?:n(?:k)?)?)?)?)?$/i)
-    if (potentialTagMatch) {
-      // 保留可能是不完整标签的部分在缓冲区
-      output += thinkingBuffer.slice(0, potentialTagMatch.index)
-      thinkingBuffer = potentialTagMatch[0]
-      return output
-    }
-
-    // 没有不完整标签，返回全部内容并清空缓冲区
-    output += thinkingBuffer
-    thinkingBuffer = ''
-    return output
-  }
-
-  // 流式处理结束时刷新缓冲区，返回剩余内容
-  const flushThinkingBuffer = () => {
-    const remaining = thinkingBuffer
-    thinkingBuffer = ''
-    inThinkingBlock = false
-    return remaining
-  }
-
-  const callModelStream = async (modelId, prompt, systemPrompt, history = [], onChunk, options = {}, requestSignal = undefined, retryCount = 0) => {
-    const model = availableModels.find(m => m.id === modelId);
-    if (!model) throw new Error(`Model ${modelId} not found`);
-
-    // 重置思考过滤状态
-    resetThinkingState();
-
-    try {
-      const response = await fetch(model.url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${model.apiKey}`
-        },
-        body: JSON.stringify({
-          model: model.id,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...history,
-            { role: 'user', content: prompt }
-          ],
-          stream: true,
-          max_tokens: options.max_tokens || 4096,
-          temperature: options.temperature || 0.7
-        }),
-        signal: requestSignal || (abortController.value ? abortController.value.signal : undefined)
-      });
-
-      if (!response.ok) throw new Error(`API Error: ${response.status}`);
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      const sseParser = createSseLineParser((payload) => {
-        try {
-          const data = JSON.parse(payload);
-          const delta = data.choices?.[0]?.delta || {};
-          const rawContent = delta.content || '';
-
-          if (rawContent) {
-            const content = safeChunkToString(rawContent);
-            const filteredContent = filterThinkingContentStream(content);
-            if (filteredContent && filteredContent !== '[object Object]') onChunk(filteredContent);
-          }
-        } catch {
-          // Ignore malformed partial payloads and continue streaming.
-        }
-      });
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        sseParser.push(chunk);
-        if (sseParser.isDone()) break;
-      }
-      if (!sseParser.isDone()) {
-        sseParser.push(decoder.decode());
-        sseParser.flush();
-      }
-
-      // 流式处理结束，刷新缓冲区并输出剩余内容
-      const remainingContent = flushThinkingBuffer();
-      if (remainingContent && remainingContent !== '[object Object]') {
-        onChunk(remainingContent);
-      }
-    } catch (error) {
-      if (retryCount < 1 && error.name !== 'AbortError') {
-        logger.warn('boh-ai', `Model ${modelId} failed (Stream), trying fallback`, error);
-        const fallbackModel = getFallbackModel(modelId);
-        if (fallbackModel && fallbackModel.id !== modelId) {
-          await callModelStream(fallbackModel.id, prompt, systemPrompt, history, onChunk, options, requestSignal, retryCount + 1);
-          return;
-        }
-      }
-      throw error;
-    }
-  };
-
-  // Helper: Smart Context (Dynamic Compression)
-  const _getSmartContext = async (messages, requestSignal = undefined) => {
-    if (messages.length <= 10) {
-      return messages.slice(-MAX_CONTEXT_MESSAGES).map(m => ({ role: m.role, content: m.content }));
-    }
-
-    const olderMessages = messages.slice(0, -5);
-    const recentMessages = messages.slice(-5).map(m => ({ role: m.role, content: m.content }));
-
-    try {
-      const summaryPrompt = `
-      Please summarize the following conversation history into a concise paragraph (max 300 words).
-      Focus on the core user requirements, project goals, and key decisions.
-      
-      History:
-      ${olderMessages.map(m => `${m.role}: ${m.content}`).join('\n')}
-      `;
-
-      const summaryModel = availableModels.find(m => m.id === 'Qwen/Qwen2.5-7B-Instruct') || availableModels[0];
-      const summary = await callModelInternal(summaryModel.id, summaryPrompt, "You are a helpful summarizer.", [], requestSignal);
-
-      return [
-        { role: 'system', content: `【Previous Conversation Summary】: ${summary}` },
-        ...recentMessages
-      ];
-    } catch (e) {
-      logger.warn('boh-ai', 'Smart Context summary failed, falling back to slice', e);
-      return messages.slice(-MAX_CONTEXT_MESSAGES).map(m => ({ role: m.role, content: m.content }));
-    }
   };
 
   // 检测是否是社群相关问题
@@ -5188,14 +4496,14 @@ ${body || '无'}
     const displayKeywords = topicQueries.length > 0
       ? topicQueries
       : (
-          genericRecommendation
-            ? getGenericResourceDisplayKeywords(type)
-            : (
-                normalizeResourceDisplayKeywords(plan.displayKeywords).length > 0
-                  ? normalizeResourceDisplayKeywords(plan.displayKeywords)
-                  : searchQueries
-              )
-        );
+        genericRecommendation
+          ? getGenericResourceDisplayKeywords(type)
+          : (
+            normalizeResourceDisplayKeywords(plan.displayKeywords).length > 0
+              ? normalizeResourceDisplayKeywords(plan.displayKeywords)
+              : searchQueries
+          )
+      );
 
     return {
       ...plan,
@@ -5334,8 +4642,8 @@ ${body || '无'}
         displayKeywords: displayOverride.length > 0
           ? displayOverride
           : parsedDisplayKeywords.length > 0
-          ? parsedDisplayKeywords
-          : (searchQueries.length > 0 ? searchQueries : getGenericResourceDisplayKeywords(safeType || fallback.type)),
+            ? parsedDisplayKeywords
+            : (searchQueries.length > 0 ? searchQueries : getGenericResourceDisplayKeywords(safeType || fallback.type)),
         reason: normalizePromptLine(parsed?.reason, 80) || fallback.reason,
         targetKind: ['exact_resource', 'category', 'generic_recommendation'].includes(parsed?.targetKind) ? parsed.targetKind : '',
         normalizedTarget: normalizePromptLine(parsed?.normalizedTarget, 80),
@@ -5901,14 +5209,14 @@ ${body || '无'}
 
       const webSearchPromise = enableSearch
         ? searchWebForPrompt(routingQueryText, requestController.signal).catch((error) => ({
-            ok: false,
-            disabled: false,
-            count: 0,
-            context: '',
-            results: [],
-            error,
-            message: error?.message || '未知错误'
-          }))
+          ok: false,
+          disabled: false,
+          count: 0,
+          context: '',
+          results: [],
+          error,
+          message: error?.message || '未知错误'
+        }))
         : Promise.resolve({ ok: true, disabled: false, count: 0, context: '', results: [] });
 
       if (enableSearch) {
@@ -5965,10 +5273,10 @@ ${body || '无'}
 
         const visibleRetrievalNote = successfulConnectorResults.length > 0
           ? (buildBohAIConnectorActionNote(successfulConnectorResults) || buildVisibleRetrievalActionNote(retrievalPlan, {
-              treeholeTotal,
-              sharedMemoryTotal,
-              userPrivateLabels
-            }))
+            treeholeTotal,
+            sharedMemoryTotal,
+            userPrivateLabels
+          }))
           : '';
         if (visibleRetrievalNote) {
           updateAssistantActionNotes(sessionIndex, messageIndex, [visibleRetrievalNote]);
