@@ -77,7 +77,7 @@ export const createOrchestrator = ({
 
     let parsed = null;
     let rawError = null;
-    const callOrchestrator = (model, maxTokens) => client.call({
+    const callOrchestrator = (model, maxTokens, customSignal) => client.call({
       model,
       messages: [
         { role: 'system', content: '你是 BOH AI 集群的编排者。' },
@@ -86,17 +86,20 @@ export const createOrchestrator = ({
       temperature: 0.12,
       maxTokens,
       timeoutMs: ORCHESTRATOR_TIMEOUT_MS,
-      signal
+      signal: customSignal || signal
     });
 
     // 主+兜底并发跑：主模型按时返回就用主，兜底仅作"冷启动"备胎。
     // 这样最坏情况 ≈ 主模型 timeout（一个 RTT），主模型健康时无回归。
+    // B-14 fix: abort fallback controller when main succeeds to save tokens.
     try {
+      const fallbackController = new AbortController();
       const mainPromise = callOrchestrator(modelId, 400);
       const fallbackPromise = (async () => {
         try {
-          return { ok: true, value: await callOrchestrator(ORCHESTRATOR_MODEL_FALLBACK, 320) };
+          return { ok: true, value: await callOrchestrator(ORCHESTRATOR_MODEL_FALLBACK, 320, fallbackController.signal) };
         } catch (error) {
+          if (error?.name === 'AbortError') return { ok: false, aborted: true };
           return { ok: false, error };
         }
       })();
@@ -110,6 +113,8 @@ export const createOrchestrator = ({
       ]);
 
       if (result.kind === 'main') {
+        // B-14: Main succeeded — abort fallback immediately to save token quota
+        fallbackController.abort();
         const content = result.value?.content;
         const trial = parseOrchestratorPlan(content);
         if (trial) {
