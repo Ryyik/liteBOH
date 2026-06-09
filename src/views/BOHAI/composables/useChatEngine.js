@@ -2587,6 +2587,8 @@ export function useChatEngine() {
 
     activeGenerationSessionIndex.value = null;
     stopThinkingTimer();
+    // B-9 fix: reset thinking state to prevent stale buffer leaking into next generation
+    resetThinkingState();
     nextTick(() => {
       if (textareaRef.value) textareaRef.value.focus();
     });
@@ -2651,6 +2653,8 @@ export function useChatEngine() {
     resetPendingQuickNote();
     resetPendingActionDraft();
     stopThinkingTimer();
+    // B-9 fix: reset thinking state on scope dispose
+    resetThinkingState();
     if (abortController.value) {
       abortController.value.abort();
       abortController.value = null;
@@ -2946,6 +2950,12 @@ export function useChatEngine() {
         logger.warn('boh-ai', `Model ${modelId} failed, trying fallback`, error);
         const fallbackModel = getFallbackModel(modelId);
         if (fallbackModel && fallbackModel.id !== modelId) {
+          // B-15 fix: tighten max_tokens on fallback to avoid 400 errors
+          // from smaller models that reject large max_tokens values
+          const fallbackOptions = {
+            ...options,
+            max_tokens: Math.min(toFiniteNumber(options.max_tokens, 1200, { min: 256, max: 4096 }), 2048)
+          };
           return callModelInternal(
             fallbackModel.id,
             prompt,
@@ -2953,7 +2963,7 @@ export function useChatEngine() {
             history,
             requestSignal,
             retryCount + 1,
-            options
+            fallbackOptions
           );
         }
       }
