@@ -10,6 +10,7 @@ export const tabs = [
   { id: 'reviewComments', label: '已拒绝评论', icon: '🗨️' },
   { id: 'reviewMessages', label: '被拒绝私信', icon: '📨' },
   { id: 'coreMemories', label: '官方事实', icon: '📚' },
+  { id: 'bohaiModels', label: 'BOHAI 模型', icon: '🤖' },
   { id: 'lotteries', label: '抽奖管理', icon: '🎲' },
   { id: 'lotteryEntries', label: '抽奖报名', icon: '🧾' },
   { id: 'lotteryDrawLogs', label: '开奖日志', icon: '🏆' },
@@ -32,6 +33,12 @@ export const tabGroups = [
     label: '内容',
     description: '论坛、官方事实、新闻、活动和商品',
     tabIds: ['forum', 'coreMemories', 'news', 'activities', 'products']
+  },
+  {
+    id: 'ai',
+    label: 'AI',
+    description: 'BOHAI 模型和官方知识配置',
+    tabIds: ['bohaiModels']
   },
   {
     id: 'moderation',
@@ -114,6 +121,32 @@ export const CORE_MEMORY_STATUS_OPTIONS = [
   { value: 'archived', label: '已归档（archived）' }
 ];
 
+export const BOHAI_MODEL_PROVIDER_OPTIONS = [
+  { value: 'siliconflow', label: 'SiliconFlow' },
+  { value: 'zhipu', label: '智谱 AI' },
+  { value: 'custom', label: '自定义兼容接口' }
+];
+
+export const BOHAI_MODEL_CAPABILITY_OPTIONS = [
+  { value: 'chat', label: '聊天（chat）' },
+  { value: 'multimodal', label: '多模态（multimodal）' },
+  { value: 'plan', label: '规划（plan）' },
+  { value: 'agent', label: 'Agent（agent）' }
+];
+
+export const BOHAI_MODEL_STATUS_OPTIONS = [
+  { value: 'active', label: '启用（active）' },
+  { value: 'disabled', label: '停用（disabled）' }
+];
+
+export const BOHAI_MODEL_ICON_OPTIONS = [
+  { value: 'zap', label: '闪电（Fast）' },
+  { value: 'sparkles', label: '星光（Pro）' },
+  { value: 'image', label: '图像（多模态）' },
+  { value: 'list-checks', label: '清单（Plan）' },
+  { value: 'users', label: '协作（Agent）' }
+];
+
 export const LOTTERY_STATUS_OPTIONS = [
   { value: 'draft', label: '草稿（draft）' },
   { value: 'open', label: '报名中（open）' },
@@ -151,6 +184,7 @@ export const TAB_WRITABLE_FIELDS = {
   gifts: ['user_id', 'gift_no', 'gift_content', 'gift_price', 'gift_image', 'gift_status', 'is_active', 'completed_at', 'updated_at'],
   forum: ['content', 'author_id', 'author_username', 'status', 'updated_at'],
   coreMemories: ['title', 'content', 'category', 'tags', 'priority', 'source_label', 'source_url', 'status', 'updated_by'],
+  bohaiModels: ['mode_id', 'display_name', 'tagline', 'description', 'provider', 'provider_label', 'model_id', 'api_url', 'capability', 'icon', 'temperature', 'top_p', 'frequency_penalty', 'max_tokens', 'status', 'sort_order', 'notes', 'created_by', 'updated_by'],
   lotteries: ['title', 'description', 'prize_title', 'prize_description', 'cover_image_url', 'status', 'is_community_visible', 'max_entries', 'winner_count', 'entry_deadline_at', 'draw_at', 'fulfillment_status', 'created_by', 'updated_by'],
   news: ['id', 'category', 'title', 'excerpt', 'content', 'date', 'author', 'image'],
   activities: ['id', 'title', 'date', 'image', 'description'],
@@ -365,6 +399,41 @@ export const dataConfig = {
       { key: 'source_url', label: '来源链接', type: 'text', maxLength: 600, placeholder: '可留空，建议填写可核验资料链接。' },
       { key: 'tags', label: '标签', type: 'tags', hint: '用于检索召回，例如：起源、Ryyik、周年庆。' },
       { key: 'content', label: '官方事实内容', type: 'textarea', required: true, rows: 10, maxLength: 12000, placeholder: '写确定、可复用的官方事实。避免把用户主观回忆混入这里。' }
+    ]
+  },
+  bohaiModels: {
+    table: 'bohai_model_configs',
+    columns: [
+      { key: 'sort_order', label: '排序', type: 'number' },
+      { key: 'display_name', label: '模式名', maxLength: 18 },
+      { key: 'mode_id', label: '模式ID', maxLength: 18 },
+      { key: 'provider_label', label: '供应商', type: 'badge' },
+      { key: 'model_id', label: '模型ID', maxLength: 30 },
+      { key: 'capability', label: '能力', type: 'badge' },
+      { key: 'status', label: '状态', type: 'badge' },
+      { key: 'temperature', label: '温度', type: 'number' },
+      { key: 'max_tokens', label: '输出上限', type: 'number' },
+      { key: 'updated_at', label: '更新时间', type: 'datetime' }
+    ],
+    fields: [
+      { key: 'id', label: '配置ID', type: 'text', disabled: true, hint: 'UUID 主键由系统生成，不可手动修改。' },
+      { key: 'mode_id', label: '模式ID', type: 'text', required: true, maxLength: 64, placeholder: '例如：fast / pro / multimodal / plan / agent-cluster' },
+      { key: 'display_name', label: '显示名称', type: 'text', required: true, maxLength: 40, placeholder: '例如：Fast' },
+      { key: 'tagline', label: '短说明', type: 'text', maxLength: 120, placeholder: '显示在 BOHAI 模式菜单里的简短说明。' },
+      { key: 'description', label: '详细说明', type: 'textarea', rows: 3, maxLength: 500 },
+      { key: 'provider', label: '供应商标识', type: 'select', required: true, options: BOHAI_MODEL_PROVIDER_OPTIONS },
+      { key: 'provider_label', label: '供应商显示名', type: 'text', maxLength: 80, placeholder: '例如：智谱 AI / SiliconFlow' },
+      { key: 'model_id', label: '模型ID', type: 'text', required: true, maxLength: 160, placeholder: '例如：glm-4.6v-flash' },
+      { key: 'api_url', label: '接口地址', type: 'text', maxLength: 600, placeholder: '留空会按供应商自动填默认地址。' },
+      { key: 'capability', label: '能力类型', type: 'select', required: true, options: BOHAI_MODEL_CAPABILITY_OPTIONS },
+      { key: 'icon', label: '图标', type: 'select', required: true, options: BOHAI_MODEL_ICON_OPTIONS },
+      { key: 'temperature', label: 'Temperature', type: 'number', min: 0, max: 1.2, required: true },
+      { key: 'top_p', label: 'Top P', type: 'number', min: 0.1, max: 1, required: true },
+      { key: 'frequency_penalty', label: 'Frequency Penalty', type: 'number', min: 0, max: 2, required: true },
+      { key: 'max_tokens', label: '最大输出 tokens', type: 'number', min: 256, max: 4096, required: true },
+      { key: 'sort_order', label: '显示排序', type: 'number', min: 0, max: 10000, required: true },
+      { key: 'status', label: '状态', type: 'select', required: true, options: BOHAI_MODEL_STATUS_OPTIONS },
+      { key: 'notes', label: '管理员备注', type: 'textarea', rows: 3, maxLength: 1000 }
     ]
   },
   lotteries: {

@@ -3,9 +3,10 @@ import {
   resolveSiliconFlowFreeModelId
 } from './siliconflow-free-models.js';
 import { CONNECTOR_TIMEOUT_MS } from './bohai-constants.js';
+import { callVaultSiliconChat } from './api/api-key-runtime-api.js';
 
 const BOHAI_CHAT_API_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
-const BOHAI_CHAT_API_KEY = import.meta.env.VITE_SILICON_CLOUD_API_KEY || '';
+const ZHIPU_CHAT_API_URL = import.meta.env.VITE_ZHIPU_CHAT_URL || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
 const BOHAI_DEFAULT_MODEL_ID = resolveSiliconFlowFreeModelId(
   import.meta.env.VITE_BOHAI_DEFAULT_MODEL,
   SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID
@@ -37,9 +38,10 @@ const withTimeout = (promise, timeoutMs, timeoutMessage) => {
 };
 
 export const getBohAIModelStatus = () => ({
-  hasConfig: Boolean(BOHAI_CHAT_API_URL && BOHAI_CHAT_API_KEY),
+  hasConfig: Boolean(BOHAI_CHAT_API_URL),
   url: BOHAI_CHAT_API_URL,
-  defaultModelId: BOHAI_DEFAULT_MODEL_ID
+  defaultModelId: BOHAI_DEFAULT_MODEL_ID,
+  usesVaultFallback: true
 });
 
 export const extractBohAIJsonObject = (text = '') => {
@@ -69,47 +71,31 @@ export const callBohAIModel = async ({
   signal,
   timeoutMs = MODEL_HARD_TIMEOUT_MS
 } = {}) => {
-  if (!BOHAI_CHAT_API_KEY) {
-    throw new Error('BOHAI 模型未配置 API Key');
-  }
   const safeModel = resolveSiliconFlowFreeModelId(model, BOHAI_DEFAULT_MODEL_ID);
+  const provider = safeModel.startsWith('glm-') ? 'zhipu' : 'siliconflow';
+  const apiUrl = provider === 'zhipu' ? ZHIPU_CHAT_API_URL : BOHAI_CHAT_API_URL;
 
   let lastError = null;
 
   for (let attempt = 0; attempt <= MODEL_RETRY_MAX; attempt += 1) {
     try {
-      const fetchPromise = fetch(BOHAI_CHAT_API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${BOHAI_CHAT_API_KEY}`
-        },
-        body: JSON.stringify({
+      const vaultResult = await callVaultSiliconChat({
+        provider,
+        purpose: 'chat',
+        apiUrl,
+        timeoutMs,
+        payload: {
           model: safeModel,
           messages,
-          stream,
+          stream: false,
           temperature,
           max_tokens: maxTokens
-        }),
-        signal
+        }
       });
-
-      const response = await withTimeout(fetchPromise, timeoutMs, 'BOHAI 模型请求超时');
-
-      let payload = {};
-      try {
-        payload = await response.json();
-      } catch {
-        const text = await response.text().catch(() => '');
-        throw new Error(`BOHAI API 返回非 JSON 响应（${response.status}）：${text.slice(0, 200)}`);
+      if (!vaultResult.ok) {
+        throw new Error(vaultResult.error?.message || 'BOHAI 模型代理调用失败');
       }
-
-      if (!response.ok) {
-        const errorMsg = payload?.error?.message || payload?.message || `BOHAI 模型调用失败（${response.status}）`;
-        const error = new Error(errorMsg);
-        error.status = response.status;
-        throw error;
-      }
+      const payload = vaultResult.data || {};
 
       return {
         payload,

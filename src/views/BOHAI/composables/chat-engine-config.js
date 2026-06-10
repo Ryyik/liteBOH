@@ -4,14 +4,14 @@ import {
   SILICONFLOW_FREE_CHAT_MODELS,
   SILICONFLOW_FREE_EMBEDDING_MODEL_IDS,
   SILICONFLOW_FREE_MULTIMODAL_MODEL_IDS,
-  SILICONFLOW_FREE_RERANK_MODEL_IDS
+  SILICONFLOW_FREE_RERANK_MODEL_IDS,
+  ZHIPU_CHAT_MODELS
 } from '../../../utils/siliconflow-free-models.js';
 
-export const TAVILY_API_KEY = import.meta.env.VITE_TAVILY_API_KEY || '';
-export const SILICON_CLOUD_API_KEY = import.meta.env.VITE_SILICON_CLOUD_API_KEY || '';
 export const SILICON_CLOUD_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
 export const SILICON_EMBEDDING_URL = import.meta.env.VITE_SILICON_EMBEDDING_URL || 'https://api.siliconflow.cn/v1/embeddings';
 export const SILICON_RERANK_URL = import.meta.env.VITE_SILICON_RERANK_URL || 'https://api.siliconflow.cn/v1/rerank';
+export const ZHIPU_CHAT_URL = import.meta.env.VITE_ZHIPU_CHAT_URL || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
 
 // 历史上下文窗口：放大到"很长的上下文 + 超过自动压缩"。
 // - MAX_CONTEXT_MESSAGES=30: 一轮窗口内可保留 30 条历史（之前 10）。
@@ -46,6 +46,7 @@ export const SHARED_MEMORY_CONTEXT_MAX_ITEMS = 8;
 export const SHARED_MEMORY_CONTEXT_MAX_ITEM_CHARS = 220;
 export const SHARED_MEMORY_CACHE_TTL_MS = 30000;
 export const SHARED_MEMORY_SEARCH_FETCH_LIMIT = 24;
+export const SHARED_MEMORY_SEARCH_CACHE_MAX = 32;
 export const USER_PRIVATE_CONTEXT_CACHE_TTL_MS = 30000;
 export const USER_PRIVATE_CONTEXT_MAX_ITEMS = 6;
 export const USER_PRIVATE_POSTS_FETCH_LIMIT = 24;
@@ -84,7 +85,9 @@ export const GENERATION_PROFILE_BY_MODE = {
   fast: { temperature: 0.22, top_p: 0.74, frequency_penalty: 0.08, max_tokens: 1200 },
   pro: { temperature: 0.18, top_p: 0.7, frequency_penalty: 0.06, max_tokens: 1800 },
   plan: { temperature: 0.08, top_p: 0.55, frequency_penalty: 0.04, max_tokens: 2400 },
-  'agent-cluster': { temperature: 0.18, top_p: 0.7, frequency_penalty: 0.06, max_tokens: 1600 }
+  'agent-cluster': { temperature: 0.18, top_p: 0.7, frequency_penalty: 0.06, max_tokens: 1600 },
+  'glm-47-flash': { temperature: 0.2, top_p: 0.75, frequency_penalty: 0.06, max_tokens: 2400 },
+  'glm-46v-flash': { temperature: 0.2, top_p: 0.75, frequency_penalty: 0.06, max_tokens: 1800 }
 };
 export const SHOW_INTERNAL_PROGRESS_NOTES = false;
 
@@ -98,6 +101,8 @@ export const FAST_NEX_MODEL_ID = 'nex-agi/Nex-N2-Pro';
 export const PRO_QWEN_MODEL_ID = 'Qwen/Qwen3-8B';
 export const PLAN_DEEPSEEK_MODEL_ID = 'deepseek-ai/DeepSeek-R1-0528-Qwen3-8B';
 export const AGENT_BASE_MODEL_ID = 'Qwen/Qwen3-8B';
+export const GLM47_FLASH_MODEL_ID = 'glm-4.7-flash';
+export const GLM46V_FLASH_MODEL_ID = 'glm-4.6v-flash';
 
 // 兼容旧命名（auto 路径已下线，但部分测试与子模块仍 import 这些常量）。
 // AUTO_ROUTER_MODEL_ID → Fast 模式基线（让 AUTO 旧行为退化为 Fast）。
@@ -350,6 +355,14 @@ export const chatModes = [
     model: PRO_QWEN_MODEL_ID
   },
   {
+    id: 'multimodal',
+    name: '多模态',
+    tagline: '图片/视频/文件',
+    description: 'GLM 4.6V Flash',
+    icon: 'zap',
+    model: GLM46V_FLASH_MODEL_ID
+  },
+  {
     id: 'plan',
     name: 'Plan',
     tagline: '超级高质量',
@@ -374,6 +387,7 @@ export const resolveProModel = () => PRO_QWEN_MODEL_ID;
 
 export const siliconModelCatalog = {
   chat: SILICONFLOW_FREE_CHAT_MODELS.map((model) => ({ ...model, role: 'free-chat', free: true })),
+  zhipu: ZHIPU_CHAT_MODELS.map((model) => ({ ...model, role: 'zhipu-chat', free: true })),
   embedding: [
     { id: SILICON_EMBEDDING_MODEL_ID, name: 'BGE M3', role: 'rag-embedding', free: true, url: SILICON_EMBEDDING_URL },
     { id: 'netease-youdao/bce-embedding-base_v1', name: 'BCE Embedding', role: 'rag-embedding-alt', free: true, url: SILICON_EMBEDDING_URL }
@@ -396,13 +410,23 @@ export const availableModels = [
     id: model.id,
     name: model.name,
     provider: 'SiliconCloud',
+    providerKey: 'siliconflow',
     url: SILICON_CLOUD_URL,
-    apiKey: SILICON_CLOUD_API_KEY
+    apiKey: ''
+  })),
+  ...ZHIPU_CHAT_MODELS.map((model) => ({
+    id: model.id,
+    name: model.name,
+    provider: 'ZhipuAI',
+    providerKey: 'zhipu',
+    url: ZHIPU_CHAT_URL,
+    apiKey: ''
   }))
 ];
 
 export const allowedFreeSiliconModelIds = Object.freeze([
   ...SILICONFLOW_FREE_CHAT_MODELS.map((model) => model.id),
+  ...ZHIPU_CHAT_MODELS.map((model) => model.id),
   ...SILICONFLOW_FREE_EMBEDDING_MODEL_IDS,
   ...SILICONFLOW_FREE_RERANK_MODEL_IDS,
   ...SILICONFLOW_FREE_MULTIMODAL_MODEL_IDS

@@ -2200,6 +2200,8 @@
 
 /* Post Card V2 */
 .post-card-v2 {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 360px;
   padding: 24px;
   background: rgba(255, 255, 255, 0.86);
   margin-bottom: 16px;
@@ -2356,6 +2358,7 @@
 }
 
 .image-post-card-v2 {
+  contain-intrinsic-size: 0 520px;
   min-height: 400px;
   padding: 24px;
   display: flex;

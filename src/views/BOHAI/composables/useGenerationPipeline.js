@@ -16,7 +16,12 @@
  */
 
 import { logger } from '@/utils/logger.js'
+import { callVaultSiliconChat } from '@/utils/api/api-key-runtime-api.js'
 import { AUTO_ROUTER_MODEL_ID } from './chat-engine-config.js'
+
+// Default timeout for model calls (ms)
+const MODEL_CALL_TIMEOUT_MS = 30_000
+const STREAM_MODEL_CALL_TIMEOUT_MS = 60_000
 
 export function useGenerationPipeline({ availableModels, abortController }) {
 
@@ -69,18 +74,40 @@ export function useGenerationPipeline({ availableModels, abortController }) {
   };
 
   // ==============================================================
-  // Fallback 模型选择
+  // Fallback 模型选择（使用 LRU 缓存避免重复查找）
   // ==============================================================
+
+  const _fallbackModelCache = new Map()
+  const _FALLBACK_CACHE_MAX = 16
 
   const getFallbackModel = (failedModelId) => {
     if (!Array.isArray(availableModels) || availableModels.length <= 1) return null;
+    // Cache hit
+    if (_fallbackModelCache.has(failedModelId)) {
+      return _fallbackModelCache.get(failedModelId);
+    }
     const model = availableModels.find((m) => m.id === failedModelId);
-    if (!model) return null;
+    if (!model) {
+      if (_fallbackModelCache.size >= _FALLBACK_CACHE_MAX) {
+        const firstKey = _fallbackModelCache.keys().next().value;
+        _fallbackModelCache.delete(firstKey);
+      }
+      _fallbackModelCache.set(failedModelId, null);
+      return null;
+    }
     const candidates = [].concat(model.fallback || [], model.aliasFallback || []);
     const fallback = candidates
       .map((id) => availableModels.find((m) => m.id === id))
-      .find((m) => m && m.id !== failedModelId);
-    return fallback || availableModels.find((m) => m.id !== AUTO_ROUTER_MODEL_ID && m.id !== failedModelId) || availableModels[0];
+      .find((m) => m && m.id !== failedModelId)
+      || availableModels.find((m) => m.id !== AUTO_ROUTER_MODEL_ID && m.id !== failedModelId)
+      || availableModels[0];
+    // Cache with LRU eviction
+    if (_fallbackModelCache.size >= _FALLBACK_CACHE_MAX) {
+      const firstKey = _fallbackModelCache.keys().next().value;
+      _fallbackModelCache.delete(firstKey);
+    }
+    _fallbackModelCache.set(failedModelId, fallback);
+    return fallback;
   };
 
   // ==============================================================
@@ -91,6 +118,24 @@ export function useGenerationPipeline({ availableModels, abortController }) {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return fallback;
     return Math.min(max, Math.max(min, parsed));
+  };
+
+  // ==============================================================
+  // Signal 工具 — 合并外部 abort signal 与超时 signal
+  // ==============================================================
+
+  const _combineSignals = (customSignal, timeoutMs) => {
+    const externalSignal = customSignal || (abortController.value ? abortController.value.signal : undefined);
+    if (!externalSignal && !timeoutMs) return undefined;
+    if (externalSignal && !timeoutMs) return externalSignal;
+    if (!externalSignal && timeoutMs) return AbortSignal.timeout(timeoutMs);
+    // Both signals: use AbortSignal.any when available, otherwise manual
+    try {
+      return AbortSignal.any([externalSignal, AbortSignal.timeout(timeoutMs)]);
+    } catch {
+      // Fallback for older Node/browser: just use external signal
+      return externalSignal;
+    }
   };
 
   // ==============================================================
@@ -117,31 +162,32 @@ export function useGenerationPipeline({ availableModels, abortController }) {
     };
 
     try {
-      const response = await fetch(model.url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${model.apiKey}`
-        },
-        body: JSON.stringify({
-          model: model.id,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...history,
-            { role: 'user', content: prompt }
-          ],
-          stream: false,
-          max_tokens: resolvedOptions.max_tokens,
-          temperature: resolvedOptions.temperature,
-          top_p: resolvedOptions.top_p,
-          frequency_penalty: resolvedOptions.frequency_penalty
-        }),
-        signal: requestSignal || (abortController.value ? abortController.value.signal : undefined)
+      const payload = {
+        model: model.id,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...history,
+          { role: 'user', content: prompt }
+        ],
+        stream: false,
+        max_tokens: resolvedOptions.max_tokens,
+        temperature: resolvedOptions.temperature,
+        top_p: resolvedOptions.top_p,
+        frequency_penalty: resolvedOptions.frequency_penalty
+      };
+
+      const vaultResult = await callVaultSiliconChat({
+        provider: model.providerKey || 'siliconflow',
+        purpose: 'chat',
+        payload,
+        apiUrl: model.url,
+        timeoutMs: MODEL_CALL_TIMEOUT_MS
       });
+      if (!vaultResult.ok) {
+        throw new Error(vaultResult.error?.message || `API proxy error for model ${modelId}`);
+      }
+      const data = vaultResult.data || {};
 
-      if (!response.ok) throw new Error(`API Error: ${response.status} for model ${modelId}`);
-
-      const data = await response.json();
       const content = data?.choices?.[0]?.message?.content;
       return content?.trim() || '';
     } catch (error) {
@@ -305,11 +351,19 @@ export function useGenerationPipeline({ availableModels, abortController }) {
     resetThinkingState();
 
     try {
+      const content = await callModelInternal(modelId, prompt, systemPrompt, history, requestSignal, retryCount, {
+        ...options,
+        max_tokens: options.max_tokens || 4096
+      });
+      const filteredContent = filterThinkingContent(content);
+      if (filteredContent && filteredContent !== '[object Object]') onChunk(filteredContent);
+      return;
+
       const response = await fetch(model.url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${model.apiKey}`
+          'Connection': 'keep-alive'
         },
         body: JSON.stringify({
           model: model.id,
@@ -322,10 +376,19 @@ export function useGenerationPipeline({ availableModels, abortController }) {
           max_tokens: options.max_tokens || 4096,
           temperature: options.temperature || 0.7
         }),
-        signal: requestSignal || (abortController.value ? abortController.value.signal : undefined)
+        signal: _combineSignals(
+          requestSignal || (abortController.value ? abortController.value.signal : undefined),
+          STREAM_MODEL_CALL_TIMEOUT_MS
+        )
       });
 
-      if (!response.ok) throw new Error(`API Error: ${response.status}`);
+      if (!response.ok) {
+        let errorText = '';
+        try {
+          errorText = (await response.text()).slice(0, 200);
+        } catch (_readError) { /* ignore */ }
+        throw new Error(`API Error: ${response.status} for model ${modelId}${errorText ? ` - ${errorText}` : ''}`);
+      }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();

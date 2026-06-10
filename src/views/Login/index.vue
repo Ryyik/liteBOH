@@ -7,6 +7,7 @@ import AgreementModal from '@/components/AgreementModal.vue';
 import { userAgreementContent, privacyPolicyContent } from '@/data/agreementData.js';
 import { getLoginDeviceIdHash } from '@/utils/device-trust.js';
 import { getAltchaChallengeUrl, isAltchaEnabled } from '@/utils/altcha.js';
+import { getImageUrl } from '@/utils/asset-helper.js';
 import {
   normalizeLoginId,
   validateEmail,
@@ -27,6 +28,11 @@ const emit = defineEmits(['close', 'success']);
 const router = useRouter();
 const authStore = useAuthStore();
 const { login, resetPassword } = authStore;
+const loginHeroSrcset = [
+  `${getImageUrl('@/assets/images/main1-768.webp')} 768w`,
+  `${getImageUrl('@/assets/images/main1-1280.webp')} 1280w`,
+  `${getImageUrl('@/assets/images/main1-1920.webp')} 1920w`
+].join(', ');
 
 const loginForm = reactive({
   loginId: '', // 统一为 loginId，可以是 email 或 username
@@ -487,7 +493,17 @@ onUnmounted(() => {
       <div class="login-split-container" @click.stop>
         <!-- 左侧图片区域 -->
         <div class="login-image-section">
-          <img src="@/assets/images/main1.webp" alt="方块之家" class="login-hero-image" />
+          <img
+            :src="getImageUrl('@/assets/images/main1-1280.webp')"
+            :srcset="loginHeroSrcset"
+            sizes="(max-width: 900px) 100vw, 50vw"
+            alt="方块之家"
+            class="login-hero-image"
+            fetchpriority="high"
+            decoding="async"
+            width="1280"
+            height="854"
+          />
           <div class="login-image-overlay">
             <div class="login-brand">
               <div class="login-brand-logo"></div>

@@ -40,14 +40,6 @@ const router = createRouter({
 });
 
 router.beforeEach(async (to, from, next) => {
-  if (to.meta?.upcoming) {
-    notify('当前内容即将上线', 'info');
-    if (from.matched.length === 0) {
-      return next("/");
-    }
-    return next(false);
-  }
-
   initAuthStore();
   const requiresLogin = to.matched.some((record) => record.meta?.requiresLogin);
   const requiresAdmin = to.matched.some((record) => record.meta?.requiresAdmin);

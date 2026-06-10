@@ -1,12 +1,5 @@
-import { ref, reactive, computed, nextTick, watch, onScopeDispose } from 'vue';
+import { ref, computed, nextTick, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import {
-  getRelevantCommandInstructions,
-  getCommandSystemPrompt,
-  detectCommandIntent,
-  validateCommandOutput,
-  buildCommandRepairPrompt
-} from '@/utils/minecraft-command-helper.js';
 import { createPost, getPosts, getUserPosts } from '@/utils/api/forum-api.js';
 import {
   createMyTreeholeSpace,
@@ -18,8 +11,13 @@ import {
   captureTreeholeMemoriesFromDialogue
 } from '@/utils/api/treehole-api.js';
 import { createMyCloudEntry, getMyCloudEntriesForAI } from '@/utils/api/boh-cloud-api.js';
+import { callVaultSiliconChat } from '@/utils/api/api-key-runtime-api.js';
 import { getMySubscriptions } from '@/utils/api/subscription-api.js';
 import { sendModeratedMessages } from '@/utils/api/messages-api.js';
+import {
+  buildBohaiRuntimeModels,
+  listActiveBohaiModelConfigs
+} from '@/utils/api/bohai-model-config-api.js';
 import {
   detectBohAIResourceSearchIntent,
   getResourceTypeLabel,
@@ -45,13 +43,8 @@ import {
   isMailDraftRequest,
   isCreatePageRequest
 } from '@/utils/bohai-action-draft-intent.js';
-import {
-  isLikelyPersonalSupportRequest,
-  resolveBOHAIAutoModeDecision
-} from '@/utils/bohai-auto-router.js';
-import {
-  createNeutralAutoDecision
-} from '@/utils/bohai-auto-decision.js';
+import { isLikelyPersonalSupportRequest } from '@/utils/bohai-auto-router.js';
+import { resolveAutoModeDecisionLocally } from '@/utils/bohai-auto-decision.js';
 import {
   BOHAI_ACTION_IDS,
   BOHAI_CONNECTOR_IDS,
@@ -64,16 +57,9 @@ import {
 } from '@/utils/bohai-connectors.js';
 import {
   appendBohAIActionAudit,
-  clearBohAIActionAuditsStorage,
-  createBohAIActionAuditEntry,
-  loadBohAIActionAuditsFromStorage
+  createBohAIActionAuditEntry
 } from '@/utils/bohai-action-audit.js';
-import {
-  clearBohAIChatSessionsStorage,
-  createBohAIChatSessionSanitizer,
-  loadBohAIChatSessionsFromStorage,
-  saveBohAIChatSessionsToStorage
-} from '@/utils/bohai-chat-session-store.js';
+
 import { createBohAIRetrievalTrace } from '@/utils/bohai-observability.js';
 import { SITE_OPERATION_MEMORY } from '@/data/ai-site-guide.js';
 import { logger } from '@/utils/logger.js';
@@ -91,7 +77,6 @@ import {
   GIFT_STATUS_LABELS,
   KNOWLEDGE_CONTEXT_MAX_BLOCK_CHARS,
   KNOWLEDGE_CONTEXT_MAX_CHARS,
-  LEGACY_TREEHOLE_MEMORY_SYNC_SETTING_KEY,
   MAX_CONTEXT_MESSAGES,
   MAX_FINAL_PROMPT_CHARS,
   MAX_HISTORY_CONTEXT_CHARS,
@@ -102,30 +87,22 @@ import {
   MEMORY_CAPTURE_CONTEXT_ITEMS,
   MEMORY_CAPTURE_MIN_DIALOGUE_ITEMS,
   MEMORY_CAPTURE_MIN_USER_CHARS,
-  MEMORY_CAPTURE_SETTING_KEY,
-  MEMORY_CAPTURE_STATUS_TIMEOUT_MS,
   MEMORY_MAX_CHUNKS,
   MEMORY_NOTICE_MAX_ITEMS,
   MIN_INTERVAL_MS,
   OPERATION_MAX_STEPS,
-  PLAN_MODE_SETTING_KEY,
   PLAN_MODE_PROMPT_APPENDIX,
   PAGE_CREATION_PROMPT_APPENDIX,
-  QUICK_NOTE_CONTENT_MAX_CHARS,
-  QUICK_NOTE_SETTING_KEY,
   QUICK_NOTE_TITLE_MAX_CHARS,
   RAG_PREFERRED_MODEL_ID,
   RATE_LIMIT_WINDOW_MS,
-  RESPONSE_STYLE_OPTIONS,
-  RESPONSE_STYLE_SETTING_KEY,
   ROUTING_FORUM_REALTIME_PATTERN,
   ROUTING_HISTORY_FACT_PATTERN,
-  SESSION_SAVE_DEBOUNCE_MS,
-  SESSION_SAVE_IDLE_TIMEOUT_MS,
   SHARED_MEMORY_CACHE_TTL_MS,
   SHARED_MEMORY_CONTEXT_MAX_ITEM_CHARS,
   SHARED_MEMORY_CONTEXT_MAX_ITEMS,
   SHARED_MEMORY_LIMIT,
+  SHARED_MEMORY_SEARCH_CACHE_MAX,
   SHARED_MEMORY_SEARCH_FETCH_LIMIT,
   SHARED_MEMORY_TRIGGER_KEYWORDS,
   SHOW_INTERNAL_PROGRESS_NOTES,
@@ -135,7 +112,6 @@ import {
   TREEHOLE_CONTEXT_MAX_ITEMS,
   TREEHOLE_MEMORY_CACHE_TTL_MS,
   TREEHOLE_MEMORY_LIMIT,
-  TREEHOLE_MEMORY_SYNC_SETTING_KEY,
   USER_PRIVATE_ALL_KEYWORDS,
   USER_PRIVATE_BIRTHDAY_KEYWORDS,
   USER_PRIVATE_CONTEXT_CACHE_TTL_MS,
@@ -157,6 +133,10 @@ import {
 } from './chat-engine-config.js';
 
 export { availableModels, chatModes } from './chat-engine-config.js';
+import { useConversationManager } from './useConversationManager.js';
+import { useGenerationPipeline } from './useGenerationPipeline.js';
+import { useModelConfig } from './useModelConfig.js';
+import { useMessageManager } from './useMessageManager.js';
 import {
   CONVERSATION_SUMMARY_RECENT_MESSAGES,
   CONVERSATION_SUMMARY_MIN_MESSAGES,
@@ -175,7 +155,6 @@ import {
   appendPromptSection,
   normalizePromptLine,
   buildContextualFollowUpQuery,
-  buildHistoryMessagesWithinBudget,
   getStorableDialogueMessages,
   buildConversationSummaryFingerprint,
   buildHistoryMessagesWithCachedSummary,
@@ -195,17 +174,12 @@ import {
   extractSingleLineField,
   extractMultilineField,
   extractFieldUntilNextLabel,
-  isWeakPostDraftTitle,
-  buildPostDraftFromText,
-  POST_DRAFT_PLACEHOLDER_PATTERN,
-  hasPostDraftUserIdea,
   extractRecipientName,
   buildMailDraftFromText,
   buildPageDraftFromText,
   compressKnowledgeContextBlocks,
-  getGenerationProfile,
+  getGenerationProfile as getDefaultGenerationProfile,
   cleanAssistantVisibleReply,
-  normalizeEscapedLineBreaks,
   isDegenerateAssistantReply,
   isDegenerateStreamOutput
 } from './bohai-engine-helpers.js';
@@ -221,6 +195,9 @@ import {
   KNOWN_RESOURCE_NAME_ALIASES,
   stripResourceQueryNoise as stripResourceQueryNoiseShared
 } from '../agents/core/agent-patterns.js';
+
+const TYPEWRITER_FRAME_MS = 16;
+const TYPEWRITER_CHARS_PER_FRAME = 3;
 
 // ============================================================
 // BOH AI Chat Engine 主 composable
@@ -249,224 +226,36 @@ export function useChatEngine() {
 
   const { state: agentClusterState, reset: resetAgentClusterState, apply: applyAgentClusterEvent } = useAgentClusterState();
 
-  // State
-  const chatSessions = reactive([
-    { title: '新对话', messages: [], timestamp: Date.now(), isLoading: false, isThinking: false }
-  ]);
-  const currentSessionIndex = ref(0);
-  const activeGenerationSessionIndex = ref(null);
-  const treeholeMemoryCache = reactive({
-    userId: '',
-    fetchedAt: 0,
-    items: []
+  // scrollToBottom getter — 允许 useConversationManager 在 scrollToBottom
+  // 定义完成后按需引用，而不要求 composable 在创建时就拿到函数引用。
+  let _scrollToBottom = null;
+  const _getScrollToBottom = () => _scrollToBottom;
+
+  const {
+    // State
+    chatSessions, currentSessionIndex, activeGenerationSessionIndex,
+    treeholeMemoryCache, sharedMemoryCache, sharedMemorySearchCache,
+    actionAuditLog,
+    pendingTreeholeCreation, pendingCloudReferenceConsent,
+    pendingSharedMemoryCapture, pendingQuickNote, pendingActionDraft,
+    userPrivateContextCache,
+    isCompressingContext, compressingSessionIndex,
+    contextBudgetUsage,
+    memoryCaptureStatusMessage,
+    activeActionDraft,
+    // Functions
+    resetUserPrivateContextCache, resetSharedMemorySearchCache,
+    resetPendingTreeholeCreation, resetPendingCloudReferenceConsent,
+    resetPendingSharedMemoryCapture, resetPendingQuickNote, resetPendingActionDraft,
+    computeContextBudgetUsage,
+    loadSessions, scheduleSaveSessions,
+    clearCache,
+    getSessionByIndex,
+    startNewChat: _startNewChat, deleteSession, switchSession,
+    setMemoryCaptureStatusMessage
+  } = useConversationManager({
+    scrollToBottom: _getScrollToBottom
   });
-  const sharedMemoryCache = reactive({
-    fetchedAt: 0,
-    items: []
-  });
-  const sharedMemorySearchCache = new Map();
-  const actionAuditLog = ref(loadBohAIActionAuditsFromStorage());
-  const pendingTreeholeCreation = reactive({
-    awaitingConfirmation: false,
-    userId: '',
-    sessionIndex: -1
-  });
-  const pendingCloudReferenceConsent = reactive({
-    awaitingConfirmation: false,
-    userId: '',
-    sessionIndex: -1
-  });
-  const pendingSharedMemoryCapture = reactive({
-    awaitingConfirmation: false,
-    userId: '',
-    sessionIndex: -1,
-    content: '',
-    destination: 'ask'
-  });
-  const pendingQuickNote = reactive({
-    visible: false,
-    busy: false,
-    userId: '',
-    sessionIndex: -1,
-    messageIndex: -1,
-    title: '',
-    content: '',
-    error: ''
-  });
-  const pendingActionDraft = reactive({
-    active: false,
-    type: '',
-    userId: '',
-    sessionIndex: -1,
-    awaitingIdea: false,
-    postTitle: '',
-    postContent: '',
-    pageType: '',
-    pageDescription: '',
-    pageHtml: '',
-    mailReceiverId: '',
-    mailReceiverName: '',
-    mailSubject: '',
-    mailContent: ''
-  });
-  const userPrivateContextCache = reactive({
-    userId: '',
-    fetchedAt: 0,
-    snapshot: null
-  });
-
-  const resetUserPrivateContextCache = () => {
-    userPrivateContextCache.userId = '';
-    userPrivateContextCache.fetchedAt = 0;
-    userPrivateContextCache.snapshot = null;
-  };
-
-  const resetSharedMemorySearchCache = () => {
-    sharedMemorySearchCache.clear();
-  };
-
-  const resetPendingTreeholeCreation = () => {
-    pendingTreeholeCreation.awaitingConfirmation = false;
-    pendingTreeholeCreation.userId = '';
-    pendingTreeholeCreation.sessionIndex = -1;
-  };
-  const resetPendingCloudReferenceConsent = () => {
-    pendingCloudReferenceConsent.awaitingConfirmation = false;
-    pendingCloudReferenceConsent.userId = '';
-    pendingCloudReferenceConsent.sessionIndex = -1;
-  };
-  const resetPendingSharedMemoryCapture = () => {
-    pendingSharedMemoryCapture.awaitingConfirmation = false;
-    pendingSharedMemoryCapture.userId = '';
-    pendingSharedMemoryCapture.sessionIndex = -1;
-    pendingSharedMemoryCapture.content = '';
-    pendingSharedMemoryCapture.destination = 'ask';
-  };
-  const resetPendingQuickNote = () => {
-    pendingQuickNote.visible = false;
-    pendingQuickNote.busy = false;
-    pendingQuickNote.userId = '';
-    pendingQuickNote.sessionIndex = -1;
-    pendingQuickNote.messageIndex = -1;
-    pendingQuickNote.title = '';
-    pendingQuickNote.content = '';
-    pendingQuickNote.error = '';
-  };
-  const resetPendingActionDraft = () => {
-    pendingActionDraft.active = false;
-    pendingActionDraft.type = '';
-    pendingActionDraft.userId = '';
-    pendingActionDraft.sessionIndex = -1;
-    pendingActionDraft.awaitingIdea = false;
-    pendingActionDraft.postTitle = '';
-    pendingActionDraft.postContent = '';
-    pendingActionDraft.mailReceiverId = '';
-    pendingActionDraft.mailReceiverName = '';
-    pendingActionDraft.mailSubject = '';
-    pendingActionDraft.mailContent = '';
-    pendingActionDraft.pageType = '';
-    pendingActionDraft.pageDescription = '';
-    pendingActionDraft.pageHtml = '';
-  };
-
-  const isEmptyAssistantPlaceholder = (message) => {
-    if (!message || message.role !== 'assistant') return false;
-    if (String(message.content || '').trim()) return false;
-    const meta = message.meta && typeof message.meta === 'object' ? message.meta : null;
-    return !meta || Object.keys(meta).length === 0;
-  };
-
-  const sanitizeChatSessionForStorage = createBohAIChatSessionSanitizer({
-    normalizeText: (value) => normalizePromptLine(value, CONVERSATION_SUMMARY_MAX_CHARS),
-    maxSummaryChars: CONVERSATION_SUMMARY_MAX_CHARS,
-    isEmptyAssistantPlaceholder
-  });
-
-  // Load sessions from local storage
-  const loadSessions = () => {
-    const migratedSessions = loadBohAIChatSessionsFromStorage({
-      sanitizeSession: sanitizeChatSessionForStorage,
-      onError: (error) => logger.error('boh-ai', 'Failed to load chat sessions', error)
-    });
-    if (migratedSessions.length > 0) {
-      chatSessions.splice(0, chatSessions.length, ...migratedSessions);
-    }
-  };
-
-  // Save sessions to local storage
-  const saveSessions = () => {
-    saveBohAIChatSessionsToStorage({
-      sessions: chatSessions,
-      sanitizeSession: sanitizeChatSessionForStorage
-    });
-  };
-  let saveDebounceTimer = null;
-  let saveIdleTimer = null;
-  let saveIdleCallbackId = null;
-
-  const clearSaveTimers = () => {
-    if (saveDebounceTimer) {
-      clearTimeout(saveDebounceTimer);
-      saveDebounceTimer = null;
-    }
-    if (saveIdleTimer) {
-      clearTimeout(saveIdleTimer);
-      saveIdleTimer = null;
-    }
-    if (typeof window !== 'undefined' && saveIdleCallbackId !== null && 'cancelIdleCallback' in window) {
-      window.cancelIdleCallback(saveIdleCallbackId);
-      saveIdleCallbackId = null;
-    }
-  };
-
-  const scheduleSaveSessions = () => {
-    clearSaveTimers();
-    saveDebounceTimer = setTimeout(() => {
-      saveDebounceTimer = null;
-
-      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-        saveIdleCallbackId = window.requestIdleCallback(() => {
-          saveIdleCallbackId = null;
-          saveSessions();
-        }, { timeout: SESSION_SAVE_IDLE_TIMEOUT_MS });
-        return;
-      }
-
-      saveIdleTimer = setTimeout(() => {
-        saveIdleTimer = null;
-        saveSessions();
-      }, 0);
-    }, SESSION_SAVE_DEBOUNCE_MS);
-  };
-
-  // Clear cache
-  const clearCache = () => {
-    clearSaveTimers();
-    if (memoryCaptureStatusTimer) {
-      clearTimeout(memoryCaptureStatusTimer);
-      memoryCaptureStatusTimer = null;
-    }
-    memoryCaptureStatusMessage.value = '';
-    clearBohAIChatSessionsStorage();
-    clearBohAIActionAuditsStorage();
-    actionAuditLog.value = [];
-    chatSessions.splice(0, chatSessions.length, { title: '新对话', messages: [], timestamp: Date.now(), isLoading: false, isThinking: false });
-    currentSessionIndex.value = 0;
-    activeGenerationSessionIndex.value = null;
-    localStorage.removeItem('hasSeenAiWelcome_2025_02');
-    treeholeMemoryCache.userId = '';
-    treeholeMemoryCache.fetchedAt = 0;
-    treeholeMemoryCache.items = [];
-    sharedMemoryCache.fetchedAt = 0;
-    sharedMemoryCache.items = [];
-    resetSharedMemorySearchCache();
-    resetUserPrivateContextCache();
-    resetPendingTreeholeCreation();
-    resetPendingCloudReferenceConsent();
-    resetPendingSharedMemoryCapture();
-    resetPendingQuickNote();
-    resetPendingActionDraft();
-  };
 
   watch(chatSessions, scheduleSaveSessions, { deep: true });
 
@@ -492,19 +281,49 @@ export function useChatEngine() {
 
   loadSessions();
 
-  const inputMessage = ref('');
+  // 局部状态（不属于子 composable 的纯引擎内部状态）
   const thinkingTime = ref(0);
   const thinkingStatus = ref('');
   const thinkingTimer = ref(null);
   const abortController = ref(null);
-  const textareaRef = ref(null);
+  const runtimeAvailableModels = ref(availableModels.map((model) => ({ ...model })));
+  const runtimeChatModes = ref(chatModes.map((mode) => ({ ...mode })));
+  const runtimeGenerationProfiles = ref({});
+
+  const getGenerationProfile = (modeId, options = {}) => ({
+    ...getDefaultGenerationProfile(modeId, options),
+    ...(runtimeGenerationProfiles.value?.[modeId] || {})
+  });
+
+  const applyRuntimeModelConfig = (payload = {}) => {
+    if (Array.isArray(payload.availableModels) && payload.availableModels.length > 0) {
+      runtimeAvailableModels.value.splice(0, runtimeAvailableModels.value.length, ...payload.availableModels);
+    }
+    if (Array.isArray(payload.chatModes) && payload.chatModes.length > 0) {
+      runtimeChatModes.value.splice(0, runtimeChatModes.value.length, ...payload.chatModes);
+      if (!runtimeChatModes.value.some((mode) => mode.id === currentModeId.value)) {
+        currentModeId.value = runtimeChatModes.value[0]?.id || BOH_DEFAULT_MODE_ID;
+      }
+    }
+    runtimeGenerationProfiles.value = payload.generationProfiles || {};
+  };
+
+  const loadRuntimeModelConfig = async () => {
+    const result = await listActiveBohaiModelConfigs();
+    if (!result.ok || !Array.isArray(result.data) || result.data.length === 0) {
+      if (result.error) {
+        logger.warn('boh-ai', 'BOHAI 模型配置读取失败，使用默认配置', result.error);
+      }
+      return;
+    }
+    applyRuntimeModelConfig(buildBohaiRuntimeModels(result.data));
+  };
 
   // --------------------------------------------------------------
   // AI 生成管线（从 useGenerationPipeline 导入）
   // --------------------------------------------------------------
   const {
     callModelInternal,
-    callModelStream,
     _getSmartContext,
     filterThinkingContent,
     filterThinkingContentStream,
@@ -512,189 +331,74 @@ export function useChatEngine() {
     resetThinkingState,
     createSseLineParser,
     getFallbackModel,
-    toFiniteNumber,
     safeChunkToString
-  } = useGenerationPipeline({ availableModels, abortController });
+  } = useGenerationPipeline({ availableModels: runtimeAvailableModels.value, abortController });
   // --------------------------------------------------------------
 
   // 计算属性：当前会话的加载状态
   const isLoading = computed(() => chatSessions[currentSessionIndex.value]?.isLoading || false);
   const isThinking = computed(() => chatSessions[currentSessionIndex.value]?.isThinking || false);
 
-  // 当前模式 - 默认 Fast（极速响应）。4 模式之间不自动切换；
-  // 用户主动选择什么就走什么（语义：Fast=极速 / Pro=质量 / Plan=超级高质量 / Agent=工作）。
-  const currentModeId = ref(BOH_DEFAULT_MODE_ID);
-  const currentMode = computed(() => chatModes.find(m => m.id === currentModeId.value) || chatModes[0]);
-  const currentModelId = computed(() => currentMode.value.model);
-  const currentModel = computed(() => availableModels.find(m => m.id === currentModelId.value) || availableModels[0]);
+  // --------------------------------------------------------------
+  // useModelConfig — 模式/样式/设置
+  // --------------------------------------------------------------
+  const {
+    currentModeId, currentMode, currentModelId, currentModel,
+    lastRoutedMode,
+    isCommandMode, isSearching, isForumSearchEnabled,
+    isMemoryCaptureEnabled, isTreeholeMemoryEnabled, isTreeholeMemoryToggling,
+    isQuickNoteEnabled, isPlanModeEnabled,
+    currentResponseStyleId, currentResponseStyle,
+    responseStyleOptions,
+    cloudReferenceConsent,
+    webSearchDisabledNoticeShownFor,
+    getModelForModeId,
+    togglePlanMode, setResponseStyle,
+    persistMemoryCaptureSetting,
+    persistTreeholeMemorySetting, persistQuickNoteSetting
+  } = useModelConfig({ availableModels: runtimeAvailableModels.value, chatModes: runtimeChatModes.value });
+  void loadRuntimeModelConfig();
+  // --------------------------------------------------------------
 
-  // 本轮 Auto 路由到的具体模式：在 sendMessage 中赋值，UI 可读。
-  // 当用户手动点击 chip 重置或新会话时清空。
-  const lastRoutedMode = ref('');
-
-  // 会话级"联网搜索未配置"提示去重：避免每轮都刷一条。
-  const webSearchDisabledNoticeShownFor = new Set();
-
-  const getModelForModeId = (modeId, _context = {}) => {
-    // 4 模式下,模型与模式 1:1 固定绑定,不再按文本复杂度做二级判断。
-    const mode = chatModes.find((item) => item.id === modeId)
-      || chatModes.find((item) => item.id === BOH_DEFAULT_MODE_ID)
-      || chatModes[0];
-    const targetModelId = mode?.model;
-    return availableModels.find((item) => item.id === targetModelId)
-      || currentModel.value
-      || availableModels[0];
-  };
-
-  const isCommandMode = ref(false);
-  const isSearching = ref(false);
-  const isForumSearchEnabled = ref(false);
-  const isMemoryCaptureEnabled = ref(
-    typeof window === 'undefined' ? false : localStorage.getItem(MEMORY_CAPTURE_SETTING_KEY) === '1'
-  );
-  const isTreeholeMemoryEnabled = ref(
-    typeof window === 'undefined'
-      ? false
-      : (
-        localStorage.getItem(TREEHOLE_MEMORY_SYNC_SETTING_KEY) === '1'
-        || localStorage.getItem(LEGACY_TREEHOLE_MEMORY_SYNC_SETTING_KEY) === '1'
-      )
-  );
-  const isQuickNoteEnabled = ref(
-    typeof window === 'undefined' ? false : localStorage.getItem(QUICK_NOTE_SETTING_KEY) === '1'
-  );
-  const isPlanModeEnabled = ref(
-    typeof window === 'undefined' ? false : localStorage.getItem(PLAN_MODE_SETTING_KEY) === '1'
-  );
-  const normalizeResponseStyleId = (styleId) => {
-    const safeId = String(styleId || '').trim();
-    return RESPONSE_STYLE_OPTIONS.some((item) => item.id === safeId) ? safeId : 'default';
-  };
-  const currentResponseStyleId = ref(
-    normalizeResponseStyleId(typeof window === 'undefined' ? 'default' : localStorage.getItem(RESPONSE_STYLE_SETTING_KEY))
-  );
-  const currentResponseStyle = computed(() => (
-    RESPONSE_STYLE_OPTIONS.find((item) => item.id === currentResponseStyleId.value)
-    || RESPONSE_STYLE_OPTIONS[0]
-  ));
-  const cloudReferenceConsent = ref(
-    typeof window === 'undefined'
-      ? 'unknown'
-      : (
-        localStorage.getItem(CLOUD_REFERENCE_CONSENT_KEY)
-        || (
-          localStorage.getItem(TREEHOLE_MEMORY_SYNC_SETTING_KEY) === '1'
-            || localStorage.getItem(LEGACY_TREEHOLE_MEMORY_SYNC_SETTING_KEY) === '1'
-            ? 'granted'
-            : 'unknown'
-        )
-      )
-  );
-  const isTreeholeMemoryToggling = ref(false);
-  const memoryCaptureStatusMessage = ref('');
-  let memoryCaptureStatusTimer = null;
-
-  const persistPlanModeSetting = () => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem(PLAN_MODE_SETTING_KEY, isPlanModeEnabled.value ? '1' : '0');
-  };
-
-  const togglePlanMode = () => {
-    isPlanModeEnabled.value = !isPlanModeEnabled.value;
-    persistPlanModeSetting();
-  };
-
-  const persistResponseStyleSetting = () => {
-    if (typeof window === 'undefined') return;
-    const styleId = currentResponseStyleId.value === 'default' ? '' : currentResponseStyleId.value;
-    if (styleId) {
-      localStorage.setItem(RESPONSE_STYLE_SETTING_KEY, styleId);
-    } else {
-      localStorage.removeItem(RESPONSE_STYLE_SETTING_KEY);
-    }
-  };
-
-  const setResponseStyle = (styleId) => {
-    currentResponseStyleId.value = normalizeResponseStyleId(styleId);
-    persistResponseStyleSetting();
-  };
-
-  const setMemoryCaptureStatusMessage = (text) => {
-    memoryCaptureStatusMessage.value = String(text || '').trim();
-    if (memoryCaptureStatusTimer) {
-      clearTimeout(memoryCaptureStatusTimer);
-      memoryCaptureStatusTimer = null;
-    }
-    if (memoryCaptureStatusMessage.value) {
-      memoryCaptureStatusTimer = setTimeout(() => {
-        memoryCaptureStatusMessage.value = '';
-        memoryCaptureStatusTimer = null;
-      }, MEMORY_CAPTURE_STATUS_TIMEOUT_MS);
-    }
-  };
-
-  const appendSessionMessage = (sessionIndex, role, content, meta = null) => {
-    const targetSession = getSessionByIndex(sessionIndex);
-    if (!targetSession) return false;
-    const safeContent = String(content || '').trim();
-    if (!safeContent) return false;
-    const payload = { role, content: safeContent };
-    if (meta && typeof meta === 'object') payload.meta = meta;
-    targetSession.messages.push(payload);
-    nextTick(() => scrollToBottom());
-    return true;
-  };
-
-  const normalizeActionNotes = (notes = []) => {
-    const source = Array.isArray(notes) ? notes : [notes];
-    return [...new Set(
-      source
-        .map((item) => normalizePromptLine(item, 120))
-        .filter(Boolean)
-    )].slice(0, 4);
-  };
-
-  const mergeAssistantMessageMeta = (sessionIndex, messageIndex, metaPatch = {}) => {
-    const targetSession = getSessionByIndex(sessionIndex);
-    const targetMessage = targetSession?.messages?.[messageIndex];
-    if (!targetMessage || targetMessage.role !== 'assistant') return false;
-    if (!metaPatch || typeof metaPatch !== 'object') return false;
-    targetMessage.meta = {
-      ...(targetMessage.meta && typeof targetMessage.meta === 'object' ? targetMessage.meta : {}),
-      ...metaPatch
-    };
-    return true;
-  };
-
-  const updateAssistantActionNotes = (sessionIndex, messageIndex, notes = []) => {
-    const targetSession = getSessionByIndex(sessionIndex);
-    const targetMessage = targetSession?.messages?.[messageIndex];
-    if (!targetMessage || targetMessage.role !== 'assistant') return;
-    const currentNotes = Array.isArray(targetMessage.meta?.actionNotes)
-      ? targetMessage.meta.actionNotes
-      : [];
-    const nextNotes = normalizeActionNotes([...currentNotes, ...normalizeActionNotes(notes)]);
-    if (nextNotes.length === 0) return;
-    mergeAssistantMessageMeta(sessionIndex, messageIndex, { actionNotes: nextNotes });
-  };
-
-  const appendUserMessageWithTitle = (sessionIndex, text) => {
-    const targetSession = getSessionByIndex(sessionIndex);
-    if (!targetSession) return false;
-    const safeText = String(text || '').trim();
-    if (!safeText) return false;
-    const shouldInitTitle = targetSession.messages.length === 0;
-    const appended = appendSessionMessage(sessionIndex, 'user', safeText);
-    if (appended && shouldInitTitle) {
-      targetSession.title = safeText.slice(0, 30) + (safeText.length > 30 ? '...' : '');
-    }
-    return appended;
-  };
-
-  const resetComposerInput = () => {
-    inputMessage.value = '';
-    if (textareaRef.value) textareaRef.value.style.height = 'auto';
-  };
+  // --------------------------------------------------------------
+  // useMessageManager — 消息 CRUD / 随手记 / 操作草稿 UI
+  // --------------------------------------------------------------
+  const {
+    inputMessage,
+    textareaRef,
+    appendSessionMessage,
+    mergeAssistantMessageMeta,
+    updateAssistantActionNotes,
+    appendUserMessageWithTitle,
+    resetComposerInput,
+    extractQuickNoteContent,
+    buildQuickNoteTitle,
+    queueQuickNoteConfirmation,
+    cancelPendingActionDraftFromUI,
+    confirmPendingActionDraftFromUI,
+    updatePendingPostDraftFromUI,
+    updatePendingMailDraftFromUI
+  } = useMessageManager({
+    getSessionByIndex,
+    callModelInternal,
+    currentModel,
+    availableModels: runtimeAvailableModels.value,
+    isLoggedIn,
+    userInfo,
+    isQuickNoteEnabled,
+    scrollToBottom: () => { if (typeof _scrollToBottom === 'function') _scrollToBottom(); },
+    currentSessionIndex,
+    resolveMailRecipientProfile: (...args) => resolveMailRecipientProfile(...args),
+    submitPostDraft: (...args) => submitPostDraft(...args),
+    submitMailDraft: (...args) => submitMailDraft(...args),
+    logger,
+    pendingQuickNote,
+    resetPendingQuickNote,
+    pendingActionDraft,
+    resetPendingActionDraft,
+    activeActionDraft
+  });
+  // --------------------------------------------------------------
 
   const getLocalDateKey = (value = new Date()) => {
     const date = value instanceof Date ? value : new Date(value);
@@ -705,175 +409,9 @@ export function useChatEngine() {
     return `${year}-${month}-${day}`;
   };
 
-  const extractQuickNoteContent = (text) => {
-    const safeText = String(text || '').trim();
-    if (!safeText) return '';
-    if (safeText.length <= QUICK_NOTE_CONTENT_MAX_CHARS) return safeText;
-    return `${safeText.slice(0, QUICK_NOTE_CONTENT_MAX_CHARS - 3)}...`;
-  };
-
-  const buildQuickNoteTitle = (content) => {
-    const firstLine = String(content || '')
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .find(Boolean) || '';
-    const normalized = normalizePromptLine(firstLine.replace(/^#+\s*/, ''), QUICK_NOTE_TITLE_MAX_CHARS);
-    return normalized || 'BOH AI 随手记';
-  };
-
-  const generateQuickNoteTitle = async (content, requestSignal = undefined, modelId = '') => {
-    const fallbackTitle = buildQuickNoteTitle(content);
-    const noteContent = extractQuickNoteContent(content);
-    if (!noteContent) return fallbackTitle;
-
-    try {
-      const titleModelId = modelId || currentModel.value?.id || availableModels[0]?.id;
-      if (!titleModelId) return fallbackTitle;
-      const rawTitle = await callModelInternal(
-        titleModelId,
-        [
-          '请为下面这段用户原文生成一个适合 Cloud+ 随手记的短标题。',
-          '要求：只输出标题本身，不要引号，不要解释，中文优先，最多 18 个汉字或 36 个英文字符。',
-          '',
-          `用户原文：${noteContent}`
-        ].join('\n'),
-        '你是 BOH AI 的随手记标题生成器，只输出简短标题。',
-        [],
-        requestSignal,
-        0,
-        { max_tokens: 80, temperature: 0.2, top_p: 0.8, frequency_penalty: 0.1 }
-      );
-      const cleanTitle = normalizePromptLine(
-        String(rawTitle || '')
-          .replace(/^["'“”‘’「『]+|["'“”‘’」』]+$/g, '')
-          .replace(/^(标题|Title)\s*[:：]\s*/i, ''),
-        QUICK_NOTE_TITLE_MAX_CHARS
-      );
-      return cleanTitle || fallbackTitle;
-    } catch (error) {
-      if (error?.name !== 'AbortError') {
-        logger.warn('boh-ai', '随手记标题生成失败，使用原文首句兜底', error);
-      }
-      return fallbackTitle;
-    }
-  };
-
-  const queueQuickNoteConfirmation = async ({
-    rawText,
-    sessionIndex,
-    requestSignal = undefined,
-    modelId = ''
-  } = {}) => {
-    if (!isQuickNoteEnabled.value) return false;
-    const userId = String(userInfo.value?.id || '').trim();
-    if (!isLoggedIn.value || !userId) return false;
-
-    const content = extractQuickNoteContent(rawText);
-    if (!content) return false;
-
-    const targetSession = getSessionByIndex(sessionIndex);
-    if (!targetSession) return false;
-
-    const title = buildQuickNoteTitle(content);
-
-    pendingQuickNote.visible = true;
-    pendingQuickNote.busy = false;
-    pendingQuickNote.userId = userId;
-    pendingQuickNote.sessionIndex = sessionIndex;
-    pendingQuickNote.messageIndex = targetSession.messages.length;
-    pendingQuickNote.title = title;
-    pendingQuickNote.content = content;
-    pendingQuickNote.error = '';
-    appendSessionMessage(
-      sessionIndex,
-      'assistant',
-      `要把这条内容记录到 Cloud+ 吗？\n\n${title}\n${content}`,
-      { kind: 'quick_note_confirm' }
-    );
-
-    generateQuickNoteTitle(content, requestSignal, modelId)
-      .then((generatedTitle) => {
-        const nextTitle = normalizePromptLine(generatedTitle, QUICK_NOTE_TITLE_MAX_CHARS);
-        if (!nextTitle || nextTitle === title) return;
-        if (!pendingQuickNote.visible || pendingQuickNote.busy) return;
-        if (pendingQuickNote.userId !== userId || pendingQuickNote.sessionIndex !== sessionIndex) return;
-        pendingQuickNote.title = nextTitle;
-        const sessionToUpdate = getSessionByIndex(sessionIndex);
-        const confirmMessage = sessionToUpdate?.messages?.[pendingQuickNote.messageIndex];
-        if (confirmMessage?.meta?.kind === 'quick_note_confirm') {
-          confirmMessage.content = `要把这条内容记录到 Cloud+ 吗？\n\n${nextTitle}\n${content}`;
-        }
-      })
-      .catch((error) => {
-        if (error?.name !== 'AbortError') {
-          logger.warn('boh-ai', '随手记标题后台更新失败，保留兜底标题', error);
-        }
-      });
-
-    return true;
-  };
-
-  const resolveMailRecipientProfile = async (name) => {
-    const safeName = normalizePromptLine(String(name || '').replace(/^@/, ''), 40);
-    if (!safeName) {
-      return { ok: false, code: 'EMPTY_NAME', message: '请提供收件人用户名。', candidates: [] };
-    }
-
-    const exactResult = await supabase
-      .from('profiles')
-      .select('id, username')
-      .eq('username', safeName)
-      .maybeSingle();
-
-    if (exactResult.error && exactResult.error.code !== 'PGRST116') {
-      return { ok: false, code: 'QUERY_FAILED', message: exactResult.error.message || '查询收件人失败。', candidates: [] };
-    }
-
-    if (exactResult.data?.id) {
-      return {
-        ok: true,
-        data: {
-          id: String(exactResult.data.id),
-          username: normalizePromptLine(exactResult.data.username, 40)
-        },
-        candidates: []
-      };
-    }
-
-    const fuzzyResult = await supabase
-      .from('profiles')
-      .select('id, username')
-      .ilike('username', `%${safeName}%`)
-      .order('username')
-      .limit(5);
-
-    if (fuzzyResult.error) {
-      return { ok: false, code: 'QUERY_FAILED', message: fuzzyResult.error.message || '查询收件人失败。', candidates: [] };
-    }
-
-    const candidates = (Array.isArray(fuzzyResult.data) ? fuzzyResult.data : [])
-      .map((item) => ({
-        id: String(item?.id || ''),
-        username: normalizePromptLine(item?.username, 40)
-      }))
-      .filter((item) => item.id && item.username);
-
-    if (candidates.length === 1) {
-      return { ok: true, data: candidates[0], candidates };
-    }
-
-    if (candidates.length > 1) {
-      return {
-        ok: false,
-        code: 'AMBIGUOUS',
-        message: `找到多个匹配用户 ${candidates.map((item) => item.username).join('、')}。请直接回复准确用户名指定。`,
-        candidates
-      };
-    }
-
-    return { ok: false, code: 'NOT_FOUND', message: `没有找到用户名“${safeName}”。请检查后重试。`, candidates: [] };
-  };
-
+  // ============================================================
+  // 草稿预览函数（仍在 useChatEngine 中，依赖 pendingActionDraft）
+  // ============================================================
   const formatPostDraftPreview = () => {
     return [
       '我已为你起草发帖内容。',
@@ -1661,9 +1199,12 @@ export function useChatEngine() {
 
   const callAIToGenerate = async ({ systemPrompt, userInput, modeId = 'pro', signal = undefined }) => {
     const profile = getGenerationProfile(modeId);
+    // 使用当前模式的模型而非 profile.defaultModel（该字段不存在于 GENERATION_PROFILE_BY_MODE 中）
+    const genModel = getModelForModeId(modeId) || currentModel.value || runtimeAvailableModels.value[0];
+    if (!genModel?.id) throw new Error('No available model for generation');
     try {
       const response = await callModelInternal(
-        profile.defaultModel || 'Qwen/Qwen3.5-4B',
+        genModel.id,
         userInput,
         systemPrompt,
         [],
@@ -1681,113 +1222,6 @@ export function useChatEngine() {
       if (error?.name === 'AbortError') throw error;
       throw new Error('AI 生成失败：' + (error.message || '未知错误'));
     }
-  };
-
-  const activeActionDraft = computed(() => {
-    if (!pendingActionDraft.active) return null;
-    if (pendingActionDraft.sessionIndex !== currentSessionIndex.value) return null;
-    return {
-      active: true,
-      type: pendingActionDraft.type,
-      sessionIndex: pendingActionDraft.sessionIndex,
-      postTitle: pendingActionDraft.postTitle,
-      postContent: pendingActionDraft.postContent,
-      mailReceiverId: pendingActionDraft.mailReceiverId,
-      mailReceiverName: pendingActionDraft.mailReceiverName,
-      mailSubject: pendingActionDraft.mailSubject,
-      mailContent: pendingActionDraft.mailContent,
-      pageType: pendingActionDraft.pageType,
-      pageDescription: pendingActionDraft.pageDescription,
-      pageHtml: pendingActionDraft.pageHtml
-    };
-  });
-
-  const updatePendingPostDraftFromUI = ({ title, content } = {}) => {
-    if (!pendingActionDraft.active || pendingActionDraft.type !== 'post') return false;
-    if (pendingActionDraft.sessionIndex !== currentSessionIndex.value) return false;
-    if (typeof title === 'string') {
-      pendingActionDraft.postTitle = normalizePromptLine(title, ACTION_DRAFT_TITLE_MAX_CHARS);
-    }
-    if (typeof content === 'string') {
-      pendingActionDraft.postContent = normalizePromptLine(content, ACTION_DRAFT_CONTENT_MAX_CHARS);
-    }
-    return true;
-  };
-
-  const updatePendingMailDraftFromUI = async ({ receiverName, subject, content } = {}) => {
-    if (!pendingActionDraft.active || pendingActionDraft.type !== 'mail') {
-      return { ok: false, changed: false, feedback: '' };
-    }
-    if (pendingActionDraft.sessionIndex !== currentSessionIndex.value) {
-      return { ok: false, changed: false, feedback: '' };
-    }
-
-    let changed = false;
-    let feedback = '';
-
-    if (typeof receiverName === 'string') {
-      const normalizedReceiver = normalizePromptLine(receiverName.replace(/^@/, ''), 40);
-      if (!normalizedReceiver) {
-        pendingActionDraft.mailReceiverId = '';
-        pendingActionDraft.mailReceiverName = '';
-        changed = true;
-      } else {
-        const resolved = await resolveMailRecipientProfile(normalizedReceiver);
-        if (resolved.ok) {
-          const receiverId = String(resolved.data?.id || '');
-          if (receiverId && receiverId !== String(userInfo.value?.id || '')) {
-            pendingActionDraft.mailReceiverId = receiverId;
-            pendingActionDraft.mailReceiverName = normalizePromptLine(resolved.data?.username, 40);
-            changed = true;
-          } else {
-            feedback = '不能给自己发送私信，请指定其他收件人。';
-          }
-        } else {
-          feedback = resolved.message || '收件人不存在，请检查用户名。';
-        }
-      }
-    }
-
-    if (typeof subject === 'string') {
-      pendingActionDraft.mailSubject = normalizePromptLine(subject, ACTION_DRAFT_SUBJECT_MAX_CHARS);
-      changed = true;
-    }
-
-    if (typeof content === 'string') {
-      pendingActionDraft.mailContent = normalizePromptLine(content, ACTION_DRAFT_CONTENT_MAX_CHARS);
-      changed = true;
-    }
-
-    return { ok: true, changed, feedback };
-  };
-
-  const cancelPendingActionDraftFromUI = () => {
-    if (!pendingActionDraft.active) return false;
-    const sessionIndex = currentSessionIndex.value;
-    if (pendingActionDraft.sessionIndex !== sessionIndex) return false;
-    const draftTypeLabel = pendingActionDraft.type === 'mail' ? '私信' : '发帖';
-    resetPendingActionDraft();
-    appendSessionMessage(sessionIndex, 'assistant', `好的，已取消本次${draftTypeLabel}草稿。`);
-    return true;
-  };
-
-  const confirmPendingActionDraftFromUI = async () => {
-    if (!pendingActionDraft.active) return false;
-    const sessionIndex = currentSessionIndex.value;
-    if (pendingActionDraft.sessionIndex !== sessionIndex) return false;
-    if (pendingActionDraft.type === 'post') {
-      await submitPostDraft(sessionIndex);
-      return true;
-    }
-    if (pendingActionDraft.type === 'mail') {
-      await submitMailDraft(sessionIndex);
-      return true;
-    }
-    if (pendingActionDraft.type === 'page') {
-      resetPendingActionDraft();
-      return true;
-    }
-    return false;
   };
 
   const isTreeholeCreateConfirm = (text) => {
@@ -1906,19 +1340,6 @@ export function useChatEngine() {
     return true;
   };
 
-  const persistMemoryCaptureSetting = () => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem(MEMORY_CAPTURE_SETTING_KEY, isMemoryCaptureEnabled.value ? '1' : '0');
-  };
-  const persistTreeholeMemorySetting = () => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem(TREEHOLE_MEMORY_SYNC_SETTING_KEY, isTreeholeMemoryEnabled.value ? '1' : '0');
-    localStorage.removeItem(LEGACY_TREEHOLE_MEMORY_SYNC_SETTING_KEY);
-  };
-  const persistQuickNoteSetting = () => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem(QUICK_NOTE_SETTING_KEY, isQuickNoteEnabled.value ? '1' : '0');
-  };
   const persistCloudReferenceConsent = () => {
     if (typeof window === 'undefined') return;
     localStorage.setItem(CLOUD_REFERENCE_CONSENT_KEY, String(cloudReferenceConsent.value || 'unknown'));
@@ -2401,52 +1822,11 @@ export function useChatEngine() {
 
   const messages = computed(() => chatSessions[currentSessionIndex.value]?.messages || []);
 
-  // 与真正发送给 BOH AI 的历史消息窗口保持一致：复用 buildHistoryMessagesWithCachedSummary 的预算与截断规则，
-  // 实时统计下一轮 BOH AI 实际能看到的上下文占用情况。提取为独立函数以便在 sendMessage 等非响应式场景下复用。
-  const computeContextBudgetUsage = (session) => {
-    const source = Array.isArray(session?.messages) ? session.messages : [];
-    // 真正送入模型的窗口排除正在输入的 user 与刚返回的 assistant 占位（与 sendMessage 内 historyMessagesForCurrentTurn = slice(0, -2) 一致）
-    const historySource = source.length > 2 ? source.slice(0, -2) : [];
-    const recentBuilt = buildHistoryMessagesWithCachedSummary({
-      ...(session || {}),
-      messages: historySource
-    }, {
-      maxChars: MAX_HISTORY_CONTEXT_CHARS,
-      maxMessages: MAX_CONTEXT_MESSAGES,
-      maxPerMessage: MAX_HISTORY_MESSAGE_CHARS
-    });
-
-    // 复用 normalizePromptLine/maxChars 的实际配额估算：与 buildHistoryMessagesWithinBudget 内部口径一致
-    let usedChars = 0;
-    recentBuilt.forEach((item) => {
-      usedChars += String(item?.content || '').length + 20;
-    });
-
-    const max = MAX_HISTORY_CONTEXT_CHARS;
-    const rawPercent = max > 0 ? (usedChars / max) * 100 : 0;
-    const percent = Math.max(0, Math.min(100, rawPercent));
-    const includedMessageCount = recentBuilt.length;
-    const hasSummary = recentBuilt.some((item) => item?.role === 'system' && /【此前对话摘要】/.test(String(item?.content || '')));
-
-    return {
-      used: usedChars,
-      max,
-      percent,
-      includedMessageCount,
-      hasSummary,
-      // 颜色档位（low / mid / high / full）由 UI 直接使用，避免在模板中重复阈值判断
-      level: percent >= 95 ? 'full' : percent >= 80 ? 'high' : percent >= 55 ? 'mid' : 'low'
-    };
-  };
-
-  // 响应式版本：与上述函数口径一致，供顶栏圆环 UI 使用
-  const contextBudgetUsage = computed(() => computeContextBudgetUsage(chatSessions[currentSessionIndex.value]));
-
   // 自动上下文压缩：当下一轮 BOH AI 实际可见的上下文达到 high/full 时，
   // 在 sendMessage 中主动调用 ensureContextCompression 让刷新出的摘要赶上本轮请求，
   // 这样 BOH AI 真正看到的就是压缩后的窗口。isCompressingContext 暴露给 UI 用于显示"压缩中"状态。
-  const isCompressingContext = ref(false);
-  const compressingSessionIndex = ref(-1);
+  // computeContextBudgetUsage / contextBudgetUsage / isCompressingContext / compressingSessionIndex
+  // 已委托给 useConversationManager 管理。
 
   const ensureContextCompression = async (sessionIndex, { force = false } = {}) => {
     const targetSession = getSessionByIndex(sessionIndex);
@@ -2457,9 +1837,14 @@ export function useChatEngine() {
       return true;
     }
 
-    const usage = computeContextBudgetUsage(targetSession);
-    const needsCompression = force || usage.level === 'high' || usage.level === 'full';
-    if (!needsCompression) return false;
+    // 已有其他会话正在压缩中，跳过本次压缩以避免多余计算
+    if (isCompressingContext.value) return false;
+
+    // 非强制模式下才需要计算预算来判断是否需要压缩；force 模式直接压缩
+    if (!force) {
+      const usage = computeContextBudgetUsage(targetSession);
+      if (usage.level !== 'high' && usage.level !== 'full') return false;
+    }
 
     isCompressingContext.value = true;
     compressingSessionIndex.value = sessionIndex;
@@ -2474,12 +1859,6 @@ export function useChatEngine() {
       }
     }
     return true;
-  };
-
-  const getSessionByIndex = (index) => {
-    if (!Number.isInteger(index)) return null;
-    if (index < 0 || index >= chatSessions.length) return null;
-    return chatSessions[index];
   };
 
   // Timer Logic
@@ -2516,6 +1895,7 @@ export function useChatEngine() {
       scrollToBottomCallback.value(force);
     }
   };
+  _scrollToBottom = scrollToBottom;
 
   const sleep = (ms) => new Promise((resolve) => {
     setTimeout(resolve, ms);
@@ -2544,47 +1924,15 @@ export function useChatEngine() {
     }
   };
 
-  // Session Management
+  // Session Management — 会话 CRUD 已委托给 useConversationManager
   const startNewChat = () => {
-    chatSessions.unshift({
-      title: '新对话',
-      messages: [],
-      timestamp: Date.now(),
-      isLoading: false,
-      isThinking: false
-    });
-    currentSessionIndex.value = 0;
+    _startNewChat();
     isCommandMode.value = false; // Reset modes
     isSearching.value = false;
     isForumSearchEnabled.value = false;
     currentModeId.value = BOH_DEFAULT_MODE_ID;
     // Auto 路由相关状态重置
     lastRoutedMode.value = '';
-  };
-
-  const deleteSession = (index) => {
-    if (activeGenerationSessionIndex.value === index) {
-      return;
-    }
-
-    if (chatSessions.length === 1) {
-      chatSessions[0] = { title: '新对话', messages: [], timestamp: Date.now(), isLoading: false, isThinking: false };
-      return;
-    }
-    chatSessions.splice(index, 1);
-
-    if (activeGenerationSessionIndex.value !== null && activeGenerationSessionIndex.value > index) {
-      activeGenerationSessionIndex.value -= 1;
-    }
-
-    if (currentSessionIndex.value >= chatSessions.length) {
-      currentSessionIndex.value = chatSessions.length - 1;
-    }
-  };
-
-  const switchSession = (index) => {
-    currentSessionIndex.value = index;
-    nextTick(() => scrollToBottom(true));
   };
 
   const stopGeneration = () => {
@@ -2822,6 +2170,10 @@ export function useChatEngine() {
         limit: safeLimit
       });
       if (searchResult.ok && Array.isArray(searchResult.data)) {
+        if (sharedMemorySearchCache.size >= SHARED_MEMORY_SEARCH_CACHE_MAX) {
+          const firstKey = sharedMemorySearchCache.keys().next().value;
+          sharedMemorySearchCache.delete(firstKey);
+        }
         sharedMemorySearchCache.set(cacheKey, {
           fetchedAt: now,
           items: searchResult.data
@@ -2837,6 +2189,10 @@ export function useChatEngine() {
     const fallbackItems = safeQuery
       ? selectSharedMemoriesByQuery(fallbackSource, safeQuery, safeLimit)
       : fallbackSource.slice(0, safeLimit);
+    if (sharedMemorySearchCache.size >= SHARED_MEMORY_SEARCH_CACHE_MAX) {
+      const firstKey = sharedMemorySearchCache.keys().next().value;
+      sharedMemorySearchCache.delete(firstKey);
+    }
     sharedMemorySearchCache.set(cacheKey, {
       fetchedAt: now,
       items: fallbackItems
@@ -4327,7 +3683,7 @@ ${body || '无'}
     const olderMessages = dialogueMessages.slice(0, -CONVERSATION_SUMMARY_RECENT_MESSAGES);
     if (olderMessages.length < 4) return;
 
-    const summaryModel = availableModels.find(m => m.id === 'Qwen/Qwen2.5-7B-Instruct') || availableModels[0];
+    const summaryModel = runtimeAvailableModels.value.find(m => m.id === 'Qwen/Qwen2.5-7B-Instruct') || runtimeAvailableModels.value[0];
     if (!summaryModel?.id) return;
     const summarySignal = requestSignal || (typeof AbortController !== 'undefined' ? new AbortController().signal : undefined);
 
@@ -4568,17 +3924,17 @@ ${body || '无'}
   const resolveResourceSearchPlanWithModel = async (userText, intent, requestSignal = undefined) => {
     const fallback = createFallbackResourceSearchPlan(userText, intent);
     const plannerModel = getModelForModeId('fast')
-      || availableModels.find((item) => item.id === AUTO_ROUTER_MODEL_ID)
-      || availableModels[0];
+      || runtimeAvailableModels.value.find((item) => item.id === AUTO_ROUTER_MODEL_ID)
+      || runtimeAvailableModels.value[0];
     if (!plannerModel?.id) return fallback;
 
-    const plannerController = new AbortController();
-    const handleParentAbort = () => plannerController.abort();
-    const plannerTimeout = window.setTimeout(() => plannerController.abort(), 8000);
-    if (requestSignal) {
-      if (requestSignal.aborted) plannerController.abort();
-      else requestSignal.addEventListener('abort', handleParentAbort, { once: true });
-    }
+    // 合并外部 signal 与 8s 超时，替代手动 setTimeout + AbortController
+    const PLANNER_TIMEOUT_MS = 8000;
+    const combinedSignal = requestSignal
+      ? (typeof AbortSignal.any === 'function'
+          ? AbortSignal.any([requestSignal, AbortSignal.timeout(PLANNER_TIMEOUT_MS)])
+          : requestSignal)
+      : AbortSignal.timeout(PLANNER_TIMEOUT_MS);
 
     try {
       const raw = await callModelInternal(
@@ -4620,7 +3976,7 @@ ${body || '无'}
         ].join('\n'),
         '你是 BOH AI 的 Minecraft 资源搜索规划器。先判断用户真正想找什么，再把它改写成资源库检索词。你只返回严格 JSON。',
         [],
-        plannerController.signal,
+        combinedSignal,
         0,
         { max_tokens: 520, temperature: 0.05, top_p: 0.45, frequency_penalty: 0.02 }
       );
@@ -4951,7 +4307,7 @@ ${body || '无'}
         // 这样集群里的"对话"Agent 与主 ChatEngine 共享 system prompt、上下文压缩与所有自动注入。
         const clusterInvokeChatEngine = async ({ query, history, signal, onStream }) => {
           try {
-            const { content } = await callModelInternal(
+            const content = await callModelInternal(
               activeModelId.value,
               String(query || ''),
               activeModeSystemPrompt.value || '',
@@ -5095,7 +4451,12 @@ ${body || '无'}
 
     // 4 模式不再做"自动路由"，但 capability 决策（联网/Cloud+ 引用/保存/指令）仍统一由
     // resolveAutoModeDecisionLocally 提供，本地纯函数判定，不再调 LLM 二次校验。
-    const autoDecision = resolveAutoModeDecisionLocally(routingQueryText);
+    const autoDecision = resolveAutoModeDecisionLocally(routingQueryText, {
+      isAutoMode: currentModeId.value === 'auto',
+      cloudReferenceEnabled: Boolean(isTreeholeMemoryEnabled.value || cloudReferenceConsent.value === 'granted'),
+      isLoggedIn: Boolean(isLoggedIn.value && userInfo.value?.id),
+      helpers: { isPostDraftRequest }
+    });
 
     if (autoDecision?.minecraftCommand) {
       removePreflightLoader();
@@ -5166,6 +4527,27 @@ ${body || '无'}
       targetSession.messages[messageIndex].content = text;
       scrollToBottom();
     };
+    const waitTypewriterFrame = () => new Promise((resolve) => setTimeout(resolve, TYPEWRITER_FRAME_MS));
+    const appendContentTypewriter = async (baseText, appendText) => {
+      const base = String(baseText || '');
+      const append = String(appendText || '');
+      if (!append) return base;
+      const finalText = `${base}${append}`;
+      let pos = base.length;
+      while (pos < finalText.length) {
+        if (requestController.signal.aborted) break;
+        const tail = finalText.slice(pos, pos + TYPEWRITER_CHARS_PER_FRAME + 2);
+        const step = /[。！？!?\n]\s*$/.test(tail)
+          ? TYPEWRITER_CHARS_PER_FRAME + 1
+          : TYPEWRITER_CHARS_PER_FRAME;
+        pos = Math.min(finalText.length, pos + step);
+        updateContent(finalText.slice(0, pos));
+        if (pos < finalText.length) {
+          await waitTypewriterFrame();
+        }
+      }
+      return finalText;
+    };
     const resetGenerationStallTimeout = (reason = generationTimeoutReason) => {
       generationTimeoutReason = reason;
       clearTimeout(generationTimeoutTimer);
@@ -5207,8 +4589,12 @@ ${body || '无'}
         updateContent(currentContent);
       };
 
+      const WEB_SEARCH_TIMEOUT_MS = 30_000; // 30s web search timeout
+      const webSearchSignal = typeof AbortSignal.any === 'function'
+        ? AbortSignal.any([requestController.signal, AbortSignal.timeout(WEB_SEARCH_TIMEOUT_MS)])
+        : requestController.signal;
       const webSearchPromise = enableSearch
-        ? searchWebForPrompt(routingQueryText, requestController.signal).catch((error) => ({
+        ? searchWebForPrompt(routingQueryText, webSearchSignal).catch((error) => ({
           ok: false,
           disabled: false,
           count: 0,
@@ -5433,8 +4819,8 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
       });
 
       const preferAccuracyModel = factualQuestion || operationQuestion || enableSearch || communityNeedsEvidence;
-      const preferredModel = availableModels.find((item) => item.id === ACCURACY_PREFERRED_MODEL_ID);
-      const ragPreferredModel = availableModels.find((item) => item.id === RAG_PREFERRED_MODEL_ID);
+      const preferredModel = runtimeAvailableModels.value.find((item) => item.id === ACCURACY_PREFERRED_MODEL_ID);
+      const ragPreferredModel = runtimeAvailableModels.value.find((item) => item.id === RAG_PREFERRED_MODEL_ID);
       const routedModeModel = getModelForModeId(activeModeId, { userText });
       const generationModel = preferAccuracyModel && preferredModel
         ? preferredModel
@@ -5443,8 +4829,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
 
       let url = generationModel.url;
       let headers = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${generationModel.apiKey}`
+        'Content-Type': 'application/json'
       };
       let requestBody = {};
       const stylePromptAppendix = String(currentResponseStyle.value?.promptAppendix || '').trim();
@@ -5635,30 +5020,20 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         max_tokens: generationProfile.max_tokens
       };
 
+      const STREAM_FETCH_TIMEOUT_MS = 120_000; // 2 min stream timeout
       markGenerationProgress('正在请求模型生成回答...');
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: headers,
-        signal: requestController.signal,
-        body: JSON.stringify(requestBody)
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`API request failed: ${response.status} - ${errText}`);
-      }
+      const streamFetchSignal = typeof AbortSignal.any === 'function'
+        ? AbortSignal.any([requestController.signal, AbortSignal.timeout(STREAM_FETCH_TIMEOUT_MS)])
+        : requestController.signal;
 
       // 重置思考过滤状态
       resetThinkingState();
       markGenerationProgress('正在生成回答...');
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
       let assistantMessage = getSessionByIndex(sessionIndex)?.messages?.[messageIndex]?.content || '';
       let lastVisibleStreamContent = cleanAssistantVisibleReply(filterThinkingContent(assistantMessage));
       let shouldRepairDegenerateStream = false;
       let hasReceivedVisibleAnswer = false;
-      let streamIdleTimer = null;
       const stopThinkingWhenAnswerVisible = () => {
         if (hasReceivedVisibleAnswer) return;
         hasReceivedVisibleAnswer = true;
@@ -5668,6 +5043,45 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
           targetSession.isThinking = false;
         }
       };
+
+      const useVaultProxy = true;
+      if (useVaultProxy) {
+        const vaultResult = await callVaultSiliconChat({
+          provider: generationModel.providerKey || 'siliconflow',
+          purpose: 'chat',
+          apiUrl: url,
+          timeoutMs: STREAM_FETCH_TIMEOUT_MS,
+          payload: {
+            ...requestBody,
+            stream: false
+          }
+        });
+        if (!vaultResult.ok) {
+          throw new Error(vaultResult.error?.message || 'API proxy request failed');
+        }
+        const rawContent = vaultResult.data?.choices?.[0]?.message?.content || '';
+        const filteredContent = cleanAssistantVisibleReply(filterThinkingContent(rawContent));
+        if (filteredContent) {
+          stopThinkingWhenAnswerVisible();
+          assistantMessage = await appendContentTypewriter(assistantMessage, filteredContent);
+          lastVisibleStreamContent = filteredContent;
+        }
+      } else {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: headers,
+          signal: streamFetchSignal,
+          body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`API request failed: ${response.status} - ${errText}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+      let streamIdleTimer = null;
       const readNextStreamChunk = async () => {
         if (!hasReceivedVisibleAnswer) return reader.read();
         return Promise.race([
@@ -5762,6 +5176,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         }
       } else {
         resetThinkingState();
+      }
       }
 
       if (shouldRepairDegenerateStream) {
@@ -5966,14 +5381,14 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
     resetAgentClusterState,
     currentResponseStyleId,
     currentResponseStyle,
-    responseStyleOptions: RESPONSE_STYLE_OPTIONS,
+    responseStyleOptions,
     pendingCloudReferenceConsent,
     pendingQuickNote,
     actionAuditLog,
     memoryCaptureTip,
     isRateLimited,
     rateLimitMessage,
-    chatModes,
+    chatModes: runtimeChatModes.value,
     messages,
     contextBudgetUsage,
     isCompressingContext,

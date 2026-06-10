@@ -259,7 +259,7 @@
                 <h3>暂无发布过的帖子</h3>
                 <p>发布的帖子会出现在这里。</p>
                 <button v-if="isOwnProfile" class="empty-action-btn" @click="showPostModal = true">立即发帖</button>
-                <button v-else class="empty-action-btn" @click="router.push('/forum')">去社区看看</button>
+                <button v-else class="empty-action-btn" @click="router.push('/user-space?tab=posts')">去方块社区看看</button>
               </div>
               <article v-for="post in posts" :key="post.id" class="feed-item public-profile-post-card"
                 :class="{ 'text-only': !getProfilePostCover(post) }" @click="navigateToPost(post.id)">
@@ -315,7 +315,7 @@
               <div v-else-if="comments.length === 0" class="empty-list-state">
                 <h3>暂无回复</h3>
                 <p>对他人的回复会出现在这里。</p>
-                <button class="empty-action-btn" @click="router.push('/forum')">去社区互动</button>
+                <button class="empty-action-btn" @click="router.push('/user-space?tab=posts')">去方块社区互动</button>
               </div>
               <article v-for="comment in comments" :key="comment.id" class="feed-item reply-item">
                 <div class="item-avatar">
@@ -1376,7 +1376,7 @@ const goToProfileRoute = (usernameVal) => {
 const openMailbox = (usernameVal) => {
   const safeUsername = String(usernameVal || '').trim();
   if (!safeUsername) return;
-  router.push({ path: '/user-space/messages', query: { tab: 'mail', to: safeUsername } });
+  router.push({ path: '/user-space', query: { tab: 'messages', section: 'mail', to: safeUsername } });
 };
 
 const openImpressionModal = () => {

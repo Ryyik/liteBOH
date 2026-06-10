@@ -72,8 +72,12 @@
 }
 
 .nav-mobile-main-menu,
-.nav-mobile-submenu-container {
+.nav-mobile-submenu-section {
   position: relative;
+  z-index: 1;
+}
+
+.nav-mobile-submenu-container {
   z-index: 1;
 }
 

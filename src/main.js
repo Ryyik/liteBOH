@@ -18,7 +18,6 @@ import "./styles/common/login-modal.css";
 // 全局性能优化
 // ============================================
 const deferredGlobalStyleLoaders = [
-  () => import("./styles/vendor/bootstrap.css"),
   () => import("./styles/vendor/animate.min.css"),
   () => import("./styles/vendor/swiper.min.css"),
 ];

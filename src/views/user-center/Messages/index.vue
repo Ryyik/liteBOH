@@ -1087,7 +1087,7 @@ watch(showComposeModal, (newVal) => {
 const applyMailQueryRecipient = () => {
   const normalizeQueryPartnerName = (username) => String(username || '').trim();
   const targetUsername = normalizeQueryPartnerName(route.query.to);
-  if (!targetUsername || route.query.tab !== 'mail') return;
+  if (!targetUsername || route.query.section !== 'mail') return;
 
   currentTab.value = 'mail';
   const targetPartner = allPartners.value.find((partner) =>
@@ -1107,11 +1107,15 @@ const applyMailQueryRecipient = () => {
   showComposeModal.value = true;
 };
 
-// 监听路由参数，自动切换到邮件标签
-watch(() => route.query.tab, (newTab) => {
-  if (newTab === 'mail') {
+// 监听路由参数，自动切换到消息中心内部分区
+watch(() => route.query.section, (newSection) => {
+  if (newSection === 'mail') {
     currentTab.value = 'mail';
     applyMailQueryRecipient();
+    return;
+  }
+  if (newSection === 'notifications' && currentTab.value === 'mail') {
+    currentTab.value = 'all';
   }
 }, { immediate: true });
 
@@ -1121,16 +1125,41 @@ watch(() => route.query.to, () => {
 
 const setNotificationTab = (tabId) => {
   currentTab.value = NOTIFICATION_TABS.some((tab) => tab.id === tabId) ? tabId : 'all';
+  const nextQuery = {
+    ...route.query,
+    tab: 'messages',
+    section: 'notifications'
+  };
+  delete nextQuery.to;
+  router.replace({
+    query: nextQuery
+  });
 };
 
 const switchInboxSection = (section) => {
   if (section === 'mail') {
     currentTab.value = 'mail';
+    router.replace({
+      query: {
+        ...route.query,
+        tab: 'messages',
+        section: 'mail'
+      }
+    });
     return;
   }
   if (currentTab.value === 'mail') {
     currentTab.value = 'all';
   }
+  const nextQuery = {
+    ...route.query,
+    tab: 'messages',
+    section: 'notifications'
+  };
+  delete nextQuery.to;
+  router.replace({
+    query: nextQuery
+  });
 };
 
 onMounted(() => {

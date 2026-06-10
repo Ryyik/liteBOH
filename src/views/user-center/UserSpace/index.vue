@@ -12,7 +12,7 @@
         @immersive-scroll="handleForumImmersiveScroll" />
     </div>
 
-    <div v-if="currentTab === 'community'" class="tab-page">
+    <div v-if="mountedTabs.community" v-show="currentTab === 'community'" class="tab-page">
       <div class="page-content">
         <div v-if="isLoadingCommunity && !hasLoadedCommunity" class="community-skeleton" aria-hidden="true">
           <div v-for="group in 3" :key="`community-group-loading-${group}`" class="community-group skeleton">
@@ -202,7 +202,9 @@
     </div>
 
     <div v-if="mountedTabs.ai" v-show="currentTab === 'ai'" class="tab-page ai-tab">
-      <AsyncBOHAI :embedded="true" />
+      <section class="ai-workspace" aria-label="BOH AI 聊天">
+        <AsyncBOHAI />
+      </section>
     </div>
 
     <div v-if="mountedTabs.messages" v-show="currentTab === 'messages'" class="tab-page messages-tab">
@@ -211,7 +213,7 @@
       <AsyncMessages :minimal="true" />
     </div>
 
-    <div v-if="currentTab === 'profile'" class="tab-page profile-tab">
+    <div v-if="mountedTabs.profile" v-show="currentTab === 'profile'" class="tab-page profile-tab">
       <div class="profile-page-content">
         <div v-if="!isLoggedIn" class="login-prompt">
           <User class="login-prompt-icon" :size="34" :stroke-width="1.7" aria-hidden="true" />
@@ -316,47 +318,76 @@
                 </div>
               </section>
 
-              <section class="profile-action-panel" aria-label="我的功能">
-                <button type="button" class="profile-action-row" @click="openCloudPlusArea('content')">
-                  <span class="profile-action-icon bg-teal">
+              <section class="profile-status-grid" aria-label="我的关键状态">
+                <button type="button" class="profile-status-card cloud" @click="openCloudPlusArea('content')">
+                  <span class="profile-status-icon bg-teal">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                       stroke-linejoin="round">
                       <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>
                       <path d="M8 9h8"></path>
                     </svg>
                   </span>
-                  <span class="profile-action-copy">
+                  <span class="profile-status-copy">
                     <strong>Cloud+</strong>
                     <small>{{ cloudPlusUsageText }}</small>
                   </span>
-                  <span class="profile-action-chevron">›</span>
+                  <span class="profile-status-meter" aria-hidden="true">
+                    <span :style="cloudPlusUsageMeterStyle"></span>
+                  </span>
                 </button>
-                <button type="button" class="profile-action-row"
+
+                <button type="button" class="profile-status-card subscription"
                   @click="router.push('/user-space/subscriptions?from=userspace')">
-                  <span class="profile-action-icon bg-yellow">
+                  <span class="profile-status-icon bg-yellow">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                       stroke-linejoin="round">
                       <path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"></path>
                     </svg>
                   </span>
-                  <span class="profile-action-copy">
+                  <span class="profile-status-copy">
                     <strong>订阅权益</strong>
-                    <small>积分 / Cloud额度</small>
+                    <small>{{ subscriptionSummaryText }}</small>
                   </span>
-                  <span class="profile-action-chevron">›</span>
                 </button>
-                <button type="button" class="profile-action-row"
+
+                <button type="button" class="profile-status-card gift"
                   @click="router.push('/user-space/gifts?from=userspace')">
-                  <span class="profile-action-icon bg-green">
+                  <span class="profile-status-icon bg-green">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                       stroke-linejoin="round">
                       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                       <circle cx="12" cy="10" r="3"></circle>
                     </svg>
                   </span>
-                  <span class="profile-action-copy">
+                  <span class="profile-status-copy">
                     <strong>礼物进度</strong>
                     <small>{{ giftProgressText || '查看领取与地址' }}</small>
+                  </span>
+                </button>
+              </section>
+
+              <section class="profile-action-panel profile-account-panel" aria-label="账户与设置">
+                <div class="profile-section-heading">
+                  <span>账户与设置</span>
+                  <small>{{ dataPrivacyStatusText }}</small>
+                </div>
+                <button type="button" class="profile-action-row" @click="openProfileSettings">
+                  <span class="profile-action-icon bg-blue">
+                    <Palette :size="17" :stroke-width="2" aria-hidden="true" />
+                  </span>
+                  <span class="profile-action-copy">
+                    <strong>主题与通知</strong>
+                    <small>{{ themeDisplayText }} · Pushplus {{ pushplusStatusText }}</small>
+                  </span>
+                  <span class="profile-action-chevron">›</span>
+                </button>
+                <button type="button" class="profile-action-row" @click="openProfileDataManagement">
+                  <span class="profile-action-icon bg-gray">
+                    <User :size="17" :stroke-width="2" aria-hidden="true" />
+                  </span>
+                  <span class="profile-action-copy">
+                    <strong>资料管理</strong>
+                    <small>基础资料、安全与数据</small>
                   </span>
                   <span class="profile-action-chevron">›</span>
                 </button>
@@ -817,36 +848,6 @@
                   </div>
                 </div>
 
-                <div class="apple-card settings-section-card">
-                  <div class="group-header-title">高级功能</div>
-                  <div class="apple-list-group">
-                    <div class="apple-item clickable" @click="openCreatorStudio">
-                      <div class="item-left">
-                        <div class="icon-wrapper bg-indigo">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                            stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="3" width="7" height="7" rx="1"></rect>
-                            <rect x="14" y="3" width="7" height="7" rx="1"></rect>
-                            <rect x="3" y="14" width="7" height="7" rx="1"></rect>
-                            <path d="M17.5 14v7"></path>
-                            <path d="M14 17.5h7"></path>
-                            <path d="M10 6.5h4"></path>
-                            <path d="M6.5 10v4"></path>
-                          </svg>
-                        </div>
-                        <span class="setting-label-stack">
-                          <span class="item-label">Creator Studio</span>
-                          <span class="item-desc">创作工具与团队空间</span>
-                        </span>
-                      </div>
-                      <div class="item-right">
-                        <span class="text-secondary">即将上线</span>
-                        <span class="chevron">›</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
                 <div class="apple-card settings-section-card danger-section-card">
                   <div class="group-header-title">危险操作</div>
                   <div class="apple-list-group">
@@ -921,9 +922,11 @@
 
     <div v-if="!(currentTab === 'profile' && profileSection === 'edit-profile')" class="bottom-nav-glass"
       :class="{ 'is-hidden': shouldHideBottomNav }">
-      <div class="nav-items">
+      <div class="nav-items" :style="navIndicatorStyle">
         <button v-for="item in navItems" :key="item.id" class="nav-item" :class="{ active: currentTab === item.id }"
+          @pointerenter="preloadUserSpaceTab(item.id)" @focus="preloadUserSpaceTab(item.id)"
           @click="switchTab(item.id)">
+          <component :is="item.icon" class="nav-icon" :size="18" :stroke-width="1.9" aria-hidden="true" />
           <span class="nav-label">{{ item.label }}</span>
           <div v-if="item.id === 'messages' && hasUnreadMessages" class="unread-badge">
             {{ unreadCount > 99 ? '99+' : unreadCount }}
@@ -1040,10 +1043,10 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted, reactive, watch, defineAsyncComponent } from 'vue';
+import { ref, computed, nextTick, onMounted, onUnmounted, reactive, watch, defineAsyncComponent, h } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import { Cake, Check, Palette, User, Users, X } from 'lucide-vue-next';
+import { Bot, Cake, Check, MessageCircle, Newspaper, Palette, User, Users, X } from 'lucide-vue-next';
 import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import AvatarCropModal from '@/components/AvatarCropModal.vue';
@@ -1070,7 +1073,13 @@ import { isHomeCatTheme } from '@/utils/home-cat-theme.js';
 import { DEFAULT_CLOUD_IMAGE_LIMIT, resolveCloudBenefitFromSubscriptions } from '@/utils/subscription-benefits.js';
 
 const forumComponentLoader = () => import('@/views/Forum/index.vue');
+const messagesComponentLoader = () => import('@/views/user-center/Messages/index.vue');
+const showsComponentLoader = () => import('@/views/Shows/index.vue');
+const bohaiComponentLoader = () => import('@/views/BOHAI/BOHAI/index.vue');
 let forumPreloadPromise = null;
+let messagesPreloadPromise = null;
+let showsPreloadPromise = null;
+let bohaiPreloadPromise = null;
 let forumPreloadIdleId = null;
 let forumPreloadTimeoutId = null;
 let isUserSpaceMounted = false;
@@ -1082,6 +1091,33 @@ const preloadForumComponent = () => {
     });
   }
   return forumPreloadPromise;
+};
+const preloadMessagesComponent = () => {
+  if (!messagesPreloadPromise) {
+    messagesPreloadPromise = messagesComponentLoader().catch(() => {
+      messagesPreloadPromise = null;
+      return null;
+    });
+  }
+  return messagesPreloadPromise;
+};
+const preloadShowsComponent = () => {
+  if (!showsPreloadPromise) {
+    showsPreloadPromise = showsComponentLoader().catch(() => {
+      showsPreloadPromise = null;
+      return null;
+    });
+  }
+  return showsPreloadPromise;
+};
+const preloadBOHAIComponent = () => {
+  if (!bohaiPreloadPromise) {
+    bohaiPreloadPromise = bohaiComponentLoader().catch(() => {
+      bohaiPreloadPromise = null;
+      return null;
+    });
+  }
+  return bohaiPreloadPromise;
 };
 const canUseNetworkForForumPreload = () => {
   if (typeof navigator === 'undefined') return true;
@@ -1148,9 +1184,23 @@ const AsyncForum = defineAsyncComponent({
     fail(error);
   }
 });
-const AsyncMessages = defineAsyncComponent(() => import('@/views/user-center/Messages/index.vue'));
-const AsyncShows = defineAsyncComponent(() => import('@/views/Shows/index.vue'));
-const AsyncBOHAI = defineAsyncComponent(() => import('@/views/BOHAI/BOHAI/index.vue'));
+const AsyncMessages = defineAsyncComponent(messagesComponentLoader);
+const AsyncShows = defineAsyncComponent(showsComponentLoader);
+const AsyncBOHAIError = {
+  name: 'AsyncBOHAIError',
+  setup() {
+    return () => h('div', { class: 'ai-load-fallback' }, [
+      h('h3', 'BOH AI 加载失败'),
+      h('p', '请刷新页面后重试，或稍后再打开 AI。')
+    ]);
+  }
+};
+const AsyncBOHAI = defineAsyncComponent({
+  loader: bohaiComponentLoader,
+  errorComponent: AsyncBOHAIError,
+  delay: 120,
+  timeout: 15000
+});
 const AsyncCloudPlus = defineAsyncComponent(() => import('@/views/user-center/Cloud+/index.vue'));
 
 const router = useRouter();
@@ -1180,6 +1230,34 @@ const GIFT_PROGRESS_CACHE_TTL_MS = 60 * 1000;
 const GIFT_PROGRESS_MIN_REFRESH_INTERVAL_MS = 5 * 1000;
 let lastGiftProgressRefreshAt = 0;
 let giftProgressInflight = null;
+let userSpaceWarmupTimeoutId = null;
+const USERSPACE_CACHE_TTL = {
+  stats: 60 * 1000,
+  cloudUsage: 60 * 1000,
+  pushplus: 60 * 1000,
+  community: 2 * 60 * 1000,
+  birthdays: 10 * 60 * 1000,
+  profilePosts: 60 * 1000,
+  impressions: 60 * 1000
+};
+const userSpaceMemoryCache = new Map();
+
+const getUserSpaceCache = (key, ttlMs) => {
+  const cached = userSpaceMemoryCache.get(key);
+  if (!cached) return null;
+  if (Date.now() - cached.savedAt > ttlMs) {
+    userSpaceMemoryCache.delete(key);
+    return null;
+  }
+  return cached.value;
+};
+
+const setUserSpaceCache = (key, value) => {
+  userSpaceMemoryCache.set(key, {
+    savedAt: Date.now(),
+    value
+  });
+};
 
 const currentTab = ref('posts');
 const profileSection = ref('home');
@@ -1200,9 +1278,11 @@ const hasLoadedCommunity = ref(false);
 const hasLoadedBirthdays = ref(false);
 const mountedTabs = reactive({
   posts: true,
+  community: false,
   messages: false,
   shows: false,
-  ai: false
+  ai: false,
+  profile: false
 });
 const forumRenderKey = ref(0);
 const shouldRefreshForumAfterThemeChange = ref(false);
@@ -1211,14 +1291,21 @@ let latestCommunityFetchId = 0;
 let latestBirthdayFetchId = 0;
 
 const navItems = [
-  { id: 'posts', label: '帖子' },
-  { id: 'community', label: '社区' },
-  { id: 'ai', label: 'AI' },
-  { id: 'messages', label: '消息' },
-  { id: 'profile', label: '我的' }
+  { id: 'posts', label: '帖子', icon: Newspaper },
+  { id: 'community', label: '社区', icon: Users },
+  { id: 'ai', label: 'AI', icon: Bot },
+  { id: 'messages', label: '消息', icon: MessageCircle },
+  { id: 'profile', label: '我的', icon: User }
 ];
 const validTabs = ['posts', 'community', 'messages', 'profile', 'shows', 'ai'];
+const loginRequiredTabs = new Set(['messages']);
 const validProfileSections = ['home', 'edit-profile', 'sponsor', 'settings', 'data-management'];
+const activeNavIndex = computed(() => Math.max(0, navItems.findIndex((item) => item.id === currentTab.value)));
+const navIndicatorStyle = computed(() => ({
+  '--active-nav-index': activeNavIndex.value,
+  '--active-nav-center': `${((activeNavIndex.value + 0.5) / navItems.length) * 100}%`,
+  '--nav-count': navItems.length
+}));
 
 const isAdmin = computed(() => userInfo.value.role === 'admin');
 
@@ -1402,16 +1489,27 @@ const openProfilePost = (postId) => {
   router.push({ name: 'PostDetail', params: { id: safePostId }, query: { from: 'user-space', tab: 'profile' } });
 };
 
-const fetchProfileContent = async () => {
+const fetchProfileContent = async ({ force = false } = {}) => {
   if (!isLoggedIn.value || !userInfo.value.id) {
     profilePosts.value = [];
     return;
   }
 
-  const fetchToken = ++latestProfileContentFetchToken;
-  isProfileContentLoading.value = true;
   const safeUsername = String(userInfo.value.username || '').trim();
   const userId = String(userInfo.value.id || '').trim();
+  const cacheKey = `profile-posts:${userId}:${safeUsername}`;
+
+  if (activeProfileContentTab.value === 'posts' && !force) {
+    const cachedPosts = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.profilePosts);
+    if (cachedPosts) {
+      profilePosts.value = cachedPosts;
+      isProfileContentLoading.value = false;
+      return;
+    }
+  }
+
+  const fetchToken = ++latestProfileContentFetchToken;
+  isProfileContentLoading.value = true;
 
   try {
     if (activeProfileContentTab.value === 'posts') {
@@ -1427,6 +1525,7 @@ const fetchProfileContent = async () => {
         return;
       }
       profilePosts.value = result.data || [];
+      setUserSpaceCache(cacheKey, profilePosts.value);
       return;
     }
 
@@ -1455,12 +1554,23 @@ const switchProfileContentTab = (tabId) => {
   }
 };
 
-const fetchProfileImpressions = async () => {
+const fetchProfileImpressions = async ({ force = false } = {}) => {
   const userId = String(userInfo.value.id || '').trim();
   if (!isLoggedIn.value || !userId) {
     profileImpressions.value = [];
     return;
   }
+
+  const cacheKey = `profile-impressions:${userId}`;
+  if (!force) {
+    const cachedImpressions = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.impressions);
+    if (cachedImpressions) {
+      profileImpressions.value = cachedImpressions;
+      isProfileImpressionsLoading.value = false;
+      return;
+    }
+  }
+
   const fetchToken = ++latestProfileImpressionsFetchToken;
   isProfileImpressionsLoading.value = true;
   try {
@@ -1472,6 +1582,7 @@ const fetchProfileImpressions = async () => {
       return;
     }
     profileImpressions.value = data || [];
+    setUserSpaceCache(cacheKey, profileImpressions.value);
   } catch (error) {
     console.warn('读取我的印象异常:', error);
     profileImpressions.value = [];
@@ -1495,6 +1606,7 @@ const handleDeleteProfileImpression = async (impressionId) => {
       return;
     }
     profileImpressions.value = profileImpressions.value.filter(imp => imp.id !== impressionId);
+    setUserSpaceCache(`profile-impressions:${userId}`, profileImpressions.value);
     showAlert('success', '删除成功', '该印象已被移除');
   } catch (error) {
     console.warn('删除我的印象异常:', error);
@@ -1515,13 +1627,25 @@ const formatPoints = (points) => {
 };
 
 // 获取用户统计数据
-const fetchUserStats = async ({ retryCount = 0 } = {}) => {
+const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
   const userId = String(userInfo.value.id || '').trim();
   if (!isLoggedIn.value || !userId) return;
 
+  const safeUsername = String(userInfo.value.username || '').trim();
+  const cacheKey = `stats:${userId}:${safeUsername}`;
+  if (!force && retryCount === 0) {
+    const cachedStats = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.stats);
+    if (cachedStats) {
+      userStats.posts = normalizeStatInt(cachedStats.posts, 0);
+      userStats.points = normalizeStatInt(cachedStats.points, 0);
+      userStats.rank = normalizeStatInt(cachedStats.rank, 0);
+      isUserStatsLoading.value = false;
+      return;
+    }
+  }
+
   const fetchToken = ++latestUserStatsFetchToken;
   isUserStatsLoading.value = true;
-  const safeUsername = String(userInfo.value.username || '').trim();
   const fallbackPoints = normalizeStatInt(userInfo.value.points, userStats.points);
   userStats.points = fallbackPoints;
 
@@ -1591,6 +1715,12 @@ const fetchUserStats = async ({ retryCount = 0 } = {}) => {
       hasQueryError = true;
       console.warn('获取用户排名失败:', rankError);
     }
+
+    setUserSpaceCache(cacheKey, {
+      posts: userStats.posts,
+      points: userStats.points,
+      rank: userStats.rank
+    });
 
     if (hasQueryError && retryCount < 1) {
       setTimeout(() => {
@@ -1675,6 +1805,20 @@ const cloudPlusUsageText = computed(() => {
   if (cloudPlusUsage.loading) return '读取中';
   if (!cloudPlusUsage.loaded) return '未检查';
   return `已使用 ${cloudPlusUsage.used}/${cloudPlusUsage.limit}`;
+});
+const cloudPlusUsageMeterStyle = computed(() => {
+  const limit = Math.max(1, Number(cloudPlusUsage.limit || DEFAULT_CLOUD_IMAGE_LIMIT));
+  const used = Math.max(0, Number(cloudPlusUsage.used || 0));
+  const percent = Math.min(100, Math.round((used / limit) * 100));
+  return { width: `${percent}%` };
+});
+const subscriptionSummaryText = computed(() => {
+  if (cloudPlusUsage.loading) return '正在同步权益';
+  if (!cloudPlusUsage.loaded) return '查看积分与额度';
+  if (Number(cloudPlusUsage.limit || 0) > DEFAULT_CLOUD_IMAGE_LIMIT) {
+    return `Cloud 额度 ${cloudPlusUsage.limit}`;
+  }
+  return '基础权益';
 });
 let lastImmersiveScrollY = 0;
 let immersiveDownDistance = 0;
@@ -1777,9 +1921,20 @@ const toggleImmersiveBrowsing = () => {
   resetImmersiveNavState();
 };
 
-const fetchPushplusStatus = async () => {
+const fetchPushplusStatus = async ({ force = false } = {}) => {
   const userId = String(userInfo.value.id || '').trim();
   if (!userId || pushplusStatus.loading) return;
+
+  const cacheKey = `pushplus:${userId}`;
+  if (!force) {
+    const cachedStatus = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.pushplus);
+    if (cachedStatus) {
+      pushplusStatus.loaded = true;
+      pushplusStatus.hasToken = Boolean(cachedStatus.hasToken);
+      pushplusStatus.enabled = Boolean(cachedStatus.enabled);
+      return;
+    }
+  }
 
   pushplusStatus.loading = true;
   try {
@@ -1793,6 +1948,10 @@ const fetchPushplusStatus = async () => {
     pushplusStatus.loaded = true;
     pushplusStatus.hasToken = Boolean(data?.token);
     pushplusStatus.enabled = Boolean(data?.enabled);
+    setUserSpaceCache(cacheKey, {
+      hasToken: pushplusStatus.hasToken,
+      enabled: pushplusStatus.enabled
+    });
   } catch (error) {
     console.warn('获取 Pushplus 状态失败:', error);
     pushplusStatus.loaded = true;
@@ -1803,9 +1962,20 @@ const fetchPushplusStatus = async () => {
   }
 };
 
-const fetchCloudPlusUsage = async () => {
+const fetchCloudPlusUsage = async ({ force = false } = {}) => {
   const userId = String(userInfo.value.id || '').trim();
   if (!userId || cloudPlusUsage.loading) return;
+
+  const cacheKey = `cloud-usage:${userId}`;
+  if (!force) {
+    const cachedUsage = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.cloudUsage);
+    if (cachedUsage) {
+      cloudPlusUsage.loaded = true;
+      cloudPlusUsage.used = Number(cachedUsage.used || 0);
+      cloudPlusUsage.limit = Number(cachedUsage.limit || DEFAULT_CLOUD_IMAGE_LIMIT);
+      return;
+    }
+  }
 
   cloudPlusUsage.loading = true;
   try {
@@ -1831,6 +2001,10 @@ const fetchCloudPlusUsage = async () => {
     }
 
     cloudPlusUsage.loaded = true;
+    setUserSpaceCache(cacheKey, {
+      used: cloudPlusUsage.used,
+      limit: cloudPlusUsage.limit
+    });
   } catch (error) {
     console.warn('获取 Cloud+ 使用情况失败:', error);
     cloudPlusUsage.loaded = true;
@@ -2130,11 +2304,6 @@ const submitEditProfile = async () => {
   }
 };
 
-const openCreatorStudio = () => {
-  showAlert('info', '功能即将上线', 'Creator Studio 功能即将上线，敬请期待！');
-  return;
-};
-
 const openCloudPlusArea = (view = 'content') => {
   const safeView = ['content', 'settings'].includes(String(view)) ? String(view) : 'content';
   const returnOrigin = profileSection.value === 'settings' ? 'userspace-settings' : 'userspace';
@@ -2177,7 +2346,20 @@ const syncCommunityViewFromRoute = () => {
   }
 };
 
-const fetchCommunityUsers = async () => {
+const fetchCommunityUsers = async ({ force = false } = {}) => {
+  const searchKey = String(debouncedCommunitySearchQuery.value || '').trim().toLowerCase();
+  const cacheKey = `community:${currentCommunityPage.value}:${COMMUNITY_PAGE_SIZE}:${searchKey}`;
+  if (!force) {
+    const cachedCommunity = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.community);
+    if (cachedCommunity) {
+      communityUsers.value = cachedCommunity.items || [];
+      totalCommunityUsers.value = cachedCommunity.total || 0;
+      hasLoadedCommunity.value = true;
+      isLoadingCommunity.value = false;
+      return;
+    }
+  }
+
   const fetchId = ++latestCommunityFetchId;
   isLoadingCommunity.value = true;
 
@@ -2197,6 +2379,10 @@ const fetchCommunityUsers = async () => {
       communityUsers.value = data.items || [];
       totalCommunityUsers.value = data.total || 0;
       hasLoadedCommunity.value = true;
+      setUserSpaceCache(cacheKey, {
+        items: communityUsers.value,
+        total: totalCommunityUsers.value
+      });
     } else {
       communityUsers.value = [];
       totalCommunityUsers.value = 0;
@@ -2244,7 +2430,18 @@ const formatBirthdayDistance = (user = {}) => {
   return `${daysUntil} 天后生日`;
 };
 
-const fetchRecentBirthdays = async () => {
+const fetchRecentBirthdays = async ({ force = false } = {}) => {
+  const cacheKey = `birthdays:${COMMUNITY_BIRTHDAY_LIMIT}`;
+  if (!force) {
+    const cachedBirthdays = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.birthdays);
+    if (cachedBirthdays) {
+      recentBirthdayUsers.value = cachedBirthdays;
+      hasLoadedBirthdays.value = true;
+      isLoadingBirthdays.value = false;
+      return;
+    }
+  }
+
   const fetchId = ++latestBirthdayFetchId;
   isLoadingBirthdays.value = true;
 
@@ -2260,6 +2457,7 @@ const fetchRecentBirthdays = async () => {
     if (!error) {
       recentBirthdayUsers.value = data || [];
       hasLoadedBirthdays.value = true;
+      setUserSpaceCache(cacheKey, recentBirthdayUsers.value);
     } else {
       recentBirthdayUsers.value = [];
       console.error('获取最近生日失败:', error);
@@ -2291,18 +2489,75 @@ const ensureTabMounted = (tabId) => {
   }
 };
 
+const preloadUserSpaceTab = (tabId) => {
+  const safeTab = String(tabId || '');
+  if (!validTabs.includes(safeTab)) return;
+  ensureTabMounted(safeTab);
+  if (safeTab === 'posts') {
+    void preloadForumComponent();
+  } else if (safeTab === 'messages' && canOpenUserSpaceTab('messages')) {
+    void preloadMessagesComponent();
+  } else if (safeTab === 'shows') {
+    void preloadShowsComponent();
+  } else if (safeTab === 'ai') {
+    void preloadBOHAIComponent();
+  } else if (safeTab === 'community' && !hasLoadedCommunity.value) {
+    fetchCommunityOverview();
+  } else if (safeTab === 'profile' && isLoggedIn.value) {
+    scheduleUserSpaceWarmup();
+  }
+};
+
+const canOpenUserSpaceTab = (tabId) => !loginRequiredTabs.has(tabId) || isLoggedIn.value;
+
+const resolveAccessibleTab = (tabId, { promptLogin = false } = {}) => {
+  const safeTab = validTabs.includes(tabId) ? tabId : 'posts';
+  if (canOpenUserSpaceTab(safeTab)) return safeTab;
+  if (promptLogin) {
+    showLoginModal.value = true;
+  }
+  return currentTab.value && canOpenUserSpaceTab(currentTab.value) ? currentTab.value : 'profile';
+};
+
+const syncUserSpaceTabRoute = (tabId) => {
+  const nextQuery = { ...route.query, tab: tabId };
+  if (tabId !== 'profile') {
+    delete nextQuery.view;
+    delete nextQuery.setting;
+  }
+  if (tabId !== 'messages') {
+    delete nextQuery.section;
+    delete nextQuery.to;
+  } else if (!nextQuery.section) {
+    nextQuery.section = 'notifications';
+  }
+
+  const currentRouteTab = String(route.query.tab || '');
+  const currentSection = String(route.query.section || '');
+  const nextSection = String(nextQuery.section || '');
+  if (currentRouteTab === tabId && currentSection === nextSection) return;
+
+  router.replace({ path: '/user-space', query: nextQuery });
+};
+
 const switchTab = (tabId) => {
+  const nextTab = resolveAccessibleTab(tabId, { promptLogin: true });
+  if (nextTab !== tabId) return;
   ensureTabMounted(tabId);
   if (tabId === 'profile' && currentTab.value !== 'profile') {
     profileSection.value = 'home';
   }
   currentTab.value = tabId;
+  syncUserSpaceTabRoute(tabId);
   if (tabId === 'posts') {
     void preloadForumComponent();
     void refreshForumAfterThemeChange();
   }
   if (tabId === 'community' && !hasLoadedCommunity.value) {
     fetchCommunityOverview();
+  }
+  if (tabId === 'ai') {
+    void preloadBOHAIComponent();
   }
 };
 
@@ -2651,20 +2906,48 @@ const initUserData = async () => {
   }
 };
 
+const clearUserSpaceWarmup = () => {
+  if (userSpaceWarmupTimeoutId !== null && typeof window !== 'undefined') {
+    window.clearTimeout(userSpaceWarmupTimeoutId);
+    userSpaceWarmupTimeoutId = null;
+  }
+};
+
+const runProfileCriticalFetches = ({ force = false } = {}) => {
+  void refreshPendingGift({ force });
+  void fetchUserStats({ force });
+  void fetchCloudPlusUsage({ force });
+  void fetchProfileContent({ force });
+};
+
+const scheduleUserSpaceWarmup = ({ force = false } = {}) => {
+  if (!isLoggedIn.value || !userInfo.value.id || typeof window === 'undefined') return;
+  clearUserSpaceWarmup();
+  userSpaceWarmupTimeoutId = window.setTimeout(() => {
+    userSpaceWarmupTimeoutId = null;
+    if (!isLoggedIn.value || !userInfo.value.id) return;
+    void refreshPendingGift({ force });
+    void fetchUserStats({ force });
+    if (currentTab.value === 'profile') {
+      void fetchCloudPlusUsage({ force });
+    }
+  }, currentTab.value === 'profile' ? 120 : 900);
+};
+
 watch(() => userInfo.value.id, async (newId) => {
   if (newId) {
     await initUserData();
-    refreshPendingGift({ force: true });
-    void fetchUserStats();
     if (currentTab.value === 'profile') {
-      void fetchCloudPlusUsage();
-      void fetchProfileContent();
+      runProfileCriticalFetches({ force: true });
+    } else {
+      scheduleUserSpaceWarmup({ force: true });
     }
     if (currentTab.value === 'profile' && profileSection.value === 'settings') {
-      void fetchPushplusStatus();
-      void fetchCloudPlusUsage();
+      void fetchPushplusStatus({ force: true });
+      void fetchCloudPlusUsage({ force: true });
     }
   } else {
+    clearUserSpaceWarmup();
     latestUserStatsFetchToken += 1;
     isUserStatsLoading.value = false;
     resetUserStats();
@@ -2712,7 +2995,7 @@ onMounted(() => {
   currentTheme.value = initialTheme;
   currentThemePreference.value = themeManager.getPreference?.() || initialTheme;
   if (route.query.tab && validTabs.includes(route.query.tab)) {
-    currentTab.value = route.query.tab;
+    currentTab.value = resolveAccessibleTab(route.query.tab, { promptLogin: true });
   }
   resolveProfileSectionFromRoute();
   void openSettingsPanelFromRoute();
@@ -2726,11 +3009,10 @@ onMounted(() => {
   }
   if (isLoggedIn.value) {
     void initUserData();
-    refreshPendingGift();
-    void fetchUserStats();
     if (currentTab.value === 'profile') {
-      void fetchCloudPlusUsage();
-      void fetchProfileContent();
+      runProfileCriticalFetches();
+    } else {
+      scheduleUserSpaceWarmup();
     }
     if (currentTab.value === 'profile' && profileSection.value === 'settings') {
       void fetchPushplusStatus();
@@ -2747,23 +3029,23 @@ onMounted(() => {
 
 watch(() => route.query.tab, (newTab) => {
   if (!newTab || !validTabs.includes(newTab)) return;
-  if (currentTab.value === newTab) return;
-  ensureTabMounted(newTab);
-  currentTab.value = newTab;
+  const nextTab = resolveAccessibleTab(newTab, { promptLogin: true });
+  if (currentTab.value === nextTab) return;
+  ensureTabMounted(nextTab);
+  currentTab.value = nextTab;
   resolveProfileSectionFromRoute();
-  if (newTab === 'posts') {
+  if (nextTab === 'posts') {
     scheduleForumPreload();
     void refreshForumAfterThemeChange();
   }
-  if (newTab === 'community' && !hasLoadedCommunity.value) {
+  if (nextTab === 'community' && !hasLoadedCommunity.value) {
     fetchCommunityOverview();
   }
-  if (newTab === 'community') {
+  if (nextTab === 'community') {
     syncCommunityViewFromRoute();
   }
-  if (newTab === 'profile') {
-    void fetchCloudPlusUsage();
-    void fetchProfileContent();
+  if (nextTab === 'profile') {
+    runProfileCriticalFetches();
     void openSettingsPanelFromRoute();
   }
 });
@@ -2784,8 +3066,9 @@ watch(currentTab, (newTab, oldTab) => {
   }
   resolveProfileSectionFromRoute();
   if (newTab === 'profile') {
-    void fetchCloudPlusUsage();
-    void fetchProfileContent();
+    runProfileCriticalFetches();
+  } else if (oldTab === 'profile') {
+    scheduleUserSpaceWarmup();
   }
 });
 
@@ -2823,6 +3106,7 @@ onUnmounted(() => {
   isUserSpaceMounted = false;
   latestUserStatsFetchToken += 1;
   clearScheduledForumPreload();
+  clearUserSpaceWarmup();
   window.removeEventListener('boh_unread_refresh', handleUnreadRefresh);
   window.removeEventListener('scroll', requestImmersiveNavScrollCheck);
   if (immersiveScrollRafId !== null && typeof window !== 'undefined') {

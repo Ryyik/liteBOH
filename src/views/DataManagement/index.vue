@@ -1109,7 +1109,7 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, onMounted, watch, nextTick } from 'vue';
+import { ref, computed, reactive, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import {
@@ -1120,6 +1120,7 @@ import {
   Gauge,
   Home,
   Image,
+  KeyRound,
   MessageSquare,
   PanelLeft,
   Plus,
@@ -1138,6 +1139,7 @@ import {
   uploadImageToCloudinary
 } from '@/utils/cloudinary-client.js';
 import { getExpiredActiveGiftIds, markGiftsAsHistory } from '@/utils/gift-archive.js';
+import { getDefaultApiUrlForBohaiProvider } from '@/utils/api/bohai-model-config-api.js';
 import {
   NEWS_CATEGORY_VALUES,
   PRODUCT_CATEGORY_OPTIONS,
@@ -1246,6 +1248,7 @@ const showToast = (message, type = 'info') => {
   toast.show = true;
   toast.timer = setTimeout(() => {
     toast.show = false;
+    toast.timer = null;
   }, 3000);
 };
 
@@ -1338,6 +1341,7 @@ const dataStore = reactive({
   reviewComments: [],
   reviewMessages: [],
   coreMemories: [],
+  bohaiModels: [],
   lotteries: [],
   lotteryEntries: [],
   lotteryDrawLogs: [],
@@ -1358,6 +1362,7 @@ const stats = reactive({
   totalSubscriptions: 0,
   totalPosts: 0,
   totalCoreMemories: 0,
+  totalBohaiModels: 0,
   totalLotteries: 0,
   totalLotteryEntries: 0,
   totalLotteryDrawLogs: 0,
@@ -1485,6 +1490,7 @@ const STATUS_FILTER_FIELDS = {
   reviewComments: 'status',
   reviewMessages: 'moderation_status',
   coreMemories: 'status',
+  bohaiModels: 'status',
   lotteries: 'status',
   lotterySchedulerLogs: 'status',
   lotteryNotificationJobs: 'status',
@@ -1504,6 +1510,7 @@ const DATE_FILTER_FIELDS = {
   reviewComments: 'created_at',
   reviewMessages: 'created_at',
   coreMemories: 'updated_at',
+  bohaiModels: 'updated_at',
   lotteries: 'draw_at',
   lotteryEntries: 'created_at',
   lotteryDrawLogs: 'created_at',
@@ -1748,6 +1755,7 @@ const currentAdminPageActions = computed(() => {
   }
   if (activeAdminSection.value === 'settings') {
     return [
+      { label: 'API Key 管理', value: 'Vault', route: '/admin/api-keys', icon: KeyRound },
       { label: '官方事实配置', value: getTabCount('coreMemories'), tab: 'coreMemories', icon: Database, section: 'data' },
       { label: '中奖通知', value: getTabCount('lotteryNotificationJobs'), tab: 'lotteryNotificationJobs', icon: MessageSquare, section: 'data' },
       { label: '管理员权限', value: isCurrentUserAdmin.value ? 'Admin' : '受限', tab: 'users', icon: ShieldCheck, section: 'data' }
@@ -1907,6 +1915,10 @@ const handleSidebarTabClick = (tabId) => {
 };
 
 const handlePlaceholderAction = (action) => {
+  if (action?.route) {
+    router.push(action.route);
+    return;
+  }
   if (!action?.tab) return;
   activeAdminSection.value = action.section || 'data';
   switchTab(action.tab);
@@ -2402,6 +2414,7 @@ const getTabCount = (tabId) => {
     case 'reviewComments': return tabTotals.reviewComments;
     case 'reviewMessages': return tabTotals.reviewMessages;
     case 'coreMemories': return tabTotals.coreMemories;
+    case 'bohaiModels': return stats.totalBohaiModels;
     case 'lotteries': return stats.totalLotteries;
     case 'lotteryEntries': return stats.totalLotteryEntries;
     case 'lotteryDrawLogs': return stats.totalLotteryDrawLogs;
@@ -2931,6 +2944,7 @@ const TAB_SELECT_COLUMNS = {
   reviewComments: 'id, post_id, author_id, author_username, content, created_at, status, parent_id, reply_to_username',
   reviewMessages: 'id, sender_id, sender_name, receiver_id, receiver_name, subject, content, status, moderation_status, moderation_reason, created_at',
   coreMemories: 'id, title, content, category, tags, priority, source_label, source_url, status, updated_by, created_at, updated_at',
+  bohaiModels: 'id, mode_id, display_name, tagline, description, provider, provider_label, model_id, api_url, capability, icon, temperature, top_p, frequency_penalty, max_tokens, status, sort_order, notes, created_by, updated_by, created_at, updated_at',
   lotteries: 'id, title, description, prize_title, prize_description, cover_image_url, status, is_community_visible, max_entries, winner_count, entry_deadline_at, draw_at, drawn_at, draw_attempted_at, draw_failed_at, draw_failure_message, draw_entry_count_snapshot, draw_candidate_hash, draw_algorithm_version, winner_entry_id, winner_user_id, winner_username, fulfillment_status, created_by, updated_by, created_at, updated_at',
   lotteryEntries: `
     id,
@@ -3026,6 +3040,7 @@ const TAB_DEFAULT_SORT = {
   reviewComments: { column: 'created_at', ascending: false },
   reviewMessages: { column: 'created_at', ascending: false },
   coreMemories: { column: 'priority', ascending: false, secondary: { column: 'updated_at', ascending: false } },
+  bohaiModels: { column: 'sort_order', ascending: true, secondary: { column: 'display_name', ascending: true } },
   lotteries: { column: 'created_at', ascending: false },
   lotteryEntries: { column: 'created_at', ascending: true },
   lotteryDrawLogs: { column: 'created_at', ascending: false },
@@ -3048,6 +3063,7 @@ const TAB_SORT_COLUMNS = {
   reviewComments: new Set(['created_at', 'status', 'author_username']),
   reviewMessages: new Set(['created_at', 'moderation_status', 'sender_name', 'receiver_name']),
   coreMemories: new Set(['priority', 'updated_at', 'category', 'status']),
+  bohaiModels: new Set(['sort_order', 'display_name', 'provider', 'capability', 'status', 'updated_at']),
   lotteries: new Set(['created_at', 'status', 'fulfillment_status', 'draw_at', 'drawn_at']),
   lotteryEntries: new Set(['created_at', 'lottery_id', 'user_id']),
   lotteryDrawLogs: new Set(['created_at', 'draw_no', 'lottery_id']),
@@ -3070,6 +3086,7 @@ const TAB_SEARCH_FIELDS = {
   reviewComments: [{ column: 'id', type: 'uuid' }, { column: 'post_id', type: 'uuid' }, { column: 'author_id', type: 'uuid' }, { column: 'author_username', type: 'text' }, { column: 'content', type: 'text' }, { column: 'status', type: 'text' }],
   reviewMessages: [{ column: 'id', type: 'uuid' }, { column: 'sender_id', type: 'uuid' }, { column: 'receiver_id', type: 'uuid' }, { column: 'sender_name', type: 'text' }, { column: 'receiver_name', type: 'text' }, { column: 'subject', type: 'text' }, { column: 'content', type: 'text' }, { column: 'moderation_status', type: 'text' }],
   coreMemories: [{ column: 'id', type: 'uuid' }, { column: 'title', type: 'text' }, { column: 'content', type: 'text' }, { column: 'category', type: 'text' }, { column: 'status', type: 'text' }],
+  bohaiModels: [{ column: 'id', type: 'uuid' }, { column: 'mode_id', type: 'text' }, { column: 'display_name', type: 'text' }, { column: 'provider', type: 'text' }, { column: 'model_id', type: 'text' }, { column: 'capability', type: 'text' }, { column: 'status', type: 'text' }],
   lotteries: [{ column: 'id', type: 'uuid' }, { column: 'title', type: 'text' }, { column: 'prize_title', type: 'text' }, { column: 'status', type: 'text' }, { column: 'fulfillment_status', type: 'text' }, { column: 'winner_username', type: 'text' }],
   lotteryEntries: [{ column: 'id', type: 'uuid' }, { column: 'lottery_id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'username_snapshot', type: 'text' }],
   lotteryDrawLogs: [{ column: 'id', type: 'uuid' }, { column: 'lottery_id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'username_snapshot', type: 'text' }, { column: 'reason', type: 'text' }],
@@ -3367,6 +3384,7 @@ const fetchStats = async () => {
     stats.totalUsers = tabTotals.users;
     stats.totalPosts = tabTotals.forum;
     stats.totalCoreMemories = tabTotals.coreMemories;
+    stats.totalBohaiModels = tabTotals.bohaiModels;
     stats.totalLotteries = tabTotals.lotteries;
     stats.totalLotteryEntries = tabTotals.lotteryEntries;
     stats.totalLotteryDrawLogs = tabTotals.lotteryDrawLogs;
@@ -3400,6 +3418,7 @@ const fetchStats = async () => {
     reviewComments: fetchCount('comments', (query) => query.ilike('status', 'rejected')),
     reviewMessages: fetchCount('messages', (query) => query.ilike('moderation_status', 'rejected')),
     coreMemories: fetchCount('boh_ai_core_memories'),
+    bohaiModels: fetchCount('bohai_model_configs'),
     lotteries: fetchCount('lotteries'),
     lotteryEntries: fetchCount('lottery_entries'),
     lotteryDrawLogs: fetchCount('lottery_draw_logs'),
@@ -3977,6 +3996,26 @@ const openEditModal = async (item = null) => {
       editingItem.value.content = '';
     }
 
+    if (currentTab.value === 'bohaiModels') {
+      editingItem.value.mode_id = 'fast';
+      editingItem.value.display_name = 'Fast';
+      editingItem.value.tagline = '快速响应';
+      editingItem.value.description = '';
+      editingItem.value.provider = 'siliconflow';
+      editingItem.value.provider_label = 'SiliconFlow';
+      editingItem.value.model_id = 'Qwen/Qwen3-8B';
+      editingItem.value.api_url = getDefaultApiUrlForBohaiProvider('siliconflow');
+      editingItem.value.capability = 'chat';
+      editingItem.value.icon = 'zap';
+      editingItem.value.temperature = 0.18;
+      editingItem.value.top_p = 0.72;
+      editingItem.value.frequency_penalty = 0.05;
+      editingItem.value.max_tokens = 1600;
+      editingItem.value.sort_order = 10;
+      editingItem.value.status = 'active';
+      editingItem.value.notes = '';
+    }
+
     if (currentTab.value === 'lotteries') {
       editingItem.value.title = '';
       editingItem.value.description = '';
@@ -4334,6 +4373,120 @@ const saveData = async () => {
         source_label: String(editingItem.value.source_label || 'BOH 官方').trim() || 'BOH 官方',
         source_url: String(editingItem.value.source_url || '').trim(),
         status: normalizedStatus,
+        updated_by: userInfo?.id || null
+      });
+    }
+
+    if (currentTab.value === 'bohaiModels') {
+      const normalizedModeId = String(editingItem.value.mode_id || '').trim();
+      const normalizedDisplayName = String(editingItem.value.display_name || '').trim();
+      const normalizedProvider = String(editingItem.value.provider || 'siliconflow').trim().toLowerCase();
+      const normalizedModelId = String(editingItem.value.model_id || '').trim();
+      const normalizedCapability = String(editingItem.value.capability || 'chat').trim().toLowerCase();
+      const normalizedStatus = String(editingItem.value.status || 'active').trim().toLowerCase();
+      const normalizedIcon = String(editingItem.value.icon || 'sparkles').trim() || 'sparkles';
+      const normalizedTemperature = Number(editingItem.value.temperature);
+      const normalizedTopP = Number(editingItem.value.top_p);
+      const normalizedFrequencyPenalty = Number(editingItem.value.frequency_penalty);
+      const normalizedMaxTokens = Number(editingItem.value.max_tokens);
+      const normalizedSortOrder = Number(editingItem.value.sort_order);
+
+      if (!normalizedModeId || !/^[a-z0-9][a-z0-9_-]{1,63}$/i.test(normalizedModeId)) {
+        fieldErrors.mode_id = '模式 ID 只能包含字母、数字、横线或下划线，长度 2-64';
+        showToast('请修复 BOHAI 模型表单错误后再保存', 'error');
+        isSaving.value = false;
+        return;
+      }
+
+      if (!normalizedDisplayName) {
+        fieldErrors.display_name = '显示名称不能为空';
+        showToast('请修复 BOHAI 模型表单错误后再保存', 'error');
+        isSaving.value = false;
+        return;
+      }
+
+      if (!['siliconflow', 'zhipu', 'custom'].includes(normalizedProvider)) {
+        fieldErrors.provider = '供应商必须是 siliconflow / zhipu / custom';
+        showToast('请修复 BOHAI 模型表单错误后再保存', 'error');
+        isSaving.value = false;
+        return;
+      }
+
+      if (!normalizedModelId) {
+        fieldErrors.model_id = '模型 ID 不能为空';
+        showToast('请修复 BOHAI 模型表单错误后再保存', 'error');
+        isSaving.value = false;
+        return;
+      }
+
+      if (!['chat', 'multimodal', 'plan', 'agent'].includes(normalizedCapability)) {
+        fieldErrors.capability = '能力类型无效';
+        showToast('请修复 BOHAI 模型表单错误后再保存', 'error');
+        isSaving.value = false;
+        return;
+      }
+
+      if (!['active', 'disabled'].includes(normalizedStatus)) {
+        fieldErrors.status = '状态必须是 active 或 disabled';
+        showToast('请修复 BOHAI 模型表单错误后再保存', 'error');
+        isSaving.value = false;
+        return;
+      }
+
+      if (!Number.isFinite(normalizedTemperature) || normalizedTemperature < 0 || normalizedTemperature > 1.2) {
+        fieldErrors.temperature = 'Temperature 必须在 0-1.2 之间';
+        showToast('请修复 BOHAI 模型表单错误后再保存', 'error');
+        isSaving.value = false;
+        return;
+      }
+
+      if (!Number.isFinite(normalizedTopP) || normalizedTopP < 0.1 || normalizedTopP > 1) {
+        fieldErrors.top_p = 'Top P 必须在 0.1-1 之间';
+        showToast('请修复 BOHAI 模型表单错误后再保存', 'error');
+        isSaving.value = false;
+        return;
+      }
+
+      if (!Number.isFinite(normalizedFrequencyPenalty) || normalizedFrequencyPenalty < 0 || normalizedFrequencyPenalty > 2) {
+        fieldErrors.frequency_penalty = 'Frequency Penalty 必须在 0-2 之间';
+        showToast('请修复 BOHAI 模型表单错误后再保存', 'error');
+        isSaving.value = false;
+        return;
+      }
+
+      if (!Number.isInteger(normalizedMaxTokens) || normalizedMaxTokens < 256 || normalizedMaxTokens > 4096) {
+        fieldErrors.max_tokens = '最大输出 tokens 必须是 256-4096 的整数';
+        showToast('请修复 BOHAI 模型表单错误后再保存', 'error');
+        isSaving.value = false;
+        return;
+      }
+
+      if (!Number.isInteger(normalizedSortOrder) || normalizedSortOrder < 0 || normalizedSortOrder > 10000) {
+        fieldErrors.sort_order = '显示排序必须是 0-10000 的整数';
+        showToast('请修复 BOHAI 模型表单错误后再保存', 'error');
+        isSaving.value = false;
+        return;
+      }
+
+      dataToSave = pickWritableFields('bohaiModels', {
+        mode_id: normalizedModeId,
+        display_name: normalizedDisplayName,
+        tagline: String(editingItem.value.tagline || '').trim(),
+        description: String(editingItem.value.description || '').trim(),
+        provider: normalizedProvider,
+        provider_label: String(editingItem.value.provider_label || '').trim() || normalizedProvider,
+        model_id: normalizedModelId,
+        api_url: String(editingItem.value.api_url || '').trim() || getDefaultApiUrlForBohaiProvider(normalizedProvider),
+        capability: normalizedCapability,
+        icon: normalizedIcon,
+        temperature: normalizedTemperature,
+        top_p: normalizedTopP,
+        frequency_penalty: normalizedFrequencyPenalty,
+        max_tokens: normalizedMaxTokens,
+        sort_order: normalizedSortOrder,
+        status: normalizedStatus,
+        notes: String(editingItem.value.notes || '').trim(),
+        created_by: isEditing.value ? undefined : (userInfo?.id || null),
         updated_by: userInfo?.id || null
       });
     }
@@ -5469,6 +5622,21 @@ watch(editingItem, () => {
   if (!showModal.value || suppressDraftSave.value) return;
   saveCurrentDraft();
 }, { deep: true });
+
+onUnmounted(() => {
+  if (searchDebounceTimer.value) {
+    clearTimeout(searchDebounceTimer.value);
+    searchDebounceTimer.value = null;
+  }
+  if (userPickerSearchDebounceTimer.value) {
+    clearTimeout(userPickerSearchDebounceTimer.value);
+    userPickerSearchDebounceTimer.value = null;
+  }
+  if (toast.timer) {
+    clearTimeout(toast.timer);
+    toast.timer = null;
+  }
+});
 
 </script>
 

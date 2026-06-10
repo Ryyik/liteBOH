@@ -154,6 +154,9 @@ const unreadCount = computed(() => notificationStoreRef.value?.unreadCount || 0)
 
 const route = useRoute();
 const isActive = (path) => {
+  if (path === '/user-space?tab=posts') {
+    return route.path === '/user-space' && String(route.query.tab || 'posts') === 'posts';
+  }
   if (path === '/') {
     return route.path === '/';
   }
@@ -179,7 +182,7 @@ const navMenuItems = [
     name: "community",
     label: "社区",
     children: [
-      { name: "forum", path: "/forum", label: "论坛" },
+      { name: "forum", path: "/user-space?tab=posts", label: "方块社区" },
       { name: "lotteries", path: "/lotteries", label: "抽奖" },
       { name: "activities", path: "/activities", label: "活动" },
       { name: "shows", path: "/shows", label: "节目" },

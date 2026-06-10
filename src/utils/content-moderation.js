@@ -1,6 +1,7 @@
+import { callVaultSiliconChat } from './api/api-key-runtime-api.js';
+
 const DEFAULT_SCENE = 'default';
 const MODERATION_API_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
-const MODERATION_API_KEY = import.meta.env.VITE_SILICON_CLOUD_API_KEY || import.meta.env.VITE_GLM_MODERATION_API_KEY || '';
 const QUICK_TIMEOUT_MS = 4000;
 const FULL_TIMEOUT_MS = 10000;
 const MODERATION_SERVICE_RETRY_DELAY_MS = 250;
@@ -347,40 +348,34 @@ async function callAIModeration(content, scene, timeoutMs, {
     return { ...PASS_RESULT, source: 'test_env_bypass' };
   }
 
-  if (!MODERATION_API_KEY) {
-    return failClosed
-      ? { ...SERVICE_REJECT_RESULT, source: 'no_api_key' }
-      : { ...PASS_RESULT, source: 'no_api_key' };
-  }
-
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(MODERATION_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${MODERATION_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: MODERATION_MODEL_ID,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `场景: ${scene}\n内容: ${content}` }
-        ],
-        stream: false,
-        temperature: 0,
-        max_tokens: maxTokens
-      }),
-      signal: controller.signal
+    const payload = {
+      model: MODERATION_MODEL_ID,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `场景: ${scene}\n内容: ${content}` }
+      ],
+      stream: false,
+      temperature: 0,
+      max_tokens: maxTokens
+    };
+
+    const vaultResult = await callVaultSiliconChat({
+      purpose: 'moderation',
+      payload,
+      apiUrl: MODERATION_API_URL,
+      timeoutMs
     });
-
-    if (!response.ok) {
-      throw new Error(`Moderation request failed: ${response.status}`);
+    if (!vaultResult.ok) {
+      return failClosed
+        ? { ...SERVICE_REJECT_RESULT, source: 'no_api_key' }
+        : { ...PASS_RESULT, source: 'no_api_key' };
     }
+    const data = vaultResult.data || {};
 
-    const data = await response.json();
     const aiText = data?.choices?.[0]?.message?.content || '';
     return parseAIModerationResult(aiText, { failClosed, content });
   } catch (error) {

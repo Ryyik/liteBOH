@@ -121,16 +121,25 @@
                         </button>
                     </div>
 
-                    <div class="header-content" :title="currentSessionTitle">
-                        <span class="header-title">BOH AI</span>
-                        <span class="header-session">{{ currentMode.name }}</span>
-                        <ChevronDown size="15" aria-hidden="true" />
-                        <select v-model="currentModeId" class="header-mode-select"
-                            :aria-label="`当前模式：${currentMode.name}`">
-                            <option v-for="mode in chatModes" :key="mode.id" :value="mode.id">
-                                {{ mode.name }}
-                            </option>
-                        </select>
+                    <div class="header-mode-picker">
+                        <button type="button" class="header-content" :class="{ open: modeMenuOpen }"
+                            :title="currentSessionTitle" :aria-expanded="modeMenuOpen" aria-haspopup="menu"
+                            @click="toggleModeMenu">
+                            <span class="header-title">BOH AI</span>
+                            <span class="header-session">{{ currentMode.name }}</span>
+                            <ChevronDown size="15" aria-hidden="true" />
+                        </button>
+                        <div v-if="modeMenuOpen" class="header-mode-menu" role="menu" aria-label="选择 BOH AI 模式">
+                            <button v-for="mode in chatModes" :key="mode.id" type="button" class="header-mode-option"
+                                :class="{ active: currentModeId === mode.id }" role="menuitemradio"
+                                :aria-checked="currentModeId === mode.id" @click="selectMode(mode.id)">
+                                <span class="mode-option-main">
+                                    <strong>{{ mode.name }}</strong>
+                                    <small>{{ mode.tagline }}</small>
+                                </span>
+                                <span class="mode-option-desc">{{ mode.description }}</span>
+                            </button>
+                        </div>
                     </div>
 
                     <div class="header-actions">
@@ -863,6 +872,7 @@ const aiSettingsOpen = ref(false);
 const showSidebarSearch = ref(false);
 const sidebarSearchQuery = ref('');
 const isDarkTheme = ref(false);
+const modeMenuOpen = ref(false);
 let uiNoticeTimer = null;
 
 const {
@@ -1960,7 +1970,21 @@ const toggleFeaturesMenu = () => {
 const openAiSettings = () => {
     showFeaturesMenu.value = false;
     featureMenuView.value = 'root';
+    modeMenuOpen.value = false;
     aiSettingsOpen.value = true;
+};
+
+const toggleModeMenu = () => {
+    modeMenuOpen.value = !modeMenuOpen.value;
+    if (modeMenuOpen.value) {
+        showFeaturesMenu.value = false;
+    }
+};
+
+const selectMode = (modeId) => {
+    if (!chatModes.some((mode) => mode.id === modeId)) return;
+    currentModeId.value = modeId;
+    modeMenuOpen.value = false;
 };
 
 const toggleCommandMode = () => {
@@ -2146,6 +2170,9 @@ const readMessageAloud = (content) => {
 const handleClickOutside = (e) => {
     if (showFeaturesMenu.value && !e.target.closest('.input-left')) {
         showFeaturesMenu.value = false;
+    }
+    if (modeMenuOpen.value && !e.target.closest('.header-mode-picker')) {
+        modeMenuOpen.value = false;
     }
 };
 

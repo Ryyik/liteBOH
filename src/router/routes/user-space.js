@@ -16,10 +16,26 @@ const redirectToUserSpaceTab = (tab) => (to) => ({
   },
 });
 
+const redirectToUserSpaceMessages = (to) => ({
+  path: "/user-space",
+  query: {
+    ...to.query,
+    tab: "messages",
+    section: to.query.section || to.query.tab || "notifications",
+  },
+});
+
 export const userSpaceRoutes = [
   {
     path: "/mailbox",
-    redirect: redirectWithQuery("/user-space/messages", { tab: "mail" }),
+    redirect: (to) => ({
+      path: "/user-space",
+      query: {
+        ...to.query,
+        tab: "messages",
+        section: "mail",
+      },
+    }),
   },
   {
     path: "/user-center/points",
@@ -47,7 +63,7 @@ export const userSpaceRoutes = [
   },
   {
     path: "/user-center/messages",
-    redirect: redirectWithQuery("/user-space/messages"),
+    redirect: redirectToUserSpaceMessages,
   },
   {
     path: "/user-center/partners",
@@ -83,9 +99,7 @@ export const userSpaceRoutes = [
   },
   {
     path: "/user-space/messages",
-    name: "Messages",
-    component: () => import("../../views/user-center/Messages/index.vue"),
-    meta: userSpaceMeta,
+    redirect: redirectToUserSpaceMessages,
   },
   {
     path: "/user-space/partners",
@@ -97,7 +111,6 @@ export const userSpaceRoutes = [
     path: "/user-space",
     name: "UserSpace",
     component: () => import("../../views/user-center/UserSpace/index.vue"),
-    meta: userSpaceMeta,
   },
   {
     path: "/user-space/profile",
@@ -144,15 +157,5 @@ export const userSpaceRoutes = [
     name: "PushplusSettings",
     component: () => import("../../views/user-center/PushplusSettingsPage.vue"),
     meta: userSpaceMeta,
-  },
-  {
-    path: "/user-center-index",
-    name: "UserCenterIndex",
-    component: () => import("../../views/user-center/UserCenterIndex.vue"),
-  },
-  {
-    path: "/global-pages-index",
-    name: "GlobalPagesIndex",
-    component: () => import("../../views/GlobalPagesIndex/index.vue"),
   },
 ];

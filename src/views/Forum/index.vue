@@ -1634,7 +1634,7 @@ const observeForumLazyImage = (el) => {
 
 const prepareForumPostForDisplay = (post, index = 0) => {
   const preparedPost = { ...post };
-  const isEager = index < 2;
+  const isEager = index < 1;
   const images = getPostImages(preparedPost).slice(0, FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT).map((image, imageIndex) => ({
     ...image,
     eager: isEager && imageIndex === 0
@@ -1650,7 +1650,7 @@ const prepareForumPostForDisplay = (post, index = 0) => {
   preparedPost.hasImages = images.length > 0;
   preparedPost.imageCount = imageCount;
   preparedPost.hasMultipleImages = imageCount > 1;
-  preparedPost.imageLoading = index < 2 ? 'eager' : 'lazy';
+  preparedPost.imageLoading = index < 1 ? 'eager' : 'lazy';
   return preparedPost;
 };
 
@@ -3120,6 +3120,8 @@ const openPostDetail = (postId) => {
                         :srcset="image.srcset || undefined"
                         sizes="(max-width: 420px) 160px, (max-width: 768px) 300px, 360px"
                         :alt="`${post.displayTitle} 图片 ${index + 1}`"
+                        loading="eager"
+                        fetchpriority="high"
                         decoding="async" class="image-post-thumb"
                         :class="{ 'is-loaded': isForumImageLoaded(post.id, image.url) }"
                         :width="image.width || undefined"
@@ -3132,6 +3134,8 @@ const openPostDetail = (postId) => {
                         :data-lazy-srcset="image.srcset || ''"
                         sizes="(max-width: 420px) 160px, (max-width: 768px) 300px, 360px"
                         :alt="`${post.displayTitle} 图片 ${index + 1}`"
+                        loading="lazy"
+                        fetchpriority="low"
                         decoding="async" class="image-post-thumb"
                         :class="{ 'is-loaded': isForumImageLoaded(post.id, image.url) }"
                         :width="image.width || undefined"

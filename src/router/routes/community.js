@@ -25,7 +25,13 @@ export const communityRoutes = [
   {
     path: "/forum",
     name: "Forum",
-    component: () => import("../../views/Forum/index.vue"),
+    redirect: (to) => ({
+      path: "/user-space",
+      query: {
+        ...to.query,
+        tab: "posts",
+      },
+    }),
   },
   {
     path: "/lotteries",

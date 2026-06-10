@@ -46,12 +46,6 @@ body {
   min-height: 100vh;
 }
 
-/* Fix Bootstrap modal backdrop causing scrollbars */
-.modal-backdrop {
-  width: 100% !important;
-  height: 100% !important;
-}
-
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

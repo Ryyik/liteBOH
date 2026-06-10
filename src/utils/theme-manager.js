@@ -92,8 +92,6 @@ class ThemeManager {
       '.tags-impressions-page',
       '.pushplus-settings-page',
       '.shared-memory-page',
-      '.user-center-index-page',
-      '.studio-hub-page',
       '#unified-nav-container',
       '.bohai-page',
       '.x-notifications-container'

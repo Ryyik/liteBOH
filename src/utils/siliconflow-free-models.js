@@ -8,6 +8,11 @@ export const SILICONFLOW_FREE_CHAT_MODELS = Object.freeze([
   { id: 'tencent/Hunyuan-MT-7B', name: 'Hunyuan MT 7B', familyLabel: '翻译', bestFor: '多语翻译' }
 ]);
 
+export const ZHIPU_CHAT_MODELS = Object.freeze([
+  { id: 'glm-4.7-flash', name: 'GLM-4.7-Flash', familyLabel: '长上下文', bestFor: '200K 长上下文聊天' },
+  { id: 'glm-4.6v-flash', name: 'GLM-4.6V-Flash', familyLabel: '多模态', bestFor: '图片、视频、文件、文本' }
+]);
+
 export const SILICONFLOW_FREE_MULTIMODAL_MODEL_IDS = Object.freeze([
   'deepseek-ai/DeepSeek-OCR',
   'PaddlePaddle/PaddleOCR-VL-1.5',
@@ -32,6 +37,7 @@ export const SILICONFLOW_DEFAULT_FREE_RERANK_MODEL_ID = 'netease-youdao/bce-rera
 
 const SILICONFLOW_FREE_MODEL_ID_SET = new Set([
   ...SILICONFLOW_FREE_CHAT_MODELS.map((model) => model.id),
+  ...ZHIPU_CHAT_MODELS.map((model) => model.id),
   ...SILICONFLOW_FREE_MULTIMODAL_MODEL_IDS,
   ...SILICONFLOW_FREE_EMBEDDING_MODEL_IDS,
   ...SILICONFLOW_FREE_RERANK_MODEL_IDS

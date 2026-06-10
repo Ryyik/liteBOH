@@ -21,11 +21,11 @@ import {
   MAX_HISTORY_MESSAGE_CHARS,
   MAX_PROMPT_EXTRA_CHARS,
   MAX_SEARCH_RESULT_CONTENT_CHARS,
-  MAX_USER_INPUT_CHARS,
-  TAVILY_API_KEY
+  MAX_USER_INPUT_CHARS
 } from './chat-engine-config.js';
 import { logger } from '@/utils/logger.js';
 import { EVIDENCE_SOURCE_WEIGHTS, RANKING_SCORE_WEIGHTS, KEYWORD_CACHE_MAX_SIZE } from '@/utils/bohai-constants.js';
+import { searchVaultTavily } from '@/utils/api/api-key-runtime-api.js';
 
 let aiMemoryCache = '';
 let aiMemoryLoader = null;
@@ -38,7 +38,7 @@ export const CONVERSATION_SUMMARY_RECENT_MESSAGES = 8;
 export const CONVERSATION_SUMMARY_MIN_MESSAGES = 16;
 export const CONVERSATION_SUMMARY_MAX_CHARS = 2000;
 export const CONVERSATION_SUMMARY_STORAGE_VERSION = 1;
-export const GENERATION_STALL_TIMEOUT_MS = 90000;
+export const GENERATION_STALL_TIMEOUT_MS = 120000;
 
 const AI_MEMORY_RETRY_DELAY_MS = 30000;
 
@@ -74,8 +74,7 @@ export const splitKnowledgeChunks = (rawText) => {
     .filter((chunk) => chunk.length >= 16);
 };
 
-// 注意：当前实现是 FIFO 容量上限（按插入顺序淘汰最旧的 key），不是真 LRU。
-// 命中率足够支撑现有调用频次；若未来需要 LRU，可改用 Map + 重新插入实现。
+// 使用 LRU 语义（命中时重新插入到尾部）提升高频查询场景的缓存命中率
 const keywordCache = new Map();
 
 export const clearKeywordCache = () => {
@@ -86,7 +85,11 @@ export const extractQueryKeywords = (text) => {
   const normalized = normalizeText(text);
 
   if (keywordCache.has(normalized)) {
-    return keywordCache.get(normalized);
+    // LRU bump: 将命中的 key 移到末尾
+    const value = keywordCache.get(normalized);
+    keywordCache.delete(normalized);
+    keywordCache.set(normalized, value);
+    return value;
   }
 
   const tokens = normalized.match(/[a-z0-9_/-]{2,}|[\u4e00-\u9fa5]{2,}/g) || [];
@@ -540,57 +543,33 @@ export const buildSearchResultsContext = (results = []) => {
 };
 
 export const searchWebForPrompt = async (queryText, requestSignal = undefined) => {
-  if (!TAVILY_API_KEY) {
+  const WEB_SEARCH_TIMEOUT_MS = 25_000;
+  if (requestSignal?.aborted) {
+    throw new DOMException('Aborted', 'AbortError');
+  }
+
+  const payload = {
+      query: queryText,
+      search_depth: 'basic',
+      include_answer: false,
+      max_results: 3
+    };
+
+  const vaultResult = await searchVaultTavily({
+    payload,
+    timeoutMs: WEB_SEARCH_TIMEOUT_MS
+  });
+  if (!vaultResult.ok) {
     return {
       ok: false,
       disabled: true,
       count: 0,
       context: '',
-      message: '未配置联网搜索 Key（VITE_TAVILY_API_KEY）'
+      message: vaultResult.error?.message || '未配置联网搜索 Key（Tavily）'
     };
   }
+  const searchData = vaultResult.data || {};
 
-  const searchResponse = await fetch('https://api.tavily.com/search', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    signal: requestSignal,
-    body: JSON.stringify({
-      api_key: TAVILY_API_KEY,
-      query: queryText,
-      search_depth: 'basic',
-      include_answer: false,
-      max_results: 3
-    })
-  });
-
-  if (!searchResponse.ok) {
-    let searchErrorMessage = `HTTP ${searchResponse.status}`;
-    try {
-      const searchErrorData = await searchResponse.json();
-      const maybeMessage = String(
-        searchErrorData?.message
-        || searchErrorData?.error
-        || searchErrorData?.detail
-        || ''
-      ).trim();
-      if (maybeMessage) {
-        searchErrorMessage = maybeMessage;
-      }
-    } catch (_parseError) {
-      // Ignore non-json error body.
-    }
-    return {
-      ok: false,
-      disabled: false,
-      count: 0,
-      context: '',
-      message: searchErrorMessage
-    };
-  }
-
-  const searchData = await searchResponse.json();
   const results = Array.isArray(searchData?.results) ? searchData.results : [];
   return {
     ok: true,
@@ -888,7 +867,17 @@ export const compressKnowledgeContextBlocks = (
   return merged;
 };
 
+// getGenerationProfile 的 memoize cache：避免同一组参数重复创建对象
+const _generationProfileCache = new Map();
+const _GEN_PROFILE_CACHE_MAX = 32;
+const _GEN_PROFILE_CACHE_TTL_MS = 60_000;
+
 export const getGenerationProfile = (modeId, { factualQuestion = false, operationQuestion = false } = {}) => {
+  const cacheKey = `${modeId}|${factualQuestion}|${operationQuestion}`;
+  const cached = _generationProfileCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp) < _GEN_PROFILE_CACHE_TTL_MS) return cached.value;
+  if (cached) _generationProfileCache.delete(cacheKey);
+
   const fallback = { temperature: 0.24, top_p: 0.76, frequency_penalty: 0.08, max_tokens: 1800 };
   const base = GENERATION_PROFILE_BY_MODE[modeId] || fallback;
   const profile = { ...base };
@@ -897,6 +886,13 @@ export const getGenerationProfile = (modeId, { factualQuestion = false, operatio
     profile.top_p = Math.min(profile.top_p, operationQuestion ? 0.68 : 0.72);
     profile.frequency_penalty = Math.min(profile.frequency_penalty, 0.08);
   }
+
+  // LRU-style cache eviction
+  if (_generationProfileCache.size >= _GEN_PROFILE_CACHE_MAX) {
+    const firstKey = _generationProfileCache.keys().next().value;
+    _generationProfileCache.delete(firstKey);
+  }
+  _generationProfileCache.set(cacheKey, { value: profile, timestamp: Date.now() });
   return profile;
 };
 
@@ -981,8 +977,8 @@ export const isDegenerateStreamOutput = (text) => {
   if (hasEscapedLineBreakFlood(normalized)) return true;
 
   const compact = normalizeCompactText(normalized.slice(-DEGENERATE_STREAM_WINDOW_CHARS));
-  const tailPunctuationRun = compact.match(new RegExp(`(${PUNCT_DENSITY_CHAR_CLASS.slice(1, -1)}){18,}$`, 'u'));
-  if (tailPunctuationRun && tailPunctuationRun[1].length / Math.max(1, compact.length) >= 0.08) {
+  const tailPunctuationRun = compact.match(new RegExp(`(?:${PUNCT_DENSITY_CHAR_CLASS}){18,}$`, 'u'));
+  if (tailPunctuationRun && tailPunctuationRun[0].length / Math.max(1, compact.length) >= 0.08) {
     return true;
   }
   if (compact.length < DEGENERATE_STREAM_MIN_CHARS) return false;

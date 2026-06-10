@@ -27,33 +27,13 @@
   .partners-container,
   .tags-impressions-page,
   .pushplus-settings-page,
-  .shared-memory-page,
-  .user-center-index-page
+  .shared-memory-page
 ) {
   color: var(--uc-dark-text);
   background:
     radial-gradient(circle at top left, rgba(90, 151, 255, 0.16), transparent 30%),
     radial-gradient(circle at top right, rgba(56, 189, 248, 0.12), transparent 24%),
     linear-gradient(180deg, var(--uc-dark-bg) 0%, #0c1625 54%, #0f1a2b 100%) !important;
-}
-
-[data-theme="dark"] .studio-hub-page {
-  --page-bg: linear-gradient(180deg, #09111d 0%, #111c2c 100%);
-  --surface: rgba(15, 24, 39, 0.88);
-  --surface-strong: #111b2d;
-  --surface-soft: rgba(21, 34, 53, 0.92);
-  --border: rgba(255, 255, 255, 0.08);
-  --text: #f8fbff;
-  --text-soft: #c7d3e3;
-  --text-dim: #8ea0b8;
-  --accent-soft: rgba(103, 162, 255, 0.16);
-  --shadow: 0 24px 60px rgba(0, 0, 0, 0.36);
-}
-
-[data-theme="dark"] .studio-hub-page {
-  --accent: #67a2ff;
-  --warm: #ffd166;
-  --warm-soft: rgba(255, 209, 102, 0.16);
 }
 
 [data-theme="dark"] :is(
@@ -63,8 +43,7 @@
   .partners-container,
   .tags-impressions-page,
   .pushplus-settings-page,
-  .shared-memory-page,
-  .user-center-index-page
+  .shared-memory-page
 ) :is(
   .x-security-header,
   .x-addr-header,
@@ -84,8 +63,7 @@
   .partners-container,
   .tags-impressions-page,
   .pushplus-settings-page,
-  .shared-memory-page,
-  .user-center-index-page
+  .shared-memory-page
 ) :is(.x-header-title, .page-title, .section-title, .list-title, .card-title) {
   color: var(--uc-dark-text) !important;
 }
@@ -97,8 +75,7 @@
   .partners-container,
   .tags-impressions-page,
   .pushplus-settings-page,
-  .shared-memory-page,
-  .user-center-index-page
+  .shared-memory-page
 ) :is(.history-toggle-btn, .page-btn, .pag-btn, .collapse-toggle) {
   background: var(--uc-dark-surface-strong) !important;
   color: var(--uc-dark-text) !important;
@@ -113,8 +90,7 @@
   .partners-container,
   .tags-impressions-page,
   .pushplus-settings-page,
-  .shared-memory-page,
-  .user-center-index-page
+  .shared-memory-page
 ) :is(.history-toggle-btn, .page-btn, .pag-btn, .collapse-toggle):hover:not(:disabled) {
   background: #1a2840 !important;
   border-color: var(--uc-dark-border-strong) !important;
@@ -128,8 +104,7 @@
   .partners-container,
   .tags-impressions-page,
   .pushplus-settings-page,
-  .shared-memory-page,
-  .user-center-index-page
+  .shared-memory-page
 ) :is(
   .glass-card,
   .glass-container-light,
@@ -175,8 +150,7 @@
   .partners-container,
   .tags-impressions-page,
   .pushplus-settings-page,
-  .shared-memory-page,
-  .user-center-index-page
+  .shared-memory-page
 ) :is(
   h1,
   h2,
@@ -205,8 +179,7 @@
   .partners-container,
   .tags-impressions-page,
   .pushplus-settings-page,
-  .shared-memory-page,
-  .user-center-index-page
+  .shared-memory-page
 ) :is(
   p,
   span,
@@ -249,8 +222,7 @@
   .partners-container,
   .tags-impressions-page,
   .pushplus-settings-page,
-  .shared-memory-page,
-  .user-center-index-page
+  .shared-memory-page
 ) :is(
   .security-input,
   .delete-account-input,
@@ -275,8 +247,7 @@
   .partners-container,
   .tags-impressions-page,
   .pushplus-settings-page,
-  .shared-memory-page,
-  .user-center-index-page
+  .shared-memory-page
 ) :is(
   .security-input,
   .delete-account-input,
@@ -298,8 +269,7 @@
   .partners-container,
   .tags-impressions-page,
   .pushplus-settings-page,
-  .shared-memory-page,
-  .user-center-index-page
+  .shared-memory-page
 ) :is(
   .security-input,
   .delete-account-input,
@@ -322,8 +292,7 @@
   .partners-container,
   .tags-impressions-page,
   .pushplus-settings-page,
-  .shared-memory-page,
-  .user-center-index-page
+  .shared-memory-page
 ) :is(.secondary-btn, .ghost-btn, .btn-secondary, .action-btn-outline, .filter-chip, .btn-clear) {
   background: var(--uc-dark-surface-strong) !important;
   color: var(--uc-dark-text-soft) !important;
@@ -337,8 +306,7 @@
   .partners-container,
   .tags-impressions-page,
   .pushplus-settings-page,
-  .shared-memory-page,
-  .user-center-index-page
+  .shared-memory-page
 ) :is(.secondary-btn, .ghost-btn, .btn-secondary, .action-btn-outline, .filter-chip, .btn-clear):hover:not(:disabled) {
   background: #1a2840 !important;
   color: #ffffff !important;
@@ -436,19 +404,6 @@
   background: rgba(255, 255, 255, 0.08) !important;
 }
 
-[data-theme="dark"] .user-center-index-page :is(.nav-card:hover, .primary-card:hover) {
-  background: #17293d !important;
-  border-color: var(--uc-dark-border-strong) !important;
-}
-
-[data-theme="dark"] .user-center-index-page table {
-  color: var(--uc-dark-text);
-}
-
-[data-theme="dark"] .user-center-index-page :is(th, td) {
-  border-color: rgba(255, 255, 255, 0.08) !important;
-}
-
 [data-theme="dark"] :is(
   .account-security-page,
   .address-page,
@@ -456,8 +411,7 @@
   .partners-container,
   .tags-impressions-page,
   .pushplus-settings-page,
-  .shared-memory-page,
-  .user-center-index-page
+  .shared-memory-page
 ) :is(.loading-state, .empty-state, .login-card) {
   background: rgba(15, 24, 39, 0.74) !important;
   border-color: rgba(255, 255, 255, 0.12) !important;

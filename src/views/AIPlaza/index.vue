@@ -117,6 +117,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import UnifiedNavbar from "@/components/UnifiedNavbar/index.vue";
 import { marked } from "marked";
 import DOMPurify from "@/utils/dompurify.js";
+import { callVaultSiliconChat } from "@/utils/api/api-key-runtime-api.js";
 import hljs from "highlight.js/lib/core";
 import javascript from "highlight.js/lib/languages/javascript";
 import typescript from "highlight.js/lib/languages/typescript";
@@ -129,7 +130,6 @@ import python from "highlight.js/lib/languages/python";
 import "highlight.js/styles/github.css";
 
 const API_URL = import.meta.env.VITE_SILICON_CLOUD_URL || "https://api.siliconflow.cn/v1/chat/completions";
-const API_KEY = import.meta.env.VITE_SILICON_CLOUD_API_KEY || "";
 const STORAGE_KEY = "boh_ai_plaza_v1";
 const HISTORY_LIMIT = 12;
 
@@ -303,11 +303,6 @@ const sendMessage = async () => {
   const safeInput = String(userInput.value || "").trim();
   if (!safeInput || isLoading.value) return;
 
-  if (!API_KEY) {
-    errorMessage.value = "缺少 AI Key：请在环境变量中配置 VITE_SILICON_CLOUD_API_KEY。";
-    return;
-  }
-
   errorMessage.value = "";
   usageText.value = "";
 
@@ -346,21 +341,16 @@ const sendMessage = async () => {
       ]
     };
 
-    const response = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${API_KEY}`
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal
+    const vaultResult = await callVaultSiliconChat({
+      purpose: 'chat',
+      payload,
+      apiUrl: API_URL,
+      timeoutMs: 30000
     });
-
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const reason = result?.error?.message || `请求失败（${response.status}）`;
-      throw new Error(reason);
+    if (!vaultResult.ok) {
+      throw new Error(vaultResult.error?.message || 'API Key 代理请求失败');
     }
+    const result = vaultResult.data || {};
 
     const assistantText = normalizeContentText(result?.choices?.[0]?.message?.content);
     if (!assistantText) {
@@ -462,6 +452,14 @@ const syncNavOffset = () => {
   const navHeight = nav?.offsetHeight || 72;
   document.documentElement.style.setProperty('--bohai-nav-offset', `${navHeight}px`);
 };
+let navOffsetRafId = null;
+const requestNavOffsetSync = () => {
+  if (navOffsetRafId !== null) return;
+  navOffsetRafId = window.requestAnimationFrame(() => {
+    navOffsetRafId = null;
+    syncNavOffset();
+  });
+};
 
 onMounted(() => {
   loadState();
@@ -469,13 +467,17 @@ onMounted(() => {
   window.addEventListener("keydown", handleWindowKeydown);
   nextTick(() => syncNavOffset());
   window.addEventListener('resize', syncNavOffset);
-  window.addEventListener('scroll', syncNavOffset, { passive: true });
+  window.addEventListener('scroll', requestNavOffsetSync, { passive: true });
 });
 
 onUnmounted(() => {
   window.removeEventListener("keydown", handleWindowKeydown);
   window.removeEventListener('resize', syncNavOffset);
-  window.removeEventListener('scroll', syncNavOffset);
+  window.removeEventListener('scroll', requestNavOffsetSync);
+  if (navOffsetRafId !== null) {
+    window.cancelAnimationFrame(navOffsetRafId);
+    navOffsetRafId = null;
+  }
 });
 
 watch([selectedModelId, workMode, targetLanguage, messages], saveState, { deep: true });

@@ -101,11 +101,8 @@ export default defineConfig({
             resolve(__dirname, 'src/components/UnifiedNavbar/index.vue'),
             resolve(__dirname, 'src/components/Footer.vue'),
           ],
-          'auth-runtime': [
-            resolve(__dirname, 'src/utils/auth.js'),
-            resolve(__dirname, 'src/utils/supabase-client.js'),
+          'auth-store': [
             resolve(__dirname, 'src/stores/auth.js'),
-            resolve(__dirname, 'src/stores/notifications.js'),
           ],
           'content-datasets': [
             resolve(__dirname, 'src/data/products.js'),

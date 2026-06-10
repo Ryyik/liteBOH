@@ -18,6 +18,7 @@ import {
   mergeAutoDecisionWithLocalGuardrails,
   normalizeAutoClassifierBoolean,
   normalizeAutoSaveDestination,
+  resolveAutoModeDecisionLocally,
   safeParseAutoClassifierJson,
   sanitizeAutoDecisionForLookup,
   sanitizeAutoDecisionForPostDraft,
@@ -243,6 +244,17 @@ describe('bohai-auto-decision: shouldAskModelForAutoDecision', () => {
       { confidence: 0.7 }
     )).toBe(true);
     expect(shouldAskModelForAutoDecision('short?', { confidence: 0.5 })).toBe(true);
+  });
+});
+
+describe('bohai-auto-decision: resolveAutoModeDecisionLocally', () => {
+  it('returns a local capability decision without model calls', () => {
+    const result = resolveAutoModeDecisionLocally('帮我查一下网上最新的 Vue 版本', {
+      isAutoMode: true
+    });
+    expect(result.shouldSearchWeb).toBe(true);
+    expect(result.modeId).toBe('pro');
+    expect(Array.isArray(result.actionNotes)).toBe(true);
   });
 });
 

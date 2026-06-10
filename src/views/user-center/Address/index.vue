@@ -435,6 +435,7 @@ import { storeToRefs } from "pinia";
 import { supabase } from "@/utils/supabase-client.js";
 import { createNotification } from "@/utils/api/notifications-api.js";
 import { availableModels } from "@/views/BOHAI/composables/useChatEngine.js";
+import { callVaultSiliconChat } from "@/utils/api/api-key-runtime-api.js";
 import { getExpiredActiveGiftIds, markGiftsAsHistory, isGiftExpiredCompleted } from "@/utils/gift-archive.js";
 import { resolveSettingsBackLocation } from "@/utils/user-space-navigation.js";
 import UnifiedNavbar from "@/components/UnifiedNavbar/index.vue";
@@ -959,7 +960,7 @@ const handleAIExtract = async () => {
   }
 
   const model = getAddressAIModel();
-  if (!model?.url || !model?.apiKey) {
+  if (!model?.url) {
     alert('GLM 地址识别未配置完成，请联系管理员检查 AI 密钥。');
     return;
   }
@@ -973,25 +974,24 @@ const handleAIExtract = async () => {
   ].join("");
 
   try {
-    const response = await withTaskTimeout(
-      fetch(model.url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${model.apiKey}` },
-        body: JSON.stringify({
-          model: model.id,
-          messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: pastedText.value }],
-          temperature: 0.1
-        })
-      }),
-      12000,
-      'AI 识别超时，请稍后重试'
-    );
+    const payload = {
+      model: model.id,
+      messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: pastedText.value }],
+      temperature: 0.1,
+      stream: false
+    };
 
-    if (!response.ok) {
-      throw new Error(`GLM 请求失败: ${response.status}`);
+    const vaultResult = await callVaultSiliconChat({
+      purpose: 'chat',
+      apiUrl: model.url,
+      payload,
+      timeoutMs: 12000
+    });
+    if (!vaultResult.ok) {
+      throw new Error(vaultResult.error?.message || 'AI 识别代理请求失败');
     }
+    const data = vaultResult.data || {};
 
-    const data = await response.json();
     const rawContent = data?.choices?.[0]?.message?.content;
     const result = extractJsonPayload(rawContent);
 

@@ -19,7 +19,13 @@
 //   - safeParseAutoClassifierJson
 // ------------------------------------------------------------
 
-import { BOH_AUTO_MODE_ID, pickMoreCapableMode, pickModeFromLocalSignals, EMPTY_AUTO_DECISION } from './bohai-auto-router.js';
+import {
+  BOH_AUTO_MODE_ID,
+  pickMoreCapableMode,
+  pickModeFromLocalSignals,
+  resolveBOHAIAutoModeDecision,
+  EMPTY_AUTO_DECISION
+} from './bohai-auto-router.js';
 
 // AUTO 路由严格只指向 Pro / Fast 两个模式(2026-06-08 决定)。
 export const AUTO_MODES = ['fast', 'pro'];
@@ -164,6 +170,23 @@ export const shouldAskModelForAutoDecision = (userText, fallback = null, { short
     return false;
   }
   return true;
+};
+
+export const resolveAutoModeDecisionLocally = (userText, {
+  isAutoMode = false,
+  cloudReferenceEnabled = false,
+  isLoggedIn = false,
+  helpers = {}
+} = {}) => {
+  const decision = resolveBOHAIAutoModeDecision(userText, {
+    isAutoMode,
+    cloudReferenceEnabled,
+    isLoggedIn
+  });
+  return sanitizeAutoDecisionForUserText({
+    ...decision,
+    actionNotes: Array.isArray(decision.actionNotes) ? [...decision.actionNotes] : []
+  }, userText, helpers);
 };
 
 export const safeParseAutoClassifierJson = (raw) => {

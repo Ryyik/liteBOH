@@ -4,6 +4,7 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const SUPABASE_TIMEOUT_MS = Number(import.meta.env.VITE_SUPABASE_TIMEOUT_MS || 12000);
 const authStorage = typeof window !== 'undefined' ? window.localStorage : undefined;
+const authLockQueues = new Map();
 
 function normalizeSupabaseImplicitHashCallback() {
   if (typeof window === 'undefined') return;
@@ -62,6 +63,29 @@ async function timeoutFetch(input, init = {}) {
   }
 }
 
+async function appProcessLock(name, _acquireTimeout, fn) {
+  const lockName = String(name || 'supabase-auth');
+  const previous = authLockQueues.get(lockName) || Promise.resolve();
+
+  let releaseCurrent;
+  const current = new Promise((resolve) => {
+    releaseCurrent = resolve;
+  });
+  const next = previous.catch(() => {}).then(() => current);
+  authLockQueues.set(lockName, next);
+
+  await previous.catch(() => {});
+
+  try {
+    return await fn();
+  } finally {
+    releaseCurrent();
+    if (authLockQueues.get(lockName) === next) {
+      authLockQueues.delete(lockName);
+    }
+  }
+}
+
 normalizeSupabaseImplicitHashCallback();
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
@@ -72,7 +96,9 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
-    storage: authStorage
+    storage: authStorage,
+    lock: appProcessLock,
+    lockAcquireTimeout: 15000
   },
   db: {
     schema: 'public'

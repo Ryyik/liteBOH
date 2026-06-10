@@ -1200,7 +1200,7 @@ const submitReportPost = async () => {
     if (result.data?.limited) {
       isReportModalOpen.value = false;
       showModal('success', '举报已提交', result.data?.message || '该帖子已因多人举报暂时设为仅作者可见');
-      router.push('/forum');
+      router.push(createForumHomeLocation());
       return;
     }
 
@@ -1266,30 +1266,32 @@ const getQueryString = (value) => {
   return String(value || '').trim();
 };
 
+const createForumHomeLocation = (query = {}) => ({
+  path: '/user-space',
+  query: {
+    tab: 'posts',
+    ...query
+  }
+});
+
 const goBack = () => {
   const source = getQueryString(route.query.from);
-  const returnKey = getForumReturnKeyFromQuery(route.query, source === 'user-space' ? 'user-space' : 'forum');
+  const returnKey = getForumReturnKeyFromQuery(route.query, source === 'forum' ? 'forum' : 'user-space');
 
   if (source === 'user-space') {
-    router.push({
-      path: '/user-space',
-      query: {
-        tab: getQueryString(route.query.tab) || 'posts',
-        restore: '1',
-        returnKey
-      }
-    });
+    router.push(createForumHomeLocation({
+      tab: getQueryString(route.query.tab) || 'posts',
+      restore: '1',
+      returnKey
+    }));
     return;
   }
 
   if (source === 'forum') {
-    router.push({
-      path: '/forum',
-      query: {
-        restore: '1',
-        returnKey
-      }
-    });
+    router.push(createForumHomeLocation({
+      restore: '1',
+      returnKey
+    }));
     return;
   }
 
@@ -1301,7 +1303,7 @@ const goBack = () => {
     }
   }
 
-  router.push('/forum');
+  router.push(createForumHomeLocation());
 };
 
 const sharePost = async () => {
@@ -1396,7 +1398,7 @@ const handleDeleteComment = async (comment, parentId = null) => {
           <div class="empty-icon">🏜️</div>
           <h3>帖子已失效</h3>
           <p>抱歉，该帖子可能已被作者删除或链接有误。</p>
-          <button @click="router.push('/forum')" class="home-btn">返回论坛首页</button>
+          <button @click="router.push(createForumHomeLocation())" class="home-btn">返回方块社区</button>
         </div>
 
         <div v-else class="post-x-layout">

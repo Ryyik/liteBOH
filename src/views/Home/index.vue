@@ -3,11 +3,6 @@
     <!-- 统一导航栏 -->
     <UnifiedNavbar />
 
-    <BirthdayHeroBanner
-      v-if="shouldShowBirthdayHero"
-      :username="birthdayHeroName"
-    />
-
     <!-- BOH 小猫主题英雄区域 -->
     <section class="cat-theme-hero">
       <div class="cat-theme-copy">
@@ -77,7 +72,7 @@
             loading="lazy" decoding="async" />
         </div>
         <h2 class="anniversary-title">来自 Ryyik 的一封信</h2>
-        <button class="anniversary-btn" disabled @click="showAnniversaryLetter = true">
+        <button class="anniversary-btn" disabled>
           即将公布
         </button>
       </div>
@@ -216,7 +211,7 @@
 
         <div class="hero-actions" v-if="!isPostsLoading">
           <button class="go-forum-btn-large" @click="goToForum">
-            进入社区论坛
+            进入方块社区
           </button>
         </div>
       </div>
@@ -240,66 +235,6 @@
       </div>
     </section>
 
-    <!-- 新年好礼英雄区 -->
-    <section class="new-year-hero-section fade-section" v-if="showNewYearHero">
-      <div class="new-year-content-container">
-        <div class="gift-box-wrapper">
-          <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
-            class="gift-box-logo">
-            <!-- 盒子主体 -->
-            <rect x="3" y="8" width="18" height="14" rx="2" stroke="#111" stroke-width="1.5" stroke-linecap="round"
-              stroke-linejoin="round" />
-            <!-- 盖子 -->
-            <path d="M12 8V22" stroke="#111" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M2 8H22" stroke="#111" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-            <!-- 蝴蝶结 -->
-            <path d="M12 8C12 8 12 3 8 3C5.5 3 4 5 4 6.5C4 7.5 5 8 6 8H12Z" stroke="#FF5252" stroke-width="1.5"
-              stroke-linecap="round" stroke-linejoin="round" fill="rgba(255, 82, 82, 0.1)" />
-            <path d="M12 8C12 8 12 3 16 3C18.5 3 20 5 20 6.5C20 7.5 19 8 18 8H12Z" stroke="#FF5252" stroke-width="1.5"
-              stroke-linecap="round" stroke-linejoin="round" fill="rgba(255, 82, 82, 0.1)" />
-            <!-- 装饰 -->
-            <path d="M19 14L21 12" stroke="#FFD700" stroke-width="1.5" stroke-linecap="round" />
-            <path d="M5 14L3 12" stroke="#FFD700" stroke-width="1.5" stroke-linecap="round" />
-            <circle cx="12" cy="15" r="1" fill="#111" />
-          </svg>
-        </div>
-        <h1 class="new-year-title">新年，方块好礼相赠</h1>
-        <div class="new-year-divider"></div>
-        <div class="countdown-wrapper">
-          <p class="new-year-subtitle">抽奖倒计时（2/16）公布</p>
-          <div class="countdown-timer">
-            <div class="timer-block">
-              <span class="timer-value">{{ countdown.days }}</span>
-              <span class="timer-label">DAYS</span>
-            </div>
-            <div class="timer-separator">:</div>
-            <div class="timer-block">
-              <span class="timer-value">{{ countdown.hours }}</span>
-              <span class="timer-label">HOURS</span>
-            </div>
-            <div class="timer-separator">:</div>
-            <div class="timer-block">
-              <span class="timer-value">{{ countdown.minutes }}</span>
-              <span class="timer-label">MINS</span>
-            </div>
-            <div class="timer-separator">:</div>
-            <div class="timer-block">
-              <span class="timer-value">{{ countdown.seconds }}</span>
-              <span class="timer-label">SECS</span>
-            </div>
-          </div>
-          <div class="hero-action-buttons">
-            <button class="join-btn disabled-btn" disabled>
-              抽奖结果已公布
-            </button>
-            <button class="result-btn" @click="goToGift">
-              查看结果
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <!-- 拼图展示区 -->
     <section class="interleaved-images-section fade-section">
       <div class="interleaved-hero-copy">
@@ -310,10 +245,19 @@
       </div>
       <div class="interleaved-container">
         <div class="image-wrapper i-top-left">
-          <img :src="getImageUrl('@/assets/images/main1.webp')" alt="Image 1" fetchpriority="high" decoding="async" />
+          <img
+            :src="getImageUrl('@/assets/images/main1-1280.webp')"
+            :srcset="mainHeroSrcset"
+            sizes="(max-width: 768px) 92vw, (max-width: 1200px) 52vw, 640px"
+            alt="Image 1"
+            fetchpriority="high"
+            decoding="async"
+            width="1280"
+            height="854"
+          />
         </div>
         <div class="image-wrapper i-top-right">
-          <img :src="getImageUrl('@/assets/images/main2.webp')" alt="Image 2" fetchpriority="high" decoding="async" />
+          <img :src="getImageUrl('@/assets/images/main2.webp')" alt="Image 2" decoding="async" loading="lazy" />
         </div>
         <div class="image-wrapper i-bottom-left">
           <img :src="getImageUrl('@/assets/images/2025-7years.webp')" alt="Image 3" decoding="async" loading="lazy" />
@@ -326,97 +270,6 @@
         </div>
       </div>
     </section>
-    <!-- 底部双卡片区域 -->
-    <section class="bottom-cards-section fade-section" v-if="showBottomCardsSection">
-      <div class="bottom-cards-container">
-        <!-- 最新内容卡片 -->
-        <div class="bottom-card news-card">
-          <div class="card-content">
-            <h2 class="card-title">当前最新内容</h2>
-
-            <!-- 简化后的新闻展示 -->
-            <div class="news-carousel-mini">
-              <div v-for="(news, index) in topThreeNews" :key="news.id" class="news-item-mini"
-                v-show="currentNewsIndex === index" @click="goToNewsroom">
-                <div class="news-image-mini">
-                  <img :src="getImageUrl(news.image)" :alt="news.title" loading="lazy" decoding="async" />
-                </div>
-                <div class="news-info-mini">
-                  <h3 class="news-title-mini">{{ news.title }}</h3>
-                  <p class="news-excerpt-mini">{{ news.excerpt }}</p>
-                </div>
-              </div>
-
-              <!-- 翻页按钮 -->
-              <div class="mini-pagination">
-                <button class="pag-btn prev" @click.stop="prevNews">←</button>
-                <div class="mini-indicators">
-                  <span v-for="(_, index) in topThreeNews" :key="index" class="mini-dot"
-                    :class="{ 'active': currentNewsIndex === index }" @click="currentNewsIndex = index"></span>
-                </div>
-                <button class="pag-btn next" @click.stop="nextNews">→</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 社区里的伙伴区域 (暂时隐藏) -->
-    <section v-if="showCommunityPartnersSection" class="community-partners-section fade-section">
-      <div class="container">
-        <h2 class="section-title">社区里的伙伴们</h2>
-        <div class="partners-hero-card glass-card">
-          <div class="partners-layout">
-            <!-- 左侧：玩家列表 -->
-            <div class="partners-list-side">
-              <div class="partners-scroll-area">
-                <div v-for="partner in communityPartners" :key="partner.username" class="partner-list-item"
-                  :class="{ 'active': selectedPartner?.username === partner.username }" @click="selectPartner(partner)">
-                  <div class="partner-mini-avatar">
-                    <div class="mini-avatar-placeholder">{{ partner.username?.charAt(0)?.toUpperCase?.() || 'U' }}</div>
-                  </div>
-                  <span class="partner-list-name">{{ partner.username }}</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- 右侧：玩家详情 -->
-            <div class="partner-detail-side">
-              <Transition name="fade-slide" mode="out-in">
-                <div v-if="selectedPartner" :key="selectedPartner.username" class="partner-detail-content">
-                  <div class="partner-detail-header">
-                    <div class="partner-big-avatar">
-                      <div class="big-avatar-placeholder">{{ selectedPartner.username?.charAt(0)?.toUpperCase?.() || 'U'
-                        }}</div>
-                    </div>
-                    <div class="partner-main-info">
-                      <h3 class="partner-name">{{ selectedPartner.username }}</h3>
-                      <div class="partner-join-date">加入于 {{ selectedPartner.joinDate }}</div>
-                    </div>
-                  </div>
-
-                  <div class="partner-detail-body">
-                    <div class="detail-section">
-                      <h4 class="detail-label">个性标签</h4>
-                      <div class="partner-tags">
-                        <span v-for="tag in selectedPartner.tags" :key="tag" class="partner-tag">{{ tag }}</span>
-                      </div>
-                    </div>
-
-                    <div class="detail-section">
-                      <h4 class="detail-label">个性签名</h4>
-                      <p class="partner-signature">{{ selectedPartner.signature }}</p>
-                    </div>
-                  </div>
-                </div>
-              </Transition>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <!-- BOH开发团队区域 -->
     <section class="team-section fade-section">
       <div class="container">
@@ -525,51 +378,12 @@
       </Transition>
     </Teleport>
 
-    <!-- 八周年信件弹窗 -->
-    <Teleport to="body">
-      <Transition name="modal-fade">
-        <div v-if="showAnniversaryLetter" class="anniversary-modal-overlay" @click.self="closeAnniversaryLetter">
-          <div class="anniversary-modal-card">
-            <button class="modal-close-btn" @click="closeAnniversaryLetter">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
-            <div class="anniversary-letter-content">
-              <div class="letter-header">
-                <img :src="getImageUrl('@/assets/images/8yearstext.webp')" alt="八周年" class="letter-logo-img"
-                  loading="lazy" decoding="async" />
-                <h2 class="letter-title">来自 Ryyik 的一封信</h2>
-              </div>
-              <div class="letter-body">
-                <p class="letter-paragraph">亲爱的方块之家成员们：</p>
-                <p class="letter-paragraph">时光飞逝，转眼间方块之家已经陪伴大家走过了八个年头。</p>
-                <p class="letter-paragraph">八年前，我们怀着对 Minecraft
-                  的热爱，创建了这个小小的社区。从最初的几个人的服务器，发展到今天拥有数千名成员的大家庭，这一切都离不开每一位成员的支持与陪伴。</p>
-                <p class="letter-paragraph">在这里，有人找到了志同道合的朋友，有人收获了珍贵的回忆，有人从新手成长为建筑大师。每一个方块都承载着我们的故事，每一次冒险都记录着我们的成长。</p>
-                <p class="letter-paragraph">感谢每一位曾经和现在为方块之家付出的人。感谢管理团队的辛勤工作，感谢创作者们的精彩作品，感谢每一位普通成员的陪伴与支持。</p>
-                <p class="letter-paragraph">八周年不是终点，而是新的起点。我们将继续努力，为大家带来更好的游戏体验，创造更多美好的回忆。</p>
-                <p class="letter-paragraph">让我们一起期待下一个八年！</p>
-                <div class="letter-signature">
-                  <p>Ryyik</p>
-                  <p class="letter-date">2026年4月</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
   </div>
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onUnmounted, defineAsyncComponent } from "vue";
+import { ref, onMounted, onUnmounted, defineAsyncComponent } from "vue";
 import UnifiedNavbar from "../../components/UnifiedNavbar/index.vue";
-import BirthdayHeroBanner from "@/components/BirthdayHeroBanner.vue";
 import HomeCatMascot from "@/components/HomeCatMascot.vue";
 // 异步组件
 const MemberDetailModal = defineAsyncComponent(() => import('../../components/MemberDetailModal.vue'));
@@ -577,8 +391,6 @@ import { useRouter } from "vue-router";
 import { getImageUrl } from "../../utils/asset-helper.js";
 import { getPosts } from "../../utils/api/forum-api.js";
 import { getForumPostExcerpt } from "../../utils/forum-post-format.js";
-import { useAuthStore } from "@/stores/auth";
-import { storeToRefs } from "pinia";
 
 import {
   teamMembers as teamMembersData
@@ -586,47 +398,13 @@ import {
 
 // 路由相关
 const router = useRouter();
-const authStore = useAuthStore();
-const { userInfo } = storeToRefs(authStore);
-const showNewYearHero = false;
-const showBottomCardsSection = false;
-const showCommunityPartnersSection = false;
-const showBirthdayHeroPreview = false;
-
-const shouldShowBirthdayHero = computed(() => showBirthdayHeroPreview);
-
-const birthdayHeroName = computed(() => String(userInfo.value.username || '').trim() || '朋友');
-
-// 新年倒计时逻辑
-const countdown = ref({ days: '00', hours: '00', minutes: '00', seconds: '00' });
-let countdownInterval = null;
-
-const updateCountdown = () => {
-  const targetDate = new Date('2026-02-16T00:00:00').getTime();
-  const now = new Date().getTime();
-  const distance = targetDate - now;
-
-  if (distance < 0) {
-    if (countdownInterval) clearInterval(countdownInterval);
-    countdown.value = { days: '00', hours: '00', minutes: '00', seconds: '00' };
-    return;
-  }
-
-  const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-  const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-
-  countdown.value = {
-    days: String(days).padStart(2, '0'),
-    hours: String(hours).padStart(2, '0'),
-    minutes: String(minutes).padStart(2, '0'),
-    seconds: String(seconds).padStart(2, '0')
-  };
-};
+const mainHeroSrcset = [
+  `${getImageUrl('@/assets/images/main1-768.webp')} 768w`,
+  `${getImageUrl('@/assets/images/main1-1280.webp')} 1280w`,
+  `${getImageUrl('@/assets/images/main1-1920.webp')} 1920w`
+].join(', ');
 
 const showJoinGameModal = ref(false);
-const showAnniversaryLetter = ref(false);
 const showCloudPlusModal = ref(false);
 
 const openCloudPlusModal = () => {
@@ -637,15 +415,6 @@ const openCloudPlusModal = () => {
 const closeCloudPlusModal = () => {
   showCloudPlusModal.value = false;
   document.body.style.overflow = '';
-};
-
-const closeAnniversaryLetter = () => {
-  showAnniversaryLetter.value = false;
-  document.body.style.overflow = '';
-};
-
-const goToGift = () => {
-  router.push('/gift');
 };
 
 // 团队成员数据
@@ -664,29 +433,6 @@ const closeMemberDetail = () => {
   showMemberDetail.value = false;
   document.body.style.overflow = '';
 };
-
-
-
-// Site search logic removed
-
-// 最新新闻
-const topThreeNews = ref([]);
-const currentNewsIndex = ref(0);
-
-const goToNewsroom = () => {
-  router.push('/newsroom');
-};
-
-const nextNews = () => {
-  currentNewsIndex.value = (currentNewsIndex.value + 1) % topThreeNews.value.length;
-};
-
-const prevNews = () => {
-  currentNewsIndex.value = (currentNewsIndex.value - 1 + topThreeNews.value.length) % topThreeNews.value.length;
-};
-
-// 导入新闻 composable
-import { initNews, getAllNews } from "../../composables/useNews";
 
 // 社区动态最新帖子英雄区
 const latestThreeForumPosts = ref([]);
@@ -743,7 +489,7 @@ const goToPostDetail = (postId) => {
 };
 
 const goToForum = () => {
-  router.push('/forum');
+  router.push('/user-space?tab=posts');
 };
 
 // 滚动触发的观察器逻辑
@@ -787,15 +533,6 @@ const cleanupObserver = () => {
 
 
 onMounted(async () => {
-  if (showNewYearHero) {
-    // 仅在展示新年模块时启动倒计时
-    updateCountdown();
-    countdownInterval = setInterval(updateCountdown, 1000);
-  }
-
-  // 从 Supabase 初始化新闻数据
-  await loadHomeNewsData();
-
   // 获取最新论坛帖子 (从 Supabase)
   fetchLatestPosts();
 
@@ -813,16 +550,7 @@ onMounted(async () => {
   initIntersectionObserver();
 });
 
-// 加载首页新闻数据
-const loadHomeNewsData = async () => {
-  await initNews();
-  if (showBottomCardsSection) {
-    topThreeNews.value = getAllNews().slice(0, 3);
-  }
-};
-
 onUnmounted(() => {
-  if (countdownInterval) clearInterval(countdownInterval);
   // 清理观察器
   cleanupObserver();
   // 避免弹窗打开时路由切换导致页面滚动被锁定

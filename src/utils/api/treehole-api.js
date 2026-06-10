@@ -1,5 +1,6 @@
 import { supabase } from '../supabase-client.js';
 import { executeRead, normalizeDbError, invalidateByTags } from '../request-core.js';
+import { callVaultSiliconChat } from './api-key-runtime-api.js';
 import {
   UNIFIED_APPROVED_STATUS,
   UNIFIED_REJECTED_STATUS,
@@ -8,34 +9,78 @@ import {
   writeModerationAuditLog,
   isMissingDbColumnError
 } from '../unified-content-moderation.js';
+import {
+  encodeCursorToken,
+  decodeCursorToken,
+  buildNextUpdatedAtCursor,
+  toTrimmedText,
+  parseJsonObjectFromText,
+  parseJsonDataFromText,
+  normalizeTags,
+  clampNumber,
+  normalizeCandidateStatus,
+  normalizeSpaceRow,
+  normalizeMemoryRow,
+  normalizeEvidence,
+  normalizeMemoryCandidateRow,
+  normalizeSharedMemoryRow,
+  buildSharedMemoryOwnerTag,
+  TREEHOLE_CACHE_TAG,
+  TREEHOLE_CANDIDATE_CACHE_TAG,
+  TREEHOLE_SHARED_MEMORY_CACHE_TAG,
+  TREEHOLE_MEMORY_FETCH_PAGE_SIZE,
+  TREEHOLE_MAX_HISTORY_MESSAGES,
+  TREEHOLE_MAX_HISTORY_CONTENT_CHARS,
+  TREEHOLE_MEMORY_SEGMENT_CHARS,
+  TREEHOLE_MEMORY_CHUNK_CHARS,
+  TREEHOLE_DIRECT_CONTEXT_CHARS,
+  TREEHOLE_MEMORY_SUMMARY_MAX_CHARS,
+  TREEHOLE_AUTO_MEMORY_MAX_MESSAGES,
+  TREEHOLE_AUTO_MEMORY_MAX_MESSAGE_CHARS,
+  TREEHOLE_AUTO_MEMORY_MAX_CANDIDATES,
+  TREEHOLE_AUTO_MEMORY_MIN_CONFIDENCE,
+  TREEHOLE_AUTO_MEMORY_AUTOSAVE_CONFIDENCE,
+  TREEHOLE_AUTO_MEMORY_CONTENT_MAX_CHARS,
+  TREEHOLE_AUTO_MEMORY_REASON_MAX_CHARS,
+  TREEHOLE_AUTO_MEMORY_MAX_EVIDENCE,
+  TREEHOLE_AUTO_MEMORY_DEDUP_SIMILARITY,
+  TREEHOLE_SHARED_MEMORY_FETCH_LIMIT,
+  TREEHOLE_SHARED_MEMORY_SEARCH_LIMIT,
+  SHARED_MEMORY_ASYNC_MODERATION_TIMEOUT_MS,
+  toTimestamp,
+  normalizeDateRangeBoundary,
+  toDateKey,
+  splitTextByLength,
+  normalizeTextForCompare,
+  toBigramSet,
+  calcSimilarity,
+  isLikelyDuplicateText,
+  normalizeQuoteLine,
+  quoteExistsInSource,
+  normalizeMemoriesForPrompt,
+  buildTreeholeMemorySegments,
+  formatTreeholeMemorySegment,
+  buildTreeholeMemoryChunks,
+  normalizeHistoryMessages,
+  isMissingCandidatesTableError,
+  isMissingSharedMemoryTableError,
+  buildSharedMemoryModerationInput,
+  tokenizeSharedMemoryQuery,
+  buildSharedMemorySearchText,
+  scoreSharedMemoryByQuery,
+  buildDialogueContextForMemoryCapture,
+  inferEvidenceMessageId,
+  normalizeCandidateEvidence,
+  normalizeExtractedCandidate,
+  TREEHOLE_REQUIRED_SECTIONS,
+  extractMemoryCitationTokens,
+  hasTreeholeRequiredSections
+} from './treehole-helpers.js';
 
-const TREEHOLE_CACHE_TAG = 'treehole';
-const SILICON_CLOUD_API_KEY = import.meta.env.VITE_SILICON_CLOUD_API_KEY || '';
 const SILICON_CLOUD_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
 // 固定选用 AI 广场中的长记忆复盘模型（高强推理）
 const TREEHOLE_LONG_MEMORY_MODEL = 'deepseek-ai/DeepSeek-R1-0528-Qwen3-8B';
-const TREEHOLE_MEMORY_FETCH_PAGE_SIZE = 200;
-const TREEHOLE_MAX_HISTORY_MESSAGES = 10;
-const TREEHOLE_MAX_HISTORY_CONTENT_CHARS = 800;
-const TREEHOLE_MEMORY_SEGMENT_CHARS = 1800;
-const TREEHOLE_MEMORY_CHUNK_CHARS = 22000;
-const TREEHOLE_DIRECT_CONTEXT_CHARS = 52000;
-const TREEHOLE_MEMORY_SUMMARY_MAX_CHARS = 260;
-const TREEHOLE_CANDIDATE_CACHE_TAG = 'treehole-candidates';
-const TREEHOLE_SHARED_MEMORY_CACHE_TAG = 'shared-ai-memory';
 const TREEHOLE_AUTO_MEMORY_MODEL = TREEHOLE_LONG_MEMORY_MODEL;
-const TREEHOLE_AUTO_MEMORY_MAX_MESSAGES = 12;
-const TREEHOLE_AUTO_MEMORY_MAX_MESSAGE_CHARS = 900;
-const TREEHOLE_AUTO_MEMORY_MAX_CANDIDATES = 4;
-const TREEHOLE_AUTO_MEMORY_MIN_CONFIDENCE = 0.66;
-const TREEHOLE_AUTO_MEMORY_AUTOSAVE_CONFIDENCE = 0.9;
-const TREEHOLE_AUTO_MEMORY_CONTENT_MAX_CHARS = 320;
-const TREEHOLE_AUTO_MEMORY_REASON_MAX_CHARS = 200;
-const TREEHOLE_AUTO_MEMORY_MAX_EVIDENCE = 8;
-const TREEHOLE_AUTO_MEMORY_DEDUP_SIMILARITY = 0.86;
-const TREEHOLE_SHARED_MEMORY_FETCH_LIMIT = 300;
-const TREEHOLE_SHARED_MEMORY_SEARCH_LIMIT = 60;
-const SHARED_MEMORY_ASYNC_MODERATION_TIMEOUT_MS = 45000;
 const TREEHOLE_SPACE_COLUMNS = 'user_id, title, description, created_at, updated_at';
 const TREEHOLE_MEMORY_COLUMNS = 'id, user_id, content, mood, tags, is_starred, source, created_at, updated_at';
 const TREEHOLE_SHARED_MEMORY_COLUMNS = `
@@ -83,469 +128,25 @@ const TREEHOLE_CANDIDATE_COLUMNS = `
   updated_at
 `;
 
-const encodeCursorToken = (payload = {}) => {
-  try {
-    return btoa(JSON.stringify(payload));
-  } catch (_error) {
-    return '';
-  }
-};
-
-const decodeCursorToken = (token = '', timestampField = 'updatedAt') => {
-  const safeToken = String(token || '').trim();
-  if (!safeToken) return null;
-
-  try {
-    const parsed = JSON.parse(atob(safeToken));
-    const updatedAt = String(parsed?.[timestampField] || parsed?.updatedAt || parsed?.updated_at || '').trim();
-    const id = String(parsed?.id || '').trim();
-    if (!updatedAt || !id) return null;
-    return { updatedAt, id };
-  } catch (_error) {
-    return null;
-  }
-};
-
-const buildNextUpdatedAtCursor = (rows = [], hasMore = false) => {
-  if (!hasMore || !Array.isArray(rows) || rows.length === 0) return '';
-  const last = rows[rows.length - 1];
-  const updatedAt = String(last?.updated_at || '').trim();
-  const id = String(last?.id || '').trim();
-  if (!updatedAt || !id) return '';
-  return encodeCursorToken({ updatedAt, id });
-};
-
-const toTrimmedText = (value, maxLen = 0) => {
-  const text = String(value || '').trim();
-  if (!maxLen || text.length <= maxLen) return text;
-  return text.slice(0, maxLen);
-};
-
-const parseJsonObjectFromText = (text) => {
-  const safeText = String(text || '').trim();
-  if (!safeText) return null;
-
-  try {
-    return JSON.parse(safeText);
-  } catch (_error) {
-    // noop
-  }
-
-  const startIndex = safeText.indexOf('{');
-  const endIndex = safeText.lastIndexOf('}');
-  if (startIndex < 0 || endIndex <= startIndex) return null;
-
-  const maybeJson = safeText.slice(startIndex, endIndex + 1);
-  try {
-    return JSON.parse(maybeJson);
-  } catch (_error) {
-    return null;
-  }
-};
-
-const parseJsonDataFromText = (text) => {
-  const safeText = String(text || '').trim();
-  if (!safeText) return null;
-
-  try {
-    return JSON.parse(safeText);
-  } catch (_error) {
-    // noop
-  }
-
-  const fencedMatch = safeText.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fencedMatch?.[1]) {
-    const candidate = fencedMatch[1].trim();
-    if (candidate) {
-      try {
-        return JSON.parse(candidate);
-      } catch (_error) {
-        // noop
-      }
-    }
-  }
-
-  const objectStart = safeText.indexOf('{');
-  const objectEnd = safeText.lastIndexOf('}');
-  if (objectStart >= 0 && objectEnd > objectStart) {
-    const maybeObject = safeText.slice(objectStart, objectEnd + 1);
-    try {
-      return JSON.parse(maybeObject);
-    } catch (_error) {
-      // noop
-    }
-  }
-
-  const arrayStart = safeText.indexOf('[');
-  const arrayEnd = safeText.lastIndexOf(']');
-  if (arrayStart >= 0 && arrayEnd > arrayStart) {
-    const maybeArray = safeText.slice(arrayStart, arrayEnd + 1);
-    try {
-      return JSON.parse(maybeArray);
-    } catch (_error) {
-      // noop
-    }
-  }
-
-  return null;
-};
-
-const normalizeTags = (tags) => {
-  if (!Array.isArray(tags)) return [];
-  const unique = new Set();
-
-  for (const item of tags) {
-    const text = toTrimmedText(item, 20);
-    if (!text) continue;
-    unique.add(text);
-    if (unique.size >= 20) break;
-  }
-
-  return [...unique];
-};
-
-const clampNumber = (value, min = 0, max = 1, fallback = 0) => {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.max(min, Math.min(max, n));
-};
-
-const normalizeCandidateStatus = (value) => {
-  const normalized = String(value || '').trim();
-  if (normalized === 'auto_saved') return 'auto_saved';
-  if (normalized === 'rejected') return 'rejected';
-  return 'pending';
-};
-
-const normalizeSpaceRow = (row) => {
-  if (!row) return null;
-  return {
-    userId: row.user_id || '',
-    title: row.title || '我的 BOH 树洞',
-    description: row.description || '',
-    createdAt: row.created_at || '',
-    updatedAt: row.updated_at || ''
-  };
-};
-
-const normalizeMemoryRow = (row) => {
-  if (!row) return null;
-  return {
-    id: row.id || '',
-    userId: row.user_id || '',
-    content: row.content || '',
-    mood: row.mood || '',
-    tags: normalizeTags(row.tags),
-    isStarred: Boolean(row.is_starred),
-    source: row.source === 'ai' ? 'ai' : 'manual',
-    createdAt: row.created_at || '',
-    updatedAt: row.updated_at || ''
-  };
-};
-
-const normalizeEvidence = (evidence) => {
-  if (!Array.isArray(evidence)) return [];
-  const items = [];
-
-  for (const item of evidence) {
-    const messageId = toTrimmedText(item?.messageId || item?.message_id, 24);
-    const quote = toTrimmedText(item?.quote || item?.text, 240);
-    if (!messageId || !quote) continue;
-    items.push({ messageId, quote });
-    if (items.length >= TREEHOLE_AUTO_MEMORY_MAX_EVIDENCE) break;
-  }
-
-  return items;
-};
-
-const normalizeMemoryCandidateRow = (row) => {
-  if (!row) return null;
-  return {
-    id: row.id || '',
-    userId: row.user_id || '',
-    content: row.content || '',
-    mood: row.mood || '',
-    tags: normalizeTags(row.tags),
-    confidence: clampNumber(row.confidence, 0, 1, 0),
-    evidence: normalizeEvidence(row.evidence),
-    status: normalizeCandidateStatus(row.status),
-    sessionId: row.session_id || '',
-    reason: row.reason || '',
-    model: row.model || '',
-    memoryId: row.memory_id || '',
-    createdAt: row.created_at || '',
-    updatedAt: row.updated_at || ''
-  };
-};
-
-const normalizeSharedMemoryRow = (row) => {
-  if (!row) return null;
-  return {
-    id: row.id || '',
-    ownerUserId: row.owner_user_id || '',
-    content: row.content || '',
-    mood: row.mood || '',
-    tags: normalizeTags(row.tags),
-    confidence: clampNumber(row.confidence, 0, 1, 0),
-    evidence: normalizeEvidence(row.evidence),
-    source: row.source || 'capture',
-    status: row.status || 'active',
-    moderationStatus: row.moderation_status || '',
-    moderationReason: row.moderation_reason || '',
-    createdAt: row.created_at || '',
-    updatedAt: row.updated_at || ''
-  };
-};
-
-const buildSharedMemoryOwnerTag = (userId) => {
-  const safeUserId = toTrimmedText(userId, 64);
-  return safeUserId ? `${TREEHOLE_SHARED_MEMORY_CACHE_TAG}:owner:${safeUserId}` : '';
-};
-
 const invalidateTreeholeCache = (userId) => {
   invalidateByTags([
     TREEHOLE_CACHE_TAG,
     userId ? `${TREEHOLE_CACHE_TAG}:user:${userId}` : ''
-  ]);
+  ].filter(Boolean));
 };
 
 const invalidateTreeholeCandidateCache = (userId) => {
   invalidateByTags([
     TREEHOLE_CANDIDATE_CACHE_TAG,
     userId ? `${TREEHOLE_CANDIDATE_CACHE_TAG}:user:${userId}` : ''
-  ]);
+  ].filter(Boolean));
 };
 
 const invalidateSharedMemoryCache = (userId = '') => {
   invalidateByTags([
     TREEHOLE_SHARED_MEMORY_CACHE_TAG,
     buildSharedMemoryOwnerTag(userId)
-  ]);
-};
-
-const toTimestamp = (value) => {
-  const ts = new Date(value || '').getTime();
-  return Number.isFinite(ts) ? ts : 0;
-};
-
-const normalizeDateRangeBoundary = (value) => {
-  const text = toTrimmedText(value, 64);
-  if (!text) return '';
-  const date = new Date(text);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toISOString();
-};
-
-const toDateKey = (value) => {
-  const date = new Date(value || '');
-  if (Number.isNaN(date.getTime())) return '';
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-const splitTextByLength = (text, maxLen = 0) => {
-  const safeText = String(text || '');
-  const safeMaxLen = Number.isFinite(maxLen) ? Math.max(1, Math.trunc(maxLen)) : 0;
-  if (!safeText) return ['（空）'];
-  if (!safeMaxLen || safeText.length <= safeMaxLen) return [safeText];
-
-  const chunks = [];
-  for (let start = 0; start < safeText.length; start += safeMaxLen) {
-    chunks.push(safeText.slice(start, start + safeMaxLen));
-  }
-  return chunks;
-};
-
-const normalizeTextForCompare = (text) => {
-  return String(text || '')
-    .toLowerCase()
-    .replace(/[^\u4e00-\u9fa5a-z0-9]+/g, '')
-    .trim();
-};
-
-const toBigramSet = (text) => {
-  const normalized = normalizeTextForCompare(text);
-  const grams = new Set();
-  if (!normalized) return grams;
-  if (normalized.length < 2) {
-    grams.add(normalized);
-    return grams;
-  }
-
-  for (let i = 0; i < normalized.length - 1; i += 1) {
-    grams.add(normalized.slice(i, i + 2));
-  }
-  return grams;
-};
-
-const calcSimilarity = (a, b) => {
-  const setA = toBigramSet(a);
-  const setB = toBigramSet(b);
-  if (setA.size === 0 || setB.size === 0) return 0;
-
-  let intersection = 0;
-  for (const item of setA) {
-    if (setB.has(item)) intersection += 1;
-  }
-
-  const union = setA.size + setB.size - intersection;
-  if (union <= 0) return 0;
-  return intersection / union;
-};
-
-const isLikelyDuplicateText = (incomingText, existingTexts = []) => {
-  const incoming = normalizeTextForCompare(incomingText);
-  if (!incoming) return false;
-
-  for (const value of existingTexts) {
-    const normalized = normalizeTextForCompare(value);
-    if (!normalized) continue;
-    if (incoming === normalized) return true;
-    if (incoming.includes(normalized) || normalized.includes(incoming)) return true;
-    if (calcSimilarity(incoming, normalized) >= TREEHOLE_AUTO_MEMORY_DEDUP_SIMILARITY) return true;
-  }
-
-  return false;
-};
-
-const normalizeQuoteLine = (text) => String(text || '').replace(/\s+/g, ' ').trim();
-
-const quoteExistsInSource = (sourceText, quoteText) => {
-  const source = String(sourceText || '');
-  const quote = String(quoteText || '').trim();
-  if (!source || !quote) return false;
-  if (source.includes(quote)) return true;
-  const normalizedSource = normalizeQuoteLine(source);
-  const normalizedQuote = normalizeQuoteLine(quote);
-  return normalizedSource.includes(normalizedQuote);
-};
-
-const normalizeMemoriesForPrompt = (memories = []) => {
-  if (!Array.isArray(memories)) return [];
-
-  return memories
-    .map((item) => ({
-      id: toTrimmedText(item?.id, 80),
-      content: String(item?.content || '').trim(),
-      mood: toTrimmedText(item?.mood, 24),
-      tags: normalizeTags(item?.tags || []),
-      createdAt: toTrimmedText(item?.createdAt, 40),
-      updatedAt: toTrimmedText(item?.updatedAt, 40)
-    }))
-    .filter((item) => item.content)
-    .sort((a, b) => toTimestamp(a.updatedAt || a.createdAt) - toTimestamp(b.updatedAt || b.createdAt));
-};
-
-const buildTreeholeMemorySegments = (memories = [], maxSegmentChars = TREEHOLE_MEMORY_SEGMENT_CHARS) => {
-  const normalized = normalizeMemoriesForPrompt(memories);
-  const segments = [];
-
-  normalized.forEach((item, index) => {
-    const memoryNo = index + 1;
-    const parts = splitTextByLength(item.content, maxSegmentChars);
-    const totalSegments = parts.length;
-    const tagsText = item.tags.join('、');
-    const timestamp = item.updatedAt || item.createdAt || '未知';
-
-    parts.forEach((contentPart, partIndex) => {
-      const segmentNo = partIndex + 1;
-      segments.push({
-        memoryNo,
-        totalSegments,
-        segmentNo,
-        timestamp,
-        mood: item.mood || '未标注',
-        tags: tagsText || '无',
-        content: contentPart || '（空）'
-      });
-    });
-  });
-
-  return {
-    memoryCount: normalized.length,
-    segments
-  };
-};
-
-const formatTreeholeMemorySegment = (segment) => {
-  return `记忆#${segment.memoryNo}（片段 ${segment.segmentNo}/${segment.totalSegments}）
-时间: ${segment.timestamp}
-心情: ${segment.mood}
-标签: ${segment.tags}
-内容:
-${segment.content}`;
-};
-
-const buildTreeholeMemoryChunks = (
-  memories = [],
-  {
-    maxChunkChars = TREEHOLE_MEMORY_CHUNK_CHARS,
-    maxSegmentChars = TREEHOLE_MEMORY_SEGMENT_CHARS
-  } = {}
-) => {
-  const { memoryCount, segments } = buildTreeholeMemorySegments(memories, maxSegmentChars);
-  if (segments.length === 0) {
-    return { memoryCount: 0, chunks: [] };
-  }
-
-  const chunks = [];
-  let currentLines = [];
-  let currentLen = 0;
-  let currentMemoryIds = new Set();
-
-  segments.forEach((segment) => {
-    const line = formatTreeholeMemorySegment(segment);
-    const estimatedLen = line.length + 2;
-    const shouldFlush = currentLines.length > 0 && (currentLen + estimatedLen > maxChunkChars);
-
-    if (shouldFlush) {
-      chunks.push({
-        text: currentLines.join('\n\n'),
-        memoryCount: currentMemoryIds.size
-      });
-      currentLines = [];
-      currentLen = 0;
-      currentMemoryIds = new Set();
-    }
-
-    currentLines.push(line);
-    currentLen += estimatedLen;
-    currentMemoryIds.add(segment.memoryNo);
-  });
-
-  if (currentLines.length > 0) {
-    chunks.push({
-      text: currentLines.join('\n\n'),
-      memoryCount: currentMemoryIds.size
-    });
-  }
-
-  return { memoryCount, chunks };
-};
-
-const normalizeHistoryMessages = (history = []) => {
-  if (!Array.isArray(history)) return [];
-  return history
-    .slice(-TREEHOLE_MAX_HISTORY_MESSAGES)
-    .map((item) => ({
-      role: item?.role === 'assistant' ? 'assistant' : 'user',
-      content: toTrimmedText(item?.content, TREEHOLE_MAX_HISTORY_CONTENT_CHARS)
-    }))
-    .filter((item) => item.content);
-};
-
-const isMissingCandidatesTableError = (error) => {
-  const code = String(error?.code || '').trim();
-  const message = String(error?.message || '').toLowerCase();
-  return code === '42P01' || message.includes('boh_treehole_memory_candidates');
-};
-
-const isMissingSharedMemoryTableError = (error) => {
-  const code = String(error?.code || '').trim();
-  const message = String(error?.message || '').toLowerCase();
-  return code === '42P01' || message.includes('boh_ai_shared_memories');
+  ].filter(Boolean));
 };
 
 const isMissingSharedMemoryModerationColumnError = (error) => {
@@ -559,11 +160,6 @@ const isMissingSharedMemorySearchFunctionError = (error) => {
   return code === 'PGRST202'
     || code === '42883'
     || message.includes('search_boh_ai_shared_memories');
-};
-
-const buildSharedMemoryModerationInput = (content = '') => {
-  const safeContent = toTrimmedText(content, 1200);
-  return `正文：${safeContent}`;
 };
 
 async function insertSharedMemoryWithModerationCompatibility(basePayload = {}) {
@@ -666,145 +262,6 @@ async function scheduleSharedMemoryModeration(sharedMemoryRow = {}) {
   }
 }
 
-const tokenizeSharedMemoryQuery = (query = '') => {
-  const safeQuery = toTrimmedText(query, 180).toLowerCase();
-  if (!safeQuery) return [];
-  const tokens = safeQuery.match(/[a-z0-9_/-]{2,}|[\u4e00-\u9fa5]{2,}/g) || [];
-  return [...new Set(tokens)].slice(0, 24);
-};
-
-const buildSharedMemorySearchText = (row = {}) => {
-  const content = String(row?.content || '');
-  const mood = String(row?.mood || '');
-  const tags = Array.isArray(row?.tags) ? row.tags.join(' ') : '';
-  return `${content}\n${mood}\n${tags}`.toLowerCase();
-};
-
-const scoreSharedMemoryByQuery = (row = {}, query = '', tokens = []) => {
-  const safeQuery = toTrimmedText(query, 180).toLowerCase();
-  if (!safeQuery) return 0;
-
-  const searchableText = buildSharedMemorySearchText(row);
-  if (!searchableText) return 0;
-
-  let score = 0;
-  if (searchableText.includes(safeQuery)) {
-    score += Math.min(8, Math.ceil(safeQuery.length / 3));
-  }
-
-  const safeTokens = Array.isArray(tokens) ? tokens : tokenizeSharedMemoryQuery(safeQuery);
-  safeTokens.forEach((token) => {
-    if (!token) return;
-    if (searchableText.includes(token)) {
-      score += Math.min(3, Math.ceil(token.length / 2));
-    }
-  });
-
-  score += clampNumber(row?.confidence, 0, 1, 0) * 0.4;
-  return score;
-};
-
-const buildDialogueContextForMemoryCapture = (messages = []) => {
-  const source = Array.isArray(messages) ? messages : [];
-  const selected = source
-    .map((item) => ({
-      role: item?.role === 'assistant' ? 'assistant' : 'user',
-      content: toTrimmedText(item?.content, TREEHOLE_AUTO_MEMORY_MAX_MESSAGE_CHARS)
-    }))
-    .filter((item) => item.content)
-    .slice(-TREEHOLE_AUTO_MEMORY_MAX_MESSAGES);
-
-  let userCounter = 0;
-  let assistantCounter = 0;
-  const turns = selected.map((item) => {
-    if (item.role === 'assistant') {
-      assistantCounter += 1;
-      return { id: `a${assistantCounter}`, role: 'assistant', content: item.content };
-    }
-    userCounter += 1;
-    return { id: `u${userCounter}`, role: 'user', content: item.content };
-  });
-
-  const userTurns = turns.filter((item) => item.role === 'user');
-  const userTurnMap = new Map(userTurns.map((item) => [item.id, item]));
-  const turnText = turns
-    .map((turn) => `[${turn.id}][${turn.role}] ${turn.content}`)
-    .join('\n');
-
-  return {
-    turns,
-    userTurns,
-    userTurnMap,
-    turnText
-  };
-};
-
-const inferEvidenceMessageId = (quote, userTurns = []) => {
-  if (!quote) return '';
-  const matched = userTurns.filter((item) => quoteExistsInSource(item.content, quote));
-  if (matched.length !== 1) return '';
-  return matched[0].id;
-};
-
-const normalizeCandidateEvidence = (evidence, userTurns = [], userTurnMap = new Map()) => {
-  const source = Array.isArray(evidence) ? evidence : [];
-  const output = [];
-  const unique = new Set();
-
-  for (const item of source) {
-    let messageId = toTrimmedText(item?.messageId || item?.message_id, 24);
-    const quote = toTrimmedText(item?.quote || item?.text || item, 240);
-    if (!quote) continue;
-
-    if (!messageId || !userTurnMap.has(messageId)) {
-      messageId = inferEvidenceMessageId(quote, userTurns);
-    }
-    if (!messageId || !userTurnMap.has(messageId)) continue;
-
-    const sourceMessage = userTurnMap.get(messageId)?.content || '';
-    if (!quoteExistsInSource(sourceMessage, quote)) continue;
-
-    const dedupeKey = `${messageId}::${normalizeQuoteLine(quote)}`;
-    if (unique.has(dedupeKey)) continue;
-    unique.add(dedupeKey);
-    output.push({ messageId, quote });
-    if (output.length >= TREEHOLE_AUTO_MEMORY_MAX_EVIDENCE) break;
-  }
-
-  return output;
-};
-
-const normalizeExtractedCandidate = (candidate = {}, userTurns = [], userTurnMap = new Map()) => {
-  const content = toTrimmedText(
-    candidate?.content || candidate?.memory || candidate?.summary || candidate?.fact,
-    TREEHOLE_AUTO_MEMORY_CONTENT_MAX_CHARS
-  );
-  if (!content) return null;
-
-  const evidence = normalizeCandidateEvidence(candidate?.evidence, userTurns, userTurnMap);
-  if (evidence.length === 0) return null;
-
-  const mood = toTrimmedText(candidate?.mood, 24);
-  const tags = normalizeTags(candidate?.tags).slice(0, 6);
-  const reason = toTrimmedText(candidate?.reason || candidate?.why, TREEHOLE_AUTO_MEMORY_REASON_MAX_CHARS);
-  const confidence = clampNumber(candidate?.confidence, 0, 1, 0.5);
-
-  return { content, mood, tags, reason, confidence, evidence };
-};
-
-const TREEHOLE_REQUIRED_SECTIONS = ['【结论】', '【依据（记忆编号）】', '【行动建议】', '【不确定项】'];
-
-const extractMemoryCitationTokens = (text) => {
-  const safeText = String(text || '');
-  const matches = safeText.match(/记忆#\d+/g) || [];
-  return [...new Set(matches)];
-};
-
-const hasTreeholeRequiredSections = (text) => {
-  const safeText = String(text || '');
-  return TREEHOLE_REQUIRED_SECTIONS.every((section) => safeText.includes(section));
-};
-
 const requestTreeholeCompletion = async ({
   messages = [],
   model = TREEHOLE_LONG_MEMORY_MODEL,
@@ -816,54 +273,76 @@ const requestTreeholeCompletion = async ({
   const safeTimeout = Number.isFinite(timeoutMs)
     ? Math.max(5000, Math.min(120000, Math.trunc(timeoutMs)))
     : 28000;
-  const controller = new AbortController();
-  let timeoutId = null;
-  let abortedByTimeout = false;
-  const handleExternalAbort = () => {
-    controller.abort();
-  };
 
-  if (signal) {
-    if (signal.aborted) {
-      controller.abort();
-    } else {
-      signal.addEventListener('abort', handleExternalAbort, { once: true });
+  // 使用 AbortSignal.any 合并外部 signal 与超时 signal，
+  // 避免手动管理 AbortController 事件监听器可能导致的资源泄漏
+  let combinedSignal;
+  const hasExternalSignal = !!signal;
+  const hasTimeout = safeTimeout > 0;
+
+  if (hasExternalSignal && hasTimeout) {
+    try {
+      combinedSignal = AbortSignal.any([signal, AbortSignal.timeout(safeTimeout)]);
+    } catch {
+      combinedSignal = signal;
     }
+  } else if (hasExternalSignal) {
+    combinedSignal = signal;
+  } else if (hasTimeout) {
+    combinedSignal = AbortSignal.timeout(safeTimeout);
   }
 
-  if (safeTimeout > 0) {
-    timeoutId = setTimeout(() => {
+  let abortedByTimeout = false;
+  let timeoutCleanup = null;
+
+  // 在 AbortSignal.any 不可用的低版本环境中回退到手动超时
+  if (!combinedSignal && hasTimeout && hasExternalSignal) {
+    const fallbackController = new AbortController();
+    combinedSignal = fallbackController.signal;
+    const fallbackTimer = setTimeout(() => {
       abortedByTimeout = true;
-      controller.abort();
+      fallbackController.abort();
     }, safeTimeout);
+    const onExternalAbort = () => { fallbackController.abort(); };
+    signal.addEventListener('abort', onExternalAbort, { once: true });
+    timeoutCleanup = () => {
+      clearTimeout(fallbackTimer);
+      signal.removeEventListener('abort', onExternalAbort);
+    };
   }
 
   try {
-    const response = await fetch(SILICON_CLOUD_URL, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${SILICON_CLOUD_API_KEY}`
-      },
-      body: JSON.stringify({
+    const payload = {
         model,
         stream: false,
         temperature,
         max_tokens: maxTokens,
         messages
-      })
-    });
+      };
 
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
+    const vaultResult = await callVaultSiliconChat({
+      purpose: 'chat',
+      payload,
+      apiUrl: SILICON_CLOUD_URL,
+      timeoutMs: safeTimeout
+    });
+    if (!vaultResult.ok) {
       return {
         ok: false,
         data: null,
         error: normalizeDbError({
-          message: result?.error?.message || `AI 请求失败(${response.status})`,
-          code: result?.error?.code || 'AI_REQUEST_FAILED'
+          message: vaultResult.error?.message || 'AI Key 代理请求失败',
+          code: vaultResult.error?.code || 'AI_PROXY_REQUEST_FAILED'
         })
+      };
+    }
+    const result = vaultResult.data || {};
+
+    if (!result || typeof result !== 'object') {
+      return {
+        ok: false,
+        data: null,
+        error: normalizeDbError({ message: 'AI 返回内容不可解析', code: 'AI_INVALID_REPLY' })
       };
     }
 
@@ -886,9 +365,10 @@ const requestTreeholeCompletion = async ({
       error: null
     };
   } catch (error) {
-    const isAbortError = error?.name === 'AbortError';
+    const errorName = error?.name || '';
+    const isAbortError = errorName === 'AbortError' || errorName === 'TimeoutError';
     if (isAbortError) {
-      if (abortedByTimeout) {
+      if (abortedByTimeout || errorName === 'TimeoutError') {
         return {
           ok: false,
           data: null,
@@ -903,9 +383,8 @@ const requestTreeholeCompletion = async ({
     }
     return { ok: false, data: null, error: normalizeDbError(error) };
   } finally {
-    if (timeoutId) clearTimeout(timeoutId);
-    if (signal) {
-      signal.removeEventListener('abort', handleExternalAbort);
+    if (typeof timeoutCleanup === 'function') {
+      timeoutCleanup();
     }
   }
 };
@@ -950,7 +429,7 @@ const buildStrictTreeholeMemoryContext = async (memories = [], { signal = null }
         },
         {
           role: 'user',
-          content: `这是第 ${i + 1}/${chunks.length} 组记忆片段，共覆盖约 ${chunk.memoryCount} 条记忆。请严格按以下模板输出（不要省略标题）：\n\n已阅读完成：第 ${i + 1} 组\n本组事实要点：\n- [记忆#x] ...\n本组情绪与高频主题：\n- [记忆#x] ...\n本组时间线线索：\n- [记忆#x] 先/后 ...\n潜在冲突或待澄清点：\n- [记忆#x] ...\n\n要求：\n1) 每条要点至少带一个 [记忆#] 引用。\n2) 若某一节没有明确信息，请写“暂无明确信息”，不要编造。\n3) 只基于本组片段，不要引用组外内容。\n\n记忆片段如下：\n\n${chunk.text}`
+          content: `这是第 ${i + 1}/${chunks.length} 组记忆片段，共覆盖约 ${chunk.memoryCount} 条记忆。请严格按以下模板输出（不要省略标题）：\n\n已阅读完成：第 ${i + 1} 组\n本组事实要点：\n- [记忆#x] ...\n本组情绪与高频主题：\n- [记忆#x] ...\n本组时间线线索：\n- [记忆#x] 先/后 ...\n潜在冲突或待澄清点：\n- [记忆#x] ...\n\n要求：\n1) 每条要点至少带一个 [记忆#] 引用。\n2) 若某一节没有明确信息，请写"暂无明确信息"，不要编造。\n3) 只基于本组片段，不要引用组外内容。\n\n记忆片段如下：\n\n${chunk.text}`
         }
       ]
     });
@@ -965,7 +444,7 @@ const buildStrictTreeholeMemoryContext = async (memories = [], { signal = null }
   return {
     ok: true,
     data: {
-      context: `以下内容为系统按顺序逐组阅读“全部树洞记忆片段”后的摘要。每条摘要都应包含记忆编号引用，你必须仅基于这些依据作答：\n\n${chunkSummaries.join('\n\n')}`,
+      context: `以下内容为系统按顺序逐组阅读"全部树洞记忆片段"后的摘要。每条摘要都应包含记忆编号引用，你必须仅基于这些依据作答：\n\n${chunkSummaries.join('\n\n')}`,
       coverage: { memoryCount, chunkCount: chunks.length, mode: 'chunk-summary' }
     },
     error: null
@@ -1703,7 +1182,7 @@ export async function createSharedAIMemory(userId, payload = {}) {
         sourceTypes: ['shared_memory'],
         syncLimit: 8
       }
-    }).catch(() => {});
+    }).catch(() => { });
   }
   if (insertedSharedMemoryId) {
     void scheduleSharedMemoryModeration({
@@ -2077,14 +1556,6 @@ export async function extractMemoryCandidatesFromDialogue({
   maxCandidates = TREEHOLE_AUTO_MEMORY_MAX_CANDIDATES,
   model = TREEHOLE_AUTO_MEMORY_MODEL
 } = {}) {
-  if (!SILICON_CLOUD_API_KEY) {
-    return {
-      ok: false,
-      data: null,
-      error: normalizeDbError({ message: '缺少 AI Key，请配置 VITE_SILICON_CLOUD_API_KEY', code: 'AI_KEY_MISSING' })
-    };
-  }
-
   const context = buildDialogueContextForMemoryCapture(messages);
   if (context.userTurns.length === 0 || !context.turnText) {
     return {
@@ -2102,7 +1573,7 @@ export async function extractMemoryCandidatesFromDialogue({
     ? Math.min(8, Math.max(1, Math.trunc(maxCandidates)))
     : TREEHOLE_AUTO_MEMORY_MAX_CANDIDATES;
 
-  const instruction = `你是“BOH 对话记忆抽取器”。任务：仅从用户消息提取可长期复用的事实记忆候选，并输出严格 JSON。
+  const instruction = `你是"BOH 对话记忆抽取器"。任务：仅从用户消息提取可长期复用的事实记忆候选，并输出严格 JSON。
 只允许提取以下类型：
 1) 稳定偏好（长期喜欢/讨厌）
 2) 稳定背景信息（身份、长期环境）
@@ -2504,15 +1975,7 @@ export async function extractTreeholeMemoryHighlights({
     };
   }
 
-  if (!SILICON_CLOUD_API_KEY) {
-    return {
-      ok: false,
-      data: null,
-      error: normalizeDbError({ message: '缺少 AI Key，请配置 VITE_SILICON_CLOUD_API_KEY', code: 'AI_KEY_MISSING' })
-    };
-  }
-
-  const instruction = `你是“树洞记忆提炼器”。请把用户输入提炼成便于复盘的重点，并严格返回 JSON（不要额外文字）。
+  const instruction = `你是"树洞记忆提炼器"。请把用户输入提炼成便于复盘的重点，并严格返回 JSON（不要额外文字）。
 输出 JSON 格式：
 {
   "summary": "字符串，${TREEHOLE_MEMORY_SUMMARY_MAX_CHARS}字以内，保留核心事实与情绪线索",
@@ -2656,14 +2119,6 @@ export async function askTreeholeQwen({
     return { ok: false, data: null, error: normalizeDbError({ message: '请输入问题', code: 'EMPTY_QUESTION' }) };
   }
 
-  if (!SILICON_CLOUD_API_KEY) {
-    return {
-      ok: false,
-      data: null,
-      error: normalizeDbError({ message: '缺少 AI Key，请配置 VITE_SILICON_CLOUD_API_KEY', code: 'AI_KEY_MISSING' })
-    };
-  }
-
   const strictContextResult = await buildStrictTreeholeMemoryContext(memories, { signal });
   if (!strictContextResult.ok) {
     return strictContextResult;
@@ -2681,15 +2136,15 @@ export async function askTreeholeQwen({
       role: 'system',
       content: `你是 BOH 树洞复盘助手。目标：帮助用户基于其私有记忆进行复盘、总结和行动建议。
 请严格遵守：
-1) 事实依据只能来自“用户记忆上下文”，历史对话仅用于理解问题，不可作为新事实依据。
-2) 禁止编造用户没有写过的具体事实；若证据不足，明确写“未在记忆中找到明确依据”。
+1) 事实依据只能来自"用户记忆上下文"，历史对话仅用于理解问题，不可作为新事实依据。
+2) 禁止编造用户没有写过的具体事实；若证据不足，明确写"未在记忆中找到明确依据"。
 3) 引用格式统一为 [记忆#数字]。
 4) 输出固定为四段并保留标题：
 【结论】
 【依据（记忆编号）】
 【行动建议】
 【不确定项】
-5) “依据”段必须使用项目符号，每条都带 [记忆#] 引用。`
+5) "依据"段必须使用项目符号，每条都带 [记忆#] 引用。`
     },
     {
       role: 'system',
@@ -2732,10 +2187,10 @@ export async function askTreeholeQwen({
         { role: 'assistant', content: finalReply },
         {
           role: 'user',
-          content: `你上一条回答未完全满足输出规范，请按以下规则“重写整条回答”：
+          content: `你上一条回答未完全满足输出规范，请按以下规则"重写整条回答"：
 1) 必须保留四段标题：${TREEHOLE_REQUIRED_SECTIONS.join(' / ')}。
-2) “依据（记忆编号）”段每一条都要带 [记忆#数字] 引用。
-3) 不得新增记忆中不存在的事实；若证据不足，请在【不确定项】写明“未在记忆中找到明确依据”。
+2) "依据（记忆编号）"段每一条都要带 [记忆#数字] 引用。
+3) 不得新增记忆中不存在的事实；若证据不足，请在【不确定项】写明"未在记忆中找到明确依据"。
 4) 只输出重写后的最终答案，不要解释规则。`
         }
       ],
