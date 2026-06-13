@@ -1,5 +1,9 @@
 <template>
-  <div class="user-space-page" :class="{ 'immersive-browsing-enabled': immersiveBrowsingEnabled }"
+  <div class="user-space-page" :class="{
+    'ai-nav-collapsed': currentTab === 'ai' && isAICollapsed,
+    'tab-transition-forward': tabTransitionDirection === 'forward',
+    'tab-transition-back': tabTransitionDirection === 'back'
+  }"
     :data-theme="currentTheme">
     <UnifiedNavbar />
 
@@ -9,7 +13,7 @@
 
     <div v-if="mountedTabs.posts" v-show="currentTab === 'posts'" class="tab-page posts-tab">
       <AsyncForum :key="forumRenderKey" :show-navbar="false" :show-header="false" :embedded="true"
-        @immersive-scroll="handleForumImmersiveScroll" />
+        @island-message="showBottomNavIsland" />
     </div>
 
     <div v-if="mountedTabs.community" v-show="currentTab === 'community'" class="tab-page">
@@ -203,7 +207,7 @@
 
     <div v-if="mountedTabs.ai" v-show="currentTab === 'ai'" class="tab-page ai-tab">
       <section class="ai-workspace" aria-label="BOH AI 聊天">
-        <AsyncBOHAI />
+        <AsyncBOHAI :embedded="true" @island-message="showBottomNavIsland" />
       </section>
     </div>
 
@@ -708,36 +712,6 @@
                         <span class="chevron">›</span>
                       </div>
                     </div>
-                    <div class="apple-item clickable setting-toggle-item" role="button" tabindex="0"
-                      :aria-pressed="immersiveBrowsingEnabled.toString()" @click="toggleImmersiveBrowsing"
-                      @keydown.enter.prevent="toggleImmersiveBrowsing" @keydown.space.prevent="toggleImmersiveBrowsing">
-                      <div class="item-left">
-                        <div class="icon-wrapper bg-blue">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                            stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M8 3H5a2 2 0 0 0-2 2v3"></path>
-                            <path d="M16 3h3a2 2 0 0 1 2 2v3"></path>
-                            <path d="M8 21H5a2 2 0 0 1-2-2v-3"></path>
-                            <path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>
-                          </svg>
-                        </div>
-                        <span class="item-label-wrap">
-                          <span class="setting-label-stack">
-                            <span class="item-label-row">
-                              <span class="item-label">沉浸浏览</span>
-                              <span class="beta-badge">Beta</span>
-                            </span>
-                            <span class="item-desc">浏览帖子时自动收起底部导航</span>
-                          </span>
-                        </span>
-                      </div>
-                      <div class="item-right">
-                        <span class="text-secondary">{{ immersiveBrowsingEnabled ? '已开启' : '已关闭' }}</span>
-                        <span class="setting-switch" :class="{ enabled: immersiveBrowsingEnabled }" aria-hidden="true">
-                          <span class="setting-switch-thumb"></span>
-                        </span>
-                      </div>
-                    </div>
                   </div>
                 </div>
 
@@ -920,20 +894,24 @@
       </div>
     </div>
 
-    <div v-if="!(currentTab === 'profile' && profileSection === 'edit-profile')" class="bottom-nav-glass"
-      :class="{ 'is-hidden': shouldHideBottomNav }">
-      <div class="nav-items" :style="navIndicatorStyle">
-        <button v-for="item in navItems" :key="item.id" class="nav-item" :class="{ active: currentTab === item.id }"
-          @pointerenter="preloadUserSpaceTab(item.id)" @focus="preloadUserSpaceTab(item.id)"
-          @click="switchTab(item.id)">
-          <component :is="item.icon" class="nav-icon" :size="18" :stroke-width="1.9" aria-hidden="true" />
-          <span class="nav-label">{{ item.label }}</span>
-          <div v-if="item.id === 'messages' && hasUnreadMessages" class="unread-badge">
-            {{ unreadCount > 99 ? '99+' : unreadCount }}
-          </div>
-        </button>
-      </div>
-    </div>
+    <UserSpaceBottomNav
+      :visible="!(currentTab === 'profile' && profileSection === 'edit-profile')"
+      :hidden="shouldHideBottomNav"
+      :ai-collapsed="currentTab === 'ai' && isAICollapsed"
+      :island-visible="isBottomNavIslandExpanded"
+      :island-collapsing="isBottomNavIslandCollapsing"
+      :island="bottomNavIsland"
+      :show-cat-sticker="isHomeCatActive"
+      :nav-items="navItems"
+      :current-tab="currentTab"
+      :nav-indicator-style="navIndicatorStyle"
+      @toggle-ai="toggleAICollapsed"
+      @island-action="handleBottomNavIslandAction"
+      @island-before-leave="handleBottomNavIslandBeforeLeave"
+      @island-after-leave="handleBottomNavIslandAfterLeave"
+      @preload-tab="preloadUserSpaceTab"
+      @nav-click="switchTab"
+    />
 
     <!-- 主题设置模态框 -->
     <transition name="fade">
@@ -1043,15 +1021,36 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted, reactive, watch, defineAsyncComponent, h } from 'vue';
+import { ref, computed, nextTick, onMounted, onUnmounted, reactive, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import { Bot, Cake, Check, MessageCircle, Newspaper, Palette, User, Users, X } from 'lucide-vue-next';
+import { Bot, Cake, MessageCircle, Newspaper, Palette, User, Users, X } from 'lucide-vue-next';
 import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import AvatarCropModal from '@/components/AvatarCropModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
+import UserSpaceBottomNav from './components/UserSpaceBottomNav.vue';
+import { useBottomNavIslandQueue } from './composables/useBottomNavIslandQueue.js';
+import { createMemoryTtlCache } from './composables/useMemoryTtlCache.js';
+import { USER_SPACE_VALID_TABS, useUserSpaceTabs } from './composables/useUserSpaceTabs.js';
+import { useImageCompressionLoader } from './composables/useImageCompressionLoader.js';
+import {
+  AsyncBOHAI,
+  AsyncCloudPlus,
+  AsyncForum,
+  AsyncMessages,
+  AsyncShows,
+  clearIdlePreloadTasks,
+  clearScheduledForumPreload,
+  preloadBOHAIComponent,
+  preloadForumComponent,
+  preloadMessagesComponent,
+  preloadShowsComponent,
+  scheduleForumPreload,
+  scheduleIdleTask,
+  setUserSpaceMountedForPreload
+} from './async-loaders.js';
 import { supabase } from '@/utils/supabase-client.js';
 import { getProfilesPage, getRecentBirthdayProfiles } from '@/utils/api/auth-api.js';
 import { deleteUserImpression, getPostsByUsername, getUserImpressions, updateProfileAvatar } from '@/utils/api/profile-api.js';
@@ -1072,136 +1071,7 @@ import { themeManager } from '@/utils/theme-manager.js';
 import { isHomeCatTheme } from '@/utils/home-cat-theme.js';
 import { DEFAULT_CLOUD_IMAGE_LIMIT, resolveCloudBenefitFromSubscriptions } from '@/utils/subscription-benefits.js';
 
-const forumComponentLoader = () => import('@/views/Forum/index.vue');
-const messagesComponentLoader = () => import('@/views/user-center/Messages/index.vue');
-const showsComponentLoader = () => import('@/views/Shows/index.vue');
-const bohaiComponentLoader = () => import('@/views/BOHAI/BOHAI/index.vue');
-let forumPreloadPromise = null;
-let messagesPreloadPromise = null;
-let showsPreloadPromise = null;
-let bohaiPreloadPromise = null;
-let forumPreloadIdleId = null;
-let forumPreloadTimeoutId = null;
-let isUserSpaceMounted = false;
-const preloadForumComponent = () => {
-  if (!forumPreloadPromise) {
-    forumPreloadPromise = forumComponentLoader().catch(() => {
-      forumPreloadPromise = null;
-      return null;
-    });
-  }
-  return forumPreloadPromise;
-};
-const preloadMessagesComponent = () => {
-  if (!messagesPreloadPromise) {
-    messagesPreloadPromise = messagesComponentLoader().catch(() => {
-      messagesPreloadPromise = null;
-      return null;
-    });
-  }
-  return messagesPreloadPromise;
-};
-const preloadShowsComponent = () => {
-  if (!showsPreloadPromise) {
-    showsPreloadPromise = showsComponentLoader().catch(() => {
-      showsPreloadPromise = null;
-      return null;
-    });
-  }
-  return showsPreloadPromise;
-};
-const preloadBOHAIComponent = () => {
-  if (!bohaiPreloadPromise) {
-    bohaiPreloadPromise = bohaiComponentLoader().catch(() => {
-      bohaiPreloadPromise = null;
-      return null;
-    });
-  }
-  return bohaiPreloadPromise;
-};
-const canUseNetworkForForumPreload = () => {
-  if (typeof navigator === 'undefined') return true;
-  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-  if (!connection) return true;
-  if (connection.saveData) return false;
-  const effectiveType = String(connection.effectiveType || '').toLowerCase();
-  return effectiveType !== 'slow-2g' && effectiveType !== '2g';
-};
-const clearScheduledForumPreload = () => {
-  if (typeof window === 'undefined') return;
-  if (forumPreloadTimeoutId !== null) {
-    window.clearTimeout(forumPreloadTimeoutId);
-    forumPreloadTimeoutId = null;
-  }
-  if (forumPreloadIdleId !== null && typeof window.cancelIdleCallback === 'function') {
-    window.cancelIdleCallback(forumPreloadIdleId);
-    forumPreloadIdleId = null;
-  }
-};
-const scheduleForumPreload = () => {
-  if (currentTab.value !== 'posts') return;
-  if (!canUseNetworkForForumPreload()) return;
-  if (forumPreloadPromise || forumPreloadIdleId !== null || forumPreloadTimeoutId !== null) return;
-  const run = () => {
-    forumPreloadIdleId = null;
-    forumPreloadTimeoutId = null;
-    if (!isUserSpaceMounted) return;
-    void preloadForumComponent();
-  };
-  if (typeof window === 'undefined') {
-    run();
-    return;
-  }
-  if (typeof window.requestIdleCallback === 'function') {
-    forumPreloadIdleId = window.requestIdleCallback(run, { timeout: 2500 });
-    return;
-  }
-  forumPreloadTimeoutId = window.setTimeout(run, 1200);
-};
-
-let imageCompressionLoader = null;
-const loadImageCompression = async () => {
-  if (!imageCompressionLoader) {
-    imageCompressionLoader = import('browser-image-compression')
-      .then((mod) => mod.default)
-      .catch((error) => {
-        imageCompressionLoader = null;
-        throw error;
-      });
-  }
-  return imageCompressionLoader;
-};
-
-const AsyncForum = defineAsyncComponent({
-  loader: forumComponentLoader,
-  delay: 120,
-  timeout: 20 * 1000,
-  onError(error, retry, fail, attempts) {
-    if (attempts <= 2) {
-      setTimeout(() => retry(), attempts * 300);
-      return;
-    }
-    fail(error);
-  }
-});
-const AsyncMessages = defineAsyncComponent(messagesComponentLoader);
-const AsyncShows = defineAsyncComponent(showsComponentLoader);
-const AsyncBOHAIError = {
-  name: 'AsyncBOHAIError',
-  setup() {
-    return () => h('div', { class: 'ai-load-fallback' }, [
-      h('h3', 'BOH AI 加载失败'),
-      h('p', '请刷新页面后重试，或稍后再打开 AI。')
-    ]);
-  }
-};
-const AsyncBOHAI = defineAsyncComponent({
-  loader: bohaiComponentLoader,
-  errorComponent: AsyncBOHAIError,
-  delay: 120,
-  timeout: 15000
-});
-const AsyncCloudPlus = defineAsyncComponent(() => import('@/views/user-center/Cloud+/index.vue'));
+const { loadImageCompression } = useImageCompressionLoader();
 
 const router = useRouter();
 const route = useRoute();
@@ -1209,7 +1079,6 @@ const authStore = useAuthStore();
 const { isLoggedIn, isInitialized, userInfo, showLoginModal } = storeToRefs(authStore);
 const notificationStoreRef = ref(getNotificationStoreSync());
 const unreadCount = computed(() => notificationStoreRef.value?.unreadCount || 0);
-
 const ensureNotificationStore = async () => {
   if (notificationStoreRef.value) {
     return notificationStoreRef.value;
@@ -1224,7 +1093,6 @@ const refreshUnreadCount = async () => {
 };
 
 const username = computed(() => userInfo.value.username);
-const hasUnreadMessages = computed(() => unreadCount.value > 0);
 const giftProgressText = ref('');
 const GIFT_PROGRESS_CACHE_TTL_MS = 60 * 1000;
 const GIFT_PROGRESS_MIN_REFRESH_INTERVAL_MS = 5 * 1000;
@@ -1240,27 +1108,10 @@ const USERSPACE_CACHE_TTL = {
   profilePosts: 60 * 1000,
   impressions: 60 * 1000
 };
-const userSpaceMemoryCache = new Map();
+const userSpaceMemoryCache = createMemoryTtlCache();
+const getUserSpaceCache = (key, ttlMs) => userSpaceMemoryCache.get(key, ttlMs);
+const setUserSpaceCache = (key, value) => userSpaceMemoryCache.set(key, value);
 
-const getUserSpaceCache = (key, ttlMs) => {
-  const cached = userSpaceMemoryCache.get(key);
-  if (!cached) return null;
-  if (Date.now() - cached.savedAt > ttlMs) {
-    userSpaceMemoryCache.delete(key);
-    return null;
-  }
-  return cached.value;
-};
-
-const setUserSpaceCache = (key, value) => {
-  userSpaceMemoryCache.set(key, {
-    savedAt: Date.now(),
-    value
-  });
-};
-
-const currentTab = ref('posts');
-const profileSection = ref('home');
 const isLoadingCommunity = ref(false);
 const isLoadingBirthdays = ref(false);
 const isCommunityExpanded = ref(false);
@@ -1276,14 +1127,6 @@ const COMMUNITY_PAGE_SIZE = 10;
 const COMMUNITY_BIRTHDAY_LIMIT = 8;
 const hasLoadedCommunity = ref(false);
 const hasLoadedBirthdays = ref(false);
-const mountedTabs = reactive({
-  posts: true,
-  community: false,
-  messages: false,
-  shows: false,
-  ai: false,
-  profile: false
-});
 const forumRenderKey = ref(0);
 const shouldRefreshForumAfterThemeChange = ref(false);
 let communitySearchDebounceTimer = null;
@@ -1297,15 +1140,32 @@ const navItems = [
   { id: 'messages', label: '消息', icon: MessageCircle },
   { id: 'profile', label: '我的', icon: User }
 ];
-const validTabs = ['posts', 'community', 'messages', 'profile', 'shows', 'ai'];
-const loginRequiredTabs = new Set(['messages']);
+const validTabs = USER_SPACE_VALID_TABS;
+const loginRequiredTabs = new Set();
 const validProfileSections = ['home', 'edit-profile', 'sponsor', 'settings', 'data-management'];
-const activeNavIndex = computed(() => Math.max(0, navItems.findIndex((item) => item.id === currentTab.value)));
-const navIndicatorStyle = computed(() => ({
-  '--active-nav-index': activeNavIndex.value,
-  '--active-nav-center': `${((activeNavIndex.value + 0.5) / navItems.length) * 100}%`,
-  '--nav-count': navItems.length
-}));
+const tabTransitionDirection = ref('forward');
+const {
+  currentTab,
+  profileSection,
+  isAICollapsed,
+  mountedTabs,
+  navIndicatorStyle,
+  ensureTabMounted,
+  toggleAICollapsed
+} = useUserSpaceTabs(navItems);
+
+const getTabOrderIndex = (tabId) => {
+  const index = navItems.findIndex((item) => item.id === tabId);
+  if (index >= 0) return index;
+  return validTabs.indexOf(tabId);
+};
+
+const updateTabTransitionDirection = (nextTab, previousTab = currentTab.value) => {
+  const nextIndex = getTabOrderIndex(nextTab);
+  const previousIndex = getTabOrderIndex(previousTab);
+  if (nextIndex < 0 || previousIndex < 0 || nextIndex === previousIndex) return;
+  tabTransitionDirection.value = nextIndex > previousIndex ? 'forward' : 'back';
+};
 
 const isAdmin = computed(() => userInfo.value.role === 'admin');
 
@@ -1756,23 +1616,7 @@ const showThemeModal = ref(false);
 const currentTheme = ref(themeManager.getTheme());
 const currentThemePreference = ref(themeManager.getPreference?.() || currentTheme.value);
 const isHomeCatActive = computed(() => isHomeCatTheme(currentTheme.value) || isHomeCatTheme(currentThemePreference.value));
-const IMMERSIVE_BROWSING_STORAGE_KEY = 'boh-userspace-immersive-browsing-beta';
-const NAV_HIDE_SCROLL_THRESHOLD = 44;
-const NAV_SHOW_SCROLL_THRESHOLD = 12;
-const NAV_TOP_VISIBLE_OFFSET = 96;
-const readImmersiveBrowsingPreference = () => {
-  if (typeof window === 'undefined') return false;
-  return window.localStorage.getItem(IMMERSIVE_BROWSING_STORAGE_KEY) === '1';
-};
-const immersiveBrowsingEnabled = ref(readImmersiveBrowsingPreference());
-const isBottomNavHidden = ref(false);
-const shouldHideBottomNav = computed(() => {
-  return immersiveBrowsingEnabled.value
-    && currentTab.value === 'posts'
-    && isBottomNavHidden.value
-    && !showThemeModal.value
-    && !showCropModal.value;
-});
+const shouldHideBottomNav = computed(() => false);
 const themeDisplayText = computed(() => {
   if (currentThemePreference.value === 'home-cat') {
     return '方块小窝';
@@ -1820,105 +1664,93 @@ const subscriptionSummaryText = computed(() => {
   }
   return '基础权益';
 });
-let lastImmersiveScrollY = 0;
-let immersiveDownDistance = 0;
-let immersiveUpDistance = 0;
-let immersiveScrollRafId = null;
+let latestUnreadIslandEventAt = 0;
+let hasScheduledBottomNavOnboardingNotice = false;
+const BOTTOM_NAV_ONBOARDING_NOTICE_VERSION = 'v1';
 
-const getPageScrollY = () => {
-  if (typeof window === 'undefined') return 0;
-  return window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
-};
-
-const getMaxPageScrollY = () => {
-  if (typeof window === 'undefined') return 0;
-  const scrollHeight = Math.max(
-    document.documentElement.scrollHeight || 0,
-    document.body.scrollHeight || 0
-  );
-  return Math.max(0, scrollHeight - window.innerHeight);
-};
-
-const resetImmersiveNavState = () => {
-  isBottomNavHidden.value = false;
-  immersiveDownDistance = 0;
-  immersiveUpDistance = 0;
-  lastImmersiveScrollY = getPageScrollY();
-};
-
-const isImmersiveNavEligible = () => {
-  return immersiveBrowsingEnabled.value
-    && currentTab.value === 'posts'
-    && !showThemeModal.value
-    && !showCropModal.value;
-};
-
-const applyImmersiveNavScroll = (scrollY, maxScrollY = getMaxPageScrollY()) => {
-  const delta = scrollY - lastImmersiveScrollY;
-  lastImmersiveScrollY = scrollY;
-
-  if (!isImmersiveNavEligible()) {
-    resetImmersiveNavState();
-    return;
-  }
-
-  if (maxScrollY < 160 || scrollY <= NAV_TOP_VISIBLE_OFFSET || scrollY >= maxScrollY - 24) {
-    resetImmersiveNavState();
-    return;
-  }
-
-  if (Math.abs(delta) < 1) return;
-
-  if (delta > 0) {
-    immersiveDownDistance += delta;
-    immersiveUpDistance = 0;
-    if (immersiveDownDistance >= NAV_HIDE_SCROLL_THRESHOLD) {
-      isBottomNavHidden.value = true;
-      immersiveDownDistance = 0;
+const {
+  island: bottomNavIsland,
+  isCollapsing: isBottomNavIslandCollapsing,
+  isExpanded: isBottomNavIslandExpanded,
+  show: showBottomNavIsland,
+  handleAction: handleBottomNavIslandAction,
+  handleBeforeLeave: handleBottomNavIslandBeforeLeave,
+  handleAfterLeave: handleBottomNavIslandAfterLeave,
+  dispose: disposeBottomNavIsland
+} = useBottomNavIslandQueue({
+  onAction: (actionTab) => {
+    if (actionTab && validTabs.includes(actionTab)) {
+      switchTab(actionTab);
     }
-    return;
   }
+});
 
-  immersiveUpDistance += Math.abs(delta);
-  immersiveDownDistance = 0;
-  if (immersiveUpDistance >= NAV_SHOW_SCROLL_THRESHOLD) {
-    isBottomNavHidden.value = false;
-    immersiveUpDistance = 0;
+const handleBottomNavIslandEvent = (event) => {
+  showBottomNavIsland(event?.detail || {});
+};
+
+const getBottomNavOnboardingNoticeKey = () => {
+  const userId = String(userInfo.value?.id || 'guest').trim() || 'guest';
+  return `boh-userspace-bottom-nav-onboarding-${BOTTOM_NAV_ONBOARDING_NOTICE_VERSION}-${userId}`;
+};
+
+const hasSeenBottomNavOnboardingNotice = () => {
+  try {
+    return localStorage.getItem(getBottomNavOnboardingNoticeKey()) === '1';
+  } catch (error) {
+    console.warn('读取灵动导航栏引导状态失败:', error);
+    return false;
   }
 };
 
-const updateImmersiveNavFromScroll = () => {
-  immersiveScrollRafId = null;
-  applyImmersiveNavScroll(getPageScrollY());
-};
-
-const handleForumImmersiveScroll = (payload = {}) => {
-  if (payload.feedMode && payload.feedMode !== 'posts') {
-    resetImmersiveNavState();
-    return;
+const markBottomNavOnboardingNoticeSeen = () => {
+  try {
+    localStorage.setItem(getBottomNavOnboardingNoticeKey(), '1');
+  } catch (error) {
+    console.warn('写入灵动导航栏引导状态失败:', error);
   }
-  const scrollY = Math.max(0, Number(payload.scrollTop || 0));
-  const scrollHeight = Math.max(0, Number(payload.scrollHeight || 0));
-  const clientHeight = Math.max(0, Number(payload.clientHeight || 0));
-  const maxScrollY = Math.max(0, scrollHeight - clientHeight);
-  applyImmersiveNavScroll(scrollY, maxScrollY);
 };
 
-const requestImmersiveNavScrollCheck = () => {
-  if (typeof window === 'undefined') return;
-  if (immersiveScrollRafId !== null) return;
-  immersiveScrollRafId = window.requestAnimationFrame(updateImmersiveNavFromScroll);
+const maybeShowBottomNavOnboardingNotice = async () => {
+  if (hasScheduledBottomNavOnboardingNotice) return;
+  if (!isInitialized.value) return;
+  if (hasSeenBottomNavOnboardingNotice()) return;
+
+  hasScheduledBottomNavOnboardingNotice = true;
+  await nextTick();
+
+  showBottomNavIsland({
+    title: '灵动导航栏上线',
+    message: '以后弹窗提示都在这哦',
+    icon: 'notification',
+    type: 'theme',
+    actionLabel: '知道了',
+    durationMs: 5600,
+    catSticker: 'theme',
+    catStickerMode: 'peek',
+    forceCatSticker: true
+  });
+  markBottomNavOnboardingNoticeSeen();
 };
 
-const toggleImmersiveBrowsing = () => {
-  immersiveBrowsingEnabled.value = !immersiveBrowsingEnabled.value;
-  if (typeof window !== 'undefined') {
-    window.localStorage.setItem(
-      IMMERSIVE_BROWSING_STORAGE_KEY,
-      immersiveBrowsingEnabled.value ? '1' : '0'
-    );
-  }
-  resetImmersiveNavState();
+const buildUnreadIslandMessage = (detail = {}) => {
+  const totalUnread = Number(unreadCount.value) || 0;
+  return {
+    title: '有新通知',
+    message: totalUnread > 0 ? `当前共有 ${totalUnread} 条未读` : '你有新的站内通知',
+    icon: 'notification',
+    durationMs: 6200
+  };
+};
+
+const showUnreadBottomNavIsland = async (detail = {}) => {
+  if (!isLoggedIn.value) return;
+  if (String(detail.source || '') !== 'realtime') return;
+  const now = Date.now();
+  if (now - latestUnreadIslandEventAt < 900) return;
+  latestUnreadIslandEventAt = now;
+
+  showBottomNavIsland(buildUnreadIslandMessage(detail));
 };
 
 const fetchPushplusStatus = async ({ force = false } = {}) => {
@@ -2041,7 +1873,6 @@ const refreshForumAfterThemeChange = async () => {
   shouldRefreshForumAfterThemeChange.value = false;
   await nextTick();
   forumRenderKey.value += 1;
-  resetImmersiveNavState();
 };
 
 const setThemePreference = (preference) => {
@@ -2157,10 +1988,11 @@ const daysForEditJoinDate = computed(() => {
 });
 
 const composeDateValue = (year, month, day) => {
-  if (!year && !month && !day) return '';
-  if (!year || !month || !day) return null;
   return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 };
+
+const hasAnyDatePart = (...parts) => parts.some((part) => String(part || '').trim());
+const hasCompleteDateParts = (...parts) => parts.every((part) => String(part || '').trim());
 
 const splitDateValue = (dateValue) => {
   const match = String(dateValue || '').match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
@@ -2263,21 +2095,30 @@ const closeEditProfileModal = () => {
 const submitEditProfile = async () => {
   normalizeEditJoinDay();
   normalizeEditProfileBirthdayDay();
-  const nextJoinDate = composeDateValue(
+  const hasAnyJoinDatePart = hasAnyDatePart(
     editProfileForm.joinYear,
     editProfileForm.joinMonth,
     editProfileForm.joinDay
   );
-  if (nextJoinDate === null) {
+  const hasCompleteJoinDate = hasCompleteDateParts(
+    editProfileForm.joinYear,
+    editProfileForm.joinMonth,
+    editProfileForm.joinDay
+  );
+  if (hasAnyJoinDatePart && !hasCompleteJoinDate) {
     showAlert('warning', '提示', '请完整选择入群时间');
     return;
   }
+  const nextJoinDate = hasCompleteJoinDate
+    ? composeDateValue(editProfileForm.joinYear, editProfileForm.joinMonth, editProfileForm.joinDay)
+    : null;
   if (nextJoinDate && nextJoinDate > getTodayDate()) {
     showAlert('warning', '提示', '入群时间不能晚于今天');
     return;
   }
-  const hasPartialBirthday = Boolean(editProfileForm.birthMonth) !== Boolean(editProfileForm.birthDay);
-  if (hasPartialBirthday) {
+  const hasAnyBirthdayPart = hasAnyDatePart(editProfileForm.birthMonth, editProfileForm.birthDay);
+  const hasCompleteBirthday = hasCompleteDateParts(editProfileForm.birthMonth, editProfileForm.birthDay);
+  if (hasAnyBirthdayPart && !hasCompleteBirthday) {
     showAlert('warning', '提示', '请完整选择生日月份和日期');
     return;
   }
@@ -2287,14 +2128,22 @@ const submitEditProfile = async () => {
     const updates = {
       bio: String(editProfileForm.bio || '').trim().slice(0, 160),
       join_date: nextJoinDate,
-      birth_month: editProfileForm.birthMonth ? String(editProfileForm.birthMonth) : '',
-      birth_day: editProfileForm.birthDay ? String(editProfileForm.birthDay) : ''
+      birth_month: hasCompleteBirthday ? String(editProfileForm.birthMonth) : null,
+      birth_day: hasCompleteBirthday ? String(editProfileForm.birthDay) : null
     };
     const result = await authStore.updateUserProfile(updates);
     if (!result.success) {
       throw new Error(result.message || '更新失败');
     }
-    showAlert('success', '保存成功', '个人资料已更新！');
+    showBottomNavIsland({
+      title: '个人资料已保存',
+      message: '你的资料更新已同步',
+      icon: 'success',
+      type: 'success',
+      actionLabel: '查看',
+      actionTab: 'profile',
+      durationMs: 4200
+    });
     closeEditProfileModal();
   } catch (error) {
     console.error('编辑资料失败:', error);
@@ -2483,28 +2332,21 @@ const fetchCommunityOverview = async () => {
   ]);
 };
 
-const ensureTabMounted = (tabId) => {
-  if (Object.prototype.hasOwnProperty.call(mountedTabs, tabId)) {
-    mountedTabs[tabId] = true;
-  }
-};
-
 const preloadUserSpaceTab = (tabId) => {
   const safeTab = String(tabId || '');
   if (!validTabs.includes(safeTab)) return;
-  ensureTabMounted(safeTab);
   if (safeTab === 'posts') {
-    void preloadForumComponent();
+    scheduleIdleTask('tab:posts', () => void preloadForumComponent());
   } else if (safeTab === 'messages' && canOpenUserSpaceTab('messages')) {
-    void preloadMessagesComponent();
+    scheduleIdleTask('tab:messages', () => void preloadMessagesComponent());
   } else if (safeTab === 'shows') {
-    void preloadShowsComponent();
+    scheduleIdleTask('tab:shows', () => void preloadShowsComponent());
   } else if (safeTab === 'ai') {
-    void preloadBOHAIComponent();
+    scheduleIdleTask('tab:ai', () => void preloadBOHAIComponent());
   } else if (safeTab === 'community' && !hasLoadedCommunity.value) {
-    fetchCommunityOverview();
+    scheduleIdleTask('tab:community', () => void fetchCommunityOverview(), { timeout: 2400, fallbackDelay: 420 });
   } else if (safeTab === 'profile' && isLoggedIn.value) {
-    scheduleUserSpaceWarmup();
+    scheduleIdleTask('tab:profile', () => scheduleUserSpaceWarmup(), { timeout: 2400, fallbackDelay: 420 });
   }
 };
 
@@ -2528,7 +2370,8 @@ const syncUserSpaceTabRoute = (tabId) => {
   if (tabId !== 'messages') {
     delete nextQuery.section;
     delete nextQuery.to;
-  } else if (!nextQuery.section) {
+  } else {
+    delete nextQuery.to;
     nextQuery.section = 'notifications';
   }
 
@@ -2541,8 +2384,14 @@ const syncUserSpaceTabRoute = (tabId) => {
 };
 
 const switchTab = (tabId) => {
+  if (tabId === 'ai' && currentTab.value === 'ai' && !isAICollapsed.value) {
+    toggleAICollapsed();
+    return;
+  }
   const nextTab = resolveAccessibleTab(tabId, { promptLogin: true });
   if (nextTab !== tabId) return;
+  if (currentTab.value === tabId) return;
+  updateTabTransitionDirection(tabId);
   ensureTabMounted(tabId);
   if (tabId === 'profile' && currentTab.value !== 'profile') {
     profileSection.value = 'home';
@@ -2642,7 +2491,15 @@ const uploadProfileBackgroundFile = async (file) => {
       }
     }
 
-    showAlert('success', '背景已更新', '个人卡片背景已更换');
+    showBottomNavIsland({
+      title: '背景已更新',
+      message: '个人卡片背景已更换',
+      icon: 'success',
+      type: 'success',
+      actionLabel: '查看',
+      actionTab: 'profile',
+      durationMs: 4200
+    });
     return true;
   } catch (error) {
     console.error('个人卡片背景上传失败:', error);
@@ -2780,7 +2637,15 @@ const uploadToSupabase = async (file) => {
 
     await authStore.updateUserProfile({ avatar_url: finalUrl });
 
-    showAlert('success', '上传成功', '头像已更新！');
+    showBottomNavIsland({
+      title: '头像已更新',
+      message: '新的头像已经同步',
+      icon: 'success',
+      type: 'success',
+      actionLabel: '查看',
+      actionTab: 'profile',
+      durationMs: 4200
+    });
   } catch (error) {
     console.error('上传到 Supabase 失败:', error);
     showAlert('error', '上传失败', error.message || '上传过程出错');
@@ -2966,7 +2831,9 @@ watch(() => userInfo.value.id, async (newId) => {
 });
 
 watch(() => isInitialized.value, (ready) => {
-  if (!ready || !isLoggedIn.value || !userInfo.value.id) return;
+  if (!ready) return;
+  void maybeShowBottomNavOnboardingNotice();
+  if (!isLoggedIn.value || !userInfo.value.id) return;
   void fetchUserStats();
 }, { immediate: true });
 
@@ -2984,7 +2851,7 @@ watch(() => [editProfileForm.joinYear, editProfileForm.joinMonth], () => {
 });
 
 onMounted(() => {
-  isUserSpaceMounted = true;
+  setUserSpaceMountedForPreload(true);
   document.body.classList.add("is-loaded");
   // 初始化主题
   const initialTheme = themeManager.getTheme();
@@ -3001,7 +2868,7 @@ onMounted(() => {
   void openSettingsPanelFromRoute();
   ensureTabMounted(currentTab.value);
   if (currentTab.value === 'posts') {
-    scheduleForumPreload();
+    scheduleForumPreload(currentTab.value);
   }
   if (currentTab.value === 'community') {
     fetchCommunityOverview();
@@ -3019,10 +2886,10 @@ onMounted(() => {
       void fetchCloudPlusUsage();
     }
   }
+  void maybeShowBottomNavOnboardingNotice();
   void refreshUnreadCount();
   window.addEventListener('boh_unread_refresh', handleUnreadRefresh);
-  resetImmersiveNavState();
-  window.addEventListener('scroll', requestImmersiveNavScrollCheck, { passive: true });
+  window.addEventListener('boh_userspace_nav_island', handleBottomNavIslandEvent);
   // 添加主题变化监听
   themeManager.addListener(handleThemeChange);
 });
@@ -3031,11 +2898,12 @@ watch(() => route.query.tab, (newTab) => {
   if (!newTab || !validTabs.includes(newTab)) return;
   const nextTab = resolveAccessibleTab(newTab, { promptLogin: true });
   if (currentTab.value === nextTab) return;
+  updateTabTransitionDirection(nextTab);
   ensureTabMounted(nextTab);
   currentTab.value = nextTab;
   resolveProfileSectionFromRoute();
   if (nextTab === 'posts') {
-    scheduleForumPreload();
+    scheduleForumPreload(currentTab.value);
     void refreshForumAfterThemeChange();
   }
   if (nextTab === 'community' && !hasLoadedCommunity.value) {
@@ -3063,6 +2931,9 @@ watch(() => route.query.setting, () => {
 watch(currentTab, (newTab, oldTab) => {
   if (newTab !== 'profile' || oldTab !== 'profile') {
     profileSection.value = 'home';
+  }
+  if (newTab !== 'ai') {
+    isAICollapsed.value = true;
   }
   resolveProfileSectionFromRoute();
   if (newTab === 'profile') {
@@ -3098,21 +2969,15 @@ watch(currentCommunityPage, () => {
   fetchCommunityUsers();
 });
 
-watch([currentTab, immersiveBrowsingEnabled], () => {
-  resetImmersiveNavState();
-});
-
 onUnmounted(() => {
-  isUserSpaceMounted = false;
+  setUserSpaceMountedForPreload(false);
   latestUserStatsFetchToken += 1;
   clearScheduledForumPreload();
+  clearIdlePreloadTasks();
   clearUserSpaceWarmup();
+  disposeBottomNavIsland();
   window.removeEventListener('boh_unread_refresh', handleUnreadRefresh);
-  window.removeEventListener('scroll', requestImmersiveNavScrollCheck);
-  if (immersiveScrollRafId !== null && typeof window !== 'undefined') {
-    window.cancelAnimationFrame(immersiveScrollRafId);
-    immersiveScrollRafId = null;
-  }
+  window.removeEventListener('boh_userspace_nav_island', handleBottomNavIslandEvent);
   if (communitySearchDebounceTimer) {
     clearTimeout(communitySearchDebounceTimer);
   }
@@ -3120,12 +2985,19 @@ onUnmounted(() => {
   themeManager.removeListener(handleThemeChange);
 });
 
-const handleUnreadRefresh = () => {
-  void refreshUnreadCount();
+const handleUnreadRefresh = (event) => {
+  const detail = event?.detail || {};
+  void (async () => {
+    await refreshUnreadCount();
+    await showUnreadBottomNavIsland(detail);
+  })();
   if (Date.now() - lastGiftProgressRefreshAt >= GIFT_PROGRESS_MIN_REFRESH_INTERVAL_MS) {
     refreshPendingGift({ force: true });
   }
 };
 </script>
 
-<style scoped src="./style.scoped.css"></style>
+<style scoped src="./styles/shell-community.css"></style>
+<style scoped src="./styles/profile-base.css"></style>
+<style scoped src="./styles/profile-panels.css"></style>
+<style scoped src="./styles/responsive-integrations.css"></style>

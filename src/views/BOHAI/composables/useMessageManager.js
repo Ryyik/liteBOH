@@ -3,8 +3,7 @@ import {
   QUICK_NOTE_CONTENT_MAX_CHARS,
   QUICK_NOTE_TITLE_MAX_CHARS,
   ACTION_DRAFT_CONTENT_MAX_CHARS,
-  ACTION_DRAFT_TITLE_MAX_CHARS,
-  ACTION_DRAFT_SUBJECT_MAX_CHARS
+  ACTION_DRAFT_TITLE_MAX_CHARS
 } from './chat-engine-config.js';
 import { normalizePromptLine as _normalizePromptLine } from './bohai-engine-helpers.js';
 
@@ -31,9 +30,7 @@ import { normalizePromptLine as _normalizePromptLine } from './bohai-engine-help
  * @param {Function} options.scrollToBottom - 滚动到底部
  * @param {Function} [options.normalizePromptLineFn] - 文本归一化函数（默认从 helpers 导入）
  * @param {import('vue').Ref<number>} options.currentSessionIndex - 当前会话索引
- * @param {Function} options.resolveMailRecipientProfile - 解析收件人信息
  * @param {Function} [options.submitPostDraft] - 提交帖子草稿回调
- * @param {Function} [options.submitMailDraft] - 提交私信草稿回调
  * @param {Object} [options.logger] - 日志记录器
  * @param {Object} [options.pendingQuickNote] - 外部注入的 pendingQuickNote（useConversationManager）
  * @param {Object} [options.pendingActionDraft] - 外部注入的 pendingActionDraft（useConversationManager）
@@ -50,9 +47,7 @@ export function useMessageManager({
   scrollToBottom,
   normalizePromptLineFn,
   currentSessionIndex,
-  resolveMailRecipientProfile,
   submitPostDraft,
-  submitMailDraft,
   logger = console,
   // 从 useConversationManager 注入的 pending 状态
   pendingQuickNote,
@@ -354,61 +349,6 @@ export function useMessageManager({
   };
 
   /**
-   * 从 UI 更新私信草稿的收件人/主题/正文。
-   * @param {Object} options
-   * @param {string} [options.receiverName] - 收件人用户名
-   * @param {string} [options.subject] - 主题
-   * @param {string} [options.content] - 正文
-   * @returns {Promise<{ok: boolean, changed: boolean, feedback: string}>}
-   */
-  const updatePendingMailDraftFromUI = async ({ receiverName, subject, content } = {}) => {
-    if (!pendingActionDraft.active || pendingActionDraft.type !== 'mail') {
-      return { ok: false, changed: false, feedback: '' };
-    }
-    if (pendingActionDraft.sessionIndex !== currentSessionIndex?.value) {
-      return { ok: false, changed: false, feedback: '' };
-    }
-
-    let changed = false;
-    let feedback = '';
-
-    if (typeof receiverName === 'string') {
-      const normalizedReceiver = normalize(receiverName.replace(/^@/, ''), 40);
-      if (!normalizedReceiver) {
-        pendingActionDraft.mailReceiverId = '';
-        pendingActionDraft.mailReceiverName = '';
-        changed = true;
-      } else {
-        const resolved = await resolveMailRecipientProfile(normalizedReceiver);
-        if (resolved.ok) {
-          const receiverId = String(resolved.data?.id || '');
-          if (receiverId && receiverId !== String(userInfo?.value?.id || '')) {
-            pendingActionDraft.mailReceiverId = receiverId;
-            pendingActionDraft.mailReceiverName = normalize(resolved.data?.username, 40);
-            changed = true;
-          } else {
-            feedback = '不能给自己发送私信，请指定其他收件人。';
-          }
-        } else {
-          feedback = resolved.message || '收件人不存在，请检查用户名。';
-        }
-      }
-    }
-
-    if (typeof subject === 'string') {
-      pendingActionDraft.mailSubject = normalize(subject, ACTION_DRAFT_SUBJECT_MAX_CHARS);
-      changed = true;
-    }
-
-    if (typeof content === 'string') {
-      pendingActionDraft.mailContent = normalize(content, ACTION_DRAFT_CONTENT_MAX_CHARS);
-      changed = true;
-    }
-
-    return { ok: true, changed, feedback };
-  };
-
-  /**
    * 从 UI 取消当前激活的操作草稿。
    * @returns {boolean}
    */
@@ -416,7 +356,7 @@ export function useMessageManager({
     if (!pendingActionDraft.active) return false;
     const sessionIndex = currentSessionIndex?.value;
     if (pendingActionDraft.sessionIndex !== sessionIndex) return false;
-    const draftTypeLabel = pendingActionDraft.type === 'mail' ? '私信' : '发帖';
+    const draftTypeLabel = pendingActionDraft.type === 'page' ? '网页' : '发帖';
     resetPendingActionDraft();
     appendSessionMessage(sessionIndex, 'assistant', `好的，已取消本次${draftTypeLabel}草稿。`);
     return true;
@@ -433,12 +373,6 @@ export function useMessageManager({
     if (pendingActionDraft.type === 'post') {
       if (typeof submitPostDraft === 'function') {
         await submitPostDraft(sessionIndex);
-      }
-      return true;
-    }
-    if (pendingActionDraft.type === 'mail') {
-      if (typeof submitMailDraft === 'function') {
-        await submitMailDraft(sessionIndex);
       }
       return true;
     }
@@ -465,7 +399,6 @@ export function useMessageManager({
     queueQuickNoteConfirmation,
     cancelPendingActionDraftFromUI,
     confirmPendingActionDraftFromUI,
-    updatePendingPostDraftFromUI,
-    updatePendingMailDraftFromUI
+    updatePendingPostDraftFromUI
   };
 }

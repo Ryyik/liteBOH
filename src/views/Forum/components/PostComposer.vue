@@ -495,4 +495,5 @@ const closeImagePreview = () => {
   </section>
 </template>
 
-<style scoped src="../style.scoped.css"></style>
+<style scoped src="../styles/composer.css"></style>
+<style scoped src="../styles/replies-responsive.css"></style>

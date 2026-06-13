@@ -13,10 +13,11 @@ export const SILICON_EMBEDDING_URL = import.meta.env.VITE_SILICON_EMBEDDING_URL 
 export const SILICON_RERANK_URL = import.meta.env.VITE_SILICON_RERANK_URL || 'https://api.siliconflow.cn/v1/rerank';
 export const ZHIPU_CHAT_URL = import.meta.env.VITE_ZHIPU_CHAT_URL || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
 
-// 历史上下文窗口：放大到"很长的上下文 + 超过自动压缩"。
-// - MAX_CONTEXT_MESSAGES=30: 一轮窗口内可保留 30 条历史（之前 10）。
-// - MAX_HISTORY_CONTEXT_CHARS=24000: 全部历史合计 ≤ 24000 字符（之前 7200）。
-// - MAX_HISTORY_MESSAGE_CHARS=2000: 单条历史 ≤ 2000 字符（之前 1200），避免长代码/长草稿被截断。
+// 历史上下文窗口：高灵敏度配置（进度条对每条消息变化敏感）
+// - MAX_CONTEXT_MESSAGES=30: 一轮窗口内可保留 30 条历史。
+// - MAX_HISTORY_CONTEXT_CHARS=12000: 全部历史合计 ≤ 12000 字符（约 3K tokens），
+//   约 10 轮短对话即可让进度条走到 50%，可视化反馈非常灵敏。
+// - MAX_HISTORY_MESSAGE_CHARS=2000: 单条历史 ≤ 2000 字符，避免长代码/长草稿被截断。
 // 触发自动压缩的阈值仍在 computeContextBudgetUsage 内（80% high / 95% full），无需调整。
 export const MAX_CONTEXT_MESSAGES = 30;
 export const RATE_LIMIT_WINDOW_MS = 60000;
@@ -31,7 +32,7 @@ export const OPERATION_MAX_STEPS = 6;
 export const SITE_GUIDE_MAX_CHUNKS = 3;
 export const MEMORY_MAX_CHUNKS = 4;
 export const FORUM_MAX_CHARS_PER_POST = 420;
-export const MAX_HISTORY_CONTEXT_CHARS = 24000;
+export const MAX_HISTORY_CONTEXT_CHARS = 12000;
 export const MAX_HISTORY_MESSAGE_CHARS = 2000;
 export const MAX_FINAL_PROMPT_CHARS = 16000;
 export const MAX_PROMPT_EXTRA_CHARS = 8000;
@@ -60,6 +61,8 @@ export const CLOUD_REFERENCE_CONSENT_KEY = 'boh_ai_cloud_reference_consent_v1';
 export const QUICK_NOTE_SETTING_KEY = 'boh_ai_quick_note_enabled_v1';
 export const RESPONSE_STYLE_SETTING_KEY = 'boh_ai_response_style_v1';
 export const PLAN_MODE_SETTING_KEY = 'boh_ai_plan_mode_enabled_v1';
+export const SHARED_MEMORY_SETTING_KEY = 'boh_ai_shared_memory_enabled_v1';
+export const KNOWLEDGE_BASE_SETTING_KEY = 'boh_ai_knowledge_base_enabled_v1';
 export const MEMORY_CAPTURE_STATUS_TIMEOUT_MS = 12000;
 export const MEMORY_CAPTURE_MIN_DIALOGUE_ITEMS = 2;
 export const MEMORY_CAPTURE_MIN_USER_CHARS = 8;
@@ -76,14 +79,14 @@ export const KNOWLEDGE_CONTEXT_MAX_CHARS = 6500;
 export const KNOWLEDGE_CONTEXT_MAX_BLOCK_CHARS = 3000;
 export const ACTION_DRAFT_CONTENT_MAX_CHARS = 3000;
 export const ACTION_DRAFT_TITLE_MAX_CHARS = 64;
-export const ACTION_DRAFT_SUBJECT_MAX_CHARS = 80;
 export const QUICK_NOTE_CONTENT_MAX_CHARS = 3000;
 export const QUICK_NOTE_TITLE_MAX_CHARS = 80;
 
-// 模式 → 生成参数（仅作用于 4 个真实模式；auto 已在 2026-06-08 移除）。
+// 模式 → 生成参数（仅作用于 5 个真实模式；auto 已在 2026-06-08 移除）。
 export const GENERATION_PROFILE_BY_MODE = {
   fast: { temperature: 0.22, top_p: 0.74, frequency_penalty: 0.08, max_tokens: 1200 },
   pro: { temperature: 0.18, top_p: 0.7, frequency_penalty: 0.06, max_tokens: 1800 },
+  multimodal: { temperature: 0.2, top_p: 0.75, frequency_penalty: 0.06, max_tokens: 1800 },
   plan: { temperature: 0.08, top_p: 0.55, frequency_penalty: 0.04, max_tokens: 2400 },
   'agent-cluster': { temperature: 0.18, top_p: 0.7, frequency_penalty: 0.06, max_tokens: 1600 },
   'glm-47-flash': { temperature: 0.2, top_p: 0.75, frequency_penalty: 0.06, max_tokens: 2400 },
@@ -288,7 +291,7 @@ export const USER_PRIVATE_SUMMARY_KEYWORDS = [
 
 export const USER_PRIVATE_ALL_KEYWORDS = ['全部', '汇总', '概览', '总览', '整体', '完整'];
 export const USER_PRIVATE_POST_KEYWORDS = ['我的帖子', '我发的帖子', '我的发帖', '发帖记录', '帖子记录', '论坛记录', '我发帖'];
-export const USER_PRIVATE_MAIL_KEYWORDS = ['邮件', '信件', '信箱', '收件箱', '已发送', '私信', '消息'];
+export const USER_PRIVATE_MAIL_KEYWORDS = [];
 export const USER_PRIVATE_GIFT_KEYWORDS = ['礼物', '礼品', 'gift'];
 export const USER_PRIVATE_BIRTHDAY_KEYWORDS = ['生日', '生日会', 'birthday'];
 export const USER_PRIVATE_PUSHPLUS_KEYWORDS = ['pushplus', '推送', '离线推送', '微信推送'];
@@ -305,7 +308,6 @@ export const ROUTING_FORUM_REALTIME_PATTERN = /(现在|最近|最新|今天|近�
 export const ROUTING_HISTORY_FACT_PATTERN = /(历史|回忆|曾经|之前|以前|起源|经过|发生|提到|记得|来源|细节|人物|介绍|档案)/;
 
 export const ACTION_POST_TRIGGER_PATTERN = /(发帖|发个帖|发(?:一条|一篇|个)?.{0,8}帖子|发布.{0,8}帖子|论坛发帖|论坛发布|论坛发布文案|起草.{0,12}(论坛|社区|帖子|发布文案)|写.{0,12}(论坛|社区|帖子|发布文案)|生成.{0,12}(论坛|社区|帖子|发布文案)|整理.{0,12}(论坛|社区|帖子|发布文案))/;
-export const ACTION_MAIL_TRIGGER_PATTERN = /(发邮件|发私信|写邮件|写信|寄信)/;
 
 // 模式 ID 常量（2026-06-08 重新对齐产品语义）：
 //   - Fast   = 极速响应
@@ -359,7 +361,7 @@ export const chatModes = [
     name: '多模态',
     tagline: '图片/视频/文件',
     description: 'GLM 4.6V Flash',
-    icon: 'zap',
+    icon: 'image',
     model: GLM46V_FLASH_MODEL_ID
   },
   {

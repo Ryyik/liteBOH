@@ -55,15 +55,14 @@ describe('BOH AI SiliconFlow model config', () => {
     expect(availableModels.some((item) => item.id === RAG_PREFERRED_MODEL_ID)).toBe(true);
   });
 
-  it('exposes the new 4-mode list (Fast / Pro / Plan / Agent); AUTO removed; Fast is default', () => {
+  it('exposes the current mode list (Fast / Pro / Multimodal / Plan / Agent); AUTO removed; Fast is default', () => {
     const ids = chatModes.map((item) => item.id);
-    // 旧 5 模式: auto, fast, think, pro, plan, agent-cluster
-    // 2026-06-08: AUTO 移除,think 已被 Pro 吸收,精简为 4 模式
-    expect(ids).toEqual(['fast', 'pro', 'plan', 'agent-cluster']);
+    expect(ids).toEqual(['fast', 'pro', 'multimodal', 'plan', 'agent-cluster']);
     expect(BOH_DEFAULT_MODE_ID).toBe('fast');
     expect(BOH_AUTO_MODE_ID).toBe('auto');
     expect(chatModes.find((item) => item.id === 'fast').name).toBe('Fast');
     expect(chatModes.find((item) => item.id === 'pro').name).toBe('Pro');
+    expect(chatModes.find((item) => item.id === 'multimodal').name).toBe('多模态');
     expect(chatModes.find((item) => item.id === 'plan').name).toBe('Plan');
     expect(chatModes.find((item) => item.id === 'agent-cluster').name).toBe('Agent');
     // 不再包含 auto
@@ -86,10 +85,10 @@ describe('BOH AI SiliconFlow model config', () => {
     expect(GENERATION_PROFILE_BY_MODE.plan.max_tokens).toBeGreaterThan(GENERATION_PROFILE_BY_MODE.fast.max_tokens);
   });
 
-  it('exposes generation profile for all 4 modes (no auto)', () => {
-    // 4 模式都有 profile
+  it('exposes generation profile for all current modes (no auto)', () => {
     expect(typeof GENERATION_PROFILE_BY_MODE.fast).toBe('object');
     expect(typeof GENERATION_PROFILE_BY_MODE.pro).toBe('object');
+    expect(typeof GENERATION_PROFILE_BY_MODE.multimodal).toBe('object');
     expect(typeof GENERATION_PROFILE_BY_MODE.plan).toBe('object');
     expect(typeof GENERATION_PROFILE_BY_MODE['agent-cluster']).toBe('object');
     // AUTO 已下线,profile 不再包含 auto

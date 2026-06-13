@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { logger } from '@/utils/logger.js';
-import { isModerationApproved } from '@/utils/content-moderation.js';
 
 let authApiPromise = null;
 const loadAuthApi = async () => {
@@ -98,7 +97,7 @@ export const useNotificationStore = defineStore('notifications', () => {
       const notificationsChannel = subscribeToNotifications(userId, async (payload) => {
         logger.debug('notifications-store', '收到实时通知', payload);
 
-        invalidateByTags(['notifications', 'messages', `notifications:user:${userId}`]);
+        invalidateByTags(['notifications', `notifications:user:${userId}`]);
         await refreshUnreadCount({ force: true });
         await loadNotifications();
 
@@ -131,38 +130,7 @@ export const useNotificationStore = defineStore('notifications', () => {
         displayToast('新消息提醒', desc, icon);
       });
 
-      const messagesChannel = supabase
-        .channel('public:messages')
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'messages',
-            filter: `receiver_id=eq.${userId}`
-          },
-          async (payload) => {
-            logger.debug('notifications-store', '收到实时消息', payload);
-
-            const moderationStatus = payload?.new?.moderation_status;
-            if (!isModerationApproved(moderationStatus)) {
-              logger.debug('notifications-store', '私信未通过审核，跳过实时提醒', { moderationStatus });
-              return;
-            }
-
-            invalidateByTags(['notifications', 'messages', `notifications:user:${userId}`]);
-            await refreshUnreadCount({ force: true });
-
-            window.dispatchEvent(new CustomEvent('boh_unread_refresh', {
-              detail: { source: 'realtime', table: 'messages', event: 'INSERT' }
-            }));
-
-            displayToast('新消息提醒', '你收到了一条新私信', '💌');
-          }
-        )
-        .subscribe();
-
-      notificationSubscription.value = [notificationsChannel, messagesChannel];
+      notificationSubscription.value = notificationsChannel;
     } catch (error) {
       logger.error('notifications-store', '启动通知监听器失败', error);
     }

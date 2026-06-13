@@ -153,8 +153,8 @@ export const hasHardRoute = (decision = {}) => Boolean(
   || decision.minecraftCommand
   || decision.dailySummary
   || decision.planMode
-  || decision.shouldReferenceCloud
   || decision.shouldSearchWeb
+  || decision.shouldReferenceCloud
   || decision.shouldSaveCloud
   || decision.shouldSaveSharedMemory
   || decision.shouldAskMemoryDestination
@@ -226,10 +226,10 @@ export const computeModeFromDecision = (decision, fallback = 'fast') => {
   const modeId = pickModeFromLocalSignals({
     codeOrCommand: decision.codeOrCommand,
     dailySummary: decision.dailySummary,
+    shouldSearchWeb: decision.shouldSearchWeb,
     shouldReferenceCloud: decision.shouldReferenceCloud,
     complexQuestion: decision.complexQuestion,
-    bohInternalFactual: decision.bohInternalFactual,
-    shouldSearchWeb: decision.shouldSearchWeb
+    bohInternalFactual: decision.bohInternalFactual
   });
   let chosen = modeId;
   if (decision.minecraftCommand) chosen = 'pro';
@@ -263,7 +263,6 @@ export const mergeAutoDecisionWithLocalGuardrails = (modelDecision = {}, localDe
     'dailySummary',
     'planMode',
     'complexQuestion',
-    'shouldSearchWeb',
     'shouldReferenceCloud',
     'forceCloudReference',
     'bohInternalFactual',

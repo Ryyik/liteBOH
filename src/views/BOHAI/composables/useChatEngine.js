@@ -11,9 +11,8 @@ import {
   captureTreeholeMemoriesFromDialogue
 } from '@/utils/api/treehole-api.js';
 import { createMyCloudEntry, getMyCloudEntriesForAI } from '@/utils/api/boh-cloud-api.js';
-import { callVaultSiliconChat } from '@/utils/api/api-key-runtime-api.js';
+import { callVaultSiliconChat, callVaultSiliconChatStream } from '@/utils/api/api-key-runtime-api.js';
 import { getMySubscriptions } from '@/utils/api/subscription-api.js';
-import { sendModeratedMessages } from '@/utils/api/messages-api.js';
 import {
   buildBohaiRuntimeModels,
   listActiveBohaiModelConfigs
@@ -33,14 +32,11 @@ import {
 } from '@/utils/ai-chat-grounding.js';
 import { useAuthStore } from '@/stores/auth.js';
 import { supabase } from '@/utils/supabase-client.js';
-import { isModerationApproved } from '@/utils/content-moderation.js';
 import {
   normalizeActionDecisionText,
   isActionDraftCancelIntent,
   isPostDraftConfirmIntent,
-  isMailDraftConfirmIntent,
   isPostDraftRequest,
-  isMailDraftRequest,
   isCreatePageRequest
 } from '@/utils/bohai-action-draft-intent.js';
 import { isLikelyPersonalSupportRequest } from '@/utils/bohai-auto-router.js';
@@ -61,12 +57,18 @@ import {
 } from '@/utils/bohai-action-audit.js';
 
 import { createBohAIRetrievalTrace } from '@/utils/bohai-observability.js';
+import {
+  formatPageDraftPreview as buildPageDraftPreview,
+  formatPostDraftPreview as buildPostDraftPreview
+} from './action-draft-formatters.js';
+import {
+  updatePostDraftFromText
+} from './action-draft-updaters.js';
 import { SITE_OPERATION_MEMORY } from '@/data/ai-site-guide.js';
 import { logger } from '@/utils/logger.js';
 import {
   ACCURACY_PREFERRED_MODEL_ID,
   ACTION_DRAFT_CONTENT_MAX_CHARS,
-  ACTION_DRAFT_SUBJECT_MAX_CHARS,
   ACTION_DRAFT_TITLE_MAX_CHARS,
   AUTO_ROUTER_MODEL_ID,
   BASE_SYSTEM_PROMPT,
@@ -119,8 +121,6 @@ import {
   USER_PRIVATE_CONTEXT_MAX_ITEMS,
   USER_PRIVATE_GIFT_KEYWORDS,
   USER_PRIVATE_GIFTS_FETCH_LIMIT,
-  USER_PRIVATE_MAIL_FETCH_LIMIT,
-  USER_PRIVATE_MAIL_KEYWORDS,
   USER_PRIVATE_PERSONAL_PATTERN,
   USER_PRIVATE_POST_KEYWORDS,
   USER_PRIVATE_POSTS_FETCH_LIMIT,
@@ -174,8 +174,6 @@ import {
   extractSingleLineField,
   extractMultilineField,
   extractFieldUntilNextLabel,
-  extractRecipientName,
-  buildMailDraftFromText,
   buildPageDraftFromText,
   compressKnowledgeContextBlocks,
   getGenerationProfile as getDefaultGenerationProfile,
@@ -196,8 +194,13 @@ import {
   stripResourceQueryNoise as stripResourceQueryNoiseShared
 } from '../agents/core/agent-patterns.js';
 
-const TYPEWRITER_FRAME_MS = 16;
-const TYPEWRITER_CHARS_PER_FRAME = 3;
+const TYPEWRITER_FRAME_MS = 30;
+const TYPEWRITER_CHARS_PER_FRAME = 1;
+
+const dispatchUserSpaceIslandMessage = (payload = {}) => {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('boh_userspace_nav_island', { detail: payload }));
+};
 
 // ============================================================
 // BOH AI Chat Engine 主 composable
@@ -348,6 +351,7 @@ export function useChatEngine() {
     isCommandMode, isSearching, isForumSearchEnabled,
     isMemoryCaptureEnabled, isTreeholeMemoryEnabled, isTreeholeMemoryToggling,
     isQuickNoteEnabled, isPlanModeEnabled,
+    isSharedMemoryEnabled, isKnowledgeBaseEnabled,
     currentResponseStyleId, currentResponseStyle,
     responseStyleOptions,
     cloudReferenceConsent,
@@ -355,8 +359,9 @@ export function useChatEngine() {
     getModelForModeId,
     togglePlanMode, setResponseStyle,
     persistMemoryCaptureSetting,
-    persistTreeholeMemorySetting, persistQuickNoteSetting
-  } = useModelConfig({ availableModels: runtimeAvailableModels.value, chatModes: runtimeChatModes.value });
+    persistTreeholeMemorySetting, persistQuickNoteSetting,
+    persistSharedMemorySetting, persistKnowledgeBaseSetting
+  } = useModelConfig({ availableModels: runtimeAvailableModels, chatModes: runtimeChatModes });
   void loadRuntimeModelConfig();
   // --------------------------------------------------------------
 
@@ -376,8 +381,7 @@ export function useChatEngine() {
     queueQuickNoteConfirmation,
     cancelPendingActionDraftFromUI,
     confirmPendingActionDraftFromUI,
-    updatePendingPostDraftFromUI,
-    updatePendingMailDraftFromUI
+    updatePendingPostDraftFromUI
   } = useMessageManager({
     getSessionByIndex,
     callModelInternal,
@@ -388,9 +392,7 @@ export function useChatEngine() {
     isQuickNoteEnabled,
     scrollToBottom: () => { if (typeof _scrollToBottom === 'function') _scrollToBottom(); },
     currentSessionIndex,
-    resolveMailRecipientProfile: (...args) => resolveMailRecipientProfile(...args),
     submitPostDraft: (...args) => submitPostDraft(...args),
-    submitMailDraft: (...args) => submitMailDraft(...args),
     logger,
     pendingQuickNote,
     resetPendingQuickNote,
@@ -412,122 +414,10 @@ export function useChatEngine() {
   // ============================================================
   // 草稿预览函数（仍在 useChatEngine 中，依赖 pendingActionDraft）
   // ============================================================
-  const formatPostDraftPreview = () => {
-    return [
-      '我已为你起草发帖内容。',
-      pendingActionDraft.postTitle || '（未填写标题）',
-      pendingActionDraft.postContent || '（未填写正文）',
-      '',
-      '你可以继续发来新的标题或正文。',
-      '确认后回复“确认发布”，放弃回复“取消”。'
-    ].join('\n');
-  };
+  const formatPostDraftPreview = () => buildPostDraftPreview(pendingActionDraft);
+  const formatPageDraftPreview = () => buildPageDraftPreview(pendingActionDraft);
 
-  const formatMailDraftPreview = () => {
-    return [
-      '我已为你起草私信内容。',
-      `发给 ${pendingActionDraft.mailReceiverName || '（未指定）'}`,
-      pendingActionDraft.mailSubject || '（无主题）',
-      pendingActionDraft.mailContent || '（未填写正文）',
-      '',
-      '你可以继续发来新的收件人、主题或正文。',
-      '确认后回复“确认发送”，放弃回复“取消”。'
-    ].join('\n');
-  };
-
-  const formatPageDraftPreview = () => {
-    return [
-      '我已为你生成网页代码。',
-      `页面类型：${pendingActionDraft.pageType || '展示页'}`,
-      '',
-      pendingActionDraft.pageHtml || '（正在生成代码...）',
-      '',
-      '你可以继续描述修改要求。',
-      '确认后回复"发送到创作工作台"进入可视化编辑，或直接复制代码。'
-    ].join('\n');
-  };
-
-  const updatePostDraftByUserInput = (text) => {
-    const safeText = String(text || '').trim();
-    if (!safeText) return false;
-    let changed = false;
-
-    const nextTitle = normalizePromptLine(
-      extractFieldUntilNextLabel(safeText, ['标题', 'title'], ['内容', '正文', 'body'], ACTION_DRAFT_TITLE_MAX_CHARS)
-      || extractSingleLineField(safeText, ['标题', 'title']),
-      ACTION_DRAFT_TITLE_MAX_CHARS
-    );
-    if (nextTitle) {
-      pendingActionDraft.postTitle = nextTitle;
-      changed = true;
-    }
-
-    const nextContent = normalizePromptLine(
-      extractFieldUntilNextLabel(safeText, ['内容', '正文', 'body'], [], ACTION_DRAFT_CONTENT_MAX_CHARS)
-      || extractMultilineField(safeText, ['内容', '正文', 'body'], ACTION_DRAFT_CONTENT_MAX_CHARS),
-      ACTION_DRAFT_CONTENT_MAX_CHARS
-    );
-    if (nextContent) {
-      pendingActionDraft.postContent = nextContent;
-      changed = true;
-    }
-
-    if (!changed) {
-      pendingActionDraft.postContent = normalizePromptLine(safeText, ACTION_DRAFT_CONTENT_MAX_CHARS);
-      changed = true;
-    }
-
-    return changed;
-  };
-
-  const updateMailDraftByUserInput = async (text) => {
-    const safeText = String(text || '').trim();
-    if (!safeText) return { changed: false, feedback: '' };
-    let changed = false;
-    let feedback = '';
-
-    const receiverNameInput = extractRecipientName(safeText);
-    if (receiverNameInput) {
-      const resolved = await resolveMailRecipientProfile(receiverNameInput);
-      if (resolved.ok) {
-        const receiverId = String(resolved.data?.id || '');
-        if (receiverId && receiverId !== String(userInfo.value?.id || '')) {
-          pendingActionDraft.mailReceiverId = receiverId;
-          pendingActionDraft.mailReceiverName = normalizePromptLine(resolved.data?.username, 40);
-          changed = true;
-        } else {
-          feedback = '不能给自己发送私信，请指定其他收件人。';
-        }
-      } else {
-        feedback = resolved.message || '收件人不存在，请检查用户名。';
-      }
-    }
-
-    const nextSubject = normalizePromptLine(
-      extractSingleLineField(safeText, ['主题', '标题', 'subject']),
-      ACTION_DRAFT_SUBJECT_MAX_CHARS
-    );
-    if (nextSubject) {
-      pendingActionDraft.mailSubject = nextSubject;
-      changed = true;
-    }
-
-    const nextContent = normalizePromptLine(
-      extractMultilineField(safeText, ['内容', '正文', 'body'], ACTION_DRAFT_CONTENT_MAX_CHARS),
-      ACTION_DRAFT_CONTENT_MAX_CHARS
-    );
-    if (nextContent) {
-      pendingActionDraft.mailContent = nextContent;
-      changed = true;
-    }
-
-    if (!changed && !feedback) {
-      pendingActionDraft.mailContent = normalizePromptLine(safeText, ACTION_DRAFT_CONTENT_MAX_CHARS);
-      changed = true;
-    }
-
-    return { changed, feedback };
-  };
+  const updatePostDraftByUserInput = (text) => updatePostDraftFromText(pendingActionDraft, text);
 
   const getActionAuthContext = () => ({
     isLoggedIn: Boolean(isLoggedIn.value),
@@ -572,51 +462,6 @@ export function useChatEngine() {
             ? `帖子已发布成功（ID: ${createdPostId}），系统将异步完成内容审查。`
             : '帖子已发布成功，系统将异步完成内容审查。',
           data: { id: createdPostId }
-        };
-      }
-    }),
-    [BOHAI_ACTION_IDS.sendMail]: createBohAIAction({
-      id: BOHAI_ACTION_IDS.sendMail,
-      label: '发送私信',
-      source: '私信',
-      validate: ({ receiverId = '', receiverName = '', content = '' } = {}, { auth } = {}) => {
-        if (!normalizePromptLine(auth?.username, 40)) {
-          return { ok: false, error: { message: '请先登录后再发送私信。' } };
-        }
-        if (!String(receiverId || '').trim() || !normalizePromptLine(receiverName, 40)) {
-          return { ok: false, error: { message: '请先指定有效收件人，再确认发送。' } };
-        }
-        const safeContent = normalizePromptLine(content, ACTION_DRAFT_CONTENT_MAX_CHARS);
-        if (!safeContent || safeContent === '（请在这里填写信件正文）') {
-          return { ok: false, error: { message: '邮件正文还是空的，请补充后再确认发送。' } };
-        }
-        if (String(receiverId || '').trim() === String(auth?.userId || '').trim()) {
-          return { ok: false, error: { message: '不能给自己发送私信，请重新指定收件人。' } };
-        }
-        return { ok: true };
-      },
-      execute: async ({ receiverId = '', receiverName = '', subject = '', content = '' } = {}, { auth } = {}) => {
-        const sendResult = await sendModeratedMessages({
-          senderId: auth.userId,
-          senderName: auth.username,
-          recipients: [{ id: String(receiverId || '').trim(), username: normalizePromptLine(receiverName, 40) }],
-          subject: normalizePromptLine(subject, ACTION_DRAFT_SUBJECT_MAX_CHARS),
-          content: normalizePromptLine(content, ACTION_DRAFT_CONTENT_MAX_CHARS),
-          scene: 'mail',
-          failClosed: true,
-          pushplus: true
-        });
-
-        if (sendResult.blocked) {
-          return { ok: false, error: { message: `信件内容审查未通过：${sendResult.moderation?.message || '请修改后重试。'}` } };
-        }
-        if (!sendResult.ok) {
-          return { ok: false, error: sendResult.error || { message: '请稍后重试。' } };
-        }
-        return {
-          ok: true,
-          message: `私信已成功发送给 ${normalizePromptLine(receiverName, 40)}。`,
-          data: sendResult
         };
       }
     }),
@@ -761,37 +606,6 @@ export function useChatEngine() {
 
   };
 
-  const submitMailDraft = async (sessionIndex) => {
-    const receiverId = String(pendingActionDraft.mailReceiverId || '').trim();
-    const receiverName = normalizePromptLine(pendingActionDraft.mailReceiverName, 40);
-    const subject = normalizePromptLine(pendingActionDraft.mailSubject, ACTION_DRAFT_SUBJECT_MAX_CHARS);
-    const content = normalizePromptLine(pendingActionDraft.mailContent, ACTION_DRAFT_CONTENT_MAX_CHARS);
-
-    const result = await runRegisteredAction(BOHAI_ACTION_IDS.sendMail, {
-      receiverId,
-      receiverName,
-      subject,
-      content
-    });
-    if (!result.ok) {
-      appendSessionMessage(sessionIndex, 'assistant', result.errorMessage || '发送失败：请稍后重试。');
-      if (result.metadata?.reason === 'login_required') {
-        resetPendingActionDraft();
-        return;
-      }
-      appendSessionMessage(sessionIndex, 'assistant', formatMailDraftPreview(), { kind: 'action_draft_preview' });
-      return;
-    }
-
-    resetPendingActionDraft();
-    appendSessionMessage(
-      sessionIndex,
-      'assistant',
-      result.message || `私信已成功发送给 ${receiverName}。`,
-      { kind: 'action_committed', actionAudit: result.metadata?.audit || null }
-    );
-  };
-
   const handlePendingActionDraftReply = async (rawText) => {
     if (!pendingActionDraft.active) return false;
 
@@ -814,7 +628,7 @@ export function useChatEngine() {
     resetComposerInput();
 
     if (isActionDraftCancelIntent(safeText)) {
-      const draftTypeLabel = pendingActionDraft.type === 'mail' ? '私信' : pendingActionDraft.type === 'page' ? '网页草稿' : '发帖';
+      const draftTypeLabel = pendingActionDraft.type === 'page' ? '网页草稿' : '发帖';
       resetPendingActionDraft();
       appendSessionMessage(currentSession, 'assistant', `好的，已取消本次${draftTypeLabel}草稿。`);
       return true;
@@ -898,24 +712,6 @@ export function useChatEngine() {
       return true;
     }
 
-    if (pendingActionDraft.type === 'mail') {
-      if (isMailDraftConfirmIntent(safeText)) {
-        await submitMailDraft(currentSession);
-        return true;
-      }
-
-      const updateResult = await updateMailDraftByUserInput(safeText);
-      if (updateResult.feedback) {
-        appendSessionMessage(currentSession, 'assistant', updateResult.feedback);
-      }
-      if (updateResult.changed) {
-        appendSessionMessage(currentSession, 'assistant', formatMailDraftPreview(), { kind: 'action_draft_preview' });
-      } else if (!updateResult.feedback) {
-        appendSessionMessage(currentSession, 'assistant', '我没识别到可更新字段。你可以直接发来新的收件人、主题或正文。');
-      }
-      return true;
-    }
-
     if (pendingActionDraft.type === 'page') {
       const safeText = String(rawText || '').trim();
       pendingActionDraft.pageDescription = safeText;
@@ -969,7 +765,7 @@ export function useChatEngine() {
     if (pendingActionDraft.active) return false;
 
     const wantsPostDraft = isPostDraftRequest(safeText);
-    const wantsMailDraft = isMailDraftRequest(safeText);
+    const wantsMailDraft = /(发邮件|发私信|写邮件|写信|寄信|私信|收件箱)/.test(safeText);
     if (!wantsPostDraft && !wantsMailDraft) return false;
 
     const targetSession = getSessionByIndex(sessionIndex);
@@ -978,13 +774,15 @@ export function useChatEngine() {
     appendUserMessageWithTitle(sessionIndex, safeText);
     resetComposerInput();
 
-    if (!isLoggedIn.value || !userInfo.value?.id) {
-      appendSessionMessage(sessionIndex, 'assistant', '请先登录，登录后我就可以帮你起草并执行发帖/发私信。');
+    if (wantsMailDraft) {
+      appendSessionMessage(sessionIndex, 'assistant', wantsPostDraft
+        ? '私信功能已下架，我不能再起草或发送私信。你可以继续让我帮你整理论坛发帖草稿。'
+        : '私信功能已下架，BOH AI 不再支持起草、发送或读取私信。');
       return true;
     }
 
-    if (wantsPostDraft && wantsMailDraft) {
-      appendSessionMessage(sessionIndex, 'assistant', '我识别到你可能同时想发帖和发私信。请先回复“发帖”或“发私信”，我会逐个帮你起草。');
+    if (!isLoggedIn.value || !userInfo.value?.id) {
+      appendSessionMessage(sessionIndex, 'assistant', '请先登录，登录后我就可以帮你起草并发布论坛帖子。');
       return true;
     }
 
@@ -1057,28 +855,7 @@ export function useChatEngine() {
       return true;
     }
 
-    const draft = buildMailDraftFromText(safeText);
-    pendingActionDraft.type = 'mail';
-    pendingActionDraft.mailSubject = draft.subject;
-    pendingActionDraft.mailContent = draft.content;
-
-    if (draft.recipientName) {
-      const resolved = await resolveMailRecipientProfile(draft.recipientName);
-      if (resolved.ok) {
-        const receiverId = String(resolved.data?.id || '');
-        if (receiverId && receiverId !== userId) {
-          pendingActionDraft.mailReceiverId = receiverId;
-          pendingActionDraft.mailReceiverName = normalizePromptLine(resolved.data?.username, 40);
-        } else {
-          appendSessionMessage(sessionIndex, 'assistant', '不能给自己发送私信，请重新指定收件人。');
-        }
-      } else {
-        appendSessionMessage(sessionIndex, 'assistant', resolved.message || '收件人不存在，请重新指定。');
-      }
-    }
-
-    appendSessionMessage(sessionIndex, 'assistant', formatMailDraftPreview(), { kind: 'action_draft_preview' });
-    return true;
+    return false;
   };
 
   const tryStartPageCreationFromUserInput = async (rawText, sessionIndex) => {
@@ -1374,6 +1151,14 @@ export function useChatEngine() {
         ? '随手记已开启：AI 回答后可选择记录到 Cloud+。'
         : '随手记已关闭。'
     );
+    dispatchUserSpaceIslandMessage({
+      title: isQuickNoteEnabled.value ? '随手记已开启' : '随手记已关闭',
+      message: isQuickNoteEnabled.value ? 'AI 回答后可记录到 Cloud+' : '本轮不再生成随手记提示',
+      icon: 'ai',
+      type: 'notification',
+      actionLabel: '知道了',
+      durationMs: 3600
+    });
   };
 
   const updatePendingQuickNoteDraft = ({ title, content } = {}) => {
@@ -1432,6 +1217,15 @@ export function useChatEngine() {
       : currentSessionIndex.value;
     resetPendingQuickNote();
     setMemoryCaptureStatusMessage('已记录到 BOH Cloud+。');
+    dispatchUserSpaceIslandMessage({
+      title: '已记录到 Cloud+',
+      message: title,
+      icon: 'success',
+      type: 'success',
+      actionLabel: '查看',
+      actionTab: 'profile',
+      durationMs: 5200
+    });
     appendSessionMessage(sessionIndex, 'assistant', '已记录到 BOH Cloud+。');
     return true;
   };
@@ -1725,6 +1519,14 @@ export function useChatEngine() {
       isTreeholeMemoryEnabled.value = false;
       persistTreeholeMemorySetting();
       setMemoryCaptureStatusMessage('Cloud+ 参考已关闭。');
+      dispatchUserSpaceIslandMessage({
+        title: 'Cloud+ 参考已关闭',
+        message: '本轮不会读取你的 Cloud+ 内容',
+        icon: 'ai',
+        type: 'notification',
+        actionLabel: '知道了',
+        durationMs: 3600
+      });
       return;
     }
 
@@ -1738,6 +1540,14 @@ export function useChatEngine() {
       persistTreeholeMemorySetting();
       resetPendingTreeholeCreation();
       setMemoryCaptureStatusMessage('Cloud+ 参考已开启：AI 将可查看你的全部 Cloud+ 内容作为私有参考。');
+      dispatchUserSpaceIslandMessage({
+        title: 'Cloud+ 参考已开启',
+        message: 'AI 可参考你的 Cloud+ 私有内容',
+        icon: 'ai',
+        type: 'notification',
+        actionLabel: '知道了',
+        durationMs: 4200
+      });
     } finally {
       isTreeholeMemoryToggling.value = false;
     }
@@ -1903,8 +1713,8 @@ export function useChatEngine() {
 
   const animateAssistantContent = async (text, updateContent, {
     requestSignal = undefined,
-    charDelayMs = 12,
-    chunkSize = 2
+    charDelayMs = 30,
+    chunkSize = 1
   } = {}) => {
     const content = String(text || '');
     if (!content) {
@@ -1930,6 +1740,8 @@ export function useChatEngine() {
     isCommandMode.value = false; // Reset modes
     isSearching.value = false;
     isForumSearchEnabled.value = false;
+    isSharedMemoryEnabled.value = false;
+    isKnowledgeBaseEnabled.value = false;
     currentModeId.value = BOH_DEFAULT_MODE_ID;
     // Auto 路由相关状态重置
     lastRoutedMode.value = '';
@@ -1976,17 +1788,6 @@ export function useChatEngine() {
     const normalized = normalizeText(text);
     if (!normalized) return false;
     return /(写|生成|创作|改写|润色|设计|起草|文案|口号|标题|祝福|海报|宣传语|故事|诗|歌词|设定|梗图)/.test(normalized);
-  };
-
-  const shouldUseForumPosts = (text) => {
-    const normalized = normalizeText(text);
-    const forumKeywords = [
-      '论坛', '帖子', '发帖', '热帖', '最新', '最近', '动态', '讨论', '公告', '活动', '大家在聊',
-      '社区搜索', '社区检索', '搜帖子', '找帖子', '查看帖子', '有哪些帖子', '有人聊', '大家聊'
-    ];
-    const asksRealtime = /(现在|最近|最新|今天|近期)/.test(normalized) && isCommunityQuestion(normalized);
-    if (isOperationQuestion(normalized)) return false;
-    return asksRealtime || forumKeywords.some((keyword) => normalized.includes(keyword));
   };
 
   const shouldUseMemoryContext = (text) => {
@@ -2286,7 +2087,8 @@ export function useChatEngine() {
       sharedMemory: shouldUseSharedMemoryContext(normalized),
       memory: shouldUseMemoryContext(normalized),
       siteGuide: shouldUseSiteGuide(normalized),
-      forum: shouldUseForumPosts(normalized),
+      // forum 仅由用户手动开关控制，不再自动判定
+      forum: false,
       userPrivate: userPrivatePlan.shouldUse
     };
 
@@ -2791,7 +2593,6 @@ ${body || '无'}
         shouldUse: false,
         overview: false,
         posts: false,
-        mailbox: false,
         gifts: false,
         birthday: false,
         pushplus: false,
@@ -2807,8 +2608,6 @@ ${body || '无'}
 
     const posts = containsAnyKeyword(normalized, USER_PRIVATE_POST_KEYWORDS)
       || (hasPersonalPronoun && /(帖子|发帖|论坛)/.test(normalized));
-    const mailbox = containsAnyKeyword(normalized, USER_PRIVATE_MAIL_KEYWORDS)
-      || (hasPersonalPronoun && /(邮件|信件|私信|消息|收件箱|发件)/.test(normalized));
     const gifts = containsAnyKeyword(normalized, USER_PRIVATE_GIFT_KEYWORDS)
       || (hasPersonalPronoun && /(礼物|礼品)/.test(normalized));
     const birthday = containsAnyKeyword(normalized, USER_PRIVATE_BIRTHDAY_KEYWORDS)
@@ -2818,13 +2617,12 @@ ${body || '无'}
     const subscriptions = containsAnyKeyword(normalized, USER_PRIVATE_SUBSCRIPTION_KEYWORDS)
       || (hasPersonalPronoun && /(订阅|会员|积分|套餐)/.test(normalized));
 
-    const shouldUseByIntent = asksSummary || asksAll || posts || mailbox || gifts || birthday || pushplus || subscriptions;
+    const shouldUseByIntent = asksSummary || asksAll || posts || gifts || birthday || pushplus || subscriptions;
     if (!shouldUseByIntent) {
       return {
         shouldUse: false,
         overview: false,
         posts: false,
-        mailbox: false,
         gifts: false,
         birthday: false,
         pushplus: false,
@@ -2837,7 +2635,6 @@ ${body || '无'}
       isOperationQuestion(normalized)
       && !asksSummary
       && !asksAll
-      && !mailbox
       && !gifts
       && !birthday
       && !pushplus
@@ -2848,7 +2645,6 @@ ${body || '无'}
         shouldUse: false,
         overview: false,
         posts: false,
-        mailbox: false,
         gifts: false,
         birthday: false,
         pushplus: false,
@@ -2858,9 +2654,8 @@ ${body || '无'}
 
     return {
       shouldUse: true,
-      overview: asksSummary || asksAll || posts || mailbox || gifts || birthday || pushplus || subscriptions,
+      overview: asksSummary || asksAll || posts || gifts || birthday || pushplus || subscriptions,
       posts: asksAll || posts,
-      mailbox: asksAll || mailbox,
       gifts: asksAll || gifts,
       birthday: asksAll || birthday,
       pushplus: asksAll || pushplus,
@@ -2886,7 +2681,6 @@ ${body || '无'}
     const [
       profileResult,
       postResult,
-      messageResult,
       giftResult,
       subscriptionResult
     ] = await Promise.allSettled([
@@ -2909,23 +2703,6 @@ ${body || '无'}
         .eq('id', userId)
         .maybeSingle(),
       getUserPosts(userId, userId, { page: 1, pageSize: USER_PRIVATE_POSTS_FETCH_LIMIT, limit: USER_PRIVATE_POSTS_FETCH_LIMIT }),
-      supabase
-        .from('messages')
-        .select(`
-          id,
-          sender_id,
-          sender_name,
-          receiver_id,
-          receiver_name,
-          subject,
-          content,
-          status,
-          moderation_status,
-          created_at
-        `)
-        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-        .order('created_at', { ascending: false })
-        .limit(USER_PRIVATE_MAIL_FETCH_LIMIT),
       supabase
         .from('user_gifts')
         .select(`
@@ -2954,11 +2731,6 @@ ${body || '无'}
     const postValue = postResult.status === 'fulfilled' ? postResult.value : null;
     if (postValue?.error && !isMissingRelationError(postValue.error, 'posts')) {
       logger.warn('boh-ai', '读取当前用户帖子失败', postValue.error?.message || postValue.error);
-    }
-
-    const messageValue = messageResult.status === 'fulfilled' ? messageResult.value : null;
-    if (messageValue?.error && !isMissingRelationError(messageValue.error, 'messages')) {
-      logger.warn('boh-ai', '读取当前用户邮件失败', messageValue.error?.message || messageValue.error);
     }
 
     const giftValue = giftResult.status === 'fulfilled' ? giftResult.value : null;
@@ -2994,7 +2766,6 @@ ${body || '无'}
       userId,
       profile: mergedProfile,
       posts: Array.isArray(postValue?.data) ? postValue.data : [],
-      messages: Array.isArray(messageValue?.data) ? messageValue.data : [],
       gifts: Array.isArray(giftValue?.data) ? giftValue.data : [],
       subscriptions: Array.isArray(subscriptionValue?.data) ? subscriptionValue.data : []
     };
@@ -3075,56 +2846,6 @@ ${body || '无'}
       context: `【当前用户发帖记录】\n总帖数: ${posts.length}\n${body}`,
       total: posts.length,
       label: `我的帖子(${posts.length}条)`
-    };
-  };
-
-  const getUserMailboxPrivateContext = (snapshot, queryText) => {
-    const messages = Array.isArray(snapshot?.messages) ? snapshot.messages : [];
-    const userId = String(snapshot?.userId || '');
-    const isVisibleInboxMail = (mail) => isModerationApproved(mail?.moderation_status);
-
-    const inbox = messages
-      .filter((mail) => String(mail?.receiver_id || '') === userId)
-      .filter(isVisibleInboxMail);
-    const sent = messages
-      .filter((mail) => String(mail?.sender_id || '') === userId)
-      .filter(isVisibleInboxMail);
-    const unreadCount = inbox.filter((mail) => String(mail?.status || '').toLowerCase() === 'unread').length;
-    const combined = [...inbox, ...sent];
-
-    if (combined.length === 0) {
-      return {
-        context: '【当前用户邮件/私信】\n当前账号暂无邮件记录。',
-        unreadCount: 0,
-        total: 0,
-        label: '邮箱(0封)'
-      };
-    }
-
-    const selected = selectItemsByQuery(
-      combined,
-      queryText,
-      (mail) => `${mail?.subject || ''}\n${mail?.content || ''}\n${mail?.sender_name || ''}\n${mail?.receiver_name || ''}`
-    );
-
-    const body = selected.map((mail, index) => {
-      const isInbox = String(mail?.receiver_id || '') === userId;
-      const direction = isInbox ? '收件' : '发件';
-      const peerName = isInbox
-        ? normalizePromptLine(mail?.sender_name, 24) || '未知'
-        : normalizePromptLine(mail?.receiver_name, 24) || '未知';
-      const subject = normalizePromptLine(mail?.subject, 40) || '(无主题)';
-      const preview = normalizePromptLine(mail?.content, USER_PRIVATE_CONTEXT_MAX_ITEM_CHARS) || '（空）';
-      const status = normalizePromptLine(mail?.status, 12) || 'unknown';
-      const time = formatPromptDate(mail?.created_at, '未知');
-      return `[${index + 1}] ${direction} / 对方: ${peerName}\n主题: ${subject}\n状态: ${status}  时间: ${time}\n内容: ${preview}`;
-    }).join('\n\n');
-
-    return {
-      context: `【当前用户邮件/私信】\n收件箱: ${inbox.length} 封（未读 ${unreadCount}）\n已发送: ${sent.length} 封\n${body}`,
-      unreadCount,
-      total: combined.length,
-      label: unreadCount > 0 ? `邮箱(未读${unreadCount}封)` : `邮箱(${combined.length}封)`
     };
   };
 
@@ -3260,7 +2981,7 @@ ${body || '无'}
 
     if (!isLoggedIn.value || !userInfo.value?.id) {
       return {
-        context: '【用户私域证据 [U1]】\n未检测到登录用户。若需要查询“我的帖子/邮件/礼物/生日会/Pushplus/订阅积分”，请先登录账号。',
+        context: '【用户私域证据 [U1]】\n未检测到登录用户。若需要查询“我的帖子/礼物/生日会/Pushplus/订阅积分”，请先登录账号。',
         labels: ['登录状态(未登录)']
       };
     }
@@ -3286,14 +3007,6 @@ ${body || '无'}
 
     if (plan.posts) {
       const result = getUserPostsPrivateContext(snapshot, queryText);
-      if (result?.context) {
-        blocks.push(result.context);
-        if (result.label) labels.push(result.label);
-      }
-    }
-
-    if (plan.mailbox) {
-      const result = getUserMailboxPrivateContext(snapshot, queryText);
       if (result?.context) {
         blocks.push(result.context);
         if (result.label) labels.push(result.label);
@@ -3424,6 +3137,14 @@ ${body || '无'}
     }
     if (isForumSearchEnabled.value) {
       retrievalPlan.forum = true;
+    }
+    // 统一开关过滤：未开启的知识源强制关闭
+    if (!isSharedMemoryEnabled.value) {
+      retrievalPlan.sharedMemory = false;
+    }
+    if (!isKnowledgeBaseEnabled.value) {
+      retrievalPlan.memory = false;
+      retrievalPlan.siteGuide = false;
     }
     const routingReasons = Array.isArray(routingDecision.reasons) ? routingDecision.reasons : [];
     const connectorResults = await runBohAIReadConnectors({
@@ -4220,12 +3941,170 @@ ${body || '无'}
     }
   };
 
+  const runSimpleChatTurn = async ({ sessionIndex, session, userText }) => {
+    appendUserMessageWithTitle(sessionIndex, userText);
+    resetComposerInput();
+    scrollToBottom(true);
+    await ensureContextCompression(sessionIndex);
+
+    session.isLoading = true;
+    session.isThinking = true;
+    activeGenerationSessionIndex.value = sessionIndex;
+    startThinkingTimer();
+
+    const requestController = new AbortController();
+    abortController.value = requestController;
+    const targetSessionRef = session;
+    const assistantMessage = { role: 'assistant', content: '' };
+    session.messages.push(assistantMessage);
+    const messageIndex = session.messages.length - 1;
+    await nextTick();
+    scrollToBottom();
+
+    const updateContent = (text) => {
+      const targetSession = getSessionByIndex(sessionIndex);
+      if (!targetSession || targetSession !== targetSessionRef) return;
+      if (!targetSession.messages.includes(assistantMessage)) return;
+      assistantMessage.content = String(text || '');
+      scrollToBottom();
+    };
+
+    try {
+      const activeModeId = runtimeChatModes.value.some((mode) => mode.id === currentModeId.value)
+        ? currentModeId.value
+        : BOH_DEFAULT_MODE_ID;
+      lastRoutedMode.value = activeModeId;
+      mergeAssistantMessageMeta(sessionIndex, messageIndex, { routedMode: activeModeId });
+
+      let webEvidenceContext = '';
+      if (isSearching.value) {
+        setThinkingStatus('正在联网搜索...');
+        const WEB_SEARCH_TIMEOUT_MS = 30_000;
+        const webSearchSignal = typeof AbortSignal.any === 'function'
+          ? AbortSignal.any([requestController.signal, AbortSignal.timeout(WEB_SEARCH_TIMEOUT_MS)])
+          : requestController.signal;
+        const webSearchResult = await searchWebForPrompt(userText, webSearchSignal).catch((error) => ({
+          ok: false,
+          disabled: false,
+          count: 0,
+          context: '',
+          results: [],
+          error,
+          message: error?.message || '未知错误'
+        }));
+
+        if (webSearchResult?.disabled) {
+          isSearching.value = false;
+          if (!webSearchDisabledNoticeShownFor.has(sessionIndex)) {
+            webSearchDisabledNoticeShownFor.add(sessionIndex);
+            updateAssistantActionNotes(sessionIndex, messageIndex, ['联网搜索未配置，已跳过外部检索。']);
+          }
+        } else if (webSearchResult?.ok) {
+          const results = Array.isArray(webSearchResult.results) ? webSearchResult.results : [];
+          webEvidenceContext = truncateText(webSearchResult.context || '', MAX_PROMPT_EXTRA_CHARS);
+          updateAssistantActionNotes(
+            sessionIndex,
+            messageIndex,
+            [results.length > 0 ? `搜索了 ${results.length} 个内容。` : '搜索了 0 个内容。']
+          );
+        } else {
+          if (webSearchResult?.error && webSearchResult.error?.name !== 'AbortError') {
+            logger.error('boh-ai', 'Search failed', webSearchResult.error);
+          }
+          updateAssistantActionNotes(sessionIndex, messageIndex, ['联网搜索失败，已尝试继续回答。']);
+        }
+      }
+
+      setThinkingStatus('正在生成回答...');
+      const generationModel = getModelForModeId(activeModeId, { userText })
+        || currentModel.value
+        || runtimeAvailableModels.value[0];
+      if (!generationModel?.id) {
+        throw new Error('未找到可用模型配置');
+      }
+
+      const modeAppendix = String(
+        runtimeChatModes.value.find((mode) => mode.id === activeModeId)?.promptAppendix || ''
+      ).trim();
+      const systemPromptContent = [
+        BASE_SYSTEM_PROMPT,
+        modeAppendix,
+        '当前 BOH AI 只保留通用对话、五种模式选择与用户主动开启的联网搜索。不要执行站内业务动作，不要创建帖子/页面/笔记，不要读取论坛、Cloud+、公共记忆、私域数据或资源库。一次用户输入只输出一条完整回答。'
+      ].filter(Boolean).join('\n');
+
+      const historyMessages = buildHistoryMessagesWithCachedSummary({
+        ...session,
+        messages: Array.isArray(session.messages) ? session.messages.slice(0, -2) : []
+      }, {
+        maxChars: MAX_HISTORY_CONTEXT_CHARS,
+        maxMessages: MAX_CONTEXT_MESSAGES,
+        maxPerMessage: MAX_HISTORY_MESSAGE_CHARS
+      });
+      const prompt = webEvidenceContext
+        ? [
+          truncateText(userText, MAX_USER_INPUT_CHARS),
+          '',
+          '【联网搜索结果】',
+          webEvidenceContext,
+          '',
+          '请结合搜索结果回答；如果搜索结果不足，请明确说明不确定。'
+        ].join('\n')
+        : truncateText(userText, MAX_USER_INPUT_CHARS);
+      const generationProfile = getGenerationProfile(activeModeId, {
+        factualQuestion: Boolean(webEvidenceContext),
+        operationQuestion: false
+      });
+
+      const rawReply = await callModelInternal(
+        generationModel.id,
+        prompt,
+        systemPromptContent,
+        historyMessages,
+        requestController.signal,
+        0,
+        generationProfile
+      );
+      let finalContent = cleanAssistantVisibleReply(filterThinkingContent(rawReply));
+      if (isDegenerateAssistantReply(finalContent)) {
+        finalContent = '这次生成内容异常，我没有把异常内容展示出来。请重新发送一次，我会用当前模式重新回答。';
+      }
+      const safeFinalContent = finalContent || '我暂时没有生成到有效内容，请再试一次。';
+      await animateAssistantContent(safeFinalContent, updateContent, {
+        requestSignal: requestController.signal,
+        charDelayMs: activeModeId === 'fast' ? 12 : 30,
+        chunkSize: activeModeId === 'fast' ? 2 : 1
+      });
+      void refreshConversationSummaryCache(sessionIndex);
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        const targetSession = getSessionByIndex(sessionIndex);
+        const currentContent = targetSession === targetSessionRef && targetSession?.messages?.includes(assistantMessage)
+          ? assistantMessage.content
+          : '';
+        updateContent(currentContent ? `${currentContent}\n\n（已停止生成）` : '已停止生成。');
+      } else {
+        logger.error('boh-ai', 'Simple generation error', error);
+        updateContent(`抱歉，我遇到了一些问题: ${error?.message || '未知错误'}，请稍后再试。`);
+      }
+    } finally {
+      clearThinkingStatus();
+      const targetSession = getSessionByIndex(sessionIndex);
+      if (targetSession) {
+        targetSession.isLoading = false;
+        targetSession.isThinking = false;
+      }
+      if (abortController.value === requestController) {
+        abortController.value = null;
+      }
+      if (activeGenerationSessionIndex.value === sessionIndex) {
+        activeGenerationSessionIndex.value = null;
+      }
+      stopThinkingTimer();
+    }
+  };
+
   const sendMessage = async () => {
     if (!inputMessage.value.trim() || isLoading.value || abortController.value) return;
-    if (await handlePendingCloudReferenceConsentReply(inputMessage.value.trim())) return;
-    if (await handlePendingSharedMemoryCaptureReply(inputMessage.value.trim())) return;
-    if (await handlePendingTreeholeCreationReply(inputMessage.value.trim())) return;
-    if (await handlePendingActionDraftReply(inputMessage.value.trim())) return;
 
     const now = Date.now();
 
@@ -4277,6 +4156,9 @@ ${body || '无'}
     if (!session) return;
 
     const userText = inputMessage.value.trim();
+    await runSimpleChatTurn({ sessionIndex, session, userText });
+    return;
+
     if (await tryStartActionDraftFromUserInput(userText, sessionIndex)) return;
     if (await tryStartPageCreationFromUserInput(userText, sessionIndex)) return;
     if (await handleResourceSearchRequest(userText)) return;
@@ -4499,6 +4381,14 @@ ${body || '无'}
       isTreeholeMemoryEnabled.value = true;
       persistTreeholeMemorySetting();
       setMemoryCaptureStatusMessage('Auto 已为你开启 Cloud+ 参考。');
+      dispatchUserSpaceIslandMessage({
+        title: '已开启 Cloud+ 参考',
+        message: 'BOH AI 将结合你的 Cloud+ 内容回答',
+        icon: 'ai',
+        type: 'notification',
+        actionLabel: '知道了',
+        durationMs: 4200
+      });
     }
 
     const operationQuestion = isOperationQuestion(routingQueryText);
@@ -4507,9 +4397,8 @@ ${body || '无'}
     const communityNeedsEvidence = communityQuestion && !communityCreativeRequest;
     const bohInternalFactualQuestion = isLikelyBohInternalFactualQuestion(routingQueryText, { operationQuestion });
     const factualQuestion = isLikelyFactualQuestion(routingQueryText, { operationQuestion }) || bohInternalFactualQuestion;
-    // 联网：用户显式开启 OR 本地决策建议开启（能力决策不再依赖 AUTO 模式）
-    const autoSearchEnabled = Boolean(autoDecision?.shouldSearchWeb);
-    const enableSearch = isSearching.value || autoSearchEnabled;
+    // 联网：仅由用户手动开关控制，自动决策不再越权触发搜索
+    const enableSearch = isSearching.value;
     session.isLoading = true;
     session.isThinking = true;
     const requestController = new AbortController();
@@ -4606,9 +4495,6 @@ ${body || '无'}
         : Promise.resolve({ ok: true, disabled: false, count: 0, context: '', results: [] });
 
       if (enableSearch) {
-        if (autoSearchEnabled) {
-          updateAssistantActionNotes(sessionIndex, messageIndex, ['联网搜索最新资料。']);
-        }
         markGenerationProgress('正在并行搜索网络资料...');
         setProgressContent(`> **正在搜索**: "${routingQueryText}"...\n\n`);
       }
@@ -4911,9 +4797,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
           targetSession.isThinking = false;
         }
         await animateAssistantContent(finalNarrativeAnswer, updateContent, {
-          requestSignal: requestController.signal,
-          charDelayMs: 10,
-          chunkSize: 2
+          requestSignal: requestController.signal
         });
         nextTick(scrollToBottom);
 
@@ -5044,43 +4928,22 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         }
       };
 
-      const useVaultProxy = true;
-      if (useVaultProxy) {
-        const vaultResult = await callVaultSiliconChat({
-          provider: generationModel.providerKey || 'siliconflow',
-          purpose: 'chat',
-          apiUrl: url,
-          timeoutMs: STREAM_FETCH_TIMEOUT_MS,
-          payload: {
-            ...requestBody,
-            stream: false
-          }
-        });
-        if (!vaultResult.ok) {
-          throw new Error(vaultResult.error?.message || 'API proxy request failed');
-        }
-        const rawContent = vaultResult.data?.choices?.[0]?.message?.content || '';
-        const filteredContent = cleanAssistantVisibleReply(filterThinkingContent(rawContent));
-        if (filteredContent) {
-          stopThinkingWhenAnswerVisible();
-          assistantMessage = await appendContentTypewriter(assistantMessage, filteredContent);
-          lastVisibleStreamContent = filteredContent;
-        }
-      } else {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: headers,
-          signal: streamFetchSignal,
-          body: JSON.stringify(requestBody)
-        });
+      const response = await callVaultSiliconChatStream({
+        provider: generationModel.providerKey || 'siliconflow',
+        purpose: 'chat',
+        apiUrl: url,
+        timeoutMs: STREAM_FETCH_TIMEOUT_MS,
+        signal: streamFetchSignal,
+        payload: requestBody
+      });
 
-        if (!response.ok) {
-          const errText = await response.text();
-          throw new Error(`API request failed: ${response.status} - ${errText}`);
-        }
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`API request failed: ${response.status} - ${errText}`);
+      }
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
       let streamIdleTimer = null;
       const readNextStreamChunk = async () => {
         if (!hasReceivedVisibleAnswer) return reader.read();
@@ -5176,7 +5039,6 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         }
       } else {
         resetThinkingState();
-      }
       }
 
       if (shouldRepairDegenerateStream) {
@@ -5298,7 +5160,17 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         finalFilteredContent = sanitizeCommunityEvidenceClaims(finalFilteredContent);
       }
 
-      updateContent(finalFilteredContent);
+      const typedVisibleContent = cleanAssistantVisibleReply(filterThinkingContent(assistantMessage));
+      if (finalFilteredContent !== typedVisibleContent) {
+        if (finalFilteredContent.startsWith(typedVisibleContent)) {
+          assistantMessage = await appendContentTypewriter(typedVisibleContent, finalFilteredContent.slice(typedVisibleContent.length));
+        } else if (!typedVisibleContent) {
+          assistantMessage = await appendContentTypewriter('', finalFilteredContent);
+        } else {
+          assistantMessage = finalFilteredContent;
+          updateContent(finalFilteredContent);
+        }
+      }
       nextTick(scrollToBottom);
       await queueQuickNoteConfirmation({
         rawText: userText,
@@ -5377,6 +5249,8 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
     isTreeholeMemoryToggling,
     isQuickNoteEnabled,
     isPlanModeEnabled,
+    isSharedMemoryEnabled,
+    isKnowledgeBaseEnabled,
     agentClusterState,
     resetAgentClusterState,
     currentResponseStyleId,
@@ -5388,7 +5262,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
     memoryCaptureTip,
     isRateLimited,
     rateLimitMessage,
-    chatModes: runtimeChatModes.value,
+    chatModes: computed(() => runtimeChatModes.value),
     messages,
     contextBudgetUsage,
     isCompressingContext,
@@ -5404,6 +5278,8 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
     toggleQuickNoteMode,
     togglePlanMode,
     setResponseStyle,
+    persistSharedMemorySetting,
+    persistKnowledgeBaseSetting,
     updatePendingQuickNoteDraft,
     dismissQuickNoteDraft,
     confirmQuickNoteDraft,
@@ -5411,7 +5287,6 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
     rejectCloudReferenceConsent,
     activeActionDraft,
     updatePendingPostDraftFromUI,
-    updatePendingMailDraftFromUI,
     cancelPendingActionDraftFromUI,
     confirmPendingActionDraftFromUI,
     stopGeneration,

@@ -516,6 +516,66 @@ const runtimeChatCompletion = async (
   return { ok: true, status: response.status, data };
 };
 
+const runtimeChatCompletionStream = async (
+  client: ReturnType<typeof createServiceClient>,
+  body: Record<string, unknown>,
+  origin: string | null,
+) => {
+  const provider = toText(body.provider || 'siliconflow', 40).toLowerCase();
+  const purpose = toText(body.purpose || 'chat', 60).toLowerCase();
+  const { row, apiKey } = await resolveActiveSecret(client, provider, purpose);
+  const metadata = row.metadata || {};
+  const rawPayload = toMetadata(body.payload);
+  const defaultApiUrl = provider === 'zhipu'
+    ? 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
+    : 'https://api.siliconflow.cn/v1/chat/completions';
+  const apiUrl = toText(body.apiUrl, 240) || toText(metadata.apiUrl, 240) || defaultApiUrl;
+  const payload = {
+    ...rawPayload,
+    stream: true,
+    max_tokens: clampInt(rawPayload.max_tokens, 1200, 1, 4096),
+  };
+
+  const response = await fetch(apiUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(clampInt(body.timeoutMs, 30000, 3000, 120000)),
+  });
+
+  const streamHeaders = {
+    ...buildCorsHeaders(origin),
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  };
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    const message = text.slice(0, 500) || `${provider} 流式请求失败：${response.status}`;
+    return new Response(
+      `event: error\ndata: ${JSON.stringify({ ok: false, status: response.status, message })}\n\n`,
+      { status: 502, headers: streamHeaders },
+    );
+  }
+
+  if (!response.body) {
+    return new Response(
+      `event: error\ndata: ${JSON.stringify({ ok: false, status: response.status, message: '模型服务未返回可读流。' })}\n\n`,
+      { status: 502, headers: streamHeaders },
+    );
+  }
+
+  return new Response(response.body, {
+    status: 200,
+    headers: streamHeaders,
+  });
+};
+
 const runtimeTavilySearch = async (
   client: ReturnType<typeof createServiceClient>,
   body: Record<string, unknown>,
@@ -630,6 +690,9 @@ Deno.serve(async (request) => {
     if (action === 'runtime-chat') {
       const result = await runtimeChatCompletion(client, body);
       return jsonResponse(result, result.ok ? 200 : 502, origin);
+    }
+    if (action === 'runtime-chat-stream') {
+      return await runtimeChatCompletionStream(client, body, origin);
     }
     if (action === 'runtime-search') {
       const result = await runtimeTavilySearch(client, body);

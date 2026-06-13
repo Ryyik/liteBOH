@@ -53,7 +53,7 @@ describe('notifications-api', () => {
     expect(output[1].sender_id).toBe('u2');
   });
 
-  it('falls back to legacy unread mail count when moderation_status is missing', async () => {
+  it('counts unread notifications only after private messages were removed', async () => {
     const calls = [];
     const notificationsQuery = createThenableQuery({
       data: [
@@ -62,27 +62,18 @@ describe('notifications-api', () => {
       ],
       error: null
     }, calls);
-    const moderationMailQuery = createThenableQuery({
-      count: 0,
-      error: { message: 'column "moderation_status" does not exist', code: '42703' }
-    }, calls);
-    const legacyMailQuery = createThenableQuery({
-      count: 2,
-      error: null
-    }, calls);
 
-    testMocks.fromMock
-      .mockReturnValueOnce(notificationsQuery)
-      .mockReturnValueOnce(moderationMailQuery)
-      .mockReturnValueOnce(legacyMailQuery);
+    testMocks.fromMock.mockReturnValueOnce(notificationsQuery);
 
     const result = await getUnreadNotificationCount('u1');
 
     expect(result.ok).toBe(true);
     expect(result.notifCount).toBe(1);
-    expect(result.mailCount).toBe(2);
-    expect(result.count).toBe(3);
-    expect(testMocks.fromMock).toHaveBeenCalledTimes(3);
-    expect(calls).toContainEqual({ method: 'eq', column: 'moderation_status', value: 'approved' });
+    expect(result.mailCount).toBe(0);
+    expect(result.count).toBe(1);
+    expect(testMocks.fromMock).toHaveBeenCalledTimes(1);
+    expect(testMocks.fromMock).toHaveBeenCalledWith('notifications');
+    expect(calls).toContainEqual({ method: 'eq', column: 'recipient_id', value: 'u1' });
+    expect(calls).toContainEqual({ method: 'eq', column: 'status', value: 'unread' });
   });
 });

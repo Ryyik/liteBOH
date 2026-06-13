@@ -21,21 +21,14 @@ const redirectToUserSpaceMessages = (to) => ({
   query: {
     ...to.query,
     tab: "messages",
-    section: to.query.section || to.query.tab || "notifications",
+    section: "notifications",
   },
 });
 
 export const userSpaceRoutes = [
   {
     path: "/mailbox",
-    redirect: (to) => ({
-      path: "/user-space",
-      query: {
-        ...to.query,
-        tab: "messages",
-        section: "mail",
-      },
-    }),
+    redirect: redirectToUserSpaceMessages,
   },
   {
     path: "/user-center/points",

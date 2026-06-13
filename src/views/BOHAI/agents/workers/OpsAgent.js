@@ -15,7 +15,6 @@ const normalizeEvidence = (items) => safeArray(items).map((item, index) => ({
 
 const inferDraftType = (query = '', description = '') => {
   const text = `${query} ${description}`;
-  if (/(发邮件|私信|写信|寄信)/i.test(text)) return 'mail';
   if (/(发帖|发个帖|发(?:一条|一篇|个)?.{0,8}帖子|论坛发布|起草.{0,12}(论坛|社区|帖子))/i.test(text)) return 'post';
   if (/(网页|页面|html|创作|生成.{0,4}页面)/i.test(text)) return 'page';
   return 'none';
@@ -68,9 +67,7 @@ export const createOpsAgent = (options = {}) => {
           try {
             const sysPrompt = draftType === 'post'
               ? '你是 BOH AI 的发帖起草助手。基于用户问题输出 JSON：{ title, content }。内容控制在 280 字内。'
-              : draftType === 'mail'
-                ? '你是 BOH AI 的私信起草助手。基于用户问题输出 JSON：{ subject, content, receiver }。内容控制在 200 字内。'
-                : '你是 BOH AI 的网页生成助手。基于用户问题输出 JSON：{ html }，使用 BOH Creator Studio 风格（Inter 字体、#1459d9 主色、#f7f8fb 背景）。';
+              : '你是 BOH AI 的网页生成助手。基于用户问题输出 JSON：{ html }，使用 BOH Creator Studio 风格（Inter 字体、#1459d9 主色、#f7f8fb 背景）。';
             const userPrompt = `用户问题：${query}\n任务描述：${description}\n请输出 JSON。`;
             const { content } = await modelClient.call({
               model: defaultModel,

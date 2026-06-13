@@ -1,0 +1,1421 @@
+.bohai-page {
+    --bohai-bg: #ffffff;
+    --bohai-text: #111111;
+    --bohai-muted: rgba(17, 17, 17, 0.58);
+    --bohai-faint: rgba(17, 17, 17, 0.36);
+    --bohai-line: rgba(17, 17, 17, 0.08);
+    --bohai-line-strong: rgba(17, 17, 17, 0.14);
+    --bohai-glass: rgba(255, 255, 255, 0.76);
+    --bohai-glass-strong: rgba(255, 255, 255, 0.92);
+    --bohai-blur: blur(22px) saturate(1.15);
+    --bohai-radius: 22px;
+    --bohai-control-radius: 14px;
+    --bohai-sidebar-width: 280px;
+    --bohai-rail: 760px;
+    --bohai-composer: 760px;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    background: var(--bohai-bg);
+    color: var(--bohai-text);
+    overflow: hidden;
+}
+
+.bohai-page.embedded-mode {
+    height: 100%;
+}
+
+.bohai-page,
+.bohai-page .bohai-container,
+.bohai-page .main-content {
+    background: #ffffff;
+}
+
+:global(.user-space-page .tab-page.ai-tab),
+:global(.user-space-page .tab-page.ai-tab .bohai-page),
+:global(.user-space-page .tab-page.ai-tab .bohai-container),
+:global(.user-space-page .tab-page.ai-tab .main-content) {
+    background: #ffffff;
+}
+
+.bohai-page .bohai-container {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.bohai-page .main-content,
+.bohai-page.embedded-mode .main-content {
+    position: relative;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.bohai-page.empty-chat-mode .main-content,
+.bohai-page.embedded-mode.empty-chat-mode .main-content {
+    grid-template-rows: minmax(0, 1fr) auto auto minmax(0, 1.12fr);
+}
+
+.bohai-page .sidebar,
+.bohai-page .sidebar.is-embedded {
+    width: min(var(--bohai-sidebar-width), 88vw);
+    background: #f7f7f7;
+    border-right: 1px solid var(--bohai-line);
+    color: var(--bohai-text);
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+.bohai-page.embedded-mode .sidebar,
+.bohai-page.embedded-mode .sidebar.is-embedded {
+    top: var(--userspace-top-offset, 0px);
+    bottom: 0;
+}
+
+.bohai-page.embedded-mode .sidebar-overlay,
+.bohai-page.embedded-mode .sidebar-overlay.is-embedded {
+    top: var(--userspace-top-offset, 0px);
+    bottom: 0;
+}
+
+.bohai-page .sidebar-header {
+    min-height: 86px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 26px 8px 26px;
+    border-bottom: 0;
+}
+
+.bohai-page .sidebar-mark {
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    color: var(--bohai-text);
+    font-size: 12px;
+    font-weight: 820;
+    letter-spacing: 0;
+    transform: rotate(-18deg);
+}
+
+.bohai-page .sidebar-icon-btn,
+.bohai-page .sidebar-close-btn,
+.bohai-page .delete-btn,
+.bohai-page .delete-message-btn,
+.bohai-page .message-action-btn {
+    border: 1px solid transparent;
+    border-radius: var(--bohai-control-radius);
+    background: transparent;
+    color: var(--bohai-text);
+    box-shadow: none;
+}
+
+.bohai-page .sidebar-close-btn {
+    width: 38px;
+    height: 38px;
+    color: rgba(17, 17, 17, 0.62);
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.bohai-page .sidebar-icon-btn:hover,
+.bohai-page .sidebar-close-btn:hover,
+.bohai-page .delete-btn:hover,
+.bohai-page .delete-message-btn:hover,
+.bohai-page .message-action-btn:hover {
+    background: rgba(17, 17, 17, 0.045);
+    border-color: rgba(17, 17, 17, 0.06);
+}
+
+.bohai-page .sidebar-search-row,
+.bohai-page .sidebar-quick-action,
+.bohai-page .sidebar-nav-row,
+.bohai-page .session-item,
+.bohai-page .sidebar-status {
+    border-radius: 18px;
+    box-shadow: none;
+}
+
+.bohai-page .sidebar-search-row,
+.bohai-page .sidebar-quick-action,
+.bohai-page .sidebar-nav-row {
+    border: 0;
+    background: transparent;
+}
+
+.bohai-page .sidebar-nav-row,
+.bohai-page .sidebar-quick-action {
+    width: calc(100% - 20px);
+    min-height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin: 0 10px;
+    padding: 0 20px;
+    color: #050505;
+    font-size: 18px;
+    font-weight: 790;
+    text-align: left;
+    cursor: pointer;
+}
+
+.bohai-page .sidebar-quick-action {
+    background: rgba(0, 0, 0, 0.045);
+}
+
+.bohai-page .quick-action-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #050505;
+}
+
+.bohai-page .sidebar-search-row {
+    margin: 0 18px 10px;
+    padding: 8px 12px;
+    border: 1px solid var(--bohai-line);
+    background: #ffffff;
+}
+
+.bohai-page .session-list {
+    padding: 0 22px 16px;
+}
+
+.bohai-page .session-group {
+    gap: 2px;
+    margin-bottom: 12px;
+}
+
+.bohai-page .session-group-title,
+.bohai-page .sidebar-section-title {
+    color: #050505;
+    letter-spacing: 0;
+}
+
+.bohai-page .sidebar-section-title {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    margin: 34px 0 18px;
+    padding: 0 32px;
+    font-size: 19px;
+    font-weight: 820;
+}
+
+.bohai-page .session-group-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0 10px;
+    color: rgba(17, 17, 17, 0.55);
+    font-size: 15px;
+    font-weight: 720;
+}
+
+.bohai-page .session-group-title::after {
+    content: "";
+    height: 1px;
+    flex: 1 1 auto;
+    background: rgba(17, 17, 17, 0.08);
+}
+
+.bohai-page .session-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 8px 0;
+    border: 1px solid transparent;
+    background: transparent;
+}
+
+.bohai-page .session-item:hover {
+    background: rgba(17, 17, 17, 0.035);
+}
+
+.bohai-page .session-item.active {
+    border-color: transparent;
+    background: transparent;
+}
+
+.bohai-page .session-title {
+    min-width: 0;
+    overflow: hidden;
+    color: rgba(17, 17, 17, 0.76);
+    font-size: 18px;
+    font-weight: 560;
+    line-height: 1.45;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bohai-page .sidebar-status {
+    background: transparent;
+    color: var(--bohai-muted);
+}
+
+.bohai-page .sidebar-user {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+    padding: 14px 24px 20px;
+}
+
+.bohai-page .sidebar-user-avatar {
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--bohai-line);
+    border-radius: 999px;
+    background: #ffffff;
+    color: #111111;
+    font-size: 16px;
+    font-weight: 760;
+}
+
+.bohai-page .sidebar-user-copy {
+    display: grid;
+    min-width: 0;
+}
+
+.bohai-page .sidebar-user-copy strong,
+.bohai-page .sidebar-user-copy small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bohai-page .sidebar-user-copy strong {
+    color: #111111;
+    font-size: 18px;
+    font-weight: 760;
+}
+
+.bohai-page .sidebar-user-copy small {
+    color: rgba(17, 17, 17, 0.58);
+    font-size: 16px;
+    font-weight: 560;
+}
+
+.bohai-page .sidebar-open-btn {
+    position: absolute;
+    top: max(16px, env(safe-area-inset-top));
+    left: max(16px, env(safe-area-inset-left));
+    z-index: 60;
+    width: 42px;
+    height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--bohai-line);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.78);
+    color: var(--bohai-text);
+    box-shadow: 0 10px 26px rgba(17, 17, 17, 0.045);
+    backdrop-filter: var(--bohai-blur);
+    -webkit-backdrop-filter: var(--bohai-blur);
+}
+
+.bohai-page .task-status-pill-row {
+    grid-row: 1;
+    justify-self: center;
+    width: min(calc(100% - 28px), var(--bohai-rail));
+    padding: 10px 0 0;
+}
+
+.bohai-page.empty-chat-mode .task-status-pill-row {
+    display: none;
+}
+
+.bohai-page .task-status-pill {
+    border: 1px solid var(--bohai-line);
+    border-radius: var(--bohai-control-radius);
+    background: var(--bohai-glass);
+    color: var(--bohai-text);
+    box-shadow: none;
+    backdrop-filter: var(--bohai-blur);
+    -webkit-backdrop-filter: var(--bohai-blur);
+}
+
+.bohai-page .chat-container {
+    grid-row: 2;
+    align-self: stretch;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    padding: 28px 0 116px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+    overscroll-behavior: contain;
+}
+
+.bohai-page.empty-chat-mode .chat-container,
+.bohai-page.embedded-mode.empty-chat-mode .chat-container {
+    align-self: end;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    height: auto;
+    min-height: 0;
+    padding: 0;
+    overflow: visible;
+}
+
+.bohai-page .empty-state {
+    width: min(calc(100% - 32px), var(--bohai-rail));
+    min-height: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    margin: 0 auto;
+    padding: 0 0 18px;
+    text-align: center;
+}
+
+.bohai-page .empty-brand {
+    display: inline-flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 10px;
+    color: #111111;
+    font-size: clamp(38px, 5vw, 56px);
+    font-weight: 780;
+    line-height: 0.98;
+    letter-spacing: 0;
+}
+
+.bohai-page .empty-brand span:last-child {
+    font-weight: 660;
+}
+
+.bohai-page .empty-state h2 {
+    margin: 0;
+    color: var(--bohai-text);
+    font-size: clamp(18px, 2.2vw, 24px);
+    font-weight: 680;
+    line-height: 1.24;
+    letter-spacing: 0;
+}
+
+.bohai-page .empty-subtitle {
+    max-width: 520px;
+    margin: 0;
+    color: var(--bohai-muted);
+    font-size: 13px;
+    line-height: 1.55;
+}
+
+.bohai-page .message-wrapper {
+    width: 100%;
+    padding: 8px max(14px, env(safe-area-inset-left)) 8px max(14px, env(safe-area-inset-left));
+}
+
+.bohai-page .message-content-inner {
+    width: min(100% - 8px, var(--bohai-rail));
+    margin: 0 auto;
+}
+
+.bohai-page .message-wrapper.user .message-content-inner {
+    align-items: flex-end;
+}
+
+.bohai-page .message-wrapper.assistant .message-content-inner {
+    align-items: flex-start;
+}
+
+.bohai-page .message-header {
+    min-height: 22px;
+    color: var(--bohai-muted);
+}
+
+.bohai-page .message-role {
+    color: var(--bohai-muted);
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.bohai-page .message-wrapper.user .message {
+    max-width: min(78%, 620px);
+}
+
+.bohai-page .message.user .message-content {
+    border: 1px solid var(--bohai-line);
+    border-radius: 18px 18px 6px 18px;
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--bohai-text);
+    box-shadow: none;
+    backdrop-filter: var(--bohai-blur);
+    -webkit-backdrop-filter: var(--bohai-blur);
+}
+
+.bohai-page .message.assistant {
+    max-width: 100%;
+}
+
+.bohai-page .message.assistant .message-content {
+    color: var(--bohai-text);
+    font-size: 15.5px;
+    line-height: 1.78;
+}
+
+.bohai-page .message.assistant .message-content:empty {
+    min-height: 0;
+}
+
+.bohai-page .thinking {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    min-height: 0;
+    margin: 8px 0 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--bohai-text);
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+.bohai-page .thinking-dot {
+    flex: 0 0 10px;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: #111111;
+    animation: bohaiThinkingBreath 1.45s ease-in-out infinite;
+}
+
+@keyframes bohaiThinkingBreath {
+    0%,
+    100% {
+        opacity: 0.55;
+        transform: scale(0.72);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1.22);
+    }
+}
+
+.bohai-page .message-actions {
+    min-height: 32px;
+    opacity: 0.72;
+}
+
+.bohai-page .conversation-jump-nav {
+    grid-row: 4;
+    display: none;
+}
+
+.bohai-page .input-area {
+    grid-row: 5;
+    position: relative;
+    z-index: 50;
+    justify-self: center;
+    align-self: end;
+    width: min(calc(100% - 32px), var(--bohai-composer));
+    max-width: var(--bohai-composer);
+    height: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 7px;
+    margin: 0 auto;
+    padding: 8px 0 calc(18px + env(safe-area-inset-bottom, 0px));
+}
+
+.bohai-page.empty-chat-mode .input-area,
+.bohai-page.embedded-mode.empty-chat-mode .input-area {
+    grid-row: 4;
+    align-self: start;
+    width: min(calc(100% - 32px), var(--bohai-composer));
+    padding: 0;
+}
+
+.bohai-page .input-area::before {
+    display: none !important;
+}
+
+.bohai-page .input-box,
+.bohai-page[data-ui-style="glass"] .input-box,
+.bohai-page[data-ui-style="flat"] .input-box,
+.bohai-page.embedded-mode .input-box {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    min-height: 54px;
+    padding: 7px 9px;
+    border: 1px solid var(--bohai-line-strong);
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.86);
+    box-shadow: 0 8px 24px rgba(17, 17, 17, 0.045);
+    backdrop-filter: var(--bohai-blur);
+    -webkit-backdrop-filter: var(--bohai-blur);
+}
+
+.bohai-page .input-box:focus-within,
+.bohai-page[data-ui-style="glass"] .input-box:focus-within,
+.bohai-page[data-ui-style="flat"] .input-box:focus-within {
+    border-color: rgba(17, 17, 17, 0.2);
+    box-shadow: 0 12px 34px rgba(17, 17, 17, 0.07);
+}
+
+.bohai-page .input-left {
+    position: relative;
+    z-index: 2;
+    align-self: center;
+}
+
+.bohai-page .composer-main {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    min-width: 0;
+    width: 100%;
+    flex-wrap: nowrap;
+}
+
+.bohai-page .composer-chips {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    min-width: 0;
+    width: fit-content;
+    max-width: 100%;
+    margin: 0 0 0 10px;
+}
+
+.bohai-page .composer-chip {
+    min-width: 0;
+    max-width: 100%;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(17, 17, 17, 0.06);
+    color: #111111;
+    font-size: 12px;
+    font-weight: 720;
+    line-height: 1;
+    white-space: nowrap;
+    box-shadow: none;
+}
+
+.bohai-page .composer-chip svg {
+    flex: 0 0 auto;
+}
+
+.bohai-page .input-textarea {
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 38px;
+    max-height: 26dvh;
+    padding: 8px 2px;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--bohai-text);
+    font-size: 16px;
+    line-height: 1.45;
+    resize: none;
+    overflow-y: auto;
+}
+
+.bohai-page .input-textarea::placeholder {
+    color: var(--bohai-faint);
+}
+
+.bohai-page .input-right {
+    position: relative;
+    z-index: 3;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    min-width: 0;
+}
+
+.bohai-page .input-actions {
+    display: inline-flex;
+    align-items: center;
+}
+
+.bohai-page .features-btn,
+.bohai-page .send-btn,
+.bohai-page .stop-btn {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    border: 1px solid var(--bohai-line);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.7);
+    color: var(--bohai-text);
+    box-shadow: none;
+}
+
+.bohai-page .features-btn:hover,
+.bohai-page .features-btn.active {
+    background: rgba(17, 17, 17, 0.06);
+}
+
+.bohai-page .send-btn:disabled {
+    border-color: transparent;
+    background: rgba(17, 17, 17, 0.12);
+    color: #ffffff;
+}
+
+.bohai-page .send-btn:not(:disabled),
+.bohai-page .stop-btn {
+    border-color: #111111;
+    background: #111111;
+    color: #ffffff;
+}
+
+.bohai-page .features-menu,
+.bohai-page .composer-mode-menu {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    z-index: 90;
+    border: 1px solid var(--bohai-line);
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 18px 44px rgba(17, 17, 17, 0.12);
+    backdrop-filter: var(--bohai-blur);
+    -webkit-backdrop-filter: var(--bohai-blur);
+}
+
+.bohai-page .features-menu {
+    left: 0 !important;
+    bottom: calc(100% + 8px) !important;
+    width: auto !important;
+    min-width: 148px !important;
+    max-width: min(220px, calc(100vw - 28px)) !important;
+    padding: 6px !important;
+    overflow: visible !important;
+    border-radius: 16px !important;
+    box-shadow: 0 10px 28px rgba(17, 17, 17, 0.08) !important;
+}
+
+.bohai-page .feature-menu-handle,
+.bohai-page .feature-menu-title {
+    display: none !important;
+}
+
+.bohai-page .feature-action-list {
+    display: grid !important;
+    gap: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.bohai-page .feature-action-row {
+    min-height: 38px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 8px !important;
+    width: 100% !important;
+    padding: 0 9px !important;
+    border: 0 !important;
+    border-radius: 12px !important;
+    background: transparent !important;
+    color: #111111 !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    box-shadow: none !important;
+}
+
+.bohai-page .feature-action-row:hover {
+    background: rgba(17, 17, 17, 0.055) !important;
+}
+
+.bohai-page .feature-action-icon {
+    width: 18px !important;
+    height: 18px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex: 0 0 18px !important;
+    color: #111111 !important;
+}
+
+.bohai-page .feature-action-copy {
+    display: inline-flex !important;
+    min-width: 0 !important;
+    align-items: center !important;
+}
+
+.bohai-page .feature-action-copy strong {
+    color: #111111 !important;
+    font-size: 13px !important;
+    font-weight: 720 !important;
+    line-height: 1 !important;
+}
+
+.bohai-page .feature-action-copy span {
+    display: none !important;
+}
+
+.bohai-page .feature-action-check {
+    width: 8px !important;
+    height: 8px !important;
+    flex: 0 0 8px !important;
+    margin-left: auto !important;
+    border-radius: 999px !important;
+    background: #111111 !important;
+}
+
+.bohai-page .composer-mode-picker {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.bohai-page .composer-mode-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 0;
+    height: 42px;
+    min-width: 88px;
+    padding: 0 13px;
+    border: 1px solid transparent;
+    border-radius: 19px;
+    background: rgba(17, 17, 17, 0.055);
+    color: var(--bohai-text);
+    font-size: 15px;
+    font-weight: 760;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.bohai-page .composer-mode-button:hover,
+.bohai-page .composer-mode-button.open {
+    border-color: transparent;
+    background: rgba(17, 17, 17, 0.085);
+}
+
+.bohai-page .composer-mode-menu {
+    right: 0;
+    width: min(340px, calc(100vw - 28px));
+    padding: 14px 8px;
+}
+
+.bohai-page .composer-mode-option {
+    width: 100%;
+    position: relative;
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    grid-template-areas:
+        "mark main"
+        "mark desc";
+    column-gap: 12px;
+    row-gap: 4px;
+    min-height: 64px;
+    padding: 9px 12px;
+    border: 1px solid transparent;
+    border-radius: var(--bohai-control-radius);
+    background: transparent;
+    color: var(--bohai-text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.bohai-page .composer-mode-option:hover,
+.bohai-page .composer-mode-option.active {
+    border-color: transparent;
+    background: transparent;
+}
+
+.bohai-page .composer-mode-option::before {
+    content: "";
+    grid-area: mark;
+    align-self: center;
+    justify-self: center;
+    width: 22px;
+    height: 22px;
+}
+
+.bohai-page .composer-mode-option.active::before {
+    content: "✓";
+    color: #111111;
+    font-size: 24px;
+    font-weight: 780;
+    line-height: 1;
+}
+
+.bohai-page .mode-option-main {
+    grid-area: main;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+}
+
+.bohai-page .mode-option-main strong {
+    font-size: 17px;
+    font-weight: 820;
+}
+
+.bohai-page .mode-option-main small {
+    display: none;
+}
+
+.bohai-page .mode-option-desc {
+    grid-area: desc;
+    color: var(--bohai-muted);
+    font-size: 14px;
+    font-weight: 560;
+    line-height: 1.35;
+}
+
+.bohai-page .rate-limit,
+.bohai-page .ui-notice {
+    margin: 8px 10px 0;
+    color: var(--bohai-muted);
+    font-size: 12px;
+    text-align: center;
+}
+
+@media (min-width: 1024px) {
+    .bohai-page .main-content,
+    .bohai-page.embedded-mode .main-content {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .bohai-page.sidebar-open .main-content,
+    .bohai-page.sidebar-open.embedded-mode .main-content {
+        margin-left: var(--bohai-sidebar-width);
+        width: calc(100% - var(--bohai-sidebar-width));
+    }
+
+}
+
+@media (max-width: 1023px) {
+    .bohai-page {
+        --bohai-sidebar-width: 278px;
+    }
+
+    .bohai-page .main-content,
+    .bohai-page.embedded-mode .main-content {
+        margin-left: 0;
+        width: 100%;
+    }
+}
+
+@media (max-width: 767px) and (orientation: portrait) {
+    .bohai-page {
+        --bohai-rail: 100%;
+        --bohai-composer: 100%;
+    }
+
+    .bohai-page.empty-chat-mode .main-content,
+    .bohai-page.embedded-mode.empty-chat-mode .main-content {
+        grid-template-rows: minmax(0, 0.75fr) auto auto minmax(0, 1fr);
+    }
+
+    .bohai-page .chat-container {
+        padding: 14px 0 104px;
+    }
+
+    .bohai-page.empty-chat-mode .chat-container,
+    .bohai-page.embedded-mode.empty-chat-mode .chat-container {
+        padding: 0;
+    }
+
+    .bohai-page .empty-state {
+        width: calc(100% - 28px);
+        padding-bottom: 14px;
+    }
+
+    .bohai-page .empty-brand {
+        gap: 10px;
+        font-size: clamp(32px, 10vw, 46px);
+    }
+
+    .bohai-page .empty-state h2 {
+        font-size: 18px;
+    }
+
+    .bohai-page .empty-subtitle {
+        max-width: 320px;
+        font-size: 12px;
+    }
+
+    .bohai-page .message-wrapper {
+        padding: 8px 10px;
+    }
+
+    .bohai-page .message-content-inner {
+        width: 100%;
+    }
+
+    .bohai-page .message-wrapper.user .message {
+        max-width: 88%;
+    }
+
+    .bohai-page .message.assistant .message-content {
+        font-size: 15px;
+        line-height: 1.68;
+    }
+
+    .bohai-page .message-actions {
+        opacity: 1;
+    }
+
+    .bohai-page .input-area,
+    .bohai-page.empty-chat-mode .input-area,
+    .bohai-page.embedded-mode.empty-chat-mode .input-area {
+        width: calc(100% - 14px);
+    }
+
+    .bohai-page .input-box,
+    .bohai-page.empty-chat-mode .input-box,
+    .bohai-page.embedded-mode.empty-chat-mode .input-box {
+        min-height: 50px;
+        gap: 7px;
+        padding: 8px;
+        border-radius: 20px;
+    }
+
+    .bohai-page .input-textarea {
+        min-height: 34px;
+        max-height: 24dvh;
+        font-size: 15px;
+    }
+
+    .bohai-page .composer-main {
+        gap: 0;
+    }
+
+    .bohai-page .composer-chips {
+        width: fit-content;
+        margin-left: 8px;
+    }
+
+    .bohai-page .composer-chip {
+        height: 24px;
+        padding: 0 8px;
+        font-size: 11.5px;
+    }
+
+    .bohai-page .features-btn,
+    .bohai-page .send-btn,
+    .bohai-page .stop-btn {
+        width: 32px;
+        height: 32px;
+        flex-basis: 32px;
+    }
+
+    .bohai-page .input-right {
+        gap: 4px;
+    }
+
+    .bohai-page .composer-mode-button {
+        height: 34px;
+        min-width: 66px;
+        max-width: 78px;
+        padding: 0 8px;
+        font-size: 12px;
+        border-radius: 16px;
+    }
+
+    .bohai-page .composer-mode-button span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .bohai-page .features-menu,
+    .bohai-page .composer-mode-menu {
+        position: fixed;
+        right: 10px;
+        left: 10px;
+        bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+        width: auto;
+        max-width: none;
+    }
+
+    .bohai-page .features-menu {
+        right: auto;
+        left: 10px !important;
+        width: auto !important;
+        min-width: 148px !important;
+        max-width: calc(100vw - 20px) !important;
+    }
+
+    .bohai-page .composer-mode-option {
+        min-height: 66px;
+    }
+
+    .bohai-page .mode-option-main strong {
+        font-size: 17px;
+    }
+
+    .bohai-page .mode-option-desc {
+        font-size: 14px;
+    }
+
+    .bohai-page .thinking {
+        width: 22px;
+        height: 22px;
+        min-height: 0;
+    }
+}
+
+@media (orientation: landscape) and (max-height: 560px) {
+    .bohai-page {
+        --bohai-rail: 820px;
+        --bohai-composer: 820px;
+    }
+
+    .bohai-page.empty-chat-mode .main-content,
+    .bohai-page.embedded-mode.empty-chat-mode .main-content {
+        grid-template-rows: minmax(0, 0.55fr) auto auto minmax(0, 0.75fr);
+    }
+
+    .bohai-page .empty-state {
+        padding-bottom: 10px;
+    }
+
+    .bohai-page .empty-brand {
+        font-size: 42px;
+    }
+
+    .bohai-page .empty-state h2 {
+        font-size: 19px;
+    }
+
+    .bohai-page .empty-subtitle {
+        display: none;
+    }
+
+    .bohai-page .input-box {
+        min-height: 48px;
+        border-radius: 18px;
+        padding: 7px;
+    }
+
+    .bohai-page .input-textarea {
+        min-height: 30px;
+        max-height: 32dvh;
+        padding-top: 5px;
+        padding-bottom: 5px;
+    }
+
+    .bohai-page .composer-chip {
+        height: 24px;
+    }
+
+    .bohai-page .features-btn,
+    .bohai-page .send-btn,
+    .bohai-page .stop-btn,
+    .bohai-page .composer-mode-button {
+        height: 32px;
+    }
+
+    .bohai-page .features-btn,
+    .bohai-page .send-btn,
+    .bohai-page .stop-btn {
+        width: 32px;
+        flex-basis: 32px;
+    }
+}
+
+/* Teleported sidebar: keep these global because the aside is moved under body. */
+:global(.sidebar),
+:global(.sidebar.is-embedded) {
+    width: min(var(--bohai-sidebar-width, 280px), 88vw) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    background: #f7f7f7 !important;
+    border-right: 1px solid rgba(17, 17, 17, 0.08) !important;
+    color: #111111 !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+    transform: translateX(-100%) !important;
+    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1) !important;
+}
+
+:global(.sidebar.open),
+:global(.sidebar.open.is-embedded) {
+    transform: translateX(0) !important;
+}
+
+:global(.sidebar-header) {
+    min-height: 70px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 16px 22px 6px !important;
+    border: 0 !important;
+}
+
+:global(.sidebar-mark) {
+    width: auto !important;
+    height: 34px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: visible !important;
+    color: #111111 !important;
+    font-size: 22px !important;
+    font-weight: 760 !important;
+    line-height: 1 !important;
+}
+
+:global(.sidebar-mark::before) {
+    content: none !important;
+}
+
+:global(.sidebar-close-btn) {
+    width: 34px !important;
+    height: 34px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 12px !important;
+    background: transparent !important;
+    color: rgba(17, 17, 17, 0.62) !important;
+    font-size: 27px !important;
+    font-weight: 760 !important;
+    line-height: 1 !important;
+}
+
+:global(.sidebar-nav-row),
+:global(.sidebar-quick-action) {
+    width: calc(100% - 20px) !important;
+    min-height: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 14px !important;
+    margin: 0 10px !important;
+    padding: 0 18px !important;
+    border: 0 !important;
+    border-radius: 18px !important;
+    background: transparent !important;
+    color: #050505 !important;
+    font-size: 16px !important;
+    font-weight: 790 !important;
+    line-height: 1 !important;
+    text-align: left !important;
+    box-shadow: none !important;
+}
+
+:global(.sidebar-quick-action) {
+    margin-top: 8px !important;
+    background: rgba(0, 0, 0, 0.045) !important;
+}
+
+:global(.quick-action-icon) {
+    width: 24px !important;
+    height: 24px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: #050505 !important;
+}
+
+:global(.sidebar-search-row) {
+    display: flex !important;
+    align-items: center !important;
+    margin: 8px 22px 4px !important;
+    padding: 9px 12px !important;
+    border: 1px solid rgba(17, 17, 17, 0.08) !important;
+    border-radius: 14px !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+}
+
+:global(.sidebar-search-input) {
+    width: 100% !important;
+    min-width: 0 !important;
+    border: 0 !important;
+    outline: 0 !important;
+    background: transparent !important;
+    color: #111111 !important;
+    font-size: 15px !important;
+}
+
+:global(.sidebar-section-title) {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 8px !important;
+    margin: 28px 0 14px !important;
+    padding: 0 28px !important;
+    color: #050505 !important;
+    font-size: 17px !important;
+    font-weight: 820 !important;
+    line-height: 1 !important;
+}
+
+:global(.session-list) {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    padding: 0 20px 14px !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+
+:global(.session-group) {
+    display: grid !important;
+    gap: 2px !important;
+    margin-bottom: 12px !important;
+}
+
+:global(.session-group-title) {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    padding: 8px 0 10px !important;
+    color: rgba(17, 17, 17, 0.55) !important;
+    font-size: 13px !important;
+    font-weight: 720 !important;
+    line-height: 1 !important;
+}
+
+:global(.session-group-title::after) {
+    content: "";
+    height: 1px;
+    flex: 1 1 auto;
+    background: rgba(17, 17, 17, 0.08);
+}
+
+:global(.session-item) {
+    width: 100% !important;
+    min-height: 38px !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 6px 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+:global(.session-item.active),
+:global(.session-item:hover) {
+    background: transparent !important;
+}
+
+:global(.session-title) {
+    min-width: 0 !important;
+    overflow: hidden !important;
+    color: rgba(17, 17, 17, 0.76) !important;
+    font-size: 15px !important;
+    font-weight: 560 !important;
+    line-height: 1.45 !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+}
+
+:global(.delete-btn) {
+    width: 30px !important;
+    height: 30px !important;
+    border: 0 !important;
+    background: transparent !important;
+}
+
+:global(.sidebar-footer) {
+    flex: 0 0 auto !important;
+    padding: 0 !important;
+    border: 0 !important;
+}
+
+:global(.sidebar-user) {
+    display: grid !important;
+    grid-template-columns: 42px minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: 12px !important;
+    padding: 12px 22px 18px !important;
+}
+
+:global(.sidebar-user-avatar) {
+    width: 36px !important;
+    height: 36px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: 1px solid rgba(17, 17, 17, 0.08) !important;
+    border-radius: 999px !important;
+    background: #ffffff !important;
+    color: #111111 !important;
+    font-size: 14px !important;
+    font-weight: 760 !important;
+}
+
+:global(.sidebar-user-copy) {
+    display: grid !important;
+    min-width: 0 !important;
+}
+
+:global(.sidebar-user-copy strong),
+:global(.sidebar-user-copy small) {
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+}
+
+:global(.sidebar-user-copy strong) {
+    color: #111111 !important;
+    font-size: 16px !important;
+    font-weight: 760 !important;
+}
+
+:global(.sidebar-user-copy small) {
+    color: rgba(17, 17, 17, 0.58) !important;
+    font-size: 14px !important;
+    font-weight: 560 !important;
+}
+
+@media (min-width: 1024px) {
+    :global(.sidebar-overlay) {
+        display: none !important;
+    }
+}

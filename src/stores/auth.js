@@ -760,9 +760,9 @@ export const useAuthStore = defineStore('auth', () => {
       } else {
         if (updates.username !== undefined) userInfo.username = updates.username;
         if (updates.bio !== undefined) userInfo.bio = updates.bio;
-        if (updates.join_date !== undefined) userInfo.joinDate = updates.join_date;
-        if (updates.birth_month !== undefined) userInfo.birthMonth = updates.birth_month;
-        if (updates.birth_day !== undefined) userInfo.birthDay = updates.birth_day;
+        if (updates.join_date !== undefined) userInfo.joinDate = updates.join_date || '';
+        if (updates.birth_month !== undefined) userInfo.birthMonth = updates.birth_month || '';
+        if (updates.birth_day !== undefined) userInfo.birthDay = updates.birth_day || '';
         if (updates.avatar_url !== undefined) userInfo.avatarUrl = updates.avatar_url;
         if (updates.profile_background_url !== undefined) userInfo.profileBackgroundUrl = updates.profile_background_url;
         if (updates.profile_background_public_id !== undefined) userInfo.profileBackgroundPublicId = updates.profile_background_public_id;

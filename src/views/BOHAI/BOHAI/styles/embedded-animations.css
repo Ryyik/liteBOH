@@ -1,0 +1,683 @@
+@media (max-width: 768px) and (orientation: portrait) {
+    .features-menu {
+        left: 50%;
+        bottom: calc(100% + 12px);
+        width: min(320px, calc(100vw - 18px));
+        max-height: min(420px, calc(100dvh - 160px));
+        transform: translateX(-50%);
+    }
+}
+
+/* UserSpace embedded layout guard: parent owns viewport offsets. */
+.bohai-page.embedded-mode {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.bohai-page.embedded-mode .bohai-container,
+.bohai-page.embedded-mode .main-content {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.bohai-page.embedded-mode .chat-container {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.bohai-page.embedded-mode .input-area {
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) and (orientation: portrait) {
+    .bohai-page.embedded-mode .chat-header {
+        height: 48px;
+        min-height: 48px;
+    }
+
+    .bohai-page.embedded-mode .chat-container {
+        padding-top: 8px;
+        padding-bottom: 8px;
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .empty-state {
+        padding-top: 14px;
+        padding-bottom: 8px;
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .input-area {
+        padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .input-box {
+        min-height: 84px;
+    }
+}
+
+@media (orientation: landscape) and (max-height: 600px) {
+    .bohai-page.embedded-mode .chat-header {
+        height: 42px;
+        min-height: 42px;
+        padding-top: 5px;
+        padding-bottom: 5px;
+    }
+
+    .bohai-page.embedded-mode .header-icon-btn,
+    .bohai-page.embedded-mode .features-btn,
+    .bohai-page.embedded-mode .mic-btn,
+    .bohai-page.embedded-mode .send-btn,
+    .bohai-page.embedded-mode .stop-btn {
+        width: 30px;
+        height: 30px;
+    }
+
+    .bohai-page.embedded-mode .header-content {
+        height: 30px;
+        font-size: 13px;
+    }
+
+    .bohai-page.embedded-mode .chat-container {
+        padding-top: 6px;
+        padding-bottom: 6px;
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .empty-state {
+        gap: 6px;
+        padding: 6px 12px 4px;
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .empty-state h2 {
+        font-size: clamp(17px, 3vw, 22px);
+        line-height: 1.12;
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .empty-subtitle,
+    .bohai-page.embedded-mode.empty-chat-mode .logo-container {
+        display: none;
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .empty-suggestion-grid {
+        display: flex;
+        gap: 8px;
+        width: min(100% - 16px, 560px);
+        margin-top: 0;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .empty-suggestion-grid::-webkit-scrollbar {
+        display: none;
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .empty-suggestion-card {
+        width: min(44vw, 220px);
+        min-width: min(44vw, 220px);
+        min-height: 34px;
+        padding: 7px 10px;
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .input-area,
+    .bohai-page.embedded-mode:not(.empty-chat-mode) .input-area {
+        padding-top: 4px;
+        padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .input-box,
+    .bohai-page.embedded-mode .input-box {
+        min-height: 48px;
+        padding: 7px 9px;
+        border-radius: 16px;
+    }
+
+    .bohai-page.embedded-mode .input-textarea {
+        min-height: 24px;
+        max-height: 72px;
+        font-size: 14px;
+    }
+}
+
+/* UserSpace portrait AI tab: parent is fixed between the site header and bottom nav. */
+.bohai-page.embedded-mode .bohai-chat-fab {
+    display: none;
+}
+
+.bohai-page.embedded-mode,
+.bohai-page.embedded-mode .bohai-container,
+.bohai-page.embedded-mode .main-content {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+}
+
+.bohai-page.embedded-mode .main-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.bohai-page.embedded-mode .chat-container {
+    flex: 1 1 0;
+}
+
+@media (max-width: 768px) and (orientation: portrait) {
+    .bohai-page.embedded-mode {
+        --bohai-chat-rail-width: calc(100% - 20px);
+        --bohai-composer-width: calc(100% - 20px);
+    }
+
+    .bohai-page.embedded-mode .chat-header {
+        height: 50px;
+        min-height: 50px;
+        padding: 7px 10px;
+    }
+
+    .bohai-page.embedded-mode .header-left,
+    .bohai-page.embedded-mode .header-actions {
+        gap: 4px;
+    }
+
+    .bohai-page.embedded-mode .header-icon-btn {
+        width: 34px;
+        height: 34px;
+    }
+
+    .bohai-page.embedded-mode .chat-container {
+        padding: 10px 0 8px;
+    }
+
+    .bohai-page.embedded-mode .message-wrapper {
+        padding: 7px 10px;
+    }
+
+    .bohai-page.embedded-mode .message-content-inner {
+        width: var(--bohai-chat-rail-width);
+    }
+
+    .bohai-page.embedded-mode .input-area {
+        width: var(--bohai-composer-width);
+        padding: 6px 0 10px;
+    }
+
+    .bohai-page.embedded-mode .input-area::before {
+        height: 72px;
+    }
+
+    .bohai-page.embedded-mode .input-box {
+        min-height: 50px;
+        padding: 7px;
+        border-radius: 18px;
+    }
+
+    .bohai-page.embedded-mode .features-btn,
+    .bohai-page.embedded-mode .mic-btn,
+    .bohai-page.embedded-mode .send-btn,
+    .bohai-page.embedded-mode .stop-btn {
+        width: 34px;
+        height: 34px;
+    }
+
+    .bohai-page.embedded-mode .input-textarea {
+        min-height: 32px;
+        max-height: 116px;
+        padding: 5px 2px;
+        font-size: 15px;
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .chat-container {
+        padding: 12px 0 6px;
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .empty-state {
+        gap: 10px;
+        padding: 0 16px;
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .empty-state h2 {
+        font-size: clamp(22px, 6.2vw, 28px);
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .empty-suggestion-grid {
+        width: 100%;
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .input-area {
+        padding-bottom: 10px;
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .input-box {
+        min-height: 76px;
+        padding: 12px;
+    }
+}
+
+/* Mobile UserSpace integration: BOH AI behaves as a native "我的方块" tab. */
+@media (max-width: 768px) and (orientation: portrait) {
+    :global(.user-space-page .tab-page.ai-tab) {
+        background: #f7f9fc;
+    }
+
+    :global(.user-space-page .tab-page.ai-tab .bohai-page),
+    :global(.user-space-page .tab-page.ai-tab .bohai-container),
+    :global(.user-space-page .tab-page.ai-tab .main-content) {
+        background: transparent;
+    }
+
+    .bohai-page.embedded-mode {
+        --bohai-chat-rail-width: calc(100% - 24px);
+        --bohai-composer-width: calc(100% - 24px);
+        background: #f7f9fc;
+    }
+
+    .bohai-page.embedded-mode .bohai-container {
+        position: relative;
+        display: block;
+        height: 100%;
+        overflow: hidden;
+        background: #f7f9fc;
+    }
+
+    .bohai-page.embedded-mode .main-content {
+        height: 100%;
+        padding-top: 10px;
+        background: #f7f9fc;
+    }
+
+    .bohai-page.embedded-mode .chat-header {
+        position: relative;
+        z-index: 120;
+        height: 56px;
+        min-height: 56px;
+        grid-template-columns: minmax(0, 88px) minmax(0, 1fr) minmax(0, 88px);
+        padding: 4px 12px 8px;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+        background: rgba(255, 255, 255, 0.92);
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+        backdrop-filter: blur(18px) saturate(1.25);
+        -webkit-backdrop-filter: blur(18px) saturate(1.25);
+    }
+
+    .bohai-page.embedded-mode .header-content {
+        width: auto;
+        max-width: 100%;
+        height: 36px;
+        justify-self: center;
+        padding: 0 12px;
+        border: none;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .bohai-page.embedded-mode .header-title {
+        font-size: 17px;
+        font-weight: 820;
+    }
+
+    .bohai-page.embedded-mode .header-session {
+        display: none;
+    }
+
+    .bohai-page.embedded-mode .header-icon-btn {
+        width: 40px;
+        height: 40px;
+        border: none;
+        border-radius: 12px;
+        background: transparent;
+        color: #111827;
+    }
+
+    .bohai-page.embedded-mode .sidebar-toggle-btn {
+        border: 2px solid #0b6ff3;
+        color: #111827;
+        background: #ffffff;
+        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.14);
+    }
+
+    .bohai-page.embedded-mode .header-new-chat-btn {
+        color: #6b7280;
+    }
+
+    .bohai-page.embedded-mode .header-actions .header-icon-btn {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .bohai-page.embedded-mode .sidebar {
+        position: fixed;
+        top: var(--userspace-top-offset, 0px);
+        bottom: var(--userspace-bottom-nav-offset, 0px);
+        left: 0;
+        width: min(82vw, 340px);
+        max-height: none;
+        z-index: 1100;
+        border-right: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 0 22px 22px 0;
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 18px 0 44px rgba(15, 23, 42, 0.16);
+        transform: translateX(calc(-100% - 18px));
+        backdrop-filter: blur(24px) saturate(1.2);
+        -webkit-backdrop-filter: blur(24px) saturate(1.2);
+    }
+
+    .bohai-page.embedded-mode .sidebar.open {
+        transform: translateX(0);
+    }
+
+    .bohai-page.embedded-mode .sidebar-overlay {
+        position: fixed;
+        top: var(--userspace-top-offset, 0px);
+        bottom: var(--userspace-bottom-nav-offset, 0px);
+        left: 0;
+        right: 0;
+        z-index: 1050;
+        background: rgba(15, 23, 42, 0.36);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+    }
+
+    .bohai-page.embedded-mode .sidebar-header {
+        min-height: 58px;
+        padding: 12px 14px 8px;
+    }
+
+    .bohai-page.embedded-mode .sidebar-brand {
+        font-size: 20px;
+        font-weight: 860;
+    }
+
+    .bohai-page.embedded-mode .sidebar-quick-actions {
+        padding: 8px 14px 18px;
+        gap: 6px;
+    }
+
+    .bohai-page.embedded-mode .sidebar-quick-action {
+        min-height: 48px;
+        padding: 8px 10px;
+        border-radius: 12px;
+        background: transparent;
+    }
+
+    .bohai-page.embedded-mode .session-list {
+        padding: 4px 12px 16px;
+    }
+
+    .bohai-page.embedded-mode .session-item {
+        min-height: 48px;
+        border-radius: 12px;
+        background: rgba(15, 23, 42, 0.04);
+    }
+
+    .bohai-page.embedded-mode .sidebar-footer {
+        min-height: 64px;
+        padding: 12px 16px;
+        background: rgba(255, 255, 255, 0.96);
+    }
+
+    .bohai-page.embedded-mode .chat-container {
+        padding: 8px 0;
+        background: #f7f9fc;
+    }
+
+    .bohai-page.embedded-mode .message-content-inner {
+        width: var(--bohai-chat-rail-width);
+    }
+
+    .bohai-page.embedded-mode .message-wrapper {
+        padding: 8px 12px;
+    }
+
+    .bohai-page.embedded-mode .input-area {
+        width: var(--bohai-composer-width);
+        padding: 8px 0 12px;
+        z-index: 25;
+    }
+
+    .bohai-page.embedded-mode .input-area::before {
+        height: 88px;
+        background: linear-gradient(180deg, rgba(247, 249, 252, 0), #f7f9fc 42%);
+    }
+
+    .bohai-page.embedded-mode .input-box {
+        min-height: 58px;
+        padding: 8px;
+        border: 1px solid rgba(148, 163, 184, 0.32);
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.94);
+        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+    }
+
+    .bohai-page.embedded-mode .input-textarea {
+        min-height: 38px;
+        max-height: 118px;
+        padding: 7px 2px;
+        font-size: 16px;
+    }
+
+    .bohai-page.embedded-mode .features-btn,
+    .bohai-page.embedded-mode .mic-btn,
+    .bohai-page.embedded-mode .send-btn,
+    .bohai-page.embedded-mode .stop-btn {
+        width: 38px;
+        height: 38px;
+    }
+
+    .bohai-page.embedded-mode .features-menu {
+        position: fixed;
+        inset: auto 0 0;
+        z-index: 3000;
+        width: 100%;
+        max-height: min(520px, calc(100dvh - var(--userspace-top-offset, 60px) - 80px));
+        padding: 6px 0 calc(14px + env(safe-area-inset-bottom, 0px));
+        border: none;
+        border-radius: 24px 24px 0 0;
+        background: rgba(255, 255, 255, 0.92);
+        box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.12);
+        backdrop-filter: blur(28px) saturate(1.3);
+        -webkit-backdrop-filter: blur(28px) saturate(1.3);
+        transform: none;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .chat-container {
+        justify-content: flex-start;
+        padding: 18px 0 8px;
+        overflow-y: auto;
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .empty-state {
+        width: var(--bohai-chat-rail-width);
+        gap: 12px;
+        padding: 4px 0 0;
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .empty-state h2 {
+        font-size: clamp(22px, 6vw, 28px);
+        line-height: 1.18;
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .empty-suggestion-grid {
+        width: 100%;
+        gap: 0;
+        margin-top: 2px;
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .empty-suggestion-card {
+        min-height: 46px;
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .input-area {
+        width: var(--bohai-composer-width);
+        padding: 8px 0 12px;
+    }
+
+    .bohai-page.embedded-mode.empty-chat-mode .input-box {
+        min-height: 82px;
+        padding: 12px;
+        border-radius: 20px;
+    }
+}
+
+/* ===== Unified Interaction Animations ===== */
+
+@keyframes bohaiModalIn {
+    from { opacity: 0; transform: scale(0.94); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes bohaiModalOut {
+    from { opacity: 1; transform: scale(1); }
+    to   { opacity: 0; transform: scale(0.94); }
+}
+
+@keyframes bohaiBackdropIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes bohaiBackdropOut {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+}
+
+@keyframes bohaiFeaturesMenuIn {
+    from { opacity: 0; transform: scaleY(0.82); }
+    to   { opacity: 1; transform: scaleY(1); }
+}
+
+@keyframes bohaiFeaturesMenuOut {
+    from { opacity: 1; transform: scaleY(1); }
+    to   { opacity: 0; transform: scaleY(0.82); }
+}
+
+@keyframes bohaiModeMenuIn {
+    from { opacity: 0; transform: scale(0.92) translateY(-6px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes bohaiModeMenuOut {
+    from { opacity: 1; transform: scale(1) translateY(0); }
+    to   { opacity: 0; transform: scale(0.92) translateY(-6px); }
+}
+
+@keyframes bohaiDrawerSlideOut {
+    from { transform: translateX(0); }
+    to   { transform: translateX(100%); }
+}
+
+/* ===== Press Feedback ===== */
+
+.header-icon-btn:active,
+.sidebar-icon-btn:active,
+.ai-settings-close:active,
+.resource-modal-close:active,
+.plan-modal-close:active {
+    transform: scale(0.92);
+    transition-duration: 0.08s;
+}
+
+.sidebar-session-item:active {
+    background: rgba(0, 0, 0, 0.06);
+    transform: scale(0.99);
+    transition-duration: 0.08s;
+}
+
+.features-btn:active,
+.send-btn:active,
+.stop-btn:active {
+    transform: scale(0.94);
+    transition-duration: 0.08s;
+}
+
+.feature-action-row:active {
+    transform: scale(0.98);
+    transition-duration: 0.08s;
+}
+
+.empty-suggestion-card:active {
+    transform: scale(0.98);
+    border-color: rgba(15, 159, 122, 0.35);
+    transition-duration: 0.08s;
+}
+
+.action-draft-card:active {
+    transform: scale(0.98);
+    transition-duration: 0.08s;
+}
+
+.new-chat-btn:active {
+    transform: scale(0.97);
+    transition-duration: 0.08s;
+}
+
+/* ===== Menu / Popover Animations ===== */
+
+.features-menu {
+    transform-origin: bottom left;
+    animation: bohaiFeaturesMenuIn 0.22s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.features-menu.exiting {
+    animation: bohaiFeaturesMenuOut 0.16s cubic-bezier(0.4, 0, 1, 1) both;
+    pointer-events: none;
+}
+
+.header-mode-menu {
+    transform-origin: top center;
+    animation: bohaiModeMenuIn 0.2s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.header-mode-menu.exiting {
+    animation: bohaiModeMenuOut 0.14s cubic-bezier(0.4, 0, 1, 1) both;
+    pointer-events: none;
+}
+
+/* ===== Modal / Drawer Backdrop & Content Animations ===== */
+
+.resource-modal-backdrop,
+.plan-modal-backdrop {
+    animation: bohaiBackdropIn 0.22s ease both;
+}
+
+.resource-modal-backdrop.exiting,
+.plan-modal-backdrop.exiting {
+    animation: bohaiBackdropOut 0.18s ease both;
+}
+
+.resource-modal,
+.plan-modal {
+    animation: bohaiModalIn 0.28s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.resource-modal.exiting,
+.plan-modal.exiting {
+    animation: bohaiModalOut 0.18s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.task-drawer-backdrop,
+.ai-settings-backdrop {
+    animation: bohaiBackdropIn 0.2s ease both;
+}
+
+.task-drawer-backdrop.exiting,
+.ai-settings-backdrop.exiting {
+    animation: bohaiBackdropOut 0.16s ease both;
+}
+
+.task-drawer.exiting,
+.ai-settings-drawer.exiting {
+    animation: bohaiDrawerSlideOut 0.22s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+/* ===== Sidebar Overlay Enhanced ===== */
+
+.sidebar-overlay {
+    animation: sidebar-overlay-fade 0.22s ease both;
+}
+
+.sidebar-overlay.exiting {
+    animation: bohaiBackdropOut 0.18s ease both;
+}

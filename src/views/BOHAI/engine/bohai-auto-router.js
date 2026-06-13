@@ -330,10 +330,10 @@ export const resolveBOHAIAutoModeDecision = (text, {
     codeOrCommand,
     planMode,
     dailySummary,
+    shouldSearchWeb,
     shouldReferenceCloud,
     complexQuestion,
-    bohInternalFactual,
-    shouldSearchWeb
+    bohInternalFactual
   }) || 'fast';
 
   const actionNotes = [];
@@ -348,15 +348,13 @@ export const resolveBOHAIAutoModeDecision = (text, {
       actionNotes.push('切换到思考模式拆解复杂问题。');
     } else if (bohInternalFactual) {
       actionNotes.push('切换到思考模式核对 BOH 内部资料。');
+    } else if (shouldSearchWeb) {
+      actionNotes.push('准备联网搜索最新资料。');
     } else if (personalSupport) {
       actionNotes.push('已识别为个人支持场景，倾向使用快速/思考模式。');
     } else {
       actionNotes.push('使用快速模式处理日常问答。');
     }
-  }
-
-  if (isAutoMode && shouldSearchWeb) {
-    actionNotes.push('准备联网搜索最新资料。');
   }
 
   if (shouldReferenceCloud) {
@@ -421,10 +419,10 @@ const pickModeFromLocalSignals = (signals) => {
   if (signals.codeOrCommand) return 'pro';
   if (
     signals.dailySummary
+    || signals.shouldSearchWeb
     || signals.shouldReferenceCloud
     || signals.complexQuestion
     || signals.bohInternalFactual
-    || signals.shouldSearchWeb
   ) {
     return 'pro';
   }

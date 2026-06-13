@@ -61,39 +61,20 @@
 }
 
 .x-notifications-container[data-theme="dark"] .x-section-switch,
-[data-theme="dark"] .x-notifications-container .x-section-switch,
-.x-notifications-container[data-theme="dark"] .x-mail-folder-tabs,
-[data-theme="dark"] .x-notifications-container .x-mail-folder-tabs {
+[data-theme="dark"] .x-notifications-container .x-section-switch {
   background: #171722;
 }
 
 .x-notifications-container[data-theme="dark"] .x-section-switch button,
-[data-theme="dark"] .x-notifications-container .x-section-switch button,
-.x-notifications-container[data-theme="dark"] .x-mail-folder-tabs button,
-[data-theme="dark"] .x-notifications-container .x-mail-folder-tabs button {
+[data-theme="dark"] .x-notifications-container .x-section-switch button {
   color: #a1a1aa;
 }
 
 .x-notifications-container[data-theme="dark"] .x-section-switch button.active,
-[data-theme="dark"] .x-notifications-container .x-section-switch button.active,
-.x-notifications-container[data-theme="dark"] .x-mail-folder-tabs button.active,
-[data-theme="dark"] .x-notifications-container .x-mail-folder-tabs button.active {
+[data-theme="dark"] .x-notifications-container .x-section-switch button.active {
   background: #2a2a3a;
   color: #ffffff;
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
-}
-
-.x-notifications-container[data-theme="dark"] .x-mail-filter-select,
-[data-theme="dark"] .x-notifications-container .x-mail-filter-select {
-  background: #1e1e2a;
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #a1a1aa;
-}
-
-.x-notifications-container[data-theme="dark"] .x-mail-filter-select select,
-[data-theme="dark"] .x-notifications-container .x-mail-filter-select select {
-  color: #ffffff;
-  background: #1e1e2a;
 }
 
 /* ============================================
@@ -105,9 +86,7 @@
 }
 
 .x-notifications-container[data-theme="dark"] .x-inbox-list,
-[data-theme="dark"] .x-notifications-container .x-inbox-list,
-.x-notifications-container[data-theme="dark"] .x-mail-list,
-[data-theme="dark"] .x-notifications-container .x-mail-list {
+[data-theme="dark"] .x-notifications-container .x-inbox-list {
   background: #1e1e2a;
   border-color: rgba(255, 255, 255, 0.08);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
@@ -398,14 +377,12 @@
    按钮
    ============================================ */
 .x-notifications-container[data-theme="dark"] .x-btn-primary,
-.x-notifications-container[data-theme="dark"] .send-mail-btn,
 .x-notifications-container[data-theme="dark"] .submit-reply-btn {
   background: #60a5fa;
   color: #0d0d12;
 }
 
 .x-notifications-container[data-theme="dark"] .x-btn-primary:hover,
-.x-notifications-container[data-theme="dark"] .send-mail-btn:hover:not(:disabled),
 .x-notifications-container[data-theme="dark"] .submit-reply-btn:hover:not(:disabled) {
   background: #3b82f6;
 }
@@ -490,25 +467,21 @@
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-[data-theme="dark"] .notification-actions,
-[data-theme="dark"] .mail-actions {
+[data-theme="dark"] .notification-actions {
   background: rgba(30, 30, 42, 0.94);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-[data-theme="dark"] .notif-action-btn,
-[data-theme="dark"] .mail-action-btn {
+[data-theme="dark"] .notif-action-btn {
   background: #2a2a3a;
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-[data-theme="dark"] .notif-action-btn.reply,
-[data-theme="dark"] .mail-action-btn.reply {
+[data-theme="dark"] .notif-action-btn.reply {
   color: #60a5fa;
 }
 
-[data-theme="dark"] .notif-action-btn.reply:hover,
-[data-theme="dark"] .mail-action-btn.reply:hover {
+[data-theme="dark"] .notif-action-btn.reply:hover {
   background: rgba(59, 130, 246, 0.15);
   border-color: #60a5fa;
 }
@@ -520,97 +493,6 @@
 [data-theme="dark"] .notif-action-btn.view-post:hover {
   background: rgba(59, 130, 246, 0.15);
   border-color: #60a5fa;
-}
-
-[data-theme="dark"] .mail-action-btn.delete {
-  color: #ff5252;
-}
-
-[data-theme="dark"] .mail-action-btn.delete:hover {
-  background: rgba(255, 82, 82, 0.15);
-  border-color: #ff5252;
-}
-
-/* ============================================
-   邮件相关
-   ============================================ */
-.x-notifications-container[data-theme="dark"] .x-mail-folder-tabs span {
-  color: #a1a1aa;
-}
-
-.x-notifications-container[data-theme="dark"] .x-mail-folder-tabs span:hover {
-  color: #ffffff;
-}
-
-.x-notifications-container[data-theme="dark"] .x-mail-folder-tabs span.active {
-  color: #60a5fa;
-  border-bottom-color: #60a5fa;
-}
-
-.x-notifications-container[data-theme="dark"] .x-mail-time-filter {
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.x-notifications-container[data-theme="dark"] .x-mail-time-filter span {
-  color: #71717a;
-  background: #2a2a3a;
-}
-
-.x-notifications-container[data-theme="dark"] .x-mail-time-filter span:hover {
-  color: #ffffff;
-  background: #353545;
-}
-
-.x-notifications-container[data-theme="dark"] .x-mail-time-filter span.active {
-  color: #0d0d12;
-  background: #60a5fa;
-}
-
-.x-notifications-container[data-theme="dark"] .x-mail-item {
-  background: #1e1e2a;
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-.x-notifications-container[data-theme="dark"] .x-mail-item:hover {
-  background: #252532;
-  border-color: rgba(255, 255, 255, 0.12);
-}
-
-.x-notifications-container[data-theme="dark"] .x-mail-item.unread {
-  background: rgba(59, 130, 246, 0.08);
-  border-color: rgba(96, 165, 250, 0.2);
-}
-
-.x-notifications-container[data-theme="dark"] .x-mail-avatar {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.x-notifications-container[data-theme="dark"] .x-mail-sender {
-  color: #ffffff;
-}
-
-.x-notifications-container[data-theme="dark"] .x-mail-subject {
-  color: #c4c4cc;
-}
-
-.x-notifications-container[data-theme="dark"] .x-mail-excerpt {
-  color: #71717a;
-}
-
-.x-notifications-container[data-theme="dark"] .x-mail-date {
-  color: #71717a;
-}
-
-.x-notifications-container[data-theme="dark"] .mail-moderation-badge {
-  color: #fbbf24;
-  background: rgba(251, 191, 36, 0.15);
-  border: 1px solid rgba(251, 191, 36, 0.3);
-}
-
-.x-notifications-container[data-theme="dark"] .mail-badge {
-  background: #60a5fa;
-  color: #0d0d12;
 }
 
 /* ============================================
@@ -759,18 +641,14 @@
 
 /* 新版收件箱式消息中心兜底覆盖 */
 .x-notifications-container[data-theme="dark"] .x-inbox-list .x-item,
-[data-theme="dark"] .x-notifications-container .x-inbox-list .x-item,
-.x-notifications-container[data-theme="dark"] .x-mail-list .x-mail-item,
-[data-theme="dark"] .x-notifications-container .x-mail-list .x-mail-item {
+[data-theme="dark"] .x-notifications-container .x-inbox-list .x-item {
   border: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: none;
 }
 
 .x-notifications-container[data-theme="dark"] .x-inbox-list .x-item:last-child,
-[data-theme="dark"] .x-notifications-container .x-inbox-list .x-item:last-child,
-.x-notifications-container[data-theme="dark"] .x-mail-list .x-mail-item:last-child,
-[data-theme="dark"] .x-notifications-container .x-mail-list .x-mail-item:last-child {
+[data-theme="dark"] .x-notifications-container .x-inbox-list .x-item:last-child {
   border-bottom: 0;
 }
 

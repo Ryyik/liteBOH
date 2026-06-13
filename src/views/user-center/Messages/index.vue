@@ -4,14 +4,7 @@
       <UnifiedNavbar />
       <UserCenterPageHeader title="消息中心" @back="goBack">
         <template #actions>
-          <button v-if="isMailSection" class="compose-btn" @click="openComposeModal">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 20h9"></path>
-              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-            </svg>
-            <span>写信</span>
-          </button>
-          <button v-else-if="unreadCountsByType.all > 0" class="x-mark-all-btn" @click="markAllAsRead">
+          <button v-if="unreadCountsByType.all > 0" class="x-mark-all-btn" @click="markAllAsRead">
             全部已读
           </button>
         </template>
@@ -21,35 +14,18 @@
     <header v-if="!minimal" class="x-header">
       <div class="x-header-controls">
         <div class="x-section-switch" role="tablist" aria-label="消息类型">
-          <button type="button" :class="{ active: !isMailSection }" @click="switchInboxSection('notifications')">
+          <button type="button" class="active" @click="switchInboxSection('notifications')">
             通知
             <span v-if="unreadCountsByType.all > 0" class="tab-badge">{{ unreadCountsByType.all }}</span>
           </button>
-          <button type="button" :class="{ active: isMailSection }" @click="switchInboxSection('mail')">
-            信件
-            <span v-if="unreadMailCount > 0" class="tab-badge">{{ unreadMailCount }}</span>
-          </button>
         </div>
 
-        <div v-if="!isMailSection" class="x-tabs">
+        <div class="x-tabs">
           <button v-for="tab in notificationTabs" :key="tab.id" type="button" class="x-tab"
             :class="{ active: currentTab === tab.id }" @click="setNotificationTab(tab.id)">
             <span>{{ tab.label }}</span>
             <span v-if="tab.unread > 0" class="tab-badge">{{ tab.unread }}</span>
           </button>
-        </div>
-
-        <div v-else class="x-mail-toolbar">
-          <div class="x-mail-folder-tabs">
-            <button type="button" :class="{ active: mailFolder === 'inbox' }" @click="mailFolder = 'inbox'">收件箱</button>
-            <button type="button" :class="{ active: mailFolder === 'sent' }" @click="mailFolder = 'sent'">已发送</button>
-          </div>
-          <label class="x-mail-filter-select">
-            <span>时间</span>
-            <select v-model="mailTimeFilter">
-              <option v-for="filter in mailTimeFilters" :key="filter.id" :value="filter.id">{{ filter.label }}</option>
-            </select>
-          </label>
         </div>
       </div>
       <div class="x-filter-bar">
@@ -57,13 +33,9 @@
           @click="showUnreadOnly = !showUnreadOnly">
           只看未读
         </button>
-        <button v-if="!isMailSection && currentTab !== 'all' && currentTabUnreadCount > 0" type="button"
+        <button v-if="currentTab !== 'all' && currentTabUnreadCount > 0" type="button"
           class="x-filter-chip action" @click="markCurrentNotificationTabAsRead">
           当前分类已读
-        </button>
-        <button v-if="isMailSection && mailFolder === 'inbox' && unreadMailCount > 0" type="button"
-          class="x-filter-chip action" @click="markVisibleMailsAsRead">
-          当前收件已读
         </button>
       </div>
     </header>
@@ -72,32 +44,17 @@
     <header v-if="minimal" class="x-header-minimal">
       <div class="x-minimal-main">
         <div class="x-section-switch compact" role="tablist" aria-label="消息类型">
-          <button type="button" :class="{ active: !isMailSection }" @click="switchInboxSection('notifications')">
+          <button type="button" class="active" @click="switchInboxSection('notifications')">
             通知
             <span v-if="unreadCountsByType.all > 0" class="tab-badge-mini">{{ unreadCountsByType.all }}</span>
           </button>
-          <button type="button" :class="{ active: isMailSection }" @click="switchInboxSection('mail')">
-            信件
-            <span v-if="unreadMailCount > 0" class="tab-badge-mini">{{ unreadMailCount }}</span>
-          </button>
         </div>
-        <div v-if="!isMailSection" class="x-tabs-minimal">
+        <div class="x-tabs-minimal">
           <button v-for="tab in notificationTabs" :key="tab.id" type="button" class="x-tab"
             :class="{ active: currentTab === tab.id }" @click="setNotificationTab(tab.id)">
             <span>{{ tab.label }}</span>
             <span v-if="tab.unread > 0" class="tab-badge-mini">{{ tab.unread }}</span>
           </button>
-        </div>
-        <div v-else class="x-mail-toolbar minimal-mail-toolbar">
-          <div class="x-mail-folder-tabs">
-            <button type="button" :class="{ active: mailFolder === 'inbox' }" @click="mailFolder = 'inbox'">收件箱</button>
-            <button type="button" :class="{ active: mailFolder === 'sent' }" @click="mailFolder = 'sent'">已发送</button>
-          </div>
-          <label class="x-mail-filter-select">
-            <select v-model="mailTimeFilter" aria-label="信件时间筛选">
-              <option v-for="filter in mailTimeFilters" :key="filter.id" :value="filter.id">{{ filter.label }}</option>
-            </select>
-          </label>
         </div>
         <div class="x-filter-bar minimal-filter-bar">
           <button type="button" class="x-filter-chip" :class="{ active: showUnreadOnly }"
@@ -107,20 +64,14 @@
         </div>
       </div>
       <div class="x-header-actions-minimal">
-        <button v-if="isMailSection" class="compose-btn-mini" @click="openComposeModal" aria-label="写信">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 20h9"></path>
-            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-          </svg>
-        </button>
-        <button v-else-if="unreadCountsByType.all > 0" class="x-mark-all-btn-minimal" @click="markAllAsRead">
+        <button v-if="unreadCountsByType.all > 0" class="x-mark-all-btn-minimal" @click="markAllAsRead">
           全部已读
         </button>
       </div>
     </header>
 
     <!-- Notifications List -->
-    <div v-if="!isMailSection" class="x-list">
+    <div class="x-list">
       <!-- Skeleton Loading -->
       <div v-if="loading" class="x-skeleton-list">
         <div v-for="i in 5" :key="i" class="x-skeleton-item">
@@ -200,67 +151,6 @@
         <h3>保持专注，暂无新通知</h3>
         <p>当有伙伴与你互动或系统有新消息时，你会在这里看到它们。</p>
         <button class="refresh-btn" @click="loadNotifications">刷新试试</button>
-      </div>
-    </div>
-
-    <!-- Mail List -->
-    <div v-else class="x-mail-section">
-      <!-- Skeleton Loading for Mails -->
-      <div v-if="loadingMails" class="x-skeleton-list">
-        <div v-for="i in 4" :key="i" class="x-skeleton-item x-skeleton-mail">
-          <div class="x-skeleton-avatar"></div>
-          <div class="x-skeleton-content">
-            <div class="x-skeleton-line x-skeleton-title"></div>
-            <div class="x-skeleton-line x-skeleton-text"></div>
-            <div class="x-skeleton-line x-skeleton-text short"></div>
-          </div>
-          <div class="x-skeleton-right">
-            <div class="x-skeleton-line x-skeleton-time"></div>
-          </div>
-        </div>
-      </div>
-      <div v-else-if="mailsLoadError" class="x-empty">
-        <div class="x-empty-visual">
-          <TriangleAlert class="empty-icon-circle" :size="44" :stroke-width="1.7" aria-hidden="true" />
-          <div class="empty-glow"></div>
-        </div>
-        <h3>邮件加载失败</h3>
-        <p>{{ mailsLoadError }}</p>
-        <button class="refresh-btn" @click="fetchMails">点击重试</button>
-      </div>
-      <div v-else-if="filteredMails.length > 0" class="x-mail-list">
-        <div v-for="mail in filteredMails" :key="mail.id" class="x-mail-item"
-          :class="{ 'unread': mail.status === 'unread' && mailFolder === 'inbox' }" @click="selectMail(mail)">
-          <span v-if="mail.status === 'unread' && mailFolder === 'inbox'" class="x-unread-dot mail-dot" aria-hidden="true"></span>
-          <div class="x-mail-avatar">
-            {{ (mailFolder === 'inbox' ? mail.sender_name : mail.receiver_name)?.charAt(0)?.toUpperCase?.() || 'U' }}
-          </div>
-          <div class="x-mail-content">
-            <div class="x-mail-header">
-              <div class="x-mail-sender-wrap">
-                <span class="x-mail-sender">{{ mailFolder === 'inbox' ? mail.sender_name : mail.receiver_name }}</span>
-                <span v-if="mailFolder === 'sent' && mail.moderation_status && mail.moderation_status !== 'approved'"
-                  class="mail-moderation-badge">{{ mail.moderation_status }}</span>
-              </div>
-              <span class="x-mail-date">{{ formatDate(mail.created_at) }}</span>
-            </div>
-            <div class="x-mail-subject">{{ mail.subject || '(无主题)' }}</div>
-            <div class="x-mail-excerpt">{{ mail.content }}</div>
-          </div>
-        </div>
-        <div v-if="hasMoreMails" class="x-load-more-row">
-          <button class="x-load-more-btn" :disabled="loadingMoreMails" @click="loadMoreMails">
-            {{ loadMoreMailLabel }}
-          </button>
-        </div>
-      </div>
-      <div v-else class="x-empty">
-        <div class="x-empty-visual">
-          <MailX class="empty-icon-circle" :size="44" :stroke-width="1.7" aria-hidden="true" />
-          <div class="empty-glow"></div>
-        </div>
-        <h3>这里空空如也</h3>
-        <p>{{ getEmptyMailMessage }}</p>
       </div>
     </div>
 
@@ -351,142 +241,6 @@
         </div>
       </Transition>
 
-      <!-- Mail Detail Drawer -->
-      <Transition name="slide-right">
-        <div v-if="selectedMail" class="x-detail-drawer-overlay" @click="closeMailDetail">
-          <div class="x-detail-drawer" @click.stop>
-            <div class="drawer-header">
-              <UserCenterBackButton label="返回信件列表" @click="closeMailDetail" />
-              <h3>信件详情</h3>
-            </div>
-            <div class="drawer-content">
-              <div class="detail-user-card">
-                <div class="large-avatar-wrapper">
-                  <div class="large-avatar">
-                    {{ selectedMail.sender_name?.charAt(0)?.toUpperCase?.() || 'U' }}
-                  </div>
-                </div>
-                <div class="user-info">
-                  <span class="name">{{ selectedMail.sender_name }}</span>
-                  <span class="type">
-                    发送至: {{ selectedMail.receiver_name }}
-                  </span>
-                </div>
-              </div>
-              <div class="detail-body">
-                <h2 class="detail-title">{{ selectedMail.subject || '(无主题)' }}</h2>
-                <p class="main-text mail-content-text">{{ selectedMail.content }}</p>
-                <span class="full-date">{{ new Date(selectedMail.created_at).toLocaleString('zh-CN', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                }) }}</span>
-              </div>
-              <div class="mail-actions" v-if="mailFolder === 'inbox'">
-                <button class="mail-action-btn reply" @click="handleReplyMail(selectedMail)">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="9 17 4 12 9 7"></polyline>
-                    <path d="M20 18v-2a4 4 0 0 0-4-4H4"></path>
-                  </svg>
-                  回复
-                </button>
-                <button class="mail-action-btn delete" @click="handleDeleteMail(selectedMail)">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                  </svg>
-                  删除
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Transition>
-
-      <!-- Compose Mail Modal -->
-      <Transition name="fade">
-        <div v-if="showComposeModal" class="compose-modal-overlay" @click.self="closeComposeModal">
-          <div class="compose-modal-container" @click="handleComposeModalClick">
-            <div class="compose-header">
-              <h3>新信件</h3>
-              <button class="close-modal-btn" @click="closeComposeModal" aria-label="关闭写信窗口">
-                <X :size="17" :stroke-width="1.9" aria-hidden="true" />
-              </button>
-            </div>
-            <div class="compose-body">
-              <div class="compose-field recipient-field">
-                <label>收件人:</label>
-                <div class="recipient-container">
-                  <div class="selected-recipients" v-if="selectedRecipients.length > 0">
-                    <span v-for="user in selectedRecipients" :key="user.id" class="recipient-tag">
-                      {{ user.username }}
-                      <button class="remove-tag" @click.stop="removeRecipient(user)"
-                        v-if="!composeData.isReply">×</button>
-                    </span>
-                  </div>
-                  <div class="recipient-input-wrapper">
-                    <input type="text" v-model="composeData.receiver_search" placeholder="输入或从伙伴中选择"
-                      :disabled="composeData.isReply" @focus="showRecipientDropdown = true" />
-                    <Transition name="fade-fast">
-                      <div
-                        v-if="showRecipientDropdown && (loadingPartners || filteredPartners.length > 0) && !composeData.isReply"
-                        class="recipient-dropdown" @click.stop>
-                        <div v-if="loadingPartners" class="dropdown-loading">
-                          <div class="spinner-mini"></div>
-                          <span>正在加载伙伴...</span>
-                        </div>
-                        <template v-else>
-                          <div v-for="partner in filteredPartners" :key="partner.id" class="dropdown-item"
-                            @click.stop="toggleRecipient(partner)">
-                            <div class="item-avatar-mini">{{ partner.username?.charAt(0)?.toUpperCase?.() || 'U' }}
-                            </div>
-                            <div class="item-info">
-                              <div class="item-name">{{ partner.username }}</div>
-                              <div class="item-role">{{ getRoleLabel(partner.role) }}</div>
-                            </div>
-                            <Check v-if="isRecipientSelected(partner)" class="item-check" :size="16"
-                              :stroke-width="2.2" aria-hidden="true" />
-                          </div>
-                        </template>
-                      </div>
-                    </Transition>
-                  </div>
-                </div>
-              </div>
-              <div class="compose-field">
-                <label>主题:</label>
-                <input type="text" v-model="composeData.subject" placeholder="信件主题" />
-              </div>
-              <div class="compose-field content-field">
-                <textarea v-model="composeData.content" placeholder="输入信件内容..." :maxlength="MAIL_CONTENT_MAX_LENGTH"></textarea>
-                <div class="compose-count">{{ composeContentLength }} / {{ MAIL_CONTENT_MAX_LENGTH }}</div>
-              </div>
-            </div>
-            <div class="compose-footer">
-              <div class="moderation-info" :class="{ muted: !isModerating }">
-                <template v-if="isModerating">
-                <div class="spinner-mini"></div>
-                AI 正在审查内容...
-                </template>
-                <template v-else>
-                  {{ composeFooterHint }}
-                </template>
-              </div>
-              <button class="send-mail-btn" :disabled="!isComposeValid || isModerating" @click="sendMail">
-                <svg v-if="!isModerating" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                  stroke-width="2">
-                  <line x1="22" y1="2" x2="11" y2="13"></line>
-                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                </svg>
-                <span>{{ isModerating ? '正在审查...' : '发送' }}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-
       <Transition name="fade">
         <div v-if="feedbackToast.visible" class="message-feedback-toast" :class="feedbackToast.type">
           {{ feedbackToast.message }}
@@ -499,7 +253,7 @@
 <script setup>
 import { ref, computed, onMounted, watch, onUnmounted, reactive } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { Bell, Check, MailX, TriangleAlert, X } from 'lucide-vue-next';
+import { Bell, TriangleAlert } from 'lucide-vue-next';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader.js';
@@ -512,14 +266,6 @@ import {
 import { getCurrentUser } from '@/utils/api/auth-api.js';
 import { createComment, retryPostModeration } from '@/utils/api/forum-api.js';
 import { supabase } from '@/utils/supabase-client.js';
-import { isModerationApproved } from '@/utils/content-moderation';
-import {
-  deleteMessage,
-  getUserMessages,
-  markMessageAsRead,
-  markMessagesAsRead,
-  sendModeratedMessages
-} from '@/utils/api/messages-api.js';
 import { logger } from '@/utils/logger.js';
 import { invalidateByTags } from '@/utils/request-core.js';
 import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';
@@ -579,9 +325,8 @@ const notificationsLoadError = ref('');
 const notificationsCursor = ref(null);
 const hasMoreNotifications = ref(false);
 const currentUserId = ref(null);
-const currentTab = ref('all'); // 'all' | 'like' | 'comment' | 'impression' | 'system' | 'mail'
+const currentTab = ref('all'); // 'all' | 'like' | 'comment' | 'impression' | 'system'
 const LOTTERY_WIN_NOTIFICATION_TYPE = 'lottery_win';
-const MAIL_CONTENT_MAX_LENGTH = 1200;
 const MESSAGE_PAGE_SIZE = 24;
 const NOTIFICATION_TABS = [
   { id: 'all', label: '全部' },
@@ -590,29 +335,6 @@ const NOTIFICATION_TABS = [
   { id: 'impression', label: '印象' },
   { id: 'system', label: '系统' }
 ];
-const mailTimeFilters = [
-  { id: 'all', label: '全部' },
-  { id: '3days', label: '3 天内' },
-  { id: '7days', label: '7 天内' },
-  { id: '1month', label: '1 个月内' }
-];
-
-// Mail related state
-const mailFolder = ref('inbox'); // 'inbox' | 'sent'
-const mailTimeFilter = ref('all'); // 'all' | '3days' | '7days' | '1month'
-const mails = ref([]);
-const loadingMails = ref(false);
-const loadingMoreMails = ref(false);
-const mailsLoadError = ref('');
-const mailsCursor = ref(null);
-const hasMoreMails = ref(false);
-const selectedMail = ref(null);
-const showComposeModal = ref(false);
-const isModerating = ref(false);
-const allPartners = ref([]);
-const showRecipientDropdown = ref(false);
-const selectedRecipients = ref([]);
-const loadingPartners = ref(false);
 let unreadRefreshInflight = null;
 let lastUnreadRefreshAt = 0;
 const UNREAD_REFRESH_MIN_INTERVAL_MS = 1200;
@@ -620,7 +342,6 @@ let messageCenterRealtimeChannels = [];
 let realtimeRefreshTimer = null;
 let pendingRealtimeRefresh = {
   notifications: false,
-  mails: false,
   forceCache: false
 };
 const retryingNotificationIds = ref({});
@@ -654,13 +375,6 @@ const canRetryModerationNotification = (notification) => {
 const isRetryingSelectedNotification = computed(() => {
   const key = String(selectedMessage.value?.id || '');
   return Boolean(key && retryingNotificationIds.value[key]);
-});
-
-const composeData = reactive({
-  receiver_search: '',
-  subject: '',
-  content: '',
-  isReply: false
 });
 
 // Reply to comment state
@@ -725,14 +439,11 @@ const invalidateMessageCenterCaches = (userId = currentUserId.value) => {
   const safeUserId = String(userId || '').trim();
   invalidateByTags([
     'notifications',
-    'messages',
-    safeUserId ? `notifications:user:${safeUserId}` : '',
-    safeUserId ? `messages:user:${safeUserId}` : ''
+    safeUserId ? `notifications:user:${safeUserId}` : ''
   ]);
 };
 
 const visibleNotificationMessages = computed(() => filterSelfActionNotifications(messages.value));
-const isMailSection = computed(() => currentTab.value === 'mail');
 const isSystemNotificationType = (type) => [
   'system',
   'gift',
@@ -782,94 +493,8 @@ const notificationTabs = computed(() => NOTIFICATION_TABS.map((tab) => ({
 })));
 const currentTabUnreadCount = computed(() => unreadCountsByType.value[currentTab.value] || 0);
 
-const isInboxVisibleMail = (mail) => isModerationApproved(mail?.moderation_status);
-
-// Mail computed properties
-const filteredMails = computed(() => {
-  let result = mails.value;
-
-  if (mailFolder.value === 'inbox') {
-    result = result.filter(m => m.receiver_id === userInfo.value.id && isInboxVisibleMail(m));
-  } else {
-    result = result.filter(m => m.sender_id === userInfo.value.id);
-  }
-
-  if (mailTimeFilter.value !== 'all') {
-    const now = new Date();
-    let cutoffDate;
-
-    switch (mailTimeFilter.value) {
-      case '3days':
-        cutoffDate = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
-        break;
-      case '7days':
-        cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        break;
-      case '1month':
-        cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        break;
-    }
-
-    result = result.filter(m => new Date(m.created_at) >= cutoffDate);
-  }
-
-  if (showUnreadOnly.value && mailFolder.value === 'inbox') {
-    result = result.filter(m => m.status === 'unread');
-  }
-
-  return result;
-});
-
-const unreadMailCount = computed(() => {
-  return mails.value
-    .filter(m => m.receiver_id === userInfo.value.id && isInboxVisibleMail(m) && m.status === 'unread')
-    .length;
-});
-
-const getEmptyMailMessage = computed(() => {
-  const folderName = mailFolder.value === 'inbox' ? '收件箱' : '已发送';
-  if (mailTimeFilter.value === 'all') {
-    return `你的${folderName}没有任何信件。`;
-  }
-  const timeDesc = {
-    '3days': '3天内',
-    '7days': '7天内',
-    '1month': '1个月内'
-  };
-  return `${timeDesc[mailTimeFilter.value]}没有信件。`;
-});
-
-const normalizePartnerName = (username) => String(username || '').trim();
-
-const filteredPartners = computed(() => {
-  const search = String(composeData.receiver_search || '').toLowerCase();
-  const currentUsername = String(userInfo.value?.username || '').toLowerCase();
-
-  return allPartners.value
-    .filter((p) => {
-      const username = normalizePartnerName(p?.username);
-      if (!username) return false;
-      const lowerName = username.toLowerCase();
-      return lowerName.includes(search) && lowerName !== currentUsername;
-    })
-    .slice(0, 10);
-});
-
-const isComposeValid = computed(() => {
-  return selectedRecipients.value.length > 0
-    && composeData.content.trim()
-    && composeData.content.length <= MAIL_CONTENT_MAX_LENGTH;
-});
-const composeContentLength = computed(() => composeData.content.length);
-const composeFooterHint = computed(() => {
-  if (selectedRecipients.value.length === 0) return '请选择至少一位收件人';
-  if (!composeData.content.trim()) return '填写正文后即可发送';
-  return '发送前会进行内容审查';
-});
-
 const refreshMessageCenter = async ({
   includeNotifications = true,
-  includeMails = true,
   forceCache = false
 } = {}) => {
   if (!currentUserId.value) return;
@@ -897,8 +522,7 @@ const refreshMessageCenter = async ({
             hasMoreNotifications.value = Boolean(hasMore);
             notificationsCursor.value = nextCursor || null;
           })()
-          : Promise.resolve(),
-        includeMails ? fetchMails({ silent: true }) : Promise.resolve()
+          : Promise.resolve()
       ]);
 
       await refreshUnreadCount({ force: forceCache });
@@ -915,9 +539,8 @@ const refreshMessageCenter = async ({
   }
 };
 
-const scheduleRealtimeRefresh = ({ notifications = true, mails = true, forceCache = false } = {}) => {
+const scheduleRealtimeRefresh = ({ notifications = true, forceCache = false } = {}) => {
   pendingRealtimeRefresh.notifications = pendingRealtimeRefresh.notifications || notifications;
-  pendingRealtimeRefresh.mails = pendingRealtimeRefresh.mails || mails;
   pendingRealtimeRefresh.forceCache = pendingRealtimeRefresh.forceCache || forceCache;
 
   if (realtimeRefreshTimer) return;
@@ -925,12 +548,10 @@ const scheduleRealtimeRefresh = ({ notifications = true, mails = true, forceCach
   realtimeRefreshTimer = window.setTimeout(async () => {
     const refreshOptions = {
       includeNotifications: pendingRealtimeRefresh.notifications,
-      includeMails: pendingRealtimeRefresh.mails,
       forceCache: pendingRealtimeRefresh.forceCache
     };
     pendingRealtimeRefresh = {
       notifications: false,
-      mails: false,
       forceCache: false
     };
     realtimeRefreshTimer = null;
@@ -945,7 +566,6 @@ const removeRealtimeChannels = async () => {
   }
   pendingRealtimeRefresh = {
     notifications: false,
-    mails: false,
     forceCache: false
   };
 
@@ -1006,49 +626,13 @@ const startRealtimeChannels = async (userId) => {
         if (!patched || String(payload?.eventType || '').toUpperCase() === 'INSERT') {
           scheduleRealtimeRefresh({
             notifications: true,
-            mails: false,
             forceCache: true
           });
         }
       }
     )
     .subscribe();
-
-  const inboxMessagesChannel = supabase
-    .channel(`messages-center-inbox:${safeUserId}`)
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'messages',
-        filter: `receiver_id=eq.${safeUserId}`
-      },
-      (payload) => {
-        applyRealtimeRow(mails, payload);
-        void refreshUnreadCountAfterRealtime();
-      }
-    )
-    .subscribe();
-
-  const sentMessagesChannel = supabase
-    .channel(`messages-center-sent:${safeUserId}`)
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'messages',
-        filter: `sender_id=eq.${safeUserId}`
-      },
-      (payload) => {
-        applyRealtimeRow(mails, payload);
-        void refreshUnreadCountAfterRealtime();
-      }
-    )
-    .subscribe();
-
-  messageCenterRealtimeChannels = [notificationsChannel, inboxMessagesChannel, sentMessagesChannel];
+  messageCenterRealtimeChannels = [notificationsChannel];
 };
 
 const shouldShowActions = computed(() => {
@@ -1068,59 +652,16 @@ watch(selectedMessage, (newVal) => {
   }
 });
 
-watch(selectedMail, (newVal) => {
-  if (newVal) {
-    document.body.style.overflow = 'hidden';
-  } else {
-    document.body.style.overflow = '';
-  }
-});
-
-watch(showComposeModal, (newVal) => {
-  if (newVal) {
-    document.body.style.overflow = 'hidden';
-  } else {
-    document.body.style.overflow = '';
-  }
-});
-
-const applyMailQueryRecipient = () => {
-  const normalizeQueryPartnerName = (username) => String(username || '').trim();
-  const targetUsername = normalizeQueryPartnerName(route.query.to);
-  if (!targetUsername || route.query.section !== 'mail') return;
-
-  currentTab.value = 'mail';
-  const targetPartner = allPartners.value.find((partner) =>
-    normalizeQueryPartnerName(partner?.username).toLowerCase() === targetUsername.toLowerCase()
-  );
-
-  if (!targetPartner) {
-    composeData.receiver_search = targetUsername;
-    return;
-  }
-
-  selectedRecipients.value = [targetPartner];
-  composeData.receiver_search = '';
-  composeData.subject = '';
-  composeData.content = '';
-  composeData.isReply = false;
-  showComposeModal.value = true;
-};
-
 // 监听路由参数，自动切换到消息中心内部分区
 watch(() => route.query.section, (newSection) => {
   if (newSection === 'mail') {
-    currentTab.value = 'mail';
-    applyMailQueryRecipient();
+    switchInboxSection('notifications');
     return;
-  }
-  if (newSection === 'notifications' && currentTab.value === 'mail') {
-    currentTab.value = 'all';
   }
 }, { immediate: true });
 
 watch(() => route.query.to, () => {
-  applyMailQueryRecipient();
+  if (route.query.to) switchInboxSection('notifications');
 });
 
 const setNotificationTab = (tabId) => {
@@ -1138,19 +679,11 @@ const setNotificationTab = (tabId) => {
 
 const switchInboxSection = (section) => {
   if (section === 'mail') {
-    currentTab.value = 'mail';
-    router.replace({
-      query: {
-        ...route.query,
-        tab: 'messages',
-        section: 'mail'
-      }
-    });
+    showFeedback('私信功能已下架，消息中心仅保留站内通知。', 'info');
+    setNotificationTab('all');
     return;
   }
-  if (currentTab.value === 'mail') {
-    currentTab.value = 'all';
-  }
+  currentTab.value = NOTIFICATION_TABS.some((tab) => tab.id === currentTab.value) ? currentTab.value : 'all';
   const nextQuery = {
     ...route.query,
     tab: 'messages',
@@ -1169,7 +702,7 @@ onMounted(() => {
 // 处理 auth 初始化竞态：用户ID晚到时自动补拉一次
 watch(() => userInfo.value?.id, async (newId, oldId) => {
   if (!newId || newId === oldId) return;
-  await Promise.allSettled([loadNotifications(), fetchMails()]);
+  await loadNotifications();
   await startRealtimeChannels(newId);
 });
 
@@ -1191,7 +724,6 @@ const handleUnreadRefreshEvent = async (event) => {
   invalidateMessageCenterCaches();
   scheduleRealtimeRefresh({
     notifications: true,
-    mails: true,
     forceCache: event?.detail?.source === 'realtime'
   });
 };
@@ -1201,9 +733,7 @@ onMounted(async () => {
   await waitForAuthReady();
 
   await Promise.allSettled([
-    loadNotifications(),
-    fetchMails(),
-    fetchPartners()
+    loadNotifications()
   ]);
 
   // 监听 boh_unread_refresh 事件来刷新消息列表
@@ -1641,238 +1171,9 @@ const formatDate = (dateString) => {
   });
 };
 
-// Mail functions
-const fetchMails = async ({ silent = false, append = false } = {}) => {
-  if (!isLoggedIn.value) return;
-  if (!silent) {
-    loadingMails.value = true;
-    mailsLoadError.value = '';
-  }
-  try {
-    const { data, hasMore, nextCursor, error } = await withTaskTimeout(
-      getUserMessages(userInfo.value.id, {
-        limit: MESSAGE_PAGE_SIZE,
-        cursor: append ? mailsCursor.value : null
-      })
-    );
-    if (error) throw error;
-    if (append) {
-      mails.value = mergeById(mails.value, data || []);
-    } else {
-      mails.value = data || [];
-    }
-    hasMoreMails.value = Boolean(hasMore);
-    mailsCursor.value = nextCursor || null;
-  } catch (err) {
-    logger.error('messages', '加载信件失败', err);
-    if (!silent) {
-      mailsLoadError.value = err?.message || '网络异常，请稍后重试';
-    }
-  } finally {
-    if (!silent) {
-      loadingMails.value = false;
-    }
-  }
-};
-
-const loadMoreMails = async () => {
-  if (!isLoggedIn.value || loadingMoreMails.value || !hasMoreMails.value) return;
-  loadingMoreMails.value = true;
-  try {
-    await fetchMails({ silent: true, append: true });
-  } catch (err) {
-    logger.error('messages', '加载更多信件失败', err);
-    showFeedback(err?.message || '加载更多失败，请稍后重试', 'error');
-  } finally {
-    loadingMoreMails.value = false;
-  }
-};
-
-const fetchPartners = async () => {
-  loadingPartners.value = true;
-  try {
-    const { data, error } = await withTaskTimeout(
-      supabase
-        .from('profiles')
-        .select('id, username, role')
-        .order('username')
-    );
-    if (!error) {
-      allPartners.value = (data || []).filter((partner) => normalizePartnerName(partner?.username));
-      applyMailQueryRecipient();
-    }
-  } catch (err) {
-    logger.error('messages', '获取伙伴列表失败', err);
-  } finally {
-    loadingPartners.value = false;
-  }
-};
-
-const selectMail = async (mail) => {
-  selectedMail.value = mail;
-  if (mailFolder.value === 'inbox' && mail.status === 'unread') {
-    const previousStatus = mail.status;
-    mail.status = 'read';
-    try {
-      const { error } = await markMessageAsRead(mail.id);
-      if (error) throw error;
-      await triggerUnreadRefresh();
-    } catch (err) {
-      mail.status = previousStatus;
-      logger.error('messages', '更新已读状态失败', err);
-      showFeedback(err?.message || '标记信件已读失败', 'error');
-    }
-  }
-};
-
-const markVisibleMailsAsRead = async () => {
-  const targetMails = filteredMails.value.filter((mail) =>
-    mailFolder.value === 'inbox' && mail.status === 'unread'
-  );
-  if (!targetMails.length) return;
-
-  const previousRows = targetMails.map((mail) => ({ mail, status: mail.status }));
-  targetMails.forEach((mail) => {
-    mail.status = 'read';
-  });
-
-  try {
-    const result = await markMessagesAsRead(targetMails.map((mail) => mail.id));
-    if (result?.error) throw result.error;
-    await triggerUnreadRefresh();
-    showFeedback('当前收件已标记为已读', 'success');
-  } catch (error) {
-    previousRows.forEach(({ mail, status }) => {
-      mail.status = status;
-    });
-    logger.error('messages', '批量标记信件已读失败', error);
-    showFeedback(error?.message || '操作失败，请稍后重试', 'error');
-  }
-};
-
-const closeMailDetail = () => {
-  selectedMail.value = null;
-};
-
-const openComposeModal = () => {
-  selectedRecipients.value = [];
-  composeData.receiver_search = '';
-  composeData.subject = '';
-  composeData.content = '';
-  composeData.isReply = false;
-  showComposeModal.value = true;
-};
-
-const closeComposeModal = () => {
-  showComposeModal.value = false;
-  showRecipientDropdown.value = false;
-};
-
-const handleComposeModalClick = (event) => {
-  if (event?.target?.closest?.('.recipient-field')) {
-    return;
-  }
-  showRecipientDropdown.value = false;
-};
-
-const toggleRecipient = (partner) => {
-  const index = selectedRecipients.value.findIndex(r => r.id === partner.id);
-  if (index === -1) {
-    selectedRecipients.value.push(partner);
-  } else {
-    selectedRecipients.value.splice(index, 1);
-  }
-  composeData.receiver_search = '';
-};
-
-const removeRecipient = (user) => {
-  selectedRecipients.value = selectedRecipients.value.filter(r => r.id !== user.id);
-};
-
-const isRecipientSelected = (partner) => {
-  return selectedRecipients.value.some(r => r.id === partner.id);
-};
-
-const getRoleLabel = (role) => {
-  const labels = {
-    'admin': '管理员',
-    'user': '成员',
-    'vip': 'VIP'
-  };
-  return labels[role] || '成员';
-};
-
-const sendMail = async () => {
-  if (!isComposeValid.value) return;
-  isModerating.value = true;
-
-  try {
-    const sendResult = await sendModeratedMessages({
-      senderId: userInfo.value.id,
-      senderName: userInfo.value.username,
-      recipients: selectedRecipients.value,
-      subject: composeData.subject,
-      content: composeData.content,
-      scene: 'mail',
-      failClosed: true,
-      pushplus: true
-    });
-
-    if (sendResult.blocked) {
-      showFeedback(`信件发送失败：${sendResult.moderation?.message || '内容审查未通过'}`, 'error');
-      return;
-    }
-
-    if (!sendResult.ok && sendResult.failedCount > 0) {
-      logger.error('messages', '部分信件发送失败', sendResult.results);
-      showFeedback(`发送完成，但有 ${sendResult.failedCount} 封信件发送失败`, 'error');
-    } else {
-      showFeedback(selectedRecipients.value.length > 1 ? `已成功向 ${selectedRecipients.value.length} 位伙伴发送信件` : '信件已发送', 'success');
-    }
-
-    showComposeModal.value = false;
-    fetchMails();
-  } catch (err) {
-    logger.error('messages', '发送信件失败', err);
-    showFeedback('发送失败，请稍后重试', 'error');
-  } finally {
-    isModerating.value = false;
-  }
-};
-
-const handleReplyMail = (mail) => {
-  selectedRecipients.value = [{ id: mail.sender_id, username: mail.sender_name }];
-  composeData.receiver_search = '';
-  composeData.subject = mail.subject?.startsWith('回复:') ? mail.subject : `回复: ${mail.subject}`;
-  composeData.content = '';
-  composeData.isReply = true;
-  selectedMail.value = null;
-  showComposeModal.value = true;
-};
-
-const handleDeleteMail = async (mail) => {
-  if (!confirm('确定要删除这封信件吗？')) return;
-  try {
-    const { error } = await deleteMessage(mail.id);
-    if (error) throw error;
-    mails.value = mails.value.filter(m => m.id !== mail.id);
-    selectedMail.value = null;
-    await triggerUnreadRefresh();
-    showFeedback('信件已删除', 'success');
-  } catch (err) {
-    logger.error('messages', '删除信件失败', err);
-    showFeedback('删除失败，请稍后重试', 'error');
-  }
-};
-
 const loadMoreNotificationLabel = computed(() => {
   if (loadingMoreNotifications.value) return '加载中...';
   return hasMoreNotifications.value ? '加载更多通知' : '没有更多通知';
-});
-
-const loadMoreMailLabel = computed(() => {
-  if (loadingMoreMails.value) return '加载中...';
-  return hasMoreMails.value ? '加载更多信件' : '没有更多信件';
 });
 </script>
 

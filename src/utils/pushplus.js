@@ -166,18 +166,6 @@ export async function sendNotificationPush(token, type, data = {}) {
         <div style="background: #f5f5f7; padding: 12px; border-radius: 8px; margin: 12px 0; color: #333; font-size: 14px; line-height: 1.6;">${data.impressionContent || ''}</div>
         <div style="font-size: 12px; color: #86868b; margin-top: 12px;">${new Date().toLocaleString('zh-CN')}</div>
       </div>`
-    },
-    message: {
-      title: `💌 ${data.senderName || '有人'}给你发送了私信`,
-      content: `<div style="padding: 16px; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-          <span style="font-size: 24px;">📨</span>
-          <span style="font-size: 16px; font-weight: 600; color: #1d1d1f;">${data.senderName || '有人'}的私信：</span>
-        </div>
-        ${data.messageSubject ? `<div style="font-weight: 600; color: #1d1d1f; margin-bottom: 8px; font-size: 15px;">主题：${data.messageSubject}</div>` : ''}
-        <div style="background: #f5f5f7; padding: 12px; border-radius: 8px; margin: 12px 0; color: #333; font-size: 14px; line-height: 1.6;">${data.messageContent || ''}</div>
-        <div style="font-size: 12px; color: #86868b; margin-top: 12px;">${new Date().toLocaleString('zh-CN')}</div>
-      </div>`
     }
   };
 

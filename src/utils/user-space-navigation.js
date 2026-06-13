@@ -3,11 +3,10 @@ export const createUserSpaceProfileReturnLocation = () => ({
 });
 
 export const createUserSpaceMessagesLocation = (section = 'notifications', extraQuery = {}) => ({
-  path: '/user-space',
+  path: '/user-space/profile',
   query: {
     ...extraQuery,
-    tab: 'messages',
-    section
+    from: section
   }
 });
 

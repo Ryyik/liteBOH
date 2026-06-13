@@ -1,8 +1,6 @@
 import {
   ACTION_DRAFT_CONTENT_MAX_CHARS,
-  ACTION_DRAFT_SUBJECT_MAX_CHARS,
   ACTION_DRAFT_TITLE_MAX_CHARS,
-  ACTION_MAIL_TRIGGER_PATTERN,
   ACTION_POST_TRIGGER_PATTERN,
   DEGENERATE_PUNCT_REPEAT_COUNT,
   DEGENERATE_PUNCTUATION_RATIO,
@@ -781,45 +779,6 @@ export const hasPostDraftUserIdea = (rawText, draft = {}) => {
   ideaText = ideaText.replace(POST_DRAFT_IDEA_NOISE_PATTERN, ' ');
   ideaText = normalizePromptLine(ideaText, ACTION_DRAFT_CONTENT_MAX_CHARS).replace(/\s+/g, '');
   return ideaText.length >= 4;
-};
-
-export const extractRecipientName = (text) => {
-  const safeText = normalizeActionInput(text);
-  const byLabel = extractSingleLineField(safeText, ['收件人', '接收人', 'recipient', 'to']);
-  if (byLabel) {
-    return normalizePromptLine(byLabel.replace(/^@/, ''), 40);
-  }
-
-  const normalized = stripLeadingActionPhrase(safeText);
-  const matched = normalized.match(/给\s*([^\s，,。；;:：]{1,30})\s*发(?:邮件|私信|信)/i);
-  return normalizePromptLine((matched?.[1] || '').replace(/^@/, ''), 40);
-};
-
-export const buildMailDraftFromText = (text) => {
-  const safeText = normalizeActionInput(text);
-  const normalized = stripLeadingActionPhrase(safeText);
-  const recipientName = extractRecipientName(normalized);
-  const subject = extractSingleLineField(normalized, ['主题', '标题', 'subject']) || 'AI草稿私信';
-
-  let content = extractMultilineField(normalized, ['内容', '正文', 'body'], ACTION_DRAFT_CONTENT_MAX_CHARS);
-  if (!content) {
-    let fallback = normalized;
-    fallback = fallback.replace(ACTION_MAIL_TRIGGER_PATTERN, '');
-    fallback = fallback.replace(/给\s*[^\s，,。；;:：]{1,30}\s*发(?:邮件|私信|信)/ig, '');
-    fallback = fallback.replace(/(?:收件人|接收人|recipient|to)\s*[：:][^\n]+/ig, '');
-    fallback = fallback.replace(/(?:主题|标题|subject)\s*[：:][^\n]+/ig, '');
-    fallback = fallback.replace(/(?:内容|正文|body)\s*[：:]/ig, '');
-    content = normalizePromptLine(fallback, ACTION_DRAFT_CONTENT_MAX_CHARS);
-  }
-  if (!content) {
-    content = '（请在这里填写信件正文）';
-  }
-
-  return {
-    recipientName,
-    subject: normalizePromptLine(subject, ACTION_DRAFT_SUBJECT_MAX_CHARS),
-    content: normalizePromptLine(content, ACTION_DRAFT_CONTENT_MAX_CHARS)
-  };
 };
 
 export const buildPageDraftFromText = (text) => {

@@ -11,7 +11,7 @@ export const SITE_OPERATION_MEMORY = `
 - BOH AI: /ai-chat（同时已集成在 /user-space 的 AI 标签页）
 - AI广场: /ai-plaza（多模型统一入口）
 - 论坛: /forum
-- 消息中心: /user-center/messages
+- 消息中心: /user-center/messages（当前仅保留通知、点赞、评论、印象与系统消息）
 - 社区伙伴: /user-center/partners
 - 标签与印象: /user-center/tags-impressions
 - 礼物与地址: /user-center/address

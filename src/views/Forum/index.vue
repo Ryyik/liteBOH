@@ -17,6 +17,7 @@ import {
 } from 'lucide-vue-next';
 import UnifiedNavbar from '../../components/UnifiedNavbar/index.vue';
 import PostComposer from './components/PostComposer.vue';
+import { useForumImageModerationPreload } from './composables/useForumImageModerationPreload.js';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader.js';
@@ -27,7 +28,7 @@ const props = defineProps({
   showHeader: { type: Boolean, default: true },
   embedded: { type: Boolean, default: false }
 });
-const emit = defineEmits(['immersive-scroll']);
+const emit = defineEmits(['island-message']);
 
 const router = useRouter();
 const route = useRoute();
@@ -120,6 +121,23 @@ import { formatSmartTime } from '../../utils/time.js';
 import { addExperience, XP_REWARDS } from '../../utils/xp.js';
 import DOMPurify from '@/utils/dompurify.js';
 import {
+  AI_SEARCH_MODEL_ID,
+  FORUM_IMAGE_UPLOAD_CONCURRENCY,
+  FORUM_LIST_IMAGE_TRANSFORM_MD,
+  FORUM_LIST_IMAGE_TRANSFORM_SM,
+  FORUM_LIST_LQIP_TRANSFORM,
+  FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT,
+  FORUM_POST_DRAFT_PREFIX,
+  FORUM_POST_DRAFT_VERSION_LIMIT,
+  FORUM_POST_IMAGE_MAX_COUNT,
+  FORUM_TAG_MAP,
+  FORUM_TAG_OPTIONS,
+  LIST_REPLY_PREVIEW_COUNT,
+  POSTS_PER_PAGE,
+  SEARCH_DEBOUNCE_MS,
+  WEEKLY_CHECKIN_REWARD_POINTS
+} from './forum-config.js';
+import {
   POST_REJECTED_NOTICE_TEXT,
   POST_REJECTED_NOTIFICATION_TYPE,
   POST_REPORT_LIMITED_NOTICE_TEXT,
@@ -133,8 +151,7 @@ import {
 } from '../../utils/moderation-retry-cache.js';
 import {
   callBohAIModel,
-  extractBohAIJsonObject,
-  getBohAIModelStatus
+  extractBohAIJsonObject
 } from '@/utils/bohai-model-client.js';
 
 // 别名方便使用
@@ -161,67 +178,10 @@ const shareCopiedPostIds = ref(new Set());
 const loadedForumImageKeys = ref(new Set());
 const uiAnimationTimers = new Map();
 const hotTagStats = ref([]);
-let imageModerationPreloadTimer = null;
-let imageModerationPreloadIdleId = null;
-let hasScheduledImageModerationPreload = false;
-const POSTS_PER_PAGE = 10;
-const LIST_REPLY_PREVIEW_COUNT = 3;
-const WEEKLY_CHECKIN_REWARD_POINTS = 5;
-const FORUM_POST_IMAGE_MAX_COUNT = 6;
-const FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT = 4;
-const FORUM_POST_DRAFT_PREFIX = 'boh_forum_post_draft';
-const FORUM_POST_DRAFT_VERSION_LIMIT = 5;
-const SEARCH_DEBOUNCE_MS = 350;
-const FORUM_IMAGE_UPLOAD_CONCURRENCY = 2;
-const AI_SEARCH_MODEL_ID = import.meta.env.VITE_FORUM_AI_SEARCH_MODEL || getBohAIModelStatus().defaultModelId;
-const FORUM_LIST_IMAGE_TRANSFORM_SM = 'f_auto,q_auto:good,c_fill,w_360,h_270';
-const FORUM_LIST_IMAGE_TRANSFORM_MD = 'f_auto,q_auto:good,c_fill,w_540,h_405';
-const FORUM_LIST_LQIP_TRANSFORM = 'f_auto,q_auto:low,c_fill,w_72,h_54,e_blur:1000';
-const FORUM_TAG_OPTIONS = [
-  { value: 'server', label: '#服务器' },
-  { value: 'activity', label: '#活动' },
-  { value: 'daily', label: '#日常' },
-  { value: 'question', label: '#提问' }
-];
-const FORUM_TAG_MAP = Object.fromEntries(FORUM_TAG_OPTIONS.map((tag) => [tag.value, tag]));
-const shouldPreloadForumImageModeration = () => {
-  if (typeof window === 'undefined') return false;
-  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-  const effectiveType = String(connection?.effectiveType || '').toLowerCase();
-  if (connection?.saveData) return false;
-  if (effectiveType === 'slow-2g' || effectiveType === '2g') return false;
-  return true;
-};
-
-const clearForumImageModerationPreloadTask = () => {
-  if (imageModerationPreloadTimer) {
-    clearTimeout(imageModerationPreloadTimer);
-    imageModerationPreloadTimer = null;
-  }
-  if (imageModerationPreloadIdleId && typeof window.cancelIdleCallback === 'function') {
-    window.cancelIdleCallback(imageModerationPreloadIdleId);
-    imageModerationPreloadIdleId = null;
-  }
-};
-
-const scheduleForumImageModerationPreload = () => {
-  if (hasScheduledImageModerationPreload || !shouldPreloadForumImageModeration()) return;
-  hasScheduledImageModerationPreload = true;
-
-  const runPreload = () => {
-    imageModerationPreloadIdleId = null;
-    void preloadForumImageModeration();
-  };
-
-  imageModerationPreloadTimer = setTimeout(() => {
-    imageModerationPreloadTimer = null;
-    if (typeof window.requestIdleCallback === 'function') {
-      imageModerationPreloadIdleId = window.requestIdleCallback(runPreload, { timeout: 12000 });
-      return;
-    }
-    runPreload();
-  }, 2500);
-};
+const {
+  clearForumImageModerationPreloadTask,
+  scheduleForumImageModerationPreload
+} = useForumImageModerationPreload(preloadForumImageModeration);
 
 const normalizeForumTagValue = (tag = '') => {
   const safeTag = String(tag || '').trim().toLowerCase();
@@ -1085,16 +1045,26 @@ const discardDraftPostImages = async ({ silent = true } = {}) => {
 };
 
 // 移动端判断
+const MOBILE_BREAKPOINT = 768;
+const PORTRAIT_COMPOSER_BREAKPOINT = 1024;
 const isMobile = ref(window.innerWidth <= 768);
 const updateMobileStatus = () => {
-  isMobile.value = window.innerWidth <= 768;
-  isMobileComposerMode.value = window.innerWidth <= 768 && window.innerHeight >= window.innerWidth;
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  isMobile.value = width <= MOBILE_BREAKPOINT;
+  isMobileComposerMode.value = width <= PORTRAIT_COMPOSER_BREAKPOINT && height >= width;
   if (!isMobileComposerMode.value) {
     isMobileComposerOpen.value = false;
   }
 };
 
 updateMobileStatus();
+
+const isForumComposerFabVisible = computed(() => {
+  if (!isMobileComposerMode.value || feedMode.value !== 'posts') return false;
+  if (!props.embedded) return true;
+  return route.path === '/user-space' && getQueryString(route.query.tab || 'profile') === 'posts';
+});
 
 const openMobileComposer = () => {
   feedMode.value = 'posts';
@@ -1120,6 +1090,7 @@ onMounted(() => {
   loadRetriedNotificationIds();
   restorePostDraft();
   window.addEventListener('resize', updateMobileStatus);
+  window.addEventListener('orientationchange', updateMobileStatus);
   window.addEventListener('scroll', handleScroll);
   document.addEventListener('click', closePostImageSourceMenu);
   window.addEventListener('keydown', handleForumImageViewerKeydown);
@@ -1137,6 +1108,7 @@ onUnmounted(() => {
   forumFetchAbortController?.abort?.();
   forumFetchAbortController = null;
   window.removeEventListener('resize', updateMobileStatus);
+  window.removeEventListener('orientationchange', updateMobileStatus);
   window.removeEventListener('scroll', handleScroll);
   document.removeEventListener('click', closePostImageSourceMenu);
   window.removeEventListener('keydown', handleForumImageViewerKeydown);
@@ -2227,7 +2199,7 @@ const confirmState = ref({
   resolve: null
 });
 const confirmMascotSrc = computed(() => {
-  if (!confirmState.value.show) return '';
+  if (!isHomeCatActive.value || !confirmState.value.show) return '';
   const confirmText = String(confirmState.value.confirmText || '');
   const title = String(confirmState.value.title || '');
   return confirmText.includes('删除') || title.includes('删除') ? getHomeCatAsset('delete') : '';
@@ -2235,6 +2207,12 @@ const confirmMascotSrc = computed(() => {
 
 const showModal = (type, title, message) => {
   modalState.value = { show: true, type, title, message };
+};
+
+const showEmbeddedSuccessIsland = (payload = {}) => {
+  if (!props.embedded) return false;
+  emit('island-message', payload);
+  return true;
 };
 
 const closeConfirm = (confirmed = false) => {
@@ -2403,11 +2381,21 @@ const handlePost = async () => {
     clearPostImages({ cleanup: false });
     closeMobileComposer();
     await nextTick();
-    showModal(
-      'success',
-      '发布成功',
-      '编辑器已关闭，帖子已加入社区动态'
-    );
+    if (!showEmbeddedSuccessIsland({
+      title: '发帖成功',
+      message: '你的帖子已经加入社区动态',
+      icon: 'post',
+      type: 'success',
+      catSticker: 'success',
+      catStickerMode: 'hero',
+      forceCatSticker: true
+    })) {
+      showModal(
+        'success',
+        '发布成功',
+        '编辑器已关闭，帖子已加入社区动态'
+      );
+    }
 
     // 增加发帖经验
     addExperience(supabase, userInfo.id, XP_REWARDS.POST);
@@ -2545,11 +2533,21 @@ const submitReply = async (post) => {
     await loadPostReplyPreview(post);
     await refreshPostEngagementStats(post);
     expandedPostIds.value.add(post.id);
-    showModal(
-      'success',
-      '回复成功',
-      '你的声音已被听到'
-    );
+    if (!showEmbeddedSuccessIsland({
+      title: '评论成功',
+      message: '你的回复已经发送啦',
+      icon: 'comment',
+      type: 'success',
+      catSticker: 'like',
+      catStickerMode: 'peek',
+      forceCatSticker: true
+    })) {
+      showModal(
+        'success',
+        '回复成功',
+        '你的声音已被听到'
+      );
+    }
 
     addExperience(supabase, userInfo.id, XP_REWARDS.REPLY);
     addUiMarker(replySuccessPostIds, post.id, 1800, 'reply-success');
@@ -2678,17 +2676,6 @@ const sharePost = async (post) => {
 let scrollTimeout = null;
 
 const handleScroll = () => {
-  const scrollTop = document.documentElement.scrollTop || document.body.scrollTop || window.scrollY || 0;
-  const scrollHeight = document.documentElement.scrollHeight || document.body.scrollHeight || 0;
-  const clientHeight = document.documentElement.clientHeight || window.innerHeight || 0;
-
-  emit('immersive-scroll', {
-    scrollTop,
-    scrollHeight,
-    clientHeight,
-    feedMode: feedMode.value
-  });
-
   if (feedMode.value !== 'posts') return;
   if (isLoading.value || isLoadingMore.value || !hasMoreData.value) return;
 
@@ -2699,6 +2686,12 @@ const handleScroll = () => {
 
   // 设置新的定时器，减少到100ms防抖
   scrollTimeout = setTimeout(() => {
+    const scrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+    const clientHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+    const scrollHeight = Math.max(
+      document.documentElement.scrollHeight || 0,
+      document.body.scrollHeight || 0
+    );
     // 当滚动到距离底部800px时加载更多
     if (scrollTop + clientHeight >= scrollHeight - 800) {
       fetchForumData(true);
@@ -2850,7 +2843,7 @@ const openPostDetail = (postId) => {
 </script>
 
 <template>
-  <div class="forum-page" :class="{ 'embedded-mode': embedded }" data-theme :data-ui-style="currentUiStyle">
+  <div class="forum-page" :class="{ 'embedded-mode': embedded }" :data-theme="currentTheme" :data-ui-style="currentUiStyle">
     <link rel="preconnect" :href="cdnDeliveryBase" crossorigin />
     <link rel="dns-prefetch" :href="cdnDeliveryBase" />
     <UnifiedNavbar v-if="showNavbar" />
@@ -3285,10 +3278,12 @@ const openPostDetail = (postId) => {
       </main>
     </div>
 
-    <button v-if="isMobileComposerMode && feedMode === 'posts'" type="button" class="mobile-compose-fab"
-      aria-label="发布帖子" @click="openMobileComposer">
-      <span>+</span>
-    </button>
+    <Teleport to="body">
+      <button v-if="isForumComposerFabVisible" type="button" class="mobile-compose-fab"
+        :class="{ 'embedded-compose-fab': embedded }" aria-label="发布帖子" @click="openMobileComposer">
+        <span>+</span>
+      </button>
+    </Teleport>
 
     <Teleport to="body">
       <Transition name="mobile-composer">
@@ -3563,7 +3558,7 @@ const openPostDetail = (postId) => {
       <Transition name="forum-confirm-fade">
         <div v-if="confirmState.show" class="forum-confirm-overlay" @click.self="closeConfirm(false)">
           <div class="forum-confirm-modal" role="dialog" aria-modal="true" :aria-label="confirmState.title">
-            <img v-if="confirmMascotSrc" class="forum-confirm-cat-img" :src="confirmMascotSrc" alt="" draggable="false" />
+            <img v-if="isHomeCatActive && confirmMascotSrc" class="forum-confirm-cat-img" :src="confirmMascotSrc" alt="" draggable="false" />
             <h3>{{ confirmState.title }}</h3>
             <p>{{ confirmState.message }}</p>
             <div class="forum-confirm-actions">
@@ -3646,4 +3641,8 @@ const openPostDetail = (postId) => {
   </div>
 </template>
 
-<style scoped src="./style.scoped.css"></style>
+<style scoped src="./styles/base.css"></style>
+<style scoped src="./styles/composer.css"></style>
+<style scoped src="./styles/feed.css"></style>
+<style scoped src="./styles/replies-responsive.css"></style>
+<style scoped src="./styles/drawers-skeletons.css"></style>

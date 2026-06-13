@@ -8,6 +8,12 @@ const DEFAULT_IGNORES = new Set([".git", "node_modules", "dist"]);
 const VIEWS_ROOT = "src/views";
 const MIGRATIONS_ROOT = "supabase/migrations";
 const ROUTER_ROOT = "src/router";
+const LARGE_FILE_LINE_LIMITS = {
+  ".css": 2000,
+  ".js": 2500,
+  ".ts": 2500,
+  ".vue": 2500,
+};
 
 const walkFiles = (root, ignores = DEFAULT_IGNORES) => {
   const files = [];
@@ -53,6 +59,96 @@ const collectRouteImportIssues = (projectRoot) => {
   return issues;
 };
 
+const stripCommentsAndStrings = (source) => source
+  .replace(/\/\*[\s\S]*?\*\//g, " ")
+  .replace(/\/\/[^\n\r]*/g, " ")
+  .replace(/`(?:\\[\s\S]|[^`\\])*`/g, " ")
+  .replace(/'(?:\\.|[^'\\])*'/g, " ")
+  .replace(/"(?:\\.|[^"\\])*"/g, " ");
+
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const parseExportedNames = (exportList) => exportList
+  .split(",")
+  .map((part) => part.replace(/\/\*[\s\S]*?\*\//g, "").trim())
+  .filter(Boolean)
+  .map((part) => part.split(/\s+as\s+/)[0]?.trim())
+  .filter(Boolean);
+
+const collectLocalBindings = (source) => {
+  const bindings = new Set();
+  const sourceWithoutComments = source
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/\/\/[^\n\r]*/g, " ");
+  const namedImportPattern = /import\s*\{([\s\S]*?)\}\s*from\s*["'][^"']+["'];?/g;
+  const declarationPattern = /\b(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)\b/g;
+  let match;
+
+  while ((match = namedImportPattern.exec(sourceWithoutComments))) {
+    for (const part of match[1].split(",")) {
+      const cleaned = part.trim();
+      if (!cleaned) continue;
+      const localName = cleaned.split(/\s+as\s+/).pop()?.trim();
+      if (localName) bindings.add(localName);
+    }
+  }
+
+  while ((match = declarationPattern.exec(sourceWithoutComments))) {
+    bindings.add(match[1]);
+  }
+
+  return bindings;
+};
+
+const collectReExportRuntimeBindingIssues = (projectRoot) => {
+  const srcDir = path.join(projectRoot, "src");
+  if (!existsSync(srcDir)) return [];
+
+  const issues = [];
+  const sourceFiles = walkFiles(srcDir)
+    .filter((file) => /\.(vue|js|ts)$/.test(file));
+
+  for (const file of sourceFiles) {
+    const source = readFileSync(file, "utf8");
+    const reExportPattern = /export\s*\{([\s\S]*?)\}\s*from\s*["'][^"']+["'];?/g;
+    const reExports = [];
+    let match;
+
+    while ((match = reExportPattern.exec(source))) {
+      reExports.push({
+        start: match.index,
+        end: reExportPattern.lastIndex,
+        names: parseExportedNames(match[1]),
+      });
+    }
+
+    if (reExports.length === 0) continue;
+
+    const reExportNames = [...new Set(reExports.flatMap((item) => item.names))];
+    if (reExportNames.length === 0) continue;
+
+    const sourceWithoutReExports = reExports.reduceRight(
+      (current, item) => `${current.slice(0, item.start)}${current.slice(item.end)}`,
+      source
+    );
+    const localBindings = collectLocalBindings(sourceWithoutReExports);
+    const searchableSource = stripCommentsAndStrings(sourceWithoutReExports);
+
+    for (const name of reExportNames) {
+      if (localBindings.has(name)) {
+        continue;
+      }
+
+      const runtimeReferencePattern = new RegExp(`\\b${escapeRegExp(name)}\\b`, "m");
+      if (runtimeReferencePattern.test(searchableSource)) {
+        issues.push(`转发导出未创建本地绑定，但文件内部引用了 ${name}: ${normalize(projectRoot, file)}`);
+      }
+    }
+  }
+
+  return issues;
+};
+
 const collectStructureReport = (projectRoot = process.cwd()) => {
   const errors = [];
   const warnings = [];
@@ -85,6 +181,7 @@ const collectStructureReport = (projectRoot = process.cwd()) => {
   }
 
   errors.push(...collectRouteImportIssues(projectRoot));
+  errors.push(...collectReExportRuntimeBindingIssues(projectRoot));
 
   const viteConfig = path.join(projectRoot, "vite.config.js");
   if (existsSync(viteConfig)) {
@@ -109,10 +206,12 @@ const collectStructureReport = (projectRoot = process.cwd()) => {
     }))
     .sort((a, b) => b.lines - a.lines);
 
-  for (const item of sourceFiles.slice(0, 12)) {
+  for (const item of sourceFiles.slice(0, 20)) {
     const relative = normalize(projectRoot, item.file);
-    if (item.lines >= 3000) {
-      warnings.push(`超大文件建议拆分: ${relative} (${item.lines} 行)`);
+    const ext = path.extname(item.file);
+    const limit = LARGE_FILE_LINE_LIMITS[ext] || 3000;
+    if (item.lines >= limit) {
+      warnings.push(`超大文件建议拆分: ${relative} (${item.lines} 行，建议阈值 ${limit} 行)`);
     }
   }
 
@@ -143,4 +242,4 @@ if (process.argv[1] && path.resolve(process.argv[1]) === currentFile) {
   runCli();
 }
 
-export { collectStructureReport };
+export { collectReExportRuntimeBindingIssues, collectStructureReport };

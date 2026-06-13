@@ -25,7 +25,6 @@ export const BOHAI_CONNECTOR_IDS = {
 
 export const BOHAI_ACTION_IDS = {
   createPost: 'createPost',
-  sendMail: 'sendMail',
   saveCloud: 'saveCloud',
   saveSharedMemory: 'saveSharedMemory',
   saveBothMemories: 'saveBothMemories',

@@ -85,6 +85,58 @@ const invokeRuntime = async (payload = {}) => {
   }
 };
 
+export const callVaultSiliconChatStream = async ({
+  provider = 'siliconflow',
+  purpose = 'chat',
+  payload = {},
+  apiUrl = '',
+  timeoutMs = 30000,
+  signal
+} = {}) => {
+  if (!runtimeFunctionUrl || !supabaseAnonKey) {
+    throw new Error('缺少 Supabase 运行时配置');
+  }
+
+  const sessionResult = await supabase.auth.getSession().catch(() => null);
+  const accessToken = sessionResult?.data?.session?.access_token || supabaseAnonKey;
+  const timeoutSignal = AbortSignal.timeout(Math.max(1, Number(timeoutMs || 30000)));
+  const requestSignal = signal
+    ? (typeof AbortSignal.any === 'function' ? AbortSignal.any([signal, timeoutSignal]) : signal)
+    : timeoutSignal;
+
+  const response = await fetch(runtimeFunctionUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+      'apikey': supabaseAnonKey
+    },
+    signal: requestSignal,
+    body: JSON.stringify({
+      action: 'runtime-chat-stream',
+      provider,
+      purpose,
+      payload: {
+        ...payload,
+        stream: true
+      },
+      apiUrl,
+      timeoutMs
+    })
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(text.slice(0, 240) || `API Key 流式代理服务返回失败 (${response.status})`);
+  }
+
+  if (!response.body) {
+    throw new Error('API Key 流式代理服务未返回可读流');
+  }
+
+  return response;
+};
+
 export const callVaultSiliconChat = ({
   provider = 'siliconflow',
   purpose = 'chat',

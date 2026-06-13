@@ -3,258 +3,52 @@
     <UnifiedNavbar />
 
     <div class="admin-shell">
-      <aside class="admin-sidebar" :class="{ open: isAdminSidebarOpen }">
-        <div class="sidebar-brand">
-          <div class="brand-mark">B</div>
-          <div>
-            <div class="brand-title">BOH Admin</div>
-            <div class="brand-subtitle">Website Console</div>
-          </div>
-        </div>
-
-        <nav class="sidebar-nav" aria-label="网站管理导航">
-          <template v-for="item in adminNavigation" :key="item.id">
-            <button
-              class="sidebar-link"
-              :class="{ active: item.active }"
-              type="button"
-              @click="handleAdminNavClick(item)"
-            >
-              <component :is="item.icon" :size="17" />
-              <span>{{ item.label }}</span>
-              <span v-if="item.badge" class="sidebar-badge">{{ item.badge }}</span>
-              <span
-                v-if="item.id === 'data'"
-                class="sidebar-collapse-indicator"
-                :class="{ collapsed: isDataTreeCollapsed }"
-              >
-                ▾
-              </span>
-            </button>
-
-            <div v-if="item.id === 'data' && !isDataTreeCollapsed" class="sidebar-data-tree">
-              <div v-if="currentPinnedTabs.length" class="sidebar-quick-block">
-                <div class="sidebar-quick-title">置顶表</div>
-                <button
-                  v-for="tab in currentPinnedTabs"
-                  :key="`pinned-${tab.id}`"
-                  class="sidebar-sub-link"
-                  :class="{ active: activeAdminSection === 'data' && currentTab === tab.id }"
-                  type="button"
-                  @click="handleSidebarTabClick(tab.id)"
-                >
-                  <span>{{ tab.label }}</span>
-                  <span v-if="getTabCount(tab.id) > 0" class="sidebar-mini-badge">{{ getTabCount(tab.id) }}</span>
-                </button>
-              </div>
-              <div
-                v-for="group in tabGroupsWithCounts"
-                :key="group.id"
-                class="sidebar-tab-group"
-              >
-                <button
-                  class="sidebar-group-link"
-                  :class="{ active: activeAdminSection === 'data' && activeTabGroupId === group.id }"
-                  type="button"
-                  @click="handleSidebarGroupClick(group)"
-                >
-                  <span>{{ group.label }}</span>
-                  <span class="sidebar-badge">{{ group.count }}</span>
-                  <span
-                    class="sidebar-collapse-indicator"
-                    :class="{ collapsed: isSidebarGroupCollapsed(group.id) }"
-                  >
-                    ▾
-                  </span>
-                </button>
-                <div v-if="!isSidebarGroupCollapsed(group.id)" class="sidebar-subnav">
-                  <button
-                    v-for="tab in getTabsByGroup(group)"
-                    :key="tab.id"
-                    class="sidebar-sub-link"
-                    :class="{ active: activeAdminSection === 'data' && currentTab === tab.id }"
-                    type="button"
-                    @click="handleSidebarTabClick(tab.id)"
-                  >
-                    <span>{{ tab.label }}</span>
-                    <span v-if="getTabCount(tab.id) > 0" class="sidebar-mini-badge">{{ getTabCount(tab.id) }}</span>
-                  </button>
-                </div>
-              </div>
-              <div v-if="recentRecordsForSidebar.length" class="sidebar-quick-block">
-                <div class="sidebar-quick-title">最近查看</div>
-                <button
-                  v-for="record in recentRecordsForSidebar"
-                  :key="`${record.tabId}-${record.id}`"
-                  class="sidebar-recent-link"
-                  type="button"
-                  @click="jumpToRecentRecord(record)"
-                >
-                  <span>{{ record.title }}</span>
-                  <small>{{ record.tabLabel }}</small>
-                </button>
-              </div>
-            </div>
-          </template>
-        </nav>
-
-        <div class="sidebar-status">
-          <div class="status-dot"></div>
-          <div>
-            <div class="status-label">Production</div>
-            <div class="status-value">所有服务在线</div>
-          </div>
-        </div>
-      </aside>
+      <AdminSidebar
+        :active-admin-section="activeAdminSection"
+        :active-tab-group-id="activeTabGroupId"
+        :current-tab="currentTab"
+        :get-tab-count="getTabCount"
+        :get-tabs-by-group="getTabsByGroup"
+        :is-data-tree-collapsed="isDataTreeCollapsed"
+        :is-group-collapsed="isSidebarGroupCollapsed"
+        :is-open="isAdminSidebarOpen"
+        :navigation="adminNavigation"
+        :pinned-tabs="currentPinnedTabs"
+        :recent-records="recentRecordsForSidebar"
+        :tab-groups="tabGroupsWithCounts"
+        @group-click="handleSidebarGroupClick"
+        @nav-click="handleAdminNavClick"
+        @recent-click="jumpToRecentRecord"
+        @tab-click="handleSidebarTabClick"
+      />
 
       <div v-if="isAdminSidebarOpen" class="sidebar-scrim" @click="isAdminSidebarOpen = false"></div>
 
       <main class="admin-main">
-        <!-- 顶部导航栏 -->
-        <header class="dm-header">
-          <div class="header-content">
-            <div class="header-left">
-              <button class="sidebar-toggle" type="button" @click="isAdminSidebarOpen = !isAdminSidebarOpen" aria-label="切换管理导航">
-                <PanelLeft :size="19" />
-              </button>
-              <button class="back-btn" @click="goBack" aria-label="返回首页" title="返回首页">
-                <ArrowLeft :size="19" />
-              </button>
-              <div class="header-title-group">
-                <span class="header-eyebrow">Website Dashboard</span>
-                <h1 class="header-title">网站管理面板</h1>
-                <p class="header-subtitle">内容、用户、审核和站点数据的统一工作台</p>
-              </div>
-            </div>
-            <div class="header-actions">
-              <button class="refresh-btn" @click="refreshAllData" :class="{ 'spinning': isRefreshing }">
-                <RefreshCw :size="17" />
-                <span>刷新数据</span>
-              </button>
-              <button v-if="isDataConsoleSection && !isModerationTab && canCreateCurrentTab" class="publish-btn" @click="openEditModal()">
-                <Plus :size="17" />
-                <span>新增记录</span>
-              </button>
-            </div>
-          </div>
-        </header>
+        <AdminHeader
+          :can-create="isDataConsoleSection && !isModerationTab && canCreateCurrentTab"
+          :is-refreshing="isRefreshing"
+          @back="goBack"
+          @create="openEditModal()"
+          @refresh="refreshAllData"
+          @toggle-sidebar="isAdminSidebarOpen = !isAdminSidebarOpen"
+        />
 
         <div class="main-container">
-          <section v-if="activeAdminSection === 'overview'" class="dashboard-hero">
-            <div class="hero-copy">
-              <div class="hero-kicker">
-                <span class="live-dot"></span>
-                方块之家管理控制台
-              </div>
-              <h2>站点运行、内容发布和数据维护集中处理。</h2>
-              <p>当前正在管理 {{ currentTabLabel }}，共 {{ totalRecordCount }} 条记录。{{ activeFilterSummary }}。</p>
-            </div>
-            <div class="hero-status-grid">
-              <div v-for="item in siteHealthCards" :key="item.label" class="hero-status-card">
-                <component :is="item.icon" :size="18" />
-                <div>
-                  <span>{{ item.label }}</span>
-                  <strong>{{ item.value }}</strong>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <!-- 统计概览卡片 -->
-          <section v-if="activeAdminSection === 'overview'" class="stats-section">
-            <div class="stat-card" v-for="stat in statsCards" :key="stat.id" :class="`stat-${stat.type}`">
-              <div class="stat-icon">
-                <component :is="stat.icon" :size="22" />
-              </div>
-              <div class="stat-content">
-                <template v-if="isLoading">
-                  <span class="dm-skeleton-block dm-stat-value-skeleton"></span>
-                  <span class="dm-skeleton-block dm-stat-label-skeleton"></span>
-                </template>
-                <template v-else>
-                  <span class="stat-value">{{ stat.value }}</span>
-                  <span class="stat-label">{{ stat.label }}</span>
-                </template>
-              </div>
-              <div class="stat-trend" v-if="!isLoading && stat.trend">
-                <span :class="{ 'up': stat.trend > 0, 'down': stat.trend < 0 }">
-                  {{ stat.trend > 0 ? '+' : '' }}{{ stat.trend }}%
-                </span>
-              </div>
-            </div>
-          </section>
-
-          <section v-if="activeAdminSection === 'overview'" class="dashboard-grid">
-            <div class="overview-panel">
-              <div class="panel-heading">
-                <div>
-                  <h2>数据表概览</h2>
-                  <p>当前管理模块的数据规模</p>
-                </div>
-                <Database :size="19" />
-              </div>
-              <div class="table-summary-list">
-                <button
-                  v-for="table in tableSummaryCards"
-                  :key="table.id"
-                  class="table-summary-item"
-                  :class="{ active: currentTab === table.id }"
-                  type="button"
-                  @click="switchTab(table.id)"
-                >
-                  <span class="table-summary-icon">{{ table.icon }}</span>
-                  <span class="table-summary-label">{{ table.label }}</span>
-                  <strong>{{ table.count }}</strong>
-                </button>
-              </div>
-            </div>
-
-            <div class="overview-panel">
-              <div class="panel-heading">
-                <div>
-                  <h2>异常诊断</h2>
-                  <p>审核、风控和调度状态</p>
-                </div>
-                <ShieldCheck :size="19" />
-              </div>
-              <div class="operations-list">
-                <button
-                  v-for="item in activeDiagnostics"
-                  :key="item.id"
-                  type="button"
-                  class="operation-item"
-                  :class="`tone-${item.tone}`"
-                  @click="switchTab(item.tab)"
-                >
-                  <span class="operation-status" :class="item.tone"></span>
-                  <div>
-                    <strong>{{ item.title }}</strong>
-                    <span>{{ item.description }}</span>
-                  </div>
-                  <span class="operation-count">{{ item.count }}</span>
-                </button>
-              </div>
-            </div>
-
-            <div class="overview-panel activity-panel">
-              <div class="panel-heading">
-                <div>
-                  <h2>最近活动</h2>
-                  <p>按数据表更新时间聚合</p>
-                </div>
-                <Activity :size="19" />
-              </div>
-              <div class="activity-list">
-                <div v-for="item in recentActivityItems" :key="item.id" class="activity-item">
-                  <div class="activity-dot"></div>
-                  <div>
-                    <strong>{{ item.title }}</strong>
-                    <span>{{ item.meta }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
+          <AdminOverview
+            v-if="activeAdminSection === 'overview'"
+            :active-diagnostics="activeDiagnostics"
+            :active-filter-summary="activeFilterSummary"
+            :current-tab="currentTab"
+            :current-tab-label="currentTabLabel"
+            :is-loading="isLoading"
+            :recent-activity-items="recentActivityItems"
+            :site-health-cards="siteHealthCards"
+            :stats-cards="statsCards"
+            :table-summary-cards="tableSummaryCards"
+            :total-record-count="totalRecordCount"
+            @select-tab="switchTab"
+          />
 
           <section v-if="activeAdminSection !== 'overview'" class="admin-section-hero">
             <div>
@@ -1114,7 +908,6 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import {
   Activity,
-  ArrowLeft,
   Database,
   FileText,
   Gauge,
@@ -1122,8 +915,6 @@ import {
   Image,
   KeyRound,
   MessageSquare,
-  PanelLeft,
-  Plus,
   RefreshCw,
   Settings,
   ShieldCheck,
@@ -1131,6 +922,9 @@ import {
   Users
 } from 'lucide-vue-next';
 import UnifiedNavbar from '../../components/UnifiedNavbar/index.vue';
+import AdminHeader from './components/AdminHeader.vue';
+import AdminOverview from './components/AdminOverview.vue';
+import AdminSidebar from './components/AdminSidebar.vue';
 import { getImageUrl } from '../../utils/asset-helper';
 import { supabase } from '@/utils/supabase-client.js';
 import { invalidateByTags } from '@/utils/request-core.js';
@@ -1151,6 +945,19 @@ import {
   tabGroups,
   tabs
 } from './config.js';
+import {
+  ADMIN_SECTION_DEFAULT_TABS,
+  DATA_CONSOLE_SECTIONS,
+  DATE_FILTER_FIELDS,
+  LOTTERY_LEGACY_SELECT_COLUMNS,
+  PLACEHOLDER_ADMIN_SECTIONS,
+  STATUS_FILTER_FIELDS,
+  TAB_DEFAULT_SORT,
+  TAB_SEARCH_FIELDS,
+  TAB_SELECT_COLUMNS,
+  TAB_SORT_COLUMNS,
+  isMissingLotteryObservabilitySchemaError
+} from './query-config.js';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -1339,7 +1146,6 @@ const dataStore = reactive({
   reportedPosts: [],
   reviewPosts: [],
   reviewComments: [],
-  reviewMessages: [],
   coreMemories: [],
   bohaiModels: [],
   lotteries: [],
@@ -1452,75 +1258,18 @@ const moderationTabConfig = computed(() => {
       reasonField: null,
       targetType: 'comment'
     },
-    reviewMessages: {
-      table: 'messages',
-      statusField: 'moderation_status',
-      approveValue: 'approved',
-      rejectValue: 'rejected',
-      reasonField: 'moderation_reason',
-      targetType: 'message'
-    }
   };
 
   return configMap[currentTab.value] || null;
 });
 const isModerationTab = computed(() => Boolean(moderationTabConfig.value));
 const isRejectedModerationTab = computed(() => ['reviewPosts', 'reviewComments'].includes(currentTab.value));
-const isMessageModerationTab = computed(() => currentTab.value === 'reviewMessages');
+const isMessageModerationTab = computed(() => false);
 const isReportedPostModerationTab = computed(() => currentTab.value === 'reportedPosts');
 const lotteryActionPendingIds = ref([]);
 
-const ADMIN_SECTION_DEFAULT_TABS = {
-  data: 'users'
-};
-
-const DATA_CONSOLE_SECTIONS = new Set(['data']);
-const PLACEHOLDER_ADMIN_SECTIONS = new Set(['media', 'settings']);
 const isDataConsoleSection = computed(() => DATA_CONSOLE_SECTIONS.has(activeAdminSection.value));
 const isPlaceholderAdminSection = computed(() => PLACEHOLDER_ADMIN_SECTIONS.has(activeAdminSection.value));
-
-const STATUS_FILTER_FIELDS = {
-  users: 'role',
-  points: 'role',
-  subscriptions: 'status',
-  gifts: 'gift_status',
-  forum: 'status',
-  reportedPosts: 'status',
-  reviewPosts: 'status',
-  reviewComments: 'status',
-  reviewMessages: 'moderation_status',
-  coreMemories: 'status',
-  bohaiModels: 'status',
-  lotteries: 'status',
-  lotterySchedulerLogs: 'status',
-  lotteryNotificationJobs: 'status',
-  lotteryJoinAttempts: 'result_code',
-  news: 'category',
-  products: 'category'
-};
-
-const DATE_FILTER_FIELDS = {
-  users: 'created_at',
-  points: 'join_date',
-  subscriptions: 'expires_at',
-  gifts: 'created_at',
-  forum: 'created_at',
-  reportedPosts: 'updated_at',
-  reviewPosts: 'created_at',
-  reviewComments: 'created_at',
-  reviewMessages: 'created_at',
-  coreMemories: 'updated_at',
-  bohaiModels: 'updated_at',
-  lotteries: 'draw_at',
-  lotteryEntries: 'created_at',
-  lotteryDrawLogs: 'created_at',
-  lotterySchedulerLogs: 'started_at',
-  lotteryNotificationJobs: 'created_at',
-  lotteryJoinAttempts: 'created_at',
-  news: 'date',
-  activities: 'date'
-};
-
 const currentStatusFilterField = computed(() => STATUS_FILTER_FIELDS[currentTab.value] || '');
 const currentDateFilterField = computed(() => DATE_FILTER_FIELDS[currentTab.value] || '');
 const statusFilterOptions = computed(() => {
@@ -1704,7 +1453,7 @@ const giftAddressBundleText = computed(() => {
 
 const dashboardTableIds = ['users', 'subscriptions', 'forum', 'news', 'activities', 'products'];
 const moderationPendingCount = computed(() =>
-  ['reportedPosts', 'reviewPosts', 'reviewComments', 'reviewMessages']
+  ['reportedPosts', 'reviewPosts', 'reviewComments']
     .reduce((total, tabId) => total + getTabCount(tabId), 0)
 );
 const adminNavigation = computed(() => [
@@ -2412,7 +2161,6 @@ const getTabCount = (tabId) => {
     case 'reportedPosts': return tabTotals.reportedPosts;
     case 'reviewPosts': return tabTotals.reviewPosts;
     case 'reviewComments': return tabTotals.reviewComments;
-    case 'reviewMessages': return tabTotals.reviewMessages;
     case 'coreMemories': return tabTotals.coreMemories;
     case 'bohaiModels': return stats.totalBohaiModels;
     case 'lotteries': return stats.totalLotteries;
@@ -2887,217 +2635,6 @@ const syncCoreMemoriesIndex = async () => {
   }
 };
 
-const TAB_SELECT_COLUMNS = {
-  users: 'id, username, email, role, points, experience, join_date, bio, avatar_url, tags, shipping_recipient, shipping_phone, shipping_address',
-  points: 'id, username, email, role, points, experience, join_date',
-  subscriptions: `
-    id,
-    user_id,
-    plan_code,
-    plan_name,
-    billing_cycle,
-    points_cost,
-    duration_months,
-    started_at,
-    expires_at,
-    status,
-    metadata,
-    created_at,
-    updated_at,
-    profile:user_id(username, email)
-  `,
-  gifts: `
-    id,
-    user_id,
-    gift_no,
-    gift_content,
-    gift_price,
-    gift_image,
-    gift_status,
-    is_active,
-    created_at,
-    completed_at,
-    updated_at,
-    profile:user_id(username, shipping_recipient, shipping_phone, shipping_address)
-  `,
-  forum: `
-    id,
-    content,
-    author_id,
-    author_username,
-    created_at,
-    updated_at,
-    status,
-    likes_count:likes(count)
-  `,
-  reportedPosts: `
-    id,
-    content,
-    author_id,
-    author_username,
-    created_at,
-    updated_at,
-    status,
-    reports:forum_post_reports(id, reason, detail, status, created_at, reporter_id)
-  `,
-  reviewPosts: 'id, content, author_id, author_username, created_at, updated_at, status',
-  reviewComments: 'id, post_id, author_id, author_username, content, created_at, status, parent_id, reply_to_username',
-  reviewMessages: 'id, sender_id, sender_name, receiver_id, receiver_name, subject, content, status, moderation_status, moderation_reason, created_at',
-  coreMemories: 'id, title, content, category, tags, priority, source_label, source_url, status, updated_by, created_at, updated_at',
-  bohaiModels: 'id, mode_id, display_name, tagline, description, provider, provider_label, model_id, api_url, capability, icon, temperature, top_p, frequency_penalty, max_tokens, status, sort_order, notes, created_by, updated_by, created_at, updated_at',
-  lotteries: 'id, title, description, prize_title, prize_description, cover_image_url, status, is_community_visible, max_entries, winner_count, entry_deadline_at, draw_at, drawn_at, draw_attempted_at, draw_failed_at, draw_failure_message, draw_entry_count_snapshot, draw_candidate_hash, draw_algorithm_version, winner_entry_id, winner_user_id, winner_username, fulfillment_status, created_by, updated_by, created_at, updated_at',
-  lotteryEntries: `
-    id,
-    lottery_id,
-    user_id,
-    username_snapshot,
-    created_at,
-    lottery:lottery_id(title),
-    profile:user_id(username, email, join_date)
-  `,
-  lotteryDrawLogs: `
-    id,
-    lottery_id,
-    draw_no,
-    winner_position,
-    entry_id,
-    user_id,
-    username_snapshot,
-    drawn_by,
-    reason,
-    created_at,
-    lottery:lottery_id(title),
-    drawer:drawn_by(username, email)
-  `,
-  lotterySchedulerLogs: `
-    id,
-    run_source,
-    status,
-    checked_count,
-    drawn_count,
-    failed_count,
-    due_count,
-    started_at,
-    finished_at,
-    duration_ms,
-    error_message,
-    details,
-    created_at
-  `,
-  lotteryNotificationJobs: `
-    id,
-    lottery_id,
-    draw_no,
-    winner_position,
-    user_id,
-    type,
-    content,
-    status,
-    notification_id,
-    attempt_count,
-    last_error,
-    created_at,
-    updated_at,
-    lottery:lottery_id(title),
-    profile:user_id(username, email)
-  `,
-  lotteryJoinAttempts: `
-    id,
-    lottery_id,
-    user_id,
-    result_code,
-    message,
-    created_at,
-    lottery:lottery_id(title),
-    profile:user_id(username, email)
-  `,
-  news: 'id, category, title, excerpt, date, author, image, content, created_at, updated_at',
-  activities: 'id, title, date, image, description, created_at, updated_at',
-  products: 'id, title, category, description, points_cost, stock, image, specifications'
-};
-
-const LOTTERY_LEGACY_SELECT_COLUMNS = 'id, title, description, prize_title, prize_description, cover_image_url, status, is_community_visible, max_entries, winner_count, entry_deadline_at, draw_at, drawn_at, winner_entry_id, winner_user_id, winner_username, fulfillment_status, created_by, updated_by, created_at, updated_at';
-
-const isMissingLotteryObservabilitySchemaError = (error) => {
-  const code = String(error?.code || '').toUpperCase();
-  const message = String(error?.message || '').toLowerCase();
-  return code === '42703'
-    || message.includes('draw_attempted_at')
-    || message.includes('draw_failed_at')
-    || message.includes('draw_candidate_hash')
-    || message.includes('lottery_scheduler_logs')
-    || message.includes('lottery_notification_jobs');
-};
-
-const TAB_DEFAULT_SORT = {
-  users: { column: 'join_date', ascending: false },
-  points: { column: 'points', ascending: false },
-  subscriptions: { column: 'expires_at', ascending: false },
-  gifts: { column: 'created_at', ascending: false },
-  forum: { column: 'created_at', ascending: false },
-  reportedPosts: { column: 'updated_at', ascending: false },
-  reviewPosts: { column: 'created_at', ascending: false },
-  reviewComments: { column: 'created_at', ascending: false },
-  reviewMessages: { column: 'created_at', ascending: false },
-  coreMemories: { column: 'priority', ascending: false, secondary: { column: 'updated_at', ascending: false } },
-  bohaiModels: { column: 'sort_order', ascending: true, secondary: { column: 'display_name', ascending: true } },
-  lotteries: { column: 'created_at', ascending: false },
-  lotteryEntries: { column: 'created_at', ascending: true },
-  lotteryDrawLogs: { column: 'created_at', ascending: false },
-  lotterySchedulerLogs: { column: 'started_at', ascending: false },
-  lotteryNotificationJobs: { column: 'created_at', ascending: false },
-  lotteryJoinAttempts: { column: 'created_at', ascending: false },
-  news: { column: 'date', ascending: false },
-  activities: { column: 'date', ascending: false },
-  products: { column: 'id', ascending: true }
-};
-
-const TAB_SORT_COLUMNS = {
-  users: new Set(['username', 'email', 'role', 'points', 'join_date']),
-  points: new Set(['username', 'role', 'points', 'experience', 'join_date']),
-  subscriptions: new Set(['plan_code', 'billing_cycle', 'status', 'started_at', 'expires_at', 'points_cost']),
-  gifts: new Set(['created_at', 'completed_at', 'gift_status', 'gift_price']),
-  forum: new Set(['created_at', 'status', 'author_username']),
-  reportedPosts: new Set(['updated_at', 'created_at', 'status', 'author_username']),
-  reviewPosts: new Set(['created_at', 'status', 'author_username']),
-  reviewComments: new Set(['created_at', 'status', 'author_username']),
-  reviewMessages: new Set(['created_at', 'moderation_status', 'sender_name', 'receiver_name']),
-  coreMemories: new Set(['priority', 'updated_at', 'category', 'status']),
-  bohaiModels: new Set(['sort_order', 'display_name', 'provider', 'capability', 'status', 'updated_at']),
-  lotteries: new Set(['created_at', 'status', 'fulfillment_status', 'draw_at', 'drawn_at']),
-  lotteryEntries: new Set(['created_at', 'lottery_id', 'user_id']),
-  lotteryDrawLogs: new Set(['created_at', 'draw_no', 'lottery_id']),
-  lotterySchedulerLogs: new Set(['started_at', 'status', 'run_source', 'due_count', 'failed_count']),
-  lotteryNotificationJobs: new Set(['created_at', 'status', 'lottery_id', 'user_id', 'draw_no']),
-  lotteryJoinAttempts: new Set(['created_at', 'result_code', 'lottery_id', 'user_id']),
-  news: new Set(['id', 'date', 'category', 'author']),
-  activities: new Set(['id', 'date', 'created_at']),
-  products: new Set(['id', 'category', 'points_cost', 'stock'])
-};
-
-const TAB_SEARCH_FIELDS = {
-  users: [{ column: 'id', type: 'uuid' }, { column: 'username', type: 'text' }, { column: 'email', type: 'text' }, { column: 'role', type: 'text' }],
-  points: [{ column: 'id', type: 'uuid' }, { column: 'username', type: 'text' }, { column: 'email', type: 'text' }, { column: 'role', type: 'text' }],
-  subscriptions: [{ column: 'id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'plan_code', type: 'text' }, { column: 'plan_name', type: 'text' }, { column: 'status', type: 'text' }],
-  gifts: [{ column: 'id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'gift_no', type: 'text' }, { column: 'gift_content', type: 'text' }, { column: 'gift_status', type: 'text' }],
-  forum: [{ column: 'id', type: 'uuid' }, { column: 'author_id', type: 'uuid' }, { column: 'author_username', type: 'text' }, { column: 'content', type: 'text' }, { column: 'status', type: 'text' }],
-  reportedPosts: [{ column: 'id', type: 'uuid' }, { column: 'author_id', type: 'uuid' }, { column: 'author_username', type: 'text' }, { column: 'content', type: 'text' }, { column: 'status', type: 'text' }],
-  reviewPosts: [{ column: 'id', type: 'uuid' }, { column: 'author_id', type: 'uuid' }, { column: 'author_username', type: 'text' }, { column: 'content', type: 'text' }, { column: 'status', type: 'text' }],
-  reviewComments: [{ column: 'id', type: 'uuid' }, { column: 'post_id', type: 'uuid' }, { column: 'author_id', type: 'uuid' }, { column: 'author_username', type: 'text' }, { column: 'content', type: 'text' }, { column: 'status', type: 'text' }],
-  reviewMessages: [{ column: 'id', type: 'uuid' }, { column: 'sender_id', type: 'uuid' }, { column: 'receiver_id', type: 'uuid' }, { column: 'sender_name', type: 'text' }, { column: 'receiver_name', type: 'text' }, { column: 'subject', type: 'text' }, { column: 'content', type: 'text' }, { column: 'moderation_status', type: 'text' }],
-  coreMemories: [{ column: 'id', type: 'uuid' }, { column: 'title', type: 'text' }, { column: 'content', type: 'text' }, { column: 'category', type: 'text' }, { column: 'status', type: 'text' }],
-  bohaiModels: [{ column: 'id', type: 'uuid' }, { column: 'mode_id', type: 'text' }, { column: 'display_name', type: 'text' }, { column: 'provider', type: 'text' }, { column: 'model_id', type: 'text' }, { column: 'capability', type: 'text' }, { column: 'status', type: 'text' }],
-  lotteries: [{ column: 'id', type: 'uuid' }, { column: 'title', type: 'text' }, { column: 'prize_title', type: 'text' }, { column: 'status', type: 'text' }, { column: 'fulfillment_status', type: 'text' }, { column: 'winner_username', type: 'text' }],
-  lotteryEntries: [{ column: 'id', type: 'uuid' }, { column: 'lottery_id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'username_snapshot', type: 'text' }],
-  lotteryDrawLogs: [{ column: 'id', type: 'uuid' }, { column: 'lottery_id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'username_snapshot', type: 'text' }, { column: 'reason', type: 'text' }],
-  lotterySchedulerLogs: [{ column: 'id', type: 'uuid' }, { column: 'run_source', type: 'text' }, { column: 'status', type: 'text' }, { column: 'error_message', type: 'text' }],
-  lotteryNotificationJobs: [{ column: 'id', type: 'uuid' }, { column: 'lottery_id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'status', type: 'text' }, { column: 'last_error', type: 'text' }],
-  lotteryJoinAttempts: [{ column: 'id', type: 'uuid' }, { column: 'lottery_id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'result_code', type: 'text' }, { column: 'message', type: 'text' }],
-  news: [{ column: 'id', type: 'number' }, { column: 'category', type: 'text' }, { column: 'title', type: 'text' }, { column: 'excerpt', type: 'text' }, { column: 'author', type: 'text' }],
-  activities: [{ column: 'id', type: 'number' }, { column: 'title', type: 'text' }, { column: 'date', type: 'text' }, { column: 'description', type: 'text' }],
-  products: [{ column: 'id', type: 'number' }, { column: 'title', type: 'text' }, { column: 'category', type: 'text' }, { column: 'description', type: 'text' }]
-};
-
 const sanitizeSearchTerm = (value) => String(value || '')
   .trim()
   .replace(/[,%()]/g, ' ')
@@ -3231,7 +2768,6 @@ const runGlobalSearch = async () => {
       if (tab.id === 'reportedPosts') query = query.eq('status', 'limited');
       if (tab.id === 'reviewPosts') query = query.ilike('status', 'rejected');
       if (tab.id === 'reviewComments') query = query.ilike('status', 'rejected');
-      if (tab.id === 'reviewMessages') query = query.ilike('moderation_status', 'rejected');
 
       const { data, error } = await query;
       if (error) {
@@ -3416,7 +2952,6 @@ const fetchStats = async () => {
     reportedPosts: fetchCount('posts', (query) => query.eq('status', 'limited')),
     reviewPosts: fetchCount('posts', (query) => query.ilike('status', 'rejected')),
     reviewComments: fetchCount('comments', (query) => query.ilike('status', 'rejected')),
-    reviewMessages: fetchCount('messages', (query) => query.ilike('moderation_status', 'rejected')),
     coreMemories: fetchCount('boh_ai_core_memories'),
     bohaiModels: fetchCount('bohai_model_configs'),
     lotteries: fetchCount('lotteries'),
@@ -3475,8 +3010,6 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
       query = query.ilike('status', 'rejected');
     } else if (tabId === 'reviewComments') {
       query = query.ilike('status', 'rejected');
-    } else if (tabId === 'reviewMessages') {
-      query = query.ilike('moderation_status', 'rejected');
     }
 
     let { data, error, count } = await paginateQuery(applySearchAndSort(query, tabId));
@@ -5349,7 +4882,7 @@ const isAnomalyRow = (item) => {
     const drawAt = Date.parse(item?.draw_at || '');
     return String(item?.status || '') === 'open' && Number.isFinite(drawAt) && drawAt < now;
   }
-  if (['reportedPosts', 'reviewPosts', 'reviewComments', 'reviewMessages'].includes(currentTab.value)) return true;
+  if (['reportedPosts', 'reviewPosts', 'reviewComments'].includes(currentTab.value)) return true;
   if (currentTab.value === 'lotteryNotificationJobs') return ['failed', 'pending'].includes(String(item?.status || ''));
   if (currentTab.value === 'lotteryJoinAttempts') return !['joined', 'success'].includes(String(item?.result_code || ''));
   return false;
@@ -5640,4 +5173,7 @@ onUnmounted(() => {
 
 </script>
 
-<style scoped src="./style.scoped.css"></style>
+<style scoped src="./styles/base.css"></style>
+<style scoped src="./styles/console.css"></style>
+<style scoped src="./styles/overlays.css"></style>
+<style scoped src="./styles/responsive.css"></style>

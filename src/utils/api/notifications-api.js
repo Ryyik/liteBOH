@@ -4,7 +4,6 @@ import { logger } from '../logger.js';
 import { getUserPushplusToken } from './pushplus-api.js';
 import { sendNotificationPush } from '../pushplus.js';
 import { getForumPostExcerpt } from '../forum-post-format.js';
-import { isMissingDbColumnError } from '../unified-content-moderation.js';
 
 export function filterSelfActionNotifications(notifications = []) {
   return notifications.filter((n) => {
@@ -133,7 +132,7 @@ export async function markNotificationAsRead(notificationId) {
     logger.error('notifications-api', '标记单条已读失败', error);
     return { ok: false, error: normalizeDbError(error) };
   }
-  invalidateByTags(['notifications', 'messages']);
+  invalidateByTags(['notifications']);
   return { ok: true, data: true, error: null };
 }
 
@@ -154,7 +153,7 @@ export async function markAllNotificationsAsRead(userId) {
     logger.error('notifications-api', '标记全部已读失败', error);
     return { ok: false, error: normalizeDbError(error) };
   }
-  invalidateByTags(['notifications', 'messages']);
+  invalidateByTags(['notifications']);
   return { ok: true, data: true, error: null };
 }
 
@@ -197,47 +196,25 @@ export async function getUnreadNotificationCount(userId) {
     'notifications.getUnreadNotificationCount',
     { userId },
     async () => {
-      const [notifRes, initialMailRes] = await Promise.all([
-        supabase
-          .from('notifications')
-          .select('id, sender_id, recipient_id, type')
-          .eq('recipient_id', userId)
-          .eq('status', 'unread'),
-        supabase
-          .from('messages')
-          .select('id', { count: 'exact', head: true })
-          .eq('receiver_id', userId)
-          .eq('status', 'unread')
-          .eq('moderation_status', 'approved')
-      ]);
-
-      let mailRes = initialMailRes;
-      if (mailRes.error && isMissingDbColumnError(mailRes.error, 'moderation_status')) {
-        logger.warn('notifications-api', 'messages 表缺少 moderation_status 字段，未读信件计数降级为旧版查询', {
-          userId,
-          error: mailRes.error
-        });
-        mailRes = await supabase
-          .from('messages')
-          .select('id', { count: 'exact', head: true })
-          .eq('receiver_id', userId)
-          .eq('status', 'unread');
-      }
+      const notifRes = await supabase
+        .from('notifications')
+        .select('id, sender_id, recipient_id, type')
+        .eq('recipient_id', userId)
+        .eq('status', 'unread');
 
       const filteredNotifications = filterSelfActionNotifications(notifRes.data || []);
       const notifCount = filteredNotifications.length;
-      const mailCount = mailRes.count || 0;
 
       return {
         data: {
-          count: notifCount + mailCount,
+          count: notifCount,
           notifCount,
-          mailCount
+          mailCount: 0
         },
-        error: notifRes.error || mailRes.error
+        error: notifRes.error
       };
     },
-    { ttlMs: 5000, tags: ['notifications', 'messages', `notifications:user:${userId}`], timeoutMs: 8000, retry: 1 }
+    { ttlMs: 5000, tags: ['notifications', `notifications:user:${userId}`], timeoutMs: 8000, retry: 1 }
   );
 
   return {
@@ -344,32 +321,5 @@ export async function sendPushplusForNotification(notification = {}) {
     postContent,
     commentContent,
     impressionContent: notification.content || ''
-  });
-}
-
-export async function sendPushplusForMessage({
-  recipientId,
-  senderId = null,
-  senderName = '',
-  subject = '',
-  content = ''
-} = {}) {
-  if (!recipientId) {
-    return { success: false, message: '缺少接收者信息', data: null };
-  }
-
-  if (senderId && senderId === recipientId) {
-    return { success: false, message: '跳过给自己发送私信推送', data: null };
-  }
-
-  const token = await getUserPushplusToken(recipientId);
-  if (!token) {
-    return { success: false, message: '接收者未启用 Pushplus', data: null };
-  }
-
-  return sendNotificationPush(token, 'message', {
-    senderName: senderName || '有人',
-    messageSubject: subject || '',
-    messageContent: content || ''
   });
 }

@@ -7,20 +7,11 @@ const summarizePayload = (actionId = '', payload = {}) => {
   const safePayload = payload && typeof payload === 'object' ? payload : {};
   const content = normalizeText(safePayload.content, 160);
   const title = normalizeText(safePayload.title, 80);
-  const subject = normalizeText(safePayload.subject, 80);
-  const receiverName = normalizeText(safePayload.receiverName || safePayload.receiver || '', 40);
 
   switch (actionId) {
     case 'createPost':
       return {
         title,
-        contentPreview: content,
-        contentLength: String(safePayload.content || '').length
-      };
-    case 'sendMail':
-      return {
-        receiverName,
-        subject,
         contentPreview: content,
         contentLength: String(safePayload.content || '').length
       };

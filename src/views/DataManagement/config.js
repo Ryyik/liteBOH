@@ -8,7 +8,6 @@ export const tabs = [
   { id: 'reportedPosts', label: '举报下架', icon: '🚩' },
   { id: 'reviewPosts', label: '已拒绝帖子', icon: '🧾' },
   { id: 'reviewComments', label: '已拒绝评论', icon: '🗨️' },
-  { id: 'reviewMessages', label: '被拒绝私信', icon: '📨' },
   { id: 'coreMemories', label: '官方事实', icon: '📚' },
   { id: 'bohaiModels', label: 'BOHAI 模型', icon: '🤖' },
   { id: 'lotteries', label: '抽奖管理', icon: '🎲' },
@@ -43,8 +42,8 @@ export const tabGroups = [
   {
     id: 'moderation',
     label: '审核',
-    description: '举报、拒绝内容和私信复核',
-    tabIds: ['reportedPosts', 'reviewPosts', 'reviewComments', 'reviewMessages']
+    description: '举报与拒绝内容复核',
+    tabIds: ['reportedPosts', 'reviewPosts', 'reviewComments']
   },
   {
     id: 'lottery',
@@ -361,20 +360,6 @@ export const dataConfig = {
       { key: 'content', label: '内容', maxLength: 48 },
       { key: 'status', label: '状态', type: 'badge' },
       { key: 'created_at', label: '发布时间', type: 'date' }
-    ],
-    fields: []
-  },
-  reviewMessages: {
-    table: 'messages',
-    columns: [
-      { key: 'id', label: 'ID' },
-      { key: 'sender_name', label: '发件人' },
-      { key: 'receiver_name', label: '收件人' },
-      { key: 'subject', label: '主题', maxLength: 24 },
-      { key: 'content', label: '内容', maxLength: 48 },
-      { key: 'moderation_status', label: '审核状态', type: 'badge' },
-      { key: 'moderation_reason', label: '原因', maxLength: 32 },
-      { key: 'created_at', label: '发送时间', type: 'date' }
     ],
     fields: []
   },

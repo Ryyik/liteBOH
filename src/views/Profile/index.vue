@@ -109,12 +109,6 @@
                 编辑资料
               </button>
               <div v-else class="others-profile-actions">
-                <button class="message-profile-btn" @click="openMailbox(profile.username)">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                    <polyline points="22,6 12,13 2,6"></polyline>
-                  </svg>
-                </button>
                 <button class="add-impression-btn-top" @click="openImpressionModal">
                   添加印象
                 </button>
@@ -1371,12 +1365,6 @@ const goToProfileRoute = (usernameVal) => {
   const safeUsername = String(usernameVal || '').trim();
   if (!safeUsername) return;
   router.push(`/profile/${encodeURIComponent(safeUsername)}`);
-};
-
-const openMailbox = (usernameVal) => {
-  const safeUsername = String(usernameVal || '').trim();
-  if (!safeUsername) return;
-  router.push({ path: '/user-space', query: { tab: 'messages', section: 'mail', to: safeUsername } });
 };
 
 const openImpressionModal = () => {

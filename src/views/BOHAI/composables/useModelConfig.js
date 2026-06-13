@@ -9,6 +9,8 @@ import {
   RESPONSE_STYLE_SETTING_KEY,
   RESPONSE_STYLE_OPTIONS,
   PLAN_MODE_SETTING_KEY,
+  SHARED_MEMORY_SETTING_KEY,
+  KNOWLEDGE_BASE_SETTING_KEY,
   availableModels as _availableModels,
   chatModes as _chatModes
 } from './chat-engine-config.js';
@@ -17,18 +19,31 @@ import {
  * useModelConfig - 管理当前模式/样式/功能开关状态。
  *
  * @param {Object} options
- * @param {Array}  [options.availableModels] - 可用模型列表，默认导入 chat-engine-config 中的值
- * @param {Array}  [options.chatModes]       - 模式列表，默认导入 chat-engine-config 中的值
+ * @param {Array|Ref<Array>}  [options.availableModels] - 可用模型列表，默认导入 chat-engine-config 中的值
+ * @param {Array|Ref<Array>}  [options.chatModes]       - 模式列表，默认导入 chat-engine-config 中的值
  */
 export function useModelConfig({ availableModels = _availableModels, chatModes = _chatModes } = {}) {
+  // 处理 ref 参数：如果是 ref，使用 .value；否则直接使用
+  const getAvailableModels = () => {
+    return availableModels && typeof availableModels === 'object' && 'value' in availableModels
+      ? availableModels.value
+      : availableModels;
+  };
+
+  const getChatModes = () => {
+    return chatModes && typeof chatModes === 'object' && 'value' in chatModes
+      ? chatModes.value
+      : chatModes;
+  };
+
   // ─── Mode state ────────────────────────────────────────────────────────────────
 
   // 当前模式 - 默认 Fast（极速响应）。4 模式之间不自动切换；
   // 用户主动选择什么就走什么（语义：Fast=极速 / Pro=质量 / Plan=超级高质量 / Agent=工作）。
   const currentModeId = ref(BOH_DEFAULT_MODE_ID);
-  const currentMode = computed(() => chatModes.find((m) => m.id === currentModeId.value) || chatModes[0]);
+  const currentMode = computed(() => getChatModes().find((m) => m.id === currentModeId.value) || getChatModes()[0]);
   const currentModelId = computed(() => currentMode.value.model);
-  const currentModel = computed(() => availableModels.find((m) => m.id === currentModelId.value) || availableModels[0]);
+  const currentModel = computed(() => getAvailableModels().find((m) => m.id === currentModelId.value) || getAvailableModels()[0]);
 
   // 本轮 Auto 路由到的具体模式：在 sendMessage 中赋值，UI 可读。
   // 当用户手动点击 chip 重置或新会话时清空。
@@ -40,28 +55,19 @@ export function useModelConfig({ availableModels = _availableModels, chatModes =
   const isSearching = ref(false);
   const isForumSearchEnabled = ref(false);
 
-  const isMemoryCaptureEnabled = ref(
-    typeof window === 'undefined' ? false : localStorage.getItem(MEMORY_CAPTURE_SETTING_KEY) === '1'
-  );
+  const isMemoryCaptureEnabled = ref(false);
 
-  const isTreeholeMemoryEnabled = ref(
-    typeof window === 'undefined'
-      ? false
-      : (
-        localStorage.getItem(TREEHOLE_MEMORY_SYNC_SETTING_KEY) === '1'
-        || localStorage.getItem(LEGACY_TREEHOLE_MEMORY_SYNC_SETTING_KEY) === '1'
-      )
-  );
+  const isTreeholeMemoryEnabled = ref(false);
 
   const isTreeholeMemoryToggling = ref(false);
 
-  const isQuickNoteEnabled = ref(
-    typeof window === 'undefined' ? false : localStorage.getItem(QUICK_NOTE_SETTING_KEY) === '1'
-  );
+  const isQuickNoteEnabled = ref(false);
 
-  const isPlanModeEnabled = ref(
-    typeof window === 'undefined' ? false : localStorage.getItem(PLAN_MODE_SETTING_KEY) === '1'
-  );
+  const isPlanModeEnabled = ref(false);
+
+  const isSharedMemoryEnabled = ref(false);
+
+  const isKnowledgeBaseEnabled = ref(false);
 
   // ─── Style state ───────────────────────────────────────────────────────────────
 
@@ -82,17 +88,7 @@ export function useModelConfig({ availableModels = _availableModels, chatModes =
   // ─── Other state ───────────────────────────────────────────────────────────────
 
   const cloudReferenceConsent = ref(
-    typeof window === 'undefined'
-      ? 'unknown'
-      : (
-        localStorage.getItem(CLOUD_REFERENCE_CONSENT_KEY)
-        || (
-          localStorage.getItem(TREEHOLE_MEMORY_SYNC_SETTING_KEY) === '1'
-            || localStorage.getItem(LEGACY_TREEHOLE_MEMORY_SYNC_SETTING_KEY) === '1'
-            ? 'granted'
-            : 'unknown'
-        )
-      )
+    'denied'
   );
 
   // 会话级"联网搜索未配置"提示去重：避免每轮都刷一条。
@@ -105,22 +101,24 @@ export function useModelConfig({ availableModels = _availableModels, chatModes =
    * 使用传入的 availableModels 参数（而非模块级导入），兼容外部覆盖。
    */
   const getModelForModeId = (modeId, _context = {}) => {
-    const mode = chatModes.find((item) => item.id === modeId)
-      || chatModes.find((item) => item.id === BOH_DEFAULT_MODE_ID)
-      || chatModes[0];
+    const modes = getChatModes();
+    const models = getAvailableModels();
+    const mode = modes.find((item) => item.id === modeId)
+      || modes.find((item) => item.id === BOH_DEFAULT_MODE_ID)
+      || modes[0];
     const targetModelId = mode?.model;
-    return availableModels.find((item) => item.id === targetModelId)
+    return models.find((item) => item.id === targetModelId)
       || currentModel.value
-      || availableModels[0];
+      || models[0];
   };
 
   const persistPlanModeSetting = () => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(PLAN_MODE_SETTING_KEY, isPlanModeEnabled.value ? '1' : '0');
+    localStorage.removeItem(PLAN_MODE_SETTING_KEY);
   };
 
   const togglePlanMode = () => {
-    isPlanModeEnabled.value = !isPlanModeEnabled.value;
+    isPlanModeEnabled.value = false;
     persistPlanModeSetting();
   };
 
@@ -141,18 +139,28 @@ export function useModelConfig({ availableModels = _availableModels, chatModes =
 
   const persistMemoryCaptureSetting = () => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(MEMORY_CAPTURE_SETTING_KEY, isMemoryCaptureEnabled.value ? '1' : '0');
+    localStorage.removeItem(MEMORY_CAPTURE_SETTING_KEY);
   };
 
   const persistTreeholeMemorySetting = () => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(TREEHOLE_MEMORY_SYNC_SETTING_KEY, isTreeholeMemoryEnabled.value ? '1' : '0');
+    localStorage.removeItem(TREEHOLE_MEMORY_SYNC_SETTING_KEY);
     localStorage.removeItem(LEGACY_TREEHOLE_MEMORY_SYNC_SETTING_KEY);
   };
 
   const persistQuickNoteSetting = () => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(QUICK_NOTE_SETTING_KEY, isQuickNoteEnabled.value ? '1' : '0');
+    localStorage.removeItem(QUICK_NOTE_SETTING_KEY);
+  };
+
+  const persistSharedMemorySetting = () => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(SHARED_MEMORY_SETTING_KEY, '0');
+  };
+
+  const persistKnowledgeBaseSetting = () => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(KNOWLEDGE_BASE_SETTING_KEY, '0');
   };
 
   return {
@@ -172,6 +180,8 @@ export function useModelConfig({ availableModels = _availableModels, chatModes =
     isTreeholeMemoryToggling,
     isQuickNoteEnabled,
     isPlanModeEnabled,
+    isSharedMemoryEnabled,
+    isKnowledgeBaseEnabled,
 
     // Style state
     currentResponseStyleId,
@@ -190,6 +200,8 @@ export function useModelConfig({ availableModels = _availableModels, chatModes =
     persistPlanModeSetting,
     persistMemoryCaptureSetting,
     persistTreeholeMemorySetting,
-    persistQuickNoteSetting
+    persistQuickNoteSetting,
+    persistSharedMemorySetting,
+    persistKnowledgeBaseSetting
   };
 }

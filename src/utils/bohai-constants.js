@@ -109,7 +109,7 @@ export const getUserFriendlyError = (error) => {
 };
 
 const connectorFailureTracker = new Map();
-// 写动作（createPost / sendMail 等）单独的失败追踪器，与读连接器熔断解耦，
+// 写动作（createPost 等）单独的失败追踪器，与读连接器熔断解耦，
 // 避免写动作的业务错误污染 connector 熔断窗口。
 const actionFailureTracker = new Map();
 
