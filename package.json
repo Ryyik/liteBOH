@@ -39,9 +39,12 @@
   "devDependencies": {
     "@types/node": "^25.5.0",
     "@vitejs/plugin-vue": "^6.0.1",
+    "autoprefixer": "^10.5.0",
+    "cssnano": "^8.0.2",
     "eslint": "^9.39.1",
     "eslint-plugin-vue": "^10.5.1",
     "globals": "^16.4.0",
+    "rollup-plugin-visualizer": "^7.0.1",
     "terser": "^5.44.1",
     "typescript": "^6.0.2",
     "vite": "^7.2.4",

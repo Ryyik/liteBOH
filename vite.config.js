@@ -2,6 +2,9 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 import viteImagemin from 'vite-plugin-imagemin'
+import { visualizer } from 'rollup-plugin-visualizer'
+import autoprefixer from 'autoprefixer'
+import cssnano from 'cssnano'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -45,7 +48,24 @@ export default defineConfig({
         method: 6,
       },
     }),
+    // 构建产物可视化分析（生成 stats.html）
+    visualizer({
+      open: false,
+      gzipSize: true,
+      brotliSize: true,
+      filename: 'stats.html',
+    }),
   ],
+
+  // CSS 后处理：自动添加浏览器前缀 + 压缩
+  css: {
+    postcss: {
+      plugins: [
+        autoprefixer(),
+        cssnano({ preset: 'default' }),
+      ],
+    },
+  },
 
   // 路径别名配置
   resolve: {
@@ -95,20 +115,23 @@ export default defineConfig({
           return `static/${extType}/[name]-[hash].[ext]`;
         },
         // 代码分割
-        manualChunks: {
-          'vue-vendor': ['vue', 'vue-router'],
-          'ui-components': [
-            resolve(__dirname, 'src/components/UnifiedNavbar/index.vue'),
-            resolve(__dirname, 'src/components/Footer.vue'),
-          ],
-          'auth-store': [
-            resolve(__dirname, 'src/stores/auth.js'),
-          ],
-          'content-datasets': [
-            resolve(__dirname, 'src/data/products.js'),
-            resolve(__dirname, 'src/data/news.js'),
-            resolve(__dirname, 'src/data/activities.js'),
-          ],
+        manualChunks(id) {
+          // 已有的命名 chunk
+          if (id.includes('node_modules/vue') || id.includes('node_modules/vue-router')) return 'vue-vendor';
+          if (id.includes('node_modules/@supabase/supabase-js')) return 'supabase-vendor';
+          if (id.includes('src/components/UnifiedNavbar')) return 'ui-components';
+          if (id.includes('src/components/Footer.vue')) return 'ui-components';
+          if (id.includes('src/stores/auth.js')) return 'auth-store';
+          if (id.includes('src/data/products.js') || id.includes('src/data/news.js') || id.includes('src/data/activities.js')) return 'content-datasets';
+
+          // 大视图独立 chunk
+          if (id.includes('src/views/user-center/UserSpace/')) return 'view-userspace';
+          // BOHAI 和 DataManagement 有共享代码，合并为一个 chunk 避免循环依赖
+          if (id.includes('src/views/BOHAI/') || id.includes('src/views/DataManagement/')) return 'view-bohai-admin';
+          if (id.includes('src/views/Profile/')) return 'view-profile';
+          if (id.includes('src/views/user-center/Cloud+/')) return 'view-cloudplus';
+          if (id.includes('src/views/PostDetail/')) return 'view-postdetail';
+          if (id.includes('src/views/Forum/')) return 'view-forum';
         },
         // 自动代码分割
         experimentalMinChunkSize: 20000,
