@@ -935,6 +935,7 @@ import {
 import { getExpiredActiveGiftIds, markGiftsAsHistory } from '@/utils/gift-archive.js';
 import { getDefaultApiUrlForBohaiProvider } from '@/utils/api/bohai-model-config-api.js';
 import {
+  ADMIN_PAGE_META,
   NEWS_CATEGORY_VALUES,
   PRODUCT_CATEGORY_OPTIONS,
   SUBSCRIPTION_PLAN_NAMES,
@@ -1462,35 +1463,6 @@ const adminNavigation = computed(() => [
   { id: 'media', label: '媒体资源', icon: Image, active: activeAdminSection.value === 'media' },
   { id: 'settings', label: '网站设置', icon: Settings, active: activeAdminSection.value === 'settings' }
 ]);
-
-const ADMIN_PAGE_META = {
-  overview: {
-    eyebrow: 'Overview',
-    title: '站点运行概览',
-    description: '查看核心数据规模、异常诊断和最近活动。',
-    icon: Gauge
-  },
-  data: {
-    eyebrow: 'Data Console',
-    title: '数据管理',
-    description: '通过用户、内容、审核和抽奖分组，集中管理所有站点数据表。',
-    icon: Database
-  },
-  media: {
-    eyebrow: 'Media',
-    title: '媒体资源',
-    description: '汇总商品、新闻、活动、抽奖封面等图片资源入口。',
-    placeholder: '媒体库页面已独立出来，先提供常用图片数据入口。',
-    icon: Image
-  },
-  settings: {
-    eyebrow: 'Settings',
-    title: '网站设置',
-    description: '集中查看后台配置、权限状态和自动任务入口。',
-    placeholder: '设置页目前提供管理状态和关键任务入口，后续可继续拆出站点配置表单。',
-    icon: Settings
-  }
-};
 
 const currentAdminPageMeta = computed(() => ADMIN_PAGE_META[activeAdminSection.value] || ADMIN_PAGE_META.overview);
 const currentAdminPageActions = computed(() => {

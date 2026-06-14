@@ -24,7 +24,7 @@ export const initNews = async () => {
       async () => {
         const { data, error } = await supabase
           .from('news')
-          .select('*')
+          .select('id, title, excerpt, date, author, image, category, content')
           .order('date', { ascending: false });
         return { data, error };
       },

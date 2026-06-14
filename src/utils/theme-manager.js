@@ -3,6 +3,8 @@
  * @module themeManager
  */
 
+import { ensureThemeCSS } from './theme-css-loader.js';
+
 class ThemeManager {
   constructor() {
     this.theme = 'light';
@@ -36,6 +38,11 @@ class ThemeManager {
 
     // 应用主题
     this.applyTheme(this.theme, this.preference);
+
+    // 若初始即为深色主题，立即加载深色 CSS
+    if (this.theme === 'dark') {
+      ensureThemeCSS('dark').catch(() => {});
+    }
   }
 
   getSystemTheme() {
@@ -116,6 +123,11 @@ class ThemeManager {
     // 触发自定义事件，通知所有页面组件
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme, uiStyle: this.uiStyle } }));
+    }
+
+    // 按需加载深色主题 CSS（首次切换时动态加载，不阻塞首屏）
+    if (theme === 'dark') {
+      ensureThemeCSS('dark').catch(() => {});
     }
   }
 

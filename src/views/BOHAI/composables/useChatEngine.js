@@ -1633,7 +1633,8 @@ export function useChatEngine() {
         updateContent(currentContent ? `${currentContent}\n\n（已停止生成）` : '已停止生成。');
       } else {
         logger.error('boh-ai', 'Simple generation error', error);
-        updateContent(`服务暂时繁忙，请稍后重试。`);
+        const errMsg = error?.message || String(error || '');
+        updateContent(`服务暂时繁忙，请稍后重试。\n\n错误详情：${errMsg.slice(0, 300)}`);
       }
     } finally {
       cleanupGenerationState(sessionIndex, requestController);
@@ -2164,9 +2165,10 @@ export function useChatEngine() {
         }
       }
 
+      const webSearchResult = await webSearchPromise;
+
       if (enableSearch) {
         try {
-          const webSearchResult = await webSearchPromise;
           if (webSearchResult?.disabled) {
             if (isSearching.value) {
               isSearching.value = false;
@@ -2735,7 +2737,8 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         }
       } else {
         logger.error('boh-ai', 'Generation error', error);
-        updateContent(`服务暂时繁忙，请稍后重试。`);
+        const errMsg = error?.message || String(error || '');
+        updateContent(`服务暂时繁忙，请稍后重试。\n\n错误详情：${errMsg.slice(0, 300)}`);
       }
 
       if (targetSession) {

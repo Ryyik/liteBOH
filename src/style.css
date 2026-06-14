@@ -1,15 +1,6 @@
 /* ============================================
-   深色模式样式导入 - 必须在最前面
+   深色模式样式 - 已改为按需加载（见 utils/theme-manager.js）
    ============================================ */
-@import './styles/themes/dark-mode.css';
-@import './styles/themes/navbar-dark.css';
-@import './styles/themes/forum-dark.css';
-@import './styles/themes/post-detail-dark.css';
-@import './styles/themes/user-space-dark.css';
-@import './styles/themes/user-center-dark.css';
-@import './styles/themes/bohai-dark.css';
-@import './styles/themes/messages-dark.css';
-@import './styles/themes/boh-note-dark.css';
 
 /* 基础样式重置 */
 * {

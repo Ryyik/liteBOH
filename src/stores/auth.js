@@ -126,6 +126,27 @@ export const useAuthStore = defineStore('auth', () => {
   const isAdmin = computed(() => String(userInfo.role || '').trim() === 'admin');
   const AUTH_TIMEOUT_MS = 10000;
   const PROFILE_REFRESH_TTL_MS = 30000;
+
+const PROFILE_SELECT_COLUMNS = `
+  id,
+  username,
+  role,
+  points,
+  join_date,
+  birth_month,
+  birth_day,
+  avatar_url,
+  profile_background_url,
+  profile_background_public_id,
+  tags,
+  bio,
+  experience,
+  is_boh_creator,
+  creator_platform_ids,
+  creator_platform_visibility,
+  creator_platform_order,
+  showcase_post_ids
+`;
   let authStateSubscription = null;
   let sessionHeartbeatTimer = null;
   let authSyncInFlight = null;
@@ -413,7 +434,7 @@ export const useAuthStore = defineStore('auth', () => {
           const { data: fetchedProfile, error: fetchProfileError } = await withTimeout(
             supabase
               .from('profiles')
-              .select('*')
+              .select(PROFILE_SELECT_COLUMNS)
               .eq('id', user.id)
               .maybeSingle(),
             AUTH_TIMEOUT_MS,
@@ -451,7 +472,7 @@ export const useAuthStore = defineStore('auth', () => {
             const { data: refetchedProfile, error: refetchError } = await withTimeout(
               supabase
                 .from('profiles')
-                .select('*')
+                .select(PROFILE_SELECT_COLUMNS)
                 .eq('id', user.id)
                 .maybeSingle(),
               AUTH_TIMEOUT_MS,
@@ -746,7 +767,7 @@ export const useAuthStore = defineStore('auth', () => {
 
       const { data: refreshedProfile, error: refreshError } = await supabase
         .from('profiles')
-        .select('*')
+        .select(PROFILE_SELECT_COLUMNS)
         .eq('id', userInfo.id)
         .single();
 
@@ -837,7 +858,7 @@ export const useAuthStore = defineStore('auth', () => {
 }, {
   persist: {
     key: 'boh_auth',
-    paths: ['isLoggedIn', 'userInfo'],
+    paths: ['isLoggedIn'],
     storage: localStorage
   }
 });

@@ -3,91 +3,19 @@
         :class="{ 'embedded-mode': props.embedded, 'overlay-mode': props.overlayMode, 'empty-chat-mode': messages.length === 0, 'sidebar-open': isSidebarOpen }"
         :data-ui-style="currentUiStyle">
         <div class="bohai-container">
-            <Teleport to="body">
-                <aside v-show="isComponentVisible"
-                    :class="['sidebar', { open: isSidebarOpen, 'is-embedded': props.embedded }]">
-                    <div class="sidebar-header">
-                        <span class="sidebar-mark" aria-hidden="true">BOH</span>
-                        <button class="sidebar-icon-btn sidebar-close-btn" type="button" title="收起侧栏"
-                            @click="closeSidebar">
-                            <span aria-hidden="true">«</span>
-                        </button>
-                    </div>
-
-                    <button class="sidebar-nav-row" type="button" @click="toggleSidebarSearch">
-                        <Search size="27" />
-                        <span>搜索</span>
-                    </button>
-
-                    <div v-if="showSidebarSearch" class="sidebar-search-row">
-                        <input v-model="sidebarSearchQuery" type="text" class="sidebar-search-input" placeholder="搜索对话"
-                            autofocus @keydown.escape="showSidebarSearch = false" />
-                    </div>
-
-                    <div class="sidebar-quick-actions">
-                        <button class="sidebar-quick-action" type="button" @click="startNewChat">
-                            <span class="quick-action-icon">
-                                <Plus size="18" />
-                            </span>
-                            <span>新对话</span>
-                        </button>
-                    </div>
-
-                    <div class="sidebar-section-title">
-                        <span>历史记录</span>
-                        <ChevronDown size="18" />
-                    </div>
-
-                    <div class="session-list custom-scrollbar">
-                        <div v-for="group in filteredGroupedChatSessions" :key="group.id" class="session-group">
-                            <div v-if="group.label && filteredGroupedChatSessions.length > 1"
-                                class="session-group-title">
-                                {{ group.label }}
-                            </div>
-                            <div v-for="item in group.items" :key="item.session.timestamp"
-                                @click="switchSession(item.index); closeSidebar()"
-                                @touchstart.passive="onSessionTouchStart($event, item.index)"
-                                @touchmove.passive="onSessionTouchMove($event, item.index)"
-                                @touchend="onSessionTouchEnd(item.index)"
-                                :class="['session-item', { active: currentSessionIndex === item.index, 'is-swiping': swipeState.index === item.index }]"
-                                :style="swipeState.index === item.index ? { transform: `translateX(${swipeState.offset}px)` } : {}">
-                                <span class="session-title">{{ item.session.title || '新对话' }}</span>
-                                <button v-if="chatSessions.length > 1" @click.stop="deleteSession(item.index)"
-                                    class="delete-btn" title="删除">
-                                    <Trash2 size="14" />
-                                </button>
-                            </div>
-                        </div>
-                        <div v-if="filteredGroupedChatSessions.length === 0" class="session-empty">
-                            没有匹配的对话
-                        </div>
-                    </div>
-
-                    <div class="sidebar-footer">
-                        <div class="sidebar-user sidebar-user-with-settings">
-                            <span class="sidebar-user-avatar">{{ sidebarUserInitial }}</span>
-                            <span class="sidebar-user-copy">
-                                <strong>{{ sidebarUsername }}</strong>
-                                <small>{{ sidebarUserEmail }}</small>
-                            </span>
-                            <button class="sidebar-footer-btn sidebar-settings-btn" type="button" title="设置"
-                                @click.stop="openSettings">
-                                <Settings size="16" />
-                            </button>
-                        </div>
-                    </div>
-                </aside>
-
-                <div v-if="isSidebarOpen" v-show="isComponentVisible"
-                    :class="['sidebar-overlay', { 'is-embedded': props.embedded }]" @click="closeSidebar"></div>
-            </Teleport>
+            <BohaiSidebar
+                v-model="isSidebarOpen"
+                :chat-sessions="chatSessions"
+                :current-session-index="currentSessionIndex"
+                :user-info="userInfo"
+                :embedded="props.embedded"
+                :is-component-visible="isComponentVisible"
+                @start-new-chat="startNewChat"
+                @switch-session="switchSession"
+                @delete-session="deleteSession"
+                @open-settings="openSettings" />
 
             <main class="main-content">
-                <button v-if="!isSidebarOpen" class="sidebar-open-btn" type="button" title="打开侧边栏"
-                    @click="isSidebarOpen = true">
-                    <PanelLeft size="20" />
-                </button>
-
                 <div ref="chatContainer" class="chat-container custom-scrollbar"
                     :class="{ 'is-positioning-initial-scroll': props.overlayMode && !isInitialScrollReady }"
                     @scroll="updateActiveUserMessageFromScroll">
@@ -508,10 +436,11 @@
 
 <script setup>
 import { ref, computed, onMounted, nextTick, watch, onUnmounted } from 'vue';
-import { Plus, Trash2, Square, Globe, X, PanelLeft, ChevronDown, Copy, ThumbsUp, ThumbsDown, MoreHorizontal, ArrowUp, ListChecks, CheckCircle2, LoaderCircle, Circle, Network, Search, Settings, Check } from 'lucide-vue-next';
+import { Plus, Trash2, Square, Globe, X, ChevronDown, Copy, ThumbsUp, ThumbsDown, MoreHorizontal, ArrowUp, ListChecks, CheckCircle2, LoaderCircle, Circle, Network, Search, Settings, Check } from 'lucide-vue-next';
 import { useChatEngine } from '../composables/useChatEngine';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
+import BohaiSidebar from './components/BohaiSidebar.vue';
 import { marked } from 'marked';
 import DOMPurify from '@/utils/dompurify.js';
 import { themeManager } from '@/utils/theme-manager.js';
@@ -553,8 +482,6 @@ const uiNotice = ref('');
 const visibleMessageLimit = ref(80);
 const messageFeedbackByIndex = ref({});
 const expandedMessageDetails = ref(new Set());
-const showSidebarSearch = ref(false);
-const sidebarSearchQuery = ref('');
 const isDarkTheme = ref(false);
 const modeMenuOpen = ref(false);
 const settingsOpen = ref(false);
@@ -653,23 +580,6 @@ const {
 const chatContainer = ref(null);
 const isInitialScrollReady = ref(false);
 const activeUserMessageIndex = ref(-1);
-const _currentSessionTitle = computed(() => {
-    const title = String(chatSessions[currentSessionIndex.value]?.title || '').trim();
-    return title && title !== '新对话' ? title : currentMode.value.name;
-});
-
-const sidebarUsername = computed(() => {
-    return String(userInfo.value?.username || localStorage.getItem('username') || 'BOH 用户').trim();
-});
-
-const sidebarUserEmail = computed(() => {
-    return String(userInfo.value?.email || '').trim() || '欢迎回来';
-});
-
-const sidebarUserInitial = computed(() => {
-    const name = sidebarUsername.value || sidebarUserEmail.value || 'B';
-    return name.trim().slice(0, 1).toUpperCase();
-});
 
 // BOH AI 实际可见上下文窗口：与 useChatEngine 中送入模型的预算口径保持一致
 const contextBudgetPercentText = computed(() => {
@@ -689,32 +599,6 @@ const _activeCapabilityLabels = computed(() => {
     if (isSearching.value) labels.push('联网');
     return labels;
 });
-
-// ─── 对话列表右滑删除 ──────────────────────────────────────────────────────────
-const swipeState = ref({ index: null, startX: 0, offset: 0 });
-
-const onSessionTouchStart = (e, sessionIndex) => {
-    swipeState.value = {
-        index: sessionIndex,
-        startX: e.touches[0].clientX,
-        offset: 0
-    };
-};
-
-const onSessionTouchMove = (e, sessionIndex) => {
-    if (swipeState.value.index !== sessionIndex) return;
-    const deltaX = e.touches[0].clientX - swipeState.value.startX;
-    swipeState.value.offset = Math.max(0, deltaX);
-};
-
-const onSessionTouchEnd = (sessionIndex) => {
-    if (swipeState.value.index !== sessionIndex) return;
-    const threshold = 80;
-    if (swipeState.value.offset > threshold && chatSessions.value.length > 1) {
-        deleteSession(sessionIndex);
-    }
-    swipeState.value = { index: null, startX: 0, offset: 0 };
-};
 
 const contextBudgetTitle = computed(() => {
     const usage = contextBudgetUsage.value || { used: 0, max: 0, percent: 0, includedMessageCount: 0, hasSummary: false };
@@ -744,56 +628,6 @@ const ringProgress = computed(() => {
 const ringColorClass = computed(() => {
     const level = contextBudgetUsage.value?.level || 'low';
     return `level-${level}`;
-});
-
-const getSessionGroupId = (timestamp) => {
-    const value = Number(timestamp || Date.now());
-    const date = Number.isFinite(value) ? new Date(value) : new Date();
-    const today = new Date();
-    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-    const startOfTarget = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-    const dayDiff = Math.floor((startOfToday - startOfTarget) / 86400000);
-    if (dayDiff <= 0) return 'today';
-    if (dayDiff === 1) return 'yesterday';
-    return 'earlier';
-};
-
-const sessionGroupLabels = {
-    today: '今天',
-    yesterday: '昨天',
-    earlier: '更早'
-};
-
-const groupedChatSessions = computed(() => {
-    const groups = [
-        { id: 'today', label: sessionGroupLabels.today, items: [] },
-        { id: 'yesterday', label: sessionGroupLabels.yesterday, items: [] },
-        { id: 'earlier', label: sessionGroupLabels.earlier, items: [] }
-    ];
-    const groupMap = new Map(groups.map((group) => [group.id, group]));
-    chatSessions.forEach((session, index) => {
-        const group = groupMap.get(getSessionGroupId(session?.timestamp)) || groupMap.get('earlier');
-        group.items.push({ session, index });
-    });
-    return groups.filter((group) => group.items.length > 0);
-});
-
-// 搜索过滤后的会话分组：空 query 时直接返回全量；否则按标题/消息内容匹配。
-const filteredGroupedChatSessions = computed(() => {
-    const query = String(sidebarSearchQuery.value || '').trim().toLowerCase();
-    if (!query) return groupedChatSessions.value;
-    const matchedItems = (group) => group.items.filter((item) => {
-        const title = String(item.session?.title || '').toLowerCase();
-        if (title.includes(query)) return true;
-        const messages = Array.isArray(item.session?.messages) ? item.session.messages : [];
-        return messages.some((msg) => {
-            const text = String(msg?.content || msg?.text || '').toLowerCase();
-            return text.includes(query);
-        });
-    }).map((item) => ({ ...item, _matched: true }));
-    return groupedChatSessions.value
-        .map((group) => ({ ...group, items: matchedItems(group) }))
-        .filter((group) => group.items.length > 0);
 });
 
 const hiddenMessageCount = computed(() => {
@@ -1187,14 +1021,6 @@ const closeModeMenu = () => {
     }
 };
 
-const closeSidebar = () => {
-    const overlay = document.querySelector('.sidebar-overlay');
-    if (overlay) overlay.classList.add('exiting');
-    setTimeout(() => {
-        isSidebarOpen.value = false;
-    }, 280);
-};
-
 const formatActionAudit = (audit) => {
     if (!audit) return '';
     const status = audit.ok ? '成功' : '失败';
@@ -1438,14 +1264,6 @@ const copyMessage = async (content) => {
     notifyUnavailable('已复制');
 };
 
-// 侧栏搜索：单次点击展开输入框，再点收起；展开时把焦点送到 input。
-const toggleSidebarSearch = () => {
-    showSidebarSearch.value = !showSidebarSearch.value;
-    if (!showSidebarSearch.value) {
-        sidebarSearchQuery.value = '';
-    }
-};
-
 // 浅/深主题切换：当前默认浅色（由 CSS 决定），切换仅记录偏好并改 data-ui-style。
 // 完整主题由 themeManager 维护，这里只同步本组件内的 isDarkTheme 标记。
 const _toggleTheme = () => {
@@ -1558,50 +1376,6 @@ watch(messages, () => {
 
 <!-- Global overrides for settings button layout, sidebar frosted glass, and settings panel z-index -->
 <style>
-/* Sidebar: white translucent frosted glass with rounded corners */
-.sidebar,
-.sidebar.is-embedded {
-    background: rgba(255, 255, 255, 0.72) !important;
-    border-right: 1px solid rgba(255, 255, 255, 0.45) !important;
-    border-radius: 0 28px 28px 0 !important;
-    box-shadow: 14px 0 36px rgba(15, 23, 42, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.5) !important;
-    backdrop-filter: blur(28px) saturate(1.4) !important;
-    -webkit-backdrop-filter: blur(28px) saturate(1.4) !important;
-}
-
-/* Desktop: sidebar is persistent, with rounded right corners */
-@media (min-width: 1024px) {
-    .sidebar,
-    .sidebar.is-embedded {
-        border-radius: 0 28px 28px 0 !important;
-        background: rgba(255, 255, 255, 0.82) !important;
-        border-right: 1px solid rgba(148, 163, 184, 0.14) !important;
-        box-shadow: 1px 0 0 rgba(255, 255, 255, 0.72) inset !important;
-        backdrop-filter: blur(20px) saturate(1.3) !important;
-        -webkit-backdrop-filter: blur(20px) saturate(1.3) !important;
-    }
-}
-
-/* Dark mode sidebar */
-[data-theme="dark"] .sidebar,
-[data-theme="dark"] .sidebar.is-embedded {
-    background: rgba(15, 23, 42, 0.72) !important;
-    border-right: 1px solid rgba(255, 255, 255, 0.12) !important;
-    box-shadow: 18px 0 44px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
-}
-
-.sidebar-user.sidebar-user-with-settings {
-    display: flex !important;
-    align-items: center !important;
-    gap: 12px !important;
-}
-
-.sidebar-user.sidebar-user-with-settings .sidebar-user-copy {
-    flex: 1 1 auto !important;
-    min-width: 0 !important;
-    overflow: hidden !important;
-}
-
 .ai-settings-backdrop {
     position: fixed !important;
     inset: 0 !important;

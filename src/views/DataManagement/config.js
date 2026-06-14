@@ -1,4 +1,5 @@
 // ==================== 标签页配置 ====================
+import { Database, Gauge, Image, Settings } from 'lucide-vue-next';
 export const tabs = [
   { id: 'users', label: '用户管理', icon: '👤' },
   { id: 'points', label: '积分管理', icon: '⭐' },
@@ -598,5 +599,35 @@ export const dataConfig = {
       { key: 'image', label: '商品图片', type: 'image', placeholder: '上传后自动填入，也可以粘贴 https:// 图片链接', hint: '推荐使用“上传到 Cloud”。' },
       { key: 'specifications', label: '规格选项', type: 'specifications' }
     ]
+  }
+};
+
+// ==================== 管理页面元数据 ====================
+export const ADMIN_PAGE_META = {
+  overview: {
+    eyebrow: 'Overview',
+    title: '站点运行概览',
+    description: '查看核心数据规模、异常诊断和最近活动。',
+    icon: Gauge
+  },
+  data: {
+    eyebrow: 'Data Console',
+    title: '数据管理',
+    description: '通过用户、内容、审核和抽奖分组，集中管理所有站点数据表。',
+    icon: Database
+  },
+  media: {
+    eyebrow: 'Media',
+    title: '媒体资源',
+    description: '汇总商品、新闻、活动、抽奖封面等图片资源入口。',
+    placeholder: '媒体库页面已独立出来，先提供常用图片数据入口。',
+    icon: Image
+  },
+  settings: {
+    eyebrow: 'Settings',
+    title: '网站设置',
+    description: '集中查看后台配置、权限状态和自动任务入口。',
+    placeholder: '设置页目前提供管理状态和关键任务入口，后续可继续拆出站点配置表单。',
+    icon: Settings
   }
 };

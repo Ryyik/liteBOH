@@ -164,12 +164,41 @@ describe('async wrapper attrs pass-through', () => {
       expect(overlay).toMatch(/@island-message/);
     });
 
-    it('UserSpace uses AsyncForum with props and event listeners', () => {
+    it('async-loaders.js loads ForumMain.vue directly (no double-wrap)', () => {
+      const asyncLoaders = readEntryFile(
+        'src/views/user-center/UserSpace/async-loaders.js'
+      );
+      // After eliminating double async wrapping, async-loaders should import
+      // ForumMain.vue directly instead of index.vue.
+      expect(asyncLoaders).toMatch(
+        /import\(['"]@\/views\/Forum\/ForumMain\.vue['"]\)/
+      );
+      expect(asyncLoaders).not.toMatch(
+        /import\(['"]@\/views\/Forum\/index\.vue['"]\)/
+      );
+    });
+
+    it('async-loaders.js loads BOHAIMain.vue directly (no double-wrap)', () => {
       const asyncLoaders = readEntryFile(
         'src/views/user-center/UserSpace/async-loaders.js'
       );
       expect(asyncLoaders).toMatch(
-        /import\(['"]@\/views\/Forum\/index\.vue['"]\)/
+        /import\(['"]@\/views\/BOHAI\/BOHAI\/BOHAIMain\.vue['"]\)/
+      );
+      expect(asyncLoaders).not.toMatch(
+        /import\(['"]@\/views\/BOHAI\/BOHAI\/index\.vue['"]\)/
+      );
+    });
+
+    it('async-loaders.js loads CloudPlusMain.vue directly (no double-wrap)', () => {
+      const asyncLoaders = readEntryFile(
+        'src/views/user-center/UserSpace/async-loaders.js'
+      );
+      expect(asyncLoaders).toMatch(
+        /import\(['"]@\/views\/user-center\/Cloud\+\/CloudPlusMain\.vue['"]\)/
+      );
+      expect(asyncLoaders).not.toMatch(
+        /import\(['"]@\/views\/user-center\/Cloud\+\/index\.vue['"]\)/
       );
     });
   });

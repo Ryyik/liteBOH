@@ -24,7 +24,7 @@ export const initActivities = async () => {
       async () => {
         const { data, error } = await supabase
           .from('activities')
-          .select('*');
+          .select('id, title, date, image, description');
         return { data, error };
       },
       { ttlMs: 10000, tags: ['activities'], timeoutMs: 8000, retry: 1 }

@@ -1,9 +1,9 @@
 import { defineAsyncComponent, h } from 'vue';
 
-const forumComponentLoader = () => import('@/views/Forum/index.vue');
+const forumComponentLoader = () => import('@/views/Forum/ForumMain.vue');
 const messagesComponentLoader = () => import('@/views/user-center/Messages/index.vue');
 const showsComponentLoader = () => import('@/views/Shows/index.vue');
-const bohaiComponentLoader = () => import('@/views/BOHAI/BOHAI/index.vue');
+const bohaiComponentLoader = () => import('@/views/BOHAI/BOHAI/BOHAIMain.vue');
 let forumPreloadPromise = null;
 let messagesPreloadPromise = null;
 let showsPreloadPromise = null;
@@ -157,4 +157,4 @@ export const AsyncBOHAI = defineAsyncComponent({
   timeout: 15000
 });
 
-export const AsyncCloudPlus = defineAsyncComponent(() => import('@/views/user-center/Cloud+/index.vue'));
+export const AsyncCloudPlus = defineAsyncComponent(() => import('@/views/user-center/Cloud+/CloudPlusMain.vue'));
