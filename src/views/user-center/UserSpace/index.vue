@@ -2890,6 +2890,10 @@ onMounted(() => {
   resolveProfileSectionFromRoute();
   void openSettingsPanelFromRoute();
   ensureTabMounted(currentTab.value);
+  // 确保 URL 与当前 tab 同步，否则论坛嵌入式组件的 FAB 按钮检查 route.query.tab 会失败
+  if (!route.query.tab || !validTabs.includes(route.query.tab)) {
+    syncUserSpaceTabRoute(currentTab.value);
+  }
   if (currentTab.value === 'posts') {
     scheduleForumPreload(currentTab.value);
   }

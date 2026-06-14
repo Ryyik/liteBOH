@@ -268,6 +268,8 @@ export async function moderateForumImageFile(file) {
       return classifyNsfwPredictions(predictions);
     } finally {
       release();
+      // 释放 Image 元素内存，避免多图累积导致 GPU/CPU 内存耗尽
+      try { image.src = ''; } catch { /* ignore */ }
     }
   } finally {
     URL.revokeObjectURL(objectUrl);
