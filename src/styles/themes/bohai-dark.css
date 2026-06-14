@@ -711,6 +711,78 @@
   border-color: rgba(255, 255, 255, 0.12);
 }
 
+[data-theme="dark"] .boh-ai-settings-overlay {
+  background: rgba(0, 0, 0, 0.42);
+}
+
+[data-theme="dark"] .boh-ai-settings-panel {
+  background: rgba(31, 31, 31, 0.98);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #ececec;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+}
+
+[data-theme="dark"] .boh-ai-settings-header,
+[data-theme="dark"] .boh-ai-settings-tabs {
+  border-color: rgba(255, 255, 255, 0.10);
+}
+
+[data-theme="dark"] .boh-ai-settings-kicker,
+[data-theme="dark"] .boh-ai-settings-section h3,
+[data-theme="dark"] .boh-ai-settings-choice span,
+[data-theme="dark"] .boh-ai-settings-row-copy small,
+[data-theme="dark"] .boh-ai-settings-meter small,
+[data-theme="dark"] .boh-ai-settings-about span {
+  color: #9ca3af;
+}
+
+[data-theme="dark"] .boh-ai-settings-icon-btn,
+[data-theme="dark"] .boh-ai-settings-tab {
+  color: #b4b4b4;
+}
+
+[data-theme="dark"] .boh-ai-settings-icon-btn:hover,
+[data-theme="dark"] .boh-ai-settings-tab:hover,
+[data-theme="dark"] .boh-ai-settings-row:hover,
+[data-theme="dark"] .boh-ai-settings-choice:hover {
+  background: #3a3a3a;
+  color: #ececec;
+}
+
+[data-theme="dark"] .boh-ai-settings-tab.active {
+  background: #ececec;
+  color: #111827;
+}
+
+[data-theme="dark"] .boh-ai-settings-choice,
+[data-theme="dark"] .boh-ai-settings-meter,
+[data-theme="dark"] .boh-ai-settings-about {
+  background: #252525;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+[data-theme="dark"] .boh-ai-settings-choice.active {
+  border-color: rgba(16, 163, 127, 0.42);
+  background: rgba(16, 163, 127, 0.16);
+}
+
+[data-theme="dark"] .boh-ai-settings-row-icon {
+  background: #212121;
+  color: #b4b4b4;
+}
+
+[data-theme="dark"] .boh-ai-settings-switch {
+  background: #5f5f5f;
+}
+
+[data-theme="dark"] .boh-ai-settings-switch.enabled {
+  background: #10a37f;
+}
+
+[data-theme="dark"] .boh-ai-settings-meter-track {
+  background: #3a3a3a;
+}
+
 .bohai-page[data-theme="dark"] .ai-settings-backdrop,
 [data-theme="dark"] .bohai-page .ai-settings-backdrop {
   background: rgba(0, 0, 0, 0.34);
@@ -789,6 +861,81 @@
   border-color: rgba(16, 163, 127, 0.38);
   background: rgba(16, 163, 127, 0.16);
   color: #78dec7;
+}
+
+/* Dark theme: Settings back button */
+.bohai-page[data-theme="dark"] .ai-settings-back,
+[data-theme="dark"] .bohai-page .ai-settings-back {
+  color: #b4b4b4;
+}
+
+.bohai-page[data-theme="dark"] .ai-settings-back:hover,
+[data-theme="dark"] .bohai-page .ai-settings-back:hover {
+  background: #3a3a3a;
+  color: #ececec;
+}
+
+/* Dark theme: Settings chevron */
+.bohai-page[data-theme="dark"] .ai-setting-chevron,
+[data-theme="dark"] .bohai-page .ai-setting-chevron {
+  color: #5f5f5f;
+}
+
+/* Dark theme: Settings version */
+.bohai-page[data-theme="dark"] .ai-settings-version,
+[data-theme="dark"] .bohai-page .ai-settings-version {
+  color: #5f5f5f;
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Dark theme: Sidebar settings button */
+.bohai-page[data-theme="dark"] .sidebar-settings-btn,
+[data-theme="dark"] .bohai-page .sidebar-settings-btn {
+  color: var(--boh-drawer-muted);
+}
+
+.bohai-page[data-theme="dark"] .sidebar-settings-btn:hover,
+[data-theme="dark"] .bohai-page .sidebar-settings-btn:hover {
+  background: var(--boh-drawer-surface-hover);
+  color: var(--boh-drawer-text);
+}
+
+/* Dark theme: Danger row */
+.bohai-page[data-theme="dark"] .ai-setting-row-danger .ai-setting-copy strong,
+[data-theme="dark"] .bohai-page .ai-setting-row-danger .ai-setting-copy strong {
+  color: #f87171;
+}
+
+.bohai-page[data-theme="dark"] .ai-setting-icon-danger,
+[data-theme="dark"] .bohai-page .ai-setting-icon-danger {
+  background: rgba(248, 113, 113, 0.12) !important;
+  color: #f87171 !important;
+}
+
+/* Dark theme: Progress bar */
+.bohai-page[data-theme="dark"] .ai-setting-progress,
+[data-theme="dark"] .bohai-page .ai-setting-progress {
+  background: #3a3a3a;
+}
+
+.bohai-page[data-theme="dark"] .ai-setting-progress-bar,
+[data-theme="dark"] .bohai-page .ai-setting-progress-bar {
+  background: #10a37f;
+}
+
+.bohai-page[data-theme="dark"] .ai-setting-progress-bar.level-mid,
+[data-theme="dark"] .bohai-page .ai-setting-progress-bar.level-mid {
+  background: #f59e0b;
+}
+
+.bohai-page[data-theme="dark"] .ai-setting-progress-bar.level-high,
+[data-theme="dark"] .bohai-page .ai-setting-progress-bar.level-high {
+  background: #ef4444;
+}
+
+.bohai-page[data-theme="dark"] .ai-setting-progress-bar.level-full,
+[data-theme="dark"] .bohai-page .ai-setting-progress-bar.level-full {
+  background: #dc2626;
 }
 
 .bohai-page[data-theme="dark"] .features-menu,

@@ -138,6 +138,51 @@
         max-height: 72px;
         font-size: 14px;
     }
+
+    /* Landscape sidebar: white translucent frosted glass with rounded corners */
+    .bohai-page.embedded-mode .sidebar {
+        width: min(78vw, 320px);
+        border-radius: 0 20px 20px 0;
+        background: rgba(255, 255, 255, 0.68);
+        border-right: 1px solid rgba(255, 255, 255, 0.45);
+        box-shadow: 14px 0 36px rgba(15, 23, 42, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+        backdrop-filter: blur(28px) saturate(1.4);
+        -webkit-backdrop-filter: blur(28px) saturate(1.4);
+    }
+
+    .bohai-page.embedded-mode .sidebar-header {
+        min-height: 44px;
+        padding: 8px 12px 6px;
+    }
+
+    .bohai-page.embedded-mode .sidebar-brand {
+        font-size: 17px;
+    }
+
+    .bohai-page.embedded-mode .sidebar-quick-actions {
+        padding: 6px 12px 10px;
+        gap: 4px;
+    }
+
+    .bohai-page.embedded-mode .sidebar-quick-action {
+        min-height: 38px;
+        padding: 6px 10px;
+        border-radius: 10px;
+    }
+
+    .bohai-page.embedded-mode .session-item {
+        min-height: 38px;
+        padding: 6px 10px;
+        border-radius: 10px;
+    }
+
+    .bohai-page.embedded-mode .sidebar-footer {
+        min-height: 48px;
+        padding: 8px 12px;
+        background: rgba(255, 255, 255, 0.5);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+    }
 }
 
 /* UserSpace portrait AI tab: parent is fixed between the site header and bottom nav. */
@@ -353,13 +398,13 @@
         width: min(82vw, 340px);
         max-height: none;
         z-index: 1100;
-        border-right: 1px solid rgba(15, 23, 42, 0.08);
+        border-right: 1px solid rgba(255, 255, 255, 0.35);
         border-radius: 0 22px 22px 0;
-        background: rgba(255, 255, 255, 0.96);
-        box-shadow: 18px 0 44px rgba(15, 23, 42, 0.16);
+        background: rgba(255, 255, 255, 0.72);
+        box-shadow: 18px 0 44px rgba(15, 23, 42, 0.14), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
         transform: translateX(calc(-100% - 18px));
-        backdrop-filter: blur(24px) saturate(1.2);
-        -webkit-backdrop-filter: blur(24px) saturate(1.2);
+        backdrop-filter: blur(28px) saturate(1.4);
+        -webkit-backdrop-filter: blur(28px) saturate(1.4);
     }
 
     .bohai-page.embedded-mode .sidebar.open {
@@ -587,7 +632,8 @@
 
 .features-btn:active,
 .send-btn:active,
-.stop-btn:active {
+.stop-btn:active,
+.settings-btn:active {
     transform: scale(0.94);
     transition-duration: 0.08s;
 }
@@ -670,6 +716,10 @@
 .task-drawer.exiting,
 .ai-settings-drawer.exiting {
     animation: bohaiDrawerSlideOut 0.22s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.ai-settings-drawer.ai-settings-drawer-left.exiting {
+    animation: aiSettingsDrawerSlideOutLeft 0.2s cubic-bezier(0.4, 0, 1, 1) both !important;
 }
 
 /* ===== Sidebar Overlay Enhanced ===== */

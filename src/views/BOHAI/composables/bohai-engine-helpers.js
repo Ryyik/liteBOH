@@ -30,12 +30,14 @@ let aiMemoryLoader = null;
 
 // 历史摘要参数：配合放大的上下文窗口同步上调。
 // - RECENT_MESSAGES=8: 摘要只覆盖"倒数第 8 条之前"，保留更多原文以减少摘要信息损失。
-// - MIN_MESSAGES=16: 至少 16 条历史才触发摘要（避免短对话浪费一次摘要调用）。
+// - MIN_MESSAGES=10: 至少 10 条历史才触发摘要（从 16 下调，让中等长度对话也受益）。
 // - MAX_CHARS=2000: 摘要本体上限 2000 字符（之前 900），让压缩后的早期上下文也尽量详细。
+// - TWO_LEVEL_THRESHOLD=50: 超过 50 条消息时做二层摘要。
 export const CONVERSATION_SUMMARY_RECENT_MESSAGES = 8;
-export const CONVERSATION_SUMMARY_MIN_MESSAGES = 16;
+export const CONVERSATION_SUMMARY_MIN_MESSAGES = 10;
 export const CONVERSATION_SUMMARY_MAX_CHARS = 2000;
-export const CONVERSATION_SUMMARY_STORAGE_VERSION = 1;
+export const CONVERSATION_SUMMARY_TWO_LEVEL_THRESHOLD = 50;
+export const CONVERSATION_SUMMARY_STORAGE_VERSION = 2;
 export const GENERATION_STALL_TIMEOUT_MS = 120000;
 
 const AI_MEMORY_RETRY_DELAY_MS = 30000;
@@ -98,11 +100,10 @@ export const extractQueryKeywords = (text) => {
     if (stopwords.has(token)) return;
     expanded.add(token);
 
-    if (/^[\u4e00-\u9fa5]+$/.test(token) && token.length >= 4) {
-      for (let len = 2; len <= 4; len += 1) {
-        for (let i = 0; i <= token.length - len; i += 1) {
-          expanded.add(token.slice(i, i + len));
-        }
+    if (/^[\u4e00-\u9fa5]+$/.test(token) && token.length >= 4 && token.length <= 12) {
+      // Only expand 2-grams + full token, skip 3/4-grams to reduce O(n^2) overhead
+      for (let i = 0; i <= token.length - 2; i += 1) {
+        expanded.add(token.slice(i, i + 2));
       }
     }
   });
@@ -118,11 +119,48 @@ export const extractQueryKeywords = (text) => {
   return result;
 };
 
+// --- Token 估算 ---
+// 用字符数估算 token 消耗，比纯 char.length 更准确。
+// 中文: ~1.8 tokens/char，英文/ASCII: ~0.3 tokens/char，其他: ~1.0 tokens/char。
+// 加上每条消息的角色标记开销 (~20 tokens)。
+export const TOKEN_ESTIMATE_ROLE_OVERHEAD = 20;
+
+export const estimateTokens = (text) => {
+  if (!text) return 0;
+  let tokens = 0;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code >= 0x4e00 && code <= 0x9fff) {
+      // CJK 统一表意文字
+      tokens += 1.8;
+    } else if (code <= 0x7f) {
+      // ASCII
+      tokens += 0.3;
+    } else {
+      // 其他 Unicode（标点、符号、日韩等）
+      tokens += 1.0;
+    }
+  }
+  return Math.ceil(tokens);
+};
+
+export const estimateMessagesTokens = (messages) => {
+  if (!messages || messages.length === 0) return 0;
+  return messages.reduce((sum, msg) => {
+    return sum + TOKEN_ESTIMATE_ROLE_OVERHEAD + estimateTokens(String(msg.content || ''));
+  }, 0);
+};
+
 export const scoreChunk = (chunk, keywords) => {
   if (!chunk || keywords.length === 0) return 0;
   const normalizedChunk = normalizeText(chunk);
+  const chunkLen = normalizedChunk.length || 1;
   return keywords.reduce((score, keyword) => {
-    return score + (normalizedChunk.includes(keyword) ? Math.min(3, Math.ceil(keyword.length / 2)) : 0);
+    if (!normalizedChunk.includes(keyword)) return score;
+    const baseScore = Math.min(3, Math.ceil(keyword.length / 2));
+    const pos = normalizedChunk.indexOf(keyword);
+    const positionBonus = 1 + (1 - pos / chunkLen) * 0.5; // earlier = higher score (1.0x-1.5x)
+    return score + Math.round(baseScore * positionBonus * 10) / 10;
   }, 0);
 };
 
@@ -258,7 +296,7 @@ export const buildHistoryMessagesWithinBudget = (
 ) => {
   const source = Array.isArray(messages) ? messages : [];
   const selected = [];
-  let usedChars = 0;
+  let usedTokens = 0;
 
   for (let index = source.length - 1; index >= 0; index -= 1) {
     const item = source[index];
@@ -267,13 +305,14 @@ export const buildHistoryMessagesWithinBudget = (
     if (!content) continue;
 
     const role = item?.role === 'assistant' || item?.role === 'system' ? item.role : 'user';
-    const estimated = content.length + 20;
-    if (selected.length > 0 && usedChars + estimated > maxChars) {
+    // C3 fix: 使用 token 估算替代字符计数，中文消息更准确
+    const estimated = TOKEN_ESTIMATE_ROLE_OVERHEAD + estimateTokens(content);
+    if (selected.length > 0 && usedTokens + estimated > maxChars) {
       break;
     }
 
     selected.unshift({ role, content });
-    usedChars += estimated;
+    usedTokens += estimated;
     if (selected.length >= maxMessages) break;
   }
 
@@ -362,6 +401,75 @@ export const rankEvidenceContextBlocks = (results = [], queryText = '') => {
     .sort((a, b) => b.score - a.score || a.index - b.index);
 };
 
+// --- 共享上下文预算 + 去重 ---
+// P0: 知识检索和联网搜索共享 8000 字预算，知识检索优先，剩余分配给搜索。
+// P2: 对内容做 URL 级去重，避免重复内容浪费上下文。
+export const buildSharedEvidenceContext = ({
+  evidenceContext = '',
+  searchContext = '',
+  maxChars = MAX_PROMPT_EXTRA_CHARS,
+  evidenceUrls = [],
+  searchUrls = []
+} = {}) => {
+  const evidence = String(evidenceContext || '').trim();
+  const search = String(searchContext || '').trim();
+
+  // 去重：如果搜索内容 URL 和知识检索 URL 重叠，搜索内容截断
+  const evidenceUrlSet = new Set((Array.isArray(evidenceUrls) ? evidenceUrls : []).map((u) => String(u).trim()).filter(Boolean));
+  const searchUrlSet = new Set((Array.isArray(searchUrls) ? searchUrls : []).map((u) => String(u).trim()).filter(Boolean));
+  const overlapUrls = new Set([...evidenceUrlSet].filter((u) => searchUrlSet.has(u)));
+
+  let dedupedSearch = search;
+  if (overlapUrls.size > 0 && search) {
+    // 简单策略：如果 URL 重叠，搜索内容截断到 25%
+    const searchBudget = Math.floor(maxChars * 0.25);
+    dedupedSearch = truncateText(search, searchBudget);
+  }
+
+  // 知识检索优先，剩余预算给搜索
+  let evidenceBudget = Math.min(evidence.length, maxChars);
+  let searchBudget = Math.max(0, maxChars - evidenceBudget);
+
+  // 如果搜索内容很短，多余的预算还给知识检索
+  const actualSearch = truncateText(dedupedSearch, searchBudget);
+  if (actualSearch.length < searchBudget) {
+    evidenceBudget = Math.min(evidence.length, maxChars - actualSearch.length);
+  }
+
+  return {
+    evidenceContext: truncateText(evidence, evidenceBudget),
+    searchContext: actualSearch
+  };
+};
+
+// --- 最终消息数组裁剪 ---
+// P0: 在发送前对 messages 数组做 token 预算裁剪，防止静默超出模型上下文窗口。
+// 保留系统消息和最近消息，从中间裁剪。
+export const trimMessagesToBudget = (messages, maxTokens) => {
+  if (!Array.isArray(messages) || messages.length === 0) return messages;
+
+  // 系统消息不裁剪
+  const systemMessages = messages.filter((m) => m.role === 'system');
+  const nonSystemMessages = messages.filter((m) => m.role !== 'system');
+
+  // 计算系统消息 token 消耗
+  const systemTokens = estimateMessagesTokens(systemMessages);
+  const availableForMessages = Math.max(0, maxTokens - systemTokens);
+
+  // 从最近的消息开始选，直到超出预算
+  const selected = [];
+  let usedTokens = 0;
+  for (let i = nonSystemMessages.length - 1; i >= 0; i--) {
+    const msg = nonSystemMessages[i];
+    const estimated = TOKEN_ESTIMATE_ROLE_OVERHEAD + estimateTokens(String(msg.content || ''));
+    if (usedTokens + estimated > availableForMessages) break;
+    selected.unshift(msg);
+    usedTokens += estimated;
+  }
+
+  return [...systemMessages, ...selected];
+};
+
 export const buildStructuredUserPrompt = ({
   userText = '',
   evidenceContext = '',
@@ -384,9 +492,7 @@ export const buildStructuredUserPrompt = ({
     sections.push(`<web_evidence>\n${searchContext}\n</web_evidence>`);
   }
 
-  if (Array.isArray(availableEvidenceRefs) && availableEvidenceRefs.length > 0) {
-    sections.push(`<available_internal_refs>\n${availableEvidenceRefs.join('、')}\n</available_internal_refs>`);
-  }
+  // available_internal_refs no longer needed — AI doesn't need to cite source IDs
 
   const ruleSections = [
     responseRules,

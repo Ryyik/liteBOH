@@ -213,7 +213,8 @@ export const useAgentCluster = (options = {}) => {
               agentOutputs[agent] = { status: event.payload.status, ms: event.payload.ms };
             }
           }
-        }
+        },
+        onStream: typeof params.onStream === 'function' ? params.onStream : undefined
       });
       if (myEpoch !== runEpoch) return result;
       return result;

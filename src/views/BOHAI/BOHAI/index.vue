@@ -1,10 +1,11 @@
 <template>
     <div class="bohai-page"
-        :class="{ 'embedded-mode': embedded, 'empty-chat-mode': messages.length === 0, 'sidebar-open': isSidebarOpen }"
+        :class="{ 'embedded-mode': props.embedded, 'overlay-mode': props.overlayMode, 'empty-chat-mode': messages.length === 0, 'sidebar-open': isSidebarOpen }"
         :data-ui-style="currentUiStyle">
         <div class="bohai-container">
             <Teleport to="body">
-                <aside v-show="isComponentVisible" :class="['sidebar', { open: isSidebarOpen, 'is-embedded': embedded }]">
+                <aside v-show="isComponentVisible"
+                    :class="['sidebar', { open: isSidebarOpen, 'is-embedded': props.embedded }]">
                     <div class="sidebar-header">
                         <span class="sidebar-mark" aria-hidden="true">BOH</span>
                         <button class="sidebar-icon-btn sidebar-close-btn" type="button" title="收起侧栏"
@@ -63,18 +64,22 @@
                     </div>
 
                     <div class="sidebar-footer">
-                        <div class="sidebar-user">
+                        <div class="sidebar-user sidebar-user-with-settings">
                             <span class="sidebar-user-avatar">{{ sidebarUserInitial }}</span>
                             <span class="sidebar-user-copy">
                                 <strong>{{ sidebarUsername }}</strong>
                                 <small>{{ sidebarUserEmail }}</small>
                             </span>
+                            <button class="sidebar-footer-btn sidebar-settings-btn" type="button" title="设置"
+                                @click.stop="openSettings">
+                                <Settings size="16" />
+                            </button>
                         </div>
                     </div>
                 </aside>
 
-                <div v-if="isSidebarOpen" v-show="isComponentVisible" :class="['sidebar-overlay', { 'is-embedded': embedded }]"
-                    @click="closeSidebar"></div>
+                <div v-if="isSidebarOpen" v-show="isComponentVisible"
+                    :class="['sidebar-overlay', { 'is-embedded': props.embedded }]" @click="closeSidebar"></div>
             </Teleport>
 
             <main class="main-content">
@@ -83,16 +88,8 @@
                     <PanelLeft size="20" />
                 </button>
 
-                <section v-if="taskStatusActive" class="task-status-pill-row" aria-label="任务状态">
-                    <button type="button" class="task-status-pill" @click="taskPanelOpen = true">
-                        <ListChecks v-if="isPlanExperienceActive" size="15" />
-                        <Network v-else size="15" />
-                        <span>{{ taskStatusTitle }}</span>
-                        <span class="task-status-muted">{{ taskStatusSubtitle }}</span>
-                    </button>
-                </section>
-
                 <div ref="chatContainer" class="chat-container custom-scrollbar"
+                    :class="{ 'is-positioning-initial-scroll': props.overlayMode && !isInitialScrollReady }"
                     @scroll="updateActiveUserMessageFromScroll">
                     <div v-if="messages.length === 0" class="empty-state">
                         <div class="empty-brand" aria-label="BOH AI">
@@ -125,11 +122,12 @@
                                 <div v-if="shouldRenderPlanTodoCard(msg, idx)" class="plan-todo-card">
                                     <div class="plan-todo-card-head">
                                         <span class="plan-todo-card-icon">
-                                            <ListChecks size="17" />
+                                            <Network v-if="isAgentClusterModeActive" size="17" />
+                                            <ListChecks v-else size="17" />
                                         </span>
                                         <div>
-                                            <strong>计划代办</strong>
-                                            <span>{{ planTodoSummary }}</span>
+                                            <strong>{{ isAgentClusterModeActive ? 'Agent 集群' : '计划代办' }}</strong>
+                                            <span>{{ isAgentClusterModeActive ? taskStatusSubtitle : planTodoSummary }}</span>
                                         </div>
                                     </div>
                                     <div class="plan-todo-list">
@@ -178,7 +176,8 @@
                                         <LoaderCircle size="12" class="compressing-spinner" />
                                         <span>正在压缩上下文</span>
                                     </div>
-                                    <div v-else :class="['context-ring-wrap', ringColorClass]" :title="contextBudgetTitle">
+                                    <div v-else :class="['context-ring-wrap', ringColorClass]"
+                                        :title="contextBudgetTitle">
                                         <svg class="context-ring" viewBox="0 0 20 20">
                                             <circle class="ring-track" cx="10" cy="10" r="8" fill="none"
                                                 stroke-width="2.5" />
@@ -301,83 +300,215 @@
         </div>
 
         <Teleport to="body">
-            <div v-if="taskPanelOpen" class="plan-modal-backdrop task-drawer-backdrop" role="presentation"
-                @click.self="closeTaskPanel">
-                <section class="plan-modal task-drawer" role="dialog" aria-modal="true"
-                    aria-labelledby="plan-modal-title">
-                    <header class="plan-modal-header">
-                        <div>
-                            <span class="plan-modal-kicker">任务状态</span>
-                            <h2 id="plan-modal-title">{{ taskStatusTitle }}</h2>
-                            <p>{{ taskStatusSubtitle }}</p>
-                        </div>
-                        <button type="button" class="plan-modal-close" title="关闭" @click="closeTaskPanel">
+            <div v-if="settingsOpen" class="ai-settings-backdrop" role="presentation" @click.self="closeSettings">
+                <section class="ai-settings-drawer" role="dialog" aria-modal="true" aria-label="BOH AI 设置">
+                    <header class="ai-settings-header">
+                        <h2>设置</h2>
+                        <button type="button" class="ai-settings-close-btn" title="关闭" @click="closeSettings">
                             <X size="18" />
                         </button>
                     </header>
-                    <div class="plan-modal-body custom-scrollbar">
-                        <section v-if="isPlanExperienceActive" class="plan-modal-section">
-                            <h3>执行进度</h3>
-                            <div class="plan-step-list">
-                                <article v-for="step in planTodoItems" :key="step.id" class="plan-step-row"
-                                    :class="step.state">
-                                    <span class="plan-step-status">
-                                        <CheckCircle2 v-if="step.state === 'done'" size="16" />
-                                        <LoaderCircle v-else-if="step.state === 'active'" size="16" />
-                                        <Circle v-else size="16" />
-                                    </span>
-                                    <div>
-                                        <strong>{{ step.title }}</strong>
-                                        <p>{{ step.detail }}</p>
+
+                    <div class="ai-settings-body custom-scrollbar">
+                        <div class="ai-settings-card">
+                            <div class="ai-settings-group-title">模型与风格</div>
+                            <div class="ai-settings-list">
+                                <div class="ai-settings-row" :class="{ expanded: showModePicker }"
+                                    @click="showModePicker = !showModePicker">
+                                    <div class="ai-settings-row-left">
+                                        <div class="ai-settings-icon bg-blue">
+                                            <Settings size="16" />
+                                        </div>
+                                        <div class="ai-settings-label-stack">
+                                            <span class="ai-settings-label">默认模式</span>
+                                            <span class="ai-settings-desc">{{ currentMode.name }}</span>
+                                        </div>
                                     </div>
-                                </article>
-                            </div>
-                        </section>
-                        <section class="plan-modal-section plan-modal-grid">
-                            <div>
-                                <h3>依据状态</h3>
-                                <p>{{ planEvidenceSummary }}</p>
-                            </div>
-                            <div>
-                                <h3>风险提示</h3>
-                                <p>{{ planRiskSummary }}</p>
-                            </div>
-                        </section>
-                        <section class="plan-modal-section">
-                            <h3>下一步行动</h3>
-                            <p>{{ planNextAction }}</p>
-                        </section>
-                        <section v-if="isAgentClusterModeActive" class="plan-modal-section">
-                            <h3>Agent 集群</h3>
-                            <div class="agent-cluster-strip drawer-agent-strip">
-                                <div v-for="entry in agentClusterEntries" :key="entry.key" class="agent-cluster-chip"
-                                    :class="entry.status">
-                                    <span class="agent-cluster-dot" aria-hidden="true"></span>
-                                    <span class="agent-cluster-chip-label">{{ entry.label }}</span>
-                                    <span v-if="entry.status === 'running'" class="agent-cluster-chip-meta">…</span>
-                                    <span v-else-if="Number.isFinite(entry.ms) && entry.ms > 0"
-                                        class="agent-cluster-chip-meta">
-                                        {{ formatAgentClusterMs(entry.ms) }}
-                                    </span>
+                                    <div class="ai-settings-row-right">
+                                        <span class="ai-settings-chevron" :class="{ expanded: showModePicker }">›</span>
+                                    </div>
+                                </div>
+                                <div v-if="showModePicker" class="ai-settings-inline-options">
+                                    <button v-for="mode in chatModes" :key="mode.id" type="button"
+                                        :class="['ai-settings-inline-option', { active: currentModeId === mode.id }]"
+                                        @click.stop="selectMode(mode.id); showModePicker = false">
+                                        <span class="ai-settings-option-main">
+                                            <strong>{{ mode.name }}</strong>
+                                            <small>{{ mode.tagline || mode.description }}</small>
+                                        </span>
+                                        <Check v-if="currentModeId === mode.id" size="16" />
+                                    </button>
+                                </div>
+
+                                <div class="ai-settings-row" :class="{ expanded: showStylePicker }"
+                                    @click="showStylePicker = !showStylePicker">
+                                    <div class="ai-settings-row-left">
+                                        <div class="ai-settings-icon bg-purple">
+                                            <span style="font-size:12px;font-weight:800;">Aa</span>
+                                        </div>
+                                        <div class="ai-settings-label-stack">
+                                            <span class="ai-settings-label">回答风格</span>
+                                            <span class="ai-settings-desc">{{ currentResponseStyleName }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="ai-settings-row-right">
+                                        <span class="ai-settings-chevron"
+                                            :class="{ expanded: showStylePicker }">›</span>
+                                    </div>
+                                </div>
+                                <div v-if="showStylePicker" class="ai-settings-inline-options">
+                                    <button v-for="style in responseStyleOptions" :key="style.id" type="button"
+                                        :class="['ai-settings-inline-option', { active: currentResponseStyleId === style.id }]"
+                                        @click.stop="setResponseStyle(style.id); showStylePicker = false">
+                                        <span class="ai-settings-option-main">
+                                            <strong>{{ style.shortName || style.name }}</strong>
+                                            <small>{{ style.description || style.name }}</small>
+                                        </span>
+                                        <Check v-if="currentResponseStyleId === style.id" size="16" />
+                                    </button>
                                 </div>
                             </div>
-                        </section>
+                        </div>
+
+                        <div class="ai-settings-card">
+                            <div class="ai-settings-group-title">检索</div>
+                            <div class="ai-settings-list">
+                                <div class="ai-settings-row clickable" @click="isSearching = !isSearching">
+                                    <div class="ai-settings-row-left">
+                                        <div class="ai-settings-icon bg-green">
+                                            <Globe size="16" />
+                                        </div>
+                                        <div class="ai-settings-label-stack">
+                                            <span class="ai-settings-label">联网搜索</span>
+                                            <span class="ai-settings-desc">获取实时信息</span>
+                                        </div>
+                                    </div>
+                                    <div class="ai-settings-row-right">
+                                        <span :class="['ai-settings-switch', { enabled: isSearching }]"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="ai-settings-card">
+                            <div class="ai-settings-group-title">记忆</div>
+                            <div class="ai-settings-list">
+                                <div class="ai-settings-row clickable"
+                                    @click="isTreeholeMemoryEnabled = !isTreeholeMemoryEnabled">
+                                    <div class="ai-settings-row-left">
+                                        <div class="ai-settings-icon bg-indigo">
+                                            <span style="font-size:11px;font-weight:800;">C+</span>
+                                        </div>
+                                        <div class="ai-settings-label-stack">
+                                            <span class="ai-settings-label">Cloud+ 引用</span>
+                                            <span class="ai-settings-desc">引用树洞与日记内容</span>
+                                        </div>
+                                    </div>
+                                    <div class="ai-settings-row-right">
+                                        <span
+                                            :class="['ai-settings-switch', { enabled: isTreeholeMemoryEnabled }]"></span>
+                                    </div>
+                                </div>
+                                <div class="ai-settings-row clickable"
+                                    @click="isSharedMemoryEnabled = !isSharedMemoryEnabled">
+                                    <div class="ai-settings-row-left">
+                                        <div class="ai-settings-icon bg-purple">
+                                            <span style="font-size:11px;font-weight:800;">M</span>
+                                        </div>
+                                        <div class="ai-settings-label-stack">
+                                            <span class="ai-settings-label">公共记忆库</span>
+                                            <span class="ai-settings-desc">查询社区公共记忆</span>
+                                        </div>
+                                    </div>
+                                    <div class="ai-settings-row-right">
+                                        <span
+                                            :class="['ai-settings-switch', { enabled: isSharedMemoryEnabled }]"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="ai-settings-card">
+                            <div class="ai-settings-group-title">上下文</div>
+                            <div class="ai-settings-meter-row">
+                                <div class="ai-settings-meter-info">
+                                    <strong>上下文使用率</strong>
+                                    <small>{{ contextBudgetPercentText }} · {{ contextBudgetUsage?.includedMessageCount
+                                        || 0 }} 条消息</small>
+                                </div>
+                                <div class="ai-settings-meter-track">
+                                    <div class="ai-settings-meter-fill" :style="{ width: contextBudgetPercentText }" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="ai-settings-card">
+                            <div class="ai-settings-group-title">数据</div>
+                            <div class="ai-settings-list">
+                                <div class="ai-settings-row clickable" @click="clearCurrentChat">
+                                    <div class="ai-settings-row-left">
+                                        <div class="ai-settings-icon bg-gray">
+                                            <Trash2 size="16" />
+                                        </div>
+                                        <div class="ai-settings-label-stack">
+                                            <span class="ai-settings-label">清除当前对话</span>
+                                        </div>
+                                    </div>
+                                    <div class="ai-settings-row-right">
+                                        <span class="ai-settings-chevron">›</span>
+                                    </div>
+                                </div>
+                                <div class="ai-settings-row clickable" @click="exportChatData">
+                                    <div class="ai-settings-row-left">
+                                        <div class="ai-settings-icon bg-indigo">
+                                            <span style="font-size:11px;font-weight:800;">JSON</span>
+                                        </div>
+                                        <div class="ai-settings-label-stack">
+                                            <span class="ai-settings-label">导出对话数据</span>
+                                            <span class="ai-settings-desc">下载 JSON 格式的全部对话记录</span>
+                                        </div>
+                                    </div>
+                                    <div class="ai-settings-row-right">
+                                        <span class="ai-settings-chevron">›</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="ai-settings-card danger-card">
+                            <div class="ai-settings-group-title">危险操作</div>
+                            <div class="ai-settings-list">
+                                <div class="ai-settings-row clickable danger" @click="clearAllChatData">
+                                    <div class="ai-settings-row-left">
+                                        <div class="ai-settings-icon bg-red">
+                                            <Trash2 size="16" />
+                                        </div>
+                                        <div class="ai-settings-label-stack">
+                                            <span class="ai-settings-label text-danger">清除所有对话</span>
+                                            <span class="ai-settings-desc">删除全部对话历史，不可撤销</span>
+                                        </div>
+                                    </div>
+                                    <div class="ai-settings-row-right">
+                                        <span class="ai-settings-chevron text-danger">›</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="ai-settings-footer">
+                            <strong>BOH AI v2.5 Beta</strong>
+                            <span>上下文窗口 12K 字符</span>
+                        </div>
                     </div>
-                    <footer class="plan-modal-footer">
-                        <button type="button" class="draft-btn secondary" @click="taskPanelOpen = false">
-                            收起
-                        </button>
-                    </footer>
                 </section>
             </div>
-
         </Teleport>
     </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, nextTick, watch, onUnmounted } from 'vue';
-import { Plus, Trash2, Square, Globe, X, PanelLeft, ChevronDown, Copy, ThumbsUp, ThumbsDown, MoreHorizontal, ArrowUp, ListChecks, CheckCircle2, LoaderCircle, Circle, Network, Search } from 'lucide-vue-next';
+import { Plus, Trash2, Square, Globe, X, PanelLeft, ChevronDown, Copy, ThumbsUp, ThumbsDown, MoreHorizontal, ArrowUp, ListChecks, CheckCircle2, LoaderCircle, Circle, Network, Search, Settings, Check } from 'lucide-vue-next';
 import { useChatEngine } from '../composables/useChatEngine';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
@@ -400,8 +531,12 @@ import 'highlight.js/styles/github.css';
 const authStore = useAuthStore();
 const { userInfo } = storeToRefs(authStore);
 
-defineProps({
+const props = defineProps({
     embedded: {
+        type: Boolean,
+        default: false
+    },
+    overlayMode: {
         type: Boolean,
         default: false
     }
@@ -418,11 +553,62 @@ const uiNotice = ref('');
 const visibleMessageLimit = ref(80);
 const messageFeedbackByIndex = ref({});
 const expandedMessageDetails = ref(new Set());
-const taskPanelOpen = ref(false);
 const showSidebarSearch = ref(false);
 const sidebarSearchQuery = ref('');
 const isDarkTheme = ref(false);
 const modeMenuOpen = ref(false);
+const settingsOpen = ref(false);
+const showModePicker = ref(false);
+const showStylePicker = ref(false);
+
+const openSettings = () => {
+    settingsOpen.value = true;
+};
+
+const closeSettings = () => {
+    settingsOpen.value = false;
+    showModePicker.value = false;
+    showStylePicker.value = false;
+};
+
+const currentResponseStyleName = computed(() => {
+    const style = responseStyleOptions?.find(s => s.id === currentResponseStyleId.value);
+    return style?.shortName || style?.name || '默认';
+});
+
+const clearAllChatData = () => {
+    if (confirm('确定要清除所有对话数据吗？此操作不可撤销。')) {
+        localStorage.removeItem('boh_chat_sessions');
+        localStorage.removeItem('boh_current_session_index');
+        startNewChat();
+        closeSettings();
+    }
+};
+
+const clearCurrentChat = () => {
+    if (confirm('确定要清除当前对话吗？此操作不可撤销。')) {
+        startNewChat();
+        closeSettings();
+    }
+};
+
+const exportChatData = () => {
+    try {
+        const data = {
+            sessions: chatSessions.value,
+            exportedAt: new Date().toISOString(),
+            version: '2.5'
+        };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `boh-ai-chat-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch { /* ignore */ }
+};
+
 let uiNoticeTimer = null;
 
 const emitIslandMessage = (payload = {}) => {
@@ -458,12 +644,16 @@ const {
     sendMessage,
     stopGeneration,
     clearCache: _clearCache,
-    agentClusterState
+    agentClusterState,
+    currentResponseStyleId,
+    setResponseStyle,
+    responseStyleOptions
 } = useChatEngine();
 
 const chatContainer = ref(null);
+const isInitialScrollReady = ref(false);
 const activeUserMessageIndex = ref(-1);
-const currentSessionTitle = computed(() => {
+const _currentSessionTitle = computed(() => {
     const title = String(chatSessions[currentSessionIndex.value]?.title || '').trim();
     return title && title !== '新对话' ? title : currentMode.value.name;
 });
@@ -494,7 +684,7 @@ const contextBudgetPercentText = computed(() => {
 // - Agent: 工作
 // AUTO 模式已于 2026-06-08 移除，不再有"自动路由到哪个子模式"的 chip 概念。
 
-const activeCapabilityLabels = computed(() => {
+const _activeCapabilityLabels = computed(() => {
     const labels = [];
     if (isSearching.value) labels.push('联网');
     return labels;
@@ -884,6 +1074,30 @@ const getPlanTodoState = (index) => {
 };
 
 const planTodoItems = computed(() => {
+    if (isAgentClusterModeActive.value && agentClusterEntries.value.length > 0) {
+        return agentClusterEntries.value.map((entry) => {
+            const statusMap = {
+                ok: 'done',
+                failed: 'done',
+                skipped: 'done',
+                cancelled: 'done',
+                running: 'active'
+            };
+            const detailMap = {
+                ok: '完成',
+                failed: '失败',
+                skipped: '已跳过',
+                cancelled: '已取消',
+                running: '执行中…'
+            };
+            return {
+                id: entry.key,
+                title: entry.label,
+                detail: detailMap[entry.status] || '等待中',
+                state: statusMap[entry.status] || 'pending'
+            };
+        });
+    }
     const segments = extractPlanSegments(latestUserPlanMessage.value?.content);
     const statusLabel = String(thinkingStatus.value || '').trim() || getGrokLoadingLabel();
     return [
@@ -919,24 +1133,14 @@ const planTodoSummary = computed(() => {
     return `${done}/${planTodoItems.value.length} 已完成`;
 });
 
-const taskStatusActive = computed(() => isPlanExperienceActive.value || isAgentClusterModeActive.value);
-
-const taskStatusTitle = computed(() => {
-    if (isPlanExperienceActive.value) {
-        const activeStep = planTodoItems.value.find((item) => item.state === 'active');
-        const done = planTodoItems.value.filter((item) => item.state === 'done').length;
-        if (isLoading.value && activeStep) return `正在规划 ${planTodoItems.value.length} 步`;
-        return `${planPanelTitle.value} · ${done}/${planTodoItems.value.length}`;
-    }
-    return agentClusterPanelTitle.value;
-});
-
 const taskStatusSubtitle = computed(() => {
     if (isPlanExperienceActive.value) return planPanelSubtitle.value;
     return agentClusterPanelSubtitle.value;
 });
 
-const shouldRenderPlanTodoCard = (msg, idx) => {
+const shouldRenderPlanTodoCard = (_msg, _idx) => {
+    if (isAgentClusterModeActive.value && agentClusterEntries.value.length > 0) return true;
+    if (isPlanExperienceActive.value && planTodoItems.value.length > 0) return true;
     return false;
 };
 
@@ -957,16 +1161,6 @@ const getRetrievalTraceSummary = (msg) => {
 const getMessageActionAudit = (msg) => {
     if (!msg || msg.role !== 'assistant') return null;
     return msg?.meta?.actionAudit || null;
-};
-
-const closeTaskPanel = () => {
-    const backdrop = document.querySelector('.task-drawer-backdrop');
-    const drawer = document.querySelector('.task-drawer');
-    if (backdrop) backdrop.classList.add('exiting');
-    if (drawer) drawer.classList.add('exiting');
-    setTimeout(() => {
-        taskPanelOpen.value = false;
-    }, 220);
 };
 
 const closeFeaturesMenu = () => {
@@ -1131,6 +1325,34 @@ const scrollToBottom = (force = false) => {
     });
 };
 
+const jumpToBottomNow = () => {
+    const container = chatContainer.value;
+    if (!container) return;
+    container.scrollTop = container.scrollHeight;
+};
+
+const settleInitialScrollPosition = async () => {
+    if (!props.overlayMode) {
+        isInitialScrollReady.value = true;
+        scrollToBottom(true);
+        nextTick(updateActiveUserMessageFromScroll);
+        return;
+    }
+
+    isInitialScrollReady.value = false;
+    await nextTick();
+    jumpToBottomNow();
+
+    requestAnimationFrame(() => {
+        jumpToBottomNow();
+        requestAnimationFrame(() => {
+            jumpToBottomNow();
+            isInitialScrollReady.value = true;
+            updateActiveUserMessageFromScroll();
+        });
+    });
+};
+
 const toggleFeaturesMenu = () => {
     showFeaturesMenu.value = !showFeaturesMenu.value;
 };
@@ -1166,14 +1388,6 @@ const toggleSearch = () => {
         isCommandMode.value = false;
     }
     closeFeaturesMenu();
-    emitIslandMessage({
-        title: isSearching.value ? '联网搜索已开启' : '联网搜索已关闭',
-        message: isSearching.value ? '需要最新资料时会尝试搜索' : '本轮将优先使用本地与已有知识',
-        icon: 'search',
-        type: 'notification',
-        actionLabel: '知道了',
-        durationMs: 3600
-    });
 };
 
 const deleteMessage = (index) => {
@@ -1234,7 +1448,7 @@ const toggleSidebarSearch = () => {
 
 // 浅/深主题切换：当前默认浅色（由 CSS 决定），切换仅记录偏好并改 data-ui-style。
 // 完整主题由 themeManager 维护，这里只同步本组件内的 isDarkTheme 标记。
-const toggleTheme = () => {
+const _toggleTheme = () => {
     isDarkTheme.value = !isDarkTheme.value;
     if (isDarkTheme.value) {
         document.documentElement.setAttribute('data-boh-theme', 'dark');
@@ -1274,8 +1488,7 @@ onMounted(() => {
     currentUiStyle.value = themeManager.getUiStyle?.() || 'glass';
     themeManager.addListener(handleThemeChange);
     onScrollToBottom(scrollToBottom);
-    scrollToBottom(true);
-    nextTick(updateActiveUserMessageFromScroll);
+    settleInitialScrollPosition();
     document.addEventListener('click', handleClickOutside);
 
     // Detect component visibility for Teleported elements (sidebar/overlay).
@@ -1298,10 +1511,12 @@ onMounted(() => {
     checkVisibility();
 
     // Store cleanup references
-    visibilityObserver = { cleanup: () => {
-        document.removeEventListener('visibilitychange', checkVisibility);
-        clearInterval(visInterval);
-    }};
+    visibilityObserver = {
+        cleanup: () => {
+            document.removeEventListener('visibilitychange', checkVisibility);
+            clearInterval(visInterval);
+        }
+    };
 });
 
 onUnmounted(() => {
@@ -1324,18 +1539,14 @@ watch(currentSessionIndex, () => {
     visibleMessageLimit.value = 80;
     expandedMessageDetails.value = new Set();
     messageFeedbackByIndex.value = {};
-    taskPanelOpen.value = false;
     markdownRenderCache.clear();
-    nextTick(updateActiveUserMessageFromScroll);
-});
-
-watch(taskStatusActive, (active) => {
-    if (!active) {
-        taskPanelOpen.value = false;
-    }
+    settleInitialScrollPosition();
 });
 
 watch(messages, () => {
+    if (props.overlayMode && !isInitialScrollReady.value) {
+        return;
+    }
     scrollToBottom();
     nextTick(updateActiveUserMessageFromScroll);
 }, { deep: true });
@@ -1344,3 +1555,542 @@ watch(messages, () => {
 <style scoped src="./styles/shell-header.css"></style>
 <style scoped src="./styles/messages.css"></style>
 <style scoped src="./styles/adaptive-layout.css"></style>
+
+<!-- Global overrides for settings button layout, sidebar frosted glass, and settings panel z-index -->
+<style>
+/* Sidebar: white translucent frosted glass with rounded corners */
+.sidebar,
+.sidebar.is-embedded {
+    background: rgba(255, 255, 255, 0.72) !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.45) !important;
+    border-radius: 0 28px 28px 0 !important;
+    box-shadow: 14px 0 36px rgba(15, 23, 42, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.5) !important;
+    backdrop-filter: blur(28px) saturate(1.4) !important;
+    -webkit-backdrop-filter: blur(28px) saturate(1.4) !important;
+}
+
+/* Desktop: sidebar is persistent, with rounded right corners */
+@media (min-width: 1024px) {
+    .sidebar,
+    .sidebar.is-embedded {
+        border-radius: 0 28px 28px 0 !important;
+        background: rgba(255, 255, 255, 0.82) !important;
+        border-right: 1px solid rgba(148, 163, 184, 0.14) !important;
+        box-shadow: 1px 0 0 rgba(255, 255, 255, 0.72) inset !important;
+        backdrop-filter: blur(20px) saturate(1.3) !important;
+        -webkit-backdrop-filter: blur(20px) saturate(1.3) !important;
+    }
+}
+
+/* Dark mode sidebar */
+[data-theme="dark"] .sidebar,
+[data-theme="dark"] .sidebar.is-embedded {
+    background: rgba(15, 23, 42, 0.72) !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: 18px 0 44px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+}
+
+.sidebar-user.sidebar-user-with-settings {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+}
+
+.sidebar-user.sidebar-user-with-settings .sidebar-user-copy {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+}
+
+.ai-settings-backdrop {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 2147483600 !important;
+    display: flex !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    padding: 12px !important;
+    background: rgba(15, 23, 42, 0.22) !important;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.ai-settings-drawer {
+    width: min(420px, calc(100vw - 24px)) !important;
+    height: calc(100dvh - 24px) !important;
+    display: grid !important;
+    grid-template-rows: auto minmax(0, 1fr) !important;
+    overflow: hidden !important;
+    border: 1px solid rgba(226, 232, 240, 0.92) !important;
+    border-radius: 14px !important;
+    background: rgba(255, 255, 255, 0.98) !important;
+    color: #111827 !important;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24) !important;
+}
+
+.ai-settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 18px;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.86);
+}
+
+.ai-settings-header h2 {
+    margin: 0;
+    font-size: 20px;
+    line-height: 1.2;
+    font-weight: 700;
+}
+
+.ai-settings-close-btn {
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #64748b;
+    cursor: pointer;
+}
+
+.ai-settings-close-btn:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+}
+
+.ai-settings-body {
+    min-height: 0;
+    overflow-y: auto;
+    padding: 20px 16px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.ai-settings-card {
+    background: #ffffff;
+    border: 1px solid rgba(226, 232, 240, 0.86);
+    border-radius: 16px;
+    overflow: hidden;
+    flex-shrink: 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.ai-settings-card.danger-card {
+    border-color: rgba(220, 38, 38, 0.15);
+}
+
+.ai-settings-group-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: #86868b;
+    letter-spacing: 0.5px;
+    padding: 14px 16px 6px;
+    margin: 0;
+}
+
+.ai-settings-list {
+    display: block;
+}
+
+.ai-settings-list:empty {
+    display: none;
+}
+
+.ai-settings-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    min-height: 56px;
+    position: relative;
+    background: transparent;
+    transition: background-color 0.15s ease;
+    cursor: pointer;
+    border: none;
+    width: 100%;
+    text-align: left;
+    box-sizing: border-box;
+}
+
+.ai-settings-row:hover {
+    background-color: #f8fafc;
+}
+
+.ai-settings-row:active {
+    background-color: #f5f5f7;
+}
+
+.ai-settings-row:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 56px;
+    right: 16px;
+    height: 0.5px;
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.ai-settings-row.expanded {
+    background-color: #f8fafc;
+}
+
+.ai-settings-row-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
+
+.ai-settings-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background-color: #f5f5f7;
+    color: #475569;
+}
+
+.ai-settings-icon svg {
+    width: 16px;
+    height: 16px;
+    stroke-width: 2;
+}
+
+.ai-settings-label-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.ai-settings-label {
+    font-size: 15px;
+    font-weight: 500;
+    color: #111827;
+    line-height: 1.25;
+}
+
+.ai-settings-desc {
+    font-size: 13px;
+    color: #86868b;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ai-settings-row-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    min-width: 0;
+    justify-content: flex-end;
+}
+
+.ai-settings-value {
+    font-size: 14px;
+    color: #86868b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+}
+
+.ai-settings-chevron {
+    color: #94a3b8;
+    font-size: 18px;
+    line-height: 1;
+    transition: transform 0.2s ease;
+}
+
+.ai-settings-chevron.expanded {
+    transform: rotate(90deg);
+}
+
+.ai-settings-inline-options {
+    display: flex;
+    flex-direction: column;
+    padding: 4px 16px 10px;
+    gap: 4px;
+    background: #f8fafc;
+    border-top: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.ai-settings-inline-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: #ffffff;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.ai-settings-inline-option:hover {
+    background: #f1f5f9;
+}
+
+.ai-settings-inline-option.active {
+    border-color: rgba(16, 163, 127, 0.35);
+    background: rgba(16, 163, 127, 0.08);
+}
+
+.ai-settings-option-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.ai-settings-option-main strong {
+    font-size: 14px;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.ai-settings-option-main small {
+    font-size: 12px;
+    color: #64748b;
+    line-height: 1.3;
+}
+
+.ai-settings-switch {
+    position: relative;
+    width: 38px;
+    height: 22px;
+    border-radius: 999px;
+    background: #cbd5e1;
+    flex-shrink: 0;
+    transition: background-color 0.2s ease;
+}
+
+.ai-settings-switch::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.22);
+    transition: transform 0.2s ease;
+}
+
+.ai-settings-switch.enabled {
+    background: #10a37f;
+}
+
+.ai-settings-switch.enabled::after {
+    transform: translateX(16px);
+}
+
+.ai-settings-meter-row {
+    padding: 14px 16px;
+    display: grid;
+    gap: 10px;
+    box-sizing: border-box;
+}
+
+.ai-settings-meter-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.ai-settings-meter-info strong {
+    font-size: 14px;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.ai-settings-meter-info small {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.ai-settings-meter-track {
+    height: 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #e2e8f0;
+}
+
+.ai-settings-meter-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: #10a37f;
+    transition: width 0.3s ease;
+}
+
+.ai-settings-footer {
+    text-align: center;
+    padding: 8px 0 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.ai-settings-footer strong {
+    font-size: 13px;
+    font-weight: 700;
+    color: #64748b;
+}
+
+.ai-settings-footer span {
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+.bg-blue {
+    background-color: #EBF5FF;
+    color: #007AFF;
+}
+
+.bg-green {
+    background-color: #E8F9EE;
+    color: #34C759;
+}
+
+.bg-purple {
+    background-color: #F7EFFF;
+    color: #AF52DE;
+}
+
+.bg-gray {
+    background-color: #F5F5F7;
+    color: #8E8E93;
+}
+
+.bg-indigo {
+    background-color: #EEEDFF;
+    color: #5856D6;
+}
+
+.bg-red {
+    background-color: #FFE5E5;
+    color: #dc2626;
+}
+
+.ai-settings-row.danger .ai-settings-label,
+.ai-settings-row.danger .ai-settings-desc {
+    color: #dc2626;
+}
+
+.ai-settings-row.danger:hover {
+    background: rgba(220, 38, 38, 0.04);
+}
+
+.ai-settings-chevron.text-danger {
+    color: #dc2626;
+}
+
+[data-boh-theme="dark"] .ai-settings-drawer {
+    background: rgba(28, 28, 30, 0.98) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    color: #f8fafc !important;
+}
+
+[data-boh-theme="dark"] .ai-settings-card {
+    background: rgba(40, 40, 42, 0.8);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-boh-theme="dark"] .ai-settings-group-title {
+    color: #9ca3af;
+}
+
+[data-boh-theme="dark"] .ai-settings-label {
+    color: #f8fafc;
+}
+
+[data-boh-theme="dark"] .ai-settings-desc,
+[data-boh-theme="dark"] .ai-settings-value {
+    color: #9ca3af;
+}
+
+[data-boh-theme="dark"] .ai-settings-chevron {
+    color: #6b7280;
+}
+
+[data-boh-theme="dark"] .ai-settings-row:hover,
+[data-boh-theme="dark"] .ai-settings-row.expanded {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+[data-boh-theme="dark"] .ai-settings-inline-options {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.06);
+}
+
+[data-boh-theme="dark"] .ai-settings-inline-option {
+    background: rgba(40, 40, 42, 0.6);
+}
+
+[data-boh-theme="dark"] .ai-settings-inline-option.active {
+    border-color: rgba(16, 163, 127, 0.45);
+    background: rgba(16, 163, 127, 0.12);
+}
+
+[data-boh-theme="dark"] .ai-settings-option-main strong {
+    color: #f8fafc;
+}
+
+[data-boh-theme="dark"] .ai-settings-option-main small {
+    color: #9ca3af;
+}
+
+[data-boh-theme="dark"] .ai-settings-icon {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+[data-boh-theme="dark"] .ai-settings-header {
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-boh-theme="dark"] .ai-settings-close-btn {
+    color: #9ca3af;
+}
+
+[data-boh-theme="dark"] .ai-settings-close-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #f8fafc;
+}
+
+[data-boh-theme="dark"] .ai-settings-meter-track {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+[data-boh-theme="dark"] .ai-settings-footer strong,
+[data-boh-theme="dark"] .ai-settings-footer span {
+    color: #9ca3af;
+}
+
+@media (max-width: 768px) and (orientation: portrait) {
+    .ai-settings-backdrop {
+        align-items: flex-end !important;
+        padding: 0 !important;
+    }
+
+    .ai-settings-drawer {
+        width: 100% !important;
+        height: min(88dvh, 720px) !important;
+        border-radius: 18px 18px 0 0 !important;
+    }
+}
+</style>

@@ -32,7 +32,13 @@ export const createRetrieverAgent = (options = {}) => {
     category: 'knowledge',
     timeoutMs: 30000,
     enabled: true,
-    async run({ task, context }) {
+    hasWebSearch: typeof webSearch === 'function',
+    // B8 fix: 接收 signal，让用户取消能中止检索 Agent
+    async run({ task, context, signal }) {
+      // 快速检查：若已取消，立即返回
+      if (signal?.aborted) {
+        return { ok: false, status: 'cancelled', output: null, notes: ['检索已被用户取消'] };
+      }
       const query = safeString(task?.input?.query || context?.bus?.getQuery?.() || '');
       const hints = safeArray(task?.input?.hints);
       const bus = context?.bus;
@@ -74,7 +80,25 @@ export const createRetrieverAgent = (options = {}) => {
         if (typeof ragKnowledge === 'function') connectors.push({ label: '知识库', sourceName: 'RAG-Knowledge', run: () => ragKnowledge({ query, hints, bus }) });
         if (typeof siteGuide === 'function') connectors.push({ label: '操作手册', sourceName: 'RAG-SiteGuide', run: () => siteGuide({ query, hints, bus }) });
         if (typeof forumPosts === 'function') connectors.push({ label: '论坛', sourceName: 'Forum', run: () => forumPosts({ query, hints, bus }) });
-        if (typeof webSearch === 'function') connectors.push({ label: '联网', sourceName: 'Web', run: () => webSearch({ query, hints, bus }) });
+        if (typeof webSearch === 'function') connectors.push({
+          label: '联网',
+          sourceName: 'Web',
+          // B11 fix: searchWebForPrompt 期望 (queryText, signal) 而非对象，
+          // 且返回 { results, context } 而非 { evidence, context }。
+          // 此处做适配桥接。
+          run: async () => {
+            const raw = await webSearch(query, signal);
+            const results = Array.isArray(raw?.results) ? raw.results : [];
+            return {
+              evidence: results.map((r) => ({
+                text: safeString(r?.content || r?.snippet || '', 600),
+                source: safeString(r?.url || 'Web', 40),
+                link: safeString(r?.url || '', 240)
+              })),
+              context: raw?.context || ''
+            };
+          }
+        });
       }
 
       const settled = await Promise.allSettled(connectors.map((c) => c.run()));
@@ -119,7 +143,8 @@ export const createRetrieverAgent = (options = {}) => {
               }
             ],
             temperature: 0.18,
-            maxTokens: 500
+            maxTokens: 500,
+            signal
           });
           if (content) result.summary = safeString(content, 1500);
         } catch (error) {

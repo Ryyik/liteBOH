@@ -18,24 +18,18 @@ const MODEL_HARD_TIMEOUT_MS = CONNECTOR_TIMEOUT_MS * 4;
 
 // Orchestrator 单独的超时（毫秒），比通用超时短，避免 plan 阶段卡住。
 // Orchestrator 只需要结构化 plan 输出，token 较少，3B 级别模型即可胜任。
-export const ORCHESTRATOR_TIMEOUT_MS = 18000;
+// 注意：Supabase Edge Function 冷启动需要 5-10s，加上 SiliconFlow API 调用，18s 太紧。
+export const ORCHESTRATOR_TIMEOUT_MS = 30000;
 // Orchestrator 失败时的兜底模型（更小的 3B 模型，响应更快）。
 export const ORCHESTRATOR_MODEL_FALLBACK = 'Qwen/Qwen2.5-3B-Instruct';
 
-const isRetryableStatus = (status) => status === 429 || (status >= 500 && status <= 599);
-
-const withTimeout = (promise, timeoutMs, timeoutMessage) => {
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return promise;
-  let timerId;
-  const timeoutPromise = new Promise((_, reject) => {
-    timerId = setTimeout(() => {
-      reject(new DOMException(timeoutMessage || '请求超时', 'TimeoutError'));
-    }, timeoutMs);
-  });
-  return Promise.race([promise, timeoutPromise]).finally(() => {
-    if (timerId) clearTimeout(timerId);
-  });
+const isTimeoutError = (error) => {
+  if (error?.name === 'TimeoutError' || error?.name === 'AbortError') return true;
+  const msg = String(error?.message || '').toLowerCase();
+  return msg.includes('超时') || msg.includes('timeout');
 };
+
+const isRetryableStatus = (status) => status === 429 || (status >= 500 && status <= 599);
 
 export const getBohAIModelStatus = () => ({
   hasConfig: Boolean(BOHAI_CHAT_API_URL),
@@ -67,7 +61,6 @@ export const callBohAIModel = async ({
   messages = [],
   temperature = 0.18,
   maxTokens = 512,
-  stream = false,
   signal,
   timeoutMs = MODEL_HARD_TIMEOUT_MS
 } = {}) => {
@@ -78,12 +71,17 @@ export const callBohAIModel = async ({
   let lastError = null;
 
   for (let attempt = 0; attempt <= MODEL_RETRY_MAX; attempt += 1) {
+    // Check if external signal is already aborted before each attempt
+    if (signal?.aborted) {
+      throw Object.assign(new DOMException('请求已被取消', 'AbortError'), { name: 'AbortError' });
+    }
     try {
       const vaultResult = await callVaultSiliconChat({
         provider,
         purpose: 'chat',
         apiUrl,
         timeoutMs,
+        signal,
         payload: {
           model: safeModel,
           messages,
@@ -93,7 +91,11 @@ export const callBohAIModel = async ({
         }
       });
       if (!vaultResult.ok) {
-        throw new Error(vaultResult.error?.message || 'BOHAI 模型代理调用失败');
+        // B2 fix: 保留 HTTP status 到 error 上，让 isRetryableStatus 能识别 429/5xx
+        const err = new Error(vaultResult.error?.message || 'BOHAI 模型代理调用失败');
+        err.status = vaultResult.status || 0;
+        err.code = vaultResult.error?.code;
+        throw err;
       }
       const payload = vaultResult.data || {};
 
@@ -102,8 +104,11 @@ export const callBohAIModel = async ({
         content: payload?.choices?.[0]?.message?.content || ''
       };
     } catch (error) {
-      if (error.name === 'AbortError') throw error;
-      if (error.name === 'TimeoutError') {
+      // B7 fix: AbortError 来自用户取消，不应重试。直接抛出，避免 2.4s 无意义延迟。
+      if (error?.name === 'AbortError') {
+        throw error;
+      }
+      if (isTimeoutError(error)) {
         lastError = error;
         if (attempt < MODEL_RETRY_MAX) {
           const delay = MODEL_RETRY_BACKOFF_BASE_MS * Math.pow(2, attempt);

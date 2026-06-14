@@ -32,9 +32,17 @@ const invokeRuntime = async (payload = {}) => {
     };
   }
 
-  const timeoutMs = Math.max(1, Number(payload.timeoutMs || 30000));
+  const timeoutMs = Math.max(1, Number(payload.timeoutMs || 45000));
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  // B1 fix: 支持外部 signal，与内部超时 signal 合并
+  const externalSignal = payload.signal;
+  const effectiveSignal = externalSignal
+    ? (typeof AbortSignal.any === 'function'
+        ? AbortSignal.any([externalSignal, controller.signal])
+        : controller.signal)
+    : controller.signal;
 
   try {
     const sessionResult = await supabase.auth.getSession().catch(() => null);
@@ -46,7 +54,7 @@ const invokeRuntime = async (payload = {}) => {
         'Authorization': `Bearer ${accessToken}`,
         'apikey': supabaseAnonKey
       },
-      signal: controller.signal,
+      signal: effectiveSignal,
       body: JSON.stringify(payload)
     });
     const data = await parseRuntimeResponse(response);
@@ -90,7 +98,7 @@ export const callVaultSiliconChatStream = async ({
   purpose = 'chat',
   payload = {},
   apiUrl = '',
-  timeoutMs = 30000,
+  timeoutMs = 45000,
   signal
 } = {}) => {
   if (!runtimeFunctionUrl || !supabaseAnonKey) {
@@ -142,14 +150,16 @@ export const callVaultSiliconChat = ({
   purpose = 'chat',
   payload = {},
   apiUrl = '',
-  timeoutMs = 30000
+  timeoutMs = 45000,
+  signal
 } = {}) => invokeRuntime({
   action: 'runtime-chat',
   provider,
   purpose,
   payload,
   apiUrl,
-  timeoutMs
+  timeoutMs,
+  signal
 });
 
 export const searchVaultTavily = ({

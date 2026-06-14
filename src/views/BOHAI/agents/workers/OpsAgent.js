@@ -35,7 +35,11 @@ export const createOpsAgent = (options = {}) => {
     label: '操作',
     category: 'action',
     timeoutMs: 30000,
-    async run({ task, context }) {
+    // B8 fix: 接收 signal，让用户取消能中止操作 Agent
+    async run({ task, context, signal }) {
+      if (signal?.aborted) {
+        return { ok: false, status: 'cancelled', output: null, notes: ['操作已被用户取消'] };
+      }
       const query = safeString(task?.input?.query || context?.bus?.getQuery?.() || '');
       const description = safeString(task?.description || '');
       const bus = context?.bus;
@@ -76,7 +80,8 @@ export const createOpsAgent = (options = {}) => {
                 { role: 'user', content: userPrompt }
               ],
               temperature: 0.2,
-              maxTokens: 1200
+              maxTokens: 1200,
+              signal
             });
             const parsed = modelClient.extractJson ? modelClient.extractJson(content) : null;
             if (parsed) {

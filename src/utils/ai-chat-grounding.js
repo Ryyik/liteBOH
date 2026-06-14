@@ -1,7 +1,9 @@
+import { BOH_MEMBER_NAMES } from '@/views/BOHAI/composables/chat-engine-config.js';
+
 const DEFAULT_FACTUALITY_TRIGGER_KEYWORDS = [
-  '是谁', '什么是', '什么时候', '何时', '哪年', '发生了什么', '原因', '来源', '细节', '真相', '准确',
-  '最新', '最近', '今天', '昨天', '今年', '版本', '数据', '统计', '公告', '政策', '规则', '事实',
-  '记录', '证据', '依据', '是否', '有没有', '怎么回事', '能否确认'
+  '是谁', '什么是', '什么时候', '哪年', '发生了什么', '原因', '来源', '细节', '真相', '准确',
+  '公告', '政策', '规则', '事实',
+  '记录', '证据', '依据', '怎么回事', '能否确认'
 ];
 
 const DEFAULT_FACTUALITY_QUESTION_PATTERNS = [
@@ -12,8 +14,8 @@ const DEFAULT_FACTUALITY_QUESTION_PATTERNS = [
 ];
 
 const DEFAULT_UNCERTAINTY_PATTERN = /(未检索到明确依据|目前无法确认|暂时无法确认|不确定|信息不足|证据不足)/;
-const BOH_INTERNAL_SOURCE_PATTERN = /(方块之家|block of home|\bboh\b|boh\s*ai|boh\s*cloud\+?|cloud\+|论坛|帖子|公告|活动|周年庆|内战|服务器|联机|成员|ryyik|lf|小牛|橙子|eleven|end|雨芙蕖|白烨|丁老师|汉堡|百城|小天光|小仙|pushplus|订阅|会员|积分|礼物|生日)/i;
-const BOH_INTERNAL_FACT_PATTERN = /(是谁|是什么|什么时候|何时|哪年|哪里|在哪|怎么|如何|步骤|入口|路径|最新|最近|今天|近期|本周|本月|公告|活动|规则|状态|记录|历史|来源|细节|有没有|是否|能否确认|介绍|总结|复盘|查询|查看)/i;
+const BOH_INTERNAL_SOURCE_PATTERN = new RegExp(`(方块之家|block of home|\\bboh\\b|boh\\s*ai|boh\\s*cloud\\+?|cloud\\+|论坛|帖子|公告|周年庆|内战|${BOH_MEMBER_NAMES}|pushplus|订阅|会员)`, 'i');
+const BOH_INTERNAL_FACT_PATTERN = /(是谁|是什么|什么时候|何时|哪年|哪里|在哪|最新|最近|今天|近期|本周|本月|公告|活动|规则|状态|记录|历史|来源|细节|有没有|是否|能否确认)/i;
 const CREATIVE_REQUEST_PATTERN = /(写|生成|创作|改写|润色|设计|起草|文案|口号|标题|祝福|海报|宣传语|故事|诗|歌词|设定|梗图)/i;
 
 export const INTERNAL_CITATION_ID_PATTERN = /^(?:T|S|K|G|F|U)\d+$/i;
@@ -22,7 +24,7 @@ const FORUM_CITATION_ID_PATTERN = /^F\d+$/i;
 const FORUM_URL_PATTERN = /(boh\.community\/post|(?:^|[\s"'(（<])#?\/forum\/post\/|(?:^|[\s"'(（<])https?:\/\/[^\s)\]）>]*\/forum\/post\/)/i;
 const FORUM_REF_PATTERN = /\[F\d+\]/i;
 const FORUM_HANDLE_CLAIM_PATTERN = /(?:论坛|帖子|社区|社群|BOH|方块之家)[^。！？\n]{0,40}@[A-Za-z0-9_-]{2,32}|@[A-Za-z0-9_-]{2,32}[^。！？\n]{0,40}(?:论坛|帖子|社区|社群|BOH|方块之家)/i;
-const FORUM_SOURCE_CLAIM_PATTERN = /(论坛|帖子|社区|社群|BOH|方块之家)[^。！？\n]{0,36}(用户|成员|作者|楼主|有人|大家)[^。！？\n]{0,36}(分享|提到|说|表示|发了|发布|讨论|链接|帖子)/i;
+const FORUM_SOURCE_CLAIM_PATTERN = /(论坛|帖子)[^。！？\n]{0,36}(用户|成员|作者|楼主|有人)[^。！？\n]{0,36}(分享|提到|说|表示|发了|发布|讨论|链接|帖子)/i;
 const FORUM_LINK_LABEL_PATTERN = /(查看帖子|帖子链接|原帖|原文链接|发帖ID|帖子ID)/i;
 
 export const normalizeGroundingText = (text) => String(text || '').toLowerCase().trim();
@@ -64,8 +66,8 @@ export const isLikelyBohInternalFactualQuestion = (
 ) => {
   const normalized = normalizeText(text);
   if (!normalized) return false;
-  if (!isLikelyBohInternalQuestion(normalized, { normalizeText: (value) => value })) return false;
   if (operationQuestion) return true;
+  if (!isLikelyBohInternalQuestion(normalized, { normalizeText: (value) => value })) return false;
   if (CREATIVE_REQUEST_PATTERN.test(normalized) && !BOH_INTERNAL_FACT_PATTERN.test(normalized)) return false;
   return BOH_INTERNAL_FACT_PATTERN.test(normalized) || isLikelyFactualQuestion(normalized, { normalizeText: (value) => value });
 };
@@ -208,30 +210,49 @@ export const sanitizeUnsupportedCommunityEvidenceClaims = (
   text,
   {
     availableEvidenceRefs = [],
-    fallbackText = '我没有检索到对应的 BOH 论坛帖子或用户，不能把这件事说成社区里有人分享过。'
+    fallbackText = '这部分内容未经检索确认，已省略。'
   } = {}
 ) => {
   const raw = String(text || '').trim();
   if (!raw) return raw;
   if (!hasUnsupportedCommunityEvidenceClaim(raw, { availableEvidenceRefs })) return raw;
 
-  const unsafeSegmentPattern = new RegExp([
-    FORUM_URL_PATTERN.source,
-    FORUM_REF_PATTERN.source,
-    FORUM_HANDLE_CLAIM_PATTERN.source,
-    FORUM_SOURCE_CLAIM_PATTERN.source,
-    FORUM_LINK_LABEL_PATTERN.source
-  ].join('|'), 'i');
+  const hasForumEvidence = hasAvailableForumEvidence(availableEvidenceRefs);
 
   const segments = raw
     .split(/(?<=[。！？!?])\s+|\n+/)
     .map((segment) => segment.trim())
-    .filter(Boolean)
-    .filter((segment) => !unsafeSegmentPattern.test(segment));
+    .filter(Boolean);
 
-  const cleaned = segments.join('\n').trim();
-  if (cleaned.length >= 20) {
-    return `${fallbackText}\n\n${cleaned}`;
+  // For each segment, remove only unsupported claim portions
+  const cleanedSegments = segments.map((segment) => {
+    let cleaned = segment;
+    // Remove unsupported forum source claims
+    cleaned = cleaned.replace(FORUM_SOURCE_CLAIM_PATTERN, '');
+    // Remove unsupported @handle claims
+    cleaned = cleaned.replace(FORUM_HANDLE_CLAIM_PATTERN, '');
+    // Remove unsupported link labels
+    cleaned = cleaned.replace(FORUM_LINK_LABEL_PATTERN, '');
+    // Remove [F] citations without evidence
+    if (!hasForumEvidence) {
+      cleaned = cleaned.replace(/\[F\d+\]/g, '');
+      cleaned = cleaned.replace(FORUM_URL_PATTERN, '');
+    }
+    return cleaned.trim();
+  }).filter((segment) => segment.length > 0);
+
+  // 如果清理后内容与原文相同，直接返回原文
+  const cleanedText = cleanedSegments.join('\n').trim();
+  if (cleanedText === raw) return raw;
+
+  // 如果清理后内容足够多，直接返回清理后内容
+  if (cleanedSegments.length >= 2) {
+    return cleanedText;
+  }
+
+  // 如果清理后内容较少，在开头插入 fallback 提示
+  if (cleanedText.length >= 20) {
+    return `${fallbackText}\n\n${cleanedText}`;
   }
   return fallbackText;
 };

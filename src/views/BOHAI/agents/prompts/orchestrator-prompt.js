@@ -33,9 +33,12 @@ export const ORCHESTRATOR_SYSTEM_PROMPT = `你是 BOH AI 集群的编排者（Or
 7. 描述保持中文、短句。
 `;
 
+const RETRIEVER_HINT_WITH_WEB = '站内 RAG + 联网搜索 + 论坛帖子检索';
+const RETRIEVER_HINT_NO_WEB = '站内 RAG + 论坛帖子检索（联网搜索未启用）';
+
 const KNOWN_AGENT_HINTS = {
   [AGENT_AGENT_ROLES.CHAT_ENGINE]: '单 Agent 通用对话（默认 Fast/Think/Pro 模式）',
-  [AGENT_AGENT_ROLES.RETRIEVER]: '站内 RAG + 联网搜索 + 论坛帖子检索',
+  [AGENT_AGENT_ROLES.RETRIEVER]: RETRIEVER_HINT_WITH_WEB,
   [AGENT_AGENT_ROLES.MEMORY]: 'Cloud+ 私有内容 / 公共记忆 / 账号私域数据',
   [AGENT_AGENT_ROLES.OPS]: '站点操作手册 / 起草发帖 / 起草邮件 / 站点动作',
   [AGENT_AGENT_ROLES.CODE]: '代码 / Minecraft 指令 / 命令方块',
@@ -65,7 +68,10 @@ export const buildOrchestratorUserPrompt = ({
   lines.push('## 可用 Agent');
   if (Array.isArray(availableAgents) && availableAgents.length) {
     availableAgents.forEach((agent) => {
-      const hint = KNOWN_AGENT_HINTS[agent.role] || agent.label || agent.tag || '通用';
+      let hint = KNOWN_AGENT_HINTS[agent.role] || agent.label || agent.tag || '通用';
+      if (agent.role === AGENT_AGENT_ROLES.RETRIEVER && agent.hasWebSearch === false) {
+        hint = RETRIEVER_HINT_NO_WEB;
+      }
       lines.push(`- ${agent.name} (role=${agent.role || agent.name}, tag=${agent.tag || agent.role || agent.name}, hint=${hint})`);
     });
   } else {

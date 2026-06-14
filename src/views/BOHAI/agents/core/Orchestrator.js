@@ -41,7 +41,8 @@ const safeListAvailable = (registry) => {
     name: agent.name,
     role: agent.role,
     tag: agent.tag,
-    label: agent.label
+    label: agent.label,
+    hasWebSearch: agent.hasWebSearch
   }));
 };
 
@@ -89,63 +90,39 @@ export const createOrchestrator = ({
       signal: customSignal || signal
     });
 
-    // 主+兜底并发跑：主模型按时返回就用主，兜底仅作"冷启动"备胎。
-    // 这样最坏情况 ≈ 主模型 timeout（一个 RTT），主模型健康时无回归。
-    // B-14 fix: abort fallback controller when main succeeds to save tokens.
+    // C4 fix: 先主后兜底（非并发），节省 token。
+    // 主模型在 90%+ 情况下正常返回，无需每次都消耗兜底模型的 token。
     try {
-      const fallbackController = new AbortController();
-      const mainPromise = callOrchestrator(modelId, 400);
-      const fallbackPromise = (async () => {
-        try {
-          return { ok: true, value: await callOrchestrator(ORCHESTRATOR_MODEL_FALLBACK, 320, fallbackController.signal) };
-        } catch (error) {
-          if (error?.name === 'AbortError') return { ok: false, aborted: true };
-          return { ok: false, error };
-        }
-      })();
-
-      // 给主模型加一个最大容忍时间，超出则取消主并采纳兜底
-      const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve({ ok: false, timeout: true }), ORCHESTRATOR_TIMEOUT_MS));
-
-      const result = await Promise.race([
-        mainPromise.then((value) => ({ kind: 'main', value })),
-        timeoutPromise
-      ]);
-
-      if (result.kind === 'main') {
-        // B-14: Main succeeded — abort fallback immediately to save token quota
-        fallbackController.abort();
-        const content = result.value?.content;
-        const trial = parseOrchestratorPlan(content);
-        if (trial) {
-          parsed = trial;
-        } else {
-          // 主模型返回了但解析不出 JSON：直接使用兜底
-          const fallbackResult = await fallbackPromise;
-          if (fallbackResult?.ok) {
-            parsed = parseOrchestratorPlan(fallbackResult.value?.content);
-          }
-        }
+      const mainResult = await callOrchestrator(modelId, 400);
+      const content = mainResult?.content;
+      const trial = parseOrchestratorPlan(content);
+      if (trial) {
+        parsed = trial;
       } else {
-        // 超时：取消主（如果还活着），采纳兜底结果
-        const fallbackResult = await fallbackPromise;
-        if (fallbackResult?.ok) {
-          parsed = parseOrchestratorPlan(fallbackResult.value?.content);
-          logger.warn('bohai-cluster', 'Orchestrator 主模型超时，已切换兜底小模型');
-        } else {
-          rawError = fallbackResult?.error || new Error('Orchestrator 主模型超时且兜底失败');
-          logger.warn('bohai-cluster', 'Orchestrator 模型调用失败，使用兜底计划', { error: String(rawError?.message || rawError) });
+        // 主模型返回了但解析不出 JSON：尝试兜底
+        logger.warn('bohai-cluster', 'Orchestrator 主模型返回了无法解析的输出，尝试兜底模型');
+        try {
+          const fallbackResult = await callOrchestrator(ORCHESTRATOR_MODEL_FALLBACK, 320);
+          parsed = parseOrchestratorPlan(fallbackResult?.content);
+        } catch (fallbackError) {
+          rawError = fallbackError;
+          logger.warn('bohai-cluster', 'Orchestrator 兜底模型也失败，使用规则兜底计划', { error: String(fallbackError?.message || fallbackError) });
         }
       }
     } catch (error) {
       rawError = error;
-      // 进入这里的可能性：主模型立刻抛错（如 4xx），降级走兜底
-      try {
-        const { content } = await callOrchestrator(ORCHESTRATOR_MODEL_FALLBACK, 320);
-        parsed = parseOrchestratorPlan(content);
-      } catch (fallbackError) {
-        rawError = fallbackError;
-        logger.warn('bohai-cluster', 'Orchestrator 模型调用失败，使用兜底计划', { error: String(fallbackError?.message || fallbackError) });
+      if (error?.name === 'AbortError') {
+        logger.warn('bohai-cluster', 'Orchestrator 被用户取消');
+      } else {
+        // 主模型失败（超时/网络等）：降级走兜底
+        logger.warn('bohai-cluster', 'Orchestrator 主模型失败，尝试兜底模型', { error: String(error?.message || error) });
+        try {
+          const fallbackResult = await callOrchestrator(ORCHESTRATOR_MODEL_FALLBACK, 320);
+          parsed = parseOrchestratorPlan(fallbackResult?.content);
+        } catch (fallbackError) {
+          rawError = fallbackError;
+          logger.warn('bohai-cluster', 'Orchestrator 兜底模型也失败，使用规则兜底计划', { error: String(fallbackError?.message || fallbackError) });
+        }
       }
     }
 
@@ -207,7 +184,9 @@ export const createOrchestratorAgent = (registry, options = {}) => {
     tag: 'orchestrator',
     label: '编排',
     category: 'control',
-    timeoutMs: 8000,
+    // B3 fix: 之前 8s 远小于 ORCHESTRATOR_TIMEOUT_MS (30s)，AgentRuntime 会提前终止。
+    // 改为 ORCHESTRATOR_TIMEOUT_MS + 8s buffer，确保底层模型调用有足够时间完成。
+    timeoutMs: ORCHESTRATOR_TIMEOUT_MS + 8000,
     async run({ context }) {
       const query = context?.bus?.getQuery?.() || '';
       const clusterMode = context?.clusterMode || 'auto';

@@ -545,18 +545,21 @@
 .features-btn,
 .mic-btn,
 .send-btn,
-.stop-btn {
+.stop-btn,
+.settings-btn {
     width: 34px;
     height: 34px;
 }
 
 .features-btn,
-.mic-btn {
+.mic-btn,
+.settings-btn {
     color: #676767;
 }
 
 .features-btn:hover,
-.mic-btn:hover {
+.mic-btn:hover,
+.settings-btn:hover {
     background: #f1f1f1;
     color: #202123;
 }

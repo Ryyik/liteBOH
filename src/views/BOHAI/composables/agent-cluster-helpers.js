@@ -88,7 +88,8 @@ const getCluster = (options = {}) => {
     invokeChatEngine,
     enableRetriever: options.enableRetriever !== false,
     enableMemory: options.enableMemory !== false,
-    enableOps: options.enableOps !== false
+    enableOps: options.enableOps !== false,
+    webSearch: typeof options.webSearch === 'function' ? options.webSearch : undefined
   });
   if (!options.invokeChatEngine) {
     cachedCluster = instance;
@@ -220,9 +221,10 @@ export const runAgentClusterBranch = async ({
   onEvent,
   onStream,
   state,
-  invokeChatEngine
+  invokeChatEngine,
+  webSearch
 } = {}) => {
-  const cluster = getCluster({ invokeChatEngine });
+  const cluster = getCluster({ invokeChatEngine, webSearch });
   const result = await cluster.run({
     query: userText,
     history: history || [],

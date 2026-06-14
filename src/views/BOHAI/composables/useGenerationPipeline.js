@@ -16,7 +16,7 @@
  */
 
 import { logger } from '@/utils/logger.js'
-import { callVaultSiliconChat } from '@/utils/api/api-key-runtime-api.js'
+import { callVaultSiliconChat, callVaultSiliconChatStream } from '@/utils/api/api-key-runtime-api.js'
 import { AUTO_ROUTER_MODEL_ID } from './chat-engine-config.js'
 
 // Default timeout for model calls (ms)
@@ -176,12 +176,18 @@ export function useGenerationPipeline({ availableModels, abortController }) {
         frequency_penalty: resolvedOptions.frequency_penalty
       };
 
+      // B6 fix: 传递 requestSignal，让用户取消能中止内部模型调用
+      const effectiveSignal = _combineSignals(
+        requestSignal || (abortController.value ? abortController.value.signal : undefined),
+        MODEL_CALL_TIMEOUT_MS
+      );
       const vaultResult = await callVaultSiliconChat({
         provider: model.providerKey || 'siliconflow',
         purpose: 'chat',
         payload,
         apiUrl: model.url,
-        timeoutMs: MODEL_CALL_TIMEOUT_MS
+        timeoutMs: MODEL_CALL_TIMEOUT_MS,
+        signal: effectiveSignal
       });
       if (!vaultResult.ok) {
         throw new Error(vaultResult.error?.message || `API proxy error for model ${modelId}`);
@@ -350,48 +356,42 @@ export function useGenerationPipeline({ availableModels, abortController }) {
 
     resetThinkingState();
 
-    try {
-      const content = await callModelInternal(modelId, prompt, systemPrompt, history, requestSignal, retryCount, {
-        ...options,
-        max_tokens: options.max_tokens || 4096
-      });
-      const filteredContent = filterThinkingContent(content);
-      if (filteredContent && filteredContent !== '[object Object]') onChunk(filteredContent);
-      return;
+    const resolvedOptions = {
+      max_tokens: Math.trunc(toFiniteNumber(options.max_tokens, 4096, { min: 256, max: 8192 })),
+      temperature: toFiniteNumber(options.temperature, 0.7, { min: 0, max: 1.2 }),
+      top_p: toFiniteNumber(options.top_p, 0.9, { min: 0.1, max: 1 }),
+      frequency_penalty: toFiniteNumber(options.frequency_penalty, 0, { min: 0, max: 2 })
+    };
+    const payload = {
+      model: model.id,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...history,
+        { role: 'user', content: prompt }
+      ],
+      stream: true,
+      max_tokens: resolvedOptions.max_tokens,
+      temperature: resolvedOptions.temperature,
+      top_p: resolvedOptions.top_p,
+      frequency_penalty: resolvedOptions.frequency_penalty
+    };
 
-      const response = await fetch(model.url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Connection': 'keep-alive'
-        },
-        body: JSON.stringify({
-          model: model.id,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...history,
-            { role: 'user', content: prompt }
-          ],
-          stream: true,
-          max_tokens: options.max_tokens || 4096,
-          temperature: options.temperature || 0.7
-        }),
+    try {
+      const response = await callVaultSiliconChatStream({
+        provider: model.providerKey || 'siliconflow',
+        purpose: 'chat',
+        payload,
+        apiUrl: model.url,
+        timeoutMs: STREAM_MODEL_CALL_TIMEOUT_MS,
         signal: _combineSignals(
           requestSignal || (abortController.value ? abortController.value.signal : undefined),
           STREAM_MODEL_CALL_TIMEOUT_MS
         )
       });
 
-      if (!response.ok) {
-        let errorText = '';
-        try {
-          errorText = (await response.text()).slice(0, 200);
-        } catch (_readError) { /* ignore */ }
-        throw new Error(`API Error: ${response.status} for model ${modelId}${errorText ? ` - ${errorText}` : ''}`);
-      }
-
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+      let finalText = '';
       const sseParser = createSseLineParser((payload) => {
         try {
           const data = JSON.parse(payload);
@@ -401,7 +401,10 @@ export function useGenerationPipeline({ availableModels, abortController }) {
           if (rawContent) {
             const content = safeChunkToString(rawContent);
             const filteredContent = filterThinkingContentStream(content);
-            if (filteredContent && filteredContent !== '[object Object]') onChunk(filteredContent);
+            if (filteredContent && filteredContent !== '[object Object]') {
+              finalText += filteredContent;
+              if (typeof onChunk === 'function') onChunk(filteredContent);
+            }
           }
         } catch {
           // Ignore malformed partial payloads
@@ -422,15 +425,17 @@ export function useGenerationPipeline({ availableModels, abortController }) {
 
       const remainingContent = flushThinkingBuffer();
       if (remainingContent && remainingContent !== '[object Object]') {
-        onChunk(remainingContent);
+        finalText += remainingContent;
+        if (typeof onChunk === 'function') onChunk(remainingContent);
       }
+      return finalText;
     } catch (error) {
       if (retryCount < 1 && error.name !== 'AbortError') {
         logger.warn('boh-ai', `Model ${modelId} failed (Stream), trying fallback`, error);
         const fallbackModel = getFallbackModel(modelId);
         if (fallbackModel && fallbackModel.id !== modelId) {
-          await callModelStream(fallbackModel.id, prompt, systemPrompt, history, onChunk, options, requestSignal, retryCount + 1);
-          return;
+          // B4 fix: 返回 fallback 调用结果，而非 undefined
+          return callModelStream(fallbackModel.id, prompt, systemPrompt, history, onChunk, options, requestSignal, retryCount + 1);
         }
       }
       throw error;

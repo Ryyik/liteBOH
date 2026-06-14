@@ -25,6 +25,120 @@
     height: 100%;
 }
 
+.bohai-page.overlay-mode {
+    --boh-ai-bottom-nav-clearance: max(104px, calc(96px + env(safe-area-inset-bottom, 0px)));
+    height: 100% !important;
+    min-height: 0 !important;
+    background: transparent !important;
+}
+
+.bohai-page.overlay-mode,
+.bohai-page.overlay-mode .bohai-container,
+.bohai-page.overlay-mode .main-content {
+    background: transparent !important;
+}
+
+.bohai-page.overlay-mode .main-content,
+.bohai-page.overlay-mode.empty-chat-mode .main-content,
+.bohai-page.overlay-mode.embedded-mode.empty-chat-mode .main-content {
+    display: grid !important;
+    grid-template-rows: minmax(0, 1fr) auto !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    margin-left: 0 !important;
+    overflow: hidden !important;
+}
+
+.bohai-page.overlay-mode .chat-container,
+.bohai-page.overlay-mode.empty-chat-mode .chat-container,
+.bohai-page.overlay-mode.embedded-mode.empty-chat-mode .chat-container {
+    grid-row: 1 !important;
+    min-height: 0 !important;
+    padding-top: max(126px, calc(118px + env(safe-area-inset-top, 0px))) !important;
+    padding-bottom: calc(var(--boh-ai-bottom-nav-clearance) + 96px) !important;
+    overflow-y: auto !important;
+}
+
+.bohai-page.overlay-mode .chat-container.is-positioning-initial-scroll {
+    visibility: hidden !important;
+    scroll-behavior: auto !important;
+}
+
+.bohai-page.overlay-mode.empty-chat-mode .chat-container,
+.bohai-page.overlay-mode.embedded-mode.empty-chat-mode .chat-container {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.bohai-page.overlay-mode .empty-state,
+.bohai-page.overlay-mode.empty-chat-mode .empty-state,
+.bohai-page.overlay-mode.embedded-mode.empty-chat-mode .empty-state {
+    min-height: auto !important;
+    width: min(100% - 28px, var(--bohai-rail)) !important;
+    justify-content: center !important;
+    padding: 0 16px !important;
+    margin: 0 auto !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+}
+
+.bohai-page.overlay-mode.empty-chat-mode .chat-container,
+.bohai-page.overlay-mode.embedded-mode.empty-chat-mode .chat-container {
+    align-self: stretch !important;
+    height: 100% !important;
+    min-height: 100% !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+.bohai-page.overlay-mode.empty-chat-mode .empty-state,
+.bohai-page.overlay-mode.embedded-mode.empty-chat-mode .empty-state {
+    position: absolute !important;
+    top: 43% !important;
+    left: 50% !important;
+    width: min(calc(100% - 32px), var(--bohai-rail)) !important;
+    transform: translate(-50%, -50%) !important;
+}
+
+.bohai-page.overlay-mode .input-area,
+.bohai-page.overlay-mode.empty-chat-mode .input-area,
+.bohai-page.overlay-mode.embedded-mode.empty-chat-mode .input-area {
+    position: fixed !important;
+    left: 50% !important;
+    right: auto !important;
+    bottom: var(--boh-ai-bottom-nav-clearance) !important;
+    z-index: 2147482050 !important;
+    width: min(calc(100% - 32px), var(--bohai-composer)) !important;
+    max-width: var(--bohai-composer) !important;
+    margin: 0 !important;
+    padding: 8px 0 0 !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: translateX(-50%) !important;
+    pointer-events: auto !important;
+}
+
+.bohai-page.overlay-mode .input-box,
+.bohai-page.overlay-mode[data-ui-style="glass"] .input-box,
+.bohai-page.overlay-mode[data-ui-style="flat"] .input-box,
+.bohai-page.overlay-mode.embedded-mode .input-box {
+    background: rgba(255, 255, 255, 0.74) !important;
+    border-color: rgba(255, 255, 255, 0.78) !important;
+    box-shadow:
+        0 18px 50px rgba(15, 23, 42, 0.14),
+        inset 0 1px 0 rgba(255, 255, 255, 0.88) !important;
+    backdrop-filter: blur(34px) saturate(1.55) brightness(1.04) !important;
+    -webkit-backdrop-filter: blur(34px) saturate(1.55) brightness(1.04) !important;
+}
+
+.bohai-page.overlay-mode .sidebar-open-btn {
+    top: max(14px, env(safe-area-inset-top, 0px)) !important;
+    left: max(14px, env(safe-area-inset-left, 0px)) !important;
+    z-index: 2147482100 !important;
+}
+
 .bohai-page,
 .bohai-page .bohai-container,
 .bohai-page .main-content {
@@ -66,12 +180,13 @@
 .bohai-page .sidebar,
 .bohai-page .sidebar.is-embedded {
     width: min(var(--bohai-sidebar-width), 88vw);
-    background: #f7f7f7;
-    border-right: 1px solid var(--bohai-line);
+    background: rgba(255, 255, 255, 0.72);
+    border-right: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: 0 28px 28px 0;
     color: var(--bohai-text);
-    box-shadow: none;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+    box-shadow: 14px 0 36px rgba(15, 23, 42, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(28px) saturate(1.4);
+    -webkit-backdrop-filter: blur(28px) saturate(1.4);
 }
 
 .bohai-page.embedded-mode .sidebar,
@@ -1167,10 +1282,13 @@
     width: min(var(--bohai-sidebar-width, 280px), 88vw) !important;
     display: flex !important;
     flex-direction: column !important;
-    background: #f7f7f7 !important;
-    border-right: 1px solid rgba(17, 17, 17, 0.08) !important;
+    background: rgba(255, 255, 255, 0.72) !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.45) !important;
+    border-radius: 0 28px 28px 0 !important;
     color: #111111 !important;
-    box-shadow: none !important;
+    box-shadow: 14px 0 36px rgba(15, 23, 42, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.5) !important;
+    backdrop-filter: blur(28px) saturate(1.4) !important;
+    -webkit-backdrop-filter: blur(28px) saturate(1.4) !important;
     overflow: hidden !important;
     transform: translateX(-100%) !important;
     transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1) !important;
@@ -1417,5 +1535,59 @@
 @media (min-width: 1024px) {
     :global(.sidebar-overlay) {
         display: none !important;
+    }
+
+    /* Desktop: sidebar is persistent, with rounded right corners */
+    :global(.sidebar),
+    :global(.sidebar.is-embedded) {
+        border-radius: 0 28px 28px 0 !important;
+        background: rgba(255, 255, 255, 0.82) !important;
+        border-right: 1px solid rgba(148, 163, 184, 0.14) !important;
+        box-shadow: 1px 0 0 rgba(255, 255, 255, 0.72) inset !important;
+        backdrop-filter: blur(20px) saturate(1.3) !important;
+        -webkit-backdrop-filter: blur(20px) saturate(1.3) !important;
+    }
+}
+
+/* Landscape sidebar: white translucent frosted glass with rounded corners */
+@media (orientation: landscape) and (max-height: 600px) {
+    :global(.sidebar),
+    :global(.sidebar.is-embedded) {
+        width: min(78vw, 320px) !important;
+        border-radius: 0 28px 28px 0 !important;
+        background: rgba(255, 255, 255, 0.68) !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.45) !important;
+        box-shadow: 14px 0 36px rgba(15, 23, 42, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.5) !important;
+        backdrop-filter: blur(28px) saturate(1.4) !important;
+        -webkit-backdrop-filter: blur(28px) saturate(1.4) !important;
+    }
+
+    :global(.sidebar-header) {
+        min-height: 44px !important;
+        padding: 8px 12px 6px !important;
+    }
+
+    :global(.sidebar-brand) {
+        font-size: 17px !important;
+    }
+
+    :global(.sidebar-quick-action) {
+        min-height: 38px !important;
+        padding: 6px 10px !important;
+        border-radius: 10px !important;
+    }
+
+    :global(.session-item) {
+        min-height: 38px !important;
+        padding: 6px 10px !important;
+        border-radius: 10px !important;
+    }
+
+    :global(.sidebar-footer) {
+        min-height: 48px !important;
+        padding: 8px 12px !important;
+        background: rgba(255, 255, 255, 0.5) !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
     }
 }

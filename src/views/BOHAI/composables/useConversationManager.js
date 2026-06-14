@@ -5,7 +5,9 @@ import {
   MEMORY_CAPTURE_STATUS_TIMEOUT_MS,
   MAX_CONTEXT_MESSAGES,
   MAX_HISTORY_CONTEXT_CHARS,
-  MAX_HISTORY_MESSAGE_CHARS
+  MAX_HISTORY_MESSAGE_CHARS,
+  MAX_FINAL_PROMPT_CHARS,
+  MAX_PROMPT_EXTRA_CHARS
 } from './chat-engine-config.js';
 import {
   loadBohAIChatSessionsFromStorage,
@@ -23,6 +25,16 @@ import {
   CONVERSATION_SUMMARY_MAX_CHARS
 } from './bohai-engine-helpers.js';
 import { logger } from '@/utils/logger.js';
+
+let _lastActualExtraChars = 2000;
+// EMA 平滑系数：新值占 40%，旧值占 60%，防止检索证据有无导致百分比剧烈波动
+const _extraCharsEmaAlpha = 0.4;
+
+export const updateLastActualExtraChars = (chars) => {
+  if (typeof chars === 'number' && chars > 0) {
+    _lastActualExtraChars = Math.round(_lastActualExtraChars * (1 - _extraCharsEmaAlpha) + chars * _extraCharsEmaAlpha);
+  }
+};
 
 // ============================================================
 // useConversationManager — 会话/对话管理子 composable
@@ -220,20 +232,29 @@ export function useConversationManager({
       maxPerMessage: MAX_HISTORY_MESSAGE_CHARS
     });
 
-    let usedChars = 0;
+    let historyChars = 0;
     recentBuilt.forEach((item) => {
-      usedChars += String(item?.content || '').length + 20;
+      historyChars += String(item?.content || '').length + 20;
     });
 
-    const max = MAX_HISTORY_CONTEXT_CHARS;
-    const rawPercent = max > 0 ? (usedChars / max) * 100 : 0;
+    // 实际模型上下文 = 系统提示词(~600) + 历史消息 + 结构化用户提示词(含检索证据/规则, 最多 MAX_FINAL_PROMPT_CHARS)
+    // 用总预算来反映真实占用，而不是只看历史消息占比
+    const estimatedSystemPromptChars = 600;
+    const estimatedExtraChars = Math.min(
+      MAX_PROMPT_EXTRA_CHARS,
+      Math.max(_lastActualExtraChars, 2000)
+    );
+    const totalUsedChars = estimatedSystemPromptChars + historyChars + estimatedExtraChars;
+    const totalBudget = estimatedSystemPromptChars + MAX_HISTORY_CONTEXT_CHARS + MAX_FINAL_PROMPT_CHARS;
+
+    const rawPercent = totalBudget > 0 ? (totalUsedChars / totalBudget) * 100 : 0;
     const percent = Math.max(0, Math.min(100, rawPercent));
     const includedMessageCount = recentBuilt.length;
     const hasSummary = recentBuilt.some((item) => item?.role === 'system' && /【此前对话摘要】/.test(String(item?.content || '')));
 
     return {
-      used: usedChars,
-      max,
+      used: totalUsedChars,
+      max: totalBudget,
       percent,
       includedMessageCount,
       hasSummary,

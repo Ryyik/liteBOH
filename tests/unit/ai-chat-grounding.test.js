@@ -142,7 +142,7 @@ describe('ai-chat-grounding: community evidence guard', () => {
       availableEvidenceRefs: []
     });
 
-    expect(cleaned).toContain('没有检索到对应的 BOH 论坛帖子或用户');
+    expect(cleaned).toContain('这部分内容未经检索确认，已省略');
     expect(cleaned).not.toContain('@resonance_breath');
     expect(cleaned).not.toContain('boh.community/post/123456');
   });

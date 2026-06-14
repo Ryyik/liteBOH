@@ -27,7 +27,11 @@ export const createMemoryAgent = (options = {}) => {
     label: '记忆',
     category: 'knowledge',
     timeoutMs: 25000,
-    async run({ task, context }) {
+    // B8 fix: 接收 signal，让用户取消能中止记忆 Agent
+    async run({ task, context, signal }) {
+      if (signal?.aborted) {
+        return { ok: false, status: 'cancelled', output: null, notes: ['记忆查询已被用户取消'] };
+      }
       const query = safeString(task?.input?.query || context?.bus?.getQuery?.() || '');
       const bus = context?.bus;
       const userId = context?.userId || bus?.getSharedContext?.('userId') || null;

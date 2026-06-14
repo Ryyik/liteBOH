@@ -8,6 +8,8 @@ import {
   ZHIPU_CHAT_MODELS
 } from '../../../utils/siliconflow-free-models.js';
 
+export const BOH_MEMBER_NAMES = 'ryyik|lf|小牛|橙子|eleven|end|雨芙蕖|白烨|丁老师|汉堡|百城|小天光|小仙';
+
 export const SILICON_CLOUD_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
 export const SILICON_EMBEDDING_URL = import.meta.env.VITE_SILICON_EMBEDDING_URL || 'https://api.siliconflow.cn/v1/embeddings';
 export const SILICON_RERANK_URL = import.meta.env.VITE_SILICON_RERANK_URL || 'https://api.siliconflow.cn/v1/rerank';
@@ -36,6 +38,7 @@ export const MAX_HISTORY_CONTEXT_CHARS = 12000;
 export const MAX_HISTORY_MESSAGE_CHARS = 2000;
 export const MAX_FINAL_PROMPT_CHARS = 16000;
 export const MAX_PROMPT_EXTRA_CHARS = 8000;
+export const MAX_MESSAGES_TOTAL_TOKENS = 28000; // 最终 messages 数组总 token 预算，留出 4K 给模型输出
 export const MAX_USER_INPUT_CHARS = 4200;
 export const MAX_SEARCH_RESULT_CONTENT_CHARS = 280;
 export const TREEHOLE_MEMORY_LIMIT = 120;
@@ -84,10 +87,10 @@ export const QUICK_NOTE_TITLE_MAX_CHARS = 80;
 
 // 模式 → 生成参数（仅作用于 5 个真实模式；auto 已在 2026-06-08 移除）。
 export const GENERATION_PROFILE_BY_MODE = {
-  fast: { temperature: 0.22, top_p: 0.74, frequency_penalty: 0.08, max_tokens: 1200 },
-  pro: { temperature: 0.18, top_p: 0.7, frequency_penalty: 0.06, max_tokens: 1800 },
+  fast: { temperature: 0.22, top_p: 0.74, frequency_penalty: 0.08, max_tokens: 4096 },
+  pro: { temperature: 0.18, top_p: 0.7, frequency_penalty: 0.06, max_tokens: 8192 },
   multimodal: { temperature: 0.2, top_p: 0.75, frequency_penalty: 0.06, max_tokens: 1800 },
-  plan: { temperature: 0.08, top_p: 0.55, frequency_penalty: 0.04, max_tokens: 2400 },
+  plan: { temperature: 0.08, top_p: 0.55, frequency_penalty: 0.04, max_tokens: 8192 },
   'agent-cluster': { temperature: 0.18, top_p: 0.7, frequency_penalty: 0.06, max_tokens: 1600 },
   'glm-47-flash': { temperature: 0.2, top_p: 0.75, frequency_penalty: 0.06, max_tokens: 2400 },
   'glm-46v-flash': { temperature: 0.2, top_p: 0.75, frequency_penalty: 0.06, max_tokens: 1800 }
@@ -142,18 +145,18 @@ export const SILICON_IMAGE_MODEL_IDS = ['Kwai-Kolors/Kolors'];
 export const BASE_SYSTEM_PROMPT = `
 你是 BOH AI，是方块之家网站内的智能助手。
 请遵守以下规则：
-1. 先接住用户真正的处境和情绪，再回答核心问题；不要一上来就把人推向清单、教程或免责声明。
+1. 当用户表达困扰或情绪时，先接住处境和感受，再回答；对纯事实或操作问题，直接回答。
 2. 回答要自然、简洁、可执行；除非用户要求，不强制使用固定小标题，也不要把轻微困扰写成专业报告。
 3. 涉及网站功能时，优先给出“入口路径 + 操作步骤”。
 4. 若上下文中提供了“BOH Cloud+ 私有内容/论坛帖子/记忆库/站点操作知识/当前登录用户私域数据”，优先基于这些信息回答。
 5. 不确定时明确说明不确定，禁止编造。
 6. 默认使用用户提问语言回答。
-7. 绝对不要逐段复述“内部检索资料”原文，不要输出“操作手册/知识库全文”。
+7. 不要逐段复述“内部检索资料”原文，不要输出“操作手册/知识库全文”。
 8. 操作类问题统一输出：入口路径 + 最多 ${OPERATION_MAX_STEPS} 步。
 9. 涉及“我的帖子/邮件/礼物/生日/Pushplus/积分订阅”等问题时，必须以“当前登录用户”数据为准；若未登录，先提示需要登录。
-10. 必须根据问题类型选择知识源：操作问题优先“站点操作知识库”；社区最新动态优先“论坛帖子”；社区历史事实优先“公共记忆库/核心记忆库”；用户复盘与情绪问题优先“BOH Cloud+ 私有内容”；账号私域问题优先“当前登录用户私域数据”。
-11. 若不同知识源存在冲突，优先采用更贴近问题语义且时间更新的数据，并明确提示“存在冲突信息”。
-12. 严禁编造 BOH 论坛帖子、论坛用户、@用户名、帖子 ID、帖子链接或“论坛里有人说/分享”的证据；只有本轮资料明确提供 [F] 证据和对应字段时才可引用。没有证据时，直接说明未检索到对应帖子/用户，或只回答通用知识。
+10. 若不同知识源存在冲突，优先采用更贴近问题语义且时间更新的数据，并明确提示“存在冲突信息”。
+11. 不要过度道歉；用户没有表达不满时，不需要说“抱歉”或“对不起”。
+12. 你只能回答问题和提供建议，不能代用户执行操作（如发帖、修改设置、发送消息）。
 `;
 
 export const PLAN_MODE_PROMPT_APPENDIX = `

@@ -246,16 +246,29 @@ export function classifyNsfwPredictions(predictions = []) {
   };
 }
 
+let classifyMutex = Promise.resolve();
+
 export async function moderateForumImageFile(file) {
   const { image, objectUrl } = await createImageElement(file);
   try {
     const model = await getNsfwModel();
-    const predictions = await withTimeout(
-      model.classify(image),
-      IMAGE_CLASSIFY_TIMEOUT_MS,
-      '图片安全检测超时，请稍后重试或换一张图片'
-    );
-    return classifyNsfwPredictions(predictions);
+
+    // TFJS WebGL backend 不支持并发 classify，必须串行化避免 GPU 崩溃
+    const prev = classifyMutex;
+    let release;
+    classifyMutex = new Promise((resolve) => { release = resolve; });
+    await prev;
+
+    try {
+      const predictions = await withTimeout(
+        model.classify(image),
+        IMAGE_CLASSIFY_TIMEOUT_MS,
+        '图片安全检测超时，请稍后重试或换一张图片'
+      );
+      return classifyNsfwPredictions(predictions);
+    } finally {
+      release();
+    }
   } finally {
     URL.revokeObjectURL(objectUrl);
   }

@@ -31,6 +31,10 @@
   will-change: transform, clip-path, opacity, padding-top;
 }
 
+.bottom-nav-glass.ai-overlay-open {
+  z-index: 2147482200;
+}
+
 .bottom-nav-glass::before {
   content: "";
   position: absolute;
@@ -642,56 +646,6 @@
   transform: scaleX(0.9) scaleY(0.84);
 }
 
-.bottom-nav-glass.is-ai-collapsed {
-  left: auto;
-  right: 16px;
-  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
-  transform: translateX(0) scale(1);
-  width: 56px;
-  height: 56px;
-  padding: 0;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 8px 28px rgba(37, 99, 235, 0.25), 0 2px 8px rgba(0, 0, 0, 0.1);
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(16px) saturate(1.3);
-  -webkit-backdrop-filter: blur(16px) saturate(1.3);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  transition:
-    transform 0.62s cubic-bezier(0.16, 1, 0.3, 1),
-    width 0.62s cubic-bezier(0.16, 1, 0.3, 1),
-    height 0.62s cubic-bezier(0.16, 1, 0.3, 1),
-    border-radius 0.62s cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 0.28s ease,
-    background-color 0.28s ease;
-}
-
-.bottom-nav-glass.is-ai-collapsed:hover {
-  transform: translateX(0) scale(1.08);
-  box-shadow: 0 10px 32px rgba(37, 99, 235, 0.3), 0 2px 8px rgba(0, 0, 0, 0.12);
-}
-
-.ai-float-ball {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: #2563eb;
-  cursor: pointer;
-  border-radius: 50%;
-}
-
-.ai-float-ball svg {
-  animation: aiBallPulse 3s ease-in-out infinite;
-}
-
 @keyframes aiBallPulse {
   0%, 100% {
     opacity: 0.85;
@@ -777,22 +731,7 @@
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
 }
 
-:global(.user-space-page[data-theme="dark"]) .bottom-nav-glass.is-ai-collapsed {
-  background: rgba(30, 30, 40, 0.8);
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 28px rgba(37, 99, 235, 0.2), 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-:global(.user-space-page[data-theme="dark"]) .ai-float-ball {
-  color: #60a5fa;
-}
-
 @media (max-width: 768px) {
-  .bottom-nav-glass.is-ai-collapsed {
-    right: 12px;
-    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
-  }
-
   .bottom-nav-glass.island-open {
     --bottom-nav-lift: -5px;
     padding-top: 74px;
@@ -958,8 +897,7 @@
   .nav-items::before,
   .nav-item,
   .nav-icon,
-  .unread-badge,
-  .ai-float-ball svg {
+  .unread-badge {
     animation: none !important;
     transition-duration: 0.12s !important;
     transition-delay: 0s !important;

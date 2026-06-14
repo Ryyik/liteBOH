@@ -14,7 +14,7 @@
     >
       <div class="bottom-nav-island-content">
         <img
-          v-if="showCatSticker && catStickerSrc"
+          v-if="shouldShowCatSticker && catStickerSrc"
           class="bottom-nav-island-cat-sticker"
           :class="`mode-${item.catStickerMode || 'peek'}`"
           :src="catStickerSrc"
@@ -42,7 +42,11 @@ import { computed } from 'vue';
 import { Bell, Bot, Check, MessageCircle, Newspaper, Search } from 'lucide-vue-next';
 import catCardExtra from '@/assets/images/theme-cats/cat-card-extra.webp';
 import catDecor from '@/assets/images/theme-cats/cat-decor-1.webp';
+import catDecorAlt from '@/assets/images/theme-cats/cat-decor-2.webp';
+import catDelete from '@/assets/images/theme-cats/cat-delete.webp';
+import catFailed from '@/assets/images/theme-cats/cat-failed.webp';
 import catLike from '@/assets/images/theme-cats/cat-like.webp';
+import catMobileGap from '@/assets/images/theme-cats/cat-mobile-gap.webp';
 import catSuccess from '@/assets/images/theme-cats/cat-success.webp';
 import catTheme from '@/assets/images/theme-cats/cat-theme.webp';
 import catUploading from '@/assets/images/theme-cats/cat-uploading.webp';
@@ -76,12 +80,18 @@ const activeIcon = computed(() => iconMap[props.item?.icon] || Check);
 
 const catStickerMap = {
   card: catCardExtra,
+  cardExtra: catCardExtra,
   decor: catDecor,
+  decorAlt: catDecorAlt,
+  delete: catDelete,
+  failed: catFailed,
   like: catLike,
+  mobileGap: catMobileGap,
   success: catSuccess,
   theme: catTheme,
   uploading: catUploading
 };
 
+const shouldShowCatSticker = computed(() => props.showCatSticker && Boolean(props.item?.catSticker));
 const catStickerSrc = computed(() => catStickerMap[props.item?.catSticker] || '');
 </script>

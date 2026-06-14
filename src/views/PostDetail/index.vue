@@ -3,9 +3,11 @@ import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
-import { Check, ChevronLeft, ChevronRight, Heart, MessageCircle, Reply, RotateCcw, Share2, X, ZoomIn, ZoomOut } from 'lucide-vue-next';
+import { Check, Heart, MessageCircle, Share2 } from 'lucide-vue-next';
 import UnifiedNavbar from '../../components/UnifiedNavbar/index.vue';
 import UserCenterPageHeader from '../../components/UserCenterPageHeader.vue';
+import CommentThread from './components/CommentThread.vue';
+import ImageViewer from './components/ImageViewer.vue';
 import {
   getComments,
   createComment,
@@ -46,10 +48,6 @@ const isShareCopied = ref(false);
 const isEditSubmitting = ref(false);
 const loadedDetailImageKeys = ref(new Set());
 const isDetailImageViewerOpen = ref(false);
-const isDetailViewerImageLoading = ref(false);
-const detailViewerZoom = ref(1);
-const detailViewerPan = ref({ x: 0, y: 0 });
-const isDetailViewerPanning = ref(false);
 const replyContent = ref('');
 const activeReplyId = ref(null); // 当前正在回复的对象ID (postId 或 commentId)
 const replyToUser = ref(null); // 当前正在回复的用户名
@@ -63,10 +61,6 @@ let detailFetchSeq = 0;
 let likePulseTimer = null;
 let replySuccessTimer = null;
 let shareCopiedTimer = null;
-let detailViewerPanStart = { x: 0, y: 0 };
-const DETAIL_VIEWER_MIN_ZOOM = 0.5;
-const DETAIL_VIEWER_MAX_ZOOM = 4;
-const DETAIL_VIEWER_ZOOM_STEP = 0.25;
 
 // 编辑功能相关
 const isEditingPost = ref(false);
@@ -173,20 +167,6 @@ const detailImageKey = computed(() => String(
   || ''
 ).trim());
 const hasMultipleDetailImages = computed(() => detailImages.value.length > 1);
-const currentDetailImageViewerSources = computed(() => {
-  const image = currentDetailImage.value || {};
-  return Array.from(new Set([
-    image.detailUrl,
-    image.originalUrl,
-    image.url,
-    image.thumbUrl
-  ].map((url) => String(url || '').trim()).filter(Boolean)));
-});
-const currentDetailImageLargeUrl = computed(() => currentDetailImageViewerSources.value[0] || '');
-const detailViewerZoomPercent = computed(() => `${Math.round(detailViewerZoom.value * 100)}%`);
-const detailViewerImageStyle = computed(() => ({
-  transform: `translate3d(${detailViewerPan.value.x}px, ${detailViewerPan.value.y}px, 0) scale(${detailViewerZoom.value})`
-}));
 
 const toggleExpand = () => {
   isExpanded.value = !isExpanded.value;
@@ -198,151 +178,29 @@ const goToDetailImage = (index) => {
     detailImageIndex.value = 0;
     return;
   }
-  const nextIndex = Math.min(Math.max(Number(index || 0), 0), total - 1);
-  if (nextIndex !== detailImageIndex.value) {
-    resetDetailViewerTransform();
-    isDetailViewerImageLoading.value = true;
-  }
-  detailImageIndex.value = nextIndex;
+  detailImageIndex.value = Math.min(Math.max(Number(index || 0), 0), total - 1);
 };
 
 const showPrevDetailImage = () => {
   const total = detailImages.value.length;
   if (total <= 1) return;
-  resetDetailViewerTransform();
-  isDetailViewerImageLoading.value = true;
   detailImageIndex.value = (detailImageIndex.value - 1 + total) % total;
 };
 
 const showNextDetailImage = () => {
   const total = detailImages.value.length;
   if (total <= 1) return;
-  resetDetailViewerTransform();
-  isDetailViewerImageLoading.value = true;
   detailImageIndex.value = (detailImageIndex.value + 1) % total;
 };
 
 const openDetailImageViewer = (index = detailImageIndex.value) => {
   if (!detailImages.value.length) return;
   goToDetailImage(index);
-  resetDetailViewerTransform();
-  isDetailViewerImageLoading.value = true;
   isDetailImageViewerOpen.value = true;
 };
 
 const closeDetailImageViewer = () => {
   isDetailImageViewerOpen.value = false;
-  isDetailViewerImageLoading.value = false;
-  resetDetailViewerTransform();
-};
-
-function clampDetailViewerZoom(value) {
-  return Math.min(DETAIL_VIEWER_MAX_ZOOM, Math.max(DETAIL_VIEWER_MIN_ZOOM, Number(value) || 1));
-}
-
-function resetDetailViewerTransform() {
-  detailViewerZoom.value = 1;
-  detailViewerPan.value = { x: 0, y: 0 };
-  isDetailViewerPanning.value = false;
-}
-
-const setDetailViewerZoom = (value) => {
-  const nextZoom = clampDetailViewerZoom(value);
-  detailViewerZoom.value = nextZoom;
-  if (nextZoom <= 1) {
-    detailViewerPan.value = { x: 0, y: 0 };
-  }
-};
-
-const zoomInDetailViewer = () => {
-  setDetailViewerZoom(detailViewerZoom.value + DETAIL_VIEWER_ZOOM_STEP);
-};
-
-const zoomOutDetailViewer = () => {
-  setDetailViewerZoom(detailViewerZoom.value - DETAIL_VIEWER_ZOOM_STEP);
-};
-
-const handleDetailViewerWheel = (event) => {
-  const direction = Number(event?.deltaY || 0) < 0 ? 1 : -1;
-  setDetailViewerZoom(detailViewerZoom.value + direction * DETAIL_VIEWER_ZOOM_STEP);
-};
-
-const startDetailViewerPan = (event) => {
-  if (detailViewerZoom.value <= 1) return;
-  isDetailViewerPanning.value = true;
-  event?.currentTarget?.setPointerCapture?.(event.pointerId);
-  detailViewerPanStart = {
-    x: Number(event?.clientX || 0) - detailViewerPan.value.x,
-    y: Number(event?.clientY || 0) - detailViewerPan.value.y
-  };
-};
-
-const moveDetailViewerPan = (event) => {
-  if (!isDetailViewerPanning.value || detailViewerZoom.value <= 1) return;
-  detailViewerPan.value = {
-    x: Number(event?.clientX || 0) - detailViewerPanStart.x,
-    y: Number(event?.clientY || 0) - detailViewerPanStart.y
-  };
-};
-
-const stopDetailViewerPan = (event) => {
-  if (!isDetailViewerPanning.value) return;
-  isDetailViewerPanning.value = false;
-  event?.currentTarget?.releasePointerCapture?.(event.pointerId);
-};
-
-const handleDetailViewerImageError = (event) => {
-  const target = event?.target;
-  if (!target) {
-    isDetailViewerImageLoading.value = false;
-    return;
-  }
-  const currentSourceIndex = Number(target.dataset?.sourceIndex || 0);
-  const nextSourceIndex = currentSourceIndex + 1;
-  const nextSource = currentDetailImageViewerSources.value[nextSourceIndex];
-  if (!nextSource) {
-    isDetailViewerImageLoading.value = false;
-    return;
-  }
-  isDetailViewerImageLoading.value = true;
-  target.dataset.sourceIndex = String(nextSourceIndex);
-  target.src = nextSource;
-};
-
-const handleDetailViewerImageLoad = () => {
-  isDetailViewerImageLoading.value = false;
-};
-
-const handleDetailKeydown = (event) => {
-  if (!isDetailImageViewerOpen.value) return;
-  if (event.key === 'Escape') {
-    closeDetailImageViewer();
-    return;
-  }
-  if (event.key === 'ArrowLeft') {
-    event.preventDefault();
-    showPrevDetailImage();
-    return;
-  }
-  if (event.key === 'ArrowRight') {
-    event.preventDefault();
-    showNextDetailImage();
-    return;
-  }
-  if (event.key === '+' || event.key === '=') {
-    event.preventDefault();
-    zoomInDetailViewer();
-    return;
-  }
-  if (event.key === '-' || event.key === '_') {
-    event.preventDefault();
-    zoomOutDetailViewer();
-    return;
-  }
-  if (event.key === '0') {
-    event.preventDefault();
-    resetDetailViewerTransform();
-  }
 };
 
 const triggerLikePulse = () => {
@@ -670,41 +528,6 @@ const loadChildReplies = async (parentId, { reset = false, expand = false } = {}
   }
 };
 
-const getVisibleChildReplies = (parentId) => {
-  const state = getChildReplyState(parentId);
-  if (state.expanded) {
-    return state.items || [];
-  }
-  return (state.items || []).slice(0, 1);
-};
-
-const shouldShowExpandChildReplies = (parentId) => {
-  const state = getChildReplyState(parentId);
-  const total = Number(state.totalCount || 0);
-  return state.isLoading || !state.fullLoaded || total > 1;
-};
-
-const getChildReplyToggleLabel = (parentId) => {
-  const state = getChildReplyState(parentId);
-  if (state.isLoading) return '加载中...';
-  if (state.expanded) return '收起回复';
-  if (!state.fullLoaded && Number(state.totalCount || 0) === 0) return '查看更多回复';
-  if (!state.fullLoaded && Number(state.totalCount || 0) > 0) return '展开更多回复';
-  const total = Number(state.totalCount || 0);
-  if (total <= 1) return '查看更多回复';
-  return '展开更多回复';
-};
-
-const shouldShowLoadMoreChildReplies = (parentId) => {
-  const state = getChildReplyState(parentId);
-  return Boolean(state.expanded && state.hasMore);
-};
-
-const getChildReplyLoadMoreLabel = (parentId) => {
-  const state = getChildReplyState(parentId);
-  return state.isLoading ? '加载中...' : '加载更多回复';
-};
-
 const toggleChildReplies = async (parentComment) => {
   if (!parentComment?.id) return;
   const state = getChildReplyState(parentComment.id);
@@ -921,14 +744,11 @@ onMounted(() => {
   themeManager.addListener(handleThemeChange);
   fetchPostDetail();
   document.addEventListener('click', handleDocumentClick);
-  window.addEventListener('keydown', handleDetailKeydown);
 });
 
 onUnmounted(() => {
   themeManager.removeListener(handleThemeChange);
   document.removeEventListener('click', handleDocumentClick);
-  window.removeEventListener('keydown', handleDetailKeydown);
-  document.body.style.overflow = '';
   if (cooldownTimer) {
     clearInterval(cooldownTimer);
     cooldownTimer = null;
@@ -968,10 +788,6 @@ watch(
   }
 );
 
-watch(isDetailImageViewerOpen, (isOpen) => {
-  document.body.style.overflow = isOpen ? 'hidden' : '';
-});
-
 watch(
   () => detailImages.value.length,
   (total) => {
@@ -980,12 +796,6 @@ watch(
     }
   }
 );
-
-watch(detailImageKey, () => {
-  if (isDetailImageViewerOpen.value) {
-    isDetailViewerImageLoading.value = true;
-  }
-});
 
 watch(
   () => route.query.comment,
@@ -1534,146 +1344,36 @@ const handleDeleteComment = async (comment, parentId = null) => {
           </div>
 
           <div class="x-side-column">
-            <div class="x-side-content glass-panel">
-              <transition name="fade-slide">
-                <div v-if="activeReplyId" class="x-reply-box" :class="{ 'is-thread-reply': Boolean(replyToUser) }">
-                  <img v-if="isHomeCatActive && isReplySuccessPopping" class="detail-reply-success-cat-img"
-                    :src="getHomeCatAsset('success')" alt="" draggable="false" />
-                  <div class="reply-input-wrapper">
-                    <div class="reply-context-bar">
-                      <div class="reply-context-main">
-                        <span class="reply-context-label">{{ replyToUser ? '正在回复' : '写评论' }}</span>
-                        <span v-if="replyToUser" class="reply-context-user">@{{ replyToUser }}</span>
-                      </div>
-                      <p v-if="replyToUser && activeReplyQuote" class="reply-context-quote">{{ activeReplyQuote }}</p>
-                    </div>
-                    <textarea v-model="replyContent" :placeholder="replyToUser ? `回复 @${replyToUser}...` : '写下你的想法...'"
-                      rows="3" class="reply-textarea-x"></textarea>
-                    <div class="reply-controls">
-                      <div class="btn-group">
-                        <button class="cancel-reply-btn"
-                          @click="activeReplyId = null; replyToUser = null; activeReplyQuote = ''; replyContent = ''">取消</button>
-                        <button class="submit-reply-btn" :disabled="isReplySubmitting || replyCooldownSeconds > 0"
-                          @click="submitReply">
-                          {{ isReplySubmitting ? '发送中...' : replySubmitLabel }}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </transition>
-
-              <section class="x-comments-section">
-                <div class="section-header">
-                  <h3 class="section-title">
-                    社区回复
-                    <span class="comment-count-badge">{{ post.comment_count }}</span>
-                  </h3>
-                </div>
-
-                <div v-if="isTopCommentsLoading && topComments.length === 0" class="comments-list custom-scrollbar"
-                  aria-hidden="true">
-                  <div v-for="item in 4" :key="`top-comment-loading-${item}`" class="comment-skeleton-row inline">
-                    <div class="detail-skeleton-block skeleton-avatar small"></div>
-                    <div class="comment-skeleton-body">
-                      <div class="detail-skeleton-block skeleton-line name"></div>
-                      <div class="detail-skeleton-block skeleton-line wide"></div>
-                      <div class="detail-skeleton-block skeleton-line medium"></div>
-                    </div>
-                  </div>
-                </div>
-
-                <div v-else-if="topComments.length > 0" class="comments-list custom-scrollbar">
-                  <div v-for="reply in topComments" :key="reply.id" :id="`comment-${reply.id}`" class="comment-item-x"
-                    :class="{ 'is-highlighted': highlightedCommentId === String(reply.id) }">
-                    <div class="comment-header">
-                      <div class="comment-author-info" @click="goToProfile(reply.author_username)">
-                        <div class="mini-avatar">
-                          <img v-if="reply.author_avatar_url" :src="reply.author_avatar_url" alt="回复者头像"
-                            class="avatar-image" />
-                          <span v-else>{{ reply.author_username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
-                        </div>
-                        <div class="author-details">
-                          <span class="comment-author-name">{{ reply.author_username }}</span>
-                          <span class="comment-date">{{ formatDate(reply.created_at) }}</span>
-                          <span v-if="String(reply.author_id || '') === String(post.author_id || '')" class="comment-author-badge">楼主</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="comment-content">
-                      <p class="comment-text">{{ reply.content }}</p>
-                    </div>
-                    <div class="comment-footer-x">
-                      <button class="comment-reply-btn-mini"
-                        @click="toggleReplyInput(reply.id, reply.author_username, reply.content)">
-                        <Reply :size="14" :stroke-width="1.8" aria-hidden="true" />
-                        回复
-                      </button>
-                      <button v-if="shouldShowExpandChildReplies(reply.id)" class="comment-thread-btn-mini"
-                        :disabled="getChildReplyState(reply.id).isLoading" @click="toggleChildReplies(reply)">
-                        {{ getChildReplyToggleLabel(reply.id) }}
-                      </button>
-                      <button v-if="isLoggedIn && (reply.author_id === userInfo.id || userInfo.role === 'admin')"
-                        class="del-comment-btn-mini" aria-label="删除评论" title="删除评论" @click="handleDeleteComment(reply)">删除</button>
-                    </div>
-
-                    <div v-if="getChildReplyState(reply.id).totalCount > 0 || getChildReplyState(reply.id).isLoading"
-                      class="child-replies-wrap">
-                      <div
-                        v-if="getChildReplyState(reply.id).isLoading && getVisibleChildReplies(reply.id).length === 0"
-                        class="child-replies-loading" aria-hidden="true">
-                        <div v-for="item in 2" :key="`child-reply-loading-${reply.id}-${item}`"
-                          class="child-reply-skeleton-row">
-                          <div class="detail-skeleton-block skeleton-line name"></div>
-                          <div class="detail-skeleton-block skeleton-line wide"></div>
-                        </div>
-                      </div>
-
-                      <div v-for="child in getVisibleChildReplies(reply.id)" :key="child.id" :id="`comment-${child.id}`"
-                        class="child-reply-item"
-                        :class="{ 'is-highlighted': highlightedCommentId === String(child.id) }">
-                        <div class="child-reply-head" @click="goToProfile(child.author_username)">
-                          <span class="child-reply-author-wrap">
-                            <span class="child-reply-author">{{ child.author_username }}</span>
-                            <span v-if="String(child.author_id || '') === String(post.author_id || '')" class="comment-author-badge compact">楼主</span>
-                            <span v-if="child.reply_to_username" class="child-reply-target">
-                              回复 @{{ child.reply_to_username }}
-                            </span>
-                          </span>
-                          <span class="child-reply-time">{{ formatDate(child.created_at) }}</span>
-                        </div>
-                        <p class="child-reply-content">{{ child.content }}</p>
-                        <div class="child-reply-actions">
-                          <button class="comment-reply-btn-mini"
-                            @click="toggleReplyInput(reply.id, child.author_username, child.content)">回复</button>
-                          <button v-if="isLoggedIn && (child.author_id === userInfo.id || userInfo.role === 'admin')"
-                            class="del-comment-btn-mini" aria-label="删除回复" title="删除回复" @click="handleDeleteComment(child, reply.id)">删除</button>
-                        </div>
-                      </div>
-
-                      <button v-if="shouldShowLoadMoreChildReplies(reply.id)" class="child-load-more-btn"
-                        :disabled="getChildReplyState(reply.id).isLoading"
-                        @click="loadChildReplies(reply.id, { reset: false })">
-                        {{ getChildReplyLoadMoreLabel(reply.id) }}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div v-if="hasMoreTopComments" class="top-load-more-wrap">
-                    <button class="load-more-comments-btn" :disabled="isTopCommentsLoading"
-                      @click="loadTopComments({ reset: false })">
-                      {{ isTopCommentsLoading ? '加载中...' : '加载更多评论' }}
-                    </button>
-                  </div>
-                </div>
-
-                <div v-else class="no-comments-state">
-                  <HomeCatMascot v-if="isHomeCatActive" type="decorAlt" size="md" decorative />
-                  <div class="no-comments-icon">☕️</div>
-                  <p>暂无评论</p>
-                </div>
-              </section>
-            </div>
+            <CommentThread
+              :comments="topComments"
+              :is-loading="isTopCommentsLoading"
+              :has-more="hasMoreTopComments"
+              :is-logged-in="isLoggedIn"
+              :current-user-id="userInfo.id"
+              :current-user-role="userInfo.role"
+              :post-author-id="post.author_id"
+              :post-comment-count="post.comment_count"
+              :is-home-cat-active="isHomeCatActive"
+              :is-reply-success-popping="isReplySuccessPopping"
+              :active-reply-id="activeReplyId"
+              :reply-to-user="replyToUser"
+              :active-reply-quote="activeReplyQuote"
+              :reply-content="replyContent"
+              :is-reply-submitting="isReplySubmitting"
+              :reply-cooldown-seconds="replyCooldownSeconds"
+              :reply-submit-label="replySubmitLabel"
+              :child-replies-map="childRepliesMap"
+              :highlighted-comment-id="highlightedCommentId"
+              @reply="({ targetId, username, content }) => toggleReplyInput(targetId, username, content)"
+              @submit-reply="submitReply"
+              @cancel-reply="activeReplyId = null; replyToUser = null; activeReplyQuote = ''; replyContent = ''"
+              @update:reply-content="replyContent = $event"
+              @load-more-comments="loadTopComments({ reset: false })"
+              @toggle-child-replies="toggleChildReplies"
+              @load-child-replies="({ parentId, options }) => loadChildReplies(parentId, options)"
+              @delete-comment="({ comment, parentId }) => handleDeleteComment(comment, parentId)"
+              @go-to-profile="goToProfile"
+            />
           </div>
         </div>
       </main>
@@ -1768,59 +1468,18 @@ const handleDeleteComment = async (comment, parentId = null) => {
       </div>
     </div>
 
-    <Teleport to="body">
-      <transition name="detail-viewer-fade">
-        <div v-if="isDetailImageViewerOpen" class="detail-image-viewer" role="dialog" aria-modal="true"
-          aria-label="查看帖子大图" @click.self="closeDetailImageViewer">
-          <button type="button" class="detail-image-viewer-close" aria-label="关闭大图"
-            @click="closeDetailImageViewer">
-            <X :size="24" :stroke-width="2.2" aria-hidden="true" />
-          </button>
-          <div class="detail-image-viewer-toolbar" aria-label="大图缩放工具">
-            <button type="button" class="detail-image-viewer-tool" :disabled="detailViewerZoom <= DETAIL_VIEWER_MIN_ZOOM"
-              aria-label="缩小图片" @click.stop="zoomOutDetailViewer">
-              <ZoomOut :size="20" :stroke-width="2" aria-hidden="true" />
-            </button>
-            <span class="detail-image-viewer-zoom">{{ detailViewerZoomPercent }}</span>
-            <button type="button" class="detail-image-viewer-tool" :disabled="detailViewerZoom >= DETAIL_VIEWER_MAX_ZOOM"
-              aria-label="放大图片" @click.stop="zoomInDetailViewer">
-              <ZoomIn :size="20" :stroke-width="2" aria-hidden="true" />
-            </button>
-            <button type="button" class="detail-image-viewer-tool" aria-label="重置缩放"
-              @click.stop="resetDetailViewerTransform">
-              <RotateCcw :size="19" :stroke-width="2" aria-hidden="true" />
-            </button>
-          </div>
-          <button v-if="hasMultipleDetailImages" type="button" class="detail-image-viewer-nav prev"
-            aria-label="上一张大图" @click.stop="showPrevDetailImage">
-            <ChevronLeft :size="34" :stroke-width="1.8" aria-hidden="true" />
-          </button>
-          <div class="detail-image-viewer-stage"
-            :class="{ 'is-zoomed': detailViewerZoom > 1, 'is-panning': isDetailViewerPanning }"
-            @wheel.prevent="handleDetailViewerWheel"
-            @pointerdown="startDetailViewerPan"
-            @pointermove="moveDetailViewerPan"
-            @pointerup="stopDetailViewerPan"
-            @pointercancel="stopDetailViewerPan"
-            @pointerleave="stopDetailViewerPan">
-            <div v-if="isDetailViewerImageLoading" class="detail-image-viewer-loader" aria-label="图片加载中">
-              <span class="detail-image-viewer-spinner"></span>
-            </div>
-            <img :key="`${detailImageKey}-viewer`" class="detail-image-viewer-img" :src="currentDetailImageLargeUrl"
-              data-source-index="0" :style="detailViewerImageStyle"
-              :alt="`${postTitle} 大图 ${detailImageIndex + 1}`" decoding="async"
-              @load="handleDetailViewerImageLoad" @error="handleDetailViewerImageError" />
-          </div>
-          <button v-if="hasMultipleDetailImages" type="button" class="detail-image-viewer-nav next"
-            aria-label="下一张大图" @click.stop="showNextDetailImage">
-            <ChevronRight :size="34" :stroke-width="1.8" aria-hidden="true" />
-          </button>
-          <div v-if="hasMultipleDetailImages" class="detail-image-viewer-count">
-            {{ detailImageIndex + 1 }} / {{ detailImages.length }}
-          </div>
-        </div>
-      </transition>
-    </Teleport>
+    <ImageViewer
+      :visible="isDetailImageViewerOpen"
+      :images="detailImages"
+      :current-index="detailImageIndex"
+      :post-title="postTitle"
+      :current-image="currentDetailImage"
+      :image-key="detailImageKey"
+      @close="closeDetailImageViewer"
+      @navigate-prev="showPrevDetailImage"
+      @navigate-next="showNextDetailImage"
+      @go-to-index="goToDetailImage"
+    />
   </div>
 </template>
 

@@ -8,6 +8,48 @@ const DEFAULT_PRIORITY = {
   success: 0
 };
 
+const DEFAULT_CAT_STICKERS = {
+  ai: 'theme',
+  comment: 'like',
+  delete: 'delete',
+  failed: 'failed',
+  message: 'mobileGap',
+  notification: 'cardExtra',
+  post: 'decorAlt',
+  progress: 'uploading',
+  search: 'decor',
+  success: 'success',
+  theme: 'theme',
+  uploading: 'uploading',
+  warning: 'decor'
+};
+
+const DEFAULT_CAT_STICKER_MODES = {
+  ai: 'hero',
+  comment: 'hero',
+  delete: 'hero',
+  failed: 'hero',
+  message: 'hero',
+  notification: 'hero',
+  post: 'hero',
+  progress: 'hero',
+  search: 'hero',
+  success: 'hero',
+  theme: 'hero',
+  uploading: 'hero',
+  warning: 'hero'
+};
+
+const resolveCatStickerType = ({ catSticker, icon, type }) => {
+  if (catSticker) return catSticker;
+  return DEFAULT_CAT_STICKERS[type] || DEFAULT_CAT_STICKERS[icon] || '';
+};
+
+const resolveCatStickerMode = ({ catStickerMode, icon, type }) => {
+  if (catStickerMode) return catStickerMode;
+  return DEFAULT_CAT_STICKER_MODES[type] || DEFAULT_CAT_STICKER_MODES[icon] || 'peek';
+};
+
 export const useBottomNavIslandQueue = ({
   onShow,
   onAction
@@ -21,7 +63,7 @@ export const useBottomNavIslandQueue = ({
     actionTab: null,
     isLong: false,
     catSticker: '',
-    catStickerMode: 'peek',
+    catStickerMode: 'hero',
     forceCatSticker: false
   });
   const isCollapsing = ref(false);
@@ -44,8 +86,10 @@ export const useBottomNavIslandQueue = ({
     const durationMs = Math.min(Math.max(Number(payload.durationMs) || 4800, 1800), 9000);
     const type = String(payload.type || icon || 'success').trim();
     const textLength = `${title}${message}`.length;
-    const catSticker = String(payload.catSticker || '').trim();
-    const catStickerMode = String(payload.catStickerMode || '').trim() || 'peek';
+    const payloadCatSticker = String(payload.catSticker || '').trim();
+    const payloadCatStickerMode = String(payload.catStickerMode || '').trim();
+    const catSticker = resolveCatStickerType({ catSticker: payloadCatSticker, icon, type });
+    const catStickerMode = resolveCatStickerMode({ catStickerMode: payloadCatStickerMode, icon, type });
 
     return {
       type,

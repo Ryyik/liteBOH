@@ -17,6 +17,7 @@ import {
 } from 'lucide-vue-next';
 import UnifiedNavbar from '../../components/UnifiedNavbar/index.vue';
 import PostComposer from './components/PostComposer.vue';
+import PostCard from './components/PostCard.vue';
 import { useForumImageModerationPreload } from './composables/useForumImageModerationPreload.js';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
@@ -114,6 +115,7 @@ import {
   readForumReturnState,
   saveForumReturnState
 } from '@/utils/forum-return-state.js';
+import { buildReplyDraft, truncateTextSafe, escapeHtml, resolveReplyUsername, calculateOptimisticLikeCount, restoreImageAtPosition, shouldFallbackReplyPreview, buildFallbackReplyPreviewOptions, getLikeErrorToast } from '@/utils/forum-helpers.js';
 import { supabase } from '../../utils/supabase-client.js';
 import { themeManager } from '@/utils/theme-manager.js';
 import { getHomeCatAsset, getHomeCatTypeBySeed, isHomeCatTheme } from '@/utils/home-cat-theme.js';
@@ -151,7 +153,8 @@ import {
 } from '../../utils/moderation-retry-cache.js';
 import {
   callBohAIModel,
-  extractBohAIJsonObject
+  extractBohAIJsonObject,
+  getBohAIModelStatus
 } from '@/utils/bohai-model-client.js';
 
 // 别名方便使用
@@ -220,7 +223,7 @@ const applyForumReturnStateFilters = (state = {}) => {
   searchQuery.value = String(state.searchQuery ?? state.searchKeyword ?? '');
   searchKeyword.value = String(state.searchKeyword ?? state.searchQuery ?? '').trim();
   selectedTagFilter.value = normalizeForumTagValue(state.selectedTagFilter || '');
-  feedMode.value = state.feedMode === 'posts' ? 'posts' : 'posts';
+  feedMode.value = 'posts';
 };
 
 const restoreForumScrollPosition = async (state = {}) => {
@@ -401,6 +404,7 @@ let forumFetchAbortController = null;
 let searchDebounceTimer = null;
 let postDraftSaveTimer = null;
 let postDraftRestoreSeq = 0;
+let scrollTimeout = null;
 let forumImageViewerPanStart = { x: 0, y: 0 };
 const IMAGE_VIEWER_MIN_ZOOM = 0.5;
 const IMAGE_VIEWER_MAX_ZOOM = 4;
@@ -927,10 +931,20 @@ const retryPostImageUpload = async (image, index) => {
     showModal('warning', '无法重试', '这张图片缺少本地文件，请重新选择');
     return;
   }
-  postImages.value = normalizePostImageSortState(
-    postImages.value.filter((_, itemIndex) => itemIndex !== index)
-  );
+  // 临时移除失败图片，保留原位置信息
+  const before = postImages.value.slice(0, index);
+  const after = postImages.value.slice(index + 1);
+  postImages.value = normalizePostImageSortState([...before, ...after]);
+  // 重试上传并插入回原位置
+  const previousCount = postImages.value.length;
   await handlePostImageSelection({ files: [retryFile] });
+  // 将新上传的图片移回原位置
+  if (postImages.value.length > previousCount) {
+    const newImages = postImages.value.slice(previousCount);
+    postImages.value = normalizePostImageSortState(
+      restoreImageAtPosition(postImages.value.slice(0, previousCount), newImages, index)
+    );
+  }
 };
 
 const closeImageCompressionPrompt = (confirmed = false) => {
@@ -1343,7 +1357,7 @@ const getNotificationText = (n) => {
   const senderLink = rawSenderName
     ? `<a class="clickable-username-inline" href="${senderProfileUrl}">${escapedSenderName}</a>`
     : escapedSenderName;
-  const safeCommentSnippet = escapeHtml(String(n.comment?.content || '').substring(0, 20));
+  const safeCommentSnippet = escapeHtml(truncateTextSafe(String(n.comment?.content || ''), 20));
 
   let rawHtml = '';
   switch (n.type) {
@@ -1809,13 +1823,6 @@ const handleForumImageViewerKeydown = (event) => {
     resetForumImageViewerTransform();
   }
 };
-
-const escapeHtml = (value) => String(value || '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;');
 
 const renderSearchExcerpt = (excerpt) => {
   const escaped = escapeHtml(excerpt);
@@ -2398,7 +2405,7 @@ const handlePost = async () => {
     }
 
     // 增加发帖经验
-    addExperience(supabase, userInfo.id, XP_REWARDS.POST);
+    addExperience(supabase, userInfo.id, XP_REWARDS.POST).catch(err => console.error('经验值增加失败:', err));
 
     emitProfileSync({
       userId: userInfo.id,
@@ -2435,10 +2442,6 @@ const activeReplyTarget = ref(null); // { postId, parentId, username }
 const replyContent = ref('');
 const isReplySubmitting = ref(false);
 
-const buildReplyDraft = () => {
-  return '';
-};
-
 const toggleReplyInput = (postId, parentId = null, username = null, quotedContent = '') => {
   if (activeReplyTarget.value && activeReplyTarget.value.postId === postId && activeReplyTarget.value.parentId === parentId) {
     activeReplyTarget.value = null;
@@ -2447,6 +2450,18 @@ const toggleReplyInput = (postId, parentId = null, username = null, quotedConten
     activeReplyTarget.value = { postId, parentId, username, quotedContent };
     replyContent.value = buildReplyDraft(username, quotedContent);
   }
+};
+
+const handlePostCardToggleReplyInput = (postId, parentId, username, quotedContent) => {
+  toggleReplyInput(postId, parentId ?? null, username ?? null, quotedContent ?? '');
+};
+
+const handlePostCardClearReplyTarget = (postId) => {
+  activeReplyTarget.value = { postId, parentId: null, username: null };
+};
+
+const handlePostCardCancelReply = () => {
+  activeReplyTarget.value = null;
 };
 
 const loadPostReplyPreview = async (post) => {
@@ -2459,13 +2474,14 @@ const loadPostReplyPreview = async (post) => {
     order: 'desc'
   });
 
-  if ((!Array.isArray(data) || data.length === 0) && Number(post.comment_count || 0) > 0) {
-    const fallback = await getComments(post.id, currentUserId, {
+  if (shouldFallbackReplyPreview(data, post.comment_count)) {
+    const fallbackOptions = buildFallbackReplyPreviewOptions({
       topLevelOnly: true,
       page: 1,
       pageSize: LIST_REPLY_PREVIEW_COUNT,
       order: 'desc'
     });
+    const fallback = await getComments(post.id, currentUserId, fallbackOptions);
     data = fallback.data;
     hasMore = fallback.hasMore;
   }
@@ -2516,12 +2532,13 @@ const submitReply = async (post) => {
     const parentId = activeReplyTarget.value?.parentId;
     const replyToUsername = activeReplyTarget.value?.username;
     const rawReplyContent = replyContent.value;
+    const safeUsername = resolveReplyUsername(userInfo);
 
     const { error } = await createComment(
       post.id,
       rawReplyContent,
       userInfo.id,
-      userInfo.username,
+      safeUsername,
       commentStatus,
       parentId,
       replyToUsername
@@ -2538,8 +2555,8 @@ const submitReply = async (post) => {
       message: '你的回复已经发送啦',
       icon: 'comment',
       type: 'success',
-      catSticker: 'like',
-      catStickerMode: 'peek',
+      catSticker: 'success',
+      catStickerMode: 'hero',
       forceCatSticker: true
     })) {
       showModal(
@@ -2584,17 +2601,17 @@ const handleToggleLike = async (post) => {
 
     if (error) {
       console.error('点赞失败:', error);
+      const toast = getLikeErrorToast(error);
+      showModal('warning', toast.title, toast.message);
       return;
     }
 
     if (action === 'liked') {
-      post.like_count = Number(data?.likeCount ?? Number(post.like_count || 0) + 1);
+      post.like_count = calculateOptimisticLikeCount(post.like_count, 'liked', data?.likeCount);
       post.isLiked = true;
       addExperience(supabase, userInfo.id, XP_REWARDS.LIKE);
     } else if (action === 'unliked') {
-      post.like_count = Number.isFinite(Number(data?.likeCount))
-        ? Number(data.likeCount)
-        : Math.max(0, Number(post.like_count || 0) - 1);
+      post.like_count = calculateOptimisticLikeCount(post.like_count, 'unliked', data?.likeCount);
       post.isLiked = false;
     }
     addUiMarker(likePulsePostIds, post.id, 1900, 'like-pulse');
@@ -2673,8 +2690,6 @@ const sharePost = async (post) => {
 };
 
 // 懒加载滚动处理
-let scrollTimeout = null;
-
 const handleScroll = () => {
   if (feedMode.value !== 'posts') return;
   if (isLoading.value || isLoadingMore.value || !hasMoreData.value) return;
@@ -3046,204 +3061,43 @@ const openPostDetail = (postId) => {
                 <p v-else>这里空空如也，快来发布第一条动态吧！</p>
               </div>
 
-              <article v-for="(post, index) in forumData" :key="post.id" class="post-card-v2 glass-panel"
-                :data-forum-post-id="post.id"
-                :class="{
-                  'image-post-card-v2': post.hasImages,
-                  'is-expanded': expandedPostIds.has(post.id) || (activeReplyTarget && activeReplyTarget.postId === post.id),
-                  'is-new-post': isPostHighlighted(post.id)
-                }"
-                :style="{ '--post-appear-delay': `${Math.min(index, 8) * 45}ms` }"
-                @click="openPostDetail(post.id)">
-                <figure v-if="isHomeCatActive" class="post-card-theme-cat"
-                  :class="getPostCardCatVariant(index)" aria-hidden="true">
-                  <img :src="getPostCardCatSrc(post, index)" alt="" draggable="false" />
-                </figure>
-                <figure v-if="isHomeCatActive && shouldShowPostBackgroundCat(post, index)"
-                  class="post-card-background-cat" aria-hidden="true">
-                  <img :src="getPostBackgroundCatSrc(post, index)" alt="" draggable="false" />
-                </figure>
-                <div class="post-header-v2">
-                  <div class="post-author-section">
-                    <div class="post-author-avatar">
-                      <img v-if="post.author_avatar_url" :src="post.author_avatar_url" alt="作者头像"
-                        class="avatar-image" />
-                      <span v-else>{{ post.author_username ? post.author_username.charAt(0).toUpperCase() : 'U'
-                      }}</span>
-                    </div>
-                    <div class="post-author-info">
-                      <span class="post-author-v2" @click.stop="goToProfile(post.author_username)">@{{
-                        post.author_username }}</span>
-                      <span class="post-date-v2">{{ formatDate(post.created_at) }}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="post-content-v2">
-                  <h3 class="post-title-v2">
-                    {{ post.displayTitle }}
-                    <span v-if="post.status === 'limited'" class="post-status-pill limited">仅自己可见</span>
-                  </h3>
-                  <div v-if="post.tagLabel" class="post-card-tags">
-                    <span class="post-card-tag">{{ post.tagLabel }}</span>
-                  </div>
-                  <div v-if="post.hasImages" class="image-post-thumb-grid"
-                    :class="[
-                      `count-${Math.min(post.previewImages.length, FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT)}`,
-                      { 'is-multi-image': post.hasMultipleImages }
-                    ]"
-                    :aria-label="post.hasMultipleImages ? `多图帖子，共 ${post.imageCount} 张图片` : '图片帖子'">
-                    <button v-for="(image, index) in post.previewImages.slice(0, FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT)" :key="image.id || image.url"
-                      type="button"
-                      class="image-post-thumb-shell"
-                      :class="{ 'is-loaded': isForumImageLoaded(post.id, image.url) }"
-                      :aria-label="`查看${post.displayTitle}第 ${index + 1} 张大图`"
-                      @click.stop="openForumImageViewer(post, index)"
-                    >
-                      <img
-                        v-if="image.lqipUrl"
-                        :src="image.lqipUrl"
-                        :alt="`${post.displayTitle} 图片 ${index + 1}`"
-                        class="image-post-thumb-lqip"
-                        aria-hidden="true"
-                        decoding="async" />
-                      <img
-                        v-if="image.eager"
-                        :src="image.url"
-                        :srcset="image.srcset || undefined"
-                        sizes="(max-width: 420px) 160px, (max-width: 768px) 300px, 360px"
-                        :alt="`${post.displayTitle} 图片 ${index + 1}`"
-                        loading="eager"
-                        fetchpriority="high"
-                        decoding="async" class="image-post-thumb"
-                        :class="{ 'is-loaded': isForumImageLoaded(post.id, image.url) }"
-                        :width="image.width || undefined"
-                        :height="image.height || undefined"
-                        @load="markForumImageLoaded(post.id, image.url)"
-                        @error="markForumImageLoaded(post.id, image.url)" />
-                      <img
-                        v-else
-                        :data-lazy-src="image.url"
-                        :data-lazy-srcset="image.srcset || ''"
-                        sizes="(max-width: 420px) 160px, (max-width: 768px) 300px, 360px"
-                        :alt="`${post.displayTitle} 图片 ${index + 1}`"
-                        loading="lazy"
-                        fetchpriority="low"
-                        decoding="async" class="image-post-thumb"
-                        :class="{ 'is-loaded': isForumImageLoaded(post.id, image.url) }"
-                        :width="image.width || undefined"
-                        :height="image.height || undefined"
-                        :ref="(el) => { if (el) nextTick(() => observeForumLazyImage(el)); }"
-                        @load="markForumImageLoaded(post.id, image.url)"
-                        @error="markForumImageLoaded(post.id, image.url)" />
-                    </button>
-                    <span v-if="post.hasMultipleImages" class="image-post-count-badge" aria-hidden="true">
-                      多图 {{ post.imageCount }}
-                    </span>
-                  </div>
-                  <p v-if="searchKeyword && post.search_excerpt" class="search-highlight-snippet"
-                    v-html="renderSearchExcerpt(post.search_excerpt)">
-                  </p>
-                  <p class="post-text-v2" :class="{ 'is-overflowing': post.isBodyOverflowLikely }">{{ post.displayBody }}</p>
-                </div>
-
-                <!-- 操作栏 -->
-                <div class="post-actions-v2" @click.stop>
-                  <div class="actions-left-v2">
-                    <button class="action-item-v2 like-btn-v2" @click="handleToggleLike(post)"
-                      :class="{ 'is-liked': post.isLiked, 'is-pulsing': isPostLikePulsing(post.id) }" :disabled="isLikeSubmitting[post.id]">
-                      <img v-if="isHomeCatActive && isPostLikePulsing(post.id)" class="like-pop-cat-img"
-                        :src="getHomeCatAsset('like')" alt="" draggable="false" />
-                      <Heart class="action-svg-v2" :size="17" :stroke-width="1.8"
-                        :fill="post.isLiked ? 'currentColor' : 'none'" aria-hidden="true" />
-                      <span class="action-count-v2">{{ post.like_count || 0 }}</span>
-                    </button>
-
-                    <button class="action-item-v2 replies-btn-v2" @click="toggleRepliesList(post)" aria-label="查看评论">
-                      <MessageCircle class="action-svg-v2" :size="17" :stroke-width="1.8" aria-hidden="true" />
-                      <span class="action-count-v2">{{ post.comment_count || 0 }}</span>
-                    </button>
-                  </div>
-
-                  <div class="actions-right-v2">
-                    <button class="action-item-v2 icon-only-action-v2 reply-btn-v2" @click="toggleReplyInput(post.id)"
-                      aria-label="回复" title="回复">
-                      <Reply class="action-svg-v2" :size="17" :stroke-width="1.8" aria-hidden="true" />
-                    </button>
-                    <button class="action-item-v2 icon-only-action-v2 share-btn-v2"
-                      :class="{ 'is-copy-success': isPostShareCopied(post.id) }"
-                      :aria-label="isPostShareCopied(post.id) ? '链接已复制' : '分享'"
-                      :title="isPostShareCopied(post.id) ? '已复制' : '分享'"
-                      @click="sharePost(post)">
-                      <Check v-if="isPostShareCopied(post.id)" class="action-svg-v2" :size="17" :stroke-width="2"
-                        aria-hidden="true" />
-                      <Share2 v-else class="action-svg-v2" :size="17" :stroke-width="1.8" aria-hidden="true" />
-                    </button>
-                  </div>
-                </div>
-
-                <!-- 回复输入 (支持多级回复) -->
-                <transition name="fade-slide">
-                  <div v-if="activeReplyTarget && activeReplyTarget.postId === post.id" class="reply-input-section-v2"
-                    @click.stop>
-                    <img v-if="isHomeCatActive && hasUiMarker(replySuccessPostIds, post.id)"
-                      class="reply-success-pop-cat-img" :src="getHomeCatAsset('success')" alt="" draggable="false" />
-                    <div v-if="activeReplyTarget.username" class="reply-target-hint">
-                      正在回复 <span class="target-user">@{{ activeReplyTarget.username }}</span>
-                      <button class="clear-target-btn"
-                        @click="activeReplyTarget = { postId: post.id, parentId: null, username: null }">×</button>
-                    </div>
-                    <textarea v-model="replyContent"
-                      :placeholder="activeReplyTarget.username ? `回复 @${activeReplyTarget.username}...` : '写下你的回复...'"
-                      class="reply-textarea-v2" rows="2"></textarea>
-                    <div class="reply-actions-v2">
-                      <button class="cancel-reply-btn-v2" @click="activeReplyTarget = null">取消</button>
-                      <button class="submit-reply-btn-v2" @click="submitReply(post)"
-                        :disabled="isReplySubmitting || replyCooldownSeconds > 0">
-                        {{ isReplySubmitting ? '发送中...' : replySubmitLabel }}
-                      </button>
-                    </div>
-                  </div>
-                </transition>
-
-                <!-- 回复列表 (优化多级显示) -->
-                <transition name="expand-replies">
-                  <div v-if="expandedPostIds.has(post.id) && post.replies && post.replies.length > 0"
-                    class="replies-list" @click.stop>
-                    <div v-for="reply in post.replies" :key="reply.id" class="reply-item-v2">
-                      <div class="reply-header-v2">
-                        <div class="reply-avatar">
-                          <img v-if="reply.author_avatar_url" :src="reply.author_avatar_url" alt="回复者头像"
-                            class="avatar-image" />
-                          <span v-else>{{ reply.author_username ? reply.author_username.charAt(0).toUpperCase() : 'U'
-                          }}</span>
-                        </div>
-                        <div class="reply-content-wrapper">
-                          <div class="reply-user-info">
-                            <span class="reply-author-v2" @click="goToProfile(reply.author_username)">{{
-                              reply.author_username }}</span>
-                            <span v-if="reply.reply_to_username" class="reply-to-tag">
-                              回复 <span class="target-name">@{{ reply.reply_to_username }}</span>
-                            </span>
-                          </div>
-                          <p class="reply-text-v2">{{ reply.content }}</p>
-                          <div class="reply-meta-v2">
-                            <span class="reply-date-v2">{{ formatDate(reply.created_at) }}</span>
-                            <button class="reply-action-btn"
-                              @click="toggleReplyInput(post.id, reply.parent_id || reply.id, reply.author_username, reply.content)">回复</button>
-                            <button v-if="isLoggedIn && (reply.author_id === userInfo.id || userInfo.role === 'admin')"
-                              class="delete-comment-btn-v2" @click="handleDeleteComment(reply, post)">×</button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <button v-if="shouldShowMoreRepliesLink(post)" class="more-replies-link-v2"
-                      @click="openPostDetail(post.id)">
-                      查看更多回复
-                    </button>
-                  </div>
-                </transition>
-              </article>
+              <PostCard
+                v-for="(post, index) in forumData"
+                :key="post.id"
+                :post="post"
+                :index="index"
+                :is-home-cat-active="isHomeCatActive"
+                :is-expanded="expandedPostIds.has(post.id)"
+                :active-reply-target="activeReplyTarget && activeReplyTarget.postId === post.id ? activeReplyTarget : null"
+                :reply-content="replyContent"
+                :is-reply-submitting="isReplySubmitting"
+                :reply-cooldown-seconds="replyCooldownSeconds"
+                :reply-submit-label="replySubmitLabel"
+                :is-like-submitting="!!isLikeSubmitting[post.id]"
+                :is-liked-pulsing="isPostLikePulsing(post.id)"
+                :is-share-copied="isPostShareCopied(post.id)"
+                :is-highlighted="isPostHighlighted(post.id)"
+                :is-reply-success="hasUiMarker(replySuccessPostIds, post.id)"
+                :search-keyword="searchKeyword"
+                :is-logged-in="isLoggedIn"
+                :user-info="userInfo"
+                :loaded-image-keys="loadedForumImageKeys"
+                @click="openPostDetail"
+                @go-to-profile="goToProfile"
+                @toggle-like="handleToggleLike"
+                @toggle-replies="toggleRepliesList"
+                @toggle-reply-input="handlePostCardToggleReplyInput"
+                @share="sharePost"
+                @submit-reply="submitReply"
+                @delete-comment="handleDeleteComment"
+                @open-image-viewer="openForumImageViewer"
+                @update:reply-content="replyContent = $event"
+                @clear-reply-target="handlePostCardClearReplyTarget"
+                @cancel-reply="handlePostCardCancelReply"
+                @image-loaded="markForumImageLoaded"
+                @lazy-image-observe="observeForumLazyImage"
+                @more-replies="openPostDetail"
+              />
             </div>
 
             <!-- 加载更多提示 -->

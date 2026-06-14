@@ -1,6 +1,5 @@
 <template>
   <div class="user-space-page" :class="{
-    'ai-nav-collapsed': currentTab === 'ai' && isAICollapsed,
     'tab-transition-forward': tabTransitionDirection === 'forward',
     'tab-transition-back': tabTransitionDirection === 'back'
   }"
@@ -897,20 +896,26 @@
     <UserSpaceBottomNav
       :visible="!(currentTab === 'profile' && profileSection === 'edit-profile')"
       :hidden="shouldHideBottomNav"
-      :ai-collapsed="currentTab === 'ai' && isAICollapsed"
+      :ai-overlay-open="isAiOverlayOpen"
       :island-visible="isBottomNavIslandExpanded"
       :island-collapsing="isBottomNavIslandCollapsing"
       :island="bottomNavIsland"
       :show-cat-sticker="isHomeCatActive"
       :nav-items="navItems"
       :current-tab="currentTab"
-      :nav-indicator-style="navIndicatorStyle"
-      @toggle-ai="toggleAICollapsed"
+      :nav-indicator-style="bottomNavIndicatorStyle"
       @island-action="handleBottomNavIslandAction"
       @island-before-leave="handleBottomNavIslandBeforeLeave"
       @island-after-leave="handleBottomNavIslandAfterLeave"
       @preload-tab="preloadUserSpaceTab"
-      @nav-click="switchTab"
+      @nav-click="handleBottomNavClick"
+    />
+
+    <BohAiGlassOverlay
+      v-if="isAiOverlayOpen"
+      :theme="currentTheme"
+      @close="closeAiOverlay"
+      @island-message="showBottomNavIsland"
     />
 
     <!-- 主题设置模态框 -->
@@ -1024,12 +1029,13 @@
 import { ref, computed, nextTick, onMounted, onUnmounted, reactive, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import { Bot, Cake, MessageCircle, Newspaper, Palette, User, Users, X } from 'lucide-vue-next';
+import { Bot, Cake, Check, MessageCircle, Newspaper, Palette, User, Users, X } from 'lucide-vue-next';
 import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import AvatarCropModal from '@/components/AvatarCropModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
+import BohAiGlassOverlay from './components/BohAiGlassOverlay.vue';
 import UserSpaceBottomNav from './components/UserSpaceBottomNav.vue';
 import { useBottomNavIslandQueue } from './composables/useBottomNavIslandQueue.js';
 import { createMemoryTtlCache } from './composables/useMemoryTtlCache.js';
@@ -1140,6 +1146,16 @@ const navItems = [
   { id: 'messages', label: '消息', icon: MessageCircle },
   { id: 'profile', label: '我的', icon: User }
 ];
+const isAiOverlayOpen = ref(false);
+const aiNavIndex = navItems.findIndex((item) => item.id === 'ai');
+const bottomNavIndicatorStyle = computed(() => {
+  if (!isAiOverlayOpen.value || aiNavIndex < 0) return navIndicatorStyle.value;
+  return {
+    '--active-nav-index': aiNavIndex,
+    '--active-nav-center': `${((aiNavIndex + 0.5) / navItems.length) * 100}%`,
+    '--nav-count': navItems.length
+  };
+});
 const validTabs = USER_SPACE_VALID_TABS;
 const loginRequiredTabs = new Set();
 const validProfileSections = ['home', 'edit-profile', 'sponsor', 'settings', 'data-management'];
@@ -1147,11 +1163,9 @@ const tabTransitionDirection = ref('forward');
 const {
   currentTab,
   profileSection,
-  isAICollapsed,
   mountedTabs,
   navIndicatorStyle,
-  ensureTabMounted,
-  toggleAICollapsed
+  ensureTabMounted
 } = useUserSpaceTabs(navItems);
 
 const getTabOrderIndex = (tabId) => {
@@ -1723,11 +1737,11 @@ const maybeShowBottomNavOnboardingNotice = async () => {
     title: '灵动导航栏上线',
     message: '以后弹窗提示都在这哦',
     icon: 'notification',
-    type: 'theme',
+    type: 'notification',
     actionLabel: '知道了',
     durationMs: 5600,
-    catSticker: 'theme',
-    catStickerMode: 'peek',
+    catSticker: 'cardExtra',
+    catStickerMode: 'hero',
     forceCatSticker: true
   });
   markBottomNavOnboardingNoticeSeen();
@@ -2383,11 +2397,16 @@ const syncUserSpaceTabRoute = (tabId) => {
   router.replace({ path: '/user-space', query: nextQuery });
 };
 
-const switchTab = (tabId) => {
-  if (tabId === 'ai' && currentTab.value === 'ai' && !isAICollapsed.value) {
-    toggleAICollapsed();
+const handleBottomNavClick = (tabId) => {
+  if (tabId === 'ai') {
+    isAiOverlayOpen.value = !isAiOverlayOpen.value;
     return;
   }
+  isAiOverlayOpen.value = false;
+  switchTab(tabId);
+};
+
+const switchTab = (tabId) => {
   const nextTab = resolveAccessibleTab(tabId, { promptLogin: true });
   if (nextTab !== tabId) return;
   if (currentTab.value === tabId) return;
@@ -2408,6 +2427,10 @@ const switchTab = (tabId) => {
   if (tabId === 'ai') {
     void preloadBOHAIComponent();
   }
+};
+
+const closeAiOverlay = () => {
+  isAiOverlayOpen.value = false;
 };
 
 const goToProfile = (usernameVal) => {
@@ -2931,9 +2954,6 @@ watch(() => route.query.setting, () => {
 watch(currentTab, (newTab, oldTab) => {
   if (newTab !== 'profile' || oldTab !== 'profile') {
     profileSection.value = 'home';
-  }
-  if (newTab !== 'ai') {
-    isAICollapsed.value = true;
   }
   resolveProfileSectionFromRoute();
   if (newTab === 'profile') {

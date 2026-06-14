@@ -250,9 +250,10 @@ export function normalizeForumImage(image = {}, { variant = 'detail' } = {}) {
 
 export function normalizeForumImages(images = [], options = {}) {
   const source = Array.isArray(images) ? images : [];
+  const { includeNonApproved = false } = options;
   return source
     .map((image) => normalizeForumImage(image, options))
-    .filter((image) => image && image.moderationStatus === 'approved')
+    .filter((image) => image && (includeNonApproved || image.moderationStatus === 'approved'))
     .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
 }
 
