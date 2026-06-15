@@ -98,7 +98,7 @@ const onReplyInput = (event) => {
     <transition name="fade-slide">
       <div v-if="activeReplyId" class="x-reply-box" :class="{ 'is-thread-reply': Boolean(replyToUser) }">
         <img v-if="isHomeCatActive && isReplySuccessPopping" class="detail-reply-success-cat-img"
-          :src="getHomeCatAsset('success')" alt="" draggable="false" />
+          :src="getHomeCatAsset('success')" alt="" draggable="false"  loading="lazy" />
         <div class="reply-input-wrapper">
           <div class="reply-context-bar">
             <div class="reply-context-main">
@@ -150,7 +150,7 @@ const onReplyInput = (event) => {
             <div class="comment-author-info" @click="$emit('go-to-profile', reply.author_username)">
               <div class="mini-avatar">
                 <img v-if="reply.author_avatar_url" :src="reply.author_avatar_url" alt="回复者头像"
-                  class="avatar-image" />
+                  class="avatar-image"  loading="lazy" />
                 <span v-else>{{ reply.author_username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
               </div>
               <div class="author-details">

@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia';
 import { computed, ref, reactive } from 'vue';
 import { logger } from '@/utils/logger.js';
+import type { UserInfo, LoginResult, AsyncOpResult } from '@/types';
+import type * as AuthModule from '@/utils/auth.js';
 
 const CREATOR_PLATFORM_KEYS = ['bilibili', 'xiaohongshu', 'douyin'];
 const CREATOR_VISIBILITY_VALUES = new Set(['public', 'private']);
@@ -9,14 +11,20 @@ const SESSION_REFRESH_THRESHOLD_MS = 5 * 60 * 1000;
 const SESSION_HEARTBEAT_INTERVAL_MS = 4 * 60 * 1000;
 const AUTH_SESSION_MISSING_ERROR_CODE = 'AUTH_SESSION_MISSING';
 
-const normalizeCreatorPlatformIds = (raw) => {
+interface CreatorPlatformIds {
+  [key: string]: string
+}
+
+type CreatorPlatformVisibility = Record<string, string>;
+
+const normalizeCreatorPlatformIds = (raw: unknown): CreatorPlatformIds => {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return {};
   }
 
-  const normalized = {};
+  const normalized: CreatorPlatformIds = {};
   for (const key of CREATOR_PLATFORM_KEYS) {
-    const value = raw[key];
+    const value = (raw as Record<string, unknown>)[key];
     if (typeof value !== 'string') continue;
     const trimmed = value.trim();
     if (!trimmed) continue;
@@ -25,26 +33,32 @@ const normalizeCreatorPlatformIds = (raw) => {
   return normalized;
 };
 
-const normalizeCreatorPlatformVisibility = (raw, availableKeys = CREATOR_PLATFORM_KEYS) => {
+const normalizeCreatorPlatformVisibility = (
+  raw: unknown,
+  availableKeys: string[] = CREATOR_PLATFORM_KEYS
+): CreatorPlatformVisibility => {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return {};
   }
 
-  const normalized = {};
+  const normalized: CreatorPlatformVisibility = {};
   const keySet = new Set(availableKeys);
   for (const key of CREATOR_PLATFORM_KEYS) {
     if (!keySet.has(key)) continue;
-    const value = String(raw[key] || '').trim().toLowerCase();
+    const value = String((raw as Record<string, unknown>)[key] || '').trim().toLowerCase();
     normalized[key] = CREATOR_VISIBILITY_VALUES.has(value) ? value : 'public';
   }
   return normalized;
 };
 
-const normalizeCreatorPlatformOrder = (raw, availableKeys = CREATOR_PLATFORM_KEYS) => {
-  const base = Array.isArray(raw) ? raw : [];
+const normalizeCreatorPlatformOrder = (
+  raw: unknown,
+  availableKeys: string[] = CREATOR_PLATFORM_KEYS
+): string[] => {
+  const base = Array.isArray(raw) ? raw as string[] : [];
   const keySet = new Set(availableKeys);
-  const seen = new Set();
-  const order = [];
+  const seen = new Set<string>();
+  const order: string[] = [];
 
   for (const key of base) {
     const safeKey = String(key || '').trim();
@@ -62,10 +76,10 @@ const normalizeCreatorPlatformOrder = (raw, availableKeys = CREATOR_PLATFORM_KEY
   return order;
 };
 
-const normalizeShowcasePostIds = (raw) => {
+const normalizeShowcasePostIds = (raw: unknown): string[] => {
   const list = Array.isArray(raw) ? raw : [];
-  const seen = new Set();
-  const normalized = [];
+  const seen = new Set<string>();
+  const normalized: string[] = [];
   for (const item of list) {
     const id = String(item || '').trim();
     if (!id || seen.has(id) || !UUID_REGEX.test(id)) continue;
@@ -76,33 +90,50 @@ const normalizeShowcasePostIds = (raw) => {
   return normalized;
 };
 
-let authApiPromise = null;
-const loadAuthApi = async () => {
+let authApiPromise: Promise<typeof AuthModule> | null = null;
+const loadAuthApi = async (): Promise<typeof AuthModule> => {
   if (!authApiPromise) {
     authApiPromise = import('@/utils/auth.js');
   }
   return authApiPromise;
 };
 
-let resetStoresPromise = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let resetStoresPromise: Promise<any[]> | null = null;
 const loadResetStores = async () => {
   if (!resetStoresPromise) {
     resetStoresPromise = Promise.all([
-      import('@/stores/notifications.js'),
-      import('@/stores/bag.js'),
-      import('@/stores/products.js')
+      import('@/stores/notifications'),
+      import('@/stores/bag'),
+      import('@/stores/products')
     ]);
   }
   return resetStoresPromise;
 };
+
+interface ProfileCacheMeta {
+  userId: string
+  fetchedAt: number
+}
+
+interface AuthError {
+  code?: string
+  name?: string
+  message?: string
+}
+
+interface SessionLike {
+  expires_at?: number
+  user?: unknown
+}
 
 export const useAuthStore = defineStore('auth', () => {
   const isLoggedIn = ref(false);
   const isInitialized = ref(false);
   const showLoginModal = ref(false);
   const isRefreshingToken = ref(false);
-  const lastTokenRefresh = ref(null);
-  const userInfo = reactive({
+  const lastTokenRefresh = ref<number | null>(null);
+  const userInfo = reactive<UserInfo>({
     id: '',
     username: '',
     email: '',
@@ -147,18 +178,21 @@ const PROFILE_SELECT_COLUMNS = `
   creator_platform_order,
   showcase_post_ids
 `;
-  let authStateSubscription = null;
-  let sessionHeartbeatTimer = null;
-  let authSyncInFlight = null;
-  let initInFlight = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let authStateSubscription: any = null;
+  let sessionHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let authSyncInFlight: Promise<any> | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let initInFlight: Promise<any> | null = null;
   let browserLifecycleBound = false;
-  const profileCacheMeta = reactive({
+  const profileCacheMeta = reactive<ProfileCacheMeta>({
     userId: '',
     fetchedAt: 0
   });
 
-  const withTimeout = (promise, timeoutMs = AUTH_TIMEOUT_MS, message = '请求超时') =>
-    new Promise((resolve, reject) => {
+  const withTimeout = <T>(promise: Promise<T>, timeoutMs = AUTH_TIMEOUT_MS, message = '请求超时'): Promise<T> =>
+    new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error(message)), timeoutMs);
       Promise.resolve(promise)
         .then((result) => {
@@ -171,21 +205,21 @@ const PROFILE_SELECT_COLUMNS = `
         });
     });
 
-  const clearSessionHeartbeat = () => {
+  const clearSessionHeartbeat = (): void => {
     if (sessionHeartbeatTimer !== null) {
       clearInterval(sessionHeartbeatTimer);
       sessionHeartbeatTimer = null;
     }
   };
 
-  const shouldRefreshSoon = (session) => {
+  const shouldRefreshSoon = (session: SessionLike | null | undefined): boolean => {
     const expiresAtSeconds = Number(session?.expires_at || 0);
     if (!Number.isFinite(expiresAtSeconds) || expiresAtSeconds <= 0) return false;
     const remainingMs = (expiresAtSeconds * 1000) - Date.now();
     return remainingMs > 0 && remainingMs <= SESSION_REFRESH_THRESHOLD_MS;
   };
 
-  const isAuthSessionMissingError = (error) => {
+  const isAuthSessionMissingError = (error: AuthError | null | undefined): boolean => {
     const code = String(error?.code || '').trim().toUpperCase();
     const name = String(error?.name || '').trim();
     const message = String(error?.message || '').toLowerCase();
@@ -249,7 +283,7 @@ const PROFILE_SELECT_COLUMNS = `
     return authData?.user || null;
   };
 
-  const ensureBrowserLifecycleSync = () => {
+  const ensureBrowserLifecycleSync = (): void => {
     if (browserLifecycleBound || typeof window === 'undefined') return;
     browserLifecycleBound = true;
 
@@ -268,7 +302,7 @@ const PROFILE_SELECT_COLUMNS = `
     window.addEventListener('online', handleOnline);
   };
 
-  const ensureSessionHeartbeat = () => {
+  const ensureSessionHeartbeat = (): void => {
     if (sessionHeartbeatTimer !== null) return;
     if (typeof window === 'undefined') return;
 
@@ -294,7 +328,7 @@ const PROFILE_SELECT_COLUMNS = `
         }
       } catch (error) {
         logger.warn('auth-store', `同步登录状态失败(${reason})`, error);
-        if (isAuthSessionMissingError(error)) {
+        if (isAuthSessionMissingError(error as AuthError)) {
           // 会话明确失效时，立即清理持久化登录态，避免使用过期 userInfo 继续请求受保护资源。
           resetState();
           isInitialized.value = true;
@@ -314,9 +348,9 @@ const PROFILE_SELECT_COLUMNS = `
     return authSyncInFlight;
   };
 
-  const resolveFallbackUsername = (fallbackUser = null) => {
+  const resolveFallbackUsername = (fallbackUser: Record<string, unknown> | null = null): string => {
     const safeUser = fallbackUser || {};
-    const fromMeta = String(safeUser.user_metadata?.username || '').trim();
+    const fromMeta = String((safeUser.user_metadata as Record<string, unknown> | undefined)?.username || '').trim();
     if (fromMeta) return fromMeta;
 
     const email = String(safeUser.email || '').trim();
@@ -326,20 +360,20 @@ const PROFILE_SELECT_COLUMNS = `
     return userInfo.username || '';
   };
 
-  const applyProfileToUserInfo = (data = {}, fallbackUser = null) => {
+  const applyProfileToUserInfo = (data: Record<string, unknown> = {}, fallbackUser: Record<string, unknown> | null = null): void => {
     const fallbackUsername = resolveFallbackUsername(fallbackUser);
-    userInfo.points = data.points || 0;
-    userInfo.role = data.role || 'user';
-    userInfo.username = data.username || fallbackUsername;
-    userInfo.joinDate = data.join_date || '';
-    userInfo.birthMonth = data.birth_month || '';
-    userInfo.birthDay = data.birth_day || '';
-    userInfo.avatarUrl = data.avatar_url || '';
-    userInfo.profileBackgroundUrl = data.profile_background_url || '';
-    userInfo.profileBackgroundPublicId = data.profile_background_public_id || '';
-    userInfo.tags = data.tags || [];
-    userInfo.bio = data.bio || '';
-    userInfo.experience = data.experience || 0;
+    userInfo.points = (data.points as number) || 0;
+    userInfo.role = (data.role as string) || 'user';
+    userInfo.username = (data.username as string) || fallbackUsername;
+    userInfo.joinDate = (data.join_date as string) || '';
+    userInfo.birthMonth = (data.birth_month as string) || '';
+    userInfo.birthDay = (data.birth_day as string) || '';
+    userInfo.avatarUrl = (data.avatar_url as string) || '';
+    userInfo.profileBackgroundUrl = (data.profile_background_url as string) || '';
+    userInfo.profileBackgroundPublicId = (data.profile_background_public_id as string) || '';
+    userInfo.tags = (data.tags as string[]) || [];
+    userInfo.bio = (data.bio as string) || '';
+    userInfo.experience = (data.experience as number) || 0;
     const normalizedCreatorIds = normalizeCreatorPlatformIds(data.creator_platform_ids);
     userInfo.isBohCreator = Boolean(data.is_boh_creator);
     userInfo.creatorPlatformIds = normalizedCreatorIds;
@@ -373,7 +407,7 @@ const PROFILE_SELECT_COLUMNS = `
     return sessionUser;
   };
 
-  const ensureAdminAccess = async () => {
+  const ensureAdminAccess = async (): Promise<boolean> => {
     if (isAdmin.value) return true;
 
     try {
@@ -385,7 +419,7 @@ const PROFILE_SELECT_COLUMNS = `
     }
   };
 
-  const updateLocalState = async (user, options = {}) => {
+  const updateLocalState = async (user: unknown, options: { force?: boolean; skipProfileFetch?: boolean } = {}) => {
     const {
       force = false,
       skipProfileFetch = false
@@ -401,21 +435,23 @@ const PROFILE_SELECT_COLUMNS = `
         user = session?.user || null;
       }
 
-      if (user) {
+      const u = user as Record<string, unknown> | null;
+      if (u) {
         isLoggedIn.value = true;
-        userInfo.id = user.id;
-        userInfo.email = user.email;
+        userInfo.id = String(u.id || '');
+        userInfo.email = String(u.email || '');
         ensureSessionHeartbeat();
 
         if (!userInfo.username) {
-          userInfo.username = user.user_metadata?.username || user.email.split('@')[0];
+          const meta = u.user_metadata as Record<string, unknown> | undefined;
+          userInfo.username = (meta?.username as string) || String(u.email || '').split('@')[0];
         }
 
         lastTokenRefresh.value = Date.now();
 
         if (skipProfileFetch) {
           // 快速路径：登录后先建立本地会话态，详细资料后台再拉取。
-          profileCacheMeta.userId = user.id;
+          profileCacheMeta.userId = String(u.id || '');
           profileCacheMeta.fetchedAt = 0;
           return;
         }
@@ -423,7 +459,7 @@ const PROFILE_SELECT_COLUMNS = `
         try {
           const now = Date.now();
           const shouldSkipProfileFetch = !force
-            && profileCacheMeta.userId === user.id
+            && profileCacheMeta.userId === String(u.id || '')
             && profileCacheMeta.fetchedAt > 0
             && (now - profileCacheMeta.fetchedAt) < PROFILE_REFRESH_TTL_MS;
 
@@ -435,7 +471,7 @@ const PROFILE_SELECT_COLUMNS = `
             supabase
               .from('profiles')
               .select(PROFILE_SELECT_COLUMNS)
-              .eq('id', user.id)
+              .eq('id', u.id)
               .maybeSingle(),
             AUTH_TIMEOUT_MS,
             '加载用户资料超时'
@@ -445,15 +481,15 @@ const PROFILE_SELECT_COLUMNS = `
             throw fetchProfileError;
           }
 
-          let profileData = fetchedProfile;
+          let profileData = fetchedProfile as Record<string, unknown> | null;
 
           // 注册后资料未落库时，在首次登录阶段进行一次自愈补建。
           if (!profileData) {
-            const fallbackUsername = resolveFallbackUsername(user);
+            const fallbackUsername = resolveFallbackUsername(u);
             const bootstrapProfile = {
-              id: user.id,
-              username: fallbackUsername || String(user.id).slice(0, 8),
-              email: String(user.email || '').trim().toLowerCase() || null,
+              id: u.id,
+              username: fallbackUsername || String(u.id).slice(0, 8),
+              email: String(u.email || '').trim().toLowerCase() || null,
               join_date: new Date().toISOString().split('T')[0]
             };
 
@@ -473,7 +509,7 @@ const PROFILE_SELECT_COLUMNS = `
               supabase
                 .from('profiles')
                 .select(PROFILE_SELECT_COLUMNS)
-                .eq('id', user.id)
+                .eq('id', u.id)
                 .maybeSingle(),
               AUTH_TIMEOUT_MS,
               '刷新用户资料超时'
@@ -483,12 +519,12 @@ const PROFILE_SELECT_COLUMNS = `
               throw refetchError;
             }
 
-            profileData = refetchedProfile;
+            profileData = refetchedProfile as Record<string, unknown> | null;
           }
 
           if (profileData) {
-            applyProfileToUserInfo(profileData, user);
-            profileCacheMeta.userId = user.id;
+            applyProfileToUserInfo(profileData, u);
+            profileCacheMeta.userId = String(u.id || '');
             profileCacheMeta.fetchedAt = Date.now();
           }
         } catch (err) {
@@ -529,12 +565,12 @@ const PROFILE_SELECT_COLUMNS = `
   };
 
   const login = async (
-    loginId,
-    password,
+    loginId: string,
+    password: string,
     rememberMe = false,
     verificationPayload = '',
     deviceIdHash = ''
-  ) => {
+  ): Promise<LoginResult> => {
     const { signIn: loginWithEdgeGateway } = await loadAuthApi();
     const normalizedLoginId = String(loginId || '').trim();
     const safeVerificationPayload = String(verificationPayload || '').trim();
@@ -573,35 +609,35 @@ const PROFILE_SELECT_COLUMNS = `
     return { success: true, message: '登录成功' };
   };
 
-  const loginWithOAuth = async (provider) => {
+  const loginWithOAuth = async (provider: string): Promise<AsyncOpResult> => {
     const { signInWithOAuth } = await loadAuthApi();
-    const { data: _data, error } = await signInWithOAuth(provider);
+    const { error } = await signInWithOAuth(provider);
     if (error) return { success: false, message: error.message };
-    return { success: true };
+    return { success: true, message: '' };
   };
 
-  const resetPassword = async (email) => {
+  const resetPassword = async (email: string): Promise<AsyncOpResult> => {
     const { resetPassword: supabaseResetPassword } = await loadAuthApi();
-    const { data: _data, error } = await supabaseResetPassword(email);
+    const { error } = await supabaseResetPassword(email);
     if (error) return { success: false, message: error.message };
     return { success: true, message: '重置链接已发送到您的邮箱' };
   };
 
-  const verifyPasswordRecovery = async (tokenHash) => {
+  const verifyPasswordRecovery = async (tokenHash: string): Promise<AsyncOpResult> => {
     const { verifyPasswordRecovery: supabaseVerifyPasswordRecovery } = await loadAuthApi();
-    const { data: _data, error } = await supabaseVerifyPasswordRecovery(tokenHash);
+    const { error } = await supabaseVerifyPasswordRecovery(tokenHash);
     if (error) return { success: false, message: error.message };
-    return { success: true };
+    return { success: true, message: '' };
   };
 
-  const updatePassword = async (newPassword, currentPassword = '') => {
+  const updatePassword = async (newPassword: string, currentPassword = ''): Promise<AsyncOpResult> => {
     const { updatePassword: supabaseUpdatePassword } = await loadAuthApi();
-    const { data: _data, error } = await supabaseUpdatePassword(newPassword, currentPassword);
+    const { error } = await supabaseUpdatePassword(newPassword, currentPassword);
     if (error) return { success: false, message: error.message };
     return { success: true, message: '密码更新成功' };
   };
 
-  const deleteAccount = async (password) => {
+  const deleteAccount = async (password: string): Promise<AsyncOpResult> => {
     const safePassword = String(password || '');
     if (safePassword.length < 6) {
       return { success: false, message: '请输入当前账号密码（至少 6 位）' };
@@ -623,11 +659,11 @@ const PROFILE_SELECT_COLUMNS = `
       return { success: true, message: data?.message || '账号已注销' };
     } catch (error) {
       logger.error('auth-store', '注销账号失败', error);
-      return { success: false, message: error?.message || '注销失败，请稍后重试' };
+      return { success: false, message: (error as Error)?.message || '注销失败，请稍后重试' };
     }
   };
 
-  const logout = async () => {
+  const logout = async (): Promise<void> => {
     try {
       const { signOut: supabaseSignOut } = await loadAuthApi();
       const { error } = await supabaseSignOut();
@@ -649,7 +685,8 @@ const PROFILE_SELECT_COLUMNS = `
 
         const { supabase } = await loadAuthApi();
         if (!authStateSubscription) {
-          const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data } = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
             logger.debug('auth-store', `Auth state changed: ${event}`);
 
             if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
@@ -679,7 +716,7 @@ const PROFILE_SELECT_COLUMNS = `
     return initInFlight;
   };
 
-  const deductPoints = (amount) => {
+  const deductPoints = (amount: number): boolean => {
     if (userInfo.points >= amount) {
       userInfo.points -= amount;
       return true;
@@ -687,7 +724,7 @@ const PROFILE_SELECT_COLUMNS = `
     return false;
   };
 
-  const resetState = () => {
+  const resetState = (): void => {
     isLoggedIn.value = false;
     clearSessionHeartbeat();
     Object.assign(userInfo, {
@@ -726,14 +763,14 @@ const PROFILE_SELECT_COLUMNS = `
       });
   };
 
-  const updateUserProfile = async (updates) => {
+  const updateUserProfile = async (updates: Record<string, unknown>): Promise<AsyncOpResult> => {
     if (!userInfo.id) {
       return { success: false, message: '用户未登录' };
     }
 
     try {
       const { supabase } = await loadAuthApi();
-      const dbUpdates = {};
+      const dbUpdates: Record<string, unknown> = {};
       if (updates.username !== undefined) dbUpdates.username = updates.username;
       if (updates.bio !== undefined) dbUpdates.bio = updates.bio;
       if (updates.join_date !== undefined) dbUpdates.join_date = updates.join_date;
@@ -772,21 +809,21 @@ const PROFILE_SELECT_COLUMNS = `
         .single();
 
       if (!refreshError && refreshedProfile) {
-        applyProfileToUserInfo(refreshedProfile, {
+        applyProfileToUserInfo(refreshedProfile as Record<string, unknown>, {
           email: userInfo.email,
           user_metadata: { username: userInfo.username }
         });
         profileCacheMeta.userId = userInfo.id;
         profileCacheMeta.fetchedAt = Date.now();
       } else {
-        if (updates.username !== undefined) userInfo.username = updates.username;
-        if (updates.bio !== undefined) userInfo.bio = updates.bio;
-        if (updates.join_date !== undefined) userInfo.joinDate = updates.join_date || '';
-        if (updates.birth_month !== undefined) userInfo.birthMonth = updates.birth_month || '';
-        if (updates.birth_day !== undefined) userInfo.birthDay = updates.birth_day || '';
-        if (updates.avatar_url !== undefined) userInfo.avatarUrl = updates.avatar_url;
-        if (updates.profile_background_url !== undefined) userInfo.profileBackgroundUrl = updates.profile_background_url;
-        if (updates.profile_background_public_id !== undefined) userInfo.profileBackgroundPublicId = updates.profile_background_public_id;
+        if (updates.username !== undefined) userInfo.username = updates.username as string;
+        if (updates.bio !== undefined) userInfo.bio = updates.bio as string;
+        if (updates.join_date !== undefined) userInfo.joinDate = (updates.join_date as string) || '';
+        if (updates.birth_month !== undefined) userInfo.birthMonth = (updates.birth_month as string) || '';
+        if (updates.birth_day !== undefined) userInfo.birthDay = (updates.birth_day as string) || '';
+        if (updates.avatar_url !== undefined) userInfo.avatarUrl = updates.avatar_url as string;
+        if (updates.profile_background_url !== undefined) userInfo.profileBackgroundUrl = updates.profile_background_url as string;
+        if (updates.profile_background_public_id !== undefined) userInfo.profileBackgroundPublicId = updates.profile_background_public_id as string;
         if (updates.is_boh_creator !== undefined) userInfo.isBohCreator = Boolean(updates.is_boh_creator);
         if (updates.creator_platform_ids !== undefined) {
           const normalizedCreatorIds = normalizeCreatorPlatformIds(updates.creator_platform_ids);
@@ -825,9 +862,9 @@ const PROFILE_SELECT_COLUMNS = `
         localStorage.setItem('username', userInfo.username);
       }
 
-      return { success: true };
+      return { success: true, message: '' };
     } catch (err) {
-      return { success: false, message: err.message || '更新失败' };
+      return { success: false, message: (err as Error).message || '更新失败' };
     }
   };
 
@@ -858,7 +895,7 @@ const PROFILE_SELECT_COLUMNS = `
 }, {
   persist: {
     key: 'boh_auth',
-    paths: ['isLoggedIn'],
+    paths: ['isLoggedIn', 'userInfo'],
     storage: localStorage
   }
 });

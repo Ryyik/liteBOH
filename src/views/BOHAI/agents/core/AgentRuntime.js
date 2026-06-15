@@ -1,5 +1,6 @@
 import { AGENT_CLUSTER_AGENT_STATUS } from './agent-cluster-config.js';
 import { AGENT_AGENT_STATUS, createAgentEvent } from './agent-events.js';
+import { isAbortError } from '../../utils/chatErrorMessages.js';
 
 const withTimeout = (promise, timeoutMs, errorMessage) => {
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return promise;
@@ -110,7 +111,7 @@ export const createAgentRuntime = (definition = {}) => {
     try {
       resolved = await withTimeout(runPromise, timeoutMs, `Agent ${name} 执行超时`);
     } catch (error) {
-      if (error?.name === 'AbortError') {
+      if (isAbortError(error)) {
         const elapsed = Date.now() - startedAt;
         metrics.totalMs += elapsed;
         const endEvent = createAgentEvent('agent-end', {

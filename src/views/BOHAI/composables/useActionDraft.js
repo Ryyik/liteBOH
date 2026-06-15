@@ -1,4 +1,5 @@
 import { nextTick } from 'vue';
+import { isAbortError } from '../utils/chatErrorMessages.js';
 import { createPost } from '@/utils/api/forum-api.js';
 import { createMyCloudEntry } from '@/utils/api/boh-cloud-api.js';
 import { createSharedAIMemory } from '@/utils/api/treehole-api.js';
@@ -402,7 +403,7 @@ export function useActionDraft(deps) {
           updateDraftMessage(formatPostDraftPreview(), { kind: 'action_draft_preview' });
         } catch (error) {
           resetPendingActionDraft();
-          updateDraftMessage(error?.name === 'AbortError' ? '已停止整理发帖草稿。' : '发帖草稿生成失败，请稍后再试。');
+          updateDraftMessage(isAbortError(error) ? '已停止整理发帖草稿。' : '发帖草稿生成失败，请稍后再试。');
         } finally {
           const latestSession = getSessionByIndex(currentSession);
           if (latestSession) {
@@ -460,7 +461,7 @@ export function useActionDraft(deps) {
         pendingActionDraft.pageHtml = generatedHtml;
         appendSessionMessage(currentSession, 'assistant', formatPageDraftPreview(), { kind: 'action_draft_preview' });
       } catch (error) {
-        appendSessionMessage(currentSession, 'assistant', error?.name === 'AbortError' ? '已停止生成网页。' : '网页修改失败，请稍后再试。');
+        appendSessionMessage(currentSession, 'assistant', isAbortError(error) ? '已停止生成网页。' : '网页修改失败，请稍后再试。');
       } finally {
         if (targetSession) {
           targetSession.isLoading = false;
@@ -562,7 +563,7 @@ export function useActionDraft(deps) {
         updateDraftMessage(formatPostDraftPreview(), { kind: 'action_draft_preview' });
       } catch (error) {
         resetPendingActionDraft();
-        updateDraftMessage(error?.name === 'AbortError' ? '已停止整理发帖草稿。' : '发帖草稿生成失败，请稍后再试。');
+        updateDraftMessage(isAbortError(error) ? '已停止整理发帖草稿。' : '发帖草稿生成失败，请稍后再试。');
       } finally {
         const latestSession = getSessionByIndex(sessionIndex);
         if (latestSession) {
@@ -649,7 +650,7 @@ export function useActionDraft(deps) {
       updateDraftMessage(formatPageDraftPreview(), { kind: 'action_draft_preview' });
     } catch (error) {
       resetPendingActionDraft();
-      updateDraftMessage(error?.name === 'AbortError' ? '已停止生成网页。' : '网页生成失败，请稍后再试。');
+      updateDraftMessage(isAbortError(error) ? '已停止生成网页。' : '网页生成失败，请稍后再试。');
     } finally {
       const latestSession = getSessionByIndex(sessionIndex);
       if (latestSession) {
@@ -691,7 +692,7 @@ export function useActionDraft(deps) {
       const code = extractHtmlBlock(htmlResponse);
       return code || htmlResponse;
     } catch (error) {
-      if (error?.name === 'AbortError') throw error;
+      if (isAbortError(error)) throw error;
       throw new Error('AI 生成网页失败：' + (error.message || '未知错误'));
     }
   };
@@ -763,7 +764,7 @@ export function useActionDraft(deps) {
       );
       return response;
     } catch (error) {
-      if (error?.name === 'AbortError') throw error;
+      if (isAbortError(error)) throw error;
       throw new Error('AI 生成失败：' + (error.message || '未知错误'));
     }
   };

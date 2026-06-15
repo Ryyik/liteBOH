@@ -483,4 +483,6 @@ onUnmounted(() => {
 watch([selectedModelId, workMode, targetLanguage, messages], saveState, { deep: true });
 </script>
 
-<style scoped src="./style.scoped.css"></style>
+<style scoped>
+@import './style.scoped.css';
+</style>

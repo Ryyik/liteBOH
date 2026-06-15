@@ -23,6 +23,7 @@ import {
 } from '../../utils/api/forum-api.js';
 import { supabase } from '../../utils/supabase-client.js';
 import { formatSmartTime } from '../../utils/time.js';
+import { logger } from '@/utils/logger.js';
 import CommonAlertModal from '../../components/CommonAlertModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { getForumReturnKeyFromQuery } from '@/utils/forum-return-state.js';
@@ -405,7 +406,7 @@ const loadTopComments = async ({ reset = false } = {}) => {
     hasMoreTopComments.value = Boolean(result?.hasMore);
     topCommentsPage.value = pageToLoad + 1;
   } catch (error) {
-    console.error('加载顶层评论失败:', error);
+    logger.error('post-detail', '加载顶层评论失败:', error);
   } finally {
     isTopCommentsLoading.value = false;
   }
@@ -469,7 +470,7 @@ const loadChildReplyPreview = async (parentId) => {
       expanded: false
     });
   } catch (error) {
-    console.error('加载楼中楼预览失败:', error);
+    logger.error('post-detail', '加载楼中楼预览失败:', error);
     patchChildReplyState(rootId, { isLoading: false, fullLoaded: true });
   }
 };
@@ -523,7 +524,7 @@ const loadChildReplies = async (parentId, { reset = false, expand = false } = {}
       expanded: Boolean(expand || state.expanded) && threadReplies.length > 0
     });
   } catch (error) {
-    console.error('加载楼中楼评论失败:', error);
+    logger.error('post-detail', '加载楼中楼评论失败:', error);
     patchChildReplyState(rootId, { isLoading: false });
   }
 };
@@ -730,7 +731,7 @@ const fetchPostDetail = async () => {
     }
   } catch (err) {
     if (requestSeq !== detailFetchSeq) return;
-    console.error('获取帖子详情失败:', err);
+    logger.error('post-detail', '获取帖子详情失败:', err);
     post.value = null;
   } finally {
     if (requestSeq === detailFetchSeq && isLoading.value) {
@@ -818,7 +819,7 @@ const handleToggleLike = async () => {
     const { action, data, error } = await toggleLike(post.value.id, userInfo.id);
 
     if (error) {
-      console.error('点赞失败:', error);
+      logger.error('post-detail', '点赞失败:', error);
       return;
     }
 
@@ -839,7 +840,7 @@ const handleToggleLike = async () => {
       reason: action === 'liked' ? 'post_liked' : 'post_unliked'
     });
   } catch (error) {
-    console.error('点赞异常:', error);
+    logger.error('post-detail', '点赞异常:', error);
   } finally {
     setTimeout(() => {
       isLikeSubmitting.value = false;
@@ -934,7 +935,7 @@ const submitReply = async () => {
       reason: 'comment_created'
     });
   } catch (error) {
-    console.error('回复失败:', error);
+    logger.error('post-detail', '回复失败:', error);
     applyRateLimitCooldown(error);
     showModal('error', '发送失败', error?.message || '请稍后重试');
   } finally {
@@ -967,7 +968,7 @@ const handleDeletePost = async () => {
     });
     goBack();
   } catch (error) {
-    console.error('删除失败:', error);
+    logger.error('post-detail', '删除失败:', error);
     showModal('error', '删除失败', error?.message || '请稍后重试');
   }
 };
@@ -1123,7 +1124,7 @@ const sharePost = async () => {
     await navigator.clipboard.writeText(shareContent);
     showShareCopiedState();
   } catch (error) {
-    console.error('复制分享链接失败:', error);
+    logger.error('post-detail', '复制分享链接失败:', error);
     showModal('error', '复制失败', '当前环境不支持自动复制，请手动复制地址栏链接');
   }
 };
@@ -1157,7 +1158,7 @@ const handleDeleteComment = async (comment, parentId = null) => {
     }
     await refreshPostStats();
   } catch (error) {
-    console.error('删除评论失败:', error);
+    logger.error('post-detail', '删除评论失败:', error);
     showModal('error', '删除失败', error?.message || '请稍后重试');
   }
 };
@@ -1219,7 +1220,7 @@ const handleDeleteComment = async (comment, parentId = null) => {
               <div class="post-header">
                 <div class="author-section" @click="goToProfile(post.author_username)">
                   <div class="author-avatar">
-                    <img v-if="post.author_avatar_url" :src="post.author_avatar_url" alt="作者头像" class="avatar-image" />
+                    <img v-if="post.author_avatar_url" :src="post.author_avatar_url" alt="作者头像" class="avatar-image"  loading="lazy" />
                     <span v-else>{{ post.author_username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
                   </div>
                   <div class="author-meta">
@@ -1320,7 +1321,7 @@ const handleDeleteComment = async (comment, parentId = null) => {
                   <button class="action-btn like-btn" :class="{ 'is-liked': post.isLiked, 'is-pulsing': isLikePulsing }" @click="handleToggleLike"
                     :disabled="isLikeSubmitting">
                     <img v-if="isHomeCatActive && isLikePulsing" class="detail-like-pop-cat-img"
-                      :src="getHomeCatAsset('like')" alt="" draggable="false" />
+                      :src="getHomeCatAsset('like')" alt="" draggable="false"  loading="lazy" />
                     <Heart class="action-svg" :size="18" :stroke-width="1.8" :fill="post.isLiked ? 'currentColor' : 'none'"
                       aria-hidden="true" />
                     <span class="action-count-bold">{{ post.like_count }}</span>
@@ -1383,7 +1384,7 @@ const handleDeleteComment = async (comment, parentId = null) => {
       <Transition name="detail-confirm-fade">
         <div v-if="confirmState.show" class="detail-confirm-overlay" @click.self="closeConfirm(false)">
           <div class="detail-confirm-modal" role="dialog" aria-modal="true" :aria-label="confirmState.title">
-            <img v-if="confirmMascotSrc" class="detail-confirm-cat-img" :src="confirmMascotSrc" alt="" draggable="false" />
+            <img v-if="confirmMascotSrc" class="detail-confirm-cat-img" :src="confirmMascotSrc" alt="" draggable="false"  loading="lazy" />
             <h3>{{ confirmState.title }}</h3>
             <p>{{ confirmState.message }}</p>
             <div class="detail-confirm-actions">
@@ -1483,4 +1484,6 @@ const handleDeleteComment = async (comment, parentId = null) => {
   </div>
 </template>
 
-<style scoped src="./style.scoped.css"></style>
+<style scoped>
+@import './style.scoped.css';
+</style>

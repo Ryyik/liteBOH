@@ -1,6 +1,7 @@
 import { reactive } from 'vue';
 import { callBohAIModel } from '@/utils/bohai-model-client.js';
 import { logger } from '@/utils/logger.js';
+import { isAbortError } from '../utils/chatErrorMessages.js';
 import { SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID, resolveSiliconFlowFreeModelId } from '@/utils/siliconflow-free-models.js';
 import { useAgentCluster } from '../agents/composables/useAgentCluster.js';
 import { AGENT_EVENT_TYPES } from '../agents/core/agent-events.js';
@@ -63,7 +64,7 @@ const fallbackInvokeChatEngine = async ({ query, history, signal, onStream }) =>
       tokens: Math.max(400, Math.round((content || '').length / 1.5))
     };
   } catch (error) {
-    if (error?.name === 'AbortError') {
+    if (isAbortError(error)) {
       return { ok: false, status: 'cancelled', answer: '', error: { message: '已取消' } };
     }
     logger.warn('bohai-cluster', 'chat-engine 简化调用失败', error);

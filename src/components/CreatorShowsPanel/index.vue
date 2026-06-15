@@ -383,4 +383,6 @@ onMounted(() => {
 });
 </script>
 
-<style scoped src="./style.scoped.css"></style>
+<style scoped>
+@import './style.scoped.css';
+</style>

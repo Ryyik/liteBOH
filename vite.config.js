@@ -1,7 +1,6 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
-import viteImagemin from 'vite-plugin-imagemin'
 import { visualizer } from 'rollup-plugin-visualizer'
 import autoprefixer from 'autoprefixer'
 import cssnano from 'cssnano'
@@ -17,35 +16,6 @@ export default defineConfig({
         compilerOptions: {
           isCustomElement: (tag) => tag === 'altcha-widget',
         },
-      },
-    }),
-    // 图片压缩插件 - 优化构建后的图片体积
-    viteImagemin({
-      // GIF 优化
-      gifsicle: {
-        optimizationLevel: 7,
-        interlaced: false,
-      },
-      // PNG 优化
-      optipng: {
-        optimizationLevel: 7,
-      },
-      // JPEG 优化
-      mozjpeg: {
-        quality: 80,
-        progressive: true,
-      },
-      // PNG 量化压缩
-      pngquant: {
-        quality: [0.7, 0.9],
-        speed: 4,
-      },
-      // SVG 优化（icomoon.svg 为字体资源，关闭 svgo 以避免构建噪音报错）
-      svgo: false,
-      // WebP 转换和压缩
-      webp: {
-        quality: 80,
-        method: 6,
       },
     }),
     // 构建产物可视化分析（生成 stats.html）
@@ -96,12 +66,6 @@ export default defineConfig({
           const name = assetInfo.name || '';
           const ext = name.split('.').pop();
           let extType = ext;
-          const lowerName = name.toLowerCase();
-
-          // icomoon.svg 实际是字体资源，放入 fonts 目录以避免按图片链路处理
-          if (lowerName.includes('icomoon.svg')) {
-            return 'static/fonts/[name]-[hash].[ext]';
-          }
 
           if (/^(mp4|webm|ogg|mp3|wav|flac|aac)$/.test(extType)) {
             extType = 'media';
@@ -121,7 +85,7 @@ export default defineConfig({
           if (id.includes('node_modules/@supabase/supabase-js')) return 'supabase-vendor';
           if (id.includes('src/components/UnifiedNavbar')) return 'ui-components';
           if (id.includes('src/components/Footer.vue')) return 'ui-components';
-          if (id.includes('src/stores/auth.js')) return 'auth-store';
+          if (id.includes('src/stores/auth.ts')) return 'auth-store';
           if (id.includes('src/data/products.js') || id.includes('src/data/news.js') || id.includes('src/data/activities.js')) return 'content-datasets';
 
           // 大视图独立 chunk
@@ -160,8 +124,10 @@ export default defineConfig({
       // 生成source map
       sourceMap: false,
     },
-    // chunk 大小警告限制
-    chunkSizeWarningLimit: 1000,
+    // chunk 大小警告限制（500KB，更早发现大 chunk）
+    chunkSizeWarningLimit: 500,
+    // 目标浏览器
+    target: 'es2021',
     // 启用图片优化 - 4KB以下的资源内联为 base64
     assetsInlineLimit: 4096,
     // 优化静态资源处理

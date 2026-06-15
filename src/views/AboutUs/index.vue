@@ -95,7 +95,7 @@
           <div v-for="(person, index) in people" :key="person.name" class="person-card group"
             v-motion-slide-visible-once-bottom :delay="index * 100">
             <div class="person-avatar">
-              <img :src="person.image" :alt="person.name" class="person-img">
+              <img :src="person.image" :alt="person.name" class="person-img" loading="lazy">
             </div>
             <h3 class="person-name">{{ person.name }}</h3>
             <p class="person-role">{{ person.role }}</p>

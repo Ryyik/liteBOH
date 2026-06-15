@@ -116,17 +116,17 @@ const onLazyImageRef = (el) => {
     @click="emit('click', post.id)">
     <figure v-if="isHomeCatActive" class="post-card-theme-cat"
       :class="getPostCardCatVariant(index)" aria-hidden="true">
-      <img :src="getPostCardCatSrc(post, index)" alt="" draggable="false" />
+      <img :src="getPostCardCatSrc(post, index)" alt="" draggable="false"  loading="lazy" />
     </figure>
     <figure v-if="isHomeCatActive && shouldShowPostBackgroundCat(post, index)"
       class="post-card-background-cat" aria-hidden="true">
-      <img :src="getPostBackgroundCatSrc(post, index)" alt="" draggable="false" />
+      <img :src="getPostBackgroundCatSrc(post, index)" alt="" draggable="false"  loading="lazy" />
     </figure>
     <div class="post-header-v2">
       <div class="post-author-section">
         <div class="post-author-avatar">
           <img v-if="post.author_avatar_url" :src="post.author_avatar_url" alt="作者头像"
-            class="avatar-image" />
+            class="avatar-image"  loading="lazy" />
           <span v-else>{{ post.author_username ? post.author_username.charAt(0).toUpperCase() : 'U'
           }}</span>
         </div>
@@ -165,7 +165,7 @@ const onLazyImageRef = (el) => {
             :alt="`${post.displayTitle} 图片 ${index + 1}`"
             class="image-post-thumb-lqip"
             aria-hidden="true"
-            decoding="async" />
+            decoding="async"  loading="lazy" />
           <img
             v-if="image.eager"
             :src="image.url"
@@ -212,7 +212,7 @@ const onLazyImageRef = (el) => {
         <button class="action-item-v2 like-btn-v2" @click="emit('toggle-like', post)"
           :class="{ 'is-liked': post.isLiked, 'is-pulsing': isLikedPulsing }" :disabled="isLikeSubmitting">
           <img v-if="isHomeCatActive && isLikedPulsing" class="like-pop-cat-img"
-            :src="getHomeCatAsset('like')" alt="" draggable="false" />
+            :src="getHomeCatAsset('like')" alt="" draggable="false"  loading="lazy" />
           <Heart class="action-svg-v2" :size="17" :stroke-width="1.8"
             :fill="post.isLiked ? 'currentColor' : 'none'" aria-hidden="true" />
           <span class="action-count-v2">{{ post.like_count || 0 }}</span>
@@ -246,7 +246,7 @@ const onLazyImageRef = (el) => {
       <div v-if="activeReplyTarget && activeReplyTarget.postId === post.id" class="reply-input-section-v2"
         @click.stop>
         <img v-if="isHomeCatActive && isReplySuccess"
-          class="reply-success-pop-cat-img" :src="getHomeCatAsset('success')" alt="" draggable="false" />
+          class="reply-success-pop-cat-img" :src="getHomeCatAsset('success')" alt="" draggable="false"  loading="lazy" />
         <div v-if="activeReplyTarget.username" class="reply-target-hint">
           正在回复 <span class="target-user">@{{ activeReplyTarget.username }}</span>
           <button class="clear-target-btn"
@@ -274,7 +274,7 @@ const onLazyImageRef = (el) => {
           <div class="reply-header-v2">
             <div class="reply-avatar">
               <img v-if="reply.author_avatar_url" :src="reply.author_avatar_url" alt="回复者头像"
-                class="avatar-image" />
+                class="avatar-image"  loading="lazy" />
               <span v-else>{{ reply.author_username ? reply.author_username.charAt(0).toUpperCase() : 'U'
               }}</span>
             </div>
@@ -361,6 +361,8 @@ const onLazyImageRef = (el) => {
 }
 </style>
 
-<style scoped src="../styles/base.css"></style>
-<style scoped src="../styles/feed.css"></style>
-<style scoped src="../styles/replies-responsive.css"></style>
+<style scoped>
+@import '../styles/base.css';
+@import '../styles/feed.css';
+@import '../styles/replies-responsive.css';
+</style>

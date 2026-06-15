@@ -1,9 +1,11 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { logger } from '@/utils/logger.js';
+import type { NotificationPayload } from '@/types';
+import type * as AuthModule from '@/utils/auth.js';
 
-let authApiPromise = null;
-const loadAuthApi = async () => {
+let authApiPromise: Promise<typeof AuthModule> | null = null;
+const loadAuthApi = async (): Promise<typeof AuthModule> => {
   if (!authApiPromise) {
     authApiPromise = import('@/utils/auth.js');
   }
@@ -12,10 +14,13 @@ const loadAuthApi = async () => {
 
 export const useNotificationStore = defineStore('notifications', () => {
   const unreadCount = ref(0);
-  const notifications = ref([]);
-  const notificationSubscription = ref(null);
-  const currentUserId = ref(null);
-  const unreadRefreshInflight = ref(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const notifications = ref<any[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const notificationSubscription = ref<any>(null);
+  const currentUserId = ref<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const unreadRefreshInflight = ref<Promise<any> | null>(null);
   const lastUnreadRefreshAt = ref(0);
   const UNREAD_REFRESH_MIN_INTERVAL_MS = 1500;
 
@@ -23,9 +28,9 @@ export const useNotificationStore = defineStore('notifications', () => {
   const toastTitle = ref('');
   const toastDesc = ref('');
   const toastIcon = ref('🔔');
-  const toastTimer = ref(null);
+  const toastTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 
-  const displayToast = (title, desc, icon = '🔔') => {
+  const displayToast = (title: string, desc: string, icon = '🔔'): void => {
     if (toastTimer.value) {
       clearTimeout(toastTimer.value);
       toastTimer.value = null;
@@ -41,7 +46,7 @@ export const useNotificationStore = defineStore('notifications', () => {
     }, 1500);
   };
 
-  const hideToast = () => {
+  const hideToast = (): void => {
     if (toastTimer.value) {
       clearTimeout(toastTimer.value);
       toastTimer.value = null;
@@ -49,7 +54,7 @@ export const useNotificationStore = defineStore('notifications', () => {
     showToast.value = false;
   };
 
-  const loadNotifications = async () => {
+  const loadNotifications = async (): Promise<void> => {
     if (!currentUserId.value) return;
     try {
       const { getUserNotifications } = await loadAuthApi();
@@ -62,7 +67,8 @@ export const useNotificationStore = defineStore('notifications', () => {
     }
   };
 
-  const removeChannelSafely = async (channel) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const removeChannelSafely = async (channel: any): Promise<void> => {
     if (!channel) return;
     try {
       const { supabase } = await loadAuthApi();
@@ -72,7 +78,7 @@ export const useNotificationStore = defineStore('notifications', () => {
     }
   };
 
-  const startNotificationListener = async (userId) => {
+  const startNotificationListener = async (userId: string): Promise<void> => {
     if (!userId) return;
 
     if (notificationSubscription.value && currentUserId.value === userId) {
@@ -94,7 +100,7 @@ export const useNotificationStore = defineStore('notifications', () => {
 
       logger.debug('notifications-store', '启动新的通知监听器', { userId });
 
-      const notificationsChannel = subscribeToNotifications(userId, async (payload) => {
+      const notificationsChannel = subscribeToNotifications(userId, async (payload: NotificationPayload) => {
         logger.debug('notifications-store', '收到实时通知', payload);
 
         invalidateByTags(['notifications', `notifications:user:${userId}`]);
@@ -136,7 +142,7 @@ export const useNotificationStore = defineStore('notifications', () => {
     }
   };
 
-  const stopNotificationListener = () => {
+  const stopNotificationListener = (): void => {
     const activeSubscription = notificationSubscription.value;
     notificationSubscription.value = null;
     if (!activeSubscription) return;
@@ -151,11 +157,11 @@ export const useNotificationStore = defineStore('notifications', () => {
     void removeChannelSafely(activeSubscription);
   };
 
-  const setUnreadCount = (count) => {
+  const setUnreadCount = (count: number): void => {
     unreadCount.value = count;
   };
 
-  const refreshUnreadCount = async ({ force = false } = {}) => {
+  const refreshUnreadCount = async ({ force = false } = {}): Promise<void> => {
     if (unreadRefreshInflight.value) {
       await unreadRefreshInflight.value;
       return;
@@ -194,7 +200,7 @@ export const useNotificationStore = defineStore('notifications', () => {
     }
   };
 
-  const resetState = () => {
+  const resetState = (): void => {
     hideToast();
     unreadCount.value = 0;
     notifications.value = [];

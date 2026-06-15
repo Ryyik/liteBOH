@@ -1,29 +1,27 @@
-const userSpaceMeta = { requiresLogin: true };
+import type { RouteRecordRaw } from 'vue-router'
 
-const redirectWithQuery = (path, extraQuery = {}) => (to) => ({
-  path,
-  query: {
-    ...to.query,
-    ...extraQuery,
-  },
-});
+const userSpaceMeta = { requiresLogin: true }
 
-const redirectToUserSpaceTab = (tab) => (to) => ({
-  path: "/user-space",
-  query: {
-    ...to.query,
-    tab,
-  },
-});
+// Vue Router 4 的 redirect 函数类型较为严格，使用实用类型转换来处理动态重定向
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const redirectWithQuery = (path: string, extraQuery: Record<string, string> = {}): any =>
+  (to: any) => ({
+    path,
+    query: { ...to.query, ...extraQuery },
+  })
 
-const redirectToUserSpaceMessages = (to) => ({
-  path: "/user-space",
-  query: {
-    ...to.query,
-    tab: "messages",
-    section: "notifications",
-  },
-});
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const redirectToUserSpaceTab = (tab: string): any =>
+  (to: any) => ({
+    path: '/user-space',
+    query: { ...to.query, tab },
+  })
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const redirectToUserSpaceMessages: any = (to: any) => ({
+  path: '/user-space',
+  query: { ...to.query, tab: 'messages', section: 'notifications' },
+})
 
 export const userSpaceRoutes = [
   {
@@ -151,4 +149,4 @@ export const userSpaceRoutes = [
     component: () => import("../../views/user-center/PushplusSettingsPage.vue"),
     meta: userSpaceMeta,
   },
-];
+]

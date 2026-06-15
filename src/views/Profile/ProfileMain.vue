@@ -427,7 +427,7 @@
               <div class="edit-banner-preview"></div>
               <div class="edit-avatar-preview">
                 <div v-if="isOwnProfile" class="avatar-circle clickable" @click="handleAvatarClick">
-                  <img v-if="profile.avatar_url" :src="profile.avatar_url" alt="avatar" class="edit-avatar-img" />
+                  <img v-if="profile.avatar_url" :src="profile.avatar_url" alt="avatar" class="edit-avatar-img"  loading="lazy" />
                   <span v-else>{{ profile.username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
                   <div class="avatar-edit-icon-modal">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -440,7 +440,7 @@
                   </div>
                 </div>
                 <div v-else class="avatar-circle">
-                  <img v-if="profile.avatar_url" :src="profile.avatar_url" alt="avatar" class="edit-avatar-img" />
+                  <img v-if="profile.avatar_url" :src="profile.avatar_url" alt="avatar" class="edit-avatar-img"  loading="lazy" />
                   <span v-else>{{ profile.username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
                 </div>
               </div>
@@ -1922,4 +1922,6 @@ onUnmounted(() => {
 });
 </script>
 
-<style scoped src="./style.scoped.css"></style>
+<style scoped>
+@import './style.scoped.css';
+</style>

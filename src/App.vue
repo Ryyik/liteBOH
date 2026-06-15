@@ -4,7 +4,7 @@ import { useRoute } from "vue-router";
 import Footer from "./components/Footer.vue";
 import { useAuthStore } from "@/stores/auth";
 import { storeToRefs } from "pinia";
-import { loadNotificationStore, getNotificationStoreSync } from "@/stores/notification-loader.js";
+import { loadNotificationStore, getNotificationStoreSync } from "@/stores/notification-loader";
 import { logger } from "@/utils/logger.js";
 
 const route = useRoute();

@@ -9,7 +9,7 @@
           <!-- Content -->
           <div class="alert-content">
             <div v-if="mascotSrc" class="alert-mascot-wrapper">
-              <img :src="mascotSrc" :alt="mascotAlt" draggable="false" />
+              <img :src="mascotSrc" :alt="mascotAlt" draggable="false"  loading="lazy" />
             </div>
             <div v-else class="alert-icon-wrapper" :class="type" :style="iconStyle">
               <span class="alert-icon">{{ icon }}</span>

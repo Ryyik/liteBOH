@@ -20,7 +20,7 @@
           :src="catStickerSrc"
           alt=""
           aria-hidden="true"
-        />
+         loading="lazy" />
         <div class="bottom-nav-island-accent" aria-hidden="true"></div>
         <div class="bottom-nav-island-icon">
           <component :is="activeIcon" :size="18" :stroke-width="2.1" aria-hidden="true" />

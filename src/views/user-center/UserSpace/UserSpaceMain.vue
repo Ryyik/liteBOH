@@ -253,7 +253,7 @@
                 <div class="profile-hero-body">
                   <div class="apple-avatar-wrapper profile-hero-avatar clickable" @click="handleAvatarClick">
                     <div v-if="avatarUrl" class="apple-avatar has-avatar">
-                      <img :src="avatarUrl" alt="头像" class="avatar-img">
+                      <img :src="avatarUrl" alt="头像" class="avatar-img" loading="lazy">
                     </div>
                     <div v-else class="apple-avatar">{{ (username || 'U').charAt(0).toUpperCase() }}</div>
                     <div class="avatar-edit-overlay">
@@ -503,7 +503,7 @@
                 <div class="profile-edit-page-hero">
                   <div class="apple-avatar-wrapper profile-edit-page-avatar clickable" @click="handleAvatarClick">
                     <div v-if="avatarUrl" class="apple-avatar has-avatar">
-                      <img :src="avatarUrl" alt="头像" class="avatar-img">
+                      <img :src="avatarUrl" alt="头像" class="avatar-img" loading="lazy">
                     </div>
                     <div v-else class="apple-avatar">{{ (username || 'U').charAt(0).toUpperCase() }}</div>
                     <span class="profile-edit-avatar-badge" aria-hidden="true">
@@ -661,7 +661,7 @@
                           <span>正在加载赞赏码...</span>
                         </div>
                         <img :src="sponsorQrImageUrl" alt="微信赞赏二维码" @load="handleSponsorQrLoad"
-                          @error="handleSponsorQrError">
+                          @error="handleSponsorQrError" loading="lazy">
                         <figcaption>使用微信扫码赞助</figcaption>
                       </figure>
                     </div>
@@ -1062,6 +1062,7 @@ import { getProfilesPage, getRecentBirthdayProfiles } from '@/utils/api/auth-api
 import { deleteUserImpression, getPostsByUsername, getUserImpressions, updateProfileAvatar } from '@/utils/api/profile-api.js';
 import { getPushplusSettings } from '@/utils/api/pushplus-api.js';
 import { getMySubscriptions } from '@/utils/api/subscription-api.js';
+import { logger } from '@/utils/logger.js';
 import { listMyCloudEntries } from '@/utils/api/boh-cloud-api.js';
 import {
   CLOUD_UPLOAD_MAX_IMAGE_SIZE_BYTES,
@@ -1072,7 +1073,7 @@ import {
 } from '@/utils/cloudinary-client.js';
 import sponsorQrImage from '@/assets/images/qrcode.webp';
 import { useAuthStore } from '@/stores/auth';
-import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader.js';
+import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader';
 import { themeManager } from '@/utils/theme-manager.js';
 import { isHomeCatTheme } from '@/utils/home-cat-theme.js';
 import { DEFAULT_CLOUD_IMAGE_LIMIT, resolveCloudBenefitFromSubscriptions } from '@/utils/subscription-benefits.js';
@@ -1394,7 +1395,7 @@ const fetchProfileContent = async ({ force = false } = {}) => {
       });
       if (fetchToken !== latestProfileContentFetchToken) return;
       if (result.error) {
-        console.warn('读取我的发帖失败:', result.error);
+        logger.warn('user-space', '读取我的发帖失败:', result.error);
         profilePosts.value = [];
         return;
       }
@@ -1404,7 +1405,7 @@ const fetchProfileContent = async ({ force = false } = {}) => {
     }
 
   } catch (error) {
-    console.warn('读取我的内容失败:', error);
+    logger.warn('user-space', '读取我的内容失败:', error);
     if (activeProfileContentTab.value === 'posts') {
       profilePosts.value = [];
     }
@@ -1451,14 +1452,14 @@ const fetchProfileImpressions = async ({ force = false } = {}) => {
     const { data, error } = await getUserImpressions(userId);
     if (fetchToken !== latestProfileImpressionsFetchToken) return;
     if (error) {
-      console.warn('读取我的印象失败:', error);
+      logger.warn('user-space', '读取我的印象失败:', error);
       profileImpressions.value = [];
       return;
     }
     profileImpressions.value = data || [];
     setUserSpaceCache(cacheKey, profileImpressions.value);
   } catch (error) {
-    console.warn('读取我的印象异常:', error);
+    logger.warn('user-space', '读取我的印象异常:', error);
     profileImpressions.value = [];
   } finally {
     if (fetchToken === latestProfileImpressionsFetchToken) {
@@ -1483,7 +1484,7 @@ const handleDeleteProfileImpression = async (impressionId) => {
     setUserSpaceCache(`profile-impressions:${userId}`, profileImpressions.value);
     showAlert('success', '删除成功', '该印象已被移除');
   } catch (error) {
-    console.warn('删除我的印象异常:', error);
+    logger.warn('user-space', '删除我的印象异常:', error);
     showAlert('error', '删除失败', '网络错误');
   }
 };
@@ -1544,7 +1545,7 @@ const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
     if (!postsByIdResult.error) {
       resolvedPostsCount = normalizeStatInt(postsByIdResult.count, 0);
     } else {
-      console.warn('获取用户帖子数失败(author_id):', postsByIdResult.error);
+      logger.warn('user-space', '获取用户帖子数失败(author_id):', postsByIdResult.error);
     }
 
     // 老数据可能缺失 author_id，回退按 username 统计。
@@ -1561,7 +1562,7 @@ const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
         resolvedPostsCount = resolvedPostsCount === null ? fallbackPosts : Math.max(resolvedPostsCount, fallbackPosts);
       } else {
         hasQueryError = true;
-        console.warn('获取用户帖子数失败(author_username):', postsByUsernameError);
+        logger.warn('user-space', '获取用户帖子数失败(author_username):', postsByUsernameError);
       }
     }
 
@@ -1572,7 +1573,7 @@ const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
     if (!pointsResult.error && pointsResult.data) {
       userStats.points = normalizeStatInt(pointsResult.data.points, fallbackPoints);
     } else if (pointsResult.error) {
-      console.warn('获取用户积分失败:', pointsResult.error);
+      logger.warn('user-space', '获取用户积分失败:', pointsResult.error);
     }
 
     // 获取排名（基于积分）
@@ -1587,7 +1588,7 @@ const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
       userStats.rank = normalizeStatInt(higherRankCount, 0) + 1;
     } else {
       hasQueryError = true;
-      console.warn('获取用户排名失败:', rankError);
+      logger.warn('user-space', '获取用户排名失败:', rankError);
     }
 
     setUserSpaceCache(cacheKey, {
@@ -1603,7 +1604,7 @@ const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
       }, 900);
     }
   } catch (error) {
-    console.warn('获取用户统计数据失败:', error);
+    logger.warn('user-space', '获取用户统计数据失败:', error);
   } finally {
     if (fetchToken === latestUserStatsFetchToken) {
       isUserStatsLoading.value = false;
@@ -1712,7 +1713,7 @@ const hasSeenBottomNavOnboardingNotice = () => {
   try {
     return localStorage.getItem(getBottomNavOnboardingNoticeKey()) === '1';
   } catch (error) {
-    console.warn('读取灵动导航栏引导状态失败:', error);
+    logger.warn('user-space', '读取灵动导航栏引导状态失败:', error);
     return false;
   }
 };
@@ -1721,7 +1722,7 @@ const markBottomNavOnboardingNoticeSeen = () => {
   try {
     localStorage.setItem(getBottomNavOnboardingNoticeKey(), '1');
   } catch (error) {
-    console.warn('写入灵动导航栏引导状态失败:', error);
+    logger.warn('user-space', '写入灵动导航栏引导状态失败:', error);
   }
 };
 
@@ -1799,7 +1800,7 @@ const fetchPushplusStatus = async ({ force = false } = {}) => {
       enabled: pushplusStatus.enabled
     });
   } catch (error) {
-    console.warn('获取 Pushplus 状态失败:', error);
+    logger.warn('user-space', '获取 Pushplus 状态失败:', error);
     pushplusStatus.loaded = true;
     pushplusStatus.hasToken = false;
     pushplusStatus.enabled = false;
@@ -1852,7 +1853,7 @@ const fetchCloudPlusUsage = async ({ force = false } = {}) => {
       limit: cloudPlusUsage.limit
     });
   } catch (error) {
-    console.warn('获取 Cloud+ 使用情况失败:', error);
+    logger.warn('user-space', '获取 Cloud+ 使用情况失败:', error);
     cloudPlusUsage.loaded = true;
     cloudPlusUsage.used = 0;
     cloudPlusUsage.limit = DEFAULT_CLOUD_IMAGE_LIMIT;
@@ -2160,7 +2161,7 @@ const submitEditProfile = async () => {
     });
     closeEditProfileModal();
   } catch (error) {
-    console.error('编辑资料失败:', error);
+    logger.error('user-space', '编辑资料失败:', error);
     showAlert('error', '保存失败', `错误: ${error.message || '未知错误'}`);
   } finally {
     isSubmittingProfileEdit.value = false;
@@ -2249,7 +2250,7 @@ const fetchCommunityUsers = async ({ force = false } = {}) => {
     } else {
       communityUsers.value = [];
       totalCommunityUsers.value = 0;
-      console.error('获取社区用户失败:', error);
+      logger.error('user-space', '获取社区用户失败:', error);
     }
   } catch (err) {
     if (fetchId !== latestCommunityFetchId) {
@@ -2258,7 +2259,7 @@ const fetchCommunityUsers = async ({ force = false } = {}) => {
 
     communityUsers.value = [];
     totalCommunityUsers.value = 0;
-    console.error('加载社区用户异常:', err);
+    logger.error('user-space', '加载社区用户异常:', err);
   } finally {
     if (fetchId === latestCommunityFetchId) {
       isLoadingCommunity.value = false;
@@ -2323,7 +2324,7 @@ const fetchRecentBirthdays = async ({ force = false } = {}) => {
       setUserSpaceCache(cacheKey, recentBirthdayUsers.value);
     } else {
       recentBirthdayUsers.value = [];
-      console.error('获取最近生日失败:', error);
+      logger.error('user-space', '获取最近生日失败:', error);
     }
   } catch (err) {
     if (fetchId !== latestBirthdayFetchId) {
@@ -2331,7 +2332,7 @@ const fetchRecentBirthdays = async ({ force = false } = {}) => {
     }
 
     recentBirthdayUsers.value = [];
-    console.error('加载最近生日异常:', err);
+    logger.error('user-space', '加载最近生日异常:', err);
   } finally {
     if (fetchId === latestBirthdayFetchId) {
       isLoadingBirthdays.value = false;
@@ -2508,7 +2509,7 @@ const uploadProfileBackgroundFile = async (file) => {
     if (oldPublicId && oldPublicId !== newPublicId) {
       const cleanupResult = await cleanupCloudinaryProfileBackground(oldPublicId, oldBackgroundUrl);
       if (!cleanupResult.ok) {
-        console.warn('清理旧个人卡片背景失败:', cleanupResult.error);
+        logger.warn('user-space', '清理旧个人卡片背景失败:', cleanupResult.error);
         showAlert('warning', '背景已更新', cleanupResult.error?.message || '旧背景图云端清理失败，请稍后重试');
         return true;
       }
@@ -2525,11 +2526,11 @@ const uploadProfileBackgroundFile = async (file) => {
     });
     return true;
   } catch (error) {
-    console.error('个人卡片背景上传失败:', error);
+    logger.error('user-space', '个人卡片背景上传失败:', error);
     if (uploaded?.publicId) {
       const cleanupResult = await cleanupCloudinaryProfileBackground(uploaded.publicId, uploaded.url);
       if (!cleanupResult.ok) {
-        console.warn('清理未保存的新背景失败:', cleanupResult.error);
+        logger.warn('user-space', '清理未保存的新背景失败:', cleanupResult.error);
       }
     }
     showAlert('error', '上传失败', error.message || '背景上传过程出错');
@@ -2606,7 +2607,7 @@ const handleCropConfirm = async (blob) => {
     await uploadToSupabase(compressedFile);
     showCropModal.value = false;
   } catch (error) {
-    console.error('裁切处理失败:', error);
+    logger.error('user-space', '裁切处理失败:', error);
     showAlert('error', '处理失败', cropPurpose.value === 'profile-background' ? '背景裁切出错，请重试' : '头像裁切出错，请重试');
   } finally {
     isProcessingCrop.value = false;
@@ -2654,7 +2655,7 @@ const uploadToSupabase = async (file) => {
           }
         }
       } catch (e) {
-        console.warn('清理旧头像失败 (非致命错误):', e);
+        logger.warn('user-space', '清理旧头像失败 (非致命错误):', e);
       }
     }
 
@@ -2670,7 +2671,7 @@ const uploadToSupabase = async (file) => {
       durationMs: 4200
     });
   } catch (error) {
-    console.error('上传到 Supabase 失败:', error);
+    logger.error('user-space', '上传到 Supabase 失败:', error);
     showAlert('error', '上传失败', error.message || '上传过程出错');
   }
 };
@@ -2696,7 +2697,7 @@ const saveGiftProgressCache = (userId, value) => {
     };
     localStorage.setItem(getGiftProgressCacheKey(userId), JSON.stringify(payload));
   } catch (error) {
-    console.warn('写入礼物进度缓存失败:', error);
+    logger.warn('user-space', '写入礼物进度缓存失败:', error);
   }
 };
 
@@ -2710,7 +2711,7 @@ const loadGiftProgressCache = (userId) => {
     if (Date.now() - parsed.timestamp > GIFT_PROGRESS_CACHE_TTL_MS) return null;
     return typeof parsed.value === 'string' ? parsed.value : '';
   } catch (error) {
-    console.warn('读取礼物进度缓存失败:', error);
+    logger.warn('user-space', '读取礼物进度缓存失败:', error);
     return null;
   }
 };
@@ -2730,7 +2731,7 @@ const fetchGiftProgressFromServer = async (userId) => {
     const gift = Array.isArray(data) ? data[0] : null;
     return gift ? getGiftStatusLabel(gift.gift_status) : '';
   } catch (error) {
-    console.warn('读取 user_gifts 礼物进度失败，尝试回退 profiles 字段:', error);
+    logger.warn('user-space', '读取 user_gifts 礼物进度失败，尝试回退 profiles 字段:', error);
   }
 
   try {
@@ -2745,7 +2746,7 @@ const fetchGiftProgressFromServer = async (userId) => {
       ? getGiftStatusLabel(data?.gift_status)
       : '';
   } catch (error) {
-    console.warn('读取 profiles 回退礼物进度失败:', error);
+    logger.warn('user-space', '读取 profiles 回退礼物进度失败:', error);
     return '';
   }
 };
@@ -3021,7 +3022,9 @@ const handleUnreadRefresh = (event) => {
 };
 </script>
 
-<style scoped src="./styles/shell-community.css"></style>
-<style scoped src="./styles/profile-base.css"></style>
-<style scoped src="./styles/profile-panels.css"></style>
-<style scoped src="./styles/responsive-integrations.css"></style>
+<style scoped>
+@import './styles/shell-community.css';
+@import './styles/profile-base.css';
+@import './styles/profile-panels.css';
+@import './styles/responsive-integrations.css';
+</style>

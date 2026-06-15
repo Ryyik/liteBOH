@@ -174,7 +174,7 @@
                 <!-- Left: Gift Image Placeholder -->
                 <div class="gift-visual">
                   <div class="gift-image-box">
-                    <img v-if="currentGift?.gift_image" :src="currentGift.gift_image" alt="Gift" />
+                    <img v-if="currentGift?.gift_image" :src="currentGift.gift_image" alt="Gift"  loading="lazy" />
                     <Gift v-else class="gift-placeholder-icon" :size="88" :stroke-width="1.5" aria-hidden="true" />
                   </div>
                 </div>
@@ -433,6 +433,7 @@ import { Gift, MapPin, TriangleAlert, Users } from "lucide-vue-next";
 import { useAuthStore } from "@/stores/auth";
 import { storeToRefs } from "pinia";
 import { supabase } from "@/utils/supabase-client.js";
+import { logger } from '@/utils/logger.js';
 import { createNotification } from "@/utils/api/notifications-api.js";
 import { availableModels } from "@/views/BOHAI/composables/useChatEngine.js";
 import { callVaultSiliconChat } from "@/utils/api/api-key-runtime-api.js";
@@ -621,7 +622,7 @@ const fetchAllPartners = async () => {
       partnersLoadError.value = error.message || "加载成员失败";
     }
   } catch (err) {
-    console.error(err);
+    logger.error('address', err);
     partnersLoadError.value = err?.message || "加载成员失败";
   } finally {
     isLoadingUsers.value = false;
@@ -702,7 +703,7 @@ const loadHistoryGifts = async (uid = targetProfile.value?.id || userInfo.value?
           .update({ is_active: false })
           .in('id', expiredGiftIds);
         if (archiveError) {
-          console.warn('自动归档过期礼物失败:', archiveError);
+          logger.warn('address', '自动归档过期礼物失败:', archiveError);
         }
       }
     }
@@ -711,7 +712,7 @@ const loadHistoryGifts = async (uid = targetProfile.value?.id || userInfo.value?
     historyGifts.value = normalizedGifts.filter((gift) => gift.id !== currentGiftId);
     historyLoadedUserId.value = uid;
   } catch (err) {
-    console.error('加载历史礼物失败:', err);
+    logger.error('address', '加载历史礼物失败:', err);
     historyGifts.value = [];
     historyLoadError.value = err?.message || "历史礼物加载失败，请稍后重试";
   } finally {
@@ -777,7 +778,7 @@ const fetchData = async (uid = userInfo.value.id) => {
             .update({ is_active: false })
             .eq('id', normalizedCurrentGift.id);
           if (archiveError) {
-            console.warn('自动归档过期礼物失败:', archiveError);
+            logger.warn('address', '自动归档过期礼物失败:', archiveError);
           }
         }
         normalizedCurrentGift = { ...normalizedCurrentGift, is_active: false };
@@ -804,7 +805,7 @@ const fetchData = async (uid = userInfo.value.id) => {
       void loadHistoryGifts(uid);
     }
   } catch (err) {
-    console.error('Fetch error:', err);
+    logger.error('address', 'Fetch error:', err);
     mainLoadError.value = err?.message || "加载失败，请稍后重试";
   } finally {
     loading.value = false;
@@ -917,7 +918,7 @@ const deleteAddress = async () => {
     isEditing.value = false;
     alert("地址已删除");
   } catch (err) {
-    console.error("删除地址失败:", err);
+    logger.error('address', "删除地址失败:", err);
     alert("系统错误，请稍后再试");
   } finally {
     deletingAddress.value = false;
@@ -1010,7 +1011,7 @@ const handleAIExtract = async () => {
 
     showAiConfirm.value = true;
   } catch (err) {
-    console.error('AI 地址识别失败:', err);
+    logger.error('address', 'AI 地址识别失败:', err);
     alert('AI 识别失败，请手动填写。');
   } finally {
     isProcessingAI.value = false;
@@ -1072,7 +1073,7 @@ const updateGiftStatus = async (status) => {
       );
     }
   } catch (err) {
-    console.error(err);
+    logger.error('address', err);
   }
 };
 
@@ -1121,7 +1122,7 @@ const updateGiftInfo = async () => {
       alert("更新失败: " + error.message);
     }
   } catch (err) {
-    console.error(err);
+    logger.error('address', err);
   }
 };
 
@@ -1166,7 +1167,7 @@ const createNewGift = async () => {
       );
     }
   } catch (err) {
-    console.error(err);
+    logger.error('address', err);
   }
 };
 
@@ -1184,4 +1185,6 @@ onMounted(() => {
 });
 </script>
 
-<style scoped src="./style.scoped.css"></style>
+<style scoped>
+@import './style.scoped.css';
+</style>

@@ -33,7 +33,7 @@
               <!-- 未揭晓状态：Logo 和 文字 -->
               <div class="unrevealed-content" v-if="!isRevealed">
                 <div class="logo-container">
-                  <img :src="logoUrl" alt="BOH Logo" class="boh-logo-popup" />
+                  <img :src="logoUrl" alt="BOH Logo" class="boh-logo-popup"  loading="lazy" />
                   <div class="logo-glow"></div>
                 </div>
 
@@ -431,4 +431,6 @@ const triggerConfetti = () => {
 };
 </script>
 
-<style scoped src="./style.scoped.css"></style>
+<style scoped>
+@import './style.scoped.css';
+</style>

@@ -60,7 +60,7 @@
           </div>
           <div class="featured-show-visual">
             <div class="featured-show-image-wrapper">
-              <img :src="getImageUrl('@/assets/images/26coffee.webp')" alt="冬眠生存" class="featured-show-image" />
+              <img :src="getImageUrl('@/assets/images/26coffee.webp')" alt="冬眠生存" class="featured-show-image"  loading="lazy" />
               <div class="featured-show-overlay"></div>
               <div class="featured-show-play">
                 <svg viewBox="0 0 24 24" fill="currentColor">
@@ -80,7 +80,7 @@
         <div class="featured-show-content">
           <div class="featured-show-visual">
             <div class="featured-show-image-wrapper">
-              <img :src="getImageUrl('@/assets/images/main1.webp')" alt="方块街" class="featured-show-image" />
+              <img :src="getImageUrl('@/assets/images/main1.webp')" alt="方块街" class="featured-show-image"  loading="lazy" />
               <div class="featured-show-overlay"></div>
               <div class="featured-show-play">
                 <svg viewBox="0 0 24 24" fill="currentColor">
@@ -139,7 +139,7 @@
           <div v-for="(show, index) in shows" :key="show.id" class="show-card"
             :style="{ '--delay': index * 100 + 'ms' }">
             <div class="show-card-image-wrapper">
-              <img :src="getImageUrl(show.image)" :alt="show.title" class="show-card-image" />
+              <img :src="getImageUrl(show.image)" :alt="show.title" class="show-card-image"  loading="lazy" />
               <div class="show-card-overlay">
                 <div class="show-card-play">
                   <svg viewBox="0 0 24 24" fill="currentColor">
@@ -241,4 +241,6 @@ const shows = ref([
 ]);
 </script>
 
-<style scoped src="./style.scoped.css"></style>
+<style scoped>
+@import './style.scoped.css';
+</style>

@@ -102,7 +102,7 @@
           <!-- 左侧：头像 -->
           <div class="x-item-left">
             <div class="x-avatar-wrapper">
-              <img v-if="msg.sender?.avatar_url" :src="msg.sender.avatar_url" class="x-avatar-img" alt="avatar" />
+              <img v-if="msg.sender?.avatar_url" :src="msg.sender.avatar_url" class="x-avatar-img" alt="avatar"  loading="lazy" />
               <div v-else class="x-avatar">
                 {{ msg.sender?.username?.charAt(0)?.toUpperCase?.() || 'S' }}
               </div>
@@ -167,7 +167,7 @@
               <div class="detail-user-card">
                 <div class="large-avatar-wrapper">
                   <img v-if="selectedMessage.sender?.avatar_url" :src="selectedMessage.sender.avatar_url"
-                    class="large-avatar-img" alt="avatar" />
+                    class="large-avatar-img" alt="avatar"  loading="lazy" />
                   <div v-else class="large-avatar">
                     {{ selectedMessage.sender?.username?.charAt(0)?.toUpperCase?.() || 'S' }}
                   </div>
@@ -256,7 +256,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { Bell, TriangleAlert } from 'lucide-vue-next';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
-import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader.js';
+import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader';
 import {
   getUserNotifications,
   markNotificationAsRead,
@@ -1177,4 +1177,6 @@ const loadMoreNotificationLabel = computed(() => {
 });
 </script>
 
-<style scoped src="./style.scoped.css"></style>
+<style scoped>
+@import './style.scoped.css';
+</style>

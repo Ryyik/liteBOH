@@ -558,6 +558,7 @@ onUnmounted(() => {
 });
 </script>
 
-<style scoped src="./style.scoped.1.css"></style>
-
-<style src="./style.global.2.css"></style>
+<style scoped>
+@import './style.scoped.css';
+</style>
+<style src="./style.global.css"></style>

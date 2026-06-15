@@ -9,7 +9,7 @@ import {
   isLikelyPersonalSupportRequest,
   isLikelyWebSearchRequest,
   resolveBOHAIAutoModeDecision
-} from '../../src/utils/bohai-auto-router.js';
+} from '../../src/views/BOHAI/engine/bohai-auto-router.js';
 
 describe('bohai auto router: mode routing', () => {
   it('routes code and command requests to pro mode', () => {

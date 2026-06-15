@@ -228,7 +228,7 @@ onUnmounted(() => {
           <img :key="`${imageKey}-viewer`" class="detail-image-viewer-img" :src="currentImageLargeUrl"
             data-source-index="0" :style="imageStyle"
             :alt="`${postTitle} 大图 ${currentIndex + 1}`" decoding="async"
-            @load="handleImageLoad" @error="handleImageError" />
+            @load="handleImageLoad" @error="handleImageError"  loading="lazy" />
         </div>
         <button v-if="hasMultipleImages" type="button" class="detail-image-viewer-nav next"
           aria-label="下一张大图" @click.stop="$emit('navigate-next')">

@@ -1,4 +1,6 @@
-export const publicRoutes = [
+import type { RouteRecordRaw } from 'vue-router'
+
+export const publicRoutes: RouteRecordRaw[] = [
   {
     path: "/",
     name: "Home",
@@ -84,4 +86,4 @@ export const publicRoutes = [
     name: "LithiumIron",
     component: () => import("../../views/LithiumIron/index.vue"),
   },
-];
+]

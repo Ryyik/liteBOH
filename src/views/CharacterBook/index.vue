@@ -22,7 +22,7 @@
                 :src="currentCharacter.image"
                 :alt="`${currentCharacter.name} style 人物图`"
                 draggable="false"
-              >
+               loading="lazy">
             </div>
           </Transition>
 
@@ -297,4 +297,6 @@ const showNextCharacter = () => {
 };
 </script>
 
-<style scoped src="./style.scoped.css"></style>
+<style scoped>
+@import './style.scoped.css';
+</style>

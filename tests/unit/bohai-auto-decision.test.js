@@ -8,7 +8,7 @@ import {
   pickModeFromLocalSignals,
   pickMoreCapableMode,
   resolveBOHAIAutoModeDecision
-} from '../../src/utils/bohai-auto-router.js';
+} from '../../src/views/BOHAI/engine/bohai-auto-router.js';
 import {
   createNeutralAutoDecision,
   dedupeActionNotes,
@@ -25,7 +25,7 @@ import {
   sanitizeAutoDecisionForUserText,
   shouldAskModelForAutoDecision,
   computeModeFromDecision
-} from '../../src/utils/bohai-auto-decision.js';
+} from '../../src/views/BOHAI/engine/bohai-auto-decision.js';
 
 describe('bohai-auto-decision: pure helpers', () => {
   it('createNeutralAutoDecision returns the same shape as EMPTY_AUTO_DECISION (mutated vs frozen)', () => {

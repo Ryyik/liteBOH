@@ -29,14 +29,14 @@ import {
   sanitizeUnsupportedCommunityEvidenceClaims,
   resolveKnowledgeRoutingPlanCore
 } from '@/utils/ai-chat-grounding.js';
-import { useAuthStore } from '@/stores/auth.js';
+import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/utils/supabase-client.js';
 import {
   normalizeActionDecisionText,
   isPostDraftRequest
 } from '@/utils/bohai-action-draft-intent.js';
-import { isLikelyPersonalSupportRequest } from '@/utils/bohai-auto-router.js';
-import { resolveAutoModeDecisionLocally } from '@/utils/bohai-auto-decision.js';
+import { isLikelyPersonalSupportRequest } from '@/views/BOHAI/engine/bohai-auto-router.js';
+import { resolveAutoModeDecisionLocally } from '@/views/BOHAI/engine/bohai-auto-decision.js';
 import {
   BOHAI_ACTION_IDS,
   BOHAI_CONNECTOR_IDS,
@@ -57,6 +57,7 @@ import {
 } from './useIntentDetection.js';
 import { SITE_OPERATION_MEMORY } from '@/data/ai-site-guide.js';
 import { logger } from '@/utils/logger.js';
+import { safeErrorDetail, isAbortError, CHAT_ERROR_MESSAGES, getAbortMessage } from '../utils/chatErrorMessages.js';
 import {
   ACCURACY_PREFERRED_MODEL_ID,
   AUTO_ROUTER_MODEL_ID,
@@ -1002,7 +1003,7 @@ export function useChatEngine() {
       };
       scheduleSaveSessions();
     } catch (error) {
-      if (error?.name !== 'AbortError') {
+      if (!isAbortError(error)) {
         logger.warn('boh-ai', 'Conversation summary refresh failed', error);
       }
     }
@@ -1291,7 +1292,7 @@ export function useChatEngine() {
         usedModel: true
       };
     } catch (error) {
-      if (error?.name === 'AbortError' && requestSignal?.aborted) throw error;
+      if (isAbortError(error) && requestSignal?.aborted) throw error;
       logger.warn('boh-ai', 'Resource search planning failed, using fallback', error);
       return fallback;
     }
@@ -1457,15 +1458,15 @@ export function useChatEngine() {
       return true;
     } catch (error) {
       const targetSession = getSessionByIndex(sessionIndex);
-      if (error?.name === 'AbortError') {
+      if (isAbortError(error)) {
         if (targetSession?.messages?.[messageIndex]) {
-          targetSession.messages[messageIndex].content = '资源搜索已停止。';
+          targetSession.messages[messageIndex].content = CHAT_ERROR_MESSAGES.resourceSearchStopped;
         }
         return true;
       }
       logger.warn('boh-ai', 'Resource search failed', error);
       if (targetSession?.messages?.[messageIndex]) {
-        targetSession.messages[messageIndex].content = `资源搜索暂时失败：${error?.message || '网络请求异常'}。你也可以先打开资源中心手动搜索。`;
+        targetSession.messages[messageIndex].content = CHAT_ERROR_MESSAGES.resourceSearchFailed();
         mergeAssistantMessageMeta(sessionIndex, messageIndex, {
           kind: 'resource_search_results',
           resourceSearch: {
@@ -1478,7 +1479,7 @@ export function useChatEngine() {
             version: intent.version,
             totalHits: 0,
             results: [],
-            errorMessage: error?.message || '网络请求异常'
+            errorMessage: safeErrorDetail(error)
           }
         });
       }
@@ -1555,7 +1556,7 @@ export function useChatEngine() {
             [results.length > 0 ? `搜索了 ${results.length} 个内容。` : '搜索了 0 个内容。']
           );
         } else {
-          if (webSearchResult?.error && webSearchResult.error?.name !== 'AbortError') {
+          if (webSearchResult?.error && !isAbortError(webSearchResult.error)) {
             logger.error('boh-ai', 'Search failed', webSearchResult.error);
           }
           updateAssistantActionNotes(sessionIndex, messageIndex, ['联网搜索失败，已尝试继续回答。']);
@@ -1617,24 +1618,23 @@ export function useChatEngine() {
       );
       let finalContent = cleanAssistantVisibleReply(filterThinkingContent(streamedReply));
       if (isDegenerateAssistantReply(finalContent)) {
-        finalContent = '回答内容出现异常，请重新发送一次。';
+        finalContent = CHAT_ERROR_MESSAGES.abnormalReply;
       }
-      const safeFinalContent = finalContent || '我暂时没有生成到有效内容，请再试一次。';
+      const safeFinalContent = finalContent || CHAT_ERROR_MESSAGES.noValidContent;
       if (safeFinalContent !== streamedReply) {
         updateContent(safeFinalContent);
       }
       void refreshConversationSummaryCache(sessionIndex);
     } catch (error) {
-      if (error?.name === 'AbortError') {
+      if (isAbortError(error)) {
         const targetSession = getSessionByIndex(sessionIndex);
         const currentContent = targetSession === targetSessionRef && targetSession?.messages?.includes(assistantMessage)
           ? assistantMessage.content
           : '';
-        updateContent(currentContent ? `${currentContent}\n\n（已停止生成）` : '已停止生成。');
+        updateContent(getAbortMessage(currentContent));
       } else {
         logger.error('boh-ai', 'Simple generation error', error);
-        const errMsg = error?.message || String(error || '');
-        updateContent(`服务暂时繁忙，请稍后重试。\n\n错误详情：${errMsg.slice(0, 300)}`);
+        updateContent(CHAT_ERROR_MESSAGES.generationFailed());
       }
     } finally {
       cleanupGenerationState(sessionIndex, requestController);
@@ -1775,7 +1775,7 @@ export function useChatEngine() {
               tokens: Math.max(400, Math.round(answerText.length / 1.5))
             };
           } catch (error) {
-            if (error?.name === 'AbortError') {
+            if (isAbortError(error)) {
               return { ok: false, status: 'cancelled', answer: '', error: { message: '已取消' } };
             }
             return {
@@ -1820,17 +1820,17 @@ export function useChatEngine() {
         }
         return;
       } catch (clusterError) {
-        if (clusterError?.name !== 'AbortError') {
+        if (!isAbortError(clusterError)) {
           logger.error('boh-ai', 'Agent cluster branch failed', clusterError);
         }
         applyAgentClusterEvent({
-          type: clusterError?.name === 'AbortError' ? 'cancelled' : 'error',
+          type: isAbortError(clusterError) ? 'cancelled' : 'error',
           payload: { message: clusterError?.message || String(clusterError || '') },
           createdAt: Date.now()
         });
         const target = getSessionByIndex(sessionIndex);
         if (target?.messages?.[clusterMessageIndex]) {
-          target.messages[clusterMessageIndex].content = clusterError?.name === 'AbortError'
+          target.messages[clusterMessageIndex].content = isAbortError(clusterError)
             ? '已停止生成。'
             : `多任务处理失败，请重试。`;
         }
@@ -2697,7 +2697,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
       finalFilteredContent = cleanAssistantVisibleReply(finalFilteredContent);
       finalFilteredContent = sanitizeCommunityEvidenceClaims(finalFilteredContent);
       if (!finalFilteredContent) {
-        finalFilteredContent = lastVisibleStreamContent || '我暂时没有生成到有效内容，请再试一次。';
+        finalFilteredContent = lastVisibleStreamContent || CHAT_ERROR_MESSAGES.noValidContent;
         finalFilteredContent = sanitizeCommunityEvidenceClaims(finalFilteredContent);
       }
 
@@ -2725,20 +2725,16 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
       const targetSession = getSessionByIndex(sessionIndex);
       const currentContent = targetSession?.messages?.[messageIndex]?.content || '';
 
-      if (error.name === 'AbortError') {
+      if (isAbortError(error)) {
         logger.debug('boh-ai', 'Generation stopped');
         const filteredStoppedContent = cleanAssistantVisibleReply(filterThinkingContent(currentContent));
-        if (generationTimedOut) {
-          updateContent(`生成超时已自动停止，请重试。`);
-        } else if (isDegenerateAssistantReply(filteredStoppedContent)) {
-          updateContent('回答出现异常已自动停止，请重试。');
-        } else {
-          updateContent(`${filteredStoppedContent}\n\n（已停止生成）`);
-        }
+        updateContent(getAbortMessage(filteredStoppedContent, {
+          timedOut: generationTimedOut,
+          isDegenerate: isDegenerateAssistantReply(filteredStoppedContent)
+        }));
       } else {
         logger.error('boh-ai', 'Generation error', error);
-        const errMsg = error?.message || String(error || '');
-        updateContent(`服务暂时繁忙，请稍后重试。\n\n错误详情：${errMsg.slice(0, 300)}`);
+        updateContent(CHAT_ERROR_MESSAGES.generationFailed());
       }
 
       if (targetSession) {

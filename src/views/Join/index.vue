@@ -59,7 +59,7 @@
                 <div class="avatar-selector" @click="handleAvatarClick">
                   <span class="avatar-label">头像</span>
                   <div class="avatar-preview-small">
-                    <img v-if="formData.avatarPreview" :src="formData.avatarPreview" alt="avatar" class="avatar-preview-small-img" />
+                    <img v-if="formData.avatarPreview" :src="formData.avatarPreview" alt="avatar" class="avatar-preview-small-img"  loading="lazy" />
                     <div v-else class="avatar-placeholder-small">
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" fill="#86868b"/>
@@ -189,6 +189,7 @@ import AgreementModal from '@/components/AgreementModal.vue';
 import { userAgreementContent, privacyPolicyContent } from '@/data/agreementData.js';
 import { signUp } from '@/utils/api/auth-api.js';
 import { supabase } from '@/utils/supabase-client.js';
+import { logger } from '@/utils/logger.js';
 import { getAltchaChallengeUrl, isAltchaEnabled } from '@/utils/altcha.js';
 import {
   normalizeEmail,
@@ -409,7 +410,7 @@ const handleCropConfirm = async (blob) => {
     
     showCropModal.value = false;
   } catch (error) {
-    console.error('裁切处理失败:', error);
+    logger.error('join', '裁切处理失败:', error);
     alert('头像处理出错，请重试');
   } finally {
     isProcessingCrop.value = false;
@@ -441,7 +442,7 @@ const uploadAvatarToSupabase = async (userId) => {
       filePath: filePath
     };
   } catch (error) {
-    console.error('上传头像失败:', error);
+    logger.error('join', '上传头像失败:', error);
     return { url: null, filePath: null };
   }
 };
@@ -450,18 +451,18 @@ const deleteAvatarFromSupabase = async (filePath) => {
   if (!filePath) return;
   
   try {
-    console.log('清理冗余头像文件:', filePath);
+    logger.info('join', '清理冗余头像文件:', filePath);
     const { error } = await supabase.storage
       .from('avatars')
       .remove([filePath]);
     
     if (error) {
-      console.warn('删除头像失败（非致命错误）:', error);
+      logger.warn('join', '删除头像失败（非致命错误）:', error);
     } else {
-      console.log('冗余头像已清理');
+      logger.info('join', '冗余头像已清理');
     }
   } catch (error) {
-    console.warn('清理头像时出错:', error);
+    logger.warn('join', '清理头像时出错:', error);
   }
 };
 
@@ -573,11 +574,11 @@ const submitForm = async () => {
             .eq('id', data.user.id);
           
           if (updateError) {
-            console.error('更新头像 URL 失败:', updateError);
+            logger.error('join', '更新头像 URL 失败:', updateError);
             await deleteAvatarFromSupabase(filePath);
           }
         } catch (updateErr) {
-          console.error('更新头像时出错:', updateErr);
+          logger.error('join', '更新头像时出错:', updateErr);
           await deleteAvatarFromSupabase(filePath);
         }
       }
@@ -585,7 +586,7 @@ const submitForm = async () => {
 
     currentStep.value = 3;
   } catch (error) {
-    console.error('Registration failed:', error);
+    logger.error('join', 'Registration failed:', error);
     if (altchaEnabled.value) await resetAltcha();
     alert(error.message || '注册出错，请稍后重试。');
   } finally {

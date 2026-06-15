@@ -21,7 +21,7 @@ import PostCard from './components/PostCard.vue';
 import { useForumImageModerationPreload } from './composables/useForumImageModerationPreload.js';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
-import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader.js';
+import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader';
 
 // Props
 const props = defineProps({
@@ -122,6 +122,7 @@ import { getHomeCatAsset, getHomeCatTypeBySeed, isHomeCatTheme } from '@/utils/h
 import { formatSmartTime } from '../../utils/time.js';
 import { addExperience, XP_REWARDS } from '../../utils/xp.js';
 import DOMPurify from '@/utils/dompurify.js';
+import { logger } from '@/utils/logger.js';
 import {
   AI_SEARCH_MODEL_ID,
   FORUM_IMAGE_UPLOAD_CONCURRENCY,
@@ -432,7 +433,7 @@ const readPostDraft = () => {
     if (!raw) return null;
     return normalizeDraftPayload(JSON.parse(raw));
   } catch (error) {
-    console.warn('读取发帖草稿失败:', error);
+    logger.warn('forum', '读取发帖草稿失败:', error);
     return null;
   }
 };
@@ -456,7 +457,7 @@ const readPostDraftVersions = () => {
         .slice(0, FORUM_POST_DRAFT_VERSION_LIMIT)
       : [];
   } catch (error) {
-    console.warn('读取发帖草稿版本失败:', error);
+    logger.warn('forum', '读取发帖草稿版本失败:', error);
     return [];
   }
 };
@@ -509,7 +510,7 @@ const savePostDraftToDatabase = async (draft) => {
     if (!result.ok) throw result.error;
     return result.data;
   } catch (error) {
-    console.warn('同步发帖草稿失败:', error);
+    logger.warn('forum', '同步发帖草稿失败:', error);
     return null;
   }
 };
@@ -565,7 +566,7 @@ const restorePostDraft = async () => {
     newPost.value = { title: remoteDraft.title, content: remoteDraft.content };
     selectedPostTag.value = remoteDraft.tag;
   } catch (error) {
-    console.warn('恢复发帖草稿失败:', error);
+    logger.warn('forum', '恢复发帖草稿失败:', error);
   }
 };
 
@@ -587,7 +588,7 @@ const persistPostDraft = () => {
     rememberPostDraftVersion(draft);
     schedulePostDraftDatabaseSync(draft);
   } catch (error) {
-    console.warn('保存发帖草稿失败:', error);
+    logger.warn('forum', '保存发帖草稿失败:', error);
   }
 };
 
@@ -602,7 +603,7 @@ const clearPostDraft = () => {
     writePostDraftVersions([]);
     void savePostDraftToDatabase(null);
   } catch (error) {
-    console.warn('清理发帖草稿失败:', error);
+    logger.warn('forum', '清理发帖草稿失败:', error);
   }
 };
 
@@ -915,7 +916,7 @@ const handlePostImageSelection = async (payload) => {
       postImageUploadStatus.value = '图片已通过检测并上传';
     }
   } catch (error) {
-    console.error('论坛图片处理失败:', error);
+    logger.error('forum', '论坛图片处理失败:', error);
     showModal('error', '图片无法发布', error?.message || '图片上传或安全检测失败');
   } finally {
     isUploadingPostImage.value = false;
@@ -1222,7 +1223,7 @@ const loadNotifications = async () => {
       await setUnreadCount(count);
     }
   } catch (error) {
-    console.error('加载通知失败:', error);
+    logger.error('forum', '加载通知失败:', error);
   } finally {
     isNotificationsLoading.value = false;
   }
@@ -1252,7 +1253,7 @@ const showDetail = async (msg) => {
         localStorage.removeItem('boh_unread_refresh');
       }, 100);
     } catch (error) {
-      console.error('标记已读失败:', error);
+      logger.error('forum', '标记已读失败:', error);
     }
   }
 };
@@ -1312,7 +1313,7 @@ const retryRejectedPostFromNotification = async () => {
       showModal('warning', '仍未通过', '本次重试后仍未通过审查，如有疑问请联系客服');
     }
   } catch (error) {
-    console.error('帖子复审重试失败:', error);
+    logger.error('forum', '帖子复审重试失败:', error);
     showModal('error', '重试失败', '请稍后重试');
   } finally {
     retryingNotificationIds.value[notificationId] = false;
@@ -1332,7 +1333,7 @@ const handleMarkAllAsRead = async () => {
       localStorage.removeItem('boh_unread_refresh');
     }, 100);
   } catch (error) {
-    console.error('标记全部已读失败:', error);
+    logger.error('forum', '标记全部已读失败:', error);
   }
 };
 
@@ -1973,7 +1974,7 @@ const loadWeeklyCheckinStatus = async () => {
   try {
     const { ok, data, error } = await getWeeklyCheckinStatus(userInfo.id);
     if (!ok || error || !data) {
-      console.error('加载周签到状态失败:', error);
+      logger.error('forum', '加载周签到状态失败:', error);
       return;
     }
 
@@ -1987,7 +1988,7 @@ const loadWeeklyCheckinStatus = async () => {
       userInfo.points = currentPoints;
     }
   } catch (error) {
-    console.error('加载周签到状态异常:', error);
+    logger.error('forum', '加载周签到状态异常:', error);
   } finally {
     isWeeklyCheckinLoading.value = false;
   }
@@ -2043,7 +2044,7 @@ const handleWeeklyCheckin = async () => {
       reason: 'weekly_checkin'
     });
   } catch (error) {
-    console.error('周签到失败:', error);
+    logger.error('forum', '周签到失败:', error);
     showModal('error', '签到失败', error?.message || '请稍后重试');
   } finally {
     isWeeklyCheckinSubmitting.value = false;
@@ -2120,7 +2121,7 @@ const fetchForumData = async (isLoadMore = false) => {
     } else {
       const errorMessage = String(dataResult?.error?.message || '论坛数据加载失败，请稍后重试');
       forumLoadError.value = errorMessage;
-      console.error('加载论坛数据返回错误:', dataResult?.error || dataResult);
+      logger.error('forum', '加载论坛数据返回错误:', dataResult?.error || dataResult);
       hasMoreData.value = false;
     }
 
@@ -2133,14 +2134,14 @@ const fetchForumData = async (isLoadMore = false) => {
           if (requestSeq !== forumFetchSeq) return;
           await setUnreadCount(unreadRes?.count || 0);
         } catch (metaErr) {
-          console.warn('补充未读通知数失败:', metaErr);
+          logger.warn('forum', '补充未读通知数失败:', metaErr);
         }
       })();
     }
   } catch (err) {
     if (err?.name === 'AbortError') return;
     if (requestSeq !== forumFetchSeq) return;
-    console.error('加载论坛数据失败:', err);
+    logger.error('forum', '加载论坛数据失败:', err);
     forumLoadError.value = String(err?.message || '论坛数据加载失败，请稍后重试');
     hasMoreData.value = false;
   } finally {
@@ -2183,7 +2184,7 @@ const loadHotTagStats = async () => {
       hotTagStats.value = result.data;
     }
   } catch (error) {
-    console.warn('加载热门标签失败:', error);
+    logger.warn('forum', '加载热门标签失败:', error);
   }
 };
 
@@ -2405,7 +2406,7 @@ const handlePost = async () => {
     }
 
     // 增加发帖经验
-    addExperience(supabase, userInfo.id, XP_REWARDS.POST).catch(err => console.error('经验值增加失败:', err));
+    addExperience(supabase, userInfo.id, XP_REWARDS.POST).catch(err => logger.error('forum', '经验值增加失败:', err));
 
     emitProfileSync({
       userId: userInfo.id,
@@ -2419,7 +2420,7 @@ const handlePost = async () => {
       addUiMarker(highlightedPostIds, createdPostId, 2600, 'new-post');
     }
   } catch (error) {
-    console.error('发帖失败', error);
+    logger.error('forum', '发帖失败', error);
     applyRateLimitCooldown(error, 'post');
     const shouldCleanupImages = shouldCleanupImagesAfterPostError(error);
     if (shouldCleanupImages) {
@@ -2574,7 +2575,7 @@ const submitReply = async (post) => {
       reason: 'comment_created'
     });
   } catch (error) {
-    console.error('回复失败', error);
+    logger.error('forum', '回复失败', error);
     applyRateLimitCooldown(error, 'reply');
     showModal('error', '发送失败', error?.message || '请稍后重试');
   } finally {
@@ -2590,7 +2591,7 @@ const handleToggleLike = async (post) => {
     return;
   }
   if (!post || !post.id) {
-    console.error('无效的帖子数据');
+    logger.error('forum', '无效的帖子数据');
     return;
   }
   if (isLikeSubmitting.value[post.id]) return;
@@ -2600,7 +2601,7 @@ const handleToggleLike = async (post) => {
     const { action, data, error } = await toggleLike(post.id, userInfo.id);
 
     if (error) {
-      console.error('点赞失败:', error);
+      logger.error('forum', '点赞失败:', error);
       const toast = getLikeErrorToast(error);
       showModal('warning', toast.title, toast.message);
       return;
@@ -2622,7 +2623,7 @@ const handleToggleLike = async (post) => {
       reason: action === 'liked' ? 'post_liked' : 'post_unliked'
     });
   } catch (error) {
-    console.error('点赞异常', error);
+    logger.error('forum', '点赞异常', error);
   } finally {
     setTimeout(() => {
       isLikeSubmitting.value[post.id] = false;
@@ -2673,7 +2674,7 @@ const handleDeleteComment = async (comment, post) => {
     await loadPostReplyPreview(post);
     await refreshPostEngagementStats(post);
   } catch (error) {
-    console.error('删除评论失败:', error);
+    logger.error('forum', '删除评论失败:', error);
     showModal('error', '删除失败', error?.message || '请稍后重试');
   }
 };
@@ -2684,7 +2685,7 @@ const sharePost = async (post) => {
     await navigator.clipboard.writeText(`来看看这个帖子：${url}`);
     addUiMarker(shareCopiedPostIds, post.id, 1500, 'share-copied');
   } catch (error) {
-    console.error('复制分享链接失败:', error);
+    logger.error('forum', '复制分享链接失败:', error);
     showModal('error', '复制失败', '当前环境不支持自动复制，请手动复制地址栏链接');
   }
 };
@@ -2817,7 +2818,7 @@ const runAiSearch = async () => {
       ? `BOHAI 搜索：${safeReason}`
       : `BOHAI 已改写为「${nextQuery}」`;
   } catch (error) {
-    console.warn('BOHAI 搜索失败，降级为普通搜索:', error);
+    logger.warn('forum', 'BOHAI 搜索失败，降级为普通搜索:', error);
     aiSearchHint.value = 'BOHAI 搜索暂不可用，已使用普通搜索。';
     handleSearch();
   } finally {
@@ -3395,7 +3396,7 @@ const openPostDetail = (postId) => {
             <img :key="`${forumImageViewerKey}-viewer`" class="forum-image-viewer-img" :src="currentForumImageViewerUrl"
               data-source-index="0" :style="forumImageViewerStyle"
               :alt="`帖子大图 ${forumImageViewerIndex + 1}`" decoding="async"
-              @load="handleForumImageViewerImageLoad" @error="handleForumImageViewerImageError" />
+              @load="handleForumImageViewerImageLoad" @error="handleForumImageViewerImageError"  loading="lazy" />
           </div>
           <button v-if="hasMultipleForumViewerImages" type="button" class="forum-image-viewer-nav next"
             aria-label="下一张大图" @click.stop="showNextForumImageViewerImage">
@@ -3412,7 +3413,7 @@ const openPostDetail = (postId) => {
       <Transition name="forum-confirm-fade">
         <div v-if="confirmState.show" class="forum-confirm-overlay" @click.self="closeConfirm(false)">
           <div class="forum-confirm-modal" role="dialog" aria-modal="true" :aria-label="confirmState.title">
-            <img v-if="isHomeCatActive && confirmMascotSrc" class="forum-confirm-cat-img" :src="confirmMascotSrc" alt="" draggable="false" />
+            <img v-if="isHomeCatActive && confirmMascotSrc" class="forum-confirm-cat-img" :src="confirmMascotSrc" alt="" draggable="false"  loading="lazy" />
             <h3>{{ confirmState.title }}</h3>
             <p>{{ confirmState.message }}</p>
             <div class="forum-confirm-actions">
@@ -3450,7 +3451,7 @@ const openPostDetail = (postId) => {
               <div class="detail-user-card">
                 <div class="large-avatar-wrapper">
                   <img v-if="selectedMessage.sender?.avatar_url" :src="selectedMessage.sender.avatar_url"
-                    class="large-avatar-img" alt="avatar" />
+                    class="large-avatar-img" alt="avatar"  loading="lazy" />
                   <div v-else class="large-avatar">
                     {{ selectedMessage.sender?.username?.charAt(0)?.toUpperCase?.() || 'S' }}
                   </div>
@@ -3495,8 +3496,12 @@ const openPostDetail = (postId) => {
   </div>
 </template>
 
-<style scoped src="./styles/base.css"></style>
-<style scoped src="./styles/composer.css"></style>
-<style scoped src="./styles/feed.css"></style>
-<style scoped src="./styles/replies-responsive.css"></style>
-<style scoped src="./styles/drawers-skeletons.css"></style>
+<style scoped>
+@import './styles/base.css';
+</style>
+<style scoped>
+@import './styles/composer.css';
+@import './styles/feed.css';
+@import './styles/replies-responsive.css';
+@import './styles/drawers-skeletons.css';
+</style>

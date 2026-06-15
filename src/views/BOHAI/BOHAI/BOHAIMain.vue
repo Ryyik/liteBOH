@@ -227,220 +227,37 @@
             </main>
         </div>
 
-        <Teleport to="body">
-            <div v-if="settingsOpen" class="ai-settings-backdrop" role="presentation" @click.self="closeSettings">
-                <section class="ai-settings-drawer" role="dialog" aria-modal="true" aria-label="BOH AI 设置">
-                    <header class="ai-settings-header">
-                        <h2>设置</h2>
-                        <button type="button" class="ai-settings-close-btn" title="关闭" @click="closeSettings">
-                            <X size="18" />
-                        </button>
-                    </header>
-
-                    <div class="ai-settings-body custom-scrollbar">
-                        <div class="ai-settings-card">
-                            <div class="ai-settings-group-title">模型与风格</div>
-                            <div class="ai-settings-list">
-                                <div class="ai-settings-row" :class="{ expanded: showModePicker }"
-                                    @click="showModePicker = !showModePicker">
-                                    <div class="ai-settings-row-left">
-                                        <div class="ai-settings-icon bg-blue">
-                                            <Settings size="16" />
-                                        </div>
-                                        <div class="ai-settings-label-stack">
-                                            <span class="ai-settings-label">默认模式</span>
-                                            <span class="ai-settings-desc">{{ currentMode.name }}</span>
-                                        </div>
-                                    </div>
-                                    <div class="ai-settings-row-right">
-                                        <span class="ai-settings-chevron" :class="{ expanded: showModePicker }">›</span>
-                                    </div>
-                                </div>
-                                <div v-if="showModePicker" class="ai-settings-inline-options">
-                                    <button v-for="mode in chatModes" :key="mode.id" type="button"
-                                        :class="['ai-settings-inline-option', { active: currentModeId === mode.id }]"
-                                        @click.stop="selectMode(mode.id); showModePicker = false">
-                                        <span class="ai-settings-option-main">
-                                            <strong>{{ mode.name }}</strong>
-                                            <small>{{ mode.tagline || mode.description }}</small>
-                                        </span>
-                                        <Check v-if="currentModeId === mode.id" size="16" />
-                                    </button>
-                                </div>
-
-                                <div class="ai-settings-row" :class="{ expanded: showStylePicker }"
-                                    @click="showStylePicker = !showStylePicker">
-                                    <div class="ai-settings-row-left">
-                                        <div class="ai-settings-icon bg-purple">
-                                            <span style="font-size:12px;font-weight:800;">Aa</span>
-                                        </div>
-                                        <div class="ai-settings-label-stack">
-                                            <span class="ai-settings-label">回答风格</span>
-                                            <span class="ai-settings-desc">{{ currentResponseStyleName }}</span>
-                                        </div>
-                                    </div>
-                                    <div class="ai-settings-row-right">
-                                        <span class="ai-settings-chevron"
-                                            :class="{ expanded: showStylePicker }">›</span>
-                                    </div>
-                                </div>
-                                <div v-if="showStylePicker" class="ai-settings-inline-options">
-                                    <button v-for="style in responseStyleOptions" :key="style.id" type="button"
-                                        :class="['ai-settings-inline-option', { active: currentResponseStyleId === style.id }]"
-                                        @click.stop="setResponseStyle(style.id); showStylePicker = false">
-                                        <span class="ai-settings-option-main">
-                                            <strong>{{ style.shortName || style.name }}</strong>
-                                            <small>{{ style.description || style.name }}</small>
-                                        </span>
-                                        <Check v-if="currentResponseStyleId === style.id" size="16" />
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="ai-settings-card">
-                            <div class="ai-settings-group-title">检索</div>
-                            <div class="ai-settings-list">
-                                <div class="ai-settings-row clickable" @click="isSearching = !isSearching">
-                                    <div class="ai-settings-row-left">
-                                        <div class="ai-settings-icon bg-green">
-                                            <Globe size="16" />
-                                        </div>
-                                        <div class="ai-settings-label-stack">
-                                            <span class="ai-settings-label">联网搜索</span>
-                                            <span class="ai-settings-desc">获取实时信息</span>
-                                        </div>
-                                    </div>
-                                    <div class="ai-settings-row-right">
-                                        <span :class="['ai-settings-switch', { enabled: isSearching }]"></span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="ai-settings-card">
-                            <div class="ai-settings-group-title">记忆</div>
-                            <div class="ai-settings-list">
-                                <div class="ai-settings-row clickable"
-                                    @click="isTreeholeMemoryEnabled = !isTreeholeMemoryEnabled">
-                                    <div class="ai-settings-row-left">
-                                        <div class="ai-settings-icon bg-indigo">
-                                            <span style="font-size:11px;font-weight:800;">C+</span>
-                                        </div>
-                                        <div class="ai-settings-label-stack">
-                                            <span class="ai-settings-label">Cloud+ 引用</span>
-                                            <span class="ai-settings-desc">引用树洞与日记内容</span>
-                                        </div>
-                                    </div>
-                                    <div class="ai-settings-row-right">
-                                        <span
-                                            :class="['ai-settings-switch', { enabled: isTreeholeMemoryEnabled }]"></span>
-                                    </div>
-                                </div>
-                                <div class="ai-settings-row clickable"
-                                    @click="isSharedMemoryEnabled = !isSharedMemoryEnabled">
-                                    <div class="ai-settings-row-left">
-                                        <div class="ai-settings-icon bg-purple">
-                                            <span style="font-size:11px;font-weight:800;">M</span>
-                                        </div>
-                                        <div class="ai-settings-label-stack">
-                                            <span class="ai-settings-label">公共记忆库</span>
-                                            <span class="ai-settings-desc">查询社区公共记忆</span>
-                                        </div>
-                                    </div>
-                                    <div class="ai-settings-row-right">
-                                        <span
-                                            :class="['ai-settings-switch', { enabled: isSharedMemoryEnabled }]"></span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="ai-settings-card">
-                            <div class="ai-settings-group-title">上下文</div>
-                            <div class="ai-settings-meter-row">
-                                <div class="ai-settings-meter-info">
-                                    <strong>上下文使用率</strong>
-                                    <small>{{ contextBudgetPercentText }} · {{ contextBudgetUsage?.includedMessageCount
-                                        || 0 }} 条消息</small>
-                                </div>
-                                <div class="ai-settings-meter-track">
-                                    <div class="ai-settings-meter-fill" :style="{ width: contextBudgetPercentText }" />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="ai-settings-card">
-                            <div class="ai-settings-group-title">数据</div>
-                            <div class="ai-settings-list">
-                                <div class="ai-settings-row clickable" @click="clearCurrentChat">
-                                    <div class="ai-settings-row-left">
-                                        <div class="ai-settings-icon bg-gray">
-                                            <Trash2 size="16" />
-                                        </div>
-                                        <div class="ai-settings-label-stack">
-                                            <span class="ai-settings-label">清除当前对话</span>
-                                        </div>
-                                    </div>
-                                    <div class="ai-settings-row-right">
-                                        <span class="ai-settings-chevron">›</span>
-                                    </div>
-                                </div>
-                                <div class="ai-settings-row clickable" @click="exportChatData">
-                                    <div class="ai-settings-row-left">
-                                        <div class="ai-settings-icon bg-indigo">
-                                            <span style="font-size:11px;font-weight:800;">JSON</span>
-                                        </div>
-                                        <div class="ai-settings-label-stack">
-                                            <span class="ai-settings-label">导出对话数据</span>
-                                            <span class="ai-settings-desc">下载 JSON 格式的全部对话记录</span>
-                                        </div>
-                                    </div>
-                                    <div class="ai-settings-row-right">
-                                        <span class="ai-settings-chevron">›</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="ai-settings-card danger-card">
-                            <div class="ai-settings-group-title">危险操作</div>
-                            <div class="ai-settings-list">
-                                <div class="ai-settings-row clickable danger" @click="clearAllChatData">
-                                    <div class="ai-settings-row-left">
-                                        <div class="ai-settings-icon bg-red">
-                                            <Trash2 size="16" />
-                                        </div>
-                                        <div class="ai-settings-label-stack">
-                                            <span class="ai-settings-label text-danger">清除所有对话</span>
-                                            <span class="ai-settings-desc">删除全部对话历史，不可撤销</span>
-                                        </div>
-                                    </div>
-                                    <div class="ai-settings-row-right">
-                                        <span class="ai-settings-chevron text-danger">›</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="ai-settings-footer">
-                            <strong>BOH AI v2.5 Beta</strong>
-                            <span>上下文窗口 12K 字符</span>
-                        </div>
-                    </div>
-                </section>
-            </div>
-        </Teleport>
+        <BohaiSettingsPanel
+            v-model="settingsOpen"
+            :current-mode="currentMode"
+            :current-mode-id="currentModeId"
+            :chat-modes="chatModes"
+            :current-response-style-id="currentResponseStyleId"
+            :response-style-options="responseStyleOptions"
+            :is-searching="isSearching"
+            :is-treehole-memory-enabled="isTreeholeMemoryEnabled"
+            :is-shared-memory-enabled="isSharedMemoryEnabled"
+            :context-budget-usage="contextBudgetUsage"
+            :context-budget-percent-text="contextBudgetPercentText"
+            @select-mode="selectMode"
+            @select-response-style="setResponseStyle"
+            @update:is-searching="isSearching = $event"
+            @update:is-treehole-memory-enabled="isTreeholeMemoryEnabled = $event"
+            @update:is-shared-memory-enabled="isSharedMemoryEnabled = $event"
+            @clear-current-chat="clearCurrentChat"
+            @export-chat-data="exportChatData"
+            @clear-all-chat-data="clearAllChatData" />
     </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, nextTick, watch, onUnmounted } from 'vue';
-import { Plus, Trash2, Square, Globe, X, ChevronDown, Copy, ThumbsUp, ThumbsDown, MoreHorizontal, ArrowUp, ListChecks, CheckCircle2, LoaderCircle, Circle, Network, Search, Settings, Check } from 'lucide-vue-next';
+import { Plus, Trash2, Square, Globe, X, ChevronDown, Copy, ThumbsUp, ThumbsDown, MoreHorizontal, ArrowUp, ListChecks, CheckCircle2, LoaderCircle, Circle, Network, Search } from 'lucide-vue-next';
 import { useChatEngine } from '../composables/useChatEngine';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import BohaiSidebar from './components/BohaiSidebar.vue';
+import BohaiSettingsPanel from './components/BohaiSettingsPanel.vue';
 import { marked } from 'marked';
 import DOMPurify from '@/utils/dompurify.js';
 import { themeManager } from '@/utils/theme-manager.js';
@@ -485,37 +302,24 @@ const expandedMessageDetails = ref(new Set());
 const isDarkTheme = ref(false);
 const modeMenuOpen = ref(false);
 const settingsOpen = ref(false);
-const showModePicker = ref(false);
-const showStylePicker = ref(false);
 
 const openSettings = () => {
     settingsOpen.value = true;
 };
-
-const closeSettings = () => {
-    settingsOpen.value = false;
-    showModePicker.value = false;
-    showStylePicker.value = false;
-};
-
-const currentResponseStyleName = computed(() => {
-    const style = responseStyleOptions?.find(s => s.id === currentResponseStyleId.value);
-    return style?.shortName || style?.name || '默认';
-});
 
 const clearAllChatData = () => {
     if (confirm('确定要清除所有对话数据吗？此操作不可撤销。')) {
         localStorage.removeItem('boh_chat_sessions');
         localStorage.removeItem('boh_current_session_index');
         startNewChat();
-        closeSettings();
+        settingsOpen.value = false;
     }
 };
 
 const clearCurrentChat = () => {
     if (confirm('确定要清除当前对话吗？此操作不可撤销。')) {
         startNewChat();
-        closeSettings();
+        settingsOpen.value = false;
     }
 };
 
@@ -1370,12 +1174,12 @@ watch(messages, () => {
 }, { deep: true });
 </script>
 
-<style scoped src="./styles/shell-header.css"></style>
-<style scoped src="./styles/messages.css"></style>
-<style scoped src="./styles/adaptive-layout.css"></style>
-
-<!-- Global overrides for settings button layout, sidebar frosted glass, and settings panel z-index -->
-<style>
+<style scoped>
+@import './styles/shell-header.css';
+@import './styles/messages.css';
+@import './styles/adaptive-layout.css';
+</style>
+<style scoped>
 .ai-settings-backdrop {
     position: fixed !important;
     inset: 0 !important;

@@ -5,6 +5,7 @@ import {
   ORCHESTRATOR_MODEL_FALLBACK
 } from '@/utils/bohai-model-client.js';
 import { logger } from '@/utils/logger.js';
+import { isAbortError } from '../../utils/chatErrorMessages.js';
 import { SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID, resolveSiliconFlowFreeModelId } from '@/utils/siliconflow-free-models.js';
 import { AGENT_ORCHESTRATOR_DEFAULT_MODEL_ID } from '../../composables/chat-engine-config.js';
 import {
@@ -111,7 +112,7 @@ export const createOrchestrator = ({
       }
     } catch (error) {
       rawError = error;
-      if (error?.name === 'AbortError') {
+      if (isAbortError(error)) {
         logger.warn('bohai-cluster', 'Orchestrator 被用户取消');
       } else {
         // 主模型失败（超时/网络等）：降级走兜底

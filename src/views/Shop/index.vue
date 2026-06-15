@@ -90,7 +90,7 @@
             <div v-for="product in filteredProducts" :key="product.id" class="apple-card product-card"
               ref="productCards" @click="openProductDetails(product)">
               <div class="card-image">
-                <img :src="getImageUrl(product.image)" :alt="product.title" v-if="product.image" />
+                <img :src="getImageUrl(product.image)" :alt="product.title" v-if="product.image"  loading="lazy" />
                 <div v-else class="image-placeholder">📦</div>
                 <div class="card-badge">{{ product.category }}</div>
               </div>
@@ -122,7 +122,7 @@
               <div v-for="product in getProductsByCategory(cat.value)" :key="product.id" class="apple-card product-card"
                 ref="productCards" @click="openProductDetails(product)">
                 <div class="card-image">
-                  <img :src="getImageUrl(product.image)" :alt="product.title" v-if="product.image" />
+                  <img :src="getImageUrl(product.image)" :alt="product.title" v-if="product.image"  loading="lazy" />
                   <div v-else class="image-placeholder">📦</div>
                 </div>
                 <div class="card-info">
@@ -148,7 +148,7 @@
           <div class="modal-image-side">
             <div class="modal-image-container">
               <img :src="getImageUrl(selectedProduct.image)" :alt="selectedProduct.title"
-                v-if="selectedProduct.image" />
+                v-if="selectedProduct.image"  loading="lazy" />
               <div v-else class="image-placeholder">📦</div>
             </div>
           </div>
@@ -202,7 +202,7 @@
         <div v-else class="bag-items">
           <div v-for="item in shoppingBag" :key="`${item.id}-${item.selectedSpec}`" class="bag-item">
             <div class="bag-item-image">
-              <img :src="getImageUrl(item.image)" :alt="item.title" />
+              <img :src="getImageUrl(item.image)" :alt="item.title"  loading="lazy" />
             </div>
             <div class="bag-item-info">
               <h3 class="bag-item-title">{{ item.title }}</h3>
@@ -999,4 +999,6 @@ watch(selectedCategory, (newCat) => {
 });
 </script>
 
-<style scoped src="./style.scoped.css"></style>
+<style scoped>
+@import './style.scoped.css';
+</style>

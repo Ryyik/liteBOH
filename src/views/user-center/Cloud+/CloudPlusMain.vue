@@ -128,7 +128,7 @@
                       <div v-else class="share-viewer-list">
                         <div v-for="viewer in shareViewers" :key="viewer.viewerUserId" class="share-viewer-row">
                           <img v-if="viewer.viewerAvatarUrl" :src="viewer.viewerAvatarUrl" :alt="viewer.viewerUsername || '访客头像'"
-                            class="share-viewer-avatar">
+                            class="share-viewer-avatar" loading="lazy">
                           <span v-else class="share-viewer-avatar placeholder">
                             {{ (viewer.viewerUsername || 'U').slice(0, 1).toUpperCase() }}
                           </span>
@@ -323,7 +323,7 @@
 
             <div v-if="uploadedImages.length" class="upload-strip">
               <div v-for="image in uploadedImages" :key="image.url" class="upload-card">
-                <img :src="getCloudImageDisplayUrl(image.url)" :alt="image.alt || '上传图片'" class="upload-thumb">
+                <img :src="getCloudImageDisplayUrl(image.url)" :alt="image.alt || '上传图片'" class="upload-thumb" loading="lazy">
                 <button type="button" class="remove-image-btn" @click="removeDraftImage(image.url)">×</button>
               </div>
             </div>
@@ -520,7 +520,7 @@
             <p v-if="block.type === 'text'" class="detail-text">{{ block.text }}</p>
             <figure v-else class="detail-image-wrap">
               <img :src="getCloudImageDisplayUrl(block.url)" :alt="block.alt || 'BOH Cloud 图片'" class="detail-image cloud-loading-image"
-                decoding="async" referrerpolicy="no-referrer" @load="handleCloudImageLoaded" @error="retryCloudImageLoad">
+                decoding="async" referrerpolicy="no-referrer" @load="handleCloudImageLoaded" @error="retryCloudImageLoad" loading="lazy">
               <figcaption v-if="block.alt">{{ block.alt }}</figcaption>
             </figure>
           </template>
@@ -537,7 +537,7 @@ import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 import { ChevronDown, Cloud, Search } from 'lucide-vue-next';
 import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
-import { useAuthStore } from '@/stores/auth.js';
+import { useAuthStore } from '@/stores/auth';
 import { moodChoices, getMoodMeta } from './config.js';
 import { getMySubscriptions } from '@/utils/api/subscription-api.js';
 import {
@@ -1805,4 +1805,6 @@ watch(cloudTab, () => {
 
 </script>
 
-<style scoped src="./style.scoped.css"></style>
+<style scoped>
+@import './style.scoped.css';
+</style>

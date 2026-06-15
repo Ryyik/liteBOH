@@ -21,7 +21,7 @@
     <main>
       <section class="birthday-hero" aria-labelledby="birthday-title">
         <div class="birthday-hero-media" aria-hidden="true">
-          <img :src="getImageUrl('cake202512.webp')" alt="" fetchpriority="high" decoding="async" />
+          <img :src="getImageUrl('cake202512.webp')" alt="" fetchpriority="high" decoding="async"  loading="lazy" />
         </div>
 
         <div class="birthday-hero-copy">
@@ -206,7 +206,7 @@
 
     <div class="poster-render-root" aria-hidden="true">
       <div ref="posterRef" class="share-poster">
-        <img :src="getImageUrl('2025-10-shengri.webp')" alt="" />
+        <img :src="getImageUrl('2025-10-shengri.webp')" alt=""  loading="lazy" />
         <div class="poster-overlay"></div>
         <div class="poster-content">
           <div class="poster-top">
@@ -229,7 +229,7 @@
     <div v-if="showPosterModal" class="poster-modal" @click="closePosterModal">
       <div class="poster-preview" @click.stop>
         <button class="close-modal-btn" type="button" aria-label="关闭" @click="closePosterModal">×</button>
-        <img :src="posterImage" alt="生日分享海报" />
+        <img :src="posterImage" alt="生日分享海报"  loading="lazy" />
         <p>长按或右键保存这张生日海报</p>
       </div>
     </div>
@@ -538,4 +538,6 @@ onMounted(() => {
 });
 </script>
 
-<style scoped src="./style.scoped.css"></style>
+<style scoped>
+@import './style.scoped.css';
+</style>

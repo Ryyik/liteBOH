@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 
 /**
@@ -134,20 +134,10 @@ describe('async wrapper attrs pass-through', () => {
   });
 
   describe('backup files do NOT have v-bind="$attrs" (discriminating power)', () => {
-    it('Forum index.backup.vue should not have attrs pass-through', () => {
-      const backup = readEntryFile('src/views/Forum/index.backup.vue');
-      const template = extractTemplate(backup);
-      // The backup is the original monolithic component; it defines its own
-      // props/emits and should NOT have v-bind="$attrs" on ForumMain.
-      // Actually, the backup doesn't use ForumMain — it's a full component.
-      // This assertion proves our test can tell the difference.
-      expect(template).not.toMatch(/<ForumMain\s[^>]*v-bind="\$attrs"/);
-    });
-
-    it('DataManagement index.backup.vue should not have attrs pass-through', () => {
-      const backup = readEntryFile('src/views/DataManagement/index.backup.vue');
-      const template = extractTemplate(backup);
-      expect(template).not.toMatch(/<DataAdmin\s[^>]*v-bind="\$attrs"/);
+    // _archive 目录已清理，历史备份文件不再存在
+    it('_archive backup directory has been cleaned up', () => {
+      const archivePath = resolve(projectRoot, 'src/views/_archive');
+      expect(existsSync(archivePath)).toBe(false);
     });
   });
 

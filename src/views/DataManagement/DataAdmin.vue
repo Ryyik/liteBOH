@@ -754,7 +754,7 @@
                 <!-- 图片输入 -->
                 <div v-else-if="field.type === 'image'" class="image-input">
                   <div class="image-preview" v-if="editingItem[field.key]">
-                    <img :src="getImageUrl(editingItem[field.key])" alt="Preview" />
+                    <img :src="getImageUrl(editingItem[field.key])" alt="Preview"  loading="lazy" />
                     <button type="button" class="remove-image" @click="clearImageField(field.key)">×</button>
                   </div>
                   <div v-else class="image-placeholder">
@@ -934,6 +934,7 @@ import {
 } from '@/utils/cloudinary-client.js';
 import { getExpiredActiveGiftIds, markGiftsAsHistory } from '@/utils/gift-archive.js';
 import { getDefaultApiUrlForBohaiProvider } from '@/utils/api/bohai-model-config-api.js';
+import { logger } from '@/utils/logger.js';
 import {
   ADMIN_PAGE_META,
   NEWS_CATEGORY_VALUES,
@@ -1075,7 +1076,7 @@ const readLocalJson = (key, fallback) => {
     if (!raw) return fallback;
     return JSON.parse(raw);
   } catch (error) {
-    console.warn('读取本地配置失败:', key, error);
+    logger.warn('data-admin', '读取本地配置失败:', key, error);
     return fallback;
   }
 };
@@ -1084,7 +1085,7 @@ const writeLocalJson = (key, value) => {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (error) {
-    console.warn('写入本地配置失败:', key, error);
+    logger.warn('data-admin', '写入本地配置失败:', key, error);
   }
 };
 
@@ -1790,7 +1791,7 @@ const fetchNextNumericId = async (tabKey, fallbackRows = []) => {
       ? currentMax + 1
       : getNextNumericId(fallbackRows);
   } catch (error) {
-    console.warn('获取下一个数字 ID 失败，使用当前页兜底:', error);
+    logger.warn('data-admin', '获取下一个数字 ID 失败，使用当前页兜底:', error);
     return getNextNumericId(fallbackRows);
   }
 };
@@ -2400,7 +2401,7 @@ const copyGiftAddressBundle = async () => {
     }
     showToast('地址信息已复制', 'success');
   } catch (error) {
-    console.error('复制地址失败:', error);
+    logger.error('data-admin', '复制地址失败:', error);
     showToast('复制失败，请手动复制', 'error');
   }
 };
@@ -2450,7 +2451,7 @@ const copyImageValue = async (fieldKey) => {
     }
     showToast('图片链接已复制', 'success');
   } catch (error) {
-    console.error('复制图片链接失败:', error);
+    logger.error('data-admin', '复制图片链接失败:', error);
     showToast('复制失败，请手动复制', 'error');
   }
 };
@@ -2481,7 +2482,7 @@ const handleAdminImageUpload = async (event, field) => {
     clearFieldError(fieldKey);
     showToast('图片已上传到 Cloud', 'success');
   } catch (error) {
-    console.error('管理员图片上传失败:', error);
+    logger.error('data-admin', '管理员图片上传失败:', error);
     showToast('图片上传失败: ' + buildActionErrorMessage(error, '图片上传失败'), 'error');
   } finally {
     setImageUploadPending(field?.key, false);
@@ -2603,7 +2604,7 @@ const syncCoreMemoriesIndex = async () => {
       }
     });
   } catch (error) {
-    console.warn('同步官方事实向量索引失败:', error);
+    logger.warn('data-admin', '同步官方事实向量索引失败:', error);
   }
 };
 
@@ -2743,7 +2744,7 @@ const runGlobalSearch = async () => {
 
       const { data, error } = await query;
       if (error) {
-        console.warn(`跨表搜索 ${tab.id} 失败:`, error);
+        logger.warn('data-admin', `跨表搜索 ${tab.id} 失败:`, error);
         return [];
       }
 
@@ -2772,7 +2773,7 @@ const runGlobalSearch = async () => {
     globalSearchResults.value = settled.flatMap((entry) => entry.status === 'fulfilled' ? entry.value : []);
     showToast(globalSearchResults.value.length ? `跨表搜索完成，命中 ${globalSearchResults.value.length} 条` : '没有找到跨表结果', globalSearchResults.value.length ? 'success' : 'info');
   } catch (error) {
-    console.error('跨表搜索失败:', error);
+    logger.error('data-admin', '跨表搜索失败:', error);
     showToast('跨表搜索失败: ' + buildActionErrorMessage(error, '跨表搜索失败'), 'error');
   } finally {
     isGlobalSearching.value = false;
@@ -2910,7 +2911,7 @@ const fetchStats = async () => {
     return;
   }
   if (rpcCountsError && !isMissingRpcFunctionError(rpcCountsError, 'admin_data_management_counts')) {
-    console.warn('获取数据管理统计 RPC 失败，回退到 head count:', rpcCountsError);
+    logger.warn('data-admin', '获取数据管理统计 RPC 失败，回退到 head count:', rpcCountsError);
   }
 
   const nowIso = new Date().toISOString();
@@ -2944,7 +2945,7 @@ const fetchStats = async () => {
   const fallbackCounts = {};
   entries.forEach((entry) => {
     if (entry.status !== 'fulfilled') {
-      console.warn('获取数据管理统计失败:', entry.reason);
+      logger.warn('data-admin', '获取数据管理统计失败:', entry.reason);
       return;
     }
     const [key, value] = entry.value;
@@ -2987,7 +2988,7 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
     let { data, error, count } = await paginateQuery(applySearchAndSort(query, tabId));
 
     if (tabId === 'lotteries' && error && isMissingLotteryObservabilitySchemaError(error)) {
-      console.warn('抽奖观测字段尚未部署，使用旧字段兜底加载:', error);
+      logger.warn('data-admin', '抽奖观测字段尚未部署，使用旧字段兜底加载:', error);
       let fallbackQuery = supabase
         .from(table)
         .select(LOTTERY_LEGACY_SELECT_COLUMNS, { count: 'exact' });
@@ -3030,7 +3031,7 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
           .update({ is_active: false })
           .in('id', expiredGiftIds)
           .then(({ error: archiveError }) => {
-            if (archiveError) console.warn('自动归档过期礼物失败:', archiveError);
+            if (archiveError) logger.warn('data-admin', '自动归档过期礼物失败:', archiveError);
           });
       }
 
@@ -3101,14 +3102,14 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
           });
         } else {
           if (!isMissingRpcFunctionError(rpcEntryCountError, 'admin_lottery_entry_counts')) {
-            console.warn('抽奖报名人数 RPC 失败，回退到轻量列表计数:', rpcEntryCountError);
+            logger.warn('data-admin', '抽奖报名人数 RPC 失败，回退到轻量列表计数:', rpcEntryCountError);
           }
           const { data: entryCountRows, error: entryCountError } = await supabase
             .from('lottery_entries')
             .select('lottery_id')
             .in('lottery_id', lotteryIds);
           if (entryCountError) {
-            console.warn('获取抽奖报名人数失败:', entryCountError);
+            logger.warn('data-admin', '获取抽奖报名人数失败:', entryCountError);
           } else {
             (entryCountRows || []).forEach((entry) => {
               const lotteryId = String(entry?.lottery_id || '');
@@ -3194,7 +3195,7 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
 
     assignTabRows(tabId, rows, count);
   } catch (error) {
-    console.error('获取数据失败:', error);
+    logger.error('data-admin', '获取数据失败:', error);
     dataStore[tabId] = [];
     showToast('获取数据失败: ' + buildActionErrorMessage(error, '获取数据失败'), 'error');
   } finally {
@@ -3259,7 +3260,7 @@ const loadLotterySchedulerStatus = async () => {
     }
   } catch (error) {
     if (!isMissingRpcFunctionError(error, 'admin_lottery_scheduler_status')) {
-      console.warn('获取抽奖定时任务状态失败:', error);
+      logger.warn('data-admin', '获取抽奖定时任务状态失败:', error);
     }
   } finally {
     lotterySchedulerStatusLoading.value = false;
@@ -3284,7 +3285,7 @@ const runDueLotteryDraws = async () => {
     showToast(`已扫描 ${Number(data.checked || 0)} 个，到期开奖 ${Number(data.drawn || 0)} 个，失败 ${Number(data.failed || 0)} 个`, Number(data.failed || 0) > 0 ? 'error' : 'success');
     await refreshCurrentViewAfterMutation();
   } catch (error) {
-    console.error('执行到期开奖任务失败:', error);
+    logger.error('data-admin', '执行到期开奖任务失败:', error);
     showToast('执行失败: ' + buildActionErrorMessage(error, '执行到期开奖任务失败'), 'error');
   } finally {
     lotteryDueDrawPending.value = false;
@@ -3604,7 +3605,7 @@ const fetchUserPickerUsers = async () => {
     if (error) throw error;
     userPickerUsers.value = Array.isArray(data) ? data : [];
   } catch (error) {
-    console.warn('加载用户选择器失败:', error);
+    logger.warn('data-admin', '加载用户选择器失败:', error);
     showToast('加载用户列表失败', 'error');
   } finally {
     if (fetchId === userPickerFetchId.value) {
@@ -4285,7 +4286,7 @@ const saveData = async () => {
     await refreshCurrentViewAfterMutation();
     closeModal({ askDraft: false });
   } catch (error) {
-    console.error('保存失败:', error);
+    logger.error('data-admin', '保存失败:', error);
     showToast('保存失败: ' + buildActionErrorMessage(error, '保存失败'), 'error');
   } finally {
     isSaving.value = false;
@@ -4333,7 +4334,7 @@ const deleteItem = async (item) => {
     showToast('删除成功', 'success');
     await refreshCurrentViewAfterMutation();
   } catch (error) {
-    console.error('删除失败:', error);
+    logger.error('data-admin', '删除失败:', error);
     showToast('删除失败: ' + buildActionErrorMessage(error, '删除失败'), 'error');
   }
 };
@@ -4366,7 +4367,7 @@ const drawLotteryNow = async (item) => {
     showToast(winnerNames.length ? `开奖完成，中奖者：${winnerNames.join('、')}` : '开奖完成，本期暂无中奖者', 'success');
     await refreshCurrentViewAfterMutation();
   } catch (error) {
-    console.error('抽奖开奖失败:', error);
+    logger.error('data-admin', '抽奖开奖失败:', error);
     showToast('开奖失败: ' + buildActionErrorMessage(error, '开奖失败'), 'error');
   } finally {
     setLotteryActionPending(item.id, false);
@@ -4404,7 +4405,7 @@ const redrawLottery = async (item) => {
     showToast(winnerNames.length ? `重抽完成，中奖者：${winnerNames.join('、')}` : '重抽完成，本期暂无中奖者', 'success');
     await refreshCurrentViewAfterMutation();
   } catch (error) {
-    console.error('抽奖重抽失败:', error);
+    logger.error('data-admin', '抽奖重抽失败:', error);
     showToast('重抽失败: ' + buildActionErrorMessage(error, '重抽失败'), 'error');
   } finally {
     setLotteryActionPending(item.id, false);
@@ -4446,7 +4447,7 @@ const closeLottery = async (item) => {
     showToast('抽奖已关闭，已保留在历史抽奖中', 'success');
     await refreshCurrentViewAfterMutation();
   } catch (error) {
-    console.error('关闭抽奖失败:', error);
+    logger.error('data-admin', '关闭抽奖失败:', error);
     showToast('关闭失败: ' + buildActionErrorMessage(error, '关闭失败'), 'error');
   } finally {
     setLotteryActionPending(item.id, false);
@@ -4464,7 +4465,7 @@ const saveModerationLog = async (item, actionStatus, reason = '') => {
 
   const { error } = await supabase.from('moderation_logs').insert([payload]);
   if (error) {
-    console.warn('写入 moderation_logs 失败（不阻断主流程）:', error);
+    logger.warn('data-admin', '写入 moderation_logs 失败（不阻断主流程）:', error);
   }
 };
 
@@ -4598,7 +4599,7 @@ const applyModerationAction = async (item, action) => {
     showToast(isApprove ? '审核通过已生效' : isKeepLimited ? '已维持下架并结案举报' : '已拒绝并记录原因', 'success');
     await refreshCurrentViewAfterMutation();
   } catch (error) {
-    console.error('审核操作失败:', error);
+    logger.error('data-admin', '审核操作失败:', error);
     showToast('审核操作失败: ' + buildModerationErrorMessage(error), 'error');
   } finally {
     setModerationPending(item.id, false);
@@ -4631,7 +4632,7 @@ const deleteModerationItem = async (item) => {
     showToast('删除成功', 'success');
     await refreshCurrentViewAfterMutation();
   } catch (error) {
-    console.error('删除审核记录失败:', error);
+    logger.error('data-admin', '删除审核记录失败:', error);
     showToast('删除失败: ' + buildModerationErrorMessage(error), 'error');
   } finally {
     setModerationPending(item.id, false);
@@ -4671,7 +4672,7 @@ const batchDelete = async () => {
     selectedItems.value = [];
     await refreshCurrentViewAfterMutation();
   } catch (error) {
-    console.error('批量删除失败:', error);
+    logger.error('data-admin', '批量删除失败:', error);
     showToast('批量删除失败: ' + buildActionErrorMessage(error, '批量删除失败'), 'error');
   }
 };
@@ -4836,7 +4837,7 @@ const saveInlineEdit = async (item, col) => {
     cancelInlineEdit();
     await refreshCurrentViewAfterMutation();
   } catch (error) {
-    console.error('行内编辑失败:', error);
+    logger.error('data-admin', '行内编辑失败:', error);
     showToast('行内编辑失败: ' + buildActionErrorMessage(error, '行内编辑失败'), 'error');
   } finally {
     inlineEditState.saving = false;
@@ -4900,7 +4901,7 @@ const applyBatchEdit = async () => {
     showBatchEditPanel.value = false;
     await refreshCurrentViewAfterMutation();
   } catch (error) {
-    console.error('批量编辑失败:', error);
+    logger.error('data-admin', '批量编辑失败:', error);
     showToast('批量编辑失败: ' + buildActionErrorMessage(error, '批量编辑失败'), 'error');
   }
 };
@@ -5035,7 +5036,7 @@ const exportBackupData = async () => {
     downloadBlob(blob, `boh-data-backup_${timestamp}.json`);
     showToast(`备份导出成功，共 ${summary.length} 张表`, 'success');
   } catch (error) {
-    console.error('备份导出失败:', error);
+    logger.error('data-admin', '备份导出失败:', error);
     showToast('备份导出失败: ' + buildActionErrorMessage(error, '备份导出失败'), 'error');
   } finally {
     isExportingBackup.value = false;
@@ -5145,7 +5146,9 @@ onUnmounted(() => {
 
 </script>
 
-<style scoped src="./styles/base.css"></style>
-<style scoped src="./styles/console.css"></style>
-<style scoped src="./styles/overlays.css"></style>
-<style scoped src="./styles/responsive.css"></style>
+<style scoped>
+@import './styles/base.css';
+@import './styles/console.css';
+@import './styles/overlays.css';
+@import './styles/responsive.css';
+</style>

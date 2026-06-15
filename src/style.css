@@ -2,6 +2,16 @@
    深色模式样式 - 已改为按需加载（见 utils/theme-manager.js）
    ============================================ */
 
+/* Suspense fallback 通用加载占位 */
+.suspense-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  color: #9ca3af;
+  font-size: 15px;
+}
+
 /* 基础样式重置 */
 * {
   margin: 0;

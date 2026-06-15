@@ -281,4 +281,206 @@ const toggleSidebarSearch = () => {
   min-width: 0 !important;
   overflow: hidden !important;
 }
+
+/* sidebar-open-btn 现在在 .bohai-container 下，需要定位上下文 */
+.bohai-page .bohai-container {
+  position: relative;
+}
+
+/* sidebar-open-btn: 独立组件后 scoped CSS 失效，在此全局补回 */
+.bohai-page .sidebar-open-btn {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  left: max(16px, env(safe-area-inset-left));
+  z-index: 60;
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--bohai-line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--bohai-text);
+  box-shadow: 0 10px 26px rgba(17, 17, 17, 0.045);
+  backdrop-filter: var(--bohai-blur);
+  -webkit-backdrop-filter: var(--bohai-blur);
+}
+
+.bohai-page.overlay-mode .sidebar-open-btn {
+  top: max(14px, env(safe-area-inset-top, 0px)) !important;
+  left: max(14px, env(safe-area-inset-left, 0px)) !important;
+  z-index: 2147482100 !important;
+}
+
+/* ================================================================
+   以下为侧栏独立组件后，原本在 shell-header.css / adaptive-layout.css
+   中 scoped 到 BOHAIMain 的规则失效，在此全局补回
+   ================================================================ */
+
+/* --- 侧栏定位（:global() 规则中缺失 position/inset/z-index） --- */
+.sidebar {
+  position: fixed !important;
+  inset: 0 auto 0 0 !important;
+  z-index: 1100 !important;
+}
+
+.sidebar.open {
+  transform: translateX(0) !important;
+}
+
+/* --- 侧栏嵌入模式定位 --- */
+.sidebar.is-embedded {
+  top: var(--userspace-top-offset, 80px) !important;
+  bottom: calc(var(--userspace-bottom-nav-offset, 80px) + env(safe-area-inset-bottom, 0px)) !important;
+  z-index: 1200 !important;
+}
+
+.bohai-page.embedded-mode .sidebar {
+  top: var(--userspace-top-offset, 80px) !important;
+  bottom: calc(var(--userspace-bottom-nav-offset, 80px) + env(safe-area-inset-bottom, 0px)) !important;
+  z-index: 1200 !important;
+}
+
+/* --- 侧栏遮罩层（:global() 规则中完全缺失） --- */
+.sidebar-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 1050 !important;
+  background: rgba(15, 23, 42, 0.32) !important;
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
+  animation: sidebar-overlay-fade 0.2s ease !important;
+}
+
+@keyframes sidebar-overlay-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.sidebar-overlay.is-embedded {
+  top: var(--userspace-top-offset, 80px) !important;
+  bottom: calc(var(--userspace-bottom-nav-offset, 80px) + env(safe-area-inset-bottom, 0px)) !important;
+  z-index: 1150 !important;
+}
+
+.bohai-page.embedded-mode .sidebar-overlay {
+  top: var(--userspace-top-offset, 80px) !important;
+  bottom: calc(var(--userspace-bottom-nav-offset, 80px) + env(safe-area-inset-bottom, 0px)) !important;
+  z-index: 1150 !important;
+}
+
+/* --- 交互状态（hover/active，:global() 规则中缺失） --- */
+.sidebar-close-btn:hover {
+  background: rgba(17, 24, 39, 0.06) !important;
+  color: #111111 !important;
+}
+
+.session-item:hover {
+  background: rgba(255, 255, 255, 0.72) !important;
+  color: #111111 !important;
+}
+
+.session-item.active {
+  background: var(--bohai-liquid-fill-strong) !important;
+  border-color: var(--bohai-liquid-border) !important;
+  color: #111111 !important;
+  box-shadow: var(--bohai-glass-shadow) !important;
+}
+
+.delete-btn {
+  width: 28px !important;
+  height: 28px !important;
+  flex: 0 0 28px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  color: #9ca3af !important;
+  opacity: 0.68 !important;
+  cursor: pointer !important;
+  transition: background-color 0.16s ease, color 0.16s ease, opacity 0.16s ease !important;
+}
+
+.session-item:hover .delete-btn,
+.session-item.active .delete-btn,
+.delete-btn:focus-visible {
+  opacity: 1 !important;
+}
+
+.delete-btn:hover {
+  background: rgba(239, 68, 68, 0.08) !important;
+  color: #ef4444 !important;
+}
+
+.sidebar-icon-btn:hover,
+.sidebar-close-btn:hover,
+.delete-btn:hover,
+.delete-message-btn:hover,
+.message-action-btn:hover {
+  background: rgba(17, 17, 17, 0.045) !important;
+  border-color: rgba(17, 17, 17, 0.06) !important;
+}
+
+/* --- 响应式：移动端嵌入模式 --- */
+@media (max-width: 1023px) {
+  .sidebar.is-embedded {
+    top: 0 !important;
+    bottom: 0 !important;
+    padding-top: var(--userspace-top-offset, 60px) !important;
+  }
+  .sidebar-overlay.is-embedded {
+    top: 0 !important;
+    bottom: 0 !important;
+  }
+}
+
+/* --- 响应式：桌面端侧栏常驻 --- */
+@media (min-width: 1024px) {
+  .sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    width: clamp(248px, 19vw, 312px) !important;
+    z-index: 1100 !important;
+    transform: none !important;
+    border-radius: 0 28px 28px 0 !important;
+    background: rgba(255, 255, 255, 0.82) !important;
+    isolation: isolate !important;
+    border-right: 1px solid rgba(148, 163, 184, 0.14) !important;
+    box-shadow: 1px 0 0 rgba(255, 255, 255, 0.72) inset !important;
+    backdrop-filter: blur(20px) saturate(1.3) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(1.3) !important;
+  }
+
+  .bohai-page.embedded-mode .sidebar {
+    top: var(--userspace-top-offset, 0px) !important;
+    bottom: var(--userspace-bottom-nav-offset, 0px) !important;
+    z-index: 1100 !important;
+  }
+
+  .sidebar-close-btn,
+  .sidebar-overlay,
+  .sidebar-toggle-btn {
+    display: none !important;
+  }
+
+  .sidebar-header {
+    padding: 14px 14px 10px !important;
+  }
+
+  .session-list {
+    padding: 8px 12px 18px !important;
+  }
+
+  .session-item {
+    min-height: 42px !important;
+    padding: 9px 10px !important;
+    border-radius: 12px !important;
+  }
+}
 </style>

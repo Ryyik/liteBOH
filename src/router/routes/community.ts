@@ -1,4 +1,6 @@
-export const communityRoutes = [
+import type { RouteRecordRaw } from 'vue-router'
+
+export const communityRoutes: RouteRecordRaw[] = [
   {
     path: "/newsroom",
     name: "Newsroom",
@@ -48,4 +50,4 @@ export const communityRoutes = [
     name: "UserProfile",
     component: () => import("../../views/Profile/index.vue"),
   },
-];
+]

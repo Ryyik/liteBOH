@@ -241,7 +241,7 @@ const closeImagePreview = () => {
     <div v-if="isLoggedIn" class="editor-card glass-panel">
       <div class="editor-header">
         <div class="user-avatar">
-          <img v-if="userInfo.avatarUrl" :src="userInfo.avatarUrl" alt="用户头像" class="avatar-image" />
+          <img v-if="userInfo.avatarUrl" :src="userInfo.avatarUrl" alt="用户头像" class="avatar-image"  loading="lazy" />
           <span v-else>{{ userInfo.username ? userInfo.username.charAt(0).toUpperCase() : 'U' }}</span>
         </div>
         <div class="user-info-text">
@@ -483,7 +483,7 @@ const closeImagePreview = () => {
               @click="closeImagePreview">
               <X :size="22" :stroke-width="2.2" aria-hidden="true" />
             </button>
-            <img :src="currentPreviewImageUrl" :alt="previewImage.name || '发布前图片预览'" decoding="async" />
+            <img :src="currentPreviewImageUrl" :alt="previewImage.name || '发布前图片预览'" decoding="async"  loading="lazy" />
             <div class="composer-image-preview-meta">
               <span>帖子图片</span>
               <strong>{{ previewImage.format ? previewImage.format.toUpperCase() : 'IMAGE' }}</strong>
@@ -495,5 +495,7 @@ const closeImagePreview = () => {
   </section>
 </template>
 
-<style scoped src="../styles/composer.css"></style>
-<style scoped src="../styles/replies-responsive.css"></style>
+<style scoped>
+@import '../styles/composer.css';
+@import '../styles/replies-responsive.css';
+</style>

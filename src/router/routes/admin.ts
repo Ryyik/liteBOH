@@ -1,4 +1,6 @@
-export const adminRoutes = [
+import type { RouteRecordRaw } from 'vue-router'
+
+export const adminRoutes: RouteRecordRaw[] = [
   {
     path: "/admin/data-management",
     name: "DataManagement",
@@ -18,4 +20,4 @@ export const adminRoutes = [
     component: () => import("../../views/AlertStyleEditor/index.vue"),
     meta: { requiresAdmin: true },
   },
-];
+]

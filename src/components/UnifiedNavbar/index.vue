@@ -125,7 +125,7 @@ import { useRoute } from "vue-router";
 import { getImageUrl } from "../../utils/asset-helper.js";
 import { useAuthStore } from "@/stores/auth";
 import { storeToRefs } from "pinia";
-import { loadNotificationStore, getNotificationStoreSync } from "@/stores/notification-loader.js";
+import { loadNotificationStore, getNotificationStoreSync } from "@/stores/notification-loader";
 import HomeCatMascot from "@/components/HomeCatMascot.vue";
 import { themeManager } from "@/utils/theme-manager.js";
 import { isHomeCatTheme } from "@/utils/home-cat-theme.js";
@@ -526,4 +526,6 @@ watch(isLoggedIn, (loggedIn) => {
 });
 </script>
 
-<style scoped src="./style.scoped.css"></style>
+<style scoped>
+@import './style.scoped.css';
+</style>

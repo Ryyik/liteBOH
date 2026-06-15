@@ -49,7 +49,7 @@
             <div class="partner-info-group" @click="goToProfile(partner.username)">
               <div class="partner-avatar-wrapper">
                 <img v-if="partner.avatar_url" :src="partner.avatar_url" class="partner-avatar-img"
-                  :alt="partner.username" />
+                  :alt="partner.username"  loading="lazy" />
                 <span v-else class="partner-avatar-text">{{ partner.username?.charAt(0)?.toUpperCase?.() || '?' }}</span>
               </div>
               <div class="partner-details">
@@ -105,7 +105,7 @@
               <div class="user-profile-mini">
                 <div class="mini-avatar">
                   <img v-if="selectedPartner.avatar_url" :src="selectedPartner.avatar_url" class="mini-avatar-img"
-                    :alt="selectedPartner.username" />
+                    :alt="selectedPartner.username"  loading="lazy" />
                   <span v-else>{{ selectedPartner.username?.charAt(0)?.toUpperCase?.() || '?' }}</span>
                 </div>
                 <div class="mini-info">
@@ -137,7 +137,7 @@
                     <div class="imp-footer">
                       <div class="imp-author-group" @click="goToProfile(imp.author?.username)">
                         <div class="imp-author-avatar">
-                          <img v-if="imp.author?.avatar_url" :src="imp.author?.avatar_url" class="imp-avatar-img" />
+                          <img v-if="imp.author?.avatar_url" :src="imp.author?.avatar_url" class="imp-avatar-img"  loading="lazy" />
                           <span v-else>{{ imp.author?.username?.charAt(0)?.toUpperCase?.() || '?' }}</span>
                         </div>
                         <span class="imp-author">— {{ imp.author?.username || '神秘伙伴' }}</span>
@@ -170,6 +170,7 @@ import { getProfilesPage } from '@/utils/api/auth-api.js';
 import { getUserImpressions, addUserImpression, deleteUserImpression } from '@/utils/api/profile-api.js';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
+import { logger } from '@/utils/logger.js';
 import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
@@ -230,7 +231,7 @@ const fetchPartners = async () => {
     } else {
       partners.value = [];
       totalPartners.value = 0;
-      console.error('获取伙伴列表失败:', error);
+      logger.error('partners', '获取伙伴列表失败:', error);
     }
   } catch (err) {
     if (fetchId !== latestFetchId) {
@@ -239,7 +240,7 @@ const fetchPartners = async () => {
 
     partners.value = [];
     totalPartners.value = 0;
-    console.error('获取伙伴列表异常:', err);
+    logger.error('partners', '获取伙伴列表异常:', err);
   } finally {
     if (fetchId === latestFetchId) {
       loading.value = false;
@@ -257,11 +258,11 @@ const openImpressions = async (partner) => {
   try {
     const { data, error } = await getUserImpressions(partner.id);
     if (error) {
-      console.error('获取印象失败:', error);
+      logger.error('partners', '获取印象失败:', error);
     }
     impressions.value = data || [];
   } catch (err) {
-    console.error('获取印象异常:', err);
+    logger.error('partners', '获取印象异常:', err);
     impressions.value = [];
   } finally {
     loadingImpressions.value = false;
@@ -284,14 +285,14 @@ const submitImpression = async () => {
       // Refresh list
       const { data, error: refreshError } = await getUserImpressions(selectedPartner.value.id);
       if (refreshError) {
-        console.error('刷新印象列表失败:', refreshError);
+        logger.error('partners', '刷新印象列表失败:', refreshError);
       }
       impressions.value = data || [];
     } else {
-      console.error('提交印象失败:', error);
+      logger.error('partners', '提交印象失败:', error);
     }
   } catch (err) {
-    console.error('提交印象异常:', err);
+    logger.error('partners', '提交印象异常:', err);
   } finally {
     submitting.value = false;
   }
@@ -311,10 +312,10 @@ const handleDeleteImpression = async (id) => {
     if (!error) {
       impressions.value = impressions.value.filter(i => i.id !== id);
     } else {
-      console.error('删除印象失败:', error);
+      logger.error('partners', '删除印象失败:', error);
     }
   } catch (err) {
-    console.error('删除印象异常:', err);
+    logger.error('partners', '删除印象异常:', err);
   }
 };
 
