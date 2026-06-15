@@ -215,6 +215,8 @@ export const useNotificationStore = defineStore('notifications', () => {
   return {
     unreadCount,
     notifications,
+    notificationSubscription,
+    currentUserId,
     showToast,
     toastTitle,
     toastDesc,

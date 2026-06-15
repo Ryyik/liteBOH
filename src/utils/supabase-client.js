@@ -3,6 +3,15 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const SUPABASE_TIMEOUT_MS = Number(import.meta.env.VITE_SUPABASE_TIMEOUT_MS || 12000);
+const SUPABASE_READ_TIMEOUT_MS = Number(import.meta.env.VITE_SUPABASE_READ_TIMEOUT_MS || 8000);
+const SUPABASE_WRITE_TIMEOUT_MS = Number(import.meta.env.VITE_SUPABASE_WRITE_TIMEOUT_MS || 15000);
+
+const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+function resolveTimeout(method) {
+  const upper = String(method || '').toUpperCase();
+  return READ_METHODS.has(upper) ? SUPABASE_READ_TIMEOUT_MS : SUPABASE_WRITE_TIMEOUT_MS;
+}
 const authStorage = typeof window !== 'undefined' ? window.localStorage : undefined;
 const authLockQueues = new Map();
 
@@ -39,8 +48,9 @@ function normalizeSupabaseImplicitHashCallback() {
 }
 
 async function timeoutFetch(input, init = {}) {
+  const timeoutMs = resolveTimeout(init?.method || 'GET');
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), SUPABASE_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   const signal = controller.signal;
 
   if (init?.signal) {

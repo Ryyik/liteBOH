@@ -1,4 +1,4 @@
-import type { useNotificationStore as UseNotificationStoreFn } from './notifications.js'
+import type { useNotificationStore as UseNotificationStoreFn } from './notifications'
 
 let notificationStoreInstance: ReturnType<typeof UseNotificationStoreFn> | null = null
 let notificationStorePromise: Promise<ReturnType<typeof UseNotificationStoreFn>> | null = null
@@ -13,7 +13,7 @@ export async function loadNotificationStore(): Promise<ReturnType<typeof UseNoti
   }
 
   if (!notificationStorePromise) {
-    notificationStorePromise = import('./notifications.js')
+    notificationStorePromise = import('./notifications')
       .then((module) => {
         notificationStoreInstance = module.useNotificationStore()
         return notificationStoreInstance

@@ -410,131 +410,15 @@
     </div>
 
     <!-- Edit Profile Modal -->
-    <Teleport to="body">
-      <Transition name="fade">
-        <div v-if="showEditModal" class="modal-overlay" @click.self="closeEditModal">
-          <div class="edit-profile-modal glass-card">
-            <header class="modal-header">
-              <div class="modal-header-left">
-                <button class="close-btn" @click="closeEditModal">×</button>
-                <h3>编辑资料</h3>
-              </div>
-              <button class="save-btn" @click="handleSaveProfile" :disabled="saving">
-                {{ saving ? '保存中...' : '保存' }}
-              </button>
-            </header>
-            <div class="modal-body custom-scrollbar">
-              <div class="edit-banner-preview"></div>
-              <div class="edit-avatar-preview">
-                <div v-if="isOwnProfile" class="avatar-circle clickable" @click="handleAvatarClick">
-                  <img v-if="profile.avatar_url" :src="profile.avatar_url" alt="avatar" class="edit-avatar-img"  loading="lazy" />
-                  <span v-else>{{ profile.username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
-                  <div class="avatar-edit-icon-modal">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path
-                        d="M23 19C23 21.2091 21.2091 23 19 23H5C2.79086 23 1 21.2091 1 19V8C1 5.79086 2.79086 4 5 4H9L11 1H13L15 4H19C21.2091 4 23 5.79086 23 8V19Z"
-                        stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                      <circle cx="12" cy="13" r="4" stroke="white" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round" />
-                    </svg>
-                  </div>
-                </div>
-                <div v-else class="avatar-circle">
-                  <img v-if="profile.avatar_url" :src="profile.avatar_url" alt="avatar" class="edit-avatar-img"  loading="lazy" />
-                  <span v-else>{{ profile.username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
-                </div>
-              </div>
-
-              <div class="edit-form-grid">
-                <div class="form-group span-2">
-                  <label>用户名</label>
-                  <input type="text" v-model="editUsername" placeholder="您的用户名" maxlength="20" class="date-input-v2">
-                  <div class="char-count">{{ editUsername.length }}/20</div>
-                </div>
-
-                <div class="form-group span-2">
-                  <label>个人简介</label>
-                  <textarea v-model="editBio" placeholder="填写您的个人简介..." rows="4" maxlength="160"></textarea>
-                  <div class="char-count">{{ editBio.length }}/160</div>
-                </div>
-
-                <div class="form-group">
-                  <label>入群时间</label>
-                  <input type="date" v-model="editJoinDate" class="date-input-v2">
-                </div>
-
-                <div class="form-group">
-                  <label>生日 (月/日)</label>
-                  <div class="birthday-inputs">
-                    <select v-model="editBirthMonth" class="date-select-v2">
-                      <option value="" disabled>月</option>
-                      <option v-for="m in 12" :key="m" :value="String(m)">{{ m }}月</option>
-                    </select>
-                    <select v-model="editBirthDay" class="date-select-v2">
-                      <option value="" disabled>日</option>
-                      <option v-for="d in 31" :key="d" :value="String(d)">{{ d }}日</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div class="form-group span-2 creator-verification-group">
-                  <div class="creator-verification-header">
-                    <label>社交平台展示</label>
-                    <button type="button" class="creator-verification-toggle"
-                      :class="{ active: editCreatorEnabled }" @click="toggleCreatorVerification">
-                      {{ editCreatorEnabled ? '关闭展示' : '开启展示' }}
-                    </button>
-                  </div>
-                  <p class="creator-verification-tip">开启后可绑定你的社交平台 ID，并在个人主页展示平台 Tag；关闭后会清空已填写的平台 ID。</p>
-
-                  <div v-if="editCreatorEnabled" class="creator-platform-selector">
-                    <label v-for="platform in creatorPlatformsMeta" :key="platform.key" class="creator-platform-chip">
-                      <input v-model="editCreatorPlatforms[platform.key]" type="checkbox">
-                      <span>{{ platform.label }}</span>
-                    </label>
-                  </div>
-
-                  <div v-if="editCreatorEnabled && selectedCreatorPlatforms.length > 0" class="creator-platform-fields">
-                    <div v-for="platform in selectedCreatorPlatforms" :key="platform.key" class="creator-id-input-row">
-                      <div class="creator-id-input-row-header">
-                        <label>{{ platform.label }}账号 ID</label>
-                        <button type="button" class="creator-platform-jump-btn"
-                          @click="openCreatorPlatformPage(platform.key, editCreatorIds[platform.key])">
-                          {{ String(editCreatorIds[platform.key] || '').trim() ? '查看账号页' : '打开平台' }}
-                        </button>
-                      </div>
-                      <div class="creator-visibility-row">
-                        <span>可见性</span>
-                        <select v-model="editCreatorVisibility[platform.key]" class="creator-visibility-select">
-                          <option value="public">公开</option>
-                          <option value="private">仅自己可见</option>
-                        </select>
-                      </div>
-                      <input v-model="editCreatorIds[platform.key]" type="text" maxlength="64"
-                        :placeholder="platform.placeholder" class="date-input-v2 creator-id-input">
-                    </div>
-                  </div>
-                  <div v-if="editCreatorEnabled && selectedCreatorPlatforms.length > 1" class="creator-order-wrap">
-                    <div class="creator-order-title">展示顺序（拖拽调整）</div>
-                    <div class="creator-order-list">
-                      <div v-for="platform in selectedCreatorPlatforms" :key="`order-${platform.key}`"
-                        class="creator-order-item" draggable="true" @dragstart="handlePlatformOrderDragStart(platform.key)"
-                        @dragover.prevent @drop.prevent="handlePlatformOrderDrop(platform.key)">
-                        <span class="creator-order-handle">⋮⋮</span>
-                        <span>{{ platform.label }}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div v-else-if="editCreatorEnabled && selectedCreatorPlatforms.length === 0" class="creator-platform-empty">
-                    请至少选择一个平台并填写账号 ID。
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
+    <ProfileEditModal
+      :show="showEditModal"
+      :profile="profile"
+      :saving="saving"
+      @close="showEditModal = false"
+      @save="handleSaveProfile"
+      @avatar-click="handleAvatarClick"
+      @show-alert="(type, title, message) => showAlert(type, title, message)"
+    />
 
     <!-- Unified Alert Modal -->
     <CommonAlertModal v-model:visible="alertState.visible" :type="alertState.type" :title="alertState.title"
@@ -545,31 +429,12 @@
       @confirm="handleCropConfirm" />
 
     <!-- 发帖弹窗 -->
-    <Teleport to="body">
-      <Transition name="fade">
-        <div v-if="showPostModal" class="modal-overlay" @click.self="showPostModal = false">
-          <div class="post-create-modal glass-card">
-            <header class="modal-header">
-              <div class="modal-header-left">
-                <button class="close-btn" @click="showPostModal = false">×</button>
-                <h3>发布新动态</h3>
-              </div>
-              <button class="save-btn" @click="handleCreatePost" :disabled="!postContent.trim() || isSubmittingPost">
-                {{ isSubmittingPost ? '发布中...' : '发布' }}
-              </button>
-            </header>
-            <div class="modal-body">
-              <input v-model="postTitle" placeholder="输入标题 (可选)" class="post-title-input" maxlength="100">
-              <textarea v-model="postContent" placeholder="有什么新鲜事想分享？" rows="6" maxlength="1000"
-                class="post-textarea-large"></textarea>
-              <div class="post-modal-footer">
-                <span class="char-count">{{ postContent.length }}/1000</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
+    <PostCreateModal
+      :show="showPostModal"
+      :submitting="isSubmittingPost"
+      @close="showPostModal = false"
+      @submit="handleCreatePost"
+    />
   </div>
 </template>
 
@@ -586,6 +451,8 @@ import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import AvatarCropModal from '@/components/AvatarCropModal.vue';
 import WordCloud from '@/components/WordCloud.vue';
+import ProfileEditModal from './components/ProfileEditModal.vue';
+import PostCreateModal from './components/PostCreateModal.vue';
 import { supabase } from '@/utils/supabase-client.js';
 import {
   getProfileByUsername,
@@ -604,7 +471,6 @@ import imageCompression from 'browser-image-compression';
 import {
   buildCreatorPlatformJumpUrl,
   CREATOR_PLATFORM_KEYS,
-  creatorPlatformLabelMap,
   creatorPlatformsMeta,
   normalizeCreatorPlatformIds
 } from './creatorPlatforms.js';
@@ -613,7 +479,6 @@ const router = useRouter();
 const route = useRoute();
 const CREATOR_VISIBILITY_VALUES = new Set(['public', 'private']);
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const PROFILE_EDIT_DRAFT_KEY_PREFIX = 'boh_profile_edit_draft_v1_';
 
 const normalizeCreatorPlatformVisibility = (raw, availableKeys = CREATOR_PLATFORM_KEYS) => {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
@@ -663,19 +528,6 @@ const normalizeShowcasePostIds = (raw) => {
   return ids;
 };
 
-const openCreatorPlatformPage = (platformKey, rawAccountId) => {
-  const url = buildCreatorPlatformJumpUrl(platformKey, rawAccountId);
-  if (!url) {
-    showAlert('error', '跳转失败', '暂不支持该平台的快捷跳转');
-    return;
-  }
-
-  const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
-  if (!newWindow) {
-    showAlert('warning', '跳转受限', '浏览器阻止了新窗口，请允许弹窗后重试');
-  }
-};
-
 const fetchedProfile = ref(null);
 const ownProfileSnapshot = ref({
   username: '',
@@ -703,14 +555,6 @@ let profileFetchInflightUsername = '';
 
 const profile = computed(() => {
   return isOwnProfile.value ? ownProfileSnapshot.value : fetchedProfile.value;
-});
-
-const selectedCreatorPlatforms = computed(() => {
-  const selectedKeys = CREATOR_PLATFORM_KEYS.filter((key) => Boolean(editCreatorPlatforms[key]));
-  const orderedKeys = normalizeCreatorPlatformOrder(editCreatorOrder.value, selectedKeys);
-  return orderedKeys
-    .map((key) => creatorPlatformsMeta.find((platform) => platform.key === key))
-    .filter(Boolean);
 });
 
 const creatorBindings = computed(() => {
@@ -921,34 +765,9 @@ const submittingImpression = ref(false);
 
 // 发帖相关
 const showPostModal = ref(false);
-const postTitle = ref('');
-const postContent = ref('');
 const isSubmittingPost = ref(false);
 
 const showEditModal = ref(false);
-const editUsername = ref('');
-const editBio = ref('');
-const editJoinDate = ref('');
-const editBirthMonth = ref('');
-const editBirthDay = ref('');
-const editCreatorEnabled = ref(false);
-const editCreatorPlatforms = reactive({
-  bilibili: false,
-  xiaohongshu: false,
-  douyin: false
-});
-const editCreatorIds = reactive({
-  bilibili: '',
-  xiaohongshu: '',
-  douyin: ''
-});
-const editCreatorVisibility = reactive({
-  bilibili: 'public',
-  xiaohongshu: 'public',
-  douyin: 'public'
-});
-const editCreatorOrder = ref([]);
-const platformOrderDraggingKey = ref('');
 const showcasePostsFetched = ref([]);
 const saving = ref(false);
 const avatarInputRef = ref(null);
@@ -1380,103 +1199,6 @@ const openImpressionModal = () => {
   });
 };
 
-const syncCreatorEditForm = (rawIds, creatorEnabled, rawVisibility = {}, rawOrder = []) => {
-  const normalized = normalizeCreatorPlatformIds(rawIds);
-  const keys = Object.keys(normalized);
-  const normalizedVisibility = normalizeCreatorPlatformVisibility(rawVisibility, keys);
-  const normalizedOrder = normalizeCreatorPlatformOrder(rawOrder, keys);
-  for (const key of CREATOR_PLATFORM_KEYS) {
-    const value = normalized[key] || '';
-    editCreatorPlatforms[key] = Boolean(value);
-    editCreatorIds[key] = value;
-    editCreatorVisibility[key] = normalizedVisibility[key] || 'public';
-  }
-  editCreatorOrder.value = normalizedOrder;
-  editCreatorEnabled.value = Boolean(creatorEnabled) || Object.keys(normalized).length > 0;
-};
-
-const toggleCreatorVerification = () => {
-  editCreatorEnabled.value = !editCreatorEnabled.value;
-  if (!editCreatorEnabled.value) {
-    for (const key of CREATOR_PLATFORM_KEYS) {
-      editCreatorPlatforms[key] = false;
-      editCreatorIds[key] = '';
-      editCreatorVisibility[key] = 'public';
-    }
-    editCreatorOrder.value = [];
-  }
-};
-
-const collectCreatorPayloadForSave = () => {
-  if (!editCreatorEnabled.value) {
-    return {
-      ok: true,
-      creatorEnabled: false,
-      creatorIds: {},
-      creatorVisibility: {},
-      creatorOrder: []
-    };
-  }
-
-  const selectedKeys = CREATOR_PLATFORM_KEYS.filter((key) => Boolean(editCreatorPlatforms[key]));
-  if (selectedKeys.length === 0) {
-    return { ok: false, message: '请至少选择一个创作平台' };
-  }
-
-  const creatorIds = {};
-  const creatorVisibility = {};
-  for (const key of selectedKeys) {
-    const value = String(editCreatorIds[key] || '').trim();
-    if (!value) {
-      return { ok: false, message: `请填写${creatorPlatformLabelMap[key]}账号 ID` };
-    }
-    if (value.length > 64) {
-      return { ok: false, message: `${creatorPlatformLabelMap[key]}账号 ID 不能超过 64 个字符` };
-    }
-    creatorIds[key] = value;
-    const visibility = String(editCreatorVisibility[key] || '').trim().toLowerCase();
-    creatorVisibility[key] = CREATOR_VISIBILITY_VALUES.has(visibility) ? visibility : 'public';
-  }
-
-  const creatorOrder = normalizeCreatorPlatformOrder(editCreatorOrder.value, selectedKeys);
-
-  return {
-    ok: true,
-    creatorEnabled: Object.keys(creatorIds).length > 0,
-    creatorIds,
-    creatorVisibility,
-    creatorOrder
-  };
-};
-
-const handlePlatformOrderDragStart = (platformKey) => {
-  platformOrderDraggingKey.value = String(platformKey || '').trim();
-};
-
-const handlePlatformOrderDrop = (targetKey) => {
-  const sourceKey = String(platformOrderDraggingKey.value || '').trim();
-  const safeTargetKey = String(targetKey || '').trim();
-  if (!sourceKey || !safeTargetKey || sourceKey === safeTargetKey) {
-    platformOrderDraggingKey.value = '';
-    return;
-  }
-
-  const selectedKeys = CREATOR_PLATFORM_KEYS.filter((key) => Boolean(editCreatorPlatforms[key]));
-  const currentOrder = normalizeCreatorPlatformOrder(editCreatorOrder.value, selectedKeys);
-  const sourceIndex = currentOrder.indexOf(sourceKey);
-  const targetIndex = currentOrder.indexOf(safeTargetKey);
-  if (sourceIndex === -1 || targetIndex === -1) {
-    platformOrderDraggingKey.value = '';
-    return;
-  }
-
-  const nextOrder = [...currentOrder];
-  nextOrder.splice(sourceIndex, 1);
-  nextOrder.splice(targetIndex, 0, sourceKey);
-  editCreatorOrder.value = nextOrder;
-  platformOrderDraggingKey.value = '';
-};
-
 const openCreatorBindingHomepage = (binding) => {
   if (!binding?.key) return;
   const url = buildCreatorPlatformJumpUrl(binding.key, binding.id);
@@ -1491,139 +1213,19 @@ const openCreatorBindingHomepage = (binding) => {
   }
 };
 
-const profileEditDraftKey = computed(() => {
-  const userId = String(userInfo.value?.id || '').trim();
-  return userId ? `${PROFILE_EDIT_DRAFT_KEY_PREFIX}${userId}` : '';
-});
-
-const buildCurrentProfileDraft = () => ({
-  username: editUsername.value,
-  bio: editBio.value,
-  join_date: editJoinDate.value,
-  birth_month: editBirthMonth.value,
-  birth_day: editBirthDay.value,
-  creator_enabled: Boolean(editCreatorEnabled.value),
-  creator_platforms: { ...editCreatorPlatforms },
-  creator_ids: { ...editCreatorIds },
-  creator_visibility: { ...editCreatorVisibility },
-  creator_order: [...editCreatorOrder.value],
-  updated_at: Date.now()
-});
-
-const persistProfileDraft = () => {
-  if (!showEditModal.value || !isOwnProfile.value) return;
-  const key = profileEditDraftKey.value;
-  if (!key) return;
-  try {
-    localStorage.setItem(key, JSON.stringify(buildCurrentProfileDraft()));
-  } catch (_err) {
-    // ignore
-  }
-};
-
-const clearProfileDraft = () => {
-  const key = profileEditDraftKey.value;
-  if (!key) return;
-  try {
-    localStorage.removeItem(key);
-  } catch (_err) {
-    // ignore
-  }
-};
-
-const restoreProfileDraftIfAny = () => {
-  const key = profileEditDraftKey.value;
-  if (!key) return;
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return;
-
-    editUsername.value = String(parsed.username || editUsername.value || '');
-    editBio.value = String(parsed.bio || '');
-    editJoinDate.value = String(parsed.join_date || '');
-    editBirthMonth.value = String(parsed.birth_month || '');
-    editBirthDay.value = String(parsed.birth_day || '');
-    editCreatorEnabled.value = Boolean(parsed.creator_enabled);
-
-    const draftIds = normalizeCreatorPlatformIds(parsed.creator_ids);
-    const draftPlatforms = parsed.creator_platforms && typeof parsed.creator_platforms === 'object'
-      ? parsed.creator_platforms
-      : {};
-    const selectedKeys = [];
-    for (const keyName of CREATOR_PLATFORM_KEYS) {
-      const selected = Boolean(draftPlatforms[keyName]) || Boolean(draftIds[keyName]);
-      editCreatorPlatforms[keyName] = selected;
-      editCreatorIds[keyName] = draftIds[keyName] || '';
-      if (selected) selectedKeys.push(keyName);
-    }
-
-    const normalizedVisibility = normalizeCreatorPlatformVisibility(parsed.creator_visibility, selectedKeys);
-    for (const keyName of CREATOR_PLATFORM_KEYS) {
-      editCreatorVisibility[keyName] = normalizedVisibility[keyName] || 'public';
-    }
-
-    editCreatorOrder.value = normalizeCreatorPlatformOrder(parsed.creator_order, selectedKeys);
-  } catch (_err) {
-    // ignore invalid draft
-  }
-};
-
 const openEditModal = () => {
-  const safeProfile = profile.value || {};
-  editUsername.value = safeProfile.username || '';
-  editBio.value = safeProfile.bio || '';
-  editJoinDate.value = safeProfile.join_date || '';
-  editBirthMonth.value = safeProfile.birth_month || '';
-  editBirthDay.value = safeProfile.birth_day || '';
-  syncCreatorEditForm(
-    safeProfile.creator_platform_ids,
-    safeProfile.is_boh_creator,
-    safeProfile.creator_platform_visibility,
-    safeProfile.creator_platform_order
-  );
-  restoreProfileDraftIfAny();
   showEditModal.value = true;
 };
 
-const closeEditModal = () => {
-  showEditModal.value = false;
-};
-
-const handleSaveProfile = async () => {
-  if (!editUsername.value.trim()) {
-    showAlert('error', '保存失败', '用户名不能为空');
-    return;
-  }
-
-  const creatorPayload = collectCreatorPayloadForSave();
-  if (!creatorPayload.ok) {
-    showAlert('error', '保存失败', creatorPayload.message || '社交平台信息不完整');
-    return;
-  }
-
+const handleSaveProfile = async (updates) => {
   saving.value = true;
   try {
-    const updates = {
-      username: editUsername.value.trim(),
-      bio: editBio.value,
-      join_date: editJoinDate.value,
-      birth_month: editBirthMonth.value,
-      birth_day: editBirthDay.value,
-      is_boh_creator: creatorPayload.creatorEnabled,
-      creator_platform_ids: creatorPayload.creatorIds,
-      creator_platform_visibility: creatorPayload.creatorVisibility,
-      creator_platform_order: creatorPayload.creatorOrder
-    };
-
     const oldUsername = profile.value.username;
     const result = await updateUserProfile(updates);
 
     if (result.success) {
       showAlert('success', '保存成功', '个人资料已更新');
-      clearProfileDraft();
-      closeEditModal();
+      showEditModal.value = false;
 
       if (oldUsername !== updates.username) {
         router.replace(`/profile/${encodeURIComponent(updates.username)}`);
@@ -1817,13 +1419,11 @@ const handleDeleteImpression = async (impression) => {
   }
 };
 
-const handleCreatePost = async () => {
-  if (!postContent.value.trim()) return;
+const handleCreatePost = async (safeTitle, safeContent) => {
+  if (!safeContent.trim()) return;
 
   isSubmittingPost.value = true;
   try {
-    const safeTitle = postTitle.value.trim();
-    const safeContent = postContent.value.trim();
     const { data, error } = await createPost(
       safeContent,
       userInfo.value.id,
@@ -1846,8 +1446,6 @@ const handleCreatePost = async () => {
       };
       posts.value = mergeUniqueById([optimisticPost], posts.value).slice(0, PROFILE_PAGE_SIZE);
       tabLoaded.posts = true;
-      postTitle.value = '';
-      postContent.value = '';
       showPostModal.value = false;
       showAlert('success', '发布成功', '您的新动态已同步至社区，系统将异步完成内容审查');
     } else {
@@ -1863,37 +1461,6 @@ const handleCreatePost = async () => {
 watch(activeTab, () => {
   void ensureActiveTabData();
 });
-
-watch(
-  () => JSON.stringify(editCreatorPlatforms),
-  () => {
-    const selectedKeys = CREATOR_PLATFORM_KEYS.filter((key) => Boolean(editCreatorPlatforms[key]));
-    editCreatorOrder.value = normalizeCreatorPlatformOrder(editCreatorOrder.value, selectedKeys);
-    const normalizedVisibility = normalizeCreatorPlatformVisibility(editCreatorVisibility, selectedKeys);
-    for (const key of CREATOR_PLATFORM_KEYS) {
-      editCreatorVisibility[key] = normalizedVisibility[key] || 'public';
-    }
-  }
-);
-
-watch(
-  () => [
-    showEditModal.value,
-    editUsername.value,
-    editBio.value,
-    editJoinDate.value,
-    editBirthMonth.value,
-    editBirthDay.value,
-    Boolean(editCreatorEnabled.value),
-    JSON.stringify(editCreatorPlatforms),
-    JSON.stringify(editCreatorIds),
-    JSON.stringify(editCreatorVisibility),
-    JSON.stringify(editCreatorOrder.value || [])
-  ],
-  () => {
-    persistProfileDraft();
-  }
-);
 
 // 监听路由参数变化，处理不同用户的空间切换
 watch(() => route.params.username, (newUsername) => {

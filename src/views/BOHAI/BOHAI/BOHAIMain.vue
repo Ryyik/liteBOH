@@ -948,7 +948,7 @@ const scrollToBottom = (force = false) => {
     nextTick(() => {
         if (chatContainer.value) {
             const { scrollHeight, clientHeight, scrollTop } = chatContainer.value;
-            if (force || scrollHeight - clientHeight - scrollTop < 150) {
+            if (force || scrollHeight - clientHeight - scrollTop < 300) {
                 chatContainer.value.scrollTo({ top: scrollHeight, behavior: force ? 'auto' : 'smooth' });
             }
         }
@@ -1174,11 +1174,9 @@ watch(messages, () => {
 }, { deep: true });
 </script>
 
-<style scoped>
-@import './styles/shell-header.css';
-@import './styles/messages.css';
-@import './styles/adaptive-layout.css';
-</style>
+<style scoped src="./styles/shell-header.css"></style>
+<style scoped src="./styles/messages.css"></style>
+<style scoped src="./styles/adaptive-layout.css"></style>
 <style scoped>
 .ai-settings-backdrop {
     position: fixed !important;

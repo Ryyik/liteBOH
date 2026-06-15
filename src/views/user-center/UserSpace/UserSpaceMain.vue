@@ -227,274 +227,43 @@
 
         <template v-else>
           <transition name="profile-panel-fade" mode="out-in">
-            <div v-if="profileSection === 'home'" key="profile-home" class="profile-home-shell">
-              <section class="profile-hero-panel">
-                <button type="button" class="profile-cover-band"
-                  :class="{ 'has-background-image': Boolean(profileBackgroundUrl), 'is-uploading': isUploadingProfileBackground }"
-                  :style="profileCoverStyle" :disabled="isUploadingProfileBackground"
-                  :aria-label="isUploadingProfileBackground ? '正在上传个人卡片背景' : '更换个人卡片背景'" title="更换背景"
-                  @click="handleProfileBackgroundClick">
-                  <span class="profile-cover-glass" aria-hidden="true"></span>
-                  <span class="profile-cover-action" aria-hidden="true">
-                    {{ isUploadingProfileBackground ? '上传中' : '更换背景' }}
-                  </span>
-                </button>
-                <button type="button" class="profile-settings-btn" @click="openProfileSettings" aria-label="设置"
-                  title="设置">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                    stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="3"></circle>
-                    <path
-                      d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06A2 2 0 1 1 20.53 7l-.06.06A1.7 1.7 0 0 0 19.4 9c.2.4.6.7 1 .6h.6a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15z">
-                    </path>
-                  </svg>
-                </button>
-
-                <div class="profile-hero-body">
-                  <div class="apple-avatar-wrapper profile-hero-avatar clickable" @click="handleAvatarClick">
-                    <div v-if="avatarUrl" class="apple-avatar has-avatar">
-                      <img :src="avatarUrl" alt="头像" class="avatar-img" loading="lazy">
-                    </div>
-                    <div v-else class="apple-avatar">{{ (username || 'U').charAt(0).toUpperCase() }}</div>
-                    <div class="avatar-edit-overlay">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                        <circle cx="12" cy="13" r="4" />
-                      </svg>
-                    </div>
-                  </div>
-
-                  <div class="profile-hero-copy">
-                    <div class="name-row profile-hero-name-row">
-                      <h1 class="profile-name">{{ username || '未登录' }}</h1>
-                      <span v-if="isAdmin" class="admin-badge">ADMIN</span>
-                    </div>
-                    <p class="profile-handle">@{{ username || 'user' }}</p>
-                    <p class="profile-bio">{{ userProfileBio }}</p>
-                    <div class="profile-chip-row">
-                      <span class="profile-chip">
-                        {{ joinDate ? profileJoinDateText : '设置入群时间' }}
-                      </span>
-                      <span class="profile-chip">
-                        {{ userBirthday ? profileBirthdayText : '设置生日' }}
-                      </span>
-                    </div>
-                    <button type="button" class="profile-edit-btn" @click="openEditProfileModal">
-                      编辑资料
-                    </button>
-                  </div>
-                </div>
-
-                <div class="profile-stats profile-hero-stats" :class="{ 'is-loading': isUserStatsLoading }">
-                  <div class="stat-item">
-                    <template v-if="isUserStatsLoading">
-                      <span class="stat-skeleton stat-skeleton-value"></span>
-                      <span class="stat-skeleton stat-skeleton-label"></span>
-                    </template>
-                    <template v-else>
-                      <span class="stat-value">{{ userStats.posts || 0 }}</span>
-                      <span class="stat-label">发帖</span>
-                    </template>
-                  </div>
-                  <div class="stat-divider"></div>
-                  <div class="stat-item">
-                    <template v-if="isUserStatsLoading">
-                      <span class="stat-skeleton stat-skeleton-value"></span>
-                      <span class="stat-skeleton stat-skeleton-label"></span>
-                    </template>
-                    <template v-else>
-                      <span class="stat-value">{{ formatPoints(userStats.points) || '0' }}</span>
-                      <span class="stat-label">积分</span>
-                    </template>
-                  </div>
-                  <div class="stat-divider"></div>
-                  <div class="stat-item">
-                    <template v-if="isUserStatsLoading">
-                      <span class="stat-skeleton stat-skeleton-value"></span>
-                      <span class="stat-skeleton stat-skeleton-label"></span>
-                    </template>
-                    <template v-else>
-                      <span class="stat-value">#{{ userStats.rank || '-' }}</span>
-                      <span class="stat-label">排名</span>
-                    </template>
-                  </div>
-                </div>
-              </section>
-
-              <section class="profile-status-grid" aria-label="我的关键状态">
-                <button type="button" class="profile-status-card cloud" @click="openCloudPlusArea('content')">
-                  <span class="profile-status-icon bg-teal">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round">
-                      <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>
-                      <path d="M8 9h8"></path>
-                    </svg>
-                  </span>
-                  <span class="profile-status-copy">
-                    <strong>Cloud+</strong>
-                    <small>{{ cloudPlusUsageText }}</small>
-                  </span>
-                  <span class="profile-status-meter" aria-hidden="true">
-                    <span :style="cloudPlusUsageMeterStyle"></span>
-                  </span>
-                </button>
-
-                <button type="button" class="profile-status-card subscription"
-                  @click="router.push('/user-space/subscriptions?from=userspace')">
-                  <span class="profile-status-icon bg-yellow">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round">
-                      <path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"></path>
-                    </svg>
-                  </span>
-                  <span class="profile-status-copy">
-                    <strong>订阅权益</strong>
-                    <small>{{ subscriptionSummaryText }}</small>
-                  </span>
-                </button>
-
-                <button type="button" class="profile-status-card gift"
-                  @click="router.push('/user-space/gifts?from=userspace')">
-                  <span class="profile-status-icon bg-green">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round">
-                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                      <circle cx="12" cy="10" r="3"></circle>
-                    </svg>
-                  </span>
-                  <span class="profile-status-copy">
-                    <strong>礼物进度</strong>
-                    <small>{{ giftProgressText || '查看领取与地址' }}</small>
-                  </span>
-                </button>
-              </section>
-
-              <section class="profile-action-panel profile-account-panel" aria-label="账户与设置">
-                <div class="profile-section-heading">
-                  <span>账户与设置</span>
-                  <small>{{ dataPrivacyStatusText }}</small>
-                </div>
-                <button type="button" class="profile-action-row" @click="openProfileSettings">
-                  <span class="profile-action-icon bg-blue">
-                    <Palette :size="17" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="profile-action-copy">
-                    <strong>主题与通知</strong>
-                    <small>{{ themeDisplayText }} · Pushplus {{ pushplusStatusText }}</small>
-                  </span>
-                  <span class="profile-action-chevron">›</span>
-                </button>
-                <button type="button" class="profile-action-row" @click="openProfileDataManagement">
-                  <span class="profile-action-icon bg-gray">
-                    <User :size="17" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="profile-action-copy">
-                    <strong>资料管理</strong>
-                    <small>基础资料、安全与数据</small>
-                  </span>
-                  <span class="profile-action-chevron">›</span>
-                </button>
-                <button type="button" class="profile-action-row" @click="openSponsorPage">
-                  <span class="profile-action-icon bg-gold">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round">
-                      <path d="M12 2v20"></path>
-                      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6"></path>
-                    </svg>
-                  </span>
-                  <span class="profile-action-copy">
-                    <strong>赞助本站</strong>
-                    <small>支持本站</small>
-                  </span>
-                  <span class="profile-action-chevron">›</span>
-                </button>
-              </section>
-
-              <section class="profile-content-panel">
-                <div class="profile-content-tabs" role="tablist" aria-label="我的内容">
-                  <button v-for="tab in profileContentTabs" :key="tab.id" type="button" class="profile-content-tab"
-                    :class="{ active: activeProfileContentTab === tab.id }" role="tab"
-                    :aria-selected="activeProfileContentTab === tab.id" @click="switchProfileContentTab(tab.id)">
-                    {{ tab.label }}
-                  </button>
-                </div>
-
-                <div v-if="activeProfileContentTab === 'posts'" class="profile-posts-area">
-                  <div v-if="isProfileContentLoading" class="profile-forum-skeleton-feed" aria-hidden="true">
-                    <div v-for="item in 3" :key="`my-post-skeleton-${item}`" class="profile-forum-skeleton-card">
-                      <div class="profile-forum-skeleton-header">
-                        <div class="profile-forum-skeleton-avatar profile-forum-skeleton-item"></div>
-                        <div class="profile-forum-skeleton-headlines">
-                          <div class="profile-forum-skeleton-name profile-forum-skeleton-item"></div>
-                          <div class="profile-forum-skeleton-time profile-forum-skeleton-item"></div>
-                        </div>
-                      </div>
-                      <div class="profile-forum-skeleton-body">
-                        <div class="profile-forum-skeleton-title profile-forum-skeleton-item"></div>
-                        <div class="profile-forum-skeleton-line long profile-forum-skeleton-item"></div>
-                        <div class="profile-forum-skeleton-line medium profile-forum-skeleton-item"></div>
-                        <div class="profile-forum-skeleton-line short profile-forum-skeleton-item"></div>
-                      </div>
-                      <div class="profile-forum-skeleton-actions">
-                        <div class="profile-forum-skeleton-action profile-forum-skeleton-item"></div>
-                        <div class="profile-forum-skeleton-action profile-forum-skeleton-item"></div>
-                        <div class="profile-forum-skeleton-action profile-forum-skeleton-item"></div>
-                      </div>
-                    </div>
-                  </div>
-                  <div v-else-if="profilePosts.length" class="profile-post-grid">
-                    <article v-for="post in profilePosts" :key="post.id" class="profile-post-card"
-                      :class="{ 'text-only': !getProfilePostCover(post) }" @click="openProfilePost(post.id)">
-                      <div v-if="getProfilePostCover(post)" class="profile-post-cover">
-                        <img v-if="getProfilePostCover(post)" :src="getProfilePostCover(post)"
-                          :alt="getProfilePostTitle(post)" loading="lazy" decoding="async">
-                      </div>
-                      <div class="profile-post-copy">
-                        <h3>{{ getProfilePostTitle(post) }}</h3>
-                        <p>{{ getProfilePostSummary(post) }}</p>
-                        <div class="profile-post-meta">
-                          <span>{{ formatProfilePostDate(post) }}</span>
-                          <span>{{ post.like_count || 0 }}赞</span>
-                          <span>{{ post.comment_count || 0 }}评</span>
-                        </div>
-                      </div>
-                    </article>
-                  </div>
-                  <div v-else class="profile-content-empty">
-                    <h3>还没有发帖</h3>
-                    <p>发布后的内容会直接出现在这里。</p>
-                    <button type="button" @click="switchTab('posts')">去发帖</button>
-                  </div>
-                </div>
-
-                <div v-else-if="activeProfileContentTab === 'cloud'" class="profile-cloud-embed">
-                  <AsyncCloudPlus embedded />
-                </div>
-
-                <div v-else class="profile-impressions-panel">
-                  <div class="profile-impressions-head">
-                    <h3>我的印象</h3>
-                    <span>{{ profileImpressions.length }}</span>
-                  </div>
-                  <div v-if="isProfileImpressionsLoading" class="profile-content-empty">
-                    <p>正在同步印象...</p>
-                  </div>
-                  <div v-else-if="profileImpressions.length" class="profile-impressions-grid">
-                    <article v-for="imp in profileImpressions" :key="imp.id" class="profile-impression-card">
-                      <p>{{ imp.content }}</p>
-                      <div>
-                        <span>@{{ imp.author?.username || '匿名伙伴' }}</span>
-                        <button type="button" @click="handleDeleteProfileImpression(imp.id)">移除</button>
-                      </div>
-                    </article>
-                  </div>
-                  <div v-else class="profile-content-empty">
-                    <h3>暂无他人印象</h3>
-                    <p>社区伙伴写给你的印象会显示在这里。</p>
-                  </div>
-                </div>
-              </section>
-            </div>
+            <ProfileHomePanel
+              v-if="profileSection === 'home'"
+              key="profile-home"
+              :profile="userInfo"
+              :avatar-url="avatarUrl"
+              :profile-background-url="profileBackgroundUrl"
+              :profile-cover-style="profileCoverStyle"
+              :is-uploading-profile-background="isUploadingProfileBackground"
+              :stats="userStats"
+              :is-stats-loading="isUserStatsLoading"
+              :cloud-plus-usage-text="cloudPlusUsageText"
+              :cloud-plus-usage-meter-style="cloudPlusUsageMeterStyle"
+              :subscription-summary-text="subscriptionSummaryText"
+              :gift-progress-text="giftProgressText"
+              :data-privacy-status-text="dataPrivacyStatusText"
+              :theme-display-text="themeDisplayText"
+              :pushplus-status-text="pushplusStatusText"
+              :content-tabs="profileContentTabs"
+              :active-content-tab="activeProfileContentTab"
+              :is-content-loading="isProfileContentLoading"
+              :posts="profilePosts"
+              :is-impressions-loading="isProfileImpressionsLoading"
+              :impressions="profileImpressions"
+              @edit-profile="openEditProfileModal"
+              @settings="openProfileSettings"
+              @avatar-click="handleAvatarClick"
+              @background-click="handleProfileBackgroundClick"
+              @tab-change="switchProfileContentTab"
+              @sponsor="openSponsorPage"
+              @data-management="openProfileDataManagement"
+              @cloud-plus="openCloudPlusArea"
+              @subscription="router.push('/user-space/subscriptions?from=userspace')"
+              @gift="router.push('/user-space/gifts?from=userspace')"
+              @post-click="openProfilePost"
+              @switch-tab="switchTab"
+              @delete-impression="handleDeleteProfileImpression"
+            />
 
             <div v-else-if="profileSection === 'edit-profile'" key="profile-edit" class="profile-edit-page-shell">
               <UserCenterPageHeader title="编辑资料" back-label="返回我的" max-width="650px" @back="closeEditProfileModal" />
@@ -670,180 +439,25 @@
               </div>
             </div>
 
-            <div v-else-if="profileSection === 'settings'" key="profile-settings" class="profile-subpage-shell">
-              <UserCenterPageHeader title="设置" back-label="返回我的" max-width="650px" @back="backToProfileHome" />
-
-              <div class="profile-subpage-body">
-                <HomeCatMascot v-if="isHomeCatActive" class="settings-page-cat" pool="background"
-                  seed="settings-page" size="lg" decorative />
-                <div class="apple-card settings-section-card">
-                  <HomeCatMascot v-if="isHomeCatActive" class="settings-card-cat" pool="ambient"
-                    seed="settings-appearance" size="sm" decorative />
-                  <div class="group-header-title">外观与浏览</div>
-                  <div class="apple-list-group">
-                    <div class="apple-item clickable" @click="openThemeModal">
-                      <div class="item-left">
-                        <div class="icon-wrapper" :class="currentTheme === 'dark' ? 'bg-purple' : 'bg-yellow'">
-                          <svg v-if="currentTheme === 'dark'" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                          </svg>
-                          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                            stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="5"></circle>
-                            <line x1="12" y1="1" x2="12" y2="3"></line>
-                            <line x1="12" y1="21" x2="12" y2="23"></line>
-                            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                            <line x1="1" y1="12" x2="3" y2="12"></line>
-                            <line x1="21" y1="12" x2="23" y2="12"></line>
-                            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-                          </svg>
-                        </div>
-                        <span class="setting-label-stack">
-                          <span class="item-label">主题设置</span>
-                          <span class="item-desc">选择浅色、深色或跟随系统</span>
-                        </span>
-                      </div>
-                      <div class="item-right">
-                        <span class="text-secondary">{{ themeDisplayText }}</span>
-                        <span class="chevron">›</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="apple-card settings-section-card">
-                  <HomeCatMascot v-if="isHomeCatActive" class="settings-card-cat alt" pool="ambient"
-                    seed="settings-cloud" size="sm" decorative />
-                  <div class="group-header-title">Cloud+</div>
-                  <div class="apple-list-group">
-                    <div class="apple-item clickable" @click="openCloudPlusArea('settings')">
-                      <div class="item-left">
-                        <div class="icon-wrapper bg-teal">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                            stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>
-                            <path d="M8 9h8"></path>
-                            <path d="M8 13h5"></path>
-                          </svg>
-                        </div>
-                        <span class="setting-label-stack">
-                          <span class="item-label">Cloud+ 页面</span>
-                          <span class="item-desc">进入完整 Cloud+ 设置与管理页面</span>
-                        </span>
-                      </div>
-                      <div class="item-right">
-                        <span class="text-secondary">{{ cloudPlusUsageText }}</span>
-                        <span class="chevron">›</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="apple-card settings-section-card">
-                  <div class="group-header-title">账户与安全</div>
-                  <div class="apple-list-group">
-                    <div class="apple-item clickable"
-                      @click="router.push('/user-space/account-security?from=userspace-settings')">
-                      <div class="item-left">
-                        <div class="icon-wrapper bg-blue">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                            stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                          </svg>
-                        </div>
-                        <span class="setting-label-stack">
-                          <span class="item-label">账户安全</span>
-                          <span class="item-desc">修改密码、管理登录安全</span>
-                        </span>
-                      </div>
-                      <div class="item-right">
-                        <span class="text-secondary">密码与账号</span>
-                        <span class="chevron">›</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="apple-card settings-section-card">
-                  <HomeCatMascot v-if="isHomeCatActive" class="settings-card-cat" pool="ambient"
-                    seed="settings-notification" size="sm" decorative />
-                  <div class="group-header-title">通知</div>
-                  <div class="apple-list-group">
-                    <div class="apple-item clickable"
-                      @click="router.push('/user-space/pushplus-settings?from=userspace-settings')">
-                      <div class="item-left">
-                        <div class="icon-wrapper bg-blue">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                            stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-                          </svg>
-                        </div>
-                        <span class="setting-label-stack">
-                          <span class="item-label">Pushplus 推送</span>
-                          <span class="item-desc">离线时通过微信接收消息</span>
-                        </span>
-                      </div>
-                      <div class="item-right">
-                        <span class="text-secondary">{{ pushplusStatusText }}</span>
-                        <span class="chevron">›</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="apple-card settings-section-card">
-                  <div class="group-header-title">数据与隐私</div>
-                  <div class="apple-list-group">
-                    <div class="apple-item clickable" @click="openProfileDataManagement">
-                      <div class="item-left">
-                        <div class="icon-wrapper bg-indigo">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                            stroke-linecap="round" stroke-linejoin="round">
-                            <ellipse cx="12" cy="5" rx="8" ry="3"></ellipse>
-                            <path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5"></path>
-                            <path d="M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"></path>
-                          </svg>
-                        </div>
-                        <span class="setting-label-stack">
-                          <span class="item-label">数据与隐私</span>
-                          <span class="item-desc">公共记忆与管理工具</span>
-                        </span>
-                      </div>
-                      <div class="item-right">
-                        <span class="text-secondary">{{ dataPrivacyStatusText }}</span>
-                        <span class="chevron">›</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="apple-card settings-section-card danger-section-card">
-                  <div class="group-header-title">危险操作</div>
-                  <div class="apple-list-group">
-                    <div class="apple-item clickable" @click="handleLogout">
-                      <div class="item-left">
-                        <div class="icon-wrapper bg-red">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                            stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                            <polyline points="16 17 21 12 16 7"></polyline>
-                            <line x1="21" y1="12" x2="9" y2="12"></line>
-                          </svg>
-                        </div>
-                        <span class="item-label text-danger">退出登录</span>
-                      </div>
-                      <div class="item-right">
-                        <span class="chevron text-danger">›</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <ProfileSettingsPanel
+              v-else-if="profileSection === 'settings'"
+              key="profile-settings"
+              :pushplus-status-text="pushplusStatusText"
+              :cloud-plus-usage-text="cloudPlusUsageText"
+              :subscription-summary-text="subscriptionSummaryText"
+              :data-privacy-status-text="dataPrivacyStatusText"
+              :theme-display-text="themeDisplayText"
+              :is-home-cat-active="isHomeCatActive"
+              :current-theme="currentTheme"
+              @back="backToProfileHome"
+              @open-theme="openThemeModal"
+              @open-cloud="openCloudPlusArea"
+              @open-pushplus="router.push('/user-space/pushplus-settings?from=userspace-settings')"
+              @open-security="router.push('/user-space/account-security?from=userspace-settings')"
+              @open-data="openProfileDataManagement"
+              @open-data-management="openProfileDataManagement"
+              @logout="handleLogout"
+            />
 
             <div v-else key="profile-data-management" class="profile-subpage-shell">
               <UserCenterPageHeader title="数据与隐私" back-label="返回设置" max-width="650px" @back="backToProfileSettings" />
@@ -918,103 +532,8 @@
       @island-message="showBottomNavIsland"
     />
 
-    <!-- 主题设置模态框 -->
-    <transition name="fade">
-      <div v-if="showThemeModal" class="modal-overlay" @click.self="closeThemeModal">
-        <div class="modal-card theme-modal-card">
-          <div class="modal-visual-header theme-header">
-            <div class="modal-icon-circle">
-              <Palette class="emoji-icon" :size="30" :stroke-width="1.7" aria-hidden="true" />
-            </div>
-            <button class="close-icon-btn" @click="closeThemeModal" aria-label="关闭">
-              <X :size="18" :stroke-width="1.9" aria-hidden="true" />
-            </button>
-          </div>
-          <div class="modal-body-clean">
-            <h3 class="clean-title">主题设置</h3>
-            <p class="clean-desc">
-              选择适合您的界面主题，深色模式更适合夜间使用。
-            </p>
-
-            <div class="theme-options">
-              <div class="theme-option" :class="{ active: currentThemePreference === 'light' }"
-                @click="setThemePreference('light')">
-                <div class="theme-preview light-preview">
-                  <div class="preview-header"></div>
-                  <div class="preview-content">
-                    <div class="preview-line"></div>
-                    <div class="preview-line short"></div>
-                  </div>
-                </div>
-                <span class="theme-name">浅色模式</span>
-                <Check v-if="currentThemePreference === 'light'" class="theme-check" :size="16" :stroke-width="2.2"
-                  aria-hidden="true" />
-              </div>
-
-              <div class="theme-option" :class="{ active: currentThemePreference === 'dark' }"
-                @click="setThemePreference('dark')">
-                <div class="theme-preview dark-preview">
-                  <div class="preview-header"></div>
-                  <div class="preview-content">
-                    <div class="preview-line"></div>
-                    <div class="preview-line short"></div>
-                  </div>
-                </div>
-                <span class="theme-name">深色模式</span>
-                <Check v-if="currentThemePreference === 'dark'" class="theme-check" :size="16" :stroke-width="2.2"
-                  aria-hidden="true" />
-              </div>
-
-              <div class="theme-option" :class="{ active: currentThemePreference === 'system' }"
-                @click="setThemePreference('system')">
-                <div class="theme-preview system-preview">
-                  <div class="system-preview-light">
-                    <div class="preview-header"></div>
-                    <div class="preview-content">
-                      <div class="preview-line"></div>
-                      <div class="preview-line short"></div>
-                    </div>
-                  </div>
-                  <div class="system-preview-dark">
-                    <div class="preview-header"></div>
-                    <div class="preview-content">
-                      <div class="preview-line"></div>
-                      <div class="preview-line short"></div>
-                    </div>
-                  </div>
-                </div>
-                <span class="theme-name">跟随系统</span>
-                <Check v-if="currentThemePreference === 'system'" class="theme-check" :size="16" :stroke-width="2.2"
-                  aria-hidden="true" />
-              </div>
-
-              <div class="theme-option home-cat-theme-option" :class="{ active: currentThemePreference === 'home-cat' }"
-                @click="setThemePreference('home-cat')">
-                <div class="theme-preview home-cat-preview">
-                  <HomeCatMascot type="theme" size="sm" decorative />
-                  <div class="home-cat-preview-lines" aria-hidden="true">
-                    <span></span>
-                    <span></span>
-                  </div>
-                </div>
-                <span class="theme-name">方块小窝</span>
-                <Check v-if="currentThemePreference === 'home-cat'" class="theme-check" :size="16" :stroke-width="2.2"
-                  aria-hidden="true" />
-              </div>
-            </div>
-
-            <div class="clean-actions">
-              <button class="ghost-btn-clean" @click="setThemePreference('system')">
-                跟随系统
-              </button>
-              <button class="primary-btn-clean" @click="closeThemeModal">
-                完成
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </transition>
+    <ThemeModal :open="showThemeModal" :current-theme-preference="currentThemePreference"
+      @close="closeThemeModal" @select="setThemePreference" />
 
     <CommonAlertModal v-model:visible="alertState.visible" :type="alertState.type" :title="alertState.title"
       :message="alertState.message" />
@@ -1029,7 +548,7 @@
 import { ref, computed, nextTick, onMounted, onUnmounted, reactive, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import { Bot, Cake, Check, MessageCircle, Newspaper, Palette, User, Users, X } from 'lucide-vue-next';
+import { Bot, Cake, MessageCircle, Newspaper, User, Users } from 'lucide-vue-next';
 import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import AvatarCropModal from '@/components/AvatarCropModal.vue';
@@ -1037,6 +556,9 @@ import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import BohAiGlassOverlay from './components/BohAiGlassOverlay.vue';
 import UserSpaceBottomNav from './components/UserSpaceBottomNav.vue';
+import ProfileHomePanel from './components/ProfileHomePanel.vue';
+import ProfileSettingsPanel from './components/ProfileSettingsPanel.vue';
+import ThemeModal from './components/ThemeModal.vue';
 import { useBottomNavIslandQueue } from './composables/useBottomNavIslandQueue.js';
 import { createMemoryTtlCache } from './composables/useMemoryTtlCache.js';
 import { USER_SPACE_VALID_TABS, useUserSpaceTabs } from './composables/useUserSpaceTabs.js';
@@ -3022,9 +2544,7 @@ const handleUnreadRefresh = (event) => {
 };
 </script>
 
-<style scoped>
-@import './styles/shell-community.css';
-@import './styles/profile-base.css';
-@import './styles/profile-panels.css';
-@import './styles/responsive-integrations.css';
-</style>
+<style src="./styles/shell-community.css"></style>
+<style src="./styles/profile-base.css"></style>
+<style src="./styles/profile-panels.css"></style>
+<style src="./styles/responsive-integrations.css"></style>

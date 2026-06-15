@@ -191,7 +191,7 @@ const PROFILE_SELECT_COLUMNS = `
     fetchedAt: 0
   });
 
-  const withTimeout = <T>(promise: Promise<T>, timeoutMs = AUTH_TIMEOUT_MS, message = '请求超时'): Promise<T> =>
+  const withTimeout = <T>(promise: PromiseLike<T>, timeoutMs = AUTH_TIMEOUT_MS, message = '请求超时'): Promise<T> =>
     new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error(message)), timeoutMs);
       Promise.resolve(promise)

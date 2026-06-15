@@ -3,6 +3,11 @@
   margin-top: 28px;
 }
 
+/* 帖子列表容器 */
+.posts-list {
+  border-radius: 12px;
+}
+
 .feed-header-v2 {
   margin-bottom: 38px;
   padding-top: 12px;

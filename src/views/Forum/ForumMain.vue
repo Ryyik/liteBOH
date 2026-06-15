@@ -4,20 +4,17 @@ import { useRoute, useRouter } from 'vue-router';
 import {
   CalendarDays,
   Check,
-  ChevronLeft,
-  ChevronRight,
   Heart,
   MessageCircle,
   Reply,
-  RotateCcw,
-  Share2,
-  X,
-  ZoomIn,
-  ZoomOut
+  Share2
 } from 'lucide-vue-next';
 import UnifiedNavbar from '../../components/UnifiedNavbar/index.vue';
 import PostComposer from './components/PostComposer.vue';
 import PostCard from './components/PostCard.vue';
+import ForumImageViewer from './components/ForumImageViewer.vue';
+import WeeklyCheckinCalendar from './components/WeeklyCheckinCalendar.vue';
+import NotificationDrawer from './components/NotificationDrawer.vue';
 import { useForumImageModerationPreload } from './composables/useForumImageModerationPreload.js';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
@@ -375,12 +372,8 @@ const postImages = ref([]);
 const isUploadingPostImage = ref(false);
 const postImageUploadStatus = ref('');
 const isForumImageViewerOpen = ref(false);
-const isForumImageViewerLoading = ref(false);
 const forumImageViewerImages = ref([]);
 const forumImageViewerIndex = ref(0);
-const forumImageViewerZoom = ref(1);
-const forumImageViewerPan = ref({ x: 0, y: 0 });
-const isForumImageViewerPanning = ref(false);
 const imageCompressionPrompt = ref({
   show: false,
   title: '图片过大',
@@ -406,10 +399,6 @@ let searchDebounceTimer = null;
 let postDraftSaveTimer = null;
 let postDraftRestoreSeq = 0;
 let scrollTimeout = null;
-let forumImageViewerPanStart = { x: 0, y: 0 };
-const IMAGE_VIEWER_MIN_ZOOM = 0.5;
-const IMAGE_VIEWER_MAX_ZOOM = 4;
-const IMAGE_VIEWER_ZOOM_STEP = 0.25;
 const getDraftStorageKey = () => {
   const uid = String(userInfo.id || 'guest').trim() || 'guest';
   return `${FORUM_POST_DRAFT_PREFIX}_${uid}`;
@@ -1108,7 +1097,7 @@ onMounted(() => {
   window.addEventListener('orientationchange', updateMobileStatus);
   window.addEventListener('scroll', handleScroll);
   document.addEventListener('click', closePostImageSourceMenu);
-  window.addEventListener('keydown', handleForumImageViewerKeydown);
+
   void initializeForumData();
   loadHotTagStats();
   if (isLoggedIn.value) {
@@ -1126,7 +1115,6 @@ onUnmounted(() => {
   window.removeEventListener('orientationchange', updateMobileStatus);
   window.removeEventListener('scroll', handleScroll);
   document.removeEventListener('click', closePostImageSourceMenu);
-  window.removeEventListener('keydown', handleForumImageViewerKeydown);
   document.body.style.overflow = '';
   void discardDraftPostImages({ silent: true });
   if (searchDebounceTimer) {
@@ -1154,11 +1142,7 @@ onUnmounted(() => {
 });
 
 watch(isMobileComposerOpen, (isOpen) => {
-  document.body.style.overflow = isOpen || isForumImageViewerOpen.value ? 'hidden' : '';
-});
-
-watch(isForumImageViewerOpen, (isOpen) => {
-  document.body.style.overflow = isOpen || isMobileComposerOpen.value ? 'hidden' : '';
+  document.body.style.overflow = isOpen ? 'hidden' : '';
 });
 
 // 监听弹窗状态，控制 body 滚动
@@ -1337,71 +1321,6 @@ const handleMarkAllAsRead = async () => {
   }
 };
 
-const getNotificationIcon = (type) => {
-  const icons = {
-    'like': '❤️',
-    'comment': '💬',
-    'follow': '👤',
-    'impression': '✨',
-    [POST_REJECTED_NOTIFICATION_TYPE]: '⚠️',
-    [COMMENT_REJECTED_NOTIFICATION_TYPE]: '⚠️',
-    'system': '🔔'
-  };
-  return icons[type] || '✉️';
-};
-
-const getNotificationText = (n) => {
-  const rawSenderName = String(n.sender?.username || '').trim();
-  const senderName = rawSenderName || '有人';
-  const escapedSenderName = escapeHtml(senderName);
-  const senderProfileUrl = `#/profile/${encodeURIComponent(senderName)}`;
-  const senderLink = rawSenderName
-    ? `<a class="clickable-username-inline" href="${senderProfileUrl}">${escapedSenderName}</a>`
-    : escapedSenderName;
-  const safeCommentSnippet = escapeHtml(truncateTextSafe(String(n.comment?.content || ''), 20));
-
-  let rawHtml = '';
-  switch (n.type) {
-    case 'like':
-      rawHtml = `<b>${senderLink}</b> 点赞了你的帖子`;
-      break;
-    case 'comment':
-      rawHtml = `<b>${senderLink}</b> 评论了你的帖子: "${safeCommentSnippet}..."`;
-      break;
-    case 'impression':
-      rawHtml = `<b>${senderLink}</b> 给您写下了一条新印象`;
-      break;
-    case POST_REJECTED_NOTIFICATION_TYPE:
-      rawHtml = '您的帖子暂未通过审查，可点击查看详情并重试一次';
-      break;
-    case COMMENT_REJECTED_NOTIFICATION_TYPE:
-      rawHtml = '您的评论暂未通过审查，已被系统自动拦截';
-      break;
-    default:
-      rawHtml = `来自 <b>${senderLink}</b> 的新动态`;
-      break;
-  }
-
-  return DOMPurify.sanitize(rawHtml, {
-    ALLOWED_TAGS: ['a', 'b'],
-    ALLOWED_ATTR: ['class', 'href']
-  });
-};
-
-// 获取通知类型图标
-const _getTypeIcon = (type) => {
-  const icons = {
-    'like': '❤️',
-    'comment': '💬',
-    'follow': '👤',
-    'impression': '✨',
-    [POST_REPORT_LIMITED_NOTIFICATION_TYPE]: '⚠️',
-    'system': '🔔',
-    'gift': '🎁'
-  };
-  return icons[type] || '✉️';
-};
-
 // 获取通知类型标签
 const getNotificationTypeLabel = (type) => {
   const labels = {
@@ -1442,35 +1361,6 @@ const getNotificationTitle = (notification) => {
     default:
       return '新消息';
   }
-};
-
-// 获取通知预览
-const _getNotificationPreview = (notification) => {
-  if (notification.type === 'impression') {
-    return '查看新的印象评价';
-  }
-  if (notification.type === 'gift') {
-    return notification.content || '查看礼物最新进度';
-  }
-  if (notification.type === 'system') {
-    return notification.content || '系统消息';
-  }
-  if (notification.type === POST_REJECTED_NOTIFICATION_TYPE) {
-    return notification.content || POST_REJECTED_NOTICE_TEXT;
-  }
-  if (notification.type === POST_REPORT_LIMITED_NOTIFICATION_TYPE) {
-    return notification.content || POST_REPORT_LIMITED_NOTICE_TEXT;
-  }
-  if (notification.type === COMMENT_REJECTED_NOTIFICATION_TYPE) {
-    return notification.content || COMMENT_REJECTED_NOTICE_TEXT;
-  }
-  if (notification.comment?.content) {
-    return notification.comment.content.substring(0, 50) + (notification.comment.content.length > 50 ? '...' : '');
-  }
-  if (notification.post) {
-    return getForumPostExcerpt(notification.post, 50);
-  }
-  return '查看详情';
 };
 
 // 获取通知完整内容
@@ -1645,184 +1535,18 @@ const prepareForumPosts = (posts = [], startIndex = 0) => (
   Array.isArray(posts) ? posts.map((post, index) => prepareForumPostForDisplay(post, startIndex + index)) : []
 );
 
-const currentForumImageViewerImage = computed(() => forumImageViewerImages.value[forumImageViewerIndex.value] || null);
-const forumImageViewerKey = computed(() => String(
-  currentForumImageViewerImage.value?.url
-  || currentForumImageViewerImage.value?.detailUrl
-  || currentForumImageViewerImage.value?.originalUrl
-  || ''
-).trim());
-const forumImageViewerSources = computed(() => {
-  const image = currentForumImageViewerImage.value || {};
-  return Array.from(new Set([
-    image.detailUrl,
-    image.originalUrl,
-    image.url,
-    image.thumbUrl
-  ].map((url) => String(url || '').trim()).filter(Boolean)));
-});
-const currentForumImageViewerUrl = computed(() => forumImageViewerSources.value[0] || '');
-const forumImageViewerZoomPercent = computed(() => `${Math.round(forumImageViewerZoom.value * 100)}%`);
-const forumImageViewerStyle = computed(() => ({
-  transform: `translate3d(${forumImageViewerPan.value.x}px, ${forumImageViewerPan.value.y}px, 0) scale(${forumImageViewerZoom.value})`
-}));
-const hasMultipleForumViewerImages = computed(() => forumImageViewerImages.value.length > 1);
-
-function clampImageViewerZoom(value) {
-  return Math.min(IMAGE_VIEWER_MAX_ZOOM, Math.max(IMAGE_VIEWER_MIN_ZOOM, Number(value) || 1));
-}
-
-function resetForumImageViewerTransform() {
-  forumImageViewerZoom.value = 1;
-  forumImageViewerPan.value = { x: 0, y: 0 };
-  isForumImageViewerPanning.value = false;
-}
-
-const setForumImageViewerZoom = (value) => {
-  const nextZoom = clampImageViewerZoom(value);
-  forumImageViewerZoom.value = nextZoom;
-  if (nextZoom <= 1) {
-    forumImageViewerPan.value = { x: 0, y: 0 };
-  }
-};
-
-const zoomInForumImageViewer = () => {
-  setForumImageViewerZoom(forumImageViewerZoom.value + IMAGE_VIEWER_ZOOM_STEP);
-};
-
-const zoomOutForumImageViewer = () => {
-  setForumImageViewerZoom(forumImageViewerZoom.value - IMAGE_VIEWER_ZOOM_STEP);
-};
-
-const goToForumImageViewerImage = (index) => {
-  const total = forumImageViewerImages.value.length;
-  if (!total) {
-    forumImageViewerIndex.value = 0;
-    return;
-  }
-  const nextIndex = Math.min(Math.max(Number(index || 0), 0), total - 1);
-  if (nextIndex !== forumImageViewerIndex.value) {
-    resetForumImageViewerTransform();
-    isForumImageViewerLoading.value = true;
-  }
-  forumImageViewerIndex.value = nextIndex;
-};
-
-const showPrevForumImageViewerImage = () => {
-  const total = forumImageViewerImages.value.length;
-  if (total <= 1) return;
-  resetForumImageViewerTransform();
-  isForumImageViewerLoading.value = true;
-  forumImageViewerIndex.value = (forumImageViewerIndex.value - 1 + total) % total;
-};
-
-const showNextForumImageViewerImage = () => {
-  const total = forumImageViewerImages.value.length;
-  if (total <= 1) return;
-  resetForumImageViewerTransform();
-  isForumImageViewerLoading.value = true;
-  forumImageViewerIndex.value = (forumImageViewerIndex.value + 1) % total;
-};
-
 const openForumImageViewer = (post, index = 0) => {
   const images = Array.isArray(post?.previewImages)
     ? post.previewImages.filter((image) => image?.url).slice(0, FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT)
     : [];
   if (!images.length) return;
   forumImageViewerImages.value = images;
-  resetForumImageViewerTransform();
-  isForumImageViewerLoading.value = true;
-  goToForumImageViewerImage(index);
+  forumImageViewerIndex.value = Math.min(Math.max(Number(index || 0), 0), images.length - 1);
   isForumImageViewerOpen.value = true;
 };
 
 const closeForumImageViewer = () => {
   isForumImageViewerOpen.value = false;
-  isForumImageViewerLoading.value = false;
-  resetForumImageViewerTransform();
-};
-
-const handleForumImageViewerWheel = (event) => {
-  const direction = Number(event?.deltaY || 0) < 0 ? 1 : -1;
-  setForumImageViewerZoom(forumImageViewerZoom.value + direction * IMAGE_VIEWER_ZOOM_STEP);
-};
-
-const startForumImageViewerPan = (event) => {
-  if (forumImageViewerZoom.value <= 1) return;
-  isForumImageViewerPanning.value = true;
-  event?.currentTarget?.setPointerCapture?.(event.pointerId);
-  forumImageViewerPanStart = {
-    x: Number(event?.clientX || 0) - forumImageViewerPan.value.x,
-    y: Number(event?.clientY || 0) - forumImageViewerPan.value.y
-  };
-};
-
-const moveForumImageViewerPan = (event) => {
-  if (!isForumImageViewerPanning.value || forumImageViewerZoom.value <= 1) return;
-  forumImageViewerPan.value = {
-    x: Number(event?.clientX || 0) - forumImageViewerPanStart.x,
-    y: Number(event?.clientY || 0) - forumImageViewerPanStart.y
-  };
-};
-
-const stopForumImageViewerPan = (event) => {
-  if (!isForumImageViewerPanning.value) return;
-  isForumImageViewerPanning.value = false;
-  event?.currentTarget?.releasePointerCapture?.(event.pointerId);
-};
-
-const handleForumImageViewerImageLoad = () => {
-  isForumImageViewerLoading.value = false;
-};
-
-const handleForumImageViewerImageError = (event) => {
-  const target = event?.target;
-  if (!target) {
-    isForumImageViewerLoading.value = false;
-    return;
-  }
-  const currentSourceIndex = Number(target.dataset?.sourceIndex || 0);
-  const nextSourceIndex = currentSourceIndex + 1;
-  const nextSource = forumImageViewerSources.value[nextSourceIndex];
-  if (!nextSource) {
-    isForumImageViewerLoading.value = false;
-    return;
-  }
-  isForumImageViewerLoading.value = true;
-  target.dataset.sourceIndex = String(nextSourceIndex);
-  target.src = nextSource;
-};
-
-const handleForumImageViewerKeydown = (event) => {
-  if (!isForumImageViewerOpen.value) return;
-  if (event.key === 'Escape') {
-    closeForumImageViewer();
-    return;
-  }
-  if (event.key === 'ArrowLeft') {
-    event.preventDefault();
-    showPrevForumImageViewerImage();
-    return;
-  }
-  if (event.key === 'ArrowRight') {
-    event.preventDefault();
-    showNextForumImageViewerImage();
-    return;
-  }
-  if (event.key === '+' || event.key === '=') {
-    event.preventDefault();
-    zoomInForumImageViewer();
-    return;
-  }
-  if (event.key === '-' || event.key === '_') {
-    event.preventDefault();
-    zoomOutForumImageViewer();
-    return;
-  }
-  if (event.key === '0') {
-    event.preventDefault();
-    resetForumImageViewerTransform();
-  }
 };
 
 const renderSearchExcerpt = (excerpt) => {
@@ -2690,17 +2414,15 @@ const sharePost = async (post) => {
   }
 };
 
-// 懒加载滚动处理
+// 窗口滚动处理器
 const handleScroll = () => {
   if (feedMode.value !== 'posts') return;
   if (isLoading.value || isLoadingMore.value || !hasMoreData.value) return;
 
-  // 清除之前的定时器
   if (scrollTimeout) {
     clearTimeout(scrollTimeout);
   }
 
-  // 设置新的定时器，减少到100ms防抖
   scrollTimeout = setTimeout(() => {
     const scrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
     const clientHeight = window.innerHeight || document.documentElement.clientHeight || 0;
@@ -2708,7 +2430,6 @@ const handleScroll = () => {
       document.documentElement.scrollHeight || 0,
       document.body.scrollHeight || 0
     );
-    // 当滚动到距离底部800px时加载更多
     if (scrollTop + clientHeight >= scrollHeight - 800) {
       fetchForumData(true);
     }
@@ -2882,60 +2603,19 @@ const openPostDetail = (postId) => {
           </button>
 
           <!-- 通知面板 -->
-          <Teleport to="body">
-            <div v-if="showNotifications" class="notification-drawer-overlay" @click="showNotifications = false"></div>
-            <transition name="drawer-slide">
-              <div v-if="showNotifications" class="notification-drawer glass-panel"
-                :class="{ 'mobile-drawer': isMobile }">
-                <div class="drawer-header">
-                  <div class="header-main">
-                    <h3 class="drawer-title">消息通知</h3>
-                    <span v-if="unreadCount > 0" class="unread-badge-inline">{{ unreadCount }} 条未读</span>
-                  </div>
-                  <div class="drawer-actions">
-                    <button v-if="unreadCount > 0" class="mark-all-btn-v2" @click="handleMarkAllAsRead">全部已读</button>
-                    <button class="close-drawer-btn" @click="showNotifications = false">
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2.5">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-
-                <div class="drawer-list-container custom-scrollbar">
-                  <div class="notification-filter-row" role="tablist" aria-label="通知类型筛选">
-                    <button v-for="option in NOTIFICATION_FILTER_OPTIONS" :key="option.value" type="button"
-                      class="notification-filter-btn" :class="{ active: notificationTypeFilter === option.value }"
-                      role="tab" :aria-selected="notificationTypeFilter === option.value"
-                      @click="notificationTypeFilter = option.value">
-                      {{ option.label }}
-                    </button>
-                  </div>
-                  <div v-if="isNotificationsLoading" class="panel-loading-v2">
-                    <div class="loading-spinner-v2"></div>
-                    <p>同步通知中...</p>
-                  </div>
-                  <div v-else-if="filteredNotifications.length === 0" class="panel-empty">
-                    <span class="empty-icon">🏜️</span>
-                    <p>暂无新消息，去社区逛逛吧</p>
-                  </div>
-                  <div v-else class="notification-items-group">
-                    <div v-for="n in filteredNotifications" :key="n.id" class="notification-item-v2"
-                      :class="{ 'is-unread': n.status === 'unread' }" @click="handleNotificationItemClick(n, $event)">
-                      <div class="n-icon-v2">{{ getNotificationIcon(n.type) }}</div>
-                      <div class="n-content-v2">
-                        <p class="n-text-v2" v-html="getNotificationText(n)"></p>
-                        <span class="n-date-v2">{{ formatDate(n.created_at) }}</span>
-                      </div>
-                      <div v-if="n.status === 'unread'" class="n-unread-dot"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </transition>
-          </Teleport>
+          <NotificationDrawer
+            v-model:open="showNotifications"
+            :notifications="notifications"
+            :loading="isNotificationsLoading"
+            :unread-count="unreadCount"
+            v-model:type-filter="notificationTypeFilter"
+            :filter-options="NOTIFICATION_FILTER_OPTIONS"
+            :selected-message="selectedMessage"
+            @close="showNotifications = false"
+            @mark-all-read="handleMarkAllAsRead"
+            @select="showDetail"
+            @filter-change="notificationTypeFilter = $event"
+          />
         </div>
       </header>
 
@@ -3067,37 +2747,37 @@ const openPostDetail = (postId) => {
                 :key="post.id"
                 :post="post"
                 :index="index"
-                :is-home-cat-active="isHomeCatActive"
-                :is-expanded="expandedPostIds.has(post.id)"
-                :active-reply-target="activeReplyTarget && activeReplyTarget.postId === post.id ? activeReplyTarget : null"
-                :reply-content="replyContent"
-                :is-reply-submitting="isReplySubmitting"
-                :reply-cooldown-seconds="replyCooldownSeconds"
-                :reply-submit-label="replySubmitLabel"
-                :is-like-submitting="!!isLikeSubmitting[post.id]"
-                :is-liked-pulsing="isPostLikePulsing(post.id)"
-                :is-share-copied="isPostShareCopied(post.id)"
-                :is-highlighted="isPostHighlighted(post.id)"
-                :is-reply-success="hasUiMarker(replySuccessPostIds, post.id)"
-                :search-keyword="searchKeyword"
-                :is-logged-in="isLoggedIn"
-                :user-info="userInfo"
-                :loaded-image-keys="loadedForumImageKeys"
-                @click="openPostDetail"
-                @go-to-profile="goToProfile"
-                @toggle-like="handleToggleLike"
-                @toggle-replies="toggleRepliesList"
-                @toggle-reply-input="handlePostCardToggleReplyInput"
-                @share="sharePost"
-                @submit-reply="submitReply"
-                @delete-comment="handleDeleteComment"
-                @open-image-viewer="openForumImageViewer"
-                @update:reply-content="replyContent = $event"
-                @clear-reply-target="handlePostCardClearReplyTarget"
-                @cancel-reply="handlePostCardCancelReply"
-                @image-loaded="markForumImageLoaded"
-                @lazy-image-observe="observeForumLazyImage"
-                @more-replies="openPostDetail"
+                  :is-home-cat-active="isHomeCatActive"
+                  :is-expanded="expandedPostIds.has(post.id)"
+                  :active-reply-target="activeReplyTarget && activeReplyTarget.postId === post.id ? activeReplyTarget : null"
+                  :reply-content="replyContent"
+                  :is-reply-submitting="isReplySubmitting"
+                  :reply-cooldown-seconds="replyCooldownSeconds"
+                  :reply-submit-label="replySubmitLabel"
+                  :is-like-submitting="!!isLikeSubmitting[post.id]"
+                  :is-liked-pulsing="isPostLikePulsing(post.id)"
+                  :is-share-copied="isPostShareCopied(post.id)"
+                  :is-highlighted="isPostHighlighted(post.id)"
+                  :is-reply-success="hasUiMarker(replySuccessPostIds, post.id)"
+                  :search-keyword="searchKeyword"
+                  :is-logged-in="isLoggedIn"
+                  :user-info="userInfo"
+                  :loaded-image-keys="loadedForumImageKeys"
+                  @click="openPostDetail"
+                  @go-to-profile="goToProfile"
+                  @toggle-like="handleToggleLike"
+                  @toggle-replies="toggleRepliesList"
+                  @toggle-reply-input="handlePostCardToggleReplyInput"
+                  @share="sharePost"
+                  @submit-reply="submitReply"
+                  @delete-comment="handleDeleteComment"
+                  @open-image-viewer="openForumImageViewer"
+                  @update:reply-content="replyContent = $event"
+                  @clear-reply-target="handlePostCardClearReplyTarget"
+                  @cancel-reply="handlePostCardCancelReply"
+                  @image-loaded="markForumImageLoaded"
+                  @lazy-image-observe="observeForumLazyImage"
+                  @more-replies="openPostDetail"
               />
             </div>
 
@@ -3218,76 +2898,20 @@ const openPostDetail = (postId) => {
       </Transition>
     </Teleport>
 
-    <Teleport to="body">
-      <transition name="fade">
-        <div v-if="isWeeklyCheckinCalendarOpen" class="checkin-calendar-overlay" @click="closeWeeklyCheckinCalendar">
-          <section class="checkin-calendar-modal glass-panel" aria-label="周签到面板" @click.stop>
-            <div class="checkin-calendar-header">
-              <div>
-                <span class="checkin-calendar-kicker">WEEKLY CHECK-IN</span>
-                <h3>{{ weeklyCheckinPanelTitle }}</h3>
-              </div>
-              <button type="button" class="checkin-calendar-close" aria-label="关闭签到日历"
-                @click="closeWeeklyCheckinCalendar">×</button>
-            </div>
-
-            <div class="checkin-week-card">
-              <div class="checkin-week-copy">
-                <span>本周</span>
-                <strong>{{ weeklyCheckinRangeText }}</strong>
-              </div>
-              <div class="checkin-week-status" :class="{ signed: weeklyCheckinStatus.hasSignedThisWeek }">
-                {{ weeklyCheckinStatus.hasSignedThisWeek ? '已签到' : '待签到' }}
-              </div>
-            </div>
-
-            <div class="checkin-week-days" aria-label="本周日期">
-              <div v-for="day in checkinCalendarDays" :key="day.key" class="checkin-week-day"
-                :class="{ today: day.isToday, signed: day.isSigned }">
-                <span>{{ day.label }}</span>
-                <strong>{{ day.day }}</strong>
-              </div>
-            </div>
-
-            <div class="checkin-cycle-panel">
-              <div class="checkin-cycle-header">
-                <div>
-                  <span>连续周期</span>
-                  <strong>第 {{ weeklyCheckinDisplayWeek }} / {{ weeklyCheckinCycleSize }} 周</strong>
-                </div>
-                <small>奖励 {{ WEEKLY_CHECKIN_REWARD_POINTS }} 积分</small>
-              </div>
-              <div class="checkin-cycle-weeks">
-                <div v-for="item in weeklyCheckinCycleWeeks" :key="item.week" class="checkin-cycle-week"
-                  :class="{ completed: item.isCompleted, current: item.isCurrent }">
-                  <span>{{ item.week }}</span>
-                </div>
-              </div>
-              <div class="checkin-progress-track" :class="{ signed: weeklyCheckinStatus.hasSignedThisWeek }"
-                aria-hidden="true">
-                <div class="checkin-progress-fill" :style="{ width: `${weeklyCheckinProgressPercent}%` }"></div>
-              </div>
-            </div>
-
-            <div class="checkin-calendar-progress">
-              <div class="checkin-calendar-progress-copy">
-                <strong>{{ weeklyCheckinStatus.hasSignedThisWeek ? weeklyCheckinProgressText : '本周还未签到' }}</strong>
-                <span>{{ weeklyCheckinHintText }}</span>
-              </div>
-            </div>
-
-            <button class="weekly-checkin-btn calendar-submit-btn"
-              :class="{ 'is-done': weeklyCheckinStatus.hasSignedThisWeek }"
-              @click="handleWeeklyCheckin"
-              :disabled="isWeeklyCheckinLoading || isWeeklyCheckinSubmitting || weeklyCheckinStatus.hasSignedThisWeek">
-              <span v-if="isWeeklyCheckinLoading" class="checkin-skeleton-button-label skeleton-item"></span>
-              <span v-else-if="isWeeklyCheckinSubmitting">签到中...</span>
-              <span v-else>{{ weeklyCheckinStatus.hasSignedThisWeek ? '本周已签到' : '完成本周签到' }}</span>
-            </button>
-          </section>
-        </div>
-      </transition>
-    </Teleport>
+    <WeeklyCheckinCalendar
+      v-model:open="isWeeklyCheckinCalendarOpen"
+      :status="weeklyCheckinStatus"
+      :calendar-days="checkinCalendarDays"
+      :cycle-weeks="weeklyCheckinCycleWeeks"
+      :progress-percent="weeklyCheckinProgressPercent"
+      :panel-title="weeklyCheckinPanelTitle"
+      :range-text="weeklyCheckinRangeText"
+      :hint-text="weeklyCheckinHintText"
+      :loading="isWeeklyCheckinLoading"
+      :submitting="isWeeklyCheckinSubmitting"
+      @close="closeWeeklyCheckinCalendar"
+      @checkin="handleWeeklyCheckin"
+    />
 
     <Teleport to="body">
       <transition name="fade">
@@ -3355,59 +2979,12 @@ const openPostDetail = (postId) => {
       </Transition>
     </Teleport>
 
-    <Teleport to="body">
-      <transition name="forum-image-viewer-fade">
-        <div v-if="isForumImageViewerOpen" class="forum-image-viewer" role="dialog" aria-modal="true"
-          aria-label="查看帖子大图" @click.self="closeForumImageViewer">
-          <button type="button" class="forum-image-viewer-close" aria-label="关闭大图"
-            @click="closeForumImageViewer">
-            <X :size="24" :stroke-width="2.2" aria-hidden="true" />
-          </button>
-          <div class="forum-image-viewer-toolbar" aria-label="大图缩放工具">
-            <button type="button" class="forum-image-viewer-tool" :disabled="forumImageViewerZoom <= IMAGE_VIEWER_MIN_ZOOM"
-              aria-label="缩小图片" @click.stop="zoomOutForumImageViewer">
-              <ZoomOut :size="20" :stroke-width="2" aria-hidden="true" />
-            </button>
-            <span class="forum-image-viewer-zoom">{{ forumImageViewerZoomPercent }}</span>
-            <button type="button" class="forum-image-viewer-tool" :disabled="forumImageViewerZoom >= IMAGE_VIEWER_MAX_ZOOM"
-              aria-label="放大图片" @click.stop="zoomInForumImageViewer">
-              <ZoomIn :size="20" :stroke-width="2" aria-hidden="true" />
-            </button>
-            <button type="button" class="forum-image-viewer-tool" aria-label="重置缩放"
-              @click.stop="resetForumImageViewerTransform">
-              <RotateCcw :size="19" :stroke-width="2" aria-hidden="true" />
-            </button>
-          </div>
-          <button v-if="hasMultipleForumViewerImages" type="button" class="forum-image-viewer-nav prev"
-            aria-label="上一张大图" @click.stop="showPrevForumImageViewerImage">
-            <ChevronLeft :size="34" :stroke-width="1.8" aria-hidden="true" />
-          </button>
-          <div class="forum-image-viewer-stage"
-            :class="{ 'is-zoomed': forumImageViewerZoom > 1, 'is-panning': isForumImageViewerPanning }"
-            @wheel.prevent="handleForumImageViewerWheel"
-            @pointerdown="startForumImageViewerPan"
-            @pointermove="moveForumImageViewerPan"
-            @pointerup="stopForumImageViewerPan"
-            @pointercancel="stopForumImageViewerPan"
-            @pointerleave="stopForumImageViewerPan">
-            <div v-if="isForumImageViewerLoading" class="forum-image-viewer-loader" aria-label="图片加载中">
-              <span class="forum-image-viewer-spinner"></span>
-            </div>
-            <img :key="`${forumImageViewerKey}-viewer`" class="forum-image-viewer-img" :src="currentForumImageViewerUrl"
-              data-source-index="0" :style="forumImageViewerStyle"
-              :alt="`帖子大图 ${forumImageViewerIndex + 1}`" decoding="async"
-              @load="handleForumImageViewerImageLoad" @error="handleForumImageViewerImageError"  loading="lazy" />
-          </div>
-          <button v-if="hasMultipleForumViewerImages" type="button" class="forum-image-viewer-nav next"
-            aria-label="下一张大图" @click.stop="showNextForumImageViewerImage">
-            <ChevronRight :size="34" :stroke-width="1.8" aria-hidden="true" />
-          </button>
-          <div v-if="hasMultipleForumViewerImages" class="forum-image-viewer-count">
-            {{ forumImageViewerIndex + 1 }} / {{ forumImageViewerImages.length }}
-          </div>
-        </div>
-      </transition>
-    </Teleport>
+    <ForumImageViewer
+      v-model:open="isForumImageViewerOpen"
+      :images="forumImageViewerImages"
+      :initial-index="forumImageViewerIndex"
+      @close="closeForumImageViewer"
+    />
 
     <Teleport to="body">
       <Transition name="forum-confirm-fade">

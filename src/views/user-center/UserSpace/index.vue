@@ -9,6 +9,11 @@ const UserSpaceMain = defineAsyncComponent(() => import('./UserSpaceMain.vue'));
 
 <template>
   <Suspense>
-    <UserSpaceMain v-bind="$attrs" />
+    <template #default>
+      <UserSpaceMain v-bind="$attrs" />
+    </template>
+    <template #fallback>
+      <div class="suspense-fallback">加载中...</div>
+    </template>
   </Suspense>
 </template>

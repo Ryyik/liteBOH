@@ -66,16 +66,14 @@ describe('chatErrorMessages 工具函数', () => {
   });
 
   describe('CHAT_ERROR_MESSAGES', () => {
-    it('generationFailed includes detail', () => {
-      const msg = CHAT_ERROR_MESSAGES.generationFailed('超时');
+    it('generationFailed is a static string', () => {
+      const msg = CHAT_ERROR_MESSAGES.generationFailed();
       expect(msg).toContain('服务暂时繁忙');
-      expect(msg).toContain('超时');
     });
 
-    it('resourceSearchFailed includes detail', () => {
-      const msg = CHAT_ERROR_MESSAGES.resourceSearchFailed('DNS 解析失败');
+    it('resourceSearchFailed is a static string', () => {
+      const msg = CHAT_ERROR_MESSAGES.resourceSearchFailed();
       expect(msg).toContain('资源搜索暂时失败');
-      expect(msg).toContain('DNS 解析失败');
       expect(msg).toContain('资源中心手动搜索');
     });
 
@@ -289,7 +287,7 @@ function readChatEngine() {
 describe('useChatEngine.js 引用 chatErrorMessages 验证', () => {
   it('导入了 chatErrorMessages 工具函数', () => {
     const content = readChatEngine();
-    expect(content).toContain("import { safeErrorDetail, isAbortError, CHAT_ERROR_MESSAGES, getAbortMessage } from '../utils/chatErrorMessages.js'");
+    expect(content).toContain("import { isAbortError, CHAT_ERROR_MESSAGES, getAbortMessage } from '../utils/chatErrorMessages.js'");
   });
 
   it('使用 isAbortError 替代了 error?.name 直接比较', () => {
@@ -308,11 +306,6 @@ describe('useChatEngine.js 引用 chatErrorMessages 验证', () => {
     expect(content).not.toContain('资源搜索暂时失败：');
     // 应使用 CHAT_ERROR_MESSAGES
     expect(content).toContain('CHAT_ERROR_MESSAGES.');
-  });
-
-  it('使用 safeErrorDetail 统一错误消息提取', () => {
-    const content = readChatEngine();
-    expect(content).toContain('safeErrorDetail(');
   });
 
   it('使用 getAbortMessage 统一停止消息', () => {

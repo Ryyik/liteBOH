@@ -1,12 +1,21 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { supabase } from '@/utils/supabase-client'
-import { products as fallbackProducts } from '@/data/products'
 import { logger } from '@/utils/logger.js'
 import type { Product, ProductSpec } from '@/types'
 
+// 延迟加载 fallback 产品数据，避免打包到初始 chunk
+let _fallbackProducts: Record<string, unknown>[] | null = null
+const getFallbackProducts = async (): Promise<Record<string, unknown>[]> => {
+  if (_fallbackProducts) return _fallbackProducts
+  const mod = await import('@/data/products')
+  _fallbackProducts = mod.products as Record<string, unknown>[]
+  return _fallbackProducts
+}
+
 const CACHE_KEY = 'boh_products_cache_v1'
 const CACHE_TTL_MS = 5 * 60 * 1000
+const CACHE_MAX_SIZE_BYTES = 500 * 1024 // 500KB 上限，避免 localStorage 配额溢出
 
 const normalizeSpecs = (specifications: unknown): ProductSpec[] => {
   if (Array.isArray(specifications)) {
@@ -56,10 +65,12 @@ const readProductsCache = (): Product[] | null => {
 
 const writeProductsCache = (data: Record<string, unknown>[]): void => {
   try {
-    localStorage.setItem(
-      CACHE_KEY,
-      JSON.stringify({ timestamp: Date.now(), data })
-    )
+    const payload = JSON.stringify({ timestamp: Date.now(), data })
+    // 数据量过大时跳过缓存，避免 localStorage 配额溢出
+    if (new Blob([payload]).size > CACHE_MAX_SIZE_BYTES) {
+      return
+    }
+    localStorage.setItem(CACHE_KEY, payload)
   } catch {
     // 忽略本地缓存写入失败（例如隐私模式/配额限制）
   }
@@ -103,14 +114,16 @@ export const useProductsStore = defineStore('products', () => {
       }
 
       // 数据库可连通但表为空时，避免白屏，回退到静态数据
-      productsData.value = fallbackProducts.map((p: Record<string, unknown>) => normalizeProduct(p))
+      const fallback = await getFallbackProducts()
+      productsData.value = fallback.map((p: Record<string, unknown>) => normalizeProduct(p))
       return productsData.value
     } catch (error) {
       logger.error('products-store', '获取产品列表失败', error)
       fetchError.value = (error as Error)?.message || 'PRODUCTS_FETCH_FAILED'
 
       // 网络异常/权限异常时回退静态数据，保障商店可用
-      productsData.value = fallbackProducts.map((p: Record<string, unknown>) => normalizeProduct(p))
+      const fallback = await getFallbackProducts()
+      productsData.value = fallback.map((p: Record<string, unknown>) => normalizeProduct(p))
       return productsData.value
     } finally {
       isFetchingProducts.value = false

@@ -2,6 +2,7 @@ import { logger } from './logger.js';
 
 const requestInFlight = new Map();
 const requestCache = new Map();
+const MAX_CACHE_ENTRIES = 200;
 
 function buildRequestKey(scope, params = {}) {
   const safeParams = Object.keys(params)
@@ -64,6 +65,13 @@ export function failResult(error, data = null, extras = {}) {
 
 function setCache(key, payload, ttlMs, tags = []) {
   if (!ttlMs || ttlMs <= 0) return;
+
+  // LRU 淘汰：超过上限时移除最旧的条目
+  while (requestCache.size >= MAX_CACHE_ENTRIES) {
+    const oldestKey = requestCache.keys().next().value;
+    requestCache.delete(oldestKey);
+  }
+
   requestCache.set(key, {
     expireAt: Date.now() + ttlMs,
     payload,

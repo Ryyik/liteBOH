@@ -129,7 +129,23 @@ watch(isInitialized, (newVal) => {
 </script>
 
 <template>
-  <router-view />
+  <Suspense>
+    <template #default>
+      <router-view />
+    </template>
+    <template #fallback>
+      <div class="page-suspense-fallback">
+        <div class="suspense-skeleton">
+          <div class="suspense-skeleton-bar"></div>
+          <div class="suspense-skeleton-content">
+            <div class="suspense-skeleton-line w-60"></div>
+            <div class="suspense-skeleton-line w-80"></div>
+            <div class="suspense-skeleton-line w-40"></div>
+          </div>
+        </div>
+      </div>
+    </template>
+  </Suspense>
   <Footer />
 
   <!-- 全局登录模态框 -->
@@ -260,5 +276,52 @@ html {
     width: 100%;
     justify-content: center;
   }
+}
+
+/* Suspense 路由切换骨架屏 */
+.page-suspense-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: 40px 20px;
+}
+
+.suspense-skeleton {
+  width: 100%;
+  max-width: 600px;
+}
+
+.suspense-skeleton-bar {
+  height: 180px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: suspense-shimmer 1.5s infinite;
+  border-radius: 12px;
+  margin-bottom: 24px;
+}
+
+.suspense-skeleton-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 8px;
+}
+
+.suspense-skeleton-line {
+  height: 16px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: suspense-shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+.suspense-skeleton-line.w-60 { width: 60%; }
+.suspense-skeleton-line.w-80 { width: 80%; }
+.suspense-skeleton-line.w-40 { width: 40%; }
+
+@keyframes suspense-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 </style>

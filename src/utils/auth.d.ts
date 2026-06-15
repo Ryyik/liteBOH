@@ -38,7 +38,7 @@ export function signIn(
   password: string,
   altchaPayload?: string,
   deviceIdHash?: string
-): Promise<AuthApiResult>
+): Promise<AuthApiResult<{ user?: unknown; session?: { user: unknown } | null; requireCaptcha?: boolean }>>
 
 export function signInWithOAuth(provider: string): Promise<{ error: AuthApiError | null }>
 
@@ -51,11 +51,11 @@ export function updatePassword(
   currentPassword?: string
 ): Promise<{ error: AuthApiError | null }>
 
-export function deleteMyAccount(password: string): Promise<AuthApiResult>
+export function deleteMyAccount(password: string): Promise<AuthApiResult<{ message?: string; code?: string }>>
 
 export function signOut(): Promise<SignOutResult>
 
-export function getCurrentUser(): Promise<AuthApiResult>
+export function getCurrentUser(): Promise<{ id: string; [key: string]: unknown } | null>
 
 export function getAllProfiles(): Promise<AuthApiResult>
 
@@ -82,12 +82,13 @@ export function getWeeklyCheckinStatus(): Promise<AuthApiResult>
 export function submitWeeklyCheckin(): Promise<AuthApiResult>
 
 // --- Notifications API ---
-export function getUserNotifications(): Promise<AuthApiResult>
+export function getUserNotifications(userId: string, options?: Record<string, unknown>): Promise<{ data: unknown[]; error: AuthApiError | null; hasMore: boolean; nextCursor: string | null }>
 export function markNotificationAsRead(id: string): Promise<AuthApiResult>
 export function markAllNotificationsAsRead(): Promise<AuthApiResult>
 export function createNotification(data: Record<string, unknown>): Promise<AuthApiResult>
-export function getUnreadNotificationCount(): Promise<AuthApiResult>
-export function subscribeToNotifications(userId: string): Promise<AuthApiResult>
+export function getUnreadNotificationCount(userId: string): Promise<{ ok: boolean; count: number; notifCount: number; mailCount: number; data: unknown; error: AuthApiError | null }>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function subscribeToNotifications(userId: string, callback: (payload: any) => void): any
 export function filterSelfActionNotifications(notifications: unknown[]): unknown[]
 
 // --- Profile API ---

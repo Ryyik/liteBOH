@@ -999,6 +999,4 @@ watch(selectedCategory, (newCat) => {
 });
 </script>
 
-<style scoped>
-@import './style.scoped.css';
-</style>
+<style scoped src="./style.scoped.css"></style>

@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { VitePWA } from 'vite-plugin-pwa'
 import { resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
 import autoprefixer from 'autoprefixer'
@@ -24,6 +25,54 @@ export default defineConfig({
       gzipSize: true,
       brotliSize: true,
       filename: 'stats.html',
+    }),
+    // PWA Service Worker（静态资源预缓存 + 运行时缓存）
+    VitePWA({
+      registerType: 'autoUpdate',
+      workbox: {
+        // 预缓存所有静态资源（Cache-First）
+        globPatterns: ['**/*.{js,css,html,woff,woff2,png,webp,svg,ico}'],
+        // 运行时缓存策略
+        runtimeCaching: [
+          {
+            // Supabase API 请求：Network-First
+            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-supabase',
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 },
+              networkTimeoutSeconds: 8,
+            },
+          },
+          {
+            // Cloudinary 图片：Stale-While-Revalidate
+            urlPattern: /^https:\/\/cdn\.blockofhome\.cn\/.*/i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'images-cloudinary',
+              expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 30 },
+            },
+          },
+        ],
+      },
+      manifest: {
+        name: 'Block of Home',
+        short_name: 'BOH',
+        description: 'Block of Home - 你的家居灵感社区',
+        theme_color: '#42b983',
+        icons: [
+          {
+            src: '/favicon.png',
+            sizes: '192x192',
+            type: 'image/png',
+          },
+          {
+            src: '/favicon.png',
+            sizes: '512x512',
+            type: 'image/png',
+          },
+        ],
+      },
     }),
   ],
 
@@ -128,6 +177,10 @@ export default defineConfig({
     chunkSizeWarningLimit: 500,
     // 目标浏览器
     target: 'es2021',
+    // 启用 modulepreload polyfill，确保关键 chunk (auth-store, supabase-vendor) 预加载
+    modulePreload: {
+      polyfill: true,
+    },
     // 启用图片优化 - 4KB以下的资源内联为 base64
     assetsInlineLimit: 4096,
     // 优化静态资源处理

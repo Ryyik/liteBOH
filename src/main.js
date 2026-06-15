@@ -10,9 +10,9 @@ import "./styles/vendor/unified-nav.css";
 // ============================================
 // 公共样式库 (Common Styles)
 // ============================================
+import "./styles/common/login-modal.css";
 import "./styles/common/glass-ui.css";
 import "./styles/common/animations.css";
-import "./styles/common/login-modal.css";
 
 // ============================================
 // 辅助样式 (Helper Styles)
@@ -29,8 +29,8 @@ import "./styles/components/cursor.css";
 import "./styles/components/headings.css";
 import "./styles/components/link_underline.css";
 import "./styles/components/overlay.css";
-import "./styles/components/page__animate.css";
 import "./styles/components/close-button.css";
+import "./styles/components/page__animate.css";
 
 // ============================================
 // 布局与页面样式 (Layout & Page Styles)
@@ -98,6 +98,23 @@ if (typeof window !== "undefined") {
   }
 
   initMonitoring();
+
+  // Supabase API 预连接（运行时从环境变量动态注入）
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  if (supabaseUrl) {
+    try {
+      const url = new URL(supabaseUrl);
+      const origin = url.origin;
+      ['dns-prefetch', 'preconnect'].forEach((rel) => {
+        const link = document.createElement('link');
+        link.rel = rel;
+        link.href = origin;
+        if (rel === 'preconnect') link.crossOrigin = 'anonymous';
+        document.head.appendChild(link);
+      });
+    } catch { /* 忽略无效 URL */ }
+  }
+
   const elem = document.createElement("canvas");
   const supported =
     elem.toDataURL("image/webp").indexOf("data:image/webp") === 0;
