@@ -5,7 +5,7 @@ export function useContextCompression({
   isCompressingContext,
   compressingSessionIndex,
   computeContextBudgetUsage,
-  refreshConversationSummaryCache
+  summaryCacheRef
 }) {
   const ensureContextCompression = async (sessionIndex, { force = false } = {}) => {
     const targetSession = getSessionByIndex(sessionIndex);
@@ -25,7 +25,7 @@ export function useContextCompression({
     isCompressingContext.value = true;
     compressingSessionIndex.value = sessionIndex;
     try {
-      await refreshConversationSummaryCache(sessionIndex);
+      await summaryCacheRef.fn(sessionIndex);
     } catch (error) {
       logger.warn('boh-ai', 'Auto context compression failed', error);
     } finally {

@@ -603,14 +603,15 @@ export function useChatEngine() {
   // computeContextBudgetUsage / contextBudgetUsage / isCompressingContext / compressingSessionIndex
   // 已委托给 useConversationManager 管理。
 
-  let refreshConversationSummaryCache;
+  const summaryCacheRef = { fn: null };
+  const refreshConversationSummaryCache = (...args) => summaryCacheRef.fn(...args);
 
   const { ensureContextCompression } = useContextCompression({
     getSessionByIndex,
     isCompressingContext,
     compressingSessionIndex,
     computeContextBudgetUsage,
-    refreshConversationSummaryCache
+    summaryCacheRef
   });
 
   // Scroll Helper
@@ -868,7 +869,7 @@ export function useChatEngine() {
     }
   };
 
-  refreshConversationSummaryCache = async (sessionIndex, requestSignal = undefined) => {
+  summaryCacheRef.fn = async (sessionIndex, requestSignal = undefined) => {
     const targetSession = getSessionByIndex(sessionIndex);
     if (!targetSession) return;
 

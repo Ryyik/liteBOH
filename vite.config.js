@@ -137,10 +137,10 @@ export default defineConfig({
           if (id.includes('src/stores/auth.ts')) return 'auth-store';
           if (id.includes('src/data/products.js') || id.includes('src/data/news.js') || id.includes('src/data/activities.js')) return 'content-datasets';
 
-          // 大视图独立 chunk
+          // 大视图独立 chunk（经排查 BOHAI 与 DataManagement 无循环依赖，拆分为独立 chunk 降低单文件体积）
           if (id.includes('src/views/user-center/UserSpace/')) return 'view-userspace';
-          // BOHAI 和 DataManagement 有共享代码，合并为一个 chunk 避免循环依赖
-          if (id.includes('src/views/BOHAI/') || id.includes('src/views/DataManagement/')) return 'view-bohai-admin';
+          if (id.includes('src/views/BOHAI/')) return 'view-bohai';
+          if (id.includes('src/views/DataManagement/')) return 'view-admin';
           if (id.includes('src/views/Profile/')) return 'view-profile';
           if (id.includes('src/views/user-center/Cloud+/')) return 'view-cloudplus';
           if (id.includes('src/views/PostDetail/')) return 'view-postdetail';
@@ -180,6 +180,9 @@ export default defineConfig({
     // 启用 modulepreload polyfill，确保关键 chunk (auth-store, supabase-vendor) 预加载
     modulePreload: {
       polyfill: true,
+      // 不预加载 view 级别 chunk，它们由路由懒加载按需触发，避免首屏下载冗余 JS
+      resolveDependencies: (_filename, deps) =>
+        deps.filter((dep) => !/view-(bohai|admin|postdetail|profile|userspace|forum|cloudplus)/.test(dep)),
     },
     // 启用图片优化 - 4KB以下的资源内联为 base64
     assetsInlineLimit: 4096,
