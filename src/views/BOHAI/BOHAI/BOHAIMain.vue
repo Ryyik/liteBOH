@@ -73,7 +73,41 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="message-content" v-html="renderMarkdown(msg.content)"></div>
+                                <div class="message-content" v-html="renderMarkdown(stripAiQuestion(msg.content))"></div>
+                                <div v-if="activeInlineQuestion && activeInlineQuestion.messageIndex === idx" class="ai-question-inline">
+                                    <div class="ai-question-inline-question">{{ activeInlineQuestion.question }}</div>
+                                    <div class="ai-question-inline-options">
+                                        <button
+                                            v-for="(opt, i) in activeInlineQuestion.options"
+                                            :key="i"
+                                            class="ai-question-option"
+                                            :class="{ selected: aiQuestionAnswer === opt }"
+                                            @click="selectInlineOption(opt)"
+                                        >
+                                            <span class="ai-question-option-icon">
+                                                <CheckCircle2 v-if="aiQuestionAnswer === opt" size="16" />
+                                                <Circle v-else size="16" />
+                                            </span>
+                                            <span class="ai-question-option-text">{{ opt }}</span>
+                                        </button>
+                                    </div>
+                                    <div class="ai-question-inline-custom">
+                                        <div class="ai-question-divider"><span>或者自己填写</span></div>
+                                        <textarea
+                                            v-model="aiQuestionAnswer"
+                                            class="ai-question-input"
+                                            placeholder="输入你的回答..."
+                                            rows="2"
+                                            :disabled="isLoading"
+                                            @keydown.enter="onInlineEnter"
+                                        />
+                                    </div>
+                                    <div class="ai-question-inline-actions">
+                                        <button class="ai-question-btn ai-question-btn-submit" :disabled="!aiQuestionAnswer.trim() || isLoading" @click="submitInlineAnswer">
+                                            发送回答
+                                        </button>
+                                    </div>
+                                </div>
                                 <div v-if="isThinking && idx === messages.length - 1 && msg.role === 'assistant'"
                                     class="thinking" aria-live="polite" aria-label="正在处理">
                                     <span class="thinking-dot" aria-hidden="true"></span>
@@ -239,6 +273,7 @@
             :is-shared-memory-enabled="isSharedMemoryEnabled"
             :context-budget-usage="contextBudgetUsage"
             :context-budget-percent-text="contextBudgetPercentText"
+            :is-compressing-context="isCompressingContext"
             @select-mode="selectMode"
             @select-response-style="setResponseStyle"
             @update:is-searching="isSearching = $event"
@@ -247,17 +282,28 @@
             @clear-current-chat="clearCurrentChat"
             @export-chat-data="exportChatData"
             @clear-all-chat-data="clearAllChatData" />
+
+        <CommonAlertModal
+            v-model:visible="confirmState.show"
+            :type="confirmState.type"
+            :title="confirmState.title"
+            :message="confirmState.message"
+            @confirm="handleConfirm"
+            @close="handleClose" />
+
+
     </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, watch, onUnmounted } from 'vue';
-import { Plus, Trash2, Square, Globe, X, ChevronDown, Copy, ThumbsUp, ThumbsDown, MoreHorizontal, ArrowUp, ListChecks, CheckCircle2, LoaderCircle, Circle, Network, Search } from 'lucide-vue-next';
+import { ref, reactive, computed, onMounted, nextTick, watch, onUnmounted } from 'vue';
+import { Plus, Trash2, Square, Globe, X, ChevronDown, Copy, ThumbsUp, ThumbsDown, MoreHorizontal, ArrowUp, ListChecks, CheckCircle2, LoaderCircle, Circle, Network } from 'lucide-vue-next';
 import { useChatEngine } from '../composables/useChatEngine';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import BohaiSidebar from './components/BohaiSidebar.vue';
 import BohaiSettingsPanel from './components/BohaiSettingsPanel.vue';
+import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import { marked } from 'marked';
 import DOMPurify from '@/utils/dompurify.js';
 import { themeManager } from '@/utils/theme-manager.js';
@@ -297,29 +343,67 @@ const showFeaturesMenu = ref(false);
 const currentUiStyle = ref(themeManager.getUiStyle?.() || 'glass');
 const uiNotice = ref('');
 const visibleMessageLimit = ref(80);
-const messageFeedbackByIndex = ref({});
 const expandedMessageDetails = ref(new Set());
-const isDarkTheme = ref(false);
+const messageFeedbackByIndex = ref({});
 const modeMenuOpen = ref(false);
 const settingsOpen = ref(false);
+const confirmState = reactive({
+    show: false,
+    type: 'warning',
+    title: '',
+    message: '',
+    resolve: null
+});
+
+const aiQuestionAnswer = ref('');
+
+const activeInlineQuestion = ref(null);
 
 const openSettings = () => {
     settingsOpen.value = true;
 };
 
 const clearAllChatData = () => {
-    if (confirm('确定要清除所有对话数据吗？此操作不可撤销。')) {
-        localStorage.removeItem('boh_chat_sessions');
-        localStorage.removeItem('boh_current_session_index');
-        startNewChat();
-        settingsOpen.value = false;
-    }
+    confirmState.type = 'warning';
+    confirmState.title = '清除所有对话';
+    confirmState.message = '确定要清除所有对话数据吗？此操作不可撤销。';
+    confirmState.show = true;
+    confirmState.resolve = (ok) => {
+        confirmState.show = false;
+        if (ok) {
+            localStorage.removeItem('boh_chat_sessions');
+            localStorage.removeItem('boh_current_session_index');
+            startNewChat();
+            settingsOpen.value = false;
+        }
+    };
 };
 
 const clearCurrentChat = () => {
-    if (confirm('确定要清除当前对话吗？此操作不可撤销。')) {
-        startNewChat();
-        settingsOpen.value = false;
+    confirmState.type = 'warning';
+    confirmState.title = '清除当前对话';
+    confirmState.message = '确定要清除当前对话吗？此操作不可撤销。';
+    confirmState.show = true;
+    confirmState.resolve = (ok) => {
+        confirmState.show = false;
+        if (ok) {
+            startNewChat();
+            settingsOpen.value = false;
+        }
+    };
+};
+
+const handleConfirm = () => {
+    if (confirmState.resolve) {
+        confirmState.resolve(true);
+        confirmState.resolve = null;
+    }
+};
+
+const handleClose = () => {
+    if (confirmState.resolve) {
+        confirmState.resolve(false);
+        confirmState.resolve = null;
     }
 };
 
@@ -374,12 +458,47 @@ const {
     switchSession,
     sendMessage,
     stopGeneration,
-    clearCache: _clearCache,
+    clearCache,
     agentClusterState,
     currentResponseStyleId,
     setResponseStyle,
-    responseStyleOptions
+    responseStyleOptions,
+    persistModeSetting
 } = useChatEngine();
+
+const AI_QUESTION_MARKER = '【追问】';
+
+const parseAiQuestion = (content) => {
+    if (!content) return null;
+    const markerIndex = content.indexOf(AI_QUESTION_MARKER);
+    if (markerIndex === -1) return null;
+
+    const afterMarker = content.slice(markerIndex + AI_QUESTION_MARKER.length).trim();
+    const lines = afterMarker.split('\n').map((l) => l.trim()).filter(Boolean);
+
+    const question = lines[0] || '';
+    const options = lines
+        .slice(1)
+        .filter((l) => /^[-•*\d]+[.)]?\s/.test(l))
+        .map((l) => l.replace(/^[-•*\d]+[.)]?\s+/, '').trim());
+    if (!question || options.length < 2) return null;
+
+    return { question, options };
+};
+
+watch(() => {
+    const msgs = Array.isArray(messages.value) ? messages.value : [];
+    return msgs.length > 0 ? msgs[msgs.length - 1]?.content : '';
+}, (content) => {
+    const msgs = Array.isArray(messages.value) ? messages.value : [];
+    if (!msgs.length) { activeInlineQuestion.value = null; return; }
+    const last = msgs[msgs.length - 1];
+    if (last.role !== 'assistant') { activeInlineQuestion.value = null; return; }
+    const parsed = parseAiQuestion(content || '');
+    activeInlineQuestion.value = parsed
+        ? { question: parsed.question, options: parsed.options, messageIndex: msgs.length - 1 }
+        : null;
+}, { immediate: true });
 
 const chatContainer = ref(null);
 const isInitialScrollReady = ref(false);
@@ -387,8 +506,9 @@ const activeUserMessageIndex = ref(-1);
 
 // BOH AI 实际可见上下文窗口：与 useChatEngine 中送入模型的预算口径保持一致
 const contextBudgetPercentText = computed(() => {
-    const percent = contextBudgetUsage.value?.percent || 0;
-    return `${Math.round(percent)}%`;
+    const usage = contextBudgetUsage.value;
+    const pct = usage?.historyPercent ?? usage?.percent ?? 0;
+    return `${Math.round(pct)}%`;
 });
 
 // 顶层模式（4 个）：Fast / Pro / Plan / Agent。
@@ -398,14 +518,8 @@ const contextBudgetPercentText = computed(() => {
 // - Agent: 工作
 // AUTO 模式已于 2026-06-08 移除，不再有"自动路由到哪个子模式"的 chip 概念。
 
-const _activeCapabilityLabels = computed(() => {
-    const labels = [];
-    if (isSearching.value) labels.push('联网');
-    return labels;
-});
-
 const contextBudgetTitle = computed(() => {
-    const usage = contextBudgetUsage.value || { used: 0, max: 0, percent: 0, includedMessageCount: 0, hasSummary: false };
+    const usage = contextBudgetUsage.value || { used: 0, max: 0, percent: 0, includedMessageCount: 0, totalMessageCount: 0, hasSummary: false };
     const summaryHint = usage.hasSummary ? '（已包含此前对话摘要）' : '';
     if (isCompressingContext.value) {
         return `上下文已满，正在自动压缩 BOH AI 历史窗口：已用 ${usage.used} / ${usage.max} 字符 · ${contextBudgetPercentText.value} · 实际携带 ${usage.includedMessageCount} 条消息${summaryHint}`;
@@ -736,6 +850,20 @@ const planTodoItems = computed(() => {
             };
         });
     }
+    if (currentModeId.value === 'plan') {
+        const assistantMsg = latestAssistantPlanMessage.value;
+        const parsed = parseTaskListFromContent(assistantMsg?.content);
+        if (parsed.length > 0) return parsed;
+        if (assistantMsg?.content) {
+            return [{
+                id: 'plan-goal',
+                title: compactPlanText(assistantMsg.content, 80),
+                detail: 'Plan 模式 · 正在推进',
+                state: isLoading.value ? 'active' : 'done'
+            }];
+        }
+        return [];
+    }
     const segments = extractPlanSegments(latestUserPlanMessage.value?.content);
     const statusLabel = String(thinkingStatus.value || '').trim() || getGrokLoadingLabel();
     return [
@@ -776,10 +904,58 @@ const taskStatusSubtitle = computed(() => {
     return agentClusterPanelSubtitle.value;
 });
 
-const shouldRenderPlanTodoCard = (_msg, _idx) => {
+const hasTaskListMarkers = (msg) => {
+    if (!msg || msg.role !== 'assistant') return false;
+    return /-\s*\[[ x]\]/.test(String(msg.content || ''));
+};
+
+const parseTaskListFromContent = (content) => {
+    if (!content) return [];
+    const items = [];
+    const regex = /-\s*\[([ x])\]\s*(.+?)(?:\s*[-—]\s*(.+?))?(?=\n|$)/g;
+    let match;
+    while ((match = regex.exec(content)) !== null) {
+        items.push({
+            id: `task-${items.length}`,
+            title: match[2].trim(),
+            detail: (match[3] || '').trim(),
+            state: match[1] === 'x' ? 'done' : 'pending'
+        });
+    }
+    return items;
+};
+
+const shouldRenderPlanTodoCard = (msg, _idx) => {
     if (isAgentClusterModeActive.value && agentClusterEntries.value.length > 0) return true;
-    if (isPlanExperienceActive.value && planTodoItems.value.length > 0) return true;
+    if (currentModeId.value === 'plan' && hasTaskListMarkers(msg)) return true;
     return false;
+};
+
+const stripAiQuestion = (content) => {
+    if (!content) return content;
+    const markerIndex = content.indexOf(AI_QUESTION_MARKER);
+    if (markerIndex === -1) return content;
+    return content.slice(0, markerIndex).trimEnd();
+};
+
+const onInlineEnter = (e) => {
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.shiftKey) return;
+    e.preventDefault();
+    submitInlineAnswer();
+};
+
+const selectInlineOption = (option) => {
+    aiQuestionAnswer.value = option;
+    submitInlineAnswer();
+};
+
+const submitInlineAnswer = () => {
+    const answer = aiQuestionAnswer.value.trim();
+    if (!answer || isLoading.value) return;
+    inputMessage.value = answer;
+    aiQuestionAnswer.value = '';
+    nextTick(() => { sendMessage().catch(console.error); });
 };
 
 const getMessageRetrievalTrace = (msg) => {
@@ -1001,6 +1177,7 @@ const selectMode = (modeId) => {
     }
 
     currentModeId.value = modeId;
+    persistModeSetting();
     closeModeMenu();
     emitIslandMessage({
         title: `已切换 ${mode.name}`,
@@ -1068,23 +1245,13 @@ const copyMessage = async (content) => {
     notifyUnavailable('已复制');
 };
 
-// 浅/深主题切换：当前默认浅色（由 CSS 决定），切换仅记录偏好并改 data-ui-style。
-// 完整主题由 themeManager 维护，这里只同步本组件内的 isDarkTheme 标记。
-const _toggleTheme = () => {
-    isDarkTheme.value = !isDarkTheme.value;
-    if (isDarkTheme.value) {
+const syncThemeAttribute = () => {
+    if (themeManager.isDark?.()) {
         document.documentElement.setAttribute('data-boh-theme', 'dark');
     } else {
         document.documentElement.removeAttribute('data-boh-theme');
     }
-    try {
-        localStorage.setItem('boh_ai_theme_preference_v1', isDarkTheme.value ? 'dark' : 'light');
-    } catch (_e) {
-        // localStorage 不可用时静默忽略；视觉上不会持久化但功能可用。
-    }
 };
-
-
 
 const handleClickOutside = (e) => {
     // 关闭 features 菜单
@@ -1104,11 +1271,13 @@ const handleClickOutside = (e) => {
 
 const handleThemeChange = (_theme, _preference, uiStyle = themeManager.getUiStyle?.() || currentUiStyle.value) => {
     currentUiStyle.value = uiStyle;
+    syncThemeAttribute();
 };
 
 onMounted(() => {
     currentUiStyle.value = themeManager.getUiStyle?.() || 'glass';
     themeManager.addListener(handleThemeChange);
+    syncThemeAttribute();
     onScrollToBottom(scrollToBottom);
     settleInitialScrollPosition();
     document.addEventListener('click', handleClickOutside);
@@ -1155,6 +1324,11 @@ onUnmounted(() => {
     if (typeof window !== 'undefined' && window.speechSynthesis) {
         window.speechSynthesis.cancel();
     }
+    if (confirmState.resolve) {
+        confirmState.resolve(false);
+        confirmState.resolve = null;
+    }
+    confirmState.show = false;
 });
 
 watch(currentSessionIndex, () => {
@@ -1172,501 +1346,206 @@ watch(messages, () => {
     scrollToBottom();
     nextTick(updateActiveUserMessageFromScroll);
 }, { deep: true });
+
+watch(isCompressingContext, (compressing) => {
+    if (!compressing) return;
+    emitIslandMessage({
+        title: 'BOH AI 自动压缩',
+        message: '历史窗口已满，正在自动摘要并压缩历史会话...',
+        icon: 'ai',
+        type: 'notification',
+        actionLabel: '知道了',
+        durationMs: 4000
+    });
+});
+
+
 </script>
 
 <style scoped src="./styles/shell-header.css"></style>
 <style scoped src="./styles/messages.css"></style>
 <style scoped src="./styles/adaptive-layout.css"></style>
-<style scoped>
-.ai-settings-backdrop {
-    position: fixed !important;
-    inset: 0 !important;
-    z-index: 2147483600 !important;
-    display: flex !important;
-    align-items: stretch !important;
-    justify-content: flex-start !important;
-    padding: 12px !important;
-    background: rgba(15, 23, 42, 0.22) !important;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-}
 
-.ai-settings-drawer {
-    width: min(420px, calc(100vw - 24px)) !important;
-    height: calc(100dvh - 24px) !important;
-    display: grid !important;
-    grid-template-rows: auto minmax(0, 1fr) !important;
-    overflow: hidden !important;
-    border: 1px solid rgba(226, 232, 240, 0.92) !important;
-    border-radius: 14px !important;
-    background: rgba(255, 255, 255, 0.98) !important;
-    color: #111827 !important;
-    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24) !important;
-}
-
-.ai-settings-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
+<style>
+.ai-question-inline {
+    margin: 12px 0 4px;
     padding: 16px 18px;
-    border-bottom: 1px solid rgba(226, 232, 240, 0.86);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.55);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
-.ai-settings-header h2 {
-    margin: 0;
-    font-size: 20px;
-    line-height: 1.2;
-    font-weight: 700;
-}
-
-.ai-settings-close-btn {
-    width: 32px;
-    height: 32px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    border-radius: 8px;
-    background: transparent;
-    color: #64748b;
-    cursor: pointer;
-}
-
-.ai-settings-close-btn:hover {
-    background: #f1f5f9;
+.ai-question-inline-question {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.5;
     color: #0f172a;
+    margin-bottom: 12px;
 }
 
-.ai-settings-body {
-    min-height: 0;
-    overflow-y: auto;
-    padding: 20px 16px 24px;
+.ai-question-inline-options {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 6px;
+    margin-bottom: 10px;
 }
 
-.ai-settings-card {
-    background: #ffffff;
-    border: 1px solid rgba(226, 232, 240, 0.86);
-    border-radius: 16px;
-    overflow: hidden;
-    flex-shrink: 0;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-}
-
-.ai-settings-card.danger-card {
-    border-color: rgba(220, 38, 38, 0.15);
-}
-
-.ai-settings-group-title {
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    color: #86868b;
-    letter-spacing: 0.5px;
-    padding: 14px 16px 6px;
-    margin: 0;
-}
-
-.ai-settings-list {
-    display: block;
-}
-
-.ai-settings-list:empty {
-    display: none;
-}
-
-.ai-settings-row {
+.ai-question-option {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 14px 16px;
-    min-height: 56px;
-    position: relative;
-    background: transparent;
-    transition: background-color 0.15s ease;
-    cursor: pointer;
-    border: none;
+    gap: 10px;
     width: 100%;
     text-align: left;
-    box-sizing: border-box;
+    padding: 10px 14px;
+    border: 1.5px solid rgba(226, 232, 240, 0.7);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.7);
+    font-size: 14px;
+    line-height: 1.4;
+    color: #1e293b;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
 }
 
-.ai-settings-row:hover {
-    background-color: #f8fafc;
+.ai-question-option:hover {
+    border-color: #1459d9;
+    background: rgba(20, 89, 217, 0.06);
 }
 
-.ai-settings-row:active {
-    background-color: #f5f5f7;
+.ai-question-option.selected {
+    border-color: #1459d9;
+    background: rgba(20, 89, 217, 0.08);
+    font-weight: 500;
 }
 
-.ai-settings-row:not(:last-child)::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 56px;
-    right: 16px;
-    height: 0.5px;
-    background-color: rgba(0, 0, 0, 0.05);
+.ai-question-option.selected .ai-question-option-text {
+    color: #1459d9;
 }
 
-.ai-settings-row.expanded {
-    background-color: #f8fafc;
-}
-
-.ai-settings-row-left {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    min-width: 0;
-}
-
-.ai-settings-icon {
-    width: 30px;
-    height: 30px;
-    border-radius: 8px;
+.ai-question-option-icon {
+    flex-shrink: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
-    background-color: #f5f5f7;
-    color: #475569;
-}
-
-.ai-settings-icon svg {
-    width: 16px;
-    height: 16px;
-    stroke-width: 2;
-}
-
-.ai-settings-label-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-}
-
-.ai-settings-label {
-    font-size: 15px;
-    font-weight: 500;
-    color: #111827;
-    line-height: 1.25;
-}
-
-.ai-settings-desc {
-    font-size: 13px;
-    color: #86868b;
-    line-height: 1.3;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.ai-settings-row-right {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
-    min-width: 0;
-    justify-content: flex-end;
-}
-
-.ai-settings-value {
-    font-size: 14px;
-    color: #86868b;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 120px;
-}
-
-.ai-settings-chevron {
+    width: 18px;
+    height: 18px;
     color: #94a3b8;
-    font-size: 18px;
-    line-height: 1;
-    transition: transform 0.2s ease;
 }
 
-.ai-settings-chevron.expanded {
-    transform: rotate(90deg);
+.ai-question-option.selected .ai-question-option-icon {
+    color: #1459d9;
 }
 
-.ai-settings-inline-options {
-    display: flex;
-    flex-direction: column;
-    padding: 4px 16px 10px;
-    gap: 4px;
-    background: #f8fafc;
-    border-top: 1px solid rgba(0, 0, 0, 0.04);
+.ai-question-option-text {
+    flex: 1;
+    min-width: 0;
+    color: inherit;
 }
 
-.ai-settings-inline-option {
+.ai-question-inline-custom {
+    margin-top: 4px;
+}
+
+.ai-question-divider {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 12px;
-    padding: 10px 12px;
-    border-radius: 8px;
-    border: 1px solid transparent;
-    background: #ffffff;
-    text-align: left;
-    cursor: pointer;
-    transition: background-color 0.15s ease, border-color 0.15s ease;
+    margin-bottom: 8px;
 }
 
-.ai-settings-inline-option:hover {
-    background: #f1f5f9;
+.ai-question-divider::before,
+.ai-question-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(226, 232, 240, 0.6);
 }
 
-.ai-settings-inline-option.active {
-    border-color: rgba(16, 163, 127, 0.35);
-    background: rgba(16, 163, 127, 0.08);
-}
-
-.ai-settings-option-main {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-}
-
-.ai-settings-option-main strong {
-    font-size: 14px;
-    font-weight: 600;
-    color: #0f172a;
-}
-
-.ai-settings-option-main small {
+.ai-question-divider span {
     font-size: 12px;
-    color: #64748b;
-    line-height: 1.3;
+    color: #94a3b8;
+    white-space: nowrap;
 }
 
-.ai-settings-switch {
-    position: relative;
-    width: 38px;
-    height: 22px;
-    border-radius: 999px;
-    background: #cbd5e1;
-    flex-shrink: 0;
-    transition: background-color 0.2s ease;
-}
-
-.ai-settings-switch::after {
-    content: "";
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 16px;
-    height: 16px;
-    border-radius: 999px;
-    background: #ffffff;
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.22);
-    transition: transform 0.2s ease;
-}
-
-.ai-settings-switch.enabled {
-    background: #10a37f;
-}
-
-.ai-settings-switch.enabled::after {
-    transform: translateX(16px);
-}
-
-.ai-settings-meter-row {
-    padding: 14px 16px;
-    display: grid;
-    gap: 10px;
+.ai-question-input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1.5px solid rgba(226, 232, 240, 0.7);
+    border-radius: 10px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #0f172a;
+    background: rgba(255, 255, 255, 0.7);
+    resize: none;
+    outline: none;
+    transition: border-color 0.15s ease;
+    font-family: inherit;
     box-sizing: border-box;
 }
 
-.ai-settings-meter-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
+.ai-question-input:focus {
+    border-color: #1459d9;
 }
 
-.ai-settings-meter-info strong {
+.ai-question-inline-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+}
+
+.ai-question-btn {
+    padding: 8px 18px;
+    border-radius: 10px;
     font-size: 14px;
-    font-weight: 600;
-    color: #0f172a;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: none;
+    font-family: inherit;
 }
 
-.ai-settings-meter-info small {
-    font-size: 12px;
-    color: #64748b;
+.ai-question-btn-submit {
+    background: #1459d9;
+    color: #fff;
 }
 
-.ai-settings-meter-track {
-    height: 6px;
-    overflow: hidden;
-    border-radius: 999px;
-    background: #e2e8f0;
+.ai-question-btn-submit:hover {
+    background: #1045b0;
 }
 
-.ai-settings-meter-fill {
-    height: 100%;
-    border-radius: 999px;
-    background: #10a37f;
-    transition: width 0.3s ease;
+.ai-question-btn-submit:disabled {
+    background: #94a3b8;
+    cursor: not-allowed;
 }
 
-.ai-settings-footer {
-    text-align: center;
-    padding: 8px 0 4px;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
+.ai-question-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
-.ai-settings-footer strong {
-    font-size: 13px;
-    font-weight: 700;
-    color: #64748b;
-}
-
-.ai-settings-footer span {
-    font-size: 12px;
-    color: #94a3b8;
-}
-
-.bg-blue {
-    background-color: #EBF5FF;
-    color: #007AFF;
-}
-
-.bg-green {
-    background-color: #E8F9EE;
-    color: #34C759;
-}
-
-.bg-purple {
-    background-color: #F7EFFF;
-    color: #AF52DE;
-}
-
-.bg-gray {
-    background-color: #F5F5F7;
-    color: #8E8E93;
-}
-
-.bg-indigo {
-    background-color: #EEEDFF;
-    color: #5856D6;
-}
-
-.bg-red {
-    background-color: #FFE5E5;
-    color: #dc2626;
-}
-
-.ai-settings-row.danger .ai-settings-label,
-.ai-settings-row.danger .ai-settings-desc {
-    color: #dc2626;
-}
-
-.ai-settings-row.danger:hover {
-    background: rgba(220, 38, 38, 0.04);
-}
-
-.ai-settings-chevron.text-danger {
-    color: #dc2626;
-}
-
-[data-boh-theme="dark"] .ai-settings-drawer {
-    background: rgba(28, 28, 30, 0.98) !important;
-    border-color: rgba(255, 255, 255, 0.1) !important;
-    color: #f8fafc !important;
-}
-
-[data-boh-theme="dark"] .ai-settings-card {
-    background: rgba(40, 40, 42, 0.8);
-    border-color: rgba(255, 255, 255, 0.08);
-}
-
-[data-boh-theme="dark"] .ai-settings-group-title {
-    color: #9ca3af;
-}
-
-[data-boh-theme="dark"] .ai-settings-label {
-    color: #f8fafc;
-}
-
-[data-boh-theme="dark"] .ai-settings-desc,
-[data-boh-theme="dark"] .ai-settings-value {
-    color: #9ca3af;
-}
-
-[data-boh-theme="dark"] .ai-settings-chevron {
-    color: #6b7280;
-}
-
-[data-boh-theme="dark"] .ai-settings-row:hover,
-[data-boh-theme="dark"] .ai-settings-row.expanded {
-    background: rgba(255, 255, 255, 0.06);
-}
-
-[data-boh-theme="dark"] .ai-settings-inline-options {
-    background: rgba(255, 255, 255, 0.04);
-    border-color: rgba(255, 255, 255, 0.06);
-}
-
-[data-boh-theme="dark"] .ai-settings-inline-option {
-    background: rgba(40, 40, 42, 0.6);
-}
-
-[data-boh-theme="dark"] .ai-settings-inline-option.active {
-    border-color: rgba(16, 163, 127, 0.45);
-    background: rgba(16, 163, 127, 0.12);
-}
-
-[data-boh-theme="dark"] .ai-settings-option-main strong {
-    color: #f8fafc;
-}
-
-[data-boh-theme="dark"] .ai-settings-option-main small {
-    color: #9ca3af;
-}
-
-[data-boh-theme="dark"] .ai-settings-icon {
-    background: rgba(255, 255, 255, 0.08);
-}
-
-[data-boh-theme="dark"] .ai-settings-header {
-    border-color: rgba(255, 255, 255, 0.1);
-}
-
-[data-boh-theme="dark"] .ai-settings-close-btn {
-    color: #9ca3af;
-}
-
-[data-boh-theme="dark"] .ai-settings-close-btn:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: #f8fafc;
-}
-
-[data-boh-theme="dark"] .ai-settings-meter-track {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-[data-boh-theme="dark"] .ai-settings-footer strong,
-[data-boh-theme="dark"] .ai-settings-footer span {
-    color: #9ca3af;
-}
-
-@media (max-width: 768px) and (orientation: portrait) {
-    .ai-settings-backdrop {
-        align-items: flex-end !important;
-        padding: 0 !important;
+@media (max-width: 767px) {
+    .ai-question-inline {
+        padding: 12px 14px;
+        border-radius: 12px;
     }
-
-    .ai-settings-drawer {
-        width: 100% !important;
-        height: min(88dvh, 720px) !important;
-        border-radius: 18px 18px 0 0 !important;
+    .ai-question-inline-question {
+        font-size: 14px;
+    }
+    .ai-question-option {
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+    .ai-question-input {
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+    .ai-question-btn {
+        padding: 7px 14px;
+        font-size: 13px;
     }
 }
 </style>

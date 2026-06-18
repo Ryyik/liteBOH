@@ -21,18 +21,22 @@ import {
 } from '@/utils/bohai-action-audit.js';
 import {
   buildHistoryMessagesWithCachedSummary,
+  getStorableDialogueMessages,
+  isEmptyAssistantPlaceholder,
   normalizePromptLine,
+  ESTIMATED_SYSTEM_PROMPT_CHARS,
   CONVERSATION_SUMMARY_MAX_CHARS
 } from './bohai-engine-helpers.js';
 import { logger } from '@/utils/logger.js';
 
-let _lastActualExtraChars = 2000;
+// 使用 ref 让 _lastActualExtraChars 成为响应式，确保 computeContextBudgetUsage 能追踪其变化
+const _lastActualExtraChars = ref(2000);
 // EMA 平滑系数：新值占 40%，旧值占 60%，防止检索证据有无导致百分比剧烈波动
 const _extraCharsEmaAlpha = 0.4;
 
 export const updateLastActualExtraChars = (chars) => {
   if (typeof chars === 'number' && chars > 0) {
-    _lastActualExtraChars = Math.round(_lastActualExtraChars * (1 - _extraCharsEmaAlpha) + chars * _extraCharsEmaAlpha);
+    _lastActualExtraChars.value = Math.round(_lastActualExtraChars.value * (1 - _extraCharsEmaAlpha) + chars * _extraCharsEmaAlpha);
   }
 };
 
@@ -135,6 +139,7 @@ export function useConversationManager({
   let saveDebounceTimer = null;
   let saveIdleTimer = null;
   let saveIdleCallbackId = null;
+  let saveCallCounter = 0;
 
   // ============================================================
   // Reset functions
@@ -198,16 +203,6 @@ export function useConversationManager({
   };
 
   // ============================================================
-  // Helper utilities
-  // ============================================================
-  const isEmptyAssistantPlaceholder = (message) => {
-    if (!message || message.role !== 'assistant') return false;
-    if (String(message.content || '').trim()) return false;
-    const meta = message.meta && typeof message.meta === 'object' ? message.meta : null;
-    return !meta || Object.keys(meta).length === 0;
-  };
-
-  // ============================================================
   // Session sanitizer (for storage)
   // ============================================================
   const sanitizeChatSessionForStorage = createBohAIChatSessionSanitizer({
@@ -219,10 +214,15 @@ export function useConversationManager({
   // ============================================================
   // Context budget calculation
   // ============================================================
-  const computeContextBudgetUsage = (session) => {
+  const computeContextBudgetUsage = (session, { pendingCount = 2 } = {}) => {
     const source = Array.isArray(session?.messages) ? session.messages : [];
-    // 真正送入模型的窗口排除正在输入的 user 与刚返回的 assistant 占位（与 sendMessage 内 historyMessagesForCurrentTurn = slice(0, -2) 一致）
-    const historySource = source.length > 2 ? source.slice(0, -2) : [];
+    // 根据 pendingCount 排除正在输入/生成的占位消息
+    // pendingCount=0 时不能 slice(0, -0)，JS 会把 -0 转成 0 导致 slice(0,0) 永远返回空数组
+    const historySource = source.length > pendingCount
+      ? pendingCount > 0
+        ? source.slice(0, -pendingCount)
+        : source.slice()
+      : [];
     const recentBuilt = buildHistoryMessagesWithCachedSummary({
       ...(session || {}),
       messages: historySource
@@ -239,31 +239,36 @@ export function useConversationManager({
 
     // 实际模型上下文 = 系统提示词(~600) + 历史消息 + 结构化用户提示词(含检索证据/规则, 最多 MAX_FINAL_PROMPT_CHARS)
     // 用总预算来反映真实占用，而不是只看历史消息占比
-    const estimatedSystemPromptChars = 600;
     const estimatedExtraChars = Math.min(
       MAX_PROMPT_EXTRA_CHARS,
-      Math.max(_lastActualExtraChars, 2000)
+      Math.max(_lastActualExtraChars.value, 2000)
     );
-    const totalUsedChars = estimatedSystemPromptChars + historyChars + estimatedExtraChars;
-    const totalBudget = estimatedSystemPromptChars + MAX_HISTORY_CONTEXT_CHARS + MAX_FINAL_PROMPT_CHARS;
+    const totalUsedChars = ESTIMATED_SYSTEM_PROMPT_CHARS + historyChars + estimatedExtraChars;
+    const totalBudget = ESTIMATED_SYSTEM_PROMPT_CHARS + MAX_HISTORY_CONTEXT_CHARS + MAX_FINAL_PROMPT_CHARS;
 
     const rawPercent = totalBudget > 0 ? (totalUsedChars / totalBudget) * 100 : 0;
     const percent = Math.max(0, Math.min(100, rawPercent));
+    // 显示用：仅历史 + 系统提示词基线，去掉不可控的 estimatedExtraChars，消息增加时百分比真实增长
+    const historyBudget = ESTIMATED_SYSTEM_PROMPT_CHARS + MAX_HISTORY_CONTEXT_CHARS;
+    const historyPercent = historyBudget > 0 ? ((ESTIMATED_SYSTEM_PROMPT_CHARS + historyChars) / historyBudget) * 100 : 0;
     const includedMessageCount = recentBuilt.length;
+    const totalMessageCount = getStorableDialogueMessages(source).length;
     const hasSummary = recentBuilt.some((item) => item?.role === 'system' && /【此前对话摘要】/.test(String(item?.content || '')));
 
     return {
       used: totalUsedChars,
       max: totalBudget,
       percent,
+      historyPercent: Math.max(0, Math.min(100, historyPercent)),
       includedMessageCount,
+      totalMessageCount,
       hasSummary,
-      // 颜色档位（low / mid / high / full）由 UI 直接使用，避免在模板中重复阈值判断
-      level: percent >= 95 ? 'full' : percent >= 80 ? 'high' : percent >= 55 ? 'mid' : 'low'
+      // 颜色档位基于 historyPercent；high ≥ 85% 触发自动压缩，full ≥ 100% 时强制压缩
+      level: historyPercent >= 100 ? 'full' : historyPercent >= 85 ? 'high' : historyPercent >= 60 ? 'mid' : 'low'
     };
   };
 
-  const contextBudgetUsage = computed(() => computeContextBudgetUsage(chatSessions[currentSessionIndex.value]));
+  const contextBudgetUsage = computed(() => computeContextBudgetUsage(chatSessions[currentSessionIndex.value], { pendingCount: 0 }));
 
   // ============================================================
   // Save / Load sessions from local storage
@@ -302,11 +307,14 @@ export function useConversationManager({
 
   const scheduleSaveSessions = () => {
     clearSaveTimers();
+    const thisCallId = ++saveCallCounter;
     saveDebounceTimer = setTimeout(() => {
       saveDebounceTimer = null;
+      if (thisCallId !== saveCallCounter) return; // Superseded by newer call
 
       if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
         saveIdleCallbackId = window.requestIdleCallback(() => {
+          if (thisCallId !== saveCallCounter) return;
           saveIdleCallbackId = null;
           saveSessions();
         }, { timeout: SESSION_SAVE_IDLE_TIMEOUT_MS });
@@ -314,6 +322,7 @@ export function useConversationManager({
       }
 
       saveIdleTimer = setTimeout(() => {
+        if (thisCallId !== saveCallCounter) return;
         saveIdleTimer = null;
         saveSessions();
       }, 0);
@@ -336,6 +345,8 @@ export function useConversationManager({
     chatSessions.splice(0, chatSessions.length, { title: '新对话', messages: [], timestamp: Date.now(), isLoading: false, isThinking: false });
     currentSessionIndex.value = 0;
     activeGenerationSessionIndex.value = null;
+    isCompressingContext.value = false;
+    compressingSessionIndex.value = -1;
     localStorage.removeItem('hasSeenAiWelcome_2025_02');
     treeholeMemoryCache.userId = '';
     treeholeMemoryCache.fetchedAt = 0;
@@ -454,10 +465,10 @@ export function useConversationManager({
     memoryCaptureStatusMessage,
     activeActionDraft,
     // Functions
+    isEmptyAssistantPlaceholder,
     resetUserPrivateContextCache, resetSharedMemorySearchCache,
     resetPendingTreeholeCreation, resetPendingCloudReferenceConsent,
     resetPendingSharedMemoryCapture, resetPendingQuickNote, resetPendingActionDraft,
-    isEmptyAssistantPlaceholder,
     sanitizeChatSessionForStorage,
     computeContextBudgetUsage,
     loadSessions, saveSessions, scheduleSaveSessions, clearSaveTimers,

@@ -38,6 +38,16 @@ export const CONVERSATION_SUMMARY_MIN_MESSAGES = 10;
 export const CONVERSATION_SUMMARY_MAX_CHARS = 2000;
 export const CONVERSATION_SUMMARY_TWO_LEVEL_THRESHOLD = 50;
 export const CONVERSATION_SUMMARY_STORAGE_VERSION = 2;
+
+// 系统提示词估算字符数
+export const ESTIMATED_SYSTEM_PROMPT_CHARS = 600;
+
+export const isEmptyAssistantPlaceholder = (message) => {
+  if (!message || message.role !== 'assistant') return false;
+  if (String(message.content || '').trim()) return false;
+  const meta = message.meta && typeof message.meta === 'object' ? message.meta : null;
+  return !meta || Object.keys(meta).length === 0;
+};
 export const GENERATION_STALL_TIMEOUT_MS = 120000;
 
 const AI_MEMORY_RETRY_DELAY_MS = 30000;

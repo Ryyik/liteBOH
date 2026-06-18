@@ -231,6 +231,11 @@
               </div>
             </div>
           </article>
+          <div v-if="hasMorePosts" class="profile-load-more-wrap">
+            <button class="profile-load-more-btn" :disabled="isLoadingMore" @click.stop="$emit('load-more')">
+              {{ isLoadingMore ? '加载中...' : '加载更多帖子' }}
+            </button>
+          </div>
         </div>
         <div v-else class="profile-content-empty">
           <h3>还没有发帖</h3>
@@ -347,6 +352,14 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  hasMorePosts: {
+    type: Boolean,
+    default: false
+  },
+  isLoadingMore: {
+    type: Boolean,
+    default: false
+  },
   isImpressionsLoading: {
     type: Boolean,
     default: false
@@ -370,7 +383,8 @@ defineEmits([
   'gift',
   'post-click',
   'switch-tab',
-  'delete-impression'
+  'delete-impression',
+  'load-more'
 ]);
 
 const displayName = computed(() => props.profile.username || '未登录');

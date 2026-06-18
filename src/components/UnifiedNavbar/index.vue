@@ -182,34 +182,33 @@ const navMenuItems = [
     name: "community",
     label: "社区",
     children: [
-      { name: "forum", path: "/user-space?tab=posts", label: "方块社区" },
-      { name: "lotteries", path: "/lotteries", label: "抽奖" },
+      { name: "forum", path: "/user-space?tab=posts", label: "论坛" },
       { name: "activities", path: "/activities", label: "活动" },
-      { name: "shows", path: "/shows", label: "节目" },
-      { name: "character-book", path: "/character-book", label: "设定集" },
-      { name: "8years", path: "/boh-8-years-event", label: "八周年" }
+      { name: "lotteries", path: "/lotteries", label: "抽奖" },
+      { name: "shows", path: "/shows", label: "节目" }
     ]
   },
   {
     name: "explore",
     label: "探索",
     children: [
-      { name: "shop", path: "/shop", label: "周边" },
-      { name: "ai-chat", path: "/ai-chat", label: "BOH AI" },
+      { name: "character-book", path: "/character-book", label: "设定集" },
       { name: "ai-plaza", path: "/ai-plaza", label: "AI广场" },
       { name: "mbti", path: "/mbti", label: "MBTI" },
-      // { name: "create-desktop", action: "createDesktop", label: "创建BOH桌面" }
+      { name: "lab", path: "/lab", label: "实验室" }
     ]
   },
-  { name: "about", path: "/about", label: "关于" },
   {
-    name: "docs",
-    label: "文档",
+    name: "services",
+    label: "服务",
     children: [
-      { name: "tutorial", path: "/tutorial", label: "教程" },
-      { name: "download", path: "/download", label: "下载" }
+      { name: "ai-chat", path: "/ai-chat", label: "BOH AI" },
+      { name: "shop", path: "/shop", label: "周边商城" },
+      { name: "tutorial", path: "/tutorial", label: "教程中心" },
+      { name: "download", path: "/download", label: "下载中心" }
     ]
   },
+  { name: "about", path: "/about", label: "关于" }
 ];
 
 /**

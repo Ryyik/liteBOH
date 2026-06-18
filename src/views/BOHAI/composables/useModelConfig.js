@@ -11,6 +11,7 @@ import {
   PLAN_MODE_SETTING_KEY,
   SHARED_MEMORY_SETTING_KEY,
   KNOWLEDGE_BASE_SETTING_KEY,
+  MODE_SETTING_KEY,
   availableModels as _availableModels,
   chatModes as _chatModes
 } from './chat-engine-config.js';
@@ -40,7 +41,15 @@ export function useModelConfig({ availableModels = _availableModels, chatModes =
 
   // 当前模式 - 默认 Fast（极速响应）。4 模式之间不自动切换；
   // 用户主动选择什么就走什么（语义：Fast=极速 / Pro=质量 / Plan=超级高质量 / Agent=工作）。
-  const currentModeId = ref(BOH_DEFAULT_MODE_ID);
+  const resolveInitialModeId = () => {
+    if (typeof window === 'undefined') return BOH_DEFAULT_MODE_ID;
+    try {
+      const saved = localStorage.getItem(MODE_SETTING_KEY);
+      if (saved && getChatModes().some((m) => m.id === saved)) return saved;
+    } catch {}
+    return BOH_DEFAULT_MODE_ID;
+  };
+  const currentModeId = ref(resolveInitialModeId());
   const currentMode = computed(() => getChatModes().find((m) => m.id === currentModeId.value) || getChatModes()[0]);
   const currentModelId = computed(() => currentMode.value.model);
   const currentModel = computed(() => getAvailableModels().find((m) => m.id === currentModelId.value) || getAvailableModels()[0]);
@@ -137,6 +146,16 @@ export function useModelConfig({ availableModels = _availableModels, chatModes =
     persistResponseStyleSetting();
   };
 
+  const persistModeSetting = () => {
+    if (typeof window === 'undefined') return;
+    const modeId = currentModeId.value;
+    if (modeId && modeId !== BOH_DEFAULT_MODE_ID) {
+      localStorage.setItem(MODE_SETTING_KEY, modeId);
+    } else {
+      localStorage.removeItem(MODE_SETTING_KEY);
+    }
+  };
+
   const persistMemoryCaptureSetting = () => {
     if (typeof window === 'undefined') return;
     localStorage.removeItem(MEMORY_CAPTURE_SETTING_KEY);
@@ -197,6 +216,7 @@ export function useModelConfig({ availableModels = _availableModels, chatModes =
     getModelForModeId,
     togglePlanMode,
     setResponseStyle,
+    persistModeSetting,
     persistPlanModeSetting,
     persistMemoryCaptureSetting,
     persistTreeholeMemorySetting,

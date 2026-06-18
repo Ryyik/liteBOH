@@ -10,12 +10,12 @@
     <input type="file" ref="profileBackgroundInputRef" class="hidden-file-input" accept="image/*"
       @change="handleProfileBackgroundFileChange">
 
-    <div v-if="mountedTabs.posts" v-show="currentTab === 'posts'" class="tab-page posts-tab">
+    <div v-if="mountedTabs.posts" v-show="currentTab === 'posts' || leavingTab === 'posts'" class="tab-page posts-tab" :class="{ 'is-leaving': leavingTab === 'posts' }">
       <AsyncForum :key="forumRenderKey" :show-navbar="false" :show-header="false" :embedded="true"
         @island-message="showBottomNavIsland" />
     </div>
 
-    <div v-if="mountedTabs.community" v-show="currentTab === 'community'" class="tab-page">
+    <div v-if="mountedTabs.community" v-show="currentTab === 'community' || leavingTab === 'community'" class="tab-page" :class="{ 'is-leaving': leavingTab === 'community' }">
       <div class="page-content">
         <div v-if="isLoadingCommunity && !hasLoadedCommunity" class="community-skeleton" aria-hidden="true">
           <div v-for="group in 3" :key="`community-group-loading-${group}`" class="community-group skeleton">
@@ -200,17 +200,17 @@
       </div>
     </div>
 
-    <div v-if="mountedTabs.shows" v-show="currentTab === 'shows'" class="tab-page shows-tab">
+    <div v-if="mountedTabs.shows" v-show="currentTab === 'shows' || leavingTab === 'shows'" class="tab-page shows-tab" :class="{ 'is-leaving': leavingTab === 'shows' }">
       <AsyncShows :embedded="true" />
     </div>
 
-    <div v-if="mountedTabs.ai" v-show="currentTab === 'ai'" class="tab-page ai-tab">
+    <div v-if="mountedTabs.ai" v-show="currentTab === 'ai' || leavingTab === 'ai'" class="tab-page ai-tab" :class="{ 'is-leaving': leavingTab === 'ai' }">
       <section class="ai-workspace" aria-label="BOH AI 聊天">
         <AsyncBOHAI :embedded="true" @island-message="showBottomNavIsland" />
       </section>
     </div>
 
-    <div v-if="mountedTabs.messages" v-show="currentTab === 'messages'" class="tab-page messages-tab">
+    <div v-if="mountedTabs.messages" v-show="currentTab === 'messages' || leavingTab === 'messages'" class="tab-page messages-tab" :class="{ 'is-leaving': leavingTab === 'messages' }">
       <HomeCatMascot v-if="isHomeCatActive" class="messages-tab-cat" pool="background" seed="messages-tab"
         size="lg" decorative />
       <AsyncMessages :minimal="true" />
@@ -248,6 +248,8 @@
               :active-content-tab="activeProfileContentTab"
               :is-content-loading="isProfileContentLoading"
               :posts="profilePosts"
+              :has-more-posts="hasMoreProfilePosts"
+              :is-loading-more="isLoadingMoreProfilePosts"
               :is-impressions-loading="isProfileImpressionsLoading"
               :impressions="profileImpressions"
               @edit-profile="openEditProfileModal"
@@ -263,6 +265,7 @@
               @post-click="openProfilePost"
               @switch-tab="switchTab"
               @delete-impression="handleDeleteProfileImpression"
+              @load-more="loadMoreProfilePosts"
             />
 
             <div v-else-if="profileSection === 'edit-profile'" key="profile-edit" class="profile-edit-page-shell">
@@ -683,6 +686,7 @@ const validTabs = USER_SPACE_VALID_TABS;
 const loginRequiredTabs = new Set();
 const validProfileSections = ['home', 'edit-profile', 'sponsor', 'settings', 'data-management'];
 const tabTransitionDirection = ref('forward');
+const leavingTab = ref(null);
 const {
   currentTab,
   profileSection,
@@ -831,10 +835,14 @@ const profileContentTabs = [
   { id: 'impressions', label: '印象' }
 ];
 const activeProfileContentTab = ref('posts');
+const PROFILE_POSTS_PAGE_SIZE = 15;
 const profilePosts = ref([]);
 const profileImpressions = ref([]);
 const isProfileContentLoading = ref(false);
 const isProfileImpressionsLoading = ref(false);
+const hasMoreProfilePosts = ref(true);
+const profilePostsPage = ref(1);
+const isLoadingMoreProfilePosts = ref(false);
 let latestProfileContentFetchToken = 0;
 let latestProfileImpressionsFetchToken = 0;
 
@@ -886,7 +894,7 @@ const openProfilePost = (postId) => {
   router.push({ name: 'PostDetail', params: { id: safePostId }, query: { from: 'user-space', tab: 'profile' } });
 };
 
-const fetchProfileContent = async ({ force = false } = {}) => {
+const fetchProfileContent = async ({ force = false, reset = false } = {}) => {
   if (!isLoggedIn.value || !userInfo.value.id) {
     profilePosts.value = [];
     return;
@@ -896,7 +904,12 @@ const fetchProfileContent = async ({ force = false } = {}) => {
   const userId = String(userInfo.value.id || '').trim();
   const cacheKey = `profile-posts:${userId}:${safeUsername}`;
 
-  if (activeProfileContentTab.value === 'posts' && !force) {
+  if (reset) {
+    hasMoreProfilePosts.value = true;
+    profilePostsPage.value = 1;
+  }
+
+  if (activeProfileContentTab.value === 'posts' && !force && !reset) {
     const cachedPosts = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.profilePosts);
     if (cachedPosts) {
       profilePosts.value = cachedPosts;
@@ -906,29 +919,41 @@ const fetchProfileContent = async ({ force = false } = {}) => {
   }
 
   const fetchToken = ++latestProfileContentFetchToken;
-  isProfileContentLoading.value = true;
+  if (reset) {
+    isProfileContentLoading.value = true;
+  }
 
   try {
     if (activeProfileContentTab.value === 'posts') {
+      const pageToLoad = reset ? 1 : profilePostsPage.value;
       const result = await getPostsByUsername(safeUsername, userId, {
-        page: 1,
-        pageSize: 12,
+        page: pageToLoad,
+        pageSize: PROFILE_POSTS_PAGE_SIZE,
         includeUnapprovedForAuthor: true
       });
       if (fetchToken !== latestProfileContentFetchToken) return;
       if (result.error) {
         logger.warn('user-space', '读取我的发帖失败:', result.error);
-        profilePosts.value = [];
+        if (reset) profilePosts.value = [];
         return;
       }
-      profilePosts.value = result.data || [];
+      const incoming = result.data || [];
+      if (reset) {
+        profilePosts.value = incoming;
+      } else {
+        const seen = new Set(profilePosts.value.map(p => p.id));
+        const newPosts = incoming.filter(p => !seen.has(p.id));
+        profilePosts.value = [...profilePosts.value, ...newPosts];
+      }
+      hasMoreProfilePosts.value = incoming.length === PROFILE_POSTS_PAGE_SIZE;
+      profilePostsPage.value = pageToLoad + 1;
       setUserSpaceCache(cacheKey, profilePosts.value);
       return;
     }
 
   } catch (error) {
     logger.warn('user-space', '读取我的内容失败:', error);
-    if (activeProfileContentTab.value === 'posts') {
+    if (activeProfileContentTab.value === 'posts' && reset) {
       profilePosts.value = [];
     }
   } finally {
@@ -938,12 +963,22 @@ const fetchProfileContent = async ({ force = false } = {}) => {
   }
 };
 
+const loadMoreProfilePosts = async () => {
+  if (isLoadingMoreProfilePosts.value || !hasMoreProfilePosts.value) return;
+  isLoadingMoreProfilePosts.value = true;
+  try {
+    await fetchProfileContent({ reset: false });
+  } finally {
+    isLoadingMoreProfilePosts.value = false;
+  }
+};
+
 const switchProfileContentTab = (tabId) => {
   if (!profileContentTabs.some(tab => tab.id === tabId)) return;
   if (activeProfileContentTab.value === tabId) return;
   activeProfileContentTab.value = tabId;
   if (tabId === 'posts') {
-    void fetchProfileContent();
+    void fetchProfileContent({ reset: true });
   } else if (tabId === 'cloud') {
     void fetchCloudPlusUsage();
   } else if (tabId === 'impressions') {
@@ -1938,18 +1973,22 @@ const switchTab = (tabId) => {
   if (tabId === 'profile' && currentTab.value !== 'profile') {
     profileSection.value = 'home';
   }
-  currentTab.value = tabId;
-  syncUserSpaceTabRoute(tabId);
-  if (tabId === 'posts') {
-    void preloadForumComponent();
-    void refreshForumAfterThemeChange();
-  }
-  if (tabId === 'community' && !hasLoadedCommunity.value) {
-    fetchCommunityOverview();
-  }
-  if (tabId === 'ai') {
-    void preloadBOHAIComponent();
-  }
+  leavingTab.value = currentTab.value;
+  setTimeout(() => {
+    currentTab.value = tabId;
+    leavingTab.value = null;
+    syncUserSpaceTabRoute(tabId);
+    if (tabId === 'posts') {
+      void preloadForumComponent();
+      void refreshForumAfterThemeChange();
+    }
+    if (tabId === 'community' && !hasLoadedCommunity.value) {
+      fetchCommunityOverview();
+    }
+    if (tabId === 'ai') {
+      void preloadBOHAIComponent();
+    }
+  }, 180);
 };
 
 const closeAiOverlay = () => {
@@ -2328,7 +2367,7 @@ const runProfileCriticalFetches = ({ force = false } = {}) => {
   void refreshPendingGift({ force });
   void fetchUserStats({ force });
   void fetchCloudPlusUsage({ force });
-  void fetchProfileContent({ force });
+  void fetchProfileContent({ force, reset: force });
 };
 
 const scheduleUserSpaceWarmup = ({ force = false } = {}) => {
@@ -2450,22 +2489,26 @@ watch(() => route.query.tab, (newTab) => {
   if (currentTab.value === nextTab) return;
   updateTabTransitionDirection(nextTab);
   ensureTabMounted(nextTab);
-  currentTab.value = nextTab;
-  resolveProfileSectionFromRoute();
-  if (nextTab === 'posts') {
-    scheduleForumPreload(currentTab.value);
-    void refreshForumAfterThemeChange();
-  }
-  if (nextTab === 'community' && !hasLoadedCommunity.value) {
-    fetchCommunityOverview();
-  }
-  if (nextTab === 'community') {
-    syncCommunityViewFromRoute();
-  }
-  if (nextTab === 'profile') {
-    runProfileCriticalFetches();
-    void openSettingsPanelFromRoute();
-  }
+  leavingTab.value = currentTab.value;
+  setTimeout(() => {
+    currentTab.value = nextTab;
+    leavingTab.value = null;
+    resolveProfileSectionFromRoute();
+    if (nextTab === 'posts') {
+      scheduleForumPreload(currentTab.value);
+      void refreshForumAfterThemeChange();
+    }
+    if (nextTab === 'community' && !hasLoadedCommunity.value) {
+      fetchCommunityOverview();
+    }
+    if (nextTab === 'community') {
+      syncCommunityViewFromRoute();
+    }
+    if (nextTab === 'profile') {
+      runProfileCriticalFetches();
+      void openSettingsPanelFromRoute();
+    }
+  }, 180);
 });
 
 watch(() => route.query.view, () => {

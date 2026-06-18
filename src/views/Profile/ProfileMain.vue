@@ -930,7 +930,7 @@ const loadPostsPage = async ({ reset = false, fetchVersion = profileFetchVersion
     if (fetchVersion !== profileFetchVersion.value) return;
     const incoming = postsRes.error ? [] : (postsRes.data || []);
     posts.value = reset ? incoming : mergeUniqueById(posts.value, incoming);
-    hasMorePosts.value = incoming.length >= PROFILE_PAGE_SIZE;
+    hasMorePosts.value = incoming.length === PROFILE_PAGE_SIZE;
     postsPage.value = pageToLoad + 1;
     tabLoaded.posts = true;
   } catch (error) {
@@ -958,7 +958,7 @@ const loadCommentsPage = async ({ reset = false, fetchVersion = profileFetchVers
     if (fetchVersion !== profileFetchVersion.value) return;
     const incoming = cRes.error ? [] : (cRes.data || []);
     comments.value = reset ? incoming : mergeUniqueById(comments.value, incoming);
-    hasMoreComments.value = incoming.length >= PROFILE_PAGE_SIZE;
+    hasMoreComments.value = incoming.length === PROFILE_PAGE_SIZE;
     commentsPage.value = pageToLoad + 1;
     tabLoaded.replies = true;
   } catch (error) {
@@ -985,7 +985,7 @@ const loadImpressionsPage = async ({ reset = false, fetchVersion = profileFetchV
     if (fetchVersion !== profileFetchVersion.value) return;
     const incoming = impRes.error ? [] : (impRes.data || []);
     impressions.value = reset ? incoming : mergeUniqueById(impressions.value, incoming);
-    hasMoreImpressions.value = incoming.length >= PROFILE_PAGE_SIZE;
+    hasMoreImpressions.value = incoming.length === PROFILE_PAGE_SIZE;
     impressionsPage.value = pageToLoad + 1;
     tabLoaded.impressions = true;
   } catch (error) {
@@ -1444,8 +1444,11 @@ const handleCreatePost = async (safeTitle, safeContent) => {
         comment_count: 0,
         like_count: 0
       };
-      posts.value = mergeUniqueById([optimisticPost], posts.value).slice(0, PROFILE_PAGE_SIZE);
+      posts.value = mergeUniqueById([optimisticPost], posts.value);
       tabLoaded.posts = true;
+      // 重置分页状态，确保后续"加载更多"从正确页码开始
+      postsPage.value = 2;
+      hasMorePosts.value = true;
       showPostModal.value = false;
       showAlert('success', '发布成功', '您的新动态已同步至社区，系统将异步完成内容审查');
     } else {

@@ -388,26 +388,26 @@ export async function getPostsByUsername(username, userId = null, options = {}) 
       let data = [];
       let error = null;
 
-      // 优先按 author_id 精准匹配，username 仅作为兜底查询，避免字符串拼接的 or 条件。
-      if (userId) {
+      // 同时按 author_id 和 author_username 匹配，确保不会遗漏只有其中之一的帖子。
+      if (userId && safeUsername) {
+        let query = baseQuery().or(`author_id.eq.${userId},author_username.eq.${safeUsername}`);
+        if (!includeUnapprovedForAuthor) {
+          query = query.or(CONTENT_STATUS_FILTER);
+        }
+        if (paging.enabled) {
+          query = query.range(paging.from, paging.to);
+        }
+        const result = await query;
+        data = result.data || [];
+        error = result.error;
+      } else if (userId) {
         let byIdQuery = visibleQuery().eq('author_id', userId);
         if (paging.enabled) {
           byIdQuery = byIdQuery.range(paging.from, paging.to);
         }
         const byId = await byIdQuery;
-
         data = byId.data || [];
         error = byId.error;
-
-        if (!error && data.length === 0 && safeUsername) {
-          let byUsernameQuery = visibleQuery().eq('author_username', safeUsername);
-          if (paging.enabled) {
-            byUsernameQuery = byUsernameQuery.range(paging.from, paging.to);
-          }
-          const byUsername = await byUsernameQuery;
-          data = byUsername.data || [];
-          error = byUsername.error;
-        }
       } else if (safeUsername) {
         let byUsernameQuery = visibleQuery().eq('author_username', safeUsername);
         if (paging.enabled) {
@@ -469,6 +469,31 @@ export async function getCommentsByUsername(username, userId = null, options = {
         `)
         .or(CONTENT_STATUS_FILTER)
         .order('created_at', { ascending: false });
+
+      // 同时按 author_id 和 author_username 匹配，确保不会遗漏只有其中之一的回复。
+      if (userId && safeUsername) {
+        let query = supabase
+          .from('comments')
+          .select(`
+            id,
+            post_id,
+            content,
+            created_at,
+            author_id,
+            author_username,
+            status,
+            post:posts(title, body, content, author_username)
+          `)
+          .or(`author_id.eq.${userId},author_username.eq.${safeUsername}`)
+          .or(CONTENT_STATUS_FILTER)
+          .order('created_at', { ascending: false });
+
+        if (paging.enabled) {
+          query = query.range(paging.from, paging.to);
+        }
+        const result = await query;
+        return { data: normalizeProfileCommentRows(result.data || []), error: result.error };
+      }
 
       if (userId) {
         let byIdQuery = baseQuery().eq('author_id', userId);

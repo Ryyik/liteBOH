@@ -973,6 +973,36 @@
   column-gap: 14px;
 }
 
+.profile-load-more-wrap {
+  column-span: all;
+  display: flex;
+  justify-content: center;
+  padding: 16px 0 8px;
+}
+
+.profile-load-more-btn {
+  padding: 8px 24px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.84);
+  color: #475569;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.profile-load-more-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: rgba(15, 23, 42, 0.2);
+  color: #1e293b;
+}
+
+.profile-load-more-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .profile-forum-skeleton-feed {
   display: flex;
   flex-direction: column;

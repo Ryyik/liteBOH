@@ -1,4 +1,5 @@
 import { defineAsyncComponent, h } from 'vue';
+import AiChatSkeleton from './components/AiChatSkeleton.vue';
 
 const forumComponentLoader = () => import('@/views/Forum/ForumMain.vue');
 const messagesComponentLoader = () => import('@/views/user-center/Messages/index.vue');
@@ -152,6 +153,7 @@ const AsyncBOHAIError = {
 
 export const AsyncBOHAI = defineAsyncComponent({
   loader: bohaiComponentLoader,
+  loadingComponent: AiChatSkeleton,
   errorComponent: AsyncBOHAIError,
   delay: 120,
   timeout: 15000

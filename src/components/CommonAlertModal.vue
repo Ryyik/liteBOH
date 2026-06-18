@@ -16,7 +16,7 @@
             </div>
             <h3 class="alert-title" :style="titleStyle">{{ title }}</h3>
             <p class="alert-message" :style="messageStyle">{{ message }}</p>
-            <button class="alert-confirm-btn" :style="btnStyle" @click="close">
+            <button class="alert-confirm-btn" :style="btnStyle" @click="doConfirm">
               {{ confirmText }}
             </button>
           </div>
@@ -148,10 +148,14 @@ const btnStyle = computed(() => ({
   color: props.styles.btnColor || '#ffffff'
 }));
 
+const doConfirm = () => {
+  emit('update:visible', false);
+  emit('confirm');
+};
+
 const close = () => {
   emit('update:visible', false);
   emit('close');
-  emit('confirm');
 };
 
 const handleOverlayClick = () => {

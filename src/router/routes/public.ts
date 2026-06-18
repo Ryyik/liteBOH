@@ -86,4 +86,9 @@ export const publicRoutes: RouteRecordRaw[] = [
     name: "LithiumIron",
     component: () => import("../../views/LithiumIron/index.vue"),
   },
+  {
+    path: "/lab",
+    name: "Lab",
+    component: () => import("../../views/Lab/index.vue"),
+  },
 ]

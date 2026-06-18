@@ -1,209 +1,233 @@
 <template>
   <Teleport to="body">
-    <div v-if="modelValue" class="ai-settings-backdrop" role="presentation" @click.self="close">
-      <section class="ai-settings-drawer" role="dialog" aria-modal="true" aria-label="BOH AI 设置">
-        <header class="ai-settings-header">
-          <h2>设置</h2>
-          <button type="button" class="ai-settings-close-btn" title="关闭" @click="close">
-            <X size="18" />
-          </button>
-        </header>
+    <Transition name="settings-slide">
+      <div v-if="modelValue" class="ai-settings-backdrop" role="presentation"
+        @click.self="close" @keydown.escape="close"
+        @keydown.tab.prevent="handleTabTrap">
+        <section ref="drawerRef" class="ai-settings-drawer" role="dialog" aria-modal="true" aria-label="BOH AI 设置">
+          <header class="ai-settings-header">
+            <h2 tabindex="-1" ref="titleRef">设置</h2>
+            <button ref="closeBtnRef" type="button" class="ai-settings-close-btn" title="关闭 (Esc)" @click="close">
+              <X size="18" />
+            </button>
+          </header>
 
-        <div class="ai-settings-body custom-scrollbar">
-          <div class="ai-settings-card">
-            <div class="ai-settings-group-title">模型与风格</div>
-            <div class="ai-settings-list">
-              <div class="ai-settings-row" :class="{ expanded: showModePicker }"
-                @click="showModePicker = !showModePicker">
-                <div class="ai-settings-row-left">
-                  <div class="ai-settings-icon bg-blue">
-                    <Settings size="16" />
+          <div class="ai-settings-body custom-scrollbar">
+            <div class="ai-settings-card">
+              <div class="ai-settings-group-title">模型与风格</div>
+              <div class="ai-settings-list">
+                <div class="ai-settings-row" :class="{ expanded: showModePicker }"
+                  @click="showModePicker = !showModePicker">
+                  <div class="ai-settings-row-left">
+                    <div class="ai-settings-icon bg-blue">
+                      <Settings size="16" />
+                    </div>
+                    <div class="ai-settings-label-stack">
+                      <span class="ai-settings-label">默认模式</span>
+                      <span class="ai-settings-desc">{{ currentMode.name }}</span>
+                    </div>
                   </div>
-                  <div class="ai-settings-label-stack">
-                    <span class="ai-settings-label">默认模式</span>
-                    <span class="ai-settings-desc">{{ currentMode.name }}</span>
+                  <div class="ai-settings-row-right">
+                    <span class="ai-settings-chevron" :class="{ expanded: showModePicker }">›</span>
                   </div>
                 </div>
-                <div class="ai-settings-row-right">
-                  <span class="ai-settings-chevron" :class="{ expanded: showModePicker }">›</span>
+                <div v-if="showModePicker" class="ai-settings-inline-options">
+                  <button v-for="mode in chatModes" :key="mode.id" type="button"
+                    :class="['ai-settings-inline-option', { active: currentModeId === mode.id }]"
+                    @click.stop="$emit('selectMode', mode.id); showModePicker = false">
+                    <span class="ai-settings-option-main">
+                      <strong>{{ mode.name }}</strong>
+                      <small>{{ mode.tagline || mode.description }}</small>
+                    </span>
+                    <Check v-if="currentModeId === mode.id" size="16" />
+                  </button>
                 </div>
-              </div>
-              <div v-if="showModePicker" class="ai-settings-inline-options">
-                <button v-for="mode in chatModes" :key="mode.id" type="button"
-                  :class="['ai-settings-inline-option', { active: currentModeId === mode.id }]"
-                  @click.stop="$emit('selectMode', mode.id); showModePicker = false">
-                  <span class="ai-settings-option-main">
-                    <strong>{{ mode.name }}</strong>
-                    <small>{{ mode.tagline || mode.description }}</small>
-                  </span>
-                  <Check v-if="currentModeId === mode.id" size="16" />
-                </button>
-              </div>
 
-              <div class="ai-settings-row" :class="{ expanded: showStylePicker }"
-                @click="showStylePicker = !showStylePicker">
-                <div class="ai-settings-row-left">
-                  <div class="ai-settings-icon bg-purple">
-                    <span style="font-size:12px;font-weight:800;">Aa</span>
+                <div class="ai-settings-row" :class="{ expanded: showStylePicker }"
+                  @click="showStylePicker = !showStylePicker">
+                  <div class="ai-settings-row-left">
+                    <div class="ai-settings-icon bg-purple">
+                      <span style="font-size:12px;font-weight:800;">Aa</span>
+                    </div>
+                    <div class="ai-settings-label-stack">
+                      <span class="ai-settings-label">回答风格</span>
+                      <span class="ai-settings-desc">{{ currentResponseStyleName }}</span>
+                    </div>
                   </div>
-                  <div class="ai-settings-label-stack">
-                    <span class="ai-settings-label">回答风格</span>
-                    <span class="ai-settings-desc">{{ currentResponseStyleName }}</span>
-                  </div>
-                </div>
-                <div class="ai-settings-row-right">
-                  <span class="ai-settings-chevron" :class="{ expanded: showStylePicker }">›</span>
-                </div>
-              </div>
-              <div v-if="showStylePicker" class="ai-settings-inline-options">
-                <button v-for="style in responseStyleOptions" :key="style.id" type="button"
-                  :class="['ai-settings-inline-option', { active: currentResponseStyleId === style.id }]"
-                  @click.stop="$emit('selectResponseStyle', style.id); showStylePicker = false">
-                  <span class="ai-settings-option-main">
-                    <strong>{{ style.shortName || style.name }}</strong>
-                    <small>{{ style.description || style.name }}</small>
-                  </span>
-                  <Check v-if="currentResponseStyleId === style.id" size="16" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div class="ai-settings-card">
-            <div class="ai-settings-group-title">检索</div>
-            <div class="ai-settings-list">
-              <div class="ai-settings-row clickable" @click="$emit('update:isSearching', !isSearching)">
-                <div class="ai-settings-row-left">
-                  <div class="ai-settings-icon bg-green">
-                    <Globe size="16" />
-                  </div>
-                  <div class="ai-settings-label-stack">
-                    <span class="ai-settings-label">联网搜索</span>
-                    <span class="ai-settings-desc">获取实时信息</span>
+                  <div class="ai-settings-row-right">
+                    <span class="ai-settings-chevron" :class="{ expanded: showStylePicker }">›</span>
                   </div>
                 </div>
-                <div class="ai-settings-row-right">
-                  <span :class="['ai-settings-switch', { enabled: isSearching }]"></span>
+                <div v-if="showStylePicker" class="ai-settings-inline-options">
+                  <button v-for="style in responseStyleOptions" :key="style.id" type="button"
+                    :class="['ai-settings-inline-option', { active: currentResponseStyleId === style.id }]"
+                    @click.stop="$emit('selectResponseStyle', style.id); showStylePicker = false">
+                    <span class="ai-settings-option-main">
+                      <strong>{{ style.shortName || style.name }}</strong>
+                      <small>{{ style.description || style.name }}</small>
+                    </span>
+                    <Check v-if="currentResponseStyleId === style.id" size="16" />
+                  </button>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div class="ai-settings-card">
-            <div class="ai-settings-group-title">记忆</div>
-            <div class="ai-settings-list">
-              <div class="ai-settings-row clickable"
-                @click="$emit('update:isTreeholeMemoryEnabled', !isTreeholeMemoryEnabled)">
-                <div class="ai-settings-row-left">
-                  <div class="ai-settings-icon bg-indigo">
-                    <span style="font-size:11px;font-weight:800;">C+</span>
+            <div class="ai-settings-card">
+              <div class="ai-settings-group-title">检索</div>
+              <div class="ai-settings-list">
+                <div class="ai-settings-row clickable" @click="$emit('update:isSearching', !isSearching)">
+                  <div class="ai-settings-row-left">
+                    <div class="ai-settings-icon bg-green">
+                      <Globe size="16" />
+                    </div>
+                    <div class="ai-settings-label-stack">
+                      <span class="ai-settings-label">联网搜索</span>
+                      <span class="ai-settings-desc">获取实时信息</span>
+                    </div>
                   </div>
-                  <div class="ai-settings-label-stack">
-                    <span class="ai-settings-label">Cloud+ 引用</span>
-                    <span class="ai-settings-desc">引用树洞与日记内容</span>
+                  <div class="ai-settings-row-right">
+                    <span :class="['ai-settings-switch', { enabled: isSearching }]"></span>
                   </div>
-                </div>
-                <div class="ai-settings-row-right">
-                  <span :class="['ai-settings-switch', { enabled: isTreeholeMemoryEnabled }]"></span>
-                </div>
-              </div>
-              <div class="ai-settings-row clickable"
-                @click="$emit('update:isSharedMemoryEnabled', !isSharedMemoryEnabled)">
-                <div class="ai-settings-row-left">
-                  <div class="ai-settings-icon bg-purple">
-                    <span style="font-size:11px;font-weight:800;">M</span>
-                  </div>
-                  <div class="ai-settings-label-stack">
-                    <span class="ai-settings-label">公共记忆库</span>
-                    <span class="ai-settings-desc">查询社区公共记忆</span>
-                  </div>
-                </div>
-                <div class="ai-settings-row-right">
-                  <span :class="['ai-settings-switch', { enabled: isSharedMemoryEnabled }]"></span>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div class="ai-settings-card">
-            <div class="ai-settings-group-title">上下文</div>
-            <div class="ai-settings-meter-row">
-              <div class="ai-settings-meter-info">
-                <strong>上下文使用率</strong>
-                <small>{{ contextBudgetPercentText }} · {{ contextBudgetUsage?.includedMessageCount || 0 }} 条消息</small>
-              </div>
-              <div class="ai-settings-meter-track">
-                <div class="ai-settings-meter-fill" :style="{ width: contextBudgetPercentText }" />
-              </div>
-            </div>
-          </div>
-
-          <div class="ai-settings-card">
-            <div class="ai-settings-group-title">数据</div>
-            <div class="ai-settings-list">
-              <div class="ai-settings-row clickable" @click="$emit('clearCurrentChat')">
-                <div class="ai-settings-row-left">
-                  <div class="ai-settings-icon bg-gray">
-                    <Trash2 size="16" />
+            <div class="ai-settings-card">
+              <div class="ai-settings-group-title">记忆</div>
+              <div class="ai-settings-list">
+                <div class="ai-settings-row clickable"
+                  @click="$emit('update:isTreeholeMemoryEnabled', !isTreeholeMemoryEnabled)">
+                  <div class="ai-settings-row-left">
+                    <div class="ai-settings-icon bg-indigo">
+                      <span style="font-size:11px;font-weight:800;">C+</span>
+                    </div>
+                    <div class="ai-settings-label-stack">
+                      <span class="ai-settings-label">Cloud+ 引用</span>
+                      <span class="ai-settings-desc">引用树洞与日记内容</span>
+                    </div>
                   </div>
-                  <div class="ai-settings-label-stack">
-                    <span class="ai-settings-label">清除当前对话</span>
+                  <div class="ai-settings-row-right">
+                    <span :class="['ai-settings-switch', { enabled: isTreeholeMemoryEnabled }]"></span>
                   </div>
                 </div>
-                <div class="ai-settings-row-right">
-                  <span class="ai-settings-chevron">›</span>
-                </div>
-              </div>
-              <div class="ai-settings-row clickable" @click="$emit('exportChatData')">
-                <div class="ai-settings-row-left">
-                  <div class="ai-settings-icon bg-indigo">
-                    <span style="font-size:11px;font-weight:800;">JSON</span>
+                <div class="ai-settings-row clickable"
+                  @click="$emit('update:isSharedMemoryEnabled', !isSharedMemoryEnabled)">
+                  <div class="ai-settings-row-left">
+                    <div class="ai-settings-icon bg-purple">
+                      <span style="font-size:11px;font-weight:800;">M</span>
+                    </div>
+                    <div class="ai-settings-label-stack">
+                      <span class="ai-settings-label">公共记忆库</span>
+                      <span class="ai-settings-desc">查询社区公共记忆</span>
+                    </div>
                   </div>
-                  <div class="ai-settings-label-stack">
-                    <span class="ai-settings-label">导出对话数据</span>
-                    <span class="ai-settings-desc">下载 JSON 格式的全部对话记录</span>
+                  <div class="ai-settings-row-right">
+                    <span :class="['ai-settings-switch', { enabled: isSharedMemoryEnabled }]"></span>
                   </div>
-                </div>
-                <div class="ai-settings-row-right">
-                  <span class="ai-settings-chevron">›</span>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div class="ai-settings-card danger-card">
-            <div class="ai-settings-group-title">危险操作</div>
-            <div class="ai-settings-list">
-              <div class="ai-settings-row clickable danger" @click="$emit('clearAllChatData')">
-                <div class="ai-settings-row-left">
-                  <div class="ai-settings-icon bg-red">
-                    <Trash2 size="16" />
-                  </div>
-                  <div class="ai-settings-label-stack">
-                    <span class="ai-settings-label text-danger">清除所有对话</span>
-                    <span class="ai-settings-desc">删除全部对话历史，不可撤销</span>
-                  </div>
+            <div class="ai-settings-card">
+              <div class="ai-settings-group-title">上下文</div>
+              <div class="ai-settings-meter-row">
+                <div class="ai-settings-meter-info">
+                  <strong>上下文使用率</strong>
+                  <small>{{ contextBudgetPercentText }} · {{ contextBudgetUsage?.totalMessageCount || 0 }} 条消息</small>
                 </div>
-                <div class="ai-settings-row-right">
-                  <span class="ai-settings-chevron text-danger">›</span>
+                <div class="ai-settings-meter-track">
+                  <div class="ai-settings-meter-fill" :style="{ width: contextBudgetPercentText }" />
+                </div>
+                <div class="ai-settings-context-details">
+                  <div class="ai-settings-context-detail-row">
+                    <span>总预算</span>
+                    <strong>{{ formatBudgetTotal }}</strong>
+                  </div>
+                  <div class="ai-settings-context-detail-row">
+                    <span>已使用</span>
+                    <strong>{{ formatBudgetUsed }} ({{ contextBudgetPercentText }})</strong>
+                  </div>
+                  <div class="ai-settings-context-detail-row">
+                    <span>预估 tokens</span>
+                    <strong>≈ {{ estimatedTokens }}</strong>
+                  </div>
+                  <div class="ai-settings-context-detail-row">
+                    <span>压缩状态</span>
+                    <strong class="context-status" :class="compressionStatusClass">{{ compressionStatusText }}</strong>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div class="ai-settings-footer">
-            <strong>BOH AI v2.5 Beta</strong>
-            <span>上下文窗口 12K 字符</span>
+            <div class="ai-settings-card">
+              <div class="ai-settings-group-title">数据</div>
+              <div class="ai-settings-list">
+                <div class="ai-settings-row clickable" @click="$emit('clearCurrentChat')">
+                  <div class="ai-settings-row-left">
+                    <div class="ai-settings-icon bg-gray">
+                      <Trash2 size="16" />
+                    </div>
+                    <div class="ai-settings-label-stack">
+                      <span class="ai-settings-label">清除当前对话</span>
+                    </div>
+                  </div>
+                  <div class="ai-settings-row-right">
+                    <span class="ai-settings-chevron">›</span>
+                  </div>
+                </div>
+                <div class="ai-settings-row clickable" @click="$emit('exportChatData')">
+                  <div class="ai-settings-row-left">
+                    <div class="ai-settings-icon bg-indigo">
+                      <span style="font-size:11px;font-weight:800;">JSON</span>
+                    </div>
+                    <div class="ai-settings-label-stack">
+                      <span class="ai-settings-label">导出对话数据</span>
+                      <span class="ai-settings-desc">下载 JSON 格式的全部对话记录</span>
+                    </div>
+                  </div>
+                  <div class="ai-settings-row-right">
+                    <span class="ai-settings-chevron">›</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="ai-settings-card danger-card">
+              <div class="ai-settings-group-title">危险操作</div>
+              <div class="ai-settings-list">
+                <div class="ai-settings-row clickable danger" @click="$emit('clearAllChatData')">
+                  <div class="ai-settings-row-left">
+                    <div class="ai-settings-icon bg-red">
+                      <Trash2 size="16" />
+                    </div>
+                    <div class="ai-settings-label-stack">
+                      <span class="ai-settings-label text-danger">清除所有对话</span>
+                      <span class="ai-settings-desc">删除全部对话历史，不可撤销</span>
+                    </div>
+                  </div>
+                  <div class="ai-settings-row-right">
+                    <span class="ai-settings-chevron text-danger">›</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="ai-settings-footer">
+              <strong>BOH AI v2.5 Beta</strong>
+              <span>上下文窗口 {{ formatMaxChars }} · 输出上限 {{ formatMaxOutput }}</span>
+            </div>
           </div>
-        </div>
-      </section>
-    </div>
+        </section>
+      </div>
+    </Transition>
   </Teleport>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, nextTick, watch, onUnmounted } from 'vue';
 import { X, Settings, Globe, Check, Trash2 } from 'lucide-vue-next';
+import { MAX_HISTORY_CONTEXT_CHARS, MAX_FINAL_PROMPT_CHARS, GENERATION_PROFILE_BY_MODE } from '../../composables/chat-engine-config.js';
+import { ESTIMATED_SYSTEM_PROMPT_CHARS, estimateTokens } from '../../composables/bohai-engine-helpers.js';
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -216,7 +240,8 @@ const props = defineProps({
   isTreeholeMemoryEnabled: { type: Boolean, default: false },
   isSharedMemoryEnabled: { type: Boolean, default: false },
   contextBudgetUsage: { type: Object, default: () => ({}) },
-  contextBudgetPercentText: { type: String, default: '0%' }
+  contextBudgetPercentText: { type: String, default: '0%' },
+  isCompressingContext: { type: Boolean, default: false }
 });
 
 const emit = defineEmits([
@@ -233,6 +258,10 @@ const emit = defineEmits([
 
 const showModePicker = ref(false);
 const showStylePicker = ref(false);
+const drawerRef = ref(null);
+const titleRef = ref(null);
+const closeBtnRef = ref(null);
+let focusRestore = null;
 
 const currentResponseStyleName = computed(() => {
   const style = props.responseStyleOptions?.find(s => s.id === props.currentResponseStyleId);
@@ -243,7 +272,92 @@ const close = () => {
   showModePicker.value = false;
   showStylePicker.value = false;
   emit('update:modelValue', false);
+  const el = focusRestore;
+  focusRestore = null;
+  if (el && typeof el.focus === 'function') {
+    nextTick(() => el.focus());
+  }
 };
+
+const handleTabTrap = (e) => {
+  const drawer = drawerRef.value;
+  if (!drawer) return;
+  const focusable = drawer.querySelectorAll(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  );
+  if (focusable.length === 0) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const current = document.activeElement;
+  if (e.shiftKey) {
+    if (current === first || !drawer.contains(current)) {
+      e.preventDefault();
+      last.focus();
+    }
+  } else {
+    if (current === last || !drawer.contains(current)) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+};
+
+watch(() => props.modelValue, async (open) => {
+  if (open) {
+    focusRestore = document.activeElement;
+    await nextTick();
+    closeBtnRef.value?.focus();
+  } else {
+    showModePicker.value = false;
+    showStylePicker.value = false;
+    if (focusRestore && typeof focusRestore.focus === 'function') {
+      nextTick(() => focusRestore.focus());
+    }
+    focusRestore = null;
+  }
+});
+
+onUnmounted(() => {
+  focusRestore = null;
+});
+
+const formatMaxChars = computed(() => {
+  const total = (parseInt(MAX_HISTORY_CONTEXT_CHARS) || 12000) + (parseInt(MAX_FINAL_PROMPT_CHARS) || 16000) + ESTIMATED_SYSTEM_PROMPT_CHARS;
+  return `${(total / 1000).toFixed(0)}K 字符`;
+});
+
+const formatMaxOutput = computed(() => {
+  const profile = GENERATION_PROFILE_BY_MODE[props.currentModeId] || GENERATION_PROFILE_BY_MODE.fast;
+  return `${(profile?.max_tokens ?? 4096).toLocaleString()} tokens`;
+});
+
+const formatBudgetTotal = computed(() => {
+  const max = props.contextBudgetUsage?.max || 28600;
+  return `${max.toLocaleString()} 字符`;
+});
+
+const formatBudgetUsed = computed(() => {
+  const used = props.contextBudgetUsage?.used || 0;
+  return `${used.toLocaleString()} 字符`;
+});
+
+const estimatedTokens = computed(() => {
+  const used = props.contextBudgetUsage?.used || 0;
+  const estimated = Math.round(used * 0.35);
+  return `${estimated.toLocaleString()} tokens`;
+});
+
+const compressionStatusClass = computed(() => {
+  if (props.isCompressingContext) return 'compressing';
+  if (props.contextBudgetUsage?.hasSummary) return 'compressed';
+  return 'none';
+});
+
+const compressionStatusText = computed(() => {
+  if (props.isCompressingContext) return '正在压缩...';
+  if (props.contextBudgetUsage?.hasSummary) return '已启用 (包含摘要)';
+  return '未压缩';
+});
 </script>
 
 <style>
@@ -505,6 +619,35 @@ const close = () => {
   transition: width 0.3s ease;
 }
 
+.ai-settings-context-details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.ai-settings-context-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.ai-settings-context-detail-row span {
+  color: #64748b;
+}
+
+.ai-settings-context-detail-row strong {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.context-status { font-size: 12px; }
+.context-status.compressing { color: #2563eb; }
+.context-status.compressed { color: #10a37f; }
+.context-status.none { color: #94a3b8; }
+
 .ai-settings-footer {
   text-align: center;
   padding: 8px 0 4px;
@@ -527,6 +670,32 @@ const close = () => {
 .ai-settings-row.danger .ai-settings-desc { color: #dc2626; }
 .ai-settings-row.danger:hover { background: rgba(220, 38, 38, 0.04); }
 .ai-settings-chevron.text-danger { color: #dc2626; }
+
+/* Transition animations */
+.settings-slide-enter-active {
+  transition: opacity 0.2s ease;
+}
+.settings-slide-enter-active .ai-settings-drawer {
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.25s ease;
+}
+.settings-slide-leave-active {
+  transition: opacity 0.18s ease;
+}
+.settings-slide-leave-active .ai-settings-drawer {
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease;
+}
+.settings-slide-enter-from,
+.settings-slide-leave-to {
+  opacity: 0;
+}
+.settings-slide-enter-from .ai-settings-drawer {
+  opacity: 0;
+  transform: translateX(-24px);
+}
+.settings-slide-leave-to .ai-settings-drawer {
+  opacity: 0;
+  transform: translateX(-16px);
+}
 
 [data-boh-theme="dark"] .ai-settings-drawer {
   background: rgba(28, 28, 30, 0.98) !important;
@@ -568,6 +737,12 @@ const close = () => {
 [data-boh-theme="dark"] .ai-settings-meter-track { background: rgba(255, 255, 255, 0.1); }
 [data-boh-theme="dark"] .ai-settings-footer strong,
 [data-boh-theme="dark"] .ai-settings-footer span { color: #9ca3af; }
+[data-boh-theme="dark"] .ai-settings-context-details { border-top-color: rgba(255, 255, 255, 0.08); }
+[data-boh-theme="dark"] .ai-settings-context-detail-row span { color: #9ca3af; }
+[data-boh-theme="dark"] .ai-settings-context-detail-row strong { color: #f8fafc; }
+[data-boh-theme="dark"] .context-status.none { color: #6b7280; }
+[data-boh-theme="dark"] .context-status.compressing { color: #60a5fa; }
+[data-boh-theme="dark"] .context-status.compressed { color: #34d399; }
 
 @media (max-width: 768px) and (orientation: portrait) {
   .ai-settings-backdrop {
@@ -578,6 +753,12 @@ const close = () => {
     width: 100% !important;
     height: min(88dvh, 720px) !important;
     border-radius: 18px 18px 0 0 !important;
+  }
+  .settings-slide-enter-from .ai-settings-drawer {
+    transform: translateY(30px);
+  }
+  .settings-slide-leave-to .ai-settings-drawer {
+    transform: translateY(20px);
   }
 }
 </style>

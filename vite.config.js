@@ -3,7 +3,7 @@ import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
 import { resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
-import autoprefixer from 'autoprefixer'
+import tailwindcss from '@tailwindcss/vite'
 import cssnano from 'cssnano'
 
 // https://vite.dev/config/
@@ -19,6 +19,7 @@ export default defineConfig({
         },
       },
     }),
+    tailwindcss(),
     // 构建产物可视化分析（生成 stats.html）
     visualizer({
       open: false,
@@ -76,11 +77,10 @@ export default defineConfig({
     }),
   ],
 
-  // CSS 后处理：自动添加浏览器前缀 + 压缩
+  // CSS 后处理：压缩（Tailwind v4 已内置 autoprefixer）
   css: {
     postcss: {
       plugins: [
-        autoprefixer(),
         cssnano({ preset: 'default' }),
       ],
     },
@@ -104,6 +104,8 @@ export default defineConfig({
     outDir: 'dist',
     // 指定静态资源目录
     assetsDir: 'static',
+    // 提高 chunk 大小警告阈值（view-bohai 约 546 kB 略超默认 500 kB）
+    chunkSizeWarningLimit: 600,
     // 代码分割
     rollupOptions: {
       output: {
@@ -173,8 +175,6 @@ export default defineConfig({
       // 生成source map
       sourceMap: false,
     },
-    // chunk 大小警告限制（500KB，更早发现大 chunk）
-    chunkSizeWarningLimit: 500,
     // 目标浏览器
     target: 'es2021',
     // 启用 modulepreload polyfill，确保关键 chunk (auth-store, supabase-vendor) 预加载

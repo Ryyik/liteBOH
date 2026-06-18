@@ -2113,7 +2113,6 @@
 }
 
 .tab-content-list {
-  overflow: hidden;
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 20px;
   background: #ffffff;

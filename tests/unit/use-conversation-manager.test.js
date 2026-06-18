@@ -37,7 +37,15 @@ vi.mock('@/utils/logger.js', () => ({
 vi.mock('../../src/views/BOHAI/composables/bohai-engine-helpers.js', () => ({
   buildHistoryMessagesWithCachedSummary: mockBuildHistoryMessagesWithCachedSummary,
   normalizePromptLine: mockNormalizePromptLine,
+  getStorableDialogueMessages: vi.fn((messages) => Array.isArray(messages) ? messages : []),
   CONVERSATION_SUMMARY_MAX_CHARS: 2000,
+  ESTIMATED_SYSTEM_PROMPT_CHARS: 600,
+  isEmptyAssistantPlaceholder: vi.fn((message) => {
+    if (!message || message.role !== 'assistant') return false;
+    if (String(message.content || '').trim()) return false;
+    const meta = message.meta && typeof message.meta === 'object' ? message.meta : null;
+    return !meta || Object.keys(meta).length === 0;
+  }),
 }));
 
 // ============================================================

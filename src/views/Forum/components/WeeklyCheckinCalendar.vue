@@ -47,12 +47,9 @@ const weeklyCheckinProgressText = computed(() =>
   `连续 ${weeklyCheckinCycleProgress.value} / ${props.status.cycleSize || 4} 周`
 );
 
-function formatCheckinDate(date) {
-  return `${date.getMonth() + 1}.${date.getDate()}`;
-}
-
 function close() {
   emit('close');
+  emit('update:open', false);
 }
 
 function handleCheckin() {
@@ -132,3 +129,8 @@ function handleCheckin() {
     </transition>
   </Teleport>
 </template>
+
+<style scoped>
+@import '../styles/base.css';
+@import '../styles/composer.css';
+</style>

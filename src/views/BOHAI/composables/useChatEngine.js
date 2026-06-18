@@ -1,4 +1,4 @@
-import { ref, computed, nextTick, watch } from 'vue';
+import { ref, computed, nextTick, watch, shallowRef } from 'vue';
 import { storeToRefs } from 'pinia';
 import { getPosts, getUserPosts } from '@/utils/api/forum-api.js';
 import {
@@ -303,16 +303,7 @@ export function useChatEngine() {
     runtimeGenerationProfiles.value = payload.generationProfiles || {};
   };
 
-  const loadRuntimeModelConfig = async () => {
-    const result = await listActiveBohaiModelConfigs();
-    if (!result.ok || !Array.isArray(result.data) || result.data.length === 0) {
-      if (result.error) {
-        logger.warn('boh-ai', 'BOHAI 模型配置读取失败，使用默认配置', result.error);
-      }
-      return;
-    }
-    applyRuntimeModelConfig(buildBohaiRuntimeModels(result.data));
-  };
+  
 
   // --------------------------------------------------------------
   // AI 生成管线（从 useGenerationPipeline 导入）
@@ -351,10 +342,29 @@ export function useChatEngine() {
     webSearchDisabledNoticeShownFor,
     getModelForModeId,
     togglePlanMode, setResponseStyle,
+    persistModeSetting,
     persistMemoryCaptureSetting,
     persistTreeholeMemorySetting, persistQuickNoteSetting,
     persistSharedMemorySetting, persistKnowledgeBaseSetting
   } = useModelConfig({ availableModels: runtimeAvailableModels, chatModes: runtimeChatModes });
+
+  const isModelConfigLoaded = ref(false);
+  const loadRuntimeModelConfig = async () => {
+    try {
+      const result = await listActiveBohaiModelConfigs();
+      if (!result.ok || !Array.isArray(result.data) || result.data.length === 0) {
+        if (result.error) {
+          logger.warn('boh-ai', 'BOHAI 模型配置读取失败，使用默认配置', result.error);
+        }
+        return;
+      }
+      applyRuntimeModelConfig(buildBohaiRuntimeModels(result.data));
+    } catch (error) {
+      logger.error('boh-ai', 'BOHAI 模型配置加载异常', error);
+    } finally {
+      isModelConfigLoaded.value = true;
+    }
+  };
   void loadRuntimeModelConfig();
   // --------------------------------------------------------------
 
@@ -603,15 +613,20 @@ export function useChatEngine() {
   // computeContextBudgetUsage / contextBudgetUsage / isCompressingContext / compressingSessionIndex
   // 已委托给 useConversationManager 管理。
 
-  const summaryCacheRef = { fn: null };
-  const refreshConversationSummaryCache = (...args) => summaryCacheRef.fn(...args);
+  let refreshConversationSummaryCacheFn = null;
+  const registerRefreshConversationSummaryCache = (fn) => {
+    refreshConversationSummaryCacheFn = fn;
+  };
+  const refreshConversationSummaryCache = (...args) => {
+    if (refreshConversationSummaryCacheFn) return refreshConversationSummaryCacheFn(...args);
+  };
 
   const { ensureContextCompression } = useContextCompression({
     getSessionByIndex,
     isCompressingContext,
     compressingSessionIndex,
     computeContextBudgetUsage,
-    summaryCacheRef
+    registerRefreshConversationSummaryCache
   });
 
   // Scroll Helper
@@ -869,7 +884,7 @@ export function useChatEngine() {
     }
   };
 
-  summaryCacheRef.fn = async (sessionIndex, requestSignal = undefined) => {
+  refreshConversationSummaryCacheFn = async (sessionIndex, requestSignal = undefined) => {
     const targetSession = getSessionByIndex(sessionIndex);
     if (!targetSession) return;
 
@@ -951,7 +966,21 @@ export function useChatEngine() {
     }
   };
 
-  let cleanupGenerationState;
+  const cleanupGenerationState = (sessionIndex, requestController) => {
+    clearThinkingStatus();
+    const targetSession = getSessionByIndex(sessionIndex);
+    if (targetSession) {
+      targetSession.isLoading = false;
+      targetSession.isThinking = false;
+    }
+    if (abortController.value === requestController) {
+      abortController.value = null;
+    }
+    if (activeGenerationSessionIndex.value === sessionIndex) {
+      activeGenerationSessionIndex.value = null;
+    }
+    stopThinkingTimer();
+  };
 
   const { handleResourceSearchRequest } = useResourceSearch({
     getSessionByIndex,
@@ -1122,22 +1151,6 @@ export function useChatEngine() {
     } finally {
       cleanupGenerationState(sessionIndex, requestController);
     }
-  };
-
-  cleanupGenerationState = (sessionIndex, requestController) => {
-    clearThinkingStatus();
-    const targetSession = getSessionByIndex(sessionIndex);
-    if (targetSession) {
-      targetSession.isLoading = false;
-      targetSession.isThinking = false;
-    }
-    if (abortController.value === requestController) {
-      abortController.value = null;
-    }
-    if (activeGenerationSessionIndex.value === sessionIndex) {
-      activeGenerationSessionIndex.value = null;
-    }
-    stopThinkingTimer();
   };
 
   const sendMessage = async () => {
@@ -1692,7 +1705,7 @@ export function useChatEngine() {
 ${hasForumEvidence ? `9. 总结论坛帖子时，用检索资料中的发帖者信息指代，不要泛称“有人提到”。
 10. 不要编造论坛用户、帖子或链接；没有检索到论坛资料时，不要提及论坛内容。` : ''}
 ${personalSupportMode ? '- 用户在表达自己的困扰、情绪或身体状态时，先用 1-2 句接住他的处境和感受，再给最多 2-3 个低压力、今晚就能做的小动作；不要上来就列长清单，不要把普通困扰写成医学建议。结尾可以轻轻问一句具体情况，让用户愿意继续说。' : ''}
-${isPlanMode ? '- Plan 模式下必须给出可继续接力的“小步计划/下一步行动”，并把缺少依据的内容标成不确定，不要编造成已确认事实。' : ''}
+${isPlanMode ? '- Plan 模式下需要提问时用【追问】格式，不要直接在对话中发问；信息充足后用 - [ ] 输出结构化计划。' : ''}
 ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须严格按 [F1]、[F2]、[F3]、[F4]、[F5] 的顺序输出；[F1] 是最新发布，后面依次更早。不得按热度、重要性或主题重排；若不足 5 条，只输出已检索到的条目。' : ''}`;
 
       let communityRules = '';
@@ -2247,6 +2260,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
     toggleQuickNoteMode,
     togglePlanMode,
     setResponseStyle,
+    persistModeSetting,
     persistSharedMemorySetting,
     persistKnowledgeBaseSetting,
     updatePendingQuickNoteDraft,

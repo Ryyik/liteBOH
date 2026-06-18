@@ -72,19 +72,6 @@ export function useMessageManager({
   // 消息工具
   // --------------------------------------------------------------
 
-  /**
-   * 判断消息是否为空的 assistant 占位符。
-   * 满足条件：role === 'assistant'、content 为空、meta 不存在或为空对象。
-   * @param {Object} message
-   * @returns {boolean}
-   */
-  const isEmptyAssistantPlaceholder = (message) => {
-    if (!message || message.role !== 'assistant') return false;
-    if (String(message.content || '').trim()) return false;
-    const meta = message.meta && typeof message.meta === 'object' ? message.meta : null;
-    return !meta || Object.keys(meta).length === 0;
-  };
-
   // --------------------------------------------------------------
   // 消息 CRUD
   // --------------------------------------------------------------
@@ -392,7 +379,6 @@ export function useMessageManager({
     updateAssistantActionNotes,
     appendUserMessageWithTitle,
     resetComposerInput,
-    isEmptyAssistantPlaceholder,
     extractQuickNoteContent,
     buildQuickNoteTitle,
     generateQuickNoteTitle,
