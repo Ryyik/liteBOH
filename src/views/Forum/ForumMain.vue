@@ -179,6 +179,8 @@ const shareCopiedPostIds = ref(new Set());
 const loadedForumImageKeys = ref(new Set());
 const uiAnimationTimers = new Map();
 const hotTagStats = ref([]);
+const forumPageRef = ref(null);
+let activeScrollTarget = null;
 const {
   clearForumImageModerationPreloadTask,
   scheduleForumImageModerationPreload
@@ -196,9 +198,64 @@ const normalizeForumSortMode = (mode = '', fallback = 'latest') => {
 const getQueryString = (value) => String(Array.isArray(value) ? value[0] || '' : value || '').trim();
 const shouldRestoreForumReturnState = () => getQueryString(route.query.restore) === '1';
 const getForumReturnKey = () => getForumReturnKeyFromQuery(route.query, props.embedded ? 'user-space' : 'forum');
+const getForumScrollContainer = () => {
+  if (typeof window === 'undefined') return null;
+  if (!props.embedded) return window;
+  return forumPageRef.value?.closest?.('.tab-page.posts-tab') || window;
+};
+const getForumScrollMetrics = () => {
+  const scroller = getForumScrollContainer();
+  if (scroller && scroller !== window) {
+    return {
+      scrollTop: scroller.scrollTop || 0,
+      clientHeight: scroller.clientHeight || 0,
+      scrollHeight: scroller.scrollHeight || 0
+    };
+  }
+  return {
+    scrollTop: window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0,
+    clientHeight: window.innerHeight || document.documentElement.clientHeight || 0,
+    scrollHeight: Math.max(
+      document.documentElement.scrollHeight || 0,
+      document.body.scrollHeight || 0
+    )
+  };
+};
+const scrollForumTo = (top = 0) => {
+  const scroller = getForumScrollContainer();
+  if (scroller && scroller !== window) {
+    scroller.scrollTo({ top, behavior: 'auto' });
+    return;
+  }
+  window.scrollTo({ top, behavior: 'auto' });
+};
+const bindForumScrollListener = () => {
+  if (typeof window === 'undefined') return;
+  const target = getForumScrollContainer() || window;
+  if (activeScrollTarget === target) return;
+  if (activeScrollTarget) {
+    activeScrollTarget.removeEventListener('scroll', handleScroll);
+  }
+  activeScrollTarget = target;
+  activeScrollTarget.addEventListener('scroll', handleScroll, { passive: true });
+};
+const unbindForumScrollListener = () => {
+  if (!activeScrollTarget) return;
+  activeScrollTarget.removeEventListener('scroll', handleScroll);
+  activeScrollTarget = null;
+};
+const refreshEmbeddedScroll = async () => {
+  if (!props.embedded) return;
+  await nextTick();
+  bindForumScrollListener();
+  handleScroll();
+};
+defineExpose({
+  refreshEmbeddedScroll
+});
 const getCurrentPageScrollY = () => {
   if (typeof window === 'undefined') return 0;
-  return window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+  return getForumScrollMetrics().scrollTop;
 };
 
 const buildForumReturnState = (postId = '') => ({
@@ -232,7 +289,7 @@ const restoreForumScrollPosition = async (state = {}) => {
 
   const runRestore = () => {
     if (targetScrollY > 0) {
-      window.scrollTo({ top: targetScrollY, behavior: 'auto' });
+      scrollForumTo(targetScrollY);
     }
     if (!targetPostId) return;
     window.requestAnimationFrame(() => {
@@ -1095,8 +1152,8 @@ onMounted(() => {
   restorePostDraft();
   window.addEventListener('resize', updateMobileStatus);
   window.addEventListener('orientationchange', updateMobileStatus);
-  window.addEventListener('scroll', handleScroll);
   document.addEventListener('click', closePostImageSourceMenu);
+  bindForumScrollListener();
 
   void initializeForumData();
   loadHotTagStats();
@@ -1113,7 +1170,7 @@ onUnmounted(() => {
   forumFetchAbortController = null;
   window.removeEventListener('resize', updateMobileStatus);
   window.removeEventListener('orientationchange', updateMobileStatus);
-  window.removeEventListener('scroll', handleScroll);
+  unbindForumScrollListener();
   document.removeEventListener('click', closePostImageSourceMenu);
   document.body.style.overflow = '';
   void discardDraftPostImages({ silent: true });
@@ -2424,12 +2481,7 @@ const handleScroll = () => {
   }
 
   scrollTimeout = setTimeout(() => {
-    const scrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
-    const clientHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-    const scrollHeight = Math.max(
-      document.documentElement.scrollHeight || 0,
-      document.body.scrollHeight || 0
-    );
+    const { scrollTop, clientHeight, scrollHeight } = getForumScrollMetrics();
     if (scrollTop + clientHeight >= scrollHeight - 800) {
       fetchForumData(true);
     }
@@ -2580,7 +2632,7 @@ const openPostDetail = (postId) => {
 </script>
 
 <template>
-  <div class="forum-page" :class="{ 'embedded-mode': embedded }" :data-theme="currentTheme" :data-ui-style="currentUiStyle">
+  <div ref="forumPageRef" class="forum-page" :class="{ 'embedded-mode': embedded }" :data-theme="currentTheme" :data-ui-style="currentUiStyle">
     <link rel="preconnect" :href="cdnDeliveryBase" crossorigin />
     <link rel="dns-prefetch" :href="cdnDeliveryBase" />
     <UnifiedNavbar v-if="showNavbar" />

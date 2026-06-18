@@ -11,7 +11,7 @@
       @change="handleProfileBackgroundFileChange">
 
     <div v-if="mountedTabs.posts" v-show="currentTab === 'posts' || leavingTab === 'posts'" class="tab-page posts-tab" :class="{ 'is-leaving': leavingTab === 'posts' }">
-      <AsyncForum :key="forumRenderKey" :show-navbar="false" :show-header="false" :embedded="true"
+      <AsyncForum ref="forumViewRef" :key="forumRenderKey" :show-navbar="false" :show-header="false" :embedded="true"
         @island-message="showBottomNavIsland" />
     </div>
 
@@ -39,14 +39,14 @@
         </div>
 
         <div v-else>
-          <button type="button" class="community-group" @click="toggleCommunityExpand"
+          <button type="button" class="community-group glass-group" @click="toggleCommunityExpand"
             :aria-expanded="isCommunityExpanded">
             <HomeCatMascot v-if="isHomeCatActive" class="community-group-cat" pool="ambient" seed="community-recent"
               size="sm" decorative />
             <div class="group-header">
               <div class="group-info">
                 <h3 class="group-title">最近加入的伙伴</h3>
-                <p class="group-count">{{ totalCommunityUsers }} 位伙伴 · 按加入时间排序</p>
+                <span class="group-badge">{{ totalCommunityUsers }}</span>
               </div>
               <div class="expand-icon" :class="{ expanded: isCommunityExpanded }">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -58,18 +58,31 @@
 
           <transition name="expand">
             <div v-if="isCommunityExpanded" class="community-users-list">
-              <div class="community-toolbar">
+              <div class="community-search-bar-glass">
+                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
                 <input v-model="communitySearchQuery" type="text" placeholder="搜索社区伙伴..."
-                  class="community-search-input" />
-                <span class="community-toolbar-meta">最近加入 · 第 {{ currentCommunityPage }} / {{ totalCommunityPages }} 页</span>
+                  class="community-search-input-glass" />
+                <button v-if="communitySearchQuery" class="search-clear-btn" @click.stop="communitySearchQuery = ''">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
               </div>
 
-              <div v-if="communityUsers.length === 0" class="empty-state">
+              <div class="community-toolbar-glass">
+                <span class="community-toolbar-meta">第 {{ currentCommunityPage }} / {{ totalCommunityPages }} 页</span>
+              </div>
+
+              <div v-if="communityUsers.length === 0" class="empty-state glass-empty">
                 <Users class="empty-icon" :size="30" :stroke-width="1.7" aria-hidden="true" />
-                <p>{{ communitySearchQuery.trim() ? '没有找到匹配的社区伙伴' : '暂无社区伙伴，快去添加吧！' }}</p>
+                <p>{{ communitySearchQuery.trim() ? '没有找到匹配的社区伙伴' : '暂无社区伙伴' }}</p>
               </div>
 
-              <div v-for="user in communityUsers" :key="user.id" class="user-item" @click="goToProfile(user.username)">
+              <div v-for="user in communityUsers" :key="user.id" class="user-item glass-user" @click="goToProfile(user.username)">
                 <div class="user-avatar">
                   <img v-if="user.avatar_url" :src="user.avatar_url" alt="用户头像" class="avatar-image" loading="lazy"
                     decoding="async" />
@@ -99,22 +112,34 @@
                 </div>
               </div>
 
-              <div v-if="totalCommunityPages > 1" class="community-pagination">
-                <button class="community-page-btn" :disabled="isLoadingCommunity || currentCommunityPage === 1"
+              <div v-if="totalCommunityPages > 1" class="community-pagination glass-pagination">
+                <button class="community-page-btn glass-page-btn" :disabled="isLoadingCommunity || currentCommunityPage === 1"
                   @click.stop="currentCommunityPage--">
-                  上一页
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                  </svg>
                 </button>
-                <span class="community-page-info">{{ currentCommunityPage }} / {{ totalCommunityPages }}</span>
-                <button class="community-page-btn"
+                <div class="page-dots">
+                  <span
+                    v-for="page in totalCommunityPages"
+                    :key="page"
+                    class="page-dot"
+                    :class="{ active: page === currentCommunityPage }"
+                    @click.stop="currentCommunityPage = page"
+                  ></span>
+                </div>
+                <button class="community-page-btn glass-page-btn"
                   :disabled="isLoadingCommunity || currentCommunityPage === totalCommunityPages"
                   @click.stop="currentCommunityPage++">
-                  下一页
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
                 </button>
               </div>
             </div>
           </transition>
 
-          <button type="button" class="community-group birthday-group" @click="toggleBirthdaysExpand"
+          <button type="button" class="community-group glass-group birthday-group-glass" @click="toggleBirthdaysExpand"
             :aria-expanded="isBirthdaysExpanded">
             <HomeCatMascot v-if="isHomeCatActive" class="community-group-cat birthday-cat" pool="reaction"
               seed="community-birthday" size="sm" decorative />
@@ -138,14 +163,14 @@
                 <p class="loading-text">正在加载最近生日...</p>
               </div>
 
-              <div v-else-if="recentBirthdayUsers.length === 0" class="empty-state">
+              <div v-else-if="recentBirthdayUsers.length === 0" class="empty-state glass-empty">
                 <Cake class="empty-icon" :size="30" :stroke-width="1.7" aria-hidden="true" />
                 <p>暂时没有伙伴设置生日。</p>
               </div>
 
-              <div v-for="user in recentBirthdayUsers" :key="`birthday-${user.id}`" class="user-item birthday-user-item"
+              <div v-for="user in recentBirthdayUsers" :key="`birthday-${user.id}`" class="user-item glass-user birthday-user-glass"
                 @click="goToProfile(user.username)">
-                <div class="user-avatar birthday-avatar">
+                <div class="user-avatar">
                   <img v-if="user.avatar_url" :src="user.avatar_url" alt="用户头像" class="avatar-image" loading="lazy"
                     decoding="async" />
                   <span v-else>{{ user.username ? user.username.charAt(0).toUpperCase() : 'U' }}</span>
@@ -154,7 +179,7 @@
                   <span class="user-name">@{{ user.username }}</span>
                   <p class="user-bio">{{ formatBirthdayDistance(user) }}</p>
                   <div class="user-meta">
-                    <span class="meta-item">
+                    <span class="meta-item birthday-meta">
                       <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
                         <line x1="16" y1="2" x2="16" y2="6"></line>
@@ -169,33 +194,22 @@
             </div>
           </transition>
 
-          <button type="button" class="community-group" @click="toggleShowsExpand" :aria-expanded="isShowsExpanded">
-            <HomeCatMascot v-if="isHomeCatActive" class="community-group-cat alt" pool="background"
-              seed="community-shows" size="sm" decorative />
-            <div class="group-header">
-              <div class="group-info">
-                <h3 class="group-title">社区节目</h3>
-                <p class="group-count">点击展开节目入口</p>
-              </div>
-              <div class="expand-icon" :class="{ expanded: isShowsExpanded }">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M9 18l6-6-6-6" />
-                </svg>
-              </div>
+          <div class="shows-entry-card-glass" @click="switchTab('shows')">
+            <div class="shows-entry-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
             </div>
-          </button>
-
-          <transition name="expand">
-            <div v-if="isShowsExpanded" class="community-users-list">
-              <div class="user-item shows-entry-item" @click="switchTab('shows')">
-                <div class="user-avatar shows-entry-avatar">▶</div>
-                <div class="user-info">
-                  <span class="user-name">方块节目中心</span>
-                  <p class="user-bio">进入节目页，查看社区节目与精选内容</p>
-                </div>
-              </div>
+            <div class="shows-entry-content">
+              <span class="shows-entry-title">方块节目中心</span>
+              <p class="shows-entry-desc">进入节目页，查看社区节目与精选内容</p>
             </div>
-          </transition>
+            <div class="shows-entry-arrow">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -647,7 +661,7 @@ const setUserSpaceCache = (key, value) => userSpaceMemoryCache.set(key, value);
 const isLoadingCommunity = ref(false);
 const isLoadingBirthdays = ref(false);
 const isCommunityExpanded = ref(false);
-const isBirthdaysExpanded = ref(false);
+const isBirthdaysExpanded = ref(true);
 const isShowsExpanded = ref(false);
 const communityUsers = ref([]);
 const recentBirthdayUsers = ref([]);
@@ -660,7 +674,9 @@ const COMMUNITY_BIRTHDAY_LIMIT = 8;
 const hasLoadedCommunity = ref(false);
 const hasLoadedBirthdays = ref(false);
 const forumRenderKey = ref(0);
+const forumViewRef = ref(null);
 const shouldRefreshForumAfterThemeChange = ref(false);
+let clearLeavingTabTimer = null;
 let communitySearchDebounceTimer = null;
 let latestCommunityFetchId = 0;
 let latestBirthdayFetchId = 0;
@@ -1447,6 +1463,11 @@ const refreshForumAfterThemeChange = async () => {
   forumRenderKey.value += 1;
 };
 
+const activateForumTab = async () => {
+  await nextTick();
+  forumViewRef.value?.refreshEmbeddedScroll?.();
+};
+
 const setThemePreference = (preference) => {
   if (preference === 'system') {
     themeManager.resetToSystem();
@@ -1973,22 +1994,30 @@ const switchTab = (tabId) => {
   if (tabId === 'profile' && currentTab.value !== 'profile') {
     profileSection.value = 'home';
   }
-  leavingTab.value = currentTab.value;
-  setTimeout(() => {
-    currentTab.value = tabId;
-    leavingTab.value = null;
-    syncUserSpaceTabRoute(tabId);
-    if (tabId === 'posts') {
-      void preloadForumComponent();
-      void refreshForumAfterThemeChange();
+  if (clearLeavingTabTimer) {
+    clearTimeout(clearLeavingTabTimer);
+  }
+  const previousTab = currentTab.value;
+  leavingTab.value = previousTab;
+  currentTab.value = tabId;
+  syncUserSpaceTabRoute(tabId);
+  clearLeavingTabTimer = setTimeout(() => {
+    if (leavingTab.value === previousTab) {
+      leavingTab.value = null;
     }
-    if (tabId === 'community' && !hasLoadedCommunity.value) {
-      fetchCommunityOverview();
-    }
-    if (tabId === 'ai') {
-      void preloadBOHAIComponent();
-    }
-  }, 180);
+    clearLeavingTabTimer = null;
+  }, 170);
+  if (tabId === 'posts') {
+    void preloadForumComponent();
+    void refreshForumAfterThemeChange();
+    void activateForumTab();
+  }
+  if (tabId === 'community' && !hasLoadedCommunity.value) {
+    fetchCommunityOverview();
+  }
+  if (tabId === 'ai') {
+    void preloadBOHAIComponent();
+  }
 };
 
 const closeAiOverlay = () => {
@@ -2489,26 +2518,34 @@ watch(() => route.query.tab, (newTab) => {
   if (currentTab.value === nextTab) return;
   updateTabTransitionDirection(nextTab);
   ensureTabMounted(nextTab);
-  leavingTab.value = currentTab.value;
-  setTimeout(() => {
-    currentTab.value = nextTab;
-    leavingTab.value = null;
-    resolveProfileSectionFromRoute();
-    if (nextTab === 'posts') {
-      scheduleForumPreload(currentTab.value);
-      void refreshForumAfterThemeChange();
+  if (clearLeavingTabTimer) {
+    clearTimeout(clearLeavingTabTimer);
+  }
+  const previousTab = currentTab.value;
+  leavingTab.value = previousTab;
+  currentTab.value = nextTab;
+  clearLeavingTabTimer = setTimeout(() => {
+    if (leavingTab.value === previousTab) {
+      leavingTab.value = null;
     }
-    if (nextTab === 'community' && !hasLoadedCommunity.value) {
-      fetchCommunityOverview();
-    }
-    if (nextTab === 'community') {
-      syncCommunityViewFromRoute();
-    }
-    if (nextTab === 'profile') {
-      runProfileCriticalFetches();
-      void openSettingsPanelFromRoute();
-    }
-  }, 180);
+    clearLeavingTabTimer = null;
+  }, 170);
+  resolveProfileSectionFromRoute();
+  if (nextTab === 'posts') {
+    scheduleForumPreload(currentTab.value);
+    void refreshForumAfterThemeChange();
+    void activateForumTab();
+  }
+  if (nextTab === 'community' && !hasLoadedCommunity.value) {
+    fetchCommunityOverview();
+  }
+  if (nextTab === 'community') {
+    syncCommunityViewFromRoute();
+  }
+  if (nextTab === 'profile') {
+    runProfileCriticalFetches();
+    void openSettingsPanelFromRoute();
+  }
 });
 
 watch(() => route.query.view, () => {
@@ -2536,6 +2573,9 @@ watch(currentTab, (newTab, oldTab) => {
 watch(communitySearchQuery, (value) => {
   if (communitySearchDebounceTimer) {
     clearTimeout(communitySearchDebounceTimer);
+  }
+  if (clearLeavingTabTimer) {
+    clearTimeout(clearLeavingTabTimer);
   }
 
   communitySearchDebounceTimer = setTimeout(() => {
