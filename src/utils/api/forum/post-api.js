@@ -214,12 +214,32 @@ function formatPosts(rawPosts = [], currentUserId = null) {
   });
 }
 
+function hasRpcLikeState(row = {}) {
+  return typeof row?.isLiked === 'boolean' || typeof row?.is_liked === 'boolean';
+}
+
+function normalizeRpcReplyPreview(replies = []) {
+  const source = Array.isArray(replies) ? replies : [];
+  return source.map((reply) => ({
+    ...reply,
+    author_avatar_url: reply?.author_avatar_url || reply?.author?.avatar_url || null
+  }));
+}
+
 function normalizeSortMode(sortMode, fallback = 'latest') {
   const normalized = String(sortMode || '').trim().toLowerCase();
   return ALLOWED_SORT_MODE.has(normalized) ? normalized : fallback;
 }
 
 async function attachLikedFlags(posts = [], userId = null) {
+  const safePosts = Array.isArray(posts) ? posts : [];
+  if (safePosts.every(hasRpcLikeState)) {
+    return safePosts.map((post) => ({
+      ...post,
+      isLiked: typeof post.isLiked === 'boolean' ? post.isLiked : Boolean(post.is_liked)
+    }));
+  }
+
   if (!userId || !Array.isArray(posts) || posts.length === 0) {
     return (posts || []).map((post) => ({ ...post, isLiked: false }));
   }
@@ -545,6 +565,10 @@ export async function getPosts(userId = null, pagination = {}) {
           ...row,
           comment_count: Number(row.comment_count || 0),
           like_count: Number(row.like_count || 0),
+          isLiked: typeof row.isLiked === 'boolean' ? row.isLiked : Boolean(row.is_liked),
+          replies: normalizeRpcReplyPreview(row.replies),
+          replies_has_more: Boolean(row.replies_has_more),
+          replies_preloaded: Array.isArray(row.replies),
           search_excerpt: row.search_excerpt || null,
           hot_score: Number(row.hot_score || 0),
           search_rank: Number(row.search_rank || 0)
@@ -1223,6 +1247,10 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
           ...row,
           comment_count: Number(row.comment_count || 0),
           like_count: Number(row.like_count || 0),
+          isLiked: typeof row.isLiked === 'boolean' ? row.isLiked : Boolean(row.is_liked),
+          replies: normalizeRpcReplyPreview(row.replies),
+          replies_has_more: Boolean(row.replies_has_more),
+          replies_preloaded: Array.isArray(row.replies),
           search_excerpt: row.search_excerpt || null,
           hot_score: Number(row.hot_score || 0),
           search_rank: Number(row.search_rank || 0)

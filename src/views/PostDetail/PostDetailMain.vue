@@ -823,14 +823,16 @@ const handleToggleLike = async () => {
       return;
     }
 
+    const nextIsLiked = typeof data?.isLiked === 'boolean' ? data.isLiked : action === 'liked';
+
     if (action === 'liked') {
       post.value.like_count = Number(data?.likeCount ?? Number(post.value.like_count || 0) + 1);
-      post.value.isLiked = true;
+      post.value.isLiked = nextIsLiked;
     } else if (action === 'unliked') {
       post.value.like_count = Number.isFinite(Number(data?.likeCount))
         ? Number(data.likeCount)
         : Math.max(0, Number(post.value.like_count || 0) - 1);
-      post.value.isLiked = false;
+      post.value.isLiked = nextIsLiked;
     }
     triggerLikePulse();
 

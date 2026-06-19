@@ -200,17 +200,31 @@ describe('forum-api integration: getPosts', () => {
   it('returns posts via RPC', async () => {
     fm.rpcMock.mockResolvedValue({
       data: [
-        { id: 'p1', title: 'Title 1', body: 'Body 1', comment_count: 0, like_count: 0, author_username: 'author1', author_avatar_url: null, status: 'approved', has_more: false },
+        {
+          id: 'p1',
+          title: 'Title 1',
+          body: 'Body 1',
+          comment_count: 1,
+          like_count: 2,
+          is_liked: true,
+          replies: [{ id: 'c1', content: 'Nice', author_username: 'reader', author_avatar_url: null }],
+          replies_has_more: false,
+          author_username: 'author1',
+          author_avatar_url: null,
+          status: 'approved',
+          has_more: false,
+        },
       ],
       error: null,
     });
 
-    // Mock the likes query for attachLikedFlags
-    fm.fromMock.mockReturnValue(makeQuery({ data: [], error: null }));
-
     const result = await getPosts('u1', { page: 1, pageSize: 10 });
     expect(result.ok).toBe(true);
     expect(result.data).toHaveLength(1);
+    expect(result.data[0].isLiked).toBe(true);
+    expect(result.data[0].replies).toHaveLength(1);
+    expect(result.data[0].replies_preloaded).toBe(true);
+    expect(fm.fromMock).not.toHaveBeenCalled();
   });
 
   it('returns empty array on error', async () => {
@@ -408,13 +422,24 @@ describe('forum-api integration: getUserPosts', () => {
 
   it('returns user posts', async () => {
     fm.rpcMock.mockResolvedValue({
-      data: [{ id: 'p1', title: 'My Post', author_id: 'u1', has_more: false }],
+      data: [{
+        id: 'p1',
+        title: 'My Post',
+        author_id: 'u1',
+        is_liked: true,
+        replies: [],
+        replies_has_more: false,
+        has_more: false,
+      }],
       error: null,
     });
 
     const result = await getUserPosts('u1', 'u1', { page: 1, pageSize: 10 });
     expect(result.ok).toBe(true);
     expect(result.data).toHaveLength(1);
+    expect(result.data[0].isLiked).toBe(true);
+    expect(result.data[0].replies_preloaded).toBe(true);
+    expect(fm.fromMock).not.toHaveBeenCalled();
   });
 });
 

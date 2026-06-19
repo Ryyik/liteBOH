@@ -177,10 +177,13 @@ const likePulsePostIds = ref(new Set());
 const replySuccessPostIds = ref(new Set());
 const shareCopiedPostIds = ref(new Set());
 const loadedForumImageKeys = ref(new Set());
+const loadMoreSentinelRef = ref(null);
+const activeForumWindowIndex = ref(0);
 const uiAnimationTimers = new Map();
 const hotTagStats = ref([]);
 const forumPageRef = ref(null);
-let activeScrollTarget = null;
+let forumLoadMoreObserver = null;
+let forumWindowObserver = null;
 const {
   clearForumImageModerationPreloadTask,
   scheduleForumImageModerationPreload
@@ -229,26 +232,10 @@ const scrollForumTo = (top = 0) => {
   }
   window.scrollTo({ top, behavior: 'auto' });
 };
-const bindForumScrollListener = () => {
-  if (typeof window === 'undefined') return;
-  const target = getForumScrollContainer() || window;
-  if (activeScrollTarget === target) return;
-  if (activeScrollTarget) {
-    activeScrollTarget.removeEventListener('scroll', handleScroll);
-  }
-  activeScrollTarget = target;
-  activeScrollTarget.addEventListener('scroll', handleScroll, { passive: true });
-};
-const unbindForumScrollListener = () => {
-  if (!activeScrollTarget) return;
-  activeScrollTarget.removeEventListener('scroll', handleScroll);
-  activeScrollTarget = null;
-};
 const refreshEmbeddedScroll = async () => {
   if (!props.embedded) return;
   await nextTick();
-  bindForumScrollListener();
-  handleScroll();
+  setupForumLoadMoreObserver();
 };
 defineExpose({
   refreshEmbeddedScroll
@@ -455,7 +442,6 @@ let forumFetchAbortController = null;
 let searchDebounceTimer = null;
 let postDraftSaveTimer = null;
 let postDraftRestoreSeq = 0;
-let scrollTimeout = null;
 const getDraftStorageKey = () => {
   const uid = String(userInfo.id || 'guest').trim() || 'guest';
   return `${FORUM_POST_DRAFT_PREFIX}_${uid}`;
@@ -1153,9 +1139,10 @@ onMounted(() => {
   window.addEventListener('resize', updateMobileStatus);
   window.addEventListener('orientationchange', updateMobileStatus);
   document.addEventListener('click', closePostImageSourceMenu);
-  bindForumScrollListener();
 
   void initializeForumData();
+  setupForumLoadMoreObserver();
+  setupForumWindowObserver();
   loadHotTagStats();
   if (isLoggedIn.value) {
     loadWeeklyCheckinStatus();
@@ -1170,7 +1157,8 @@ onUnmounted(() => {
   forumFetchAbortController = null;
   window.removeEventListener('resize', updateMobileStatus);
   window.removeEventListener('orientationchange', updateMobileStatus);
-  unbindForumScrollListener();
+  cleanupForumLoadMoreObserver();
+  cleanupForumWindowObserver();
   document.removeEventListener('click', closePostImageSourceMenu);
   document.body.style.overflow = '';
   void discardDraftPostImages({ silent: true });
@@ -1181,9 +1169,6 @@ onUnmounted(() => {
   if (postDraftSaveTimer) {
     clearTimeout(postDraftSaveTimer);
     postDraftSaveTimer = null;
-  }
-  if (scrollTimeout) {
-    clearTimeout(scrollTimeout);
   }
   if (cooldownTimer) {
     clearInterval(cooldownTimer);
@@ -1249,6 +1234,22 @@ watch(
   () => [newPost.value.title, newPost.value.content, selectedPostTag.value],
   () => {
     persistPostDraft();
+  }
+);
+
+watch(
+  () => [forumData.value.length, feedMode.value, hasMoreData.value, isLoading.value],
+  () => {
+    setupForumLoadMoreObserver();
+    setupForumWindowObserver();
+  },
+  { flush: 'post' }
+);
+
+watch(
+  () => [viewMode.value, sortMode.value, searchKeyword.value, selectedTagFilter.value],
+  () => {
+    activeForumWindowIndex.value = 0;
   }
 );
 
@@ -1591,6 +1592,108 @@ const prepareForumPostForDisplay = (post, index = 0) => {
 const prepareForumPosts = (posts = [], startIndex = 0) => (
   Array.isArray(posts) ? posts.map((post, index) => prepareForumPostForDisplay(post, startIndex + index)) : []
 );
+
+const VIRTUAL_FEED_MIN_COUNT = 40;
+const VIRTUAL_FEED_BEFORE = 20;
+const VIRTUAL_FEED_AFTER = 30;
+const VIRTUAL_FEED_ESTIMATED_CARD_HEIGHT = 300;
+
+const shouldVirtualizeForumFeed = computed(() => feedMode.value === 'posts' && forumData.value.length > VIRTUAL_FEED_MIN_COUNT);
+const virtualFeedStartIndex = computed(() => {
+  if (!shouldVirtualizeForumFeed.value) return 0;
+  return Math.max(0, activeForumWindowIndex.value - VIRTUAL_FEED_BEFORE);
+});
+const virtualFeedEndIndex = computed(() => {
+  if (!shouldVirtualizeForumFeed.value) return forumData.value.length;
+  return Math.min(forumData.value.length, activeForumWindowIndex.value + VIRTUAL_FEED_AFTER);
+});
+const visibleForumPosts = computed(() => forumData.value.slice(
+  virtualFeedStartIndex.value,
+  virtualFeedEndIndex.value
+));
+const virtualFeedTopSpacerHeight = computed(() => (
+  shouldVirtualizeForumFeed.value ? virtualFeedStartIndex.value * VIRTUAL_FEED_ESTIMATED_CARD_HEIGHT : 0
+));
+const virtualFeedBottomSpacerHeight = computed(() => (
+  shouldVirtualizeForumFeed.value
+    ? Math.max(0, forumData.value.length - virtualFeedEndIndex.value) * VIRTUAL_FEED_ESTIMATED_CARD_HEIGHT
+    : 0
+));
+const getVisiblePostIndex = (visibleIndex) => virtualFeedStartIndex.value + visibleIndex;
+
+const requestLoadMoreFromSentinel = () => {
+  if (feedMode.value !== 'posts') return;
+  if (isLoading.value || isLoadingMore.value || !hasMoreData.value) return;
+  fetchForumData(true);
+};
+
+const cleanupForumLoadMoreObserver = () => {
+  if (forumLoadMoreObserver) {
+    forumLoadMoreObserver.disconnect();
+    forumLoadMoreObserver = null;
+  }
+};
+
+const setupForumLoadMoreObserver = async () => {
+  if (typeof window === 'undefined') return;
+  await nextTick();
+  cleanupForumLoadMoreObserver();
+  const sentinel = loadMoreSentinelRef.value;
+  if (!sentinel || typeof IntersectionObserver === 'undefined') return;
+  const root = getForumScrollContainer();
+  forumLoadMoreObserver = new IntersectionObserver((entries) => {
+    if (entries.some((entry) => entry.isIntersecting)) {
+      requestLoadMoreFromSentinel();
+    }
+  }, {
+    root: root && root !== window ? root : null,
+    rootMargin: '800px 0px',
+    threshold: 0.01
+  });
+  forumLoadMoreObserver.observe(sentinel);
+};
+
+const cleanupForumWindowObserver = () => {
+  if (forumWindowObserver) {
+    forumWindowObserver.disconnect();
+    forumWindowObserver = null;
+  }
+};
+
+const setupForumWindowObserver = async () => {
+  if (typeof window === 'undefined') return;
+  await nextTick();
+  cleanupForumWindowObserver();
+  if (!shouldVirtualizeForumFeed.value || typeof IntersectionObserver === 'undefined') {
+    activeForumWindowIndex.value = Math.min(activeForumWindowIndex.value, Math.max(0, forumData.value.length - 1));
+    return;
+  }
+  const root = getForumScrollContainer();
+  forumWindowObserver = new IntersectionObserver((entries) => {
+    const visibleEntries = entries
+      .filter((entry) => entry.isIntersecting)
+      .map((entry) => ({
+        index: Number(entry.target?.dataset?.forumVirtualIndex || 0),
+        distance: Math.abs(entry.boundingClientRect.top - ((root && root !== window) ? root.clientHeight : window.innerHeight) / 2)
+      }))
+      .sort((a, b) => a.distance - b.distance);
+    if (visibleEntries.length) {
+      activeForumWindowIndex.value = visibleEntries[0].index;
+    }
+  }, {
+    root: root && root !== window ? root : null,
+    rootMargin: '900px 0px',
+    threshold: 0.01
+  });
+  const scope = forumPageRef.value || document;
+  scope.querySelectorAll('[data-forum-virtual-index]').forEach((el) => {
+    forumWindowObserver.observe(el);
+  });
+};
+
+watch(visibleForumPosts, () => {
+  setupForumWindowObserver();
+}, { flush: 'post' });
 
 const openForumImageViewer = (post, index = 0) => {
   const images = Array.isArray(post?.previewImages)
@@ -2248,6 +2351,15 @@ const handlePostCardCancelReply = () => {
 
 const loadPostReplyPreview = async (post) => {
   if (!post?.id) return;
+  const existingReplies = Array.isArray(post.replies) ? post.replies : [];
+  if (existingReplies.length > 0 || post.replies_preloaded) {
+    post.replies = existingReplies;
+    post.replies_has_more = Boolean(
+      post.replies_has_more || Number(post.comment_count || 0) > existingReplies.length
+    );
+    return;
+  }
+
   const currentUserId = isLoggedIn.value ? userInfo.id : null;
   let { data, hasMore } = await getComments(post.id, currentUserId, {
     topLevelOnly: true,
@@ -2270,6 +2382,7 @@ const loadPostReplyPreview = async (post) => {
 
   post.replies = Array.isArray(data) ? data : [];
   post.replies_has_more = Boolean(hasMore);
+  post.replies_preloaded = true;
 };
 
 const refreshPostEngagementStats = async (post) => {
@@ -2469,23 +2582,6 @@ const sharePost = async (post) => {
     logger.error('forum', '复制分享链接失败:', error);
     showModal('error', '复制失败', '当前环境不支持自动复制，请手动复制地址栏链接');
   }
-};
-
-// 窗口滚动处理器
-const handleScroll = () => {
-  if (feedMode.value !== 'posts') return;
-  if (isLoading.value || isLoadingMore.value || !hasMoreData.value) return;
-
-  if (scrollTimeout) {
-    clearTimeout(scrollTimeout);
-  }
-
-  scrollTimeout = setTimeout(() => {
-    const { scrollTop, clientHeight, scrollHeight } = getForumScrollMetrics();
-    if (scrollTop + clientHeight >= scrollHeight - 800) {
-      fetchForumData(true);
-    }
-  }, 100);
 };
 
 const handleSearch = () => {
@@ -2794,11 +2890,22 @@ const openPostDetail = (postId) => {
                 <p v-else>这里空空如也，快来发布第一条动态吧！</p>
               </div>
 
-              <PostCard
-                v-for="(post, index) in forumData"
+              <div
+                v-if="virtualFeedTopSpacerHeight > 0"
+                class="forum-virtual-spacer"
+                :style="{ height: `${virtualFeedTopSpacerHeight}px` }"
+                aria-hidden="true"
+              ></div>
+
+              <div
+                v-for="(post, index) in visibleForumPosts"
                 :key="post.id"
-                :post="post"
-                :index="index"
+                class="forum-virtual-post"
+                :data-forum-virtual-index="getVisiblePostIndex(index)"
+              >
+                <PostCard
+                  :post="post"
+                  :index="getVisiblePostIndex(index)"
                   :is-home-cat-active="isHomeCatActive"
                   :is-expanded="expandedPostIds.has(post.id)"
                   :active-reply-target="activeReplyTarget && activeReplyTarget.postId === post.id ? activeReplyTarget : null"
@@ -2830,8 +2937,23 @@ const openPostDetail = (postId) => {
                   @image-loaded="markForumImageLoaded"
                   @lazy-image-observe="observeForumLazyImage"
                   @more-replies="openPostDetail"
-              />
+                />
+              </div>
+
+              <div
+                v-if="virtualFeedBottomSpacerHeight > 0"
+                class="forum-virtual-spacer"
+                :style="{ height: `${virtualFeedBottomSpacerHeight}px` }"
+                aria-hidden="true"
+              ></div>
             </div>
+
+            <div
+              v-if="feedMode === 'posts' && hasMoreData"
+              ref="loadMoreSentinelRef"
+              class="forum-load-more-sentinel"
+              aria-hidden="true"
+            ></div>
 
             <!-- 加载更多提示 -->
             <div v-if="feedMode === 'posts' && isLoadingMore" class="loading-more">

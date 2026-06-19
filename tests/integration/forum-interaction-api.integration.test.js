@@ -24,6 +24,7 @@ function makeSingleQuery(result) {
     select: vi.fn(() => q),
     eq: vi.fn(() => q),
     single: vi.fn(() => q),
+    maybeSingle: vi.fn(() => q),
     then: (resolve) => Promise.resolve(result).then(resolve),
   };
   return q;
@@ -123,6 +124,15 @@ describe('forum-interaction-api: checkIfLiked', () => {
 
   it('returns false when no like', async () => {
     im.supabaseFrom.mockReturnValue(makeSingleQuery({ data: null, error: null }));
+    const result = await checkIfLiked('post1', 'u1');
+    expect(result).toBe(false);
+  });
+
+  it('returns false when like lookup fails', async () => {
+    im.supabaseFrom.mockReturnValue(makeSingleQuery({
+      data: null,
+      error: { message: 'permission denied' },
+    }));
     const result = await checkIfLiked('post1', 'u1');
     expect(result).toBe(false);
   });

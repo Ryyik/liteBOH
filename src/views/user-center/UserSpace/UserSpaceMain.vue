@@ -10,12 +10,16 @@
     <input type="file" ref="profileBackgroundInputRef" class="hidden-file-input" accept="image/*"
       @change="handleProfileBackgroundFileChange">
 
-    <div v-if="mountedTabs.posts" v-show="currentTab === 'posts' || leavingTab === 'posts'" class="tab-page posts-tab" :class="{ 'is-leaving': leavingTab === 'posts' }">
+    <div v-if="mountedTabs.posts" v-show="currentTab === 'posts' || leavingTab === 'posts'"
+      :ref="(el) => setTabPageRef('posts', el)" class="tab-page posts-tab"
+      :class="{ 'is-leaving': leavingTab === 'posts' }">
       <AsyncForum ref="forumViewRef" :key="forumRenderKey" :show-navbar="false" :show-header="false" :embedded="true"
         @island-message="showBottomNavIsland" />
     </div>
 
-    <div v-if="mountedTabs.community" v-show="currentTab === 'community' || leavingTab === 'community'" class="tab-page" :class="{ 'is-leaving': leavingTab === 'community' }">
+    <div v-if="mountedTabs.community" v-show="currentTab === 'community' || leavingTab === 'community'"
+      :ref="(el) => setTabPageRef('community', el)" class="tab-page"
+      :class="{ 'is-leaving': leavingTab === 'community' }">
       <div class="page-content">
         <div v-if="isLoadingCommunity && !hasLoadedCommunity" class="community-skeleton" aria-hidden="true">
           <div v-for="group in 3" :key="`community-group-loading-${group}`" class="community-group skeleton">
@@ -214,23 +218,30 @@
       </div>
     </div>
 
-    <div v-if="mountedTabs.shows" v-show="currentTab === 'shows' || leavingTab === 'shows'" class="tab-page shows-tab" :class="{ 'is-leaving': leavingTab === 'shows' }">
+    <div v-if="mountedTabs.shows" v-show="currentTab === 'shows' || leavingTab === 'shows'"
+      :ref="(el) => setTabPageRef('shows', el)" class="tab-page shows-tab"
+      :class="{ 'is-leaving': leavingTab === 'shows' }">
       <AsyncShows :embedded="true" />
     </div>
 
-    <div v-if="mountedTabs.ai" v-show="currentTab === 'ai' || leavingTab === 'ai'" class="tab-page ai-tab" :class="{ 'is-leaving': leavingTab === 'ai' }">
+    <div v-if="mountedTabs.ai" v-show="currentTab === 'ai' || leavingTab === 'ai'"
+      :ref="(el) => setTabPageRef('ai', el)" class="tab-page ai-tab"
+      :class="{ 'is-leaving': leavingTab === 'ai' }">
       <section class="ai-workspace" aria-label="BOH AI 聊天">
         <AsyncBOHAI :embedded="true" @island-message="showBottomNavIsland" />
       </section>
     </div>
 
-    <div v-if="mountedTabs.messages" v-show="currentTab === 'messages' || leavingTab === 'messages'" class="tab-page messages-tab" :class="{ 'is-leaving': leavingTab === 'messages' }">
+    <div v-if="mountedTabs.messages" v-show="currentTab === 'messages' || leavingTab === 'messages'"
+      :ref="(el) => setTabPageRef('messages', el)" class="tab-page messages-tab"
+      :class="{ 'is-leaving': leavingTab === 'messages' }">
       <HomeCatMascot v-if="isHomeCatActive" class="messages-tab-cat" pool="background" seed="messages-tab"
         size="lg" decorative />
       <AsyncMessages :minimal="true" />
     </div>
 
-    <div v-if="mountedTabs.profile" v-show="currentTab === 'profile'" class="tab-page profile-tab">
+    <div v-if="mountedTabs.profile" v-show="currentTab === 'profile'"
+      :ref="(el) => setTabPageRef('profile', el)" class="tab-page profile-tab">
       <div class="profile-page-content">
         <div v-if="!isLoggedIn" class="login-prompt">
           <User class="login-prompt-icon" :size="34" :stroke-width="1.7" aria-hidden="true" />
@@ -676,10 +687,15 @@ const hasLoadedBirthdays = ref(false);
 const forumRenderKey = ref(0);
 const forumViewRef = ref(null);
 const shouldRefreshForumAfterThemeChange = ref(false);
+const tabPageRefs = new Map();
+const tabScrollPositions = reactive(Object.fromEntries(
+  USER_SPACE_VALID_TABS.map((tab) => [tab, 0])
+));
 let clearLeavingTabTimer = null;
 let communitySearchDebounceTimer = null;
 let latestCommunityFetchId = 0;
 let latestBirthdayFetchId = 0;
+let latestTabScrollRestoreToken = 0;
 
 const navItems = [
   { id: 'posts', label: '帖子', icon: Newspaper },
@@ -722,6 +738,41 @@ const updateTabTransitionDirection = (nextTab, previousTab = currentTab.value) =
   const previousIndex = getTabOrderIndex(previousTab);
   if (nextIndex < 0 || previousIndex < 0 || nextIndex === previousIndex) return;
   tabTransitionDirection.value = nextIndex > previousIndex ? 'forward' : 'back';
+};
+
+const setTabPageRef = (tabId, el) => {
+  if (!tabId) return;
+  if (el) {
+    tabPageRefs.set(tabId, el);
+  } else {
+    tabPageRefs.delete(tabId);
+  }
+};
+
+const getTabPageEl = (tabId) => tabPageRefs.get(tabId) || null;
+
+const saveTabScrollPosition = (tabId = currentTab.value) => {
+  const safeTab = String(tabId || '');
+  const tabEl = getTabPageEl(safeTab);
+  if (!tabEl) return;
+  tabScrollPositions[safeTab] = Math.max(0, Number(tabEl.scrollTop || 0));
+};
+
+const restoreTabScrollPosition = async (tabId = currentTab.value) => {
+  const safeTab = String(tabId || '');
+  const restoreToken = ++latestTabScrollRestoreToken;
+  await nextTick();
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (restoreToken !== latestTabScrollRestoreToken) return;
+      const tabEl = getTabPageEl(safeTab);
+      if (!tabEl) return;
+      tabEl.scrollTop = Math.max(0, Number(tabScrollPositions[safeTab] || 0));
+      if (safeTab === 'posts') {
+        forumViewRef.value?.refreshEmbeddedScroll?.();
+      }
+    });
+  });
 };
 
 const isAdmin = computed(() => userInfo.value.role === 'admin');
@@ -1991,16 +2042,18 @@ const switchTab = (tabId) => {
   if (currentTab.value === tabId) return;
   updateTabTransitionDirection(tabId);
   ensureTabMounted(tabId);
+  const previousTab = currentTab.value;
+  saveTabScrollPosition(previousTab);
   if (tabId === 'profile' && currentTab.value !== 'profile') {
     profileSection.value = 'home';
   }
   if (clearLeavingTabTimer) {
     clearTimeout(clearLeavingTabTimer);
   }
-  const previousTab = currentTab.value;
   leavingTab.value = previousTab;
   currentTab.value = tabId;
   syncUserSpaceTabRoute(tabId);
+  void restoreTabScrollPosition(tabId);
   clearLeavingTabTimer = setTimeout(() => {
     if (leavingTab.value === previousTab) {
       leavingTab.value = null;
@@ -2488,6 +2541,7 @@ onMounted(() => {
   if (currentTab.value === 'posts') {
     scheduleForumPreload(currentTab.value);
   }
+  void restoreTabScrollPosition(currentTab.value);
   if (currentTab.value === 'community') {
     fetchCommunityOverview();
     syncCommunityViewFromRoute();
@@ -2518,12 +2572,14 @@ watch(() => route.query.tab, (newTab) => {
   if (currentTab.value === nextTab) return;
   updateTabTransitionDirection(nextTab);
   ensureTabMounted(nextTab);
+  const previousTab = currentTab.value;
+  saveTabScrollPosition(previousTab);
   if (clearLeavingTabTimer) {
     clearTimeout(clearLeavingTabTimer);
   }
-  const previousTab = currentTab.value;
   leavingTab.value = previousTab;
   currentTab.value = nextTab;
+  void restoreTabScrollPosition(nextTab);
   clearLeavingTabTimer = setTimeout(() => {
     if (leavingTab.value === previousTab) {
       leavingTab.value = null;
@@ -2600,6 +2656,7 @@ watch(currentCommunityPage, () => {
 });
 
 onUnmounted(() => {
+  saveTabScrollPosition(currentTab.value);
   setUserSpaceMountedForPreload(false);
   latestUserStatsFetchToken += 1;
   clearScheduledForumPreload();
@@ -2610,6 +2667,10 @@ onUnmounted(() => {
   window.removeEventListener('boh_userspace_nav_island', handleBottomNavIslandEvent);
   if (communitySearchDebounceTimer) {
     clearTimeout(communitySearchDebounceTimer);
+  }
+  if (clearLeavingTabTimer) {
+    clearTimeout(clearLeavingTabTimer);
+    clearLeavingTabTimer = null;
   }
   // 移除主题变化监听
   themeManager.removeListener(handleThemeChange);

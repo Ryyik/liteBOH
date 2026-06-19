@@ -8,6 +8,21 @@
   border-radius: 12px;
 }
 
+.forum-virtual-spacer {
+  flex: 0 0 auto;
+  pointer-events: none;
+}
+
+.forum-virtual-post {
+  display: block;
+}
+
+.forum-load-more-sentinel {
+  width: 100%;
+  height: 1px;
+  pointer-events: none;
+}
+
 .feed-header-v2 {
   margin-bottom: 38px;
   padding-top: 12px;

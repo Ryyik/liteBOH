@@ -86,13 +86,26 @@ export async function toggleLike(postId, userId) {
 }
 
 export async function checkIfLiked(postId, userId) {
-  if (!userId) return false;
-  const { data } = await supabase
+  const safePostId = String(postId || '').trim();
+  const safeUserId = String(userId || '').trim();
+  if (!safePostId || !safeUserId) return false;
+
+  const { data, error } = await supabase
     .from('likes')
     .select('id')
-    .eq('post_id', postId)
-    .eq('user_id', userId)
-    .single();
+    .eq('post_id', safePostId)
+    .eq('user_id', safeUserId)
+    .maybeSingle();
+
+  if (error) {
+    logger.warn('forum-api', '查询点赞状态失败，按未点赞处理', {
+      postId: safePostId,
+      userId: safeUserId,
+      error
+    });
+    return false;
+  }
+
   return !!data;
 }
 
