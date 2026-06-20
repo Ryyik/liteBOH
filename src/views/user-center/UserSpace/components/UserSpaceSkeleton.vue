@@ -47,6 +47,8 @@
 </template>
 
 <script setup>
+import { ref, onMounted } from 'vue';
+
 const navItems = [
   { id: 'posts', label: '帖子' },
   { id: 'community', label: '社区' },
@@ -55,16 +57,17 @@ const navItems = [
   { id: 'profile', label: '我的' }
 ];
 
-const isDark = (() => {
+const isDark = ref(false);
+
+onMounted(() => {
   try {
     const saved = localStorage.getItem('boh-theme');
-    if (saved === 'dark') return true;
+    if (saved === 'dark') isDark.value = true;
     if (saved === 'system' && typeof window !== 'undefined') {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+      isDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches;
     }
   } catch {}
-  return false;
-})();
+});
 </script>
 
 <style scoped>

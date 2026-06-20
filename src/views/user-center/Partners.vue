@@ -1,6 +1,5 @@
 <template>
   <div class="partners-container">
-    <UnifiedNavbar />
     <UserCenterPageHeader title="社区里的伙伴" @back="goBack" />
 
     <!-- 1. Dashboard Header (Stats) -->
@@ -171,7 +170,6 @@ import { getUserImpressions, addUserImpression, deleteUserImpression } from '@/u
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { logger } from '@/utils/logger.js';
-import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 

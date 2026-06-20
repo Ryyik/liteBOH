@@ -1,6 +1,5 @@
 <template>
   <div class="community-lottery-page">
-    <UnifiedNavbar />
 
     <Transition name="lottery-toast">
       <div v-if="toast.show" class="lottery-toast" :class="`toast-${toast.type}`" role="status">
@@ -364,7 +363,6 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import UnifiedNavbar from '../../components/UnifiedNavbar/index.vue';
 import { useAuthStore } from '@/stores/auth';
 import { getImageUrl } from '../../utils/asset-helper.js';
 import { getCommunityLotteries, joinCommunityLottery } from '../../utils/api/lottery-api.js';

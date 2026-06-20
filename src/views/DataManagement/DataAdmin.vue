@@ -1,6 +1,5 @@
 <template>
   <div class="data-management-page">
-    <UnifiedNavbar />
 
     <div class="admin-shell">
       <AdminSidebar
@@ -669,7 +668,6 @@ import {
   Server,
   Users
 } from 'lucide-vue-next';
-import UnifiedNavbar from '../../components/UnifiedNavbar/index.vue';
 import AdminHeader from './components/AdminHeader.vue';
 import AdminOverview from './components/AdminOverview.vue';
 import AdminSidebar from './components/AdminSidebar.vue';

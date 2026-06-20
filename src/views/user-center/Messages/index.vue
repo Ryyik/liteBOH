@@ -1,7 +1,6 @@
 <template>
   <div class="x-notifications-container" :class="{ 'minimal-mode': minimal }">
     <template v-if="!minimal">
-      <UnifiedNavbar />
       <UserCenterPageHeader title="消息中心" @back="goBack">
         <template #actions>
           <button v-if="unreadCountsByType.all > 0" class="x-mark-all-btn" @click="markAllAsRead">
@@ -137,8 +136,9 @@
             </div>
           </div>
         </div>
-        <div v-if="hasMoreNotifications" class="x-load-more-row">
-          <button class="x-load-more-btn" :disabled="loadingMoreNotifications" @click="loadMoreNotifications">
+        <div v-if="hasMoreNotifications" ref="loadMoreSentinelRef" class="x-load-more-row">
+          <span v-if="loadingMoreNotifications" class="x-load-more-spinner" />
+          <button v-show="!loadingMoreNotifications" class="x-load-more-btn" :disabled="loadingMoreNotifications" @click="loadMoreNotifications">
             {{ loadMoreNotificationLabel }}
           </button>
         </div>
@@ -251,7 +251,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, onUnmounted, reactive } from 'vue';
+import { ref, computed, onMounted, watch, onUnmounted, reactive, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { Bell, TriangleAlert } from 'lucide-vue-next';
 import { useAuthStore } from '@/stores/auth';
@@ -269,7 +269,6 @@ import { supabase } from '@/utils/supabase-client.js';
 import { logger } from '@/utils/logger.js';
 import { invalidateByTags } from '@/utils/request-core.js';
 import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';
-import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import UserCenterBackButton from '@/components/UserCenterBackButton.vue';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import {
@@ -321,6 +320,8 @@ const messages = ref([]);
 const selectedMessage = ref(null);
 const loading = ref(true);
 const loadingMoreNotifications = ref(false);
+const loadMoreSentinelRef = ref(null);
+let loadMoreObserver = null;
 const notificationsLoadError = ref('');
 const notificationsCursor = ref(null);
 const hasMoreNotifications = ref(false);
@@ -706,6 +707,17 @@ watch(() => userInfo.value?.id, async (newId, oldId) => {
   await startRealtimeChannels(newId);
 });
 
+// hasMoreNotifications 变化时重连 IntersectionObserver（数据刷新/全部已读后 sentinel 重新出现）
+watch(hasMoreNotifications, async (val) => {
+  if (val) {
+    await nextTick();
+    setupLoadMoreObserver();
+  } else if (loadMoreObserver) {
+    loadMoreObserver.disconnect();
+    loadMoreObserver = null;
+  }
+});
+
 // 组件卸载时恢复 body 滚动并取消订阅
 onUnmounted(() => {
   document.body.style.overflow = '';
@@ -715,6 +727,10 @@ onUnmounted(() => {
   }
   window.removeEventListener('boh_unread_refresh', handleUnreadRefreshEvent);
   void removeRealtimeChannels();
+  if (loadMoreObserver) {
+    loadMoreObserver.disconnect();
+    loadMoreObserver = null;
+  }
 });
 
 const handleUnreadRefreshEvent = async (event) => {
@@ -774,6 +790,8 @@ const loadNotifications = async () => {
     notificationsLoadError.value = error?.message || '网络异常，请稍后重试';
   } finally {
     loading.value = false;
+    await nextTick();
+    setupLoadMoreObserver();
   }
 };
 
@@ -795,7 +813,22 @@ const loadMoreNotifications = async () => {
     showFeedback(error?.message || '加载更多失败，请稍后重试', 'error');
   } finally {
     loadingMoreNotifications.value = false;
+    await nextTick();
+    setupLoadMoreObserver();
   }
+};
+
+const setupLoadMoreObserver = () => {
+  if (loadMoreObserver) {
+    loadMoreObserver.disconnect();
+  }
+  if (!loadMoreSentinelRef.value) return;
+  loadMoreObserver = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting && hasMoreNotifications.value && !loadingMoreNotifications.value) {
+      loadMoreNotifications();
+    }
+  }, { rootMargin: '200px' });
+  loadMoreObserver.observe(loadMoreSentinelRef.value);
 };
 
 const triggerUnreadRefresh = async () => {

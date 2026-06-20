@@ -1,6 +1,5 @@
 <template>
   <div class="pushplus-settings-page">
-    <UnifiedNavbar />
 
     <div class="page-container">
       <UserCenterPageHeader title="推送设置" @back="goBack" />
@@ -16,7 +15,6 @@
 
 <script setup>
 import { useRoute, useRouter } from 'vue-router';
-import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import PushplusSettings from '@/components/PushplusSettings/index.vue';
 import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';

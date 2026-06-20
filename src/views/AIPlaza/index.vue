@@ -1,6 +1,5 @@
 <template>
   <div class="ai-plaza-page">
-    <UnifiedNavbar />
 
     <main class="plaza-main">
       <section class="workspace">
@@ -114,7 +113,6 @@
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
-import UnifiedNavbar from "@/components/UnifiedNavbar/index.vue";
 import { marked } from "marked";
 import DOMPurify from "@/utils/dompurify.js";
 import { callVaultSiliconChat } from "@/utils/api/api-key-runtime-api.js";

@@ -31,6 +31,9 @@
       >
         <component :is="item.icon" class="nav-icon" :size="18" :stroke-width="1.9" aria-hidden="true" />
         <span class="nav-label">{{ item.label }}</span>
+        <div v-if="item.id === 'messages' && hasUnreadMessages" class="unread-badge">
+          {{ unreadCount > 99 ? '99+' : unreadCount }}
+        </div>
       </button>
     </div>
   </div>
@@ -87,6 +90,14 @@ defineProps({
   navIndicatorStyle: {
     type: Object,
     default: () => ({})
+  },
+  hasUnreadMessages: {
+    type: Boolean,
+    default: false
+  },
+  unreadCount: {
+    type: Number,
+    default: 0
   }
 });
 

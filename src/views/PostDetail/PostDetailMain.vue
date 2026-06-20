@@ -4,7 +4,6 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { Check, Heart, MessageCircle, Share2 } from 'lucide-vue-next';
-import UnifiedNavbar from '../../components/UnifiedNavbar/index.vue';
 import UserCenterPageHeader from '../../components/UserCenterPageHeader.vue';
 import CommentThread from './components/CommentThread.vue';
 import ImageViewer from './components/ImageViewer.vue';
@@ -1168,7 +1167,6 @@ const handleDeleteComment = async (comment, parentId = null) => {
 
 <template>
   <div class="post-detail-page" :data-theme="currentTheme">
-    <UnifiedNavbar />
     <UserCenterPageHeader title="帖子详情" max-width="1400px" @back="goBack" />
 
     <div class="detail-container">

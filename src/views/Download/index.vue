@@ -1,6 +1,5 @@
 <template>
   <div class="download-page">
-    <UnifiedNavbar />
 
     <!-- Hero Section -->
     <section class="hero-section">
@@ -77,7 +76,6 @@
 
 <script setup>
 import { ref, computed } from 'vue';
-import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import { downloadsData } from '@/data/downloads.js';
 
 const activeTab = ref('all');

@@ -1596,9 +1596,9 @@
 }
 
 .messages-tab :deep(.x-notifications-container.minimal-mode) {
+  --messages-minimal-padding: 0 0 max(140px, calc(96px + env(safe-area-inset-bottom, 0px)));
   width: min(920px, calc(100% - 32px));
   margin: 0 auto;
-  padding: 0 0 108px;
   background: transparent;
 }
 
@@ -1614,10 +1614,10 @@
 }
 
 .messages-tab :deep(.x-header-minimal) {
+  --messages-header-position: sticky;
+  --messages-header-top: 72px;
+  --messages-header-z: 100;
   border-radius: var(--radius-panel);
-  position: relative;
-  top: auto;
-  z-index: 2;
   margin: 0 0 14px;
   padding: 12px 14px;
   align-items: flex-start;

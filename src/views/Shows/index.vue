@@ -1,6 +1,5 @@
 <template>
   <div class="shows-page" :class="{ 'embedded-mode': embedded }">
-    <UnifiedNavbar v-if="!embedded" />
 
     <!-- Hero Section -->
     <section class="shows-hero">
@@ -193,7 +192,6 @@
 
 <script setup>
 import { ref } from 'vue';
-import UnifiedNavbar from '../../components/UnifiedNavbar/index.vue';
 import CreatorShowsPanel from '../../components/CreatorShowsPanel/index.vue';
 import { getImageUrl } from '../../utils/asset-helper.js';
 

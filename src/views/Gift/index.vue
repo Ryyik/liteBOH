@@ -1,7 +1,6 @@
 <template>
   <div class="gift-page">
     <!-- 统一导航栏 -->
-    <UnifiedNavbar />
 
     <!-- 时间校验弹窗 -->
     <div v-if="showTimeAlert" class="modal-overlay">
@@ -219,7 +218,6 @@ import { ref, reactive, onMounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
-import UnifiedNavbar from '../../components/UnifiedNavbar/index.vue';
 import logoUrl from '../../assets/images/favicon.webp';
 
 const router = useRouter();

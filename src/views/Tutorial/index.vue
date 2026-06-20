@@ -1,7 +1,6 @@
 <template>
   <div class="tutorial-page">
     <!-- 引入统一导航栏 -->
-    <UnifiedNavbar />
 
     <!-- 问题类型选择页面 -->
     <div v-if="!selectedType" class="type-selection-page">
@@ -138,7 +137,6 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();

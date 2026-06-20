@@ -1,7 +1,6 @@
 <template>
   <div class="activities-photo-wall-page">
     <!-- 统一导航栏 -->
-    <UnifiedNavbar />
 
     <!-- 页面标题 -->
     <header class="activities-header">
@@ -54,7 +53,6 @@
 
 <script setup>
 import { ref, onMounted } from "vue";
-import UnifiedNavbar from "@/components/UnifiedNavbar/index.vue";
 import { getImageUrl } from "@/utils/asset-helper.js";
 // 导入活动 composable
 import { initActivities, getAllActivities } from "@/composables/useActivities";

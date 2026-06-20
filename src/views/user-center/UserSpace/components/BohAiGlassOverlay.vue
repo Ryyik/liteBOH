@@ -2,7 +2,6 @@
   <Teleport to="body">
     <Transition name="boh-ai-glass">
       <div
-        v-show="true"
         class="boh-ai-glass-overlay"
         :data-theme="theme"
         role="dialog"
@@ -25,7 +24,7 @@
 <script setup>
 import { onMounted, onUnmounted } from 'vue';
 import { X } from 'lucide-vue-next';
-import BOHAIChat from '@/views/BOHAI/BOHAI/index.vue';
+import { AsyncBOHAI as BOHAIChat } from '../async-loaders.js';
 
 defineProps({
   theme: {
@@ -59,12 +58,11 @@ onUnmounted(() => {
   background:
     linear-gradient(180deg, rgba(248, 250, 252, 0.3), rgba(226, 232, 240, 0.2)),
     rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(26px) saturate(165%);
-  -webkit-backdrop-filter: blur(26px) saturate(165%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   color: #0f172a;
   isolation: isolate;
   transform-origin: bottom center;
-  will-change: transform, opacity;
 }
 
 .boh-ai-glass-close {
@@ -167,6 +165,37 @@ onUnmounted(() => {
   justify-content: center;
   padding-top: 0;
   padding-bottom: 0;
+}
+
+/* Override nested BOHAI backdrop-filter on Safari (causes flickering) */
+.boh-ai-glass-chat :deep(.input-box),
+.boh-ai-glass-chat :deep(.sidebar-inner),
+.boh-ai-glass-chat :deep(.sidebar-item),
+.boh-ai-glass-chat :deep(.message-actions),
+.boh-ai-glass-chat :deep(.scroll-to-bottom),
+.boh-ai-glass-chat :deep(.message.user .message-content),
+.boh-ai-glass-chat :deep(.conversation-jump-nav),
+.boh-ai-glass-chat :deep(.message-tile),
+.boh-ai-glass-chat :deep(.empty-suggestion-card),
+.boh-ai-glass-chat :deep(.features-menu),
+.boh-ai-glass-chat :deep(.header-glass),
+.boh-ai-glass-chat :deep(.sidebar-toggle),
+.boh-ai-glass-chat :deep(.settings-btn),
+.boh-ai-glass-chat :deep(.share-btn),
+.boh-ai-glass-chat :deep(.search-box),
+.boh-ai-glass-chat :deep(.model-selector-content),
+.boh-ai-glass-chat :deep(.knowledge-btn),
+.boh-ai-glass-chat :deep(.compact-input),
+.boh-ai-glass-chat :deep(.compact-popup),
+.boh-ai-glass-chat :deep(.ai-settings-drawer),
+.boh-ai-glass-chat :deep(.sidebar-open-btn),
+.boh-ai-glass-chat :deep(.conversation-header) {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.boh-ai-glass-chat :deep(.input-box) {
+  background: rgba(255, 255, 255, 0.82);
 }
 
 :global(body.boh-ai-glass-open .sidebar.is-embedded),
@@ -406,11 +435,11 @@ onUnmounted(() => {
 .boh-ai-glass-enter-from,
 .boh-ai-glass-leave-to {
   opacity: 0;
-  transform: translate3d(0, 34px, 0) scale(0.975);
+  transform: translate3d(0, 34px, 0);
 }
 
 .boh-ai-glass-leave-to {
-  transform: translate3d(0, 24px, 0) scale(0.985);
+  transform: translate3d(0, 24px, 0);
 }
 
 .boh-ai-glass-enter-from .boh-ai-glass-chat :deep(.input-box) {

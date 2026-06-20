@@ -1,7 +1,6 @@
 <template>
   <div class="newsroom-page">
     <!-- 统一导航栏 -->
-    <UnifiedNavbar />
 
     <!-- 新闻中心标题区域 -->
     <header class="news-header">
@@ -136,7 +135,6 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, nextTick, computed } from "vue";
-import UnifiedNavbar from "../../components/UnifiedNavbar/index.vue";
 import { getImageUrl } from "../../utils/asset-helper.js";
 import { getCloudinaryTransformedUrl } from "@/utils/cloudinary-client.js";
 import DOMPurify from "@/utils/dompurify.js";

@@ -1,6 +1,5 @@
 <template>
   <div class="profile-page">
-    <UnifiedNavbar />
     <input type="file" ref="avatarInputRef" class="hidden-file-input" accept="image/*" @change="handleAvatarFileChange">
 
     <div class="profile-container">
@@ -447,7 +446,6 @@ import { storeToRefs } from 'pinia';
 const authStore = useAuthStore();
 const { isLoggedIn, userInfo } = storeToRefs(authStore);
 const { updateUserProfile } = authStore;
-import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import AvatarCropModal from '@/components/AvatarCropModal.vue';
 import WordCloud from '@/components/WordCloud.vue';

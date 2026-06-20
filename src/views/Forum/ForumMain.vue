@@ -9,7 +9,6 @@ import {
   Reply,
   Share2
 } from 'lucide-vue-next';
-import UnifiedNavbar from '../../components/UnifiedNavbar/index.vue';
 import PostComposer from './components/PostComposer.vue';
 import PostCard from './components/PostCard.vue';
 import ForumImageViewer from './components/ForumImageViewer.vue';
@@ -22,7 +21,6 @@ import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notifi
 
 // Props
 const props = defineProps({
-  showNavbar: { type: Boolean, default: true },
   showHeader: { type: Boolean, default: true },
   embedded: { type: Boolean, default: false }
 });
@@ -324,6 +322,7 @@ const initializeForumData = async () => {
 const forumMentionUsers = computed(() => {
   const seen = new Set();
   const users = [];
+  const MAX_USERS = 40;
   const addUser = (username) => {
     const safeUsername = String(username || '').trim();
     if (!safeUsername || seen.has(safeUsername)) return;
@@ -331,13 +330,17 @@ const forumMentionUsers = computed(() => {
     users.push({ username: safeUsername });
   };
   forumData.value.forEach((post) => {
+    if (users.length >= MAX_USERS) return;
     addUser(post?.author_username);
     if (Array.isArray(post?.replies)) {
-      post.replies.forEach((reply) => addUser(reply?.author_username));
+      for (const reply of post.replies) {
+        if (users.length >= MAX_USERS) break;
+        addUser(reply?.author_username);
+      }
     }
   });
-  if (userInfo.username) addUser(userInfo.username);
-  return users.slice(0, 40);
+  if (users.length < MAX_USERS && userInfo.username) addUser(userInfo.username);
+  return users;
 });
 
 // 通知/消息中心相关
@@ -722,7 +725,7 @@ const ensureCooldownTimer = () => {
       clearInterval(cooldownTimer);
       cooldownTimer = null;
     }
-  }, 250);
+  }, 1000);
 };
 
 const startActionCooldown = (target, seconds) => {
@@ -1095,14 +1098,19 @@ const discardDraftPostImages = async ({ silent = true } = {}) => {
 const MOBILE_BREAKPOINT = 768;
 const PORTRAIT_COMPOSER_BREAKPOINT = 1024;
 const isMobile = ref(window.innerWidth <= 768);
+let resizeRafId = null;
 const updateMobileStatus = () => {
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-  isMobile.value = width <= MOBILE_BREAKPOINT;
-  isMobileComposerMode.value = width <= PORTRAIT_COMPOSER_BREAKPOINT && height >= width;
-  if (!isMobileComposerMode.value) {
-    isMobileComposerOpen.value = false;
-  }
+  if (resizeRafId) return;
+  resizeRafId = requestAnimationFrame(() => {
+    resizeRafId = null;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    isMobile.value = width <= MOBILE_BREAKPOINT;
+    isMobileComposerMode.value = width <= PORTRAIT_COMPOSER_BREAKPOINT && height >= width;
+    if (!isMobileComposerMode.value) {
+      isMobileComposerOpen.value = false;
+    }
+  });
 };
 
 updateMobileStatus();
@@ -1157,6 +1165,10 @@ onUnmounted(() => {
   forumFetchAbortController = null;
   window.removeEventListener('resize', updateMobileStatus);
   window.removeEventListener('orientationchange', updateMobileStatus);
+  if (resizeRafId) {
+    cancelAnimationFrame(resizeRafId);
+    resizeRafId = null;
+  }
   cleanupForumLoadMoreObserver();
   cleanupForumWindowObserver();
   document.removeEventListener('click', closePostImageSourceMenu);
@@ -1240,7 +1252,6 @@ watch(
 watch(
   () => [forumData.value.length, feedMode.value, hasMoreData.value, isLoading.value],
   () => {
-    setupForumLoadMoreObserver();
     setupForumWindowObserver();
   },
   { flush: 'post' }
@@ -2731,7 +2742,6 @@ const openPostDetail = (postId) => {
   <div ref="forumPageRef" class="forum-page" :class="{ 'embedded-mode': embedded }" :data-theme="currentTheme" :data-ui-style="currentUiStyle">
     <link rel="preconnect" :href="cdnDeliveryBase" crossorigin />
     <link rel="dns-prefetch" :href="cdnDeliveryBase" />
-    <UnifiedNavbar v-if="showNavbar" />
 
     <div class="forum-container" :class="{ 'no-header': !showHeader }">
       <!-- 头部区域 -->

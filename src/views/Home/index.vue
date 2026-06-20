@@ -1,7 +1,6 @@
 <template>
   <div class="home">
     <!-- 统一导航栏 -->
-    <UnifiedNavbar />
 
     <!-- BOH 小猫主题英雄区域 -->
     <section class="cat-theme-hero">
@@ -383,7 +382,6 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, defineAsyncComponent } from "vue";
-import UnifiedNavbar from "../../components/UnifiedNavbar/index.vue";
 import HomeCatMascot from "@/components/HomeCatMascot.vue";
 // 异步组件
 const MemberDetailModal = defineAsyncComponent(() => import('../../components/MemberDetailModal.vue'));

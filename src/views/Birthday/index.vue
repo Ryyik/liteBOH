@@ -1,6 +1,5 @@
 <template>
   <div class="birthday-page">
-    <UnifiedNavbar />
 
     <div class="birthday-confetti" aria-hidden="true">
       <span
@@ -251,7 +250,6 @@ import {
   Sparkles,
   WandSparkles
 } from "lucide-vue-next";
-import UnifiedNavbar from "@/components/UnifiedNavbar/index.vue";
 import { useAuthStore } from "@/stores/auth";
 import { storeToRefs } from "pinia";
 import { getImageUrl } from "@/utils/asset-helper.js";

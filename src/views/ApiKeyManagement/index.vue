@@ -1,6 +1,5 @@
 <template>
   <div class="api-key-page">
-    <UnifiedNavbar />
 
     <main class="api-key-shell">
       <header class="page-header">
@@ -176,7 +175,6 @@ import {
   ShieldCheck,
   XCircle
 } from 'lucide-vue-next';
-import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import {
   listApiKeys,
   testApiKey,

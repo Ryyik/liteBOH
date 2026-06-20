@@ -4,6 +4,7 @@
   margin-bottom: clamp(36px, 4vw, 56px);
   background: #ffffff;
   border: 1px solid rgba(0, 0, 0, 0.04);
+  border-radius: 32px;
   position: relative;
   overflow: hidden;
 }

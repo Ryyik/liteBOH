@@ -1,6 +1,5 @@
 <template>
   <div class="about-us-page">
-    <UnifiedNavbar />
 
     <!-- Section 1: Hero -->
     <section class="hero-section">
@@ -151,7 +150,6 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue';
 import { useScroll, useWindowSize, useElementBounding } from '@vueuse/core';
-import UnifiedNavbar from '../../components/UnifiedNavbar/index.vue';
 
 // Images
 // Using relative paths to be safe

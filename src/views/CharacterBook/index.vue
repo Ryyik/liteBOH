@@ -1,6 +1,5 @@
 <template>
   <div class="character-book-page">
-    <UnifiedNavbar />
 
     <main class="character-book-main">
       <section class="book-hero" aria-labelledby="character-book-title">
@@ -75,7 +74,6 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { ChevronLeft, ChevronRight } from 'lucide-vue-next';
-import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import baichengStyle from '@/assets/images/Skin/baicheng_style.webp';
 import baiyeStyle from '@/assets/images/Skin/baiye_style.webp';
 import chengziStyle from '@/assets/images/Skin/chengzi_style.webp';

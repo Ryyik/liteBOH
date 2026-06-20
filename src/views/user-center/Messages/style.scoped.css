@@ -887,14 +887,15 @@
 
 /* Minimal Mode Styles */
 .x-notifications-container.minimal-mode {
-  padding: 0;
+  padding: var(--messages-minimal-padding, 0);
   min-height: auto;
   background: transparent;
 }
 
 .x-header-minimal {
-  position: relative;
-  z-index: 2;
+  position: var(--messages-header-position, relative);
+  top: var(--messages-header-top, auto);
+  z-index: var(--messages-header-z, 2);
   background: rgba(248, 249, 250, 0.8);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -965,188 +966,6 @@
   padding: 0 20px 96px;
 }
 
-/* Mobile Responsive - 竖屏优化 */
-@media (max-width: 600px) {
-  .x-notifications-container {
-    --user-center-page-header-height: 72px;
-    padding: 56px 12px 40px;
-  }
-
-  .x-header {
-    margin: 0 -12px 16px;
-    padding: 0 12px;
-  }
-
-  .x-header-content {
-    gap: 12px;
-    height: 64px;
-  }
-
-  .x-header-title {
-    font-size: 18px;
-  }
-
-  .x-mark-all-btn {
-    padding: 6px 12px;
-    font-size: 12px;
-    white-space: nowrap;
-  }
-
-  .x-tabs {
-    padding: 8px 4px 12px;
-    gap: 6px;
-  }
-
-  .x-tab {
-    padding: 6px 12px;
-    font-size: 12px;
-    border-radius: 14px;
-  }
-
-  .tab-badge {
-    font-size: 10px;
-    padding: 1px 5px;
-    border-radius: 8px;
-    margin-left: 4px;
-  }
-
-  /* 竖屏：消息项改为上下结构 */
-  .x-list {
-    padding: 0 4px;
-    gap: 12px;
-  }
-
-  .x-item {
-    padding: 14px;
-    border-radius: 14px;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .x-item.unread {
-    padding-left: 14px;
-    border-left-width: 3px;
-  }
-
-  /* 头部行：头像 + 用户名 + 时间 */
-  .x-item-header-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-  }
-
-  .x-item-left {
-    display: flex;
-    align-items: center;
-  }
-
-  .x-avatar-wrapper {
-    width: 44px;
-    height: 44px;
-  }
-
-  .x-avatar-img,
-  .x-avatar {
-    width: 44px;
-    height: 44px;
-    border-radius: 14px;
-    font-size: 18px;
-  }
-
-  /* 中间内容区 */
-  .x-item-main {
-    width: 100%;
-    gap: 4px;
-  }
-
-  .x-item-header {
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .x-sender-name {
-    font-size: 15px;
-  }
-
-  .x-action-type {
-    font-size: 12px;
-    padding: 2px 8px;
-  }
-
-  .x-text {
-    font-size: 14px;
-    line-height: 1.5;
-  }
-
-  /* 预览框 */
-  .x-preview-box {
-    padding: 10px 12px;
-    font-size: 13px;
-    margin-top: 6px;
-  }
-
-  .x-preview-box::before {
-    font-size: 18px;
-    top: 2px;
-    left: 6px;
-  }
-
-  /* 右侧：时间和状态改为底部行 */
-  .x-item-right {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-    min-width: auto;
-    margin-top: 4px;
-    padding-top: 8px;
-    border-top: 1px solid rgba(0, 0, 0, 0.04);
-  }
-
-  .x-date {
-    font-size: 11px;
-    padding: 3px 8px;
-  }
-
-  .x-unread-badge,
-  .x-read-badge {
-    font-size: 10px;
-    padding: 3px 8px;
-  }
-
-  /* 快捷操作 */
-  .x-quick-actions {
-    margin-top: 0;
-  }
-
-  .x-quick-btn {
-    width: 26px;
-    height: 26px;
-  }
-
-  .x-detail-drawer {
-    max-width: 100%;
-  }
-
-  .x-header-minimal {
-    padding: 10px 16px 12px;
-  }
-
-  .x-header-minimal .x-tab {
-    padding: 6px 12px;
-    font-size: 12px;
-  }
-
-  .x-mark-all-btn-minimal {
-    padding: 6px 10px;
-    font-size: 11px;
-  }
-
-  .minimal-mode .x-list {
-    padding: 12px 16px 16px;
-  }
-}
 
 .x-header-actions {
   display: flex;
@@ -1259,36 +1078,6 @@
   }
 }
 
-@media (max-width: 600px) {
-  .x-skeleton-list {
-    padding: 0 4px;
-    gap: 12px;
-  }
-
-  .x-skeleton-item {
-    padding: 14px;
-    border-radius: 14px;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .x-skeleton-avatar {
-    width: 44px;
-    height: 44px;
-    border-radius: 14px;
-  }
-
-  .x-skeleton-right {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-    min-width: auto;
-    margin-top: 4px;
-    padding-top: 8px;
-    border-top: 1px solid rgba(0, 0, 0, 0.04);
-  }
-}
 
 /* Inbox redesign overrides */
 .x-title-stack {
@@ -1434,6 +1223,15 @@
 .x-load-more-btn:disabled {
   cursor: wait;
   opacity: 0.65;
+}
+
+.x-load-more-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(16, 24, 40, 0.1);
+  border-top-color: #1d9bf0;
+  border-radius: 50%;
+  animation: x-spin 0.7s linear infinite;
 }
 
 .message-feedback-toast {
@@ -1647,13 +1445,13 @@
 }
 
 .drawer-content {
-  padding: 24px;
+  padding: 24px 24px 0;
 }
 
 .notification-actions {
   position: sticky;
-  bottom: -24px;
-  margin: 24px -24px -24px;
+  bottom: 0;
+  margin: 24px 0 0;
   padding: 14px 24px calc(14px + env(safe-area-inset-bottom, 0px));
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(18px);
@@ -1775,7 +1573,7 @@
   }
 
   .drawer-content {
-    padding: 18px;
+    padding: 18px 18px 0;
   }
 
   .detail-user-card {
@@ -1792,11 +1590,217 @@
   }
 
   .notification-actions {
-    margin: 20px -18px -18px;
+    margin: 20px 0 0;
     padding: 12px 18px calc(12px + env(safe-area-inset-bottom, 0px));
     overflow-x: auto;
   }
 
+}
+
+/* Mobile Responsive - Very narrow screens (< 600px) */
+@media (max-width: 600px) {
+  .x-notifications-container {
+    --user-center-page-header-height: 72px;
+    padding: 56px 12px 40px;
+  }
+
+  .x-header {
+    margin: 0 -12px 16px;
+    padding: 0 12px;
+  }
+
+  .x-header-content {
+    gap: 12px;
+    height: 64px;
+  }
+
+  .x-header-title {
+    font-size: 18px;
+  }
+
+  .x-mark-all-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .x-tabs {
+    padding: 8px 4px 12px;
+    gap: 6px;
+  }
+
+  .x-tab {
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 14px;
+  }
+
+  .tab-badge {
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 8px;
+    margin-left: 4px;
+  }
+
+  .x-list {
+    padding: 0 4px;
+    gap: 12px;
+  }
+
+  .x-item {
+    padding: 14px;
+    border-radius: 14px;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .x-item.unread {
+    padding-left: 14px;
+    border-left-width: 3px;
+  }
+
+  .x-item-header-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .x-item-left {
+    display: flex;
+    align-items: center;
+  }
+
+  .x-avatar-wrapper {
+    width: 44px;
+    height: 44px;
+  }
+
+  .x-avatar-img,
+  .x-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    font-size: 18px;
+  }
+
+  .x-item-main {
+    width: 100%;
+    gap: 4px;
+  }
+
+  .x-item-header {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .x-sender-name {
+    font-size: 15px;
+  }
+
+  .x-action-type {
+    font-size: 12px;
+    padding: 2px 8px;
+  }
+
+  .x-text {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .x-preview-box {
+    padding: 10px 12px;
+    font-size: 13px;
+    margin-top: 6px;
+  }
+
+  .x-preview-box::before {
+    font-size: 18px;
+    top: 2px;
+    left: 6px;
+  }
+
+  .x-item-right {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    min-width: auto;
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(0, 0, 0, 0.04);
+  }
+
+  .x-date {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+
+  .x-unread-badge,
+  .x-read-badge {
+    font-size: 10px;
+    padding: 3px 8px;
+  }
+
+  .x-quick-actions {
+    margin-top: 0;
+  }
+
+  .x-quick-btn {
+    width: 26px;
+    height: 26px;
+  }
+
+  .x-detail-drawer {
+    max-width: 100%;
+  }
+
+  .x-header-minimal {
+    padding: 10px 16px 12px;
+  }
+
+  .x-header-minimal .x-tab {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .x-mark-all-btn-minimal {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .minimal-mode .x-list {
+    padding: 12px 16px 16px;
+  }
+
+  .x-skeleton-list {
+    padding: 0 4px;
+    gap: 12px;
+  }
+
+  .x-skeleton-item {
+    padding: 14px;
+    border-radius: 14px;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .x-skeleton-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+  }
+
+  .x-skeleton-right {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    min-width: auto;
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(0, 0, 0, 0.04);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

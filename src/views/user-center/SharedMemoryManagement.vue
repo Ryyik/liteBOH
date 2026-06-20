@@ -1,6 +1,5 @@
 <template>
   <div class="shared-memory-page">
-    <UnifiedNavbar />
 
     <div class="shared-memory-shell">
       <UserCenterPageHeader title="公共记忆管理" @back="goBack" />
@@ -120,7 +119,6 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { Archive, LockKeyhole } from 'lucide-vue-next';
-import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import { useAuthStore } from '@/stores/auth';
 import {

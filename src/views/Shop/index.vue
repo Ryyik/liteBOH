@@ -1,7 +1,6 @@
 <template>
   <div class="shop-page">
     <!-- 统一导航栏 -->
-    <UnifiedNavbar />
 
     <!-- Apple 风格顶部 Hero 区 -->
     <header class="shop-hero">
@@ -309,7 +308,6 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
 import { useRoute } from "vue-router";
-import UnifiedNavbar from "../../components/UnifiedNavbar/index.vue";
 import { getImageUrl } from "../../utils/asset-helper.js";
 import { useAuthStore } from "@/stores/auth";
 import { useBagStore } from "@/stores/bag";

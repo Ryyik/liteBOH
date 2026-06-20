@@ -1,5 +1,8 @@
 <template>
-  <div id="unified-nav-container" class="unified-nav" :class="{ 'mobile-menu-open': isMobileMenuOpen }" data-theme>
+  <div id="unified-nav-container" class="unified-nav" :class="{
+    'mobile-menu-open': isMobileMenuOpen,
+    scrolled: isScrolled
+  }" data-theme>
     <div class="nav-container">
       <router-link to="/" class="nav-logo">
         <div class="nav-logo-icon">
@@ -120,7 +123,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch, onActivated, onDeactivated } from "vue";
 import { useRoute } from "vue-router";
 import { getImageUrl } from "../../utils/asset-helper.js";
 import { useAuthStore } from "@/stores/auth";
@@ -138,6 +141,27 @@ const currentThemePreference = ref(themeManager.getPreference?.() || currentThem
 const isHomeCatActive = computed(() => (
   isHomeCatTheme(currentTheme.value) || isHomeCatTheme(currentThemePreference.value)
 ));
+
+// ============================================
+// 滚动悬浮效果控制
+// ============================================
+
+const isScrolled = ref(false);
+const SCROLL_THRESHOLD = 50;
+
+const getActiveScrollY = (event) => {
+  // 某些页面（如我的方块）使用自定义滚动容器而非窗口滚动
+  // scroll 事件的 target 就是实际滚动的元素
+  const target = event?.target;
+  if (target && target !== document && target !== document.documentElement && target !== window) {
+    return target.scrollTop;
+  }
+  return window.scrollY;
+};
+
+const handleScroll = (event) => {
+  isScrolled.value = getActiveScrollY(event) > SCROLL_THRESHOLD;
+};
 
 const ensureNotificationStore = async () => {
   if (notificationStoreRef.value) {
@@ -482,6 +506,9 @@ onMounted(() => {
   themeManager.addListener(handleThemeChange);
   // 添加点击外部关闭下拉菜单的事件监听
   document.addEventListener("click", handleClickOutside);
+  // 滚动悬浮效果（capture 模式捕获嵌套滚动容器的 scroll 事件）
+  document.addEventListener("scroll", handleScroll, { passive: true, capture: true });
+  handleScroll(); // 初始化检查
 });
 
 /**
@@ -497,6 +524,8 @@ onUnmounted(() => {
   themeManager.removeListener(handleThemeChange);
   // 移除点击外部关闭下拉菜单的事件监听
   document.removeEventListener("click", handleClickOutside);
+  // 移除滚动监听
+  document.removeEventListener("scroll", handleScroll, { capture: true });
 });
 
 /**
@@ -522,6 +551,15 @@ watch(isLoggedIn, (loggedIn) => {
   if (loggedIn) {
     void checkUnreadMessages();
   }
+});
+
+onActivated(() => {
+  document.addEventListener("scroll", handleScroll, { passive: true, capture: true });
+  handleScroll();
+});
+
+onDeactivated(() => {
+  document.removeEventListener("scroll", handleScroll, { capture: true });
 });
 </script>
 

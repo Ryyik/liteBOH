@@ -1,7 +1,5 @@
 <template>
   <div class="cloud-page" :class="{ embedded: isDesktopEmbed, 'with-topbar': !isDesktopEmbed }">
-    <UnifiedNavbar v-if="!isDesktopEmbed" />
-
     <UserCenterPageHeader v-if="!isDesktopEmbed" title="BOH Cloud+" max-width="1200px" @back="goBack" />
 
     <div class="cloud-shell">
@@ -535,7 +533,6 @@ import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 import { ChevronDown, Cloud, Search } from 'lucide-vue-next';
-import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import { useAuthStore } from '@/stores/auth';
 import { moodChoices, getMoodMeta } from './config.js';

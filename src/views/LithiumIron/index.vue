@@ -1,7 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import UnifiedNavbar from '../../components/UnifiedNavbar/index.vue';
 
 const router = useRouter();
 
@@ -115,7 +114,6 @@ onMounted(() => {
 
 <template>
   <div class="lithium-iron-channel">
-    <UnifiedNavbar />
 
     <section class="channel-header">
       <div class="header-content">

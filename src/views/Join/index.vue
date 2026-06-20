@@ -1,6 +1,5 @@
 <template>
   <div class="join-page">
-    <UnifiedNavbar />
     <input type="file" ref="avatarInputRef" class="hidden-file-input" accept="image/*" @change="handleAvatarFileChange">
 
     <main class="join-container">
@@ -182,7 +181,6 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
-import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import AvatarCropModal from '@/components/AvatarCropModal.vue';
 import AltchaWidget from '@/components/AltchaWidget.vue';
 import AgreementModal from '@/components/AgreementModal.vue';

@@ -129,9 +129,9 @@ describe('async wrapper attrs pass-through', () => {
   });
 
   describe('known consumers pass props/emits (regression guard)', () => {
-    it('BohAiGlassOverlay imports BOHAI/index.vue and passes props + events', () => {
+    it('BohAiGlassOverlay imports AsyncBOHAI from async-loaders and passes props + events', () => {
       const overlay = readEntryFile('src/views/user-center/UserSpace/components/BohAiGlassOverlay.vue');
-      expect(overlay).toMatch(/import BOHAIChat from ['"]@\/views\/BOHAI\/BOHAI\/index\.vue['"]/);
+      expect(overlay).toMatch(/import \{ AsyncBOHAI as BOHAIChat \} from ['"]\.\.\/async-loaders\.js['"]/);
       expect(overlay).toMatch(/:embedded="true"/);
       expect(overlay).toMatch(/:overlay-mode="true"/);
       expect(overlay).toMatch(/@island-message/);

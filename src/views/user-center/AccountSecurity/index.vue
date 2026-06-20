@@ -1,6 +1,5 @@
 <template>
   <div class="account-security-page">
-    <UnifiedNavbar />
     <UserCenterPageHeader title="账户安全" max-width="760px" @back="handleHeaderBack" />
 
     <div class="security-shell">
@@ -180,7 +179,6 @@ import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { KeyRound, ShieldCheck, TriangleAlert } from 'lucide-vue-next';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
-import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import { useAuthStore } from '@/stores/auth';
 import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';

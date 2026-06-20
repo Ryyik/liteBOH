@@ -30,6 +30,9 @@
   --glass-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.03);
   --glass-blur: blur(20px) saturate(180%);
   --glass-blur-sm: blur(12px) saturate(160%);
+  --surface: #ffffff;
+  --surface-soft: #f8fafc;
+  --stroke: rgba(15, 23, 42, 0.08);
 
   background: var(--bg);
   min-height: 100dvh;
@@ -60,6 +63,9 @@
   --glass-border-strong: rgba(255, 255, 255, 0.15);
   --glass-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1), 0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   --glass-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(0, 0, 0, 0.15);
+  --surface: #1a1a24;
+  --surface-soft: #252532;
+  --stroke: rgba(255, 255, 255, 0.1);
 }
 
 /* ---------- Tab 页面基础 ---------- */
@@ -131,7 +137,8 @@
 }
 
 .tab-page.messages-tab {
-  position: relative;
+  box-sizing: border-box;
+  padding-top: 72px;
 }
 
 .tab-page.shows-tab {

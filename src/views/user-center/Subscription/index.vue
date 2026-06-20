@@ -1,6 +1,5 @@
 <template>
   <div class="subscription-page">
-    <UnifiedNavbar />
     <UserCenterPageHeader title="订阅与积分" @back="goBack" />
 
     <!-- Header Area -->
@@ -121,7 +120,6 @@
 import { ref, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Bot, Cake, Check, Crown, Gift, Zap } from 'lucide-vue-next';
-import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import { useAuthStore } from '@/stores/auth';
 import { getMySubscriptions, subscribeWithPoints } from '@/utils/api/subscription-api.js';
 import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';

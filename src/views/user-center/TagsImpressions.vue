@@ -1,6 +1,5 @@
 <template>
   <div class="tags-impressions-page">
-    <UnifiedNavbar />
     <UserCenterPageHeader title="标签与印象" max-width="800px" @back="goBack" />
 
     <div class="content-container">
@@ -78,7 +77,6 @@ import { supabase } from '@/utils/supabase-client.js';
 import { getUserImpressions, deleteUserImpression } from '@/utils/api/profile-api.js';
 import { useAuthStore } from '@/stores/auth';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
-import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 

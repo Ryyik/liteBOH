@@ -4,7 +4,6 @@
     'tab-transition-back': tabTransitionDirection === 'back'
   }"
     :data-theme="currentTheme">
-    <UnifiedNavbar />
 
     <input type="file" ref="avatarInputRef" class="hidden-file-input" accept="image/*" @change="handleAvatarFileChange">
     <input type="file" ref="profileBackgroundInputRef" class="hidden-file-input" accept="image/*"
@@ -546,6 +545,8 @@
       :nav-items="navItems"
       :current-tab="currentTab"
       :nav-indicator-style="bottomNavIndicatorStyle"
+      :has-unread-messages="hasUnreadMessages"
+      :unread-count="unreadCount"
       @island-action="handleBottomNavIslandAction"
       @island-before-leave="handleBottomNavIslandBeforeLeave"
       @island-after-leave="handleBottomNavIslandAfterLeave"
@@ -577,7 +578,6 @@ import { ref, computed, nextTick, onMounted, onUnmounted, reactive, watch } from
 import { useRouter, useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { Bot, Cake, MessageCircle, Newspaper, User, Users } from 'lucide-vue-next';
-import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import AvatarCropModal from '@/components/AvatarCropModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
@@ -636,6 +636,7 @@ const authStore = useAuthStore();
 const { isLoggedIn, isInitialized, userInfo, showLoginModal } = storeToRefs(authStore);
 const notificationStoreRef = ref(getNotificationStoreSync());
 const unreadCount = computed(() => notificationStoreRef.value?.unreadCount || 0);
+const hasUnreadMessages = computed(() => unreadCount.value > 0);
 const ensureNotificationStore = async () => {
   if (notificationStoreRef.value) {
     return notificationStoreRef.value;
@@ -692,6 +693,7 @@ const tabScrollPositions = reactive(Object.fromEntries(
   USER_SPACE_VALID_TABS.map((tab) => [tab, 0])
 ));
 let clearLeavingTabTimer = null;
+let userSpacePageEl = null;
 let communitySearchDebounceTimer = null;
 let latestCommunityFetchId = 0;
 let latestBirthdayFetchId = 0;
@@ -1034,7 +1036,7 @@ const loadMoreProfilePosts = async () => {
   if (isLoadingMoreProfilePosts.value || !hasMoreProfilePosts.value) return;
   isLoadingMoreProfilePosts.value = true;
   try {
-    await fetchProfileContent({ reset: false });
+    await fetchProfileContent({ force: true, reset: false });
   } finally {
     isLoadingMoreProfilePosts.value = false;
   }
@@ -1492,9 +1494,8 @@ const handleThemeChange = (theme, preference = themeManager.getPreference?.() ||
   currentThemePreference.value = preference;
   shouldRefreshForumAfterThemeChange.value = true;
   // 同步更新页面的 data-theme 属性
-  const userSpacePage = document.querySelector('.user-space-page');
-  if (userSpacePage) {
-    userSpacePage.setAttribute('data-theme', theme);
+  if (userSpacePageEl) {
+    userSpacePageEl.setAttribute('data-theme', theme);
   }
   void refreshForumAfterThemeChange();
 };
@@ -1528,9 +1529,8 @@ const setThemePreference = (preference) => {
   currentTheme.value = themeManager.getTheme();
   currentThemePreference.value = themeManager.getPreference?.() || preference;
   // 更新当前页面的 data-theme 属性
-  const userSpacePage = document.querySelector('.user-space-page');
-  if (userSpacePage) {
-    userSpacePage.setAttribute('data-theme', currentTheme.value);
+  if (userSpacePageEl) {
+    userSpacePageEl.setAttribute('data-theme', currentTheme.value);
   }
 };
 
@@ -2522,9 +2522,9 @@ onMounted(() => {
   document.body.classList.add("is-loaded");
   // 初始化主题
   const initialTheme = themeManager.getTheme();
-  const userSpacePage = document.querySelector('.user-space-page');
-  if (userSpacePage) {
-    userSpacePage.setAttribute('data-theme', initialTheme);
+  userSpacePageEl = document.querySelector('.user-space-page');
+  if (userSpacePageEl) {
+    userSpacePageEl.setAttribute('data-theme', initialTheme);
   }
   currentTheme.value = initialTheme;
   currentThemePreference.value = themeManager.getPreference?.() || initialTheme;
@@ -2619,9 +2619,7 @@ watch(currentTab, (newTab, oldTab) => {
     profileSection.value = 'home';
   }
   resolveProfileSectionFromRoute();
-  if (newTab === 'profile') {
-    runProfileCriticalFetches();
-  } else if (oldTab === 'profile') {
+  if (oldTab === 'profile') {
     scheduleUserSpaceWarmup();
   }
 });

@@ -1,7 +1,6 @@
 <template>
   <div class="boh-8-years-event">
     <!-- 公共导航栏 -->
-    <UnifiedNavbar />
 
     <!-- 主内容区域 -->
     <main class="main-content">
@@ -324,7 +323,6 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
-import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()

@@ -1,6 +1,5 @@
 <template>
   <div class="address-page" :class="{ 'admin-layout': isAdmin, 'sidebar-collapsed': !isAdminSidebarOpen }">
-    <UnifiedNavbar />
 
     <!-- Admin Sidebar (Users List) -->
     <aside v-if="isAdmin" class="admin-sidebar glass-container-light">
@@ -439,7 +438,6 @@ import { availableModels } from "@/views/BOHAI/composables/useChatEngine.js";
 import { callVaultSiliconChat } from "@/utils/api/api-key-runtime-api.js";
 import { getExpiredActiveGiftIds, markGiftsAsHistory, isGiftExpiredCompleted } from "@/utils/gift-archive.js";
 import { resolveSettingsBackLocation } from "@/utils/user-space-navigation.js";
-import UnifiedNavbar from "@/components/UnifiedNavbar/index.vue";
 import UserCenterPageHeader from "@/components/UserCenterPageHeader.vue";
 
 const router = useRouter();

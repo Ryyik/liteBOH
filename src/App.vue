@@ -2,6 +2,7 @@
 import { watch, onMounted, onUnmounted, ref, computed, defineAsyncComponent } from "vue";
 import { useRoute } from "vue-router";
 import Footer from "./components/Footer.vue";
+import UnifiedNavbar from "@/components/UnifiedNavbar/index.vue";
 import { useAuthStore } from "@/stores/auth";
 import { storeToRefs } from "pinia";
 import { loadNotificationStore, getNotificationStoreSync } from "@/stores/notification-loader";
@@ -126,9 +127,15 @@ watch(isInitialized, (newVal) => {
     checkAndStartListener();
   }
 });
+
+// 全局导航栏：隐藏在桌面嵌入模式或路由标记隐藏时
+const showGlobalNavbar = computed(() =>
+  route.query?.embed !== 'desktop' && !route.meta?.hideNavbar
+);
 </script>
 
 <template>
+  <UnifiedNavbar v-if="showGlobalNavbar" />
   <Suspense>
     <template #default>
       <router-view />

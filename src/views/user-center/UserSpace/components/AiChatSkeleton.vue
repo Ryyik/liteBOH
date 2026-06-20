@@ -56,16 +56,19 @@
 </template>
 
 <script setup>
-const isDark = (() => {
+import { ref, onMounted } from 'vue';
+
+const isDark = ref(false);
+
+onMounted(() => {
   try {
     const saved = localStorage.getItem('boh-theme');
-    if (saved === 'dark') return true;
+    if (saved === 'dark') isDark.value = true;
     if (saved === 'system' && typeof window !== 'undefined') {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+      isDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches;
     }
   } catch {}
-  return false;
-})();
+});
 </script>
 
 <style scoped>
