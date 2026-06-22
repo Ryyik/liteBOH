@@ -6,29 +6,27 @@
 /* 统一导航栏毛玻璃效果优化 - 降低模糊效果 */
 #unified-nav-container {
   background-color: rgba(255, 255, 255, 0.4) !important;
-  backdrop-filter: blur(10px) !important;
-  /* 降低模糊半径至 10px */
-  -webkit-backdrop-filter: blur(10px) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.02) !important;
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+  transition: transform 1.2s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  will-change: transform, opacity;
 }
 
-/* 横屏：进入悬浮动画更慢更灵动 */
+/* 横屏下过渡时长保持一致 */
 @media (orientation: landscape) {
   #unified-nav-container {
-    transition-duration: 0.8s !important;
+    transition-duration: 1.2s !important;
   }
 }
 
-/* 悬浮态：归位动画速度不变 */
+/* 悬浮态：过渡归位 */
 #unified-nav-container.scrolled {
   border-bottom: none !important;
   background-color: rgba(255, 255, 255, 0.5) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08) !important;
-  transition-duration: 0.3s !important;
 }
 
 .unified-nav {

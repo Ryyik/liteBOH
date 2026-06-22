@@ -567,6 +567,7 @@ import {
 } from '@/utils/api/boh-cloud-api.js';
 import { serializeCloudTextAndImages } from '@/utils/boh-cloud-content.js';
 import { DEFAULT_CLOUD_IMAGE_LIMIT, resolveCloudBenefitFromSubscriptions } from '@/utils/subscription-benefits.js';
+import { logger } from '@/utils/logger.js';
 import {
   createCloudSettingsSubscriptionLocation,
   createUserSpaceProfileReturnLocation,
@@ -929,7 +930,7 @@ function readStoredSharedToken() {
   try {
     return normalizeCloudShareToken(window.localStorage.getItem(SHARED_TOKEN_STORAGE_KEY) || '');
   } catch (error) {
-    console.warn('读取 Cloud+ 共享令牌缓存失败:', error);
+    logger.warn('cloud-plus', '读取 Cloud+ 共享令牌缓存失败:', error);
     return '';
   }
 }
@@ -944,7 +945,7 @@ function persistStoredSharedToken(token) {
       window.localStorage.removeItem(SHARED_TOKEN_STORAGE_KEY);
     }
   } catch (error) {
-    console.warn('写入 Cloud+ 共享令牌缓存失败:', error);
+    logger.warn('cloud-plus', '写入 Cloud+ 共享令牌缓存失败:', error);
   }
 }
 
@@ -1043,7 +1044,7 @@ function readCachedEntries(userId) {
     if (!Array.isArray(parsed)) return [];
     return parsed.map(normalizeCachedEntry).filter(Boolean);
   } catch (error) {
-    console.warn('读取 Cloud+ 本地缓存失败:', error);
+    logger.warn('cloud-plus', '读取 Cloud+ 本地缓存失败:', error);
     return [];
   }
 }
@@ -1061,7 +1062,7 @@ function persistCachedEntries(userId, items) {
     }
     window.localStorage.setItem(cacheKey, JSON.stringify(safeItems));
   } catch (error) {
-    console.warn('写入 Cloud+ 本地缓存失败:', error);
+    logger.warn('cloud-plus', '写入 Cloud+ 本地缓存失败:', error);
   }
 }
 
@@ -1112,7 +1113,7 @@ async function loadMyShareChannel() {
   try {
     const result = await getMyCloudShareChannel();
     if (!result.ok) {
-      console.error('读取 Cloud+ 共享频道失败:', result.error);
+      logger.error('cloud-plus', '读取 Cloud+ 共享频道失败:', result.error);
       myShareChannel.value = null;
       return;
     }
@@ -1275,7 +1276,7 @@ async function copyMyShareToken() {
     await navigator.clipboard.writeText(token);
     showNotice('访问令牌已复制');
   } catch (error) {
-    console.error('复制 Cloud+ 访问令牌失败:', error);
+    logger.error('cloud-plus', '复制 Cloud+ 访问令牌失败:', error);
     showNotice('复制失败，请手动复制令牌');
   }
 }
@@ -1452,7 +1453,7 @@ async function loadSubscriptions() {
   const result = await getMySubscriptions(String(userInfo.value.id).trim(), { includeExpired: true });
   if (!result.ok) {
     subscriptions.value = [];
-    console.error('读取 Cloud+ 订阅权益失败:', result.error);
+    logger.error('cloud-plus', '读取 Cloud+ 订阅权益失败:', result.error);
     return;
   }
 

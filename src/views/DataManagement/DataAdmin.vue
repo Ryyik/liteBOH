@@ -645,6 +645,7 @@
       @remove-spec="removeSpec"
       @clear-field-error="clearFieldError"
       @validate-field="validateField"
+      @update-field="handleUpdateField"
     />
   </div>
 </template>
@@ -853,6 +854,12 @@ const clearFieldErrors = () => {
 const clearFieldError = (fieldKey) => {
   if (fieldErrors[fieldKey]) {
     delete fieldErrors[fieldKey];
+  }
+};
+
+const handleUpdateField = (fieldKey, value) => {
+  if (fieldKey && editingItem.value) {
+    editingItem.value[fieldKey] = value;
   }
 };
 

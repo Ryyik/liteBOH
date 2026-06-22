@@ -105,7 +105,7 @@ export default defineConfig({
     // 指定静态资源目录
     assetsDir: 'static',
     // 提高 chunk 大小警告阈值（view-bohai 约 546 kB 略超默认 500 kB）
-    chunkSizeWarningLimit: 600,
+    chunkSizeWarningLimit: 1000,
     // 代码分割
     rollupOptions: {
       output: {

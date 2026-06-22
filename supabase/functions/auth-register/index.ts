@@ -5,6 +5,26 @@ import { validateEmail, validatePassword, validateUsername } from '../_shared/au
 const normalizeErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 
+// 简单内存内速率限制
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 5;
+
+function checkRateLimit(ip: string): { ok: true } | { ok: false; retryAfter: number } {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return { ok: true };
+  }
+  entry.count++;
+  if (entry.count > RATE_LIMIT_MAX_REQUESTS) {
+    const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
+    return { ok: false, retryAfter };
+  }
+  return { ok: true };
+}
+
 Deno.serve(async (request) => {
   const origin = request.headers.get('origin');
 
@@ -18,6 +38,18 @@ Deno.serve(async (request) => {
     return jsonResponse(
       { ok: false, code: 'METHOD_NOT_ALLOWED', message: '仅支持 POST 请求。' },
       405,
+      origin,
+    );
+  }
+
+  const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || request.headers.get('x-real-ip')
+    || 'unknown';
+  const rateCheck = checkRateLimit(clientIp);
+  if (!rateCheck.ok) {
+    return jsonResponse(
+      { ok: false, code: 'RATE_LIMITED', message: `请求过于频繁，请在 ${rateCheck.retryAfter} 秒后重试。` },
+      429,
       origin,
     );
   }
@@ -68,6 +100,20 @@ Deno.serve(async (request) => {
 
     const serviceClient = createServiceClient();
 
+    // 预检用户名是否已存在，避免依赖错误消息字符串匹配
+    const { data: existingProfile } = await serviceClient
+      .from('profiles')
+      .select('id')
+      .ilike('username', username)
+      .maybeSingle();
+    if (existingProfile) {
+      return jsonResponse(
+        { ok: false, code: 'USERNAME_TAKEN', message: '该方块 ID 已被使用。' },
+        409,
+        origin,
+      );
+    }
+
     const { data: createdUserData, error: createUserError } = await serviceClient.auth.admin.createUser({
       email,
       password,
@@ -115,7 +161,21 @@ Deno.serve(async (request) => {
     });
 
     if (signInError || !sessionData?.session) {
-      throw signInError || new Error('创建账号成功，但自动登录失败。');
+      // 自动登录失败时，回滚已创建的用户账号
+      try {
+        await serviceClient.auth.admin.deleteUser(createdUser.id);
+      } catch (_cleanupError) {
+        // 静默清理失败，但用户可走正常登录流程
+      }
+      return jsonResponse(
+        {
+          ok: false,
+          code: 'AUTO_LOGIN_FAILED',
+          message: '创建账号成功，但自动登录失败，请直接登录。',
+        },
+        200,
+        origin,
+      );
     }
 
     return jsonResponse(

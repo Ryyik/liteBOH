@@ -76,20 +76,22 @@ import { MessageCircle, Tag } from 'lucide-vue-next';
 import { supabase } from '@/utils/supabase-client.js';
 import { getUserImpressions, deleteUserImpression } from '@/utils/api/profile-api.js';
 import { useAuthStore } from '@/stores/auth';
+import { storeToRefs } from 'pinia';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
+import { logger } from '@/utils/logger.js';
 
 const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
-const { userInfo } = authStore;
+const { userInfo } = storeToRefs(authStore);
 
 const goBack = () => {
   router.push(resolveSettingsBackLocation(route));
 };
 const userImpressions = ref([]);
-const userTags = ref(userInfo.tags || []);
+const userTags = ref(userInfo.value?.tags || []);
 const loading = ref(true);
 
 const alertState = reactive({
@@ -120,7 +122,7 @@ const fetchImpressions = async () => {
       userImpressions.value = data || [];
     }
   } catch (err) {
-    console.error('获取印象失败:', err);
+    logger.error('tags-impressions', '获取印象失败:', err);
   } finally {
     loading.value = false;
   }
@@ -130,7 +132,7 @@ const handleDeleteImpression = async (id) => {
   if (!confirm('确定要移除这条印象吗？')) return;
 
   try {
-    const currentUserId = String(userInfo.id || '').trim();
+    const currentUserId = String(userInfo.value.id || '').trim();
     if (!currentUserId) {
       showAlert('error', '删除失败', '当前登录状态异常，请刷新后重试');
       return;
@@ -143,7 +145,7 @@ const handleDeleteImpression = async (id) => {
       showAlert('success', '删除成功', '该印象已被移除');
     }
   } catch (err) {
-    console.error('删除印象异常:', err);
+    logger.error('tags-impressions', '删除印象异常:', err);
     showAlert('error', '删除失败', '网络错误');
   }
 };

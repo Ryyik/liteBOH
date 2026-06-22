@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <Transition name="boh-ai-glass">
-      <div
+      <div v-if="show"
         class="boh-ai-glass-overlay"
         :data-theme="theme"
         role="dialog"
@@ -30,6 +30,10 @@ defineProps({
   theme: {
     type: String,
     default: ''
+  },
+  show: {
+    type: Boolean,
+    default: true
   }
 });
 

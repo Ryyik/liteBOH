@@ -85,6 +85,7 @@
 <script setup>
 import { ref, nextTick } from 'vue'
 import * as mammoth from 'mammoth'
+import DOMPurify from '@/utils/dompurify.js'
 import FileUploader from './components/FileUploader.vue'
 import DocPreview from './components/DocPreview.vue'
 import StyleInspector from './components/StyleInspector.vue'
@@ -120,7 +121,7 @@ async function updatePreview(blob) {
   previewLoading.value = true
   try {
     const result = await mammoth.convertToHtml({ arrayBuffer: await blob.arrayBuffer() })
-    previewHtml.value = result.value
+    previewHtml.value = DOMPurify.sanitize(result.value)
   } catch (e) {
     previewHtml.value = `<p style="color:#dc2626">预览渲染失败：${e.message}</p>`
   } finally {

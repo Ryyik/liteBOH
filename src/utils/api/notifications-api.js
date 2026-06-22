@@ -228,6 +228,7 @@ export async function getUnreadNotificationCount(userId) {
 }
 
 export function subscribeToNotifications(userId, callback) {
+  const safeUserId = String(userId || '').replace(/[^\w\-]/g, '');
   return supabase
     .channel('public:notifications')
     .on(
@@ -236,7 +237,7 @@ export function subscribeToNotifications(userId, callback) {
         event: 'INSERT',
         schema: 'public',
         table: 'notifications',
-        filter: `recipient_id=eq.${userId}`
+        filter: `recipient_id=eq.${safeUserId}`
       },
       (payload) => callback(payload.new)
     )

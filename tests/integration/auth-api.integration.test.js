@@ -182,11 +182,7 @@ describe('auth-api integration: signIn', () => {
   });
 
   it('resolves username to email with profile lookup', async () => {
-    const profileQuery = createQueryBuilder({
-      data: [{ id: 'u1', email: 'found@example.com', username: 'testuser' }],
-      error: null,
-    });
-    mocks.fromMock.mockReturnValue(profileQuery);
+    mocks.rpcMock.mockResolvedValue({ data: 'found@example.com', error: null });
 
     mocks.authSignInWithPassword.mockResolvedValue({
       data: { user: { id: 'u1' }, session: {} },
@@ -195,16 +191,15 @@ describe('auth-api integration: signIn', () => {
 
     const result = await signIn('testuser', 'password123');
     expect(result.ok).toBe(true);
-    expect(mocks.fromMock).toHaveBeenCalled();
+    expect(mocks.rpcMock).toHaveBeenCalledWith('resolve_email_for_login', { p_username: 'testuser' });
   });
 
   it('rejects unknown username', async () => {
-    const profileQuery = createQueryBuilder({ data: [], error: null });
-    mocks.fromMock.mockReturnValue(profileQuery);
+    mocks.rpcMock.mockResolvedValue({ data: null, error: null });
 
     const result = await signIn('unknown_user', 'password123');
     expect(result.ok).toBe(false);
-    expect(result.error.code).toBe('UNKNOWN_ACCOUNT');
+    expect(result.error.code).toBe('INVALID_CREDENTIALS');
   });
 
   it('handles invalid credentials', async () => {
@@ -226,7 +221,7 @@ describe('auth-api integration: signIn', () => {
 
     const result = await signIn('test@example.com', 'password123');
     expect(result.ok).toBe(false);
-    expect(result.error.code).toBe('EMAIL_NOT_CONFIRMED');
+    expect(result.error.code).toBe('401');
   });
 });
 

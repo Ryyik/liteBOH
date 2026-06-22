@@ -182,6 +182,7 @@ import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import { useAuthStore } from '@/stores/auth';
 import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';
+import { logger } from '@/utils/logger.js';
 
 const DELETE_ACCOUNT_CONFIRM_TEXT = '确认注销';
 
@@ -374,7 +375,7 @@ const confirmDeleteAccount = async () => {
       router.push('/');
     }, 400);
   } catch (error) {
-    console.error('账号注销失败:', error);
+    logger.error('account-security', '账号注销失败:', error);
     deleteAccountError.value = error?.message || '注销失败，请稍后再试。';
   } finally {
     isDeletingAccount.value = false;

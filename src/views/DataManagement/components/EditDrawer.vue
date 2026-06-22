@@ -99,47 +99,47 @@
               </div>
 
               <!-- 文本输入 -->
-              <input v-else-if="field.type === 'text'" v-model="editingItem[field.key]" type="text"
+              <input v-else-if="field.type === 'text'" :value="editingItem[field.key]" type="text"
                 :class="['form-input', { 'input-invalid': fieldErrors[field.key] }]" :placeholder="field.placeholder"
                 :disabled="isFieldDisabled(field)" :required="field.required" :maxlength="field.maxLength"
-                @input="$emit('clearFieldError', field.key)"
+                @input="setField(field.key, $event.target.value); $emit('clearFieldError', field.key)"
                 @blur="$emit('validateField', field.key)" />
 
               <!-- 邮箱输入 -->
-              <input v-else-if="field.type === 'email'" v-model="editingItem[field.key]" type="email"
+              <input v-else-if="field.type === 'email'" :value="editingItem[field.key]" type="email"
                 :class="['form-input', { 'input-invalid': fieldErrors[field.key] }]" :placeholder="field.placeholder"
                 :disabled="isFieldDisabled(field)" :required="field.required" :maxlength="field.maxLength"
-                @input="$emit('clearFieldError', field.key)"
+                @input="setField(field.key, $event.target.value); $emit('clearFieldError', field.key)"
                 @blur="$emit('validateField', field.key)" />
 
               <!-- 数字输入 -->
-              <input v-else-if="field.type === 'number'" v-model.number="editingItem[field.key]" type="number"
+              <input v-else-if="field.type === 'number'" :value="editingItem[field.key]" type="number"
                 :class="['form-input', { 'input-invalid': fieldErrors[field.key] }]" :placeholder="field.placeholder"
                 :disabled="isFieldDisabled(field)" :required="field.required" :min="field.min" :max="field.max"
-                :step="field.step || 1" @input="$emit('clearFieldError', field.key)"
+                :step="field.step || 1" @input="setField(field.key, parseFloat($event.target.value) || 0); $emit('clearFieldError', field.key)"
                 @blur="$emit('validateField', field.key)" />
 
               <!-- 日期输入 -->
-              <input v-else-if="field.type === 'date'" v-model="editingItem[field.key]" type="date"
+              <input v-else-if="field.type === 'date'" :value="editingItem[field.key]" type="date"
                 :class="['form-input', { 'input-invalid': fieldErrors[field.key] }]" :disabled="isFieldDisabled(field)"
-                :required="field.required" @input="$emit('clearFieldError', field.key)" @blur="$emit('validateField', field.key)" />
+                :required="field.required" @input="setField(field.key, $event.target.value); $emit('clearFieldError', field.key)" @blur="$emit('validateField', field.key)" />
 
               <!-- 日期时间输入 -->
-              <input v-else-if="field.type === 'datetime'" v-model="editingItem[field.key]" type="datetime-local"
+              <input v-else-if="field.type === 'datetime'" :value="editingItem[field.key]" type="datetime-local"
                 :class="['form-input', { 'input-invalid': fieldErrors[field.key] }]" :disabled="isFieldDisabled(field)"
-                :required="field.required" @input="$emit('clearFieldError', field.key)" @blur="$emit('validateField', field.key)" />
+                :required="field.required" @input="setField(field.key, $event.target.value); $emit('clearFieldError', field.key)" @blur="$emit('validateField', field.key)" />
 
               <!-- 文本域 -->
-              <textarea v-else-if="field.type === 'textarea'" v-model="editingItem[field.key]"
+              <textarea v-else-if="field.type === 'textarea'" :value="editingItem[field.key]"
                 :class="['form-textarea', { 'input-invalid': fieldErrors[field.key] }]" :placeholder="field.placeholder"
                 :disabled="isFieldDisabled(field)" :required="field.required" :rows="field.rows || 4"
                 :maxlength="field.maxLength"
-                @input="$emit('clearFieldError', field.key)" @blur="$emit('validateField', field.key)"></textarea>
+                @input="setField(field.key, $event.target.value); $emit('clearFieldError', field.key)" @blur="$emit('validateField', field.key)"></textarea>
 
               <!-- 选择器 -->
-              <select v-else-if="field.type === 'select'" v-model="editingItem[field.key]"
+              <select v-else-if="field.type === 'select'" :value="editingItem[field.key]"
                 :class="['form-select', { 'input-invalid': fieldErrors[field.key] }]" :disabled="isFieldDisabled(field)"
-                :required="field.required" @change="$emit('clearFieldError', field.key)" @blur="$emit('validateField', field.key)">
+                :required="field.required" @change="setField(field.key, $event.target.value); $emit('clearFieldError', field.key)" @blur="$emit('validateField', field.key)">
                 <option v-for="opt in field.options" :key="opt.value" :value="opt.value">
                   {{ opt.label }}
                 </option>
@@ -179,11 +179,11 @@
                     复制链接
                   </button>
                 </div>
-                <input v-model="editingItem[field.key]" type="text"
+                <input :value="editingItem[field.key]" type="text"
                   :class="['form-input', { 'input-invalid': fieldErrors[field.key] }]"
                   :placeholder="field.placeholder || 'https://... 或 @/assets/images/...'"
                   :disabled="isFieldDisabled(field)"
-                  @input="$emit('clearFieldError', field.key)" @blur="$emit('validateField', field.key)" />
+                  @input="setField(field.key, $event.target.value); $emit('clearFieldError', field.key)" @blur="$emit('validateField', field.key)" />
               </div>
 
               <!-- 标签输入 -->
@@ -201,8 +201,8 @@
               <!-- 规格输入 (商品专用) -->
               <div v-else-if="field.type === 'specifications'" class="specs-input">
                 <div v-for="(spec, idx) in (editingItem[field.key] || [])" :key="idx" class="spec-item">
-                  <input v-model="spec.label" type="text" class="form-input" placeholder="规格名称" />
-                  <input v-model="spec.value" type="text" class="form-input" placeholder="规格值" />
+                  <input :value="spec.label" @input="setSpecField(field.key, idx, 'label', $event.target.value)" type="text" class="form-input" placeholder="规格名称" />
+                  <input :value="spec.value" @input="setSpecField(field.key, idx, 'value', $event.target.value)" type="text" class="form-input" placeholder="规格值" />
                   <button type="button" class="btn-icon" @click="$emit('removeSpec', field.key, idx)">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                       stroke-width="2">
@@ -218,7 +218,7 @@
 
               <!-- JSON 输入 -->
               <div v-else-if="field.type === 'json'" class="json-input">
-                <textarea v-model="jsonBuffers[field.key]" class="form-textarea code-font" rows="6"
+                <textarea :value="jsonBuffers[field.key]" @input="setJsonBuffer(field.key, $event.target.value)" class="form-textarea code-font" rows="6"
                   placeholder="请输入有效的 JSON"></textarea>
               </div>
 
@@ -351,5 +351,13 @@ const emit = defineEmits([
 
 function setField(fieldKey, value) {
   emit('updateField', fieldKey, value);
+}
+
+function setJsonBuffer(fieldKey, value) {
+  emit('updateJsonBuffer', fieldKey, value);
+}
+
+function setSpecField(fieldKey, index, prop, value) {
+  emit('updateSpecField', fieldKey, index, prop, value);
 }
 </script>

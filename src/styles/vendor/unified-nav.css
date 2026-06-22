@@ -21,7 +21,10 @@
   -webkit-backdrop-filter: none;
   border-bottom: 1px solid #f0f0f0;
   box-shadow: none;
-  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+              opacity 1.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+              border-radius 1.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 1.2s cubic-bezier(0.34, 1.56, 0.64, 1);
   height: 72px;
   display: flex;
   align-items: center;
@@ -453,8 +456,8 @@
   top: 64px;
   left: 0;
   width: 100%;
-  height: calc(100vh - 64px);
-  max-height: calc(100vh - 64px);
+  height: calc(100dvh - 64px);
+  max-height: calc(100dvh - 64px);
   background-color: #f5f5f5;
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
@@ -576,8 +579,8 @@
   left: 0;
   right: 0;
   width: 100%;
-  height: calc(100vh - 64px);
-  max-height: calc(100vh - 64px);
+  height: calc(100dvh - 64px);
+  max-height: calc(100dvh - 64px);
   box-sizing: border-box;
   background: #f5f5f5;
   padding: 20px;
@@ -661,7 +664,7 @@
 
 /* 滚动效果 - 滚动时导航栏变为悬浮圆角毛玻璃条 */
 #unified-nav-container.scrolled {
-  top: 12px;
+  transform: translateY(20px);
   left: 12px;
   right: 12px;
   width: 860px;
@@ -675,6 +678,7 @@
   border-radius: 100px;
   border-bottom: none;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  animation: none;
 }
 
 .unified-nav.scrolled .nav-container {
@@ -687,8 +691,8 @@
 #unified-nav-container.scrolled .nav-menu-mobile,
 #unified-nav-container.scrolled .nav-mobile-submenu-container {
   top: 70px;
-  height: calc(100vh - 70px);
-  max-height: calc(100vh - 70px);
+  height: calc(100dvh - 70px);
+  max-height: calc(100dvh - 70px);
 }
 
 /* 响应式设计 */
@@ -755,14 +759,14 @@
 
   .unified-nav .nav-menu-mobile {
     top: 58px;
-    height: calc(100vh - 58px);
-    max-height: calc(100vh - 58px);
+    height: calc(100dvh - 58px);
+    max-height: calc(100dvh - 58px);
   }
 
   .unified-nav .nav-mobile-submenu-container {
     top: 58px;
-    height: calc(100vh - 58px);
-    max-height: calc(100vh - 58px);
+    height: calc(100dvh - 58px);
+    max-height: calc(100dvh - 58px);
   }
 
   .unified-nav .nav-user-info.show-dropdown .nav-dropdown {
@@ -799,14 +803,14 @@
 
   .unified-nav .nav-menu-mobile {
     top: 56px;
-    height: calc(100vh - 56px);
-    max-height: calc(100vh - 56px);
+    height: calc(100dvh - 56px);
+    max-height: calc(100dvh - 56px);
   }
 
   .unified-nav .nav-mobile-submenu-container {
     top: 56px;
-    height: calc(100vh - 56px);
-    max-height: calc(100vh - 56px);
+    height: calc(100dvh - 56px);
+    max-height: calc(100dvh - 56px);
   }
 
   .unified-nav .nav-menu-mobile-content {
@@ -1267,6 +1271,154 @@ body.page-service .unified-nav .nav-dropdown-item,
 body.page-shop .unified-nav .nav-dropdown-item,
 body.page-shop-user .unified-nav .nav-dropdown-item {
   color: #333 !important;
+}
+
+/* 竖屏模式优化 - 解决Chrome地址栏导致的内容遮挡问题 */
+@media (orientation: portrait) and (max-width: 768px) {
+  .unified-nav {
+    height: 60px;
+  }
+
+  .unified-nav .nav-menu-mobile {
+    top: 60px;
+    height: calc(100dvh - 60px);
+    max-height: calc(100dvh - 60px);
+  }
+
+  .unified-nav .nav-mobile-submenu-container {
+    top: 60px;
+    height: calc(100dvh - 60px);
+    max-height: calc(100dvh - 60px);
+  }
+
+  .unified-nav .nav-container {
+    padding: 0 14px;
+  }
+
+  .unified-nav .nav-login-btn {
+    padding: 5px 10px;
+    font-size: 11px;
+    height: 26px;
+    max-width: 64px;
+  }
+}
+
+@media (orientation: portrait) and (max-width: 480px) {
+  .unified-nav {
+    height: 54px;
+  }
+
+  .unified-nav .nav-menu-mobile {
+    top: 54px;
+    height: calc(100dvh - 54px);
+    max-height: calc(100dvh - 54px);
+  }
+
+  .unified-nav .nav-mobile-submenu-container {
+    top: 54px;
+    height: calc(100dvh - 54px);
+    max-height: calc(100dvh - 54px);
+  }
+
+  .unified-nav .nav-container {
+    padding: 0 10px;
+  }
+
+  .unified-nav .nav-logo {
+    font-size: 1rem;
+  }
+
+  .unified-nav .nav-logo-icon {
+    width: 26px;
+    height: 26px;
+  }
+
+  .unified-nav .nav-hamburger {
+    width: 36px;
+    height: 36px;
+    padding: 7px;
+  }
+
+  .unified-nav .nav-hamburger span {
+    width: 16px;
+    margin: 2.5px 0;
+  }
+
+  .unified-nav .nav-login-btn {
+    padding: 4px 8px;
+    font-size: 10px;
+    height: 24px;
+    max-width: 56px;
+  }
+}
+
+/* 竖屏模式下悬浮导航栏优化 - 避免遮挡地址栏 */
+@media (orientation: portrait) {
+  #unified-nav-container.scrolled {
+    transform: translateY(14px);
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: calc(100% - 16px);
+  }
+
+  .unified-nav.scrolled {
+    height: 50px;
+    border-radius: 100px;
+    animation: none;
+  }
+
+  .unified-nav.scrolled .nav-container {
+    padding: 0 14px;
+    gap: 16px;
+  }
+}
+
+/* 不支持 dvh 的浏览器降级方案 */
+@supports not (height: 100dvh) {
+  .unified-nav .nav-menu-mobile,
+  .unified-nav .nav-mobile-submenu-container {
+    height: calc(var(--real-vh, 1vh) * 100 - 64px);
+    max-height: calc(var(--real-vh, 1vh) * 100 - 64px);
+  }
+
+  #unified-nav-container.scrolled .nav-menu-mobile,
+  #unified-nav-container.scrolled .nav-mobile-submenu-container {
+    height: calc(var(--real-vh, 1vh) * 100 - 70px);
+    max-height: calc(var(--real-vh, 1vh) * 100 - 70px);
+  }
+
+  @media (max-width: 768px) {
+    .unified-nav .nav-menu-mobile,
+    .unified-nav .nav-mobile-submenu-container {
+      height: calc(var(--real-vh, 1vh) * 100 - 58px);
+      max-height: calc(var(--real-vh, 1vh) * 100 - 58px);
+    }
+  }
+
+  @media (max-width: 480px) {
+    .unified-nav .nav-menu-mobile,
+    .unified-nav .nav-mobile-submenu-container {
+      height: calc(var(--real-vh, 1vh) * 100 - 56px);
+      max-height: calc(var(--real-vh, 1vh) * 100 - 56px);
+    }
+  }
+
+  @media (orientation: portrait) and (max-width: 768px) {
+    .unified-nav .nav-menu-mobile,
+    .unified-nav .nav-mobile-submenu-container {
+      height: calc(var(--real-vh, 1vh) * 100 - 60px);
+      max-height: calc(var(--real-vh, 1vh) * 100 - 60px);
+    }
+  }
+
+  @media (orientation: portrait) and (max-width: 480px) {
+    .unified-nav .nav-menu-mobile,
+    .unified-nav .nav-mobile-submenu-container {
+      height: calc(var(--real-vh, 1vh) * 100 - 54px);
+      max-height: calc(var(--real-vh, 1vh) * 100 - 54px);
+    }
+  }
 }
 
 /* 登录模态框样式 */

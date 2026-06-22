@@ -145,51 +145,66 @@ async function schedulePostModeration(post = {}) {
   const content = String(post.content || '').trim();
   if (!postId || !authorId || !content) return;
 
-  try {
-    // 发帖场景采用"先发后审"：创建成功后异步复审，避免审查服务波动阻断发布。
-    const moderationInput = buildPostModerationInput(content);
-    const moderationResult = await runAsyncRelaxedModeration(moderationInput, {
-      scene: 'forum_post',
-      timeoutMs: POST_ASYNC_MODERATION_TIMEOUT_MS
-    });
-    await writeAsyncModerationLog(postId, 'post', moderationResult);
+  const MAX_RETRIES = 3;
+  const BASE_DELAY_MS = 2000;
 
-    if (moderationResult.status !== REJECTED_STATUS) {
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      // 发帖场景采用"先发后审"：创建成功后异步复审，避免审查服务波动阻断发布。
+      const moderationInput = buildPostModerationInput(content);
+      const moderationResult = await runAsyncRelaxedModeration(moderationInput, {
+        scene: 'forum_post',
+        timeoutMs: POST_ASYNC_MODERATION_TIMEOUT_MS
+      });
+      await writeAsyncModerationLog(postId, 'post', moderationResult);
+
+      if (moderationResult.status !== REJECTED_STATUS) {
+        return;
+      }
+
+      const { error: updateError } = await supabase
+        .from('posts')
+        .update({
+          status: REJECTED_STATUS,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', postId)
+        .eq('author_id', authorId)
+        .eq('status', APPROVED_STATUS);
+
+      if (updateError) {
+        logger.warn('forum-api', '异步发帖审查回写失败', {
+          postId,
+          authorId,
+          attempt,
+          error: updateError
+        });
+        return;
+      }
+
+      await ensureModerationNotification({
+        recipientId: authorId,
+        type: POST_REJECTED_NOTIFICATION_TYPE,
+        postId
+      });
+
+      invalidateByTags(['posts', 'profiles', 'notifications']);
       return;
-    }
-
-    const { error: updateError } = await supabase
-      .from('posts')
-      .update({
-        status: REJECTED_STATUS,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', postId)
-      .eq('author_id', authorId)
-      .eq('status', APPROVED_STATUS);
-
-    if (updateError) {
-      logger.warn('forum-api', '异步发帖审查回写失败', {
+    } catch (error) {
+      const isLastAttempt = attempt === MAX_RETRIES;
+      logger.warn('forum-api', `异步发帖审查失败（第${attempt}次，${isLastAttempt ? '已耗尽重试次数' : '即将重试'}）`, {
         postId,
         authorId,
-        error: updateError
+        attempt,
+        error
       });
-      return;
+      if (isLastAttempt) {
+        logger.warn('forum-api', '异步发帖审查已耗尽所有重试次数，帖子保持当前状态', { postId, authorId });
+        return;
+      }
+      const delayMs = BASE_DELAY_MS * Math.pow(2, attempt - 1);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
-
-    await ensureModerationNotification({
-      recipientId: authorId,
-      type: POST_REJECTED_NOTIFICATION_TYPE,
-      postId
-    });
-
-    invalidateByTags(['posts', 'profiles', 'notifications']);
-  } catch (error) {
-    logger.warn('forum-api', '异步发帖审查失败（不阻断已发布）', {
-      postId,
-      authorId,
-      error
-    });
   }
 }
 

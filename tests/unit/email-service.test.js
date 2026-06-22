@@ -1,10 +1,23 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-// Mock emailjs dynamic import
-const mockEmailSend = vi.fn();
-vi.mock('@emailjs/browser', () => ({
-  send: mockEmailSend,
+// Mock fetch globally
+const mockFetch = vi.fn();
+vi.stubGlobal('fetch', mockFetch);
+
+// Mock supabase auth session
+vi.mock('@/utils/supabase-client.js', () => ({
+  supabase: {
+    auth: {
+      getSession: vi.fn().mockResolvedValue({
+        data: { session: { access_token: 'test-token' } },
+        error: null,
+      }),
+    },
+  },
 }));
+
+// Mock VITE_SUPABASE_URL
+vi.stubEnv('VITE_SUPABASE_URL', 'https://test.supabase.co');
 
 import { sendGiftEmail, sendMerchandiseSettlementEmail } from '@/utils/email-service.js';
 
@@ -15,23 +28,31 @@ describe('email-service', () => {
 
   describe('sendGiftEmail', () => {
     it('fills default values for missing fields', async () => {
-      mockEmailSend.mockResolvedValue({ status: 200 });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ ok: true }),
+      });
 
       await sendGiftEmail({});
 
-      expect(mockEmailSend).toHaveBeenCalledTimes(1);
-      const [, , templateParams] = mockEmailSend.mock.calls[0];
-      expect(templateParams.product).toBe('未指定');
-      expect(templateParams.specifications).toBe('N/A');
-      expect(templateParams.giftOptions).toBe('无');
-      expect(templateParams.paymentMethod).toBe('无');
-      expect(templateParams.buyerName).toBe('匿名用户');
-      expect(templateParams.buyerRole).toBe('普通用户');
-      expect(templateParams.isLoggedIn).toBe('否');
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const [, options] = mockFetch.mock.calls[0];
+      const body = JSON.parse(options.body);
+      expect(body.templateType).toBe('gift');
+      expect(body.templateParams.product).toBe('未指定');
+      expect(body.templateParams.specifications).toBe('N/A');
+      expect(body.templateParams.giftOptions).toBe('无');
+      expect(body.templateParams.paymentMethod).toBe('无');
+      expect(body.templateParams.buyerName).toBe('匿名用户');
+      expect(body.templateParams.buyerRole).toBe('普通用户');
+      expect(body.templateParams.isLoggedIn).toBe('否');
     });
 
     it('uses provided values', async () => {
-      mockEmailSend.mockResolvedValue({ status: 200 });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ ok: true }),
+      });
 
       await sendGiftEmail({
         product: 'Test Product',
@@ -47,35 +68,47 @@ describe('email-service', () => {
         isLoggedIn: true,
       });
 
-      const [, , templateParams] = mockEmailSend.mock.calls[0];
-      expect(templateParams.product).toBe('Test Product');
-      expect(templateParams.specifications).toBe('Large');
-      expect(templateParams.giftOptions).toBe('许愿礼物');
-      expect(templateParams.paymentMethod).toBe('积分');
-      expect(templateParams.buyerName).toBe('TestUser');
-      expect(templateParams.buyerRole).toBe('VIP');
-      expect(templateParams.isLoggedIn).toBe('是');
+      const [, options] = mockFetch.mock.calls[0];
+      const body = JSON.parse(options.body);
+      expect(body.templateParams.product).toBe('Test Product');
+      expect(body.templateParams.specifications).toBe('Large');
+      expect(body.templateParams.giftOptions).toBe('许愿礼物');
+      expect(body.templateParams.paymentMethod).toBe('积分');
+      expect(body.templateParams.buyerName).toBe('TestUser');
+      expect(body.templateParams.buyerRole).toBe('VIP');
+      expect(body.templateParams.isLoggedIn).toBe('是');
     });
 
     it('includes orderTime in template params', async () => {
-      mockEmailSend.mockResolvedValue({ status: 200 });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ ok: true }),
+      });
 
       await sendGiftEmail({ product: 'Test' });
 
-      const [, , templateParams] = mockEmailSend.mock.calls[0];
-      expect(templateParams.orderTime).toBeTruthy();
+      const [, options] = mockFetch.mock.calls[0];
+      const body = JSON.parse(options.body);
+      expect(body.templateParams.orderTime).toBeTruthy();
     });
 
     it('throws on email send failure', async () => {
-      mockEmailSend.mockRejectedValue(new Error('Send failed'));
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 502,
+        json: () => Promise.resolve({ message: '邮件发送失败。' }),
+      });
 
-      await expect(sendGiftEmail({ product: 'Test' })).rejects.toThrow('Send failed');
+      await expect(sendGiftEmail({ product: 'Test' })).rejects.toThrow('邮件发送失败');
     });
   });
 
   describe('sendMerchandiseSettlementEmail', () => {
     it('formats product list correctly', async () => {
-      mockEmailSend.mockResolvedValue({ status: 200 });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ ok: true }),
+      });
 
       await sendMerchandiseSettlementEmail({
         items: [
@@ -86,15 +119,19 @@ describe('email-service', () => {
         buyerName: 'User',
       });
 
-      const [, , templateParams] = mockEmailSend.mock.calls[0];
-      expect(templateParams.product).toBe('方块之家周边订单');
-      expect(templateParams.specifications).toContain('Item A');
-      expect(templateParams.specifications).toContain('x2');
-      expect(templateParams.specifications).toContain('Item B');
+      const [, options] = mockFetch.mock.calls[0];
+      const body = JSON.parse(options.body);
+      expect(body.templateType).toBe('merchandise_settlement');
+      expect(body.templateParams.specifications).toContain('Item A');
+      expect(body.templateParams.specifications).toContain('x2');
+      expect(body.templateParams.specifications).toContain('Item B');
     });
 
     it('handles empty items array', async () => {
-      mockEmailSend.mockResolvedValue({ status: 200 });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ ok: true }),
+      });
 
       await sendMerchandiseSettlementEmail({
         items: [],
@@ -102,12 +139,16 @@ describe('email-service', () => {
         buyerName: 'User',
       });
 
-      const [, , templateParams] = mockEmailSend.mock.calls[0];
-      expect(templateParams.specifications).toBe('无商品');
+      const [, options] = mockFetch.mock.calls[0];
+      const body = JSON.parse(options.body);
+      expect(body.templateParams.specifications).toBe('无商品');
     });
 
     it('formats contact info correctly', async () => {
-      mockEmailSend.mockResolvedValue({ status: 200 });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ ok: true }),
+      });
 
       await sendMerchandiseSettlementEmail({
         items: [],
@@ -117,12 +158,16 @@ describe('email-service', () => {
         contactValue: '12345678',
       });
 
-      const [, , templateParams] = mockEmailSend.mock.calls[0];
-      expect(templateParams.giftMessage).toContain('QQ: 12345678');
+      const [, options] = mockFetch.mock.calls[0];
+      const body = JSON.parse(options.body);
+      expect(body.templateParams.giftMessage).toContain('QQ: 12345678');
     });
 
     it('shows "未提供" when no contact info', async () => {
-      mockEmailSend.mockResolvedValue({ status: 200 });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ ok: true }),
+      });
 
       await sendMerchandiseSettlementEmail({
         items: [],
@@ -130,8 +175,9 @@ describe('email-service', () => {
         buyerName: 'User',
       });
 
-      const [, , templateParams] = mockEmailSend.mock.calls[0];
-      expect(templateParams.giftMessage).toContain('未提供');
+      const [, options] = mockFetch.mock.calls[0];
+      const body = JSON.parse(options.body);
+      expect(body.templateParams.giftMessage).toContain('未提供');
     });
   });
 });

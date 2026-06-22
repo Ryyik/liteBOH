@@ -149,18 +149,21 @@ const isHomeCatActive = computed(() => (
 const isScrolled = ref(false);
 const SCROLL_THRESHOLD = 50;
 
-const getActiveScrollY = (event) => {
-  // 某些页面（如我的方块）使用自定义滚动容器而非窗口滚动
-  // scroll 事件的 target 就是实际滚动的元素
-  const target = event?.target;
-  if (target && target !== document && target !== document.documentElement && target !== window) {
-    return target.scrollTop;
-  }
-  return window.scrollY;
-};
+let scrollRafId = null;
+let pendingScrollY = 0;
 
 const handleScroll = (event) => {
-  isScrolled.value = getActiveScrollY(event) > SCROLL_THRESHOLD;
+  const target = event?.target;
+  if (target && target !== document && target !== document.documentElement && target !== window) {
+    pendingScrollY = target.scrollTop;
+  } else {
+    pendingScrollY = window.scrollY;
+  }
+  if (scrollRafId) return;
+  scrollRafId = requestAnimationFrame(() => {
+    isScrolled.value = pendingScrollY > SCROLL_THRESHOLD;
+    scrollRafId = null;
+  });
 };
 
 const ensureNotificationStore = async () => {
@@ -508,7 +511,13 @@ onMounted(() => {
   document.addEventListener("click", handleClickOutside);
   // 滚动悬浮效果（capture 模式捕获嵌套滚动容器的 scroll 事件）
   document.addEventListener("scroll", handleScroll, { passive: true, capture: true });
-  handleScroll(); // 初始化检查
+  // 双层 requestAnimationFrame：确保首次浏览器绘制完成后再应用 scrolled 类
+  // 这样浏览器先绘制了无 scrolled 的基准状态，过渡才能正确触发
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      isScrolled.value = window.scrollY > SCROLL_THRESHOLD;
+    });
+  });
 });
 
 /**
@@ -517,6 +526,10 @@ onMounted(() => {
 onUnmounted(() => {
   if (unreadRefreshInterval) {
     clearInterval(unreadRefreshInterval);
+  }
+  if (scrollRafId) {
+    cancelAnimationFrame(scrollRafId);
+    scrollRafId = null;
   }
   window.removeEventListener("resize", handleResize);
   window.removeEventListener("storage", handleStorageChange);
@@ -555,10 +568,18 @@ watch(isLoggedIn, (loggedIn) => {
 
 onActivated(() => {
   document.addEventListener("scroll", handleScroll, { passive: true, capture: true });
-  handleScroll();
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      isScrolled.value = window.scrollY > SCROLL_THRESHOLD;
+    });
+  });
 });
 
 onDeactivated(() => {
+  if (scrollRafId) {
+    cancelAnimationFrame(scrollRafId);
+    scrollRafId = null;
+  }
   document.removeEventListener("scroll", handleScroll, { capture: true });
 });
 </script>

@@ -1,6 +1,13 @@
 <template>
   <div class="address-page" :class="{ 'admin-layout': isAdmin, 'sidebar-collapsed': !isAdminSidebarOpen }">
 
+    <!-- Global Notice -->
+    <Transition name="glass-fade">
+      <div v-if="notice.visible" class="address-notice" :class="notice.type" @click="notice.visible = false">
+        {{ notice.text }}
+      </div>
+    </Transition>
+
     <!-- Admin Sidebar (Users List) -->
     <aside v-if="isAdmin" class="admin-sidebar glass-container-light">
       <div class="sidebar-header">
@@ -426,7 +433,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, reactive } from "vue";
+import { ref, onMounted, onBeforeUnmount, computed, reactive } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { Gift, MapPin, TriangleAlert, Users } from "lucide-vue-next";
 import { useAuthStore } from "@/stores/auth";
@@ -439,6 +446,18 @@ import { callVaultSiliconChat } from "@/utils/api/api-key-runtime-api.js";
 import { getExpiredActiveGiftIds, markGiftsAsHistory, isGiftExpiredCompleted } from "@/utils/gift-archive.js";
 import { resolveSettingsBackLocation } from "@/utils/user-space-navigation.js";
 import UserCenterPageHeader from "@/components/UserCenterPageHeader.vue";
+
+let noticeTimer = null;
+const notice = reactive({ visible: false, text: '', type: 'info' });
+const showNotice = (text, type = 'info') => {
+  notice.text = String(text || '').trim();
+  notice.type = type;
+  notice.visible = Boolean(notice.text);
+  if (noticeTimer) clearTimeout(noticeTimer);
+  if (notice.visible) {
+    noticeTimer = setTimeout(() => { notice.visible = false; }, 3500);
+  }
+};
 
 const router = useRouter();
 const route = useRoute();
@@ -812,7 +831,7 @@ const fetchData = async (uid = userInfo.value.id) => {
 
 const startEdit = () => {
   if (!isAddressEditable.value) {
-    alert("仅可编辑自己的收货地址");
+    showNotice("仅可编辑自己的收货地址");
     return;
   }
   form.recipient = targetProfile.value?.shipping_recipient || "";
@@ -828,12 +847,12 @@ const cancelEdit = () => {
 
 const saveAddress = async () => {
   if (!isAddressEditable.value) {
-    alert("无权限保存该用户地址");
+    showNotice("无权限保存该用户地址");
     return;
   }
 
   if (!form.recipient || !form.phone || !form.address) {
-    alert("请填写完整的信息");
+    showNotice("请填写完整的信息");
     return;
   }
 
@@ -857,12 +876,12 @@ const saveAddress = async () => {
         shipping_address: form.address
       };
       isEditing.value = false;
-      alert("信息保存成功");
+      showNotice("信息保存成功");
     } else {
-      alert("保存失败: " + error.message);
+      showNotice("保存失败: " + error.message);
     }
   } catch (_err) {
-    alert("系统错误，请稍后再试");
+    showNotice("系统错误，请稍后再试");
   } finally {
     saving.value = false;
   }
@@ -870,17 +889,17 @@ const saveAddress = async () => {
 
 const deleteAddress = async () => {
   if (!isAddressEditable.value) {
-    alert("无权限删除该用户地址");
+    showNotice("无权限删除该用户地址");
     return;
   }
 
   if (!targetProfile.value?.id) {
-    alert("未找到可操作的用户信息");
+    showNotice("未找到可操作的用户信息");
     return;
   }
 
   if (!hasAddressData.value) {
-    alert("当前暂无可删除的地址信息");
+    showNotice("当前暂无可删除的地址信息");
     return;
   }
 
@@ -899,7 +918,7 @@ const deleteAddress = async () => {
       .eq('id', targetProfile.value.id);
 
     if (error) {
-      alert("删除失败: " + error.message);
+      showNotice("删除失败: " + error.message);
       return;
     }
 
@@ -914,10 +933,10 @@ const deleteAddress = async () => {
     form.address = "";
     pastedText.value = "";
     isEditing.value = false;
-    alert("地址已删除");
+    showNotice("地址已删除");
   } catch (err) {
     logger.error('address', "删除地址失败:", err);
-    alert("系统错误，请稍后再试");
+    showNotice("系统错误，请稍后再试");
   } finally {
     deletingAddress.value = false;
   }
@@ -954,13 +973,13 @@ const normalizePhone = (value = "") => {
 
 const handleAIExtract = async () => {
   if (!pastedText.value.trim()) {
-    alert('请先粘贴地址原文，再进行识别。');
+    showNotice('请先粘贴地址原文，再进行识别。');
     return;
   }
 
   const model = getAddressAIModel();
   if (!model?.url) {
-    alert('GLM 地址识别未配置完成，请联系管理员检查 AI 密钥。');
+    showNotice('GLM 地址识别未配置完成，请联系管理员检查 AI 密钥。');
     return;
   }
 
@@ -1003,14 +1022,14 @@ const handleAIExtract = async () => {
     aiResult.address = String(result.address || "").trim();
 
     if (!aiResult.recipient && !aiResult.phone && !aiResult.address) {
-      alert('AI 未识别到有效地址信息，请补充完整文本后重试。');
+      showNotice('AI 未识别到有效地址信息，请补充完整文本后重试。');
       return;
     }
 
     showAiConfirm.value = true;
   } catch (err) {
     logger.error('address', 'AI 地址识别失败:', err);
-    alert('AI 识别失败，请手动填写。');
+    showNotice('AI 识别失败，请手动填写。');
   } finally {
     isProcessingAI.value = false;
   }
@@ -1092,7 +1111,7 @@ const openEditGiftModal = () => {
 };
 
 const updateGiftInfo = async () => {
-  if (!editGiftData.gift_content) return alert("请输入礼物内容");
+  if (!editGiftData.gift_content) return showNotice("请输入礼物内容");
   try {
     const { data, error } = await supabase
       .from('user_gifts')
@@ -1115,17 +1134,18 @@ const updateGiftInfo = async () => {
         Object.assign(historyItem, data);
       }
       showEditGiftModal.value = false;
-      alert("更新成功");
+      showNotice("更新成功");
     } else {
-      alert("更新失败: " + error.message);
+      showNotice("更新失败: " + error.message);
     }
   } catch (err) {
     logger.error('address', err);
+    showNotice('更新失败，请稍后重试');
   }
 };
 
 const createNewGift = async () => {
-  if (!newGift.gift_content) return alert("请输入礼物内容");
+  if (!newGift.gift_content) return showNotice("请输入礼物内容");
   try {
     const previousCurrentGift = currentGift.value
       ? { ...currentGift.value, is_active: false, updated_at: new Date().toISOString() }
@@ -1166,6 +1186,7 @@ const createNewGift = async () => {
     }
   } catch (err) {
     logger.error('address', err);
+    showNotice('创建礼物失败，请稍后重试');
   }
 };
 
@@ -1180,6 +1201,10 @@ onMounted(() => {
   } else {
     router.push('/login');
   }
+});
+
+onBeforeUnmount(() => {
+  if (noticeTimer) clearTimeout(noticeTimer);
 });
 </script>
 

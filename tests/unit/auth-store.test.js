@@ -245,13 +245,20 @@ describe('auth store', () => {
     });
 
     it('calls resetState on dependent stores', async () => {
-      store.resetState();
-      // 等待异步 resetStores 完成
-      await vi.waitFor(() => {
-        expect(mockNotificationReset).toHaveBeenCalled();
-        expect(mockBagReset).toHaveBeenCalled();
-        expect(mockProductsReset).toHaveBeenCalled();
-      }, { timeout: 2000 });
+      await store.resetState();
+      expect(mockNotificationReset).toHaveBeenCalled();
+      expect(mockBagReset).toHaveBeenCalled();
+      expect(mockProductsReset).toHaveBeenCalled();
+    });
+
+    // BUG-U5: resetState should await dependent store cleanup properly
+    it('awaits dependent store cleanup and catches errors (BUG-U5)', async () => {
+      mockNotificationReset.mockRejectedValueOnce(new Error('cleanup failed'));
+      mockBagReset.mockRejectedValueOnce(new Error('bag cleanup failed'));
+
+      await expect(store.resetState()).resolves.toBeUndefined();
+      expect(mockNotificationReset).toHaveBeenCalled();
+      expect(mockBagReset).toHaveBeenCalled();
     });
   });
 
@@ -449,6 +456,18 @@ describe('auth store', () => {
       expect(result.success).toBe(false);
       expect(result.message).toBe('Invalid credentials');
       expect(result.code).toBe('INVALID_CREDENTIALS');
+    });
+
+    // BUG-U1: login no longer accepts unused _verificationPayload / _deviceIdHash
+    it('works without extra verification/device params (BUG-U1)', async () => {
+      const { signIn } = await import('@/utils/auth.js');
+      signIn.mockResolvedValue({
+        data: { user: { id: 'u1', email: 't@t.com', user_metadata: { username: 't' } }, session: { user: { id: 'u1' } } },
+        error: null
+      });
+
+      const result = await store.login('testuser', 'pass', false);
+      expect(result.success).toBe(true);
     });
   });
 

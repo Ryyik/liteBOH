@@ -24,6 +24,7 @@ const normalizePublicIds = (publicIds: unknown) => {
         && !item.startsWith('/')
         && !item.includes('..')
         && !item.includes('\\')
+        && !item.includes(',')
       ))
       .slice(0, 50)
   ));
@@ -78,35 +79,27 @@ const destroyAsset = async (publicId: string, resourceType = 'image') => {
 
 const filterOwnedCloudPublicIds = async (userId: string, publicIds: string[]) => {
   const serviceClient = createServiceClient();
-  const ownedPublicIds = [];
+  const ownedPublicIds: string[] = [];
 
+  // 逐条查询避免 .or() 操作符的 JSONB contains 语义歧义
+  // content_blocks 中的元素可能使用 publicId（camelCase）或 public_id（snake_case），分别查询
   for (const publicId of publicIds) {
-    const { data, error } = await serviceClient
+    const orConditions = [
+      `content_blocks.cs.${JSON.stringify({ publicId })}`,
+      `content_blocks.cs.${JSON.stringify({ public_id: publicId })}`,
+    ].join(',');
+
+    const { data: entries, error } = await serviceClient
       .from('boh_cloud_entries')
       .select('id')
       .eq('user_id', userId)
-      .contains('content_blocks', [{ publicId }])
+      .or(orConditions)
       .limit(1);
 
     if (error) {
       throw error;
     }
-    if (Array.isArray(data) && data.length > 0) {
-      ownedPublicIds.push(publicId);
-      continue;
-    }
-
-    const { data: snakeCaseData, error: snakeCaseError } = await serviceClient
-      .from('boh_cloud_entries')
-      .select('id')
-      .eq('user_id', userId)
-      .contains('content_blocks', [{ public_id: publicId }])
-      .limit(1);
-
-    if (snakeCaseError) {
-      throw snakeCaseError;
-    }
-    if (Array.isArray(snakeCaseData) && snakeCaseData.length > 0) {
+    if (Array.isArray(entries) && entries.length > 0) {
       ownedPublicIds.push(publicId);
     }
   }

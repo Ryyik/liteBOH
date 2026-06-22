@@ -16,7 +16,7 @@
 
       <!-- Toggle Switch -->
       <div class="toggle-container">
-        <div class="toggle-wrapper" @click="billingCycle = 'monthly'">
+        <div class="toggle-wrapper" @click="billingCycle = billingCycle === 'monthly' ? 'yearly' : 'monthly'">
           <div class="toggle-bg"
             :class="{ 'active-left': billingCycle === 'monthly', 'active-right': billingCycle === 'yearly' }"></div>
           <button class="toggle-btn" :class="{ active: billingCycle === 'monthly' }"
@@ -117,20 +117,22 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Bot, Cake, Check, Crown, Gift, Zap } from 'lucide-vue-next';
 import { useAuthStore } from '@/stores/auth';
+import { storeToRefs } from 'pinia';
 import { getMySubscriptions, subscribeWithPoints } from '@/utils/api/subscription-api.js';
 import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
+import { logger } from '@/utils/logger.js';
 
 const BILLING_MONTHLY = 'monthly';
 
 const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
-const { userInfo } = authStore;
+const { userInfo } = storeToRefs(authStore);
 
 const goBack = () => {
   router.push(resolveSettingsBackLocation(route));
@@ -197,11 +199,11 @@ const subscriptions = ref([]);
 const activeSubscriptions = ref({});
 let toastTimer = null;
 
-watch(() => userInfo.points, (newPoints) => {
+watch(() => userInfo.value?.points, (newPoints) => {
   currentPoints.value = Number(newPoints || 0);
 }, { immediate: true });
 
-watch(() => userInfo.id, () => {
+watch(() => userInfo.value?.id, () => {
   void loadMySubscriptions();
 }, { immediate: true });
 
@@ -281,20 +283,20 @@ const buildActiveSubscriptionMap = (list = []) => {
 };
 
 async function loadMySubscriptions() {
-  if (!userInfo.id) {
+  if (!userInfo.value?.id) {
     subscriptions.value = [];
     activeSubscriptions.value = {};
     return;
   }
 
   isLoadingSubscriptions.value = true;
-  const { ok, data, error } = await getMySubscriptions(userInfo.id, { includeExpired: true });
+  const { ok, data, error } = await getMySubscriptions(userInfo.value.id, { includeExpired: true });
   isLoadingSubscriptions.value = false;
 
   if (!ok) {
     subscriptions.value = [];
     activeSubscriptions.value = {};
-    console.error('加载订阅记录失败:', error);
+    logger.error('subscription', '加载订阅记录失败:', error);
     return;
   }
 
@@ -310,7 +312,7 @@ const openInsufficientModal = (plan) => {
 const handleSubscribe = async (plan) => {
   if (plan.status === 'active' || isSubmitting.value || isLoadingSubscriptions.value) return;
 
-  if (!authStore.isLoggedIn || !userInfo.id) {
+  if (!authStore.isLoggedIn || !userInfo.value?.id) {
     showToastMessage('请先登录后再订阅');
     authStore.showLoginModal = true;
     return;
@@ -368,7 +370,7 @@ const handleSubscribe = async (plan) => {
       if (data?.message === 'INSUFFICIENT_POINTS') {
         const latestPoints = Number(data.currentPoints || currentPoints.value || 0);
         currentPoints.value = latestPoints;
-        userInfo.points = latestPoints;
+        authStore.$patch({ userInfo: { ...authStore.userInfo, points: latestPoints } });
         openInsufficientModal(plan);
         return;
       }
@@ -379,14 +381,14 @@ const handleSubscribe = async (plan) => {
 
     const latestPoints = Number(data.currentPoints || 0);
     currentPoints.value = latestPoints;
-    userInfo.points = latestPoints;
+    authStore.$patch({ userInfo: { ...authStore.userInfo, points: latestPoints } });
 
     await loadMySubscriptions();
 
     const expiresText = data.expiresAt ? `，有效期至 ${formatDateText(data.expiresAt)}` : '';
     showToastMessage(`订阅成功！已开通 ${plan.name}${expiresText}`);
   } catch (error) {
-    console.error('订阅失败:', error);
+    logger.error('subscription', '订阅失败:', error);
     showToastMessage('订阅失败，请稍后重试');
   } finally {
     isSubmitting.value = false;
@@ -398,6 +400,13 @@ const handleSubscribe = async (plan) => {
 const closeModal = () => {
   showModal.value = false;
 };
+
+onBeforeUnmount(() => {
+  if (toastTimer) {
+    clearTimeout(toastTimer);
+    toastTimer = null;
+  }
+});
 </script>
 <style scoped>
 @import './style.scoped.css';

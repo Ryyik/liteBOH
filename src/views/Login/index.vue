@@ -284,9 +284,7 @@ const handleLogin = async () => {
     const result = await login(
       normalizedLoginId,
       loginForm.password,
-      loginForm.rememberMe,
-      altchaPayload.value,
-      loginDeviceIdHash.value
+      loginForm.rememberMe
     );
     if (result.success) {
       localStorage.setItem(REMEMBER_ME_STORAGE_KEY, loginForm.rememberMe ? '1' : '0');

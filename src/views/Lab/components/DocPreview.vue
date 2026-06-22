@@ -14,16 +14,21 @@
       <div class="load-pulse" style="width:60%"></div>
     </div>
     <div v-else class="preview-body" ref="scrollRef">
-      <div class="doc-content" v-html="html"></div>
+      <div class="doc-content" v-html="sanitizedHtml"></div>
     </div>
   </div>
 </template>
 
 <script setup>
-defineProps({
+import { computed } from 'vue';
+import DOMPurify from '@/utils/dompurify';
+
+const props = defineProps({
   html: { type: String, default: '' },
   loading: { type: Boolean, default: false },
 })
+
+const sanitizedHtml = computed(() => DOMPurify.sanitize(props.html));
 </script>
 
 <style scoped>

@@ -27,18 +27,15 @@ export function signUp(
   username: string,
   email: string,
   password: string,
-  metadata?: Record<string, unknown>,
-  altchaPayload?: string
+  metadata?: Record<string, unknown>
 ): Promise<AuthApiResult>
 
 export function resendSignupConfirmation(email: string): Promise<AuthApiResult>
 
 export function signIn(
   loginId: string,
-  password: string,
-  altchaPayload?: string,
-  deviceIdHash?: string
-): Promise<AuthApiResult<{ user?: unknown; session?: { user: unknown } | null; requireCaptcha?: boolean }>>
+  password: string
+): Promise<AuthApiResult<{ user?: unknown; session?: { user: unknown } | null }>>
 
 export function signInWithOAuth(provider: string): Promise<{ error: AuthApiError | null }>
 
@@ -87,7 +84,6 @@ export function markNotificationAsRead(id: string): Promise<AuthApiResult>
 export function markAllNotificationsAsRead(): Promise<AuthApiResult>
 export function createNotification(data: Record<string, unknown>): Promise<AuthApiResult>
 export function getUnreadNotificationCount(userId: string): Promise<{ ok: boolean; count: number; notifCount: number; mailCount: number; data: unknown; error: AuthApiError | null }>
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function subscribeToNotifications(userId: string, callback: (payload: any) => void): any
 export function filterSelfActionNotifications(notifications: unknown[]): unknown[]
 

@@ -536,18 +536,34 @@ export async function getCommentsByUsername(username, userId = null, options = {
   );
 }
 
+const ALLOWED_PROFILE_FIELDS = new Set([
+  'username', 'bio', 'avatar_url',
+  'birth_month', 'birth_day',
+  'shipping_recipient', 'shipping_phone', 'shipping_address',
+  'pushplus_token', 'pushplus_enabled',
+  'gift_status', 'gift_content', 'gift_no', 'gift_price',
+  'profile_background_url', 'profile_background_public_id',
+]);
+
 export async function updateProfile(userId, updates) {
-  if (Object.prototype.hasOwnProperty.call(updates || {}, 'points')) {
-    return {
-      ok: false,
-      data: null,
-      error: normalizeDbError({ message: '请使用积分专用接口更新 points', code: 'POINTS_UPDATE_FORBIDDEN' })
-    };
+  if (!updates || typeof updates !== 'object') {
+    return { ok: false, data: null, error: normalizeDbError({ message: '无效的更新数据', code: 'INVALID_INPUT' }) };
+  }
+
+  const safeUpdates = {};
+  for (const key of Object.keys(updates)) {
+    if (ALLOWED_PROFILE_FIELDS.has(key)) {
+      safeUpdates[key] = updates[key];
+    }
+  }
+
+  if (Object.keys(safeUpdates).length === 0) {
+    return { ok: false, data: null, error: normalizeDbError({ message: '没有可更新的字段', code: 'NO_ALLOWED_FIELDS' }) };
   }
 
   const { data, error } = await supabase
     .from('profiles')
-    .update(updates)
+    .update(safeUpdates)
     .eq('id', userId)
     .select();
 

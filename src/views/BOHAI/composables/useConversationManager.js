@@ -263,8 +263,7 @@ export function useConversationManager({
       includedMessageCount,
       totalMessageCount,
       hasSummary,
-      // 颜色档位基于 historyPercent；high ≥ 85% 触发自动压缩，full ≥ 100% 时强制压缩
-      level: historyPercent >= 100 ? 'full' : historyPercent >= 85 ? 'high' : historyPercent >= 60 ? 'mid' : 'low'
+      level: percent >= 95 ? 'full' : percent >= 80 ? 'high' : percent >= 55 ? 'mid' : 'low'
     };
   };
 

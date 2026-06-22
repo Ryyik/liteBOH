@@ -555,7 +555,7 @@
     />
 
     <BohAiGlassOverlay
-      v-if="isAiOverlayOpen"
+      :show="isAiOverlayOpen"
       :theme="currentTheme"
       @close="closeAiOverlay"
       @island-message="showBottomNavIsland"
@@ -2044,8 +2044,11 @@ const switchTab = (tabId) => {
   ensureTabMounted(tabId);
   const previousTab = currentTab.value;
   saveTabScrollPosition(previousTab);
-  if (tabId === 'profile' && currentTab.value !== 'profile') {
-    profileSection.value = 'home';
+  if (tabId === 'profile') {
+    if (currentTab.value !== 'profile') {
+      profileSection.value = 'home';
+    }
+    runProfileCriticalFetches();
   }
   if (clearLeavingTabTimer) {
     clearTimeout(clearLeavingTabTimer);

@@ -1,7 +1,5 @@
 <template>
   <div class="home">
-    <!-- 统一导航栏 -->
-
     <!-- BOH 小猫主题英雄区域 -->
     <section class="cat-theme-hero">
       <div class="cat-theme-copy">

@@ -207,7 +207,7 @@ describe('profile-api integration', () => {
     it('blocks direct points update', async () => {
       const result = await updateProfile('u1', { points: 999 });
       expect(result.ok).toBe(false);
-      expect(result.error.message).toContain('积分');
+      expect(result.error.code).toBe('NO_ALLOWED_FIELDS');
     });
   });
 

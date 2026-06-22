@@ -239,7 +239,10 @@ export const isLikelyCommunityMemoryShare = (text) => {
   if (ROUTING_PATTERNS.question.pattern.test(normalized)) return false;
   if (ROUTING_PATTERNS.memoryQuery.pattern.test(normalized)) return false;
   if (isLikelyCodeOrCommandRequest(normalized)) return false;
-  return ROUTING_PATTERNS.memoryShare.pattern.test(normalized) || normalized.length >= 32;
+  if (ROUTING_PATTERNS.memoryShare.pattern.test(normalized)) return true;
+  // 仅当文本较长且包含记忆相关关键词时才判定为记忆分享
+  const hasMemoryKeywords = /记忆|回忆|分享|story|memory|remember/i.test(normalized);
+  return normalized.length >= 64 && hasMemoryKeywords;
 };
 
 // 冻结的"中性空决策"

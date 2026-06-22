@@ -19,7 +19,7 @@ export function normalizeSubscriptionPlanCode(planCode = '') {
 }
 
 export function isSubscriptionRecordActive(record, nowTs = Date.now()) {
-  if (!record || String(record.status || '').trim() !== 'active') return false;
+  if (!record || String(record.status || '').trim().toLowerCase() !== 'active') return false;
   const expiresTs = Date.parse(record.expiresAt || record.expires_at || '');
   return Number.isFinite(expiresTs) && expiresTs > nowTs;
 }

@@ -177,8 +177,7 @@ import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
-const { isLoggedIn } = storeToRefs(authStore);
-const { userInfo } = authStore;
+const { isLoggedIn, userInfo } = storeToRefs(authStore);
 
 const goToProfile = (usernameVal) => {
   const safeUsername = String(usernameVal || '').trim();
@@ -277,7 +276,7 @@ const submitImpression = async () => {
   if (!newImpression.value.trim() || !isLoggedIn.value) return;
   submitting.value = true;
   try {
-    const { error } = await addUserImpression(userInfo.id, selectedPartner.value.id, newImpression.value);
+    const { error } = await addUserImpression(userInfo.value.id, selectedPartner.value.id, newImpression.value);
     if (!error) {
       newImpression.value = '';
       // Refresh list
@@ -298,13 +297,13 @@ const submitImpression = async () => {
 
 const canDelete = (imp) => {
   if (!isLoggedIn.value) return false;
-  return imp.author_id === userInfo.id || imp.target_id === userInfo.id || userInfo.role === 'admin';
+  return imp.author_id === userInfo.value.id || imp.target_id === userInfo.value.id || userInfo.value.role === 'admin';
 };
 
 const handleDeleteImpression = async (id) => {
   if (!confirm('确定要删除这条印象吗？')) return;
   try {
-    const currentUserId = String(userInfo.id || '').trim();
+    const currentUserId = String(userInfo.value.id || '').trim();
     if (!currentUserId) return;
     const { error } = await deleteUserImpression(id, currentUserId);
     if (!error) {

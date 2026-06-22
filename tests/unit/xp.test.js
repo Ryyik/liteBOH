@@ -64,8 +64,9 @@ describe('getLevelInfo', () => {
   it('handles negative XP gracefully', () => {
     const result = getLevelInfo(-50);
     expect(result.level).toBe(1);
-    expect(result.currentLevelXP).toBe(-50);
-    expect(result.totalXP).toBe(-50);
+    expect(result.currentLevelXP).toBe(0);
+    expect(result.totalXP).toBe(0);
+    expect(result.progress).toBe(0);
   });
 
   it('handles non-integer XP', () => {

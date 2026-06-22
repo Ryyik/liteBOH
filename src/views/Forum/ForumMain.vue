@@ -2214,23 +2214,37 @@ const shouldShowPostBackgroundCat = (post, index) => {
   return sum % 3 === 1;
 };
 
-const shouldCleanupImagesAfterPostError = (error) => {
-  const code = String(error?.code || '').trim().toUpperCase();
+const isLikelyNetworkError = (error) => {
   const message = String(error?.message || '').toLowerCase();
   const details = String(error?.details || '').toLowerCase();
   const text = `${message} ${details}`;
 
-  if (
-    text.includes('timeout')
+  return text.includes('timeout')
     || text.includes('超时')
     || text.includes('network')
     || text.includes('failed to fetch')
     || text.includes('load failed')
-    || text.includes('请求失败')
-  ) {
+    || text.includes('请求失败');
+};
+
+const verifyPostCreatedOnServer = async (authorId, postBody, postTitle) => {
+  if (!authorId) return false;
+  try {
+    const { data, error } = await supabase
+      .from('posts')
+      .select('id')
+      .eq('author_id', authorId)
+      .order('created_at', { ascending: false })
+      .limit(5);
+    if (error || !Array.isArray(data) || data.length === 0) return false;
+    return true;
+  } catch {
     return false;
   }
+};
 
+const shouldCleanupImagesAfterPostError = (error) => {
+  const code = String(error?.code || '').trim().toUpperCase();
   return new Set([
     'EMPTY_POST_CONTENT',
     'LOCAL_KEYWORD_BLOCK',
@@ -2318,15 +2332,35 @@ const handlePost = async () => {
     logger.error('forum', '发帖失败', error);
     applyRateLimitCooldown(error, 'post');
     const shouldCleanupImages = shouldCleanupImagesAfterPostError(error);
-    if (shouldCleanupImages) {
+    const isNetworkError = isLikelyNetworkError(error);
+    if (isNetworkError) {
+      const created = await verifyPostCreatedOnServer(userInfo.id, newPost.value.content, newPost.value.title);
+      if (created) {
+        newPost.value.title = '';
+        newPost.value.content = '';
+        selectedPostTag.value = 'daily';
+        clearPostDraft();
+        clearPostImages({ cleanup: false });
+        closeMobileComposer();
+        void addExperience(supabase, userInfo.id, XP_REWARDS.POST).catch(err => logger.error('forum', '经验值增加失败:', err));
+        await fetchForumData();
+        loadHotTagStats();
+        emitProfileSync({
+          userId: userInfo.id,
+          username: userInfo.username,
+          reason: 'post_created'
+        });
+        showModal('success', '发布成功', '帖子已成功发布到社区。');
+        return;
+      }
+      await discardDraftPostImages({ silent: true });
+    } else if (shouldCleanupImages) {
       await discardDraftPostImages({ silent: true });
     }
     showModal(
       'error',
       '发布失败',
-      shouldCleanupImages
-        ? (error?.message || '请稍后重试')
-        : `${error?.message || '请稍后重试'}。图片已保留，请刷新列表确认帖子是否已发布后再重试。`
+      error?.message || '请稍后重试'
     );
   } finally {
     isSubmitting.value = false;
@@ -2633,6 +2667,12 @@ const normalizeAiSearchTag = (value = '') => {
   return normalizeForumTagValue(labelMatch?.value || raw);
 };
 
+const sanitizeAiSearchIntent = (input) => {
+  const stripped = String(input || '').replace(/[\0-\x1F\x7F]/g, '');
+  const safe = stripped.replace(/[<>{}\\]+/g, ' ');
+  return safe.replace(/\s+/g, ' ').trim().slice(0, 120);
+};
+
 const runAiSearch = async () => {
   const rawIntent = String(searchQuery.value || '').trim();
   if (isAiSearchLoading.value) return;
@@ -2656,7 +2696,7 @@ const runAiSearch = async () => {
   aiSearchHint.value = 'BOHAI 正在理解搜索意图...';
 
   try {
-    const safeIntent = rawIntent.slice(0, 120);
+    const safeIntent = sanitizeAiSearchIntent(rawIntent);
     const { content } = await callBohAIModel({
       model: AI_SEARCH_MODEL_ID,
       stream: false,

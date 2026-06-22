@@ -4,13 +4,30 @@
 
 // 等级配置：每级所需经验 = level * 100
 export const getLevelInfo = (xp) => {
+  const safeXP = Number(xp);
+  if (!Number.isFinite(safeXP) || safeXP < 0) {
+    return {
+      level: 1,
+      currentLevelXP: 0,
+      nextLevelXP: 100,
+      progress: 0,
+      totalXP: 0
+    };
+  }
+
+  const MAX_LEVEL = 9999;
   let level = 1;
-  let currentXP = xp;
+  let currentXP = safeXP;
   let nextLevelXP = 100;
 
-  while (currentXP >= nextLevelXP) {
+  while (currentXP >= nextLevelXP && level < MAX_LEVEL) {
     currentXP -= nextLevelXP;
     level++;
+    nextLevelXP = level * 100;
+  }
+
+  if (level >= MAX_LEVEL) {
+    currentXP = nextLevelXP;
     nextLevelXP = level * 100;
   }
 
@@ -21,7 +38,7 @@ export const getLevelInfo = (xp) => {
     currentLevelXP: currentXP,
     nextLevelXP,
     progress,
-    totalXP: xp
+    totalXP: safeXP
   };
 };
 

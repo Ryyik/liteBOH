@@ -14,12 +14,9 @@ const loadAuthApi = async (): Promise<typeof AuthModule> => {
 
 export const useNotificationStore = defineStore('notifications', () => {
   const unreadCount = ref(0);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const notifications = ref<any[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const notificationSubscription = ref<any>(null);
   const currentUserId = ref<string | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const unreadRefreshInflight = ref<Promise<any> | null>(null);
   const lastUnreadRefreshAt = ref(0);
   const UNREAD_REFRESH_MIN_INTERVAL_MS = 1500;
@@ -67,7 +64,6 @@ export const useNotificationStore = defineStore('notifications', () => {
     }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const removeChannelSafely = async (channel: any): Promise<void> => {
     if (!channel) return;
     try {
@@ -142,19 +138,17 @@ export const useNotificationStore = defineStore('notifications', () => {
     }
   };
 
-  const stopNotificationListener = (): void => {
+  const stopNotificationListener = async (): Promise<void> => {
     const activeSubscription = notificationSubscription.value;
     notificationSubscription.value = null;
     if (!activeSubscription) return;
 
     if (Array.isArray(activeSubscription)) {
-      activeSubscription.forEach((channel) => {
-        void removeChannelSafely(channel);
-      });
+      await Promise.all(activeSubscription.map((channel) => removeChannelSafely(channel)));
       return;
     }
 
-    void removeChannelSafely(activeSubscription);
+    await removeChannelSafely(activeSubscription);
   };
 
   const setUnreadCount = (count: number): void => {
@@ -200,7 +194,7 @@ export const useNotificationStore = defineStore('notifications', () => {
     }
   };
 
-  const resetState = (): void => {
+  const resetState = async (): Promise<void> => {
     hideToast();
     unreadCount.value = 0;
     notifications.value = [];
@@ -208,7 +202,7 @@ export const useNotificationStore = defineStore('notifications', () => {
     unreadRefreshInflight.value = null;
     lastUnreadRefreshAt.value = 0;
     if (notificationSubscription.value) {
-      stopNotificationListener();
+      await stopNotificationListener();
     }
   };
 

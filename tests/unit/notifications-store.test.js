@@ -29,6 +29,7 @@ vi.mock('@/utils/logger.js', () => ({
 }));
 
 // Force static import before store to register mock for dynamic import interception
+// eslint-disable-next-line no-restricted-imports
 import * as _auth from '@/utils/auth.js';
 void _auth;
 

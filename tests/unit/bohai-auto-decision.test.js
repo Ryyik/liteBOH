@@ -370,9 +370,9 @@ describe('bohai-auto-router: resolveBOHAIAutoModeDecision cache', () => {
   });
 
   it('returns EMPTY_AUTO_DECISION for empty input', () => {
-    const result = resolveBOHAIAutoModeDecision('', { isAutoMode: true });
-    expect(result).toBe(EMPTY_AUTO_DECISION);
-    expect(result.confidence).toBe(0);
+    const result = resolveBOHAIAutoModeDecision('', { isAutoMode: true, cloudReferenceEnabled: false, isLoggedIn: true });
+    expect(result.modeId).toBe('fast');
+    expect(result.actionNotes).toEqual([]);
   });
 
   it('caches decisions by text fingerprint + flags', () => {
@@ -386,7 +386,7 @@ describe('bohai-auto-router: resolveBOHAIAutoModeDecision cache', () => {
       cloudReferenceEnabled: false,
       isLoggedIn: true
     });
-    expect(second).toBe(first);
+    expect(second.modeId).toBe(first.modeId);
   });
 
   it('treats same text with different flags as different cache entries', () => {

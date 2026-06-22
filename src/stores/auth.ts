@@ -98,7 +98,6 @@ const loadAuthApi = async (): Promise<typeof AuthModule> => {
   return authApiPromise;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let resetStoresPromise: Promise<any[]> | null = null;
 const loadResetStores = async () => {
   if (!resetStoresPromise) {
@@ -178,14 +177,12 @@ const PROFILE_SELECT_COLUMNS = `
   creator_platform_order,
   showcase_post_ids
 `;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let authStateSubscription: any = null;
   let sessionHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let authSyncInFlight: Promise<any> | null = null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let initInFlight: Promise<any> | null = null;
   let browserLifecycleBound = false;
+  let browserLifecycleHandlers: Record<string, any> | null = null;
   const profileCacheMeta = reactive<ProfileCacheMeta>({
     userId: '',
     fetchedAt: 0
@@ -300,6 +297,16 @@ const PROFILE_SELECT_COLUMNS = `
 
     window.addEventListener('visibilitychange', handlePageVisible);
     window.addEventListener('online', handleOnline);
+
+    browserLifecycleHandlers = { handlePageVisible, handleOnline };
+  };
+
+  const clearBrowserLifecycleSync = (): void => {
+    if (!browserLifecycleHandlers) return;
+    window.removeEventListener('visibilitychange', browserLifecycleHandlers.handlePageVisible);
+    window.removeEventListener('online', browserLifecycleHandlers.handleOnline);
+    browserLifecycleHandlers = null;
+    browserLifecycleBound = false;
   };
 
   const ensureSessionHeartbeat = (): void => {
@@ -419,6 +426,30 @@ const PROFILE_SELECT_COLUMNS = `
     }
   };
 
+  const resetUserInfo = (): void => {
+    Object.assign(userInfo, {
+      id: '',
+      username: '',
+      email: '',
+      role: 'user',
+      points: 0,
+      joinDate: '',
+      tags: [],
+      birthMonth: '',
+      birthDay: '',
+      avatarUrl: '',
+      profileBackgroundUrl: '',
+      profileBackgroundPublicId: '',
+      bio: '',
+      experience: 0,
+      isBohCreator: false,
+      creatorPlatformIds: {},
+      creatorPlatformVisibility: {},
+      creatorPlatformOrder: [],
+      showcasePostIds: []
+    });
+  };
+
   const updateLocalState = async (user: unknown, options: { force?: boolean; skipProfileFetch?: boolean } = {}) => {
     const {
       force = false,
@@ -533,27 +564,7 @@ const PROFILE_SELECT_COLUMNS = `
       } else {
         isLoggedIn.value = false;
         clearSessionHeartbeat();
-        Object.assign(userInfo, {
-          id: '',
-          username: '',
-          email: '',
-          role: 'user',
-          points: 0,
-          joinDate: '',
-          tags: [],
-          birthMonth: '',
-          birthDay: '',
-          avatarUrl: '',
-          profileBackgroundUrl: '',
-          profileBackgroundPublicId: '',
-          bio: '',
-          experience: 0,
-          isBohCreator: false,
-          creatorPlatformIds: {},
-          creatorPlatformVisibility: {},
-          creatorPlatformOrder: [],
-          showcasePostIds: []
-        });
+        resetUserInfo();
         profileCacheMeta.userId = '';
         profileCacheMeta.fetchedAt = 0;
       }
@@ -567,24 +578,17 @@ const PROFILE_SELECT_COLUMNS = `
   const login = async (
     loginId: string,
     password: string,
-    rememberMe = false,
-    verificationPayload = '',
-    deviceIdHash = ''
+    rememberMe = false
   ): Promise<LoginResult> => {
     const { signIn: loginWithEdgeGateway } = await loadAuthApi();
     const normalizedLoginId = String(loginId || '').trim();
-    const safeVerificationPayload = String(verificationPayload || '').trim();
-    const safeDeviceIdHash = String(deviceIdHash || '').trim();
-
     if (!normalizedLoginId) {
       return { success: false, message: '登录失败：请输入方块 ID 或邮箱地址。' };
     }
 
     const { data, error } = await loginWithEdgeGateway(
       normalizedLoginId,
-      password,
-      safeVerificationPayload,
-      safeDeviceIdHash
+      password
     );
 
     if (error) {
@@ -592,7 +596,7 @@ const PROFILE_SELECT_COLUMNS = `
         success: false,
         message: error.message || '登录失败，请重试',
         code: error.code || 'LOGIN_FAILED',
-        requireCaptcha: Boolean(data?.requireCaptcha),
+        requireCaptcha: Boolean((data as Record<string, unknown>)?.requireCaptcha),
       };
     }
 
@@ -685,7 +689,6 @@ const PROFILE_SELECT_COLUMNS = `
 
         const { supabase } = await loadAuthApi();
         if (!authStateSubscription) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { data } = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
             logger.debug('auth-store', `Auth state changed: ${event}`);
 
@@ -724,43 +727,27 @@ const PROFILE_SELECT_COLUMNS = `
     return false;
   };
 
-  const resetState = (): void => {
+  const resetState = async (): Promise<void> => {
     isLoggedIn.value = false;
     clearSessionHeartbeat();
-    Object.assign(userInfo, {
-      id: '',
-      username: '',
-      email: '',
-      role: 'user',
-      points: 0,
-      joinDate: '',
-      tags: [],
-      birthMonth: '',
-      birthDay: '',
-      avatarUrl: '',
-      profileBackgroundUrl: '',
-      profileBackgroundPublicId: '',
-      bio: '',
-      experience: 0,
-      isBohCreator: false,
-      creatorPlatformIds: {},
-      creatorPlatformVisibility: {},
-      creatorPlatformOrder: [],
-      showcasePostIds: []
-    });
+    clearBrowserLifecycleSync();
+    authStateSubscription?.unsubscribe?.();
+    authStateSubscription = null;
+    resetUserInfo();
     profileCacheMeta.userId = '';
     profileCacheMeta.fetchedAt = 0;
 
     // 同步清理其他会话相关 store，避免退出后残留旧状态。
-    void loadResetStores()
-      .then(([notificationStoreModule, bagStoreModule, productsStoreModule]) => {
-        notificationStoreModule.useNotificationStore().resetState();
-        bagStoreModule.useBagStore().resetState();
-        productsStoreModule.useProductsStore().resetState();
-      })
-      .catch((error) => {
-        logger.warn('auth-store', '清理关联状态失败', error);
-      });
+    try {
+      const [notificationStoreModule, bagStoreModule, productsStoreModule] = await loadResetStores();
+      await Promise.all([
+        notificationStoreModule.useNotificationStore().resetState(),
+        bagStoreModule.useBagStore().resetState(),
+        productsStoreModule.useProductsStore().resetState()
+      ]);
+    } catch (error) {
+      logger.warn('auth-store', '清理关联状态失败', error);
+    }
   };
 
   const updateUserProfile = async (updates: Record<string, unknown>): Promise<AsyncOpResult> => {

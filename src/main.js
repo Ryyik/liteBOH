@@ -134,6 +134,13 @@ if (typeof window !== "undefined") {
     window.deferredPrompt = null;
     logger.info("pwa", "PWA 应用已安装");
   });
+
+  // 初始化 --real-vh CSS 变量（为不支持 dvh 的浏览器提供降级方案）
+  const setRealVh = () => {
+    document.documentElement.style.setProperty('--real-vh', `${window.innerHeight * 0.01}px`);
+  };
+  setRealVh();
+  window.addEventListener('resize', setRealVh);
 }
 
 const app = createApp(App);

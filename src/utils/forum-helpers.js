@@ -25,6 +25,7 @@ export function buildReplyDraft(username, quotedContent) {
   const safeUsername = String(username).trim();
   const safeQuote = String(quotedContent).trim();
   if (!safeUsername || !safeQuote) return '';
+  // 输出用于 <textarea>（text context），无需 HTML 转义
   return `> @${safeUsername}：${safeQuote}\n\n`;
 }
 

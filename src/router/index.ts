@@ -22,6 +22,11 @@ const routes: RouteRecordRaw[] = [
   ...adminRoutes,
   ...creatorRoutes,
   ...userSpaceRoutes,
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'NotFound',
+    redirect: '/'
+  }
 ]
 
 const router = createRouter({

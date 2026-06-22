@@ -293,6 +293,9 @@ function parseAIModerationResult(rawText, {
 } = {}) {
   const parsed = extractJsonObject(rawText);
   if (!parsed || typeof parsed !== 'object') {
+    if (failClosed) {
+      console.warn('[content-moderation] AI审核结果解析失败，按 failClosed 策略拒绝:', rawText);
+    }
     return failClosed
       ? { ...SERVICE_REJECT_RESULT, source: 'fallback_parse' }
       : { ...PASS_RESULT, source: 'fallback_parse' };
@@ -431,7 +434,7 @@ async function runModeration(content, scene, timeoutMs, options = {}) {
 
   if (needsSecondPass) {
     const secondPassResult = await callAIModerationWithRetry(content, scene, timeoutMs, {
-      failClosed: false,
+      failClosed: true,
       systemPrompt: moderationReviewPrompt,
       maxTokens: MODERATION_REVIEW_MAX_TOKENS
     });

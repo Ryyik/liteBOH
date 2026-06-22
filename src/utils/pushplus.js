@@ -1,4 +1,5 @@
 import { logger } from './logger.js';
+import DOMPurify from './dompurify.js';
 
 const PUSHPLUS_API_URL = 'https://www.pushplus.plus/send';
 
@@ -133,37 +134,44 @@ export async function sendNotificationPush(token, type, data = {}) {
   }
 
   // 构建推送内容，显示具体信息
+  const safeSenderName = DOMPurify.sanitize(data.senderName || '有人');
+  const rawPostContent = data.postContent || '';
+  const safePostContent = rawPostContent ? DOMPurify.sanitize(rawPostContent.substring(0, 150)) : '';
+  const isPostTruncated = rawPostContent.length > 150;
+  const safeCommentContent = DOMPurify.sanitize(data.commentContent || '');
+  const safeImpressionContent = DOMPurify.sanitize(data.impressionContent || '');
+
   const templates = {
     like: {
-      title: `❤️ ${data.senderName || '有人'}点赞了你的帖子`,
+      title: `❤️ ${safeSenderName}点赞了你的帖子`,
       content: `<div style="padding: 16px; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
           <span style="font-size: 24px;">👍</span>
-          <span style="font-size: 16px; font-weight: 600; color: #1d1d1f;">${data.senderName || '有人'}点赞了你的帖子</span>
+          <span style="font-size: 16px; font-weight: 600; color: #1d1d1f;">${safeSenderName}点赞了你的帖子</span>
         </div>
-        ${data.postContent ? `<div style="background: #f5f5f7; padding: 12px; border-radius: 8px; margin: 12px 0; color: #333; font-size: 14px; line-height: 1.5;">${data.postContent.substring(0, 150)}${data.postContent.length > 150 ? '...' : ''}</div>` : ''}
+        ${safePostContent ? `<div style="background: #f5f5f7; padding: 12px; border-radius: 8px; margin: 12px 0; color: #333; font-size: 14px; line-height: 1.5;">${safePostContent}${isPostTruncated ? '...' : ''}</div>` : ''}
         <div style="font-size: 12px; color: #86868b; margin-top: 12px;">${new Date().toLocaleString('zh-CN')}</div>
       </div>`
     },
     comment: {
-      title: `💬 ${data.senderName || '有人'}评论了你的帖子`,
+      title: `💬 ${safeSenderName}评论了你的帖子`,
       content: `<div style="padding: 16px; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
           <span style="font-size: 24px;">💭</span>
-          <span style="font-size: 16px; font-weight: 600; color: #1d1d1f;">${data.senderName || '有人'}评论道：</span>
+          <span style="font-size: 16px; font-weight: 600; color: #1d1d1f;">${safeSenderName}评论道：</span>
         </div>
-        <div style="background: #f5f5f7; padding: 12px; border-radius: 8px; margin: 12px 0; color: #333; font-size: 14px; line-height: 1.6;">${data.commentContent || ''}</div>
+        <div style="background: #f5f5f7; padding: 12px; border-radius: 8px; margin: 12px 0; color: #333; font-size: 14px; line-height: 1.6;">${safeCommentContent}</div>
         <div style="font-size: 12px; color: #86868b; margin-top: 12px;">${new Date().toLocaleString('zh-CN')}</div>
       </div>`
     },
     impression: {
-      title: `✨ ${data.senderName || '有人'}给你留下了印象`,
+      title: `✨ ${safeSenderName}给你留下了印象`,
       content: `<div style="padding: 16px; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
           <span style="font-size: 24px;">🌟</span>
-          <span style="font-size: 16px; font-weight: 600; color: #1d1d1f;">${data.senderName || '有人'}给你的印象：</span>
+          <span style="font-size: 16px; font-weight: 600; color: #1d1d1f;">${safeSenderName}给你的印象：</span>
         </div>
-        <div style="background: #f5f5f7; padding: 12px; border-radius: 8px; margin: 12px 0; color: #333; font-size: 14px; line-height: 1.6;">${data.impressionContent || ''}</div>
+        <div style="background: #f5f5f7; padding: 12px; border-radius: 8px; margin: 12px 0; color: #333; font-size: 14px; line-height: 1.6;">${safeImpressionContent}</div>
         <div style="font-size: 12px; color: #86868b; margin-top: 12px;">${new Date().toLocaleString('zh-CN')}</div>
       </div>`
     }

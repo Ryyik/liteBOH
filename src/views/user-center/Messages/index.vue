@@ -606,7 +606,9 @@ const refreshUnreadCountAfterRealtime = async () => {
 };
 
 const startRealtimeChannels = async (userId) => {
-  const safeUserId = String(userId || '').trim();
+  const rawUserId = String(userId || '').trim();
+  if (!rawUserId) return;
+  const safeUserId = rawUserId.replace(/[^\w\-]/g, '');
   if (!safeUserId) return;
 
   await removeRealtimeChannels();
@@ -821,6 +823,7 @@ const loadMoreNotifications = async () => {
 const setupLoadMoreObserver = () => {
   if (loadMoreObserver) {
     loadMoreObserver.disconnect();
+    loadMoreObserver = null;
   }
   if (!loadMoreSentinelRef.value) return;
   loadMoreObserver = new IntersectionObserver((entries) => {

@@ -7,6 +7,26 @@ const normalizeErrorMessage = (error: unknown, fallback: string) =>
 
 const escapeLikePattern = (value = '') => String(value || '').replace(/[\\%_]/g, '\\$&');
 
+// 简单内存内速率限制
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 10;
+
+function checkRateLimit(ip: string): { ok: true } | { ok: false; retryAfter: number } {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return { ok: true };
+  }
+  entry.count++;
+  if (entry.count > RATE_LIMIT_MAX_REQUESTS) {
+    const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
+    return { ok: false, retryAfter };
+  }
+  return { ok: true };
+}
+
 const resolveEmailFromLoginId = async (serviceClient: ReturnType<typeof createServiceClient>, loginId: string) => {
   const normalizedLoginId = String(loginId || '').trim();
   if (normalizedLoginId.includes('@')) {
@@ -54,6 +74,18 @@ Deno.serve(async (request) => {
     );
   }
 
+  const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || request.headers.get('x-real-ip')
+    || 'unknown';
+  const rateCheck = checkRateLimit(clientIp);
+  if (!rateCheck.ok) {
+    return jsonResponse(
+      { ok: false, code: 'RATE_LIMITED', message: `请求过于频繁，请在 ${rateCheck.retryAfter} 秒后重试。` },
+      429,
+      origin,
+    );
+  }
+
   try {
     const body = await request.json();
     const loginId = String(body?.loginId || '').trim();
@@ -81,10 +113,10 @@ Deno.serve(async (request) => {
       return jsonResponse(
         {
           ok: false,
-          code: emailLookup.code || 'UNKNOWN_ACCOUNT',
-          message: emailLookup.message || '登录失败：无法解析账号邮箱。',
+          code: 'INVALID_CREDENTIALS',
+          message: '登录失败：账号或密码错误',
         },
-        404,
+        401,
         origin,
       );
     }
@@ -104,7 +136,7 @@ Deno.serve(async (request) => {
         message = '登录失败：账号或密码错误';
         code = 'INVALID_CREDENTIALS';
       } else if (normalizedMessage.includes('email not confirmed')) {
-        message = '登录失败：当前项目仍启用了邮箱验证，请联系管理员关闭邮件确认后重试';
+        message = '请先验证邮箱后再登录。';
         code = 'EMAIL_NOT_CONFIRMED';
       }
 

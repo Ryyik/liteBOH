@@ -6,7 +6,7 @@ const normalizeLottery = (value) => {
   const drawnAt = value.drawn_at || value.drawnAt || null;
   const winners = Array.isArray(value.winners)
     ? value.winners.map((winner, index) => ({
-      position: Number(winner?.position || index + 1),
+      position: Number(winner?.position ?? index + 1),
       entry_id: winner?.entry_id || null,
       user_id: winner?.user_id || null,
       username: String(winner?.username || '')
@@ -64,6 +64,7 @@ const getHomeLotteryFallback = async () => {
       .maybeSingle();
 
     if (error) throw error;
+    if (!data) return { data: null, error: new Error('未找到首页抽奖') };
     return { data: normalizeLottery({ ...data, entry_count: 0 }), error: null };
   } catch (fallbackError) {
     return { data: null, error: fallbackError };
@@ -114,7 +115,8 @@ const getCommunityLotteriesFallback = async () => {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return { data: (Array.isArray(data) ? data : []).map((item) => normalizeLottery({ ...item, entry_count: 0 })).filter(Boolean), error: null };
+    const items = Array.isArray(data) ? data.filter(Boolean) : [];
+    return { data: items.map((item) => normalizeLottery({ ...item, entry_count: 0 })).filter(Boolean), error: null };
   } catch (fallbackError) {
     return { data: [], error: fallbackError };
   }

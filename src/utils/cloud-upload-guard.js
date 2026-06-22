@@ -110,7 +110,7 @@ export function validateImageFileBasics(file) {
   return mimeType;
 }
 
-export async function readBrowserImageDimensions(file) {
+export async function readBrowserImageDimensions(file, timeoutMs = 15000) {
   if (
     typeof Image === 'undefined'
     || typeof URL === 'undefined'
@@ -121,17 +121,27 @@ export async function readBrowserImageDimensions(file) {
   }
 
   const objectUrl = URL.createObjectURL(file);
+  let timer;
   try {
     return await new Promise((resolve, reject) => {
       const image = new Image();
-      image.onload = () => resolve({
+      let settled = false;
+      const settle = (fn) => (value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        fn(value);
+      };
+      timer = setTimeout(() => settle(reject)(new Error('图片加载超时')), timeoutMs);
+      image.onload = settle(() => resolve({
         width: Number(image.naturalWidth || image.width || 0),
         height: Number(image.naturalHeight || image.height || 0)
-      });
-      image.onerror = () => reject(new Error('图片无法解析，请换一张图片'));
+      }));
+      image.onerror = settle(() => reject(new Error('图片无法解析，请换一张图片')));
       image.src = objectUrl;
     });
   } finally {
+    clearTimeout(timer);
     URL.revokeObjectURL(objectUrl);
   }
 }
@@ -186,10 +196,11 @@ export function validateCloudinaryUploadResult(data = {}, options = {}) {
     throw new Error('图片目录异常，已阻止保存');
   }
 
-  assertImageDimensions({
-    width: Number(data.width || 0),
-    height: Number(data.height || 0)
-  });
+  const width = Number(data.width);
+  const height = Number(data.height);
+  if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+    assertImageDimensions({ width, height });
+  }
 
   return true;
 }

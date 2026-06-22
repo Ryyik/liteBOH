@@ -13,6 +13,32 @@
   box-sizing: border-box;
 }
 
+.address-notice {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  padding: 12px 24px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  max-width: 90vw;
+  text-align: center;
+  background: #1d1d1f;
+  color: #ffffff;
+}
+.address-notice.error {
+  background: #ff3b30;
+  color: #ffffff;
+}
+.address-notice.success {
+  background: #34c759;
+  color: #ffffff;
+}
+
 /* Header - More Elegant */
 .x-addr-header {
   position: sticky;
@@ -1896,4 +1922,13 @@
   .h-gift-name {
     font-size: 18px;
   }
+}
+
+.glass-fade-enter-active,
+.glass-fade-leave-active {
+  transition: opacity 0.28s ease;
+}
+.glass-fade-enter-from,
+.glass-fade-leave-to {
+  opacity: 0;
 }

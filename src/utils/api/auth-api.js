@@ -46,11 +46,10 @@ const isCaptchaVerificationFailure = (message = '') => {
 
 const escapeLikePattern = (value = '') => String(value || '').replace(/[\\%_]/g, '\\$&');
 
-export async function signUp(username, email, password, metadata = {}, altchaPayload = '') {
+export async function signUp(username, email, password, metadata = {}) {
   const safeUsername = String(username || '').trim();
   const safeEmail = normalizeEmail(email);
   const safePassword = String(password || '');
-  const safeAltchaPayload = String(altchaPayload || '').trim();
 
   const usernameValidationMessage = validateUsername(safeUsername);
   if (usernameValidationMessage) {
@@ -77,9 +76,6 @@ export async function signUp(username, email, password, metadata = {}, altchaPay
       error: normalizeDbError({ message: emailValidationMessage, code: 'INVALID_EMAIL' })
     };
   }
-
-  // 当前版本临时停用验证码入参，但保留形参以兼容已有调用链。
-  void safeAltchaPayload;
 
   try {
     const { data: usernameRows, error: usernameLookupError } = await supabase
@@ -157,19 +153,20 @@ export async function signUp(username, email, password, metadata = {}, altchaPay
 
   // 若当前项目邮箱确认已关闭，注册后通常会有会话并可直接写入 profiles。
   // 若邮箱确认开启导致无会话，可能受 RLS 限制；这里不阻断注册流程。
+  // 仅同步安全字段，防止客户端通过 metadata 越权设置 role/points 等敏感字段。
   if (data?.user) {
     try {
       const profileData = {
         id: data.user.id,
         username: safeUsername,
         email: safeEmail,
-        role: metadata.role || 'user',
-        points: metadata.points || 0,
-        join_date: metadata.join_date || new Date().toISOString().split('T')[0]
+        join_date: new Date().toISOString().split('T')[0]
       };
 
-      if (metadata.birth_month) profileData.birth_month = metadata.birth_month;
-      if (metadata.birth_day) profileData.birth_day = metadata.birth_day;
+      const birthMonth = metadata.birth_month ? Number(metadata.birth_month) : NaN;
+      const birthDay = metadata.birth_day ? Number(metadata.birth_day) : NaN;
+      if (Number.isFinite(birthMonth)) profileData.birth_month = birthMonth;
+      if (Number.isFinite(birthDay)) profileData.birth_day = birthDay;
 
       const { error: profileError } = await supabase
         .from('profiles')
@@ -188,11 +185,9 @@ export async function signUp(username, email, password, metadata = {}, altchaPay
   return { ok: true, data, error: null };
 }
 
-export async function signIn(loginId, password, altchaPayload = '', deviceIdHash = '') {
+export async function signIn(loginId, password) {
   const safeLoginId = normalizeLoginId(loginId);
   const safePassword = String(password || '');
-  const safeAltchaPayload = String(altchaPayload || '').trim();
-  const safeDeviceIdHash = String(deviceIdHash || '').trim();
 
   if (!safeLoginId) {
     return {
@@ -208,38 +203,21 @@ export async function signIn(loginId, password, altchaPayload = '', deviceIdHash
       error: normalizeDbError({ message: '请输入密码', code: 'INVALID_INPUT' })
     };
   }
-  void safeAltchaPayload;
-  void safeDeviceIdHash;
 
   let resolvedEmail = safeLoginId;
   if (!safeLoginId.includes('@')) {
-    const { data: profileRows, error: lookupError } = await supabase
-      .from('profiles')
-      .select('email, username')
-      .ilike('username', escapeLikePattern(safeLoginId))
-      .limit(10);
+    const { data: rpcData, error: rpcError } = await supabase
+      .rpc('resolve_email_for_login', { p_username: safeLoginId });
 
-    const exactProfileRows = Array.isArray(profileRows)
-      ? profileRows.filter((row) => String(row?.username || '').trim().toLowerCase() === safeLoginId.toLowerCase())
-      : [];
-
-    if (lookupError || exactProfileRows.length === 0 || !exactProfileRows[0]?.email) {
+    if (rpcError || !rpcData) {
       return {
         ok: false,
         data: null,
-        error: normalizeDbError({ code: 'UNKNOWN_ACCOUNT', message: '登录失败：未找到该方块 ID 对应的账号。' })
+        error: normalizeDbError({ code: 'INVALID_CREDENTIALS', message: '登录失败：账号或密码错误' })
       };
     }
 
-    if (exactProfileRows.length > 1) {
-      return {
-        ok: false,
-        data: null,
-        error: normalizeDbError({ code: 'DUPLICATED_USERNAME', message: '登录失败：该方块 ID 存在重复记录，请联系管理员处理。' })
-      };
-    }
-
-    resolvedEmail = String(exactProfileRows[0].email || '').trim().toLowerCase();
+    resolvedEmail = String(rpcData || '').trim().toLowerCase();
   }
 
   const { data, error } = await supabase.auth.signInWithPassword({
@@ -254,14 +232,6 @@ export async function signIn(loginId, password, altchaPayload = '', deviceIdHash
         ok: false,
         data: null,
         error: normalizeDbError({ ...error, code: 'INVALID_CREDENTIALS', message: '登录失败：账号或密码错误' })
-      };
-    }
-
-    if (normalizedMessage.includes('email not confirmed')) {
-      return {
-        ok: false,
-        data: null,
-        error: normalizeDbError({ ...error, code: 'EMAIL_NOT_CONFIRMED', message: '登录失败：当前项目仍启用了邮箱验证，请完成邮箱确认后重试。' })
       };
     }
 
@@ -667,12 +637,6 @@ export async function getUserInfo(userId) {
 }
 
 export async function getEmailByUsername(username) {
-  const { data, error, ok } = await executeRead(
-    'profiles.getEmailByUsername',
-    { username },
-    async () => supabase.from('profiles').select('email').eq('username', username).single(),
-    { ttlMs: 30000, tags: ['profiles', `profiles:username:${username}`], timeoutMs: 8000, retry: 1 }
-  );
-
-  return { ok, email: data?.email, data, error };
+  const { data, error } = await supabase.rpc('resolve_email_for_login', { p_username: username });
+  return { ok: !error, email: data || null, data, error };
 }

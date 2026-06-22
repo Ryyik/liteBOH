@@ -11,7 +11,11 @@ function buildRequestKey(scope, params = {}) {
       acc[key] = params[key];
       return acc;
     }, {});
-  return `${scope}:${JSON.stringify(safeParams)}`;
+  try {
+    return `${scope}:${JSON.stringify(safeParams)}`;
+  } catch {
+    return `${scope}:${Date.now()}`;
+  }
 }
 
 export function normalizeDbError(error, fallbackMessage = '请求失败') {
