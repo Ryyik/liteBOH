@@ -244,7 +244,8 @@ export async function markAllNotificationsAsRead(userId) {
       .from('notifications')
       .update({ status: 'read' })
       .eq('recipient_id', userId)
-      .eq('status', 'unread');
+      .eq('status', 'unread')
+      .is('archived_at', null);
     error = fallback.error;
   }
 
@@ -306,18 +307,29 @@ export async function getUnreadNotificationCount(userId) {
         };
       }
 
-      const { data: notifData, error: fallbackError } = await supabase
-        .from('notifications')
-        .select('id, sender_id, recipient_id, type')
-        .eq('recipient_id', userId)
-        .eq('status', 'unread')
-        .is('archived_at', null);
-      const filteredNotifications = filterSelfActionNotifications(notifData || []);
-      const notifCount = filteredNotifications.length;
+      // 仅当 RPC 函数缺失时才降级，其他错误直接返回
+      if (isMissingRpcFunctionError(rpcError, 'get_unread_notification_count')) {
+        logger.warn('notifications-api', '缺少 get_unread_notification_count RPC，降级为直接查询', { error: rpcError });
+        const { data: notifData, error: fallbackError } = await supabase
+          .from('notifications')
+          .select('id, sender_id, recipient_id, type')
+          .eq('recipient_id', userId)
+          .eq('status', 'unread')
+          .is('archived_at', null);
+        const filteredNotifications = filterSelfActionNotifications(notifData || []);
+        const notifCount = filteredNotifications.length;
 
+        return {
+          data: { count: notifCount, notifCount, mailCount: 0 },
+          error: fallbackError
+        };
+      }
+
+      // 其他 RPC 错误直接返回，不触发降级
+      logger.error('notifications-api', '获取未读通知数量 RPC 调用失败', rpcError);
       return {
-        data: { count: notifCount, notifCount, mailCount: 0 },
-        error: fallbackError
+        data: { count: 0, notifCount: 0, mailCount: 0 },
+        error: rpcError
       };
     },
     { ttlMs: 5000, tags: ['notifications', `notifications:user:${userId}`], timeoutMs: 8000, retry: 1 }
@@ -335,7 +347,7 @@ export async function getUnreadNotificationCount(userId) {
 
 export function subscribeToNotifications(userId, callback) {
   const safeUserId = String(userId || '').replace(/[^\w\-]/g, '');
-  return supabase
+  const channel = supabase
     .channel('public:notifications')
     .on(
       'postgres_changes',
@@ -347,7 +359,28 @@ export function subscribeToNotifications(userId, callback) {
       },
       (payload) => callback(payload.new)
     )
-    .subscribe();
+    .on('system', (payload) => {
+      // 监听连接状态变化
+      const status = payload?.status;
+      logger.debug('notifications-api', '实时订阅状态变化', { status, userId });
+      
+      // 连接断开或错误时，记录日志
+      if (status === 'TIMED_OUT' || status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+        logger.warn('notifications-api', '实时订阅连接异常', { status, userId });
+      }
+    })
+    .subscribe((status) => {
+      // 订阅状态回调
+      logger.debug('notifications-api', '订阅状态', { status, userId });
+      
+      if (status === 'SUBSCRIBED') {
+        logger.info('notifications-api', '实时订阅成功', { userId });
+      } else if (status === 'TIMED_OUT' || status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+        logger.error('notifications-api', '实时订阅失败或断开', { status, userId });
+      }
+    });
+  
+  return channel;
 }
 
 async function getProfileUsername(userId) {
