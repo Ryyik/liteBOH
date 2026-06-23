@@ -93,6 +93,7 @@ export async function getUserNotifications(userId, options = {}) {
           )
         `)
         .eq('recipient_id', userId)
+        .is('archived_at', null)
         .order('created_at', { ascending: false })
         .limit(limit + 1);
 
@@ -114,6 +115,104 @@ export async function getUserNotifications(userId, options = {}) {
     },
     { ttlMs: 5000, tags: ['notifications', `notifications:user:${userId}`], timeoutMs: 8000, retry: 1 }
   );
+}
+
+export async function getArchivedNotifications(userId, options = {}) {
+  const limit = Math.min(Math.max(Number(options.limit) || 30, 1), 100);
+  const cursor = String(options.cursor || '').trim();
+
+  return executeRead(
+    'notifications.getArchivedNotifications',
+    { userId, limit, cursor },
+    async () => {
+      let query = supabase
+        .from('notifications')
+        .select(`
+          *,
+          sender:sender_id(id, username, avatar_url),
+          post:post_id(id, title, body, content),
+          comment:comment_id(
+            id,
+            content,
+            parent_id,
+            author_username,
+            parent:parent_id(id, parent_id, author_username)
+          )
+        `)
+        .eq('recipient_id', userId)
+        .not('archived_at', 'is', null)
+        .order('archived_at', { ascending: false })
+        .limit(limit + 1);
+
+      if (cursor) {
+        query = query.lt('archived_at', cursor);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        logger.error('notifications-api', '获取已归档通知列表失败', error);
+        return { data: [], error, hasMore: false, nextCursor: null };
+      }
+      const rows = data || [];
+      const hasMore = rows.length > limit;
+      const pageRows = hasMore ? rows.slice(0, limit) : rows;
+      const nextCursor = hasMore ? pageRows[pageRows.length - 1]?.archived_at || null : null;
+      return { data: pageRows, error: null, hasMore, nextCursor };
+    },
+    { ttlMs: 5000, tags: ['notifications', `notifications:user:${userId}`], timeoutMs: 8000, retry: 1 }
+  );
+}
+
+export async function archiveNotification(notificationId) {
+  const { error } = await supabase
+    .from('notifications')
+    .update({ archived_at: new Date().toISOString() })
+    .eq('id', notificationId);
+
+  if (error) {
+    logger.error('notifications-api', '归档通知失败', error);
+    return { ok: false, error: normalizeDbError(error) };
+  }
+  invalidateByTags(['notifications']);
+  return { ok: true, data: true, error: null };
+}
+
+export async function unarchiveNotification(notificationId) {
+  const { error } = await supabase
+    .from('notifications')
+    .update({ archived_at: null })
+    .eq('id', notificationId);
+
+  if (error) {
+    logger.error('notifications-api', '取消归档通知失败', error);
+    return { ok: false, error: normalizeDbError(error) };
+  }
+  invalidateByTags(['notifications']);
+  return { ok: true, data: true, error: null };
+}
+
+export async function archiveAllNotifications(userId, types = null) {
+  let query = supabase
+    .from('notifications')
+    .update({ archived_at: new Date().toISOString() })
+    .eq('recipient_id', userId)
+    .is('archived_at', null);
+
+  if (Array.isArray(types) && types.length > 0) {
+    query = query.in('type', types);
+  } else if (typeof types === 'string' && types) {
+    query = query.eq('type', types);
+  }
+
+  const { error } = await query;
+
+  if (error) {
+    logger.error('notifications-api', '批量归档通知失败', error);
+    return { ok: false, error: normalizeDbError(error) };
+  }
+  invalidateByTags(['notifications']);
+  return { ok: true, data: true, error: null };
 }
 
 export async function markNotificationAsRead(notificationId) {
@@ -211,7 +310,8 @@ export async function getUnreadNotificationCount(userId) {
         .from('notifications')
         .select('id, sender_id, recipient_id, type')
         .eq('recipient_id', userId)
-        .eq('status', 'unread');
+        .eq('status', 'unread')
+        .is('archived_at', null);
       const filteredNotifications = filterSelfActionNotifications(notifData || []);
       const notifCount = filteredNotifications.length;
 

@@ -2,7 +2,6 @@
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
-  CalendarDays,
   Check,
   Heart,
   MessageCircle,
@@ -11,6 +10,7 @@ import {
 } from 'lucide-vue-next';
 import PostComposer from './components/PostComposer.vue';
 import PostCard from './components/PostCard.vue';
+import ForumToolbar from './components/ForumToolbar.vue';
 import ForumImageViewer from './components/ForumImageViewer.vue';
 import WeeklyCheckinCalendar from './components/WeeklyCheckinCalendar.vue';
 import NotificationDrawer from './components/NotificationDrawer.vue';
@@ -2864,64 +2864,21 @@ const openPostDetail = (postId) => {
 
           <!-- 帖子列表 -->
           <section class="posts-feed fade-in-up" style="animation-delay: 0.2s;">
-            <div class="feed-header-v2">
-              <HomeCatMascot v-if="isHomeCatActive" class="mobile-feed-gap-cat" type="mobileGap" size="lg" decorative />
-              <div class="feed-title-row">
-                <h2 class="feed-title-v2">社区动态</h2>
-                <button v-if="isLoggedIn" type="button" class="weekly-checkin-trigger"
-                  :class="{ 'is-done': weeklyCheckinStatus.hasSignedThisWeek }"
-                  @click="openWeeklyCheckinCalendar">
-                  <CalendarDays :size="18" :stroke-width="1.9" aria-hidden="true" />
-                  <span>{{ weeklyCheckinStatus.hasSignedThisWeek ? '本周已签' : '签到' }}</span>
-                </button>
-              </div>
-              <div class="search-section">
-                <div class="search-input-wrapper">
-                  <input v-model="searchQuery" type="text" placeholder="搜索帖子、内容或作者..." class="search-input"
-                    @keyup.enter="handleSearchSubmit" />
-                  <div class="search-action-group">
-                    <button type="button" class="ai-search-btn-inner"
-                      :class="{ active: isAiSearchEnabled }"
-                      :disabled="isAiSearchLoading"
-                      :aria-pressed="isAiSearchEnabled"
-                      :title="isAiSearchEnabled ? '关闭 BOHAI 搜索' : '开启 BOHAI 搜索'"
-                      @click="toggleAiSearch">
-                      <span class="ai-search-switch-label">BOHAI</span>
-                      <span class="ai-search-switch-dot" aria-hidden="true"></span>
-                    </button>
-                    <button type="button" class="search-btn-inner" @click="handleSearchSubmit">
-                      🔍
-                    </button>
-                  </div>
-                </div>
-                <transition name="forum-ai-search-status" appear>
-                  <div v-if="isAiSearchLoading" class="ai-search-status" aria-live="polite">
-                    <span class="ai-search-spinner" aria-hidden="true"></span>
-                    <span class="ai-search-loading-text">BOHAI 搜索中</span>
-                  </div>
-                </transition>
-                <div v-if="aiSearchHint && !isAiSearchLoading" class="ai-search-hint">{{ aiSearchHint }}</div>
-              </div>
-              <div class="filter-row-v2">
-                <button class="filter-btn-v2" :class="{ 'active': sortMode === 'latest' }"
-                  @click="setSortMode('latest')">
-                  当前最新
-                </button>
-                <button class="filter-btn-v2" :class="{ 'active': sortMode === 'hottest' }"
-                  @click="setSortMode('hottest')">
-                  当前最热
-                </button>
-              </div>
-              <div class="tag-filter-row">
-                <button class="tag-filter-btn" :class="{ active: selectedTagFilter === '' }" @click="setTagFilter('')">
-                  全部标签
-                </button>
-                <button v-for="tag in FORUM_TAG_OPTIONS" :key="tag.value" class="tag-filter-btn"
-                  :class="{ active: selectedTagFilter === tag.value }" @click="setTagFilter(tag.value)">
-                  {{ tag.label }}
-                </button>
-              </div>
-            </div>
+            <ForumToolbar
+              v-model:searchQuery="searchQuery"
+              :is-logged-in="isLoggedIn"
+              :has-signed-this-week="weeklyCheckinStatus.hasSignedThisWeek"
+              :sort-mode="sortMode"
+              :selected-tag-filter="selectedTagFilter"
+              :is-ai-search-enabled="isAiSearchEnabled"
+              :is-ai-search-loading="isAiSearchLoading"
+              :ai-search-hint="aiSearchHint"
+              @search-submit="handleSearchSubmit"
+              @toggle-ai-search="toggleAiSearch"
+              @open-weekly-checkin="openWeeklyCheckinCalendar"
+              @set-sort-mode="setSortMode"
+              @set-tag-filter="setTagFilter"
+            />
 
             <!-- 骨架屏加载状态 -->
             <div v-if="isLoading" class="skeleton-feed">
