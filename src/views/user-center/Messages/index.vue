@@ -124,8 +124,18 @@
 
     <!-- Notifications List -->
     <div class="x-list">
+      <!-- Error State (优先显示错误状态) -->
+      <div v-if="notificationsLoadError" class="x-empty">
+        <div class="x-empty-visual">
+          <TriangleAlert class="empty-icon-circle" :size="44" :stroke-width="1.7" aria-hidden="true" />
+          <div class="empty-glow"></div>
+        </div>
+        <h3>通知加载失败</h3>
+        <p>{{ notificationsLoadError }}</p>
+        <button class="refresh-btn" @click="loadNotifications">点击重试</button>
+      </div>
       <!-- Skeleton Loading -->
-      <div v-if="loading && currentTab !== 'archived'" class="x-skeleton-list">
+      <div v-else-if="loading && currentTab !== 'archived'" class="x-skeleton-list">
         <div v-for="i in 5" :key="i" class="x-skeleton-item">
           <div class="x-skeleton-avatar"></div>
           <div class="x-skeleton-content">
@@ -138,7 +148,7 @@
           </div>
         </div>
       </div>
-      <div v-if="currentTab === 'archived' && archivedLoading" class="x-skeleton-list">
+      <div v-else-if="currentTab === 'archived' && archivedLoading" class="x-skeleton-list">
         <div v-for="i in 3" :key="i" class="x-skeleton-item">
           <div class="x-skeleton-avatar"></div>
           <div class="x-skeleton-content">
@@ -150,15 +160,6 @@
             <div class="x-skeleton-line x-skeleton-badge"></div>
           </div>
         </div>
-      </div>
-      <div v-else-if="notificationsLoadError" class="x-empty">
-        <div class="x-empty-visual">
-          <TriangleAlert class="empty-icon-circle" :size="44" :stroke-width="1.7" aria-hidden="true" />
-          <div class="empty-glow"></div>
-        </div>
-        <h3>通知加载失败</h3>
-        <p>{{ notificationsLoadError }}</p>
-        <button class="refresh-btn" @click="loadNotifications">点击重试</button>
       </div>
       <div v-else-if="filteredMessages.length > 0" class="x-inbox-list">
         <div v-for="msg in filteredMessages" :key="msg.id" class="x-item"
@@ -625,6 +626,9 @@ const filteredMessages = computed(() => {
 
   let result = visibleNotificationMessages.value;
 
+  // 过滤掉已归档的消息（安全措施）
+  result = result.filter(m => !m.archived_at);
+
   if (currentTab.value === 'system') {
     result = result.filter(m => isSystemNotificationType(m.type));
   } else if (currentTab.value !== 'all') {
@@ -765,10 +769,27 @@ const applyRealtimeRow = (rowsRef, payload) => {
   }
 
   if (eventType === 'INSERT') {
+    // 如果新插入的消息已经归档，不添加到主列表
+    if (newRow?.archived_at) {
+      return false;
+    }
     rowsRef.value = mergeById([newRow], rowsRef.value);
     return true;
   }
 
+  // UPDATE 事件：如果消息被归档，从主列表中删除
+  if (newRow?.archived_at && !oldRow?.archived_at) {
+    rowsRef.value = rowsRef.value.filter((row) => row.id !== rowId);
+    return true;
+  }
+
+  // UPDATE 事件：如果消息取消归档，添加到主列表
+  if (!newRow?.archived_at && oldRow?.archived_at) {
+    rowsRef.value = mergeById([newRow], rowsRef.value);
+    return true;
+  }
+
+  // UPDATE 事件：普通更新
   rowsRef.value = rowsRef.value.map((row) =>
     row.id === rowId ? { ...row, ...newRow } : row
   );
@@ -799,12 +820,35 @@ const startRealtimeChannels = async (userId) => {
         filter: `recipient_id=eq.${safeUserId}`
       },
       (payload) => {
+        const eventType = String(payload?.eventType || '').toUpperCase();
+        const newRow = payload?.new;
+        const oldRow = payload?.old;
+
+        // 处理主列表
         const patched = applyRealtimeRow(messages, payload);
-        void refreshUnreadCountAfterRealtime();
-        if (currentTab.value === 'archived') {
-          loadArchivedNotifications();
+
+        // 处理归档列表
+        if (eventType === 'INSERT' && newRow?.archived_at) {
+          // 新插入的消息已归档，添加到归档列表
+          archivedMessages.value = mergeById([newRow], archivedMessages.value);
+        } else if (eventType === 'UPDATE') {
+          if (newRow?.archived_at && !oldRow?.archived_at) {
+            // 消息被归档，添加到归档列表
+            archivedMessages.value = mergeById([newRow], archivedMessages.value);
+          } else if (!newRow?.archived_at && oldRow?.archived_at) {
+            // 消息取消归档，从归档列表中删除
+            archivedMessages.value = archivedMessages.value.filter((row) => row.id !== newRow?.id);
+          }
+        } else if (eventType === 'DELETE') {
+          // 消息被删除，从归档列表中也删除
+          const rowId = newRow?.id || oldRow?.id;
+          if (rowId) {
+            archivedMessages.value = archivedMessages.value.filter((row) => row.id !== rowId);
+          }
         }
-        if (!patched || String(payload?.eventType || '').toUpperCase() === 'INSERT') {
+
+        void refreshUnreadCountAfterRealtime();
+        if (!patched || eventType === 'INSERT') {
           scheduleRealtimeRefresh({
             notifications: true,
             forceCache: true
@@ -887,11 +931,6 @@ const switchInboxSection = (section) => {
   });
 };
 
-onMounted(async () => {
-  loadRetriedNotificationIds();
-  await nextTick();
-});
-
 watch(() => userInfo.value?.id, async (newId, oldId) => {
   if (!newId || newId === oldId) return;
   await loadNotifications();
@@ -968,6 +1007,7 @@ const handleUnreadRefreshEvent = async (event) => {
 
 // 初始化消息数据
 onMounted(async () => {
+  loadRetriedNotificationIds();
   await waitForAuthReady();
 
   await Promise.allSettled([
@@ -982,6 +1022,8 @@ onMounted(async () => {
 
   // 监听 boh_unread_refresh 事件来刷新消息列表
   window.addEventListener('boh_unread_refresh', handleUnreadRefreshEvent);
+  // 监听全局点击事件来关闭筛选下拉框
+  document.addEventListener('click', closeSelectFilterDropdown);
   await startRealtimeChannels(currentUserId.value || userInfo.value?.id);
 });
 
@@ -1317,7 +1359,6 @@ const closeSelectFilterDropdown = (e) => {
     filterDropdownOpen.value = false;
   }
 };
-document.addEventListener('click', closeSelectFilterDropdown);
 
 const selectAllFiltered = () => {
   const current = filteredMessages.value;

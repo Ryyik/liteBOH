@@ -17,6 +17,11 @@ import { SHARED_MEMORY_TRIGGER_KEYWORDS, BOH_MEMBER_NAMES } from './chat-engine-
 // ─── 社群意图 ────────────────────────────────────────────────────────────────
 
 export const isCommunityQuestion = (text) => {
+  // 参数验证：确保text是有效的字符串
+  if (!text || typeof text !== 'string') {
+    return false;
+  }
+  
   const memberNames = BOH_MEMBER_NAMES.split('|');
   // 高频通用词（boh/mc/lol/服务器/联机/活动/成员）已移除，避免普通问题被误判为社区问题
   const communityKeywords = [
@@ -29,6 +34,11 @@ export const isCommunityQuestion = (text) => {
 };
 
 export const isCommunityCreativeRequest = (text) => {
+  // 参数验证：确保text是有效的字符串
+  if (!text || typeof text !== 'string') {
+    return false;
+  }
+  
   const normalized = normalizeText(text);
   if (!normalized) return false;
   return /(写|生成|创作|改写|润色|设计|起草|文案|口号|标题|祝福|海报|宣传语|故事|诗|歌词|设定|梗图)/.test(normalized);
@@ -37,11 +47,21 @@ export const isCommunityCreativeRequest = (text) => {
 // ─── 记忆上下文路由 ──────────────────────────────────────────────────────────
 
 export const shouldUseMemoryContext = (text) => {
+  // 参数验证：确保text是有效的字符串
+  if (!text || typeof text !== 'string') {
+    return false;
+  }
+  
   if (isOperationQuestion(text)) return false;
   return isCommunityQuestion(text);
 };
 
 export const shouldUseSharedMemoryContext = (text) => {
+  // 参数验证：确保text是有效的字符串
+  if (!text || typeof text !== 'string') {
+    return false;
+  }
+  
   const normalized = normalizeText(text);
   if (!normalized) return false;
   if (isOperationQuestion(normalized)) return false;
@@ -62,6 +82,11 @@ export const shouldUseSharedMemoryContext = (text) => {
 // ─── 树洞意图 ────────────────────────────────────────────────────────────────
 
 export const isTreeholeReflectionQuestion = (text) => {
+  // 参数验证：确保text是有效的字符串
+  if (!text || typeof text !== 'string') {
+    return false;
+  }
+  
   const normalized = normalizeText(text);
   if (!normalized) return false;
   if (isOperationQuestion(normalized)) return false;
@@ -84,6 +109,14 @@ export const isTreeholeReflectionQuestion = (text) => {
  * @param {{ isTreeholeMemoryEnabled: boolean, isLoggedIn: boolean, userInfo: { id: string }|null }} state
  */
 export const shouldUseTreeholeContext = (text, state) => {
+  // 参数验证：确保text和state是有效的
+  if (!text || typeof text !== 'string') {
+    return false;
+  }
+  if (!state || typeof state !== 'object') {
+    return false;
+  }
+  
   if (!state.isTreeholeMemoryEnabled) return false;
   if (!state.isLoggedIn || !state.userInfo?.id) return false;
   return isTreeholeReflectionQuestion(text);

@@ -61,16 +61,29 @@ const buildExecutionLayers = (plan) => {
  * 关键修复：原实现的 chunked 串行循环会把同一个 layer 内的 chunk 一个一个 await，
  * 退化成了"伪并发"。这里用 worker pool 替换，确保任何时刻最多 maxConcurrency 个任务在跑，
  * 且一有空闲就立即取下一个，不被 chunk 边界阻塞。
+ * 
+ * 修复竞态条件：使用原子性的cursor访问机制，确保每个任务只被执行一次
  */
 const runWithConcurrency = async (tasks, maxConcurrency, runner) => {
   if (!tasks.length) return [];
   const limit = Math.max(1, Math.min(maxConcurrency, tasks.length));
   const results = new Array(tasks.length);
+  
+  // 修复竞态条件：使用Promise链确保cursor访问的原子性
   let cursor = 0;
-  const workers = Array.from({ length: limit }, async () => {
-    while (true) {
+  let cursorLock = Promise.resolve(); // 简单的互斥锁
+  
+  const getNextIndex = async () => {
+    return cursorLock = cursorLock.then(() => {
       const index = cursor;
       cursor += 1;
+      return index;
+    });
+  };
+  
+  const workers = Array.from({ length: limit }, async () => {
+    while (true) {
+      const index = await getNextIndex();
       if (index >= tasks.length) return;
       results[index] = await runner(tasks[index], index);
     }

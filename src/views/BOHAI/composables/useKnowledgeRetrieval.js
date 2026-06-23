@@ -159,22 +159,27 @@ export function useKnowledgeRetrieval(deps) {
     const safeQuery = normalizePromptLine(queryText, 220);
     if (!safeQuery) return [];
 
-    const result = await searchBohAIKnowledgeForAI({
-      query: safeQuery,
-      sourceTypes,
-      limit,
-      syncLimit,
-      minSimilarity,
-      ensureIndexed: true
-    });
+    try {
+      const result = await searchBohAIKnowledgeForAI({
+        query: safeQuery,
+        sourceTypes,
+        limit,
+        syncLimit,
+        minSimilarity,
+        ensureIndexed: true
+      });
 
-    if (!result.ok) {
-      logger.warn('boh-ai', '向量检索失败，回退关键词检索', result.error?.message || result.error);
+      if (!result.ok) {
+        logger.warn('boh-ai', '向量检索失败，回退关键词检索', result.error?.message || result.error);
+        return [];
+      }
+
+      const chunks = Array.isArray(result.data?.chunks) ? result.data.chunks : [];
+      return chunks.filter((chunk) => normalizePromptLine(chunk?.content, 20));
+    } catch (error) {
+      logger.error('boh-ai', '向量检索异常', error);
       return [];
     }
-
-    const chunks = Array.isArray(result.data?.chunks) ? result.data.chunks : [];
-    return chunks.filter((chunk) => normalizePromptLine(chunk?.content, 20));
   };
 
   const buildVectorKnowledgeContext = (title, chunks, {
@@ -321,40 +326,45 @@ export function useKnowledgeRetrieval(deps) {
       return cached.items;
     }
 
-    if (safeQuery) {
-      const searchResult = await searchSharedAIMemoriesForAI({
-        query: safeQuery,
-        limit: safeLimit
-      });
-      if (searchResult.ok && Array.isArray(searchResult.data)) {
-        if (sharedMemorySearchCache.size >= SHARED_MEMORY_SEARCH_CACHE_MAX) {
-          const firstKey = sharedMemorySearchCache.keys().next().value;
-          sharedMemorySearchCache.delete(firstKey);
-        }
-        sharedMemorySearchCache.set(cacheKey, {
-          fetchedAt: now,
-          items: searchResult.data
+    try {
+      if (safeQuery) {
+        const searchResult = await searchSharedAIMemoriesForAI({
+          query: safeQuery,
+          limit: safeLimit
         });
-        return searchResult.data;
+        if (searchResult.ok && Array.isArray(searchResult.data)) {
+          if (sharedMemorySearchCache.size >= SHARED_MEMORY_SEARCH_CACHE_MAX) {
+            const firstKey = sharedMemorySearchCache.keys().next().value;
+            sharedMemorySearchCache.delete(firstKey);
+          }
+          sharedMemorySearchCache.set(cacheKey, {
+            fetchedAt: now,
+            items: searchResult.data
+          });
+          return searchResult.data;
+        }
+        if (!searchResult.ok) {
+          logger.warn('boh-ai', '共享记忆搜索 RPC 失败，回退本地筛选', searchResult.error?.message || searchResult.error);
+        }
       }
-      if (!searchResult.ok) {
-        logger.warn('boh-ai', '共享记忆搜索 RPC 失败，回退本地筛选', searchResult.error?.message || searchResult.error);
-      }
-    }
 
-    const fallbackSource = await getSharedMemoriesCached();
-    const fallbackItems = safeQuery
-      ? selectSharedMemoriesByQuery(fallbackSource, safeQuery, safeLimit)
-      : fallbackSource.slice(0, safeLimit);
-    if (sharedMemorySearchCache.size >= SHARED_MEMORY_SEARCH_CACHE_MAX) {
-      const firstKey = sharedMemorySearchCache.keys().next().value;
-      sharedMemorySearchCache.delete(firstKey);
+      const fallbackSource = await getSharedMemoriesCached();
+      const fallbackItems = safeQuery
+        ? selectSharedMemoriesByQuery(fallbackSource, safeQuery, safeLimit)
+        : fallbackSource.slice(0, safeLimit);
+      if (sharedMemorySearchCache.size >= SHARED_MEMORY_SEARCH_CACHE_MAX) {
+        const firstKey = sharedMemorySearchCache.keys().next().value;
+        sharedMemorySearchCache.delete(firstKey);
+      }
+      sharedMemorySearchCache.set(cacheKey, {
+        fetchedAt: now,
+        items: fallbackItems
+      });
+      return fallbackItems;
+    } catch (error) {
+      logger.error('boh-ai', '共享记忆搜索异常', error);
+      return [];
     }
-    sharedMemorySearchCache.set(cacheKey, {
-      fetchedAt: now,
-      items: fallbackItems
-    });
-    return fallbackItems;
   };
 
   const getSharedMemoryContext = async (queryText) => {
@@ -463,6 +473,12 @@ export function useKnowledgeRetrieval(deps) {
         treeholeMemoryCache.fetchedAt = Date.now();
         treeholeMemoryCache.items = items;
         return items;
+      } catch (error) {
+        logger.error('boh-ai', '读取 BOH Cloud+ 异常', error);
+        treeholeMemoryCache.userId = userId;
+        treeholeMemoryCache.fetchedAt = Date.now();
+        treeholeMemoryCache.items = [];
+        return [];
       } finally {
         _treeholeMemoryPending = null;
       }

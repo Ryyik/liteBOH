@@ -3,7 +3,8 @@
 // 为动态 import('@/utils/auth.js') 提供类型推断
 // ============================================
 
-import type { SupabaseClient } from '@supabase/supabase-js'
+import type { SupabaseClient, RealtimeChannel } from '@supabase/supabase-js'
+import type { NotificationItem } from '@/types'
 
 export interface AuthApiError {
   message: string
@@ -79,12 +80,12 @@ export function getWeeklyCheckinStatus(): Promise<AuthApiResult>
 export function submitWeeklyCheckin(): Promise<AuthApiResult>
 
 // --- Notifications API ---
-export function getUserNotifications(userId: string, options?: Record<string, unknown>): Promise<{ data: unknown[]; error: AuthApiError | null; hasMore: boolean; nextCursor: string | null }>
+export function getUserNotifications(userId: string, options?: Record<string, unknown>): Promise<{ data: NotificationItem[]; error: AuthApiError | null; hasMore: boolean; nextCursor: string | null }>
 export function markNotificationAsRead(id: string): Promise<AuthApiResult>
 export function markAllNotificationsAsRead(): Promise<AuthApiResult>
 export function createNotification(data: Record<string, unknown>): Promise<AuthApiResult>
 export function getUnreadNotificationCount(userId: string): Promise<{ ok: boolean; count: number; notifCount: number; mailCount: number; data: unknown; error: AuthApiError | null }>
-export function subscribeToNotifications(userId: string, callback: (payload: any) => void): any
+export function subscribeToNotifications(userId: string, callback: (payload: any) => void): RealtimeChannel
 export function filterSelfActionNotifications(notifications: unknown[]): unknown[]
 
 // --- Profile API ---

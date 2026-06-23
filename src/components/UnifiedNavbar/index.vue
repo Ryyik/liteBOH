@@ -123,7 +123,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, onActivated, onDeactivated } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRoute } from "vue-router";
 import { getImageUrl } from "../../utils/asset-helper.js";
 import { useAuthStore } from "@/stores/auth";
@@ -564,23 +564,6 @@ watch(isLoggedIn, (loggedIn) => {
   if (loggedIn) {
     void checkUnreadMessages();
   }
-});
-
-onActivated(() => {
-  document.addEventListener("scroll", handleScroll, { passive: true, capture: true });
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      isScrolled.value = window.scrollY > SCROLL_THRESHOLD;
-    });
-  });
-});
-
-onDeactivated(() => {
-  if (scrollRafId) {
-    cancelAnimationFrame(scrollRafId);
-    scrollRafId = null;
-  }
-  document.removeEventListener("scroll", handleScroll, { capture: true });
 });
 </script>
 

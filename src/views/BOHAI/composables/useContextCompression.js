@@ -8,6 +8,7 @@ export function useContextCompression({
   registerRefreshConversationSummaryCache
 }) {
   let refreshConversationSummaryCacheFn = null;
+  let currentAbortController = null; // 修复竞态条件:保存当前的AbortController
 
   const registerSummaryCache = (fn) => {
     refreshConversationSummaryCacheFn = fn;
@@ -46,26 +47,50 @@ export function useContextCompression({
       return false;
     }
 
-    if(signal) {
-      signal.addEventListener('abort', () => {
-        const queue = compressionQueue.get(sessionIndex);
-        if (queue) {
-          queue.forEach((resolve) => resolve(false));
-          compressionQueue.delete(sessionIndex);
+    // 修复竞态条件:取消之前的压缩请求
+    if (currentAbortController) {
+      currentAbortController.abort();
+      currentAbortController = null;
+    }
+
+    // 创建新的AbortController用于本次压缩
+    const abortController = new AbortController();
+    currentAbortController = abortController;
+
+    // 如果外部提供了signal,监听外部取消事件
+    let handleAbort = null;
+    if (signal) {
+      handleAbort = () => {
+        if (currentAbortController === abortController) {
+          abortController.abort();
         }
-      });
+      };
+      signal.addEventListener('abort', handleAbort);
     }
 
     isCompressingContext.value = true;
     compressingSessionIndex.value = sessionIndex;
 
     try {
-      await refreshConversationSummaryCacheFn(sessionIndex, signal);
+      await refreshConversationSummaryCacheFn(sessionIndex, abortController.signal);
       return true;
     } catch (error) {
-      logger.warn('boh-ai', 'Auto context compression failed', error);
+      // 如果是取消导致的错误,不记录警告
+      if (error.name !== 'AbortError') {
+        logger.warn('boh-ai', 'Auto context compression failed', error);
+      }
       return false;
     } finally {
+      // 清理当前的AbortController
+      if (currentAbortController === abortController) {
+        currentAbortController = null;
+      }
+
+      // 移除事件监听器，防止内存泄漏
+      if (handleAbort && signal) {
+        signal.removeEventListener('abort', handleAbort);
+      }
+
       if (compressingSessionIndex.value === sessionIndex) {
         isCompressingContext.value = false;
         compressingSessionIndex.value = -1;

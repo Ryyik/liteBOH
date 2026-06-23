@@ -84,3 +84,6 @@ export interface NotificationPayload {
   content?: string
   [key: string]: unknown
 }
+
+// Re-export from api.ts
+export type { NotificationItem } from './api.js'

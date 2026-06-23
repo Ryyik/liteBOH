@@ -1,4 +1,4 @@
-import { ref, reactive, computed, nextTick } from 'vue';
+import { ref, reactive, computed, nextTick, onUnmounted } from 'vue';
 import {
   SESSION_SAVE_DEBOUNCE_MS,
   SESSION_SAVE_IDLE_TIMEOUT_MS,
@@ -446,6 +446,17 @@ export function useConversationManager({
       pageDescription: pendingActionDraft.pageDescription,
       pageHtml: pendingActionDraft.pageHtml
     };
+  });
+
+  // ============================================================
+  // Cleanup on unmount (防止内存泄漏)
+  // ============================================================
+  onUnmounted(() => {
+    clearSaveTimers();
+    if (memoryCaptureStatusTimer) {
+      clearTimeout(memoryCaptureStatusTimer);
+      memoryCaptureStatusTimer = null;
+    }
   });
 
   // ============================================================

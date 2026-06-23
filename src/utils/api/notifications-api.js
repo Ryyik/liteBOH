@@ -357,7 +357,18 @@ export function subscribeToNotifications(userId, callback) {
         table: 'notifications',
         filter: `recipient_id=eq.${safeUserId}`
       },
-      (payload) => callback(payload.new)
+      (payload) => {
+        try {
+          callback(payload.new);
+        } catch (error) {
+          logger.error('notifications-api', '实时订阅回调处理失败', {
+            error,
+            payload: payload.new,
+            userId
+          });
+          // 不中断订阅，继续监听后续事件
+        }
+      }
     )
     .on('system', (payload) => {
       // 监听连接状态变化

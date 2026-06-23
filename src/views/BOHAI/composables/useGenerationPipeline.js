@@ -247,14 +247,23 @@ export function useGenerationPipeline({ availableModels, abortController }) {
     return String(value)
   };
 
-  // 用于流式处理的思考内容过滤状态（使用普通变量，非响应式）
-  let inThinkingBlock = false
-  let thinkingBuffer = ''
+  // 修复状态残留：将thinking状态改为函数级而非模块级
+  // 创建thinking状态管理器，确保每次调用独立
+  const createThinkingState = () => {
+    let inThinkingBlock = false
+    let thinkingBuffer = ''
 
-  // 重置思考过滤状态
-  const resetThinkingState = () => {
-    inThinkingBlock = false
-    thinkingBuffer = ''
+    return {
+      reset: () => {
+        inThinkingBlock = false
+        thinkingBuffer = ''
+      },
+      getState: () => ({ inThinkingBlock, thinkingBuffer }),
+      setState: (state) => {
+        inThinkingBlock = state.inThinkingBlock
+        thinkingBuffer = state.thinkingBuffer
+      }
+    }
   }
 
   // 非流式文本的思考内容过滤（后处理）
@@ -285,39 +294,42 @@ export function useGenerationPipeline({ availableModels, abortController }) {
   }
 
   // 流式处理时的思考内容过滤（带状态跟踪）
-  const filterThinkingContentStream = (chunk) => {
+  // 修复：接受thinkingState参数，确保状态隔离
+  const filterThinkingContentStream = (chunk, thinkingState) => {
     if (!chunk) return ''
 
-    thinkingBuffer += chunk
+    const { inThinkingBlock, thinkingBuffer } = thinkingState.getState()
+    let newBuffer = thinkingBuffer + chunk
     let output = ''
+    let newInThinkingBlock = inThinkingBlock
 
     while (true) {
-      if (inThinkingBlock) {
-        const endMatch = thinkingBuffer.match(/<\/think>/i)
+      if (newInThinkingBlock) {
+        const endMatch = newBuffer.match(/<\/think>/i)
         if (endMatch) {
-          thinkingBuffer = thinkingBuffer.slice(endMatch.index + endMatch[0].length)
-          inThinkingBlock = false
+          newBuffer = newBuffer.slice(endMatch.index + endMatch[0].length)
+          newInThinkingBlock = false
           continue
         } else {
-          thinkingBuffer = ''
+          thinkingState.setState({ inThinkingBlock: newInThinkingBlock, thinkingBuffer: '' })
           return output
         }
       }
 
-      const startMatch = thinkingBuffer.match(/<think[^>]*>/i)
+      const startMatch = newBuffer.match(/<think[^>]*>/i)
       if (startMatch) {
-        const beforeThink = thinkingBuffer.slice(0, startMatch.index)
-        const afterThink = thinkingBuffer.slice(startMatch.index + startMatch[0].length)
+        const beforeThink = newBuffer.slice(0, startMatch.index)
+        const afterThink = newBuffer.slice(startMatch.index + startMatch[0].length)
 
         const endMatch = afterThink.match(/<\/think>/i)
         if (endMatch) {
           output += beforeThink
-          thinkingBuffer = afterThink.slice(endMatch.index + endMatch[0].length)
+          newBuffer = afterThink.slice(endMatch.index + endMatch[0].length)
           continue
         } else {
-          inThinkingBlock = true
+          newInThinkingBlock = true
           output += beforeThink
-          thinkingBuffer = ''
+          thinkingState.setState({ inThinkingBlock: newInThinkingBlock, thinkingBuffer: '' })
           return output
         }
       }
@@ -326,24 +338,29 @@ export function useGenerationPipeline({ availableModels, abortController }) {
     }
 
     // 检测不完整标签结尾
-    const potentialTagMatch = thinkingBuffer.match(/<\/?(?:t(?:h(?:i(?:n(?:k)?)?)?)?)?$/i)
+    const potentialTagMatch = newBuffer.match(/<\/?(?:t(?:h(?:i(?:n(?:k)?)?)?)?)?$/i)
     if (potentialTagMatch) {
-      output += thinkingBuffer.slice(0, potentialTagMatch.index)
-      thinkingBuffer = potentialTagMatch[0]
+      output += newBuffer.slice(0, potentialTagMatch.index)
+      thinkingState.setState({ inThinkingBlock: newInThinkingBlock, thinkingBuffer: potentialTagMatch[0] })
       return output
     }
 
-    output += thinkingBuffer
-    thinkingBuffer = ''
+    output += newBuffer
+    thinkingState.setState({ inThinkingBlock: newInThinkingBlock, thinkingBuffer: '' })
     return output
   }
 
   // 流式处理结束时刷新缓冲区
-  const flushThinkingBuffer = () => {
-    const remaining = thinkingBuffer
-    thinkingBuffer = ''
-    inThinkingBlock = false
-    return remaining
+  const flushThinkingBuffer = (thinkingState) => {
+    const { thinkingBuffer } = thinkingState.getState()
+    thinkingState.reset()
+    return thinkingBuffer
+  }
+
+  // 重置思考过滤状态（兼容旧接口）
+  const resetThinkingState = () => {
+    // 注意：这个函数现在只是占位符，实际状态由thinkingState管理
+    // 在callModelStream中会创建新的thinkingState
   }
 
   // ==============================================================
@@ -354,7 +371,9 @@ export function useGenerationPipeline({ availableModels, abortController }) {
     const model = availableModels.find(m => m.id === modelId);
     if (!model) throw new Error(`Model ${modelId} not found`);
 
-    resetThinkingState();
+    // 修复状态残留：每次调用创建独立的thinking状态
+    const thinkingState = createThinkingState();
+    thinkingState.reset();
 
     const resolvedOptions = {
       max_tokens: Math.trunc(toFiniteNumber(options.max_tokens, 4096, { min: 256, max: 8192 })),
@@ -400,7 +419,7 @@ export function useGenerationPipeline({ availableModels, abortController }) {
 
           if (rawContent) {
             const content = safeChunkToString(rawContent);
-            const filteredContent = filterThinkingContentStream(content);
+            const filteredContent = filterThinkingContentStream(content, thinkingState);
             if (filteredContent && filteredContent !== '[object Object]') {
               finalText += filteredContent;
               if (typeof onChunk === 'function') onChunk(filteredContent);
@@ -423,7 +442,7 @@ export function useGenerationPipeline({ availableModels, abortController }) {
         sseParser.flush();
       }
 
-      const remainingContent = flushThinkingBuffer();
+      const remainingContent = flushThinkingBuffer(thinkingState);
       if (remainingContent && remainingContent !== '[object Object]') {
         finalText += remainingContent;
         if (typeof onChunk === 'function') onChunk(remainingContent);

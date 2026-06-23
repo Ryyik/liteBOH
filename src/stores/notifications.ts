@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { logger } from '@/utils/logger.js';
-import type { NotificationPayload } from '@/types';
+import type { NotificationPayload, NotificationItem } from '@/types';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import type * as AuthModule from '@/utils/auth.js';
 
 let authApiPromise: Promise<typeof AuthModule> | null = null;
@@ -14,10 +15,10 @@ const loadAuthApi = async (): Promise<typeof AuthModule> => {
 
 export const useNotificationStore = defineStore('notifications', () => {
   const unreadCount = ref(0);
-  const notifications = ref<any[]>([]);
-  const notificationSubscription = ref<any>(null);
+  const notifications = ref<NotificationItem[]>([]);
+  const notificationSubscription = ref<RealtimeChannel | null>(null);
   const currentUserId = ref<string | null>(null);
-  const unreadRefreshInflight = ref<Promise<any> | null>(null);
+  const unreadRefreshInflight = ref<Promise<void> | null>(null);
   const lastUnreadRefreshAt = ref(0);
   const UNREAD_REFRESH_MIN_INTERVAL_MS = 1500;
 
@@ -64,11 +65,12 @@ export const useNotificationStore = defineStore('notifications', () => {
     }
   };
 
-  const removeChannelSafely = async (channel: any): Promise<void> => {
+  const removeChannelSafely = async (channel: RealtimeChannel | null): Promise<void> => {
     if (!channel) return;
     try {
       const { supabase } = await loadAuthApi();
-      supabase.removeChannel(channel);
+      // 使用类型断言确保 channel 类型兼容
+      supabase.removeChannel(channel as RealtimeChannel);
     } catch (error) {
       logger.warn('notifications-store', '移除通知通道失败', error);
     }
@@ -132,7 +134,7 @@ export const useNotificationStore = defineStore('notifications', () => {
         displayToast('新消息提醒', desc, icon);
       });
 
-      notificationSubscription.value = notificationsChannel;
+      notificationSubscription.value = notificationsChannel as RealtimeChannel;
     } catch (error) {
       logger.error('notifications-store', '启动通知监听器失败', error);
     }
@@ -143,12 +145,7 @@ export const useNotificationStore = defineStore('notifications', () => {
     notificationSubscription.value = null;
     if (!activeSubscription) return;
 
-    if (Array.isArray(activeSubscription)) {
-      await Promise.all(activeSubscription.map((channel) => removeChannelSafely(channel)));
-      return;
-    }
-
-    await removeChannelSafely(activeSubscription);
+    await removeChannelSafely(activeSubscription as RealtimeChannel);
   };
 
   const setUnreadCount = (count: number): void => {
