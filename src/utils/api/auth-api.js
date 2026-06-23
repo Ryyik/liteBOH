@@ -34,7 +34,9 @@ const PROFILE_ALL_COLUMNS = `
   gift_no,
   gift_price,
   pushplus_token,
-  pushplus_enabled
+  pushplus_enabled,
+  last_active_at,
+  hide_online_status
 `;
 
 const isCaptchaVerificationFailure = (message = '') => {
@@ -529,9 +531,11 @@ export async function getProfilesPage({ page = 1, pageSize = 10, search = '', co
           bio,
           join_date,
           birth_month,
-          birth_day
+          birth_day,
+          last_active_at,
+          hide_online_status
         `, { count: safeCountMode })
-        .order('join_date', { ascending: false, nullsFirst: false })
+        .order('last_active_at', { ascending: false, nullsFirst: false })
         .order('username', { ascending: true })
         .range(from, to);
 
@@ -569,52 +573,14 @@ export async function getRecentBirthdayProfiles({ limit = 8 } = {}) {
     { limit: safeLimit },
     async () => {
       const { data, error } = await supabase
-        .from('profiles')
-        .select(`
-          id,
-          username,
-          avatar_url,
-          bio,
-          join_date,
-          birth_month,
-          birth_day
-        `)
-        .not('birth_month', 'is', null)
-        .not('birth_day', 'is', null)
-        .limit(200);
+        .rpc('get_recent_birthday_profiles', { p_limit: safeLimit });
 
       if (error) {
         return { data: [], error };
       }
 
-      const now = new Date();
-      const currentYear = now.getFullYear();
-      const todayStart = new Date(currentYear, now.getMonth(), now.getDate()).getTime();
-      const withDistance = (data || []).map((profile) => {
-        const month = Number(profile.birth_month);
-        const day = Number(profile.birth_day);
-        let nextBirthday = new Date(currentYear, month - 1, day);
-        if (Number.isNaN(nextBirthday.getTime())) {
-          return null;
-        }
-        if (nextBirthday.getTime() < todayStart) {
-          nextBirthday = new Date(currentYear + 1, month - 1, day);
-        }
-        return {
-          ...profile,
-          birthday_days_until: Math.max(0, Math.round((nextBirthday.getTime() - todayStart) / 86400000))
-        };
-      }).filter(Boolean);
-
-      withDistance.sort((a, b) => {
-        if (a.birthday_days_until !== b.birthday_days_until) {
-          return a.birthday_days_until - b.birthday_days_until;
-        }
-        return String(a.username || '').localeCompare(String(b.username || ''), 'zh-Hans-CN');
-      });
-
       return {
-        data: withDistance.slice(0, safeLimit),
+        data: data || [],
         error: null
       };
     },

@@ -120,6 +120,7 @@
                 <span class="level-badge" :title="`等级 ${levelInfo.level}`">Lv.{{ levelInfo.level }}</span>
               </h1>
               <span class="handle-name">@{{ profile.username }}</span>
+              <span v-if="profile" class="profile-status" :class="{ 'status-online': isUserOnline(profile, hideOnlineStatus) }" :title="formatOnlineStatusTooltip(profile, hideOnlineStatus)">{{ formatUserOnlineStatus(profile, hideOnlineStatus) }}</span>
             </div>
 
             <!-- XP Progress Bar -->
@@ -465,6 +466,7 @@ import {
 import { createPost } from '@/utils/api/forum-api.js';
 import { formatSmartTime } from '@/utils/time.js';
 import { getLevelInfo } from '@/utils/xp.js';
+import { useUserOnlineStatus } from '@/views/user-center/UserSpace/composables/useUserOnlineStatus.js';
 import imageCompression from 'browser-image-compression';
 import {
   buildCreatorPlatformJumpUrl,
@@ -783,6 +785,10 @@ const alertState = reactive({
 const isOwnProfile = computed(() => {
   return isLoggedIn.value && userInfo.value.username === route.params.username;
 });
+
+const hideOnlineStatus = computed(() => userInfo.value?.hideOnlineStatus ?? false);
+
+const { isUserOnline, formatUserOnlineStatus, formatOnlineStatusTooltip } = useUserOnlineStatus();
 
 const syncOwnProfileSnapshot = () => {
   ownProfileSnapshot.value = {
@@ -1338,7 +1344,6 @@ const uploadToSupabase = async (file) => {
           const oldFilePath = pathParts.slice(avatarsIndex + 1).join('/');
           // 只有当旧文件路径与新文件路径不同时才删除
           if (oldFilePath && oldFilePath !== filePath) {
-            console.log('清理旧头像:', oldFilePath);
             await supabase.storage.from('avatars').remove([oldFilePath]);
           }
         }

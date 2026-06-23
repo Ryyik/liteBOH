@@ -9,6 +9,7 @@ import {
   GripVertical,
   Hash,
   Image as ImageIcon,
+  MapPin,
   RefreshCcw,
   X
 } from 'lucide-vue-next';
@@ -19,6 +20,7 @@ const props = defineProps({
   userInfo: { type: Object, default: () => ({}) },
   newPost: { type: Object, default: () => ({ title: '', content: '' }) },
   selectedPostTag: { type: String, default: 'daily' },
+  postLocation: { type: Object, default: null },
   postImages: { type: Array, default: () => [] },
   isSubmitting: { type: Boolean, default: false },
   isUploadingPostImage: { type: Boolean, default: false },
@@ -43,6 +45,7 @@ const emit = defineEmits([
   'login',
   'update:newPost',
   'update:selectedPostTag',
+  'update:postLocation',
   'toggle-image-source-menu',
   'request-image-picker',
   'request-camera',
@@ -234,6 +237,202 @@ const openImagePreview = (image) => {
 const closeImagePreview = () => {
   previewImage.value = null;
 };
+
+const isLocating = ref(false);
+const locationError = ref('');
+const showPrecisionMenu = ref(false);
+const locationSearchQuery = ref('');
+const locationSearchResults = ref([]);
+const isSearchingLocation = ref(false);
+const showLocationSearch = ref(false);
+let locationSearchTimer = null;
+
+const NOMINATIM_RATE_LIMIT_MS = 1100;
+let lastNominatimRequestTime = 0;
+const geocodeCache = new Map();
+const GEOCODE_CACHE_TTL = 10 * 60 * 1000;
+
+async function throttledNominatimFetch(url) {
+  const cacheKey = url;
+  const cached = geocodeCache.get(cacheKey);
+  if (cached) {
+    const { result, timestamp } = cached;
+    if (Date.now() - timestamp < GEOCODE_CACHE_TTL) return result.clone();
+    geocodeCache.delete(cacheKey);
+  }
+
+  const now = Date.now();
+  const elapsed = now - lastNominatimRequestTime;
+  if (elapsed < NOMINATIM_RATE_LIMIT_MS) {
+    await new Promise((r) => setTimeout(r, NOMINATIM_RATE_LIMIT_MS - elapsed));
+  }
+  lastNominatimRequestTime = Date.now();
+
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': 'BOHLITE/2.5 (community forum; +https://github.com/bohlite)'
+    }
+  });
+
+  const cloned = res.clone();
+  geocodeCache.set(cacheKey, { result: cloned, timestamp: Date.now() });
+  return res;
+}
+
+async function handleAddLocation() {
+  if (!navigator.geolocation) {
+    locationError.value = '浏览器不支持定位功能';
+    return;
+  }
+  isLocating.value = true;
+  locationError.value = '';
+  try {
+    const pos = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: false,
+        timeout: 10000,
+        maximumAge: 60000
+      });
+    });
+    const { latitude, longitude } = pos.coords;
+    const { cityName, districtName } = await reverseGeocode(latitude, longitude);
+    emit('update:postLocation', {
+      name: cityName,
+      cityName,
+      districtName,
+      precision: 'city',
+      lat: latitude,
+      lng: longitude
+    });
+  } catch (e) {
+    if (e.code === 1) {
+      locationError.value = '定位权限被拒绝，请在浏览器设置中允许位置访问';
+    } else if (e.code === 2) {
+      locationError.value = '无法获取位置信息，请检查网络或 GPS';
+    } else if (e.code === 3) {
+      locationError.value = '获取位置超时，请重试';
+    } else {
+      locationError.value = '获取位置失败，请重试';
+    }
+  } finally {
+    isLocating.value = false;
+  }
+}
+
+async function reverseGeocode(lat, lng) {
+  try {
+    const res = await throttledNominatimFetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=zh&zoom=13`
+    );
+    if (!res.ok) {
+      const fallback = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+      return { cityName: fallback, districtName: fallback };
+    }
+    const data = await res.json();
+    const addr = data.address || {};
+
+    // City: try structured address, otherwise parse from display_name
+    let cityName = addr.city || addr.town || null;
+    if (!cityName && data.display_name) {
+      const parts = data.display_name.split(', ').reverse();
+      cityName = parts.find(p => /市$/.test(p.trim()));
+    }
+    if (!cityName) cityName = addr.county || addr.state || addr.country || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+
+    // Precise location (the finest granular detected)
+    const preciseName = addr.county || addr.district || addr.suburb || addr.neighbourhood || cityName;
+
+    return { cityName, districtName: preciseName };
+  } catch {
+    const fallback = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    return { cityName: fallback, districtName: fallback };
+  }
+}
+
+function handleLocationClick() {
+  showPrecisionMenu.value = !showPrecisionMenu.value;
+  if (showPrecisionMenu.value) {
+    showLocationSearch.value = false;
+    locationSearchQuery.value = '';
+    locationSearchResults.value = [];
+  }
+}
+
+function switchPrecision(precision) {
+  if (!props.postLocation) return;
+  const newName = precision === 'city' ? props.postLocation.cityName : props.postLocation.districtName;
+  emit('update:postLocation', {
+    ...props.postLocation,
+    name: newName,
+    precision
+  });
+  showPrecisionMenu.value = false;
+}
+
+function removeLocation() {
+  emit('update:postLocation', null);
+  locationError.value = '';
+  showPrecisionMenu.value = false;
+}
+
+function onLocationSearchInput() {
+  clearTimeout(locationSearchTimer);
+  const q = locationSearchQuery.value.trim();
+  if (!q) { locationSearchResults.value = []; return; }
+  if (q.length < 2) { locationSearchResults.value = []; return; }
+  isSearchingLocation.value = true;
+  locationSearchTimer = setTimeout(async () => {
+    try {
+      const res = await throttledNominatimFetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&accept-language=zh&limit=5`
+      );
+      if (!res.ok) { locationSearchResults.value = []; return; }
+      const data = await res.json();
+      locationSearchResults.value = data.map(r => {
+        const parts = r.display_name.split(', ').reverse();
+        return {
+          name: r.display_name,
+          lat: parseFloat(r.lat),
+          lng: parseFloat(r.lon),
+          shortName: parts.slice(-3).join(', ')
+        };
+      });
+    } catch {
+      locationSearchResults.value = [];
+    } finally {
+      isSearchingLocation.value = false;
+    }
+  }, 300);
+}
+
+function selectSearchResult(result) {
+  const parts = result.name.split(', ').reverse();
+  const cityName = parts.find(p => /市$/.test(p.trim())) || parts[0];
+  const preciseName = parts[0];
+  emit('update:postLocation', {
+    name: cityName?.trim() || result.name,
+    cityName: cityName?.trim() || result.name,
+    districtName: preciseName?.trim() || cityName?.trim() || result.name,
+    precision: 'city',
+    lat: result.lat,
+    lng: result.lng
+  });
+  locationSearchQuery.value = '';
+  locationSearchResults.value = [];
+  showLocationSearch.value = false;
+  showPrecisionMenu.value = false;
+}
+
+function cancelLocationSearch() {
+  showLocationSearch.value = false;
+  locationSearchQuery.value = '';
+  locationSearchResults.value = [];
+}
+
+function closeLocationMenu() {
+  showPrecisionMenu.value = false;
+  cancelLocationSearch();
+}
 </script>
 
 <template>
@@ -288,6 +487,8 @@ const closeImagePreview = () => {
           {{ tag.label }}
         </button>
       </div>
+
+
 
       <input ref="postImageInputRef" type="file" accept="image/png,image/jpeg,image/webp" multiple
         class="post-image-input" @change="handleImageChange" />
@@ -362,7 +563,6 @@ const closeImagePreview = () => {
               :class="{ active: showMobileTagMenu }" aria-label="选择帖子标签"
               :aria-expanded="showMobileTagMenu" @click="showMobileTagMenu = !showMobileTagMenu">
               <Hash :size="23" :stroke-width="2" aria-hidden="true" />
-              <span>{{ selectedTagLabel }}</span>
             </button>
             <div v-if="showMobileTagMenu" class="mobile-tag-menu">
               <button v-for="tag in forumTagOptions" :key="tag.value" type="button" class="mobile-tag-menu-item"
@@ -380,6 +580,65 @@ const closeImagePreview = () => {
             @click="isPreviewMode = !isPreviewMode">
             <Eye :size="23" :stroke-width="2" aria-hidden="true" />
           </button>
+          <div class="mobile-location-tool-wrap">
+            <button type="button" class="mobile-post-tool-btn mobile-location-tool-btn"
+              :class="{ active: showPrecisionMenu, 'has-location': !!postLocation }"
+              :disabled="isLocating" aria-label="添加位置"
+              @click="handleLocationClick">
+              <span v-if="isLocating" class="mini-spinner"></span>
+              <MapPin v-else :size="23" :stroke-width="2" />
+            </button>
+            <div v-if="showPrecisionMenu" class="mobile-location-menu">
+              <template v-if="postLocation && !showLocationSearch">
+                <button type="button" class="mobile-location-menu-item"
+                  :class="{ active: postLocation.precision === 'city' }" @click="switchPrecision('city')">
+                  城市：{{ postLocation.cityName }}
+                </button>
+                <button type="button" class="mobile-location-menu-item"
+                  :class="{ active: postLocation.precision === 'district' }" @click="switchPrecision('district')">
+                  精确：{{ postLocation.districtName }}
+                </button>
+                <div class="mobile-location-menu-divider"></div>
+              </template>
+
+              <template v-if="!showLocationSearch">
+                <button v-if="!postLocation" type="button" class="mobile-location-menu-item" @click="handleAddLocation">
+                  使用当前位置
+                </button>
+                <button type="button" class="mobile-location-menu-item" @click="showLocationSearch = true">
+                  搜索地点
+                </button>
+                <div class="mobile-location-menu-divider"></div>
+                <button v-if="postLocation" type="button" class="mobile-location-menu-item mobile-location-menu-remove"
+                  @click="removeLocation">
+                  移除位置
+                </button>
+                <button v-else type="button" class="mobile-location-menu-item" @click="closeLocationMenu">
+                  取消
+                </button>
+              </template>
+
+              <template v-else>
+                <div class="mobile-location-search-input-wrap">
+                  <input v-model="locationSearchQuery" type="text"
+                    class="mobile-location-search-input" placeholder="搜索地点..."
+                    @input="onLocationSearchInput" />
+                </div>
+                <div v-if="isSearchingLocation" class="mobile-location-search-status">搜索中...</div>
+                <template v-if="locationSearchResults.length">
+                  <button v-for="r in locationSearchResults" :key="r.lat + ',' + r.lng" type="button"
+                    class="mobile-location-menu-item mobile-location-search-result-item" @click="selectSearchResult(r)">
+                    {{ r.shortName }}
+                  </button>
+                  <div class="mobile-location-menu-divider"></div>
+                </template>
+                <button type="button" class="mobile-location-menu-item" @click="cancelLocationSearch">
+                  取消搜索
+                </button>
+              </template>
+            </div>
+            <span v-if="locationError" class="post-location-error">{{ locationError }}</span>
+          </div>
           <button type="button" class="mobile-post-tool-btn" :class="{ 'is-full': postImages.length >= maxPostImages }"
             :disabled="isUploadingPostImage || isSubmitting || postImages.length >= maxPostImages"
             :aria-label="`从相册选择图片，已添加 ${postImages.length} 张，最多 ${maxPostImages} 张`"
@@ -447,6 +706,66 @@ const closeImagePreview = () => {
                 </button>
               </div>
             </div>
+            <div class="desktop-location-tool-wrap">
+              <button type="button" class="desktop-post-tool-btn desktop-location-tool-btn"
+                :class="{ active: showPrecisionMenu }"
+                :disabled="isLocating" aria-label="添加位置"
+                @click="handleLocationClick">
+                <span v-if="isLocating" class="mini-spinner"></span>
+                <MapPin v-else :size="22" :stroke-width="2" />
+                <span v-if="postLocation">{{ postLocation.name }}</span>
+              </button>
+              <div v-if="showPrecisionMenu" class="desktop-location-menu">
+                <template v-if="postLocation && !showLocationSearch">
+                  <button type="button" class="desktop-location-menu-item"
+                    :class="{ active: postLocation.precision === 'city' }" @click="switchPrecision('city')">
+                    城市：{{ postLocation.cityName }}
+                  </button>
+                  <button type="button" class="desktop-location-menu-item"
+                    :class="{ active: postLocation.precision === 'district' }" @click="switchPrecision('district')">
+                    精确：{{ postLocation.districtName }}
+                  </button>
+                  <div class="desktop-location-menu-divider"></div>
+                </template>
+
+                <template v-if="!showLocationSearch">
+                  <button v-if="!postLocation" type="button" class="desktop-location-menu-item" @click="handleAddLocation">
+                    使用当前位置
+                  </button>
+                  <button type="button" class="desktop-location-menu-item" @click="showLocationSearch = true">
+                    搜索地点
+                  </button>
+                  <div class="desktop-location-menu-divider"></div>
+                  <button v-if="postLocation" type="button" class="desktop-location-menu-item desktop-location-menu-remove"
+                    @click="removeLocation">
+                    移除位置
+                  </button>
+                  <button v-else type="button" class="desktop-location-menu-item" @click="closeLocationMenu">
+                    取消
+                  </button>
+                </template>
+
+                <template v-else>
+                  <div class="desktop-location-search-input-wrap">
+                    <input v-model="locationSearchQuery" type="text"
+                      class="desktop-location-search-input" placeholder="搜索地点..."
+                      @input="onLocationSearchInput" />
+                  </div>
+                  <div v-if="isSearchingLocation" class="desktop-location-search-status">搜索中...</div>
+                  <template v-if="locationSearchResults.length">
+                    <button v-for="r in locationSearchResults" :key="r.lat + ',' + r.lng" type="button"
+                      class="desktop-location-menu-item desktop-location-search-result-item" @click="selectSearchResult(r)">
+                      {{ r.shortName }}
+                    </button>
+                    <div class="desktop-location-menu-divider"></div>
+                  </template>
+                  <button type="button" class="desktop-location-menu-item" @click="cancelLocationSearch">
+                    取消搜索
+                  </button>
+                </template>
+              </div>
+              <span v-if="locationError" class="post-location-error">{{ locationError }}</span>
+            </div>
             <button type="button" class="desktop-post-tool-btn" :class="{ 'is-full': postImages.length >= maxPostImages }"
               :disabled="isUploadingPostImage || isSubmitting || postImages.length >= maxPostImages"
               :aria-label="`从相册选择图片，已添加 ${postImages.length} 张，最多 ${maxPostImages} 张`"
@@ -498,4 +817,201 @@ const closeImagePreview = () => {
 <style scoped>
 @import '../styles/composer.css';
 @import '../styles/replies-responsive.css';
+</style>
+
+<style scoped>
+.post-location-error {
+  font-size: 11px;
+  color: #ef4444;
+  display: block;
+  margin-top: 2px;
+}
+
+.mobile-location-tool-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.desktop-location-tool-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* ---- Mobile location menu (matches mobile-tag-menu style) ---- */
+
+.mobile-location-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 12px);
+  z-index: 30;
+  width: 188px;
+  padding: 8px;
+  border-radius: 18px;
+  border: 1px solid #d8d8dc;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 18px 44px rgba(15, 20, 25, 0.14);
+  display: grid;
+  gap: 6px;
+}
+
+.mobile-location-menu-item {
+  min-height: 42px;
+  border: none;
+  border-radius: 13px;
+  background: transparent;
+  color: #0f1419;
+  font-size: 15px;
+  font-weight: 800;
+  text-align: left;
+  padding: 0 12px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.mobile-location-menu-item:hover {
+  background: rgba(15, 20, 25, 0.06);
+}
+
+.mobile-location-menu-item.active {
+  background: #0f1419;
+  color: #ffffff;
+}
+
+.mobile-location-menu-divider {
+  height: 1px;
+  background: #d8d8dc;
+  margin: 6px 0;
+}
+
+.mobile-location-menu-remove {
+  color: #ef4444;
+}
+
+.mobile-location-menu-remove:hover {
+  background: #fef2f2;
+}
+
+.mobile-location-tool-btn.has-location {
+  background: rgba(15, 20, 25, 0.06);
+}
+
+.mobile-location-tool-btn.active {
+  background: rgba(15, 20, 25, 0.08);
+}
+
+.mobile-location-search-input-wrap {
+  padding: 4px 4px 0;
+}
+
+.mobile-location-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid #d8d8dc;
+  border-radius: 10px;
+  font-size: 14px;
+  outline: none;
+  background: #f5f5f7;
+  color: #0f1419;
+}
+
+.mobile-location-search-input:focus {
+  border-color: #0f1419;
+  background: #fff;
+}
+
+.mobile-location-search-status {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #6e6e73;
+}
+
+/* ---- Desktop location menu (matches desktop-tag-menu style) ---- */
+
+.desktop-location-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  z-index: 30;
+  width: 176px;
+  padding: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(16px);
+  display: grid;
+  gap: 4px;
+}
+
+.desktop-location-menu-item {
+  width: 100%;
+  min-height: 38px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #1d1d1f;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+  text-align: left;
+  padding: 0 11px;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.desktop-location-menu-item:hover {
+  background: #f5f5f7;
+}
+
+.desktop-location-menu-item.active {
+  background: #1d1d1f;
+  color: #ffffff;
+}
+
+.desktop-location-menu-divider {
+  height: 1px;
+  background: rgba(0, 0, 0, 0.06);
+  margin: 4px 0;
+}
+
+.desktop-location-menu-remove {
+  color: #ef4444;
+}
+
+.desktop-location-menu-remove:hover {
+  background: #fef2f2;
+}
+
+.desktop-location-tool-btn.active {
+  background: #1d1d1f;
+  color: #ffffff;
+}
+
+.desktop-location-search-input-wrap {
+  padding: 4px 4px 0;
+}
+
+.desktop-location-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid #d8d8dc;
+  border-radius: 10px;
+  font-size: 13px;
+  outline: none;
+  background: #f5f5f7;
+  color: #1d1d1f;
+}
+
+.desktop-location-search-input:focus {
+  border-color: #1d1d1f;
+  background: #fff;
+}
+
+.desktop-location-search-status {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #6e6e73;
+}
 </style>

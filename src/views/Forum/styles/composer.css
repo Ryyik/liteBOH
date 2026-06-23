@@ -749,7 +749,8 @@
 }
 
 .desktop-tag-tool-btn.active,
-.desktop-preview-tool-btn.active {
+.desktop-preview-tool-btn.active,
+.desktop-location-tool-btn.active {
   background: #1d1d1f;
   color: #ffffff;
 }

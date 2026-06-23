@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const testMocks = vi.hoisted(() => ({
-  fromMock: vi.fn()
+  fromMock: vi.fn(),
+  rpcMock: vi.fn()
 }));
 
 vi.mock('../../src/utils/supabase-client.js', () => ({
   supabase: {
-    from: testMocks.fromMock
+    from: testMocks.fromMock,
+    rpc: testMocks.rpcMock
   }
 }));
 
@@ -28,7 +30,7 @@ function createThenableQuery(result, calls = []) {
       calls.push({ method: 'eq', column, value });
       return query;
     }),
-    then: (resolve) => Promise.resolve(result).then(resolve)
+    then: (resolve) => { Promise.resolve(result).then(resolve); return query; }
   };
   return query;
 }
@@ -36,6 +38,7 @@ function createThenableQuery(result, calls = []) {
 describe('notifications-api', () => {
   beforeEach(() => {
     testMocks.fromMock.mockReset();
+    testMocks.rpcMock.mockReset();
     clearRequestCache();
   });
 
@@ -53,17 +56,11 @@ describe('notifications-api', () => {
     expect(output[1].sender_id).toBe('u2');
   });
 
-  it('counts unread notifications only after private messages were removed', async () => {
-    const calls = [];
-    const notificationsQuery = createThenableQuery({
-      data: [
-        { id: 'n1', sender_id: 'u2', recipient_id: 'u1', type: 'like' },
-        { id: 'n2', sender_id: 'u1', recipient_id: 'u1', type: 'comment' }
-      ],
+  it('counts unread notifications via RPC', async () => {
+    testMocks.rpcMock.mockResolvedValue({
+      data: [{ count: 1 }],
       error: null
-    }, calls);
-
-    testMocks.fromMock.mockReturnValueOnce(notificationsQuery);
+    });
 
     const result = await getUnreadNotificationCount('u1');
 
@@ -71,9 +68,7 @@ describe('notifications-api', () => {
     expect(result.notifCount).toBe(1);
     expect(result.mailCount).toBe(0);
     expect(result.count).toBe(1);
-    expect(testMocks.fromMock).toHaveBeenCalledTimes(1);
-    expect(testMocks.fromMock).toHaveBeenCalledWith('notifications');
-    expect(calls).toContainEqual({ method: 'eq', column: 'recipient_id', value: 'u1' });
-    expect(calls).toContainEqual({ method: 'eq', column: 'status', value: 'unread' });
+    expect(testMocks.rpcMock).toHaveBeenCalledTimes(1);
+    expect(testMocks.rpcMock).toHaveBeenCalledWith('get_unread_notification_count', { p_recipient_id: 'u1' });
   });
 });

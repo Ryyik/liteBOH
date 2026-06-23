@@ -155,7 +155,7 @@ export const useAuthStore = defineStore('auth', () => {
   });
   const isAdmin = computed(() => String(userInfo.role || '').trim() === 'admin');
   const AUTH_TIMEOUT_MS = 10000;
-  const PROFILE_REFRESH_TTL_MS = 30000;
+  const PROFILE_REFRESH_TTL_MS = 60000;
 
 const PROFILE_SELECT_COLUMNS = `
   id,

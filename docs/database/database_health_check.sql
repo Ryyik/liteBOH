@@ -301,7 +301,7 @@ with required_indexes(index_name, importance) as (
     ('idx_profiles_username', 'required'),
     ('idx_profiles_join_date_username', 'required'),
     ('idx_profiles_role_join_date', 'required'),
-    ('idx_posts_status_created', 'required'),
+    ('idx_posts_status_created_id', 'required'),
     ('idx_comments_status_created', 'required'),
     ('idx_messages_receiver_unread_approved', 'required'),
     ('idx_user_subscriptions_status_expires', 'required'),

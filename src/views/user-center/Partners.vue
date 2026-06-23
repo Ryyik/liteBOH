@@ -50,10 +50,12 @@
                 <img v-if="partner.avatar_url" :src="partner.avatar_url" class="partner-avatar-img"
                   :alt="partner.username"  loading="lazy" />
                 <span v-else class="partner-avatar-text">{{ partner.username?.charAt(0)?.toUpperCase?.() || '?' }}</span>
+                <span v-if="isUserOnline(partner, hideOnlineStatus)" class="online-dot"></span>
               </div>
               <div class="partner-details">
                 <div class="partner-title-row">
                   <span class="partner-name">{{ partner.username }}</span>
+                  <span class="partner-status" :class="{ 'status-online': isUserOnline(partner, hideOnlineStatus) }" :title="formatOnlineStatusTooltip(partner, hideOnlineStatus)">{{ formatUserOnlineStatus(partner, hideOnlineStatus) }}</span>
                   <span class="partner-role-tag" :class="partner.role">{{ getRoleLabel(partner.role) }}</span>
                 </div>
                 <div class="partner-meta">
@@ -172,12 +174,14 @@ import { storeToRefs } from 'pinia';
 import { logger } from '@/utils/logger.js';
 import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
+import { useUserOnlineStatus } from './UserSpace/composables/useUserOnlineStatus.js';
 
 // State
 const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
 const { isLoggedIn, userInfo } = storeToRefs(authStore);
+const hideOnlineStatus = computed(() => userInfo.value?.hideOnlineStatus ?? false);
 
 const goToProfile = (usernameVal) => {
   const safeUsername = String(usernameVal || '').trim();
@@ -198,6 +202,7 @@ const totalPartners = ref(0);
 const pageSize = 10;
 let searchDebounceTimer = null;
 let latestFetchId = 0;
+const { isUserOnline, formatUserOnlineStatus, formatOnlineStatusTooltip } = useUserOnlineStatus();
 
 // Impressions State
 const selectedPartner = ref(null);
@@ -223,7 +228,11 @@ const fetchPartners = async () => {
     }
 
     if (!error) {
-      partners.value = data?.items || [];
+      const currentUsername = userInfo.value.username;
+      const nowISO = new Date().toISOString();
+      partners.value = (data?.items || []).map((p) =>
+        p.username === currentUsername ? { ...p, last_active_at: nowISO } : p
+      );
       totalPartners.value = data?.total || 0;
     } else {
       partners.value = [];
@@ -467,8 +476,17 @@ onBeforeUnmount(() => {
     font-size: 20px;
   }
 
+  .online-dot {
+    width: 10px;
+    height: 10px;
+  }
+
   .partner-name {
     font-size: 16px;
+  }
+
+  .partner-status {
+    font-size: 10px;
   }
 
   .partner-meta {
@@ -600,14 +618,48 @@ onBeforeUnmount(() => {
   justify-content: center;
   font-size: 24px;
   font-weight: 700;
-  overflow: hidden;
+  overflow: visible;
   flex-shrink: 0;
+  position: relative;
+}
+
+.partner-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.partner-status {
+  font-size: 11px;
+  font-weight: 600;
+  color: #86868b;
+  white-space: nowrap;
+}
+
+.partner-status.status-online {
+  color: #10b981;
+}
+
+.online-dot {
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #34d399;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1.5px rgba(52, 211, 153, 0.3), 0 2px 6px rgba(52, 211, 153, 0.25);
+  z-index: 1;
+  pointer-events: none;
 }
 
 .partner-avatar-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: 18px;
 }
 
 .partner-avatar-text {

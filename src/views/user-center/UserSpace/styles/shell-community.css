@@ -810,15 +810,35 @@
   justify-content: center;
   font-weight: 700;
   font-size: 16px;
-  overflow: hidden;
+  overflow: visible;
   flex-shrink: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  position: relative;
 }
 
 .avatar-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: var(--radius-avatar);
+}
+
+.online-dot {
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #34d399;
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1.5px rgba(52, 211, 153, 0.3), 0 2px 6px rgba(52, 211, 153, 0.25);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.user-space-page[data-theme="dark"] .online-dot {
+  border-color: #181a20;
 }
 
 /* ---------- 用户信息 ---------- */
@@ -828,6 +848,12 @@
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+}
+
+.user-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .user-name {
@@ -840,6 +866,18 @@
 
 .user-name:hover {
   color: var(--accent);
+}
+
+.user-status {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.user-status.status-online {
+  color: #10b981;
 }
 
 .user-bio {
@@ -1146,8 +1184,19 @@
     font-size: 15px;
   }
 
+  .online-dot {
+    width: 10px;
+    height: 10px;
+    bottom: -1px;
+    right: -1px;
+  }
+
   .user-name {
     font-size: 14px;
+  }
+
+  .user-status {
+    font-size: 10px;
   }
 
   .user-bio {
@@ -1266,6 +1315,11 @@
     font-size: 14px;
   }
 
+  .online-dot {
+    width: 9px;
+    height: 9px;
+  }
+
   .shows-entry-card-glass {
     padding: 14px 16px;
   }
@@ -1324,4 +1378,45 @@
   .user-space-page :deep(.forum-page.embedded-mode .post-composer) {
     padding: 14px;
   }
+}
+
+/* ---------- Toggle Switch ---------- */
+.toggle-switch {
+  width: 42px;
+  height: 24px;
+  background: #c4c4c6;
+  border-radius: 12px;
+  position: relative;
+  transition: background 0.25s ease;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.toggle-switch::after {
+  content: '';
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.25s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.toggle-switch.enabled {
+  background: #34c759;
+}
+
+.toggle-switch.enabled::after {
+  transform: translateX(18px);
+}
+
+.user-space-page[data-theme="dark"] .toggle-switch {
+  background: #3a3a3c;
+}
+
+.user-space-page[data-theme="dark"] .toggle-switch.enabled {
+  background: #30d158;
 }

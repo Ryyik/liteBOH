@@ -28,6 +28,7 @@ import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { getForumReturnKeyFromQuery } from '@/utils/forum-return-state.js';
 import { getHomeCatAsset, isHomeCatTheme } from '@/utils/home-cat-theme.js';
 import { themeManager } from '@/utils/theme-manager.js';
+import { buildReplyDraft } from '@/utils/forum-helpers.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -321,9 +322,7 @@ const formatDate = formatSmartTime;
 
 const getCurrentUserId = () => (isLoggedIn.value ? userInfo.id : null);
 
-const buildReplyDraft = () => {
-  return '';
-};
+
 
 const getCooldownSeconds = (until) => Math.max(0, Math.ceil((Number(until || 0) - cooldownNow.value) / 1000));
 
@@ -1226,6 +1225,7 @@ const handleDeleteComment = async (comment, parentId = null) => {
                   <div class="author-meta">
                     <span class="author-name">@{{ post.author_username }}</span>
                     <span class="post-time">{{ formatDate(post.created_at) }}</span>
+                    <span v-if="post.location_name" class="post-location-tag">📍 {{ post.location_name }}</span>
                   </div>
                 </div>
                 <div v-if="shouldShowPostMenu" class="post-menu-wrap" @click.stop>
@@ -1486,4 +1486,18 @@ const handleDeleteComment = async (comment, parentId = null) => {
 
 <style scoped>
 @import './style.scoped.css';
+</style>
+
+<style scoped>
+.post-location-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #059669;
+  background: #ecfdf5;
+  padding: 2px 8px;
+  border-radius: 6px;
+  margin-top: 4px;
+}
 </style>

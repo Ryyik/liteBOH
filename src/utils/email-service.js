@@ -15,22 +15,30 @@ const callSendEmailFunction = async (templateType, templateParams) => {
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData?.session?.access_token || '';
 
-  const response = await fetch(EMAIL_SEND_FUNCTION_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-    body: JSON.stringify({ templateType, templateParams }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const errorMsg = result?.message || `邮件发送失败 (${response.status})`;
-    console.error('Email sending failed:', errorMsg);
-    throw new Error(errorMsg);
+  try {
+    const response = await fetch(EMAIL_SEND_FUNCTION_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ templateType, templateParams }),
+      signal: controller.signal,
+    });
+
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const errorMsg = result?.message || `邮件发送失败 (${response.status})`;
+      console.error('Email sending failed:', errorMsg);
+      throw new Error(errorMsg);
+    }
+    return result;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return result;
 };
 
 /**

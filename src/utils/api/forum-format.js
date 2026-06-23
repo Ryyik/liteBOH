@@ -159,7 +159,10 @@ export function normalizePostRecord(post = {}) {
     tag: getEffectiveForumTag(post.tag),
     image_count: Number(post.image_count || 0),
     cover_image_url: coverImageUrl,
-    images: fallbackImages
+    images: fallbackImages,
+    location_name: String(post.location_name || '').trim() || undefined,
+    location_lat: post.location_lat != null ? Number(post.location_lat) : undefined,
+    location_lng: post.location_lng != null ? Number(post.location_lng) : undefined
   };
 }
 
@@ -195,7 +198,10 @@ export function normalizePostListRecord(post = {}) {
     tag: getEffectiveForumTag(post.tag),
     image_count: Math.max(Number(post.image_count || 0), explicitImages.length),
     cover_image_url: coverImageUrl,
-    images: previewImages
+    images: previewImages,
+    location_name: String(post.location_name || '').trim() || undefined,
+    location_lat: post.location_lat != null ? Number(post.location_lat) : undefined,
+    location_lng: post.location_lng != null ? Number(post.location_lng) : undefined
   };
 }
 

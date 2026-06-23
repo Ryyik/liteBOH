@@ -52,7 +52,7 @@ function createQueryBuilder(result, calls = []) {
     range: vi.fn(() => query),
     single: vi.fn(() => query),
     maybeSingle: vi.fn(() => query),
-    then: (resolve) => Promise.resolve(result).then(resolve),
+    then: (resolve) => { Promise.resolve(result).then(resolve); return query; },
   };
   return query;
 }
@@ -193,33 +193,27 @@ describe('notifications-api integration', () => {
   });
 
   describe('getUnreadNotificationCount', () => {
-    it('returns count of unread notifications', async () => {
-      const query = createQueryBuilder({
-        data: [
-          { id: 'n1', sender_id: 'u2', recipient_id: 'u1', type: 'like' },
-          { id: 'n2', sender_id: 'u3', recipient_id: 'u1', type: 'comment' },
-        ],
+    it('returns count of unread notifications via RPC', async () => {
+      fm.rpcMock.mockResolvedValue({
+        data: [{ count: 2 }],
         error: null,
       });
-      fm.fromMock.mockReturnValue(query);
 
       const result = await getUnreadNotificationCount('u1');
       expect(result.ok).toBe(true);
       expect(result.count).toBe(2);
+      expect(fm.rpcMock).toHaveBeenCalledWith('get_unread_notification_count', { p_recipient_id: 'u1' });
     });
 
-    it('filters out self-action notifications', async () => {
-      const query = createQueryBuilder({
-        data: [
-          { id: 'n1', sender_id: 'u1', recipient_id: 'u1', type: 'like' },
-          { id: 'n2', sender_id: 'u2', recipient_id: 'u1', type: 'like' },
-        ],
+    it('filters out self-action notifications via RPC', async () => {
+      fm.rpcMock.mockResolvedValue({
+        data: [{ count: 1 }],
         error: null,
       });
-      fm.fromMock.mockReturnValue(query);
 
       const result = await getUnreadNotificationCount('u1');
       expect(result.count).toBe(1);
+      expect(fm.rpcMock).toHaveBeenCalledWith('get_unread_notification_count', { p_recipient_id: 'u1' });
     });
   });
 

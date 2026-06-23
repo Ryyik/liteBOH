@@ -196,22 +196,28 @@ export async function getUnreadNotificationCount(userId) {
     'notifications.getUnreadNotificationCount',
     { userId },
     async () => {
-      const notifRes = await supabase
+      const { data: countData, error: rpcError } = await supabase
+        .rpc('get_unread_notification_count', { p_recipient_id: userId });
+
+      if (!rpcError) {
+        const rawCount = Array.isArray(countData) ? (countData[0]?.count ?? 0) : (countData?.count ?? 0);
+        return {
+          data: { count: rawCount, notifCount: rawCount, mailCount: 0 },
+          error: null
+        };
+      }
+
+      const { data: notifData, error: fallbackError } = await supabase
         .from('notifications')
         .select('id, sender_id, recipient_id, type')
         .eq('recipient_id', userId)
         .eq('status', 'unread');
-
-      const filteredNotifications = filterSelfActionNotifications(notifRes.data || []);
+      const filteredNotifications = filterSelfActionNotifications(notifData || []);
       const notifCount = filteredNotifications.length;
 
       return {
-        data: {
-          count: notifCount,
-          notifCount,
-          mailCount: 0
-        },
-        error: notifRes.error
+        data: { count: notifCount, notifCount, mailCount: 0 },
+        error: fallbackError
       };
     },
     { ttlMs: 5000, tags: ['notifications', `notifications:user:${userId}`], timeoutMs: 8000, retry: 1 }

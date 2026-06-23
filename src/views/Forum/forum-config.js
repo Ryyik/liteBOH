@@ -10,9 +10,11 @@ export const FORUM_POST_DRAFT_PREFIX = 'boh_forum_post_draft';
 export const FORUM_POST_DRAFT_VERSION_LIMIT = 5;
 export const SEARCH_DEBOUNCE_MS = 350;
 export const FORUM_IMAGE_UPLOAD_CONCURRENCY = 1;
+export const FORUM_LIST_IMAGE_TRANSFORM = 'f_auto,q_auto:good,c_fill,w_720,h_540';
 export const FORUM_LIST_IMAGE_TRANSFORM_SM = 'f_auto,q_auto:good,c_fill,w_360,h_270';
 export const FORUM_LIST_IMAGE_TRANSFORM_MD = 'f_auto,q_auto:good,c_fill,w_540,h_405';
 export const FORUM_LIST_LQIP_TRANSFORM = 'f_auto,q_auto:low,c_fill,w_72,h_54,e_blur:1000';
+export const FORUM_DETAIL_IMAGE_TRANSFORM = 'f_auto,q_auto:good,c_limit,w_1600';
 export const FORUM_TAG_OPTIONS = [
   { value: 'server', label: '#服务器' },
   { value: 'activity', label: '#活动' },

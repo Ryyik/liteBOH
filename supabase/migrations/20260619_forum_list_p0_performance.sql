@@ -184,24 +184,24 @@ begin
           limit 4
         ) ranked_comments
       )
-      select
-        coalesce(
-          jsonb_agg(jsonb_build_object(
-            'id', tc.id,
-            'post_id', tc.post_id,
-            'content', tc.content,
-            'author_id', tc.author_id,
-            'author_username', tc.author_username,
-            'author_avatar_url', tc.author_avatar_url,
-            'parent_id', tc.parent_id,
-            'reply_to_username', tc.reply_to_username,
-            'created_at', tc.created_at,
-            'updated_at', tc.updated_at,
-            'status', tc.status,
-            'like_count', tc.like_count
-          ) order by tc.created_at desc, tc.id desc) filter (where tc.id is not null and tc.preview_rank <= 3),
-          '[]'::jsonb
-        ) as replies,
+    select
+      coalesce(
+        jsonb_agg(jsonb_build_object(
+          'id', tc.id,
+          'post_id', tc.post_id,
+          'content', tc.content,
+          'author_id', tc.author_id,
+          'author_username', tc.author_username,
+          'author_avatar_url', tc.author_avatar_url,
+          'parent_id', tc.parent_id,
+          'reply_to_username', tc.reply_to_username,
+          'created_at', tc.created_at,
+          'updated_at', tc.updated_at,
+          'status', tc.status,
+          'like_count', tc.like_count
+        ) order by tc.created_at desc, tc.id desc) filter (where tc.id is not null and tc.preview_rank <= 3),  -- TODO: 将回复预览数量参数化
+        '[]'::jsonb
+      ) as replies,
         count(*) > 3 as replies_has_more
       from top_comments tc
     ) reply_preview on true

@@ -51,7 +51,7 @@ function makeQuery(result, calls = []) {
     insert: vi.fn(() => q),
     update: vi.fn(() => q),
     delete: vi.fn(() => q),
-    then: (resolve) => Promise.resolve(result).then(resolve),
+    then: (resolve) => { Promise.resolve(result).then(resolve); return q; },
   };
   return q;
 }
@@ -325,17 +325,15 @@ describe('notifications-api integration', () => {
   });
 
   it('getUnreadNotificationCount returns count', async () => {
-    lm.fromMock.mockReturnValue(makeQuery({
-      data: [
-        { id: 'n1', sender_id: 'u2', recipient_id: 'u1', type: 'like' },
-        { id: 'n2', sender_id: 'u3', recipient_id: 'u1', type: 'comment' },
-      ],
+    lm.rpcMock.mockResolvedValue({
+      data: [{ count: 2 }],
       error: null,
-    }));
+    });
 
     const result = await getUnreadNotificationCount('u1');
     expect(result.ok).toBe(true);
     expect(result.count).toBe(2);
+    expect(lm.rpcMock).toHaveBeenCalledWith('get_unread_notification_count', { p_recipient_id: 'u1' });
   });
 
   it('markNotificationAsRead via RPC', async () => {

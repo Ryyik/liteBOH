@@ -205,6 +205,12 @@ export function validateCloudinaryUploadResult(data = {}, options = {}) {
   return true;
 }
 
+export function cleanupOrphanedUploads(images = []) {
+  return (Array.isArray(images) ? images : [])
+    .map((img) => String(img?.publicId || img?.public_id || '').trim())
+    .filter(Boolean);
+}
+
 export function registerCloudUploadBurst(timestamps = [], count = 1, options = {}) {
   const nowTs = Number(options.nowTs || Date.now());
   const windowMs = Number(options.windowMs || CLOUD_UPLOAD_BURST_WINDOW_MS);

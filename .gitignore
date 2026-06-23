@@ -38,3 +38,6 @@ src/config/users.config.js
 *.pfx
 auth.json
 secrets*.json
+
+# Build reports
+stats.html

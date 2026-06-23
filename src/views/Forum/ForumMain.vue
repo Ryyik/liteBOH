@@ -74,7 +74,6 @@ import {
   getComments,
   createComment,
   toggleLike,
-  checkIfLiked as _checkIfLiked,
   getUserPosts,
   deleteComment,
   getForumTagStats,
@@ -110,7 +109,7 @@ import {
   readForumReturnState,
   saveForumReturnState
 } from '@/utils/forum-return-state.js';
-import { buildReplyDraft, truncateTextSafe, escapeHtml, resolveReplyUsername, calculateOptimisticLikeCount, restoreImageAtPosition, shouldFallbackReplyPreview, buildFallbackReplyPreviewOptions, getLikeErrorToast } from '@/utils/forum-helpers.js';
+import { buildReplyDraft, escapeHtml, resolveReplyUsername, calculateOptimisticLikeCount, restoreImageAtPosition, shouldFallbackReplyPreview, buildFallbackReplyPreviewOptions, getLikeErrorToast } from '@/utils/forum-helpers.js';
 import { supabase } from '../../utils/supabase-client.js';
 import { themeManager } from '@/utils/theme-manager.js';
 import { getHomeCatAsset, getHomeCatTypeBySeed, isHomeCatTheme } from '@/utils/home-cat-theme.js';
@@ -121,6 +120,8 @@ import { logger } from '@/utils/logger.js';
 import {
   AI_SEARCH_MODEL_ID,
   FORUM_IMAGE_UPLOAD_CONCURRENCY,
+  FORUM_DETAIL_IMAGE_TRANSFORM,
+  FORUM_LIST_IMAGE_TRANSFORM,
   FORUM_LIST_IMAGE_TRANSFORM_MD,
   FORUM_LIST_IMAGE_TRANSFORM_SM,
   FORUM_LIST_LQIP_TRANSFORM,
@@ -416,6 +417,7 @@ const selectedPostTag = ref('daily');
 const isSubmitting = ref(false);
 const postDraftVersions = ref([]);
 const postImages = ref([]);
+const postLocation = ref(null);
 const isUploadingPostImage = ref(false);
 const postImageUploadStatus = ref('');
 const isForumImageViewerOpen = ref(false);
@@ -1159,6 +1161,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  forumWindowObserverAborted = true;
   themeManager.removeListener(handleThemeChange);
   clearForumImageModerationPreloadTask();
   forumFetchAbortController?.abort?.();
@@ -1252,7 +1255,7 @@ watch(
 watch(
   () => [forumData.value.length, feedMode.value, hasMoreData.value, isLoading.value],
   () => {
-    setupForumWindowObserver();
+    setupForumWindowObserverOnce();
   },
   { flush: 'post' }
 );
@@ -1528,6 +1531,8 @@ const getPostImages = (post) => {
   return [{
     id: `${String(post?.id || 'post').trim() || 'post'}-cover`,
     url: getCloudinaryTransformedUrl(coverUrl, FORUM_LIST_IMAGE_TRANSFORM),
+    originalUrl: rawCoverUrl,
+    detailUrl: getCloudinaryTransformedUrl(rawCoverUrl, FORUM_DETAIL_IMAGE_TRANSFORM),
     srcset: [
       `${getCloudinaryTransformedUrl(rawCoverUrl, FORUM_LIST_IMAGE_TRANSFORM_SM)} 360w`,
       `${getCloudinaryTransformedUrl(rawCoverUrl, FORUM_LIST_IMAGE_TRANSFORM_MD)} 540w`,
@@ -1664,6 +1669,19 @@ const setupForumLoadMoreObserver = async () => {
   forumLoadMoreObserver.observe(sentinel);
 };
 
+let forumWindowObserverAborted = false;
+let forumWindowObserverPending = false;
+
+const setupForumWindowObserverOnce = () => {
+  if (forumWindowObserverPending) return;
+  forumWindowObserverPending = true;
+  nextTick(() => {
+    forumWindowObserverPending = false;
+    if (forumWindowObserverAborted) return;
+    setupForumWindowObserver();
+  });
+};
+
 const cleanupForumWindowObserver = () => {
   if (forumWindowObserver) {
     forumWindowObserver.disconnect();
@@ -1703,7 +1721,7 @@ const setupForumWindowObserver = async () => {
 };
 
 watch(visibleForumPosts, () => {
-  setupForumWindowObserver();
+  setupForumWindowObserverOnce();
 }, { flush: 'post' });
 
 const openForumImageViewer = (post, index = 0) => {
@@ -2286,7 +2304,8 @@ const handlePost = async () => {
       postStatus,
       postTitle,
       postImages.value,
-      selectedPostTag.value
+      selectedPostTag.value,
+      postLocation.value
     );
     if (result.error) throw result.error;
     const createdPostId = String(result.data?.[0]?.id || '').trim();
@@ -2294,6 +2313,7 @@ const handlePost = async () => {
     newPost.value.title = '';
     newPost.value.content = '';
     selectedPostTag.value = 'daily';
+    postLocation.value = null;
     clearPostDraft();
     clearPostImages({ cleanup: false });
     closeMobileComposer();
@@ -2823,7 +2843,7 @@ const openPostDetail = (postId) => {
         <!-- 左侧：发帖和列表 -->
         <div class="forum-left-column">
           <PostComposer v-if="!isMobileComposerMode" v-model:new-post="newPost"
-            v-model:selected-post-tag="selectedPostTag" :is-logged-in="isLoggedIn" :user-info="userInfo"
+            v-model:selected-post-tag="selectedPostTag" v-model:post-location="postLocation" :is-logged-in="isLoggedIn" :user-info="userInfo"
             :post-images="postImages" :is-submitting="isSubmitting" :is-uploading-post-image="isUploadingPostImage"
             :post-image-upload-status="postImageUploadStatus" :post-cooldown-seconds="postCooldownSeconds"
             :weekly-checkin-status="weeklyCheckinStatus" :weekly-checkin-progress-text="weeklyCheckinProgressText"
@@ -3098,7 +3118,7 @@ const openPostDetail = (postId) => {
             </div>
           </Transition>
           <div class="mobile-composer-scroll">
-            <PostComposer v-model:new-post="newPost" v-model:selected-post-tag="selectedPostTag"
+            <PostComposer v-model:new-post="newPost" v-model:selected-post-tag="selectedPostTag" v-model:post-location="postLocation"
               :is-logged-in="isLoggedIn" :user-info="userInfo" :post-images="postImages"
               :is-submitting="isSubmitting" :is-uploading-post-image="isUploadingPostImage"
               :post-image-upload-status="postImageUploadStatus" :post-cooldown-seconds="postCooldownSeconds"

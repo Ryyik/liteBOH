@@ -48,7 +48,7 @@
               size="sm" decorative />
             <div class="group-header">
               <div class="group-info">
-                <h3 class="group-title">最近加入的伙伴</h3>
+                <h3 class="group-title">社区伙伴</h3>
                 <span class="group-badge">{{ totalCommunityUsers }}</span>
               </div>
               <div class="expand-icon" :class="{ expanded: isCommunityExpanded }">
@@ -90,9 +90,13 @@
                   <img v-if="user.avatar_url" :src="user.avatar_url" alt="用户头像" class="avatar-image" loading="lazy"
                     decoding="async" />
                   <span v-else>{{ user.username ? user.username.charAt(0).toUpperCase() : 'U' }}</span>
+                  <span v-if="isUserOnline(user, hideOnlineStatus)" class="online-dot"></span>
                 </div>
                 <div class="user-info">
-                  <span class="user-name">@{{ user.username }}</span>
+                  <div class="user-name-row">
+                    <span class="user-name">@{{ user.username }}</span>
+                    <span class="user-status" :class="{ 'status-online': isUserOnline(user, hideOnlineStatus) }" :title="formatOnlineStatusTooltip(user, hideOnlineStatus)">{{ formatUserOnlineStatus(user, hideOnlineStatus) }}</span>
+                  </div>
                   <p class="user-bio">{{ user.bio || '这个人很懒，还没有个性签名' }}</p>
                   <div class="user-meta">
                     <span v-if="user.birth_month && user.birth_day" class="meta-item">
@@ -476,6 +480,7 @@
               :theme-display-text="themeDisplayText"
               :is-home-cat-active="isHomeCatActive"
               :current-theme="currentTheme"
+              :hide-online-status="hideOnlineStatus"
               @back="backToProfileHome"
               @open-theme="openThemeModal"
               @open-cloud="openCloudPlusArea"
@@ -484,6 +489,7 @@
               @open-data="openProfileDataManagement"
               @open-data-management="openProfileDataManagement"
               @logout="handleLogout"
+              @toggle-hide-online="toggleHideOnlineStatus"
             />
 
             <div v-else key="profile-data-management" class="profile-subpage-shell">
@@ -613,6 +619,7 @@ import { deleteUserImpression, getPostsByUsername, getUserImpressions, updatePro
 import { getPushplusSettings } from '@/utils/api/pushplus-api.js';
 import { getMySubscriptions } from '@/utils/api/subscription-api.js';
 import { logger } from '@/utils/logger.js';
+import { useUserOnlineStatus } from './composables/useUserOnlineStatus.js';
 import { listMyCloudEntries } from '@/utils/api/boh-cloud-api.js';
 import {
   CLOUD_UPLOAD_MAX_IMAGE_SIZE_BYTES,
@@ -654,6 +661,7 @@ const username = computed(() => userInfo.value.username);
 const giftProgressText = ref('');
 const GIFT_PROGRESS_CACHE_TTL_MS = 60 * 1000;
 const GIFT_PROGRESS_MIN_REFRESH_INTERVAL_MS = 5 * 1000;
+const TAB_LEAVE_CLEAR_DELAY_MS = 170;
 let lastGiftProgressRefreshAt = 0;
 let giftProgressInflight = null;
 let userSpaceWarmupTimeoutId = null;
@@ -671,9 +679,10 @@ const getUserSpaceCache = (key, ttlMs) => userSpaceMemoryCache.get(key, ttlMs);
 const setUserSpaceCache = (key, value) => userSpaceMemoryCache.set(key, value);
 
 const isLoadingCommunity = ref(false);
+const hideOnlineStatus = computed(() => userInfo.value?.hideOnlineStatus ?? false);
 const isLoadingBirthdays = ref(false);
-const isCommunityExpanded = ref(false);
-const isBirthdaysExpanded = ref(true);
+const isCommunityExpanded = ref(true);
+const isBirthdaysExpanded = ref(false);
 const isShowsExpanded = ref(false);
 const communityUsers = ref([]);
 const recentBirthdayUsers = ref([]);
@@ -697,6 +706,7 @@ let userSpacePageEl = null;
 let communitySearchDebounceTimer = null;
 let latestCommunityFetchId = 0;
 let latestBirthdayFetchId = 0;
+const { isUserOnline, formatUserOnlineStatus, formatOnlineStatusTooltip } = useUserOnlineStatus();
 let latestTabScrollRestoreToken = 0;
 
 const navItems = [
@@ -1113,18 +1123,6 @@ const handleDeleteProfileImpression = async (impressionId) => {
     logger.warn('user-space', '删除我的印象异常:', error);
     showAlert('error', '删除失败', '网络错误');
   }
-};
-
-// 格式化积分显示
-const formatPoints = (points) => {
-  if (!points || points === 0) return '0';
-  if (points >= 10000) {
-    return (points / 10000).toFixed(1) + 'w';
-  }
-  if (points >= 1000) {
-    return (points / 1000).toFixed(1) + 'k';
-  }
-  return points.toString();
 };
 
 // 获取用户统计数据
@@ -1842,8 +1840,8 @@ const syncCommunityViewFromRoute = () => {
 const fetchCommunityUsers = async ({ force = false } = {}) => {
   const searchKey = String(debouncedCommunitySearchQuery.value || '').trim().toLowerCase();
   const cacheKey = `community:${currentCommunityPage.value}:${COMMUNITY_PAGE_SIZE}:${searchKey}`;
+  const cachedCommunity = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.community);
   if (!force) {
-    const cachedCommunity = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.community);
     if (cachedCommunity) {
       communityUsers.value = cachedCommunity.items || [];
       totalCommunityUsers.value = cachedCommunity.total || 0;
@@ -1851,10 +1849,14 @@ const fetchCommunityUsers = async ({ force = false } = {}) => {
       isLoadingCommunity.value = false;
       return;
     }
+  } else if (cachedCommunity) {
+    communityUsers.value = cachedCommunity.items || [];
+    totalCommunityUsers.value = cachedCommunity.total || 0;
+    hasLoadedCommunity.value = true;
   }
 
   const fetchId = ++latestCommunityFetchId;
-  isLoadingCommunity.value = true;
+  isLoadingCommunity.value = !hasLoadedCommunity.value;
 
   try {
     const { data, error } = await getProfilesPage({
@@ -1869,7 +1871,11 @@ const fetchCommunityUsers = async ({ force = false } = {}) => {
     }
 
     if (!error && data) {
-      communityUsers.value = data.items || [];
+      const currentUsername = userInfo.value.username;
+      const nowISO = new Date().toISOString();
+      communityUsers.value = (data.items || []).map((u) =>
+        u.username === currentUsername ? { ...u, last_active_at: nowISO } : u
+      );
       totalCommunityUsers.value = data.total || 0;
       hasLoadedCommunity.value = true;
       setUserSpaceCache(cacheKey, {
@@ -2062,7 +2068,7 @@ const switchTab = (tabId) => {
       leavingTab.value = null;
     }
     clearLeavingTabTimer = null;
-  }, 170);
+  }, TAB_LEAVE_CLEAR_DELAY_MS);
   if (tabId === 'posts') {
     void preloadForumComponent();
     void refreshForumAfterThemeChange();
@@ -2089,6 +2095,15 @@ const goToProfile = (usernameVal) => {
 const handleLogout = () => {
   authStore.logout();
   router.push('/');
+};
+
+const toggleHideOnlineStatus = async () => {
+  const { success } = await authStore.updateUserProfile({
+    hide_online_status: !userInfo.value.hideOnlineStatus
+  });
+  if (!success) {
+    showBottomNavIsland('更新失败，请重试');
+  }
 };
 
 const handleProfileBackgroundClick = () => {
@@ -2624,6 +2639,9 @@ watch(currentTab, (newTab, oldTab) => {
   resolveProfileSectionFromRoute();
   if (oldTab === 'profile') {
     scheduleUserSpaceWarmup();
+  }
+  if (newTab === 'community') {
+    fetchCommunityUsers({ force: true });
   }
 });
 

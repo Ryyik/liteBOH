@@ -71,19 +71,10 @@ const updateBodyClass = () => {
 updateBodyClass();
 
 onMounted(() => {
-  // 强制刷新后滚动到顶部
-  if ('scrollRestoration' in history) {
-    history.scrollRestoration = 'manual';
-  }
   window.scrollTo(0, 0);
 
   // 等待 auth store 初始化完成后再启动通知监听
   checkAndStartListener();
-});
-
-onUnmounted(() => {
-  activeListenerUserId = '';
-  notificationStoreRef.value?.stopNotificationListener();
 });
 
 // 监听路由变化

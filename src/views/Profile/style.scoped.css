@@ -2447,3 +2447,15 @@
     flex-direction: column;
   }
 }
+
+.profile-status {
+  font-size: 12px;
+  font-weight: 600;
+  color: #86868b;
+  margin-top: 2px;
+  display: inline-block;
+}
+
+.profile-status.status-online {
+  color: #10b981;
+}

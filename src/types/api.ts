@@ -63,6 +63,9 @@ export interface PostData {
   author_username?: string
   status?: string
   created_at?: string
+  location_name?: string
+  location_lat?: number
+  location_lng?: number
   [key: string]: unknown
 }
 

@@ -134,6 +134,8 @@ export default defineConfig({
           // 已有的命名 chunk
           if (id.includes('node_modules/vue') || id.includes('node_modules/vue-router')) return 'vue-vendor';
           if (id.includes('node_modules/@supabase/supabase-js')) return 'supabase-vendor';
+          if (id.includes('node_modules/lucide-vue-next')) return 'ui-icons';
+          if (id.includes('node_modules/dompurify')) return 'ui-sanitize';
           if (id.includes('src/components/UnifiedNavbar')) return 'ui-components';
           if (id.includes('src/components/Footer.vue')) return 'ui-components';
           if (id.includes('src/stores/auth.ts')) return 'auth-store';

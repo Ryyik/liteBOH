@@ -125,6 +125,25 @@
       <div class="apple-card settings-section-card">
         <div class="group-header-title">数据与隐私</div>
         <div class="apple-list-group">
+          <div class="apple-item clickable" @click="$emit('toggle-hide-online')">
+            <div class="item-left">
+              <div class="icon-wrapper bg-indigo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"></path>
+                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"></path>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+              </div>
+              <span class="setting-label-stack">
+                <span class="item-label">隐藏在线状态</span>
+                <span class="item-desc">开启后，他人将看不到你的在线状态，你也无法查看他人的在线状态</span>
+              </span>
+            </div>
+            <div class="item-right">
+              <span :class="['toggle-switch', { enabled: hideOnlineStatus }]"></span>
+            </div>
+          </div>
           <div class="apple-item clickable" @click="$emit('open-data-management')">
             <div class="item-left">
               <div class="icon-wrapper bg-indigo">
@@ -205,6 +224,10 @@ defineProps({
   currentTheme: {
     type: String,
     default: ''
+  },
+  hideOnlineStatus: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -216,7 +239,8 @@ defineEmits([
   'open-security',
   'open-data',
   'open-data-management',
-  'logout'
+  'logout',
+  'toggle-hide-online'
 ]);
 </script>
 

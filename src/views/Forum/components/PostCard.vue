@@ -3,6 +3,7 @@ import { nextTick } from 'vue';
 import {
   Check,
   Heart,
+  MapPin,
   MessageCircle,
   Reply,
   Share2
@@ -143,8 +144,9 @@ const onLazyImageRef = (el) => {
         {{ post.displayTitle }}
         <span v-if="post.status === 'limited'" class="post-status-pill limited">仅自己可见</span>
       </h3>
-      <div v-if="post.tagLabel" class="post-card-tags">
-        <span class="post-card-tag">{{ post.tagLabel }}</span>
+      <div v-if="post.tagLabel || post.location_name" class="post-card-tags">
+        <span v-if="post.tagLabel" class="post-card-tag">{{ post.tagLabel }}</span>
+        <span v-if="post.location_name" class="post-card-tag location-tag"><MapPin :size="12" :stroke-width="2.5" /> {{ post.location_name }}</span>
       </div>
       <div v-if="post.hasImages" class="image-post-thumb-grid"
         :class="[

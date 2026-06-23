@@ -8,6 +8,7 @@ import {
   runAsyncRelaxedModeration,
   runSyncStrictModeration
 } from '../../unified-content-moderation.js';
+import { cleanupOrphanedUploads } from '../../cloud-upload-guard.js';
 import {
   ALLOWED_CONTENT_STATUS,
   APPROVED_STATUS,
@@ -219,13 +220,13 @@ function formatPosts(rawPosts = [], currentUserId = null) {
       ...rest
     } = post;
 
-    return normalizePostRecord({
+    return {
       ...rest,
       comment_count: rest.comment_count ?? comments?.[0]?.count ?? 0,
       like_count: rest.like_count ?? likes_count?.[0]?.count ?? likes?.[0]?.count ?? 0,
       author_avatar_url: author?.avatar_url,
       isLiked: currentUserId ? Boolean(user_likes?.some((like) => like.user_id === currentUserId)) : false
-    });
+    };
   });
 }
 
@@ -576,7 +577,7 @@ export async function getPosts(userId = null, pagination = {}) {
       const withLikeState = await attachLikedFlags(safeRows, userId);
       const normalizedRows = normalizePostListRows(withLikeState
         .slice(0, normalizedPageSize)
-        .map((row) => normalizePostRecord({
+        .map((row) => ({
           ...row,
           comment_count: Number(row.comment_count || 0),
           like_count: Number(row.like_count || 0),
@@ -705,7 +706,7 @@ export async function getPostEngagementStats(postId) {
   };
 }
 
-export async function createPostWithImages(content, authorId, authorUsername, status = 'approved', title = '', images = [], tag = '') {
+export async function createPostWithImages(content, authorId, authorUsername, status = 'approved', title = '', images = [], tag = '', location = null) {
   const safeImages = normalizeForumImages(images);
   const safeTag = normalizeForumTag(tag);
   if (safeImages.length > FORUM_IMAGE_MAX_COUNT) {
@@ -767,12 +768,18 @@ export async function createPostWithImages(content, authorId, authorUsername, st
     p_body: safeContent,
     p_author_username: resolvedAuthorUsername,
     p_images: toForumImageRpcPayload(safeImages),
-    p_tag: safeTag || null
+    p_tag: safeTag || null,
+    p_location_name: location?.name || null,
+    p_location_lat: location?.lat ?? null,
+    p_location_lng: location?.lng ?? null
   };
   let { data, error } = await supabase.rpc('create_forum_post_with_images', rpcPayload);
   if (error && isMissingRpcFunctionError(error, 'create_forum_post_with_images')) {
     const legacyPayload = { ...rpcPayload };
     delete legacyPayload.p_tag;
+    delete legacyPayload.p_location_name;
+    delete legacyPayload.p_location_lat;
+    delete legacyPayload.p_location_lng;
     const legacyResult = await supabase.rpc('create_forum_post_with_images', legacyPayload);
     data = legacyResult.data;
     error = legacyResult.error;
@@ -820,14 +827,22 @@ export async function createPostWithImages(content, authorId, authorUsername, st
   const claimResult = await markCloudinaryUploadsClaimed(safeImages);
   if (!claimResult.ok) {
     logger.warn('forum-api', '论坛图片 pending 归属标记失败', claimResult.error);
+    const orphanPublicIds = cleanupOrphanedUploads(safeImages);
+    if (orphanPublicIds.length > 0) {
+      deleteCloudinaryAssetsByPublicIds(orphanPublicIds).then((cleanupResult) => {
+        if (!cleanupResult.ok) {
+          logger.warn('forum-api', '清理孤儿 Cloudinary 图片失败', cleanupResult.error);
+        }
+      });
+    }
   }
 
   return { ok: true, data: [insertedPost], error: null };
 }
 
-export async function createPost(content, authorId, authorUsername, status = 'approved', title = '', images = [], tag = '') {
+export async function createPost(content, authorId, authorUsername, status = 'approved', title = '', images = [], tag = '', location = null) {
   if (Array.isArray(images) && images.length > 0) {
-    return createPostWithImages(content, authorId, authorUsername, status, title, images, tag);
+    return createPostWithImages(content, authorId, authorUsername, status, title, images, tag, location);
   }
 
   const safeTitle = String(title || '').trim();
@@ -887,7 +902,10 @@ export async function createPost(content, authorId, authorUsername, status = 'ap
     author_id: resolvedAuthorId,
     author_username: resolvedAuthorUsername,
     status: normalizedStatus,
-    ...(includeTag && safeTag ? { tag: safeTag } : {})
+    ...(includeTag && safeTag ? { tag: safeTag } : {}),
+    location_name: location?.name || null,
+    location_lat: location?.lat ?? null,
+    location_lng: location?.lng ?? null
   });
 
   let { data, error } = await supabase
@@ -1258,7 +1276,7 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
       const withLikeState = await attachLikedFlags(safeRows, currentUserId);
       const normalizedRows = normalizePostListRows(withLikeState
         .slice(0, normalizedPageSize)
-        .map((row) => normalizePostRecord({
+        .map((row) => ({
           ...row,
           comment_count: Number(row.comment_count || 0),
           like_count: Number(row.like_count || 0),

@@ -1,29 +1,13 @@
 import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { createAnonClient, createServiceClient } from '../_shared/supabase.ts';
 import { validateEmail, validatePassword, validateUsername } from '../_shared/auth-validation.ts';
+import { checkRateLimitDb } from '../_shared/rate-limiter.ts';
 
 const normalizeErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 
-// 简单内存内速率限制
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 5;
-
-function checkRateLimit(ip: string): { ok: true } | { ok: false; retryAfter: number } {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return { ok: true };
-  }
-  entry.count++;
-  if (entry.count > RATE_LIMIT_MAX_REQUESTS) {
-    const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
-    return { ok: false, retryAfter };
-  }
-  return { ok: true };
-}
 
 Deno.serve(async (request) => {
   const origin = request.headers.get('origin');
@@ -45,7 +29,7 @@ Deno.serve(async (request) => {
   const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
     || request.headers.get('x-real-ip')
     || 'unknown';
-  const rateCheck = checkRateLimit(clientIp);
+  const rateCheck = await checkRateLimitDb(clientIp, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS);
   if (!rateCheck.ok) {
     return jsonResponse(
       { ok: false, code: 'RATE_LIMITED', message: `请求过于频繁，请在 ${rateCheck.retryAfter} 秒后重试。` },
@@ -161,19 +145,13 @@ Deno.serve(async (request) => {
     });
 
     if (signInError || !sessionData?.session) {
-      // 自动登录失败时，回滚已创建的用户账号
-      try {
-        await serviceClient.auth.admin.deleteUser(createdUser.id);
-      } catch (_cleanupError) {
-        // 静默清理失败，但用户可走正常登录流程
-      }
       return jsonResponse(
         {
-          ok: false,
-          code: 'AUTO_LOGIN_FAILED',
-          message: '创建账号成功，但自动登录失败，请直接登录。',
+          ok: true,
+          code: 'REGISTER_OK_NEED_LOGIN',
+          message: '创建账号成功，请直接登录。',
         },
-        200,
+        201,
         origin,
       );
     }

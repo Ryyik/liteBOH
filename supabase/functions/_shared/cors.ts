@@ -16,7 +16,8 @@ const isOriginAllowed = (origin: string | null): boolean => {
 export const buildCorsHeaders = (origin: string | null) => ({
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Origin': isOriginAllowed(origin) ? origin! : ALLOWED_ORIGINS[0] || '',
+  'Access-Control-Allow-Origin': origin && isOriginAllowed(origin) ? origin : 'null',
+  'Access-Control-Allow-Credentials': 'true',
   'Cache-Control': 'no-store',
   'Vary': 'Origin',
 });

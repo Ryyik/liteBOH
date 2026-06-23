@@ -1,29 +1,14 @@
 import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.99.1';
+import { checkRateLimitDb } from '../_shared/rate-limiter.ts';
 
 const EMAILJS_SERVICE_ID = Deno.env.get('EMAILJS_SERVICE_ID') || '';
 const EMAILJS_TEMPLATE_ID = Deno.env.get('EMAILJS_TEMPLATE_ID') || '';
 const EMAILJS_USER_ID = Deno.env.get('EMAILJS_USER_ID') || '';
 const EMAILJS_API_URL = 'https://api.emailjs.com/api/v1.0/email/send';
 
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 20;
-
-function checkRateLimit(key: string): { ok: true } | { ok: false; retryAfter: number } {
-  const now = Date.now();
-  const entry = rateLimitMap.get(key);
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return { ok: true };
-  }
-  entry.count++;
-  if (entry.count > RATE_LIMIT_MAX_REQUESTS) {
-    const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
-    return { ok: false, retryAfter };
-  }
-  return { ok: true };
-}
 
 const verifyAuth = async (request: Request): Promise<{ ok: true; userId: string } | { ok: false; status: number; code: string; message: string }> => {
   const authHeader = request.headers.get('authorization') || '';
@@ -74,7 +59,7 @@ Deno.serve(async (request) => {
     || request.headers.get('x-real-ip')
     || 'unknown';
   const rateKey = `${authResult.userId}:${clientIp}`;
-  const rateCheck = checkRateLimit(rateKey);
+  const rateCheck = await checkRateLimitDb(rateKey, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS);
   if (!rateCheck.ok) {
     return jsonResponse(
       { ok: false, code: 'RATE_LIMITED', message: `请求过于频繁，请在 ${rateCheck.retryAfter} 秒后重试。` },

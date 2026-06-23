@@ -1,31 +1,15 @@
 import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { createAnonClient, createServiceClient } from '../_shared/supabase.ts';
 import { validateLoginId } from '../_shared/auth-validation.ts';
+import { checkRateLimitDb } from '../_shared/rate-limiter.ts';
 
 const normalizeErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 
 const escapeLikePattern = (value = '') => String(value || '').replace(/[\\%_]/g, '\\$&');
 
-// 简单内存内速率限制
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 10;
-
-function checkRateLimit(ip: string): { ok: true } | { ok: false; retryAfter: number } {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return { ok: true };
-  }
-  entry.count++;
-  if (entry.count > RATE_LIMIT_MAX_REQUESTS) {
-    const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
-    return { ok: false, retryAfter };
-  }
-  return { ok: true };
-}
 
 const resolveEmailFromLoginId = async (serviceClient: ReturnType<typeof createServiceClient>, loginId: string) => {
   const normalizedLoginId = String(loginId || '').trim();
@@ -77,7 +61,7 @@ Deno.serve(async (request) => {
   const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
     || request.headers.get('x-real-ip')
     || 'unknown';
-  const rateCheck = checkRateLimit(clientIp);
+  const rateCheck = await checkRateLimitDb(clientIp, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS);
   if (!rateCheck.ok) {
     return jsonResponse(
       { ok: false, code: 'RATE_LIMITED', message: `请求过于频繁，请在 ${rateCheck.retryAfter} 秒后重试。` },
