@@ -72,12 +72,18 @@ const runWithConcurrency = async (tasks, maxConcurrency, runner) => {
   // 修复竞态条件：使用Promise链确保cursor访问的原子性
   let cursor = 0;
   let cursorLock = Promise.resolve(); // 简单的互斥锁
-  
+
   const getNextIndex = async () => {
     return cursorLock = cursorLock.then(() => {
       const index = cursor;
       cursor += 1;
       return index;
+    }).catch((error) => {
+      // 防止 Promise 链断裂，记录错误日志
+      console.error('[TaskScheduler] cursorLock error:', error);
+      // 返回超出任务范围的索引，让 worker 自然退出
+      // 不直接操作 cursor，避免在 catch 中引入竞态条件
+      return Number.MAX_SAFE_INTEGER;
     });
   };
   

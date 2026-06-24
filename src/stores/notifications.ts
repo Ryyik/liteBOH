@@ -98,7 +98,7 @@ export const useNotificationStore = defineStore('notifications', () => {
 
       logger.debug('notifications-store', '启动新的通知监听器', { userId });
 
-      const notificationsChannel = subscribeToNotifications(userId, async (payload: NotificationPayload) => {
+      const notificationsChannel = subscribeToNotifications(userId, async (payload: NotificationItem) => {
         logger.debug('notifications-store', '收到实时通知', payload);
 
         invalidateByTags(['notifications', `notifications:user:${userId}`]);

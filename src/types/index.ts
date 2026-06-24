@@ -79,11 +79,25 @@ export interface RouteMeta {
 }
 
 // --- Notification ---
+// 通知类型联合类型
+export type NotificationType =
+  | 'like'
+  | 'comment'
+  | 'follow'
+  | 'impression'
+  | 'gift'
+  | 'lottery_win'
+  | 'system'
+  | 'post_rejected'
+  | 'post_report_limited'
+  | 'comment_rejected'
+  | string  // 保留 string 以支持未来扩展
+
 export interface NotificationPayload {
-  type: 'like' | 'comment' | 'impression' | 'lottery_win' | string
+  type: NotificationType
   content?: string
   [key: string]: unknown
 }
 
 // Re-export from api.ts
-export type { NotificationItem } from './api.js'
+export type { NotificationItem, NotificationSender, NotificationPost, NotificationComment } from './api.js'

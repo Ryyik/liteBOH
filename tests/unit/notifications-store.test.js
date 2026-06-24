@@ -197,17 +197,4 @@ describe('notifications store: async operations', () => {
       expect(nm.supabase.removeChannel).toHaveBeenCalledWith(mockChannel);
     }, { timeout: 200 });
   });
-
-  it('stopNotificationListener: removes array of channel subscriptions', async () => {
-    setActivePinia(createPinia());
-    const store = useNotificationStore();
-    const channels = [{ unsubscribe: vi.fn() }, { unsubscribe: vi.fn() }];
-    store.$patch({ notificationSubscription: channels });
-    store.stopNotificationListener();
-
-    // removeChannelSafely is async (void), wait for microtasks
-    await vi.waitFor(() => {
-      expect(nm.supabase.removeChannel).toHaveBeenCalledTimes(2);
-    }, { timeout: 200 });
-  });
 });

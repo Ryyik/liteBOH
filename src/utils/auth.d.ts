@@ -85,8 +85,8 @@ export function markNotificationAsRead(id: string): Promise<AuthApiResult>
 export function markAllNotificationsAsRead(): Promise<AuthApiResult>
 export function createNotification(data: Record<string, unknown>): Promise<AuthApiResult>
 export function getUnreadNotificationCount(userId: string): Promise<{ ok: boolean; count: number; notifCount: number; mailCount: number; data: unknown; error: AuthApiError | null }>
-export function subscribeToNotifications(userId: string, callback: (payload: any) => void): RealtimeChannel
-export function filterSelfActionNotifications(notifications: unknown[]): unknown[]
+export function subscribeToNotifications(userId: string, callback: (payload: NotificationItem) => void): RealtimeChannel
+export function filterSelfActionNotifications(notifications: NotificationItem[]): NotificationItem[]
 
 // --- Profile API ---
 export function getUserImpressions(userId: string): Promise<AuthApiResult>

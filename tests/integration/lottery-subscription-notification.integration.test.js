@@ -41,6 +41,7 @@ function makeQuery(result, calls = []) {
   const q = {
     select: vi.fn(() => q),
     eq: vi.fn((col, val) => { calls.push({ method: 'eq', col, val }); return q; }),
+    is: vi.fn((col, val) => { calls.push({ method: 'is', col, val }); return q; }),
     order: vi.fn(() => q),
     limit: vi.fn(() => q),
     lt: vi.fn(() => q),

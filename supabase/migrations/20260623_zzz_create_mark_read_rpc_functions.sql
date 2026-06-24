@@ -20,6 +20,15 @@ begin
   -- 获取当前用户ID
   caller_id := auth.uid();
   
+  -- 参数 NULL 检查
+  if notification_id is null then
+    raise exception 'notification_id 不能为空';
+  end if;
+  
+  if caller_id is null then
+    raise exception '用户未认证';
+  end if;
+  
   -- 验证通知属于当前用户
   update public.notifications
   set status = 'read'
@@ -54,8 +63,17 @@ begin
   -- 获取当前用户ID
   caller_id := auth.uid();
   
+  -- 参数 NULL 检查
+  if target_user_id is null then
+    raise exception 'target_user_id 不能为空';
+  end if;
+  
+  if caller_id is null then
+    raise exception '用户未认证';
+  end if;
+  
   -- 验证target_user_id是当前用户
-  if caller_id is distinct from target_user_id then
+  if caller_id != target_user_id then
     raise exception '只能标记自己的通知为已读';
   end if;
   

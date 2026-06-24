@@ -250,8 +250,16 @@ export const mockApiResponse = {
     nextCursor: null
   },
   getUnreadNotificationCount: {
-    count: mockNotifications.filter(n => n.status === 'unread' && !n.archived_at && n.sender_id !== n.recipient_id).length,
-    notifCount: mockNotifications.filter(n => n.status === 'unread' && !n.archived_at && n.sender_id !== n.recipient_id).length,
+    count: mockNotifications.filter(n => 
+      n.status === 'unread' && 
+      !n.archived_at && 
+      (n.sender_id === null || n.sender_id !== n.recipient_id || !['like', 'comment'].includes(n.type))
+    ).length,
+    notifCount: mockNotifications.filter(n => 
+      n.status === 'unread' && 
+      !n.archived_at && 
+      (n.sender_id === null || n.sender_id !== n.recipient_id || !['like', 'comment'].includes(n.type))
+    ).length,
     mailCount: 0,
     error: null
   },

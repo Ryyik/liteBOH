@@ -81,14 +81,45 @@ export interface CommentData {
 }
 
 // --- Notification API ---
+export interface NotificationSender {
+  id: string
+  username: string
+  avatar_url?: string
+}
+
+export interface NotificationPost {
+  id: string
+  title?: string
+  body?: string
+  content?: string
+}
+
+export interface NotificationComment {
+  id: string
+  content?: string
+  parent_id?: string | null
+  author_username?: string
+  parent?: {
+    id: string
+    parent_id?: string | null
+    author_username?: string
+  }
+}
+
 export interface NotificationItem {
   id: string
   recipient_id: string
-  sender_id: string
+  sender_id: string | null  // 系统通知时为 null
+  post_id?: string | null
+  comment_id?: string | null
   type: string
   content?: string
   status: string
   created_at: string
+  archived_at?: string | null
+  sender?: NotificationSender
+  post?: NotificationPost
+  comment?: NotificationComment
   [key: string]: unknown
 }
 

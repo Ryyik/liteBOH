@@ -46,6 +46,7 @@ function createQueryBuilder(result, calls = []) {
   const query = {
     select: vi.fn(() => query),
     eq: vi.fn((col, val) => { calls.push({ method: 'eq', col, val }); return query; }),
+    is: vi.fn((col, val) => { calls.push({ method: 'is', col, val }); return query; }),
     lt: vi.fn(() => query),
     limit: vi.fn(() => query),
     order: vi.fn(() => query),
