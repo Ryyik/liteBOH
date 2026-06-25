@@ -439,41 +439,47 @@ const filteredProducts = computed(() => {
 
 // --- 方法 (Methods) ---
 
+// scroll 节流（通过 RAF 合并高频回调）
+let scrollRafId = null;
 const handleScroll = () => {
-  isScrolled.value = window.scrollY > 100;
+  if (scrollRafId) return;
+  scrollRafId = requestAnimationFrame(() => {
+    scrollRafId = null;
+    isScrolled.value = window.scrollY > 100;
 
-  // 滚动监听更新当前选中的分类 (Scroll Spy)
-  // 仅在非搜索状态下执行，且非点击跳转过程中
-  if (!searchQuery.value && !isScrollingManual.value) {
-    // 增加偏移量，偏移量应略大于 selectCategory 中的 offset，以确保跳转后能准确选中
-    const spyOffset = window.innerWidth < 768 ? 170 : 210;
-    const scrollPosition = window.scrollY + spyOffset;
+    // 滚动监听更新当前选中的分类 (Scroll Spy)
+    // 仅在非搜索状态下执行，且非点击跳转过程中
+    if (!searchQuery.value && !isScrollingManual.value) {
+      // 增加偏移量，偏移量应略大于 selectCategory 中的 offset，以确保跳转后能准确选中
+      const spyOffset = window.innerWidth < 768 ? 170 : 210;
+      const scrollPosition = window.scrollY + spyOffset;
 
-    // 如果在顶部 Hero 区域，选中 "all"
-    if (window.scrollY < 350) {
-      if (selectedCategory.value !== 'all') {
-        selectedCategory.value = 'all';
+      // 如果在顶部 Hero 区域，选中 "all"
+      if (window.scrollY < 350) {
+        if (selectedCategory.value !== 'all') {
+          selectedCategory.value = 'all';
+        }
+        return;
       }
-      return;
-    }
 
-    // 使用 getBoundingClientRect 来获取更准确的位置
-    for (const cat of activeCategories.value) {
-      const element = document.getElementById(`cat-${cat.value.replace(/\s+/g, '-')}`);
-      if (element) {
-        const rect = element.getBoundingClientRect();
-        const top = rect.top + window.pageYOffset;
-        const bottom = top + rect.height;
+      // 使用 getBoundingClientRect 来获取更准确的位置
+      for (const cat of activeCategories.value) {
+        const element = document.getElementById(`cat-${cat.value.replace(/\s+/g, '-')}`);
+        if (element) {
+          const rect = element.getBoundingClientRect();
+          const top = rect.top + window.pageYOffset;
+          const bottom = top + rect.height;
 
-        if (scrollPosition >= top && scrollPosition < bottom) {
-          if (selectedCategory.value !== cat.value) {
-            selectedCategory.value = cat.value;
+          if (scrollPosition >= top && scrollPosition < bottom) {
+            if (selectedCategory.value !== cat.value) {
+              selectedCategory.value = cat.value;
+            }
+            break;
           }
-          break;
         }
       }
     }
-  }
+  });
 };
 
 const getProductsByCategory = (categoryValue) => {
@@ -953,6 +959,12 @@ onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', handleSearchOutsideClick);
   if (observer) observer.disconnect();
   if (searchTimeout) clearTimeout(searchTimeout);
+  if (scrollRafId) {
+    cancelAnimationFrame(scrollRafId);
+    scrollRafId = null;
+  }
+  // 立即保存购物袋数据，防止 debounce 期间数据丢失
+  bagStore.flushShoppingBag();
 });
 
 watch(() => filteredProducts.value.length, () => {

@@ -3,6 +3,10 @@ import { ref } from 'vue'
 import { logger } from '@/utils/logger.js'
 import type { BagItem, BagOpResult } from '@/types'
 
+// debounce helper for localStorage writes
+let saveBagTimer: ReturnType<typeof setTimeout> | null = null
+const SAVE_BAG_DELAY_MS = 300
+
 export const useBagStore = defineStore('bag', () => {
   const shoppingBag = ref<BagItem[]>([])
 
@@ -42,6 +46,21 @@ export const useBagStore = defineStore('bag', () => {
   }
 
   const saveShoppingBag = (): void => {
+    if (saveBagTimer) {
+      clearTimeout(saveBagTimer)
+    }
+    saveBagTimer = setTimeout(() => {
+      saveBagTimer = null
+      localStorage.setItem('boh_shopping_bag', JSON.stringify(shoppingBag.value))
+    }, SAVE_BAG_DELAY_MS)
+  }
+
+  // 立即保存（用于页面卸载前）
+  const flushShoppingBag = (): void => {
+    if (saveBagTimer) {
+      clearTimeout(saveBagTimer)
+      saveBagTimer = null
+    }
     localStorage.setItem('boh_shopping_bag', JSON.stringify(shoppingBag.value))
   }
 
@@ -107,6 +126,7 @@ export const useBagStore = defineStore('bag', () => {
     shoppingBag,
     loadShoppingBag,
     saveShoppingBag,
+    flushShoppingBag,
     addToBag,
     updateBagItemQuantity,
     removeFromBag,

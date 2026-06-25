@@ -134,7 +134,8 @@ import {
   LIST_REPLY_PREVIEW_COUNT,
   POSTS_PER_PAGE,
   SEARCH_DEBOUNCE_MS,
-  WEEKLY_CHECKIN_REWARD_POINTS
+  WEEKLY_CHECKIN_REWARD_POINTS,
+  AUTO_SAVE_DRAFT_INTERVAL_MS
 } from './forum-config.js';
 import {
   POST_REJECTED_NOTICE_TEXT,
@@ -446,6 +447,7 @@ let forumFetchSeq = 0;
 let forumFetchAbortController = null;
 let searchDebounceTimer = null;
 let postDraftSaveTimer = null;
+let autoSaveDraftTimer = null;
 let postDraftRestoreSeq = 0;
 const getDraftStorageKey = () => {
   const uid = String(userInfo.id || 'guest').trim() || 'guest';
@@ -617,6 +619,7 @@ const persistPostDraft = () => {
       writeLocalPostDraft(null);
       savedPostDraft.value = null;
       schedulePostDraftDatabaseSync(null);
+      lastAutoSaveTime.value = null;
       return;
     }
     const draft = { title, content, tag, savedAt: Date.now() };
@@ -624,9 +627,44 @@ const persistPostDraft = () => {
     savedPostDraft.value = draft;
     rememberPostDraftVersion(draft);
     schedulePostDraftDatabaseSync(draft);
+    lastAutoSaveTime.value = draft.savedAt;
   } catch (error) {
     logger.warn('forum', '保存发帖草稿失败:', error);
   }
+};
+
+const lastAutoSaveTime = ref(null);
+
+const formatAutoSaveTime = (timestamp) => {
+  if (!timestamp) return '';
+  return new Date(timestamp).toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
+const autoSaveDraftLabel = computed(() => {
+  if (!lastAutoSaveTime.value) return '';
+  return `已自动保存 ${formatAutoSaveTime(lastAutoSaveTime.value)}`;
+});
+
+const clearAutoSaveDraftTimer = () => {
+  if (autoSaveDraftTimer) {
+    clearInterval(autoSaveDraftTimer);
+    autoSaveDraftTimer = null;
+  }
+};
+
+const startAutoSaveDraftTimer = () => {
+  if (autoSaveDraftTimer) return;
+  autoSaveDraftTimer = setInterval(() => {
+    const hasContent = Boolean(
+      String(newPost.value.title || '').trim() || String(newPost.value.content || '').trim()
+    );
+    if (hasContent) {
+      persistPostDraft();
+    }
+  }, AUTO_SAVE_DRAFT_INTERVAL_MS);
 };
 
 const clearPostDraft = () => {
@@ -635,8 +673,10 @@ const clearPostDraft = () => {
       clearTimeout(postDraftSaveTimer);
       postDraftSaveTimer = null;
     }
+    clearAutoSaveDraftTimer();
     writeLocalPostDraft(null);
     savedPostDraft.value = null;
+    lastAutoSaveTime.value = null;
     writePostDraftVersions([]);
     void savePostDraftToDatabase(null);
   } catch (error) {
@@ -1109,9 +1149,10 @@ const updateMobileStatus = () => {
     const height = window.innerHeight;
     isMobile.value = width <= MOBILE_BREAKPOINT;
     isMobileComposerMode.value = width <= PORTRAIT_COMPOSER_BREAKPOINT && height >= width;
-    if (!isMobileComposerMode.value) {
-      isMobileComposerOpen.value = false;
-    }
+    // 不强制关闭编辑器，横屏下自适应布局
+    // if (!isMobileComposerMode.value) {
+    //   isMobileComposerOpen.value = false;
+    // }
   });
 };
 
@@ -1146,6 +1187,7 @@ onMounted(() => {
   themeManager.addListener(handleThemeChange);
   loadRetriedNotificationIds();
   restorePostDraft();
+  startAutoSaveDraftTimer();
   window.addEventListener('resize', updateMobileStatus);
   window.addEventListener('orientationchange', updateMobileStatus);
   document.addEventListener('click', closePostImageSourceMenu);
@@ -1164,6 +1206,7 @@ onUnmounted(() => {
   forumWindowObserverAborted = true;
   themeManager.removeListener(handleThemeChange);
   clearForumImageModerationPreloadTask();
+  clearAutoSaveDraftTimer();
   forumFetchAbortController?.abort?.();
   forumFetchAbortController = null;
   window.removeEventListener('resize', updateMobileStatus);
@@ -1299,7 +1342,7 @@ const showDetail = async (msg) => {
 
   if (msg.status === 'unread') {
     try {
-      await markNotificationAsRead(msg.id);
+      await markNotificationAsRead(msg.id, userInfo.id);
       msg.status = 'read';
       // 从数据库刷新最新的未读计数
       await refreshUnreadCount();
@@ -2854,7 +2897,9 @@ const openPostDetail = (postId) => {
             :max-post-images="FORUM_POST_IMAGE_MAX_COUNT"
             :mention-users="forumMentionUsers"
             :is-home-cat-theme="isHomeCatActive"
-            :show-post-image-source-menu="showPostImageSourceMenu" @submit="handlePost"
+            :show-post-image-source-menu="showPostImageSourceMenu"
+            :auto-save-draft-label="autoSaveDraftLabel"
+            @submit="handlePost"
             @login="showLoginModal = true" @toggle-image-source-menu="togglePostImageSourceMenu"
             @request-image-picker="openPostImagePicker" @request-camera="openPostCamera"
             @image-selection="handlePostImageSelection" @remove-image="removePostImage"

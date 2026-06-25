@@ -33,7 +33,7 @@
                         显示更早 {{ hiddenMessageCount }} 条消息
                     </button>
 
-                    <div v-for="({ message: msg, index: idx }) in visibleMessageItems" :key="idx"
+                    <div v-for="({ message: msg, index: idx }) in visibleMessageItems" :key="msg.id || idx"
                         :class="['message-wrapper', msg.role]" :data-message-index="idx">
                         <div class="message-content-inner">
                             <div class="message-header">
@@ -1321,6 +1321,10 @@ onUnmounted(() => {
         clearTimeout(uiNoticeTimer);
         uiNoticeTimer = null;
     }
+    if (deepWatchScrollRafId) {
+        cancelAnimationFrame(deepWatchScrollRafId);
+        deepWatchScrollRafId = null;
+    }
     if (typeof window !== 'undefined' && window.speechSynthesis) {
         window.speechSynthesis.cancel();
     }
@@ -1339,12 +1343,18 @@ watch(currentSessionIndex, () => {
     settleInitialScrollPosition();
 });
 
+// 消息列表深度监听的滚动节流
+let deepWatchScrollRafId = null;
 watch(messages, () => {
     if (props.overlayMode && !isInitialScrollReady.value) {
         return;
     }
-    scrollToBottom();
-    nextTick(updateActiveUserMessageFromScroll);
+    if (deepWatchScrollRafId) return;
+    deepWatchScrollRafId = requestAnimationFrame(() => {
+        deepWatchScrollRafId = null;
+        scrollToBottom();
+        nextTick(updateActiveUserMessageFromScroll);
+    });
 }, { deep: true });
 
 watch(isCompressingContext, (compressing) => {

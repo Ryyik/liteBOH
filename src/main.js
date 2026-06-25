@@ -59,10 +59,7 @@ import { initImageOptimizer } from './utils/image-optimizer.js';
 // ============================================
 // 延迟加载的非关键样式
 // ============================================
-const deferredGlobalStyleLoaders = [
-  () => import("./styles/vendor/animate.min.css"),
-  () => import("./styles/vendor/swiper.min.css"),
-];
+const deferredGlobalStyleLoaders = [];
 
 const scheduleDeferredGlobalStyles = () => {
   const loadStyles = () => {

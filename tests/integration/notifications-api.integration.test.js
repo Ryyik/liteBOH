@@ -5,7 +5,13 @@ const fm = vi.hoisted(() => ({
   rpcMock: vi.fn(),
   channelMock: {
     on: vi.fn(function () { return fm.channelMock; }),
-    subscribe: vi.fn(function () { return fm.channelMock; }),
+    subscribe: vi.fn(function (callback) {
+      // 模拟真实异步行为
+      setTimeout(() => {
+        if (callback) callback('SUBSCRIBED');
+      }, 0);
+      return fm.channelMock;
+    }),
   },
 }));
 
@@ -53,7 +59,7 @@ function createQueryBuilder(result, calls = []) {
     range: vi.fn(() => query),
     single: vi.fn(() => query),
     maybeSingle: vi.fn(() => query),
-    then: (resolve) => { Promise.resolve(result).then(resolve); return query; },
+    then: (resolve) => Promise.resolve(result).then(resolve),
   };
   return query;
 }
@@ -128,7 +134,7 @@ describe('notifications-api integration', () => {
     it('uses RPC to mark single notification as read', async () => {
       fm.rpcMock.mockResolvedValue({ data: true, error: null });
 
-      const result = await markNotificationAsRead('n1');
+      const result = await markNotificationAsRead('n1', 'u1');
       expect(result.ok).toBe(true);
       expect(fm.rpcMock).toHaveBeenCalledWith('mark_single_as_read', { notification_id: 'n1' });
     });
@@ -139,11 +145,13 @@ describe('notifications-api integration', () => {
         error: { code: 'PGRST202', message: 'could not find the function mark_single_as_read' },
       });
 
-      const updateQuery = { eq: vi.fn(() => Promise.resolve({ error: null })) };
+      const updateReturn = { eq: vi.fn().mockResolvedValue({ error: null }) };
+      const updateQuery = { eq: vi.fn().mockReturnValue(updateReturn) };
       fm.fromMock.mockReturnValue({ update: vi.fn(() => updateQuery) });
 
-      const result = await markNotificationAsRead('n1');
+      const result = await markNotificationAsRead('n1', 'u1');
       expect(result.ok).toBe(true);
+      expect(fm.fromMock).toHaveBeenCalledWith('notifications');
     });
   });
 
@@ -219,11 +227,11 @@ describe('notifications-api integration', () => {
   });
 
   describe('subscribeToNotifications', () => {
-    it('creates realtime channel subscription', () => {
+    it('creates realtime channel subscription', async () => {
       const callback = vi.fn();
-      const channel = subscribeToNotifications('u1', callback);
+      const channel = await subscribeToNotifications('u1', callback);
 
-      expect(fm.channelMock).toBeDefined();
+      expect(channel).toBe(fm.channelMock);
     });
   });
 

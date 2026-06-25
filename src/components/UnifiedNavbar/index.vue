@@ -150,16 +150,17 @@ const isScrolled = ref(false);
 const SCROLL_THRESHOLD = 50;
 
 let scrollRafId = null;
+let resizeRafId = null;
 let pendingScrollY = 0;
 
 const handleScroll = (event) => {
+  if (scrollRafId) return;
   const target = event?.target;
   if (target && target !== document && target !== document.documentElement && target !== window) {
     pendingScrollY = target.scrollTop;
   } else {
     pendingScrollY = window.scrollY;
   }
-  if (scrollRafId) return;
   scrollRafId = requestAnimationFrame(() => {
     isScrolled.value = pendingScrollY > SCROLL_THRESHOLD;
     scrollRafId = null;
@@ -449,21 +450,25 @@ const checkUnreadMessages = async () => {
  * 确保在竖屏模式下页面可以正常滚动
  */
 const handleResize = () => {
-  // 检查是否为竖屏模式（高度大于宽度）
-  const isPortrait = window.innerHeight > window.innerWidth;
+  if (resizeRafId) return;
+  resizeRafId = requestAnimationFrame(() => {
+    resizeRafId = null;
+    // 检查是否为竖屏模式（高度大于宽度）
+    const isPortrait = window.innerHeight > window.innerWidth;
 
-  // 当屏幕宽度大于768px时，关闭移动端菜单
-  if (window.innerWidth > 768 && isMobileMenuOpen.value) {
-    isMobileMenuOpen.value = false;
-  }
+    // 当屏幕宽度大于768px时，关闭移动端菜单
+    if (window.innerWidth > 768 && isMobileMenuOpen.value) {
+      isMobileMenuOpen.value = false;
+    }
 
-  // 在竖屏模式下，始终允许页面滚动
-  if (isPortrait) {
-    document.body.style.overflow = "";
-  } else {
-    // 仅在非竖屏模式且移动端菜单打开时，才禁用滚动
-    document.body.style.overflow = isMobileMenuOpen.value ? "hidden" : "";
-  }
+    // 在竖屏模式下，始终允许页面滚动
+    if (isPortrait) {
+      document.body.style.overflow = "";
+    } else {
+      // 仅在非竖屏模式且移动端菜单打开时，才禁用滚动
+      document.body.style.overflow = isMobileMenuOpen.value ? "hidden" : "";
+    }
+  });
 };
 
 /**
@@ -530,6 +535,10 @@ onUnmounted(() => {
   if (scrollRafId) {
     cancelAnimationFrame(scrollRafId);
     scrollRafId = null;
+  }
+  if (resizeRafId) {
+    cancelAnimationFrame(resizeRafId);
+    resizeRafId = null;
   }
   window.removeEventListener("resize", handleResize);
   window.removeEventListener("storage", handleStorageChange);

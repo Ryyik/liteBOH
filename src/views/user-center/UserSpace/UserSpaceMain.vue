@@ -907,6 +907,7 @@ const userStats = reactive({
 });
 const isUserStatsLoading = ref(false);
 let latestUserStatsFetchToken = 0;
+let userStatsRetryTimerId = null;
 
 const profileContentTabs = [
   { id: 'posts', label: '发帖' },
@@ -1222,7 +1223,8 @@ const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
     });
 
     if (hasQueryError && retryCount < 1) {
-      setTimeout(() => {
+      userStatsRetryTimerId = setTimeout(() => {
+        userStatsRetryTimerId = null;
         if (!isLoggedIn.value || !String(userInfo.value.id || '').trim()) return;
         void fetchUserStats({ retryCount: retryCount + 1 });
       }, 900);
@@ -2649,9 +2651,6 @@ watch(communitySearchQuery, (value) => {
   if (communitySearchDebounceTimer) {
     clearTimeout(communitySearchDebounceTimer);
   }
-  if (clearLeavingTabTimer) {
-    clearTimeout(clearLeavingTabTimer);
-  }
 
   communitySearchDebounceTimer = setTimeout(() => {
     debouncedCommunitySearchQuery.value = String(value || '').trim();
@@ -2682,6 +2681,11 @@ onUnmounted(() => {
   clearIdlePreloadTasks();
   clearUserSpaceWarmup();
   disposeBottomNavIsland();
+  userSpaceMemoryCache.clear();
+  if (userStatsRetryTimerId) {
+    clearTimeout(userStatsRetryTimerId);
+    userStatsRetryTimerId = null;
+  }
   window.removeEventListener('boh_unread_refresh', handleUnreadRefresh);
   window.removeEventListener('boh_userspace_nav_island', handleBottomNavIslandEvent);
   if (communitySearchDebounceTimer) {

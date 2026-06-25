@@ -41,12 +41,11 @@ const startNotificationListener = async () => {
     return;
   }
 
+  activeListenerUserId = userInfo.id;
+
   const notificationStore = await ensureNotificationStore();
   logger.debug("app", "启动实时通知监听器", { userId: userInfo.id });
-  notificationStore.startNotificationListener(userInfo.id);
-  // 启动监听器后刷新未读计数
-  notificationStore.refreshUnreadCount();
-  activeListenerUserId = userInfo.id;
+  await notificationStore.startNotificationListener(userInfo.id);
 };
 
 const checkAndStartListener = () => {
@@ -100,6 +99,8 @@ onUnmounted(() => {
   if (notifyListener) {
     window.removeEventListener('boh_notify', notifyListener);
   }
+  activeListenerUserId = '';
+  notificationStoreRef.value?.stopNotificationListener();
 });
 
 // 监听用户ID变化，开启通知监听

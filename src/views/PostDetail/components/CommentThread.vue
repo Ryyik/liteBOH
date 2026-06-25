@@ -23,7 +23,8 @@ const props = defineProps({
   replyCooldownSeconds: { type: Number, default: 0 },
   replySubmitLabel: { type: String, default: '发布' },
   childRepliesMap: { type: Object, default: () => ({}) },
-  highlightedCommentId: { type: String, default: '' }
+  highlightedCommentId: { type: String, default: '' },
+  commentSortMode: { type: String, default: 'desc' }
 });
 
 const emit = defineEmits([
@@ -35,8 +36,14 @@ const emit = defineEmits([
   'toggle-child-replies',
   'load-child-replies',
   'delete-comment',
-  'go-to-profile'
+  'go-to-profile',
+  'change-sort-mode'
 ]);
+
+const COMMENT_SORT_OPTIONS = [
+  { value: 'desc', label: '最新' },
+  { value: 'asc', label: '最早' }
+];
 
 const formatDate = formatSmartTime;
 
@@ -129,6 +136,19 @@ const onReplyInput = (event) => {
           社区回复
           <span class="comment-count-badge">{{ postCommentCount }}</span>
         </h3>
+        <div class="comment-sort-group">
+          <button
+            v-for="opt in COMMENT_SORT_OPTIONS"
+            :key="opt.value"
+            type="button"
+            class="comment-sort-btn"
+            :class="{ active: commentSortMode === opt.value }"
+            :disabled="isLoading"
+            @click="$emit('change-sort-mode', opt.value)"
+          >
+            {{ opt.label }}
+          </button>
+        </div>
       </div>
 
       <div v-if="isLoading && comments.length === 0" class="comments-list custom-scrollbar"
@@ -548,6 +568,10 @@ const onReplyInput = (event) => {
 .section-header {
   margin-bottom: 16px;
   padding-left: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .section-title {
@@ -558,6 +582,38 @@ const onReplyInput = (event) => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.comment-sort-group {
+  display: flex;
+  gap: 6px;
+}
+
+.comment-sort-btn {
+  border: none;
+  border-radius: 8px;
+  background: #f5f5f7;
+  color: #86868b;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.comment-sort-btn:hover:not(:disabled) {
+  background: #e8e8ed;
+  color: #1d1d1f;
+}
+
+.comment-sort-btn.active {
+  background: #1d1d1f;
+  color: #ffffff;
+}
+
+.comment-sort-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .comment-count-badge {

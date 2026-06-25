@@ -3,10 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <!-- 资源预取与预连接优化 (使用国内镜像加速) -->
-    <link rel="dns-prefetch" href="//fonts.loli.net">
-    <link rel="dns-prefetch" href="//gstatic.loli.net">
-    <link rel="preconnect" href="https://fonts.loli.net" crossorigin>
-    <link rel="preconnect" href="https://gstatic.loli.net" crossorigin>
+    <link rel="dns-prefetch" href="//fonts.googleapis.com">
+    <link rel="dns-prefetch" href="//fonts.gstatic.com">
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.blockofhome.cn" crossorigin>
+    <!-- PWA 兼容性 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="BOH">
 
     <!-- Favicon设置 -->
     <link
@@ -33,9 +38,7 @@
   </head>
   <body>
     <div id="app"></div>
-    <!-- 引入mcdmsc.js文件，用于获取BOH服务器端口号 -->
-    <script type="module" src="/mcdmsc.js"></script>
-
+    <!-- mcdmsc.js 已移除，BOH服务器端口号通过其他方式获取 -->
     <script type="module" src="src/main.js"></script>
   </body>
 </html>

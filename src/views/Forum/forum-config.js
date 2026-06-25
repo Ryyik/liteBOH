@@ -15,6 +15,7 @@ export const FORUM_LIST_IMAGE_TRANSFORM_SM = 'f_auto,q_auto:good,c_fill,w_360,h_
 export const FORUM_LIST_IMAGE_TRANSFORM_MD = 'f_auto,q_auto:good,c_fill,w_540,h_405';
 export const FORUM_LIST_LQIP_TRANSFORM = 'f_auto,q_auto:low,c_fill,w_72,h_54,e_blur:1000';
 export const FORUM_DETAIL_IMAGE_TRANSFORM = 'f_auto,q_auto:good,c_limit,w_1600';
+export const AUTO_SAVE_DRAFT_INTERVAL_MS = 30000;
 export const FORUM_TAG_OPTIONS = [
   { value: 'server', label: '#服务器' },
   { value: 'activity', label: '#活动' },

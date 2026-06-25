@@ -9,7 +9,7 @@ returns table (
   username text,
   avatar_url text,
   bio text,
-  join_date timestamptz,
+  join_date date,
   birth_month int,
   birth_day int,
   last_active_at timestamptz,

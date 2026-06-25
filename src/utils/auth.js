@@ -41,12 +41,17 @@ export {
 
 export {
   getUserNotifications,
+  getArchivedNotifications,
+  archiveNotification,
+  unarchiveNotification,
+  archiveAllNotifications,
   markNotificationAsRead,
   markAllNotificationsAsRead,
   createNotification,
   getUnreadNotificationCount,
   subscribeToNotifications,
-  filterSelfActionNotifications
+  filterSelfActionNotifications,
+  sendPushplusForNotification
 } from './api/notifications-api.js';
 
 export {

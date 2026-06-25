@@ -207,11 +207,23 @@ const chatTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
   minute: "2-digit"
 });
 
+// renderMarkdown 缓存（减少重复 marked + DOMPurify 开销）
+const renderCache = new Map();
+const MAX_RENDER_CACHE = 160;
 const renderMarkdown = (content) => {
   if (!content) return '';
+  const key = typeof content === 'string' ? content : JSON.stringify(content);
+  const cached = renderCache.get(key);
+  if (cached !== undefined) return cached;
   const parsed = marked.parse(typeof content === 'string' ? content : JSON.stringify(content));
   const parsedHtml = typeof parsed === 'string' ? parsed : String(parsed || '');
-  return DOMPurify.sanitize(parsedHtml, MARKDOWN_SANITIZE_OPTIONS);
+  const sanitized = DOMPurify.sanitize(parsedHtml, MARKDOWN_SANITIZE_OPTIONS);
+  if (renderCache.size >= MAX_RENDER_CACHE) {
+    const firstKey = renderCache.keys().next().value;
+    renderCache.delete(firstKey);
+  }
+  renderCache.set(key, sanitized);
+  return sanitized;
 };
 
 const formatChatTime = (value) => {
@@ -450,28 +462,29 @@ const syncNavOffset = () => {
   const navHeight = nav?.offsetHeight || 72;
   document.documentElement.style.setProperty('--bohai-nav-offset', `${navHeight}px`);
 };
+
+// scroll/resize 节流
 let navOffsetRafId = null;
-const requestNavOffsetSync = () => {
-  if (navOffsetRafId !== null) return;
-  navOffsetRafId = window.requestAnimationFrame(() => {
+const throttledSyncNavOffset = () => {
+  if (navOffsetRafId) return;
+  navOffsetRafId = requestAnimationFrame(() => {
     navOffsetRafId = null;
     syncNavOffset();
   });
 };
-
 onMounted(() => {
   loadState();
   scrollToBottom();
   window.addEventListener("keydown", handleWindowKeydown);
   nextTick(() => syncNavOffset());
-  window.addEventListener('resize', syncNavOffset);
-  window.addEventListener('scroll', requestNavOffsetSync, { passive: true });
+  window.addEventListener('resize', throttledSyncNavOffset);
+  window.addEventListener('scroll', throttledSyncNavOffset, { passive: true });
 });
 
 onUnmounted(() => {
   window.removeEventListener("keydown", handleWindowKeydown);
-  window.removeEventListener('resize', syncNavOffset);
-  window.removeEventListener('scroll', requestNavOffsetSync);
+  window.removeEventListener('resize', throttledSyncNavOffset);
+  window.removeEventListener('scroll', throttledSyncNavOffset);
   if (navOffsetRafId !== null) {
     window.cancelAnimationFrame(navOffsetRafId);
     navOffsetRafId = null;

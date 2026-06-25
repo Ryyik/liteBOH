@@ -214,11 +214,14 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, nextTick } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import logoUrl from '../../assets/images/favicon.webp';
+
+// 定时器清理数组（顶层作用域，供 onUnmounted 和其他函数访问）
+const giftTimers = [];
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -304,9 +307,14 @@ onMounted(() => {
     return;
   }
 
-
   // Initialize revealed arrays based on data
   revealedWinners.third = new Array(winners.third.length).fill(false);
+});
+
+onUnmounted(() => {
+  // 清理所有定时器
+  giftTimers.forEach((t) => clearTimeout(t));
+  giftTimers.length = 0;
 });
 
 const goBackHome = () => {
@@ -320,13 +328,14 @@ const startLottery = () => {
   stage.value = 'animating';
 
   // 模拟动画过程 延长至 5秒后出结果，增加悬念
-  setTimeout(() => {
+  const timer1 = setTimeout(() => {
     stage.value = 'result';
     // Ensure render cycle completes before starting reveal
     nextTick(() => {
       revealWinnersSequence();
     });
   }, 5000);
+  giftTimers.push(timer1);
 };
 
 // 逐步揭晓获奖者
@@ -337,46 +346,51 @@ const revealWinnersSequence = () => {
   currentTier.value = 'waiting';
 
   // 延迟显示逻辑
-  setTimeout(() => {
+  const timer2 = setTimeout(() => {
     // 阶段1：三等奖 (现在是参与奖)
     currentTier.value = 'third';
     winners.third.forEach((_, i) => {
-      setTimeout(() => {
+      const t = setTimeout(() => {
         revealedWinners.third[i] = true;
-      }, i * 1200); // 进一步减慢揭晓速度，从 800ms 增加到 1200ms
+      }, i * 1200);
+      giftTimers.push(t);
     });
 
-    const tier1Duration = winners.third.length * 1200 + 2500; // 相应延长阶段切换等待时间
+    const tier1Duration = winners.third.length * 1200 + 2500;
 
     // 阶段2：大奖
-    setTimeout(() => {
+    const timer3 = setTimeout(() => {
       currentTier.value = 'grand';
       // 增加翻牌前的等待，营造极致的悬念
-      setTimeout(() => {
-        revealedWinners.grand = true; // 触发翻牌
+      const timer4 = setTimeout(() => {
+        revealedWinners.grand = true;
         nextTick(() => {
-          triggerConfetti(); // 触发彩带特效
-          setTimeout(() => {
-            currentTier.value = 'finished'; // 结束状态，全部高亮
+          triggerConfetti();
+          const timer5 = setTimeout(() => {
+            currentTier.value = 'finished';
 
-            // 检查当前用户是否中奖并显示弹窗
             const prize = checkUserWinStatus();
             if (prize) {
               userPrize.value = prize;
-              setTimeout(() => {
+              const timer6 = setTimeout(() => {
                 showWinnerPopup.value = true;
-              }, 2500); // 弹窗延迟从 2s 增加到 2.5s
+              }, 2500);
+              giftTimers.push(timer6);
             } else {
-              // 未中奖用户显示未中奖弹窗
-              setTimeout(() => {
+              const timer7 = setTimeout(() => {
                 showLossPopup.value = true;
               }, 2500);
+              giftTimers.push(timer7);
             }
-          }, 2000); // 状态切换延迟从 1.5s 增加到 2s
+          }, 2000);
+          giftTimers.push(timer5);
         });
-      }, 2000); // 大奖翻牌前等待从 1.5s 增加到 2s
+      }, 2000);
+      giftTimers.push(timer4);
     }, tier1Duration);
-  }, 1000); // 初始等待从 500ms 增加到 1000ms
+    giftTimers.push(timer3);
+  }, 1000);
+  giftTimers.push(timer2);
 };
 
 const handleRevealGift = () => {
@@ -396,6 +410,9 @@ const closeLossPopup = () => {
 };
 
 const resetLottery = () => {
+  // 清理所有未完成的定时器，防止旧动画与新动画冲突
+  giftTimers.forEach((t) => clearTimeout(t));
+  giftTimers.length = 0;
   stage.value = 'intro';
   currentTier.value = 'waiting';
 };

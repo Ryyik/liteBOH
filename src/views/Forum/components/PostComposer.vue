@@ -1,15 +1,17 @@
 <script setup>
-import { computed, nextTick, ref } from 'vue';
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import {
   ArrowLeft,
   ArrowRight,
   AtSign,
   Camera,
   Eye,
+  FileText,
   GripVertical,
   Hash,
   Image as ImageIcon,
   MapPin,
+  MoreHorizontal,
   RefreshCcw,
   X
 } from 'lucide-vue-next';
@@ -37,7 +39,8 @@ const props = defineProps({
   forumTagOptions: { type: Array, default: () => [] },
   showPostImageSourceMenu: { type: Boolean, default: false },
   isMobileComposer: { type: Boolean, default: false },
-  isHomeCatTheme: { type: Boolean, default: false }
+  isHomeCatTheme: { type: Boolean, default: false },
+  autoSaveDraftLabel: { type: String, default: '' }
 });
 
 const emit = defineEmits([
@@ -62,6 +65,10 @@ const postImageInputRef = ref(null);
 const postCameraInputRef = ref(null);
 const postContentInputRef = ref(null);
 const showMobileTagMenu = ref(false);
+const showMoreMenu = ref(false);
+const morePanelRef = ref(null);
+const morePanelPosition = ref({ top: 100, left: 16 });
+const moreButtonRect = ref(null);
 const draggedImageIndex = ref(null);
 const dragOverImageIndex = ref(null);
 const isPreviewMode = ref(false);
@@ -77,6 +84,9 @@ const selectedTagLabel = computed(() => (
 const hasPostContent = computed(() => Boolean(
   String(props.newPost.title || '').trim() || String(props.newPost.content || '').trim()
 ));
+
+const titleCharCount = computed(() => String(props.newPost.title || '').length);
+const contentCharCount = computed(() => String(props.newPost.content || '').length);
 const composerCatSeed = computed(() => [
   props.selectedPostTag,
   props.isUploadingPostImage ? 'uploading' : 'idle',
@@ -240,11 +250,11 @@ const closeImagePreview = () => {
 
 const isLocating = ref(false);
 const locationError = ref('');
-const showPrecisionMenu = ref(false);
+const showLocationPanel = ref(false);
 const locationSearchQuery = ref('');
 const locationSearchResults = ref([]);
 const isSearchingLocation = ref(false);
-const showLocationSearch = ref(false);
+const locationSearchInputRef = ref(null);
 let locationSearchTimer = null;
 
 const NOMINATIM_RATE_LIMIT_MS = 1100;
@@ -350,29 +360,16 @@ async function reverseGeocode(lat, lng) {
 }
 
 function handleLocationClick() {
-  showPrecisionMenu.value = !showPrecisionMenu.value;
-  if (showPrecisionMenu.value) {
-    showLocationSearch.value = false;
-    locationSearchQuery.value = '';
-    locationSearchResults.value = [];
-  }
-}
-
-function switchPrecision(precision) {
-  if (!props.postLocation) return;
-  const newName = precision === 'city' ? props.postLocation.cityName : props.postLocation.districtName;
-  emit('update:postLocation', {
-    ...props.postLocation,
-    name: newName,
-    precision
-  });
-  showPrecisionMenu.value = false;
+  showLocationPanel.value = true;
+  locationSearchQuery.value = '';
+  locationSearchResults.value = [];
+  locationError.value = '';
 }
 
 function removeLocation() {
   emit('update:postLocation', null);
   locationError.value = '';
-  showPrecisionMenu.value = false;
+  showLocationPanel.value = false;
 }
 
 function onLocationSearchInput() {
@@ -419,20 +416,90 @@ function selectSearchResult(result) {
   });
   locationSearchQuery.value = '';
   locationSearchResults.value = [];
-  showLocationSearch.value = false;
-  showPrecisionMenu.value = false;
-}
-
-function cancelLocationSearch() {
-  showLocationSearch.value = false;
-  locationSearchQuery.value = '';
-  locationSearchResults.value = [];
+  showLocationPanel.value = false;
 }
 
 function closeLocationMenu() {
-  showPrecisionMenu.value = false;
-  cancelLocationSearch();
+  showLocationPanel.value = false;
+  locationSearchQuery.value = '';
+  locationSearchResults.value = [];
+  locationError.value = '';
 }
+
+watch(showLocationPanel, (open) => {
+  if (open) {
+    nextTick(() => locationSearchInputRef.value?.focus());
+  }
+});
+
+// 更多菜单定位逻辑
+let menuPositionUpdateHandler = null;
+
+function handleMoreButtonClick(event) {
+  // 获取按钮的位置
+  const btn = event.currentTarget;
+  if (btn) {
+    moreButtonRect.value = btn.getBoundingClientRect();
+  }
+  showMoreMenu.value = !showMoreMenu.value;
+}
+
+function updateMorePanelPosition() {
+  if (!moreButtonRect.value) {
+    morePanelPosition.value = { top: 100, left: 16 };
+    return;
+  }
+
+  const rect = moreButtonRect.value;
+  const gap = 8;
+
+  const panelEl = morePanelRef.value;
+  const panelHeight = panelEl ? panelEl.offsetHeight : 200;
+  const panelWidth = panelEl ? panelEl.offsetWidth : 280;
+
+  const isNarrowScreen = window.innerWidth <= 899;
+
+  if (isNarrowScreen) {
+    // 窄屏幕：面板从底部弹出（上拉菜单效果）
+    morePanelPosition.value = {
+      top: Math.max(16, window.innerHeight - panelHeight - 16),
+      left: 12
+    };
+  } else {
+    // 正常屏幕：面板在按钮上方弹出，右边缘对齐按钮右边缘
+    const topPosition = rect.top - panelHeight - gap;
+    const leftPosition = rect.right - panelWidth;
+
+    morePanelPosition.value = {
+      top: Math.max(16, Math.min(topPosition, window.innerHeight - panelHeight - gap)),
+      left: Math.max(16, Math.min(leftPosition, window.innerWidth - panelWidth - 16))
+    };
+  }
+}
+
+watch(showMoreMenu, async (newVal) => {
+  if (newVal) {
+    await nextTick();
+    updateMorePanelPosition();
+    // 菜单打开时监听滚动和窗口变化以重新定位
+    menuPositionUpdateHandler = () => { updateMorePanelPosition(); };
+    window.addEventListener('scroll', menuPositionUpdateHandler, { passive: true });
+    window.addEventListener('resize', menuPositionUpdateHandler, { passive: true });
+  } else if (menuPositionUpdateHandler) {
+    window.removeEventListener('scroll', menuPositionUpdateHandler);
+    window.removeEventListener('resize', menuPositionUpdateHandler);
+    menuPositionUpdateHandler = null;
+  }
+});
+
+onUnmounted(() => {
+  clearTimeout(locationSearchTimer);
+  if (menuPositionUpdateHandler) {
+    window.removeEventListener('scroll', menuPositionUpdateHandler);
+    window.removeEventListener('resize', menuPositionUpdateHandler);
+    menuPositionUpdateHandler = null;
+  }
+});
 </script>
 
 <template>
@@ -471,6 +538,9 @@ function closeLocationMenu() {
             <h3 v-if="newPost.title">{{ newPost.title }}</h3>
             <p v-if="String(newPost.content || '').trim()" class="composer-preview-body">{{ newPost.content }}</p>
             <p v-else class="composer-preview-empty">正文还没有内容</p>
+          </div>
+          <div v-if="!isPreviewMode && contentCharCount > 0" class="composer-char-count">
+            {{ contentCharCount }} 字
           </div>
           <div v-if="showMentionMenu && mentionSuggestions.length" class="composer-mention-menu">
             <button v-for="username in mentionSuggestions" :key="username" type="button"
@@ -546,9 +616,14 @@ function closeLocationMenu() {
           </div>
         </div>
         <div v-if="postImageUploadStatus || isUploadingPostImage" class="post-image-upload-status">
-          <HomeCatMascot v-if="isHomeCatTheme" type="uploading" size="sm" decorative />
-          <span v-if="isUploadingPostImage" class="mini-spinner"></span>
-          <span>{{ postImageUploadStatus }}</span>
+          <div class="post-image-upload-status-row">
+            <HomeCatMascot v-if="isHomeCatTheme" type="uploading" size="sm" decorative />
+            <span v-if="isUploadingPostImage" class="mini-spinner"></span>
+            <span>{{ postImageUploadStatus }}</span>
+          </div>
+          <div v-if="isUploadingPostImage" class="post-image-upload-progress-bar">
+            <div class="post-image-upload-progress-fill"></div>
+          </div>
         </div>
         <button v-if="postImages.length > 0" type="button" class="post-image-clear-btn"
           :disabled="isSubmitting || isUploadingPostImage" @click="emit('clear-images', { cleanup: true })">
@@ -571,90 +646,35 @@ function closeLocationMenu() {
               </button>
             </div>
           </div>
-          <button type="button" class="mobile-post-tool-btn mobile-mention-tool-btn"
-            aria-label="@用户" @click="replaceContentRange(String(newPost.content || '').length, String(newPost.content || '').length, '@')">
-            <AtSign :size="23" :stroke-width="2" aria-hidden="true" />
-          </button>
           <button type="button" class="mobile-post-tool-btn mobile-preview-tool-btn" :class="{ active: isPreviewMode }"
             :disabled="!hasPostContent" :aria-label="isPreviewMode ? '返回编辑' : '预览帖子'"
             @click="isPreviewMode = !isPreviewMode">
             <Eye :size="23" :stroke-width="2" aria-hidden="true" />
           </button>
-          <div class="mobile-location-tool-wrap">
-            <button type="button" class="mobile-post-tool-btn mobile-location-tool-btn"
-              :class="{ active: showPrecisionMenu, 'has-location': !!postLocation }"
-              :disabled="isLocating" aria-label="添加位置"
-              @click="handleLocationClick">
-              <span v-if="isLocating" class="mini-spinner"></span>
-              <MapPin v-else :size="23" :stroke-width="2" />
-            </button>
-            <div v-if="showPrecisionMenu" class="mobile-location-menu">
-              <template v-if="postLocation && !showLocationSearch">
-                <button type="button" class="mobile-location-menu-item"
-                  :class="{ active: postLocation.precision === 'city' }" @click="switchPrecision('city')">
-                  城市：{{ postLocation.cityName }}
-                </button>
-                <button type="button" class="mobile-location-menu-item"
-                  :class="{ active: postLocation.precision === 'district' }" @click="switchPrecision('district')">
-                  精确：{{ postLocation.districtName }}
-                </button>
-                <div class="mobile-location-menu-divider"></div>
-              </template>
-
-              <template v-if="!showLocationSearch">
-                <button v-if="!postLocation" type="button" class="mobile-location-menu-item" @click="handleAddLocation">
-                  使用当前位置
-                </button>
-                <button type="button" class="mobile-location-menu-item" @click="showLocationSearch = true">
-                  搜索地点
-                </button>
-                <div class="mobile-location-menu-divider"></div>
-                <button v-if="postLocation" type="button" class="mobile-location-menu-item mobile-location-menu-remove"
-                  @click="removeLocation">
-                  移除位置
-                </button>
-                <button v-else type="button" class="mobile-location-menu-item" @click="closeLocationMenu">
-                  取消
-                </button>
-              </template>
-
-              <template v-else>
-                <div class="mobile-location-search-input-wrap">
-                  <input v-model="locationSearchQuery" type="text"
-                    class="mobile-location-search-input" placeholder="搜索地点..."
-                    @input="onLocationSearchInput" />
-                </div>
-                <div v-if="isSearchingLocation" class="mobile-location-search-status">搜索中...</div>
-                <template v-if="locationSearchResults.length">
-                  <button v-for="r in locationSearchResults" :key="r.lat + ',' + r.lng" type="button"
-                    class="mobile-location-menu-item mobile-location-search-result-item" @click="selectSearchResult(r)">
-                    {{ r.shortName }}
-                  </button>
-                  <div class="mobile-location-menu-divider"></div>
-                </template>
-                <button type="button" class="mobile-location-menu-item" @click="cancelLocationSearch">
-                  取消搜索
-                </button>
-              </template>
-            </div>
-            <span v-if="locationError" class="post-location-error">{{ locationError }}</span>
-          </div>
           <button type="button" class="mobile-post-tool-btn" :class="{ 'is-full': postImages.length >= maxPostImages }"
             :disabled="isUploadingPostImage || isSubmitting || postImages.length >= maxPostImages"
             :aria-label="`从相册选择图片，已添加 ${postImages.length} 张，最多 ${maxPostImages} 张`"
             @click="handleImagePickerRequest">
             <ImageIcon :size="24" :stroke-width="1.8" aria-hidden="true" />
           </button>
-          <button type="button" class="mobile-post-tool-btn" :class="{ 'is-full': postImages.length >= maxPostImages }"
-            :disabled="isUploadingPostImage || isSubmitting || postImages.length >= maxPostImages"
-            :aria-label="`拍照添加图片，已添加 ${postImages.length} 张，最多 ${maxPostImages} 张`"
-            @click="handleCameraRequest">
-            <Camera :size="24" :stroke-width="1.8" aria-hidden="true" />
-          </button>
+          <div class="mobile-more-tool-wrap">
+            <button type="button" class="mobile-post-tool-btn mobile-more-tool-btn"
+              :class="{ active: showMoreMenu }" aria-label="更多选项"
+              :aria-expanded="showMoreMenu" @click="handleMoreButtonClick">
+              <MoreHorizontal :size="23" :stroke-width="2" aria-hidden="true" />
+            </button>
+          </div>
         </div>
       </div>
 
+      <div v-if="postLocation" class="post-location-bar">
+        <MapPin :size="14" :stroke-width="2" />
+        <span class="post-location-text">{{ postLocation.name }}</span>
+        <button type="button" class="post-location-bar-remove" aria-label="移除位置" @click="removeLocation">×</button>
+      </div>
+
       <div class="editor-footer">
+        <div v-if="autoSaveDraftLabel" class="auto-save-hint">{{ autoSaveDraftLabel }}</div>
         <div class="editor-tools weekly-checkin-panel inline-checkin-panel">
           <div v-if="isWeeklyCheckinLoading" class="weekly-checkin-status weekly-checkin-status-skeleton"
             aria-label="正在加载周签到状态">
@@ -679,19 +699,6 @@ function closeLocationMenu() {
         </div>
         <div class="editor-submit-group">
           <div class="desktop-post-tools" @click.stop>
-            <button type="button" class="desktop-post-tool-btn desktop-draft-tool-btn" @click="handleDraftOpen">
-              草稿
-            </button>
-            <button type="button" class="desktop-post-tool-btn desktop-mention-tool-btn"
-              aria-label="@用户" @click="replaceContentRange(String(newPost.content || '').length, String(newPost.content || '').length, '@')">
-              <AtSign :size="22" :stroke-width="2" aria-hidden="true" />
-            </button>
-            <button type="button" class="desktop-post-tool-btn desktop-preview-tool-btn" :class="{ active: isPreviewMode }"
-              :disabled="!hasPostContent" :aria-label="isPreviewMode ? '返回编辑' : '预览帖子'"
-              @click="isPreviewMode = !isPreviewMode">
-              <Eye :size="22" :stroke-width="2" aria-hidden="true" />
-              <span>{{ isPreviewMode ? '编辑' : '预览' }}</span>
-            </button>
             <div class="desktop-tag-tool-wrap">
               <button type="button" class="desktop-post-tool-btn desktop-tag-tool-btn"
                 :class="{ active: showMobileTagMenu }" aria-label="选择帖子标签"
@@ -706,66 +713,12 @@ function closeLocationMenu() {
                 </button>
               </div>
             </div>
-            <div class="desktop-location-tool-wrap">
-              <button type="button" class="desktop-post-tool-btn desktop-location-tool-btn"
-                :class="{ active: showPrecisionMenu }"
-                :disabled="isLocating" aria-label="添加位置"
-                @click="handleLocationClick">
-                <span v-if="isLocating" class="mini-spinner"></span>
-                <MapPin v-else :size="22" :stroke-width="2" />
-                <span v-if="postLocation">{{ postLocation.name }}</span>
-              </button>
-              <div v-if="showPrecisionMenu" class="desktop-location-menu">
-                <template v-if="postLocation && !showLocationSearch">
-                  <button type="button" class="desktop-location-menu-item"
-                    :class="{ active: postLocation.precision === 'city' }" @click="switchPrecision('city')">
-                    城市：{{ postLocation.cityName }}
-                  </button>
-                  <button type="button" class="desktop-location-menu-item"
-                    :class="{ active: postLocation.precision === 'district' }" @click="switchPrecision('district')">
-                    精确：{{ postLocation.districtName }}
-                  </button>
-                  <div class="desktop-location-menu-divider"></div>
-                </template>
-
-                <template v-if="!showLocationSearch">
-                  <button v-if="!postLocation" type="button" class="desktop-location-menu-item" @click="handleAddLocation">
-                    使用当前位置
-                  </button>
-                  <button type="button" class="desktop-location-menu-item" @click="showLocationSearch = true">
-                    搜索地点
-                  </button>
-                  <div class="desktop-location-menu-divider"></div>
-                  <button v-if="postLocation" type="button" class="desktop-location-menu-item desktop-location-menu-remove"
-                    @click="removeLocation">
-                    移除位置
-                  </button>
-                  <button v-else type="button" class="desktop-location-menu-item" @click="closeLocationMenu">
-                    取消
-                  </button>
-                </template>
-
-                <template v-else>
-                  <div class="desktop-location-search-input-wrap">
-                    <input v-model="locationSearchQuery" type="text"
-                      class="desktop-location-search-input" placeholder="搜索地点..."
-                      @input="onLocationSearchInput" />
-                  </div>
-                  <div v-if="isSearchingLocation" class="desktop-location-search-status">搜索中...</div>
-                  <template v-if="locationSearchResults.length">
-                    <button v-for="r in locationSearchResults" :key="r.lat + ',' + r.lng" type="button"
-                      class="desktop-location-menu-item desktop-location-search-result-item" @click="selectSearchResult(r)">
-                      {{ r.shortName }}
-                    </button>
-                    <div class="desktop-location-menu-divider"></div>
-                  </template>
-                  <button type="button" class="desktop-location-menu-item" @click="cancelLocationSearch">
-                    取消搜索
-                  </button>
-                </template>
-              </div>
-              <span v-if="locationError" class="post-location-error">{{ locationError }}</span>
-            </div>
+            <button type="button" class="desktop-post-tool-btn desktop-preview-tool-btn" :class="{ active: isPreviewMode }"
+              :disabled="!hasPostContent" :aria-label="isPreviewMode ? '返回编辑' : '预览帖子'"
+              @click="isPreviewMode = !isPreviewMode">
+              <Eye :size="22" :stroke-width="2" aria-hidden="true" />
+              <span>{{ isPreviewMode ? '编辑' : '预览' }}</span>
+            </button>
             <button type="button" class="desktop-post-tool-btn" :class="{ 'is-full': postImages.length >= maxPostImages }"
               :disabled="isUploadingPostImage || isSubmitting || postImages.length >= maxPostImages"
               :aria-label="`从相册选择图片，已添加 ${postImages.length} 张，最多 ${maxPostImages} 张`"
@@ -773,6 +726,13 @@ function closeLocationMenu() {
               <ImageIcon :size="23" :stroke-width="1.8" aria-hidden="true" />
               <span class="desktop-image-count">{{ postImages.length }}/{{ maxPostImages }}</span>
             </button>
+            <div class="desktop-more-tool-wrap">
+              <button type="button" class="desktop-post-tool-btn desktop-more-tool-btn"
+                :class="{ active: showMoreMenu }" aria-label="更多选项"
+                :aria-expanded="showMoreMenu" @click="handleMoreButtonClick">
+                <MoreHorizontal :size="22" :stroke-width="2" aria-hidden="true" />
+              </button>
+            </div>
           </div>
           <button class="post-btn" @click="handleSubmit"
             :disabled="isSubmitting || isUploadingPostImage || postCooldownSeconds > 0">
@@ -793,6 +753,97 @@ function closeLocationMenu() {
         <button class="login-trigger-btn">立即登录</button>
       </div>
     </div>
+
+    <!-- 桌面端和移动端更多菜单（按钮上方弹出） -->
+    <Teleport to="body">
+      <transition name="slide-up-popover">
+        <div v-if="showMoreMenu" class="more-overlay" @click="showMoreMenu = false">
+          <div class="more-panel" @click.stop ref="morePanelRef"
+            :style="{
+              top: morePanelPosition.top + 'px',
+              left: morePanelPosition.left + 'px'
+            }">
+            <div class="more-panel-header">
+              <span>更多选项</span>
+              <button type="button" class="more-close-btn" aria-label="关闭" @click="showMoreMenu = false">
+                <X :size="18" :stroke-width="2" aria-hidden="true" />
+              </button>
+            </div>
+            <div class="more-menu-list">
+              <button type="button" class="more-menu-item" @click="handleDraftOpen(); showMoreMenu = false">
+                <FileText :size="18" :stroke-width="2" aria-hidden="true" />
+                <span class="more-menu-label">草稿</span>
+              </button>
+              <button type="button" class="more-menu-item"
+                @click="replaceContentRange(String(newPost.content || '').length, String(newPost.content || '').length, '@'); showMoreMenu = false">
+                <AtSign :size="18" :stroke-width="2" aria-hidden="true" />
+                <span class="more-menu-label">提及用户</span>
+              </button>
+              <button type="button" class="more-menu-item"
+                :disabled="isLocating" @click="handleLocationClick(); showMoreMenu = false">
+                <span v-if="isLocating" class="mini-spinner"></span>
+                <MapPin v-else :size="18" :stroke-width="2" aria-hidden="true" />
+                <span class="more-menu-label">{{ postLocation ? '更换位置' : '添加位置' }}</span>
+              </button>
+              <button v-if="isMobileComposer" type="button" class="more-menu-item" :class="{ 'is-full': postImages.length >= maxPostImages }"
+                :disabled="isUploadingPostImage || isSubmitting || postImages.length >= maxPostImages"
+                @click="handleCameraRequest(); showMoreMenu = false">
+                <Camera :size="18" :stroke-width="2" aria-hidden="true" />
+                <span class="more-menu-label">拍照</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
+
+    <!-- 位置选择面板 -->
+    <Teleport to="body">
+      <transition name="slide-up-popover">
+        <div v-if="showLocationPanel" class="location-panel-overlay" @click="closeLocationMenu">
+          <div class="location-panel" @click.stop>
+            <div class="location-panel-header">
+              <span>添加位置</span>
+              <button type="button" class="location-panel-close-btn" aria-label="关闭" @click="closeLocationMenu">
+                <X :size="18" :stroke-width="2" />
+              </button>
+            </div>
+
+            <div class="location-search-wrap">
+              <input ref="locationSearchInputRef" v-model="locationSearchQuery" type="text" class="location-search-input"
+                placeholder="搜索城市或地点…" @input="onLocationSearchInput" />
+            </div>
+
+            <div v-if="isSearchingLocation" class="location-panel-status">搜索中…</div>
+
+            <div v-else-if="locationSearchResults.length" class="location-search-results">
+              <button v-for="result in locationSearchResults" :key="result.lat + result.lng"
+                type="button" class="location-result-item" @click="selectSearchResult(result)">
+                <MapPin :size="16" :stroke-width="2" />
+                <span class="location-result-name">{{ result.shortName }}</span>
+              </button>
+            </div>
+
+            <div v-else class="location-default-actions">
+              <button type="button" class="location-action-btn" :disabled="isLocating" @click="handleAddLocation">
+                <span v-if="isLocating" class="mini-spinner"></span>
+                <span v-else>使用GPS定位</span>
+              </button>
+            </div>
+
+            <div v-if="postLocation" class="location-current">
+              <div class="location-current-info">
+                <MapPin :size="16" :stroke-width="2" />
+                <span>{{ postLocation.name }}</span>
+              </div>
+              <button type="button" class="location-remove-btn" @click="removeLocation">移除</button>
+            </div>
+
+            <div v-if="locationError" class="location-panel-error">{{ locationError }}</div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
 
     <Teleport to="body">
       <transition name="fade">
@@ -820,198 +871,398 @@ function closeLocationMenu() {
 </style>
 
 <style scoped>
-.post-location-error {
-  font-size: 11px;
-  color: #ef4444;
-  display: block;
-  margin-top: 2px;
+/* 位置选择面板 */
+.location-panel-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 220200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.3);
 }
 
-.mobile-location-tool-wrap {
-  position: relative;
+.location-panel {
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 24px;
+  border-radius: 32px;
+  border: 1px solid var(--glass-border, rgba(0, 0, 0, 0.05));
+  background: var(--glass-bg, rgba(255, 255, 255, 0.75));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+  isolation: isolate;
+}
+
+.location-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  font-size: 16px;
+  font-weight: 800;
+  color: #1d1d1f;
+}
+
+.location-panel-close-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  color: #6e6e73;
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
 }
 
-.desktop-location-tool-wrap {
-  position: relative;
-  display: inline-flex;
+.location-panel-close-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: #1d1d1f;
 }
 
-/* ---- Mobile location menu (matches mobile-tag-menu style) ---- */
+.location-search-wrap {
+  margin-bottom: 12px;
+}
 
-.mobile-location-menu {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 12px);
-  z-index: 30;
-  width: 188px;
-  padding: 8px;
-  border-radius: 18px;
-  border: 1px solid #d8d8dc;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 18px 44px rgba(15, 20, 25, 0.14);
+.location-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 14px;
+  font-size: 14px;
+  outline: none;
+  background: rgba(255, 255, 255, 0.8);
+  color: #1d1d1f;
+  transition: border-color 0.2s;
+}
+
+.location-search-input:focus {
+  border-color: #0071e3;
+}
+
+.location-panel-status {
+  padding: 12px 0;
+  font-size: 13px;
+  color: #86868b;
+  text-align: center;
+}
+
+.location-search-results {
   display: grid;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.location-result-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: #1d1d1f;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.2s;
+}
+
+.location-result-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.location-result-name {
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.location-default-actions {
+  display: grid;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.location-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 14px;
+  background: #0071e3;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.location-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.location-current {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.location-current-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.location-remove-btn {
+  border: none;
+  background: none;
+  color: #ef4444;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background-color 0.2s;
+}
+
+.location-remove-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.location-panel-error {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* 编辑器位置显示条 */
+.post-location-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  margin: 4px 0;
+  border-radius: 10px;
+  background: rgba(0, 113, 227, 0.06);
+  color: #0071e3;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.post-location-text {
+  flex: 1;
+  line-height: 1.3;
+}
+
+.post-location-bar-remove {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #0071e3;
+  font-size: 15px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.post-location-bar-remove:hover {
+  background: rgba(0, 113, 227, 0.12);
+}
+
+@media (max-width: 899px) {
+  .location-panel-overlay {
+    align-items: flex-end;
+  }
+
+  .location-panel {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 32px 32px 0 0;
+    max-height: 70vh;
+    padding: 24px 20px;
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+  }
+}
+
+.auto-save-hint {
+  font-size: 12px;
+  color: #86868b;
+  font-weight: 500;
+  padding: 0 4px;
+  margin-right: 12px;
+  white-space: nowrap;
+}
+
+/* ---- 更多菜单（横竖屏共用，按钮上方弹出） ---- */
+
+.mobile-more-tool-wrap,
+.desktop-more-tool-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.more-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 220100;
+}
+
+.more-panel {
+  position: fixed;
+  z-index: 220101;
+  padding: 12px 16px;
+  border-radius: 32px;
+  border: 1px solid var(--glass-border, rgba(0, 0, 0, 0.05));
+  background: var(--glass-bg, rgba(255, 255, 255, 0.75));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+  width: 280px;
+  overflow: hidden;
+  contain: paint;
+  isolation: isolate;
+}
+
+/* 移动端面板更宽 */
+@media (max-width: 899px) {
+  .more-panel {
+    width: calc(100vw - 24px);
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .more-menu-list {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+
+  .more-menu-item {
+    min-height: 80px;
+    padding: 16px 12px;
+    gap: 8px;
+  }
+
+  .more-menu-label {
+    font-size: 13px;
+  }
+}
+
+.more-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #1d1d1f;
+}
+
+.more-close-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  color: #6e6e73;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.more-close-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: #1d1d1f;
+}
+
+.more-menu-list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 6px;
 }
 
-.mobile-location-menu-item {
-  min-height: 42px;
-  border: none;
-  border-radius: 13px;
-  background: transparent;
-  color: #0f1419;
-  font-size: 15px;
-  font-weight: 800;
-  text-align: left;
-  padding: 0 12px;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.mobile-location-menu-item:hover {
-  background: rgba(15, 20, 25, 0.06);
-}
-
-.mobile-location-menu-item.active {
-  background: #0f1419;
-  color: #ffffff;
-}
-
-.mobile-location-menu-divider {
-  height: 1px;
-  background: #d8d8dc;
-  margin: 6px 0;
-}
-
-.mobile-location-menu-remove {
-  color: #ef4444;
-}
-
-.mobile-location-menu-remove:hover {
-  background: #fef2f2;
-}
-
-.mobile-location-tool-btn.has-location {
-  background: rgba(15, 20, 25, 0.06);
-}
-
-.mobile-location-tool-btn.active {
-  background: rgba(15, 20, 25, 0.08);
-}
-
-.mobile-location-search-input-wrap {
-  padding: 4px 4px 0;
-}
-
-.mobile-location-search-input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 8px 10px;
-  border: 1px solid #d8d8dc;
-  border-radius: 10px;
-  font-size: 14px;
-  outline: none;
-  background: #f5f5f7;
-  color: #0f1419;
-}
-
-.mobile-location-search-input:focus {
-  border-color: #0f1419;
-  background: #fff;
-}
-
-.mobile-location-search-status {
-  padding: 8px 12px;
-  font-size: 13px;
-  color: #6e6e73;
-}
-
-/* ---- Desktop location menu (matches desktop-tag-menu style) ---- */
-
-.desktop-location-menu {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 10px);
-  z-index: 30;
-  width: 176px;
-  padding: 8px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.14);
-  backdrop-filter: blur(16px);
-  display: grid;
+.more-menu-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 4px;
-}
-
-.desktop-location-menu-item {
-  width: 100%;
-  min-height: 38px;
+  min-height: 56px;
+  padding: 10px 8px;
   border: none;
-  border-radius: 10px;
-  background: transparent;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.04);
   color: #1d1d1f;
   cursor: pointer;
-  font-size: 14px;
-  font-weight: 800;
-  line-height: 1;
-  text-align: left;
-  padding: 0 11px;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition: background-color 0.2s, transform 0.2s;
 }
 
-.desktop-location-menu-item:hover {
-  background: #f5f5f7;
+.more-menu-item:hover {
+  background: rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
 }
 
-.desktop-location-menu-item.active {
-  background: #1d1d1f;
-  color: #ffffff;
+.more-menu-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
 }
 
-.desktop-location-menu-divider {
-  height: 1px;
-  background: rgba(0, 0, 0, 0.06);
-  margin: 4px 0;
+.more-menu-item.is-full {
+  color: #ff3b30;
 }
 
-.desktop-location-menu-remove {
-  color: #ef4444;
+.more-menu-label {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
 }
 
-.desktop-location-menu-remove:hover {
-  background: #fef2f2;
+/* slide-up-popover 动画（从按钮上方弹出） */
+.slide-up-popover-enter-active,
+.slide-up-popover-leave-active {
+  transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.desktop-location-tool-btn.active {
-  background: #1d1d1f;
-  color: #ffffff;
+.slide-up-popover-enter-from,
+.slide-up-popover-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
 }
 
-.desktop-location-search-input-wrap {
-  padding: 4px 4px 0;
-}
-
-.desktop-location-search-input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 8px 10px;
-  border: 1px solid #d8d8dc;
-  border-radius: 10px;
-  font-size: 13px;
-  outline: none;
-  background: #f5f5f7;
-  color: #1d1d1f;
-}
-
-.desktop-location-search-input:focus {
-  border-color: #1d1d1f;
-  background: #fff;
-}
-
-.desktop-location-search-status {
-  padding: 8px 12px;
-  font-size: 12px;
-  color: #6e6e73;
+.slide-up-popover-enter-to,
+.slide-up-popover-leave-from {
+  opacity: 1;
+  transform: translateY(0);
 }
 </style>

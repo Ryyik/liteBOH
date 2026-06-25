@@ -1,4 +1,4 @@
-import { ref, computed, nextTick, watch, shallowRef } from 'vue';
+import { ref, computed, nextTick, watch, shallowRef, onScopeDispose } from 'vue';
 import { storeToRefs } from 'pinia';
 import { getPosts, getUserPosts } from '@/utils/api/forum-api.js';
 import {
@@ -1153,6 +1153,9 @@ export function useChatEngine() {
     }
   };
 
+  let generationTimeoutTimer = null;
+  let streamIdleTimer = null;
+
   const sendMessage = async () => {
     if (!inputMessage.value.trim() || isLoading.value || abortController.value) return;
 
@@ -1438,7 +1441,7 @@ export function useChatEngine() {
     setThinkingStatus(`正在分析问题：${summarizeThinkingSubject(userText)}`);
     let generationTimedOut = false;
     let generationTimeoutReason = '生成服务长时间没有返回新内容';
-    let generationTimeoutTimer = null;
+    generationTimeoutTimer = null;
 
     const updateContent = (text) => {
       const targetSession = getSessionByIndex(sessionIndex);
@@ -1947,7 +1950,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
       // 此处 response 必定 ok 且 body 为可读流，移除不可达的 !response.ok 检查。
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let streamIdleTimer = null;
+      streamIdleTimer = null;
       const readNextStreamChunk = async () => {
         if (!hasReceivedVisibleAnswer) return reader.read();
         return Promise.race([
@@ -2209,6 +2212,11 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
       scheduleSaveSessions();
     }
   };
+
+  onScopeDispose(() => {
+    clearTimeout(generationTimeoutTimer);
+    clearTimeout(streamIdleTimer);
+  });
 
   return {
     chatSessions,

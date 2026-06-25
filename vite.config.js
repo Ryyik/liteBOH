@@ -31,8 +31,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       workbox: {
+        // 预缓存文件大小上限（4MB，避免大文件静默跳过）
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         // 预缓存所有静态资源（Cache-First）
-        globPatterns: ['**/*.{js,css,html,woff,woff2,png,webp,svg,ico}'],
+        globPatterns: ['**/*.{js,css,html,woff,woff2,ico,png,webp,svg}'],
         // 运行时缓存策略
         runtimeCaching: [
           {
@@ -54,6 +56,15 @@ export default defineConfig({
               expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 30 },
             },
           },
+          {
+            // Google Fonts 字体：Cache-First（离线可用）
+            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts',
+              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            },
+          },
         ],
       },
       manifest: {
@@ -71,6 +82,7 @@ export default defineConfig({
             src: '/favicon.png',
             sizes: '512x512',
             type: 'image/png',
+            purpose: 'any maskable',
           },
         ],
       },
@@ -104,8 +116,8 @@ export default defineConfig({
     outDir: 'dist',
     // 指定静态资源目录
     assetsDir: 'static',
-    // 提高 chunk 大小警告阈值（view-bohai 约 546 kB 略超默认 500 kB）
-    chunkSizeWarningLimit: 1000,
+    // 提高 chunk 大小警告阈值（与 check-bundle-size.sh 保持一致）
+    chunkSizeWarningLimit: 600,
     // 代码分割
     rollupOptions: {
       output: {
@@ -139,7 +151,7 @@ export default defineConfig({
           if (id.includes('src/components/UnifiedNavbar')) return 'ui-components';
           if (id.includes('src/components/Footer.vue')) return 'ui-components';
           if (id.includes('src/stores/auth.ts')) return 'auth-store';
-          if (id.includes('src/data/products.js') || id.includes('src/data/news.js') || id.includes('src/data/activities.js')) return 'content-datasets';
+          if (id.includes('src/data/products.js')) return 'content-datasets';
 
           // 大视图独立 chunk（经排查 BOHAI 与 DataManagement 无循环依赖，拆分为独立 chunk 降低单文件体积）
           if (id.includes('src/views/user-center/UserSpace/')) return 'view-userspace';

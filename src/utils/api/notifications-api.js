@@ -164,11 +164,14 @@ export async function getArchivedNotifications(userId, options = {}) {
   );
 }
 
-export async function archiveNotification(notificationId) {
-  const { error } = await supabase
+export async function archiveNotification(notificationId, userId) {
+  let query = supabase
     .from('notifications')
     .update({ archived_at: new Date().toISOString() })
-    .eq('id', notificationId);
+    .eq('id', notificationId)
+    .eq('recipient_id', userId);
+
+  const { error } = await query;
 
   if (error) {
     logger.error('notifications-api', '归档通知失败', error);
@@ -178,11 +181,14 @@ export async function archiveNotification(notificationId) {
   return { ok: true, data: true, error: null };
 }
 
-export async function unarchiveNotification(notificationId) {
-  const { error } = await supabase
+export async function unarchiveNotification(notificationId, userId) {
+  let query = supabase
     .from('notifications')
     .update({ archived_at: null })
-    .eq('id', notificationId);
+    .eq('id', notificationId)
+    .eq('recipient_id', userId);
+
+  const { error } = await query;
 
   if (error) {
     logger.error('notifications-api', '取消归档通知失败', error);
@@ -215,7 +221,7 @@ export async function archiveAllNotifications(userId, types = null) {
   return { ok: true, data: true, error: null };
 }
 
-export async function markNotificationAsRead(notificationId) {
+export async function markNotificationAsRead(notificationId, userId) {
   let { error } = await supabase.rpc('mark_single_as_read', { notification_id: notificationId });
 
   if (error && isMissingRpcFunctionError(error, 'mark_single_as_read')) {
@@ -223,7 +229,8 @@ export async function markNotificationAsRead(notificationId) {
     const fallback = await supabase
       .from('notifications')
       .update({ status: 'read' })
-      .eq('id', notificationId);
+      .eq('id', notificationId)
+      .eq('recipient_id', userId);
     error = fallback.error;
   }
 
@@ -257,6 +264,14 @@ export async function markAllNotificationsAsRead(userId) {
   return { ok: true, data: true, error: null };
 }
 
+/**
+ * 创建通知
+ * @param {string} recipientId - 接收者用户 ID
+ * @param {string|null} senderId - 发送者用户 ID（可为 null）
+ * @param {string} type - 通知类型（如 'like', 'comment', 'impression' 等）
+ * @param {object} [data={}] - 附加数据（如 post_id, comment_id, content 等）
+ * @returns {Promise<{ok: boolean, data: object|null, error: object|null}>}
+ */
 export async function createNotification(recipientId, senderId, type, data = {}) {
   const notificationData = {
     recipient_id: recipientId,
@@ -345,53 +360,62 @@ export async function getUnreadNotificationCount(userId) {
   };
 }
 
+let subscribeChannelSeq = 0;
+
 export function subscribeToNotifications(userId, callback) {
   const safeUserId = String(userId || '').replace(/[^\w\-]/g, '');
-  const channel = supabase
-    .channel('public:notifications')
-    .on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'notifications',
-        filter: `recipient_id=eq.${safeUserId}`
-      },
-      (payload) => {
-        try {
-          callback(payload.new);
-        } catch (error) {
-          logger.error('notifications-api', '实时订阅回调处理失败', {
-            error,
-            payload: payload.new,
-            userId
-          });
-          // 不中断订阅，继续监听后续事件
+  subscribeChannelSeq += 1;
+  const channelName = `notifications:${safeUserId}:${subscribeChannelSeq}`;
+
+  return new Promise((resolve, reject) => {
+    const channel = supabase.channel(channelName);
+
+    const timeoutId = setTimeout(() => {
+      supabase.removeChannel(channel).catch(() => {});
+      reject(new Error('订阅超时'));
+    }, 15000);
+
+    channel
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `recipient_id=eq.${safeUserId}`
+        },
+        (payload) => {
+          try {
+            callback(payload.new);
+          } catch (error) {
+            logger.error('notifications-api', '实时订阅回调处理失败', {
+              error,
+              payload: payload.new,
+              userId
+            });
+          }
         }
-      }
-    )
-    .on('system', (payload) => {
-      // 监听连接状态变化
-      const status = payload?.status;
-      logger.debug('notifications-api', '实时订阅状态变化', { status, userId });
-      
-      // 连接断开或错误时，记录日志
-      if (status === 'TIMED_OUT' || status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-        logger.warn('notifications-api', '实时订阅连接异常', { status, userId });
-      }
-    })
-    .subscribe((status) => {
-      // 订阅状态回调
-      logger.debug('notifications-api', '订阅状态', { status, userId });
-      
-      if (status === 'SUBSCRIBED') {
-        logger.info('notifications-api', '实时订阅成功', { userId });
-      } else if (status === 'TIMED_OUT' || status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-        logger.error('notifications-api', '实时订阅失败或断开', { status, userId });
-      }
-    });
-  
-  return channel;
+      )
+      .on('system', {}, (payload) => {
+        const status = payload?.status;
+        logger.debug('notifications-api', '实时订阅状态变化', { status, userId });
+        if (status === 'TIMED_OUT' || status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          logger.warn('notifications-api', '实时订阅连接异常', { status, userId });
+        }
+      })
+      .subscribe((status) => {
+        clearTimeout(timeoutId);
+        logger.debug('notifications-api', '订阅状态', { status, userId });
+        if (status === 'SUBSCRIBED') {
+          logger.info('notifications-api', '实时订阅成功', { userId });
+          resolve(channel);
+        } else if (status === 'TIMED_OUT' || status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          logger.error('notifications-api', '实时订阅失败或断开', { status, userId });
+          setTimeout(() => supabase.removeChannel(channel).catch(() => {}), 0);
+          reject(new Error(`订阅失败: ${status}`));
+        }
+      });
+  });
 }
 
 async function getProfileUsername(userId) {
@@ -473,4 +497,46 @@ export async function sendPushplusForNotification(notification = {}) {
     commentContent,
     impressionContent: notification.content || ''
   });
+}
+
+// ─── 通知类型展示辅助函数 ──────────────────────────────────────────────────
+
+export const NOTIFICATION_LABELS = {
+  like: '赞了你',
+  comment: '回复了你',
+  follow: '关注了你',
+  impression: '给你印象',
+  system: '系统消息',
+  gift: '礼物通知',
+};
+
+export const NOTIFICATION_TYPE_LABELS = {
+  like: '点赞通知',
+  comment: '评论通知',
+  follow: '关注通知',
+  impression: '印象通知',
+  system: '系统通知',
+  gift: '礼物通知',
+};
+
+export const NOTIFICATION_TITLES = {
+  like: (username) => `${username || '有人'} 点赞了你的内容`,
+  comment: (username) => `${username || '有人'} 评论了你的内容`,
+  follow: (username) => `${username || '有人'} 关注了你`,
+  impression: (username) => `${username || '有人'} 对你发表了印象`,
+  system: () => '系统通知',
+  gift: () => '礼物进度更新',
+};
+
+export function getNotificationTitle(notification) {
+  const titleFn = NOTIFICATION_TITLES[notification.type];
+  return titleFn ? titleFn(notification.sender?.username) : '新消息';
+}
+
+export function getNotificationTypeLabel(type) {
+  return NOTIFICATION_TYPE_LABELS[type] || '消息';
+}
+
+export function getTypeLabel(type) {
+  return NOTIFICATION_LABELS[type] || '消息';
 }

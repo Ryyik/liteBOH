@@ -10,17 +10,24 @@ const loadAuthApi = async (): Promise<typeof AuthModule> => {
   if (!authApiPromise) {
     authApiPromise = import('@/utils/auth.js');
   }
-  return authApiPromise;
+  try {
+    return await authApiPromise;
+  } catch (error) {
+    authApiPromise = null;
+    throw error;
+  }
 };
 
 export const useNotificationStore = defineStore('notifications', () => {
   const unreadCount = ref(0);
-  const notifications = ref<NotificationItem[]>([]);
   const notificationSubscription = ref<RealtimeChannel | null>(null);
+  const notificationPending = ref(false);
   const currentUserId = ref<string | null>(null);
   const unreadRefreshInflight = ref<Promise<void> | null>(null);
   const lastUnreadRefreshAt = ref(0);
-  const UNREAD_REFRESH_MIN_INTERVAL_MS = 1500;
+  const UNREAD_REFRESH_MIN_INTERVAL_MS = 1200;
+
+  let _unreadRefreshHandler: (() => void) | null = null;
 
   const showToast = ref(false);
   const toastTitle = ref('');
@@ -52,25 +59,11 @@ export const useNotificationStore = defineStore('notifications', () => {
     showToast.value = false;
   };
 
-  const loadNotifications = async (): Promise<void> => {
-    if (!currentUserId.value) return;
-    try {
-      const { getUserNotifications } = await loadAuthApi();
-      const { data, error } = await getUserNotifications(currentUserId.value);
-      if (!error) {
-        notifications.value = data || [];
-      }
-    } catch (error) {
-      logger.error('notifications-store', '加载通知列表失败', error);
-    }
-  };
-
   const removeChannelSafely = async (channel: RealtimeChannel | null): Promise<void> => {
     if (!channel) return;
     try {
       const { supabase } = await loadAuthApi();
-      // 使用类型断言确保 channel 类型兼容
-      supabase.removeChannel(channel as RealtimeChannel);
+      await supabase.removeChannel(channel as RealtimeChannel);
     } catch (error) {
       logger.warn('notifications-store', '移除通知通道失败', error);
     }
@@ -78,74 +71,29 @@ export const useNotificationStore = defineStore('notifications', () => {
 
   const startNotificationListener = async (userId: string): Promise<void> => {
     if (!userId) return;
-
-    if (notificationSubscription.value && currentUserId.value === userId) {
-      logger.debug('notifications-store', '通知监听器已存在，跳过重复启动', { userId });
-      return;
-    }
-
     currentUserId.value = userId;
 
-    if (notificationSubscription.value) {
-      stopNotificationListener();
-    }
+    // 避免重复注册监听器
+    await stopNotificationListener();
 
-    try {
-      const { subscribeToNotifications, supabase, invalidateByTags } = await loadAuthApi();
-
-      await loadNotifications();
-      await refreshUnreadCount();
-
-      logger.debug('notifications-store', '启动新的通知监听器', { userId });
-
-      const notificationsChannel = subscribeToNotifications(userId, async (payload: NotificationItem) => {
-        logger.debug('notifications-store', '收到实时通知', payload);
-
-        invalidateByTags(['notifications', `notifications:user:${userId}`]);
+    // 监听全局未读刷新事件（仅在浏览器环境）
+    if (typeof window !== 'undefined') {
+      const handleUnreadRefresh = async () => {
         await refreshUnreadCount({ force: true });
-        await loadNotifications();
-
-        window.dispatchEvent(new CustomEvent('boh_unread_refresh', {
-          detail: { source: 'realtime', table: 'notifications', event: 'INSERT' }
-        }));
-
-        let desc = '你收到了一条新通知';
-        let icon = '🔔';
-
-        switch (payload.type) {
-          case 'like':
-            desc = '有人点赞了你的帖子';
-            icon = '❤️';
-            break;
-          case 'comment':
-            desc = '有人回复了你的帖子';
-            icon = '💬';
-            break;
-          case 'impression':
-            desc = '有人给你留下了新印象';
-            icon = '✨';
-            break;
-          case 'lottery_win':
-            desc = payload.content || '你中奖啦，请前往消息中心查看';
-            icon = '🏆';
-            break;
-        }
-
-        displayToast('新消息提醒', desc, icon);
-      });
-
-      notificationSubscription.value = notificationsChannel as RealtimeChannel;
-    } catch (error) {
-      logger.error('notifications-store', '启动通知监听器失败', error);
+      };
+      window.addEventListener('boh_unread_refresh', handleUnreadRefresh);
+      _unreadRefreshHandler = handleUnreadRefresh;
     }
+
+    // 初始刷新
+    await refreshUnreadCount({ force: true });
   };
 
   const stopNotificationListener = async (): Promise<void> => {
-    const activeSubscription = notificationSubscription.value;
-    notificationSubscription.value = null;
-    if (!activeSubscription) return;
-
-    await removeChannelSafely(activeSubscription as RealtimeChannel);
+    if (_unreadRefreshHandler && typeof window !== 'undefined') {
+      window.removeEventListener('boh_unread_refresh', _unreadRefreshHandler);
+    }
+    _unreadRefreshHandler = null;
   };
 
   const setUnreadCount = (count: number): void => {
@@ -153,6 +101,11 @@ export const useNotificationStore = defineStore('notifications', () => {
   };
 
   const refreshUnreadCount = async ({ force = false } = {}): Promise<void> => {
+    if (force) {
+      const { invalidateByTags } = await loadAuthApi();
+      invalidateByTags(['notifications']);
+    }
+
     if (unreadRefreshInflight.value) {
       await unreadRefreshInflight.value;
       return;
@@ -194,7 +147,7 @@ export const useNotificationStore = defineStore('notifications', () => {
   const resetState = async (): Promise<void> => {
     hideToast();
     unreadCount.value = 0;
-    notifications.value = [];
+    notificationPending.value = false;
     currentUserId.value = null;
     unreadRefreshInflight.value = null;
     lastUnreadRefreshAt.value = 0;
@@ -205,7 +158,6 @@ export const useNotificationStore = defineStore('notifications', () => {
 
   return {
     unreadCount,
-    notifications,
     notificationSubscription,
     currentUserId,
     showToast,
@@ -218,7 +170,6 @@ export const useNotificationStore = defineStore('notifications', () => {
     stopNotificationListener,
     setUnreadCount,
     refreshUnreadCount,
-    loadNotifications,
     resetState
   };
 });

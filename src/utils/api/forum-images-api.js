@@ -18,6 +18,11 @@ import {
   normalizeForumImages
 } from './forum-format.js';
 
+// 多图上传并发控制（单线程避免崩溃）
+const MAX_CONCURRENT_UPLOADS = 1;
+let uploadQueue = [];
+let activeUploads = 0;
+
 let forumImageModerationModulePromise = null;
 
 async function loadForumImageModeration() {
@@ -46,7 +51,8 @@ export async function preloadForumImageModeration() {
   }
 }
 
-export async function uploadForumImage(file) {
+// 内部上传逻辑
+const uploadForumImageCore = async (file) => {
   try {
     if (!file || typeof file !== 'object') {
       throw new Error('请选择有效的图片文件');
@@ -89,6 +95,27 @@ export async function uploadForumImage(file) {
     logger.warn('forum-images-api', '论坛图片上传/预筛失败', error);
     return { ok: false, data: null, error: normalizeForumImageUploadError(error) };
   }
+};
+
+// 并发队列处理
+const processUploadQueue = async () => {
+  while (uploadQueue.length > 0 && activeUploads < MAX_CONCURRENT_UPLOADS) {
+    activeUploads++;
+    const { file, resolve } = uploadQueue.shift();
+    // uploadForumImageCore 内部已 try-catch，不会抛出异常
+    const result = await uploadForumImageCore(file);
+    resolve(result);
+    activeUploads--;
+    processUploadQueue();
+  }
+};
+
+// 导出的上传函数（带并发控制）
+export async function uploadForumImage(file) {
+  return new Promise((resolve) => {
+    uploadQueue.push({ file, resolve });
+    processUploadQueue();
+  });
 }
 
 export async function deleteUploadedForumImage(image = {}) {

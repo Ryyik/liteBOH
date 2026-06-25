@@ -86,6 +86,7 @@ const hasMoreTopComments = ref(false);
 const isTopCommentsLoading = ref(false);
 const childRepliesMap = ref({});
 const highlightedCommentId = ref('');
+const commentSortMode = ref('desc');
 
 const TOP_LEVEL_PAGE_SIZE = 20;
 const CHILD_REPLY_PAGE_SIZE = 5;
@@ -386,7 +387,7 @@ const loadTopComments = async ({ reset = false } = {}) => {
       topLevelOnly: true,
       page: pageToLoad,
       pageSize: TOP_LEVEL_PAGE_SIZE,
-      order: 'desc'
+      order: commentSortMode.value
     });
 
     const incoming = Array.isArray(result?.data) ? result.data : [];
@@ -1162,6 +1163,14 @@ const handleDeleteComment = async (comment, parentId = null) => {
     showModal('error', '删除失败', error?.message || '请稍后重试');
   }
 };
+
+const handleChangeCommentSortMode = async (mode) => {
+  const normalizedMode = String(mode || '').trim().toLowerCase();
+  if (normalizedMode !== 'asc' && normalizedMode !== 'desc') return;
+  if (commentSortMode.value === normalizedMode) return;
+  commentSortMode.value = normalizedMode;
+  await loadTopComments({ reset: true });
+};
 </script>
 
 <template>
@@ -1365,6 +1374,7 @@ const handleDeleteComment = async (comment, parentId = null) => {
               :reply-submit-label="replySubmitLabel"
               :child-replies-map="childRepliesMap"
               :highlighted-comment-id="highlightedCommentId"
+              :comment-sort-mode="commentSortMode"
               @reply="({ targetId, username, content }) => toggleReplyInput(targetId, username, content)"
               @submit-reply="submitReply"
               @cancel-reply="activeReplyId = null; replyToUser = null; activeReplyQuote = ''; replyContent = ''"
@@ -1374,6 +1384,7 @@ const handleDeleteComment = async (comment, parentId = null) => {
               @load-child-replies="({ parentId, options }) => loadChildReplies(parentId, options)"
               @delete-comment="({ comment, parentId }) => handleDeleteComment(comment, parentId)"
               @go-to-profile="goToProfile"
+              @change-sort-mode="handleChangeCommentSortMode"
             />
           </div>
         </div>

@@ -98,7 +98,7 @@ describe('消息中心修复验证测试', () => {
     nm.getArchivedNotifications.mockResolvedValue(mockApiResponse.getArchivedNotifications);
     nm.getUnreadNotificationCount.mockResolvedValue(mockApiResponse.getUnreadNotificationCount);
     nm.getCurrentUser.mockResolvedValue({ id: 'user-001', username: '张三' });
-    nm.subscribeToNotifications.mockReturnValue(new MockRealtimeChannel('test-channel'));
+    nm.subscribeToNotifications.mockResolvedValue(new MockRealtimeChannel('test-channel'));
     nm.archiveNotification.mockResolvedValue(mockApiResponse.archiveNotification);
     nm.unarchiveNotification.mockResolvedValue(mockApiResponse.unarchiveNotification);
     nm.markNotificationAsRead.mockResolvedValue(mockApiResponse.markNotificationAsRead);
@@ -110,25 +110,26 @@ describe('消息中心修复验证测试', () => {
   });
 
   describe('修复1: 全局事件监听器管理', () => {
-    it('事件监听器应该在组件挂载时注册', async () => {
+    it('startNotificationListener 应该注册并刷新未读计数', async () => {
       const store = useNotificationStore();
 
       // 模拟组件挂载
       await store.startNotificationListener('user-001');
 
-      // 验证 subscribeToNotifications 被调用（包含callback参数）
-      expect(nm.subscribeToNotifications).toHaveBeenCalled();
-      expect(nm.subscribeToNotifications).toHaveBeenCalledWith('user-001', expect.any(Function));
+      // 验证 currentUserId 被设置
+      expect(store.currentUserId).toBe('user-001');
+      // 验证未读计数被刷新
+      expect(nm.getUnreadNotificationCount).toHaveBeenCalledWith('user-001');
     });
 
-    it('事件监听器应该在组件卸载时清理', async () => {
+    it('stopNotificationListener 应该清理事件监听器', async () => {
       const store = useNotificationStore();
 
       await store.startNotificationListener('user-001');
       await store.stopNotificationListener();
 
-      // 验证 channel 被移除
-      expect(store.notificationSubscription).toBeNull();
+      // 验证 window.removeEventListener 被调用
+      expect(window.removeEventListener).toHaveBeenCalledWith('boh_unread_refresh', expect.any(Function));
     });
   });
 
@@ -136,15 +137,10 @@ describe('消息中心修复验证测试', () => {
     it('初始化逻辑应该按正确顺序执行', async () => {
       const store = useNotificationStore();
 
-      // 监听函数调用顺序
       const callOrder = [];
       nm.getCurrentUser.mockImplementation(async () => {
         callOrder.push('getCurrentUser');
         return { id: 'user-001' };
-      });
-      nm.getUserNotifications.mockImplementation(async () => {
-        callOrder.push('getUserNotifications');
-        return mockApiResponse.getUserNotifications;
       });
       nm.getUnreadNotificationCount.mockImplementation(async () => {
         callOrder.push('getUnreadNotificationCount');
@@ -153,96 +149,57 @@ describe('消息中心修复验证测试', () => {
 
       await store.startNotificationListener('user-001');
 
-      // 验证调用顺序
-      expect(callOrder).toContain('getUserNotifications');
+      // 验证未读计数被刷新
       expect(callOrder).toContain('getUnreadNotificationCount');
     });
   });
 
-  describe('修复3: 错误状态优先显示', () => {
-    it('错误状态应该优先于加载状态显示', async () => {
+  describe('修复3: force 参数自动失效缓存', () => {
+    it('refreshUnreadCount({ force: true }) 应该自动失效缓存', async () => {
       const store = useNotificationStore();
 
-      // 设置 currentUserId
+      nm.getUnreadNotificationCount.mockResolvedValue({ count: 5 });
       store.currentUserId = 'user-001';
 
-      // 模拟错误场景
-      nm.getUserNotifications.mockRejectedValueOnce(mockErrorScenarios.networkError.error);
+      await store.refreshUnreadCount({ force: true });
 
-      try {
-        await store.loadNotifications();
-      } catch (error) {
-        // 预期会抛出错误
-        expect(error).toBeDefined();
-        expect(error.message).toContain('网络连接失败');
-      }
-
-      // 验证错误被记录
-      expect(nm.getUserNotifications).toHaveBeenCalled();
+      // 验证 invalidateByTags 被调用
+      expect(nm.invalidateByTags).toHaveBeenCalledWith(['notifications']);
+      expect(store.unreadCount).toBe(5);
     });
   });
 
-  describe('修复4: TypeScript 类型安全', () => {
-    it('notifications 应该是 NotificationItem[] 类型', () => {
+  describe('修复4: Store 职责精简', () => {
+    it('unreadCount 应该是数字类型', () => {
       const store = useNotificationStore();
-
-      // 验证初始值
-      expect(Array.isArray(store.notifications)).toBe(true);
-      expect(store.notifications).toEqual([]);
-
-      // 添加测试数据
-      const testNotification = mockNotifications[0];
-      store.notifications.push(testNotification);
-
-      // 验证数据结构
-      expect(validateNotificationStructure(store.notifications[0])).toBe(true);
+      expect(typeof store.unreadCount).toBe('number');
+      expect(store.unreadCount).toBe(0);
     });
 
-    it('notificationSubscription 应该是 RealtimeChannel | null 类型', async () => {
+    it('notificationSubscription 初始值应该是 null', () => {
       const store = useNotificationStore();
-
-      // 初始值应该是 null
       expect(store.notificationSubscription).toBeNull();
-
-      // 启动监听器后应该是 channel
-      await store.startNotificationListener('user-001');
-      expect(store.notificationSubscription).toBeDefined();
-      expect(store.notificationSubscription).not.toBeNull();
     });
   });
 
-  describe('修复5: 实时订阅连接管理', () => {
-    it('应该监听连接状态变化', async () => {
+  describe('修复5: 实时订阅（组件层负责）', () => {
+    it('store startNotificationListener 不再创建 supabase channel', async () => {
       const store = useNotificationStore();
-      const mockChannel = new MockRealtimeChannel('test-channel');
-
-      nm.subscribeToNotifications.mockReturnValue(mockChannel);
 
       await store.startNotificationListener('user-001');
 
-      // 验证 channel 创建
-      expect(mockChannel.name).toBe('test-channel');
-
-      // 模拟连接状态变化
-      mockChannel.simulateStatusChange('SUBSCRIBED');
-
-      // 验证状态变化被处理（通过日志）
-      // 这里主要验证不会崩溃
+      // subscribeToNotifications 不应被调用（组件层负责）
+      expect(nm.subscribeToNotifications).not.toHaveBeenCalled();
     });
 
-    it('应该处理连接断开', async () => {
+    it('refreshUnreadCount 可独立工作', async () => {
       const store = useNotificationStore();
-      const mockChannel = new MockRealtimeChannel('test-channel');
+      nm.getUnreadNotificationCount.mockResolvedValue({ count: 3 });
+      store.currentUserId = 'user-001';
 
-      nm.subscribeToNotifications.mockReturnValue(mockChannel);
+      await store.refreshUnreadCount();
 
-      await store.startNotificationListener('user-001');
-
-      // 模拟连接断开
-      mockChannel.simulateStatusChange('CHANNEL_ERROR');
-
-      // 验证不会崩溃
-      expect(store.notificationSubscription).toBeDefined();
+      expect(store.unreadCount).toBe(3);
     });
   });
 
@@ -269,10 +226,9 @@ describe('消息中心修复验证测试', () => {
       expect(store).not.toBeNull();
     });
 
-    it('加载失败应该记录错误', async () => {
-      // 这个测试需要更复杂的设置，暂时跳过
-      // 在实际环境中，可以通过模拟网络错误来测试
-      expect(true).toBe(true);
+    it.skip('加载失败应该记录错误', async () => {
+      // TODO: 需要模拟 loadNotificationStore 内部初始化失败场景
+      // 当前 mock 结构无法在不影响其他测试的情况下触发加载失败
     });
 
     it('清除错误后应该允许重试', async () => {
@@ -285,189 +241,88 @@ describe('消息中心修复验证测试', () => {
   });
 
   describe('修复7: 自操作通知过滤', () => {
-    it('应该过滤掉自己点赞自己的通知', () => {
+    // NOTE: store 当前无 filteredMessages getter 和 notifications ref，
+    // 过滤逻辑已内嵌在 API 层 filterSelfActionNotifications 和组件层 filteredMessages computed 中。
+    it('过滤逻辑由 API 层和组件层负责，store 不再持有通知列表', () => {
       const store = useNotificationStore();
-
-      // 添加包含自操作的通知
-      const notificationsWithSelfAction = [
-        mockNotifications[0], // 正常通知
-        mockNotifications[9], // 自操作通知（自己点赞自己）
-      ];
-
-      store.notifications = notificationsWithSelfAction;
-
-      // 获取可见通知（通过 filteredMessages computed）
-      // 注意：这里需要在组件环境中测试，或者手动调用过滤函数
-      // 在 store 测试中，我们验证数据结构
-      expect(store.notifications.length).toBe(2);
+      // store 现在只管理 unreadCount 和 toast
+      expect(store.unreadCount).toBe(0);
     });
   });
 
   describe('边界条件测试', () => {
-    it('空数据场景应该正常处理', async () => {
+    it('refreshUnreadCount 空数据场景应该正常处理', async () => {
       const store = useNotificationStore();
 
-      nm.getUserNotifications.mockResolvedValue({
-        data: [],
-        error: null,
-        hasMore: false,
-        nextCursor: null
-      });
-
-      await store.loadNotifications();
-
-      expect(store.notifications).toEqual([]);
-    });
-
-    it('大量数据场景应该正常处理', async () => {
-      const store = useNotificationStore();
-
-      // 设置 currentUserId
+      nm.getUnreadNotificationCount.mockResolvedValue({ count: 0 });
       store.currentUserId = 'user-001';
 
-      const largeNotifications = testScenarios.largeData.notifications;
-      nm.getUserNotifications.mockResolvedValue({
-        data: largeNotifications,
-        error: null,
-        hasMore: true,
-        nextCursor: 'cursor-001'
-      });
+      await store.refreshUnreadCount();
 
-      await store.loadNotifications();
-
-      expect(store.notifications.length).toBe(100);
+      expect(store.unreadCount).toBe(0);
     });
 
-    it('网络错误场景应该正确处理', async () => {
+    it('refreshUnreadCount 大量数据场景应该正常处理', async () => {
       const store = useNotificationStore();
 
-      nm.getUserNotifications.mockRejectedValue(mockErrorScenarios.networkError.error);
+      nm.getUnreadNotificationCount.mockResolvedValue({ count: 100 });
+      store.currentUserId = 'user-001';
 
-      try {
-        await store.loadNotifications();
-      } catch (error) {
-        expect(error.message).toContain('网络连接失败');
-      }
+      await store.refreshUnreadCount();
+
+      expect(store.unreadCount).toBe(100);
+    });
+
+    it('refreshUnreadCount 网络错误场景应该正确处理', async () => {
+      const store = useNotificationStore();
+
+      nm.getUnreadNotificationCount.mockRejectedValue(mockErrorScenarios.networkError.error);
+      store.currentUserId = 'user-001';
+
+      await store.refreshUnreadCount();
+      // 错误被 logger 捕获，unreadCount 保持初始值
+      expect(store.unreadCount).toBe(0);
     });
   });
 
   describe('实时订阅测试', () => {
-    it('应该正确处理 INSERT 事件', async () => {
+    // NOTE: 实时订阅（supabase channel）现在由组件层（Messages/index.vue）负责，
+    // store 仅负责未读计数刷新和全局 toast。以下测试验证 store 的 refreshUnreadCount 行为。
+
+    it('refreshUnreadCount 在实时通知到达时应被调用', async () => {
       const store = useNotificationStore();
-      const mockChannel = new MockRealtimeChannel('test-channel');
-
-      nm.subscribeToNotifications.mockImplementation((userId, callback) => {
-        // 设置回调
-        mockChannel.on('postgres_changes', {}, (payload) => {
-          callback(payload.new);
-        });
-        return mockChannel;
-      });
-
-      await store.startNotificationListener('user-001');
-
-      // 模拟 INSERT 事件
-      const newNotification = mockRealtimePayload.INSERT.new;
-      mockChannel.simulateEvent('postgres_changes', {
-        eventType: 'INSERT',
-        new: newNotification,
-        old: null
-      });
-
-      // 验证通知被添加（需要等待异步处理）
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // 验证 unreadCount 被刷新
-      expect(nm.getUnreadNotificationCount).toHaveBeenCalled();
-    });
-
-    it('应该正确处理 UPDATE 事件', async () => {
-      const store = useNotificationStore();
-      const mockChannel = new MockRealtimeChannel('test-channel');
-
-      // 先添加一些通知
-      store.notifications = [mockNotifications[0]];
-
-      nm.subscribeToNotifications.mockImplementation((userId, callback) => {
-        mockChannel.on('postgres_changes', {}, (payload) => {
-          callback(payload.new);
-        });
-        return mockChannel;
-      });
-
-      await store.startNotificationListener('user-001');
-
-      // 模拟 UPDATE 事件（标记已读）
-      const updatePayload = mockRealtimePayload.UPDATE;
-      mockChannel.simulateEvent('postgres_changes', {
-        eventType: 'UPDATE',
-        new: updatePayload.new,
-        old: updatePayload.old
-      });
-
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // 验证状态更新
-      expect(nm.invalidateByTags).toHaveBeenCalled();
-    });
-
-    it('应该正确处理 DELETE 事件', async () => {
-      const store = useNotificationStore();
-      const mockChannel = new MockRealtimeChannel('test-channel');
-
-      // 设置 currentUserId
+      nm.getUnreadNotificationCount.mockResolvedValue({ count: 5 });
       store.currentUserId = 'user-001';
 
-      // 先添加通知
-      store.notifications = [mockNotifications[0]];
+      await store.refreshUnreadCount({ force: true });
 
-      nm.subscribeToNotifications.mockImplementation((userId, callback) => {
-        mockChannel.on('postgres_changes', {}, (payload) => {
-          callback(payload);
-        });
-        return mockChannel;
-      });
+      expect(nm.invalidateByTags).toHaveBeenCalledWith(['notifications']);
+      expect(nm.getUnreadNotificationCount).toHaveBeenCalledWith('user-001');
+      expect(store.unreadCount).toBe(5);
+    });
 
-      // Mock loadNotifications 返回空数据（模拟删除）
-      nm.getUserNotifications.mockResolvedValue({
-        data: [],
-        error: null
-      });
+    it('refreshUnreadCount 防重机制正常工作', async () => {
+      const store = useNotificationStore();
+      nm.getUnreadNotificationCount.mockResolvedValue({ count: 3 });
+      store.currentUserId = 'user-001';
 
-      await store.startNotificationListener('user-001');
+      // 连续两次调用，第二次应复用第一次的 inflight
+      const p1 = store.refreshUnreadCount();
+      const p2 = store.refreshUnreadCount();
+      await Promise.all([p1, p2]);
 
-      // 模拟 DELETE 事件
-      const deletePayload = mockRealtimePayload.DELETE;
-      mockChannel.simulateEvent('postgres_changes', {
-        eventType: 'DELETE',
-        new: null,
-        old: deletePayload.old
-      });
-
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // 验证 loadNotifications 被调用（重新加载）
-      expect(nm.getUserNotifications).toHaveBeenCalled();
+      // getUnreadNotificationCount 应只被调用一次（防重）
+      expect(nm.getUnreadNotificationCount).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('归档功能测试', () => {
-    it('归档单条通知应该成功', async () => {
-      const store = useNotificationStore();
-      store.notifications = [mockNotifications[0]];
-
-      await store.startNotificationListener('user-001');
-
-      // 验证初始状态
-      expect(store.notifications.length).toBeGreaterThan(0);
-
-      // 注意：归档功能在组件层实现，这里验证 API 调用
-      const result = await nm.archiveNotification(mockNotifications[0].id);
+    it('归档单条通知 API 应该成功', async () => {
+      const result = await nm.archiveNotification(mockNotifications[0].id, 'user-001');
       expect(result.ok).toBe(true);
     });
 
-    it('批量归档应该成功', async () => {
-      // Mock archiveAllNotifications 返回值
+    it('批量归档 API 应该成功', async () => {
       nm.archiveAllNotifications.mockResolvedValue({
         ok: true,
         error: null
@@ -477,15 +332,15 @@ describe('消息中心修复验证测试', () => {
       expect(result.ok).toBe(true);
     });
 
-    it('取消归档应该成功', async () => {
-      const result = await nm.unarchiveNotification(mockNotifications[7].id);
+    it('取消归档 API 应该成功', async () => {
+      const result = await nm.unarchiveNotification(mockNotifications[7].id, 'user-001');
       expect(result.ok).toBe(true);
     });
   });
 
   describe('标记已读功能测试', () => {
     it('标记单条已读应该成功', async () => {
-      const result = await nm.markNotificationAsRead(mockNotifications[0].id);
+      const result = await nm.markNotificationAsRead(mockNotifications[0].id, 'user-001');
       expect(result.ok).toBe(true);
     });
 

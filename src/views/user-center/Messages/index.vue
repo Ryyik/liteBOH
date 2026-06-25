@@ -21,13 +21,40 @@
             <button type="button" :class="{ active: selectStatusFilter === 'unread' }" @click="selectStatusFilter = 'unread'">未读</button>
           </div>
           <div class="x-filter-actions">
-            <button class="x-select-btn active" @click="toggleSelectMode">完成</button>
-            <button v-if="currentTab !== 'archived'" class="x-mark-all-btn" :disabled="selectedMessageCount === 0" @click="archiveSelectedMessages">
-              归档{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
-            </button>
-            <button class="x-mark-all-btn" :disabled="selectedMessageCount === 0" @click="markSelectedMessagesAsRead">
-              已读{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
-            </button>
+            <div class="x-filter-actions-desktop">
+              <button class="x-select-btn active" @click="toggleSelectMode">完成</button>
+              <button v-if="currentTab !== 'archived'" class="x-mark-all-btn" :disabled="selectedMessageCount === 0" @click="archiveSelectedMessages">
+                归档{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
+              </button>
+              <button v-else class="x-mark-all-btn" :disabled="selectedMessageCount === 0" @click="unarchiveSelectedMessages">
+                取消归档{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
+              </button>
+              <button class="x-mark-all-btn" :disabled="selectedMessageCount === 0" @click="markSelectedMessagesAsRead">
+                已读{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
+              </button>
+            </div>
+            <div class="x-select-actions-dropdown">
+              <button type="button" class="x-select-btn x-select-actions-trigger" :class="{ active: actionsDropdownOpen }" @click="toggleActionsDropdown">
+                操作
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" :class="{ open: actionsDropdownOpen }">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+              <div v-if="actionsDropdownOpen" class="x-select-actions-menu" @click.stop>
+                <button type="button" class="x-select-action-item" @click="toggleSelectMode(); toggleActionsDropdown()">
+                  完成
+                </button>
+                <button v-if="currentTab !== 'archived'" type="button" class="x-select-action-item" :disabled="selectedMessageCount === 0" @click="archiveSelectedMessages(); toggleActionsDropdown()">
+                  归档{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
+                </button>
+                <button v-else type="button" class="x-select-action-item" :disabled="selectedMessageCount === 0" @click="unarchiveSelectedMessages(); toggleActionsDropdown()">
+                  取消归档{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
+                </button>
+                <button type="button" class="x-select-action-item" :disabled="selectedMessageCount === 0" @click="markSelectedMessagesAsRead(); toggleActionsDropdown()">
+                  已读{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
+                </button>
+              </div>
+            </div>
           </div>
         </template>
         <template v-else>
@@ -111,13 +138,40 @@
           <button class="x-mark-all-btn-minimal" @click="toggleSelectMode">选择</button>
         </template>
         <template v-else>
-          <button class="x-mark-all-btn-minimal active" @click="toggleSelectMode">完成</button>
-          <button v-if="currentTab !== 'archived'" class="x-mark-all-btn-minimal" :disabled="selectedMessageCount === 0" @click="archiveSelectedMessages">
-            归档{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
-          </button>
-          <button class="x-mark-all-btn-minimal" :disabled="selectedMessageCount === 0" @click="markSelectedMessagesAsRead">
-            已读{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
-          </button>
+          <div class="x-filter-actions-desktop-minimal">
+            <button class="x-mark-all-btn-minimal active" @click="toggleSelectMode">完成</button>
+            <button v-if="currentTab !== 'archived'" class="x-mark-all-btn-minimal" :disabled="selectedMessageCount === 0" @click="archiveSelectedMessages">
+              归档{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
+            </button>
+            <button v-else class="x-mark-all-btn-minimal" :disabled="selectedMessageCount === 0" @click="unarchiveSelectedMessages">
+              取消归档{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
+            </button>
+            <button class="x-mark-all-btn-minimal" :disabled="selectedMessageCount === 0" @click="markSelectedMessagesAsRead">
+              已读{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
+            </button>
+          </div>
+          <div class="x-select-actions-dropdown-minimal">
+            <button type="button" class="x-mark-all-btn-minimal x-select-actions-trigger" :class="{ active: actionsDropdownOpen }" @click="toggleActionsDropdown">
+              操作
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" :class="{ open: actionsDropdownOpen }">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            <div v-if="actionsDropdownOpen" class="x-select-actions-menu" @click.stop>
+              <button type="button" class="x-select-action-item" @click="toggleSelectMode(); toggleActionsDropdown()">
+                完成
+              </button>
+              <button v-if="currentTab !== 'archived'" type="button" class="x-select-action-item" :disabled="selectedMessageCount === 0" @click="archiveSelectedMessages(); toggleActionsDropdown()">
+                归档{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
+              </button>
+              <button v-else type="button" class="x-select-action-item" :disabled="selectedMessageCount === 0" @click="unarchiveSelectedMessages(); toggleActionsDropdown()">
+                取消归档{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
+              </button>
+              <button type="button" class="x-select-action-item" :disabled="selectedMessageCount === 0" @click="markSelectedMessagesAsRead(); toggleActionsDropdown()">
+                已读{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
+              </button>
+            </div>
+          </div>
         </template>
       </div>
     </header>
@@ -161,10 +215,12 @@
           </div>
         </div>
       </div>
-      <div v-else-if="filteredMessages.length > 0" class="x-inbox-list">
-        <div v-for="msg in filteredMessages" :key="msg.id" class="x-item"
+      <div v-else-if="filteredMessages.length > 0" class="x-inbox-list" role="listbox" aria-label="消息列表">
+        <div v-for="msg in filteredMessages" :key="msg.id" v-memo="[msg.id, msg.status, msg.archived_at, isSelectMode, selectedMessageIds.has(msg.id), selectedMessage?.id === msg.id]" class="x-item" role="option" tabindex="0" :data-message-id="msg.id"
           :class="{ unread: msg.status === 'unread', 'is-selecting': isSelectMode, selected: selectedMessageIds.has(msg.id), 'active-detail': selectedMessage?.id === msg.id && !isSelectMode }"
-          @click="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)">
+          @click="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)"
+          @keydown.enter="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)"
+          @keydown.space.prevent="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)">
           <span v-if="msg.status === 'unread' && !isSelectMode" class="x-unread-dot" aria-hidden="true"></span>
           <!-- 左侧：头像或选择框 -->
           <div v-if="isSelectMode" class="x-select-check" @click.stop="toggleMessageSelection(msg.id)">
@@ -187,20 +243,20 @@
             <div class="x-item-meta">
               <div class="x-item-identity">
                 <span class="x-sender-name">{{ msg.sender?.username || '系统' }}</span>
-                <span class="x-action-type">{{ getTypeLabel(msg.type) }}</span>
+                <span class="x-action-type">{{ msg._typeLabel }}</span>
               </div>
-              <span class="x-date inline-date">{{ formatDate(msg.created_at) }}</span>
+              <span class="x-date inline-date">{{ msg._formattedDate }}</span>
             </div>
             <div class="x-item-content">
-              <span class="x-text">{{ getNotificationTitle(msg) }}</span>
+              <span class="x-text">{{ msg._title }}</span>
             </div>
-            <div v-if="getNotificationPreview(msg)" class="x-preview-box">
-              {{ getNotificationPreview(msg) }}
+            <div v-if="msg._preview" class="x-preview-box">
+              {{ msg._preview }}
             </div>
           </div>
           <!-- 右侧：时间和状态 -->
           <div class="x-item-right">
-            <span class="x-date">{{ formatDate(msg.created_at) }}</span>
+            <span class="x-date">{{ msg._formattedDate }}</span>
             <!-- 悬停快捷操作 -->
             <div class="x-quick-actions" @click.stop>
               <button v-if="currentTab !== 'archived'" class="x-quick-btn archive" @click="archiveMessage(msg)" title="归档" aria-label="归档">
@@ -250,7 +306,7 @@
         <h3>{{ emptyStateTitle }}</h3>
         <p>{{ emptyStateDescription }}</p>
       </div>
-      <div v-else class="x-empty">
+      <div v-else-if="dataLoadedOnce" class="x-empty">
         <div class="x-empty-visual">
           <Bell class="empty-icon-circle" :size="44" :stroke-width="1.7" aria-hidden="true" />
           <div class="empty-glow"></div>
@@ -263,108 +319,111 @@
     </div>
 
     <!-- Detail Panel (desktop: inline split, mobile: overlay drawer) -->
-    <Transition name="slide-right">
-      <div v-if="selectedMessage" class="x-detail-container" @click.self="closeDetail">
-        <div class="x-detail-panel" @click.stop>
-          <div class="drawer-header">
-            <UserCenterBackButton label="返回消息列表" @click="closeDetail" />
-            <h3>通知详情</h3>
-          </div>
-          <div class="drawer-content">
-              <div class="detail-user-card">
-                <div class="large-avatar-wrapper">
-                  <img v-if="selectedMessage.sender?.avatar_url" :src="selectedMessage.sender.avatar_url"
-                    class="large-avatar-img" alt="avatar"  loading="lazy" />
-                  <div v-else class="large-avatar">
-                    {{ selectedMessage.sender?.username?.charAt(0)?.toUpperCase?.() || 'S' }}
+    <!-- Teleport to body on mobile to escape .tab-page transform containment that breaks position:fixed -->
+    <Teleport to="body" :disabled="!isMobile">
+      <div v-if="showOverlay" class="x-detail-container" role="dialog" aria-modal="true" aria-label="通知详情" @click.self="closeDetail">
+        <Transition name="slide-right" @after-leave="afterPanelLeave">
+          <div v-if="selectedMessage" class="x-detail-panel" @click.stop>
+            <div class="drawer-header">
+              <UserCenterBackButton class="x-detail-back" label="返回消息列表" @click="closeDetail" />
+              <h3>通知详情</h3>
+            </div>
+            <div class="drawer-content">
+                <div class="detail-user-card">
+                  <div class="large-avatar-wrapper">
+                    <img v-if="selectedMessage.sender?.avatar_url" :src="selectedMessage.sender.avatar_url"
+                      class="large-avatar-img" alt="avatar"  loading="lazy" />
+                    <div v-else class="large-avatar">
+                      {{ selectedMessage.sender?.username?.charAt(0)?.toUpperCase?.() || 'S' }}
+                    </div>
+                  </div>
+                  <div class="user-info">
+                    <span class="name">{{ selectedMessage.sender?.username || '系统' }}</span>
+                    <span class="type">{{ getNotificationTypeLabel(selectedMessage.type) }}</span>
                   </div>
                 </div>
-                <div class="user-info">
-                  <span class="name">{{ selectedMessage.sender?.username || '系统' }}</span>
-                  <span class="type">{{ getNotificationTypeLabel(selectedMessage.type) }}</span>
-                </div>
-              </div>
-              <div class="detail-body">
-                <h2 class="detail-title">{{ getNotificationTitle(selectedMessage) }}</h2>
-                <p class="main-text">{{ getNotificationContent(selectedMessage) }}</p>
-                <div v-if="selectedMessage.type === 'comment' || selectedMessage.type === 'like'"
-                  class="source-content">
-                  <span class="source-label">{{ getNotificationSourceLabel(selectedMessage) }}</span>
-                  <p class="source-text">{{ getNotificationSourceText(selectedMessage) }}</p>
-                </div>
-                <span class="full-date">{{ new Date(selectedMessage.created_at).toLocaleString('zh-CN', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                }) }}</span>
-              </div>
-              <!-- Reply Input Section -->
-              <Transition name="fade-slide">
-                <div v-if="showReplyInput" class="reply-input-section">
-                  <textarea v-model="replyContent" :placeholder="`回复 @${selectedMessage.sender?.username || '用户'}...`"
-                    rows="3" class="reply-textarea" :disabled="isReplySubmitting"></textarea>
-                  <div class="reply-controls">
-                    <button class="cancel-reply-btn" @click="cancelReply" :disabled="isReplySubmitting">取消</button>
-                    <button class="submit-reply-btn" @click="submitReply"
-                      :disabled="!replyContent.trim() || isReplySubmitting">
-                      {{ isReplySubmitting ? '发送中...' : '发送' }}
-                    </button>
+                <div class="detail-body">
+                  <h2 class="detail-title">{{ getNotificationTitle(selectedMessage) }}</h2>
+                  <p class="main-text">{{ getNotificationContent(selectedMessage) }}</p>
+                  <div v-if="selectedMessage.type === 'comment' || selectedMessage.type === 'like'"
+                    class="source-content">
+                    <span class="source-label">{{ getNotificationSourceLabel(selectedMessage) }}</span>
+                    <p class="source-text">{{ getNotificationSourceText(selectedMessage) }}</p>
                   </div>
+                  <span class="full-date">{{ new Date(selectedMessage.created_at).toLocaleString('zh-CN', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  }) }}</span>
                 </div>
-              </Transition>
-              <!-- Action Buttons -->
-              <div class="notification-actions">
-                <button v-if="selectedMessage.type === 'comment'" class="notif-action-btn reply"
-                  @click="openReplyInput">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="9 17 4 12 9 7"></polyline>
-                    <path d="M20 18v-2a4 4 0 0 0-4-4H4"></path>
-                  </svg>
-                  回复
-                </button>
-                <button
-                  v-if="(selectedMessage.type === 'comment' || selectedMessage.type === 'like') && (selectedMessage.post?.id || selectedMessage.post_id)"
-                  class="notif-action-btn view-post" @click="viewOriginalPost">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                    <polyline points="15 3 21 3 21 9"></polyline>
-                    <line x1="10" y1="14" x2="21" y2="3"></line>
-                  </svg>
-                  查看原文
-                </button>
-                <button v-if="canRetryModerationNotification(selectedMessage)" class="notif-action-btn retry"
-                  @click="retryRejectedPostFromNotification" :disabled="isRetryingSelectedNotification">
-                  {{ isRetryingSelectedNotification ? '重试中...' : '重试一次' }}
-                </button>
-                <button v-if="selectedMessage.status === 'unread'" class="notif-action-btn mark-read"
-                  @click="markAsRead(selectedMessage)">
-                  标记已读
-                </button>
-                <button v-if="!selectedMessage.archived_at" class="notif-action-btn archive"
-                  @click="archiveMessageFromDetail">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 8v13H3V8"></path>
-                    <path d="M1 3h22v5H1z"></path>
-                    <line x1="10" y1="12" x2="14" y2="12"></line>
-                  </svg>
-                  归档
-                </button>
-                <button v-else class="notif-action-btn unarchive"
-                  @click="unarchiveMessageFromDetail">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 8v13H3V8"></path>
-                    <path d="M1 3h22v5H1z"></path>
-                    <line x1="10" y1="12" x2="14" y2="12"></line>
-                  </svg>
-                  取消归档
-                </button>
-              </div>
+                <!-- Reply Input Section -->
+                <Transition name="fade-slide">
+                  <div v-if="showReplyInput" class="reply-input-section">
+                    <textarea v-model="replyContent" :placeholder="`回复 @${selectedMessage.sender?.username || '用户'}...`"
+                      rows="3" class="reply-textarea" :disabled="isReplySubmitting"></textarea>
+                    <div class="reply-controls">
+                      <button class="cancel-reply-btn" @click="cancelReply" :disabled="isReplySubmitting">取消</button>
+                      <button class="submit-reply-btn" @click="submitReply"
+                        :disabled="!replyContent.trim() || isReplySubmitting">
+                        {{ isReplySubmitting ? '发送中...' : '发送' }}
+                      </button>
+                    </div>
+                  </div>
+                </Transition>
+                <!-- Action Buttons -->
+                <div class="notification-actions">
+                  <button v-if="selectedMessage.type === 'comment'" class="notif-action-btn reply"
+                    @click="openReplyInput">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="9 17 4 12 9 7"></polyline>
+                      <path d="M20 18v-2a4 4 0 0 0-4-4H4"></path>
+                    </svg>
+                    回复
+                  </button>
+                  <button
+                    v-if="(selectedMessage.type === 'comment' || selectedMessage.type === 'like') && (selectedMessage.post?.id || selectedMessage.post_id)"
+                    class="notif-action-btn view-post" @click="viewOriginalPost">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                      <polyline points="15 3 21 3 21 9"></polyline>
+                      <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                    查看原文
+                  </button>
+                  <button v-if="canRetryModerationNotification(selectedMessage)" class="notif-action-btn retry"
+                    @click="retryRejectedPostFromNotification" :disabled="isRetryingSelectedNotification">
+                    {{ isRetryingSelectedNotification ? '重试中...' : '重试一次' }}
+                  </button>
+                  <button v-if="selectedMessage.status === 'unread'" class="notif-action-btn mark-read"
+                    @click="markAsRead(selectedMessage)">
+                    标记已读
+                  </button>
+                  <button v-if="!selectedMessage.archived_at" class="notif-action-btn archive"
+                    @click="archiveMessageFromDetail">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 8v13H3V8"></path>
+                      <path d="M1 3h22v5H1z"></path>
+                      <line x1="10" y1="12" x2="14" y2="12"></line>
+                    </svg>
+                    归档
+                  </button>
+                  <button v-else class="notif-action-btn unarchive"
+                    @click="unarchiveMessageFromDetail">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 8v13H3V8"></path>
+                      <path d="M1 3h22v5H1z"></path>
+                      <line x1="10" y1="12" x2="14" y2="12"></line>
+                    </svg>
+                    取消归档
+                  </button>
+                </div>
+            </div>
           </div>
-        </div>
+        </Transition>
       </div>
-    </Transition>
+    </Teleport>
 
     <Transition name="fade">
       <div v-if="feedbackToast.visible" class="message-feedback-toast" :class="feedbackToast.type">
@@ -449,7 +508,12 @@ const authStore = useAuthStore();
 const { userInfo, isLoggedIn, isInitialized } = storeToRefs(authStore);
 const messages = ref([]);
 const selectedMessage = ref(null);
+const lastFocusedMessageId = ref(null);
+const showOverlay = ref(false);
+const windowWidth = ref(window.innerWidth);
+const isMobile = computed(() => windowWidth.value < 1024);
 const loading = ref(true);
+const dataLoadedOnce = ref(false);
 const loadingMoreNotifications = ref(false);
 const loadMoreSentinelRef = ref(null);
 let loadMoreObserver = null;
@@ -477,21 +541,24 @@ let pendingRealtimeRefresh = {
   notifications: false,
   forceCache: false
 };
-const retryingNotificationIds = ref({});
+const retryingNotificationIds = reactive({});
 const retriedNotificationIdSet = ref(new Set());
 const showUnreadOnly = ref(false);
 const filterDropdownOpen = ref(false);
+const actionsDropdownOpen = ref(false);
 const isSelectMode = ref(false);
 const selectedMessageIds = ref(new Set());
 const selectFilterOpen = ref(false);
 const selectStatusFilter = ref('all');
 const archivedMessages = ref([]);
-const archivedLoading = ref(false);
 const archivedHasMore = ref(false);
 const archivedCursor = ref(null);
+const archivedLoading = ref(false);
 const archivedLoadingMore = ref(false);
+const archivedLoadedOnce = ref(false);
 const archivedLoadMoreSentinelRef = ref(null);
 let archivedLoadMoreObserver = null;
+let loadNotificationsInflight = null;
 const feedbackToast = reactive({
   visible: false,
   type: 'info',
@@ -521,7 +588,7 @@ const canRetryModerationNotification = (notification) => {
 
 const isRetryingSelectedNotification = computed(() => {
   const key = String(selectedMessage.value?.id || '');
-  return Boolean(key && retryingNotificationIds.value[key]);
+  return Boolean(key && retryingNotificationIds[key]);
 });
 
 // Reply to comment state
@@ -585,6 +652,19 @@ const mergeById = (currentRows = [], incomingRows = []) => {
   return Array.from(map.values()).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
 };
 
+const insertSorted = (rows, newRow) => {
+  const ts = newRow.created_at || '';
+  let lo = 0, hi = rows.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if ((rows[mid].created_at || '') > ts) lo = mid + 1;
+    else hi = mid;
+  }
+  const result = [...rows];
+  result.splice(lo, 0, newRow);
+  return result;
+};
+
 const waitForAuthReady = async (timeoutMs = 4000) => {
   if (isInitialized.value) return;
 
@@ -621,29 +701,27 @@ const isSystemNotificationType = (type) => [
 
 const filteredMessages = computed(() => {
   if (currentTab.value === 'archived') {
-    return archivedMessages.value;
+    let result = archivedMessages.value;
+    if (isSelectMode.value && selectStatusFilter.value !== 'all') {
+      result = result.filter(m => m.status === selectStatusFilter.value);
+    }
+    return result;
   }
 
-  let result = visibleNotificationMessages.value;
+  const tab = currentTab.value;
+  const unreadOnly = showUnreadOnly.value;
+  const selectFilter = isSelectMode.value ? selectStatusFilter.value : null;
+  const isSystemType = tab === 'system';
+  const isSpecificType = tab !== 'all' && !isSystemType;
 
-  // 过滤掉已归档的消息（安全措施）
-  result = result.filter(m => !m.archived_at);
-
-  if (currentTab.value === 'system') {
-    result = result.filter(m => isSystemNotificationType(m.type));
-  } else if (currentTab.value !== 'all') {
-    result = result.filter(m => m.type === currentTab.value);
-  }
-
-  if (showUnreadOnly.value) {
-    result = result.filter(m => m.status === 'unread');
-  }
-
-  if (isSelectMode.value && selectStatusFilter.value !== 'all') {
-    result = result.filter(m => m.status === selectStatusFilter.value);
-  }
-
-  return result;
+  return visibleNotificationMessages.value.filter(m => {
+    if (m.archived_at) return false;
+    if (isSystemType && !isSystemNotificationType(m.type)) return false;
+    if (isSpecificType && m.type !== tab) return false;
+    if (unreadOnly && m.status !== 'unread') return false;
+    if (selectFilter && selectFilter !== 'all' && m.status !== selectFilter) return false;
+    return true;
+  });
 });
 
 const typeFilterTabs = computed(() => NOTIFICATION_TABS);
@@ -773,7 +851,7 @@ const applyRealtimeRow = (rowsRef, payload) => {
     if (newRow?.archived_at) {
       return false;
     }
-    rowsRef.value = mergeById([newRow], rowsRef.value);
+    rowsRef.value = insertSorted(rowsRef.value, enrichMessage(newRow));
     return true;
   }
 
@@ -785,13 +863,13 @@ const applyRealtimeRow = (rowsRef, payload) => {
 
   // UPDATE 事件：如果消息取消归档，添加到主列表
   if (!newRow?.archived_at && oldRow?.archived_at) {
-    rowsRef.value = mergeById([newRow], rowsRef.value);
+    rowsRef.value = mergeById([enrichMessage(newRow)], rowsRef.value);
     return true;
   }
 
   // UPDATE 事件：普通更新
   rowsRef.value = rowsRef.value.map((row) =>
-    row.id === rowId ? { ...row, ...newRow } : row
+    row.id === rowId ? { ...row, ...enrichMessage(newRow) } : row
   );
   return true;
 };
@@ -824,23 +902,25 @@ const startRealtimeChannels = async (userId) => {
         const newRow = payload?.new;
         const oldRow = payload?.old;
 
-        // 处理主列表
+        // applyRealtimeRow 会从 messages.value 中移除归档的消息
+        // 需要在它执行之前保存完整数据（含 sender/post/comment JOIN）
+        const archivedFullRow = (eventType === 'UPDATE' && newRow?.archived_at && !oldRow?.archived_at)
+          ? { ...(messages.value.find((m) => m.id === newRow.id) || {}), ...newRow }
+          : null;
+
         const patched = applyRealtimeRow(messages, payload);
 
         // 处理归档列表
-        if (eventType === 'INSERT' && newRow?.archived_at) {
-          // 新插入的消息已归档，添加到归档列表
+        if (archivedFullRow) {
+          archivedMessages.value = mergeById([archivedFullRow], archivedMessages.value);
+        } else if (eventType === 'INSERT' && newRow?.archived_at) {
           archivedMessages.value = mergeById([newRow], archivedMessages.value);
         } else if (eventType === 'UPDATE') {
-          if (newRow?.archived_at && !oldRow?.archived_at) {
-            // 消息被归档，添加到归档列表
-            archivedMessages.value = mergeById([newRow], archivedMessages.value);
-          } else if (!newRow?.archived_at && oldRow?.archived_at) {
+          if (!newRow?.archived_at && oldRow?.archived_at) {
             // 消息取消归档，从归档列表中删除
             archivedMessages.value = archivedMessages.value.filter((row) => row.id !== newRow?.id);
           }
         } else if (eventType === 'DELETE') {
-          // 消息被删除，从归档列表中也删除
           const rowId = newRow?.id || oldRow?.id;
           if (rowId) {
             archivedMessages.value = archivedMessages.value.filter((row) => row.id !== rowId);
@@ -872,13 +952,44 @@ const unarchiveMessageFromDetail = async () => {
   closeDetail();
 };
 
-// 监听弹窗状态，控制 body 滚动
+// 监听弹窗状态，控制 body 滚动（iOS 安全锁定）+ 管理 Teleport overlay 显隐
+let bodyScrollPosition = 0;
 watch(selectedMessage, (newVal) => {
-  if (window.innerWidth < 1024) {
+  if (newVal?.archived_at) {
+    closeDetail();
+    return;
+  }
+  if (newVal) {
+    showOverlay.value = true;
+  }
+  if (isMobile.value) {
     if (newVal) {
+      bodyScrollPosition = window.scrollY;
+      document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${bodyScrollPosition}px`;
+      document.body.style.width = '100%';
+      const tabPage = document.querySelector('.tab-page.messages-tab');
+      if (tabPage) {
+        tabPage.dataset._overflowX = tabPage.style.overflowX || '';
+        tabPage.dataset._overflowY = tabPage.style.overflowY || '';
+        tabPage.style.overflow = 'hidden';
+      }
     } else {
+      document.documentElement.style.overflow = '';
       document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      const tabPage = document.querySelector('.tab-page.messages-tab');
+      if (tabPage) {
+        tabPage.style.overflowX = tabPage.dataset._overflowX || '';
+        tabPage.style.overflowY = tabPage.dataset._overflowY || '';
+        delete tabPage.dataset._overflowX;
+        delete tabPage.dataset._overflowY;
+      }
+      window.scrollTo(0, bodyScrollPosition);
     }
   } else {
     document.body.style.overflow = '';
@@ -899,7 +1010,7 @@ watch(() => route.query.to, () => {
 
 const setNotificationTab = (tabId) => {
   currentTab.value = NOTIFICATION_TABS.some((tab) => tab.id === tabId) ? tabId : 'all';
-  if (currentTab.value === 'archived' && archivedMessages.value.length === 0) {
+  if (currentTab.value === 'archived' && !archivedLoadedOnce.value) {
     loadArchivedNotifications();
   }
   const nextQuery = {
@@ -973,12 +1084,29 @@ watch(selectStatusFilter, () => {
 
 // 组件卸载时恢复 body 滚动并取消订阅
 onUnmounted(() => {
+  // 完整恢复iOS滚动锁定样式（防止样式残留）
+  document.documentElement.style.overflow = '';
   document.body.style.overflow = '';
+  document.body.style.position = '';
+  document.body.style.top = '';
+  document.body.style.width = '';
+  const tabPage = document.querySelector('.tab-page.messages-tab');
+  if (tabPage) {
+    tabPage.style.overflowX = '';
+    tabPage.style.overflowY = '';
+  }
+  bodyScrollPosition = 0;
+  
   if (feedbackToastTimer) {
     clearTimeout(feedbackToastTimer);
     feedbackToastTimer = null;
   }
+  if (realtimeRefreshTimer) {
+    clearTimeout(realtimeRefreshTimer);
+    realtimeRefreshTimer = null;
+  }
   window.removeEventListener('boh_unread_refresh', handleUnreadRefreshEvent);
+  window.removeEventListener('resize', handleWindowResize);
   void removeRealtimeChannels();
   if (loadMoreObserver) {
     loadMoreObserver.disconnect();
@@ -1005,6 +1133,11 @@ const handleUnreadRefreshEvent = async (event) => {
   });
 };
 
+// 窗口resize处理（响应式更新isMobile）
+const handleWindowResize = () => {
+  windowWidth.value = window.innerWidth;
+};
+
 // 初始化消息数据
 onMounted(async () => {
   loadRetriedNotificationIds();
@@ -1022,6 +1155,8 @@ onMounted(async () => {
 
   // 监听 boh_unread_refresh 事件来刷新消息列表
   window.addEventListener('boh_unread_refresh', handleUnreadRefreshEvent);
+  // 监听窗口resize事件（响应式更新isMobile）
+  window.addEventListener('resize', handleWindowResize);
   // 监听全局点击事件来关闭筛选下拉框
   document.addEventListener('click', closeSelectFilterDropdown);
   await startRealtimeChannels(currentUserId.value || userInfo.value?.id);
@@ -1029,39 +1164,59 @@ onMounted(async () => {
 
 // 加载通知
 const loadNotifications = async () => {
+  // 防重复调用：如果已有请求在进行中，等待其完成
+  if (loadNotificationsInflight) {
+    return loadNotificationsInflight;
+  }
+
   loading.value = true;
   notificationsLoadError.value = '';
-  try {
-    const user = await withTaskTimeout(getCurrentUser());
-    if (user) {
-      currentUserId.value = user.id;
-      const { data, hasMore, nextCursor } = await withTaskTimeout(
-        getUserNotifications(user.id, { limit: MESSAGE_PAGE_SIZE })
-      );
-      messages.value = data || [];
-      hasMoreNotifications.value = Boolean(hasMore);
-      notificationsCursor.value = nextCursor || null;
-    } else if (isLoggedIn.value) {
-      // auth 竞态兜底：首次未拿到 user 时稍后补拉一次
-      await new Promise((resolve) => setTimeout(resolve, 400));
-      const retryUser = await withTaskTimeout(getCurrentUser(), 8000, '获取用户信息超时');
-      if (retryUser) {
-        currentUserId.value = retryUser.id;
+
+  loadNotificationsInflight = (async () => {
+    try {
+      const user = await withTaskTimeout(getCurrentUser());
+      if (user) {
+        currentUserId.value = user.id;
         const { data, hasMore, nextCursor } = await withTaskTimeout(
-          getUserNotifications(retryUser.id, { limit: MESSAGE_PAGE_SIZE })
+          getUserNotifications(user.id, { limit: MESSAGE_PAGE_SIZE })
         );
-        messages.value = data || [];
+        messages.value = (data || []).map(enrichMessage);
+        dataLoadedOnce.value = true;
         hasMoreNotifications.value = Boolean(hasMore);
         notificationsCursor.value = nextCursor || null;
+      } else if (isLoggedIn.value) {
+        // auth 竞态兜底：首次未拿到 user 时稍后补拉一次
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        const retryUser = await withTaskTimeout(getCurrentUser(), 8000, '获取用户信息超时');
+        if (retryUser) {
+          currentUserId.value = retryUser.id;
+          const { data, hasMore, nextCursor } = await withTaskTimeout(
+            getUserNotifications(retryUser.id, { limit: MESSAGE_PAGE_SIZE })
+          );
+          messages.value = (data || []).map(enrichMessage);
+          dataLoadedOnce.value = true;
+          hasMoreNotifications.value = Boolean(hasMore);
+          notificationsCursor.value = nextCursor || null;
+        }
       }
+    } catch (error) {
+      logger.error('messages', '加载通知失败', error);
+      const friendlyError = error?.message?.includes('JWT') ? '登录已过期，请重新登录'
+        : error?.message?.includes('fetch') ? '网络连接失败，请检查网络后重试'
+        : '加载失败，请稍后重试';
+      notificationsLoadError.value = friendlyError;
+      dataLoadedOnce.value = true;
+    } finally {
+      loading.value = false;
+      await nextTick();
+      setupLoadMoreObserver();
     }
-  } catch (error) {
-    logger.error('messages', '加载通知失败', error);
-    notificationsLoadError.value = error?.message || '网络异常，请稍后重试';
+  })();
+
+  try {
+    await loadNotificationsInflight;
   } finally {
-    loading.value = false;
-    await nextTick();
-    setupLoadMoreObserver();
+    loadNotificationsInflight = null;
   }
 };
 
@@ -1075,7 +1230,7 @@ const loadMoreNotifications = async () => {
         cursor: notificationsCursor.value
       })
     );
-    messages.value = mergeById(messages.value, data || []);
+    messages.value = mergeById(messages.value, (data || []).map(enrichMessage));
     hasMoreNotifications.value = Boolean(hasMore);
     notificationsCursor.value = nextCursor || null;
   } catch (error) {
@@ -1108,19 +1263,55 @@ const restoreArchivedMessages = async (rows = []) => {
   const restorableRows = rows.filter((row) => row?.id);
   if (restorableRows.length === 0) return;
 
-  try {
-    const results = await Promise.all(restorableRows.map((row) => unarchiveNotification(row.id)));
-    const failed = results.find((result) => result?.error);
-    if (failed?.error) throw failed.error;
+  // 先保存原始状态以便回滚
+  const previousMessages = [...messages.value];
+  const previousArchivedMessages = [...archivedMessages.value];
 
-    const restoredRows = restorableRows.map((row) => ({ ...row, archived_at: null }));
+  try {
+    // 使用 Promise.allSettled 处理部分失败
+    const results = await Promise.allSettled(
+      restorableRows.map((row) => unarchiveNotification(row.id, currentUserId.value))
+    );
+
+    const succeededRows = [];
+    const failedRows = [];
+
+    results.forEach((result, index) => {
+      const row = restorableRows[index];
+      if (result.status === 'fulfilled' && !result.value?.error) {
+        succeededRows.push(row);
+      } else {
+        failedRows.push(row);
+        const errorMsg = result.status === 'rejected'
+          ? result.reason?.message
+          : result.value?.error?.message;
+        logger.error('messages', `撤销归档失败 [id=${row.id}]`, errorMsg);
+      }
+    });
+
+    // 只更新成功恢复的消息状态
+    const restoredRows = succeededRows.map((row) => ({ ...row, archived_at: null }));
     messages.value = mergeById(messages.value, restoredRows);
     archivedMessages.value = archivedMessages.value.filter(
-      (message) => !restorableRows.some((row) => row.id === message.id)
+      (message) => !succeededRows.some((row) => row.id === message.id)
     );
+
     await triggerUnreadRefresh();
-    showFeedback(`已恢复 ${restorableRows.length} 条通知`, 'success');
+
+    if (failedRows.length === 0) {
+      showFeedback(`已恢复 ${succeededRows.length} 条通知`, 'success');
+    } else if (succeededRows.length > 0) {
+      showFeedback(`已恢复 ${succeededRows.length} 条通知，${failedRows.length} 条失败`, 'info');
+    } else {
+      // 全部失败，回滚本地状态
+      messages.value = previousMessages;
+      archivedMessages.value = previousArchivedMessages;
+      showFeedback('撤销归档失败，请稍后重试', 'error');
+    }
   } catch (error) {
+    // 异常情况回滚
+    messages.value = previousMessages;
+    archivedMessages.value = previousArchivedMessages;
     logger.error('messages', '撤销归档失败', error);
     showFeedback(error?.message || '撤销归档失败，请稍后重试', 'error');
   }
@@ -1132,12 +1323,13 @@ const archiveMessage = async (msg) => {
   msg.archived_at = new Date().toISOString();
   const archivedSnapshot = { ...msg };
   try {
-    const result = await archiveNotification(msg.id);
+    const result = await archiveNotification(msg.id, currentUserId.value);
     if (result?.error) throw result.error;
     const idx = messages.value.findIndex((m) => m.id === msg.id);
     if (idx !== -1) {
       messages.value.splice(idx, 1);
     }
+    archivedMessages.value = mergeById(archivedMessages.value, [archivedSnapshot]);
     await triggerUnreadRefresh();
     showFeedback('已归档', 'success', {
       actionLabel: '撤销',
@@ -1155,7 +1347,7 @@ const unarchiveMessage = async (msg) => {
   const previousArchivedAt = msg.archived_at;
   msg.archived_at = null;
   try {
-    const result = await unarchiveNotification(msg.id);
+    const result = await unarchiveNotification(msg.id, currentUserId.value);
     if (result?.error) throw result.error;
     const idx = archivedMessages.value.findIndex((m) => m.id === msg.id);
     if (idx !== -1) {
@@ -1163,7 +1355,7 @@ const unarchiveMessage = async (msg) => {
     }
     await triggerUnreadRefresh();
     if (!loading.value) {
-      loadNotifications();
+      await loadNotifications();
     }
     showFeedback('已取消归档', 'success');
   } catch (error) {
@@ -1174,15 +1366,22 @@ const unarchiveMessage = async (msg) => {
 };
 
 const loadArchivedNotifications = async () => {
-  if (!currentUserId.value) return;
   archivedLoading.value = true;
   try {
-    const { data, hasMore, nextCursor } = await getArchivedNotifications(currentUserId.value, {
+    let userId = currentUserId.value;
+    if (!userId) {
+      const user = await withTaskTimeout(getCurrentUser());
+      if (!user) return;
+      userId = user.id;
+      currentUserId.value = userId;
+    }
+    const { data, hasMore, nextCursor } = await withTaskTimeout(getArchivedNotifications(userId, {
       limit: MESSAGE_PAGE_SIZE
-    });
-    archivedMessages.value = data || [];
+    }));
+    archivedMessages.value = (data || []).map(enrichMessage);
     archivedHasMore.value = Boolean(hasMore);
     archivedCursor.value = nextCursor || null;
+    archivedLoadedOnce.value = true;
   } catch (error) {
     logger.error('messages', '加载已归档通知失败', error);
     showFeedback(error?.message || '加载已归档通知失败', 'error');
@@ -1197,11 +1396,11 @@ const loadMoreArchivedNotifications = async () => {
   if (!currentUserId.value || archivedLoadingMore.value || !archivedHasMore.value) return;
   archivedLoadingMore.value = true;
   try {
-    const { data, hasMore, nextCursor } = await getArchivedNotifications(currentUserId.value, {
+    const { data, hasMore, nextCursor } = await withTaskTimeout(getArchivedNotifications(currentUserId.value, {
       limit: MESSAGE_PAGE_SIZE,
       cursor: archivedCursor.value
-    });
-    archivedMessages.value = mergeById(archivedMessages.value, data || []);
+    }));
+    archivedMessages.value = mergeById(archivedMessages.value, (data || []).map(enrichMessage));
     archivedHasMore.value = Boolean(hasMore);
     archivedCursor.value = nextCursor || null;
   } catch (error) {
@@ -1263,30 +1462,184 @@ const archiveSelectedMessages = async () => {
   }
 
   const previousMessages = [...messages.value];
+  const previousArchivedMessages = [...archivedMessages.value];
   const archivedSnapshots = messages.value
     .filter((message) => selectedMessageIds.value.has(message.id))
     .map((message) => ({ ...message, archived_at: new Date().toISOString() }));
-  try {
-    const results = await Promise.all(ids.map((id) => archiveNotification(id)));
-    const failed = results.find((result) => result?.error);
-    if (failed?.error) throw failed.error;
 
-    messages.value = messages.value.filter((message) => !selectedMessageIds.value.has(message.id));
-    if (selectedMessage.value && selectedMessageIds.value.has(selectedMessage.value.id)) {
+  try {
+    // 使用 Promise.allSettled 处理部分失败
+    const results = await Promise.allSettled(
+      ids.map((id) => archiveNotification(id, currentUserId.value))
+    );
+
+    const succeededIds = [];
+    const failedIds = [];
+
+    results.forEach((result, index) => {
+      const id = ids[index];
+      if (result.status === 'fulfilled' && !result.value?.error) {
+        succeededIds.push(id);
+      } else {
+        failedIds.push(id);
+        const errorMsg = result.status === 'rejected'
+          ? result.reason?.message
+          : result.value?.error?.message;
+        logger.error('messages', `归档失败 [id=${id}]`, errorMsg);
+      }
+    });
+
+    // 只更新成功归档的消息状态
+    messages.value = messages.value.filter((message) => !succeededIds.includes(message.id));
+    const succeededSnapshots = archivedSnapshots.filter((snapshot) => succeededIds.includes(snapshot.id));
+    archivedMessages.value = mergeById(archivedMessages.value, succeededSnapshots);
+
+    if (selectedMessage.value && succeededIds.includes(selectedMessage.value.id)) {
       closeDetail();
     }
+
+    // 清空选择状态
     selectedMessageIds.value = new Set();
     isSelectMode.value = false;
+
     await triggerUnreadRefresh();
-    showFeedback(`已归档 ${ids.length} 条通知`, 'success', {
-      actionLabel: '撤销',
-      action: () => restoreArchivedMessages(archivedSnapshots)
-    });
+
+    if (failedIds.length === 0) {
+      showFeedback(`已归档 ${succeededIds.length} 条通知`, 'success', {
+        actionLabel: '撤销',
+        action: () => restoreArchivedMessages(succeededSnapshots)
+      });
+    } else if (succeededIds.length > 0) {
+      showFeedback(`已归档 ${succeededIds.length} 条通知，${failedIds.length} 条失败`, 'info', {
+        actionLabel: '撤销',
+        action: () => restoreArchivedMessages(succeededSnapshots)
+      });
+    } else {
+      // 全部失败，回滚本地状态
+      messages.value = previousMessages;
+      archivedMessages.value = previousArchivedMessages;
+      showFeedback('批量归档失败，请稍后重试', 'error');
+    }
   } catch (error) {
+    // 异常情况回滚
     messages.value = previousMessages;
+    archivedMessages.value = previousArchivedMessages;
     logger.error('messages', '批量归档所选通知失败', error);
     showFeedback(error?.message || '批量归档失败，请稍后重试', 'error');
   }
+};
+
+const unarchiveSelectedMessages = async () => {
+  const ids = Array.from(selectedMessageIds.value);
+  if (ids.length === 0) {
+    showFeedback('请先选择要取消归档的通知', 'info');
+    return;
+  }
+
+  const previousMessages = [...messages.value];
+  const previousArchivedMessages = [...archivedMessages.value];
+  const unarchivedSnapshots = archivedMessages.value
+    .filter((message) => selectedMessageIds.value.has(message.id))
+    .map((message) => ({ ...message, archived_at: null }));
+
+  try {
+    const results = await Promise.allSettled(
+      ids.map((id) => unarchiveNotification(id, currentUserId.value))
+    );
+
+    const succeededIds = [];
+    const failedIds = [];
+
+    results.forEach((result, index) => {
+      const id = ids[index];
+      if (result.status === 'fulfilled' && !result.value?.error) {
+        succeededIds.push(id);
+      } else {
+        failedIds.push(id);
+        const errorMsg = result.status === 'rejected'
+          ? result.reason?.message
+          : result.value?.error?.message;
+        logger.error('messages', `取消归档失败 [id=${id}]`, errorMsg);
+      }
+    });
+
+    const succeededSnapshots = unarchivedSnapshots.filter((snapshot) => succeededIds.includes(snapshot.id));
+    archivedMessages.value = archivedMessages.value.filter((message) => !succeededIds.includes(message.id));
+    messages.value = mergeById(messages.value, succeededSnapshots);
+
+    if (selectedMessage.value && succeededIds.includes(selectedMessage.value.id)) {
+      closeDetail();
+    }
+
+    selectedMessageIds.value = new Set();
+    isSelectMode.value = false;
+
+    await triggerUnreadRefresh();
+
+    if (failedIds.length === 0) {
+      showFeedback(`已取消归档 ${succeededIds.length} 条通知`, 'success', {
+        actionLabel: '撤销',
+        action: () => restoreUnarchivedMessages(succeededSnapshots)
+      });
+    } else if (succeededIds.length > 0) {
+      showFeedback(`已取消归档 ${succeededIds.length} 条通知，${failedIds.length} 条失败`, 'info', {
+        actionLabel: '撤销',
+        action: () => restoreUnarchivedMessages(succeededSnapshots)
+      });
+    } else {
+      messages.value = previousMessages;
+      archivedMessages.value = previousArchivedMessages;
+      showFeedback('批量取消归档失败，请稍后重试', 'error');
+    }
+  } catch (error) {
+    messages.value = previousMessages;
+    archivedMessages.value = previousArchivedMessages;
+    logger.error('messages', '批量取消归档所选通知失败', error);
+    showFeedback(error?.message || '批量取消归档失败，请稍后重试', 'error');
+  }
+};
+
+const restoreUnarchivedMessages = async (snapshots) => {
+  if (!snapshots || snapshots.length === 0) return;
+
+  const previousMessages = [...messages.value];
+  const previousArchivedMessages = [...archivedMessages.value];
+
+  // 乐观更新：从 messages 移回 archivedMessages
+  messages.value = messages.value.filter((message) => !snapshots.some((row) => row.id === message.id));
+  archivedMessages.value = mergeById(archivedMessages.value, snapshots.map((row) => ({ ...row, archived_at: new Date().toISOString() })));
+
+  const results = await Promise.allSettled(
+    snapshots.map((row) => archiveNotification(row.id, currentUserId.value))
+  );
+
+  const succeededRows = [];
+  const failedRows = [];
+
+  results.forEach((result, index) => {
+    const row = snapshots[index];
+    if (result.status === 'fulfilled' && !result.value?.error) {
+      succeededRows.push(row);
+    } else {
+      failedRows.push(row);
+      const errorMsg = result.status === 'rejected'
+        ? result.reason?.message
+        : result.value?.error?.message;
+      logger.error('messages', `撤销取消归档失败 [id=${row.id}]`, errorMsg);
+    }
+  });
+
+  if (failedRows.length === 0) {
+    showFeedback(`已撤销 ${succeededRows.length} 条通知`, 'success');
+  } else if (succeededRows.length > 0) {
+    showFeedback(`已撤销 ${succeededRows.length} 条通知，${failedRows.length} 条失败`, 'info');
+  } else {
+    messages.value = previousMessages;
+    archivedMessages.value = previousArchivedMessages;
+    showFeedback('撤销取消归档失败，请稍后重试', 'error');
+  }
+
+  await triggerUnreadRefresh();
 };
 
 const markSelectedMessagesAsRead = async () => {
@@ -1305,21 +1658,48 @@ const markSelectedMessagesAsRead = async () => {
     return;
   }
 
+  // 保存原始状态以便回滚
   const previousStatuses = new Map(unreadRows.map((message) => [message.id, message.status]));
-  unreadRows.forEach((message) => {
-    message.status = 'read';
-  });
 
   try {
-    const results = await Promise.all(unreadRows.map((message) => markNotificationAsRead(message.id)));
-    const failed = results.find((result) => result?.error);
-    if (failed?.error) throw failed.error;
+    // 使用 Promise.allSettled 处理部分失败
+    const results = await Promise.allSettled(
+      unreadRows.map((message) => markNotificationAsRead(message.id, currentUserId.value))
+    );
+
+    const succeededRows = [];
+    const failedRows = [];
+
+    results.forEach((result, index) => {
+      const message = unreadRows[index];
+      if (result.status === 'fulfilled' && !result.value?.error) {
+        succeededRows.push(message);
+        // 成功的标记为已读
+        message.status = 'read';
+      } else {
+        failedRows.push(message);
+        // 失败的恢复原始状态
+        message.status = previousStatuses.get(message.id) || message.status;
+        const errorMsg = result.status === 'rejected'
+          ? result.reason?.message
+          : result.value?.error?.message;
+        logger.error('messages', `标记已读失败 [id=${message.id}]`, errorMsg);
+      }
+    });
 
     selectedMessageIds.value = new Set();
     isSelectMode.value = false;
     await triggerUnreadRefresh();
-    showFeedback(`已标记 ${unreadRows.length} 条通知为已读`, 'success');
+
+    if (failedRows.length === 0) {
+      showFeedback(`已标记 ${succeededRows.length} 条通知为已读`, 'success');
+    } else if (succeededRows.length > 0) {
+      showFeedback(`已标记 ${succeededRows.length} 条通知为已读，${failedRows.length} 条失败`, 'info');
+    } else {
+      showFeedback('标记已读失败，请稍后重试', 'error');
+    }
   } catch (error) {
+    // 异常情况回滚所有状态
     unreadRows.forEach((message) => {
       message.status = previousStatuses.get(message.id) || message.status;
     });
@@ -1335,6 +1715,10 @@ const toggleSelectMode = () => {
   if (!isSelectMode.value) {
     selectedMessageIds.value = new Set();
   }
+};
+
+const toggleActionsDropdown = () => {
+  actionsDropdownOpen.value = !actionsDropdownOpen.value;
 };
 
 const toggleMessageSelection = (msgId) => {
@@ -1353,10 +1737,11 @@ const isAllFilteredSelected = computed(() => {
 });
 
 const closeSelectFilterDropdown = (e) => {
-  const wrap = e.target.closest('.x-filter-dropdown-wrap');
+  const wrap = e.target.closest('.x-filter-dropdown-wrap, .x-select-actions-dropdown, .x-select-actions-dropdown-minimal');
   if (!wrap) {
     selectFilterOpen.value = false;
     filterDropdownOpen.value = false;
+    actionsDropdownOpen.value = false;
   }
 };
 
@@ -1399,7 +1784,7 @@ const markAsRead = async (msg) => {
   const previousStatus = msg.status;
   msg.status = 'read';
   try {
-    const result = await markNotificationAsRead(msg.id);
+    const result = await markNotificationAsRead(msg.id, currentUserId.value);
     if (result?.error) throw result.error;
     await triggerUnreadRefresh();
     showFeedback('已标记为已读', 'success');
@@ -1431,11 +1816,12 @@ const markAllAsRead = async () => {
 
 // 显示详情并标记已读
 const showDetail = async (msg) => {
+  lastFocusedMessageId.value = msg.id;
   selectedMessage.value = msg;
 
   if (msg.status === 'unread') {
     try {
-      const result = await markNotificationAsRead(msg.id);
+      const result = await markNotificationAsRead(msg.id, currentUserId.value);
       if (result?.error) throw result.error;
       msg.status = 'read';
       // 触发未读消息数量更新
@@ -1445,12 +1831,34 @@ const showDetail = async (msg) => {
       showFeedback(error?.message || '标记已读失败，请稍后重试', 'error');
     }
   }
+
+  await nextTick();
+  const panel = document.querySelector('.x-detail-panel');
+  const firstFocusable = panel?.querySelector('button, [tabindex], input, textarea, select');
+  if (firstFocusable) firstFocusable.focus();
+  else panel?.focus();
+};
+
+const afterPanelLeave = () => {
+  if (!selectedMessage.value) {
+    showOverlay.value = false;
+  }
 };
 
 const closeDetail = () => {
   selectedMessage.value = null;
   showReplyInput.value = false;
   replyContent.value = '';
+  if (!isMobile.value) {
+    showOverlay.value = false;
+  }
+  if (lastFocusedMessageId.value) {
+    nextTick(() => {
+      const item = document.querySelector(`.x-item[data-message-id="${lastFocusedMessageId.value}"]`);
+      if (item instanceof HTMLElement) item.focus();
+      lastFocusedMessageId.value = null;
+    });
+  }
 };
 
 const openReplyInput = () => {
@@ -1528,7 +1936,7 @@ const retryRejectedPostFromNotification = async () => {
   const postId = selectedMessage.value.post?.id || selectedMessage.value.post_id;
   if (!notificationId || !postId) return;
 
-  retryingNotificationIds.value[notificationId] = true;
+  retryingNotificationIds[notificationId] = true;
   try {
     const { ok, resultStatus, error } = await retryPostModeration(postId, userInfo.value.id);
     if (!ok) {
@@ -1546,7 +1954,7 @@ const retryRejectedPostFromNotification = async () => {
     logger.error('messages', '帖子复审重试失败', error);
     showFeedback('重试失败，请稍后再试', 'error');
   } finally {
-    retryingNotificationIds.value[notificationId] = false;
+    retryingNotificationIds[notificationId] = false;
   }
 };
 
@@ -1710,6 +2118,14 @@ const formatDate = (dateString) => {
     day: '2-digit'
   });
 };
+
+const enrichMessage = (m) => ({
+  ...m,
+  _title: getNotificationTitle(m),
+  _preview: getNotificationPreview(m),
+  _typeLabel: getTypeLabel(m.type),
+  _formattedDate: formatDate(m.created_at),
+});
 
 const loadMoreNotificationLabel = computed(() => {
   if (loadingMoreNotifications.value) return '加载中...';

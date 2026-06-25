@@ -81,12 +81,17 @@ export function submitWeeklyCheckin(): Promise<AuthApiResult>
 
 // --- Notifications API ---
 export function getUserNotifications(userId: string, options?: Record<string, unknown>): Promise<{ data: NotificationItem[]; error: AuthApiError | null; hasMore: boolean; nextCursor: string | null }>
-export function markNotificationAsRead(id: string): Promise<AuthApiResult>
-export function markAllNotificationsAsRead(): Promise<AuthApiResult>
-export function createNotification(data: Record<string, unknown>): Promise<AuthApiResult>
+export function getArchivedNotifications(userId: string, options?: Record<string, unknown>): Promise<{ data: NotificationItem[]; error: AuthApiError | null; hasMore: boolean; nextCursor: string | null }>
+export function archiveNotification(notificationId: string, userId: string): Promise<AuthApiResult>
+export function unarchiveNotification(notificationId: string, userId: string): Promise<AuthApiResult>
+export function archiveAllNotifications(userId: string, types?: string[]): Promise<AuthApiResult>
+export function markNotificationAsRead(notificationId: string, userId: string): Promise<AuthApiResult>
+export function markAllNotificationsAsRead(userId: string): Promise<AuthApiResult>
+export function createNotification(recipientId: string, senderId: string, type: string, data?: Record<string, unknown>): Promise<AuthApiResult>
 export function getUnreadNotificationCount(userId: string): Promise<{ ok: boolean; count: number; notifCount: number; mailCount: number; data: unknown; error: AuthApiError | null }>
-export function subscribeToNotifications(userId: string, callback: (payload: NotificationItem) => void): RealtimeChannel
+export function subscribeToNotifications(userId: string, callback: (payload: NotificationItem) => void): Promise<RealtimeChannel>
 export function filterSelfActionNotifications(notifications: NotificationItem[]): NotificationItem[]
+export function sendPushplusForNotification(notification: Record<string, unknown>): Promise<{ success: boolean; message: string }>
 
 // --- Profile API ---
 export function getUserImpressions(userId: string): Promise<AuthApiResult>

@@ -43,7 +43,7 @@ function createThenableQuery(result, calls = []) {
       return query;
     }),
     is: vi.fn(() => query),
-    then: (resolve) => { Promise.resolve(result).then(resolve); return query; }
+    then: (resolve) => Promise.resolve(result).then(resolve)
   };
   return query;
 }
@@ -140,22 +140,24 @@ describe('notifications-api', () => {
       testMocks.channelMock.mockReturnValue(mockChannel);
     });
 
-    it('creates channel with correct configuration', () => {
-      const channel = subscribeToNotifications('user-123', mockCallback);
+    it('creates channel with correct configuration', async () => {
+      const channelPromise = subscribeToNotifications('user-123', mockCallback);
 
-      expect(testMocks.channelMock).toHaveBeenCalledWith('public:notifications');
+      expect(testMocks.channelMock).toHaveBeenCalledWith(expect.stringMatching(/^notifications:user-123:[1-9]\d*$/));
       expect(mockChannel.on).toHaveBeenCalled();
       expect(mockChannel.subscribe).toHaveBeenCalled();
+
+      const channel = await channelPromise;
       expect(channel).toBe(mockChannel);
     });
 
-    it('handles callback errors without breaking subscription', () => {
+    it('handles callback errors without breaking subscription', async () => {
       // 模拟 callback 抛出异常
       mockCallback.mockImplementation(() => {
         throw new Error('Callback error');
       });
 
-      subscribeToNotifications('user-123', mockCallback);
+      const channelPromise = subscribeToNotifications('user-123', mockCallback);
 
       // 获取 postgres_changes 事件的 handler
       const onCalls = mockChannel.on.mock.calls;
@@ -169,14 +171,16 @@ describe('notifications-api', () => {
       if (handler) {
         handler(payload);
         expect(mockCallback).toHaveBeenCalled();
-        // 错误应该被捕获，不应该影响订阅
+        expect(mockCallback).toHaveBeenCalledWith(payload.new);
       }
+
+      await expect(channelPromise).resolves.toBe(mockChannel);
     });
 
     it('logs subscription status changes', async () => {
       const { logger } = await import('../../src/utils/logger.js');
 
-      subscribeToNotifications('user-123', mockCallback);
+      const channelPromise = subscribeToNotifications('user-123', mockCallback);
 
       // 验证 subscribe 回调被调用
       expect(mockChannel.subscribe).toHaveBeenCalled();
@@ -192,6 +196,8 @@ describe('notifications-api', () => {
         statusCallback('SUBSCRIBED');
         expect(logger.info).toHaveBeenCalledWith('notifications-api', '实时订阅成功', { userId: 'user-123' });
       }
+
+      await expect(channelPromise).resolves.toBe(mockChannel);
     });
   });
 });

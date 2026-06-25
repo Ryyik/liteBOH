@@ -73,7 +73,7 @@
           :data-id="news.id" @click="showModal(news)" ref="newsCards">
           <div class="news-image">
             <img :src="getNewsImageUrl(news.image, 'card')" :alt="news.title" loading="lazy" decoding="async"
-              fetchpriority="low" sizes="(max-width: 768px) 90vw, (max-width: 1200px) 45vw, 33vw" />
+              fetchpriority="low" />
             <div class="news-date">{{ formatDate(news.date) }}</div>
           </div>
           <div class="news-content">
@@ -124,8 +124,7 @@
         </div>
         <div class="modal-body">
           <img :src="getNewsImageUrl(selectedNews.image, 'modal')" :alt="selectedNews.title" class="modal-image"
-            id="modalImage" loading="lazy" decoding="async" fetchpriority="low"
-            sizes="(max-width: 768px) 90vw, 800px" />
+            id="modalImage" loading="lazy" decoding="async" fetchpriority="low" />
           <div class="modal-content-text" v-html="sanitizedNewsContent"></div>
         </div>
       </div>

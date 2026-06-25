@@ -337,7 +337,7 @@ const PROFILE_SELECT_COLUMNS = `
         logger.warn('auth-store', `同步登录状态失败(${reason})`, error);
         if (isAuthSessionMissingError(error as AuthError)) {
           // 会话明确失效时，立即清理持久化登录态，避免使用过期 userInfo 继续请求受保护资源。
-          resetState();
+          await resetState();
           isInitialized.value = true;
           return;
         }
@@ -659,7 +659,7 @@ const PROFILE_SELECT_COLUMNS = `
         };
       }
 
-      resetState();
+      await resetState();
       return { success: true, message: data?.message || '账号已注销' };
     } catch (error) {
       logger.error('auth-store', '注销账号失败', error);
@@ -672,10 +672,10 @@ const PROFILE_SELECT_COLUMNS = `
       const { signOut: supabaseSignOut } = await loadAuthApi();
       const { error } = await supabaseSignOut();
       if (error) throw error;
-      resetState();
+      await resetState();
     } catch (error) {
       logger.error('auth-store', '退出登录失败', error);
-      resetState();
+      await resetState();
     }
   };
 

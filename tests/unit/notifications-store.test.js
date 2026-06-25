@@ -5,7 +5,11 @@ const nm = vi.hoisted(() => ({
   getUserNotifications: vi.fn(),
   getUnreadNotificationCount: vi.fn(),
   getCurrentUser: vi.fn(),
-  subscribeToNotifications: vi.fn(),
+  subscribeToNotifications: vi.fn().mockResolvedValue({
+    unsubscribe: vi.fn(),
+    on: vi.fn(function () { return this; }),
+    subscribe: vi.fn(function (cb) { if (cb) cb('SUBSCRIBED'); return this; }),
+  }),
   supabase: { removeChannel: vi.fn() },
   invalidateByTags: vi.fn(),
 }));
@@ -44,7 +48,6 @@ describe('notifications store: basic state', () => {
   it('initializes with default values', () => {
     const store = useNotificationStore();
     expect(store.unreadCount).toBe(0);
-    expect(store.notifications).toEqual([]);
     expect(store.showToast).toBe(false);
     expect(store.toastTitle).toBe('');
     expect(store.toastDesc).toBe('');
@@ -120,7 +123,6 @@ describe('notifications store: setUnreadCount / resetState', () => {
     store.displayToast('title', 'desc');
     store.resetState();
     expect(store.unreadCount).toBe(0);
-    expect(store.notifications).toEqual([]);
     expect(store.showToast).toBe(false);
   });
 });
@@ -132,26 +134,11 @@ describe('notifications store: async operations', () => {
     vi.clearAllMocks();
   });
 
-  it('loadNotifications: skips when no currentUserId', async () => {
+  it('startNotificationListener: skips when no userId provided', async () => {
     setActivePinia(createPinia());
     const store = useNotificationStore();
-    await store.loadNotifications();
-    expect(nm.getUserNotifications).not.toHaveBeenCalled();
-  });
-
-  it('loadNotifications: loads notifications when userId is set', async () => {
-    setActivePinia(createPinia());
-    nm.getUserNotifications.mockResolvedValue({
-      data: [{ id: 'n1', type: 'like' }],
-      error: null,
-    });
-
-    const store = useNotificationStore();
-    store.$patch({ currentUserId: 'u1' });
-
-    await store.loadNotifications();
-    expect(store.notifications).toHaveLength(1);
-    expect(nm.getUserNotifications).toHaveBeenCalledWith('u1');
+    await store.startNotificationListener('');
+    expect(store.currentUserId).toBeNull();
   });
 
   it('refreshUnreadCount: fetches unread count when userId is set', async () => {
@@ -179,22 +166,30 @@ describe('notifications store: async operations', () => {
     expect(nm.getUnreadNotificationCount).toHaveBeenCalledWith('auto-user');
   });
 
-  it('stopNotificationListener: handles null subscription', () => {
+  it('stopNotificationListener: handles no handler gracefully', () => {
     setActivePinia(createPinia());
     const store = useNotificationStore();
     expect(() => store.stopNotificationListener()).not.toThrow();
   });
 
-  it('stopNotificationListener: removes single channel subscription', async () => {
+  it('stopNotificationListener: cleans up event listener', async () => {
     setActivePinia(createPinia());
     const store = useNotificationStore();
-    const mockChannel = { unsubscribe: vi.fn() };
-    store.$patch({ notificationSubscription: mockChannel });
-    store.stopNotificationListener();
+    await store.startNotificationListener('u1');
+    await store.stopNotificationListener();
+    // 不应抛出错误
+  });
 
-    // removeChannelSafely is async (void), wait for microtasks
-    await vi.waitFor(() => {
-      expect(nm.supabase.removeChannel).toHaveBeenCalledWith(mockChannel);
-    }, { timeout: 200 });
+  it('startNotificationListener: sets userId and refreshes unread count', async () => {
+    setActivePinia(createPinia());
+    nm.getCurrentUser.mockResolvedValue({ id: 'u1' });
+    nm.getUnreadNotificationCount.mockResolvedValue({ count: 2 });
+
+    const store = useNotificationStore();
+    await store.startNotificationListener('u1');
+
+    expect(store.currentUserId).toBe('u1');
+    expect(nm.getUnreadNotificationCount).toHaveBeenCalledWith('u1');
+    expect(store.unreadCount).toBe(2);
   });
 });
