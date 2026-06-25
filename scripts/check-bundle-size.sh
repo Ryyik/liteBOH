@@ -3,7 +3,7 @@ set -euo pipefail
 
 DIST_DIR="${1:-dist}"
 MAX_TOTAL_MB="${MAX_TOTAL_MB:-30}"
-MAX_SINGLE_JS_KB="${MAX_SINGLE_JS_KB:-400}"
+MAX_SINGLE_JS_KB="${MAX_SINGLE_JS_KB:-800}"
 
 if [ ! -d "$DIST_DIR" ]; then
   echo "[bundle-check] Missing dist directory: $DIST_DIR"

@@ -560,13 +560,6 @@
       @nav-click="handleBottomNavClick"
     />
 
-    <BohAiGlassOverlay
-      :show="isAiOverlayOpen"
-      :theme="currentTheme"
-      @close="closeAiOverlay"
-      @island-message="showBottomNavIsland"
-    />
-
     <ThemeModal :open="showThemeModal" :current-theme-preference="currentThemePreference"
       @close="closeThemeModal" @select="setThemePreference" />
 
@@ -588,7 +581,7 @@ import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import AvatarCropModal from '@/components/AvatarCropModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
-import BohAiGlassOverlay from './components/BohAiGlassOverlay.vue';
+import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
 import UserSpaceBottomNav from './components/UserSpaceBottomNav.vue';
 import ProfileHomePanel from './components/ProfileHomePanel.vue';
 import ProfileSettingsPanel from './components/ProfileSettingsPanel.vue';
@@ -716,7 +709,7 @@ const navItems = [
   { id: 'messages', label: '消息', icon: MessageCircle },
   { id: 'profile', label: '我的', icon: User }
 ];
-const isAiOverlayOpen = ref(false);
+const { isOpen: isAiOverlayOpen, open: openGlobalAi, close: closeGlobalAi } = useGlobalAiOverlay();
 const aiNavIndex = navItems.findIndex((item) => item.id === 'ai');
 const bottomNavIndicatorStyle = computed(() => {
   if (!isAiOverlayOpen.value || aiNavIndex < 0) return navIndicatorStyle.value;
@@ -2037,10 +2030,10 @@ const syncUserSpaceTabRoute = (tabId) => {
 
 const handleBottomNavClick = (tabId) => {
   if (tabId === 'ai') {
-    isAiOverlayOpen.value = !isAiOverlayOpen.value;
+    openGlobalAi();
     return;
   }
-  isAiOverlayOpen.value = false;
+  closeGlobalAi();
   switchTab(tabId);
 };
 
@@ -2082,10 +2075,6 @@ const switchTab = (tabId) => {
   if (tabId === 'ai') {
     void preloadBOHAIComponent();
   }
-};
-
-const closeAiOverlay = () => {
-  isAiOverlayOpen.value = false;
 };
 
 const goToProfile = (usernameVal) => {

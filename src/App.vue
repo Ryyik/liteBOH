@@ -7,6 +7,8 @@ import { useAuthStore } from "@/stores/auth";
 import { storeToRefs } from "pinia";
 import { loadNotificationStore, getNotificationStoreSync } from "@/stores/notification-loader";
 import { logger } from "@/utils/logger.js";
+import { useGlobalAiOverlay } from "@/composables/useGlobalAiOverlay";
+import GlobalAiGlassOverlay from "@/components/GlobalAiGlassOverlay.vue";
 
 const route = useRoute();
 const authStore = useAuthStore();
@@ -15,6 +17,12 @@ const userInfo = authStore.userInfo;
 const notificationStoreRef = ref(getNotificationStoreSync());
 const LoginView = defineAsyncComponent(() => import("./views/Login/index.vue"));
 const showToast = computed(() => notificationStoreRef.value?.showToast || false);
+
+const {
+  isOpen: globalAiOpen, open: openGlobalAi, close: closeGlobalAi,
+  theme: globalAiTheme, startDrag: startAiDrag,
+  moveDrag: moveAiDrag, endDrag: endAiDrag
+} = useGlobalAiOverlay();
 const toastTitle = computed(() => notificationStoreRef.value?.toastTitle || "");
 const toastDesc = computed(() => notificationStoreRef.value?.toastDesc || "");
 const toastIcon = computed(() => notificationStoreRef.value?.toastIcon || "🔔");
@@ -103,6 +111,71 @@ onUnmounted(() => {
   notificationStoreRef.value?.stopNotificationListener();
 });
 
+// 全局 AI 覆盖层：键盘快捷键 (Cmd+K / Ctrl+K)
+const handleGlobalAiKeydown = (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    const tag = e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return;
+    if (route.name === 'AiChat') return;
+    e.preventDefault();
+    if (globalAiOpen.value) closeGlobalAi();
+    else openGlobalAi();
+  }
+};
+
+// 全局 AI 覆盖层：移动端从右下角上滑手势（带动画跟随）
+let globalAiTouchStartY = 0;
+let globalAiTouchStartX = 0;
+let aiDragActive = false;
+
+const handleGlobalAiTouchStart = (e) => {
+  const touch = e.touches[0];
+  globalAiTouchStartY = touch.clientY;
+  globalAiTouchStartX = touch.clientX;
+  aiDragActive = false;
+};
+
+const handleGlobalAiTouchMove = (e) => {
+  if (aiDragActive) {
+    moveAiDrag(e.touches[0].clientY);
+    return;
+  }
+  if (globalAiOpen.value) return;
+  const touch = e.touches[0];
+  const dy = globalAiTouchStartY - touch.clientY;
+  const dx = Math.abs(touch.clientX - globalAiTouchStartX);
+  if (
+    window.innerWidth - globalAiTouchStartX < 60 &&
+    window.innerHeight - globalAiTouchStartY < 80 &&
+    dy > 15
+  ) {
+    aiDragActive = true;
+    startAiDrag(globalAiTouchStartY);
+    moveAiDrag(touch.clientY);
+  }
+};
+
+const handleGlobalAiTouchEnd = (e) => {
+  if (aiDragActive) {
+    endAiDrag();
+    aiDragActive = false;
+  }
+};
+
+onMounted(() => {
+  window.addEventListener('keydown', handleGlobalAiKeydown);
+  window.addEventListener('touchstart', handleGlobalAiTouchStart, { passive: true });
+  window.addEventListener('touchmove', handleGlobalAiTouchMove, { passive: true });
+  window.addEventListener('touchend', handleGlobalAiTouchEnd, { passive: true });
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleGlobalAiKeydown);
+  window.removeEventListener('touchstart', handleGlobalAiTouchStart);
+  window.removeEventListener('touchmove', handleGlobalAiTouchMove);
+  window.removeEventListener('touchend', handleGlobalAiTouchEnd);
+});
+
 // 监听用户ID变化，开启通知监听
 watch(() => userInfo.id, (newId) => {
   if (newId && isInitialized.value && isLoggedIn.value) {
@@ -149,6 +222,13 @@ const showGlobalNavbar = computed(() =>
 
   <!-- 全局登录模态框 -->
   <LoginView :show="showLoginModal" :is-modal="true" @close="showLoginModal = false" />
+
+  <!-- 全局 AI 快速对话覆盖层 -->
+  <GlobalAiGlassOverlay
+    :show="globalAiOpen"
+    :theme="globalAiTheme"
+    @close="closeGlobalAi"
+  />
 
   <!-- 首次进入提示 & 消息通知 -->
   <Transition name="toast">

@@ -1,0 +1,549 @@
+<template>
+  <Teleport to="body">
+    <div
+      ref="overlayRef"
+      class="global-ai-glass-overlay"
+      :class="{
+        'is-open': isOpen || isDragging,
+        'is-dragging': isDragging,
+        'is-snapping': isSnapping,
+        'is-fullscreen': isFullscreen,
+        'keyboard-visible': keyboardVisible
+      }"
+      :data-theme="theme"
+      :style="overlayStyle"
+      role="dialog"
+      aria-modal="true"
+      aria-label="BOH AI 快速对话"
+    >
+      <div
+        v-if="isMobile"
+        class="global-ai-glass-handle"
+        @touchstart="onHandleTouchStart"
+        @touchmove="onHandleTouchMove"
+        @touchend="onHandleTouchEnd"
+      >
+        <div class="global-ai-glass-handle-bar"></div>
+      </div>
+
+      <button v-if="isOpen" class="global-ai-glass-close" type="button" aria-label="关闭 BOH AI" @click="close">
+        <X :size="19" :stroke-width="2" aria-hidden="true" />
+      </button>
+
+      <div v-if="mountedOnce" class="global-ai-glass-chat" ref="chatRef">
+        <BOHAIChat :embedded="true" :overlay-mode="true" @island-message="$emit('island-message', $event)" />
+      </div>
+    </div>
+  </Teleport>
+</template>
+
+<script setup>
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { X } from 'lucide-vue-next'
+import { defineAsyncComponent, h } from 'vue'
+import AiChatSkeleton from '@/views/user-center/UserSpace/components/AiChatSkeleton.vue'
+import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay'
+
+const BOHAIChat = defineAsyncComponent({
+  loader: () => import('@/views/BOHAI/BOHAI/BOHAIMain.vue'),
+  loadingComponent: AiChatSkeleton,
+  errorComponent: {
+    name: 'BOHAILoadError',
+    setup() {
+      return () => h('div', { class: 'ai-load-fallback' }, [
+        h('h3', 'BOH AI 加载失败'),
+        h('p', '请刷新页面后重试，或稍后再打开 AI。')
+      ])
+    }
+  },
+  delay: 120,
+  timeout: 15000
+})
+
+defineProps({
+  theme: { type: String, default: '' },
+  show: { type: Boolean, default: true }
+})
+
+defineEmits(['close', 'island-message'])
+
+const {
+  isOpen, isDragging, dragProgress,
+  close, setOverlayHeight, startDrag, moveDrag, endDrag
+} = useGlobalAiOverlay()
+
+const overlayRef = ref(null)
+const chatRef = ref(null)
+const isSnapping = ref(false)
+const isMobile = ref(false)
+const mountedOnce = ref(false)
+const keyboardVisible = ref(false)
+const keyboardHeight = ref(0)
+let snapTimer = null
+
+function checkMobile() {
+  isMobile.value = window.innerWidth <= 1023
+}
+
+const isFullscreen = computed(() => dragProgress.value >= 1.9)
+
+function translateYPercent(p) {
+  if (p <= 1) return 100 - 55 * p
+  return 45 - 45 * (p - 1)
+}
+
+const overlayStyle = computed(() => {
+  if (!isMobile.value) return {}
+  const ty = translateYPercent(dragProgress.value)
+  const tyPx = (ty / 100) * window.innerHeight
+  return {
+    transform: `translate3d(0, ${ty}%, 0)`,
+    '--input-ty-offset': `${tyPx}px`,
+    '--kbd-height': `${keyboardHeight.value}px`,
+    borderRadius: ty <= 0 ? '0' : '24px 24px 0 0'
+  }
+})
+
+function onHandleTouchStart(e) {
+  e.stopPropagation()
+  if (isSnapping.value) return
+  const touch = e.touches[0]
+  startDrag(touch.clientY)
+}
+
+function onHandleTouchMove(e) {
+  e.preventDefault()
+  if (!isDragging.value) return
+  const touch = e.touches[0]
+  moveDrag(touch.clientY)
+}
+
+function onHandleTouchEnd() {
+  if (!isDragging.value) return
+  endDrag()
+}
+
+watch(isDragging, (val) => {
+  if (!val && isOpen.value) {
+    isSnapping.value = true
+    clearTimeout(snapTimer)
+    snapTimer = setTimeout(() => {
+      isSnapping.value = false
+    }, 600)
+  }
+})
+
+watch(isOpen, (val) => {
+  if (val) {
+    if (!mountedOnce.value) mountedOnce.value = true
+    isSnapping.value = true
+    clearTimeout(snapTimer)
+    snapTimer = setTimeout(() => {
+      isSnapping.value = false
+    }, 600)
+  }
+})
+
+function updateKeyboard() {
+  if (window.visualViewport) {
+    const diff = window.innerHeight - window.visualViewport.height
+    keyboardVisible.value = diff > 120
+    keyboardHeight.value = diff > 120 ? diff : 0
+  }
+}
+
+onMounted(() => {
+  document.body.classList.add('global-ai-glass-open')
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+  window.visualViewport?.addEventListener('resize', updateKeyboard)
+  updateKeyboard()
+  const el = overlayRef.value
+  if (el) {
+    setOverlayHeight(() => window.innerHeight)
+  }
+})
+
+onUnmounted(() => {
+  document.body.classList.remove('global-ai-glass-open')
+  window.removeEventListener('resize', checkMobile)
+  window.visualViewport?.removeEventListener('resize', updateKeyboard)
+  clearTimeout(snapTimer)
+})
+</script>
+
+<style scoped>
+.global-ai-glass-overlay {
+  --global-ai-bottom-nav-clearance: max(104px, calc(96px + env(safe-area-inset-bottom, 0px)));
+  position: fixed;
+  z-index: 2147481800;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  background:
+    linear-gradient(180deg, rgba(248, 250, 252, 0.3), rgba(226, 232, 240, 0.2)),
+    rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: #0f172a;
+  isolation: isolate;
+  will-change: transform, opacity;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.global-ai-glass-overlay.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.global-ai-glass-overlay.is-snapping {
+  transition: transform 520ms cubic-bezier(0.16, 1, 0.3, 1), opacity 360ms ease, border-radius 300ms ease;
+}
+
+.global-ai-glass-overlay.is-dragging {
+  transition: none;
+}
+
+@media (max-width: 1023px) {
+  .global-ai-glass-overlay {
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 100dvh;
+    border-radius: 24px 24px 0 0;
+    box-shadow: 0 -8px 40px rgba(15, 23, 42, 0.12);
+  }
+
+  .global-ai-glass-overlay.is-fullscreen {
+    border-radius: 0;
+  }
+}
+
+@media (min-width: 1024px) {
+  .global-ai-glass-overlay {
+    top: 0;
+    right: 0;
+    width: 460px;
+    height: 100dvh;
+    border-left: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: -8px 0 40px rgba(15, 23, 42, 0.1);
+    transform: translate3d(100%, 0, 0);
+  }
+
+  .global-ai-glass-overlay.is-open {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.global-ai-glass-overlay.keyboard-visible {
+  --kbd-clearance: max(8px, env(safe-area-inset-bottom, 0px));
+}
+
+.global-ai-glass-overlay.keyboard-visible .global-ai-glass-chat :deep(.chat-container) {
+  padding-bottom: calc(var(--global-ai-bottom-nav-clearance) + 96px + var(--kbd-height, 0px));
+}
+
+.global-ai-glass-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  cursor: grab;
+  touch-action: none;
+}
+
+.global-ai-glass-handle:active {
+  cursor: grabbing;
+}
+
+.global-ai-glass-handle-bar {
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.5);
+  transition: background 0.2s ease, width 0.2s ease;
+}
+
+.global-ai-glass-handle:hover .global-ai-glass-handle-bar {
+  background: rgba(148, 163, 184, 0.7);
+  width: 40px;
+}
+
+.global-ai-glass-close {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top, 0px));
+  right: max(14px, env(safe-area-inset-right, 0px));
+  z-index: 2147482100;
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.58);
+  color: #111827;
+  cursor: pointer;
+  transition: transform 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+
+.global-ai-glass-close:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.86);
+  border-color: rgba(255, 255, 255, 0.92);
+}
+
+.global-ai-glass-chat {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.global-ai-glass-chat :deep(.bohai-page) {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.global-ai-glass-chat :deep(.bohai-page),
+.global-ai-glass-chat :deep(.bohai-container),
+.global-ai-glass-chat :deep(.main-content) {
+  height: 100%;
+  min-height: 0;
+  background: transparent !important;
+}
+
+.global-ai-glass-chat :deep(.bohai-page) {
+  --bohai-bg: transparent;
+  --bohai-chat-rail-width: min(calc(100% - 28px), 920px);
+  --bohai-composer: 860px;
+}
+
+.global-ai-glass-chat :deep(.sidebar),
+.global-ai-glass-chat :deep(.sidebar-overlay) {
+  top: 0;
+  bottom: 0;
+}
+
+.global-ai-glass-chat :deep(.main-content) {
+  margin-left: 0;
+}
+
+.global-ai-glass-chat :deep(.sidebar-open-btn) {
+  top: max(14px, env(safe-area-inset-top, 0px));
+  left: max(14px, env(safe-area-inset-left, 0px));
+  background: rgba(255, 255, 255, 0.62);
+  border-color: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+}
+
+.global-ai-glass-chat :deep(.chat-container) {
+  padding-top: max(126px, calc(118px + env(safe-area-inset-top, 0px)));
+  padding-bottom: calc(var(--global-ai-bottom-nav-clearance) + 96px);
+}
+
+.global-ai-glass-chat :deep(.bohai-page.overlay-mode .input-area) {
+  width: min(calc(100% - 32px), 860px);
+  bottom: calc(var(--kbd-clearance, var(--boh-ai-bottom-nav-clearance)) + var(--input-ty-offset, 0px) + var(--kbd-height, 0px)) !important;
+  padding-bottom: 0;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.global-ai-glass-overlay.is-snapping .global-ai-glass-chat :deep(.bohai-page.overlay-mode .input-area) {
+  transition: bottom 520ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.global-ai-glass-overlay.is-dragging .global-ai-glass-chat :deep(.bohai-page.overlay-mode .input-area) {
+  transition: none;
+}
+
+.global-ai-glass-chat :deep(.input-box) {
+  background: rgba(255, 255, 255, 0.74);
+  border-color: rgba(255, 255, 255, 0.78);
+  box-shadow:
+    0 18px 50px rgba(15, 23, 42, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  transition: transform 520ms cubic-bezier(0.16, 1, 0.3, 1), opacity 360ms ease;
+}
+
+.global-ai-glass-chat :deep(.empty-state) {
+  min-height: auto;
+  justify-content: center;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.global-ai-glass-chat :deep(.input-box),
+.global-ai-glass-chat :deep(.sidebar-inner),
+.global-ai-glass-chat :deep(.sidebar-item),
+.global-ai-glass-chat :deep(.message-actions),
+.global-ai-glass-chat :deep(.scroll-to-bottom),
+.global-ai-glass-chat :deep(.message.user .message-content),
+.global-ai-glass-chat :deep(.conversation-jump-nav),
+.global-ai-glass-chat :deep(.message-tile),
+.global-ai-glass-chat :deep(.empty-suggestion-card),
+.global-ai-glass-chat :deep(.features-menu),
+.global-ai-glass-chat :deep(.header-glass),
+.global-ai-glass-chat :deep(.sidebar-toggle),
+.global-ai-glass-chat :deep(.settings-btn),
+.global-ai-glass-chat :deep(.share-btn),
+.global-ai-glass-chat :deep(.search-box),
+.global-ai-glass-chat :deep(.model-selector-content),
+.global-ai-glass-chat :deep(.knowledge-btn),
+.global-ai-glass-chat :deep(.compact-input),
+.global-ai-glass-chat :deep(.compact-popup),
+.global-ai-glass-chat :deep(.ai-settings-drawer),
+.global-ai-glass-chat :deep(.sidebar-open-btn),
+.global-ai-glass-chat :deep(.conversation-header) {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.global-ai-glass-chat :deep(.input-box) {
+  background: rgba(255, 255, 255, 0.82);
+}
+
+:global(body.global-ai-glass-open .sidebar.is-embedded),
+:global(body.global-ai-glass-open .sidebar.open.is-embedded) {
+  z-index: 2147482500 !important;
+}
+
+:global(body.global-ai-glass-open .sidebar-overlay.is-embedded) {
+  z-index: 2147482400 !important;
+}
+
+:global(body.global-ai-glass-open .sidebar-open-btn) {
+  z-index: 2147482100 !important;
+}
+
+:global(body.global-ai-glass-open .ai-settings-backdrop) {
+  z-index: 2147483000 !important;
+}
+
+:global(body.global-ai-glass-open .ai-settings-drawer) {
+  z-index: 2147483100 !important;
+}
+
+.global-ai-glass-overlay[data-theme="dark"] {
+  color: #f8fafc;
+  background:
+    linear-gradient(180deg, rgba(15, 18, 24, 0.62), rgba(15, 18, 24, 0.48)),
+    rgba(2, 6, 23, 0.28);
+}
+
+.global-ai-glass-overlay[data-theme="dark"] .global-ai-glass-close {
+  color: #f8fafc;
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(15, 23, 42, 0.58);
+}
+
+.global-ai-glass-overlay[data-theme="dark"] .global-ai-glass-chat :deep(.input-box),
+.global-ai-glass-overlay[data-theme="dark"] .global-ai-glass-chat :deep(.sidebar-open-btn) {
+  background: rgba(15, 23, 42, 0.72);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.global-ai-glass-overlay[data-theme="dark"] .global-ai-glass-chat :deep(.bohai-page.embedded-mode .sidebar) {
+  background: rgba(15, 23, 42, 0.72);
+  border-right-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 18px 0 44px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 767px) {
+  .global-ai-glass-close {
+    top: max(14px, env(safe-area-inset-top, 0px));
+  }
+
+  .global-ai-glass-chat :deep(.bohai-page) {
+    --bohai-chat-rail-width: min(calc(100% - 24px), 860px);
+    --bohai-composer: 860px;
+  }
+
+  .global-ai-glass-chat :deep(.input-area),
+  .global-ai-glass-chat :deep(.conversation-jump-nav) {
+    width: min(calc(100% - 24px), 860px);
+  }
+
+  .global-ai-glass-chat :deep(.bohai-page.overlay-mode .conversation-jump-nav) {
+    display: none !important;
+  }
+}
+
+/* ===== 底部扫光效果（仅移动端入场一次性） ===== */
+@media (max-width: 1023px) {
+  .global-ai-glass-overlay::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(
+      0deg,
+      rgba(140, 200, 255, 0.22) 0%,
+      rgba(140, 200, 255, 0.12) 18%,
+      rgba(180, 150, 255, 0.06) 38%,
+      transparent 55%
+    );
+    pointer-events: none;
+    will-change: clip-path, opacity;
+    clip-path: inset(100% 0 0 0);
+    opacity: 0;
+  }
+
+  .global-ai-glass-overlay[data-theme="dark"]::after {
+    background: linear-gradient(
+      0deg,
+      rgba(80, 200, 255, 0.25) 0%,
+      rgba(80, 200, 255, 0.14) 18%,
+      rgba(140, 100, 255, 0.08) 38%,
+      transparent 55%
+    );
+  }
+
+  @keyframes lightSweep {
+    0% {
+      clip-path: inset(100% 0 0 0);
+      opacity: 0;
+    }
+    10% {
+      opacity: 1;
+    }
+    40% {
+      clip-path: inset(0% 0 0 0);
+      opacity: 1;
+    }
+    70% {
+      opacity: 0.6;
+    }
+    100% {
+      clip-path: inset(0% 0 0 0);
+      opacity: 0;
+    }
+  }
+
+  .global-ai-glass-overlay.is-snapping.is-open::after {
+    animation: lightSweep 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .global-ai-glass-overlay.is-snapping {
+    transition-duration: 1ms !important;
+  }
+
+  .global-ai-glass-overlay.is-snapping.is-open::after {
+    animation: none;
+  }
+}
+</style>
