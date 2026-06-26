@@ -27,7 +27,7 @@ const props = defineProps({
   selectedMessage: { type: Object, default: null }
 });
 
-const emit = defineEmits(['close', 'markAllRead', 'select', 'filterChange', 'loadMore']);
+const emit = defineEmits(['update:open', 'close', 'markAllRead', 'select', 'update:typeFilter', 'filterChange', 'loadMore']); // 修复：添加 v-model 所需的 update:open 和 update:typeFilter
 
 const formatDate = formatSmartTime;
 
@@ -201,6 +201,7 @@ function handleNotificationItemClick(notification, event) {
 }
 
 function handleFilterChange(value) {
+  emit('update:typeFilter', value); // 修复：符合 Vue 3 v-model 约定
   emit('filterChange', value);
 }
 
@@ -209,6 +210,7 @@ function handleMarkAllAsRead() {
 }
 
 function handleClose() {
+  emit('update:open', false); // 修复：符合 Vue 3 v-model 约定
   emit('close');
 }
 </script>

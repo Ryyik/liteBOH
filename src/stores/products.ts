@@ -134,6 +134,7 @@ export const useProductsStore = defineStore('products', () => {
     productsData.value = []
     isFetchingProducts.value = false
     fetchError.value = ''
+    localStorage.removeItem(CACHE_KEY) // 修复：清理 localStorage 缓存
   }
 
   return {

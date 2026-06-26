@@ -1,5 +1,5 @@
 import { createApp } from "vue";
-import { MotionPlugin } from '@vueuse/motion'
+import { MotionPlugin } from "@vueuse/motion";
 
 // ============================================
 // 第三方库样式 (Vendor Styles)
@@ -145,16 +145,24 @@ const pinia = createPinia();
 pinia.use(piniaPluginPersistedstate);
 
 app.use(pinia);
-app.use(MotionPlugin);
 app.use(router);
+app.use(MotionPlugin);
+
+// 修复：添加全局 Vue 错误处理器，防止异步错误导致白屏无提示
+app.config.errorHandler = (err, instance, info) => {
+  logger.error('vue', `Error in ${info}`, err);
+};
 
 const authStore = useAuthStore();
 const bagStore = useBagStore();
 
-authStore.initLoginState();
-bagStore.loadShoppingBag();
-
 app.mount("#app");
+
+// 异步初始化登录状态和购物袋（不阻塞首屏渲染）
+authStore.initLoginState().catch(err => {
+  logger.warn('auth', '登录状态初始化失败', err);
+});
+bagStore.loadShoppingBag();
 
 // 初始化主题管理器（在应用挂载后，确保 DOM 元素已存在）
 themeManager.init();

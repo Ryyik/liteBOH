@@ -319,7 +319,7 @@ export function useChatEngine() {
     createSseLineParser,
     getFallbackModel,
     safeChunkToString
-  } = useGenerationPipeline({ availableModels: runtimeAvailableModels.value, abortController });
+  } = useGenerationPipeline({ availableModels: runtimeAvailableModels.value, abortController, currentModeId });
   // --------------------------------------------------------------
 
   // 计算属性：当前会话的加载状态
@@ -1940,6 +1940,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
       const response = await callVaultSiliconChatStream({
         provider: generationModel.providerKey || 'siliconflow',
         purpose: 'chat',
+        mode: activeModeId,
         apiUrl: url,
         timeoutMs: STREAM_FETCH_TIMEOUT_MS,
         signal: streamFetchSignal,
@@ -2216,6 +2217,11 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
   onScopeDispose(() => {
     clearTimeout(generationTimeoutTimer);
     clearTimeout(streamIdleTimer);
+    stopThinkingTimer(); // 修复：清理 100ms interval 定时器
+    if (abortController.value) {
+      abortController.value.abort();
+      abortController.value = null;
+    }
   });
 
   return {

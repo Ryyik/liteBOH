@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth';
 import AltchaWidget from '@/components/AltchaWidget.vue';
 import AgreementModal from '@/components/AgreementModal.vue';
 import { userAgreementContent, privacyPolicyContent } from '@/data/agreementData.js';
+import DOMPurify from '@/utils/dompurify.js'; // 修复：添加 DOMPurify 防止 XSS
 import { getLoginDeviceIdHash } from '@/utils/device-trust.js';
 import { getAltchaChallengeUrl, isAltchaEnabled } from '@/utils/altcha.js';
 import { getImageUrl } from '@/utils/asset-helper.js';
@@ -66,7 +67,8 @@ const agreementModalTitle = computed(() => {
   return agreementModalType.value === 'user' ? '方块之家用户服务协议' : '方块之家隐私政策';
 });
 const agreementModalContent = computed(() => {
-  return agreementModalType.value === 'user' ? userAgreementContent : privacyPolicyContent;
+  const rawContent = agreementModalType.value === 'user' ? userAgreementContent : privacyPolicyContent;
+  return DOMPurify.sanitize(rawContent); // 修复：对协议内容进行 XSS 消毒
 });
 
 // 打开协议弹窗
@@ -605,7 +607,7 @@ onUnmounted(() => {
   <!-- 协议弹窗 -->
   <AgreementModal :visible="showAgreementModal" :title="agreementModalTitle"
     @update:visible="(val) => showAgreementModal = val" @close="closeAgreementModal">
-    <div v-html="agreementModalContent"></div>
+    <div v-html="agreementModalContent"></div> <!-- 已通过 DOMPurify 消毒 -->
   </AgreementModal>
 </template>
 
