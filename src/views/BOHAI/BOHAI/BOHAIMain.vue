@@ -223,6 +223,12 @@
                         </div>
 
                         <div class="input-right">
+                            <button type="button" class="quota-panel-btn" title="AI 使用额度" @click="isQuotaPanelOpen = true">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                </svg>
+                            </button>
                             <div class="composer-mode-picker" @click.stop>
                                 <button type="button" class="composer-mode-button" :class="{ open: modeMenuOpen }"
                                     :title="currentMode.description || currentMode.tagline"
@@ -232,7 +238,7 @@
                                 </button>
                                 <div v-show="modeMenuOpen" class="composer-mode-menu" role="menu"
                                     aria-label="选择 BOH AI 模式" @click.stop>
-                                    <button v-for="(mode, index) in chatModes" :key="mode.id" type="button"
+                                    <button v-for="(mode, index) in filteredChatModes" :key="mode.id" type="button"
                                         class="composer-mode-option" :class="{ active: currentModeId === mode.id }"
                                         role="menuitemradio" :aria-checked="currentModeId === mode.id"
                                         :data-mode-id="mode.id" :data-mode-index="index"
@@ -257,6 +263,14 @@
                     </div>
                     <p v-if="rateLimitMessage" class="rate-limit">{{ rateLimitMessage }}</p>
                     <p v-if="uiNotice" class="ui-notice" role="status">{{ uiNotice }}</p>
+                    <div v-if="showContextWarning" class="context-full-banner">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" y1="8" x2="12" y2="12" />
+                            <line x1="12" y1="16" x2="12.01" y2="16" />
+                        </svg>
+                        <span>当前对话上下文已满，继续发送将自动压缩历史消息</span>
+                    </div>
                 </footer>
             </main>
         </div>
@@ -291,6 +305,7 @@
             @confirm="handleConfirm"
             @close="handleClose" />
 
+        <AiQuotaSidePanel :visible="isQuotaPanelOpen" @close="isQuotaPanelOpen = false" />
 
     </div>
 </template>
@@ -304,7 +319,9 @@ import { storeToRefs } from 'pinia';
 import BohaiSidebar from './components/BohaiSidebar.vue';
 import BohaiSettingsPanel from './components/BohaiSettingsPanel.vue';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
+import AiQuotaSidePanel from '@/components/ai/AiQuotaSidePanel.vue';
 import { marked } from 'marked';
+import { logger } from '@/utils/logger.js';
 import DOMPurify from '@/utils/dompurify.js';
 import { themeManager } from '@/utils/theme-manager.js';
 import { formatBohAIRetrievalTraceSummary } from '@/utils/bohai-observability.js';
@@ -347,6 +364,14 @@ const expandedMessageDetails = ref(new Set());
 const messageFeedbackByIndex = ref({});
 const modeMenuOpen = ref(false);
 const settingsOpen = ref(false);
+const isQuotaPanelOpen = ref(false);
+
+const filteredChatModes = computed(() => {
+  if (!authStore.isLoggedIn) {
+    return chatModes.value.filter((m) => m.id === 'fast');
+  }
+  return chatModes.value;
+});
 const confirmState = reactive({
     show: false,
     type: 'warning',
@@ -533,6 +558,13 @@ const lastAssistantMessageIndex = computed(() => {
         if (list[i]?.role === 'assistant') return i;
     }
     return -1;
+});
+
+const showContextWarning = computed(() => {
+    const usage = contextBudgetUsage.value;
+    if (!usage) return false;
+    const pct = usage?.historyPercent ?? usage?.percent ?? 0;
+    return pct >= 80;
 });
 
 const RING_RADIUS = 8;
@@ -955,7 +987,8 @@ const submitInlineAnswer = () => {
     if (!answer || isLoading.value) return;
     inputMessage.value = answer;
     aiQuestionAnswer.value = '';
-    nextTick(() => { sendMessage().catch(console.error); });
+    // 修复：使用 logger.error 替代 console.error
+    nextTick(() => { sendMessage().catch((err) => logger.error('bohai', 'Inline answer send failed', err)); });
 };
 
 const getMessageRetrievalTrace = (msg) => {
@@ -1535,6 +1568,39 @@ watch(isCompressingContext, (compressing) => {
 .ai-question-input:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+.quota-panel-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: #6b7280;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.quota-panel-btn:hover {
+    background: #f3f4f6;
+    color: #111827;
+    border-color: #e5e7eb;
+}
+
+.context-full-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    margin: 8px 16px 0;
+    background: #fefce8;
+    border: 1px solid #fde68a;
+    border-radius: 8px;
+    color: #92400e;
+    font-size: 13px;
+    line-height: 1.4;
 }
 
 @media (max-width: 767px) {

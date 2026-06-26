@@ -348,7 +348,6 @@ export function useChatEngine() {
     persistSharedMemorySetting, persistKnowledgeBaseSetting
   } = useModelConfig({ availableModels: runtimeAvailableModels, chatModes: runtimeChatModes });
 
-  const isModelConfigLoaded = ref(false);
   const loadRuntimeModelConfig = async () => {
     try {
       const result = await listActiveBohaiModelConfigs();
@@ -361,8 +360,6 @@ export function useChatEngine() {
       applyRuntimeModelConfig(buildBohaiRuntimeModels(result.data));
     } catch (error) {
       logger.error('boh-ai', 'BOHAI 模型配置加载异常', error);
-    } finally {
-      isModelConfigLoaded.value = true;
     }
   };
   void loadRuntimeModelConfig();
@@ -640,10 +637,6 @@ export function useChatEngine() {
     }
   };
   _scrollToBottom = scrollToBottom;
-
-  const sleep = (ms) => new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
 
   // Session Management — 会话 CRUD 已委托给 useConversationManager
   const startNewChat = () => {
@@ -1001,158 +994,6 @@ export function useChatEngine() {
     runtimeAvailableModels
   });
 
-  const runSimpleChatTurn = async ({ sessionIndex, session, userText }) => {
-    appendUserMessageWithTitle(sessionIndex, userText);
-    resetComposerInput();
-    scrollToBottom(true);
-    await ensureContextCompression(sessionIndex);
-
-    session.isLoading = true;
-    session.isThinking = true;
-    activeGenerationSessionIndex.value = sessionIndex;
-    startThinkingTimer();
-
-    const requestController = new AbortController();
-    abortController.value = requestController;
-    const targetSessionRef = session;
-    const assistantMessage = { role: 'assistant', content: '' };
-    session.messages.push(assistantMessage);
-    const messageIndex = session.messages.length - 1;
-    await nextTick();
-    scrollToBottom();
-
-    const updateContent = (text) => {
-      const targetSession = getSessionByIndex(sessionIndex);
-      if (!targetSession || targetSession !== targetSessionRef) return;
-      if (!targetSession.messages.includes(assistantMessage)) return;
-      assistantMessage.content = String(text || '');
-      scrollToBottom();
-    };
-
-    try {
-      const activeModeId = runtimeChatModes.value.some((mode) => mode.id === currentModeId.value)
-        ? currentModeId.value
-        : BOH_DEFAULT_MODE_ID;
-      lastRoutedMode.value = activeModeId;
-      mergeAssistantMessageMeta(sessionIndex, messageIndex, { routedMode: activeModeId });
-
-      let webEvidenceContext = '';
-      if (isSearching.value) {
-        setThinkingStatus('正在联网搜索...');
-        const WEB_SEARCH_TIMEOUT_MS = 30_000;
-        const webSearchSignal = typeof AbortSignal.any === 'function'
-          ? AbortSignal.any([requestController.signal, AbortSignal.timeout(WEB_SEARCH_TIMEOUT_MS)])
-          : requestController.signal;
-        const webSearchResult = await searchWebForPrompt(userText, webSearchSignal).catch((error) => ({
-          ok: false,
-          disabled: false,
-          count: 0,
-          context: '',
-          results: [],
-          error,
-          message: error?.message || '未知错误'
-        }));
-
-        if (webSearchResult?.disabled) {
-          isSearching.value = false;
-          if (!webSearchDisabledNoticeShownFor.has(sessionIndex)) {
-            webSearchDisabledNoticeShownFor.add(sessionIndex);
-            updateAssistantActionNotes(sessionIndex, messageIndex, ['联网搜索未配置，已跳过外部检索。']);
-          }
-        } else if (webSearchResult?.ok) {
-          const results = Array.isArray(webSearchResult.results) ? webSearchResult.results : [];
-          webEvidenceContext = truncateText(webSearchResult.context || '', MAX_PROMPT_EXTRA_CHARS);
-          updateAssistantActionNotes(
-            sessionIndex,
-            messageIndex,
-            [results.length > 0 ? `搜索了 ${results.length} 个内容。` : '搜索了 0 个内容。']
-          );
-        } else {
-          if (webSearchResult?.error && !isAbortError(webSearchResult.error)) {
-            logger.error('boh-ai', 'Search failed', webSearchResult.error);
-          }
-          updateAssistantActionNotes(sessionIndex, messageIndex, ['联网搜索失败，已尝试继续回答。']);
-        }
-      }
-
-      setThinkingStatus('正在生成回答...');
-      const generationModel = getModelForModeId(activeModeId, { userText })
-        || currentModel.value
-        || runtimeAvailableModels.value[0];
-      if (!generationModel?.id) {
-        throw new Error('未找到可用模型配置');
-      }
-
-      const modeAppendix = String(
-        runtimeChatModes.value.find((mode) => mode.id === activeModeId)?.promptAppendix || ''
-      ).trim();
-      const systemPromptContent = [
-        BASE_SYSTEM_PROMPT,
-        modeAppendix,
-        '当前 BOH AI 只保留通用对话、五种模式选择与用户主动开启的联网搜索。不要执行站内业务动作，不要创建帖子/页面/笔记，不要读取论坛、Cloud+、公共记忆、私域数据或资源库。一次用户输入只输出一条完整回答。'
-      ].filter(Boolean).join('\n');
-
-      const historyMessages = buildHistoryMessagesWithCachedSummary({
-        ...session,
-        messages: Array.isArray(session.messages) ? session.messages.slice(0, -2) : []
-      }, {
-        maxChars: MAX_HISTORY_CONTEXT_CHARS,
-        maxMessages: MAX_CONTEXT_MESSAGES,
-        maxPerMessage: MAX_HISTORY_MESSAGE_CHARS
-      });
-      const prompt = webEvidenceContext
-        ? [
-          truncateText(userText, MAX_USER_INPUT_CHARS),
-          '',
-          '【联网搜索结果】',
-          webEvidenceContext,
-          '',
-          '请结合搜索结果回答；如果搜索结果不足，请明确说明不确定。'
-        ].join('\n')
-        : truncateText(userText, MAX_USER_INPUT_CHARS);
-      const generationProfile = getGenerationProfile(activeModeId, {
-        factualQuestion: Boolean(webEvidenceContext),
-        operationQuestion: false
-      });
-
-      let streamedReply = '';
-      await callModelStream(
-        generationModel.id,
-        prompt,
-        systemPromptContent,
-        historyMessages,
-        (chunk) => {
-          streamedReply += chunk;
-          updateContent(streamedReply);
-        },
-        generationProfile,
-        requestController.signal
-      );
-      let finalContent = cleanAssistantVisibleReply(filterThinkingContent(streamedReply));
-      if (isDegenerateAssistantReply(finalContent)) {
-        finalContent = CHAT_ERROR_MESSAGES.abnormalReply;
-      }
-      const safeFinalContent = finalContent || CHAT_ERROR_MESSAGES.noValidContent;
-      if (safeFinalContent !== streamedReply) {
-        updateContent(safeFinalContent);
-      }
-      void refreshConversationSummaryCache(sessionIndex);
-    } catch (error) {
-      if (isAbortError(error)) {
-        const targetSession = getSessionByIndex(sessionIndex);
-        const currentContent = targetSession === targetSessionRef && targetSession?.messages?.includes(assistantMessage)
-          ? assistantMessage.content
-          : '';
-        updateContent(getAbortMessage(currentContent));
-      } else {
-        logger.error('boh-ai', 'Simple generation error', error);
-        updateContent(CHAT_ERROR_MESSAGES.generationFailed());
-      }
-    } finally {
-      cleanupGenerationState(sessionIndex, requestController);
-    }
-  };
-
   let generationTimeoutTimer = null;
   let streamIdleTimer = null;
 
@@ -1163,10 +1004,11 @@ export function useChatEngine() {
     if (rateLimitResult.blocked) return;
     recordMessageSent();
 
-    if (isCommandMode.value) {
-      await handleCommandModeGeneration();
-      return;
-    }
+    // TODO: handleCommandModeGeneration 函数未定义，暂时注释避免运行时错误
+    // if (isCommandMode.value) {
+    //   await handleCommandModeGeneration();
+    //   return;
+    // }
 
     const sessionIndex = currentSessionIndex.value;
     const session = getSessionByIndex(sessionIndex);
@@ -1372,12 +1214,13 @@ export function useChatEngine() {
       helpers: { isPostDraftRequest }
     });
 
-    if (autoDecision?.minecraftCommand) {
-      removePreflightLoader();
-      finishPreflightOnly();
-      await handleCommandModeGeneration(userText, { appendUser: false });
-      return;
-    }
+    // TODO: handleCommandModeGeneration 函数未定义，暂时注释避免运行时错误
+    // if (autoDecision?.minecraftCommand) {
+    //   removePreflightLoader();
+    //   finishPreflightOnly();
+    //   await handleCommandModeGeneration(userText, { appendUser: false });
+    //   return;
+    // }
 
     if (autoDecision?.shouldSaveCloud || autoDecision?.shouldSaveSharedMemory || autoDecision?.shouldAskMemoryDestination) {
       removePreflightLoader();
