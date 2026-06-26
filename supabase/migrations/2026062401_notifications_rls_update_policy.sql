@@ -2,6 +2,7 @@
 -- 允许用户只能归档/取消归档自己的通知
 -- 前置条件：notifications 表已启用 RLS
 
+drop policy if exists "Users can update their own notifications" on public.notifications;
 create policy "Users can update their own notifications"
   on public.notifications
   for update
