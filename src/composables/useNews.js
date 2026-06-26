@@ -1,6 +1,7 @@
 import { ref } from "vue";
 import { supabase } from "@/utils/supabase-client.js";
 import { executeRead } from "@/utils/request-core.js";
+import { logger } from "@/utils/logger.js";
 
 // 新闻数据
 export const newsData = ref([]);
@@ -38,8 +39,8 @@ export const initNews = async () => {
     newsData.value = data || [];
     sortedNews.value = data || [];
   } catch (err) {
-    console.error('获取新闻数据失败:', err);
-    error.value = err.message;
+    logger.error('news', '获取新闻数据失败:', err);
+    error.value = err?.message || String(err);
     newsData.value = [];
     sortedNews.value = [];
   } finally {

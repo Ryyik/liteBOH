@@ -673,6 +673,161 @@ const testKey = async (
   return sanitizeRow(data as VaultRow);
 };
 
+// ============================================================
+// AI 配额系统
+// ============================================================
+
+const QUOTA_CACHE_TTL_MS = 60_000;
+const QUOTA_CONFIG_CACHE = new Map<string, { limit: number; fetchedAt: number }>();
+
+function getBeijingTodayStartUTC(): string {
+  const now = new Date();
+  const beijing = new Date(now.getTime() + 8 * 3600000);
+  beijing.setUTCHours(0, 0, 0, 0);
+  return new Date(beijing.getTime() - 8 * 3600000).toISOString();
+}
+
+function getTomorrowBeijingStartUTC(): string {
+  const now = new Date();
+  const beijing = new Date(now.getTime() + 8 * 3600000);
+  beijing.setUTCDate(beijing.getUTCDate() + 1);
+  beijing.setUTCHours(0, 0, 0, 0);
+  return new Date(beijing.getTime() - 8 * 3600000).toISOString();
+}
+
+async function resolveUserTier(
+  client: ReturnType<typeof createServiceClient>,
+  userId: string | null,
+): Promise<string> {
+  if (!userId) return 'guest';
+  const { data } = await client
+    .from('user_subscriptions')
+    .select('plan_code')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .gt('expires_at', new Date().toISOString());
+  const plans = new Set((data || []).map((r: Record<string, unknown>) => String(r.plan_code || '')));
+  if (plans.has('boh-max')) return 'boh-max';
+  if (plans.has('boh-pro')) return 'boh-pro';
+  if (plans.has('boh-ai-plus')) return 'boh-ai-plus';
+  return 'free';
+}
+
+async function getDailyLimit(
+  client: ReturnType<typeof createServiceClient>,
+  tier: string,
+): Promise<number> {
+  const cached = QUOTA_CONFIG_CACHE.get(tier);
+  if (cached && Date.now() - cached.fetchedAt < QUOTA_CACHE_TTL_MS) {
+    return cached.limit;
+  }
+  const { data } = await client
+    .from('ai_quota_config')
+    .select('daily_limit')
+    .eq('tier', tier)
+    .maybeSingle();
+  const limit = data?.daily_limit ?? 0;
+  QUOTA_CONFIG_CACHE.set(tier, { limit, fetchedAt: Date.now() });
+  return limit;
+}
+
+async function countTodayUsage(
+  client: ReturnType<typeof createServiceClient>,
+  userId: string | null,
+  ipAddress: string | null,
+): Promise<number> {
+  const todayStart = getBeijingTodayStartUTC();
+  let query = client
+    .from('ai_quota_log')
+    .select('id', { count: 'exact', head: true })
+    .gte('created_at', todayStart);
+  if (userId) {
+    query = query.eq('user_id', userId);
+  } else if (ipAddress) {
+    query = query.eq('ip_address', ipAddress);
+  }
+  const { count } = await query;
+  return count || 0;
+}
+
+async function logUsage(
+  client: ReturnType<typeof createServiceClient>,
+  userId: string | null,
+  ipAddress: string | null,
+  body: Record<string, unknown>,
+): Promise<void> {
+  const payload = (body.payload || {}) as Record<string, unknown>;
+  await client.from('ai_quota_log').insert([{
+    user_id: userId,
+    ip_address: ipAddress,
+    model: String(payload.model || ''),
+    mode: String(body.mode || ''),
+    created_at: new Date().toISOString(),
+  }]);
+}
+
+async function checkAndLogRequest(
+  client: ReturnType<typeof createServiceClient>,
+  body: Record<string, unknown>,
+  request: Request,
+): Promise<{ allowed: boolean; used: number; limit: number; resetAt: string; tier: string }> {
+  const token = getBearerToken(request);
+  let userId: string | null = null;
+  let ipAddress: string | null = null;
+
+  if (token) {
+    const { data: userData } = await client.auth.getUser(token).catch(() => ({ data: null }));
+    userId = userData?.user?.id || null;
+  }
+  if (!userId) {
+    ipAddress = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
+  }
+
+  const tier = await resolveUserTier(client, userId);
+  const limit = await getDailyLimit(client, tier);
+
+  if (limit === -1) {
+    logUsage(client, userId, ipAddress, body).catch(() => {});
+    return { allowed: true, used: 0, limit: -1, resetAt: '', tier };
+  }
+
+  const used = await countTodayUsage(client, userId, ipAddress);
+  if (used >= limit) {
+    return { allowed: false, used, limit, resetAt: getTomorrowBeijingStartUTC(), tier };
+  }
+
+  await logUsage(client, userId, ipAddress, body).catch(() => {});
+  const actualUsed = await countTodayUsage(client, userId, ipAddress);
+  if (actualUsed > limit) {
+    const resetAt = getTomorrowBeijingStartUTC();
+    return { allowed: false, used: actualUsed, limit, resetAt, tier };
+  }
+  return { allowed: true, used: actualUsed, limit, resetAt: getTomorrowBeijingStartUTC(), tier };
+}
+
+async function handleQuotaStatus(
+  client: ReturnType<typeof createServiceClient>,
+  request: Request,
+) {
+  const token = getBearerToken(request);
+  let userId: string | null = null;
+  let ipAddress: string | null = null;
+
+  if (token) {
+    const { data: userData } = await client.auth.getUser(token).catch(() => ({ data: null }));
+    userId = userData?.user?.id || null;
+  }
+  if (!userId) {
+    ipAddress = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
+  }
+
+  const tier = await resolveUserTier(client, userId);
+  const limit = await getDailyLimit(client, tier);
+  const used = limit === -1 ? 0 : await countTodayUsage(client, userId, ipAddress);
+
+  return { tier, used, limit, resetAt: limit === -1 ? '' : getTomorrowBeijingStartUTC() };
+}
+
 Deno.serve(async (request) => {
   const origin = request.headers.get('origin');
   if (request.method === 'OPTIONS') {
@@ -688,15 +843,27 @@ Deno.serve(async (request) => {
     const action = toText(body.action || 'list', 30);
 
     if (action === 'runtime-chat') {
+      const quota = await checkAndLogRequest(client, body, request);
+      if (!quota.allowed) {
+        return jsonResponse({ ok: false, status: 429, data: { quota }, message: '今日 AI 对话额度已用完，明天 0:00 重置' }, 429, origin);
+      }
       const result = await runtimeChatCompletion(client, body);
       return jsonResponse(result, result.ok ? 200 : 502, origin);
     }
     if (action === 'runtime-chat-stream') {
+      const quota = await checkAndLogRequest(client, body, request);
+      if (!quota.allowed) {
+        return jsonResponse({ ok: false, status: 429, data: { quota }, message: '今日 AI 对话额度已用完，明天 0:00 重置' }, 429, origin);
+      }
       return await runtimeChatCompletionStream(client, body, origin);
     }
     if (action === 'runtime-search') {
       const result = await runtimeTavilySearch(client, body);
       return jsonResponse(result, result.ok ? 200 : 502, origin);
+    }
+    if (action === 'quota-status') {
+      const data = await handleQuotaStatus(client, request);
+      return jsonResponse({ ok: true, data }, 200, origin);
     }
 
     const admin = await requireAdmin(request, client);

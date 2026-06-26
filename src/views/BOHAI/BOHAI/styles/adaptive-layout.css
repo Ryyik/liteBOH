@@ -102,6 +102,8 @@
     transform: translate(-50%, -50%) !important;
 }
 
+/* 注释掉这段样式，避免与GlobalAiGlassOverlay.vue中的样式冲突 */
+/*
 .bohai-page.overlay-mode .input-area,
 .bohai-page.overlay-mode.empty-chat-mode .input-area,
 .bohai-page.overlay-mode.embedded-mode.empty-chat-mode .input-area {
@@ -119,6 +121,7 @@
     transform: translateX(-50%) !important;
     pointer-events: auto !important;
 }
+*/
 
 .bohai-page.overlay-mode .input-box,
 .bohai-page.overlay-mode[data-ui-style="glass"] .input-box,

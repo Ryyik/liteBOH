@@ -7,7 +7,10 @@ const theme = ref('light')
 const dragProgress = ref(1)
 const isDragging = ref(false)
 
-let resolveOverlayHeight = () => window.innerHeight
+let resolveOverlayHeight = () => {
+  if (typeof window !== 'undefined') return window.innerHeight
+  return 800
+}
 let dragStartY = 0
 let dragProgressBefore = 0
 let closeTimeout = null

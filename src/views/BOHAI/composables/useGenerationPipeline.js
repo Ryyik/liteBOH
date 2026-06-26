@@ -23,7 +23,8 @@ import { AUTO_ROUTER_MODEL_ID } from './chat-engine-config.js'
 const MODEL_CALL_TIMEOUT_MS = 30_000
 const STREAM_MODEL_CALL_TIMEOUT_MS = 60_000
 
-export function useGenerationPipeline({ availableModels, abortController }) {
+export function useGenerationPipeline({ availableModels, abortController, currentModeId }) {
+  const getMode = () => currentModeId?.value || '';
 
   // ==============================================================
   // SSE (Server-Sent Events) 解析器
@@ -149,7 +150,8 @@ export function useGenerationPipeline({ availableModels, abortController }) {
     history = [],
     requestSignal = undefined,
     retryCount = 0,
-    options = {}
+    options = {},
+    mode = ''
   ) => {
     const model = availableModels.find(m => m.id === modelId);
     if (!model) throw new Error(`Model ${modelId} not found`);
@@ -184,6 +186,7 @@ export function useGenerationPipeline({ availableModels, abortController }) {
       const vaultResult = await callVaultSiliconChat({
         provider: model.providerKey || 'siliconflow',
         purpose: 'chat',
+        mode: mode || getMode(),
         payload,
         apiUrl: model.url,
         timeoutMs: MODEL_CALL_TIMEOUT_MS,
@@ -367,7 +370,7 @@ export function useGenerationPipeline({ availableModels, abortController }) {
   // 流式模型调用（callModelStream）
   // ==============================================================
 
-  const callModelStream = async (modelId, prompt, systemPrompt, history = [], onChunk, options = {}, requestSignal = undefined, retryCount = 0) => {
+  const callModelStream = async (modelId, prompt, systemPrompt, history = [], onChunk, options = {}, requestSignal = undefined, retryCount = 0, mode = '') => {
     const model = availableModels.find(m => m.id === modelId);
     if (!model) throw new Error(`Model ${modelId} not found`);
 
@@ -399,6 +402,7 @@ export function useGenerationPipeline({ availableModels, abortController }) {
       const response = await callVaultSiliconChatStream({
         provider: model.providerKey || 'siliconflow',
         purpose: 'chat',
+        mode: mode || getMode(),
         payload,
         apiUrl: model.url,
         timeoutMs: STREAM_MODEL_CALL_TIMEOUT_MS,

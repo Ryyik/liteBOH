@@ -2,7 +2,6 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { logger } from '@/utils/logger.js';
 import type { NotificationPayload, NotificationItem } from '@/types';
-import type { RealtimeChannel } from '@supabase/supabase-js';
 import type * as AuthModule from '@/utils/auth.js';
 
 let authApiPromise: Promise<typeof AuthModule> | null = null;
@@ -20,7 +19,6 @@ const loadAuthApi = async (): Promise<typeof AuthModule> => {
 
 export const useNotificationStore = defineStore('notifications', () => {
   const unreadCount = ref(0);
-  const notificationSubscription = ref<RealtimeChannel | null>(null);
   const notificationPending = ref(false);
   const currentUserId = ref<string | null>(null);
   const unreadRefreshInflight = ref<Promise<void> | null>(null);
@@ -59,16 +57,6 @@ export const useNotificationStore = defineStore('notifications', () => {
     showToast.value = false;
   };
 
-  const removeChannelSafely = async (channel: RealtimeChannel | null): Promise<void> => {
-    if (!channel) return;
-    try {
-      const { supabase } = await loadAuthApi();
-      await supabase.removeChannel(channel as RealtimeChannel);
-    } catch (error) {
-      logger.warn('notifications-store', '移除通知通道失败', error);
-    }
-  };
-
   const startNotificationListener = async (userId: string): Promise<void> => {
     if (!userId) return;
     currentUserId.value = userId;
@@ -102,8 +90,12 @@ export const useNotificationStore = defineStore('notifications', () => {
 
   const refreshUnreadCount = async ({ force = false } = {}): Promise<void> => {
     if (force) {
-      const { invalidateByTags } = await loadAuthApi();
-      invalidateByTags(['notifications']);
+      try {
+        const { invalidateByTags } = await loadAuthApi();
+        invalidateByTags(['notifications']);
+      } catch (error) {
+        logger.warn('notifications-store', '缓存失效失败', error);
+      }
     }
 
     if (unreadRefreshInflight.value) {
@@ -151,14 +143,11 @@ export const useNotificationStore = defineStore('notifications', () => {
     currentUserId.value = null;
     unreadRefreshInflight.value = null;
     lastUnreadRefreshAt.value = 0;
-    if (notificationSubscription.value) {
-      await stopNotificationListener();
-    }
+    await stopNotificationListener();
   };
 
   return {
     unreadCount,
-    notificationSubscription,
     currentUserId,
     showToast,
     toastTitle,

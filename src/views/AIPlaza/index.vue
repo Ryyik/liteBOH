@@ -18,6 +18,12 @@
               </button>
             </div>
           </div>
+          <button type="button" class="quota-panel-btn" title="AI 使用额度" @click="isQuotaPanelOpen = true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+          </button>
         </header>
 
         <div ref="chatLogRef" class="chat-log custom-scrollbar">
@@ -84,6 +90,8 @@
       </section>
     </main>
 
+    <AiQuotaSidePanel :visible="isQuotaPanelOpen" @close="isQuotaPanelOpen = false" />
+
     <div v-if="isModelPickerOpen" class="model-picker-overlay" role="presentation" @click="closeModelPicker">
       <section class="model-picker" role="dialog" aria-modal="true" aria-label="选择 AI 模型" @click.stop>
         <header class="model-picker-header">
@@ -116,6 +124,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { marked } from "marked";
 import DOMPurify from "@/utils/dompurify.js";
 import { callVaultSiliconChat } from "@/utils/api/api-key-runtime-api.js";
+import AiQuotaSidePanel from "@/components/ai/AiQuotaSidePanel.vue";
 import hljs from "highlight.js/lib/core";
 import javascript from "highlight.js/lib/languages/javascript";
 import typescript from "highlight.js/lib/languages/typescript";
@@ -197,6 +206,7 @@ const textareaRef = ref(null);
 const activeRequestModelId = ref("");
 const activeRequestModelName = ref("");
 const isModelPickerOpen = ref(false);
+const isQuotaPanelOpen = ref(false);
 
 const selectedModel = computed(() => AI_MODELS.find((item) => item.id === selectedModelId.value) || AI_MODELS[0]);
 const currentMode = computed(() => MODE_OPTIONS.find((item) => item.id === workMode.value) || MODE_OPTIONS[0]);

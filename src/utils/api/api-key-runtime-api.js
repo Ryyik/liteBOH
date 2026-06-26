@@ -99,7 +99,8 @@ export const callVaultSiliconChatStream = async ({
   payload = {},
   apiUrl = '',
   timeoutMs = 45000,
-  signal
+  signal,
+  mode = ''
 } = {}) => {
   if (!runtimeFunctionUrl || !supabaseAnonKey) {
     throw new Error('缺少 Supabase 运行时配置');
@@ -124,6 +125,7 @@ export const callVaultSiliconChatStream = async ({
       action: 'runtime-chat-stream',
       provider,
       purpose,
+      mode,
       payload: {
         ...payload,
         stream: true
@@ -134,8 +136,20 @@ export const callVaultSiliconChatStream = async ({
   });
 
   if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(text.slice(0, 240) || `API Key 流式代理服务返回失败 (${response.status})`);
+    let errMsg;
+    let errData = null;
+    try {
+      const parsed = await response.json().catch(() => null);
+      errMsg = parsed?.message || `API Key 流式代理服务返回失败 (${response.status})`;
+      errData = parsed?.data || null;
+    } catch {
+      const text = await response.text().catch(() => '');
+      errMsg = text.slice(0, 240) || `API Key 流式代理服务返回失败 (${response.status})`;
+    }
+    const err = new Error(errMsg);
+    err.status = response.status;
+    err.quota = errData?.quota || null;
+    throw err;
   }
 
   if (!response.body) {
@@ -151,11 +165,13 @@ export const callVaultSiliconChat = ({
   payload = {},
   apiUrl = '',
   timeoutMs = 45000,
-  signal
+  signal,
+  mode = ''
 } = {}) => invokeRuntime({
   action: 'runtime-chat',
   provider,
   purpose,
+  mode,
   payload,
   apiUrl,
   timeoutMs,
@@ -168,5 +184,12 @@ export const searchVaultTavily = ({
 } = {}) => invokeRuntime({
   action: 'runtime-search',
   payload,
+  timeoutMs
+});
+
+export const getAiQuotaStatus = ({
+  timeoutMs = 5000
+} = {}) => invokeRuntime({
+  action: 'quota-status',
   timeoutMs
 });

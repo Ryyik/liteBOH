@@ -143,7 +143,46 @@ export default defineConfig({
         },
         // 代码分割
         manualChunks(id) {
+          // ============================================
+          // 文档处理库（最大优化点，约 1.3 MB，仅 Lab 页面使用）
+          // ============================================
+          if (id.includes('node_modules/docx')) return 'doc-processing-vendor';
+          if (id.includes('node_modules/mammoth')) return 'doc-processing-vendor';
+          if (id.includes('node_modules/bluebird')) return 'doc-processing-vendor';
+          if (id.includes('node_modules/@xmldom/xmldom')) return 'doc-processing-vendor';
+          if (id.includes('node_modules/jszip')) return 'doc-processing-vendor';
+          if (id.includes('node_modules/xmlbuilder')) return 'doc-processing-vendor';
+          if (id.includes('node_modules/underscore')) return 'doc-processing-vendor';
+          if (id.includes('node_modules/dingbat-to-unicode')) return 'doc-processing-vendor';
+
+          // ============================================
+          // 状态管理（首屏必需，但独立缓存）
+          // ============================================
+          if (id.includes('node_modules/pinia')) return 'state-vendor';
+          if (id.includes('node_modules/pinia-plugin-persistedstate')) return 'state-vendor';
+
+          // ============================================
+          // Vue 工具库（多页面使用）
+          // ============================================
+          if (id.includes('node_modules/@vueuse/core')) return 'vue-utils-vendor';
+          if (id.includes('node_modules/@vueuse/shared')) return 'vue-utils-vendor';
+          if (id.includes('node_modules/@vueuse/motion')) return 'vue-utils-vendor';
+
+          // ============================================
+          // Markdown 和代码高亮（BOHAI/论坛使用）
+          // ============================================
+          if (id.includes('node_modules/marked')) return 'markdown-vendor';
+          if (id.includes('node_modules/highlight.js')) return 'markdown-vendor';
+
+          // ============================================
+          // 图片处理库（特定功能使用）
+          // ============================================
+          if (id.includes('node_modules/html2canvas')) return 'image-processing-vendor';
+          if (id.includes('node_modules/file-saver')) return 'image-processing-vendor';
+
+          // ============================================
           // 已有的命名 chunk
+          // ============================================
           if (id.includes('node_modules/vue') || id.includes('node_modules/vue-router')) return 'vue-vendor';
           if (id.includes('node_modules/@supabase/supabase-js')) return 'supabase-vendor';
           if (id.includes('node_modules/lucide-vue-next')) return 'ui-icons';
@@ -153,7 +192,9 @@ export default defineConfig({
           if (id.includes('src/stores/auth.ts')) return 'auth-store';
           if (id.includes('src/data/products.js')) return 'content-datasets';
 
+          // ============================================
           // 大视图独立 chunk（经排查 BOHAI 与 DataManagement 无循环依赖，拆分为独立 chunk 降低单文件体积）
+          // ============================================
           if (id.includes('src/views/user-center/UserSpace/')) return 'view-userspace';
           if (id.includes('src/views/BOHAI/')) return 'view-bohai';
           if (id.includes('src/views/DataManagement/')) return 'view-admin';
@@ -161,6 +202,7 @@ export default defineConfig({
           if (id.includes('src/views/user-center/Cloud+/')) return 'view-cloudplus';
           if (id.includes('src/views/PostDetail/')) return 'view-postdetail';
           if (id.includes('src/views/Forum/')) return 'view-forum';
+          if (id.includes('src/views/Lab/')) return 'view-lab';
         },
         // 自动代码分割
         experimentalMinChunkSize: 20000,

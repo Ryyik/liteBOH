@@ -95,6 +95,7 @@ export const callBohAIModel = async ({
         const err = new Error(vaultResult.error?.message || 'BOHAI 模型代理调用失败');
         err.status = vaultResult.status || 0;
         err.code = vaultResult.error?.code;
+        err.quota = vaultResult.data?.quota || null;
         throw err;
       }
       const payload = vaultResult.data || {};
@@ -116,6 +117,10 @@ export const callBohAIModel = async ({
           continue;
         }
         throw new Error(`BOHAI 模型请求超时，已重试 ${MODEL_RETRY_MAX} 次仍失败。请检查网络或稍后再试。`);
+      }
+      // 配额超限不重试，直接抛出
+      if (error.status === 429 && error.quota) {
+        throw error;
       }
       if (isRetryableStatus(error.status) && attempt < MODEL_RETRY_MAX) {
         lastError = error;

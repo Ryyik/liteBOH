@@ -1,9 +1,12 @@
 <template>
   <div class="user-space-page" :class="{
     'tab-transition-forward': tabTransitionDirection === 'forward',
-    'tab-transition-back': tabTransitionDirection === 'back'
-  }"
-    :data-theme="currentTheme">
+    'tab-transition-back': tabTransitionDirection === 'back',
+    'edge-swipe-active': isEdgeSwiping
+  }" :data-theme="currentTheme">
+
+    <!-- 边缘滑动提示线 -->
+    <div v-if="edgeIndicatorVisible" class="edge-swipe-indicator"></div>
 
     <input type="file" ref="avatarInputRef" class="hidden-file-input" accept="image/*" @change="handleAvatarFileChange">
     <input type="file" ref="profileBackgroundInputRef" class="hidden-file-input" accept="image/*"
@@ -85,7 +88,8 @@
                 <p>{{ communitySearchQuery.trim() ? '没有找到匹配的社区伙伴' : '暂无社区伙伴' }}</p>
               </div>
 
-              <div v-for="user in communityUsers" :key="user.id" class="user-item glass-user" @click="goToProfile(user.username)">
+              <div v-for="user in communityUsers" :key="user.id" class="user-item glass-user"
+                @click="goToProfile(user.username)">
                 <div class="user-avatar">
                   <img v-if="user.avatar_url" :src="user.avatar_url" alt="用户头像" class="avatar-image" loading="lazy"
                     decoding="async" />
@@ -95,7 +99,9 @@
                 <div class="user-info">
                   <div class="user-name-row">
                     <span class="user-name">@{{ user.username }}</span>
-                    <span class="user-status" :class="{ 'status-online': isUserOnline(user, hideOnlineStatus) }" :title="formatOnlineStatusTooltip(user, hideOnlineStatus)">{{ formatUserOnlineStatus(user, hideOnlineStatus) }}</span>
+                    <span class="user-status" :class="{ 'status-online': isUserOnline(user, hideOnlineStatus) }"
+                      :title="formatOnlineStatusTooltip(user, hideOnlineStatus)">{{ formatUserOnlineStatus(user,
+                      hideOnlineStatus) }}</span>
                   </div>
                   <p class="user-bio">{{ user.bio || '这个人很懒，还没有个性签名' }}</p>
                   <div class="user-meta">
@@ -120,20 +126,15 @@
               </div>
 
               <div v-if="totalCommunityPages > 1" class="community-pagination glass-pagination">
-                <button class="community-page-btn glass-page-btn" :disabled="isLoadingCommunity || currentCommunityPage === 1"
-                  @click.stop="currentCommunityPage--">
+                <button class="community-page-btn glass-page-btn"
+                  :disabled="isLoadingCommunity || currentCommunityPage === 1" @click.stop="currentCommunityPage--">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="15 18 9 12 15 6"></polyline>
                   </svg>
                 </button>
                 <div class="page-dots">
-                  <span
-                    v-for="page in totalCommunityPages"
-                    :key="page"
-                    class="page-dot"
-                    :class="{ active: page === currentCommunityPage }"
-                    @click.stop="currentCommunityPage = page"
-                  ></span>
+                  <span v-for="page in totalCommunityPages" :key="page" class="page-dot"
+                    :class="{ active: page === currentCommunityPage }" @click.stop="currentCommunityPage = page"></span>
                 </div>
                 <button class="community-page-btn glass-page-btn"
                   :disabled="isLoadingCommunity || currentCommunityPage === totalCommunityPages"
@@ -175,8 +176,8 @@
                 <p>暂时没有伙伴设置生日。</p>
               </div>
 
-              <div v-for="user in recentBirthdayUsers" :key="`birthday-${user.id}`" class="user-item glass-user birthday-user-glass"
-                @click="goToProfile(user.username)">
+              <div v-for="user in recentBirthdayUsers" :key="`birthday-${user.id}`"
+                class="user-item glass-user birthday-user-glass" @click="goToProfile(user.username)">
                 <div class="user-avatar">
                   <img v-if="user.avatar_url" :src="user.avatar_url" alt="用户头像" class="avatar-image" loading="lazy"
                     decoding="async" />
@@ -228,8 +229,7 @@
     </div>
 
     <div v-if="mountedTabs.ai" v-show="currentTab === 'ai' || leavingTab === 'ai'"
-      :ref="(el) => setTabPageRef('ai', el)" class="tab-page ai-tab"
-      :class="{ 'is-leaving': leavingTab === 'ai' }">
+      :ref="(el) => setTabPageRef('ai', el)" class="tab-page ai-tab" :class="{ 'is-leaving': leavingTab === 'ai' }">
       <section class="ai-workspace" aria-label="BOH AI 聊天">
         <AsyncBOHAI :embedded="true" @island-message="showBottomNavIsland" />
       </section>
@@ -238,13 +238,13 @@
     <div v-if="mountedTabs.messages" v-show="currentTab === 'messages' || leavingTab === 'messages'"
       :ref="(el) => setTabPageRef('messages', el)" class="tab-page messages-tab"
       :class="{ 'is-leaving': leavingTab === 'messages' }">
-      <HomeCatMascot v-if="isHomeCatActive" class="messages-tab-cat" pool="background" seed="messages-tab"
-        size="lg" decorative />
+      <HomeCatMascot v-if="isHomeCatActive" class="messages-tab-cat" pool="background" seed="messages-tab" size="lg"
+        decorative />
       <AsyncMessages :minimal="true" />
     </div>
 
-    <div v-if="mountedTabs.profile" v-show="currentTab === 'profile'"
-      :ref="(el) => setTabPageRef('profile', el)" class="tab-page profile-tab">
+    <div v-if="mountedTabs.profile" v-show="currentTab === 'profile'" :ref="(el) => setTabPageRef('profile', el)"
+      class="tab-page profile-tab">
       <div class="profile-page-content">
         <div v-if="!isLoggedIn" class="login-prompt">
           <User class="login-prompt-icon" :size="34" :stroke-width="1.7" aria-hidden="true" />
@@ -255,46 +255,24 @@
 
         <template v-else>
           <transition name="profile-panel-fade" mode="out-in">
-            <ProfileHomePanel
-              v-if="profileSection === 'home'"
-              key="profile-home"
-              :profile="userInfo"
-              :avatar-url="avatarUrl"
-              :profile-background-url="profileBackgroundUrl"
-              :profile-cover-style="profileCoverStyle"
-              :is-uploading-profile-background="isUploadingProfileBackground"
-              :stats="userStats"
-              :is-stats-loading="isUserStatsLoading"
-              :cloud-plus-usage-text="cloudPlusUsageText"
+            <ProfileHomePanel v-if="profileSection === 'home'" key="profile-home" :profile="userInfo"
+              :avatar-url="avatarUrl" :profile-background-url="profileBackgroundUrl"
+              :profile-cover-style="profileCoverStyle" :is-uploading-profile-background="isUploadingProfileBackground"
+              :stats="userStats" :is-stats-loading="isUserStatsLoading" :cloud-plus-usage-text="cloudPlusUsageText"
               :cloud-plus-usage-meter-style="cloudPlusUsageMeterStyle"
-              :subscription-summary-text="subscriptionSummaryText"
-              :gift-progress-text="giftProgressText"
-              :data-privacy-status-text="dataPrivacyStatusText"
-              :theme-display-text="themeDisplayText"
-              :pushplus-status-text="pushplusStatusText"
-              :content-tabs="profileContentTabs"
-              :active-content-tab="activeProfileContentTab"
-              :is-content-loading="isProfileContentLoading"
-              :posts="profilePosts"
-              :has-more-posts="hasMoreProfilePosts"
-              :is-loading-more="isLoadingMoreProfilePosts"
-              :is-impressions-loading="isProfileImpressionsLoading"
-              :impressions="profileImpressions"
-              @edit-profile="openEditProfileModal"
-              @settings="openProfileSettings"
-              @avatar-click="handleAvatarClick"
-              @background-click="handleProfileBackgroundClick"
-              @tab-change="switchProfileContentTab"
-              @sponsor="openSponsorPage"
-              @data-management="openProfileDataManagement"
-              @cloud-plus="openCloudPlusArea"
+              :subscription-summary-text="subscriptionSummaryText" :gift-progress-text="giftProgressText"
+              :data-privacy-status-text="dataPrivacyStatusText" :theme-display-text="themeDisplayText"
+              :pushplus-status-text="pushplusStatusText" :content-tabs="profileContentTabs"
+              :active-content-tab="activeProfileContentTab" :is-content-loading="isProfileContentLoading"
+              :posts="profilePosts" :has-more-posts="hasMoreProfilePosts" :is-loading-more="isLoadingMoreProfilePosts"
+              :is-impressions-loading="isProfileImpressionsLoading" :impressions="profileImpressions"
+              @edit-profile="openEditProfileModal" @settings="openProfileSettings" @avatar-click="handleAvatarClick"
+              @background-click="handleProfileBackgroundClick" @tab-change="switchProfileContentTab"
+              @sponsor="openSponsorPage" @data-management="openProfileDataManagement" @cloud-plus="openCloudPlusArea"
               @subscription="router.push('/user-space/subscriptions?from=userspace')"
-              @gift="router.push('/user-space/gifts?from=userspace')"
-              @post-click="openProfilePost"
-              @switch-tab="switchTab"
-              @delete-impression="handleDeleteProfileImpression"
-              @load-more="loadMoreProfilePosts"
-            />
+              @gift="router.push('/user-space/gifts?from=userspace')" @post-click="openProfilePost"
+              @switch-tab="switchTab" @delete-impression="handleDeleteProfileImpression"
+              @load-more="loadMoreProfilePosts" />
 
             <div v-else-if="profileSection === 'edit-profile'" key="profile-edit" class="profile-edit-page-shell">
               <UserCenterPageHeader title="编辑资料" back-label="返回我的" max-width="650px" @back="closeEditProfileModal" />
@@ -387,8 +365,8 @@
 
               <div class="profile-subpage-body">
                 <section class="sponsor-hero apple-card">
-                  <HomeCatMascot v-if="isHomeCatActive" class="sponsor-hero-cat" pool="background"
-                    seed="sponsor-hero" size="lg" decorative />
+                  <HomeCatMascot v-if="isHomeCatActive" class="sponsor-hero-cat" pool="background" seed="sponsor-hero"
+                    size="lg" decorative />
                   <div class="sponsor-hero-copy">
                     <p class="sponsor-kicker">Sponsor</p>
                     <h3>助力我喝杯咖啡</h3>
@@ -400,8 +378,8 @@
                 </section>
 
                 <section class="apple-card sponsor-panel">
-                  <HomeCatMascot v-if="isHomeCatActive" class="sponsor-panel-cat" pool="ambient"
-                    seed="sponsor-panel" size="md" decorative />
+                  <HomeCatMascot v-if="isHomeCatActive" class="sponsor-panel-cat" pool="ambient" seed="sponsor-panel"
+                    size="md" decorative />
                   <div class="sponsor-section-head">
                     <div>
                       <p class="sponsor-kicker">Payment</p>
@@ -431,7 +409,8 @@
 
                   <transition name="profile-panel-fade">
                     <div v-if="sponsorQrVisible" class="sponsor-qr-stage">
-                      <div v-if="isHomeCatActive" :key="sponsorCatBurstKey" class="sponsor-cat-party" aria-hidden="true">
+                      <div v-if="isHomeCatActive" :key="sponsorCatBurstKey" class="sponsor-cat-party"
+                        aria-hidden="true">
                         <HomeCatMascot class="sponsor-party-cat cat-one" pool="reaction"
                           :seed="`sponsor-party-${sponsorCatBurstKey}-one`" size="sm" decorative />
                         <HomeCatMascot class="sponsor-party-cat cat-two" pool="ambient"
@@ -470,27 +449,16 @@
               </div>
             </div>
 
-            <ProfileSettingsPanel
-              v-else-if="profileSection === 'settings'"
-              key="profile-settings"
-              :pushplus-status-text="pushplusStatusText"
-              :cloud-plus-usage-text="cloudPlusUsageText"
-              :subscription-summary-text="subscriptionSummaryText"
-              :data-privacy-status-text="dataPrivacyStatusText"
-              :theme-display-text="themeDisplayText"
-              :is-home-cat-active="isHomeCatActive"
-              :current-theme="currentTheme"
-              :hide-online-status="hideOnlineStatus"
-              @back="backToProfileHome"
-              @open-theme="openThemeModal"
+            <ProfileSettingsPanel v-else-if="profileSection === 'settings'" key="profile-settings"
+              :pushplus-status-text="pushplusStatusText" :cloud-plus-usage-text="cloudPlusUsageText"
+              :subscription-summary-text="subscriptionSummaryText" :data-privacy-status-text="dataPrivacyStatusText"
+              :theme-display-text="themeDisplayText" :is-home-cat-active="isHomeCatActive" :current-theme="currentTheme"
+              :hide-online-status="hideOnlineStatus" @back="backToProfileHome" @open-theme="openThemeModal"
               @open-cloud="openCloudPlusArea"
               @open-pushplus="router.push('/user-space/pushplus-settings?from=userspace-settings')"
               @open-security="router.push('/user-space/account-security?from=userspace-settings')"
-              @open-data="openProfileDataManagement"
-              @open-data-management="openProfileDataManagement"
-              @logout="handleLogout"
-              @toggle-hide-online="toggleHideOnlineStatus"
-            />
+              @open-data="openProfileDataManagement" @open-data-management="openProfileDataManagement"
+              @logout="handleLogout" @toggle-hide-online="toggleHideOnlineStatus" />
 
             <div v-else key="profile-data-management" class="profile-subpage-shell">
               <UserCenterPageHeader title="数据与隐私" back-label="返回设置" max-width="650px" @back="backToProfileSettings" />
@@ -540,28 +508,16 @@
       </div>
     </div>
 
-    <UserSpaceBottomNav
-      :visible="!(currentTab === 'profile' && profileSection === 'edit-profile')"
-      :hidden="shouldHideBottomNav"
-      :ai-overlay-open="isAiOverlayOpen"
-      :island-visible="isBottomNavIslandExpanded"
-      :island-collapsing="isBottomNavIslandCollapsing"
-      :island="bottomNavIsland"
-      :show-cat-sticker="isHomeCatActive"
-      :nav-items="navItems"
-      :current-tab="currentTab"
-      :nav-indicator-style="bottomNavIndicatorStyle"
-      :has-unread-messages="hasUnreadMessages"
-      :unread-count="unreadCount"
-      @island-action="handleBottomNavIslandAction"
-      @island-before-leave="handleBottomNavIslandBeforeLeave"
-      @island-after-leave="handleBottomNavIslandAfterLeave"
-      @preload-tab="preloadUserSpaceTab"
-      @nav-click="handleBottomNavClick"
-    />
+    <UserSpaceBottomNav :visible="!(currentTab === 'profile' && profileSection === 'edit-profile')"
+      :hidden="shouldHideBottomNav" :ai-overlay-open="isAiOverlayOpen" :island-visible="isBottomNavIslandExpanded"
+      :island-collapsing="isBottomNavIslandCollapsing" :island="bottomNavIsland" :show-cat-sticker="isHomeCatActive"
+      :nav-items="navItems" :current-tab="currentTab" :nav-indicator-style="bottomNavIndicatorStyle"
+      :has-unread-messages="hasUnreadMessages" :unread-count="unreadCount" @island-action="handleBottomNavIslandAction"
+      @island-before-leave="handleBottomNavIslandBeforeLeave" @island-after-leave="handleBottomNavIslandAfterLeave"
+      @preload-tab="preloadUserSpaceTab" @nav-click="handleBottomNavClick" />
 
-    <ThemeModal :open="showThemeModal" :current-theme-preference="currentThemePreference"
-      @close="closeThemeModal" @select="setThemePreference" />
+    <ThemeModal :open="showThemeModal" :current-theme-preference="currentThemePreference" @close="closeThemeModal"
+      @select="setThemePreference" />
 
     <CommonAlertModal v-model:visible="alertState.visible" :type="alertState.type" :title="alertState.title"
       :message="alertState.message" />
@@ -582,6 +538,7 @@ import AvatarCropModal from '@/components/AvatarCropModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
+import { useEdgeSwipeGesture } from '@/composables/useEdgeSwipeGesture';
 import UserSpaceBottomNav from './components/UserSpaceBottomNav.vue';
 import ProfileHomePanel from './components/ProfileHomePanel.vue';
 import ProfileSettingsPanel from './components/ProfileSettingsPanel.vue';
@@ -710,6 +667,16 @@ const navItems = [
   { id: 'profile', label: '我的', icon: User }
 ];
 const { isOpen: isAiOverlayOpen, open: openGlobalAi, close: closeGlobalAi } = useGlobalAiOverlay();
+
+// 边缘滑动手势检测：从右侧边缘向左滑动唤起AI
+const { isSwiping: isEdgeSwiping, edgeIndicatorVisible } = useEdgeSwipeGesture({
+  edgeWidth: 20,
+  minSwipeDistance: 80,
+  maxSwipeTime: 800,
+  velocityThreshold: 0.5,
+  onTrigger: openGlobalAi
+});
+
 const aiNavIndex = navItems.findIndex((item) => item.id === 'ai');
 const bottomNavIndicatorStyle = computed(() => {
   if (!isAiOverlayOpen.value || aiNavIndex < 0) return navIndicatorStyle.value;
@@ -2704,3 +2671,47 @@ const handleUnreadRefresh = (event) => {
 <style src="./styles/profile-base.css"></style>
 <style src="./styles/profile-panels.css"></style>
 <style src="./styles/responsive-integrations.css"></style>
+
+<style scoped>
+/* 边缘滑动提示线 */
+.edge-swipe-indicator {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(180deg,
+      rgba(16, 163, 127, 0.1) 0%,
+      rgba(16, 163, 127, 0.3) 20%,
+      rgba(16, 163, 127, 0.5) 50%,
+      rgba(16, 163, 127, 0.3) 80%,
+      rgba(16, 163, 127, 0.1) 100%);
+  z-index: 2147481600;
+  pointer-events: none;
+  animation: edgeIndicatorPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes edgeIndicatorPulse {
+
+  0%,
+  100% {
+    opacity: 0.6;
+    width: 2px;
+  }
+
+  50% {
+    opacity: 1;
+    width: 3px;
+  }
+}
+
+/* 暗色主题下的提示线 */
+.user-space-page[data-theme="dark"] .edge-swipe-indicator {
+  background: linear-gradient(180deg,
+      rgba(80, 200, 255, 0.1) 0%,
+      rgba(80, 200, 255, 0.3) 20%,
+      rgba(80, 200, 255, 0.5) 50%,
+      rgba(80, 200, 255, 0.3) 80%,
+      rgba(80, 200, 255, 0.1) 100%);
+}
+</style>

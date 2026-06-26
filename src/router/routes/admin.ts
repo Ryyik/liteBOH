@@ -20,4 +20,10 @@ export const adminRoutes: RouteRecordRaw[] = [
     component: () => import("../../views/AlertStyleEditor/index.vue"),
     meta: { requiresAdmin: true },
   },
+  {
+    path: "/admin/ai-quota",
+    name: "AiQuotaConfig",
+    component: () => import("../../views/AiQuotaConfig/index.vue"),
+    meta: { requiresAdmin: true },
+  },
 ]

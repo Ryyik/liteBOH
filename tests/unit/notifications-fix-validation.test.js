@@ -176,9 +176,9 @@ describe('消息中心修复验证测试', () => {
       expect(store.unreadCount).toBe(0);
     });
 
-    it('notificationSubscription 初始值应该是 null', () => {
+    it('notificationSubscription 已从 store 中移除', () => {
       const store = useNotificationStore();
-      expect(store.notificationSubscription).toBeNull();
+      expect(store.notificationSubscription).toBeUndefined();
     });
   });
 

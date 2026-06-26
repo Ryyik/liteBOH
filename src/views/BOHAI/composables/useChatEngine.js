@@ -503,15 +503,10 @@ export function useChatEngine() {
     formatPageDraftPreview,
     updatePostDraftByUserInput,
     getActionAuthContext,
-    createActionRegistry,
     runRegisteredAction,
     submitPostDraft,
-    handlePendingActionDraftReply,
     tryStartActionDraftFromUserInput,
-    tryStartPageCreationFromUserInput,
-    generatePageHtmlFromUserIdea,
-    extractHtmlBlock,
-    callAIToGenerate
+    tryStartPageCreationFromUserInput
   } = actionDraft;
 
   // → isTreeholeCreateConfirm, isTreeholeCreateReject 已提取到 useIntentDetection.js
@@ -529,16 +524,9 @@ export function useChatEngine() {
     dismissQuickNoteDraft,
     confirmQuickNoteDraft,
     requestCloudReferenceConsent,
-    applyCloudReferenceConsent,
     approveCloudReferenceConsent,
     rejectCloudReferenceConsent,
-    handlePendingTreeholeCreationReply,
-    handlePendingCloudReferenceConsentReply,
-    handlePendingSharedMemoryCaptureReply,
     requestSharedMemorySaveConfirmation,
-    saveConfirmedAutoMemory,
-    persistCloudReferenceConsent,
-    shouldSuppressMemoryStatusEcho,
     memoryCaptureTip,
     _requestTreeholeCreationConfirmation
   } = useMemoryCapture({
@@ -1020,6 +1008,7 @@ export function useChatEngine() {
     if (await handleResourceSearchRequest(userText)) return;
 
     if (isAgentClusterMode(currentModeId.value)) {
+      isStreamingGeneration.value = true;
       appendUserMessageWithTitle(sessionIndex, userText);
       resetComposerInput();
       scrollToBottom(true);
@@ -1143,6 +1132,7 @@ export function useChatEngine() {
       } finally {
         session.isLoading = false;
         session.isThinking = false;
+        isStreamingGeneration.value = false;
         if (activeGenerationSessionIndex.value === sessionIndex) {
           activeGenerationSessionIndex.value = null;
         }

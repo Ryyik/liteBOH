@@ -1,6 +1,7 @@
 import { ref } from "vue";
 import { supabase } from "@/utils/supabase-client.js";
 import { executeRead } from "@/utils/request-core.js";
+import { logger } from "@/utils/logger.js";
 
 // 活动数据
 export const activitiesData = ref([]);
@@ -41,8 +42,8 @@ export const initActivities = async () => {
       return dateB - dateA;
     }) : [];
   } catch (err) {
-    console.error('获取活动数据失败:', err);
-    error.value = err.message;
+    logger.error('activities', '获取活动数据失败:', err);
+    error.value = err?.message || String(err);
     activitiesData.value = [];
     sortedActivities.value = [];
   } finally {

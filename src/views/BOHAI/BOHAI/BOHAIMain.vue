@@ -372,6 +372,12 @@ const filteredChatModes = computed(() => {
   }
   return chatModes.value;
 });
+
+watch(() => authStore.isLoggedIn, (loggedIn) => {
+  if (!loggedIn && currentModeId.value !== 'fast') {
+    currentModeId.value = 'fast';
+  }
+});
 const confirmState = reactive({
     show: false,
     type: 'warning',
@@ -563,7 +569,7 @@ const lastAssistantMessageIndex = computed(() => {
 const showContextWarning = computed(() => {
     const usage = contextBudgetUsage.value;
     if (!usage) return false;
-    const pct = usage?.historyPercent ?? usage?.percent ?? 0;
+    const pct = Math.max(usage?.historyPercent ?? 0, usage?.percent ?? 0);
     return pct >= 80;
 });
 
@@ -1331,7 +1337,7 @@ onMounted(() => {
     };
     // Check on visibility change (tab switch) and periodically
     document.addEventListener('visibilitychange', checkVisibility);
-    const visInterval = setInterval(checkVisibility, 300);
+    const visInterval = setInterval(checkVisibility, 1000);
     checkVisibility();
 
     // Store cleanup references

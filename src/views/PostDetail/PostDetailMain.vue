@@ -341,7 +341,7 @@ const ensureCooldownTimer = () => {
       clearInterval(cooldownTimer);
       cooldownTimer = null;
     }
-  }, 250);
+  }, 1000);
 };
 
 const startReplyCooldown = (seconds) => {

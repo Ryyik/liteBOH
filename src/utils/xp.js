@@ -1,6 +1,7 @@
 /**
  * 社区经验与等级系统管理器
  */
+import { logger } from './logger.js';
 
 // 等级配置：每级所需经验 = level * 100
 export const getLevelInfo = (xp) => {
@@ -69,13 +70,13 @@ export async function addExperience(supabase, userId, amount) {
     });
 
     if (error) {
-      console.error('增加经验值失败: increment_xp RPC 执行失败', error);
+      logger.error('xp', 'increment_xp RPC 执行失败', error);
       return { success: false, error };
     }
 
     return { success: true };
   } catch (err) {
-    console.error('增加经验值失败:', err);
+    logger.error('xp', '增加经验值失败:', err);
     return { success: false, error: err };
   }
 }

@@ -9,6 +9,7 @@ import DOMPurify from '@/utils/dompurify.js'; // 修复：添加 DOMPurify 防�
 import { getLoginDeviceIdHash } from '@/utils/device-trust.js';
 import { getAltchaChallengeUrl, isAltchaEnabled } from '@/utils/altcha.js';
 import { getImageUrl } from '@/utils/asset-helper.js';
+import { logger } from '@/utils/logger.js';
 import {
   normalizeLoginId,
   validateEmail,
@@ -311,7 +312,7 @@ const handleLogin = async () => {
   } catch (error) {
     authError.value = '系统错误，请稍后再试';
     if (altchaEnabled.value && shouldShowAltcha.value && altchaPayload.value) await resetAltcha();
-    console.error('Login error:', error);
+    logger.error('login', 'Login failed', error);
   } finally {
     isSubmitting.value = false;
   }

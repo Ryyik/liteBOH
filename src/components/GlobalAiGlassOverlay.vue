@@ -1,28 +1,15 @@
 <template>
   <Teleport to="body">
-    <div
-      ref="overlayRef"
-      class="global-ai-glass-overlay"
-      :class="{
-        'is-open': isOpen || isDragging,
-        'is-dragging': isDragging,
-        'is-snapping': isSnapping,
-        'is-fullscreen': isFullscreen,
-        'keyboard-visible': keyboardVisible
-      }"
-      :data-theme="theme"
-      :style="overlayStyle"
-      role="dialog"
-      aria-modal="true"
-      aria-label="BOH AI 快速对话"
-    >
-      <div
-        v-if="isMobile"
-        class="global-ai-glass-handle"
-        @touchstart="onHandleTouchStart"
-        @touchmove="onHandleTouchMove"
-        @touchend="onHandleTouchEnd"
-      >
+    <div ref="overlayRef" class="global-ai-glass-overlay" :class="{
+      'is-open': isOpen || isDragging,
+      'is-dragging': isDragging,
+      'is-snapping': isSnapping,
+      'is-fullscreen': isFullscreen,
+      'keyboard-visible': keyboardVisible
+    }" :data-theme="theme" :style="overlayStyle" role="dialog" aria-modal="true" aria-label="BOH AI 快速对话">
+
+      <div v-if="isMobile" class="global-ai-glass-handle" @touchstart="onHandleTouchStart"
+        @touchmove="onHandleTouchMove" @touchend="onHandleTouchEnd">
         <div class="global-ai-glass-handle-bar"></div>
       </div>
 
@@ -88,17 +75,29 @@ function checkMobile() {
 const isFullscreen = computed(() => dragProgress.value >= 1.9)
 
 function translateYPercent(p) {
-  if (p <= 1) return 100 - 55 * p
-  return 45 - 45 * (p - 1)
+  // 半屏状态：确保面板高度足够显示输入框（至少60%屏幕高度）
+  // 增加面板可见高度，确保输入框在可见区域内
+  if (p <= 1) return 100 - 60 * p  // 当p=1时，返回40%，面板可见高度为60%
+  // 全屏状态：平滑过渡到0%
+  return 40 - 40 * (p - 1)
 }
 
 const overlayStyle = computed(() => {
   if (!isMobile.value) return {}
   const ty = translateYPercent(dragProgress.value)
   const tyPx = (ty / 100) * window.innerHeight
+
+  // 面板可见高度
+  const panelHeight = window.innerHeight - tyPx
+
+  // 计算面板可见区域的底部位置（相对于视口）
+  // 面板向上移动tyPx距离，所以面板底部在视口底部向上tyPx的位置
+  const panelVisibleBottom = tyPx
+
   return {
     transform: `translate3d(0, ${ty}%, 0)`,
-    '--input-ty-offset': `${tyPx}px`,
+    '--panel-height': `${panelHeight}px`,
+    '--panel-visible-bottom': `${panelVisibleBottom}px`,
     '--kbd-height': `${keyboardHeight.value}px`,
     borderRadius: ty <= 0 ? '0' : '24px 24px 0 0'
   }
@@ -149,11 +148,33 @@ function updateKeyboard() {
     const diff = window.innerHeight - window.visualViewport.height
     keyboardVisible.value = diff > 120
     keyboardHeight.value = diff > 120 ? diff : 0
+
+    // 键盘弹出时，自动滚动到输入框附近
+    if (diff > 120 && chatRef.value) {
+      setTimeout(() => {
+        const chatContainer = chatRef.value.querySelector('.chat-container')
+        if (chatContainer) {
+          chatContainer.scrollTo({
+            top: chatContainer.scrollHeight,
+            behavior: 'smooth'
+          })
+        }
+      }, 150)
+    }
   }
 }
 
 onMounted(() => {
   document.body.classList.add('global-ai-glass-open')
+
+  // iOS键盘弹出时，阻止viewport自动调整
+  // 添加临时meta标签，阻止iOS缩放和调整viewport
+  const viewportMeta = document.querySelector('meta[name="viewport"]')
+  if (viewportMeta) {
+    const originalContent = viewportMeta.getAttribute('content')
+    viewportMeta.setAttribute('content', originalContent + ', viewport-fit=cover')
+  }
+
   checkMobile()
   window.addEventListener('resize', checkMobile)
   window.visualViewport?.addEventListener('resize', updateKeyboard)
@@ -176,10 +197,18 @@ onUnmounted(() => {
 .global-ai-glass-overlay {
   --global-ai-bottom-nav-clearance: max(104px, calc(96px + env(safe-area-inset-bottom, 0px)));
   position: fixed;
-  z-index: 2147481800;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2147483647; /* 使用最大z-index值，确保不被底部导航栏遮挡 */
   display: flex;
   flex-direction: column;
   padding: 0;
+  /* iOS键盘弹出时，阻止面板被推上去 */
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
   background:
     linear-gradient(180deg, rgba(248, 250, 252, 0.3), rgba(226, 232, 240, 0.2)),
     rgba(255, 255, 255, 0.12);
@@ -207,10 +236,13 @@ onUnmounted(() => {
 
 @media (max-width: 1023px) {
   .global-ai-glass-overlay {
+    /* 移动端：确保面板始终占满屏幕，不被键盘推上去 */
+    top: 0;
     bottom: 0;
     left: 0;
     right: 0;
-    height: 100dvh;
+    height: 100vh;
+    max-height: 100vh;
     border-radius: 24px 24px 0 0;
     box-shadow: 0 -8px 40px rgba(15, 23, 42, 0.12);
   }
@@ -241,7 +273,23 @@ onUnmounted(() => {
 }
 
 .global-ai-glass-overlay.keyboard-visible .global-ai-glass-chat :deep(.chat-container) {
+  /* 键盘弹出时，调整聊天容器padding，确保输入框可见 */
   padding-bottom: calc(var(--global-ai-bottom-nav-clearance) + 96px + var(--kbd-height, 0px));
+}
+
+/* 半屏状态下，确保输入框在面板内可见 */
+.global-ai-glass-chat :deep(.bohai-page.overlay-mode .input-area) {
+  width: min(calc(100% - 32px), 860px);
+  /* 输入框相对于视口定位，固定在面板可见区域的底部 */
+  position: fixed !important;
+  /* 输入框位置 = 面板底部位置 + 安全距离 + 键盘高度 */
+  bottom: calc(var(--panel-visible-bottom, 0px) + max(8px, env(safe-area-inset-bottom, 0px)) + var(--kbd-height, 0px)) !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  padding-bottom: 0;
+  opacity: 1 !important;
+  visibility: visible !important;
+  z-index: 10 !important;
 }
 
 .global-ai-glass-handle {
@@ -353,14 +401,7 @@ onUnmounted(() => {
   padding-bottom: calc(var(--global-ai-bottom-nav-clearance) + 96px);
 }
 
-.global-ai-glass-chat :deep(.bohai-page.overlay-mode .input-area) {
-  width: min(calc(100% - 32px), 860px);
-  bottom: calc(var(--kbd-clearance, var(--boh-ai-bottom-nav-clearance)) + var(--input-ty-offset, 0px) + var(--kbd-height, 0px)) !important;
-  padding-bottom: 0;
-  opacity: 1 !important;
-  visibility: visible !important;
-}
-
+/* 拖拽和吸附动画过渡 */
 .global-ai-glass-overlay.is-snapping .global-ai-glass-chat :deep(.bohai-page.overlay-mode .input-area) {
   transition: bottom 520ms cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -488,13 +529,11 @@ onUnmounted(() => {
     position: absolute;
     inset: 0;
     z-index: 1;
-    background: linear-gradient(
-      0deg,
-      rgba(140, 200, 255, 0.22) 0%,
-      rgba(140, 200, 255, 0.12) 18%,
-      rgba(180, 150, 255, 0.06) 38%,
-      transparent 55%
-    );
+    background: linear-gradient(0deg,
+        rgba(140, 200, 255, 0.22) 0%,
+        rgba(140, 200, 255, 0.12) 18%,
+        rgba(180, 150, 255, 0.06) 38%,
+        transparent 55%);
     pointer-events: none;
     will-change: clip-path, opacity;
     clip-path: inset(100% 0 0 0);
@@ -502,13 +541,11 @@ onUnmounted(() => {
   }
 
   .global-ai-glass-overlay[data-theme="dark"]::after {
-    background: linear-gradient(
-      0deg,
-      rgba(80, 200, 255, 0.25) 0%,
-      rgba(80, 200, 255, 0.14) 18%,
-      rgba(140, 100, 255, 0.08) 38%,
-      transparent 55%
-    );
+    background: linear-gradient(0deg,
+        rgba(80, 200, 255, 0.25) 0%,
+        rgba(80, 200, 255, 0.14) 18%,
+        rgba(140, 100, 255, 0.08) 38%,
+        transparent 55%);
   }
 
   @keyframes lightSweep {
@@ -516,16 +553,20 @@ onUnmounted(() => {
       clip-path: inset(100% 0 0 0);
       opacity: 0;
     }
+
     10% {
       opacity: 1;
     }
+
     40% {
       clip-path: inset(0% 0 0 0);
       opacity: 1;
     }
+
     70% {
       opacity: 0.6;
     }
+
     100% {
       clip-path: inset(0% 0 0 0);
       opacity: 0;

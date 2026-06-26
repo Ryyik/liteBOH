@@ -128,7 +128,7 @@ defineExpose({
 <template>
   <altcha-widget
     ref="widgetRef"
-    :auto="disabled ? 'false' : auto"
+    :auto="disabled ? undefined : auto"
     :challenge="challenge"
     :name="name"
     :workers="String(workers)"

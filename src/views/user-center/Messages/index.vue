@@ -548,7 +548,7 @@ const filterDropdownOpen = ref(false);
 const actionsDropdownOpen = ref(false);
 const isSelectMode = ref(false);
 const selectedMessageIds = ref(new Set());
-const selectFilterOpen = ref(false);
+const selectFilterOpen = ref(false); // 预留：筛选下拉面板状态
 const selectStatusFilter = ref('all');
 const archivedMessages = ref([]);
 const archivedHasMore = ref(false);
@@ -851,7 +851,8 @@ const applyRealtimeRow = (rowsRef, payload) => {
     if (newRow?.archived_at) {
       return false;
     }
-    rowsRef.value = insertSorted(rowsRef.value, enrichMessage(newRow));
+    const existingRow = rowsRef.value.find((r) => r.id === newRow.id);
+    rowsRef.value = insertSorted(rowsRef.value, enrichMessage(existingRow ? { ...existingRow, ...newRow } : newRow));
     return true;
   }
 
@@ -863,13 +864,14 @@ const applyRealtimeRow = (rowsRef, payload) => {
 
   // UPDATE 事件：如果消息取消归档，添加到主列表
   if (!newRow?.archived_at && oldRow?.archived_at) {
-    rowsRef.value = mergeById([enrichMessage(newRow)], rowsRef.value);
+    const existingRow = rowsRef.value.find((r) => r.id === newRow.id);
+    rowsRef.value = mergeById([enrichMessage(existingRow ? { ...existingRow, ...newRow } : newRow)], rowsRef.value);
     return true;
   }
 
   // UPDATE 事件：普通更新
   rowsRef.value = rowsRef.value.map((row) =>
-    row.id === rowId ? { ...row, ...enrichMessage(newRow) } : row
+    row.id === rowId ? enrichMessage({ ...row, ...newRow }) : row
   );
   return true;
 };

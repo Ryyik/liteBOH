@@ -1,4 +1,6 @@
 
+import { logger } from './logger.js';
+
 // email-service.js
 // 统一的邮件发送服务，用于处理礼物请求和其他相关邮件发送
 // 通过 Supabase Edge Function 发送，避免在客户端暴露 EmailJS 凭证。
@@ -32,7 +34,7 @@ const callSendEmailFunction = async (templateType, templateParams) => {
     const result = await response.json().catch(() => ({}));
     if (!response.ok) {
       const errorMsg = result?.message || `邮件发送失败 (${response.status})`;
-      console.error('Email sending failed:', errorMsg);
+      logger.error('email', 'Email sending failed:', errorMsg);
       throw new Error(errorMsg);
     }
     return result;

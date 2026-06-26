@@ -4,6 +4,7 @@
  */
 
 import { ensureThemeCSS } from './theme-css-loader.js';
+import { logger } from './logger.js';
 
 class ThemeManager {
   constructor() {
@@ -240,7 +241,7 @@ class ThemeManager {
       try {
         callback(theme, preference, uiStyle);
       } catch (e) {
-        console.error('Theme change listener error:', e);
+        logger.error('theme', 'Theme change listener error:', e);
       }
     });
   }

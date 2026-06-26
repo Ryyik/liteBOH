@@ -21,6 +21,16 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 
+function seededRandom(seed) {
+  let t = seed;
+  return () => {
+    t |= 0; t = t + 0x6D2B79F5 | 0;
+    let m = Math.imul(t ^ t >>> 15, 1 | t);
+    m = m + Math.imul(m ^ m >>> 7, 61 | m) ^ m;
+    return ((m ^ m >>> 14) >>> 0) / 4294967296;
+  };
+}
+
 const props = defineProps({
   words: {
     type: Array,
@@ -76,12 +86,14 @@ const positionedWords = computed(() => {
   const maxFontSize = Math.min(36, width / 10);
 
   const sortedWords = [...props.words].sort((a, b) => b.count - a.count);
+  const seed = sortedWords.reduce((acc, w) => acc + w.text.length + w.count, 0);
+  const rng = seededRandom(seed);
 
   return sortedWords.map((word, index) => {
     const ratio = word.count / maxCount.value;
     const fontSize = Math.round(minFontSize + ratio * (maxFontSize - minFontSize));
     const color = colors[index % colors.length];
-    const rotation = (Math.random() - 0.5) * 20;
+    const rotation = (rng() - 0.5) * 20;
     
     const textWidth = word.text.length * fontSize * 0.6;
     const textHeight = fontSize * 1.2;
@@ -92,8 +104,8 @@ const positionedWords = computed(() => {
     let found = false;
 
     while (attempts < maxAttempts && !found) {
-      x = Math.random() * (width - textWidth - padding * 2) + padding;
-      y = Math.random() * (height - textHeight - padding * 2) + textHeight + padding;
+      x = rng() * (width - textWidth - padding * 2) + padding;
+      y = rng() * (height - textHeight - padding * 2) + textHeight + padding;
 
       let collision = false;
       for (const placed of placedWords) {
