@@ -10,7 +10,7 @@ export function useEdgeSwipeGesture(options = {}) {
     edgeWidth = 20, // 触发区域宽度（右侧边缘20px）
     minSwipeDistance = 80, // 最小滑动距离
     maxSwipeTime = 800, // 最大滑动时间（ms）
-    velocityThreshold = 0.5, // 最小滑动速度
+    velocityThreshold = 0.08, // 最小滑动速度（px/ms），与 minSwipeDistance/maxSwipeTime 联动
     onTrigger = () => { } // 触发回调
   } = options
 

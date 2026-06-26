@@ -223,12 +223,6 @@
                         </div>
 
                         <div class="input-right">
-                            <button type="button" class="quota-panel-btn" title="AI 使用额度" @click="isQuotaPanelOpen = true">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                                </svg>
-                            </button>
                             <div class="composer-mode-picker" @click.stop>
                                 <button type="button" class="composer-mode-button" :class="{ open: modeMenuOpen }"
                                     :title="currentMode.description || currentMode.tagline"
@@ -1574,25 +1568,6 @@ watch(isCompressingContext, (compressing) => {
 .ai-question-input:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-}
-
-.quota-panel-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 6px;
-    background: none;
-    border: 1px solid transparent;
-    border-radius: 8px;
-    color: #6b7280;
-    cursor: pointer;
-    transition: all 0.15s ease;
-}
-
-.quota-panel-btn:hover {
-    background: #f3f4f6;
-    color: #111827;
-    border-color: #e5e7eb;
 }
 
 .context-full-banner {

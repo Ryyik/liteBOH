@@ -365,7 +365,8 @@ const sendMessage = async () => {
       purpose: 'chat',
       payload,
       apiUrl: API_URL,
-      timeoutMs: 30000
+      timeoutMs: 30000,
+      signal: controller.signal
     });
     if (!vaultResult.ok) {
       throw new Error(vaultResult.error?.message || 'API Key 代理请求失败');

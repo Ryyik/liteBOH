@@ -290,6 +290,30 @@ export function useChatEngine() {
     ...(runtimeGenerationProfiles.value?.[modeId] || {})
   });
 
+  
+
+  // --------------------------------------------------------------
+  // useModelConfig — 模式/样式/设置（必须先初始化，因为 currentModeId 被后续模块依赖）
+  // --------------------------------------------------------------
+  const {
+    currentModeId, currentMode, currentModelId, currentModel,
+    lastRoutedMode,
+    isCommandMode, isSearching, isForumSearchEnabled,
+    isMemoryCaptureEnabled, isTreeholeMemoryEnabled, isTreeholeMemoryToggling,
+    isQuickNoteEnabled, isPlanModeEnabled,
+    isSharedMemoryEnabled, isKnowledgeBaseEnabled,
+    currentResponseStyleId, currentResponseStyle,
+    responseStyleOptions,
+    cloudReferenceConsent,
+    webSearchDisabledNoticeShownFor,
+    getModelForModeId,
+    togglePlanMode, setResponseStyle,
+    persistModeSetting,
+    persistMemoryCaptureSetting,
+    persistTreeholeMemorySetting, persistQuickNoteSetting,
+    persistSharedMemorySetting, persistKnowledgeBaseSetting
+  } = useModelConfig({ availableModels: runtimeAvailableModels, chatModes: runtimeChatModes });
+
   const applyRuntimeModelConfig = (payload = {}) => {
     if (Array.isArray(payload.availableModels) && payload.availableModels.length > 0) {
       runtimeAvailableModels.value.splice(0, runtimeAvailableModels.value.length, ...payload.availableModels);
@@ -325,28 +349,6 @@ export function useChatEngine() {
   // 计算属性：当前会话的加载状态
   const isLoading = computed(() => chatSessions[currentSessionIndex.value]?.isLoading || false);
   const isThinking = computed(() => chatSessions[currentSessionIndex.value]?.isThinking || false);
-
-  // --------------------------------------------------------------
-  // useModelConfig — 模式/样式/设置
-  // --------------------------------------------------------------
-  const {
-    currentModeId, currentMode, currentModelId, currentModel,
-    lastRoutedMode,
-    isCommandMode, isSearching, isForumSearchEnabled,
-    isMemoryCaptureEnabled, isTreeholeMemoryEnabled, isTreeholeMemoryToggling,
-    isQuickNoteEnabled, isPlanModeEnabled,
-    isSharedMemoryEnabled, isKnowledgeBaseEnabled,
-    currentResponseStyleId, currentResponseStyle,
-    responseStyleOptions,
-    cloudReferenceConsent,
-    webSearchDisabledNoticeShownFor,
-    getModelForModeId,
-    togglePlanMode, setResponseStyle,
-    persistModeSetting,
-    persistMemoryCaptureSetting,
-    persistTreeholeMemorySetting, persistQuickNoteSetting,
-    persistSharedMemorySetting, persistKnowledgeBaseSetting
-  } = useModelConfig({ availableModels: runtimeAvailableModels, chatModes: runtimeChatModes });
 
   const loadRuntimeModelConfig = async () => {
     try {

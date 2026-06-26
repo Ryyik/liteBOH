@@ -42,7 +42,7 @@
 
       <div class="nav-user" id="nav-user-area">
         <template v-if="isLoggedIn">
-          <router-link to="/user-space" class="nav-user-info nav-user-profile" id="nav-user-info" title="进入我的方块">
+          <router-link to="/user-space?tab=posts" class="nav-user-info nav-user-profile" id="nav-user-info" title="进入我的方块" @click="handleMyBlockClick">
             <div class="nav-avatar">
               <img v-if="avatarUrl" :src="avatarUrl" alt="头像" class="nav-avatar-img" loading="lazy" decoding="async">
               <span v-else>{{ username ? username.charAt(0).toUpperCase() : 'U' }}</span>
@@ -124,7 +124,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { getImageUrl } from "../../utils/asset-helper.js";
 import { useAuthStore } from "@/stores/auth";
 import { storeToRefs } from "pinia";
@@ -181,6 +181,8 @@ const unreadCount = computed(() => notificationStoreRef.value?.unreadCount || 0)
 // ============================================
 
 const route = useRoute();
+const router = useRouter();
+
 const isActive = (path) => {
   if (path === '/user-space?tab=posts') {
     return route.path === '/user-space' && String(route.query.tab || 'posts') === 'posts';
@@ -190,6 +192,24 @@ const isActive = (path) => {
   }
   // 确保匹配完整路径或子路径，避免类似 /shop 匹配 /shopping 的情况
   return route.path === path || route.path.startsWith(path + '/');
+};
+
+// 处理"我的方块"按钮点击：如果在论坛页面，刷新并滚动到顶部
+const handleMyBlockClick = (event) => {
+  const isAlreadyInForum = route.path === '/user-space' && String(route.query.tab || 'posts') === 'posts';
+  if (isAlreadyInForum) {
+    // 阻止路由跳转，触发刷新和滚动到顶部
+    event.preventDefault();
+    // 发送自定义事件，通知论坛组件刷新
+    window.dispatchEvent(new CustomEvent('boh_forum_refresh_request'));
+    // 滚动到顶部
+    const scrollContainer = document.querySelector('.tab-page.posts-tab') || window;
+    if (scrollContainer !== window) {
+      scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
 };
 
 // 使用 store 中的状态

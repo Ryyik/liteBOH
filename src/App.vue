@@ -130,6 +130,8 @@ let aiDragActive = false;
 let edgeSwipeActive = false;
 const edgeIndicatorVisible = ref(false);  // 边缘滑动提示线显示状态
 
+// TODO: 边缘滑动手势与 useEdgeSwipeGesture composable 存在重复实现，
+// 后续应统一使用 composable 并传入自定义参数（edgeWidth: 30, minSwipeDistance: 60, maxSwipeTime: 1000）
 const handleGlobalAiTouchStart = (e) => {
   const touch = e.touches[0];
   globalAiTouchStartY = touch.clientY;

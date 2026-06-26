@@ -644,6 +644,33 @@
   transform: scale(1);
 }
 
+/* 图片加载失败时的占位样式 */
+.image-post-thumb-shell.is-failed {
+  background: #f8fafc;
+  cursor: default;
+}
+
+.image-post-thumb-shell.is-failed::before {
+  opacity: 0;
+}
+
+.image-post-thumb-failed {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #86868b;
+  z-index: 3;
+}
+
+.image-post-thumb-failed-text {
+  font-size: 12px;
+  font-weight: 500;
+}
+
 /* LQIP 低质量占位图：模糊背景，高清图加载完成后淡出 */
 .image-post-thumb-lqip {
   position: absolute;

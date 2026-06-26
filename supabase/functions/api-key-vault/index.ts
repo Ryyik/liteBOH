@@ -133,6 +133,22 @@ const requireAdmin = async (request: Request, client: ReturnType<typeof createSe
   return { ok: true as const, userId };
 };
 
+// 仅要求用户登录（非管理员），用于 runtime-chat / runtime-chat-stream
+const requireUser = async (request: Request, client: ReturnType<typeof createServiceClient>) => {
+  const token = getBearerToken(request);
+  if (!token) {
+    return { ok: false as const, status: 401, code: 'UNAUTHORIZED', message: '请先登录。' };
+  }
+
+  const { data: authData, error: authError } = await client.auth.getUser(token);
+  const userId = String(authData?.user?.id || '').trim();
+  if (authError || !userId) {
+    return { ok: false as const, status: 401, code: 'INVALID_SESSION', message: '登录状态已失效。' };
+  }
+
+  return { ok: true as const, userId };
+};
+
 const sanitizeRow = (row: VaultRow) => ({
   id: row.id,
   provider: row.provider,
@@ -843,6 +859,10 @@ Deno.serve(async (request) => {
     const action = toText(body.action || 'list', 30);
 
     if (action === 'runtime-chat') {
+      const user = await requireUser(request, client);
+      if (!user.ok) {
+        return jsonResponse({ ok: false, code: user.code, message: user.message }, user.status, origin);
+      }
       const quota = await checkAndLogRequest(client, body, request);
       if (!quota.allowed) {
         return jsonResponse({ ok: false, status: 429, data: { quota }, message: '今日 AI 对话额度已用完，明天 0:00 重置' }, 429, origin);
@@ -851,6 +871,10 @@ Deno.serve(async (request) => {
       return jsonResponse(result, result.ok ? 200 : 502, origin);
     }
     if (action === 'runtime-chat-stream') {
+      const user = await requireUser(request, client);
+      if (!user.ok) {
+        return jsonResponse({ ok: false, code: user.code, message: user.message }, user.status, origin);
+      }
       const quota = await checkAndLogRequest(client, body, request);
       if (!quota.allowed) {
         return jsonResponse({ ok: false, status: 429, data: { quota }, message: '今日 AI 对话额度已用完，明天 0:00 重置' }, 429, origin);

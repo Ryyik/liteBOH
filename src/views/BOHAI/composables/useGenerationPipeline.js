@@ -269,6 +269,15 @@ export function useGenerationPipeline({ availableModels, abortController, curren
     }
   }
 
+  // 模块级默认 thinkingState，用于兼容未传 thinkingState 参数的调用方（如 useChatEngine）
+  let _defaultThinkingState = null
+  const _getDefaultThinkingState = () => {
+    if (!_defaultThinkingState) {
+      _defaultThinkingState = createThinkingState()
+    }
+    return _defaultThinkingState
+  }
+
   // 非流式文本的思考内容过滤（后处理）
   const filterThinkingContent = (content) => {
     if (!content) return ''
@@ -297,11 +306,12 @@ export function useGenerationPipeline({ availableModels, abortController, curren
   }
 
   // 流式处理时的思考内容过滤（带状态跟踪）
-  // 修复：接受thinkingState参数，确保状态隔离
+  // 修复：接受thinkingState参数，确保状态隔离；未传时使用模块级默认状态
   const filterThinkingContentStream = (chunk, thinkingState) => {
     if (!chunk) return ''
 
-    const { inThinkingBlock, thinkingBuffer } = thinkingState.getState()
+    const state = thinkingState || _getDefaultThinkingState()
+    const { inThinkingBlock, thinkingBuffer } = state.getState()
     let newBuffer = thinkingBuffer + chunk
     let output = ''
     let newInThinkingBlock = inThinkingBlock
@@ -314,7 +324,7 @@ export function useGenerationPipeline({ availableModels, abortController, curren
           newInThinkingBlock = false
           continue
         } else {
-          thinkingState.setState({ inThinkingBlock: newInThinkingBlock, thinkingBuffer: '' })
+          state.setState({ inThinkingBlock: newInThinkingBlock, thinkingBuffer: '' })
           return output
         }
       }
@@ -332,7 +342,7 @@ export function useGenerationPipeline({ availableModels, abortController, curren
         } else {
           newInThinkingBlock = true
           output += beforeThink
-          thinkingState.setState({ inThinkingBlock: newInThinkingBlock, thinkingBuffer: '' })
+          state.setState({ inThinkingBlock: newInThinkingBlock, thinkingBuffer: '' })
           return output
         }
       }
@@ -344,26 +354,28 @@ export function useGenerationPipeline({ availableModels, abortController, curren
     const potentialTagMatch = newBuffer.match(/<\/?(?:t(?:h(?:i(?:n(?:k)?)?)?)?)?$/i)
     if (potentialTagMatch) {
       output += newBuffer.slice(0, potentialTagMatch.index)
-      thinkingState.setState({ inThinkingBlock: newInThinkingBlock, thinkingBuffer: potentialTagMatch[0] })
+      state.setState({ inThinkingBlock: newInThinkingBlock, thinkingBuffer: potentialTagMatch[0] })
       return output
     }
 
     output += newBuffer
-    thinkingState.setState({ inThinkingBlock: newInThinkingBlock, thinkingBuffer: '' })
+    state.setState({ inThinkingBlock: newInThinkingBlock, thinkingBuffer: '' })
     return output
   }
 
   // 流式处理结束时刷新缓冲区
   const flushThinkingBuffer = (thinkingState) => {
-    const { thinkingBuffer } = thinkingState.getState()
-    thinkingState.reset()
+    const state = thinkingState || _getDefaultThinkingState()
+    const { thinkingBuffer } = state.getState()
+    state.reset()
     return thinkingBuffer
   }
 
-  // 重置思考过滤状态（兼容旧接口）
+  // 重置思考过滤状态
   const resetThinkingState = () => {
-    // 注意：这个函数现在只是占位符，实际状态由thinkingState管理
-    // 在callModelStream中会创建新的thinkingState
+    if (_defaultThinkingState) {
+      _defaultThinkingState.reset()
+    }
   }
 
   // ==============================================================

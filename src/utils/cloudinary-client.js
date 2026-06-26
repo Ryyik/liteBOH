@@ -6,12 +6,12 @@ import {
   validateImageFileBeforeUpload
 } from './cloud-upload-guard.js';
 
-const CLOUDINARY_CLOUD_NAME = String(import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || '').trim();
+const CLOUDINARY_CLOUD_NAME = String(import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'dkqae7j1m').trim();
 const DEFAULT_UPLOAD_PRESET = String(
   import.meta.env.VITE_CLOUDINARY_CLOUD_PLUS_UPLOAD_PRESET
   || import.meta.env.VITE_CLOUDINARY_NOTE_UPLOAD_PRESET
   || import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET
-  || ''
+  || 'BOHIMG'
 ).trim();
 const DEFAULT_FOLDER = String(
   import.meta.env.VITE_CLOUDINARY_CLOUD_PLUS_FOLDER
@@ -19,7 +19,7 @@ const DEFAULT_FOLDER = String(
   || 'boh-cloud-plus'
 ).trim();
 const CLOUDINARY_UPLOAD_BASE_URL = String(import.meta.env.VITE_CLOUDINARY_UPLOAD_BASE_URL || '').trim().replace(/\/+$/, '');
-const CLOUDINARY_DELIVERY_BASE_URL = String(import.meta.env.VITE_CLOUDINARY_DELIVERY_BASE_URL || '').trim().replace(/\/+$/, '');
+const CLOUDINARY_DELIVERY_BASE_URL = String(import.meta.env.VITE_CLOUDINARY_DELIVERY_BASE_URL || 'https://cdn.blockofhome.cn').trim().replace(/\/+$/, '');
 
 function resolveUploadUrl(resourceType = 'image') {
   if (!CLOUDINARY_CLOUD_NAME) {

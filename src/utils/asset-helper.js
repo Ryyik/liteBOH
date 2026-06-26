@@ -50,11 +50,11 @@ export async function preloadImage(path) {
     return imageCache.get(cleanPath);
   }
 
-  // 尝试动态导入
+  // 尝试从 eager 导入的模块中获取（eager: true 时值为 URL 字符串，非函数）
   if (images[cleanPath]) {
     try {
-      const module = await images[cleanPath]();
-      const url = module.default || module;
+      const entry = images[cleanPath];
+      const url = typeof entry === 'function' ? await entry() : entry;
       imageCache.set(cleanPath, url);
       return url;
     } catch (error) {
@@ -203,11 +203,11 @@ export async function getImageUrlAsync(path, options = {}) {
     return imageCache.get(cleanPath);
   }
 
-  // 尝试动态导入
+  // 尝试从 eager 导入的模块中获取（eager: true 时值为 URL 字符串，非函数）
   if (images[cleanPath]) {
     try {
-      const module = await images[cleanPath]();
-      const url = module.default || module;
+      const entry = images[cleanPath];
+      const url = typeof entry === 'function' ? await entry() : entry;
       imageCache.set(cleanPath, url);
       return url;
     } catch (error) {
@@ -225,8 +225,8 @@ export async function getImageUrlAsync(path, options = {}) {
 
   if (images[webpPath]) {
     try {
-      const module = await images[webpPath]();
-      const url = module.default || module;
+      const entry = images[webpPath];
+      const url = typeof entry === 'function' ? await entry() : entry;
       imageCache.set(webpPath, url);
       return url;
     } catch (error) {

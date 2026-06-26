@@ -1148,11 +1148,15 @@ const updateMobileStatus = () => {
     const width = window.innerWidth;
     const height = window.innerHeight;
     isMobile.value = width <= MOBILE_BREAKPOINT;
+
+    const prevComposerMode = isMobileComposerMode.value;
     isMobileComposerMode.value = width <= PORTRAIT_COMPOSER_BREAKPOINT && height >= width;
-    // 不强制关闭编辑器，横屏下自适应布局
-    // if (!isMobileComposerMode.value) {
-    //   isMobileComposerOpen.value = false;
-    // }
+
+    // 如果从移动端编辑器模式切换到桌面端，且编辑器已打开，则关闭编辑器
+    // 防止横屏时出现竖屏样式的编辑器
+    if (prevComposerMode && !isMobileComposerMode.value && isMobileComposerOpen.value) {
+      isMobileComposerOpen.value = false;
+    }
   });
 };
 
@@ -1181,6 +1185,21 @@ const handleThemeChange = (theme, _preference, uiStyle = themeManager.getUiStyle
   currentUiStyle.value = uiStyle;
 };
 
+// 处理刷新请求：重置状态并重新加载论坛数据
+const handleForumRefreshRequest = () => {
+  // 重置页码和状态
+  currentPage.value = 1;
+  nextPageCursor.value = '';
+  hasMoreData.value = true;
+  forumLoadError.value = '';
+  searchQuery.value = '';
+  searchKeyword.value = '';
+  // 重新加载论坛数据
+  fetchForumData();
+  // 滚动到顶部
+  scrollForumTo(0);
+};
+
 onMounted(() => {
   currentTheme.value = readActiveForumTheme();
   currentUiStyle.value = themeManager.getUiStyle?.() || 'glass';
@@ -1191,6 +1210,8 @@ onMounted(() => {
   window.addEventListener('resize', updateMobileStatus);
   window.addEventListener('orientationchange', updateMobileStatus);
   document.addEventListener('click', closePostImageSourceMenu);
+  // 监听刷新请求事件（从导航栏点击"我的方块"时触发）
+  window.addEventListener('boh_forum_refresh_request', handleForumRefreshRequest);
 
   void initializeForumData();
   setupForumLoadMoreObserver();
@@ -1211,6 +1232,7 @@ onUnmounted(() => {
   forumFetchAbortController = null;
   window.removeEventListener('resize', updateMobileStatus);
   window.removeEventListener('orientationchange', updateMobileStatus);
+  window.removeEventListener('boh_forum_refresh_request', handleForumRefreshRequest);
   if (resizeRafId) {
     cancelAnimationFrame(resizeRafId);
     resizeRafId = null;
@@ -2842,7 +2864,8 @@ const openPostDetail = (postId) => {
 </script>
 
 <template>
-  <div ref="forumPageRef" class="forum-page" :class="{ 'embedded-mode': embedded }" :data-theme="currentTheme" :data-ui-style="currentUiStyle">
+  <div ref="forumPageRef" class="forum-page" :class="{ 'embedded-mode': embedded }" :data-theme="currentTheme"
+    :data-ui-style="currentUiStyle">
     <link rel="preconnect" :href="cdnDeliveryBase" crossorigin />
     <link rel="dns-prefetch" :href="cdnDeliveryBase" />
 
@@ -2864,19 +2887,11 @@ const openPostDetail = (postId) => {
           </button>
 
           <!-- 通知面板 -->
-          <NotificationDrawer
-            v-model:open="showNotifications"
-            :notifications="notifications"
-            :loading="isNotificationsLoading"
-            :unread-count="unreadCount"
-            v-model:type-filter="notificationTypeFilter"
-            :filter-options="NOTIFICATION_FILTER_OPTIONS"
-            :selected-message="selectedMessage"
-            @close="showNotifications = false"
-            @mark-all-read="handleMarkAllAsRead"
-            @select="showDetail"
-            @filter-change="notificationTypeFilter = $event"
-          />
+          <NotificationDrawer v-model:open="showNotifications" :notifications="notifications"
+            :loading="isNotificationsLoading" :unread-count="unreadCount" v-model:type-filter="notificationTypeFilter"
+            :filter-options="NOTIFICATION_FILTER_OPTIONS" :selected-message="selectedMessage"
+            @close="showNotifications = false" @mark-all-read="handleMarkAllAsRead" @select="showDetail"
+            @filter-change="notificationTypeFilter = $event" />
         </div>
       </header>
 
@@ -2886,44 +2901,31 @@ const openPostDetail = (postId) => {
         <!-- 左侧：发帖和列表 -->
         <div class="forum-left-column">
           <PostComposer v-if="!isMobileComposerMode" v-model:new-post="newPost"
-            v-model:selected-post-tag="selectedPostTag" v-model:post-location="postLocation" :is-logged-in="isLoggedIn" :user-info="userInfo"
-            :post-images="postImages" :is-submitting="isSubmitting" :is-uploading-post-image="isUploadingPostImage"
-            :post-image-upload-status="postImageUploadStatus" :post-cooldown-seconds="postCooldownSeconds"
-            :weekly-checkin-status="weeklyCheckinStatus" :weekly-checkin-progress-text="weeklyCheckinProgressText"
+            v-model:selected-post-tag="selectedPostTag" v-model:post-location="postLocation" :is-logged-in="isLoggedIn"
+            :user-info="userInfo" :post-images="postImages" :is-submitting="isSubmitting"
+            :is-uploading-post-image="isUploadingPostImage" :post-image-upload-status="postImageUploadStatus"
+            :post-cooldown-seconds="postCooldownSeconds" :weekly-checkin-status="weeklyCheckinStatus"
+            :weekly-checkin-progress-text="weeklyCheckinProgressText"
             :weekly-checkin-progress-percent="weeklyCheckinProgressPercent"
-            :weekly-checkin-hint-text="weeklyCheckinHintText"
-            :is-weekly-checkin-loading="isWeeklyCheckinLoading"
+            :weekly-checkin-hint-text="weeklyCheckinHintText" :is-weekly-checkin-loading="isWeeklyCheckinLoading"
             :is-weekly-checkin-submitting="isWeeklyCheckinSubmitting" :forum-tag-options="FORUM_TAG_OPTIONS"
-            :max-post-images="FORUM_POST_IMAGE_MAX_COUNT"
-            :mention-users="forumMentionUsers"
-            :is-home-cat-theme="isHomeCatActive"
-            :show-post-image-source-menu="showPostImageSourceMenu"
-            :auto-save-draft-label="autoSaveDraftLabel"
-            @submit="handlePost"
-            @login="showLoginModal = true" @toggle-image-source-menu="togglePostImageSourceMenu"
-            @request-image-picker="openPostImagePicker" @request-camera="openPostCamera"
-            @image-selection="handlePostImageSelection" @remove-image="removePostImage"
-            @retry-image="retryPostImageUpload"
-            @reorder-image="reorderPostImage"
-            @clear-images="clearPostImages" @weekly-checkin="handleWeeklyCheckin" @open-draft="openMobileDraftPanel" />
+            :max-post-images="FORUM_POST_IMAGE_MAX_COUNT" :mention-users="forumMentionUsers"
+            :is-home-cat-theme="isHomeCatActive" :show-post-image-source-menu="showPostImageSourceMenu"
+            :auto-save-draft-label="autoSaveDraftLabel" @submit="handlePost" @login="showLoginModal = true"
+            @toggle-image-source-menu="togglePostImageSourceMenu" @request-image-picker="openPostImagePicker"
+            @request-camera="openPostCamera" @image-selection="handlePostImageSelection" @remove-image="removePostImage"
+            @retry-image="retryPostImageUpload" @reorder-image="reorderPostImage" @clear-images="clearPostImages"
+            @weekly-checkin="handleWeeklyCheckin" @open-draft="openMobileDraftPanel" />
 
           <!-- 帖子列表 -->
           <section class="posts-feed fade-in-up" style="animation-delay: 0.2s;">
-            <ForumToolbar
-              v-model:searchQuery="searchQuery"
-              :is-logged-in="isLoggedIn"
-              :has-signed-this-week="weeklyCheckinStatus.hasSignedThisWeek"
-              :sort-mode="sortMode"
-              :selected-tag-filter="selectedTagFilter"
-              :is-ai-search-enabled="isAiSearchEnabled"
-              :is-ai-search-loading="isAiSearchLoading"
-              :ai-search-hint="aiSearchHint"
-              @search-submit="handleSearchSubmit"
-              @toggle-ai-search="toggleAiSearch"
-              @open-weekly-checkin="openWeeklyCheckinCalendar"
-              @set-sort-mode="setSortMode"
-              @set-tag-filter="setTagFilter"
-            />
+            <ForumToolbar v-model:searchQuery="searchQuery" :is-logged-in="isLoggedIn"
+              :has-signed-this-week="weeklyCheckinStatus.hasSignedThisWeek" :sort-mode="sortMode"
+              :selected-tag-filter="selectedTagFilter" :is-ai-search-enabled="isAiSearchEnabled"
+              :is-ai-search-loading="isAiSearchLoading" :ai-search-hint="aiSearchHint"
+              @search-submit="handleSearchSubmit" @toggle-ai-search="toggleAiSearch"
+              @open-weekly-checkin="openWeeklyCheckinCalendar" @set-sort-mode="setSortMode"
+              @set-tag-filter="setTagFilter" />
 
             <!-- 骨架屏加载状态 -->
             <div v-if="isLoading" class="skeleton-feed">
@@ -2962,70 +2964,35 @@ const openPostDetail = (postId) => {
                 <p v-else>这里空空如也，快来发布第一条动态吧！</p>
               </div>
 
-              <div
-                v-if="virtualFeedTopSpacerHeight > 0"
-                class="forum-virtual-spacer"
-                :style="{ height: `${virtualFeedTopSpacerHeight}px` }"
-                aria-hidden="true"
-              ></div>
+              <div v-if="virtualFeedTopSpacerHeight > 0" class="forum-virtual-spacer"
+                :style="{ height: `${virtualFeedTopSpacerHeight}px` }" aria-hidden="true"></div>
 
-              <div
-                v-for="(post, index) in visibleForumPosts"
-                :key="post.id"
-                class="forum-virtual-post"
-                :data-forum-virtual-index="getVisiblePostIndex(index)"
-              >
-                <PostCard
-                  :post="post"
-                  :index="getVisiblePostIndex(index)"
-                  :is-home-cat-active="isHomeCatActive"
+              <div v-for="(post, index) in visibleForumPosts" :key="post.id" class="forum-virtual-post"
+                :data-forum-virtual-index="getVisiblePostIndex(index)">
+                <PostCard :post="post" :index="getVisiblePostIndex(index)" :is-home-cat-active="isHomeCatActive"
                   :is-expanded="expandedPostIds.has(post.id)"
                   :active-reply-target="activeReplyTarget && activeReplyTarget.postId === post.id ? activeReplyTarget : null"
-                  :reply-content="replyContent"
-                  :is-reply-submitting="isReplySubmitting"
-                  :reply-cooldown-seconds="replyCooldownSeconds"
-                  :reply-submit-label="replySubmitLabel"
-                  :is-like-submitting="!!isLikeSubmitting[post.id]"
-                  :is-liked-pulsing="isPostLikePulsing(post.id)"
-                  :is-share-copied="isPostShareCopied(post.id)"
-                  :is-highlighted="isPostHighlighted(post.id)"
-                  :is-reply-success="hasUiMarker(replySuccessPostIds, post.id)"
-                  :search-keyword="searchKeyword"
-                  :is-logged-in="isLoggedIn"
-                  :user-info="userInfo"
-                  :loaded-image-keys="loadedForumImageKeys"
-                  @click="openPostDetail"
-                  @go-to-profile="goToProfile"
-                  @toggle-like="handleToggleLike"
-                  @toggle-replies="toggleRepliesList"
-                  @toggle-reply-input="handlePostCardToggleReplyInput"
-                  @share="sharePost"
-                  @submit-reply="submitReply"
-                  @delete-comment="handleDeleteComment"
-                  @open-image-viewer="openForumImageViewer"
-                  @update:reply-content="replyContent = $event"
-                  @clear-reply-target="handlePostCardClearReplyTarget"
-                  @cancel-reply="handlePostCardCancelReply"
-                  @image-loaded="markForumImageLoaded"
-                  @lazy-image-observe="observeForumLazyImage"
-                  @more-replies="openPostDetail"
-                />
+                  :reply-content="replyContent" :is-reply-submitting="isReplySubmitting"
+                  :reply-cooldown-seconds="replyCooldownSeconds" :reply-submit-label="replySubmitLabel"
+                  :is-like-submitting="!!isLikeSubmitting[post.id]" :is-liked-pulsing="isPostLikePulsing(post.id)"
+                  :is-share-copied="isPostShareCopied(post.id)" :is-highlighted="isPostHighlighted(post.id)"
+                  :is-reply-success="hasUiMarker(replySuccessPostIds, post.id)" :search-keyword="searchKeyword"
+                  :is-logged-in="isLoggedIn" :user-info="userInfo" :loaded-image-keys="loadedForumImageKeys"
+                  @click="openPostDetail" @go-to-profile="goToProfile" @toggle-like="handleToggleLike"
+                  @toggle-replies="toggleRepliesList" @toggle-reply-input="handlePostCardToggleReplyInput"
+                  @share="sharePost" @submit-reply="submitReply" @delete-comment="handleDeleteComment"
+                  @open-image-viewer="openForumImageViewer" @update:reply-content="replyContent = $event"
+                  @clear-reply-target="handlePostCardClearReplyTarget" @cancel-reply="handlePostCardCancelReply"
+                  @image-loaded="markForumImageLoaded" @lazy-image-observe="observeForumLazyImage"
+                  @more-replies="openPostDetail" />
               </div>
 
-              <div
-                v-if="virtualFeedBottomSpacerHeight > 0"
-                class="forum-virtual-spacer"
-                :style="{ height: `${virtualFeedBottomSpacerHeight}px` }"
-                aria-hidden="true"
-              ></div>
+              <div v-if="virtualFeedBottomSpacerHeight > 0" class="forum-virtual-spacer"
+                :style="{ height: `${virtualFeedBottomSpacerHeight}px` }" aria-hidden="true"></div>
             </div>
 
-            <div
-              v-if="feedMode === 'posts' && hasMoreData"
-              ref="loadMoreSentinelRef"
-              class="forum-load-more-sentinel"
-              aria-hidden="true"
-            ></div>
+            <div v-if="feedMode === 'posts' && hasMoreData" ref="loadMoreSentinelRef" class="forum-load-more-sentinel"
+              aria-hidden="true"></div>
 
             <!-- 加载更多提示 -->
             <div v-if="feedMode === 'posts' && isLoadingMore" class="loading-more">
@@ -3034,7 +3001,8 @@ const openPostDetail = (postId) => {
             </div>
 
             <!-- 没有更多数据提示 -->
-            <div v-else-if="feedMode === 'posts' && !hasMoreData && forumData.length > 0 && !isLoading" class="no-more-data">
+            <div v-else-if="feedMode === 'posts' && !hasMoreData && forumData.length > 0 && !isLoading"
+              class="no-more-data">
               <p>已经到底啦～</p>
             </div>
           </section>
@@ -3120,44 +3088,31 @@ const openPostDetail = (postId) => {
             </div>
           </Transition>
           <div class="mobile-composer-scroll">
-            <PostComposer v-model:new-post="newPost" v-model:selected-post-tag="selectedPostTag" v-model:post-location="postLocation"
-              :is-logged-in="isLoggedIn" :user-info="userInfo" :post-images="postImages"
-              :is-submitting="isSubmitting" :is-uploading-post-image="isUploadingPostImage"
+            <PostComposer v-model:new-post="newPost" v-model:selected-post-tag="selectedPostTag"
+              v-model:post-location="postLocation" :is-logged-in="isLoggedIn" :user-info="userInfo"
+              :post-images="postImages" :is-submitting="isSubmitting" :is-uploading-post-image="isUploadingPostImage"
               :post-image-upload-status="postImageUploadStatus" :post-cooldown-seconds="postCooldownSeconds"
               :weekly-checkin-status="weeklyCheckinStatus" :weekly-checkin-progress-text="weeklyCheckinProgressText"
               :weekly-checkin-progress-percent="weeklyCheckinProgressPercent"
-              :weekly-checkin-hint-text="weeklyCheckinHintText"
-              :is-weekly-checkin-loading="isWeeklyCheckinLoading"
+              :weekly-checkin-hint-text="weeklyCheckinHintText" :is-weekly-checkin-loading="isWeeklyCheckinLoading"
               :is-weekly-checkin-submitting="isWeeklyCheckinSubmitting" :forum-tag-options="FORUM_TAG_OPTIONS"
-              :max-post-images="FORUM_POST_IMAGE_MAX_COUNT"
-              :mention-users="forumMentionUsers"
-              :is-home-cat-theme="isHomeCatActive"
-              :show-post-image-source-menu="showPostImageSourceMenu" is-mobile-composer @submit="handlePost"
-              @login="showLoginModal = true" @toggle-image-source-menu="togglePostImageSourceMenu"
-              @request-image-picker="openPostImagePicker" @request-camera="openPostCamera"
-              @image-selection="handlePostImageSelection" @remove-image="removePostImage"
-              @retry-image="retryPostImageUpload"
-              @reorder-image="reorderPostImage"
+              :max-post-images="FORUM_POST_IMAGE_MAX_COUNT" :mention-users="forumMentionUsers"
+              :is-home-cat-theme="isHomeCatActive" :show-post-image-source-menu="showPostImageSourceMenu"
+              is-mobile-composer @submit="handlePost" @login="showLoginModal = true"
+              @toggle-image-source-menu="togglePostImageSourceMenu" @request-image-picker="openPostImagePicker"
+              @request-camera="openPostCamera" @image-selection="handlePostImageSelection"
+              @remove-image="removePostImage" @retry-image="retryPostImageUpload" @reorder-image="reorderPostImage"
               @clear-images="clearPostImages" @weekly-checkin="handleWeeklyCheckin" />
           </div>
         </div>
       </Transition>
     </Teleport>
 
-    <WeeklyCheckinCalendar
-      v-model:open="isWeeklyCheckinCalendarOpen"
-      :status="weeklyCheckinStatus"
-      :calendar-days="checkinCalendarDays"
-      :cycle-weeks="weeklyCheckinCycleWeeks"
-      :progress-percent="weeklyCheckinProgressPercent"
-      :panel-title="weeklyCheckinPanelTitle"
-      :range-text="weeklyCheckinRangeText"
-      :hint-text="weeklyCheckinHintText"
-      :loading="isWeeklyCheckinLoading"
-      :submitting="isWeeklyCheckinSubmitting"
-      @close="closeWeeklyCheckinCalendar"
-      @checkin="handleWeeklyCheckin"
-    />
+    <WeeklyCheckinCalendar v-model:open="isWeeklyCheckinCalendarOpen" :status="weeklyCheckinStatus"
+      :calendar-days="checkinCalendarDays" :cycle-weeks="weeklyCheckinCycleWeeks"
+      :progress-percent="weeklyCheckinProgressPercent" :panel-title="weeklyCheckinPanelTitle"
+      :range-text="weeklyCheckinRangeText" :hint-text="weeklyCheckinHintText" :loading="isWeeklyCheckinLoading"
+      :submitting="isWeeklyCheckinSubmitting" @close="closeWeeklyCheckinCalendar" @checkin="handleWeeklyCheckin" />
 
     <Teleport to="body">
       <transition name="fade">
@@ -3172,8 +3127,7 @@ const openPostDetail = (postId) => {
                 @click="closeImageCompressionPrompt(false)">
                 {{ imageCompressionPrompt.cancelText }}
               </button>
-              <button type="button" class="image-compression-action primary"
-                @click="closeImageCompressionPrompt(true)">
+              <button type="button" class="image-compression-action primary" @click="closeImageCompressionPrompt(true)">
                 {{ imageCompressionPrompt.confirmText }}
               </button>
             </div>
@@ -3185,8 +3139,7 @@ const openPostDetail = (postId) => {
     <Teleport to="body">
       <Transition name="mobile-draft-panel">
         <div v-if="isMobileDraftPanelOpen && !isMobileComposerOpen"
-          class="mobile-draft-panel-overlay desktop-draft-panel-overlay"
-          @click="closeMobileDraftPanel">
+          class="mobile-draft-panel-overlay desktop-draft-panel-overlay" @click="closeMobileDraftPanel">
           <section class="mobile-draft-panel" aria-label="发帖草稿" @click.stop>
             <div class="mobile-draft-panel-header">
               <div>
@@ -3225,18 +3178,15 @@ const openPostDetail = (postId) => {
       </Transition>
     </Teleport>
 
-    <ForumImageViewer
-      v-model:open="isForumImageViewerOpen"
-      :images="forumImageViewerImages"
-      :initial-index="forumImageViewerIndex"
-      @close="closeForumImageViewer"
-    />
+    <ForumImageViewer v-model:open="isForumImageViewerOpen" :images="forumImageViewerImages"
+      :initial-index="forumImageViewerIndex" @close="closeForumImageViewer" />
 
     <Teleport to="body">
       <Transition name="forum-confirm-fade">
         <div v-if="confirmState.show" class="forum-confirm-overlay" @click.self="closeConfirm(false)">
           <div class="forum-confirm-modal" role="dialog" aria-modal="true" :aria-label="confirmState.title">
-            <img v-if="isHomeCatActive && confirmMascotSrc" class="forum-confirm-cat-img" :src="confirmMascotSrc" alt="" draggable="false"  loading="lazy" />
+            <img v-if="isHomeCatActive && confirmMascotSrc" class="forum-confirm-cat-img" :src="confirmMascotSrc" alt=""
+              draggable="false" loading="lazy" />
             <h3>{{ confirmState.title }}</h3>
             <p>{{ confirmState.message }}</p>
             <div class="forum-confirm-actions">
@@ -3274,7 +3224,7 @@ const openPostDetail = (postId) => {
               <div class="detail-user-card">
                 <div class="large-avatar-wrapper">
                   <img v-if="selectedMessage.sender?.avatar_url" :src="selectedMessage.sender.avatar_url"
-                    class="large-avatar-img" alt="avatar"  loading="lazy" />
+                    class="large-avatar-img" alt="avatar" loading="lazy" />
                   <div v-else class="large-avatar">
                     {{ selectedMessage.sender?.username?.charAt(0)?.toUpperCase?.() || 'S' }}
                   </div>

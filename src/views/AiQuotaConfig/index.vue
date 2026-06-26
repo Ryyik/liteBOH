@@ -70,6 +70,9 @@
 import { ref, onMounted } from 'vue';
 import { supabase } from '@/utils/supabase-client.js';
 import { logger } from '@/utils/logger.js';
+import { useAuthStore } from '@/stores/auth';
+
+const authStore = useAuthStore();
 
 const isLoading = ref(false);
 const isSaving = ref(false);
@@ -97,6 +100,11 @@ const formatDate = (iso) => {
 };
 
 const loadConfig = async () => {
+  if (!authStore.isAdmin) {
+    errorMessage.value = '无权限访问：仅管理员可管理 AI 配额配置';
+    logger.warn('ai-quota', '非管理员尝试访问配额配置页');
+    return;
+  }
   isLoading.value = true;
   errorMessage.value = '';
   successMessage.value = '';
@@ -121,6 +129,10 @@ const startEdit = (row) => {
 };
 
 const handleSave = async (tier) => {
+  if (!authStore.isAdmin) {
+    errorMessage.value = '无权限：仅管理员可修改配额配置';
+    return;
+  }
   const val = Number(editValue.value);
   if (!Number.isFinite(val) || (val < -1)) {
     errorMessage.value = '限额必须 >= -1（-1=无限）';

@@ -83,7 +83,14 @@ function translateYPercent(p) {
 }
 
 const overlayStyle = computed(() => {
-  if (!isMobile.value) return {}
+  if (!isMobile.value) {
+    // 桌面端也需要基础样式，确保面板正确显示
+    return {
+      '--panel-height': `${window.innerHeight}px`,
+      '--panel-visible-bottom': '0px',
+      '--kbd-height': `${keyboardHeight.value}px`
+    }
+  }
   const ty = translateYPercent(dragProgress.value)
   const tyPx = (ty / 100) * window.innerHeight
 
@@ -165,6 +172,8 @@ function updateKeyboard() {
 }
 
 onMounted(() => {
+  // 组件挂载时立即设置 mountedOnce，确保 BOHAIChat 可以渲染
+  mountedOnce.value = true
   document.body.classList.add('global-ai-glass-open')
 
   // iOS键盘弹出时，阻止viewport自动调整

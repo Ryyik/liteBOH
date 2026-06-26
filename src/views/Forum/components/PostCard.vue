@@ -1,8 +1,9 @@
 <script setup>
-import { nextTick } from 'vue';
+import { nextTick, ref } from 'vue';
 import {
   Check,
   Heart,
+  ImageOff,
   MapPin,
   MessageCircle,
   Reply,
@@ -96,9 +97,19 @@ const shouldShowMoreRepliesLink = (post) => {
 const getForumImageKey = (postId, imageUrl) => `${String(postId || '').trim()}:${String(imageUrl || '').trim()}`;
 const isForumImageLoaded = (postId, imageUrl) => props.loadedImageKeys.has(getForumImageKey(postId, imageUrl));
 
+// 记录加载失败的图片URL
+const failedImageUrls = ref(new Set());
+
 const onImageLoad = (postId, imageUrl) => {
   emit('image-loaded', postId, imageUrl);
 };
+
+const onImageError = (postId, imageUrl) => {
+  failedImageUrls.value.add(imageUrl);
+  emit('image-loaded', postId, imageUrl); // 仍然标记为已加载，隐藏加载动画
+};
+
+const isImageFailed = (imageUrl) => failedImageUrls.value.has(imageUrl);
 
 const onLazyImageRef = (el) => {
   if (el) nextTick(() => emit('lazy-image-observe', el));
@@ -157,19 +168,28 @@ const onLazyImageRef = (el) => {
         <button v-for="(image, index) in post.previewImages.slice(0, FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT)" :key="image.id || image.url"
           type="button"
           class="image-post-thumb-shell"
-          :class="{ 'is-loaded': isForumImageLoaded(post.id, image.url) }"
+          :class="{
+            'is-loaded': isForumImageLoaded(post.id, image.url),
+            'is-failed': isImageFailed(image.url)
+          }"
           :aria-label="`查看${post.displayTitle}第 ${index + 1} 张大图`"
+          :disabled="isImageFailed(image.url)"
           @click.stop="emit('open-image-viewer', post, index)"
         >
+          <!-- 图片加载失败时显示占位图标 -->
+          <div v-if="isImageFailed(image.url)" class="image-post-thumb-failed" aria-label="图片加载失败">
+            <ImageOff :size="28" :stroke-width="1.5" aria-hidden="true" />
+            <span class="image-post-thumb-failed-text">图片加载失败</span>
+          </div>
           <img
-            v-if="image.lqipUrl"
+            v-if="image.lqipUrl && !isImageFailed(image.url)"
             :src="image.lqipUrl"
             :alt="`${post.displayTitle} 图片 ${index + 1}`"
             class="image-post-thumb-lqip"
             aria-hidden="true"
             decoding="async"  loading="lazy" />
           <img
-            v-if="image.eager"
+            v-if="image.eager && !isImageFailed(image.url)"
             :src="image.url"
             :srcset="image.srcset || undefined"
             sizes="(max-width: 420px) 160px, (max-width: 768px) 300px, 360px"
@@ -181,9 +201,9 @@ const onLazyImageRef = (el) => {
             :width="image.width || undefined"
             :height="image.height || undefined"
             @load="onImageLoad(post.id, image.url)"
-            @error="onImageLoad(post.id, image.url)" />
+            @error="onImageError(post.id, image.url)" />
           <img
-            v-else
+            v-else-if="!isImageFailed(image.url)"
             :data-lazy-src="image.url"
             :data-lazy-srcset="image.srcset || ''"
             sizes="(max-width: 420px) 160px, (max-width: 768px) 300px, 360px"
@@ -196,7 +216,7 @@ const onLazyImageRef = (el) => {
             :height="image.height || undefined"
             :ref="(el) => onLazyImageRef(el)"
             @load="onImageLoad(post.id, image.url)"
-            @error="onImageLoad(post.id, image.url)" />
+            @error="onImageError(post.id, image.url)" />
         </button>
         <span v-if="post.hasMultipleImages" class="image-post-count-badge" aria-hidden="true">
           多图 {{ post.imageCount }}

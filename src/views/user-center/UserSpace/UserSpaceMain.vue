@@ -2543,8 +2543,9 @@ onMounted(() => {
 });
 
 watch(() => route.query.tab, (newTab) => {
-  if (!newTab || !validTabs.includes(newTab)) return;
-  const nextTab = resolveAccessibleTab(newTab, { promptLogin: true });
+  // 当 tab 参数为空或不有效时，切换到默认标签（profile）
+  const safeTab = validTabs.includes(newTab) ? newTab : 'profile';
+  const nextTab = resolveAccessibleTab(safeTab, { promptLogin: true });
   if (currentTab.value === nextTab) return;
   updateTabTransitionDirection(nextTab);
   ensureTabMounted(nextTab);

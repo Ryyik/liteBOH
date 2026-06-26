@@ -1,56 +1,91 @@
 <template>
   <Teleport to="body">
-    <Transition name="quota-panel">
-      <div v-if="visible" class="quota-overlay" @click.self="$emit('close')">
-        <aside class="quota-panel" @click.stop>
+    <Transition name="quota-slide">
+      <div v-if="visible" class="quota-backdrop" role="presentation"
+        @click.self="$emit('close')" @keydown.escape="$emit('close')">
+        <aside class="quota-drawer" @click.stop role="dialog" aria-modal="true" aria-label="AI 使用额度">
           <header class="quota-header">
-            <h3>AI 使用额度</h3>
-            <button type="button" class="close-btn" @click="$emit('close')" aria-label="关闭">
+            <h2 tabindex="-1">AI 使用额度</h2>
+            <button type="button" class="quota-close-btn" title="关闭 (Esc)" @click="$emit('close')" aria-label="关闭">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M18 6L6 18M6 6l12 12" />
               </svg>
             </button>
           </header>
 
-          <div v-if="loading" class="quota-loading">加载中...</div>
+          <div class="quota-body custom-scrollbar">
+            <div v-if="loading" class="quota-loading">加载中...</div>
 
-          <template v-else-if="quota">
-            <section class="quota-body">
-              <div class="tier-badge">{{ tierLabel }}</div>
-
-              <div v-if="quota.limit === -1" class="quota-unlimited">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                </svg>
-                <span>无限额度</span>
-              </div>
-
-              <div v-else class="quota-bar-section">
-                <div class="quota-bar-label">
-                  <span>今日已用</span>
-                  <span class="quota-count">{{ quota.used }} / {{ quota.limit }} 条</span>
+            <template v-else-if="quota">
+              <!-- 会员等级卡片 -->
+              <div class="quota-card">
+                <div class="quota-tier-section">
+                  <div class="quota-icon bg-blue">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                    </svg>
+                  </div>
+                  <div class="quota-label-stack">
+                    <span class="quota-label">会员等级</span>
+                    <span class="quota-desc">{{ tierLabel }}</span>
+                  </div>
                 </div>
-                <div class="quota-bar-track">
-                  <div class="quota-bar-fill" :style="{ width: barPercent + '%' }"
-                    :class="{ warn: barPercent >= 80, danger: barPercent >= 95 }" />
-                </div>
-                <p class="quota-reset">明日北京时间 0:00 重置</p>
-                <p v-if="quota.used >= quota.limit" class="quota-exhausted">今日额度已用完</p>
               </div>
-            </section>
 
-            <footer class="quota-footer">
-              <button v-if="!authStore.isLoggedIn" type="button" class="quota-btn primary" @click="handleLogin">
-                登录享受更高额度
-              </button>
-              <button v-else-if="quota.tier === 'free'" type="button" class="quota-btn primary" @click="handleUpgrade">
-                升级订阅
-              </button>
-              <div v-else class="quota-upgrade-note">
-                {{ quota.tier === 'boh-ai-plus' ? 'BOH Plus 会员' : quota.tier === 'boh-pro' ? 'BOH Pro 会员' : 'BOH Max 会员' }} · 每日 {{ quota.limit === -1 ? '无限' : quota.limit + ' 条' }}
+              <!-- 使用额度卡片 -->
+              <div class="quota-card">
+                <div class="quota-group-title">今日额度</div>
+                
+                <div v-if="quota.limit === -1" class="quota-unlimited-row">
+                  <div class="quota-icon bg-green">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M8 12l2 2 4-4" />
+                    </svg>
+                  </div>
+                  <div class="quota-label-stack">
+                    <span class="quota-label">无限额度</span>
+                    <span class="quota-desc">尽情使用 BOH AI</span>
+                  </div>
+                </div>
+
+                <div v-else class="quota-meter-row">
+                  <div class="quota-meter-info">
+                    <strong>使用情况</strong>
+                    <small>{{ quota.used }} / {{ quota.limit }} 条</small>
+                  </div>
+                  <div class="quota-meter-track">
+                    <div class="quota-meter-fill" :style="{ width: barPercent + '%' }"
+                      :class="{ warn: barPercent >= 80, danger: barPercent >= 95 }" />
+                  </div>
+                  <div class="quota-meter-details">
+                    <div class="quota-meter-detail-row">
+                      <span>剩余额度</span>
+                      <strong>{{ quota.limit - quota.used }} 条</strong>
+                    </div>
+                    <div class="quota-meter-detail-row">
+                      <span>重置时间</span>
+                      <strong>明日 0:00</strong>
+                    </div>
+                  </div>
+                  <p v-if="quota.used >= quota.limit" class="quota-exhausted">今日额度已用完</p>
+                </div>
               </div>
-            </footer>
-          </template>
+            </template>
+          </div>
+
+          <footer class="quota-footer">
+            <button v-if="!authStore.isLoggedIn" type="button" class="quota-action-btn primary" @click="handleLogin">
+              登录享受更高额度
+            </button>
+            <button v-else-if="quota && quota.tier === 'free'" type="button" class="quota-action-btn primary" @click="handleUpgrade">
+              升级订阅解锁更多
+            </button>
+            <div v-else-if="quota" class="quota-tier-note">
+              <strong>{{ quota.tier === 'boh-ai-plus' ? 'BOH Plus' : quota.tier === 'boh-pro' ? 'BOH Pro' : 'BOH Max' }} 会员</strong>
+              <span>{{ quota.limit === -1 ? '无限额度' : `每日 ${quota.limit} 条` }}</span>
+            </div>
+          </footer>
         </aside>
       </div>
     </Transition>
@@ -118,53 +153,72 @@ const handleUpgrade = () => {
 </script>
 
 <style scoped>
-.quota-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1080;
-  background: rgba(0, 0, 0, 0.25);
-  backdrop-filter: blur(2px);
-  display: flex;
-  justify-content: flex-end;
+/* 背景层 - 与设置面板一致 */
+.quota-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483600 !important; /* 与设置面板一致的层级，高于毛玻璃层 */
+  display: flex !important;
+  align-items: stretch !important;
+  justify-content: flex-end !important;
+  padding: 12px !important;
+  background: rgba(15, 23, 42, 0.22) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
-.quota-panel {
-  width: 320px;
-  max-width: 90vw;
-  height: 100%;
-  background: #fff;
-  display: flex;
-  flex-direction: column;
-  box-shadow: -6px 0 24px rgba(0, 0, 0, 0.1);
+/* 侧拉面板 - 从右侧滑入 */
+.quota-drawer {
+  width: min(420px, calc(100vw - 24px)) !important;
+  height: calc(100dvh - 24px) !important;
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) auto !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(226, 232, 240, 0.92) !important;
+  border-radius: 14px !important;
+  background: rgba(255, 255, 255, 0.98) !important;
+  color: #111827 !important;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24) !important;
 }
 
+/* 头部 */
 .quota-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 20px 16px;
-  border-bottom: 1px solid #e5e7eb;
+  gap: 16px;
+  padding: 16px 18px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.86);
 }
 
-.quota-header h3 {
+.quota-header h2 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #111827;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
 }
 
-.close-btn {
-  background: none;
+.quota-close-btn {
+  background: transparent;
   border: none;
   cursor: pointer;
-  color: #6b7280;
-  padding: 4px;
-  border-radius: 6px;
+  color: #64748b;
+  padding: 6px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.close-btn:hover {
-  background: #f3f4f6;
-  color: #111827;
+.quota-close-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: #0f172a;
+}
+
+/* 主体内容 */
+.quota-body {
+  padding: 12px 14px;
+  overflow-y: auto;
 }
 
 .quota-loading {
@@ -174,124 +228,320 @@ const handleUpgrade = () => {
   font-size: 14px;
 }
 
-.quota-body {
-  flex: 1;
-  padding: 24px 20px;
+/* 卡片样式 - 与设置面板一致 */
+.quota-card {
+  background: rgba(248, 250, 252, 0.6);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 12px;
 }
 
-.tier-badge {
-  display: inline-block;
-  padding: 3px 10px;
-  background: #eff6ff;
-  color: #1d4ed8;
+.quota-card:last-child {
+  margin-bottom: 0;
+}
+
+.quota-group-title {
   font-size: 12px;
-  font-weight: 500;
-  border-radius: 999px;
-  margin-bottom: 20px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
 }
 
-.quota-unlimited {
+/* 行样式 - 与设置面板一致 */
+.quota-tier-section,
+.quota-unlimited-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.quota-label-stack {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 32px 0;
-  color: #059669;
-  font-size: 18px;
-  font-weight: 500;
+  gap: 2px;
 }
 
-.quota-bar-label {
+.quota-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.quota-desc {
+  font-size: 13px;
+  color: #64748b;
+}
+
+/* 图标样式 */
+.quota-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+}
+
+.quota-icon.bg-blue {
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+}
+
+.quota-icon.bg-green {
+  background: rgba(16, 163, 127, 0.12);
+  color: #10a37f;
+}
+
+/* 进度条样式 - 与设置面板上下文使用率一致 */
+.quota-meter-row {
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 10px;
+}
+
+.quota-meter-info {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.quota-meter-info strong {
   font-size: 14px;
-  color: #374151;
-  margin-bottom: 8px;
-}
-
-.quota-count {
   font-weight: 600;
-  color: #111827;
+  color: #0f172a;
 }
 
-.quota-bar-track {
-  height: 8px;
+.quota-meter-info small {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.quota-meter-track {
+  height: 6px;
   background: #e5e7eb;
   border-radius: 999px;
   overflow: hidden;
 }
 
-.quota-bar-fill {
+.quota-meter-fill {
   height: 100%;
   background: #3b82f6;
   border-radius: 999px;
   transition: width 0.5s ease;
 }
 
-.quota-bar-fill.warn {
+.quota-meter-fill.warn {
   background: #f59e0b;
 }
 
-.quota-bar-fill.danger {
+.quota-meter-fill.danger {
   background: #ef4444;
 }
 
-.quota-reset {
+.quota-meter-details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(226, 232, 240, 0.6);
+}
+
+.quota-meter-detail-row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.quota-meter-detail-row span {
   font-size: 12px;
-  color: #9ca3af;
-  margin-top: 8px;
+  color: #64748b;
+}
+
+.quota-meter-detail-row strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
 }
 
 .quota-exhausted {
   font-size: 14px;
   color: #ef4444;
   font-weight: 500;
-  margin-top: 12px;
-}
-
-.quota-footer {
-  padding: 16px 20px;
-  border-top: 1px solid #e5e7eb;
-}
-
-.quota-btn {
-  width: 100%;
-  padding: 10px;
-  border: none;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: rgba(239, 68, 68, 0.08);
   border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
 }
 
-.quota-btn.primary {
+/* 底部 */
+.quota-footer {
+  padding: 16px 18px;
+  border-top: 1px solid rgba(226, 232, 240, 0.86);
+}
+
+.quota-action-btn {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.quota-action-btn.primary {
   background: #1459d9;
   color: #fff;
 }
 
-.quota-btn.primary:hover {
+.quota-action-btn.primary:hover {
   background: #1149b8;
 }
 
-.quota-upgrade-note {
-  text-align: center;
+.quota-tier-note {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.quota-tier-note strong {
   font-size: 13px;
-  color: #6b7280;
-  padding: 6px 0;
+  font-weight: 700;
+  color: #64748b;
 }
 
-.quota-panel-enter-active,
-.quota-panel-leave-active {
-  transition: all 0.25s ease;
+.quota-tier-note span {
+  font-size: 12px;
+  color: #94a3b8;
 }
 
-.quota-panel-enter-from .quota-panel,
-.quota-panel-leave-to .quota-panel {
+/* 过渡动画 */
+.quota-slide-enter-active,
+.quota-slide-leave-active {
+  transition: all 0.3s ease;
+}
+
+.quota-slide-enter-active .quota-drawer,
+.quota-slide-leave-active .quota-drawer {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.quota-slide-enter-from .quota-drawer,
+.quota-slide-leave-to .quota-drawer {
   transform: translateX(100%);
 }
 
-.quota-panel-enter-from,
-.quota-panel-leave-to {
+.quota-slide-enter-from,
+.quota-slide-leave-to {
   opacity: 0;
+}
+
+/* 深色模式 */
+[data-boh-theme="dark"] .quota-drawer {
+  background: rgba(28, 28, 30, 0.98);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+}
+
+[data-boh-theme="dark"] .quota-header {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-boh-theme="dark"] .quota-header h2 {
+  color: #f8fafc;
+}
+
+[data-boh-theme="dark"] .quota-close-btn {
+  color: #9ca3af;
+}
+
+[data-boh-theme="dark"] .quota-close-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+}
+
+[data-boh-theme="dark"] .quota-card {
+  background: rgba(40, 40, 42, 0.6);
+}
+
+[data-boh-theme="dark"] .quota-group-title {
+  color: #9ca3af;
+}
+
+[data-boh-theme="dark"] .quota-tier-section,
+[data-boh-theme="dark"] .quota-unlimited-row,
+[data-boh-theme="dark"] .quota-meter-row {
+  background: rgba(40, 40, 42, 0.6);
+}
+
+[data-boh-theme="dark"] .quota-label {
+  color: #f8fafc;
+}
+
+[data-boh-theme="dark"] .quota-desc {
+  color: #9ca3af;
+}
+
+[data-boh-theme="dark"] .quota-icon {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-boh-theme="dark"] .quota-icon.bg-blue {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+[data-boh-theme="dark"] .quota-icon.bg-green {
+  background: rgba(16, 163, 127, 0.15);
+}
+
+[data-boh-theme="dark"] .quota-meter-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+[data-boh-theme="dark"] .quota-meter-details {
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-boh-theme="dark"] .quota-meter-info strong,
+[data-boh-theme="dark"] .quota-meter-detail-row strong {
+  color: #f8fafc;
+}
+
+[data-boh-theme="dark"] .quota-meter-info small,
+[data-boh-theme="dark"] .quota-meter-detail-row span {
+  color: #9ca3af;
+}
+
+[data-boh-theme="dark"] .quota-footer {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-boh-theme="dark"] .quota-tier-note strong,
+[data-boh-theme="dark"] .quota-tier-note span {
+  color: #9ca3af;
+}
+
+/* 移动端适配 */
+@media (max-width: 640px) {
+  .quota-backdrop {
+    padding: 0 !important;
+  }
+  
+  .quota-drawer {
+    width: 100vw !important;
+    height: 100dvh !important;
+    border-radius: 0 !important;
+    border: none !important;
+  }
 }
 </style>
