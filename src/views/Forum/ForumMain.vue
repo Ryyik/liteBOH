@@ -710,9 +710,10 @@ const draftPreviewText = computed(() => {
 const savedDraftTagLabel = computed(() => getForumTagLabel(savedPostDraft.value?.tag || '') || '#日常');
 
 const openMobileDraftPanel = async () => {
-  persistPostDraft();
-  clearPostDraftSaveTimer();
-  await savePostDraftToDatabase(savedPostDraft.value);
+  // ✨ 移除：自动保存草稿（改为手动保存）
+  // persistPostDraft();
+  // clearPostDraftSaveTimer();
+  // await savePostDraftToDatabase(savedPostDraft.value);
   refreshPostDraftState();
   isMobileDraftPanelOpen.value = true;
 };
@@ -722,7 +723,7 @@ const closeMobileDraftPanel = () => {
 };
 
 const saveMobileDraft = async () => {
-  persistPostDraft();
+  persistPostDraft(); // 手动保存时调用
   clearPostDraftSaveTimer();
   const syncedDraft = await savePostDraftToDatabase(savedPostDraft.value);
   if (syncedDraft) {
@@ -1183,7 +1184,27 @@ const openMobileComposer = () => {
   isMobileComposerOpen.value = true;
 };
 
-const closeMobileComposer = () => {
+// ✨ 新增：取消确认逻辑（询问是否保存草稿）
+const closeMobileComposer = async () => {
+  // 检查是否有未保存的内容
+  if (hasUnsavedChanges()) {
+    // 弹出确认框询问是否保存草稿
+    const shouldSave = await showModal('confirm', '保存草稿', '是否将当前编辑内容保存为草稿？', {
+      confirmText: '保存',
+      cancelText: '不保存'
+    });
+
+    if (shouldSave) {
+      // 用户确认保存
+      persistPostDraft();
+      await savePostDraftToDatabase(savedPostDraft.value);
+      logger.debug('forum', '用户选择保存草稿并关闭编辑器');
+    } else {
+      // 用户取消保存，不保存草稿
+      logger.debug('forum', '用户选择不保存草稿并关闭编辑器');
+    }
+  }
+
   closePostImageSourceMenu();
   closeMobileDraftPanel();
   isMobileComposerOpen.value = false;
@@ -1325,12 +1346,13 @@ watch(
   }
 );
 
-watch(
-  () => [newPost.value.title, newPost.value.content, selectedPostTag.value],
-  () => {
-    persistPostDraft();
-  }
-);
+// ✨ 移除：watch自动保存草稿（改为手动保存）
+// watch(
+//   () => [newPost.value.title, newPost.value.content, selectedPostTag.value],
+//   () => {
+//     persistPostDraft();
+//   }
+// );
 
 watch(
   () => [forumData.value.length, feedMode.value, hasMoreData.value, isLoading.value],
