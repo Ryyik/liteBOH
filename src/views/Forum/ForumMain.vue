@@ -2723,6 +2723,32 @@ const sharePost = async (post) => {
   try {
     await navigator.clipboard.writeText(`来看看这个帖子：${url}`);
     addUiMarker(shareCopiedPostIds, post.id, 1500, 'share-copied');
+
+    // ✨ 新增：触发灵动岛提示
+    logger.debug('forum', '触发分享链接灵动岛事件', { postId: post.id, url });
+
+    // 如果是嵌入式组件，emit事件
+    if (props.embedded) {
+      logger.debug('forum', '使用emit触发灵动岛（嵌入式）');
+      emit('island-message', {
+        title: '分享链接已复制到剪贴板',
+        icon: 'success',
+        catSticker: 'success',
+        actionLabel: '知道了'
+      });
+    } else {
+      // 否则使用全局事件
+      logger.debug('forum', '使用window.dispatchEvent触发灵动岛（全局）');
+      window.dispatchEvent(new CustomEvent('boh_island_message', {
+        detail: {
+          title: '分享链接已复制到剪贴板',
+          icon: 'success',
+          catSticker: 'success',
+          actionLabel: '知道了',
+          at: Date.now()
+        }
+      }));
+    }
   } catch (error) {
     logger.error('forum', '复制分享链接失败:', error);
     showModal('error', '复制失败', '当前环境不支持自动复制，请手动复制地址栏链接');

@@ -1292,6 +1292,7 @@ const handleBottomNavIslandEvent = (event) => {
 
 // ✨ 新增：处理全局灵动岛事件（跨组件通信）
 const handleGlobalIslandMessage = (event) => {
+  logger.debug('user-space', '收到全局灵动岛事件', { detail: event?.detail });
   showBottomNavIsland(event?.detail || {});
 };
 
