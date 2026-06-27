@@ -11,8 +11,14 @@ export const adminRoutes: RouteRecordRaw[] = [
   {
     path: "/admin/api-keys",
     name: "ApiKeyManagement",
-    component: () => import("../../views/ApiKeyManagement/index.vue"),
-    meta: { requiresAdmin: true },
+    component: () => import("../../views/DataManagement/index.vue"),
+    meta: { requiresAdmin: true, adminSection: "api-keys" },
+  },
+  {
+    path: "/admin/model-routing",
+    name: "ModelRouting",
+    component: () => import("../../views/DataManagement/index.vue"),
+    meta: { requiresAdmin: true, adminSection: "model-routing" },
   },
   {
     path: "/admin/alert-style-editor",

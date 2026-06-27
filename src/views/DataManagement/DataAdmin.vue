@@ -49,7 +49,9 @@
             @select-tab="switchTab"
           />
 
-          <section v-if="activeAdminSection !== 'overview'" class="admin-section-hero">
+          <ApiKeyConsole v-else-if="isApiKeysSection" />
+
+          <section v-if="activeAdminSection !== 'overview' && !isApiKeysSection && !isModelRoutingSection" class="admin-section-hero">
             <div>
               <span class="admin-section-eyebrow">{{ currentAdminPageMeta.eyebrow }}</span>
               <h2>{{ currentAdminPageMeta.title }}</h2>
@@ -663,6 +665,7 @@ import {
   Image,
   KeyRound,
   MessageSquare,
+  Network,
   RefreshCw,
   Settings,
   ShieldCheck,
@@ -672,6 +675,8 @@ import {
 import AdminHeader from './components/AdminHeader.vue';
 import AdminOverview from './components/AdminOverview.vue';
 import AdminSidebar from './components/AdminSidebar.vue';
+import ApiKeyConsole from './components/ApiKeyConsole.vue';
+import ModelRouting from './components/ModelRouting.vue';
 import EditDrawer from './components/EditDrawer.vue';
 import { getImageUrl } from '../../utils/asset-helper';
 import { supabase } from '@/utils/supabase-client.js';
@@ -752,7 +757,8 @@ const pageSize = ref(20);
 const sortKey = ref('');
 const sortOrder = ref('asc');
 const isAdminSidebarOpen = ref(false);
-const activeAdminSection = ref('overview');
+const routeAdminSection = router.currentRoute.value?.meta?.adminSection;
+const activeAdminSection = ref(typeof routeAdminSection === 'string' && routeAdminSection ? routeAdminSection : 'overview');
 const isDataTreeCollapsed = ref(false);
 const collapsedSidebarGroupIds = ref([]);
 const uploadingImageFields = ref([]);
@@ -1026,6 +1032,7 @@ const lotteryActionPendingIds = ref([]);
 
 const isDataConsoleSection = computed(() => DATA_CONSOLE_SECTIONS.has(activeAdminSection.value));
 const isPlaceholderAdminSection = computed(() => PLACEHOLDER_ADMIN_SECTIONS.has(activeAdminSection.value));
+const isApiKeysSection = computed(() => activeAdminSection.value === 'api-keys');
 const currentStatusFilterField = computed(() => STATUS_FILTER_FIELDS[currentTab.value] || '');
 const currentDateFilterField = computed(() => DATE_FILTER_FIELDS[currentTab.value] || '');
 const statusFilterOptions = computed(() => {
@@ -1215,6 +1222,8 @@ const moderationPendingCount = computed(() =>
 const adminNavigation = computed(() => [
   { id: 'overview', label: '概览', icon: Home, active: activeAdminSection.value === 'overview' },
   { id: 'data', label: '数据管理', icon: Database, active: activeAdminSection.value === 'data', badge: dataConsoleTotalCount.value || '' },
+  { id: 'api-keys', label: 'API Key 管理', icon: KeyRound, active: activeAdminSection.value === 'api-keys' },
+  { id: 'model-routing', label: '模型路由', icon: Network, active: activeAdminSection.value === 'model-routing' },
   { id: 'media', label: '媒体资源', icon: Image, active: activeAdminSection.value === 'media' },
   { id: 'settings', label: '网站设置', icon: Settings, active: activeAdminSection.value === 'settings' }
 ]);
@@ -1231,7 +1240,7 @@ const currentAdminPageActions = computed(() => {
   }
   if (activeAdminSection.value === 'settings') {
     return [
-      { label: 'API Key 管理', value: 'Vault', route: '/admin/api-keys', icon: KeyRound },
+      { label: 'API Key 管理', value: 'Vault', section: 'api-keys', icon: KeyRound },
       { label: '官方事实配置', value: getTabCount('coreMemories'), tab: 'coreMemories', icon: Database, section: 'data' },
       { label: '中奖通知', value: getTabCount('lotteryNotificationJobs'), tab: 'lotteryNotificationJobs', icon: MessageSquare, section: 'data' },
       { label: '管理员权限', value: isCurrentUserAdmin.value ? 'Admin' : '受限', tab: 'users', icon: ShieldCheck, section: 'data' }
@@ -1393,6 +1402,10 @@ const handleSidebarTabClick = (tabId) => {
 const handlePlaceholderAction = (action) => {
   if (action?.route) {
     router.push(action.route);
+    return;
+  }
+  if (action?.section && !action?.tab) {
+    activeAdminSection.value = action.section;
     return;
   }
   if (!action?.tab) return;
@@ -4900,9 +4913,7 @@ onUnmounted(() => {
 
 </script>
 
-<style scoped>
-@import './styles/base.css';
-@import './styles/console.css';
-@import './styles/overlays.css';
-@import './styles/responsive.css';
-</style>
+<style scoped src="./styles/base.css"></style>
+<style scoped src="./styles/console.css"></style>
+<style scoped src="./styles/overlays.css"></style>
+<style scoped src="./styles/responsive.css"></style>

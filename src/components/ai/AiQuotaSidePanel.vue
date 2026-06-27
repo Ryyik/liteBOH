@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <Transition name="quota-slide">
-      <div v-if="visible" class="quota-backdrop" style="z-index: 2147483648 !important;" role="presentation"
+      <div v-if="visible" class="quota-backdrop" style="z-index: 2147483660 !important;" role="presentation"
         @click.self="$emit('close')" @keydown.escape="$emit('close')">
         <aside class="quota-drawer" @click.stop role="dialog" aria-modal="true" aria-label="AI 使用额度">
           <header class="quota-header">
@@ -181,7 +181,7 @@ const handleUpgrade = () => {
 .quota-backdrop {
   position: fixed !important;
   inset: 0 !important;
-  z-index: 2147483648 !important; /* 最高层级，确保不被任何元素遮挡（超过GlobalAiGlassOverlay的2147483646） */
+  z-index: 2147483660 !important; /* 最高层级，超过所有已知元素（GlobalAiGlassOverlay: 2147483646，BohaiSidebar: 2147483651） */
   display: flex !important;
   align-items: stretch !important;
   justify-content: flex-end !important;
@@ -189,6 +189,8 @@ const handleUpgrade = () => {
   background: rgba(15, 23, 42, 0.22) !important;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  isolation: isolate;
+  will-change: transform;
 }
 
 /* 侧拉面板 - 从右侧滑入 */
@@ -453,7 +455,9 @@ const handleUpgrade = () => {
 .quota-slide-enter-active,
 .quota-slide-leave-active {
   transition: all 0.3s ease;
-  z-index: 2147483648 !important; /* 确保过渡期间层级最高 */
+  z-index: 2147483660 !important; /* 确保过渡期间层级最高 */
+  isolation: isolate;
+  will-change: transform;
 }
 
 .quota-slide-enter-active .quota-drawer,
@@ -469,7 +473,9 @@ const handleUpgrade = () => {
 .quota-slide-enter-from,
 .quota-slide-leave-to {
   opacity: 0;
-  z-index: 2147483648 !important; /* 确保开始/结束状态层级最高 */
+  z-index: 2147483660 !important; /* 确保开始/结束状态层级最高 */
+  isolation: isolate;
+  will-change: transform;
 }
 
 /* 深色模式 */

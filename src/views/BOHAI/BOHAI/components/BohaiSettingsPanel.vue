@@ -247,7 +247,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, watch, onUnmounted } from 'vue';
+import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue';
 import { X, Settings, Globe, Check, Trash2 } from 'lucide-vue-next';
 import { MAX_HISTORY_CONTEXT_CHARS, MAX_FINAL_PROMPT_CHARS, GENERATION_PROFILE_BY_MODE } from '../../composables/chat-engine-config.js';
 import { ESTIMATED_SYSTEM_PROMPT_CHARS, estimateTokens } from '../../composables/bohai-engine-helpers.js';
@@ -327,9 +327,29 @@ const handleTabTrap = (e) => {
 };
 
 watch(() => props.modelValue, async (open) => {
+  console.log('[BohaiSettingsPanel] modelValue changed:', open, '| body class:', document.body.className);
   if (open) {
     focusRestore = document.activeElement;
     await nextTick();
+    const backdrop = document.querySelector('.ai-settings-backdrop');
+    const drawer = document.querySelector('.ai-settings-drawer');
+    const glassOverlay = document.querySelector('.global-ai-glass-overlay');
+    const sidebar = document.querySelector('.sidebar');
+    console.log('[BohaiSettingsPanel] 渲染检查:', {
+      backdrop存在: !!backdrop,
+      backdropZIndex: backdrop ? getComputedStyle(backdrop).zIndex : 'N/A',
+      backdropPosition: backdrop ? getComputedStyle(backdrop).position : 'N/A',
+      backdropOpacity: backdrop ? getComputedStyle(backdrop).opacity : 'N/A',
+      backdropDisplay: backdrop ? getComputedStyle(backdrop).display : 'N/A',
+      drawer存在: !!drawer,
+      drawerZIndex: drawer ? getComputedStyle(drawer).zIndex : 'N/A',
+      drawerPosition: drawer ? getComputedStyle(drawer).position : 'N/A',
+      drawerOpacity: drawer ? getComputedStyle(drawer).opacity : 'N/A',
+      glassOverlayZIndex: glassOverlay ? getComputedStyle(glassOverlay).zIndex : 'N/A',
+      glassOverlayWillChange: glassOverlay ? getComputedStyle(glassOverlay).willChange : 'N/A',
+      sidebarZIndex: sidebar ? getComputedStyle(sidebar).zIndex : 'N/A',
+      body子元素: Array.from(document.body.children).map(el => (el.className || el.id || el.tagName).slice(0, 40)),
+    });
     closeBtnRef.value?.focus();
   } else {
     showModePicker.value = false;
@@ -341,8 +361,13 @@ watch(() => props.modelValue, async (open) => {
   }
 });
 
+onMounted(() => {
+  console.log('[BohaiSettingsPanel] 组件已挂载');
+});
+
 onUnmounted(() => {
   focusRestore = null;
+  console.log('[BohaiSettingsPanel] 组件已卸载');
 });
 
 const formatMaxChars = computed(() => {

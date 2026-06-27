@@ -359,6 +359,9 @@ const expandedMessageDetails = ref(new Set());
 const messageFeedbackByIndex = ref({});
 const modeMenuOpen = ref(false);
 const settingsOpen = ref(false);
+watch(settingsOpen, (val) => {
+    console.log('[BOHAIMain] settingsOpen watch:', val);
+});
 const isQuotaPanelOpen = ref(false);
 
 const filteredChatModes = computed(() => {
@@ -386,7 +389,9 @@ const aiQuestionAnswer = ref('');
 const activeInlineQuestion = ref(null);
 
 const openSettings = () => {
+    console.log('[BOHAIMain] openSettings 被调用');
     settingsOpen.value = true;
+    console.log('[BOHAIMain] settingsOpen =', settingsOpen.value);
 };
 
 const openQuotaPanel = () => {

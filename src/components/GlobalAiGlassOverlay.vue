@@ -172,7 +172,7 @@ function updateKeyboard() {
   if (window.visualViewport) {
     const diff = window.innerHeight - window.visualViewport.height
     keyboardVisible.value = diff > 120
-    keyboardHeight.value = diff > 120 ? diff : 0
+    keyboardHeight.value = diff
 
     // 键盘弹出时，自动滚动到输入框附近
     if (diff > 120 && chatRef.value) {
@@ -222,7 +222,7 @@ onUnmounted(() => {
 
 <style scoped>
 .global-ai-glass-overlay {
-  --global-ai-bottom-nav-clearance: max(104px, calc(96px + env(safe-area-inset-bottom, 0px)));
+  --global-ai-bottom-nav-clearance: max(8px, env(safe-area-inset-bottom, 0px));
   position: fixed;
   top: 0;
   left: 0;
@@ -287,6 +287,7 @@ onUnmounted(() => {
 @media (min-width: 1024px) {
   .global-ai-glass-overlay {
     top: 0;
+    left: auto;
     right: 0;
     width: 460px;
     height: 100dvh;
@@ -490,11 +491,23 @@ onUnmounted(() => {
 
 :global(body.global-ai-glass-open .sidebar.is-embedded),
 :global(body.global-ai-glass-open .sidebar.open.is-embedded) {
-  z-index: 2147482500 !important;
+  z-index: 2147483655 !important; /* 高于玻璃面板(2147483646) */
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+}
+
+:global([data-boh-theme="dark"] body.global-ai-glass-open .sidebar.is-embedded),
+:global([data-boh-theme="dark"] body.global-ai-glass-open .sidebar.open.is-embedded) {
+  background: rgba(15, 23, 42, 0.96) !important;
 }
 
 :global(body.global-ai-glass-open .sidebar-overlay.is-embedded) {
-  z-index: 2147482400 !important;
+  z-index: 2147483650 !important; /* 高于玻璃面板但低于侧栏 */
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: transparent !important;
+  pointer-events: none !important;
 }
 
 :global(body.global-ai-glass-open .sidebar-open-btn) {
@@ -502,11 +515,16 @@ onUnmounted(() => {
 }
 
 :global(body.global-ai-glass-open .ai-settings-backdrop) {
-  z-index: 2147483000 !important;
+  z-index: 2147483656 !important; /* 高于侧栏(2147483655) */
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  isolation: isolate;
+  will-change: transform;
 }
 
 :global(body.global-ai-glass-open .ai-settings-drawer) {
-  z-index: 2147483100 !important;
+  z-index: 2147483657 !important; /* 高于遮罩层 */
+  position: relative !important;
 }
 
 .global-ai-glass-overlay[data-theme="dark"] {

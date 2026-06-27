@@ -67,7 +67,7 @@
             <small>{{ sidebarUserEmail }}</small>
           </span>
           <button class="sidebar-footer-btn sidebar-settings-btn" type="button" title="设置"
-            @click.stop="$emit('openSettings')">
+            @click.stop="console.log('[BohaiSidebar] 设置按钮被点击，emit openSettings'); $emit('openSettings')">
             <Settings size="16" />
           </button>
         </div>

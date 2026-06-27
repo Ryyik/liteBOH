@@ -663,14 +663,10 @@ const hasUnsavedChanges = () => {
 
 // ✨ 新增：beforeunload事件处理（刷新页面时提示保存草稿）
 const handleBeforeUnload = (e) => {
-  if (!hasUnsavedChanges()) return;
+  if (!isMobileComposerOpen.value || !hasUnsavedChanges()) return;
 
-  // 设置returnValue以触发浏览器默认确认框
   e.preventDefault();
   e.returnValue = '编辑内容尚未保存，是否保存为草稿？';
-
-  // 自动保存草稿（用户选择留在页面时）
-  persistPostDraft();
 
   return e.returnValue;
 };
@@ -1189,7 +1185,9 @@ const closeMobileComposer = async () => {
   // 检查是否有未保存的内容
   if (hasUnsavedChanges()) {
     // 弹出确认框询问是否保存草稿
-    const shouldSave = await showModal('confirm', '保存草稿', '是否将当前编辑内容保存为草稿？', {
+    const shouldSave = await requestConfirm({
+      title: '保存草稿',
+      message: '是否将当前编辑内容保存为草稿？',
       confirmText: '保存',
       cancelText: '不保存'
     });
@@ -1201,6 +1199,8 @@ const closeMobileComposer = async () => {
       logger.debug('forum', '用户选择保存草稿并关闭编辑器');
     } else {
       // 用户取消保存，不保存草稿
+      newPost.value = { title: '', content: '' };
+      savedPostDraft.value = null;
       logger.debug('forum', '用户选择不保存草稿并关闭编辑器');
     }
   }
@@ -2418,7 +2418,7 @@ const handlePost = async () => {
     postLocation.value = null;
     clearPostDraft();
     clearPostImages({ cleanup: false });
-    closeMobileComposer();
+    await closeMobileComposer();
     await nextTick();
     if (!showEmbeddedSuccessIsland({
       title: '发帖成功',
@@ -2463,7 +2463,7 @@ const handlePost = async () => {
         selectedPostTag.value = 'daily';
         clearPostDraft();
         clearPostImages({ cleanup: false });
-        closeMobileComposer();
+        await closeMobileComposer();
         void addExperience(supabase, userInfo.id, XP_REWARDS.POST).catch(err => logger.error('forum', '经验值增加失败:', err));
         await fetchForumData();
         loadHotTagStats();
@@ -3253,11 +3253,11 @@ const openPostDetail = (postId) => {
             <h3>{{ confirmState.title }}</h3>
             <p>{{ confirmState.message }}</p>
             <div class="forum-confirm-actions">
-              <button type="button" class="forum-confirm-btn secondary" @click="closeConfirm(false)">
-                {{ confirmState.cancelText }}
-              </button>
-              <button type="button" class="forum-confirm-btn danger" @click="closeConfirm(true)">
+              <button type="button" class="forum-confirm-btn secondary" @click="closeConfirm(true)">
                 {{ confirmState.confirmText }}
+              </button>
+              <button type="button" class="forum-confirm-btn danger" @click="closeConfirm(false)">
+                {{ confirmState.cancelText }}
               </button>
             </div>
           </div>

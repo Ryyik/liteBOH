@@ -1,6 +1,5 @@
 <template>
-  <div class="api-key-page">
-
+  <section class="api-key-console">
     <main class="api-key-shell">
       <header class="page-header">
         <div>
@@ -19,6 +18,30 @@
           </button>
         </div>
       </header>
+
+      <section class="active-key-banner" :class="{ 'has-data': activeKeyInfo }">
+        <div class="banner-left">
+          <span class="banner-icon">
+            <KeyRound :size="18" />
+          </span>
+          <div>
+            <strong>BOH 模型当前在用</strong>
+            <span v-if="activeKeyInfo">
+              {{ activeKeyInfo.label || `${activeKeyInfo.provider} ${activeKeyInfo.purpose}` }}
+              <code v-if="activeKeyInfo.maskedValue">{{ activeKeyInfo.maskedValue }}</code>
+              <span v-if="activeKeyInfo.source === 'server_secret_fallback' || activeKeyInfo.readonly" class="source-pill">Secrets 兜底</span>
+            </span>
+            <span v-else-if="activeKeyError" class="banner-error">{{ activeKeyError }}</span>
+            <span v-else class="banner-placeholder">正在查询...</span>
+          </div>
+        </div>
+        <div class="banner-actions">
+          <button type="button" class="ghost-btn" @click="loadActiveKey" :disabled="isLoadingActiveKey">
+            <RefreshCw :size="16" :class="{ spinning: isLoadingActiveKey }" />
+            <span>重新查询</span>
+          </button>
+        </div>
+      </section>
 
       <section class="summary-grid">
         <div v-for="item in summaryCards" :key="item.label" class="summary-card">
@@ -56,6 +79,7 @@
                     <strong>{{ item.label || `${item.provider} ${item.purpose}` }}</strong>
                     <span class="status-pill" :class="item.status">{{ item.status === 'active' ? '启用' : '停用' }}</span>
                     <span v-if="item.readonly" class="source-pill">Secrets</span>
+                    <span v-if="isActiveKey(item)" class="active-pill" :class="['source-' + (activeKeyInfo?.source || 'vault')]">当前活跃</span>
                   </div>
                   <div class="key-meta">
                     <span>{{ item.provider }}</span>
@@ -158,7 +182,7 @@
         </aside>
       </section>
     </main>
-  </div>
+  </section>
 </template>
 
 <script setup>
@@ -181,6 +205,7 @@ import {
   updateApiKeyStatus,
   upsertApiKey
 } from '@/utils/api/api-key-vault-api.js';
+import { resolveVaultActiveKey } from '@/utils/api/api-key-runtime-api.js';
 
 const providerOptions = [
   { value: 'siliconflow', label: 'SiliconFlow' },
@@ -210,6 +235,9 @@ const workingId = ref('');
 const editingId = ref('');
 const errorMessage = ref('');
 const successMessage = ref('');
+const activeKeyInfo = ref(null);
+const isLoadingActiveKey = ref(false);
+const activeKeyError = ref('');
 const formPanelRef = ref(null);
 const apiKeyInputRef = ref(null);
 const formHighlighted = ref(false);
@@ -274,6 +302,32 @@ const summaryCards = computed(() => [
 const setMessage = (message, type = 'success') => {
   successMessage.value = type === 'success' ? message : '';
   errorMessage.value = type === 'error' ? message : '';
+};
+
+const isActiveKey = (item) => {
+  const info = activeKeyInfo.value;
+  if (!info) return false;
+  // vault 命中：id 严格匹配
+  if (info.id && item.id === info.id) return true;
+  // Secrets 兜底：provider + purpose 匹配且同源
+  if (info.source === 'server_secret_fallback' && item.readonly
+      && item.provider === info.provider && item.purpose === info.purpose) {
+    return true;
+  }
+  return false;
+};
+
+const loadActiveKey = async () => {
+  isLoadingActiveKey.value = true;
+  activeKeyError.value = '';
+  const result = await resolveVaultActiveKey({ provider: 'siliconflow', purpose: 'chat' });
+  isLoadingActiveKey.value = false;
+  if (!result.ok) {
+    activeKeyError.value = result.error?.message || '查询当前 Key 失败';
+    activeKeyInfo.value = null;
+    return;
+  }
+  activeKeyInfo.value = result.data?.keyInfo || null;
 };
 
 const formatDateTime = (value) => {
@@ -410,15 +464,13 @@ const toggleStatus = async (item) => {
 
 onMounted(() => {
   loadKeys();
+  loadActiveKey();
 });
 </script>
 
 <style scoped>
-.api-key-page {
-  min-height: 100vh;
-  padding-top: 72px;
-  background: #f6f8fb;
-  color: #0f172a;
+.api-key-console {
+  width: 100%;
 }
 
 .api-key-shell {
@@ -450,8 +502,18 @@ onMounted(() => {
   justify-content: space-between;
   gap: 20px;
   align-items: center;
+  flex-wrap: wrap;
   padding: 22px 24px;
   border-radius: 8px;
+}
+
+.page-header > div:first-child {
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.page-header > .header-actions {
+  flex: 0 1 auto;
 }
 
 .eyebrow {
@@ -487,6 +549,132 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.active-key-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 18px 0 0;
+  padding: 14px 18px;
+  background: linear-gradient(120deg, #eff6ff, #f8fafc);
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+}
+
+.active-key-banner .banner-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.active-key-banner .banner-icon {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #2563eb;
+  color: #fff;
+  border-radius: 10px;
+}
+
+.active-key-banner strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1d4ed8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+
+.active-key-banner .banner-left > div {
+  min-width: 0;
+}
+
+.active-key-banner .banner-left > div > span {
+  display: block;
+  font-size: 14px;
+  color: #0f172a;
+  word-break: break-all;
+}
+
+.active-key-banner .banner-left > div > span code {
+  margin-left: 6px;
+  padding: 1px 6px;
+  background: rgba(37, 99, 235, 0.10);
+  color: #1d4ed8;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+.active-key-banner .banner-error {
+  color: #b91c1c !important;
+}
+
+.active-key-banner .banner-placeholder {
+  color: #64748b !important;
+}
+
+.active-key-banner .banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.active-pill {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: #2563eb;
+  color: #fff;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.active-pill::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 0 0 0 rgba(37, 99, 255, 0.6);
+  animation: active-pulse 1.6s ease-out infinite;
+}
+
+.active-pill.source-server_secret_fallback {
+  background: #d97706;
+}
+
+@keyframes active-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7); }
+  70% { box-shadow: 0 0 0 6px rgba(255, 255, 255, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+}
+
+@media (max-width: 560px) {
+  .active-key-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .active-key-banner .banner-actions {
+    align-self: flex-end;
+  }
 }
 
 .summary-grid {
@@ -502,9 +690,16 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+}
+
+.summary-card > div {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .summary-card svg {
+  flex: 0 0 auto;
   color: #2563eb;
 }
 
@@ -578,7 +773,7 @@ onMounted(() => {
 
 .key-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 220px auto;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 220px) auto;
   gap: 14px;
   align-items: center;
   padding: 14px;
@@ -593,6 +788,13 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   min-width: 0;
+}
+
+.key-main > div:last-child,
+.test-info > div:last-child {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 
 .provider-icon,
@@ -616,12 +818,20 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   min-width: 0;
+  flex-wrap: wrap;
 }
 
 .key-title strong {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.key-title .status-pill,
+.key-title .source-pill {
+  flex: 0 0 auto;
 }
 
 .key-meta {
@@ -631,6 +841,13 @@ onMounted(() => {
   margin-top: 5px;
   color: #64748b;
   font-size: 12px;
+  min-width: 0;
+}
+
+.key-meta > span,
+.key-meta > code {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .key-meta code {
@@ -638,6 +855,11 @@ onMounted(() => {
   background: #e2e8f0;
   border-radius: 6px;
   padding: 1px 6px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .status-pill {
@@ -670,6 +892,8 @@ onMounted(() => {
   width: 10px;
   height: 10px;
   flex: 0 0 auto;
+  align-self: flex-start;
+  margin-top: 5px;
   border-radius: 999px;
   background: #94a3b8;
 }
@@ -782,6 +1006,17 @@ onMounted(() => {
 
   .key-row {
     grid-template-columns: 1fr;
+  }
+
+  .key-row .test-info,
+  .key-row .row-actions {
+    justify-content: flex-start;
+  }
+
+  .test-info strong,
+  .test-info small,
+  .key-meta code {
+    white-space: normal;
   }
 }
 

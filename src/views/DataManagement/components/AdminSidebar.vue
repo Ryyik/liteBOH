@@ -124,3 +124,5 @@ defineProps({
 
 defineEmits(['group-click', 'nav-click', 'recent-click', 'tab-click']);
 </script>
+
+<style scoped src="../styles/responsive.css"></style>

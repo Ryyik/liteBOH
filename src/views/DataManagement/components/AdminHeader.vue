@@ -38,3 +38,6 @@ defineProps({
 
 defineEmits(['back', 'create', 'refresh', 'toggle-sidebar']);
 </script>
+
+<style scoped src="../styles/base.css"></style>
+<style scoped src="../styles/responsive.css"></style>

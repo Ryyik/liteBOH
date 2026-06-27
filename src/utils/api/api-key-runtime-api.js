@@ -75,6 +75,7 @@ const invokeRuntime = async (payload = {}) => {
       ok: true,
       status: Number(data.status || response.status || 200),
       data: data.data,
+      keyInfo: data.keyInfo || null,
       error: null
     };
   } catch (error) {
@@ -185,6 +186,19 @@ export const searchVaultTavily = ({
   action: 'runtime-search',
   payload,
   timeoutMs
+});
+
+export const resolveVaultActiveKey = ({
+  provider = 'siliconflow',
+  purpose = 'chat',
+  timeoutMs = 5000,
+  signal
+} = {}) => invokeRuntime({
+  action: 'runtime-resolve',
+  provider,
+  purpose,
+  timeoutMs,
+  signal
 });
 
 export const getAiQuotaStatus = ({

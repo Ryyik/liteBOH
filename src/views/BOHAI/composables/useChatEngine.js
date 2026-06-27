@@ -336,6 +336,7 @@ export function useChatEngine() {
     callModelInternal,
     callModelStream,
     _getSmartContext,
+    createThinkingState,
     filterThinkingContent,
     filterThinkingContentStream,
     flushThinkingBuffer,
@@ -994,12 +995,6 @@ export function useChatEngine() {
     if (rateLimitResult.blocked) return;
     recordMessageSent();
 
-    // TODO: handleCommandModeGeneration 函数未定义，暂时注释避免运行时错误
-    // if (isCommandMode.value) {
-    //   await handleCommandModeGeneration();
-    //   return;
-    // }
-
     const sessionIndex = currentSessionIndex.value;
     const session = getSessionByIndex(sessionIndex);
     if (!session) return;
@@ -1205,14 +1200,6 @@ export function useChatEngine() {
       isLoggedIn: Boolean(isLoggedIn.value && userInfo.value?.id),
       helpers: { isPostDraftRequest }
     });
-
-    // TODO: handleCommandModeGeneration 函数未定义，暂时注释避免运行时错误
-    // if (autoDecision?.minecraftCommand) {
-    //   removePreflightLoader();
-    //   finishPreflightOnly();
-    //   await handleCommandModeGeneration(userText, { appendUser: false });
-    //   return;
-    // }
 
     if (autoDecision?.shouldSaveCloud || autoDecision?.shouldSaveSharedMemory || autoDecision?.shouldAskMemoryDestination) {
       removePreflightLoader();
@@ -1754,8 +1741,8 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         ? AbortSignal.any([requestController.signal, AbortSignal.timeout(STREAM_FETCH_TIMEOUT_MS)])
         : requestController.signal;
 
-      // 重置思考过滤状态
-      resetThinkingState();
+      // 创建流专用的思考过滤状态
+      const thinkingState = createThinkingState();
       markGenerationProgress('正在生成回答...');
 
       let assistantMessage = getSessionByIndex(sessionIndex)?.messages?.[messageIndex]?.content || '';
@@ -1812,7 +1799,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
           if (rawContent) {
             resetGenerationStallTimeout('正在接收模型输出');
             const content = safeChunkToString(rawContent);
-            const filteredContent = filterThinkingContentStream(content);
+            const filteredContent = filterThinkingContentStream(content, thinkingState);
             if (filteredContent && filteredContent !== '[object Object]') {
               if (shouldRepairDegenerateStream) {
                 return;
@@ -1869,7 +1856,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         sseParser.flush();
 
         // 流式处理结束，刷新缓冲区并添加剩余内容
-        const remainingContent = flushThinkingBuffer();
+        const remainingContent = flushThinkingBuffer(thinkingState);
         if (remainingContent) {
           assistantMessage += remainingContent;
           const visibleStreamContent = cleanAssistantVisibleReply(filterThinkingContent(assistantMessage));
@@ -1879,8 +1866,6 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
             nextTick(scrollToBottom);
           }
         }
-      } else {
-        resetThinkingState();
       }
 
       if (shouldRepairDegenerateStream) {

@@ -166,6 +166,16 @@ const sanitizeRow = (row: VaultRow) => ({
   source: row.source || 'vault',
 });
 
+const buildKeyInfo = (row: VaultRow) => ({
+  id: row.id || '',
+  provider: row.provider,
+  purpose: row.purpose,
+  label: row.label || `${row.provider} ${row.purpose}`,
+  maskedValue: row.masked_value || '',
+  source: row.source || (row.id ? 'vault' : 'server_secret_fallback'),
+  readonly: Boolean(row.readonly)
+});
+
 const writeAuditLog = async (
   client: ReturnType<typeof createServiceClient>,
   actorId: string,
@@ -527,9 +537,10 @@ const runtimeChatCompletion = async (
       status: response.status,
       message: String(data?.error?.message || data?.message || `${provider} 请求失败：${response.status}`),
       data,
+      keyInfo: buildKeyInfo(row),
     };
   }
-  return { ok: true, status: response.status, data };
+  return { ok: true, status: response.status, data, keyInfo: buildKeyInfo(row) };
 };
 
 const runtimeChatCompletionStream = async (
@@ -574,19 +585,53 @@ const runtimeChatCompletionStream = async (
     const text = await response.text().catch(() => '');
     const message = text.slice(0, 500) || `${provider} 流式请求失败：${response.status}`;
     return new Response(
-      `event: error\ndata: ${JSON.stringify({ ok: false, status: response.status, message })}\n\n`,
+      `event: error\ndata: ${JSON.stringify({ ok: false, status: response.status, message, keyInfo: buildKeyInfo(row) })}\n\n`,
       { status: 502, headers: streamHeaders },
     );
   }
 
   if (!response.body) {
     return new Response(
-      `event: error\ndata: ${JSON.stringify({ ok: false, status: response.status, message: '模型服务未返回可读流。' })}\n\n`,
+      `event: error\ndata: ${JSON.stringify({ ok: false, status: response.status, message: '模型服务未返回可读流。', keyInfo: buildKeyInfo(row) })}\n\n`,
       { status: 502, headers: streamHeaders },
     );
   }
 
-  return new Response(response.body, {
+  const keyInfoPayload = JSON.stringify({ ok: true, keyInfo: buildKeyInfo(row) });
+  const metaEvent = `event: meta\ndata: ${keyInfoPayload}\n\n`;
+  const metaEncoder = new TextEncoder();
+  let metaFlushed = false;
+
+  const proxiedStream = new ReadableStream({
+    async start(controller) {
+      controller.enqueue(metaEncoder.encode(metaEvent));
+      metaFlushed = true;
+      const reader = response.body!.getReader();
+      const pump = async () => {
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+              controller.close();
+              return;
+            }
+            controller.enqueue(value);
+          }
+        } catch (err) {
+          controller.error(err);
+        } finally {
+          try { reader.releaseLock(); } catch (_e) { /* ignore */ }
+        }
+      };
+      pump();
+    },
+    cancel(reason) {
+      // best-effort cancel of upstream
+      try { response.body?.cancel?.(reason); } catch (_e) { /* ignore */ }
+    }
+  });
+
+  return new Response(proxiedStream, {
     status: 200,
     headers: streamHeaders,
   });
@@ -883,6 +928,10 @@ Deno.serve(async (request) => {
     }
     if (action === 'runtime-search') {
       const result = await runtimeTavilySearch(client, body);
+      return jsonResponse(result, result.ok ? 200 : 502, origin);
+    }
+    if (action === 'runtime-resolve') {
+      const result = await runtimeResolveActiveKey(client, body);
       return jsonResponse(result, result.ok ? 200 : 502, origin);
     }
     if (action === 'quota-status') {

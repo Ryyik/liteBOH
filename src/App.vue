@@ -9,6 +9,7 @@ import { loadNotificationStore, getNotificationStoreSync } from "@/stores/notifi
 import { logger } from "@/utils/logger.js";
 import { useGlobalAiOverlay } from "@/composables/useGlobalAiOverlay";
 import GlobalAiGlassOverlay from "@/components/GlobalAiGlassOverlay.vue";
+import AiEdgeTrigger from "@/components/AiEdgeTrigger.vue";
 
 const route = useRoute();
 const authStore = useAuthStore();
@@ -20,8 +21,7 @@ const showToast = computed(() => notificationStoreRef.value?.showToast || false)
 
 const {
   isOpen: globalAiOpen, open: openGlobalAi, close: closeGlobalAi,
-  theme: globalAiTheme, startDrag: startAiDrag,
-  moveDrag: moveAiDrag, endDrag: endAiDrag
+  theme: globalAiTheme
 } = useGlobalAiOverlay();
 const toastTitle = computed(() => notificationStoreRef.value?.toastTitle || "");
 const toastDesc = computed(() => notificationStoreRef.value?.toastDesc || "");
@@ -122,84 +122,12 @@ const handleGlobalAiKeydown = (e) => {
   }
 };
 
-// 全局 AI 覆盖层：移动端从右侧边缘向左滑动手势
-let globalAiTouchStartY = 0;
-let globalAiTouchStartX = 0;
-let globalAiTouchStartTime = 0;
-let aiDragActive = false;
-let edgeSwipeActive = false;
-const edgeIndicatorVisible = ref(false);  // 边缘滑动提示线显示状态
-
-// TODO: 边缘滑动手势与 useEdgeSwipeGesture composable 存在重复实现，
-// 后续应统一使用 composable 并传入自定义参数（edgeWidth: 30, minSwipeDistance: 60, maxSwipeTime: 1000）
-const handleGlobalAiTouchStart = (e) => {
-  const touch = e.touches[0];
-  globalAiTouchStartY = touch.clientY;
-  globalAiTouchStartX = touch.clientX;
-  globalAiTouchStartTime = Date.now();
-  aiDragActive = false;
-  edgeSwipeActive = false;
-
-  // 检查是否在右侧边缘30px范围内（增大触发区域）
-  if (window.innerWidth - touch.clientX <= 30) {
-    edgeSwipeActive = true;
-    edgeIndicatorVisible.value = true;  // 显示提示线
-  }
-};
-
-const handleGlobalAiTouchMove = (e) => {
-  if (aiDragActive) {
-    moveAiDrag(e.touches[0].clientY);
-    return;
-  }
-
-  if (globalAiOpen.value) return;
-
-  const touch = e.touches[0];
-
-  // 处理右侧边缘向左滑动
-  if (edgeSwipeActive) {
-    const dx = globalAiTouchStartX - touch.clientX; // 向左滑动，dx为正值
-    const dy = Math.abs(touch.clientY - globalAiTouchStartY);
-
-    // 检查是否满足触发条件：向左滑动超过60px（降低阈值），且垂直偏移小于50px（放宽限制）
-    if (dx >= 60 && dy < 50) {
-      const elapsed = Date.now() - globalAiTouchStartTime;
-      // 检查滑动时间（延长到1000ms）
-      if (elapsed <= 1000) {
-        // 触发AI面板打开
-        openGlobalAi();
-        edgeSwipeActive = false;
-        edgeIndicatorVisible.value = false;
-        // 注意：在passive监听器中不能调用preventDefault
-        // 如果需要阻止默认行为，需要将touchmove监听器改为非passive
-      }
-    }
-  }
-};
-
-const handleGlobalAiTouchEnd = (e) => {
-  if (aiDragActive) {
-    endAiDrag();
-    aiDragActive = false;
-  }
-  edgeSwipeActive = false;
-  edgeIndicatorVisible.value = false;  // 隐藏提示线
-};
-
 onMounted(() => {
   window.addEventListener('keydown', handleGlobalAiKeydown);
-  window.addEventListener('touchstart', handleGlobalAiTouchStart, { passive: true });
-  window.addEventListener('touchmove', handleGlobalAiTouchMove, { passive: true });
-  window.addEventListener('touchend', handleGlobalAiTouchEnd, { passive: true });
 });
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalAiKeydown);
-  // 移除监听器时必须传递相同的passive选项
-  window.removeEventListener('touchstart', handleGlobalAiTouchStart, { passive: true });
-  window.removeEventListener('touchmove', handleGlobalAiTouchMove, { passive: true });
-  window.removeEventListener('touchend', handleGlobalAiTouchEnd, { passive: true });
 });
 
 // 监听用户ID变化，开启通知监听
@@ -249,8 +177,8 @@ const showGlobalNavbar = computed(() =>
   <!-- 全局登录模态框 -->
   <LoginView :show="showLoginModal" :is-modal="true" @close="showLoginModal = false" />
 
-  <!-- 边缘滑动提示线 -->
-  <div v-if="edgeIndicatorVisible" class="edge-swipe-indicator"></div>
+  <!-- AI 边缘触发区（移动端侧拉唤起） -->
+  <AiEdgeTrigger :show="!globalAiOpen" @trigger="openGlobalAi" />
 
   <!-- 全局 AI 快速对话覆盖层 -->
   <GlobalAiGlassOverlay
@@ -431,48 +359,5 @@ html {
 @keyframes suspense-shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
-}
-
-/* 边缘滑动提示线 - 呼吸灯效果 */
-.edge-swipe-indicator {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 4px; /* 增加宽度，更明显 */
-  background: linear-gradient(
-    180deg,
-    rgba(16, 163, 127, 0.2) 0%,  /* 提升透明度 */
-    rgba(16, 163, 127, 0.5) 20%,
-    rgba(16, 163, 127, 0.9) 50%,  /* 提升最大透明度 */
-    rgba(16, 163, 127, 0.5) 80%,
-    rgba(16, 163, 127, 0.2) 100%
-  );
-  z-index: 2147483647; /* 使用最大z-index值，确保不被遮挡 */
-  pointer-events: none;
-  animation: edgeBreathingLight 2s ease-in-out infinite; /* 呼吸灯动画 */
-  box-shadow:
-    0 0 12px rgba(16, 163, 127, 0.6), /* 外发光 */
-    0 0 24px rgba(16, 163, 127, 0.4), /* 中发光 */
-    0 0 36px rgba(16, 163, 127, 0.2); /* 远发光 */
-}
-
-@keyframes edgeBreathingLight {
-  0%, 100% {
-    opacity: 0.5;
-    width: 3px;
-    box-shadow:
-      0 0 8px rgba(16, 163, 127, 0.4),
-      0 0 16px rgba(16, 163, 127, 0.2),
-      0 0 24px rgba(16, 163, 127, 0.1);
-  }
-  50% {
-    opacity: 1;
-    width: 5px;
-    box-shadow:
-      0 0 16px rgba(16, 163, 127, 0.8),
-      0 0 32px rgba(16, 163, 127, 0.5),
-      0 0 48px rgba(16, 163, 127, 0.3);
-  }
 }
 </style>
