@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
-import { Check, Heart, MessageCircle, Share2 } from 'lucide-vue-next';
+import { Check, Heart, Image as ImageIcon, MessageCircle, Share2 } from 'lucide-vue-next';
 import UserCenterPageHeader from '../../components/UserCenterPageHeader.vue';
 import CommentThread from './components/CommentThread.vue';
 import ImageViewer from './components/ImageViewer.vue';
@@ -51,6 +51,8 @@ const isReplySuccessPopping = ref(false);
 const isShareCopied = ref(false);
 const isEditSubmitting = ref(false);
 const loadedDetailImageKeys = ref(new Set());
+// ✨ 新增：图片加载失败跟踪
+const failedDetailImageKeys = ref(new Set());
 const isDetailImageViewerOpen = ref(false);
 const replyContent = ref('');
 const activeReplyId = ref(null); // 当前正在回复的对象ID (postId 或 commentId)
@@ -246,6 +248,16 @@ const markDetailImageLoaded = (key = detailImageKey.value) => {
 };
 
 const isDetailImageLoaded = (key = detailImageKey.value) => loadedDetailImageKeys.value.has(String(key || '').trim());
+
+// ✨ 新增：图片加载失败处理函数
+const markDetailImageFailed = (key = detailImageKey.value) => {
+  const safeKey = String(key || '').trim();
+  if (!safeKey) return;
+  failedDetailImageKeys.value = new Set([...failedDetailImageKeys.value, safeKey]);
+  logger.warn('post-detail', '图片加载失败:', { key: safeKey });
+};
+
+const isDetailImageFailed = (key = detailImageKey.value) => failedDetailImageKeys.value.has(String(key || '').trim());
 
 const closePostMenu = () => {
   isPostMenuOpen.value = false;
@@ -1294,16 +1306,23 @@ const handleChangeCommentSortMode = async (mode) => {
                   <div class="post-detail-image-stage">
                     <transition name="detail-image-fade" mode="out-in">
                       <button :key="detailImageKey" type="button" class="post-detail-image-link"
-                        :class="{ 'is-loaded': isDetailImageLoaded(detailImageKey) }"
+                        :class="{ 'is-loaded': isDetailImageLoaded(detailImageKey), 'is-failed': isDetailImageFailed(detailImageKey) }"
                         :aria-label="`查看${postTitle}第 ${detailImageIndex + 1} 张大图`"
                         @click="openDetailImageViewer(detailImageIndex)">
-                        <img :src="currentDetailImage.url" :alt="`${postTitle} 图片 ${detailImageIndex + 1}`"
+                        <!-- ✨ 新增：图片加载失败时显示占位符 -->
+                        <div v-if="isDetailImageFailed(detailImageKey)" class="post-detail-image-failed-placeholder">
+                          <ImageIcon :size="48" :stroke-width="1.5" aria-hidden="true" />
+                          <span class="failed-text">图片加载失败</span>
+                        </div>
+                        <!-- 正常图片渲染 -->
+                        <img v-else :src="currentDetailImage.url" :alt="`${postTitle} 图片 ${detailImageIndex + 1}`"
                           loading="eager" decoding="async" fetchpriority="high" class="post-detail-image"
                           :class="{ 'is-loaded': isDetailImageLoaded(detailImageKey) }"
                           :width="currentDetailImage.width || undefined"
                           :height="currentDetailImage.height || undefined" @load="markDetailImageLoaded(detailImageKey)"
-                          @error="markDetailImageLoaded(detailImageKey)" />
-                        <span v-if="currentDetailImage.width && currentDetailImage.height"
+                          @error="markDetailImageFailed(detailImageKey)" />
+                        <span
+                          v-if="currentDetailImage.width && currentDetailImage.height && !isDetailImageFailed(detailImageKey)"
                           class="post-detail-image-meta">
                           {{ currentDetailImage.width }} × {{ currentDetailImage.height }}
                         </span>
