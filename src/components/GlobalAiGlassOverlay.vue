@@ -147,6 +147,24 @@ watch(isOpen, (val) => {
     snapTimer = setTimeout(() => {
       isSnapping.value = false
     }, 600)
+    
+    // 调试日志：显示层级信息
+    setTimeout(() => {
+      const glassOverlay = document.querySelector('.global-ai-glass-overlay');
+      const quotaBackdrop = document.querySelector('.quota-backdrop');
+      console.log('===== GlobalAiGlassOverlay 层级调试 =====');
+      console.log('GlobalAiGlassOverlay (.global-ai-glass-overlay):', {
+        存在: !!glassOverlay,
+        computedZIndex: glassOverlay ? getComputedStyle(glassOverlay).zIndex : 'N/A',
+        DOM位置: glassOverlay ? Array.from(document.body.children).indexOf(glassOverlay) : 'N/A'
+      });
+      console.log('AiQuotaSidePanel (.quota-backdrop):', {
+        存在: !!quotaBackdrop,
+        computedZIndex: quotaBackdrop ? getComputedStyle(quotaBackdrop).zIndex : 'N/A',
+        DOM位置: quotaBackdrop ? Array.from(document.body.children).indexOf(quotaBackdrop) : 'N/A'
+      });
+      console.log('==========================================');
+    }, 100);
   }
 })
 
@@ -210,10 +228,11 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 2147483647; /* 使用最大z-index值，确保不被底部导航栏遮挡 */
+  z-index: 2147483646; /* 略低于限额面板，确保限额面板可以覆盖 */
   display: flex;
   flex-direction: column;
   padding: 0;
+  padding-bottom: max(8px, env(safe-area-inset-bottom, 0px)); /* ✨ 新增：基础安全边距 */
   /* iOS键盘弹出时，阻止面板被推上去 */
   height: 100vh;
   max-height: 100vh;
@@ -254,6 +273,10 @@ onUnmounted(() => {
     max-height: 100vh;
     border-radius: 24px 24px 0 0;
     box-shadow: 0 -8px 40px rgba(15, 23, 42, 0.12);
+    padding-bottom: calc(
+      var(--global-ai-bottom-nav-clearance)
+      + max(12px, env(safe-area-inset-bottom, 0px))
+    ); /* ✨ 新增：移动端竖屏增强安全边距 */
   }
 
   .global-ai-glass-overlay.is-fullscreen {

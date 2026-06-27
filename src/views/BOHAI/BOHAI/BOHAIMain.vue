@@ -289,7 +289,8 @@
             @update:is-shared-memory-enabled="isSharedMemoryEnabled = $event"
             @clear-current-chat="clearCurrentChat"
             @export-chat-data="exportChatData"
-            @clear-all-chat-data="clearAllChatData" />
+            @clear-all-chat-data="clearAllChatData"
+            @open-quota-panel="openQuotaPanel" />
 
         <CommonAlertModal
             v-model:visible="confirmState.show"
@@ -386,6 +387,11 @@ const activeInlineQuestion = ref(null);
 
 const openSettings = () => {
     settingsOpen.value = true;
+};
+
+const openQuotaPanel = () => {
+    settingsOpen.value = false;
+    isQuotaPanelOpen.value = true;
 };
 
 const clearAllChatData = () => {

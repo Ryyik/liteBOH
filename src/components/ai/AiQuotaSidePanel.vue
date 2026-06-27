@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <Transition name="quota-slide">
-      <div v-if="visible" class="quota-backdrop" role="presentation"
+      <div v-if="visible" class="quota-backdrop" style="z-index: 2147483648 !important;" role="presentation"
         @click.self="$emit('close')" @keydown.escape="$emit('close')">
         <aside class="quota-drawer" @click.stop role="dialog" aria-modal="true" aria-label="AI 使用额度">
           <header class="quota-header">
@@ -103,6 +103,30 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close']);
+
+// 调试日志：显示层级信息
+watch(() => props.visible, (val) => {
+  if (val) {
+    setTimeout(() => {
+      const backdrop = document.querySelector('.quota-backdrop');
+      const glassOverlay = document.querySelector('.global-ai-glass-overlay');
+      console.log('===== AiQuotaSidePanel 层级调试 =====');
+      console.log('AiQuotaSidePanel (.quota-backdrop):', {
+        存在: !!backdrop,
+        zIndex: backdrop ? backdrop.style.zIndex || getComputedStyle(backdrop).zIndex : 'N/A',
+        computedZIndex: backdrop ? getComputedStyle(backdrop).zIndex : 'N/A',
+        DOM位置: backdrop ? Array.from(document.body.children).indexOf(backdrop) : 'N/A'
+      });
+      console.log('GlobalAiGlassOverlay (.global-ai-glass-overlay):', {
+        存在: !!glassOverlay,
+        computedZIndex: glassOverlay ? getComputedStyle(glassOverlay).zIndex : 'N/A',
+        DOM位置: glassOverlay ? Array.from(document.body.children).indexOf(glassOverlay) : 'N/A'
+      });
+      console.log('body子元素顺序:', Array.from(document.body.children).map(el => el.className || el.id || el.tagName).slice(0, 15));
+      console.log('========================================');
+    }, 50);
+  }
+});
 const router = useRouter();
 
 const authStore = useAuthStore();
@@ -153,11 +177,11 @@ const handleUpgrade = () => {
 </script>
 
 <style scoped>
-/* 背景层 - 与设置面板一致 */
+/* 背景层 - 与设置面板一致，但层级更高 */
 .quota-backdrop {
   position: fixed !important;
   inset: 0 !important;
-  z-index: 2147483600 !important; /* 与设置面板一致的层级，高于毛玻璃层 */
+  z-index: 2147483648 !important; /* 最高层级，确保不被任何元素遮挡（超过GlobalAiGlassOverlay的2147483646） */
   display: flex !important;
   align-items: stretch !important;
   justify-content: flex-end !important;
@@ -429,6 +453,7 @@ const handleUpgrade = () => {
 .quota-slide-enter-active,
 .quota-slide-leave-active {
   transition: all 0.3s ease;
+  z-index: 2147483648 !important; /* 确保过渡期间层级最高 */
 }
 
 .quota-slide-enter-active .quota-drawer,
@@ -444,6 +469,7 @@ const handleUpgrade = () => {
 .quota-slide-enter-from,
 .quota-slide-leave-to {
   opacity: 0;
+  z-index: 2147483648 !important; /* 确保开始/结束状态层级最高 */
 }
 
 /* 深色模式 */

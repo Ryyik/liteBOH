@@ -37,6 +37,9 @@ const { isLoggedIn, showLoginModal } = storeToRefs(authStore);
 const { userInfo } = authStore;
 const postId = computed(() => route.params.id);
 
+// ✨ 新增：定义emit事件（支持灵动岛提示）
+const emit = defineEmits(['island-message']);
+
 const post = ref(null);
 const isLoading = ref(true);
 const isReplySubmitting = ref(false);
@@ -1124,6 +1127,13 @@ const sharePost = async () => {
   try {
     await navigator.clipboard.writeText(shareContent);
     showShareCopiedState();
+    // ✨ 新增：触发灵动岛提示
+    emit('island-message', {
+      title: '分享链接已复制到剪贴板',
+      icon: 'success',
+      catSticker: 'success',
+      actionLabel: '知道了'
+    });
   } catch (error) {
     logger.error('post-detail', '复制分享链接失败:', error);
     showModal('error', '复制失败', '当前环境不支持自动复制，请手动复制地址栏链接');
@@ -1228,7 +1238,8 @@ const handleChangeCommentSortMode = async (mode) => {
               <div class="post-header">
                 <div class="author-section" @click="goToProfile(post.author_username)">
                   <div class="author-avatar">
-                    <img v-if="post.author_avatar_url" :src="post.author_avatar_url" alt="作者头像" class="avatar-image"  loading="lazy" />
+                    <img v-if="post.author_avatar_url" :src="post.author_avatar_url" alt="作者头像" class="avatar-image"
+                      loading="lazy" />
                     <span v-else>{{ post.author_username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
                   </div>
                   <div class="author-meta">
@@ -1238,14 +1249,8 @@ const handleChangeCommentSortMode = async (mode) => {
                   </div>
                 </div>
                 <div v-if="shouldShowPostMenu" class="post-menu-wrap" @click.stop>
-                  <button
-                    type="button"
-                    class="post-menu-trigger"
-                    :class="{ active: isPostMenuOpen }"
-                    aria-label="帖子操作"
-                    :aria-expanded="isPostMenuOpen ? 'true' : 'false'"
-                    @click="togglePostMenu"
-                  >
+                  <button type="button" class="post-menu-trigger" :class="{ active: isPostMenuOpen }" aria-label="帖子操作"
+                    :aria-expanded="isPostMenuOpen ? 'true' : 'false'" @click="togglePostMenu">
                     <span></span>
                     <span></span>
                     <span></span>
@@ -1256,17 +1261,13 @@ const handleChangeCommentSortMode = async (mode) => {
                         <span class="post-menu-icon">✎</span>
                         <span>编辑</span>
                       </button>
-                      <button v-if="canManagePost" type="button" class="post-menu-item danger" @click="handleDeletePost">
+                      <button v-if="canManagePost" type="button" class="post-menu-item danger"
+                        @click="handleDeletePost">
                         <span class="post-menu-icon">×</span>
                         <span>删除</span>
                       </button>
-                      <button
-                        v-if="canReportPost"
-                        type="button"
-                        class="post-menu-item warning"
-                        :disabled="isReportSubmitting"
-                        @click="handleReportPost"
-                      >
+                      <button v-if="canReportPost" type="button" class="post-menu-item warning"
+                        :disabled="isReportSubmitting" @click="handleReportPost">
                         <span class="post-menu-icon">!</span>
                         <span>{{ isReportSubmitting ? '提交中' : '举报' }}</span>
                       </button>
@@ -1289,8 +1290,7 @@ const handleChangeCommentSortMode = async (mode) => {
                 <div v-if="detailImages.length" class="post-detail-image-carousel">
                   <div class="post-detail-image-stage">
                     <transition name="detail-image-fade" mode="out-in">
-                      <button :key="detailImageKey" type="button"
-                        class="post-detail-image-link"
+                      <button :key="detailImageKey" type="button" class="post-detail-image-link"
                         :class="{ 'is-loaded': isDetailImageLoaded(detailImageKey) }"
                         :aria-label="`查看${postTitle}第 ${detailImageIndex + 1} 张大图`"
                         @click="openDetailImageViewer(detailImageIndex)">
@@ -1298,28 +1298,27 @@ const handleChangeCommentSortMode = async (mode) => {
                           loading="eager" decoding="async" fetchpriority="high" class="post-detail-image"
                           :class="{ 'is-loaded': isDetailImageLoaded(detailImageKey) }"
                           :width="currentDetailImage.width || undefined"
-                          :height="currentDetailImage.height || undefined"
-                          @load="markDetailImageLoaded(detailImageKey)"
+                          :height="currentDetailImage.height || undefined" @load="markDetailImageLoaded(detailImageKey)"
                           @error="markDetailImageLoaded(detailImageKey)" />
-                        <span v-if="currentDetailImage.width && currentDetailImage.height" class="post-detail-image-meta">
+                        <span v-if="currentDetailImage.width && currentDetailImage.height"
+                          class="post-detail-image-meta">
                           {{ currentDetailImage.width }} × {{ currentDetailImage.height }}
                         </span>
                       </button>
                     </transition>
-                    <button v-if="hasMultipleDetailImages" type="button"
-                      class="post-detail-image-nav prev" aria-label="上一张图片" @click.stop="showPrevDetailImage">
+                    <button v-if="hasMultipleDetailImages" type="button" class="post-detail-image-nav prev"
+                      aria-label="上一张图片" @click.stop="showPrevDetailImage">
                       ‹
                     </button>
-                    <button v-if="hasMultipleDetailImages" type="button"
-                      class="post-detail-image-nav next" aria-label="下一张图片" @click.stop="showNextDetailImage">
+                    <button v-if="hasMultipleDetailImages" type="button" class="post-detail-image-nav next"
+                      aria-label="下一张图片" @click.stop="showNextDetailImage">
                       ›
                     </button>
                   </div>
                   <div v-if="hasMultipleDetailImages" class="post-detail-image-dots"
                     :aria-label="`共 ${detailImages.length} 张图片，当前第 ${detailImageIndex + 1} 张`">
-                    <button v-for="(image, index) in detailImages" :key="image.id || image.url || index"
-                      type="button" class="post-detail-image-dot"
-                      :class="{ active: index === detailImageIndex }"
+                    <button v-for="(image, index) in detailImages" :key="image.id || image.url || index" type="button"
+                      class="post-detail-image-dot" :class="{ active: index === detailImageIndex }"
                       :aria-label="`查看第 ${index + 1} 张图片`" @click.stop="goToDetailImage(index)"></button>
                   </div>
                 </div>
@@ -1327,12 +1326,12 @@ const handleChangeCommentSortMode = async (mode) => {
 
               <div class="post-footer">
                 <div class="action-bar">
-                  <button class="action-btn like-btn" :class="{ 'is-liked': post.isLiked, 'is-pulsing': isLikePulsing }" @click="handleToggleLike"
-                    :disabled="isLikeSubmitting">
+                  <button class="action-btn like-btn" :class="{ 'is-liked': post.isLiked, 'is-pulsing': isLikePulsing }"
+                    @click="handleToggleLike" :disabled="isLikeSubmitting">
                     <img v-if="isHomeCatActive && isLikePulsing" class="detail-like-pop-cat-img"
-                      :src="getHomeCatAsset('like')" alt="" draggable="false"  loading="lazy" />
-                    <Heart class="action-svg" :size="18" :stroke-width="1.8" :fill="post.isLiked ? 'currentColor' : 'none'"
-                      aria-hidden="true" />
+                      :src="getHomeCatAsset('like')" alt="" draggable="false" loading="lazy" />
+                    <Heart class="action-svg" :size="18" :stroke-width="1.8"
+                      :fill="post.isLiked ? 'currentColor' : 'none'" aria-hidden="true" />
                     <span class="action-count-bold">{{ post.like_count }}</span>
                     <span class="action-label">点赞</span>
                   </button>
@@ -1354,38 +1353,23 @@ const handleChangeCommentSortMode = async (mode) => {
           </div>
 
           <div class="x-side-column">
-            <CommentThread
-              :comments="topComments"
-              :is-loading="isTopCommentsLoading"
-              :has-more="hasMoreTopComments"
-              :is-logged-in="isLoggedIn"
-              :current-user-id="userInfo.id"
-              :current-user-role="userInfo.role"
-              :post-author-id="post.author_id"
-              :post-comment-count="post.comment_count"
-              :is-home-cat-active="isHomeCatActive"
-              :is-reply-success-popping="isReplySuccessPopping"
-              :active-reply-id="activeReplyId"
-              :reply-to-user="replyToUser"
-              :active-reply-quote="activeReplyQuote"
-              :reply-content="replyContent"
-              :is-reply-submitting="isReplySubmitting"
-              :reply-cooldown-seconds="replyCooldownSeconds"
-              :reply-submit-label="replySubmitLabel"
-              :child-replies-map="childRepliesMap"
-              :highlighted-comment-id="highlightedCommentId"
+            <CommentThread :comments="topComments" :is-loading="isTopCommentsLoading" :has-more="hasMoreTopComments"
+              :is-logged-in="isLoggedIn" :current-user-id="userInfo.id" :current-user-role="userInfo.role"
+              :post-author-id="post.author_id" :post-comment-count="post.comment_count"
+              :is-home-cat-active="isHomeCatActive" :is-reply-success-popping="isReplySuccessPopping"
+              :active-reply-id="activeReplyId" :reply-to-user="replyToUser" :active-reply-quote="activeReplyQuote"
+              :reply-content="replyContent" :is-reply-submitting="isReplySubmitting"
+              :reply-cooldown-seconds="replyCooldownSeconds" :reply-submit-label="replySubmitLabel"
+              :child-replies-map="childRepliesMap" :highlighted-comment-id="highlightedCommentId"
               :comment-sort-mode="commentSortMode"
               @reply="({ targetId, username, content }) => toggleReplyInput(targetId, username, content)"
               @submit-reply="submitReply"
               @cancel-reply="activeReplyId = null; replyToUser = null; activeReplyQuote = ''; replyContent = ''"
-              @update:reply-content="replyContent = $event"
-              @load-more-comments="loadTopComments({ reset: false })"
+              @update:reply-content="replyContent = $event" @load-more-comments="loadTopComments({ reset: false })"
               @toggle-child-replies="toggleChildReplies"
               @load-child-replies="({ parentId, options }) => loadChildReplies(parentId, options)"
               @delete-comment="({ comment, parentId }) => handleDeleteComment(comment, parentId)"
-              @go-to-profile="goToProfile"
-              @change-sort-mode="handleChangeCommentSortMode"
-            />
+              @go-to-profile="goToProfile" @change-sort-mode="handleChangeCommentSortMode" />
           </div>
         </div>
       </main>
@@ -1395,7 +1379,8 @@ const handleChangeCommentSortMode = async (mode) => {
       <Transition name="detail-confirm-fade">
         <div v-if="confirmState.show" class="detail-confirm-overlay" @click.self="closeConfirm(false)">
           <div class="detail-confirm-modal" role="dialog" aria-modal="true" :aria-label="confirmState.title">
-            <img v-if="confirmMascotSrc" class="detail-confirm-cat-img" :src="confirmMascotSrc" alt="" draggable="false"  loading="lazy" />
+            <img v-if="confirmMascotSrc" class="detail-confirm-cat-img" :src="confirmMascotSrc" alt="" draggable="false"
+              loading="lazy" />
             <h3>{{ confirmState.title }}</h3>
             <p>{{ confirmState.message }}</p>
             <div class="detail-confirm-actions">
@@ -1444,15 +1429,9 @@ const handleChangeCommentSortMode = async (mode) => {
         </div>
 
         <div class="report-reason-grid">
-          <button
-            v-for="reason in reportReasons"
-            :key="reason.value"
-            type="button"
-            class="report-reason-option"
-            :class="{ selected: reportForm.reason === reason.value }"
-            :disabled="isReportSubmitting"
-            @click="reportForm.reason = reason.value"
-          >
+          <button v-for="reason in reportReasons" :key="reason.value" type="button" class="report-reason-option"
+            :class="{ selected: reportForm.reason === reason.value }" :disabled="isReportSubmitting"
+            @click="reportForm.reason = reason.value">
             <span class="report-reason-label">{{ reason.label }}</span>
             <span class="report-reason-description">{{ reason.description }}</span>
           </button>
@@ -1460,14 +1439,8 @@ const handleChangeCommentSortMode = async (mode) => {
 
         <label class="report-detail-field">
           <span>补充说明</span>
-          <textarea
-            v-model="reportForm.detail"
-            class="report-detail-textarea"
-            rows="4"
-            maxlength="500"
-            placeholder="可以补充具体问题、相关上下文或希望管理员注意的地方（选填）"
-            :disabled="isReportSubmitting"
-          ></textarea>
+          <textarea v-model="reportForm.detail" class="report-detail-textarea" rows="4" maxlength="500"
+            placeholder="可以补充具体问题、相关上下文或希望管理员注意的地方（选填）" :disabled="isReportSubmitting"></textarea>
           <small>{{ reportForm.detail.length }}/500</small>
         </label>
 
@@ -1480,18 +1453,10 @@ const handleChangeCommentSortMode = async (mode) => {
       </div>
     </div>
 
-    <ImageViewer
-      :visible="isDetailImageViewerOpen"
-      :images="detailImages"
-      :current-index="detailImageIndex"
-      :post-title="postTitle"
-      :current-image="currentDetailImage"
-      :image-key="detailImageKey"
-      @close="closeDetailImageViewer"
-      @navigate-prev="showPrevDetailImage"
-      @navigate-next="showNextDetailImage"
-      @go-to-index="goToDetailImage"
-    />
+    <ImageViewer :visible="isDetailImageViewerOpen" :images="detailImages" :current-index="detailImageIndex"
+      :post-title="postTitle" :current-image="currentDetailImage" :image-key="detailImageKey"
+      @close="closeDetailImageViewer" @navigate-prev="showPrevDetailImage" @navigate-next="showNextDetailImage"
+      @go-to-index="goToDetailImage" />
   </div>
 </template>
 

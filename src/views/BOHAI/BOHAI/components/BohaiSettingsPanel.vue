@@ -160,6 +160,29 @@
             </div>
 
             <div class="ai-settings-card">
+              <div class="ai-settings-group-title">使用额度</div>
+              <div class="ai-settings-list">
+                <div class="ai-settings-row clickable" @click="$emit('openQuotaPanel')">
+                  <div class="ai-settings-row-left">
+                    <div class="ai-settings-icon bg-orange">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                      </svg>
+                    </div>
+                    <div class="ai-settings-label-stack">
+                      <span class="ai-settings-label">AI 使用额度</span>
+                      <span class="ai-settings-desc">查看今日额度使用情况</span>
+                    </div>
+                  </div>
+                  <div class="ai-settings-row-right">
+                    <span class="ai-settings-chevron">›</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="ai-settings-card">
               <div class="ai-settings-group-title">数据</div>
               <div class="ai-settings-list">
                 <div class="ai-settings-row clickable" @click="$emit('clearCurrentChat')">
@@ -253,7 +276,8 @@ const emit = defineEmits([
   'update:isSharedMemoryEnabled',
   'clearCurrentChat',
   'exportChatData',
-  'clearAllChatData'
+  'clearAllChatData',
+  'openQuotaPanel'
 ]);
 
 const showModePicker = ref(false);
@@ -364,7 +388,7 @@ const compressionStatusText = computed(() => {
 .ai-settings-backdrop {
   position: fixed !important;
   inset: 0 !important;
-  z-index: 2147483600 !important;
+  z-index: 2147483648 !important; /* 高于 GlobalAiGlassOverlay 的 2147483646 */
   display: flex !important;
   align-items: stretch !important;
   justify-content: flex-start !important;
@@ -662,6 +686,7 @@ const compressionStatusText = computed(() => {
 .bg-blue { background-color: #EBF5FF; color: #007AFF; }
 .bg-green { background-color: #E8F9EE; color: #34C759; }
 .bg-purple { background-color: #F7EFFF; color: #AF52DE; }
+.bg-orange { background-color: #FFF3E0; color: #F59E0B; }
 .bg-gray { background-color: #F5F5F7; color: #8E8E93; }
 .bg-indigo { background-color: #EEEDFF; color: #5856D6; }
 .bg-red { background-color: #FFE5E5; color: #dc2626; }

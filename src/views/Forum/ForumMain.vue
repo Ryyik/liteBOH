@@ -447,7 +447,8 @@ let forumFetchSeq = 0;
 let forumFetchAbortController = null;
 let searchDebounceTimer = null;
 let postDraftSaveTimer = null;
-let autoSaveDraftTimer = null;
+// ✨ 移除：autoSaveDraftTimer定时器（改为手动保存）
+// let autoSaveDraftTimer = null;
 let postDraftRestoreSeq = 0;
 const getDraftStorageKey = () => {
   const uid = String(userInfo.id || 'guest').trim() || 'guest';
@@ -648,23 +649,30 @@ const autoSaveDraftLabel = computed(() => {
   return `已自动保存 ${formatAutoSaveTime(lastAutoSaveTime.value)}`;
 });
 
-const clearAutoSaveDraftTimer = () => {
-  if (autoSaveDraftTimer) {
-    clearInterval(autoSaveDraftTimer);
-    autoSaveDraftTimer = null;
-  }
+// ✨ 移除：clearAutoSaveDraftTimer和startAutoSaveDraftTimer函数（改为手动保存）
+// const clearAutoSaveDraftTimer = () => { ... };
+// const startAutoSaveDraftTimer = () => { ... };
+
+// ✨ 新增：hasUnsavedChanges函数（判断是否有未保存的编辑内容）
+const hasUnsavedChanges = () => {
+  const hasTitle = Boolean(String(newPost.value.title || '').trim());
+  const hasContent = Boolean(String(newPost.value.content || '').trim());
+  const hasImages = postImages.value.length > 0;
+  return hasTitle || hasContent || hasImages;
 };
 
-const startAutoSaveDraftTimer = () => {
-  if (autoSaveDraftTimer) return;
-  autoSaveDraftTimer = setInterval(() => {
-    const hasContent = Boolean(
-      String(newPost.value.title || '').trim() || String(newPost.value.content || '').trim()
-    );
-    if (hasContent) {
-      persistPostDraft();
-    }
-  }, AUTO_SAVE_DRAFT_INTERVAL_MS);
+// ✨ 新增：beforeunload事件处理（刷新页面时提示保存草稿）
+const handleBeforeUnload = (e) => {
+  if (!hasUnsavedChanges()) return;
+
+  // 设置returnValue以触发浏览器默认确认框
+  e.preventDefault();
+  e.returnValue = '编辑内容尚未保存，是否保存为草稿？';
+
+  // 自动保存草稿（用户选择留在页面时）
+  persistPostDraft();
+
+  return e.returnValue;
 };
 
 const clearPostDraft = () => {
@@ -673,7 +681,8 @@ const clearPostDraft = () => {
       clearTimeout(postDraftSaveTimer);
       postDraftSaveTimer = null;
     }
-    clearAutoSaveDraftTimer();
+    // ✨ 移除：clearAutoSaveDraftTimer()调用
+    // clearAutoSaveDraftTimer();
     writeLocalPostDraft(null);
     savedPostDraft.value = null;
     lastAutoSaveTime.value = null;
@@ -1206,12 +1215,15 @@ onMounted(() => {
   themeManager.addListener(handleThemeChange);
   loadRetriedNotificationIds();
   restorePostDraft();
-  startAutoSaveDraftTimer();
+  // ✨ 移除：startAutoSaveDraftTimer()调用（改为手动保存）
+  // startAutoSaveDraftTimer();
   window.addEventListener('resize', updateMobileStatus);
   window.addEventListener('orientationchange', updateMobileStatus);
   document.addEventListener('click', closePostImageSourceMenu);
   // 监听刷新请求事件（从导航栏点击"我的方块"时触发）
   window.addEventListener('boh_forum_refresh_request', handleForumRefreshRequest);
+  // ✨ 新增：beforeunload事件监听（刷新页面时提示保存草稿）
+  window.addEventListener('beforeunload', handleBeforeUnload);
 
   void initializeForumData();
   setupForumLoadMoreObserver();
@@ -1227,12 +1239,15 @@ onUnmounted(() => {
   forumWindowObserverAborted = true;
   themeManager.removeListener(handleThemeChange);
   clearForumImageModerationPreloadTask();
-  clearAutoSaveDraftTimer();
+  // ✨ 移除：clearAutoSaveDraftTimer()调用（函数已不存在）
+  // clearAutoSaveDraftTimer();
   forumFetchAbortController?.abort?.();
   forumFetchAbortController = null;
   window.removeEventListener('resize', updateMobileStatus);
   window.removeEventListener('orientationchange', updateMobileStatus);
   window.removeEventListener('boh_forum_refresh_request', handleForumRefreshRequest);
+  // ✨ 新增：移除beforeunload事件监听
+  window.removeEventListener('beforeunload', handleBeforeUnload);
   if (resizeRafId) {
     cancelAnimationFrame(resizeRafId);
     resizeRafId = null;

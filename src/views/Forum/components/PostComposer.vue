@@ -12,6 +12,7 @@ import {
   Image as ImageIcon,
   MapPin,
   MoreHorizontal,
+  Plus,
   RefreshCcw,
   X
 } from 'lucide-vue-next';
@@ -40,7 +41,9 @@ const props = defineProps({
   showPostImageSourceMenu: { type: Boolean, default: false },
   isMobileComposer: { type: Boolean, default: false },
   isHomeCatTheme: { type: Boolean, default: false },
-  autoSaveDraftLabel: { type: String, default: '' }
+  autoSaveDraftLabel: { type: String, default: '' },
+  editMode: { type: Boolean, default: false },
+  existingImages: { type: Array, default: () => [] }
 });
 
 const emit = defineEmits([
@@ -58,7 +61,8 @@ const emit = defineEmits([
   'reorder-image',
   'clear-images',
   'weekly-checkin',
-  'open-draft'
+  'open-draft',
+  'save-draft' // ✨ 新增：保存草稿事件
 ]);
 
 const postImageInputRef = ref(null);
@@ -614,6 +618,19 @@ onUnmounted(() => {
             <button type="button" class="post-image-remove-btn" :disabled="isSubmitting"
               @click="emit('remove-image', image, index)">×</button>
           </div>
+
+          <!-- ✨ 新增：添加更多图片方框 -->
+          <button
+            v-if="postImages.length < maxPostImages"
+            type="button"
+            class="post-image-add-more-card"
+            :disabled="isUploadingPostImage || isSubmitting"
+            @click="handleImagePickerRequest"
+            aria-label="添加更多图片"
+          >
+            <Plus :size="32" :stroke-width="1.5" aria-hidden="true" />
+            <span class="add-more-label">添加图片</span>
+          </button>
         </div>
         <div v-if="postImageUploadStatus || isUploadingPostImage" class="post-image-upload-status">
           <div class="post-image-upload-status-row">
@@ -623,6 +640,7 @@ onUnmounted(() => {
           </div>
           <div v-if="isUploadingPostImage" class="post-image-upload-progress-bar">
             <div class="post-image-upload-progress-fill"></div>
+          </div>
           </div>
         </div>
         <button v-if="postImages.length > 0" type="button" class="post-image-clear-btn"
@@ -725,6 +743,14 @@ onUnmounted(() => {
               @click="handleImagePickerRequest">
               <ImageIcon :size="23" :stroke-width="1.8" aria-hidden="true" />
               <span class="desktop-image-count">{{ postImages.length }}/{{ maxPostImages }}</span>
+            </button>
+            <!-- ✨ 新增：横屏保存草稿按钮 -->
+            <button type="button" class="desktop-post-tool-btn desktop-save-draft-btn"
+              :disabled="!hasPostContent || isSubmitting || isUploadingPostImage"
+              :aria-label="`保存当前编辑内容为草稿`"
+              @click="emit('save-draft')">
+              <FileText :size="22" :stroke-width="2" aria-hidden="true" />
+              <span>保存草稿</span>
             </button>
             <div class="desktop-more-tool-wrap">
               <button type="button" class="desktop-post-tool-btn desktop-more-tool-btn"
@@ -871,6 +897,67 @@ onUnmounted(() => {
 </style>
 
 <style scoped>
+/* ✨ 新增：添加更多图片方框样式 */
+.post-image-add-more-card {
+  width: 100%;
+  aspect-ratio: 1 / 1; /* 正方形 */
+  border: 2px dashed rgba(0, 113, 227, 0.24);
+  border-radius: 16px;
+  background: rgba(0, 113, 227, 0.04);
+  color: #0071e3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+.post-image-add-more-card:hover:not(:disabled) {
+  border-color: #0071e3;
+  background: rgba(0, 113, 227, 0.08);
+}
+
+.post-image-add-more-card:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.add-more-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0071e3;
+  line-height: 1.2;
+}
+
+/* ✨ 新增：横屏保存草稿按钮样式 */
+.desktop-save-draft-btn {
+  border-radius: 14px;
+  padding: 10px 16px;
+  background: rgba(0, 113, 227, 0.06);
+  border: 1px solid rgba(0, 113, 227, 0.18);
+  color: #0071e3;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.desktop-save-draft-btn:hover:not(:disabled) {
+  background: rgba(0, 113, 227, 0.12);
+  border-color: rgba(0, 113, 227, 0.32);
+}
+
+.desktop-save-draft-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* 位置选择面板 */
 .location-panel-overlay {
   position: fixed;

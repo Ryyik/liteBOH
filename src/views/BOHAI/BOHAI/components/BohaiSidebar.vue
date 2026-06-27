@@ -85,7 +85,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { Search, Plus, ChevronDown, Trash2, Settings, PanelLeft } from 'lucide-vue-next';
 
 const props = defineProps({
@@ -118,6 +118,35 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'startNewChat', 'switchSession', 'deleteSession', 'openSettings']);
 
 const isOpen = computed(() => props.modelValue);
+
+// 调试日志：显示层级信息
+watch(isOpen, (val) => {
+  if (val) {
+    setTimeout(() => {
+      const sidebar = document.querySelector('.sidebar');
+      const sidebarOverlay = document.querySelector('.sidebar-overlay');
+      const glassOverlay = document.querySelector('.global-ai-glass-overlay');
+      console.log('===== BohaiSidebar 层级调试 =====');
+      console.log('BohaiSidebar (.sidebar):', {
+        存在: !!sidebar,
+        computedZIndex: sidebar ? getComputedStyle(sidebar).zIndex : 'N/A',
+        DOM位置: sidebar ? Array.from(document.body.children).indexOf(sidebar) : 'N/A',
+        类名: sidebar ? sidebar.className : 'N/A'
+      });
+      console.log('Sidebar Overlay (.sidebar-overlay):', {
+        存在: !!sidebarOverlay,
+        computedZIndex: sidebarOverlay ? getComputedStyle(sidebarOverlay).zIndex : 'N/A',
+        DOM位置: sidebarOverlay ? Array.from(document.body.children).indexOf(sidebarOverlay) : 'N/A'
+      });
+      console.log('GlobalAiGlassOverlay (.global-ai-glass-overlay):', {
+        存在: !!glassOverlay,
+        computedZIndex: glassOverlay ? getComputedStyle(glassOverlay).zIndex : 'N/A',
+        DOM位置: glassOverlay ? Array.from(document.body.children).indexOf(glassOverlay) : 'N/A'
+      });
+      console.log('===================================');
+    }, 50);
+  }
+});
 
 const showSidebarSearch = ref(false);
 const sidebarSearchQuery = ref('');
@@ -313,6 +342,15 @@ const toggleSidebarSearch = () => {
   z-index: 2147482100 !important;
 }
 
+/* --- overlay-mode 侧栏层级提升 --- */
+.bohai-page.overlay-mode .sidebar-overlay {
+  z-index: 2147483648 !important; /* 高于 GlobalAiGlassOverlay 的 2147483646 */
+}
+
+.bohai-page.overlay-mode .sidebar {
+  z-index: 2147483649 !important; /* 高于遮罩层，确保在最上层 */
+}
+
 /* ================================================================
    以下为侧栏独立组件后，原本在 shell-header.css / adaptive-layout.css
    中 scoped 到 BOHAIMain 的规则失效，在此全局补回
@@ -322,7 +360,7 @@ const toggleSidebarSearch = () => {
 .sidebar {
   position: fixed !important;
   inset: 0 auto 0 0 !important;
-  z-index: 1100 !important;
+  z-index: 2147483650 !important; /* 高于 GlobalAiGlassOverlay 的 2147483646 */
 }
 
 .sidebar.open {
@@ -333,20 +371,20 @@ const toggleSidebarSearch = () => {
 .sidebar.is-embedded {
   top: var(--userspace-top-offset, 80px) !important;
   bottom: calc(var(--userspace-bottom-nav-offset, 80px) + env(safe-area-inset-bottom, 0px)) !important;
-  z-index: 1200 !important;
+  z-index: 2147483651 !important; /* 高于基础侧栏 */
 }
 
 .bohai-page.embedded-mode .sidebar {
   top: var(--userspace-top-offset, 80px) !important;
   bottom: calc(var(--userspace-bottom-nav-offset, 80px) + env(safe-area-inset-bottom, 0px)) !important;
-  z-index: 1200 !important;
+  z-index: 2147483651 !important;
 }
 
 /* --- 侧栏遮罩层（:global() 规则中完全缺失） --- */
 .sidebar-overlay {
   position: fixed !important;
   inset: 0 !important;
-  z-index: 1050 !important;
+  z-index: 2147483648 !important; /* 高于 GlobalAiGlassOverlay 的 2147483646 */
   background: rgba(15, 23, 42, 0.32) !important;
   backdrop-filter: blur(4px) !important;
   -webkit-backdrop-filter: blur(4px) !important;
@@ -361,13 +399,13 @@ const toggleSidebarSearch = () => {
 .sidebar-overlay.is-embedded {
   top: var(--userspace-top-offset, 80px) !important;
   bottom: calc(var(--userspace-bottom-nav-offset, 80px) + env(safe-area-inset-bottom, 0px)) !important;
-  z-index: 1150 !important;
+  z-index: 2147483649 !important; /* 高于基础遮罩层 */
 }
 
 .bohai-page.embedded-mode .sidebar-overlay {
   top: var(--userspace-top-offset, 80px) !important;
   bottom: calc(var(--userspace-bottom-nav-offset, 80px) + env(safe-area-inset-bottom, 0px)) !important;
-  z-index: 1150 !important;
+  z-index: 2147483649 !important;
 }
 
 /* --- 交互状态（hover/active，:global() 规则中缺失） --- */
