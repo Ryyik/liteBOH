@@ -641,7 +641,6 @@ onUnmounted(() => {
           <div v-if="isUploadingPostImage" class="post-image-upload-progress-bar">
             <div class="post-image-upload-progress-fill"></div>
           </div>
-          </div>
         </div>
         <button v-if="postImages.length > 0" type="button" class="post-image-clear-btn"
           :disabled="isSubmitting || isUploadingPostImage" @click="emit('clear-images', { cleanup: true })">
