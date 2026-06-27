@@ -37,8 +37,8 @@ const { isLoggedIn, showLoginModal } = storeToRefs(authStore);
 const { userInfo } = authStore;
 const postId = computed(() => route.params.id);
 
-// ✨ 新增：定义emit事件（支持灵动岛提示）
-const emit = defineEmits(['island-message']);
+// ✨ 移除：emit定义（改为全局事件）
+// const emit = defineEmits(['island-message']);
 
 const post = ref(null);
 const isLoading = ref(true);
@@ -1127,13 +1127,16 @@ const sharePost = async () => {
   try {
     await navigator.clipboard.writeText(shareContent);
     showShareCopiedState();
-    // ✨ 新增：触发灵动岛提示
-    emit('island-message', {
-      title: '分享链接已复制到剪贴板',
-      icon: 'success',
-      catSticker: 'success',
-      actionLabel: '知道了'
-    });
+    // ✨ 新增：触发全局灵动岛事件（跨组件通信）
+    window.dispatchEvent(new CustomEvent('boh_island_message', {
+      detail: {
+        title: '分享链接已复制到剪贴板',
+        icon: 'success',
+        catSticker: 'success',
+        actionLabel: '知道了',
+        at: Date.now()
+      }
+    }));
   } catch (error) {
     logger.error('post-detail', '复制分享链接失败:', error);
     showModal('error', '复制失败', '当前环境不支持自动复制，请手动复制地址栏链接');

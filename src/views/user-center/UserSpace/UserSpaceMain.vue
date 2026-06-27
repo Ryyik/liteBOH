@@ -1290,6 +1290,11 @@ const handleBottomNavIslandEvent = (event) => {
   showBottomNavIsland(event?.detail || {});
 };
 
+// ✨ 新增：处理全局灵动岛事件（跨组件通信）
+const handleGlobalIslandMessage = (event) => {
+  showBottomNavIsland(event?.detail || {});
+};
+
 const getBottomNavOnboardingNoticeKey = () => {
   const userId = String(userInfo.value?.id || 'guest').trim() || 'guest';
   return `boh-userspace-bottom-nav-onboarding-${BOTTOM_NAV_ONBOARDING_NOTICE_VERSION}-${userId}`;
@@ -2538,6 +2543,8 @@ onMounted(() => {
   void refreshUnreadCount();
   window.addEventListener('boh_unread_refresh', handleUnreadRefresh);
   window.addEventListener('boh_userspace_nav_island', handleBottomNavIslandEvent);
+  // ✨ 新增：监听全局灵动岛事件（跨组件通信）
+  window.addEventListener('boh_island_message', handleGlobalIslandMessage);
   // 添加主题变化监听
   themeManager.addListener(handleThemeChange);
 });
@@ -2639,6 +2646,8 @@ onUnmounted(() => {
   clearUserSpaceWarmup();
   disposeBottomNavIsland();
   userSpaceMemoryCache.clear();
+  // ✨ 新增：移除全局灵动岛事件监听
+  window.removeEventListener('boh_island_message', handleGlobalIslandMessage);
   if (userStatsRetryTimerId) {
     clearTimeout(userStatsRetryTimerId);
     userStatsRetryTimerId = null;
