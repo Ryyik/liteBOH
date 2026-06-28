@@ -62,7 +62,7 @@ begin
     v_target_week := (v_target_week - interval '1 week')::date;
   end loop;
 
-  v_cycle_progress := mod(v_streak, v_cycle_size);
+  v_cycle_progress := case when v_streak = 0 then 0 else mod(v_streak - 1, v_cycle_size) + 1 end;
   v_next_reward := v_cycle_size - v_cycle_progress;
   if v_next_reward = 0 then
     v_next_reward := v_cycle_size;
@@ -76,7 +76,7 @@ begin
     'current_streak', v_streak,
     'cycle_progress', v_cycle_progress,
     'cycle_size', v_cycle_size,
-    'reward_completed_this_week', v_has_signed and v_streak > 0 and v_cycle_progress = 0,
+    'reward_completed_this_week', v_has_signed and v_streak > 0 and v_cycle_progress = v_cycle_size,
     'points_awarded', greatest(0, coalesce(p_points_awarded, 0)),
     'current_points', v_current_points,
     'next_reward_in', v_next_reward,

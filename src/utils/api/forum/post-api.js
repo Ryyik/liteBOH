@@ -289,7 +289,7 @@ function normalizeWeeklyCheckinPayload(payload = {}) {
   const streakTotal = Number(safe.streak_total ?? safe.current_streak ?? 0);
   const cycleSize = Math.max(1, Number(safe.cycle_size || 4));
   const cycleProgress = Math.max(0, Number(
-    safe.cycle_progress ?? (streakTotal % cycleSize)
+    safe.cycle_progress ?? (streakTotal === 0 ? 0 : ((streakTotal - 1) % cycleSize) + 1)
   ));
   const hasSignedThisWeek = Boolean(safe.has_signed_this_week);
 
@@ -302,7 +302,7 @@ function normalizeWeeklyCheckinPayload(payload = {}) {
     cycleProgress,
     cycleSize,
     rewardCompletedThisWeek: Boolean(
-      safe.reward_completed_this_week ?? (hasSignedThisWeek && streakTotal > 0 && cycleProgress === 0)
+      safe.reward_completed_this_week ?? (hasSignedThisWeek && streakTotal > 0 && cycleProgress === cycleSize)
     ),
     pointsAwarded: Number(safe.points_awarded || 0),
     currentPoints: Number(safe.current_points || 0),
@@ -336,7 +336,7 @@ function calcNextRewardIn(streak) {
 
 function calcCycleProgress(streak) {
   const normalizedStreak = Math.max(0, Number(streak || 0));
-  return normalizedStreak % 4;
+  return normalizedStreak === 0 ? 0 : ((normalizedStreak - 1) % 4) + 1;
 }
 
 function computeStreakFromWeekSet(anchorWeek, weekSet) {

@@ -644,6 +644,7 @@ const COMMUNITY_PAGE_SIZE = 10;
 const COMMUNITY_BIRTHDAY_LIMIT = 8;
 const hasLoadedCommunity = ref(false);
 const hasLoadedBirthdays = ref(false);
+let communityRefreshTimer = null;
 const forumRenderKey = ref(0);
 const forumViewRef = ref(null);
 const shouldRefreshForumAfterThemeChange = ref(false);
@@ -2615,6 +2616,16 @@ watch(currentTab, (newTab, oldTab) => {
   }
   if (newTab === 'community') {
     fetchCommunityUsers({ force: true });
+    if (!communityRefreshTimer) {
+      communityRefreshTimer = setInterval(() => {
+        fetchCommunityUsers({ force: true });
+      }, 30 * 1000);
+    }
+  } else if (oldTab === 'community') {
+    if (communityRefreshTimer) {
+      clearInterval(communityRefreshTimer);
+      communityRefreshTimer = null;
+    }
   }
 });
 
@@ -2667,6 +2678,10 @@ onUnmounted(() => {
   if (clearLeavingTabTimer) {
     clearTimeout(clearLeavingTabTimer);
     clearLeavingTabTimer = null;
+  }
+  if (communityRefreshTimer) {
+    clearInterval(communityRefreshTimer);
+    communityRefreshTimer = null;
   }
   // 移除主题变化监听
   themeManager.removeListener(handleThemeChange);

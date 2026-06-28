@@ -1857,7 +1857,7 @@ const getWeeklyCheckinCycleProgress = (status) => {
   }
 
   const normalizedStreak = Math.max(0, Number(status?.currentStreak || status?.streakTotal || 0));
-  return normalizedStreak % cycleSize;
+  return normalizedStreak === 0 ? 0 : ((normalizedStreak - 1) % cycleSize) + 1;
 };
 
 const weeklyCheckinCycleProgress = computed(() => (
@@ -1877,10 +1877,11 @@ const weeklyCheckinCycleSize = computed(() => Math.max(1, Number(weeklyCheckinSt
 
 const weeklyCheckinDisplayWeek = computed(() => {
   const progress = weeklyCheckinCycleProgress.value;
+  const cycleSize = weeklyCheckinCycleSize.value;
   if (weeklyCheckinStatus.value.hasSignedThisWeek) {
-    return Math.max(1, Math.min(weeklyCheckinCycleSize.value, progress || weeklyCheckinCycleSize.value));
+    return Math.max(1, Math.min(cycleSize, progress || cycleSize));
   }
-  return Math.max(1, Math.min(weeklyCheckinCycleSize.value, progress + 1));
+  return Math.max(1, Math.min(cycleSize, (progress % cycleSize) + 1));
 });
 
 const formatCheckinDate = (date) => `${date.getMonth() + 1}.${date.getDate()}`;

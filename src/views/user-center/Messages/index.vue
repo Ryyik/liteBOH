@@ -776,7 +776,7 @@ const refreshMessageCenter = async ({
             const { data, hasMore, nextCursor } = await getUserNotifications(currentUserId.value, {
               limit: MESSAGE_PAGE_SIZE
             });
-            messages.value = data || [];
+            messages.value = (data || []).map(enrichMessage);
             hasMoreNotifications.value = Boolean(hasMore);
             notificationsCursor.value = nextCursor || null;
           })()

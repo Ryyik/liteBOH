@@ -15,18 +15,15 @@ export function truncateTextSafe(text, maxChars = 20) {
 }
 
 /**
- * 生成回复引用草稿
+ * 生成回复草稿
  * @param {string|null} username - 被回复者用户名
- * @param {string|null} quotedContent - 被引用的内容
- * @returns {string} 引用格式的草稿文本，例如 "> @username：content\n\n"
+ * @returns {string} 提及文本，例如 "@username "
  */
-export function buildReplyDraft(username, quotedContent) {
-  if (!username || !quotedContent) return '';
+export function buildReplyDraft(username) {
+  if (!username) return '';
   const safeUsername = String(username).trim();
-  const safeQuote = String(quotedContent).trim();
-  if (!safeUsername || !safeQuote) return '';
-  // 输出用于 <textarea>（text context），无需 HTML 转义
-  return `> @${safeUsername}：${safeQuote}\n\n`;
+  if (!safeUsername) return '';
+  return `@${safeUsername} `;
 }
 
 /**

@@ -879,8 +879,8 @@ const toggleReplyInput = (targetId = null, username = null, quotedContent = '') 
   } else {
     activeReplyId.value = replyTargetId;
     replyToUser.value = username;
-    activeReplyQuote.value = String(quotedContent || '').trim();
-    replyContent.value = buildReplyDraft(username, quotedContent);
+    activeReplyQuote.value = '';
+    replyContent.value = buildReplyDraft(username);
 
     setTimeout(() => {
       const element = document.querySelector('.x-reply-box, .reply-section');

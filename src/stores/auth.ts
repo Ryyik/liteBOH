@@ -292,11 +292,13 @@ const PROFILE_SELECT_COLUMNS = `
       if (document.visibilityState !== 'visible') return;
       if (!isLoggedIn.value) return;
       void syncAuthState({ reason: 'visibility', force: false });
+      void updateOnlineStatus();
     };
 
     const handleOnline = () => {
       if (!isLoggedIn.value) return;
       void syncAuthState({ reason: 'online', force: false });
+      void updateOnlineStatus();
     };
 
     window.addEventListener('visibilitychange', handlePageVisible);
