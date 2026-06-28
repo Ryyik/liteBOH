@@ -14,7 +14,7 @@
         :pinned-tabs="currentPinnedTabs"
         :recent-records="recentRecordsForSidebar"
         :tab-groups="tabGroupsWithCounts"
-        :search-query.sync="globalSearchQuery"
+        v-model:search-query="globalSearchQuery"
         @nav-click="handleAdminNavClick"
         @recent-click="jumpToRecentRecord"
         @tab-click="handleSidebarTabClick"
