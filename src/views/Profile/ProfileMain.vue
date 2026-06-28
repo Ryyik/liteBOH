@@ -1,5 +1,5 @@
 <template>
-  <div class="profile-page">
+  <div class="profile-page" :data-theme="currentTheme">
     <input type="file" ref="avatarInputRef" class="hidden-file-input" accept="image/*" @change="handleAvatarFileChange">
 
     <div class="profile-container">
@@ -13,7 +13,7 @@
           </button>
           <div class="nav-user-info">
             <h2 class="nav-username">{{ profile?.username || '用户资料' }}</h2>
-            <span class="nav-post-count">{{ posts.length }} 帖子</span>
+            <span class="nav-post-count">{{ totalPostCount }} 帖子</span>
           </div>
         </div>
 
@@ -81,7 +81,7 @@
 
         <div v-else class="profile-detail-wrap">
           <!-- Banner -->
-          <div class="profile-banner"></div>
+          <div class="profile-banner" :style="profileBannerStyle"></div>
 
           <!-- Profile Info Area -->
           <div class="profile-info-section">
@@ -89,7 +89,20 @@
               <div v-if="isOwnProfile" class="profile-avatar-large clickable" @click="handleAvatarClick">
                 <img v-if="profile.avatar_url" :src="profile.avatar_url" alt="avatar" loading="lazy" decoding="async" />
                 <div v-else class="avatar-placeholder">{{ profile.username?.charAt(0)?.toUpperCase?.() || 'U' }}</div>
-                <div class="avatar-edit-icon-profile">
+                
+                <!-- 上传进度Spinner -->
+                <div v-if="isUploadingAvatar" class="avatar-upload-spinner">
+                  <div class="spinner-ring animate-upload-spin"></div>
+                </div>
+                
+                <!-- 上传成功动画 -->
+                <div v-if="showUploadSuccess" class="avatar-success-overlay">
+                  <svg class="success-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+                
+                <div class="avatar-edit-icon-profile" :class="{ 'uploading': isUploadingAvatar }">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path
                       d="M23 19C23 21.2091 21.2091 23 19 23H5C2.79086 23 1 21.2091 1 19V8C1 5.79086 2.79086 4 5 4H9L11 1H13L15 4H19C21.2091 4 23 5.79086 23 8V19Z"
@@ -108,6 +121,17 @@
                 编辑资料
               </button>
               <div v-else class="others-profile-actions">
+                <button
+                  v-if="isLoggedIn"
+                  class="follow-btn"
+                  :class="{ 'is-following': followState.isFollowing }"
+                  :disabled="followState.toggling"
+                  @click="handleToggleFollow"
+                >
+                  <template v-if="followState.toggling">处理中...</template>
+                  <template v-else-if="followState.isFollowing">已关注</template>
+                  <template v-else>关注</template>
+                </button>
                 <button class="add-impression-btn-top" @click="openImpressionModal">
                   添加印象
                 </button>
@@ -190,8 +214,14 @@
             </div>
 
             <div class="user-stats">
-              <span class="stat-item"><b>{{ posts.length }}</b> 帖子</span>
+              <span class="stat-item"><b>{{ totalPostCount }}</b> 帖子</span>
               <span class="stat-item"><b>{{ profile.points || 0 }}</b> 积分</span>
+              <span class="stat-item" :class="{ 'clickable-stat': !profile.hide_follow_data || isOwnProfile }" @click="(!profile.hide_follow_data || isOwnProfile) ? openFollowModal('followers') : undefined">
+                <b>{{ followState.followersCount }}</b> 粉丝
+              </span>
+              <span class="stat-item" :class="{ 'clickable-stat': !profile.hide_follow_data || isOwnProfile }" @click="(!profile.hide_follow_data || isOwnProfile) ? openFollowModal('following') : undefined">
+                <b>{{ followState.followingCount }}</b> 关注
+              </span>
             </div>
           </div>
 
@@ -255,34 +285,76 @@
                 <button v-if="isOwnProfile" class="empty-action-btn" @click="showPostModal = true">立即发帖</button>
                 <button v-else class="empty-action-btn" @click="router.push('/user-space?tab=posts')">去方块社区看看</button>
               </div>
-              <article v-for="post in posts" :key="post.id" class="feed-item public-profile-post-card"
-                :class="{ 'text-only': !getProfilePostCover(post) }" @click="navigateToPost(post.id)">
-                <div v-if="getProfilePostCover(post)" class="public-profile-post-cover">
-                  <img :src="getProfilePostCover(post)" :alt="post.title || '帖子图片'" loading="lazy" decoding="async">
+              <article v-for="(post, index) in posts" :key="post.id"
+                class="post-card-v2 glass-panel public-profile-post-card"
+                :class="{ 'text-only': !post.images?.length, 'image-post-card-v2': post.images?.length }"
+                :style="{ '--post-appear-delay': `${Math.min(index, 8) * 45}ms` }"
+                @click="navigateToPost(post.id)">
+                <div v-if="isOwnProfile" class="profile-post-pin-action">
+                  <button class="pin-post-btn" @click.stop="toggleShowcasePost(post)"
+                    :disabled="!isShowcasedPost(post.id) && showcasePosts.length >= 3">
+                    {{ isShowcasedPost(post.id) ? '已置顶' : '置顶' }}
+                  </button>
                 </div>
-                <div class="item-avatar">
-                  <div class="avatar-mini">
-                    <img v-if="profile.avatar_url" :src="profile.avatar_url" alt="avatar" class="avatar-mini-img"
-                      loading="lazy" decoding="async" />
-                    <span v-else>{{ profile.username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
+                <figure v-if="isHomeCatActive" class="post-card-theme-cat"
+                  :class="getPostCardCatVariant(index)" aria-hidden="true">
+                  <img :src="getPostCardCatSrc(post, index)" alt="" draggable="false" loading="lazy" />
+                </figure>
+                <figure v-if="isHomeCatActive && shouldShowPostBackgroundCat(post, index)"
+                  class="post-card-background-cat" aria-hidden="true">
+                  <img :src="getPostBackgroundCatSrc(post, index)" alt="" draggable="false" loading="lazy" />
+                </figure>
+                <div class="post-header-v2">
+                  <div class="post-author-section">
+                    <div class="post-author-avatar">
+                      <img v-if="profile.avatar_url" :src="profile.avatar_url" alt="avatar"
+                        class="avatar-image" loading="lazy" />
+                      <span v-else>{{ profile.username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
+                    </div>
+                    <div class="post-author-info">
+                      <span class="post-author-v2">@{{ profile.username }}</span>
+                      <span class="post-date-v2">{{ formatProfilePostDate(post) }}</span>
+                    </div>
                   </div>
                 </div>
-                <div class="item-main">
-                  <div v-if="isOwnProfile" class="item-header-actions">
-                    <button class="pin-post-btn" @click.stop="toggleShowcasePost(post)"
-                      :disabled="!isShowcasedPost(post.id) && showcasePosts.length >= 3">
-                      {{ isShowcasedPost(post.id) ? '已置顶' : '置顶' }}
+                <div class="post-content-v2">
+                  <h3 class="post-title-v2">{{ post.title || '无标题' }}</h3>
+                  <div v-if="post.images?.length" class="image-post-thumb-grid"
+                    :class="[`count-${Math.min(post.images.length, 4)}`, { 'is-multi-image': post.images.length > 1 }]">
+                    <button v-for="(image, imgIndex) in post.images.slice(0, 4)" :key="image.id || imgIndex"
+                      type="button" class="image-post-thumb-shell"
+                      @click.stop="navigateToPost(post.id)">
+                      <img :src="image.url" :alt="`${post.title || '帖子图片'} ${imgIndex + 1}`"
+                        class="image-post-thumb is-loaded" loading="lazy" />
+                    </button>
+                    <span v-if="post.images.length > 4" class="image-post-count-badge">
+                      多图 {{ post.images.length }}
+                    </span>
+                  </div>
+                  <p class="post-text-v2">{{ getProfilePostSummary(post) }}</p>
+                </div>
+                <div class="post-actions-v2" @click.stop>
+                  <div class="actions-left-v2">
+                    <button class="action-item-v2 like-btn-v2"
+                      :class="{ 'is-liked': post.isLiked, 'is-pulsing': isLikePulsing(post.id) }"
+                      :disabled="isLikeSubmitting[post.id]" @click="handleToggleLike(post)">
+                      <img v-if="isHomeCatActive && isLikePulsing(post.id)" class="like-pop-cat-img"
+                        :src="getHomeCatAsset('like')" alt="" draggable="false" loading="lazy" />
+                      <Heart class="action-svg-v2" :size="17" :stroke-width="1.8"
+                        :fill="post.isLiked ? 'currentColor' : 'none'" />
+                      <span class="action-count-v2">{{ post.like_count || 0 }}</span>
+                    </button>
+                    <button class="action-item-v2 replies-btn-v2" @click="navigateToPost(post.id)">
+                      <MessageCircle class="action-svg-v2" :size="17" :stroke-width="1.8" />
+                      <span class="action-count-v2">{{ post.comment_count || 0 }}</span>
                     </button>
                   </div>
-                  <div class="item-header">
-                    <span class="item-author">{{ profile.username }}</span>
-                    <span class="item-handle">@{{ profile.username }} · {{ formatProfilePostDate(post) }}</span>
-                  </div>
-                  <div class="item-title" v-if="post.title">{{ post.title }}</div>
-                  <div class="item-text">{{ getProfilePostSummary(post) }}</div>
-                  <div class="item-footer-actions">
-                    <span class="action-stat"><span class="icon">💬</span> {{ post.comment_count }}</span>
-                    <span class="action-stat"><span class="icon">❤️</span> {{ post.like_count }}</span>
+                  <div class="actions-right-v2">
+                    <button class="action-item-v2 icon-only-action-v2 share-btn-v2"
+                      :class="{ 'is-copy-success': isShareCopied }" @click.stop="handleSharePost(post)">
+                      <Check v-if="isShareCopied" class="action-svg-v2" :size="17" :stroke-width="2" />
+                      <Share2 v-else class="action-svg-v2" :size="17" :stroke-width="1.8" />
+                    </button>
                   </div>
                 </div>
               </article>
@@ -435,11 +507,25 @@
       @close="showPostModal = false"
       @submit="handleCreatePost"
     />
+
+    <!-- 关注/粉丝列表弹窗 -->
+    <FollowListModal
+      :show="followModal.show"
+      :title="followModal.type === 'followers' ? '粉丝' : '关注'"
+      :users="followModal.users"
+      :loading="followModal.loading"
+      :loading-more="followModal.loadingMore"
+      :has-more="followModal.hasMore"
+      :empty-text="followModal.type === 'followers' ? '暂无粉丝' : '暂未关注任何人'"
+      @close="followModal.show = false"
+      @load-more="handleFollowListLoadMore"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, reactive, watch } from 'vue';
+import { Heart, MessageCircle, Share2, Check } from 'lucide-vue-next';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
@@ -461,9 +547,18 @@ import {
   getUserImpressions,
   addUserImpression,
   deleteUserImpression,
-  updateProfileAvatar
+  updateProfileAvatar,
+  followUser,
+  unfollowUser,
+  isFollowing,
+  getFollowCounts,
+  getFollowers,
+  getFollowing
 } from '@/utils/api/profile-api.js';
-import { createPost } from '@/utils/api/forum-api.js';
+import { createPost, toggleLike } from '@/utils/api/forum-api.js';
+import { getCloudinaryDisplayUrl } from '@/utils/cloudinary-client.js'
+import { themeManager } from '@/utils/theme-manager.js';
+import { isHomeCatTheme, getHomeCatAsset, getHomeCatTypeBySeed } from '@/utils/home-cat-theme.js';
 import { formatSmartTime } from '@/utils/time.js';
 import { getLevelInfo } from '@/utils/xp.js';
 import { useUserOnlineStatus } from '@/views/user-center/UserSpace/composables/useUserOnlineStatus.js';
@@ -475,6 +570,7 @@ import {
   normalizeCreatorPlatformIds
 } from './creatorPlatforms.js';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
+import FollowListModal from '@/components/FollowListModal.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -546,6 +642,7 @@ const ownProfileSnapshot = ref({
   creator_platform_visibility: {},
   creator_platform_order: [],
   showcase_post_ids: [],
+  profile_background_url: '',
   id: ''
 });
 const profileFetchVersion = ref(0);
@@ -557,6 +654,18 @@ let profileFetchInflightUsername = '';
 
 const profile = computed(() => {
   return isOwnProfile.value ? ownProfileSnapshot.value : fetchedProfile.value;
+});
+
+const profileBannerStyle = computed(() => {
+  const url = profile.value?.profile_background_url;
+  if (!url) return {};
+  const displayUrl = getCloudinaryDisplayUrl(url);
+  if (!displayUrl) return {};
+  return {
+    backgroundImage: `url("${displayUrl.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}")`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center'
+  };
 });
 
 const creatorBindings = computed(() => {
@@ -722,6 +831,7 @@ const formatProfilePostDate = (post = {}) => {
 const levelInfo = computed(() => getLevelInfo(profile.value.experience || 0));
 
 const posts = ref([]);
+const totalPostCount = ref(0);
 const comments = ref([]);
 const impressions = ref([]);
 const normalizedShowcaseIds = computed(() => normalizeShowcasePostIds(profile.value?.showcase_post_ids));
@@ -776,6 +886,8 @@ const avatarInputRef = ref(null);
 const showCropModal = ref(false);
 const cropImageSrc = ref('');
 const isProcessingCrop = ref(false);
+const isUploadingAvatar = ref(false);
+const showUploadSuccess = ref(false);
 
 const alertState = reactive({
   visible: false,
@@ -790,7 +902,191 @@ const isOwnProfile = computed(() => {
 
 const hideOnlineStatus = computed(() => userInfo.value?.hideOnlineStatus ?? false);
 
+const currentTheme = ref(themeManager.getTheme());
+const currentThemePreference = ref(themeManager.getPreference?.() || currentTheme.value);
+const isHomeCatActive = computed(() => isHomeCatTheme(currentTheme.value) || isHomeCatTheme(currentThemePreference.value));
+
+const getPostCardCatType = (index, post) => {
+  if (post?.isLiked || Number(post?.like_count || 0) >= 8) return 'like';
+  return ['decorAlt', 'decor', 'theme', 'cardExtra', 'mobileGap'][Number(index) % 5];
+};
+const getPostCardCatVariant = (index) => `cat-variant-${Number(index) % 4}`;
+const getPostCardCatSeed = (post, index, suffix = 'card') => `${post?.id || index}:${suffix}`;
+const getPostCardCatSrc = (post, index) => getHomeCatAsset(getPostCardCatType(index, post));
+const getPostBackgroundCatSrc = (post, index) => {
+  const type = getHomeCatTypeBySeed(getPostCardCatSeed(post, index, 'bg'), 'background');
+  return getHomeCatAsset(type);
+};
+const shouldShowPostBackgroundCat = (post, index) => {
+  const raw = String(post?.id || index || '');
+  let sum = 0;
+  for (let i = 0; i < raw.length; i += 1) sum += raw.charCodeAt(i);
+  return sum % 3 === 1;
+};
+
+const onThemeChanged = (event) => {
+  currentTheme.value = event.detail.theme;
+  currentThemePreference.value = themeManager.getPreference?.() || currentTheme.value;
+};
+
 const { isUserOnline, formatUserOnlineStatus, formatOnlineStatusTooltip } = useUserOnlineStatus();
+
+const followState = reactive({
+  isFollowing: false,
+  followersCount: 0,
+  followingCount: 0,
+  toggling: false,
+  loaded: false
+});
+
+const loadFollowState = async (profileUserId) => {
+  if (!profileUserId) return;
+  try {
+    const countsRes = await getFollowCounts(profileUserId);
+    if (countsRes.ok !== false) {
+      followState.followersCount = countsRes.data?.followersCount ?? 0;
+      followState.followingCount = countsRes.data?.followingCount ?? 0;
+    }
+
+    if (isLoggedIn.value && !isOwnProfile.value) {
+      const following = await isFollowing(userInfo.value.id, profileUserId);
+      followState.isFollowing = Boolean(following.data ?? following);
+    }
+    followState.loaded = true;
+  } catch {
+    followState.loaded = true;
+  }
+};
+
+const handleToggleFollow = async () => {
+  if (!isLoggedIn.value || !profile.value?.id || followState.toggling) return;
+  followState.toggling = true;
+  try {
+    if (followState.isFollowing) {
+      const res = await unfollowUser(userInfo.value.id, profile.value.id);
+      if (res.ok) {
+        followState.isFollowing = false;
+        followState.followersCount = Math.max(0, followState.followersCount - 1);
+      } else if (res.error?.code !== 'ALREADY_FOLLOWING') {
+        showAlert('error', '取消失败', res.error?.message || '请稍后重试');
+      }
+    } else {
+      const res = await followUser(userInfo.value.id, profile.value.id);
+      if (res.ok) {
+        followState.isFollowing = true;
+        followState.followersCount += 1;
+      } else if (res.error?.code !== 'ALREADY_FOLLOWING') {
+        showAlert('error', '关注失败', res.error?.message || '请稍后重试');
+      }
+    }
+  } catch {
+    showAlert('error', '操作失败', '网络异常，请稍后重试');
+  } finally {
+    followState.toggling = false;
+  }
+};
+
+// Follow List Modal
+const followModal = reactive({
+  show: false,
+  type: 'followers',
+  users: [],
+  loading: false,
+  loadingMore: false,
+  hasMore: false,
+  page: 1
+});
+
+const isLikeSubmitting = reactive({});
+const likePulsePostIds = ref(new Set());
+const isShareCopied = ref(false);
+let shareCopyTimer = null;
+
+const isLikePulsing = (postId) => likePulsePostIds.value.has(postId);
+
+const handleToggleLike = async (post) => {
+  if (!isLoggedIn.value) return;
+  if (!post?.id) return;
+  if (isLikeSubmitting[post.id]) return;
+  isLikeSubmitting[post.id] = true;
+  try {
+    const { action, error } = await toggleLike(post.id, userInfo.value.id);
+    if (error) return;
+    if (action === 'liked') {
+      post.like_count = (post.like_count || 0) + 1;
+      post.isLiked = true;
+    } else if (action === 'unliked') {
+      post.like_count = Math.max(0, (post.like_count || 0) - 1);
+      post.isLiked = false;
+    }
+    likePulsePostIds.value = new Set([...likePulsePostIds.value, post.id]);
+    setTimeout(() => {
+      const next = new Set(likePulsePostIds.value);
+      next.delete(post.id);
+      likePulsePostIds.value = next;
+    }, 1900);
+  } catch {
+    // ignore
+  } finally {
+    setTimeout(() => { isLikeSubmitting[post.id] = false; }, 300);
+  }
+};
+
+const handleSharePost = async (post) => {
+  if (!post?.id) return;
+  const url = `${window.location.origin}/forum/post/${post.id}`;
+  try {
+    await navigator.clipboard.writeText(url);
+    isShareCopied.value = true;
+    clearTimeout(shareCopyTimer);
+    shareCopyTimer = setTimeout(() => { isShareCopied.value = false; }, 2000);
+  } catch {
+    // ignore
+  }
+};
+
+const openFollowModal = async (type) => {
+  const profileId = profile.value?.id;
+  if (!profileId) return;
+  followModal.type = type;
+  followModal.show = true;
+  followModal.users = [];
+  followModal.page = 1;
+  followModal.hasMore = false;
+  await loadFollowListPage({ reset: true });
+};
+
+const loadFollowListPage = async ({ reset = false } = {}) => {
+  const profileId = profile.value?.id;
+  if (!profileId) return;
+  if (reset) {
+    followModal.loading = true;
+  } else {
+    followModal.loadingMore = true;
+  }
+  try {
+    const pageToLoad = reset ? 1 : followModal.page;
+    const loadFn = followModal.type === 'followers' ? getFollowers : getFollowing;
+    const res = await loadFn(profileId, { page: pageToLoad, pageSize: 20 });
+    const incoming = res.error ? [] : (res.data || []);
+    if (reset) {
+      followModal.users = incoming;
+    } else {
+      followModal.users = [...followModal.users, ...incoming];
+    }
+    followModal.hasMore = incoming.length === 20;
+    followModal.page = pageToLoad + 1;
+  } catch {
+    if (reset) followModal.users = [];
+  } finally {
+    followModal.loading = false;
+    followModal.loadingMore = false;
+  }
+};
+
+const handleFollowListLoadMore = () => {
+  loadFollowListPage();
+};
 
 const syncOwnProfileSnapshot = () => {
   ownProfileSnapshot.value = {
@@ -814,6 +1110,7 @@ const syncOwnProfileSnapshot = () => {
       Object.keys(normalizeCreatorPlatformIds(userInfo.value.creatorPlatformIds))
     ),
     showcase_post_ids: normalizeShowcasePostIds(userInfo.value.showcasePostIds),
+    profile_background_url: userInfo.value.profileBackgroundUrl || '',
     id: userInfo.value.id
   };
 };
@@ -834,7 +1131,8 @@ watch(
     JSON.stringify(userInfo.value.creatorPlatformIds || {}),
     JSON.stringify(userInfo.value.creatorPlatformVisibility || {}),
     JSON.stringify(userInfo.value.creatorPlatformOrder || []),
-    JSON.stringify(userInfo.value.showcasePostIds || [])
+    JSON.stringify(userInfo.value.showcasePostIds || []),
+    userInfo.value.profileBackgroundUrl
   ],
   syncOwnProfileSnapshot,
   { immediate: true }
@@ -947,6 +1245,33 @@ const loadPostsPage = async ({ reset = false, fetchVersion = profileFetchVersion
   }
 };
 
+const fetchTotalPostCount = async (username, userId) => {
+  try {
+    let query = supabase
+      .from('posts')
+      .select('id', { count: 'exact', head: true });
+
+    if (userId && username) {
+      query = query.or(`author_id.eq.${userId},author_username.eq.${username}`);
+    } else if (userId) {
+      query = query.eq('author_id', userId);
+    } else if (username) {
+      query = query.eq('author_username', username);
+    }
+
+    if (!isOwnProfile.value) {
+      query = query.or('status.is.null,status.eq.approved');
+    }
+
+    const { count, error } = await query;
+    if (!error) {
+      totalPostCount.value = count ?? 0;
+    }
+  } catch (e) {
+    console.error('获取总帖子数失败:', e);
+  }
+};
+
 const loadCommentsPage = async ({ reset = false, fetchVersion = profileFetchVersion.value } = {}) => {
   if (isTabLoading.replies) return;
   if (!reset && !hasMoreComments.value) return;
@@ -1041,7 +1366,9 @@ const fetchProfileData = async (username) => {
 
       await Promise.all([
         loadShowcasePostsForProfile(profileData, fetchVersion),
-        ensureActiveTabData({ reset: true, fetchVersion })
+        ensureActiveTabData({ reset: true, fetchVersion }),
+        loadFollowState(profileData.id),
+        fetchTotalPostCount(safeUsername, profileData.id)
       ]);
     } catch (err) {
       if (fetchVersion !== profileFetchVersion.value) return;
@@ -1136,9 +1463,11 @@ const handleProfileSync = (event) => {
   if (reason.startsWith('post_') || reason.startsWith('weekly_checkin')) {
     void (async () => {
       const refreshed = await refreshProfileSummary(currentUsername);
+      const ctx = resolveProfileQueryContext();
       await Promise.all([
         loadShowcasePostsForProfile(refreshed || profile.value),
-        loadPostsPage({ reset: true })
+        loadPostsPage({ reset: true }),
+        fetchTotalPostCount(ctx.username, ctx.userId)
       ]);
     })();
     return;
@@ -1291,13 +1620,21 @@ const handleCropConfirm = async (blob) => {
     };
     const compressedFile = await imageCompression(file, options);
 
+    isUploadingAvatar.value = true;
     await uploadToSupabase(compressedFile);
     showCropModal.value = false;
+    
+    // 显示上传成功动画
+    showUploadSuccess.value = true;
+    setTimeout(() => {
+      showUploadSuccess.value = false;
+    }, 800);
   } catch (error) {
     console.error('裁切处理失败:', error);
     showAlert('error', '处理失败', '头像裁切出错，请重试');
   } finally {
     isProcessingCrop.value = false;
+    isUploadingAvatar.value = false;
   }
 };
 
@@ -1455,6 +1792,7 @@ const handleCreatePost = async (safeTitle, safeContent) => {
         like_count: 0
       };
       posts.value = mergeUniqueById([optimisticPost], posts.value);
+      totalPostCount.value += 1;
       tabLoaded.posts = true;
       // 重置分页状态，确保后续"加载更多"从正确页码开始
       postsPage.value = 2;
@@ -1492,6 +1830,7 @@ watch(() => isLoggedIn.value, () => {
 
 onMounted(() => {
   window.addEventListener('boh_profile_sync', handleProfileSync);
+  window.addEventListener('theme-changed', onThemeChanged);
   if (route.params.username) {
     fetchProfileData(route.params.username);
   }
@@ -1499,6 +1838,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('boh_profile_sync', handleProfileSync);
+  window.removeEventListener('theme-changed', onThemeChanged);
 });
 </script>
 

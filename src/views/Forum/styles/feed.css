@@ -1,4 +1,36 @@
 /* Feed Header V2 */
+.feed-mode-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 3px;
+  background: rgba(245, 245, 247, 0.6);
+  border-radius: 14px;
+  width: fit-content;
+}
+
+.feed-mode-tab {
+  padding: 6px 18px;
+  border: none;
+  border-radius: 11px;
+  background: transparent;
+  color: #6e6e73;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.feed-mode-tab.active {
+  background: #ffffff;
+  color: #1d1d1f;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.feed-mode-tab:hover:not(.active) {
+  color: #1d1d1f;
+}
+
 .posts-feed {
   margin-top: 28px;
 }

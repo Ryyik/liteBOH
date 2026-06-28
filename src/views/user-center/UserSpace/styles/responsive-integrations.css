@@ -1,13 +1,20 @@
 @media (min-width: 1025px) {
   .profile-page-content {
-    padding: 40px;
+    padding: 0 40px 40px;
     max-width: 1200px;
+  }
+}
+
+/* 横屏通用：确保个人卡片不被导航栏遮挡 */
+@media (orientation: landscape) {
+  .profile-home-shell {
+    padding-top: 84px;
   }
 }
 
 @media (max-width: 767px) {
   .profile-page-content {
-    padding: 14px;
+    padding: 0 14px;
   }
 
   .apple-page-container {
@@ -16,7 +23,7 @@
   }
 
   .profile-home-shell {
-    padding: 0 0 32px;
+    padding: 76px 0 32px;
     gap: 12px;
   }
 
@@ -29,7 +36,7 @@
   }
 
   .profile-cover-band {
-    height: 112px;
+    height: 80px;
   }
 
   .profile-settings-btn {
@@ -137,7 +144,7 @@
   }
 
   .profile-subpage-shell {
-    padding: 0 0 32px;
+    padding: 76px 0 32px;
     gap: 16px;
   }
 
@@ -151,6 +158,7 @@
 
   .profile-subpage-body {
     gap: 16px;
+    padding-top: 8px;
   }
 
   /* 移动端个人信息卡片适配 */
@@ -232,6 +240,28 @@
 
   .stat-divider {
     height: 28px;
+  }
+
+  /* 紧凑 stats 移动端 */
+  .profile-stats-compact {
+    font-size: 12px;
+    gap: 4px 8px;
+    padding: 10px 12px 0;
+  }
+
+  .stat-chip-num {
+    font-size: 13px;
+  }
+
+  .stat-chip-label {
+    font-size: 12px;
+  }
+
+  /* 移动端竖屏下缩短编辑资料按钮 */
+  .profile-edit-btn {
+    min-height: 30px;
+    padding: 0 10px;
+    font-size: 12px;
   }
 
   /* 旧样式保留 */
@@ -398,6 +428,14 @@
     padding: 12px;
     align-items: flex-start;
     overflow-y: auto;
+  }
+
+  .profile-home-shell {
+    padding-top: 84px;
+  }
+
+  .profile-hero-panel {
+    margin-top: 8px;
   }
 
   .modal-card {
@@ -714,18 +752,19 @@
 
 @media (max-width: 767px) {
   .profile-tab {
-    padding-top: 60px;
+    --user-center-nav-offset: 0px;
+    padding-top: 0;
     padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px));
   }
 
   .profile-page-content {
     max-width: none;
-    padding: 10px 10px 0;
+    padding: 0 10px 0;
   }
 
   .profile-home-shell {
     width: 100%;
-    padding-bottom: 0;
+    padding: 76px 0 0;
     gap: 12px;
   }
 
@@ -737,7 +776,7 @@
   }
 
   .profile-cover-band {
-    height: 118px;
+    height: 84px;
   }
 
   .profile-settings-btn {
@@ -836,14 +875,15 @@
     position: static;
     right: auto;
     bottom: auto;
-    width: 100%;
-    align-self: stretch;
+    width: auto;
+    max-width: 140px;
+    align-self: flex-start;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 36px;
-    margin-top: 12px;
-    padding: 0 16px;
+    min-height: 34px;
+    margin-top: 10px;
+    padding: 0 14px;
     font-size: 13px;
   }
 
@@ -882,7 +922,7 @@
 
   .profile-edit-page-shell {
     width: 100%;
-    padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+    padding: 76px 0 calc(92px + env(safe-area-inset-bottom, 0px));
     gap: 12px;
   }
 

@@ -587,6 +587,319 @@
 }
 
 /* ===================
+   列表项渐入动画
+   =================== */
+
+/**
+ * 列表项渐入动画（用于TransitionGroup）
+ * 使用: animation: list-item-enter 0.4s ease forwards;
+ * 建议配合transition-delay实现渐进效果
+ */
+@keyframes list-item-enter {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/**
+ * 列表项退出动画
+ * 使用: animation: list-item-leave 0.3s ease forwards;
+ */
+@keyframes list-item-leave {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+  }
+}
+
+/**
+ * 列表项滑入动画（从左侧）
+ * 使用: animation: list-item-slide-left 0.4s ease forwards;
+ */
+@keyframes list-item-slide-left {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ===================
+   骨架屏动画
+   =================== */
+
+/**
+ * 骨架屏脉动动画
+ * 使用: animation: skeleton-pulse 1.5s ease-in-out infinite;
+ */
+@keyframes skeleton-pulse {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/**
+ * 骨架屏波浪动画
+ * 使用: animation: skeleton-wave 2s ease-in-out infinite;
+ */
+@keyframes skeleton-wave {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+/* ===================
+   Tab切换动画
+   =================== */
+
+/**
+ * Tab内容滑入动画（向左）
+ * 使用: animation: tab-slide-left 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+ */
+@keyframes tab-slide-left {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/**
+ * Tab内容滑入动画（向右）
+ * 使用: animation: tab-slide-right 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+ */
+@keyframes tab-slide-right {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/**
+ * Tab指示器滑动动画
+ * 用于Tab下方的指示条
+ */
+@keyframes tab-indicator-slide {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* ===================
+   上传进度动画
+   =================== */
+
+/**
+ * 上传进度环动画
+ * 用于头像上传等圆形进度指示
+ */
+@keyframes upload-progress-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/**
+ * 上传进度条流动动画
+ * 用于线性进度条的流动效果
+ */
+@keyframes upload-progress-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/**
+ * 上传成功庆祝动画
+ * 用于上传完成后的视觉反馈
+ */
+@keyframes upload-success {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ===================
+   卡片翻转动画
+   =================== */
+
+/**
+ * 卡片翻转动画（Y轴）
+ * 用于合作伙伴卡片等
+ */
+@keyframes card-flip-y {
+  from {
+    transform: rotateY(0deg);
+  }
+  to {
+    transform: rotateY(180deg);
+  }
+}
+
+/**
+ * 卡片展开动画
+ * 用于详情卡片展开
+ */
+@keyframes card-expand {
+  from {
+    opacity: 0;
+    max-height: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    max-height: 500px; /* 根据实际内容调整 */
+    transform: scale(1);
+  }
+}
+
+/* ===================
+   按钮状态动画
+   =================== */
+
+/**
+ * 按钮加载状态动画
+ * 用于按钮内的spinner
+ */
+@keyframes button-loading-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/**
+ * 按钮点击波纹动画
+ * 用于按钮点击反馈
+ */
+@keyframes button-ripple {
+  from {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  to {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/**
+ * 按钮成功状态动画
+ * 用于保存成功等反馈
+ */
+@keyframes button-success {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ===================
+   实用动画类补充
+   =================== */
+
+/**
+ * 快速应用列表项渐入动画
+ */
+.animate-list-enter {
+  animation: list-item-enter 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/**
+ * 快速应用骨架屏脉动动画
+ */
+.animate-skeleton-pulse {
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+/**
+ * 快速应用骨架屏波浪动画
+ */
+.animate-skeleton-wave {
+  animation: skeleton-wave 2s ease-in-out infinite;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200px 100%;
+}
+
+/**
+ * 快速应用Tab滑入动画
+ */
+.animate-tab-slide-left {
+  animation: tab-slide-left 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.animate-tab-slide-right {
+  animation: tab-slide-right 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/**
+ * 快速应用上传进度动画
+ */
+.animate-upload-spin {
+  animation: upload-progress-spin 1s linear infinite;
+}
+
+/**
+ * 快速应用卡片展开动画
+ */
+.animate-card-expand {
+  animation: card-expand 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* ===================
    性能优化
    =================== */
 

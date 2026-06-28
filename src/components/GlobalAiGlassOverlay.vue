@@ -382,7 +382,7 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 2147483646; /* 略低于限额面板，确保限额面板可以覆盖 */
+  z-index: 2147483656; /* 略低于限额面板，确保限额面板可以覆盖 */
   display: flex;
   flex-direction: column;
   padding: 0;
@@ -670,7 +670,7 @@ onUnmounted(() => {
 
 :global(body.global-ai-glass-open .sidebar.is-embedded),
 :global(body.global-ai-glass-open .sidebar.open.is-embedded) {
-  z-index: 2147483655 !important; /* 高于玻璃面板(2147483646) */
+  z-index: 2147483655 !important; /* 高于玻璃面板(2147483656) */
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   background: rgba(255, 255, 255, 0.96) !important;

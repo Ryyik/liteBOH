@@ -43,241 +43,226 @@
           </div>
           <p class="profile-handle">@{{ displayName || 'user' }}</p>
           <p class="profile-bio">{{ profileBio }}</p>
-          <div class="profile-chip-row">
-            <span class="profile-chip">
-              {{ joinDateText }}
-            </span>
-            <span class="profile-chip">
-              {{ birthdayText }}
-            </span>
-          </div>
           <button type="button" class="profile-edit-btn" @click="$emit('edit-profile')">
             编辑资料
           </button>
         </div>
       </div>
 
-      <div class="profile-stats profile-hero-stats" :class="{ 'is-loading': isStatsLoading }">
-        <div class="stat-item">
-          <template v-if="isStatsLoading">
-            <span class="stat-skeleton stat-skeleton-value"></span>
-            <span class="stat-skeleton stat-skeleton-label"></span>
-          </template>
-          <template v-else>
-            <span class="stat-value">{{ stats.posts || 0 }}</span>
-            <span class="stat-label">发帖</span>
-          </template>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat-item">
-          <template v-if="isStatsLoading">
-            <span class="stat-skeleton stat-skeleton-value"></span>
-            <span class="stat-skeleton stat-skeleton-label"></span>
-          </template>
-          <template v-else>
-            <span class="stat-value">{{ formatPoints(stats.points) || '0' }}</span>
-            <span class="stat-label">积分</span>
-          </template>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat-item">
-          <template v-if="isStatsLoading">
-            <span class="stat-skeleton stat-skeleton-value"></span>
-            <span class="stat-skeleton stat-skeleton-label"></span>
-          </template>
-          <template v-else>
-            <span class="stat-value">#{{ stats.rank || '-' }}</span>
-            <span class="stat-label">排名</span>
-          </template>
-        </div>
+      <div class="profile-stats profile-hero-stats profile-stats-compact" :class="{ 'is-loading': isStatsLoading }">
+        <template v-if="isStatsLoading">
+          <span class="stat-skeleton stat-skeleton-line"></span>
+        </template>
+        <template v-else>
+          <button type="button" class="stat-chip" @click="$emit('switch-tab', 'posts')">
+            <span class="stat-chip-num">{{ stats.posts || 0 }}</span>
+            <span class="stat-chip-label">发帖</span>
+          </button>
+          <span class="stat-dot" aria-hidden="true">·</span>
+          <span class="stat-chip stat-chip-static">
+            <span class="stat-chip-num">{{ formatPoints(stats.points) || '0' }}</span>
+            <span class="stat-chip-label">积分</span>
+          </span>
+          <span class="stat-dot" aria-hidden="true">·</span>
+          <button type="button" class="stat-chip clickable-follow-stat" @click="openFollowList('followers')">
+            <span class="stat-chip-num">{{ stats.followers || 0 }}</span>
+            <span class="stat-chip-label">粉丝</span>
+          </button>
+          <span class="stat-dot" aria-hidden="true">·</span>
+          <button type="button" class="stat-chip clickable-follow-stat" @click="openFollowList('following')">
+            <span class="stat-chip-num">{{ stats.following || 0 }}</span>
+            <span class="stat-chip-label">关注</span>
+          </button>
+        </template>
       </div>
     </section>
 
-    <section class="profile-status-grid" aria-label="我的关键状态">
-      <button type="button" class="profile-status-card cloud" @click="$emit('cloud-plus', 'content')">
-        <span class="profile-status-icon bg-teal">
+    <section class="profile-service-panel" aria-label="服务">
+      <div class="profile-section-heading">
+        <span>服务</span>
+      </div>
+
+      <button type="button" class="profile-service-row" @click="$emit('cloud-plus', 'content')">
+        <span class="profile-service-icon bg-teal">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
             stroke-linejoin="round">
             <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>
             <path d="M8 9h8"></path>
           </svg>
         </span>
-        <span class="profile-status-copy">
+        <span class="profile-service-body">
           <strong>Cloud+</strong>
-          <small>{{ cloudPlusUsageText }}</small>
+          <small class="profile-service-hint">{{ cloudPlusUsageText }}</small>
         </span>
-        <span class="profile-status-meter" aria-hidden="true">
-          <span :style="cloudPlusUsageMeterStyle"></span>
-        </span>
+        <span class="profile-service-meter"><span :style="cloudPlusUsageMeterStyle"></span></span>
+        <span class="profile-action-chevron">›</span>
       </button>
 
-      <button type="button" class="profile-status-card subscription"
-        @click="$emit('subscription')">
-        <span class="profile-status-icon bg-yellow">
+      <button type="button" class="profile-service-row" @click="$emit('subscription')">
+        <span class="profile-service-icon bg-yellow">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
             stroke-linejoin="round">
             <path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"></path>
           </svg>
         </span>
-        <span class="profile-status-copy">
+        <span class="profile-service-body">
           <strong>订阅权益</strong>
-          <small>{{ subscriptionSummaryText }}</small>
-        </span>
-      </button>
-
-      <button type="button" class="profile-status-card gift"
-        @click="$emit('gift')">
-        <span class="profile-status-icon bg-green">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-            stroke-linejoin="round">
-            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-            <circle cx="12" cy="10" r="3"></circle>
-          </svg>
-        </span>
-        <span class="profile-status-copy">
-          <strong>礼物进度</strong>
-          <small>{{ giftProgressText || '查看领取与地址' }}</small>
-        </span>
-      </button>
-    </section>
-
-    <section class="profile-action-panel profile-account-panel" aria-label="账户与设置">
-      <div class="profile-section-heading">
-        <span>账户与设置</span>
-        <small>{{ dataPrivacyStatusText }}</small>
-      </div>
-      <button type="button" class="profile-action-row" @click="$emit('settings')">
-        <span class="profile-action-icon bg-blue">
-          <Palette :size="17" :stroke-width="2" aria-hidden="true" />
-        </span>
-        <span class="profile-action-copy">
-          <strong>主题与通知</strong>
-          <small>{{ themeDisplayText }} · Pushplus {{ pushplusStatusText }}</small>
+          <small class="profile-service-hint">{{ subscriptionSummaryText }}</small>
         </span>
         <span class="profile-action-chevron">›</span>
       </button>
-      <button type="button" class="profile-action-row" @click="$emit('data-management')">
-        <span class="profile-action-icon bg-gray">
-          <User :size="17" :stroke-width="2" aria-hidden="true" />
-        </span>
-        <span class="profile-action-copy">
-          <strong>资料管理</strong>
-          <small>基础资料、安全与数据</small>
-        </span>
-        <span class="profile-action-chevron">›</span>
-      </button>
-      <button type="button" class="profile-action-row" @click="$emit('sponsor')">
-        <span class="profile-action-icon bg-gold">
+
+      <button type="button" class="profile-service-row" @click="$emit('sponsor')">
+        <span class="profile-service-icon bg-gold">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
             stroke-linejoin="round">
             <path d="M12 2v20"></path>
             <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6"></path>
           </svg>
         </span>
-        <span class="profile-action-copy">
-          <strong>赞助本站</strong>
-          <small>支持本站</small>
+        <span class="profile-service-body">
+          <strong>赞助</strong>
+          <small>支持项目发展</small>
         </span>
         <span class="profile-action-chevron">›</span>
       </button>
     </section>
 
     <section class="profile-content-panel">
-      <div class="profile-content-tabs" role="tablist" aria-label="我的内容">
-        <button v-for="tab in contentTabs" :key="tab.id" type="button" class="profile-content-tab"
-          :class="{ active: activeContentTab === tab.id }" role="tab"
-          :aria-selected="activeContentTab === tab.id" @click="$emit('tab-change', tab.id)">
-          {{ tab.label }}
-        </button>
-      </div>
-
-      <div v-if="activeContentTab === 'posts'" class="profile-posts-area">
-        <div v-if="isContentLoading" class="profile-forum-skeleton-feed" aria-hidden="true">
-          <div v-for="item in 3" :key="`my-post-skeleton-${item}`" class="profile-forum-skeleton-card">
-            <div class="profile-forum-skeleton-header">
-              <div class="profile-forum-skeleton-avatar profile-forum-skeleton-item"></div>
-              <div class="profile-forum-skeleton-headlines">
-                <div class="profile-forum-skeleton-name profile-forum-skeleton-item"></div>
-                <div class="profile-forum-skeleton-time profile-forum-skeleton-item"></div>
-              </div>
-            </div>
-            <div class="profile-forum-skeleton-body">
-              <div class="profile-forum-skeleton-title profile-forum-skeleton-item"></div>
-              <div class="profile-forum-skeleton-line long profile-forum-skeleton-item"></div>
-              <div class="profile-forum-skeleton-line medium profile-forum-skeleton-item"></div>
-              <div class="profile-forum-skeleton-line short profile-forum-skeleton-item"></div>
-            </div>
-            <div class="profile-forum-skeleton-actions">
-              <div class="profile-forum-skeleton-action profile-forum-skeleton-item"></div>
-              <div class="profile-forum-skeleton-action profile-forum-skeleton-item"></div>
-              <div class="profile-forum-skeleton-action profile-forum-skeleton-item"></div>
+      <div v-if="isContentLoading" class="profile-forum-skeleton-feed" aria-hidden="true">
+        <div v-for="item in 3" :key="`my-post-skeleton-${item}`" class="profile-forum-skeleton-card">
+          <div class="profile-forum-skeleton-header">
+            <div class="profile-forum-skeleton-avatar profile-forum-skeleton-item"></div>
+            <div class="profile-forum-skeleton-headlines">
+              <div class="profile-forum-skeleton-name profile-forum-skeleton-item"></div>
+              <div class="profile-forum-skeleton-time profile-forum-skeleton-item"></div>
             </div>
           </div>
-        </div>
-        <div v-else-if="posts.length" class="profile-post-grid">
-          <article v-for="post in posts" :key="post.id" class="profile-post-card"
-            :class="{ 'text-only': !getProfilePostCover(post) }" @click="$emit('post-click', post.id)">
-            <div v-if="getProfilePostCover(post)" class="profile-post-cover">
-              <img v-if="getProfilePostCover(post)" :src="getProfilePostCover(post)"
-                :alt="getProfilePostTitle(post)" loading="lazy" decoding="async">
-            </div>
-            <div class="profile-post-copy">
-              <h3>{{ getProfilePostTitle(post) }}</h3>
-              <p>{{ getProfilePostSummary(post) }}</p>
-              <div class="profile-post-meta">
-                <span>{{ formatProfilePostDate(post) }}</span>
-                <span>{{ post.like_count || 0 }}赞</span>
-                <span>{{ post.comment_count || 0 }}评</span>
-              </div>
-            </div>
-          </article>
-          <div v-if="hasMorePosts" class="profile-load-more-wrap">
-            <button class="profile-load-more-btn" :disabled="isLoadingMore" @click.stop="$emit('load-more')">
-              {{ isLoadingMore ? '加载中...' : '加载更多帖子' }}
-            </button>
+          <div class="profile-forum-skeleton-body">
+            <div class="profile-forum-skeleton-title profile-forum-skeleton-item"></div>
+            <div class="profile-forum-skeleton-line long profile-forum-skeleton-item"></div>
+            <div class="profile-forum-skeleton-line medium profile-forum-skeleton-item"></div>
+            <div class="profile-forum-skeleton-line short profile-forum-skeleton-item"></div>
+          </div>
+          <div class="profile-forum-skeleton-actions">
+            <div class="profile-forum-skeleton-action profile-forum-skeleton-item"></div>
+            <div class="profile-forum-skeleton-action profile-forum-skeleton-item"></div>
+            <div class="profile-forum-skeleton-action profile-forum-skeleton-item"></div>
           </div>
         </div>
-        <div v-else class="profile-content-empty">
-          <h3>还没有发帖</h3>
-          <p>发布后的内容会直接出现在这里。</p>
-          <button type="button" @click="$emit('switch-tab', 'posts')">去发帖</button>
-        </div>
       </div>
-
-      <div v-else-if="activeContentTab === 'cloud'" class="profile-cloud-embed">
-        <AsyncCloudPlus embedded />
-      </div>
-
-      <div v-else class="profile-impressions-panel">
-        <div class="profile-impressions-head">
-          <h3>我的印象</h3>
-          <span>{{ impressions.length }}</span>
-        </div>
-        <div v-if="isImpressionsLoading" class="profile-content-empty">
-          <p>正在同步印象...</p>
-        </div>
-        <div v-else-if="impressions.length" class="profile-impressions-grid">
-          <article v-for="imp in impressions" :key="imp.id" class="profile-impression-card">
-            <p>{{ imp.content }}</p>
-            <div>
-              <span>@{{ imp.author?.username || '匿名伙伴' }}</span>
-              <button type="button" @click="$emit('delete-impression', imp.id)">移除</button>
+      <div v-else-if="posts.length" class="profile-post-grid">
+        <article v-for="post in posts" :key="post.id" class="profile-post-card"
+          :class="{ 'text-only': !getProfilePostCover(post) }" @click="$emit('post-click', post.id)">
+          <div v-if="getProfilePostCover(post)" class="profile-post-cover">
+            <img v-if="getProfilePostCover(post)" :src="getProfilePostCover(post)"
+              :alt="getProfilePostTitle(post)" loading="lazy" decoding="async">
+          </div>
+          <div class="profile-post-copy">
+            <h3>{{ getProfilePostTitle(post) }}</h3>
+            <p>{{ getProfilePostSummary(post) }}</p>
+            <div class="profile-post-meta">
+              <span>{{ formatProfilePostDate(post) }}</span>
+              <span>{{ post.like_count || 0 }}赞</span>
+              <span>{{ post.comment_count || 0 }}评</span>
             </div>
-          </article>
+          </div>
+        </article>
+        <div v-if="hasMorePosts" class="profile-load-more-wrap">
+          <button class="profile-load-more-btn" :disabled="isLoadingMore" @click.stop="$emit('load-more')">
+            {{ isLoadingMore ? '加载中...' : '加载更多帖子' }}
+          </button>
         </div>
-        <div v-else class="profile-content-empty">
-          <h3>暂无他人印象</h3>
-          <p>社区伙伴写给你的印象会显示在这里。</p>
-        </div>
+      </div>
+      <div v-else class="profile-content-empty">
+        <h3>还没有发帖</h3>
+        <p>发布后的内容会直接出现在这里。</p>
+        <button type="button" @click="$emit('switch-tab', 'posts')">去发帖</button>
       </div>
     </section>
+
+    <FollowListModal
+      :show="followModal.show"
+      :title="followModal.type === 'followers' ? '粉丝' : '关注'"
+      :users="followModal.users"
+      :loading="followModal.loading"
+      :loading-more="followModal.loadingMore"
+      :has-more="followModal.hasMore"
+      :empty-text="followModal.type === 'followers' ? '暂无粉丝' : '暂未关注任何人'"
+      :show-unfollow="followModal.type === 'following'"
+      @close="closeFollowList"
+      @load-more="loadFollowListMore"
+      @unfollow="handleUnfollow"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import { Palette, User } from 'lucide-vue-next';
-import { AsyncCloudPlus } from '../async-loaders.js';
+import { computed, reactive } from 'vue';
+import FollowListModal from '@/components/FollowListModal.vue';
+import { getFollowers, getFollowing, unfollowUser } from '@/utils/api/profile-api.js';
+
+const followModal = reactive({
+  show: false,
+  type: 'followers',
+  users: [],
+  loading: false,
+  loadingMore: false,
+  hasMore: false,
+  currentPage: 1
+});
+const FOLLOW_PAGE_SIZE = 20;
+
+const openFollowList = async (type) => {
+  followModal.type = type;
+  followModal.show = true;
+  followModal.users = [];
+  followModal.currentPage = 1;
+  followModal.hasMore = false;
+  followModal.loading = true;
+  await loadFollowListPage(type, 1);
+  followModal.loading = false;
+};
+
+const loadFollowListPage = async (type, page) => {
+  const userId = props.profile.id;
+  if (!userId) return;
+  const fetchFn = type === 'followers' ? getFollowers : getFollowing;
+  const res = await fetchFn(userId, { page, pageSize: FOLLOW_PAGE_SIZE });
+  if (!res.error && Array.isArray(res.data)) {
+    if (page === 1) {
+      followModal.users = res.data;
+    } else {
+      const existingIds = new Set(followModal.users.map(u => u.id));
+      const newItems = res.data.filter(u => !existingIds.has(u.id));
+      followModal.users = [...followModal.users, ...newItems];
+    }
+    followModal.hasMore = res.data.length >= FOLLOW_PAGE_SIZE;
+  }
+};
+
+const loadFollowListMore = async () => {
+  if (followModal.loadingMore || !followModal.hasMore) return;
+  followModal.loadingMore = true;
+  const nextPage = followModal.currentPage + 1;
+  await loadFollowListPage(followModal.type, nextPage);
+  followModal.currentPage = nextPage;
+  followModal.loadingMore = false;
+};
+
+const closeFollowList = () => {
+  followModal.show = false;
+};
+
+const handleUnfollow = async (user) => {
+  if (user._unfollowing) return;
+  user._unfollowing = true;
+  const res = await unfollowUser(props.profile.id, user.id);
+  if (!res.error) {
+    followModal.users = followModal.users.filter(u => u.id !== user.id);
+  }
+  user._unfollowing = false;
+};
 
 const props = defineProps({
   profile: {
@@ -320,30 +305,6 @@ const props = defineProps({
     type: String,
     default: ''
   },
-  giftProgressText: {
-    type: String,
-    default: ''
-  },
-  dataPrivacyStatusText: {
-    type: String,
-    default: ''
-  },
-  themeDisplayText: {
-    type: String,
-    default: ''
-  },
-  pushplusStatusText: {
-    type: String,
-    default: ''
-  },
-  contentTabs: {
-    type: Array,
-    default: () => []
-  },
-  activeContentTab: {
-    type: String,
-    default: 'posts'
-  },
   isContentLoading: {
     type: Boolean,
     default: false
@@ -359,14 +320,6 @@ const props = defineProps({
   isLoadingMore: {
     type: Boolean,
     default: false
-  },
-  isImpressionsLoading: {
-    type: Boolean,
-    default: false
-  },
-  impressions: {
-    type: Array,
-    default: () => []
   }
 });
 
@@ -375,15 +328,13 @@ defineEmits([
   'settings',
   'avatar-click',
   'background-click',
-  'tab-change',
+  'view-impressions',
   'sponsor',
   'data-management',
   'cloud-plus',
   'subscription',
-  'gift',
   'post-click',
   'switch-tab',
-  'delete-impression',
   'load-more'
 ]);
 

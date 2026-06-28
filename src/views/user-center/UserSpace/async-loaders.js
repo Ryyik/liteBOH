@@ -53,6 +53,22 @@ export const preloadBOHAIComponent = () => {
   }
   return bohaiPreloadPromise;
 };
+
+const communityComponentLoader = () => import('./components/CommunityTab.vue');
+let communityPreloadPromise = null;
+
+export const preloadCommunityComponent = () => {
+  if (!communityPreloadPromise) {
+    communityPreloadPromise = communityComponentLoader().catch(() => {
+      communityPreloadPromise = null;
+      return null;
+    });
+  }
+  return communityPreloadPromise;
+};
+
+export const AsyncCommunity = defineAsyncComponent(communityComponentLoader);
+
 const canUseNetworkForForumPreload = () => {
   if (typeof navigator === 'undefined') return true;
   const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;

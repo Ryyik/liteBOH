@@ -144,6 +144,26 @@
               <span :class="['toggle-switch', { enabled: hideOnlineStatus }]"></span>
             </div>
           </div>
+          <div class="apple-item clickable" @click="$emit('toggle-hide-follow-data')">
+            <div class="item-left">
+              <div class="icon-wrapper bg-indigo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="9" cy="7" r="4"></circle>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+              </div>
+              <span class="setting-label-stack">
+                <span class="item-label">隐藏关注数据</span>
+                <span class="item-desc">开启后，他人在你主页看不到你的详细关注列表和粉丝列表，但仍能看到数量</span>
+              </span>
+            </div>
+            <div class="item-right">
+              <span :class="['toggle-switch', { enabled: hideFollowData }]"></span>
+            </div>
+          </div>
           <div class="apple-item clickable" @click="$emit('open-data-management')">
             <div class="item-left">
               <div class="icon-wrapper bg-indigo">
@@ -228,6 +248,10 @@ defineProps({
   hideOnlineStatus: {
     type: Boolean,
     default: false
+  },
+  hideFollowData: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -240,7 +264,8 @@ defineEmits([
   'open-data',
   'open-data-management',
   'logout',
-  'toggle-hide-online'
+  'toggle-hide-online',
+  'toggle-hide-follow-data'
 ]);
 </script>
 

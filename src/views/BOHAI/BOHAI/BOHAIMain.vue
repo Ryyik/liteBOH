@@ -3,17 +3,10 @@
         :class="{ 'embedded-mode': props.embedded, 'overlay-mode': props.overlayMode, 'empty-chat-mode': messages.length === 0, 'sidebar-open': isSidebarOpen }"
         :data-ui-style="currentUiStyle">
         <div class="bohai-container">
-            <BohaiSidebar
-                v-model="isSidebarOpen"
-                :chat-sessions="chatSessions"
-                :current-session-index="currentSessionIndex"
-                :user-info="userInfo"
-                :embedded="props.embedded"
-                :is-component-visible="isComponentVisible"
-                @start-new-chat="startNewChat"
-                @switch-session="switchSession"
-                @delete-session="deleteSession"
-                @open-settings="openSettings" />
+            <BohaiSidebar v-model="isSidebarOpen" :chat-sessions="chatSessions"
+                :current-session-index="currentSessionIndex" :user-info="userInfo" :embedded="props.embedded"
+                :is-component-visible="isComponentVisible" @start-new-chat="startNewChat"
+                @switch-session="switchSession" @delete-session="deleteSession" @open-settings="openSettings" />
 
             <main class="main-content">
                 <div ref="chatContainer" class="chat-container custom-scrollbar"
@@ -55,7 +48,8 @@
                                         </span>
                                         <div>
                                             <strong>{{ isAgentClusterModeActive ? 'Agent 集群' : '计划代办' }}</strong>
-                                            <span>{{ isAgentClusterModeActive ? taskStatusSubtitle : planTodoSummary }}</span>
+                                            <span>{{ isAgentClusterModeActive ? taskStatusSubtitle : planTodoSummary
+                                            }}</span>
                                         </div>
                                     </div>
                                     <div class="plan-todo-list">
@@ -73,17 +67,15 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="message-content" v-html="renderMarkdown(stripAiQuestion(msg.content))"></div>
-                                <div v-if="activeInlineQuestion && activeInlineQuestion.messageIndex === idx" class="ai-question-inline">
+                                <div class="message-content" v-html="renderMarkdown(stripAiQuestion(msg.content))">
+                                </div>
+                                <div v-if="activeInlineQuestion && activeInlineQuestion.messageIndex === idx"
+                                    class="ai-question-inline">
                                     <div class="ai-question-inline-question">{{ activeInlineQuestion.question }}</div>
                                     <div class="ai-question-inline-options">
-                                        <button
-                                            v-for="(opt, i) in activeInlineQuestion.options"
-                                            :key="i"
-                                            class="ai-question-option"
-                                            :class="{ selected: aiQuestionAnswer === opt }"
-                                            @click="selectInlineOption(opt)"
-                                        >
+                                        <button v-for="(opt, i) in activeInlineQuestion.options" :key="i"
+                                            class="ai-question-option" :class="{ selected: aiQuestionAnswer === opt }"
+                                            @click="selectInlineOption(opt)">
                                             <span class="ai-question-option-icon">
                                                 <CheckCircle2 v-if="aiQuestionAnswer === opt" size="16" />
                                                 <Circle v-else size="16" />
@@ -93,17 +85,14 @@
                                     </div>
                                     <div class="ai-question-inline-custom">
                                         <div class="ai-question-divider"><span>或者自己填写</span></div>
-                                        <textarea
-                                            v-model="aiQuestionAnswer"
-                                            class="ai-question-input"
-                                            placeholder="输入你的回答..."
-                                            rows="2"
-                                            :disabled="isLoading"
-                                            @keydown.enter="onInlineEnter"
-                                        />
+                                        <textarea v-model="aiQuestionAnswer" class="ai-question-input"
+                                            placeholder="输入你的回答..." rows="2" :disabled="isLoading"
+                                            @keydown.enter="onInlineEnter" />
                                     </div>
                                     <div class="ai-question-inline-actions">
-                                        <button class="ai-question-btn ai-question-btn-submit" :disabled="!aiQuestionAnswer.trim() || isLoading" @click="submitInlineAnswer">
+                                        <button class="ai-question-btn ai-question-btn-submit"
+                                            :disabled="!aiQuestionAnswer.trim() || isLoading"
+                                            @click="submitInlineAnswer">
                                             发送回答
                                         </button>
                                     </div>
@@ -258,7 +247,8 @@
                     <p v-if="rateLimitMessage" class="rate-limit">{{ rateLimitMessage }}</p>
                     <p v-if="uiNotice" class="ui-notice" role="status">{{ uiNotice }}</p>
                     <div v-if="showContextWarning" class="context-full-banner">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
                             <circle cx="12" cy="12" r="10" />
                             <line x1="12" y1="8" x2="12" y2="12" />
                             <line x1="12" y1="16" x2="12.01" y2="16" />
@@ -269,39 +259,22 @@
             </main>
         </div>
 
-        <BohaiSettingsPanel
-            v-model="settingsOpen"
-            :current-mode="currentMode"
-            :current-mode-id="currentModeId"
-            :chat-modes="chatModes"
-            :current-response-style-id="currentResponseStyleId"
-            :response-style-options="responseStyleOptions"
-            :current-thinking-speed-id="currentThinkingSpeedId"
-            :thinking-speed-options="thinkingSpeedOptions"
-            :is-searching="isSearching"
-            :is-treehole-memory-enabled="isTreeholeMemoryEnabled"
-            :is-shared-memory-enabled="isSharedMemoryEnabled"
-            :context-budget-usage="contextBudgetUsage"
-            :context-budget-percent-text="contextBudgetPercentText"
-            :is-compressing-context="isCompressingContext"
-            @select-mode="selectMode"
-            @select-response-style="setResponseStyle"
-            @select-thinking-speed="setThinkingSpeed"
+        <BohaiSettingsPanel v-model="settingsOpen" :current-mode="currentMode" :current-mode-id="currentModeId"
+            :chat-modes="chatModes" :current-response-style-id="currentResponseStyleId"
+            :response-style-options="responseStyleOptions" :current-thinking-speed-id="currentThinkingSpeedId"
+            :thinking-speed-options="thinkingSpeedOptions" :is-searching="isSearching"
+            :is-treehole-memory-enabled="isTreeholeMemoryEnabled" :is-shared-memory-enabled="isSharedMemoryEnabled"
+            :context-budget-usage="contextBudgetUsage" :context-budget-percent-text="contextBudgetPercentText"
+            :is-compressing-context="isCompressingContext" @select-mode="selectMode"
+            @select-response-style="setResponseStyle" @select-thinking-speed="setThinkingSpeed"
             @update:is-searching="isSearching = $event"
             @update:is-treehole-memory-enabled="isTreeholeMemoryEnabled = $event"
-            @update:is-shared-memory-enabled="isSharedMemoryEnabled = $event"
-            @clear-current-chat="clearCurrentChat"
-            @export-chat-data="exportChatData"
-            @clear-all-chat-data="clearAllChatData"
+            @update:is-shared-memory-enabled="isSharedMemoryEnabled = $event" @clear-current-chat="clearCurrentChat"
+            @export-chat-data="exportChatData" @clear-all-chat-data="clearAllChatData"
             @open-quota-panel="openQuotaPanel" />
 
-        <CommonAlertModal
-            v-model:visible="confirmState.show"
-            :type="confirmState.type"
-            :title="confirmState.title"
-            :message="confirmState.message"
-            @confirm="handleConfirm"
-            @close="handleClose" />
+        <CommonAlertModal v-model:visible="confirmState.show" :type="confirmState.type" :title="confirmState.title"
+            :message="confirmState.message" @confirm="handleConfirm" @close="handleClose" />
 
         <AiQuotaSidePanel :visible="isQuotaPanelOpen" @close="isQuotaPanelOpen = false" />
 
@@ -362,22 +335,19 @@ const expandedMessageDetails = ref(new Set());
 const messageFeedbackByIndex = ref({});
 const modeMenuOpen = ref(false);
 const settingsOpen = ref(false);
-watch(settingsOpen, (val) => {
-    console.log('[BOHAIMain] settingsOpen watch:', val);
-});
 const isQuotaPanelOpen = ref(false);
 
 const filteredChatModes = computed(() => {
-  if (!authStore.isLoggedIn) {
-    return chatModes.value.filter((m) => m.id === 'fast');
-  }
-  return chatModes.value;
+    if (!authStore.isLoggedIn) {
+        return chatModes.value.filter((m) => m.id === 'fast');
+    }
+    return chatModes.value;
 });
 
 watch(() => authStore.isLoggedIn, (loggedIn) => {
-  if (!loggedIn && currentModeId.value !== 'fast') {
-    currentModeId.value = 'fast';
-  }
+    if (!loggedIn && currentModeId.value !== 'fast') {
+        currentModeId.value = 'fast';
+    }
 });
 const confirmState = reactive({
     show: false,
@@ -392,9 +362,7 @@ const aiQuestionAnswer = ref('');
 const activeInlineQuestion = ref(null);
 
 const openSettings = () => {
-    console.log('[BOHAIMain] openSettings 被调用');
     settingsOpen.value = true;
-    console.log('[BOHAIMain] settingsOpen =', settingsOpen.value);
 };
 
 const openQuotaPanel = () => {
@@ -502,6 +470,9 @@ const {
     currentResponseStyleId,
     setResponseStyle,
     responseStyleOptions,
+    currentThinkingSpeedId,
+    thinkingSpeedOptions,
+    setThinkingSpeed,
     persistModeSetting
 } = useChatEngine();
 
@@ -1024,11 +995,16 @@ const getMessageActionAudit = (msg) => {
     return msg?.meta?.actionAudit || null;
 };
 
+let closeFeaturesMenuTimer = null;
+let closeModeMenuTimer = null;
+
 const closeFeaturesMenu = () => {
     const menu = document.querySelector('.features-menu');
     if (menu) {
         menu.classList.add('exiting');
-        setTimeout(() => {
+        if (closeFeaturesMenuTimer) clearTimeout(closeFeaturesMenuTimer);
+        closeFeaturesMenuTimer = setTimeout(() => {
+            closeFeaturesMenuTimer = null;
             showFeaturesMenu.value = false;
         }, 160);
     } else {
@@ -1040,7 +1016,9 @@ const closeModeMenu = () => {
     const menu = document.querySelector('.composer-mode-menu');
     if (menu) {
         menu.classList.add('exiting');
-        setTimeout(() => {
+        if (closeModeMenuTimer) clearTimeout(closeModeMenuTimer);
+        closeModeMenuTimer = setTimeout(() => {
+            closeModeMenuTimer = null;
             modeMenuOpen.value = false;
         }, 140);
     } else {
@@ -1368,6 +1346,14 @@ onUnmounted(() => {
         clearTimeout(uiNoticeTimer);
         uiNoticeTimer = null;
     }
+    if (closeFeaturesMenuTimer) {
+        clearTimeout(closeFeaturesMenuTimer);
+        closeFeaturesMenuTimer = null;
+    }
+    if (closeModeMenuTimer) {
+        clearTimeout(closeModeMenuTimer);
+        closeModeMenuTimer = null;
+    }
     if (deepWatchScrollRafId) {
         cancelAnimationFrame(deepWatchScrollRafId);
         deepWatchScrollRafId = null;
@@ -1603,17 +1589,21 @@ watch(isCompressingContext, (compressing) => {
         padding: 12px 14px;
         border-radius: 12px;
     }
+
     .ai-question-inline-question {
         font-size: 14px;
     }
+
     .ai-question-option {
         padding: 8px 12px;
         font-size: 13px;
     }
+
     .ai-question-input {
         padding: 8px 12px;
         font-size: 13px;
     }
+
     .ai-question-btn {
         padding: 7px 14px;
         font-size: 13px;

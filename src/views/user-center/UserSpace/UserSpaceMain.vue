@@ -22,204 +22,7 @@
     <div v-if="mountedTabs.community" v-show="currentTab === 'community' || leavingTab === 'community'"
       :ref="(el) => setTabPageRef('community', el)" class="tab-page"
       :class="{ 'is-leaving': leavingTab === 'community' }">
-      <div class="page-content">
-        <div v-if="isLoadingCommunity && !hasLoadedCommunity" class="community-skeleton" aria-hidden="true">
-          <div v-for="group in 3" :key="`community-group-loading-${group}`" class="community-group skeleton">
-            <div class="group-header">
-              <div class="group-info">
-                <div class="skeleton-line community-skeleton-title"></div>
-                <div class="skeleton-line community-skeleton-subtitle"></div>
-              </div>
-              <div class="skeleton-block community-skeleton-arrow"></div>
-            </div>
-          </div>
-          <div class="community-users-list skeleton-users">
-            <div v-for="user in 4" :key="`community-user-loading-${user}`" class="user-item">
-              <div class="skeleton-block community-user-avatar-skeleton"></div>
-              <div class="user-info">
-                <div class="skeleton-line community-user-name"></div>
-                <div class="skeleton-line community-user-bio"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div v-else>
-          <button type="button" class="community-group glass-group" @click="toggleCommunityExpand"
-            :aria-expanded="isCommunityExpanded">
-            <HomeCatMascot v-if="isHomeCatActive" class="community-group-cat" pool="ambient" seed="community-recent"
-              size="sm" decorative />
-            <div class="group-header">
-              <div class="group-info">
-                <h3 class="group-title">社区伙伴</h3>
-                <span class="group-badge">{{ totalCommunityUsers }}</span>
-              </div>
-              <div class="expand-icon" :class="{ expanded: isCommunityExpanded }">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M9 18l6-6-6-6" />
-                </svg>
-              </div>
-            </div>
-          </button>
-
-          <transition name="expand">
-            <div v-if="isCommunityExpanded" class="community-users-list">
-              <div class="community-search-bar-glass">
-                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
-                <input v-model="communitySearchQuery" type="text" placeholder="搜索社区伙伴..."
-                  class="community-search-input-glass" />
-                <button v-if="communitySearchQuery" class="search-clear-btn" @click.stop="communitySearchQuery = ''">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                  </svg>
-                </button>
-              </div>
-
-              <div class="community-toolbar-glass">
-                <span class="community-toolbar-meta">第 {{ currentCommunityPage }} / {{ totalCommunityPages }} 页</span>
-              </div>
-
-              <div v-if="communityUsers.length === 0" class="empty-state glass-empty">
-                <Users class="empty-icon" :size="30" :stroke-width="1.7" aria-hidden="true" />
-                <p>{{ communitySearchQuery.trim() ? '没有找到匹配的社区伙伴' : '暂无社区伙伴' }}</p>
-              </div>
-
-              <div v-for="user in communityUsers" :key="user.id" class="user-item glass-user"
-                @click="goToProfile(user.username)">
-                <div class="user-avatar">
-                  <img v-if="user.avatar_url" :src="user.avatar_url" alt="用户头像" class="avatar-image" loading="lazy"
-                    decoding="async" />
-                  <span v-else>{{ user.username ? user.username.charAt(0).toUpperCase() : 'U' }}</span>
-                  <span v-if="isUserOnline(user, hideOnlineStatus)" class="online-dot"></span>
-                </div>
-                <div class="user-info">
-                  <div class="user-name-row">
-                    <span class="user-name">@{{ user.username }}</span>
-                    <span class="user-status" :class="{ 'status-online': isUserOnline(user, hideOnlineStatus) }"
-                      :title="formatOnlineStatusTooltip(user, hideOnlineStatus)">{{ formatUserOnlineStatus(user,
-                      hideOnlineStatus) }}</span>
-                  </div>
-                  <p class="user-bio">{{ user.bio || '这个人很懒，还没有个性签名' }}</p>
-                  <div class="user-meta">
-                    <span v-if="user.birth_month && user.birth_day" class="meta-item">
-                      <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                        <line x1="16" y1="2" x2="16" y2="6"></line>
-                        <line x1="8" y1="2" x2="8" y2="6"></line>
-                        <line x1="3" y1="10" x2="21" y2="10"></line>
-                      </svg>
-                      {{ String(user.birth_month).padStart(2, '0') }}/{{ String(user.birth_day).padStart(2, '0') }}
-                    </span>
-                    <span v-if="user.join_date" class="meta-item">
-                      <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <polyline points="12 6 12 12 16 14"></polyline>
-                      </svg>
-                      {{ formatJoinDate(user.join_date) }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div v-if="totalCommunityPages > 1" class="community-pagination glass-pagination">
-                <button class="community-page-btn glass-page-btn"
-                  :disabled="isLoadingCommunity || currentCommunityPage === 1" @click.stop="currentCommunityPage--">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="15 18 9 12 15 6"></polyline>
-                  </svg>
-                </button>
-                <div class="page-dots">
-                  <span v-for="page in totalCommunityPages" :key="page" class="page-dot"
-                    :class="{ active: page === currentCommunityPage }" @click.stop="currentCommunityPage = page"></span>
-                </div>
-                <button class="community-page-btn glass-page-btn"
-                  :disabled="isLoadingCommunity || currentCommunityPage === totalCommunityPages"
-                  @click.stop="currentCommunityPage++">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="9 18 15 12 9 6"></polyline>
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </transition>
-
-          <button type="button" class="community-group glass-group birthday-group-glass" @click="toggleBirthdaysExpand"
-            :aria-expanded="isBirthdaysExpanded">
-            <HomeCatMascot v-if="isHomeCatActive" class="community-group-cat birthday-cat" pool="reaction"
-              seed="community-birthday" size="sm" decorative />
-            <div class="group-header">
-              <div class="group-info">
-                <h3 class="group-title">最近生日</h3>
-                <p class="group-count">{{ birthdayGroupSummary }}</p>
-              </div>
-              <div class="expand-icon" :class="{ expanded: isBirthdaysExpanded }">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M9 18l6-6-6-6" />
-                </svg>
-              </div>
-            </div>
-          </button>
-
-          <transition name="expand">
-            <div v-if="isBirthdaysExpanded" class="community-users-list birthday-users-list">
-              <div v-if="isLoadingBirthdays && recentBirthdayUsers.length === 0" class="loading-state compact">
-                <div class="loading-spinner"></div>
-                <p class="loading-text">正在加载最近生日...</p>
-              </div>
-
-              <div v-else-if="recentBirthdayUsers.length === 0" class="empty-state glass-empty">
-                <Cake class="empty-icon" :size="30" :stroke-width="1.7" aria-hidden="true" />
-                <p>暂时没有伙伴设置生日。</p>
-              </div>
-
-              <div v-for="user in recentBirthdayUsers" :key="`birthday-${user.id}`"
-                class="user-item glass-user birthday-user-glass" @click="goToProfile(user.username)">
-                <div class="user-avatar">
-                  <img v-if="user.avatar_url" :src="user.avatar_url" alt="用户头像" class="avatar-image" loading="lazy"
-                    decoding="async" />
-                  <span v-else>{{ user.username ? user.username.charAt(0).toUpperCase() : 'U' }}</span>
-                </div>
-                <div class="user-info">
-                  <span class="user-name">@{{ user.username }}</span>
-                  <p class="user-bio">{{ formatBirthdayDistance(user) }}</p>
-                  <div class="user-meta">
-                    <span class="meta-item birthday-meta">
-                      <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                        <line x1="16" y1="2" x2="16" y2="6"></line>
-                        <line x1="8" y1="2" x2="8" y2="6"></line>
-                        <line x1="3" y1="10" x2="21" y2="10"></line>
-                      </svg>
-                      {{ String(user.birth_month).padStart(2, '0') }}/{{ String(user.birth_day).padStart(2, '0') }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </transition>
-
-          <div class="shows-entry-card-glass" @click="switchTab('shows')">
-            <div class="shows-entry-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polygon points="5 3 19 12 5 21 5 3"></polygon>
-              </svg>
-            </div>
-            <div class="shows-entry-content">
-              <span class="shows-entry-title">方块节目中心</span>
-              <p class="shows-entry-desc">进入节目页，查看社区节目与精选内容</p>
-            </div>
-            <div class="shows-entry-arrow">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="9 18 15 12 9 6"></polyline>
-              </svg>
-            </div>
-          </div>
-        </div>
-      </div>
+      <AsyncCommunity @switch-tab="switchTab" @open-follow-modal="openUserFollowModal" />
     </div>
 
     <div v-if="mountedTabs.shows" v-show="currentTab === 'shows' || leavingTab === 'shows'"
@@ -261,14 +64,12 @@
               :stats="userStats" :is-stats-loading="isUserStatsLoading" :cloud-plus-usage-text="cloudPlusUsageText"
               :cloud-plus-usage-meter-style="cloudPlusUsageMeterStyle"
               :subscription-summary-text="subscriptionSummaryText" :gift-progress-text="giftProgressText"
-              :data-privacy-status-text="dataPrivacyStatusText" :theme-display-text="themeDisplayText"
-              :pushplus-status-text="pushplusStatusText" :content-tabs="profileContentTabs"
-              :active-content-tab="activeProfileContentTab" :is-content-loading="isProfileContentLoading"
+              :is-content-loading="isProfileContentLoading"
               :posts="profilePosts" :has-more-posts="hasMoreProfilePosts" :is-loading-more="isLoadingMoreProfilePosts"
-              :is-impressions-loading="isProfileImpressionsLoading" :impressions="profileImpressions"
               @edit-profile="openEditProfileModal" @settings="openProfileSettings" @avatar-click="handleAvatarClick"
-              @background-click="handleProfileBackgroundClick" @tab-change="switchProfileContentTab"
-              @sponsor="openSponsorPage" @data-management="openProfileDataManagement" @cloud-plus="openCloudPlusArea"
+              @background-click="handleProfileBackgroundClick"
+              @view-impressions="openProfileImpressions" @sponsor="openSponsorPage"
+              @data-management="openProfileDataManagement" @cloud-plus="openCloudPlusArea"
               @subscription="router.push('/user-space/subscriptions?from=userspace')"
               @gift="router.push('/user-space/gifts?from=userspace')" @post-click="openProfilePost"
               @switch-tab="switchTab" @delete-impression="handleDeleteProfileImpression"
@@ -453,12 +254,18 @@
               :pushplus-status-text="pushplusStatusText" :cloud-plus-usage-text="cloudPlusUsageText"
               :subscription-summary-text="subscriptionSummaryText" :data-privacy-status-text="dataPrivacyStatusText"
               :theme-display-text="themeDisplayText" :is-home-cat-active="isHomeCatActive" :current-theme="currentTheme"
-              :hide-online-status="hideOnlineStatus" @back="backToProfileHome" @open-theme="openThemeModal"
+              :hide-online-status="hideOnlineStatus" :hide-follow-data="hideFollowData"
+              @back="backToProfileHome" @open-theme="openThemeModal"
               @open-cloud="openCloudPlusArea"
               @open-pushplus="router.push('/user-space/pushplus-settings?from=userspace-settings')"
               @open-security="router.push('/user-space/account-security?from=userspace-settings')"
               @open-data="openProfileDataManagement" @open-data-management="openProfileDataManagement"
-              @logout="handleLogout" @toggle-hide-online="toggleHideOnlineStatus" />
+              @logout="handleLogout" @toggle-hide-online="toggleHideOnlineStatus"
+              @toggle-hide-follow-data="toggleHideFollowData" />
+
+            <ProfileImpressionsPanel v-else-if="profileSection === 'impressions'" key="profile-impressions"
+              :is-impressions-loading="isProfileImpressionsLoading" :impressions="profileImpressions"
+              @back="backToProfileHome" @delete-impression="handleDeleteProfileImpression" />
 
             <div v-else key="profile-data-management" class="profile-subpage-shell">
               <UserCenterPageHeader title="数据与隐私" back-label="返回设置" max-width="650px" @back="backToProfileSettings" />
@@ -525,6 +332,18 @@
     <AvatarCropModal v-model:visible="showCropModal" :image-src="cropImageSrc" :loading="isProcessingCrop"
       :title="cropModalTitle" :hint="cropModalHint" :sub-hint="cropModalSubHint" :aspect-ratio="cropModalAspectRatio"
       :shape="cropModalShape" @confirm="handleCropConfirm" />
+
+    <FollowListModal
+      :show="followListModal.show"
+      :title="followListModal.type === 'followers' ? '粉丝' : '关注'"
+      :users="followListModal.users"
+      :loading="followListModal.loading"
+      :loading-more="followListModal.loadingMore"
+      :has-more="followListModal.hasMore"
+      :empty-text="followListModal.type === 'followers' ? '暂无粉丝' : '暂未关注任何人'"
+      @close="followListModal.show = false"
+      @load-more="handleFollowListLoadMore"
+    />
   </div>
 </template>
 
@@ -532,7 +351,7 @@
 import { ref, computed, nextTick, onMounted, onUnmounted, reactive, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import { Bot, Cake, MessageCircle, Newspaper, User, Users } from 'lucide-vue-next';
+import { Bot, MessageCircle, Newspaper, User, Users } from 'lucide-vue-next';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import AvatarCropModal from '@/components/AvatarCropModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
@@ -541,6 +360,7 @@ import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
 import { useEdgeSwipeGesture } from '@/composables/useEdgeSwipeGesture';
 import UserSpaceBottomNav from './components/UserSpaceBottomNav.vue';
 import ProfileHomePanel from './components/ProfileHomePanel.vue';
+import ProfileImpressionsPanel from './components/ProfileImpressionsPanel.vue';
 import ProfileSettingsPanel from './components/ProfileSettingsPanel.vue';
 import ThemeModal from './components/ThemeModal.vue';
 import { useBottomNavIslandQueue } from './composables/useBottomNavIslandQueue.js';
@@ -550,12 +370,14 @@ import { useImageCompressionLoader } from './composables/useImageCompressionLoad
 import {
   AsyncBOHAI,
   AsyncCloudPlus,
+  AsyncCommunity,
   AsyncForum,
   AsyncMessages,
   AsyncShows,
   clearIdlePreloadTasks,
   clearScheduledForumPreload,
   preloadBOHAIComponent,
+  preloadCommunityComponent,
   preloadForumComponent,
   preloadMessagesComponent,
   preloadShowsComponent,
@@ -564,12 +386,11 @@ import {
   setUserSpaceMountedForPreload
 } from './async-loaders.js';
 import { supabase } from '@/utils/supabase-client.js';
-import { getProfilesPage, getRecentBirthdayProfiles } from '@/utils/api/auth-api.js';
-import { deleteUserImpression, getPostsByUsername, getUserImpressions, updateProfileAvatar } from '@/utils/api/profile-api.js';
+import { deleteUserImpression, getPostsByUsername, getUserImpressions, updateProfileAvatar, getFollowers, getFollowing } from '@/utils/api/profile-api.js';
+import FollowListModal from '@/components/FollowListModal.vue';
 import { getPushplusSettings } from '@/utils/api/pushplus-api.js';
 import { getMySubscriptions } from '@/utils/api/subscription-api.js';
 import { logger } from '@/utils/logger.js';
-import { useUserOnlineStatus } from './composables/useUserOnlineStatus.js';
 import { listMyCloudEntries } from '@/utils/api/boh-cloud-api.js';
 import {
   CLOUD_UPLOAD_MAX_IMAGE_SIZE_BYTES,
@@ -619,8 +440,6 @@ const USERSPACE_CACHE_TTL = {
   stats: 60 * 1000,
   cloudUsage: 60 * 1000,
   pushplus: 60 * 1000,
-  community: 2 * 60 * 1000,
-  birthdays: 10 * 60 * 1000,
   profilePosts: 60 * 1000,
   impressions: 60 * 1000
 };
@@ -628,23 +447,8 @@ const userSpaceMemoryCache = createMemoryTtlCache();
 const getUserSpaceCache = (key, ttlMs) => userSpaceMemoryCache.get(key, ttlMs);
 const setUserSpaceCache = (key, value) => userSpaceMemoryCache.set(key, value);
 
-const isLoadingCommunity = ref(false);
 const hideOnlineStatus = computed(() => userInfo.value?.hideOnlineStatus ?? false);
-const isLoadingBirthdays = ref(false);
-const isCommunityExpanded = ref(true);
-const isBirthdaysExpanded = ref(false);
-const isShowsExpanded = ref(false);
-const communityUsers = ref([]);
-const recentBirthdayUsers = ref([]);
-const communitySearchQuery = ref('');
-const debouncedCommunitySearchQuery = ref('');
-const currentCommunityPage = ref(1);
-const totalCommunityUsers = ref(0);
-const COMMUNITY_PAGE_SIZE = 10;
-const COMMUNITY_BIRTHDAY_LIMIT = 8;
-const hasLoadedCommunity = ref(false);
-const hasLoadedBirthdays = ref(false);
-let communityRefreshTimer = null;
+const hideFollowData = computed(() => userInfo.value?.hideFollowData ?? false);
 const forumRenderKey = ref(0);
 const forumViewRef = ref(null);
 const shouldRefreshForumAfterThemeChange = ref(false);
@@ -654,10 +458,7 @@ const tabScrollPositions = reactive(Object.fromEntries(
 ));
 let clearLeavingTabTimer = null;
 let userSpacePageEl = null;
-let communitySearchDebounceTimer = null;
-let latestCommunityFetchId = 0;
-let latestBirthdayFetchId = 0;
-const { isUserOnline, formatUserOnlineStatus, formatOnlineStatusTooltip } = useUserOnlineStatus();
+
 let latestTabScrollRestoreToken = 0;
 
 const navItems = [
@@ -689,7 +490,7 @@ const bottomNavIndicatorStyle = computed(() => {
 });
 const validTabs = USER_SPACE_VALID_TABS;
 const loginRequiredTabs = new Set();
-const validProfileSections = ['home', 'edit-profile', 'sponsor', 'settings', 'data-management'];
+const validProfileSections = ['home', 'edit-profile', 'impressions', 'sponsor', 'settings', 'data-management'];
 const tabTransitionDirection = ref('forward');
 const leavingTab = ref(null);
 const {
@@ -864,18 +665,14 @@ const profileCoverStyle = computed(() => {
 const userStats = reactive({
   posts: 0,
   points: 0,
-  rank: 0
+  rank: 0,
+  followers: 0,
+  following: 0
 });
 const isUserStatsLoading = ref(false);
 let latestUserStatsFetchToken = 0;
 let userStatsRetryTimerId = null;
 
-const profileContentTabs = [
-  { id: 'posts', label: '发帖' },
-  { id: 'cloud', label: 'Cloud+' },
-  { id: 'impressions', label: '印象' }
-];
-const activeProfileContentTab = ref('posts');
 const PROFILE_POSTS_PAGE_SIZE = 15;
 const profilePosts = ref([]);
 const profileImpressions = ref([]);
@@ -950,7 +747,7 @@ const fetchProfileContent = async ({ force = false, reset = false } = {}) => {
     profilePostsPage.value = 1;
   }
 
-  if (activeProfileContentTab.value === 'posts' && !force && !reset) {
+  if (!force && !reset) {
     const cachedPosts = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.profilePosts);
     if (cachedPosts) {
       profilePosts.value = cachedPosts;
@@ -965,36 +762,33 @@ const fetchProfileContent = async ({ force = false, reset = false } = {}) => {
   }
 
   try {
-    if (activeProfileContentTab.value === 'posts') {
-      const pageToLoad = reset ? 1 : profilePostsPage.value;
-      const result = await getPostsByUsername(safeUsername, userId, {
-        page: pageToLoad,
-        pageSize: PROFILE_POSTS_PAGE_SIZE,
-        includeUnapprovedForAuthor: true
-      });
-      if (fetchToken !== latestProfileContentFetchToken) return;
-      if (result.error) {
-        logger.warn('user-space', '读取我的发帖失败:', result.error);
-        if (reset) profilePosts.value = [];
-        return;
-      }
-      const incoming = result.data || [];
-      if (reset) {
-        profilePosts.value = incoming;
-      } else {
-        const seen = new Set(profilePosts.value.map(p => p.id));
-        const newPosts = incoming.filter(p => !seen.has(p.id));
-        profilePosts.value = [...profilePosts.value, ...newPosts];
-      }
-      hasMoreProfilePosts.value = incoming.length === PROFILE_POSTS_PAGE_SIZE;
-      profilePostsPage.value = pageToLoad + 1;
-      setUserSpaceCache(cacheKey, profilePosts.value);
+    const pageToLoad = reset ? 1 : profilePostsPage.value;
+    const result = await getPostsByUsername(safeUsername, userId, {
+      page: pageToLoad,
+      pageSize: PROFILE_POSTS_PAGE_SIZE,
+      includeUnapprovedForAuthor: true
+    });
+    if (fetchToken !== latestProfileContentFetchToken) return;
+    if (result.error) {
+      logger.warn('user-space', '读取我的发帖失败:', result.error);
+      if (reset) profilePosts.value = [];
       return;
     }
+    const incoming = result.data || [];
+    if (reset) {
+      profilePosts.value = incoming;
+    } else {
+      const seen = new Set(profilePosts.value.map(p => p.id));
+      const newPosts = incoming.filter(p => !seen.has(p.id));
+      profilePosts.value = [...profilePosts.value, ...newPosts];
+    }
+    hasMoreProfilePosts.value = incoming.length === PROFILE_POSTS_PAGE_SIZE;
+    profilePostsPage.value = pageToLoad + 1;
+    setUserSpaceCache(cacheKey, profilePosts.value);
 
   } catch (error) {
     logger.warn('user-space', '读取我的内容失败:', error);
-    if (activeProfileContentTab.value === 'posts' && reset) {
+    if (reset) {
       profilePosts.value = [];
     }
   } finally {
@@ -1011,19 +805,6 @@ const loadMoreProfilePosts = async () => {
     await fetchProfileContent({ force: true, reset: false });
   } finally {
     isLoadingMoreProfilePosts.value = false;
-  }
-};
-
-const switchProfileContentTab = (tabId) => {
-  if (!profileContentTabs.some(tab => tab.id === tabId)) return;
-  if (activeProfileContentTab.value === tabId) return;
-  activeProfileContentTab.value = tabId;
-  if (tabId === 'posts') {
-    void fetchProfileContent({ reset: true });
-  } else if (tabId === 'cloud') {
-    void fetchCloudPlusUsage();
-  } else if (tabId === 'impressions') {
-    void fetchProfileImpressions();
   }
 };
 
@@ -1111,49 +892,34 @@ const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
   userStats.points = fallbackPoints;
 
   try {
-    const [postsByIdResult, pointsResult] = await Promise.all([
+    const [postsResult, pointsResult, followersResult, followingResult] = await Promise.all([
       supabase
         .from('posts')
         .select('id', { count: 'exact', head: true })
-        .eq('author_id', userId),
+        .or(`author_id.eq.${userId}${safeUsername ? `,author_username.eq.${safeUsername}` : ''}`),
       supabase
         .from('profiles')
         .select('points')
         .eq('id', userId)
-        .maybeSingle()
+        .maybeSingle(),
+      supabase
+        .from('user_follows')
+        .select('id', { count: 'exact', head: true })
+        .eq('following_id', userId),
+      supabase
+        .from('user_follows')
+        .select('id', { count: 'exact', head: true })
+        .eq('follower_id', userId)
     ]);
 
     if (fetchToken !== latestUserStatsFetchToken) return;
 
-    let hasQueryError = Boolean(postsByIdResult.error || pointsResult.error);
-    let resolvedPostsCount = null;
+    let hasQueryError = Boolean(postsResult.error || pointsResult.error);
 
-    if (!postsByIdResult.error) {
-      resolvedPostsCount = normalizeStatInt(postsByIdResult.count, 0);
+    if (!postsResult.error) {
+      userStats.posts = normalizeStatInt(postsResult.count, 0);
     } else {
-      logger.warn('user-space', '获取用户帖子数失败(author_id):', postsByIdResult.error);
-    }
-
-    // 老数据可能缺失 author_id，回退按 username 统计。
-    if ((resolvedPostsCount === null || resolvedPostsCount === 0) && safeUsername) {
-      const { count: postsByUsernameCount, error: postsByUsernameError } = await supabase
-        .from('posts')
-        .select('id', { count: 'exact', head: true })
-        .eq('author_username', safeUsername);
-
-      if (fetchToken !== latestUserStatsFetchToken) return;
-
-      if (!postsByUsernameError) {
-        const fallbackPosts = normalizeStatInt(postsByUsernameCount, 0);
-        resolvedPostsCount = resolvedPostsCount === null ? fallbackPosts : Math.max(resolvedPostsCount, fallbackPosts);
-      } else {
-        hasQueryError = true;
-        logger.warn('user-space', '获取用户帖子数失败(author_username):', postsByUsernameError);
-      }
-    }
-
-    if (resolvedPostsCount !== null) {
-      userStats.posts = resolvedPostsCount;
+      logger.warn('user-space', '获取用户帖子数失败:', postsResult.error);
     }
 
     if (!pointsResult.error && pointsResult.data) {
@@ -1177,10 +943,19 @@ const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
       logger.warn('user-space', '获取用户排名失败:', rankError);
     }
 
+    if (!followersResult.error) {
+      userStats.followers = normalizeStatInt(followersResult.count, 0);
+    }
+    if (!followingResult.error) {
+      userStats.following = normalizeStatInt(followingResult.count, 0);
+    }
+
     setUserSpaceCache(cacheKey, {
       posts: userStats.posts,
       points: userStats.points,
-      rank: userStats.rank
+      rank: userStats.rank,
+      followers: userStats.followers,
+      following: userStats.following
     });
 
     if (hasQueryError && retryCount < 1) {
@@ -1535,6 +1310,12 @@ const backToProfileSettings = () => {
   void fetchCloudPlusUsage();
 };
 
+const openProfileImpressions = () => {
+  profileSection.value = 'impressions';
+  setProfileSectionRoute('impressions');
+  void fetchProfileImpressions();
+};
+
 const selectSponsorMethod = (methodId) => {
   sponsorMethod.value = methodId;
   if (methodId === 'alipay') {
@@ -1665,15 +1446,6 @@ const formatBirthdayLabel = (b) => {
   return `${month}月${day}日`;
 };
 
-const formatJoinDate = (dateStr) => {
-  if (!dateStr) return '';
-  const date = new Date(dateStr);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
 const formatJoinDateLabel = (dateStr) => {
   if (!dateStr) return '';
   const date = new Date(dateStr);
@@ -1784,178 +1556,57 @@ const getTodayDate = () => {
   return `${year}-${month}-${day}`;
 };
 
-const toggleCommunityExpand = () => {
-  isCommunityExpanded.value = !isCommunityExpanded.value;
-};
+// Community data now managed by CommunityTab.vue
 
-const toggleBirthdaysExpand = () => {
-  isBirthdaysExpanded.value = !isBirthdaysExpanded.value;
-  if (isBirthdaysExpanded.value && !hasLoadedBirthdays.value && !isLoadingBirthdays.value) {
-    fetchRecentBirthdays();
-  }
-};
-
-const toggleShowsExpand = () => {
-  isShowsExpanded.value = !isShowsExpanded.value;
-};
-
-const syncCommunityViewFromRoute = () => {
-  if (currentTab.value !== 'community') return;
-  if (String(route.query.view || '') === 'cloudChannels') {
-    router.replace({ query: { ...route.query, view: undefined } });
-  }
-};
-
-const fetchCommunityUsers = async ({ force = false } = {}) => {
-  const searchKey = String(debouncedCommunitySearchQuery.value || '').trim().toLowerCase();
-  const cacheKey = `community:${currentCommunityPage.value}:${COMMUNITY_PAGE_SIZE}:${searchKey}`;
-  const cachedCommunity = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.community);
-  if (!force) {
-    if (cachedCommunity) {
-      communityUsers.value = cachedCommunity.items || [];
-      totalCommunityUsers.value = cachedCommunity.total || 0;
-      hasLoadedCommunity.value = true;
-      isLoadingCommunity.value = false;
-      return;
-    }
-  } else if (cachedCommunity) {
-    communityUsers.value = cachedCommunity.items || [];
-    totalCommunityUsers.value = cachedCommunity.total || 0;
-    hasLoadedCommunity.value = true;
-  }
-
-  const fetchId = ++latestCommunityFetchId;
-  isLoadingCommunity.value = !hasLoadedCommunity.value;
-
-  try {
-    const { data, error } = await getProfilesPage({
-      page: currentCommunityPage.value,
-      pageSize: COMMUNITY_PAGE_SIZE,
-      search: debouncedCommunitySearchQuery.value,
-      countMode: 'planned'
-    });
-
-    if (fetchId !== latestCommunityFetchId) {
-      return;
-    }
-
-    if (!error && data) {
-      const currentUsername = userInfo.value.username;
-      const nowISO = new Date().toISOString();
-      communityUsers.value = (data.items || [])
-        .map((u) =>
-          u.username === currentUsername ? { ...u, last_active_at: nowISO } : u
-        )
-        .sort((a, b) => {
-          const ta = a.last_active_at ? new Date(a.last_active_at).getTime() : 0;
-          const tb = b.last_active_at ? new Date(b.last_active_at).getTime() : 0;
-          return tb - ta;
-        });
-      totalCommunityUsers.value = data.total || 0;
-      hasLoadedCommunity.value = true;
-      setUserSpaceCache(cacheKey, {
-        items: communityUsers.value,
-        total: totalCommunityUsers.value
-      });
-    } else {
-      communityUsers.value = [];
-      totalCommunityUsers.value = 0;
-      logger.error('user-space', '获取社区用户失败:', error);
-    }
-  } catch (err) {
-    if (fetchId !== latestCommunityFetchId) {
-      return;
-    }
-
-    communityUsers.value = [];
-    totalCommunityUsers.value = 0;
-    logger.error('user-space', '加载社区用户异常:', err);
-  } finally {
-    if (fetchId === latestCommunityFetchId) {
-      isLoadingCommunity.value = false;
-    }
-  }
-};
-
-const totalCommunityPages = computed(() => Math.max(1, Math.ceil(totalCommunityUsers.value / COMMUNITY_PAGE_SIZE)));
-
-const birthdayGroupSummary = computed(() => {
-  if (isLoadingBirthdays.value && recentBirthdayUsers.value.length === 0) {
-    return '正在加载最近生日';
-  }
-  if (!recentBirthdayUsers.value.length) {
-    return '查看即将过生日的伙伴';
-  }
-  const firstBirthday = recentBirthdayUsers.value[0];
-  return `${recentBirthdayUsers.value.length} 位伙伴 · ${formatBirthdayDistance(firstBirthday)}`;
+// Follow List Modal (社区列表)
+const followListModal = reactive({
+  show: false,
+  type: 'followers',
+  targetUser: null,
+  users: [],
+  loading: false,
+  loadingMore: false,
+  hasMore: false,
+  page: 1
 });
 
-const formatBirthdayDistance = (user = {}) => {
-  const daysUntil = Number(user.birthday_days_until);
-  if (!Number.isFinite(daysUntil)) {
-    return '生日即将到来';
-  }
-  if (daysUntil === 0) {
-    return '今天生日';
-  }
-  if (daysUntil === 1) {
-    return '明天生日';
-  }
-  return `${daysUntil} 天后生日`;
+const openUserFollowModal = async (user, type) => {
+  if (!user?.id) return;
+  followListModal.show = true;
+  followListModal.type = type;
+  followListModal.targetUser = user;
+  followListModal.users = [];
+  followListModal.page = 1;
+  followListModal.hasMore = false;
+  await loadCommunityFollowListPage({ reset: true });
 };
 
-const fetchRecentBirthdays = async ({ force = false } = {}) => {
-  const cacheKey = `birthdays:${COMMUNITY_BIRTHDAY_LIMIT}`;
-  if (!force) {
-    const cachedBirthdays = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.birthdays);
-    if (cachedBirthdays) {
-      recentBirthdayUsers.value = cachedBirthdays;
-      hasLoadedBirthdays.value = true;
-      isLoadingBirthdays.value = false;
-      return;
-    }
-  }
-
-  const fetchId = ++latestBirthdayFetchId;
-  isLoadingBirthdays.value = true;
-
+const loadCommunityFollowListPage = async ({ reset = false } = {}) => {
+  const targetId = followListModal.targetUser?.id;
+  if (!targetId) return;
+  if (reset) followListModal.loading = true;
+  else followListModal.loadingMore = true;
   try {
-    const { data, error } = await getRecentBirthdayProfiles({
-      limit: COMMUNITY_BIRTHDAY_LIMIT
-    });
-
-    if (fetchId !== latestBirthdayFetchId) {
-      return;
-    }
-
-    if (!error) {
-      recentBirthdayUsers.value = data || [];
-      hasLoadedBirthdays.value = true;
-      setUserSpaceCache(cacheKey, recentBirthdayUsers.value);
-    } else {
-      recentBirthdayUsers.value = [];
-      logger.error('user-space', '获取最近生日失败:', error);
-    }
-  } catch (err) {
-    if (fetchId !== latestBirthdayFetchId) {
-      return;
-    }
-
-    recentBirthdayUsers.value = [];
-    logger.error('user-space', '加载最近生日异常:', err);
+    const pageToLoad = reset ? 1 : followListModal.page;
+    const loadFn = followListModal.type === 'followers' ? getFollowers : getFollowing;
+    const res = await loadFn(targetId, { page: pageToLoad, pageSize: 20 });
+    const incoming = res.error ? [] : (res.data || []);
+    followListModal.users = reset ? incoming : [...followListModal.users, ...incoming];
+    followListModal.hasMore = incoming.length === 20;
+    followListModal.page = pageToLoad + 1;
+  } catch {
+    if (reset) followListModal.users = [];
   } finally {
-    if (fetchId === latestBirthdayFetchId) {
-      isLoadingBirthdays.value = false;
-    }
+    followListModal.loading = false;
+    followListModal.loadingMore = false;
   }
 };
 
-const fetchCommunityOverview = async () => {
-  await Promise.all([
-    fetchCommunityUsers(),
-    hasLoadedBirthdays.value ? Promise.resolve() : fetchRecentBirthdays()
-  ]);
+const handleFollowListLoadMore = () => {
+  loadCommunityFollowListPage();
 };
+
+
 
 const preloadUserSpaceTab = (tabId) => {
   const safeTab = String(tabId || '');
@@ -1968,8 +1619,8 @@ const preloadUserSpaceTab = (tabId) => {
     scheduleIdleTask('tab:shows', () => void preloadShowsComponent());
   } else if (safeTab === 'ai') {
     scheduleIdleTask('tab:ai', () => void preloadBOHAIComponent());
-  } else if (safeTab === 'community' && !hasLoadedCommunity.value) {
-    scheduleIdleTask('tab:community', () => void fetchCommunityOverview(), { timeout: 2400, fallbackDelay: 420 });
+  } else if (safeTab === 'community') {
+    scheduleIdleTask('tab:community', () => void preloadCommunityComponent(), { timeout: 2400, fallbackDelay: 420 });
   } else if (safeTab === 'profile' && isLoggedIn.value) {
     scheduleIdleTask('tab:profile', () => scheduleUserSpaceWarmup(), { timeout: 2400, fallbackDelay: 420 });
   }
@@ -2049,9 +1700,6 @@ const switchTab = (tabId) => {
     void refreshForumAfterThemeChange();
     void activateForumTab();
   }
-  if (tabId === 'community' && !hasLoadedCommunity.value) {
-    fetchCommunityOverview();
-  }
   if (tabId === 'ai') {
     void preloadBOHAIComponent();
   }
@@ -2071,6 +1719,15 @@ const handleLogout = () => {
 const toggleHideOnlineStatus = async () => {
   const { success } = await authStore.updateUserProfile({
     hide_online_status: !userInfo.value.hideOnlineStatus
+  });
+  if (!success) {
+    showBottomNavIsland('更新失败，请重试');
+  }
+};
+
+const toggleHideFollowData = async () => {
+  const { success } = await authStore.updateUserProfile({
+    hide_follow_data: !userInfo.value.hideFollowData
   });
   if (!success) {
     showBottomNavIsland('更新失败，请重试');
@@ -2439,6 +2096,7 @@ const runProfileCriticalFetches = ({ force = false } = {}) => {
   void fetchUserStats({ force });
   void fetchCloudPlusUsage({ force });
   void fetchProfileContent({ force, reset: force });
+  void fetchProfileImpressions({ force });
 };
 
 const scheduleUserSpaceWarmup = ({ force = false } = {}) => {
@@ -2531,10 +2189,6 @@ onMounted(() => {
     scheduleForumPreload(currentTab.value);
   }
   void restoreTabScrollPosition(currentTab.value);
-  if (currentTab.value === 'community') {
-    fetchCommunityOverview();
-    syncCommunityViewFromRoute();
-  }
   if (isLoggedIn.value) {
     void initUserData();
     if (currentTab.value === 'profile') {
@@ -2584,12 +2238,6 @@ watch(() => route.query.tab, (newTab) => {
     void refreshForumAfterThemeChange();
     void activateForumTab();
   }
-  if (nextTab === 'community' && !hasLoadedCommunity.value) {
-    fetchCommunityOverview();
-  }
-  if (nextTab === 'community') {
-    syncCommunityViewFromRoute();
-  }
   if (nextTab === 'profile') {
     runProfileCriticalFetches();
     void openSettingsPanelFromRoute();
@@ -2597,7 +2245,6 @@ watch(() => route.query.tab, (newTab) => {
 });
 
 watch(() => route.query.view, () => {
-  syncCommunityViewFromRoute();
   resolveProfileSectionFromRoute();
   void openSettingsPanelFromRoute();
 });
@@ -2614,45 +2261,6 @@ watch(currentTab, (newTab, oldTab) => {
   if (oldTab === 'profile') {
     scheduleUserSpaceWarmup();
   }
-  if (newTab === 'community') {
-    fetchCommunityUsers({ force: true });
-    if (!communityRefreshTimer) {
-      communityRefreshTimer = setInterval(() => {
-        fetchCommunityUsers({ force: true });
-      }, 30 * 1000);
-    }
-  } else if (oldTab === 'community') {
-    if (communityRefreshTimer) {
-      clearInterval(communityRefreshTimer);
-      communityRefreshTimer = null;
-    }
-  }
-});
-
-watch(communitySearchQuery, (value) => {
-  if (communitySearchDebounceTimer) {
-    clearTimeout(communitySearchDebounceTimer);
-  }
-
-  communitySearchDebounceTimer = setTimeout(() => {
-    debouncedCommunitySearchQuery.value = String(value || '').trim();
-  }, 300);
-});
-
-watch(debouncedCommunitySearchQuery, () => {
-  if (currentTab.value !== 'community') return;
-
-  if (currentCommunityPage.value !== 1) {
-    currentCommunityPage.value = 1;
-    return;
-  }
-
-  fetchCommunityUsers();
-});
-
-watch(currentCommunityPage, () => {
-  if (currentTab.value !== 'community') return;
-  fetchCommunityUsers();
 });
 
 onUnmounted(() => {
@@ -2672,16 +2280,9 @@ onUnmounted(() => {
   }
   window.removeEventListener('boh_unread_refresh', handleUnreadRefresh);
   window.removeEventListener('boh_userspace_nav_island', handleBottomNavIslandEvent);
-  if (communitySearchDebounceTimer) {
-    clearTimeout(communitySearchDebounceTimer);
-  }
   if (clearLeavingTabTimer) {
     clearTimeout(clearLeavingTabTimer);
     clearLeavingTabTimer = null;
-  }
-  if (communityRefreshTimer) {
-    clearInterval(communityRefreshTimer);
-    communityRefreshTimer = null;
   }
   // 移除主题变化监听
   themeManager.removeListener(handleThemeChange);

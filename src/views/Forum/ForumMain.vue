@@ -117,6 +117,7 @@ import { formatSmartTime } from '../../utils/time.js';
 import { addExperience, XP_REWARDS } from '../../utils/xp.js';
 import DOMPurify from '@/utils/dompurify.js';
 import { logger } from '@/utils/logger.js';
+import { getFollowing } from '@/utils/api/profile-api.js';
 import {
   AI_SEARCH_MODEL_ID,
   FORUM_IMAGE_UPLOAD_CONCURRENCY,
@@ -171,6 +172,7 @@ const sortMode = ref('latest'); // 'latest' | 'hottest'
 const searchQuery = ref('');
 const searchKeyword = ref('');
 const selectedTagFilter = ref('');
+const showFollowingOnly = ref(false);
 const feedMode = ref('posts');
 const highlightedPostIds = ref(new Set());
 const likePulsePostIds = ref(new Set());
@@ -1145,7 +1147,7 @@ const discardDraftPostImages = async ({ silent = true } = {}) => {
 // 移动端判断
 const MOBILE_BREAKPOINT = 768;
 const PORTRAIT_COMPOSER_BREAKPOINT = 1024;
-const isMobile = ref(window.innerWidth <= 768);
+const isMobile = ref(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
 let resizeRafId = null;
 const updateMobileStatus = () => {
   if (resizeRafId) return;
@@ -1166,7 +1168,7 @@ const updateMobileStatus = () => {
   });
 };
 
-updateMobileStatus();
+if (typeof window !== 'undefined') updateMobileStatus();
 
 const isForumComposerFabVisible = computed(() => {
   if (!isMobileComposerMode.value || feedMode.value !== 'posts') return false;
@@ -1362,9 +1364,18 @@ watch(
   { flush: 'post' }
 );
 
+watch(showFollowingOnly, (val) => {
+  if (val && viewMode.value === 'my') {
+    viewMode.value = 'all';
+  }
+});
+
 watch(
   () => [viewMode.value, sortMode.value, searchKeyword.value, selectedTagFilter.value],
   () => {
+    if (viewMode.value === 'my') {
+      showFollowingOnly.value = false;
+    }
     activeForumWindowIndex.value = 0;
   }
 );
@@ -2088,6 +2099,22 @@ const fetchForumData = async (isLoadMore = false) => {
     let dataResult;
     const currentUserId = isLoggedIn.value ? userInfo.id : null;
     const pageToLoad = isLoadMore ? currentPage.value + 1 : 1;
+    let followingUserIds;
+    if (showFollowingOnly.value && isLoggedIn.value && viewMode.value !== 'my') {
+      const followRes = await getFollowing(currentUserId);
+      if (!followRes.error && Array.isArray(followRes.data)) {
+        followingUserIds = followRes.data.map(f => f.id).filter(Boolean);
+      }
+      if (!followingUserIds || !followingUserIds.length) {
+        forumData.value = [];
+        hasMoreData.value = false;
+        currentPage.value = 1;
+        nextPageCursor.value = '';
+        isLoading.value = false;
+        isLoadingMore.value = false;
+        return;
+      }
+    }
     const pagination = {
       page: pageToLoad,
       pageSize: POSTS_PER_PAGE,
@@ -2099,7 +2126,8 @@ const fetchForumData = async (isLoadMore = false) => {
       signal: abortController.signal,
       // 旧版降级查询会使用 overfetch 判断 hasMore；RPC 路径会忽略该值避免翻页错位。
       limit: POSTS_PER_PAGE + 1,
-      includeUnapprovedForAuthor: viewMode.value === 'my'
+      includeUnapprovedForAuthor: viewMode.value === 'my',
+      followingUserIds
     };
 
     if (viewMode.value === 'my' && isLoggedIn.value) {
@@ -2501,7 +2529,7 @@ const toggleReplyInput = (postId, parentId = null, username = null, quotedConten
     replyContent.value = '';
   } else {
     activeReplyTarget.value = { postId, parentId, username, quotedContent };
-    replyContent.value = buildReplyDraft(username, quotedContent);
+    replyContent.value = buildReplyDraft(username);
   }
 };
 
@@ -2702,6 +2730,15 @@ const _toggleViewMode = () => {
 const setSortMode = (mode) => {
   feedMode.value = 'posts';
   sortMode.value = mode;
+  fetchForumData();
+};
+
+const setFeedMode = (mode) => {
+  if (mode === 'following' && !isLoggedIn.value) return;
+  const newVal = mode === 'following';
+  if (showFollowingOnly.value === newVal) return;
+  showFollowingOnly.value = newVal;
+  feedMode.value = 'posts';
   fetchForumData();
 };
 
@@ -2983,6 +3020,10 @@ const openPostDetail = (postId) => {
 
           <!-- 帖子列表 -->
           <section class="posts-feed fade-in-up" style="animation-delay: 0.2s;">
+            <div v-if="isLoggedIn" class="feed-mode-tabs">
+              <button class="feed-mode-tab" :class="{ active: !showFollowingOnly }" @click="setFeedMode('latest')">最新</button>
+              <button class="feed-mode-tab" :class="{ active: showFollowingOnly }" @click="setFeedMode('following')">关注</button>
+            </div>
             <ForumToolbar v-model:searchQuery="searchQuery" :is-logged-in="isLoggedIn"
               :has-signed-this-week="weeklyCheckinStatus.hasSignedThisWeek" :sort-mode="sortMode"
               :selected-tag-filter="selectedTagFilter" :is-ai-search-enabled="isAiSearchEnabled"

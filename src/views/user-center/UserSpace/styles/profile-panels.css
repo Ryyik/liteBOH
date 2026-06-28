@@ -293,6 +293,79 @@
   user-select: none;
 }
 
+/* 紧凑文字式 stats（发帖 · 粉丝 · 关注） */
+.profile-stats-compact {
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px 10px;
+  padding: 14px 0 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.stat-chip {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: color 0.16s ease, transform 0.16s ease;
+}
+
+.stat-chip:hover {
+  color: var(--text-primary);
+}
+
+.stat-chip:active {
+  transform: scale(0.98);
+}
+
+.stat-chip-static {
+  cursor: default;
+}
+
+.stat-chip-static:hover {
+  color: var(--text-secondary);
+}
+
+.stat-chip-num {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-chip-label {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.stat-dot {
+  color: rgba(15, 23, 42, 0.28);
+  font-weight: 700;
+  user-select: none;
+}
+
+.profile-stats-compact.is-loading {
+  min-height: 22px;
+}
+
+.stat-skeleton-line {
+  width: 220px;
+  height: 16px;
+}
+
 .stat-item {
   display: flex;
   flex-direction: column;

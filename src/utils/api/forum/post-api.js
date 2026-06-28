@@ -71,6 +71,8 @@ function decodePostCursor(cursorToken = '') {
     const createdAt = String(parsed?.createdAt || parsed?.created_at || '').trim();
     const id = String(parsed?.id || '').trim();
     if (!createdAt || !id) return null;
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(createdAt)) return null;
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return null;
     return { createdAt, id };
   } catch (_error) {
     return null;
@@ -418,10 +420,12 @@ export async function getPosts(userId = null, pagination = {}) {
   const cursorMode = String(pagination.cursorMode || '').trim().toLowerCase();
   const cursorToken = String(pagination.cursor || '').trim();
   const abortSignal = pagination.signal;
+  const followingUserIds = pagination.followingUserIds;
   const parsedCursor = decodePostCursor(cursorToken);
   const useCursorMode = (cursorMode === 'keyset' || Boolean(parsedCursor))
     && sortMode === 'latest'
-    && !searchQuery;
+    && !searchQuery
+    && !(Array.isArray(followingUserIds) && followingUserIds.length);
 
   return executeRead(
     'posts.getPosts',
@@ -436,7 +440,8 @@ export async function getPosts(userId = null, pagination = {}) {
       tagFilter,
       includeUnapprovedForAuthor,
       cursorMode,
-      cursorToken
+      cursorToken,
+      followingUserIds: Array.isArray(followingUserIds) ? followingUserIds.sort().join(',') : null
     },
     async () => {
       if (useCursorMode) {
@@ -500,7 +505,10 @@ export async function getPosts(userId = null, pagination = {}) {
         p_author_id: null,
         p_include_author_non_approved: includeUnapprovedForAuthor,
         p_search_query: searchQuery || null,
-        p_tag_filter: tagFilter || null
+        p_tag_filter: tagFilter || null,
+        p_following_user_ids: Array.isArray(followingUserIds) && followingUserIds.length
+          ? followingUserIds
+          : null
       };
 
       let { data: rpcData, error: rpcError } = await withAbortSignal(
@@ -553,6 +561,9 @@ export async function getPosts(userId = null, pagination = {}) {
 
         query = query.or(statusFilter);
         query = applyForumTagFilter(query, tagFilter);
+        if (Array.isArray(followingUserIds) && followingUserIds.length) {
+          query = query.in('author_id', followingUserIds);
+        }
 
         const { data, error } = await withAbortSignal(
           query

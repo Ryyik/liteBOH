@@ -451,7 +451,7 @@ const compressionStatusText = computed(() => {
 .ai-settings-backdrop {
   position: fixed !important;
   inset: 0 !important;
-  z-index: 2147483648 !important; /* 高于 GlobalAiGlassOverlay 的 2147483646 */
+  z-index: 2147483648 !important; /* 高于 GlobalAiGlassOverlay 的 2147483656 */
   display: flex !important;
   align-items: stretch !important;
   justify-content: flex-start !important;

@@ -67,6 +67,24 @@
                     <Sparkles class="meta-icon" :size="13" :stroke-width="1.8" aria-hidden="true" />
                     {{ partner.points || 0 }} 积分
                   </span>
+                  <span v-if="partner.followersCount !== undefined" class="meta-item follow-count-item" :class="{ 'clickable-follow-stat': !partner.hide_follow_data || partner.id === userInfo.id }" @click.stop="(!partner.hide_follow_data || partner.id === userInfo.id) ? openPartnerFollowModal(partner, 'followers') : undefined">
+                    <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="9" cy="7" r="4"></circle>
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                    粉丝 {{ partner.followersCount || 0 }}
+                  </span>
+                  <span v-if="partner.followingCount !== undefined" class="meta-item follow-count-item" :class="{ 'clickable-follow-stat': !partner.hide_follow_data || partner.id === userInfo.id }" @click.stop="(!partner.hide_follow_data || partner.id === userInfo.id) ? openPartnerFollowModal(partner, 'following') : undefined">
+                    <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="9" cy="7" r="4"></circle>
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                    关注 {{ partner.followingCount || 0 }}
+                  </span>
                 </div>
               </div>
             </div>
@@ -79,6 +97,15 @@
               <div class="action-buttons">
                 <button class="action-btn-outline view-profile-btn"
                   @click="goToProfile(partner.username)">查看空间</button>
+                <button
+                  v-if="isLoggedIn && partner.id !== userInfo.id"
+                  class="action-btn-outline follow-btn-partner"
+                  :class="{ 'is-following': isFollowed(partner.id) }"
+                  :disabled="isTogglingFollow(partner.id)"
+                  @click.stop="handleToggleFollow(partner)"
+                >
+                  {{ isTogglingFollow(partner.id) ? '...' : isFollowed(partner.id) ? '已关注' : '关注' }}
+                </button>
                 <button class="action-btn-outline" @click="openImpressions(partner)">写印象</button>
               </div>
             </div>
@@ -160,6 +187,18 @@
         </div>
       </Transition>
     </Teleport>
+
+    <FollowListModal
+      :show="partnerFollowModal.show"
+      :title="partnerFollowModal.type === 'followers' ? '粉丝' : '关注'"
+      :users="partnerFollowModal.users"
+      :loading="partnerFollowModal.loading"
+      :loading-more="partnerFollowModal.loadingMore"
+      :has-more="partnerFollowModal.hasMore"
+      :empty-text="partnerFollowModal.type === 'followers' ? '暂无粉丝' : '暂未关注任何人'"
+      @close="partnerFollowModal.show = false"
+      @load-more="handlePartnerFollowLoadMore"
+    />
   </div>
 </template>
 
@@ -168,7 +207,9 @@ import { ref, computed, watch, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { CalendarDays, Sparkles } from 'lucide-vue-next';
 import { getProfilesPage } from '@/utils/api/auth-api.js';
-import { getUserImpressions, addUserImpression, deleteUserImpression } from '@/utils/api/profile-api.js';
+import { getUserImpressions, addUserImpression, deleteUserImpression, followUser, unfollowUser, getFollowCountsBatch, getFollowers, getFollowing } from '@/utils/api/profile-api.js';
+import FollowListModal from '@/components/FollowListModal.vue';
+import { supabase } from '@/utils/supabase-client.js';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { logger } from '@/utils/logger.js';
@@ -183,6 +224,58 @@ const route = useRoute();
 const authStore = useAuthStore();
 const { isLoggedIn, userInfo } = storeToRefs(authStore);
 const hideOnlineStatus = computed(() => userInfo.value?.hideOnlineStatus ?? false);
+
+// Follow State
+const followedUserIds = ref(new Set());
+const togglingFollowIds = ref(new Set());
+
+const isFollowed = (userId) => followedUserIds.value.has(userId);
+const isTogglingFollow = (userId) => togglingFollowIds.value.has(userId);
+
+const handleToggleFollow = async (targetUser) => {
+  if (!isLoggedIn.value || !targetUser?.id || targetUser.id === userInfo.value.id) return;
+  if (isTogglingFollow(targetUser.id)) return;
+
+  togglingFollowIds.value = new Set([...togglingFollowIds.value, targetUser.id]);
+  try {
+    if (isFollowed(targetUser.id)) {
+      const res = await unfollowUser(userInfo.value.id, targetUser.id);
+      if (res.ok) {
+        const next = new Set(followedUserIds.value);
+        next.delete(targetUser.id);
+        followedUserIds.value = next;
+      }
+    } else {
+      const res = await followUser(userInfo.value.id, targetUser.id);
+      if (res.ok) {
+        const next = new Set(followedUserIds.value);
+        next.add(targetUser.id);
+        followedUserIds.value = next;
+      }
+    }
+  } catch {
+    // silent
+  } finally {
+    const next = new Set(togglingFollowIds.value);
+    next.delete(targetUser.id);
+    togglingFollowIds.value = next;
+  }
+};
+
+const loadFollowedUsers = async () => {
+  if (!isLoggedIn.value || !userInfo.value.id) return;
+  try {
+    const { data: follows } = await supabase
+      .from('user_follows')
+      .select('following_id')
+      .eq('follower_id', userInfo.value.id);
+    if (follows) {
+      followedUserIds.value = new Set(follows.map(f => f.following_id));
+    }
+  } catch {
+    // silent
+  }
+};
 
 const goToProfile = (usernameVal) => {
   const safeUsername = String(usernameVal || '').trim();
@@ -259,6 +352,76 @@ const fetchPartners = async () => {
       loading.value = false;
     }
   }
+  void loadPartnerFollowCounts();
+};
+
+const loadPartnerFollowCounts = async () => {
+  const users = partners.value;
+  if (!users.length) return;
+  const ids = users.map(u => u.id).filter(Boolean);
+  if (!ids.length) return;
+  try {
+    const res = await getFollowCountsBatch(ids);
+    if (res.ok !== false && res.data) {
+      for (const user of users) {
+        const counts = res.data[user.id];
+        if (counts) {
+          user.followersCount = counts.followersCount;
+          user.followingCount = counts.followingCount;
+        }
+      }
+    }
+  } catch {
+    // silent
+  }
+};
+
+// Partner Follow List Modal
+const partnerFollowModal = reactive({
+  show: false,
+  type: 'followers',
+  targetUser: null,
+  users: [],
+  loading: false,
+  loadingMore: false,
+  hasMore: false,
+  page: 1
+});
+
+const openPartnerFollowModal = async (user, type) => {
+  if (!user?.id) return;
+  partnerFollowModal.show = true;
+  partnerFollowModal.type = type;
+  partnerFollowModal.targetUser = user;
+  partnerFollowModal.users = [];
+  partnerFollowModal.page = 1;
+  partnerFollowModal.hasMore = false;
+  await loadPartnerFollowListPage({ reset: true });
+};
+
+const loadPartnerFollowListPage = async ({ reset = false } = {}) => {
+  const targetId = partnerFollowModal.targetUser?.id;
+  if (!targetId) return;
+  if (reset) partnerFollowModal.loading = true;
+  else partnerFollowModal.loadingMore = true;
+  try {
+    const pageToLoad = reset ? 1 : partnerFollowModal.page;
+    const loadFn = partnerFollowModal.type === 'followers' ? getFollowers : getFollowing;
+    const res = await loadFn(targetId, { page: pageToLoad, pageSize: 20 });
+    const incoming = res.error ? [] : (res.data || []);
+    partnerFollowModal.users = reset ? incoming : [...partnerFollowModal.users, ...incoming];
+    partnerFollowModal.hasMore = incoming.length === 20;
+    partnerFollowModal.page = pageToLoad + 1;
+  } catch {
+    if (reset) partnerFollowModal.users = [];
+  } finally {
+    partnerFollowModal.loading = false;
+    partnerFollowModal.loadingMore = false;
+  }
+};
+
+const handlePartnerFollowLoadMore = () => {
+  loadPartnerFollowListPage();
 };
 
 // Computed
@@ -375,6 +538,10 @@ watch(debouncedSearchQuery, () => {
 
 watch(currentPage, () => {
   fetchPartners();
+}, { immediate: true });
+
+watch(isLoggedIn, () => {
+  loadFollowedUsers();
 }, { immediate: true });
 
 onBeforeUnmount(() => {
@@ -962,5 +1129,52 @@ onBeforeUnmount(() => {
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #e0e0e0;
   border-radius: 10px;
+}
+
+.follow-btn-partner {
+  border-color: #007aff;
+  background: #007aff;
+  color: white;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.follow-btn-partner:hover {
+  background: #0062cc;
+  border-color: #0062cc;
+  color: white;
+}
+
+.follow-btn-partner.is-following {
+  background: white;
+  border-color: #c7c7cc;
+  color: #86868b;
+}
+
+.follow-btn-partner.is-following:hover {
+  background: rgba(255, 59, 48, 0.05);
+  border-color: #ff3b30;
+  color: #ff3b30;
+}
+
+.follow-btn-partner:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.follow-count-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: #86868b;
+}
+
+.clickable-follow-stat {
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.clickable-follow-stat:hover {
+  opacity: 0.7;
 }
 </style>

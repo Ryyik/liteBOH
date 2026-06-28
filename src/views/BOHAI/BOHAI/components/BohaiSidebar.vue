@@ -344,7 +344,7 @@ const toggleSidebarSearch = () => {
 
 /* --- overlay-mode 侧栏层级提升 --- */
 .bohai-page.overlay-mode .sidebar-overlay {
-  z-index: 2147483648 !important; /* 高于 GlobalAiGlassOverlay 的 2147483646 */
+  z-index: 2147483648 !important; /* 高于 GlobalAiGlassOverlay 的 2147483656 */
 }
 
 .bohai-page.overlay-mode .sidebar {
@@ -360,7 +360,7 @@ const toggleSidebarSearch = () => {
 .sidebar {
   position: fixed !important;
   inset: 0 auto 0 0 !important;
-  z-index: 2147483650 !important; /* 高于 GlobalAiGlassOverlay 的 2147483646 */
+  z-index: 2147483650 !important; /* 高于 GlobalAiGlassOverlay 的 2147483656 */
 }
 
 .sidebar.open {
@@ -384,7 +384,7 @@ const toggleSidebarSearch = () => {
 .sidebar-overlay {
   position: fixed !important;
   inset: 0 !important;
-  z-index: 2147483648 !important; /* 高于 GlobalAiGlassOverlay 的 2147483646 */
+  z-index: 2147483648 !important; /* 高于 GlobalAiGlassOverlay 的 2147483656 */
   background: rgba(15, 23, 42, 0.32) !important;
   backdrop-filter: blur(4px) !important;
   -webkit-backdrop-filter: blur(4px) !important;

@@ -1,11 +1,12 @@
 .profile-tab {
-  padding-top: 80px;
+  --user-center-nav-offset: 0px;
+  padding-top: 0;
   padding-bottom: 100px;
 }
 
 .profile-page-content {
   flex: 1;
-  padding: 24px 20px;
+  padding: 0 20px 24px;
   max-width: 600px;
   margin: 0 auto;
   width: 100%;
@@ -81,7 +82,7 @@
 .profile-home-shell {
   width: min(100%, 980px);
   margin: 0 auto;
-  padding: 0 0 calc(var(--userspace-bottom-nav-offset) + 28px);
+  padding: 84px 0 calc(var(--userspace-bottom-nav-offset) + 28px);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -104,7 +105,7 @@
   position: relative;
   display: block;
   width: 100%;
-  height: 132px;
+  height: 96px;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -366,6 +367,144 @@
   background: var(--surface);
   box-shadow: var(--shadow-sm);
   animation: userspace-panel-in 320ms var(--ease-out) 50ms both;
+}
+
+.profile-service-panel {
+  overflow: hidden;
+  border: 1px solid var(--stroke);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  animation: userspace-panel-in 320ms var(--ease-out) 50ms both;
+}
+
+.profile-service-row {
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 16px;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.16s ease;
+}
+
+.profile-service-row:hover {
+  background: rgba(15, 23, 42, 0.035);
+}
+
+.profile-service-row:active {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.profile-service-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.profile-service-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.profile-service-icon.sm {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+
+.profile-service-icon.sm svg {
+  width: 14px;
+  height: 14px;
+}
+
+.profile-service-body {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-service-body strong {
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.profile-service-hint {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-service-meter {
+  width: 60px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.profile-service-meter span {
+  display: block;
+  height: 100%;
+  min-width: 5px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #14b8a6, #2563eb);
+  transition: width 280ms var(--ease-out);
+}
+
+.profile-service-divider {
+  height: 1px;
+  margin: 0 16px;
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.profile-service-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  padding: 4px 8px 12px;
+}
+
+.profile-service-grid-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 4px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  transition: background-color 0.16s ease;
+}
+
+.profile-service-grid-item:hover {
+  background: rgba(15, 23, 42, 0.05);
+}
+
+.profile-service-grid-item:active {
+  background: rgba(15, 23, 42, 0.09);
 }
 
 .profile-status-grid {
@@ -737,7 +876,7 @@
 .profile-edit-page-shell {
   width: min(100%, 720px);
   margin: 0 auto;
-  padding: 0 0 96px;
+  padding: 84px 0 96px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1007,6 +1146,18 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  animation: profile-skeleton-feed-in 280ms ease-out both;
+}
+
+@keyframes profile-skeleton-feed-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .profile-forum-skeleton-card {
@@ -1015,6 +1166,22 @@
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.84);
   box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+  animation: profile-skeleton-card-in 320ms ease-out both;
+}
+
+.profile-forum-skeleton-card:nth-child(1) { animation-delay: 40ms; }
+.profile-forum-skeleton-card:nth-child(2) { animation-delay: 80ms; }
+.profile-forum-skeleton-card:nth-child(3) { animation-delay: 120ms; }
+
+@keyframes profile-skeleton-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .profile-forum-skeleton-item {
@@ -1121,7 +1288,28 @@
   -webkit-column-break-inside: avoid;
   transform: none;
   transition: border-color 0.16s ease, box-shadow 0.16s ease;
+  animation: profile-post-card-in 260ms ease-out both;
 }
+
+@keyframes profile-post-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 帖子卡片逐个渐入 */
+.profile-post-card:nth-child(1) { animation-delay: 20ms; }
+.profile-post-card:nth-child(2) { animation-delay: 40ms; }
+.profile-post-card:nth-child(3) { animation-delay: 60ms; }
+.profile-post-card:nth-child(4) { animation-delay: 80ms; }
+.profile-post-card:nth-child(5) { animation-delay: 100ms; }
+.profile-post-card:nth-child(6) { animation-delay: 120ms; }
+.profile-post-card:nth-child(n+7) { animation-delay: 140ms; }
 
 .profile-post-card:hover {
   border-color: rgba(15, 23, 42, 0.12);
@@ -1373,6 +1561,10 @@
   cursor: pointer;
 }
 
+.user-space-page[data-theme="dark"] .stat-dot {
+  color: rgba(248, 250, 252, 0.32);
+}
+
 .user-space-page[data-theme="dark"] .profile-settings-btn {
   background: rgba(24, 24, 27, 0.82);
   color: #f8fafc;
@@ -1395,6 +1587,15 @@
 .user-space-page[data-theme="dark"] .profile-impression-card {
   background: rgba(24, 24, 27, 0.92);
   border-color: rgba(255, 255, 255, 0.08);
+}
+
+.user-space-page[data-theme="dark"] .profile-forum-skeleton-card {
+  background: rgba(24, 24, 27, 0.92);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.user-space-page[data-theme="dark"] .profile-forum-skeleton-item {
+  background: linear-gradient(90deg, rgba(55, 55, 60, 0.92) 25%, rgba(70, 70, 75, 0.92) 50%, rgba(55, 55, 60, 0.92) 75%);
 }
 
 .user-space-page[data-theme="dark"] .profile-post-cover.empty {
@@ -1453,7 +1654,7 @@
   width: 100%;
   max-width: 650px;
   margin: 0 auto;
-  padding: 0 0 60px;
+  padding: 84px 0 60px;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -1501,6 +1702,7 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
+  padding-top: 8px;
 }
 
 .profile-panel-fade-enter-active,

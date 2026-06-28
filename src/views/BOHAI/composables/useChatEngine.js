@@ -1732,11 +1732,11 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
           { role: 'user', content: finalPrompt }
         ],
         stream: true,
-        temperature: generationProfile.temperature + (hasSpeedOverride ? (thinkingSpeedDeltas.temperature || 0) : 0),
-        top_p: generationProfile.top_p + (hasSpeedOverride ? (thinkingSpeedDeltas.topP || 0) : 0),
+        temperature: Math.max(0, Math.min(2, generationProfile.temperature + (hasSpeedOverride ? (thinkingSpeedDeltas.temperature || 0) : 0))),
+        top_p: Math.max(0, Math.min(1, generationProfile.top_p + (hasSpeedOverride ? (thinkingSpeedDeltas.topP || 0) : 0))),
         frequency_penalty: generationProfile.frequency_penalty,
         max_tokens: hasSpeedOverride
-          ? Math.round((generationProfile.max_tokens || 4096) * (thinkingSpeedDeltas.maxTokensScale || 1))
+          ? Math.max(1, Math.round((generationProfile.max_tokens || 4096) * (thinkingSpeedDeltas.maxTokensScale || 1)))
           : generationProfile.max_tokens
       };
 

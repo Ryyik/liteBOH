@@ -26,6 +26,7 @@ export interface UserInfo {
   showcasePostIds: string[]
   lastActiveAt: string | null
   hideOnlineStatus: boolean
+  hideFollowData: boolean
 }
 
 export interface LoginResult {
@@ -93,7 +94,6 @@ export type NotificationType =
   | 'post_rejected'
   | 'post_report_limited'
   | 'comment_rejected'
-  | string  // 保留 string 以支持未来扩展
 
 export interface NotificationPayload {
   type: NotificationType

@@ -29,19 +29,26 @@ const ensureState = () => {
   return _state;
 };
 
-const open = (state, options, kind) => new Promise((resolve) => {
-  state.visible = true;
-  state.kind = kind;
-  state.title = options.title || (kind === 'prompt' ? '请输入' : '请确认');
-  state.message = options.message || '';
-  state.tone = options.tone || 'default';
-  state.confirmText = options.confirmText || '';
-  state.cancelText = options.cancelText || '';
-  state.tertiaryText = options.tertiaryText || '';
-  state.placeholder = options.placeholder || '';
-  state.defaultValue = options.defaultValue || '';
-  state.resolver = resolve;
-});
+const open = (state, options, kind) => {
+  // 互斥保护：如果弹窗已经打开，新请求直接 reject，避免覆盖 resolver 导致 Promise 永远挂起
+  if (state.visible) {
+    return Promise.reject(new Error('Dialog is already open'));
+  }
+
+  return new Promise((resolve) => {
+    state.visible = true;
+    state.kind = kind;
+    state.title = options.title || (kind === 'prompt' ? '请输入' : '请确认');
+    state.message = options.message || '';
+    state.tone = options.tone || 'default';
+    state.confirmText = options.confirmText || '';
+    state.cancelText = options.cancelText || '';
+    state.tertiaryText = options.tertiaryText || '';
+    state.placeholder = options.placeholder || '';
+    state.defaultValue = options.defaultValue || '';
+    state.resolver = resolve;
+  });
+};
 
 export const useConfirmDialog = () => {
   const state = ensureState();

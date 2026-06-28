@@ -538,14 +538,15 @@ export async function getProfilesPage({ page = 1, pageSize = 10, search = '', co
           birth_month,
           birth_day,
           last_active_at,
-          hide_online_status
+          hide_online_status,
+          hide_follow_data
         `, { count: safeCountMode })
         .order('last_active_at', { ascending: false, nullsFirst: false })
         .order('username', { ascending: true })
         .range(from, to);
 
       if (safeSearch) {
-        query = query.ilike('username', `%${safeSearch}%`);
+        query = query.ilike('username', `%${escapeLikePattern(safeSearch)}%`);
       }
 
       const { data, error, count } = await query;

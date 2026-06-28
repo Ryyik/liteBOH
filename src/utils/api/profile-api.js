@@ -306,7 +306,9 @@ export async function getProfileByUsername(username) {
         creator_platform_order,
         showcase_post_ids,
         last_active_at,
-        hide_online_status
+        hide_online_status,
+        hide_follow_data,
+        profile_background_url
       `)
       .eq('username', username)
       .single(),
@@ -371,6 +373,8 @@ export async function getPostsByUsername(username, userId = null, options = {}) 
     { username, userId, page: paging.page, pageSize: paging.pageSize, paging: paging.enabled, includeUnapprovedForAuthor },
     async () => {
       const safeUsername = String(username || '').trim();
+      // 清理 username 中的 Supabase 过滤器特殊字符
+      const filterSafeUsername = String(safeUsername).replace(/[,.\()']/g, '');
 
       const baseQuery = () => supabase
         .from('posts')
@@ -392,7 +396,7 @@ export async function getPostsByUsername(username, userId = null, options = {}) 
 
       // 同时按 author_id 和 author_username 匹配，确保不会遗漏只有其中之一的帖子。
       if (userId && safeUsername) {
-        let query = baseQuery().or(`author_id.eq.${userId},author_username.eq.${safeUsername}`);
+        let query = baseQuery().or(`author_id.eq.${userId},author_username.eq.${filterSafeUsername}`);
         if (!includeUnapprovedForAuthor) {
           query = query.or(CONTENT_STATUS_FILTER);
         }
@@ -457,6 +461,8 @@ export async function getCommentsByUsername(username, userId = null, options = {
     { username, userId, page: paging.page, pageSize: paging.pageSize, paging: paging.enabled },
     async () => {
       const safeUsername = String(username || '').trim();
+      // 清理 username 中的 Supabase 过滤器特殊字符
+      const filterSafeUsername = String(safeUsername).replace(/[,.\()']/g, '');
       const baseQuery = () => supabase
         .from('comments')
         .select(`
@@ -486,7 +492,7 @@ export async function getCommentsByUsername(username, userId = null, options = {
             status,
             post:posts(title, body, content, author_username)
           `)
-          .or(`author_id.eq.${userId},author_username.eq.${safeUsername}`)
+          .or(`author_id.eq.${userId},author_username.eq.${filterSafeUsername}`)
           .or(CONTENT_STATUS_FILTER)
           .order('created_at', { ascending: false });
 
@@ -640,7 +646,7 @@ export async function createShopOrderWithPoints(payload = {}) {
     return {
       ok: false,
       data: normalized,
-      error: normalizeDbError({ message: normalized.message || 'CREATE_ORDER_FAILED', code: normalized.message || 'CREATE_ORDER_FAILED' })
+      error: normalizeDbError({ message: normalized.message || 'CREATE_ORDER_FAILED', code: 'CREATE_ORDER_FAILED' })
     };
   }
 
@@ -661,4 +667,231 @@ export async function updateProfileBackground(userId, { url = '', publicId = '' 
     profile_background_url: url,
     profile_background_public_id: publicId
   });
+}
+
+// ─── 关注 / 粉丝功能 ─────────────────────────────────────────────────────
+
+export async function followUser(followerId, followingId) {
+  if (!followerId || !followingId) {
+    return { ok: false, data: null, error: normalizeDbError({ message: '参数错误', code: 'MISSING_PARAMS' }) };
+  }
+  if (followerId === followingId) {
+    return { ok: false, data: null, error: normalizeDbError({ message: '不能关注自己', code: 'SELF_FOLLOW' }) };
+  }
+
+  const { data, error } = await supabase
+    .from('user_follows')
+    .insert({ follower_id: followerId, following_id: followingId })
+    .select()
+    .single();
+
+  if (error) {
+    if (error.code === '23505') {
+      return { ok: false, data: null, error: normalizeDbError({ message: '已关注该用户', code: 'ALREADY_FOLLOWING' }) };
+    }
+    return { ok: false, data: null, error: normalizeDbError(error) };
+  }
+
+  invalidateByTags(['user_follows', `follows:user:${followingId}`]);
+
+  try {
+    await createNotification(followingId, followerId, 'follow');
+  } catch (err) {
+    logger.warn('profile-api', '关注通知发送失败(静默)', err);
+  }
+
+  return { ok: true, data, error: null };
+}
+
+export async function unfollowUser(followerId, followingId) {
+  if (!followerId || !followingId) {
+    return { ok: false, data: null, error: normalizeDbError({ message: '参数错误', code: 'MISSING_PARAMS' }) };
+  }
+
+  const { data, error } = await supabase
+    .from('user_follows')
+    .delete()
+    .eq('follower_id', followerId)
+    .eq('following_id', followingId)
+    .select()
+    .single();
+
+  if (error) {
+    return { ok: false, data: null, error: normalizeDbError(error) };
+  }
+
+  invalidateByTags(['user_follows', `follows:user:${followingId}`]);
+  return { ok: true, data, error: null };
+}
+
+export async function getFollowers(userId, options = {}) {
+  const paging = normalizePageArgs(options);
+  return executeRead(
+    'follows.getFollowers',
+    { userId, page: paging.page, pageSize: paging.pageSize, paging: paging.enabled },
+    async () => {
+      let query = supabase
+        .from('user_follows')
+        .select(`
+          follower_id,
+          created_at,
+          follower:follower_id(id, username, avatar_url, last_active_at, hide_online_status)
+        `)
+        .eq('following_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (paging.enabled) {
+        query = query.range(paging.from, paging.to);
+      }
+
+      const { data, error } = await query;
+      if (error) return { data: [], error };
+
+      const items = (data || []).map((row) => ({
+        id: row.follower?.id,
+        username: row.follower?.username,
+        avatar_url: row.follower?.avatar_url,
+        last_active_at: row.follower?.last_active_at,
+        hide_online_status: row.follower?.hide_online_status,
+        followed_at: row.created_at
+      }));
+
+      return { data: items, error: null };
+    },
+    { ttlMs: 15000, tags: ['user_follows', `follows:user:${userId}`], timeoutMs: 8000, retry: 1 }
+  );
+}
+
+export async function getFollowing(userId, options = {}) {
+  const paging = normalizePageArgs(options);
+  return executeRead(
+    'follows.getFollowing',
+    { userId, page: paging.page, pageSize: paging.pageSize, paging: paging.enabled },
+    async () => {
+      let query = supabase
+        .from('user_follows')
+        .select(`
+          following_id,
+          created_at,
+          following:following_id(id, username, avatar_url, last_active_at, hide_online_status)
+        `)
+        .eq('follower_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (paging.enabled) {
+        query = query.range(paging.from, paging.to);
+      }
+
+      const { data, error } = await query;
+      if (error) return { data: [], error };
+
+      const items = (data || []).map((row) => ({
+        id: row.following?.id,
+        username: row.following?.username,
+        avatar_url: row.following?.avatar_url,
+        last_active_at: row.following?.last_active_at,
+        hide_online_status: row.following?.hide_online_status,
+        followed_at: row.created_at
+      }));
+
+      return { data: items, error: null };
+    },
+    { ttlMs: 15000, tags: ['user_follows', `follows:user:${userId}`], timeoutMs: 8000, retry: 1 }
+  );
+}
+
+export async function isFollowing(followerId, followingId) {
+  if (!followerId || !followingId) return false;
+
+  return executeRead(
+    'follows.isFollowing',
+    { followerId, followingId },
+    async () => {
+      const { data, error } = await supabase
+        .from('user_follows')
+        .select('id')
+        .eq('follower_id', followerId)
+        .eq('following_id', followingId)
+        .maybeSingle();
+
+      if (error) return { data: false, error };
+      return { data: Boolean(data), error: null };
+    },
+    { ttlMs: 10000, tags: ['user_follows'], timeoutMs: 5000, retry: 0 }
+  );
+}
+
+export async function getFollowCounts(userId) {
+  return executeRead(
+    'follows.getFollowCounts',
+    { userId },
+    async () => {
+      const [followersResult, followingResult] = await Promise.all([
+        supabase
+          .from('user_follows')
+          .select('id', { count: 'exact', head: true })
+          .eq('following_id', userId),
+        supabase
+          .from('user_follows')
+          .select('id', { count: 'exact', head: true })
+          .eq('follower_id', userId)
+      ]);
+
+      return {
+        data: {
+          followersCount: followersResult.count ?? 0,
+          followingCount: followingResult.count ?? 0
+        },
+        error: followersResult.error || followingResult.error
+      };
+    },
+    { ttlMs: 15000, tags: ['user_follows', `follows:user:${userId}`], timeoutMs: 5000, retry: 1 }
+  );
+}
+
+export async function getFollowCountsBatch(userIds) {
+  const ids = Array.isArray(userIds) ? userIds.filter(Boolean) : [];
+  if (!ids.length) return { ok: true, data: {} };
+
+  return executeRead(
+    'follows.getFollowCountsBatch',
+    { ids: ids.join(',') },
+    async () => {
+      const [followersResult, followingResult] = await Promise.all([
+        supabase
+          .from('user_follows')
+          .select('following_id')
+          .in('following_id', ids),
+        supabase
+          .from('user_follows')
+          .select('follower_id')
+          .in('follower_id', ids)
+      ]);
+
+      if (followersResult.error || followingResult.error) {
+        return { data: {}, error: followersResult.error || followingResult.error };
+      }
+
+      const followersMap = {};
+      for (const row of (followersResult.data || [])) {
+        followersMap[row.following_id] = (followersMap[row.following_id] || 0) + 1;
+      }
+
+      const followingMap = {};
+      for (const row of (followingResult.data || [])) {
+        followingMap[row.follower_id] = (followingMap[row.follower_id] || 0) + 1;
+      }
+
+      const result = {};
+      for (const id of ids) {
+        result[id] = {
+          followersCount: followersMap[id] || 0,
+          followingCount: followingMap[id] || 0
+        };
+      }
+
+      return { data: result, error: null };
+    },
+    { ttlMs: 15000, tags: ['user_follows'], timeoutMs: 8000, retry: 1 }
+  );
 }

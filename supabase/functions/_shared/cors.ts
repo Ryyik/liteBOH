@@ -1,5 +1,8 @@
 const ALLOWED_ORIGINS = [
   'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  'http://localhost:5176',
   'http://localhost:4173',
   'https://bohsite.netlify.app',
   'https://bohlite.netlify.app',
@@ -10,6 +13,10 @@ const ALLOWED_ORIGINS = [
 
 const isOriginAllowed = (origin: string | null): boolean => {
   if (!origin) return false;
+  // 允许所有 localhost 端口
+  if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+    return true;
+  }
   return ALLOWED_ORIGINS.some((allowed) => origin === allowed);
 };
 

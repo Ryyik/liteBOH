@@ -153,9 +153,13 @@ export const useAuthStore = defineStore('auth', () => {
     creatorPlatformOrder: [],
     showcasePostIds: [],
     lastActiveAt: null,
-    hideOnlineStatus: false
+    hideOnlineStatus: false,
+    hideFollowData: false
   });
-  const isAdmin = computed(() => String(userInfo.role || '').trim() === 'admin');
+  const isAdmin = computed(() => {
+    if (!isInitialized.value) return false;
+    return String(userInfo.role || '').trim() === 'admin';
+  });
   const AUTH_TIMEOUT_MS = 10000;
   const PROFILE_REFRESH_TTL_MS = 60000;
 
@@ -179,7 +183,8 @@ const PROFILE_SELECT_COLUMNS = `
   creator_platform_order,
   showcase_post_ids,
   last_active_at,
-  hide_online_status
+  hide_online_status,
+  hide_follow_data
 `;
   let authStateSubscription: any = null;
   let sessionHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
@@ -402,6 +407,7 @@ const PROFILE_SELECT_COLUMNS = `
     userInfo.showcasePostIds = normalizeShowcasePostIds(data.showcase_post_ids);
     userInfo.lastActiveAt = (data.last_active_at as string) || null;
     userInfo.hideOnlineStatus = Boolean(data.hide_online_status);
+    userInfo.hideFollowData = Boolean(data.hide_follow_data);
   };
 
   const refreshCurrentUserProfile = async ({ force = true } = {}) => {
@@ -457,7 +463,8 @@ const PROFILE_SELECT_COLUMNS = `
       creatorPlatformOrder: [],
       showcasePostIds: [],
       lastActiveAt: null,
-      hideOnlineStatus: false
+      hideOnlineStatus: false,
+      hideFollowData: false
     });
   };
 
@@ -618,8 +625,7 @@ const PROFILE_SELECT_COLUMNS = `
     }
 
     const authUser = data?.user || data?.session?.user || null;
-    await updateLocalState(authUser, { skipProfileFetch: true });
-    void updateLocalState(authUser, { force: true });
+    await updateLocalState(authUser, { force: true });
 
     return { success: true, message: '登录成功' };
   };
@@ -806,6 +812,9 @@ const PROFILE_SELECT_COLUMNS = `
       if (updates.showcase_post_ids !== undefined) {
         dbUpdates.showcase_post_ids = normalizeShowcasePostIds(updates.showcase_post_ids);
       }
+      if (updates.hide_follow_data !== undefined) {
+        dbUpdates.hide_follow_data = Boolean(updates.hide_follow_data);
+      }
 
       const { error } = await supabase
         .from('profiles')
@@ -869,6 +878,9 @@ const PROFILE_SELECT_COLUMNS = `
         }
         if (updates.showcase_post_ids !== undefined) {
           userInfo.showcasePostIds = normalizeShowcasePostIds(updates.showcase_post_ids);
+        }
+        if (updates.hide_follow_data !== undefined) {
+          userInfo.hideFollowData = Boolean(updates.hide_follow_data);
         }
       }
 

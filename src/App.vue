@@ -186,10 +186,18 @@ watch(isInitialized, (newVal) => {
   }
 });
 
-// 全局导航栏：隐藏在桌面嵌入模式或路由标记隐藏时
-const showGlobalNavbar = computed(() =>
-  route.query?.embed !== 'desktop' && !route.meta?.hideNavbar
-);
+// 全局导航栏：隐藏在桌面嵌入模式、路由标记隐藏、或个人资料子页面时
+const showGlobalNavbar = computed(() => {
+  if (route.query?.embed === 'desktop') return false;
+  if (route.meta?.hideNavbar) return false;
+  if (
+    route.path === '/user-space' &&
+    route.query?.tab === 'profile' &&
+    route.query?.view &&
+    route.query.view !== 'home'
+  ) return false;
+  return true;
+});
 </script>
 
 <template>

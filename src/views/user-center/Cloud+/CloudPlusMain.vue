@@ -12,7 +12,8 @@
               <p>{{ cloudPageHero.subtitle }}</p>
             </div>
           </div>
-          <button v-if="cloudTab === 'content'" class="refresh-btn" type="button" :disabled="isLoading" @click="loadEntries">
+          <button v-if="cloudTab === 'content'" class="refresh-btn" type="button" :disabled="isLoading"
+            @click="loadEntries">
             <span v-if="showRefreshIndicator" class="refresh-btn-dot" aria-hidden="true"></span>
             <span>{{ showRefreshIndicator ? '同步中' : '刷新内容' }}</span>
           </button>
@@ -77,13 +78,14 @@
                   <button type="button" class="primary-btn share-action-btn"
                     :class="{ 'is-active-share': myShareChannel?.isActive }"
                     :disabled="isSavingShareChannel || isLoadingMyShareChannel" @click="toggleMyShareChannel">
-                    {{ isSavingShareChannel ? '处理中...' : (myShareChannel?.isActive ? `关闭${activeShareChannelLabel}` : `开启${activeShareChannelLabel}`) }}
+                    {{ isSavingShareChannel ? '处理中...' : (myShareChannel?.isActive ? `关闭${activeShareChannelLabel}` :
+                      `开启${activeShareChannelLabel}`) }}
                   </button>
                   <div class="share-description-control">
                     <div class="share-token-label">令牌备注</div>
                     <textarea v-model="shareDescriptionDraft" class="share-description-input" maxlength="160" rows="3"
-                      placeholder="给这枚令牌写一句备注。"
-                      :disabled="isSavingShareChannel" @blur="saveShareDescription"></textarea>
+                      placeholder="给这枚令牌写一句备注。" :disabled="isSavingShareChannel"
+                      @blur="saveShareDescription"></textarea>
                     <div class="share-description-footer">
                       <span>{{ shareDescriptionDraft.length }}/160</span>
                       <button type="button" class="secondary-btn share-description-save-btn"
@@ -111,7 +113,8 @@
                     <div class="share-viewers-panel">
                       <div class="share-token-label">令牌访问记录</div>
                       <div v-if="isLoadingShareViewers" class="share-viewers-skeleton" aria-hidden="true">
-                        <div v-for="item in 3" :key="`settings-share-viewer-loading-${item}`" class="share-viewer-row skeleton">
+                        <div v-for="item in 3" :key="`settings-share-viewer-loading-${item}`"
+                          class="share-viewer-row skeleton">
                           <div class="skeleton-block share-viewer-avatar"></div>
                           <div class="share-viewer-main">
                             <div class="skeleton-block share-viewer-name-skeleton"></div>
@@ -125,8 +128,8 @@
                       </p>
                       <div v-else class="share-viewer-list">
                         <div v-for="viewer in shareViewers" :key="viewer.viewerUserId" class="share-viewer-row">
-                          <img v-if="viewer.viewerAvatarUrl" :src="viewer.viewerAvatarUrl" :alt="viewer.viewerUsername || '访客头像'"
-                            class="share-viewer-avatar" loading="lazy">
+                          <img v-if="viewer.viewerAvatarUrl" :src="viewer.viewerAvatarUrl"
+                            :alt="viewer.viewerUsername || '访客头像'" class="share-viewer-avatar" loading="lazy">
                           <span v-else class="share-viewer-avatar placeholder">
                             {{ (viewer.viewerUsername || 'U').slice(0, 1).toUpperCase() }}
                           </span>
@@ -214,13 +217,14 @@
                 <p>对方发布 Cloud+ 后，这里会显示 TA 的内容。</p>
               </div>
 
-              <div v-else class="gallery-grid">
-                <article v-for="entry in sharedEntries" :key="`settings-shared-${entry.id}`" class="cloud-card"
-                  :class="[`type-${entry.entryType}`, { featured: entry.coverImageUrl }]" @click="openEntry(entry, 'shared')">
+              <TransitionGroup v-else name="list-transition" tag="div" class="gallery-grid" appear>
+                <article v-for="(entry, index) in sharedEntries" :key="`settings-shared-${entry.id}`" class="cloud-card"
+                  :class="[`type-${entry.entryType}`, { featured: entry.coverImageUrl }]"
+                  :style="{ '--item-index': index }" @click="openEntry(entry, 'shared')">
                   <div v-if="entry.coverImageUrl" class="card-visual">
                     <img :src="getCloudImageDisplayUrl(entry.coverImageUrl)" :alt="entry.title || 'Cloud cover'"
-                      class="card-cover cloud-loading-image" loading="eager" decoding="async" referrerpolicy="no-referrer"
-                      @load="handleCloudImageLoaded" @error="retryCloudImageLoad">
+                      class="card-cover cloud-loading-image" loading="eager" decoding="async"
+                      referrerpolicy="no-referrer" @load="handleCloudImageLoaded" @error="retryCloudImageLoad">
                     <div class="card-overlay">
                       <span class="entry-badge">{{ entryTypeLabel(entry.entryType) }}</span>
                     </div>
@@ -236,254 +240,259 @@
                     </div>
                   </div>
                 </article>
-              </div>
+              </TransitionGroup>
             </section>
           </section>
 
           <template v-else>
-          <section v-if="cloudModeBanner" class="cloud-mode-banner">
-            <div>
-              <span class="section-kicker">{{ cloudModeBanner.kicker }}</span>
-              <h3>{{ cloudModeBanner.title }}</h3>
-              <p>{{ cloudModeBanner.subtitle }}</p>
-            </div>
-            <button v-if="cloudModeBanner.action" type="button" class="secondary-btn cloud-mode-action"
-              @click="cloudModeBanner.action">
-              {{ cloudModeBanner.actionText }}
-            </button>
-          </section>
-
-          <section class="composer-card">
-            <div class="composer-topline">
+            <section v-if="cloudModeBanner" class="cloud-mode-banner">
               <div>
-                <span class="section-kicker">Create Entry</span>
-                <h3>{{ composerTitle }}</h3>
-                <p class="composer-intro">{{ composerIntro }}</p>
+                <span class="section-kicker">{{ cloudModeBanner.kicker }}</span>
+                <h3>{{ cloudModeBanner.title }}</h3>
+                <p>{{ cloudModeBanner.subtitle }}</p>
               </div>
-              <div class="composer-meta">{{ todayDisplay }}</div>
-            </div>
-
-            <div class="editor-shell">
-              <div class="editor-ribbon">
-                <span class="editor-chip strong">Cloud+ Draft</span>
-                <span class="editor-chip">Memo Layout</span>
-                <span class="editor-chip">{{ uploadedImages.length }} 张图片</span>
-                <span class="editor-chip">{{ draftText.trim().length }} 字符</span>
-              </div>
-
-              <div class="editor-page">
-                <div class="editor-page-head">
-                  <div class="editor-page-meta">
-                    <span>Personal Memo</span>
-                    <span>{{ todayDisplay }}</span>
-                  </div>
-                  <div class="editor-page-status">
-                    {{ draftMood ? `${selectedMoodMeta?.icon || ''} ${draftMood}` : '未标注情绪' }}
-                  </div>
-                </div>
-
-                <input v-model.trim="draftTitle" type="text" class="title-input" maxlength="120"
-                  placeholder="标题">
-
-                <div class="editor-divider"></div>
-
-                <textarea v-model="draftText" class="text-input" rows="8"
-                  placeholder="记录今天的心情..."
-                  @keydown.meta.enter.prevent="publishEntry" @keydown.ctrl.enter.prevent="publishEntry" />
-              </div>
-
-              <div class="composer-toolbar">
-                <div class="mood-row">
-                  <button type="button" class="mood-pill clear" :class="{ active: !draftMood }" @click="draftMood = ''">
-                    不标注
-                  </button>
-                  <button v-for="mood in moodChoices" :key="mood.value" type="button" class="mood-pill"
-                    :class="{ active: draftMood === mood.value }" @click="draftMood = mood.value">
-                    <span>{{ mood.icon }}</span>
-                    <span>{{ mood.value }}</span>
-                  </button>
-                </div>
-
-                <div class="toolbar-actions">
-                  <input ref="imageInputRef" type="file" class="hidden-file-input"
-                    accept="image/png,image/jpeg,image/webp,image/gif" multiple @change="handleImageSelection">
-                  <button type="button" class="secondary-btn" :disabled="isUploadingImages" @click="openImagePicker">
-                    <span v-if="isUploadingImages" class="btn-spinner"></span>
-                    {{ isUploadingImages ? '上传中...' : '添加图片' }}
-                  </button>
-                  <button type="button" class="primary-btn"
-                    :disabled="isPublishing || (!draftText.trim() && uploadedImages.length === 0)" @click="publishEntry">
-                    {{ isPublishing ? '发布中...' : publishButtonLabel }}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div v-if="uploadedImages.length" class="upload-strip">
-              <div v-for="image in uploadedImages" :key="image.url" class="upload-card">
-                <img :src="getCloudImageDisplayUrl(image.url)" :alt="image.alt || '上传图片'" class="upload-thumb" loading="lazy">
-                <button type="button" class="remove-image-btn" @click="removeDraftImage(image.url)">×</button>
-              </div>
-            </div>
-
-            <p class="composer-hint">
-              {{ draftMood ? `当前心情：${selectedMoodMeta?.icon || ''}${draftMood}` : '可以只写文字，也可以只上传图片。' }}
-              <span class="composer-hint-sep">/</span>
-              Cmd/Ctrl + Enter 可直接发布
-            </p>
-          </section>
-
-          <div v-if="noticeText" class="notice-bar">{{ noticeText }}</div>
-
-          <section ref="albumSectionRef" class="gallery-section album-gallery-section">
-            <div class="gallery-stats-bar">
-              <div class="stats-row">
-                <div class="stat-box">
-                  <span class="stat-value">{{ activeGalleryEntries.length }}</span>
-                  <span class="stat-name">总条目</span>
-                </div>
-                <div class="stat-box">
-                  <span class="stat-value">{{ imageCount }}</span>
-                  <span class="stat-name">纯图片</span>
-                </div>
-                <div class="stat-box">
-                  <span class="stat-value">{{ mixedCount }}</span>
-                  <span class="stat-name">图文</span>
-                </div>
-                <div class="stat-box">
-                  <span class="stat-value">{{ currentMonthCount }}</span>
-                  <span class="stat-name">本月</span>
-                </div>
-              </div>
-              <div class="filter-row">
-                <button v-for="option in filterOptions" :key="option.value" type="button" class="filter-chip"
-                  :class="{ active: currentFilter === option.value }" @click="currentFilter = option.value">
-                  {{ option.label }}
-                  <span class="chip-count">{{ getFilterCount(option.value) }}</span>
-                </button>
-              </div>
-            </div>
-
-            <div class="section-heading">
-              <div>
-                <span class="section-kicker">Your Album</span>
-                <h3>{{ currentFilterLabel }}</h3>
-              </div>
-              <p>{{ visibleFilteredEntries.length }} / {{ filteredEntries.length }} 条内容</p>
-            </div>
-
-            <div class="gallery-toolbar">
-              <label class="search-field" for="cloud-search">
-                <Search class="search-icon" :size="17" :stroke-width="1.8" aria-hidden="true" />
-                <input id="cloud-search" v-model.trim="searchQuery" type="search" placeholder="搜索标题、文字、心情或日期">
-              </label>
-
-              <div class="date-range">
-                <label class="date-field">
-                  <span>开始</span>
-                  <input v-model="dateFrom" type="date">
-                </label>
-                <label class="date-field">
-                  <span>结束</span>
-                  <input v-model="dateTo" type="date">
-                </label>
-              </div>
-
-              <button v-if="hasActiveFilters" type="button" class="toolbar-reset-btn" @click="resetGalleryFilters">
-                清除筛选
+              <button v-if="cloudModeBanner.action" type="button" class="secondary-btn cloud-mode-action"
+                @click="cloudModeBanner.action">
+                {{ cloudModeBanner.actionText }}
               </button>
-            </div>
+            </section>
 
-            <div v-if="entriesLoadError && entries.length > 0" class="gallery-inline-feedback warning">
-              <span>{{ entriesLoadError }}</span>
-              <button type="button" class="ghost-link feedback-action" @click="loadEntries">重新加载</button>
-            </div>
-
-            <div v-else-if="isShowingCachedEntries && entries.length > 0" class="gallery-inline-feedback">
-              <span>正在显示最近一次成功同步的 Cloud+ 内容，后台会继续尝试刷新。</span>
-              <button type="button" class="ghost-link feedback-action" @click="loadEntries">立即刷新</button>
-            </div>
-
-            <div v-if="isInitialLoading" class="gallery-grid skeleton-grid" aria-hidden="true">
-              <article v-for="item in skeletonCards" :key="item.id" class="cloud-card skeleton-card" :class="item.variant">
-                <div class="skeleton-block skeleton-visual"></div>
-                <div class="card-body skeleton-body">
-                  <div class="skeleton-block skeleton-date"></div>
-                  <div class="skeleton-block skeleton-title"></div>
-                  <div class="skeleton-block skeleton-title short"></div>
-                  <div class="skeleton-block skeleton-text"></div>
-                  <div class="skeleton-block skeleton-text short"></div>
-                  <div class="skeleton-block skeleton-footer"></div>
+            <section class="composer-card">
+              <div class="composer-topline">
+                <div>
+                  <span class="section-kicker">Create Entry</span>
+                  <h3>{{ composerTitle }}</h3>
+                  <p class="composer-intro">{{ composerIntro }}</p>
                 </div>
-              </article>
-            </div>
-            <div v-else-if="hasEntriesLoadFailure" class="empty-state loading-error">
-              <Cloud class="empty-icon" :size="40" :stroke-width="1.6" aria-hidden="true" />
-              <h4>Cloud+ 暂时没有连上</h4>
-              <p>{{ entriesLoadError }}</p>
-              <button type="button" class="primary-btn" @click="loadEntries">重新加载</button>
-            </div>
-            <div v-else-if="filteredEntries.length === 0 && activeGalleryEntries.length === 0" class="empty-state">
-              <Cloud class="empty-icon" :size="40" :stroke-width="1.6" aria-hidden="true" />
-              <h4>这里还空着</h4>
-              <p>发布第一条内容后，它会像相册卡片一样出现在这里。</p>
-            </div>
-            <div v-else-if="filteredEntries.length === 0" class="empty-state filter-empty-state">
-              <Search class="empty-icon" :size="38" :stroke-width="1.7" aria-hidden="true" />
-              <h4>没有匹配到结果</h4>
-              <p>试试更换关键词、放宽日期范围，或者清除当前筛选。</p>
-              <button type="button" class="secondary-btn" @click="resetGalleryFilters">清除筛选</button>
-            </div>
+                <div class="composer-meta">{{ todayDisplay }}</div>
+              </div>
 
-            <div v-else class="album-month-list">
-              <section v-for="group in groupedVisibleEntries" :key="group.key" class="album-month-group">
-                <div class="album-month-heading">
-                  <h4>{{ group.label }}</h4>
-                  <span>{{ group.entries.length }} 条</span>
+              <div class="editor-shell">
+                <div class="editor-ribbon">
+                  <span class="editor-chip strong">Cloud+ Draft</span>
+                  <span class="editor-chip">Memo Layout</span>
+                  <span class="editor-chip">{{ uploadedImages.length }} 张图片</span>
+                  <span class="editor-chip">{{ draftText.trim().length }} 字符</span>
                 </div>
 
-                <div class="gallery-grid">
-                  <article v-for="entry in group.entries" :key="entry.id" class="cloud-card"
-                    :class="[`type-${entry.entryType}`, { featured: entry.coverImageUrl }]" @click="openEntry(entry)">
-                    <div v-if="entry.coverImageUrl" class="card-visual">
-                      <img :src="getCloudImageDisplayUrl(entry.coverImageUrl)" :alt="entry.title || 'Cloud cover'"
-                        class="card-cover cloud-loading-image" loading="eager" decoding="async" referrerpolicy="no-referrer"
-                        @load="handleCloudImageLoaded" @error="retryCloudImageLoad">
-                      <div class="card-overlay">
-                        <span class="entry-badge">{{ entryTypeLabel(entry.entryType) }}</span>
-                        <span v-if="entry.mood" class="mood-badge">
-                          {{ resolveMoodMeta(entry.mood)?.icon || '•' }} {{ entry.mood }}
-                        </span>
-                      </div>
+                <div class="editor-page">
+                  <div class="editor-page-head">
+                    <div class="editor-page-meta">
+                      <span>Personal Memo</span>
+                      <span>{{ todayDisplay }}</span>
                     </div>
-
-                    <div class="card-body">
-                      <div class="card-date">{{ formatEntryDate(entry.entryDate, entry.updatedAt) }}</div>
-                      <h4 class="card-title">{{ entry.title || defaultTitle(entry) }}</h4>
-                      <p class="card-text">{{ entry.previewText || '这条内容里暂时没有文字预览。' }}</p>
-                      <div class="card-footer">
-                        <span class="card-meta">
-                          <span v-if="entry.mood" class="card-mood">{{ resolveMoodMeta(entry.mood)?.icon || '•' }} {{ entry.mood }}</span>
-                          <span>{{ blockSummary(entry) }}</span>
-                        </span>
-                        <button type="button" class="ghost-link">打开</button>
-                      </div>
+                    <div class="editor-page-status">
+                      {{ draftMood ? `${selectedMoodMeta?.icon || ''} ${draftMood}` : '未标注情绪' }}
                     </div>
-                  </article>
-                </div>
-              </section>
+                  </div>
 
-              <div class="album-flow-actions">
-                <button v-if="canLoadMoreEntries" type="button" class="secondary-btn album-load-more-btn" @click="loadMoreGalleryEntries">
-                  加载更多
-                </button>
-                <button v-if="visibleFilteredEntries.length > GALLERY_INITIAL_LIMIT" type="button" class="ghost-link album-top-btn"
-                  @click="scrollAlbumToTop">
-                  回到顶部
+                  <input v-model.trim="draftTitle" type="text" class="title-input" maxlength="120" placeholder="标题">
+
+                  <div class="editor-divider"></div>
+
+                  <textarea v-model="draftText" class="text-input" rows="8" placeholder="记录今天的心情..."
+                    @keydown.meta.enter.prevent="publishEntry" @keydown.ctrl.enter.prevent="publishEntry" />
+                </div>
+
+                <div class="composer-toolbar">
+                  <div class="mood-row">
+                    <button type="button" class="mood-pill clear" :class="{ active: !draftMood }"
+                      @click="draftMood = ''">
+                      不标注
+                    </button>
+                    <button v-for="mood in moodChoices" :key="mood.value" type="button" class="mood-pill"
+                      :class="{ active: draftMood === mood.value }" @click="draftMood = mood.value">
+                      <span>{{ mood.icon }}</span>
+                      <span>{{ mood.value }}</span>
+                    </button>
+                  </div>
+
+                  <div class="toolbar-actions">
+                    <input ref="imageInputRef" type="file" class="hidden-file-input"
+                      accept="image/png,image/jpeg,image/webp,image/gif" multiple @change="handleImageSelection">
+                    <button type="button" class="secondary-btn" :disabled="isUploadingImages" @click="openImagePicker">
+                      <span v-if="isUploadingImages" class="btn-spinner"></span>
+                      {{ isUploadingImages ? '上传中...' : '添加图片' }}
+                    </button>
+                    <button type="button" class="primary-btn"
+                      :disabled="isPublishing || (!draftText.trim() && uploadedImages.length === 0)"
+                      @click="publishEntry">
+                      {{ isPublishing ? '发布中...' : publishButtonLabel }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="uploadedImages.length" class="upload-strip">
+                <div v-for="image in uploadedImages" :key="image.url" class="upload-card">
+                  <img :src="getCloudImageDisplayUrl(image.url)" :alt="image.alt || '上传图片'" class="upload-thumb"
+                    loading="lazy">
+                  <button type="button" class="remove-image-btn" @click="removeDraftImage(image.url)">×</button>
+                </div>
+              </div>
+
+              <p class="composer-hint">
+                {{ draftMood ? `当前心情：${selectedMoodMeta?.icon || ''}${draftMood}` : '可以只写文字，也可以只上传图片。' }}
+                <span class="composer-hint-sep">/</span>
+                Cmd/Ctrl + Enter 可直接发布
+              </p>
+            </section>
+
+            <div v-if="noticeText" class="notice-bar">{{ noticeText }}</div>
+
+            <section ref="albumSectionRef" class="gallery-section album-gallery-section">
+              <div class="gallery-stats-bar">
+                <div class="stats-row">
+                  <div class="stat-box">
+                    <span class="stat-value">{{ activeGalleryEntries.length }}</span>
+                    <span class="stat-name">总条目</span>
+                  </div>
+                  <div class="stat-box">
+                    <span class="stat-value">{{ imageCount }}</span>
+                    <span class="stat-name">纯图片</span>
+                  </div>
+                  <div class="stat-box">
+                    <span class="stat-value">{{ mixedCount }}</span>
+                    <span class="stat-name">图文</span>
+                  </div>
+                  <div class="stat-box">
+                    <span class="stat-value">{{ currentMonthCount }}</span>
+                    <span class="stat-name">本月</span>
+                  </div>
+                </div>
+                <div class="filter-row">
+                  <button v-for="option in filterOptions" :key="option.value" type="button" class="filter-chip"
+                    :class="{ active: currentFilter === option.value }" @click="currentFilter = option.value">
+                    {{ option.label }}
+                    <span class="chip-count">{{ getFilterCount(option.value) }}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="section-heading">
+                <div>
+                  <span class="section-kicker">Your Album</span>
+                  <h3>{{ currentFilterLabel }}</h3>
+                </div>
+                <p>{{ visibleFilteredEntries.length }} / {{ filteredEntries.length }} 条内容</p>
+              </div>
+
+              <div class="gallery-toolbar">
+                <label class="search-field" for="cloud-search">
+                  <Search class="search-icon" :size="17" :stroke-width="1.8" aria-hidden="true" />
+                  <input id="cloud-search" v-model.trim="searchQuery" type="search" placeholder="搜索标题、文字、心情或日期">
+                </label>
+
+                <div class="date-range">
+                  <label class="date-field">
+                    <span>开始</span>
+                    <input v-model="dateFrom" type="date">
+                  </label>
+                  <label class="date-field">
+                    <span>结束</span>
+                    <input v-model="dateTo" type="date">
+                  </label>
+                </div>
+
+                <button v-if="hasActiveFilters" type="button" class="toolbar-reset-btn" @click="resetGalleryFilters">
+                  清除筛选
                 </button>
               </div>
-            </div>
-          </section>
+
+              <div v-if="entriesLoadError && entries.length > 0" class="gallery-inline-feedback warning">
+                <span>{{ entriesLoadError }}</span>
+                <button type="button" class="ghost-link feedback-action" @click="loadEntries">重新加载</button>
+              </div>
+
+              <div v-else-if="isShowingCachedEntries && entries.length > 0" class="gallery-inline-feedback">
+                <span>正在显示最近一次成功同步的 Cloud+ 内容，后台会继续尝试刷新。</span>
+                <button type="button" class="ghost-link feedback-action" @click="loadEntries">立即刷新</button>
+              </div>
+
+              <div v-if="isInitialLoading" class="gallery-grid skeleton-grid" aria-hidden="true">
+                <article v-for="item in skeletonCards" :key="item.id" class="cloud-card skeleton-card"
+                  :class="item.variant">
+                  <div class="skeleton-block skeleton-visual"></div>
+                  <div class="card-body skeleton-body">
+                    <div class="skeleton-block skeleton-date"></div>
+                    <div class="skeleton-block skeleton-title"></div>
+                    <div class="skeleton-block skeleton-title short"></div>
+                    <div class="skeleton-block skeleton-text"></div>
+                    <div class="skeleton-block skeleton-text short"></div>
+                    <div class="skeleton-block skeleton-footer"></div>
+                  </div>
+                </article>
+              </div>
+              <div v-else-if="hasEntriesLoadFailure" class="empty-state loading-error">
+                <Cloud class="empty-icon" :size="40" :stroke-width="1.6" aria-hidden="true" />
+                <h4>Cloud+ 暂时没有连上</h4>
+                <p>{{ entriesLoadError }}</p>
+                <button type="button" class="primary-btn" @click="loadEntries">重新加载</button>
+              </div>
+              <div v-else-if="filteredEntries.length === 0 && activeGalleryEntries.length === 0" class="empty-state">
+                <Cloud class="empty-icon" :size="40" :stroke-width="1.6" aria-hidden="true" />
+                <h4>这里还空着</h4>
+                <p>发布第一条内容后，它会像相册卡片一样出现在这里。</p>
+              </div>
+              <div v-else-if="filteredEntries.length === 0" class="empty-state filter-empty-state">
+                <Search class="empty-icon" :size="38" :stroke-width="1.7" aria-hidden="true" />
+                <h4>没有匹配到结果</h4>
+                <p>试试更换关键词、放宽日期范围，或者清除当前筛选。</p>
+                <button type="button" class="secondary-btn" @click="resetGalleryFilters">清除筛选</button>
+              </div>
+
+              <div v-else class="album-month-list">
+                <section v-for="group in groupedVisibleEntries" :key="group.key" class="album-month-group">
+                  <div class="album-month-heading">
+                    <h4>{{ group.label }}</h4>
+                    <span>{{ group.entries.length }} 条</span>
+                  </div>
+
+                  <TransitionGroup name="list-transition" tag="div" class="gallery-grid" appear>
+                    <article v-for="(entry, index) in group.entries" :key="entry.id" class="cloud-card"
+                      :class="[`type-${entry.entryType}`, { featured: entry.coverImageUrl }]"
+                      :style="{ '--item-index': index }" @click="openEntry(entry)">
+                      <div v-if="entry.coverImageUrl" class="card-visual">
+                        <img :src="getCloudImageDisplayUrl(entry.coverImageUrl)" :alt="entry.title || 'Cloud cover'"
+                          class="card-cover cloud-loading-image" loading="eager" decoding="async"
+                          referrerpolicy="no-referrer" @load="handleCloudImageLoaded" @error="retryCloudImageLoad">
+                        <div class="card-overlay">
+                          <span class="entry-badge">{{ entryTypeLabel(entry.entryType) }}</span>
+                          <span v-if="entry.mood" class="mood-badge">
+                            {{ resolveMoodMeta(entry.mood)?.icon || '•' }} {{ entry.mood }}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div class="card-body">
+                        <div class="card-date">{{ formatEntryDate(entry.entryDate, entry.updatedAt) }}</div>
+                        <h4 class="card-title">{{ entry.title || defaultTitle(entry) }}</h4>
+                        <p class="card-text">{{ entry.previewText || '这条内容里暂时没有文字预览。' }}</p>
+                        <div class="card-footer">
+                          <span class="card-meta">
+                            <span v-if="entry.mood" class="card-mood">{{ resolveMoodMeta(entry.mood)?.icon || '•' }} {{
+                              entry.mood }}</span>
+                            <span>{{ blockSummary(entry) }}</span>
+                          </span>
+                          <button type="button" class="ghost-link">打开</button>
+                        </div>
+                      </div>
+                    </article>
+                  </TransitionGroup>
+                </section>
+
+                <div class="album-flow-actions">
+                  <button v-if="canLoadMoreEntries" type="button" class="secondary-btn album-load-more-btn"
+                    @click="loadMoreGalleryEntries">
+                    加载更多
+                  </button>
+                  <button v-if="visibleFilteredEntries.length > GALLERY_INITIAL_LIMIT" type="button"
+                    class="ghost-link album-top-btn" @click="scrollAlbumToTop">
+                    回到顶部
+                  </button>
+                </div>
+              </div>
+            </section>
           </template>
         </template>
       </main>
@@ -509,7 +518,8 @@
             <span v-if="selectedEntry.mood" class="detail-mood">
               {{ resolveMoodMeta(selectedEntry.mood)?.icon || '•' }} {{ selectedEntry.mood }}
             </span>
-            <button v-if="selectedEntrySource === 'mine'" type="button" class="danger-btn" @click="removeEntry(selectedEntry)">删除</button>
+            <button v-if="selectedEntrySource === 'mine'" type="button" class="danger-btn"
+              @click="removeEntry(selectedEntry)">删除</button>
           </div>
         </div>
 
@@ -517,8 +527,9 @@
           <template v-for="(block, index) in selectedEntry.contentBlocks" :key="`${selectedEntry.id}-${index}`">
             <p v-if="block.type === 'text'" class="detail-text">{{ block.text }}</p>
             <figure v-else class="detail-image-wrap">
-              <img :src="getCloudImageDisplayUrl(block.url)" :alt="block.alt || 'BOH Cloud 图片'" class="detail-image cloud-loading-image"
-                decoding="async" referrerpolicy="no-referrer" @load="handleCloudImageLoaded" @error="retryCloudImageLoad" loading="lazy">
+              <img :src="getCloudImageDisplayUrl(block.url)" :alt="block.alt || 'BOH Cloud 图片'"
+                class="detail-image cloud-loading-image" decoding="async" referrerpolicy="no-referrer"
+                @load="handleCloudImageLoaded" @error="retryCloudImageLoad" loading="lazy">
               <figcaption v-if="block.alt">{{ block.alt }}</figcaption>
             </figure>
           </template>
