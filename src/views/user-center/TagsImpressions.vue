@@ -81,6 +81,7 @@ import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import { logger } from '@/utils/logger.js';
+import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -129,7 +130,12 @@ const fetchImpressions = async () => {
 };
 
 const handleDeleteImpression = async (id) => {
-  if (!confirm('确定要移除这条印象吗？')) return;
+  if (!await dialog.confirm({
+    title: '移除印象',
+    message: '确定要移除这条印象吗？',
+    tone: 'danger',
+    confirmText: '移除'
+  })) return;
 
   try {
     const currentUserId = String(userInfo.value.id || '').trim();

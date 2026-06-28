@@ -186,7 +186,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, reactive, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue';
 import {
   CheckCircle2,
   KeyRound,
@@ -465,6 +465,13 @@ const toggleStatus = async (item) => {
 onMounted(() => {
   loadKeys();
   loadActiveKey();
+});
+
+onUnmounted(() => {
+  if (formHighlightTimer) {
+    clearTimeout(formHighlightTimer);
+    formHighlightTimer = null;
+  }
 });
 </script>
 

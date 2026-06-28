@@ -95,7 +95,7 @@ export const TAB_SELECT_COLUMNS = {
     created_at,
     updated_at,
     status,
-    reports:forum_post_reports(id, reason, detail, status, created_at, reporter_id)
+    reports:forum_post_reports(id, reason, status, created_at, reporter_id)
   `,
   reviewPosts: 'id, content, author_id, author_username, created_at, updated_at, status',
   reviewComments: 'id, post_id, author_id, author_username, content, created_at, status, parent_id, reply_to_username',

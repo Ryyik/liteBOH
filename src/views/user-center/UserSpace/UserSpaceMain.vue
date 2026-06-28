@@ -1841,9 +1841,15 @@ const fetchCommunityUsers = async ({ force = false } = {}) => {
     if (!error && data) {
       const currentUsername = userInfo.value.username;
       const nowISO = new Date().toISOString();
-      communityUsers.value = (data.items || []).map((u) =>
-        u.username === currentUsername ? { ...u, last_active_at: nowISO } : u
-      );
+      communityUsers.value = (data.items || [])
+        .map((u) =>
+          u.username === currentUsername ? { ...u, last_active_at: nowISO } : u
+        )
+        .sort((a, b) => {
+          const ta = a.last_active_at ? new Date(a.last_active_at).getTime() : 0;
+          const tb = b.last_active_at ? new Date(b.last_active_at).getTime() : 0;
+          return tb - ta;
+        });
       totalCommunityUsers.value = data.total || 0;
       hasLoadedCommunity.value = true;
       setUserSpaceCache(cacheKey, {

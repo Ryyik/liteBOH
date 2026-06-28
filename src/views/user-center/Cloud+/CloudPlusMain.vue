@@ -573,11 +573,13 @@ import {
   createUserSpaceProfileReturnLocation,
   resolveSettingsBackLocation
 } from '@/utils/user-space-navigation.js';
+import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 
 const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
 const { isLoggedIn, userInfo } = storeToRefs(authStore);
+const dialog = useConfirmDialog();
 const props = defineProps({
   embedded: {
     type: Boolean,
@@ -1245,7 +1247,12 @@ async function deactivateMyShareChannel() {
     showNotice('请先登录后再关闭共享');
     return;
   }
-  if (!confirm('关闭共享后，当前令牌将暂时失效。确定关闭吗？')) {
+  if (!await dialog.confirm({
+    title: '关闭共享',
+    message: '关闭共享后，当前令牌将暂时失效。确定关闭吗？',
+    tone: 'warning',
+    confirmText: '关闭'
+  })) {
     return;
   }
 
@@ -1688,7 +1695,12 @@ async function removeEntry(entry) {
     return;
   }
 
-  if (!confirm('确定删除这条内容吗？')) return;
+  if (!await dialog.confirm({
+    title: '删除内容',
+    message: '确定删除这条内容吗？',
+    tone: 'danger',
+    confirmText: '删除'
+  })) return;
 
   const guardResult = await deleteMyCloudEntry(userId, entry?.id, {
     legacyNoteDate: entry?.legacyNoteDate || entry?.entryDate || '',

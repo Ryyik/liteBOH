@@ -304,7 +304,9 @@ export async function getProfileByUsername(username) {
         creator_platform_ids,
         creator_platform_visibility,
         creator_platform_order,
-        showcase_post_ids
+        showcase_post_ids,
+        last_active_at,
+        hide_online_status
       `)
       .eq('username', username)
       .single(),

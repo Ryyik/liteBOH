@@ -145,7 +145,7 @@ const handleSave = async (tier) => {
     const { error } = await supabase
       .from('ai_quota_config')
       .upsert({ tier, daily_limit: val, updated_at: new Date().toISOString() })
-      .eq('tier', tier);
+      
     if (error) throw error;
     successMessage.value = `${tierLabel(tier)} 限额已更新为 ${val === -1 ? '无限' : val + ' 条'}`;
     editingTier.value = '';

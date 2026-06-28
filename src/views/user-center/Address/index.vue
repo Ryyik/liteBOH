@@ -446,6 +446,9 @@ import { callVaultSiliconChat } from "@/utils/api/api-key-runtime-api.js";
 import { getExpiredActiveGiftIds, markGiftsAsHistory, isGiftExpiredCompleted } from "@/utils/gift-archive.js";
 import { resolveSettingsBackLocation } from "@/utils/user-space-navigation.js";
 import UserCenterPageHeader from "@/components/UserCenterPageHeader.vue";
+import { useConfirmDialog } from "@/composables/useConfirmDialog.js";
+
+const dialog = useConfirmDialog();
 
 let noticeTimer = null;
 const notice = reactive({ visible: false, text: '', type: 'info' });
@@ -903,7 +906,12 @@ const deleteAddress = async () => {
     return;
   }
 
-  const confirmed = window.confirm("确认删除当前收货地址吗？删除后将无法用于礼物寄送。");
+  const confirmed = await dialog.confirm({
+    title: '删除收货地址',
+    message: '确认删除当前收货地址吗？删除后将无法用于礼物寄送。',
+    tone: 'danger',
+    confirmText: '删除'
+  });
   if (!confirmed) return;
 
   deletingAddress.value = true;

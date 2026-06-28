@@ -9,26 +9,29 @@
         :get-tab-count="getTabCount"
         :get-tabs-by-group="getTabsByGroup"
         :is-data-tree-collapsed="isDataTreeCollapsed"
-        :is-group-collapsed="isSidebarGroupCollapsed"
         :is-open="isAdminSidebarOpen"
         :navigation="adminNavigation"
         :pinned-tabs="currentPinnedTabs"
         :recent-records="recentRecordsForSidebar"
         :tab-groups="tabGroupsWithCounts"
-        @group-click="handleSidebarGroupClick"
+        :search-query.sync="globalSearchQuery"
         @nav-click="handleAdminNavClick"
         @recent-click="jumpToRecentRecord"
         @tab-click="handleSidebarTabClick"
+        @create-record="handleAdminCreate"
+        @refresh-data="refreshAllData"
+        @quick-edit="handleQuickEdit"
+        @toggle-theme="toggleAdminTheme"
       />
 
       <div v-if="isAdminSidebarOpen" class="sidebar-scrim" @click="isAdminSidebarOpen = false"></div>
 
       <main class="admin-main">
         <AdminHeader
-          :can-create="isDataConsoleSection && !isModerationTab && canCreateCurrentTab"
+          :can-create="canCreateCurrentTab && !isModerationTab"
           :is-refreshing="isRefreshing"
-          @back="goBack"
-          @create="openEditModal()"
+          :is-sidebar-open="isAdminSidebarOpen"
+          @create="handleAdminCreate"
           @refresh="refreshAllData"
           @toggle-sidebar="isAdminSidebarOpen = !isAdminSidebarOpen"
         />
@@ -41,15 +44,19 @@
             :current-tab="currentTab"
             :current-tab-label="currentTabLabel"
             :is-loading="isLoading"
+            :is-refreshing="isRefreshing"
+            :live-status-cards="liveStatusCards"
             :recent-activity-items="recentActivityItems"
-            :site-health-cards="siteHealthCards"
-            :stats-cards="statsCards"
+            :seconds-until-refresh="secondsUntilRefresh"
             :table-summary-cards="tableSummaryCards"
             :total-record-count="totalRecordCount"
-            @select-tab="switchTab"
+            @refresh-now="refreshAllData"
+            @select-tab="handleOverviewTabClick"
           />
 
           <ApiKeyConsole v-else-if="isApiKeysSection" />
+
+          <ModelRouting v-else-if="isModelRoutingSection" />
 
           <section v-if="activeAdminSection !== 'overview' && !isApiKeysSection && !isModelRoutingSection" class="admin-section-hero">
             <div>
@@ -90,8 +97,47 @@
 
       <!-- 管理模块标签页 -->
           <section v-if="isDataConsoleSection" id="data-console" class="management-section">
-        <div class="tabs-header">
-          <div class="tabs-actions">
+        <div class="toolbar-primary">
+          <div class="toolbar-left">
+            <div>
+              <h2 class="section-title">{{ currentTabLabel }}</h2>
+              <div class="view-context">
+                <span>{{ currentTabGroup?.label || '全部' }}</span>
+                <span>{{ activeFilterSummary }}</span>
+                <span>{{ lastRefreshLabel }}</span>
+              </div>
+            </div>
+            <span class="data-badge">{{ totalRecordCount }} 条记录</span>
+          </div>
+          <div class="toolbar-right">
+            <button v-if="!isModerationTab && canCreateCurrentTab" class="btn btn-primary" @click="openEditModal()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              新增
+            </button>
+          </div>
+        </div>
+        <div class="toolbar-secondary">
+          <div class="search-box">
+            <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" aria-hidden="true">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input v-model="searchQuery" type="text" placeholder="搜索数据..." aria-label="搜索数据" @input="handleSearch" />
+            <button v-if="searchQuery" class="clear-search" @click="clearSearch">×</button>
+          </div>
+          <button class="filter-toggle" type="button" @click="showFilterBar = !showFilterBar">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="4" y1="6" x2="20" y2="6"></line>
+              <line x1="8" y1="12" x2="20" y2="12"></line>
+              <line x1="12" y1="18" x2="20" y2="18"></line>
+            </svg>
+            筛选
+          </button>
+          <div v-if="showFilterBar" class="filter-bar">
             <button class="clear-filters-btn" type="button" @click="showGlobalSearchPanel = !showGlobalSearchPanel">
               跨表搜索
             </button>
@@ -120,15 +166,6 @@
             <button v-if="hasActiveFilters" class="clear-filters-btn" type="button" @click="clearAllFilters">
               清空筛选
             </button>
-            <div class="search-box">
-              <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                stroke-width="2">
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              </svg>
-              <input v-model="searchQuery" type="text" placeholder="搜索数据..." @input="handleSearch" />
-              <button v-if="searchQuery" class="clear-search" @click="clearSearch">×</button>
-            </div>
           </div>
         </div>
 
@@ -189,17 +226,6 @@
         <!-- 数据表格区域 -->
         <div class="data-content">
           <div class="content-toolbar">
-            <div class="toolbar-left">
-              <div>
-                <h2 class="section-title">{{ currentTabLabel }}</h2>
-                <div class="view-context">
-                  <span>{{ currentTabGroup?.label || '全部' }}</span>
-                  <span>{{ activeFilterSummary }}</span>
-                  <span>{{ lastRefreshLabel }}</span>
-                </div>
-              </div>
-              <span class="data-badge">{{ totalRecordCount }} 条记录</span>
-            </div>
             <div class="toolbar-right">
               <button class="btn btn-secondary" type="button" @click="showColumnPanel = !showColumnPanel">
                 列配置
@@ -229,16 +255,19 @@
                 <Database :size="16" />
                 {{ isExportingBackup ? '备份中' : '备份全部' }}
               </button>
+      <div v-if="isBackupExporting" class="backup-progress-overlay">
+        <div class="backup-progress-panel">
+          <div class="backup-progress-header">数据备份导出中...</div>
+          <div class="backup-progress-bar-track">
+            <div class="backup-progress-bar-fill" :style="{ width: backupProgress + '%' }"></div>
+          </div>
+          <div class="backup-progress-text">{{ backupProgressText }}</div>
+          <button class="btn btn-secondary btn-sm" @click="cancelBackupExport">取消</button>
+        </div>
+      </div>
               <button v-if="isLotteryOpsTab" class="btn btn-secondary" :disabled="lotteryDueDrawPending" @click="runDueLotteryDraws">
                 <RefreshCw :size="16" :class="{ spinning: lotteryDueDrawPending }" />
                 执行到期开奖
-              </button>
-              <button v-if="!isModerationTab && canCreateCurrentTab" class="btn btn-primary" @click="openEditModal()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="12" y1="5" x2="12" y2="19"></line>
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                </svg>
-                新增
               </button>
             </div>
           </div>
@@ -332,7 +361,7 @@
           </div>
 
           <!-- 空状态 -->
-          <div v-else-if="totalRecordCount === 0" class="empty-state">
+          <div v-else-if="totalRecordCount === 0 && hasLoadedOnce" class="empty-state">
             <div class="empty-icon">📭</div>
             <h3>暂无数据</h3>
             <p>{{ searchQuery ? '没有找到匹配的数据' : '当前模块还没有数据，点击新增按钮添加第一条记录' }}</p>
@@ -345,8 +374,38 @@
             </button>
           </div>
 
+          <!-- 移动端卡片 -->
+          <div v-if="isMobileView" class="mobile-card-list">
+            <div v-for="item in paginatedData" :key="item.id || getRowIdentity(item)" class="mobile-card" :class="{ selected: isSelected(item), anomaly: isAnomalyRow(item) }">
+              <div class="mobile-card-header">
+                <label class="checkbox-wrapper">
+                  <input type="checkbox" :checked="isSelected(item)" @change="toggleSelect(item)" />
+                  <span class="checkmark"></span>
+                </label>
+                <div class="mobile-card-title">{{ getCardTitle(item) }}</div>
+              </div>
+              <div class="mobile-card-body">
+                <div v-for="col in mobileVisibleColumns" :key="col.key" class="mobile-card-field">
+                  <span class="mobile-card-label">{{ col.label }}</span>
+                  <span class="mobile-card-value">{{ formatCellValue(item[col.key], col.maxLength) }}</span>
+                </div>
+              </div>
+              <div class="mobile-card-actions">
+                <button class="mobile-action-btn edit" @click="openEditModal(item)" aria-label="编辑">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                </button>
+                <button v-if="!isProfileDerivedTab && !isReadOnlyTab" class="mobile-action-btn delete" @click="deleteItem(item)" aria-label="删除">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                </button>
+              </div>
+            </div>
+          </div>
           <!-- 数据表格 -->
-          <div v-else class="table-wrapper">
+          <div v-else style="position: relative;">
+            <div v-if="isFilterLoading" class="filter-loading-overlay">
+              <div class="filter-loading-shimmer"></div>
+            </div>
+            <div class="table-wrapper">
             <table class="data-table">
               <thead>
                 <tr>
@@ -363,11 +422,11 @@
                       {{ sortOrder === 'asc' ? '↑' : '↓' }}
                     </span>
                   </th>
-                  <th class="actions-col">操作</th>
+                  <th v-if="hasActionColumn" class="actions-col">操作</th>
                 </tr>
               </thead>
-              <tbody>
-                <tr v-for="item in paginatedData" :key="item.id || itemIndex(item)"
+              <TransitionGroup name="row-fade" tag="tbody">
+                <tr v-for="item in paginatedData" :key="item.id || getRowIdentity(item)"
                   :class="{ selected: isSelected(item), anomaly: isAnomalyRow(item) }">
                   <td class="checkbox-col">
                     <label class="checkbox-wrapper">
@@ -398,6 +457,7 @@
                           :type="getFieldByKey(col.key)?.type === 'number' ? 'number' : getFieldByKey(col.key)?.type === 'date' ? 'date' : getFieldByKey(col.key)?.type === 'datetime' ? 'datetime-local' : 'text'"
                           @keydown.enter.prevent="saveInlineEdit(item, col)"
                           @keydown.esc.prevent="cancelInlineEdit"
+                          @keydown.tab.prevent="saveInlineEdit(item, col)"
                         />
                         <button type="button" class="inline-edit-action" :disabled="inlineEditState.saving" @click="saveInlineEdit(item, col)">保存</button>
                         <button type="button" class="inline-edit-action" @click="cancelInlineEdit">取消</button>
@@ -456,7 +516,7 @@
                       ></span>
                     </template>
                   </td>
-                  <td class="actions-col">
+                  <td v-if="hasActionColumn" class="actions-col">
                     <div class="action-btns">
                       <template v-if="isModerationTab">
                         <button
@@ -567,8 +627,9 @@
                     </div>
                   </td>
                 </tr>
-              </tbody>
+              </TransitionGroup>
             </table>
+          </div>
           </div>
 
           <!-- 分页 -->
@@ -578,16 +639,16 @@
               条，共 {{ totalRecordCount }} 条
             </div>
             <div class="dm-pagination-controls">
-              <button class="dm-page-btn" :disabled="currentPage === 1" @click="currentPage--">
+              <button class="dm-page-btn" :disabled="currentPage === 1" aria-label="上一页" @click="currentPage--">
                 上一页
               </button>
               <div class="dm-page-numbers">
                 <button v-for="page in visiblePages" :key="page" class="dm-page-number"
-                  :class="{ active: currentPage === page }" @click="currentPage = page">
+                  :class="{ active: currentPage === page }" aria-label="第 {{ page }} 页" @click="currentPage = page">
                   {{ page }}
                 </button>
               </div>
-              <button class="dm-page-btn" :disabled="currentPage === totalPages" @click="currentPage++">
+              <button class="dm-page-btn" :disabled="currentPage === totalPages" aria-label="下一页" @click="currentPage++">
                 下一页
               </button>
             </div>
@@ -600,6 +661,12 @@
               </select>
             </div>
           </div>
+          <button v-if="isMobileView && !isModerationTab && canCreateCurrentTab" class="fab-button" @click="openEditModal()" aria-label="新增">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </button>
         </div>
           </section>
         </div>
@@ -621,14 +688,20 @@
       :selected-gift-user="selectedGiftUser"
       :show-user-picker="showUserPickerModal"
       :user-picker-keyword="userPickerKeyword"
+      @update:user-picker-keyword="(v) => (userPickerKeyword = v)"
       :filtered-gift-users="filteredGiftUsers"
       :gift-address-bundle-text="giftAddressBundleText"
       :uploading-image-fields="uploadingImageFields"
-      :toast="toast"
+      :user-picker-loading="userPickerLoading"
       :is-field-disabled="isFieldDisabled"
       :is-image-upload-pending="isImageUploadPending"
+      :has-prev-record="editDrawerNav.hasPrev"
+      :has-next-record="editDrawerNav.hasNext"
+      :record-nav-label="editDrawerNav.label"
       @close="closeModal"
       @save="saveData"
+      @prev-record="navigateEditRecord(-1)"
+      @next-record="navigateEditRecord(1)"
       @regenerate-id="regenerateAutoIdForCurrentTab"
       @regenerate-news-id="regenerateNewsId"
       @inject-news-template="injectNewsTemplate"
@@ -648,13 +721,36 @@
       @clear-field-error="clearFieldError"
       @validate-field="validateField"
       @update-field="handleUpdateField"
+      @update-json-buffer="handleUpdateJsonBuffer"
+      @update-spec-field="handleUpdateSpecField"
     />
+
+    <!-- 全局提示 -->
+    <Transition name="toast">
+      <div
+        v-if="toast.show"
+        class="toast"
+        :class="`toast-${toast.type}`"
+        :role="toast.type === 'error' ? 'alert' : 'status'"
+        :aria-live="toast.type === 'error' ? 'assertive' : 'polite'"
+      >
+        <span class="toast-icon" aria-hidden="true">{{ toast.type === 'success' ? '✓' : toast.type === 'error' ? '✗' : 'ℹ' }}</span>
+        <span class="toast-message">{{ toast.message }}</span>
+        <button v-if="toast.type === 'error'" class="toast-dismiss" @click="dismissToast" aria-label="关闭提示">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </Transition>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, reactive, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { ref, computed, reactive, shallowReactive, nextTick, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
 import {
   Activity,
@@ -713,22 +809,68 @@ import {
   TAB_SORT_COLUMNS,
   isMissingLotteryObservabilitySchemaError
 } from './query-config.js';
+import DOMPurify from '@/utils/dompurify.js';
+import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
+import {
+  createFieldValidator,
+  createRequiredFieldsValidator,
+  createNewsPayloadValidator,
+  getNextNumericId,
+  splitForumContent,
+  normalizeNewsContent,
+  validateDateString
+} from './composables/useDataAdminValidation.js';
+import {
+  createPersisters,
+  hydrateAdminPreferences,
+  readLocalJson,
+  writeLocalJson,
+  ADMIN_STORAGE_KEYS as STORAGE_KEYS
+} from './composables/useDataAdminPersistence.js';
+import {
+  applySearchAndSort as applySearchAndSortUtil,
+  buildSearchFilters as buildSearchFiltersUtil,
+  getSearchablePreviewFields as getSearchablePreviewFieldsUtil,
+  sanitizeSearchTerm
+} from './composables/useDataAdminFilters.js';
+import { createChangeLogCenter } from './composables/useDataAdminChangeLog.js';
+import { createFilterState } from './composables/useDataAdminFilterState.js';
+import { createMutationsCenter } from './composables/useDataAdminMutations.js';
+import { SAVE_STRATEGIES } from './config/saveStrategies.js';
+import { setupDataAdminLifecycle } from './composables/useDataAdminLifecycle.js';
+
+const CACHE_TTL = 45_000;
 
 const router = useRouter();
 const authStore = useAuthStore();
-const { userInfo } = authStore;
+const { userInfo } = storeToRefs(authStore);
 
 // 管理面板返回站点首页，避免后台操作被带回个人空间。
 const goBack = () => {
-  router.push('/');
+  if (window.history.length > 1) {
+    router.back();
+  } else {
+    router.push('/');
+  }
 };
+
+// 替换 window.confirm / window.prompt 的响应式弹窗(P1-P2)
+// 弹窗实例已在 App.vue 全局挂载, 此处仅获取 dialog API
+const dialog = useConfirmDialog();
 
 // ==================== 状态管理 ====================
 const currentTab = ref('users');
 const isLoading = ref(false);
+const isFilterLoading = ref(false);
 const isRefreshing = ref(false);
+const hasLoadedOnce = ref(false);
 const isSaving = ref(false);
 const isExportingBackup = ref(false);
+const isBackupExporting = ref(false);
+const backupProgress = ref(0);
+const backupProgressText = ref('');
+let backupAbortController = null;
+let cancelBackupExport = () => {};
 const showModal = ref(false);
 const showUserPickerModal = ref(false);
 const showGlobalSearchPanel = ref(false);
@@ -736,6 +878,7 @@ const showAdvancedFilterPanel = ref(false);
 const showColumnPanel = ref(false);
 const showBatchEditPanel = ref(false);
 const showChangeLogPanel = ref(false);
+const showFilterBar = ref(false);
 const isEditing = ref(false);
 const editingItem = ref({});
 const editingOriginalItem = ref(null);
@@ -760,7 +903,9 @@ const isAdminSidebarOpen = ref(false);
 const routeAdminSection = router.currentRoute.value?.meta?.adminSection;
 const activeAdminSection = ref(typeof routeAdminSection === 'string' && routeAdminSection ? routeAdminSection : 'overview');
 const isDataTreeCollapsed = ref(false);
-const collapsedSidebarGroupIds = ref([]);
+const isMobileView = ref(window.innerWidth < 768);
+const handleResize = () => { isMobileView.value = window.innerWidth < 768; };
+
 const uploadingImageFields = ref([]);
 const tabTotals = reactive(tabs.reduce((acc, tab) => {
   acc[tab.id] = 0;
@@ -784,6 +929,20 @@ const savedFilterViews = ref({});
 const pinnedTabIds = ref([]);
 const recentRecords = ref([]);
 const changeLogEntries = ref([]);
+// 持久化工厂 (替换原先内联的 persist* / writeLocalJson 调用)
+const {
+  persistColumnSettings,
+  persistSavedViews,
+  persistPinnedTabs,
+  persistRecentRecords,
+  persistChangeLog
+} = createPersisters({
+  columnSettings,
+  savedFilterViews,
+  pinnedTabIds,
+  recentRecords,
+  changeLogEntries
+});
 const inlineEditState = reactive({
   rowId: '',
   fieldKey: '',
@@ -796,6 +955,10 @@ const batchEditState = reactive({
 });
 const suppressDraftSave = ref(false);
 
+const autoRefreshInterval = ref(null);
+const secondsUntilRefresh = ref(30);
+const isAutoRefreshing = ref(false);
+
 // 提示消息
 const toast = reactive({
   show: false,
@@ -804,51 +967,23 @@ const toast = reactive({
   timer: null
 });
 
+let toastTimer = null;
 const showToast = (message, type = 'info') => {
+  if (toastTimer) clearTimeout(toastTimer);
   if (toast.timer) clearTimeout(toast.timer);
   toast.message = message;
   toast.type = type;
   toast.show = true;
-  toast.timer = setTimeout(() => {
-    toast.show = false;
-    toast.timer = null;
-  }, 3000);
-};
-
-const STORAGE_KEYS = {
-  columns: 'boh-admin-table-columns-v1',
-  savedViews: 'boh-admin-saved-filter-views-v1',
-  pinnedTabs: 'boh-admin-pinned-tabs-v1',
-  recentRecords: 'boh-admin-recent-records-v1',
-  changeLog: 'boh-admin-change-log-v1',
-  drafts: 'boh-admin-edit-drafts-v1'
-};
-
-const readLocalJson = (key, fallback) => {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw);
-  } catch (error) {
-    logger.warn('data-admin', '读取本地配置失败:', key, error);
-    return fallback;
+  if (type !== 'error') {
+    toastTimer = setTimeout(() => {
+      toast.show = false;
+      toastTimer = null;
+    }, 3000);
   }
 };
-
-const writeLocalJson = (key, value) => {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (error) {
-    logger.warn('data-admin', '写入本地配置失败:', key, error);
-  }
-};
-
-const hydrateEditorPreferences = () => {
-  columnSettings.value = readLocalJson(STORAGE_KEYS.columns, {});
-  savedFilterViews.value = readLocalJson(STORAGE_KEYS.savedViews, {});
-  pinnedTabIds.value = readLocalJson(STORAGE_KEYS.pinnedTabs, []);
-  recentRecords.value = readLocalJson(STORAGE_KEYS.recentRecords, []);
-  changeLogEntries.value = readLocalJson(STORAGE_KEYS.changeLog, []);
+const dismissToast = () => {
+  if (toastTimer) clearTimeout(toastTimer);
+  toast.show = false;
 };
 
 const clearFieldErrors = () => {
@@ -867,6 +1002,19 @@ const handleUpdateField = (fieldKey, value) => {
   if (fieldKey && editingItem.value) {
     editingItem.value[fieldKey] = value;
   }
+};
+
+const handleUpdateJsonBuffer = (fieldKey, value) => {
+  if (!fieldKey) return;
+  jsonBuffers.value = { ...jsonBuffers.value, [fieldKey]: value };
+};
+
+const handleUpdateSpecField = (fieldKey, index, prop, value) => {
+  if (!fieldKey || !editingItem.value || !Array.isArray(editingItem.value[fieldKey])) return;
+  const next = editingItem.value[fieldKey].map((spec, i) =>
+    i === index ? { ...spec, [prop]: value } : spec
+  );
+  editingItem.value[fieldKey] = next;
 };
 
 const invalidateSubscriptionCache = (userId = '') => {
@@ -899,7 +1047,9 @@ const assertAdminAction = () => {
 };
 
 // ==================== 数据存储 ====================
-const dataStore = reactive({
+// 使用 shallowReactive: 顶层字段响应,但行内嵌对象(specifications/metadata 等)不需要 deep proxy,
+// 大幅减少启动时 proxy 包装次数
+const dataStore = shallowReactive({
   users: [],
   points: [],
   subscriptions: [],
@@ -959,6 +1109,12 @@ const visibleCurrentColumns = computed(() => {
   const missingColumns = currentColumns.value.filter((col) => visibleKeys.has(col.key) && !orderedKeys.includes(col.key));
   return [...orderedColumns, ...missingColumns];
 });
+const mobileVisibleColumns = computed(() => {
+  return visibleCurrentColumns.value.slice(0, 4);
+});
+const getCardTitle = (item) => {
+  return item.title || item.name || item.username || item.email || item.id || '记录';
+};
 const editableFields = computed(() => {
   const writable = new Set(TAB_WRITABLE_FIELDS[currentTab.value] || []);
   return currentFields.value.filter((field) =>
@@ -983,7 +1139,7 @@ const tabGroupsWithCounts = computed(() =>
   }))
 );
 const isNewsTab = computed(() => currentTab.value === 'news');
-const isCurrentUserAdmin = computed(() => String(userInfo?.role || '').trim() === 'admin');
+const isCurrentUserAdmin = computed(() => String(userInfo.value?.role || '').trim() === 'admin');
 const canRegenerateAutoId = computed(() =>
   !isEditing.value && ['news', 'activities', 'products'].includes(currentTab.value)
 );
@@ -1025,81 +1181,30 @@ const moderationTabConfig = computed(() => {
   return configMap[currentTab.value] || null;
 });
 const isModerationTab = computed(() => Boolean(moderationTabConfig.value));
+const hasActionColumn = computed(() =>
+  isModerationTab.value ||
+  currentTab.value === 'lotteries' ||
+  !isReadOnlyTab.value
+);
 const isRejectedModerationTab = computed(() => ['reviewPosts', 'reviewComments'].includes(currentTab.value));
-const isMessageModerationTab = computed(() => false);
+const isMessageModerationTab = computed(() => currentTab.value === 'reviewComments');
 const isReportedPostModerationTab = computed(() => currentTab.value === 'reportedPosts');
 const lotteryActionPendingIds = ref([]);
 
 const isDataConsoleSection = computed(() => DATA_CONSOLE_SECTIONS.has(activeAdminSection.value));
 const isPlaceholderAdminSection = computed(() => PLACEHOLDER_ADMIN_SECTIONS.has(activeAdminSection.value));
 const isApiKeysSection = computed(() => activeAdminSection.value === 'api-keys');
-const currentStatusFilterField = computed(() => STATUS_FILTER_FIELDS[currentTab.value] || '');
-const currentDateFilterField = computed(() => DATE_FILTER_FIELDS[currentTab.value] || '');
-const statusFilterOptions = computed(() => {
-  const field = currentStatusFilterField.value;
-  if (!field) return [];
-
-  const configuredField = currentFields.value.find((item) => item.key === field);
-  if (Array.isArray(configuredField?.options)) {
-    return configuredField.options.map((item) => ({
-      value: item.value,
-      label: item.label
-    }));
-  }
-
-  const values = new Map();
-  (currentData.value || []).forEach((row) => {
-    const raw = row?.[field];
-    if (raw === null || raw === undefined || raw === '') return;
-    const key = String(raw);
-    values.set(key, { value: raw, label: key });
-  });
-  return [...values.values()].slice(0, 12);
-});
-const hasActiveFilters = computed(() =>
-  Boolean(searchQuery.value.trim() || statusFilter.value || dateFromFilter.value || dateToFilter.value || activeAdvancedRules.value.length)
-);
-const activeAdvancedRules = computed(() =>
-  advancedFilterRules.value.filter((rule) =>
-    String(rule.field || '').trim()
-    && String(rule.operator || '').trim()
-    && rule.value !== undefined
-    && rule.value !== null
-    && String(rule.value).trim() !== ''
-  )
-);
-const activeFilterSummary = computed(() => {
-  const parts = [];
-  if (searchQuery.value.trim()) parts.push(`关键词「${searchQuery.value.trim()}」`);
-  if (statusFilter.value) parts.push(`状态 ${statusFilterLabel.value}`);
-  if (dateFromFilter.value || dateToFilter.value) {
-    parts.push(`${currentDateFilterLabel.value}${dateFromFilter.value || '最早'} - ${dateToFilter.value || '现在'}`);
-  }
-  if (activeAdvancedRules.value.length) parts.push(`${activeAdvancedRules.value.length} 个高级条件`);
-  return parts.length ? `已应用 ${parts.join('、')}` : '未应用筛选';
-});
-const statusFilterLabel = computed(() => {
-  if (!statusFilter.value) return '';
-  return statusFilterOptions.value.find((item) => String(item.value) === String(statusFilter.value))?.label || statusFilter.value;
-});
-const currentDateFilterLabel = computed(() => {
-  const field = currentColumns.value.find((item) => item.key === currentDateFilterField.value)
-    || currentFields.value.find((item) => item.key === currentDateFilterField.value);
-  return field?.label || '日期';
-});
+const isModelRoutingSection = computed(() => activeAdminSection.value === 'model-routing');
+// 筛选相关的 computeds (currentStatusFilterField/currentDateFilterField/statusFilterOptions/
+//   hasActiveFilters/activeAdvancedRules/activeFilterSummary/statusFilterLabel/currentDateFilterLabel/
+//   currentSavedViews) 由 createFilterState 工厂提供 (见 fetchTabData 之后)
+// 当前先声明占位引用, 避免模板渲染时找不到变量
+// (createFilterState 调用后将重新赋值)
+// 变更日志/最近访问/固定 Tab 相关的 computeds 由 createChangeLogCenter 工厂提供 (见 switchTab 之后)
+// 当前先声明占位引用, 避免模板渲染时找不到变量
+// (createChangeLogCenter 调用后将重新赋值)
 const lastRefreshLabel = computed(() =>
   lastRefreshedAt.value ? `刷新于 ${formatDateTime(lastRefreshedAt.value)}` : '尚未刷新'
-);
-const currentSavedViews = computed(() => savedFilterViews.value[currentTab.value] || []);
-const currentPinnedTabs = computed(() => {
-  const pinned = new Set(pinnedTabIds.value);
-  return tabs.filter((tab) => pinned.has(tab.id));
-});
-const recentRecordsForSidebar = computed(() => recentRecords.value.slice(0, 8));
-const currentChangeLogEntries = computed(() =>
-  changeLogEntries.value
-    .filter((entry) => !entry.tabId || entry.tabId === currentTab.value)
-    .slice(0, 30)
 );
 const anomalyRows = computed(() => currentData.value.filter((item) => isAnomalyRow(item)));
 const tableMiniStats = computed(() => [
@@ -1276,13 +1381,6 @@ const currentAdminPageMetrics = computed(() => {
   return [];
 });
 
-const siteHealthCards = computed(() => [
-  { label: '环境', value: 'Production', icon: Server },
-  { label: '权限', value: isCurrentUserAdmin.value ? 'Admin' : '受限', icon: ShieldCheck },
-  { label: '健康度', value: `${healthScore.value}%`, icon: Gauge },
-  { label: '当前数据表', value: currentTabLabel.value || '未选择', icon: Database }
-]);
-
 const tableSummaryCards = computed(() =>
   dashboardTableIds.map((tabId) => {
     const meta = tabs.find((tab) => tab.id === tabId) || {};
@@ -1354,6 +1452,18 @@ const handleAdminNavClick = (item) => {
   if (item.id === 'data') {
     isDataTreeCollapsed.value = false;
   }
+  const routeMap = {
+    overview: '/admin/data-management',
+    'api-keys': '/admin/api-keys',
+    'model-routing': '/admin/model-routing',
+    data: '/admin/data-management',
+    media: '/admin/data-management',
+    settings: '/admin/data-management'
+  };
+  const target = routeMap[item.id];
+  if (target && router.currentRoute.value.path !== target) {
+    router.push(target);
+  }
   const defaultTab = ADMIN_SECTION_DEFAULT_TABS[item.id];
   if (defaultTab) {
     switchTab(defaultTab);
@@ -1366,30 +1476,11 @@ const getTabsByGroup = (group) => {
   return tabs.filter((tab) => tabIds.has(tab.id));
 };
 
-const isSidebarGroupCollapsed = (groupId) => collapsedSidebarGroupIds.value.includes(groupId);
 
-const toggleSidebarGroupCollapsed = (groupId) => {
-  if (isSidebarGroupCollapsed(groupId)) {
-    collapsedSidebarGroupIds.value = collapsedSidebarGroupIds.value.filter((id) => id !== groupId);
-    return;
-  }
-  collapsedSidebarGroupIds.value = [...collapsedSidebarGroupIds.value, groupId];
-};
 
-const ensureSidebarGroupExpanded = (groupId) => {
-  collapsedSidebarGroupIds.value = collapsedSidebarGroupIds.value.filter((id) => id !== groupId);
-};
-
-const handleSidebarGroupClick = (group) => {
+const handleOverviewTabClick = (tabId) => {
   activeAdminSection.value = 'data';
-  isDataTreeCollapsed.value = false;
-  if (activeTabGroupId.value === group.id) {
-    toggleSidebarGroupCollapsed(group.id);
-    return;
-  }
-  ensureSidebarGroupExpanded(group.id);
-  setActiveTabGroup(group.id);
-  isAdminSidebarOpen.value = false;
+  switchTab(tabId);
 };
 
 const handleSidebarTabClick = (tabId) => {
@@ -1413,25 +1504,66 @@ const handlePlaceholderAction = (action) => {
   switchTab(action.tab);
 };
 
-// 统计卡片
-const statsCards = computed(() => [
-  { id: 'users', type: 'users', icon: Users, label: '总用户数', value: stats.totalUsers, trend: 12 },
-  { id: 'subscriptions', type: 'products', icon: ShieldCheck, label: '有效订阅', value: stats.totalSubscriptions, trend: 0 },
-  { id: 'posts', type: 'posts', icon: MessageSquare, label: '论坛帖子', value: stats.totalPosts, trend: 8 },
-  { id: 'news', type: 'news', icon: FileText, label: '新闻文章', value: stats.totalNews, trend: -3 }
-]);
-
 const totalRecordCount = computed(() => tabTotals[currentTab.value] || currentData.value.length || 0);
+const totalCountAllTables = computed(() =>
+  tabs.reduce((sum, tab) => sum + getTabCount(tab.id), 0)
+);
+const liveStatusCards = computed(() => [
+  {
+    id: 'uptime',
+    label: '系统状态',
+    value: '运行中',
+    status: 'success',
+    icon: Server,
+    detail: `数据自动刷新 ${secondsUntilRefresh.value}s`
+  },
+  {
+    id: 'records',
+    label: '总记录数',
+    value: totalCountAllTables.value,
+    status: 'info',
+    icon: Database,
+    detail: `${tabs.length} 个数据表`
+  },
+  {
+    id: 'pending',
+    label: '待处理事项',
+    value: diagnosticIssueCount.value,
+    status: diagnosticIssueCount.value > 0 ? 'warning' : 'success',
+    icon: ShieldCheck,
+    detail: diagnosticIssueCount.value > 0 ? '需关注' : '一切正常'
+  },
+  {
+    id: 'refresh',
+    label: '最后刷新',
+    value: lastRefreshLabel.value || '刚刚',
+    status: 'info',
+    icon: RefreshCw,
+    detail: `${secondsUntilRefresh.value}s 后自动刷新`
+  }
+]);
 const dataConsoleTotalCount = computed(() =>
   tabGroups.reduce((groupTotal, group) =>
     groupTotal + group.tabIds.reduce((tabTotal, tabId) => tabTotal + getTabCount(tabId), 0),
   0)
 );
-const filteredData = computed(() => currentData.value);
-
 // 分页
 const totalPages = computed(() => Math.max(1, Math.ceil(totalRecordCount.value / pageSize.value)));
-const paginatedData = computed(() => currentData.value);
+// 服务端已通过 range() 真分页返回当前页数据, 直接展示
+const paginatedData = computed(() => currentData.value || []);
+
+// 为每行缓存身份字符串,避免 v-for 中 itemIndex() O(N) 线性扫描
+const rowIdentityCache = new WeakMap();
+const getRowIdentity = (item) => {
+  if (!item) return '';
+  let id = rowIdentityCache.get(item);
+  if (!id) {
+    id = String(item.id || '');
+    if (!id) id = `row-${Math.random().toString(36).slice(2, 10)}`;
+    rowIdentityCache.set(item, id);
+  }
+  return id;
+};
 
 const visiblePages = computed(() => {
   const pages = [];
@@ -1517,6 +1649,13 @@ const escapeHtml = (value) => String(value || '')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#39;');
 
+// v-html 输出前用 DOMPurify 清洗(项目硬约束),仅允许 <mark> 高亮标签
+const sanitizeHighlightHtml = (html) => DOMPurify.sanitize(String(html || ''), {
+  ALLOWED_TAGS: ['mark'],
+  ALLOWED_ATTR: [],
+  KEEP_CONTENT: true
+});
+
 const hasHtmlTag = (value) => /<[^>]+>/.test(String(value || ''));
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -1531,14 +1670,6 @@ const pickWritableFields = (tabKey, payload) => {
     }
   });
   return next;
-};
-
-const getNextNumericId = (rows = []) => {
-  const numericIds = (rows || [])
-    .map((item) => Number(item?.id))
-    .filter((id) => Number.isInteger(id) && id > 0);
-  const maxId = numericIds.length ? Math.max(...numericIds) : 0;
-  return maxId + 1;
 };
 
 const fetchNextNumericId = async (tabKey, fallbackRows = []) => {
@@ -1563,20 +1694,8 @@ const fetchNextNumericId = async (tabKey, fallbackRows = []) => {
   }
 };
 
-const splitForumContent = (rawContent) => {
-  const content = String(rawContent || '').replace(/\r\n/g, '\n').trim();
-  if (!content) return { title: '', body: '' };
-
-  const titleMatch = content.match(/^【([^】\n]{1,80})】\s*\n?/);
-  if (!titleMatch) {
-    return { title: '', body: content };
-  }
-
-  return {
-    title: titleMatch[1].trim(),
-    body: content.slice(titleMatch[0].length).trim()
-  };
-};
+// splitForumContent / normalizeNewsContent / validateDateString
+// 已迁移至 composables/useDataAdminValidation.js, 此处不再重复定义
 
 const buildNewsTemplate = () => {
   const title = String(editingItem.value.title || '').trim() || '请填写新闻标题';
@@ -1642,253 +1761,31 @@ const regenerateAutoIdForCurrentTab = async () => {
   clearFieldError('id');
 };
 
-const validateDateString = (value) => {
-  const source = String(value || '').trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(source)) return false;
+// validateDateString / normalizeNewsContent / validateField / validateRequiredFields / validateNewsPayload
+// 已迁移至 composables/useDataAdminValidation.js, 此处通过 createFieldValidator / createNewsPayloadValidator 工厂注入
+// (具体注入点见 getTabCount 上方)
 
-  const [year, month, day] = source.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  if (Number.isNaN(date.getTime())) return false;
-
-  return date.getUTCFullYear() === year
-    && date.getUTCMonth() === month - 1
-    && date.getUTCDate() === day;
-};
-
-const normalizeNewsContent = (content) => {
-  const trimmed = String(content || '').trim();
-  if (!trimmed) return '';
-  if (hasHtmlTag(trimmed)) return trimmed;
-
-  const lines = trimmed.replace(/\r\n/g, '\n').split('\n');
-  const blocks = [];
-  let listItems = [];
-
-  const flushList = () => {
-    if (!listItems.length) return;
-    blocks.push(`<ul>${listItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`);
-    listItems = [];
-  };
-
-  lines.forEach((rawLine) => {
-    const line = rawLine.trim();
-    if (!line) {
-      flushList();
-      return;
-    }
-
-    const bulletMatch = line.match(/^[-*]\s+(.+)$/);
-    if (bulletMatch) {
-      listItems.push(bulletMatch[1].trim());
-      return;
-    }
-
-    flushList();
-    if (/^(重点内容|活动安排|更新内容|后续计划|注意事项|详情|总结)$/.test(line)) {
-      blocks.push(`<h4>${escapeHtml(line)}</h4>`);
-      return;
-    }
-    blocks.push(`<p>${escapeHtml(line)}</p>`);
-  });
-
-  flushList();
-  return blocks.join('\n');
-};
-
-const validateField = (fieldKey) => {
-  const field = currentFields.value.find((item) => item.key === fieldKey);
-  if (!field) return true;
-
-  const value = editingItem.value[fieldKey];
-  const isEmpty = value === null
-    || value === undefined
-    || (typeof value === 'string' && !value.trim())
-    || (Array.isArray(value) && value.length === 0);
-
-  if (field.required && isEmpty) {
-    fieldErrors[fieldKey] = `${field.label}不能为空`;
-    return false;
-  }
-
-  if (isEmpty) {
-    clearFieldError(fieldKey);
-    return true;
-  }
-
-  const textValue = String(value).trim();
-
-  if (field.type === 'email' && textValue && !EMAIL_REGEX.test(textValue)) {
-    fieldErrors[fieldKey] = '邮箱格式不正确';
-    return false;
-  }
-
-  if (fieldKey === 'id' && (currentTab.value === 'users' || currentTab.value === 'points')) {
-    if (textValue && !UUID_REGEX.test(textValue)) {
-      fieldErrors[fieldKey] = '用户 ID 必须是有效 UUID';
-      return false;
-    }
-  }
-
-  if (fieldKey === 'author_id' && currentTab.value === 'forum') {
-    if (textValue && !UUID_REGEX.test(textValue)) {
-      fieldErrors[fieldKey] = '作者 ID 必须是 UUID 格式';
-      return false;
-    }
-  }
-
-  if (fieldKey === 'user_id' && currentTab.value === 'subscriptions') {
-    if (textValue && !UUID_REGEX.test(textValue)) {
-      fieldErrors[fieldKey] = '用户 ID 必须是 UUID 格式';
-      return false;
-    }
-  }
-
-  if (field.type === 'number') {
-    const numeric = Number(value);
-    if (!Number.isFinite(numeric)) {
-      fieldErrors[fieldKey] = `${field.label}必须是有效数字`;
-      return false;
-    }
-    if (field.min !== undefined && numeric < Number(field.min)) {
-      fieldErrors[fieldKey] = `${field.label}不能小于 ${field.min}`;
-      return false;
-    }
-    if (field.max !== undefined && numeric > Number(field.max)) {
-      fieldErrors[fieldKey] = `${field.label}不能大于 ${field.max}`;
-      return false;
-    }
-  }
-
-  if (field.maxLength && textValue.length > Number(field.maxLength)) {
-    fieldErrors[fieldKey] = `${field.label}不能超过 ${field.maxLength} 个字符`;
-    return false;
-  }
-
-  if (field.type === 'select' && Array.isArray(field.options) && field.options.length > 0) {
-    const allowedValues = field.options.map((opt) => opt.value);
-    if (!allowedValues.includes(value)) {
-      fieldErrors[fieldKey] = `${field.label}选项无效`;
-      return false;
-    }
-  }
-
-  if (currentTab.value === 'news') {
-    if (fieldKey === 'id') {
-      const numId = Number(value);
-      if (!Number.isInteger(numId) || numId <= 0) {
-        fieldErrors[fieldKey] = 'ID 必须是正整数';
-        return false;
-      }
-    }
-
-    if (fieldKey === 'category' && !NEWS_CATEGORY_VALUES.includes(textValue)) {
-      fieldErrors[fieldKey] = '分类必须使用下拉中的系统值';
-      return false;
-    }
-
-    if (fieldKey === 'title' && textValue.length < 4) {
-      fieldErrors[fieldKey] = '标题至少 4 个字符';
-      return false;
-    }
-
-    if (fieldKey === 'date' && !validateDateString(textValue)) {
-      fieldErrors[fieldKey] = '日期格式无效，请使用日期选择器';
-      return false;
-    }
-
-    if (fieldKey === 'author' && textValue.length < 2) {
-      fieldErrors[fieldKey] = '作者名至少 2 个字符';
-      return false;
-    }
-
-    if (fieldKey === 'excerpt') {
-      const excerpt = stripHtml(textValue);
-      if (excerpt.length < 10) {
-        fieldErrors[fieldKey] = '摘要建议至少 10 个字符';
-        return false;
-      }
-      if (excerpt.length > 120) {
-        fieldErrors[fieldKey] = '摘要建议不超过 120 个字符';
-        return false;
-      }
-    }
-
-    if (fieldKey === 'content') {
-      const contentLength = stripHtml(textValue).length;
-      if (contentLength < 20) {
-        fieldErrors[fieldKey] = '正文内容过短，至少 20 个字符';
-        return false;
-      }
-    }
-  }
-
-  clearFieldError(fieldKey);
-  return true;
-};
-
-const validateRequiredFields = () => {
-  let valid = true;
-
-  currentFields.value.forEach((field) => {
-    if (!field.required) return;
-    const value = editingItem.value[field.key];
-    const isEmpty = value === null
-      || value === undefined
-      || (typeof value === 'string' && !value.trim())
-      || (Array.isArray(value) && value.length === 0);
-
-    if (isEmpty) {
-      fieldErrors[field.key] = `${field.label}不能为空`;
-      valid = false;
-    }
-  });
-
-  return valid;
-};
-
-const validateNewsPayload = (payload) => {
-  let valid = true;
-  const normalizedId = Number(payload.id);
-
-  if (!Number.isInteger(normalizedId) || normalizedId <= 0) {
-    fieldErrors.id = 'ID 必须是正整数';
-    valid = false;
-  } else {
-    const duplicate = dataStore.news.some((item) => {
-      const itemId = Number(item.id);
-      if (!Number.isInteger(itemId)) return false;
-      if (isEditing.value && itemId === Number(editingItem.value.id)) return false;
-      return itemId === normalizedId;
-    });
-    if (duplicate) {
-      fieldErrors.id = 'ID 已存在，请点击“自动生成 ID”';
-      valid = false;
-    }
-  }
-
-  if (!NEWS_CATEGORY_VALUES.includes(payload.category)) {
-    fieldErrors.category = '分类值不合法，请从下拉中选择';
-    valid = false;
-  }
-
-  if (!validateDateString(payload.date)) {
-    fieldErrors.date = '日期无效，请重新选择';
-    valid = false;
-  }
-
-  const plainExcerpt = stripHtml(payload.excerpt);
-  const plainContent = stripHtml(payload.content);
-  if (plainExcerpt.length < 10) {
-    fieldErrors.excerpt = '摘要至少 10 个字符';
-    valid = false;
-  }
-  if (plainContent.length < 20) {
-    fieldErrors.content = '正文至少 20 个字符';
-    valid = false;
-  }
-
-  return valid;
-};
+// 验证器工厂: 注入响应式状态依赖, 生成可调用的校验函数
+// 这样验证逻辑可在 composable 中做单元测试, 且 DataAdmin.vue 不再持有校验实现
+const validateField = createFieldValidator({
+  getCurrentFields: () => currentFields.value,
+  editingItemRef: editingItem,
+  fieldErrors,
+  getCurrentTab: () => currentTab.value,
+  clearFieldError
+});
+const validateRequiredFields = createRequiredFieldsValidator({
+  getCurrentFields: () => currentFields.value,
+  editingItemRef: editingItem,
+  fieldErrors
+});
+const validateNewsPayload = createNewsPayloadValidator({
+  fieldErrors,
+  getNewsRows: () => dataStore.news,
+  getIsEditing: () => isEditing.value,
+  getEditingItemId: () => editingItem.value?.id,
+  NEWS_CATEGORY_VALUES
+});
 
 // ==================== 方法 ====================
 const getTabCount = (tabId) => {
@@ -1916,73 +1813,20 @@ const getTabCount = (tabId) => {
   }
 };
 
-const resetFiltersForTab = () => {
-  statusFilter.value = '';
-  dateFromFilter.value = '';
-  dateToFilter.value = '';
-  advancedFilterRules.value = [];
-};
+// resetFiltersForTab / handleSearch / handleFilterChange / clearSearch / clearAllFilters
+// 已迁移至 composables/useDataAdminFilterState.js (createFilterState 工厂)
+//
+// addChangeLogEntry / addRecentRecord / togglePinnedTab / isTabPinned / jumpToRecentRecord
+// 已迁移至 composables/useDataAdminChangeLog.js (createChangeLogCenter 工厂)
+// currentChangeLogEntries / currentPinnedTabs / recentRecordsForSidebar computeds 同样由工厂提供
 
-const persistColumnSettings = () => writeLocalJson(STORAGE_KEYS.columns, columnSettings.value);
-const persistSavedViews = () => writeLocalJson(STORAGE_KEYS.savedViews, savedFilterViews.value);
-const persistPinnedTabs = () => writeLocalJson(STORAGE_KEYS.pinnedTabs, pinnedTabIds.value);
-const persistRecentRecords = () => writeLocalJson(STORAGE_KEYS.recentRecords, recentRecords.value);
-const persistChangeLog = () => writeLocalJson(STORAGE_KEYS.changeLog, changeLogEntries.value);
-
-const getRowIdentity = (item) => String(item?.id || itemIndex(item));
-
-const addChangeLogEntry = (action, item = {}, detail = {}) => {
-  const entry = {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    action,
-    tabId: currentTab.value,
-    tabLabel: currentTabLabel.value,
-    recordId: item?.id || detail.recordId || '',
-    detail,
-    operator: userInfo?.username || userInfo?.email || 'admin',
-    createdAt: new Date().toISOString()
-  };
-  changeLogEntries.value = [entry, ...changeLogEntries.value].slice(0, 300);
-  persistChangeLog();
-};
-
-const addRecentRecord = (item, tabId = currentTab.value) => {
-  const id = String(item?.id || '').trim();
-  if (!id) return;
-  const tabLabel = tabs.find((tab) => tab.id === tabId)?.label || tabId;
-  const title = String(item.title || item.username || item.email || item.plan_name || item.prize_title || item.gift_content || id).trim();
-  const record = {
-    tabId,
-    tabLabel,
-    id,
-    title,
-    visitedAt: new Date().toISOString()
-  };
-  recentRecords.value = [
-    record,
-    ...recentRecords.value.filter((entry) => !(entry.tabId === tabId && String(entry.id) === id))
-  ].slice(0, 20);
-  persistRecentRecords();
-};
-
-const togglePinnedTab = (tabId) => {
-  if (pinnedTabIds.value.includes(tabId)) {
-    pinnedTabIds.value = pinnedTabIds.value.filter((id) => id !== tabId);
-  } else {
-    pinnedTabIds.value = [tabId, ...pinnedTabIds.value].slice(0, 8);
-  }
-  persistPinnedTabs();
-};
-
-const isTabPinned = (tabId) => pinnedTabIds.value.includes(tabId);
-
-const jumpToRecentRecord = (record) => {
-  if (!record?.tabId) return;
-  switchTab(record.tabId, { search: String(record.id || record.title || '') });
-};
-
-const saveCurrentFilterView = () => {
-  const name = window.prompt('请输入筛选视图名称');
+const saveCurrentFilterView = async () => {
+  const name = await dialog.prompt({
+    title: '保存筛选视图',
+    message: '请输入视图名称',
+    placeholder: '例如：本周到期',
+    defaultValue: ''
+  });
   const normalizedName = String(name || '').trim();
   if (!normalizedName) return;
   const view = {
@@ -2077,15 +1921,6 @@ const resetColumnSettings = () => {
   persistColumnSettings();
 };
 
-const setActiveTabGroup = (groupId) => {
-  activeTabGroupId.value = groupId;
-  const group = tabGroups.find((item) => item.id === groupId);
-  const firstTabId = group?.tabIds?.[0];
-  if (firstTabId && !group.tabIds.includes(currentTab.value)) {
-    switchTab(firstTabId);
-  }
-};
-
 const switchTab = (tabId, options = {}) => {
   if (activeAdminSection.value === 'overview' || isPlaceholderAdminSection.value) {
     activeAdminSection.value = 'data';
@@ -2093,7 +1928,6 @@ const switchTab = (tabId, options = {}) => {
   currentTab.value = tabId;
   activeTabGroupId.value = currentTabGroup.value?.id || activeTabGroupId.value;
   isDataTreeCollapsed.value = false;
-  ensureSidebarGroupExpanded(activeTabGroupId.value);
   if (currentPage.value !== 1) {
     suppressNextPageFetch.value = true;
     currentPage.value = 1;
@@ -2111,39 +1945,31 @@ const switchTab = (tabId, options = {}) => {
   }
 };
 
-const handleSearch = () => {
-  if (currentPage.value !== 1) {
-    suppressNextPageFetch.value = true;
-    currentPage.value = 1;
-  }
-  if (searchDebounceTimer.value) clearTimeout(searchDebounceTimer.value);
-  searchDebounceTimer.value = setTimeout(() => {
-    fetchTabData(currentTab.value);
-  }, 300);
-};
+// ==================== 第二阶段 Composable 工厂注入 ====================
+// 所有工厂通过解构直接注入, 不再使用前向声明 + 延迟赋值模式
 
-const handleFilterChange = () => {
-  if (currentPage.value !== 1) {
-    suppressNextPageFetch.value = true;
-    currentPage.value = 1;
-  }
-  fetchTabData(currentTab.value);
-};
-
-const clearSearch = () => {
-  searchQuery.value = '';
-  if (currentPage.value !== 1) {
-    suppressNextPageFetch.value = true;
-    currentPage.value = 1;
-  }
-  fetchTabData(currentTab.value);
-};
-
-const clearAllFilters = () => {
-  searchQuery.value = '';
-  resetFiltersForTab();
-  handleFilterChange();
-};
+const {
+  addChangeLogEntry,
+  addRecentRecord,
+  togglePinnedTab,
+  isTabPinned,
+  jumpToRecentRecord,
+  currentChangeLogEntries,
+  currentPinnedTabs,
+  recentRecordsForSidebar
+} = createChangeLogCenter({
+  changeLogEntries,
+  recentRecords,
+  pinnedTabIds,
+  currentTab,
+  currentTabLabel,
+  getUserInfo: () => userInfo.value,
+  tabs,
+  persistChangeLog,
+  persistRecentRecords,
+  persistPinnedTabs,
+  switchTab
+});
 
 const copyGiftAddressBundle = async () => {
   const content = giftAddressBundleText.value;
@@ -2281,6 +2107,37 @@ const toggleSelect = (item) => {
   }
 };
 
+const toggleAdminTheme = () => {
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') === 'dark';
+  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  const page = document.querySelector('.data-management-page');
+  if (page) {
+    page.classList.toggle('dark', !isDark);
+  }
+};
+
+const handleQuickEdit = async (record) => {
+  if (!record?.tabId || !record?.id) return;
+  switchTab(record.tabId);
+  await nextTick();
+  const items = dataStore[record.tabId] || [];
+  const item = items.find(i => String(i.id) === String(record.id));
+  if (item) {
+    openEditModal(item);
+  } else {
+    const table = dataConfig[record.tabId]?.table;
+    if (!table) return;
+    try {
+      const { data } = await supabase.from(table).select('*').eq('id', record.id).single();
+      if (data) openEditModal(data);
+    } catch (error) {
+      logger.warn('data-admin', '快速编辑获取记录失败:', error);
+      showToast('获取记录失败', 'error');
+    }
+  }
+};
+
 const toggleSelectAll = () => {
   if (isAllSelected.value) {
     selectedItems.value = selectedItems.value.filter(
@@ -2375,113 +2232,25 @@ const syncCoreMemoriesIndex = async () => {
   }
 };
 
-const sanitizeSearchTerm = (value) => String(value || '')
-  .trim()
-  .replace(/[,%()]/g, ' ')
-  .replace(/\s+/g, ' ')
-  .slice(0, 120);
+// sanitizeSearchTerm / buildSearchFilters / normalizeFilterValue / ALLOWED_ADVANCED_OPERATORS
+// applyAdvancedFilters / applySearchAndSort / buildSearchFiltersForKeyword / getSearchablePreviewFields
+// 已迁移至 composables/useDataAdminFilters.js
+// 本文件中:
+//   - sanitizeSearchTerm -> sanitizeSearchTermUtil (导入别名)
+//   - buildSearchFilters(tabId) -> buildSearchFiltersUtil(tabId, searchQuery.value, TAB_SEARCH_FIELDS)
+//   - applySearchAndSort(query, tabId) -> applySearchAndSortUtil({ query, tabId, ...全部状态 })
+//   - buildSearchFiltersForKeyword(tab.id, kw) -> buildSearchFiltersUtil(tab.id, kw, TAB_SEARCH_FIELDS)
+//   - getSearchablePreviewFields(tab.id) -> getSearchablePreviewFieldsUtil(tab.id, dataConfig, TAB_SEARCH_FIELDS)
 
-const buildSearchFilters = (tabId) => {
-  const keyword = sanitizeSearchTerm(searchQuery.value);
-  if (!keyword) return [];
-
-  const isUuid = UUID_REGEX.test(keyword);
-  const isInteger = /^\d+$/.test(keyword);
-
-  return (TAB_SEARCH_FIELDS[tabId] || []).flatMap((field) => {
-    if (field.type === 'uuid') {
-      return isUuid ? [`${field.column}.eq.${keyword}`] : [];
-    }
-    if (field.type === 'number') {
-      return isInteger ? [`${field.column}.eq.${keyword}`] : [];
-    }
-    return [`${field.column}.ilike.%${keyword}%`];
-  });
-};
-
-const normalizeFilterValue = (value) => String(value || '').trim().replace(/[,%()]/g, ' ').slice(0, 160);
-
-const applyAdvancedFilters = (query) => {
-  let nextQuery = query;
-  activeAdvancedRules.value.forEach((rule) => {
-    const field = String(rule.field || '').trim();
-    const operator = String(rule.operator || 'contains').trim();
-    const value = normalizeFilterValue(rule.value);
-    if (!field || !value) return;
-
-    if (operator === 'eq') nextQuery = nextQuery.eq(field, value);
-    else if (operator === 'neq') nextQuery = nextQuery.neq(field, value);
-    else if (operator === 'gt') nextQuery = nextQuery.gt(field, value);
-    else if (operator === 'gte') nextQuery = nextQuery.gte(field, value);
-    else if (operator === 'lt') nextQuery = nextQuery.lt(field, value);
-    else if (operator === 'lte') nextQuery = nextQuery.lte(field, value);
-    else if (operator === 'starts') nextQuery = nextQuery.ilike(field, `${value}%`);
-    else nextQuery = nextQuery.ilike(field, `%${value}%`);
-  });
-  return nextQuery;
-};
-
-const applySearchAndSort = (query, tabId) => {
-  const searchFilters = buildSearchFilters(tabId);
-  let nextQuery = query;
-  if (searchFilters.length > 0) {
-    nextQuery = nextQuery.or(searchFilters.join(','));
-  }
-
-  const statusField = STATUS_FILTER_FIELDS[tabId];
-  if (statusField && statusFilter.value !== '') {
-    nextQuery = nextQuery.eq(statusField, statusFilter.value);
-  }
-
-  const dateField = DATE_FILTER_FIELDS[tabId];
-  if (dateField && dateFromFilter.value) {
-    nextQuery = nextQuery.gte(dateField, dateFromFilter.value);
-  }
-  if (dateField && dateToFilter.value) {
-    const endDate = new Date(`${dateToFilter.value}T23:59:59`);
-    nextQuery = nextQuery.lte(dateField, Number.isNaN(endDate.getTime()) ? dateToFilter.value : endDate.toISOString());
-  }
-
-  nextQuery = applyAdvancedFilters(nextQuery);
-
-  const sortableColumns = TAB_SORT_COLUMNS[tabId] || new Set();
-  const configuredSort = sortableColumns.has(sortKey.value)
-    ? { column: sortKey.value, ascending: sortOrder.value === 'asc' }
-    : TAB_DEFAULT_SORT[tabId];
-
-  if (configuredSort?.column) {
-    nextQuery = nextQuery.order(configuredSort.column, { ascending: configuredSort.ascending });
-  }
-  if (configuredSort?.secondary?.column) {
-    nextQuery = nextQuery.order(configuredSort.secondary.column, { ascending: configuredSort.secondary.ascending });
-  }
-
-  return nextQuery;
-};
-
-const buildSearchFiltersForKeyword = (tabId, keywordValue) => {
-  const keyword = sanitizeSearchTerm(keywordValue);
-  if (!keyword) return [];
-
-  const isUuid = UUID_REGEX.test(keyword);
-  const isInteger = /^\d+$/.test(keyword);
-
-  return (TAB_SEARCH_FIELDS[tabId] || []).flatMap((field) => {
-    if (field.type === 'uuid') return isUuid ? [`${field.column}.eq.${keyword}`] : [];
-    if (field.type === 'number') return isInteger ? [`${field.column}.eq.${keyword}`] : [];
-    return [`${field.column}.ilike.%${keyword}%`];
-  });
-};
-
-const getSearchablePreviewFields = (tabId) => {
-  const config = dataConfig[tabId] || {};
-  return [
-    ...(config.columns || []).map((col) => col.key),
-    ...(TAB_SEARCH_FIELDS[tabId] || []).map((field) => field.column)
-  ].filter((value, index, list) => value && list.indexOf(value) === index);
-};
+let globalSearchAbortController = null;
 
 const runGlobalSearch = async () => {
+  if (globalSearchAbortController) {
+    globalSearchAbortController.abort();
+  }
+  globalSearchAbortController = new AbortController();
+  const signal = globalSearchAbortController.signal;
+
   const keyword = sanitizeSearchTerm(globalSearchQuery.value || searchQuery.value);
   if (!keyword) {
     showToast('请输入跨表搜索关键词', 'error');
@@ -2494,14 +2263,15 @@ const runGlobalSearch = async () => {
 
   try {
     const tasks = tabs.map(async (tab) => {
+      if (signal.aborted) return [];
       const table = dataConfig[tab.id]?.table;
       const selectColumns = TAB_SELECT_COLUMNS[tab.id];
-      const filters = buildSearchFiltersForKeyword(tab.id, keyword);
+      const filters = buildSearchFiltersUtil(tab.id, keyword, TAB_SEARCH_FIELDS);
       if (!table || !selectColumns || filters.length === 0) return [];
 
       let query = supabase
         .from(table)
-        .select(selectColumns)
+        .select(selectColumns, { signal })
         .or(filters.join(','))
         .limit(5);
 
@@ -2516,7 +2286,7 @@ const runGlobalSearch = async () => {
       }
 
       return (Array.isArray(data) ? data : []).map((row) => {
-        const previewFields = getSearchablePreviewFields(tab.id);
+        const previewFields = getSearchablePreviewFieldsUtil(tab.id, dataConfig, TAB_SEARCH_FIELDS);
         const preview = previewFields
           .map((field) => row?.[field])
           .find((value) => String(value || '').toLowerCase().includes(keyword.toLowerCase()))
@@ -2537,6 +2307,7 @@ const runGlobalSearch = async () => {
     });
 
     const settled = await Promise.allSettled(tasks);
+    if (signal.aborted) return;
     globalSearchResults.value = settled.flatMap((entry) => entry.status === 'fulfilled' ? entry.value : []);
     showToast(globalSearchResults.value.length ? `跨表搜索完成，命中 ${globalSearchResults.value.length} 条` : '没有找到跨表结果', globalSearchResults.value.length ? 'success' : 'info');
   } catch (error) {
@@ -2615,6 +2386,7 @@ const clearTabFetchCache = (tabId = '') => {
 
 const assignTabRows = (tabId, rows, total) => {
   dataStore[tabId] = rows;
+  hasLoadedOnce.value = true;
   const nextTotal = Number.isFinite(Number(total)) ? Number(total) : rows.length;
   updateCountsForTab(tabId, nextTotal);
   if (tabId === currentTab.value) {
@@ -2725,11 +2497,13 @@ const fetchStats = async () => {
 const fetchTabData = async (tabId = currentTab.value, options = {}) => {
   const cacheKey = getTabFetchCacheKey(tabId);
   const cached = options.useCache ? tabFetchCache[cacheKey] : null;
-  if (cached && Date.now() - Number(cached.cachedAt || 0) < 45000) {
+  if (cached && Date.now() - Number(cached.cachedAt || 0) < CACHE_TTL) {
     dataStore[tabId] = [...cached.rows];
     setTabTotal(tabId, cached.total);
     return;
   }
+
+  isFilterLoading.value = true;
 
   const fetchId = activeFetchId.value + 1;
   activeFetchId.value = fetchId;
@@ -2752,14 +2526,50 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
       query = query.ilike('status', 'rejected');
     }
 
-    let { data, error, count } = await paginateQuery(applySearchAndSort(query, tabId));
+    let { data, error, count } = await paginateQuery(applySearchAndSortUtil({
+      query,
+      tabId,
+      keyword: searchQuery.value,
+      statusFilter: statusFilter.value,
+      dateFrom: dateFromFilter.value,
+      dateTo: dateToFilter.value,
+      advancedRules: activeAdvancedRules.value,
+      sortKey: sortKey.value,
+      sortOrder: sortOrder.value,
+      configs: {
+        tabSearchFields: TAB_SEARCH_FIELDS,
+        statusFilterFields: STATUS_FILTER_FIELDS,
+        dateFilterFields: DATE_FILTER_FIELDS,
+        tabSortColumns: TAB_SORT_COLUMNS,
+        tabDefaultSort: TAB_DEFAULT_SORT
+      },
+      allowedAdvancedFields: (currentColumns.value || []).map((c) => c.key)
+    }));
 
     if (tabId === 'lotteries' && error && isMissingLotteryObservabilitySchemaError(error)) {
       logger.warn('data-admin', '抽奖观测字段尚未部署，使用旧字段兜底加载:', error);
       let fallbackQuery = supabase
         .from(table)
         .select(LOTTERY_LEGACY_SELECT_COLUMNS, { count: 'exact' });
-      ({ data, error, count } = await paginateQuery(applySearchAndSort(fallbackQuery, tabId)));
+      ({ data, error, count } = await paginateQuery(applySearchAndSortUtil({
+        query: fallbackQuery,
+        tabId,
+        keyword: searchQuery.value,
+        statusFilter: statusFilter.value,
+        dateFrom: dateFromFilter.value,
+        dateTo: dateToFilter.value,
+        advancedRules: activeAdvancedRules.value,
+        sortKey: sortKey.value,
+        sortOrder: sortOrder.value,
+        configs: {
+          tabSearchFields: TAB_SEARCH_FIELDS,
+          statusFilterFields: STATUS_FILTER_FIELDS,
+          dateFilterFields: DATE_FILTER_FIELDS,
+          tabSortColumns: TAB_SORT_COLUMNS,
+          tabDefaultSort: TAB_DEFAULT_SORT
+        },
+        allowedAdvancedFields: (currentColumns.value || []).map((c) => c.key)
+      })));
     }
 
     if (fetchId !== activeFetchId.value) return;
@@ -2769,9 +2579,9 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
     const offset = Math.max(0, ((Number(currentPage.value) || 1) - 1) * (Number(pageSize.value) || 20));
 
     if (tabId === 'users' || tabId === 'points') {
+      // 修复: 不再把 users 数据复用到 points(或反之),
+      // 避免积分页面的 count 永远等于用户总数
       assignTabRows(tabId, rows, count);
-      if (tabId === 'users') dataStore.points = dataStore.points.length ? dataStore.points : rows;
-      if (tabId === 'points') dataStore.users = dataStore.users.length ? dataStore.users : rows;
       return;
     }
 
@@ -2966,11 +2776,48 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
     dataStore[tabId] = [];
     showToast('获取数据失败: ' + buildActionErrorMessage(error, '获取数据失败'), 'error');
   } finally {
+    isFilterLoading.value = false;
     if (fetchId === activeFetchId.value) {
       isLoading.value = false;
     }
   }
 };
+
+// ==================== 第二阶段: createFilterState 工厂注入 ====================
+// 在 fetchTabData 定义之后注入, 这样筛选状态工厂可以引用真实的 fetchTabData
+const {
+  currentStatusFilterField,
+  currentDateFilterField,
+  statusFilterOptions,
+  hasActiveFilters,
+  activeAdvancedRules,
+  activeFilterSummary,
+  statusFilterLabel,
+  currentDateFilterLabel,
+  currentSavedViews,
+  resetFiltersForTab,
+  handleSearch,
+  handleFilterChange,
+  clearSearch,
+  clearAllFilters
+} = createFilterState({
+  currentTab,
+  searchQuery,
+  statusFilter,
+  dateFromFilter,
+  dateToFilter,
+  advancedFilterRules,
+  currentPage,
+  suppressNextPageFetch,
+  searchDebounceTimer,
+  savedFilterViews,
+  STATUS_FILTER_FIELDS,
+  DATE_FILTER_FIELDS,
+  fetchTabData,
+  getCurrentFields: () => currentFields.value,
+  getCurrentData: () => currentData.value,
+  getCurrentColumns: () => currentColumns.value
+});
 
 // ==================== 数据操作 ====================
 const fetchSecondaryData = async () => {
@@ -2979,6 +2826,34 @@ const fetchSecondaryData = async () => {
     isLotteryOpsTab.value ? loadLotterySchedulerStatus() : Promise.resolve()
   ]);
 };
+
+const startAutoRefresh = () => {
+  stopAutoRefresh();
+  secondsUntilRefresh.value = 30;
+  autoRefreshInterval.value = setInterval(() => {
+    secondsUntilRefresh.value--;
+    if (secondsUntilRefresh.value <= 0) {
+      secondsUntilRefresh.value = 30;
+      lastRefreshedAt.value = new Date().toISOString();
+      fetchSecondaryData();
+    }
+  }, 1000);
+};
+
+const stopAutoRefresh = () => {
+  if (autoRefreshInterval.value) {
+    clearInterval(autoRefreshInterval.value);
+    autoRefreshInterval.value = null;
+  }
+};
+
+watch(activeAdminSection, (section) => {
+  if (section === 'overview') {
+    startAutoRefresh();
+  } else {
+    stopAutoRefresh();
+  }
+});
 
 const fetchData = async ({ deferSecondary = false } = {}) => {
   if (deferSecondary) {
@@ -3008,6 +2883,48 @@ const refreshCurrentViewAfterMutation = async () => {
   });
 };
 
+// ==================== 第二阶段: createMutationsCenter 工厂注入 ====================
+// 在 refreshCurrentViewAfterMutation 之后注入, 这样 mutations 工厂可以引用真实函数
+const {
+  deleteItem,
+  deleteAdminUser,
+  batchDelete,
+  drawLotteryNow,
+  redrawLottery,
+  closeLottery,
+  viewLotteryEntries,
+  viewLotteryDrawLogs,
+  approveModerationItem,
+  rejectModerationItem,
+  keepLimitedModerationItem,
+  deleteModerationItem,
+  applyModerationAction,
+  updateModerationStatus,
+  deleteModerationTarget,
+  saveModerationLog,
+  isMissingRpcFunctionError,
+  buildModerationErrorMessage
+} = createMutationsCenter({
+  dialog,
+  showToast,
+  userInfo,
+  assertAdminAction,
+  invalidateSubscriptionCache,
+  addChangeLogEntry,
+  refreshCurrentViewAfterMutation,
+  currentTab,
+  currentConfig,
+  selectedItems,
+  buildActionErrorMessage,
+  setLotteryActionPending,
+  isLotteryActionPending,
+  setModerationPending,
+  isModerationActionPending,
+  moderationTabConfig,
+  addRecentRecord,
+  switchTab
+});
+
 const refreshAllData = async () => {
   isRefreshing.value = true;
   clearTabFetchCache();
@@ -3036,7 +2953,12 @@ const loadLotterySchedulerStatus = async () => {
 
 const runDueLotteryDraws = async () => {
   if (lotteryDueDrawPending.value) return;
-  if (!confirm('确定要立即执行所有已到期但未开奖的抽奖吗？')) return;
+  if (!await dialog.confirm({
+    title: '批量开奖',
+    message: '确定要立即执行所有已到期但未开奖的抽奖吗？',
+    tone: 'warning',
+    confirmText: '立即开奖'
+  })) return;
 
   lotteryDueDrawPending.value = true;
   try {
@@ -3105,11 +3027,24 @@ const clearCurrentDraft = () => {
   writeLocalJson(STORAGE_KEYS.drafts, drafts);
 };
 
-const maybeRestoreDraft = () => {
+const maybeRestoreDraft = async () => {
   const draft = readDrafts()[getDraftKey()];
   if (!draft?.editingItem) return;
   const updatedAt = draft.updatedAt ? formatDateTime(draft.updatedAt) : '上次';
-  if (!confirm(`发现 ${updatedAt} 未保存草稿，是否恢复？`)) return;
+  const choice = await dialog.confirmThree({
+    title: '检测到未保存的草稿',
+    message: `这条记录在 ${updatedAt} 有未保存的编辑内容。\n• 选「继续编辑」恢复并保留草稿\n• 选「重新开始」丢弃草稿并加载最新数据\n• 选「稍后再说」暂时关闭`,
+    confirmText: '继续编辑',
+    cancelText: '稍后再说',
+    tertiaryText: '重新开始',
+    tone: 'warning'
+  });
+  if (choice === 'cancel') return;
+  if (choice === 'tertiary') {
+    clearCurrentDraft();
+    return;
+  }
+  // choice === 'confirm' => 恢复草稿
   suppressDraftSave.value = true;
   editingItem.value = { ...editingItem.value, ...draft.editingItem };
   jsonBuffers.value = { ...jsonBuffers.value, ...(draft.jsonBuffers || {}) };
@@ -3131,9 +3066,13 @@ const getPayloadDiffs = (before = {}, after = {}) => {
   return diffs;
 };
 
-const confirmPayloadDiffs = (payload) => {
+const confirmPayloadDiffs = async (payload) => {
   if (!isEditing.value) {
-    return confirm(`确定要新增 1 条「${currentTabLabel.value}」记录吗？`);
+    return await dialog.confirm({
+      title: '新增记录',
+      message: `确定要新增 1 条「${currentTabLabel.value}」记录吗？`,
+      confirmText: '新增'
+    });
   }
   const diffs = getPayloadDiffs(editingOriginalItem.value || {}, payload);
   if (!diffs.length) return true;
@@ -3141,197 +3080,243 @@ const confirmPayloadDiffs = (payload) => {
     .slice(0, 8)
     .map((diff) => `${diff.key}: ${String(diff.from ?? '-').slice(0, 40)} -> ${String(diff.to ?? '-').slice(0, 40)}`)
     .join('\n');
-  return confirm(`保存前差异预览（${diffs.length} 项）：\n${preview}${diffs.length > 8 ? '\n...' : ''}\n\n确认保存？`);
+  return await dialog.confirm({
+    title: '保存前差异预览',
+    message: `保存前差异预览（${diffs.length} 项）：\n${preview}${diffs.length > 8 ? '\n...' : ''}\n\n确认保存？`,
+    confirmText: '保存'
+  });
 };
 
 // ==================== 编辑模态框 ====================
-const openEditModal = async (item = null) => {
-  jsonBuffers.value = {};
-  clearFieldErrors();
-  userPickerKeyword.value = '';
-  showUserPickerModal.value = false;
-  if (item) {
-    isEditing.value = true;
-    editingItem.value = { ...item };
-    editingOriginalItem.value = cloneComparable(item);
-    addRecentRecord(item);
+const handleAdminCreate = () => openEditModal();
 
-    if (currentTab.value === 'forum') {
-      const { title, body } = splitForumContent(item.content);
-      editingItem.value.title = String(item.title || title || '').trim();
-      editingItem.value.content = body || '';
-      if (!editingItem.value.status) {
+const openEditModal = async (item = null) => {
+  try {
+    jsonBuffers.value = {};
+    clearFieldErrors();
+    userPickerKeyword.value = '';
+    showUserPickerModal.value = false;
+    if (item) {
+      isEditing.value = true;
+      editingItem.value = { ...item };
+      editingOriginalItem.value = cloneComparable(item);
+      addRecentRecord(item);
+
+      if (currentTab.value === 'forum') {
+        const { title, body } = splitForumContent(item.content);
+        editingItem.value.title = String(item.title || title || '').trim();
+        editingItem.value.content = body || '';
+        if (!editingItem.value.status) {
+          editingItem.value.status = 'approved';
+        }
+      }
+
+      if (currentTab.value === 'subscriptions') {
+        const planCode = String(editingItem.value.plan_code || '').trim();
+        if (!editingItem.value.plan_name && planCode) {
+          editingItem.value.plan_name = SUBSCRIPTION_PLAN_NAMES[planCode] || planCode;
+        }
+        if (!editingItem.value.billing_cycle) {
+          editingItem.value.billing_cycle = 'monthly';
+        }
+        if (!editingItem.value.status) {
+          editingItem.value.status = 'active';
+        }
+      }
+
+      // 初始化 JSON/日期时间缓冲区
+      currentFields.value.forEach(field => {
+        if (field.type === 'json' && item[field.key]) {
+          jsonBuffers.value[field.key] = JSON.stringify(item[field.key], null, 2);
+        }
+        if (field.type === 'datetime') {
+          editingItem.value[field.key] = toDateTimeInputValue(item[field.key]);
+        }
+        if (field.type === 'date') {
+          editingItem.value[field.key] = toDateInputValue(item[field.key]);
+        }
+      });
+    } else {
+      isEditing.value = false;
+      editingItem.value = {};
+      editingOriginalItem.value = null;
+      // 初始化默认值
+      currentFields.value.forEach(field => {
+        if (field.type === 'tags' || field.type === 'specifications') {
+          editingItem.value[field.key] = [];
+        } else if (field.type === 'json') {
+          editingItem.value[field.key] = {};
+          jsonBuffers.value[field.key] = '{}';
+        }
+      });
+
+      if (currentTab.value === 'gifts') {
+        const year = new Date().getFullYear();
+        const serial = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+        editingItem.value.user_id = '';
+        editingItem.value.username = '';
+        editingItem.value.shipping_recipient = '';
+        editingItem.value.shipping_phone = '';
+        editingItem.value.shipping_address = '';
+        editingItem.value.gift_no = `BOH-${year}-${serial}`;
+        editingItem.value.gift_status = 'preparing';
+        editingItem.value.gift_price = 0;
+        editingItem.value.is_active = true;
+        editingItem.value.completed_at = '';
+      }
+
+      if (currentTab.value === 'subscriptions') {
+        const now = new Date();
+        const expires = new Date(now);
+        expires.setMonth(expires.getMonth() + 1);
+        editingItem.value.user_id = '';
+        editingItem.value.username = '';
+        editingItem.value.email = '';
+        editingItem.value.plan_code = 'boh-ai-plus';
+        editingItem.value.plan_name = SUBSCRIPTION_PLAN_NAMES['boh-ai-plus'];
+        editingItem.value.billing_cycle = 'monthly';
+        editingItem.value.points_cost = 120;
+        editingItem.value.duration_months = 1;
+        editingItem.value.started_at = toDateTimeInputValue(now);
+        editingItem.value.expires_at = toDateTimeInputValue(expires);
+        editingItem.value.status = 'active';
+        editingItem.value.metadata = {};
+        jsonBuffers.value.metadata = '{}';
+      }
+
+      if (currentTab.value === 'news') {
+        editingItem.value.id = await fetchNextNumericId('news', dataStore.news);
+        editingItem.value.category = 'update';
+        editingItem.value.title = '';
+        editingItem.value.excerpt = '';
+        editingItem.value.content = '';
+        editingItem.value.date = toDateInputValue(new Date());
+        editingItem.value.author = userInfo.value?.username || localStorage.getItem('username') || 'admin';
+        editingItem.value.image = '';
+        injectNewsTemplate(false);
+      }
+
+      if (currentTab.value === 'forum') {
+        editingItem.value.title = '';
+        editingItem.value.content = '';
+        editingItem.value.author_id = userInfo.value?.id || '';
+        editingItem.value.author_username = userInfo.value?.username || localStorage.getItem('username') || '';
         editingItem.value.status = 'approved';
       }
-    }
 
-    if (currentTab.value === 'subscriptions') {
-      const planCode = String(editingItem.value.plan_code || '').trim();
-      if (!editingItem.value.plan_name && planCode) {
-        editingItem.value.plan_name = SUBSCRIPTION_PLAN_NAMES[planCode] || planCode;
-      }
-      if (!editingItem.value.billing_cycle) {
-        editingItem.value.billing_cycle = 'monthly';
-      }
-      if (!editingItem.value.status) {
+      if (currentTab.value === 'coreMemories') {
+        editingItem.value.title = '';
+        editingItem.value.category = 'general';
         editingItem.value.status = 'active';
+        editingItem.value.priority = 50;
+        editingItem.value.source_label = 'BOH 官方';
+        editingItem.value.source_url = '';
+        editingItem.value.tags = [];
+        editingItem.value.content = '';
+      }
+
+      if (currentTab.value === 'bohaiModels') {
+        editingItem.value.mode_id = 'fast';
+        editingItem.value.display_name = 'Fast';
+        editingItem.value.tagline = '快速响应';
+        editingItem.value.description = '';
+        editingItem.value.provider = 'siliconflow';
+        editingItem.value.provider_label = 'SiliconFlow';
+        editingItem.value.model_id = 'Qwen/Qwen3-8B';
+        editingItem.value.api_url = getDefaultApiUrlForBohaiProvider('siliconflow');
+        editingItem.value.capability = 'chat';
+        editingItem.value.icon = 'zap';
+        editingItem.value.temperature = 0.18;
+        editingItem.value.top_p = 0.72;
+        editingItem.value.frequency_penalty = 0.05;
+        editingItem.value.max_tokens = 1600;
+        editingItem.value.sort_order = 10;
+        editingItem.value.status = 'active';
+        editingItem.value.notes = '';
+      }
+
+      if (currentTab.value === 'lotteries') {
+        editingItem.value.title = '';
+        editingItem.value.description = '';
+        editingItem.value.prize_title = '';
+        editingItem.value.prize_description = '';
+        editingItem.value.cover_image_url = '';
+        editingItem.value.status = 'open';
+        editingItem.value.fulfillment_status = 'pending_contact';
+        editingItem.value.is_community_visible = true;
+        editingItem.value.max_entries = null;
+        editingItem.value.winner_count = 1;
+        editingItem.value.entry_deadline_at = '';
+        editingItem.value.draw_at = '';
+        editingItem.value.drawn_at = '';
+        editingItem.value.winner_username = '';
+      }
+
+      if (currentTab.value === 'activities') {
+        editingItem.value.id = await fetchNextNumericId('activities', dataStore.activities);
+        editingItem.value.title = '';
+        editingItem.value.date = toDateInputValue(new Date());
+        editingItem.value.description = '';
+        editingItem.value.image = '';
+      }
+
+      if (currentTab.value === 'products') {
+        editingItem.value.id = await fetchNextNumericId('products', dataStore.products);
+        editingItem.value.title = '';
+        editingItem.value.category = PRODUCT_CATEGORY_OPTIONS[0].value;
+        editingItem.value.description = '';
+        editingItem.value.points_cost = 0;
+        editingItem.value.stock = 0;
+        editingItem.value.image = '';
+        editingItem.value.specifications = [];
       }
     }
-
-    // 初始化 JSON/日期时间缓冲区
-    currentFields.value.forEach(field => {
-      if (field.type === 'json' && item[field.key]) {
-        jsonBuffers.value[field.key] = JSON.stringify(item[field.key], null, 2);
+    showModal.value = true;
+    nextTick(maybeRestoreDraft);
+  } catch (error) {
+    logger.error('data-admin', '打开编辑弹窗失败:', error);
+    showToast('打开编辑弹窗失败: ' + buildActionErrorMessage(error, '请稍后重试'), 'error');
+    // 兜底: 确保弹窗一定会打开, 哪怕初始化失败
+    if (!showModal.value) {
+      isEditing.value = Boolean(item);
+      if (item) {
+        editingItem.value = { ...item };
+        editingOriginalItem.value = cloneComparable(item);
+      } else {
+        editingItem.value = {};
+        editingOriginalItem.value = null;
       }
-      if (field.type === 'datetime') {
-        editingItem.value[field.key] = toDateTimeInputValue(item[field.key]);
-      }
-      if (field.type === 'date') {
-        editingItem.value[field.key] = toDateInputValue(item[field.key]);
-      }
-    });
-  } else {
-    isEditing.value = false;
-    editingItem.value = {};
-    editingOriginalItem.value = null;
-    // 初始化默认值
-    currentFields.value.forEach(field => {
-      if (field.type === 'tags' || field.type === 'specifications') {
-        editingItem.value[field.key] = [];
-      } else if (field.type === 'json') {
-        editingItem.value[field.key] = {};
-        jsonBuffers.value[field.key] = '{}';
-      }
-    });
-
-    if (currentTab.value === 'gifts') {
-      const year = new Date().getFullYear();
-      const serial = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
-      editingItem.value.user_id = '';
-      editingItem.value.username = '';
-      editingItem.value.shipping_recipient = '';
-      editingItem.value.shipping_phone = '';
-      editingItem.value.shipping_address = '';
-      editingItem.value.gift_no = `BOH-${year}-${serial}`;
-      editingItem.value.gift_status = 'preparing';
-      editingItem.value.gift_price = 0;
-      editingItem.value.is_active = true;
-      editingItem.value.completed_at = '';
-    }
-
-    if (currentTab.value === 'subscriptions') {
-      const now = new Date();
-      const expires = new Date(now);
-      expires.setMonth(expires.getMonth() + 1);
-      editingItem.value.user_id = '';
-      editingItem.value.username = '';
-      editingItem.value.email = '';
-      editingItem.value.plan_code = 'boh-ai-plus';
-      editingItem.value.plan_name = SUBSCRIPTION_PLAN_NAMES['boh-ai-plus'];
-      editingItem.value.billing_cycle = 'monthly';
-      editingItem.value.points_cost = 120;
-      editingItem.value.duration_months = 1;
-      editingItem.value.started_at = toDateTimeInputValue(now);
-      editingItem.value.expires_at = toDateTimeInputValue(expires);
-      editingItem.value.status = 'active';
-      editingItem.value.metadata = {};
-      jsonBuffers.value.metadata = '{}';
-    }
-
-    if (currentTab.value === 'news') {
-      editingItem.value.id = await fetchNextNumericId('news', dataStore.news);
-      editingItem.value.category = 'update';
-      editingItem.value.title = '';
-      editingItem.value.excerpt = '';
-      editingItem.value.content = '';
-      editingItem.value.date = toDateInputValue(new Date());
-      editingItem.value.author = userInfo?.username || localStorage.getItem('username') || 'admin';
-      editingItem.value.image = '';
-      injectNewsTemplate(false);
-    }
-
-    if (currentTab.value === 'forum') {
-      editingItem.value.title = '';
-      editingItem.value.content = '';
-      editingItem.value.author_id = userInfo?.id || '';
-      editingItem.value.author_username = userInfo?.username || localStorage.getItem('username') || '';
-      editingItem.value.status = 'approved';
-    }
-
-    if (currentTab.value === 'coreMemories') {
-      editingItem.value.title = '';
-      editingItem.value.category = 'general';
-      editingItem.value.status = 'active';
-      editingItem.value.priority = 50;
-      editingItem.value.source_label = 'BOH 官方';
-      editingItem.value.source_url = '';
-      editingItem.value.tags = [];
-      editingItem.value.content = '';
-    }
-
-    if (currentTab.value === 'bohaiModels') {
-      editingItem.value.mode_id = 'fast';
-      editingItem.value.display_name = 'Fast';
-      editingItem.value.tagline = '快速响应';
-      editingItem.value.description = '';
-      editingItem.value.provider = 'siliconflow';
-      editingItem.value.provider_label = 'SiliconFlow';
-      editingItem.value.model_id = 'Qwen/Qwen3-8B';
-      editingItem.value.api_url = getDefaultApiUrlForBohaiProvider('siliconflow');
-      editingItem.value.capability = 'chat';
-      editingItem.value.icon = 'zap';
-      editingItem.value.temperature = 0.18;
-      editingItem.value.top_p = 0.72;
-      editingItem.value.frequency_penalty = 0.05;
-      editingItem.value.max_tokens = 1600;
-      editingItem.value.sort_order = 10;
-      editingItem.value.status = 'active';
-      editingItem.value.notes = '';
-    }
-
-    if (currentTab.value === 'lotteries') {
-      editingItem.value.title = '';
-      editingItem.value.description = '';
-      editingItem.value.prize_title = '';
-      editingItem.value.prize_description = '';
-      editingItem.value.cover_image_url = '';
-      editingItem.value.status = 'open';
-      editingItem.value.fulfillment_status = 'pending_contact';
-      editingItem.value.is_community_visible = true;
-      editingItem.value.max_entries = null;
-      editingItem.value.winner_count = 1;
-      editingItem.value.entry_deadline_at = '';
-      editingItem.value.draw_at = '';
-      editingItem.value.drawn_at = '';
-      editingItem.value.winner_username = '';
-    }
-
-    if (currentTab.value === 'activities') {
-      editingItem.value.id = await fetchNextNumericId('activities', dataStore.activities);
-      editingItem.value.title = '';
-      editingItem.value.date = toDateInputValue(new Date());
-      editingItem.value.description = '';
-      editingItem.value.image = '';
-    }
-
-    if (currentTab.value === 'products') {
-      editingItem.value.id = await fetchNextNumericId('products', dataStore.products);
-      editingItem.value.title = '';
-      editingItem.value.category = PRODUCT_CATEGORY_OPTIONS[0].value;
-      editingItem.value.description = '';
-      editingItem.value.points_cost = 0;
-      editingItem.value.stock = 0;
-      editingItem.value.image = '';
-      editingItem.value.specifications = [];
+      showModal.value = true;
     }
   }
-  showModal.value = true;
-  nextTick(maybeRestoreDraft);
 };
 
-const closeModal = ({ askDraft = true } = {}) => {
+const navigateEditRecord = (direction) => {
+  const idx = paginatedData.value.findIndex(item => String(item.id) === String(editingItem.value?.id));
+  const nextIdx = idx + direction;
+  if (nextIdx < 0 || nextIdx >= paginatedData.value.length) return;
+  openEditModal(paginatedData.value[nextIdx]);
+};
+
+const editDrawerNav = computed(() => {
+  if (!showModal.value || !isEditing.value) return { hasPrev: false, hasNext: false, label: '' };
+  const idx = paginatedData.value.findIndex(item => String(item.id) === String(editingItem.value?.id));
+  const total = paginatedData.value.length;
+  return {
+    hasPrev: idx > 0,
+    hasNext: idx < total - 1,
+    label: idx >= 0 ? `${idx + 1} / ${total}` : ''
+  };
+});
+
+const closeModal = async ({ askDraft = true } = {}) => {
   if (askDraft && showModal.value && Object.keys(editingItem.value || {}).length > 0) {
-    const shouldKeepDraft = confirm('是否保留本次未保存草稿？选择“取消”会丢弃草稿并关闭。');
+    const shouldKeepDraft = await dialog.confirm({
+      title: '保留草稿',
+      message: '是否保留本次未保存草稿？\n选"保留"会保存草稿以便下次恢复；选"丢弃"会清除并关闭。',
+      confirmText: '保留',
+      cancelText: '丢弃'
+    });
     if (shouldKeepDraft) saveCurrentDraft();
     else clearCurrentDraft();
   }
@@ -3449,564 +3434,25 @@ const saveData = async () => {
     }
 
     const table = currentConfig.value.table;
-    let dataToSave = pickWritableFields(currentTab.value, { ...editingItem.value });
-
-    if (currentTab.value === 'users' || currentTab.value === 'points') {
-      if (dataToSave.points !== undefined && dataToSave.points !== null && dataToSave.points !== '') {
-        const normalizedPoints = Number(dataToSave.points);
-        if (!Number.isFinite(normalizedPoints) || normalizedPoints < 0) {
-          fieldErrors.points = '积分必须是大于等于 0 的数字';
-          showToast('请修复表单错误后再保存', 'error');
-          isSaving.value = false;
-          return;
-        }
-        dataToSave.points = Math.round(normalizedPoints);
-      }
-
-      if (dataToSave.experience !== undefined && dataToSave.experience !== null && dataToSave.experience !== '') {
-        const normalizedExperience = Number(dataToSave.experience);
-        if (!Number.isFinite(normalizedExperience) || normalizedExperience < 0) {
-          fieldErrors.experience = '经验值必须是大于等于 0 的数字';
-          showToast('请修复表单错误后再保存', 'error');
-          isSaving.value = false;
-          return;
-        }
-        dataToSave.experience = Math.round(normalizedExperience);
-      }
-
-      if (dataToSave.join_date) {
-        dataToSave.join_date = toDateInputValue(dataToSave.join_date);
-      }
-
-      if (dataToSave.email !== undefined) {
-        const email = String(dataToSave.email || '').trim();
-        if (email && !EMAIL_REGEX.test(email)) {
-          fieldErrors.email = '邮箱格式不正确';
-          showToast('请修复表单错误后再保存', 'error');
-          isSaving.value = false;
-          return;
-        }
-        dataToSave.email = email || null;
-      }
+    const strategy = SAVE_STRATEGIES[currentTab.value];
+    if (!strategy) {
+      showToast(`暂不支持保存 ${currentTabLabel.value}`, 'error');
+      isSaving.value = false;
+      return;
     }
-
-    if (currentTab.value === 'forum') {
-      const forumTitle = String(editingItem.value.title || '').trim();
-      const forumBody = String(editingItem.value.content || '').trim();
-      const normalizedAuthorId = String(editingItem.value.author_id || '').trim();
-      const normalizedAuthorUsername = String(editingItem.value.author_username || '').trim();
-      const normalizedStatus = String(editingItem.value.status || 'approved').trim() || 'approved';
-
-      if (!forumTitle) {
-        fieldErrors.title = '帖子标题不能为空';
-        showToast('请修复表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!forumBody) {
-        fieldErrors.content = '帖子正文不能为空';
-        showToast('请修复表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (normalizedAuthorId && !UUID_REGEX.test(normalizedAuthorId)) {
-        fieldErrors.author_id = '作者 ID 必须是 UUID';
-        showToast('请修复表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      const finalForumContent = `【${forumTitle}】\n${forumBody}`;
-      dataToSave = pickWritableFields('forum', {
-        content: finalForumContent,
-        author_id: normalizedAuthorId || null,
-        author_username: normalizedAuthorUsername || null,
-        status: normalizedStatus,
-        updated_at: new Date().toISOString()
-      });
-    }
-
-    if (currentTab.value === 'subscriptions') {
-      const normalizedUserId = String(editingItem.value.user_id || '').trim();
-      const normalizedPlanCode = String(editingItem.value.plan_code || '').trim();
-      const normalizedPlanName = String(editingItem.value.plan_name || '').trim();
-      const normalizedBillingCycle = String(editingItem.value.billing_cycle || '').trim();
-      const normalizedStatus = String(editingItem.value.status || '').trim();
-      const normalizedPointsCost = Number(editingItem.value.points_cost);
-      const normalizedDurationMonths = Number(editingItem.value.duration_months);
-      const startedAtIso = toISOStringFromInput(editingItem.value.started_at);
-      const expiresAtIso = toISOStringFromInput(editingItem.value.expires_at);
-
-      if (!normalizedUserId || !UUID_REGEX.test(normalizedUserId)) {
-        fieldErrors.user_id = '请先选择有效用户';
-        showToast('请修复订阅表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!normalizedPlanCode || !normalizedPlanName) {
-        fieldErrors.plan_code = '订阅内容不能为空';
-        showToast('请修复订阅表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!Number.isFinite(normalizedPointsCost) || normalizedPointsCost < 0) {
-        fieldErrors.points_cost = '积分成本必须是大于等于 0 的数字';
-        showToast('请修复订阅表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!Number.isInteger(normalizedDurationMonths) || normalizedDurationMonths <= 0 || normalizedDurationMonths > 120) {
-        fieldErrors.duration_months = '订阅月数必须是 1-120 之间的整数';
-        showToast('请修复订阅表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!startedAtIso) {
-        fieldErrors.started_at = '订阅时间无效';
-        showToast('请修复订阅表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!expiresAtIso) {
-        fieldErrors.expires_at = '到期时间无效';
-        showToast('请修复订阅表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (Date.parse(expiresAtIso) <= Date.parse(startedAtIso)) {
-        fieldErrors.expires_at = '到期时间必须晚于订阅时间';
-        showToast('请修复订阅表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      dataToSave = pickWritableFields('subscriptions', {
-        user_id: normalizedUserId,
-        plan_code: normalizedPlanCode,
-        plan_name: normalizedPlanName,
-        billing_cycle: normalizedBillingCycle,
-        points_cost: Math.round(normalizedPointsCost),
-        duration_months: normalizedDurationMonths,
-        started_at: startedAtIso,
-        expires_at: expiresAtIso,
-        status: normalizedStatus,
-        metadata: editingItem.value.metadata || {},
-        updated_at: new Date().toISOString()
-      });
-    }
-
-    if (currentTab.value === 'coreMemories') {
-      const normalizedTitle = String(editingItem.value.title || '').trim();
-      const normalizedContent = String(editingItem.value.content || '').trim();
-      const normalizedCategory = String(editingItem.value.category || 'general').trim() || 'general';
-      const normalizedStatus = String(editingItem.value.status || 'active').trim() || 'active';
-      const normalizedPriority = Number(editingItem.value.priority);
-      const normalizedTags = Array.isArray(editingItem.value.tags)
-        ? editingItem.value.tags
-          .map((tag) => String(tag || '').trim())
-          .filter(Boolean)
-          .slice(0, 30)
-        : [];
-
-      if (!normalizedTitle) {
-        fieldErrors.title = '标题不能为空';
-        showToast('请修复官方事实表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!normalizedContent) {
-        fieldErrors.content = '官方事实内容不能为空';
-        showToast('请修复官方事实表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!Number.isFinite(normalizedPriority) || normalizedPriority < 0 || normalizedPriority > 100) {
-        fieldErrors.priority = '优先级必须是 0-100 之间的数字';
-        showToast('请修复官方事实表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      dataToSave = pickWritableFields('coreMemories', {
-        title: normalizedTitle,
-        content: normalizedContent,
-        category: normalizedCategory,
-        tags: normalizedTags,
-        priority: Math.round(normalizedPriority),
-        source_label: String(editingItem.value.source_label || 'BOH 官方').trim() || 'BOH 官方',
-        source_url: String(editingItem.value.source_url || '').trim(),
-        status: normalizedStatus,
-        updated_by: userInfo?.id || null
-      });
-    }
-
-    if (currentTab.value === 'bohaiModels') {
-      const normalizedModeId = String(editingItem.value.mode_id || '').trim();
-      const normalizedDisplayName = String(editingItem.value.display_name || '').trim();
-      const normalizedProvider = String(editingItem.value.provider || 'siliconflow').trim().toLowerCase();
-      const normalizedModelId = String(editingItem.value.model_id || '').trim();
-      const normalizedCapability = String(editingItem.value.capability || 'chat').trim().toLowerCase();
-      const normalizedStatus = String(editingItem.value.status || 'active').trim().toLowerCase();
-      const normalizedIcon = String(editingItem.value.icon || 'sparkles').trim() || 'sparkles';
-      const normalizedTemperature = Number(editingItem.value.temperature);
-      const normalizedTopP = Number(editingItem.value.top_p);
-      const normalizedFrequencyPenalty = Number(editingItem.value.frequency_penalty);
-      const normalizedMaxTokens = Number(editingItem.value.max_tokens);
-      const normalizedSortOrder = Number(editingItem.value.sort_order);
-
-      if (!normalizedModeId || !/^[a-z0-9][a-z0-9_-]{1,63}$/i.test(normalizedModeId)) {
-        fieldErrors.mode_id = '模式 ID 只能包含字母、数字、横线或下划线，长度 2-64';
-        showToast('请修复 BOHAI 模型表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!normalizedDisplayName) {
-        fieldErrors.display_name = '显示名称不能为空';
-        showToast('请修复 BOHAI 模型表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!['siliconflow', 'zhipu', 'custom'].includes(normalizedProvider)) {
-        fieldErrors.provider = '供应商必须是 siliconflow / zhipu / custom';
-        showToast('请修复 BOHAI 模型表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!normalizedModelId) {
-        fieldErrors.model_id = '模型 ID 不能为空';
-        showToast('请修复 BOHAI 模型表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!['chat', 'multimodal', 'plan', 'agent'].includes(normalizedCapability)) {
-        fieldErrors.capability = '能力类型无效';
-        showToast('请修复 BOHAI 模型表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!['active', 'disabled'].includes(normalizedStatus)) {
-        fieldErrors.status = '状态必须是 active 或 disabled';
-        showToast('请修复 BOHAI 模型表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!Number.isFinite(normalizedTemperature) || normalizedTemperature < 0 || normalizedTemperature > 1.2) {
-        fieldErrors.temperature = 'Temperature 必须在 0-1.2 之间';
-        showToast('请修复 BOHAI 模型表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!Number.isFinite(normalizedTopP) || normalizedTopP < 0.1 || normalizedTopP > 1) {
-        fieldErrors.top_p = 'Top P 必须在 0.1-1 之间';
-        showToast('请修复 BOHAI 模型表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!Number.isFinite(normalizedFrequencyPenalty) || normalizedFrequencyPenalty < 0 || normalizedFrequencyPenalty > 2) {
-        fieldErrors.frequency_penalty = 'Frequency Penalty 必须在 0-2 之间';
-        showToast('请修复 BOHAI 模型表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!Number.isInteger(normalizedMaxTokens) || normalizedMaxTokens < 256 || normalizedMaxTokens > 4096) {
-        fieldErrors.max_tokens = '最大输出 tokens 必须是 256-4096 的整数';
-        showToast('请修复 BOHAI 模型表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!Number.isInteger(normalizedSortOrder) || normalizedSortOrder < 0 || normalizedSortOrder > 10000) {
-        fieldErrors.sort_order = '显示排序必须是 0-10000 的整数';
-        showToast('请修复 BOHAI 模型表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      dataToSave = pickWritableFields('bohaiModels', {
-        mode_id: normalizedModeId,
-        display_name: normalizedDisplayName,
-        tagline: String(editingItem.value.tagline || '').trim(),
-        description: String(editingItem.value.description || '').trim(),
-        provider: normalizedProvider,
-        provider_label: String(editingItem.value.provider_label || '').trim() || normalizedProvider,
-        model_id: normalizedModelId,
-        api_url: String(editingItem.value.api_url || '').trim() || getDefaultApiUrlForBohaiProvider(normalizedProvider),
-        capability: normalizedCapability,
-        icon: normalizedIcon,
-        temperature: normalizedTemperature,
-        top_p: normalizedTopP,
-        frequency_penalty: normalizedFrequencyPenalty,
-        max_tokens: normalizedMaxTokens,
-        sort_order: normalizedSortOrder,
-        status: normalizedStatus,
-        notes: String(editingItem.value.notes || '').trim(),
-        created_by: isEditing.value ? undefined : (userInfo?.id || null),
-        updated_by: userInfo?.id || null
-      });
-    }
-
-    if (currentTab.value === 'lotteries') {
-      const normalizedTitle = String(editingItem.value.title || '').trim();
-      const normalizedPrizeTitle = String(editingItem.value.prize_title || '').trim();
-      const normalizedStatus = String(editingItem.value.status || 'open').trim() || 'open';
-      const normalizedFulfillmentStatus = String(editingItem.value.fulfillment_status || 'pending_contact').trim() || 'pending_contact';
-      const normalizedCommunityVisible = editingItem.value.is_community_visible !== false && editingItem.value.is_community_visible !== 'false';
-      const rawMaxEntries = editingItem.value.max_entries;
-      const hasMaxEntries = rawMaxEntries !== null && rawMaxEntries !== undefined && rawMaxEntries !== '';
-      const normalizedMaxEntries = hasMaxEntries ? Number(rawMaxEntries) : null;
-      const rawWinnerCount = editingItem.value.winner_count;
-      const normalizedWinnerCount = rawWinnerCount === null || rawWinnerCount === undefined || rawWinnerCount === ''
-        ? 1
-        : Number(rawWinnerCount);
-      const normalizedEntryDeadlineAt = toISOStringFromInput(editingItem.value.entry_deadline_at);
-      const normalizedDrawAt = toISOStringFromInput(editingItem.value.draw_at);
-
-      if (!normalizedTitle) {
-        fieldErrors.title = '抽奖标题不能为空';
-        showToast('请修复抽奖表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!normalizedPrizeTitle) {
-        fieldErrors.prize_title = '奖品名称不能为空';
-        showToast('请修复抽奖表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!['draft', 'open', 'drawn', 'closed'].includes(normalizedStatus)) {
-        fieldErrors.status = '抽奖状态无效';
-        showToast('请修复抽奖表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!['pending_contact', 'confirmed', 'fulfilled', 'voided'].includes(normalizedFulfillmentStatus)) {
-        fieldErrors.fulfillment_status = '中奖处理状态无效';
-        showToast('请修复抽奖表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (hasMaxEntries && (!Number.isInteger(normalizedMaxEntries) || normalizedMaxEntries <= 0)) {
-        fieldErrors.max_entries = '报名人数上限必须是正整数，或留空表示不限';
-        showToast('请修复抽奖表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!Number.isInteger(normalizedWinnerCount) || normalizedWinnerCount <= 0) {
-        fieldErrors.winner_count = '中奖人数必须是正整数';
-        showToast('请修复抽奖表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (normalizedMaxEntries !== null && normalizedWinnerCount > normalizedMaxEntries) {
-        fieldErrors.winner_count = '中奖人数不能大于报名人数上限';
-        showToast('请修复抽奖表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (editingItem.value.draw_at && !normalizedDrawAt) {
-        fieldErrors.draw_at = '自动开奖时间无效';
-        showToast('请修复抽奖表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (editingItem.value.entry_deadline_at && !normalizedEntryDeadlineAt) {
-        fieldErrors.entry_deadline_at = '报名截止时间无效';
-        showToast('请修复抽奖表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (normalizedEntryDeadlineAt && normalizedDrawAt && Date.parse(normalizedEntryDeadlineAt) > Date.parse(normalizedDrawAt)) {
-        fieldErrors.entry_deadline_at = '报名截止时间不能晚于自动开奖时间';
-        showToast('请修复抽奖表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      dataToSave = pickWritableFields('lotteries', {
-        title: normalizedTitle,
-        description: String(editingItem.value.description || '').trim(),
-        prize_title: normalizedPrizeTitle,
-        prize_description: String(editingItem.value.prize_description || '').trim(),
-        cover_image_url: String(editingItem.value.cover_image_url || '').trim(),
-        status: normalizedStatus,
-        fulfillment_status: normalizedFulfillmentStatus,
-        is_community_visible: normalizedCommunityVisible,
-        max_entries: normalizedMaxEntries,
-        winner_count: normalizedWinnerCount,
-        entry_deadline_at: normalizedEntryDeadlineAt,
-        draw_at: normalizedDrawAt,
-        created_by: isEditing.value ? undefined : (userInfo?.id || null),
-        updated_by: userInfo?.id || null
-      });
-    }
-
-    if (currentTab.value === 'products') {
-      const normalizedId = Number(editingItem.value.id);
-      if (!Number.isInteger(normalizedId) || normalizedId <= 0) {
-        fieldErrors.id = '商品 ID 必须是正整数';
-        showToast('请修复表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      const normalizedPointsCost = Number(editingItem.value.points_cost);
-      if (!Number.isFinite(normalizedPointsCost) || normalizedPointsCost < 0) {
-        fieldErrors.points_cost = '商品积分定价必须是大于等于 0 的数字';
-        showToast('请修复表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-      const normalizedStock = Number(editingItem.value.stock);
-      if (!Number.isFinite(normalizedStock) || normalizedStock < 0) {
-        fieldErrors.stock = '库存必须是大于等于 0 的数字';
-        showToast('请修复表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      const normalizedSpecifications = Array.isArray(editingItem.value.specifications)
-        ? editingItem.value.specifications
-          .map((spec) => ({
-            label: String(spec?.label || '').trim(),
-            value: String(spec?.value || '').trim()
-          }))
-          .filter((spec) => spec.label && spec.value)
-        : [];
-
-      dataToSave = pickWritableFields('products', {
-        ...dataToSave,
-        id: normalizedId,
-        title: String(editingItem.value.title || '').trim(),
-        category: String(editingItem.value.category || '').trim(),
-        description: String(editingItem.value.description || '').trim(),
-        points_cost: Math.round(normalizedPointsCost),
-        stock: Math.round(normalizedStock),
-        image: String(editingItem.value.image || '').trim(),
-        specifications: normalizedSpecifications
-      });
-    }
-
-    if (currentTab.value === 'news') {
-      dataToSave.id = Number(editingItem.value.id);
-      dataToSave.category = String(editingItem.value.category || '').trim();
-      dataToSave.title = String(editingItem.value.title || '').trim();
-      dataToSave.date = String(editingItem.value.date || '').trim();
-      dataToSave.author = String(editingItem.value.author || '').trim();
-      dataToSave.content = normalizeNewsContent(editingItem.value.content);
-
-      const normalizedExcerpt = String(editingItem.value.excerpt || '').trim();
-      dataToSave.excerpt = normalizedExcerpt || stripHtml(dataToSave.content).slice(0, 80);
-
-      if (!validateNewsPayload(dataToSave)) {
-        showToast('请修复新闻表单中的错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      dataToSave = pickWritableFields('news', dataToSave);
-    }
-
-    if (currentTab.value === 'activities') {
-      const normalizedId = Number(editingItem.value.id);
-      const normalizedTitle = String(editingItem.value.title || '').trim();
-      const normalizedDate = toDateInputValue(editingItem.value.date);
-
-      if (!Number.isInteger(normalizedId) || normalizedId <= 0) {
-        fieldErrors.id = '活动 ID 必须是正整数';
-        showToast('请修复表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!normalizedDate) {
-        fieldErrors.date = '活动日期不能为空';
-        showToast('请修复表单错误后再保存', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      dataToSave = pickWritableFields('activities', {
-        id: normalizedId,
-        title: normalizedTitle,
-        date: normalizedDate,
-        image: String(editingItem.value.image || '').trim(),
-        description: String(editingItem.value.description || '').trim()
-      });
-    }
-
-    if (currentTab.value === 'gifts') {
-      const normalizedUserId = String(editingItem.value.user_id || '').trim();
-      if (!normalizedUserId) {
-        showToast('请先选择用户', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      if (!editingItem.value.gift_content || !String(editingItem.value.gift_content).trim()) {
-        showToast('礼物内容不能为空', 'error');
-        isSaving.value = false;
-        return;
-      }
-
-      const customCompletedAt = toISOStringFromInput(editingItem.value.completed_at);
-      const normalizedIsActive = typeof editingItem.value.is_active === 'string'
-        ? editingItem.value.is_active === 'true'
-        : Boolean(editingItem.value.is_active);
-      const normalizedGiftStatus = editingItem.value.gift_status;
-      const nowIso = new Date().toISOString();
-      const normalizedCompletedAt = normalizedGiftStatus === 'completed'
-        ? (customCompletedAt || nowIso)
-        : null;
-
-      dataToSave = {
-        user_id: normalizedUserId,
-        gift_no: editingItem.value.gift_no,
-        gift_content: editingItem.value.gift_content,
-        gift_price: editingItem.value.gift_price,
-        gift_image: editingItem.value.gift_image,
-        gift_status: normalizedGiftStatus,
-        is_active: normalizedIsActive,
-        completed_at: normalizedCompletedAt,
-        updated_at: nowIso
-      };
-
-      dataToSave = pickWritableFields('gifts', dataToSave);
-    }
+    const dataToSave = await strategy({
+      editingItem: editingItem.value,
+      isEditing: isEditing.value,
+      userId: userInfo.value?.id,
+      validateNewsPayload
+    });
 
     // 移除 id 字段（如果是新增）
     if (!isEditing.value && !TABS_KEEP_ID_ON_INSERT.has(currentTab.value)) {
       delete dataToSave.id;
     }
 
-    if (!confirmPayloadDiffs(dataToSave)) {
+    if (!await confirmPayloadDiffs(dataToSave)) {
       isSaving.value = false;
       return;
     }
@@ -4051,7 +3497,7 @@ const saveData = async () => {
 
     clearCurrentDraft();
     await refreshCurrentViewAfterMutation();
-    closeModal({ askDraft: false });
+    await closeModal({ askDraft: false });
   } catch (error) {
     logger.error('data-admin', '保存失败:', error);
     showToast('保存失败: ' + buildActionErrorMessage(error, '保存失败'), 'error');
@@ -4060,389 +3506,10 @@ const saveData = async () => {
   }
 };
 
-const deleteAdminUser = async (item) => {
-  const { data: rpcData, error: rpcError } = await supabase.rpc('admin_delete_user_account', {
-    p_user_id: item.id
-  });
-
-  if (rpcError) {
-    if (isMissingRpcFunctionError(rpcError, 'admin_delete_user_account')) {
-      throw new Error('管理员删除用户 RPC 尚未部署，请先执行最新 Supabase migration');
-    }
-    throw rpcError;
-  }
-
-  if (!rpcData?.ok) {
-    throw new Error(String(rpcData?.message || '用户删除失败，未返回成功状态'));
-  }
-};
-
-const deleteItem = async (item) => {
-  if (!confirm('确定要删除这条记录吗？')) return;
-
-  try {
-    assertAdminAction();
-    if ((currentTab.value === 'users' || currentTab.value === 'points') && item?.id) {
-      await deleteAdminUser(item);
-    } else {
-      const { data, error } = await supabase
-        .from(currentConfig.value.table)
-        .delete()
-        .eq('id', item.id)
-        .select('id');
-      if (error) throw error;
-      if (!Array.isArray(data) || data.length === 0) {
-        throw new Error('删除失败：没有记录被删除，请检查管理员权限或记录是否存在');
-      }
-    }
-    if (currentTab.value === 'products') invalidateProductsCache();
-    if (currentTab.value === 'subscriptions') invalidateSubscriptionCache(item?.user_id);
-    addChangeLogEntry('delete', item, { recordId: item?.id || '' });
-    showToast('删除成功', 'success');
-    await refreshCurrentViewAfterMutation();
-  } catch (error) {
-    logger.error('data-admin', '删除失败:', error);
-    showToast('删除失败: ' + buildActionErrorMessage(error, '删除失败'), 'error');
-  }
-};
-
-const drawLotteryNow = async (item) => {
-  if (!item?.id || isLotteryActionPending(item.id)) return;
-  const entryCount = Number(item.entry_count || 0);
-  const confirmMessage = entryCount > 0
-    ? `确定要从 ${entryCount} 名报名用户中随机开奖吗？`
-    : '当前还没有报名用户，仍要开奖并标记为“无中奖者”吗？';
-  if (!confirm(confirmMessage)) return;
-
-  setLotteryActionPending(item.id, true);
-  try {
-    assertAdminAction();
-    const { data, error } = await supabase.rpc('execute_lottery_draw', {
-      p_lottery_id: item.id,
-      p_force: true,
-      p_redraw: false,
-      p_reason: 'manual_draw'
-    });
-    if (error) throw error;
-    if (!data?.ok) {
-      throw new Error(String(data?.message || '开奖失败'));
-    }
-    const winnerNames = Array.isArray(data?.winners)
-      ? data.winners.map((winner) => String(winner?.username || '').trim()).filter(Boolean)
-      : [];
-    addChangeLogEntry('lottery_draw', item, { winners: winnerNames, entryCount });
-    showToast(winnerNames.length ? `开奖完成，中奖者：${winnerNames.join('、')}` : '开奖完成，本期暂无中奖者', 'success');
-    await refreshCurrentViewAfterMutation();
-  } catch (error) {
-    logger.error('data-admin', '抽奖开奖失败:', error);
-    showToast('开奖失败: ' + buildActionErrorMessage(error, '开奖失败'), 'error');
-  } finally {
-    setLotteryActionPending(item.id, false);
-  }
-};
-
-const redrawLottery = async (item) => {
-  if (!item?.id || isLotteryActionPending(item.id)) return;
-  const reason = window.prompt('请输入重抽原因（例如：中奖者失联 / 不符合资格）');
-  if (reason === null) return;
-  const normalizedReason = reason.trim();
-  if (!normalizedReason) {
-    showToast('重抽必须填写原因', 'error');
-    return;
-  }
-  if (!confirm('确定要重新开奖吗？系统会保留历史开奖日志，并通知新的中奖用户。')) return;
-
-  setLotteryActionPending(item.id, true);
-  try {
-    assertAdminAction();
-    const { data, error } = await supabase.rpc('execute_lottery_draw', {
-      p_lottery_id: item.id,
-      p_force: true,
-      p_redraw: true,
-      p_reason: normalizedReason
-    });
-    if (error) throw error;
-    if (!data?.ok) {
-      throw new Error(String(data?.message || '重抽失败'));
-    }
-    const winnerNames = Array.isArray(data?.winners)
-      ? data.winners.map((winner) => String(winner?.username || '').trim()).filter(Boolean)
-      : [];
-    addChangeLogEntry('lottery_redraw', item, { reason: normalizedReason, winners: winnerNames });
-    showToast(winnerNames.length ? `重抽完成，中奖者：${winnerNames.join('、')}` : '重抽完成，本期暂无中奖者', 'success');
-    await refreshCurrentViewAfterMutation();
-  } catch (error) {
-    logger.error('data-admin', '抽奖重抽失败:', error);
-    showToast('重抽失败: ' + buildActionErrorMessage(error, '重抽失败'), 'error');
-  } finally {
-    setLotteryActionPending(item.id, false);
-  }
-};
-
-const viewLotteryEntries = (item) => {
-  if (!item?.id) return;
-  addRecentRecord(item);
-  switchTab('lotteryEntries', { search: String(item.id) });
-};
-
-const viewLotteryDrawLogs = (item) => {
-  if (!item?.id) return;
-  addRecentRecord(item);
-  switchTab('lotteryDrawLogs', { search: String(item.id) });
-};
-
-const closeLottery = async (item) => {
-  if (!item?.id || isLotteryActionPending(item.id)) return;
-  if (!confirm('确定要关闭这个抽奖吗？关闭后仍会保留在历史抽奖中。')) return;
-
-  setLotteryActionPending(item.id, true);
-  try {
-    assertAdminAction();
-    const { data, error } = await supabase
-      .from('lotteries')
-      .update({
-        status: 'closed',
-        updated_by: userInfo?.id || null
-      })
-      .eq('id', item.id)
-      .select('id');
-    if (error) throw error;
-    if (!Array.isArray(data) || data.length === 0) {
-      throw new Error('关闭失败：没有记录被更新，请检查管理员权限或记录是否存在');
-    }
-    addChangeLogEntry('lottery_close', item, { status: 'closed' });
-    showToast('抽奖已关闭，已保留在历史抽奖中', 'success');
-    await refreshCurrentViewAfterMutation();
-  } catch (error) {
-    logger.error('data-admin', '关闭抽奖失败:', error);
-    showToast('关闭失败: ' + buildActionErrorMessage(error, '关闭失败'), 'error');
-  } finally {
-    setLotteryActionPending(item.id, false);
-  }
-};
-
-const saveModerationLog = async (item, actionStatus, reason = '') => {
-  const payload = {
-    target_id: item.id,
-    target_type: moderationTabConfig.value?.targetType || 'unknown',
-    ai_result: actionStatus,
-    ai_reason: reason || null,
-    moderator_id: userInfo?.id || null
-  };
-
-  const { error } = await supabase.from('moderation_logs').insert([payload]);
-  if (error) {
-    logger.warn('data-admin', '写入 moderation_logs 失败（不阻断主流程）:', error);
-  }
-};
-
-const buildModerationErrorMessage = (error) => {
-  const normalizedMessage = buildActionErrorMessage(error, '操作失败');
-  if (normalizedMessage !== String(error?.message || '').trim()) {
-    return normalizedMessage;
-  }
-  const rawMessage = String(error?.message || '').toLowerCase();
-  const rawCode = String(error?.code || '').toUpperCase();
-  if (rawCode === '42501' || rawMessage.includes('row-level security') || rawMessage.includes('permission denied')) {
-    return '当前账号没有审核写入权限，请检查 Supabase 的 RLS/策略配置';
-  }
-  return String(error?.message || '操作失败');
-};
-
-const isMissingRpcFunctionError = (error, fnName) => {
-  const code = String(error?.code || '').toUpperCase();
-  const message = String(error?.message || '').toLowerCase();
-  return code === 'PGRST202' || message.includes(String(fnName || '').toLowerCase());
-};
-
-const updateModerationStatus = async (item, config, updateData) => {
-  const rpcPayload = {
-    p_target_type: config.targetType,
-    p_target_id: item.id,
-    p_action_status: updateData[config.statusField],
-    p_reason: config.reasonField ? (updateData[config.reasonField] || null) : null
-  };
-  const { data: rpcData, error: rpcError } = await supabase.rpc('admin_apply_moderation_action', rpcPayload);
-
-  if (!rpcError) {
-    const ok = Boolean(rpcData?.ok);
-    const affected = Number(rpcData?.affected || 0);
-    if (!ok || affected <= 0) {
-      throw new Error(String(rpcData?.message || '记录未更新，可能是权限不足或记录状态已变化'));
-    }
-    return;
-  }
-
-  if (!isMissingRpcFunctionError(rpcError, 'admin_apply_moderation_action')) {
-    throw rpcError;
-  }
-
-  const { data, error } = await supabase
-    .from(config.table)
-    .update(updateData)
-    .eq('id', item.id)
-    .select('id');
-
-  if (error) throw error;
-  if (!Array.isArray(data) || data.length === 0) {
-    throw new Error('记录未更新，可能是权限不足或记录状态已变化');
-  }
-};
-
-const deleteModerationTarget = async (item, config) => {
-  const { data: rpcData, error: rpcError } = await supabase.rpc('admin_delete_moderation_target', {
-    p_target_type: config.targetType,
-    p_target_id: item.id
-  });
-
-  if (!rpcError) {
-    const ok = Boolean(rpcData?.ok);
-    const affected = Number(rpcData?.affected || 0);
-    if (!ok || affected <= 0) {
-      throw new Error(String(rpcData?.message || '记录未删除，可能是权限不足或记录不存在'));
-    }
-    return;
-  }
-
-  if (!isMissingRpcFunctionError(rpcError, 'admin_delete_moderation_target')) {
-    throw rpcError;
-  }
-
-  const { data, error } = await supabase
-    .from(config.table)
-    .delete()
-    .eq('id', item.id)
-    .select('id');
-  if (error) throw error;
-  if (!Array.isArray(data) || data.length === 0) {
-    throw new Error('记录未删除，可能是权限不足或记录不存在');
-  }
-};
-
-const applyModerationAction = async (item, action) => {
-  if (!moderationTabConfig.value) return;
-  if (!item?.id) {
-    showToast('记录缺少 ID，无法执行审核操作', 'error');
-    return;
-  }
-  if (isModerationActionPending(item.id)) return;
-
-  const config = moderationTabConfig.value;
-  const isApprove = action === 'approve';
-  const isKeepLimited = action === 'limit';
-  let reason = '';
-
-  if (!isApprove && !isKeepLimited && config.reasonField) {
-    const inputReason = window.prompt('请输入拒绝原因（必填）');
-    if (inputReason === null) return;
-    reason = inputReason.trim();
-    if (!reason) {
-      showToast('拒绝时必须填写原因', 'error');
-      return;
-    }
-  }
-
-  setModerationPending(item.id, true);
-  try {
-    const updateData = {
-      [config.statusField]: isApprove
-        ? config.approveValue
-        : isKeepLimited
-          ? 'limited'
-          : config.rejectValue
-    };
-
-    if (config.reasonField) {
-      updateData[config.reasonField] = isApprove ? null : reason;
-    }
-
-    await updateModerationStatus(item, config, updateData);
-
-    await saveModerationLog(item, updateData[config.statusField], reason);
-    addChangeLogEntry(`moderation_${action}`, item, {
-      status: updateData[config.statusField],
-      reason
-    });
-    showToast(isApprove ? '审核通过已生效' : isKeepLimited ? '已维持下架并结案举报' : '已拒绝并记录原因', 'success');
-    await refreshCurrentViewAfterMutation();
-  } catch (error) {
-    logger.error('data-admin', '审核操作失败:', error);
-    showToast('审核操作失败: ' + buildModerationErrorMessage(error), 'error');
-  } finally {
-    setModerationPending(item.id, false);
-  }
-};
-
-const approveModerationItem = async (item) => {
-  await applyModerationAction(item, 'approve');
-};
-
-const rejectModerationItem = async (item) => {
-  await applyModerationAction(item, 'reject');
-};
-
-const keepLimitedModerationItem = async (item) => {
-  await applyModerationAction(item, 'limit');
-};
-
-const deleteModerationItem = async (item) => {
-  if (!moderationTabConfig.value || !item?.id) return;
-  if (isModerationActionPending(item.id)) return;
-  if (!confirm('确定要删除这条记录吗？删除后不可恢复。')) return;
-
-  const config = moderationTabConfig.value;
-  setModerationPending(item.id, true);
-  try {
-    await deleteModerationTarget(item, config);
-    await saveModerationLog(item, 'deleted', 'admin_delete');
-    addChangeLogEntry('moderation_delete', item, { targetType: config.targetType });
-    showToast('删除成功', 'success');
-    await refreshCurrentViewAfterMutation();
-  } catch (error) {
-    logger.error('data-admin', '删除审核记录失败:', error);
-    showToast('删除失败: ' + buildModerationErrorMessage(error), 'error');
-  } finally {
-    setModerationPending(item.id, false);
-  }
-};
-
-const batchDelete = async () => {
-  if (!confirm(`确定要删除选中的 ${selectedItems.value.length} 条记录吗？`)) return;
-
-  try {
-    assertAdminAction();
-    const table = currentConfig.value.table;
-    const ids = selectedItems.value.map(item => item.id);
-
-    if (currentTab.value === 'users') {
-      for (const item of selectedItems.value) {
-        await deleteAdminUser(item);
-      }
-    } else {
-      const { data, error } = await supabase
-        .from(table)
-        .delete()
-        .in('id', ids)
-        .select('id');
-
-      if (error) throw error;
-      if (!Array.isArray(data) || data.length !== ids.length) {
-        throw new Error(`批量删除未完全生效：请求 ${ids.length} 条，实际删除 ${Array.isArray(data) ? data.length : 0} 条`);
-      }
-    }
-    if (currentTab.value === 'products') invalidateProductsCache();
-    if (currentTab.value === 'subscriptions') {
-      selectedItems.value.forEach((item) => invalidateSubscriptionCache(item?.user_id));
-    }
-    addChangeLogEntry('batch_delete', { id: ids.join(',') }, { count: ids.length });
-    showToast('批量删除成功', 'success');
-    selectedItems.value = [];
-    await refreshCurrentViewAfterMutation();
-  } catch (error) {
-    logger.error('data-admin', '批量删除失败:', error);
-    showToast('批量删除失败: ' + buildActionErrorMessage(error, '批量删除失败'), 'error');
-  }
-};
+// 第二阶段: 所有 mutations (deleteItem / drawLotteryNow / approveModerationItem / batchDelete 等)
+// 已迁移至 composables/useDataAdminMutations.js (createMutationsCenter 工厂)
+// 工厂在 refreshCurrentViewAfterMutation 之后注入, 上述 let 变量会被重新赋值为真实函数
+// 这里删除内联的重复实现, 避免命名冲突与重复定义
 
 // ==================== 辅助方法 ====================
 const formatCellValue = (val, maxLength) => {
@@ -4473,22 +3540,105 @@ const formatDateTime = (dateStr) => {
   });
 };
 
-const getBadgeType = (value) => {
-  if (!value) return 'default';
-  const val = String(value).toLowerCase();
-  if (['admin', '管理员', 'active', '进行中', 'open', '首页显示', 'confirmed', 'fulfilled', 'joined', 'success', 'sent', '准点', '定时任务'].includes(val)) return 'success';
-  if (['user', '普通用户', 'upcoming', '即将开始', 'manual_admin', '手动补跑', '未开奖'].includes(val)) return 'info';
-  if (['processing', '处理中'].includes(val)) return 'info';
-  if (['当前礼物', 'current gift'].includes(val)) return 'success';
-  if (['历史礼物', 'history gift', 'draft', '已隐藏', 'pending_contact', 'rate_limited', 'already_joined', 'running', 'pending', 'partial_failure', '待调度'].includes(val) || val.startsWith('延迟')) return 'warning';
-  if (['ended', '已结束', 'disabled', 'closed', 'voided', 'entry_closed', 'not_open', 'full', 'account_too_new'].includes(val)) return 'warning';
-  if (['banned', '封禁', 'not_found', 'profile_not_found', 'failed'].includes(val)) return 'danger';
-  if (['preparing'].includes(val)) return 'warning';
-  if (['shipped', 'completed', 'delivered', 'signed', 'drawn'].includes(val)) return 'success';
-  if (['approved'].includes(val)) return 'success';
-  if (['limited'].includes(val)) return 'warning';
-  if (['rejected', 'reject'].includes(val)) return 'danger';
-  return 'default';
+const BADGE_STATUS_MAP = {
+  active: 'success',
+  inactive: 'warning',
+  banned: 'danger',
+  trialing: 'info',
+  active_trial: 'info',
+  past_due: 'warning',
+  canceled: 'muted',
+  expired: 'muted',
+  completed: 'success',
+  pending: 'warning',
+  shipped: 'info',
+  received: 'success',
+  approved: 'success',
+  pending_review: 'warning',
+  rejected: 'danger',
+  draft: 'warning',
+  published: 'success',
+  archived: 'muted',
+  in_stock: 'success',
+  low_stock: 'warning',
+  out_of_stock: 'danger',
+  active_draw: 'success',
+  closed: 'info',
+  cancelled: 'muted',
+  paid: 'success',
+  pending_payment: 'warning',
+  failed: 'danger',
+  refunded: 'info',
+  true: 'success',
+  false: 'muted',
+  yes: 'success',
+  no: 'muted',
+  enabled: 'success',
+  disabled: 'muted',
+  on: 'success',
+  off: 'muted',
+  review: 'warning',
+  normal: 'success',
+  warning: 'warning',
+  error: 'danger',
+  success: 'success',
+  info: 'info',
+  muted: 'muted',
+  danger: 'danger',
+  admin: 'success',
+  管理员: 'success',
+  '进行中': 'success',
+  open: 'success',
+  '首页显示': 'success',
+  confirmed: 'success',
+  fulfilled: 'success',
+  joined: 'success',
+  sent: 'success',
+  准点: 'success',
+  '定时任务': 'success',
+  '当前礼物': 'success',
+  'current gift': 'success',
+  delivered: 'success',
+  signed: 'success',
+  drawn: 'success',
+  user: 'info',
+  '普通用户': 'info',
+  upcoming: 'info',
+  '即将开始': 'info',
+  manual_admin: 'info',
+  '手动补跑': 'info',
+  '未开奖': 'info',
+  processing: 'info',
+  '处理中': 'info',
+  '历史礼物': 'warning',
+  'history gift': 'warning',
+  '已隐藏': 'warning',
+  pending_contact: 'warning',
+  rate_limited: 'warning',
+  already_joined: 'warning',
+  running: 'warning',
+  partial_failure: 'warning',
+  '待调度': 'warning',
+  ended: 'warning',
+  '已结束': 'warning',
+  voided: 'warning',
+  entry_closed: 'warning',
+  not_open: 'warning',
+  full: 'warning',
+  account_too_new: 'warning',
+  limited: 'warning',
+  preparing: 'warning',
+  '封禁': 'danger',
+  not_found: 'danger',
+  profile_not_found: 'danger',
+  reject: 'danger'
+};
+
+const getBadgeType = (val) => {
+  if (val == null || val === '') return 'muted';
+  const key = String(val).toLowerCase();
+  if (key.startsWith('延迟')) return 'warning';
+  return BADGE_STATUS_MAP[key] || 'info';
 };
 
 const getTags = (value) => {
@@ -4505,7 +3655,8 @@ const highlightCellValue = (value, maxLength) => {
   const keyword = getHighlightKeyword();
   if (!keyword || display === '-') return escaped;
   const safeKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return escaped.replace(new RegExp(`(${safeKeyword})`, 'ig'), '<mark>$1</mark>');
+  // 用 DOMPurify 二次清洗(项目硬约束),只允许 <mark>
+  return sanitizeHighlightHtml(escaped.replace(new RegExp(`(${safeKeyword})`, 'ig'), '<mark>$1</mark>'));
 };
 
 const getRelatedJump = (col, item) => {
@@ -4646,7 +3797,12 @@ const applyBatchEdit = async () => {
     const normalizedValue = normalizeQuickEditValue(field, batchEditState.value);
     const ids = selectedItems.value.map((item) => item.id).filter(Boolean);
     const preview = `将修改 ${ids.length} 条「${currentTabLabel.value}」记录\n字段：${field?.label || batchEditState.fieldKey}\n新值：${normalizedValue}`;
-    if (!confirm(preview)) return;
+    if (!await dialog.confirm({
+      title: '确认批量修改',
+      message: preview,
+      tone: 'warning',
+      confirmText: '应用修改'
+    })) return;
 
     const payload = pickWritableFields(currentTab.value, { [batchEditState.fieldKey]: normalizedValue });
     const { data, error } = await supabase
@@ -4691,7 +3847,7 @@ const downloadBlob = (blob, filename) => {
 };
 
 const exportData = () => {
-  const data = filteredData.value;
+  const data = currentData.value;
   const columns = visibleCurrentColumns.value;
 
   const csvContent = [
@@ -4764,13 +3920,30 @@ const exportBackupData = async () => {
 
   try {
     assertAdminAction();
+    backupAbortController = new AbortController();
     isExportingBackup.value = true;
+    isBackupExporting.value = true;
+    backupProgress.value = 0;
+    backupProgressText.value = '';
+    cancelBackupExport = () => {
+      backupAbortController?.abort();
+      isBackupExporting.value = false;
+      isExportingBackup.value = false;
+    };
     const exportedAt = new Date().toISOString();
     const targets = getBackupTableTargets();
     const tablesPayload = {};
     const summary = [];
+    let done = 0;
+    const total = targets.length;
 
     for (const target of targets) {
+      if (backupAbortController?.signal.aborted) {
+        showToast('备份已取消', 'info');
+        return;
+      }
+      backupProgress.value = Math.round((done / total) * 100);
+      backupProgressText.value = `正在导出 ${target.sourceLabel}... (${done}/${total})`;
       const result = await fetchBackupTableRows(target);
       tablesPayload[result.table] = result.rows;
       summary.push({
@@ -4782,6 +3955,7 @@ const exportBackupData = async () => {
         total: result.total,
         exported: result.exported
       });
+      done++;
     }
 
     const backupPayload = {
@@ -4789,10 +3963,10 @@ const exportBackupData = async () => {
       version: 1,
       exportedAt,
       exportedBy: {
-        id: userInfo?.id || '',
-        username: userInfo?.username || '',
-        email: userInfo?.email || '',
-        role: userInfo?.role || ''
+        id: userInfo.value?.id || '',
+        username: userInfo.value?.username || '',
+        email: userInfo.value?.email || '',
+        role: userInfo.value?.role || ''
       },
       summary,
       tables: tablesPayload
@@ -4802,11 +3976,32 @@ const exportBackupData = async () => {
     const timestamp = exportedAt.replace(/[:.]/g, '-');
     downloadBlob(blob, `boh-data-backup_${timestamp}.json`);
     showToast(`备份导出成功，共 ${summary.length} 张表`, 'success');
+
+    // 审计: 写入客户端变更日志 + 尝试写入服务端 audit
+    addChangeLogEntry('backup_export', null, {
+      tables: summary.map((s) => s.table),
+      totalRows: summary.reduce((acc, s) => acc + (s.exported || 0), 0),
+      note: '备份含 PII,请妥善保管'
+    });
+    try {
+      await supabase.from('admin_audit_log').insert([{
+        actor_id: userInfo.value?.id || null,
+        action: 'backup_export',
+        metadata: {
+          tables: summary.map((s) => s.table),
+          total_rows: summary.reduce((acc, s) => acc + (s.exported || 0), 0)
+        }
+      }]);
+    } catch (auditErr) {
+      logger.warn('data-admin', '备份审计写入失败(忽略):', auditErr);
+    }
   } catch (error) {
     logger.error('data-admin', '备份导出失败:', error);
     showToast('备份导出失败: ' + buildActionErrorMessage(error, '备份导出失败'), 'error');
   } finally {
+    isBackupExporting.value = false;
     isExportingBackup.value = false;
+    backupAbortController = null;
   }
 };
 
@@ -4840,80 +4035,122 @@ const removeSpec = (fieldKey, index) => {
   editingItem.value[fieldKey].splice(index, 1);
 };
 
-// ==================== 生命周期 ====================
-onMounted(() => {
-  hydrateEditorPreferences();
-  fetchData({ deferSecondary: true });
-});
+// ==================== 键盘快捷键 ====================
+const handleGlobalShortcuts = (e) => {
+  const tag = e.target.tagName;
+  const isEditing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
 
-// 监听分页大小变化
-watch(pageSize, () => {
-  if (currentPage.value !== 1) {
-    currentPage.value = 1;
-  } else {
-    fetchTabData(currentTab.value);
-  }
-});
-
-watch(currentPage, () => {
-  if (suppressNextPageFetch.value) {
-    suppressNextPageFetch.value = false;
+  // Ctrl+S / Cmd+S → save
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    if (showModal.value && !isSaving.value) {
+      saveData();
+    }
     return;
   }
-  fetchTabData(currentTab.value);
-});
 
-watch(() => editingItem.value?.plan_code, (planCode) => {
-  if (!isSubscriptionTab.value) return;
-  const normalizedPlanCode = String(planCode || '').trim();
-  const planName = SUBSCRIPTION_PLAN_NAMES[normalizedPlanCode];
-  if (planName) {
-    editingItem.value.plan_name = planName;
+  // Escape → close drawer / close user picker
+  if (e.key === 'Escape' && !isEditing) {
+    if (showModal.value) {
+      closeModal();
+    }
+    return;
   }
-});
 
-// 过滤、删除或切换每页条数后，确保当前页始终有效
-watch(totalPages, (pages) => {
-  const safePages = Math.max(1, pages || 1);
-  if (currentPage.value > safePages) {
-    currentPage.value = safePages;
+  // / → focus global search
+  if (e.key === '/' && !isEditing) {
+    e.preventDefault();
+    const searchInput = document.querySelector('.search-box input');
+    if (searchInput) searchInput.focus();
+    return;
   }
-  if (currentPage.value < 1) {
-    currentPage.value = 1;
+
+  // n → new record (when not editing)
+  if (e.key === 'n' && !isEditing && !e.ctrlKey && !e.metaKey) {
+    if (canCreateCurrentTab.value && activeAdminSection.value === 'data') {
+      openEditModal();
+    }
+    return;
   }
+
+  // ← / → → navigate records in drawer
+  if (showModal.value && isEditing.value) {
+    if (e.key === 'ArrowLeft' && editDrawerNav.value.hasPrev) {
+      e.preventDefault();
+      navigateEditRecord(-1);
+      return;
+    }
+    if (e.key === 'ArrowRight' && editDrawerNav.value.hasNext) {
+      e.preventDefault();
+      navigateEditRecord(1);
+      return;
+    }
+  }
+};
+
+// ==================== 生命周期 ====================
+const handleVisibilityChange = () => {
+  if (document.hidden) {
+    if (autoRefreshInterval.value !== null) {
+      clearInterval(autoRefreshInterval.value);
+      autoRefreshInterval.value = null;
+    }
+  } else {
+    if (activeAdminSection.value === 'overview') {
+      startAutoRefresh();
+    }
+  }
+};
+
+onMounted(() => {
+  window.addEventListener('resize', handleResize);
+  document.addEventListener('keydown', handleGlobalShortcuts);
+  document.addEventListener('visibilitychange', handleVisibilityChange);
 });
-
-watch(userPickerKeyword, () => {
-  if (!showUserPickerModal.value) return;
-  if (userPickerSearchDebounceTimer.value) clearTimeout(userPickerSearchDebounceTimer.value);
-  userPickerSearchDebounceTimer.value = setTimeout(() => {
-    fetchUserPickerUsers();
-  }, 300);
-});
-
-watch(editingItem, () => {
-  if (!showModal.value || suppressDraftSave.value) return;
-  saveCurrentDraft();
-}, { deep: true });
-
 onUnmounted(() => {
-  if (searchDebounceTimer.value) {
-    clearTimeout(searchDebounceTimer.value);
-    searchDebounceTimer.value = null;
-  }
-  if (userPickerSearchDebounceTimer.value) {
-    clearTimeout(userPickerSearchDebounceTimer.value);
-    userPickerSearchDebounceTimer.value = null;
-  }
-  if (toast.timer) {
-    clearTimeout(toast.timer);
-    toast.timer = null;
-  }
+  stopAutoRefresh();
+  window.removeEventListener('resize', handleResize);
+  document.removeEventListener('keydown', handleGlobalShortcuts);
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
+});
+// 第二阶段: 所有 onMounted / onUnmounted / watch 已迁移至 composables/useDataAdminLifecycle.js
+// (setupDataAdminLifecycle 工厂)
+// 内部统一管理 searchDebounceTimer / userPickerSearchDebounceTimer / draftSaveDebounceTimer / toast.timer
+setupDataAdminLifecycle({
+  columnSettings,
+  savedFilterViews,
+  pinnedTabIds,
+  recentRecords,
+  changeLogEntries,
+  pageSize,
+  currentPage,
+  currentTab,
+  editingItem,
+  showModal,
+  suppressDraftSave,
+  suppressNextPageFetch,
+  totalPages,
+  userPickerKeyword,
+  searchDebounceTimer,
+  userPickerSearchDebounceTimer,
+  toast,
+  isSubscriptionTab,
+  showUserPickerModal,
+  SUBSCRIPTION_PLAN_NAMES,
+  fetchData,
+  fetchTabData,
+  fetchUserPickerUsers,
+  saveCurrentDraft
 });
 
 </script>
 
-<style scoped src="./styles/base.css"></style>
-<style scoped src="./styles/console.css"></style>
-<style scoped src="./styles/overlays.css"></style>
-<style scoped src="./styles/responsive.css"></style>
+<style scoped>
+@import './styles/base.css';
+@import './styles/console.css';
+@import './styles/responsive.css';
+</style>
+
+<style>
+@import './styles/overlays.css';
+</style>

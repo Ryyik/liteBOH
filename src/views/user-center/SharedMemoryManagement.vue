@@ -281,7 +281,12 @@ const editMemory = async (item) => {
   if (!item?.id || !userInfo.value?.id) return;
 
   const original = String(item.content || '').trim();
-  const input = window.prompt('编辑公共记忆内容（1-1200字）', original);
+  const input = await dialog.prompt({
+    title: '编辑公共记忆',
+    message: '请输入公共记忆内容（1-1200字）',
+    placeholder: '1-1200 字',
+    defaultValue: original
+  });
   if (input === null) return;
 
   const nextContent = String(input || '').trim();
@@ -318,7 +323,12 @@ const editMemory = async (item) => {
 const removeMemory = async (item) => {
   if (!item?.id || !userInfo.value?.id) return;
 
-  const confirmed = window.confirm('确认删除这条公共记忆吗？删除后不可恢复。');
+  const confirmed = await dialog.confirm({
+    title: '删除公共记忆',
+    message: '确认删除这条公共记忆吗？删除后不可恢复。',
+    tone: 'danger',
+    confirmText: '删除'
+  });
   if (!confirmed) return;
 
   runningAction.id = String(item.id);

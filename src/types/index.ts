@@ -24,6 +24,8 @@ export interface UserInfo {
   creatorPlatformVisibility: Record<string, string>
   creatorPlatformOrder: string[]
   showcasePostIds: string[]
+  lastActiveAt: string | null
+  hideOnlineStatus: boolean
 }
 
 export interface LoginResult {

@@ -24,12 +24,27 @@ export async function checkRateLimitDb(
       return { ok: true };
     }
 
-    const newCount = existing.count + 1;
-    const { error } = await serviceClient
-      .from('_rate_limits')
-      .update({ count: newCount })
-      .eq('key', key);
-    if (error) return { ok: true };
+    // 原子自增: insert...on conflict do update returning count
+    // 避免 read-then-write 之间的竞态
+    const { data: bumped, error: bumpErr } = await serviceClient.rpc('increment_rate_limit', {
+      p_key: key,
+    });
+    let newCount: number;
+    if (bumpErr || !bumped) {
+      // 回退: 仍走原路径,失败则按允许处理(原行为)
+      const { data: after } = await serviceClient
+        .from('_rate_limits')
+        .select('count')
+        .eq('key', key)
+        .maybeSingle();
+      newCount = (after?.count || 0) + 1;
+      await serviceClient
+        .from('_rate_limits')
+        .update({ count: newCount })
+        .eq('key', key);
+    } else {
+      newCount = Number(bumped);
+    }
 
     if (newCount > maxRequests) {
       const retryAfter = Math.ceil((new Date(existing.reset_at).getTime() - now.getTime()) / 1000);

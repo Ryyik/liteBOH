@@ -151,6 +151,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
+import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import {
   CREATOR_SHOW_PLATFORMS,
   createCreatorShow,
@@ -160,6 +161,7 @@ import {
 
 const authStore = useAuthStore();
 const { isLoggedIn, userInfo } = storeToRefs(authStore);
+const dialog = useConfirmDialog();
 
 const loading = ref(false);
 const submitting = ref(false);
@@ -356,7 +358,12 @@ const handleDeleteShow = async (show) => {
   }
 
   const title = String(show?.title || '').trim() || '未命名节目';
-  const confirmed = window.confirm(`确认删除节目「${title}」吗？删除后不可恢复。`);
+  const confirmed = await dialog.confirm({
+    title: '删除节目',
+    message: `确认删除节目「${title}」吗？删除后不可恢复。`,
+    tone: 'danger',
+    confirmText: '删除'
+  });
   if (!confirmed) return;
 
   deletingShowId.value = showId;

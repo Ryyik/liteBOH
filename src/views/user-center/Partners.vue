@@ -175,6 +175,7 @@ import { logger } from '@/utils/logger.js';
 import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import { useUserOnlineStatus } from './UserSpace/composables/useUserOnlineStatus.js';
+import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 
 // State
 const router = useRouter();
@@ -230,9 +231,15 @@ const fetchPartners = async () => {
     if (!error) {
       const currentUsername = userInfo.value.username;
       const nowISO = new Date().toISOString();
-      partners.value = (data?.items || []).map((p) =>
-        p.username === currentUsername ? { ...p, last_active_at: nowISO } : p
-      );
+      partners.value = (data?.items || [])
+        .map((p) =>
+          p.username === currentUsername ? { ...p, last_active_at: nowISO } : p
+        )
+        .sort((a, b) => {
+          const ta = a.last_active_at ? new Date(a.last_active_at).getTime() : 0;
+          const tb = b.last_active_at ? new Date(b.last_active_at).getTime() : 0;
+          return tb - ta;
+        });
       totalPartners.value = data?.total || 0;
     } else {
       partners.value = [];
@@ -310,7 +317,12 @@ const canDelete = (imp) => {
 };
 
 const handleDeleteImpression = async (id) => {
-  if (!confirm('确定要删除这条印象吗？')) return;
+  if (!await dialog.confirm({
+    title: '删除印象',
+    message: '确定要删除这条印象吗？',
+    tone: 'danger',
+    confirmText: '删除'
+  })) return;
   try {
     const currentUserId = String(userInfo.value.id || '').trim();
     if (!currentUserId) return;

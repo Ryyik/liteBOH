@@ -1,0 +1,532 @@
+/**
+ * DataAdmin 写入操作 (CRUD / 抽奖 / 审核)
+ * 拆分自 DataAdmin.vue (P2 拆分第二阶段)
+ *
+ * 集中管理所有对 Supabase 的写操作:
+ *   - 通用: deleteItem / deleteAdminUser / batchDelete
+ *   - 抽奖: drawLotteryNow / redrawLottery / closeLottery
+ *   - 审核: saveModerationLog / updateModerationStatus / deleteModerationTarget /
+ *           applyModerationAction / approveModerationItem / rejectModerationItem /
+ *           keepLimitedModerationItem / deleteModerationItem
+ *
+ * 设计要点:
+ *   - 所有 RPC 调用都先尝试, 失败时回退到直接 query (PGRST202 容错)
+ *   - 所有操作先写 change log, 再 toast, 最后 refresh
+ *   - 抽奖/审核操作有 pending state 防止重复点击
+ *   - 删除操作有强 confirm 弹窗
+ *
+ * 工厂模式: 接收所有依赖, 不持有 ref
+ */
+
+import { supabase } from '@/utils/supabase-client.js';
+import { logger } from '@/utils/logger.js';
+import { invalidateProductsCache } from '@/views/DataManagement/config.js';
+
+/**
+ * 创建 mutations 中心
+ * @param {Object} deps
+ * @param {Object} deps.dialog                       - useConfirmDialog
+ * @param {Function} deps.showToast                  - (msg, type) => void
+ * @param {Object} deps.userInfo                     - 响应式 user info
+ * @param {Function} deps.assertAdminAction          - () => void
+ * @param {Function} deps.invalidateSubscriptionCache - (userId) => void
+ * @param {Function} deps.addChangeLogEntry           - (action, item, detail) => void
+ * @param {Function} deps.refreshCurrentViewAfterMutation - () => Promise<void>
+ * @param {Object} deps.currentTab                   - ref<string>
+ * @param {Object} deps.currentConfig                - computed<{table}>
+ * @param {Object} deps.selectedItems                - ref<Array>
+ * @param {Function} deps.buildActionErrorMessage    - (error, fallback) => string
+ * @param {Function} deps.setLotteryActionPending    - (id, pending) => void
+ * @param {Function} deps.isLotteryActionPending     - (id) => boolean
+ * @param {Function} deps.setModerationPending       - (id, pending) => void
+ * @param {Function} deps.isModerationActionPending  - (id) => boolean
+ * @param {Object} deps.moderationTabConfig          - computed<{targetType, statusField, reasonField, approveValue, rejectValue, table}>
+ * @param {Object} deps.addRecentRecord              - (item, tabId) => void
+ * @param {Function} deps.switchTab                  - (tabId, options) => void
+ */
+export const createMutationsCenter = (deps) => {
+  const {
+    dialog,
+    showToast,
+    userInfo,
+    assertAdminAction,
+    invalidateSubscriptionCache,
+    addChangeLogEntry,
+    refreshCurrentViewAfterMutation,
+    currentTab,
+    currentConfig,
+    selectedItems,
+    buildActionErrorMessage,
+    setLotteryActionPending,
+    isLotteryActionPending,
+    setModerationPending,
+    isModerationActionPending,
+    moderationTabConfig,
+    addRecentRecord,
+    switchTab
+  } = deps;
+
+  // ==================== 辅助函数 ====================
+
+  // 判断是否是 RPC 函数不存在的错误
+  const isMissingRpcFunctionError = (error, fnName) => {
+    const code = String(error?.code || '').toUpperCase();
+    const message = String(error?.message || '').toLowerCase();
+    return code === 'PGRST202' || message.includes(String(fnName || '').toLowerCase());
+  };
+
+  // 审核操作错误信息(含 RLS 错误识别)
+  const buildModerationErrorMessage = (error) => {
+    const normalizedMessage = buildActionErrorMessage(error, '操作失败');
+    if (normalizedMessage !== String(error?.message || '').trim()) {
+      return normalizedMessage;
+    }
+    const rawMessage = String(error?.message || '').toLowerCase();
+    const rawCode = String(error?.code || '').toUpperCase();
+    if (rawCode === '42501' || rawMessage.includes('row-level security') || rawMessage.includes('permission denied')) {
+      return '当前账号没有审核写入权限，请检查 Supabase 的 RLS/策略配置';
+    }
+    return String(error?.message || '操作失败');
+  };
+
+  // ==================== 删除 ====================
+
+  // 管理员删除用户账号(走 RPC, 失败时报错)
+  const deleteAdminUser = async (item) => {
+    const { data: rpcData, error: rpcError } = await supabase.rpc('admin_delete_user_account', {
+      p_user_id: item.id
+    });
+
+    if (rpcError) {
+      if (isMissingRpcFunctionError(rpcError, 'admin_delete_user_account')) {
+        throw new Error('管理员删除用户 RPC 尚未部署，请先执行最新 Supabase migration');
+      }
+      throw rpcError;
+    }
+
+    if (!rpcData?.ok) {
+      throw new Error(String(rpcData?.message || '用户删除失败，未返回成功状态'));
+    }
+  };
+
+  // 单条删除
+  const deleteItem = async (item) => {
+    if (!await dialog.confirm({
+      title: '删除记录',
+      message: '确定要删除这条记录吗？',
+      tone: 'danger',
+      confirmText: '删除'
+    })) return;
+
+    try {
+      assertAdminAction();
+      if ((currentTab.value === 'users' || currentTab.value === 'points') && item?.id) {
+        await deleteAdminUser(item);
+      } else {
+        const { data, error } = await supabase
+          .from(currentConfig.value.table)
+          .delete()
+          .eq('id', item.id)
+          .select('id');
+        if (error) throw error;
+        if (!Array.isArray(data) || data.length === 0) {
+          throw new Error('删除失败：没有记录被删除，请检查管理员权限或记录是否存在');
+        }
+      }
+      if (currentTab.value === 'products') invalidateProductsCache();
+      if (currentTab.value === 'subscriptions') invalidateSubscriptionCache(item?.user_id);
+      addChangeLogEntry('delete', item, { recordId: item?.id || '' });
+      showToast('删除成功', 'success');
+      await refreshCurrentViewAfterMutation();
+    } catch (error) {
+      logger.error('data-admin', '删除失败:', error);
+      showToast('删除失败: ' + buildActionErrorMessage(error, '删除失败'), 'error');
+    }
+  };
+
+  // 批量删除
+  const batchDelete = async () => {
+    if (!await dialog.confirm({
+      title: '批量删除',
+      message: `确定要删除选中的 ${selectedItems.value.length} 条记录吗？此操作不可恢复。`,
+      tone: 'danger',
+      confirmText: `删除 ${selectedItems.value.length} 条`
+    })) return;
+
+    try {
+      assertAdminAction();
+      const table = currentConfig.value.table;
+      const ids = selectedItems.value.map((item) => item.id);
+
+      if (currentTab.value === 'users') {
+        for (const item of selectedItems.value) {
+          await deleteAdminUser(item);
+        }
+      } else {
+        const { data, error } = await supabase
+          .from(table)
+          .delete()
+          .in('id', ids)
+          .select('id');
+
+        if (error) throw error;
+        if (!Array.isArray(data) || data.length !== ids.length) {
+          throw new Error(`批量删除未完全生效：请求 ${ids.length} 条，实际删除 ${Array.isArray(data) ? data.length : 0} 条`);
+        }
+      }
+      if (currentTab.value === 'products') invalidateProductsCache();
+      if (currentTab.value === 'subscriptions') {
+        selectedItems.value.forEach((item) => invalidateSubscriptionCache(item?.user_id));
+      }
+      addChangeLogEntry('batch_delete', { id: ids.join(',') }, { count: ids.length });
+      showToast('批量删除成功', 'success');
+      selectedItems.value = [];
+      await refreshCurrentViewAfterMutation();
+    } catch (error) {
+      logger.error('data-admin', '批量删除失败:', error);
+      showToast('批量删除失败: ' + buildActionErrorMessage(error, '批量删除失败'), 'error');
+    }
+  };
+
+  // ==================== 抽奖操作 ====================
+
+  // 立即开奖
+  const drawLotteryNow = async (item) => {
+    if (!item?.id || isLotteryActionPending(item.id)) return;
+    const entryCount = Number(item.entry_count || 0);
+    const confirmMessage = entryCount > 0
+      ? `确定要从 ${entryCount} 名报名用户中随机开奖吗？`
+      : '当前还没有报名用户，仍要开奖并标记为"无中奖者"吗？';
+    if (!await dialog.confirm({
+      title: '立即开奖',
+      message: confirmMessage,
+      tone: 'warning',
+      confirmText: '立即开奖'
+    })) return;
+
+    setLotteryActionPending(item.id, true);
+    try {
+      assertAdminAction();
+      const { data, error } = await supabase.rpc('execute_lottery_draw', {
+        p_lottery_id: item.id,
+        p_force: true,
+        p_redraw: false,
+        p_reason: 'manual_draw'
+      });
+      if (error) throw error;
+      if (!data?.ok) {
+        throw new Error(String(data?.message || '开奖失败'));
+      }
+      const winnerNames = Array.isArray(data?.winners)
+        ? data.winners.map((winner) => String(winner?.username || '').trim()).filter(Boolean)
+        : [];
+      addChangeLogEntry('lottery_draw', item, { winners: winnerNames, entryCount });
+      showToast(winnerNames.length ? `开奖完成，中奖者：${winnerNames.join('、')}` : '开奖完成，本期暂无中奖者', 'success');
+      await refreshCurrentViewAfterMutation();
+    } catch (error) {
+      logger.error('data-admin', '抽奖开奖失败:', error);
+      showToast('开奖失败: ' + buildActionErrorMessage(error, '开奖失败'), 'error');
+    } finally {
+      setLotteryActionPending(item.id, false);
+    }
+  };
+
+  // 重抽(带必填原因)
+  const redrawLottery = async (item) => {
+    if (!item?.id || isLotteryActionPending(item.id)) return;
+    const reason = await dialog.prompt({
+      title: '重抽原因',
+      message: '请输入重抽原因（例如：中奖者失联 / 不符合资格）',
+      placeholder: '必填',
+      defaultValue: ''
+    });
+    if (reason === null) return;
+    const normalizedReason = String(reason || '').trim();
+    if (!normalizedReason) {
+      showToast('重抽必须填写原因', 'error');
+      return;
+    }
+    if (!await dialog.confirm({
+      title: '重新开奖',
+      message: '确定要重新开奖吗？系统会保留历史开奖日志，并通知新的中奖用户。',
+      tone: 'warning',
+      confirmText: '重新开奖'
+    })) return;
+
+    setLotteryActionPending(item.id, true);
+    try {
+      assertAdminAction();
+      const { data, error } = await supabase.rpc('execute_lottery_draw', {
+        p_lottery_id: item.id,
+        p_force: true,
+        p_redraw: true,
+        p_reason: normalizedReason
+      });
+      if (error) throw error;
+      if (!data?.ok) {
+        throw new Error(String(data?.message || '重抽失败'));
+      }
+      const winnerNames = Array.isArray(data?.winners)
+        ? data.winners.map((winner) => String(winner?.username || '').trim()).filter(Boolean)
+        : [];
+      addChangeLogEntry('lottery_redraw', item, { reason: normalizedReason, winners: winnerNames });
+      showToast(winnerNames.length ? `重抽完成，中奖者：${winnerNames.join('、')}` : '重抽完成，本期暂无中奖者', 'success');
+      await refreshCurrentViewAfterMutation();
+    } catch (error) {
+      logger.error('data-admin', '抽奖重抽失败:', error);
+      showToast('重抽失败: ' + buildActionErrorMessage(error, '重抽失败'), 'error');
+    } finally {
+      setLotteryActionPending(item.id, false);
+    }
+  };
+
+  // 关闭抽奖
+  const closeLottery = async (item) => {
+    if (!item?.id || isLotteryActionPending(item.id)) return;
+    if (!await dialog.confirm({
+      title: '关闭抽奖',
+      message: '确定要关闭这个抽奖吗？关闭后仍会保留在历史抽奖中。',
+      tone: 'warning',
+      confirmText: '关闭'
+    })) return;
+
+    setLotteryActionPending(item.id, true);
+    try {
+      assertAdminAction();
+      const { data, error } = await supabase
+        .from('lotteries')
+        .update({
+          status: 'closed',
+          updated_by: userInfo?.id || null
+        })
+        .eq('id', item.id)
+        .select('id');
+      if (error) throw error;
+      if (!Array.isArray(data) || data.length === 0) {
+        throw new Error('关闭失败：没有记录被更新，请检查管理员权限或记录是否存在');
+      }
+      addChangeLogEntry('lottery_close', item, { status: 'closed' });
+      showToast('抽奖已关闭，已保留在历史抽奖中', 'success');
+      await refreshCurrentViewAfterMutation();
+    } catch (error) {
+      logger.error('data-admin', '关闭抽奖失败:', error);
+      showToast('关闭失败: ' + buildActionErrorMessage(error, '关闭失败'), 'error');
+    } finally {
+      setLotteryActionPending(item.id, false);
+    }
+  };
+
+  // 查看抽奖参与记录
+  const viewLotteryEntries = (item) => {
+    if (!item?.id) return;
+    addRecentRecord(item);
+    switchTab('lotteryEntries', { search: String(item.id) });
+  };
+
+  // 查看开奖日志
+  const viewLotteryDrawLogs = (item) => {
+    if (!item?.id) return;
+    addRecentRecord(item);
+    switchTab('lotteryDrawLogs', { search: String(item.id) });
+  };
+
+  // ==================== 审核操作 ====================
+
+  // 写入审核日志(失败不阻断主流程)
+  const saveModerationLog = async (item, actionStatus, reason = '') => {
+    const payload = {
+      target_id: item.id,
+      target_type: moderationTabConfig.value?.targetType || 'unknown',
+      ai_result: actionStatus,
+      ai_reason: reason || null,
+      moderator_id: userInfo.value?.id || null
+    };
+
+    const { error } = await supabase.from('moderation_logs').insert([payload]);
+    if (error) {
+      logger.warn('data-admin', '写入 moderation_logs 失败（不阻断主流程）:', error);
+    }
+  };
+
+  // 调用 admin_apply_moderation_action RPC, 失败时回退到直接 update
+  const updateModerationStatus = async (item, config, updateData) => {
+    const rpcPayload = {
+      p_target_type: config.targetType,
+      p_target_id: item.id,
+      p_action_status: updateData[config.statusField],
+      p_reason: config.reasonField ? (updateData[config.reasonField] || null) : null
+    };
+    const { data: rpcData, error: rpcError } = await supabase.rpc('admin_apply_moderation_action', rpcPayload);
+
+    if (!rpcError) {
+      const ok = Boolean(rpcData?.ok);
+      const affected = Number(rpcData?.affected || 0);
+      if (!ok || affected <= 0) {
+        throw new Error(String(rpcData?.message || '记录未更新，可能是权限不足或记录状态已变化'));
+      }
+      return;
+    }
+
+    if (!isMissingRpcFunctionError(rpcError, 'admin_apply_moderation_action')) {
+      throw rpcError;
+    }
+
+    const { data, error } = await supabase
+      .from(config.table)
+      .update(updateData)
+      .eq('id', item.id)
+      .select('id');
+
+    if (error) throw error;
+    if (!Array.isArray(data) || data.length === 0) {
+      throw new Error('记录未更新，可能是权限不足或记录状态已变化');
+    }
+  };
+
+  // 删除审核目标(优先 RPC, 回退到直接 delete)
+  const deleteModerationTarget = async (item, config) => {
+    const { data: rpcData, error: rpcError } = await supabase.rpc('admin_delete_moderation_target', {
+      p_target_type: config.targetType,
+      p_target_id: item.id
+    });
+
+    if (!rpcError) {
+      const ok = Boolean(rpcData?.ok);
+      const affected = Number(rpcData?.affected || 0);
+      if (!ok || affected <= 0) {
+        throw new Error(String(rpcData?.message || '记录未删除，可能是权限不足或记录不存在'));
+      }
+      return;
+    }
+
+    if (!isMissingRpcFunctionError(rpcError, 'admin_delete_moderation_target')) {
+      throw rpcError;
+    }
+
+    const { data, error } = await supabase
+      .from(config.table)
+      .delete()
+      .eq('id', item.id)
+      .select('id');
+    if (error) throw error;
+    if (!Array.isArray(data) || data.length === 0) {
+      throw new Error('记录未删除，可能是权限不足或记录不存在');
+    }
+  };
+
+  // 通用审核操作: approve / reject / limit
+  const applyModerationAction = async (item, action) => {
+    if (!moderationTabConfig.value) return;
+    if (!item?.id) {
+      showToast('记录缺少 ID，无法执行审核操作', 'error');
+      return;
+    }
+    if (isModerationActionPending(item.id)) return;
+
+    const config = moderationTabConfig.value;
+    const isApprove = action === 'approve';
+    const isKeepLimited = action === 'limit';
+    let reason = '';
+
+    if (!isApprove && !isKeepLimited && config.reasonField) {
+      const inputReason = await dialog.prompt({
+        title: '拒绝原因',
+        message: '请输入拒绝原因（必填）',
+        placeholder: '必填',
+        defaultValue: ''
+      });
+      if (inputReason === null) return;
+      reason = inputReason.trim();
+      if (!reason) {
+        showToast('拒绝时必须填写原因', 'error');
+        return;
+      }
+    }
+
+    setModerationPending(item.id, true);
+    try {
+      const updateData = {
+        [config.statusField]: isApprove
+          ? config.approveValue
+          : isKeepLimited
+            ? 'limited'
+            : config.rejectValue
+      };
+
+      if (config.reasonField) {
+        updateData[config.reasonField] = isApprove ? null : reason;
+      }
+
+      await updateModerationStatus(item, config, updateData);
+
+      await saveModerationLog(item, updateData[config.statusField], reason);
+      addChangeLogEntry(`moderation_${action}`, item, {
+        status: updateData[config.statusField],
+        reason
+      });
+      showToast(isApprove ? '审核通过已生效' : isKeepLimited ? '已维持下架并结案举报' : '已拒绝并记录原因', 'success');
+      await refreshCurrentViewAfterMutation();
+    } catch (error) {
+      logger.error('data-admin', '审核操作失败:', error);
+      showToast('审核操作失败: ' + buildModerationErrorMessage(error), 'error');
+    } finally {
+      setModerationPending(item.id, false);
+    }
+  };
+
+  const approveModerationItem = async (item) => applyModerationAction(item, 'approve');
+  const rejectModerationItem = async (item) => applyModerationAction(item, 'reject');
+  const keepLimitedModerationItem = async (item) => applyModerationAction(item, 'limit');
+
+  // 删除审核记录
+  const deleteModerationItem = async (item) => {
+    if (!moderationTabConfig.value || !item?.id) return;
+    if (isModerationActionPending(item.id)) return;
+    if (!await dialog.confirm({
+      title: '删除记录',
+      message: '确定要删除这条记录吗？删除后不可恢复。',
+      tone: 'danger',
+      confirmText: '删除'
+    })) return;
+
+    const config = moderationTabConfig.value;
+    setModerationPending(item.id, true);
+    try {
+      await deleteModerationTarget(item, config);
+      await saveModerationLog(item, 'deleted', 'admin_delete');
+      addChangeLogEntry('moderation_delete', item, { targetType: config.targetType });
+      showToast('删除成功', 'success');
+      await refreshCurrentViewAfterMutation();
+    } catch (error) {
+      logger.error('data-admin', '删除审核记录失败:', error);
+      showToast('删除失败: ' + buildModerationErrorMessage(error), 'error');
+    } finally {
+      setModerationPending(item.id, false);
+    }
+  };
+
+  return {
+    // 通用删除
+    deleteItem,
+    deleteAdminUser,
+    batchDelete,
+    // 抽奖
+    drawLotteryNow,
+    redrawLottery,
+    closeLottery,
+    viewLotteryEntries,
+    viewLotteryDrawLogs,
+    // 审核
+    saveModerationLog,
+    updateModerationStatus,
+    deleteModerationTarget,
+    applyModerationAction,
+    approveModerationItem,
+    rejectModerationItem,
+    keepLimitedModerationItem,
+    deleteModerationItem,
+    // 辅助
+    isMissingRpcFunctionError,
+    buildModerationErrorMessage
+  };
+};

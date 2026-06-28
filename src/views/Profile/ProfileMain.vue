@@ -474,9 +474,11 @@ import {
   creatorPlatformsMeta,
   normalizeCreatorPlatformIds
 } from './creatorPlatforms.js';
+import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 
 const router = useRouter();
 const route = useRoute();
+const dialog = useConfirmDialog();
 const CREATOR_VISIBILITY_VALUES = new Set(['public', 'private']);
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -1406,7 +1408,12 @@ const canDeleteImpression = (impression) => {
 };
 
 const handleDeleteImpression = async (impression) => {
-  if (!confirm('确定要删除这条印象吗？')) return;
+  if (!await dialog.confirm({
+    title: '删除印象',
+    message: '确定要删除这条印象吗？',
+    tone: 'danger',
+    confirmText: '删除'
+  })) return;
 
   try {
     const { error } = await deleteUserImpression(impression.id, userInfo.value.id);

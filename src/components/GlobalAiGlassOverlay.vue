@@ -66,7 +66,16 @@ const isMobile = ref(false)
 const mountedOnce = ref(false)
 const keyboardVisible = ref(false)
 const keyboardHeight = ref(0)
+// iOS Safari 视觉视口跟踪
+const visualHeight = ref(0)
+const visualOffsetTop = ref(0)
+// iOS Safari 底部工具栏（URL/标签栏）高度：layoutH - visualHeight - kbdHeight
+const safariBarHeight = ref(0)
+// 上一次"非键盘态"的视觉视口高度，用于精确测出键盘高度（排除 URL 栏变化）
+let baselineVisualHeight = 0
 let snapTimer = null
+// 焦点是否在遮罩内的可编辑控件
+let isEditingFocused = false
 
 function checkMobile() {
   isMobile.value = window.innerWidth <= 1023
@@ -82,23 +91,35 @@ function translateYPercent(p) {
   return 40 - 40 * (p - 1)
 }
 
+// 取当前可见高度作为参考（iOS Safari 中视觉视口高度 = URL 栏/工具栏之间的可见区域）
+function getReferenceHeight() {
+  if (typeof window === 'undefined') return 800
+  if (visualHeight.value > 0) return visualHeight.value
+  return window.innerHeight
+}
+
 const overlayStyle = computed(() => {
   if (!isMobile.value) {
     // 桌面端也需要基础样式，确保面板正确显示
     return {
       '--panel-height': `${window.innerHeight}px`,
       '--panel-visible-bottom': '0px',
-      '--kbd-height': `${keyboardHeight.value}px`
+      '--kbd-height': `${keyboardHeight.value}px`,
+      '--safari-bar-height': `${safariBarHeight.value}px`,
+      '--vv-height': `${visualHeight.value || window.innerHeight}px`,
+      '--vv-top': `${visualOffsetTop.value}px`
     }
   }
+  const refH = getReferenceHeight()
   const ty = translateYPercent(dragProgress.value)
-  const tyPx = (ty / 100) * window.innerHeight
+  const tyPx = (ty / 100) * refH
 
-  // 面板可见高度
-  const panelHeight = window.innerHeight - tyPx
+  // 面板可见高度（按视觉视口计算，避免 iOS URL 栏覆盖）
+  const panelHeight = refH - tyPx
 
-  // 计算面板可见区域的底部位置（相对于视口）
-  // 面板向上移动tyPx距离，所以面板底部在视口底部向上tyPx的位置
+  // 面板向上平移的距离（用于输入框定位的换算）
+  // 关键：面板 100dvh = 视觉视口，transform 平移 tyPx
+  // 输入框 bottom = safe-area - tyPx 即可保证始终贴在视觉视口底部
   const panelVisibleBottom = tyPx
 
   return {
@@ -106,6 +127,9 @@ const overlayStyle = computed(() => {
     '--panel-height': `${panelHeight}px`,
     '--panel-visible-bottom': `${panelVisibleBottom}px`,
     '--kbd-height': `${keyboardHeight.value}px`,
+    '--safari-bar-height': `${safariBarHeight.value}px`,
+    '--vv-height': `${refH}px`,
+    '--vv-top': `${visualOffsetTop.value}px`,
     borderRadius: ty <= 0 ? '0' : '24px 24px 0 0'
   }
 })
@@ -168,26 +192,134 @@ watch(isOpen, (val) => {
   }
 })
 
-function updateKeyboard() {
-  if (window.visualViewport) {
-    const diff = window.innerHeight - window.visualViewport.height
-    keyboardVisible.value = diff > 120
-    keyboardHeight.value = diff
+function isEditableElement(el) {
+  if (!el) return false
+  if (el.isContentEditable) return true
+  const tag = el.tagName
+  return tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT'
+}
 
-    // 键盘弹出时，自动滚动到输入框附近
-    if (diff > 120 && chatRef.value) {
-      setTimeout(() => {
-        const chatContainer = chatRef.value.querySelector('.chat-container')
-        if (chatContainer) {
-          chatContainer.scrollTo({
-            top: chatContainer.scrollHeight,
-            behavior: 'smooth'
-          })
-        }
-      }, 150)
+function isOverlayEditable(target) {
+  if (!overlayRef.value || !target) return false
+  return overlayRef.value.contains(target)
+}
+
+// 焦点进入：标记可能弹出键盘的输入控件
+function onOverlayFocusIn(e) {
+  if (!isOverlayEditable(e.target)) return
+  if (!isEditableElement(e.target)) return
+  isEditingFocused = true
+  // 记录键盘弹起前的视觉视口高度（用于精确测出键盘本身的高度）
+  baselineVisualHeight = visualHeight.value || 0
+  // 等待键盘动画完成再测量（iOS 弹出/收起约 250-400ms）
+  setTimeout(updateViewport, 350)
+  // 立即刷新一次以缩短空白
+  setTimeout(updateViewport, 60)
+}
+
+function onOverlayFocusOut(e) {
+  if (!isEditableElement(e.target)) return
+  isEditingFocused = false
+  setTimeout(updateViewport, 350)
+}
+
+// 全面更新视觉视口与键盘状态
+function updateViewport() {
+  if (typeof window === 'undefined') return
+
+  const vv = window.visualViewport
+  const layoutH = window.innerHeight
+
+  if (vv) {
+    visualHeight.value = vv.height
+    visualOffsetTop.value = vv.offsetTop || 0
+  } else {
+    visualHeight.value = layoutH
+    visualOffsetTop.value = 0
+  }
+
+  // 对不支持 dvh 的浏览器，通过内联 style 兜底
+  if (overlayRef.value) {
+    let supportsDvh = false
+    try {
+      supportsDvh = typeof CSS !== 'undefined' && CSS.supports?.('height', '100dvh')
+    } catch (_) {
+      supportsDvh = false
+    }
+    if (!supportsDvh && isMobile.value) {
+      const refH = getReferenceHeight()
+      overlayRef.value.style.height = `${refH}px`
+      overlayRef.value.style.maxHeight = `${refH}px`
+      overlayRef.value.style.minHeight = `${refH}px`
     }
   }
+
+  // ========== 键盘检测（精确版）==========
+  // 用"焦点进入时的 visualHeight"作 baseline，
+  // keyboardHeight = max(0, baseline - current) 即可得到纯键盘高度（不含 URL 栏变化）
+  if (isEditingFocused && baselineVisualHeight > 0) {
+    const kbdH = Math.max(0, baselineVisualHeight - visualHeight.value)
+    if (kbdH > 80) {
+      // 80px 是 iOS 工具栏 URL 栏的最大值，超过则视为键盘
+      if (!keyboardVisible.value || keyboardHeight.value !== kbdH) {
+        keyboardVisible.value = true
+        keyboardHeight.value = kbdH
+      }
+    } else {
+      if (keyboardVisible.value || keyboardHeight.value !== 0) {
+        keyboardVisible.value = false
+        keyboardHeight.value = 0
+      }
+    }
+  } else {
+    if (keyboardVisible.value || keyboardHeight.value !== 0) {
+      keyboardVisible.value = false
+      keyboardHeight.value = 0
+    }
+    // 非编辑态：刷新 baseline（用于下一次焦点）
+    baselineVisualHeight = visualHeight.value
+  }
+
+  // ========== Safari 底部工具栏高度 ==========
+  // 总占用 = layoutH - visualHeight - keyboardHeight
+  // 剩余部分就是 URL 栏/标签栏
+  const totalDiff = Math.max(0, layoutH - visualHeight.value)
+  const barH = Math.max(0, totalDiff - keyboardHeight.value)
+  if (barH !== safariBarHeight.value) {
+    safariBarHeight.value = barH
+  }
+
+  // 键盘弹出时，自动滚动到输入框附近
+  if (keyboardVisible.value && chatRef.value) {
+    setTimeout(() => {
+      const chatContainer = chatRef.value?.querySelector('.chat-container')
+      if (chatContainer) {
+        chatContainer.scrollTo({
+          top: chatContainer.scrollHeight,
+          behavior: 'smooth'
+        })
+      }
+    }, 150)
+  }
+
+  // 拖拽距离计算使用视觉视口高度，避免 iOS URL 栏影响拖拽手感
+  setOverlayHeight(() => Math.max(visualHeight.value, layoutH - 200))
 }
+
+// 键盘弹出时，自动把面板展开为全屏
+// 这样 panel 100dvh == 视觉视口，input 在 panel 底部 = 视觉视口底部 = 键盘上方
+// 避免半屏状态 + 键盘时 input 被推到 panel 顶部外
+watch(keyboardVisible, (val) => {
+  if (!isMobile.value) return
+  if (val) {
+    if (dragProgress.value < 1.9) {
+      // 立即全屏，避免半屏底部被键盘覆盖
+      dragProgress.value = 2
+      // 不要动画（拖拽 snap 动画）以免闪烁
+      isSnapping.value = false
+    }
+  }
+})
 
 onMounted(() => {
   // 组件挂载时立即设置 mountedOnce，确保 BOHAIChat 可以渲染
@@ -198,24 +330,46 @@ onMounted(() => {
   // 添加临时meta标签，阻止iOS缩放和调整viewport
   const viewportMeta = document.querySelector('meta[name="viewport"]')
   if (viewportMeta) {
-    const originalContent = viewportMeta.getAttribute('content')
-    viewportMeta.setAttribute('content', originalContent + ', viewport-fit=cover')
+    const originalContent = viewportMeta.getAttribute('content') || ''
+    if (!originalContent.includes('viewport-fit=cover')) {
+      viewportMeta.setAttribute('content', `${originalContent}${originalContent ? ', ' : ''}viewport-fit=cover`)
+    }
   }
 
   checkMobile()
   window.addEventListener('resize', checkMobile)
-  window.visualViewport?.addEventListener('resize', updateKeyboard)
-  updateKeyboard()
+
+  // 监听 visualViewport 的变化（iOS URL 栏/键盘/工具栏）
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', updateViewport)
+    window.visualViewport.addEventListener('scroll', updateViewport)
+  }
+
+  // 监听焦点进出（仅在遮罩内的可编辑元素）
+  document.addEventListener('focusin', onOverlayFocusIn)
+  document.addEventListener('focusout', onOverlayFocusOut)
+
+  updateViewport()
   const el = overlayRef.value
   if (el) {
-    setOverlayHeight(() => window.innerHeight)
+    setOverlayHeight(() => {
+      if (window.visualViewport && window.visualViewport.height > 0) {
+        return window.visualViewport.height
+      }
+      return window.innerHeight
+    })
   }
 })
 
 onUnmounted(() => {
   document.body.classList.remove('global-ai-glass-open')
   window.removeEventListener('resize', checkMobile)
-  window.visualViewport?.removeEventListener('resize', updateKeyboard)
+  if (window.visualViewport) {
+    window.visualViewport.removeEventListener('resize', updateViewport)
+    window.visualViewport.removeEventListener('scroll', updateViewport)
+  }
+  document.removeEventListener('focusin', onOverlayFocusIn)
+  document.removeEventListener('focusout', onOverlayFocusOut)
   clearTimeout(snapTimer)
 })
 </script>
@@ -234,8 +388,10 @@ onUnmounted(() => {
   padding: 0;
   padding-bottom: max(8px, env(safe-area-inset-bottom, 0px)); /* ✨ 新增：基础安全边距 */
   /* iOS键盘弹出时，阻止面板被推上去 */
-  height: 100vh;
-  max-height: 100vh;
+  /* 使用 dvh 让面板贴合视觉视口（iOS 15.4+ 自动避开 URL 栏/工具栏/键盘） */
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 100dvh;
   overflow: hidden;
   background:
     linear-gradient(180deg, rgba(248, 250, 252, 0.3), rgba(226, 232, 240, 0.2)),
@@ -248,6 +404,8 @@ onUnmounted(() => {
   opacity: 0;
   pointer-events: none;
 }
+
+/* 不支持 dvh 的浏览器（如旧版 iOS Safari）由 JS 通过内联 style 兜底高度 */
 
 .global-ai-glass-overlay.is-open {
   opacity: 1;
@@ -264,19 +422,24 @@ onUnmounted(() => {
 
 @media (max-width: 1023px) {
   .global-ai-glass-overlay {
-    /* 移动端：确保面板始终占满屏幕，不被键盘推上去 */
+    /* 移动端：dvh 让面板始终贴合视觉视口，键盘/URL 栏变化时面板自然收缩 */
     top: 0;
     bottom: 0;
     left: 0;
     right: 0;
-    height: 100vh;
-    max-height: 100vh;
+    height: 100dvh;
+    max-height: 100dvh;
+    min-height: 100dvh;
     border-radius: 24px 24px 0 0;
     box-shadow: 0 -8px 40px rgba(15, 23, 42, 0.12);
+    /* 移动端竖屏：底部预留 = 基础安全边距 + iOS Safari URL/标签栏 + 物理安全区
+     * 关键：必须包含 --safari-bar-height，否则 panel 底部内容会被 Safari 底部 URL 栏遮挡
+     */
     padding-bottom: calc(
       var(--global-ai-bottom-nav-clearance)
+      + var(--safari-bar-height, 0px)
       + max(12px, env(safe-area-inset-bottom, 0px))
-    ); /* ✨ 新增：移动端竖屏增强安全边距 */
+    ) !important;
   }
 
   .global-ai-glass-overlay.is-fullscreen {
@@ -306,19 +469,35 @@ onUnmounted(() => {
 }
 
 .global-ai-glass-overlay.keyboard-visible .global-ai-glass-chat :deep(.chat-container) {
-  /* 键盘弹出时，调整聊天容器padding，确保输入框可见 */
-  padding-bottom: calc(var(--global-ai-bottom-nav-clearance) + 96px + var(--kbd-height, 0px));
+  /* 键盘时 panel 自动全屏，input 在 panel 底部（视觉视口底部），
+   * 这里只需要预留 input 自身高度 + 缓冲，让最后消息能滚到 input 上方
+   */
+  padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
 }
 
-/* 半屏状态下，确保输入框在面板内可见 */
+/* 输入框定位（关键修复版）
+ *
+ * 历史问题：之前用 `bottom: --panel-visible-bottom + safe + --kbd-height`，
+ * ① panel 的 `transform: translate3d` 创建了新的 containing block，
+ *    `position: fixed` 实际变成相对 panel 自身而非 viewport；
+ * ② 在 panel 坐标系内，bottom 越大越靠上，叠加后把 input 推到 panel 顶部外。
+ * ③ --kbd-height 同时包含 URL 栏变化，数值偏大约 80px。
+ *
+ * 修复方案：
+ * 1. 键盘弹起时自动把 panel 展开为全屏（dragProgress = 2）
+ *    → panel 100dvh == 视觉视口，input 在 panel 底部 = 视觉视口底部 = 键盘上方
+ * 2. 半屏状态：input 在 panel 60% 底部（屏幕 60% 位置），URL 栏覆盖的是 panel 40% 之外
+ * 3. 用 env(safe-area-inset-bottom) 代替物理安全距离
+ * 4. 不再加 kbd-height 和 panel-visible-bottom（panel transform 自动吸收）
+ */
 .global-ai-glass-chat :deep(.bohai-page.overlay-mode .input-area) {
   width: min(calc(100% - 32px), 860px);
-  /* 输入框相对于视口定位，固定在面板可见区域的底部 */
+  /* fixed 定位在 panel 坐标系内（panel 有 transform），bottom 相对 panel 边界 */
   position: fixed !important;
-  /* 输入框位置 = 面板底部位置 + 安全距离 + 键盘高度 */
-  bottom: calc(var(--panel-visible-bottom, 0px) + max(8px, env(safe-area-inset-bottom, 0px)) + var(--kbd-height, 0px)) !important;
+  /* panel 已自动适配（半屏/全屏/键盘），input 只需贴底 + 安全区 */
+  bottom: max(8px, env(safe-area-inset-bottom, 0px)) !important;
   left: 50% !important;
-  transform: translateX(-50%) !important;
+  transform: translateX(-50%) translateZ(0) !important;
   padding-bottom: 0;
   opacity: 1 !important;
   visibility: visible !important;

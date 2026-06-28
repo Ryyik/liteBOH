@@ -10,6 +10,8 @@ import { logger } from "@/utils/logger.js";
 import { useGlobalAiOverlay } from "@/composables/useGlobalAiOverlay";
 import GlobalAiGlassOverlay from "@/components/GlobalAiGlassOverlay.vue";
 import AiEdgeTrigger from "@/components/AiEdgeTrigger.vue";
+import AdminConfirmModal from "@/components/AdminConfirmModal.vue";
+import { useConfirmDialog } from "@/composables/useConfirmDialog.js";
 
 const route = useRoute();
 const authStore = useAuthStore();
@@ -122,6 +124,43 @@ const handleGlobalAiKeydown = (e) => {
   }
 };
 
+// 全局 confirm/prompt 弹窗 (替换 window.confirm / window.prompt)
+const {
+  state: confirmDialogState,
+  close: closeConfirmDialog
+} = useConfirmDialog();
+
+const handleConfirmDialogConfirm = (payload) => {
+  // AdminConfirmModal 的 confirm 事件: prompt 模式返回输入值字符串, confirm/alert 模式返回 true
+  if (!confirmDialogState.resolver) return;
+  const resolver = confirmDialogState.resolver;
+  confirmDialogState.resolver = null;
+  // resolver('confirm') => 主按钮; resolver('tertiary') => 第三按钮; resolver(false) => cancel
+  resolver(payload === true && confirmDialogState.kind !== 'alert' ? 'confirm' : payload);
+  confirmDialogState.visible = false;
+};
+
+const handleConfirmDialogCancel = () => {
+  if (!confirmDialogState.resolver) return;
+  const resolver = confirmDialogState.resolver;
+  confirmDialogState.resolver = null;
+  resolver('cancel');
+  confirmDialogState.visible = false;
+};
+
+const handleConfirmDialogTertiary = () => {
+  if (!confirmDialogState.resolver) return;
+  const resolver = confirmDialogState.resolver;
+  confirmDialogState.resolver = null;
+  resolver('tertiary');
+  confirmDialogState.visible = false;
+};
+
+const handleConfirmDialogUpdateVisible = (v) => {
+  if (!v) closeConfirmDialog(false);
+  else confirmDialogState.visible = true;
+};
+
 onMounted(() => {
   window.addEventListener('keydown', handleGlobalAiKeydown);
 });
@@ -200,6 +239,24 @@ const showGlobalNavbar = computed(() =>
       </div>
     </div>
   </Transition>
+
+  <!-- 全局 confirm / prompt 弹窗 (供 useConfirmDialog 复用) -->
+  <AdminConfirmModal
+    :visible="confirmDialogState.visible"
+    :title="confirmDialogState.title"
+    :message="confirmDialogState.message"
+    :kind="confirmDialogState.kind"
+    :tone="confirmDialogState.tone"
+    :confirm-text="confirmDialogState.confirmText"
+    :cancel-text="confirmDialogState.cancelText"
+    :tertiary-text="confirmDialogState.tertiaryText"
+    :placeholder="confirmDialogState.placeholder"
+    :default-value="confirmDialogState.defaultValue"
+    @confirm="handleConfirmDialogConfirm"
+    @cancel="handleConfirmDialogCancel"
+    @tertiary="handleConfirmDialogTertiary"
+    @update:visible="handleConfirmDialogUpdateVisible"
+  />
 </template>
 
 <style>

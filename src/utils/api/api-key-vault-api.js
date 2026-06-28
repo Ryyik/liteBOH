@@ -48,3 +48,8 @@ export const testApiKey = (id, payload = {}) => invokeVault({
   id,
   ...payload
 });
+
+export const deleteApiKey = (id) => invokeVault({
+  action: 'delete',
+  id
+});

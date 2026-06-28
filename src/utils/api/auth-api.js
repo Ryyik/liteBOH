@@ -5,6 +5,7 @@ import {
   invalidateByTags
 } from '../request-core.js';
 import { logger } from '../logger.js';
+import { clearSensitiveLocalStorage } from '../safe-storage.js';
 import {
   normalizeEmail,
   normalizeLoginId,
@@ -473,7 +474,11 @@ export async function deleteMyAccount(password, reason = '') {
 
 export async function signOut() {
   const { error } = await supabase.auth.signOut();
-  if (!error) invalidateByTags(['auth', 'notifications', 'profiles', 'posts', 'comments', 'messages', 'weekly-checkin']);
+  if (!error) {
+    invalidateByTags(['auth', 'notifications', 'profiles', 'posts', 'comments', 'messages', 'weekly-checkin']);
+    // 清理本地敏感数据(邮箱/草稿/偏好等),防止共享设备泄露
+    clearSensitiveLocalStorage();
+  }
   return { ok: !error, error: normalizeDbError(error) };
 }
 

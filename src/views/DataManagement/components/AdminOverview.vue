@@ -1,122 +1,76 @@
 <template>
-  <section class="dashboard-hero">
-    <div class="hero-copy">
-      <div class="hero-kicker">
-        <span class="live-dot"></span>
-        方块之家管理控制台
-      </div>
-      <h2>站点运行、内容发布和数据维护集中处理。</h2>
-      <p>当前正在管理 {{ currentTabLabel }}，共 {{ totalRecordCount }} 条记录。{{ activeFilterSummary }}。</p>
-    </div>
-    <div class="hero-status-grid">
-      <div v-for="item in siteHealthCards" :key="item.label" class="hero-status-card">
-        <component :is="item.icon" :size="18" />
-        <div>
-          <span>{{ item.label }}</span>
-          <strong>{{ item.value }}</strong>
-        </div>
+  <div class="overview-status-bar">
+    <div v-for="card in liveStatusCards" :key="card.id" class="status-card" :class="`status-${card.status}`">
+      <component :is="card.icon" :size="18" class="status-card-icon" />
+      <div class="status-card-body">
+        <span class="status-card-label">{{ card.label }}</span>
+        <strong class="status-card-value">{{ card.value }}</strong>
+        <span class="status-card-detail">{{ card.detail }}</span>
       </div>
     </div>
-  </section>
+  </div>
 
-  <section class="stats-section">
-    <div class="stat-card" v-for="stat in statsCards" :key="stat.id" :class="`stat-${stat.type}`">
-      <div class="stat-icon">
-        <component :is="stat.icon" :size="22" />
-      </div>
-      <div class="stat-content">
-        <template v-if="isLoading">
-          <span class="dm-skeleton-block dm-stat-value-skeleton"></span>
-          <span class="dm-skeleton-block dm-stat-label-skeleton"></span>
-        </template>
-        <template v-else>
-          <span class="stat-value">{{ stat.value }}</span>
-          <span class="stat-label">{{ stat.label }}</span>
-        </template>
-      </div>
-      <div class="stat-trend" v-if="!isLoading && stat.trend">
-        <span :class="{ up: stat.trend > 0, down: stat.trend < 0 }">
-          {{ stat.trend > 0 ? '+' : '' }}{{ stat.trend }}%
-        </span>
-      </div>
+  <div class="overview-section" style="margin-bottom: 16px;">
+    <div class="overview-section-header">
+      <h3>数据表概览</h3>
+      <button class="overview-refresh-btn" @click="$emit('refresh-now')" :class="{ spinning: isRefreshing }">
+        <RefreshCw :size="14" />
+        刷新
+      </button>
     </div>
-  </section>
-
-  <section class="dashboard-grid">
-    <div class="overview-panel">
-      <div class="panel-heading">
-        <div>
-          <h2>数据表概览</h2>
-          <p>当前管理模块的数据规模</p>
-        </div>
-        <Database :size="19" />
-      </div>
-      <div class="table-summary-list">
-        <button
-          v-for="table in tableSummaryCards"
-          :key="table.id"
-          class="table-summary-item"
-          :class="{ active: currentTab === table.id }"
-          type="button"
-          @click="$emit('select-tab', table.id)"
-        >
-          <span class="table-summary-icon">{{ table.icon }}</span>
-          <span class="table-summary-label">{{ table.label }}</span>
-          <strong>{{ table.count }}</strong>
-        </button>
-      </div>
+    <div class="overview-table-grid">
+      <button
+        v-for="table in tableSummaryCards"
+        :key="table.id"
+        class="overview-table-card"
+        :class="{ active: currentTab === table.id }"
+        @click="$emit('select-tab', table.id)"
+      >
+        <span class="overview-table-label">{{ table.label }}</span>
+        <strong class="overview-table-count">{{ table.count }}</strong>
+      </button>
     </div>
+  </div>
 
-    <div class="overview-panel">
-      <div class="panel-heading">
-        <div>
-          <h2>异常诊断</h2>
-          <p>审核、风控和调度状态</p>
-        </div>
-        <ShieldCheck :size="19" />
+  <div class="overview-grid-2col">
+    <div class="overview-section">
+      <div class="overview-section-header">
+        <h3>异常与待处理</h3>
       </div>
-      <div class="operations-list">
-        <button
-          v-for="item in activeDiagnostics"
-          :key="item.id"
-          type="button"
-          class="operation-item"
-          :class="`tone-${item.tone}`"
-          @click="$emit('select-tab', item.tab)"
-        >
-          <span class="operation-status" :class="item.tone"></span>
-          <div>
+      <div class="overview-diagnostics">
+        <div v-for="item in activeDiagnostics" :key="item.id" class="diagnostic-row" :class="`tone-${item.tone}`">
+          <div class="diagnostic-dot"></div>
+          <div class="diagnostic-body">
             <strong>{{ item.title }}</strong>
             <span>{{ item.description }}</span>
           </div>
-          <span class="operation-count">{{ item.count }}</span>
-        </button>
+          <span class="diagnostic-count">{{ item.count }}</span>
+          <button class="diagnostic-goto" @click="$emit('select-tab', item.tab)">查看</button>
+        </div>
+        <div v-if="!activeDiagnostics.length" class="diagnostic-empty">暂无待处理事项</div>
       </div>
     </div>
 
-    <div class="overview-panel activity-panel">
-      <div class="panel-heading">
-        <div>
-          <h2>最近活动</h2>
-          <p>按数据表更新时间聚合</p>
-        </div>
-        <Activity :size="19" />
+    <div class="overview-section">
+      <div class="overview-section-header">
+        <h3>最近更新</h3>
       </div>
-      <div class="activity-list">
-        <div v-for="item in recentActivityItems" :key="item.id" class="activity-item">
-          <div class="activity-dot"></div>
-          <div>
-            <strong>{{ item.title }}</strong>
-            <span>{{ item.meta }}</span>
+      <div class="overview-recent">
+        <div v-for="item in recentActivityItems" :key="item.id" class="recent-row">
+          <span class="recent-dot"></span>
+          <div class="recent-body">
+            <span class="recent-title">{{ item.title }}</span>
+            <span class="recent-meta">{{ item.meta }}</span>
           </div>
         </div>
+        <div v-if="!recentActivityItems.length" class="diagnostic-empty">暂无最近活动</div>
       </div>
     </div>
-  </section>
+  </div>
 </template>
 
 <script setup>
-import { Activity, Database, ShieldCheck } from 'lucide-vue-next';
+import { RefreshCw } from 'lucide-vue-next';
 
 defineProps({
   activeDiagnostics: { type: Array, required: true },
@@ -124,15 +78,19 @@ defineProps({
   currentTab: { type: String, required: true },
   currentTabLabel: { type: String, required: true },
   isLoading: { type: Boolean, default: false },
+  isRefreshing: { type: Boolean, default: false },
+  liveStatusCards: { type: Array, required: true },
   recentActivityItems: { type: Array, required: true },
-  siteHealthCards: { type: Array, required: true },
-  statsCards: { type: Array, required: true },
+  secondsUntilRefresh: { type: Number, default: 30 },
   tableSummaryCards: { type: Array, required: true },
   totalRecordCount: { type: Number, required: true }
 });
 
-defineEmits(['select-tab']);
+defineEmits(['refresh-now', 'select-tab']);
 </script>
 
-<style scoped src="../styles/base.css"></style>
-<style scoped src="../styles/responsive.css"></style>
+<style scoped>
+@import '../styles/base.css';
+@import '../styles/console.css';
+@import '../styles/responsive.css';
+</style>

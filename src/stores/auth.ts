@@ -151,7 +151,9 @@ export const useAuthStore = defineStore('auth', () => {
     creatorPlatformIds: {},
     creatorPlatformVisibility: {},
     creatorPlatformOrder: [],
-    showcasePostIds: []
+    showcasePostIds: [],
+    lastActiveAt: null,
+    hideOnlineStatus: false
   });
   const isAdmin = computed(() => String(userInfo.role || '').trim() === 'admin');
   const AUTH_TIMEOUT_MS = 10000;
@@ -175,7 +177,9 @@ const PROFILE_SELECT_COLUMNS = `
   creator_platform_ids,
   creator_platform_visibility,
   creator_platform_order,
-  showcase_post_ids
+  showcase_post_ids,
+  last_active_at,
+  hide_online_status
 `;
   let authStateSubscription: any = null;
   let sessionHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
@@ -313,9 +317,10 @@ const PROFILE_SELECT_COLUMNS = `
     if (sessionHeartbeatTimer !== null) return;
     if (typeof window === 'undefined') return;
 
-    sessionHeartbeatTimer = setInterval(() => {
+    sessionHeartbeatTimer = setInterval(async () => {
       if (!isLoggedIn.value) return;
       void syncAuthState({ reason: 'heartbeat', force: false });
+      void updateOnlineStatus();
     }, SESSION_HEARTBEAT_INTERVAL_MS);
   };
 
@@ -393,6 +398,8 @@ const PROFILE_SELECT_COLUMNS = `
       Object.keys(normalizedCreatorIds)
     );
     userInfo.showcasePostIds = normalizeShowcasePostIds(data.showcase_post_ids);
+    userInfo.lastActiveAt = (data.last_active_at as string) || null;
+    userInfo.hideOnlineStatus = Boolean(data.hide_online_status);
   };
 
   const refreshCurrentUserProfile = async ({ force = true } = {}) => {
@@ -446,7 +453,9 @@ const PROFILE_SELECT_COLUMNS = `
       creatorPlatformIds: {},
       creatorPlatformVisibility: {},
       creatorPlatformOrder: [],
-      showcasePostIds: []
+      showcasePostIds: [],
+      lastActiveAt: null,
+      hideOnlineStatus: false
     });
   };
 
@@ -679,6 +688,15 @@ const PROFILE_SELECT_COLUMNS = `
     }
   };
 
+  const updateOnlineStatus = async () => {
+    try {
+      const { supabase } = await loadAuthApi();
+      await supabase.rpc('update_last_active_at');
+    } catch {
+      // 非关键功能，静默处理
+    }
+  };
+
   const initLoginState = async () => {
     if (initInFlight) return initInFlight;
 
@@ -686,6 +704,10 @@ const PROFILE_SELECT_COLUMNS = `
       try {
         ensureBrowserLifecycleSync();
         await syncAuthState({ reason: 'init', force: true });
+
+        if (isLoggedIn.value) {
+          void updateOnlineStatus();
+        }
 
         const { supabase } = await loadAuthApi();
         if (!authStateSubscription) {
@@ -695,6 +717,9 @@ const PROFILE_SELECT_COLUMNS = `
             if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
               if (session?.user) {
                 await updateLocalState(session.user, { force: event !== 'TOKEN_REFRESHED' });
+                if (event === 'SIGNED_IN') {
+                  void updateOnlineStatus();
+                }
               } else {
                 await syncAuthState({ reason: `event:${event}`, force: false });
               }

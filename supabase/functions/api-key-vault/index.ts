@@ -72,17 +72,24 @@ const decryptSecret = async (payload: string) => {
   const [rawIv, rawCiphertext] = String(payload || '').split('.');
   if (!rawIv || !rawCiphertext) throw new Error('密钥密文格式无效。');
   const key = await getCryptoKey();
-  const plaintext = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv: base64ToBytes(rawIv) },
-    key,
-    base64ToBytes(rawCiphertext),
-  );
+  let plaintext: ArrayBuffer;
+  try {
+    plaintext = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: base64ToBytes(rawIv) },
+      key,
+      base64ToBytes(rawCiphertext),
+    );
+  } catch (_err) {
+    // 避免错误信息中泄露明文片段
+    throw new Error('密钥解密失败，请检查 API_KEY_VAULT_MASTER_KEY 或重新录入。');
+  }
   return TEXT_DECODER.decode(plaintext);
 };
 
 const maskSecret = (value: string) => {
   const text = String(value || '').trim();
   if (!text) return '';
+  if (text.length < 12) return `${text[0] || ''}****${text[text.length - 1] || ''}`;
   if (text.length <= 8) return `${text.slice(0, 2)}****${text.slice(-2)}`;
   return `${text.slice(0, 4)}****${text.slice(-4)}`;
 };
@@ -357,6 +364,32 @@ const updateStatus = async (
   if (!data) throw new Error('未找到该 API Key。');
   await writeAuditLog(client, actorId, 'status', data as VaultRow, { status });
   return sanitizeRow(data as VaultRow);
+};
+
+const deleteKey = async (
+  client: ReturnType<typeof createServiceClient>,
+  actorId: string,
+  body: Record<string, unknown>,
+) => {
+  const id = toText(body.id, 80);
+  if (!id) throw new Error('缺少 API Key id。');
+  if (id.startsWith('fallback:')) throw new Error('Secrets 兜底项不可删除，请调整环境变量。');
+
+  const { data: existing, error: lookupError } = await client
+    .from('api_key_vault')
+    .select(selectColumns)
+    .eq('id', id)
+    .maybeSingle();
+  if (lookupError) throw lookupError;
+  if (!existing) throw new Error('未找到该 API Key。');
+
+  const { error } = await client.from('api_key_vault').delete().eq('id', id);
+  if (error) throw error;
+  await writeAuditLog(client, actorId, 'delete', existing as VaultRow, {
+    provider: (existing as VaultRow).provider,
+    purpose: (existing as VaultRow).purpose,
+  });
+  return { id };
 };
 
 const resolveRow = async (client: ReturnType<typeof createServiceClient>, body: Record<string, unknown>) => {
@@ -671,6 +704,29 @@ const runtimeTavilySearch = async (
   return { ok: true, status: response.status, data };
 };
 
+const runtimeResolveActiveKey = async (
+  client: ReturnType<typeof createServiceClient>,
+  body: Record<string, unknown>,
+) => {
+  const provider = toText(body.provider || 'siliconflow', 40).toLowerCase();
+  const purpose = toText(body.purpose || 'chat', 60).toLowerCase();
+  if (!PROVIDER_OPTIONS.has(provider)) {
+    return { ok: false, message: 'Provider 无效。' };
+  }
+  if (!purpose || !/^[a-z0-9_-]{2,60}$/.test(purpose)) {
+    return { ok: false, message: 'Purpose 格式无效。' };
+  }
+  try {
+    const { row } = await resolveActiveSecret(client, provider, purpose);
+    return { ok: true, data: { keyInfo: buildKeyInfo(row) } };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : '获取当前活跃 Key 失败。',
+    };
+  }
+};
+
 const testKey = async (
   client: ReturnType<typeof createServiceClient>,
   actorId: string,
@@ -852,11 +908,9 @@ async function checkAndLogRequest(
     return { allowed: true, used: 0, limit: -1, resetAt: '', tier };
   }
 
-  const used = await countTodayUsage(client, userId, ipAddress);
-  if (used >= limit) {
-    return { allowed: false, used, limit, resetAt: getTomorrowBeijingStartUTC(), tier };
-  }
-
+  // 修复 TOCTOU: 先记日志再检查,记日志本身是 INSERT,即使并发也只会插入多次;
+  // 关键是把"判定"放在"记日志"之后,并以本次插入后重新 count 为准。
+  // 仍然会存在轻微超额(并发窗口内),但通过 checkAndLogRequest 的 atomic insert RPC 可彻底解决。
   await logUsage(client, userId, ipAddress, body).catch(() => {});
   const actualUsed = await countTodayUsage(client, userId, ipAddress);
   if (actualUsed > limit) {
@@ -927,10 +981,18 @@ Deno.serve(async (request) => {
       return await runtimeChatCompletionStream(client, body, origin);
     }
     if (action === 'runtime-search') {
+      const user = await requireUser(request, client);
+      if (!user.ok) {
+        return jsonResponse({ ok: false, code: user.code, message: user.message }, user.status, origin);
+      }
       const result = await runtimeTavilySearch(client, body);
       return jsonResponse(result, result.ok ? 200 : 502, origin);
     }
     if (action === 'runtime-resolve') {
+      const user = await requireUser(request, client);
+      if (!user.ok) {
+        return jsonResponse({ ok: false, code: user.code, message: user.message }, user.status, origin);
+      }
       const result = await runtimeResolveActiveKey(client, body);
       return jsonResponse(result, result.ok ? 200 : 502, origin);
     }
@@ -952,6 +1014,9 @@ Deno.serve(async (request) => {
     }
     if (action === 'status') {
       return jsonResponse({ ok: true, data: await updateStatus(client, admin.userId, body) }, 200, origin);
+    }
+    if (action === 'delete') {
+      return jsonResponse({ ok: true, data: await deleteKey(client, admin.userId, body) }, 200, origin);
     }
     if (action === 'test') {
       return jsonResponse({ ok: true, data: await testKey(client, admin.userId, body) }, 200, origin);

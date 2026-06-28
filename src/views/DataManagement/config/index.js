@@ -1,8 +1,6 @@
+export { tabs, tabGroups, TABS_KEEP_ID_ON_INSERT, ADMIN_PAGE_META } from './tabs.js';
 export {
-  tabs,
-  tabGroups,
-  TABS_KEEP_ID_ON_INSERT,
-  ADMIN_PAGE_META,
+  TAB_WRITABLE_FIELDS,
   NEWS_CATEGORY_OPTIONS,
   NEWS_CATEGORY_VALUES,
   USER_ROLE_OPTIONS,
@@ -20,9 +18,6 @@ export {
   BOHAI_MODEL_ICON_OPTIONS,
   LOTTERY_STATUS_OPTIONS,
   LOTTERY_COMMUNITY_VISIBLE_OPTIONS,
-  LOTTERY_FULFILLMENT_STATUS_OPTIONS,
-  TAB_WRITABLE_FIELDS,
-  dataConfig,
-  PRODUCTS_CACHE_KEY,
-  invalidateProductsCache
-} from './config/index.js';
+  LOTTERY_FULFILLMENT_STATUS_OPTIONS
+} from './fields.js';
+export { dataConfig, PRODUCTS_CACHE_KEY, invalidateProductsCache } from './tables.js';
