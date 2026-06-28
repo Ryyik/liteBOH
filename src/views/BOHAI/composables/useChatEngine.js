@@ -92,6 +92,7 @@ import {
   SHARED_MEMORY_TRIGGER_KEYWORDS,
   SHOW_INTERNAL_PROGRESS_NOTES,
   SITE_GUIDE_MAX_CHUNKS,
+  THINKING_SPEED_DELTAS_BY_ID,
   SUBSCRIPTION_STATUS_LABELS,
   TREEHOLE_CONTEXT_MAX_ITEM_CHARS,
   TREEHOLE_CONTEXT_MAX_ITEMS,
@@ -304,10 +305,12 @@ export function useChatEngine() {
     isSharedMemoryEnabled, isKnowledgeBaseEnabled,
     currentResponseStyleId, currentResponseStyle,
     responseStyleOptions,
+    currentThinkingSpeedId, currentThinkingSpeed,
+    thinkingSpeedOptions,
     cloudReferenceConsent,
     webSearchDisabledNoticeShownFor,
     getModelForModeId,
-    togglePlanMode, setResponseStyle,
+    togglePlanMode, setResponseStyle, setThinkingSpeed,
     persistModeSetting,
     persistMemoryCaptureSetting,
     persistTreeholeMemorySetting, persistQuickNoteSetting,
@@ -1718,6 +1721,9 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         return safeReply;
       };
 
+      const thinkingSpeedDeltas = THINKING_SPEED_DELTAS_BY_ID[currentThinkingSpeedId.value];
+      const hasSpeedOverride = thinkingSpeedDeltas && (thinkingSpeedDeltas.temperature !== 0 || thinkingSpeedDeltas.topP !== 0 || thinkingSpeedDeltas.maxTokensScale !== 1);
+
       requestBody = {
         model: generationModel.id,
         messages: [
@@ -1726,10 +1732,12 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
           { role: 'user', content: finalPrompt }
         ],
         stream: true,
-        temperature: generationProfile.temperature,
-        top_p: generationProfile.top_p,
+        temperature: generationProfile.temperature + (hasSpeedOverride ? (thinkingSpeedDeltas.temperature || 0) : 0),
+        top_p: generationProfile.top_p + (hasSpeedOverride ? (thinkingSpeedDeltas.topP || 0) : 0),
         frequency_penalty: generationProfile.frequency_penalty,
-        max_tokens: generationProfile.max_tokens
+        max_tokens: hasSpeedOverride
+          ? Math.round((generationProfile.max_tokens || 4096) * (thinkingSpeedDeltas.maxTokensScale || 1))
+          : generationProfile.max_tokens
       };
 
       // C1 fix: 发送前裁剪 messages 数组，防止静默超出模型上下文窗口
@@ -2072,6 +2080,9 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
     currentResponseStyleId,
     currentResponseStyle,
     responseStyleOptions,
+    currentThinkingSpeedId,
+    currentThinkingSpeed,
+    thinkingSpeedOptions,
     pendingCloudReferenceConsent,
     pendingQuickNote,
     actionAuditLog,
@@ -2094,6 +2105,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
     toggleQuickNoteMode,
     togglePlanMode,
     setResponseStyle,
+    setThinkingSpeed,
     persistModeSetting,
     persistSharedMemorySetting,
     persistKnowledgeBaseSetting,

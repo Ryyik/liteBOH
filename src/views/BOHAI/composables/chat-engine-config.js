@@ -63,6 +63,7 @@ export const LEGACY_TREEHOLE_MEMORY_SYNC_SETTING_KEY = 'boh_ai_treehole_sync_ena
 export const CLOUD_REFERENCE_CONSENT_KEY = 'boh_ai_cloud_reference_consent_v1';
 export const QUICK_NOTE_SETTING_KEY = 'boh_ai_quick_note_enabled_v1';
 export const RESPONSE_STYLE_SETTING_KEY = 'boh_ai_response_style_v1';
+export const THINKING_SPEED_SETTING_KEY = 'boh_ai_thinking_speed_v1';
 export const PLAN_MODE_SETTING_KEY = 'boh_ai_plan_mode_enabled_v1';
 export const SHARED_MEMORY_SETTING_KEY = 'boh_ai_shared_memory_enabled_v1';
 export const KNOWLEDGE_BASE_SETTING_KEY = 'boh_ai_knowledge_base_enabled_v1';
@@ -224,6 +225,21 @@ export const PAGE_CREATION_PROMPT_APPENDIX = `
 </style>
 \`\`\`
 `;
+
+// 思考速度：在当前模式预设参数上做偏移，不换模型不改模式
+// deltas 的含义：
+//   temperature: 加减值（高=更严谨，低=更自由）
+//   top_p: 加减值
+//   maxTokensScale: max_tokens 的缩放系数（1=不变，<1=减少，>1=增加）
+export const THINKING_SPEED_OPTIONS = [
+  { id: 'low',    name: '低',   description: '更快响应，更简短自由', deltas: { temperature: 0.05, topP: 0.05, maxTokensScale: 0.7 } },
+  { id: 'medium', name: '中',   description: '平衡速度与质量（默认）', deltas: { temperature: 0, topP: 0, maxTokensScale: 1 } },
+  { id: 'high',   name: '高',   description: '更严谨，充分思考',     deltas: { temperature: -0.05, topP: -0.05, maxTokensScale: 1.3 } }
+];
+export const BOH_DEFAULT_THINKING_SPEED_ID = 'medium';
+export const THINKING_SPEED_DELTAS_BY_ID = Object.fromEntries(
+  THINKING_SPEED_OPTIONS.map((o) => [o.id, o.deltas])
+);
 
 export const RESPONSE_STYLE_OPTIONS = [
   {

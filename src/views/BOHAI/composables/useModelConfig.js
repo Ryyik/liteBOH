@@ -12,6 +12,9 @@ import {
   SHARED_MEMORY_SETTING_KEY,
   KNOWLEDGE_BASE_SETTING_KEY,
   MODE_SETTING_KEY,
+  THINKING_SPEED_SETTING_KEY,
+  THINKING_SPEED_OPTIONS,
+  BOH_DEFAULT_THINKING_SPEED_ID,
   availableModels as _availableModels,
   chatModes as _chatModes
 } from './chat-engine-config.js';
@@ -93,6 +96,37 @@ export function useModelConfig({ availableModels = _availableModels, chatModes =
     RESPONSE_STYLE_OPTIONS.find((item) => item.id === currentResponseStyleId.value)
     || RESPONSE_STYLE_OPTIONS[0]
   ));
+
+  // ─── Thinking speed state ──────────────────────────────────────────────────────
+
+  const normalizeThinkingSpeedId = (speedId) => {
+    const safeId = String(speedId || '').trim();
+    return THINKING_SPEED_OPTIONS.some((item) => item.id === safeId) ? safeId : BOH_DEFAULT_THINKING_SPEED_ID;
+  };
+
+  const currentThinkingSpeedId = ref(
+    normalizeThinkingSpeedId(typeof window === 'undefined' ? BOH_DEFAULT_THINKING_SPEED_ID : localStorage.getItem(THINKING_SPEED_SETTING_KEY))
+  );
+
+  const currentThinkingSpeed = computed(() => (
+    THINKING_SPEED_OPTIONS.find((item) => item.id === currentThinkingSpeedId.value)
+    || THINKING_SPEED_OPTIONS[1]
+  ));
+
+  const persistThinkingSpeedSetting = () => {
+    if (typeof window === 'undefined') return;
+    const speedId = currentThinkingSpeedId.value;
+    if (speedId && speedId !== BOH_DEFAULT_THINKING_SPEED_ID) {
+      localStorage.setItem(THINKING_SPEED_SETTING_KEY, speedId);
+    } else {
+      localStorage.removeItem(THINKING_SPEED_SETTING_KEY);
+    }
+  };
+
+  const setThinkingSpeed = (speedId) => {
+    currentThinkingSpeedId.value = normalizeThinkingSpeedId(speedId);
+    persistThinkingSpeedSetting();
+  };
 
   // ─── Other state ───────────────────────────────────────────────────────────────
 
@@ -207,6 +241,11 @@ export function useModelConfig({ availableModels = _availableModels, chatModes =
     currentResponseStyle,
     responseStyleOptions: RESPONSE_STYLE_OPTIONS,
 
+    // Thinking speed state
+    currentThinkingSpeedId,
+    currentThinkingSpeed,
+    thinkingSpeedOptions: THINKING_SPEED_OPTIONS,
+
     // Other state
     cloudReferenceConsent,
     webSearchDisabledNoticeShownFor,
@@ -216,6 +255,7 @@ export function useModelConfig({ availableModels = _availableModels, chatModes =
     getModelForModeId,
     togglePlanMode,
     setResponseStyle,
+    setThinkingSpeed,
     persistModeSetting,
     persistPlanModeSetting,
     persistMemoryCaptureSetting,

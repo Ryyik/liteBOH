@@ -69,6 +69,33 @@
                     <Check v-if="currentResponseStyleId === style.id" size="16" />
                   </button>
                 </div>
+
+                <div class="ai-settings-row" :class="{ expanded: showThinkingSpeedPicker }"
+                  @click="showThinkingSpeedPicker = !showThinkingSpeedPicker">
+                  <div class="ai-settings-row-left">
+                    <div class="ai-settings-icon bg-purple">
+                      <span style="font-size:12px;font-weight:800;">⚡</span>
+                    </div>
+                    <div class="ai-settings-label-stack">
+                      <span class="ai-settings-label">思考速度</span>
+                      <span class="ai-settings-desc">{{ currentThinkingSpeedName }}</span>
+                    </div>
+                  </div>
+                  <div class="ai-settings-row-right">
+                    <span class="ai-settings-chevron" :class="{ expanded: showThinkingSpeedPicker }">›</span>
+                  </div>
+                </div>
+                <div v-if="showThinkingSpeedPicker" class="ai-settings-inline-options">
+                  <button v-for="level in thinkingSpeedOptions" :key="level.id" type="button"
+                    :class="['ai-settings-inline-option', { active: currentThinkingSpeedId === level.id }]"
+                    @click.stop="$emit('selectThinkingSpeed', level.id); showThinkingSpeedPicker = false">
+                    <span class="ai-settings-option-main">
+                      <strong>{{ level.name }}</strong>
+                      <small>{{ level.description }}</small>
+                    </span>
+                    <Check v-if="currentThinkingSpeedId === level.id" size="16" />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -259,6 +286,8 @@ const props = defineProps({
   chatModes: { type: Array, default: () => [] },
   currentResponseStyleId: { type: String, default: '' },
   responseStyleOptions: { type: Array, default: () => [] },
+  currentThinkingSpeedId: { type: String, default: 'medium' },
+  thinkingSpeedOptions: { type: Array, default: () => [] },
   isSearching: { type: Boolean, default: false },
   isTreeholeMemoryEnabled: { type: Boolean, default: false },
   isSharedMemoryEnabled: { type: Boolean, default: false },
@@ -271,6 +300,7 @@ const emit = defineEmits([
   'update:modelValue',
   'selectMode',
   'selectResponseStyle',
+  'selectThinkingSpeed',
   'update:isSearching',
   'update:isTreeholeMemoryEnabled',
   'update:isSharedMemoryEnabled',
@@ -282,6 +312,7 @@ const emit = defineEmits([
 
 const showModePicker = ref(false);
 const showStylePicker = ref(false);
+const showThinkingSpeedPicker = ref(false);
 const drawerRef = ref(null);
 const titleRef = ref(null);
 const closeBtnRef = ref(null);
@@ -292,9 +323,15 @@ const currentResponseStyleName = computed(() => {
   return style?.shortName || style?.name || '默认';
 });
 
+const currentThinkingSpeedName = computed(() => {
+  const level = props.thinkingSpeedOptions?.find(s => s.id === props.currentThinkingSpeedId);
+  return level?.name || '中';
+});
+
 const close = () => {
   showModePicker.value = false;
   showStylePicker.value = false;
+  showThinkingSpeedPicker.value = false;
   emit('update:modelValue', false);
   const el = focusRestore;
   focusRestore = null;
@@ -354,6 +391,7 @@ watch(() => props.modelValue, async (open) => {
   } else {
     showModePicker.value = false;
     showStylePicker.value = false;
+    showThinkingSpeedPicker.value = false;
     if (focusRestore && typeof focusRestore.focus === 'function') {
       nextTick(() => focusRestore.focus());
     }
