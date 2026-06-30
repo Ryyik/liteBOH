@@ -132,10 +132,15 @@ import { loadNotificationStore, getNotificationStoreSync } from "@/stores/notifi
 import HomeCatMascot from "@/components/HomeCatMascot.vue";
 import { themeManager } from "@/utils/theme-manager.js";
 import { isHomeCatTheme } from "@/utils/home-cat-theme.js";
+import { useConfirmDialog } from "@/composables/useConfirmDialog.js";
+import { useVersionCheck } from "@/composables/useVersionCheck.js";
 
 const authStore = useAuthStore();
-const { isLoggedIn, isInitialized, showLoginModal } = storeToRefs(authStore);
+const { isLoggedIn, isInitialized, showLoginModal, isAdmin } = storeToRefs(authStore);
 const notificationStoreRef = ref(getNotificationStoreSync());
+const { alert, confirm } = useConfirmDialog();
+const { checkForUpdate, applyUpdate, forceRefresh, isChecking } = useVersionCheck();
+const router = useRouter();
 const currentTheme = ref(themeManager.getTheme());
 const currentThemePreference = ref(themeManager.getPreference?.() || currentTheme.value);
 const isHomeCatActive = computed(() => (
@@ -252,7 +257,9 @@ const navMenuItems = [
       { name: "ai-chat", path: "/ai-chat", label: "BOH AI" },
       { name: "shop", path: "/shop", label: "周边商城" },
       { name: "tutorial", path: "/tutorial", label: "教程中心" },
-      { name: "download", path: "/download", label: "下载中心" }
+      { name: "download", path: "/download", label: "下载中心" },
+      { name: "admin-panel", action: "goToAdmin", label: "管理面板" },
+      { name: "version-check", action: "checkVersion", label: "版本检测" }
     ]
   },
   { name: "about", path: "/about", label: "关于" }
@@ -296,9 +303,62 @@ const hasChildren = (item) => {
  * 处理菜单项操作
  * @param {string} action - 操作类型
  */
-const handleMenuAction = (action) => {
+const handleMenuAction = async (action) => {
   if (action === "createDesktop") {
     createDesktopShortcut();
+  } else if (action === "goToAdmin") {
+    // 权限检查：未登录或非管理员时拦截
+    if (!isLoggedIn.value) {
+      await alert({
+        title: "权限不足",
+        message: "请先登录后再访问管理面板。",
+        tone: "warning"
+      });
+      showLoginModal.value = true;
+      return;
+    }
+    if (!isAdmin.value) {
+      await alert({
+        title: "权限不足",
+        message: "您没有管理员权限，无法访问管理面板。",
+        tone: "warning"
+      });
+      return;
+    }
+    // 有权限，跳转到管理面板
+    router.push("/admin/data-management");
+  } else if (action === "checkVersion") {
+    // 版本检测
+    if (isChecking.value) {
+      await alert({
+        title: "检测中",
+        message: "版本检测正在进行中，请稍候...",
+        tone: "default"
+      });
+      return;
+    }
+    const result = await checkForUpdate();
+    if (result.hasUpdate) {
+      // 发现新版本，询问用户是否立即更新
+      const shouldUpdate = await confirm({
+        title: "发现新版本",
+        message: result.message + "\n是否立即更新到最新版本？",
+        confirmText: "立即更新",
+        cancelText: "稍后更新",
+        tone: "success"
+      });
+      if (shouldUpdate) {
+        await applyUpdate();
+        // 更新后会自动刷新页面
+      }
+    } else {
+      // 已是最新版本，询问用户是否强制刷新
+      await alert({
+        title: "版本检测",
+        message: result.message,
+        tone: "success"
+      });
+    }
   }
 };
 

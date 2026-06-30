@@ -5,79 +5,104 @@
       <header class="lab-header">
         <div class="lab-header-left">
           <h1 class="lab-brand">BOH 办公 AI</h1>
-          <p class="lab-subtitle">对话式文档排版 — 上传 .docx，AI 帮你改样式</p>
+          <p class="lab-subtitle">对话式文档排版 — 上传 .docx，AI 帮你改样式 | AI 自动生成 PPT</p>
         </div>
         <div class="lab-header-right">
-          <button v-if="modifiedBlob" class="btn-primary" @click="downloadModified">
+          <!-- Tab Switcher -->
+          <div class="tab-switcher">
+            <button 
+              class="tab-btn" 
+              :class="{ active: activeTab === 'doc' }"
+              @click="activeTab = 'doc'"
+            >
+              📄 文档排版
+            </button>
+            <button 
+              class="tab-btn" 
+              :class="{ active: activeTab === 'ppt' }"
+              @click="activeTab = 'ppt'"
+            >
+              📊 PPT 生成
+            </button>
+          </div>
+          <button v-if="activeTab === 'doc' && modifiedBlob" class="btn-primary" @click="downloadModified">
             <span class="btn-icon">⬇</span> 下载文档
           </button>
         </div>
       </header>
 
-      <!-- Upload -->
-      <FileUploader v-model="uploadedFile" @update:modelValue="handleFileUpload" />
+      <!-- Doc Tab Content -->
+      <template v-if="activeTab === 'doc'">
+        <!-- Upload -->
+        <FileUploader v-model="uploadedFile" @update:modelValue="handleFileUpload" />
 
-      <!-- Error -->
-      <div v-if="error" class="error-toast">
-        <span>{{ error }}</span>
-        <button class="error-close" @click="error = ''">✕</button>
-      </div>
-
-      <!-- Loading -->
-      <div v-if="isLoading" class="loading-state">
-        <div class="load-spinner"></div>
-        <p>正在解析文档...</p>
-      </div>
-
-      <!-- Workspace -->
-      <template v-if="docData && !isLoading">
-        <div class="doc-status">
-          <span class="status-dot"></span>
-          <span class="status-name">{{ docData.fileName }}</span>
-          <span class="status-meta">{{ docData.content.length }} 段 · {{ docData.styles.styles.length }} 样式</span>
+        <!-- Error -->
+        <div v-if="error" class="error-toast">
+          <span>{{ error }}</span>
+          <button class="error-close" @click="error = ''">✕</button>
         </div>
 
-        <div class="workspace">
-          <!-- Sidebar -->
-          <aside class="ws-sidebar">
-            <StyleInspector :styles="docData.styles.styles" />
-            <TemplatePanel
-              :templates="templates"
-              :active-id="activeTemplateId"
-              :can-save="true"
-              @select="handleTemplateSelect"
-              @save="saveCurrentAsTemplate"
-              @update="refreshTemplates"
-            />
-          </aside>
+        <!-- Loading -->
+        <div v-if="isLoading" class="loading-state">
+          <div class="load-spinner"></div>
+          <p>正在解析文档...</p>
+        </div>
 
-          <!-- Main -->
-          <section class="ws-main">
-            <DocPreview :html="previewHtml" :loading="previewLoading" />
+        <!-- Workspace -->
+        <template v-if="docData && !isLoading">
+          <div class="doc-status">
+            <span class="status-dot"></span>
+            <span class="status-name">{{ docData.fileName }}</span>
+            <span class="status-meta">{{ docData.content.length }} 段 · {{ docData.styles.styles.length }} 样式</span>
+          </div>
 
-            <div class="ws-chat">
-              <DocChat
-                ref="chatRef"
-                :messages="chatMessages"
-                :loading="aiLoading"
-                @send="handleSend"
+          <div class="workspace">
+            <!-- Sidebar -->
+            <aside class="ws-sidebar">
+              <StyleInspector :styles="docData.styles.styles" />
+              <TemplatePanel
+                :templates="templates"
+                :active-id="activeTemplateId"
+                :can-save="true"
+                @select="handleTemplateSelect"
+                @save="saveCurrentAsTemplate"
+                @update="refreshTemplates"
               />
+            </aside>
+
+            <!-- Main -->
+            <section class="ws-main">
+              <DocPreview :html="previewHtml" :loading="previewLoading" />
+
+              <div class="ws-chat">
+                <DocChat
+                  ref="chatRef"
+                  :messages="chatMessages"
+                  :loading="aiLoading"
+                  @send="handleSend"
+                />
+              </div>
+            </section>
+          </div>
+        </template>
+
+        <!-- Welcome -->
+        <div v-if="!uploadedFile && !isLoading && !docData" class="welcome">
+          <div class="welcome-card">
+            <div class="welcome-icon">📄</div>
+            <h2>文档排版助手</h2>
+            <p>上传 Word 文档，通过对话让 AI 帮你调整样式和排版</p>
+            <div class="welcome-hints">
+              <span class="hint-chip" v-for="h in hints" :key="h">{{ h }}</span>
             </div>
-          </section>
+          </div>
         </div>
       </template>
 
-      <!-- Welcome -->
-      <div v-if="!uploadedFile && !isLoading && !docData" class="welcome">
-        <div class="welcome-card">
-          <div class="welcome-icon">📄</div>
-          <h2>文档排版助手</h2>
-          <p>上传 Word 文档，通过对话让 AI 帮你调整样式和排版</p>
-          <div class="welcome-hints">
-            <span class="hint-chip" v-for="h in hints" :key="h">{{ h }}</span>
-          </div>
-        </div>
-      </div>
+      <!-- PPT Tab Content -->
+      <template v-if="activeTab === 'ppt'">
+        <PPTGenerator />
+      </template>
     </div>
   </main>
 </template>
@@ -91,6 +116,7 @@ import DocPreview from './components/DocPreview.vue'
 import StyleInspector from './components/StyleInspector.vue'
 import TemplatePanel from './components/TemplatePanel.vue'
 import DocChat from './components/DocChat.vue'
+import PPTGenerator from './components/PPTGenerator.vue'
 import { parseDocx, reparseStylesFromDoc } from './engine/docx-parser.js'
 import { applyOperations, applyContentOperations } from './engine/style-engine.js'
 import { buildModifiedDocx } from './engine/docx-builder.js'
@@ -98,6 +124,8 @@ import { getAllTemplates, saveTemplate } from './engine/template-store.js'
 import { useDocumentAI } from './composables/useDocumentAI.js'
 
 const { chat, aiLoading } = useDocumentAI()
+
+const activeTab = ref('doc')
 
 const hints = ['正式报告风格', '标题黑体正文宋体', '首行缩进', '1.5倍行距', '调整页边距']
 
@@ -235,6 +263,7 @@ function downloadModified() {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
   color: #1d1d1f;
   background: #ffffff;
+  padding-top: 80px;
 }
 .lab-container {
   max-width: 1200px;
@@ -261,6 +290,36 @@ function downloadModified() {
   font-size: 13px;
   color: rgba(17, 17, 17, 0.58);
   margin: 6px 0 0;
+}
+.lab-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.tab-switcher {
+  display: flex;
+  gap: 8px;
+}
+.tab-btn {
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.88);
+  color: rgba(17, 17, 17, 0.58);
+  border: 1px solid rgba(148, 163, 184, 0.36);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  white-space: nowrap;
+}
+.tab-btn:hover {
+  background: rgba(249, 250, 251, 0.48);
+  border-color: rgba(148, 163, 184, 0.48);
+}
+.tab-btn.active {
+  background: #0f9f7a;
+  color: #ffffff;
+  border-color: #0f9f7a;
 }
 .btn-primary {
   display: inline-flex;

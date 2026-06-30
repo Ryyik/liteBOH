@@ -166,17 +166,29 @@ if (typeof window !== "undefined") {
   );
 
   // ============================================
-  // PWA 更新检测机制
+  // PWA 更新检测机制（非阻塞提示）
   // ============================================
-  if ('serviceWorker' in navigator) {
+  if ('serviceWorker' in navigator && !import.meta.env.DEV) {
+    // 动态导入 PWA 更新提示模块
+    let showUpdatePrompt = null;
+
     // 监听 Service Worker 更新事件
     navigator.serviceWorker.ready.then((registration) => {
-      // 定期检查更新（每60分钟）
+      // 定期检查更新（每10分钟，缩短间隔）
       setInterval(() => {
         registration.update().catch((err) => {
           logger.warn('pwa', 'SW 更新检查失败', err);
         });
-      }, 60 * 60 * 1000);
+      }, 10 * 60 * 1000);
+
+      // 页面可见时检查更新（用户切换标签页回来时）
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          registration.update().catch((err) => {
+            logger.warn('pwa', 'SW focus 更新检查失败', err);
+          });
+        }
+      });
     });
 
     // 监听新 Service Worker 安装事件
@@ -186,19 +198,25 @@ if (typeof window !== "undefined") {
       window.location.reload();
     });
 
-    // 监听 Service Worker 更新等待事件（prompt 模式）
+    // 监听 Service Worker 更新等待事件（非阻塞提示）
     navigator.serviceWorker.ready.then((registration) => {
+      // 检查是否已经有等待中的 worker（页面加载时立即检查）
+      if (registration.waiting) {
+        import('@/composables/usePWAUpdate.js').then(({ showUpdatePrompt }) => {
+          showUpdatePrompt('发现新版本，点击立即更新', registration.waiting);
+        });
+      }
+
       registration.addEventListener('updatefound', () => {
         const newWorker = registration.installing;
         if (newWorker) {
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // 新版本已安装，提示用户刷新
-              logger.info('pwa', '新版本已准备好，提示用户更新');
-              // 显示更新提示（可根据需要改为更友好的 UI）
-              if (confirm('网站已更新到新版本，是否立即刷新？')) {
-                newWorker.postMessage({ type: 'SKIP_WAITING' });
-              }
+              // 新版本已安装，使用非阻塞提示
+              logger.info('pwa', '新版本已准备好，显示更新提示');
+              import('@/composables/usePWAUpdate.js').then(({ showUpdatePrompt }) => {
+                showUpdatePrompt('发现新版本，点击立即更新', newWorker);
+              });
             }
           });
         }

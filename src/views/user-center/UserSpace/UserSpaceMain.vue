@@ -78,7 +78,7 @@
 
             <!-- ✅ 性能优化：使用 v-memo 基于 profileSection 和 isLoading 条件优化渲染 -->
             <EditProfilePanel v-else-if="profileSection === 'edit-profile'" key="profile-edit" v-memo="[profileSection]"
-              :avatar-url="avatarUrl" :username="username"
+              :avatar-url="avatarUrl" :username="editProfileForm.username"
               :bio="editProfileForm.bio" :join-year="editProfileForm.joinYear"
               :join-month="editProfileForm.joinMonth" :join-day="editProfileForm.joinDay"
               :birth-month="editProfileForm.birthMonth" :birth-day="editProfileForm.birthDay"
@@ -87,6 +87,7 @@
               :is-submitting-profile-edit="isSubmittingProfileEdit"
               @close="closeEditProfileModal" @avatar-click="handleAvatarClick"
               @save="submitEditProfile"
+              @update-username="editProfileForm.username = $event"
               @update-bio="editProfileForm.bio = $event"
               @update-join-year="editProfileForm.joinYear = $event"
               @update-join-month="editProfileForm.joinMonth = $event"
@@ -886,6 +887,7 @@ const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
 
 const isSubmittingProfileEdit = ref(false);
 const editProfileForm = reactive({
+  username: '',
   bio: '',
   joinDate: '',
   joinYear: '',
@@ -1423,6 +1425,7 @@ const formatJoinDateLabel = (dateStr) => {
 
 const prepareEditProfileForm = () => {
   const parsedJoinDate = splitDateValue(joinDate.value || '');
+  editProfileForm.username = String(userInfo.value.username || '');
   editProfileForm.bio = String(userInfo.value.bio || '');
   editProfileForm.joinDate = joinDate.value || '';
   editProfileForm.joinYear = parsedJoinDate.year;
@@ -1446,6 +1449,24 @@ const closeEditProfileModal = () => {
 const submitEditProfile = async () => {
   normalizeEditJoinDay();
   normalizeEditProfileBirthdayDay();
+
+  // 验证昵称
+  const newUsername = String(editProfileForm.username || '').trim();
+  if (!newUsername) {
+    showAlert('warning', '提示', '昵称不能为空');
+    return;
+  }
+  if (newUsername.length > 20) {
+    showAlert('warning', '提示', '昵称最多 20 个字符');
+    return;
+  }
+  // 禁止昵称中包含特殊字符
+  const usernamePattern = /^[\u4e00-\u9fa5a-zA-Z0-9_-]+$/;
+  if (!usernamePattern.test(newUsername)) {
+    showAlert('warning', '提示', '昵称只能包含中文、英文、数字、下划线和减号');
+    return;
+  }
+
   const hasAnyJoinDatePart = hasAnyDatePart(
     editProfileForm.joinYear,
     editProfileForm.joinMonth,
@@ -1477,6 +1498,7 @@ const submitEditProfile = async () => {
   isSubmittingProfileEdit.value = true;
   try {
     const updates = {
+      username: newUsername,
       bio: String(editProfileForm.bio || '').trim().slice(0, 160),
       join_date: nextJoinDate,
       birth_month: hasCompleteBirthday ? String(editProfileForm.birthMonth) : null,

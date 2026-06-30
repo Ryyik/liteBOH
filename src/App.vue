@@ -12,6 +12,7 @@ import GlobalAiGlassOverlay from "@/components/GlobalAiGlassOverlay.vue";
 import AiEdgeTrigger from "@/components/AiEdgeTrigger.vue";
 import AdminConfirmModal from "@/components/AdminConfirmModal.vue";
 import { useConfirmDialog } from "@/composables/useConfirmDialog.js";
+import PWAUpdateToast from "@/components/PWAUpdateToast/index.vue";
 
 const route = useRoute();
 const authStore = useAuthStore();
@@ -247,6 +248,9 @@ const showGlobalNavbar = computed(() => {
       </div>
     </div>
   </Transition>
+
+  <!-- PWA 更新提示（非阻塞） -->
+  <PWAUpdateToast />
 
   <!-- 全局 confirm / prompt 弹窗 (供 useConfirmDialog 复用) -->
   <AdminConfirmModal

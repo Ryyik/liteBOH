@@ -10,8 +10,8 @@
           </div>
           <div v-else class="apple-avatar">{{ (username || 'U').charAt(0).toUpperCase() }}</div>
           <span class="profile-edit-avatar-badge" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
-              stroke-linecap="round" stroke-linejoin="round">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"
+              stroke-linejoin="round">
               <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
               <circle cx="12" cy="13" r="4" />
             </svg>
@@ -34,23 +34,32 @@
 
       <div class="edit-profile-form profile-edit-page-form">
         <label class="edit-profile-field">
+          <span>昵称</span>
+          <input :value="username" type="text" class="edit-profile-input" maxlength="20" placeholder="设置你的昵称（最多 20 字）"
+            @input="$emit('update-username', $event.target.value)">
+        </label>
+
+        <label class="edit-profile-field">
           <span>个人简介</span>
-          <textarea :value="bio" class="edit-profile-textarea" maxlength="160"
-            placeholder="写一句介绍自己或当前状态的话" @input="$emit('update-bio', $event.target.value)"></textarea>
+          <textarea :value="bio" class="edit-profile-textarea" maxlength="160" placeholder="写一句介绍自己或当前状态的话"
+            @input="$emit('update-bio', $event.target.value)"></textarea>
         </label>
 
         <label class="edit-profile-field">
           <span>入群时间</span>
           <div class="profile-date-selector">
-            <select :value="joinYear" class="profile-date-select" @change="$emit('update-join-year', $event.target.value)">
+            <select :value="joinYear" class="profile-date-select"
+              @change="$emit('update-join-year', $event.target.value)">
               <option value="">年</option>
               <option v-for="year in joinDateYears" :key="`edit-join-year-${year}`" :value="year">{{ year }}年</option>
             </select>
-            <select :value="joinMonth" class="profile-date-select" @change="$emit('update-join-month', $event.target.value)">
+            <select :value="joinMonth" class="profile-date-select"
+              @change="$emit('update-join-month', $event.target.value)">
               <option value="">月</option>
               <option v-for="m in months" :key="`edit-join-month-${m}`" :value="m">{{ m }}月</option>
             </select>
-            <select :value="joinDay" class="profile-date-select" @change="$emit('update-join-day', $event.target.value)">
+            <select :value="joinDay" class="profile-date-select"
+              @change="$emit('update-join-day', $event.target.value)">
               <option value="">日</option>
               <option v-for="d in daysForEditJoinDate" :key="`edit-join-day-${d}`" :value="d">{{ d }}日</option>
             </select>
@@ -60,11 +69,13 @@
         <div class="edit-profile-field">
           <span>生日</span>
           <div class="profile-date-selector birthday-selector compact">
-            <select :value="birthMonth" class="profile-date-select" @change="$emit('update-birth-month', $event.target.value)">
+            <select :value="birthMonth" class="profile-date-select"
+              @change="$emit('update-birth-month', $event.target.value)">
               <option value="">月</option>
               <option v-for="m in months" :key="`edit-birth-month-${m}`" :value="m">{{ m }}月</option>
             </select>
-            <select :value="birthDay" class="profile-date-select" @change="$emit('update-birth-day', $event.target.value)">
+            <select :value="birthDay" class="profile-date-select"
+              @change="$emit('update-birth-day', $event.target.value)">
               <option value="">日</option>
               <option v-for="d in daysForEditProfile" :key="`edit-birth-day-${d}`" :value="d">{{ d }}日</option>
             </select>
@@ -75,8 +86,7 @@
 
     <div class="profile-edit-page-actions">
       <button type="button" class="profile-edit-cancel-btn" @click="$emit('close')">取消</button>
-      <button type="button" class="profile-edit-save-btn" @click="$emit('save')"
-        :disabled="isSubmittingProfileEdit">
+      <button type="button" class="profile-edit-save-btn" @click="$emit('save')" :disabled="isSubmittingProfileEdit">
         {{ isSubmittingProfileEdit ? '保存中...' : '保存资料' }}
       </button>
     </div>
@@ -103,7 +113,7 @@ defineProps({
 });
 
 defineEmits(['close', 'avatar-click', 'save',
-  'update-bio', 'update-join-year', 'update-join-month', 'update-join-day',
+  'update-username', 'update-bio', 'update-join-year', 'update-join-month', 'update-join-day',
   'update-birth-month', 'update-birth-day'
 ]);
 </script>
@@ -165,6 +175,36 @@ defineEmits(['close', 'avatar-click', 'save',
 .profile-edit-save-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.edit-profile-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 500;
+  resize: none;
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.edit-profile-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+.user-space-page[data-theme="dark"] .edit-profile-input {
+  background: rgba(24, 24, 27, 0.62);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.user-space-page[data-theme="dark"] .edit-profile-input:focus {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.18);
 }
 
 .user-space-page[data-theme="dark"] .profile-edit-avatar-badge {
