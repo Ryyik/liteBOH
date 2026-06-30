@@ -76,7 +76,7 @@
             </div>
             <div class="user-info">
               <div class="user-name-row">
-                <span class="user-name">@{{ user.username }}</span>
+                <span class="user-name" :class="communityTierMap[user.id]">@{{ user.username }}</span>
                 <span class="user-status" :class="{ 'status-online': isUserOnline(user, hideOnlineStatus) }"
                   :title="formatOnlineStatusTooltip(user, hideOnlineStatus)">{{ formatUserOnlineStatus(user,
                   hideOnlineStatus) }}</span>
@@ -180,7 +180,7 @@
               <span v-else>{{ user.username ? user.username.charAt(0).toUpperCase() : 'U' }}</span>
             </div>
             <div class="user-info">
-              <span class="user-name">@{{ user.username }}</span>
+              <span class="user-name" :class="birthdayTierMap[user.id]">@{{ user.username }}</span>
               <p class="user-bio">{{ formatBirthdayDistance(user) }}</p>
               <div class="user-meta">
                 <span class="meta-item birthday-meta">
@@ -232,6 +232,7 @@ import { getFollowCountsBatch } from '@/utils/api/profile-api.js';
 import { logger } from '@/utils/logger.js';
 import { themeManager } from '@/utils/theme-manager.js';
 import { isHomeCatTheme } from '@/utils/home-cat-theme.js';
+import { useUserTier } from '@/composables/useUserTier.js';
 
 const emit = defineEmits(['switch-tab', 'open-follow-modal']);
 
@@ -246,6 +247,10 @@ const isHomeCatActive = computed(() => isHomeCatTheme(currentTheme.value) || isH
 const { isUserOnline, formatUserOnlineStatus, formatOnlineStatusTooltip } = useUserOnlineStatus();
 
 const hideOnlineStatus = computed(() => userInfo.value?.hideOnlineStatus ?? false);
+
+const { fetchUserTier, getNicknameClass } = useUserTier();
+const communityTierMap = ref({});
+const birthdayTierMap = ref({});
 
 const communityMemoryCache = createMemoryTtlCache();
 const CACHE_TTL = {
@@ -530,6 +535,32 @@ watch(debouncedCommunitySearchQuery, () => {
 watch(currentCommunityPage, () => {
   fetchCommunityUsers();
 });
+
+watch(communityUsers, async (users) => {
+  const ids = new Set();
+  (users || []).forEach((u) => {
+    if (u?.id) ids.add(u.id);
+  });
+  const idList = [...ids];
+  await Promise.all(idList.map((id) => fetchUserTier(id)));
+  const map = {};
+  idList.forEach((id) => { map[id] = getNicknameClass(id); });
+  communityTierMap.value = map;
+}, { immediate: true, deep: true });
+
+watch(recentBirthdayUsers, async (users) => {
+  const ids = new Set();
+  (users || []).forEach((u) => {
+    if (u?.id) ids.add(u.id);
+  });
+  const idList = [...ids];
+  await Promise.all(idList.map((id) => fetchUserTier(id)));
+  const map = {};
+  idList.forEach((id) => { map[id] = getNicknameClass(id); });
+  birthdayTierMap.value = map;
+}, { immediate: true, deep: true });
 </script>
 
-<style src="../styles/shell-community.css"></style>
+<style src="../styles/shell-community.css">
+@import '@/styles/helpers/function.css';
+</style>

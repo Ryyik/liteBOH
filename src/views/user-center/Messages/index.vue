@@ -373,9 +373,9 @@
 
     <!-- Detail Panel (desktop: inline split, mobile: overlay drawer) -->
     <!-- Teleport to body on mobile to escape .tab-page transform containment that breaks position:fixed -->
-    <Teleport to="body" :disabled="!isMobile">
+    <Teleport to="body" :disabled="teleportDisabled">
       <div v-if="showOverlay" class="x-detail-container" role="dialog" aria-modal="true" aria-label="通知详情" @click.self="closeDetail">
-        <Transition name="slide-right" @after-leave="afterPanelLeave">
+        <Transition name="slide-right" @before-enter="onTransitionStart" @after-leave="onTransitionEnd">
           <div v-if="selectedMessage" class="x-detail-panel" @click.stop>
             <div class="drawer-header">
               <UserCenterBackButton class="x-detail-back" label="返回消息列表" @click="closeDetail" />
@@ -567,6 +567,9 @@ const lastFocusedMessageId = ref(null);
 const showOverlay = ref(false);
 const windowWidth = ref(window.innerWidth);
 const isMobile = computed(() => windowWidth.value < 1024);
+// 防止 Transition 动画期间 Teleport 切换导致 insertBefore 错误
+const isTransitioning = ref(false);
+const teleportDisabled = ref(!isMobile.value);
 const loading = ref(true);
 const dataLoadedOnce = ref(false);
 const loadingMoreNotifications = ref(false);
@@ -1346,9 +1349,25 @@ const handleUnreadRefreshEvent = async (event) => {
   });
 };
 
-// 窗口resize处理（响应式更新isMobile）
+// 窗口resize处理（响应式更新isMobile，但在过渡期间延迟更新 teleportDisabled）
 const handleWindowResize = () => {
   windowWidth.value = window.innerWidth;
+  // 如果正在过渡，不更新 teleportDisabled，避免 insertBefore 错误
+  if (!isTransitioning.value) {
+    teleportDisabled.value = !isMobile.value;
+  }
+};
+
+// Transition 生命周期钩子
+const onTransitionStart = () => {
+  isTransitioning.value = true;
+};
+
+const onTransitionEnd = () => {
+  isTransitioning.value = false;
+  // 过渡结束后同步 teleport 状态
+  teleportDisabled.value = !isMobile.value;
+  afterPanelLeave();
 };
 
 // 初始化消息数据

@@ -57,7 +57,7 @@
 
           <div class="profile-hero-copy">
             <div class="name-row profile-hero-name-row">
-              <h1 class="profile-name">{{ profile.username }}</h1>
+              <h1 class="profile-name" :class="nicknameClass">{{ profile.username }}</h1>
               <span class="level-badge" :title="`等级 ${levelInfo.level}`">Lv.{{ levelInfo.level }}</span>
             </div>
             <p class="profile-handle">@{{ profile.username }}</p>
@@ -259,7 +259,7 @@
               </div>
               <div class="item-main">
                 <div class="item-header">
-                  <span class="item-author">{{ comment.author?.username || '用户' }}</span>
+                  <span class="item-author" :class="commentTierMap[comment.author_id]">{{ comment.author?.username || '用户' }}</span>
                   <span class="item-handle">@{{ comment.author?.username || '未知' }} · {{ formatTime(comment.created_at) }}</span>
                 </div>
                 <div class="replying-to" v-if="comment.post">
@@ -311,7 +311,7 @@
             <div v-for="imp in impressions" :key="imp.id" class="impression-card-profile">
               <p class="imp-text">{{ imp.content }}</p>
               <div class="imp-footer">
-                <span class="imp-author" @click="goToProfileRoute(imp.author?.username)">@{{ imp.author?.username || '匿名' }}</span>
+                <span class="imp-author" :class="impressionTierMap[imp.author_id]" @click="goToProfileRoute(imp.author?.username)">@{{ imp.author?.username || '匿名' }}</span>
                 <div class="imp-footer-right">
                   <span class="imp-date">{{ formatTime(imp.created_at) }}</span>
                   <button v-if="canDeleteImpression(imp)" class="delete-imp-btn" @click="handleDeleteImpression(imp)">
@@ -355,6 +355,7 @@ import { ref, computed, onMounted, onUnmounted, reactive, watch, nextTick } from
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
+import { useUserTier } from '@/composables/useUserTier.js';
 
 const authStore = useAuthStore();
 const { isLoggedIn, userInfo } = storeToRefs(authStore);
@@ -499,6 +500,44 @@ let profileFetchInflightUsername = '';
 const profile = computed(() => {
   return isOwnProfile.value ? ownProfileSnapshot.value : fetchedProfile.value;
 });
+
+const { fetchUserTier, getNicknameClass } = useUserTier();
+const nicknameClass = ref('');
+watch(() => profile.value?.id, async (id) => {
+  if (id) {
+    await fetchUserTier(id);
+    nicknameClass.value = getNicknameClass(id);
+  } else {
+    nicknameClass.value = '';
+  }
+}, { immediate: true });
+
+const commentTierMap = ref({});
+const impressionTierMap = ref({});
+
+watch(comments, async (cmts) => {
+  const ids = new Set();
+  (cmts || []).forEach((c) => {
+    if (c?.author_id) ids.add(c.author_id);
+  });
+  const idList = [...ids];
+  await Promise.all(idList.map((id) => fetchUserTier(id)));
+  const map = {};
+  idList.forEach((id) => { map[id] = getNicknameClass(id); });
+  commentTierMap.value = map;
+}, { immediate: true, deep: true });
+
+watch(impressions, async (imps) => {
+  const ids = new Set();
+  (imps || []).forEach((imp) => {
+    if (imp?.author_id) ids.add(imp.author_id);
+  });
+  const idList = [...ids];
+  await Promise.all(idList.map((id) => fetchUserTier(id)));
+  const map = {};
+  idList.forEach((id) => { map[id] = getNicknameClass(id); });
+  impressionTierMap.value = map;
+}, { immediate: true, deep: true });
 
 const profileBannerStyle = computed(() => {
   const url = profile.value?.profile_background_url;
@@ -1716,4 +1755,5 @@ onUnmounted(() => {
 
 <style scoped>
 @import './style.scoped.css';
+@import '@/styles/helpers/function.css';
 </style>

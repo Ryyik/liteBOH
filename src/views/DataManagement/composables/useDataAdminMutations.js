@@ -43,6 +43,7 @@ import { invalidateProductsCache } from '@/views/DataManagement/config.js';
  * @param {Object} deps.moderationTabConfig          - computed<{targetType, statusField, reasonField, approveValue, rejectValue, table}>
  * @param {Object} deps.addRecentRecord              - (item, tabId) => void
  * @param {Function} deps.switchTab                  - (tabId, options) => void
+ * @param {Object} deps.dataStore                    - shallowReactive<{users: [], ...}> (P1 修复: 状态联动)
  */
 export const createMutationsCenter = (deps) => {
   const {
@@ -63,7 +64,9 @@ export const createMutationsCenter = (deps) => {
     isModerationActionPending,
     moderationTabConfig,
     addRecentRecord,
-    switchTab
+    switchTab,
+    // P1 修复: 添加 dataStore 用于直接更新用户状态
+    dataStore
   } = deps;
 
   // ==================== 辅助函数 ====================
@@ -415,7 +418,10 @@ export const createMutationsCenter = (deps) => {
   };
 
   // 通用审核操作: approve / reject / limit
-  const applyModerationAction = async (item, action) => {
+  // P1 优化: 添加 options 参数支持 skipRefresh 和自定义 reason（用于批量审核）
+  const applyModerationAction = async (item, action, options = {}) => {
+    const { skipRefresh = false, reason: providedReason = null } = options;
+
     if (!moderationTabConfig.value) return;
     if (!item?.id) {
       showToast('记录缺少 ID，无法执行审核操作', 'error');
@@ -426,9 +432,9 @@ export const createMutationsCenter = (deps) => {
     const config = moderationTabConfig.value;
     const isApprove = action === 'approve';
     const isKeepLimited = action === 'limit';
-    let reason = '';
+    let reason = providedReason || '';
 
-    if (!isApprove && !isKeepLimited && config.reasonField) {
+    if (!isApprove && !isKeepLimited && config.reasonField && !providedReason) {
       const inputReason = await dialog.prompt({
         title: '拒绝原因',
         message: '请输入拒绝原因（必填）',
@@ -464,11 +470,18 @@ export const createMutationsCenter = (deps) => {
         status: updateData[config.statusField],
         reason
       });
-      showToast(isApprove ? '审核通过已生效' : isKeepLimited ? '已维持下架并结案举报' : '已拒绝并记录原因', 'success');
-      await refreshCurrentViewAfterMutation();
+
+      // 仅在非批量操作时显示 toast 和刷新
+      if (!skipRefresh) {
+        showToast(isApprove ? '审核通过已生效' : isKeepLimited ? '已维持下架并结案举报' : '已拒绝并记录原因', 'success');
+        await refreshCurrentViewAfterMutation();
+      }
     } catch (error) {
       logger.error('data-admin', '审核操作失败:', error);
-      showToast('审核操作失败: ' + buildModerationErrorMessage(error), 'error');
+      if (!skipRefresh) {
+        showToast('审核操作失败: ' + buildModerationErrorMessage(error), 'error');
+      }
+      throw error; // 批量操作时需要抛出异常以便 Promise.allSettled 捕获
     } finally {
       setModerationPending(item.id, false);
     }
@@ -507,36 +520,41 @@ export const createMutationsCenter = (deps) => {
 
   // ==================== 用户封禁/禁言操作 ====================
 
-  // 封禁用户（禁止登录）
+  // P1 修复: 辅助函数 - 直接更新 dataStore.users 中的用户状态字段
+  const updateUserStatusInDataStore = (userId, updates) => {
+    if (!dataStore?.users) return;
+    const userIndex = dataStore.users.findIndex((u) => u.id === userId);
+    if (userIndex < 0) return;
+    // 直接更新用户记录的封禁/禁言状态字段
+    Object.assign(dataStore.users[userIndex], updates);
+  };
+
+  // 封禁用户（禁止登录）- P1 优化: 简化为单步弹窗
   const banUser = async (item) => {
     if (!item?.id) return;
-    if (!await dialog.confirm({
+
+    // P1 优化: 合并原因和时长到单步弹窗
+    const result = await dialog.prompt({
       title: '封禁用户',
-      message: `确定要封禁用户「${item.username || item.id}」吗？封禁后该用户将无法登录。`,
-      tone: 'danger',
-      confirmText: '封禁'
-    })) return;
-
-    // 询问封禁原因
-    const reason = await dialog.prompt({
-      title: '封禁原因',
-      message: '请输入封禁原因（可选）',
-      placeholder: '例如：违规操作、恶意行为',
-      defaultValue: ''
+      message: `封禁用户「${item.username || item.id}」后，该用户将无法登录。\n\n请输入封禁原因和天数（天数留空表示永久封禁）`,
+      placeholder: '原因:违规操作 天数:7',
+      defaultValue: '',
+      multiline: true
     });
-    if (reason === null) return;
+    if (result === null) return;
 
-    // 询问是否设置到期时间
-    const durationInput = await dialog.prompt({
-      title: '封禁时长',
-      message: '请输入封禁天数（留空表示永久封禁）',
-      placeholder: '例如：7 表示封禁 7 天',
-      defaultValue: ''
-    });
-    if (durationInput === null) return;
+    // 解析输入: 支持格式 "原因:xxx 天数:7" 或纯文本作为原因
+    let reason = '';
+    let days = 0;
+    const reasonMatch = result.match(/原因[:\s]+([^\n]+)/i);
+    const daysMatch = result.match(/天数[:\s]+(\d+)/i);
+    if (reasonMatch) reason = reasonMatch[1].trim();
+    if (daysMatch) days = parseInt(daysMatch[1], 10);
+
+    // 如果没有匹配到结构化格式，将整行作为原因
+    if (!reasonMatch) reason = result.trim();
 
     let bannedUntil = null;
-    const days = parseInt(durationInput, 10);
     if (days > 0) {
       const now = new Date();
       bannedUntil = new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString();
@@ -546,7 +564,7 @@ export const createMutationsCenter = (deps) => {
       assertAdminAction();
       const { data: rpcData, error: rpcError } = await supabase.rpc('admin_ban_user', {
         p_user_id: item.id,
-        p_reason: reason.trim() || null,
+        p_reason: reason || null,
         p_until: bannedUntil,
         p_admin_id: userInfo.value?.id || null
       });
@@ -562,7 +580,15 @@ export const createMutationsCenter = (deps) => {
         throw new Error(String(rpcData?.message || '封禁失败'));
       }
 
-      addChangeLogEntry('user_ban', item, { reason: reason.trim() || '未填写', days: days || '永久' });
+      // P1 修复: 直接更新 dataStore.users 中的状态
+      updateUserStatusInDataStore(item.id, {
+        is_banned: true,
+        ban_reason: reason || null,
+        banned_until: bannedUntil,
+        banned_at: new Date().toISOString()
+      });
+
+      addChangeLogEntry('user_ban', item, { reason: reason || '未填写', days: days || '永久' });
       showToast(days > 0 ? `用户已封禁 ${days} 天` : '用户已永久封禁', 'success');
       await refreshCurrentViewAfterMutation();
     } catch (error) {
@@ -599,6 +625,14 @@ export const createMutationsCenter = (deps) => {
         throw new Error(String(rpcData?.message || '解封失败'));
       }
 
+      // P1 修复: 直接更新 dataStore.users 中的状态
+      updateUserStatusInDataStore(item.id, {
+        is_banned: false,
+        ban_reason: null,
+        banned_until: null,
+        unbanned_at: new Date().toISOString()
+      });
+
       addChangeLogEntry('user_unban', item, {});
       showToast('用户已解封', 'success');
       await refreshCurrentViewAfterMutation();
@@ -608,36 +642,30 @@ export const createMutationsCenter = (deps) => {
     }
   };
 
-  // 禁言用户（禁止发言）
+  // 禁言用户（禁止发言）- P1 优化: 简化为单步弹窗
   const muteUser = async (item) => {
     if (!item?.id) return;
-    if (!await dialog.confirm({
+
+    // P1 优化: 合并原因和时长到单步弹窗
+    const result = await dialog.prompt({
       title: '禁言用户',
-      message: `确定要禁言用户「${item.username || item.id}」吗？禁言后该用户将无法发布内容。`,
-      tone: 'danger',
-      confirmText: '禁言'
-    })) return;
-
-    // 询问禁言原因
-    const reason = await dialog.prompt({
-      title: '禁言原因',
-      message: '请输入禁言原因（可选）',
-      placeholder: '例如：发布不当言论、恶意刷屏',
-      defaultValue: ''
+      message: `禁言用户「${item.username || item.id}」后，该用户将无法发布内容。\n\n请输入禁言原因和天数（天数留空表示永久禁言）`,
+      placeholder: '原因:发布不当言论 天数:7',
+      defaultValue: '',
+      multiline: true
     });
-    if (reason === null) return;
+    if (result === null) return;
 
-    // 询问是否设置到期时间
-    const durationInput = await dialog.prompt({
-      title: '禁言时长',
-      message: '请输入禁言天数（留空表示永久禁言）',
-      placeholder: '例如：7 表示禁言 7 天',
-      defaultValue: ''
-    });
-    if (durationInput === null) return;
+    // 解析输入
+    let reason = '';
+    let days = 0;
+    const reasonMatch = result.match(/原因[:\s]+([^\n]+)/i);
+    const daysMatch = result.match(/天数[:\s]+(\d+)/i);
+    if (reasonMatch) reason = reasonMatch[1].trim();
+    if (daysMatch) days = parseInt(daysMatch[1], 10);
+    if (!reasonMatch) reason = result.trim();
 
     let mutedUntil = null;
-    const days = parseInt(durationInput, 10);
     if (days > 0) {
       const now = new Date();
       mutedUntil = new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString();
@@ -647,7 +675,7 @@ export const createMutationsCenter = (deps) => {
       assertAdminAction();
       const { data: rpcData, error: rpcError } = await supabase.rpc('admin_mute_user', {
         p_user_id: item.id,
-        p_reason: reason.trim() || null,
+        p_reason: reason || null,
         p_until: mutedUntil,
         p_admin_id: userInfo.value?.id || null
       });
@@ -663,7 +691,15 @@ export const createMutationsCenter = (deps) => {
         throw new Error(String(rpcData?.message || '禁言失败'));
       }
 
-      addChangeLogEntry('user_mute', item, { reason: reason.trim() || '未填写', days: days || '永久' });
+      // P1 修复: 直接更新 dataStore.users 中的状态
+      updateUserStatusInDataStore(item.id, {
+        is_muted: true,
+        mute_reason: reason || null,
+        muted_until: mutedUntil,
+        muted_at: new Date().toISOString()
+      });
+
+      addChangeLogEntry('user_mute', item, { reason: reason || '未填写', days: days || '永久' });
       showToast(days > 0 ? `用户已禁言 ${days} 天` : '用户已永久禁言', 'success');
       await refreshCurrentViewAfterMutation();
     } catch (error) {
@@ -700,12 +736,133 @@ export const createMutationsCenter = (deps) => {
         throw new Error(String(rpcData?.message || '解除禁言失败'));
       }
 
+      // P1 修复: 直接更新 dataStore.users 中的状态
+      updateUserStatusInDataStore(item.id, {
+        is_muted: false,
+        mute_reason: null,
+        muted_until: null,
+        unmuted_at: new Date().toISOString()
+      });
+
       addChangeLogEntry('user_unmute', item, {});
       showToast('用户已解除禁言', 'success');
       await refreshCurrentViewAfterMutation();
     } catch (error) {
       logger.error('data-admin', '解除禁言失败:', error);
       showToast('解除禁言失败: ' + buildActionErrorMessage(error, '解除禁言失败'), 'error');
+    }
+  };
+
+  // ==================== 批量审核功能 ====================
+
+  // 批量审核通过
+  const batchApproveModerationItems = async (items) => {
+    if (!items?.length) return;
+
+    const ids = items.map((item) => item.id).filter(Boolean);
+    if (!await dialog.confirm({
+      title: '批量审核通过',
+      message: `确定要通过选中的 ${ids.length} 条审核记录吗？`,
+      tone: 'success',
+      confirmText: '批量通过'
+    })) return;
+
+    let successCount = 0;
+    let failCount = 0;
+
+    try {
+      assertAdminAction();
+
+      // 并行处理，但限制并发数以避免数据库压力
+      const batchSize = 5;
+      for (let i = 0; i < items.length; i += batchSize) {
+        const batch = items.slice(i, i + batchSize);
+        const results = await Promise.allSettled(
+          batch.map((item) => applyModerationAction(item, 'approve', { skipRefresh: true }))
+        );
+
+        results.forEach((result) => {
+          if (result.status === 'fulfilled') {
+            successCount++;
+          } else {
+            failCount++;
+            logger.warn('data-admin', '批量审核单项失败:', result.reason);
+          }
+        });
+      }
+
+      if (successCount > 0) {
+        addChangeLogEntry('batch_moderation_approve', { id: ids.join(',') }, { count: successCount });
+        showToast(`批量审核完成：${successCount} 条通过，${failCount} 条失败`,
+          failCount > 0 ? 'warning' : 'success');
+      } else {
+        showToast('批量审核失败：所有记录处理失败', 'error');
+      }
+
+      await refreshCurrentViewAfterMutation();
+    } catch (error) {
+      logger.error('data-admin', '批量审核失败:', error);
+      showToast('批量审核失败: ' + buildActionErrorMessage(error, '批量审核失败'), 'error');
+    }
+  };
+
+  // 批量审核拒绝
+  const batchRejectModerationItems = async (items) => {
+    if (!items?.length) return;
+
+    const ids = items.map((item) => item.id).filter(Boolean);
+
+    // 询问拒绝原因
+    const reason = await dialog.prompt({
+      title: '批量审核拒绝',
+      message: `确定要拒绝选中的 ${ids.length} 条审核记录吗？\n请输入拒绝原因（可选）`,
+      placeholder: '例如：内容不符合规范',
+      defaultValue: '',
+      multiline: true
+    });
+    if (reason === null) return;
+
+    let successCount = 0;
+    let failCount = 0;
+
+    try {
+      assertAdminAction();
+
+      const batchSize = 5;
+      for (let i = 0; i < items.length; i += batchSize) {
+        const batch = items.slice(i, i + batchSize);
+        const results = await Promise.allSettled(
+          batch.map((item) => applyModerationAction(item, 'reject', {
+            skipRefresh: true,
+            reason: reason.trim() || null
+          }))
+        );
+
+        results.forEach((result) => {
+          if (result.status === 'fulfilled') {
+            successCount++;
+          } else {
+            failCount++;
+            logger.warn('data-admin', '批量审核单项失败:', result.reason);
+          }
+        });
+      }
+
+      if (successCount > 0) {
+        addChangeLogEntry('batch_moderation_reject', { id: ids.join(',') }, {
+          count: successCount,
+          reason: reason.trim() || '未填写'
+        });
+        showToast(`批量审核完成：${successCount} 条拒绝，${failCount} 条失败`,
+          failCount > 0 ? 'warning' : 'success');
+      } else {
+        showToast('批量审核失败：所有记录处理失败', 'error');
+      }
+
+      await refreshCurrentViewAfterMutation();
+    } catch (error) {
+      logger.error('data-admin', '批量审核失败:', error);
+      showToast('批量审核失败: ' + buildActionErrorMessage(error, '批量审核失败'), 'error');
     }
   };
 
@@ -729,6 +886,9 @@ export const createMutationsCenter = (deps) => {
     rejectModerationItem,
     keepLimitedModerationItem,
     deleteModerationItem,
+    // 批量审核
+    batchApproveModerationItems,
+    batchRejectModerationItems,
     // 用户封禁/禁言
     banUser,
     unbanUser,

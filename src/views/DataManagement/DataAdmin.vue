@@ -857,7 +857,13 @@ import {
   getNextNumericId,
   splitForumContent,
   normalizeNewsContent,
-  validateDateString
+  validateDateString,
+  // P1 修复: 从 validation.js 导入 stripHtml/escapeHtml/hasHtmlTag，删除重复定义
+  stripHtml,
+  escapeHtml,
+  hasHtmlTag,
+  UUID_REGEX,
+  EMAIL_REGEX
 } from './composables/useDataAdminValidation.js';
 import {
   createPersisters,
@@ -1674,19 +1680,8 @@ const toDateInputValue = (dateValue) => {
   return `${year}-${month}-${day}`;
 };
 
-const stripHtml = (value) => String(value || '')
-  .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-  .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-  .replace(/<[^>]+>/g, ' ')
-  .replace(/\s+/g, ' ')
-  .trim();
-
-const escapeHtml = (value) => String(value || '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;');
+// P1 修复: stripHtml / escapeHtml / hasHtmlTag / UUID_REGEX / EMAIL_REGEX 
+// 已从 composables/useDataAdminValidation.js 导入，此处删除重复定义
 
 // v-html 输出前用 DOMPurify 清洗(项目硬约束),仅允许 <mark> 高亮标签
 const sanitizeHighlightHtml = (html) => DOMPurify.sanitize(String(html || ''), {
@@ -1694,11 +1689,6 @@ const sanitizeHighlightHtml = (html) => DOMPurify.sanitize(String(html || ''), {
   ALLOWED_ATTR: [],
   KEEP_CONTENT: true
 });
-
-const hasHtmlTag = (value) => /<[^>]+>/.test(String(value || ''));
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const pickWritableFields = (tabKey, payload) => {
   const allowList = TAB_WRITABLE_FIELDS[tabKey] || [];
@@ -2642,13 +2632,21 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
       const expiredGiftIds = getExpiredActiveGiftIds(normalizedGifts);
       if (expiredGiftIds.length > 0) {
         normalizedGifts = markGiftsAsHistory(normalizedGifts, expiredGiftIds);
-        supabase
-          .from('user_gifts')
-          .update({ is_active: false })
-          .in('id', expiredGiftIds)
-          .then(({ error: archiveError }) => {
-            if (archiveError) logger.warn('data-admin', '自动归档过期礼物失败:', archiveError);
-          });
+        // P0 修复: 改为 await 并添加 toast 提示，而非 fire-and-forget
+        try {
+          const { error: archiveError } = await supabase
+            .from('user_gifts')
+            .update({ is_active: false })
+            .in('id', expiredGiftIds);
+          if (archiveError) {
+            logger.warn('data-admin', '自动归档过期礼物失败:', archiveError);
+            showToast(`自动归档 ${expiredGiftIds.length} 个过期礼物失败`, 'warning');
+          } else {
+            showToast(`已自动归档 ${expiredGiftIds.length} 个过期礼物`, 'success');
+          }
+        } catch (archiveException) {
+          logger.warn('data-admin', '自动归档过期礼物异常:', archiveException);
+        }
       }
 
       assignTabRows(tabId, normalizedGifts.map((gift) => {
@@ -2941,6 +2939,9 @@ const {
   updateModerationStatus,
   deleteModerationTarget,
   saveModerationLog,
+  // 批量审核
+  batchApproveModerationItems,
+  batchRejectModerationItems,
   // 用户封禁/禁言
   banUser,
   unbanUser,
@@ -2966,7 +2967,9 @@ const {
   isModerationActionPending,
   moderationTabConfig,
   addRecentRecord,
-  switchTab
+  switchTab,
+  // P1 修复: 传入 dataStore 用于封禁/禁言状态联动
+  dataStore
 });
 
 const refreshAllData = async () => {
@@ -3439,8 +3442,21 @@ const clearSelectedGiftUser = () => {
   editingItem.value.shipping_address = '';
 };
 
+// P0 修复: saveData 竞态条件 - 使用 saveDataId 模式防止重复提交
+let saveDataIdCounter = 0;
+const activeSaveDataId = ref(0);
+
 const saveData = async () => {
-  if (isSaving.value) return;
+  // 使用原子计数器防止竞态
+  const currentSaveId = ++saveDataIdCounter;
+  activeSaveDataId.value = currentSaveId;
+  
+  if (isSaving.value) {
+    // 如果已有保存进行中，abort 旧的请求（实际上无法 abort Supabase 查询，但可以忽略其结果）
+    showToast('已有保存操作进行中，请稍候', 'warning');
+    return;
+  }
+  
   isSaving.value = true;
   try {
     assertAdminAction();
@@ -3543,10 +3559,19 @@ const saveData = async () => {
     await refreshCurrentViewAfterMutation();
     await closeModal({ askDraft: false });
   } catch (error) {
+    // P0 修复: 检查是否是当前保存请求，忽略过期的请求错误
+    if (activeSaveDataId.value !== currentSaveId) {
+      logger.warn('data-admin', '忽略过期的保存请求错误（已有新的保存请求）');
+      return;
+    }
     logger.error('data-admin', '保存失败:', error);
     showToast('保存失败: ' + buildActionErrorMessage(error, '保存失败'), 'error');
   } finally {
-    isSaving.value = false;
+    // P0 修复: 仅当是当前保存请求时才释放锁
+    if (activeSaveDataId.value === currentSaveId) {
+      isSaving.value = false;
+      activeSaveDataId.value = 0;
+    }
   }
 };
 
@@ -3848,6 +3873,14 @@ const applyBatchEdit = async () => {
       confirmText: '应用修改'
     })) return;
 
+    // P0 修复: 记录原始值用于回滚
+    const originalValues = new Map();
+    selectedItems.value.forEach((item) => {
+      if (item.id) {
+        originalValues.set(item.id, item[batchEditState.fieldKey]);
+      }
+    });
+
     const payload = pickWritableFields(currentTab.value, { [batchEditState.fieldKey]: normalizedValue });
     const { data, error } = await supabase
       .from(currentConfig.value.table)
@@ -3856,9 +3889,42 @@ const applyBatchEdit = async () => {
       .select('id');
     if (error) throw error;
     if (!Array.isArray(data) || data.length !== ids.length) {
+      // P0 修复: 提供回滚选项
+      const updatedIds = Array.isArray(data) ? data.map((d) => d.id) : [];
+      const failedIds = ids.filter((id) => !updatedIds.includes(id));
+      const rollbackChoice = await dialog.confirm({
+        title: '批量编辑部分失败',
+        message: `请求更新 ${ids.length} 条，实际更新 ${updatedIds.length} 条。\n失败记录: ${failedIds.slice(0, 5).join(', ')}${failedIds.length > 5 ? '...' : ''}\n\n是否回滚已更新的 ${updatedIds.length} 条记录？`,
+        tone: 'warning',
+        confirmText: '回滚',
+        cancelText: '保留'
+      });
+      
+      if (rollbackChoice && updatedIds.length > 0) {
+        // 执行回滚
+        const rollbackPromises = updatedIds.map(async (id) => {
+          const originalValue = originalValues.get(id);
+          if (originalValue !== undefined) {
+            return supabase
+              .from(currentConfig.value.table)
+              .update({ [batchEditState.fieldKey]: originalValue })
+              .eq('id', id);
+          }
+          return null;
+        });
+        await Promise.allSettled(rollbackPromises);
+        showToast('已回滚批量编辑', 'warning');
+      }
+      
       throw new Error(`批量编辑未完全生效：请求 ${ids.length} 条，实际更新 ${Array.isArray(data) ? data.length : 0} 条`);
     }
-    addChangeLogEntry('batch_update', { id: ids.join(',') }, { field: batchEditState.fieldKey, to: normalizedValue, count: ids.length });
+    addChangeLogEntry('batch_update', { id: ids.join(',') }, { 
+      field: batchEditState.fieldKey, 
+      to: normalizedValue, 
+      count: ids.length,
+      // P0 修复: 记录原始值用于后续回滚
+      originalValues: Object.fromEntries(originalValues)
+    });
     if (currentTab.value === 'products') invalidateProductsCache();
     if (currentTab.value === 'subscriptions') selectedItems.value.forEach((item) => invalidateSubscriptionCache(item?.user_id));
     showToast('批量编辑成功', 'success');

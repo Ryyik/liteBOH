@@ -658,27 +658,34 @@ const PROFILE_SELECT_COLUMNS = `
           .single();
 
         if (!profileError && profile?.is_banned === true) {
-          // 用户被封禁，立即退出并返回错误
-          const { signOut } = await loadAuthApi();
-          await signOut();
-          await resetState();
+          // 判断封禁是否有效：永久封禁或临时封禁未过期
+          const isPermanentBan = !profile.banned_until;
+          const isTempBanActive = profile.banned_until && new Date(profile.banned_until) > new Date();
 
-          let banMessage = '您的账号已被封禁，无法登录。';
-          if (profile.ban_reason) {
-            banMessage += ` 原因：${profile.ban_reason}`;
-          }
-          if (profile.banned_until) {
-            const expiryDate = new Date(profile.banned_until);
-            banMessage += ` 解封时间：${expiryDate.toLocaleDateString('zh-CN')}`;
-          } else {
-            banMessage += '（永久封禁）';
-          }
+          if (isPermanentBan || isTempBanActive) {
+            // 用户确实被封禁（永久或临时封禁未过期），立即退出并返回错误
+            const { signOut } = await loadAuthApi();
+            await signOut();
+            await resetState();
 
-          return {
-            success: false,
-            message: banMessage,
-            code: 'USER_BANNED',
-          };
+            let banMessage = '您的账号已被封禁，无法登录。';
+            if (profile.ban_reason) {
+              banMessage += ` 原因：${profile.ban_reason}`;
+            }
+            if (profile.banned_until) {
+              const expiryDate = new Date(profile.banned_until);
+              banMessage += ` 解封时间：${expiryDate.toLocaleDateString('zh-CN')}`;
+            } else {
+              banMessage += '（永久封禁）';
+            }
+
+            return {
+              success: false,
+              message: banMessage,
+              code: 'USER_BANNED',
+            };
+          }
+          // 临时封禁已过期，允许登录（后续会由cleanup函数清理数据库状态）
         }
       } catch (banCheckError) {
         logger.warn('auth-store', '检查封禁状态失败', banCheckError);

@@ -35,6 +35,9 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         // 预缓存所有静态资源（Cache-First）
         globPatterns: ['**/*.{js,css,html,woff,woff2,ico,png,webp,svg}'],
+        // 强制更新：新 Service Worker 立即激活，不等待旧页面关闭
+        skipWaiting: true,
+        clientsClaim: true,
         // 运行时缓存策略
         runtimeCaching: [
           {

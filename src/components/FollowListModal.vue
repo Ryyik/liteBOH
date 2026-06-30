@@ -24,7 +24,7 @@
                   <span v-else>{{ user.username?.charAt(0)?.toUpperCase?.() || '?' }}</span>
                 </div>
                 <div class="follow-list-info">
-                  <span class="follow-list-name">{{ user.username }}</span>
+                  <span class="follow-list-name" :class="userTierMap[user.id]">{{ user.username }}</span>
                   <span class="follow-list-meta">{{ formatDate(user.followed_at) }} 关注</span>
                 </div>
                 <button
@@ -48,9 +48,11 @@
 </template>
 
 <script setup>
+import { ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { useUserTier } from '@/composables/useUserTier.js';
 
-defineProps({
+const props = defineProps({
   show: { type: Boolean, default: false },
   title: { type: String, default: '' },
   users: { type: Array, default: () => [] },
@@ -66,6 +68,21 @@ const handleUnfollow = (user) => {
   emit('unfollow', user);
 };
 const router = useRouter();
+
+const { fetchUserTier, getNicknameClass } = useUserTier();
+const userTierMap = ref({});
+
+watch(() => props.users, async (users) => {
+  const ids = new Set();
+  (users || []).forEach((u) => {
+    if (u?.id) ids.add(u.id);
+  });
+  const idList = [...ids];
+  await Promise.all(idList.map((id) => fetchUserTier(id)));
+  const map = {};
+  idList.forEach((id) => { map[id] = getNicknameClass(id); });
+  userTierMap.value = map;
+}, { immediate: true, deep: true });
 
 const goToProfile = (username) => {
   if (!username) return;
@@ -87,6 +104,8 @@ const formatDate = (dateStr) => {
 </script>
 
 <style scoped>
+@import '@/styles/helpers/function.css';
+
 .follow-list-modal {
   width: 420px;
   max-width: 90vw;

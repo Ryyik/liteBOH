@@ -2396,18 +2396,25 @@ const handlePost = async () => {
 
   // 检查用户禁言状态
   if (userInfo.isMuted) {
-    let muteMessage = '您已被禁言，无法发布帖子。';
-    if (userInfo.muteReason) {
-      muteMessage += ` 原因：${userInfo.muteReason}`;
+    // 判断禁言是否有效：永久禁言或临时禁言未过期
+    const isPermanentMute = !userInfo.mutedUntil;
+    const isTempMuteActive = userInfo.mutedUntil && new Date(userInfo.mutedUntil) > new Date();
+
+    if (isPermanentMute || isTempMuteActive) {
+      let muteMessage = '您已被禁言，无法发布帖子。';
+      if (userInfo.muteReason) {
+        muteMessage += ` 原因：${userInfo.muteReason}`;
+      }
+      if (userInfo.mutedUntil) {
+        const expiryDate = new Date(userInfo.mutedUntil);
+        muteMessage += ` 解禁时间：${expiryDate.toLocaleDateString('zh-CN')}`;
+      } else {
+        muteMessage += '（永久禁言）';
+      }
+      showModal('warning', '禁言提示', muteMessage);
+      return;
     }
-    if (userInfo.mutedUntil) {
-      const expiryDate = new Date(userInfo.mutedUntil);
-      muteMessage += ` 解禁时间：${expiryDate.toLocaleDateString('zh-CN')}`;
-    } else {
-      muteMessage += '（永久禁言）';
-    }
-    showModal('warning', '禁言提示', muteMessage);
-    return;
+    // 临时禁言已过期，允许操作
   }
 
   if (!newPost.value.title.trim() || !newPost.value.content.trim()) {

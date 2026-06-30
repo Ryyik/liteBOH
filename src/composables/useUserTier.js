@@ -11,8 +11,10 @@ export function useUserTier() {
     const { data, error } = await supabase
       .rpc('get_user_subscription_tier', { p_user_id: userId });
     const tier = (!error && data) ? String(data).trim().toLowerCase() : '';
-    tierCache.set(userId, tier || 'free');
-    return tier;
+    // 统一处理：空tier视为free，确保缓存和返回值一致
+    const normalizedTier = tier || 'free';
+    tierCache.set(userId, normalizedTier);
+    return normalizedTier;
   }
 
   function getNicknameClass(userId) {
