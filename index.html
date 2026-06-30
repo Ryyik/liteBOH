@@ -38,6 +38,59 @@
     <link rel="shortcut icon" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Block of Home</title>
+
+    <!-- 强制清除旧 Service Worker 的最早执行脚本 -->
+    <script>
+      (function() {
+        // 检测强制更新 URL 参数
+        if (window.location.search.includes('forceUpdate=true') ||
+            window.location.search.includes('clearCache=true')) {
+          console.log('[PWA] 检测到强制更新参数，开始清除缓存');
+
+          // 清除所有 Service Worker
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+              console.log('[PWA] 找到 ' + registrations.length + ' 个 Service Worker 注册');
+              registrations.forEach(function(registration) {
+                registration.unregister();
+                console.log('[PWA] 已注销 Service Worker: ' + registration.scope);
+              });
+            }).catch(function(err) {
+              console.error('[PWA] Service Worker 注销失败:', err);
+            });
+          }
+
+          // 清除所有 Cache Storage
+          if ('caches' in window) {
+            caches.keys().then(function(cacheNames) {
+              console.log('[PWA] 找到 ' + cacheNames.length + ' 个缓存');
+              return Promise.all(
+                cacheNames.map(function(cacheName) {
+                  console.log('[PWA] 删除缓存: ' + cacheName);
+                  return caches.delete(cacheName);
+                })
+              );
+            }).then(function() {
+              console.log('[PWA] 所有缓存已清除');
+
+              // 移除 URL 参数，重定向到正常页面
+              var cleanUrl = window.location.pathname + window.location.hash;
+              console.log('[PWA] 重定向到: ' + cleanUrl);
+              window.location.replace(cleanUrl);
+            }).catch(function(err) {
+              console.error('[PWA] 缓存清除失败:', err);
+              // 即使失败也尝试重定向
+              var cleanUrl = window.location.pathname + window.location.hash;
+              window.location.replace(cleanUrl);
+            });
+          } else {
+            // 不支持 Cache Storage，直接重定向
+            var cleanUrl = window.location.pathname + window.location.hash;
+            window.location.replace(cleanUrl);
+          }
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

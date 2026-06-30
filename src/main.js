@@ -80,6 +80,52 @@ if (typeof window !== "undefined") {
   setupVitePreloadErrorRecovery();
   initImageOptimizer({ onReady: scheduleDeferredGlobalStyles });
 
+  // 强制清理旧版本 Service Worker（生产环境也需要，解决缓存死循环问题）
+  if ('serviceWorker' in navigator) {
+    // 检查当前 Service Worker 版本
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      registrations.forEach((registration) => {
+        // 如果 Service Worker 已激活但未更新超过24小时，强制注销
+        if (registration.active) {
+          const lastUpdate = localStorage.getItem('sw_last_update');
+          const now = Date.now();
+          const updateInterval = 24 * 60 * 60 * 1000; // 24小时
+
+          if (!lastUpdate || (now - parseInt(lastUpdate)) > updateInterval) {
+            console.warn('[PWA] Service Worker 已超过24小时未更新，强制注销');
+            registration.unregister().then(() => {
+              console.log('[PWA] 旧 Service Worker 已注销');
+              localStorage.setItem('sw_last_update', now.toString());
+              // 清除所有缓存
+              if ('caches' in window) {
+                caches.keys().then((cacheNames) => {
+                  return Promise.all(
+                    cacheNames.map((cacheName) => caches.delete(cacheName))
+                  );
+                }).then(() => {
+                  console.log('[PWA] 所有缓存已清除，即将刷新页面');
+                  window.location.reload();
+                });
+              }
+            });
+          }
+        }
+      });
+    });
+
+    // 监听 Service Worker 错误（可能是旧版本导致）
+    navigator.serviceWorker.addEventListener('error', (err) => {
+      console.error('[PWA] Service Worker 错误:', err);
+      // 清除所有 Service Worker 和缓存
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((registration) => registration.unregister());
+      });
+      if ('caches' in window) {
+        caches.keys().then((keys) => Promise.all(keys.map((key) => caches.delete(key))));
+      }
+    });
+  }
+
   // 开发环境下清理可能残留的旧 Service Worker / Cache，避免加载到历史 hash 资源。
   if (import.meta.env.DEV && 'serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations()

@@ -497,6 +497,33 @@ let lastProfileSyncAt = 0;
 let profileFetchInflight = null;
 let profileFetchInflightUsername = '';
 
+const posts = ref([]);
+const totalPostCount = ref(0);
+const comments = ref([]);
+const impressions = ref([]);
+const loading = ref(true);
+const activeTab = ref('posts');
+const isTabLoading = reactive({
+  posts: false,
+  replies: false,
+  impressions: false
+});
+const tabLoaded = reactive({
+  posts: false,
+  replies: false,
+  impressions: false
+});
+const postsPage = ref(1);
+const commentsPage = ref(1);
+const impressionsPage = ref(1);
+const hasMorePosts = ref(true);
+const hasMoreComments = ref(true);
+const hasMoreImpressions = ref(true);
+
+const isOwnProfile = computed(() => {
+  return isLoggedIn.value && userInfo.value.username === route.params.username;
+});
+
 const profile = computed(() => {
   return isOwnProfile.value ? ownProfileSnapshot.value : fetchedProfile.value;
 });
@@ -713,18 +740,6 @@ const formatProfilePostDate = (post = {}) => {
 // 等级信息计算
 const levelInfo = computed(() => getLevelInfo(profile.value.experience || 0));
 
-const bioRef = ref(null);
-const bioExpanded = ref(false);
-const bioHasOverflow = ref(false);
-
-const toggleBio = () => {
-  bioExpanded.value = !bioExpanded.value;
-};
-
-const posts = ref([]);
-const totalPostCount = ref(0);
-const comments = ref([]);
-const impressions = ref([]);
 const normalizedShowcaseIds = computed(() => normalizeShowcasePostIds(profile.value?.showcase_post_ids));
 const showcasePostsById = computed(() => {
   const map = new Map();
@@ -743,24 +758,14 @@ const showcasePostsOrdered = computed(() => normalizedShowcaseIds.value
   .filter(Boolean)
 );
 const showcasePosts = computed(() => showcasePostsOrdered.value);
-const loading = ref(true);
-const activeTab = ref('posts');
-const isTabLoading = reactive({
-  posts: false,
-  replies: false,
-  impressions: false
-});
-const tabLoaded = reactive({
-  posts: false,
-  replies: false,
-  impressions: false
-});
-const postsPage = ref(1);
-const commentsPage = ref(1);
-const impressionsPage = ref(1);
-const hasMorePosts = ref(true);
-const hasMoreComments = ref(true);
-const hasMoreImpressions = ref(true);
+
+const bioRef = ref(null);
+const bioExpanded = ref(false);
+const bioHasOverflow = ref(false);
+
+const toggleBio = () => {
+  bioExpanded.value = !bioExpanded.value;
+};
 
 // 印象墙相关
 const newImpressionContent = ref('');
@@ -785,10 +790,6 @@ const alertState = reactive({
   type: 'success',
   title: '',
   message: ''
-});
-
-const isOwnProfile = computed(() => {
-  return isLoggedIn.value && userInfo.value.username === route.params.username;
 });
 
 const hideOnlineStatus = computed(() => userInfo.value?.hideOnlineStatus ?? false);
