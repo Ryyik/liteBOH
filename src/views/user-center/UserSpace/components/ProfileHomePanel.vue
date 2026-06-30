@@ -38,7 +38,7 @@
 
         <div class="profile-hero-copy">
           <div class="name-row profile-hero-name-row">
-            <h1 class="profile-name">{{ displayName }}</h1>
+            <h1 class="profile-name" :class="nicknameClass">{{ displayName }}</h1>
             <span v-if="isAdmin" class="admin-badge">ADMIN</span>
           </div>
           <p class="profile-handle">@{{ displayName || 'user' }}</p>
@@ -203,9 +203,10 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, onMounted } from 'vue';
+import { computed, reactive, ref, watch, onMounted } from 'vue';
 import FollowListModal from '@/components/FollowListModal.vue';
 import { getFollowers, getFollowing, unfollowUser } from '@/utils/api/profile-api.js';
+import { useUserTier } from '@/composables/useUserTier.js';
 
 const followModal = reactive({
   show: false,
@@ -344,6 +345,16 @@ defineEmits([
 ]);
 
 const displayName = computed(() => props.profile.username || '未登录');
+
+const profileId = computed(() => props.profile.id || '');
+const { fetchUserTier, getNicknameClass } = useUserTier();
+const nicknameClass = ref('');
+watch(profileId, async (id) => {
+  if (id) {
+    await fetchUserTier(id);
+    nicknameClass.value = getNicknameClass(id);
+  }
+}, { immediate: true });
 const displayInitial = computed(() => (props.profile.username || 'U').charAt(0).toUpperCase());
 const isAdmin = computed(() => props.profile.role === 'admin');
 

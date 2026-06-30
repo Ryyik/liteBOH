@@ -1,3 +1,23 @@
 
 
+.nickname-gold {
+  color: #d4a017;
+  font-weight: 700;
+}
+
+.nickname-rainbow {
+  background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff, #9b59b6, #ff6b6b);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 700;
+  animation: nickname-rainbow-shift 3s linear infinite;
+}
+
+@keyframes nickname-rainbow-shift {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
 /*# sourceMappingURL=function.css.map */

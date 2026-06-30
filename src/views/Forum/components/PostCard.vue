@@ -1,5 +1,6 @@
 <script setup>
-import { nextTick, ref } from 'vue';
+import { nextTick, ref, watch } from 'vue';
+import { useUserTier } from '@/composables/useUserTier.js';
 import {
   Check,
   Heart,
@@ -114,6 +115,17 @@ const isImageFailed = (imageUrl) => failedImageUrls.value.has(imageUrl);
 const onLazyImageRef = (el) => {
   if (el) nextTick(() => emit('lazy-image-observe', el));
 };
+
+const { fetchUserTier, getNicknameClass } = useUserTier();
+const authorTierClass = ref('');
+watch(() => props.post?.author_id, async (id) => {
+  if (id) {
+    await fetchUserTier(id);
+    authorTierClass.value = getNicknameClass(id);
+  } else {
+    authorTierClass.value = '';
+  }
+}, { immediate: true });
 </script>
 
 <template>
@@ -143,7 +155,7 @@ const onLazyImageRef = (el) => {
           }}</span>
         </div>
         <div class="post-author-info">
-          <span class="post-author-v2" @click.stop="emit('go-to-profile', post.author_username)">@{{
+          <span class="post-author-v2" :class="authorTierClass" @click.stop="emit('go-to-profile', post.author_username)">@{{
             post.author_username }}</span>
           <span class="post-date-v2">{{ formatDate(post.created_at) }}</span>
         </div>

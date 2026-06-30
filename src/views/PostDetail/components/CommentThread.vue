@@ -3,6 +3,7 @@ import { Reply } from 'lucide-vue-next';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { formatSmartTime } from '@/utils/time.js';
 import { getHomeCatAsset } from '@/utils/home-cat-theme.js';
+import { useUserTier } from '@/composables/useUserTier.js';
 
 const props = defineProps({
   comments: { type: Array, default: () => [] },
@@ -46,6 +47,27 @@ const COMMENT_SORT_OPTIONS = [
 ];
 
 const formatDate = formatSmartTime;
+
+const { fetchUserTier, getNicknameClass } = useUserTier();
+const commentTierMap = ref({});
+
+const collectCommentAuthorIds = (comments) => {
+  const ids = new Set();
+  (comments || []).forEach((c) => {
+    if (c?.author_id) ids.add(c.author_id);
+    const children = c?.id ? getChildReplyState(c.id).items : [];
+    (children || []).forEach((child) => { if (child?.author_id) ids.add(child.author_id); });
+  });
+  return [...ids];
+};
+
+watch(() => props.comments, async (cmts) => {
+  const ids = collectCommentAuthorIds(cmts);
+  await Promise.all(ids.map((id) => fetchUserTier(id)));
+  const map = {};
+  ids.forEach((id) => { map[id] = getNicknameClass(id); });
+  commentTierMap.value = map;
+}, { immediate: true, deep: true });
 
 const getChildReplyState = (parentId) => {
   const key = String(parentId || '');
@@ -174,7 +196,7 @@ const onReplyInput = (event) => {
                 <span v-else>{{ reply.author_username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
               </div>
               <div class="author-details">
-                <span class="comment-author-name">{{ reply.author_username }}</span>
+                <span class="comment-author-name" :class="commentTierMap[reply.author_id] || ''">{{ reply.author_username }}</span>
                 <span class="comment-date">{{ formatDate(reply.created_at) }}</span>
                 <span v-if="String(reply.author_id || '') === String(postAuthorId || '')" class="comment-author-badge">楼主</span>
               </div>
@@ -214,7 +236,7 @@ const onReplyInput = (event) => {
               :class="{ 'is-highlighted': highlightedCommentId === String(child.id) }">
               <div class="child-reply-head" @click="$emit('go-to-profile', child.author_username)">
                 <span class="child-reply-author-wrap">
-                  <span class="child-reply-author">{{ child.author_username }}</span>
+                  <span class="child-reply-author" :class="commentTierMap[child.author_id] || ''">{{ child.author_username }}</span>
                   <span v-if="String(child.author_id || '') === String(postAuthorId || '')" class="comment-author-badge compact">楼主</span>
                   <span v-if="child.reply_to_username" class="child-reply-target">
                     回复 @{{ child.reply_to_username }}

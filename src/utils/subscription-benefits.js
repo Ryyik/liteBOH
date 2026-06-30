@@ -53,3 +53,31 @@ export function resolveCloudBenefitFromSubscriptions(subscriptions = [], nowTs =
 
   return resolveCloudBenefitFromPlanCodes(activePlanCodes);
 }
+
+const TIER_NICKNAME_COLORS = {
+  'free': '',
+  'plus': '',
+  'pro': 'nickname-gold',
+  'max': 'nickname-gold',
+  'ultra': 'nickname-rainbow'
+};
+
+export function resolveNicknameTierClass(planCode) {
+  const code = normalizeSubscriptionPlanCode(planCode);
+  return TIER_NICKNAME_COLORS[code] || '';
+}
+
+export function resolveHighestTierCode(subscriptions = [], nowTs = Date.now()) {
+  const TIER_ORDER = ['free', 'plus', 'pro', 'max', 'ultra'];
+  let best = '';
+  let bestIdx = -1;
+  (Array.isArray(subscriptions) ? subscriptions : []).forEach((record) => {
+    const code = normalizeSubscriptionPlanCode(record.planCode || record.plan_code);
+    const idx = TIER_ORDER.indexOf(code);
+    if (code && idx > bestIdx && isSubscriptionRecordActive(record, nowTs)) {
+      bestIdx = idx;
+      best = code;
+    }
+  });
+  return best;
+}

@@ -29,6 +29,7 @@ import { getForumReturnKeyFromQuery } from '@/utils/forum-return-state.js';
 import { getHomeCatAsset, isHomeCatTheme } from '@/utils/home-cat-theme.js';
 import { themeManager } from '@/utils/theme-manager.js';
 import { buildReplyDraft } from '@/utils/forum-helpers.js';
+import { useUserTier } from '@/composables/useUserTier.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -91,6 +92,17 @@ const hasMoreTopComments = ref(false);
 const isTopCommentsLoading = ref(false);
 const childRepliesMap = ref({});
 const highlightedCommentId = ref('');
+
+const { fetchUserTier, getNicknameClass } = useUserTier();
+const authorTierClass = ref('');
+watch(() => post.value?.author_id, async (id) => {
+  if (id) {
+    await fetchUserTier(id);
+    authorTierClass.value = getNicknameClass(id);
+  } else {
+    authorTierClass.value = '';
+  }
+}, { immediate: true });
 const commentSortMode = ref('desc');
 
 const TOP_LEVEL_PAGE_SIZE = 20;
@@ -1279,7 +1291,7 @@ const handleChangeCommentSortMode = async (mode) => {
                     <span v-else>{{ post.author_username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
                   </div>
                   <div class="author-meta">
-                    <span class="author-name">@{{ post.author_username }}</span>
+                    <span class="author-name" :class="authorTierClass">@{{ post.author_username }}</span>
                     <span class="post-time">{{ formatDate(post.created_at) }}</span>
                     <span v-if="post.location_name" class="post-location-tag">📍 {{ post.location_name }}</span>
                   </div>
