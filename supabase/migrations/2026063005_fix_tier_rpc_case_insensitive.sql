@@ -1,5 +1,5 @@
--- 公开 RPC：返回指定用户可公开显示的订阅 tier
--- security definer 绕过 RLS，只暴露 plan_code，不暴露完整订阅记录
+-- 修复：get_user_subscription_tier 对 plan_code 做大小写不敏感匹配
+-- 避免 DataAdmin 管理员录入的 'MAX' / 'Max' 等不匹配
 
 create or replace function public.get_user_subscription_tier(p_user_id uuid)
 returns text
@@ -9,7 +9,6 @@ set search_path = public
 as $$
 declare
   v_tier text := '';
-  v_order int[] := array[0, 1, 2, 3, 4];
   v_idx int;
   v_code text;
   v_best_idx int := -1;
