@@ -119,6 +119,47 @@ if (typeof window !== "undefined") {
     supported ? "webp-support" : "webp-no-support"
   );
 
+  // ============================================
+  // PWA 更新检测机制
+  // ============================================
+  if ('serviceWorker' in navigator) {
+    // 监听 Service Worker 更新事件
+    navigator.serviceWorker.ready.then((registration) => {
+      // 定期检查更新（每60分钟）
+      setInterval(() => {
+        registration.update().catch((err) => {
+          logger.warn('pwa', 'SW 更新检查失败', err);
+        });
+      }, 60 * 60 * 1000);
+    });
+
+    // 监听新 Service Worker 安装事件
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      logger.info('pwa', '新 Service Worker 已激活，正在刷新页面');
+      // 强制刷新页面以加载新版本
+      window.location.reload();
+    });
+
+    // 监听 Service Worker 更新等待事件（prompt 模式）
+    navigator.serviceWorker.ready.then((registration) => {
+      registration.addEventListener('updatefound', () => {
+        const newWorker = registration.installing;
+        if (newWorker) {
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // 新版本已安装，提示用户刷新
+              logger.info('pwa', '新版本已准备好，提示用户更新');
+              // 显示更新提示（可根据需要改为更友好的 UI）
+              if (confirm('网站已更新到新版本，是否立即刷新？')) {
+                newWorker.postMessage({ type: 'SKIP_WAITING' });
+              }
+            }
+          });
+        }
+      });
+    });
+  }
+
   // 监听 PWA 安装事件
   window.addEventListener("beforeinstallprompt", (e) => {
     e.preventDefault();

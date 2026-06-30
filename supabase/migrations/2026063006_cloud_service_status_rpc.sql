@@ -20,6 +20,8 @@ DECLARE
   active_connections INT;
   user_count INT;
   post_count INT;
+  db_percent FLOAT;
+  storage_percent FLOAT;
 BEGIN
   -- 检查是否为管理员
   IF NOT EXISTS (
@@ -56,26 +58,30 @@ BEGIN
     storage_size := 0;
   END;
 
+  -- 计算百分比（使用 FLOAT 类型避免 ROUND 函数问题）
+  db_percent := CASE WHEN db_size_limit > 0 THEN (db_size::FLOAT / db_size_limit::FLOAT) * 100 ELSE 0 END;
+  storage_percent := CASE WHEN storage_size_limit > 0 THEN (storage_size::FLOAT / storage_size_limit::FLOAT) * 100 ELSE 0 END;
+
   -- 构建返回结果
   result := jsonb_build_object(
     'ok', true,
     'project_name', 'BOHLITE',
-    'region', 'ap-northeast-1', -- Tokyo region
+    'region', 'ap-northeast-1',
     'database_size', db_size,
     'database_size_limit', db_size_limit,
-    'database_percent', ROUND((db_size::FLOAT / db_size_limit) * 100, 2),
+    'database_percent', db_percent,
     'storage_size', storage_size,
     'storage_size_limit', storage_size_limit,
-    'storage_percent', ROUND((storage_size::FLOAT / storage_size_limit) * 100, 2),
+    'storage_percent', storage_percent,
     'active_connections', active_connections,
     'user_count', user_count,
     'post_count', post_count,
-    'monthly_active_users', user_count, -- 简化估计
-    'api_requests_month', 0, -- 无法从客户端获取，需 Management API
-    'edge_function_count', 0, -- 无法从客户端获取
+    'monthly_active_users', user_count,
+    'api_requests_month', 0,
+    'edge_function_count', 0,
     'health_score', CASE 
-      WHEN (db_size::FLOAT / db_size_limit) > 0.8 THEN 80
-      WHEN (db_size::FLOAT / db_size_limit) > 0.6 THEN 90
+      WHEN db_percent > 80 THEN 80
+      WHEN db_percent > 60 THEN 90
       ELSE 100
     END,
     'last_updated', NOW()
@@ -120,7 +126,8 @@ BEGIN
     
     -- 估算平均每张图片 500KB
     pending_size_estimate := pending_count * 500 * 1024;
-  EXCEPTION WHEN OTHERS THEN
+  EXCEPTION WHEN undefined_table THEN
+    -- 表不存在时返回默认值
     pending_count := 0;
     pending_size_estimate := 0;
   END;
@@ -132,7 +139,7 @@ BEGIN
     'pending_uploads_estimate_bytes', pending_size_estimate,
     'message', CASE 
       WHEN pending_count = 0 THEN '无待处理上传'
-      ELSE concat('有 ', pending_count, ' 个待处理上传记录')
+      ELSE '有 ' || pending_count || ' 个待处理上传记录'
     END,
     'note', '完整使用情况需部署 cloudinary-usage Edge Function',
     'last_updated', NOW()

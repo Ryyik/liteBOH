@@ -29,7 +29,16 @@ export default defineConfig({
     }),
     // PWA Service Worker（静态资源预缓存 + 运行时缓存）
     VitePWA({
-      registerType: 'autoUpdate',
+      // 确保使用 generateSW 策略自动生成 sw.js
+      strategies: 'generateSW',
+      // 注册类型：prompt 会提示用户更新，autoUpdate 自动更新
+      registerType: 'prompt',
+      // Service Worker 文件名（确保生成到 dist 根目录）
+      filename: 'sw.js',
+      // 启用开发环境 SW（用于调试，生产环境自动禁用）
+      devOptions: {
+        enabled: false, // 开发环境禁用 SW，避免干扰调试
+      },
       workbox: {
         // 预缓存文件大小上限（4MB，避免大文件静默跳过）
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
