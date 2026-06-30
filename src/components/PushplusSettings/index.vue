@@ -191,7 +191,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import {
   getPushplusSettings,
@@ -212,11 +212,13 @@ const messageType = ref('');
 const originalToken = ref('');
 const canUseClipboard = ref(false);
 const showClearConfirm = ref(false);
+let messageTimer = null;
 
 const showMessage = (msg, type = 'info') => {
   message.value = msg;
   messageType.value = type;
-  setTimeout(() => {
+  clearTimeout(messageTimer);
+  messageTimer = setTimeout(() => {
     message.value = '';
   }, 5000);
 };
@@ -378,6 +380,10 @@ const testPush = async () => {
 onMounted(() => {
   canUseClipboard.value = Boolean(navigator.clipboard?.readText);
   loadSettings();
+});
+
+onUnmounted(() => {
+  clearTimeout(messageTimer);
 });
 </script>
 

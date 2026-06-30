@@ -1,5 +1,6 @@
 import { supabase } from '../supabase-client.js';
 import { executeRead, invalidateByTags, normalizeDbError } from '../request-core.js';
+import { CACHE_TTL_LEVELS } from '../cache-strategy.js';
 import {
   buildCloudPreview,
   deriveCloudEntryType,
@@ -274,7 +275,7 @@ export async function listMyCloudEntries({
       };
     },
     {
-      ttlMs: 4000,
+      ttlMs: CACHE_TTL_LEVELS.REALTIME,
       tags: [CLOUD_CACHE_TAG, `${CLOUD_CACHE_TAG}:user:${safeUserId}`],
       timeoutMs: 9000,
       retry: 1
@@ -480,7 +481,7 @@ export async function getMyCloudShareChannel() {
 
       return { data: normalizeCloudShareChannel(payload.channel), error: null };
     },
-    { ttlMs: 5000, tags: [CLOUD_SHARE_CACHE_TAG], timeoutMs: 8000, retry: 0 }
+    { ttlMs: CACHE_TTL_LEVELS.REALTIME, tags: [CLOUD_SHARE_CACHE_TAG], timeoutMs: 8000, retry: 0 }
   );
 }
 
@@ -513,7 +514,7 @@ export async function getMyCloudShareViewers({ limit = 50 } = {}) {
 
       return { data: viewers, error: null };
     },
-    { ttlMs: 5000, tags: [CLOUD_SHARE_CACHE_TAG, `${CLOUD_SHARE_CACHE_TAG}:viewers`], timeoutMs: 8000, retry: 0 }
+    { ttlMs: CACHE_TTL_LEVELS.REALTIME, tags: [CLOUD_SHARE_CACHE_TAG, `${CLOUD_SHARE_CACHE_TAG}:viewers`], timeoutMs: 8000, retry: 0 }
   );
 }
 

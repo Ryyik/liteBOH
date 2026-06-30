@@ -19,7 +19,7 @@
           <span class="count-badge">{{ userImpressions.length }}</span>
         </div>
 
-        <div v-if="loading" class="loading-state">
+        <div v-if="state.isLoading" class="loading-state">
           <div class="spinner"></div>
           <p>同步数据中...</p>
         </div>
@@ -91,9 +91,15 @@ const { userInfo } = storeToRefs(authStore);
 const goBack = () => {
   router.push(resolveSettingsBackLocation(route));
 };
+
 const userImpressions = ref([]);
 const userTags = ref(userInfo.value?.tags || []);
-const loading = ref(true);
+
+// 状态合并为单一对象
+const state = reactive({
+  isLoading: true,
+  error: null
+});
 
 const alertState = reactive({
   visible: false,
@@ -110,7 +116,8 @@ const showAlert = (type, title, message) => {
 };
 
 const fetchImpressions = async () => {
-  loading.value = true;
+  state.isLoading = true;
+  state.error = null;
   try {
     const { data: { user: authUser } } = await supabase.auth.getUser();
     if (!authUser) {
@@ -121,11 +128,14 @@ const fetchImpressions = async () => {
     const { data, error } = await getUserImpressions(authUser.id);
     if (!error) {
       userImpressions.value = data || [];
+    } else {
+      state.error = error;
     }
   } catch (err) {
     logger.error('tags-impressions', '获取印象失败:', err);
+    state.error = err;
   } finally {
-    loading.value = false;
+    state.isLoading = false;
   }
 };
 
@@ -143,13 +153,26 @@ const handleDeleteImpression = async (id) => {
       showAlert('error', '删除失败', '当前登录状态异常，请刷新后重试');
       return;
     }
+
+    // 1. 本地立即删除（优化用户体验）
+    const previousImpressions = [...userImpressions.value];
+    userImpressions.value = userImpressions.value.filter(imp => imp.id !== id);
+    showAlert('success', '删除成功', '该印象已被移除');
+
+    // 2. 发起删除请求
     const { error } = await deleteUserImpression(id, currentUserId);
+
     if (error) {
+      // 如果删除失败，恢复数据
+      userImpressions.value = previousImpressions;
       showAlert('error', '删除失败', error.message);
-    } else {
-      userImpressions.value = userImpressions.value.filter(imp => imp.id !== id);
-      showAlert('success', '删除成功', '该印象已被移除');
+      return;
     }
+
+    // 3. 延迟静默刷新（更新缓存，3秒后执行）
+    setTimeout(() => {
+      fetchImpressions();
+    }, 3000);
   } catch (err) {
     logger.error('tags-impressions', '删除印象异常:', err);
     showAlert('error', '删除失败', '网络错误');

@@ -43,11 +43,13 @@ export const communityRoutes: RouteRecordRaw[] = [
   {
     path: "/forum/post/:id",
     name: "PostDetail",
+    meta: { hideNavbar: true },
     component: () => import("../../views/PostDetail/index.vue"),
   },
   {
     path: "/profile/:username",
     name: "UserProfile",
+    meta: { hideNavbar: true },
     component: () => import("../../views/Profile/index.vue"),
   },
 ]

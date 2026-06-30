@@ -27,6 +27,13 @@ export interface UserInfo {
   lastActiveAt: string | null
   hideOnlineStatus: boolean
   hideFollowData: boolean
+  // 封禁/禁言状态
+  isBanned: boolean
+  isMuted: boolean
+  banReason: string | null
+  muteReason: string | null
+  bannedUntil: string | null
+  mutedUntil: string | null
 }
 
 export interface LoginResult {
@@ -100,6 +107,3 @@ export interface NotificationPayload {
   content?: string
   [key: string]: unknown
 }
-
-// Re-export from api.ts
-export type { NotificationItem, NotificationSender, NotificationPost, NotificationComment } from './api.js'

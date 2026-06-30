@@ -1,5 +1,5 @@
 .account-security-page {
-  --user-center-nav-offset: 72px;
+  --user-center-nav-offset: 0px;
   min-height: 100vh;
   padding-top: var(--user-center-nav-offset);
   background:
@@ -11,7 +11,7 @@
 
 @media (max-width: 480px) {
   .account-security-page {
-    --user-center-nav-offset: 56px;
+    --user-center-nav-offset: 0px;
   }
 }
 

@@ -216,71 +216,124 @@
         </div>
       </div>
       <div v-else-if="filteredMessages.length > 0" class="x-inbox-list" role="listbox" aria-label="消息列表">
-        <div v-for="msg in filteredMessages" :key="msg.id" v-memo="[msg.id, msg.status, msg.archived_at, isSelectMode, selectedMessageIds.has(msg.id), selectedMessage?.id === msg.id]" class="x-item" role="option" tabindex="0" :data-message-id="msg.id"
-          :class="{ unread: msg.status === 'unread', 'is-selecting': isSelectMode, selected: selectedMessageIds.has(msg.id), 'active-detail': selectedMessage?.id === msg.id && !isSelectMode }"
-          @click="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)"
-          @keydown.enter="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)"
-          @keydown.space.prevent="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)">
-          <span v-if="msg.status === 'unread' && !isSelectMode" class="x-unread-dot" aria-hidden="true"></span>
-          <!-- 左侧：头像或选择框 -->
-          <div v-if="isSelectMode" class="x-select-check" @click.stop="toggleMessageSelection(msg.id)">
-            <span class="x-checkbox" :class="{ checked: selectedMessageIds.has(msg.id) }">
-              <svg v-if="selectedMessageIds.has(msg.id)" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
-            </span>
-          </div>
-          <div class="x-item-left">
-            <div class="x-avatar-wrapper">
-              <img v-if="msg.sender?.avatar_url" :src="msg.sender.avatar_url" class="x-avatar-img" alt="avatar"  loading="lazy" />
-              <div v-else class="x-avatar">
-                {{ msg.sender?.username?.charAt(0)?.toUpperCase?.() || 'S' }}
+        <!-- 虚拟滚动列表（当消息超过阈值时启用） -->
+        <div v-if="shouldUseVirtualScroll" class="x-virtual-list-container" v-bind="containerProps" @scroll="handleVirtualScroll">
+          <div v-bind="wrapperProps">
+            <div v-for="{ data: msg, index } in virtualMessages" :key="msg.id"
+              class="x-item" role="option" tabindex="0" :data-message-id="msg.id"
+              :class="{ unread: msg.status === 'unread', 'is-selecting': isSelectMode, selected: selectedMessageIds.has(msg.id), 'active-detail': selectedMessage?.id === msg.id && !isSelectMode }"
+              @click="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)"
+              @keydown.enter="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)"
+              @keydown.space.prevent="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)">
+              <span v-if="msg.status === 'unread' && !isSelectMode" class="x-unread-dot" aria-hidden="true"></span>
+              <!-- 左侧：头像或选择框 -->
+              <div v-if="isSelectMode" class="x-select-check" @click.stop="toggleMessageSelection(msg.id)">
+                <span class="x-checkbox" :class="{ checked: selectedMessageIds.has(msg.id) }">
+                  <svg v-if="selectedMessageIds.has(msg.id)" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </span>
               </div>
-            </div>
-          </div>
-          <!-- 中间：主要内容 -->
-          <div class="x-item-main">
-            <div class="x-item-meta">
-              <div class="x-item-identity">
-                <span class="x-sender-name">{{ msg.sender?.username || '系统' }}</span>
-                <span class="x-action-type">{{ msg._typeLabel }}</span>
+              <div class="x-item-left">
+                <div class="x-avatar-wrapper">
+                  <img v-if="msg.sender?.avatar_url" :src="msg.sender.avatar_url" class="x-avatar-img" alt="avatar" loading="lazy" />
+                  <div v-else class="x-avatar">
+                    {{ msg.sender?.username?.charAt(0)?.toUpperCase?.() || 'S' }}
+                  </div>
+                </div>
               </div>
-              <span class="x-date inline-date">{{ msg._formattedDate }}</span>
-            </div>
-            <div class="x-item-content">
-              <span class="x-text">{{ msg._title }}</span>
-            </div>
-            <div v-if="msg._preview" class="x-preview-box">
-              {{ msg._preview }}
-            </div>
-          </div>
-          <!-- 右侧：时间和状态 -->
-          <div class="x-item-right">
-            <span class="x-date">{{ msg._formattedDate }}</span>
-            <!-- 悬停快捷操作 -->
-            <div class="x-quick-actions" @click.stop>
-              <button v-if="currentTab !== 'archived'" class="x-quick-btn archive" @click="archiveMessage(msg)" title="归档" aria-label="归档">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 8v13H3V8"></path>
-                  <path d="M1 3h22v5H1z"></path>
-                  <line x1="10" y1="12" x2="14" y2="12"></line>
-                </svg>
-              </button>
-              <button v-if="currentTab === 'archived'" class="x-quick-btn unarchive" @click="unarchiveMessage(msg)" title="取消归档" aria-label="取消归档">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 8v13H3V8"></path>
-                  <path d="M1 3h22v5H1z"></path>
-                  <line x1="10" y1="12" x2="14" y2="12"></line>
-                </svg>
-              </button>
-              <button v-if="msg.status === 'unread' && currentTab !== 'archived'" class="x-quick-btn mark-read" @click="markAsRead(msg)" title="标记已读" aria-label="标记已读">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
-              </button>
+              <!-- 中间：主要内容 -->
+              <div class="x-item-main">
+                <div class="x-item-meta">
+                  <div class="x-item-identity">
+                    <span class="x-sender-name">{{ msg.sender?.username || '系统' }}</span>
+                    <span class="x-action-type">{{ msg._typeLabel }}</span>
+                  </div>
+                  <span class="x-date inline-date">{{ msg._formattedDate }}</span>
+                </div>
+                <div class="x-item-content">
+                  <span class="x-text">{{ msg._title }}</span>
+                </div>
+                <div v-if="msg._preview" class="x-preview-box">
+                  {{ msg._preview }}
+                </div>
+              </div>
+              <!-- 右侧：时间和状态 -->
+              <div class="x-item-right">
+                <span class="x-date">{{ msg._formattedDate }}</span>
+              </div>
             </div>
           </div>
         </div>
+
+        <!-- 普通列表（消息少于阈值时使用） -->
+        <template v-else>
+          <div v-for="msg in filteredMessages" :key="msg.id" v-memo="[msg.id, msg.status, msg.archived_at, isSelectMode, selectedMessageIds.has(msg.id), selectedMessage?.id === msg.id]" class="x-item" role="option" tabindex="0" :data-message-id="msg.id"
+            :class="{ unread: msg.status === 'unread', 'is-selecting': isSelectMode, selected: selectedMessageIds.has(msg.id), 'active-detail': selectedMessage?.id === msg.id && !isSelectMode }"
+            @click="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)"
+            @keydown.enter="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)"
+            @keydown.space.prevent="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)">
+            <span v-if="msg.status === 'unread' && !isSelectMode" class="x-unread-dot" aria-hidden="true"></span>
+            <!-- 左侧：头像或选择框 -->
+            <div v-if="isSelectMode" class="x-select-check" @click.stop="toggleMessageSelection(msg.id)">
+              <span class="x-checkbox" :class="{ checked: selectedMessageIds.has(msg.id) }">
+                <svg v-if="selectedMessageIds.has(msg.id)" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              </span>
+            </div>
+            <div class="x-item-left">
+              <div class="x-avatar-wrapper">
+                <img v-if="msg.sender?.avatar_url" :src="msg.sender.avatar_url" class="x-avatar-img" alt="avatar" loading="lazy" />
+                <div v-else class="x-avatar">
+                  {{ msg.sender?.username?.charAt(0)?.toUpperCase?.() || 'S' }}
+                </div>
+              </div>
+            </div>
+            <!-- 中间：主要内容 -->
+            <div class="x-item-main">
+              <div class="x-item-meta">
+                <div class="x-item-identity">
+                  <span class="x-sender-name">{{ msg.sender?.username || '系统' }}</span>
+                  <span class="x-action-type">{{ msg._typeLabel }}</span>
+                </div>
+                <span class="x-date inline-date">{{ msg._formattedDate }}</span>
+              </div>
+              <div class="x-item-content">
+                <span class="x-text">{{ msg._title }}</span>
+              </div>
+              <div v-if="msg._preview" class="x-preview-box">
+                {{ msg._preview }}
+              </div>
+            </div>
+            <!-- 右侧：时间和状态 -->
+            <div class="x-item-right">
+              <span class="x-date">{{ msg._formattedDate }}</span>
+              <!-- 悬停快捷操作 -->
+              <div class="x-quick-actions" @click.stop>
+                <button v-if="currentTab !== 'archived'" class="x-quick-btn archive" @click="archiveMessage(msg)" title="归档" aria-label="归档">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 8v13H3V8"></path>
+                    <path d="M1 3h22v5H1z"></path>
+                    <line x1="10" y1="12" x2="14" y2="12"></line>
+                  </svg>
+                </button>
+                <button v-if="currentTab === 'archived'" class="x-quick-btn unarchive" @click="unarchiveMessage(msg)" title="取消归档" aria-label="取消归档">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 8v13H3V8"></path>
+                    <path d="M1 3h22v5H1z"></path>
+                    <line x1="10" y1="12" x2="14" y2="12"></line>
+                  </svg>
+                </button>
+                <button v-if="msg.status === 'unread' && currentTab !== 'archived'" class="x-quick-btn mark-read" @click="markAsRead(msg)" title="标记已读" aria-label="标记已读">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </template>
         <div v-if="currentTab !== 'archived' && hasMoreNotifications" ref="loadMoreSentinelRef" class="x-load-more-row">
           <span v-if="loadingMoreNotifications" class="x-load-more-spinner" />
           <button v-show="!loadingMoreNotifications" class="x-load-more-btn" :disabled="loadingMoreNotifications" @click="loadMoreNotifications">
@@ -478,6 +531,8 @@ import {
   markRetriedNotificationId,
   persistRetriedNotificationIdSet
 } from '@/utils/moderation-retry-cache.js';
+import { useDebounce, useThrottle } from '@/composables/useDebounceThrottle';
+import { useVirtualList } from '@vueuse/core';
 
 // Props
 defineProps({
@@ -524,14 +579,123 @@ const currentUserId = ref(null);
 const currentTab = ref('all'); // 'all' | 'like' | 'comment' | 'impression' | 'system'
 const LOTTERY_WIN_NOTIFICATION_TYPE = 'lottery_win';
 const MESSAGE_PAGE_SIZE = 24;
+const MAX_CACHE_SIZE = 200; // LRU 缓存上限
+const VIRTUAL_SCROLL_THRESHOLD = 100; // 虚拟滚动阈值
 const NOTIFICATION_TABS = [
   { id: 'all', label: '全部' },
   { id: 'comment', label: '回复' },
   { id: 'like', label: '点赞' },
+  { id: 'follow', label: '关注' },
   { id: 'impression', label: '印象' },
   { id: 'system', label: '系统' },
   { id: 'archived', label: '已归档' }
 ];
+
+// ─── AbortController 管理 ───────────────────────────────────────────────
+const abortControllers = reactive({
+  notifications: null,
+  archived: null,
+  moreNotifications: null,
+  moreArchived: null
+});
+
+const createAbortController = (key) => {
+  if (abortControllers[key]) {
+    abortControllers[key].abort();
+  }
+  abortControllers[key] = new AbortController();
+  return abortControllers[key];
+};
+
+const abortAllRequests = () => {
+  Object.keys(abortControllers).forEach((key) => {
+    if (abortControllers[key]) {
+      abortControllers[key].abort();
+      abortControllers[key] = null;
+    }
+  });
+};
+
+// ─── 合并状态管理 ───────────────────────────────────────────────────────
+const messageState = reactive({
+  inbox: {
+    loading: false,
+    error: null,
+    loadingMore: false,
+    hasMore: false,
+    cursor: null
+  },
+  archived: {
+    loading: false,
+    error: null,
+    loadingMore: false,
+    hasMore: false,
+    cursor: null,
+    loadedOnce: false
+  },
+  realtime: {
+    connected: false,
+    reconnectAttempts: 0,
+    lastError: null
+  }
+});
+
+// ─── LRU 缓存管理 ─────────────────────────────────────────────────────────
+const applyLRUCache = (messages) => {
+  if (messages.length <= MAX_CACHE_SIZE) {
+    return messages;
+  }
+  // 保留最新的 MAX_CACHE_SIZE 条消息（已按时间排序）
+  return messages.slice(0, MAX_CACHE_SIZE);
+};
+
+const trimCacheIfNeeded = () => {
+  if (messages.value.length > MAX_CACHE_SIZE) {
+    messages.value = applyLRUCache(messages.value);
+    logger.debug('messages', `LRU 缓存清理：保留最新 ${MAX_CACHE_SIZE} 条消息`);
+  }
+  if (archivedMessages.value.length > MAX_CACHE_SIZE) {
+    archivedMessages.value = applyLRUCache(archivedMessages.value);
+    logger.debug('messages', `LRU 缓存清理：保留最新 ${MAX_CACHE_SIZE} 条归档消息`);
+  }
+};
+
+// ─── 防抖和节流 ───────────────────────────────────────────────────────────
+const { debouncedFn: debouncedLoadMoreNotifications, cancel: cancelDebouncedLoadMore } = useDebounce(
+  loadMoreNotifications,
+  300
+);
+
+const { throttledFn: throttledLoadMoreNotifications, cancel: cancelThrottledLoadMore } = useThrottle(
+  loadMoreNotifications,
+  200
+);
+
+const { throttledFn: throttledLoadMoreArchived, cancel: cancelThrottledArchived } = useThrottle(
+  loadMoreArchivedNotifications,
+  200
+);
+
+// ─── 虚拟滚动 ───────────────────────────────────────────────────────────────
+const shouldUseVirtualScroll = computed(() => {
+  return filteredMessages.value.length > VIRTUAL_SCROLL_THRESHOLD;
+});
+
+const virtualListRef = ref(null);
+const virtualListMessages = ref([]);
+
+const { list: virtualMessages, containerProps, wrapperProps } = useVirtualList(
+  virtualListMessages,
+  {
+    itemHeight: 88, // 大约的消息项高度
+    overscan: 10
+  }
+);
+
+const handleVirtualScroll = () => {
+  // 虚拟滚动时的加载更多逻辑（已通过 IntersectionObserver 处理）
+  // 这里不需要额外处理，保留函数以备将来扩展
+};
 let unreadRefreshInflight = null;
 let lastUnreadRefreshAt = 0;
 const UNREAD_REFRESH_MIN_INTERVAL_MS = 1200;
@@ -723,6 +887,13 @@ const filteredMessages = computed(() => {
     return true;
   });
 });
+
+// 虚拟滚动列表：监听 filteredMessages 变化
+watch(filteredMessages, (newMessages) => {
+  if (shouldUseVirtualScroll.value) {
+    virtualListMessages.value = newMessages;
+  }
+}, { immediate: true });
 
 const typeFilterTabs = computed(() => NOTIFICATION_TABS);
 const selectedMessageCount = computed(() => selectedMessageIds.value.size);
@@ -929,6 +1100,9 @@ const startRealtimeChannels = async (userId) => {
           }
         }
 
+        // LRU 缓存清理
+        trimCacheIfNeeded();
+
         void refreshUnreadCountAfterRealtime();
         if (!patched || eventType === 'INSERT') {
           scheduleRealtimeRefresh({
@@ -938,7 +1112,36 @@ const startRealtimeChannels = async (userId) => {
         }
       }
     )
-    .subscribe();
+    .subscribe((status, err) => {
+      // ─── 实时订阅状态监控 ─────────────────────────────────────────────
+      if (status === 'SUBSCRIBED') {
+        messageState.realtime.connected = true;
+        messageState.realtime.reconnectAttempts = 0;
+        messageState.realtime.lastError = null;
+        logger.debug('messages', '实时订阅已连接');
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        messageState.realtime.connected = false;
+        messageState.realtime.lastError = err?.message || status;
+        logger.error('messages', '实时订阅出错', err || status);
+
+        // ─── 异常恢复机制 ───────────────────────────────────────────────
+        if (messageState.realtime.reconnectAttempts < 5) {
+          messageState.realtime.reconnectAttempts++;
+          const delay = Math.min(1000 * Math.pow(2, messageState.realtime.reconnectAttempts), 30000);
+          logger.debug('messages', `将在 ${delay}ms 后尝试重连（第 ${messageState.realtime.reconnectAttempts} 次）`);
+          setTimeout(() => {
+            if (currentUserId.value && messageState.realtime.reconnectAttempts <= 5) {
+              startRealtimeChannels(currentUserId.value);
+            }
+          }, delay);
+        } else {
+          logger.error('messages', '实时订阅重连失败次数过多，停止重连');
+        }
+      } else if (status === 'CLOSED') {
+        messageState.realtime.connected = false;
+        logger.debug('messages', '实时订阅已关闭');
+      }
+    });
   messageCenterRealtimeChannels = [notificationsChannel];
 };
 
@@ -1086,6 +1289,14 @@ watch(selectStatusFilter, () => {
 
 // 组件卸载时恢复 body 滚动并取消订阅
 onUnmounted(() => {
+  // ─── AbortController 清理 ─────────────────────────────────────────────
+  abortAllRequests();
+
+  // ─── 防抖和节流清理 ───────────────────────────────────────────────────
+  cancelDebouncedLoadMore();
+  cancelThrottledLoadMore();
+  cancelThrottledArchived();
+
   // 完整恢复iOS滚动锁定样式（防止样式残留）
   document.documentElement.style.overflow = '';
   document.body.style.overflow = '';
@@ -1098,7 +1309,7 @@ onUnmounted(() => {
     tabPage.style.overflowY = '';
   }
   bodyScrollPosition = 0;
-  
+
   if (feedbackToastTimer) {
     clearTimeout(feedbackToastTimer);
     feedbackToastTimer = null;
@@ -1222,7 +1433,7 @@ const loadNotifications = async () => {
   }
 };
 
-const loadMoreNotifications = async () => {
+async function loadMoreNotifications() {
   if (!currentUserId.value || loadingMoreNotifications.value || !hasMoreNotifications.value) return;
   loadingMoreNotifications.value = true;
   try {
@@ -1245,7 +1456,7 @@ const loadMoreNotifications = async () => {
   }
 };
 
-const setupLoadMoreObserver = () => {
+function setupLoadMoreObserver() {
   if (loadMoreObserver) {
     loadMoreObserver.disconnect();
     loadMoreObserver = null;
@@ -1394,7 +1605,7 @@ const loadArchivedNotifications = async () => {
   }
 };
 
-const loadMoreArchivedNotifications = async () => {
+async function loadMoreArchivedNotifications() {
   if (!currentUserId.value || archivedLoadingMore.value || !archivedHasMore.value) return;
   archivedLoadingMore.value = true;
   try {

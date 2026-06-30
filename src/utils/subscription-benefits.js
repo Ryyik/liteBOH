@@ -1,21 +1,23 @@
 export const DEFAULT_CLOUD_IMAGE_LIMIT = 150;
 
 const PLAN_DISPLAY_NAMES = {
-  'boh-ai-plus': 'BOH Plus',
-  'boh-pro': 'BOH Pro',
-  'boh-max': 'BOH Max'
+  'free': 'Free',
+  'plus': 'Plus',
+  'pro': 'Pro',
+  'max': 'Max',
+  'ultra': 'Ultra'
 };
 
-const PLAN_CLOUD_IMAGE_LIMITS = {
-  'boh-ai-plus': 300,
-  'boh-pro': 500,
-  'boh-max': 800
+export const PLAN_CLOUD_IMAGE_LIMITS = {
+  'free': 150,
+  'plus': 300,
+  'pro': 450,
+  'max': 900,
+  'ultra': 1200
 };
 
 export function normalizeSubscriptionPlanCode(planCode = '') {
-  const normalized = String(planCode || '').trim().toLowerCase();
-  if (normalized === 'boh-plus') return 'boh-ai-plus';
-  return normalized;
+  return String(planCode || '').trim().toLowerCase();
 }
 
 export function isSubscriptionRecordActive(record, nowTs = Date.now()) {

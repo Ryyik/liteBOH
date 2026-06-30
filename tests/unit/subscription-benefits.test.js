@@ -12,20 +12,20 @@ describe('subscription Cloud+ benefits', () => {
   });
 
   it('resolves Cloud+ image limits by the highest active plan', () => {
-    expect(resolveCloudBenefitFromPlanCodes(['boh-ai-plus']).cloudImageLimit).toBe(300);
-    expect(resolveCloudBenefitFromPlanCodes(['boh-plus']).cloudImageLimit).toBe(300);
-    expect(resolveCloudBenefitFromPlanCodes(['boh-pro']).cloudImageLimit).toBe(500);
-    expect(resolveCloudBenefitFromPlanCodes(['boh-max']).cloudImageLimit).toBe(800);
-    expect(resolveCloudBenefitFromPlanCodes(['boh-ai-plus', 'boh-pro']).cloudImageLimit).toBe(500);
+    expect(resolveCloudBenefitFromPlanCodes(['plus']).cloudImageLimit).toBe(300);
+    expect(resolveCloudBenefitFromPlanCodes(['pro']).cloudImageLimit).toBe(450);
+    expect(resolveCloudBenefitFromPlanCodes(['max']).cloudImageLimit).toBe(900);
+    expect(resolveCloudBenefitFromPlanCodes(['ultra']).cloudImageLimit).toBe(1200);
+    expect(resolveCloudBenefitFromPlanCodes(['plus', 'pro']).cloudImageLimit).toBe(450);
   });
 
   it('ignores expired subscription records', () => {
     const nowTs = Date.parse('2026-05-21T00:00:00Z');
     const benefit = resolveCloudBenefitFromSubscriptions([
-      { planCode: 'boh-max', status: 'active', expiresAt: '2026-05-20T00:00:00Z' },
-      { planCode: 'boh-pro', status: 'active', expiresAt: '2026-05-22T00:00:00Z' }
+      { planCode: 'max', status: 'active', expiresAt: '2026-05-20T00:00:00Z' },
+      { planCode: 'pro', status: 'active', expiresAt: '2026-05-22T00:00:00Z' }
     ], nowTs);
 
-    expect(benefit.cloudImageLimit).toBe(500);
+    expect(benefit.cloudImageLimit).toBe(450);
   });
 });

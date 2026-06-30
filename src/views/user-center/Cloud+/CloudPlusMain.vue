@@ -310,15 +310,40 @@
                   <div class="toolbar-actions">
                     <input ref="imageInputRef" type="file" class="hidden-file-input"
                       accept="image/png,image/jpeg,image/webp,image/gif" multiple @change="handleImageSelection">
-                    <button type="button" class="secondary-btn" :disabled="isUploadingImages" @click="openImagePicker">
-                      <span v-if="isUploadingImages" class="btn-spinner"></span>
-                      {{ isUploadingImages ? '上传中...' : '添加图片' }}
+                    <button type="button" class="secondary-btn" :disabled="cloudState.upload.uploading" @click="openImagePicker">
+                      <span v-if="cloudState.upload.uploading" class="btn-spinner"></span>
+                      {{ cloudState.upload.uploading ? `上传中 ${cloudState.upload.progress}%` : '添加图片' }}
+                    </button>
+                    <button v-if="cloudState.upload.uploading" type="button" class="ghost-link upload-cancel-btn" @click="cancelUpload">
+                      取消上传
+                    </button>
+                    <button v-if="cloudState.upload.failedImages.length" type="button" class="secondary-btn retry-btn" @click="retryFailedUploads">
+                      重试上传 ({{ cloudState.upload.failedImages.length }})
                     </button>
                     <button type="button" class="primary-btn"
-                      :disabled="isPublishing || (!draftText.trim() && uploadedImages.length === 0)"
+                      :disabled="cloudState.publish.publishing || (!draftText.trim() && uploadedImages.length === 0)"
                       @click="publishEntry">
-                      {{ isPublishing ? '发布中...' : publishButtonLabel }}
+                      {{ cloudState.publish.publishing ? '发布中...' : publishButtonLabel }}
                     </button>
+                  </div>
+
+                  <!-- 上传进度条 -->
+                  <div v-if="cloudState.upload.uploading" class="upload-progress-bar">
+                    <div class="upload-progress-track">
+                      <div class="upload-progress-fill" :style="{ width: `${cloudState.upload.progress}%` }"></div>
+                    </div>
+                    <p class="upload-progress-text">
+                      正在上传 {{ cloudState.upload.currentFile || '图片' }}...
+                    </p>
+                  </div>
+
+                  <!-- 上传失败的图片提示 -->
+                  <div v-if="cloudState.upload.failedImages.length && !cloudState.upload.uploading" class="upload-failed-notice">
+                    <p>以下图片上传失败：</p>
+                    <ul>
+                      <li v-for="failed in cloudState.upload.failedImages" :key="failed.name">{{ failed.name }} - {{ failed.error }}</li>
+                    </ul>
+                    <button type="button" class="secondary-btn" @click="retryFailedUploads">重新上传</button>
                   </div>
                 </div>
               </div>
@@ -540,7 +565,8 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted, reactive } from 'vue';
+import { useDebounce } from '@/composables/useDebounceThrottle';
 import { storeToRefs } from 'pinia';
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 import { ChevronDown, Cloud, Search } from 'lucide-vue-next';
@@ -620,29 +646,122 @@ const dateTo = ref('');
 const sharedTokenInput = ref('');
 const shareDescriptionDraft = ref('');
 const uploadedImages = ref([]);
-const isLoading = ref(false);
-const isLoadingMyShareChannel = ref(false);
-const isLoadingShareViewers = ref(false);
-const isSavingShareChannel = ref(false);
-const isLoadingSharedChannel = ref(false);
-const hasLoadedEntries = ref(false);
-const entriesLoadError = ref('');
-const isShowingCachedEntries = ref(false);
-const sharedChannelError = ref('');
-const shareViewersError = ref('');
-const activeEntriesUserId = ref('');
-const isPublishing = ref(false);
-const isUploadingImages = ref(false);
+
+// 合并状态管理
+const cloudState = reactive({
+  content: {
+    loading: false,
+    error: null,
+    hasLoaded: false,
+    isShowingCached: false,
+    activeUserId: '',
+    lastFetchTime: null
+  },
+  share: {
+    loading: false,
+    error: null,
+    tokenState: 'idle', // 状态机: idle → loading → active → error
+    loadingViewers: false,
+    viewersError: null,
+    saving: false,
+    loadingShared: false,
+    sharedError: null,
+    abortController: null // 用于取消共享频道请求
+  },
+  upload: {
+    uploading: false,
+    progress: 0,
+    currentFile: null,
+    failedImages: [],
+    abortController: null // 用于取消图片上传
+  },
+  publish: {
+    publishing: false
+  }
+});
+
+// 保留原有的 ref 变量用于向后兼容（模板中使用）
+const isLoading = computed(() => cloudState.content.loading);
+const isLoadingMyShareChannel = computed(() => cloudState.share.loading);
+const isLoadingShareViewers = computed(() => cloudState.share.loadingViewers);
+const isSavingShareChannel = computed(() => cloudState.share.saving);
+const isLoadingSharedChannel = computed(() => cloudState.share.loadingShared);
+const hasLoadedEntries = computed(() => cloudState.content.hasLoaded);
+const entriesLoadError = computed({
+  get: () => cloudState.content.error || '',
+  set: (val) => cloudState.content.error = val
+});
+const isShowingCachedEntries = computed({
+  get: () => cloudState.content.isShowingCached,
+  set: (val) => cloudState.content.isShowingCached = val
+});
+const sharedChannelError = computed({
+  get: () => cloudState.share.sharedError || '',
+  set: (val) => cloudState.share.sharedError = val
+});
+const shareViewersError = computed({
+  get: () => cloudState.share.viewersError || '',
+  set: (val) => cloudState.share.viewersError = val
+});
+const activeEntriesUserId = computed({
+  get: () => cloudState.content.activeUserId,
+  set: (val) => cloudState.content.activeUserId = val
+});
+const isPublishing = computed(() => cloudState.publish.publishing);
+const isUploadingImages = computed(() => cloudState.upload.uploading);
 const currentFilter = ref('all');
 const cloudinaryCleanupLocks = new Set();
 let uploadAttemptTimestamps = [];
 const CLOUD_BATCH_LIMIT = 9;
-const CLOUD_ENTRIES_CACHE_VERSION = 'v2';
+const CLOUD_ENTRIES_CACHE_VERSION = 'v3'; // 升级缓存版本以支持新字段
+const CLOUD_ENTRIES_CACHE_MAX_SIZE = 50; // 限制缓存大小
 const SKELETON_CARD_COUNT = 6;
 const GALLERY_INITIAL_LIMIT = 30;
 const GALLERY_LOAD_MORE_STEP = 30;
 const SHARED_TOKEN_STORAGE_KEY = 'boh_cloud:last_shared_token';
 const visibleEntryLimit = ref(GALLERY_INITIAL_LIMIT);
+
+// 防抖优化 - 分享描述保存（500ms）
+const { debouncedFn: debouncedSaveShareDescription, cancel: cancelSaveShareDescription } = useDebounce(
+  async (description) => {
+    if (!isLoggedIn.value || !userInfo.value?.id) {
+      showNotice('请先登录后再设置频道描述');
+      authStore.showLoginModal = true;
+      return;
+    }
+
+    const nextDescription = description.trim().slice(0, 160);
+    if (nextDescription === String(myShareChannel.value?.description || '').trim()) return;
+
+    cloudState.share.saving = true;
+    try {
+      const result = myShareChannel.value?.shareToken
+        ? await setMyCloudShareDescription(nextDescription)
+        : await upsertMyCloudShareChannel({
+          regenerate: false,
+          description: nextDescription
+        });
+      if (!result.ok) {
+        showNotice(result.error?.message || '频道描述保存失败');
+        return;
+      }
+
+      replaceLocalShareChannel(result.data || null);
+      showNotice('频道描述已保存');
+    } finally {
+      cloudState.share.saving = false;
+    }
+  },
+  500
+);
+
+// 防抖优化 - 搜索输入（300ms）
+const { debouncedFn: debouncedSearch, cancel: cancelSearch } = useDebounce(
+  (query) => {
+    searchQuery.value = query;
+  },
+  300
+);
 
 const filterOptions = [
   { value: 'all', label: '全部' },
@@ -1055,7 +1174,9 @@ function readCachedEntries(userId) {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.map(normalizeCachedEntry).filter(Boolean);
+    // 限制缓存大小，只返回前50条
+    const limitedEntries = parsed.slice(0, CLOUD_ENTRIES_CACHE_MAX_SIZE);
+    return limitedEntries.map(normalizeCachedEntry).filter(Boolean);
   } catch (error) {
     logger.warn('cloud-plus', '读取 Cloud+ 本地缓存失败:', error);
     return [];
@@ -1073,7 +1194,14 @@ function persistCachedEntries(userId, items) {
       window.localStorage.removeItem(cacheKey);
       return;
     }
-    window.localStorage.setItem(cacheKey, JSON.stringify(safeItems));
+    // 限制缓存大小，只保存前50条
+    const limitedItems = safeItems.slice(0, CLOUD_ENTRIES_CACHE_MAX_SIZE);
+    const cacheData = {
+      entries: limitedItems,
+      lastFetchTime: Date.now(),
+      version: CLOUD_ENTRIES_CACHE_VERSION
+    };
+    window.localStorage.setItem(cacheKey, JSON.stringify(cacheData));
   } catch (error) {
     logger.warn('cloud-plus', '写入 Cloud+ 本地缓存失败:', error);
   }
@@ -1119,50 +1247,56 @@ async function loadMyShareChannel() {
   if (!isLoggedIn.value || !userInfo.value?.id) {
     myShareChannel.value = null;
     shareViewers.value = [];
+    cloudState.share.tokenState = 'idle';
     return;
   }
 
-  isLoadingMyShareChannel.value = true;
+  cloudState.share.loading = true;
+  cloudState.share.tokenState = 'loading';
   try {
     const result = await getMyCloudShareChannel();
     if (!result.ok) {
       logger.error('cloud-plus', '读取 Cloud+ 共享频道失败:', result.error);
       myShareChannel.value = null;
+      cloudState.share.tokenState = 'error';
+      cloudState.share.error = result.error?.message || '读取共享频道失败';
       return;
     }
 
     myShareChannel.value = result.data || null;
     syncActiveShareChannel();
+    cloudState.share.tokenState = myShareChannel.value?.isActive ? 'active' : 'idle';
+    cloudState.share.error = null;
     if (myShareChannel.value?.shareToken) {
       void loadMyShareViewers();
     } else {
       shareViewers.value = [];
     }
   } finally {
-    isLoadingMyShareChannel.value = false;
+    cloudState.share.loading = false;
   }
 }
 
 async function loadMyShareViewers() {
   if (!isLoggedIn.value || !userInfo.value?.id || !myShareChannel.value?.shareToken) {
     shareViewers.value = [];
-    shareViewersError.value = '';
+    cloudState.share.viewersError = null;
     return;
   }
 
-  isLoadingShareViewers.value = true;
-  shareViewersError.value = '';
+  cloudState.share.loadingViewers = true;
+  cloudState.share.viewersError = null;
   try {
     const result = await getMyCloudShareViewers({ limit: 50 });
     if (!result.ok) {
       shareViewers.value = [];
-      shareViewersError.value = result.error?.message || '访客记录读取失败';
+      cloudState.share.viewersError = result.error?.message || '访客记录读取失败';
       return;
     }
 
     shareViewers.value = Array.isArray(result.data) ? result.data : [];
   } finally {
-    isLoadingShareViewers.value = false;
+    cloudState.share.loadingViewers = false;
   }
 }
 
@@ -1173,19 +1307,24 @@ async function activateMyShareChannel() {
     return;
   }
 
-  isSavingShareChannel.value = true;
+  cloudState.share.saving = true;
+  cloudState.share.tokenState = 'loading';
   try {
     const result = await upsertMyCloudShareChannel({ regenerate: false });
     if (!result.ok) {
       showNotice(result.error?.message || '开启共享失败');
+      cloudState.share.tokenState = 'error';
+      cloudState.share.error = result.error?.message || '开启共享失败';
       return;
     }
 
     replaceLocalShareChannel(result.data || null);
+    cloudState.share.tokenState = 'active';
+    cloudState.share.error = null;
     void loadMyShareViewers();
     showNotice(`${activeShareChannelLabel.value}已开启`);
   } finally {
-    isSavingShareChannel.value = false;
+    cloudState.share.saving = false;
   }
 }
 
@@ -1207,7 +1346,7 @@ async function saveShareDescription() {
   const nextDescription = shareDescriptionDraft.value.trim().slice(0, 160);
   if (nextDescription === String(myShareChannel.value?.description || '').trim()) return;
 
-  isSavingShareChannel.value = true;
+  cloudState.share.saving = true;
   try {
     const result = myShareChannel.value?.shareToken
       ? await setMyCloudShareDescription(nextDescription)
@@ -1223,7 +1362,7 @@ async function saveShareDescription() {
     replaceLocalShareChannel(result.data || null);
     showNotice('频道描述已保存');
   } finally {
-    isSavingShareChannel.value = false;
+    cloudState.share.saving = false;
   }
 }
 
@@ -1236,20 +1375,25 @@ async function regenerateMyShareChannel() {
     return;
   }
 
-  isSavingShareChannel.value = true;
+  cloudState.share.saving = true;
+  cloudState.share.tokenState = 'loading';
   try {
     const result = await revokeMyCloudShareToken();
     if (!result.ok) {
       showNotice(result.error?.message || '生成新令牌失败');
+      cloudState.share.tokenState = 'error';
+      cloudState.share.error = result.error?.message || '生成新令牌失败';
       return;
     }
 
     replaceLocalShareChannel(result.data || null);
+    cloudState.share.tokenState = 'active';
+    cloudState.share.error = null;
     shareViewers.value = [];
     void loadMyShareViewers();
     showNotice('已生成新的访问令牌');
   } finally {
-    isSavingShareChannel.value = false;
+    cloudState.share.saving = false;
   }
 }
 
@@ -1267,19 +1411,24 @@ async function deactivateMyShareChannel() {
     return;
   }
 
-  isSavingShareChannel.value = true;
+  cloudState.share.saving = true;
+  cloudState.share.tokenState = 'loading';
   try {
     const result = await disableMyCloudShareChannel();
     if (!result.ok) {
       showNotice(result.error?.message || '关闭共享失败');
+      cloudState.share.tokenState = 'error';
+      cloudState.share.error = result.error?.message || '关闭共享失败';
       return;
     }
 
     replaceLocalShareChannel(result.data || null);
+    cloudState.share.tokenState = 'idle';
+    cloudState.share.error = null;
     void loadMyShareViewers();
     showNotice(`${activeShareChannelLabel.value}已关闭`);
   } finally {
-    isSavingShareChannel.value = false;
+    cloudState.share.saving = false;
   }
 }
 
@@ -1302,39 +1451,64 @@ async function copyMyShareToken() {
 async function openSharedChannel() {
   const token = normalizedSharedTokenInput.value;
   if (!token) {
-    sharedChannelError.value = '请输入有效的访问令牌';
+    cloudState.share.sharedError = '请输入有效的访问令牌';
     showNotice('请输入有效的访问令牌');
     return;
   }
 
+  // 取消之前的请求
+  if (cloudState.share.abortController) {
+    cloudState.share.abortController.abort();
+  }
+  cloudState.share.abortController = new AbortController();
+
   sharedTokenInput.value = token;
-  sharedChannelError.value = '';
-  isLoadingSharedChannel.value = true;
+  cloudState.share.sharedError = null;
+  cloudState.share.loadingShared = true;
   try {
     const result = await getSharedCloudChannelByToken(token, { limit: 500 });
+    // 检查是否被取消
+    if (cloudState.share.abortController?.signal.aborted) {
+      return;
+    }
+
     if (!result.ok) {
       sharedChannel.value = null;
       sharedEntries.value = [];
-      sharedChannelError.value = result.error?.message || '共享频道读取失败';
-      showNotice(sharedChannelError.value);
+      cloudState.share.sharedError = result.error?.message || '共享频道读取失败';
+      showNotice(cloudState.share.sharedError);
       return;
     }
 
     sharedChannel.value = result.data?.channel || null;
     sharedEntries.value = Array.isArray(result.data?.entries) ? result.data.entries : [];
     isSharedContentCollapsed.value = false;
-    sharedChannelError.value = '';
+    cloudState.share.sharedError = null;
     persistStoredSharedToken(token);
     showNotice('共享频道已打开');
+  } catch (error) {
+    // 如果是取消导致的错误，不显示提示
+    if (error.name === 'AbortError') {
+      return;
+    }
+    cloudState.share.sharedError = error?.message || '共享频道读取失败';
+    showNotice(cloudState.share.sharedError);
   } finally {
-    isLoadingSharedChannel.value = false;
+    cloudState.share.loadingShared = false;
+    cloudState.share.abortController = null;
   }
 }
 
 function exitSharedChannel() {
+  // 取消正在进行的请求
+  if (cloudState.share.abortController) {
+    cloudState.share.abortController.abort();
+    cloudState.share.abortController = null;
+  }
+
   sharedChannel.value = null;
   sharedEntries.value = [];
-  sharedChannelError.value = '';
+  cloudState.share.sharedError = null;
   isSharedContentCollapsed.value = false;
   if (selectedEntrySource.value === 'shared') {
     selectedEntry.value = null;
@@ -1415,10 +1589,11 @@ async function loadEntries() {
   const userId = String(userInfo.value?.id || '').trim();
   if (!isLoggedIn.value || !userId) {
     entries.value = [];
-    hasLoadedEntries.value = false;
-    entriesLoadError.value = '';
-    isShowingCachedEntries.value = false;
-    activeEntriesUserId.value = '';
+    cloudState.content.hasLoaded = false;
+    cloudState.content.error = null;
+    cloudState.content.isShowingCached = false;
+    cloudState.content.activeUserId = '';
+    cloudState.content.lastFetchTime = null;
     return;
   }
 
@@ -1426,12 +1601,12 @@ async function loadEntries() {
   const cachedEntries = readCachedEntries(userId);
   if (!hadEntriesBeforeLoad && cachedEntries.length > 0) {
     entries.value = cachedEntries;
-    isShowingCachedEntries.value = true;
-    activeEntriesUserId.value = userId;
+    cloudState.content.isShowingCached = true;
+    cloudState.content.activeUserId = userId;
   }
 
-  isLoading.value = true;
-  entriesLoadError.value = '';
+  cloudState.content.loading = true;
+  cloudState.content.error = null;
   try {
     const result = await listMyCloudEntries({
       userId,
@@ -1440,25 +1615,26 @@ async function loadEntries() {
 
     if (!result.ok) {
       const errorMessage = result.error?.message || '读取 Cloud+ 失败，请检查网络后重试';
-      entriesLoadError.value = hadEntriesBeforeLoad || cachedEntries.length
+      cloudState.content.error = hadEntriesBeforeLoad || cachedEntries.length
         ? `${errorMessage}，当前为你保留最近一次成功加载的内容。`
         : errorMessage;
-      isShowingCachedEntries.value = entries.value.length > 0;
-      activeEntriesUserId.value = userId;
+      cloudState.content.isShowingCached = entries.value.length > 0;
+      cloudState.content.activeUserId = userId;
       showNotice(hadEntriesBeforeLoad || cachedEntries.length ? '网络波动，已保留最近一次成功加载的内容' : errorMessage);
-      hasLoadedEntries.value = true;
+      cloudState.content.hasLoaded = true;
       return;
     }
 
     const nextEntries = Array.isArray(result.data) ? result.data : [];
     entries.value = nextEntries;
     persistCachedEntries(userId, nextEntries);
-    entriesLoadError.value = '';
-    isShowingCachedEntries.value = false;
-    hasLoadedEntries.value = true;
-    activeEntriesUserId.value = userId;
+    cloudState.content.error = null;
+    cloudState.content.isShowingCached = false;
+    cloudState.content.hasLoaded = true;
+    cloudState.content.activeUserId = userId;
+    cloudState.content.lastFetchTime = Date.now();
   } finally {
-    isLoading.value = false;
+    cloudState.content.loading = false;
   }
 }
 
@@ -1540,29 +1716,108 @@ async function handleImageSelection(event) {
     return;
   }
 
-  isUploadingImages.value = true;
+  // 取消之前的上传请求
+  if (cloudState.upload.abortController) {
+    cloudState.upload.abortController.abort();
+  }
+  cloudState.upload.abortController = new AbortController();
+  cloudState.upload.failedImages = [];
+
+  cloudState.upload.uploading = true;
+  cloudState.upload.progress = 0;
+  const totalFiles = files.length;
+  let uploadedCount = 0;
+
   try {
     for (const file of files) {
-      const uploaded = await uploadImageToCloudinary(file);
-      uploadedImages.value.push({
-        url: uploaded.url,
-        publicId: uploaded.publicId,
-        deleteToken: uploaded.deleteToken,
-        alt: uploaded.originalFilename || file.name,
-        width: uploaded.width,
-        height: uploaded.height
-      });
+      cloudState.upload.currentFile = file.name;
+
+      // 检查是否被取消
+      if (cloudState.upload.abortController?.signal.aborted) {
+        showNotice('上传已取消');
+        break;
+      }
+
+      try {
+        const uploaded = await uploadImageToCloudinary(file);
+        uploadedImages.value.push({
+          url: uploaded.url,
+          publicId: uploaded.publicId,
+          deleteToken: uploaded.deleteToken,
+          alt: uploaded.originalFilename || file.name,
+          width: uploaded.width,
+          height: uploaded.height
+        });
+        uploadedCount++;
+        cloudState.upload.progress = Math.round((uploadedCount / totalFiles) * 100);
+      } catch (uploadError) {
+        // 记录失败的图片，提供重试选项
+        cloudState.upload.failedImages.push({
+          file,
+          error: uploadError?.message || '上传失败',
+          name: file.name
+        });
+        logger.error('cloud-plus', `上传图片 ${file.name} 失败:`, uploadError);
+      }
     }
-    showNotice(`已添加 ${files.length} 张图片`);
+
+    if (uploadedCount > 0) {
+      showNotice(`已添加 ${uploadedCount} 张图片`);
+    }
+
+    if (cloudState.upload.failedImages.length > 0) {
+      showNotice(`${cloudState.upload.failedImages.length} 张图片上传失败，可以重新尝试上传`);
+    }
+
     if (files.length && uploadedImages.value.some((image) => !supportsCloudinaryClientDeleteToken(image))) {
       showNotice('图片已上传，但当前 Cloudinary preset 未开启 delete token；取消上传时将无法自动清理云端图片');
     }
   } catch (error) {
-    showNotice(error?.message || '图片上传失败');
+    if (error.name === 'AbortError') {
+      showNotice('上传已取消');
+    } else {
+      showNotice(error?.message || '图片上传失败');
+    }
   } finally {
-    isUploadingImages.value = false;
+    cloudState.upload.uploading = false;
+    cloudState.upload.progress = 0;
+    cloudState.upload.currentFile = null;
+    cloudState.upload.abortController = null;
     if (input) input.value = '';
   }
+}
+
+// 重试上传失败的图片
+async function retryFailedUploads() {
+  const failedFiles = cloudState.upload.failedImages.map(item => item.file);
+  if (!failedFiles.length) return;
+
+  // 重置失败列表
+  cloudState.upload.failedImages = [];
+
+  // 创建新的 input 元素来触发上传
+  const dataTransfer = new DataTransfer();
+  failedFiles.forEach(file => dataTransfer.items.add(file));
+
+  const mockEvent = {
+    target: {
+      files: dataTransfer.files,
+      value: ''
+    }
+  };
+
+  await handleImageSelection(mockEvent);
+}
+
+// 取消上传
+function cancelUpload() {
+  if (cloudState.upload.abortController) {
+    cloudState.upload.abortController.abort();
+    cloudState.upload.abortController = null;
+  }
+  cloudState.upload.uploading = false;
+  cloudState.upload.progress = 0;
+  cloudState.upload.currentFile = null;
 }
 
 async function removeDraftImage(url) {
@@ -1584,7 +1839,7 @@ async function publishEntry() {
     return;
   }
 
-  isPublishing.value = true;
+  cloudState.publish.publishing = true;
   try {
     const blocks = serializeCloudTextAndImages({
       text: draftText.value,
@@ -1610,18 +1865,20 @@ async function publishEntry() {
     draftText.value = '';
     draftMood.value = '';
     uploadedImages.value = [];
+    cloudState.upload.failedImages = [];
     if (result.data) {
       entries.value = [result.data, ...entries.value.filter((item) => item.id !== result.data.id)];
       persistCachedEntries(userId, entries.value);
-      hasLoadedEntries.value = true;
-      entriesLoadError.value = '';
-      isShowingCachedEntries.value = false;
-      activeEntriesUserId.value = userId;
+      cloudState.content.hasLoaded = true;
+      cloudState.content.error = null;
+      cloudState.content.isShowingCached = false;
+      cloudState.content.activeUserId = userId;
+      cloudState.content.lastFetchTime = Date.now();
     }
     showNotice('已发布到 BOH Cloud+');
     void loadEntries();
   } finally {
-    isPublishing.value = false;
+    cloudState.publish.publishing = false;
   }
 }
 
@@ -1747,10 +2004,11 @@ async function removeEntry(entry) {
 
   entries.value = entries.value.filter((item) => item.id !== entry?.id);
   persistCachedEntries(userId, entries.value);
-  hasLoadedEntries.value = true;
-  entriesLoadError.value = '';
-  isShowingCachedEntries.value = false;
-  activeEntriesUserId.value = userId;
+  cloudState.content.hasLoaded = true;
+  cloudState.content.error = null;
+  cloudState.content.isShowingCached = false;
+  cloudState.content.activeUserId = userId;
+  cloudState.content.lastFetchTime = Date.now();
   if (selectedEntry.value?.id === entry?.id) {
     selectedEntry.value = null;
     selectedEntrySource.value = 'mine';
@@ -1766,16 +2024,21 @@ watch(() => [isLoggedIn.value, userInfo.value?.id], () => {
     subscriptions.value = [];
     myShareChannel.value = null;
     shareViewers.value = [];
-    hasLoadedEntries.value = false;
-    entriesLoadError.value = '';
-    isShowingCachedEntries.value = false;
+    cloudState.content.hasLoaded = false;
+    cloudState.content.error = null;
+    cloudState.content.isShowingCached = false;
+    cloudState.content.activeUserId = '';
+    cloudState.content.lastFetchTime = null;
+    cloudState.share.tokenState = 'idle';
+    cloudState.share.error = null;
     return;
   }
-  if (activeEntriesUserId.value && activeEntriesUserId.value !== userId) {
+  if (cloudState.content.activeUserId && cloudState.content.activeUserId !== userId) {
     entries.value = [];
-    hasLoadedEntries.value = false;
-    entriesLoadError.value = '';
-    isShowingCachedEntries.value = false;
+    cloudState.content.hasLoaded = false;
+    cloudState.content.error = null;
+    cloudState.content.isShowingCached = false;
+    cloudState.content.lastFetchTime = null;
   }
   void loadEntries();
   void loadSubscriptions();

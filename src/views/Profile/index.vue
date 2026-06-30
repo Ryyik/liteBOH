@@ -17,3 +17,10 @@ const ProfileMain = defineAsyncComponent(() => import('./ProfileMain.vue'));
     </template>
   </Suspense>
 </template>
+
+<style>
+@import '../user-center/UserSpace/styles/profile-base.css';
+@import '../user-center/UserSpace/styles/profile-panels.css';
+@import '../user-center/UserSpace/styles/shell-community.css';
+@import '../user-center/UserSpace/styles/responsive-integrations.css';
+</style>

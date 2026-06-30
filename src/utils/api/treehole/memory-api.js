@@ -1,5 +1,6 @@
 import { supabase } from '../../supabase-client.js';
 import { executeRead, normalizeDbError, invalidateByTags } from '../../request-core.js';
+import { CACHE_TTL_LEVELS } from '../../cache-strategy.js';
 import {
   UNIFIED_APPROVED_STATUS,
   UNIFIED_REJECTED_STATUS,
@@ -208,7 +209,7 @@ export async function getSharedAIMemoriesForAI({ limit = TREEHOLE_SHARED_MEMORY_
       };
     },
     {
-      ttlMs: 12000,
+      ttlMs: CACHE_TTL_LEVELS.USER_DATA,
       tags: [TREEHOLE_SHARED_MEMORY_CACHE_TAG],
       timeoutMs: 9000,
       retry: 1
@@ -284,7 +285,7 @@ export async function searchSharedAIMemoriesForAI({ query = '', limit = 12 } = {
       };
     },
     {
-      ttlMs: 10000,
+      ttlMs: CACHE_TTL_LEVELS.AI_DATA,
       tags: [TREEHOLE_SHARED_MEMORY_CACHE_TAG],
       timeoutMs: 9000,
       retry: 1
@@ -460,7 +461,7 @@ export async function getMySharedAIMemories({
       };
     },
     {
-      ttlMs: 4000,
+      ttlMs: CACHE_TTL_LEVELS.REALTIME,
       tags: [TREEHOLE_SHARED_MEMORY_CACHE_TAG, buildSharedMemoryOwnerTag(safeUserId)],
       timeoutMs: 9000,
       retry: 1

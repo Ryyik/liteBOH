@@ -683,7 +683,7 @@ const goBack = () => {
   }
   const safeUsername = String(userInfo.value.username || localStorage.getItem('username') || '').trim();
   if (safeUsername) {
-    router.push(`/profile/${encodeURIComponent(safeUsername)}`);
+    router.push(`/profile/${encodeURIComponent(safeUsername)}?from=community`);
   } else {
     router.push('/');
   }

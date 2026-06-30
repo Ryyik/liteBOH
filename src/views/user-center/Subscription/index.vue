@@ -31,6 +31,17 @@
       </div>
     </div>
 
+    <!-- Current Subscription Banner -->
+    <div v-if="highestActivePlan" class="current-sub-banner">
+      <div class="banner-icon-wrapper">
+        <component :is="highestActivePlan.icon" class="banner-icon" :size="22" :stroke-width="1.7" />
+      </div>
+      <div class="banner-info">
+        <span class="banner-tier-name">{{ highestActivePlan.name }}</span>
+        <span class="banner-expiry">有效期至 {{ formatDateText(highestActivePlan.expiresAt) }}</span>
+      </div>
+    </div>
+
     <!-- Pricing Cards Container -->
     <div class="music-stave-container">
       <div class="music-lines"></div>
@@ -115,6 +126,49 @@
         </div>
       </div>
     </Transition>
+
+    <!-- Confirm Subscription Modal -->
+    <Transition name="glass-fade">
+      <div v-if="showConfirmModal" class="glass-modal-clean-overlay" @click="closeConfirmModal">
+        <div class="glass-modal-container" @click.stop>
+          <div class="modal-clean-header">
+            <h3 class="modal-clean-title">确认订阅</h3>
+          </div>
+          <div class="modal-clean-divider"></div>
+          <div class="modal-clean-body">
+            <div v-if="confirmPlan" class="confirm-detail">
+              <div class="confirm-row">
+                <span class="confirm-label">订阅计划</span>
+                <span class="confirm-value">{{ confirmPlan.name }}</span>
+              </div>
+              <div class="confirm-row">
+                <span class="confirm-label">付费周期</span>
+                <span class="confirm-value">{{ billingCycle === 'monthly' ? '月付' : '年付' }}</span>
+              </div>
+              <div class="confirm-row">
+                <span class="confirm-label">所需积分</span>
+                <span class="confirm-value highlight">{{ calculatePrice(confirmPlan) }}</span>
+              </div>
+              <div class="confirm-divider"></div>
+              <div class="confirm-row">
+                <span class="confirm-label">当前积分</span>
+                <span class="confirm-value">{{ currentPoints }}</span>
+              </div>
+              <div class="confirm-row">
+                <span class="confirm-label">订阅后剩余</span>
+                <span class="confirm-value" :class="currentPoints - calculatePrice(confirmPlan) >= 0 ? 'text-green' : 'text-red'">
+                  {{ currentPoints - calculatePrice(confirmPlan) }}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div class="modal-clean-actions">
+            <button class="modal-clean-btn modal-cancel-btn" @click="closeConfirmModal">取消</button>
+            <button class="modal-clean-btn modal-confirm-btn" @click="confirmSubscribe">确认订阅</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -143,48 +197,48 @@ const goBack = () => {
 const BASE_PLANS = [
   {
     id: 1,
-    code: 'birthday-party',
-    name: '方块生日会',
+    code: 'free',
+    name: 'Free',
     icon: Cake,
     monthlyCost: 0,
-    features: ['生日当天专属祝福', '神秘生日礼物', '社区徽章', '免费加入'],
+    features: ['生日当天专属祝福', '神秘生日礼物', '社区徽章', 'BOH AI 100次/天', 'Cloud+ 150张'],
     featured: false,
     alwaysActive: true
   },
   {
     id: 2,
-    code: 'gift-custom',
-    name: '礼物定制',
-    icon: Gift,
-    monthlyCost: 30,
-    features: ['根据提示词定制周边', '专属设计服务', '优先发货', '精美包装'],
-    featured: false
-  },
-  {
-    id: 3,
-    code: 'boh-ai-plus',
-    name: 'BOH Plus',
+    code: 'plus',
+    name: 'Plus',
     icon: Bot,
-    monthlyCost: 120,
-    features: ['BOH AI 全部功能', '高速响应优先队列', '多模态交互', '无限对话轮次', 'Cloud+ 300 张图片额度'],
+    monthlyCost: 8,
+    features: ['BOH AI 200次/天', 'Cloud+ 300张', '礼物定制月×1次', '多模态交互'],
     featured: true
   },
   {
-    id: 4,
-    code: 'boh-pro',
-    name: 'BOH Pro',
+    id: 3,
+    code: 'pro',
+    name: 'Pro',
     icon: Zap,
-    monthlyCost: 180,
-    features: ['包含 BOH Plus 全部权益', '高级地图服务', 'AI Ultra 模式', '每月礼物定制额度', 'Cloud+ 500 张图片额度'],
+    monthlyCost: 20,
+    features: ['BOH AI 200次/天', 'Cloud+ 450张', '礼物定制月×2次', '多模态交互', '金色昵称'],
+    featured: false
+  },
+  {
+    id: 4,
+    code: 'max',
+    name: 'Max',
+    icon: Gift,
+    monthlyCost: 40,
+    features: ['BOH AI 500次/天', 'Cloud+ 900张', '礼物定制月×4次', 'Agent & Plan', '金色昵称'],
     featured: false
   },
   {
     id: 5,
-    code: 'boh-max',
-    name: 'BOH Max',
+    code: 'ultra',
+    name: 'Ultra',
     icon: Crown,
-    monthlyCost: 280,
-    features: ['包含 Pro 所有权益', '活动定制服务', '专属AI定制', '全套生态服务', 'Cloud+ 800 张图片额度'],
+    monthlyCost: 70,
+    features: ['BOH AI 不限次数', 'Cloud+ 1200张', '礼物定制月×8次', 'Agent & Plan', '彩虹昵称'],
     featured: false
   }
 ];
@@ -193,6 +247,8 @@ const billingCycle = ref(BILLING_MONTHLY);
 const showToast = ref(false);
 const toastMessage = ref('');
 const showModal = ref(false);
+const showConfirmModal = ref(false);
+const confirmPlan = ref(null);
 const currentService = ref(null);
 const currentPoints = ref(0);
 const isSubmitting = ref(false);
@@ -331,14 +387,16 @@ const handleSubscribe = async (plan) => {
     return;
   }
 
-  const cycleText = billingCycle.value === BILLING_MONTHLY ? '月付' : '年付';
-  const remaining = currentPoints.value - price;
-  const confirmSub = confirm(
-    `确认消耗 ${price} 积分订阅“${plan.name}”(${cycleText})吗？\n当前积分：${currentPoints.value}\n订阅后剩余：${remaining}`
-  );
-  if (!confirmSub) {
-    return;
-  }
+  confirmPlan.value = plan;
+  showConfirmModal.value = true;
+};
+
+const confirmSubscribe = async () => {
+  const plan = confirmPlan.value;
+  if (!plan) return;
+  showConfirmModal.value = false;
+
+  const price = calculatePrice(plan);
 
   isSubmitting.value = true;
   currentService.value = plan;
@@ -402,6 +460,34 @@ const handleSubscribe = async (plan) => {
 const closeModal = () => {
   showModal.value = false;
 };
+
+const closeConfirmModal = () => {
+  showConfirmModal.value = false;
+  confirmPlan.value = null;
+};
+
+const TIER_ORDER = ['free', 'plus', 'pro', 'max', 'ultra'];
+const highestActivePlan = computed(() => {
+  const entries = Object.entries(activeSubscriptions.value);
+  if (entries.length === 0) return null;
+  let best = null;
+  let bestIdx = -1;
+  for (const [, sub] of entries) {
+    const idx = TIER_ORDER.indexOf(sub.planCode);
+    if (idx > bestIdx) {
+      bestIdx = idx;
+      best = sub;
+    }
+  }
+  if (!best) return null;
+  const planDef = BASE_PLANS.find(p => p.code === best.planCode);
+  if (!planDef) return null;
+  return {
+    ...best,
+    name: planDef.name,
+    icon: planDef.icon
+  };
+});
 
 onBeforeUnmount(() => {
   if (toastTimer) {

@@ -9,7 +9,7 @@ const projectRoot = join(__dirname, '..');
 const assetsDir = join(projectRoot, 'src', 'assets', 'images');
 
 // 超过此大小的文件需要压缩
-const SIZE_THRESHOLD_KB = 200;
+const SIZE_THRESHOLD_KB = 50;
 
 // 查找所有 webp 图片
 const images = globSync('**/*.webp', { cwd: assetsDir, absolute: true });

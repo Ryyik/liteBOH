@@ -217,7 +217,11 @@ const dimensions = computed(() =>
 );
 
 const goBackToHome = () => {
-  router.push("/");
+  if (window.history.length > 1) {
+    router.back();
+  } else {
+    router.push('/');
+  }
 };
 
 const showAlert = (type, title, message) => {

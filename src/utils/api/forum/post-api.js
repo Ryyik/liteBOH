@@ -1,5 +1,6 @@
 import { supabase } from '../../supabase-client.js';
 import { executeRead, normalizeDbError, invalidateByTags } from '../../request-core.js';
+import { CACHE_TTL_LEVELS } from '../../cache-strategy.js';
 import { logger } from '../../logger.js';
 import { markCloudinaryUploadsClaimed } from '../../cloudinary-client.js';
 import { deleteCloudinaryAssetsByPublicIds } from '../../cloudinary-client.js';
@@ -605,7 +606,7 @@ export async function getPosts(userId = null, pagination = {}) {
       const nextCursor = buildNextPostCursor(normalizedRows, hasMore);
       return { data: normalizedRows, error: null, hasMore, nextCursor };
     },
-    { ttlMs: 10000, tags: ['posts'], timeoutMs: 8000, retry: 1 }
+    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['posts'], timeoutMs: 8000, retry: 1 }
   );
 }
 
@@ -624,7 +625,7 @@ export async function getPostsCount(userId = null, { countMode = 'planned' } = {
       if (error) return { data: { count: 0 }, error };
       return { data: { count: count || 0 }, error: null };
     },
-    { ttlMs: 10000, tags: ['posts'], timeoutMs: 8000, retry: 1 }
+    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['posts'], timeoutMs: 8000, retry: 1 }
   );
 
   return { ok, count: data?.count || 0, data, error };
@@ -661,7 +662,7 @@ export async function getForumTagStats() {
         error: null
       };
     },
-    { ttlMs: 30000, tags: ['posts'], timeoutMs: 8000, retry: 1 }
+    { ttlMs: CACHE_TTL_LEVELS.STATIC_DATA, tags: ['posts'], timeoutMs: 8000, retry: 1 }
   );
 
   return { ok, data: Array.isArray(data) ? data : [], error: normalizeDbError(error) };
@@ -1304,7 +1305,7 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
       const nextCursor = buildNextPostCursor(normalizedRows, hasMore);
       return { data: normalizedRows, error: null, hasMore, nextCursor };
     },
-    { ttlMs: 10000, tags: ['posts', `posts:user:${targetUserId}`], timeoutMs: 8000, retry: 1 }
+    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['posts', `posts:user:${targetUserId}`], timeoutMs: 8000, retry: 1 }
   );
 }
 
@@ -1446,7 +1447,7 @@ export async function getWeeklyCheckinStatus(userId = null) {
       return { data: enriched, error: null };
     },
     {
-      ttlMs: 5000,
+      ttlMs: CACHE_TTL_LEVELS.REALTIME,
       tags: ['weekly-checkin', `weekly-checkin:user:${resolvedUserId || 'anonymous'}`, 'profiles'],
       timeoutMs: 8000,
       retry: 0

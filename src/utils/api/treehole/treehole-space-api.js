@@ -1,5 +1,6 @@
 import { supabase } from '../../supabase-client.js';
 import { executeRead, normalizeDbError, invalidateByTags } from '../../request-core.js';
+import { CACHE_TTL_LEVELS } from '../../cache-strategy.js';
 import { callVaultSiliconChat } from '../api-key-runtime-api.js';
 import {
   toTrimmedText,
@@ -352,7 +353,7 @@ export async function getMyTreeholeSpace(userId) {
         .maybeSingle();
       return { data: normalizeSpaceRow(data), error };
     },
-    { ttlMs: 5000, tags: [TREEHOLE_CACHE_TAG, `${TREEHOLE_CACHE_TAG}:user:${safeUserId}`], timeoutMs: 8000, retry: 1 }
+    { ttlMs: CACHE_TTL_LEVELS.USER_DATA, tags: [TREEHOLE_CACHE_TAG, `${TREEHOLE_CACHE_TAG}:user:${safeUserId}`], timeoutMs: 8000, retry: 1 }
   );
 
   return result;

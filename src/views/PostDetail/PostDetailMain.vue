@@ -320,7 +320,7 @@ const requestConfirm = ({ title, message, confirmText = '确定', cancelText = '
 const goToProfile = (usernameVal) => {
   const safeUsername = String(usernameVal || '').trim();
   if (!safeUsername) return;
-  router.push(`/profile/${encodeURIComponent(safeUsername)}`);
+  router.push(`/profile/${encodeURIComponent(safeUsername)}?from=post-detail`);
 };
 
 const emitProfileSync = ({ userId, username, reason }) => {
@@ -898,6 +898,23 @@ const submitReply = async () => {
     showLoginModal.value = true;
     return;
   }
+
+  // 检查用户禁言状态
+  if (userInfo.isMuted) {
+    let muteMessage = '您已被禁言，无法发表评论。';
+    if (userInfo.muteReason) {
+      muteMessage += ` 原因：${userInfo.muteReason}`;
+    }
+    if (userInfo.mutedUntil) {
+      const expiryDate = new Date(userInfo.mutedUntil);
+      muteMessage += ` 解禁时间：${expiryDate.toLocaleDateString('zh-CN')}`;
+    } else {
+      muteMessage += '（永久禁言）';
+    }
+    showModal('warning', '禁言提示', muteMessage);
+    return;
+  }
+
   if (isReplySubmitting.value) return;
   if (replyCooldownSeconds.value > 0) {
     showModal('warning', '回复太频繁', `请 ${replyCooldownSeconds.value} 秒后再试`);
@@ -1124,8 +1141,12 @@ const goBack = () => {
 
   if (source === 'profile') {
     const sourceUsername = getQueryString(route.query.username);
+    const origin = getQueryString(route.query.origin);
     if (sourceUsername) {
-      router.push(`/profile/${encodeURIComponent(sourceUsername)}`);
+      const url = origin
+        ? `/profile/${encodeURIComponent(sourceUsername)}?from=${encodeURIComponent(origin)}`
+        : `/profile/${encodeURIComponent(sourceUsername)}`;
+      router.push(url);
       return;
     }
   }

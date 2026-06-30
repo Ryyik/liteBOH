@@ -113,9 +113,8 @@ function handleCheckin() {
                 <span class="checkin-streak-label">周连续签到</span>
               </div>
               <p class="checkin-streak-hint">
-                <template v-if="nextWeeks === 0 && !status.hasSignedThisWeek">本周完成签到可获得 {{ WEEKLY_CHECKIN_REWARD_POINTS }} 积分奖励</template>
-                <template v-else-if="nextWeeks === 0">已达成 {{ weeklyCheckinCycleSize }} 周连签奖励</template>
-                <template v-else>再坚持 {{ nextWeeks }} 周可获得 {{ WEEKLY_CHECKIN_REWARD_POINTS }} 积分</template>
+                <template v-if="!status.hasSignedThisWeek">本周签到可获得 {{ WEEKLY_CHECKIN_REWARD_POINTS }} 积分</template>
+                <template v-else>本周签到已完成 +{{ WEEKLY_CHECKIN_REWARD_POINTS }} 积分</template>
               </p>
             </div>
 

@@ -32,10 +32,10 @@
               {{ item.label }}
             </button>
           </div>
-          <button class="ghost-btn" :disabled="isLoading" @click="refreshList">刷新</button>
+          <button class="ghost-btn" :disabled="state.isLoading" @click="refreshList">刷新</button>
         </div>
 
-        <div v-if="isLoading && sharedMemories.length === 0" class="loading-state">
+        <div v-if="state.isLoading && sharedMemories.length === 0" class="loading-state">
           <div class="loading-spinner"></div>
           <p>正在加载公共记忆...</p>
         </div>
@@ -62,7 +62,7 @@
 
             <div v-if="item.mood || (item.tags && item.tags.length)" class="memory-tags">
               <span v-if="item.mood" class="tag mood-tag">{{ item.mood }}</span>
-              <span v-for="tag in (item.tags || [])" :key="`${item.id}-${tag}`" class="tag">{{ tag }}</span>
+              <span v-for="(tag, tagIndex) in (item.tags || [])" :key="`${item.id}-${tagIndex}`" class="tag">{{ tag }}</span>
             </div>
 
             <p v-if="Array.isArray(item.evidence) && item.evidence.length > 0" class="evidence-hint">
@@ -104,8 +104,8 @@
           </article>
 
           <div v-if="hasMore" class="load-more">
-            <button class="ghost-btn" :disabled="isLoading" @click="loadMore">
-              {{ isLoading ? '加载中...' : '加载更多' }}
+            <button class="ghost-btn" :disabled="state.isLoading" @click="loadMore">
+              {{ state.isLoading ? '加载中...' : '加载更多' }}
             </button>
           </div>
         </div>
@@ -115,7 +115,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { Archive, LockKeyhole } from 'lucide-vue-next';
@@ -139,7 +139,14 @@ const goBack = () => {
 };
 
 const sharedMemories = ref([]);
-const isLoading = ref(false);
+
+// 状态合并为单一对象
+const state = reactive({
+  isLoading: false,
+  error: null,
+  lastFetchTime: 0 // 用于智能刷新
+});
+
 const filterStatus = ref('all');
 const runningAction = reactive({
   id: '',
@@ -150,6 +157,9 @@ const pager = reactive({
   pageSize: 20,
   total: 0
 });
+
+// AbortController 管理
+let abortController = null;
 
 const statusOptions = [
   { label: '生效中', value: 'active' },
@@ -203,24 +213,41 @@ const formatConfidence = (value) => {
 
 const isActionRunning = (id) => runningAction.id === id;
 
-const fetchSharedMemories = async ({ append = false } = {}) => {
+const fetchSharedMemories = async ({ append = false, force = false } = {}) => {
   if (!isLoggedIn.value || !userInfo.value?.id) {
     sharedMemories.value = [];
     pager.total = 0;
     return;
   }
 
-  isLoading.value = true;
+  // 智能刷新：5秒内不重复刷新（除非强制刷新）
+  const now = Date.now();
+  if (!force && !append && state.lastFetchTime > 0 && (now - state.lastFetchTime) < 5000) {
+    return;
+  }
+
+  // 取消之前的请求
+  if (abortController) {
+    abortController.abort();
+  }
+  abortController = new AbortController();
+
+  state.isLoading = true;
+  state.error = null;
+
   const result = await getMySharedAIMemories({
     userId: String(userInfo.value.id || ''),
     page: pager.page,
     pageSize: pager.pageSize,
     status: filterStatus.value
   });
-  isLoading.value = false;
+
+  state.isLoading = false;
+  state.lastFetchTime = Date.now();
 
   if (!result.ok) {
-    showNotice(result.error?.message || '读取公共记忆失败，请稍后重试。', 'error');
+    state.error = result.error?.message || '读取公共记忆失败，请稍后重试。';
+    showNotice(state.error, 'error');
     if (!append) {
       sharedMemories.value = [];
       pager.total = 0;
@@ -235,18 +262,18 @@ const fetchSharedMemories = async ({ append = false } = {}) => {
 
 const refreshList = async () => {
   pager.page = 1;
-  await fetchSharedMemories({ append: false });
+  await fetchSharedMemories({ append: false, force: true });
 };
 
 const changeFilter = async (nextStatus) => {
   if (filterStatus.value === nextStatus) return;
   filterStatus.value = nextStatus;
   pager.page = 1;
-  await fetchSharedMemories({ append: false });
+  await fetchSharedMemories({ append: false, force: true });
 };
 
 const loadMore = async () => {
-  if (!hasMore.value || isLoading.value) return;
+  if (!hasMore.value || state.isLoading) return;
   pager.page += 1;
   await fetchSharedMemories({ append: true });
 };
@@ -254,19 +281,31 @@ const loadMore = async () => {
 const updateStatus = async (item, nextStatus, successText) => {
   if (!item?.id || !userInfo.value?.id) return;
 
+  // 1. 本地立即更新状态（优化用户体验）
+  const previousStatus = item.status;
+  item.status = nextStatus;
+  showNotice(successText, 'success');
+
   runningAction.id = String(item.id);
   runningAction.type = 'status';
+
+  // 2. 发起更新请求
   const result = await updateSharedAIMemoryStatus(String(userInfo.value.id || ''), String(item.id), nextStatus);
+
   runningAction.id = '';
   runningAction.type = '';
 
   if (!result.ok) {
+    // 如果更新失败，恢复状态
+    item.status = previousStatus;
     showNotice(result.error?.message || '更新公共记忆状态失败。', 'error');
     return;
   }
 
-  showNotice(successText, 'success');
-  await refreshList();
+  // 3. 延迟静默刷新（3秒后执行）
+  setTimeout(() => {
+    fetchSharedMemories({ append: false, force: true });
+  }, 3000);
 };
 
 const archiveMemory = async (item) => {
@@ -303,21 +342,33 @@ const editMemory = async (item) => {
     return;
   }
 
+  // 1. 本地立即更新内容（优化用户体验）
+  const previousContent = item.content;
+  item.content = nextContent;
+  showNotice('公共记忆已更新。', 'success');
+
   runningAction.id = String(item.id);
   runningAction.type = 'edit';
+
+  // 2. 发起更新请求
   const result = await updateSharedAIMemory(String(userInfo.value.id || ''), String(item.id), {
     content: nextContent
   });
+
   runningAction.id = '';
   runningAction.type = '';
 
   if (!result.ok) {
+    // 如果更新失败，恢复内容
+    item.content = previousContent;
     showNotice(result.error?.message || '更新公共记忆失败。', 'error');
     return;
   }
 
-  showNotice('公共记忆已更新。', 'success');
-  await refreshList();
+  // 3. 延迟静默刷新（3秒后执行）
+  setTimeout(() => {
+    fetchSharedMemories({ append: false, force: true });
+  }, 3000);
 };
 
 const removeMemory = async (item) => {
@@ -331,33 +382,59 @@ const removeMemory = async (item) => {
   });
   if (!confirmed) return;
 
-  runningAction.id = String(item.id);
-  runningAction.type = 'delete';
-  const result = await deleteSharedAIMemory(String(userInfo.value.id || ''), String(item.id));
-  runningAction.id = '';
-  runningAction.type = '';
+  // 1. 本地立即删除（优化用户体验）
+  const previousMemories = [...sharedMemories.value];
+  sharedMemories.value = sharedMemories.value.filter(memory => memory.id !== item.id);
 
-  if (!result.ok) {
-    showNotice(result.error?.message || '删除公共记忆失败。', 'error');
-    return;
+  // 调整页码
+  if (sharedMemories.value.length === 0 && pager.page > 1) {
+    pager.page -= 1;
   }
 
   showNotice('公共记忆已删除。', 'success');
 
-  if (sharedMemories.value.length === 1 && pager.page > 1) {
-    pager.page -= 1;
+  runningAction.id = String(item.id);
+  runningAction.type = 'delete';
+
+  // 2. 发起删除请求
+  const result = await deleteSharedAIMemory(String(userInfo.value.id || ''), String(item.id));
+
+  runningAction.id = '';
+  runningAction.type = '';
+
+  if (!result.ok) {
+    // 如果删除失败，恢复数据
+    sharedMemories.value = previousMemories;
+    showNotice(result.error?.message || '删除公共记忆失败。', 'error');
+    return;
   }
-  await fetchSharedMemories({ append: false });
+
+  // 3. 延迟静默刷新（3秒后执行）
+  setTimeout(() => {
+    fetchSharedMemories({ append: false, force: true });
+  }, 3000);
 };
 
 watch(() => userInfo.value?.id || '', async (nextId, prevId) => {
   if (nextId === prevId) return;
   pager.page = 1;
-  await fetchSharedMemories({ append: false });
+  await fetchSharedMemories({ append: false, force: true });
 });
 
 onMounted(() => {
-  void fetchSharedMemories({ append: false });
+  void fetchSharedMemories({ append: false, force: true });
+});
+
+// 组件卸载时取消请求
+onUnmounted(() => {
+  if (abortController) {
+    abortController.abort();
+    abortController = null;
+  }
+  if (noticeTimer) {
+    clearTimeout(noticeTimer);
+    noticeTimer = null;
+  }
 });
 </script>
 

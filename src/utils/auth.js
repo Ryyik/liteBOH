@@ -49,7 +49,6 @@ export {
   markAllNotificationsAsRead,
   createNotification,
   getUnreadNotificationCount,
-  subscribeToNotifications,
   filterSelfActionNotifications,
   sendPushplusForNotification
 } from './api/notifications-api.js';

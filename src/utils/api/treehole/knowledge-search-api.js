@@ -1,5 +1,6 @@
 import { supabase } from '../../supabase-client.js';
 import { executeRead, normalizeDbError } from '../../request-core.js';
+import { CACHE_TTL_LEVELS } from '../../cache-strategy.js';
 import {
   toTrimmedText,
   TREEHOLE_SHARED_MEMORY_CACHE_TAG
@@ -68,7 +69,7 @@ export async function searchBohAIKnowledgeForAI({
       };
     },
     {
-      ttlMs: 15000,
+      ttlMs: CACHE_TTL_LEVELS.AI_DATA,
       tags: [TREEHOLE_SHARED_MEMORY_CACHE_TAG],
       timeoutMs: 25000,
       retry: 0

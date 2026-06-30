@@ -270,5 +270,105 @@ defineEmits([
 </script>
 
 <style scoped>
-/* Styles are provided globally via UserSpaceMain's style imports */
+.profile-subpage-shell {
+  padding-top: 0;
+}
+
+.settings-section-card {
+  overflow: hidden;
+  position: relative;
+}
+
+.settings-page-cat {
+  position: absolute;
+  right: 18px;
+  top: -8px;
+  width: 106px;
+  height: 88px;
+  opacity: 0.18;
+  transform: rotate(7deg);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.settings-card-cat {
+  position: absolute;
+  right: 16px;
+  bottom: 10px;
+  width: 52px;
+  height: 44px;
+  opacity: 0.24;
+  transform: rotate(5deg);
+  pointer-events: none;
+}
+
+.settings-card-cat.alt {
+  top: 10px;
+  bottom: auto;
+  opacity: 0.28;
+  transform: rotate(-5deg);
+}
+
+.settings-section-card > :not(.settings-card-cat) {
+  position: relative;
+  z-index: 1;
+}
+
+.setting-label-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.group-header-title {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 800;
+  padding: 16px 16px 10px;
+}
+
+.danger-section-card {
+  border: 1px solid rgba(255, 59, 48, 0.2);
+}
+
+.toggle-switch {
+  position: relative;
+  width: 46px;
+  height: 26px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  transition: background-color 0.16s ease;
+  cursor: pointer;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.toggle-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
+  transition: transform 0.16s ease;
+}
+
+.toggle-switch.enabled {
+  background: #34c759;
+}
+
+.toggle-switch.enabled::after {
+  transform: translateX(20px);
+}
+
+:global(.user-space-page[data-theme="dark"]) .toggle-switch {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+:global(.user-space-page[data-theme="dark"]) .toggle-switch.enabled {
+  background: #30d158;
+}
 </style>

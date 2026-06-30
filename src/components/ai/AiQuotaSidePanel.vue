@@ -82,7 +82,7 @@
               升级订阅解锁更多
             </button>
             <div v-else-if="quota" class="quota-tier-note">
-              <strong>{{ quota.tier === 'boh-ai-plus' ? 'BOH Plus' : quota.tier === 'boh-pro' ? 'BOH Pro' : 'BOH Max' }} 会员</strong>
+              <strong>{{ TIER_LABELS[quota.tier] || quota.tier }}</strong>
               <span>{{ quota.limit === -1 ? '无限额度' : `每日 ${quota.limit} 条` }}</span>
             </div>
           </footer>
@@ -136,9 +136,10 @@ const quota = ref(null);
 const TIER_LABELS = {
   guest: '未登录用户',
   free: '免费用户',
-  'boh-ai-plus': 'BOH Plus',
-  'boh-pro': 'BOH Pro',
-  'boh-max': 'BOH Max'
+  plus: 'Plus',
+  pro: 'Pro',
+  max: 'Max',
+  ultra: 'Ultra'
 };
 
 const tierLabel = computed(() => TIER_LABELS[quota.value?.tier] || quota.value?.tier || '');

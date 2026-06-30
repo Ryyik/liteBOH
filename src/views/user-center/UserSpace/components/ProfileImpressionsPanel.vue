@@ -45,4 +45,57 @@ defineEmits([
 ]);
 </script>
 
-<style scoped></style>
+<style scoped>
+.profile-subpage-shell {
+  padding-top: 0;
+}
+
+.profile-impressions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.profile-impression-card {
+  padding: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.profile-impression-card p {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+  font-weight: 700;
+}
+
+.profile-impression-card div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.profile-impression-card span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.profile-impression-card button {
+  border: 0;
+  background: transparent;
+  color: #ff3b30;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+:global(.user-space-page[data-theme="dark"]) .profile-impression-card {
+  background: rgba(24, 24, 27, 0.92);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+</style>

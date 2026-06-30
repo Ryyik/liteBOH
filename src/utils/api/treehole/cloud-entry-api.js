@@ -1,5 +1,6 @@
 import { supabase } from '../../supabase-client.js';
 import { executeRead, normalizeDbError, invalidateByTags } from '../../request-core.js';
+import { CACHE_TTL_LEVELS } from '../../cache-strategy.js';
 import {
   toTrimmedText,
   normalizeTags,
@@ -125,7 +126,7 @@ export async function getMyTreeholeMemories({
       };
     },
     {
-      ttlMs: 4000,
+      ttlMs: CACHE_TTL_LEVELS.REALTIME,
       tags: [TREEHOLE_CACHE_TAG, `${TREEHOLE_CACHE_TAG}:user:${safeUserId}`],
       timeoutMs: 9000,
       retry: 1
@@ -254,7 +255,7 @@ export async function getMyTreeholeMemoriesByRange({
       };
     },
     {
-      ttlMs: 4000,
+      ttlMs: CACHE_TTL_LEVELS.REALTIME,
       tags: [TREEHOLE_CACHE_TAG, `${TREEHOLE_CACHE_TAG}:user:${safeUserId}`],
       timeoutMs: 9000,
       retry: 1
@@ -324,7 +325,7 @@ export async function getMyTreeholeMemoryDensity({
       };
     },
     {
-      ttlMs: 3500,
+      ttlMs: CACHE_TTL_LEVELS.REALTIME,
       tags: [TREEHOLE_CACHE_TAG, `${TREEHOLE_CACHE_TAG}:user:${safeUserId}`],
       timeoutMs: 9000,
       retry: 1

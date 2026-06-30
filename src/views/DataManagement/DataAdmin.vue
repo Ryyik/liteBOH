@@ -471,10 +471,14 @@
                     <template v-else-if="col.type === 'badge'">
                       <span
                         class="cell-badge"
-                        :class="`badge-${getBadgeType(item[col.key])}`"
+                        :class="col.key === 'is_banned' || col.key === 'is_muted'
+                          ? (item[col.key] === true ? 'badge-danger' : 'badge-muted')
+                          : `badge-${getBadgeType(item[col.key])}`"
                         @dblclick="startInlineEdit(item, col)"
                       >
-                        {{ item[col.key] || '-' }}
+                        {{ col.key === 'is_banned' || col.key === 'is_muted'
+                          ? (item[col.key] === true ? '是' : '否')
+                          : (item[col.key] || '-') }}
                       </span>
                     </template>
                     <template v-else-if="col.type === 'tags'">
@@ -608,6 +612,41 @@
                         >
                           关闭
                         </button>
+                        <!-- 用户封禁/禁言操作按钮 -->
+                        <template v-if="currentTab === 'users' || currentTab === 'points'">
+                          <button
+                            v-if="!item.is_banned"
+                            class="review-btn reject"
+                            @click="banUser(item)"
+                            title="封禁用户（禁止登录）"
+                          >
+                            封禁
+                          </button>
+                          <button
+                            v-if="item.is_banned"
+                            class="review-btn approve"
+                            @click="unbanUser(item)"
+                            title="解封用户"
+                          >
+                            解封
+                          </button>
+                          <button
+                            v-if="!item.is_muted"
+                            class="review-btn reject"
+                            @click="muteUser(item)"
+                            title="禁言用户（禁止发言）"
+                          >
+                            禁言
+                          </button>
+                          <button
+                            v-if="item.is_muted"
+                            class="review-btn approve"
+                            @click="unmuteUser(item)"
+                            title="解除禁言"
+                          >
+                            解禁
+                          </button>
+                        </template>
                         <button v-if="!isReadOnlyTab" class="icon-btn edit" @click="openEditModal(item)" title="编辑">
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2">
@@ -2902,6 +2941,11 @@ const {
   updateModerationStatus,
   deleteModerationTarget,
   saveModerationLog,
+  // 用户封禁/禁言
+  banUser,
+  unbanUser,
+  muteUser,
+  unmuteUser,
   isMissingRpcFunctionError,
   buildModerationErrorMessage
 } = createMutationsCenter({
@@ -3172,10 +3216,10 @@ const openEditModal = async (item = null) => {
         editingItem.value.user_id = '';
         editingItem.value.username = '';
         editingItem.value.email = '';
-        editingItem.value.plan_code = 'boh-ai-plus';
-        editingItem.value.plan_name = SUBSCRIPTION_PLAN_NAMES['boh-ai-plus'];
+        editingItem.value.plan_code = 'plus';
+        editingItem.value.plan_name = SUBSCRIPTION_PLAN_NAMES['plus'];
         editingItem.value.billing_cycle = 'monthly';
-        editingItem.value.points_cost = 120;
+        editingItem.value.points_cost = 8;
         editingItem.value.duration_months = 1;
         editingItem.value.started_at = toDateTimeInputValue(now);
         editingItem.value.expires_at = toDateTimeInputValue(expires);

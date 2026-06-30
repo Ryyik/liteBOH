@@ -1,5 +1,6 @@
 import { supabase } from '../../supabase-client.js';
 import { executeRead, normalizeDbError, invalidateByTags } from '../../request-core.js';
+import { CACHE_TTL_LEVELS } from '../../cache-strategy.js';
 import { logger } from '../../logger.js';
 import {
   runKeywordPrecheck,
@@ -154,7 +155,7 @@ export async function getComments(postId, currentUserId = null, options = {}) {
 
       return { data: formattedData, error: null, hasMore };
     },
-    { ttlMs: 10000, tags: ['comments', `comments:post:${safePostId}`], timeoutMs: 8000, retry: 1 }
+    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['comments', `comments:post:${safePostId}`], timeoutMs: 8000, retry: 1 }
   );
 }
 
@@ -220,7 +221,7 @@ export async function getCommentThreadReplies(postId, rootCommentId, currentUser
         hasMore: safeRows.length > pageSize
       };
     },
-    { ttlMs: 10000, tags: ['comments', `comments:post:${safePostId}`], timeoutMs: 8000, retry: 1 }
+    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['comments', `comments:post:${safePostId}`], timeoutMs: 8000, retry: 1 }
   );
 }
 

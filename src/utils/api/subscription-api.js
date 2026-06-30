@@ -1,5 +1,6 @@
 import { supabase } from '../supabase-client.js';
 import { executeRead, normalizeDbError, invalidateByTags } from '../request-core.js';
+import { CACHE_TTL_LEVELS } from '../cache-strategy.js';
 
 function normalizeSubscriptionRow(row = {}) {
   return {
@@ -78,7 +79,7 @@ export async function getMySubscriptions(userId, options = {}) {
       if (error) return { data: [], error };
       return { data: (data || []).map(normalizeSubscriptionRow), error: null };
     },
-    { ttlMs: 5000, tags: ['subscriptions', `subscriptions:user:${userId}`], timeoutMs: 8000, retry: 0 }
+    { ttlMs: CACHE_TTL_LEVELS.REALTIME, tags: ['subscriptions', `subscriptions:user:${userId}`], timeoutMs: 8000, retry: 0 }
   );
 }
 

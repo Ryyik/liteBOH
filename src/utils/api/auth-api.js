@@ -4,6 +4,7 @@ import {
   normalizeDbError,
   invalidateByTags
 } from '../request-core.js';
+import { CACHE_TTL_LEVELS } from '../cache-strategy.js';
 import { logger } from '../logger.js';
 import { clearSensitiveLocalStorage } from '../safe-storage.js';
 import {
@@ -490,7 +491,7 @@ export async function getCurrentUser() {
       const { data: authData, error } = await supabase.auth.getUser();
       return { data: authData?.user || null, error };
     },
-    { ttlMs: 2000, tags: ['auth'], timeoutMs: 4000, retry: 0 }
+    { ttlMs: CACHE_TTL_LEVELS.REALTIME, tags: ['auth'], timeoutMs: 4000, retry: 0 }
   );
 
   if (error) {
@@ -510,7 +511,7 @@ export async function getAllProfiles() {
     'profiles.getAllProfiles',
     {},
     async () => supabase.from('profiles').select(PROFILE_ALL_COLUMNS),
-    { ttlMs: 30000, tags: ['profiles'], timeoutMs: 8000, retry: 1 }
+    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['profiles'], timeoutMs: 8000, retry: 1 }
   );
 }
 
@@ -563,7 +564,7 @@ export async function getProfilesPage({ page = 1, pageSize = 10, search = '', co
       };
     },
     {
-      ttlMs: 15000,
+      ttlMs: CACHE_TTL_LEVELS.USER_DATA,
       tags: ['profiles'],
       timeoutMs: 8000,
       retry: 1
@@ -591,7 +592,7 @@ export async function getRecentBirthdayProfiles({ limit = 8 } = {}) {
       };
     },
     {
-      ttlMs: 5 * 60 * 1000,
+      ttlMs: CACHE_TTL_LEVELS.STATIC_DATA,
       tags: ['profiles'],
       timeoutMs: 8000,
       retry: 1
@@ -604,7 +605,7 @@ export async function getUserInfo(userId) {
     'profiles.getUserInfo',
     { userId },
     async () => supabase.from('profiles').select(PROFILE_ALL_COLUMNS).eq('id', userId).single(),
-    { ttlMs: 30000, tags: ['profiles', `profiles:user:${userId}`], timeoutMs: 8000, retry: 1 }
+    { ttlMs: CACHE_TTL_LEVELS.USER_DATA, tags: ['profiles', `profiles:user:${userId}`], timeoutMs: 8000, retry: 1 }
   );
 }
 

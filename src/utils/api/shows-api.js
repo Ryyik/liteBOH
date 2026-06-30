@@ -1,5 +1,6 @@
 import { supabase } from '../supabase-client.js';
 import { executeRead, normalizeDbError, invalidateByTags } from '../request-core.js';
+import { CACHE_TTL_LEVELS } from '../cache-strategy.js';
 
 const CREATOR_SHOWS_TAG = 'creator-shows';
 
@@ -128,7 +129,7 @@ export async function getCreatorShows(options = {}) {
       if (error) return { data: [], error };
       return { data: (data || []).map((item) => normalizeShowRow(item)), error: null };
     },
-    { ttlMs: 10000, tags: [CREATOR_SHOWS_TAG], timeoutMs: 8000, retry: 1 }
+    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: [CREATOR_SHOWS_TAG], timeoutMs: 8000, retry: 1 }
   );
 }
 

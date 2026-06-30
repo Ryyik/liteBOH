@@ -47,9 +47,10 @@
     </div>
 
     <div v-if="mountedTabs.profile" v-show="currentTab === 'profile'" :ref="(el) => setTabPageRef('profile', el)"
-      class="tab-page profile-tab">
+      class="tab-page profile-tab" :class="{ 'profile-home-active': profileSection === 'home' }">
       <div class="profile-page-content">
-        <div v-if="!isLoggedIn" class="login-prompt">
+        <!-- ✅ 性能优化：静态内容使用 v-once，避免重复渲染 -->
+        <div v-if="!isLoggedIn" class="login-prompt" v-once>
           <User class="login-prompt-icon" :size="34" :stroke-width="1.7" aria-hidden="true" />
           <h3 class="login-prompt-title">登录以查看我的</h3>
           <p class="login-prompt-desc">登录后可以访问我的空间和更多功能</p>
@@ -61,194 +62,48 @@
             <ProfileHomePanel v-if="profileSection === 'home'" key="profile-home" :profile="userInfo"
               :avatar-url="avatarUrl" :profile-background-url="profileBackgroundUrl"
               :profile-cover-style="profileCoverStyle" :is-uploading-profile-background="isUploadingProfileBackground"
-              :stats="userStats" :is-stats-loading="isUserStatsLoading" :cloud-plus-usage-text="cloudPlusUsageText"
+              :stats="userStats" :is-stats-loading="dataState.stats.loading" :cloud-plus-usage-text="cloudPlusUsageText"
               :cloud-plus-usage-meter-style="cloudPlusUsageMeterStyle"
-              :subscription-summary-text="subscriptionSummaryText" :gift-progress-text="giftProgressText"
-              :is-content-loading="isProfileContentLoading"
+              :subscription-summary-text="subscriptionSummaryText"
+              :is-content-loading="dataState.profile.loading"
               :posts="profilePosts" :has-more-posts="hasMoreProfilePosts" :is-loading-more="isLoadingMoreProfilePosts"
               @edit-profile="openEditProfileModal" @settings="openProfileSettings" @avatar-click="handleAvatarClick"
               @background-click="handleProfileBackgroundClick"
               @view-impressions="openProfileImpressions" @sponsor="openSponsorPage"
               @data-management="openProfileDataManagement" @cloud-plus="openCloudPlusArea"
               @subscription="router.push('/user-space/subscriptions?from=userspace')"
-              @gift="router.push('/user-space/gifts?from=userspace')" @post-click="openProfilePost"
-              @switch-tab="switchTab" @delete-impression="handleDeleteProfileImpression"
+              @post-click="openProfilePost"
+              @switch-tab="switchTab"
               @load-more="loadMoreProfilePosts" />
 
-            <div v-else-if="profileSection === 'edit-profile'" key="profile-edit" class="profile-edit-page-shell">
-              <UserCenterPageHeader title="编辑资料" back-label="返回我的" max-width="650px" @back="closeEditProfileModal" />
+            <!-- ✅ 性能优化：使用 v-memo 基于 profileSection 和 isLoading 条件优化渲染 -->
+            <EditProfilePanel v-else-if="profileSection === 'edit-profile'" key="profile-edit" v-memo="[profileSection]"
+              :avatar-url="avatarUrl" :username="username"
+              :bio="editProfileForm.bio" :join-year="editProfileForm.joinYear"
+              :join-month="editProfileForm.joinMonth" :join-day="editProfileForm.joinDay"
+              :birth-month="editProfileForm.birthMonth" :birth-day="editProfileForm.birthDay"
+              :join-date-years="joinDateYears" :months="months"
+              :days-for-edit-join-date="daysForEditJoinDate" :days-for-edit-profile="daysForEditProfile"
+              :is-submitting-profile-edit="isSubmittingProfileEdit"
+              @close="closeEditProfileModal" @avatar-click="handleAvatarClick"
+              @save="submitEditProfile"
+              @update-bio="editProfileForm.bio = $event"
+              @update-join-year="editProfileForm.joinYear = $event"
+              @update-join-month="editProfileForm.joinMonth = $event"
+              @update-join-day="editProfileForm.joinDay = $event"
+              @update-birth-month="editProfileForm.birthMonth = $event"
+              @update-birth-day="editProfileForm.birthDay = $event" />
 
-              <section class="profile-edit-page-card">
-                <div class="profile-edit-page-hero">
-                  <div class="apple-avatar-wrapper profile-edit-page-avatar clickable" @click="handleAvatarClick">
-                    <div v-if="avatarUrl" class="apple-avatar has-avatar">
-                      <img :src="avatarUrl" alt="头像" class="avatar-img" loading="lazy">
-                    </div>
-                    <div v-else class="apple-avatar">{{ (username || 'U').charAt(0).toUpperCase() }}</div>
-                    <span class="profile-edit-avatar-badge" aria-hidden="true">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                        <circle cx="12" cy="13" r="4" />
-                      </svg>
-                    </span>
-                    <div class="avatar-edit-overlay">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                        <circle cx="12" cy="13" r="4" />
-                      </svg>
-                    </div>
-                  </div>
-                  <div class="profile-edit-page-copy">
-                    <h3>{{ username || '我的资料' }}</h3>
-                    <p>更新会显示在“我的”页面顶部。</p>
-                    <button type="button" class="profile-edit-avatar-action" @click="handleAvatarClick">
-                      更换头像
-                    </button>
-                  </div>
-                </div>
-
-                <div class="edit-profile-form profile-edit-page-form">
-                  <label class="edit-profile-field">
-                    <span>个人简介</span>
-                    <textarea v-model="editProfileForm.bio" class="edit-profile-textarea" maxlength="160"
-                      placeholder="写一句介绍自己或当前状态的话"></textarea>
-                  </label>
-
-                  <label class="edit-profile-field">
-                    <span>入群时间</span>
-                    <div class="profile-date-selector">
-                      <select v-model="editProfileForm.joinYear" class="profile-date-select">
-                        <option value="">年</option>
-                        <option v-for="year in joinDateYears" :key="`page-join-year-${year}`" :value="year">{{ year }}年
-                        </option>
-                      </select>
-                      <select v-model="editProfileForm.joinMonth" class="profile-date-select">
-                        <option value="">月</option>
-                        <option v-for="month in months" :key="`page-join-month-${month}`" :value="month">{{ month }}月
-                        </option>
-                      </select>
-                      <select v-model="editProfileForm.joinDay" class="profile-date-select">
-                        <option value="">日</option>
-                        <option v-for="day in daysForEditJoinDate" :key="`page-join-day-${day}`" :value="day">{{ day }}日
-                        </option>
-                      </select>
-                    </div>
-                  </label>
-
-                  <div class="edit-profile-field">
-                    <span>生日</span>
-                    <div class="profile-date-selector birthday-selector compact">
-                      <select v-model="editProfileForm.birthMonth" class="profile-date-select">
-                        <option value="">月</option>
-                        <option v-for="m in months" :key="`page-edit-month-${m}`" :value="m">{{ m }}月</option>
-                      </select>
-                      <select v-model="editProfileForm.birthDay" class="profile-date-select">
-                        <option value="">日</option>
-                        <option v-for="d in daysForEditProfile" :key="`page-edit-day-${d}`" :value="d">{{ d }}日</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <div class="profile-edit-page-actions">
-                <button type="button" class="profile-edit-cancel-btn" @click="closeEditProfileModal">取消</button>
-                <button type="button" class="profile-edit-save-btn" @click="submitEditProfile"
-                  :disabled="isSubmittingProfileEdit">
-                  {{ isSubmittingProfileEdit ? '保存中...' : '保存资料' }}
-                </button>
-              </div>
-            </div>
-
-            <div v-else-if="profileSection === 'sponsor'" key="profile-sponsor" class="profile-subpage-shell">
-              <UserCenterPageHeader title="赞助支持" back-label="返回我的" max-width="650px" @back="backToProfileHome" />
-
-              <div class="profile-subpage-body">
-                <section class="sponsor-hero apple-card">
-                  <HomeCatMascot v-if="isHomeCatActive" class="sponsor-hero-cat" pool="background" seed="sponsor-hero"
-                    size="lg" decorative />
-                  <div class="sponsor-hero-copy">
-                    <p class="sponsor-kicker">Sponsor</p>
-                    <h3>助力我喝杯咖啡</h3>
-                    <p>你的支持会让方块之家继续维护、更新和变得更好。</p>
-                  </div>
-                  <button type="button" class="sponsor-primary-btn" @click="startSponsorFlow">
-                    赞助
-                  </button>
-                </section>
-
-                <section class="apple-card sponsor-panel">
-                  <HomeCatMascot v-if="isHomeCatActive" class="sponsor-panel-cat" pool="ambient" seed="sponsor-panel"
-                    size="md" decorative />
-                  <div class="sponsor-section-head">
-                    <div>
-                      <p class="sponsor-kicker">Payment</p>
-                      <h3>选择赞助方式</h3>
-                    </div>
-                    <span class="sponsor-status-pill">{{ sponsorStatusText }}</span>
-                  </div>
-
-                  <div class="sponsor-method-grid">
-                    <button v-for="method in sponsorMethods" :key="method.id" type="button" class="sponsor-method"
-                      :class="{ active: sponsorMethod === method.id, disabled: method.disabled }"
-                      :aria-disabled="method.disabled ? 'true' : 'false'" @click="selectSponsorMethod(method.id)">
-                      <span class="sponsor-method-icon">{{ method.icon }}</span>
-                      <span>
-                        <strong>{{ method.label }}</strong>
-                        <small>{{ method.desc }}</small>
-                      </span>
-                    </button>
-                  </div>
-
-                  <div class="sponsor-action-row">
-                    <button type="button" class="sponsor-primary-btn" :disabled="sponsorMethod !== 'wechat'"
-                      @click="showSponsorQr">
-                      {{ sponsorQrVisible ? '刷新二维码' : '显示二维码' }}
-                    </button>
-                  </div>
-
-                  <transition name="profile-panel-fade">
-                    <div v-if="sponsorQrVisible" class="sponsor-qr-stage">
-                      <div v-if="isHomeCatActive" :key="sponsorCatBurstKey" class="sponsor-cat-party"
-                        aria-hidden="true">
-                        <HomeCatMascot class="sponsor-party-cat cat-one" pool="reaction"
-                          :seed="`sponsor-party-${sponsorCatBurstKey}-one`" size="sm" decorative />
-                        <HomeCatMascot class="sponsor-party-cat cat-two" pool="ambient"
-                          :seed="`sponsor-party-${sponsorCatBurstKey}-two`" size="sm" decorative />
-                        <HomeCatMascot class="sponsor-party-cat cat-three" type="like" size="sm" decorative />
-                        <HomeCatMascot class="sponsor-party-cat cat-four" type="success" size="sm" decorative />
-                      </div>
-                      <div v-if="sponsorQrLoadFailed" class="sponsor-qr-placeholder">
-                        <div class="sponsor-placeholder-icon">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                            stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="3" width="7" height="7"></rect>
-                            <rect x="14" y="3" width="7" height="7"></rect>
-                            <rect x="3" y="14" width="7" height="7"></rect>
-                            <path d="M14 14h2v2h-2z"></path>
-                            <path d="M18 14h3v3"></path>
-                            <path d="M14 18h7v3h-7z"></path>
-                          </svg>
-                        </div>
-                        <h4>二维码暂未配置</h4>
-                        <p>未能加载 src/assets/images/qrcode.webp，请检查图片资源。</p>
-                      </div>
-
-                      <figure v-else class="sponsor-qr-card" :class="{ loading: sponsorQrLoading }">
-                        <div v-if="sponsorQrLoading" class="sponsor-qr-loading">
-                          <div class="loading-spinner"></div>
-                          <span>正在加载赞赏码...</span>
-                        </div>
-                        <img :src="sponsorQrImageUrl" alt="微信赞赏二维码" @load="handleSponsorQrLoad"
-                          @error="handleSponsorQrError" loading="lazy">
-                        <figcaption>使用微信扫码赞助</figcaption>
-                      </figure>
-                    </div>
-                  </transition>
-                </section>
-              </div>
-            </div>
+            <!-- ✅ 性能优化：赞助页面使用 v-memo -->
+            <SponsorPanel v-else-if="profileSection === 'sponsor'" key="profile-sponsor" v-memo="[profileSection, sponsorQrVisible, sponsorQrLoadFailed, sponsorQrLoading]"
+              :is-home-cat-active="isHomeCatActive" :sponsor-methods="sponsorMethods"
+              :sponsor-method="sponsorMethod" :sponsor-status-text="sponsorStatusText"
+              :sponsor-qr-visible="sponsorQrVisible" :sponsor-qr-load-failed="sponsorQrLoadFailed"
+              :sponsor-qr-loading="sponsorQrLoading" :sponsor-qr-image-url="sponsorQrImageUrl"
+              :sponsor-cat-burst-key="sponsorCatBurstKey"
+              @back="backToProfileHome" @start-flow="startSponsorFlow"
+              @select-method="selectSponsorMethod" @show-qr="showSponsorQr"
+              @qr-load="handleSponsorQrLoad" @qr-error="handleSponsorQrError" />
 
             <ProfileSettingsPanel v-else-if="profileSection === 'settings'" key="profile-settings"
               :pushplus-status-text="pushplusStatusText" :cloud-plus-usage-text="cloudPlusUsageText"
@@ -264,59 +119,20 @@
               @toggle-hide-follow-data="toggleHideFollowData" />
 
             <ProfileImpressionsPanel v-else-if="profileSection === 'impressions'" key="profile-impressions"
-              :is-impressions-loading="isProfileImpressionsLoading" :impressions="profileImpressions"
+              :is-impressions-loading="dataState.impressions.loading" :impressions="profileImpressions"
               @back="backToProfileHome" @delete-impression="handleDeleteProfileImpression" />
 
-            <div v-else key="profile-data-management" class="profile-subpage-shell">
-              <UserCenterPageHeader title="数据与隐私" back-label="返回设置" max-width="650px" @back="backToProfileSettings" />
-
-              <div class="profile-subpage-body">
-                <div class="apple-card">
-                  <div class="apple-list-group">
-                    <div class="apple-item clickable"
-                      @click="router.push('/user-space/shared-memories?from=userspace-data')">
-                      <div class="item-left">
-                        <div class="icon-wrapper bg-indigo">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                            stroke-linecap="round" stroke-linejoin="round">
-                            <ellipse cx="12" cy="5" rx="8" ry="3"></ellipse>
-                            <path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5"></path>
-                            <path d="M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"></path>
-                          </svg>
-                        </div>
-                        <span class="item-label">公共记忆管理</span>
-                      </div>
-                      <div class="item-right">
-                        <span class="chevron">›</span>
-                      </div>
-                    </div>
-                    <div v-if="isAdmin" class="apple-item clickable" @click="router.push('/admin/data-management')">
-                      <div class="item-left">
-                        <div class="icon-wrapper bg-gray">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                            stroke-linecap="round" stroke-linejoin="round">
-                            <path
-                              d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z">
-                            </path>
-                          </svg>
-                        </div>
-                        <span class="item-label">后台数据管理</span>
-                      </div>
-                      <div class="item-right">
-                        <span class="chevron">›</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <!-- ✅ 性能优化：静态子页面使用 v-memo -->
+            <DataPrivacyPanel v-else key="profile-data-management" v-memo="[profileSection, isAdmin]"
+              :is-admin="isAdmin" @back="backToProfileSettings"
+              @navigate="handleDataPrivacyNavigate" />
           </transition>
         </template>
       </div>
     </div>
 
     <UserSpaceBottomNav :visible="!(currentTab === 'profile' && profileSection === 'edit-profile')"
-      :hidden="shouldHideBottomNav" :ai-overlay-open="isAiOverlayOpen" :island-visible="isBottomNavIslandExpanded"
+      :ai-overlay-open="isAiOverlayOpen" :island-visible="isBottomNavIslandExpanded"
       :island-collapsing="isBottomNavIslandCollapsing" :island="bottomNavIsland" :show-cat-sticker="isHomeCatActive"
       :nav-items="navItems" :current-tab="currentTab" :nav-indicator-style="bottomNavIndicatorStyle"
       :has-unread-messages="hasUnreadMessages" :unread-count="unreadCount" @island-action="handleBottomNavIslandAction"
@@ -348,20 +164,23 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted, reactive, watch } from 'vue';
+import { ref, computed, nextTick, onMounted, onUnmounted, reactive, watch, shallowRef, shallowReactive, markRaw, defineAsyncComponent } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { Bot, MessageCircle, Newspaper, User, Users } from 'lucide-vue-next';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import AvatarCropModal from '@/components/AvatarCropModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
-import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
 import { useEdgeSwipeGesture } from '@/composables/useEdgeSwipeGesture';
+import { useDebounce } from '@/composables/useDebounceThrottle';
 import UserSpaceBottomNav from './components/UserSpaceBottomNav.vue';
-import ProfileHomePanel from './components/ProfileHomePanel.vue';
-import ProfileImpressionsPanel from './components/ProfileImpressionsPanel.vue';
-import ProfileSettingsPanel from './components/ProfileSettingsPanel.vue';
+const ProfileHomePanel = defineAsyncComponent(() => import('./components/ProfileHomePanel.vue'));
+const ProfileImpressionsPanel = defineAsyncComponent(() => import('./components/ProfileImpressionsPanel.vue'));
+const ProfileSettingsPanel = defineAsyncComponent(() => import('./components/ProfileSettingsPanel.vue'));
+const EditProfilePanel = defineAsyncComponent(() => import('./components/EditProfilePanel.vue'));
+const SponsorPanel = defineAsyncComponent(() => import('./components/SponsorPanel.vue'));
+const DataPrivacyPanel = defineAsyncComponent(() => import('./components/DataPrivacyPanel.vue'));
 import ThemeModal from './components/ThemeModal.vue';
 import { useBottomNavIslandQueue } from './composables/useBottomNavIslandQueue.js';
 import { createMemoryTtlCache } from './composables/useMemoryTtlCache.js';
@@ -436,16 +255,53 @@ const TAB_LEAVE_CLEAR_DELAY_MS = 170;
 let lastGiftProgressRefreshAt = 0;
 let giftProgressInflight = null;
 let userSpaceWarmupTimeoutId = null;
-const USERSPACE_CACHE_TTL = {
+// ✅ 性能优化：使用 markRaw 标记静态配置，避免不必要的响应式追踪
+const USERSPACE_CACHE_TTL = markRaw({
   stats: 60 * 1000,
   cloudUsage: 60 * 1000,
   pushplus: 60 * 1000,
   profilePosts: 60 * 1000,
   impressions: 60 * 1000
-};
+});
 const userSpaceMemoryCache = createMemoryTtlCache();
 const getUserSpaceCache = (key, ttlMs) => userSpaceMemoryCache.get(key, ttlMs);
 const setUserSpaceCache = (key, value) => userSpaceMemoryCache.set(key, value);
+
+// ✅ 性能优化：合并 loading/error 状态为单一对象，减少响应式开销
+const dataState = reactive({
+  stats: { loading: false, error: null },
+  cloud: { loading: false, error: null },
+  pushplus: { loading: false, error: null },
+  profile: { loading: false, error: null },
+  impressions: { loading: false, error: null }
+});
+
+// ✅ 性能优化：添加 AbortController 管理，支持请求取消
+const abortControllers = new Map();
+const createAbortController = (key) => {
+  const existing = abortControllers.get(key);
+  if (existing) existing.abort();
+  const controller = new AbortController();
+  abortControllers.set(key, controller);
+  return controller;
+};
+const cleanupAbortControllers = () => {
+  abortControllers.forEach((controller) => controller.abort());
+  abortControllers.clear();
+};
+
+// ✅ 性能优化：添加 lastFetchTime 记录，避免频繁重复请求
+const lastFetchTime = reactive({
+  stats: 0,
+  cloudUsage: 0,
+  pushplus: 0,
+  profilePosts: 0,
+  impressions: 0
+});
+
+// ✅ 性能优化：使用 shallowRef 优化非关键大数据
+const profilePosts = shallowRef([]);
+const profileImpressions = shallowRef([]);
 
 const hideOnlineStatus = computed(() => userInfo.value?.hideOnlineStatus ?? false);
 const hideFollowData = computed(() => userInfo.value?.hideFollowData ?? false);
@@ -489,7 +345,6 @@ const bottomNavIndicatorStyle = computed(() => {
   };
 });
 const validTabs = USER_SPACE_VALID_TABS;
-const loginRequiredTabs = new Set();
 const validProfileSections = ['home', 'edit-profile', 'impressions', 'sponsor', 'settings', 'data-management'];
 const tabTransitionDirection = ref('forward');
 const leavingTab = ref(null);
@@ -661,23 +516,18 @@ const profileCoverStyle = computed(() => {
   };
 });
 
-// 用户统计数据
-const userStats = reactive({
+// ✅ 性能优化：使用 shallowReactive 优化统计数据，减少深层响应式追踪
+const userStats = shallowReactive({
   posts: 0,
   points: 0,
   rank: 0,
   followers: 0,
   following: 0
 });
-const isUserStatsLoading = ref(false);
 let latestUserStatsFetchToken = 0;
 let userStatsRetryTimerId = null;
 
 const PROFILE_POSTS_PAGE_SIZE = 15;
-const profilePosts = ref([]);
-const profileImpressions = ref([]);
-const isProfileContentLoading = ref(false);
-const isProfileImpressionsLoading = ref(false);
 const hasMoreProfilePosts = ref(true);
 const profilePostsPage = ref(1);
 const isLoadingMoreProfilePosts = ref(false);
@@ -732,6 +582,7 @@ const openProfilePost = (postId) => {
   router.push({ name: 'PostDetail', params: { id: safePostId }, query: { from: 'user-space', tab: 'profile' } });
 };
 
+// ✅ 性能优化：使用 AbortController 和 lastFetchTime 优化请求管理
 const fetchProfileContent = async ({ force = false, reset = false } = {}) => {
   if (!isLoggedIn.value || !userInfo.value.id) {
     profilePosts.value = [];
@@ -742,6 +593,17 @@ const fetchProfileContent = async ({ force = false, reset = false } = {}) => {
   const userId = String(userInfo.value.id || '').trim();
   const cacheKey = `profile-posts:${userId}:${safeUsername}`;
 
+  // ✅ 检查 lastFetchTime，避免频繁重复请求
+  const now = Date.now();
+  if (!force && !reset && (now - lastFetchTime.profilePosts < 5000)) {
+    const cachedPosts = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.profilePosts);
+    if (cachedPosts) {
+      profilePosts.value = cachedPosts;
+      dataState.profile.loading = false;
+      return;
+    }
+  }
+
   if (reset) {
     hasMoreProfilePosts.value = true;
     profilePostsPage.value = 1;
@@ -751,14 +613,15 @@ const fetchProfileContent = async ({ force = false, reset = false } = {}) => {
     const cachedPosts = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.profilePosts);
     if (cachedPosts) {
       profilePosts.value = cachedPosts;
-      isProfileContentLoading.value = false;
+      dataState.profile.loading = false;
       return;
     }
   }
 
   const fetchToken = ++latestProfileContentFetchToken;
+  const abortController = createAbortController('profile-posts');
   if (reset) {
-    isProfileContentLoading.value = true;
+    dataState.profile.loading = true;
   }
 
   try {
@@ -766,11 +629,13 @@ const fetchProfileContent = async ({ force = false, reset = false } = {}) => {
     const result = await getPostsByUsername(safeUsername, userId, {
       page: pageToLoad,
       pageSize: PROFILE_POSTS_PAGE_SIZE,
-      includeUnapprovedForAuthor: true
+      includeUnapprovedForAuthor: true,
+      signal: abortController.signal
     });
-    if (fetchToken !== latestProfileContentFetchToken) return;
+    if (fetchToken !== latestProfileContentFetchToken || abortController.signal.aborted) return;
     if (result.error) {
       logger.warn('user-space', '读取我的发帖失败:', result.error);
+      dataState.profile.error = result.error;
       if (reset) profilePosts.value = [];
       return;
     }
@@ -785,15 +650,19 @@ const fetchProfileContent = async ({ force = false, reset = false } = {}) => {
     hasMoreProfilePosts.value = incoming.length === PROFILE_POSTS_PAGE_SIZE;
     profilePostsPage.value = pageToLoad + 1;
     setUserSpaceCache(cacheKey, profilePosts.value);
+    lastFetchTime.profilePosts = now;
+    dataState.profile.error = null;
 
   } catch (error) {
+    if (error.name === 'AbortError') return;
     logger.warn('user-space', '读取我的内容失败:', error);
+    dataState.profile.error = error;
     if (reset) {
       profilePosts.value = [];
     }
   } finally {
     if (fetchToken === latestProfileContentFetchToken) {
-      isProfileContentLoading.value = false;
+      dataState.profile.loading = false;
     }
   }
 };
@@ -808,6 +677,7 @@ const loadMoreProfilePosts = async () => {
   }
 };
 
+// ✅ 性能优化：使用 AbortController 和 lastFetchTime 优化请求管理
 const fetchProfileImpressions = async ({ force = false } = {}) => {
   const userId = String(userInfo.value.id || '').trim();
   if (!isLoggedIn.value || !userId) {
@@ -816,33 +686,51 @@ const fetchProfileImpressions = async ({ force = false } = {}) => {
   }
 
   const cacheKey = `profile-impressions:${userId}`;
+  const now = Date.now();
+
+  // ✅ 检查 lastFetchTime，避免频繁重复请求
+  if (!force && (now - lastFetchTime.impressions < 5000)) {
+    const cachedImpressions = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.impressions);
+    if (cachedImpressions) {
+      profileImpressions.value = cachedImpressions;
+      dataState.impressions.loading = false;
+      return;
+    }
+  }
+
   if (!force) {
     const cachedImpressions = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.impressions);
     if (cachedImpressions) {
       profileImpressions.value = cachedImpressions;
-      isProfileImpressionsLoading.value = false;
+      dataState.impressions.loading = false;
       return;
     }
   }
 
   const fetchToken = ++latestProfileImpressionsFetchToken;
-  isProfileImpressionsLoading.value = true;
+  const abortController = createAbortController('profile-impressions');
+  dataState.impressions.loading = true;
   try {
-    const { data, error } = await getUserImpressions(userId);
-    if (fetchToken !== latestProfileImpressionsFetchToken) return;
+    const { data, error } = await getUserImpressions(userId, { signal: abortController.signal });
+    if (fetchToken !== latestProfileImpressionsFetchToken || abortController.signal.aborted) return;
     if (error) {
       logger.warn('user-space', '读取我的印象失败:', error);
       profileImpressions.value = [];
+      dataState.impressions.error = error;
       return;
     }
     profileImpressions.value = data || [];
     setUserSpaceCache(cacheKey, profileImpressions.value);
+    lastFetchTime.impressions = now;
+    dataState.impressions.error = null;
   } catch (error) {
+    if (error.name === 'AbortError') return;
     logger.warn('user-space', '读取我的印象异常:', error);
     profileImpressions.value = [];
+    dataState.impressions.error = error;
   } finally {
     if (fetchToken === latestProfileImpressionsFetchToken) {
-      isProfileImpressionsLoading.value = false;
+      dataState.impressions.loading = false;
     }
   }
 };
@@ -868,26 +756,41 @@ const handleDeleteProfileImpression = async (impressionId) => {
   }
 };
 
-// 获取用户统计数据
+// ✅ 性能优化：使用 AbortController 和 lastFetchTime 优化请求管理
 const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
   const userId = String(userInfo.value.id || '').trim();
   if (!isLoggedIn.value || !userId) return;
 
   const safeUsername = String(userInfo.value.username || '').trim();
   const cacheKey = `stats:${userId}:${safeUsername}`;
+  const now = Date.now();
+
+  // ✅ 检查 lastFetchTime，避免频繁重复请求
+  if (!force && retryCount === 0 && (now - lastFetchTime.stats < 5000)) {
+    const cachedStats = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.stats);
+    if (cachedStats) {
+      userStats.posts = normalizeStatInt(cachedStats.posts, 0);
+      userStats.points = normalizeStatInt(cachedStats.points, 0);
+      userStats.rank = normalizeStatInt(cachedStats.rank, 0);
+      dataState.stats.loading = false;
+      return;
+    }
+  }
+
   if (!force && retryCount === 0) {
     const cachedStats = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.stats);
     if (cachedStats) {
       userStats.posts = normalizeStatInt(cachedStats.posts, 0);
       userStats.points = normalizeStatInt(cachedStats.points, 0);
       userStats.rank = normalizeStatInt(cachedStats.rank, 0);
-      isUserStatsLoading.value = false;
+      dataState.stats.loading = false;
       return;
     }
   }
 
   const fetchToken = ++latestUserStatsFetchToken;
-  isUserStatsLoading.value = true;
+  const abortController = createAbortController('user-stats');
+  dataState.stats.loading = true;
   const fallbackPoints = normalizeStatInt(userInfo.value.points, userStats.points);
   userStats.points = fallbackPoints;
 
@@ -912,7 +815,7 @@ const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
         .eq('follower_id', userId)
     ]);
 
-    if (fetchToken !== latestUserStatsFetchToken) return;
+    if (fetchToken !== latestUserStatsFetchToken || abortController.signal.aborted) return;
 
     let hasQueryError = Boolean(postsResult.error || pointsResult.error);
 
@@ -920,12 +823,14 @@ const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
       userStats.posts = normalizeStatInt(postsResult.count, 0);
     } else {
       logger.warn('user-space', '获取用户帖子数失败:', postsResult.error);
+      dataState.stats.error = postsResult.error;
     }
 
     if (!pointsResult.error && pointsResult.data) {
       userStats.points = normalizeStatInt(pointsResult.data.points, fallbackPoints);
     } else if (pointsResult.error) {
       logger.warn('user-space', '获取用户积分失败:', pointsResult.error);
+      dataState.stats.error = pointsResult.error;
     }
 
     // 获取排名（基于积分）
@@ -934,13 +839,14 @@ const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
       .select('id', { count: 'exact', head: true })
       .gt('points', userStats.points);
 
-    if (fetchToken !== latestUserStatsFetchToken) return;
+    if (fetchToken !== latestUserStatsFetchToken || abortController.signal.aborted) return;
 
     if (!rankError) {
       userStats.rank = normalizeStatInt(higherRankCount, 0) + 1;
     } else {
       hasQueryError = true;
       logger.warn('user-space', '获取用户排名失败:', rankError);
+      dataState.stats.error = rankError;
     }
 
     if (!followersResult.error) {
@@ -957,6 +863,8 @@ const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
       followers: userStats.followers,
       following: userStats.following
     });
+    lastFetchTime.stats = now;
+    dataState.stats.error = null;
 
     if (hasQueryError && retryCount < 1) {
       userStatsRetryTimerId = setTimeout(() => {
@@ -966,10 +874,12 @@ const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
       }, 900);
     }
   } catch (error) {
+    if (error.name === 'AbortError') return;
     logger.warn('user-space', '获取用户统计数据失败:', error);
+    dataState.stats.error = error;
   } finally {
     if (fetchToken === latestUserStatsFetchToken) {
-      isUserStatsLoading.value = false;
+      dataState.stats.loading = false;
     }
   }
 };
@@ -993,7 +903,6 @@ const showThemeModal = ref(false);
 const currentTheme = ref(themeManager.getTheme());
 const currentThemePreference = ref(themeManager.getPreference?.() || currentTheme.value);
 const isHomeCatActive = computed(() => isHomeCatTheme(currentTheme.value) || isHomeCatTheme(currentThemePreference.value));
-const shouldHideBottomNav = computed(() => false);
 const themeDisplayText = computed(() => {
   if (currentThemePreference.value === 'home-cat') {
     return '方块小窝';
@@ -1004,26 +913,26 @@ const themeDisplayText = computed(() => {
   return currentTheme.value === 'dark' ? '深色模式' : '浅色模式';
 });
 const dataPrivacyStatusText = computed(() => isProfileBasicsComplete.value ? '资料已完善' : '待补充资料');
-const pushplusStatus = reactive({
+// ✅ 性能优化：使用 shallowReactive 优化 Pushplus 和 Cloud+ 状态
+const pushplusStatus = shallowReactive({
   loaded: false,
-  loading: false,
   hasToken: false,
   enabled: false
 });
 const pushplusStatusText = computed(() => {
-  if (pushplusStatus.loading) return '检查中';
+  if (dataState.pushplus.loading) return '检查中';
   if (!pushplusStatus.loaded) return '未检查';
   if (!pushplusStatus.hasToken) return '未绑定';
   return pushplusStatus.enabled ? '已启用' : '已暂停';
 });
-const cloudPlusUsage = reactive({
+// ✅ 性能优化：使用 shallowReactive 优化 Cloud+ 使用情况数据
+const cloudPlusUsage = shallowReactive({
   loaded: false,
-  loading: false,
   used: 0,
   limit: DEFAULT_CLOUD_IMAGE_LIMIT
 });
 const cloudPlusUsageText = computed(() => {
-  if (cloudPlusUsage.loading) return '读取中';
+  if (dataState.cloud.loading) return '读取中';
   if (!cloudPlusUsage.loaded) return '未检查';
   return `已使用 ${cloudPlusUsage.used}/${cloudPlusUsage.limit}`;
 });
@@ -1034,7 +943,7 @@ const cloudPlusUsageMeterStyle = computed(() => {
   return { width: `${percent}%` };
 });
 const subscriptionSummaryText = computed(() => {
-  if (cloudPlusUsage.loading) return '正在同步权益';
+  if (dataState.cloud.loading) return '正在同步权益';
   if (!cloudPlusUsage.loaded) return '查看积分与额度';
   if (Number(cloudPlusUsage.limit || 0) > DEFAULT_CLOUD_IMAGE_LIMIT) {
     return `Cloud 额度 ${cloudPlusUsage.limit}`;
@@ -1136,11 +1045,25 @@ const showUnreadBottomNavIsland = async (detail = {}) => {
   showBottomNavIsland(buildUnreadIslandMessage(detail));
 };
 
+// ✅ 性能优化：使用 AbortController 和 lastFetchTime 优化请求管理
 const fetchPushplusStatus = async ({ force = false } = {}) => {
   const userId = String(userInfo.value.id || '').trim();
-  if (!userId || pushplusStatus.loading) return;
+  if (!userId || dataState.pushplus.loading) return;
 
   const cacheKey = `pushplus:${userId}`;
+  const now = Date.now();
+
+  // ✅ 检查 lastFetchTime，避免频繁重复请求
+  if (!force && (now - lastFetchTime.pushplus < 5000)) {
+    const cachedStatus = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.pushplus);
+    if (cachedStatus) {
+      pushplusStatus.loaded = true;
+      pushplusStatus.hasToken = Boolean(cachedStatus.hasToken);
+      pushplusStatus.enabled = Boolean(cachedStatus.enabled);
+      return;
+    }
+  }
+
   if (!force) {
     const cachedStatus = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.pushplus);
     if (cachedStatus) {
@@ -1151,13 +1074,16 @@ const fetchPushplusStatus = async ({ force = false } = {}) => {
     }
   }
 
-  pushplusStatus.loading = true;
+  const abortController = createAbortController('pushplus-status');
+  dataState.pushplus.loading = true;
   try {
-    const { data, error } = await getPushplusSettings(userId);
+    const { data, error } = await getPushplusSettings(userId, { signal: abortController.signal });
+    if (abortController.signal.aborted) return;
     if (error) {
       pushplusStatus.loaded = true;
       pushplusStatus.hasToken = false;
       pushplusStatus.enabled = false;
+      dataState.pushplus.error = error;
       return;
     }
     pushplusStatus.loaded = true;
@@ -1167,21 +1093,39 @@ const fetchPushplusStatus = async ({ force = false } = {}) => {
       hasToken: pushplusStatus.hasToken,
       enabled: pushplusStatus.enabled
     });
+    lastFetchTime.pushplus = now;
+    dataState.pushplus.error = null;
   } catch (error) {
+    if (error.name === 'AbortError') return;
     logger.warn('user-space', '获取 Pushplus 状态失败:', error);
     pushplusStatus.loaded = true;
     pushplusStatus.hasToken = false;
     pushplusStatus.enabled = false;
+    dataState.pushplus.error = error;
   } finally {
-    pushplusStatus.loading = false;
+    dataState.pushplus.loading = false;
   }
 };
 
+// ✅ 性能优化：使用 AbortController 和 lastFetchTime 优化请求管理
 const fetchCloudPlusUsage = async ({ force = false } = {}) => {
   const userId = String(userInfo.value.id || '').trim();
-  if (!userId || cloudPlusUsage.loading) return;
+  if (!userId || dataState.cloud.loading) return;
 
   const cacheKey = `cloud-usage:${userId}`;
+  const now = Date.now();
+
+  // ✅ 检查 lastFetchTime，避免频繁重复请求
+  if (!force && (now - lastFetchTime.cloudUsage < 5000)) {
+    const cachedUsage = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.cloudUsage);
+    if (cachedUsage) {
+      cloudPlusUsage.loaded = true;
+      cloudPlusUsage.used = Number(cachedUsage.used || 0);
+      cloudPlusUsage.limit = Number(cachedUsage.limit || DEFAULT_CLOUD_IMAGE_LIMIT);
+      return;
+    }
+  }
+
   if (!force) {
     const cachedUsage = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.cloudUsage);
     if (cachedUsage) {
@@ -1192,12 +1136,15 @@ const fetchCloudPlusUsage = async ({ force = false } = {}) => {
     }
   }
 
-  cloudPlusUsage.loading = true;
+  const abortController = createAbortController('cloud-usage');
+  dataState.cloud.loading = true;
   try {
     const [subscriptionsResult, cloudEntriesResult] = await Promise.all([
-      getMySubscriptions(userId, { includeExpired: true }),
-      listMyCloudEntries({ userId, limit: 500 })
+      getMySubscriptions(userId, { includeExpired: true, signal: abortController.signal }),
+      listMyCloudEntries({ userId, limit: 500, signal: abortController.signal })
     ]);
+
+    if (abortController.signal.aborted) return;
 
     const subscriptions = subscriptionsResult.ok && Array.isArray(subscriptionsResult.data)
       ? subscriptionsResult.data
@@ -1220,13 +1167,17 @@ const fetchCloudPlusUsage = async ({ force = false } = {}) => {
       used: cloudPlusUsage.used,
       limit: cloudPlusUsage.limit
     });
+    lastFetchTime.cloudUsage = now;
+    dataState.cloud.error = null;
   } catch (error) {
+    if (error.name === 'AbortError') return;
     logger.warn('user-space', '获取 Cloud+ 使用情况失败:', error);
     cloudPlusUsage.loaded = true;
     cloudPlusUsage.used = 0;
     cloudPlusUsage.limit = DEFAULT_CLOUD_IMAGE_LIMIT;
+    dataState.cloud.error = error;
   } finally {
-    cloudPlusUsage.loading = false;
+    dataState.cloud.loading = false;
   }
 };
 
@@ -1303,6 +1254,14 @@ const openProfileDataManagement = () => {
   setProfileSectionRoute('data-management');
 };
 
+const handleDataPrivacyNavigate = (route) => {
+  if (route === 'shared-memories') {
+    router.push('/user-space/shared-memories?from=userspace-data');
+  } else if (route === 'admin') {
+    router.push('/admin/data-management');
+  }
+};
+
 const backToProfileSettings = () => {
   profileSection.value = 'settings';
   setProfileSectionRoute('settings');
@@ -1331,6 +1290,8 @@ const startSponsorFlow = () => {
   showSponsorQr();
 };
 
+let sponsorQrTimer = null;
+
 const showSponsorQr = () => {
   if (sponsorMethod.value !== 'wechat') return;
   sponsorCatBurstKey.value += 1;
@@ -1341,6 +1302,13 @@ const showSponsorQr = () => {
   sponsorQrVisible.value = true;
   sponsorQrLoadFailed.value = false;
   sponsorQrLoading.value = true;
+  clearTimeout(sponsorQrTimer);
+  sponsorQrTimer = setTimeout(() => {
+    if (sponsorQrLoading.value) {
+      sponsorQrLoading.value = false;
+      sponsorQrLoadFailed.value = true;
+    }
+  }, 8000);
 };
 
 const handleSponsorQrLoad = () => {
@@ -1626,15 +1594,8 @@ const preloadUserSpaceTab = (tabId) => {
   }
 };
 
-const canOpenUserSpaceTab = (tabId) => !loginRequiredTabs.has(tabId) || isLoggedIn.value;
-
-const resolveAccessibleTab = (tabId, { promptLogin = false } = {}) => {
-  const safeTab = validTabs.includes(tabId) ? tabId : 'posts';
-  if (canOpenUserSpaceTab(safeTab)) return safeTab;
-  if (promptLogin) {
-    showLoginModal.value = true;
-  }
-  return currentTab.value && canOpenUserSpaceTab(currentTab.value) ? currentTab.value : 'profile';
+const resolveAccessibleTab = (tabId) => {
+  return validTabs.includes(tabId) ? tabId : 'posts';
 };
 
 const syncUserSpaceTabRoute = (tabId) => {
@@ -1708,7 +1669,7 @@ const switchTab = (tabId) => {
 const goToProfile = (usernameVal) => {
   const safeUsername = String(usernameVal || '').trim();
   if (!safeUsername) return;
-  router.push(`/profile/${encodeURIComponent(safeUsername)}`);
+  router.push(`/profile/${encodeURIComponent(safeUsername)}?from=community`);
 };
 
 const handleLogout = () => {
@@ -2113,56 +2074,73 @@ const scheduleUserSpaceWarmup = ({ force = false } = {}) => {
   }, currentTab.value === 'profile' ? 120 : 900);
 };
 
-watch(() => userInfo.value.id, async (newId) => {
-  if (newId) {
-    await initUserData();
-    if (currentTab.value === 'profile') {
-      runProfileCriticalFetches({ force: true });
-    } else {
-      scheduleUserSpaceWarmup({ force: true });
+// ✅ 性能优化：合并分散的 watch 为单个 watch，减少 Vue 内部开销
+watch(
+  () => ({
+    userId: userInfo.value.id,
+    isReady: isInitialized.value,
+    points: userInfo.value.points,
+    birthMonth: editProfileForm.birthMonth,
+    joinYear: editProfileForm.joinYear,
+    joinMonth: editProfileForm.joinMonth
+  }),
+  async (newVal, oldVal) => {
+    const { userId, isReady, points, birthMonth, joinYear, joinMonth } = newVal;
+
+    // 处理用户 ID 变化
+    if (userId !== oldVal?.userId) {
+      if (userId) {
+        await initUserData();
+        if (currentTab.value === 'profile') {
+          runProfileCriticalFetches({ force: true });
+        } else {
+          scheduleUserSpaceWarmup({ force: true });
+        }
+        if (currentTab.value === 'profile' && profileSection.value === 'settings') {
+          void fetchPushplusStatus({ force: true });
+          void fetchCloudPlusUsage({ force: true });
+        }
+      } else {
+        clearUserSpaceWarmup();
+        latestUserStatsFetchToken += 1;
+        dataState.stats.loading = false;
+        resetUserStats();
+        giftProgressText.value = '';
+        pushplusStatus.loaded = false;
+        pushplusStatus.hasToken = false;
+        pushplusStatus.enabled = false;
+        cloudPlusUsage.loaded = false;
+        cloudPlusUsage.used = 0;
+        cloudPlusUsage.limit = DEFAULT_CLOUD_IMAGE_LIMIT;
+        latestProfileContentFetchToken += 1;
+        dataState.profile.loading = false;
+        profilePosts.value = [];
+      }
     }
-    if (currentTab.value === 'profile' && profileSection.value === 'settings') {
-      void fetchPushplusStatus({ force: true });
-      void fetchCloudPlusUsage({ force: true });
+
+    // 处理初始化完成
+    if (isReady && !oldVal?.isReady) {
+      void maybeShowBottomNavOnboardingNotice();
+      if (isLoggedIn.value && userId) {
+        void fetchUserStats();
+      }
     }
-  } else {
-    clearUserSpaceWarmup();
-    latestUserStatsFetchToken += 1;
-    isUserStatsLoading.value = false;
-    resetUserStats();
-    giftProgressText.value = '';
-    pushplusStatus.loaded = false;
-    pushplusStatus.hasToken = false;
-    pushplusStatus.enabled = false;
-    cloudPlusUsage.loaded = false;
-    cloudPlusUsage.loading = false;
-    cloudPlusUsage.used = 0;
-    cloudPlusUsage.limit = DEFAULT_CLOUD_IMAGE_LIMIT;
-    latestProfileContentFetchToken += 1;
-    isProfileContentLoading.value = false;
-    profilePosts.value = [];
-  }
-});
 
-watch(() => isInitialized.value, (ready) => {
-  if (!ready) return;
-  void maybeShowBottomNavOnboardingNotice();
-  if (!isLoggedIn.value || !userInfo.value.id) return;
-  void fetchUserStats();
-}, { immediate: true });
+    // 处理积分变化
+    if (points !== oldVal?.points && isLoggedIn.value) {
+      userStats.points = normalizeStatInt(points, userStats.points);
+    }
 
-watch(() => userInfo.value.points, (newPoints) => {
-  if (!isLoggedIn.value) return;
-  userStats.points = normalizeStatInt(newPoints, userStats.points);
-});
-
-watch(() => editProfileForm.birthMonth, () => {
-  normalizeEditProfileBirthdayDay();
-});
-
-watch(() => [editProfileForm.joinYear, editProfileForm.joinMonth], () => {
-  normalizeEditJoinDay();
-});
+    // 处理编辑表单变化
+    if (birthMonth !== oldVal?.birthMonth) {
+      normalizeEditProfileBirthdayDay();
+    }
+    if (joinYear !== oldVal?.joinYear || joinMonth !== oldVal?.joinMonth) {
+      normalizeEditJoinDay();
+    }
+  },
+  { immediate: true }
+);
 
 onMounted(() => {
   setUserSpaceMountedForPreload(true);
@@ -2266,6 +2244,8 @@ watch(currentTab, (newTab, oldTab) => {
 onUnmounted(() => {
   saveTabScrollPosition(currentTab.value);
   setUserSpaceMountedForPreload(false);
+  // ✅ 性能优化：取消所有未完成的请求
+  cleanupAbortControllers();
   latestUserStatsFetchToken += 1;
   clearScheduledForumPreload();
   clearIdlePreloadTasks();
@@ -2306,6 +2286,15 @@ const handleUnreadRefresh = (event) => {
 <style src="./styles/responsive-integrations.css"></style>
 
 <style scoped>
+.hidden-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
 /* 边缘滑动提示线 */
 .edge-swipe-indicator {
   position: fixed;

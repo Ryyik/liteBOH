@@ -344,7 +344,7 @@ const toggleBirthdaysExpand = () => {
 const goToProfile = (usernameVal) => {
   const safeUsername = String(usernameVal || '').trim();
   if (!safeUsername) return;
-  router.push(`/profile/${encodeURIComponent(safeUsername)}`);
+  router.push(`/profile/${encodeURIComponent(safeUsername)}?from=community`);
 };
 
 const loadCommunityFollowCounts = async () => {

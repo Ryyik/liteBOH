@@ -318,7 +318,11 @@ onUnmounted(() => {
 });
 
 const goBackHome = () => {
-  router.push('/');
+  if (window.history.length > 1) {
+    router.back();
+  } else {
+    router.push('/');
+  }
 };
 
 // 开始抽奖流程

@@ -8,7 +8,7 @@ const CREATOR_PLATFORM_KEYS = ['bilibili', 'xiaohongshu', 'douyin'];
 const CREATOR_VISIBILITY_VALUES = new Set(['public', 'private']);
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SESSION_REFRESH_THRESHOLD_MS = 5 * 60 * 1000;
-const SESSION_HEARTBEAT_INTERVAL_MS = 4 * 60 * 1000;
+const SESSION_HEARTBEAT_INTERVAL_MS = 2 * 60 * 1000;
 const AUTH_SESSION_MISSING_ERROR_CODE = 'AUTH_SESSION_MISSING';
 
 interface CreatorPlatformIds {
@@ -154,7 +154,14 @@ export const useAuthStore = defineStore('auth', () => {
     showcasePostIds: [],
     lastActiveAt: null,
     hideOnlineStatus: false,
-    hideFollowData: false
+    hideFollowData: false,
+    // 封禁/禁言状态
+    isBanned: false,
+    isMuted: false,
+    banReason: null,
+    muteReason: null,
+    bannedUntil: null,
+    mutedUntil: null
   });
   const isAdmin = computed(() => {
     if (!isInitialized.value) return false;
@@ -184,7 +191,13 @@ const PROFILE_SELECT_COLUMNS = `
   showcase_post_ids,
   last_active_at,
   hide_online_status,
-  hide_follow_data
+  hide_follow_data,
+  is_banned,
+  is_muted,
+  ban_reason,
+  mute_reason,
+  banned_until,
+  muted_until
 `;
   let authStateSubscription: any = null;
   let sessionHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
@@ -408,6 +421,13 @@ const PROFILE_SELECT_COLUMNS = `
     userInfo.lastActiveAt = (data.last_active_at as string) || null;
     userInfo.hideOnlineStatus = Boolean(data.hide_online_status);
     userInfo.hideFollowData = Boolean(data.hide_follow_data);
+    // 封禁/禁言状态
+    userInfo.isBanned = Boolean(data.is_banned);
+    userInfo.isMuted = Boolean(data.is_muted);
+    userInfo.banReason = (data.ban_reason as string) || null;
+    userInfo.muteReason = (data.mute_reason as string) || null;
+    userInfo.bannedUntil = (data.banned_until as string) || null;
+    userInfo.mutedUntil = (data.muted_until as string) || null;
   };
 
   const refreshCurrentUserProfile = async ({ force = true } = {}) => {
@@ -598,7 +618,7 @@ const PROFILE_SELECT_COLUMNS = `
     password: string,
     rememberMe = false
   ): Promise<LoginResult> => {
-    const { signIn: loginWithEdgeGateway } = await loadAuthApi();
+    const { signIn: loginWithEdgeGateway, supabase } = await loadAuthApi();
     const normalizedLoginId = String(loginId || '').trim();
     if (!normalizedLoginId) {
       return { success: false, message: '登录失败：请输入方块 ID 或邮箱地址。' };
@@ -626,6 +646,45 @@ const PROFILE_SELECT_COLUMNS = `
 
     const authUser = data?.user || data?.session?.user || null;
     await updateLocalState(authUser, { force: true });
+
+    // 检查用户封禁状态
+    const userId = userInfo.id;
+    if (userId) {
+      try {
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('is_banned, ban_reason, banned_until')
+          .eq('id', userId)
+          .single();
+
+        if (!profileError && profile?.is_banned === true) {
+          // 用户被封禁，立即退出并返回错误
+          const { signOut } = await loadAuthApi();
+          await signOut();
+          await resetState();
+
+          let banMessage = '您的账号已被封禁，无法登录。';
+          if (profile.ban_reason) {
+            banMessage += ` 原因：${profile.ban_reason}`;
+          }
+          if (profile.banned_until) {
+            const expiryDate = new Date(profile.banned_until);
+            banMessage += ` 解封时间：${expiryDate.toLocaleDateString('zh-CN')}`;
+          } else {
+            banMessage += '（永久封禁）';
+          }
+
+          return {
+            success: false,
+            message: banMessage,
+            code: 'USER_BANNED',
+          };
+        }
+      } catch (banCheckError) {
+        logger.warn('auth-store', '检查封禁状态失败', banCheckError);
+        // 封禁检查失败不阻止登录，继续流程
+      }
+    }
 
     return { success: true, message: '登录成功' };
   };
@@ -700,6 +759,7 @@ const PROFILE_SELECT_COLUMNS = `
     try {
       const { supabase } = await loadAuthApi();
       await supabase.rpc('update_last_active_at');
+      userInfo.lastActiveAt = new Date().toISOString();
     } catch {
       // 非关键功能，静默处理
     }

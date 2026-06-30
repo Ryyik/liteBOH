@@ -1,6 +1,7 @@
 import { ref } from "vue";
 import { supabase } from "@/utils/supabase-client.js";
 import { executeRead } from "@/utils/request-core.js";
+import { CACHE_TTL_LEVELS } from "@/utils/cache-strategy.js";
 import { logger } from "@/utils/logger.js";
 
 // 活动数据
@@ -28,7 +29,7 @@ export const initActivities = async () => {
           .select('id, title, date, image, description');
         return { data, error };
       },
-      { ttlMs: 10000, tags: ['activities'], timeoutMs: 8000, retry: 1 }
+      { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['activities'], timeoutMs: 8000, retry: 1 }
     );
 
     if (fetchError) {

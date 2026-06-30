@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "vite",
     "build": "npm run check:views && npm run check:structure && npm run type-check && vite build",
+    "build:full": "npm run build && npm run compress-images",
+    "compress-images": "node scripts/compress-images.mjs",
     "preview": "vite preview",
     "lint": "eslint .",
     "type-check": "vue-tsc --noEmit -p tsconfig.app.json",

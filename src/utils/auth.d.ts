@@ -89,7 +89,6 @@ export function markNotificationAsRead(notificationId: string, userId: string): 
 export function markAllNotificationsAsRead(userId: string): Promise<AuthApiResult>
 export function createNotification(recipientId: string, senderId: string, type: string, data?: Record<string, unknown>): Promise<AuthApiResult>
 export function getUnreadNotificationCount(userId: string): Promise<{ ok: boolean; count: number; notifCount: number; mailCount: number; data: unknown; error: AuthApiError | null }>
-export function subscribeToNotifications(userId: string, callback: (payload: NotificationItem) => void): Promise<RealtimeChannel>
 export function filterSelfActionNotifications(notifications: NotificationItem[]): NotificationItem[]
 export function sendPushplusForNotification(notification: Record<string, unknown>): Promise<{ success: boolean; message: string }>
 

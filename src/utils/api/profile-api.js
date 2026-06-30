@@ -1,6 +1,6 @@
 import { supabase } from '../supabase-client.js';
 import { executeRead, normalizeDbError, invalidateByTags } from '../request-core.js';
-import { createNotification } from './notifications-api.js';
+import { CACHE_TTL_LEVELS } from '../cache-strategy.js';
 import { logger } from '../logger.js';
 import { getForumPostParts } from '../forum-post-format.js';
 import { getCloudinaryTransformedUrl } from '../cloudinary-client.js';
@@ -133,7 +133,7 @@ export async function getUserImpressions(targetId, options = {}) {
       result = await fallbackQuery;
       return result;
     },
-    { ttlMs: 15000, tags: ['impressions', `impressions:target:${targetId}`], timeoutMs: 8000, retry: 1 }
+    { ttlMs: CACHE_TTL_LEVELS.USER_DATA, tags: ['impressions', `impressions:target:${targetId}`], timeoutMs: 8000, retry: 1 }
   );
 }
 
@@ -248,11 +248,8 @@ export async function addUserImpression(authorId, targetId, content) {
     });
   }
 
-  try {
-    await createNotification(targetId, authorId, 'impression', { content: safeContent });
-  } catch (err) {
-    logger.warn('profile-api', '印象通知失败(静默)', err);
-  }
+  // 通知由数据库触发器 create_impression_notification() 自动创建（security definer 绕过 RLS）
+  // 客户端无需再手动调用 createNotification
 
   invalidateByTags(['impressions', 'notifications']);
   return { ok: true, data, error: null };
@@ -312,7 +309,7 @@ export async function getProfileByUsername(username) {
       `)
       .eq('username', username)
       .single(),
-    { ttlMs: 30000, tags: ['profiles', `profiles:username:${username}`], timeoutMs: 8000, retry: 1 }
+    { ttlMs: CACHE_TTL_LEVELS.USER_DATA, tags: ['profiles', `profiles:username:${username}`], timeoutMs: 8000, retry: 1 }
   );
 }
 
@@ -361,7 +358,7 @@ export async function getPostsByIds(postIds = [], options = {}) {
       const ordered = ids.map((id) => postMap.get(id)).filter(Boolean);
       return { data: ordered, error: null };
     },
-    { ttlMs: 10000, tags: ['posts'], timeoutMs: 8000, retry: 1 }
+    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['posts'], timeoutMs: 8000, retry: 1 }
   );
 }
 
@@ -446,7 +443,7 @@ export async function getPostsByUsername(username, userId = null, options = {}) 
       return { data: formattedData, error: null };
     },
     {
-      ttlMs: 10000,
+      ttlMs: CACHE_TTL_LEVELS.LIST_DATA,
       tags: ['posts', `posts:username:${username}`, ...(userId ? [`posts:user:${userId}`] : [])],
       timeoutMs: 8000,
       retry: 1
@@ -536,7 +533,7 @@ export async function getCommentsByUsername(username, userId = null, options = {
       return { data: normalizeProfileCommentRows(byUsername.data || []), error: byUsername.error };
     },
     {
-      ttlMs: 10000,
+      ttlMs: CACHE_TTL_LEVELS.LIST_DATA,
       tags: ['comments', `comments:username:${username}`, ...(userId ? [`comments:user:${userId}`] : [])],
       timeoutMs: 8000,
       retry: 1
@@ -694,11 +691,8 @@ export async function followUser(followerId, followingId) {
 
   invalidateByTags(['user_follows', `follows:user:${followingId}`]);
 
-  try {
-    await createNotification(followingId, followerId, 'follow');
-  } catch (err) {
-    logger.warn('profile-api', '关注通知发送失败(静默)', err);
-  }
+  // 通知由数据库触发器 create_follow_notification() 自动创建（security definer 绕过 RLS）
+  // 客户端无需再手动调用 createNotification
 
   return { ok: true, data, error: null };
 }
@@ -758,7 +752,7 @@ export async function getFollowers(userId, options = {}) {
 
       return { data: items, error: null };
     },
-    { ttlMs: 15000, tags: ['user_follows', `follows:user:${userId}`], timeoutMs: 8000, retry: 1 }
+    { ttlMs: CACHE_TTL_LEVELS.USER_DATA, tags: ['user_follows', `follows:user:${userId}`], timeoutMs: 8000, retry: 1 }
   );
 }
 
@@ -796,7 +790,7 @@ export async function getFollowing(userId, options = {}) {
 
       return { data: items, error: null };
     },
-    { ttlMs: 15000, tags: ['user_follows', `follows:user:${userId}`], timeoutMs: 8000, retry: 1 }
+    { ttlMs: CACHE_TTL_LEVELS.USER_DATA, tags: ['user_follows', `follows:user:${userId}`], timeoutMs: 8000, retry: 1 }
   );
 }
 
@@ -817,7 +811,7 @@ export async function isFollowing(followerId, followingId) {
       if (error) return { data: false, error };
       return { data: Boolean(data), error: null };
     },
-    { ttlMs: 10000, tags: ['user_follows'], timeoutMs: 5000, retry: 0 }
+    { ttlMs: CACHE_TTL_LEVELS.USER_DATA, tags: ['user_follows'], timeoutMs: 5000, retry: 0 }
   );
 }
 
@@ -845,7 +839,7 @@ export async function getFollowCounts(userId) {
         error: followersResult.error || followingResult.error
       };
     },
-    { ttlMs: 15000, tags: ['user_follows', `follows:user:${userId}`], timeoutMs: 5000, retry: 1 }
+    { ttlMs: CACHE_TTL_LEVELS.USER_DATA, tags: ['user_follows', `follows:user:${userId}`], timeoutMs: 5000, retry: 1 }
   );
 }
 
@@ -892,6 +886,6 @@ export async function getFollowCountsBatch(userIds) {
 
       return { data: result, error: null };
     },
-    { ttlMs: 15000, tags: ['user_follows'], timeoutMs: 8000, retry: 1 }
+    { ttlMs: CACHE_TTL_LEVELS.USER_DATA, tags: ['user_follows'], timeoutMs: 8000, retry: 1 }
   );
 }

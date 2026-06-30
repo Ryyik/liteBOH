@@ -41,11 +41,11 @@ export const PRODUCT_CATEGORY_OPTIONS = [
 ];
 
 export const SUBSCRIPTION_PLAN_OPTIONS = [
-  { value: 'birthday-party', label: '方块生日会' },
-  { value: 'gift-custom', label: '礼物定制' },
-  { value: 'boh-ai-plus', label: 'BOH Plus' },
-  { value: 'boh-pro', label: 'BOH Pro' },
-  { value: 'boh-max', label: 'BOH Max' }
+  { value: 'free', label: 'Free' },
+  { value: 'plus', label: 'Plus' },
+  { value: 'pro', label: 'Pro' },
+  { value: 'max', label: 'Max' },
+  { value: 'ultra', label: 'Ultra' }
 ];
 
 export const SUBSCRIPTION_PLAN_NAMES = SUBSCRIPTION_PLAN_OPTIONS.reduce((map, item) => {

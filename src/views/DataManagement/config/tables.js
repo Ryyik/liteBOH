@@ -28,6 +28,18 @@ export const invalidateProductsCache = () => {
   }
 };
 
+// 封禁状态选项
+const BAN_STATUS_OPTIONS = [
+  { value: false, label: '正常' },
+  { value: true, label: '已封禁' }
+];
+
+// 禁言状态选项
+const MUTE_STATUS_OPTIONS = [
+  { value: false, label: '正常' },
+  { value: true, label: '已禁言' }
+];
+
 export const dataConfig = {
   users: {
     table: 'profiles',
@@ -36,20 +48,32 @@ export const dataConfig = {
       { key: 'username', label: '用户名' },
       { key: 'email', label: '邮箱' },
       { key: 'role', label: '角色', type: 'badge' },
+      { key: 'is_banned', label: '封禁', type: 'badge' },
+      { key: 'is_muted', label: '禁言', type: 'badge' },
       { key: 'points', label: '积分', type: 'number' },
       { key: 'created_at', label: '注册时间', type: 'date' }
     ],
     fields: [
-      { key: 'id', label: '用户ID', type: 'text', disabled: true, hint: 'UUID 主键由系统生成，不可手动修改。' },
-      { key: 'username', label: '用户名', type: 'text', required: true, maxLength: 32 },
-      { key: 'email', label: '邮箱', type: 'email', maxLength: 100, placeholder: 'example@domain.com' },
-      { key: 'role', label: '角色', type: 'select', options: USER_ROLE_OPTIONS },
-      { key: 'points', label: '积分', type: 'number', min: 0 },
-      { key: 'experience', label: '经验值', type: 'number', min: 0 },
-      { key: 'join_date', label: '加群时间', type: 'date' },
-      { key: 'bio', label: '简介', type: 'textarea' },
-      { key: 'avatar_url', label: '头像URL', type: 'text' },
-      { key: 'tags', label: '标签', type: 'tags' }
+      { key: 'id', label: '用户ID', type: 'text', disabled: true, hint: 'UUID 主键由系统生成，不可手动修改。', group: 'basic' },
+      { key: 'username', label: '用户名', type: 'text', required: true, maxLength: 32, group: 'basic' },
+      { key: 'email', label: '邮箱', type: 'email', maxLength: 100, placeholder: 'example@domain.com', group: 'basic' },
+      { key: 'role', label: '角色', type: 'select', options: USER_ROLE_OPTIONS, group: 'basic' },
+      { key: 'points', label: '积分', type: 'number', min: 0, group: 'stats' },
+      { key: 'experience', label: '经验值', type: 'number', min: 0, group: 'stats' },
+      { key: 'join_date', label: '加群时间', type: 'date', group: 'time' },
+      { key: 'bio', label: '简介', type: 'textarea', group: 'extra' },
+      { key: 'avatar_url', label: '头像URL', type: 'text', group: 'extra' },
+      { key: 'tags', label: '标签', type: 'tags', group: 'extra' },
+      // 封禁相关字段
+      { key: 'is_banned', label: '封禁状态', type: 'select', options: BAN_STATUS_OPTIONS, group: 'ban' },
+      { key: 'ban_reason', label: '封禁原因', type: 'textarea', rows: 2, placeholder: '请输入封禁原因', group: 'ban' },
+      { key: 'banned_until', label: '封禁到期', type: 'datetime', hint: '留空表示永久封禁', group: 'ban' },
+      { key: 'banned_at', label: '封禁时间', type: 'datetime', disabled: true, group: 'ban' },
+      // 禁言相关字段
+      { key: 'is_muted', label: '禁言状态', type: 'select', options: MUTE_STATUS_OPTIONS, group: 'mute' },
+      { key: 'mute_reason', label: '禁言原因', type: 'textarea', rows: 2, placeholder: '请输入禁言原因', group: 'mute' },
+      { key: 'muted_until', label: '禁言到期', type: 'datetime', hint: '留空表示永久禁言', group: 'mute' },
+      { key: 'muted_at', label: '禁言时间', type: 'datetime', disabled: true, group: 'mute' }
     ]
   },
   points: {
@@ -58,6 +82,8 @@ export const dataConfig = {
       { key: 'id', label: 'ID', maxLength: 24 },
       { key: 'username', label: '用户名' },
       { key: 'role', label: '角色', type: 'badge' },
+      { key: 'is_banned', label: '封禁', type: 'badge' },
+      { key: 'is_muted', label: '禁言', type: 'badge' },
       { key: 'points', label: '当前积分', type: 'number' },
       { key: 'experience', label: '经验值', type: 'number' },
       { key: 'join_date', label: '加群时间', type: 'date' }

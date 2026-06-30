@@ -1450,10 +1450,12 @@ const goToNotificationSource = () => {
   if (!postId) return;
   const commentId = selectedMessage.value.comment?.id || selectedMessage.value.comment_id;
   selectedMessage.value = null;
+  const query = commentId ? { comment: commentId } : {};
+  query.from = 'forum';
   router.push({
     name: 'PostDetail',
     params: { id: postId },
-    query: commentId ? { comment: commentId } : undefined
+    query
   });
 };
 
@@ -1965,30 +1967,12 @@ const closeWeeklyCheckinCalendar = () => {
 
 const weeklyCheckinHintText = computed(() => {
   if (!isLoggedIn.value) {
-    return `登录后每周可签到一次，连续 4 周可获得 ${WEEKLY_CHECKIN_REWARD_POINTS} 积分`;
+    return `登录后每周可签到一次，签到可获得 ${WEEKLY_CHECKIN_REWARD_POINTS} 积分`;
   }
-
-  const cycleSize = Math.max(1, Number(weeklyCheckinStatus.value.cycleSize || 4));
-  const cycleProgress = getWeeklyCheckinCycleProgress(weeklyCheckinStatus.value);
-  const nextReward = Math.max(1, Number(weeklyCheckinStatus.value.nextRewardIn || cycleSize));
-  const weeksAfterThisWeek = Math.max(0, nextReward - 1);
-
   if (weeklyCheckinStatus.value.hasSignedThisWeek) {
-    if (weeklyCheckinStatus.value.rewardCompletedThisWeek) {
-      return `本周已签到，已达成 ${cycleSize} 周连签奖励，下一轮进度 ${cycleProgress} / ${cycleSize}`;
-    }
-    return `本周已签到，当前 ${cycleProgress} / ${cycleSize}，再连续 ${nextReward} 周可获得 ${WEEKLY_CHECKIN_REWARD_POINTS} 积分`;
+    return `本周已签到 +${WEEKLY_CHECKIN_REWARD_POINTS} 积分`;
   }
-
-  if (cycleProgress === 0) {
-    return `本周可签到一次，连续签到 ${cycleSize} 周可获得 ${WEEKLY_CHECKIN_REWARD_POINTS} 积分`;
-  }
-
-  if (weeksAfterThisWeek === 0) {
-    return `本周完成签到即可获得 ${WEEKLY_CHECKIN_REWARD_POINTS} 积分奖励`;
-  }
-
-  return `本周还未签到，完成本周签到后再连续 ${weeksAfterThisWeek} 周可获得 ${WEEKLY_CHECKIN_REWARD_POINTS} 积分`;
+  return `本周签到可获得 ${WEEKLY_CHECKIN_REWARD_POINTS} 积分`;
 });
 
 const loadWeeklyCheckinStatus = async () => {
@@ -2296,7 +2280,7 @@ const requestConfirm = ({ title, message, confirmText = '确定', cancelText = '
 const goToProfile = (usernameVal) => {
   const safeUsername = String(usernameVal || '').trim();
   if (!safeUsername) return;
-  router.push(`/profile/${encodeURIComponent(safeUsername)}`);
+  router.push(`/profile/${encodeURIComponent(safeUsername)}?from=forum`);
 };
 
 const emitProfileSync = ({ userId, username, reason }) => {
@@ -2407,6 +2391,22 @@ const shouldCleanupImagesAfterPostError = (error) => {
 const handlePost = async () => {
   if (!isLoggedIn.value) {
     showLoginModal.value = true;
+    return;
+  }
+
+  // 检查用户禁言状态
+  if (userInfo.isMuted) {
+    let muteMessage = '您已被禁言，无法发布帖子。';
+    if (userInfo.muteReason) {
+      muteMessage += ` 原因：${userInfo.muteReason}`;
+    }
+    if (userInfo.mutedUntil) {
+      const expiryDate = new Date(userInfo.mutedUntil);
+      muteMessage += ` 解禁时间：${expiryDate.toLocaleDateString('zh-CN')}`;
+    } else {
+      muteMessage += '（永久禁言）';
+    }
+    showModal('warning', '禁言提示', muteMessage);
     return;
   }
 

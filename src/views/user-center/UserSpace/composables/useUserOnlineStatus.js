@@ -1,4 +1,4 @@
-const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
+const ONLINE_THRESHOLD_MS = 3 * 60 * 1000;
 
 export function useUserOnlineStatus() {
   const isUserOnline = (user, hideAll = false) => {

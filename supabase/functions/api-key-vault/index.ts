@@ -824,9 +824,10 @@ async function resolveUserTier(
     .eq('status', 'active')
     .gt('expires_at', new Date().toISOString());
   const plans = new Set((data || []).map((r: Record<string, unknown>) => String(r.plan_code || '')));
-  if (plans.has('boh-max')) return 'boh-max';
-  if (plans.has('boh-pro')) return 'boh-pro';
-  if (plans.has('boh-ai-plus')) return 'boh-ai-plus';
+  if (plans.has('ultra')) return 'ultra';
+  if (plans.has('max')) return 'max';
+  if (plans.has('pro')) return 'pro';
+  if (plans.has('plus')) return 'plus';
   return 'free';
 }
 

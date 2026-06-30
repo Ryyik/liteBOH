@@ -505,6 +505,210 @@ export const createMutationsCenter = (deps) => {
     }
   };
 
+  // ==================== 用户封禁/禁言操作 ====================
+
+  // 封禁用户（禁止登录）
+  const banUser = async (item) => {
+    if (!item?.id) return;
+    if (!await dialog.confirm({
+      title: '封禁用户',
+      message: `确定要封禁用户「${item.username || item.id}」吗？封禁后该用户将无法登录。`,
+      tone: 'danger',
+      confirmText: '封禁'
+    })) return;
+
+    // 询问封禁原因
+    const reason = await dialog.prompt({
+      title: '封禁原因',
+      message: '请输入封禁原因（可选）',
+      placeholder: '例如：违规操作、恶意行为',
+      defaultValue: ''
+    });
+    if (reason === null) return;
+
+    // 询问是否设置到期时间
+    const durationInput = await dialog.prompt({
+      title: '封禁时长',
+      message: '请输入封禁天数（留空表示永久封禁）',
+      placeholder: '例如：7 表示封禁 7 天',
+      defaultValue: ''
+    });
+    if (durationInput === null) return;
+
+    let bannedUntil = null;
+    const days = parseInt(durationInput, 10);
+    if (days > 0) {
+      const now = new Date();
+      bannedUntil = new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString();
+    }
+
+    try {
+      assertAdminAction();
+      const { data: rpcData, error: rpcError } = await supabase.rpc('admin_ban_user', {
+        p_user_id: item.id,
+        p_reason: reason.trim() || null,
+        p_until: bannedUntil,
+        p_admin_id: userInfo.value?.id || null
+      });
+
+      if (rpcError) {
+        if (isMissingRpcFunctionError(rpcError, 'admin_ban_user')) {
+          throw new Error('封禁用户 RPC 尚未部署，请先执行最新 Supabase migration');
+        }
+        throw rpcError;
+      }
+
+      if (!rpcData?.ok) {
+        throw new Error(String(rpcData?.message || '封禁失败'));
+      }
+
+      addChangeLogEntry('user_ban', item, { reason: reason.trim() || '未填写', days: days || '永久' });
+      showToast(days > 0 ? `用户已封禁 ${days} 天` : '用户已永久封禁', 'success');
+      await refreshCurrentViewAfterMutation();
+    } catch (error) {
+      logger.error('data-admin', '封禁用户失败:', error);
+      showToast('封禁失败: ' + buildActionErrorMessage(error, '封禁失败'), 'error');
+    }
+  };
+
+  // 解封用户
+  const unbanUser = async (item) => {
+    if (!item?.id) return;
+    if (!await dialog.confirm({
+      title: '解封用户',
+      message: `确定要解封用户「${item.username || item.id}」吗？`,
+      tone: 'warning',
+      confirmText: '解封'
+    })) return;
+
+    try {
+      assertAdminAction();
+      const { data: rpcData, error: rpcError } = await supabase.rpc('admin_unban_user', {
+        p_user_id: item.id,
+        p_admin_id: userInfo.value?.id || null
+      });
+
+      if (rpcError) {
+        if (isMissingRpcFunctionError(rpcError, 'admin_unban_user')) {
+          throw new Error('解封用户 RPC 尚未部署，请先执行最新 Supabase migration');
+        }
+        throw rpcError;
+      }
+
+      if (!rpcData?.ok) {
+        throw new Error(String(rpcData?.message || '解封失败'));
+      }
+
+      addChangeLogEntry('user_unban', item, {});
+      showToast('用户已解封', 'success');
+      await refreshCurrentViewAfterMutation();
+    } catch (error) {
+      logger.error('data-admin', '解封用户失败:', error);
+      showToast('解封失败: ' + buildActionErrorMessage(error, '解封失败'), 'error');
+    }
+  };
+
+  // 禁言用户（禁止发言）
+  const muteUser = async (item) => {
+    if (!item?.id) return;
+    if (!await dialog.confirm({
+      title: '禁言用户',
+      message: `确定要禁言用户「${item.username || item.id}」吗？禁言后该用户将无法发布内容。`,
+      tone: 'danger',
+      confirmText: '禁言'
+    })) return;
+
+    // 询问禁言原因
+    const reason = await dialog.prompt({
+      title: '禁言原因',
+      message: '请输入禁言原因（可选）',
+      placeholder: '例如：发布不当言论、恶意刷屏',
+      defaultValue: ''
+    });
+    if (reason === null) return;
+
+    // 询问是否设置到期时间
+    const durationInput = await dialog.prompt({
+      title: '禁言时长',
+      message: '请输入禁言天数（留空表示永久禁言）',
+      placeholder: '例如：7 表示禁言 7 天',
+      defaultValue: ''
+    });
+    if (durationInput === null) return;
+
+    let mutedUntil = null;
+    const days = parseInt(durationInput, 10);
+    if (days > 0) {
+      const now = new Date();
+      mutedUntil = new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString();
+    }
+
+    try {
+      assertAdminAction();
+      const { data: rpcData, error: rpcError } = await supabase.rpc('admin_mute_user', {
+        p_user_id: item.id,
+        p_reason: reason.trim() || null,
+        p_until: mutedUntil,
+        p_admin_id: userInfo.value?.id || null
+      });
+
+      if (rpcError) {
+        if (isMissingRpcFunctionError(rpcError, 'admin_mute_user')) {
+          throw new Error('禁言用户 RPC 尚未部署，请先执行最新 Supabase migration');
+        }
+        throw rpcError;
+      }
+
+      if (!rpcData?.ok) {
+        throw new Error(String(rpcData?.message || '禁言失败'));
+      }
+
+      addChangeLogEntry('user_mute', item, { reason: reason.trim() || '未填写', days: days || '永久' });
+      showToast(days > 0 ? `用户已禁言 ${days} 天` : '用户已永久禁言', 'success');
+      await refreshCurrentViewAfterMutation();
+    } catch (error) {
+      logger.error('data-admin', '禁言用户失败:', error);
+      showToast('禁言失败: ' + buildActionErrorMessage(error, '禁言失败'), 'error');
+    }
+  };
+
+  // 解除禁言
+  const unmuteUser = async (item) => {
+    if (!item?.id) return;
+    if (!await dialog.confirm({
+      title: '解除禁言',
+      message: `确定要解除用户「${item.username || item.id}」的禁言状态吗？`,
+      tone: 'warning',
+      confirmText: '解除'
+    })) return;
+
+    try {
+      assertAdminAction();
+      const { data: rpcData, error: rpcError } = await supabase.rpc('admin_unmute_user', {
+        p_user_id: item.id,
+        p_admin_id: userInfo.value?.id || null
+      });
+
+      if (rpcError) {
+        if (isMissingRpcFunctionError(rpcError, 'admin_unmute_user')) {
+          throw new Error('解除禁言 RPC 尚未部署，请先执行最新 Supabase migration');
+        }
+        throw rpcError;
+      }
+
+      if (!rpcData?.ok) {
+        throw new Error(String(rpcData?.message || '解除禁言失败'));
+      }
+
+      addChangeLogEntry('user_unmute', item, {});
+      showToast('用户已解除禁言', 'success');
+      await refreshCurrentViewAfterMutation();
+    } catch (error) {
+      logger.error('data-admin', '解除禁言失败:', error);
+      showToast('解除禁言失败: ' + buildActionErrorMessage(error, '解除禁言失败'), 'error');
+    }
+  };
+
   return {
     // 通用删除
     deleteItem,
@@ -525,6 +729,11 @@ export const createMutationsCenter = (deps) => {
     rejectModerationItem,
     keepLimitedModerationItem,
     deleteModerationItem,
+    // 用户封禁/禁言
+    banUser,
+    unbanUser,
+    muteUser,
+    unmuteUser,
     // 辅助
     isMissingRpcFunctionError,
     buildModerationErrorMessage

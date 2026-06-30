@@ -70,7 +70,7 @@ const router = useRouter();
 const goToProfile = (username) => {
   if (!username) return;
   emit('close');
-  router.push(`/profile/${encodeURIComponent(username)}`);
+  router.push(`/profile/${encodeURIComponent(username)}?from=profile`);
 };
 
 const formatDate = (dateStr) => {
