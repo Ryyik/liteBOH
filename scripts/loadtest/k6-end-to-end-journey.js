@@ -30,7 +30,6 @@ const testMode = String(__ENV.TEST_MODE || 'smoke').trim().toLowerCase();
 const testEmail = String(__ENV.TEST_EMAIL || '').trim();
 const testPassword = String(__ENV.TEST_PASSWORD || '').trim();
 const testUserId = String(__ENV.TEST_USER_ID || '').trim();
-const insecureSkipTlsVerify = String(__ENV.INSECURE_SKIP_TLS_VERIFY || '0').trim() === '1';
 const postContentLength = Math.min(Math.max(Number(__ENV.FORUM_POST_CONTENT_LENGTH) || 60, 20), 500);
 const commentContentLength = Math.min(Math.max(Number(__ENV.COMMENT_CONTENT_LENGTH) || 30, 10), 300);
 
@@ -262,7 +261,7 @@ function createPost(context) {
       }),
       { headers: buildHeaders(context.accessToken), tags: { endpoint: 'forum_create_post' } },
     );
-  } catch (e) {
+  } catch {
     // Fallback: 可能 RPC 未部署，尝试直接写入 posts 表
     res = http.post(
       `${baseUrl}/rest/v1/posts`,

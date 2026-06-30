@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { logger } from '@/utils/logger.js';
-import type { NotificationPayload } from '@/types';
 import type * as AuthModule from '@/utils/auth.js';
 
 let authApiPromise: Promise<typeof AuthModule> | null = null;

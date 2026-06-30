@@ -22,7 +22,6 @@ export function useEdgeSwipeGesture(options = {}) {
   const edgeIndicatorVisible = ref(false)
 
   let touchStartX = 0
-  let touchStartY = 0
   let touchStartTime = 0
 
   function handleTouchStart(e) {

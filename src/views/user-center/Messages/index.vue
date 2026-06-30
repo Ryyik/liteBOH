@@ -219,7 +219,7 @@
         <!-- 虚拟滚动列表（当消息超过阈值时启用） -->
         <div v-if="shouldUseVirtualScroll" class="x-virtual-list-container" v-bind="containerProps" @scroll="handleVirtualScroll">
           <div v-bind="wrapperProps">
-            <div v-for="{ data: msg, index } in virtualMessages" :key="msg.id"
+            <div v-for="{ data: msg } in virtualMessages" :key="msg.id"
               class="x-item" role="option" tabindex="0" :data-message-id="msg.id"
               :class="{ unread: msg.status === 'unread', 'is-selecting': isSelectMode, selected: selectedMessageIds.has(msg.id), 'active-detail': selectedMessage?.id === msg.id && !isSelectMode }"
               @click="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)"

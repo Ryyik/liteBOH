@@ -181,7 +181,6 @@ const unreadCount = computed(() => notificationStoreRef.value?.unreadCount || 0)
 // ============================================
 
 const route = useRoute();
-const router = useRouter();
 
 const isActive = (path) => {
   if (path === '/user-space?tab=posts') {

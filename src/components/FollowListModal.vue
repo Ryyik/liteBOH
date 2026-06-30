@@ -50,7 +50,7 @@
 <script setup>
 import { useRouter } from 'vue-router';
 
-const props = defineProps({
+defineProps({
   show: { type: Boolean, default: false },
   title: { type: String, default: '' },
   users: { type: Array, default: () => [] },

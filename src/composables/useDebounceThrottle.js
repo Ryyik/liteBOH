@@ -1,4 +1,4 @@
-import { onUnmounted, ref } from 'vue';
+import { onUnmounted } from 'vue';
 
 /**
  * 防抖函数 - 带自动清理的防抖实现

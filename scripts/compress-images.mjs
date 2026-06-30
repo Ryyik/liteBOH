@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import { readFileSync, statSync, writeFileSync } from 'fs';
+import { statSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { globSync } from 'glob';
@@ -21,9 +21,6 @@ const largeImages = images
 
 console.log(`找到 ${images.length} 张 webp 图片，其中 ${largeImages.length} 张超过 ${SIZE_THRESHOLD_KB}KB\n`);
 
-// 压缩配置：不同尺寸上限的图片用不同策略
-const MAX_WIDTHS = [480, 768, 1280, 1920];
-
 const results = [];
 let totalSaved = 0;
 
@@ -34,9 +31,6 @@ for (const { path: imgPath, size: origSize } of largeImages) {
   try {
     const metadata = await sharp(imgPath).metadata();
     const { width, height } = metadata;
-    
-    // 确定目标宽度：不超过 1920，且不超过原始宽度
-    let targetWidth = Math.min(width, 1920);
     
     // 对于超大分辨率图片（>4K），生成多尺寸版本
     if (width > 2560) {
