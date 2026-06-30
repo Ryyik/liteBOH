@@ -1,16 +1,16 @@
 
 
 .nickname-gold {
-  color: #d4a017;
+  color: #d4a017 !important;
   font-weight: 700;
 }
 
 .nickname-rainbow {
-  background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff, #9b59b6, #ff6b6b);
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff, #9b59b6, #ff6b6b) !important;
+  background-size: 200% 100% !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
   font-weight: 700;
   animation: nickname-rainbow-shift 3s linear infinite;
 }

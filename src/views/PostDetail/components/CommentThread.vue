@@ -1,5 +1,6 @@
 <script setup>
 import { Reply } from 'lucide-vue-next';
+import { ref, watch } from 'vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { formatSmartTime } from '@/utils/time.js';
 import { getHomeCatAsset } from '@/utils/home-cat-theme.js';
