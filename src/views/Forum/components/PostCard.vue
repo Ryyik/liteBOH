@@ -120,10 +120,8 @@ const { fetchUserTier, getNicknameClass } = useUserTier();
 const authorTierClass = ref('');
 watch(() => props.post?.author_id, async (id) => {
   if (id) {
-    const tier = await fetchUserTier(id);
-    console.log('[nickname] author_id:', id, 'tier:', tier);
+    await fetchUserTier(id);
     authorTierClass.value = getNicknameClass(id);
-    console.log('[nickname] class:', authorTierClass.value);
   } else {
     authorTierClass.value = '';
   }
