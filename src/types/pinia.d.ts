@@ -7,10 +7,10 @@ import 'pinia'
 
 declare module 'pinia' {
   export interface DefineSetupStoreOptions<
-    Id extends string,
+    _Id extends string,
     S extends StateTree,
-    G extends _GettersTree<S>,
-    A
+    _G extends _GettersTree<S>,
+    _A
   > {
     /**
      * pinia-plugin-persistedstate 持久化配置

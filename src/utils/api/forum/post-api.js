@@ -13,7 +13,6 @@ import { cleanupOrphanedUploads } from '../../cloud-upload-guard.js';
 import {
   ALLOWED_CONTENT_STATUS,
   APPROVED_STATUS,
-  DEFAULT_FORUM_TAG,
   FORUM_IMAGE_MAX_COUNT,
   REJECTED_STATUS,
   applyForumTagFilter,
@@ -22,7 +21,6 @@ import {
   matchesForumTagFilter,
   normalizeContentStatus,
   normalizeForumDraftRecord,
-  normalizeForumImage,
   normalizeForumImagePostError,
   normalizeForumImages,
   normalizeForumReportError,

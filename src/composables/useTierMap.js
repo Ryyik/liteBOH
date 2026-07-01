@@ -41,7 +41,7 @@ export function useTierMap(idsGetter, getNicknameClassFn, fetchUserTierFn) {
     if (!idList || !Array.isArray(idList)) return;
     try {
       await Promise.all(idList.map((id) => fetchUserTierFn(id)));
-    } catch (e) {
+    } catch {
       // 静默处理，fetchUserTierFn 内部已有兜底
     } finally {
       fetchVersion.value++;

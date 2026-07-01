@@ -141,9 +141,6 @@ if (typeof window !== "undefined") {
   // PWA 更新检测机制（非阻塞提示）
   // ============================================
   if ('serviceWorker' in navigator && !import.meta.env.DEV) {
-    // 动态导入 PWA 更新提示模块
-    let showUpdatePrompt = null;
-
     // 监听 Service Worker 更新事件
     navigator.serviceWorker.ready.then((registration) => {
       // 定期检查更新（每10分钟，缩短间隔）

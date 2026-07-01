@@ -16,25 +16,11 @@ let waitingWorker = null;
 const PROMPTED_VERSION_KEY = 'pwa_prompted_version';
 
 /**
- * 获取 Service Worker 的版本标识
- * @param {ServiceWorker} worker - Service Worker 实例
- * @returns {string} 版本标识
- */
-const getWorkerVersionId = (worker) => {
-  if (!worker) return '';
-  // 使用 scriptURL 和 state 组合作为版本标识
-  // 由于 SW 更新后 scriptURL 相同，我们使用 worker 的内部状态标识
-  // 实际上，当有新的 waiting worker 时，它的 scriptURL 相同但时间不同
-  // 我们用一个更可靠的方案：检查 localStorage 中是否有新版本标识
-  return `sw_${Date.now()}`;
-};
-
-/**
  * 检查是否已经提示过该版本
- * @param {ServiceWorker} worker - Service Worker 实例
+ * @param {ServiceWorker} _worker - Service Worker 实例
  * @returns {boolean} 是否已提示过
  */
-const hasPromptedVersion = (worker) => {
+const hasPromptedVersion = (_worker) => {
   // 使用 sessionStorage 确保同一会话只提示一次
   // 关闭浏览器后重新打开会重新提示
   const prompted = sessionStorage.getItem(PROMPTED_VERSION_KEY);
