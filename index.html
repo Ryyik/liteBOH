@@ -11,6 +11,8 @@
     <!-- Google Fonts 预加载（替代 CSS @import，避免阻塞渲染） -->
     <link rel="preload" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
     <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap"></noscript>
+    <!-- 首屏 LCP 图片预加载 -->
+    <link rel="preload" as="image" fetchpriority="high" href="/src/assets/images/blockschool.webp">
     <!-- PWA 兼容性 -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -47,47 +49,42 @@
             window.location.search.includes('clearCache=true')) {
           console.log('[PWA] 检测到强制更新参数，开始清除缓存');
 
-          // 清除所有 Service Worker
-          if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(function(registrations) {
-              console.log('[PWA] 找到 ' + registrations.length + ' 个 Service Worker 注册');
-              registrations.forEach(function(registration) {
-                registration.unregister();
-                console.log('[PWA] 已注销 Service Worker: ' + registration.scope);
-              });
-            }).catch(function(err) {
-              console.error('[PWA] Service Worker 注销失败:', err);
-            });
-          }
+          var cleanUrl = window.location.pathname + window.location.hash;
 
-          // 清除所有 Cache Storage
-          if ('caches' in window) {
-            caches.keys().then(function(cacheNames) {
-              console.log('[PWA] 找到 ' + cacheNames.length + ' 个缓存');
-              return Promise.all(
-                cacheNames.map(function(cacheName) {
+          // SW 注销任务（不支持 SW 时返回空数组）
+          var swTask = ('serviceWorker' in navigator)
+            ? navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                console.log('[PWA] 找到 ' + registrations.length + ' 个 Service Worker 注册');
+                return Promise.all(registrations.map(function(registration) {
+                  return registration.unregister().then(function() {
+                    console.log('[PWA] 已注销 Service Worker: ' + registration.scope);
+                  });
+                }));
+              })
+            : Promise.resolve([]);
+
+          // Cache Storage 清除任务（不支持时跳过，仅清理 SW 后重定向）
+          var cacheTask = ('caches' in window)
+            ? caches.keys().then(function(cacheNames) {
+                console.log('[PWA] 找到 ' + cacheNames.length + ' 个缓存');
+                return Promise.all(cacheNames.map(function(cacheName) {
                   console.log('[PWA] 删除缓存: ' + cacheName);
                   return caches.delete(cacheName);
-                })
-              );
-            }).then(function() {
-              console.log('[PWA] 所有缓存已清除');
+                }));
+              })
+            : Promise.resolve([]);
 
-              // 移除 URL 参数，重定向到正常页面
-              var cleanUrl = window.location.pathname + window.location.hash;
-              console.log('[PWA] 重定向到: ' + cleanUrl);
-              window.location.replace(cleanUrl);
-            }).catch(function(err) {
-              console.error('[PWA] 缓存清除失败:', err);
-              // 即使失败也尝试重定向
-              var cleanUrl = window.location.pathname + window.location.hash;
-              window.location.replace(cleanUrl);
-            });
-          } else {
-            // 不支持 Cache Storage，直接重定向
-            var cleanUrl = window.location.pathname + window.location.hash;
+          // 合并为单条 Promise 链，等待 SW 注销与缓存清除全部完成后再重定向，
+          // 避免重定向先于 SW 注销发生
+          Promise.all([swTask, cacheTask]).then(function() {
+            console.log('[PWA] 所有缓存已清除');
+            console.log('[PWA] 重定向到: ' + cleanUrl);
             window.location.replace(cleanUrl);
-          }
+          }).catch(function(err) {
+            console.error('[PWA] 清理失败:', err);
+            // 即使失败也尝试重定向
+            window.location.replace(cleanUrl);
+          });
         }
       })();
     </script>

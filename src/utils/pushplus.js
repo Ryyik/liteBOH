@@ -12,6 +12,16 @@ const RATE_LIMIT = {
 // 记录上次发送时间
 const lastSendTime = new Map();
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 /**
  * 检查是否可以发送消息（频率控制）
  * @param {string} key - 消息类型标识
@@ -62,7 +72,7 @@ export async function sendPushplusMessage(token, title, content, template = 'htm
       payload.topic = topic;
     }
 
-    const response = await fetch(PUSHPLUS_API_URL, {
+    const response = await fetchWithTimeout(PUSHPLUS_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -223,7 +233,7 @@ export async function validatePushplusToken(token) {
  */
 export async function queryMessageStatus(messageId) {
   try {
-    const response = await fetch(`https://www.pushplus.plus/api/message/status?messageId=${messageId}`);
+    const response = await fetchWithTimeout(`https://www.pushplus.plus/api/message/status?messageId=${messageId}`);
     const result = await response.json();
 
     if (result.code === 200) {
@@ -296,7 +306,7 @@ export async function sendAdvancedMessage(options) {
     if (callbackUrl) payload.callbackUrl = callbackUrl;
     if (timestamp) payload.timestamp = timestamp;
 
-    const response = await fetch(PUSHPLUS_API_URL, {
+    const response = await fetchWithTimeout(PUSHPLUS_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

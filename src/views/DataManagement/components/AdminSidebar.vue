@@ -1,160 +1,106 @@
 <template>
-  <aside class="admin-sidebar" :class="{ open: isOpen }">
-    <div class="sidebar-search">
-      <svg class="sidebar-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-      </svg>
+  <aside :class="['g-sidebar', { open: isOpen }]" :aria-label="'网站管理导航'">
+    <!-- Brand -->
+    <div class="g-sidebar-brand">
+      <div class="g-sidebar-brand-mark" aria-hidden="true">B</div>
+      <div class="g-sidebar-brand-copy">
+        <strong>BOH Admin</strong>
+        <span>站点数据工作台</span>
+      </div>
+    </div>
+
+    <!-- Search pill -->
+    <div class="g-sidebar-search">
+      <SearchIcon :size="14" class="g-search-icon" />
       <input
         v-model="localSearchQuery"
         type="text"
-        placeholder="快速搜索记录..."
-        class="sidebar-search-input"
+        placeholder="快速搜索..."
+        class="g-sidebar-search-input"
+        aria-label="快速搜索"
         @input="onSearchInput"
         @keydown.esc="clearSearch"
       />
-      <button v-if="localSearchQuery" class="sidebar-search-clear" @click="clearSearch" aria-label="清除搜索">×</button>
+      <button v-if="localSearchQuery" type="button" class="g-sidebar-search-clear" @click="clearSearch" aria-label="清除搜索">×</button>
     </div>
 
-    <div class="sidebar-quick-actions">
-      <button class="quick-action-btn" @click="$emit('create-record')" title="新增记录">
-        <Plus :size="15" />
-      </button>
-      <button class="quick-action-btn" @click="$emit('refresh-data')" title="刷新数据">
-        <RefreshCw :size="15" />
-      </button>
-      <button class="quick-action-btn" @click="$emit('toggle-theme')" title="切换主题">
-        <Sun :size="15" />
-      </button>
+    <div v-if="localSearchQuery" class="g-sidebar-search-status">
+      <LoaderCircle :size="13" class="g-spin" />
+      <span>正在搜索...</span>
     </div>
 
-    <div v-if="localSearchQuery && localSearchQuery.length > 0" class="sidebar-search-status">
-      <span>正在跨表搜索...</span>
-    </div>
-
-    <nav class="sidebar-nav" aria-label="网站管理导航">
-      <template v-for="item in navigation" :key="item.id">
+    <!-- Navigation (flat, no groups) -->
+    <nav class="g-sidebar-nav" aria-label="管理导航">
+      <template v-for="(mod, idx) in modules" :key="mod.id">
         <button
-          class="sidebar-link"
-          :class="{ active: item.active }"
           type="button"
-          @click="$emit('nav-click', item)"
+          :class="['g-nav-btn', { 'is-active': isModuleActive(mod.id) }]"
+          @click="$emit('module-click', mod)"
         >
-          <component :is="item.icon" :size="17" />
-          <span>{{ item.label }}</span>
-          <span v-if="item.badge" class="sidebar-badge">{{ item.badge }}</span>
+          <component :is="mod.icon" :size="16" class="g-nav-glyph" />
+          <span class="g-nav-label">{{ mod.label }}</span>
           <span
-            v-if="item.id === 'data'"
-            class="sidebar-collapse-indicator"
-            :class="{ collapsed: isDataTreeCollapsed }"
-          >
-            ▾
-          </span>
+            v-if="mod.id === 'moderation' && hasUnmoderated"
+            class="g-nav-dot"
+            aria-hidden="true"
+          ></span>
         </button>
 
-        <div v-if="item.id === 'data' && !isDataTreeCollapsed" class="sidebar-data-tree">
-          <div v-if="pinnedTabs.length" class="sidebar-quick-block">
-            <div class="sidebar-quick-title">置顶表</div>
-            <button
-              v-for="tab in pinnedTabs"
-              :key="`pinned-${tab.id}`"
-              class="sidebar-sub-link"
-              :class="{ active: activeAdminSection === 'data' && currentTab === tab.id }"
-              type="button"
-              @click="$emit('tab-click', tab.id)"
-            >
-              <span>{{ tab.label }}</span>
-              <span v-if="getTabCount(tab.id) > 0" class="sidebar-mini-badge">{{ getTabCount(tab.id) }}</span>
-            </button>
-          </div>
-
-          <div
-            v-for="group in tabGroups"
-            :key="group.id"
-            class="sidebar-tab-group"
-            :class="{ expanded: expandedGroups.has(group.id) }"
-          >
-            <button
-              class="sidebar-group-link"
-              :class="{ active: activeAdminSection === 'data' && activeTabGroupId === group.id }"
-              type="button"
-              @click="toggleGroup(group.id)"
-            >
-              <span>{{ group.label }}</span>
-              <span class="sidebar-badge">{{ group.count }}</span>
-              <span class="sidebar-group-arrow">▾</span>
-            </button>
-            <div class="sidebar-subnav">
-              <button
-                v-for="tab in getTabsByGroup(group)"
-                :key="tab.id"
-                class="sidebar-sub-link"
-                :class="{ active: activeAdminSection === 'data' && currentTab === tab.id }"
-                type="button"
-                @click="$emit('tab-click', tab.id)"
-              >
-                <span>{{ tab.label }}</span>
-                <span v-if="getTabCount(tab.id) > 0" class="sidebar-mini-badge">{{ getTabCount(tab.id) }}</span>
-              </button>
-            </div>
-          </div>
-
-          <div v-if="recentRecords.length" class="sidebar-quick-block">
-            <div class="sidebar-quick-title">最近操作</div>
-            <div class="sidebar-recent-list">
-              <button
-                v-for="record in recentRecords.slice(0, 5)"
-                :key="`${record.tabId}-${record.id}`"
-                class="sidebar-recent-item"
-                type="button"
-                @click="$emit('recent-click', record)"
-              >
-                <span class="sidebar-recent-label">{{ record.tabLabel }}</span>
-                <span class="sidebar-recent-title">{{ record.title }}</span>
-                <span class="sidebar-recent-edit" @click.stop="$emit('quick-edit', record)" title="快速编辑">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                </span>
-              </button>
-            </div>
-          </div>
-        </div>
+        <!-- Divider between modules (skip last) -->
+        <div v-if="idx < modules.length - 1" class="g-sidebar-divider" aria-hidden="true"></div>
       </template>
     </nav>
+
+    <!-- Quick actions -->
+    <div class="g-sidebar-quick">
+      <button type="button" class="g-icon-btn is-sm" title="新增记录" @click="$emit('create-record')">
+        <Plus :size="14" />
+      </button>
+      <button type="button" class="g-icon-btn is-sm" title="刷新数据" @click="$emit('refresh-data')">
+        <RefreshCw :size="14" />
+      </button>
+      <span class="g-sidebar-quick-label">快捷操作</span>
+    </div>
+
+    <!-- Footer -->
+    <div class="g-sidebar-foot">
+      <span class="g-sidebar-dot" aria-hidden="true" />
+      <span>BOH 数据管理 · v2.5</span>
+    </div>
   </aside>
 </template>
 
 <script setup>
-import { ref } from 'vue';
-import { Plus, RefreshCw, Sun } from 'lucide-vue-next';
+import { ref, watch } from 'vue';
+import {
+  LoaderCircle,
+  Plus,
+  RefreshCw,
+  Search as SearchIcon
+} from 'lucide-vue-next';
 
 const props = defineProps({
-  activeAdminSection: { type: String, required: true },
-  activeTabGroupId: { type: String, required: true },
-  currentTab: { type: String, required: true },
-  getTabCount: { type: Function, required: true },
-  getTabsByGroup: { type: Function, required: true },
-  isDataTreeCollapsed: { type: Boolean, required: true },
+  activeModule: { type: String, required: true },
+  modules: { type: Array, required: true },
   isOpen: { type: Boolean, required: true },
-  navigation: { type: Array, required: true },
-  pinnedTabs: { type: Array, required: true },
-  recentRecords: { type: Array, required: true },
-  tabGroups: { type: Array, required: true },
-  searchQuery: { type: String, default: '' }
+  searchQuery: { type: String, default: '' },
+  hasUnmoderated: { type: Boolean, default: false }
 });
 
-const emit = defineEmits(['nav-click', 'recent-click', 'tab-click', 'update:searchQuery', 'create-record', 'refresh-data', 'toggle-theme', 'quick-edit']);
+const emit = defineEmits([
+  'module-click',
+  'update:searchQuery',
+  'create-record',
+  'refresh-data'
+]);
 
 const localSearchQuery = ref(props.searchQuery || '');
-const expandedGroups = ref(new Set());
 
-const toggleGroup = (groupId) => {
-  const next = new Set(expandedGroups.value);
-  if (next.has(groupId)) {
-    next.delete(groupId);
-  } else {
-    next.add(groupId);
-  }
-  expandedGroups.value = next;
-};
+watch(() => props.searchQuery, (val) => {
+  if (val !== localSearchQuery.value) localSearchQuery.value = val || '';
+});
+
+const isModuleActive = (modId) => props.activeModule === modId;
 
 const onSearchInput = () => {
   emit('update:searchQuery', localSearchQuery.value);
@@ -167,89 +113,249 @@ const clearSearch = () => {
 </script>
 
 <style scoped>
-@import '../styles/console.css';
-@import '../styles/responsive.css';
+@import '../styles/google-components.css';
 
-.sidebar-tab-group .sidebar-subnav {
-  display: none;
-}
-.sidebar-tab-group.expanded .sidebar-subnav {
-  display: flex;
-}
-
-.sidebar-group-arrow {
-  margin-left: auto;
-  font-size: 10px;
-  color: var(--dm-muted, #86868b);
-  transition: transform 0.2s;
-}
-.sidebar-tab-group.expanded .sidebar-group-arrow {
-  transform: rotate(180deg);
-}
-
-.sidebar-recent-list {
+/* Sidebar shell */
+.g-sidebar {
+  position: sticky;
+  top: var(--dm-nav-height);
+  height: calc(100vh - var(--dm-nav-height));
+  background: var(--sidebar);
+  color: var(--sidebar-foreground);
+  border-right: 1px solid var(--sidebar-border);
+  padding: calc(var(--spacing) * 4);
   display: flex;
   flex-direction: column;
-  gap: 3px;
-}
-.sidebar-recent-item {
-  width: 100%;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 6px;
-  align-items: center;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: transparent;
-  color: #86868b;
-  padding: 5px 6px;
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.15s;
-  font-size: 12px;
-  min-height: 28px;
-}
-.sidebar-recent-item:hover {
-  background: rgba(0,0,0,0.06);
-}
-.sidebar-recent-label {
-  font-size: 10px;
-  font-weight: 700;
-  color: #86868b;
-  white-space: nowrap;
+  gap: calc(var(--spacing) * 3);
+  z-index: 1002;
   overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 52px;
-}
-.sidebar-recent-title {
-  font-weight: 650;
-  color: #1d1d1f;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.sidebar-recent-edit {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  color: #86868b;
-  flex-shrink: 0;
-  transition: all 0.15s;
-}
-.sidebar-recent-edit:hover {
-  background: rgba(0,113,227,0.1);
-  color: #0071e3;
+  width: var(--dm-sidebar-width);
+  flex: 0 0 var(--dm-sidebar-width);
 }
 
-.sidebar-search-status {
-  padding: 10px 8px;
-  font-size: 12px;
-  color: #86868b;
-  text-align: center;
+/* Brand */
+.g-sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 3);
+  padding: calc(var(--spacing) * 1) 0 calc(var(--spacing) * 2);
+  border-bottom: 1px solid var(--sidebar-border);
+  flex: 0 0 auto;
+}
+.g-sidebar-brand-mark {
+  width: 32px;
+  height: 32px;
   border-radius: 8px;
-  background: rgba(0,0,0,0.03);
+  display: grid;
+  place-items: center;
+  background: var(--sidebar-primary);
+  color: var(--sidebar-primary-foreground);
+  font-weight: 700;
+  font-size: 0.9rem;
+  flex: 0 0 32px;
+}
+.g-sidebar-brand-copy {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.2;
+}
+.g-sidebar-brand-copy strong {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--sidebar-foreground);
+}
+.g-sidebar-brand-copy span {
+  font-size: 0.7rem;
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Search */
+.g-sidebar-search {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 2);
+  height: 32px;
+  padding: 0 calc(var(--spacing) * 3);
+  border: 1px solid var(--input);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--foreground);
+  transition: border-color 0.2s ease;
+  flex: 0 0 auto;
+}
+.g-sidebar-search:focus-within { border-color: var(--primary); }
+.g-sidebar-search .g-search-icon { color: var(--muted-foreground); flex: 0 0 14px; }
+.g-sidebar-search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  min-width: 0;
+}
+.g-sidebar-search-input::placeholder { color: var(--muted-foreground); }
+.g-sidebar-search-clear {
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* Search status */
+.g-sidebar-search-status {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 2);
+  padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3);
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--muted-foreground);
+  border-radius: var(--radius);
+  font-size: 0.74rem;
+  flex: 0 0 auto;
+}
+
+/* Nav list (flat) */
+.g-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--spacing) * 0.5);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.g-sidebar-nav::-webkit-scrollbar { width: 3px; }
+.g-sidebar-nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+
+.g-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 3);
+  width: 100%;
+  padding: calc(var(--spacing) * 2.5) calc(var(--spacing) * 3);
+  border: none;
+  background: transparent;
+  color: var(--sidebar-foreground);
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.16s ease;
+  min-height: 36px;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.g-nav-btn:hover { background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); }
+.g-nav-btn:active { transform: scale(0.98); }
+.g-nav-btn.is-active {
+  background: var(--sidebar-primary);
+  color: var(--sidebar-primary-foreground);
+  font-weight: 600;
+}
+.g-nav-btn .g-nav-glyph {
+  width: 16px;
+  text-align: center;
+  flex: 0 0 16px;
+  color: currentColor;
+}
+.g-nav-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Status dot (for moderation) */
+.g-nav-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--chart-2);
+  flex: 0 0 8px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--chart-2) 24%, transparent);
+}
+.g-nav-btn.is-active .g-nav-dot {
+  background: var(--sidebar-primary-foreground);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sidebar-primary-foreground) 28%, transparent);
+}
+
+/* Module divider */
+.g-sidebar-divider {
+  height: 1px;
+  background: var(--sidebar-border);
+  margin: calc(var(--spacing) * 1.5) calc(var(--spacing) * 1);
+  flex: 0 0 auto;
+}
+
+/* Quick action row (bottom) */
+.g-sidebar-quick {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 2);
+  padding-top: calc(var(--spacing) * 2);
+  border-top: 1px solid var(--sidebar-border);
+  flex: 0 0 auto;
+}
+.g-sidebar-quick-label {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-foreground);
+  font-weight: 600;
+  margin-left: auto;
+}
+
+/* Footer */
+.g-sidebar-foot {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 2);
+  font-size: 0.7rem;
+  color: var(--muted-foreground);
+  flex: 0 0 auto;
+}
+.g-sidebar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--chart-5);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--chart-5) 22%, transparent);
+  flex: 0 0 6px;
+}
+
+/* Spinner */
+.g-spin { animation: g-spin 1s linear infinite; }
+@keyframes g-spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .g-sidebar { width: 220px; flex-basis: 220px; padding: calc(var(--spacing) * 3); }
+}
+
+@media (max-width: 768px) {
+  .g-sidebar {
+    position: fixed;
+    top: var(--dm-nav-height);
+    left: 0;
+    width: min(86vw, 302px);
+    flex-basis: auto;
+    transform: translateX(-100%);
+    transition: transform 0.35s cubic-bezier(0.25, 0.1, 0.25, 1);
+    z-index: 1050;
+  }
+  .g-sidebar.open { transform: translateX(0); }
 }
 </style>

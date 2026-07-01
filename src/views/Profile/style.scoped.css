@@ -53,6 +53,23 @@
   background: #181a20;
 }
 
+.profile-page[data-theme="dark"] .tier-badge.tier-plus {
+  background: rgba(106, 143, 201, 0.15);
+  color: #8ab4f8;
+}
+.profile-page[data-theme="dark"] .tier-badge.tier-pro {
+  background: rgba(142, 154, 175, 0.15);
+  color: #b0bcc9;
+}
+.profile-page[data-theme="dark"] .tier-badge.tier-max {
+  background: rgba(184, 137, 11, 0.15);
+  color: #d4a843;
+}
+.profile-page[data-theme="dark"] .tier-badge.tier-ultra {
+  background: rgba(155, 89, 182, 0.15);
+  color: #c084d8;
+}
+
 .profile-home-shell {
   width: min(100%, 980px);
   margin: 0 auto;
@@ -2182,8 +2199,6 @@
 }
 
 .posts-list {
-  columns: 3 210px;
-  column-gap: 14px;
   padding: 16px;
 }
 

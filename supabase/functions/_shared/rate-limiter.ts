@@ -7,48 +7,24 @@ export async function checkRateLimitDb(
 ): Promise<{ ok: true } | { ok: false; retryAfter: number }> {
   try {
     const serviceClient = createServiceClient();
-    const now = new Date();
-    const resetAt = new Date(now.getTime() + windowMs);
+    const windowSeconds = Math.max(1, Math.round(windowMs / 1000));
 
-    const { data: existing } = await serviceClient
-      .from('_rate_limits')
-      .select('count, reset_at')
-      .eq('key', key)
-      .maybeSingle();
+    // 单次原子 RPC：检查 + 自增 + 窗口过期重置
+    // 替代原 SELECT + UPSERT/RPC 的多往返方案
+    const { data, error } = await serviceClient.rpc('check_rate_limit', {
+      p_key: key,
+      p_max_requests: maxRequests,
+      p_window_seconds: windowSeconds,
+    });
 
-    if (!existing || new Date(existing.reset_at) <= now) {
-      const { error } = await serviceClient
-        .from('_rate_limits')
-        .upsert({ key, count: 1, reset_at: resetAt.toISOString() }, { onConflict: 'key' });
-      if (error) return { ok: true };
+    // RPC 失败时按允许处理（fail open，与原行为一致）
+    if (error || !Array.isArray(data) || data.length === 0) {
       return { ok: true };
     }
 
-    // 原子自增: insert...on conflict do update returning count
-    // 避免 read-then-write 之间的竞态
-    const { data: bumped, error: bumpErr } = await serviceClient.rpc('increment_rate_limit', {
-      p_key: key,
-    });
-    let newCount: number;
-    if (bumpErr || !bumped) {
-      // 回退: 仍走原路径,失败则按允许处理(原行为)
-      const { data: after } = await serviceClient
-        .from('_rate_limits')
-        .select('count')
-        .eq('key', key)
-        .maybeSingle();
-      newCount = (after?.count || 0) + 1;
-      await serviceClient
-        .from('_rate_limits')
-        .update({ count: newCount })
-        .eq('key', key);
-    } else {
-      newCount = Number(bumped);
-    }
-
-    if (newCount > maxRequests) {
-      const retryAfter = Math.ceil((new Date(existing.reset_at).getTime() - now.getTime()) / 1000);
-      return { ok: false, retryAfter };
+    const row = data[0];
+    if (row?.allowed === false) {
+      return { ok: false, retryAfter: Number(row.retry_after_seconds) || 60 };
     }
     return { ok: true };
   } catch (err) {

@@ -28,7 +28,7 @@
         <div class="boh-school-visual">
           <div class="boh-school-image">
             <img :src="getImageUrl('@/assets/images/blockschool.webp')" alt="BOH 方块设定集" fetchpriority="high"
-              decoding="async" />
+              decoding="async" width="1600" height="900" />
           </div>
         </div>
       </div>
@@ -55,7 +55,7 @@
         </div>
         <div class="cloud-plus-visual">
           <div class="cloud-product-image">
-            <img :src="getImageUrl('@/assets/images/BOHcloud.webp')" alt="BOH Cloud+" loading="lazy" decoding="async" />
+            <img :src="getImageUrl('@/assets/images/BOHcloud.webp')" alt="BOH Cloud+" loading="lazy" decoding="async" width="1000" height="750" />
           </div>
         </div>
       </div>
@@ -66,7 +66,7 @@
       <div class="anniversary-container">
         <div class="anniversary-logo">
           <img :src="getImageUrl('@/assets/images/8yearstext.webp')" alt="八周年" class="anniversary-logo-img"
-            loading="lazy" decoding="async" />
+            loading="lazy" decoding="async" width="800" height="280" />
         </div>
         <h2 class="anniversary-title">来自 Ryyik 的一封信</h2>
         <button class="anniversary-btn" disabled>
@@ -96,7 +96,7 @@
         </div>
         <div class="brand-apple-visual">
           <div class="brand-logo-wrapper">
-            <img :src="getImageUrl('@/assets/images/favicon.webp')" alt="方块之家" class="brand-logo-img" />
+            <img :src="faviconImg" alt="方块之家" class="brand-logo-img" width="500" height="500" />
           </div>
         </div>
       </div>
@@ -123,7 +123,7 @@
         </div>
         <div class="halo-apple-visual">
           <div class="halo-product-image">
-            <img :src="getImageUrl('@/assets/images/toybreadproduct.webp')" alt="BOH好礼" />
+            <img :src="toybreadProductImg" alt="BOH好礼" width="1000" height="1000" />
           </div>
         </div>
       </div>
@@ -391,6 +391,14 @@ import { getForumPostExcerpt } from "../../utils/forum-post-format.js";
 import {
   teamMembers as teamMembersData
 } from "@/data/home.js";
+
+// 静态引入首屏关键图片，使用 ?url 确保构建时解析为正确URL
+// （小于 assetsInlineLimit 的文件会内联为 base64 data URL，属于正常行为）
+import blockschoolImg from "@/assets/images/blockschool.webp?url";
+import bohCloudImg from "@/assets/images/BOHcloud.webp?url";
+import anniversaryTextImg from "@/assets/images/8yearstext.webp?url";
+import faviconImg from "@/assets/images/favicon.webp?url";
+import toybreadProductImg from "@/assets/images/toybreadproduct.webp?url";
 
 // 路由相关
 const router = useRouter();

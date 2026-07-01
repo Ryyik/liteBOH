@@ -1,8 +1,30 @@
 import { ref } from 'vue'
-import { callVaultSiliconChat } from '@/utils/api/api-key-runtime-api.js'
+import { callVaultSiliconChatStreamCollect } from '@/utils/api/api-key-runtime-api.js'
+import { supabase } from '@/utils/supabase-client.js'
 
 const API_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions'
-const MODEL = 'Qwen/Qwen3-8B'
+const FALLBACK_MODEL = 'Qwen/Qwen3-8B'
+
+// 从 lab_ai_model_configs 表读取文档排版的模型配置
+async function loadDocModelConfig() {
+  try {
+    const { data, error } = await supabase
+      .from('lab_ai_model_configs')
+      .select('model_id, temperature, max_tokens, api_key_purpose')
+      .eq('feature_key', 'doc-formatting')
+      .eq('is_active', true)
+      .maybeSingle()
+    if (error || !data) return { model: FALLBACK_MODEL, temperature: 0.1, max_tokens: 4096, apiKeyPurpose: 'chat' }
+    return {
+      model: data.model_id || FALLBACK_MODEL,
+      temperature: Number(data.temperature) || 0.1,
+      max_tokens: data.max_tokens || 4096,
+      apiKeyPurpose: data.api_key_purpose || 'chat',
+    }
+  } catch {
+    return { model: FALLBACK_MODEL, temperature: 0.1, max_tokens: 4096, apiKeyPurpose: 'chat' }
+  }
+}
 
 const SYSTEM_PROMPT = `你是 BOH 办公 AI，一个专业的 Word 文档排版专家。你可以修改文档的样式、段落格式、页面布局，以及直接编辑文档内容。
 
@@ -102,20 +124,22 @@ export function useDocumentAI() {
     const systemPrompt = `${SYSTEM_PROMPT}\n\n## 当前文档\n${docSummary}`
 
     try {
+      const modelConfig = await loadDocModelConfig()
       const messages = [
         { role: 'system', content: systemPrompt },
         ...history.slice(-10).map(m => ({ role: m.role, content: m.content })),
         { role: 'user', content: userMessage },
       ]
 
-      const vaultResult = await callVaultSiliconChat({
+      const vaultResult = await callVaultSiliconChatStreamCollect({
         provider: 'siliconflow',
-        purpose: 'chat',
-        payload: { model: MODEL, messages, stream: false, temperature: 0.1, max_tokens: 4096 },
+        purpose: modelConfig.apiKeyPurpose,
+        payload: { model: modelConfig.model, messages, stream: true, temperature: modelConfig.temperature, max_tokens: modelConfig.max_tokens },
         apiUrl: API_URL,
-        timeoutMs: 30000,
+        timeoutMs: 120000,
       })
 
+      if (!vaultResult.ok) throw new Error(vaultResult.error?.message || 'AI 调用失败')
       const raw = vaultResult.data?.choices?.[0]?.message?.content || ''
       return parseResponse(raw)
     } catch (e) {

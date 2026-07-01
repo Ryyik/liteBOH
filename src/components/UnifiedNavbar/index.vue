@@ -245,7 +245,6 @@ const navMenuItems = [
     label: "探索",
     children: [
       { name: "character-book", path: "/character-book", label: "设定集" },
-      { name: "ai-plaza", path: "/ai-plaza", label: "AI广场" },
       { name: "mbti", path: "/mbti", label: "MBTI" },
       { name: "lab", path: "/lab", label: "实验室" }
     ]

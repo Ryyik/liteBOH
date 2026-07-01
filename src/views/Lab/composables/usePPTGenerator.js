@@ -1,450 +1,216 @@
 import { ref } from 'vue'
-import pptxgen from 'pptxgenjs'
-import { callVaultSiliconChat } from '@/utils/api/api-key-runtime-api.js'
+import { callVaultSiliconChatStreamCollect } from '@/utils/api/api-key-runtime-api.js'
 import { resolveSiliconFlowFreeModelId, SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID } from '@/utils/siliconflow-free-models.js'
-import { getTemplateById } from '../config/ppt-templates.js'
+import { supabase } from '@/utils/supabase-client.js'
+import { buildPPT as renderPPT } from '../engine/ppt-renderer.js'
+import { STYLE_PRESETS, DEFAULT_PRESET_ID } from '../config/design-tokens.js'
+import {
+  PPT_OUTLINE_PROMPT, PPT_DETAIL_PROMPT, PPT_SCHEMA, OUTLINE_SCHEMA, extractJSON,
+} from '../config/ai-schemas.js'
 
 const BOHAI_CHAT_API_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions'
-const BOHAI_DEFAULT_MODEL_ID = resolveSiliconFlowFreeModelId(
-  import.meta.env.VITE_BOHAI_DEFAULT_MODEL,
-  SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID
-)
+
+async function loadPptModelConfig() {
+  try {
+    const { data, error } = await supabase
+      .from('lab_ai_model_configs')
+      .select('model_id, temperature, max_tokens, api_key_purpose')
+      .eq('feature_key', 'ppt-generator')
+      .eq('is_active', true)
+      .maybeSingle()
+    if (error || !data) {
+      return {
+        model: resolveSiliconFlowFreeModelId(import.meta.env.VITE_BOHAI_DEFAULT_MODEL, SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID),
+        temperature: 0.7,
+        max_tokens: 4096,
+        apiKeyPurpose: 'chat',
+      }
+    }
+    return {
+      model: resolveSiliconFlowFreeModelId(data.model_id, SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID),
+      temperature: Number(data.temperature) || 0.7,
+      max_tokens: data.max_tokens || 4096,
+      apiKeyPurpose: data.api_key_purpose || 'chat',
+    }
+  } catch {
+    return {
+      model: resolveSiliconFlowFreeModelId(import.meta.env.VITE_BOHAI_DEFAULT_MODEL, SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID),
+      temperature: 0.7,
+      max_tokens: 4096,
+      apiKeyPurpose: 'chat',
+    }
+  }
+}
 
 /**
- * PPT 生成器 composable
- * 实现 AI 输出结构化 JSON + 前端转换为 PPT 的方案
- * 使用 BOHAI 同款的 API Key Vault 调用方式
- * 支持预设模板系统
+ * PPT 生成器（两阶段：大纲 → 详情 + token-based 渲染）
  */
 export function usePPTGenerator() {
   const isGenerating = ref(false)
   const error = ref('')
   const pptData = ref(null)
+  const outline = ref(null)
+  const stage = ref('') // 'outline' | 'detail' | ''
 
   /**
-   * 让 AI 生成 PPT 结构化内容
-   * @param {string} topic - PPT 主题
-   * @param {string} context - 额外上下文（可选）
-   * @returns {Promise<Object>} - PPT 数据对象
+   * 第一阶段：生成大纲
+   * @param {string} topic - 主题
+   * @param {string} context - 上下文
+   * @param {function} onProgress - 进度回调 (stage, progress, text)
    */
-  async function generatePPTStructure(topic, context = '') {
+  async function generateOutline(topic, context = '', onProgress = null) {
     isGenerating.value = true
     error.value = ''
-
+    stage.value = 'outline'
+    if (onProgress) onProgress('outline', 0, 'BOH Agent正在为你生成PPT大纲')
     try {
-      // 构建 Prompt
-      const prompt = buildPrompt(topic, context)
+      const modelConfig = await loadPptModelConfig()
+      const prompt = `${PPT_OUTLINE_PROMPT}
 
-      // 使用 BOHAI 同款的 API 调用方式
-      const result = await callVaultSiliconChat({
+主题：${topic}
+${context ? `额外要求：${context}` : ''}
+
+输出格式（JSON）：
+{
+  "title": "PPT 主标题",
+  "outline": [
+    { "type": "cover", "title": "封面标题", "summary": "副标题/日期" },
+    { "type": "section", "title": "第一篇", "summary": "概述" },
+    { "type": "bullets", "title": "核心要点", "summary": "3-5 个要点" },
+    { "type": "end", "title": "谢谢观看", "summary": "结语" }
+  ]
+}`
+
+      if (onProgress) onProgress('outline', 30, 'BOH Agent正在为你生成PPT大纲')
+
+      const result = await callVaultSiliconChatStreamCollect({
         provider: 'siliconflow',
-        purpose: 'ppt-generator',
+        purpose: modelConfig.apiKeyPurpose,
         apiUrl: BOHAI_CHAT_API_URL,
-        timeoutMs: 60000,
+        timeoutMs: 120000,
         payload: {
-          model: BOHAI_DEFAULT_MODEL_ID,
+          model: modelConfig.model,
           messages: [
-            {
-              role: 'system',
-              content: '你是一个专业的PPT内容策划助手，擅长生成结构化的演示文稿内容。'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
+            { role: 'system', content: PPT_OUTLINE_PROMPT },
+            { role: 'user', content: prompt },
           ],
-          stream: false,
-          temperature: 0.7,
-          max_tokens: 2000
-        }
+          stream: true,
+          temperature: modelConfig.temperature,
+          max_tokens: modelConfig.max_tokens,
+        },
       })
 
-      if (!result.ok) {
-        throw new Error(result.error?.message || 'AI API 调用失败')
-      }
+      if (onProgress) onProgress('outline', 70, 'BOH Agent正在解析大纲结构')
 
-      const response = result.data?.choices?.[0]?.message?.content || ''
+      if (!result.ok) throw new Error(result.error?.message || 'AI 调用失败')
+      const raw = result.data?.choices?.[0]?.message?.content || ''
+      const data = extractJSON(raw)
+      if (!data || !data.outline) throw new Error('AI 未返回有效大纲')
 
-      // 解析 JSON
-      const jsonData = parseJSONResponse(response)
-
-      pptData.value = jsonData
-      return jsonData
-
+      if (onProgress) onProgress('outline', 100, '大纲生成完成')
+      outline.value = data
+      return data
     } catch (e) {
       error.value = e.message
       throw e
     } finally {
       isGenerating.value = false
+      stage.value = ''
     }
   }
 
   /**
-   * 构建 AI Prompt
+   * 第二阶段：基于大纲生成详细内容
+   * @param {string} topic - 主题
+   * @param {string} context - 上下文
+   * @param {object} outlineData - 大纲数据
+   * @param {function} onProgress - 进度回调 (stage, progress, text)
    */
-  function buildPrompt(topic, context) {
-    return `你是一个专业的PPT内容策划助手。请根据用户提供的主题，生成一份结构化的PPT大纲。
+  async function generatePPTStructure(topic, context = '', outlineData = null, onProgress = null) {
+    isGenerating.value = true
+    error.value = ''
+    stage.value = 'detail'
+    if (onProgress) onProgress('detail', 0, 'BOH Agent正在为你输出PPT')
+    try {
+      const useOutline = outlineData || outline.value
+      const modelConfig = await loadPptModelConfig()
+
+      if (onProgress) onProgress('detail', 20, 'BOH Agent正在为你输出PPT')
+
+      const prompt = `${PPT_DETAIL_PROMPT}
 
 主题：${topic}
 ${context ? `额外要求：${context}` : ''}
 
-请严格按照以下JSON格式输出，不要添加任何额外的文字说明：
+已确认大纲：
+${JSON.stringify(useOutline, null, 2)}
 
-{
-  "title": "PPT标题",
-  "author": "BOH AI",
-  "slides": [
-    {
-      "type": "title",
-      "title": "封面标题",
-      "subtitle": "副标题或日期"
-    },
-    {
-      "type": "content",
-      "title": "章节标题",
-      "points": [
-        "要点1（简洁有力）",
-        "要点2",
-        "要点3",
-        "要点4",
-        "要点5"
-      ]
-    },
-    {
-      "type": "two-column",
-      "title": "对比分析",
-      "leftColumn": {
-        "title": "左侧标题",
-        "items": ["项目1", "项目2"]
-      },
-      "rightColumn": {
-        "title": "右侧标题",
-        "items": ["项目1", "项目2"]
-      }
-    },
-    {
-      "type": "end",
-      "title": "谢谢观看",
-      "subtitle": "联系方式或总结"
-    }
-  ]
-}
+请输出完整的 PPT JSON，结构与以下 Schema 一致：
+${JSON.stringify(PPT_SCHEMA, null, 2)}
 
 要求：
-1. 每张幻灯片内容不超过5个要点
-2. 标题简洁有力，不超过10个字
-3. 内容要有逻辑性，符合PPT演示流程
-4. 必须输出有效的JSON格式，不要有任何语法错误
-5. 包含封面页和结束页
-6. 根据主题生成5-8张幻灯片
-7. 只输出JSON，不要有任何其他文字
+- slides 数组顺序与大纲一致
+- 严格输出 JSON，不要任何额外文字`
 
-现在开始生成：`
-  }
+      if (onProgress) onProgress('detail', 40, 'BOH Agent正在生成幻灯片内容')
 
-  /**
-   * 解析 JSON 响应
-   */
-  function parseJSONResponse(response) {
-    try {
-      // 尝试直接解析
-      return JSON.parse(response)
+      const result = await callVaultSiliconChatStreamCollect({
+        provider: 'siliconflow',
+        purpose: modelConfig.apiKeyPurpose,
+        apiUrl: BOHAI_CHAT_API_URL,
+        timeoutMs: 180000,
+        payload: {
+          model: modelConfig.model,
+          messages: [
+            { role: 'system', content: PPT_DETAIL_PROMPT },
+            { role: 'user', content: prompt },
+          ],
+          stream: true,
+          temperature: modelConfig.temperature,
+          max_tokens: modelConfig.max_tokens,
+        },
+      })
+
+      if (onProgress) onProgress('detail', 70, 'BOH Agent正在构建PPT结构')
+
+      if (!result.ok) throw new Error(result.error?.message || 'AI 调用失败')
+      const raw = result.data?.choices?.[0]?.message?.content || ''
+      const data = extractJSON(raw)
+      if (!data || !data.slides) throw new Error('AI 未返回有效 PPT 结构')
+
+      if (onProgress) onProgress('detail', 100, 'PPT生成完成')
+      pptData.value = data
+      return data
     } catch (e) {
-      // 如果失败，尝试提取 JSON 部分
-      const jsonMatch = response.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        try {
-          return JSON.parse(jsonMatch[0])
-        } catch (e2) {
-          throw new Error('AI 输出的 JSON 格式无效，请重新生成')
-        }
-      }
-      throw new Error('AI 未返回有效的 JSON 格式')
+      error.value = e.message
+      throw e
+    } finally {
+      isGenerating.value = false
+      stage.value = ''
     }
   }
 
   /**
-   * 根据 PPT 数据生成 PPT 文件
-   * @param {Object} data - PPT 结构数据
-   * @param {string} templateId - 模板 ID（可选）
-   * @param {string} fileName - 文件名
+   * 构建 PPT 文件（接入新引擎）
    */
-  async function buildPPT(data, templateId = 'boh-brand', fileName = 'AI生成.pptx') {
-    const template = getTemplateById(templateId)
-    const pptx = new pptxgen()
-
-    // 设置 PPT 属性
-    pptx.author = data.author || 'BOH AI'
-    pptx.title = data.title
-    pptx.subject = 'AI 生成演示文稿'
-
-    // 设置布局
-    pptx.defineLayout({ name: 'CUSTOM', width: 10, height: 7.5 })
-    pptx.layout = 'CUSTOM'
-
-    // 遍历幻灯片
-    for (const slideData of data.slides) {
-      const slide = pptx.addSlide()
-
-      // 根据类型渲染不同布局，使用模板配置
-      switch (slideData.type) {
-        case 'title':
-          renderTitleSlide(slide, slideData, template)
-          break
-
-        case 'content':
-          renderContentSlide(slide, slideData, template)
-          break
-
-        case 'two-column':
-          renderTwoColumnSlide(slide, slideData, template)
-          break
-
-        case 'end':
-          renderEndSlide(slide, slideData, template)
-          break
-
-        default:
-          renderContentSlide(slide, slideData, template)
-      }
-    }
-
-    // 导出 PPT
-    await pptx.writeFile({ fileName })
-    return true
+  async function buildPPTFile(data, presetId = DEFAULT_PRESET_ID, fileName = 'AI生成.pptx', options = {}) {
+    return renderPPT(data, presetId, fileName, options)
   }
 
-  /**
-   * 渲染封面页（使用模板配置）
-   */
-  function renderTitleSlide(slide, data, template) {
-    const { colors, fonts, layout } = template
-    const padding = layout.padding.title
-
-    // 背景
-    slide.background = { color: colors.background.title }
-
-    // 标题
-    slide.addText(data.title, {
-      x: padding.x,
-      y: padding.y,
-      w: 9,
-      h: 1.5,
-      fontSize: fonts.title.size,
-      fontFace: fonts.title.family,
-      color: colors.text.primary,
-      bold: fonts.title.bold,
-      align: 'center',
-    })
-
-    // 副标题
-    if (data.subtitle) {
-      slide.addText(data.subtitle, {
-        x: layout.padding.subtitle.x,
-        y: layout.padding.subtitle.y,
-        w: 9,
-        h: 0.8,
-        fontSize: fonts.subtitle.size,
-        fontFace: fonts.subtitle.family,
-        color: colors.text.primary,
-        align: 'center',
-      })
-    }
-
-    // Logo（如果模板配置了品牌）
-    if (template.brand?.showOnSlides) {
-      slide.addText(template.brand.logo, {
-        x: 8,
-        y: 6.5,
-        w: 1.5,
-        h: 0.5,
-        fontSize: 12,
-        color: colors.primary,
-        align: 'right',
-      })
-    }
-  }
-
-  /**
-   * 渲染内容页（使用模板配置）
-   */
-  function renderContentSlide(slide, data, template) {
-    const { colors, fonts } = template
-
-    // 背景
-    slide.background = { color: colors.background.content }
-
-    // 标题
-    slide.addText(data.title, {
-      x: 0.5,
-      y: 0.5,
-      w: 9,
-      h: 0.8,
-      fontSize: fonts.contentTitle.size,
-      fontFace: fonts.contentTitle.family,
-      color: colors.text.secondary,
-      bold: fonts.contentTitle.bold,
-    })
-
-    // 要点列表
-    if (data.points && data.points.length > 0) {
-      const bulletPoints = data.points.map(p => ({ text: p, options: { bullet: true } }))
-      
-      slide.addText(bulletPoints, {
-        x: 0.5,
-        y: 1.5,
-        w: 9,
-        h: 5,
-        fontSize: fonts.body.size,
-        fontFace: fonts.body.family,
-        color: colors.text.muted,
-        valign: 'top',
-        lineSpacing: 28,
-      })
-    }
-
-    // 底部装饰线（如果模板是商务简约）
-    if (template.id === 'business') {
-      slide.addShape(pptx.ShapeType.line, {
-        x: 0.5,
-        y: 7,
-        w: 9,
-        h: 0,
-        line: { color: colors.primary, width: 2 }
-      })
-    }
-  }
-
-  /**
-   * 渲染两栏页（使用模板配置）
-   */
-  function renderTwoColumnSlide(slide, data, template) {
-    const { colors, fonts } = template
-
-    // 背景
-    slide.background = { color: colors.background.content }
-
-    // 标题
-    slide.addText(data.title, {
-      x: 0.5,
-      y: 0.5,
-      w: 9,
-      h: 0.8,
-      fontSize: fonts.contentTitle.size,
-      fontFace: fonts.contentTitle.family,
-      color: colors.text.secondary,
-      bold: fonts.contentTitle.bold,
-    })
-
-    // 左栏标题
-    if (data.leftColumn) {
-      slide.addText(data.leftColumn.title, {
-        x: 0.5,
-        y: 1.5,
-        w: 4,
-        h: 0.5,
-        fontSize: fonts.subtitle.size,
-        fontFace: fonts.subtitle.family,
-        color: colors.primary,
-        bold: true,
-      })
-
-      // 左栏内容
-      const leftPoints = data.leftColumn.items.map(i => ({ text: i, options: { bullet: true } }))
-      slide.addText(leftPoints, {
-        x: 0.5,
-        y: 2.2,
-        w: 4,
-        h: 4,
-        fontSize: fonts.body.size,
-        fontFace: fonts.body.family,
-        color: colors.text.muted,
-      })
-    }
-
-    // 右栏标题
-    if (data.rightColumn) {
-      slide.addText(data.rightColumn.title, {
-        x: 5.5,
-        y: 1.5,
-        w: 4,
-        h: 0.5,
-        fontSize: fonts.subtitle.size,
-        fontFace: fonts.subtitle.family,
-        color: colors.primary,
-        bold: true,
-      })
-
-      // 右栏内容
-      const rightPoints = data.rightColumn.items.map(i => ({ text: i, options: { bullet: true } }))
-      slide.addText(rightPoints, {
-        x: 5.5,
-        y: 2.2,
-        w: 4,
-        h: 4,
-        fontSize: fonts.body.size,
-        fontFace: fonts.body.family,
-        color: colors.text.muted,
-      })
-    }
-  }
-
-  /**
-   * 渲染结束页（使用模板配置）
-   */
-  function renderEndSlide(slide, data, template) {
-    const { colors, fonts, layout } = template
-    const padding = layout.padding.title
-
-    // 背景
-    slide.background = { color: colors.background.end }
-
-    // 标题
-    slide.addText(data.title, {
-      x: padding.x,
-      y: 2.8,
-      w: 9,
-      h: 1.2,
-      fontSize: fonts.title.size,
-      fontFace: fonts.title.family,
-      color: colors.text.primary,
-      bold: fonts.title.bold,
-      align: 'center',
-    })
-
-    // 副标题
-    if (data.subtitle) {
-      slide.addText(data.subtitle, {
-        x: padding.x,
-        y: 4.2,
-        w: 9,
-        h: 0.8,
-        fontSize: fonts.subtitle.size,
-        fontFace: fonts.subtitle.family,
-        color: colors.text.primary,
-        align: 'center',
-      })
-    }
-
-    // Logo（如果模板配置了品牌）
-    if (template.brand?.showOnSlides) {
-      slide.addText(`由 ${template.brand.logo} 生成`, {
-        x: 0.5,
-        y: 6,
-        w: 9,
-        h: 0.5,
-        fontSize: 14,
-        color: colors.primary,
-        align: 'center',
-      })
-    }
+  // 向后兼容：旧接口
+  async function buildPPT(data, templateId, fileName) {
+    return buildPPTFile(data, templateId || DEFAULT_PRESET_ID, fileName)
   }
 
   return {
     isGenerating,
     error,
     pptData,
+    outline,
+    stage,
+    generateOutline,
     generatePPTStructure,
+    buildPPTFile,
     buildPPT,
   }
 }

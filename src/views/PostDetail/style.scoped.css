@@ -80,6 +80,40 @@
   z-index: 1;
 }
 
+/* 论坛内昵称统一纯色（无动画） */
+.nickname-gold {
+  color: #c4a35a !important;
+  background: none !important;
+  -webkit-background-clip: unset !important;
+  background-clip: unset !important;
+  -webkit-text-fill-color: unset !important;
+  animation: none !important;
+}
+
+.nickname-rainbow {
+  background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff, #9b59b6, #ff6b6b) !important;
+  background-size: 200% 100% !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  animation: none !important;
+  font-weight: 700;
+}
+
+/* 订阅等级帖子背景微色调 */
+.x-post-card.tier-plus {
+  background: rgba(245, 250, 255, 0.7) !important;
+}
+.x-post-card.tier-pro {
+  background: rgba(250, 248, 240, 0.7) !important;
+}
+.x-post-card.tier-max {
+  background: rgba(245, 246, 250, 0.7) !important;
+}
+.x-post-card.tier-ultra {
+  background: rgba(252, 245, 248, 0.7) !important;
+}
+
 .x-side-column {
   height: calc(100vh - 140px);
   min-height: 620px;

@@ -1,18 +1,38 @@
 
 
-.nickname-gold {
-  color: #d4a017 !important;
+.nickname-blue {
+  color: #6a8fc9 !important;
   font-weight: 700;
 }
 
+.nickname-silver {
+  color: #8e9aaf !important;
+  font-weight: 700;
+}
+
+.nickname-gold {
+  font-weight: 700;
+  background: linear-gradient(135deg, #e8d5a3 0%, #c4a35a 50%, #e8d5a3 100%);
+  background-size: 200% 100% !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  animation: gold-shimmer 4s ease-in-out infinite !important;
+}
+
+@keyframes gold-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
 .nickname-rainbow {
-  background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff, #9b59b6, #ff6b6b) !important;
+  background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff, #9b59b6, #ff6b6b);
   background-size: 200% 100% !important;
   -webkit-background-clip: text !important;
   background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
   font-weight: 700;
-  animation: nickname-rainbow-shift 3s linear infinite;
+  animation: nickname-rainbow-shift 3s linear infinite !important;
 }
 
 @keyframes nickname-rainbow-shift {

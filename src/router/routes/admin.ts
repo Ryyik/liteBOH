@@ -15,12 +15,6 @@ export const adminRoutes: RouteRecordRaw[] = [
     meta: { requiresAdmin: true, adminSection: "api-keys", hideNavbar: true },
   },
   {
-    path: "/admin/model-routing",
-    name: "ModelRouting",
-    component: () => import("../../views/DataManagement/index.vue"),
-    meta: { requiresAdmin: true, adminSection: "model-routing", hideNavbar: true },
-  },
-  {
     path: "/admin/alert-style-editor",
     name: "AlertStyleEditor",
     component: () => import("../../views/AlertStyleEditor/index.vue"),

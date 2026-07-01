@@ -441,7 +441,7 @@ import { storeToRefs } from "pinia";
 import { supabase } from "@/utils/supabase-client.js";
 import { logger } from '@/utils/logger.js';
 import { createNotification } from "@/utils/api/notifications-api.js";
-import { availableModels } from "@/views/BOHAI/composables/useChatEngine.js";
+import { getAvailableModels } from "@/views/BOHAI/composables/useChatEngine.js";
 import { callVaultSiliconChat } from "@/utils/api/api-key-runtime-api.js";
 import { getExpiredActiveGiftIds, markGiftsAsHistory, isGiftExpiredCompleted } from "@/utils/gift-archive.js";
 import { resolveSettingsBackLocation } from "@/utils/user-space-navigation.js";
@@ -951,7 +951,7 @@ const deleteAddress = async () => {
 };
 
 // --- AI Extraction ---
-const getAddressAIModel = () => availableModels.find((m) => m.id === GLM_ADDRESS_MODEL_ID) || null;
+const getAddressAIModel = () => getAvailableModels().find((m) => m.id === GLM_ADDRESS_MODEL_ID) || null;
 
 const extractJsonPayload = (rawText = "") => {
   const normalizedText = String(rawText || "").trim();

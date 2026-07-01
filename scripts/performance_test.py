@@ -39,7 +39,6 @@ TEST_PAGES = {
     "商店": "/#/shop",
     "关于我们": "/#/about",
     "活动列表": "/#/activities",
-    "AI广场": "/#/ai-plaza",
 }
 
 

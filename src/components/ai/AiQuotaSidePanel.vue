@@ -96,6 +96,8 @@
 import { ref, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { getAiQuotaStatus } from '@/utils/api/api-key-runtime-api.js';
+import { getMySubscriptions } from '@/utils/api/subscription-api.js';
+import { resolveHighestTierCode } from '@/utils/subscription-benefits.js';
 import { useAuthStore } from '@/stores/auth';
 
 const props = defineProps({
@@ -151,9 +153,16 @@ const barPercent = computed(() => {
 const fetchQuota = async () => {
   loading.value = true;
   try {
-    const res = await getAiQuotaStatus();
-    if (res.ok && res.data) {
-      quota.value = res.data;
+    const [quotaRes, subsRes] = await Promise.all([
+      getAiQuotaStatus(),
+      authStore.userInfo?.id ? getMySubscriptions(authStore.userInfo.id, { includeExpired: false }) : Promise.resolve({ ok: false, data: [] })
+    ]);
+    if (quotaRes.ok && quotaRes.data) {
+      quota.value = quotaRes.data;
+      const realTier = resolveHighestTierCode(subsRes.data || []);
+      if (realTier) {
+        quota.value.tier = realTier;
+      }
     }
   } catch {
     quota.value = null;
@@ -173,7 +182,7 @@ const handleLogin = () => {
 
 const handleUpgrade = () => {
   emit('close');
-  router.push('/user-center/subscription');
+  router.push('/user-center/subscriptions');
 };
 </script>
 

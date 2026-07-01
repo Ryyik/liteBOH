@@ -3,34 +3,27 @@
 
     <div class="admin-shell">
       <AdminSidebar
-        :active-admin-section="activeAdminSection"
-        :active-tab-group-id="activeTabGroupId"
-        :current-tab="currentTab"
-        :get-tab-count="getTabCount"
-        :get-tabs-by-group="getTabsByGroup"
-        :is-data-tree-collapsed="isDataTreeCollapsed"
+        :active-module="activeModule"
+        :has-unmoderated="moderationPendingCount > 0"
         :is-open="isAdminSidebarOpen"
-        :navigation="adminNavigation"
-        :pinned-tabs="currentPinnedTabs"
-        :recent-records="recentRecordsForSidebar"
-        :tab-groups="tabGroupsWithCounts"
-        v-model:search-query="globalSearchQuery"
-        @nav-click="handleAdminNavClick"
-        @recent-click="jumpToRecentRecord"
-        @tab-click="handleSidebarTabClick"
+        :modules="sidebarModules"
+        :search-query="globalSearchQuery"
+        @module-click="handleModuleClick"
+        @update:search-query="val => globalSearchQuery = val"
         @create-record="handleAdminCreate"
         @refresh-data="refreshAllData"
-        @quick-edit="handleQuickEdit"
-        @toggle-theme="toggleAdminTheme"
       />
 
-      <div v-if="isAdminSidebarOpen" class="sidebar-scrim" @click="isAdminSidebarOpen = false"></div>
+      <div v-if="isAdminSidebarOpen" class="sidebar-scrim is-visible" @click="isAdminSidebarOpen = false"></div>
 
       <main class="admin-main">
         <AdminHeader
           :can-create="canCreateCurrentTab && !isModerationTab"
+          :eyebrow="currentAdminPageMeta.eyebrow"
           :is-refreshing="isRefreshing"
           :is-sidebar-open="isAdminSidebarOpen"
+          :searchable="false"
+          :title="currentAdminPageMeta.title"
           @create="handleAdminCreate"
           @refresh="refreshAllData"
           @toggle-sidebar="isAdminSidebarOpen = !isAdminSidebarOpen"
@@ -54,11 +47,7 @@
             @select-tab="handleOverviewTabClick"
           />
 
-          <ApiKeyConsole v-else-if="isApiKeysSection" />
-
-          <ModelRouting v-else-if="isModelRoutingSection" />
-
-          <section v-if="activeAdminSection !== 'overview' && !isApiKeysSection && !isModelRoutingSection" class="admin-section-hero">
+          <section v-if="activeAdminSection !== 'overview' && !isPlaceholderAdminSection && !isPageTab" class="admin-section-hero">
             <div>
               <span class="admin-section-eyebrow">{{ currentAdminPageMeta.eyebrow }}</span>
               <h2>{{ currentAdminPageMeta.title }}</h2>
@@ -97,12 +86,35 @@
 
       <!-- 管理模块标签页 -->
           <section v-if="isDataConsoleSection" id="data-console" class="management-section">
+
+        <!-- 模块内子表 Tabs -->
+        <div v-if="currentModuleTabIds.length > 1" class="g-module-tabs" role="tablist" aria-label="子表切换">
+          <button
+            v-for="tabId in currentModuleTabIds"
+            :key="tabId"
+            type="button"
+            role="tab"
+            :class="['g-module-tab', { 'is-active': currentTab === tabId }]"
+            :aria-selected="currentTab === tabId"
+            @click="switchTab(tabId)"
+          >
+            {{ getTabLabel(tabId) }}
+          </button>
+        </div>
+
+        <!-- 页面类型 Tab：直接渲染对应组件 -->
+        <div v-if="isPageTab && currentPageComponent" class="page-tab-container">
+          <component :is="currentPageComponent" />
+        </div>
+
+        <!-- 表格类型 Tab：原有工具栏和表格 -->
+        <template v-else>
         <div class="toolbar-primary">
           <div class="toolbar-left">
             <div>
               <h2 class="section-title">{{ currentTabLabel }}</h2>
               <div class="view-context">
-                <span>{{ currentTabGroup?.label || '全部' }}</span>
+                <span>{{ currentModule?.label || '数据管理' }}</span>
                 <span>{{ activeFilterSummary }}</span>
                 <span>{{ lastRefreshLabel }}</span>
               </div>
@@ -233,10 +245,10 @@
               <button class="btn btn-secondary" type="button" @click="showChangeLogPanel = !showChangeLogPanel">
                 变更日志
               </button>
-              <button v-if="selectedItems.length > 0 && editableFields.length && !isReadOnlyTab" class="btn btn-secondary" type="button" @click="showBatchEditPanel = !showBatchEditPanel">
+              <button v-if="selectedItems.length > 0 && editableFields.length && canEditCurrentTab" class="btn btn-secondary" type="button" @click="showBatchEditPanel = !showBatchEditPanel">
                 批量编辑 ({{ selectedItems.length }})
               </button>
-              <button v-if="selectedItems.length > 0 && !isModerationTab && !isProfileDerivedTab && !isReadOnlyTab" class="btn btn-danger" @click="batchDelete">
+              <button v-if="selectedItems.length > 0 && !isModerationTab && canDeleteCurrentTab && !isProfileDerivedTab" class="btn btn-danger" @click="batchDelete">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="3 6 5 6 21 6"></polyline>
                   <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -391,22 +403,37 @@
                 </div>
               </div>
               <div class="mobile-card-actions">
-                <button class="mobile-action-btn edit" @click="openEditModal(item)" aria-label="编辑">
+                <button v-if="canEditCurrentTab" class="mobile-action-btn edit" @click="openEditModal(item)" aria-label="编辑">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                 </button>
-                <button v-if="!isProfileDerivedTab && !isReadOnlyTab" class="mobile-action-btn delete" @click="deleteItem(item)" aria-label="删除">
+                <button v-if="canDeleteCurrentTab && !isProfileDerivedTab" class="mobile-action-btn delete" @click="deleteItem(item)" aria-label="删除">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                 </button>
               </div>
             </div>
           </div>
+
           <!-- 数据表格 -->
-          <div v-else style="position: relative;">
+          <DashboardSheet
+            v-if="!isMobileView"
+            :title="currentTabLabel"
+            :badge="totalRecordCount > 0 ? `${totalRecordCount} 条` : ''"
+            style="position: relative;"
+          >
+            <template #actions>
+              <select v-model="pageSize" class="g-select" style="height: 32px; width: auto; padding: 0 calc(var(--spacing) * 3); font-size: 0.78rem;" aria-label="每页条数">
+                <option :value="10">10 条/页</option>
+                <option :value="20">20 条/页</option>
+                <option :value="50">50 条/页</option>
+                <option :value="100">100 条/页</option>
+              </select>
+            </template>
+
             <div v-if="isFilterLoading" class="filter-loading-overlay">
               <div class="filter-loading-shimmer"></div>
             </div>
-            <div class="table-wrapper">
-            <table class="data-table">
+
+            <table class="g-table-sheet">
               <thead>
                 <tr>
                   <th class="checkbox-col">
@@ -613,7 +640,7 @@
                           关闭
                         </button>
                         <!-- 用户封禁/禁言操作按钮 -->
-                        <template v-if="currentTab === 'users' || currentTab === 'points'">
+                        <template v-if="canBanMute">
                           <button
                             v-if="!item.is_banned"
                             class="review-btn reject"
@@ -647,14 +674,14 @@
                             解禁
                           </button>
                         </template>
-                        <button v-if="!isReadOnlyTab" class="icon-btn edit" @click="openEditModal(item)" title="编辑">
+                        <button v-if="canEditCurrentTab" class="icon-btn edit" @click="openEditModal(item)" title="编辑">
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2">
                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                           </svg>
                         </button>
-                        <button v-if="!isProfileDerivedTab && !isReadOnlyTab" class="icon-btn delete" @click="deleteItem(item)" title="删除">
+                        <button v-if="canDeleteCurrentTab && !isProfileDerivedTab" class="icon-btn delete" @click="deleteItem(item)" title="删除">
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2">
                             <polyline points="3 6 5 6 21 6"></polyline>
@@ -668,38 +695,20 @@
                 </tr>
               </TransitionGroup>
             </table>
-          </div>
-          </div>
 
-          <!-- 分页 -->
-          <div v-if="totalRecordCount > 0" class="dm-pagination">
-            <div class="dm-pagination-info">
-              显示 {{ (currentPage - 1) * pageSize + 1 }} - {{ Math.min(currentPage * pageSize, totalRecordCount) }}
-              条，共 {{ totalRecordCount }} 条
-            </div>
-            <div class="dm-pagination-controls">
-              <button class="dm-page-btn" :disabled="currentPage === 1" aria-label="上一页" @click="currentPage--">
-                上一页
-              </button>
-              <div class="dm-page-numbers">
-                <button v-for="page in visiblePages" :key="page" class="dm-page-number"
-                  :class="{ active: currentPage === page }" aria-label="第 {{ page }} 页" @click="currentPage = page">
-                  {{ page }}
-                </button>
-              </div>
-              <button class="dm-page-btn" :disabled="currentPage === totalPages" aria-label="下一页" @click="currentPage++">
-                下一页
-              </button>
-            </div>
-            <div class="dm-page-size-selector">
-              <select v-model="pageSize">
-                <option :value="10">10条/页</option>
-                <option :value="20">20条/页</option>
-                <option :value="50">50条/页</option>
-                <option :value="100">100条/页</option>
-              </select>
-            </div>
-          </div>
+            <template #pagination>
+              <span v-if="totalRecordCount > 0" class="g-sheet-foot-text">
+                显示 {{ (currentPage - 1) * pageSize + 1 }} - {{ Math.min(currentPage * pageSize, totalRecordCount) }}
+                条 / 共 {{ totalRecordCount }} 条
+              </span>
+              <DashboardPagination
+                v-if="totalRecordCount > 0"
+                v-model="currentPage"
+                :total="totalRecordCount"
+                :page-size="pageSize"
+              />
+            </template>
+          </DashboardSheet>
           <button v-if="isMobileView && !isModerationTab && canCreateCurrentTab" class="fab-button" @click="openEditModal()" aria-label="新增">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -707,6 +716,7 @@
             </svg>
           </button>
         </div>
+        </template>
           </section>
         </div>
       </main>
@@ -793,6 +803,7 @@ import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
 import {
   Activity,
+  Cpu,
   Database,
   FileText,
   Gauge,
@@ -805,14 +816,19 @@ import {
   Settings,
   ShieldCheck,
   Server,
+  Sparkles,
   Users
 } from 'lucide-vue-next';
 import AdminHeader from './components/AdminHeader.vue';
 import AdminOverview from './components/AdminOverview.vue';
 import AdminSidebar from './components/AdminSidebar.vue';
 import ApiKeyConsole from './components/ApiKeyConsole.vue';
-import ModelRouting from './components/ModelRouting.vue';
+import LabAiModelConfig from './components/LabAiModelConfig.vue';
+import ModerationModelConfig from './components/ModerationModelConfig.vue';
+import FreemodelsConfig from './components/FreemodelsConfig.vue';
 import EditDrawer from './components/EditDrawer.vue';
+import DashboardSheet from './components/shared/DashboardSheet.vue';
+import DashboardPagination from './components/shared/DashboardPagination.vue';
 import { getImageUrl } from '../../utils/asset-helper';
 import { supabase } from '@/utils/supabase-client.js';
 import { invalidateByTags } from '@/utils/request-core.js';
@@ -828,13 +844,14 @@ import {
   NEWS_CATEGORY_VALUES,
   PRODUCT_CATEGORY_OPTIONS,
   SUBSCRIPTION_PLAN_NAMES,
+  TABS_ACTIONS,
   TABS_KEEP_ID_ON_INSERT,
   TAB_WRITABLE_FIELDS,
   dataConfig,
   invalidateProductsCache,
-  tabGroups,
   tabs
 } from './config.js';
+import { tabModules } from './config/tabs.js';
 import {
   ADMIN_SECTION_DEFAULT_TABS,
   DATA_CONSOLE_SECTIONS,
@@ -883,6 +900,25 @@ import { createFilterState } from './composables/useDataAdminFilterState.js';
 import { createMutationsCenter } from './composables/useDataAdminMutations.js';
 import { SAVE_STRATEGIES } from './config/saveStrategies.js';
 import { setupDataAdminLifecycle } from './composables/useDataAdminLifecycle.js';
+import {
+  formatCellValue,
+  formatDate,
+  formatDateTime,
+  getBadgeType,
+  getTags,
+  createHighlightHelpers,
+  getJsonPreview,
+  downloadBlob,
+  createRelatedJumpHelpers,
+  createAnomalyHelpers,
+  toDateInputValue,
+  toISOStringFromInput,
+  normalizeQuickEditValue
+} from './composables/useDataAdminHelpers.js';
+import { createExportCenter } from './composables/useDataAdminExport.js';
+import { createGlobalSearchCenter } from './composables/useDataAdminGlobalSearch.js';
+import { createShortcutsCenter } from './composables/useDataAdminShortcuts.js';
+import { createNavigationCenter } from './composables/useDataAdminNavigation.js';
 
 const CACHE_TTL = 45_000;
 
@@ -910,15 +946,11 @@ const isFilterLoading = ref(false);
 const isRefreshing = ref(false);
 const hasLoadedOnce = ref(false);
 const isSaving = ref(false);
-const isExportingBackup = ref(false);
-const isBackupExporting = ref(false);
-const backupProgress = ref(0);
-const backupProgressText = ref('');
-let backupAbortController = null;
-let cancelBackupExport = () => {};
+// isExportingBackup / isBackupExporting / backupProgress / backupProgressText /
+// cancelBackupExport 由下方 createExportCenter 工厂注入
 const showModal = ref(false);
 const showUserPickerModal = ref(false);
-const showGlobalSearchPanel = ref(false);
+// showGlobalSearchPanel 由下方 createGlobalSearchCenter 工厂注入
 const showAdvancedFilterPanel = ref(false);
 const showColumnPanel = ref(false);
 const showBatchEditPanel = ref(false);
@@ -930,14 +962,12 @@ const editingOriginalItem = ref(null);
 const jsonBuffers = ref({});
 const fieldErrors = reactive({});
 const searchQuery = ref('');
-const globalSearchQuery = ref('');
-const globalSearchResults = ref([]);
-const isGlobalSearching = ref(false);
+// globalSearchQuery / globalSearchResults / isGlobalSearching / showGlobalSearchPanel
+// 由下方 createGlobalSearchCenter 工厂注入
 const statusFilter = ref('');
 const dateFromFilter = ref('');
 const dateToFilter = ref('');
 const advancedFilterRules = ref([]);
-const activeTabGroupId = ref(tabGroups[0]?.id || 'people');
 const userPickerKeyword = ref('');
 const selectedItems = ref([]);
 const currentPage = ref(1);
@@ -1174,28 +1204,38 @@ const inlineEditableFieldKeys = computed(() => new Set(
     .map((field) => field.key)
 ));
 const currentTabLabel = computed(() => tabs.find(t => t.id === currentTab.value)?.label || '');
-const currentTabGroup = computed(() =>
-  tabGroups.find((group) => group.tabIds.includes(currentTab.value)) || tabGroups[0]
-);
-const tabGroupsWithCounts = computed(() =>
-  tabGroups.map((group) => ({
-    ...group,
-    count: group.tabIds.reduce((total, tabId) => total + getTabCount(tabId), 0)
-  }))
-);
 const isNewsTab = computed(() => currentTab.value === 'news');
 const isCurrentUserAdmin = computed(() => String(userInfo.value?.role || '').trim() === 'admin');
 const canRegenerateAutoId = computed(() =>
   !isEditing.value && ['news', 'activities', 'products'].includes(currentTab.value)
 );
-const readOnlyTabs = new Set(['lotteryEntries', 'lotteryDrawLogs', 'lotterySchedulerLogs', 'lotteryNotificationJobs', 'lotteryJoinAttempts']);
-const canCreateCurrentTab = computed(() => !['points', ...readOnlyTabs].includes(currentTab.value));
-const isProfileDerivedTab = computed(() => ['points'].includes(currentTab.value));
-const isReadOnlyTab = computed(() => readOnlyTabs.has(currentTab.value));
+
+const currentTabActions = computed(() => {
+  const actions = TABS_ACTIONS?.[currentTab.value];
+  return new Set(actions || []);
+});
+const hasTabAction = (action) => currentTabActions.value.has(action);
+const canCreateCurrentTab = computed(() => hasTabAction('create'));
+const canEditCurrentTab = computed(() => hasTabAction('edit'));
+const canDeleteCurrentTab = computed(() => hasTabAction('delete'));
+const canBanMute = computed(() => hasTabAction('ban') || hasTabAction('mute'));
+const isProfileDerivedTab = computed(() => !canDeleteCurrentTab.value && hasTabAction('edit') && !hasTabAction('create'));
+const isReadOnlyTab = computed(() => currentTabActions.value.size <= 1 && hasTabAction('view'));
 const isSubscriptionTab = computed(() => currentTab.value === 'subscriptions');
+const currentTabInfo = computed(() => tabs.find(t => t.id === currentTab.value));
+const isPageTab = computed(() => currentTabInfo.value?.type === 'page');
+const isTableTab = computed(() => !isPageTab.value);
+const PAGE_TAB_COMPONENTS = {
+  'api-keys': ApiKeyConsole,
+  'freemodels': FreemodelsConfig,
+  'moderation-model': ModerationModelConfig,
+  'lab-ai-model': LabAiModelConfig
+};
+const currentPageComponent = computed(() => PAGE_TAB_COMPONENTS[currentTab.value] || null);
 const lotteryOpsTabs = new Set(['lotteries', 'lotteryDrawLogs', 'lotterySchedulerLogs', 'lotteryNotificationJobs', 'lotteryJoinAttempts']);
 const isLotteryOpsTab = computed(() => lotteryOpsTabs.has(currentTab.value));
 const moderationTabConfig = computed(() => {
+  if (!hasTabAction('moderate')) return null;
   const configMap = {
     reviewPosts: {
       table: 'posts',
@@ -1222,14 +1262,15 @@ const moderationTabConfig = computed(() => {
       targetType: 'comment'
     },
   };
-
   return configMap[currentTab.value] || null;
 });
 const isModerationTab = computed(() => Boolean(moderationTabConfig.value));
 const hasActionColumn = computed(() =>
   isModerationTab.value ||
-  currentTab.value === 'lotteries' ||
-  !isReadOnlyTab.value
+  canEditCurrentTab.value ||
+  canDeleteCurrentTab.value ||
+  canBanMute.value ||
+  currentTab.value === 'lotteries'
 );
 const isRejectedModerationTab = computed(() => ['reviewPosts', 'reviewComments'].includes(currentTab.value));
 const isMessageModerationTab = computed(() => currentTab.value === 'reviewComments');
@@ -1238,8 +1279,6 @@ const lotteryActionPendingIds = ref([]);
 
 const isDataConsoleSection = computed(() => DATA_CONSOLE_SECTIONS.has(activeAdminSection.value));
 const isPlaceholderAdminSection = computed(() => PLACEHOLDER_ADMIN_SECTIONS.has(activeAdminSection.value));
-const isApiKeysSection = computed(() => activeAdminSection.value === 'api-keys');
-const isModelRoutingSection = computed(() => activeAdminSection.value === 'model-routing');
 // 筛选相关的 computeds (currentStatusFilterField/currentDateFilterField/statusFilterOptions/
 //   hasActiveFilters/activeAdvancedRules/activeFilterSummary/statusFilterLabel/currentDateFilterLabel/
 //   currentSavedViews) 由 createFilterState 工厂提供 (见 fetchTabData 之后)
@@ -1369,16 +1408,10 @@ const moderationPendingCount = computed(() =>
   ['reportedPosts', 'reviewPosts', 'reviewComments']
     .reduce((total, tabId) => total + getTabCount(tabId), 0)
 );
-const adminNavigation = computed(() => [
-  { id: 'overview', label: '概览', icon: Home, active: activeAdminSection.value === 'overview' },
-  { id: 'data', label: '数据管理', icon: Database, active: activeAdminSection.value === 'data', badge: dataConsoleTotalCount.value || '' },
-  { id: 'api-keys', label: 'API Key 管理', icon: KeyRound, active: activeAdminSection.value === 'api-keys' },
-  { id: 'model-routing', label: '模型路由', icon: Network, active: activeAdminSection.value === 'model-routing' },
-  { id: 'media', label: '媒体资源', icon: Image, active: activeAdminSection.value === 'media' },
-  { id: 'settings', label: '网站设置', icon: Settings, active: activeAdminSection.value === 'settings' }
-]);
+// activeModule / sidebarModules / currentModule / currentModuleTabIds / getTabLabel /
+// syncModuleFromSection / currentAdminPageMeta 已迁移至 useDataAdminNavigation.js
+// 由下方 createNavigationCenter 工厂注入
 
-const currentAdminPageMeta = computed(() => ADMIN_PAGE_META[activeAdminSection.value] || ADMIN_PAGE_META.overview);
 const currentAdminPageActions = computed(() => {
   if (activeAdminSection.value === 'media') {
     return [
@@ -1402,7 +1435,7 @@ const currentAdminPageMetrics = computed(() => {
   const section = activeAdminSection.value;
   if (section === 'data') {
     return [
-      { label: '当前分组', value: currentTabGroup.value?.label || '用户' },
+      { label: '当前模块', value: currentModule.value?.label || '数据管理' },
       { label: '当前数据表', value: currentTabLabel.value || '未选择' },
       { label: '当前记录', value: totalRecordCount.value },
       { label: '待复核', value: moderationPendingCount.value }
@@ -1488,66 +1521,8 @@ const recentActivityItems = computed(() => {
   });
 });
 
-const handleAdminNavClick = (item) => {
-  if (item.id === 'data' && activeAdminSection.value === 'data') {
-    isDataTreeCollapsed.value = !isDataTreeCollapsed.value;
-    return;
-  }
-  activeAdminSection.value = item.id;
-  if (item.id === 'data') {
-    isDataTreeCollapsed.value = false;
-  }
-  const routeMap = {
-    overview: '/admin/data-management',
-    'api-keys': '/admin/api-keys',
-    'model-routing': '/admin/model-routing',
-    data: '/admin/data-management',
-    media: '/admin/data-management',
-    settings: '/admin/data-management'
-  };
-  const target = routeMap[item.id];
-  if (target && router.currentRoute.value.path !== target) {
-    router.push(target);
-  }
-  const defaultTab = ADMIN_SECTION_DEFAULT_TABS[item.id];
-  if (defaultTab) {
-    switchTab(defaultTab);
-  }
-  isAdminSidebarOpen.value = false;
-};
-
-const getTabsByGroup = (group) => {
-  const tabIds = new Set(group?.tabIds || []);
-  return tabs.filter((tab) => tabIds.has(tab.id));
-};
-
-
-
-const handleOverviewTabClick = (tabId) => {
-  activeAdminSection.value = 'data';
-  switchTab(tabId);
-};
-
-const handleSidebarTabClick = (tabId) => {
-  activeAdminSection.value = 'data';
-  isDataTreeCollapsed.value = false;
-  switchTab(tabId);
-  isAdminSidebarOpen.value = false;
-};
-
-const handlePlaceholderAction = (action) => {
-  if (action?.route) {
-    router.push(action.route);
-    return;
-  }
-  if (action?.section && !action?.tab) {
-    activeAdminSection.value = action.section;
-    return;
-  }
-  if (!action?.tab) return;
-  activeAdminSection.value = action.section || 'data';
-  switchTab(action.tab);
-};
+// handleModuleClick / handleAdminNavClick / getTabsByGroup / handleOverviewTabClick /
+// handleSidebarTabClick / handlePlaceholderAction 已迁移至 useDataAdminNavigation.js
 
 const totalRecordCount = computed(() => tabTotals[currentTab.value] || currentData.value.length || 0);
 const totalCountAllTables = computed(() =>
@@ -1587,11 +1562,6 @@ const liveStatusCards = computed(() => [
     detail: `${secondsUntilRefresh.value}s 后自动刷新`
   }
 ]);
-const dataConsoleTotalCount = computed(() =>
-  tabGroups.reduce((groupTotal, group) =>
-    groupTotal + group.tabIds.reduce((tabTotal, tabId) => tabTotal + getTabCount(tabId), 0),
-  0)
-);
 // 分页
 const totalPages = computed(() => Math.max(1, Math.ceil(totalRecordCount.value / pageSize.value)));
 // 服务端已通过 range() 真分页返回当前页数据, 直接展示
@@ -1666,29 +1636,8 @@ const isLotteryActionPending = (itemId) => {
   return Boolean(id && lotteryActionPendingIds.value.includes(id));
 };
 
-const toDateInputValue = (dateValue) => {
-  if (!dateValue) return '';
-  const raw = String(dateValue).trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-
-  const date = new Date(dateValue);
-  if (Number.isNaN(date.getTime())) return '';
-  const pad = (n) => String(n).padStart(2, '0');
-  const year = date.getFullYear();
-  const month = pad(date.getMonth() + 1);
-  const day = pad(date.getDate());
-  return `${year}-${month}-${day}`;
-};
-
-// P1 修复: stripHtml / escapeHtml / hasHtmlTag / UUID_REGEX / EMAIL_REGEX 
+// P1 修复: stripHtml / escapeHtml / hasHtmlTag / UUID_REGEX / EMAIL_REGEX
 // 已从 composables/useDataAdminValidation.js 导入，此处删除重复定义
-
-// v-html 输出前用 DOMPurify 清洗(项目硬约束),仅允许 <mark> 高亮标签
-const sanitizeHighlightHtml = (html) => DOMPurify.sanitize(String(html || ''), {
-  ALLOWED_TAGS: ['mark'],
-  ALLOWED_ATTR: [],
-  KEEP_CONTENT: true
-});
 
 const pickWritableFields = (tabKey, payload) => {
   const allowList = TAB_WRITABLE_FIELDS[tabKey] || [];
@@ -1950,55 +1899,14 @@ const resetColumnSettings = () => {
   persistColumnSettings();
 };
 
-const switchTab = (tabId, options = {}) => {
-  if (activeAdminSection.value === 'overview' || isPlaceholderAdminSection.value) {
-    activeAdminSection.value = 'data';
-  }
-  currentTab.value = tabId;
-  activeTabGroupId.value = currentTabGroup.value?.id || activeTabGroupId.value;
-  isDataTreeCollapsed.value = false;
-  if (currentPage.value !== 1) {
-    suppressNextPageFetch.value = true;
-    currentPage.value = 1;
-  }
-  selectedItems.value = [];
-  searchQuery.value = options.search || '';
-  resetFiltersForTab();
-  userPickerKeyword.value = '';
-  showUserPickerModal.value = false;
-  sortKey.value = '';
-  clearFieldErrors();
-  fetchTabData(tabId, { useCache: true });
-  if (lotteryOpsTabs.has(tabId)) {
-    loadLotterySchedulerStatus();
-  }
-};
+// switchTab / handleModuleClick / handleAdminNavClick / handleSidebarTabClick /
+// handleOverviewTabClick / handlePlaceholderAction / syncModuleFromSection / getTabsByGroup /
+// activeModule / sidebarModules / currentModule / currentModuleTabIds / currentAdminPageMeta
+// 已迁移至 composables/useDataAdminNavigation.js (createNavigationCenter)
+// 由下方工厂注入
 
-// ==================== 第二阶段 Composable 工厂注入 ====================
-// 所有工厂通过解构直接注入, 不再使用前向声明 + 延迟赋值模式
-
-const {
-  addChangeLogEntry,
-  addRecentRecord,
-  togglePinnedTab,
-  isTabPinned,
-  jumpToRecentRecord,
-  currentChangeLogEntries,
-  currentPinnedTabs,
-  recentRecordsForSidebar
-} = createChangeLogCenter({
-  changeLogEntries,
-  recentRecords,
-  pinnedTabIds,
-  currentTab,
-  currentTabLabel,
-  getUserInfo: () => userInfo.value,
-  tabs,
-  persistChangeLog,
-  persistRecentRecords,
-  persistPinnedTabs,
-  switchTab
-});
+// createChangeLogCenter 已移至 createNavigationCenter 之后注入 (依赖 switchTab)
+// 见下方 "变更日志中心注入" 区块
 
 const copyGiftAddressBundle = async () => {
   const content = giftAddressBundleText.value;
@@ -2136,13 +2044,19 @@ const toggleSelect = (item) => {
   }
 };
 
-const toggleAdminTheme = () => {
+const toggleAdminTheme = (forced) => {
   const html = document.documentElement;
-  const isDark = html.getAttribute('data-theme') === 'dark';
-  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  const wasDark = html.getAttribute('data-theme') === 'dark';
+  const nextDark = typeof forced === 'boolean' ? forced : !wasDark;
+  html.setAttribute('data-theme', nextDark ? 'dark' : 'light');
   const page = document.querySelector('.data-management-page');
   if (page) {
-    page.classList.toggle('dark', !isDark);
+    page.classList.toggle('dark', nextDark);
+  }
+  try {
+    localStorage.setItem('dm-theme', nextDark ? 'dark' : 'light');
+  } catch (e) {
+    /* storage may be unavailable in private mode */
   }
 };
 
@@ -2271,87 +2185,9 @@ const syncCoreMemoriesIndex = async () => {
 //   - buildSearchFiltersForKeyword(tab.id, kw) -> buildSearchFiltersUtil(tab.id, kw, TAB_SEARCH_FIELDS)
 //   - getSearchablePreviewFields(tab.id) -> getSearchablePreviewFieldsUtil(tab.id, dataConfig, TAB_SEARCH_FIELDS)
 
-let globalSearchAbortController = null;
-
-const runGlobalSearch = async () => {
-  if (globalSearchAbortController) {
-    globalSearchAbortController.abort();
-  }
-  globalSearchAbortController = new AbortController();
-  const signal = globalSearchAbortController.signal;
-
-  const keyword = sanitizeSearchTerm(globalSearchQuery.value || searchQuery.value);
-  if (!keyword) {
-    showToast('请输入跨表搜索关键词', 'error');
-    return;
-  }
-
-  isGlobalSearching.value = true;
-  showGlobalSearchPanel.value = true;
-  globalSearchResults.value = [];
-
-  try {
-    const tasks = tabs.map(async (tab) => {
-      if (signal.aborted) return [];
-      const table = dataConfig[tab.id]?.table;
-      const selectColumns = TAB_SELECT_COLUMNS[tab.id];
-      const filters = buildSearchFiltersUtil(tab.id, keyword, TAB_SEARCH_FIELDS);
-      if (!table || !selectColumns || filters.length === 0) return [];
-
-      let query = supabase
-        .from(table)
-        .select(selectColumns, { signal })
-        .or(filters.join(','))
-        .limit(5);
-
-      if (tab.id === 'reportedPosts') query = query.eq('status', 'limited');
-      if (tab.id === 'reviewPosts') query = query.ilike('status', 'rejected');
-      if (tab.id === 'reviewComments') query = query.ilike('status', 'rejected');
-
-      const { data, error } = await query;
-      if (error) {
-        logger.warn('data-admin', `跨表搜索 ${tab.id} 失败:`, error);
-        return [];
-      }
-
-      return (Array.isArray(data) ? data : []).map((row) => {
-        const previewFields = getSearchablePreviewFieldsUtil(tab.id, dataConfig, TAB_SEARCH_FIELDS);
-        const preview = previewFields
-          .map((field) => row?.[field])
-          .find((value) => String(value || '').toLowerCase().includes(keyword.toLowerCase()))
-          || row.title
-          || row.username
-          || row.email
-          || row.content
-          || row.id;
-        return {
-          tabId: tab.id,
-          tabLabel: tab.label,
-          id: row.id,
-          title: String(row.title || row.username || row.email || row.plan_name || row.prize_title || row.gift_content || row.id || '').slice(0, 80),
-          preview: String(preview || '').slice(0, 160),
-          row
-        };
-      });
-    });
-
-    const settled = await Promise.allSettled(tasks);
-    if (signal.aborted) return;
-    globalSearchResults.value = settled.flatMap((entry) => entry.status === 'fulfilled' ? entry.value : []);
-    showToast(globalSearchResults.value.length ? `跨表搜索完成，命中 ${globalSearchResults.value.length} 条` : '没有找到跨表结果', globalSearchResults.value.length ? 'success' : 'info');
-  } catch (error) {
-    logger.error('data-admin', '跨表搜索失败:', error);
-    showToast('跨表搜索失败: ' + buildActionErrorMessage(error, '跨表搜索失败'), 'error');
-  } finally {
-    isGlobalSearching.value = false;
-  }
-};
-
-const openGlobalSearchResult = (result) => {
-  if (!result?.tabId) return;
-  addRecentRecord(result.row || { id: result.id, title: result.title }, result.tabId);
-  switchTab(result.tabId, { search: String(result.id || globalSearchQuery.value) });
-};
+// 跨表搜索已迁移至 composables/useDataAdminGlobalSearch.js (createGlobalSearchCenter)
+// globalSearchQuery / globalSearchResults / isGlobalSearching / showGlobalSearchPanel /
+// runGlobalSearch / openGlobalSearchResult 由下方 createGlobalSearchCenter 工厂注入
 
 const paginateQuery = (query) => {
   const limit = Math.max(1, Number(pageSize.value) || 20);
@@ -2402,7 +2238,8 @@ const getTabFetchCacheKey = (tabId = currentTab.value) => JSON.stringify({
   dateFrom: dateFromFilter.value,
   dateTo: dateToFilter.value,
   sortKey: sortKey.value,
-  sortOrder: sortOrder.value
+  sortOrder: sortOrder.value,
+  advancedRules: advancedFilterRules.value
 });
 
 const clearTabFetchCache = (tabId = '') => {
@@ -2864,6 +2701,90 @@ const fetchSecondaryData = async () => {
   ]);
 };
 
+// loadLotterySchedulerStatus 需在 createNavigationCenter 之前定义 (被其引用)
+// isMissingRpcFunctionError 来自 createMutationsCenter (下方), 此处内联检查以打破循环依赖
+const loadLotterySchedulerStatus = async () => {
+  if (!isCurrentUserAdmin.value) return;
+  lotterySchedulerStatusLoading.value = true;
+  try {
+    const { data, error } = await supabase.rpc('admin_lottery_scheduler_status');
+    if (error) throw error;
+    if (data?.ok) {
+      lotterySchedulerStatus.value = data;
+    }
+  } catch (error) {
+    const code = String(error?.code || '').toUpperCase();
+    const message = String(error?.message || '').toLowerCase();
+    const isMissingRpc = code === 'PGRST202' || message.includes('admin_lottery_scheduler_status');
+    if (!isMissingRpc) {
+      logger.warn('data-admin', '获取抽奖定时任务状态失败:', error);
+    }
+  } finally {
+    lotterySchedulerStatusLoading.value = false;
+  }
+};
+
+// ==================== 导航中心注入 ====================
+const {
+  activeModule,
+  sidebarModules,
+  currentModule,
+  currentModuleTabIds,
+  currentAdminPageMeta,
+  getTabLabel,
+  syncModuleFromSection,
+  handleModuleClick,
+  handleAdminNavClick,
+  handleOverviewTabClick,
+  handleSidebarTabClick,
+  handlePlaceholderAction,
+  getTabsByGroup,
+  switchTab
+} = createNavigationCenter({
+  activeAdminSectionRef: activeAdminSection,
+  isAdminSidebarOpenRef: isAdminSidebarOpen,
+  isDataTreeCollapsedRef: isDataTreeCollapsed,
+  currentTabRef: currentTab,
+  currentPageRef: currentPage,
+  suppressNextPageFetchRef: suppressNextPageFetch,
+  searchQueryRef: searchQuery,
+  selectedItemsRef: selectedItems,
+  userPickerKeywordRef: userPickerKeyword,
+  showUserPickerModalRef: showUserPickerModal,
+  sortKeyRef: sortKey,
+  isPlaceholderAdminSectionRef: isPlaceholderAdminSection,
+  lotteryOpsTabs,
+  resetFiltersForTab,
+  clearFieldErrors,
+  fetchTabData,
+  loadLotterySchedulerStatus
+});
+
+// ==================== 变更日志中心注入 ====================
+// 在 createNavigationCenter 之后注入, 因为需要 switchTab
+const {
+  addChangeLogEntry,
+  addRecentRecord,
+  togglePinnedTab,
+  isTabPinned,
+  jumpToRecentRecord,
+  currentChangeLogEntries,
+  currentPinnedTabs,
+  recentRecordsForSidebar
+} = createChangeLogCenter({
+  changeLogEntries,
+  recentRecords,
+  pinnedTabIds,
+  currentTab,
+  currentTabLabel,
+  getUserInfo: () => userInfo.value,
+  tabs,
+  persistChangeLog,
+  persistRecentRecords,
+  persistPinnedTabs,
+  switchTab
+});
+
 const startAutoRefresh = () => {
   stopAutoRefresh();
   secondsUntilRefresh.value = 30;
@@ -2885,12 +2806,13 @@ const stopAutoRefresh = () => {
 };
 
 watch(activeAdminSection, (section) => {
+  syncModuleFromSection(section);
   if (section === 'overview') {
     startAutoRefresh();
   } else {
     stopAutoRefresh();
   }
-});
+}, { immediate: true });
 
 const fetchData = async ({ deferSecondary = false } = {}) => {
   if (deferSecondary) {
@@ -2980,23 +2902,7 @@ const refreshAllData = async () => {
   showToast('数据已刷新', 'success');
 };
 
-const loadLotterySchedulerStatus = async () => {
-  if (!isCurrentUserAdmin.value) return;
-  lotterySchedulerStatusLoading.value = true;
-  try {
-    const { data, error } = await supabase.rpc('admin_lottery_scheduler_status');
-    if (error) throw error;
-    if (data?.ok) {
-      lotterySchedulerStatus.value = data;
-    }
-  } catch (error) {
-    if (!isMissingRpcFunctionError(error, 'admin_lottery_scheduler_status')) {
-      logger.warn('data-admin', '获取抽奖定时任务状态失败:', error);
-    }
-  } finally {
-    lotterySchedulerStatusLoading.value = false;
-  }
-};
+// loadLotterySchedulerStatus 已上移至 fetchSecondaryData 之后, 以解决 createNavigationCenter 的 TDZ 依赖
 
 const runDueLotteryDraws = async () => {
   if (lotteryDueDrawPending.value) return;
@@ -3041,12 +2947,7 @@ const toDateTimeInputValue = (dateValue) => {
   return `${year}-${month}-${day}T${hour}:${minute}`;
 };
 
-const toISOStringFromInput = (dateInput) => {
-  if (!dateInput) return null;
-  const date = new Date(dateInput);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toISOString();
-};
+// toISOStringFromInput / toDateInputValue 已迁移至 useDataAdminHelpers.js (导入即可用)
 
 const getDraftKey = () => `${currentTab.value}:${isEditing.value ? editingItem.value?.id || 'unknown' : 'new'}`;
 
@@ -3447,16 +3348,14 @@ let saveDataIdCounter = 0;
 const activeSaveDataId = ref(0);
 
 const saveData = async () => {
-  // 使用原子计数器防止竞态
-  const currentSaveId = ++saveDataIdCounter;
-  activeSaveDataId.value = currentSaveId;
-  
+  // 先检查锁：防止计数器被篡改后导致 finally 永远不释放锁
   if (isSaving.value) {
-    // 如果已有保存进行中，abort 旧的请求（实际上无法 abort Supabase 查询，但可以忽略其结果）
     showToast('已有保存操作进行中，请稍候', 'warning');
     return;
   }
-  
+  // 使用原子计数器防止竞态
+  const currentSaveId = ++saveDataIdCounter;
+  activeSaveDataId.value = currentSaveId;
   isSaving.value = true;
   try {
     assertAdminAction();
@@ -3580,177 +3479,14 @@ const saveData = async () => {
 // 工厂在 refreshCurrentViewAfterMutation 之后注入, 上述 let 变量会被重新赋值为真实函数
 // 这里删除内联的重复实现, 避免命名冲突与重复定义
 
-// ==================== 辅助方法 ====================
-const formatCellValue = (val, maxLength) => {
-  if (val === null || val === undefined || val === '') return '-';
-  const str = String(val);
-  if (maxLength && str.length > maxLength) {
-    return str.substring(0, maxLength) + '...';
-  }
-  return str;
-};
+// ==================== 辅助方法（已拆分到 useDataAdminHelpers.js） ====================
+// formatCellValue / formatDate / formatDateTime / getBadgeType / getTags /
+// getHighlightKeyword / highlightCellValue / getJsonPreview / downloadBlob /
+// getRelatedJump / toDateInputValue / toISOStringFromInput / normalizeQuickEditValue /
+// isAnomalyRow / getAnomalyReason 已迁移到 composable
 
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-';
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('zh-CN');
-};
-
-const formatDateTime = (dateStr) => {
-  if (!dateStr) return '-';
-  const date = new Date(dateStr);
-  if (Number.isNaN(date.getTime())) return '-';
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-};
-
-const BADGE_STATUS_MAP = {
-  active: 'success',
-  inactive: 'warning',
-  banned: 'danger',
-  trialing: 'info',
-  active_trial: 'info',
-  past_due: 'warning',
-  canceled: 'muted',
-  expired: 'muted',
-  completed: 'success',
-  pending: 'warning',
-  shipped: 'info',
-  received: 'success',
-  approved: 'success',
-  pending_review: 'warning',
-  rejected: 'danger',
-  draft: 'warning',
-  published: 'success',
-  archived: 'muted',
-  in_stock: 'success',
-  low_stock: 'warning',
-  out_of_stock: 'danger',
-  active_draw: 'success',
-  closed: 'info',
-  cancelled: 'muted',
-  paid: 'success',
-  pending_payment: 'warning',
-  failed: 'danger',
-  refunded: 'info',
-  true: 'success',
-  false: 'muted',
-  yes: 'success',
-  no: 'muted',
-  enabled: 'success',
-  disabled: 'muted',
-  on: 'success',
-  off: 'muted',
-  review: 'warning',
-  normal: 'success',
-  warning: 'warning',
-  error: 'danger',
-  success: 'success',
-  info: 'info',
-  muted: 'muted',
-  danger: 'danger',
-  admin: 'success',
-  管理员: 'success',
-  '进行中': 'success',
-  open: 'success',
-  '首页显示': 'success',
-  confirmed: 'success',
-  fulfilled: 'success',
-  joined: 'success',
-  sent: 'success',
-  准点: 'success',
-  '定时任务': 'success',
-  '当前礼物': 'success',
-  'current gift': 'success',
-  delivered: 'success',
-  signed: 'success',
-  drawn: 'success',
-  user: 'info',
-  '普通用户': 'info',
-  upcoming: 'info',
-  '即将开始': 'info',
-  manual_admin: 'info',
-  '手动补跑': 'info',
-  '未开奖': 'info',
-  processing: 'info',
-  '处理中': 'info',
-  '历史礼物': 'warning',
-  'history gift': 'warning',
-  '已隐藏': 'warning',
-  pending_contact: 'warning',
-  rate_limited: 'warning',
-  already_joined: 'warning',
-  running: 'warning',
-  partial_failure: 'warning',
-  '待调度': 'warning',
-  ended: 'warning',
-  '已结束': 'warning',
-  voided: 'warning',
-  entry_closed: 'warning',
-  not_open: 'warning',
-  full: 'warning',
-  account_too_new: 'warning',
-  limited: 'warning',
-  preparing: 'warning',
-  '封禁': 'danger',
-  not_found: 'danger',
-  profile_not_found: 'danger',
-  reject: 'danger'
-};
-
-const getBadgeType = (val) => {
-  if (val == null || val === '') return 'muted';
-  const key = String(val).toLowerCase();
-  if (key.startsWith('延迟')) return 'warning';
-  return BADGE_STATUS_MAP[key] || 'info';
-};
-
-const getTags = (value) => {
-  if (!value) return [];
-  if (Array.isArray(value)) return value.slice(0, 3);
-  return [String(value)];
-};
-
-const getHighlightKeyword = () => sanitizeSearchTerm(searchQuery.value || globalSearchQuery.value);
-
-const highlightCellValue = (value, maxLength) => {
-  const display = formatCellValue(value, maxLength);
-  const escaped = escapeHtml(display);
-  const keyword = getHighlightKeyword();
-  if (!keyword || display === '-') return escaped;
-  const safeKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  // 用 DOMPurify 二次清洗(项目硬约束),只允许 <mark>
-  return sanitizeHighlightHtml(escaped.replace(new RegExp(`(${safeKeyword})`, 'ig'), '<mark>$1</mark>'));
-};
-
-const getRelatedJump = (col, item) => {
-  const key = String(col?.key || '');
-  const value = item?.[key];
-  if (!value) return null;
-  const relationMap = {
-    user_id: 'users',
-    author_id: 'users',
-    sender_id: 'users',
-    receiver_id: 'users',
-    winner_user_id: 'users',
-    drawn_by: 'users',
-    post_id: 'forum',
-    lottery_id: 'lotteries',
-    entry_id: 'lotteryEntries',
-    winner_entry_id: 'lotteryEntries'
-  };
-  const targetTab = relationMap[key];
-  if (!targetTab || targetTab === currentTab.value) return null;
-  return {
-    tabId: targetTab,
-    search: String(value)
-  };
-};
+// createHighlightHelpers / createRelatedJumpHelpers / createAnomalyHelpers
+// 已下移至 createGlobalSearchCenter 之后 (依赖 globalSearchQuery)
 
 const jumpToRelatedRecord = (jump, item) => {
   if (!jump?.tabId) return;
@@ -3782,18 +3518,7 @@ const isInlineEditing = (item, col) =>
 
 const getFieldByKey = (fieldKey) => currentFields.value.find((field) => field.key === fieldKey);
 
-const normalizeQuickEditValue = (field, value) => {
-  if (!field) return value;
-  if (field.type === 'number') {
-    const numberValue = Number(value);
-    if (!Number.isFinite(numberValue)) throw new Error(`${field.label}必须是有效数字`);
-    return Math.round(numberValue);
-  }
-  if (field.type === 'datetime') return toISOStringFromInput(value);
-  if (field.type === 'date') return toDateInputValue(value);
-  if (field.type === 'select') return value;
-  return String(value ?? '').trim();
-};
+// normalizeQuickEditValue 已迁移至 useDataAdminHelpers.js (导入即可用)
 
 const saveInlineEdit = async (item, col) => {
   if (inlineEditState.saving) return;
@@ -3831,32 +3556,7 @@ const saveInlineEdit = async (item, col) => {
   }
 };
 
-const isAnomalyRow = (item) => {
-  const now = Date.now();
-  if (currentTab.value === 'products') return Number(item?.stock ?? 0) <= 0;
-  if (currentTab.value === 'subscriptions') {
-    const expiresAt = Date.parse(item?.expires_at || '');
-    return String(item?.status || '') === 'expired' || (Number.isFinite(expiresAt) && expiresAt < now);
-  }
-  if (currentTab.value === 'lotteries') {
-    const drawAt = Date.parse(item?.draw_at || '');
-    return String(item?.status || '') === 'open' && Number.isFinite(drawAt) && drawAt < now;
-  }
-  if (['reportedPosts', 'reviewPosts', 'reviewComments'].includes(currentTab.value)) return true;
-  if (currentTab.value === 'lotteryNotificationJobs') return ['failed', 'pending'].includes(String(item?.status || ''));
-  if (currentTab.value === 'lotteryJoinAttempts') return !['joined', 'success'].includes(String(item?.result_code || ''));
-  return false;
-};
-
-const getAnomalyReason = (item) => {
-  if (!isAnomalyRow(item)) return '';
-  if (currentTab.value === 'products') return '库存不足';
-  if (currentTab.value === 'subscriptions') return '订阅已过期';
-  if (currentTab.value === 'lotteries') return '到期未开奖';
-  if (currentTab.value === 'lotteryNotificationJobs') return '通知待处理/失败';
-  if (currentTab.value === 'lotteryJoinAttempts') return '报名风控命中';
-  return '需要复核';
-};
+// isAnomalyRow / getAnomalyReason 已迁移至 useDataAdminHelpers.js (createAnomalyHelpers 工厂注入)
 
 const applyBatchEdit = async () => {
   if (!selectedItems.value.length || !batchEditState.fieldKey) return;
@@ -3939,181 +3639,10 @@ const applyBatchEdit = async () => {
   }
 };
 
-const getJsonPreview = (val) => {
-  if (!val) return '{}';
-  const str = JSON.stringify(val);
-  return str.length > 30 ? str.substring(0, 30) + '...' : str;
-};
-
-const downloadBlob = (blob, filename) => {
-  const link = document.createElement('a');
-  const objectUrl = URL.createObjectURL(blob);
-  link.href = objectUrl;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(objectUrl);
-};
-
-const exportData = () => {
-  const data = currentData.value;
-  const columns = visibleCurrentColumns.value;
-
-  const csvContent = [
-    columns.map(col => col.label).join(','),
-    ...data.map(item => columns.map(col => {
-      let val = item[col.key];
-      if (typeof val === 'object') val = JSON.stringify(val);
-      return `"${String(val || '').replace(/"/g, '""')}"`;
-    }).join(','))
-  ].join('\n');
-
-  const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  downloadBlob(blob, `${currentTab.value}_${new Date().toISOString().split('T')[0]}.csv`);
-
-  showToast('数据导出成功', 'success');
-};
-
-const getBackupTableTargets = () => {
-  const targets = new Map();
-  tabGroups.forEach((group) => {
-    group.tabIds.forEach((tabId) => {
-      const table = dataConfig[tabId]?.table;
-      if (!table || targets.has(table)) return;
-      targets.set(table, {
-        table,
-        sourceTabId: tabId,
-        sourceLabel: tabs.find((tab) => tab.id === tabId)?.label || tabId,
-        groupId: group.id,
-        groupLabel: group.label
-      });
-    });
-  });
-  return Array.from(targets.values());
-};
-
-const fetchBackupTableRows = async (target) => {
-  const batchSize = 1000;
-  const rows = [];
-  let from = 0;
-  let total = null;
-
-  while (true) {
-    const to = from + batchSize - 1;
-    const { data, error, count } = await supabase
-      .from(target.table)
-      .select('*', { count: from === 0 ? 'exact' : undefined })
-      .range(from, to);
-
-    if (error) throw error;
-
-    const batch = Array.isArray(data) ? data : [];
-    rows.push(...batch);
-    if (from === 0 && Number.isFinite(Number(count))) {
-      total = Number(count);
-    }
-    if (batch.length < batchSize) break;
-    from += batchSize;
-  }
-
-  return {
-    ...target,
-    total: total ?? rows.length,
-    exported: rows.length,
-    rows
-  };
-};
-
-const exportBackupData = async () => {
-  if (isExportingBackup.value) return;
-
-  try {
-    assertAdminAction();
-    backupAbortController = new AbortController();
-    isExportingBackup.value = true;
-    isBackupExporting.value = true;
-    backupProgress.value = 0;
-    backupProgressText.value = '';
-    cancelBackupExport = () => {
-      backupAbortController?.abort();
-      isBackupExporting.value = false;
-      isExportingBackup.value = false;
-    };
-    const exportedAt = new Date().toISOString();
-    const targets = getBackupTableTargets();
-    const tablesPayload = {};
-    const summary = [];
-    let done = 0;
-    const total = targets.length;
-
-    for (const target of targets) {
-      if (backupAbortController?.signal.aborted) {
-        showToast('备份已取消', 'info');
-        return;
-      }
-      backupProgress.value = Math.round((done / total) * 100);
-      backupProgressText.value = `正在导出 ${target.sourceLabel}... (${done}/${total})`;
-      const result = await fetchBackupTableRows(target);
-      tablesPayload[result.table] = result.rows;
-      summary.push({
-        table: result.table,
-        sourceTabId: result.sourceTabId,
-        sourceLabel: result.sourceLabel,
-        groupId: result.groupId,
-        groupLabel: result.groupLabel,
-        total: result.total,
-        exported: result.exported
-      });
-      done++;
-    }
-
-    const backupPayload = {
-      type: 'boh-admin-data-backup',
-      version: 1,
-      exportedAt,
-      exportedBy: {
-        id: userInfo.value?.id || '',
-        username: userInfo.value?.username || '',
-        email: userInfo.value?.email || '',
-        role: userInfo.value?.role || ''
-      },
-      summary,
-      tables: tablesPayload
-    };
-
-    const blob = new Blob([JSON.stringify(backupPayload, null, 2)], { type: 'application/json;charset=utf-8;' });
-    const timestamp = exportedAt.replace(/[:.]/g, '-');
-    downloadBlob(blob, `boh-data-backup_${timestamp}.json`);
-    showToast(`备份导出成功，共 ${summary.length} 张表`, 'success');
-
-    // 审计: 写入客户端变更日志 + 尝试写入服务端 audit
-    addChangeLogEntry('backup_export', null, {
-      tables: summary.map((s) => s.table),
-      totalRows: summary.reduce((acc, s) => acc + (s.exported || 0), 0),
-      note: '备份含 PII,请妥善保管'
-    });
-    try {
-      await supabase.from('admin_audit_log').insert([{
-        actor_id: userInfo.value?.id || null,
-        action: 'backup_export',
-        metadata: {
-          tables: summary.map((s) => s.table),
-          total_rows: summary.reduce((acc, s) => acc + (s.exported || 0), 0)
-        }
-      }]);
-    } catch (auditErr) {
-      logger.warn('data-admin', '备份审计写入失败(忽略):', auditErr);
-    }
-  } catch (error) {
-    logger.error('data-admin', '备份导出失败:', error);
-    showToast('备份导出失败: ' + buildActionErrorMessage(error, '备份导出失败'), 'error');
-  } finally {
-    isBackupExporting.value = false;
-    isExportingBackup.value = false;
-    backupAbortController = null;
-  }
-};
+// 导出/备份已迁移至 composables/useDataAdminExport.js (createExportCenter)
+// getJsonPreview / downloadBlob 已迁移至 useDataAdminHelpers.js (导入即可用)
+// exportData / exportBackupData / getBackupTableTargets / fetchBackupTableRows
+// 由下方 createExportCenter 工厂注入
 
 // 标签输入
 const addTag = (e, fieldKey) => {
@@ -4145,58 +3674,8 @@ const removeSpec = (fieldKey, index) => {
   editingItem.value[fieldKey].splice(index, 1);
 };
 
-// ==================== 键盘快捷键 ====================
-const handleGlobalShortcuts = (e) => {
-  const tag = e.target.tagName;
-  const isEditing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
-
-  // Ctrl+S / Cmd+S → save
-  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-    e.preventDefault();
-    if (showModal.value && !isSaving.value) {
-      saveData();
-    }
-    return;
-  }
-
-  // Escape → close drawer / close user picker
-  if (e.key === 'Escape' && !isEditing) {
-    if (showModal.value) {
-      closeModal();
-    }
-    return;
-  }
-
-  // / → focus global search
-  if (e.key === '/' && !isEditing) {
-    e.preventDefault();
-    const searchInput = document.querySelector('.search-box input');
-    if (searchInput) searchInput.focus();
-    return;
-  }
-
-  // n → new record (when not editing)
-  if (e.key === 'n' && !isEditing && !e.ctrlKey && !e.metaKey) {
-    if (canCreateCurrentTab.value && activeAdminSection.value === 'data') {
-      openEditModal();
-    }
-    return;
-  }
-
-  // ← / → → navigate records in drawer
-  if (showModal.value && isEditing.value) {
-    if (e.key === 'ArrowLeft' && editDrawerNav.value.hasPrev) {
-      e.preventDefault();
-      navigateEditRecord(-1);
-      return;
-    }
-    if (e.key === 'ArrowRight' && editDrawerNav.value.hasNext) {
-      e.preventDefault();
-      navigateEditRecord(1);
-      return;
-    }
-  }
-};
+// 键盘快捷键已迁移至 composables/useDataAdminShortcuts.js (createShortcutsCenter)
+// handleGlobalShortcuts 由下方 createShortcutsCenter 工厂注入
 
 // ==================== 生命周期 ====================
 const handleVisibilityChange = () => {
@@ -4216,6 +3695,14 @@ onMounted(() => {
   window.addEventListener('resize', handleResize);
   document.addEventListener('keydown', handleGlobalShortcuts);
   document.addEventListener('visibilitychange', handleVisibilityChange);
+  // 初始化主题: 读取 localStorage 或跟随系统偏好
+  try {
+    const saved = localStorage.getItem('dm-theme');
+    const isDark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    toggleAdminTheme(isDark);
+  } catch (e) {
+    /* localStorage may be unavailable */
+  }
 });
 onUnmounted(() => {
   stopAutoRefresh();
@@ -4253,12 +3740,159 @@ setupDataAdminLifecycle({
   saveCurrentDraft
 });
 
+// ==================== 工厂注入: 导出/跨表搜索/快捷键 ====================
+const {
+  isExportingBackup,
+  isBackupExporting,
+  backupProgress,
+  backupProgressText,
+  cancelBackupExport,
+  exportData,
+  exportBackupData,
+  abortBackupExport
+} = createExportCenter({
+  currentTabRef: currentTab,
+  currentDataRef: currentData,
+  visibleCurrentColumnsRef: visibleCurrentColumns,
+  userInfoRef: userInfo,
+  showToast,
+  assertAdminAction,
+  buildActionErrorMessage,
+  addChangeLogEntry
+});
+
+const {
+  globalSearchQuery,
+  globalSearchResults,
+  isGlobalSearching,
+  showGlobalSearchPanel,
+  runGlobalSearch,
+  openGlobalSearchResult,
+  abortGlobalSearch
+} = createGlobalSearchCenter({
+  searchQueryRef: searchQuery,
+  showToast,
+  buildActionErrorMessage,
+  switchTab,
+  addRecentRecord
+});
+
+// ==================== 高亮/关联跳转/异常检测 Helpers 注入 ====================
+// 在 createGlobalSearchCenter 之后注入 (createHighlightHelpers 依赖 globalSearchQuery)
+const { getHighlightKeyword, highlightCellValue } = createHighlightHelpers({
+  searchQueryRef: searchQuery,
+  globalSearchQueryRef: globalSearchQuery
+});
+
+const { getRelatedJump } = createRelatedJumpHelpers({ currentTabRef: currentTab });
+
+const { isAnomalyRow, getAnomalyReason } = createAnomalyHelpers({ currentTabRef: currentTab });
+
+const { handleGlobalShortcuts } = createShortcutsCenter({
+  showModalRef: showModal,
+  isSavingRef: isSaving,
+  isEditingRef: isEditing,
+  canCreateCurrentTabRef: canCreateCurrentTab,
+  activeAdminSectionRef: activeAdminSection,
+  editDrawerNavRef: editDrawerNav,
+  saveData,
+  closeModal,
+  openEditModal,
+  navigateEditRecord
+});
+
+// 卸载时中止后台请求
+onUnmounted(() => {
+  abortBackupExport();
+  abortGlobalSearch();
+});
+
 </script>
 
 <style scoped>
 @import './styles/base.css';
+@import './styles/google-components.css';
 @import './styles/console.css';
 @import './styles/responsive.css';
+
+/* Module sub-tabs (Google-style underline tabs) */
+.g-module-tabs {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 6);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: calc(var(--spacing) * 4);
+  padding: 0 calc(var(--spacing) * 1);
+  flex: 0 0 auto;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.g-module-tabs::-webkit-scrollbar { display: none; }
+.g-module-tab {
+  position: relative;
+  padding: calc(var(--spacing) * 2.5) calc(var(--spacing) * 1);
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.2s ease;
+}
+.g-module-tab:hover { color: var(--foreground); }
+.g-module-tab.is-active {
+  color: var(--primary);
+  font-weight: 600;
+}
+.g-module-tab.is-active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--primary);
+  border-radius: 2px 2px 0 0;
+}
+
+.admin-shell {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  min-height: calc(100vh - var(--dm-nav-height));
+  position: relative;
+  background: var(--background);
+}
+
+.admin-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.main-container {
+  flex: 1;
+  padding: calc(var(--spacing) * 5) calc(var(--spacing) * 8) calc(var(--spacing) * 10);
+  max-width: 1320px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.sidebar-scrim {
+  display: none;
+  position: fixed;
+  inset: var(--dm-nav-height) 0 0 0;
+  background: color-mix(in srgb, var(--foreground) 35%, transparent);
+  z-index: 1040;
+}
+
+@media (max-width: 768px) {
+  .sidebar-scrim.is-visible { display: block; }
+  .main-container { padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4) calc(var(--spacing) * 8); }
+}
 </style>
 
 <style>

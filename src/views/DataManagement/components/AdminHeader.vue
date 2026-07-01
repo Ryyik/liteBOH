@@ -1,66 +1,263 @@
 <template>
-  <header class="dm-header">
-    <div class="header-content">
-      <div class="header-left">
-        <button class="sidebar-toggle" type="button" @click="$emit('toggle-sidebar')" aria-label="切换管理导航">
-          <PanelLeft v-if="!isSidebarOpen" :size="19" />
-          <PanelRightClose v-else :size="19" />
-        </button>
+  <header class="g-topbar">
+    <div class="g-topbar-left">
+      <button
+        type="button"
+        class="g-icon-btn round is-ghost"
+        :aria-label="isSidebarOpen ? '收起管理导航' : '展开管理导航'"
+        :title="isSidebarOpen ? '收起导航' : '展开导航'"
+        @click="$emit('toggle-sidebar')"
+      >
+        <PanelLeft v-if="!isSidebarOpen" :size="18" />
+        <PanelLeftClose v-else :size="18" />
+      </button>
+
+      <div class="g-topbar-titles" v-if="$slots.title || title">
+        <slot name="title">
+          <span v-if="eyebrow" class="g-eyebrow">{{ eyebrow }}</span>
+          <h1 v-if="title">{{ title }}</h1>
+        </slot>
       </div>
-      <div class="header-actions">
-        <button class="refresh-btn" @click="$emit('refresh')" :class="{ spinning: isRefreshing }">
-          <RefreshCw :size="17" />
+    </div>
+
+    <div class="g-topbar-center">
+      <div v-if="searchable" class="g-topbar-search">
+        <SearchIcon :size="16" class="g-search-icon" />
+        <input
+          v-model="searchModel"
+          type="text"
+          :placeholder="searchPlaceholder"
+          aria-label="全局搜索"
+          @input="onSearchInput"
+          @keydown.enter.prevent="$emit('search', searchModel)"
+        />
+        <kbd v-if="!isMobile" class="g-topbar-kbd">/</kbd>
+        <button
+          v-if="searchModel"
+          type="button"
+          class="g-topbar-search-clear"
+          aria-label="清除搜索"
+          @click="clearSearch"
+        >×</button>
+      </div>
+    </div>
+
+    <div class="g-topbar-right">
+      <slot name="actions">
+        <button
+          type="button"
+          class="g-btn g-btn-ghost"
+          :class="{ 'is-spinning': isRefreshing }"
+          aria-label="刷新数据"
+          @click="$emit('refresh')"
+          :disabled="isRefreshing"
+        >
+          <RefreshCw :size="16" :class="{ 'g-spin': isRefreshing }" />
           <span>刷新数据</span>
         </button>
-        <button v-if="canCreate" class="publish-btn" @click="$emit('create')">
-          <Plus :size="17" />
+        <button
+          v-if="canCreate"
+          type="button"
+          class="g-btn g-btn-primary"
+          aria-label="新增记录"
+          @click="$emit('create')"
+        >
+          <Plus :size="16" />
           <span>新增记录</span>
         </button>
-        <button class="theme-toggle-btn" @click="toggleTheme" :title="isDark ? '切换到浅色模式' : '切换到深色模式'">
-          <Sun v-if="isDark" :size="17" />
-          <Moon v-else :size="17" />
-        </button>
-      </div>
+        <slot name="avatar">
+          <div class="g-topbar-avatar" aria-hidden="true">A</div>
+        </slot>
+      </slot>
     </div>
   </header>
 </template>
 
 <script setup>
-import { ref } from 'vue';
-import { PanelLeft, PanelRightClose, Plus, RefreshCw, Sun, Moon } from 'lucide-vue-next';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import {
+  PanelLeft,
+  PanelLeftClose,
+  Plus,
+  RefreshCw,
+  Search as SearchIcon
+} from 'lucide-vue-next';
 
-defineProps({
-  canCreate: { type: Boolean, default: false },
+const props = defineProps({
+  eyebrow: { type: String, default: '' },
+  title: { type: String, default: '' },
+  searchable: { type: Boolean, default: true },
+  searchPlaceholder: { type: String, default: '搜索数据、记录、配置...' },
+  searchValue: { type: String, default: '' },
   isRefreshing: { type: Boolean, default: false },
-  isSidebarOpen: { type: Boolean, default: false }
+  isSidebarOpen: { type: Boolean, default: false },
+  canCreate: { type: Boolean, default: true }
 });
 
-defineEmits(['create', 'refresh', 'toggle-sidebar']);
+const emit = defineEmits(['refresh', 'create', 'toggle-sidebar', 'search', 'update:searchValue']);
 
-const isDark = ref(false);
+const searchModel = ref(props.searchValue);
 
-function initTheme() {
-  const stored = localStorage.getItem('theme');
-  isDark.value = stored ? stored === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
-  document.documentElement.setAttribute('data-theme', isDark.value ? 'dark' : 'light');
-}
+// 同步父级 searchValue 变化（如外部清空）
+watch(() => props.searchValue, (v) => {
+  if (v !== searchModel.value) searchModel.value = v;
+});
 
-function toggleTheme() {
-  isDark.value = !isDark.value;
-  document.documentElement.setAttribute('data-theme', isDark.value ? 'dark' : 'light');
-  localStorage.setItem('theme', isDark.value ? 'dark' : 'light');
-}
+const onSearchInput = () => {
+  emit('update:searchValue', searchModel.value);
+};
 
-initTheme();
+const clearSearch = () => {
+  searchModel.value = '';
+  emit('update:searchValue', '');
+};
+
+const isMobile = ref(false);
+
+const detect = () => {
+  if (typeof window === 'undefined') return;
+  isMobile.value = window.innerWidth < 760;
+};
+
+const handleResize = () => detect();
+const handleKey = (e) => {
+  if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+    e.preventDefault();
+    document.querySelector('.g-topbar-search input')?.focus();
+  }
+};
+
+onMounted(() => {
+  detect();
+  window.addEventListener('resize', handleResize);
+  window.addEventListener('keydown', handleKey);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize);
+  window.removeEventListener('keydown', handleKey);
+});
+
+defineExpose({ searchModel });
 </script>
 
 <style scoped>
-@import '../styles/base.css';
-@import '../styles/responsive.css';
-
-.header-actions {
+.g-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  height: var(--dm-header-height);
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  gap: calc(var(--spacing) * 4);
+  padding: 0 calc(var(--spacing) * 6);
+}
+
+.g-topbar-left,
+.g-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 3);
+  min-width: 0;
+}
+
+.g-topbar-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.g-topbar-titles {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.g-topbar-titles h1 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--foreground);
+  margin: 0;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.g-topbar-search {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 3);
+  width: min(420px, 46vw);
+  height: 38px;
+  padding: 0 calc(var(--spacing) * 4);
+  border: 1px solid var(--input);
+  border-radius: 999px;
+  background: var(--popover);
+  color: var(--foreground);
+  transition: border-color 0.2s ease;
+}
+.g-topbar-search:focus-within { border-color: var(--primary); }
+.g-topbar-search > input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  min-width: 0;
+}
+.g-topbar-search > input::placeholder { color: var(--muted-foreground); }
+.g-topbar-kbd {
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted-foreground);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  flex: 0 0 auto;
+}
+.g-topbar-search-clear {
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+.g-topbar-search-clear:hover { color: var(--foreground); }
+
+.g-topbar-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex: 0 0 36px;
+  border: 1px solid var(--border);
+}
+
+.is-spinning {
+  pointer-events: none;
+}
+
+@media (max-width: 900px) {
+  .g-topbar { padding: 0 calc(var(--spacing) * 4); gap: calc(var(--spacing) * 3); }
+  .g-topbar-center { display: none; }
+}
+
+@media (max-width: 600px) {
+  .g-topbar-titles h1 { display: none; }
+  .g-btn span { display: none; }
 }
 </style>

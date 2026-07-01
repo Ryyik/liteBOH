@@ -485,14 +485,17 @@ const resolveActiveSecret = async (
   provider: string,
   purpose: string,
 ) => {
+  console.log('[vault] resolveActiveSecret called, provider:', provider, 'purpose:', purpose);
   try {
     const row = await resolveRow(client, { provider, purpose });
+    console.log('[vault] resolveRow result:', row ? 'found' : 'not found', 'status:', row?.status);
     if (row.status !== 'active') throw new Error(`${provider}/${purpose} API Key 已停用。`);
     return {
       row,
       apiKey: await decryptSecret(row.encrypted_value),
     };
   } catch (error) {
+    console.log('[vault] resolveRow failed, trying fallback secrets:', error.message);
     let fallbackKey = '';
     if (provider === 'tavily') {
       fallbackKey = String(Deno.env.get('TAVILY_API_KEY') || '').trim();
@@ -505,6 +508,7 @@ const resolveActiveSecret = async (
           || '',
       ).trim();
     }
+    console.log('[vault] fallback key found:', fallbackKey ? 'yes (length: ' + fallbackKey.length + ')' : 'no');
 
     if (!fallbackKey) throw error;
     return {
@@ -946,10 +950,13 @@ async function handleQuotaStatus(
 
 Deno.serve(async (request) => {
   const origin = request.headers.get('origin');
+  console.log('[vault] request started, method:', request.method, 'origin:', origin);
+  
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: buildCorsHeaders(origin) });
   }
   if (request.method !== 'POST') {
+    console.log('[vault] method not allowed');
     return jsonResponse({ ok: false, code: 'METHOD_NOT_ALLOWED', message: '仅支持 POST 请求。' }, 405, origin);
   }
 
@@ -957,28 +964,37 @@ Deno.serve(async (request) => {
     const client = createServiceClient();
     const body = await request.json().catch(() => ({}));
     const action = toText(body.action || 'list', 30);
+    console.log('[vault] action:', action, 'provider:', body.provider, 'purpose:', body.purpose);
 
     if (action === 'runtime-chat') {
       const user = await requireUser(request, client);
       if (!user.ok) {
+        console.log('[vault] user auth failed:', user.code, user.message);
         return jsonResponse({ ok: false, code: user.code, message: user.message }, user.status, origin);
       }
+      console.log('[vault] user auth ok, checking quota');
       const quota = await checkAndLogRequest(client, body, request);
       if (!quota.allowed) {
+        console.log('[vault] quota exceeded');
         return jsonResponse({ ok: false, status: 429, data: { quota }, message: '今日 AI 对话额度已用完，明天 0:00 重置' }, 429, origin);
       }
+      console.log('[vault] calling runtimeChatCompletion');
       const result = await runtimeChatCompletion(client, body);
+      console.log('[vault] runtimeChatCompletion result:', result.ok ? 'ok' : 'failed', result.message || '');
       return jsonResponse(result, result.ok ? 200 : 502, origin);
     }
     if (action === 'runtime-chat-stream') {
       const user = await requireUser(request, client);
       if (!user.ok) {
+        console.log('[vault] user auth failed:', user.code, user.message);
         return jsonResponse({ ok: false, code: user.code, message: user.message }, user.status, origin);
       }
       const quota = await checkAndLogRequest(client, body, request);
       if (!quota.allowed) {
+        console.log('[vault] quota exceeded');
         return jsonResponse({ ok: false, status: 429, data: { quota }, message: '今日 AI 对话额度已用完，明天 0:00 重置' }, 429, origin);
       }
+      console.log('[vault] calling runtimeChatCompletionStream');
       return await runtimeChatCompletionStream(client, body, origin);
     }
     if (action === 'runtime-search') {

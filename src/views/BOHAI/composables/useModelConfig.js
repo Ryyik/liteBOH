@@ -15,7 +15,7 @@ import {
   THINKING_SPEED_SETTING_KEY,
   THINKING_SPEED_OPTIONS,
   BOH_DEFAULT_THINKING_SPEED_ID,
-  availableModels as _availableModels,
+  getAvailableModels as _getAvailableModels,
   chatModes as _chatModes
 } from './chat-engine-config.js';
 
@@ -23,10 +23,10 @@ import {
  * useModelConfig - 管理当前模式/样式/功能开关状态。
  *
  * @param {Object} options
- * @param {Array|Ref<Array>}  [options.availableModels] - 可用模型列表，默认导入 chat-engine-config 中的值
+ * @param {Array|Ref<Array>}  [options.availableModels] - 可用模型列表，默认从数据库动态加载
  * @param {Array|Ref<Array>}  [options.chatModes]       - 模式列表，默认导入 chat-engine-config 中的值
  */
-export function useModelConfig({ availableModels = _availableModels, chatModes = _chatModes } = {}) {
+export function useModelConfig({ availableModels = _getAvailableModels(), chatModes = _chatModes } = {}) {
   // 处理 ref 参数：如果是 ref，使用 .value；否则直接使用
   const getAvailableModels = () => {
     return availableModels && typeof availableModels === 'object' && 'value' in availableModels

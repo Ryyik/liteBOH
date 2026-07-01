@@ -72,11 +72,6 @@ export const publicRoutes: RouteRecordRaw[] = [
     component: () => import("../../views/BOHAI/BOHAI/index.vue"),
   },
   {
-    path: "/ai-plaza",
-    name: "AiPlaza",
-    component: () => import("../../views/AIPlaza/index.vue"),
-  },
-  {
     path: "/boh-8-years-event",
     name: "BOH8YearsEvent",
     component: () => import("../../views/BOH8YearsEvent/index.vue"),

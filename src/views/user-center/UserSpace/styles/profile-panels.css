@@ -516,6 +516,35 @@
   white-space: nowrap;
 }
 
+.tier-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.tier-badge.tier-plus {
+  background: rgba(106, 143, 201, 0.1);
+  color: #6a8fc9;
+}
+.tier-badge.tier-pro {
+  background: rgba(142, 154, 175, 0.1);
+  color: #8e9aaf;
+}
+.tier-badge.tier-max {
+  background: rgba(184, 137, 11, 0.1);
+  color: #b8860b;
+}
+.tier-badge.tier-ultra {
+  background: rgba(142, 68, 173, 0.1);
+  color: #8e44ad;
+}
+
 .setting-toggle-item {
   cursor: pointer;
 }

@@ -10,7 +10,6 @@ import "./styles/vendor/unified-nav.css";
 // ============================================
 // 公共样式库 (Common Styles)
 // ============================================
-import "./styles/common/login-modal.css";
 import "./styles/common/glass-ui.css";
 import "./styles/common/animations.css";
 
@@ -25,12 +24,10 @@ import "./styles/helpers/function.css";
 // 组件样式 (Component Styles)
 // ============================================
 import "./styles/components/buttons.css";
-import "./styles/components/cursor.css";
 import "./styles/components/headings.css";
 import "./styles/components/link_underline.css";
 import "./styles/components/overlay.css";
 import "./styles/components/close-button.css";
-import "./styles/components/page__animate.css";
 
 // ============================================
 // 布局与页面样式 (Layout & Page Styles)
@@ -55,11 +52,18 @@ import { themeManager } from './utils/theme-manager.js';
 import { logger } from './utils/logger.js';
 import { setupVitePreloadErrorRecovery } from './utils/vite-preload-recovery.js';
 import { initImageOptimizer } from './utils/image-optimizer.js';
+import { initVersionChecker } from './utils/version-checker.js';
+import { loadFreemodelsFromDB } from './utils/siliconflow-free-models.js';
 
 // ============================================
 // 延迟加载的非关键样式
 // ============================================
-const deferredGlobalStyleLoaders = [];
+const deferredGlobalStyleLoaders = [
+  () => import("./styles/common/login-modal.css"),
+  () => import("./styles/components/cursor.css"),
+  () => import("./styles/components/page__animate.css"),
+  () => import("./views/DataManagement/styles/google-components.css"),
+];
 
 const scheduleDeferredGlobalStyles = () => {
   const loadStyles = () => {
@@ -80,40 +84,8 @@ if (typeof window !== "undefined") {
   setupVitePreloadErrorRecovery();
   initImageOptimizer({ onReady: scheduleDeferredGlobalStyles });
 
-  // 强制清理旧版本 Service Worker（生产环境也需要，解决缓存死循环问题）
+  // 监听 Service Worker 错误（可能是旧版本导致）
   if ('serviceWorker' in navigator) {
-    // 检查当前 Service Worker 版本
-    navigator.serviceWorker.getRegistrations().then((registrations) => {
-      registrations.forEach((registration) => {
-        // 如果 Service Worker 已激活但未更新超过24小时，强制注销
-        if (registration.active) {
-          const lastUpdate = localStorage.getItem('sw_last_update');
-          const now = Date.now();
-          const updateInterval = 24 * 60 * 60 * 1000; // 24小时
-
-          if (!lastUpdate || (now - parseInt(lastUpdate)) > updateInterval) {
-            console.warn('[PWA] Service Worker 已超过24小时未更新，强制注销');
-            registration.unregister().then(() => {
-              console.log('[PWA] 旧 Service Worker 已注销');
-              localStorage.setItem('sw_last_update', now.toString());
-              // 清除所有缓存
-              if ('caches' in window) {
-                caches.keys().then((cacheNames) => {
-                  return Promise.all(
-                    cacheNames.map((cacheName) => caches.delete(cacheName))
-                  );
-                }).then(() => {
-                  console.log('[PWA] 所有缓存已清除，即将刷新页面');
-                  window.location.reload();
-                });
-              }
-            });
-          }
-        }
-      });
-    });
-
-    // 监听 Service Worker 错误（可能是旧版本导致）
     navigator.serviceWorker.addEventListener('error', (err) => {
       console.error('[PWA] Service Worker 错误:', err);
       // 清除所有 Service Worker 和缓存
@@ -237,6 +209,13 @@ if (typeof window !== "undefined") {
     logger.info("pwa", "PWA 应用已安装");
   });
 
+  // ============================================
+  // 独立版本指纹检测器
+  // 绕过 SW 缓存，直接 HTTP 拉取 version.json 比对
+  // 版本不一致时强制清缓存刷新，确保用户刷新即可拿到新代码
+  // ============================================
+  initVersionChecker();
+
   // 初始化 --real-vh CSS 变量（为不支持 dvh 的浏览器提供降级方案）
   const setRealVh = () => {
     document.documentElement.style.setProperty('--real-vh', `${window.innerHeight * 0.01}px`);
@@ -260,6 +239,11 @@ app.config.errorHandler = (err, instance, info) => {
 
 const authStore = useAuthStore();
 const bagStore = useBagStore();
+
+// 预热免费模型缓存（从数据库加载），确保后续同步 API 可用
+await loadFreemodelsFromDB().catch(err => {
+  logger.warn('freemodels', '免费模型缓存预热失败', err);
+});
 
 app.mount("#app");
 

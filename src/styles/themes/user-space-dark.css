@@ -226,6 +226,23 @@ html [data-theme="dark"] .user-space-page .profile-email,
   color: #0d0d12;
 }
 
+.user-space-page[data-theme="dark"] .tier-badge.tier-plus {
+  background: rgba(106, 143, 201, 0.15);
+  color: #8ab4f8;
+}
+.user-space-page[data-theme="dark"] .tier-badge.tier-pro {
+  background: rgba(142, 154, 175, 0.15);
+  color: #b0bcc9;
+}
+.user-space-page[data-theme="dark"] .tier-badge.tier-max {
+  background: rgba(184, 137, 11, 0.15);
+  color: #d4a843;
+}
+.user-space-page[data-theme="dark"] .tier-badge.tier-ultra {
+  background: rgba(155, 89, 182, 0.15);
+  color: #c084d8;
+}
+
 .user-space-page[data-theme="dark"] .avatar-edit-icon-mini {
   background-color: #ffffff;
   border-color: #1e1e2a;

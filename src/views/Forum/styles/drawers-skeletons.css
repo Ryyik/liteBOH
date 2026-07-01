@@ -575,6 +575,19 @@
   box-shadow: 0 16px 42px rgba(124, 96, 61, 0.075) !important;
 }
 
+.forum-page[data-theme="home-cat"] .post-card-v2.tier-plus {
+  background: rgba(250, 252, 255, 0.82) !important;
+}
+.forum-page[data-theme="home-cat"] .post-card-v2.tier-pro {
+  background: rgba(255, 253, 248, 0.82) !important;
+}
+.forum-page[data-theme="home-cat"] .post-card-v2.tier-max {
+  background: rgba(250, 251, 255, 0.82) !important;
+}
+.forum-page[data-theme="home-cat"] .post-card-v2.tier-ultra {
+  background: rgba(255, 250, 251, 0.82) !important;
+}
+
 .forum-page[data-theme="home-cat"] .feed-title-v2,
 .forum-page[data-theme="home-cat"] .post-title-v2,
 .forum-page[data-theme="home-cat"] .post-author-v2,

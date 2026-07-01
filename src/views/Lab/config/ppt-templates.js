@@ -148,7 +148,7 @@ export const PPT_TEMPLATES = [
       }
     },
     brand: {
-      logo: 'BOH AI',
+      logo: 'BOH Agent',
       showOnSlides: true
     }
   },

@@ -978,11 +978,11 @@
 }
 
 .user-name {
+  display: inline-block;
   font-weight: 700;
   font-size: 15px;
   color: var(--text-primary);
   cursor: inherit;
-  transition: color 0.15s ease;
 }
 
 .user-name:hover {

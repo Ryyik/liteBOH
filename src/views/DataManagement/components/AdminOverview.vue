@@ -1,215 +1,287 @@
 <template>
-  <div class="overview-status-bar">
-    <div v-for="card in liveStatusCards" :key="card.id" class="status-card" :class="`status-${card.status}`">
-      <component :is="card.icon" :size="18" class="status-card-icon" />
-      <div class="status-card-body">
-        <span class="status-card-label">{{ card.label }}</span>
-        <strong class="status-card-value">{{ card.value }}</strong>
-        <span class="status-card-detail">{{ card.detail }}</span>
-      </div>
-    </div>
+  <!-- Compact overview header (topbar already shows the page title) -->
+  <div v-if="activeFilterSummary" class="g-overview-filter-bar">
+    <span class="g-eyebrow">当前筛选</span>
+    <span class="g-overview-filter-text">{{ activeFilterSummary }}</span>
   </div>
 
-  <!-- 云服务状态卡片 -->
-  <div class="cloud-services-section">
-    <div class="overview-section-header">
-      <h3>云服务状态</h3>
-      <button class="overview-refresh-btn" @click="refreshCloudStatus" :class="{ spinning: cloudStatusLoading }">
-        <RefreshCw :size="14" />
-        刷新
-      </button>
-    </div>
-    <div class="cloud-services-grid">
-      <!-- Supabase 状态卡片 -->
-      <div class="cloud-service-card" :class="supabaseCardClass">
-        <div class="cloud-service-header">
-          <Database :size="20" />
-          <span class="cloud-service-name">Supabase</span>
-          <span class="cloud-service-status-badge" :class="supabaseStatusBadgeClass">
-            {{ supabaseStatusBadge }}
-          </span>
-        </div>
-        <div class="cloud-service-body">
-          <template v-if="supabaseLoading">
-            <div class="cloud-loading-state">
-              <RefreshCw :size="16" class="spinning" />
-              <span>正在获取状态...</span>
-            </div>
-          </template>
-          <template v-else-if="supabaseError">
-            <div class="cloud-error-state">
-              <AlertCircle :size="16" />
-              <span>{{ supabaseError }}</span>
-            </div>
-            <button class="cloud-retry-btn" @click="refreshCloudStatus">
-              <RefreshCw :size="14" />
-              重试
-            </button>
-          </template>
-          <template v-else>
-            <div class="cloud-metric">
-              <span class="cloud-metric-label">数据库大小</span>
-              <div class="cloud-metric-bar">
-                <div class="cloud-metric-fill" :style="{ width: supabaseDbPercent + '%' }"></div>
-              </div>
-              <span class="cloud-metric-value">{{ supabaseDbSize }} / {{ supabaseDbLimit }}</span>
-            </div>
-            <div class="cloud-metric">
-              <span class="cloud-metric-label">存储大小</span>
-              <div class="cloud-metric-bar">
-                <div class="cloud-metric-fill" :style="{ width: supabaseStoragePercent + '%' }"></div>
-              </div>
-              <span class="cloud-metric-value">{{ supabaseStorageSize }} / {{ supabaseStorageLimit }}</span>
-            </div>
-            <div class="cloud-metric-row">
-              <div class="cloud-metric-mini">
-                <span>用户数</span>
-                <strong>{{ supabaseUserCount }}</strong>
-              </div>
-              <div class="cloud-metric-mini">
-                <span>帖子数</span>
-                <strong>{{ supabasePostCount }}</strong>
-              </div>
-              <div class="cloud-metric-mini">
-                <span>活跃连接</span>
-                <strong>{{ supabaseConnections }}</strong>
-              </div>
-            </div>
-            <div class="cloud-health-score">
-              <span>健康评分</span>
-              <strong :class="supabaseHealthClass">{{ supabaseHealthScore }}</strong>
-            </div>
-          </template>
-        </div>
-        <div v-if="supabaseDeploymentRequired" class="cloud-service-notice">
-          <AlertCircle :size="14" />
-          需部署 admin_supabase_project_status RPC
-        </div>
-      </div>
+  <!-- Tabs (overview / cloud / activity) -->
+  <DashboardTabs
+    v-model="activeTab"
+    :tabs="tabItems"
+    aria-label="Overview sections"
+  />
 
-      <!-- Cloudinary 状态卡片 -->
-      <div class="cloud-service-card" :class="cloudinaryCardClass">
-        <div class="cloud-service-header">
-          <Cloud :size="20" />
-          <span class="cloud-service-name">Cloudinary</span>
-          <span class="cloud-service-status-badge" :class="cloudinaryStatusBadgeClass">
-            {{ cloudinaryStatusBadge }}
-          </span>
-        </div>
-        <div class="cloud-service-body">
-          <template v-if="cloudinaryLoading">
-            <div class="cloud-loading-state">
-              <RefreshCw :size="16" class="spinning" />
-              <span>正在获取状态...</span>
-            </div>
-          </template>
-          <template v-else-if="cloudinaryError">
-            <div class="cloud-error-state">
-              <AlertCircle :size="16" />
-              <span>{{ cloudinaryError }}</span>
-            </div>
-            <button class="cloud-retry-btn" @click="refreshCloudStatus">
-              <RefreshCw :size="14" />
-              重试
-            </button>
-          </template>
-          <template v-else>
-            <div class="cloud-metric-row">
-              <div class="cloud-metric-mini">
-                <span>Cloud Name</span>
-                <strong>{{ cloudinaryCloudName }}</strong>
-              </div>
-              <div class="cloud-metric-mini">
-                <span>待处理上传</span>
-                <strong>{{ cloudinaryPendingCount }}</strong>
-              </div>
-            </div>
-            <div v-if="cloudinaryBandwidth" class="cloud-metric">
-              <span class="cloud-metric-label">带宽使用</span>
-              <div class="cloud-metric-bar">
-                <div class="cloud-metric-fill" :style="{ width: cloudinaryBandwidthPercent + '%' }"></div>
-              </div>
-              <span class="cloud-metric-value">{{ cloudinaryBandwidth }}</span>
-            </div>
-            <div v-if="cloudinaryStorage" class="cloud-metric">
-              <span class="cloud-metric-label">存储使用</span>
-              <div class="cloud-metric-bar">
-                <div class="cloud-metric-fill" :style="{ width: cloudinaryStoragePercent + '%' }"></div>
-              </div>
-              <span class="cloud-metric-value">{{ cloudinaryStorage }}</span>
-            </div>
-          </template>
-        </div>
-        <div v-if="cloudinaryDeploymentRequired" class="cloud-service-notice">
-          <AlertCircle :size="14" />
-          需部署 cloudinary-usage Edge Function
-        </div>
-      </div>
+  <!-- Section: Overview (live status + recent) -->
+  <div v-show="activeTab === 'overview'">
+    <!-- Live status stats -->
+    <div class="g-overview-stats">
+      <DashboardStat
+        v-for="card in liveStatusCards"
+        :key="card.id"
+        :eyebrow="card.label"
+        :value="card.value"
+        :detail="card.detail"
+        interactive
+      />
     </div>
-  </div>
 
-  <div class="overview-section" style="margin-bottom: 16px;">
-    <div class="overview-section-header">
-      <h3>数据表概览</h3>
-      <button class="overview-refresh-btn" @click="$emit('refresh-now')" :class="{ spinning: isRefreshing }">
-        <RefreshCw :size="14" />
-        刷新
-      </button>
-    </div>
-    <div class="overview-table-grid">
-      <button v-for="table in tableSummaryCards" :key="table.id" class="overview-table-card"
-        :class="{ active: currentTab === table.id }" @click="$emit('select-tab', table.id)">
-        <span class="overview-table-label">{{ table.label }}</span>
-        <strong class="overview-table-count">{{ table.count }}</strong>
-      </button>
-    </div>
-  </div>
-
-  <div class="overview-grid-2col">
-    <div class="overview-section">
-      <div class="overview-section-header">
-        <h3>异常与待处理</h3>
+    <!-- Diagnostics -->
+    <article class="g-card" style="margin-top: calc(var(--spacing) * 5);">
+      <div class="g-card-head">
+        <div>
+          <div class="g-eyebrow">信号</div>
+          <strong>异常与待处理</strong>
+        </div>
+        <span class="g-badge is-muted">{{ activeDiagnostics.length }} 项</span>
       </div>
-      <div class="overview-diagnostics">
-        <div v-for="item in activeDiagnostics" :key="item.id" class="diagnostic-row" :class="`tone-${item.tone}`">
-          <div class="diagnostic-dot"></div>
-          <div class="diagnostic-body">
+      <div v-if="activeDiagnostics.length" class="g-list">
+        <button
+          v-for="item in activeDiagnostics"
+          :key="item.id"
+          type="button"
+          :class="['g-diagnostic-row', `is-${item.tone}`]"
+          @click="$emit('select-tab', item.tab)"
+        >
+          <span class="g-diagnostic-dot" aria-hidden="true" />
+          <span class="g-diagnostic-text">
             <strong>{{ item.title }}</strong>
-            <span>{{ item.description }}</span>
-          </div>
-          <span class="diagnostic-count">{{ item.count }}</span>
-          <button class="diagnostic-goto" @click="$emit('select-tab', item.tab)">查看</button>
-        </div>
-        <div v-if="!activeDiagnostics.length" class="diagnostic-empty">暂无待处理事项</div>
+            <small>{{ item.description }}</small>
+          </span>
+          <span class="g-diagnostic-count">{{ item.count }}</span>
+        </button>
       </div>
-    </div>
+      <div v-else class="g-empty">暂无待处理事项</div>
+    </article>
+  </div>
 
-    <div class="overview-section">
-      <div class="overview-section-header">
-        <h3>最近更新</h3>
-      </div>
-      <div class="overview-recent">
-        <div v-for="item in recentActivityItems" :key="item.id" class="recent-row">
-          <span class="recent-dot"></span>
-          <div class="recent-body">
-            <span class="recent-title">{{ item.title }}</span>
-            <span class="recent-meta">{{ item.meta }}</span>
+  <!-- Section: Cloud services (donut + line + cards) -->
+  <div v-show="activeTab === 'cloud'">
+    <div class="g-grid-2col" style="margin-top: calc(var(--spacing) * 4);">
+      <article :class="['g-card', `is-${supabaseTone}`]">
+        <div class="g-card-head">
+          <div>
+            <div class="g-eyebrow">云服务 · Supabase</div>
+            <strong>数据库与存储用量</strong>
+          </div>
+          <div class="g-card-head-actions">
+            <button class="g-icon-btn is-sm" type="button" @click="refreshCloudStatus" :disabled="supabaseLoading" title="刷新">
+              <RefreshCw :size="14" :class="{ 'g-spin': supabaseLoading }" />
+            </button>
+            <span :class="['g-badge', supabaseBadgeTone]">
+              <span class="g-badge-dot" />
+              {{ supabaseStatusBadge }}
+            </span>
           </div>
         </div>
-        <div v-if="!recentActivityItems.length" class="diagnostic-empty">暂无最近活动</div>
-      </div>
+        <div v-if="supabaseLoading" class="g-overview-skeleton">
+          <LoaderCircle :size="18" class="g-spin" />
+          <span>正在获取 Supabase 状态...</span>
+        </div>
+        <div v-else-if="supabaseError" class="g-overview-empty">
+          <DashboardNotice tone="error">
+            {{ supabaseError }}
+          </DashboardNotice>
+          <button class="g-btn g-btn-secondary g-btn-sm" type="button" @click="refreshCloudStatus">
+            <RefreshCw :size="14" />
+            重试
+          </button>
+        </div>
+        <div v-else class="g-overview-cloud-body">
+          <DashboardDonut
+            :percent="supabaseDbPercent"
+            :value="supabaseDbSize"
+            :label="`数据库 ${supabaseDbPercent.toFixed(1)}%`"
+            tone="primary"
+            size="md"
+            :legend="cloudLegend"
+          />
+          <div class="g-overview-metric">
+            <div class="g-overview-metric-head">
+              <span>存储已用</span>
+              <span class="g-overview-metric-value">{{ supabaseStorageSize }} / {{ supabaseStorageLimit }}</span>
+            </div>
+            <DashboardProgress :value="supabaseStoragePercent" :min-visible-width="3" />
+          </div>
+          <div class="g-overview-mini-grid">
+            <div class="g-overview-mini">
+              <span>用户数</span>
+              <strong>{{ supabaseUserCount }}</strong>
+            </div>
+            <div class="g-overview-mini">
+              <span>帖子数</span>
+              <strong>{{ supabasePostCount }}</strong>
+            </div>
+            <div class="g-overview-mini">
+              <span>活跃连接</span>
+              <strong>{{ supabaseConnections }}</strong>
+            </div>
+          </div>
+          <div class="g-overview-health">
+            <span>健康评分</span>
+            <strong :class="supabaseHealthClass">{{ supabaseHealthScore }}</strong>
+          </div>
+        </div>
+        <DashboardNotice v-if="supabaseDeploymentRequired" tone="warn">
+          需部署 admin_supabase_project_status RPC
+        </DashboardNotice>
+      </article>
+
+      <article :class="['g-card', `is-${cloudinaryTone}`]">
+        <div class="g-card-head">
+          <div>
+            <div class="g-eyebrow">云服务 · Cloudinary</div>
+            <strong>媒体资源用量</strong>
+          </div>
+          <div class="g-card-head-actions">
+            <button class="g-icon-btn is-sm" type="button" @click="refreshCloudStatus" :disabled="cloudinaryLoading" title="刷新">
+              <RefreshCw :size="14" :class="{ 'g-spin': cloudinaryLoading }" />
+            </button>
+            <span :class="['g-badge', cloudinaryBadgeTone]">
+              <span class="g-badge-dot" />
+              {{ cloudinaryStatusBadge }}
+            </span>
+          </div>
+        </div>
+        <div v-if="cloudinaryLoading" class="g-overview-skeleton">
+          <LoaderCircle :size="18" class="g-spin" />
+          <span>正在获取 Cloudinary 状态...</span>
+        </div>
+        <div v-else-if="cloudinaryError" class="g-overview-empty">
+          <DashboardNotice tone="error">
+            {{ cloudinaryError }}
+          </DashboardNotice>
+          <button class="g-btn g-btn-secondary g-btn-sm" type="button" @click="refreshCloudStatus">
+            <RefreshCw :size="14" />
+            重试
+          </button>
+        </div>
+        <div v-else class="g-overview-cloud-body">
+          <div class="g-overview-metric">
+            <div class="g-overview-metric-head">
+              <span>Cloud Name</span>
+              <span class="g-overview-metric-value is-mono">{{ cloudinaryCloudName }}</span>
+            </div>
+          </div>
+          <div class="g-overview-metric">
+            <div class="g-overview-metric-head">
+              <span>带宽已用</span>
+              <span class="g-overview-metric-value">{{ cloudinaryBandwidth || '-' }} / {{ cloudinaryBandwidthLimit }}</span>
+            </div>
+            <DashboardProgress
+              :value="cloudinaryBandwidthPercent"
+              :unlimited="cloudinaryBandwidthUnlimited"
+              :min-visible-width="3"
+            />
+          </div>
+          <div class="g-overview-metric">
+            <div class="g-overview-metric-head">
+              <span>存储已用</span>
+              <span class="g-overview-metric-value">{{ cloudinaryStorage || '-' }} / {{ cloudinaryStorageLimit }}</span>
+            </div>
+            <DashboardProgress
+              :value="cloudinaryStoragePercent"
+              :unlimited="cloudinaryStorageUnlimited"
+              :min-visible-width="3"
+            />
+          </div>
+          <div class="g-overview-metric">
+            <div class="g-overview-metric-head">
+              <span>Credits 已用</span>
+              <span class="g-overview-metric-value">{{ cloudinaryCredits }} / {{ cloudinaryCreditsLimit }}</span>
+            </div>
+            <DashboardProgress
+              :value="cloudinaryCreditsPercent"
+              :unlimited="cloudinaryCreditsUnlimited"
+              :min-visible-width="3"
+            />
+          </div>
+        </div>
+        <DashboardNotice v-if="cloudinaryDeploymentRequired" tone="warn">
+          需部署 cloudinary-usage Edge Function
+        </DashboardNotice>
+      </article>
     </div>
+  </div>
+
+  <!-- Section: Data tree (using sheet for table summary) -->
+  <div v-show="activeTab === 'tables'">
+    <DashboardSheet
+      title="数据表概览"
+      :badge="`${tableSummaryCards.length} 张`"
+      :summary="`共 ${totalRecordCount} 条记录`"
+      style="margin-top: calc(var(--spacing) * 4);"
+    >
+      <table class="g-table-sheet">
+        <thead>
+          <tr>
+            <th>数据表</th>
+            <th>记录数</th>
+            <th>占比</th>
+            <th style="width: 80px;">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="table in tableSummaryCards" :key="table.id" :class="{ 'is-selected': currentTab === table.id }">
+            <td><strong>{{ table.label }}</strong></td>
+            <td class="is-mono">{{ table.count }}</td>
+            <td>
+              <DashboardProgress :value="totalRecordCount ? (table.count / totalRecordCount) * 100 : 0" :min-visible-width="3" />
+            </td>
+            <td>
+              <button class="g-btn g-btn-ghost g-btn-sm" type="button" @click="$emit('select-tab', table.id)">
+                打开
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </DashboardSheet>
+  </div>
+
+  <!-- Section: Activity (recent activity) -->
+  <div v-show="activeTab === 'activity'" style="margin-top: calc(var(--spacing) * 4);">
+    <article class="g-card">
+      <div class="g-card-head">
+        <div>
+          <div class="g-eyebrow">最近更新</div>
+          <strong>活动流</strong>
+        </div>
+        <div class="g-card-head-actions">
+          <span class="g-badge is-muted">{{ recentActivityItems.length }} 条</span>
+          <button class="g-icon-btn is-sm" type="button" @click="$emit('refresh-now')" :disabled="isRefreshing" title="刷新">
+            <RefreshCw :size="14" :class="{ 'g-spin': isRefreshing }" />
+          </button>
+        </div>
+      </div>
+      <div v-if="recentActivityItems.length" class="g-list">
+        <div v-for="item in recentActivityItems" :key="item.id" class="g-list-item">
+          <span class="g-list-text">
+            <strong>{{ item.title }}</strong>
+            <small>{{ item.meta }}</small>
+          </span>
+          <span class="g-list-meta">{{ item.timestamp }}</span>
+        </div>
+      </div>
+      <div v-else class="g-empty">暂无最近活动</div>
+    </article>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
-import { RefreshCw, Database, Cloud, AlertCircle } from 'lucide-vue-next';
+import { computed, onMounted, ref, watch } from 'vue';
+import { Cloud, Layers, LoaderCircle, RefreshCw, Table as TableIcon, Activity as ActivityIcon, Home as HomeIcon } from 'lucide-vue-next';
 import {
   getSupabaseProjectStatus,
   getCloudinaryUsageStatus,
   formatBytes
 } from '../../../utils/cloud-service-status.js';
+import DashboardStat from './shared/DashboardStat.vue';
+import DashboardProgress from './shared/DashboardProgress.vue';
+import DashboardNotice from './shared/DashboardNotice.vue';
+import DashboardTabs from './shared/DashboardTabs.vue';
+import DashboardDonut from './shared/DashboardDonut.vue';
+import DashboardSheet from './shared/DashboardSheet.vue';
 
 const props = defineProps({
   activeDiagnostics: { type: Array, required: true },
@@ -227,71 +299,60 @@ const props = defineProps({
 
 defineEmits(['refresh-now', 'select-tab']);
 
-// 云服务状态
+// Tabs state
+const activeTab = ref('overview');
+const tabItems = computed(() => [
+  { value: 'overview', label: '概览', icon: HomeIcon, count: props.liveStatusCards.length },
+  { value: 'cloud', label: '云服务', icon: Cloud, count: 2 },
+  { value: 'tables', label: '数据表', icon: TableIcon, count: props.tableSummaryCards.length },
+  { value: 'activity', label: '活动流', icon: ActivityIcon, count: props.recentActivityItems.length }
+]);
+
+// Cloud status
 const cloudStatusLoading = ref(false);
 const supabaseStatus = ref(null);
 const cloudinaryStatus = ref(null);
 
-// Supabase 状态计算属性
-const supabaseOk = computed(() => supabaseStatus.value?.ok ?? false);
 const supabaseData = computed(() => supabaseStatus.value?.data || {});
 const supabaseError = computed(() => supabaseStatus.value?.error || null);
 const supabaseLoading = computed(() => cloudStatusLoading.value || (!supabaseStatus.value && !supabaseError.value));
 
-const supabaseDbSize = computed(() => {
-  const bytes = supabaseData.value.database_size || supabaseData.value.databaseSize || 0;
-  return formatBytes(bytes);
-});
-
-const supabaseDbLimit = computed(() => {
-  const bytes = supabaseData.value.database_size_limit || supabaseData.value.databaseSizeLimit || 500 * 1024 * 1024;
-  return formatBytes(bytes);
-});
-
+const supabaseDbSize = computed(() => formatBytes(supabaseData.value.database_size || supabaseData.value.databaseSize || 0));
+const supabaseDbLimit = computed(() => formatBytes(supabaseData.value.database_size_limit || supabaseData.value.databaseSizeLimit || 500 * 1024 * 1024));
 const supabaseDbPercent = computed(() => {
-  const percent = supabaseData.value.database_percent || supabaseData.value.databasePercent ||
-    (supabaseData.value.database_size && supabaseData.value.database_size_limit
+  const percent = supabaseData.value.database_percent || supabaseData.value.databasePercent
+    || (supabaseData.value.database_size && supabaseData.value.database_size_limit
       ? (supabaseData.value.database_size / supabaseData.value.database_size_limit) * 100
       : 0);
   return Math.min(100, Math.max(0, percent));
 });
-
-const supabaseStorageSize = computed(() => {
-  const bytes = supabaseData.value.storage_size || supabaseData.value.storageSize || 0;
-  return formatBytes(bytes);
-});
-
-const supabaseStorageLimit = computed(() => {
-  const bytes = supabaseData.value.storage_size_limit || supabaseData.value.storageSizeLimit || 1024 * 1024 * 1024;
-  return formatBytes(bytes);
-});
-
-const supabaseStoragePercent = computed(() => {
-  const percent = supabaseData.value.storage_percent || supabaseData.value.storagePercent || 0;
-  return Math.min(100, Math.max(0, percent));
-});
-
+const supabaseStorageSize = computed(() => formatBytes(supabaseData.value.storage_size || supabaseData.value.storageSize || 0));
+const supabaseStorageLimit = computed(() => formatBytes(supabaseData.value.storage_size_limit || supabaseData.value.storageSizeLimit || 1024 * 1024 * 1024));
+const supabaseStoragePercent = computed(() => Math.min(100, Math.max(0, supabaseData.value.storage_percent || supabaseData.value.storagePercent || 0)));
 const supabaseUserCount = computed(() => supabaseData.value.user_count || supabaseData.value.userCount || supabaseData.value.estimatedUsers || 0);
 const supabasePostCount = computed(() => supabaseData.value.post_count || supabaseData.value.postCount || supabaseData.value.estimatedPosts || 0);
 const supabaseConnections = computed(() => supabaseData.value.active_connections || supabaseData.value.activeConnections || 0);
 const supabaseHealthScore = computed(() => supabaseData.value.health_score || supabaseData.value.healthScore || 100);
-
 const supabaseDeploymentRequired = computed(() => Boolean(supabaseData.value.deploymentRequired));
 
-const supabaseCardClass = computed(() => ({
-  'cloud-card-healthy': supabaseOk.value && supabaseHealthScore.value >= 90,
-  'cloud-card-warning': supabaseOk.value && supabaseHealthScore.value >= 70 && supabaseHealthScore.value < 90,
-  'cloud-card-danger': supabaseOk.value && supabaseHealthScore.value < 70,
-  'cloud-card-loading': supabaseLoading.value,
-  'cloud-card-error': supabaseError.value && !supabaseLoading.value,
-  'cloud-card-pending': supabaseDeploymentRequired.value
-}));
+const supabaseTone = computed(() => {
+  if (supabaseError.value) return 'danger';
+  if (supabaseDeploymentRequired.value) return 'warn';
+  if (supabaseHealthScore.value >= 90) return 'success';
+  if (supabaseHealthScore.value >= 70) return 'warn';
+  return 'danger';
+});
 
-const supabaseHealthClass = computed(() => ({
-  'health-good': supabaseHealthScore.value >= 90,
-  'health-warning': supabaseHealthScore.value >= 70 && supabaseHealthScore.value < 90,
-  'health-danger': supabaseHealthScore.value < 70
-}));
+const supabaseBadgeTone = computed(() => {
+  if (supabaseLoading.value) return 'is-muted';
+  if (supabaseError.value) return 'is-danger';
+  if (supabaseDeploymentRequired.value) return 'is-warning';
+  if (supabaseHealthScore.value >= 90) return 'is-success';
+  if (supabaseHealthScore.value >= 70) return 'is-warning';
+  return 'is-danger';
+});
+
+const supabaseHealthClass = computed(() => supabaseHealthScore.value >= 90 ? 'is-good' : supabaseHealthScore.value >= 70 ? 'is-warning' : 'is-danger');
 
 const supabaseStatusBadge = computed(() => {
   if (supabaseLoading.value) return '加载中';
@@ -302,43 +363,58 @@ const supabaseStatusBadge = computed(() => {
   return '危险';
 });
 
-const supabaseStatusBadgeClass = computed(() => ({
-  'badge-healthy': supabaseOk.value && supabaseHealthScore.value >= 90,
-  'badge-warning': supabaseDeploymentRequired.value,
-  'badge-danger': supabaseError.value || (supabaseOk.value && supabaseHealthScore.value < 70),
-  'badge-loading': supabaseLoading.value
-}));
-
-// Cloudinary 状态计算属性
-const cloudinaryOk = computed(() => cloudinaryStatus.value?.ok ?? false);
+// Cloudinary
 const cloudinaryData = computed(() => cloudinaryStatus.value?.data || {});
 const cloudinaryError = computed(() => cloudinaryStatus.value?.error || null);
 const cloudinaryLoading = computed(() => cloudStatusLoading.value || (!cloudinaryStatus.value && !cloudinaryError.value));
 
 const cloudinaryCloudName = computed(() => cloudinaryData.value.cloudName || cloudinaryData.value.cloud_name || 'dkqae7j1m');
-const cloudinaryPendingCount = computed(() => cloudinaryData.value.pending_uploads_count || cloudinaryData.value.pendingUploadsCount || 0);
 const cloudinaryBandwidth = computed(() => {
   const bytes = cloudinaryData.value.bandwidth;
-  if (!bytes) return null;
-  return formatBytes(bytes);
+  return bytes ? formatBytes(bytes) : null;
 });
 const cloudinaryBandwidthPercent = computed(() => cloudinaryData.value.bandwidthPercent || cloudinaryData.value.bandwidth_percent || 0);
-const cloudinaryStorage = computed(() => {
-  const bytes = cloudinaryData.value.storage;
-  if (!bytes) return null;
+const cloudinaryBandwidthLimit = computed(() => {
+  const bytes = cloudinaryData.value.bandwidthLimit || cloudinaryData.value.bandwidth_limit;
+  if (bytes === -1) return '无限制';
+  if (!bytes) return '-';
   return formatBytes(bytes);
 });
+const cloudinaryBandwidthUnlimited = computed(() => Boolean(cloudinaryData.value.bandwidthUnlimited));
+const cloudinaryStorage = computed(() => {
+  const bytes = cloudinaryData.value.storage;
+  return bytes ? formatBytes(bytes) : null;
+});
 const cloudinaryStoragePercent = computed(() => cloudinaryData.value.storagePercent || cloudinaryData.value.storage_percent || 0);
-
+const cloudinaryStorageLimit = computed(() => {
+  const bytes = cloudinaryData.value.storageLimit || cloudinaryData.value.storage_limit;
+  if (bytes === -1) return '无限制';
+  if (!bytes) return '-';
+  return formatBytes(bytes);
+});
+const cloudinaryStorageUnlimited = computed(() => Boolean(cloudinaryData.value.storageUnlimited));
+const cloudinaryCredits = computed(() => cloudinaryData.value.credits ?? 0);
+const cloudinaryCreditsLimit = computed(() => {
+  const value = cloudinaryData.value.creditsLimit || cloudinaryData.value.credits_limit || 0;
+  if (value === -1) return '无限制';
+  return value;
+});
+const cloudinaryCreditsUnlimited = computed(() => Boolean(cloudinaryData.value.creditsUnlimited));
+const cloudinaryCreditsPercent = computed(() => cloudinaryData.value.creditsPercent || cloudinaryData.value.credits_percent || 0);
 const cloudinaryDeploymentRequired = computed(() => Boolean(cloudinaryData.value.deploymentRequired));
 
-const cloudinaryCardClass = computed(() => ({
-  'cloud-card-healthy': cloudinaryOk.value && !cloudinaryDeploymentRequired.value,
-  'cloud-card-warning': cloudinaryDeploymentRequired.value,
-  'cloud-card-loading': cloudinaryLoading.value,
-  'cloud-card-error': cloudinaryError.value && !cloudinaryLoading.value,
-  'cloud-card-pending': cloudinaryDeploymentRequired.value
-}));
+const cloudinaryTone = computed(() => {
+  if (cloudinaryError.value) return 'danger';
+  if (cloudinaryDeploymentRequired.value) return 'warn';
+  return 'success';
+});
+
+const cloudinaryBadgeTone = computed(() => {
+  if (cloudinaryLoading.value) return 'is-muted';
+  if (cloudinaryError.value) return 'is-danger';
+  if (cloudinaryDeploymentRequired.value) return 'is-warning';
+  return 'is-success';
+});
 
 const cloudinaryStatusBadge = computed(() => {
   if (cloudinaryLoading.value) return '加载中';
@@ -347,306 +423,211 @@ const cloudinaryStatusBadge = computed(() => {
   return '已配置';
 });
 
-const cloudinaryStatusBadgeClass = computed(() => ({
-  'badge-healthy': cloudinaryOk.value && !cloudinaryDeploymentRequired.value,
-  'badge-warning': cloudinaryDeploymentRequired.value,
-  'badge-danger': cloudinaryError.value,
-  'badge-loading': cloudinaryLoading.value
-}));
+// Legend for Supabase donut
+const cloudLegend = computed(() => ([
+  { label: '数据库', value: supabaseDbSize.value, color: 'var(--primary)' },
+  { label: '存储', value: supabaseStorageSize.value, color: 'var(--chart-4)' },
+  { label: '健康', value: `${supabaseHealthScore.value}/100`, color: supabaseHealthClass.value === 'is-good' ? 'var(--chart-5)' : 'var(--chart-3)' }
+]));
 
-// 刷新云服务状态
 const refreshCloudStatus = async () => {
   if (cloudStatusLoading.value) return;
   cloudStatusLoading.value = true;
-
   try {
     const [supabaseResult, cloudinaryResult] = await Promise.all([
       getSupabaseProjectStatus(),
       getCloudinaryUsageStatus()
     ]);
-
     supabaseStatus.value = supabaseResult;
     cloudinaryStatus.value = cloudinaryResult;
+  } catch (err) {
+    // 捕获异常并写入 error 字段，避免 supabaseLoading 计算属性永久为 true
+    supabaseStatus.value = { data: null, error: err?.message || '加载失败' };
+    cloudinaryStatus.value = { data: null, error: err?.message || '加载失败' };
   } finally {
     cloudStatusLoading.value = false;
   }
 };
 
-// 初始化时加载云服务状态
 onMounted(() => {
-  refreshCloudStatus();
+  refreshCloudStatus().catch(() => {});
 });
 
-// 当刷新按钮被点击时也刷新云状态
 watch(() => props.isRefreshing, (newVal, oldVal) => {
-  if (oldVal && !newVal) {
-    // 主刷新完成后，刷新云状态
-    refreshCloudStatus();
-  }
+  if (oldVal && !newVal) refreshCloudStatus();
 });
 </script>
 
 <style scoped>
 @import '../styles/base.css';
-@import '../styles/console.css';
-@import '../styles/responsive.css';
+@import '../styles/google-components.css';
 
-/* 云服务状态卡片样式 */
-.cloud-services-section {
-  margin-bottom: 16px;
-}
-
-.cloud-services-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
-
-@media (max-width: 768px) {
-  .cloud-services-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.cloud-service-card {
-  background: var(--bg-elevated, #1a1a2e);
-  border: 1px solid var(--border-muted, #2d2d3d);
-  border-radius: 8px;
-  padding: 12px;
-  transition: all 0.2s ease;
-  min-height: 140px;
-}
-
-.cloud-service-card:hover {
-  border-color: var(--border-default, #3d3d4d);
-}
-
-.cloud-card-healthy {
-  border-color: var(--success-muted, #2d5a2d);
-  background: linear-gradient(135deg, var(--bg-elevated, #1a1a2e) 0%, rgba(45, 90, 45, 0.1) 100%);
-}
-
-.cloud-card-warning {
-  border-color: var(--warning-muted, #5a5a2d);
-  background: linear-gradient(135deg, var(--bg-elevated, #1a1a2e) 0%, rgba(90, 90, 45, 0.1) 100%);
-}
-
-.cloud-card-danger {
-  border-color: var(--danger-muted, #5a2d2d);
-  background: linear-gradient(135deg, var(--bg-elevated, #1a1a2e) 0%, rgba(90, 45, 45, 0.1) 100%);
-}
-
-.cloud-card-loading {
-  opacity: 0.8;
-  background: var(--bg-elevated, #1a1a2e);
-}
-
-.cloud-card-error {
-  border-color: var(--danger-muted, #5a2d2d);
-  background: linear-gradient(135deg, var(--bg-elevated, #1a1a2e) 0%, rgba(90, 45, 45, 0.15) 100%);
-}
-
-.cloud-card-pending {
-  border-color: var(--warning-muted, #5a5a2d);
-}
-
-.cloud-service-header {
+/* ---------- Filter bar (top of overview) ---------- */
+.g-overview-filter-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: calc(var(--spacing) * 2);
+  padding: calc(var(--spacing) * 2.5) calc(var(--spacing) * 4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--primary) 5%, var(--card));
+  font-size: 0.82rem;
+  color: var(--muted-foreground);
+  margin-bottom: calc(var(--spacing) * 4);
+}
+.g-overview-filter-text { color: var(--foreground); font-weight: 600; }
+
+/* ---------- Stats row ---------- */
+.g-overview-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: calc(var(--spacing) * 4);
+  margin-top: calc(var(--spacing) * 4);
 }
 
-.cloud-service-name {
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--text-primary, #ffffff);
+/* ---------- Diagnostic rows ---------- */
+.g-diagnostic-row {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 3);
+  width: 100%;
+  padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4);
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.16s ease;
 }
-
-.cloud-service-status-badge {
-  font-size: 12px;
+.g-diagnostic-row:hover { background: var(--accent); border-color: var(--ring); }
+.g-diagnostic-row:active { transform: scale(0.997); }
+.g-diagnostic-row:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.g-diagnostic-row .g-diagnostic-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted-foreground);
+  flex: 0 0 8px;
+}
+.g-diagnostic-row.is-success .g-diagnostic-dot { background: var(--chart-5); }
+.g-diagnostic-row.is-warn .g-diagnostic-dot { background: var(--chart-3); }
+.g-diagnostic-row.is-danger .g-diagnostic-dot { background: var(--chart-2); }
+.g-diagnostic-row.is-info .g-diagnostic-dot { background: var(--primary); }
+.g-diagnostic-row .g-diagnostic-text { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.g-diagnostic-row .g-diagnostic-text strong { font-size: 0.86rem; color: var(--foreground); }
+.g-diagnostic-row .g-diagnostic-text small { font-size: 0.74rem; color: var(--muted-foreground); }
+.g-diagnostic-row .g-diagnostic-count {
   padding: 2px 8px;
-  border-radius: 4px;
-  background: var(--bg-muted, #2d2d3d);
-  color: var(--text-muted, #888888);
+  border-radius: 999px;
+  background: var(--muted);
+  color: var(--foreground);
+  font-size: 0.74rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
-.badge-healthy {
-  background: var(--success-muted);
-  color: var(--success-text);
-}
-
-.badge-warning {
-  background: var(--warning-muted);
-  color: var(--warning-text);
-}
-
-.badge-danger {
-  background: var(--danger-muted);
-  color: var(--danger-text);
-}
-
-.badge-loading {
-  background: var(--bg-muted);
-  color: var(--text-muted);
-}
-
-.cloud-service-body {
+/* ---------- Skeleton (loading) ---------- */
+.g-overview-skeleton {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  gap: calc(var(--spacing) * 2);
+  padding: calc(var(--spacing) * 6) 0;
+  color: var(--muted-foreground);
+  font-size: 0.84rem;
+  justify-content: center;
 }
 
-.cloud-metric {
+/* ---------- Error / empty block ---------- */
+.g-overview-empty {
+  display: grid;
+  gap: calc(var(--spacing) * 3);
+  padding: calc(var(--spacing) * 3) 0;
+}
+
+/* ---------- Cloud service body ---------- */
+.g-overview-cloud-body {
+  display: grid;
+  gap: calc(var(--spacing) * 4);
+  padding: calc(var(--spacing) * 2) 0;
+}
+.g-overview-metric {
+  display: grid;
+  gap: calc(var(--spacing) * 2);
+}
+.g-overview-metric-head {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  justify-content: space-between;
+  gap: calc(var(--spacing) * 3);
+  font-size: 0.8rem;
 }
-
-.cloud-metric-label {
-  font-size: 12px;
-  color: var(--text-muted);
+.g-overview-metric-head > span:first-child { color: var(--muted-foreground); }
+.g-overview-metric-value {
+  color: var(--foreground);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
+.g-overview-metric-value.is-mono { font-family: var(--font-mono); font-size: 0.78rem; }
 
-.cloud-metric-bar {
-  height: 6px;
-  background: var(--bg-muted);
-  border-radius: 3px;
-  overflow: hidden;
+.g-overview-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: calc(var(--spacing) * 2);
+  margin-top: calc(var(--spacing) * 1);
 }
-
-.cloud-metric-fill {
-  height: 100%;
-  background: var(--accent-primary);
-  border-radius: 3px;
-  transition: width 0.3s ease;
-}
-
-.cloud-metric-value {
-  font-size: 11px;
-  color: var(--text-secondary);
-}
-
-.cloud-metric-row {
-  display: flex;
-  gap: 12px;
-}
-
-.cloud-metric-mini {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
+.g-overview-mini {
+  padding: calc(var(--spacing) * 2.5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--background);
+  display: grid;
   gap: 2px;
 }
+.g-overview-mini span { font-size: 0.72rem; color: var(--muted-foreground); }
+.g-overview-mini strong { font-size: 0.95rem; color: var(--foreground); font-variant-numeric: tabular-nums; }
 
-.cloud-metric-mini span {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.cloud-metric-mini strong {
-  font-size: 13px;
-  color: var(--text-primary);
-}
-
-.cloud-health-score {
+.g-overview-health {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-muted);
+  padding-top: calc(var(--spacing) * 2);
+  border-top: 1px solid var(--border);
+  font-size: 0.84rem;
+  color: var(--muted-foreground);
+}
+.g-overview-health strong { font-size: 1.05rem; color: var(--foreground); }
+.g-overview-health strong.is-success { color: var(--chart-5); }
+.g-overview-health strong.is-warn { color: var(--chart-3); }
+.g-overview-health strong.is-danger { color: var(--chart-2); }
+
+/* ---------- 2-col grid for cloud services ---------- */
+.g-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: calc(var(--spacing) * 4);
 }
 
-.cloud-health-score span {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.cloud-health-score strong {
-  font-size: 16px;
-}
-
-.health-good {
-  color: var(--success-text);
-}
-
-.health-warning {
-  color: var(--warning-text);
-}
-
-.health-danger {
-  color: var(--danger-text);
-}
-
-.cloud-service-notice {
+/* ---------- Card head actions (refresh button + badge row) ---------- */
+.g-card-head-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-top: 8px;
-  padding: 8px;
-  background: var(--warning-muted, #5a5a2d);
-  border-radius: 4px;
-  font-size: 12px;
-  color: var(--warning-text, #b8b800);
+  gap: calc(var(--spacing) * 2);
 }
 
-/* 加载状态样式 */
-.cloud-loading-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 24px 0;
-  color: var(--text-muted, #888888);
-  font-size: 14px;
+/* ---------- List meta (right-aligned timestamp) ---------- */
+.g-list-meta {
+  font-size: 0.74rem;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.cloud-loading-state .spinning {
-  animation: spin 1s linear infinite;
+/* ---------- Responsive ---------- */
+@media (max-width: 1100px) {
+  .g-grid-2col { grid-template-columns: 1fr; }
+  .g-overview-mini-grid { grid-template-columns: 1fr 1fr; }
 }
-
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* 错误状态样式 */
-.cloud-error-state {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px;
-  background: rgba(90, 45, 45, 0.2);
-  border-radius: 4px;
-  color: var(--danger-text, #ff6b6b);
-  font-size: 13px;
-  margin-bottom: 8px;
-}
-
-/* 重试按钮样式 */
-.cloud-retry-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  padding: 8px 12px;
-  background: var(--bg-muted, #2d2d3d);
-  border: 1px solid var(--border-default, #3d3d4d);
-  border-radius: 4px;
-  color: var(--text-primary, #ffffff);
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.cloud-retry-btn:hover {
-  background: var(--bg-elevated, #3d3d4d);
-  border-color: var(--accent-primary, #4a9eff);
+@media (max-width: 720px) {
+  .g-overview-mini-grid { grid-template-columns: 1fr; }
 }
 </style>

@@ -179,6 +179,101 @@ export const callVaultSiliconChat = ({
   signal
 });
 
+/**
+ * 流式调用但收集完整响应（用于长耗时生成，绕过 Edge Function 全局超时）
+ * 返回格式与 callVaultSiliconChat 一致
+ */
+export const callVaultSiliconChatStreamCollect = async ({
+  provider = 'siliconflow',
+  purpose = 'chat',
+  payload = {},
+  apiUrl = '',
+  timeoutMs = 120000,
+  signal,
+  mode = ''
+} = {}) => {
+  try {
+    const response = await callVaultSiliconChatStream({
+      provider,
+      purpose,
+      payload,
+      apiUrl,
+      timeoutMs,
+      signal,
+      mode
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullContent = '';
+    let keyInfo = null;
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      let currentEvent = '';
+      for (const line of lines) {
+        if (line.startsWith('event:')) {
+          currentEvent = line.slice(6).trim();
+        } else if (line.startsWith('data:')) {
+          const dataStr = line.slice(5).trim();
+          if (!dataStr) continue;
+          try {
+            const data = JSON.parse(dataStr);
+            if (currentEvent === 'meta') {
+              keyInfo = data.keyInfo || null;
+            } else if (currentEvent === 'error') {
+              return {
+                ok: false,
+                status: data.status || 502,
+                data: null,
+                error: {
+                  message: data.message || '流式调用失败',
+                  code: 'STREAM_ERROR'
+                },
+                keyInfo: data.keyInfo || null
+              };
+            } else {
+              const delta = data.choices?.[0]?.delta?.content || '';
+              if (delta) fullContent += delta;
+            }
+          } catch {
+            // 非 JSON 行，跳过
+          }
+          currentEvent = '';
+        }
+      }
+    }
+
+    return {
+      ok: true,
+      status: 200,
+      data: {
+        choices: [{ message: { content: fullContent } }]
+      },
+      error: null,
+      keyInfo
+    };
+  } catch (error) {
+    const isAbort = error?.name === 'AbortError' || error?.name === 'TimeoutError';
+    return {
+      ok: false,
+      status: 0,
+      data: null,
+      error: {
+        message: isAbort ? 'AI 生成超时，请重试' : (error?.message || '流式调用失败'),
+        code: isAbort ? 'STREAM_TIMEOUT' : (error?.name || 'STREAM_ERROR')
+      }
+    };
+  }
+};
+
 export const searchVaultTavily = ({
   payload = {},
   timeoutMs = 25000

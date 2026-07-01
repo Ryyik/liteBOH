@@ -1,6 +1,7 @@
 export {
   tabs,
-  tabGroups,
+  tabModules,
+  TABS_ACTIONS,
   TABS_KEEP_ID_ON_INSERT,
   ADMIN_PAGE_META,
   NEWS_CATEGORY_OPTIONS,

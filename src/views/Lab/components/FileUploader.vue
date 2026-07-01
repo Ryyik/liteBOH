@@ -51,44 +51,47 @@ function handleFileChange(e) {
 
 <style scoped>
 .fu {
-  border: 1px solid rgba(148, 163, 184, 0.42);
-  border-radius: 16px;
-  padding: 28px;
+  border: 2px dashed #dad9d4;
+  border-radius: 20px;
+  padding: 40px 28px;
   text-align: center;
   cursor: pointer;
   transition: all 0.16s ease;
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.98),
-    inset 0 -1px 0 rgba(148, 163, 184, 0.12),
-    inset 1px 0 0 rgba(255, 255, 255, 0.58),
-    inset -1px 0 0 rgba(255, 255, 255, 0.3),
-    0 0 0 1px rgba(255, 255, 255, 0.38),
-    0 14px 34px rgba(15, 23, 42, 0.06);
-  backdrop-filter: blur(18px) saturate(1.2);
-  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  background: #ffffff;
 }
 .fu:hover {
-  border-color: rgba(255, 255, 255, 0.96);
-  background: rgba(255, 255, 255, 0.96);
+  border-color: #C96442;
+  background: #ffffff;
+  box-shadow: 0 1px 3px 0px rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
 }
 .fu.is-dragover {
-  border-color: #0f9f7a;
-  background: rgba(15, 159, 122, 0.1);
+  border-color: #C96442;
+  background: #fbf2ed;
+  box-shadow: 0 0 0 4px rgba(201, 100, 66, 0.1);
 }
 .fu.has-file {
-  border-color: rgba(255, 255, 255, 0.96);
-  padding: 14px 16px;
+  border-style: solid;
+  border-color: #dad9d4;
+  padding: 16px 20px;
 }
-.fu-empty { padding: 8px 0; }
-.fu-icon { font-size: 40px; margin-bottom: 12px; }
-.fu-text { font-size: 15px; color: #202123; margin: 0; font-weight: 500; }
-.fu-hint { font-size: 12px; color: rgba(17, 17, 17, 0.58); margin: 8px 0 0; }
-.fu-file { display: flex; align-items: center; gap: 10px; }
-.fu-file-icon { font-size: 24px; }
+.fu-empty { padding: 12px 0; }
+.fu-icon { font-size: 48px; margin-bottom: 16px; }
+.fu-text { font-size: 17px; color: #3d3929; margin: 0; font-weight: 600; }
+.fu-hint { font-size: 13px; color: #6e6d68; margin: 8px 0 0; font-weight: 400; }
+.fu-file { display: flex; align-items: center; gap: 14px; }
+.fu-file-icon { font-size: 28px; }
 .fu-file-info { flex: 1; text-align: left; min-width: 0; }
-.fu-file-name { display: block; font-size: 13px; color: #202123; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fu-file-size { display: block; font-size: 11px; color: rgba(17, 17, 17, 0.58); margin-top: 2px; }
-.fu-remove { background: none; border: none; color: #b0b0b0; font-size: 16px; cursor: pointer; padding: 4px 8px; border-radius: 7px; }
-.fu-remove:hover { color: #ef4444; background: rgba(239, 68, 68, 0.08); }
+.fu-file-name { display: block; font-size: 14px; color: #3d3929; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fu-file-size { display: block; font-size: 12px; color: #6e6d68; margin-top: 3px; }
+.fu-remove {
+  background: #f5f4ef;
+  border: none;
+  color: #6e6d68;
+  font-size: 15px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 8px;
+  transition: all 0.16s ease;
+}
+.fu-remove:hover { color: #d64545; background: #fcecea; }
 </style>

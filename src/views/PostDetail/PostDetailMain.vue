@@ -95,12 +95,15 @@ const highlightedCommentId = ref('');
 
 const { fetchUserTier, getNicknameClass } = useUserTier();
 const authorTierClass = ref('');
+const authorTierCode = ref('');
 watch(() => post.value?.author_id, async (id) => {
   if (id) {
-    await fetchUserTier(id);
+    const tier = await fetchUserTier(id);
     authorTierClass.value = getNicknameClass(id);
+    authorTierCode.value = tier;
   } else {
     authorTierClass.value = '';
+    authorTierCode.value = '';
   }
 }, { immediate: true });
 const commentSortMode = ref('desc');
@@ -1287,7 +1290,12 @@ const handleChangeCommentSortMode = async (mode) => {
 
         <div v-else class="post-x-layout">
           <div class="x-main-column">
-            <article class="x-post-card glass-panel">
+            <article class="x-post-card glass-panel" :class="{
+              'tier-plus': authorTierCode === 'plus',
+              'tier-pro': authorTierCode === 'pro',
+              'tier-max': authorTierCode === 'max',
+              'tier-ultra': authorTierCode === 'ultra'
+            }">
               <HomeCatMascot v-if="isHomeCatActive" class="detail-post-decor-cat" pool="card"
                 :seed="`${post.id}:detail`" size="md" decorative />
               <div class="post-header">

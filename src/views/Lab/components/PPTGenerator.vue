@@ -53,16 +53,71 @@
       <div class="slide-list">
         <div v-for="(slide, index) in pptData.slides" :key="index" class="slide-item">
           <div class="slide-number">{{ index + 1 }}</div>
-          <div class="slide-content">
-            <div class="slide-type-badge">{{ getSlideTypeLabel(slide.type) }}</div>
-            <div class="slide-title-text">{{ slide.title }}</div>
-            <div v-if="slide.points" class="slide-preview-points">
-              <span v-for="(point, pIndex) in slide.points.slice(0, 3)" :key="pIndex">
-                • {{ point }}
-              </span>
-              <span v-if="slide.points.length > 3" class="more-indicator">
-                +{{ slide.points.length - 3 }} 更多
-              </span>
+
+          <!-- 根据布局类型显示不同的可视化预览 -->
+          <div class="slide-preview-visual">
+            <!-- 封面页预览 -->
+            <div v-if="slide.type === 'title'" class="preview-title-box">
+              <div class="preview-title-decoration"></div>
+              <div class="preview-title-text">{{ slide.title }}</div>
+              <div class="preview-title-divider"></div>
+              <div v-if="slide.subtitle" class="preview-subtitle">{{ slide.subtitle }}</div>
+            </div>
+
+            <!-- 内容页预览 -->
+            <div v-else-if="slide.type === 'content'" class="preview-content-box">
+              <div class="preview-content-header">
+                <div class="preview-header-decoration"></div>
+                <div class="preview-content-title">{{ slide.title }}</div>
+              </div>
+              <div class="preview-content-divider"></div>
+              <div class="preview-points-list">
+                <div v-for="(point, pIndex) in slide.points.slice(0, 3)" :key="pIndex" class="preview-point-item">
+                  <div class="preview-point-box"></div>
+                  <span class="preview-point-text">{{ point }}</span>
+                </div>
+                <div v-if="slide.points.length > 3" class="preview-more-indicator">
+                  +{{ slide.points.length - 3 }} 更多要点
+                </div>
+              </div>
+            </div>
+
+            <!-- 两栏对比页预览 -->
+            <div v-else-if="slide.type === 'two-column'" class="preview-twocolumn-box">
+              <div class="preview-twocolumn-header">
+                <div class="preview-header-decoration"></div>
+                <div class="preview-twocolumn-title">{{ slide.title }}</div>
+              </div>
+              <div class="preview-twocolumn-divider"></div>
+              <div class="preview-columns-container">
+                <div class="preview-column">
+                  <div class="preview-column-title">{{ slide.leftColumn?.title }}</div>
+                  <div class="preview-column-items">
+                    <div v-for="(item, idx) in slide.leftColumn?.items.slice(0, 2)" :key="idx" class="preview-column-item"></div>
+                  </div>
+                </div>
+                <div class="preview-column-separator"></div>
+                <div class="preview-column">
+                  <div class="preview-column-title">{{ slide.rightColumn?.title }}</div>
+                  <div class="preview-column-items">
+                    <div v-for="(item, idx) in slide.rightColumn?.items.slice(0, 2)" :key="idx" class="preview-column-item"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 结束页预览 -->
+            <div v-else-if="slide.type === 'end'" class="preview-end-box">
+              <div class="preview-end-decoration"></div>
+              <div class="preview-end-text">{{ slide.title }}</div>
+              <div class="preview-end-divider"></div>
+              <div v-if="slide.subtitle" class="preview-end-subtitle">{{ slide.subtitle }}</div>
+            </div>
+
+            <!-- 默认预览（未知类型） -->
+            <div v-else class="preview-default-box">
+              <div class="slide-type-badge">{{ getSlideTypeLabel(slide.type) }}</div>
+              <div class="slide-title-text">{{ slide.title }}</div>
             </div>
           </div>
         </div>
@@ -178,87 +233,95 @@ function getSlideTypeLabel(type) {
 
 <style scoped>
 .ppt-generator {
-  padding: 20px;
+  padding: 28px;
   background: #ffffff;
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 20px;
+  border: 1px solid #dad9d4;
+  box-shadow: 0 1px 3px 0px rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
 }
 
-.ppt-header {
-  margin-bottom: 20px;
-}
-
+.ppt-header { margin-bottom: 28px; }
 .ppt-title {
-  font-size: 20px;
+  font-size: 28px;
   font-weight: 700;
-  color: #1a1a2e;
-  margin: 0 0 6px;
+  color: #3d3929;
+  margin: 0 0 8px;
+  letter-spacing: -0.02em;
 }
-
 .ppt-desc {
-  font-size: 14px;
-  color: rgba(17, 17, 17, 0.58);
+  font-size: 15px;
+  color: #6e6d68;
   margin: 0;
+  font-weight: 400;
+  line-height: 1.47;
 }
 
 .ppt-input-area {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 18px;
 }
 
 .input-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .input-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: #1d1d1f;
+  font-size: 14px;
+  font-weight: 600;
+  color: #3d3929;
 }
 
 .input-field {
-  padding: 10px 12px;
-  border: 1px solid rgba(148, 163, 184, 0.36);
-  border-radius: 8px;
-  font-size: 14px;
-  transition: border-color 0.16s ease;
+  padding: 12px 16px;
+  border: 1px solid #dad9d4;
+  border-radius: 12px;
+  font-size: 15px;
+  transition: all 0.2s;
+  background: #ffffff;
+  color: #3d3929;
+  font-family: inherit;
 }
-
 .input-field:focus {
   outline: none;
-  border-color: #0f9f7a;
+  border-color: #C96442;
+  box-shadow: 0 0 0 3px rgba(201, 100, 66, 0.12);
 }
 
 .input-textarea {
-  padding: 10px 12px;
-  border: 1px solid rgba(148, 163, 184, 0.36);
-  border-radius: 8px;
-  font-size: 14px;
+  padding: 12px 16px;
+  border: 1px solid #dad9d4;
+  border-radius: 12px;
+  font-size: 15px;
   resize: vertical;
-  transition: border-color 0.16s ease;
+  transition: all 0.2s;
+  background: #ffffff;
+  color: #3d3929;
+  font-family: inherit;
 }
-
 .input-textarea:focus {
   outline: none;
-  border-color: #0f9f7a;
+  border-color: #C96442;
+  box-shadow: 0 0 0 3px rgba(201, 100, 66, 0.12);
 }
 
 .input-select {
-  padding: 10px 12px;
-  border: 1px solid rgba(148, 163, 184, 0.36);
-  border-radius: 8px;
-  font-size: 14px;
+  padding: 12px 16px;
+  border: 1px solid #dad9d4;
+  border-radius: 12px;
+  font-size: 15px;
   background: #ffffff;
   cursor: pointer;
-  transition: border-color 0.16s ease;
+  transition: all 0.2s;
+  color: #3d3929;
+  font-family: inherit;
 }
-
 .input-select:focus {
   outline: none;
-  border-color: #0f9f7a;
+  border-color: #C96442;
+  box-shadow: 0 0 0 3px rgba(201, 100, 66, 0.12);
 }
 
 .btn-generate {
@@ -266,222 +329,271 @@ function getSlideTypeLabel(type) {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 12px 24px;
-  background: #0f9f7a;
+  padding: 14px 28px;
+  background: #C96442;
   color: #ffffff;
   border: none;
-  border-radius: 999px;
-  font-size: 14px;
+  border-radius: 16px;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.16s ease;
+  transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+  align-self: flex-start;
 }
-
 .btn-generate:hover:not(:disabled) {
-  background: #0d8a6b;
+  background: #d6866a;
+  transform: scale(1.02);
 }
-
+.btn-generate:active:not(:disabled) {
+  transform: scale(0.98);
+}
 .btn-generate:disabled {
-  background: rgba(15, 159, 122, 0.36);
+  background: rgba(201, 100, 66, 0.3);
   cursor: not-allowed;
 }
-
-.btn-icon {
-  font-size: 16px;
-}
-
+.btn-icon { font-size: 16px; }
 .spinner {
-  width: 16px;
-  height: 16px;
+  width: 16px; height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.3);
   border-top-color: #ffffff;
   border-radius: 50%;
-  animation: spin 0.7s linear infinite;
+  animation: spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .error-box {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 14px;
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.12);
-  border-radius: 8px;
-  margin-top: 14px;
-}
-
-.error-icon {
-  font-size: 18px;
-}
-
-.error-text {
+  padding: 14px 18px;
+  background: #d64545;
+  border-radius: 14px;
+  margin-top: 18px;
+  color: #ffffff;
+  font-weight: 500;
   font-size: 14px;
-  color: #dc2626;
 }
+.error-icon { font-size: 18px; }
+.error-text { flex: 1; }
 
 .ppt-preview {
-  margin-top: 24px;
-  padding: 18px;
-  background: rgba(249, 250, 251, 0.48);
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
+  margin-top: 28px;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 20px;
+  border: none;
 }
-
 .preview-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
-
 .preview-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1a1a2e;
+  font-size: 20px;
+  font-weight: 700;
+  color: #3d3929;
   margin: 0;
+  letter-spacing: -0.01em;
 }
-
 .preview-meta {
-  font-size: 13px;
-  color: rgba(17, 17, 17, 0.58);
+  font-size: 14px;
+  color: #6e6d68;
+  font-weight: 500;
 }
-
 .slide-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
-
 .slide-item {
   display: flex;
-  gap: 12px;
-  padding: 12px;
+  gap: 14px;
+  padding: 16px;
   background: #ffffff;
-  border-radius: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 16px;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.2s;
 }
-
+.slide-item:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
 .slide-number {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: rgba(15, 159, 122, 0.12);
-  color: #0f9f7a;
-  border-radius: 6px;
+  width: 36px;
+  height: 36px;
+  background: rgba(201, 100, 66, 0.1);
+  color: #C96442;
+  border-radius: 10px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
+  flex-shrink: 0;
 }
 
-.slide-content {
+/* ===== Slide Preview Visual ===== */
+.slide-preview-visual {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  min-width: 0;
 }
 
-.slide-type-badge {
-  display: inline-block;
-  padding: 3px 8px;
-  background: rgba(15, 159, 122, 0.12);
-  color: #0f9f7a;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
+/* Title Slide */
+.preview-title-box {
+  background: rgba(201, 100, 66, 0.04);
+  border-radius: 12px;
+  padding: 16px 20px;
+  position: relative;
 }
-
-.slide-title-text {
-  font-size: 15px;
-  font-weight: 600;
-  color: #1a1a2e;
-}
-
-.slide-preview-points {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-size: 13px;
-  color: rgba(17, 17, 17, 0.58);
-}
-
-.more-indicator {
-  color: #0f9f7a;
-  font-weight: 500;
-}
-
-.ppt-actions {
-  display: flex;
-  gap: 12px;
-  margin-top: 18px;
-}
-
-.btn-download {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 20px;
-  background: #1a1a2e;
-  color: #ffffff;
-  border: none;
-  border-radius: 999px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.16s ease;
-}
-
-.btn-download:hover {
-  background: #2a2a4e;
-}
-
-.btn-regenerate {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 20px;
-  background: transparent;
-  color: #1a1a2e;
-  border: 1px solid rgba(148, 163, 184, 0.36);
-  border-radius: 999px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.16s ease;
-}
-
-.btn-regenerate:hover {
-  background: rgba(249, 250, 251, 0.48);
-}
-
-.ppt-tips {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 20px;
-  padding: 14px;
-  background: rgba(15, 159, 122, 0.04);
+.preview-title-decoration {
+  position: absolute;
+  top: 10px; left: 16px; right: 16px; height: 44px;
+  background: rgba(201, 100, 66, 0.08);
   border-radius: 8px;
 }
-
-.tip-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.preview-title-text {
+  font-size: 17px; font-weight: 700; color: #3d3929;
+  margin-top: 14px; text-align: center;
+  letter-spacing: -0.01em;
+}
+.preview-title-divider {
+  width: 48px; height: 3px; background: #C96442;
+  margin: 10px auto; border-radius: 2px;
+}
+.preview-subtitle {
+  font-size: 13px; color: #6e6d68; text-align: center; margin-top: 4px;
 }
 
-.tip-icon {
-  font-size: 16px;
+/* Content Slide */
+.preview-content-box { border-radius: 12px; overflow: hidden; }
+.preview-content-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  background: rgba(201, 100, 66, 0.06);
+  border-radius: 8px;
+}
+.preview-header-decoration {
+  width: 4px; height: 18px; background: #C96442; border-radius: 2px;
+}
+.preview-content-title {
+  font-size: 15px; font-weight: 600; color: #3d3929;
+}
+.preview-content-divider {
+  height: 1px; background: rgba(0, 0, 0, 0.06); margin: 10px 0;
+}
+.preview-points-list { display: flex; flex-direction: column; gap: 8px; }
+.preview-point-item { display: flex; align-items: center; gap: 10px; }
+.preview-point-box {
+  width: 100%; height: 22px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 6px; flex: 1;
+}
+.preview-point-text {
+  font-size: 13px; color: #535146;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;
+}
+.preview-more-indicator {
+  font-size: 12px; color: #C96442; font-weight: 600; margin-top: 4px;
 }
 
-.tip-text {
-  font-size: 13px;
-  color: rgba(17, 17, 17, 0.58);
+/* Two Column Slide */
+.preview-twocolumn-box { border-radius: 12px; overflow: hidden; }
+.preview-twocolumn-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  background: rgba(201, 100, 66, 0.06);
+  border-radius: 8px;
+}
+.preview-twocolumn-title { font-size: 15px; font-weight: 600; color: #3d3929; }
+.preview-twocolumn-divider { height: 1px; background: rgba(0, 0, 0, 0.06); margin: 10px 0; }
+.preview-columns-container { display: flex; gap: 14px; }
+.preview-column { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.preview-column-title {
+  font-size: 13px; font-weight: 600; color: #C96442;
+  padding: 6px 10px; background: rgba(201, 100, 66, 0.08);
+  border-radius: 8px; text-align: center;
+}
+.preview-column-items { display: flex; flex-direction: column; gap: 5px; }
+.preview-column-item {
+  height: 20px; background: rgba(0, 0, 0, 0.02);
+  border-radius: 6px;
+}
+.preview-column-separator {
+  width: 1px; height: 80px;
+  background: rgba(0, 0, 0, 0.06);
+  margin: 0 4px;
+}
+
+/* End Slide */
+.preview-end-box {
+  background: rgba(201, 100, 66, 0.04);
+  border-radius: 12px; padding: 20px; position: relative;
+}
+.preview-end-decoration {
+  position: absolute; top: 10px; left: 24px; right: 24px; height: 64px;
+  background: rgba(201, 100, 66, 0.06); border-radius: 8px;
+}
+.preview-end-text {
+  font-size: 17px; font-weight: 700; color: #3d3929;
+  text-align: center; margin-top: 14px;
+  letter-spacing: -0.01em;
+}
+.preview-end-divider {
+  width: 40px; height: 3px; background: #C96442;
+  margin: 10px auto; border-radius: 2px;
+}
+.preview-end-subtitle {
+  font-size: 13px; color: #6e6d68; text-align: center; margin-top: 4px;
+}
+
+/* Default */
+.preview-default-box { display: flex; flex-direction: column; gap: 8px; }
+.slide-type-badge {
+  display: inline-block; padding: 4px 10px;
+  background: rgba(201, 100, 66, 0.1); color: #C96442;
+  border-radius: 8px; font-size: 12px; font-weight: 600;
+}
+.slide-title-text { font-size: 16px; font-weight: 600; color: #3d3929; }
+
+.ppt-actions {
+  display: flex; gap: 14px; margin-top: 24px;
+}
+.btn-download {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 24px;
+  background: #3d3929; color: #ffffff; border: none;
+  border-radius: 16px; font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+.btn-download:hover { background: #535146; transform: scale(1.02); }
+.btn-download:active { transform: scale(0.98); }
+.btn-regenerate {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 24px;
+  background: #f5f4ef; color: #3d3929;
+  border: none; border-radius: 16px;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+.btn-regenerate:hover { background: rgba(0, 0, 0, 0.08); }
+
+.ppt-tips {
+  display: flex; flex-direction: column; gap: 12px;
+  margin-top: 28px; padding: 20px;
+  background: rgba(0, 0, 0, 0.02); border-radius: 16px;
+}
+.tip-item { display: flex; align-items: center; gap: 12px; }
+.tip-icon { font-size: 18px; }
+.tip-text { font-size: 14px; color: #6e6d68; font-weight: 500; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .ppt-generator { padding: 20px; }
+  .ppt-title { font-size: 22px; }
+  .ppt-actions { flex-direction: column; }
+  .ppt-actions > * { width: 100%; justify-content: center; }
 }
 </style>

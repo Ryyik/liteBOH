@@ -402,6 +402,160 @@ const upsertKnowledgeSource = async (
   return rows.length;
 };
 
+const EMBEDDING_BATCH_SIZE = 32;
+
+const upsertKnowledgeSourcesBatch = async (
+  client: ReturnType<typeof createServiceClient>,
+  sources: KnowledgeSource[],
+) => {
+  if (sources.length === 0) return 0;
+
+  // 1. 分块并计算哈希
+  const allPrepared: Array<{
+    source: KnowledgeSource;
+    chunks: string[];
+    prepared: Array<{ index: number; content: string; contentHash: string }>;
+  }> = [];
+
+  for (const source of sources) {
+    const chunks = chunkText(source.content);
+    if (chunks.length === 0) continue;
+    const prepared = await Promise.all(chunks.map(async (content, index) => ({
+      index,
+      content,
+      contentHash: await sha256Hex(`${source.sourceType}:${source.sourceId}:${index}:${content}`),
+    })));
+    allPrepared.push({ source, chunks, prepared });
+  }
+
+  if (allPrepared.length === 0) return 0;
+
+  // 2. 批量 SELECT 已存在的 chunks（按 source_type 分组查询，替代逐条查询）
+  const existingBySourceKey = new Map<string, Map<number, ExistingChunk>>();
+  const sourceIdsByType = new Map<string, string[]>();
+  for (const item of allPrepared) {
+    const ids = sourceIdsByType.get(item.source.sourceType) || [];
+    ids.push(item.source.sourceId);
+    sourceIdsByType.set(item.source.sourceType, ids);
+  }
+
+  for (const [sourceType, sourceIds] of sourceIdsByType) {
+    const { data: existingRows } = await client
+      .from('boh_ai_knowledge_chunks')
+      .select('source_type, source_id, chunk_index, content_hash, embedding_model, status')
+      .eq('source_type', sourceType)
+      .in('source_id', sourceIds);
+    for (const row of Array.isArray(existingRows) ? existingRows : []) {
+      const key = `${row.source_type}:${row.source_id}`;
+      let byIndex = existingBySourceKey.get(key);
+      if (!byIndex) {
+        byIndex = new Map();
+        existingBySourceKey.set(key, byIndex);
+      }
+      byIndex.set(Number(row.chunk_index), row as ExistingChunk);
+    }
+  }
+
+  // 3. 收集所有需要更新的 chunks（跨 source 批量化）
+  const allChanged: Array<{
+    source: KnowledgeSource;
+    chunk: { index: number; content: string; contentHash: string };
+    totalChunks: number;
+  }> = [];
+  const sourcesToArchive: Array<{ sourceType: SourceType; sourceId: string; maxChunkIndex: number }> = [];
+
+  for (const item of allPrepared) {
+    const sourceKey = `${item.source.sourceType}:${item.source.sourceId}`;
+    const existingByIndex = existingBySourceKey.get(sourceKey) || new Map<number, ExistingChunk>();
+
+    const changed = item.prepared.filter((chunk) => {
+      const existing = existingByIndex.get(chunk.index);
+      return !existing
+        || existing.content_hash !== chunk.contentHash
+        || existing.embedding_model !== EMBEDDING_MODEL_ID
+        || existing.status !== 'active';
+    });
+
+    for (const chunk of changed) {
+      allChanged.push({ source: item.source, chunk, totalChunks: item.chunks.length });
+    }
+
+    if (existingByIndex.size > item.chunks.length) {
+      sourcesToArchive.push({
+        sourceType: item.source.sourceType,
+        sourceId: item.source.sourceId,
+        maxChunkIndex: item.chunks.length,
+      });
+    }
+  }
+
+  // 无变更时仍需归档旧 chunks
+  if (allChanged.length === 0) {
+    if (sourcesToArchive.length > 0) {
+      await Promise.all(sourcesToArchive.map(({ sourceType, sourceId, maxChunkIndex }) =>
+        client
+          .from('boh_ai_knowledge_chunks')
+          .update({ status: 'archived' })
+          .eq('source_type', sourceType)
+          .eq('source_id', sourceId)
+          .gte('chunk_index', maxChunkIndex),
+      ));
+    }
+    return 0;
+  }
+
+  // 4. 批量调用 embedding API（分批避免单次请求过大）
+  const allEmbeddings: unknown[][] = [];
+  for (let i = 0; i < allChanged.length; i += EMBEDDING_BATCH_SIZE) {
+    const batch = allChanged.slice(i, i + EMBEDDING_BATCH_SIZE).map((item) => item.chunk.content);
+    const embeddings = await callEmbedding(batch);
+    allEmbeddings.push(embeddings);
+  }
+  const embeddings = allEmbeddings.flat();
+  if (embeddings.length !== allChanged.length) {
+    throw new Error('Embedding API returned an unexpected vector count');
+  }
+
+  // 5. 批量 UPSERT（单次写入所有变更）
+  const rows = allChanged.map((item, position) => ({
+    source_type: item.source.sourceType,
+    source_id: item.source.sourceId,
+    owner_user_id: item.source.ownerUserId,
+    visibility: item.source.visibility,
+    chunk_index: item.chunk.index,
+    title: item.source.title,
+    content: item.chunk.content,
+    content_hash: item.chunk.contentHash,
+    metadata: {
+      ...item.source.metadata,
+      totalChunks: item.totalChunks,
+    },
+    embedding_model: EMBEDDING_MODEL_ID,
+    embedding: embeddings[position],
+    status: 'active',
+  }));
+
+  const { error: upsertError } = await client
+    .from('boh_ai_knowledge_chunks')
+    .upsert(rows, { onConflict: 'source_type,source_id,chunk_index' });
+
+  if (upsertError) throw upsertError;
+
+  // 6. 并行归档旧 chunks
+  if (sourcesToArchive.length > 0) {
+    await Promise.all(sourcesToArchive.map(({ sourceType, sourceId, maxChunkIndex }) =>
+      client
+        .from('boh_ai_knowledge_chunks')
+        .update({ status: 'archived' })
+        .eq('source_type', sourceType)
+        .eq('source_id', sourceId)
+        .gte('chunk_index', maxChunkIndex),
+    ));
+  }
+
+  return rows.length;
+};
+
 const parseJsonlChunks = (value: unknown) => {
   const text = String(value || '').trim();
   if (!text) return [];
@@ -621,9 +775,10 @@ const syncSharedMemories = async (client: ReturnType<typeof createServiceClient>
     .limit(limit);
 
   if (error) throw error;
-  let changedCount = 0;
+  const rows = Array.isArray(data) ? data : [];
+  if (rows.length === 0) return 0;
 
-  for (const row of Array.isArray(data) ? data : []) {
+  const sources: KnowledgeSource[] = rows.map((row) => {
     const tags = Array.isArray(row.tags) ? row.tags.join('、') : '';
     const content = [
       toText(row.content, 1800),
@@ -631,7 +786,7 @@ const syncSharedMemories = async (client: ReturnType<typeof createServiceClient>
       tags ? `标签：${tags}` : '',
     ].filter(Boolean).join('\n');
 
-    changedCount += await upsertKnowledgeSource(client, {
+    return {
       sourceType: 'shared_memory',
       sourceId: String(row.id),
       ownerUserId: row.owner_user_id ? String(row.owner_user_id) : null,
@@ -646,10 +801,10 @@ const syncSharedMemories = async (client: ReturnType<typeof createServiceClient>
         source: row.source || 'capture',
         updatedAt: row.updated_at || row.created_at || '',
       },
-    });
-  }
+    };
+  });
 
-  return changedCount;
+  return upsertKnowledgeSourcesBatch(client, sources);
 };
 
 const syncCoreMemories = async (client: ReturnType<typeof createServiceClient>, limit: number) => {
@@ -662,9 +817,10 @@ const syncCoreMemories = async (client: ReturnType<typeof createServiceClient>, 
     .limit(limit);
 
   if (error) throw error;
-  let changedCount = 0;
+  const rows = Array.isArray(data) ? data : [];
+  if (rows.length === 0) return 0;
 
-  for (const row of Array.isArray(data) ? data : []) {
+  const sources: KnowledgeSource[] = rows.map((row) => {
     const title = toText(row.title, 120) || 'BOH 官方事实';
     const tags = Array.isArray(row.tags) ? row.tags.join('、') : '';
     const content = [
@@ -675,7 +831,7 @@ const syncCoreMemories = async (client: ReturnType<typeof createServiceClient>, 
       toText(row.content, 20000),
     ].filter(Boolean).join('\n');
 
-    changedCount += await upsertKnowledgeSource(client, {
+    return {
       sourceType: 'core_memory',
       sourceId: String(row.id),
       ownerUserId: null,
@@ -690,10 +846,10 @@ const syncCoreMemories = async (client: ReturnType<typeof createServiceClient>, 
         sourceUrl: row.source_url || '',
         updatedAt: row.updated_at || row.created_at || '',
       },
-    });
-  }
+    };
+  });
 
-  return changedCount;
+  return upsertKnowledgeSourcesBatch(client, sources);
 };
 
 const syncCloudEntries = async (
@@ -710,9 +866,10 @@ const syncCloudEntries = async (
     .limit(limit);
 
   if (error) throw error;
-  let changedCount = 0;
+  const rows = Array.isArray(data) ? data : [];
+  if (rows.length === 0) return 0;
 
-  for (const row of Array.isArray(data) ? data : []) {
+  const sources: KnowledgeSource[] = rows.map((row) => {
     const title = toText(row.title, 120) || toText(row.entry_date, 40) || 'BOH Cloud+';
     const content = [
       title ? `标题：${title}` : '',
@@ -721,7 +878,7 @@ const syncCloudEntries = async (
       toText(row.content_text, 20000),
     ].filter(Boolean).join('\n');
 
-    changedCount += await upsertKnowledgeSource(client, {
+    return {
       sourceType: 'cloud_entry',
       sourceId: String(row.id),
       ownerUserId: String(row.user_id),
@@ -734,10 +891,10 @@ const syncCloudEntries = async (
         source: row.source || 'manual',
         updatedAt: row.updated_at || row.created_at || '',
       },
-    });
-  }
+    };
+  });
 
-  return changedCount;
+  return upsertKnowledgeSourcesBatch(client, sources);
 };
 
 const buildKeywordRowsFromSharedMemories = async (
@@ -1120,12 +1277,21 @@ Deno.serve(async (request) => {
     });
     const shouldSync = body?.ensureIndexed !== false && syncSourceTypes.length > 0;
     const syncLimit = clampInt(body?.syncLimit, 40, 1, MAX_SYNC_SOURCES);
-    let indexedCount = 0;
+    const indexedCount = 0;
     const matchCount = clampInt(body?.matchCount, 8, 1, MAX_MATCH_COUNT);
     const candidateCount = Math.min(MAX_MATCH_COUNT, Math.max(matchCount * 2, matchCount + 4));
-    if (shouldSync && syncSourceTypes.includes('core_memory')) indexedCount += await syncCoreMemories(client, syncLimit);
-    if (shouldSync && syncSourceTypes.includes('shared_memory')) indexedCount += await syncSharedMemories(client, syncLimit);
-    if (shouldSync && syncSourceTypes.includes('cloud_entry')) indexedCount += await syncCloudEntries(client, userId, syncLimit);
+    // 搜索路径：sync 改为 fire-and-forget，避免写入阻塞检索返回
+    if (shouldSync) {
+      void (async () => {
+        try {
+          if (syncSourceTypes.includes('core_memory')) await syncCoreMemories(client, syncLimit);
+          if (syncSourceTypes.includes('shared_memory')) await syncSharedMemories(client, syncLimit);
+          if (syncSourceTypes.includes('cloud_entry')) await syncCloudEntries(client, userId, syncLimit);
+        } catch (syncError) {
+          console.error('[boh-ai-retrieval] 后台索引同步失败', syncError);
+        }
+      })();
+    }
 
     let vectorRows: RetrievalRow[] = [];
     let embeddingModel = '';

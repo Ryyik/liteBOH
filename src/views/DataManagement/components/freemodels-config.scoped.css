@@ -1,0 +1,324 @@
+.freemodels-config-shell {
+  padding: 20px;
+  background: var(--card);
+  border-radius: 12px;
+}
+
+.freemodels-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.freemodels-header h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--foreground);
+  margin: 0 0 6px;
+}
+
+.freemodels-header p {
+  font-size: 14px;
+  color: var(--muted-foreground);
+  margin: 0;
+}
+
+.freemodels-header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: transparent;
+  color: #0f9f7a;
+  border: 1px solid rgba(15, 159, 122, 0.36);
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.ghost-btn:hover:not(:disabled) {
+  background: rgba(15, 159, 122, 0.08);
+}
+
+.ghost-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.spinning {
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.freemodels-error {
+  padding: 12px 16px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.12);
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 14px;
+}
+
+.freemodels-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px;
+  color: var(--muted-foreground);
+  font-size: 14px;
+}
+
+.freemodels-table-wrapper {
+  overflow-x: auto;
+}
+
+.freemodels-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.freemodels-table th {
+  padding: 12px 16px;
+  background: var(--muted);
+  font-weight: 600;
+  color: var(--foreground);
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.freemodels-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sort-input {
+  width: 60px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+  text-align: center;
+}
+
+.sort-input:focus {
+  outline: none;
+  border-color: #0f9f7a;
+}
+
+.model-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.model-cell strong {
+  color: var(--foreground);
+}
+
+.model-id {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  background: var(--muted);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.family-pill {
+  display: inline-block;
+  padding: 4px 12px;
+  background: rgba(15, 159, 122, 0.12);
+  color: #0f9f7a;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-toggle {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.status-toggle.active {
+  background: rgba(34, 197, 94, 0.12);
+  color: #16a34a;
+}
+
+.status-toggle:not(.active) {
+  background: rgba(239, 68, 68, 0.08);
+  color: #dc2626;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.action-btn:hover {
+  background: rgba(15, 159, 122, 0.08);
+  color: #0f9f7a;
+}
+
+.action-btn.delete:hover {
+  background: rgba(239, 68, 68, 0.08);
+  color: #dc2626;
+}
+
+.freemodels-empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--muted-foreground);
+}
+
+/* 编辑对话框 */
+.edit-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.edit-dialog {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 24px;
+  width: 400px;
+  max-width: 90vw;
+}
+
+.edit-dialog h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--foreground);
+  margin: 0 0 20px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--foreground);
+  margin-bottom: 6px;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #0f9f7a;
+}
+
+.form-group input:disabled {
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.cancel-btn {
+  flex: 1;
+  padding: 10px 20px;
+  background: transparent;
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cancel-btn:hover {
+  background: var(--muted);
+}
+
+.save-btn {
+  flex: 1;
+  padding: 10px 20px;
+  background: #0f9f7a;
+  color: var(--primary-foreground);
+  border: none;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.save-btn:hover {
+  background: #0d8a6b;
+}
+
+/* 批量添加对话框 */
+.batch-add-dialog {
+  width: 600px;
+}
+
+.batch-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: 'Courier New', Courier, monospace;
+  resize: vertical;
+}
+
+.batch-textarea:focus {
+  outline: none;
+  border-color: #0f9f7a;
+}
+
+.form-hint {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  margin-top: 6px;
+}

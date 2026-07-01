@@ -37,7 +37,7 @@ import { invalidateTreeholeCache, getMyTreeholeMemoriesForAI, createTreeholeMemo
 import { invalidateSharedMemoryCache, getSharedAIMemoriesForAI, createSharedAIMemory } from './memory-api.js';
 
 const SILICON_CLOUD_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
-// 固定选用 AI 广场中的长记忆复盘模型（高强推理）
+// 长记忆复盘模型（高强推理）
 const TREEHOLE_LONG_MEMORY_MODEL = 'deepseek-ai/DeepSeek-R1-0528-Qwen3-8B';
 const TREEHOLE_AUTO_MEMORY_MODEL = TREEHOLE_LONG_MEMORY_MODEL;
 const TREEHOLE_SPACE_COLUMNS = 'user_id, title, description, created_at, updated_at';
@@ -127,7 +127,8 @@ const requestTreeholeCompletion = async ({
       purpose: 'chat',
       payload,
       apiUrl: SILICON_CLOUD_URL,
-      timeoutMs: safeTimeout
+      timeoutMs: safeTimeout,
+      signal: combinedSignal
     });
     if (!vaultResult.ok) {
       return {

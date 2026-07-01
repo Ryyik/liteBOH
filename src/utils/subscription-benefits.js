@@ -1,6 +1,6 @@
 export const DEFAULT_CLOUD_IMAGE_LIMIT = 150;
 
-const PLAN_DISPLAY_NAMES = {
+export const PLAN_DISPLAY_NAMES = {
   'free': 'Free',
   'plus': 'Plus',
   'pro': 'Pro',
@@ -56,8 +56,8 @@ export function resolveCloudBenefitFromSubscriptions(subscriptions = [], nowTs =
 
 const TIER_NICKNAME_COLORS = {
   'free': '',
-  'plus': '',
-  'pro': 'nickname-gold',
+  'plus': 'nickname-blue',
+  'pro': 'nickname-silver',
   'max': 'nickname-gold',
   'ultra': 'nickname-rainbow'
 };

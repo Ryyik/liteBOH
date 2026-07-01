@@ -269,7 +269,7 @@ export const dataConfig = {
       { key: 'description', label: '详细说明', type: 'textarea', rows: 3, maxLength: 500, group: 'basic' },
       { key: 'provider', label: '供应商标识', type: 'select', required: true, options: BOHAI_MODEL_PROVIDER_OPTIONS, group: 'provider' },
       { key: 'provider_label', label: '供应商显示名', type: 'text', maxLength: 80, placeholder: '例如：智谱 AI / SiliconFlow', group: 'provider' },
-      { key: 'model_id', label: '模型ID', type: 'text', required: true, maxLength: 160, placeholder: '例如：glm-4.6v-flash', group: 'provider' },
+      { key: 'model_id', label: '模型ID', type: 'select', required: true, optionsSource: 'freemodels', hint: '只能从免费模型库中选择。', group: 'provider' },
       { key: 'api_url', label: '接口地址', type: 'text', maxLength: 600, placeholder: '留空会按供应商自动填默认地址。', group: 'provider' },
       { key: 'capability', label: '能力类型', type: 'select', required: true, options: BOHAI_MODEL_CAPABILITY_OPTIONS, group: 'provider' },
       { key: 'icon', label: '图标', type: 'select', required: true, options: BOHAI_MODEL_ICON_OPTIONS, group: 'basic' },

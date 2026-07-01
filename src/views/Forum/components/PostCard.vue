@@ -1,6 +1,7 @@
 <script setup>
 import { nextTick, ref, watch } from 'vue';
 import { useUserTier } from '@/composables/useUserTier.js';
+import { useTierMap } from '@/composables/useTierMap.js';
 import {
   Check,
   Heart,
@@ -118,14 +119,30 @@ const onLazyImageRef = (el) => {
 
 const { fetchUserTier, getNicknameClass } = useUserTier();
 const authorTierClass = ref('');
+const authorTierCode = ref('');
+
+const collectReplyAuthorIds = (replies) => {
+  const ids = new Set();
+  (replies || []).forEach((r) => { if (r?.author_id) ids.add(r.author_id); });
+  return [...ids];
+};
+
 watch(() => props.post?.author_id, async (id) => {
   if (id) {
-    await fetchUserTier(id);
+    const tier = await fetchUserTier(id);
     authorTierClass.value = getNicknameClass(id);
+    authorTierCode.value = tier;
   } else {
     authorTierClass.value = '';
+    authorTierCode.value = '';
   }
 }, { immediate: true });
+
+const replyTierMap = useTierMap(
+  () => collectReplyAuthorIds(props.post?.replies),
+  getNicknameClass,
+  fetchUserTier
+);
 </script>
 
 <template>
@@ -134,7 +151,11 @@ watch(() => props.post?.author_id, async (id) => {
     :class="{
       'image-post-card-v2': post.hasImages,
       'is-expanded': isExpanded || (activeReplyTarget && activeReplyTarget.postId === post.id),
-      'is-new-post': isHighlighted
+      'is-new-post': isHighlighted,
+      'tier-plus': authorTierCode === 'plus',
+      'tier-pro': authorTierCode === 'pro',
+      'tier-max': authorTierCode === 'max',
+      'tier-ultra': authorTierCode === 'ultra'
     }"
     :style="{ '--post-appear-delay': `${Math.min(index, 8) * 45}ms` }"
     @click="emit('click', post.id)">
@@ -314,7 +335,7 @@ watch(() => props.post?.author_id, async (id) => {
             </div>
             <div class="reply-content-wrapper">
               <div class="reply-user-info">
-                <span class="reply-author-v2" @click="emit('go-to-profile', reply.author_username)">{{
+                <span class="reply-author-v2" :class="replyTierMap[reply.author_id] || ''" @click="emit('go-to-profile', reply.author_username)">{{
                   reply.author_username }}</span>
                 <span v-if="reply.reply_to_username" class="reply-to-tag">
                   回复 <span class="target-name">@{{ reply.reply_to_username }}</span>

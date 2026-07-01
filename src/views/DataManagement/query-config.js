@@ -2,7 +2,7 @@ export const ADMIN_SECTION_DEFAULT_TABS = {
   data: 'users'
 };
 
-export const DATA_CONSOLE_SECTIONS = new Set(['data']);
+export const DATA_CONSOLE_SECTIONS = new Set(['data', 'api-keys', 'freemodels', 'moderation-model', 'lab-ai-model']);
 export const PLACEHOLDER_ADMIN_SECTIONS = new Set(['media', 'settings']);
 export const STATUS_FILTER_FIELDS = {
   users: 'role',

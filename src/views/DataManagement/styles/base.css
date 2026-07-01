@@ -1,27 +1,176 @@
-/* ==================== 基础样式 ==================== */
+/* ==================== Base Styles — Google Style Design Library ==================== */
 .data-management-page {
-  --dm-nav-height: 72px;
+  /* --- Design Tokens (Google Style colors_and_type.css) --- */
+  --radius: 0.5rem;
+  --radius-card: calc(var(--radius) + 6px);
+  --spacing: 0.24rem;
+
+  /* Light mode core surface colors */
+  --primary: #4285f4;
+  --primary-foreground: #ffffff;
+  --secondary: #dbeafe;
+  --secondary-foreground: #333942;
+  --accent: #dbeafe;
+  --accent-foreground: #003e8f;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+
+  --background: #ffffff;
+  --foreground: #0e1115;
+  --card: #ffffff;
+  --card-foreground: #0e1115;
+  --popover: #f9f9fa;
+  --popover-foreground: #0e1115;
+  --muted: #eff1f4;
+  --muted-foreground: #7f8d9f;
+
+  --border: #ebebeb;
+  --input: #e2e3e4;
+  --ring: #4285f4;
+
+  /* Data visualization */
+  --chart-1: #4285f4;
+  --chart-2: #ea4335;
+  --chart-3: #fbbc05;
+  --chart-4: #0043ad;
+  --chart-5: #34a853;
+
+  /* Sidebar (signature wash) */
+  --sidebar: #f0f6ff;
+  --sidebar-foreground: #0e1115;
+  --sidebar-primary: #4285f4;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #dbeafe;
+  --sidebar-accent-foreground: #003e8f;
+  --sidebar-border: #e7eaef;
+  --sidebar-ring: #4285f4;
+
+  /* Legacy aliases (兼容旧 class 引用) */
+  --sidebar-bg: var(--sidebar);
+  --sidebar-border-legacy: var(--sidebar-border);
+  --sidebar-accent-legacy: var(--sidebar-accent);
+
+  /* Typography */
+  --font-family: "DM Sans", ui-sans-serif, sans-serif, system-ui;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-sans: var(--font-family);
+  --font-serif: var(--font-family);
+
+  /* Layout sizing */
+  --dm-nav-height: 64px;
+  --dm-header-height: 76px;
+  --dm-sidebar-width: 260px;
+  --dm-sidebar-width-collapsed: 84px;
+
   min-height: 100vh;
-  background: #f5f5f7;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "Segoe UI", Roboto, sans-serif;
-  padding-top: var(--dm-nav-height);
+  background: var(--background);
+  font-family: var(--font-family);
+  color: var(--foreground);
+  letter-spacing: 0em;
 }
 
-/* ==================== 头部样式 ==================== */
+/* ==================== Dark Mode (data-theme="dark" / .dark) ==================== */
+.data-management-page[data-theme="dark"],
+.data-management-page.dark {
+  --primary: #fc2c50;
+  --primary-foreground: #ffffff;
+  --secondary: #383838;
+  --secondary-foreground: #e5e5e5;
+  --accent: #4a2026;
+  --accent-foreground: #fc2c50;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+
+  --background: #161616;
+  --foreground: #eff1f4;
+  --card: #1d1d1c;
+  --card-foreground: #eff1f4;
+  --popover: #2e2e2e;
+  --popover-foreground: #e5e5e5;
+  --muted: #383838;
+  --muted-foreground: #949494;
+
+  --border: #1d1d1c;
+  --input: #000000;
+  --ring: #ffffff;
+
+  --chart-1: #2dccd3;
+  --chart-2: #f1204a;
+  --chart-3: #edbbe8;
+  --chart-4: #fbeb35;
+  --chart-5: #baf6f0;
+
+  --sidebar: #171717;
+  --sidebar-foreground: #e5e5e5;
+  --sidebar-primary: #0065fd;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #00266b;
+  --sidebar-accent-foreground: #bfdbfe;
+  --sidebar-border: #404040;
+  --sidebar-ring: #00266b;
+
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* ==================== Auto Dark Mode (prefers-color-scheme) ==================== */
+/* 当用户没有显式设置 data-theme 时，自动跟随系统主题 */
+@media (prefers-color-scheme: dark) {
+  .data-management-page:not([data-theme="light"]) {
+    --primary: #fc2c50;
+    --primary-foreground: #ffffff;
+    --secondary: #383838;
+    --secondary-foreground: #e5e5e5;
+    --accent: #4a2026;
+    --accent-foreground: #fc2c50;
+    --destructive: #ef4444;
+    --destructive-foreground: #ffffff;
+
+    --background: #161616;
+    --foreground: #eff1f4;
+    --card: #1d1d1c;
+    --card-foreground: #eff1f4;
+    --popover: #2e2e2e;
+    --popover-foreground: #e5e5e5;
+    --muted: #383838;
+    --muted-foreground: #949494;
+
+    --border: #1d1d1c;
+    --input: #000000;
+    --ring: #ffffff;
+
+    --chart-1: #2dccd3;
+    --chart-2: #f1204a;
+    --chart-3: #edbbe8;
+    --chart-4: #fbeb35;
+    --chart-5: #baf6f0;
+
+    --sidebar: #171717;
+    --sidebar-foreground: #e5e5e5;
+    --sidebar-primary: #0065fd;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #00266b;
+    --sidebar-accent-foreground: #bfdbfe;
+    --sidebar-border: #404040;
+    --sidebar-ring: #00266b;
+  }
+}
+
+/* ==================== Header ==================== */
 .dm-header {
-  background: rgba(255,255,255,0.82);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  box-shadow: 0 0.5px 0 rgba(0,0,0,0.06);
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
   position: sticky;
   top: var(--dm-nav-height);
   z-index: 1000;
+  height: var(--dm-header-height);
 }
 
 .header-content {
   max-width: 1600px;
   margin: 0 auto;
-  padding: 12px 24px;
+  padding: 0 24px;
+  height: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -33,58 +182,88 @@
   gap: 16px;
 }
 
+/* ==================== Buttons ==================== */
+
+/* Back button — icon button, round */
 .back-btn {
   width: 40px;
   height: 40px;
-  border-radius: 8px;
-  border: 1px solid rgba(0,0,0,0.06);
-  background: transparent;
-  color: #86868b;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: all 0.15s ease;
 }
-
 .back-btn:hover {
-  background: rgba(0,0,0,0.04);
-  color: #1d1d1f;
+  background: var(--muted);
+  border-color: var(--secondary-foreground);
 }
 
-.header-title-group h1 {
-  font-size: 20px;
-  font-weight: 600;
-  color: #1d1d1f;
-  margin: 0;
-}
-
-.header-title-group p {
-  font-size: 13px;
-  color: #86868b;
-  margin: 2px 0 0;
-}
-
-.refresh-btn {
-  display: flex;
+/* Primary button — .publish-btn follows btn-primary pattern */
+.publish-btn {
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 10px 16px;
-  border-radius: 8px;
-  border: 1px solid rgba(0,0,0,0.06);
-  background: transparent;
-  color: #86868b;
-  font-size: 14px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-family: var(--font-family);
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: filter 0.15s ease, transform 0.1s ease;
+  white-space: nowrap;
+}
+.publish-btn:hover {
+  filter: brightness(0.96);
+}
+.publish-btn:active {
+  transform: translateY(1px);
+}
+.publish-btn:disabled,
+.publish-btn[disabled] {
+  background: var(--muted);
+  color: var(--muted-foreground);
+  border-color: transparent;
+  cursor: not-allowed;
+  filter: none;
+  transform: none;
 }
 
+/* Ghost button — .refresh-btn follows btn-ghost pattern */
+.refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--foreground);
+  font-family: var(--font-family);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.1s ease;
+  white-space: nowrap;
+}
 .refresh-btn:hover {
-  background: rgba(0,0,0,0.04);
-  border-color: rgba(0,0,0,0.1);
+  filter: brightness(0.96);
+  border-color: var(--secondary-foreground);
 }
-
+.refresh-btn:active {
+  transform: translateY(1px);
+}
 .refresh-btn.spinning svg {
   animation: spin 1s linear infinite;
 }
@@ -95,89 +274,180 @@
   }
 }
 
-/* ==================== 主容器 ==================== */
+/* Icon buttons — sidebar toggle & theme toggle */
+.sidebar-toggle,
+.theme-toggle-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+.sidebar-toggle:hover,
+.theme-toggle-btn:hover {
+  background: var(--muted);
+  border-color: var(--secondary-foreground);
+}
+
+/* ==================== Header Title ==================== */
+.header-title-group h1 {
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--foreground);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.header-title-group p {
+  font-size: 13px;
+  color: var(--muted-foreground);
+  margin: 2px 0 0;
+}
+
+/* ==================== Search (pill shape) ==================== */
+.dm-search {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--input);
+  background: var(--popover);
+  color: var(--foreground);
+  font-family: var(--font-family);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.dm-search::placeholder {
+  color: var(--muted-foreground);
+}
+.dm-search:focus {
+  border-color: var(--primary);
+}
+
+/* ==================== Main Container ==================== */
 .main-container {
   max-width: 1600px;
   margin: 0 auto;
   padding: 24px;
 }
 
-/* ==================== 统计卡片 ==================== */
+/* ==================== Stats Section ==================== */
 .stats-section {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: calc(var(--spacing) * 8);
+  margin-bottom: calc(var(--spacing) * 8);
 }
 
+/* ==================== Stat Card ==================== */
 .stat-card {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: calc(var(--spacing) * 8);
   display: flex;
   align-items: center;
-  gap: 16px;
-  border: none;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.04);
-  transition: all 0.2s;
+  gap: calc(var(--spacing) * 6);
+  transition: border-color 0.15s ease, transform 0.15s ease;
 }
-
 .stat-card:hover {
-  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  border-color: var(--primary);
   transform: translateY(-1px);
 }
 
+/* Stat icon wrapper */
 .stat-icon {
   width: 48px;
   height: 48px;
-  border-radius: 12px;
+  border-radius: calc(var(--radius) + 4px);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 24px;
-  background: rgba(0,0,0,0.04);
+  flex-shrink: 0;
+  background: var(--secondary);
+  color: var(--primary);
 }
 
+/* Category-specific icon tints */
 .stat-users .stat-icon {
-  background: rgba(0,0,0,0.04);
+  background: var(--secondary);
+  color: var(--primary);
 }
 
 .stat-posts .stat-icon {
-  background: rgba(0,0,0,0.04);
+  background: var(--muted);
+  color: #047857;
 }
 
 .stat-news .stat-icon {
-  background: rgba(0,0,0,0.04);
+  background: var(--muted);
+  color: #b45309;
 }
 
 .stat-products .stat-icon {
-  background: rgba(0,0,0,0.04);
+  background: var(--muted);
+  color: var(--destructive);
 }
 
 .stat-content {
   flex: 1;
+  min-width: 0;
 }
 
+/* Stat value — follows .metric pattern */
 .stat-value {
   display: block;
-  font-size: 24px;
-  font-weight: 600;
-  color: #1d1d1f;
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 700;
+  color: var(--foreground);
 }
 
+/* Stat label — follows .eyebrow pattern */
 .stat-label {
   display: block;
-  font-size: 13px;
-  color: #86868b;
-  margin-top: 2px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-foreground);
+  margin-top: calc(var(--spacing) * 2);
 }
 
+/* ==================== Stat Trend ==================== */
+.stat-trend {
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  padding: calc(var(--spacing) * 1.5) calc(var(--spacing) * 3);
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-foreground);
+  margin-top: calc(var(--spacing) * 2);
+}
+
+.stat-trend .up {
+  color: var(--accent-foreground);
+}
+
+.stat-trend .down {
+  color: var(--destructive);
+}
+
+/* ==================== Skeleton / Loading ==================== */
 .dm-skeleton-block {
   position: relative;
   display: block;
   overflow: hidden;
-  border-radius: 999px;
-  background: #e8e8ed;
+  border-radius: var(--radius);
+  background: var(--muted);
 }
 
 .dm-skeleton-block::after {
@@ -185,14 +455,19 @@
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.82), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.82),
+    transparent
+  );
   animation: dmSkeletonShimmer 1.35s ease-in-out infinite;
 }
 
 .dm-stat-value-skeleton {
   width: 76px;
-  height: 28px;
-  margin-bottom: 8px;
+  height: 30px;
+  margin-bottom: calc(var(--spacing) * 4);
 }
 
 .dm-stat-label-skeleton {
@@ -204,59 +479,4 @@
   100% {
     transform: translateX(100%);
   }
-}
-
-.stat-trend {
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.stat-trend .up {
-  color: #34c759;
-}
-
-.stat-trend .down {
-  color: #ff3b30;
-}
-
-/* Apple-style header buttons */
-.sidebar-toggle,
-.theme-toggle-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: none;
-  background: transparent;
-  color: var(--dm-muted, #86868b);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s;
-}
-.sidebar-toggle:hover,
-.theme-toggle-btn:hover {
-  background: rgba(0,0,0,0.05);
-  color: var(--dm-text, #1d1d1f);
-}
-
-.publish-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border-radius: 8px;
-  border: none;
-  background: var(--dm-accent, #0071e3);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.publish-btn:hover {
-  background: #0077ed;
-}
-.publish-btn:active {
-  background: #006edb;
 }

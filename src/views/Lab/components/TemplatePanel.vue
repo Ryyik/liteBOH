@@ -40,50 +40,46 @@ function handleSave() { if (!saveName.value.trim()) return; emit('save', saveNam
 
 <style scoped>
 .tpl {
-  border: 1px solid rgba(148, 163, 184, 0.42); border-radius: 16px; background: rgba(255, 255, 255, 0.88); padding: 14px;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.98),
-    inset 0 -1px 0 rgba(148, 163, 184, 0.12),
-    inset 1px 0 0 rgba(255, 255, 255, 0.58),
-    inset -1px 0 0 rgba(255, 255, 255, 0.3),
-    0 0 0 1px rgba(255, 255, 255, 0.38),
-    0 14px 34px rgba(15, 23, 42, 0.06);
-  backdrop-filter: blur(18px) saturate(1.2);
-  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  border: none;
+  border-radius: 18px;
+  background: #ffffff;
+  padding: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
 }
 .tpl-head {
-  display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;
 }
-.tpl-title { font-size: 13px; font-weight: 600; color: #202123; }
+.tpl-title { font-size: 14px; font-weight: 600; color: #3d3929; }
 .tpl-count {
-  font-size: 11px; color: rgba(17, 17, 17, 0.58); background: rgba(255, 255, 255, 0.88); padding: 2px 8px; border-radius: 6px;
+  font-size: 12px; color: #6e6d68; background: rgba(0, 0, 0, 0.04); padding: 3px 10px; border-radius: 8px; font-weight: 500;
 }
-.tpl-empty { font-size: 13px; color: rgba(17, 17, 17, 0.58); text-align: center; padding: 20px; }
-.tpl-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.tpl-empty { font-size: 14px; color: #6e6d68; text-align: center; padding: 24px; }
+.tpl-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 .tpl-row {
-  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
-  border-radius: 12px; border: 1px solid rgba(15, 23, 42, 0.07);
-  cursor: pointer; transition: all 0.15s;
-  background: rgba(250, 250, 250, 0.86);
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+  border-radius: 12px; border: none;
+  cursor: pointer; transition: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+  background: #f5f4ef;
 }
-.tpl-row:hover { border-color: rgba(15, 23, 42, 0.15); background: rgba(255, 255, 255, 0.96); }
-.tpl-row.active { border-color: #0f9f7a; background: rgba(15, 159, 122, 0.1); }
+.tpl-row:hover { background: #e3e0d4; }
+.tpl-row.active { background: #fbf2ed; }
 .tpl-info { flex: 1; min-width: 0; }
-.tpl-name { display: block; font-size: 12px; font-weight: 500; color: #202123; }
-.tpl-desc { display: block; font-size: 10px; color: rgba(17, 17, 17, 0.58); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tpl-del { background: none; border: none; color: #b0b0b0; font-size: 13px; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
-.tpl-del:hover { color: #ef4444; background: rgba(239, 68, 68, 0.08); }
-.tpl-save { display: flex; gap: 6px; border-top: 1px solid rgba(17, 24, 39, 0.08); padding-top: 12px; }
+.tpl-name { display: block; font-size: 13px; font-weight: 600; color: #3d3929; }
+.tpl-desc { display: block; font-size: 11px; color: #6e6d68; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tpl-del { background: #f5f4ef; border: none; color: #6e6d68; font-size: 13px; cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: all 0.2s; }
+.tpl-del:hover { color: #d64545; background: #fcecea; }
+.tpl-save { display: flex; gap: 8px; border-top: 1px solid #e3e0d4; padding-top: 14px; }
 .tpl-input {
-  flex: 1; background: #ffffff; border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 12px; padding: 8px 12px; font-size: 12px; color: #202123; outline: none; font-family: inherit;
+  flex: 1; background: #ffffff; border: 1px solid #e3e0d4;
+  border-radius: 12px; padding: 10px 14px; font-size: 13px; color: #3d3929; outline: none; font-family: inherit;
+  transition: all 0.2s;
 }
-.tpl-input:focus { border-color: #0f9f7a; }
+.tpl-input:focus { border-color: #C96442; box-shadow: 0 0 0 3px rgba(201, 100, 66, 0.12); }
 .tpl-save-btn {
-  background: #0f9f7a; color: #fff; border: none; border-radius: 12px;
-  padding: 8px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
-  transition: all 0.15s;
+  background: #C96442; color: #fff; border: none; border-radius: 12px;
+  padding: 10px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
 }
-.tpl-save-btn:hover:not(:disabled) { background: #0e8a6a; }
+.tpl-save-btn:hover:not(:disabled) { background: #d6866a; transform: scale(1.02); }
 .tpl-save-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 </style>

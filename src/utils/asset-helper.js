@@ -3,8 +3,8 @@
  * 解决 Vite 无法直接解析数据绑定中的别名路径（如 @/assets/...）的问题
  */
 
-// 使用 eager: true 确保 getImageUrl 同步返回已解析的 URL
-// 图片文件在 Vite 构建时会被独立处理为资产文件，JS 中仅存储 URL 字符串
+// 使用 eager: true 在模块加载时同步解析所有图片 URL，保证同步 getImageUrl 可用
+// glob 返回 { path: defaultExport } 形式，defaultExport 为 URL 字符串
 const images = import.meta.glob('/src/assets/images/**/*.{webp,svg,WEBP,SVG}', {
   eager: true,
   import: 'default'
@@ -13,16 +13,28 @@ const images = import.meta.glob('/src/assets/images/**/*.{webp,svg,WEBP,SVG}', {
 // 图片缓存 Map，存储已加载的图片 URL
 const imageCache = new Map();
 
-// 从 eager-loaded 模块预填充缓存
-for (const [path, url] of Object.entries(images)) {
-  if (typeof url === 'string') {
-    imageCache.set(path, url);
+// 模块加载时立即预加载所有图片到缓存
+// eager: true + import: 'default' 模式下 images[path] 已是 URL 字符串，直接入缓存
+// eager: false（懒加载）模式下 images[path] 为加载函数，异步调用后入缓存
+for (const [path, loader] of Object.entries(images)) {
+  if (typeof loader === 'string') {
+    imageCache.set(path, loader);
+  } else if (typeof loader === 'function') {
+    loader()
+      .then(url => {
+        if (typeof url === 'string') {
+          imageCache.set(path, url);
+        }
+      })
+      .catch(() => {
+        // 静默处理预加载失败
+      });
   }
 }
 
 // 开发环境下输出可用的图片路径（仅在开发环境）
 if (import.meta.env.DEV) {
-  console.log('[AssetHelper] 已预加载的图片数量:', imageCache.size, '个');
+  console.log('[AssetHelper] 懒加载图片数量:', Object.keys(images).length, '个');
 }
 
 /**
@@ -50,7 +62,7 @@ export async function preloadImage(path) {
     return imageCache.get(cleanPath);
   }
 
-  // 尝试从 eager 导入的模块中获取（eager: true 时值为 URL 字符串，非函数）
+  // 尝试从 lazy glob 获取（eager: false 时值为加载函数，需 await 调用）
   if (images[cleanPath]) {
     try {
       const entry = images[cleanPath];
@@ -118,7 +130,17 @@ export function getImageUrl(path, options = {}) {
     return imageCache.get(webpPath);
   }
 
-  // 3. 如果未缓存，触发异步加载（不等待结果）
+  // 3. 如果未缓存，优先返回 eager 模式下已就绪的 URL 字符串
+  if (typeof images[cleanPath] === 'string') {
+    imageCache.set(cleanPath, images[cleanPath]);
+    return images[cleanPath];
+  }
+  if (typeof images[webpPath] === 'string') {
+    imageCache.set(webpPath, images[webpPath]);
+    return images[webpPath];
+  }
+
+  // 4. 触发异步加载（不等待结果，用于 eager: false 懒加载模式）
   if (typeof images[cleanPath] === 'function') {
     images[cleanPath]().then(module => {
       const url = module.default || module;
@@ -139,7 +161,7 @@ export function getImageUrl(path, options = {}) {
     });
   }
 
-  // 4. 如果仍未命中，尝试作为 public 目录下的静态资源
+  // 5. 如果仍未命中，尝试作为 public 目录下的静态资源
   let publicPath = cleanPath;
   if (cleanPath.startsWith('/src/assets/')) {
     publicPath = cleanPath.replace('/src/assets/', 'assets/');
@@ -203,7 +225,7 @@ export async function getImageUrlAsync(path, options = {}) {
     return imageCache.get(cleanPath);
   }
 
-  // 尝试从 eager 导入的模块中获取（eager: true 时值为 URL 字符串，非函数）
+  // 尝试从 lazy glob 获取（eager: false 时值为加载函数，需 await 调用）
   if (images[cleanPath]) {
     try {
       const entry = images[cleanPath];

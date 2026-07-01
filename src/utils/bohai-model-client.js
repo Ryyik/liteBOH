@@ -7,10 +7,18 @@ import { callVaultSiliconChat } from './api/api-key-runtime-api.js';
 
 const BOHAI_CHAT_API_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
 const ZHIPU_CHAT_API_URL = import.meta.env.VITE_ZHIPU_CHAT_URL || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
-const BOHAI_DEFAULT_MODEL_ID = resolveSiliconFlowFreeModelId(
-  import.meta.env.VITE_BOHAI_DEFAULT_MODEL,
-  SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID
-);
+
+// 延迟求值：首次访问时计算，确保 freemodels 缓存已被 main.js 预热
+let _bohaiDefaultModelId = null;
+const getBohaiDefaultModelId = () => {
+  if (!_bohaiDefaultModelId) {
+    _bohaiDefaultModelId = resolveSiliconFlowFreeModelId(
+      import.meta.env.VITE_BOHAI_DEFAULT_MODEL,
+      SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID
+    );
+  }
+  return _bohaiDefaultModelId;
+};
 
 const MODEL_RETRY_MAX = 2;
 const MODEL_RETRY_BACKOFF_BASE_MS = 800;
@@ -34,7 +42,7 @@ const isRetryableStatus = (status) => status === 429 || (status >= 500 && status
 export const getBohAIModelStatus = () => ({
   hasConfig: Boolean(BOHAI_CHAT_API_URL),
   url: BOHAI_CHAT_API_URL,
-  defaultModelId: BOHAI_DEFAULT_MODEL_ID,
+  defaultModelId: getBohaiDefaultModelId(),
   usesVaultFallback: true
 });
 
@@ -57,14 +65,14 @@ export const extractBohAIJsonObject = (text = '') => {
 };
 
 export const callBohAIModel = async ({
-  model = BOHAI_DEFAULT_MODEL_ID,
+  model = getBohaiDefaultModelId(),
   messages = [],
   temperature = 0.18,
   maxTokens = 512,
   signal,
   timeoutMs = MODEL_HARD_TIMEOUT_MS
 } = {}) => {
-  const safeModel = resolveSiliconFlowFreeModelId(model, BOHAI_DEFAULT_MODEL_ID);
+  const safeModel = resolveSiliconFlowFreeModelId(model, getBohaiDefaultModelId());
   const provider = safeModel.startsWith('glm-') ? 'zhipu' : 'siliconflow';
   const apiUrl = provider === 'zhipu' ? ZHIPU_CHAT_API_URL : BOHAI_CHAT_API_URL;
 

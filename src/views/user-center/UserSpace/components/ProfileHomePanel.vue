@@ -40,6 +40,7 @@
           <div class="name-row profile-hero-name-row">
             <h1 class="profile-name" :class="nicknameClass">{{ displayName }}</h1>
             <span v-if="isAdmin" class="admin-badge">ADMIN</span>
+            <span v-if="tierCode && tierCode !== 'free'" class="tier-badge" :class="`tier-${tierCode}`">{{ tierDisplayName }}</span>
           </div>
           <p class="profile-handle">@{{ displayName || 'user' }}</p>
           <div class="profile-bio-wrap">
@@ -207,6 +208,7 @@ import { computed, reactive, ref, watch, onMounted } from 'vue';
 import FollowListModal from '@/components/FollowListModal.vue';
 import { getFollowers, getFollowing, unfollowUser } from '@/utils/api/profile-api.js';
 import { useUserTier } from '@/composables/useUserTier.js';
+import { PLAN_DISPLAY_NAMES } from '@/utils/subscription-benefits.js';
 
 const followModal = reactive({
   show: false,
@@ -347,12 +349,15 @@ defineEmits([
 const displayName = computed(() => props.profile.username || '未登录');
 
 const profileId = computed(() => props.profile.id || '');
-const { fetchUserTier, getNicknameClass } = useUserTier();
+const { fetchUserTier, getNicknameClass, getUserTierCode } = useUserTier();
 const nicknameClass = ref('');
+const tierCode = ref('');
+const tierDisplayName = computed(() => PLAN_DISPLAY_NAMES[tierCode.value] || '');
 watch(profileId, async (id) => {
   if (id) {
     await fetchUserTier(id);
     nicknameClass.value = getNicknameClass(id);
+    tierCode.value = getUserTierCode(id);
   }
 }, { immediate: true });
 const displayInitial = computed(() => (props.profile.username || 'U').charAt(0).toUpperCase());

@@ -251,10 +251,18 @@ export async function uploadImageToCloudinary(file, options = {}) {
       formData.append('folder', folder);
     }
 
-    const response = await fetch(resolveUploadUrl('image'), {
-      method: 'POST',
-      body: formData
-    });
+    const uploadController = new AbortController();
+    const uploadTimeoutId = setTimeout(() => uploadController.abort(), 60000);
+    let response;
+    try {
+      response = await fetch(resolveUploadUrl('image'), {
+        method: 'POST',
+        body: formData,
+        signal: uploadController.signal
+      });
+    } finally {
+      clearTimeout(uploadTimeoutId);
+    }
 
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -302,11 +310,19 @@ export async function deleteCloudinaryAssetByToken(deleteToken, options = {}) {
     const formData = new FormData();
     formData.append('token', token);
 
-    const response = await fetch(resolveDeleteByTokenUrl(), {
-      method: 'POST',
-      body: formData,
-      keepalive: Boolean(options.keepalive)
-    });
+    const deleteController = new AbortController();
+    const deleteTimeoutId = setTimeout(() => deleteController.abort(), 30000);
+    let response;
+    try {
+      response = await fetch(resolveDeleteByTokenUrl(), {
+        method: 'POST',
+        body: formData,
+        keepalive: Boolean(options.keepalive),
+        signal: deleteController.signal
+      });
+    } finally {
+      clearTimeout(deleteTimeoutId);
+    }
 
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {

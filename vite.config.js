@@ -2,9 +2,59 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
 import { resolve } from 'path'
+import { execSync } from 'child_process'
 import { visualizer } from 'rollup-plugin-visualizer'
 import tailwindcss from '@tailwindcss/vite'
 import cssnano from 'cssnano'
+
+// ============================================
+// 版本指纹生成插件
+// 构建时生成 version.json 并在 index.html 注入版本 meta
+// 运行时由 version-checker.js 独立拉取比对，绕过 SW 缓存死循环
+// ============================================
+function bohVersionPlugin() {
+  let versionInfo = null
+
+  const buildVersionInfo = () => {
+    if (versionInfo) return versionInfo
+    let commitHash = 'unknown'
+    try {
+      commitHash = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
+    } catch { /* 非 git 环境降级 */ }
+    const timestamp = Date.now()
+    const buildTime = new Date(timestamp).toISOString()
+    // 版本指纹：commit + 时间戳，确保每次构建唯一
+    versionInfo = {
+      version: `${commitHash}-${timestamp}`,
+      commitHash,
+      timestamp,
+      buildTime,
+    }
+    return versionInfo
+  }
+
+  return {
+    name: 'boh-version-plugin',
+    apply: 'build',
+    buildStart() {
+      buildVersionInfo()
+    },
+    transformIndexHtml(html) {
+      const info = buildVersionInfo()
+      // 在 </head> 前注入版本 meta，作为运行时比对的当前版本基准
+      const metaTags = `    <meta name="boh-version" content="${info.version}" />\n    <meta name="boh-build-time" content="${info.timestamp}" />\n  </head>`
+      return html.replace(/\s*<\/head>/i, `\n${metaTags}`)
+    },
+    generateBundle() {
+      const info = buildVersionInfo()
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: JSON.stringify(info, null, 2),
+      })
+    },
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -20,13 +70,14 @@ export default defineConfig({
       },
     }),
     tailwindcss(),
-    // 构建产物可视化分析（生成 stats.html）
-    visualizer({
+    bohVersionPlugin(),
+    // 构建产物可视化分析（生成 stats.html，仅 ANALYZE 环境变量开启时加载）
+    ...(process.env.ANALYZE ? [visualizer({
       open: false,
       gzipSize: true,
       brotliSize: true,
       filename: 'stats.html',
-    }),
+    })] : []),
     // PWA Service Worker（静态资源预缓存 + 运行时缓存）
     VitePWA({
       // 确保使用 generateSW 策略自动生成 sw.js
@@ -195,7 +246,8 @@ export default defineConfig({
           // ============================================
           // 已有的命名 chunk
           // ============================================
-          if (id.includes('node_modules/vue') || id.includes('node_modules/vue-router')) return 'vue-vendor';
+          if (id.includes('node_modules/pptxgenjs')) return 'ppt-vendor';
+          if (id.includes('node_modules/vue/') || id.includes('node_modules/vue-router/') || id.includes('node_modules/@vue/')) return 'vue-vendor';
           if (id.includes('node_modules/@supabase/supabase-js')) return 'supabase-vendor';
           if (id.includes('node_modules/lucide-vue-next')) return 'ui-icons';
           if (id.includes('node_modules/dompurify')) return 'ui-sanitize';
@@ -219,8 +271,6 @@ export default defineConfig({
         // 自动代码分割
         experimentalMinChunkSize: 20000,
       },
-      // 优化依赖打包
-      cache: true,
     },
     // 启用 CSS 分割，降低首屏阻塞体积
     cssCodeSplit: true,
@@ -244,7 +294,7 @@ export default defineConfig({
       sourceMap: false,
     },
     // 目标浏览器
-    target: 'es2021',
+    target: 'es2022',
     // 启用 modulepreload polyfill，确保关键 chunk (auth-store, supabase-vendor) 预加载
     modulePreload: {
       polyfill: true,
@@ -256,6 +306,15 @@ export default defineConfig({
     assetsInlineLimit: 4096,
     // 优化静态资源处理
     emptyOutDir: true,
+  },
+
+  // 依赖预构建优化
+  optimizeDeps: {
+    include: [
+      'vue', 'vue-router', 'pinia', 'pinia-plugin-persistedstate',
+      '@supabase/supabase-js', '@vueuse/core', '@vueuse/motion',
+      'marked', 'highlight.js', 'dompurify', 'lucide-vue-next',
+    ],
   },
 
   // 开发服务器配置

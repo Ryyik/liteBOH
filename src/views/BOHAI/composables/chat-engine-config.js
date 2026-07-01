@@ -5,7 +5,8 @@ import {
   SILICONFLOW_FREE_EMBEDDING_MODEL_IDS,
   SILICONFLOW_FREE_MULTIMODAL_MODEL_IDS,
   SILICONFLOW_FREE_RERANK_MODEL_IDS,
-  ZHIPU_CHAT_MODELS
+  ZHIPU_CHAT_MODELS,
+  getFreeChatModels
 } from '../../../utils/siliconflow-free-models.js';
 
 export const BOH_MEMBER_NAMES = 'ryyik|lf|小牛|橙子|eleven|end|雨芙蕖|白烨|丁老师|汉堡|百城|小天光|小仙';
@@ -432,24 +433,18 @@ export const siliconModelCatalog = {
   ]
 };
 
-export const availableModels = [
-  ...SILICONFLOW_FREE_CHAT_MODELS.map((model) => ({
-    id: model.id,
-    name: model.name,
-    provider: 'SiliconCloud',
-    providerKey: 'siliconflow',
-    url: SILICON_CLOUD_URL,
-    apiKey: ''
-  })),
-  ...ZHIPU_CHAT_MODELS.map((model) => ({
-    id: model.id,
-    name: model.name,
-    provider: 'ZhipuAI',
-    providerKey: 'zhipu',
-    url: ZHIPU_CHAT_URL,
-    apiKey: ''
-  }))
-];
+export function getAvailableModels() {
+  return [
+    ...getFreeChatModels().map((model) => ({
+      id: model.id,
+      name: model.name,
+      provider: 'SiliconCloud',
+      providerKey: 'siliconflow',
+      url: SILICON_CLOUD_URL,
+      apiKey: ''
+    }))
+  ];
+}
 
 export const allowedFreeSiliconModelIds = Object.freeze([
   ...SILICONFLOW_FREE_CHAT_MODELS.map((model) => model.id),

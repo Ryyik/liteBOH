@@ -1,6 +1,6 @@
 <script setup>
 import { Reply } from 'lucide-vue-next';
-import { ref, watch } from 'vue';
+import { useTierMap } from '@/composables/useTierMap.js';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { formatSmartTime } from '@/utils/time.js';
 import { getHomeCatAsset } from '@/utils/home-cat-theme.js';
@@ -50,7 +50,6 @@ const COMMENT_SORT_OPTIONS = [
 const formatDate = formatSmartTime;
 
 const { fetchUserTier, getNicknameClass } = useUserTier();
-const commentTierMap = ref({});
 
 const collectCommentAuthorIds = (comments) => {
   const ids = new Set();
@@ -62,13 +61,11 @@ const collectCommentAuthorIds = (comments) => {
   return [...ids];
 };
 
-watch(() => props.comments, async (cmts) => {
-  const ids = collectCommentAuthorIds(cmts);
-  await Promise.all(ids.map((id) => fetchUserTier(id)));
-  const map = {};
-  ids.forEach((id) => { map[id] = getNicknameClass(id); });
-  commentTierMap.value = map;
-}, { immediate: true, deep: true });
+const commentTierMap = useTierMap(
+  () => collectCommentAuthorIds(props.comments),
+  getNicknameClass,
+  fetchUserTier
+);
 
 const getChildReplyState = (parentId) => {
   const key = String(parentId || '');
@@ -973,5 +970,25 @@ const onReplyInput = (event) => {
     padding: 12px;
     font-size: 16px;
   }
+}
+
+/* 论坛内昵称统一纯色（无动画） */
+.nickname-gold {
+  color: #c4a35a !important;
+  background: none !important;
+  -webkit-background-clip: unset !important;
+  background-clip: unset !important;
+  -webkit-text-fill-color: unset !important;
+  animation: none !important;
+}
+
+.nickname-rainbow {
+  background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff, #9b59b6, #ff6b6b) !important;
+  background-size: 200% 100% !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  animation: none !important;
+  font-weight: 700;
 }
 </style>

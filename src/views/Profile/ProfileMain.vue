@@ -58,6 +58,7 @@
           <div class="profile-hero-copy">
             <div class="name-row profile-hero-name-row">
               <h1 class="profile-name" :class="nicknameClass">{{ profile.username }}</h1>
+              <span v-if="tierCode && tierCode !== 'free'" class="tier-badge" :class="`tier-${tierCode}`">{{ tierDisplayName }}</span>
               <span class="level-badge" :title="`等级 ${levelInfo.level}`">Lv.{{ levelInfo.level }}</span>
             </div>
             <p class="profile-handle">@{{ profile.username }}</p>
@@ -356,6 +357,8 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { useUserTier } from '@/composables/useUserTier.js';
+import { useTierMap } from '@/composables/useTierMap.js';
+import { PLAN_DISPLAY_NAMES } from '@/utils/subscription-benefits.js';
 
 const authStore = useAuthStore();
 const { isLoggedIn, userInfo } = storeToRefs(authStore);
@@ -528,43 +531,40 @@ const profile = computed(() => {
   return isOwnProfile.value ? ownProfileSnapshot.value : fetchedProfile.value;
 });
 
-const { fetchUserTier, getNicknameClass } = useUserTier();
+const { fetchUserTier, getNicknameClass, getUserTierCode } = useUserTier();
 const nicknameClass = ref('');
+const tierCode = ref('');
+const tierDisplayName = computed(() => PLAN_DISPLAY_NAMES[tierCode.value] || '');
 watch(() => profile.value?.id, async (id) => {
   if (id) {
     await fetchUserTier(id);
     nicknameClass.value = getNicknameClass(id);
+    tierCode.value = getUserTierCode(id);
   } else {
     nicknameClass.value = '';
+    tierCode.value = '';
   }
 }, { immediate: true });
 
-const commentTierMap = ref({});
-const impressionTierMap = ref({});
+const commentTierMap = useTierMap(
+  () => {
+    const ids = new Set();
+    (comments.value || []).forEach((c) => { if (c?.author_id) ids.add(c.author_id); });
+    return [...ids];
+  },
+  getNicknameClass,
+  fetchUserTier
+);
 
-watch(comments, async (cmts) => {
-  const ids = new Set();
-  (cmts || []).forEach((c) => {
-    if (c?.author_id) ids.add(c.author_id);
-  });
-  const idList = [...ids];
-  await Promise.all(idList.map((id) => fetchUserTier(id)));
-  const map = {};
-  idList.forEach((id) => { map[id] = getNicknameClass(id); });
-  commentTierMap.value = map;
-}, { immediate: true, deep: true });
-
-watch(impressions, async (imps) => {
-  const ids = new Set();
-  (imps || []).forEach((imp) => {
-    if (imp?.author_id) ids.add(imp.author_id);
-  });
-  const idList = [...ids];
-  await Promise.all(idList.map((id) => fetchUserTier(id)));
-  const map = {};
-  idList.forEach((id) => { map[id] = getNicknameClass(id); });
-  impressionTierMap.value = map;
-}, { immediate: true, deep: true });
+const impressionTierMap = useTierMap(
+  () => {
+    const ids = new Set();
+    (impressions.value || []).forEach((imp) => { if (imp?.author_id) ids.add(imp.author_id); });
+    return [...ids];
+  },
+  getNicknameClass,
+  fetchUserTier
+);
 
 const profileBannerStyle = computed(() => {
   const url = profile.value?.profile_background_url;

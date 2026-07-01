@@ -9,7 +9,6 @@ export const SITE_OPERATION_MEMORY = `
 - 我的方块（Userspace）: /user-space
 - 我的主页: /profile/:username
 - BOH AI: /ai-chat（同时已集成在 /user-space 的 AI 标签页）
-- AI广场: /ai-plaza（多模型统一入口）
 - 论坛: /forum
 - 消息中心: /user-center/messages（当前仅保留通知、点赞、评论、印象与系统消息）
 - 社区伙伴: /user-center/partners
@@ -42,7 +41,6 @@ export const SITE_OPERATION_MEMORY = `
 4) 如何进入 BOH AI
    - 路径 A: /ai-chat
    - 路径 B: /user-space -> 底部导航“AI”标签
-   - 路径 C: /ai-plaza
 
 5) 如何进入节目
    - 路径 A: /shows

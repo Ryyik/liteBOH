@@ -9,6 +9,52 @@ const DEFAULT_MODERATION_MODEL_ID = 'Qwen/Qwen2.5-7B-Instruct';
 const DEFAULT_MODERATION_MODEL_NAME = 'Qwen 2.5 7B Instruct';
 const MODERATION_MAX_TOKENS = 96;
 const MODERATION_REVIEW_MAX_TOKENS = 120;
+
+const RUNTIME_MODERATION_CONFIG_KEY = 'boh_moderation_model_config';
+
+export function getRuntimeModerationConfig() {
+  try {
+    const raw = localStorage.getItem(RUNTIME_MODERATION_CONFIG_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export function setRuntimeModerationConfig(config) {
+  try {
+    if (!config) {
+      localStorage.removeItem(RUNTIME_MODERATION_CONFIG_KEY);
+      return true;
+    }
+    localStorage.setItem(RUNTIME_MODERATION_CONFIG_KEY, JSON.stringify({
+      modelId: config.modelId || '',
+      apiUrl: config.apiUrl || '',
+      provider: config.provider || '',
+      enabled: config.enabled !== false
+    }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function getActiveModerationModelId() {
+  const runtime = getRuntimeModerationConfig();
+  if (runtime && runtime.enabled !== false && runtime.modelId) {
+    return runtime.modelId;
+  }
+  return import.meta.env.VITE_MODERATION_MODEL_ID || DEFAULT_MODERATION_MODEL_ID;
+}
+
+export function getActiveModerationApiUrl() {
+  const runtime = getRuntimeModerationConfig();
+  if (runtime && runtime.enabled !== false && runtime.apiUrl) {
+    return runtime.apiUrl;
+  }
+  return MODERATION_API_URL;
+}
 const REMOTE_CONTENT_MODERATION_SETTING = String(
   import.meta.env.VITE_ENABLE_REMOTE_CONTENT_MODERATION ?? 'true'
 ).trim().toLowerCase();
@@ -20,7 +66,7 @@ const IS_TEST_ENV = Boolean(
   import.meta.env.MODE === 'test'
 );
 
-export const MODERATION_MODEL_ID = import.meta.env.VITE_MODERATION_MODEL_ID || DEFAULT_MODERATION_MODEL_ID;
+export const MODERATION_MODEL_ID = getActiveModerationModelId();
 export const MODERATION_MODEL_NAME = MODERATION_MODEL_ID === DEFAULT_MODERATION_MODEL_ID
   ? DEFAULT_MODERATION_MODEL_NAME
   : MODERATION_MODEL_ID;
@@ -198,6 +244,7 @@ function quickLocalCheck(content) {
 }
 
 function buildLocalModerationResult(content, scene = DEFAULT_SCENE) {
+  const currentModelId = getActiveModerationModelId();
   if (!content || content.trim().length === 0) {
     return {
       ...PASS_RESULT,
@@ -206,7 +253,7 @@ function buildLocalModerationResult(content, scene = DEFAULT_SCENE) {
       reason: PASS_RESULT.message,
       source: 'local',
       scene,
-      model: MODERATION_MODEL_ID
+      model: currentModelId
     };
   }
 
@@ -220,7 +267,7 @@ function buildLocalModerationResult(content, scene = DEFAULT_SCENE) {
       reason: String(localResult.message || LOCAL_REJECT_RESULT.message),
       source: 'local',
       scene,
-      model: MODERATION_MODEL_ID
+      model: currentModelId
     };
   }
 
@@ -231,7 +278,7 @@ function buildLocalModerationResult(content, scene = DEFAULT_SCENE) {
     reason: PASS_RESULT.message,
     source: 'local',
     scene,
-    model: MODERATION_MODEL_ID
+    model: currentModelId
   };
 }
 
@@ -355,8 +402,10 @@ async function callAIModeration(content, scene, timeoutMs, {
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
+    const currentModelId = getActiveModerationModelId();
+    const currentApiUrl = getActiveModerationApiUrl();
     const payload = {
-      model: MODERATION_MODEL_ID,
+      model: currentModelId,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `场景: ${scene}\n内容: ${content}` }
@@ -369,8 +418,9 @@ async function callAIModeration(content, scene, timeoutMs, {
     const vaultResult = await callVaultSiliconChat({
       purpose: 'moderation',
       payload,
-      apiUrl: MODERATION_API_URL,
-      timeoutMs
+      apiUrl: currentApiUrl,
+      timeoutMs,
+      signal: controller.signal
     });
     if (!vaultResult.ok) {
       return failClosed
@@ -412,13 +462,14 @@ async function callAIModerationWithRetry(content, scene, timeoutMs, options = {}
 
 async function runModeration(content, scene, timeoutMs, options = {}) {
   const { failClosed = true } = options || {};
+  const currentModelId = getActiveModerationModelId();
   if (!content || content.trim().length === 0) {
-    return { ...PASS_RESULT, scene, model: MODERATION_MODEL_ID };
+    return { ...PASS_RESULT, scene, model: currentModelId };
   }
 
   const localResult = quickLocalCheck(content);
   if (localResult) {
-    return { ...localResult, scene, model: MODERATION_MODEL_ID };
+    return { ...localResult, scene, model: currentModelId };
   }
 
   if (!REMOTE_CONTENT_MODERATION_ENABLED) {
@@ -455,7 +506,7 @@ async function runModeration(content, scene, timeoutMs, options = {}) {
     reason: String(finalResult.reason || ''),
     source: finalResult.source || 'ai',
     scene,
-    model: MODERATION_MODEL_ID
+    model: getActiveModerationModelId()
   };
 }
 

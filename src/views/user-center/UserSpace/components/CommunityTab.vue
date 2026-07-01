@@ -233,6 +233,7 @@ import { logger } from '@/utils/logger.js';
 import { themeManager } from '@/utils/theme-manager.js';
 import { isHomeCatTheme } from '@/utils/home-cat-theme.js';
 import { useUserTier } from '@/composables/useUserTier.js';
+import { useTierMap } from '@/composables/useTierMap.js';
 
 const emit = defineEmits(['switch-tab', 'open-follow-modal']);
 
@@ -249,8 +250,6 @@ const { isUserOnline, formatUserOnlineStatus, formatOnlineStatusTooltip } = useU
 const hideOnlineStatus = computed(() => userInfo.value?.hideOnlineStatus ?? false);
 
 const { fetchUserTier, getNicknameClass } = useUserTier();
-const communityTierMap = ref({});
-const birthdayTierMap = ref({});
 
 const communityMemoryCache = createMemoryTtlCache();
 const CACHE_TTL = {
@@ -536,31 +535,25 @@ watch(currentCommunityPage, () => {
   fetchCommunityUsers();
 });
 
-watch(communityUsers, async (users) => {
-  const ids = new Set();
-  (users || []).forEach((u) => {
-    if (u?.id) ids.add(u.id);
-  });
-  const idList = [...ids];
-  await Promise.all(idList.map((id) => fetchUserTier(id)));
-  const map = {};
-  idList.forEach((id) => { map[id] = getNicknameClass(id); });
-  communityTierMap.value = map;
-}, { immediate: true, deep: true });
+const communityTierMap = useTierMap(
+  () => {
+    const ids = new Set();
+    (communityUsers.value || []).forEach((u) => { if (u?.id) ids.add(u.id); });
+    return [...ids];
+  },
+  getNicknameClass,
+  fetchUserTier
+);
 
-watch(recentBirthdayUsers, async (users) => {
-  const ids = new Set();
-  (users || []).forEach((u) => {
-    if (u?.id) ids.add(u.id);
-  });
-  const idList = [...ids];
-  await Promise.all(idList.map((id) => fetchUserTier(id)));
-  const map = {};
-  idList.forEach((id) => { map[id] = getNicknameClass(id); });
-  birthdayTierMap.value = map;
-}, { immediate: true, deep: true });
+const birthdayTierMap = useTierMap(
+  () => {
+    const ids = new Set();
+    (recentBirthdayUsers.value || []).forEach((u) => { if (u?.id) ids.add(u.id); });
+    return [...ids];
+  },
+  getNicknameClass,
+  fetchUserTier
+);
 </script>
 
-<style src="../styles/shell-community.css">
-@import '@/styles/helpers/function.css';
-</style>
+<style src="../styles/shell-community.css"></style>

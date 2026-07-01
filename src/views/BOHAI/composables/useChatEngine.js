@@ -112,11 +112,11 @@ import {
   USER_PRIVATE_PUSHPLUS_KEYWORDS,
   USER_PRIVATE_SUBSCRIPTION_KEYWORDS,
   USER_PRIVATE_SUMMARY_KEYWORDS,
-  availableModels,
+  getAvailableModels,
   chatModes
 } from './chat-engine-config.js';
 
-export { availableModels, chatModes } from './chat-engine-config.js';
+export { getAvailableModels, chatModes } from './chat-engine-config.js';
 import { useConversationManager, updateLastActualExtraChars } from './useConversationManager.js';
 import { useGenerationPipeline } from './useGenerationPipeline.js';
 import { useModelConfig } from './useModelConfig.js';
@@ -247,10 +247,13 @@ export function useChatEngine() {
 
   const isStreamingGeneration = ref(false);
 
-  watch(chatSessions, () => {
+  // chatSessions 为 reactive，直接 watch 会被 Vue 强制 deep 遍历（含每条消息内容），
+  // 流式 token 追加也会触发全量遍历。改用轻量 getter 仅跟踪会话数与各会话消息数，
+  // 内容编辑（如流式 token）不改变 length，不再触发遍历。
+  watch(() => chatSessions.map((s) => s?.messages?.length || 0), () => {
     if (isStreamingGeneration.value) return;
     scheduleSaveSessions();
-  }, { deep: true });
+  });
 
   watch(() => userInfo.value?.id || '', (nextId, prevId) => {
     if (nextId === prevId) return;
@@ -276,7 +279,7 @@ export function useChatEngine() {
 
   // 局部状态（不属于子 composable 的纯引擎内部状态）
   const abortController = ref(null);
-  const runtimeAvailableModels = ref(availableModels.map((model) => ({ ...model })));
+  const runtimeAvailableModels = ref(getAvailableModels().map((model) => ({ ...model })));
   const runtimeChatModes = ref(chatModes.map((mode) => ({ ...mode })));
   const runtimeGenerationProfiles = ref({});
 
