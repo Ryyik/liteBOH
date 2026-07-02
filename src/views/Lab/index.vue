@@ -5,9 +5,9 @@
       <div class="brand">
         <div class="brand-mark">B</div>
         <div class="brand-text">
-          <div class="brand-name">BOH 办公 AI</div>
+          <div class="brand-name">BOH Agent Preview</div>
           <div class="brand-sub">
-            对话式文档助手
+            更便捷的帮助你办公
             <span v-if="!isUnlimited" class="quota-hint"> · {{ getQuotaHint() }}</span>
             <span v-else class="quota-hint unlimited"> · 无限生成</span>
           </div>
@@ -1216,6 +1216,12 @@ async function sendDoc(content) {
 }
 
 async function sendPPT(content) {
+  // 生成前检查限额，避免浪费 token
+  if (isExceeded.value) {
+    toastRef.value?.warning('生成次数已达上限', getUpgradeHint())
+    return
+  }
+
   aiLoading.value = true
 
   // 初始化任务面板
@@ -1279,6 +1285,13 @@ async function sendPPT(content) {
  */
 async function confirmPPTOutline() {
   if (!pendingOutline.value) return
+
+  // 生成前检查限额，避免浪费 token
+  if (isExceeded.value) {
+    toastRef.value?.warning('生成次数已达上限', getUpgradeHint())
+    return
+  }
+
   aiLoading.value = true
 
   // 确认阶段完成，进入详情生成阶段
@@ -1386,6 +1399,12 @@ async function revisePPTOutline(feedback) {
 }
 
 async function sendWord(content) {
+  // 生成前检查限额，避免浪费 token
+  if (isExceeded.value) {
+    toastRef.value?.warning('生成次数已达上限', getUpgradeHint())
+    return
+  }
+
   aiLoading.value = true
 
   // 初始化任务面板
@@ -1449,6 +1468,13 @@ async function sendWord(content) {
  */
 async function confirmWordOutline() {
   if (!pendingOutline.value) return
+
+  // 生成前检查限额，避免浪费 token
+  if (isExceeded.value) {
+    toastRef.value?.warning('生成次数已达上限', getUpgradeHint())
+    return
+  }
+
   aiLoading.value = true
 
   // 确认阶段完成，进入详情生成阶段
@@ -1558,18 +1584,11 @@ async function reviseWordOutline(feedback) {
 
 async function downloadPPT(pptData) {
   if (!pptData) return
-
-  // 检查限额
-  if (isExceeded.value) {
-    toastRef.value?.warning('生成次数已达上限', getUpgradeHint())
-    return
-  }
-
   try {
     const fileName = `${(pptData.title || 'AI生成').replace(/\s+/g, '_')}.pptx`
     await buildPPTFile(pptData, selectedPresetId.value, fileName)
 
-    // 记录使用次数
+    // 记录使用次数（生成前已检查限额，这里只记录）
     const result = await recordUsage('ppt')
     if (!result.success) {
       toastRef.value?.warning('记录使用失败', result.error)
@@ -1587,18 +1606,11 @@ async function downloadPPT(pptData) {
 
 async function downloadWord(wordData) {
   if (!wordData) return
-
-  // 检查限额
-  if (isExceeded.value) {
-    toastRef.value?.warning('生成次数已达上限', getUpgradeHint())
-    return
-  }
-
   try {
     const fileName = `${(wordData.title || 'AI生成').replace(/\s+/g, '_')}.docx`
     await buildWordFile(wordData, selectedPresetId.value, fileName)
 
-    // 记录使用次数
+    // 记录使用次数（生成前已检查限额，这里只记录）
     const result = await recordUsage('word')
     if (!result.success) {
       toastRef.value?.warning('记录使用失败', result.error)
