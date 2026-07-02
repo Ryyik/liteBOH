@@ -6,7 +6,11 @@
         <div class="brand-mark">B</div>
         <div class="brand-text">
           <div class="brand-name">BOH 办公 AI</div>
-          <div class="brand-sub">对话式文档助手</div>
+          <div class="brand-sub">
+            对话式文档助手
+            <span v-if="!isUnlimited" class="quota-hint"> · {{ getQuotaHint() }}</span>
+            <span v-else class="quota-hint unlimited"> · 无限生成</span>
+          </div>
         </div>
       </div>
       <div class="topbar-actions">
@@ -618,12 +622,28 @@ import { getAllTemplates, saveTemplate } from './engine/template-store.js'
 import { useDocumentAI } from './composables/useDocumentAI.js'
 import { usePPTGenerator } from './composables/usePPTGenerator.js'
 import { useWordGenerator } from './composables/useWordGenerator.js'
+import { useLabQuota } from '@/composables/useLabQuota.js'
 import { STYLE_PRESETS, DEFAULT_PRESET_ID, getPresetById } from './config/design-tokens.js'
 import './styles/claude-theme.css'
 
 const { chat, aiLoading } = useDocumentAI()
 const { generatePPTStructure, generateOutline: generatePPTOutline, buildPPT, buildPPTFile } = usePPTGenerator()
 const { generateDoc: generateWordDoc, generateOutline: generateWordOutline, buildWordFile } = useWordGenerator()
+
+// ===== 实验室使用限额 =====
+const {
+  usageCount,
+  monthlyQuota,
+  remainingCount,
+  isExceeded,
+  isUnlimited,
+  usagePercent,
+  initialize: initializeQuota,
+  recordUsage,
+  getQuotaHint,
+  getUpgradeHint,
+  effectiveTier
+} = useLabQuota()
 
 // ===== 顶层状态 =====
 const pptIntent = ref(false) // 是否启用 PPT 生成意图
@@ -1538,10 +1558,27 @@ async function reviseWordOutline(feedback) {
 
 async function downloadPPT(pptData) {
   if (!pptData) return
+
+  // 检查限额
+  if (isExceeded.value) {
+    toastRef.value?.warning('生成次数已达上限', getUpgradeHint())
+    return
+  }
+
   try {
     const fileName = `${(pptData.title || 'AI生成').replace(/\s+/g, '_')}.pptx`
     await buildPPTFile(pptData, selectedPresetId.value, fileName)
+
+    // 记录使用次数
+    const result = await recordUsage('ppt')
+    if (!result.success) {
+      toastRef.value?.warning('记录使用失败', result.error)
+    }
+
     toastRef.value?.success('下载成功', fileName)
+
+    // 刷新限额状态
+    await initializeQuota()
   } catch (e) {
     error.value = `下载失败：${e.message}`
     toastRef.value?.error('下载失败', e.message)
@@ -1550,10 +1587,27 @@ async function downloadPPT(pptData) {
 
 async function downloadWord(wordData) {
   if (!wordData) return
+
+  // 检查限额
+  if (isExceeded.value) {
+    toastRef.value?.warning('生成次数已达上限', getUpgradeHint())
+    return
+  }
+
   try {
     const fileName = `${(wordData.title || 'AI生成').replace(/\s+/g, '_')}.docx`
     await buildWordFile(wordData, selectedPresetId.value, fileName)
+
+    // 记录使用次数
+    const result = await recordUsage('word')
+    if (!result.success) {
+      toastRef.value?.warning('记录使用失败', result.error)
+    }
+
     toastRef.value?.success('下载成功', fileName)
+
+    // 刷新限额状态
+    await initializeQuota()
   } catch (e) {
     error.value = `下载失败：${e.message}`
     toastRef.value?.error('下载失败', e.message)
@@ -1675,6 +1729,8 @@ function onDocClick(e) {
 
 onMounted(() => {
   document.addEventListener('click', onDocClick)
+  // 初始化实验室使用限额
+  initializeQuota()
   // 引入 Claude 字体
   if (!document.getElementById('claude-fonts')) {
     const link = document.createElement('link')
@@ -1916,6 +1972,16 @@ onBeforeUnmount(() => {
   color: var(--muted-foreground);
   letter-spacing: 0.02em;
   margin-top: 2px;
+}
+.quota-hint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted-foreground);
+  opacity: 0.7;
+}
+.quota-hint.unlimited {
+  color: var(--success);
+  opacity: 1;
 }
 .topbar-actions {
   display: flex;
