@@ -207,16 +207,19 @@ export default defineConfig({
         // 代码分割
         manualChunks(id) {
           // ============================================
-          // 文档处理库（最大优化点，约 1.3 MB，仅 Lab 页面使用）
+          // 文档处理库（拆分为多个 chunk，避免单 chunk 超过 800KB）
           // ============================================
-          if (id.includes('node_modules/docx')) return 'doc-processing-vendor';
-          if (id.includes('node_modules/mammoth')) return 'doc-processing-vendor';
-          if (id.includes('node_modules/bluebird')) return 'doc-processing-vendor';
-          if (id.includes('node_modules/@xmldom/xmldom')) return 'doc-processing-vendor';
-          if (id.includes('node_modules/jszip')) return 'doc-processing-vendor';
-          if (id.includes('node_modules/xmlbuilder')) return 'doc-processing-vendor';
-          if (id.includes('node_modules/underscore')) return 'doc-processing-vendor';
-          if (id.includes('node_modules/dingbat-to-unicode')) return 'doc-processing-vendor';
+          // docx 库独立（约 500KB+）
+          if (id.includes('node_modules/docx')) return 'docx-vendor';
+          // mammoth 库独立（约 200KB+）
+          if (id.includes('node_modules/mammoth')) return 'mammoth-vendor';
+          // jszip + xmlbuilder + @xmldoc 等辅助库
+          if (id.includes('node_modules/jszip')) return 'doc-utils-vendor';
+          if (id.includes('node_modules/xmlbuilder')) return 'doc-utils-vendor';
+          if (id.includes('node_modules/@xmldom/xmldom')) return 'doc-utils-vendor';
+          if (id.includes('node_modules/bluebird')) return 'doc-utils-vendor';
+          if (id.includes('node_modules/underscore')) return 'doc-utils-vendor';
+          if (id.includes('node_modules/dingbat-to-unicode')) return 'doc-utils-vendor';
 
           // ============================================
           // 状态管理（首屏必需，但独立缓存）
