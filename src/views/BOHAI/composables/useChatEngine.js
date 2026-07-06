@@ -60,6 +60,7 @@ import { isAbortError, CHAT_ERROR_MESSAGES, getAbortMessage } from '../utils/cha
 import {
   ACCURACY_PREFERRED_MODEL_ID,
   BASE_SYSTEM_PROMPT,
+  CONTEXT_PLACEHOLDER,
   CLOUD_REFERENCE_CONSENT_KEY,
   FORUM_MAX_CHARS_PER_POST,
   FORUM_MAX_POSTS,
@@ -146,6 +147,7 @@ import {
   buildHistoryMessagesWithCachedSummary,
   rankEvidenceContextBlocks,
   buildSharedEvidenceContext,
+  buildSystemEvidenceContext,
   trimMessagesToBudget,
   estimateTokens,
   estimateMessagesTokens,
@@ -169,7 +171,13 @@ import {
   getGenerationProfile as getDefaultGenerationProfile,
   cleanAssistantVisibleReply,
   isDegenerateAssistantReply,
-  isDegenerateStreamOutput
+  isDegenerateStreamOutput,
+  createContextBudgetTracker,
+  extractStructuredMemories,
+  buildStructuredMemoryBlock,
+  compactMessages,
+  buildAgentContext,
+  CONTEXT_CATEGORIES
 } from './bohai-engine-helpers.js';
 import {
   runAgentClusterBranch,
@@ -933,7 +941,7 @@ export function useChatEngine() {
       const summary = await callModelInternal(
         summaryModel.id,
         summaryPrompt,
-        '你是 BOH AI 的本地对话摘要器，只输出摘要正文。',
+        '<role>你是 BOH AI 的本地对话摘要器。</role>\n<constraints>\n- 只输出摘要正文，不要额外说明\n- 不要添加原文没有的信息\n</constraints>',
         [],
         summarySignal,
         0,
@@ -1527,39 +1535,42 @@ export function useChatEngine() {
       const hasForumEvidence = Array.isArray(groundingEvidenceRefs)
         && groundingEvidenceRefs.some((ref) => /^F\d+$/i.test(String(ref)));
 
-      const responseRules = `【回答要求】：
-1. 涉及社区事实时，优先依据检索内容回答。
-2. 涉及用户个人复盘时，优先结合 BOH Cloud+ 私有内容给出总结和建议。
-3. 优先用自然表达，不强制套用固定模板。
-4. 追问时保持对话连贯，不要重复已说过的内容，直接推进。
-5. 对于通用知识问题（非方块之家站内内容），直接给出最佳回答，不确定的部分标注不确定即可；不要建议用户去论坛搜索、不要提供搜索步骤，也不要问“你是想了解 X 还是想在论坛查帖子”。
-${hasForumEvidence ? `9. 总结论坛帖子时，用检索资料中的发帖者信息指代，不要泛称“有人提到”。
-10. 不要编造论坛用户、帖子或链接；没有检索到论坛资料时，不要提及论坛内容。` : ''}
+      const responseRules = `<constraints>
+- 涉及社区事实时，优先依据检索内容回答。
+- 涉及用户个人复盘时，优先结合 BOH Cloud+ 私有内容给出总结和建议。
+- 追问时保持对话连贯，不要重复已说过的内容，直接推进。
+- 对于通用知识问题（非方块之家站内内容），直接给出最佳回答，不确定的部分标注不确定即可；不要建议用户去论坛搜索、不要提供搜索步骤，也不要问"你是想了解 X 还是想在论坛查帖子"。
+${hasForumEvidence ? `- 总结论坛帖子时，用检索资料中的发帖者信息指代，不要泛称"有人提到"。
+- 不要编造论坛用户、帖子或链接；没有检索到论坛资料时，不要提及论坛内容。` : ''}
 ${personalSupportMode ? '- 用户在表达自己的困扰、情绪或身体状态时，先用 1-2 句接住他的处境和感受，再给最多 2-3 个低压力、今晚就能做的小动作；不要上来就列长清单，不要把普通困扰写成医学建议。结尾可以轻轻问一句具体情况，让用户愿意继续说。' : ''}
 ${isPlanMode ? '- Plan 模式下需要提问时用【追问】格式，不要直接在对话中发问；信息充足后用 - [ ] 输出结构化计划。' : ''}
-${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须严格按 [F1]、[F2]、[F3]、[F4]、[F5] 的顺序输出；[F1] 是最新发布，后面依次更早。不得按热度、重要性或主题重排；若不足 5 条，只输出已检索到的条目。' : ''}`;
+${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须严格按 [F1]、[F2]、[F3]、[F4]、[F5] 的顺序输出；[F1] 是最新发布，后面依次更早。不得按热度、重要性或主题重排；若不足 5 条，只输出已检索到的条目。' : ''}
+</constraints>`;
 
       let communityRules = '';
       if (bohInternalFactualQuestion) {
-        communityRules = `【社群内容规则】
-1. 涉及方块之家、BOH、论坛帖子、成员、活动、历史等内容时，依据检索到的资料回答。
-2. 不要凭印象补全人物、事件、时间线或统计数字。
-3. 资料没有覆盖的点，直接说“未检索到相关依据”即可。`;
+        communityRules = `<constraints>
+- 涉及方块之家、BOH、论坛帖子、成员、活动、历史等内容时，依据检索到的资料回答。
+- 不要凭印象补全人物、事件、时间线或统计数字。
+- 资料没有覆盖的点，直接说“未检索到相关依据”即可。
+</constraints>`;
       }
 
       let evidenceRules = '';
       if (shouldEnforceGrounding) {
-        evidenceRules = `【回答参考】：
-1. 优先基于检索到的资料回答，不确定的部分直接说明不确定。
-2. 回答要自然流畅，不需要标注来源编号。`;
+        evidenceRules = `<constraints>
+- 优先基于检索到的资料回答，不确定的部分直接说明不确定。
+- 回答要自然流畅，不需要标注来源编号。
+</constraints>`;
       }
 
       let operationRules = '';
       if (operationQuestion) {
-        operationRules = `【操作类问题】
+        operationRules = `<constraints>
 - 给出入口路径和操作步骤；简单操作用自然段落说明，复杂操作用编号步骤。
 - 如果无法从已检索资料确认路径，直接说“无法确认该功能的准确路径”。
-- 禁止猜测未出现过的页面路径或按钮文案。`;
+- 禁止猜测未出现过的页面路径或按钮文案。
+</constraints>`;
       }
 
       const actualExtraChars = (internalEvidenceContext.length || 0) + (webEvidenceContext.length || 0) + (communityRules.length || 0) + (evidenceRules.length || 0) + (operationRules.length || 0);
@@ -1580,13 +1591,10 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         userText: shouldUseContextualQuery
           ? `${userText}\n\n【上下文理解提示】这是一条追问；请结合最近对话理解，不要把它当成脱离上下文的新问题。\n${contextualQuery}`
           : userText,
-        evidenceContext: sharedContext.evidenceContext,
-        searchContext: sharedContext.searchContext,
         responseRules,
         communityRules,
         evidenceRules,
-        operationRules,
-        availableEvidenceRefs: shouldEnforceGrounding ? groundingEvidenceRefs : []
+        operationRules
       });
 
       const preferAccuracyModel = factualQuestion || operationQuestion || enableSearch || communityNeedsEvidence;
@@ -1604,8 +1612,25 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
       };
       let requestBody = {};
       const stylePromptAppendix = String(currentResponseStyle.value?.promptAppendix || '').trim();
+      const evidenceContextBlock = buildSystemEvidenceContext({
+        evidenceContext: sharedContext.evidenceContext,
+        searchContext: sharedContext.searchContext
+      });
+
+      // 优化1: Token 预算监控
+      const budgetTracker = createContextBudgetTracker();
+      budgetTracker.addEstimate(CONTEXT_CATEGORIES.SYSTEM_PROMPT, BASE_SYSTEM_PROMPT);
+      budgetTracker.addEstimate(CONTEXT_CATEGORIES.EVIDENCE, evidenceContextBlock);
+      budgetTracker.addEstimate(CONTEXT_CATEGORIES.RULES, finalPrompt);
+
+      // 优化2: 结构化记忆提取
+      const structuredMemories = extractStructuredMemories(historyMessagesForCurrentTurn);
+      const structuredMemoryBlock = buildStructuredMemoryBlock(structuredMemories);
+      budgetTracker.addEstimate(CONTEXT_CATEGORIES.STRUCTURED_MEMORY, structuredMemoryBlock);
+
       const systemPromptContent = [
-        BASE_SYSTEM_PROMPT,
+        BASE_SYSTEM_PROMPT.replace(`\n${CONTEXT_PLACEHOLDER}\n`, evidenceContextBlock ? `\n${evidenceContextBlock}\n` : ''),
+        structuredMemoryBlock,
         isPlanMode ? PLAN_MODE_PROMPT_APPENDIX : '',
         stylePromptAppendix
       ].filter((section) => String(section || '').trim()).join('\n');
@@ -1633,7 +1658,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
           const rawNarrative = await callModelInternal(
             generationModel.id,
             forumNarrativePrompt,
-            `${systemPromptContent}\n你必须严格基于用户提供的论坛帖子资料写总结。禁止编造，禁止输出链接，禁止输出列表。`,
+            `${systemPromptContent}\n<constraints>\n- 绝对不能编造论坛帖子内容\n- 绝对不能输出链接或 URL\n- 绝对不能输出列表格式，必须用自然段落\n- 必须严格基于用户提供的论坛帖子资料\n</constraints>`,
             [],
             requestController.signal,
             0,
@@ -1653,7 +1678,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
             const repairedNarrative = await callModelInternal(
               generationModel.id,
               `${forumNarrativePrompt}\n\n【上次总结存在的准确性问题】\n${polarityConflicts.map((item) => `- ${item}`).join('\n')}\n\n【上次总结】\n${narrativeAnswer}\n\n请重写总结，必须修正上述问题，尤其不能把“大/小、多少、喜欢/不喜欢、要/不要”等语义方向写反。`,
-              `${systemPromptContent}\n你正在修正论坛总结。必须严格基于资料，优先准确，其次自然。禁止编造，禁止输出链接，禁止输出列表。`,
+              `${systemPromptContent}\n<constraints>\n- 你正在修正论坛总结\n- 绝对不能编造\n- 绝对不能输出链接或列表\n- 必须严格基于资料，优先准确，其次自然\n</constraints>`,
               [],
               requestController.signal,
               0,
@@ -1743,8 +1768,16 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
           : generationProfile.max_tokens
       };
 
-      // C1 fix: 发送前裁剪 messages 数组，防止静默超出模型上下文窗口
-      requestBody.messages = trimMessagesToBudget(requestBody.messages, MAX_MESSAGES_TOTAL_TOKENS);
+      // C1 fix + 优化1/3: 发送前裁剪 messages 数组，使用分层压缩
+      budgetTracker.addEstimate(CONTEXT_CATEGORIES.HISTORY, recentMessages.map((m) => m.content).join(' '));
+      const budgetState = budgetTracker.getUsage();
+      requestBody.messages = compactMessages(requestBody.messages, MAX_MESSAGES_TOTAL_TOKENS);
+      if (budgetState.level === 'high' || budgetState.level === 'full') {
+        const degPlan = budgetTracker.getDegradationPlan();
+        if (degPlan.drops.length > 0) {
+          logger.info('boh-ai', 'Context budget', JSON.stringify({ level: budgetState.level, drops: degPlan.drops }));
+        }
+      }
 
       const STREAM_FETCH_TIMEOUT_MS = 120_000; // 2 min stream timeout
       markGenerationProgress('正在请求模型生成回答...');
@@ -1882,10 +1915,11 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
       if (shouldRepairDegenerateStream) {
         const retryPrompt = appendPromptSection(
           finalPrompt,
-          `\n\n【稳定性约束】
+          `\n<constraints>
 - 禁止输出连续重复标点或无意义字符（如 !!!!!、?????、-----）。
 - 输出必须是正常中文句子，结构清晰，不要输出长串符号。
-- 若信息不足，请直接说明“我暂时无法确认”，不要输出占位符。`,
+- 若信息不足，请直接说明"我暂时无法确认"，不要输出占位符。
+</constraints>`,
           MAX_FINAL_PROMPT_CHARS
         );
 
@@ -1939,7 +1973,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
             fallbackModel?.id || generationModel.id,
             appendPromptSection(
               finalPrompt,
-              '\n\n【补答要求】\n上一轮流式输出没有生成可见正文。请直接给出最终回答，不要输出思考过程、检索日志或空内容。',
+              '\n<constraints>\n- 补答：上一轮流式输出没有生成可见正文\n- 直接给出最终回答，不要输出思考过程、检索日志或空内容\n</constraints>',
               MAX_FINAL_PROMPT_CHARS
             ),
             systemPromptContent,
@@ -1964,9 +1998,10 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
 
         const retryPrompt = appendPromptSection(
           finalPrompt,
-          `\n\n【稳定性约束】
+          `\n<constraints>
 - 禁止输出连续重复标点或无意义字符（如 !!!!!、?????、-----）。
-- 若信息不足，请直接说明“我暂时无法确认”，不要输出占位符。`,
+- 若信息不足，请直接说明"我暂时无法确认"，不要输出占位符。
+</constraints>`,
           MAX_FINAL_PROMPT_CHARS
         );
 

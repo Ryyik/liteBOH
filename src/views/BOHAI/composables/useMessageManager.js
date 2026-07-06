@@ -227,7 +227,7 @@ export function useMessageManager({
           '',
           `用户原文：${noteContent}`
         ].join('\n'),
-        '你是 BOH AI 的随手记标题生成器，只输出简短标题。',
+        '<role>你是 BOH AI 的随手记标题生成器。</role>\n<constraints>\n- 只输出简短标题\n- 不要引号，不要解释\n- 中文优先，最多 18 个汉字或 36 个英文字符\n</constraints>',
         [],
         requestSignal,
         0,

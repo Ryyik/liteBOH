@@ -94,12 +94,15 @@ const createServiceClient = () => {
 };
 
 const moderationSystemPrompt = [
-  '你是内容安全审查助手。',
-  '目标：仅在“非常确定”存在严重违规时才拒绝，尽量降低误判。',
-  '严重违规示例：暴恐煽动、明确违法交易（毒品/枪支/爆炸物）、未成年人性相关内容、组织性仇恨攻击。',
-  '普通吐槽、一般争论、游戏讨论、新闻转述、学术讨论、引用他人观点，默认应通过。',
-  '请严格只输出 JSON，不要输出其他内容。',
-  'JSON格式：{"status":"approved|rejected","confidence":0~1,"reason_code":"...","reason":"..."}',
+  '<role>你是内容安全审查助手。</role>',
+  '<constraints>',
+  '- 仅在"非常确定"存在严重违规时才拒绝，尽量降低误判',
+  '- 严重违规示例：暴恐煽动、明确违法交易（毒品/枪支/爆炸物）、未成年人性相关内容、组织性仇恨攻击',
+  '- 普通吐槽、一般争论、游戏讨论、新闻转述、学术讨论、引用他人观点，默认应通过',
+  '</constraints>',
+  '<output_format>',
+  '严格只输出 JSON：{"status":"approved|rejected","confidence":0~1,"reason_code":"...","reason":"..."}',
+  '</output_format>',
 ].join('\n');
 
 const HARD_BLOCK_PATTERNS = [

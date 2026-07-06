@@ -482,27 +482,14 @@ export const trimMessagesToBudget = (messages, maxTokens) => {
 
 export const buildStructuredUserPrompt = ({
   userText = '',
-  evidenceContext = '',
-  searchContext = '',
   responseRules = '',
   communityRules = '',
   evidenceRules = '',
-  operationRules = '',
-  availableEvidenceRefs = []
+  operationRules = ''
 } = {}) => {
   const sections = [
     `<task>\n${truncateText(userText, MAX_USER_INPUT_CHARS)}\n</task>`
   ];
-
-  if (evidenceContext) {
-    sections.push(`<internal_evidence>\n${evidenceContext}\n</internal_evidence>`);
-  }
-
-  if (searchContext) {
-    sections.push(`<web_evidence>\n${searchContext}\n</web_evidence>`);
-  }
-
-  // available_internal_refs no longer needed — AI doesn't need to cite source IDs
 
   const ruleSections = [
     responseRules,
@@ -516,6 +503,25 @@ export const buildStructuredUserPrompt = ({
   }
 
   return truncateText(sections.join('\n\n'), MAX_FINAL_PROMPT_CHARS);
+};
+
+export const buildSystemEvidenceContext = ({
+  evidenceContext = '',
+  searchContext = ''
+} = {}) => {
+  const evidence = String(evidenceContext || '').trim();
+  const search = String(searchContext || '').trim();
+  const parts = [];
+
+  if (evidence) {
+    parts.push(`<internal_evidence>\n${evidence}\n</internal_evidence>`);
+  }
+
+  if (search) {
+    parts.push(`<web_evidence>\n${search}\n</web_evidence>`);
+  }
+
+  return parts.join('\n\n');
 };
 
 export const containsAnyKeyword = (normalizedText, keywords = []) => {
@@ -1064,4 +1070,224 @@ export const isDegenerateStreamOutput = (text) => {
 
   const punctCount = (compact.match(buildPunctDensityRegex()) || []).length;
   return punctCount / compact.length >= DEGENERATE_STREAM_PUNCTUATION_RATIO;
+};
+
+// ============================================================
+// 优化 1: Token 预算监控 — ContextManager
+// 跟踪每种上下文的 token 用量，超出时提供降级建议。
+// ============================================================
+
+export const CONTEXT_CATEGORIES = {
+  SYSTEM_PROMPT: 'systemPrompt',
+  HISTORY: 'history',
+  EVIDENCE: 'evidence',
+  RULES: 'rules',
+  USER_INPUT: 'userInput',
+  STRUCTURED_MEMORY: 'structuredMemory'
+};
+
+export const CONTEXT_BUDGET_DEFAULTS = {
+  systemPrompt: { max: 4000, priority: 0 },
+  history: { max: 10000, priority: 2 },
+  evidence: { max: 5000, priority: 3 },
+  rules: { max: 2000, priority: 1 },
+  userInput: { max: 3000, priority: 0 },
+  structuredMemory: { max: 800, priority: 1 }
+};
+
+export const createContextBudgetTracker = (budgets = {}) => {
+  const merged = {};
+  for (const [key, def] of Object.entries(CONTEXT_BUDGET_DEFAULTS)) {
+    merged[key] = { ...def, ...(budgets[key] || {}) };
+  }
+
+  const usage = {};
+  for (const key of Object.keys(merged)) {
+    usage[key] = 0;
+  }
+
+  const addEstimate = (category, text) => {
+    if (!usage.hasOwnProperty(category)) return;
+    usage[category] += estimateTokens(String(text || ''));
+  };
+
+  const getUsage = () => {
+    const totalUsed = Object.values(usage).reduce((a, b) => a + b, 0);
+    const totalBudget = Object.values(merged).reduce((a, b) => a + b.max, 0);
+
+    const byCategory = {};
+    for (const [key, val] of Object.entries(usage)) {
+      const budget = merged[key];
+      byCategory[key] = {
+        used: val,
+        max: budget.max,
+        percent: budget.max > 0 ? Math.min(100, (val / budget.max) * 100) : 0,
+        priority: budget.priority
+      };
+    }
+
+    return {
+      total: { used: totalUsed, max: totalBudget, percent: totalBudget > 0 ? Math.min(100, (totalUsed / totalBudget) * 100) : 0 },
+      byCategory,
+      level: totalBudget > 0 && (totalUsed / totalBudget) >= 0.95 ? 'full'
+        : totalBudget > 0 && (totalUsed / totalBudget) >= 0.80 ? 'high'
+        : totalBudget > 0 && (totalUsed / totalBudget) >= 0.55 ? 'mid'
+        : 'low'
+    };
+  };
+
+  const getDegradationPlan = () => {
+    const state = getUsage();
+    const drops = [];
+
+    if (state.level === 'full' || state.level === 'high') {
+      const sorted = Object.entries(state.byCategory)
+        .filter(([_, v]) => v.percent > 50)
+        .sort((a, b) => b[1].priority - a[1].priority);
+
+      for (const [cat, info] of sorted) {
+        if (info.percent > 80) {
+          drops.push({ category: cat, action: 'truncate', target: Math.round(info.max * 0.5) });
+        } else if (info.percent > 60) {
+          drops.push({ category: cat, action: 'summarize', target: Math.round(info.max * 0.6) });
+        }
+      }
+    }
+
+    return { level: state.level, drops };
+  };
+
+  const reset = () => {
+    for (const key of Object.keys(usage)) {
+      usage[key] = 0;
+    }
+  };
+
+  return { addEstimate, getUsage, getDegradationPlan, reset };
+};
+
+// ============================================================
+// 优化 2: 结构化记忆提取
+// 从对话中提取类型化关键事实，以紧凑 JSON 格式注入上下文。
+// ============================================================
+
+export const STRUCTURED_MEMORY_TYPES = {
+  PREFERENCE: 'preference',
+  PERSONAL_INFO: 'personal_info',
+  DECISION: 'decision',
+  GOAL: 'goal',
+  RELATIONSHIP: 'relationship',
+  EVENT: 'event'
+};
+
+export const extractStructuredMemories = (messages = []) => {
+  if (!Array.isArray(messages) || messages.length < 4) return [];
+
+  const memories = [];
+  const text = messages
+    .filter((m) => m?.role === 'user' || m?.role === 'assistant')
+    .map((m) => String(m.content || ''))
+    .join('\n')
+    .slice(-6000);
+
+  const patterns = [
+    { type: STRUCTURED_MEMORY_TYPES.PREFERENCE, re: /(?:我|用户)(?:喜欢|不喜欢|偏爱|更愿意)\s*(.+?)[。，；;]/g },
+    { type: STRUCTURED_MEMORY_TYPES.PERSONAL_INFO, re: /(?:我|用户)(?:是|叫|在|来自|今年)\s*(.+?)[。，；;]/g },
+    { type: STRUCTURED_MEMORY_TYPES.DECISION, re: /(?:我|用户)(?:决定|选择|打算|想|要)\s*(.+?)[。，；;]/g },
+    { type: STRUCTURED_MEMORY_TYPES.GOAL, re: /(?:我|用户)(?:的目标|的目标是|希望|想要|需要|梦想)\s*(.+?)[。，；;]/g },
+    { type: STRUCTURED_MEMORY_TYPES.EVENT, re: /(?:我|用户)(?:最近|刚刚|之前|昨天|上周|今天)\s*(.+?)[。，；;]/g }
+  ];
+
+  for (const { type, re } of patterns) {
+    let match;
+    while ((match = re.exec(text)) !== null) {
+      const value = match[1].trim().slice(0, 100);
+      if (value.length >= 4 && !memories.some((m) => m.value.includes(value) || value.includes(m.value))) {
+        memories.push({ type, value, confidence: type === STRUCTURED_MEMORY_TYPES.PERSONAL_INFO ? 0.7 : 0.5 });
+        if (memories.length >= 12) break;
+      }
+    }
+    if (memories.length >= 12) break;
+  }
+
+  return memories;
+};
+
+export const buildStructuredMemoryBlock = (memories = []) => {
+  if (!memories.length) return '';
+  const xml = memories.map((m) =>
+    `  <fact type="${m.type}" confidence="${m.confidence.toFixed(1)}">${escapeXml(m.value)}</fact>`
+  ).join('\n');
+  return `<structured_memory>\n${xml}\n</structured_memory>`;
+};
+
+const escapeXml = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+// ============================================================
+// 优化 3: 分层上下文压缩
+// 3 层压缩策略：trim → summarize → compact
+// ============================================================
+
+export const compactMessages = (messages, maxTokens) => {
+  if (!Array.isArray(messages) || messages.length <= 2) return messages;
+
+  const totalTokens = estimateMessagesTokens(messages);
+  if (totalTokens <= maxTokens) return messages;
+
+  // Layer 1: Trim tool outputs (长消息截断)
+  let result = messages.map((m) => {
+    const content = String(m.content || '');
+    if (estimateTokens(content) > 800) {
+      return { ...m, content: content.slice(0, 2400) + '...（内容已截断）' };
+    }
+    return m;
+  });
+
+  if (estimateMessagesTokens(result) <= maxTokens) return result;
+
+  // Layer 2: 从最早的非 system 消息开始丢弃
+  const system = result.filter((m) => m.role === 'system');
+  const nonSystem = result.filter((m) => m.role !== 'system');
+
+  const kept = [];
+  let used = estimateMessagesTokens(system);
+  for (let i = nonSystem.length - 1; i >= 0; i--) {
+    const estimated = TOKEN_ESTIMATE_ROLE_OVERHEAD + estimateTokens(String(nonSystem[i].content || ''));
+    if (used + estimated > maxTokens) break;
+    kept.unshift(nonSystem[i]);
+    used += estimated;
+  }
+
+  return [...system, ...kept];
+};
+
+// ============================================================
+// 优化 4: 子代理上下文构建
+// 根据 agent 角色构建最小化的上下文
+// ============================================================
+
+export const AGENT_CONTEXT_BUDGETS = {
+  orchestrator: { historyMax: 600 },
+  retriever: { historyMax: 800 },
+  memory: { historyMax: 400 },
+  ops: { historyMax: 800 },
+  synthesizer: { historyMax: 1200 },
+  'chat-engine': { historyMax: 12000 }
+};
+
+export const buildAgentContext = (history = [], agentName = '', query = '') => {
+  const budget = AGENT_CONTEXT_BUDGETS[agentName] || AGENT_CONTEXT_BUDGETS['chat-engine'];
+  const safeHistory = Array.isArray(history) ? history : [];
+
+  if (agentName === 'orchestrator' || agentName === 'memory') {
+    return { context: '', history: [] };
+  }
+
+  const recent = buildHistoryMessagesWithinBudget(safeHistory, {
+    maxChars: budget.historyMax,
+    maxMessages: agentName === 'chat-engine' ? 30 : 8,
+    maxPerMessage: agentName === 'chat-engine' ? 2000 : 800
+  });
+
+  return { context: '', history: recent };
 };

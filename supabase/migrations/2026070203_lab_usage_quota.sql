@@ -76,9 +76,9 @@ $$;
 -- RPC: 记录一次使用
 -- ============================================================
 create or replace function public.record_lab_usage(
+  p_flow_type text,
   p_user_id uuid default null,
-  p_device_id text default null,
-  p_flow_type text not null
+  p_device_id text default null
 )
 returns uuid
 language plpgsql
@@ -86,6 +86,11 @@ as $$
 declare
   v_id uuid;
 begin
+  -- 验证 flow_type 不能为空
+  if p_flow_type is null then
+    raise exception 'flow_type cannot be null';
+  end if;
+
   -- 必须提供 user_id 或 device_id
   if p_user_id is null and p_device_id is null then
     raise exception 'Must provide either user_id or device_id';
@@ -109,4 +114,4 @@ $$;
 grant execute on function public.get_lab_usage_count(uuid, text) to anon, authenticated;
 
 -- record_lab_usage: 允许匿名调用（通过 device_id 记录）
-grant execute on function public.record_lab_usage(uuid, text, text) to anon, authenticated;
+grant execute on function public.record_lab_usage(text, uuid, text) to anon, authenticated;

@@ -280,7 +280,7 @@ export function useResourceSearch({
           })}`,
           `用户消息：${truncateText(userText, 500)}`
         ].join('\n'),
-        '你是 BOH AI 的 Minecraft 资源搜索规划器。先判断用户真正想找什么，再把它改写成资源库检索词。你只返回严格 JSON。',
+        '<role>你是 BOH AI 的 Minecraft 资源搜索规划器。</role>\n<thinking>先判断用户真正想找什么，再把它改写成资源库检索词。</thinking>\n<output_format>只返回严格 JSON</output_format>',
         [],
         combinedSignal,
         0,

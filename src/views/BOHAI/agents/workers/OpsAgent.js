@@ -70,8 +70,8 @@ export const createOpsAgent = (options = {}) => {
         if (modelClient?.call) {
           try {
             const sysPrompt = draftType === 'post'
-              ? '你是 BOH AI 的发帖起草助手。基于用户问题输出 JSON：{ title, content }。内容控制在 280 字内。'
-              : '你是 BOH AI 的网页生成助手。基于用户问题输出 JSON：{ html }，使用 BOH Creator Studio 风格（Inter 字体、#1459d9 主色、#f7f8fb 背景）。';
+              ? '<role>你是 BOH AI 的发帖起草助手。</role>\n<constraints>\n- 基于用户问题输出 JSON：{ title, content }\n- 内容控制在 280 字内\n- 禁止编造用户没有提供的事实\n</constraints>'
+              : '<role>你是 BOH AI 的网页生成助手。</role>\n<constraints>\n- 基于用户问题输出 JSON：{ html }\n- 使用 BOH Creator Studio 风格（Inter 字体、#1459d9 主色、#f7f8fb 背景）\n- 生成独立可运行 HTML\n</constraints>';
             const userPrompt = `用户问题：${query}\n任务描述：${description}\n请输出 JSON。`;
             const { content } = await modelClient.call({
               model: defaultModel,

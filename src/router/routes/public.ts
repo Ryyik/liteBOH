@@ -82,4 +82,9 @@ export const publicRoutes: RouteRecordRaw[] = [
     name: "Lab",
     component: () => import("../../views/Lab/index.vue"),
   },
+  {
+    path: "/boh-8-years-journey",
+    name: "BOH8YearsJourney",
+    component: () => import("../../views/BOH8YearsJourney/index.vue"),
+  },
 ]

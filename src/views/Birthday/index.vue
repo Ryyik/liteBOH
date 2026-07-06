@@ -1,89 +1,83 @@
 <template>
   <div class="birthday-page">
-
-    <div class="birthday-confetti" aria-hidden="true">
-      <span
-        v-for="piece in confettiPieces"
-        :key="piece.index"
-        class="confetti-strip"
-        :style="{
-          '--i': piece.index,
-          '--x': piece.left,
-          '--w': piece.width,
-          '--h': piece.height,
-          '--speed': piece.speed,
-          '--drift': piece.drift
-        }"
-      ></span>
-    </div>
-
     <main>
-      <section class="birthday-hero" aria-labelledby="birthday-title">
-        <div class="birthday-hero-media" aria-hidden="true">
-          <img :src="getImageUrl('cake202512.webp')" alt="" fetchpriority="high" decoding="async"  loading="lazy" />
-        </div>
-
-        <div class="birthday-hero-copy">
-          <div class="birthday-kicker">
-            <PartyPopper :size="18" stroke-width="2.2" />
-            <span>Block of Home Birthday</span>
+      <section class="hero-section">
+        <div class="hero-gradient"></div>
+        <div class="hero-content">
+          <div class="hero-badge">
+            <PartyPopper :size="14" stroke-width="2.5" />
+            <span v-if="isEventActive && isToday">今日限定 · 生日会已开启</span>
+            <span v-else-if="isEventActive">生日活动进行中</span>
+            <span v-else>生日倒计时</span>
           </div>
-          <h1 id="birthday-title">{{ birthdayTitle }}</h1>
-          <p>{{ heroSubtitle }}</p>
+
+          <h1 class="hero-title">
+            <span class="title-line">{{ targetUsername }}，</span>
+            <span class="title-line gradient-text">{{ event.title || '生日快乐' }}</span>
+          </h1>
+
+          <p class="hero-subtitle">{{ event.subtitle || heroSubtitle }}</p>
+          <p v-if="event.hero_quote" class="hero-quote">「{{ event.hero_quote }}」</p>
+
+          <div class="hero-meta">
+            <div v-if="isEventActive && isToday" class="meta-pill">
+              <Cake :size="16" stroke-width="2" />
+              <span>{{ displayDate }} · 今日限定会场</span>
+            </div>
+            <div v-else class="meta-pill countdown">
+              <CalendarHeart :size="16" stroke-width="2" />
+              <span>距离 {{ displayDate }} 还有 <strong>{{ daysUntil }}</strong> 天</span>
+            </div>
+          </div>
 
           <div class="hero-actions">
-            <button class="primary-action" type="button" @click="scrollToCeremony">
-              <Cake :size="19" stroke-width="2.3" />
-              <span>开启今日祝福</span>
-              <ArrowRight :size="18" stroke-width="2.3" />
+            <button class="primary-btn" @click="scrollTo('candle')">
+              <WandSparkles :size="17" stroke-width="2.2" />
+              <span>许个愿</span>
             </button>
-            <button class="ghost-action" type="button" @click="burstConfetti">
-              <Sparkles :size="18" stroke-width="2.2" />
-              <span>点亮彩带</span>
+            <button class="ghost-btn" @click="scrollTo('flip')">
+              <BookHeart :size="17" stroke-width="2.2" />
+              <span>看祝福</span>
             </button>
-          </div>
-
-          <div class="birthday-ticket" :class="{ muted: !isTodayBirthday }">
-            <CalendarHeart :size="19" stroke-width="2.2" />
-            <span>{{ birthdayStatusText }}</span>
+            <button class="ghost-btn" @click="scrollTo('write')">
+              <PenLine :size="17" stroke-width="2.2" />
+              <span>写祝福</span>
+            </button>
           </div>
         </div>
       </section>
 
-      <section ref="ceremonyRef" class="ceremony-section">
-        <div class="section-heading">
-          <span class="section-label">Make A Wish</span>
-          <h2>今日的第一束光</h2>
-          <p>愿望不用说出口，方块之家已经替你留了一盏灯。</p>
+      <section ref="candleSection" class="candle-section">
+        <div class="section-label-row">
+          <span class="section-badge">{{ event.page_copy?.candleTitle || 'Make A Wish' }}</span>
+          <h2>点亮蜡烛</h2>
         </div>
-
-        <div class="ceremony-layout">
-          <div class="candle-scene" :class="{ wished: hasMadeWish }">
-            <div class="candle-glow"></div>
-            <div class="flame" :class="{ hidden: hasMadeWish }"></div>
-            <div class="smoke" :class="{ visible: showSmoke }"></div>
-            <div class="candle">
-              <span></span>
+        <div class="candle-layout">
+          <div class="candle-card" :class="{ wished: hasMadeWish }">
+            <div class="candle-glow" :class="{ active: !hasMadeWish }"></div>
+            <div class="candle-visual">
+              <div class="flame" :class="{ hidden: hasMadeWish }"></div>
+              <div class="smoke" :class="{ visible: showSmoke }"></div>
+              <div class="candle-body">
+                <span class="wick"></span>
+              </div>
             </div>
-            <button class="candle-button" type="button" @click="makeWish" :disabled="hasMadeWish">
-              <WandSparkles :size="18" stroke-width="2.2" />
-              <span>{{ hasMadeWish ? '愿望已点亮' : '许愿' }}</span>
+            <button class="candle-btn" :disabled="hasMadeWish" @click="makeWish">
+              <WandSparkles :size="16" stroke-width="2.2" />
+              <span>{{ hasMadeWish ? '愿望已送达 ✨' : '点击许愿' }}</span>
             </button>
           </div>
-
-          <div class="ceremony-card">
-            <span class="card-eyebrow">Birthday Note</span>
-            <h3>{{ username }}，生日快乐。</h3>
-            <p>
-              这一页只在属于你的日子里变得热闹。愿你新的一岁继续有朋友、有地图、有夜晚冒险，也有许多刚刚好的好运。
-            </p>
-            <div class="mini-metrics">
+          <div class="wish-card">
+            <span class="wish-eyebrow">Birthday Note</span>
+            <h3>{{ targetUsername }}，生日快乐 🎂</h3>
+            <p>{{ event.hero_quote || '这一页只在属于你的日子里变得热闹。愿你新的一岁继续有朋友、有地图、有夜晚冒险，也有许多刚刚好的好运。' }}</p>
+            <div class="wish-metrics">
               <div>
-                <strong>{{ birthdayMonthDay }}</strong>
+                <strong>{{ displayDate }}</strong>
                 <span>生日日期</span>
               </div>
               <div>
-                <strong>{{ wishes.length }}</strong>
+                <strong>{{ approvedWishes.length }}</strong>
                 <span>祝福收录</span>
               </div>
               <div>
@@ -95,17 +89,102 @@
         </div>
       </section>
 
-      <section class="memories-section">
-        <div class="section-heading compact">
-          <span class="section-label">Memory Gallery</span>
-          <h2>把好日子翻出来</h2>
+      <section ref="flipSection" class="flip-section">
+        <div class="section-label-row">
+          <span class="section-badge">{{ event.page_copy?.messagesTitle || '祝福留言' }}</span>
+          <h2>翻看祝福</h2>
+          <p class="section-desc">{{ event.page_copy?.messagesDesc || '每一张卡片都是一份心意。' }}</p>
         </div>
 
+        <div v-if="approvedWishes.length === 0" class="flip-empty">
+          <BookHeart :size="48" stroke-width="1.5" />
+          <h3>还没有祝福</h3>
+          <p>快来写下第一条祝福吧 ✨</p>
+        </div>
+
+        <div v-else class="flip-container">
+          <div
+            class="flip-stage"
+            @pointerdown="onPointerDown"
+            @pointermove="onPointerMove"
+            @pointerup="onPointerUp"
+            @pointerleave="onPointerUp"
+          >
+            <div v-for="(wish, idx) in flipCards" :key="wish.id" class="flip-card-stack">
+              <div
+                class="flip-card"
+                :class="{ active: idx === currentIndex, prev: idx < currentIndex, next: idx > currentIndex }"
+                :style="{ '--stack-offset': Math.min(idx - currentIndex, 3) * 6 }"
+              >
+                <div class="flip-card-inner">
+                  <div class="flip-card-front">
+                    <div class="flip-card-bg"></div>
+                    <div class="flip-card-content">
+                      <div class="flip-card-avatar" :style="{ background: wishColors[idx % wishColors.length] }">
+                        {{ wish.author_name.slice(0, 1).toUpperCase() }}
+                      </div>
+                      <div class="flip-card-text">
+                        <p>{{ wish.content }}</p>
+                      </div>
+                      <div class="flip-card-meta">
+                        <span class="flip-author">{{ wish.author_name }}</span>
+                        <button class="flip-like" :class="{ liked: likedWishes.has(wish.id) }" @click.stop="toggleLike(wish)">
+                          <Heart :size="14" stroke-width="2" :fill="likedWishes.has(wish.id) ? '#ff453a' : 'none'" />
+                          <span>{{ (wish.likes || 0) + (likedWishes.has(wish.id) ? 1 : 0) }}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="flip-controls">
+            <button class="flip-btn" @click="prevCard" :disabled="currentIndex === 0">
+              <ChevronLeft :size="20" stroke-width="2.5" />
+            </button>
+            <span class="flip-counter">{{ currentIndex + 1 }} / {{ flipCards.length }}</span>
+            <button class="flip-btn" @click="nextCard" :disabled="currentIndex === flipCards.length - 1">
+              <ChevronRight :size="20" stroke-width="2.5" />
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section ref="writeSection" class="write-section">
+        <div class="section-label-row">
+          <span class="section-badge">Write A Wish</span>
+          <h2>写下祝福</h2>
+          <p class="section-desc">你的祝福会经过审核后展示在页面上。</p>
+        </div>
+
+        <div class="write-card">
+          <div class="write-avatar" v-if="visitorName">{{ visitorName.slice(0, 1).toUpperCase() }}</div>
+          <div class="write-fields">
+            <input v-model="visitorName" class="write-input name-input" placeholder="你的名字" maxlength="20" />
+            <textarea v-model="visitorMessage" class="write-input message-input" placeholder="写下你的生日祝福..." maxlength="300" rows="3"></textarea>
+          </div>
+          <button class="write-submit" :disabled="!canSubmit || isSubmitting" @click="submitWish">
+            <Send :size="18" stroke-width="2.2" />
+            <span>{{ isSubmitting ? '发送中...' : '发送祝福' }}</span>
+          </button>
+          <div v-if="submitSuccess" class="write-success">祝福已发送，审核通过后将展示在页面上 ✨</div>
+        </div>
+      </section>
+
+      <section class="memories-section">
+        <div class="section-label-row">
+          <span class="section-badge">{{ event.page_copy?.memoriesTitle || 'Memory Gallery' }}</span>
+          <h2>回忆相册</h2>
+        </div>
         <div class="memory-grid">
           <article v-for="memory in memories" :key="memory.title" class="memory-card">
-            <img :src="getImageUrl(memory.image)" :alt="memory.title" loading="lazy" decoding="async" />
-            <div>
-              <span>{{ memory.date }}</span>
+            <figure class="memory-figure">
+              <img :src="getImageUrl(memory.image)" :alt="memory.title" loading="lazy" decoding="async" />
+            </figure>
+            <div class="memory-info">
+              <time>{{ memory.date }}</time>
               <h3>{{ memory.title }}</h3>
               <p>{{ memory.text }}</p>
             </div>
@@ -113,113 +192,71 @@
         </div>
       </section>
 
-      <section class="blessing-section">
-        <div class="section-heading">
-          <span class="section-label">Blessing Wall</span>
-          <h2>朋友们留下的光</h2>
-          <p>每一条祝福都可以成为你的生日海报文案。</p>
-        </div>
-
-        <div class="blessing-layout">
-          <div class="balloon-field" aria-label="生日祝福">
-            <button
-              v-for="wish in wishes"
-              :key="wish.id"
-              class="blessing-balloon"
-              type="button"
-              :class="{ active: selectedBlessing?.id === wish.id }"
-              :style="{ '--accent': wish.color, '--delay': wish.delay }"
-              @click="selectBlessing(wish)"
-            >
-              <span>{{ wish.author }}</span>
-            </button>
-          </div>
-
-          <article class="selected-blessing">
-            <div class="selected-avatar">{{ selectedBlessing.author.slice(0, 1) }}</div>
-            <div>
-              <span>来自 {{ selectedBlessing.author }}</span>
-              <p>{{ selectedBlessing.text }}</p>
-            </div>
-          </article>
-        </div>
-      </section>
-
       <section class="gift-section">
-        <div class="gift-card-panel">
-          <div class="section-heading gift-heading">
-            <span class="section-label">Birthday Gift</span>
-            <h2>专属生日礼品卡</h2>
-            <p>为今天保留一张可以分享的纪念卡。</p>
+        <div class="section-label-row">
+          <span class="section-badge">Birthday Gift</span>
+          <h2>{{ event.page_copy?.giftTitle || '生日礼品卡' }}</h2>
+          <p class="section-desc">为今天保留一张可以分享的纪念卡。</p>
+        </div>
+        <div class="gift-card">
+          <div class="gift-card-shine"></div>
+          <div class="gift-card-top">
+            <span>BOH CARD</span>
+            <Gift :size="22" stroke-width="2" />
           </div>
+          <div class="gift-card-code">
+            <strong>{{ event.page_copy?.giftCode || 'BOH-2026-BIRTHDAY' }}</strong>
+            <canvas ref="scratchCanvas" class="scratch-canvas" @pointerdown="startScratch" @pointermove="scratch" @pointerup="stopScratch" @pointerleave="stopScratch"></canvas>
+          </div>
+          <div class="gift-card-bottom">
+            <div>
+              <span>MEMBER</span>
+              <strong>{{ targetUsername }}</strong>
+            </div>
+            <div>
+              <span>DATE</span>
+              <strong>{{ displayDate }}</strong>
+            </div>
+          </div>
+        </div>
 
-          <div class="premium-card">
-            <div class="card-shine"></div>
-            <div class="premium-card-top">
-              <span>BOH CARD</span>
-              <Gift :size="24" stroke-width="2.2" />
-            </div>
-            <div class="premium-card-code">
-              <strong>BOH-2026-BIRTHDAY</strong>
-              <canvas
-                ref="scratchCanvas"
-                class="scratch-canvas"
-                @pointerdown="startScratch"
-                @pointermove="scratch"
-                @pointerup="stopScratch"
-                @pointerleave="stopScratch"
-              ></canvas>
-            </div>
-            <div class="premium-card-bottom">
-              <div>
-                <span>MEMBER</span>
-                <strong>{{ username }}</strong>
-              </div>
-              <div>
-                <span>DATE</span>
-                <strong>{{ currentDate }}</strong>
-              </div>
-            </div>
-          </div>
-
-          <div class="gift-actions">
-            <button class="primary-action dark" type="button" @click="generatePoster" :disabled="isGeneratingPoster">
-              <Camera :size="19" stroke-width="2.3" />
-              <span>{{ isGeneratingPoster ? '生成中' : '生成生日海报' }}</span>
-            </button>
-            <button class="ghost-action dark" type="button" @click="restartCeremony">
-              <RotateCcw :size="18" stroke-width="2.2" />
-              <span>重置许愿</span>
-            </button>
-          </div>
+        <div class="gift-actions">
+          <button class="primary-btn dark" @click="generatePoster" :disabled="isGeneratingPoster">
+            <Camera :size="17" stroke-width="2.2" />
+            <span>{{ isGeneratingPoster ? '生成中…' : '生成生日海报' }}</span>
+          </button>
+          <button class="ghost-btn dark" @click="restartCeremony">
+            <RotateCcw :size="17" stroke-width="2.2" />
+            <span>重置许愿</span>
+          </button>
         </div>
       </section>
     </main>
 
-    <transition name="toast">
-      <div v-if="showBlessingToast" class="blessing-toast">
-        <strong>{{ toastBlessing.author }}</strong>
-        <span>{{ toastBlessing.text }}</span>
+    <transition name="fade">
+      <div v-if="showToast" class="toast">
+        <Heart :size="16" stroke-width="2.5" fill="#ff453a" />
+        <span>{{ toastText }}</span>
       </div>
     </transition>
 
     <div class="poster-render-root" aria-hidden="true">
       <div ref="posterRef" class="share-poster">
-        <img :src="getImageUrl('2025-10-shengri.webp')" alt=""  loading="lazy" />
+        <img :src="getImageUrl('2025-10-shengri.webp')" alt="" loading="lazy" />
         <div class="poster-overlay"></div>
         <div class="poster-content">
           <div class="poster-top">
             <span>BOH LITE</span>
-            <span>{{ currentDate }}</span>
+            <span>{{ displayDate }}</span>
           </div>
           <div class="poster-main">
             <span>HAPPY BIRTHDAY</span>
-            <h2>{{ username }}</h2>
-            <p>{{ selectedBlessing.text }}</p>
+            <h2>{{ targetUsername }}</h2>
+            <p>{{ posterBlessing }}</p>
           </div>
           <div class="poster-bottom">
-            <span>{{ selectedBlessing.author }}</span>
-            <strong>{{ birthdayMonthDay }}</strong>
+            <span>{{ targetUsername }}</span>
+            <strong>{{ displayDate }}</strong>
           </div>
         </div>
       </div>
@@ -227,8 +264,10 @@
 
     <div v-if="showPosterModal" class="poster-modal" @click="closePosterModal">
       <div class="poster-preview" @click.stop>
-        <button class="close-modal-btn" type="button" aria-label="关闭" @click="closePosterModal">×</button>
-        <img :src="posterImage" alt="生日分享海报"  loading="lazy" />
+        <button class="close-modal-btn" aria-label="关闭" @click="closePosterModal">
+          <X :size="20" stroke-width="2.5" />
+        </button>
+        <img :src="posterImage" alt="生日分享海报" loading="lazy" />
         <p>长按或右键保存这张生日海报</p>
       </div>
     </div>
@@ -236,29 +275,38 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, reactive, ref } from "vue";
 import confetti from "canvas-confetti";
 import html2canvas from "html2canvas";
 import {
-  ArrowRight,
+  BookHeart,
   Cake,
   CalendarHeart,
   Camera,
+  ChevronLeft,
+  ChevronRight,
   Gift,
+  Heart,
   PartyPopper,
+  PenLine,
   RotateCcw,
+  Send,
   Sparkles,
-  WandSparkles
+  WandSparkles,
+  X
 } from "lucide-vue-next";
+import { supabase } from "@/utils/supabase-client.js";
 import { useAuthStore } from "@/stores/auth";
 import { storeToRefs } from "pinia";
 import { getImageUrl } from "@/utils/asset-helper.js";
-import { getNextBirthdayDistance, isBirthdayToday } from "@/utils/birthday.js";
+import { isBirthdayToday } from "@/utils/birthday.js";
 
 const authStore = useAuthStore();
 const { userInfo } = storeToRefs(authStore);
 
-const ceremonyRef = ref(null);
+const candleSection = ref(null);
+const flipSection = ref(null);
+const writeSection = ref(null);
 const scratchCanvas = ref(null);
 const posterRef = ref(null);
 const posterImage = ref("");
@@ -266,148 +314,124 @@ const showPosterModal = ref(false);
 const isGeneratingPoster = ref(false);
 const hasMadeWish = ref(false);
 const showSmoke = ref(false);
-const showBlessingToast = ref(false);
-const selectedBlessingId = ref(1);
-const toastBlessing = ref({ author: "", text: "" });
+const showToast = ref(false);
+const toastText = ref("");
+const visitorName = ref("");
+const visitorMessage = ref("");
+const isSubmitting = ref(false);
+const submitSuccess = ref(false);
+const currentIndex = ref(0);
+const likedWishes = ref(new Set());
+
+const event = reactive({
+  title: "生日快乐",
+  subtitle: "",
+  hero_quote: "",
+  page_copy: {}
+});
+
+const wishes = ref([]);
+const targetUsername = ref("朋友");
+const isEventActive = ref(false);
+const celebrationDate = ref("");
 
 let scratchContext = null;
 let isScratching = false;
 let toastTimer = null;
+let pointerStartX = 0;
+let pointerDeltaX = 0;
 
-const confettiPieces = Array.from({ length: 42 }, (_, index) => ({
-  index: index + 1,
-  left: (index * 37) % 100,
-  width: 7 + (index % 4) * 3,
-  height: 15 + (index % 5) * 4,
-  speed: index % 5,
-  drift: (index % 7 - 3) * 18
-}));
+const wishColors = ["#ff453a", "#ff9f0a", "#30d158", "#409cff", "#bf5af2", "#ff6482", "#66d4cf", "#ffd60a"];
 
 const memories = [
-  {
-    title: "初次相遇",
-    date: "2025.08",
-    image: "26wanxia.webp",
-    text: "一些后来会被反复想起的晚上，常常就是从普通的一次上线开始。"
-  },
-  {
-    title: "秋千和地图",
-    date: "2025.09",
-    image: "qiuqian.webp",
-    text: "坐标、截图、聊天记录，都在替我们保存那段很轻松的时间。"
-  },
-  {
-    title: "生日会现场",
-    date: "2025.10",
-    image: "2025-10-shengri.webp",
-    text: "有人准备惊喜，有人负责热闹，有人负责把快乐记下来。"
-  },
-  {
-    title: "冬眠生存",
-    date: "2026.01",
-    image: "26hezhao1.webp",
-    text: "新的一岁，也会继续有新的服务器、新的朋友和新的故事。"
-  }
+  { title: "初次相遇", date: "2025.08", image: "26wanxia.webp", text: "一些后来会被反复想起的晚上，常常就是从普通的一次上线开始。" },
+  { title: "秋千和地图", date: "2025.09", image: "qiuqian.webp", text: "坐标、截图、聊天记录，都在替我们保存那段很轻松的时间。" },
+  { title: "生日会现场", date: "2025.10", image: "2025-10-shengri.webp", text: "有人准备惊喜，有人负责热闹，有人负责把快乐记下来。" },
+  { title: "冬眠生存", date: "2026.01", image: "26hezhao1.webp", text: "新的一岁，也会继续有新的服务器、新的朋友和新的故事。" }
 ];
 
-const wishes = [
-  {
-    id: 1,
-    author: "Ryyik",
-    text: "牛儿生日快乐！新的一岁继续在方块之家留下更闪亮的故事。",
-    color: "#ff4d5f",
-    delay: "0s"
-  },
-  {
-    id: 2,
-    author: "Eleven",
-    text: "生日快乐，愿你每天都有刚刚好的好运和不会掉线的快乐。",
-    color: "#ffb02e",
-    delay: ".12s"
-  },
-  {
-    id: 3,
-    author: "End",
-    text: "李小姐生日快乐，愿这一年顺利、自由、开心。",
-    color: "#4f8cff",
-    delay: ".24s"
-  },
-  {
-    id: 4,
-    author: "小牛",
-    text: "牟，生日快乐。愿新的一岁继续高高兴兴地向前跑。",
-    color: "#39b980",
-    delay: ".36s"
-  },
-  {
-    id: 5,
-    author: "橙子",
-    text: "祝你大学生活美满，也祝你天天开心，生日快乐啦。",
-    color: "#f97316",
-    delay: ".48s"
-  },
-  {
-    id: 6,
-    author: "LF",
-    text: "继续开开心心地活下去吧，超搞笑级的生日快乐。",
-    color: "#8b5cf6",
-    delay: ".6s"
-  }
+const mockWishes = [
+  { id: "m1", author_name: "Ryyik", content: "牛儿生日快乐！新的一岁继续在方块之家留下更闪亮的故事。", status: "approved", is_featured: true, created_at: "2026-07-01T08:00:00Z", likes: 12 },
+  { id: "m2", author_name: "Eleven", content: "生日快乐，愿你每天都有刚刚好的好运和不会掉线的快乐。", status: "approved", is_featured: true, created_at: "2026-07-01T09:00:00Z", likes: 8 },
+  { id: "m3", author_name: "End", content: "李小姐生日快乐，愿这一年顺利、自由、开心。", status: "approved", is_featured: false, created_at: "2026-07-01T10:00:00Z", likes: 6 },
+  { id: "m4", author_name: "小牛", content: "牟，生日快乐。愿新的一岁继续高高兴兴地向前跑。", status: "approved", is_featured: false, created_at: "2026-07-01T11:00:00Z", likes: 4 },
+  { id: "m5", author_name: "橙子", content: "祝你天天开心，生日快乐啦 🎉", status: "approved", is_featured: false, created_at: "2026-07-01T12:00:00Z", likes: 3 },
+  { id: "m6", author_name: "LF", content: "继续开开心心地活下去吧，超搞笑级的生日快乐！", status: "approved", is_featured: true, created_at: "2026-07-01T13:00:00Z", likes: 7 }
 ];
 
-const username = computed(() => String(userInfo.value.username || "").trim() || "朋友");
-const hasBirthday = computed(() => Boolean(getNextBirthdayDistance(userInfo.value.birthMonth, userInfo.value.birthDay)));
-const isTodayBirthday = computed(() => isBirthdayToday(userInfo.value.birthMonth, userInfo.value.birthDay));
-const birthdayDistance = computed(() => getNextBirthdayDistance(userInfo.value.birthMonth, userInfo.value.birthDay));
-const birthdayTitle = computed(() => `${username.value} 生日会`);
-const currentDate = new Date().toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" });
+const approvedWishes = computed(() =>
+  wishes.value.filter((w) => w.status === "approved")
+);
 
-const birthdayMonthDay = computed(() => {
-  const birthday = birthdayDistance.value;
-  if (!birthday) return "未设置";
-  return `${String(birthday.month).padStart(2, "0")}/${String(birthday.day).padStart(2, "0")}`;
+const flipCards = computed(() =>
+  [...approvedWishes.value].sort((a, b) => {
+    if (a.is_featured && !b.is_featured) return -1;
+    if (!a.is_featured && b.is_featured) return 1;
+    return new Date(b.created_at) - new Date(a.created_at);
+  })
+);
+
+const isToday = computed(() => isBirthdayToday(userInfo.value.birthMonth, userInfo.value.birthDay));
+const displayDate = computed(() => {
+  if (!celebrationDate.value) return "--";
+  const d = new Date(celebrationDate.value);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+});
+
+const daysUntil = computed(() => {
+  if (!celebrationDate.value) return "--";
+  const now = new Date();
+  const target = new Date(celebrationDate.value);
+  const diff = Math.ceil((target - now) / (1000 * 60 * 60 * 24));
+  return diff > 0 ? diff : 0;
 });
 
 const heroSubtitle = computed(() => {
-  if (isTodayBirthday.value) return "今天，网页首页和这座小会场都为你亮起来。";
-  if (birthdayDistance.value) return "这里是生日当天会正式点亮的方块之家专属会场。";
-  return "完善生日资料后，生日当天首页会为你自动点亮专属入口。";
+  if (isEventActive.value && isToday.value) return "今天，整个会场都为你亮起来。";
+  return "写下你的祝福，点亮这个特别的日子。";
 });
 
-const birthdayStatusText = computed(() => {
-  if (isTodayBirthday.value) return "今日限定生日会已开启";
-  if (!hasBirthday.value) return "前往个人中心设置生日后启用";
-  return `距离下一次生日还有 ${birthdayDistance.value.daysUntil} 天`;
+const posterBlessing = computed(() => {
+  if (flipCards.value.length > 0) return flipCards.value[0].content;
+  return "愿你新的一岁，快乐且自由。";
 });
 
-const selectedBlessing = computed(() => wishes.find(wish => wish.id === selectedBlessingId.value) || wishes[0]);
-
-const prefersReducedMotion = () => (
-  typeof window !== "undefined"
-  && window.matchMedia
-  && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+const canSubmit = computed(() =>
+  visitorName.value.trim().length > 0 && visitorMessage.value.trim().length > 0
 );
 
-const burstConfetti = (origin = { y: 0.58 }) => {
-  if (prefersReducedMotion()) return;
-  confetti({
-    particleCount: 90,
-    spread: 72,
-    startVelocity: 38,
-    origin,
-    colors: ["#ffffff", "#ff4d5f", "#ffce47", "#4f8cff", "#39b980"]
-  });
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const scrollTo = (section) => {
+  const map = { candle: candleSection, flip: flipSection, write: writeSection };
+  map[section]?.value?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
 };
 
-const scrollToCeremony = () => {
-  ceremonyRef.value?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
+const showToastMessage = (text) => {
+  toastText.value = text;
+  showToast.value = true;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { showToast.value = false; }, 2800);
+};
+
+const burstConfetti = (origin = { y: 0.5 }) => {
+  if (prefersReducedMotion()) return;
+  confetti({
+    particleCount: 80,
+    spread: 70,
+    startVelocity: 35,
+    origin,
+    colors: ["#ff453a", "#ff9f0a", "#ffd60a", "#30d158", "#409cff", "#bf5af2"]
+  });
 };
 
 const makeWish = () => {
   if (hasMadeWish.value) return;
   hasMadeWish.value = true;
   showSmoke.value = true;
-  burstConfetti({ y: 0.38 });
+  burstConfetti({ y: 0.45 });
+  showToastMessage("愿望已送达 ✨");
 };
 
 const restartCeremony = async () => {
@@ -417,122 +441,209 @@ const restartCeremony = async () => {
   initScratchCard();
 };
 
-const selectBlessing = (wish) => {
-  selectedBlessingId.value = wish.id;
-  toastBlessing.value = { author: wish.author, text: wish.text };
-  showBlessingToast.value = false;
-  nextTick(() => {
-    showBlessingToast.value = true;
-  });
+const nextCard = () => {
+  if (currentIndex.value < flipCards.value.length - 1) currentIndex.value++;
+};
 
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    showBlessingToast.value = false;
-  }, 3200);
+const prevCard = () => {
+  if (currentIndex.value > 0) currentIndex.value--;
+};
 
-  burstConfetti({ y: 0.68 });
+const onPointerDown = (e) => {
+  pointerStartX = e.clientX;
+  pointerDeltaX = 0;
+};
+
+const onPointerMove = (e) => {
+  pointerDeltaX = e.clientX - pointerStartX;
+};
+
+const onPointerUp = () => {
+  if (Math.abs(pointerDeltaX) > 60) {
+    if (pointerDeltaX < 0) nextCard();
+    else prevCard();
+  }
+};
+
+const toggleLike = (wish) => {
+  if (likedWishes.value.has(wish.id)) {
+    likedWishes.value.delete(wish.id);
+  } else {
+    likedWishes.value.add(wish.id);
+  }
+  likedWishes.value = new Set(likedWishes.value);
+};
+
+const submitWish = async () => {
+  if (!canSubmit.value || isSubmitting.value) return;
+  isSubmitting.value = true;
+  submitSuccess.value = false;
+
+  try {
+    const { error } = await supabase.from("birthday_wishes").insert({
+      event_id: event.id,
+      author_name: visitorName.value.trim(),
+      author_id: userInfo.value?.id || null,
+      content: visitorMessage.value.trim(),
+      status: "pending",
+      likes: 0
+    });
+    if (error) throw error;
+    submitSuccess.value = true;
+    visitorMessage.value = "";
+    showToastMessage("祝福已发送，等待审核 ✨");
+  } catch {
+    showToastMessage("发送失败，请稍后重试");
+  } finally {
+    isSubmitting.value = false;
+  }
+};
+
+const fetchEvent = async () => {
+  try {
+    const { data, error } = await supabase
+      .from("birthday_events")
+      .select("*")
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+    if (error && error.code !== "PGRST116") throw error;
+    if (data) {
+      Object.assign(event, data);
+      event.id = data.id;
+      celebrationDate.value = data.celebration_date || "";
+      isEventActive.value = data.is_active || false;
+      if (data.target_user_id) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("username")
+          .eq("id", data.target_user_id)
+          .single();
+        if (profile?.username) targetUsername.value = profile.username;
+      }
+    }
+  } catch (err) {
+    loadMockData();
+  }
+};
+
+const fetchWishes = async () => {
+  if (!event.id) return;
+  try {
+    const { data, error } = await supabase
+      .from("birthday_wishes")
+      .select("*")
+      .eq("event_id", event.id)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    if (data && data.length > 0) wishes.value = data;
+  } catch {
+    loadMockWishes();
+  }
+};
+
+const loadMockData = () => {
+  event.title = "生日快乐";
+  event.subtitle = "今天是最特别的一天";
+  event.hero_quote = "愿你新的一岁，快乐且自由。";
+  event.page_copy = {
+    candleTitle: "Make A Wish",
+    candleDesc: "点击蜡烛，许个愿吧",
+    messagesTitle: "祝福留言",
+    messagesDesc: "写下你的生日祝福",
+    memoriesTitle: "回忆相册",
+    giftTitle: "生日礼品卡",
+    giftCode: "BOH-2026-BIRTHDAY"
+  };
+  event.id = "mock-event-1";
+  celebrationDate.value = new Date().toISOString().split("T")[0];
+  isEventActive.value = true;
+  targetUsername.value = userInfo.value?.username?.trim() || "朋友";
+  loadMockWishes();
+};
+
+const loadMockWishes = () => {
+  wishes.value = mockWishes;
 };
 
 const initScratchCard = () => {
   const canvas = scratchCanvas.value;
   if (!canvas) return;
-
   const rect = canvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.max(1, Math.floor(rect.width * dpr));
   canvas.height = Math.max(1, Math.floor(rect.height * dpr));
   scratchContext = canvas.getContext("2d");
   scratchContext.setTransform(dpr, 0, 0, dpr, 0, 0);
-
   const gradient = scratchContext.createLinearGradient(0, 0, rect.width, 0);
-  gradient.addColorStop(0, "#d7dbe4");
+  gradient.addColorStop(0, "#e8e8ed");
   gradient.addColorStop(0.5, "#ffffff");
-  gradient.addColorStop(1, "#cfd5df");
+  gradient.addColorStop(1, "#e8e8ed");
   scratchContext.fillStyle = gradient;
   scratchContext.fillRect(0, 0, rect.width, rect.height);
-  scratchContext.fillStyle = "rgba(20, 22, 26, 0.46)";
-  scratchContext.font = "700 15px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+  scratchContext.fillStyle = "rgba(29, 29, 31, 0.35)";
+  scratchContext.font = "700 14px system-ui, -apple-system, sans-serif";
   scratchContext.textAlign = "center";
   scratchContext.textBaseline = "middle";
-  scratchContext.fillText("BOH 生日涂层", rect.width / 2, rect.height / 2);
+  scratchContext.fillText("刮开查看", rect.width / 2, rect.height / 2);
   scratchContext.globalCompositeOperation = "destination-out";
 };
 
 const getScratchPosition = (event) => {
   const rect = scratchCanvas.value.getBoundingClientRect();
-  return {
-    x: event.clientX - rect.left,
-    y: event.clientY - rect.top
-  };
+  return { x: event.clientX - rect.left, y: event.clientY - rect.top };
 };
 
 const scratch = (event) => {
   if (!isScratching || !scratchContext) return;
   event.preventDefault();
-  const position = getScratchPosition(event);
+  const pos = getScratchPosition(event);
   scratchContext.beginPath();
-  scratchContext.arc(position.x, position.y, 22, 0, Math.PI * 2);
+  scratchContext.arc(pos.x, pos.y, 20, 0, Math.PI * 2);
   scratchContext.fill();
 };
 
-const startScratch = (event) => {
-  isScratching = true;
-  scratch(event);
-};
-
-const stopScratch = () => {
-  isScratching = false;
-};
+const startScratch = (event) => { isScratching = true; scratch(event); };
+const stopScratch = () => { isScratching = false; };
 
 const generatePoster = async () => {
   if (isGeneratingPoster.value || !posterRef.value) return;
   isGeneratingPoster.value = true;
-
   try {
     await nextTick();
     await waitForPosterAssets();
     const canvas = await html2canvas(posterRef.value, {
-      backgroundColor: "#101114",
+      backgroundColor: "#1d1d1f",
       scale: 2,
       useCORS: true,
       logging: false
     });
     posterImage.value = canvas.toDataURL("image/png");
     showPosterModal.value = true;
-  } catch (error) {
-    console.error("生成生日海报失败:", error);
-    toastBlessing.value = { author: "BOH", text: "海报生成失败，请稍后再试。" };
-    showBlessingToast.value = true;
+  } catch {
+    showToastMessage("海报生成失败，请稍后再试。");
   } finally {
     isGeneratingPoster.value = false;
   }
 };
 
 const waitForPosterAssets = async () => {
-  const posterImageElement = posterRef.value?.querySelector("img");
-  if (!posterImageElement) return;
-
-  if (posterImageElement.decode) {
-    await posterImageElement.decode().catch(() => {});
-    return;
-  }
-
-  if (posterImageElement.complete) return;
-  await new Promise((resolve) => {
-    posterImageElement.onload = resolve;
-    posterImageElement.onerror = resolve;
-  });
+  const img = posterRef.value?.querySelector("img");
+  if (!img) return;
+  if (img.decode) { await img.decode().catch(() => {}); return; }
+  if (img.complete) return;
+  await new Promise((resolve) => { img.onload = resolve; img.onerror = resolve; });
 };
 
-const closePosterModal = () => {
-  showPosterModal.value = false;
-};
+const closePosterModal = () => { showPosterModal.value = false; };
 
-onMounted(() => {
+onMounted(async () => {
+  await fetchEvent();
+  await fetchWishes();
+  visitorName.value = userInfo.value?.username || "";
   nextTick(initScratchCard);
-  if (isTodayBirthday.value) {
-    setTimeout(() => burstConfetti({ y: 0.5 }), 450);
-  }
+  if (isToday.value) setTimeout(() => burstConfetti({ y: 0.4 }), 500);
 });
 </script>
 

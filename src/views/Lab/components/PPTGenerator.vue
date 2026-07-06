@@ -234,23 +234,23 @@ function getSlideTypeLabel(type) {
 <style scoped>
 .ppt-generator {
   padding: 28px;
-  background: #ffffff;
-  border-radius: 20px;
-  border: 1px solid #dad9d4;
-  box-shadow: 0 1px 3px 0px rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  background: var(--popover);
+  border-radius: var(--radius-2xl);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
 }
 
 .ppt-header { margin-bottom: 28px; }
 .ppt-title {
   font-size: 28px;
   font-weight: 700;
-  color: #3d3929;
+  color: var(--foreground);
   margin: 0 0 8px;
   letter-spacing: -0.02em;
 }
 .ppt-desc {
   font-size: 15px;
-  color: #6e6d68;
+  color: var(--muted-foreground);
   margin: 0;
   font-weight: 400;
   line-height: 1.47;
@@ -271,56 +271,56 @@ function getSlideTypeLabel(type) {
 .input-label {
   font-size: 14px;
   font-weight: 600;
-  color: #3d3929;
+  color: var(--foreground);
 }
 
 .input-field {
   padding: 12px 16px;
-  border: 1px solid #dad9d4;
-  border-radius: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   font-size: 15px;
   transition: all 0.2s;
-  background: #ffffff;
-  color: #3d3929;
+  background: var(--popover);
+  color: var(--foreground);
   font-family: inherit;
 }
 .input-field:focus {
   outline: none;
-  border-color: #C96442;
+  border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(201, 100, 66, 0.12);
 }
 
 .input-textarea {
   padding: 12px 16px;
-  border: 1px solid #dad9d4;
-  border-radius: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   font-size: 15px;
   resize: vertical;
   transition: all 0.2s;
-  background: #ffffff;
-  color: #3d3929;
+  background: var(--popover);
+  color: var(--foreground);
   font-family: inherit;
 }
 .input-textarea:focus {
   outline: none;
-  border-color: #C96442;
+  border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(201, 100, 66, 0.12);
 }
 
 .input-select {
   padding: 12px 16px;
-  border: 1px solid #dad9d4;
-  border-radius: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   font-size: 15px;
-  background: #ffffff;
+  background: var(--popover);
   cursor: pointer;
   transition: all 0.2s;
-  color: #3d3929;
+  color: var(--foreground);
   font-family: inherit;
 }
 .input-select:focus {
   outline: none;
-  border-color: #C96442;
+  border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(201, 100, 66, 0.12);
 }
 
@@ -330,10 +330,10 @@ function getSlideTypeLabel(type) {
   justify-content: center;
   gap: 8px;
   padding: 14px 28px;
-  background: #C96442;
-  color: #ffffff;
+  background: var(--primary);
+  color: var(--primary-foreground);
   border: none;
-  border-radius: 16px;
+  border-radius: var(--radius);
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
@@ -341,14 +341,14 @@ function getSlideTypeLabel(type) {
   align-self: flex-start;
 }
 .btn-generate:hover:not(:disabled) {
-  background: #d6866a;
+  background: var(--brand-400);
   transform: scale(1.02);
 }
 .btn-generate:active:not(:disabled) {
   transform: scale(0.98);
 }
 .btn-generate:disabled {
-  background: rgba(201, 100, 66, 0.3);
+  background: color-mix(in srgb, var(--primary) 30%, transparent);
   cursor: not-allowed;
 }
 .btn-icon { font-size: 16px; }
@@ -366,8 +366,8 @@ function getSlideTypeLabel(type) {
   align-items: center;
   gap: 10px;
   padding: 14px 18px;
-  background: #d64545;
-  border-radius: 14px;
+  background: var(--error);
+  border-radius: var(--radius);
   margin-top: 18px;
   color: #ffffff;
   font-weight: 500;
@@ -379,9 +379,9 @@ function getSlideTypeLabel(type) {
 .ppt-preview {
   margin-top: 28px;
   padding: 24px;
-  background: rgba(0, 0, 0, 0.02);
-  border-radius: 20px;
-  border: none;
+  background: var(--card);
+  border-radius: var(--radius-2xl);
+  border: 1px solid var(--border);
 }
 .preview-header {
   display: flex;
@@ -392,13 +392,13 @@ function getSlideTypeLabel(type) {
 .preview-title {
   font-size: 20px;
   font-weight: 700;
-  color: #3d3929;
+  color: var(--foreground);
   margin: 0;
   letter-spacing: -0.01em;
 }
 .preview-meta {
   font-size: 14px;
-  color: #6e6d68;
+  color: var(--muted-foreground);
   font-weight: 500;
 }
 .slide-list {
@@ -410,14 +410,14 @@ function getSlideTypeLabel(type) {
   display: flex;
   gap: 14px;
   padding: 16px;
-  background: #ffffff;
-  border-radius: 16px;
-  border: none;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  background: var(--popover);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-2xs);
   transition: box-shadow 0.2s;
 }
 .slide-item:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-md);
 }
 .slide-number {
   display: flex;
@@ -425,9 +425,9 @@ function getSlideTypeLabel(type) {
   justify-content: center;
   width: 36px;
   height: 36px;
-  background: rgba(201, 100, 66, 0.1);
-  color: #C96442;
-  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: var(--primary);
+  border-radius: var(--radius-sm);
   font-size: 14px;
   font-weight: 700;
   flex-shrink: 0;
@@ -443,120 +443,120 @@ function getSlideTypeLabel(type) {
 
 /* Title Slide */
 .preview-title-box {
-  background: rgba(201, 100, 66, 0.04);
-  border-radius: 12px;
+  background: color-mix(in srgb, var(--brand-50) 40%, transparent);
+  border-radius: var(--radius-md);
   padding: 16px 20px;
   position: relative;
 }
 .preview-title-decoration {
   position: absolute;
   top: 10px; left: 16px; right: 16px; height: 44px;
-  background: rgba(201, 100, 66, 0.08);
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--brand-50) 60%, transparent);
+  border-radius: var(--radius-sm);
 }
 .preview-title-text {
-  font-size: 17px; font-weight: 700; color: #3d3929;
+  font-size: 17px; font-weight: 700; color: var(--foreground);
   margin-top: 14px; text-align: center;
   letter-spacing: -0.01em;
 }
 .preview-title-divider {
-  width: 48px; height: 3px; background: #C96442;
+  width: 48px; height: 3px; background: var(--primary);
   margin: 10px auto; border-radius: 2px;
 }
 .preview-subtitle {
-  font-size: 13px; color: #6e6d68; text-align: center; margin-top: 4px;
+  font-size: 13px; color: var(--muted-foreground); text-align: center; margin-top: 4px;
 }
 
 /* Content Slide */
-.preview-content-box { border-radius: 12px; overflow: hidden; }
+.preview-content-box { border-radius: var(--radius-md); overflow: hidden; }
 .preview-content-header {
   display: flex; align-items: center; gap: 10px;
   padding: 10px 14px;
-  background: rgba(201, 100, 66, 0.06);
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--brand-50) 50%, transparent);
+  border-radius: var(--radius-sm);
 }
 .preview-header-decoration {
-  width: 4px; height: 18px; background: #C96442; border-radius: 2px;
+  width: 4px; height: 18px; background: var(--primary); border-radius: 2px;
 }
 .preview-content-title {
-  font-size: 15px; font-weight: 600; color: #3d3929;
+  font-size: 15px; font-weight: 600; color: var(--foreground);
 }
 .preview-content-divider {
-  height: 1px; background: rgba(0, 0, 0, 0.06); margin: 10px 0;
+  height: 1px; background: var(--border); margin: 10px 0;
 }
 .preview-points-list { display: flex; flex-direction: column; gap: 8px; }
 .preview-point-item { display: flex; align-items: center; gap: 10px; }
 .preview-point-box {
   width: 100%; height: 22px;
-  background: rgba(0, 0, 0, 0.02);
+  background: var(--border);
   border-radius: 6px; flex: 1;
 }
 .preview-point-text {
-  font-size: 13px; color: #535146;
+  font-size: 13px; color: var(--secondary-foreground);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;
 }
 .preview-more-indicator {
-  font-size: 12px; color: #C96442; font-weight: 600; margin-top: 4px;
+  font-size: 12px; color: var(--primary); font-weight: 600; margin-top: 4px;
 }
 
 /* Two Column Slide */
-.preview-twocolumn-box { border-radius: 12px; overflow: hidden; }
+.preview-twocolumn-box { border-radius: var(--radius-md); overflow: hidden; }
 .preview-twocolumn-header {
   display: flex; align-items: center; gap: 10px;
   padding: 10px 14px;
-  background: rgba(201, 100, 66, 0.06);
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--brand-50) 50%, transparent);
+  border-radius: var(--radius-sm);
 }
-.preview-twocolumn-title { font-size: 15px; font-weight: 600; color: #3d3929; }
-.preview-twocolumn-divider { height: 1px; background: rgba(0, 0, 0, 0.06); margin: 10px 0; }
+.preview-twocolumn-title { font-size: 15px; font-weight: 600; color: var(--foreground); }
+.preview-twocolumn-divider { height: 1px; background: var(--border); margin: 10px 0; }
 .preview-columns-container { display: flex; gap: 14px; }
 .preview-column { flex: 1; display: flex; flex-direction: column; gap: 8px; }
 .preview-column-title {
-  font-size: 13px; font-weight: 600; color: #C96442;
-  padding: 6px 10px; background: rgba(201, 100, 66, 0.08);
-  border-radius: 8px; text-align: center;
+  font-size: 13px; font-weight: 600; color: var(--primary);
+  padding: 6px 10px; background: color-mix(in srgb, var(--brand-50) 60%, transparent);
+  border-radius: var(--radius-sm); text-align: center;
 }
 .preview-column-items { display: flex; flex-direction: column; gap: 5px; }
 .preview-column-item {
-  height: 20px; background: rgba(0, 0, 0, 0.02);
+  height: 20px; background: var(--border);
   border-radius: 6px;
 }
 .preview-column-separator {
   width: 1px; height: 80px;
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--border);
   margin: 0 4px;
 }
 
 /* End Slide */
 .preview-end-box {
-  background: rgba(201, 100, 66, 0.04);
-  border-radius: 12px; padding: 20px; position: relative;
+  background: color-mix(in srgb, var(--brand-50) 40%, transparent);
+  border-radius: var(--radius-md); padding: 20px; position: relative;
 }
 .preview-end-decoration {
   position: absolute; top: 10px; left: 24px; right: 24px; height: 64px;
-  background: rgba(201, 100, 66, 0.06); border-radius: 8px;
+  background: color-mix(in srgb, var(--brand-50) 50%, transparent); border-radius: var(--radius-sm);
 }
 .preview-end-text {
-  font-size: 17px; font-weight: 700; color: #3d3929;
+  font-size: 17px; font-weight: 700; color: var(--foreground);
   text-align: center; margin-top: 14px;
   letter-spacing: -0.01em;
 }
 .preview-end-divider {
-  width: 40px; height: 3px; background: #C96442;
+  width: 40px; height: 3px; background: var(--primary);
   margin: 10px auto; border-radius: 2px;
 }
 .preview-end-subtitle {
-  font-size: 13px; color: #6e6d68; text-align: center; margin-top: 4px;
+  font-size: 13px; color: var(--muted-foreground); text-align: center; margin-top: 4px;
 }
 
 /* Default */
 .preview-default-box { display: flex; flex-direction: column; gap: 8px; }
 .slide-type-badge {
   display: inline-block; padding: 4px 10px;
-  background: rgba(201, 100, 66, 0.1); color: #C96442;
-  border-radius: 8px; font-size: 12px; font-weight: 600;
+  background: color-mix(in srgb, var(--primary) 10%, transparent); color: var(--primary);
+  border-radius: var(--radius-sm); font-size: 12px; font-weight: 600;
 }
-.slide-title-text { font-size: 16px; font-weight: 600; color: #3d3929; }
+.slide-title-text { font-size: 16px; font-weight: 600; color: var(--foreground); }
 
 .ppt-actions {
   display: flex; gap: 14px; margin-top: 24px;
@@ -564,30 +564,31 @@ function getSlideTypeLabel(type) {
 .btn-download {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 12px 24px;
-  background: #3d3929; color: #ffffff; border: none;
-  border-radius: 16px; font-size: 14px; font-weight: 600;
+  background: var(--foreground); color: var(--primary-foreground); border: none;
+  border-radius: var(--radius); font-size: 14px; font-weight: 600;
   cursor: pointer; transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
 }
-.btn-download:hover { background: #535146; transform: scale(1.02); }
+.btn-download:hover { background: var(--text-600); transform: scale(1.02); }
 .btn-download:active { transform: scale(0.98); }
 .btn-regenerate {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 12px 24px;
-  background: #f5f4ef; color: #3d3929;
-  border: none; border-radius: 16px;
+  background: var(--card); color: var(--foreground);
+  border: 1px solid var(--border); border-radius: var(--radius);
   font-size: 14px; font-weight: 600; cursor: pointer;
   transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
 }
-.btn-regenerate:hover { background: rgba(0, 0, 0, 0.08); }
+.btn-regenerate:hover { background: rgba(0, 0, 0, 0.06); }
 
 .ppt-tips {
   display: flex; flex-direction: column; gap: 12px;
   margin-top: 28px; padding: 20px;
-  background: rgba(0, 0, 0, 0.02); border-radius: 16px;
+  background: var(--card); border-radius: var(--radius);
+  border: 1px solid var(--border);
 }
 .tip-item { display: flex; align-items: center; gap: 12px; }
 .tip-icon { font-size: 18px; }
-.tip-text { font-size: 14px; color: #6e6d68; font-weight: 500; }
+.tip-text { font-size: 14px; color: var(--muted-foreground); font-weight: 500; }
 
 /* Responsive */
 @media (max-width: 768px) {

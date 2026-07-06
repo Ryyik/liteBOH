@@ -278,11 +278,15 @@ export function useGenerationPipeline({ availableModels, abortController, curren
     do {
       previousFiltered = filtered
 
-      // 1. 过滤完整的 思考... 回答 标签
+      // 1. 过滤完整的 思考 标签（think / thinking）
       filtered = filtered.replace(/<think[^>]*>[\s\S]*?<\/think>/gi, '')
       filtered = filtered.replace(/<think[^>]*>[\s\S]*$/gi, '')
       filtered = filtered.replace(/^[\s\S]*<\/think>/gi, '')
       filtered = filtered.replace(/<\/?think[^>]*>/gi, '')
+      filtered = filtered.replace(/<thinking[^>]*>[\s\S]*?<\/thinking>/gi, '')
+      filtered = filtered.replace(/<thinking[^>]*>[\s\S]*$/gi, '')
+      filtered = filtered.replace(/^[\s\S]*<\/thinking>/gi, '')
+      filtered = filtered.replace(/<\/?thinking[^>]*>/gi, '')
 
       // 5. 过滤中文思考标记
       filtered = filtered.replace(/\*\*思考\*\*[\s\S]*?(?=\*\*回答\*\*|$)/g, '')
@@ -308,7 +312,7 @@ export function useGenerationPipeline({ availableModels, abortController, curren
 
     while (true) {
       if (newInThinkingBlock) {
-        const endMatch = newBuffer.match(/<\/think>/i)
+        const endMatch = newBuffer.match(/<\/(?:think|thinking)>/i)
         if (endMatch) {
           newBuffer = newBuffer.slice(endMatch.index + endMatch[0].length)
           newInThinkingBlock = false
@@ -319,12 +323,12 @@ export function useGenerationPipeline({ availableModels, abortController, curren
         }
       }
 
-      const startMatch = newBuffer.match(/<think[^>]*>/i)
+      const startMatch = newBuffer.match(/<(?:think|thinking)[^>]*>/i)
       if (startMatch) {
         const beforeThink = newBuffer.slice(0, startMatch.index)
         const afterThink = newBuffer.slice(startMatch.index + startMatch[0].length)
 
-        const endMatch = afterThink.match(/<\/think>/i)
+        const endMatch = afterThink.match(/<\/(?:think|thinking)>/i)
         if (endMatch) {
           output += beforeThink
           newBuffer = afterThink.slice(endMatch.index + endMatch[0].length)
@@ -341,7 +345,7 @@ export function useGenerationPipeline({ availableModels, abortController, curren
     }
 
     // 检测不完整标签结尾
-    const potentialTagMatch = newBuffer.match(/<\/?(?:t(?:h(?:i(?:n(?:k)?)?)?)?)?$/i)
+    const potentialTagMatch = newBuffer.match(/<\/(?:t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?)?)?)?)?$/i)
     if (potentialTagMatch) {
       output += newBuffer.slice(0, potentialTagMatch.index)
       state.setState({ inThinkingBlock: newInThinkingBlock, thinkingBuffer: potentialTagMatch[0] })
@@ -477,16 +481,19 @@ export function useGenerationPipeline({ availableModels, abortController, curren
     const recentMessages = messages.slice(-5).map(m => ({ role: m.role, content: m.content }));
 
     try {
-      const summaryPrompt = `
-      Please summarize the following conversation history into a concise paragraph (max 300 words).
-      Focus on the core user requirements, project goals, and key decisions.
-      
-      History:
-      ${olderMessages.map(m => `${m.role}: ${m.content}`).join('\n')}
-      `;
-
       const summaryModel = availableModels.find(m => m.id === 'Qwen/Qwen2.5-7B-Instruct') || availableModels[0];
-      const summary = await callModelInternal(summaryModel.id, summaryPrompt, "You are a helpful summarizer.", [], requestSignal);
+      const summaryPromptForModel = [
+        '<role>对话摘要器</role>',
+        '<constraints>',
+        '- 输出简洁摘要（最多 300 词）',
+        '- 聚焦核心用户需求、项目目标和关键决策',
+        '- 不要添加原文没有的信息',
+        '</constraints>',
+        '<context>',
+        olderMessages.map(m => `${m.role}: ${m.content}`).join('\n'),
+        '</context>'
+      ].join('\n');
+      const summary = await callModelInternal(summaryModel.id, summaryPromptForModel, '<role>你是对话摘要器。</role>\n<constraints>\n- 只输出摘要正文\n- 不要额外说明\n</constraints>', [], requestSignal);
 
       return [
         { role: 'system', content: `【Previous Conversation Summary】: ${summary}` },

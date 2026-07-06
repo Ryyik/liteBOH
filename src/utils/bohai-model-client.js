@@ -50,7 +50,7 @@ export const extractBohAIJsonObject = (text = '') => {
   const raw = String(text || '').trim();
   if (!raw) return null;
 
-  const withoutThinking = raw.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  const withoutThinking = raw.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').trim();
   const fenced = withoutThinking.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const candidate = fenced?.[1] || withoutThinking;
   const start = candidate.indexOf('{');
@@ -70,7 +70,8 @@ export const callBohAIModel = async ({
   temperature = 0.18,
   maxTokens = 512,
   signal,
-  timeoutMs = MODEL_HARD_TIMEOUT_MS
+  timeoutMs = MODEL_HARD_TIMEOUT_MS,
+  cacheControl
 } = {}) => {
   const safeModel = resolveSiliconFlowFreeModelId(model, getBohaiDefaultModelId());
   const provider = safeModel.startsWith('glm-') ? 'zhipu' : 'siliconflow';
@@ -84,19 +85,23 @@ export const callBohAIModel = async ({
       throw Object.assign(new DOMException('请求已被取消', 'AbortError'), { name: 'AbortError' });
     }
     try {
+      const apiPayload = {
+        model: safeModel,
+        messages,
+        stream: false,
+        temperature,
+        max_tokens: maxTokens
+      };
+      if (cacheControl?.enabled && typeof cacheControl.config === 'object') {
+        Object.assign(apiPayload, cacheControl.config);
+      }
       const vaultResult = await callVaultSiliconChat({
         provider,
         purpose: 'chat',
         apiUrl,
         timeoutMs,
         signal,
-        payload: {
-          model: safeModel,
-          messages,
-          stream: false,
-          temperature,
-          max_tokens: maxTokens
-        }
+        payload: apiPayload
       });
       if (!vaultResult.ok) {
         // B2 fix: 保留 HTTP status 到 error 上，让 isRetryableStatus 能识别 429/5xx

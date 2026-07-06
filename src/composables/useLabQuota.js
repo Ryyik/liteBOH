@@ -72,6 +72,29 @@ export function useLabQuota() {
     return Math.min(100, Math.round((usageCount.value / monthlyQuota.value) * 100));
   });
 
+  // 结构化展示数据（供 UI 直接绑定）
+  const quotaDisplayData = computed(() => ({
+    used: usageCount.value,
+    limit: monthlyQuota.value,
+    remaining: remainingCount.value,
+    percent: usagePercent.value,
+    isExceeded: isExceeded.value,
+    isUnlimited: isUnlimited.value,
+    tier: effectiveTier.value,
+    nextTier: getNextTier(effectiveTier.value),
+    nextTierQuota: getNextTierQuota(effectiveTier.value),
+  }));
+
+  function getNextTier(tier) {
+    const map = { anonymous: 'free', free: 'plus', plus: 'pro', pro: 'max', max: 'ultra' };
+    return map[tier] || null;
+  }
+
+  function getNextTierQuota(tier) {
+    const next = getNextTier(tier);
+    return next ? TIER_QUOTA_MAP[next] : null;
+  }
+
   /**
    * 初始化：获取用户 tier 和当前使用次数
    */
@@ -113,7 +136,7 @@ export function useLabQuota() {
    * @returns {Promise<{success: boolean, error?: string}>}
    */
   async function recordUsage(flowType) {
-    if (flowType !== 'ppt' && flowType !== 'word') {
+    if (flowType !== 'ppt' && flowType !== 'word' && flowType !== 'code') {
       return { success: false, error: '无效的生成类型' };
     }
 
@@ -199,6 +222,9 @@ export function useLabQuota() {
     isLoading,
     lastError,
     effectiveTier,
+
+    // 结构化展示数据
+    quotaDisplayData,
 
     // 方法
     initialize,

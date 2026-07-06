@@ -51,47 +51,47 @@ function handleFileChange(e) {
 
 <style scoped>
 .fu {
-  border: 2px dashed #dad9d4;
-  border-radius: 20px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-2xl);
   padding: 40px 28px;
   text-align: center;
   cursor: pointer;
   transition: all 0.16s ease;
-  background: #ffffff;
+  background: var(--popover);
 }
 .fu:hover {
-  border-color: #C96442;
-  background: #ffffff;
-  box-shadow: 0 1px 3px 0px rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  border-color: var(--primary);
+  background: var(--popover);
+  box-shadow: var(--shadow-sm);
 }
 .fu.is-dragover {
-  border-color: #C96442;
-  background: #fbf2ed;
+  border-color: var(--primary);
+  background: var(--brand-50);
   box-shadow: 0 0 0 4px rgba(201, 100, 66, 0.1);
 }
 .fu.has-file {
   border-style: solid;
-  border-color: #dad9d4;
+  border-color: var(--border);
   padding: 16px 20px;
 }
 .fu-empty { padding: 12px 0; }
 .fu-icon { font-size: 48px; margin-bottom: 16px; }
-.fu-text { font-size: 17px; color: #3d3929; margin: 0; font-weight: 600; }
-.fu-hint { font-size: 13px; color: #6e6d68; margin: 8px 0 0; font-weight: 400; }
+.fu-text { font-size: 17px; color: var(--foreground); margin: 0; font-weight: 600; }
+.fu-hint { font-size: 13px; color: var(--muted-foreground); margin: 8px 0 0; font-weight: 400; }
 .fu-file { display: flex; align-items: center; gap: 14px; }
 .fu-file-icon { font-size: 28px; }
 .fu-file-info { flex: 1; text-align: left; min-width: 0; }
-.fu-file-name { display: block; font-size: 14px; color: #3d3929; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fu-file-size { display: block; font-size: 12px; color: #6e6d68; margin-top: 3px; }
+.fu-file-name { display: block; font-size: 14px; color: var(--foreground); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fu-file-size { display: block; font-size: 12px; color: var(--muted-foreground); margin-top: 3px; }
 .fu-remove {
-  background: #f5f4ef;
+  background: var(--card);
   border: none;
-  color: #6e6d68;
+  color: var(--muted-foreground);
   font-size: 15px;
   cursor: pointer;
   padding: 6px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   transition: all 0.16s ease;
 }
-.fu-remove:hover { color: #d64545; background: #fcecea; }
+.fu-remove:hover { color: var(--error); background: #fcecea; }
 </style>

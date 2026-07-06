@@ -220,7 +220,7 @@ const BASE_PLANS = [
     name: 'Pro',
     icon: Zap,
     monthlyCost: 20,
-    features: ['BOH AI 200次/天', 'Cloud+ 450张', '礼物定制月×2次', '多模态交互', '金色昵称', '实验室 PPT/Word 20次/月'],
+    features: ['BOH AI 300次/天', 'Cloud+ 450张', '礼物定制月×2次', '多模态交互', '金色昵称', '实验室 PPT/Word 20次/月'],
     featured: false
   },
   {

@@ -196,7 +196,7 @@ const handleUpgrade = () => {
   align-items: stretch !important;
   justify-content: flex-end !important;
   padding: 12px !important;
-  background: rgba(15, 23, 42, 0.22) !important;
+    background: rgba(61, 57, 41, 0.22) !important;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   isolation: isolate;
@@ -210,11 +210,11 @@ const handleUpgrade = () => {
   display: grid !important;
   grid-template-rows: auto minmax(0, 1fr) auto !important;
   overflow: hidden !important;
-  border: 1px solid rgba(226, 232, 240, 0.92) !important;
-  border-radius: 14px !important;
+  border: 1px solid #dad9d4 !important;
+  border-radius: 16px !important;
   background: rgba(255, 255, 255, 0.98) !important;
-  color: #111827 !important;
-  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24) !important;
+  color: #3d3929 !important;
+  box-shadow: 0 24px 70px rgba(61, 57, 41, 0.24) !important;
 }
 
 /* 头部 */
@@ -224,21 +224,21 @@ const handleUpgrade = () => {
   justify-content: space-between;
   gap: 16px;
   padding: 16px 18px;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.86);
+  border-bottom: 1px solid #dad9d4;
 }
 
 .quota-header h2 {
   margin: 0;
   font-size: 18px;
   font-weight: 700;
-  color: #0f172a;
+  color: #3d3929;
 }
 
 .quota-close-btn {
   background: transparent;
   border: none;
   cursor: pointer;
-  color: #64748b;
+  color: #6e6d68;
   padding: 6px;
   border-radius: 8px;
   display: flex;
@@ -248,7 +248,7 @@ const handleUpgrade = () => {
 
 .quota-close-btn:hover {
   background: rgba(0, 0, 0, 0.04);
-  color: #0f172a;
+  color: #3d3929;
 }
 
 /* 主体内容 */
@@ -266,7 +266,7 @@ const handleUpgrade = () => {
 
 /* 卡片样式 - 与设置面板一致 */
 .quota-card {
-  background: rgba(248, 250, 252, 0.6);
+  background: #f5f4ef;
   border-radius: 12px;
   padding: 12px;
   margin-bottom: 12px;
@@ -279,7 +279,7 @@ const handleUpgrade = () => {
 .quota-group-title {
   font-size: 12px;
   font-weight: 600;
-  color: #64748b;
+  color: #6e6d68;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 10px;
@@ -306,12 +306,12 @@ const handleUpgrade = () => {
 .quota-label {
   font-size: 14px;
   font-weight: 600;
-  color: #0f172a;
+  color: #3d3929;
 }
 
 .quota-desc {
   font-size: 13px;
-  color: #64748b;
+  color: #6e6d68;
 }
 
 /* 图标样式 */
@@ -322,18 +322,18 @@ const handleUpgrade = () => {
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  background: rgba(59, 130, 246, 0.12);
-  color: #3b82f6;
+  background: rgba(201, 100, 66, 0.12);
+  color: #C96442;
 }
 
 .quota-icon.bg-blue {
-  background: rgba(59, 130, 246, 0.12);
-  color: #3b82f6;
+  background: rgba(201, 100, 66, 0.12);
+  color: #C96442;
 }
 
 .quota-icon.bg-green {
-  background: rgba(16, 163, 127, 0.12);
-  color: #10a37f;
+  background: rgba(120, 140, 93, 0.12);
+  color: #788c5d;
 }
 
 /* 进度条样式 - 与设置面板上下文使用率一致 */
@@ -353,24 +353,24 @@ const handleUpgrade = () => {
 .quota-meter-info strong {
   font-size: 14px;
   font-weight: 600;
-  color: #0f172a;
+  color: #3d3929;
 }
 
 .quota-meter-info small {
   font-size: 12px;
-  color: #64748b;
+  color: #6e6d68;
 }
 
 .quota-meter-track {
   height: 6px;
-  background: #e5e7eb;
+  background: #dad9d4;
   border-radius: 999px;
   overflow: hidden;
 }
 
 .quota-meter-fill {
   height: 100%;
-  background: #3b82f6;
+  background: #C96442;
   border-radius: 999px;
   transition: width 0.5s ease;
 }
@@ -389,7 +389,7 @@ const handleUpgrade = () => {
   gap: 6px;
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid rgba(226, 232, 240, 0.6);
+  border-top: 1px solid #dad9d4;
 }
 
 .quota-meter-detail-row {
@@ -399,13 +399,13 @@ const handleUpgrade = () => {
 
 .quota-meter-detail-row span {
   font-size: 12px;
-  color: #64748b;
+  color: #6e6d68;
 }
 
 .quota-meter-detail-row strong {
   font-size: 13px;
   font-weight: 600;
-  color: #0f172a;
+  color: #3d3929;
 }
 
 .quota-exhausted {
@@ -421,7 +421,7 @@ const handleUpgrade = () => {
 /* 底部 */
 .quota-footer {
   padding: 16px 18px;
-  border-top: 1px solid rgba(226, 232, 240, 0.86);
+  border-top: 1px solid #dad9d4;
 }
 
 .quota-action-btn {
@@ -436,12 +436,12 @@ const handleUpgrade = () => {
 }
 
 .quota-action-btn.primary {
-  background: #1459d9;
+  background: #C96442;
   color: #fff;
 }
 
 .quota-action-btn.primary:hover {
-  background: #1149b8;
+  background: #b0562f;
 }
 
 .quota-tier-note {
@@ -453,12 +453,12 @@ const handleUpgrade = () => {
 .quota-tier-note strong {
   font-size: 13px;
   font-weight: 700;
-  color: #64748b;
+  color: #6e6d68;
 }
 
 .quota-tier-note span {
   font-size: 12px;
-  color: #94a3b8;
+  color: #9b988c;
 }
 
 /* 过渡动画 */
@@ -539,11 +539,11 @@ const handleUpgrade = () => {
 }
 
 [data-boh-theme="dark"] .quota-icon.bg-blue {
-  background: rgba(59, 130, 246, 0.15);
+  background: rgba(201, 100, 66, 0.15);
 }
 
 [data-boh-theme="dark"] .quota-icon.bg-green {
-  background: rgba(16, 163, 127, 0.15);
+  background: rgba(120, 140, 93, 0.15);
 }
 
 [data-boh-theme="dark"] .quota-meter-track {

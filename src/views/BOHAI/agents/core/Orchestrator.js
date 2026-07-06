@@ -82,7 +82,7 @@ export const createOrchestrator = ({
     const callOrchestrator = (model, maxTokens, customSignal) => client.call({
       model,
       messages: [
-        { role: 'system', content: '你是 BOH AI 集群的编排者。' },
+        { role: 'system', content: '<role>你是 BOH AI 集群的编排者。</role>\n<constraints>\n- 把用户请求拆解成子任务\n- 不输出 JSON 之外的文字\n</constraints>' },
         { role: 'user', content: userPrompt }
       ],
       temperature: 0.12,

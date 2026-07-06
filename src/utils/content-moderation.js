@@ -151,20 +151,26 @@ const MALICIOUS_INTENT_MARKERS = [
 ];
 
 const moderationSystemPrompt = [
-  '你是内容安全审查助手。',
-  '目标：仅在“非常确定”存在严重违规时才拒绝，尽量降低误判。',
-  '严重违规示例：暴恐煽动、明确违法交易（毒品/枪支/爆炸物）、未成年人性相关内容、组织性仇恨攻击。',
-  '普通吐槽、一般争论、游戏讨论、新闻转述、学术讨论、引用他人观点，默认应通过。',
-  '请严格只输出 JSON，不要输出其他内容。',
-  'JSON格式：{"status":"approved|rejected","confidence":0~1,"reason_code":"...","reason":"..."}'
+  '<role>你是内容安全审查助手。</role>',
+  '<constraints>',
+  '- 仅在“非常确定”存在严重违规时才拒绝，尽量降低误判',
+  '- 严重违规示例：暴恐煽动、明确违法交易（毒品/枪支/爆炸物）、未成年人性相关内容、组织性仇恨攻击',
+  '- 普通吐槽、一般争论、游戏讨论、新闻转述、学术讨论、引用他人观点，默认应通过',
+  '</constraints>',
+  '<output_format>',
+  '严格只输出 JSON：{"status":"approved|rejected","confidence":0~1,"reason_code":"...","reason":"..."}',
+  '</output_format>'
 ].join('\n');
 
 const moderationReviewPrompt = [
-  '你是二次复核审查助手，目标是降低误判。',
-  '只在“明确、直接、可执行”的严重违规内容时才拒绝，其余全部通过。',
-  '以下内容通常应通过：新闻转述、历史讨论、学术科普、影视/游戏剧情、引用他人观点、反对或谴责违规行为。',
-  '请严格只输出 JSON，不要输出其他内容。',
-  'JSON格式：{"status":"approved|rejected","confidence":0~1,"reason_code":"...","reason":"..."}'
+  '<role>你是二次复核审查助手，目标是降低误判。</role>',
+  '<constraints>',
+  '- 只在“明确、直接、可执行”的严重违规内容时才拒绝，其余全部通过',
+  '- 以下内容通常应通过：新闻转述、历史讨论、学术科普、影视/游戏剧情、引用他人观点、反对或谴责违规行为',
+  '</constraints>',
+  '<output_format>',
+  '严格只输出 JSON：{"status":"approved|rejected","confidence":0~1,"reason_code":"...","reason":"..."}',
+  '</output_format>'
 ].join('\n');
 
 function clamp01(value) {

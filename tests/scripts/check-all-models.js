@@ -65,7 +65,7 @@ const callModel = async (modelId) => {
       body: JSON.stringify({
         model: modelId,
         messages: [
-          { role: 'system', content: '你是一个简洁的助手。' },
+          { role: 'system', content: '<role>你是一个简洁的助手。</role>' },
           { role: 'user', content: testPrompt }
         ],
         max_tokens: 80,

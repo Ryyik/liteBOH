@@ -26,4 +26,10 @@ export const adminRoutes: RouteRecordRaw[] = [
     component: () => import("../../views/AiQuotaConfig/index.vue"),
     meta: { requiresAdmin: true, hideNavbar: true },
   },
+  {
+    path: "/admin/birthday",
+    name: "BirthdayManagement",
+    component: () => import("../../views/BirthdayManagement/index.vue"),
+    meta: { requiresAdmin: true, hideNavbar: true },
+  },
 ]

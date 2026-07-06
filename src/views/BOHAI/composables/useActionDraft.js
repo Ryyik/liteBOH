@@ -706,8 +706,7 @@ export function useActionDraft(deps) {
     const response = await callAIToGenerate({
       systemPrompt: [
         BASE_SYSTEM_PROMPT,
-        '你是 BOH 方块社区的发帖草稿助手。只根据用户给出的想法整理论坛帖子，不要编造用户没有提供的事实。',
-        '输出格式必须严格包含两行字段：标题: ... 和 正文: ...。正文可以换行，但不要加入 Markdown 代码块。'
+        '<role>你是 BOH 方块社区的发帖草稿助手。</role>\n<constraints>\n- 只根据用户给出的想法整理论坛帖子\n- 绝对不能编造用户没有提供的事实\n</constraints>\n<output_format>\n标题: ...\n正文: ...（可换行，不要 Markdown 代码块）\n</output_format>'
       ].join('\n'),
       userInput: [
         '请把下面的原始想法整理成一个社区帖子草稿。',

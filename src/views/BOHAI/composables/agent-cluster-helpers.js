@@ -6,7 +6,7 @@ import { SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID, resolveSiliconFlowFreeModelId }
 import { useAgentCluster } from '../agents/composables/useAgentCluster.js';
 import { AGENT_EVENT_TYPES } from '../agents/core/agent-events.js';
 import { AGENT_CLUSTER_MODE } from '../agents/core/agent-cluster-config.js';
-import { buildHistoryMessagesWithinBudget } from './bohai-engine-helpers.js';
+import { buildHistoryMessagesWithinBudget, buildAgentContext } from './bohai-engine-helpers.js';
 import { MAX_HISTORY_CONTEXT_CHARS, MAX_HISTORY_MESSAGE_CHARS } from './chat-engine-config.js';
 
 const summarizeHistoryInline = (history = []) => {
@@ -20,23 +20,31 @@ const summarizeHistoryInline = (history = []) => {
 };
 
 const DEFAULT_CHAT_ENGINE_MODEL = resolveSiliconFlowFreeModelId('Qwen/Qwen3-8B', SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID);
-const CHAT_ENGINE_SYSTEM_PROMPT = `你是 BOH AI 集群中的"对话"Agent，专责"通用对话与综合回答"。
-要求：
-1. 基于已知上下文与证据回答，禁止编造事实。
-2. 回答自然、简洁、可执行，使用用户提问语言。
-3. 不输出 JSON 包装或代码块（除非用户明确要求）。
-4. 结尾使用 \`<<<synth-final>>>\` 标记，便于前端解析。`;
+const CHAT_ENGINE_SYSTEM_PROMPT = `<role>
+你是 BOH AI 集群中的"对话"Agent，专责"通用对话与综合回答"。
+</role>
 
-const buildChatEngineMessages = ({ query, history }) => {
+<constraints>
+- 绝对不能编造事实；必须基于已知上下文与证据回答。
+- 绝对不能输出 JSON 包装或代码块（除非用户明确要求）。
+</constraints>
+
+<instructions>
+1. 回答自然、简洁、可执行，使用用户提问语言。
+2. 结尾使用 \`<<<synth-final>>>\` 标记，便于前端解析。
+</instructions>`;
+
+const buildChatEngineMessages = ({ query, history, agentName = 'chat-engine' }) => {
   const safeHistory = Array.isArray(history) ? history : [];
-  const recent = buildHistoryMessagesWithinBudget(safeHistory, {
-    maxChars: MAX_HISTORY_CONTEXT_CHARS,
-    maxMessages: 6,
+  const { history: recent } = buildAgentContext(safeHistory, agentName, query);
+  const historyBlock = recent.length > 0 ? recent : buildHistoryMessagesWithinBudget(safeHistory, {
+    maxChars: agentName === 'chat-engine' ? MAX_HISTORY_CONTEXT_CHARS : 2000,
+    maxMessages: agentName === 'chat-engine' ? 12 : 6,
     maxPerMessage: MAX_HISTORY_MESSAGE_CHARS
   });
   return [
     { role: 'system', content: CHAT_ENGINE_SYSTEM_PROMPT },
-    ...recent,
+    ...historyBlock,
     { role: 'user', content: String(query || '').trim() }
   ];
 };

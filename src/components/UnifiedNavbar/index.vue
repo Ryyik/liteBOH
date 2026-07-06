@@ -246,7 +246,9 @@ const navMenuItems = [
     children: [
       { name: "character-book", path: "/character-book", label: "设定集" },
       { name: "mbti", path: "/mbti", label: "MBTI" },
-      { name: "lab", path: "/lab", label: "实验室" }
+      { name: "lab", path: "/lab", label: "实验室" },
+      { name: "birthday", path: "/birthday", label: "生日会" },
+      { name: "boh-8-years-journey", path: "/boh-8-years-journey", label: "八周年" }
     ]
   },
   {

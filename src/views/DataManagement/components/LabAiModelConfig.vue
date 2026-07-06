@@ -103,7 +103,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue';
-import { RefreshCw, Save, LoaderCircle, FileText, Presentation } from 'lucide-vue-next';
+import { RefreshCw, Save, LoaderCircle, FileText, Presentation, Code2, FileEdit } from 'lucide-vue-next';
 import { supabase } from '@/utils/supabase-client.js';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { listApiKeys } from '@/utils/api/api-key-vault-api.js';
@@ -137,7 +137,9 @@ const scheduleSuccessClear = () => {
 
 const FEATURE_ICONS = {
   'doc-formatting': FileText,
-  'ppt-generator': Presentation
+  'ppt-generator': Presentation,
+  'code-generator': Code2,
+  'word-generator': FileEdit
 };
 
 const getFeatureIcon = (key) => FEATURE_ICONS[key] || FileText;

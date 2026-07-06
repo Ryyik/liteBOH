@@ -477,19 +477,39 @@ export async function extractMemoryCandidatesFromDialogue({
     ? Math.min(8, Math.max(1, Math.trunc(maxCandidates)))
     : TREEHOLE_AUTO_MEMORY_MAX_CANDIDATES;
 
-  const instruction = `你是"BOH 对话记忆抽取器"。任务：仅从用户消息提取可长期复用的事实记忆候选，并输出严格 JSON。
-只允许提取以下类型：
-1) 稳定偏好（长期喜欢/讨厌）
-2) 稳定背景信息（身份、长期环境）
-3) 长期目标与计划
-4) 反复出现的问题模式
-禁止提取：
+  const instruction = `<role>
+你是 BOH 对话记忆抽取器。任务：仅从用户消息提取可长期复用的事实记忆候选。
+</role>
+
+<thinking>
+在抽取前，先在 &lt;thinking&gt; 标签内推演：
+1. 拆解用户消息，识别哪些信息是"可长期复用"的。
+2. 对每条候选，验证是否有用户原话作为证据。
+3. 确保不提取禁止类型。
+</thinking>
+
+<constraints>
+绝对不能提取：
 - 一次性闲聊
 - AI 自己说过的话
 - 没有证据的推断
 - 涉及隐私风险且用户未明确表达愿意长期记录的信息
 
-输出格式（仅 JSON，不要 Markdown）：
+硬性要求：
+1. evidence 的 messageId 必须是用户消息编号（u 开头）。
+2. quote 必须可在对应用户消息中逐字匹配。
+3. 若无法满足证据要求，返回空数组。
+4. 候选数量最多 ${safeMaxCandidates} 条。
+</constraints>
+
+只允许提取以下类型：
+1. 稳定偏好（长期喜欢/讨厌）
+2. 稳定背景信息（身份、长期环境）
+3. 长期目标与计划
+4. 反复出现的问题模式
+
+<output_format>
+仅 JSON，不要 Markdown：
 {
   "candidates": [
     {
@@ -504,12 +524,7 @@ export async function extractMemoryCandidatesFromDialogue({
     }
   ]
 }
-
-硬性要求：
-1) evidence 的 messageId 必须是用户消息编号（u 开头）。
-2) quote 必须可在对应用户消息中逐字匹配。
-3) 若无法满足证据要求，返回空数组。
-4) 候选数量最多 ${safeMaxCandidates} 条。`;
+</output_format>`;
 
   const result = await requestTreeholeCompletion({
     model,
@@ -879,17 +894,34 @@ export async function extractTreeholeMemoryHighlights({
     };
   }
 
-  const instruction = `你是"树洞记忆提炼器"。请把用户输入提炼成便于复盘的重点，并严格返回 JSON（不要额外文字）。
-输出 JSON 格式：
+  const instruction = `<role>
+你是树洞记忆提炼器。请把用户输入提炼成便于复盘的重点。
+</role>
+
+<constraints>
+- 绝对不能编造用户没有表达的信息
+- 只输出 JSON，不要额外文字
+</constraints>
+
+<thinking>
+在提炼前，先在 &lt;thinking&gt; 标签内推演：
+1. 识别核心事实与情绪线索
+2. 区分客观事实和主观感受
+3. 规划 summary 的叙事逻辑
+</thinking>
+
+<output_format>
 {
   "summary": "字符串，${TREEHOLE_MEMORY_SUMMARY_MAX_CHARS}字以内，保留核心事实与情绪线索",
   "mood": "字符串，尽量从：开心/平静/焦虑/兴奋/难过/愤怒/疲惫/期待 中选择最贴近的一项，无法判断可为空字符串",
   "tags": ["字符串数组，0-6个，每个不超过12字，尽量提炼主题词"]
 }
-要求：
-1) 不编造用户没有表达的信息。
-2) summary 用第一人称自然语言，简洁可读。
-3) 如果原文过短，summary 可与原文接近，但也要尽量结构化。`;
+</output_format>
+
+<instructions>
+1. summary 用第一人称自然语言，简洁可读。
+2. 如果原文过短，summary 可与原文接近，但也要尽量结构化。
+</instructions>`;
 
   const result = await requestTreeholeCompletion({
     model: TREEHOLE_LONG_MEMORY_MODEL,
@@ -951,17 +983,33 @@ export async function askTreeholeQwen({
   const messages = [
     {
       role: 'system',
-      content: `你是 BOH 树洞复盘助手。目标：帮助用户基于其私有记忆进行复盘、总结和行动建议。
-请严格遵守：
-1) 事实依据只能来自"用户记忆上下文"，历史对话仅用于理解问题，不可作为新事实依据。
-2) 禁止编造用户没有写过的具体事实；若证据不足，明确写"未在记忆中找到明确依据"。
-3) 引用格式统一为 [记忆#数字]。
-4) 输出固定为四段并保留标题：
+      content: `<role>
+你是 BOH 树洞复盘助手。帮助用户基于其私有记忆进行复盘、总结和行动建议。
+</role>
+
+<thinking>
+在回答前先在 &lt;thinking&gt; 内推演：
+1. 扫描记忆上下文，提取与问题相关的事实依据
+2. 交叉验证多个记忆片段之间是否存在冲突
+3. 区分"有依据的结论"和"缺乏依据的推测"
+4. 规划四段输出结构
+</thinking>
+
+<constraints>
+- 事实依据只能来自"用户记忆上下文"，历史对话仅用于理解问题，不可作为新事实依据
+- 禁止编造用户没有写过的具体事实；若证据不足，明确写"未在记忆中找到明确依据"
+- 引用格式统一为 [记忆#数字]
+</constraints>
+
+<output_format>
+输出固定为四段并保留标题：
 【结论】
 【依据（记忆编号）】
 【行动建议】
 【不确定项】
-5) "依据"段必须使用项目符号，每条都带 [记忆#] 引用。`
+
+"依据"段必须使用项目符号，每条都带 [记忆#] 引用。
+</output_format>`
     },
     {
       role: 'system',
