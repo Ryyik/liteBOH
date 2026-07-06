@@ -42,12 +42,24 @@
       </div>
     </div>
 
+    <!-- Music Decoration -->
+    <div class="music-decor">
+      <div class="music-stave-bg"></div>
+      <div class="floating-note note-1">♪</div>
+      <div class="floating-note note-2">♫</div>
+      <div class="floating-note note-3">♩</div>
+      <div class="floating-note note-4">♬</div>
+    </div>
+
     <!-- Pricing Cards Container -->
     <div class="pricing-container">
       <TransitionGroup name="card-transition" tag="div" class="pricing-grid-wrapper">
         <div v-for="(plan, index) in plans" :key="plan.code" class="pricing-card"
           :class="{ 'featured': plan.featured, 'active-plan': plan.status === 'active' }"
           :style="{ '--delay': index * 0.1 + 's', '--card-index': index }">
+          <div class="card-note n1">♩</div>
+          <div class="card-note n2">♪</div>
+          <div class="card-note n3">♫</div>
           <div class="card-content">
             <div class="plan-header">
               <component :is="plan.icon" class="plan-icon" :size="28" :stroke-width="1.7" aria-hidden="true" />
