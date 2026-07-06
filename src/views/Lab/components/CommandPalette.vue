@@ -53,7 +53,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import AppIcon from './AppIcon.vue'
 
 const props = defineProps({
@@ -68,10 +68,8 @@ const selectedIndex = ref(0)
 const inputRef = ref(null)
 const paletteRef = ref(null)
 
-const commands = ref([])
-
 const groups = computed(() => {
-  return commands.value
+  return props.commands
 })
 
 const filteredGroups = computed(() => {

@@ -312,6 +312,127 @@
   color: #ffffff !important;
 }
 
+[data-theme="dark"] .subscription-page .pricing-card {
+  background: rgba(18, 26, 42, 0.85) !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+}
+
+[data-theme="dark"] .subscription-page .pricing-card:hover {
+  background: rgba(24, 34, 54, 0.92) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+[data-theme="dark"] .subscription-page .pricing-card:nth-child(2) {
+  box-shadow: 0 8px 32px rgba(0, 122, 255, 0.15) !important;
+  border-color: rgba(0, 122, 255, 0.2) !important;
+}
+
+[data-theme="dark"] .subscription-page .pricing-card:nth-child(2):hover {
+  box-shadow: 0 20px 48px rgba(0, 122, 255, 0.25) !important;
+  border-color: rgba(0, 122, 255, 0.35) !important;
+}
+
+[data-theme="dark"] .subscription-page .pricing-card.active-plan {
+  border-color: rgba(43, 138, 62, 0.4) !important;
+  box-shadow: 0 4px 20px rgba(43, 138, 62, 0.12), 0 0 0 1px rgba(43, 138, 62, 0.15) !important;
+}
+
+[data-theme="dark"] .subscription-page .pricing-card.featured::after {
+  background: #0a84ff !important;
+}
+
+[data-theme="dark"] .subscription-page .pricing-card .plan-name {
+  color: var(--uc-dark-text) !important;
+}
+
+[data-theme="dark"] .subscription-page .pricing-card .plan-price {
+  color: var(--uc-dark-text) !important;
+}
+
+[data-theme="dark"] .subscription-page .pricing-card .amount {
+  color: var(--uc-dark-text) !important;
+}
+
+[data-theme="dark"] .subscription-page .pricing-card .period {
+  color: var(--uc-dark-text-muted) !important;
+}
+
+[data-theme="dark"] .subscription-page .action-btn.btn-primary {
+  background: var(--uc-dark-surface-strong) !important;
+  color: var(--uc-dark-text) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25) !important;
+}
+
+[data-theme="dark"] .subscription-page .action-btn.btn-primary:hover {
+  background: #1a2840 !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35) !important;
+}
+
+[data-theme="dark"] .subscription-page .pricing-card:nth-child(2) .action-btn.btn-primary {
+  background: #0a84ff !important;
+  box-shadow: 0 4px 16px rgba(0, 122, 255, 0.25) !important;
+}
+
+[data-theme="dark"] .subscription-page .pricing-card:nth-child(2) .action-btn.btn-primary:hover {
+  background: #409cff !important;
+  box-shadow: 0 8px 28px rgba(0, 122, 255, 0.35) !important;
+}
+
+[data-theme="dark"] .subscription-page .pricing-card:nth-child(3) .action-btn.btn-primary {
+  background: #bf5af2 !important;
+}
+
+[data-theme="dark"] .subscription-page .pricing-card:nth-child(3) .action-btn.btn-primary:hover {
+  background: #ce7cf5 !important;
+}
+
+[data-theme="dark"] .subscription-page .pricing-card:nth-child(4) .action-btn.btn-primary {
+  background: #ff9f0a !important;
+  color: #1d1d1f !important;
+}
+
+[data-theme="dark"] .subscription-page .pricing-card:nth-child(4) .action-btn.btn-primary:hover {
+  background: #ffb340 !important;
+}
+
+[data-theme="dark"] .subscription-page .pricing-card:nth-child(5) .action-btn.btn-primary {
+  background: #ff375f !important;
+}
+
+[data-theme="dark"] .subscription-page .pricing-card:nth-child(5) .action-btn.btn-primary:hover {
+  background: #ff6b86 !important;
+}
+
+[data-theme="dark"] .subscription-page .btn-success {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: var(--uc-dark-text-soft) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-theme="dark"] .subscription-page .pricing-card .billing-desc {
+  color: #ff8a8a !important;
+  background: rgba(255, 55, 95, 0.12) !important;
+}
+
+[data-theme="dark"] .subscription-page .pricing-card .active-period {
+  color: #4ade80 !important;
+  background: rgba(43, 138, 62, 0.15) !important;
+}
+
+[data-theme="dark"] .subscription-page .pricing-card .check-icon {
+  color: var(--uc-dark-text) !important;
+}
+
+[data-theme="dark"] .subscription-page .pricing-card .feature-item {
+  color: var(--uc-dark-text-soft) !important;
+}
+
+[data-theme="dark"] .subscription-page .pricing-card .plan-icon {
+  color: var(--uc-dark-text) !important;
+}
+
 [data-theme="dark"] .subscription-page .toggle-wrapper {
   background: rgba(255, 255, 255, 0.05) !important;
   border-color: var(--uc-dark-border) !important;

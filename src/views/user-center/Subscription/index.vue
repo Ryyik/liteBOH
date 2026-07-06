@@ -43,58 +43,43 @@
     </div>
 
     <!-- Pricing Cards Container -->
-    <div class="music-stave-container">
-      <div class="music-lines"></div>
-
-      <!-- Floating Notes Decoration -->
-      <div class="floating-note note-1">♪</div>
-      <div class="floating-note note-2">♫</div>
-      <div class="floating-note note-3">♩</div>
-      <div class="floating-note note-4">♬</div>
-      <div class="floating-note note-5">𝄞</div>
-
-      <div class="pricing-container">
-        <TransitionGroup name="card-transition" tag="div" class="pricing-grid-wrapper">
-          <div v-for="(plan, index) in plans" :key="plan.code" class="pricing-card"
-            :class="{ 'featured': plan.featured, 'active-plan': plan.status === 'active' }"
-            :style="{ '--delay': index * 0.1 + 's', '--card-index': index }">
-            <div class="card-content">
-              <div class="plan-header">
-                <div class="icon-wrapper">
-                  <component :is="plan.icon" class="plan-icon" :size="30" :stroke-width="1.7" aria-hidden="true" />
-                </div>
-                <h3 class="plan-name">{{ plan.name }}</h3>
-                <div class="plan-price">
-                  <span class="amount">{{ calculatePrice(plan) }}</span>
-                  <span class="period">积分{{ billingCycle === 'monthly' ? '/月' : '/年' }}</span>
-                </div>
-                <div class="billing-desc" v-if="billingCycle === 'yearly' && plan.monthlyCost > 0">
-                  相当于 {{ Math.round(plan.monthlyCost * 10 / 12) }} 积分/月
-                </div>
-                <div class="active-period" v-if="plan.activeSubscription">
-                  生效至 {{ formatDateText(plan.activeSubscription.expiresAt) }}
-                </div>
+    <div class="pricing-container">
+      <TransitionGroup name="card-transition" tag="div" class="pricing-grid-wrapper">
+        <div v-for="(plan, index) in plans" :key="plan.code" class="pricing-card"
+          :class="{ 'featured': plan.featured, 'active-plan': plan.status === 'active' }"
+          :style="{ '--delay': index * 0.1 + 's', '--card-index': index }">
+          <div class="card-content">
+            <div class="plan-header">
+              <component :is="plan.icon" class="plan-icon" :size="28" :stroke-width="1.7" aria-hidden="true" />
+              <h3 class="plan-name">{{ plan.name }}</h3>
+              <div class="plan-price">
+                <span class="amount">{{ calculatePrice(plan) }}</span>
+                <span class="period">积分{{ billingCycle === 'monthly' ? '/月' : '/年' }}</span>
               </div>
-
-              <div class="divider"></div>
-
-              <ul class="feature-list">
-                <li v-for="(feature, fIndex) in plan.features" :key="fIndex" class="feature-item">
-                  <Check class="check-icon" :size="15" :stroke-width="2" aria-hidden="true" />
-                  <span class="feature-text">{{ feature }}</span>
-                </li>
-              </ul>
-
-              <div class="card-footer">
-                <button class="action-btn full-width" :class="getButtonClass(plan)" @click="handleSubscribe(plan)"
-                  :disabled="plan.status === 'active' || isSubmitting || isLoadingSubscriptions">
-                  {{ getButtonText(plan) }}
-                </button>
+              <div class="billing-desc" v-if="billingCycle === 'yearly' && plan.monthlyCost > 0">
+                相当于 {{ Math.round(plan.monthlyCost * 10 / 12) }} 积分/月
+              </div>
+              <div class="active-period" v-if="plan.activeSubscription">
+                生效至 {{ formatDateText(plan.activeSubscription.expiresAt) }}
               </div>
             </div>
+
+            <ul class="feature-list">
+              <li v-for="(feature, fIndex) in plan.features" :key="fIndex" class="feature-item">
+                <Check class="check-icon" :size="15" :stroke-width="2" aria-hidden="true" />
+                <span class="feature-text">{{ feature }}</span>
+              </li>
+            </ul>
+
+            <div class="card-footer">
+              <button class="action-btn full-width" :class="getButtonClass(plan)" @click="handleSubscribe(plan)"
+                :disabled="plan.status === 'active' || isSubmitting || isLoadingSubscriptions">
+                {{ getButtonText(plan) }}
+              </button>
+            </div>
           </div>
-        </TransitionGroup>
-      </div>
+        </div>
+      </TransitionGroup>
     </div>
 
     <!-- Toast Notification -->

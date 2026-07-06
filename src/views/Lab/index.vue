@@ -618,7 +618,7 @@
             <div v-for="branch in branches" :key="branch.map(n => n.id).join('-')" class="tree-branch">
               <div class="tree-branch-path">
                 <div
-                  v-for="(node, ni) in branch"
+                  v-for="node in branch"
                   :key="node.id"
                   class="tree-node"
                   :class="{ 'tree-node--active': node.id === activeTreeNodeId }"
