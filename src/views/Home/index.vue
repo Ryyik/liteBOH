@@ -1,5 +1,45 @@
 <template>
   <div class="home">
+    <!-- Halo，福州 像素落日英雄区域 -->
+    <section class="fuzhou-hero">
+      <div class="fuzhou-content">
+        <h1
+          class="fuzhou-title"
+          v-motion
+          :initial="{ opacity: 0, y: 40 }"
+          :enter="{ opacity: 1, y: 0, transition: { duration: 2200, type: 'spring', damping: 18, stiffness: 60 } }"
+        >
+          Halo，福州。
+        </h1>
+        <button
+          class="fuzhou-btn"
+          @click="openFuzhouModal"
+          v-motion
+          :initial="{ opacity: 0, y: 30 }"
+          :enter="{ opacity: 1, y: 0, transition: { duration: 1800, type: 'spring', damping: 18, stiffness: 60, delay: 600 } }"
+        >
+          了解活动
+        </button>
+      </div>
+      <div class="fuzhou-visual">
+        <div class="pixel-scene">
+          <div class="pixel-sun"></div>
+          <div class="pixel-buildings">
+            <div
+              v-for="b in fuzhouBuildings"
+              :key="b.id"
+              class="building"
+              :style="{ width: b.w + 'px', height: b.h + 'px' }"
+            >
+              <div v-if="b.step" class="building-step" :style="{ width: b.step.w + 'px', height: b.step.h + 'px' }"></div>
+              <div v-if="b.antenna" class="building-antenna"></div>
+            </div>
+          </div>
+          <div class="pixel-ground"></div>
+        </div>
+      </div>
+    </section>
+
     <!-- BOH 小猫主题英雄区域 -->
     <section class="cat-theme-hero">
       <div class="cat-theme-copy">
@@ -316,6 +356,38 @@
       </Transition>
     </Teleport>
 
+    <!-- 遇见福州 弹窗 -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="showFuzhouModal" class="fuzhou-modal-overlay" @click.self="showFuzhouModal = false">
+          <div class="fuzhou-modal-card">
+            <button class="modal-close-btn" @click="closeFuzhouModal">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            <div class="fuzhou-modal-content">
+              <div class="fuzhou-modal-header">
+                <div class="fuzhou-modal-icon">🏮</div>
+                <h2 class="fuzhou-modal-title">遇见福州</h2>
+              </div>
+              <div class="fuzhou-modal-body">
+                <p class="fuzhou-modal-paragraph">方块之家遇见系列从7周年开始，现将来到福州。</p>
+                <p class="fuzhou-modal-paragraph">福州是一座被茉莉花香浸润的城市。三坊七巷的黛瓦白墙里藏着千年闽都的呼吸，闽江水穿城而过奔赴大海。古榕垂荫下的鱼丸汤冒着热气，石板路上回响着岁月的脚步——有福之州，正用它独有的温度，等待与方块之家的你相遇。</p>
+              </div>
+              <div class="fuzhou-modal-actions">
+                <button class="fuzhou-modal-close-btn" @click="closeFuzhouModal">
+                  了解了
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
     <!-- BOH Cloud+ 联动功能弹窗 -->
     <Teleport to="body">
       <Transition name="modal-fade">
@@ -420,6 +492,32 @@ const closeCloudPlusModal = () => {
   showCloudPlusModal.value = false;
   document.body.style.overflow = '';
 };
+
+// 遇见福州 弹窗
+const showFuzhouModal = ref(false);
+
+const openFuzhouModal = () => {
+  showFuzhouModal.value = true;
+  document.body.style.overflow = 'hidden';
+};
+
+const closeFuzhouModal = () => {
+  showFuzhouModal.value = false;
+  document.body.style.overflow = '';
+};
+
+// 像素城市建筑物数据
+const fuzhouBuildings = [
+  { id: 1, w: 34, h: 95 },
+  { id: 2, w: 26, h: 155, step: { w: 18, h: 12 } },
+  { id: 3, w: 42, h: 78, step: { w: 30, h: 10 } },
+  { id: 4, w: 30, h: 135, antenna: true },
+  { id: 5, w: 24, h: 185, step: { w: 16, h: 16 }, antenna: true },
+  { id: 6, w: 38, h: 108 },
+  { id: 7, w: 50, h: 68 },
+  { id: 8, w: 28, h: 125, step: { w: 20, h: 10 } },
+  { id: 9, w: 36, h: 88 },
+];
 
 // 团队成员数据
 const teamMembers = ref(teamMembersData);
