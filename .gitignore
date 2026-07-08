@@ -41,3 +41,6 @@ secrets*.json
 
 # Build reports
 stats.html
+
+# Supabase CLI 临时文件
+supabase/.temp/
