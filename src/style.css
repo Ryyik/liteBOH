@@ -230,3 +230,86 @@ html {
     font-family: var(--font-sans);
   }
 }
+
+/* ============================================
+   Apple Style Design Tokens (for Hero sections)
+   ============================================ */
+:root {
+  /* Brand */
+  --apple-brand: #007aff;
+  --apple-brand-hover: #0064d6;
+  --apple-brand-dark: #2e8dff;
+
+  /* Text */
+  --apple-text-primary: #1d1d1f;
+  --apple-text-secondary: #6e6e73;
+  --apple-text-tertiary: #8e8e93;
+
+  /* Background */
+  --apple-bg-white: #ffffff;
+  --apple-bg-gray: #f2f2f7;
+  --apple-bg-light: #f7f7fa;
+  --apple-bg-dark: #000000;
+
+  /* Border */
+  --apple-border: #e5e5ea;
+
+  /* Typography - Display */
+  --apple-display-1: 80px;
+  --apple-display-1-weight: 600;
+  --apple-display-1-ls: -0.015em;
+  --apple-display-1-lh: 1.05;
+
+  --apple-display-2: 56px;
+  --apple-display-2-weight: 600;
+  --apple-display-2-ls: -0.005em;
+  --apple-display-2-lh: 1.07;
+
+  --apple-display-3: 40px;
+  --apple-display-3-weight: 600;
+  --apple-display-3-ls: 0em;
+  --apple-display-3-lh: 1.1;
+
+  /* Typography - Copy */
+  --apple-copy: 21px;
+  --apple-copy-lh: 1.19;
+  --apple-copy-ls: 0.011em;
+
+  --apple-copy-sm: 17px;
+  --apple-copy-sm-lh: 1.47;
+  --apple-copy-sm-ls: -0.022em;
+
+  /* Eyebrow */
+  --apple-eyebrow: 14px;
+  --apple-eyebrow-ls: -0.016em;
+
+  /* Spacing */
+  --apple-section-padding-y: 64px;
+  --apple-section-padding-x: 22px;
+  --apple-hero-padding-top: 64px;
+  --apple-hero-padding-bottom: 56px;
+  --apple-container-max: 980px;
+  --apple-container-wide: 1440px;
+
+  /* Visual */
+  --apple-visual-max-w: 920px;
+  --apple-visual-radius: 18px;
+
+  /* Buttons */
+  --apple-btn-height: 44px;
+  --apple-btn-font: 17px;
+  --apple-btn-radius: 980px;
+  --apple-btn-padding-x: 22px;
+
+  /* Shadows */
+  --apple-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05), 0 1px 3px -1px rgba(0, 0, 0, 0.05);
+  --apple-shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --apple-shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.08), 0 4px 8px -4px rgba(0, 0, 0, 0.05);
+  --apple-shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.10), 0 8px 16px -8px rgba(0, 0, 0, 0.06);
+
+  /* Motion */
+  --apple-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --apple-duration-fast: 150ms;
+  --apple-duration-normal: 250ms;
+  --apple-duration-slow: 350ms;
+}

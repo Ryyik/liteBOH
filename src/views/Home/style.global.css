@@ -1,46 +1,36 @@
 /* 强制修复滚动条问题，覆盖所有外部干扰 */
-/* 核心策略：只允许 HTML 元素滚动，禁用 BODY 和其他容器的滚动 */
-
 html {
   overflow-y: scroll !important;
-  /* 始终显示滚动条，防止跳动 */
   overflow-x: hidden !important;
   height: 100% !important;
   width: 100% !important;
   -webkit-overflow-scrolling: touch !important;
-  /* iOS 流畅滚动 */
 }
 
 body {
   overflow: visible !important;
-  /* 允许内容溢出撑开页面 */
   height: auto !important;
   min-height: 100% !important;
   width: 100% !important;
   margin: 0 !important;
   padding: 0 !important;
   position: relative !important;
-  /* 确保定位参考正确 */
 }
 
-/* 确保根容器不产生额外的滚动条 */
 #app {
   overflow: visible !important;
   height: auto !important;
   width: 100% !important;
 }
 
-/* 确保Home组件本身不产生滚动条 */
 .home {
   overflow: visible !important;
   height: auto !important;
   width: 100% !important;
 }
 
-/* 修复可能的第三方库干扰 */
 .modal-open {
   overflow: hidden !important;
-  /* 当模态框打开时，禁止 html 滚动 */
 }
 
 .modal-open body {
