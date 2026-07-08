@@ -3,29 +3,37 @@ import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
 import { resolve } from 'path'
 import { execSync } from 'child_process'
+import { readFileSync } from 'fs'
 import { visualizer } from 'rollup-plugin-visualizer'
 import tailwindcss from '@tailwindcss/vite'
 import cssnano from 'cssnano'
 
 // ============================================
 // 版本指纹生成插件
+// 单一数据源：根目录 VERSION 文件（语义版本，如 4.7.2）
 // 构建时生成 version.json 并在 index.html 注入版本 meta
-// 运行时由 version-checker.js 独立拉取比对，绕过 SW 缓存死循环
+// - version: 语义版本（用户可见，如 4.7.2）
+// - buildId: 构建指纹（commit+timestamp，内部比对，确保每次构建唯一）
+// 运行时由 version-checker.js 独立拉取比对 buildId，绕过 SW 缓存死循环
 // ============================================
 function bohVersionPlugin() {
   let versionInfo = null
 
   const buildVersionInfo = () => {
     if (versionInfo) return versionInfo
+    // 读取语义版本单一源（VERSION 文件）
+    const APP_VERSION = readFileSync(resolve(__dirname, 'VERSION'), 'utf8').trim() || '0.0.0'
     let commitHash = 'unknown'
     try {
       commitHash = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
     } catch { /* 非 git 环境降级 */ }
     const timestamp = Date.now()
     const buildTime = new Date(timestamp).toISOString()
-    // 版本指纹：commit + 时间戳，确保每次构建唯一
+    // 构建指纹：commit + 时间戳，确保每次构建唯一（同版本重新部署也能触发更新）
+    const buildId = `${commitHash}-${timestamp}`
     versionInfo = {
-      version: `${commitHash}-${timestamp}`,
+      version: APP_VERSION,
+      buildId,
       commitHash,
       timestamp,
       buildTime,
@@ -41,8 +49,11 @@ function bohVersionPlugin() {
     },
     transformIndexHtml(html) {
       const info = buildVersionInfo()
-      // 在 </head> 前注入版本 meta，作为运行时比对的当前版本基准
-      const metaTags = `    <meta name="boh-version" content="${info.version}" />\n    <meta name="boh-build-time" content="${info.timestamp}" />\n  </head>`
+      // 在 </head> 前注入版本 meta：
+      // - boh-version: 语义版本（用户可见展示）
+      // - boh-build-id: 构建指纹（运行时比对基准）
+      // - boh-build-time: 构建时间戳（调试参考）
+      const metaTags = `    <meta name="boh-version" content="${info.version}" />\n    <meta name="boh-build-id" content="${info.buildId}" />\n    <meta name="boh-build-time" content="${info.timestamp}" />\n  </head>`
       return html.replace(/\s*<\/head>/i, `\n${metaTags}`)
     },
     generateBundle() {

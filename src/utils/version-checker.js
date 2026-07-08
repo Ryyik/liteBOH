@@ -4,6 +4,11 @@ import { logger } from './logger.js';
 // 独立版本指纹检测器
 // 绕过 Service Worker 缓存，直接通过 HTTP 拉取 version.json 比对
 // 版本不一致时：注销 SW + 清空 Cache Storage + 强制刷新
+//
+// 版本数据分离：
+// - version: 语义版本（如 4.7.2，用户可见展示）
+// - buildId: 构建指纹（commit+timestamp，内部比对基准）
+// 比对 buildId 而非 version，确保同版本重新部署（hotfix）也能触发更新
 // ============================================
 
 const CHECK_INTERVAL = 5 * 60 * 1000; // 每 5 分钟检查一次
@@ -12,14 +17,24 @@ const RELOAD_FLAG = 'boh_version_reloading'; // 防止刷新死循环的标记
 
 let intervalId = null;
 let visibilityHandler = null;
-let currentVersion = null; // 当前页面加载时的版本（来自 meta 标签）
+let currentVersion = null; // 当前语义版本（来自 meta boh-version，如 4.7.2）
+let currentBuildId = null; // 当前构建指纹（来自 meta boh-build-id，用于比对）
 
 /**
- * 从 meta 标签读取当前页面版本
+ * 从 meta 标签读取当前页面语义版本
  * 该版本在构建时由 bohVersionPlugin 注入到 index.html
  */
 const readCurrentVersion = () => {
   const meta = document.querySelector('meta[name="boh-version"]');
+  return meta?.getAttribute('content') || null;
+};
+
+/**
+ * 从 meta 标签读取当前页面构建指纹
+ * 该指纹在构建时由 bohVersionPlugin 注入到 index.html
+ */
+const readCurrentBuildId = () => {
+  const meta = document.querySelector('meta[name="boh-build-id"]');
   return meta?.getAttribute('content') || null;
 };
 
@@ -57,6 +72,7 @@ export const forceCleanAndReload = async () => {
 
   logger.info('version', '用户确认更新，开始清除缓存并刷新', {
     from: currentVersion,
+    buildId: currentBuildId,
   });
 
   try {
@@ -90,25 +106,28 @@ let updateNotified = false;
  * 通知应用层有新版本可用（由自动轮询/visibilitychange 触发）
  * 通过自定义事件让 PWAUpdateToast 弹出统一对话框，不直接刷新
  */
-const notifyUpdateAvailable = (remoteVersion) => {
+const notifyUpdateAvailable = (remoteVersion, remoteBuildId) => {
   if (updateNotified) {
     logger.debug('version', '本次会话已派发过更新提示，跳过');
     return;
   }
   updateNotified = true;
-  logger.info('version', '派发 boh:update-available 事件', { remoteVersion });
+  logger.info('version', '派发 boh:update-available 事件', { remoteVersion, remoteBuildId });
   window.dispatchEvent(new CustomEvent('boh:update-available', {
     detail: {
       remoteVersion,
+      remoteBuildId,
       currentVersion,
-      message: '发现新版本，建议立即刷新以获取最新内容。',
+      currentBuildId,
+      message: `发现新版本 ${remoteVersion}，建议立即刷新以获取最新内容。`,
     },
   }));
 };
 
 /**
  * 执行一次版本检查（只检测，不自动刷新）
- * @returns {Promise<{hasUpdate: boolean, message: string, remoteVersion?: string, currentVersion?: string}>}
+ * 比对 buildId（构建指纹），同版本重新部署也能触发更新
+ * @returns {Promise<{hasUpdate: boolean, message: string, remoteVersion?: string, currentVersion?: string, remoteBuildId?: string}>}
  */
 export const checkVersion = async () => {
   // 开发环境跳过
@@ -116,7 +135,7 @@ export const checkVersion = async () => {
     return { hasUpdate: false, message: '开发环境下版本检测不可用，请在生产环境使用' };
   }
 
-  // 首次运行时记录当前版本
+  // 首次运行时记录当前版本与构建指纹
   if (!currentVersion) {
     currentVersion = readCurrentVersion();
     if (!currentVersion) {
@@ -124,31 +143,40 @@ export const checkVersion = async () => {
       logger.warn('version', '未找到版本 meta 标签，跳过版本检测');
       return { hasUpdate: false, message: '未找到版本信息，无法检测更新' };
     }
-    logger.debug('version', '当前页面版本', currentVersion);
+    currentBuildId = readCurrentBuildId();
+    logger.debug('version', '当前页面版本', { version: currentVersion, buildId: currentBuildId });
   }
 
   try {
     const remote = await fetchRemoteVersion();
-    if (!remote?.version) {
-      logger.warn('version', 'version.json 缺少 version 字段', remote);
+    if (!remote?.buildId) {
+      logger.warn('version', 'version.json 缺少 buildId 字段', remote);
       return { hasUpdate: false, message: '版本信息读取失败' };
     }
 
-    if (remote.version !== currentVersion) {
+    // 比对构建指纹：同版本重新部署（hotfix）时 buildId 变化也能触发更新
+    if (remote.buildId !== currentBuildId) {
       logger.info('version', '发现新版本', {
-        current: currentVersion,
-        remote: remote.version,
+        currentVersion,
+        remoteVersion: remote.version,
+        currentBuildId,
+        remoteBuildId: remote.buildId,
       });
       return {
         hasUpdate: true,
-        message: '发现新版本，可以立即更新',
+        message: `发现新版本 ${remote.version}，可以立即更新`,
         remoteVersion: remote.version,
         currentVersion,
+        remoteBuildId: remote.buildId,
       };
     }
 
-    logger.debug('version', '版本一致，无需更新', currentVersion);
-    return { hasUpdate: false, message: '当前已是最新版本' };
+    logger.debug('version', '版本一致，无需更新', { version: currentVersion, buildId: currentBuildId });
+    return {
+      hasUpdate: false,
+      message: `当前已是最新版本 ${currentVersion}`,
+      currentVersion,
+    };
   } catch (err) {
     // version.json 拉取失败不阻塞用户，仅记录日志
     // 可能是网络问题或 GitHub Pages CDN 暂时不可用
@@ -173,7 +201,7 @@ export const initVersionChecker = () => {
     try {
       const result = await checkVersion();
       if (result.hasUpdate) {
-        notifyUpdateAvailable(result.remoteVersion);
+        notifyUpdateAvailable(result.remoteVersion, result.remoteBuildId);
       }
     } catch (err) {
       logger.warn('version', '自动版本检查异常', err?.message || err);
