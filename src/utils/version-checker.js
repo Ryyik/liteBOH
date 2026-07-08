@@ -44,9 +44,9 @@ const fetchRemoteVersion = async () => {
 
 /**
  * 清除所有 Service Worker 和 Cache Storage，然后刷新页面
- * 这是版本不一致时的强制更新流程
+ * 用户在更新提示弹窗中点击"立即更新"后调用
  */
-const forceCleanAndReload = async () => {
+export const forceCleanAndReload = async () => {
   // 防止刷新死循环：如果刚刚已经触发过刷新，则不再重复
   if (sessionStorage.getItem(RELOAD_FLAG) === 'true') {
     sessionStorage.removeItem(RELOAD_FLAG);
@@ -55,7 +55,7 @@ const forceCleanAndReload = async () => {
   }
   sessionStorage.setItem(RELOAD_FLAG, 'true');
 
-  logger.info('version', '检测到新版本，开始清除缓存并刷新', {
+  logger.info('version', '用户确认更新，开始清除缓存并刷新', {
     from: currentVersion,
   });
 
@@ -83,13 +83,38 @@ const forceCleanAndReload = async () => {
   }
 };
 
+// 标记本次会话是否已派发过更新提示，避免重复弹窗打扰
+let updateNotified = false;
+
 /**
- * 执行一次版本检查
- * @returns {Promise<boolean>} 是否检测到新版本
+ * 通知应用层有新版本可用（由自动轮询/visibilitychange 触发）
+ * 通过自定义事件让 PWAUpdateToast 弹出统一对话框，不直接刷新
+ */
+const notifyUpdateAvailable = (remoteVersion) => {
+  if (updateNotified) {
+    logger.debug('version', '本次会话已派发过更新提示，跳过');
+    return;
+  }
+  updateNotified = true;
+  logger.info('version', '派发 boh:update-available 事件', { remoteVersion });
+  window.dispatchEvent(new CustomEvent('boh:update-available', {
+    detail: {
+      remoteVersion,
+      currentVersion,
+      message: '发现新版本，建议立即刷新以获取最新内容。',
+    },
+  }));
+};
+
+/**
+ * 执行一次版本检查（只检测，不自动刷新）
+ * @returns {Promise<{hasUpdate: boolean, message: string, remoteVersion?: string, currentVersion?: string}>}
  */
 export const checkVersion = async () => {
   // 开发环境跳过
-  if (import.meta.env.DEV) return false;
+  if (import.meta.env.DEV) {
+    return { hasUpdate: false, message: '开发环境下版本检测不可用，请在生产环境使用' };
+  }
 
   // 首次运行时记录当前版本
   if (!currentVersion) {
@@ -97,7 +122,7 @@ export const checkVersion = async () => {
     if (!currentVersion) {
       // 没有 meta 标签（可能是旧版本页面），不强制更新，避免误判
       logger.warn('version', '未找到版本 meta 标签，跳过版本检测');
-      return false;
+      return { hasUpdate: false, message: '未找到版本信息，无法检测更新' };
     }
     logger.debug('version', '当前页面版本', currentVersion);
   }
@@ -106,7 +131,7 @@ export const checkVersion = async () => {
     const remote = await fetchRemoteVersion();
     if (!remote?.version) {
       logger.warn('version', 'version.json 缺少 version 字段', remote);
-      return false;
+      return { hasUpdate: false, message: '版本信息读取失败' };
     }
 
     if (remote.version !== currentVersion) {
@@ -114,17 +139,21 @@ export const checkVersion = async () => {
         current: currentVersion,
         remote: remote.version,
       });
-      await forceCleanAndReload();
-      return true;
+      return {
+        hasUpdate: true,
+        message: '发现新版本，可以立即更新',
+        remoteVersion: remote.version,
+        currentVersion,
+      };
     }
 
     logger.debug('version', '版本一致，无需更新', currentVersion);
-    return false;
+    return { hasUpdate: false, message: '当前已是最新版本' };
   } catch (err) {
     // version.json 拉取失败不阻塞用户，仅记录日志
     // 可能是网络问题或 GitHub Pages CDN 暂时不可用
     logger.warn('version', '版本检查失败', err?.message || err);
-    return false;
+    return { hasUpdate: false, message: '版本检查失败，请稍后重试' };
   }
 };
 
@@ -138,25 +167,38 @@ export const initVersionChecker = () => {
     return;
   }
 
+  // 自动轮询检测：检测到新版本时派发 boh:update-available 事件，
+  // 由 PWAUpdateToast 弹出统一对话框提示用户，不直接强制刷新
+  const autoCheck = async () => {
+    try {
+      const result = await checkVersion();
+      if (result.hasUpdate) {
+        notifyUpdateAvailable(result.remoteVersion);
+      }
+    } catch (err) {
+      logger.warn('version', '自动版本检查异常', err?.message || err);
+    }
+  };
+
   // 页面加载完成后延迟 10 秒首次检查，避免与首屏资源争抢
   setTimeout(() => {
-    checkVersion().catch(() => { });
+    autoCheck();
   }, 10 * 1000);
 
   // 定时轮询
   intervalId = setInterval(() => {
-    checkVersion().catch(() => { });
+    autoCheck();
   }, CHECK_INTERVAL);
 
   // 页面从隐藏切换回可见时立即检查
   visibilityHandler = () => {
     if (document.visibilityState === 'visible') {
-      checkVersion().catch(() => { });
+      autoCheck();
     }
   };
   document.addEventListener('visibilitychange', visibilityHandler);
 
-  logger.info('version', `版本检测器已启动（每 ${CHECK_INTERVAL / 1000 / 60} 分钟检查一次）`);
+  logger.info('version', `版本检测器已启动（每 ${CHECK_INTERVAL / 1000 / 60} 分钟检查一次，检测到新版本将弹窗提示）`);
 };
 
 /**

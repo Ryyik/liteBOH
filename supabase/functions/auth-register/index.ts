@@ -43,9 +43,19 @@ Deno.serve(async (request) => {
     const username = String(body?.username || '').trim();
     const email = String(body?.email || '').trim().toLowerCase();
     const password = String(body?.password || '');
-    const metadata = body?.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)
+    // 安全修复：对 metadata 做白名单过滤，仅允许无害字段透传，
+    // 严禁 role/points/join_date 等敏感字段进入 user_metadata，
+    // 防止通过 sync_profile_from_auth_user_insert 触发器自注册管理员。
+    const rawMetadata = body?.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)
       ? body.metadata
       : {};
+    const ALLOWED_METADATA_KEYS = new Set(['birth_month', 'birth_day']);
+    const metadata: Record<string, unknown> = {};
+    for (const key of Object.keys(rawMetadata)) {
+      if (ALLOWED_METADATA_KEYS.has(key)) {
+        metadata[key] = rawMetadata[key];
+      }
+    }
 
     if (!username || !email || !password) {
       return jsonResponse(

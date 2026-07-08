@@ -45,8 +45,10 @@ export const DATE_FILTER_FIELDS = {
 };
 
 export const TAB_SELECT_COLUMNS = {
-  users: 'id, username, email, role, points, experience, join_date, bio, avatar_url, tags, shipping_recipient, shipping_phone, shipping_address',
-  points: 'id, username, email, role, points, experience, join_date',
+  // H-1 修复：profiles 敏感字段已通过列级权限收窄，
+  // users tab 的 email/shipping_* 改由 fetchTabData 中调用 admin_list_users_with_sensitive RPC 获取
+  users: 'id, username, role, points, experience, join_date, bio, avatar_url, tags',
+  points: 'id, username, role, points, experience, join_date',
   subscriptions: `
     id,
     user_id,
@@ -61,7 +63,7 @@ export const TAB_SELECT_COLUMNS = {
     metadata,
     created_at,
     updated_at,
-    profile:user_id(username, email)
+    profile:user_id(username)
   `,
   gifts: `
     id,
@@ -75,7 +77,7 @@ export const TAB_SELECT_COLUMNS = {
     created_at,
     completed_at,
     updated_at,
-    profile:user_id(username, shipping_recipient, shipping_phone, shipping_address)
+    profile:user_id(username)
   `,
   forum: `
     id,
@@ -230,8 +232,9 @@ export const TAB_SORT_COLUMNS = {
 };
 
 export const TAB_SEARCH_FIELDS = {
-  users: [{ column: 'id', type: 'uuid' }, { column: 'username', type: 'text' }, { column: 'email', type: 'text' }, { column: 'role', type: 'text' }],
-  points: [{ column: 'id', type: 'uuid' }, { column: 'username', type: 'text' }, { column: 'email', type: 'text' }, { column: 'role', type: 'text' }],
+  // H-1 修复：email 已通过列级权限收窄，从搜索字段中移除
+  users: [{ column: 'id', type: 'uuid' }, { column: 'username', type: 'text' }, { column: 'role', type: 'text' }],
+  points: [{ column: 'id', type: 'uuid' }, { column: 'username', type: 'text' }, { column: 'role', type: 'text' }],
   subscriptions: [{ column: 'id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'plan_code', type: 'text' }, { column: 'plan_name', type: 'text' }, { column: 'status', type: 'text' }],
   gifts: [{ column: 'id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'gift_no', type: 'text' }, { column: 'gift_content', type: 'text' }, { column: 'gift_status', type: 'text' }],
   forum: [{ column: 'id', type: 'uuid' }, { column: 'author_id', type: 'uuid' }, { column: 'author_username', type: 'text' }, { column: 'content', type: 'text' }, { column: 'status', type: 'text' }],

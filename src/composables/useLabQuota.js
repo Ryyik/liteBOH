@@ -2,6 +2,7 @@ import { ref, computed } from 'vue';
 import { supabase } from '@/utils/supabase-client.js';
 import { useAuthStore } from '@/stores/auth.ts';
 import { useUserTier } from '@/composables/useUserTier.js';
+import { logger } from '@/utils/logger.js';
 
 const DEVICE_ID_KEY = 'boh_lab_device_id';
 
@@ -169,6 +170,81 @@ export function useLabQuota() {
   }
 
   /**
+   * 预扣减配额（AI 调用前调用，防止 TOCTOU 竞态导致无限生成消耗 token）
+   * H-3 修复：将配额扣减从"下载时"提前到"AI 调用前"。
+   * 若 AI 调用失败，调用 refundQuota 回退。
+   * @param {string} flowType - 'ppt' | 'word' | 'code'
+   * @returns {Promise<{success: boolean, error?: string}>}
+   */
+  async function preConsumeQuota(flowType) {
+    if (flowType !== 'ppt' && flowType !== 'word' && flowType !== 'code') {
+      return { success: false, error: '无效的生成类型' };
+    }
+
+    // Ultra 用户不限次数
+    if (isUnlimited.value) {
+      return { success: true };
+    }
+
+    // 检查是否已超限
+    if (isExceeded.value) {
+      return { success: false, error: `本月生成次数已达上限（${monthlyQuota.value}次）` };
+    }
+
+    try {
+      const deviceId = isLoggedIn.value ? null : getOrCreateDeviceId();
+      const { error } = await supabase.rpc('record_lab_usage', {
+        p_user_id: isLoggedIn.value ? userId.value : null,
+        p_device_id: deviceId,
+        p_flow_type: flowType
+      });
+
+      if (error) throw error;
+
+      // 立即递增本地计数（预扣减）
+      usageCount.value += 1;
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e?.message || '配额预扣减失败' };
+    }
+  }
+
+  /**
+   * 回退配额（AI 调用失败时调用，回退 preConsumeQuota 的扣减）
+   * @param {string} flowType - 'ppt' | 'word' | 'code'
+   */
+  async function refundQuota(flowType) {
+    if (flowType !== 'ppt' && flowType !== 'word' && flowType !== 'code') {
+      return;
+    }
+
+    // Ultra 用户不限次数，无需回退
+    if (isUnlimited.value) {
+      return;
+    }
+
+    try {
+      const deviceId = isLoggedIn.value ? null : getOrCreateDeviceId();
+      // 通过 RPC 回退（record_lab_usage 内部 count - 1，若不支持则本地回退）
+      const { error } = await supabase.rpc('refund_lab_usage', {
+        p_user_id: isLoggedIn.value ? userId.value : null,
+        p_device_id: deviceId,
+        p_flow_type: flowType
+      });
+
+      if (error) {
+        // RPC 不存在或失败时，本地回退保证 UI 一致
+        logger.warn('lab-quota', 'refund_lab_usage RPC 失败，本地回退:', error?.message);
+      }
+    } catch (e) {
+      logger.warn('lab-quota', 'refundQuota 异常:', e?.message);
+    } finally {
+      // 无论 RPC 是否成功，本地计数回退 1（不超过 0）
+      usageCount.value = Math.max(0, usageCount.value - 1);
+    }
+  }
+
+  /**
    * 刷新使用次数（从数据库重新获取）
    */
   async function refreshUsageCount() {
@@ -229,6 +305,8 @@ export function useLabQuota() {
     // 方法
     initialize,
     recordUsage,
+    preConsumeQuota,
+    refundQuota,
     refreshUsageCount,
     getQuotaHint,
     getUpgradeHint

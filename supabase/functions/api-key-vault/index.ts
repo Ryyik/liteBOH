@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.99.1';
 import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
+import { checkRateLimitDb } from '../_shared/rate-limiter.ts';
 
 type VaultRow = {
   id: string;
@@ -36,6 +37,49 @@ const toText = (value: unknown, max = 0) => {
 const toMetadata = (value: unknown) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   return value as Record<string, unknown>;
+};
+
+// 安全修复 C-3：校验 runtime-chat / test 的目标 apiUrl，防止 SSRF。
+// 规则：仅允许 https:（开发环境允许 http: 但拒绝私有地址）；
+// 拒绝 localhost、私有 IP 段、链路本地地址（含云元数据 169.254.169.254）。
+const isPrivateOrLocalHost = (hostname: string): boolean => {
+  const h = hostname.toLowerCase();
+  if (h === 'localhost' || h.endsWith('.localhost')) return true;
+  if (h === '::1' || h === '0:0:0:0:0:0:0:1') return true;
+  // IPv4 私有/保留段
+  const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (m) {
+    const [a, b] = [Number(m[1]), Number(m[2])];
+    if (a === 10) return true;
+    if (a === 127) return true;
+    if (a === 0) return true;
+    if (a === 169 && b === 254) return true; // 链路本地 / 云元数据
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a >= 224) return true; // 组播/保留
+  }
+  // IPv6 私有/链路本地
+  if (h.startsWith('fe80:') || h.startsWith('fc') || h.startsWith('fd')) return true;
+  return false;
+};
+
+const validateRuntimeApiUrl = (rawUrl: string, fallback: string): string => {
+  const candidate = toText(rawUrl, 240) || fallback;
+  if (!candidate) return '';
+  let parsed: URL;
+  try {
+    parsed = new URL(candidate);
+  } catch {
+    return fallback; // 非法 URL 回退到安全默认值
+  }
+  // 仅允许 http/https
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    return fallback;
+  }
+  if (isPrivateOrLocalHost(parsed.hostname)) {
+    return fallback;
+  }
+  return candidate;
 };
 
 const bytesToBase64 = (bytes: Uint8Array) => {
@@ -411,7 +455,8 @@ const resolveRow = async (client: ReturnType<typeof createServiceClient>, body: 
 };
 
 const testSiliconFlow = async (apiKey: string, metadata: Record<string, unknown>) => {
-  const apiUrl = toText(metadata.apiUrl, 240) || 'https://api.siliconflow.cn/v1/chat/completions';
+  // 安全修复 C-3：校验 apiUrl 防止 SSRF（admin 配置的 metadata.apiUrl 仍需校验）
+  const apiUrl = validateRuntimeApiUrl(toText(metadata.apiUrl, 240), 'https://api.siliconflow.cn/v1/chat/completions');
   const model = toText(metadata.model, 120) || 'Qwen/Qwen2.5-7B-Instruct';
   const response = await fetch(apiUrl, {
     method: 'POST',
@@ -436,7 +481,8 @@ const testSiliconFlow = async (apiKey: string, metadata: Record<string, unknown>
 };
 
 const testZhipu = async (apiKey: string, metadata: Record<string, unknown>) => {
-  const apiUrl = toText(metadata.apiUrl, 240) || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+  // 安全修复 C-3：校验 apiUrl 防止 SSRF
+  const apiUrl = validateRuntimeApiUrl(toText(metadata.apiUrl, 240), 'https://open.bigmodel.cn/api/paas/v4/chat/completions');
   const model = toText(metadata.model, 120) || 'glm-4.7-flash';
   const response = await fetch(apiUrl, {
     method: 'POST',
@@ -550,7 +596,9 @@ const runtimeChatCompletion = async (
   const defaultApiUrl = provider === 'zhipu'
     ? 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
     : 'https://api.siliconflow.cn/v1/chat/completions';
-  const apiUrl = toText(body.apiUrl, 240) || toText(metadata.apiUrl, 240) || defaultApiUrl;
+  // 安全修复 C-3：对 body.apiUrl（用户可篡改）和 metadata.apiUrl 均做 SSRF 校验，
+  // 非法 URL（私有 IP/localhost/非 http 协议）回退到安全默认值。
+  const apiUrl = validateRuntimeApiUrl(toText(body.apiUrl, 240) || toText(metadata.apiUrl, 240), defaultApiUrl);
   const payload = {
     ...rawPayload,
     stream: false,
@@ -593,7 +641,9 @@ const runtimeChatCompletionStream = async (
   const defaultApiUrl = provider === 'zhipu'
     ? 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
     : 'https://api.siliconflow.cn/v1/chat/completions';
-  const apiUrl = toText(body.apiUrl, 240) || toText(metadata.apiUrl, 240) || defaultApiUrl;
+  // 安全修复 C-3：对 body.apiUrl（用户可篡改）和 metadata.apiUrl 均做 SSRF 校验，
+  // 非法 URL（私有 IP/localhost/非 http 协议）回退到安全默认值。
+  const apiUrl = validateRuntimeApiUrl(toText(body.apiUrl, 240) || toText(metadata.apiUrl, 240), defaultApiUrl);
   const payload = {
     ...rawPayload,
     stream: true,
@@ -972,6 +1022,12 @@ Deno.serve(async (request) => {
         console.log('[vault] user auth failed:', user.code, user.message);
         return jsonResponse({ ok: false, code: user.code, message: user.message }, user.status, origin);
       }
+      // M-6 修复：服务端短期速率限制（每用户每分钟 10 次），防止客户端限流被绕过
+      const rateKey = `ai_chat_rt:${user.userId}`;
+      const rate = await checkRateLimitDb(rateKey, 10, 60_000);
+      if (!rate.ok) {
+        return jsonResponse({ ok: false, status: 429, code: 'RATE_LIMITED', message: `请求过于频繁，请 ${rate.retryAfter} 秒后再试。` }, 429, origin);
+      }
       console.log('[vault] user auth ok, checking quota');
       const quota = await checkAndLogRequest(client, body, request);
       if (!quota.allowed) {
@@ -988,6 +1044,12 @@ Deno.serve(async (request) => {
       if (!user.ok) {
         console.log('[vault] user auth failed:', user.code, user.message);
         return jsonResponse({ ok: false, code: user.code, message: user.message }, user.status, origin);
+      }
+      // M-6 修复：服务端短期速率限制（每用户每分钟 10 次）
+      const rateKey = `ai_chat_rt:${user.userId}`;
+      const rate = await checkRateLimitDb(rateKey, 10, 60_000);
+      if (!rate.ok) {
+        return jsonResponse({ ok: false, status: 429, code: 'RATE_LIMITED', message: `请求过于频繁，请 ${rate.retryAfter} 秒后再试。` }, 429, origin);
       }
       const quota = await checkAndLogRequest(client, body, request);
       if (!quota.allowed) {

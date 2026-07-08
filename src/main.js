@@ -138,12 +138,14 @@ if (typeof window !== "undefined") {
   );
 
   // ============================================
-  // PWA 更新检测机制（非阻塞提示）
+  // PWA 更新检测机制
+  // 提示统一由 version-checker（HTTP 拉 version.json）+ PWAUpdateToast（useConfirmDialog 弹窗）负责。
+  // 这里仅触发 SW 更新检查，让 sw.js 保持最新；不再自动 reload，避免弹窗来不及显示。
   // ============================================
   if ('serviceWorker' in navigator && !import.meta.env.DEV) {
     // 监听 Service Worker 更新事件
     navigator.serviceWorker.ready.then((registration) => {
-      // 定期检查更新（每10分钟，缩短间隔）
+      // 定期检查更新（每10分钟）
       setInterval(() => {
         registration.update().catch((err) => {
           logger.warn('pwa', 'SW 更新检查失败', err);
@@ -158,22 +160,17 @@ if (typeof window !== "undefined") {
           });
         }
       });
-    });
 
-    // 监听新 Service Worker 安装事件
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      logger.info('pwa', '新 Service Worker 已激活，正在刷新页面');
-      // 强制刷新页面以加载新版本
-      window.location.reload();
-    });
+      // SW 检测到新版本安装完成时，派发统一事件供 PWAUpdateToast 弹窗
+      // （作为 version-checker 的补充路径；skipWaiting:true 下新 SW 会立即激活）
+      const dispatchUpdateAvailable = () => {
+        window.dispatchEvent(new CustomEvent('boh:update-available', {
+          detail: { message: '发现新版本，建议立即刷新以获取最新内容。' },
+        }));
+      };
 
-    // 监听 Service Worker 更新等待事件（非阻塞提示）
-    navigator.serviceWorker.ready.then((registration) => {
-      // 检查是否已经有等待中的 worker（页面加载时立即检查）
       if (registration.waiting) {
-        import('@/composables/usePWAUpdate.js').then(({ showUpdatePrompt }) => {
-          showUpdatePrompt('发现新版本，点击立即更新', registration.waiting);
-        });
+        dispatchUpdateAvailable();
       }
 
       registration.addEventListener('updatefound', () => {
@@ -181,15 +178,17 @@ if (typeof window !== "undefined") {
         if (newWorker) {
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // 新版本已安装，使用非阻塞提示
-              logger.info('pwa', '新版本已准备好，显示更新提示');
-              import('@/composables/usePWAUpdate.js').then(({ showUpdatePrompt }) => {
-                showUpdatePrompt('发现新版本，点击立即更新', newWorker);
-              });
+              logger.info('pwa', '新版本 SW 已安装，派发更新事件');
+              dispatchUpdateAvailable();
             }
           });
         }
       });
+    });
+
+    // controllerchange 不再自动 reload：新 SW 激活后由用户在弹窗中确认刷新
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      logger.info('pwa', '新 Service Worker 已激活，等待用户在弹窗中确认刷新');
     });
   }
 

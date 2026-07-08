@@ -565,8 +565,7 @@ export const createMutationsCenter = (deps) => {
       const { data: rpcData, error: rpcError } = await supabase.rpc('admin_ban_user', {
         p_user_id: item.id,
         p_reason: reason || null,
-        p_until: bannedUntil,
-        p_admin_id: userInfo.value?.id || null
+        p_until: bannedUntil
       });
 
       if (rpcError) {
@@ -610,8 +609,7 @@ export const createMutationsCenter = (deps) => {
     try {
       assertAdminAction();
       const { data: rpcData, error: rpcError } = await supabase.rpc('admin_unban_user', {
-        p_user_id: item.id,
-        p_admin_id: userInfo.value?.id || null
+        p_user_id: item.id
       });
 
       if (rpcError) {
@@ -676,8 +674,7 @@ export const createMutationsCenter = (deps) => {
       const { data: rpcData, error: rpcError } = await supabase.rpc('admin_mute_user', {
         p_user_id: item.id,
         p_reason: reason || null,
-        p_until: mutedUntil,
-        p_admin_id: userInfo.value?.id || null
+        p_until: mutedUntil
       });
 
       if (rpcError) {
@@ -721,8 +718,7 @@ export const createMutationsCenter = (deps) => {
     try {
       assertAdminAction();
       const { data: rpcData, error: rpcError } = await supabase.rpc('admin_unmute_user', {
-        p_user_id: item.id,
-        p_admin_id: userInfo.value?.id || null
+        p_user_id: item.id
       });
 
       if (rpcError) {

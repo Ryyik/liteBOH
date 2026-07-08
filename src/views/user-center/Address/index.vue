@@ -752,14 +752,22 @@ const fetchData = async (uid = userInfo.value.id) => {
   mainLoadError.value = "";
   resetHistoryState();
   try {
+    const isOwn = uid === userInfo.value?.id;
+
+    // H-1 修复：profiles 敏感字段已通过列级权限收窄，
+    // 公开字段走 from('profiles')，本人敏感字段走 get_my_sensitive_profile RPC。
+    const profilePromise = isOwn
+      ? Promise.all([
+          supabase.from('profiles').select('*').eq('id', uid).single(),
+          supabase.rpc('get_my_sensitive_profile')
+        ]).then(([pub, sec]) => ({
+          data: { ...(pub.data || {}), ...(sec.data || {}) },
+          error: pub.error || sec.error
+        }))
+      : supabase.from('profiles').select('*').eq('id', uid).single();
+
     const [profileRes, activeGiftRes] = await Promise.allSettled([
-      withTaskTimeout(
-        supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', uid)
-          .single()
-      ),
+      withTaskTimeout(profilePromise),
       withTaskTimeout(
         supabase
           .from('user_gifts')
@@ -779,7 +787,7 @@ const fetchData = async (uid = userInfo.value.id) => {
 
     if (pData) {
       targetProfile.value = pData;
-      isOwnProfile.value = uid === userInfo.value?.id;
+      isOwnProfile.value = isOwn;
     }
 
     // 当前礼物失败时不阻塞页面，其它区域仍可展示

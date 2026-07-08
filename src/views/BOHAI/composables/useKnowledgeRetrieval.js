@@ -691,10 +691,7 @@ export function useKnowledgeRetrieval(deps) {
           birth_month,
           birth_day,
           pushplus_enabled,
-          gift_status,
-          gift_content,
-          gift_no,
-          gift_price
+          gift_status
         `)
         .eq('id', userId)
         .maybeSingle(),

@@ -2073,7 +2073,18 @@ const handleQuickEdit = async (record) => {
     if (!table) return;
     try {
       const { data } = await supabase.from(table).select('*').eq('id', record.id).single();
-      if (data) openEditModal(data);
+      if (data) {
+        // H-1 修复：profiles 表敏感字段已收窄，通过 RPC 补充
+        if (table === 'profiles' && data.id) {
+          try {
+            const { data: secData } = await supabase.rpc('admin_get_user_sensitive', { p_user_id: data.id });
+            if (secData) Object.assign(data, secData);
+          } catch (secErr) {
+            logger.warn('data-admin', '获取用户敏感字段失败:', secErr);
+          }
+        }
+        openEditModal(data);
+      }
     } catch (error) {
       logger.warn('data-admin', '快速编辑获取记录失败:', error);
       showToast('获取记录失败', 'error');
@@ -2445,22 +2456,64 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
     const offset = Math.max(0, ((Number(currentPage.value) || 1) - 1) * (Number(pageSize.value) || 20));
 
     if (tabId === 'users' || tabId === 'points') {
-      // 修复: 不再把 users 数据复用到 points(或反之),
-      // 避免积分页面的 count 永远等于用户总数
+      // H-1 修复：profiles 敏感字段已通过列级权限收窄，
+      // 通过 admin_list_users_with_sensitive RPC 批量补充 email/shipping_* 字段。
+      try {
+        const userIds = rows.map(r => r.id).filter(Boolean);
+        if (userIds.length > 0) {
+          // 获取当前页用户的敏感字段
+          const { data: sensitiveList } = await supabase.rpc('admin_list_users_with_sensitive', {
+            p_search: null,
+            p_limit: 500
+          });
+          if (Array.isArray(sensitiveList)) {
+            const sensitiveMap = new Map(sensitiveList.map(s => [s.id, s]));
+            rows.forEach(row => {
+              const s = sensitiveMap.get(row.id);
+              if (s) {
+                row.email = s.email;
+                row.shipping_recipient = s.shipping_recipient;
+                row.shipping_phone = s.shipping_phone;
+                row.shipping_address = s.shipping_address;
+              }
+            });
+          }
+        }
+      } catch (secError) {
+        logger.warn('data-admin', '获取用户敏感字段失败:', secError);
+      }
       assignTabRows(tabId, rows, count);
       return;
     }
 
     if (tabId === 'subscriptions') {
-      assignTabRows(tabId, rows.map((subscription) => {
+      // H-1 修复：email 已通过列级权限收窄，通过 RPC 补充
+      let enrichedRows = rows.map((subscription) => {
         const { profile: rawProfile, ...restSubscription } = subscription;
         const profile = normalizeJoinedObject(rawProfile);
         return {
           ...restSubscription,
           username: profile.username || '-',
-          email: profile.email || '-'
+          email: '-'
         };
-      }), count);
+      });
+      try {
+        const userIds = rows.map(r => r.user_id).filter(Boolean);
+        if (userIds.length > 0) {
+          const { data: sensitiveList } = await supabase.rpc('admin_list_users_with_sensitive', {
+            p_search: null, p_limit: 500
+          });
+          if (Array.isArray(sensitiveList)) {
+            const emailMap = new Map(sensitiveList.map(s => [s.id, s.email || '-']));
+            enrichedRows.forEach(row => {
+              if (row.user_id) row.email = emailMap.get(row.user_id) || '-';
+            });
+          }
+        }
+      } catch (secError) {
+        logger.warn('data-admin', '获取订阅用户邮箱失败:', secError);
+      }
+      assignTabRows(tabId, enrichedRows, count);
       return;
     }
 
@@ -2486,21 +2539,46 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
         }
       }
 
-      assignTabRows(tabId, normalizedGifts.map((gift) => {
+      // H-1 修复：shipping_* 已通过列级权限收窄，通过 RPC 批量补充
+      let giftRows = normalizedGifts.map((gift) => {
         const { profile: rawProfile, ...restGift } = gift;
         const profile = normalizeJoinedObject(rawProfile);
         return {
           ...restGift,
           username: profile.username || '-',
-          shipping_recipient: profile.shipping_recipient || '-',
-          shipping_phone: profile.shipping_phone || '-',
-          shipping_address: profile.shipping_address || '-',
+          shipping_recipient: '-',
+          shipping_phone: '-',
+          shipping_address: '-',
           gift_scope_label: gift.is_active ? '当前礼物' : '历史礼物',
           completed_at: gift.gift_status === 'completed'
             ? (gift.completed_at || gift.updated_at || gift.created_at)
             : null
         };
-      }), count);
+      });
+      try {
+        const giftUserIds = normalizedGifts.map(g => g.user_id).filter(Boolean);
+        if (giftUserIds.length > 0) {
+          const { data: sensitiveList } = await supabase.rpc('admin_list_users_with_sensitive', {
+            p_search: null, p_limit: 500
+          });
+          if (Array.isArray(sensitiveList)) {
+            const shippingMap = new Map(sensitiveList.map(s => [s.id, s]));
+            giftRows.forEach(row => {
+              if (row.user_id) {
+                const s = shippingMap.get(row.user_id);
+                if (s) {
+                  row.shipping_recipient = s.shipping_recipient || '-';
+                  row.shipping_phone = s.shipping_phone || '-';
+                  row.shipping_address = s.shipping_address || '-';
+                }
+              }
+            });
+          }
+        }
+      } catch (secError) {
+        logger.warn('data-admin', '获取礼物收货信息失败:', secError);
+      }
+      assignTabRows(tabId, giftRows, count);
       return;
     }
 
@@ -3282,25 +3360,14 @@ const fetchUserPickerUsers = async () => {
   userPickerFetchId.value = fetchId;
   userPickerLoading.value = true;
   try {
-    let query = supabase
-      .from('profiles')
-      .select('id, username, email, shipping_recipient, shipping_phone, shipping_address')
-      .order('username', { ascending: true })
-      .limit(200);
-
+    // H-1 修复：profiles 敏感字段已通过列级权限收窄，
+    // admin 查询用户列表（含敏感字段）改用 admin_list_users_with_sensitive RPC。
     const keyword = sanitizeSearchTerm(userPickerKeyword.value);
-    if (keyword) {
-      const filters = [
-        `username.ilike.%${keyword}%`,
-        `email.ilike.%${keyword}%`,
-        `shipping_recipient.ilike.%${keyword}%`,
-        `shipping_phone.ilike.%${keyword}%`
-      ];
-      if (UUID_REGEX.test(keyword)) filters.unshift(`id.eq.${keyword}`);
-      query = query.or(filters.join(','));
-    }
+    const { data, error } = await supabase.rpc('admin_list_users_with_sensitive', {
+      p_search: keyword || null,
+      p_limit: 200
+    });
 
-    const { data, error } = await query;
     if (fetchId !== userPickerFetchId.value) return;
     if (error) throw error;
     userPickerUsers.value = Array.isArray(data) ? data : [];

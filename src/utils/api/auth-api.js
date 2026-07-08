@@ -15,6 +15,9 @@ import {
   validateUsername,
 } from '../auth-validation.js';
 
+// H-1 修复：移除敏感字段（email/shipping_*/gift_content/gift_no/gift_price/pushplus_token），
+// 这些字段已通过列级权限收窄，直接查询会报错。
+// 需要敏感字段时通过 get_my_sensitive_profile / admin_get_user_sensitive RPC 获取。
 const PROFILE_ALL_COLUMNS = `
   id,
   username,
@@ -24,18 +27,10 @@ const PROFILE_ALL_COLUMNS = `
   points,
   birth_month,
   birth_day,
-  email,
   bio,
   avatar_url,
   experience,
-  shipping_recipient,
-  shipping_phone,
-  shipping_address,
   gift_status,
-  gift_content,
-  gift_no,
-  gift_price,
-  pushplus_token,
   pushplus_enabled,
   last_active_at,
   hide_online_status

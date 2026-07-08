@@ -16,21 +16,22 @@ function normalizePushplusToken(rawToken) {
  */
 export async function getPushplusSettings(userId) {
   try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('pushplus_token, pushplus_enabled')
-      .eq('id', userId)
-      .single();
+    // H-1 修复：pushplus_token 已通过列级权限收窄，
+    // pushplus_enabled 非敏感仍可从 profiles 直接查。
+    const [secRes, pubRes] = await Promise.all([
+      supabase.rpc('get_my_sensitive_profile'),
+      supabase.from('profiles').select('pushplus_enabled').eq('id', userId).single()
+    ]);
 
-    if (error) {
-      logger.error('pushplus-api', '获取 Pushplus 设置失败', error);
-      return { data: null, error: normalizeDbError(error) };
+    if (secRes.error) {
+      logger.error('pushplus-api', '获取 Pushplus Token 失败', secRes.error);
+      return { data: null, error: normalizeDbError(secRes.error) };
     }
 
     return {
       data: {
-        token: data?.pushplus_token || '',
-        enabled: data?.pushplus_enabled || false
+        token: secRes.data?.pushplus_token || '',
+        enabled: pubRes.data?.pushplus_enabled || false
       },
       error: null
     };

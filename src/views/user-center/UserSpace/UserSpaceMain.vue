@@ -2007,15 +2007,18 @@ const fetchGiftProgressFromServer = async (userId) => {
   }
 
   try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('gift_content, gift_status')
-      .eq('id', userId)
-      .single();
+    // H-1 修复：gift_content 是敏感字段已收窄，
+    // gift_status 非敏感走 from('profiles')，gift_content 走 RPC（仅本人可读）。
+    const isOwn = userId === authStore.userInfo?.id;
+    const [pubRes, secRes] = await Promise.all([
+      supabase.from('profiles').select('gift_status').eq('id', userId).single(),
+      isOwn ? supabase.rpc('get_my_sensitive_profile') : Promise.resolve({ data: null, error: null })
+    ]);
 
-    if (error) throw error;
-    return Boolean(data?.gift_content) && data?.gift_status !== 'completed'
-      ? getGiftStatusLabel(data?.gift_status)
+    if (pubRes.error) throw pubRes.error;
+    const giftContent = secRes.data?.gift_content || null;
+    return Boolean(giftContent) && pubRes.data?.gift_status !== 'completed'
+      ? getGiftStatusLabel(pubRes.data?.gift_status)
       : '';
   } catch (error) {
     logger.warn('user-space', '读取 profiles 回退礼物进度失败:', error);

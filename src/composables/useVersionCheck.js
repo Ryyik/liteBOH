@@ -1,9 +1,11 @@
 import { ref } from 'vue';
 import { logger } from '@/utils/logger.js';
+import { checkVersion, forceCleanAndReload } from '@/utils/version-checker.js';
 
 /**
  * 版本检测 Composable
- * 利用 Service Worker 检测网站是否有新版本
+ * 基于 version-checker 的 HTTP 拉取 version.json 机制（绕过 SW 缓存，可靠检测任何代码变更）
+ * 不再依赖 SW registration.waiting（skipWaiting:true 下永远没有 waiting 状态，导致检测失效）
  */
 export const useVersionCheck = () => {
   const isChecking = ref(false);
@@ -11,90 +13,31 @@ export const useVersionCheck = () => {
   const lastCheckTime = ref(null);
 
   /**
-   * 检测是否有新版本
+   * 检测是否有新版本（HTTP 拉取 version.json 比对，绕过 SW 缓存）
    * @returns {Promise<{hasUpdate: boolean, message: string}>}
    */
   const checkForUpdate = async () => {
-    // 开发环境下直接返回提示
-    if (import.meta.env.DEV) {
-      return {
-        hasUpdate: false,
-        message: '开发环境下版本检测不可用，请在生产环境使用'
-      };
-    }
-
-    if (!('serviceWorker' in navigator)) {
-      return {
-        hasUpdate: false,
-        message: '当前浏览器不支持版本检测功能'
-      };
-    }
-
     isChecking.value = true;
     hasUpdate.value = false;
 
     try {
-      // 检查是否有已注册的 Service Worker
-      const registrations = await navigator.serviceWorker.getRegistrations();
-
-      if (registrations.length === 0) {
-        isChecking.value = false;
-        return {
-          hasUpdate: false,
-          message: '当前未启用 PWA 缓存，请刷新页面后重试'
-        };
-      }
-
-      const registration = registrations[0];
-
-      // 触发 Service Worker 更新检查
-      await registration.update();
-
-      // 等待一段时间检测是否有新版本安装
-      // 如果有 waiting 状态的 worker，说明有新版本
-      const checkResult = await new Promise((resolve) => {
-        const timeout = setTimeout(() => {
-          // 超时：没有发现新版本
-          resolve({ hasUpdate: false, message: '当前已是最新版本' });
-        }, 5000);
-
-        // 监听 updatefound 事件
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          if (newWorker) {
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                clearTimeout(timeout);
-                hasUpdate.value = true;
-                resolve({ hasUpdate: true, message: '发现新版本，可以立即更新' });
-              }
-            });
-          }
-        });
-
-        // 检查是否已经有等待中的 worker
-        if (registration.waiting) {
-          clearTimeout(timeout);
-          hasUpdate.value = true;
-          resolve({ hasUpdate: true, message: '发现新版本，可以立即更新' });
-        }
-      });
-
+      const result = await checkVersion();
+      hasUpdate.value = result.hasUpdate;
       lastCheckTime.value = new Date().toLocaleString('zh-CN');
-      isChecking.value = false;
-      return checkResult;
+      return result;
     } catch (error) {
       logger.error('version-check', '版本检测失败', error);
-      isChecking.value = false;
       return {
         hasUpdate: false,
         message: '版本检测失败，请稍后重试'
       };
+    } finally {
+      isChecking.value = false;
     }
   };
 
   /**
-   * 应用更新（清除缓存并刷新页面）
+   * 应用更新（清除 SW + 缓存并强制刷新）
    * @returns {Promise<boolean>}
    */
   const applyUpdate = async () => {
@@ -104,38 +47,8 @@ export const useVersionCheck = () => {
       return true;
     }
 
-    if (!('serviceWorker' in navigator)) {
-      return false;
-    }
-
-    try {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      if (registrations.length === 0) {
-        window.location.reload();
-        return true;
-      }
-
-      const registration = registrations[0];
-
-      // 如果有等待中的 worker，发送 SKIP_WAITING 消息
-      if (registration.waiting) {
-        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-        return true;
-      }
-
-      // 如果没有等待中的 worker，强制清除所有缓存并刷新
-      if ('caches' in window) {
-        const cacheNames = await caches.keys();
-        await Promise.all(cacheNames.map((name) => caches.delete(name)));
-      }
-
-      // 强制刷新页面
-      window.location.reload();
-      return true;
-    } catch (error) {
-      logger.error('version-check', '应用更新失败', error);
-      return false;
-    }
+    await forceCleanAndReload();
+    return true;
   };
 
   /**

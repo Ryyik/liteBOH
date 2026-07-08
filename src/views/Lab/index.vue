@@ -943,6 +943,8 @@ const {
   usagePercent,
   initialize: initializeQuota,
   recordUsage,
+  preConsumeQuota,
+  refundQuota,
   getQuotaHint,
   getUpgradeHint,
   effectiveTier,
@@ -1801,6 +1803,13 @@ async function sendPPT(content) {
     return
   }
 
+  // H-3 修复：AI 调用前预扣减配额，防止 TOCTOU 竞态导致无限生成消耗 token
+  const quotaResult = await preConsumeQuota('ppt')
+  if (!quotaResult.success) {
+    toastRef.value?.warning('生成次数已达上限', quotaResult.error || getUpgradeHint())
+    return
+  }
+
   aiLoading.value = true
 
   // 初始化任务面板
@@ -1853,6 +1862,8 @@ async function sendPPT(content) {
       time: nowTime(),
     })
     toastRef.value?.error('大纲生成失败', e.message)
+    // H-3 修复：AI 调用失败，回退预扣减的配额
+    await refundQuota('ppt')
   } finally {
     aiLoading.value = false
   }
@@ -1984,6 +1995,13 @@ async function sendWord(content) {
     return
   }
 
+  // H-3 修复：AI 调用前预扣减配额
+  const quotaResult = await preConsumeQuota('word')
+  if (!quotaResult.success) {
+    toastRef.value?.warning('生成次数已达上限', quotaResult.error || getUpgradeHint())
+    return
+  }
+
   aiLoading.value = true
 
   // 初始化任务面板
@@ -2036,6 +2054,8 @@ async function sendWord(content) {
       time: nowTime(),
     })
     toastRef.value?.error('大纲生成失败', e.message)
+    // H-3 修复：AI 调用失败，回退预扣减的配额
+    await refundQuota('word')
   } finally {
     aiLoading.value = false
   }
@@ -2169,6 +2189,13 @@ async function sendCode(content) {
     return
   }
 
+  // H-3 修复：AI 调用前预扣减配额
+  const quotaResult = await preConsumeQuota('code')
+  if (!quotaResult.success) {
+    toastRef.value?.warning('生成次数已达上限', quotaResult.error || getUpgradeHint())
+    return
+  }
+
   aiLoading.value = true
   initTaskFlow('code', content)
 
@@ -2214,6 +2241,8 @@ async function sendCode(content) {
       time: nowTime(),
     })
     toastRef.value?.error('架构生成失败', e.message)
+    // H-3 修复：AI 调用失败，回退预扣减的配额
+    await refundQuota('code')
   } finally {
     aiLoading.value = false
   }
@@ -2339,11 +2368,7 @@ async function downloadCodeFromPanel() {
   try {
     const fileName = `${(lastCodeData.value.title || 'AI生成网页').replace(/\s+/g, '_')}.zip`
     await downloadCode(lastCodeData.value, fileName)
-    const result = await recordUsage('code')
-    if (!result.success) {
-      toastRef.value?.warning('记录使用失败', result.error)
-    }
-    await initializeQuota()
+    // H-3 修复：配额已在 sendCode 阶段预扣减，此处无需再记录
     toastRef.value?.success('下载成功', fileName)
   } catch (e) {
     console.error('downloadCodeFromPanel 失败:', e, 'lastCodeData:', lastCodeData.value)
@@ -2357,16 +2382,8 @@ async function downloadPPT(pptData) {
     const fileName = `${(pptData.title || 'AI生成').replace(/\s+/g, '_')}.pptx`
     await buildPPTFile(pptData, selectedPresetId.value, fileName)
 
-    // 记录使用次数（生成前已检查限额，这里只记录）
-    const result = await recordUsage('ppt')
-    if (!result.success) {
-      toastRef.value?.warning('记录使用失败', result.error)
-    }
-
+    // H-3 修复：配额已在 sendPPT 阶段预扣减，此处无需再记录
     toastRef.value?.success('下载成功', fileName)
-
-    // 刷新限额状态
-    await initializeQuota()
   } catch (e) {
     error.value = `下载失败：${e.message}`
     toastRef.value?.error('下载失败', e.message)
@@ -2379,12 +2396,7 @@ async function downloadWord(wordData) {
     const fileName = `${(wordData.title || 'AI生成').replace(/\s+/g, '_')}.docx`
     await buildWordFile(wordData, selectedPresetId.value, fileName)
 
-    // 记录使用次数（生成前已检查限额，这里只记录）
-    const result = await recordUsage('word')
-    if (!result.success) {
-      toastRef.value?.warning('记录使用失败', result.error)
-    }
-
+    // H-3 修复：配额已在 sendWord 阶段预扣减，此处无需再记录
     toastRef.value?.success('下载成功', fileName)
 
     // 刷新限额状态

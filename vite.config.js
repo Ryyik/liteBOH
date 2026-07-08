@@ -101,13 +101,14 @@ export default defineConfig({
         // 运行时缓存策略
         runtimeCaching: [
           {
-            // Supabase API 请求：Network-First
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-            handler: 'NetworkFirst',
+            // M-5 修复：仅缓存 Supabase Storage 公开对象（图片等），
+            // /auth/v1/ 和 /rest/v1/ 完全不缓存，防止跨用户数据泄露。
+            urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/v1\/object\/public\/.*/i,
+            handler: 'CacheFirst',
             options: {
-              cacheName: 'api-supabase',
-              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 },
-              networkTimeoutSeconds: 8,
+              cacheName: 'supabase-storage-public',
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 7 },
+              cacheableResponse: { statuses: [0, 200] },
             },
           },
           {
