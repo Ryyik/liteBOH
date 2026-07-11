@@ -10,7 +10,6 @@ import {
 } from './bohai-engine-helpers.js';
 import { logger } from '@/utils/logger.js';
 import { safeErrorDetail, isAbortError, CHAT_ERROR_MESSAGES } from '../utils/chatErrorMessages.js';
-import { AUTO_ROUTER_MODEL_ID } from './chat-engine-config.js';
 import {
   RESOURCE_FOLLOW_UP_PATTERN,
   RESOURCE_RECOMMENDATION_PATTERN,
@@ -231,7 +230,6 @@ export function useResourceSearch({
   const resolveResourceSearchPlanWithModel = async (userText, intent, requestSignal = undefined) => {
     const fallback = createFallbackResourceSearchPlan(userText, intent);
     const plannerModel = getModelForModeId('fast')
-      || runtimeAvailableModels.value.find((item) => item.id === AUTO_ROUTER_MODEL_ID)
       || runtimeAvailableModels.value[0];
     if (!plannerModel?.id) return fallback;
 

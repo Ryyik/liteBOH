@@ -1,6 +1,5 @@
 import { ref } from 'vue'
 import { callVaultSiliconChatStreamCollect } from '@/utils/api/api-key-runtime-api.js'
-import { resolveSiliconFlowFreeModelId, SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID } from '@/utils/siliconflow-free-models.js'
 import { supabase } from '@/utils/supabase-client.js'
 import { buildWordDoc, buildAndDownloadWord } from '../engine/word-builder.js'
 import { DEFAULT_PRESET_ID } from '../config/design-tokens.js'
@@ -18,27 +17,17 @@ async function loadWordModelConfig() {
       .eq('feature_key', 'word-generator')
       .eq('is_active', true)
       .maybeSingle()
-    if (error || !data) {
-      return {
-        model: resolveSiliconFlowFreeModelId(import.meta.env.VITE_BOHAI_DEFAULT_MODEL, SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID),
-        temperature: 0.5,
-        max_tokens: 4096,
-        apiKeyPurpose: 'chat',
-      }
+    if (error || !data || !data.model_id) {
+      throw new Error('lab_ai_model_configs 中未配置 word-generator 模型')
     }
     return {
-      model: resolveSiliconFlowFreeModelId(data.model_id, SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID),
+      model: data.model_id,
       temperature: Number(data.temperature) || 0.5,
       max_tokens: data.max_tokens || 4096,
       apiKeyPurpose: data.api_key_purpose || 'chat',
     }
-  } catch {
-    return {
-      model: resolveSiliconFlowFreeModelId(import.meta.env.VITE_BOHAI_DEFAULT_MODEL, SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID),
-      temperature: 0.5,
-      max_tokens: 4096,
-      apiKeyPurpose: 'chat',
-    }
+  } catch (e) {
+    throw new Error('加载文档生成模型配置失败：' + (e?.message || e))
   }
 }
 

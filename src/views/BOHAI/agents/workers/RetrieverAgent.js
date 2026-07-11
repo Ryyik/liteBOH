@@ -1,6 +1,5 @@
 import { AGENT_AGENT_ROLES } from '../core/agent-events.js';
 import { logger } from '@/utils/logger.js';
-import { AGENT_RETRIEVER_DEFAULT_MODEL_ID } from '../../composables/chat-engine-config.js';
 
 const safeString = (value, max = 1200) => (value == null ? '' : String(value)).slice(0, max);
 
@@ -21,7 +20,7 @@ export const createRetrieverAgent = (options = {}) => {
     siteGuide,
     forumPosts,
     webSearch,
-    defaultModel = AGENT_RETRIEVER_DEFAULT_MODEL_ID
+    defaultModel
   } = options;
 
   return {

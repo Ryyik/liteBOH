@@ -441,7 +441,6 @@ import { storeToRefs } from "pinia";
 import { supabase } from "@/utils/supabase-client.js";
 import { logger } from '@/utils/logger.js';
 import { createNotification } from "@/utils/api/notifications-api.js";
-import { getAvailableModels } from "@/views/BOHAI/composables/useChatEngine.js";
 import { callVaultSiliconChat } from "@/utils/api/api-key-runtime-api.js";
 import { getExpiredActiveGiftIds, markGiftsAsHistory, isGiftExpiredCompleted } from "@/utils/gift-archive.js";
 import { resolveSettingsBackLocation } from "@/utils/user-space-navigation.js";
@@ -542,7 +541,6 @@ const aiResult = reactive({
 
 // --- Computed ---
 const isAddressEditable = computed(() => Boolean(isOwnProfile.value || isAdmin.value));
-const GLM_ADDRESS_MODEL_ID = 'THUDM/GLM-4-9B-0414';
 const hasAddressData = computed(() => Boolean(
   String(targetProfile.value?.shipping_address || "").trim()
   || String(targetProfile.value?.shipping_recipient || "").trim()
@@ -959,7 +957,7 @@ const deleteAddress = async () => {
 };
 
 // --- AI Extraction ---
-const getAddressAIModel = () => getAvailableModels().find((m) => m.id === GLM_ADDRESS_MODEL_ID) || null;
+const getAddressAIModel = () => null;
 
 const extractJsonPayload = (rawText = "") => {
   const normalizedText = String(rawText || "").trim();

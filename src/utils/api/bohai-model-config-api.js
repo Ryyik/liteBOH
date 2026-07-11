@@ -12,6 +12,7 @@ const toFiniteNumber = (value, fallback, min, max) => {
 
 export const getDefaultApiUrlForBohaiProvider = (provider = '') => {
   if (provider === 'zhipu') return DEFAULT_ZHIPU_CHAT_URL;
+  if (provider === 'openrouter') return 'https://openrouter.ai/api/v1/chat/completions';
   return DEFAULT_SILICON_CHAT_URL;
 };
 

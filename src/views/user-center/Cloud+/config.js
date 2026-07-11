@@ -26,6 +26,4 @@ export const quickPrompts = [
   '请把我的思路整理成 3 条可执行行动'
 ];
 
-export const TREEHOLE_AI_MODEL_ID = 'deepseek-ai/DeepSeek-R1-0528-Qwen3-8B';
-export const TREEHOLE_AI_MODEL_NAME = 'DeepSeek R1 0528 8B';
 export const WEEKLY_REPORT_CACHE_PREFIX = 'boh_treehole_weekly_report';

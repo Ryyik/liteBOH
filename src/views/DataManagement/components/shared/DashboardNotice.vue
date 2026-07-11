@@ -29,7 +29,15 @@ const toneClass = computed(() => {
 </script>
 
 <style scoped>
-.g-notice-text { flex: 1; }
+.g-notice-text {
+  flex: 1;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  max-height: 200px;
+  overflow-y: auto;
+  line-height: 1.5;
+}
 .g-notice-close {
   border: none;
   background: transparent;
@@ -38,5 +46,6 @@ const toneClass = computed(() => {
   line-height: 1;
   cursor: pointer;
   padding: 0 calc(var(--spacing) * 1);
+  align-self: flex-start;
 }
 </style>

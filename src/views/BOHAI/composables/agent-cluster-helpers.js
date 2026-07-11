@@ -2,7 +2,6 @@ import { reactive } from 'vue';
 import { callBohAIModel } from '@/utils/bohai-model-client.js';
 import { logger } from '@/utils/logger.js';
 import { isAbortError } from '../utils/chatErrorMessages.js';
-import { SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID, resolveSiliconFlowFreeModelId } from '@/utils/siliconflow-free-models.js';
 import { useAgentCluster } from '../agents/composables/useAgentCluster.js';
 import { AGENT_EVENT_TYPES } from '../agents/core/agent-events.js';
 import { AGENT_CLUSTER_MODE } from '../agents/core/agent-cluster-config.js';
@@ -19,7 +18,6 @@ const summarizeHistoryInline = (history = []) => {
   return recent.join(' | ').slice(0, 600);
 };
 
-const DEFAULT_CHAT_ENGINE_MODEL = resolveSiliconFlowFreeModelId('Qwen/Qwen3-8B', SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID);
 const CHAT_ENGINE_SYSTEM_PROMPT = `<role>
 你是 BOH AI 集群中的"对话"Agent，专责"通用对话与综合回答"。
 </role>
@@ -50,11 +48,14 @@ const buildChatEngineMessages = ({ query, history, agentName = 'chat-engine' }) 
 };
 
 // 兜底实现：当 caller 不传 invokeChatEngine 时，使用简化 LLM 调用（不带主 ChatEngine 的 system/tool 注入）
-const fallbackInvokeChatEngine = async ({ query, history, signal, onStream }) => {
+const fallbackInvokeChatEngine = async ({ query, history, model, signal, onStream }) => {
   const messages = buildChatEngineMessages({ query, history });
+  if (!model) {
+    return { ok: false, status: 'failed', answer: '', error: { message: '未配置对话模型' }, notes: ['未配置对话模型'] };
+  }
   try {
     const { content } = await callBohAIModel({
-      model: DEFAULT_CHAT_ENGINE_MODEL,
+      model,
       messages,
       temperature: 0.22,
       maxTokens: 1400,

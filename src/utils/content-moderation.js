@@ -5,8 +5,7 @@ const MODERATION_API_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://ap
 const QUICK_TIMEOUT_MS = 4000;
 const FULL_TIMEOUT_MS = 10000;
 const MODERATION_SERVICE_RETRY_DELAY_MS = 250;
-const DEFAULT_MODERATION_MODEL_ID = 'Qwen/Qwen2.5-7B-Instruct';
-const DEFAULT_MODERATION_MODEL_NAME = 'Qwen 2.5 7B Instruct';
+
 const MODERATION_MAX_TOKENS = 96;
 const MODERATION_REVIEW_MAX_TOKENS = 120;
 
@@ -45,7 +44,7 @@ export function getActiveModerationModelId() {
   if (runtime && runtime.enabled !== false && runtime.modelId) {
     return runtime.modelId;
   }
-  return import.meta.env.VITE_MODERATION_MODEL_ID || DEFAULT_MODERATION_MODEL_ID;
+  return import.meta.env.VITE_MODERATION_MODEL_ID || '';
 }
 
 export function getActiveModerationApiUrl() {
@@ -67,9 +66,6 @@ const IS_TEST_ENV = Boolean(
 );
 
 export const MODERATION_MODEL_ID = getActiveModerationModelId();
-export const MODERATION_MODEL_NAME = MODERATION_MODEL_ID === DEFAULT_MODERATION_MODEL_ID
-  ? DEFAULT_MODERATION_MODEL_NAME
-  : MODERATION_MODEL_ID;
 export const MODERATION_STATUS_APPROVED = 'approved';
 export const MODERATION_STATUS_REJECTED = 'rejected';
 

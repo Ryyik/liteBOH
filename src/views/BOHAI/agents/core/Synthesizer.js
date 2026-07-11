@@ -1,16 +1,12 @@
 import { callBohAIModel, extractBohAIJsonObject } from '@/utils/bohai-model-client.js';
 import { logger } from '@/utils/logger.js';
-import { SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID, resolveSiliconFlowFreeModelId } from '@/utils/siliconflow-free-models.js';
 import { AGENT_AGENT_ROLES, AGENT_AGENT_STATUS, createAgentEvent } from './agent-events.js';
-import { AGENT_SYNTHESIZER_DEFAULT_MODEL_ID } from '../../composables/chat-engine-config.js';
 import {
   SYNTHESIZER_SYSTEM_PROMPT,
   SYNTH_FINAL_MARKER,
   buildSynthesizerUserPrompt,
   splitSynthesizerStream
 } from '../prompts/synthesizer-prompt.js';
-
-const DEFAULT_SYNTH_MODEL = AGENT_SYNTHESIZER_DEFAULT_MODEL_ID;
 const MAX_SYNTH_TOKENS = 1600;
 const TYPEWRITER_INTERVAL_MS = 18; // 每 18ms 推一帧到 onStream，模拟"打字机"流式
 const TYPEWRITER_MAX_CHARS_PER_FRAME = 4;
@@ -88,12 +84,12 @@ const streamTypewriter = async (text, onStream) => {
 };
 
 export const createSynthesizer = ({
-  defaultModel = DEFAULT_SYNTH_MODEL,
+  defaultModel,
   historySummaryFn,
   modelClient
 } = {}) => {
   const client = modelClient || { call: callBohAIModel, extractJson: extractBohAIJsonObject };
-  const modelId = resolveSiliconFlowFreeModelId(defaultModel, SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID);
+  const modelId = defaultModel;
 
   const synthesize = async ({ query, bus, historySummary, sources = [], onStream } = {}) => {
     const snapshot = bus?.snapshot?.() || {};

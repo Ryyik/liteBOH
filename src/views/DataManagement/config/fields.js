@@ -82,7 +82,15 @@ export const CORE_MEMORY_STATUS_OPTIONS = [
 export const BOHAI_MODEL_PROVIDER_OPTIONS = [
   { value: 'siliconflow', label: 'SiliconFlow' },
   { value: 'zhipu', label: '智谱 AI' },
+  { value: 'openrouter', label: 'OpenRouter' },
   { value: 'custom', label: '自定义兼容接口' }
+];
+
+export const FREEMODEL_PROVIDER_OPTIONS = [
+  { value: 'siliconflow', label: 'SiliconFlow' },
+  { value: 'zhipu', label: '智谱 AI' },
+  { value: 'openrouter', label: 'OpenRouter' },
+  { value: 'custom', label: '自定义' }
 ];
 
 export const BOHAI_MODEL_CAPABILITY_OPTIONS = [

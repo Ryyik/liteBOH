@@ -26,8 +26,17 @@ const VAULT_MASTER_KEY = String(Deno.env.get('API_KEY_VAULT_MASTER_KEY') || '').
 
 const TEXT_ENCODER = new TextEncoder();
 const TEXT_DECODER = new TextDecoder();
-const PROVIDER_OPTIONS = new Set(['siliconflow', 'zhipu', 'tavily', 'cloudinary', 'turnstile', 'custom']);
+const PROVIDER_OPTIONS = new Set(['siliconflow', 'zhipu', 'openrouter', 'tavily', 'cloudinary', 'turnstile', 'custom']);
 const STATUS_OPTIONS = new Set(['active', 'disabled']);
+
+const sanitizeMessage = (msg: string, maxLen = 240) => {
+  return String(msg || '')
+    .replace(/[\r\n\t]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/[^\x20-\x7E\u4E00-\u9FFF\u3000-\u303F\uFF00-\uFFEF]/g, '')
+    .trim()
+    .slice(0, maxLen);
+};
 
 const toText = (value: unknown, max = 0) => {
   const text = String(value || '').trim();
@@ -260,6 +269,7 @@ const listKeys = async (client: ReturnType<typeof createServiceClient>) => {
   const fallbackRows: VaultRow[] = [];
   const siliconFallback = String(Deno.env.get('SILICON_CLOUD_API_KEY') || '').trim();
   const zhipuFallback = String(Deno.env.get('ZHIPU_API_KEY') || Deno.env.get('BIGMODEL_API_KEY') || '').trim();
+  const openrouterFallback = String(Deno.env.get('OPENROUTER_API_KEY') || '').trim();
   const moderationFallback = String(Deno.env.get('MODERATION_API_KEY') || '').trim();
   const tavilyFallback = String(Deno.env.get('TAVILY_API_KEY') || '').trim();
 
@@ -309,6 +319,25 @@ const listKeys = async (client: ReturnType<typeof createServiceClient>) => {
       label: '智谱 GLM Chat（Secrets 兜底）',
       encrypted_value: '',
       masked_value: maskSecret(zhipuFallback),
+      status: 'active',
+      metadata: {},
+      last_test_status: null,
+      last_test_message: null,
+      last_tested_at: null,
+      updated_at: now,
+      created_at: now,
+      readonly: true,
+      source: 'server_secret_fallback',
+    });
+  }
+  if (openrouterFallback && !existingKeys.has('openrouter:chat')) {
+    fallbackRows.push({
+      id: 'fallback:openrouter:chat',
+      provider: 'openrouter',
+      purpose: 'chat',
+      label: 'OpenRouter Chat（Secrets 兜底）',
+      encrypted_value: '',
+      masked_value: maskSecret(openrouterFallback),
       status: 'active',
       metadata: {},
       last_test_status: null,
@@ -506,6 +535,31 @@ const testZhipu = async (apiKey: string, metadata: Record<string, unknown>) => {
   return '智谱 AI 连接正常。';
 };
 
+const testOpenRouter = async (apiKey: string, metadata: Record<string, unknown>) => {
+  const apiUrl = validateRuntimeApiUrl(toText(metadata.apiUrl, 240), 'https://openrouter.ai/api/v1/chat/completions');
+  const model = toText(metadata.model, 120) || 'openai/gpt-4o-mini';
+  const response = await fetch(apiUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: 'ping' }],
+      max_tokens: 8,
+      temperature: 0,
+      stream: false,
+    }),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(String(payload?.error?.message || payload?.message || `HTTP ${response.status}`));
+  }
+  return 'OpenRouter 连接正常。';
+};
+
 const testTavily = async (apiKey: string) => {
   const response = await fetch('https://api.tavily.com/search', {
     method: 'POST',
@@ -547,6 +601,8 @@ const resolveActiveSecret = async (
       fallbackKey = String(Deno.env.get('TAVILY_API_KEY') || '').trim();
     } else if (provider === 'zhipu') {
       fallbackKey = String(Deno.env.get('ZHIPU_API_KEY') || Deno.env.get('BIGMODEL_API_KEY') || '').trim();
+    } else if (provider === 'openrouter') {
+      fallbackKey = String(Deno.env.get('OPENROUTER_API_KEY') || '').trim();
     } else {
       fallbackKey = String(
         (purpose === 'moderation' ? Deno.env.get('MODERATION_API_KEY') : '')
@@ -593,9 +649,12 @@ const runtimeChatCompletion = async (
   const { row, apiKey } = await resolveActiveSecret(client, provider, purpose);
   const metadata = row.metadata || {};
   const rawPayload = toMetadata(body.payload);
-  const defaultApiUrl = provider === 'zhipu'
-    ? 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
-    : 'https://api.siliconflow.cn/v1/chat/completions';
+  let defaultApiUrl = 'https://api.siliconflow.cn/v1/chat/completions';
+  if (provider === 'zhipu') {
+    defaultApiUrl = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+  } else if (provider === 'openrouter') {
+    defaultApiUrl = 'https://openrouter.ai/api/v1/chat/completions';
+  }
   // 安全修复 C-3：对 body.apiUrl（用户可篡改）和 metadata.apiUrl 均做 SSRF 校验，
   // 非法 URL（私有 IP/localhost/非 http 协议）回退到安全默认值。
   const apiUrl = validateRuntimeApiUrl(toText(body.apiUrl, 240) || toText(metadata.apiUrl, 240), defaultApiUrl);
@@ -638,9 +697,12 @@ const runtimeChatCompletionStream = async (
   const { row, apiKey } = await resolveActiveSecret(client, provider, purpose);
   const metadata = row.metadata || {};
   const rawPayload = toMetadata(body.payload);
-  const defaultApiUrl = provider === 'zhipu'
-    ? 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
-    : 'https://api.siliconflow.cn/v1/chat/completions';
+  let defaultApiUrl = 'https://api.siliconflow.cn/v1/chat/completions';
+  if (provider === 'zhipu') {
+    defaultApiUrl = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+  } else if (provider === 'openrouter') {
+    defaultApiUrl = 'https://openrouter.ai/api/v1/chat/completions';
+  }
   // 安全修复 C-3：对 body.apiUrl（用户可篡改）和 metadata.apiUrl 均做 SSRF 校验，
   // 非法 URL（私有 IP/localhost/非 http 协议）回退到安全默认值。
   const apiUrl = validateRuntimeApiUrl(toText(body.apiUrl, 240) || toText(metadata.apiUrl, 240), defaultApiUrl);
@@ -806,6 +868,8 @@ const testKey = async (
       message = await testSiliconFlow(apiKey, row.metadata || {});
     } else if (row.provider === 'zhipu') {
       message = await testZhipu(apiKey, row.metadata || {});
+    } else if (row.provider === 'openrouter') {
+      message = await testOpenRouter(apiKey, row.metadata || {});
     } else if (row.provider === 'tavily') {
       message = await testTavily(apiKey);
     } else {
@@ -813,7 +877,7 @@ const testKey = async (
     }
   } catch (error) {
     status = 'failed';
-    message = error instanceof Error ? error.message : '测试失败。';
+    message = sanitizeMessage(error instanceof Error ? error.message : '测试失败。');
   }
 
   if (!row.encrypted_value || row.readonly) {
@@ -1103,11 +1167,12 @@ Deno.serve(async (request) => {
 
     return jsonResponse({ ok: false, code: 'UNKNOWN_ACTION', message: '未知操作。' }, 400, origin);
   } catch (error) {
+    const rawMessage = error instanceof Error ? error.message : 'API Key 管理服务异常。';
     return jsonResponse(
       {
         ok: false,
         code: 'API_KEY_VAULT_ERROR',
-        message: error instanceof Error ? error.message : 'API Key 管理服务异常。',
+        message: sanitizeMessage(rawMessage),
       },
       500,
       origin,

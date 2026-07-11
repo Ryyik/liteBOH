@@ -1,21 +1,13 @@
-import {
-  SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID,
-  resolveSiliconFlowFreeModelId
-} from './siliconflow-free-models.js';
 import { CONNECTOR_TIMEOUT_MS } from './bohai-constants.js';
 import { callVaultSiliconChat } from './api/api-key-runtime-api.js';
 
 const BOHAI_CHAT_API_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
 const ZHIPU_CHAT_API_URL = import.meta.env.VITE_ZHIPU_CHAT_URL || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
 
-// 延迟求值：首次访问时计算，确保 freemodels 缓存已被 main.js 预热
 let _bohaiDefaultModelId = null;
 const getBohaiDefaultModelId = () => {
   if (!_bohaiDefaultModelId) {
-    _bohaiDefaultModelId = resolveSiliconFlowFreeModelId(
-      import.meta.env.VITE_BOHAI_DEFAULT_MODEL,
-      SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID
-    );
+    _bohaiDefaultModelId = import.meta.env.VITE_BOHAI_DEFAULT_MODEL || '';
   }
   return _bohaiDefaultModelId;
 };
@@ -24,12 +16,7 @@ const MODEL_RETRY_MAX = 2;
 const MODEL_RETRY_BACKOFF_BASE_MS = 800;
 const MODEL_HARD_TIMEOUT_MS = CONNECTOR_TIMEOUT_MS * 4;
 
-// Orchestrator 单独的超时（毫秒），比通用超时短，避免 plan 阶段卡住。
-// Orchestrator 只需要结构化 plan 输出，token 较少，3B 级别模型即可胜任。
-// 注意：Supabase Edge Function 冷启动需要 5-10s，加上 SiliconFlow API 调用，18s 太紧。
 export const ORCHESTRATOR_TIMEOUT_MS = 30000;
-// Orchestrator 失败时的兜底模型（更小的 3B 模型，响应更快）。
-export const ORCHESTRATOR_MODEL_FALLBACK = 'Qwen/Qwen2.5-3B-Instruct';
 
 const isTimeoutError = (error) => {
   if (error?.name === 'TimeoutError' || error?.name === 'AbortError') return true;
@@ -73,8 +60,7 @@ export const callBohAIModel = async ({
   timeoutMs = MODEL_HARD_TIMEOUT_MS,
   cacheControl
 } = {}) => {
-  const safeModel = resolveSiliconFlowFreeModelId(model, getBohaiDefaultModelId());
-  const provider = safeModel.startsWith('glm-') ? 'zhipu' : 'siliconflow';
+  const provider = model.startsWith('glm-') ? 'zhipu' : 'siliconflow';
   const apiUrl = provider === 'zhipu' ? ZHIPU_CHAT_API_URL : BOHAI_CHAT_API_URL;
 
   let lastError = null;
@@ -86,7 +72,7 @@ export const callBohAIModel = async ({
     }
     try {
       const apiPayload = {
-        model: safeModel,
+        model,
         messages,
         stream: false,
         temperature,

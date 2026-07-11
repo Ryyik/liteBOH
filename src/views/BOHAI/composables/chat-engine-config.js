@@ -1,14 +1,3 @@
-import {
-  SILICONFLOW_DEFAULT_FREE_EMBEDDING_MODEL_ID,
-  SILICONFLOW_DEFAULT_FREE_RERANK_MODEL_ID,
-  SILICONFLOW_FREE_CHAT_MODELS,
-  SILICONFLOW_FREE_EMBEDDING_MODEL_IDS,
-  SILICONFLOW_FREE_MULTIMODAL_MODEL_IDS,
-  SILICONFLOW_FREE_RERANK_MODEL_IDS,
-  ZHIPU_CHAT_MODELS,
-  getFreeChatModels
-} from '../../../utils/siliconflow-free-models.js';
-
 export const BOH_MEMBER_NAMES = 'ryyik|lf|小牛|橙子|eleven|end|雨芙蕖|白烨|丁老师|汉堡|百城|小天光|小仙';
 
 export const SILICON_CLOUD_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
@@ -94,56 +83,9 @@ export const GENERATION_PROFILE_BY_MODE = {
   pro: { temperature: 0.18, top_p: 0.7, frequency_penalty: 0.06, max_tokens: 8192 },
   multimodal: { temperature: 0.2, top_p: 0.75, frequency_penalty: 0.06, max_tokens: 1800 },
   plan: { temperature: 0.08, top_p: 0.55, frequency_penalty: 0.04, max_tokens: 8192 },
-  'agent-cluster': { temperature: 0.18, top_p: 0.7, frequency_penalty: 0.06, max_tokens: 1600 },
-  'glm-47-flash': { temperature: 0.2, top_p: 0.75, frequency_penalty: 0.06, max_tokens: 2400 },
-  'glm-46v-flash': { temperature: 0.2, top_p: 0.75, frequency_penalty: 0.06, max_tokens: 1800 }
+  'agent-cluster': { temperature: 0.18, top_p: 0.7, frequency_penalty: 0.06, max_tokens: 1600 }
 };
 export const SHOW_INTERNAL_PROGRESS_NOTES = false;
-
-// 4 模式专属基线模型（2026-06-08 重新定义，语义完全重新对齐）：
-//   - FAST_NEX_MODEL_ID:     Fast 模式"极速响应"基线，Nex-N2-Pro 轻量通用
-//   - PRO_QWEN_MODEL_ID:     Pro 模式"质量"基线，Qwen3-8B 旗舰通用
-//   - PLAN_DEEPSEEK_MODEL_ID: Plan 模式"超级高质量"，DeepSeek-R1 推理
-//   - AGENT_BASE_MODEL_ID:   Agent 模式多 worker 共享基模，Qwen3-8B
-// 4 个模型都是"固定"映射,不再做"复杂/简单"二级判断。
-export const FAST_NEX_MODEL_ID = 'nex-agi/Nex-N2-Pro';
-export const PRO_QWEN_MODEL_ID = 'Qwen/Qwen3-8B';
-export const PLAN_DEEPSEEK_MODEL_ID = 'deepseek-ai/DeepSeek-R1-0528-Qwen3-8B';
-export const AGENT_BASE_MODEL_ID = 'Qwen/Qwen3-8B';
-export const GLM47_FLASH_MODEL_ID = 'glm-4.7-flash';
-export const GLM46V_FLASH_MODEL_ID = 'glm-4.6v-flash';
-
-// 兼容旧命名（auto 路径已下线，但部分测试与子模块仍 import 这些常量）。
-// AUTO_ROUTER_MODEL_ID → Fast 模式基线（让 AUTO 旧行为退化为 Fast）。
-// AUTO_PRIMARY_MODEL_ID → Pro 模式基线。
-// ACCURACY_PREFERRED_MODEL_ID → Plan 模式基线。
-// PRO_DEEPSEEK_MODEL_ID → 仍指向 DeepSeek-R1,保留兼容。
-export const AUTO_ROUTER_MODEL_ID = FAST_NEX_MODEL_ID;
-export const AUTO_PRIMARY_MODEL_ID = PRO_QWEN_MODEL_ID;
-export const ACCURACY_PREFERRED_MODEL_ID = PLAN_DEEPSEEK_MODEL_ID;
-export const PRO_DEEPSEEK_MODEL_ID = 'deepseek-ai/DeepSeek-R1-0528-Qwen3-8B';
-export const RAG_PREFERRED_MODEL_ID = 'THUDM/GLM-Z1-9B-0414';
-// 集中管理 Agent 默认模型 ID，避免在多个 worker / orchestrator / synthesizer 内硬编码导致 drift。
-// 修改这里即可同步到 Retriever / Ops / Memory / Orchestrator / Synthesizer。
-export const AGENT_DEFAULT_MODEL_IDS = Object.freeze({
-  retriever: 'Qwen/Qwen3-8B',
-  ops: 'Qwen/Qwen2.5-7B-Instruct',
-  memory: 'Qwen/Qwen3-8B',
-  chatEngine: 'Qwen/Qwen3-8B',
-  orchestrator: AUTO_ROUTER_MODEL_ID,
-  synthesizer: 'Qwen/Qwen3-8B'
-});
-export const AGENT_RETRIEVER_DEFAULT_MODEL_ID = AGENT_DEFAULT_MODEL_IDS.retriever;
-export const AGENT_OPS_DEFAULT_MODEL_ID = AGENT_DEFAULT_MODEL_IDS.ops;
-export const AGENT_MEMORY_DEFAULT_MODEL_ID = AGENT_DEFAULT_MODEL_IDS.memory;
-export const AGENT_CHAT_ENGINE_DEFAULT_MODEL_ID = AGENT_DEFAULT_MODEL_IDS.chatEngine;
-export const AGENT_ORCHESTRATOR_DEFAULT_MODEL_ID = AGENT_DEFAULT_MODEL_IDS.orchestrator;
-export const AGENT_SYNTHESIZER_DEFAULT_MODEL_ID = AGENT_DEFAULT_MODEL_IDS.synthesizer;
-export const SILICON_EMBEDDING_MODEL_ID = SILICONFLOW_DEFAULT_FREE_EMBEDDING_MODEL_ID;
-export const SILICON_RERANK_MODEL_ID = SILICONFLOW_DEFAULT_FREE_RERANK_MODEL_ID;
-export const SILICON_OCR_MODEL_IDS = ['deepseek-ai/DeepSeek-OCR', 'PaddlePaddle/PaddleOCR-VL-1.5'];
-export const SILICON_SPEECH_MODEL_IDS = ['FunAudioLLM/SenseVoiceSmall', 'TeleAI/TeleSpeechASR'];
-export const SILICON_IMAGE_MODEL_IDS = ['Kwai-Kolors/Kolors'];
 
 export const CONTEXT_PLACEHOLDER = '{{EVIDENCE_CONTEXT}}';
 
@@ -402,112 +344,4 @@ export const ACTION_POST_TRIGGER_PATTERN = /(发帖|发个帖|发(?:一条|一�
 export const BOH_DEFAULT_MODE_ID = 'fast';
 export const BOH_AUTO_MODE_ID = 'auto';
 
-// 4 模式模型分配（基于 2026-06-08 全部 10 个免费模型健康检查）：
-//
-//   ┌────────────┬──────────────────────────────────────────┬──────────────────┐
-//   │ 模式       │ 模型                                     │ 实测延迟         │
-//   ├────────────┼──────────────────────────────────────────┼──────────────────┤
-//   │ Fast       │ nex-agi/Nex-N2-Pro（轻量通用）            │ TBD 健康检查后填  │
-//   │ Pro        │ Qwen/Qwen3-8B（旗舰通用）                │ ~11.5s(冷启)     │
-//   │ Plan       │ deepseek-ai/DeepSeek-R1-0528-Qwen3-8B    │ ~6.8s            │
-//   │ Agent      │ Qwen/Qwen3-8B（worker 共享基模）          │ ~11.5s(冷启)     │
-//   └────────────┴──────────────────────────────────────────┴──────────────────┘
-//
-// 设计要点：
-//   - 选 Fast = 选 Nex-N2-Pro（轻量）；后续若改 Nex 不稳可一键替换基线。
-//   - 选 Pro = 选 Qwen3-8B，固定不切换；用户主动选 Pro 即明确"我要 Qwen 旗舰质量"。
-//   - 选 Plan = 固定 DeepSeek-R1 + 温度 0.08，确保规划任务稳定。
-//   - 选 Agent = 多 worker 共享 Qwen3-8B，指令一致性优先。
-//   - 4 模式之间没有"自动切换"；用户主动选择什么就走什么。
-//   - AUTO 模式已在 2026-06-08 移除（语义混淆：用户选 AUTO 期望"系统选最优"，实际是"系统选最快"）。
-//
-// 已移除的旧模型: Qwen3.5-4B(30s/90s 超时)、DeepSeek-R1-Distill-Qwen-7B(403)、
-//   InternLM 2.5 7B(403)、GLM-4-9B(AUTO 路由用,AUTO 下线后不再用)。
-export const chatModes = [
-  {
-    id: 'fast',
-    name: 'Fast',
-    tagline: '极速响应',
-    description: '轻量模型，秒回',
-    icon: 'zap',
-    model: FAST_NEX_MODEL_ID
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    tagline: '质量',
-    description: 'Qwen 旗舰通用',
-    icon: 'sparkles',
-    model: PRO_QWEN_MODEL_ID
-  },
-  {
-    id: 'multimodal',
-    name: '多模态',
-    tagline: '图片/视频/文件',
-    description: 'GLM 4.6V Flash',
-    icon: 'image',
-    model: GLM46V_FLASH_MODEL_ID
-  },
-  {
-    id: 'plan',
-    name: 'Plan',
-    tagline: '超级高质量',
-    description: '分步推进，深度推理',
-    icon: 'list-checks',
-    model: PLAN_DEEPSEEK_MODEL_ID
-  },
-  {
-    id: 'agent-cluster',
-    name: 'Agent',
-    tagline: '工作',
-    description: '多 Agent 并行',
-    icon: 'users',
-    model: AGENT_BASE_MODEL_ID
-  }
-];
 
-// 兼容旧 export（旧 AUTO 路径依赖此函数；保留以避免破坏子模块 import）。
-// 注意：auto 模式运行时已不再使用，仅供遗留 import 不报错。
-export const resolveAutoModel = () => FAST_NEX_MODEL_ID;
-export const resolveProModel = () => PRO_QWEN_MODEL_ID;
-
-export const siliconModelCatalog = {
-  chat: SILICONFLOW_FREE_CHAT_MODELS.map((model) => ({ ...model, role: 'free-chat', free: true })),
-  zhipu: ZHIPU_CHAT_MODELS.map((model) => ({ ...model, role: 'zhipu-chat', free: true })),
-  embedding: [
-    { id: SILICON_EMBEDDING_MODEL_ID, name: 'BGE M3', role: 'rag-embedding', free: true, url: SILICON_EMBEDDING_URL },
-    { id: 'netease-youdao/bce-embedding-base_v1', name: 'BCE Embedding', role: 'rag-embedding-alt', free: true, url: SILICON_EMBEDDING_URL }
-  ],
-  rerank: [
-    { id: SILICON_RERANK_MODEL_ID, name: 'BCE Reranker', role: 'rag-rerank', free: true, url: SILICON_RERANK_URL },
-    { id: 'BAAI/bge-reranker-v2-m3', name: 'BGE Reranker v2 M3', role: 'rag-rerank-alt', free: true, url: SILICON_RERANK_URL }
-  ],
-  multimodal: [
-    { id: 'deepseek-ai/DeepSeek-OCR', name: 'DeepSeek OCR', role: 'ocr', free: true },
-    { id: 'PaddlePaddle/PaddleOCR-VL-1.5', name: 'PaddleOCR VL 1.5', role: 'ocr-vl', free: true },
-    { id: 'FunAudioLLM/SenseVoiceSmall', name: 'SenseVoice Small', role: 'speech-to-text', free: true },
-    { id: 'TeleAI/TeleSpeechASR', name: 'TeleSpeech ASR', role: 'speech-to-text', free: true },
-    { id: 'Kwai-Kolors/Kolors', name: 'Kolors', role: 'image-generation', free: true }
-  ]
-};
-
-export function getAvailableModels() {
-  return [
-    ...getFreeChatModels().map((model) => ({
-      id: model.id,
-      name: model.name,
-      provider: 'SiliconCloud',
-      providerKey: 'siliconflow',
-      url: SILICON_CLOUD_URL,
-      apiKey: ''
-    }))
-  ];
-}
-
-export const allowedFreeSiliconModelIds = Object.freeze([
-  ...SILICONFLOW_FREE_CHAT_MODELS.map((model) => model.id),
-  ...ZHIPU_CHAT_MODELS.map((model) => model.id),
-  ...SILICONFLOW_FREE_EMBEDDING_MODEL_IDS,
-  ...SILICONFLOW_FREE_RERANK_MODEL_IDS,
-  ...SILICONFLOW_FREE_MULTIMODAL_MODEL_IDS
-]);

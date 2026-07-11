@@ -17,7 +17,6 @@
 
 import { logger } from '@/utils/logger.js'
 import { callVaultSiliconChat, callVaultSiliconChatStream } from '@/utils/api/api-key-runtime-api.js'
-import { AUTO_ROUTER_MODEL_ID } from './chat-engine-config.js'
 
 // Default timeout for model calls (ms)
 const MODEL_CALL_TIMEOUT_MS = 30_000
@@ -100,7 +99,7 @@ export function useGenerationPipeline({ availableModels, abortController, curren
     const fallback = candidates
       .map((id) => availableModels.find((m) => m.id === id))
       .find((m) => m && m.id !== failedModelId)
-      || availableModels.find((m) => m.id !== AUTO_ROUTER_MODEL_ID && m.id !== failedModelId)
+      || availableModels.find((m) => m.id !== failedModelId)
       || availableModels[0];
     // Cache with LRU eviction
     if (_fallbackModelCache.size >= _FALLBACK_CACHE_MAX) {

@@ -139,13 +139,26 @@ export const callVaultSiliconChatStream = async ({
   if (!response.ok) {
     let errMsg;
     let errData = null;
+    const rawText = await response.text().catch(() => '');
+    // 优先尝试 JSON 解析
     try {
-      const parsed = await response.json().catch(() => null);
+      const parsed = JSON.parse(rawText);
       errMsg = parsed?.message || `API Key 流式代理服务返回失败 (${response.status})`;
       errData = parsed?.data || null;
     } catch {
-      const text = await response.text().catch(() => '');
-      errMsg = text.slice(0, 240) || `API Key 流式代理服务返回失败 (${response.status})`;
+      // 如果是 SSE 格式错误（event: error\ndata: {...}），提取 data 中的 JSON
+      const sseDataMatch = rawText.match(/data:\s*(.+)/);
+      if (sseDataMatch) {
+        try {
+          const sseParsed = JSON.parse(sseDataMatch[1].trim());
+          errMsg = sseParsed?.message || `API Key 流式代理服务返回失败 (${response.status})`;
+          errData = sseParsed?.data || null;
+        } catch {
+          errMsg = rawText.slice(0, 240) || `API Key 流式代理服务返回失败 (${response.status})`;
+        }
+      } else {
+        errMsg = rawText.slice(0, 240) || `API Key 流式代理服务返回失败 (${response.status})`;
+      }
     }
     const err = new Error(errMsg);
     err.status = response.status;

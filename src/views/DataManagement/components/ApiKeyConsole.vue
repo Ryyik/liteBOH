@@ -239,6 +239,7 @@ const { confirm } = useConfirmDialog();
 
 const providerOptions = [
   { value: 'siliconflow', label: 'SiliconFlow' },
+  { value: 'openrouter', label: 'OpenRouter' },
   { value: 'zhipu', label: '智谱 AI' },
   { value: 'tavily', label: 'Tavily' },
   { value: 'cloudinary', label: 'Cloudinary' },
@@ -251,6 +252,7 @@ const purposeOptions = [
   { provider: 'siliconflow', value: 'embedding', label: '向量嵌入' },
   { provider: 'siliconflow', value: 'rerank', label: '重排序' },
   { provider: 'siliconflow', value: 'moderation', label: '内容审核' },
+  { provider: 'openrouter', value: 'chat', label: '聊天模型' },
   { provider: 'zhipu', value: 'chat', label: '聊天模型' },
   { provider: 'tavily', value: 'web_search', label: '联网搜索' },
   { provider: 'cloudinary', value: 'admin_api', label: '管理 API' },
@@ -264,6 +266,11 @@ const DEFAULT_PROVIDER_CONFIG = {
     model: 'Qwen/Qwen2.5-7B-Instruct',
     apiUrl: 'https://api.siliconflow.cn/v1/chat/completions'
   },
+  openrouter: {
+    label: 'OpenRouter Chat',
+    model: 'openai/gpt-4o-mini',
+    apiUrl: 'https://openrouter.ai/api/v1/chat/completions'
+  },
   zhipu: {
     label: '智谱 GLM Chat',
     model: 'glm-4.7-flash',
@@ -271,7 +278,7 @@ const DEFAULT_PROVIDER_CONFIG = {
   }
 };
 
-const supportsChatTestConfig = (provider) => provider === 'siliconflow' || provider === 'zhipu';
+const supportsChatTestConfig = (provider) => provider === 'siliconflow' || provider === 'openrouter' || provider === 'zhipu';
 const getDefaultModelForProvider = (provider) => DEFAULT_PROVIDER_CONFIG[provider]?.model || '';
 const getDefaultApiUrlForProvider = (provider) => DEFAULT_PROVIDER_CONFIG[provider]?.apiUrl || '';
 const getDefaultLabelForProvider = (provider, purpose = 'chat') => (

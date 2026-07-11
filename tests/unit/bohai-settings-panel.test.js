@@ -66,9 +66,14 @@ describe('chatErrorMessages 工具函数', () => {
   });
 
   describe('CHAT_ERROR_MESSAGES', () => {
-    it('generationFailed is a static string', () => {
-      const msg = CHAT_ERROR_MESSAGES.generationFailed();
+    it('generationFailed returns base message without detail', () => {
+      expect(CHAT_ERROR_MESSAGES.generationFailed()).toBe('服务暂时繁忙，请稍后重试。');
+    });
+
+    it('generationFailed appends detail when provided', () => {
+      const msg = CHAT_ERROR_MESSAGES.generationFailed('OpenRouter API Key 未配置');
       expect(msg).toContain('服务暂时繁忙');
+      expect(msg).toContain('OpenRouter API Key 未配置');
     });
 
     it('resourceSearchFailed is a static string', () => {

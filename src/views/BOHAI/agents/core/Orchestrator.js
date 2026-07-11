@@ -1,13 +1,10 @@
 import {
   callBohAIModel,
   extractBohAIJsonObject,
-  ORCHESTRATOR_TIMEOUT_MS,
-  ORCHESTRATOR_MODEL_FALLBACK
+  ORCHESTRATOR_TIMEOUT_MS
 } from '@/utils/bohai-model-client.js';
 import { logger } from '@/utils/logger.js';
 import { isAbortError } from '../../utils/chatErrorMessages.js';
-import { SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID, resolveSiliconFlowFreeModelId } from '@/utils/siliconflow-free-models.js';
-import { AGENT_ORCHESTRATOR_DEFAULT_MODEL_ID } from '../../composables/chat-engine-config.js';
 import {
   AGENT_AGENT_ROLES,
   createAgentEvent,
@@ -22,8 +19,6 @@ import {
   AGENT_CLUSTER_PLAN_STRATEGY,
   isFanoutTrigger
 } from './agent-cluster-config.js';
-
-const DEFAULT_ORCHESTRATOR_MODEL = AGENT_ORCHESTRATOR_DEFAULT_MODEL_ID;
 
 const buildSnapshot = (registry) => {
   if (!registry || typeof registry.list !== 'function') return [];
@@ -49,7 +44,7 @@ const safeListAvailable = (registry) => {
 
 export const createOrchestrator = ({
   registry,
-  defaultModel = DEFAULT_ORCHESTRATOR_MODEL,
+  defaultModel,
   historySummaryFn,
   modelClient
 } = {}) => {
@@ -57,7 +52,7 @@ export const createOrchestrator = ({
     throw new Error('Orchestrator: registry 必填');
   }
   const client = modelClient || { call: callBohAIModel, extractJson: extractBohAIJsonObject };
-  const modelId = resolveSiliconFlowFreeModelId(defaultModel, SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID);
+  const modelId = defaultModel;
 
   const plan = async ({
     query,
@@ -100,30 +95,14 @@ export const createOrchestrator = ({
       if (trial) {
         parsed = trial;
       } else {
-        // 主模型返回了但解析不出 JSON：尝试兜底
-        logger.warn('bohai-cluster', 'Orchestrator 主模型返回了无法解析的输出，尝试兜底模型');
-        try {
-          const fallbackResult = await callOrchestrator(ORCHESTRATOR_MODEL_FALLBACK, 320);
-          parsed = parseOrchestratorPlan(fallbackResult?.content);
-        } catch (fallbackError) {
-          rawError = fallbackError;
-          logger.warn('bohai-cluster', 'Orchestrator 兜底模型也失败，使用规则兜底计划', { error: String(fallbackError?.message || fallbackError) });
-        }
+        logger.warn('bohai-cluster', 'Orchestrator 模型返回了无法解析的输出，使用规则兜底计划');
       }
     } catch (error) {
       rawError = error;
       if (isAbortError(error)) {
         logger.warn('bohai-cluster', 'Orchestrator 被用户取消');
       } else {
-        // 主模型失败（超时/网络等）：降级走兜底
-        logger.warn('bohai-cluster', 'Orchestrator 主模型失败，尝试兜底模型', { error: String(error?.message || error) });
-        try {
-          const fallbackResult = await callOrchestrator(ORCHESTRATOR_MODEL_FALLBACK, 320);
-          parsed = parseOrchestratorPlan(fallbackResult?.content);
-        } catch (fallbackError) {
-          rawError = fallbackError;
-          logger.warn('bohai-cluster', 'Orchestrator 兜底模型也失败，使用规则兜底计划', { error: String(fallbackError?.message || fallbackError) });
-        }
+        logger.warn('bohai-cluster', 'Orchestrator 模型失败，使用规则兜底计划', { error: String(error?.message || error) });
       }
     }
 

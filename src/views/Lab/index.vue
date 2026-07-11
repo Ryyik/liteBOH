@@ -26,29 +26,6 @@
         </div>
       </div>
 
-      <!-- 模式切换：Work / Code -->
-      <div class="mode-switcher">
-        <button
-          class="mode-btn"
-          :class="{ active: !activeFlow || activeFlow !== 'code' }"
-          title="文档/PPT/Word 办公模式"
-          :disabled="aiLoading"
-          @click="setMode('work')"
-        >
-          <AppIcon name="text" size="small" weight="medium" />
-          <span>Work</span>
-        </button>
-        <button
-          class="mode-btn"
-          :class="{ active: activeFlow === 'code' }"
-          title="网页生成模式"
-          :disabled="aiLoading"
-          @click="setMode('code')"
-        >
-          <AppIcon name="code" size="small" weight="medium" />
-          <span>Code</span>
-        </button>
-      </div>
       <div class="topbar-actions">
         <!-- 上下文压缩 -->
         <button
@@ -175,9 +152,9 @@
           <div class="hero-icon">
             <AppIcon name="sparkles" size="xl" weight="light" />
           </div>
-          <h1 class="hero-title">和 AI 一起处理你的文档</h1>
+          <h1 class="hero-title">和 AI 一起创造任何内容</h1>
           <p class="hero-subtitle">
-            上传 Word 文档让 AI 帮你排版，或用一句话生成 PPT
+            对话即可生成 PPT、Word、网页，或上传文档让 AI 帮你排版
           </p>
         </div>
 
@@ -193,32 +170,11 @@
             @keydown.enter.exact.prevent="send"
             @input="autoGrow"
           />
-          <div v-if="pendingFile || pptIntent || wordIntent || codeIntent" class="composer-chips">
+          <div v-if="pendingFile" class="composer-chips">
             <span v-if="pendingFile" class="attach-chip">
               <AppIcon name="doc" size="small" weight="medium" />
               <span class="chip-text">{{ truncate(pendingFile.name, 28) }}</span>
               <button class="chip-remove" title="移除" @click="clearFile">
-                <AppIcon name="close" size="small" />
-              </button>
-            </span>
-            <span v-if="pptIntent" class="attach-chip ppt-chip">
-              <AppIcon name="chart-bar" size="small" weight="medium" />
-              <span class="chip-text">PPT 生成</span>
-              <button class="chip-remove" title="取消" @click="pptIntent = false">
-                <AppIcon name="close" size="small" />
-              </button>
-            </span>
-            <span v-if="wordIntent" class="attach-chip word-chip">
-              <AppIcon name="doc" size="small" weight="medium" />
-              <span class="chip-text">Word 生成</span>
-              <button class="chip-remove" title="取消" @click="wordIntent = false">
-                <AppIcon name="close" size="small" />
-              </button>
-            </span>
-            <span v-if="codeIntent" class="attach-chip code-chip">
-              <AppIcon name="code" size="small" weight="medium" />
-              <span class="chip-text">网页生成</span>
-              <button class="chip-remove" title="取消" @click="codeIntent = false">
                 <AppIcon name="close" size="small" />
               </button>
             </span>
@@ -239,18 +195,6 @@
                     <button class="plus-item" @click="chooseDoc">
                       <AppIcon name="upload" size="small" weight="medium" />
                       <span>上传 Word 文档</span>
-                    </button>
-                    <button class="plus-item" @click="choosePPT">
-                      <AppIcon name="chart-bar" size="small" weight="medium" />
-                      <span>生成 PPT</span>
-                    </button>
-                    <button class="plus-item" @click="chooseWord">
-                      <AppIcon name="doc" size="small" weight="medium" />
-                      <span>生成 Word 文档</span>
-                    </button>
-                    <button class="plus-item" @click="chooseCode">
-                      <AppIcon name="code" size="small" weight="medium" />
-                      <span>生成网页</span>
                     </button>
                     <button class="plus-item" @click="openPresetPicker">
                       <AppIcon name="paintbrush" size="small" weight="medium" />
@@ -412,13 +356,13 @@
                   <CodePreview :code-data="msg.code" />
                 </div>
               </div>
-              <!-- 大纲确认卡片 -->
+              <!-- 大纲预览卡片（只读，不再要求确认） -->
               <div v-if="msg.outline" class="outline-card">
                 <div class="outline-card-head">
                   <div class="outline-card-title">{{ msg.outline.title }}</div>
                   <div class="outline-card-meta">
                     {{ msg.outline.outline.length }} 个章节
-                    <span v-if="msg.outlineFlow" class="outline-card-tag">{{ msg.outlineFlow === 'ppt' ? 'PPT' : 'Word' }}</span>
+                    <span v-if="msg.outlineFlow" class="outline-card-tag">{{ msg.outlineFlow === 'ppt' ? 'PPT' : msg.outlineFlow === 'code' ? '网页' : 'Word' }}</span>
                   </div>
                 </div>
                 <div class="outline-items">
@@ -435,20 +379,6 @@
                     </div>
                     <div class="outline-item-type-tag">{{ outlineTypeLabel(item.type) }}</div>
                   </div>
-                </div>
-                <div
-                  v-if="msg.outlineFlow && i === latestOutlineIndex && pendingOutlineFlow"
-                  class="outline-actions"
-                >
-                  <button
-                    class="outline-confirm-btn"
-                    :disabled="aiLoading"
-                    @click="confirmOutlineFromCard"
-                  >
-                    <AppIcon name="check" size="small" weight="semibold" />
-                    确认生成
-                  </button>
-                  <span class="outline-hint">或在下方输入框告诉我要调整的地方</span>
                 </div>
               </div>
             </div>
@@ -478,32 +408,11 @@
             @keydown.enter.exact.prevent="send"
             @input="autoGrow"
           />
-          <div v-if="pendingFile || pptIntent || wordIntent || codeIntent" class="composer-chips">
+          <div v-if="pendingFile" class="composer-chips">
             <span v-if="pendingFile" class="attach-chip">
               <AppIcon name="doc" size="small" weight="medium" />
               <span class="chip-text">{{ truncate(pendingFile.name, 24) }}</span>
               <button class="chip-remove" title="移除" @click="clearFile">
-                <AppIcon name="close" size="small" />
-              </button>
-            </span>
-            <span v-if="pptIntent" class="attach-chip ppt-chip">
-              <AppIcon name="chart-bar" size="small" weight="medium" />
-              <span class="chip-text">PPT 生成</span>
-              <button class="chip-remove" title="取消" @click="pptIntent = false">
-                <AppIcon name="close" size="small" />
-              </button>
-            </span>
-            <span v-if="wordIntent" class="attach-chip word-chip">
-              <AppIcon name="doc" size="small" weight="medium" />
-              <span class="chip-text">Word 生成</span>
-              <button class="chip-remove" title="取消" @click="wordIntent = false">
-                <AppIcon name="close" size="small" />
-              </button>
-            </span>
-            <span v-if="codeIntent" class="attach-chip code-chip">
-              <AppIcon name="code" size="small" weight="medium" />
-              <span class="chip-text">网页生成</span>
-              <button class="chip-remove" title="取消" @click="codeIntent = false">
                 <AppIcon name="close" size="small" />
               </button>
             </span>
@@ -524,18 +433,6 @@
                     <button class="plus-item" @click="chooseDoc">
                       <AppIcon name="upload" size="small" weight="medium" />
                       <span>上传 Word 文档</span>
-                    </button>
-                    <button class="plus-item" @click="choosePPT">
-                      <AppIcon name="chart-bar" size="small" weight="medium" />
-                      <span>生成 PPT</span>
-                    </button>
-                    <button class="plus-item" @click="chooseWord">
-                      <AppIcon name="doc" size="small" weight="medium" />
-                      <span>生成 Word 文档</span>
-                    </button>
-                    <button class="plus-item" @click="chooseCode">
-                      <AppIcon name="code" size="small" weight="medium" />
-                      <span>生成网页</span>
                     </button>
                     <button class="plus-item" @click="openPresetPicker">
                       <AppIcon name="paintbrush" size="small" weight="medium" />
@@ -886,8 +783,6 @@ import { useUndoManager } from './composables/useUndoManager.js'
 import { useConversationTree } from './composables/useConversationTree.js'
 import { withRetry } from './utils/withRetry.js'
 import { callVaultSiliconChatStream } from '@/utils/api/api-key-runtime-api.js'
-import { resolveSiliconFlowFreeModelId, SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID } from '@/utils/siliconflow-free-models.js'
-
 const CHAT_API_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions'
 import { useLabQuota } from '@/composables/useLabQuota.js'
 import { STYLE_PRESETS, DEFAULT_PRESET_ID, getPresetById } from './config/design-tokens.js'
@@ -963,9 +858,6 @@ const rightPanelTabs = [
 ]
 const sessions = ref([])
 const currentSessionIndex = ref(0)
-const pptIntent = ref(false)
-const wordIntent = ref(false)
-const codeIntent = ref(false) // 是否启用 Code 生成意图
 const plusMenuOpen = ref(false) // + 菜单展开
 const thinkingBudgetOpen = ref(false)
 const thinkingBudgetValue = ref(0.5) // 0-1 滑块值
@@ -973,7 +865,6 @@ const labModelConfig = reactive({
   temperature: 0.5,
   maxTokens: 4096
 })
-const activeFlow = ref(null) // 当前对话流: 'doc' | 'ppt' | 'word' | null
 const text = ref('')
 const messages = ref([])
 const pendingFile = ref(null)
@@ -1039,12 +930,6 @@ const getCodeFileCount = (data) => {
 const selectedPresetId = ref(DEFAULT_PRESET_ID)
 const showPresetPicker = ref(false)
 
-// 两阶段生成（多轮确认流程）
-const pendingOutline = ref(null) // 待确认的大纲
-const pendingOutlineTopic = ref('') // 当前大纲对应的主题
-const pendingOutlineFlow = ref(null) // 当前确认流程：'ppt' | 'word' | null
-const pendingOutlineHistory = ref([]) // 用户历次修改意见，用于累积传给 AI
-
 // 文档相关
 const docData = ref(null)
 const modifiedBlob = ref(null)
@@ -1104,9 +989,9 @@ const commandGroups = computed(() => [
   {
     label: '生成',
     items: [
-      { label: '生成 PPT', description: '一句话生成 PPT', action: 'choosePPT', icon: 'chart-bar', shortcut: '⌘⇧P' },
-      { label: '生成 Word', description: '生成 Word 文档', action: 'chooseWord', icon: 'doc', shortcut: '⌘⇧W' },
-      { label: '生成网页', description: '生成 HTML/CSS/JS 网页', action: 'chooseCode', icon: 'code', shortcut: '⌘⇧C' },
+      { label: '生成 PPT', description: '直接在对话框输入「生成 PPT」即可', action: 'hintPPT', icon: 'chart-bar' },
+      { label: '生成 Word', description: '直接在对话框输入「写一份 Word」即可', action: 'hintWord', icon: 'doc' },
+      { label: '生成网页', description: '直接在对话框输入「做一个网页」即可', action: 'hintCode', icon: 'code' },
     ],
   }])
 
@@ -1115,27 +1000,24 @@ const taskList = ref([])
 const currentTaskFlow = ref(null) // 'ppt' | 'word' | null
 
 /**
- * 初始化任务列表
+ * 初始化任务列表（已移除"确认大纲"步骤，直接生成）
  */
 function initTaskFlow(flow, topic) {
   currentTaskFlow.value = flow
   if (flow === 'ppt') {
     taskList.value = [
-      { id: 'outline', title: '输出 PPT 大纲', desc: `主题：${topic}`, status: 'doing' },
-      { id: 'confirm', title: '确认大纲细节', desc: '等待你确认或调整', status: 'pending' },
-      { id: 'detail', title: '开始输出 PPT', desc: '生成完整幻灯片内容', status: 'pending' },
+      { id: 'outline', title: '规划 PPT 大纲', desc: `主题：${topic}`, status: 'doing' },
+      { id: 'detail', title: '生成完整 PPT', desc: '生成幻灯片内容', status: 'pending' },
     ]
   } else if (flow === 'word') {
     taskList.value = [
-      { id: 'outline', title: '输出 Word 大纲', desc: `主题：${topic}`, status: 'doing' },
-      { id: 'confirm', title: '确认大纲细节', desc: '等待你确认或调整', status: 'pending' },
-      { id: 'detail', title: '开始输出 Word 文档', desc: '生成完整文档内容', status: 'pending' },
+      { id: 'outline', title: '规划文档大纲', desc: `主题：${topic}`, status: 'doing' },
+      { id: 'detail', title: '生成完整 Word', desc: '生成文档内容', status: 'pending' },
     ]
   } else if (flow === 'code') {
     taskList.value = [
-      { id: 'outline', title: '输出网页架构', desc: `需求：${topic}`, status: 'doing' },
-      { id: 'confirm', title: '确认页面结构', desc: '等待你确认或调整', status: 'pending' },
-      { id: 'detail', title: '生成 HTML/CSS/JS', desc: '生成完整网页代码', status: 'pending' },
+      { id: 'outline', title: '规划网页架构', desc: `需求：${topic}`, status: 'doing' },
+      { id: 'detail', title: '编写网页代码', desc: '生成 HTML/CSS/JS', status: 'pending' },
     ]
   }
   rightPanelOpen.value = true
@@ -1197,14 +1079,6 @@ const drawerSection = reactive({
 // PPT 模板（向后兼容，实际用 selectedPresetId）
 const pptTemplateId = ref(DEFAULT_PRESET_ID)
 
-// 最新一条大纲消息的索引（仅在该消息上展示「确认生成」按钮）
-const latestOutlineIndex = computed(() => {
-  for (let i = messages.value.length - 1; i >= 0; i--) {
-    if (messages.value[i].outline) return i
-  }
-  return -1
-})
-
 const currentPresetName = computed(() => getPresetById(selectedPresetId.value).name)
 
 const canSend = computed(() => {
@@ -1213,25 +1087,10 @@ const canSend = computed(() => {
 })
 
 const composerPlaceholder = computed(() => {
-  // 大纲确认流程：优先级最高
-  if (pendingOutline.value && pendingOutlineFlow.value) {
-    const target = pendingOutlineFlow.value === 'ppt' ? 'PPT' : pendingOutlineFlow.value === 'code' ? '网页' : 'Word'
-    return `告诉我要调整的地方，或输入「确认」开始生成${target}…`
-  }
   if (pendingFile.value) {
     return '告诉 AI 你想怎么改样式，例如「标题黑体加粗、正文宋体、1.5 倍行距」…'
   }
-  if (pptIntent.value) {
-    return '描述你想要的 PPT 主题，例如「项目总结报告」、「产品介绍」…'
-  }
-  if (wordIntent.value) {
-    return '描述你想要的 Word 文档主题，例如「2024 年度工作总结」、「产品需求文档」…'
-  }
-  if (activeFlow.value === 'doc') return '继续告诉 AI 你的需求…'
-  if (activeFlow.value === 'ppt') return '继续描述你想要的 PPT…'
-  if (activeFlow.value === 'word') return '继续描述你想要的文档…'
-  if (activeFlow.value === 'code') return '继续描述你想要的网页，或告诉我需要调整的地方…'
-  return '输入消息，或点击 + 上传文档 / 生成 PPT / 生成 Word / 生成网页…'
+  return '告诉我要做什么，例如「生成项目总结 PPT」、「写一份工作总结 Word」、「做个个人网页」…'
 })
 
 const suggestions = computed(() => {
@@ -1243,35 +1102,11 @@ const suggestions = computed(() => {
       { text: '正式报告风格', action: 'text' },
     ]
   }
-  if (pptIntent.value || activeFlow.value === 'ppt') {
-    return [
-      { text: '项目总结报告', action: 'text' },
-      { text: '产品介绍演示', action: 'text' },
-      { text: '技术分享', action: 'text' },
-      { text: '季度复盘', action: 'text' },
-    ]
-  }
-  if (wordIntent.value || activeFlow.value === 'word') {
-    return [
-      { text: '年度工作总结', action: 'text' },
-      { text: '产品需求文档', action: 'text' },
-      { text: '会议纪要', action: 'text' },
-      { text: '技术方案', action: 'text' },
-    ]
-  }
-  if (codeIntent.value || activeFlow.value === 'code') {
-    return [
-      { text: '个人作品集网页', action: 'text' },
-      { text: '产品落地页', action: 'text' },
-      { text: '公司官网', action: 'text' },
-      { text: '博客文章页面', action: 'text' },
-    ]
-  }
   return [
+    { text: '生成项目总结 PPT', action: 'text' },
+    { text: '写一份年度工作总结 Word', action: 'text' },
+    { text: '做一个个人作品集网页', action: 'text' },
     { text: '上传文档让我排版', action: 'doc' },
-    { text: '生成项目总结 PPT', action: 'ppt' },
-    { text: '生成工作总结 Word', action: 'word' },
-    { text: '生成个人网页', action: 'code' },
   ]
 })
 
@@ -1327,70 +1162,9 @@ function autoGrow(e) {
 }
 
 function chooseDoc() {
-  pptIntent.value = false
-  wordIntent.value = false
-  codeIntent.value = false
   plusMenuOpen.value = false
   const which = hasConversation.value ? 'bottom' : 'hero'
   nextTick(() => triggerUpload(which))
-}
-
-function choosePPT() {
-  pendingFile.value = null
-  wordIntent.value = false
-  codeIntent.value = false
-  pptIntent.value = true
-  plusMenuOpen.value = false
-  nextTick(() => {
-    const ref = hasConversation.value ? bottomTextareaRef : heroTextareaRef
-    ref.value?.focus()
-  })
-}
-
-function chooseWord() {
-  pendingFile.value = null
-  pptIntent.value = false
-  wordIntent.value = true
-  codeIntent.value = false
-  plusMenuOpen.value = false
-  nextTick(() => {
-    const ref = hasConversation.value ? bottomTextareaRef : heroTextareaRef
-    ref.value?.focus()
-  })
-}
-
-function chooseCode() {
-  pendingFile.value = null
-  pptIntent.value = false
-  wordIntent.value = false
-  codeIntent.value = true
-  plusMenuOpen.value = false
-  nextTick(() => {
-    const ref = hasConversation.value ? bottomTextareaRef : heroTextareaRef
-    ref.value?.focus()
-  })
-}
-
-function setMode(mode) {
-  if (aiLoading.value) return
-  if (mode === activeFlow.value || (mode === 'work' && (!activeFlow.value || activeFlow.value !== 'code'))) return
-  if (mode === 'work') {
-    activeFlow.value = null
-    pptIntent.value = false
-    wordIntent.value = false
-    codeIntent.value = false
-    pendingFile.value = null
-    toastRef.value?.info('Work 模式', '切换到文档/PPT/Word 办公模式')
-  } else if (mode === 'code') {
-    chooseCode()
-    activeFlow.value = 'code'
-    toastRef.value?.info('Code 模式', '切换到网页生成模式')
-  }
-  plusMenuOpen.value = false
-  nextTick(() => {
-    const ref = hasConversation.value ? bottomTextareaRef : heroTextareaRef
-    ref.value?.focus()
-  })
 }
 
 function openPresetPicker() {
@@ -1405,15 +1179,6 @@ function clearFile() {
 function onSuggestion(s) {
   if (s.action === 'doc') {
     chooseDoc()
-  } else if (s.action === 'ppt') {
-    pptIntent.value = true
-    if (s.text) send(s.text)
-  } else if (s.action === 'word') {
-    wordIntent.value = true
-    if (s.text) send(s.text)
-  } else if (s.action === 'code') {
-    codeIntent.value = true
-    if (s.text) send(s.text)
   } else {
     send(s.text)
   }
@@ -1428,12 +1193,7 @@ function resetConversation() {
   previewHtml.value = ''
   historyItems.value = []
   error.value = ''
-  pptIntent.value = false
-  wordIntent.value = false
-  codeIntent.value = false
   plusMenuOpen.value = false
-  activeFlow.value = null
-  clearPendingOutline()
   lastPPTData.value = null
   lastWordData.value = null
   lastCodeData.value = null
@@ -1522,51 +1282,36 @@ async function handleFileUpload(file) {
   }
 }
 
+/**
+ * 意图识别：根据用户消息判断应走哪种生成流程
+ * 返回 'doc' | 'ppt' | 'word' | 'code' | 'chat'
+ */
+function detectIntent(message) {
+  const t = (message || '').toLowerCase()
+  if (!t) return 'chat'
+  // 文档排版：上传文件或明确提到"排版/样式/字体/行距"
+  if (pendingFile.value || /排版|样式|字体|行距|缩进|加粗|居中|段落格式/.test(t)) return 'doc'
+  // PPT 生成
+  if (/ppt|幻灯片|演示|slides?|pitch\s*deck/.test(t) || /生成.*ppt|做.*ppt|ppt.*生成/.test(t)) return 'ppt'
+  // Word 生成
+  if (/word|文档|总结|报告|纪要|方案|说明书/.test(t) && /生成|写|做|起草|产出/.test(t)) return 'word'
+  // 网页生成
+  if (/网页|网站|落地页|官网|html|web\s*page|个人主页|作品集.*网页|网页.*作品集/.test(t)) return 'code'
+  return 'chat'
+}
+
 async function send(presetText) {
   const content = (typeof presetText === 'string' ? presetText : text.value).trim()
   if (!content && !pendingFile.value) return
-  if (aiLoading.value || isLoading.value) return
-
-  // 大纲确认流程：优先分流，避免走文件/PPT/Word 默认路由
-  if (pendingOutline.value && (pendingOutlineFlow.value === 'ppt' || pendingOutlineFlow.value === 'word' || pendingOutlineFlow.value === 'code')) {
-    const userText = content
-    if (!userText) return // 确认流程必须有文字反馈
-    text.value = ''
-    nextTick(() => {
-      if (heroTextareaRef.value) heroTextareaRef.value.style.height = 'auto'
-      if (bottomTextareaRef.value) bottomTextareaRef.value.style.height = 'auto'
-    })
-    messages.value.push({ role: 'user', content: userText, time: nowTime() })
-    await scrollToBottom()
-
-    if (isConfirmIntent(userText)) {
-      if (pendingOutlineFlow.value === 'ppt') await confirmPPTOutline()
-      else if (pendingOutlineFlow.value === 'code') await confirmCodeOutline()
-      else await confirmWordOutline()
-    } else {
-      if (pendingOutlineFlow.value === 'ppt') await revisePPTOutline(userText)
-      else if (pendingOutlineFlow.value === 'code') await reviseCodeOutline(userText)
-      else await reviseWordOutline(userText)
-    }
-    return
-  }
-
-  // 确定本次发送的流程：Code 意图 > Word 意图 > PPT 意图 > 待解析文件 > 当前对话流
-  let flow = null
-  if (codeIntent.value) {
-    flow = 'code'
-  } else if (wordIntent.value) {
-    flow = 'word'
-  } else if (pptIntent.value) {
-    flow = 'ppt'
-  } else if (pendingFile.value) {
-    flow = 'doc'
-  } else {
-    flow = activeFlow.value
+  // 安全守卫：如果 aiLoading/isLoading 卡在 true（HMR 残留/异常退出），强制重置而非静默返回
+  if (aiLoading.value || isLoading.value) {
+    aiLoading.value = false
+    isLoading.value = false
+    progressMsgIndex.value = -1
   }
 
   // 有待解析文件时先解析
-  if (flow === 'doc' && pendingFile.value && !docData.value) {
+  if (pendingFile.value && !docData.value) {
     await handleFileUpload(pendingFile.value)
   }
 
@@ -1577,28 +1322,21 @@ async function send(presetText) {
     if (bottomTextareaRef.value) bottomTextareaRef.value.style.height = 'auto'
   })
 
-  const userText = content || (pendingFile.value && flow === 'doc' ? '帮我优化这份文档的排版' : '')
+  const userText = content || (pendingFile.value ? '帮我优化这份文档的排版' : '')
   if (userText) {
     messages.value.push({ role: 'user', content: userText, time: nowTime() })
     await scrollToBottom()
   }
 
-  // 清除一次性意图
-  pptIntent.value = false
-  wordIntent.value = false
-  codeIntent.value = false
-
-  if (flow === 'doc') {
-    activeFlow.value = 'doc'
+  // 单一对话流：AI 自主识别意图，无需手动切换模式
+  const flow = detectIntent(userText)
+  if (flow === 'doc' && docData.value) {
     await sendDoc(userText)
   } else if (flow === 'ppt') {
-    activeFlow.value = 'ppt'
     await sendPPT(userText)
   } else if (flow === 'word') {
-    activeFlow.value = 'word'
     await sendWord(userText)
   } else if (flow === 'code') {
-    activeFlow.value = 'code'
     await sendCode(userText)
   } else {
     await sendGeneralChat(userText)
@@ -1609,6 +1347,12 @@ async function send(presetText) {
  * 通用 AI 对话（非任务流时的普通聊天）
  */
 async function sendGeneralChat(content) {
+  // 配额预检查，与其他 sendXxx 一致
+  if (isExceeded.value) {
+    toastRef.value?.warning('对话次数已达上限', getUpgradeHint())
+    return
+  }
+
   aiLoading.value = true
   const msgIdx = messages.value.length
   messages.value.push({
@@ -1619,10 +1363,7 @@ async function sendGeneralChat(content) {
   await scrollToBottom()
 
   try {
-    const model = resolveSiliconFlowFreeModelId(
-      import.meta.env.VITE_BOHAI_DEFAULT_MODEL,
-      SILICONFLOW_DEFAULT_FREE_CHAT_MODEL_ID
-    )
+    const model = import.meta.env.VITE_BOHAI_DEFAULT_MODEL || ''
     // 取最近 20 轮对话作为上下文
     const history = messages.value
       .filter(m => m.role === 'user' || (m.role === 'assistant' && !m.code && !m.ppt && !m.word && !m.outline))
@@ -1650,6 +1391,7 @@ async function sendGeneralChat(content) {
     const decoder = new TextDecoder()
     let fullContent = ''
     let buffer = ''
+    let sseError = null
 
     while (true) {
       const { done, value } = await reader.read()
@@ -1658,11 +1400,27 @@ async function sendGeneralChat(content) {
       const lines = buffer.split('\n')
       buffer = lines.pop() || ''
       for (const line of lines) {
+        // 处理 Edge Function 发来的 SSE error 事件
+        if (line.startsWith('event: error')) {
+          sseError = true
+          continue
+        }
         if (line.startsWith('data:')) {
           const dataStr = line.slice(5).trim()
           if (!dataStr) continue
           try {
             const parsed = JSON.parse(dataStr)
+            // SSE error 事件携带错误信息
+            if (sseError || parsed.ok === false) {
+              const errMsg = parsed.message || 'AI 服务返回错误'
+              messages.value.splice(msgIdx, 1)
+              messages.value.push({
+                role: 'assistant',
+                content: `抱歉，出错了：${errMsg}`,
+                time: nowTime(),
+              })
+              return
+            }
             const delta = parsed.choices?.[0]?.delta?.content || ''
             if (delta) {
               fullContent += delta
@@ -1672,59 +1430,32 @@ async function sendGeneralChat(content) {
               }
             }
           } catch { /* skip non-JSON */ }
+          sseError = false
         }
       }
     }
 
     if (!fullContent) {
-      messages.value[msgIdx].content = '（AI 未返回有效回复）'
+      messages.value[msgIdx].content = '（AI 未返回有效回复，请稍后重试）'
     }
   } catch (e) {
+    // 处理配额超限错误（429）和其他 API 错误
+    const isQuotaError = e.status === 429 && e.quota
     messages.value.splice(msgIdx, 1)
     messages.value.push({
       role: 'assistant',
-      content: `抱歉，出错了：${e.message}`,
+      content: isQuotaError
+        ? '今日 AI 对话额度已用完，明天 0:00 重置。'
+        : `抱歉，出错了：${e.message}`,
       time: nowTime(),
     })
+    if (isQuotaError) {
+      toastRef.value?.warning('对话次数已达上限', getUpgradeHint())
+    }
   } finally {
     aiLoading.value = false
     await scrollToBottom()
   }
-}
-
-/**
- * 判断用户消息是否为确认意图
- */
-function isConfirmIntent(text) {
-  const t = text.trim().toLowerCase()
-  if (!t) return false
-  // 显式确认短语
-  const explicit = ['确认', '确认生成', '开始生成', '可以生成', '没问题', '开始吧', '好的', '可以', '行', 'ok', 'go', 'yes', '确认开始', '就这样', '通过']
-  if (explicit.some(k => t === k || t === k + '了' || t === k + '吧' || t === k + '啊')) return true
-  if (explicit.some(k => t.includes(k))) return true
-  // 短消息（≤6 字）且仅含肯定词
-  if (t.length <= 6 && /^(确认|可以|好的|没问题|开始|行|ok|go|yes|就这样|通过|生成吧|开始生成|确认生成)/i.test(t)) return true
-  return false
-}
-
-/**
- * 清空大纲确认流程状态
- */
-function clearPendingOutline() {
-  pendingOutline.value = null
-  pendingOutlineTopic.value = ''
-  pendingOutlineFlow.value = null
-  pendingOutlineHistory.value = []
-}
-
-/**
- * 卡片「确认生成」按钮回调
- */
-async function confirmOutlineFromCard() {
-  if (!pendingOutline.value) return
-  if (pendingOutlineFlow.value === 'ppt') await confirmPPTOutline()
-  else if (pendingOutlineFlow.value === 'word') await confirmWordOutline()
-  else if (pendingOutlineFlow.value === 'code') await confirmCodeOutline()
 }
 
 /**
@@ -1826,82 +1557,36 @@ async function sendPPT(content) {
   })
 
   try {
-    // 第一阶段：生成大纲，等待用户确认后再进入详情生成
+    // 第一阶段：生成大纲
     const outlineData = await generatePPTOutline(content, '', handleProgress)
-    pendingOutline.value = outlineData
-    pendingOutlineTopic.value = content
-    pendingOutlineFlow.value = 'ppt'
-    pendingOutlineHistory.value = []
-
-    // 大纲完成，进入确认阶段
     nextTask('outline')
-    updateTask('confirm', 'doing', `共 ${outlineData.outline.length} 个章节，等待你确认`)
+    updateTask('detail', 'doing', '正在生成完整 PPT')
 
-    // 移除进度卡片，替换为大纲卡片
+    // 展示大纲（只读，不再要求确认）
     messages.value.splice(progressMsgIndex.value, 1)
-    progressMsgIndex.value = -1
-
+    progressMsgIndex.value = messages.value.length
     messages.value.push({
       role: 'assistant',
-      content: `已为「${content}」生成大纲，共 ${outlineData.outline.length} 个章节。请查看以下大纲，告诉我需要调整的地方，或确认开始生成 PPT。`,
+      content: `已为「${content}」规划大纲，共 ${outlineData.outline.length} 个章节，正在生成完整 PPT…`,
       outline: outlineData,
       outlineFlow: 'ppt',
       time: nowTime(),
     })
-    toastRef.value?.success('大纲已生成', `${outlineData.outline.length} 个章节 · 等待确认`)
-  } catch (e) {
-    // 移除进度卡片，显示错误
-    if (progressMsgIndex.value >= 0) {
-      messages.value.splice(progressMsgIndex.value, 1)
-      progressMsgIndex.value = -1
-    }
-    updateTask('outline', 'error', e.message)
+    await scrollToBottom()
+
+    // 第二阶段：直接生成完整 PPT（无需用户确认）
+    progressMsgIndex.value = messages.value.length
     messages.value.push({
       role: 'assistant',
-      content: `大纲生成失败：${e.message}`,
+      content: '',
+      progress: 0,
+      progressText: 'BOH Agent正在为你输出PPT',
       time: nowTime(),
     })
-    toastRef.value?.error('大纲生成失败', e.message)
-    // H-3 修复：AI 调用失败，回退预扣减的配额
-    await refundQuota('ppt')
-  } finally {
-    aiLoading.value = false
-  }
-  await scrollToBottom()
-}
 
-/**
- * 用户确认 PPT 大纲 → 进入详情生成（第二阶段）
- */
-async function confirmPPTOutline() {
-  if (!pendingOutline.value) return
-
-  // 生成前检查限额，避免浪费 token
-  if (isExceeded.value) {
-    toastRef.value?.warning('生成次数已达上限', getUpgradeHint())
-    return
-  }
-
-  aiLoading.value = true
-
-  // 确认阶段完成，进入详情生成阶段
-  nextTask('confirm')
-
-  // 添加进度卡片到消息流
-  progressMsgIndex.value = messages.value.length
-  messages.value.push({
-    role: 'assistant',
-    content: '',
-    progress: 0,
-    progressText: 'BOH Agent正在为你输出PPT',
-    time: nowTime(),
-  })
-
-  try {
-    const data = await generatePPTStructure(pendingOutlineTopic.value, '', pendingOutline.value, handleProgress)
+    const data = await generatePPTStructure(content, '', outlineData, handleProgress)
     lastPPTData.value = data
 
-    // 详情生成完成
     nextTask('detail')
     updateTask('detail', 'done', `已生成 ${data.slides.length} 张幻灯片`)
 
@@ -1915,7 +1600,6 @@ async function confirmPPTOutline() {
       ppt: data,
       time: nowTime(),
     })
-    clearPendingOutline()
     toastRef.value?.success('PPT 生成成功', `${data.slides.length} 张幻灯片 · ${currentPresetName.value}`)
   } catch (e) {
     // 移除进度卡片，显示错误
@@ -1923,65 +1607,15 @@ async function confirmPPTOutline() {
       messages.value.splice(progressMsgIndex.value, 1)
       progressMsgIndex.value = -1
     }
-    updateTask('detail', 'error', e.message)
+    updateTask('outline', 'error', e.message)
     messages.value.push({
       role: 'assistant',
-      content: `生成失败：${e.message}`,
+      content: `PPT 生成失败：${e.message}`,
       time: nowTime(),
     })
     toastRef.value?.error('PPT 生成失败', e.message)
-  } finally {
-    aiLoading.value = false
-  }
-  await scrollToBottom()
-}
-
-/**
- * 基于用户反馈重新生成 PPT 大纲
- */
-async function revisePPTOutline(feedback) {
-  aiLoading.value = true
-
-  // 添加进度卡片到消息流
-  progressMsgIndex.value = messages.value.length
-  messages.value.push({
-    role: 'assistant',
-    content: '',
-    progress: 0,
-    progressText: 'BOH Agent正在为你调整PPT大纲',
-    time: nowTime(),
-  })
-
-  try {
-    pendingOutlineHistory.value.push(feedback)
-    const context = `用户累积修改意见：${pendingOutlineHistory.value.join('；')}`
-    const outlineData = await generatePPTOutline(pendingOutlineTopic.value, context, handleProgress)
-    pendingOutline.value = outlineData
-
-    // 移除进度卡片，替换为大纲卡片
-    messages.value.splice(progressMsgIndex.value, 1)
-    progressMsgIndex.value = -1
-
-    messages.value.push({
-      role: 'assistant',
-      content: `已根据你的反馈调整大纲，现在共 ${outlineData.outline.length} 个章节。继续告诉我需要修改的地方，或确认开始生成。`,
-      outline: outlineData,
-      outlineFlow: 'ppt',
-      time: nowTime(),
-    })
-    toastRef.value?.success('大纲已更新', `${outlineData.outline.length} 个章节`)
-  } catch (e) {
-    // 移除进度卡片，显示错误
-    if (progressMsgIndex.value >= 0) {
-      messages.value.splice(progressMsgIndex.value, 1)
-      progressMsgIndex.value = -1
-    }
-    messages.value.push({
-      role: 'assistant',
-      content: `大纲更新失败：${e.message}`,
-      time: nowTime(),
-    })
-    toastRef.value?.error('大纲更新失败', e.message)
+    // H-3 修复：AI 调用失败，回退预扣减的配额
+    await refundQuota('ppt')
   } finally {
     aiLoading.value = false
   }
@@ -2018,83 +1652,37 @@ async function sendWord(content) {
   })
 
   try {
-    // 第一阶段：生成大纲，等待用户确认后再进入详情生成
+    // 第一阶段：生成大纲
     const outlineData = await generateWordOutline(content, '', handleProgress)
-    pendingOutline.value = outlineData
-    pendingOutlineTopic.value = content
-    pendingOutlineFlow.value = 'word'
-    pendingOutlineHistory.value = []
-
-    // 大纲完成，进入确认阶段
     nextTask('outline')
-    updateTask('confirm', 'doing', `共 ${outlineData.outline.length} 个章节，等待你确认`)
+    updateTask('detail', 'doing', '正在生成完整文档')
 
-    // 移除进度卡片，替换为大纲卡片
+    // 展示大纲（只读，不再要求确认）
     messages.value.splice(progressMsgIndex.value, 1)
-    progressMsgIndex.value = -1
-
+    progressMsgIndex.value = messages.value.length
     messages.value.push({
       role: 'assistant',
-      content: `已为「${content}」生成文档大纲，共 ${outlineData.outline.length} 个章节。请查看以下大纲，告诉我需要调整的地方，或确认开始生成 Word。`,
+      content: `已为「${content}」规划大纲，共 ${outlineData.outline.length} 个章节，正在生成完整 Word…`,
       outline: outlineData,
       outlineFlow: 'word',
       time: nowTime(),
     })
-    toastRef.value?.success('大纲已生成', `${outlineData.outline.length} 个章节 · 等待确认`)
-  } catch (e) {
-    // 移除进度卡片，显示错误
-    if (progressMsgIndex.value >= 0) {
-      messages.value.splice(progressMsgIndex.value, 1)
-      progressMsgIndex.value = -1
-    }
-    updateTask('outline', 'error', e.message)
+    await scrollToBottom()
+
+    // 第二阶段：直接生成完整 Word（无需用户确认）
+    progressMsgIndex.value = messages.value.length
     messages.value.push({
       role: 'assistant',
-      content: `大纲生成失败：${e.message}`,
+      content: '',
+      progress: 0,
+      progressText: 'BOH Agent正在为你输出Word文档',
       time: nowTime(),
     })
-    toastRef.value?.error('大纲生成失败', e.message)
-    // H-3 修复：AI 调用失败，回退预扣减的配额
-    await refundQuota('word')
-  } finally {
-    aiLoading.value = false
-  }
-  await scrollToBottom()
-}
 
-/**
- * 用户确认 Word 大纲 → 进入详情生成（第二阶段）
- */
-async function confirmWordOutline() {
-  if (!pendingOutline.value) return
-
-  // 生成前检查限额，避免浪费 token
-  if (isExceeded.value) {
-    toastRef.value?.warning('生成次数已达上限', getUpgradeHint())
-    return
-  }
-
-  aiLoading.value = true
-
-  // 确认阶段完成，进入详情生成阶段
-  nextTask('confirm')
-
-  // 添加进度卡片到消息流
-  progressMsgIndex.value = messages.value.length
-  messages.value.push({
-    role: 'assistant',
-    content: '',
-    progress: 0,
-    progressText: 'BOH Agent正在为你输出Word文档',
-    time: nowTime(),
-  })
-
-  try {
-    const data = await generateWordDoc(pendingOutlineTopic.value, '', pendingOutline.value, handleProgress)
+    const data = await generateWordDoc(content, '', outlineData, handleProgress)
     lastWordData.value = data
     const blockCount = (data.blocks || []).length
 
-    // 详情生成完成
     nextTask('detail')
     updateTask('detail', 'done', `已生成 ${blockCount} 个内容块`)
 
@@ -2108,7 +1696,6 @@ async function confirmWordOutline() {
       word: data,
       time: nowTime(),
     })
-    clearPendingOutline()
     toastRef.value?.success('Word 生成成功', `${blockCount} 个内容块 · ${currentPresetName.value}`)
   } catch (e) {
     // 移除进度卡片，显示错误
@@ -2116,72 +1703,22 @@ async function confirmWordOutline() {
       messages.value.splice(progressMsgIndex.value, 1)
       progressMsgIndex.value = -1
     }
-    updateTask('detail', 'error', e.message)
+    updateTask('outline', 'error', e.message)
     messages.value.push({
       role: 'assistant',
-      content: `生成失败：${e.message}`,
+      content: `Word 生成失败：${e.message}`,
       time: nowTime(),
     })
     toastRef.value?.error('Word 生成失败', e.message)
+    // H-3 修复：AI 调用失败，回退预扣减的配额
+    await refundQuota('word')
   } finally {
     aiLoading.value = false
   }
   await scrollToBottom()
 }
 
-/**
- * 基于用户反馈重新生成 Word 大纲
- */
-async function reviseWordOutline(feedback) {
-  aiLoading.value = true
-
-  // 添加进度卡片到消息流
-  progressMsgIndex.value = messages.value.length
-  messages.value.push({
-    role: 'assistant',
-    content: '',
-    progress: 0,
-    progressText: 'BOH Agent正在为你调整Word大纲',
-    time: nowTime(),
-  })
-
-  try {
-    pendingOutlineHistory.value.push(feedback)
-    const context = `用户累积修改意见：${pendingOutlineHistory.value.join('；')}`
-    const outlineData = await generateWordOutline(pendingOutlineTopic.value, context, handleProgress)
-    pendingOutline.value = outlineData
-
-    // 移除进度卡片，替换为大纲卡片
-    messages.value.splice(progressMsgIndex.value, 1)
-    progressMsgIndex.value = -1
-
-    messages.value.push({
-      role: 'assistant',
-      content: `已根据你的反馈调整大纲，现在共 ${outlineData.outline.length} 个章节。继续告诉我需要修改的地方，或确认开始生成。`,
-      outline: outlineData,
-      outlineFlow: 'word',
-      time: nowTime(),
-    })
-    toastRef.value?.success('大纲已更新', `${outlineData.outline.length} 个章节`)
-  } catch (e) {
-    // 移除进度卡片，显示错误
-    if (progressMsgIndex.value >= 0) {
-      messages.value.splice(progressMsgIndex.value, 1)
-      progressMsgIndex.value = -1
-    }
-    messages.value.push({
-      role: 'assistant',
-      content: `大纲更新失败：${e.message}`,
-      time: nowTime(),
-    })
-    toastRef.value?.error('大纲更新失败', e.message)
-  } finally {
-    aiLoading.value = false
-  }
-  await scrollToBottom()
-}
-
-// ===== Code Mode 方法 =====
+// ===== Code 生成方法 =====
 
 async function sendCode(content) {
   if (isExceeded.value) {
@@ -2209,70 +1746,36 @@ async function sendCode(content) {
   })
 
   try {
+    // 第一阶段：生成架构大纲
     const outlineData = await generateCodeOutline(content, '', handleProgress, thinkingBudgetValue.value)
-    pendingOutline.value = outlineData
-    pendingOutlineTopic.value = content
-    pendingOutlineFlow.value = 'code'
-    pendingOutlineHistory.value = []
-
     nextTask('outline')
-    updateTask('confirm', 'doing', `共 ${outlineData.outline.length} 个区域，等待你确认`)
+    updateTask('detail', 'doing', '正在编写网页代码')
 
+    // 展示架构（只读，不再要求确认）
     messages.value.splice(progressMsgIndex.value, 1)
-    progressMsgIndex.value = -1
-
+    progressMsgIndex.value = messages.value.length
     messages.value.push({
       role: 'assistant',
-      content: `已为「${content}」规划网页架构，共 ${outlineData.outline.length} 个区域。请查看以下架构，告诉我需要调整的地方，或确认开始生成网页。`,
+      content: `已为「${content}」规划网页架构，共 ${outlineData.outline.length} 个区域，正在编写代码…`,
       outline: outlineData,
       outlineFlow: 'code',
       time: nowTime(),
     })
-    toastRef.value?.success('网页架构已生成', `${outlineData.outline.length} 个区域 · 等待确认`)
-  } catch (e) {
-    if (progressMsgIndex.value >= 0) {
-      messages.value.splice(progressMsgIndex.value, 1)
-      progressMsgIndex.value = -1
-    }
-    updateTask('outline', 'error', e.message)
+    await scrollToBottom()
+
+    // 第二阶段：直接生成完整网页代码（无需用户确认）
+    progressMsgIndex.value = messages.value.length
     messages.value.push({
       role: 'assistant',
-      content: `网页架构生成失败：${e.message}`,
+      content: '',
+      progress: 0,
+      progressText: 'BOH Agent正在为你编写网页代码',
       time: nowTime(),
     })
-    toastRef.value?.error('架构生成失败', e.message)
-    // H-3 修复：AI 调用失败，回退预扣减的配额
-    await refundQuota('code')
-  } finally {
-    aiLoading.value = false
-  }
-  await scrollToBottom()
-}
 
-async function confirmCodeOutline() {
-  if (!pendingOutline.value) return
-
-  if (isExceeded.value) {
-    toastRef.value?.warning('生成次数已达上限', getUpgradeHint())
-    return
-  }
-
-  aiLoading.value = true
-  nextTask('confirm')
-
-  progressMsgIndex.value = messages.value.length
-  messages.value.push({
-    role: 'assistant',
-    content: '',
-    progress: 0,
-    progressText: 'BOH Agent正在为你编写网页代码',
-    time: nowTime(),
-  })
-
-  try {
     const data = await generateCode(
-      pendingOutlineTopic.value, '',
-      pendingOutline.value, handleProgress,
+      content, '',
+      outlineData, handleProgress,
       thinkingBudgetValue.value,
       (text) => {
         if (progressMsgIndex.value >= 0 && messages.value[progressMsgIndex.value]) {
@@ -2295,7 +1798,6 @@ async function confirmCodeOutline() {
       code: data,
       time: nowTime(),
     })
-    clearPendingOutline()
     rightPanelOpen.value = true
     rightPanelTab.value = 'code'
     toastRef.value?.success('网页生成成功', '点击右侧面板下载')
@@ -2304,59 +1806,15 @@ async function confirmCodeOutline() {
       messages.value.splice(progressMsgIndex.value, 1)
       progressMsgIndex.value = -1
     }
-    updateTask('detail', 'error', e.message)
+    updateTask('outline', 'error', e.message)
     messages.value.push({
       role: 'assistant',
       content: `网页生成失败：${e.message}`,
       time: nowTime(),
     })
     toastRef.value?.error('网页生成失败', e.message)
-  } finally {
-    aiLoading.value = false
-  }
-  await scrollToBottom()
-}
-
-async function reviseCodeOutline(feedback) {
-  aiLoading.value = true
-
-  progressMsgIndex.value = messages.value.length
-  messages.value.push({
-    role: 'assistant',
-    content: '',
-    progress: 0,
-    progressText: 'BOH Agent正在为你调整网页架构',
-    time: nowTime(),
-  })
-
-  try {
-    pendingOutlineHistory.value.push(feedback)
-    const context = `用户累积修改意见：${pendingOutlineHistory.value.join('；')}`
-    const outlineData = await generateCodeOutline(pendingOutlineTopic.value, context, handleProgress, thinkingBudgetValue.value)
-    pendingOutline.value = outlineData
-
-    messages.value.splice(progressMsgIndex.value, 1)
-    progressMsgIndex.value = -1
-
-    messages.value.push({
-      role: 'assistant',
-      content: `已根据你的反馈调整网页架构，现在共 ${outlineData.outline.length} 个区域。继续告诉我需要修改的地方，或确认开始生成。`,
-      outline: outlineData,
-      outlineFlow: 'code',
-      time: nowTime(),
-    })
-    toastRef.value?.success('架构已更新', `${outlineData.outline.length} 个区域`)
-  } catch (e) {
-    if (progressMsgIndex.value >= 0) {
-      messages.value.splice(progressMsgIndex.value, 1)
-      progressMsgIndex.value = -1
-    }
-    messages.value.push({
-      role: 'assistant',
-      content: `架构更新失败：${e.message}`,
-      time: nowTime(),
-    })
-    toastRef.value?.error('架构更新失败', e.message)
+    // H-3 修复：AI 调用失败，回退预扣减的配额
+    await refundQuota('code')
   } finally {
     aiLoading.value = false
   }
@@ -2605,14 +2063,17 @@ function executeCommand(cmd) {
     case 'toggleDrawer':
       drawerOpen.value = !drawerOpen.value
       break
-    case 'choosePPT':
-      choosePPT()
+    case 'hintPPT':
+      text.value = '生成项目总结 PPT'
+      nextTick(() => (hasConversation.value ? bottomTextareaRef : heroTextareaRef).value?.focus())
       break
-    case 'chooseWord':
-      chooseWord()
+    case 'hintWord':
+      text.value = '写一份年度工作总结 Word'
+      nextTick(() => (hasConversation.value ? bottomTextareaRef : heroTextareaRef).value?.focus())
       break
-    case 'chooseCode':
-      chooseCode()
+    case 'hintCode':
+      text.value = '做一个个人作品集网页'
+      nextTick(() => (hasConversation.value ? bottomTextareaRef : heroTextareaRef).value?.focus())
       break
   }
 }
@@ -2695,6 +2156,10 @@ onMounted(() => {
   document.addEventListener('keydown', handleKeyboardShortcuts)
   // 初始化实验室使用限额
   initializeQuota()
+  // 安全重置：防止 HMR 热更新或路由切换后残留脏状态导致 send() 静默返回
+  aiLoading.value = false
+  isLoading.value = false
+  progressMsgIndex.value = -1
   // 引入 Claude 字体
   if (!document.getElementById('claude-fonts')) {
     const link = document.createElement('link')
@@ -2712,6 +2177,39 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* ===== Codex Desktop 设计令牌 ===== */
+.lab-page {
+  /* 冷调低饱和灰度配色 */
+  --background: #ffffff;
+  --foreground: #0d0d0d;
+  --muted: #f5f5f7;
+  --muted-foreground: #6e6e73;
+  --border: #e5e5ea;
+  --border-light: #f0f0f2;
+  --accent: #0071e3;
+  --accent-light: #e8f1fd;
+  --accent-foreground: #ffffff;
+  --destructive: #ff3b30;
+  --destructive-light: #fff2f1;
+  --code-bg: #f5f5f7;
+  --code-border: #e5e5ea;
+
+  /* 圆角：统一 8px，仅输入框为 pill */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-full: 9999px;
+
+  /* 字体 */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+
+  /* 阴影：极轻，几乎不可见 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+
 /* ===== 页面骨架 ===== */
 .lab-page {
   height: 100dvh;
@@ -2721,6 +2219,11 @@ onBeforeUnmount(() => {
   /* 留出全局固定导航栏（#unified-nav-container, 72px）的空间，避免遮挡 */
   padding-top: 72px;
   box-sizing: border-box;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* ===== 三栏布局 ===== */
@@ -2739,6 +2242,7 @@ onBeforeUnmount(() => {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  background: var(--background);
 }
 
 /* ===== 对话区 ===== */
@@ -2747,58 +2251,60 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  max-width: 860px;
+  max-width: 780px;
   width: 100%;
   margin: 0 auto;
-  padding: calc(var(--spacing) * 6) calc(var(--spacing) * 6) 0;
+  padding: 24px 32px 0;
   box-sizing: border-box;
   overflow: hidden;
 }
 
-/* ===== 左侧栏 ===== */
+/* ===== 左侧栏：Codex 风格窄侧边栏 ===== */
 .lab-sidebar {
   width: 240px;
   flex-shrink: 0;
   border-right: 1px solid var(--border);
-  background: var(--muted);
+  background: var(--background);
   display: flex;
   flex-direction: column;
-  transition: width 0.2s ease;
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
 }
 .lab-sidebar.collapsed {
-  width: 48px;
+  width: 52px;
 }
 .sidebar-head {
   display: flex;
   align-items: center;
-  padding: 10px 8px;
-  gap: 4px;
-  border-bottom: 1px solid var(--border);
+  padding: 10px 10px;
+  gap: 6px;
   flex-shrink: 0;
+  border-bottom: 1px solid var(--border-light);
 }
 .sidebar-new-btn {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border: 1px dashed var(--border);
+  justify-content: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--muted-foreground);
-  font-size: 13px;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.15s ease;
+  font-family: var(--font-sans);
 }
 .sidebar-new-btn:hover {
-  background: var(--card);
-  color: var(--foreground);
-  border-color: var(--brand-300);
+  background: var(--muted);
+  border-color: var(--border);
 }
 .sidebar-toggle {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2807,60 +2313,78 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-sm);
   color: var(--muted-foreground);
   cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
 }
 .sidebar-toggle:hover {
-  background: var(--card);
+  background: var(--muted);
   color: var(--foreground);
 }
 .sidebar-sessions {
   flex: 1;
   overflow-y: auto;
-  padding: 4px;
+  padding: 6px 6px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.06) transparent;
 }
+.sidebar-sessions::-webkit-scrollbar { width: 4px; }
+.sidebar-sessions::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.06); border-radius: 2px; }
+.sidebar-sessions::-webkit-scrollbar-track { background: transparent; }
 .sidebar-session {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
-  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background 0.12s;
+  transition: all 0.12s ease;
   color: var(--muted-foreground);
+  margin-bottom: 2px;
 }
 .sidebar-session:hover {
-  background: var(--card);
+  background: var(--muted);
+  color: var(--foreground);
 }
 .sidebar-session.active {
-  background: var(--brand-50);
-  color: var(--primary);
+  background: var(--muted);
+  color: var(--foreground);
+}
+.sidebar-session.active .session-title {
+  font-weight: 500;
 }
 .session-info {
   flex: 1;
   min-width: 0;
 }
 .session-title {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 400;
+  color: inherit;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.3;
+  font-family: var(--font-sans);
 }
 .session-date {
   font-size: 10px;
   color: var(--muted-foreground);
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  opacity: 0.7;
 }
 
-/* ===== 右侧面板 ===== */
+/* ===== 右侧面板：Codex 风格可折叠预览面板 ===== */
 .lab-right-panel {
-  width: 340px;
+  width: 320px;
   flex-shrink: 0;
   border-left: 1px solid var(--border);
-  background: var(--popover);
+  background: var(--background);
   display: flex;
   flex-direction: column;
-  transition: width 0.2s ease;
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
+  position: relative;
 }
 .lab-right-panel.collapsed {
   width: 0;
@@ -2870,13 +2394,15 @@ onBeforeUnmount(() => {
   display: flex;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  background: var(--background);
+  padding: 0 8px;
 }
 .right-panel-tab {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
   padding: 10px 6px;
   border: none;
   background: transparent;
@@ -2884,16 +2410,17 @@ onBeforeUnmount(() => {
   font-size: 11px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.12s;
+  transition: all 0.15s ease;
   border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-family: var(--font-sans);
 }
 .right-panel-tab:hover {
   color: var(--foreground);
-  background: var(--muted);
 }
 .right-panel-tab.active {
-  color: var(--primary);
-  border-bottom-color: var(--primary);
+  color: var(--accent);
+  border-bottom-color: var(--accent);
 }
 .right-panel-close-btn {
   position: absolute;
@@ -2910,6 +2437,7 @@ onBeforeUnmount(() => {
   color: var(--muted-foreground);
   cursor: pointer;
   z-index: 2;
+  transition: all 0.15s ease;
 }
 .right-panel-close-btn:hover {
   background: var(--muted);
@@ -2920,7 +2448,12 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   padding: 12px;
   position: relative;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.06) transparent;
 }
+.right-panel-body::-webkit-scrollbar { width: 4px; }
+.right-panel-body::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.06); border-radius: 2px; }
+.right-panel-body::-webkit-scrollbar-track { background: transparent; }
 .right-panel-content {
   display: flex;
   flex-direction: column;
@@ -2928,9 +2461,10 @@ onBeforeUnmount(() => {
 }
 .right-panel-empty {
   text-align: center;
-  padding: 32px 16px;
+  padding: 40px 16px;
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-size: 12px;
+  font-family: var(--font-sans);
 }
 .code-preview-panel {
   display: flex;
@@ -2941,9 +2475,9 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 10px;
-  background: var(--card);
-  border-radius: var(--radius);
+  padding: 12px;
+  background: var(--muted);
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
 }
 .code-panel-info-row {
@@ -2951,17 +2485,22 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   align-items: center;
   font-size: 12px;
+  font-family: var(--font-sans);
 }
 .code-panel-info-row span {
   color: var(--muted-foreground);
 }
 .code-panel-info-row strong {
-  font-weight: 600;
+  font-weight: 500;
   color: var(--foreground);
+  font-family: var(--font-mono);
 }
 .code-panel-preview {
   flex: 1;
   min-height: 200px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
 }
 .code-panel-download-btn {
   display: inline-flex;
@@ -2969,121 +2508,61 @@ onBeforeUnmount(() => {
   justify-content: center;
   gap: 8px;
   width: 100%;
-  padding: 10px 20px;
-  background: var(--primary);
-  color: var(--primary-foreground);
+  padding: 8px 20px;
+  background: var(--accent);
+  color: var(--accent-foreground);
   border: none;
-  border-radius: var(--radius);
-  font-size: 13px;
-  font-weight: 600;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.16s ease;
+  transition: opacity 0.15s ease;
+  font-family: var(--font-sans);
 }
 .code-panel-download-btn:hover {
-  background: var(--brand-600);
+  opacity: 0.85;
 }
 
-/* ===== 状态栏 ===== */
-.lab-statusbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 16px;
-  border-top: 1px solid var(--border);
-  background: var(--muted);
-  font-size: 11px;
-  color: var(--muted-foreground);
-  flex-shrink: 0;
-}
-.statusbar-left,
-.statusbar-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.statusbar-model {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--muted-foreground);
-}
-.statusbar-tokens {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.statusbar-value {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  color: var(--foreground);
-}
-.statusbar-bar {
-  width: 48px;
-  height: 4px;
-  background: var(--border);
-  border-radius: 999px;
-  overflow: hidden;
-}
-.statusbar-fill {
-  height: 100%;
-  background: var(--brand-500);
-  border-radius: 999px;
-  transition: width 0.3s ease;
-}
-.statusbar-bar.streaming .statusbar-fill {
-  background: linear-gradient(90deg, var(--brand-500), var(--brand-300), var(--brand-500));
-  background-size: 200% 100%;
-  animation: statusbarPulse 1.5s ease infinite;
-}
-@keyframes statusbarPulse {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-.statusbar-thinking strong {
-  color: var(--foreground);
-  font-weight: 600;
-}
-
-/* ===== 右侧面板任务项 ===== */
+/* ===== 右侧面板任务项：Codex 风格 ===== */
 .task-item {
   display: flex;
   gap: 10px;
-  padding: 10px;
-  border-radius: var(--radius-sm);
-  background: var(--card);
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--background);
   border: 1px solid var(--border);
   transition: all 0.2s ease;
 }
 .task-item.task-done {
-  background: color-mix(in srgb, var(--success) 8%, var(--card));
-  border-color: color-mix(in srgb, var(--success) 25%, var(--border));
+  border-color: var(--border);
+  opacity: 0.7;
 }
 .task-item.task-doing {
-  background: color-mix(in srgb, var(--primary) 8%, var(--card));
-  border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 10%, transparent);
+  border-color: var(--accent);
+  background: var(--accent-light);
 }
 .task-item.task-error {
-  background: color-mix(in srgb, var(--destructive) 8%, var(--card));
-  border-color: color-mix(in srgb, var(--destructive) 30%, var(--border));
+  border-color: var(--destructive);
+  background: var(--destructive-light);
 }
 .task-item.task-pending {
   opacity: 0.5;
 }
 .task-icon {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
+  margin-top: 1px;
 }
 .task-done .task-icon {
-  background: var(--success);
+  background: #34c759;
   color: white;
 }
 .task-error .task-icon {
@@ -3098,10 +2577,10 @@ onBeforeUnmount(() => {
   color: var(--muted-foreground);
 }
 .task-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid color-mix(in srgb, var(--primary) 25%, transparent);
-  border-top-color: var(--primary);
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: taskSpin 0.8s linear infinite;
 }
@@ -3113,9 +2592,9 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 .task-title {
-  font-family: var(--font-display);
-  font-size: 13px;
-  font-weight: 600;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
   color: var(--foreground);
   line-height: 1.4;
 }
@@ -3127,108 +2606,122 @@ onBeforeUnmount(() => {
   line-height: 1.4;
 }
 
-/* ===== 顶栏 ===== */
+/* ===== 状态栏：Codex 风格极简细条 ===== */
+.lab-statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--background);
+  font-size: 11px;
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+  height: 24px;
+  box-sizing: border-box;
+  font-family: var(--font-sans);
+}
+.statusbar-left,
+.statusbar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.statusbar-model {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.statusbar-tokens {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+}
+.statusbar-value {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--foreground);
+}
+.statusbar-bar {
+  width: 48px;
+  height: 3px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.statusbar-fill {
+  height: 100%;
+  background: var(--muted-foreground);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+.statusbar-bar.streaming .statusbar-fill {
+  background: var(--accent);
+}
+.statusbar-thinking strong {
+  color: var(--foreground);
+  font-weight: 500;
+}
+
+/* ===== 顶栏：Codex 风格扁平细线 ===== */
 .lab-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: calc(var(--spacing) * 4);
-  padding: calc(var(--spacing) * 5) calc(var(--spacing) * 8);
+  gap: 16px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--background) 88%, transparent);
-  backdrop-filter: blur(10px);
+  background: var(--background);
   z-index: 10;
   flex-wrap: wrap;
   flex-shrink: 0;
+  height: 44px;
+  box-sizing: border-box;
 }
 .brand {
   display: flex;
   align-items: center;
-  gap: calc(var(--spacing) * 3);
+  gap: 10px;
   min-width: 0;
 }
 .brand-mark {
-  width: 38px;
-  height: 38px;
-  border-radius: var(--radius-md);
-  background: var(--primary);
-  color: var(--primary-foreground);
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-foreground);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   font-weight: 600;
-  font-size: 18px;
+  font-size: 12px;
   flex-shrink: 0;
-  box-shadow: var(--shadow-sm);
 }
 .brand-text {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 .brand-name {
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   font-weight: 500;
-  font-size: 17px;
+  font-size: 13px;
   letter-spacing: -0.01em;
   color: var(--foreground);
   line-height: 1.2;
 }
 .brand-sub {
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: 10px;
   color: var(--muted-foreground);
-  letter-spacing: 0.02em;
-  margin-top: 2px;
-}
-.mode-switcher {
+  letter-spacing: 0;
+  margin-top: 0;
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 2px;
-  height: 38px;
-  box-sizing: border-box;
-  background: var(--accent);
-  border-radius: var(--radius-lg);
-  flex-shrink: 0;
-}
-.mode-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  height: 32px;
-  padding: 0 14px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--muted-foreground);
-  font-size: 13px;
-  font-family: var(--font-sans);
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.16s ease;
-  white-space: nowrap;
-  box-sizing: border-box;
-}
-.mode-btn:hover {
-  color: var(--foreground);
-}
-.mode-btn.active {
-  background: var(--popover);
-  color: var(--foreground);
-  box-shadow: var(--shadow-2xs);
-  border-color: var(--border);
-}
-.mode-btn .app-icon {
-  color: var(--muted-foreground);
-}
-.mode-btn.active .app-icon {
-  color: var(--primary);
-}
-.mode-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  pointer-events: none;
+  gap: 8px;
 }
 
 .quota-badge {
@@ -3236,43 +2729,43 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 5px;
   padding: 2px 8px 2px 6px;
-  background: color-mix(in srgb, var(--card) 60%, var(--popover));
+  background: var(--muted);
   border: 1px solid var(--border);
   border-radius: var(--radius-full);
   font-family: var(--font-mono);
   font-size: 10px;
   color: var(--muted-foreground);
   cursor: pointer;
-  transition: all 0.16s ease;
+  transition: all 0.15s ease;
   vertical-align: middle;
 }
 .quota-badge:hover {
-  background: var(--brand-50);
-  border-color: var(--brand-200);
+  background: var(--border-light);
+  border-color: var(--border);
 }
 .quota-badge.exceeded {
-  color: var(--error);
-  border-color: color-mix(in srgb, var(--error) 40%, var(--border));
-  background: color-mix(in srgb, var(--error) 6%, var(--card));
+  color: var(--destructive);
+  border-color: var(--destructive);
+  background: var(--destructive-light);
 }
 .quota-badge.unlimited {
-  color: var(--success);
-  border-color: color-mix(in srgb, var(--success) 30%, var(--border));
-  background: color-mix(in srgb, var(--success) 8%, var(--card));
+  color: var(--muted-foreground);
+  border-color: var(--border);
+  background: var(--muted);
   cursor: default;
 }
 .quota-badge-dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: var(--primary);
+  background: var(--muted-foreground);
   flex-shrink: 0;
 }
 .quota-badge.unlimited .quota-badge-dot {
-  background: var(--success);
+  background: #34c759;
 }
 .quota-badge.exceeded .quota-badge-dot {
-  background: var(--error);
+  background: var(--destructive);
 }
 .quota-badge-text {
   line-height: 1;
@@ -3280,7 +2773,7 @@ onBeforeUnmount(() => {
 .quota-badge-bar {
   display: none;
   width: 24px;
-  height: 4px;
+  height: 3px;
   background: var(--border);
   border-radius: 2px;
   overflow: hidden;
@@ -3290,191 +2783,68 @@ onBeforeUnmount(() => {
 }
 .quota-badge-fill {
   height: 100%;
-  background: var(--primary);
+  background: var(--accent);
   border-radius: 2px;
   transition: width 0.3s ease;
 }
 .quota-badge.exceeded .quota-badge-fill {
-  background: var(--error);
+  background: var(--destructive);
 }
 .quota-upgrade-btn {
   display: inline-flex;
   align-items: center;
-  padding: 1px 8px;
+  padding: 2px 10px;
   font-family: var(--font-sans);
   font-size: 10px;
-  font-weight: 600;
-  color: var(--primary-foreground);
-  background: var(--primary);
+  font-weight: 500;
+  color: var(--accent-foreground);
+  background: var(--accent);
   border: none;
   border-radius: var(--radius-full);
   cursor: pointer;
-  transition: all 0.16s ease;
+  transition: opacity 0.15s ease;
   vertical-align: middle;
   line-height: 1.6;
 }
 .quota-upgrade-btn:hover {
-  background: var(--brand-600);
+  opacity: 0.85;
 }
 .topbar-actions {
   display: flex;
   align-items: center;
-  gap: calc(var(--spacing) * 3);
-  flex-wrap: wrap;
-}
-
-/* ===== + 菜单 ===== */
-.plus-wrap {
-  position: relative;
-}
-.plus-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--card);
-  color: var(--foreground);
-  cursor: pointer;
-  transition: all 0.16s ease;
-  flex-shrink: 0;
-}
-.plus-btn:hover,
-.plus-btn.active {
-  background: var(--brand-50);
-  border-color: var(--brand-200);
-  color: var(--brand-700);
-}
-.plus-menu {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 0;
-  min-width: 200px;
-  background: var(--popover);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  padding: 4px;
-  z-index: 20;
-}
-.plus-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 9px 12px;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--foreground);
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.16s ease;
-}
-.plus-item:hover {
-  background: var(--brand-50);
-  color: var(--brand-700);
-}
-.popover-enter-active, .popover-leave-active {
-  transition: all 0.18s cubic-bezier(0.25, 0.1, 0.25, 1);
-  transform-origin: bottom left;
-}
-.popover-enter-from, .popover-leave-to {
-  opacity: 0;
-  transform: translateY(6px) scale(0.96);
-}
-
-/* ===== 附件标签 ===== */
-.composer-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: calc(var(--spacing) * 2);
-  padding: 0 calc(var(--spacing) * 4) calc(var(--spacing) * 1);
-}
-.attach-chip {
-  display: inline-flex;
-  align-items: center;
   gap: 6px;
-  padding: 5px 8px 5px 10px;
-  background: var(--brand-50);
-  border: 1px solid var(--brand-200);
-  border-radius: var(--radius-full);
-  color: var(--brand-700);
-  font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 500;
-  max-width: 260px;
-}
-.ppt-chip {
-  background: color-mix(in srgb, var(--primary) 10%, var(--card));
-  border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
-  color: var(--primary);
-}
-.word-chip {
-  background: color-mix(in srgb, #2563eb 10%, var(--card));
-  border-color: color-mix(in srgb, #2563eb 30%, var(--border));
-  color: #2563eb;
-}
-.chip-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.chip-remove {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border: none;
-  background: transparent;
-  color: currentColor;
-  cursor: pointer;
-  border-radius: var(--radius-full);
-  opacity: 0.6;
-  transition: all 0.16s ease;
-  flex-shrink: 0;
-}
-.chip-remove:hover {
-  opacity: 1;
-  background: rgba(0, 0, 0, 0.08);
+  flex-wrap: wrap;
 }
 
-/* ===== 图标按钮 ===== */
+/* ===== 图标按钮：扁平细线、8px 圆角 ===== */
 .icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 30px;
+  height: 30px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--popover);
-  color: var(--foreground);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--muted-foreground);
   cursor: pointer;
-  transition: all 0.16s ease;
-  box-shadow: var(--shadow-2xs);
+  transition: all 0.15s ease;
 }
 .icon-btn:hover {
-  background: var(--card);
-  box-shadow: var(--shadow-sm);
+  background: var(--muted);
+  color: var(--foreground);
 }
 .icon-btn--active {
-  background: var(--brand-50);
-  color: var(--primary);
-  border-color: var(--brand-200);
+  background: var(--accent-light);
+  color: var(--accent);
+  border-color: var(--accent);
 }
 .icon-btn--warn {
-  color: #a67c2e;
-  border-color: #e6c882;
+  color: var(--muted-foreground);
+  border-color: var(--border);
 }
 .icon-btn--warn:hover {
-  background: #fef3e2;
+  background: var(--muted);
 }
 .icon-btn-wrap {
   position: relative;
@@ -3491,82 +2861,169 @@ onBeforeUnmount(() => {
   top: -2px;
   right: -4px;
   font-size: 9px;
-  font-weight: 700;
-  color: #a67c2e;
+  font-weight: 600;
+  color: var(--muted-foreground);
 }
 
-/* ===== 内容区 ===== */
-.lab-content {
-  flex: 1;
+/* ===== + 菜单：极简窄边框 ===== */
+.plus-wrap {
+  position: relative;
+}
+.plus-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+.plus-btn:hover,
+.plus-btn.active {
+  background: var(--muted);
+  color: var(--foreground);
+}
+.plus-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  min-width: 200px;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: 4px;
+  z-index: 20;
+}
+.plus-item {
   display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 400;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+.plus-item:hover {
+  background: var(--muted);
+}
+.popover-enter-active, .popover-leave-active {
+  transition: opacity 0.15s ease;
+}
+.popover-enter-from, .popover-leave-to {
+  opacity: 0;
 }
 
-/* ===== 空状态 ===== */
+/* ===== 附件标签：中性色 ===== */
+.composer-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 16px 4px;
+}
+.attach-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 10px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 400;
+  max-width: 260px;
+}
+.chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: currentColor;
+  cursor: pointer;
+  border-radius: var(--radius-full);
+  opacity: 0.5;
+  transition: opacity 0.12s ease;
+  flex-shrink: 0;
+}
+.chip-remove:hover {
+  opacity: 1;
+}
+
+/* ===== 空状态：大面积留白，仅居中引导文字 ===== */
 .empty-state {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: calc(var(--spacing) * 12) calc(var(--spacing) * 6) calc(var(--spacing) * 10);
-  gap: calc(var(--spacing) * 8);
+  padding: 48px 24px 40px;
+  gap: 28px;
 }
 .empty-hero {
   text-align: center;
-  max-width: 640px;
+  max-width: 560px;
 }
 .hero-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 64px;
-  height: 64px;
-  border-radius: var(--radius-xl);
-  background: var(--brand-50);
-  color: var(--primary);
-  margin-bottom: calc(var(--spacing) * 5);
-  box-shadow: var(--shadow-2xs);
+  display: none;
 }
 .hero-title {
   margin: 0;
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: clamp(28px, 4vw, 40px);
-  line-height: 1.1;
-  letter-spacing: -0.015em;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 22px;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
   color: var(--foreground);
   text-wrap: balance;
 }
 .hero-subtitle {
-  margin: calc(var(--spacing) * 4) 0 0;
-  font-family: var(--font-serif);
-  font-size: 16px;
-  line-height: 1.6;
+  margin: 8px 0 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
   color: var(--muted-foreground);
-  max-width: 520px;
+  max-width: 420px;
   margin-left: auto;
   margin-right: auto;
 }
 
-/* ===== 对话框（Composer） ===== */
+/* ===== 对话框（Composer）：pill 胶囊圆角 ===== */
 .composer {
   width: min(100%, 720px);
-  background: var(--popover);
+  background: var(--background);
   border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-full);
+  box-shadow: none;
   display: flex;
   flex-direction: column;
-  /* overflow: visible，让 + 菜单（向上弹出）不被裁剪 */
   overflow: visible;
-  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+  transition: border-color 0.15s ease;
 }
 .composer:focus-within {
-  border-color: var(--ring);
-  box-shadow: var(--shadow-md), 0 0 0 3px rgba(201, 100, 66, 0.08);
+  border-color: var(--muted-foreground);
 }
 .composer-input {
   width: 100%;
@@ -3574,12 +3031,12 @@ onBeforeUnmount(() => {
   background: transparent;
   outline: none;
   resize: none;
-  padding: calc(var(--spacing) * 4) calc(var(--spacing) * 5) calc(var(--spacing) * 2);
-  font-family: var(--font-serif);
-  font-size: 15px;
-  line-height: 1.6;
+  padding: 14px 20px 6px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
   color: var(--foreground);
-  min-height: 56px;
+  min-height: 48px;
   box-sizing: border-box;
 }
 .composer-input::placeholder {
@@ -3592,13 +3049,13 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: calc(var(--spacing) * 3);
-  padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3) calc(var(--spacing) * 3);
+  gap: 10px;
+  padding: 6px 10px 8px 16px;
 }
 .composer-left {
   display: flex;
   align-items: center;
-  gap: calc(var(--spacing) * 2);
+  gap: 8px;
   min-width: 0;
   flex: 1;
 }
@@ -3606,61 +3063,58 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 9px 18px;
-  background: var(--primary);
-  color: var(--primary-foreground);
+  padding: 7px 16px;
+  background: var(--accent);
+  color: var(--accent-foreground);
   border: 1px solid transparent;
-  border-radius: var(--radius);
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.16s ease;
-  box-shadow: var(--shadow-sm);
-  white-space: nowrap;
-  flex-shrink: 0;
-  min-height: 38px;
-}
-.composer-send:hover:not(:disabled) {
-  background: var(--brand-600);
-  box-shadow: var(--shadow-md);
-}
-.composer-send:active:not(:disabled) {
-  background: var(--brand-700);
-}
-.composer-send:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-/* ===== 建议提示 ===== */
-.suggestions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: calc(var(--spacing) * 2.5);
-  justify-content: center;
-  max-width: 720px;
-}
-.suggestion-chip {
-  padding: 9px 18px;
-  background: var(--popover);
-  border: 1px solid var(--border);
   border-radius: var(--radius-full);
-  color: var(--foreground);
   font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.16s ease;
-  box-shadow: var(--shadow-2xs);
+  transition: opacity 0.15s ease;
+  box-shadow: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-height: 32px;
+}
+.composer-send:hover:not(:disabled) {
+  opacity: 0.85;
+}
+.composer-send:active:not(:disabled) {
+  opacity: 0.7;
+}
+.composer-send:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ===== 建议提示：极简细边框胶囊 ===== */
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  max-width: 720px;
+}
+.suggestion-chip {
+  padding: 7px 14px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: none;
 }
 .suggestion-chip:hover {
-  background: var(--brand-50);
-  border-color: var(--brand-200);
-  color: var(--brand-700);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
+  background: var(--muted);
+  color: var(--foreground);
+  border-color: var(--border);
 }
 
 /* ===== 加载状态 ===== */
@@ -3669,75 +3123,87 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: calc(var(--spacing) * 12);
+  padding: 48px;
 }
 .loading-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: calc(var(--spacing) * 4);
-  padding: calc(var(--spacing) * 12) calc(var(--spacing) * 10);
-  background: var(--popover);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-sm);
+  gap: 16px;
+  padding: 48px 40px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 .loading-text {
   margin: 0;
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: 13px;
   color: var(--muted-foreground);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .thread {
   flex: 1;
   overflow-y: auto;
-  padding: calc(var(--spacing) * 2) calc(var(--spacing) * 2) calc(var(--spacing) * 6);
+  padding: 8px 8px 20px;
   display: flex;
   flex-direction: column;
-  gap: calc(var(--spacing) * 5);
+  gap: 24px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
+  scrollbar-color: rgba(0, 0, 0, 0.06) transparent;
 }
 .thread::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 .thread::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 2px;
+}
+.thread::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-/* ===== 消息气泡（Claude 风格） ===== */
+/* ===== 消息：文字驱动层级，轻量化气泡 ===== */
 .message {
   display: flex;
-  gap: calc(var(--spacing) * 3);
+  gap: 12px;
   max-width: 100%;
 }
 .message.user {
   flex-direction: row-reverse;
 }
 .message-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-md);
-  background: var(--primary);
-  color: var(--primary-foreground);
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  color: var(--foreground);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   font-weight: 600;
-  font-size: 14px;
+  font-size: 11px;
   flex-shrink: 0;
-  box-shadow: var(--shadow-xs);
+  box-shadow: none;
+  margin-top: 2px;
+}
+.message.user .message-avatar {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.message.assistant .message-avatar {
+  background: var(--foreground);
+  color: var(--background);
 }
 .message-body {
   min-width: 0;
-  max-width: calc(100% - 44px);
+  max-width: calc(100% - 36px);
   display: flex;
   flex-direction: column;
-  gap: calc(var(--spacing) * 1.5);
+  gap: 6px;
 }
 .message.user .message-body {
   align-items: flex-end;
@@ -3745,7 +3211,7 @@ onBeforeUnmount(() => {
 .message-meta {
   display: flex;
   align-items: center;
-  gap: calc(var(--spacing) * 2);
+  gap: 8px;
   font-family: var(--font-sans);
   font-size: 11px;
 }
@@ -3753,110 +3219,111 @@ onBeforeUnmount(() => {
   flex-direction: row-reverse;
 }
 .meta-name {
-  font-weight: 600;
+  font-weight: 500;
   color: var(--foreground);
 }
 .meta-time {
   color: var(--muted-foreground);
 }
 .message-content {
-  padding: calc(var(--spacing) * 3.5) calc(var(--spacing) * 4);
-  border-radius: calc(var(--radius) + 2px);
-  font-family: var(--font-serif);
-  font-size: 15px;
+  padding: 0;
+  border-radius: 0;
+  font-family: var(--font-sans);
+  font-size: 14px;
   line-height: 1.6;
   color: var(--foreground);
   white-space: pre-wrap;
   word-break: break-word;
-  box-shadow: var(--shadow-xs);
+  box-shadow: none;
   max-width: 100%;
 }
 .message.user .message-content {
-  background: var(--primary);
-  color: var(--primary-foreground);
-  border-bottom-right-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-foreground);
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border-bottom-right-radius: 2px;
 }
 .message.assistant .message-content {
-  background: var(--popover);
-  border: 1px solid var(--border);
-  border-bottom-left-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  border-radius: 0;
 }
 .message-attachment {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  background: var(--card);
+  padding: 5px 10px;
+  background: var(--muted);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   font-family: var(--font-sans);
   font-size: 12px;
   color: var(--foreground);
-  font-weight: 500;
+  font-weight: 400;
   width: fit-content;
 }
 .message.user .message-attachment {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.2);
-  color: var(--primary-foreground);
+  background: var(--muted);
+  border-color: var(--border);
+  color: var(--foreground);
 }
 .message-ops {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 12px;
-  background: var(--brand-50);
-  border: 1px solid var(--brand-200);
-  border-radius: var(--radius-full);
+  padding: 4px 10px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   font-family: var(--font-sans);
-  font-size: 12px;
-  color: var(--brand-700);
-  font-weight: 500;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  font-weight: 400;
   width: fit-content;
 }
 .ops-view {
   background: transparent;
   border: none;
-  color: var(--brand-700);
+  color: var(--accent);
   font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 500;
   cursor: pointer;
-  text-decoration: underline;
   padding: 0;
 }
 .ops-view:hover {
-  color: var(--brand-800);
+  text-decoration: underline;
 }
 
-/* ===== PPT 结果卡片 ===== */
+/* ===== PPT 结果卡片：统一中度圆角，细线边框 ===== */
 .ppt-result-card {
   width: 100%;
-  max-width: 520px;
-  background: var(--popover);
+  max-width: 560px;
+  background: var(--background);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg, var(--radius-xl));
+  border-radius: var(--radius-md);
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 .ppt-result-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: calc(var(--spacing) * 3);
-  padding: calc(var(--spacing) * 4) calc(var(--spacing) * 4) calc(var(--spacing) * 3);
+  gap: 12px;
+  padding: 14px 16px 12px;
   border-bottom: 1px solid var(--border);
 }
 .ppt-result-title {
   font-family: var(--font-sans);
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
   color: var(--foreground);
   line-height: 1.3;
 }
 .ppt-result-meta {
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: 11px;
   color: var(--muted-foreground);
   margin-top: 4px;
 }
@@ -3864,31 +3331,31 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 14px;
-  background: var(--primary);
-  color: var(--primary-foreground);
+  padding: 6px 12px;
+  background: var(--accent);
+  color: var(--accent-foreground);
   border: none;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   font-family: var(--font-sans);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.16s ease;
+  transition: opacity 0.15s ease;
   white-space: nowrap;
   flex-shrink: 0;
 }
 .ppt-download-btn:hover {
-  background: var(--brand-600);
+  opacity: 0.85;
 }
 .ppt-slide-previews {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-  gap: calc(var(--spacing) * 2);
-  padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4) calc(var(--spacing) * 4);
+  gap: 8px;
+  padding: 12px 16px 16px;
 }
 .ppt-slide-mini {
-  padding: calc(var(--spacing) * 2.5);
-  background: var(--card);
+  padding: 10px;
+  background: var(--muted);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   font-family: var(--font-sans);
@@ -3901,11 +3368,12 @@ onBeforeUnmount(() => {
   right: 8px;
   font-size: 10px;
   color: var(--muted-foreground);
-  font-weight: 600;
+  font-weight: 500;
+  font-family: var(--font-mono);
 }
 .slide-mini-title {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--foreground);
   line-height: 1.3;
   margin-bottom: 4px;
@@ -3920,25 +3388,25 @@ onBeforeUnmount(() => {
   color: var(--muted-foreground);
 }
 .slide-title .slide-mini-title {
-  color: var(--primary);
+  color: var(--foreground);
 }
 .slide-end .slide-mini-title {
   color: var(--muted-foreground);
 }
 
-/* ===== Word 内容块预览 ===== */
+/* ===== Word 内容块预览：浅灰背景容器 ===== */
 .word-block-previews {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4) calc(var(--spacing) * 4);
+  gap: 4px;
+  padding: 12px 16px 16px;
 }
 .word-block-mini {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  background: var(--card);
+  background: var(--muted);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   font-family: var(--font-sans);
@@ -3947,17 +3415,18 @@ onBeforeUnmount(() => {
 .block-type-tag {
   flex-shrink: 0;
   padding: 2px 6px;
-  background: var(--brand-50);
-  border: 1px solid var(--brand-200);
+  background: var(--background);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  color: var(--brand-700);
+  color: var(--muted-foreground);
   font-size: 9px;
-  font-weight: 600;
+  font-weight: 500;
+  font-family: var(--font-mono);
 }
 .block-heading .block-type-tag {
-  background: color-mix(in srgb, var(--primary) 10%, var(--card));
-  border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
-  color: var(--primary);
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-light);
 }
 .block-text {
   color: var(--foreground);
@@ -3967,21 +3436,21 @@ onBeforeUnmount(() => {
   flex: 1;
 }
 
-/* ===== 进度卡片 ===== */
+/* ===== 进度卡片：极简，细进度条 ===== */
 .progress-card {
   width: 100%;
   max-width: 480px;
-  background: var(--popover);
+  background: var(--background);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg, var(--radius-xl));
-  padding: calc(var(--spacing) * 4);
-  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  box-shadow: none;
 }
 .progress-card-head {
   display: flex;
   align-items: center;
-  gap: calc(var(--spacing) * 3);
-  margin-bottom: calc(var(--spacing) * 3);
+  gap: 12px;
+  margin-bottom: 10px;
 }
 .progress-icon {
   flex-shrink: 0;
@@ -3991,15 +3460,15 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 .progress-title {
-  font-family: var(--font-display);
-  font-size: 14px;
-  font-weight: 600;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
   color: var(--foreground);
   line-height: 1.3;
 }
 .progress-text {
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 12px;
   color: var(--muted-foreground);
   margin-top: 2px;
   overflow: hidden;
@@ -4008,48 +3477,48 @@ onBeforeUnmount(() => {
 }
 .progress-bar-container {
   width: 100%;
-  height: 8px;
-  background: color-mix(in srgb, var(--primary) 15%, var(--background));
-  border-radius: var(--radius);
+  height: 3px;
+  background: var(--border);
+  border-radius: 999px;
   overflow: hidden;
-  margin-bottom: calc(var(--spacing) * 2);
+  margin-bottom: 8px;
 }
 .progress-bar {
   height: 100%;
-  background: linear-gradient(90deg, var(--primary), color-mix(in srgb, var(--primary) 80%, var(--accent)));
-  border-radius: var(--radius);
+  background: var(--accent);
+  border-radius: 999px;
   transition: width 0.3s ease-out;
 }
 .progress-percent {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 11px;
   color: var(--muted-foreground);
   text-align: right;
 }
 
-/* ===== 大纲确认卡片 ===== */
+/* ===== 大纲预览卡片：极简，无色块 ===== */
 .outline-card {
   width: 100%;
   max-width: 560px;
-  background: var(--popover);
+  background: var(--background);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg, var(--radius-xl));
+  border-radius: var(--radius-md);
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 .outline-card-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: calc(var(--spacing) * 3);
-  padding: calc(var(--spacing) * 4) calc(var(--spacing) * 4) calc(var(--spacing) * 3);
+  gap: 12px;
+  padding: 14px 16px 12px;
   border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--brand-50) 35%, var(--popover));
+  background: transparent;
 }
 .outline-card-title {
-  font-family: var(--font-display);
-  font-size: 16px;
-  font-weight: 600;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
   color: var(--foreground);
   line-height: 1.3;
 }
@@ -4058,57 +3527,59 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: 11px;
   color: var(--muted-foreground);
   margin-top: 4px;
   flex-shrink: 0;
 }
 .outline-card-tag {
   padding: 2px 8px;
-  background: var(--primary);
-  color: var(--primary-foreground);
-  border-radius: var(--radius-full);
+  background: var(--accent-light);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
   font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  letter-spacing: 0;
 }
 .outline-items {
   display: flex;
   flex-direction: column;
-  padding: calc(var(--spacing) * 2);
-  gap: 2px;
+  padding: 6px;
+  gap: 0;
 }
 .outline-item {
   display: flex;
   align-items: flex-start;
-  gap: calc(var(--spacing) * 2.5);
-  padding: calc(var(--spacing) * 2.5) calc(var(--spacing) * 3);
+  gap: 10px;
+  padding: 8px 10px;
   border-radius: var(--radius-sm);
-  transition: background 0.16s ease;
+  transition: background 0.12s ease;
 }
 .outline-item:hover {
-  background: var(--brand-50);
+  background: var(--muted);
 }
 .outline-item-num {
   flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  border-radius: var(--radius-full);
-  background: var(--card);
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  background: transparent;
   border: 1px solid var(--border);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-sans);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--brand-700);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted-foreground);
   margin-top: 1px;
 }
 .outline-type-cover .outline-item-num,
 .outline-type-end .outline-item-num {
-  background: var(--primary);
-  color: var(--primary-foreground);
+  background: var(--accent);
+  color: var(--accent-foreground);
   border-color: transparent;
 }
 .outline-item-body {
@@ -4121,7 +3592,7 @@ onBeforeUnmount(() => {
 .outline-item-title {
   font-family: var(--font-sans);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--foreground);
   line-height: 1.4;
 }
@@ -4138,64 +3609,22 @@ onBeforeUnmount(() => {
 }
 .outline-item-type-tag {
   flex-shrink: 0;
-  padding: 2px 8px;
-  background: var(--card);
+  padding: 2px 6px;
+  background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
   font-size: 10px;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--muted-foreground);
   margin-top: 2px;
 }
-.outline-actions {
-  display: flex;
-  align-items: center;
-  gap: calc(var(--spacing) * 3);
-  padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4) calc(var(--spacing) * 4);
-  border-top: 1px dashed var(--border);
-  background: color-mix(in srgb, var(--brand-50) 15%, transparent);
-  flex-wrap: wrap;
-}
-.outline-confirm-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 9px 18px;
-  background: var(--primary);
-  color: var(--primary-foreground);
-  border: none;
-  border-radius: var(--radius);
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.16s ease;
-  box-shadow: var(--shadow-sm);
-  white-space: nowrap;
-  flex-shrink: 0;
-  min-height: 38px;
-}
-.outline-confirm-btn:hover:not(:disabled) {
-  background: var(--brand-600);
-  box-shadow: var(--shadow-md);
-}
-.outline-confirm-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.outline-hint {
-  font-family: var(--font-sans);
-  font-size: 12px;
-  color: var(--muted-foreground);
-}
 
-/* ===== 样式集选择模态框 ===== */
+/* ===== 样式集选择模态框：窄边框、大面积留白 ===== */
 .preset-mask {
   position: fixed;
   inset: 0;
-  background: rgba(61, 57, 41, 0.45);
-  backdrop-filter: blur(3px);
+  background: rgba(0, 0, 0, 0.3);
   z-index: 200;
 }
 .preset-modal {
@@ -4207,8 +3636,8 @@ onBeforeUnmount(() => {
   max-height: 86vh;
   background: var(--background);
   border: 1px solid var(--border);
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-2xl);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
   z-index: 201;
   display: flex;
   flex-direction: column;
@@ -4218,44 +3647,48 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: calc(var(--spacing) * 5) calc(var(--spacing) * 6) calc(var(--spacing) * 4);
+  padding: 20px 24px 16px;
   border-bottom: 1px solid var(--border);
 }
 .preset-modal-title {
   margin: 0;
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   font-weight: 500;
-  font-size: 20px;
+  font-size: 16px;
   color: var(--foreground);
 }
 .preset-modal-close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--popover);
+  background: transparent;
   color: var(--foreground);
   cursor: pointer;
-  transition: all 0.16s ease;
+  transition: background 0.15s ease;
 }
 .preset-modal-close:hover {
-  background: var(--card);
+  background: var(--muted);
 }
 .preset-modal-body {
   flex: 1;
   overflow-y: auto;
-  padding: calc(var(--spacing) * 5) calc(var(--spacing) * 6);
+  padding: 20px 24px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.06) transparent;
 }
+.preset-modal-body::-webkit-scrollbar { width: 4px; }
+.preset-modal-body::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.06); border-radius: 2px; }
 .preset-modal-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: calc(var(--spacing) * 4) calc(var(--spacing) * 6);
+  padding: 16px 24px;
   border-top: 1px solid var(--border);
-  background: var(--popover);
+  background: transparent;
 }
 .preset-current {
   font-family: var(--font-sans);
@@ -4263,77 +3696,75 @@ onBeforeUnmount(() => {
   color: var(--muted-foreground);
 }
 .preset-confirm-btn {
-  padding: 8px 22px;
-  background: var(--primary);
-  color: var(--primary-foreground);
+  padding: 7px 18px;
+  background: var(--accent);
+  color: var(--accent-foreground);
   border: none;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   font-family: var(--font-sans);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.16s ease;
+  transition: opacity 0.15s ease;
 }
 .preset-confirm-btn:hover {
-  background: var(--brand-600);
+  opacity: 0.85;
 }
 .modal-enter-active, .modal-leave-active {
-  transition: all 0.24s cubic-bezier(0.25, 0.1, 0.25, 1);
+  transition: opacity 0.2s ease;
 }
 .modal-enter-from, .modal-leave-to {
   opacity: 0;
-  transform: translate(-50%, -48%) scale(0.96);
 }
 
-/* ===== 思考动画 ===== */
+/* ===== 思考动画：极简单点，无容器 ===== */
 .thinking {
   display: inline-flex;
   align-items: center;
-  padding: calc(var(--spacing) * 3.5) calc(var(--spacing) * 4);
-  background: var(--popover);
-  border: 1px solid var(--border);
-  border-radius: calc(var(--radius) + 2px);
-  border-bottom-left-radius: var(--radius-sm);
-  box-shadow: var(--shadow-xs);
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 .dot {
-  width: 10px;
-  height: 10px;
-  border-radius: var(--radius-full);
-  background: var(--primary);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted-foreground);
   animation: thinkingBreath 1.45s ease-in-out infinite;
 }
 @keyframes thinkingBreath {
-  0%, 100% { opacity: 0.4; transform: scale(0.72); }
-  50% { opacity: 1; transform: scale(1.22); }
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.1); }
 }
 
-/* ===== 底部对话框 ===== */
+/* ===== 底部对话框：纯背景 ===== */
 .composer-bottom {
   position: sticky;
   bottom: 0;
-  margin: calc(var(--spacing) * 3) 0 0;
-  background: color-mix(in srgb, var(--popover) 92%, transparent);
-  backdrop-filter: blur(8px);
+  margin: 12px 0 0;
+  background: var(--background);
 }
 
-/* ===== 错误提示 ===== */
+/* ===== 错误提示：极简窄边框 ===== */
 .error-toast {
   position: fixed;
-  bottom: calc(var(--spacing) * 6);
+  bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: calc(var(--spacing) * 2);
-  padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4);
-  background: var(--error);
-  color: #fff;
-  border-radius: var(--radius);
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--background);
+  color: var(--destructive);
+  border: 1px solid var(--destructive);
+  border-radius: var(--radius-md);
   font-family: var(--font-sans);
   font-size: 13px;
-  font-weight: 500;
-  box-shadow: var(--shadow-lg);
+  font-weight: 400;
+  box-shadow: var(--shadow-md);
   z-index: 50;
   max-width: 90vw;
 }
@@ -4343,31 +3774,29 @@ onBeforeUnmount(() => {
 .error-close {
   display: inline-flex;
   align-items: center;
-  background: rgba(255, 255, 255, 0.2);
+  background: transparent;
   border: none;
-  color: #fff;
+  color: var(--destructive);
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 2px 6px;
   border-radius: var(--radius-sm);
-  transition: background 0.16s ease;
+  transition: background 0.15s ease;
 }
 .error-close:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--destructive-light);
 }
 .toast-enter-active, .toast-leave-active {
-  transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+  transition: opacity 0.2s ease;
 }
 .toast-enter-from, .toast-leave-to {
   opacity: 0;
-  transform: translateX(-50%) translateY(20px);
 }
 
-/* ===== 抽屉 ===== */
+/* ===== 抽屉：轻量窄边框 ===== */
 .drawer-mask {
   position: fixed;
   inset: 0;
-  background: rgba(61, 57, 41, 0.35);
-  backdrop-filter: blur(2px);
+  background: rgba(0, 0, 0, 0.25);
   z-index: 100;
 }
 .drawer {
@@ -4378,7 +3807,7 @@ onBeforeUnmount(() => {
   height: 100dvh;
   background: var(--background);
   border-left: 1px solid var(--border);
-  box-shadow: var(--shadow-2xl);
+  box-shadow: var(--shadow-lg);
   z-index: 101;
   display: flex;
   flex-direction: column;
@@ -4387,64 +3816,68 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: calc(var(--spacing) * 5) calc(var(--spacing) * 5) calc(var(--spacing) * 4);
+  padding: 20px 20px 16px;
   border-bottom: 1px solid var(--border);
 }
 .drawer-title {
   margin: 0;
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   font-weight: 500;
-  font-size: 20px;
+  font-size: 16px;
   color: var(--foreground);
 }
 .drawer-close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--popover);
+  background: transparent;
   color: var(--foreground);
   cursor: pointer;
-  transition: all 0.16s ease;
+  transition: background 0.15s ease;
 }
 .drawer-close:hover {
-  background: var(--card);
+  background: var(--muted);
 }
 .drawer-body {
   flex: 1;
   overflow-y: auto;
-  padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4) calc(var(--spacing) * 6);
+  padding: 12px 16px 24px;
   display: flex;
   flex-direction: column;
-  gap: calc(var(--spacing) * 2);
+  gap: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.06) transparent;
 }
+.drawer-body::-webkit-scrollbar { width: 4px; }
+.drawer-body::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.06); border-radius: 2px; }
 .drawer-section {
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   overflow: hidden;
-  background: var(--popover);
+  background: transparent;
 }
 .drawer-section-head {
   display: flex;
   align-items: center;
-  gap: calc(var(--spacing) * 2);
+  gap: 8px;
   width: 100%;
-  padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4);
+  padding: 10px 14px;
   background: transparent;
   border: none;
   cursor: pointer;
   font-family: var(--font-sans);
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--foreground);
   text-align: left;
-  transition: background 0.16s ease;
+  transition: background 0.15s ease;
 }
 .drawer-section-head:hover {
-  background: var(--card);
+  background: var(--muted);
 }
 .drawer-section-head span {
   flex: 1;
@@ -4453,91 +3886,193 @@ onBeforeUnmount(() => {
   flex: 0 0 auto !important;
   font-size: 11px;
   color: var(--muted-foreground);
-  background: var(--card);
+  background: var(--muted);
   padding: 2px 8px;
   border-radius: var(--radius-full);
-  font-weight: 500;
+  font-weight: 400;
+  font-family: var(--font-mono);
 }
 .drawer-chevron {
-  transition: transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+  transition: transform 0.2s ease;
   color: var(--muted-foreground);
 }
 .drawer-section-head.open .drawer-chevron {
   transform: rotate(180deg);
 }
 .drawer-section-body {
-  padding: 0 calc(var(--spacing) * 4) calc(var(--spacing) * 4);
+  padding: 0 14px 12px;
   border-top: 1px solid var(--border);
 }
 .drawer-enter-active, .drawer-leave-active {
-  transition: transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .drawer-enter-from, .drawer-leave-to {
   transform: translateX(100%);
 }
 .fade-enter-active, .fade-leave-active {
-  transition: opacity 0.3s ease;
+  transition: opacity 0.2s ease;
 }
 .fade-enter-from, .fade-leave-to {
   opacity: 0;
 }
 
-/* ===== Code 结果卡片 ===== */
+/* ===== Code 结果卡片：浅灰背景容器 ===== */
 .code-result-card {
   width: 100%;
   max-width: 580px;
-  background: var(--popover);
+  background: var(--background);
   border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-md);
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 .code-result-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: calc(var(--spacing) * 3);
-  padding: calc(var(--spacing) * 3.5) calc(var(--spacing) * 4);
+  gap: 12px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--brand-50) 30%, var(--popover));
+  background: transparent;
 }
 .code-result-title {
-  font-family: var(--font-display);
-  font-size: 15px;
-  font-weight: 600;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
   color: var(--foreground);
   line-height: 1.3;
 }
 .code-result-meta {
-  font-family: var(--font-sans);
-  font-size: 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
   color: var(--muted-foreground);
   flex-shrink: 0;
 }
 .code-preview-wrap {
-  padding: calc(var(--spacing) * 3);
+  padding: 12px;
+  background: var(--code-bg);
+}
+
+/* ===== 对话树视图 ===== */
+.tree-view {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tree-branch {
+  display: flex;
+  flex-direction: column;
+}
+.tree-branch-path {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.tree-node {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.tree-node:hover {
+  background: var(--muted);
+}
+.tree-node--active {
+  background: var(--accent-light);
+}
+.tree-node--active .tree-node-label {
+  color: var(--accent);
+  font-weight: 500;
+}
+.tree-node-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.tree-node--active .tree-node-dot {
+  background: var(--accent);
+}
+.tree-node-info {
+  flex: 1;
+  min-width: 0;
+}
+.tree-node-label {
+  font-size: 12px;
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ===== 文档大纲树 ===== */
+.outline-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.outline-tree-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-family: var(--font-sans);
+}
+.outline-tree-type {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  background: var(--muted);
+  border-radius: var(--radius-sm);
+  font-size: 9px;
+  font-family: var(--font-mono);
+  color: var(--muted-foreground);
+}
+.outline-tree-text {
+  flex: 1;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ===== 响应式 ===== */
 @media (max-width: 768px) {
   .lab-topbar {
-    padding: calc(var(--spacing) * 4) calc(var(--spacing) * 4);
-    gap: calc(var(--spacing) * 3);
+    padding: 10px 14px;
+    gap: 10px;
   }
   .brand-text {
     display: none;
   }
   .empty-state {
-    padding: calc(var(--spacing) * 8) calc(var(--spacing) * 4) calc(var(--spacing) * 8);
+    padding: 32px 16px 28px;
   }
   .conversation {
-    padding: calc(var(--spacing) * 4) calc(var(--spacing) * 3) 0;
+    padding: 20px 16px 0;
   }
   .message-body {
-    max-width: calc(100% - 40px);
+    max-width: calc(100% - 32px);
   }
   .ppt-slide-previews {
     grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  }
+  .lab-sidebar {
+    position: absolute;
+    z-index: 50;
+    height: 100%;
+  }
+  .lab-right-panel {
+    position: absolute;
+    right: 0;
+    z-index: 50;
+    height: 100%;
   }
 }
 </style>

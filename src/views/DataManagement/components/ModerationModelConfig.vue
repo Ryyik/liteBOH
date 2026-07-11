@@ -42,7 +42,7 @@
             <select v-model="form.modelId" class="g-select is-mono" :disabled="isLoadingFreemodels">
               <option value="" disabled>{{ isLoadingFreemodels ? '加载免费模型中...' : '请选择模型' }}</option>
               <option v-for="m in freemodels" :key="m.model_id" :value="m.model_id">
-                {{ m.name }} ({{ m.model_id }})
+                {{ m.name }} ({{ m.provider_label || m.provider }}) — {{ m.model_id }}
               </option>
             </select>
             <span class="g-field-hint">当前生效：<code>{{ activeModelId }}</code></span>
@@ -56,7 +56,7 @@
               type="url"
               placeholder="https://api.siliconflow.cn/v1/chat/completions"
             />
-            <span class="g-field-hint">留空则使用默认地址</span>
+            <span class="g-field-hint">留空则使用对应平台的默认地址</span>
           </div>
 
           <div class="g-field">
@@ -65,9 +65,10 @@
               <option value="">自动检测（留空）</option>
               <option value="siliconflow">SiliconFlow</option>
               <option value="zhipu">智谱 AI</option>
+              <option value="openrouter">OpenRouter</option>
               <option value="custom">自定义</option>
             </select>
-            <span class="g-field-hint">仅用于标识，不影响 API 调用</span>
+            <span class="g-field-hint">用于标识模型来源平台</span>
           </div>
 
           <div class="g-field">
@@ -158,7 +159,8 @@ async function loadFreemodels() {
   try {
     const { data, error: fetchError } = await supabase
       .from('freemodels')
-      .select('model_id, name, family_label')
+      .select('model_id, name, family_label, provider, provider_label')
+      .eq('is_active', true)
       .order('sort_order', { ascending: true });
     if (fetchError) throw fetchError;
     freemodels.value = data || [];

@@ -37,9 +37,6 @@ import { invalidateTreeholeCache, getMyTreeholeMemoriesForAI, createTreeholeMemo
 import { invalidateSharedMemoryCache, getSharedAIMemoriesForAI, createSharedAIMemory } from './memory-api.js';
 
 const SILICON_CLOUD_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
-// 长记忆复盘模型（高强推理）
-const TREEHOLE_LONG_MEMORY_MODEL = 'deepseek-ai/DeepSeek-R1-0528-Qwen3-8B';
-const TREEHOLE_AUTO_MEMORY_MODEL = TREEHOLE_LONG_MEMORY_MODEL;
 const TREEHOLE_SPACE_COLUMNS = 'user_id, title, description, created_at, updated_at';
 const TREEHOLE_CANDIDATE_COLUMNS = `
   id,
@@ -67,7 +64,7 @@ const invalidateTreeholeCandidateCache = (userId) => {
 
 const requestTreeholeCompletion = async ({
   messages = [],
-  model = TREEHOLE_LONG_MEMORY_MODEL,
+  model = '',
   temperature = 0.4,
   maxTokens = 900,
   timeoutMs = 28000,
@@ -222,7 +219,7 @@ const buildStrictTreeholeMemoryContext = async (memories = [], { signal = null }
   for (let i = 0; i < chunks.length; i += 1) {
     const chunk = chunks[i];
     const summaryResult = await requestTreeholeCompletion({
-      model: TREEHOLE_LONG_MEMORY_MODEL,
+      model: '',
       temperature: 0.2,
       maxTokens: 1200,
       signal,
@@ -458,7 +455,7 @@ export async function deleteMyTreeholeSpace(userId) {
 export async function extractMemoryCandidatesFromDialogue({
   messages = [],
   maxCandidates = TREEHOLE_AUTO_MEMORY_MAX_CANDIDATES,
-  model = TREEHOLE_AUTO_MEMORY_MODEL
+  model = ''
 } = {}) {
   const context = buildDialogueContextForMemoryCapture(messages);
   if (context.userTurns.length === 0 || !context.turnText) {
@@ -646,7 +643,7 @@ export async function captureTreeholeMemoriesFromDialogue({
         rejectedCount: 0,
         duplicateCount: 0,
         items: [],
-        model: extractionResult.data?.model || TREEHOLE_AUTO_MEMORY_MODEL
+        model: extractionResult.data?.model || ''
       },
       error: null
     };
@@ -704,7 +701,7 @@ export async function captureTreeholeMemoriesFromDialogue({
     rejectedCount: 0,
     duplicateCount: 0,
     items: [],
-    model: extractionResult.data?.model || TREEHOLE_AUTO_MEMORY_MODEL
+    model: extractionResult.data?.model || ''
   };
 
   const safeSessionId = toTrimmedText(sessionId, 120);
@@ -924,7 +921,7 @@ export async function extractTreeholeMemoryHighlights({
 </instructions>`;
 
   const result = await requestTreeholeCompletion({
-    model: TREEHOLE_LONG_MEMORY_MODEL,
+    model: '',
     temperature: 0.2,
     maxTokens: 420,
     messages: [
@@ -951,7 +948,7 @@ export async function extractTreeholeMemoryHighlights({
       summary,
       mood: normalizedMood,
       tags,
-      model: result.data?.model || TREEHOLE_LONG_MEMORY_MODEL
+      model: result.data?.model || ''
     },
     error: null
   };
@@ -1024,7 +1021,7 @@ export async function askTreeholeQwen({
 
   const result = await requestTreeholeCompletion({
     messages,
-    model: TREEHOLE_LONG_MEMORY_MODEL,
+    model: '',
     temperature: 0.4,
     maxTokens: 1100,
     signal
@@ -1035,7 +1032,7 @@ export async function askTreeholeQwen({
   }
 
   let finalReply = result.data.reply;
-  let finalModel = result.data.model || TREEHOLE_LONG_MEMORY_MODEL;
+  let finalModel = result.data.model || '';
   let finalUsage = result.data.usage || null;
   let repaired = false;
 
@@ -1059,7 +1056,7 @@ export async function askTreeholeQwen({
 4) 只输出重写后的最终答案，不要解释规则。`
         }
       ],
-      model: TREEHOLE_LONG_MEMORY_MODEL,
+      model: '',
       temperature: 0.2,
       maxTokens: 1200,
       signal

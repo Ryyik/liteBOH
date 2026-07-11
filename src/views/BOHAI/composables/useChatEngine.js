@@ -56,9 +56,8 @@ import {
 } from './useIntentDetection.js';
 import { SITE_OPERATION_MEMORY } from '@/data/ai-site-guide.js';
 import { logger } from '@/utils/logger.js';
-import { isAbortError, CHAT_ERROR_MESSAGES, getAbortMessage } from '../utils/chatErrorMessages.js';
+import { isAbortError, CHAT_ERROR_MESSAGES, getAbortMessage, safeErrorDetail } from '../utils/chatErrorMessages.js';
 import {
-  ACCURACY_PREFERRED_MODEL_ID,
   BASE_SYSTEM_PROMPT,
   CONTEXT_PLACEHOLDER,
   CLOUD_REFERENCE_CONSENT_KEY,
@@ -81,7 +80,6 @@ import {
   MEMORY_NOTICE_MAX_ITEMS,
   OPERATION_MAX_STEPS,
   PLAN_MODE_PROMPT_APPENDIX,
-  RAG_PREFERRED_MODEL_ID,
   ROUTING_FORUM_REALTIME_PATTERN,
   ROUTING_HISTORY_FACT_PATTERN,
   SHARED_MEMORY_CACHE_TTL_MS,
@@ -112,12 +110,8 @@ import {
   BOH_DEFAULT_MODE_ID,
   USER_PRIVATE_PUSHPLUS_KEYWORDS,
   USER_PRIVATE_SUBSCRIPTION_KEYWORDS,
-  USER_PRIVATE_SUMMARY_KEYWORDS,
-  getAvailableModels,
-  chatModes
+  USER_PRIVATE_SUMMARY_KEYWORDS
 } from './chat-engine-config.js';
-
-export { getAvailableModels, chatModes } from './chat-engine-config.js';
 import { useConversationManager, updateLastActualExtraChars } from './useConversationManager.js';
 import { useGenerationPipeline } from './useGenerationPipeline.js';
 import { useModelConfig } from './useModelConfig.js';
@@ -287,8 +281,8 @@ export function useChatEngine() {
 
   // 局部状态（不属于子 composable 的纯引擎内部状态）
   const abortController = ref(null);
-  const runtimeAvailableModels = ref(getAvailableModels().map((model) => ({ ...model })));
-  const runtimeChatModes = ref(chatModes.map((mode) => ({ ...mode })));
+  const runtimeAvailableModels = ref([]);
+  const runtimeChatModes = ref([]);
   const runtimeGenerationProfiles = ref({});
 
   const {
@@ -1598,12 +1592,12 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
       });
 
       const preferAccuracyModel = factualQuestion || operationQuestion || enableSearch || communityNeedsEvidence;
-      const preferredModel = runtimeAvailableModels.value.find((item) => item.id === ACCURACY_PREFERRED_MODEL_ID);
-      const ragPreferredModel = runtimeAvailableModels.value.find((item) => item.id === RAG_PREFERRED_MODEL_ID);
+      const planMode = runtimeChatModes.value.find((m) => m.id === 'plan');
+      const planModel = planMode?.model ? runtimeAvailableModels.value.find((m) => m.id === planMode.model) : null;
       const routedModeModel = getModelForModeId(activeModeId, { userText });
-      const generationModel = preferAccuracyModel && preferredModel
-        ? preferredModel
-        : (hasKnowledgeContext && ragPreferredModel ? ragPreferredModel : routedModeModel);
+      const generationModel = preferAccuracyModel && planModel
+        ? planModel
+        : (hasKnowledgeContext && planModel ? planModel : routedModeModel);
       markGenerationProgress('正在生成回答...');
 
       let url = generationModel.url;
@@ -2064,7 +2058,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         }));
       } else {
         logger.error('boh-ai', 'Generation error', error);
-        updateContent(CHAT_ERROR_MESSAGES.generationFailed());
+        updateContent(CHAT_ERROR_MESSAGES.generationFailed(safeErrorDetail(error)));
       }
 
       if (targetSession) {

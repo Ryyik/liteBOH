@@ -196,7 +196,7 @@ export const SAVE_STRATEGIES = {
       throw new Error('模式 ID 只能包含字母、数字、横线或下划线，长度 2-64');
     }
     if (!normalizedDisplayName) throw new Error('显示名称不能为空');
-    if (!['siliconflow', 'zhipu', 'custom'].includes(normalizedProvider)) throw new Error('供应商必须是 siliconflow / zhipu / custom');
+    if (!['siliconflow', 'zhipu', 'openrouter', 'custom'].includes(normalizedProvider)) throw new Error('供应商必须是 siliconflow / zhipu / openrouter / custom');
     if (!normalizedModelId) throw new Error('模型 ID 不能为空');
     if (!['chat', 'multimodal', 'plan', 'agent'].includes(normalizedCapability)) throw new Error('能力类型无效');
     if (!['active', 'disabled'].includes(normalizedStatus)) throw new Error('状态必须是 active 或 disabled');

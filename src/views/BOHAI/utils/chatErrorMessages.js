@@ -38,8 +38,8 @@ export function isAbortError(error) {
 
 export const CHAT_ERROR_MESSAGES = {
   /** 通用生成失败 */
-  generationFailed: () =>
-    `服务暂时繁忙，请稍后重试。`,
+  generationFailed: (detail) =>
+    detail ? `服务暂时繁忙，请稍后重试。\n\n详情：${detail}` : `服务暂时繁忙，请稍后重试。`,
 
   /** 资源搜索失败 */
   resourceSearchFailed: () =>

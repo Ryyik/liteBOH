@@ -14,19 +14,10 @@ import {
   MODE_SETTING_KEY,
   THINKING_SPEED_SETTING_KEY,
   THINKING_SPEED_OPTIONS,
-  BOH_DEFAULT_THINKING_SPEED_ID,
-  getAvailableModels as _getAvailableModels,
-  chatModes as _chatModes
+  BOH_DEFAULT_THINKING_SPEED_ID
 } from './chat-engine-config.js';
 
-/**
- * useModelConfig - 管理当前模式/样式/功能开关状态。
- *
- * @param {Object} options
- * @param {Array|Ref<Array>}  [options.availableModels] - 可用模型列表，默认从数据库动态加载
- * @param {Array|Ref<Array>}  [options.chatModes]       - 模式列表，默认导入 chat-engine-config 中的值
- */
-export function useModelConfig({ availableModels = _getAvailableModels(), chatModes = _chatModes } = {}) {
+export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
   // 处理 ref 参数：如果是 ref，使用 .value；否则直接使用
   const getAvailableModels = () => {
     return availableModels && typeof availableModels === 'object' && 'value' in availableModels
@@ -53,7 +44,7 @@ export function useModelConfig({ availableModels = _getAvailableModels(), chatMo
     return BOH_DEFAULT_MODE_ID;
   };
   const currentModeId = ref(resolveInitialModeId());
-  const currentMode = computed(() => getChatModes().find((m) => m.id === currentModeId.value) || getChatModes()[0]);
+  const currentMode = computed(() => getChatModes().find((m) => m.id === currentModeId.value) || getChatModes()[0] || { id: BOH_DEFAULT_MODE_ID, name: 'Fast', tagline: '极速响应', description: '轻量模型，秒回', model: 'fast' });
   const currentModelId = computed(() => currentMode.value.model);
   const currentModel = computed(() => getAvailableModels().find((m) => m.id === currentModelId.value) || getAvailableModels()[0]);
 

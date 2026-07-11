@@ -35,8 +35,8 @@
         <strong class="g-mini-value" :style="{ color: 'var(--muted-foreground)' }">{{ models.filter(m => !m.is_active).length }}</strong>
       </div>
       <div class="g-mini-card">
-        <span class="g-eyebrow">家族数</span>
-        <strong class="g-mini-value">{{ uniqueFamilyCount }}</strong>
+        <span class="g-eyebrow">平台数</span>
+        <strong class="g-mini-value">{{ Object.keys(providerStats).length }}</strong>
       </div>
     </div>
 
@@ -50,14 +50,23 @@
           <div class="g-eyebrow">模型列表</div>
           <strong>按 sort_order 升序展示</strong>
         </div>
-        <span class="g-badge is-muted">{{ models.length }} 项</span>
+        <div class="g-freemodels-filter">
+          <Filter :size="14" class="g-freemodels-filter-icon" />
+          <select v-model="filterProvider" class="g-select is-sm">
+            <option value="all">全部平台</option>
+            <option v-for="opt in FREEMODEL_PROVIDER_OPTIONS" :key="opt.value" :value="opt.value">
+              {{ opt.label }} ({{ providerStats[opt.value]?.total || 0 }})
+            </option>
+          </select>
+        </div>
+        <span class="g-badge is-muted">{{ sortedModels.length }} 项</span>
       </div>
 
       <div v-if="isLoading && models.length === 0" class="g-empty">
         <LoaderCircle :size="20" class="g-spin" />
         加载模型列表...
       </div>
-      <div v-else-if="models.length === 0" class="g-empty">暂无模型配置，点击上方按钮添加。</div>
+      <div v-else-if="sortedModels.length === 0" class="g-empty">暂无模型配置，点击上方按钮添加。</div>
       <div v-else class="g-freemodels-grid">
         <article v-for="model in sortedModels" :key="model.id" :class="['g-freemodel-card', { 'is-active': model.is_active }]">
           <div class="g-freemodel-card-head">
@@ -72,7 +81,10 @@
           </div>
           <div class="g-freemodel-card-meta">
             <span class="g-badge is-primary">
-              <span class="g-badge-dot" /> {{ model.family_label }}
+              <span class="g-badge-dot" /> {{ model.provider_label || getProviderLabel(model.provider) }}
+            </span>
+            <span class="g-badge is-secondary">
+              {{ model.family_label }}
             </span>
             <span class="g-freemodel-card-best">{{ model.best_for }}</span>
           </div>
@@ -119,12 +131,30 @@
             <input v-model="editingModel.name" class="g-input" type="text" required placeholder="例如：Qwen 3 8B" />
           </div>
           <div class="g-field">
+            <label>API 平台</label>
+            <select v-model="editingModel.provider" class="g-select" @change="onProviderChange">
+              <option v-for="opt in FREEMODEL_PROVIDER_OPTIONS" :key="opt.value" :value="opt.value">
+                {{ opt.label }}
+              </option>
+            </select>
+            <span class="g-field-hint">选择模型来自哪个 API 平台</span>
+          </div>
+          <div class="g-field">
+            <label>平台显示名</label>
+            <input v-model="editingModel.provider_label" class="g-input" type="text" placeholder="留空自动填充" />
+          </div>
+          <div class="g-field">
             <label>类型</label>
             <input v-model="editingModel.family_label" class="g-input" type="text" required placeholder="例如：通用" />
           </div>
           <div class="g-field">
             <label>适用场景</label>
             <input v-model="editingModel.best_for" class="g-input" type="text" required placeholder="例如：多场景聊天" />
+          </div>
+          <div class="g-field">
+            <label>自定义 API 地址</label>
+            <input v-model="editingModel.api_base_url" class="g-input is-mono" type="url" placeholder="留空使用平台默认地址" />
+            <span class="g-field-hint">仅自定义平台需要填写，标准平台留空即可</span>
           </div>
           <div class="g-field">
             <label>排序</label>
@@ -152,6 +182,15 @@
         </header>
         <form class="g-dialog-form" @submit.prevent="handleBatchAdd">
           <div class="g-field">
+            <label>API 平台</label>
+            <select v-model="batchProvider" class="g-select">
+              <option v-for="opt in FREEMODEL_PROVIDER_OPTIONS" :key="opt.value" :value="opt.value">
+                {{ opt.label }}
+              </option>
+            </select>
+            <span class="g-field-hint">批量添加的模型都会归属于该平台</span>
+          </div>
+          <div class="g-field">
             <label>模型 ID 列表（英文逗号或换行分割）</label>
             <textarea v-model="batchModelIds" class="g-textarea" rows="8" required
               placeholder="例如：Qwen/Qwen3-8B, deepseek-ai/DeepSeek-R1-0528-Qwen3-8B, THUDM/GLM-Z1-9B-0414" />
@@ -172,9 +211,10 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { Plus, RefreshCw, Edit3, Trash2, LoaderCircle, ListPlus, X } from 'lucide-vue-next'
+import { Plus, RefreshCw, Edit3, Trash2, LoaderCircle, ListPlus, X, Filter } from 'lucide-vue-next'
 import { supabase } from '@/utils/supabase-client.js'
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js'
+import { FREEMODEL_PROVIDER_OPTIONS } from '../config/fields.js'
 import DashboardHero from './shared/DashboardHero.vue';
 import DashboardNotice from './shared/DashboardNotice.vue';
 
@@ -188,12 +228,60 @@ const isNewModel = ref(false)
 const showBatchAddDialog = ref(false)
 const batchModelIds = ref('')
 const isBatchAdding = ref(false)
+const batchProvider = ref('siliconflow')
+const filterProvider = ref('all')
+
+const providerLabelMap = computed(() => {
+  const map = {}
+  FREEMODEL_PROVIDER_OPTIONS.forEach(opt => { map[opt.value] = opt.label })
+  return map
+})
+
+const PROVIDER_DEFAULTS = {
+  siliconflow: {
+    label: 'SiliconFlow',
+    apiBaseUrl: 'https://api.siliconflow.cn/v1/chat/completions'
+  },
+  openrouter: {
+    label: 'OpenRouter',
+    apiBaseUrl: 'https://openrouter.ai/api/v1/chat/completions'
+  },
+  zhipu: {
+    label: '智谱 AI',
+    apiBaseUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
+  },
+  custom: {
+    label: '自定义',
+    apiBaseUrl: ''
+  }
+}
+
+function getProviderLabel(provider) {
+  return PROVIDER_DEFAULTS[provider]?.label || providerLabelMap.value[provider] || provider || '未知'
+}
+
+function getProviderApiBaseUrl(provider) {
+  return PROVIDER_DEFAULTS[provider]?.apiBaseUrl || ''
+}
 
 const sortedModels = computed(() =>
-  [...models.value].sort((a, b) => a.sort_order - b.sort_order)
+  [...models.value]
+    .filter(m => filterProvider.value === 'all' || m.provider === filterProvider.value)
+    .sort((a, b) => a.sort_order - b.sort_order)
 )
 
 const uniqueFamilyCount = computed(() => new Set(models.value.map(m => m.family_label).filter(Boolean)).size)
+
+const providerStats = computed(() => {
+  const stats = {}
+  models.value.forEach(m => {
+    const p = m.provider || 'siliconflow'
+    if (!stats[p]) stats[p] = { total: 0, active: 0 }
+    stats[p].total++
+    if (m.is_active) stats[p].active++
+  })
+  return stats
+})
 
 async function loadModels() {
   isLoading.value = true
@@ -220,8 +308,11 @@ function handleCreate() {
   editingModel.value = {
     model_id: '',
     name: '',
+    provider: 'siliconflow',
+    provider_label: 'SiliconFlow',
     family_label: '通用',
     best_for: '多场景聊天',
+    api_base_url: '',
     sort_order: 0,
     is_active: true
   }
@@ -230,6 +321,16 @@ function handleCreate() {
 function handleEdit(model) {
   isNewModel.value = false
   editingModel.value = { ...model }
+}
+
+function onProviderChange() {
+  if (!editingModel.value) return
+  if (!editingModel.value.provider_label) {
+    editingModel.value.provider_label = getProviderLabel(editingModel.value.provider)
+  }
+  if (!editingModel.value.api_base_url) {
+    editingModel.value.api_base_url = getProviderApiBaseUrl(editingModel.value.provider)
+  }
 }
 
 async function handleSave() {
@@ -253,8 +354,11 @@ async function handleSave() {
         .from('freemodels')
         .update({
           name: editingModel.value.name,
+          provider: editingModel.value.provider,
+          provider_label: editingModel.value.provider_label || getProviderLabel(editingModel.value.provider),
           family_label: editingModel.value.family_label,
           best_for: editingModel.value.best_for,
+          api_base_url: editingModel.value.api_base_url || null,
           sort_order: editingModel.value.sort_order
         })
         .eq('id', editingModel.value.id)
@@ -399,6 +503,9 @@ async function handleBatchAdd() {
     const insertData = newIds.map((id, index) => ({
       model_id: id,
       name: id.split('/').pop() || id, // 从模型ID提取名称
+      provider: batchProvider.value,
+      provider_label: getProviderLabel(batchProvider.value),
+      api_base_url: getProviderApiBaseUrl(batchProvider.value) || null,
       family_label: '通用',
       best_for: '多场景聊天',
       sort_order: maxSortOrder + index + 1,
@@ -471,6 +578,18 @@ onMounted(() => {
 }
 .g-freemodel-card:hover { background: var(--muted); border-color: var(--ring); }
 .g-freemodel-card.is-active { border-color: color-mix(in srgb, var(--chart-5) 30%, var(--border)); }
+
+.g-freemodels-filter {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 1.5);
+}
+.g-freemodels-filter-icon { color: var(--muted-foreground); }
+.g-select.is-sm { height: 32px; font-size: 0.82rem; padding: 0 28px 0 10px; }
+.g-badge.is-secondary {
+  background: color-mix(in srgb, var(--chart-3) 12%, transparent);
+  color: var(--chart-3);
+}
 
 .g-freemodel-card-head {
   display: flex;

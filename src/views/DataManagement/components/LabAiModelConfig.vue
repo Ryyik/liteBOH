@@ -60,7 +60,7 @@
             <select v-model="config.model_id" class="g-select is-mono" :disabled="isLoadingFreemodels" required>
               <option value="" disabled>{{ isLoadingFreemodels ? '加载中...' : '请选择模型' }}</option>
               <option v-for="m in freemodels" :key="m.model_id" :value="m.model_id">
-                {{ m.name }} ({{ m.model_id }})
+                {{ m.name }} ({{ m.provider_label || m.provider }}) — {{ m.model_id }}
               </option>
             </select>
           </div>
@@ -69,10 +69,13 @@
             <label>API Key（从密钥库选择）</label>
             <select v-model="config.api_key_purpose" class="g-select" :disabled="isLoadingApiKeys" required>
               <option value="" disabled>{{ isLoadingApiKeys ? '加载中...' : '请选择 API Key' }}</option>
-              <option v-for="k in apiKeys" :key="k.purpose" :value="k.purpose">
-                {{ k.label || k.purpose }} ({{ k.purpose }})
+              <option v-for="k in getFilteredApiKeys(config.model_id)" :key="k.purpose" :value="k.purpose">
+                {{ k.label || k.purpose }} ({{ k.provider }})
               </option>
             </select>
+            <span v-if="config.model_id && getFilteredApiKeys(config.model_id).length === 0" class="g-field-hint" style="color: var(--chart-6);">
+              该模型平台暂无可用的 API Key，请先在「API Key」中添加
+            </span>
           </div>
 
           <div class="g-lab-ai-row">
@@ -149,7 +152,8 @@ async function loadFreemodels() {
   try {
     const { data, error: fetchError } = await supabase
       .from('freemodels')
-      .select('model_id, name, family_label')
+      .select('model_id, name, family_label, provider, provider_label')
+      .eq('is_active', true)
       .order('sort_order', { ascending: true });
     if (fetchError) throw fetchError;
     freemodels.value = data || [];
@@ -165,12 +169,18 @@ async function loadApiKeys() {
   try {
     const result = await listApiKeys();
     const allKeys = result?.data?.keys || result?.keys || [];
-    apiKeys.value = allKeys.filter(k => k.provider === 'siliconflow' && k.status === 'active');
+    apiKeys.value = allKeys.filter(k => k.status === 'active');
   } catch (e) {
     apiKeys.value = [];
   } finally {
     isLoadingApiKeys.value = false;
   }
+}
+
+function getFilteredApiKeys(modelId) {
+  const model = freemodels.value.find(m => m.model_id === modelId);
+  const provider = model?.provider || 'siliconflow';
+  return apiKeys.value.filter(k => k.provider === provider);
 }
 
 async function loadConfigs() {
