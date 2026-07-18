@@ -16,12 +16,12 @@ const pendingDetail = ref(null);
 let isPrompting = false;
 
 const promptUpdate = async (detail) => {
-  const version = detail?.remoteVersion || 'unknown';
-  if (promptedVersions.has(version)) {
-    logger.debug('pwa-update', '该版本已提示过，跳过', version);
+  const versionKey = detail?.remoteBuildId || detail?.remoteVersion || 'unknown';
+  if (promptedVersions.has(versionKey)) {
+    logger.debug('pwa-update', '该构建已提示过，跳过', versionKey);
     return;
   }
-  promptedVersions.add(version);
+  promptedVersions.add(versionKey);
 
   isPrompting = true;
   try {
@@ -34,14 +34,14 @@ const promptUpdate = async (detail) => {
     });
     if (shouldUpdate) {
       logger.info('pwa-update', '用户确认更新，开始清除缓存并刷新');
-      await forceCleanAndReload();
+      await forceCleanAndReload(detail?.remoteBuildId);
     } else {
       logger.info('pwa-update', '用户选择稍后更新');
     }
   } catch (err) {
     // 弹窗被占用（useConfirmDialog 互斥保护 reject），暂存待重试
     logger.warn('pwa-update', '更新弹窗被占用，稍后重试', err?.message || err);
-    promptedVersions.delete(version); // 允许重试
+    promptedVersions.delete(versionKey); // 允许重试
     pendingDetail.value = detail;
   } finally {
     isPrompting = false;

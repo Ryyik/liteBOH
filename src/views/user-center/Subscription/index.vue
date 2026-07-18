@@ -198,7 +198,7 @@ const BASE_PLANS = [
     name: 'Free',
     icon: Cake,
     monthlyCost: 0,
-    features: ['生日当天专属祝福', '神秘生日礼物', '社区徽章', 'BOH AI 100次/天', 'Cloud+ 150张', '实验室 PPT/Word 10次/月'],
+    features: ['生日当天专属祝福', '神秘生日礼物', '社区徽章', 'BOH AI 100万 Token/天', 'Cloud+ 150张', '实验室 PPT/Word 10次/月'],
     featured: false,
     alwaysActive: true
   },
@@ -208,7 +208,7 @@ const BASE_PLANS = [
     name: 'Plus',
     icon: Bot,
     monthlyCost: 8,
-    features: ['BOH AI 200次/天', 'Cloud+ 300张', '礼物定制月×1次', '多模态交互', '实验室 PPT/Word 15次/月'],
+    features: ['BOH AI 200万 Token/天', 'Cloud+ 300张', '礼物定制月×1次', '多模态交互', '实验室 PPT/Word 15次/月'],
     featured: true
   },
   {
@@ -217,7 +217,7 @@ const BASE_PLANS = [
     name: 'Pro',
     icon: Zap,
     monthlyCost: 20,
-    features: ['BOH AI 300次/天', 'Cloud+ 450张', '礼物定制月×2次', '多模态交互', '金色昵称', '实验室 PPT/Word 20次/月'],
+    features: ['BOH AI 300万 Token/天', 'Cloud+ 450张', '礼物定制月×2次', '多模态交互', '金色昵称', '实验室 PPT/Word 20次/月'],
     featured: false
   },
   {
@@ -226,7 +226,7 @@ const BASE_PLANS = [
     name: 'Max',
     icon: Gift,
     monthlyCost: 40,
-    features: ['BOH AI 500次/天', 'Cloud+ 900张', '礼物定制月×4次', 'Agent & Plan', '金色昵称', '实验室 PPT/Word 30次/月'],
+    features: ['BOH AI 500万 Token/天', 'Cloud+ 900张', '礼物定制月×4次', 'Agent & Plan', '金色昵称', '实验室 PPT/Word 30次/月'],
     featured: false
   },
   {
@@ -235,7 +235,7 @@ const BASE_PLANS = [
     name: 'Ultra',
     icon: Crown,
     monthlyCost: 70,
-    features: ['BOH AI 不限次数', 'Cloud+ 1200张', '礼物定制月×8次', 'Agent & Plan', '彩虹昵称', '实验室 PPT/Word 不限次数'],
+    features: ['BOH AI 1000万 Token/天', 'Cloud+ 1200张', '礼物定制月×8次', 'Agent & Plan', '彩虹昵称', '实验室 PPT/Word 不限次数'],
     featured: false
   }
 ];

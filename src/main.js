@@ -139,12 +139,17 @@ if (typeof window !== "undefined") {
 
   // ============================================
   // PWA 更新检测机制
-  // 提示统一由 version-checker（HTTP 拉 version.json）+ PWAUpdateToast（useConfirmDialog 弹窗）负责。
-  // 这里仅触发 SW 更新检查，让 sw.js 保持最新；不再自动 reload，避免弹窗来不及显示。
+  // 版本指纹由 version-checker 负责：启动时发现旧构建会自动更新一次，
+  // 运行期发现新版本则由 PWAUpdateToast 提示。这里只负责让 sw.js 及时更新。
   // ============================================
   if ('serviceWorker' in navigator && !import.meta.env.DEV) {
     // 监听 Service Worker 更新事件
     navigator.serviceWorker.ready.then((registration) => {
+      // 每次启动立即检查 sw.js，不等待第一个 10 分钟轮询。
+      registration.update().catch((err) => {
+        logger.warn('pwa', 'SW 启动更新检查失败', err);
+      });
+
       // 定期检查更新（每10分钟）
       setInterval(() => {
         registration.update().catch((err) => {

@@ -21,7 +21,9 @@ export const normalizeBohaiModelConfigRow = (row = {}) => {
   const modeId = toText(row.mode_id || row.modeId);
   const modelId = toText(row.model_id || row.modelId);
   const displayName = toText(row.display_name || row.displayName || row.name, modeId);
-  const apiUrl = toText(row.api_url || row.apiUrl, getDefaultApiUrlForBohaiProvider(provider));
+  const apiUrl = provider === 'boh'
+    ? ''
+    : toText(row.api_url || row.apiUrl, getDefaultApiUrlForBohaiProvider(provider));
 
   if (!modeId || !modelId || !displayName) return null;
 
@@ -48,11 +50,7 @@ export const normalizeBohaiModelConfigRow = (row = {}) => {
 
 export const listActiveBohaiModelConfigs = async () => {
   const { data, error } = await supabase
-    .from('bohai_model_configs')
-    .select('id, mode_id, display_name, tagline, description, provider, provider_label, model_id, api_url, capability, icon, temperature, top_p, frequency_penalty, max_tokens, status, sort_order, updated_at')
-    .eq('status', 'active')
-    .order('sort_order', { ascending: true })
-    .order('display_name', { ascending: true });
+    .rpc('list_public_bohai_modes');
 
   if (error) {
     return {
@@ -68,8 +66,47 @@ export const listActiveBohaiModelConfigs = async () => {
   return {
     ok: true,
     data: (Array.isArray(data) ? data : [])
-      .map((row) => normalizeBohaiModelConfigRow(row))
+      .map((row) => normalizeBohaiModelConfigRow({
+        ...row,
+        provider: 'boh',
+        provider_label: 'BOH',
+        model_id: `boh:${row.mode_id}`,
+        api_url: '',
+        status: 'active'
+      }))
       .filter(Boolean),
+    error: null
+  };
+};
+
+export const listActiveBohaiPublicModeConfigs = async () => {
+  const { data, error } = await supabase
+    .rpc('list_public_bohai_modes');
+
+  if (error) {
+    return {
+      ok: false,
+      data: [],
+      error: {
+        message: error.message || '读取 BOHAI 公开模式失败',
+        code: error.code || 'BOHAI_PUBLIC_MODE_ERROR'
+      }
+    };
+  }
+
+  return {
+    ok: true,
+    data: (Array.isArray(data) ? data : [])
+      .map((row) => ({
+        id: row.id || row.mode_id,
+        modeId: toText(row.mode_id),
+        displayName: toText(row.display_name, row.mode_id),
+        tagline: toText(row.tagline),
+        capability: toText(row.capability, 'chat'),
+        icon: toText(row.icon, 'sparkles'),
+        sortOrder: Math.trunc(toFiniteNumber(row.sort_order, 100, 0, 10000))
+      }))
+      .filter((item) => item.modeId && item.displayName),
     error: null
   };
 };

@@ -1,13 +1,14 @@
 /* ============================================
    BOH Home - Apple Style Scoped CSS
    仅包含：首页基础、像素落日、社区动态、团队、弹窗、骨架屏
-   其余区块样式已迁移至 AppleHeroBanner / AppleGridCard / AppleGridSection 组件
+   其余区块样式已迁移至 HomeHeroRow / AppleHeroBanner / AppleGridCard 组件
    ============================================ */
 
 /* ============================================
    首页基础
    ============================================ */
 .home {
+  --home-nav-safe-offset: 84px;
   width: 100%;
   overflow-x: hidden;
   background-color: #f5f5f7;
@@ -18,7 +19,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding-top: 64px;
+  padding-top: var(--home-nav-safe-offset);
 }
 
 .home > section {
@@ -47,11 +48,16 @@
   filter: drop-shadow(0 24px 34px rgba(255, 134, 168, 0.24));
 }
 
-/* 八周年 logo 在 GridCard slot 内 */
 .agc-anniversary-logo {
-  max-width: 80%;
-  max-height: 200px;
+  display: block;
+  width: min(100%, 520px);
+  height: auto;
+  margin: auto;
   object-fit: contain;
+}
+
+#ryyik-letter {
+  scroll-margin-top: 96px;
 }
 
 /* ============================================
@@ -299,6 +305,91 @@
 }
 
 /* ============================================
+   弹窗：八周年信件
+   ============================================ */
+.anniversary-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.anniversary-modal-card {
+  position: relative;
+  width: min(100%, 660px);
+  max-height: 86vh;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.24);
+  animation: modalReveal .5s cubic-bezier(.16, 1, .3, 1);
+}
+
+.anniversary-letter-content {
+  max-height: 86vh;
+  overflow-y: auto;
+  padding: 48px;
+}
+
+.letter-header {
+  margin-bottom: 30px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #e8e8ed;
+  text-align: center;
+}
+
+.letter-logo-img {
+  display: block;
+  width: min(100%, 250px);
+  height: auto;
+  margin: 0 auto 12px;
+  object-fit: contain;
+}
+
+.letter-title {
+  margin: 0;
+  color: #1d1d1f;
+  font-size: 25px;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.letter-body {
+  color: #333;
+  font-size: 16px;
+  line-height: 1.85;
+}
+
+.letter-paragraph {
+  margin: 0 0 16px;
+  text-indent: 2em;
+}
+
+.letter-paragraph:first-child {
+  text-indent: 0;
+}
+
+.letter-signature {
+  margin-top: 30px;
+  text-align: right;
+}
+
+.letter-signature p {
+  margin: 3px 0;
+}
+
+.letter-date {
+  color: #86868b;
+  font-size: 14px;
+}
+
+/* ============================================
    弹窗：遇见福州
    ============================================ */
 .fuzhou-modal-overlay {
@@ -523,6 +614,20 @@
 /* ============================================
    响应式
    ============================================ */
+@media (orientation: portrait) and (max-width: 768px) {
+  .home { --home-nav-safe-offset: 72px; }
+}
+
+@media (orientation: portrait) and (max-width: 480px) {
+  .home { --home-nav-safe-offset: 66px; }
+
+  .anniversary-modal-overlay { padding: 12px; }
+  .anniversary-letter-content { padding: 46px 22px 28px; }
+  .letter-logo-img { width: min(100%, 190px); }
+  .letter-title { font-size: 21px; }
+  .letter-body { font-size: 15px; line-height: 1.75; }
+}
+
 @media (max-width: 768px) {
 
   .cat-theme-main-cat { width: 160px; height: 160px; }

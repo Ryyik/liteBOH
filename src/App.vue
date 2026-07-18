@@ -8,11 +8,11 @@ import { storeToRefs } from "pinia";
 import { loadNotificationStore, getNotificationStoreSync } from "@/stores/notification-loader";
 import { logger } from "@/utils/logger.js";
 import { useGlobalAiOverlay } from "@/composables/useGlobalAiOverlay";
-import GlobalAiGlassOverlay from "@/components/GlobalAiGlassOverlay.vue";
 import AiEdgeTrigger from "@/components/AiEdgeTrigger.vue";
 import AdminConfirmModal from "@/components/AdminConfirmModal.vue";
 import { useConfirmDialog } from "@/composables/useConfirmDialog.js";
 import PWAUpdateToast from "@/components/PWAUpdateToast/index.vue";
+import { useGlobalAiPreferences, matchesGlobalAiShortcut } from "@/composables/useGlobalAiPreferences.js";
 
 const route = useRoute();
 const authStore = useAuthStore();
@@ -20,12 +20,18 @@ const { showLoginModal, isLoggedIn, isInitialized } = storeToRefs(authStore);
 const userInfo = authStore.userInfo;
 const notificationStoreRef = ref(getNotificationStoreSync());
 const LoginView = defineAsyncComponent(() => import("./views/Login/index.vue"));
+const GlobalAiGlassOverlay = defineAsyncComponent(() => import("@/components/GlobalAiGlassOverlay.vue"));
 const showToast = computed(() => notificationStoreRef.value?.showToast || false);
 
 const {
   isOpen: globalAiOpen, open: openGlobalAi, close: closeGlobalAi,
   theme: globalAiTheme
 } = useGlobalAiOverlay();
+const { preferences: globalAiPreferences } = useGlobalAiPreferences();
+const hasMountedGlobalAi = ref(globalAiOpen.value);
+watch(globalAiOpen, (isOpen) => {
+  if (isOpen) hasMountedGlobalAi.value = true;
+});
 const toastTitle = computed(() => notificationStoreRef.value?.toastTitle || "");
 const toastDesc = computed(() => notificationStoreRef.value?.toastDesc || "");
 const toastIcon = computed(() => notificationStoreRef.value?.toastIcon || "🔔");
@@ -115,13 +121,16 @@ onUnmounted(() => {
 
 // 全局 AI 覆盖层：键盘快捷键 (Cmd+K / Ctrl+K)
 const handleGlobalAiKeydown = (e) => {
-  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-    const tag = e.target.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return;
+  if (globalAiPreferences.shortcutEnabled && matchesGlobalAiShortcut(e, globalAiPreferences.shortcut)) {
+    // Lab 自带命令面板使用 Mod+K；保留该页面原有快捷键，用户仍可在设置中改为 Mod+J/Space。
+    if (route.name === 'Lab' && globalAiPreferences.shortcut === 'mod+k') return;
     if (route.name === 'AiChat') return;
     e.preventDefault();
-    if (globalAiOpen.value) closeGlobalAi();
-    else openGlobalAi();
+    if (globalAiOpen.value) {
+      window.dispatchEvent(new CustomEvent('boh-ai-focus-composer'));
+    } else {
+      openGlobalAi({ snap: globalAiPreferences.initialHeight === 'full' ? 2 : 1 });
+    }
   }
 };
 
@@ -223,13 +232,21 @@ const showGlobalNavbar = computed(() => {
   <Footer />
 
   <!-- 全局登录模态框 -->
-  <LoginView :show="showLoginModal" :is-modal="true" @close="showLoginModal = false" />
+  <LoginView v-if="showLoginModal" :show="showLoginModal" :is-modal="true" @close="showLoginModal = false" />
 
   <!-- AI 边缘触发区（移动端侧拉唤起） -->
-  <AiEdgeTrigger :show="!globalAiOpen" @trigger="openGlobalAi" />
+  <AiEdgeTrigger
+    :show="!globalAiOpen && globalAiPreferences.gestureEnabled && route.name !== 'AiChat'"
+    :side="globalAiPreferences.gestureSide"
+    :sensitivity="globalAiPreferences.gestureSensitivity"
+    :haptics="globalAiPreferences.hapticsEnabled"
+    :animations="globalAiPreferences.animationsEnabled"
+    @trigger="openGlobalAi({ snap: globalAiPreferences.initialHeight === 'full' ? 2 : 1 })"
+  />
 
   <!-- 全局 AI 快速对话覆盖层 -->
   <GlobalAiGlassOverlay
+    v-if="hasMountedGlobalAi"
     :show="globalAiOpen"
     :theme="globalAiTheme"
     @close="closeGlobalAi"

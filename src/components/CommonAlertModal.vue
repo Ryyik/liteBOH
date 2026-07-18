@@ -193,7 +193,7 @@ function getTypeColor(type, alpha) {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2147483649;
+  z-index: 2147483647;
   padding: 20px;
 }
 

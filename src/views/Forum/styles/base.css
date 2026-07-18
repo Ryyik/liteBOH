@@ -437,3 +437,13 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+@media (max-width: 768px) {
+  .post-card-v2.glass-panel,
+  .feed-mode-tabs,
+  .forum-toolbar,
+  .skeleton-post-card {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}

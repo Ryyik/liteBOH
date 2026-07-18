@@ -209,6 +209,26 @@ const requireUser = async (request: Request, client: ReturnType<typeof createSer
   return { ok: true as const, userId };
 };
 
+const getClientIp = (request: Request) => (
+  request.headers.get('cf-connecting-ip')?.trim()
+  || request.headers.get('x-real-ip')?.trim()
+  || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+  || 'unknown'
+);
+
+const resolveRuntimeIdentity = async (
+  request: Request,
+  client: ReturnType<typeof createServiceClient>,
+) => {
+  const token = getBearerToken(request);
+  if (token) {
+    const { data } = await client.auth.getUser(token).catch(() => ({ data: null }));
+    const userId = String(data?.user?.id || '').trim();
+    if (userId) return { userId, ipAddress: null, tier: await resolveUserTier(client, userId) };
+  }
+  return { userId: null, ipAddress: getClientIp(request), tier: 'guest' };
+};
+
 const sanitizeRow = (row: VaultRow) => ({
   id: row.id,
   provider: row.provider,
@@ -643,12 +663,11 @@ const clampInt = (value: unknown, fallback: number, min: number, max: number) =>
 const runtimeChatCompletion = async (
   client: ReturnType<typeof createServiceClient>,
   body: Record<string, unknown>,
+  policy: RuntimeModelPolicy,
 ) => {
-  const provider = toText(body.provider || 'siliconflow', 40).toLowerCase();
-  const purpose = toText(body.purpose || 'chat', 60).toLowerCase();
+  const provider = policy.provider;
+  const purpose = 'chat';
   const { row, apiKey } = await resolveActiveSecret(client, provider, purpose);
-  const metadata = row.metadata || {};
-  const rawPayload = toMetadata(body.payload);
   let defaultApiUrl = 'https://api.siliconflow.cn/v1/chat/completions';
   if (provider === 'zhipu') {
     defaultApiUrl = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
@@ -657,12 +676,8 @@ const runtimeChatCompletion = async (
   }
   // 安全修复 C-3：对 body.apiUrl（用户可篡改）和 metadata.apiUrl 均做 SSRF 校验，
   // 非法 URL（私有 IP/localhost/非 http 协议）回退到安全默认值。
-  const apiUrl = validateRuntimeApiUrl(toText(body.apiUrl, 240) || toText(metadata.apiUrl, 240), defaultApiUrl);
-  const payload = {
-    ...rawPayload,
-    stream: false,
-    max_tokens: clampInt(rawPayload.max_tokens, 1200, 1, 4096),
-  };
+  const apiUrl = validateRuntimeApiUrl(policy.apiUrl, defaultApiUrl);
+  const payload = buildRuntimePayload(body, policy, false);
 
   const response = await fetch(apiUrl, {
     method: 'POST',
@@ -691,12 +706,12 @@ const runtimeChatCompletionStream = async (
   client: ReturnType<typeof createServiceClient>,
   body: Record<string, unknown>,
   origin: string | null,
+  quota: TokenQuota,
+  policy: RuntimeModelPolicy,
 ) => {
-  const provider = toText(body.provider || 'siliconflow', 40).toLowerCase();
-  const purpose = toText(body.purpose || 'chat', 60).toLowerCase();
+  const provider = policy.provider;
+  const purpose = 'chat';
   const { row, apiKey } = await resolveActiveSecret(client, provider, purpose);
-  const metadata = row.metadata || {};
-  const rawPayload = toMetadata(body.payload);
   let defaultApiUrl = 'https://api.siliconflow.cn/v1/chat/completions';
   if (provider === 'zhipu') {
     defaultApiUrl = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
@@ -705,11 +720,15 @@ const runtimeChatCompletionStream = async (
   }
   // 安全修复 C-3：对 body.apiUrl（用户可篡改）和 metadata.apiUrl 均做 SSRF 校验，
   // 非法 URL（私有 IP/localhost/非 http 协议）回退到安全默认值。
-  const apiUrl = validateRuntimeApiUrl(toText(body.apiUrl, 240) || toText(metadata.apiUrl, 240), defaultApiUrl);
+  const apiUrl = validateRuntimeApiUrl(policy.apiUrl, defaultApiUrl);
   const payload = {
-    ...rawPayload,
-    stream: true,
-    max_tokens: clampInt(rawPayload.max_tokens, 1200, 1, 4096),
+    ...buildRuntimePayload(body, policy, true),
+    ...(provider === 'zhipu' ? {} : {
+      stream_options: {
+        ...toMetadata(toMetadata(body.payload).stream_options),
+        include_usage: true,
+      },
+    }),
   };
 
   const response = await fetch(apiUrl, {
@@ -733,6 +752,7 @@ const runtimeChatCompletionStream = async (
   if (!response.ok) {
     const text = await response.text().catch(() => '');
     const message = text.slice(0, 500) || `${provider} 流式请求失败：${response.status}`;
+    await releaseTokenReservation(client, quota).catch(() => undefined);
     return new Response(
       `event: error\ndata: ${JSON.stringify({ ok: false, status: response.status, message, keyInfo: buildKeyInfo(row) })}\n\n`,
       { status: 502, headers: streamHeaders },
@@ -740,6 +760,7 @@ const runtimeChatCompletionStream = async (
   }
 
   if (!response.body) {
+    await releaseTokenReservation(client, quota).catch(() => undefined);
     return new Response(
       `event: error\ndata: ${JSON.stringify({ ok: false, status: response.status, message: '模型服务未返回可读流。', keyInfo: buildKeyInfo(row) })}\n\n`,
       { status: 502, headers: streamHeaders },
@@ -750,6 +771,42 @@ const runtimeChatCompletionStream = async (
   const metaEvent = `event: meta\ndata: ${keyInfoPayload}\n\n`;
   const metaEncoder = new TextEncoder();
   let metaFlushed = false;
+  const usageDecoder = new TextDecoder();
+  let usageBuffer = '';
+  let streamedText = '';
+  let upstreamUsage: Record<string, unknown> | null = null;
+  let usageSettled = false;
+
+  const inspectUsageLines = (chunkText: string, flush = false) => {
+    usageBuffer += chunkText;
+    const lines = usageBuffer.split(/\r?\n/);
+    usageBuffer = flush ? '' : (lines.pop() || '');
+    for (const line of lines) {
+      if (!line.startsWith('data:')) continue;
+      const payloadText = line.slice(5).trim();
+      if (!payloadText || payloadText === '[DONE]') continue;
+      try {
+        const data = JSON.parse(payloadText) as Record<string, unknown>;
+        if (data.usage && typeof data.usage === 'object') {
+          upstreamUsage = data.usage as Record<string, unknown>;
+        }
+        const choices = Array.isArray(data.choices) ? data.choices : [];
+        const firstChoice = (choices[0] || {}) as Record<string, unknown>;
+        const delta = (firstChoice.delta || {}) as Record<string, unknown>;
+        if (delta.content) streamedText += String(delta.content);
+      } catch (_error) {
+        // Ignore malformed or provider-specific SSE payloads.
+      }
+    }
+  };
+
+  const settleUsage = async (status = 'success') => {
+    if (usageSettled) return;
+    usageSettled = true;
+    inspectUsageLines(usageDecoder.decode(), true);
+    const usage = normalizeTokenUsage(upstreamUsage, body, streamedText);
+    await logTokenUsage(client, quota, body, usage, status, policy.quotaMultiplier);
+  };
 
   const proxiedStream = new ReadableStream({
     async start(controller) {
@@ -761,12 +818,19 @@ const runtimeChatCompletionStream = async (
           while (true) {
             const { done, value } = await reader.read();
             if (done) {
+              await settleUsage('success').catch((error) => {
+                console.error('[vault] token settlement failed:', error);
+              });
               controller.close();
               return;
             }
+            inspectUsageLines(usageDecoder.decode(value, { stream: true }));
             controller.enqueue(value);
           }
         } catch (err) {
+          await settleUsage('partial').catch((error) => {
+            console.error('[vault] partial token settlement failed:', error);
+          });
           controller.error(err);
         } finally {
           try { reader.releaseLock(); } catch (_e) { /* ignore */ }
@@ -774,9 +838,11 @@ const runtimeChatCompletionStream = async (
       };
       pump();
     },
-    cancel(reason) {
-      // best-effort cancel of upstream
-      try { response.body?.cancel?.(reason); } catch (_e) { /* ignore */ }
+    async cancel(reason) {
+      try { await response.body?.cancel?.(reason); } catch (_e) { /* ignore */ }
+      await settleUsage('cancelled').catch((error) => {
+        console.error('[vault] cancelled token settlement failed:', error);
+      });
     }
   });
 
@@ -913,7 +979,91 @@ const testKey = async (
 // ============================================================
 
 const QUOTA_CACHE_TTL_MS = 60_000;
-const QUOTA_CONFIG_CACHE = new Map<string, { limit: number; fetchedAt: number }>();
+type QuotaPolicy = { tokenLimit: number; webSearchLimit: number };
+const QUOTA_CONFIG_CACHE = new Map<string, { policy: QuotaPolicy; fetchedAt: number }>();
+
+type TokenUsage = {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  estimated: boolean;
+};
+
+type TokenQuota = {
+  unit: 'tokens';
+  allowed: boolean;
+  used: number;
+  limit: number;
+  usedTokens: number;
+  tokenLimit: number;
+  remainingTokens: number;
+  resetAt: string;
+  tier: string;
+  userId: string | null;
+  ipAddress: string | null;
+  reservationId?: string;
+};
+
+type RuntimeModelPolicy = {
+  mode: string;
+  provider: string;
+  apiUrl: string;
+  modelId: string;
+  maxTokens: number;
+  temperature: number;
+  topP: number;
+  frequencyPenalty: number;
+  quotaMultiplier: number;
+};
+
+const TIER_RANK: Record<string, number> = {
+  guest: 0,
+  free: 1,
+  plus: 2,
+  pro: 3,
+  max: 4,
+  ultra: 5,
+};
+
+const WEB_SEARCH_DAILY_LIMIT_FALLBACKS: Record<string, number> = {
+  guest: 0,
+  free: 10,
+  plus: 30,
+  pro: 60,
+  max: 120,
+  ultra: 240,
+};
+
+const TIER_MAX_OUTPUT_TOKENS: Record<string, number> = {
+  free: 1200,
+  plus: 1800,
+  pro: 2400,
+  max: 4096,
+  ultra: 4096,
+};
+
+// Model mode IDs are billing classes, independent from the user's subscription tier.
+// Keep these integer multipliers aligned with get_ai_mode_token_multiplier() in the
+// database migration so reservations and final settlements charge the same amount.
+const MODE_TOKEN_MULTIPLIERS: Record<string, number> = {
+  pro: 2,
+  max: 3,
+  ultra: 4,
+};
+
+const normalizeModeId = (mode: unknown): string => toText(mode, 80).toLowerCase();
+const getModeTokenMultiplier = (mode: unknown): number => (
+  MODE_TOKEN_MULTIPLIERS[normalizeModeId(mode)] || 1
+);
+const normalizeQuotaMultiplier = (value: unknown, mode: unknown): number => {
+  const parsed = Number(value);
+  if (Number.isFinite(parsed) && parsed >= 0.1 && parsed <= 100) return parsed;
+  return getModeTokenMultiplier(mode);
+};
+const getBilledTokenCountForMultiplier = (tokens: number, multiplier: unknown): number => Math.min(
+  2_147_483_647,
+  Math.max(0, Math.ceil(Number(tokens || 0) * normalizeQuotaMultiplier(multiplier, ''))),
+);
 
 function getBeijingTodayStartUTC(): string {
   const now = new Date();
@@ -943,70 +1093,283 @@ async function resolveUserTier(
     .gt('expires_at', new Date().toISOString());
   const plans = new Set((data || []).map((r: Record<string, unknown>) => String(r.plan_code || '')));
   if (plans.has('ultra')) return 'ultra';
-  if (plans.has('max')) return 'max';
-  if (plans.has('pro')) return 'pro';
-  if (plans.has('plus')) return 'plus';
+  if (plans.has('max') || plans.has('boh-max')) return 'max';
+  if (plans.has('pro') || plans.has('boh-pro')) return 'pro';
+  if (plans.has('plus') || plans.has('boh-ai-plus')) return 'plus';
   return 'free';
 }
 
-async function getDailyLimit(
+const normalizeTier = (tier: string) => (TIER_RANK[tier] === undefined ? 'free' : tier);
+
+const tierAllows = (tier: string, requiredTier: string) => (
+  (TIER_RANK[normalizeTier(tier)] || 0) >= (TIER_RANK[normalizeTier(requiredTier)] || 0)
+);
+
+const runtimeAccessError = (message: string, status = 403, code = 'RUNTIME_ACCESS_DENIED') => {
+  const error = new Error(message) as Error & { status?: number; code?: string };
+  error.status = status;
+  error.code = code;
+  return error;
+};
+
+async function resolveRuntimeModelPolicy(
   client: ReturnType<typeof createServiceClient>,
+  requestedMode: string,
   tier: string,
-): Promise<number> {
-  const cached = QUOTA_CONFIG_CACHE.get(tier);
-  if (cached && Date.now() - cached.fetchedAt < QUOTA_CACHE_TTL_MS) {
-    return cached.limit;
+): Promise<RuntimeModelPolicy> {
+  const mode = normalizeModeId(requestedMode) || 'fast';
+  if (!/^[a-z0-9][a-z0-9._:-]{0,79}$/.test(mode)) {
+    throw runtimeAccessError('模式 ID 格式无效。', 400, 'MODE_ID_INVALID');
   }
-  const { data } = await client
-    .from('ai_quota_config')
-    .select('daily_limit')
-    .eq('tier', tier)
+  const { data, error } = await client
+    .from('bohai_model_configs')
+    .select('mode_id, provider, model_id, api_url, max_tokens, temperature, top_p, frequency_penalty, quota_multiplier, status, min_tier')
+    .ilike('mode_id', mode)
+    .eq('status', 'active')
     .maybeSingle();
-  const limit = data?.daily_limit ?? 0;
-  QUOTA_CONFIG_CACHE.set(tier, { limit, fetchedAt: Date.now() });
-  return limit;
+  if (error || !data) throw runtimeAccessError('当前模式暂不可用，请重新选择。', 400, 'MODE_UNAVAILABLE');
+
+  const requiredTier = normalizeTier(toText(data.min_tier, 'free').toLowerCase());
+  if (!tierAllows(tier, requiredTier)) {
+    throw runtimeAccessError('当前订阅暂不支持此模式，请升级后重试。');
+  }
+
+  const provider = toText(data.provider, 'siliconflow').toLowerCase();
+  if (!PROVIDER_OPTIONS.has(provider) || provider === 'tavily') {
+    throw runtimeAccessError('当前模式配置无效，请联系管理员。', 500, 'MODE_CONFIG_INVALID');
+  }
+  return {
+    mode: normalizeModeId(data.mode_id),
+    provider,
+    modelId: toText(data.model_id, 120),
+    apiUrl: toText(data.api_url, 240),
+    maxTokens: Math.min(
+      clampInt(data.max_tokens, 1200, 1, 4096),
+      TIER_MAX_OUTPUT_TOKENS[normalizeTier(tier)] || TIER_MAX_OUTPUT_TOKENS.free,
+    ),
+    temperature: Number(data.temperature ?? 0.2),
+    topP: Number(data.top_p ?? 0.75),
+    frequencyPenalty: Number(data.frequency_penalty ?? 0.06),
+    quotaMultiplier: normalizeQuotaMultiplier(data.quota_multiplier, data.mode_id),
+  };
 }
 
-async function countTodayUsage(
+const buildRuntimePayload = (body: Record<string, unknown>, policy: RuntimeModelPolicy, stream: boolean) => {
+  const rawPayload = toMetadata(body.payload);
+  return {
+    ...rawPayload,
+    model: policy.modelId,
+    stream,
+    max_tokens: policy.maxTokens,
+    temperature: policy.temperature,
+    top_p: policy.topP,
+    frequency_penalty: policy.frequencyPenalty,
+  };
+};
+
+async function getQuotaPolicy(
+  client: ReturnType<typeof createServiceClient>,
+  tier: string,
+): Promise<QuotaPolicy> {
+  const cached = QUOTA_CONFIG_CACHE.get(tier);
+  if (cached && Date.now() - cached.fetchedAt < QUOTA_CACHE_TTL_MS) {
+    return cached.policy;
+  }
+  const { data, error } = await client
+    .from('ai_quota_config')
+    .select('daily_token_limit, web_search_daily_limit')
+    .eq('tier', tier)
+    .maybeSingle();
+  let tokenLimit = Number(data?.daily_token_limit ?? 0);
+  let webSearchLimit = Number(data?.web_search_daily_limit ?? WEB_SEARCH_DAILY_LIMIT_FALLBACKS[tier] ?? 0);
+  if (error) {
+    // Deployment-order fallback while the migration and function roll out.
+    const legacy = await client
+      .from('ai_quota_config')
+      .select('daily_limit')
+      .eq('tier', tier)
+      .maybeSingle();
+    const legacyLimit = Number(legacy.data?.daily_limit ?? 0);
+    tokenLimit = legacyLimit === -1 ? -1 : Math.max(0, legacyLimit * 10000);
+    webSearchLimit = WEB_SEARCH_DAILY_LIMIT_FALLBACKS[tier] ?? 0;
+  }
+  const policy = { tokenLimit, webSearchLimit };
+  QUOTA_CONFIG_CACHE.set(tier, { policy, fetchedAt: Date.now() });
+  return policy;
+}
+
+async function countTodayWebSearchUsage(
+  client: ReturnType<typeof createServiceClient>,
+  userId: string | null,
+): Promise<number> {
+  if (!userId) return 0;
+  const { count, error } = await client
+    .from('ai_web_search_log')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('created_at', getBeijingTodayStartUTC())
+    .in('status', ['pending', 'success']);
+  if (error) return 0;
+  return Math.max(0, Number(count || 0));
+}
+
+async function countTodayTokenUsage(
   client: ReturnType<typeof createServiceClient>,
   userId: string | null,
   ipAddress: string | null,
 ): Promise<number> {
   const todayStart = getBeijingTodayStartUTC();
+  const { data, error } = await client.rpc('get_ai_token_usage_since', {
+    p_user_id: userId,
+    p_ip_address: ipAddress,
+    p_since: todayStart,
+  });
+  if (!error) return Math.max(0, Number(data || 0));
+
+  // Migration-order fallback. Old rows have no token value and therefore do
+  // not consume the new allowance during the transition day.
   let query = client
     .from('ai_quota_log')
-    .select('id', { count: 'exact', head: true })
+    .select('billed_tokens')
     .gte('created_at', todayStart);
-  if (userId) {
-    query = query.eq('user_id', userId);
-  } else if (ipAddress) {
-    query = query.eq('ip_address', ipAddress);
-  }
-  const { count } = await query;
-  return count || 0;
+  if (userId) query = query.eq('user_id', userId);
+  else if (ipAddress) query = query.eq('ip_address', ipAddress);
+  const fallback = await query;
+  return (fallback.data || []).reduce(
+    (sum: number, row: Record<string, unknown>) => sum + Math.max(0, Number(row.billed_tokens || 0)),
+    0,
+  );
 }
 
-async function logUsage(
-  client: ReturnType<typeof createServiceClient>,
-  userId: string | null,
-  ipAddress: string | null,
+const estimateTextTokens = (value: unknown): number => {
+  const text = typeof value === 'string' ? value : JSON.stringify(value || '');
+  if (!text) return 0;
+  const cjkCount = (text.match(/[\u3400-\u9fff\uf900-\ufaff]/g) || []).length;
+  const otherCount = Math.max(0, text.length - cjkCount);
+  return cjkCount + Math.ceil(otherCount / 4);
+};
+
+const estimatePromptTokens = (body: Record<string, unknown>): number => {
+  const payload = (body.payload || {}) as Record<string, unknown>;
+  const messages = Array.isArray(payload.messages) ? payload.messages : [];
+  return messages.reduce((sum: number, message: unknown) => {
+    const row = (message || {}) as Record<string, unknown>;
+    return sum + 4 + estimateTextTokens(row.content || '');
+  }, 2);
+};
+
+const normalizeTokenUsage = (
+  rawUsage: Record<string, unknown> | null | undefined,
   body: Record<string, unknown>,
+  completionText = '',
+): TokenUsage => {
+  const promptTokens = Math.max(0, clampInt(
+    rawUsage?.prompt_tokens ?? rawUsage?.input_tokens,
+    estimatePromptTokens(body),
+    0,
+    10_000_000,
+  ));
+  const completionTokens = Math.max(0, clampInt(
+    rawUsage?.completion_tokens ?? rawUsage?.output_tokens,
+    estimateTextTokens(completionText),
+    0,
+    10_000_000,
+  ));
+  const suppliedTotal = Number(rawUsage?.total_tokens);
+  const totalTokens = Number.isFinite(suppliedTotal) && suppliedTotal >= 0
+    ? Math.trunc(suppliedTotal)
+    : promptTokens + completionTokens;
+  return {
+    promptTokens,
+    completionTokens,
+    totalTokens: Math.max(totalTokens, promptTokens + completionTokens),
+    estimated: !rawUsage || !Number.isFinite(Number(rawUsage.total_tokens)),
+  };
+};
+
+async function logTokenUsage(
+  client: ReturnType<typeof createServiceClient>,
+  quota: TokenQuota,
+  body: Record<string, unknown>,
+  usage: TokenUsage,
+  status = 'success',
+  quotaMultiplier = 1,
 ): Promise<void> {
+  if (quota.reservationId) {
+    const payload = (body.payload || {}) as Record<string, unknown>;
+    const { error } = await client.rpc('settle_ai_token_quota', {
+      p_reservation_id: quota.reservationId,
+      p_prompt_tokens: usage.promptTokens,
+      p_completion_tokens: usage.completionTokens,
+      p_total_tokens: usage.totalTokens,
+      p_model: String(payload.model || ''),
+      p_mode: String(body.mode || ''),
+      p_status: usage.estimated ? `${status}_estimated` : status,
+    });
+    if (error) throw error;
+    return;
+  }
   const payload = (body.payload || {}) as Record<string, unknown>;
   await client.from('ai_quota_log').insert([{
-    user_id: userId,
-    ip_address: ipAddress,
+    user_id: quota.userId,
+    ip_address: quota.ipAddress,
     model: String(payload.model || ''),
     mode: String(body.mode || ''),
+    prompt_tokens: usage.promptTokens,
+    completion_tokens: usage.completionTokens,
+    total_tokens: usage.totalTokens,
+    billed_tokens: getBilledTokenCountForMultiplier(usage.totalTokens, quotaMultiplier),
+    status: usage.estimated ? `${status}_estimated` : status,
     created_at: new Date().toISOString(),
   }]);
 }
 
-async function checkAndLogRequest(
+async function releaseTokenReservation(
   client: ReturnType<typeof createServiceClient>,
+  quota: TokenQuota,
+): Promise<void> {
+  if (!quota.reservationId) return;
+  const { error } = await client.rpc('release_ai_token_quota', {
+    p_reservation_id: quota.reservationId,
+  });
+  if (error) throw error;
+}
+
+async function reserveTokenQuota(
+  client: ReturnType<typeof createServiceClient>,
+  quota: TokenQuota,
   body: Record<string, unknown>,
+  maxOutputTokens: number,
+  quotaMultiplier: number,
+): Promise<TokenQuota> {
+  if (quota.tokenLimit === -1) return quota;
+  const reservationId = crypto.randomUUID();
+  const rawReserveTokens = Math.max(1, estimatePromptTokens(body) + Math.max(1, maxOutputTokens));
+  const reserveTokens = getBilledTokenCountForMultiplier(rawReserveTokens, quotaMultiplier);
+  const { data, error } = await client.rpc('reserve_ai_token_quota', {
+    p_reservation_id: reservationId,
+    p_user_id: quota.userId,
+    p_ip_address: quota.ipAddress,
+    p_since: getBeijingTodayStartUTC(),
+    p_token_limit: quota.tokenLimit,
+    p_reserved_tokens: reserveTokens,
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : null;
+  if (!row?.allowed) {
+    return { ...quota, allowed: false, remainingTokens: Math.max(0, Number(row?.remaining_tokens || 0)) };
+  }
+  return {
+    ...quota,
+    reservationId,
+    remainingTokens: Math.max(0, Number(row.remaining_tokens || 0)),
+  };
+}
+
+async function checkTokenQuota(
+  client: ReturnType<typeof createServiceClient>,
   request: Request,
-): Promise<{ allowed: boolean; used: number; limit: number; resetAt: string; tier: string }> {
+): Promise<TokenQuota> {
   const token = getBearerToken(request);
   let userId: string | null = null;
   let ipAddress: string | null = null;
@@ -1016,27 +1379,27 @@ async function checkAndLogRequest(
     userId = userData?.user?.id || null;
   }
   if (!userId) {
-    ipAddress = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
+    ipAddress = getClientIp(request);
   }
 
   const tier = await resolveUserTier(client, userId);
-  const limit = await getDailyLimit(client, tier);
-
-  if (limit === -1) {
-    logUsage(client, userId, ipAddress, body).catch(() => {});
-    return { allowed: true, used: 0, limit: -1, resetAt: '', tier };
-  }
-
-  // 修复 TOCTOU: 先记日志再检查,记日志本身是 INSERT,即使并发也只会插入多次;
-  // 关键是把"判定"放在"记日志"之后,并以本次插入后重新 count 为准。
-  // 仍然会存在轻微超额(并发窗口内),但通过 checkAndLogRequest 的 atomic insert RPC 可彻底解决。
-  await logUsage(client, userId, ipAddress, body).catch(() => {});
-  const actualUsed = await countTodayUsage(client, userId, ipAddress);
-  if (actualUsed > limit) {
-    const resetAt = getTomorrowBeijingStartUTC();
-    return { allowed: false, used: actualUsed, limit, resetAt, tier };
-  }
-  return { allowed: true, used: actualUsed, limit, resetAt: getTomorrowBeijingStartUTC(), tier };
+  const policy = await getQuotaPolicy(client, tier);
+  const tokenLimit = policy.tokenLimit;
+  const usedTokens = tokenLimit === -1 ? 0 : await countTodayTokenUsage(client, userId, ipAddress);
+  const remainingTokens = tokenLimit === -1 ? -1 : Math.max(0, tokenLimit - usedTokens);
+  return {
+    unit: 'tokens',
+    allowed: tokenLimit === -1 || remainingTokens > 0,
+    used: usedTokens,
+    limit: tokenLimit,
+    usedTokens,
+    tokenLimit,
+    remainingTokens,
+    resetAt: tokenLimit === -1 ? '' : getTomorrowBeijingStartUTC(),
+    tier,
+    userId,
+    ipAddress,
+  };
 }
 
 async function handleQuotaStatus(
@@ -1052,14 +1415,31 @@ async function handleQuotaStatus(
     userId = userData?.user?.id || null;
   }
   if (!userId) {
-    ipAddress = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
+    ipAddress = getClientIp(request);
   }
 
   const tier = await resolveUserTier(client, userId);
-  const limit = await getDailyLimit(client, tier);
-  const used = limit === -1 ? 0 : await countTodayUsage(client, userId, ipAddress);
+  const policy = await getQuotaPolicy(client, tier);
+  const tokenLimit = policy.tokenLimit;
+  const usedTokens = tokenLimit === -1 ? 0 : await countTodayTokenUsage(client, userId, ipAddress);
+  const remainingTokens = tokenLimit === -1 ? -1 : Math.max(0, tokenLimit - usedTokens);
+  const webSearchLimit = policy.webSearchLimit;
+  const webSearchUsed = webSearchLimit === -1 ? 0 : await countTodayWebSearchUsage(client, userId);
+  const webSearchRemaining = webSearchLimit === -1 ? -1 : Math.max(0, webSearchLimit - webSearchUsed);
 
-  return { tier, used, limit, resetAt: limit === -1 ? '' : getTomorrowBeijingStartUTC() };
+  return {
+    unit: 'tokens',
+    tier,
+    used: usedTokens,
+    limit: tokenLimit,
+    usedTokens,
+    tokenLimit,
+    remainingTokens,
+    webSearchUsed,
+    webSearchLimit,
+    webSearchRemaining,
+    resetAt: tokenLimit === -1 ? '' : getTomorrowBeijingStartUTC(),
+  };
 }
 
 Deno.serve(async (request) => {
@@ -1081,55 +1461,131 @@ Deno.serve(async (request) => {
     console.log('[vault] action:', action, 'provider:', body.provider, 'purpose:', body.purpose);
 
     if (action === 'runtime-chat') {
-      const user = await requireUser(request, client);
-      if (!user.ok) {
-        console.log('[vault] user auth failed:', user.code, user.message);
-        return jsonResponse({ ok: false, code: user.code, message: user.message }, user.status, origin);
-      }
+      const identity = await resolveRuntimeIdentity(request, client);
       // M-6 修复：服务端短期速率限制（每用户每分钟 10 次），防止客户端限流被绕过
-      const rateKey = `ai_chat_rt:${user.userId}`;
+      const rateKey = `ai_chat_rt:${identity.userId || `guest:${identity.ipAddress}`}`;
       const rate = await checkRateLimitDb(rateKey, 10, 60_000);
       if (!rate.ok) {
         return jsonResponse({ ok: false, status: 429, code: 'RATE_LIMITED', message: `请求过于频繁，请 ${rate.retryAfter} 秒后再试。` }, 429, origin);
       }
-      console.log('[vault] user auth ok, checking quota');
-      const quota = await checkAndLogRequest(client, body, request);
+      const tier = identity.tier;
+      const policy = await resolveRuntimeModelPolicy(client, toText(body.mode, 80), tier);
+      console.log('[vault] user auth ok, checking token quota');
+      let quota = await checkTokenQuota(client, request);
+      quota = await reserveTokenQuota(client, quota, body, policy.maxTokens, policy.quotaMultiplier);
       if (!quota.allowed) {
         console.log('[vault] quota exceeded');
-        return jsonResponse({ ok: false, status: 429, data: { quota }, message: '今日 AI 对话额度已用完，明天 0:00 重置' }, 429, origin);
+        return jsonResponse({ ok: false, status: 429, data: { quota }, message: '今日 BOH AI Token 额度已用完，明天 0:00 重置' }, 429, origin);
       }
       console.log('[vault] calling runtimeChatCompletion');
-      const result = await runtimeChatCompletion(client, body);
+      let result;
+      try {
+        result = await runtimeChatCompletion(client, body, policy);
+        if (result.ok) {
+          const responseData = (result.data || {}) as Record<string, unknown>;
+          const choices = Array.isArray(responseData.choices) ? responseData.choices : [];
+          const firstChoice = (choices[0] || {}) as Record<string, unknown>;
+          const message = (firstChoice.message || {}) as Record<string, unknown>;
+          const usage = normalizeTokenUsage(
+            responseData.usage as Record<string, unknown> | undefined,
+            { ...body, mode: policy.mode, payload: buildRuntimePayload(body, policy, false) },
+            String(message.content || ''),
+          );
+          await logTokenUsage(
+            client,
+            quota,
+            { ...body, mode: policy.mode, payload: buildRuntimePayload(body, policy, false) },
+            usage,
+            'success',
+            policy.quotaMultiplier,
+          );
+        } else {
+          await releaseTokenReservation(client, quota);
+        }
+      } catch (error) {
+        await releaseTokenReservation(client, quota).catch(() => undefined);
+        throw error;
+      }
       console.log('[vault] runtimeChatCompletion result:', result.ok ? 'ok' : 'failed', result.message || '');
       return jsonResponse(result, result.ok ? 200 : 502, origin);
     }
     if (action === 'runtime-chat-stream') {
-      const user = await requireUser(request, client);
-      if (!user.ok) {
-        console.log('[vault] user auth failed:', user.code, user.message);
-        return jsonResponse({ ok: false, code: user.code, message: user.message }, user.status, origin);
-      }
+      const identity = await resolveRuntimeIdentity(request, client);
       // M-6 修复：服务端短期速率限制（每用户每分钟 10 次）
-      const rateKey = `ai_chat_rt:${user.userId}`;
+      const rateKey = `ai_chat_rt:${identity.userId || `guest:${identity.ipAddress}`}`;
       const rate = await checkRateLimitDb(rateKey, 10, 60_000);
       if (!rate.ok) {
         return jsonResponse({ ok: false, status: 429, code: 'RATE_LIMITED', message: `请求过于频繁，请 ${rate.retryAfter} 秒后再试。` }, 429, origin);
       }
-      const quota = await checkAndLogRequest(client, body, request);
+      const tier = identity.tier;
+      const policy = await resolveRuntimeModelPolicy(client, toText(body.mode, 80), tier);
+      let quota = await checkTokenQuota(client, request);
+      quota = await reserveTokenQuota(client, quota, body, policy.maxTokens, policy.quotaMultiplier);
       if (!quota.allowed) {
         console.log('[vault] quota exceeded');
-        return jsonResponse({ ok: false, status: 429, data: { quota }, message: '今日 AI 对话额度已用完，明天 0:00 重置' }, 429, origin);
+        return jsonResponse({ ok: false, status: 429, data: { quota }, message: '今日 BOH AI Token 额度已用完，明天 0:00 重置' }, 429, origin);
       }
       console.log('[vault] calling runtimeChatCompletionStream');
-      return await runtimeChatCompletionStream(client, body, origin);
+      try {
+        return await runtimeChatCompletionStream(
+          client,
+          { ...body, mode: policy.mode, payload: buildRuntimePayload(body, policy, true) },
+          origin,
+          quota,
+          policy,
+        );
+      } catch (error) {
+        await releaseTokenReservation(client, quota).catch(() => undefined);
+        throw error;
+      }
     }
     if (action === 'runtime-search') {
       const user = await requireUser(request, client);
       if (!user.ok) {
         return jsonResponse({ ok: false, code: user.code, message: user.message }, user.status, origin);
       }
-      const result = await runtimeTavilySearch(client, body);
-      return jsonResponse(result, result.ok ? 200 : 502, origin);
+      const tier = await resolveUserTier(client, user.userId);
+      const searchRate = await checkRateLimitDb(`ai_web_rt:${user.userId}`, 6, 60_000);
+      if (!searchRate.ok) {
+        return jsonResponse({ ok: false, code: 'SEARCH_RATE_LIMITED', message: `联网搜索过于频繁，请 ${searchRate.retryAfter} 秒后再试。` }, 429, origin);
+      }
+      const dailyLimit = (await getQuotaPolicy(client, tier)).webSearchLimit;
+      if (dailyLimit === 0) {
+        return jsonResponse({ ok: false, code: 'SEARCH_DAILY_LIMIT', message: '当前订阅暂不支持联网搜索。' }, 429, origin);
+      }
+      if (dailyLimit === -1) {
+        const result = await runtimeTavilySearch(client, body);
+        return jsonResponse(result, result.ok ? 200 : 502, origin);
+      }
+      const { data: reservation, error: reservationError } = await client.rpc('reserve_ai_web_search', {
+        p_user_id: user.userId,
+        p_tier: tier,
+        p_daily_limit: dailyLimit,
+        p_since: getBeijingTodayStartUTC(),
+      });
+      if (reservationError) throw reservationError;
+      const searchReservation = Array.isArray(reservation) ? reservation[0] : null;
+      if (!searchReservation?.allowed) {
+        return jsonResponse({ ok: false, code: 'SEARCH_DAILY_LIMIT', message: '今日联网搜索额度已用完，明天 0:00 重置。' }, 429, origin);
+      }
+      try {
+        const result = await runtimeTavilySearch(client, body);
+        await client.rpc('settle_ai_web_search', {
+          p_request_id: searchReservation.request_id,
+          p_status: result.ok ? 'success' : 'failed',
+        });
+        return jsonResponse(result, result.ok ? 200 : 502, origin);
+      } catch (error) {
+        try {
+          await client.rpc('settle_ai_web_search', {
+            p_request_id: searchReservation.request_id,
+            p_status: 'failed',
+          });
+        } catch (_settleError) {
+          // The stale pending row expires automatically on the next reservation.
+        }
+        throw error;
+      }
     }
     if (action === 'runtime-resolve') {
       const user = await requireUser(request, client);
@@ -1168,13 +1624,15 @@ Deno.serve(async (request) => {
     return jsonResponse({ ok: false, code: 'UNKNOWN_ACTION', message: '未知操作。' }, 400, origin);
   } catch (error) {
     const rawMessage = error instanceof Error ? error.message : 'API Key 管理服务异常。';
+    const status = Math.min(599, Math.max(400, Number((error as { status?: number })?.status || 500)));
+    const code = toText((error as { code?: string })?.code, 80) || 'API_KEY_VAULT_ERROR';
     return jsonResponse(
       {
         ok: false,
-        code: 'API_KEY_VAULT_ERROR',
+        code,
         message: sanitizeMessage(rawMessage),
       },
-      500,
+      status,
       origin,
     );
   }

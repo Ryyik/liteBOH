@@ -1,14 +1,41 @@
 <template>
     <div class="bohai-page"
-        :class="{ 'embedded-mode': props.embedded, 'overlay-mode': props.overlayMode, 'empty-chat-mode': messages.length === 0, 'sidebar-open': isSidebarOpen }"
-        :data-ui-style="currentUiStyle">
+        :class="{ 'embedded-mode': props.embedded, 'overlay-mode': props.overlayMode, 'standalone-mode': isStandalone, 'empty-chat-mode': messages.length === 0, 'sidebar-open': isSidebarOpen, 'reduce-motion': !globalAiPreferences.animationsEnabled }"
+        :data-ui-style="currentUiStyle" :data-theme="resolvedAiTheme"
+        :data-density="globalAiPreferences.density" :data-font-scale="globalAiPreferences.fontScale">
         <div class="bohai-container">
             <BohaiSidebar v-model="isSidebarOpen" :chat-sessions="chatSessions"
                 :current-session-index="currentSessionIndex" :user-info="userInfo" :embedded="props.embedded"
+                :overlay-mode="props.overlayMode" :standalone="isStandalone"
+                :show-open-button="!isStandalone && !props.overlayMode"
+                :reduce-motion="!globalAiPreferences.animationsEnabled"
+                :theme="resolvedAiTheme"
                 :is-component-visible="isComponentVisible" @start-new-chat="startNewChat"
-                @switch-session="switchSession" @delete-session="deleteSession" @open-settings="openSettings" />
+                @start-temporary-chat="startTemporaryChat" @switch-session="switchSession"
+                @delete-session="requestDeleteSession" @rename-session="renameSession" @toggle-pin="togglePinSession"
+                @open-settings="openSettings" />
 
             <main class="main-content">
+                <header v-if="isStandalone" class="full-ai-toolbar">
+                    <div class="full-ai-toolbar-left">
+                        <button type="button" class="full-ai-toolbar-btn" :title="isSidebarOpen ? '收起历史记录' : '展开历史记录'"
+                            :aria-label="isSidebarOpen ? '收起历史记录' : '展开历史记录'" @click="toggleSidebar">
+                            <PanelLeft :size="19" />
+                        </button>
+                        <div class="full-ai-toolbar-copy">
+                            <strong>{{ currentSessionTitle }}</strong>
+                            <span>BOH AI · {{ currentMode.name }}</span>
+                        </div>
+                    </div>
+                    <div class="full-ai-toolbar-actions">
+                        <button type="button" class="full-ai-new-chat-btn" @click="startNewChat">
+                            <Plus :size="17" /><span>新对话</span>
+                        </button>
+                        <button type="button" class="full-ai-toolbar-btn" title="设置" aria-label="打开设置" @click="openSettings">
+                            <Settings2 :size="18" />
+                        </button>
+                    </div>
+                </header>
                 <div ref="chatContainer" class="chat-container custom-scrollbar"
                     :class="{ 'is-positioning-initial-scroll': props.overlayMode && !isInitialScrollReady }"
                     @scroll="updateActiveUserMessageFromScroll">
@@ -19,6 +46,16 @@
                         </div>
                         <h2>今天需要我如何帮你？</h2>
                         <p class="empty-subtitle">提问、检索、计划任务，或让 BOH AI 整理你的想法。</p>
+                        <div v-if="isStandalone" class="full-ai-suggestions">
+                            <button v-for="(suggestion, suggestionIndex) in fullPageSuggestions" :key="suggestion" type="button"
+                                :style="{ '--bohai-item-order': suggestionIndex }"
+                                @click="useQuickSuggestion(suggestion)">{{ suggestion }}</button>
+                        </div>
+                        <div v-if="props.overlayMode && quickSuggestions.length" class="quick-context-suggestions">
+                            <button v-for="(suggestion, suggestionIndex) in quickSuggestions" :key="suggestion" type="button"
+                                :style="{ '--bohai-item-order': suggestionIndex }"
+                                @click="useQuickSuggestion(suggestion)">{{ suggestion }}</button>
+                        </div>
                     </div>
 
                     <button v-if="hiddenMessageCount > 0" type="button" class="load-earlier-btn"
@@ -27,7 +64,8 @@
                     </button>
 
                     <div v-for="({ message: msg, index: idx }) in visibleMessageItems" :key="msg.id || idx"
-                        :class="['message-wrapper', msg.role]" :data-message-index="idx">
+                        :class="['message-wrapper', msg.role]" :data-message-index="idx"
+                        :style="{ '--bohai-item-order': Math.min(idx, 8) }">
                         <div class="message-content-inner">
                             <div class="message-header">
                                 <span v-if="msg.role === 'assistant'" class="message-role">BOH AI</span>
@@ -37,27 +75,68 @@
                                 </button>
                             </div>
                             <div :class="['message', msg.role]">
+                                <div v-if="isWebSearchActiveForMessage(idx, msg) || isCommunitySearchActiveForMessage(idx, msg)"
+                                    class="searching-status-list">
+                                    <div v-if="isWebSearchActiveForMessage(idx, msg)" class="web-searching-status"
+                                        role="status" aria-live="polite" aria-label="Web Searching">
+                                        <span class="searching-status-copy">
+                                            <strong>Web Searching</strong>
+                                            <small>正在检索可信网页</small>
+                                        </span>
+                                        <i class="searching-status-track" aria-hidden="true"></i>
+                                    </div>
+                                    <div v-if="isCommunitySearchActiveForMessage(idx, msg)"
+                                        class="web-searching-status community-searching-status"
+                                        role="status" aria-live="polite" aria-label="Community Searching">
+                                        <span class="searching-status-copy">
+                                            <strong>Community Searching</strong>
+                                            <small>正在读取近日帖子</small>
+                                        </span>
+                                        <i class="searching-status-track" aria-hidden="true"></i>
+                                    </div>
+                                </div>
                                 <div v-if="getMessageActionNotes(msg).length" class="message-action-notes">
                                     <p v-for="note in getMessageActionNotes(msg)" :key="note">{{ note }}</p>
                                 </div>
-                                <div v-if="shouldRenderPlanTodoCard(msg, idx)" class="plan-todo-card">
+                                <section v-if="shouldRenderPlanTodoCard(msg, idx)" class="plan-todo-card task-panel"
+                                    :class="`is-${taskPanelStatus.id}`" aria-label="任务执行状态">
                                     <div class="plan-todo-card-head">
-                                        <span class="plan-todo-card-icon">
-                                            <Network v-if="isAgentClusterModeActive" size="17" />
-                                            <ListChecks v-else size="17" />
+                                        <span class="task-panel-state" aria-hidden="true">
+                                            <LoaderCircle v-if="taskPanelStatus.id === 'running'" size="17" />
+                                            <CheckCircle2 v-else-if="taskPanelStatus.id === 'completed'" size="17" />
+                                            <AlertCircle v-else-if="taskPanelStatus.id === 'failed'" size="17" />
+                                            <Square v-else-if="taskPanelStatus.id === 'cancelled'" size="14" />
+                                            <Circle v-else size="16" />
                                         </span>
-                                        <div>
-                                            <strong>{{ isAgentClusterModeActive ? 'Agent 集群' : '计划代办' }}</strong>
-                                            <span>{{ isAgentClusterModeActive ? taskStatusSubtitle : planTodoSummary
-                                            }}</span>
+                                        <div class="task-panel-heading">
+                                            <div class="task-panel-title-row">
+                                                <strong>{{ taskPanelTitle }}</strong>
+                                                <span class="task-panel-status-label">{{ taskPanelStatus.label }}</span>
+                                            </div>
+                                            <span>{{ taskPanelSubtitle }}</span>
                                         </div>
+                                        <button type="button" class="task-panel-toggle" :aria-expanded="taskPanelExpanded"
+                                            :title="taskPanelExpanded ? '收起任务步骤' : '展开任务步骤'"
+                                            @click="taskPanelExpanded = !taskPanelExpanded">
+                                            <ChevronDown size="16" />
+                                        </button>
                                     </div>
-                                    <div class="plan-todo-list">
+                                    <div class="task-panel-progress" role="progressbar" aria-label="任务进度"
+                                        aria-valuemin="0" aria-valuemax="100" :aria-valuenow="taskPanelProgress">
+                                        <span :style="{ width: `${taskPanelProgress}%` }"></span>
+                                    </div>
+                                    <div class="task-panel-meta">
+                                        <span>{{ planTodoSummary }}</span>
+                                        <span v-if="taskPanelElapsed">{{ taskPanelElapsed }}</span>
+                                    </div>
+                                    <div v-show="taskPanelExpanded" class="plan-todo-list">
                                         <div v-for="todo in planTodoItems" :key="todo.id" class="plan-todo-item"
                                             :class="todo.state">
                                             <span class="plan-todo-check">
                                                 <CheckCircle2 v-if="todo.state === 'done'" size="16" />
                                                 <LoaderCircle v-else-if="todo.state === 'active'" size="16" />
+                                                <AlertCircle v-else-if="todo.state === 'failed'" size="16" />
+                                                <Square v-else-if="todo.state === 'cancelled'" size="13" />
                                                 <Circle v-else size="16" />
                                             </span>
                                             <span class="plan-todo-copy">
@@ -66,7 +145,16 @@
                                             </span>
                                         </div>
                                     </div>
-                                </div>
+                                    <div v-if="taskPanelStatus.id === 'running' || taskPanelStatus.id === 'failed'"
+                                        class="task-panel-actions">
+                                        <button v-if="taskPanelStatus.id === 'running'" type="button" @click="stopTaskPanel">
+                                            <Square size="13" />停止任务
+                                        </button>
+                                        <button v-else type="button" @click="retryTaskPanel">
+                                            <RotateCcw size="14" />重新尝试
+                                        </button>
+                                    </div>
+                                </section>
                                 <div class="message-content" v-html="renderMarkdown(stripAiQuestion(msg.content))">
                                 </div>
                                 <div v-if="activeInlineQuestion && activeInlineQuestion.messageIndex === idx"
@@ -118,7 +206,7 @@
                                     @click="setMessageFeedback(idx, 'down')">
                                     <ThumbsDown size="15" />
                                 </button>
-                                <button type="button" class="message-action-btn" title="更多"
+                                <button v-if="globalAiPreferences.showDetails" type="button" class="message-action-btn" title="更多"
                                     :class="{ active: isMessageDetailsOpen(idx) }" @click="toggleMessageDetails(idx)">
                                     <MoreHorizontal size="16" />
                                 </button>
@@ -178,10 +266,34 @@
                 </nav>
 
                 <footer class="input-area">
-                    <div v-if="isSearching" class="composer-chips">
-                        <button type="button" class="composer-chip" @click="toggleSearch">
+                    <div v-if="slashMenuOpen" class="slash-command-menu" role="listbox" aria-label="快捷命令">
+                        <div class="slash-command-header">快捷命令</div>
+                        <button v-for="(command, commandIndex) in filteredSlashCommands" :key="command.id"
+                            type="button" class="slash-command-row" :class="{ active: slashActiveIndex === commandIndex }"
+                            role="option" :aria-selected="slashActiveIndex === commandIndex"
+                            @mouseenter="slashActiveIndex = commandIndex" @mousedown.prevent="runSlashCommand(command)">
+                            <span class="slash-command-key">/{{ command.keyword }}</span>
+                            <span class="slash-command-copy">
+                                <strong>{{ command.label }}</strong>
+                                <small>{{ command.description }}</small>
+                            </span>
+                        </button>
+                        <div v-if="filteredSlashCommands.length === 0" class="slash-command-empty">没有匹配的命令</div>
+                    </div>
+                    <div v-if="isSearching || isForumSearchEnabled || isTreeholeMemoryEnabled" class="composer-chips">
+                        <button v-if="isSearching" type="button" class="composer-chip" @click="toggleSearch">
                             <Globe size="14" />
                             <span>联网搜索</span>
+                            <X size="13" />
+                        </button>
+                        <button v-if="isForumSearchEnabled" type="button" class="composer-chip" @click="toggleForumSearch">
+                            <Search size="14" />
+                            <span>社区搜索</span>
+                            <X size="13" />
+                        </button>
+                        <button v-if="isTreeholeMemoryEnabled" type="button" class="composer-chip" @click="handleTreeholeMemoryToggle">
+                            <Cloud size="14" />
+                            <span>个人 Cloud+</span>
                             <X size="13" />
                         </button>
                     </div>
@@ -192,6 +304,7 @@
                                 <Plus size="18" />
                             </button>
                             <div v-if="showFeaturesMenu" class="features-menu">
+                                <div class="feature-menu-title">工具</div>
                                 <div class="feature-action-list">
                                     <button type="button" class="feature-action-row" @click="toggleSearch">
                                         <span class="feature-action-icon">
@@ -199,16 +312,37 @@
                                         </span>
                                         <span class="feature-action-copy">
                                             <strong>联网搜索</strong>
+                                            <small>获取最新网络信息</small>
                                         </span>
                                         <span v-if="isSearching" class="feature-action-check"></span>
+                                    </button>
+                                    <button type="button" class="feature-action-row" @click="toggleForumSearch">
+                                        <span class="feature-action-icon">
+                                            <Search size="16" />
+                                        </span>
+                                        <span class="feature-action-copy">
+                                            <strong>社区搜索</strong>
+                                            <small>查找 BOH 社区内容</small>
+                                        </span>
+                                        <span v-if="isForumSearchEnabled" class="feature-action-check"></span>
+                                    </button>
+                                    <button type="button" class="feature-action-row" @click="handleTreeholeMemoryToggle">
+                                        <span class="feature-action-icon">
+                                            <Cloud size="16" />
+                                        </span>
+                                        <span class="feature-action-copy">
+                                            <strong>个人 Cloud+</strong>
+                                            <small>参考你的 Cloud+ 私有内容</small>
+                                        </span>
+                                        <span v-if="isTreeholeMemoryEnabled" class="feature-action-check"></span>
                                     </button>
                                 </div>
                             </div>
                         </div>
 
                         <div class="composer-main">
-                            <textarea ref="textareaRef" v-model="inputMessage" @keydown.enter="handleEnter"
-                                placeholder="有问题，尽管问" class="input-textarea" rows="1" @input="autoResize"></textarea>
+                            <textarea ref="textareaRef" v-model="inputMessage" @keydown="handleComposerKeydown"
+                                placeholder="有问题，尽管问" class="input-textarea" rows="1" @input="handleComposerInput"></textarea>
                         </div>
 
                         <div class="input-right">
@@ -230,8 +364,10 @@
                                             <strong>{{ mode.name }}</strong>
                                             <small>{{ mode.tagline }}</small>
                                         </span>
-                                        <span class="mode-option-desc">{{ mode.description }}</span>
                                     </button>
+                                    <div class="mode-menu-footer">
+                                        <a href="#/ai-intro" class="mode-menu-intro-link" @click.stop>了解所有模式 ›</a>
+                                    </div>
                                 </div>
                             </div>
                             <div class="input-actions">
@@ -256,34 +392,35 @@
                         <span>当前对话上下文已满，继续发送将自动压缩历史消息</span>
                     </div>
                 </footer>
+
+                <BohaiSettingsPanel v-model="settingsOpen" :embedded="props.overlayMode || isStandalone"
+                    :current-mode="currentMode" :current-mode-id="currentModeId" :chat-modes="chatModes"
+                    :current-response-style-id="currentResponseStyleId" :response-style-options="responseStyleOptions"
+                    :current-thinking-speed-id="currentThinkingSpeedId" :thinking-speed-options="thinkingSpeedOptions"
+                    :is-treehole-memory-enabled="isTreeholeMemoryEnabled" :is-shared-memory-enabled="isSharedMemoryEnabled"
+                    :is-treehole-memory-toggling="isTreeholeMemoryToggling"
+                    :memory-status-text="memorySettingsStatus" :resolved-theme="resolvedAiTheme"
+                    @select-mode="selectMode" @select-response-style="setResponseStyle"
+                    @select-thinking-speed="setThinkingSpeed"
+                    @toggle-treehole-memory="handleTreeholeMemoryToggle"
+                    @toggle-shared-memory="handleSharedMemoryToggle"
+                    @clear-current-chat="clearCurrentChat" @export-chat-data="exportChatData"
+                    @clear-all-chat-data="clearAllChatData" @open-quota-panel="openQuotaPanel" />
+
+                <AiQuotaSidePanel :visible="isQuotaPanelOpen" :embedded="props.overlayMode || isStandalone"
+                    @close="closeQuotaPanel" />
             </main>
         </div>
 
-        <BohaiSettingsPanel v-model="settingsOpen" :current-mode="currentMode" :current-mode-id="currentModeId"
-            :chat-modes="chatModes" :current-response-style-id="currentResponseStyleId"
-            :response-style-options="responseStyleOptions" :current-thinking-speed-id="currentThinkingSpeedId"
-            :thinking-speed-options="thinkingSpeedOptions" :is-searching="isSearching"
-            :is-treehole-memory-enabled="isTreeholeMemoryEnabled" :is-shared-memory-enabled="isSharedMemoryEnabled"
-            :context-budget-usage="contextBudgetUsage" :context-budget-percent-text="contextBudgetPercentText"
-            :is-compressing-context="isCompressingContext" @select-mode="selectMode"
-            @select-response-style="setResponseStyle" @select-thinking-speed="setThinkingSpeed"
-            @update:is-searching="isSearching = $event"
-            @update:is-treehole-memory-enabled="isTreeholeMemoryEnabled = $event"
-            @update:is-shared-memory-enabled="isSharedMemoryEnabled = $event" @clear-current-chat="clearCurrentChat"
-            @export-chat-data="exportChatData" @clear-all-chat-data="clearAllChatData"
-            @open-quota-panel="openQuotaPanel" />
-
         <CommonAlertModal v-model:visible="confirmState.show" :type="confirmState.type" :title="confirmState.title"
             :message="confirmState.message" @confirm="handleConfirm" @close="handleClose" />
-
-        <AiQuotaSidePanel :visible="isQuotaPanelOpen" @close="isQuotaPanelOpen = false" />
 
     </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted, nextTick, watch, onUnmounted } from 'vue';
-import { Plus, Trash2, Square, Globe, X, ChevronDown, Copy, ThumbsUp, ThumbsDown, MoreHorizontal, ArrowUp, ListChecks, CheckCircle2, LoaderCircle, Circle, Network } from 'lucide-vue-next';
+import { Plus, Trash2, Square, Globe, Cloud, Search, X, ChevronDown, Copy, ThumbsUp, ThumbsDown, MoreHorizontal, ArrowUp, CheckCircle2, LoaderCircle, Circle, PanelLeft, Settings2, AlertCircle, RotateCcw } from 'lucide-vue-next';
 import { useChatEngine } from '../composables/useChatEngine';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
@@ -295,6 +432,7 @@ import { marked } from 'marked';
 import { logger } from '@/utils/logger.js';
 import DOMPurify from '@/utils/dompurify.js';
 import { themeManager } from '@/utils/theme-manager.js';
+import { useGlobalAiPreferences } from '@/composables/useGlobalAiPreferences.js';
 import { formatBohAIRetrievalTraceSummary } from '@/utils/bohai-observability.js';
 import hljs from 'highlight.js/lib/core';
 import javascript from 'highlight.js/lib/languages/javascript';
@@ -319,16 +457,27 @@ const props = defineProps({
     overlayMode: {
         type: Boolean,
         default: false
-    }
+    },
+    quickActive: { type: Boolean, default: false },
+    quickSuggestions: { type: Array, default: () => [] }
 });
 
-const emit = defineEmits(['island-message']);
+const emit = defineEmits(['island-message', 'overlay-state']);
+const { preferences: globalAiPreferences } = useGlobalAiPreferences();
+const isStandalone = computed(() => !props.embedded && !props.overlayMode);
 
-const isSidebarOpen = ref(false);
+const isSidebarOpen = ref(isStandalone.value && typeof window !== 'undefined' && window.innerWidth >= 1024);
 const isComponentVisible = ref(true);
 let visibilityObserver = null;
 const showFeaturesMenu = ref(false);
 const currentUiStyle = ref(themeManager.getUiStyle?.() || 'glass');
+const currentSiteTheme = ref(themeManager.isDark?.() ? 'dark' : 'light');
+const resolvedAiTheme = computed(() => {
+    if (globalAiPreferences.appearance === 'dark' || globalAiPreferences.appearance === 'light') {
+        return globalAiPreferences.appearance;
+    }
+    return currentSiteTheme.value;
+});
 const uiNotice = ref('');
 const visibleMessageLimit = ref(80);
 const expandedMessageDetails = ref(new Set());
@@ -336,6 +485,14 @@ const messageFeedbackByIndex = ref({});
 const modeMenuOpen = ref(false);
 const settingsOpen = ref(false);
 const isQuotaPanelOpen = ref(false);
+const taskPanelExpanded = ref(true);
+const taskLifecycleOverride = ref('');
+const fullPageSuggestions = [
+    '帮我梳理今天要做的事',
+    '总结一段内容并提取重点',
+    '搜索 BOH 社区里的相关讨论',
+    '制定一个可以执行的计划'
+];
 
 const filteredChatModes = computed(() => {
     if (!authStore.isLoggedIn) {
@@ -358,16 +515,24 @@ const confirmState = reactive({
 });
 
 const aiQuestionAnswer = ref('');
+const slashActiveIndex = ref(0);
+const slashDismissed = ref(false);
 
 const activeInlineQuestion = ref(null);
 
 const openSettings = () => {
+    if (!isStandalone.value || window.innerWidth < 1024) isSidebarOpen.value = false;
     settingsOpen.value = true;
 };
 
 const openQuotaPanel = () => {
     settingsOpen.value = false;
     isQuotaPanelOpen.value = true;
+};
+
+const closeQuotaPanel = () => {
+    isQuotaPanelOpen.value = false;
+    if (props.overlayMode || isStandalone.value) settingsOpen.value = true;
 };
 
 const clearAllChatData = () => {
@@ -378,9 +543,8 @@ const clearAllChatData = () => {
     confirmState.resolve = (ok) => {
         confirmState.show = false;
         if (ok) {
-            localStorage.removeItem('boh_chat_sessions');
-            localStorage.removeItem('boh_current_session_index');
-            startNewChat();
+            stopGeneration();
+            clearAllSessions();
             settingsOpen.value = false;
         }
     };
@@ -394,7 +558,8 @@ const clearCurrentChat = () => {
     confirmState.resolve = (ok) => {
         confirmState.show = false;
         if (ok) {
-            startNewChat();
+            stopGeneration();
+            clearCurrentSession();
             settingsOpen.value = false;
         }
     };
@@ -450,6 +615,8 @@ const {
     currentMode,
     isCommandMode,
     isSearching,
+    webSearchActive,
+    communitySearchActive,
     isForumSearchEnabled,
     isTreeholeMemoryEnabled,
     isPlanModeEnabled,
@@ -460,7 +627,9 @@ const {
     contextBudgetUsage,
     isCompressingContext,
     onScrollToBottom,
-    startNewChat,
+    startNewChat: startNewChatEngine,
+    clearCurrentSession,
+    clearAllSessions,
     deleteSession,
     switchSession,
     sendMessage,
@@ -473,8 +642,140 @@ const {
     currentThinkingSpeedId,
     thinkingSpeedOptions,
     setThinkingSpeed,
-    persistModeSetting
+    persistModeSetting,
+    persistSharedMemorySetting,
+    toggleTreeholeMemory,
+    isTreeholeMemoryToggling,
+    pendingCloudReferenceConsent,
+    memoryCaptureTip
 } = useChatEngine();
+
+const currentSessionTitle = computed(() => chatSessions[currentSessionIndex.value]?.title || '新对话');
+
+const startNewChat = () => {
+    startNewChatEngine();
+    isSearching.value = Boolean(globalAiPreferences.defaultWebSearch);
+};
+
+const startTemporaryChat = () => {
+    startNewChat();
+    const session = chatSessions[currentSessionIndex.value];
+    if (session) {
+        session.temporary = true;
+        session.title = '临时对话';
+    }
+};
+
+const memorySettingsStatus = computed(() => {
+    const liveStatus = String(memoryCaptureTip.value || '');
+    if (/请先登录|请先确认|登录后可|是否同意/.test(liveStatus)) return liveStatus;
+    return `个人记忆${isTreeholeMemoryEnabled.value ? '已开启' : '已关闭'}；社区知识${isSharedMemoryEnabled.value ? '已开启' : '已关闭'}。`;
+});
+
+const handleTreeholeMemoryToggle = async () => {
+    closeFeaturesMenu();
+    await toggleTreeholeMemory();
+    if (pendingCloudReferenceConsent.awaitingConfirmation) {
+        settingsOpen.value = false;
+        emitIslandMessage({
+            title: '需要隐私确认',
+            message: '请在当前对话中确认是否允许 BOH AI 参考你的 Cloud+ 内容',
+            icon: 'ai',
+            type: 'notification',
+            actionLabel: '知道了',
+            durationMs: 4200
+        });
+    }
+};
+
+const handleSharedMemoryToggle = () => {
+    isSharedMemoryEnabled.value = !isSharedMemoryEnabled.value;
+    persistSharedMemorySetting();
+    emitIslandMessage({
+        title: isSharedMemoryEnabled.value ? '社区知识已开启' : '社区知识已关闭',
+        message: isSharedMemoryEnabled.value ? '回答可检索社区共享知识' : '回答将不再读取社区共享知识',
+        icon: 'ai',
+        type: 'notification',
+        actionLabel: '知道了',
+        durationMs: 3200
+    });
+};
+
+const renameSession = ({ index, title }) => {
+    const session = chatSessions[index];
+    const nextTitle = String(title || '').trim().slice(0, 48);
+    if (session && nextTitle) session.title = nextTitle;
+};
+
+const togglePinSession = (index) => {
+    const session = chatSessions[index];
+    if (session) session.pinned = !session.pinned;
+};
+
+const requestDeleteSession = (index) => {
+    const session = chatSessions[index];
+    if (!session) return;
+    confirmState.type = 'warning';
+    confirmState.title = '删除对话';
+    confirmState.message = `确定删除“${session.title || '新对话'}”吗？此操作不可撤销。`;
+    confirmState.show = true;
+    confirmState.resolve = (ok) => {
+        confirmState.show = false;
+        if (ok) deleteSession(index);
+    };
+};
+
+const focusComposer = () => nextTick(() => textareaRef.value?.focus());
+
+const appendToComposer = (text) => {
+    const content = String(text || '').trim();
+    if (!content) return;
+    inputMessage.value = `${inputMessage.value ? `${inputMessage.value}\n\n` : ''}${content}`;
+    nextTick(() => {
+        autoResize();
+        textareaRef.value?.focus();
+    });
+};
+
+const useQuickSuggestion = (suggestion) => {
+    inputMessage.value = String(suggestion || '');
+    focusComposer();
+};
+
+const toggleSidebar = () => {
+    if (settingsOpen.value || isQuotaPanelOpen.value) {
+        settingsOpen.value = false;
+        isQuotaPanelOpen.value = false;
+    }
+    isSidebarOpen.value = !isSidebarOpen.value;
+};
+
+const syncStandaloneViewport = () => {
+    if (isStandalone.value && window.innerWidth < 1024) isSidebarOpen.value = false;
+};
+
+const closeOverlayPanels = () => {
+    isSidebarOpen.value = false;
+    settingsOpen.value = false;
+    isQuotaPanelOpen.value = false;
+    showFeaturesMenu.value = false;
+    modeMenuOpen.value = false;
+    if (chatSessions[currentSessionIndex.value]?.temporary) {
+        deleteSession(currentSessionIndex.value);
+    }
+};
+
+const resetQuickNavigation = () => {
+    isSidebarOpen.value = false;
+    settingsOpen.value = false;
+    isQuotaPanelOpen.value = false;
+    showFeaturesMenu.value = false;
+    modeMenuOpen.value = false;
+};
+
+watch(() => props.quickActive, (active) => {
+    if (active && props.overlayMode) resetQuickNavigation();
+}, { immediate: true });
 
 const AI_QUESTION_MARKER = '【追问】';
 
@@ -636,7 +937,7 @@ const getMessageActionNotes = (msg) => {
     const notes = Array.isArray(msg?.meta?.actionNotes) ? msg.meta.actionNotes : [];
     return notes
         .map((note) => String(note || '').trim())
-        .filter(Boolean)
+        .filter((note) => note && !/^(?:检索了|搜索了)/u.test(note))
         .slice(0, 4);
 };
 
@@ -648,7 +949,7 @@ const compactPlanText = (content, maxLength = 72) => {
     return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
 };
 
-const isPlanText = (content) => /(plan\s*模式|计划模式|持续推进|不断推进|长期推进|分步推进|一步步推进|阶段|里程碑|路线图|拆成步骤|下一步行动|风险跟踪|降低幻觉|减少幻觉)/i.test(String(content || ''));
+const isPlanText = (content) => /(plan\s*模式|计划模式|制定.{0,12}计划|(?:三|四|五|\d+)步计划|行动计划|执行计划|持续推进|不断推进|长期推进|分步推进|一步步推进|阶段|里程碑|路线图|拆成步骤|下一步行动|风险跟踪|降低幻觉|减少幻觉)/i.test(String(content || ''));
 
 const latestUserPlanMessage = computed(() => {
     const list = Array.isArray(messages.value) ? messages.value : [];
@@ -674,7 +975,7 @@ const isPlanExperienceActive = computed(() => {
     if (isPlanModeEnabled.value) return true;
     if (currentModeId.value === 'plan') return true;
     if (latestAssistantPlanNotes.value.some((note) => /Plan 模式|分步推进/.test(note))) return true;
-    if (isLoading.value && isPlanText(latestUserPlanMessage.value?.content)) return true;
+    if (isPlanText(latestUserPlanMessage.value?.content)) return true;
     return false;
 });
 
@@ -847,9 +1148,9 @@ const planTodoItems = computed(() => {
         return agentClusterEntries.value.map((entry) => {
             const statusMap = {
                 ok: 'done',
-                failed: 'done',
+                failed: 'failed',
                 skipped: 'done',
-                cancelled: 'done',
+                cancelled: 'cancelled',
                 running: 'active'
             };
             const detailMap = {
@@ -879,7 +1180,12 @@ const planTodoItems = computed(() => {
                 state: isLoading.value ? 'active' : 'done'
             }];
         }
-        return [];
+        return [{
+            id: 'plan-start',
+            title: '分析目标并拆解步骤',
+            detail: String(thinkingStatus.value || '').trim() || '等待开始执行',
+            state: isLoading.value ? 'active' : 'pending'
+        }];
     }
     const segments = extractPlanSegments(latestUserPlanMessage.value?.content);
     const statusLabel = String(thinkingStatus.value || '').trim() || getGrokLoadingLabel();
@@ -916,6 +1222,74 @@ const planTodoSummary = computed(() => {
     return `${done}/${planTodoItems.value.length} 已完成`;
 });
 
+const taskPanelStatus = computed(() => {
+    if (pendingCloudReferenceConsent.value) return { id: 'waiting', label: '等待确认' };
+    if (taskLifecycleOverride.value === 'cancelled') return { id: 'cancelled', label: '已停止' };
+    if (isLoading.value || agentClusterState?.isRunning) return { id: 'running', label: '执行中' };
+
+    const assistantText = String(latestAssistantPlanMessage.value?.content || '').trim();
+    const failed = Boolean(rateLimitMessage.value)
+        || /^(?:服务暂时繁忙|请求失败|发生错误|连接失败|无法连接|API Key 管理服务异常)/u.test(assistantText);
+    if (failed) return { id: 'failed', label: '需要处理' };
+    if (assistantText) return { id: 'completed', label: '已完成' };
+    return { id: 'pending', label: '待开始' };
+});
+
+const taskPanelTitle = computed(() => {
+    if (isAgentClusterModeActive.value) return agentClusterPanelTitle.value;
+    if (taskPanelStatus.value.id === 'waiting') return '任务等待你的确认';
+    if (taskPanelStatus.value.id === 'cancelled') return '任务已停止';
+    if (taskPanelStatus.value.id === 'failed') return '任务未能完成';
+    return planPanelTitle.value;
+});
+
+const taskPanelSubtitle = computed(() => {
+    if (taskPanelStatus.value.id === 'waiting') return '确认授权后将从当前步骤继续。';
+    if (taskPanelStatus.value.id === 'cancelled') return '已保留当前对话和完成的步骤。';
+    if (taskPanelStatus.value.id === 'failed') return String(rateLimitMessage.value || '可以从当前目标重新尝试。');
+    return isAgentClusterModeActive.value ? agentClusterPanelSubtitle.value : planPanelSubtitle.value;
+});
+
+const taskPanelProgress = computed(() => {
+    const items = planTodoItems.value;
+    if (items.length === 0) return taskPanelStatus.value.id === 'completed' ? 100 : 0;
+    const score = items.reduce((total, item) => {
+        if (item.state === 'done') return total + 1;
+        if (item.state === 'active') return total + 0.45;
+        return total;
+    }, 0);
+    return Math.max(0, Math.min(100, Math.round((score / items.length) * 100)));
+});
+
+const taskPanelElapsed = computed(() => {
+    const totalMs = Number(agentClusterState?.totalMs || 0);
+    if (!isLoading.value && totalMs > 0) return `${formatAgentClusterMs(totalMs)}`;
+    const seconds = Number(thinkingTime.value || 0);
+    if (!isLoading.value || seconds <= 0) return '';
+    return seconds < 60 ? `${Math.max(1, Math.round(seconds))} 秒` : `${Math.floor(seconds / 60)} 分 ${Math.round(seconds % 60)} 秒`;
+});
+
+const stopTaskPanel = () => {
+    taskLifecycleOverride.value = 'cancelled';
+    stopGeneration();
+};
+
+const retryTaskPanel = async () => {
+    const prompt = String(latestUserPlanMessage.value?.content || '').trim();
+    if (!prompt || isLoading.value) return;
+    taskLifecycleOverride.value = '';
+    inputMessage.value = prompt;
+    await nextTick();
+    sendMessage().catch((error) => logger.error('bohai', 'Task retry failed', error));
+};
+
+watch(isLoading, (loading) => {
+    if (loading) {
+        taskLifecycleOverride.value = '';
+        taskPanelExpanded.value = true;
+    }
+});
+
 const taskStatusSubtitle = computed(() => {
     if (isPlanExperienceActive.value) return planPanelSubtitle.value;
     return agentClusterPanelSubtitle.value;
@@ -942,8 +1316,10 @@ const parseTaskListFromContent = (content) => {
     return items;
 };
 
-const shouldRenderPlanTodoCard = (msg, _idx) => {
+const shouldRenderPlanTodoCard = (msg, messageIndex) => {
+    if (messageIndex !== lastAssistantMessageIndex.value) return false;
     if (isAgentClusterModeActive.value && agentClusterEntries.value.length > 0) return true;
+    if (isPlanExperienceActive.value && planTodoItems.value.length > 0) return true;
     if (currentModeId.value === 'plan' && hasTaskListMarkers(msg)) return true;
     return false;
 };
@@ -1058,15 +1434,24 @@ const setMessageFeedback = (index, value) => {
 
 const getMessageFeedback = (index) => String(messageFeedbackByIndex.value[index] || '');
 
+const isWebSearchActiveForMessage = (index, message) => (
+    webSearchActive.value
+    && isThinking.value
+    && index === messages.value.length - 1
+    && message?.role === 'assistant'
+);
+
+const isCommunitySearchActiveForMessage = (index, message) => (
+    communitySearchActive.value
+    && isThinking.value
+    && index === messages.value.length - 1
+    && message?.role === 'assistant'
+);
+
 const getGrokLoadingLabel = () => {
     const liveStatus = String(thinkingStatus.value || '').trim();
     if (liveStatus) return liveStatus;
     const seconds = Number(thinkingTime.value || 0);
-    if (isSearching.value) {
-        if (seconds < 1.2) return '正在理解问题';
-        if (seconds < 4.5) return '正在联网查询';
-        return '正在生成回复';
-    }
     if (seconds < 1.2) return '正在理解问题';
     if (seconds < 3.2) return '正在探索上下文';
     if (seconds < 6.5) return '正在组织内容';
@@ -1140,7 +1525,7 @@ const autoResize = () => {
 
 const handleEnter = (e) => {
     if (e.isComposing || e.keyCode === 229) return;
-    if (e.shiftKey) return;
+    if (globalAiPreferences.enterToSend ? e.shiftKey : !(e.metaKey || e.ctrlKey)) return;
     e.preventDefault();
     sendMessage();
 };
@@ -1204,6 +1589,12 @@ const selectMode = (modeId) => {
     currentModeId.value = modeId;
     persistModeSetting();
     closeModeMenu();
+    const isAuroraMode = String(modeId || '').toLowerCase() === 'ultra'
+        || String(mode.name || '').trim().toLowerCase() === 'aurora';
+    if (isAuroraMode) {
+        notifyUnavailable('Aurora 会使用更多 Token，可能快速消耗今日额度');
+        return;
+    }
     emitIslandMessage({
         title: `已切换 ${mode.name}`,
         message: mode.description || mode.tagline || 'BOH AI 模式已更新',
@@ -1220,6 +1611,106 @@ const toggleSearch = () => {
         isCommandMode.value = false;
     }
     closeFeaturesMenu();
+};
+
+const toggleForumSearch = () => {
+    isForumSearchEnabled.value = !isForumSearchEnabled.value;
+    closeFeaturesMenu();
+};
+
+const slashQuery = computed(() => {
+    const value = String(inputMessage.value || '');
+    if (!value.startsWith('/') || value.includes('\n') || /\s/.test(value)) return null;
+    return value.slice(1).toLowerCase();
+});
+
+const slashCommands = computed(() => [
+    { id: 'web', keyword: 'web', label: '联网搜索', description: '为下一条消息获取最新网络信息', action: 'web' },
+    { id: 'community', keyword: 'community', label: '社区搜索', description: '为下一条消息查找 BOH 社区内容', action: 'community' },
+    { id: 'cloud', keyword: 'cloud', label: '个人 Cloud+', description: '允许下一条回答参考你的 Cloud+ 内容', action: 'cloud' },
+    ...(chatModes.value || []).map((mode) => ({
+        id: `mode-${mode.id}`,
+        keyword: String(mode.name || mode.id).toLowerCase().replace(/\s+/g, '-'),
+        label: `切换到 ${mode.name}`,
+        description: mode.tagline || '更改当前响应模式',
+        action: 'mode',
+        modeId: mode.id
+    }))
+]);
+
+const filteredSlashCommands = computed(() => {
+    const query = slashQuery.value;
+    if (query === null) return [];
+    if (!query) return slashCommands.value;
+    return slashCommands.value.filter((command) => (
+        command.keyword.includes(query)
+        || command.label.toLowerCase().includes(query)
+    ));
+});
+
+const slashMenuOpen = computed(() => (
+    !slashDismissed.value
+    && slashQuery.value !== null
+    && !isLoading.value
+));
+
+const runSlashCommand = async (command) => {
+    if (!command) return;
+    if (command.action === 'web') isSearching.value = true;
+    if (command.action === 'community') isForumSearchEnabled.value = true;
+    if (command.action === 'mode' && command.modeId) selectMode(command.modeId);
+    inputMessage.value = '';
+    slashDismissed.value = false;
+    slashActiveIndex.value = 0;
+    nextTick(() => {
+        autoResize();
+        textareaRef.value?.focus();
+    });
+    if (command.action === 'cloud') {
+        if (isTreeholeMemoryEnabled.value) {
+            emitIslandMessage({
+                title: '个人 Cloud+ 已开启',
+                message: '下一条回答可以参考你的 Cloud+ 内容',
+                icon: 'ai',
+                type: 'notification',
+                actionLabel: '知道了',
+                durationMs: 3000
+            });
+        } else {
+            await toggleTreeholeMemory();
+        }
+    }
+};
+
+const handleComposerInput = () => {
+    slashDismissed.value = false;
+    slashActiveIndex.value = 0;
+    autoResize();
+};
+
+const handleComposerKeydown = (event) => {
+    if (slashMenuOpen.value) {
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            const count = filteredSlashCommands.value.length;
+            if (count > 0) {
+                const delta = event.key === 'ArrowDown' ? 1 : -1;
+                slashActiveIndex.value = (slashActiveIndex.value + delta + count) % count;
+            }
+            return;
+        }
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            slashDismissed.value = true;
+            return;
+        }
+        if (event.key === 'Enter' && !event.shiftKey && filteredSlashCommands.value.length > 0) {
+            event.preventDefault();
+            runSlashCommand(filteredSlashCommands.value[slashActiveIndex.value] || filteredSlashCommands.value[0]);
+            return;
+        }
+    }
+    if (event.key === 'Enter') handleEnter(event);
 };
 
 const deleteMessage = (index) => {
@@ -1271,7 +1762,8 @@ const copyMessage = async (content) => {
 };
 
 const syncThemeAttribute = () => {
-    if (themeManager.isDark?.()) {
+    currentSiteTheme.value = themeManager.isDark?.() ? 'dark' : 'light';
+    if (currentSiteTheme.value === 'dark') {
         document.documentElement.setAttribute('data-boh-theme', 'dark');
     } else {
         document.documentElement.removeAttribute('data-boh-theme');
@@ -1306,6 +1798,7 @@ onMounted(() => {
     onScrollToBottom(scrollToBottom);
     settleInitialScrollPosition();
     document.addEventListener('click', handleClickOutside);
+    window.addEventListener('resize', syncStandaloneViewport);
 
     // Detect component visibility for Teleported elements (sidebar/overlay).
     // When the parent tab switches away (v-show="false"), the .bohai-page
@@ -1338,6 +1831,7 @@ onMounted(() => {
 onUnmounted(() => {
     themeManager.removeListener(handleThemeChange);
     document.removeEventListener('click', handleClickOutside);
+    window.removeEventListener('resize', syncStandaloneViewport);
     if (visibilityObserver) {
         visibilityObserver.cleanup();
         visibilityObserver = null;
@@ -1376,6 +1870,44 @@ watch(currentSessionIndex, () => {
     settleInitialScrollPosition();
 });
 
+watch([
+    isSidebarOpen,
+    settingsOpen,
+    isQuotaPanelOpen,
+    currentSessionIndex,
+    () => chatSessions[currentSessionIndex.value]?.title,
+    () => chatSessions[currentSessionIndex.value]?.temporary
+], () => {
+    if (!props.overlayMode) return;
+    emit('overlay-state', {
+        sidebarOpen: isSidebarOpen.value,
+        settingsOpen: settingsOpen.value || isQuotaPanelOpen.value,
+        title: chatSessions[currentSessionIndex.value]?.title || 'BOH AI',
+        temporary: Boolean(chatSessions[currentSessionIndex.value]?.temporary)
+    });
+}, { immediate: true });
+
+const handleEscapeLayer = () => {
+    if (showFeaturesMenu.value) { showFeaturesMenu.value = false; return true; }
+    if (modeMenuOpen.value) { closeModeMenu(); return true; }
+    if (isQuotaPanelOpen.value) { closeQuotaPanel(); return true; }
+    if (settingsOpen.value) { settingsOpen.value = false; return true; }
+    if (isSidebarOpen.value) { isSidebarOpen.value = false; return true; }
+    return false;
+};
+
+defineExpose({
+    toggleSidebar,
+    openSettings,
+    startNewChat,
+    startTemporaryChat,
+    focusComposer,
+    appendToComposer,
+    handleEscapeLayer,
+    closeOverlayPanels,
+    resetQuickNavigation
+});
+
 // 消息列表深度监听的滚动节流
 let deepWatchScrollRafId = null;
 watch(messages, () => {
@@ -1406,8 +1938,10 @@ watch(isCompressingContext, (compressing) => {
 </script>
 
 <style scoped src="./styles/shell-header.css"></style>
+<style scoped src="./styles/full-workspace.css"></style>
 <style scoped src="./styles/messages.css"></style>
 <style scoped src="./styles/adaptive-layout.css"></style>
+<style scoped src="./styles/motion-system.css"></style>
 
 <style>
 .ai-question-inline {

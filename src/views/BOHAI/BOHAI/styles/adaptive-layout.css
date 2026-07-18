@@ -54,7 +54,7 @@
 .bohai-page.overlay-mode.embedded-mode.empty-chat-mode .chat-container {
     grid-row: 1 !important;
     min-height: 0 !important;
-    padding-top: max(126px, calc(118px + env(safe-area-inset-top, 0px))) !important;
+    padding-top: 28px !important;
     padding-bottom: calc(var(--boh-ai-bottom-nav-clearance) + 96px) !important;
     overflow-y: auto !important;
 }
@@ -82,6 +82,29 @@
     background: transparent !important;
     border: 0 !important;
     box-shadow: none !important;
+}
+
+.bohai-page.overlay-mode .quick-context-suggestions {
+    width: min(100%, 360px);
+    display: grid;
+    gap: 6px;
+    margin-top: 16px;
+}
+
+.bohai-page.overlay-mode .quick-context-suggestions button {
+    min-height: 36px;
+    padding: 8px 11px;
+    border: 1px solid var(--bohai-line);
+    border-radius: 9px;
+    background: rgba(127, 127, 127, 0.06);
+    color: var(--bohai-text);
+    text-align: left;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.bohai-page.overlay-mode .quick-context-suggestions button:hover {
+    background: rgba(127, 127, 127, 0.11);
 }
 
 .bohai-page.overlay-mode.empty-chat-mode .chat-container,
@@ -732,6 +755,81 @@
     margin: 0 0 0 10px;
 }
 
+.bohai-page .slash-command-menu {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 8px);
+    z-index: 95;
+    width: min(360px, calc(100vw - 32px));
+    max-height: min(360px, 52dvh);
+    overflow-y: auto;
+    padding: 6px;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.14);
+}
+
+.bohai-page .slash-command-header {
+    padding: 7px 9px 6px;
+    color: #737373;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.bohai-page .slash-command-row {
+    width: 100%;
+    min-height: 50px;
+    display: grid;
+    grid-template-columns: minmax(72px, auto) minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    padding: 7px 9px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #171717;
+    text-align: left;
+    cursor: pointer;
+}
+
+.bohai-page .slash-command-row:hover,
+.bohai-page .slash-command-row.active {
+    background: #f2f2f2;
+}
+
+.bohai-page .slash-command-key {
+    color: #525252;
+    font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+    font-size: 12px;
+}
+
+.bohai-page .slash-command-copy {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.bohai-page .slash-command-copy strong {
+    overflow: hidden;
+    color: #171717;
+    font-size: 13px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bohai-page .slash-command-copy small,
+.bohai-page .slash-command-empty {
+    color: #737373;
+    font-size: 11px;
+}
+
+.bohai-page .slash-command-empty {
+    padding: 14px 10px;
+}
+
 .bohai-page .composer-chip {
     min-width: 0;
     max-width: 100%;
@@ -842,8 +940,8 @@
     left: 0 !important;
     bottom: calc(100% + 8px) !important;
     width: auto !important;
-    min-width: 148px !important;
-    max-width: min(220px, calc(100vw - 28px)) !important;
+    min-width: 220px !important;
+    max-width: min(260px, calc(100vw - 28px)) !important;
     padding: 6px !important;
     overflow: visible !important;
     border-radius: 16px !important;
@@ -863,7 +961,7 @@
 }
 
 .bohai-page .feature-action-row {
-    min-height: 38px !important;
+    min-height: 50px !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: flex-start !important;
@@ -876,7 +974,7 @@
     color: #111111 !important;
     font-size: 13px !important;
     font-weight: 700 !important;
-    line-height: 1 !important;
+    line-height: 1.2 !important;
     white-space: nowrap !important;
     box-shadow: none !important;
 }
@@ -896,9 +994,18 @@
 }
 
 .bohai-page .feature-action-copy {
-    display: inline-flex !important;
+    display: flex !important;
+    flex-direction: column !important;
     min-width: 0 !important;
-    align-items: center !important;
+    align-items: flex-start !important;
+    gap: 2px !important;
+}
+
+.bohai-page .feature-action-copy small {
+    color: #737373 !important;
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    line-height: 1.2 !important;
 }
 
 .bohai-page .feature-action-copy strong {
@@ -964,12 +1071,10 @@
     position: relative;
     display: grid;
     grid-template-columns: 44px minmax(0, 1fr);
-    grid-template-areas:
-        "mark main"
-        "mark desc";
+    grid-template-areas: "mark main";
     column-gap: 12px;
     row-gap: 4px;
-    min-height: 64px;
+    min-height: 56px;
     padding: 9px 12px;
     border: 1px solid transparent;
     border-radius: var(--bohai-control-radius);
@@ -1020,12 +1125,28 @@
     display: none;
 }
 
-.bohai-page .mode-option-desc {
-    grid-area: desc;
+.bohai-page .mode-menu-footer {
+    display: flex;
+    justify-content: center;
+    padding: 8px 8px 4px;
+    border-top: 1px solid var(--bohai-line);
+    margin-top: 4px;
+}
+
+.bohai-page .mode-menu-intro-link {
+    font-size: 13px;
+    font-weight: 600;
     color: var(--bohai-muted);
-    font-size: 14px;
-    font-weight: 560;
-    line-height: 1.35;
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: 8px;
+    transition: background 0.15s ease, color 0.15s ease;
+    user-select: none;
+}
+
+.bohai-page .mode-menu-intro-link:hover {
+    background: rgba(17, 17, 17, 0.055);
+    color: var(--bohai-text);
 }
 
 .bohai-page .rate-limit,

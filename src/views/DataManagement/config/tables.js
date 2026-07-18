@@ -259,6 +259,7 @@ export const dataConfig = {
       { key: 'status', label: '状态', type: 'badge' },
       { key: 'temperature', label: '温度', type: 'number' },
       { key: 'max_tokens', label: '输出上限', type: 'number' },
+      { key: 'quota_multiplier', label: '额度倍率', type: 'number' },
       { key: 'updated_at', label: '更新时间', type: 'datetime' }
     ],
     fields: [
@@ -277,6 +278,7 @@ export const dataConfig = {
       { key: 'top_p', label: 'Top P', type: 'number', min: 0.1, max: 1, required: true, group: 'params' },
       { key: 'frequency_penalty', label: 'Frequency Penalty', type: 'number', min: 0, max: 2, required: true, group: 'params' },
       { key: 'max_tokens', label: '最大输出 tokens', type: 'number', min: 256, max: 4096, required: true, group: 'params' },
+      { key: 'quota_multiplier', label: '额度消耗倍率', type: 'number', min: 0.1, max: 100, step: 0.1, required: true, hint: '实际 Token × 此倍率计入今日额度。', group: 'params' },
       { key: 'sort_order', label: '显示排序', type: 'number', min: 0, max: 10000, required: true, group: 'extra' },
       { key: 'status', label: '状态', type: 'select', required: true, options: BOHAI_MODEL_STATUS_OPTIONS, group: 'extra' },
       { key: 'notes', label: '管理员备注', type: 'textarea', rows: 3, maxLength: 1000, group: 'extra' }

@@ -1445,7 +1445,7 @@ async function sendGeneralChat(content) {
     messages.value.push({
       role: 'assistant',
       content: isQuotaError
-        ? '今日 AI 对话额度已用完，明天 0:00 重置。'
+        ? '今日 BOH AI Token 额度已用完，明天 0:00 重置。'
         : `抱歉，出错了：${e.message}`,
       time: nowTime(),
     })

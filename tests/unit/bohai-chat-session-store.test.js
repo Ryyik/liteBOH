@@ -30,8 +30,9 @@ describe('bohai-chat-session: createBohAIChatSessionSanitizer', () => {
   });
 
   it('sanitizes session with title', () => {
-    const session = sanitize({ title: '测试对话' });
+    const session = sanitize({ title: '测试对话', pinned: true });
     expect(session.title).toBe('测试对话');
+    expect(session.pinned).toBe(true);
   });
 
   it('sanitizes session with messages', () => {
@@ -153,5 +154,18 @@ describe('bohai-chat-session: saveBohAIChatSessionsToStorage', () => {
     const call = storage.setItem.mock.calls[0];
     const saved = JSON.parse(call[1]);
     expect(saved.length).toBeLessThanOrEqual(BOHAI_CHAT_SESSIONS_MAX_ITEMS);
+  });
+
+  it('does not persist temporary conversations', () => {
+    const storage = mockStorage();
+    const sessions = [
+      { title: '临时对话', temporary: true },
+      { title: '保留的对话', pinned: true },
+    ];
+    saveBohAIChatSessionsToStorage({ storage, sessions, sanitizeSession: createBohAIChatSessionSanitizer() });
+    const saved = JSON.parse(storage.setItem.mock.calls[0][1]);
+    expect(saved).toHaveLength(1);
+    expect(saved[0].title).toBe('保留的对话');
+    expect(saved[0].pinned).toBe(true);
   });
 });

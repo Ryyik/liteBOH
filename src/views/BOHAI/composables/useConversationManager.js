@@ -381,6 +381,39 @@ export function useConversationManager({
     currentSessionIndex.value = 0;
   };
 
+  const clearCurrentSession = () => {
+    const index = currentSessionIndex.value;
+    if (!Number.isInteger(index) || index < 0 || index >= chatSessions.length) return false;
+    if (activeGenerationSessionIndex.value === index) return false;
+
+    chatSessions[index] = {
+      title: '新对话',
+      messages: [],
+      timestamp: Date.now(),
+      isLoading: false,
+      isThinking: false
+    };
+    scheduleSaveSessions();
+    return true;
+  };
+
+  const clearAllSessions = () => {
+    clearSaveTimers();
+    clearBohAIChatSessionsStorage();
+    chatSessions.splice(0, chatSessions.length, {
+      title: '新对话',
+      messages: [],
+      timestamp: Date.now(),
+      isLoading: false,
+      isThinking: false
+    });
+    currentSessionIndex.value = 0;
+    activeGenerationSessionIndex.value = null;
+    isCompressingContext.value = false;
+    compressingSessionIndex.value = -1;
+    saveSessions();
+  };
+
   const deleteSession = (index) => {
     if (activeGenerationSessionIndex.value === index) {
       return;
@@ -484,7 +517,7 @@ export function useConversationManager({
     loadSessions, saveSessions, scheduleSaveSessions, clearSaveTimers,
     clearCache,
     getSessionByIndex,
-    startNewChat, deleteSession, switchSession,
+    startNewChat, clearCurrentSession, clearAllSessions, deleteSession, switchSession,
     setMemoryCaptureStatusMessage
   };
 }

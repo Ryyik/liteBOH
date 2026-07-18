@@ -9,6 +9,7 @@ let forumPreloadPromise = null;
 let messagesPreloadPromise = null;
 let showsPreloadPromise = null;
 let bohaiPreloadPromise = null;
+let profileStylesPromise = null;
 let forumPreloadIdleId = null;
 let forumPreloadTimeoutId = null;
 let isUserSpaceMounted = false;
@@ -52,6 +53,20 @@ export const preloadBOHAIComponent = () => {
     });
   }
   return bohaiPreloadPromise;
+};
+
+export const preloadProfileStyles = () => {
+  if (!profileStylesPromise) {
+    profileStylesPromise = Promise.all([
+      import('./styles/profile-base.css'),
+      import('./styles/profile-panels.css'),
+      import('./styles/responsive-integrations.css')
+    ]).catch((error) => {
+      profileStylesPromise = null;
+      throw error;
+    });
+  }
+  return profileStylesPromise;
 };
 
 const communityComponentLoader = () => import('./components/CommunityTab.vue');

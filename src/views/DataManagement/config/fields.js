@@ -5,7 +5,7 @@ export const TAB_WRITABLE_FIELDS = {
   gifts: ['user_id', 'gift_no', 'gift_content', 'gift_price', 'gift_image', 'gift_status', 'is_active', 'completed_at', 'updated_at'],
   forum: ['content', 'author_id', 'author_username', 'status', 'updated_at'],
   coreMemories: ['title', 'content', 'category', 'tags', 'priority', 'source_label', 'source_url', 'status', 'updated_by'],
-  bohaiModels: ['mode_id', 'display_name', 'tagline', 'description', 'provider', 'provider_label', 'model_id', 'api_url', 'capability', 'icon', 'temperature', 'top_p', 'frequency_penalty', 'max_tokens', 'status', 'sort_order', 'notes', 'created_by', 'updated_by'],
+  bohaiModels: ['mode_id', 'display_name', 'tagline', 'description', 'provider', 'provider_label', 'model_id', 'api_url', 'capability', 'icon', 'temperature', 'top_p', 'frequency_penalty', 'max_tokens', 'quota_multiplier', 'status', 'sort_order', 'notes', 'created_by', 'updated_by'],
   lotteries: ['title', 'description', 'prize_title', 'prize_description', 'cover_image_url', 'status', 'is_community_visible', 'max_entries', 'winner_count', 'entry_deadline_at', 'draw_at', 'fulfillment_status', 'created_by', 'updated_by'],
   news: ['id', 'category', 'title', 'excerpt', 'content', 'date', 'author', 'image'],
   activities: ['id', 'title', 'date', 'image', 'description'],

@@ -198,6 +198,17 @@
         </div>
       </transition>
 
+      <button type="button" class="block-wall-entry" @click="router.push({ name: 'BlockWall' })">
+        <span class="block-wall-entry-icon" aria-hidden="true">
+          <StickyNote :size="23" :stroke-width="1.8" />
+        </span>
+        <span class="block-wall-entry-copy">
+          <strong>方块墙</strong>
+          <small>贴下一张纸条，或留住一张拍立得</small>
+        </span>
+        <ChevronRight class="block-wall-entry-arrow" :size="20" aria-hidden="true" />
+      </button>
+
       <div class="shows-entry-card-glass" @click="emit('switch-tab', 'shows')">
         <div class="shows-entry-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -222,7 +233,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import { Users, Cake } from 'lucide-vue-next';
+import { Users, Cake, ChevronRight, StickyNote } from 'lucide-vue-next';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useUserOnlineStatus } from '../composables/useUserOnlineStatus.js';
@@ -555,5 +566,3 @@ const birthdayTierMap = useTierMap(
   fetchUserTier
 );
 </script>
-
-<style src="../styles/shell-community.css"></style>

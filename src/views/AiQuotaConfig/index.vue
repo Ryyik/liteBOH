@@ -4,8 +4,8 @@
       <header class="page-header">
         <div>
           <span class="eyebrow">AI Config</span>
-          <h1>AI 对话配额配置</h1>
-          <p>管理各用户等级的 AI 对话每日限额。修改后最长 1 分钟生效。</p>
+          <h1>AI Token 配额配置</h1>
+          <p>管理各订阅层级的每日 Token 额度。修改后最长 1 分钟生效。</p>
         </div>
         <div class="header-actions">
           <button type="button" class="ghost-btn" @click="loadConfig" :disabled="isLoading">
@@ -30,7 +30,7 @@
           <thead>
             <tr>
               <th>层级</th>
-              <th>每日限额</th>
+              <th>每日 Token 额度</th>
               <th>最后更新</th>
               <th>操作</th>
             </tr>
@@ -46,7 +46,7 @@
                     :class="{ 'input-error': editValue !== -1 && editValue < 0 }" />
                   <span v-if="editValue === -1" class="limit-hint">(-1 = 无限)</span>
                 </div>
-                <span v-else class="limit-value">{{ row.daily_limit === -1 ? '∞ 无限' : row.daily_limit + ' 条' }}</span>
+                <span v-else class="limit-value">{{ row.daily_token_limit === -1 ? '∞ 无限' : formatTokenCount(row.daily_token_limit) + ' Tokens' }}</span>
               </td>
               <td class="date-cell">{{ formatDate(row.updated_at) }}</td>
               <td class="action-cell">
@@ -92,6 +92,8 @@ const TIER_LABELS_MAP = {
 };
 
 const tierLabel = (tier) => TIER_LABELS_MAP[tier] || tier;
+const formatTokenCount = (value) => new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 0 })
+  .format(Math.max(0, Number(value || 0)));
 
 const formatDate = (iso) => {
   if (!iso) return '--';
@@ -126,7 +128,7 @@ const loadConfig = async () => {
 
 const startEdit = (row) => {
   editingTier.value = row.tier;
-  editValue.value = row.daily_limit;
+  editValue.value = row.daily_token_limit;
 };
 
 const handleSave = async (tier) => {
@@ -145,10 +147,10 @@ const handleSave = async (tier) => {
   try {
     const { error } = await supabase
       .from('ai_quota_config')
-      .upsert({ tier, daily_limit: val, updated_at: new Date().toISOString() })
+      .upsert({ tier, daily_token_limit: val, updated_at: new Date().toISOString() })
       
     if (error) throw error;
-    successMessage.value = `${tierLabel(tier)} 限额已更新为 ${val === -1 ? '无限' : val + ' 条'}`;
+    successMessage.value = `${tierLabel(tier)} 每日额度已更新为 ${val === -1 ? '无限' : formatTokenCount(val) + ' Tokens'}`;
     editingTier.value = '';
     await loadConfig();
   } catch (err) {

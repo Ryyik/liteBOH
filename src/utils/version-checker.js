@@ -13,12 +13,26 @@ import { logger } from './logger.js';
 
 const CHECK_INTERVAL = 5 * 60 * 1000; // 每 5 分钟检查一次
 const VERSION_URL = './version.json'; // 相对路径，适配任意部署路径
-const RELOAD_FLAG = 'boh_version_reloading'; // 防止刷新死循环的标记
+const RELOAD_TARGET_KEY = 'boh_version_reload_target';
+const UPDATE_QUERY_KEY = '__boh_update';
 
 let intervalId = null;
 let visibilityHandler = null;
 let currentVersion = null; // 当前语义版本（来自 meta boh-version，如 4.7.2）
 let currentBuildId = null; // 当前构建指纹（来自 meta boh-build-id，用于比对）
+
+export const shouldAutoApplyVersion = (remoteBuildId, attemptedBuildId = '') => {
+  const target = String(remoteBuildId || '').trim();
+  return Boolean(target && target !== String(attemptedBuildId || '').trim());
+};
+
+export const buildVersionReloadPath = (href, targetBuildId = '') => {
+  const reloadUrl = new URL(href);
+  reloadUrl.searchParams.delete('forceUpdate');
+  reloadUrl.searchParams.delete('clearCache');
+  reloadUrl.searchParams.set(UPDATE_QUERY_KEY, String(targetBuildId || Date.now()));
+  return `${reloadUrl.pathname}${reloadUrl.search}${reloadUrl.hash}`;
+};
 
 /**
  * 从 meta 标签读取当前页面语义版本
@@ -61,14 +75,11 @@ const fetchRemoteVersion = async () => {
  * 清除所有 Service Worker 和 Cache Storage，然后刷新页面
  * 用户在更新提示弹窗中点击"立即更新"后调用
  */
-export const forceCleanAndReload = async () => {
-  // 防止刷新死循环：如果刚刚已经触发过刷新，则不再重复
-  if (sessionStorage.getItem(RELOAD_FLAG) === 'true') {
-    sessionStorage.removeItem(RELOAD_FLAG);
-    logger.warn('version', '检测到刷新标记，跳过本次强制更新以避免死循环');
-    return;
+export const forceCleanAndReload = async (targetBuildId = '') => {
+  const safeTargetBuildId = String(targetBuildId || '').trim();
+  if (safeTargetBuildId) {
+    sessionStorage.setItem(RELOAD_TARGET_KEY, safeTargetBuildId);
   }
-  sessionStorage.setItem(RELOAD_FLAG, 'true');
 
   logger.info('version', '用户确认更新，开始清除缓存并刷新', {
     from: currentVersion,
@@ -90,8 +101,8 @@ export const forceCleanAndReload = async () => {
       logger.info('version', `已清除 ${keys.length} 个缓存`);
     }
 
-    // 3. 强制刷新（使用 replace 避免在历史记录中留下旧版本入口）
-    window.location.replace(window.location.pathname + window.location.hash);
+    // 3. 使用新 buildId 作为 HTML 查询参数，同时绕过 GitHub Pages/CDN 的旧 index.html。
+    window.location.replace(buildVersionReloadPath(window.location.href, safeTargetBuildId));
   } catch (err) {
     logger.error('version', '强制更新流程出错', err);
     // 即使出错也尝试刷新
@@ -122,6 +133,19 @@ const notifyUpdateAvailable = (remoteVersion, remoteBuildId) => {
       message: `发现新版本 ${remoteVersion}，建议立即刷新以获取最新内容。`,
     },
   }));
+};
+
+const clearCompletedReloadState = (remoteBuildId) => {
+  if (!remoteBuildId || remoteBuildId !== currentBuildId) return;
+  sessionStorage.removeItem(RELOAD_TARGET_KEY);
+  const currentUrl = new URL(window.location.href);
+  if (!currentUrl.searchParams.has(UPDATE_QUERY_KEY)) return;
+  currentUrl.searchParams.delete(UPDATE_QUERY_KEY);
+  window.history.replaceState(
+    window.history.state,
+    '',
+    `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`
+  );
 };
 
 /**
@@ -171,6 +195,7 @@ export const checkVersion = async () => {
       };
     }
 
+    clearCompletedReloadState(remote.buildId);
     logger.debug('version', '版本一致，无需更新', { version: currentVersion, buildId: currentBuildId });
     return {
       hasUpdate: false,
@@ -197,10 +222,19 @@ export const initVersionChecker = () => {
 
   // 自动轮询检测：检测到新版本时派发 boh:update-available 事件，
   // 由 PWAUpdateToast 弹出统一对话框提示用户，不直接强制刷新
-  const autoCheck = async () => {
+  const autoCheck = async ({ autoApply = false } = {}) => {
     try {
       const result = await checkVersion();
       if (result.hasUpdate) {
+        const attemptedTarget = sessionStorage.getItem(RELOAD_TARGET_KEY) || '';
+        if (autoApply && shouldAutoApplyVersion(result.remoteBuildId, attemptedTarget)) {
+          logger.info('version', '页面启动时发现新构建，自动清理旧缓存并刷新', {
+            currentBuildId,
+            remoteBuildId: result.remoteBuildId,
+          });
+          await forceCleanAndReload(result.remoteBuildId);
+          return;
+        }
         notifyUpdateAvailable(result.remoteVersion, result.remoteBuildId);
       }
     } catch (err) {
@@ -208,10 +242,9 @@ export const initVersionChecker = () => {
     }
   };
 
-  // 页面加载完成后延迟 10 秒首次检查，避免与首屏资源争抢
-  setTimeout(() => {
-    autoCheck();
-  }, 10 * 1000);
+  // 页面启动立即检查。若当前 HTML 属于旧构建，自动更新一次；
+  // 同一目标 buildId 已尝试过则改为弹窗，避免 CDN 尚未完成切换时循环刷新。
+  void autoCheck({ autoApply: true });
 
   // 定时轮询
   intervalId = setInterval(() => {

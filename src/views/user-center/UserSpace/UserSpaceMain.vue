@@ -12,33 +12,36 @@
     <input type="file" ref="profileBackgroundInputRef" class="hidden-file-input" accept="image/*"
       @change="handleProfileBackgroundFileChange">
 
-    <div v-if="mountedTabs.posts" v-show="currentTab === 'posts' || leavingTab === 'posts'"
+    <div v-show="currentTab === 'posts' || leavingTab === 'posts'"
       :ref="(el) => setTabPageRef('posts', el)" class="tab-page posts-tab"
       :class="{ 'is-leaving': leavingTab === 'posts' }">
-      <AsyncForum ref="forumViewRef" :key="forumRenderKey" :show-navbar="false" :show-header="false" :embedded="true"
-        @island-message="showBottomNavIsland" />
+      <KeepAlive>
+        <AsyncForum v-if="currentTab === 'posts' || leavingTab === 'posts'" ref="forumViewRef"
+          :show-navbar="false" :show-header="false" :embedded="true"
+          @island-message="showBottomNavIsland" />
+      </KeepAlive>
     </div>
 
-    <div v-if="mountedTabs.community" v-show="currentTab === 'community' || leavingTab === 'community'"
+    <div v-if="currentTab === 'community' || leavingTab === 'community'"
       :ref="(el) => setTabPageRef('community', el)" class="tab-page"
       :class="{ 'is-leaving': leavingTab === 'community' }">
       <AsyncCommunity @switch-tab="switchTab" @open-follow-modal="openUserFollowModal" />
     </div>
 
-    <div v-if="mountedTabs.shows" v-show="currentTab === 'shows' || leavingTab === 'shows'"
+    <div v-if="currentTab === 'shows' || leavingTab === 'shows'"
       :ref="(el) => setTabPageRef('shows', el)" class="tab-page shows-tab"
       :class="{ 'is-leaving': leavingTab === 'shows' }">
       <AsyncShows :embedded="true" />
     </div>
 
-    <div v-if="mountedTabs.ai" v-show="currentTab === 'ai' || leavingTab === 'ai'"
+    <div v-if="currentTab === 'ai' || leavingTab === 'ai'"
       :ref="(el) => setTabPageRef('ai', el)" class="tab-page ai-tab" :class="{ 'is-leaving': leavingTab === 'ai' }">
       <section class="ai-workspace" aria-label="BOH AI 聊天">
         <AsyncBOHAI :embedded="true" @island-message="showBottomNavIsland" />
       </section>
     </div>
 
-    <div v-if="mountedTabs.messages" v-show="currentTab === 'messages' || leavingTab === 'messages'"
+    <div v-if="currentTab === 'messages' || leavingTab === 'messages'"
       :ref="(el) => setTabPageRef('messages', el)" class="tab-page messages-tab"
       :class="{ 'is-leaving': leavingTab === 'messages' }">
       <HomeCatMascot v-if="isHomeCatActive" class="messages-tab-cat" pool="background" seed="messages-tab" size="lg"
@@ -46,7 +49,7 @@
       <AsyncMessages :minimal="true" />
     </div>
 
-    <div v-if="mountedTabs.profile" v-show="currentTab === 'profile'" :ref="(el) => setTabPageRef('profile', el)"
+    <div v-if="currentTab === 'profile'" :ref="(el) => setTabPageRef('profile', el)"
       class="tab-page profile-tab" :class="{ 'profile-home-active': profileSection === 'home' }">
       <div class="profile-page-content">
         <!-- ✅ 性能优化：静态内容使用 v-once，避免重复渲染 -->
@@ -146,7 +149,7 @@
     <CommonAlertModal v-model:visible="alertState.visible" :type="alertState.type" :title="alertState.title"
       :message="alertState.message" />
 
-    <AvatarCropModal v-model:visible="showCropModal" :image-src="cropImageSrc" :loading="isProcessingCrop"
+    <AvatarCropModal v-if="showCropModal" v-model:visible="showCropModal" :image-src="cropImageSrc" :loading="isProcessingCrop"
       :title="cropModalTitle" :hint="cropModalHint" :sub-hint="cropModalSubHint" :aspect-ratio="cropModalAspectRatio"
       :shape="cropModalShape" @confirm="handleCropConfirm" />
 
@@ -170,13 +173,13 @@ import { useRouter, useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { Bot, MessageCircle, Newspaper, User, Users } from 'lucide-vue-next';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
-import AvatarCropModal from '@/components/AvatarCropModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
 import { useEdgeSwipeGesture } from '@/composables/useEdgeSwipeGesture';
 import { useDebounce } from '@/composables/useDebounceThrottle';
 import UserSpaceBottomNav from './components/UserSpaceBottomNav.vue';
 const ProfileHomePanel = defineAsyncComponent(() => import('./components/ProfileHomePanel.vue'));
+const AvatarCropModal = defineAsyncComponent(() => import('@/components/AvatarCropModal.vue'));
 const ProfileImpressionsPanel = defineAsyncComponent(() => import('./components/ProfileImpressionsPanel.vue'));
 const ProfileSettingsPanel = defineAsyncComponent(() => import('./components/ProfileSettingsPanel.vue'));
 const EditProfilePanel = defineAsyncComponent(() => import('./components/EditProfilePanel.vue'));
@@ -200,6 +203,7 @@ import {
   preloadCommunityComponent,
   preloadForumComponent,
   preloadMessagesComponent,
+  preloadProfileStyles,
   preloadShowsComponent,
   scheduleForumPreload,
   scheduleIdleTask,
@@ -210,6 +214,7 @@ import { deleteUserImpression, getPostsByUsername, getUserImpressions, updatePro
 import FollowListModal from '@/components/FollowListModal.vue';
 import { getPushplusSettings } from '@/utils/api/pushplus-api.js';
 import { getMySubscriptions } from '@/utils/api/subscription-api.js';
+import { getMyUserSpaceSummary } from '@/utils/api/user-space-api.js';
 import { logger } from '@/utils/logger.js';
 import { listMyCloudEntries } from '@/utils/api/boh-cloud-api.js';
 import {
@@ -306,9 +311,7 @@ const profileImpressions = shallowRef([]);
 
 const hideOnlineStatus = computed(() => userInfo.value?.hideOnlineStatus ?? false);
 const hideFollowData = computed(() => userInfo.value?.hideFollowData ?? false);
-const forumRenderKey = ref(0);
 const forumViewRef = ref(null);
-const shouldRefreshForumAfterThemeChange = ref(false);
 const tabPageRefs = new Map();
 const tabScrollPositions = reactive(Object.fromEntries(
   USER_SPACE_VALID_TABS.map((tab) => [tab, 0])
@@ -346,16 +349,21 @@ const bottomNavIndicatorStyle = computed(() => {
   };
 });
 const validTabs = USER_SPACE_VALID_TABS;
+const initialUserSpaceTab = validTabs.includes(String(route.query.tab || ''))
+  ? String(route.query.tab)
+  : 'posts';
+if (initialUserSpaceTab === 'profile') {
+  void preloadProfileStyles();
+}
 const validProfileSections = ['home', 'edit-profile', 'impressions', 'sponsor', 'settings', 'data-management'];
 const tabTransitionDirection = ref('forward');
 const leavingTab = ref(null);
 const {
   currentTab,
   profileSection,
-  mountedTabs,
   navIndicatorStyle,
   ensureTabMounted
-} = useUserSpaceTabs(navItems);
+} = useUserSpaceTabs(navItems, initialUserSpaceTab);
 
 const getTabOrderIndex = (tabId) => {
   const index = navItems.findIndex((item) => item.id === tabId);
@@ -762,6 +770,8 @@ const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
   const userId = String(userInfo.value.id || '').trim();
   if (!isLoggedIn.value || !userId) return;
 
+  if (await fetchAggregatedUserSpaceSummary({ force })) return;
+
   const safeUsername = String(userInfo.value.username || '').trim();
   const cacheKey = `stats:${userId}:${safeUsername}`;
   const now = Date.now();
@@ -944,6 +954,69 @@ const cloudPlusUsageMeterStyle = computed(() => {
   const percent = Math.min(100, Math.round((used / limit) * 100));
   return { width: `${percent}%` };
 });
+let userSpaceSummaryInflight = null;
+let summaryRpcUnavailable = false;
+
+const applyUserSpaceSummary = (summary = {}) => {
+  userStats.posts = normalizeStatInt(summary.posts, userStats.posts);
+  userStats.points = normalizeStatInt(summary.points, userStats.points);
+  userStats.rank = normalizeStatInt(summary.rank, userStats.rank);
+  userStats.followers = normalizeStatInt(summary.followers, userStats.followers);
+  userStats.following = normalizeStatInt(summary.following, userStats.following);
+  cloudPlusUsage.used = normalizeStatInt(summary.cloud_image_used, cloudPlusUsage.used);
+  cloudPlusUsage.limit = Math.max(
+    DEFAULT_CLOUD_IMAGE_LIMIT,
+    normalizeStatInt(summary.cloud_image_limit, cloudPlusUsage.limit)
+  );
+  cloudPlusUsage.loaded = true;
+  dataState.stats.loading = false;
+  dataState.cloud.loading = false;
+  dataState.stats.error = null;
+  dataState.cloud.error = null;
+};
+
+const fetchAggregatedUserSpaceSummary = async ({ force = false } = {}) => {
+  const userId = String(userInfo.value.id || '').trim();
+  if (!isLoggedIn.value || !userId || summaryRpcUnavailable) return false;
+  const cacheKey = `summary:${userId}`;
+  if (!force) {
+    const cached = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.stats);
+    if (cached) {
+      applyUserSpaceSummary(cached);
+      return true;
+    }
+  }
+
+  if (!userSpaceSummaryInflight) {
+    dataState.stats.loading = true;
+    dataState.cloud.loading = true;
+    userSpaceSummaryInflight = getMyUserSpaceSummary()
+      .then((result) => {
+        if (result.unsupported) summaryRpcUnavailable = true;
+        if (!result.ok || !result.data) return false;
+        setUserSpaceCache(cacheKey, result.data);
+        applyUserSpaceSummary(result.data);
+        const now = Date.now();
+        lastFetchTime.stats = now;
+        lastFetchTime.cloudUsage = now;
+        return true;
+      })
+      .catch((error) => {
+        logger.warn('user-space', '聚合摘要加载失败，回退旧查询:', error);
+        return false;
+      })
+      .finally(() => {
+        userSpaceSummaryInflight = null;
+      });
+  }
+
+  const loaded = await userSpaceSummaryInflight;
+  if (!loaded) {
+    dataState.stats.loading = false;
+    dataState.cloud.loading = false;
+  }
+  return loaded;
+};
 const subscriptionSummaryText = computed(() => {
   if (dataState.cloud.loading) return '正在同步权益';
   if (!cloudPlusUsage.loaded) return '查看积分与额度';
@@ -1112,7 +1185,10 @@ const fetchPushplusStatus = async ({ force = false } = {}) => {
 // ✅ 性能优化：使用 AbortController 和 lastFetchTime 优化请求管理
 const fetchCloudPlusUsage = async ({ force = false } = {}) => {
   const userId = String(userInfo.value.id || '').trim();
-  if (!userId || dataState.cloud.loading) return;
+  if (!userId) return;
+
+  if (await fetchAggregatedUserSpaceSummary({ force })) return;
+  if (dataState.cloud.loading) return;
 
   const cacheKey = `cloud-usage:${userId}`;
   const now = Date.now();
@@ -1187,12 +1263,10 @@ const fetchCloudPlusUsage = async ({ force = false } = {}) => {
 const handleThemeChange = (theme, preference = themeManager.getPreference?.() || theme) => {
   currentTheme.value = theme;
   currentThemePreference.value = preference;
-  shouldRefreshForumAfterThemeChange.value = true;
   // 同步更新页面的 data-theme 属性
   if (userSpacePageEl) {
     userSpacePageEl.setAttribute('data-theme', theme);
   }
-  void refreshForumAfterThemeChange();
 };
 
 const openThemeModal = () => {
@@ -1201,13 +1275,6 @@ const openThemeModal = () => {
 
 const closeThemeModal = () => {
   showThemeModal.value = false;
-};
-
-const refreshForumAfterThemeChange = async () => {
-  if (!shouldRefreshForumAfterThemeChange.value || currentTab.value !== 'posts') return;
-  shouldRefreshForumAfterThemeChange.value = false;
-  await nextTick();
-  forumRenderKey.value += 1;
 };
 
 const activateForumTab = async () => {
@@ -1612,7 +1679,10 @@ const preloadUserSpaceTab = (tabId) => {
   } else if (safeTab === 'community') {
     scheduleIdleTask('tab:community', () => void preloadCommunityComponent(), { timeout: 2400, fallbackDelay: 420 });
   } else if (safeTab === 'profile' && isLoggedIn.value) {
-    scheduleIdleTask('tab:profile', () => scheduleUserSpaceWarmup(), { timeout: 2400, fallbackDelay: 420 });
+    scheduleIdleTask('tab:profile', () => {
+      void preloadProfileStyles();
+      scheduleUserSpaceWarmup();
+    }, { timeout: 2400, fallbackDelay: 420 });
   }
 };
 
@@ -1660,6 +1730,7 @@ const switchTab = (tabId) => {
   const previousTab = currentTab.value;
   saveTabScrollPosition(previousTab);
   if (tabId === 'profile') {
+    void preloadProfileStyles();
     if (currentTab.value !== 'profile') {
       profileSection.value = 'home';
     }
@@ -1680,7 +1751,6 @@ const switchTab = (tabId) => {
   }, TAB_LEAVE_CLEAR_DELAY_MS);
   if (tabId === 'posts') {
     void preloadForumComponent();
-    void refreshForumAfterThemeChange();
     void activateForumTab();
   }
   if (tabId === 'ai') {
@@ -2082,7 +2152,6 @@ const runProfileCriticalFetches = ({ force = false } = {}) => {
   void fetchUserStats({ force });
   void fetchCloudPlusUsage({ force });
   void fetchProfileContent({ force, reset: force });
-  void fetchProfileImpressions({ force });
 };
 
 const scheduleUserSpaceWarmup = ({ force = false } = {}) => {
@@ -2238,10 +2307,10 @@ watch(() => route.query.tab, (newTab) => {
   resolveProfileSectionFromRoute();
   if (nextTab === 'posts') {
     scheduleForumPreload(currentTab.value);
-    void refreshForumAfterThemeChange();
     void activateForumTab();
   }
   if (nextTab === 'profile') {
+    void preloadProfileStyles();
     runProfileCriticalFetches();
     void openSettingsPanelFromRoute();
   }
@@ -2306,9 +2375,6 @@ const handleUnreadRefresh = (event) => {
 </script>
 
 <style src="./styles/shell-community.css"></style>
-<style src="./styles/profile-base.css"></style>
-<style src="./styles/profile-panels.css"></style>
-<style src="./styles/responsive-integrations.css"></style>
 
 <style scoped>
 .hidden-file-input {

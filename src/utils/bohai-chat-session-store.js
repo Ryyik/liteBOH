@@ -21,6 +21,7 @@ export const createBohAIChatSessionSanitizer = ({
 
     return {
       title: String(session.title || '新对话'),
+      pinned: Boolean(session.pinned),
       messages,
       timestamp: Number.isFinite(Number(session.timestamp)) ? Number(session.timestamp) : Date.now(),
       contextSummary: session.contextSummary && typeof session.contextSummary === 'object'
@@ -69,7 +70,7 @@ export const saveBohAIChatSessionsToStorage = ({
 } = {}) => {
   if (!storage) return false;
   const sessionsToSave = Array.isArray(sessions)
-    ? sessions.slice(0, BOHAI_CHAT_SESSIONS_MAX_ITEMS).map(sanitizeSession)
+    ? sessions.filter((session) => !session?.temporary).slice(0, BOHAI_CHAT_SESSIONS_MAX_ITEMS).map(sanitizeSession)
     : [];
 
   const saveData = (data) => {

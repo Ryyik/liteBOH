@@ -9,6 +9,12 @@ export const useForumImageModerationPreload = (preloadForumImageModeration) => {
     const effectiveType = String(connection?.effectiveType || '').toLowerCase();
     if (connection?.saveData) return false;
     if (effectiveType === 'slow-2g' || effectiveType === '2g') return false;
+    const deviceMemory = Number(navigator.deviceMemory || 0);
+    const isCoarsePointer = window.matchMedia?.('(pointer: coarse)')?.matches === true;
+    const shortScreenSide = Math.min(Number(window.screen?.width || 0), Number(window.screen?.height || 0));
+    if ((deviceMemory > 0 && deviceMemory <= 4) || isCoarsePointer || (shortScreenSide > 0 && shortScreenSide <= 900)) {
+      return false;
+    }
     return true;
   };
 

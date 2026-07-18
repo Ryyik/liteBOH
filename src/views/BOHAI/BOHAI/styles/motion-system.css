@@ -1,0 +1,259 @@
+.bohai-page {
+  --bohai-motion-fast: 140ms;
+  --bohai-motion-base: 220ms;
+  --bohai-motion-slow: 360ms;
+  --bohai-motion-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+  --bohai-motion-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+.bohai-page.standalone-mode .full-ai-toolbar {
+  animation: bohai-toolbar-enter var(--bohai-motion-slow) var(--bohai-motion-emphasized) both;
+}
+
+.bohai-page .empty-brand {
+  animation: bohai-empty-brand-enter 480ms var(--bohai-motion-emphasized) 40ms both;
+}
+
+.bohai-page .empty-state h2 {
+  animation: bohai-rise-in var(--bohai-motion-slow) var(--bohai-motion-emphasized) 100ms both;
+}
+
+.bohai-page .empty-subtitle {
+  animation: bohai-rise-in var(--bohai-motion-slow) var(--bohai-motion-emphasized) 150ms both;
+}
+
+.bohai-page .full-ai-suggestions button,
+.bohai-page .quick-context-suggestions button {
+  animation: bohai-rise-in var(--bohai-motion-slow) var(--bohai-motion-emphasized) both;
+  animation-delay: calc(190ms + var(--bohai-item-order, 0) * 45ms);
+  transition:
+    transform var(--bohai-motion-fast) var(--bohai-motion-standard),
+    background-color var(--bohai-motion-fast) ease,
+    border-color var(--bohai-motion-fast) ease,
+    box-shadow var(--bohai-motion-fast) ease;
+}
+
+.bohai-page .full-ai-suggestions button:hover,
+.bohai-page .quick-context-suggestions button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.07);
+}
+
+.bohai-page .full-ai-suggestions button:active,
+.bohai-page .quick-context-suggestions button:active {
+  transform: translateY(0) scale(0.985);
+}
+
+.bohai-page .input-area {
+  animation: bohai-composer-enter 420ms var(--bohai-motion-emphasized) 170ms both;
+}
+
+.bohai-page .input-box {
+  transition:
+    transform var(--bohai-motion-base) var(--bohai-motion-emphasized),
+    border-color var(--bohai-motion-base) ease,
+    background-color var(--bohai-motion-base) ease,
+    box-shadow var(--bohai-motion-base) ease;
+}
+
+.bohai-page .input-box:focus-within {
+  transform: translateY(-2px);
+  border-color: rgba(17, 17, 17, 0.18);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.09);
+}
+
+.bohai-page .features-btn,
+.bohai-page .send-btn,
+.bohai-page .stop-btn,
+.bohai-page .message-action-btn,
+.bohai-page .delete-message-btn,
+.bohai-page .full-ai-toolbar-btn,
+.bohai-page .full-ai-new-chat-btn,
+.bohai-page .composer-mode-button,
+.bohai-page .composer-chip {
+  transition:
+    transform var(--bohai-motion-fast) var(--bohai-motion-standard),
+    color var(--bohai-motion-fast) ease,
+    background-color var(--bohai-motion-fast) ease,
+    border-color var(--bohai-motion-fast) ease,
+    opacity var(--bohai-motion-fast) ease,
+    box-shadow var(--bohai-motion-fast) ease;
+}
+
+.bohai-page .features-btn:hover,
+.bohai-page .send-btn:not(:disabled):hover,
+.bohai-page .stop-btn:hover,
+.bohai-page .message-action-btn:hover,
+.bohai-page .delete-message-btn:hover,
+.bohai-page .full-ai-toolbar-btn:hover,
+.bohai-page .full-ai-new-chat-btn:hover,
+.bohai-page .composer-mode-button:hover {
+  transform: translateY(-1px);
+}
+
+.bohai-page .features-btn:active,
+.bohai-page .send-btn:not(:disabled):active,
+.bohai-page .stop-btn:active,
+.bohai-page .message-action-btn:active,
+.bohai-page .delete-message-btn:active,
+.bohai-page .full-ai-toolbar-btn:active,
+.bohai-page .full-ai-new-chat-btn:active,
+.bohai-page .composer-mode-button:active {
+  transform: scale(0.94);
+}
+
+.bohai-page .send-btn:not(:disabled) {
+  animation: bohai-send-ready 240ms var(--bohai-motion-emphasized) both;
+}
+
+.bohai-page .message-wrapper {
+  animation: bohai-message-enter var(--bohai-motion-slow) var(--bohai-motion-emphasized) both;
+  animation-delay: calc(min(var(--bohai-item-order, 0), 8) * 18ms);
+}
+
+.bohai-page .message-wrapper.user {
+  transform-origin: right bottom;
+}
+
+.bohai-page .message-wrapper.assistant {
+  transform-origin: left bottom;
+}
+
+.bohai-page .message-actions {
+  transition: opacity var(--bohai-motion-base) ease, transform var(--bohai-motion-base) var(--bohai-motion-emphasized);
+  transform: translateY(2px);
+}
+
+.bohai-page .message-wrapper:hover .message-actions,
+.bohai-page .message-actions:focus-within {
+  transform: translateY(0);
+}
+
+.bohai-page .message-meta-panel,
+.bohai-page .plan-todo-card,
+.bohai-page .context-full-banner,
+.bohai-page .composer-chips,
+.bohai-page .ai-question-inline {
+  animation: bohai-expand-in var(--bohai-motion-base) var(--bohai-motion-emphasized) both;
+  transform-origin: top center;
+}
+
+.bohai-page .message-action-btn.active,
+.bohai-page .composer-chip,
+.bohai-page .feature-action-check {
+  animation: bohai-control-pop 220ms var(--bohai-motion-emphasized) both;
+}
+
+.bohai-page .ai-question-option,
+.bohai-page .ai-question-btn {
+  transition: transform var(--bohai-motion-fast) ease, background-color var(--bohai-motion-fast) ease, border-color var(--bohai-motion-fast) ease;
+}
+
+.bohai-page .ai-question-option:hover { transform: translateX(2px); }
+.bohai-page .ai-question-option:active,
+.bohai-page .ai-question-btn:active { transform: scale(0.985); }
+
+.bohai-page .features-menu,
+.bohai-page .composer-mode-menu,
+.bohai-page .slash-command-menu {
+  animation: bohai-menu-enter var(--bohai-motion-base) var(--bohai-motion-emphasized) both;
+  transform-origin: bottom center;
+}
+
+.bohai-page .feature-action-row,
+.bohai-page .composer-mode-option,
+.bohai-page .slash-command-row {
+  transition: transform var(--bohai-motion-fast) ease, background-color var(--bohai-motion-fast) ease;
+}
+
+.bohai-page .feature-action-row:hover,
+.bohai-page .composer-mode-option:hover,
+.bohai-page .slash-command-row:hover {
+  transform: translateX(2px);
+}
+
+.bohai-page .thinking-dot,
+.bohai-page .context-ring-wrap {
+  will-change: transform, opacity;
+}
+
+.bohai-page .searching-status-copy strong,
+.bohai-page .searching-status-track::after {
+  will-change: background-position;
+}
+
+.bohai-page .load-earlier-btn,
+.bohai-page .conversation-jump-item {
+  transition: transform var(--bohai-motion-fast) ease, opacity var(--bohai-motion-fast) ease, background-color var(--bohai-motion-fast) ease;
+}
+
+.bohai-page .load-earlier-btn:hover,
+.bohai-page .conversation-jump-item:hover {
+  transform: translateY(-1px);
+}
+
+@keyframes bohai-toolbar-enter {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bohai-empty-brand-enter {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); filter: blur(5px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+@keyframes bohai-rise-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bohai-composer-enter {
+  from { opacity: 0; transform: translateY(18px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes bohai-message-enter {
+  from { opacity: 0; transform: translateY(10px) scale(0.992); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes bohai-expand-in {
+  from { opacity: 0; transform: translateY(-5px) scaleY(0.96); }
+  to { opacity: 1; transform: translateY(0) scaleY(1); }
+}
+
+@keyframes bohai-menu-enter {
+  from { opacity: 0; transform: translateY(7px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes bohai-send-ready {
+  from { opacity: 0.55; transform: scale(0.78) rotate(-8deg); }
+  to { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+@keyframes bohai-control-pop {
+  0% { opacity: 0.55; transform: scale(0.82); }
+  70% { transform: scale(1.06); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.bohai-page.reduce-motion *,
+.bohai-page.reduce-motion *::before,
+.bohai-page.reduce-motion *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 1ms !important;
+  animation-delay: 0ms !important;
+  transition-duration: 1ms !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bohai-page *,
+  .bohai-page *::before,
+  .bohai-page *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 1ms !important;
+  }
+}

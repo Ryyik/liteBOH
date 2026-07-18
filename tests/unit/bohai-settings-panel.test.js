@@ -165,11 +165,11 @@ describe('BohaiSettingsPanel 组件结构验证', () => {
       'chatModes',
       'currentResponseStyleId',
       'responseStyleOptions',
-      'isSearching',
       'isTreeholeMemoryEnabled',
       'isSharedMemoryEnabled',
-      'contextBudgetUsage',
-      'contextBudgetPercentText'
+      'isTreeholeMemoryToggling',
+      'memoryStatusText',
+      'resolvedTheme'
     ];
     for (const prop of requiredProps) {
       expect(content).toContain(prop);
@@ -182,9 +182,9 @@ describe('BohaiSettingsPanel 组件结构验证', () => {
       'update:modelValue',
       'selectMode',
       'selectResponseStyle',
-      'update:isSearching',
-      'update:isTreeholeMemoryEnabled',
-      'update:isSharedMemoryEnabled',
+      'selectThinkingSpeed',
+      'toggleTreeholeMemory',
+      'toggleSharedMemory',
       'clearCurrentChat',
       'exportChatData',
       'clearAllChatData'
@@ -196,7 +196,7 @@ describe('BohaiSettingsPanel 组件结构验证', () => {
 
   it('使用 Teleport 渲染到 body', () => {
     const content = readComponent();
-    expect(content).toContain('<Teleport to="body">');
+    expect(content).toContain('<Teleport to="body" :disabled="embedded">');
   });
 
   it('包含设置面板的 ARIA 无障碍属性', () => {
@@ -220,7 +220,7 @@ describe('BohaiSettingsPanel 组件结构验证', () => {
 
   it('导出所有需要的图标组件', () => {
     const content = readComponent();
-    const icons = ['X', 'Settings', 'Globe', 'Check', 'Trash2'];
+    const icons = ['X', 'ArrowLeft', 'Settings', 'Check', 'Trash2'];
     for (const icon of icons) {
       expect(content).toContain(icon);
     }
@@ -251,11 +251,11 @@ describe('BOHAIMain.vue 引用 BohaiSettingsPanel 验证', () => {
       ':chat-modes',
       ':current-response-style-id',
       ':response-style-options',
-      ':is-searching',
       ':is-treehole-memory-enabled',
       ':is-shared-memory-enabled',
-      ':context-budget-usage',
-      ':context-budget-percent-text'
+      ':is-treehole-memory-toggling',
+      ':memory-status-text',
+      ':resolved-theme'
     ];
     for (const binding of requiredBindings) {
       expect(content).toContain(binding);
@@ -267,9 +267,9 @@ describe('BOHAIMain.vue 引用 BohaiSettingsPanel 验证', () => {
     const requiredEvents = [
       '@select-mode',
       '@select-response-style',
-      '@update:is-searching',
-      '@update:is-treehole-memory-enabled',
-      '@update:is-shared-memory-enabled',
+      '@select-thinking-speed',
+      '@toggle-treehole-memory',
+      '@toggle-shared-memory',
       '@clear-current-chat',
       '@export-chat-data',
       '@clear-all-chat-data'
@@ -278,12 +278,39 @@ describe('BOHAIMain.vue 引用 BohaiSettingsPanel 验证', () => {
       expect(content).toContain(event);
     }
   });
+
+  it('完整 AI 页面接入主题、密度和字号设置', () => {
+    const content = readMain();
+    expect(content).toContain(':data-theme="resolvedAiTheme"');
+    expect(content).toContain(':data-density="globalAiPreferences.density"');
+    expect(content).toContain(':data-font-scale="globalAiPreferences.fontScale"');
+  });
+
+  it('清除操作调用会话管理正式接口', () => {
+    const content = readMain();
+    expect(content).toContain('clearCurrentSession();');
+    expect(content).toContain('clearAllSessions();');
+  });
+
+  it('设置页显示 Token 百分比、数值和进度条', () => {
+    const content = readComponent();
+    expect(content).toContain('ai-settings-quota-overview');
+    expect(content).toContain('quotaPercent');
+    expect(content).toContain('quotaPercentLabel');
+    expect(content).toContain('quotaUsed');
+    expect(content).toContain('role="progressbar"');
+    expect(content).toContain('quotaLimit === -1');
+    expect(content).toContain("'has-usage': quotaPercent > 0");
+    expect(content).not.toContain('Math.round((quotaUsed.value / quotaLimit.value) * 100)');
+  });
 });
 
 // ============================================================
 // 测试 useChatEngine.js 正确引用 chatErrorMessages
 // ============================================================
 const chatEnginePath = resolve(projectRoot, 'src/views/BOHAI/composables/useChatEngine.js');
+const modelConfigPath = resolve(projectRoot, 'src/views/BOHAI/composables/useModelConfig.js');
+const conversationManagerPath = resolve(projectRoot, 'src/views/BOHAI/composables/useConversationManager.js');
 
 function readChatEngine() {
   return readFileSync(chatEnginePath, 'utf-8');
@@ -292,7 +319,7 @@ function readChatEngine() {
 describe('useChatEngine.js 引用 chatErrorMessages 验证', () => {
   it('导入了 chatErrorMessages 工具函数', () => {
     const content = readChatEngine();
-    expect(content).toContain("import { isAbortError, CHAT_ERROR_MESSAGES, getAbortMessage } from '../utils/chatErrorMessages.js'");
+    expect(content).toContain("import { isAbortError, CHAT_ERROR_MESSAGES, getAbortMessage, safeErrorDetail } from '../utils/chatErrorMessages.js'");
   });
 
   it('使用 isAbortError 替代了 error?.name 直接比较', () => {
@@ -316,5 +343,25 @@ describe('useChatEngine.js 引用 chatErrorMessages 验证', () => {
   it('使用 getAbortMessage 统一停止消息', () => {
     const content = readChatEngine();
     expect(content).toContain('getAbortMessage(');
+  });
+
+  it('新对话不会覆盖用户保存的默认响应模式和社区知识设置', () => {
+    const content = readChatEngine();
+    const startNewChatBlock = content.match(/const startNewChat = \(\) => \{[\s\S]*?\n  \};/)?.[0] || '';
+    expect(startNewChatBlock).not.toContain('currentModeId.value = BOH_DEFAULT_MODE_ID');
+    expect(startNewChatBlock).not.toContain('isSharedMemoryEnabled.value = false');
+  });
+
+  it('记忆设置使用布尔值持久化', () => {
+    const content = readFileSync(modelConfigPath, 'utf-8');
+    expect(content).toContain("localStorage.setItem(TREEHOLE_MEMORY_SYNC_SETTING_KEY, isTreeholeMemoryEnabled.value ? '1' : '0')");
+    expect(content).toContain("localStorage.setItem(SHARED_MEMORY_SETTING_KEY, isSharedMemoryEnabled.value ? '1' : '0')");
+  });
+
+  it('会话管理提供当前与全部清理接口', () => {
+    const content = readFileSync(conversationManagerPath, 'utf-8');
+    expect(content).toContain('const clearCurrentSession = () =>');
+    expect(content).toContain('const clearAllSessions = () =>');
+    expect(content).toContain('chatSessions.splice(0, chatSessions.length');
   });
 });

@@ -732,28 +732,6 @@
   -webkit-backdrop-filter: none !important;
 }
 
-.forum-page[data-theme="dark"] .image-compression-modal {
-  background: rgba(24, 24, 32, 0.96);
-}
-
-.forum-page[data-theme="dark"] .image-compression-modal h3 {
-  color: #f9fafb;
-}
-
-.forum-page[data-theme="dark"] .image-compression-modal p {
-  color: #d1d5db;
-}
-
-.forum-page[data-theme="dark"] .image-compression-action.secondary {
-  background: rgba(255, 255, 255, 0.1);
-  color: #f3f4f6;
-}
-
-.forum-page[data-theme="dark"] .image-compression-action.primary {
-  background: #f9fafb;
-  color: #111827;
-}
-
 .forum-confirm-overlay {
   position: fixed;
   inset: 0;

@@ -826,6 +826,7 @@ import ApiKeyConsole from './components/ApiKeyConsole.vue';
 import LabAiModelConfig from './components/LabAiModelConfig.vue';
 import ModerationModelConfig from './components/ModerationModelConfig.vue';
 import FreemodelsConfig from './components/FreemodelsConfig.vue';
+import AiQuotaConfigConsole from './components/AiQuotaConfigConsole.vue';
 import EditDrawer from './components/EditDrawer.vue';
 import DashboardSheet from './components/shared/DashboardSheet.vue';
 import DashboardPagination from './components/shared/DashboardPagination.vue';
@@ -1228,6 +1229,7 @@ const isTableTab = computed(() => !isPageTab.value);
 const PAGE_TAB_COMPONENTS = {
   'api-keys': ApiKeyConsole,
   'freemodels': FreemodelsConfig,
+  'ai-quota': AiQuotaConfigConsole,
   'moderation-model': ModerationModelConfig,
   'lab-ai-model': LabAiModelConfig
 };

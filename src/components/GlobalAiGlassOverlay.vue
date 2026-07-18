@@ -5,31 +5,68 @@
       'is-dragging': isDragging,
       'is-snapping': isSnapping,
       'is-fullscreen': isFullscreen,
+      'is-history-open': panelState.sidebarOpen,
+      'reduce-motion': !preferences.animationsEnabled,
       'keyboard-visible': keyboardVisible
-    }" :data-theme="theme" :style="overlayStyle" role="dialog" aria-modal="true" aria-label="BOH AI 快速对话">
+    }" :data-theme="resolvedTheme" :data-density="preferences.density" :data-font-scale="preferences.fontScale" :style="overlayStyle" role="dialog" aria-modal="true" aria-label="BOH AI 快速对话">
 
-      <div v-if="isMobile" class="global-ai-glass-handle" @touchstart="onHandleTouchStart"
-        @touchmove="onHandleTouchMove" @touchend="onHandleTouchEnd">
+      <div v-if="isMobile" class="global-ai-glass-handle" role="button" aria-label="拖动调整面板高度"
+        @pointerdown="onHandlePointerDown" @pointermove="onHandlePointerMove"
+        @pointerup="onHandlePointerUp" @pointercancel="onHandlePointerUp">
         <div class="global-ai-glass-handle-bar"></div>
       </div>
 
-      <button v-if="isOpen" class="global-ai-glass-close" type="button" aria-label="关闭 BOH AI" @click="close">
-        <X :size="19" :stroke-width="2" aria-hidden="true" />
-      </button>
+      <header v-if="isOpen && !panelState.settingsOpen" class="global-ai-quick-header">
+        <button class="global-ai-header-btn" type="button" :aria-label="panelState.sidebarOpen ? '关闭历史记录' : '打开历史记录'" title="历史记录"
+          @click="toggleHistory">
+          <PanelLeft :size="19" aria-hidden="true" />
+        </button>
+        <div class="global-ai-header-copy">
+          <strong>{{ panelState.title || 'BOH AI' }}</strong>
+          <span>{{ panelState.temporary ? '临时对话 · 不保存' : '快捷对话' }}</span>
+        </div>
+        <button v-if="pageContext.available" class="global-ai-context-btn" :class="{ attached: pageContext.attached }"
+          type="button" :title="pageContext.attached ? '已附加当前页面' : '附加当前页面上下文'" @click="attachPageContext">
+          <Paperclip :size="16" />
+          <span>{{ pageContext.attached ? '已附加' : pageContext.label }}</span>
+        </button>
+        <div class="global-ai-header-actions">
+          <button class="global-ai-header-btn global-ai-settings-button" type="button" title="设置" aria-label="打开设置" @click="openSettings">
+            <SlidersHorizontal :size="18" aria-hidden="true" />
+          </button>
+          <button v-if="isMobile" class="global-ai-header-btn global-ai-fullscreen-button" type="button"
+            :title="isFullscreen ? '恢复面板高度' : '全屏'" :aria-label="isFullscreen ? '恢复面板高度' : '全屏'"
+            @click="toggleFullscreen">
+            <Minimize2 v-if="isFullscreen" :size="18" aria-hidden="true" />
+            <Maximize2 v-else :size="18" aria-hidden="true" />
+          </button>
+          <button class="global-ai-header-btn global-ai-full-page-button" type="button" title="在完整页面打开" aria-label="在完整页面打开"
+            @click="openFullPage">
+            <ExternalLink :size="18" aria-hidden="true" />
+          </button>
+          <button class="global-ai-header-btn" type="button" aria-label="关闭 BOH AI" title="关闭 (Esc)" @click="close">
+            <X :size="19" :stroke-width="2" aria-hidden="true" />
+          </button>
+        </div>
+      </header>
 
       <div v-if="mountedOnce" class="global-ai-glass-chat" ref="chatRef">
-        <BOHAIChat :embedded="true" :overlay-mode="true" @island-message="$emit('island-message', $event)" />
+        <BOHAIChat ref="chatApiRef" :embedded="true" :overlay-mode="true" :quick-active="isOpen"
+          :quick-suggestions="pageContext.suggestions"
+          @overlay-state="handleOverlayState" @island-message="$emit('island-message', $event)" />
       </div>
     </div>
   </Teleport>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { X } from 'lucide-vue-next'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { X, PanelLeft, ExternalLink, SlidersHorizontal, Paperclip, Maximize2, Minimize2 } from 'lucide-vue-next'
 import { defineAsyncComponent, h } from 'vue'
-import AiChatSkeleton from '@/views/user-center/UserSpace/components/AiChatSkeleton.vue'
+import { useRouter } from 'vue-router'
+import AiChatSkeleton from '@/components/AiChatLoadingSkeleton.vue'
 import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay'
+import { useGlobalAiPreferences } from '@/composables/useGlobalAiPreferences.js'
 
 const BOHAIChat = defineAsyncComponent({
   loader: () => import('@/views/BOHAI/BOHAI/BOHAIMain.vue'),
@@ -47,7 +84,7 @@ const BOHAIChat = defineAsyncComponent({
   timeout: 15000
 })
 
-defineProps({
+const props = defineProps({
   theme: { type: String, default: '' },
   show: { type: Boolean, default: true }
 })
@@ -58,11 +95,15 @@ const {
   isOpen, isDragging, dragProgress,
   close, setOverlayHeight, startDrag, moveDrag, endDrag
 } = useGlobalAiOverlay()
+const { preferences } = useGlobalAiPreferences()
+const router = useRouter()
 
 const overlayRef = ref(null)
 const chatRef = ref(null)
+const chatApiRef = ref(null)
 const isSnapping = ref(false)
 const isMobile = ref(false)
+const isPortrait = ref(false)
 const mountedOnce = ref(false)
 const keyboardVisible = ref(false)
 const keyboardHeight = ref(0)
@@ -76,19 +117,33 @@ let baselineVisualHeight = 0
 let snapTimer = null
 // 焦点是否在遮罩内的可编辑控件
 let isEditingFocused = false
+const panelState = ref({ sidebarOpen: false, title: 'BOH AI', temporary: false, settingsOpen: false })
+const pageContext = ref({ available: false, attached: false, label: '当前页面', text: '', suggestions: [] })
+
+const resolvedTheme = computed(() => {
+  if (preferences.appearance === 'light' || preferences.appearance === 'dark') return preferences.appearance
+  return props.theme || 'light'
+})
 
 function checkMobile() {
+  const wasPortrait = isPortrait.value
   isMobile.value = window.innerWidth <= 1023
+  isPortrait.value = isMobile.value && window.innerHeight >= window.innerWidth
+  if (!wasPortrait && isPortrait.value && isOpen.value) {
+    nextTick(() => {
+      chatApiRef.value?.resetQuickNavigation?.()
+      panelState.value = { ...panelState.value, sidebarOpen: false, settingsOpen: false }
+    })
+  }
 }
 
 const isFullscreen = computed(() => dragProgress.value >= 1.9)
 
 function translateYPercent(p) {
-  // 半屏状态：确保面板高度足够显示输入框（至少60%屏幕高度）
-  // 增加面板可见高度，确保输入框在可见区域内
-  if (p <= 1) return 100 - 60 * p  // 当p=1时，返回40%，面板可见高度为60%
+  // 默认舒适高度为 72%，保留上方页面语境；继续上拉可进入全屏。
+  if (p <= 1) return 100 - 72 * p
   // 全屏状态：平滑过渡到0%
-  return 40 - 40 * (p - 1)
+  return 28 - 28 * (p - 1)
 }
 
 // 取当前可见高度作为参考（iOS Safari 中视觉视口高度 = URL 栏/工具栏之间的可见区域）
@@ -134,23 +189,94 @@ const overlayStyle = computed(() => {
   }
 })
 
-function onHandleTouchStart(e) {
+function onHandlePointerDown(e) {
+  if (e.button !== undefined && e.button !== 0) return
   e.stopPropagation()
   if (isSnapping.value) return
-  const touch = e.touches[0]
-  startDrag(touch.clientY)
+  e.currentTarget?.setPointerCapture?.(e.pointerId)
+  startDrag(e.clientY)
 }
 
-function onHandleTouchMove(e) {
+function onHandlePointerMove(e) {
   e.preventDefault()
   if (!isDragging.value) return
-  const touch = e.touches[0]
-  moveDrag(touch.clientY)
+  moveDrag(e.clientY)
 }
 
-function onHandleTouchEnd() {
+function onHandlePointerUp(e) {
   if (!isDragging.value) return
+  e.currentTarget?.releasePointerCapture?.(e.pointerId)
   endDrag()
+}
+
+function toggleFullscreen() {
+  dragProgress.value = isFullscreen.value ? 1 : 2
+  isSnapping.value = true
+  clearTimeout(snapTimer)
+  snapTimer = setTimeout(() => { isSnapping.value = false }, 320)
+}
+
+function handleOverlayState(nextState = {}) {
+  panelState.value = { ...panelState.value, ...nextState }
+}
+
+function toggleHistory() {
+  chatApiRef.value?.toggleSidebar?.()
+}
+
+function openSettings() {
+  chatApiRef.value?.openSettings?.()
+}
+
+function openFullPage() {
+  close()
+  router.push('/ai-chat')
+}
+
+function capturePageContext() {
+  const selection = preferences.selectionContextEnabled
+    ? String(window.getSelection?.()?.toString() || '').trim().slice(0, 1800)
+    : ''
+  const title = String(document.title || '').replace(/\s*[-|]\s*BOH.*$/i, '').trim().slice(0, 120)
+  const url = window.location.href
+  const path = window.location.hash || window.location.pathname
+  let suggestions = ['帮我整理一个计划', '总结一下我的想法', '快速查找相关信息']
+  if (/forum|post/i.test(path)) suggestions = ['总结当前帖子', '帮我起草一条回复', '提取讨论中的关键观点']
+  else if (/profile|user-space/i.test(path)) suggestions = ['总结这个页面', '帮我完善个人介绍', '整理最近要做的事']
+  else if (/lab/i.test(path)) suggestions = ['解释当前工具', '帮我设计处理步骤', '检查我的输出思路']
+  const parts = []
+  if (title) parts.push(`页面标题：${title}`)
+  parts.push(`页面地址：${url}`)
+  if (selection) parts.push(`选中的内容：\n${selection}`)
+  pageContext.value = {
+    available: Boolean(title || selection),
+    attached: false,
+    label: selection ? '选中文本' : '当前页面',
+    text: `【当前页面上下文】\n${parts.join('\n')}`,
+    suggestions
+  }
+}
+
+function attachPageContext() {
+  if (!pageContext.value.available || pageContext.value.attached) return
+  const hostMain = document.querySelector('#app main')
+  const excerpt = String(hostMain?.innerText || '').replace(/\n{3,}/g, '\n\n').trim().slice(0, 4000)
+  const contextText = `${pageContext.value.text}${excerpt ? `\n页面正文摘录：\n${excerpt}` : ''}`
+  chatApiRef.value?.appendToComposer?.(contextText)
+  pageContext.value.attached = true
+}
+
+async function applyOpenPreferences() {
+  capturePageContext()
+  await nextTick()
+  // Quick chat always opens in the compact conversation view. History and
+  // settings are explicit, per-open navigation choices.
+  chatApiRef.value?.resetQuickNavigation?.()
+  panelState.value = { ...panelState.value, sidebarOpen: false, settingsOpen: false }
+  if (preferences.openBehavior === 'new') chatApiRef.value?.startNewChat?.()
+  if (preferences.openBehavior === 'temporary') chatApiRef.value?.startTemporaryChat?.()
+  if (preferences.pageContextEnabled) attachPageContext()
+  if (preferences.autoFocus) chatApiRef.value?.focusComposer?.()
 }
 
 watch(isDragging, (val) => {
@@ -164,33 +290,21 @@ watch(isDragging, (val) => {
 })
 
 watch(isOpen, (val) => {
-  if (val) {
-    if (!mountedOnce.value) mountedOnce.value = true
-    isSnapping.value = true
-    clearTimeout(snapTimer)
-    snapTimer = setTimeout(() => {
-      isSnapping.value = false
-    }, 600)
-    
-    // 调试日志：显示层级信息
-    setTimeout(() => {
-      const glassOverlay = document.querySelector('.global-ai-glass-overlay');
-      const quotaBackdrop = document.querySelector('.quota-backdrop');
-      console.log('===== GlobalAiGlassOverlay 层级调试 =====');
-      console.log('GlobalAiGlassOverlay (.global-ai-glass-overlay):', {
-        存在: !!glassOverlay,
-        computedZIndex: glassOverlay ? getComputedStyle(glassOverlay).zIndex : 'N/A',
-        DOM位置: glassOverlay ? Array.from(document.body.children).indexOf(glassOverlay) : 'N/A'
-      });
-      console.log('AiQuotaSidePanel (.quota-backdrop):', {
-        存在: !!quotaBackdrop,
-        computedZIndex: quotaBackdrop ? getComputedStyle(quotaBackdrop).zIndex : 'N/A',
-        DOM位置: quotaBackdrop ? Array.from(document.body.children).indexOf(quotaBackdrop) : 'N/A'
-      });
-      console.log('==========================================');
-    }, 100);
+  document.body.classList.toggle('global-ai-glass-open', val)
+  if (!val) {
+    chatApiRef.value?.closeOverlayPanels?.()
+    panelState.value = { ...panelState.value, sidebarOpen: false, settingsOpen: false }
+    return
   }
-})
+
+  if (!mountedOnce.value) mountedOnce.value = true
+  void applyOpenPreferences()
+  isSnapping.value = true
+  clearTimeout(snapTimer)
+  snapTimer = setTimeout(() => {
+    isSnapping.value = false
+  }, 600)
+}, { immediate: true })
 
 function isEditableElement(el) {
   if (!el) return false
@@ -321,11 +435,17 @@ watch(keyboardVisible, (val) => {
   }
 })
 
-onMounted(() => {
-  // 组件挂载时立即设置 mountedOnce，确保 BOHAIChat 可以渲染
-  mountedOnce.value = true
-  document.body.classList.add('global-ai-glass-open')
+function focusComposerFromShortcut() {
+  if (isOpen.value) chatApiRef.value?.focusComposer?.()
+}
 
+function handleOverlayKeydown(event) {
+  if (!isOpen.value || event.key !== 'Escape') return
+  event.preventDefault()
+  if (!chatApiRef.value?.handleEscapeLayer?.()) close()
+}
+
+onMounted(() => {
   // iOS键盘弹出时，阻止viewport自动调整
   // 添加临时meta标签，阻止iOS缩放和调整viewport
   const viewportMeta = document.querySelector('meta[name="viewport"]')
@@ -348,6 +468,8 @@ onMounted(() => {
   // 监听焦点进出（仅在遮罩内的可编辑元素）
   document.addEventListener('focusin', onOverlayFocusIn)
   document.addEventListener('focusout', onOverlayFocusOut)
+  window.addEventListener('boh-ai-focus-composer', focusComposerFromShortcut)
+  window.addEventListener('keydown', handleOverlayKeydown)
 
   updateViewport()
   const el = overlayRef.value
@@ -370,6 +492,8 @@ onUnmounted(() => {
   }
   document.removeEventListener('focusin', onOverlayFocusIn)
   document.removeEventListener('focusout', onOverlayFocusOut)
+  window.removeEventListener('boh-ai-focus-composer', focusComposerFromShortcut)
+  window.removeEventListener('keydown', handleOverlayKeydown)
   clearTimeout(snapTimer)
 })
 </script>
@@ -382,7 +506,7 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 2147483656; /* 略低于限额面板，确保限额面板可以覆盖 */
+  z-index: 2147483000;
   display: flex;
   flex-direction: column;
   padding: 0;
@@ -393,16 +517,94 @@ onUnmounted(() => {
   max-height: 100dvh;
   min-height: 100dvh;
   overflow: hidden;
-  background:
-    linear-gradient(180deg, rgba(248, 250, 252, 0.3), rgba(226, 232, 240, 0.2)),
-    rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  color: #0f172a;
+  background: #ffffff;
+  color: #171717;
   isolation: isolate;
   will-change: transform, opacity;
   opacity: 0;
   pointer-events: none;
+}
+
+.global-ai-quick-header {
+  position: relative;
+  z-index: 20;
+  flex: 0 0 auto;
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: max(9px, env(safe-area-inset-top, 0px)) 12px 9px;
+  border-bottom: 1px solid #e8e8e8;
+  background: rgba(255, 255, 255, 0.96);
+  animation: global-ai-header-enter 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.global-ai-header-btn {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #525252;
+  cursor: pointer;
+  transition: transform 140ms ease, background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.global-ai-header-btn:hover { background: #f2f2f2; border-color: #e5e5e5; color: #171717; }
+.global-ai-header-btn:hover { transform: translateY(-1px); }
+.global-ai-header-btn:active { transform: scale(0.94); }
+
+.global-ai-header-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.global-ai-header-copy strong,
+.global-ai-header-copy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.global-ai-header-copy strong { font-size: 14px; font-weight: 650; }
+.global-ai-header-copy span { font-size: 11px; color: #737373; }
+
+.global-ai-header-actions { display: flex; align-items: center; gap: 2px; }
+
+.global-ai-context-btn {
+  min-width: 0;
+  max-width: 132px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  border: 1px solid #dedede;
+  border-radius: 8px;
+  background: #fafafa;
+  color: #525252;
+  font-size: 12px;
+  cursor: pointer;
+  animation: global-ai-context-enter 300ms cubic-bezier(0.16, 1, 0.3, 1) 80ms both;
+  transition: transform 140ms ease, background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.global-ai-context-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.global-ai-context-btn.attached { color: #087f5b; border-color: #a7d9c9; background: #effaf6; }
+.global-ai-context-btn:hover { transform: translateY(-1px); }
+.global-ai-context-btn:active { transform: scale(0.97); }
+
+@keyframes global-ai-header-enter {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes global-ai-context-enter {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: translateX(0); }
 }
 
 /* 不支持 dvh 的浏览器（如旧版 iOS Safari）由 JS 通过内联 style 兜底高度 */
@@ -430,8 +632,9 @@ onUnmounted(() => {
     height: 100dvh;
     max-height: 100dvh;
     min-height: 100dvh;
-    border-radius: 24px 24px 0 0;
-    box-shadow: 0 -8px 40px rgba(15, 23, 42, 0.12);
+    border-radius: 12px 12px 0 0;
+    border-top: 1px solid #e5e5e5;
+    box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.12);
     /* 移动端竖屏：底部预留 = 基础安全边距 + iOS Safari URL/标签栏 + 物理安全区
      * 关键：必须包含 --safari-bar-height，否则 panel 底部内容会被 Safari 底部 URL 栏遮挡
      */
@@ -452,11 +655,22 @@ onUnmounted(() => {
     top: 0;
     left: auto;
     right: 0;
-    width: 460px;
+    width: min(520px, 100vw);
     height: 100dvh;
-    border-left: 1px solid rgba(255, 255, 255, 0.2);
-    box-shadow: -8px 0 40px rgba(15, 23, 42, 0.1);
+    border-left: 1px solid #e5e5e5;
+    box-shadow: -12px 0 36px rgba(0, 0, 0, 0.1);
     transform: translate3d(100%, 0, 0);
+    transition: width 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .global-ai-glass-overlay.is-history-open { width: min(780px, 100vw); }
+  .global-ai-glass-overlay.is-history-open .global-ai-glass-chat {
+    width: 100%;
+    margin-left: 0;
+  }
+  .global-ai-glass-overlay.is-history-open .global-ai-glass-chat :deep(.bohai-page.overlay-mode .input-area) {
+    left: calc(260px + (100% - 260px) / 2) !important;
+    width: min(calc(100% - 292px), 488px) !important;
   }
 
   .global-ai-glass-overlay.is-open {
@@ -486,16 +700,17 @@ onUnmounted(() => {
  * 修复方案：
  * 1. 键盘弹起时自动把 panel 展开为全屏（dragProgress = 2）
  *    → panel 100dvh == 视觉视口，input 在 panel 底部 = 视觉视口底部 = 键盘上方
- * 2. 半屏状态：input 在 panel 60% 底部（屏幕 60% 位置），URL 栏覆盖的是 panel 40% 之外
- * 3. 用 env(safe-area-inset-bottom) 代替物理安全距离
- * 4. 不再加 kbd-height 和 panel-visible-bottom（panel transform 自动吸收）
+ * 2. 半屏状态用 --panel-visible-bottom 抵消整个 panel 的 translateY，
+ *    让输入框保持在当前可见区域底部
+ * 3. 用 env(safe-area-inset-bottom) 处理物理安全距离
+ * 4. 键盘全屏时 dragProgress = 2，panel-visible-bottom 自动回到 0
  */
 .global-ai-glass-chat :deep(.bohai-page.overlay-mode .input-area) {
   width: min(calc(100% - 32px), 860px);
   /* fixed 定位在 panel 坐标系内（panel 有 transform），bottom 相对 panel 边界 */
   position: fixed !important;
-  /* panel 已自动适配（半屏/全屏/键盘），input 只需贴底 + 安全区 */
-  bottom: max(8px, env(safe-area-inset-bottom, 0px)) !important;
+  /* 半屏时抵消 panel 位移；全屏/键盘态该变量为 0。 */
+  bottom: calc(var(--panel-visible-bottom, 0px) + max(8px, env(safe-area-inset-bottom, 0px))) !important;
   left: 50% !important;
   transform: translateX(-50%) translateZ(0) !important;
   padding-bottom: 0;
@@ -509,13 +724,15 @@ onUnmounted(() => {
   top: 0;
   left: 0;
   right: 0;
-  height: 32px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10;
+  z-index: 40;
   cursor: grab;
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .global-ai-glass-handle:active {
@@ -526,12 +743,12 @@ onUnmounted(() => {
   width: 36px;
   height: 4px;
   border-radius: 999px;
-  background: rgba(148, 163, 184, 0.5);
+  background: #d1d1d1;
   transition: background 0.2s ease, width 0.2s ease;
 }
 
 .global-ai-glass-handle:hover .global-ai-glass-handle-bar {
-  background: rgba(148, 163, 184, 0.7);
+  background: #a3a3a3;
   width: 40px;
 }
 
@@ -540,23 +757,23 @@ onUnmounted(() => {
   top: max(14px, env(safe-area-inset-top, 0px));
   right: max(14px, env(safe-area-inset-right, 0px));
   z-index: 2147482100;
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.62);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.58);
-  color: #111827;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #525252;
   cursor: pointer;
   transition: transform 180ms ease, background-color 180ms ease, border-color 180ms ease;
 }
 
 .global-ai-glass-close:hover {
-  transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.86);
-  border-color: rgba(255, 255, 255, 0.92);
+  background: #f2f2f2;
+  border-color: #e5e5e5;
+  color: #171717;
 }
 
 .global-ai-glass-chat {
@@ -602,14 +819,16 @@ onUnmounted(() => {
 .global-ai-glass-chat :deep(.sidebar-open-btn) {
   top: max(14px, env(safe-area-inset-top, 0px));
   left: max(14px, env(safe-area-inset-left, 0px));
-  background: rgba(255, 255, 255, 0.62);
-  border-color: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(18px) saturate(1.2);
-  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
 }
 
 .global-ai-glass-chat :deep(.chat-container) {
-  padding-top: max(126px, calc(118px + env(safe-area-inset-top, 0px)));
+  padding-top: 28px;
   padding-bottom: calc(var(--global-ai-bottom-nav-clearance) + 96px);
 }
 
@@ -623,11 +842,10 @@ onUnmounted(() => {
 }
 
 .global-ai-glass-chat :deep(.input-box) {
-  background: rgba(255, 255, 255, 0.74);
-  border-color: rgba(255, 255, 255, 0.78);
-  box-shadow:
-    0 18px 50px rgba(15, 23, 42, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  background: #f4f4f4;
+  border-color: #e5e5e5;
+  border-radius: 8px;
+  box-shadow: none;
   transition: transform 520ms cubic-bezier(0.16, 1, 0.3, 1), opacity 360ms ease;
 }
 
@@ -665,15 +883,15 @@ onUnmounted(() => {
 }
 
 .global-ai-glass-chat :deep(.input-box) {
-  background: rgba(255, 255, 255, 0.82);
+  background: #f4f4f4;
 }
 
 :global(body.global-ai-glass-open .sidebar.is-embedded),
 :global(body.global-ai-glass-open .sidebar.open.is-embedded) {
-  z-index: 2147483655 !important; /* 高于玻璃面板(2147483656) */
+  z-index: 2147483450 !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  background: rgba(255, 255, 255, 0.96) !important;
+  background: #f9f9f9 !important;
 }
 
 :global([data-boh-theme="dark"] body.global-ai-glass-open .sidebar.is-embedded),
@@ -682,7 +900,7 @@ onUnmounted(() => {
 }
 
 :global(body.global-ai-glass-open .sidebar-overlay.is-embedded) {
-  z-index: 2147483650 !important; /* 高于玻璃面板但低于侧栏 */
+  z-index: 2147483400 !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   background: transparent !important;
@@ -694,7 +912,7 @@ onUnmounted(() => {
 }
 
 :global(body.global-ai-glass-open .ai-settings-backdrop) {
-  z-index: 2147483656 !important; /* 高于侧栏(2147483655) */
+  z-index: 2147483600 !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   isolation: isolate;
@@ -702,27 +920,41 @@ onUnmounted(() => {
 }
 
 :global(body.global-ai-glass-open .ai-settings-drawer) {
-  z-index: 2147483657 !important; /* 高于遮罩层 */
+  z-index: 1 !important;
   position: relative !important;
 }
 
 .global-ai-glass-overlay[data-theme="dark"] {
   color: #f8fafc;
-  background:
-    linear-gradient(180deg, rgba(15, 18, 24, 0.62), rgba(15, 18, 24, 0.48)),
-    rgba(2, 6, 23, 0.28);
+  background: #212121;
 }
+
+.global-ai-glass-overlay[data-theme="dark"] .global-ai-quick-header {
+  background: rgba(33, 33, 33, 0.97);
+  border-bottom-color: #383838;
+}
+
+.global-ai-glass-overlay[data-theme="dark"] .global-ai-header-btn { color: #d4d4d4; }
+.global-ai-glass-overlay[data-theme="dark"] .global-ai-header-btn:hover { background: #303030; border-color: #424242; color: #fff; }
+.global-ai-glass-overlay[data-theme="dark"] .global-ai-header-copy span { color: #a3a3a3; }
+.global-ai-glass-overlay[data-theme="dark"] .global-ai-context-btn { background: #303030; border-color: #424242; color: #d4d4d4; }
+.global-ai-glass-overlay.reduce-motion,
+.global-ai-glass-overlay.reduce-motion * { transition-duration: 1ms !important; animation-duration: 1ms !important; }
+
+.global-ai-glass-overlay[data-density="compact"] .global-ai-glass-chat :deep(.message-wrapper) { margin-bottom: 12px; }
+.global-ai-glass-overlay[data-font-scale="small"] .global-ai-glass-chat { font-size: 13px; }
+.global-ai-glass-overlay[data-font-scale="large"] .global-ai-glass-chat { font-size: 16px; }
 
 .global-ai-glass-overlay[data-theme="dark"] .global-ai-glass-close {
   color: #f8fafc;
-  border-color: rgba(255, 255, 255, 0.14);
-  background: rgba(15, 23, 42, 0.58);
+  border-color: transparent;
+  background: transparent;
 }
 
 .global-ai-glass-overlay[data-theme="dark"] .global-ai-glass-chat :deep(.input-box),
 .global-ai-glass-overlay[data-theme="dark"] .global-ai-glass-chat :deep(.sidebar-open-btn) {
-  background: rgba(15, 23, 42, 0.72);
-  border-color: rgba(255, 255, 255, 0.12);
+  background: #303030;
+  border-color: #424242;
 }
 
 .global-ai-glass-overlay[data-theme="dark"] .global-ai-glass-chat :deep(.bohai-page.embedded-mode .sidebar) {
@@ -732,6 +964,13 @@ onUnmounted(() => {
 }
 
 @media (max-width: 767px) {
+  .global-ai-quick-header { min-height: 66px; padding: 20px 8px 7px; }
+  .global-ai-context-btn { max-width: 44px; padding: 0 9px; }
+  .global-ai-context-btn span { display: none; }
+  .global-ai-header-actions { gap: 0; }
+  .global-ai-header-actions .global-ai-full-page-button { display: none; }
+  .global-ai-glass-chat :deep(.ai-settings-header),
+  .global-ai-glass-chat :deep(.quota-header) { padding-top: 24px; }
   .global-ai-glass-close {
     top: max(14px, env(safe-area-inset-top, 0px));
   }

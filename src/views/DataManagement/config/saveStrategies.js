@@ -190,6 +190,7 @@ export const SAVE_STRATEGIES = {
     const normalizedTopP = Number(editingItem.top_p);
     const normalizedFrequencyPenalty = Number(editingItem.frequency_penalty);
     const normalizedMaxTokens = Number(editingItem.max_tokens);
+    const normalizedQuotaMultiplier = Number(editingItem.quota_multiplier ?? 1);
     const normalizedSortOrder = Number(editingItem.sort_order);
 
     if (!normalizedModeId || !/^[a-z0-9][a-z0-9_-]{1,63}$/i.test(normalizedModeId)) {
@@ -204,6 +205,7 @@ export const SAVE_STRATEGIES = {
     if (!Number.isFinite(normalizedTopP) || normalizedTopP < 0.1 || normalizedTopP > 1) throw new Error('Top P 必须在 0.1-1 之间');
     if (!Number.isFinite(normalizedFrequencyPenalty) || normalizedFrequencyPenalty < 0 || normalizedFrequencyPenalty > 2) throw new Error('Frequency Penalty 必须在 0-2 之间');
     if (!Number.isInteger(normalizedMaxTokens) || normalizedMaxTokens < 256 || normalizedMaxTokens > 4096) throw new Error('最大输出 tokens 必须是 256-4096 的整数');
+    if (!Number.isFinite(normalizedQuotaMultiplier) || normalizedQuotaMultiplier < 0.1 || normalizedQuotaMultiplier > 100) throw new Error('额度倍率必须在 0.1-100 之间');
     if (!Number.isInteger(normalizedSortOrder) || normalizedSortOrder < 0 || normalizedSortOrder > 10000) throw new Error('显示排序必须是 0-10000 的整数');
 
     return pickWritableFields('bohaiModels', {
@@ -221,6 +223,7 @@ export const SAVE_STRATEGIES = {
       top_p: normalizedTopP,
       frequency_penalty: normalizedFrequencyPenalty,
       max_tokens: normalizedMaxTokens,
+      quota_multiplier: normalizedQuotaMultiplier,
       sort_order: normalizedSortOrder,
       status: normalizedStatus,
       notes: String(editingItem.notes || '').trim(),

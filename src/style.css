@@ -101,6 +101,41 @@ body {
   text-align: left;
 }
 
+/* The fixed global nav is outside document flow. Keep the standalone AI
+   workspace below it so newly focused messages cannot scroll under the nav. */
+body.page-aichat {
+  --bohai-standalone-nav-height: 72px;
+}
+
+body.page-aichat #app {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+body.page-aichat .bohai-page:not(.embedded-mode):not(.overlay-mode) {
+  height: calc(100dvh - var(--bohai-standalone-nav-height));
+  margin-top: var(--bohai-standalone-nav-height);
+}
+
+@media (orientation: landscape) and (max-width: 1024px) {
+  body.page-aichat {
+    --bohai-standalone-nav-height: 64px;
+  }
+}
+
+@media (orientation: portrait) and (max-width: 768px) {
+  body.page-aichat {
+    --bohai-standalone-nav-height: 60px;
+  }
+}
+
+@media (orientation: portrait) and (max-width: 480px) {
+  body.page-aichat {
+    --bohai-standalone-nav-height: 54px;
+  }
+}
+
 /* 确保链接样式不被覆盖 */
 a {
   text-decoration: none;

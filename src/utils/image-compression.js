@@ -7,6 +7,8 @@ import {
 
 const COMPRESSIBLE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const DEFAULT_TARGET_SIZE_MB = 9.6;
+const DEFAULT_OPTIMIZED_TARGET_SIZE_MB = 2;
+const DEFAULT_OPTIMIZED_MAX_DIMENSION = 2048;
 let imageCompressionLoader = null;
 
 export function formatImageFileSize(bytes = 0) {
@@ -41,7 +43,9 @@ export async function getImageCompressionPlan(file, options = {}) {
   const maxSizeBytes = Number(options.maxSizeBytes || CLOUD_UPLOAD_MAX_IMAGE_SIZE_BYTES);
   const maxDimension = Number(options.maxDimension || CLOUD_UPLOAD_MAX_DIMENSION);
   const maxPixels = Number(options.maxPixels || CLOUD_UPLOAD_MAX_PIXELS);
-  const targetSizeMB = Number(options.targetSizeMB || DEFAULT_TARGET_SIZE_MB);
+  const optimizeForUpload = options.optimizeForUpload === true;
+  const optimizedTargetSizeMB = Number(options.optimizedTargetSizeMB || DEFAULT_OPTIMIZED_TARGET_SIZE_MB);
+  const optimizedMaxDimension = Number(options.optimizedMaxDimension || DEFAULT_OPTIMIZED_MAX_DIMENSION);
   const mimeType = normalizeMimeType(file?.type);
   const originalSizeBytes = Number(file?.size || 0);
   const dimensions = await readBrowserImageDimensions(file).catch(() => null);
@@ -57,8 +61,23 @@ export async function getImageCompressionPlan(file, options = {}) {
     reasons.push(`分辨率 ${formatImageMegapixels(dimensions.width, dimensions.height)}，超过 ${formatImageMegapixels(maxPixels, 1)}`);
   }
 
+  const requiresCompression = reasons.length > 0;
+  const canOptimizeLossyImage = mimeType === 'image/jpeg' || mimeType === 'image/webp';
+  const shouldOptimize = optimizeForUpload
+    && canOptimizeLossyImage
+    && (
+      originalSizeBytes > optimizedTargetSizeMB * 1024 * 1024
+      || Number(dimensions?.width || 0) > optimizedMaxDimension
+      || Number(dimensions?.height || 0) > optimizedMaxDimension
+    );
+  const shouldCompress = requiresCompression || shouldOptimize;
+  const targetSizeMB = shouldOptimize ? optimizedTargetSizeMB : Number(options.targetSizeMB || DEFAULT_TARGET_SIZE_MB);
+  const requiredMaxSide = resolveTargetMaxSide(dimensions, { maxDimension, maxPixels });
+
   return {
-    shouldCompress: reasons.length > 0,
+    shouldCompress,
+    requiresCompression,
+    shouldOptimize,
     canCompress: COMPRESSIBLE_IMAGE_TYPES.has(mimeType),
     reasons,
     dimensions,
@@ -68,7 +87,9 @@ export async function getImageCompressionPlan(file, options = {}) {
     maxDimension,
     maxPixels,
     targetSizeMB,
-    maxWidthOrHeight: resolveTargetMaxSide(dimensions, { maxDimension, maxPixels })
+    maxWidthOrHeight: shouldOptimize
+      ? Math.min(requiredMaxSide, optimizedMaxDimension)
+      : requiredMaxSide
   };
 }
 

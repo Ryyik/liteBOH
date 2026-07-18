@@ -41,6 +41,12 @@ export const communityRoutes: RouteRecordRaw[] = [
     component: () => import("../../views/CommunityLotteries/index.vue"),
   },
   {
+    path: "/block-wall",
+    name: "BlockWall",
+    meta: { hideNavbar: true },
+    component: () => import("../../views/BlockWall/index.vue"),
+  },
+  {
     path: "/forum/post/:id",
     name: "PostDetail",
     meta: { hideNavbar: true },

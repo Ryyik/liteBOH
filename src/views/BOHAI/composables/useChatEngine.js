@@ -35,7 +35,6 @@ import { resolveAutoModeDecisionLocally } from '@/views/BOHAI/engine/bohai-auto-
 import {
   BOHAI_ACTION_IDS,
   BOHAI_CONNECTOR_IDS,
-  buildBohAIConnectorActionNote,
   createBohAIConnector,
   runBohAIReadConnectors,
   summarizeBohAIConnectorResults
@@ -45,6 +44,7 @@ import { createBohAIRetrievalTrace } from '@/utils/bohai-observability.js';
 import { useActionDraft } from './useActionDraft.js';
 import { useMemoryCapture } from './useMemoryCapture.js';
 import { useThinkingTimer } from './useThinkingTimer.js';
+import { useWebSearchLifecycle } from './useWebSearchLifecycle.js';
 import { useRateLimiter } from './useRateLimiter.js';
 import { useContextCompression } from './useContextCompression.js';
 import { useResourceSearch } from './useResourceSearch.js';
@@ -210,6 +210,12 @@ export function useChatEngine() {
   const { isLoggedIn, userInfo } = storeToRefs(authStore);
 
   const { state: agentClusterState, reset: resetAgentClusterState, apply: applyAgentClusterEvent } = useAgentClusterState();
+  const {
+    webSearchActive,
+    runWebSearch,
+    resetWebSearchLifecycle
+  } = useWebSearchLifecycle({ search: searchWebForPrompt });
+  const communitySearchActive = ref(false);
 
   // scrollToBottom getter — 允许 useConversationManager 在 scrollToBottom
   // 定义完成后按需引用，而不要求 composable 在创建时就拿到函数引用。
@@ -241,7 +247,7 @@ export function useChatEngine() {
     loadSessions, scheduleSaveSessions,
     clearCache,
     getSessionByIndex,
-    startNewChat: _startNewChat, deleteSession, switchSession,
+    startNewChat: _startNewChat, clearCurrentSession, clearAllSessions, deleteSession, switchSession,
     setMemoryCaptureStatusMessage
   } = useConversationManager({
     scrollToBottom: _getScrollToBottom
@@ -253,6 +259,11 @@ export function useChatEngine() {
   // 流式 token 追加也会触发全量遍历。改用轻量 getter 仅跟踪会话数与各会话消息数，
   // 内容编辑（如流式 token）不改变 length，不再触发遍历。
   watch(() => chatSessions.map((s) => s?.messages?.length || 0), () => {
+    if (isStreamingGeneration.value) return;
+    scheduleSaveSessions();
+  });
+
+  watch(() => chatSessions.map((s) => `${s?.title || ''}:${s?.pinned ? 1 : 0}:${s?.temporary ? 1 : 0}`), () => {
     if (isStreamingGeneration.value) return;
     scheduleSaveSessions();
   });
@@ -412,7 +423,6 @@ export function useChatEngine() {
     getUserPrivateContext,
     resolveKnowledgeRoutingPlan,
     getRetrievalTargetLabels,
-    buildVisibleRetrievalActionNote,
     createReadConnectors,
     buildAutoKnowledgeContext
   } = useKnowledgeRetrieval({
@@ -530,6 +540,7 @@ export function useChatEngine() {
   const {
     toggleMemoryCapture,
     toggleTreeholeMemory,
+    refreshCloudReferenceConsent,
     toggleQuickNoteMode,
     updatePendingQuickNoteDraft,
     dismissQuickNoteDraft,
@@ -537,6 +548,8 @@ export function useChatEngine() {
     requestCloudReferenceConsent,
     approveCloudReferenceConsent,
     rejectCloudReferenceConsent,
+    handlePendingCloudReferenceConsentReply,
+    handlePendingTreeholeCreationReply,
     requestSharedMemorySaveConfirmation,
     memoryCaptureTip,
     _requestTreeholeCreationConfirmation
@@ -643,9 +656,7 @@ export function useChatEngine() {
     isCommandMode.value = false; // Reset modes
     isSearching.value = false;
     isForumSearchEnabled.value = false;
-    isSharedMemoryEnabled.value = false;
     isKnowledgeBaseEnabled.value = false;
-    currentModeId.value = BOH_DEFAULT_MODE_ID;
     // Auto 路由相关状态重置
     lastRoutedMode.value = '';
   };
@@ -1008,6 +1019,9 @@ export function useChatEngine() {
     if (!session) return;
     const userText = inputMessage.value.trim();
 
+    if (await handlePendingCloudReferenceConsentReply(userText)) return;
+    if (await handlePendingTreeholeCreationReply(userText)) return;
+
     if (await tryStartActionDraftFromUserInput(userText, sessionIndex)) return;
     if (await tryStartPageCreationFromUserInput(userText, sessionIndex)) return;
     if (await handleResourceSearchRequest(userText)) return;
@@ -1199,6 +1213,7 @@ export function useChatEngine() {
     });
     const shouldUseContextualQuery = contextualQuery && contextualQuery !== userText;
     const routingQueryText = shouldUseContextualQuery ? contextualQuery : userText;
+    refreshCloudReferenceConsent();
 
     // 4 模式不再做"自动路由"，但 capability 决策（联网/Cloud+ 引用/保存/指令）仍统一由
     // resolveAutoModeDecisionLocally 提供，本地纯函数判定，不再调 LLM 二次校验。
@@ -1229,6 +1244,17 @@ export function useChatEngine() {
           sessionIndex,
           'assistant',
           '总结最近日常需要参考你的 BOH Cloud+，但你还没有登录，所以我先不读取这部分内容。'
+        );
+        return;
+      }
+
+      if (cloudReferenceConsent.value === 'denied') {
+        removePreflightLoader();
+        finishPreflightOnly();
+        appendSessionMessage(
+          sessionIndex,
+          'assistant',
+          '你此前已关闭 Cloud+ 隐私授权，因此本次不会读取个人内容。如需重新开启，请前往 BOH AI 设置中的“个人记忆”。'
         );
         return;
       }
@@ -1302,6 +1328,7 @@ export function useChatEngine() {
       let currentContent = '';
       let groundingEvidenceRefs = [];
       let searchResultCount = 0;
+      let webSearchVerified = false;
       let hasKnowledgeContext = false;
       let latestForumSummaryPosts = [];
       const showProgress = SHOW_INTERNAL_PROGRESS_NOTES;
@@ -1325,15 +1352,7 @@ export function useChatEngine() {
         ? AbortSignal.any([requestController.signal, AbortSignal.timeout(WEB_SEARCH_TIMEOUT_MS)])
         : requestController.signal;
       const webSearchPromise = enableSearch
-        ? searchWebForPrompt(routingQueryText, webSearchSignal).catch((error) => ({
-          ok: false,
-          disabled: false,
-          count: 0,
-          context: '',
-          results: [],
-          error,
-          message: error?.message || '未知错误'
-        }))
+        ? runWebSearch(routingQueryText, webSearchSignal)
         : Promise.resolve({ ok: true, disabled: false, count: 0, context: '', results: [] });
 
       if (enableSearch) {
@@ -1343,6 +1362,7 @@ export function useChatEngine() {
 
       // C1 fix: 知识检索与联网搜索并行启动，减少串行等待时间
       const knowledgePromise = (async () => {
+        communitySearchActive.value = Boolean(communityNeedsEvidence || isForumSearchEnabled.value);
         try {
           markGenerationProgress('正在判断需要查看哪些 BOH 资料...');
           const routingPreview = resolveKnowledgeRoutingPlan(routingQueryText);
@@ -1419,16 +1439,6 @@ export function useChatEngine() {
             retrievalTargets.push(...userPrivateLabels.slice(0, 3));
           }
 
-          const visibleRetrievalNote = successfulConnectorResults.length > 0
-            ? (buildBohAIConnectorActionNote(successfulConnectorResults) || buildVisibleRetrievalActionNote(retrievalPlan, {
-              treeholeTotal,
-              sharedMemoryTotal,
-              userPrivateLabels
-            }))
-            : '';
-          if (visibleRetrievalNote) {
-            updateAssistantActionNotes(sessionIndex, messageIndex, [visibleRetrievalNote]);
-          }
           mergeAssistantMessageMeta(sessionIndex, messageIndex, { ragTrace: retrievalTrace });
 
           if (retrievalTargets.length > 0) {
@@ -1479,11 +1489,7 @@ export function useChatEngine() {
               webEvidenceContext = webSearchResult.context;
             }
             const results = Array.isArray(webSearchResult.results) ? webSearchResult.results : [];
-            updateAssistantActionNotes(
-              sessionIndex,
-              messageIndex,
-              [results.length > 0 ? `搜索了 ${results.length} 个内容。` : '搜索了 0 个内容。']
-            );
+            webSearchVerified = results.length > 0;
             if (results.length > 0) {
               setProgressContent(`找到 ${results.length} 个结果：\n${results.map((r, i) => `${i + 1}. [${r.title}](${r.url})`).join('\n')}\n\n`);
             } else {
@@ -1729,18 +1735,21 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
       // 依据校验：无内部证据时追加不确定声明，不拦截回答
       const ensureGroundedReply = (rawReply) => {
         const safeReply = String(rawReply || '').trim();
+        const realtimeVerificationNote = enableSearch && factualQuestion && !webSearchVerified
+          ? '（联网搜索未返回可用结果，以下内容未经过实时网络验证。）\n\n'
+          : '';
         if (noInternalEvidence && safeReply) {
-          return safeReply + '\n\n（未检索到相关站内资料，以上回答基于通用知识）';
+          return realtimeVerificationNote + safeReply + '\n\n（未检索到相关站内资料，以上回答基于通用知识）';
         }
-        if (!safeReply) return safeReply;
-        if (!shouldEnforceGrounding) return safeReply;
+        if (!safeReply) return realtimeVerificationNote.trim();
+        if (!shouldEnforceGrounding) return realtimeVerificationNote + safeReply;
         if (totalGroundingRefCount <= 0) {
           if (needsInternalEvidence) {
             return '未检索到明确依据，无法确认这部分 BOH 内部内容。为了避免编造，我不能凭印象补全答案；可以换个更具体的关键词，或开启联网搜索后再试。';
           }
-          return safeReply;
+          return realtimeVerificationNote + safeReply;
         }
-        return safeReply;
+        return realtimeVerificationNote + safeReply;
       };
 
       const thinkingSpeedDeltas = THINKING_SPEED_DELTAS_BY_ID[currentThinkingSpeedId.value];
@@ -2068,6 +2077,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
       nextTick(scrollToBottom);
     } finally {
       clearTimeout(generationTimeoutTimer);
+      communitySearchActive.value = false;
       isStreamingGeneration.value = false;
       cleanupGenerationState(sessionIndex, requestController);
       scheduleSaveSessions();
@@ -2082,6 +2092,8 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
       abortController.value.abort();
       abortController.value = null;
     }
+    resetWebSearchLifecycle();
+    communitySearchActive.value = false;
   });
 
   return {
@@ -2099,6 +2111,8 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
     currentModel,
     isCommandMode,
     isSearching,
+    webSearchActive,
+    communitySearchActive,
     isForumSearchEnabled,
     isMemoryCaptureEnabled,
     isTreeholeMemoryEnabled,
@@ -2129,6 +2143,8 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
     // Auto 路由相关：让 UI 能看到本轮路由结果
     lastRoutedMode,
     startNewChat,
+    clearCurrentSession,
+    clearAllSessions,
     deleteSession,
     switchSession,
     sendMessage,

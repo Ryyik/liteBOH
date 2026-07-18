@@ -6,6 +6,7 @@ const theme = ref('light')
 
 const dragProgress = ref(1)
 const isDragging = ref(false)
+const openRequestId = ref(0)
 
 let resolveOverlayHeight = () => {
   if (typeof window !== 'undefined') return window.innerHeight
@@ -22,12 +23,13 @@ function useSharedState() {
     return route.name !== 'AiChat'
   })
 
-  function open() {
+  function open(options = {}) {
     if (!canOpen.value) return
     cancelScheduledClose()
     isOpen.value = true
-    dragProgress.value = 1
+    dragProgress.value = Number(options.snap) === 2 ? 2 : 1
     isDragging.value = false
+    openRequestId.value += 1
   }
 
   function close() {
@@ -103,7 +105,7 @@ function useSharedState() {
   })
 
   return {
-    isOpen, theme, canOpen,
+    isOpen, theme, canOpen, openRequestId,
     dragProgress, isDragging,
     open, close, toggle, syncTheme,
     setOverlayHeight, startDrag, moveDrag, endDrag

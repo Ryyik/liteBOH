@@ -677,15 +677,20 @@ export const searchWebForPrompt = async (queryText, requestSignal = undefined) =
 
   const vaultResult = await searchVaultTavily({
     payload,
-    timeoutMs: WEB_SEARCH_TIMEOUT_MS
+    timeoutMs: WEB_SEARCH_TIMEOUT_MS,
+    signal: requestSignal
   });
   if (!vaultResult.ok) {
+    const message = String(vaultResult.error?.message || '联网搜索暂时不可用');
+    // Only a genuine configuration error should change the persistent switch.
+    // Provider/network failures are transient and should leave the preference on.
+    const disabled = /未配置|missing.*key|no active.*key|not configured/i.test(message);
     return {
       ok: false,
-      disabled: true,
+      disabled,
       count: 0,
       context: '',
-      message: vaultResult.error?.message || '未配置联网搜索 Key（Tavily）'
+      message
     };
   }
   const searchData = vaultResult.data || {};

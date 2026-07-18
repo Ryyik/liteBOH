@@ -124,6 +124,17 @@ const currentPreviewImageUrl = computed(() => String(
   || previewImage.value?.url
   || ''
 ).trim());
+const getImageStatusLabel = (image) => {
+  if (image?.uploadStatusLabel) return image.uploadStatusLabel;
+  if (image?.uploadStatus === 'failed') return '未通过';
+  return '已检测';
+};
+const getImageStatusClass = (image) => {
+  if (image?.uploadStatus === 'failed') return 'failed';
+  if (image?.uploadStatus && image.uploadStatus !== 'approved') return 'processing';
+  return 'approved';
+};
+const canReorderImage = (image) => !image?.uploadStatus || image.uploadStatus === 'approved';
 
 const updateTitle = (value) => {
   emit('update:newPost', { ...props.newPost, title: value });
@@ -571,13 +582,14 @@ onUnmounted(() => {
 
       <div v-if="postImages.length > 0 || isUploadingPostImage || postImageUploadStatus" class="post-image-panel">
         <div v-if="postImages.length > 0" class="post-image-preview-grid">
-          <div v-for="(image, index) in postImages" :key="image.publicId || image.url" class="post-image-preview-item"
+          <div v-for="(image, index) in postImages" :key="image.publicId || image.uploadId || image.url" class="post-image-preview-item"
             :class="{
               'is-dragging': draggedImageIndex === index,
               'is-drop-target': dragOverImageIndex === index,
-              'is-failed': image.uploadStatus === 'failed'
+              'is-failed': image.uploadStatus === 'failed',
+              'is-processing': image.uploadStatus && image.uploadStatus !== 'approved' && image.uploadStatus !== 'failed'
             }"
-            :draggable="image.uploadStatus !== 'failed'"
+            :draggable="canReorderImage(image)"
             @dragstart="handleImageDragStart(index, $event)"
             @dragenter.prevent="handleImageDragEnter(index)"
             @dragover.prevent
@@ -594,15 +606,16 @@ onUnmounted(() => {
             <span class="post-image-drag-handle" aria-hidden="true">
               <GripVertical :size="15" :stroke-width="2" />
             </span>
-            <span class="post-image-status-badge" :class="image.uploadStatus === 'failed' ? 'failed' : 'approved'">
-              {{ image.uploadStatus === 'failed' ? '未通过' : '已检测' }}
+            <span class="post-image-status-badge" :class="getImageStatusClass(image)">
+              <span v-if="getImageStatusClass(image) === 'processing'" class="post-image-card-spinner" aria-hidden="true"></span>
+              {{ getImageStatusLabel(image) }}
             </span>
             <button v-if="image.uploadStatus === 'failed' && image.file" type="button" class="post-image-retry-btn"
               :disabled="isSubmitting || isUploadingPostImage" @click="emit('retry-image', image, index)">
               <RefreshCcw :size="14" :stroke-width="2.3" aria-hidden="true" />
               <span>重试</span>
             </button>
-            <div v-if="image.uploadStatus !== 'failed'" class="post-image-sort-actions" aria-label="调整图片顺序">
+            <div v-if="canReorderImage(image)" class="post-image-sort-actions" aria-label="调整图片顺序">
               <button type="button" class="post-image-sort-btn" :disabled="isSubmitting || isUploadingPostImage || index === 0"
                 :aria-label="`将第 ${index + 1} 张图片前移`"
                 @click="requestImageReorder(index, index - 1)">
@@ -615,7 +628,7 @@ onUnmounted(() => {
                 <ArrowRight :size="15" :stroke-width="2.2" aria-hidden="true" />
               </button>
             </div>
-            <button type="button" class="post-image-remove-btn" :disabled="isSubmitting"
+            <button type="button" class="post-image-remove-btn" :disabled="isSubmitting || isUploadingPostImage"
               @click="emit('remove-image', image, index)">×</button>
           </div>
 

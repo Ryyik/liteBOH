@@ -181,9 +181,37 @@ export function useMemoryCapture(deps) {
   };
 
   // ── Cloud+ 参考同意持久化 ─────────────────────────────────────
+  const getCloudReferenceConsentKey = (userId = userInfo.value?.id) => {
+    const safeUserId = String(userId || '').trim();
+    return safeUserId ? `${CLOUD_REFERENCE_CONSENT_KEY}:${safeUserId}` : '';
+  };
+
+  const refreshCloudReferenceConsent = () => {
+    const key = getCloudReferenceConsentKey();
+    if (!key || typeof window === 'undefined') {
+      cloudReferenceConsent.value = 'unknown';
+      return cloudReferenceConsent.value;
+    }
+    try {
+      let saved = localStorage.getItem(key);
+      const legacySaved = localStorage.getItem(CLOUD_REFERENCE_CONSENT_KEY);
+      if (saved === null && (legacySaved === 'granted' || legacySaved === 'denied')) {
+        saved = legacySaved;
+        localStorage.setItem(key, legacySaved);
+        localStorage.removeItem(CLOUD_REFERENCE_CONSENT_KEY);
+      }
+      cloudReferenceConsent.value = saved === 'granted' || saved === 'denied' ? saved : 'unknown';
+    } catch {
+      cloudReferenceConsent.value = 'unknown';
+    }
+    return cloudReferenceConsent.value;
+  };
+
   const persistCloudReferenceConsent = () => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem(CLOUD_REFERENCE_CONSENT_KEY, String(cloudReferenceConsent.value || 'unknown'));
+    const key = getCloudReferenceConsentKey();
+    if (!key || typeof window === 'undefined') return;
+    localStorage.setItem(key, String(cloudReferenceConsent.value || 'unknown'));
+    localStorage.removeItem(CLOUD_REFERENCE_CONSENT_KEY);
   };
 
   // ── 公共记忆开关 ──────────────────────────────────────────────
@@ -302,6 +330,13 @@ export function useMemoryCapture(deps) {
     const userId = String(userInfo.value?.id || '').trim();
     if (!userId || !isLoggedIn.value) {
       setMemoryCaptureStatusMessage('请先登录，再开启 Cloud+ 参考。');
+      return;
+    }
+
+    if (refreshCloudReferenceConsent() === 'granted') {
+      isTreeholeMemoryEnabled.value = true;
+      persistTreeholeMemorySetting();
+      setMemoryCaptureStatusMessage('Cloud+ 参考已开启，将继续使用你此前的隐私授权。');
       return;
     }
 
@@ -544,11 +579,6 @@ export function useMemoryCapture(deps) {
   const toggleTreeholeMemory = async () => {
     if (isTreeholeMemoryToggling.value) return;
 
-    if (!isLoggedIn.value || !userInfo.value?.id) {
-      setMemoryCaptureStatusMessage('请先登录，再开启 Cloud+ 参考。');
-      return;
-    }
-
     if (isTreeholeMemoryEnabled.value) {
       isTreeholeMemoryEnabled.value = false;
       persistTreeholeMemorySetting();
@@ -564,8 +594,14 @@ export function useMemoryCapture(deps) {
       return;
     }
 
+    if (!isLoggedIn.value || !userInfo.value?.id) {
+      setMemoryCaptureStatusMessage('请先登录，再开启 Cloud+ 参考。');
+      return;
+    }
+
     isTreeholeMemoryToggling.value = true;
     try {
+      refreshCloudReferenceConsent();
       if (cloudReferenceConsent.value !== 'granted') {
         requestCloudReferenceConsent();
         return;
@@ -649,6 +685,7 @@ export function useMemoryCapture(deps) {
     dismissQuickNoteDraft,
     confirmQuickNoteDraft,
     requestCloudReferenceConsent,
+    refreshCloudReferenceConsent,
     applyCloudReferenceConsent,
     approveCloudReferenceConsent,
     rejectCloudReferenceConsent,

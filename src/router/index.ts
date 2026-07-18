@@ -33,6 +33,10 @@ const router = createRouter({
   history: createWebHashHistory(),
   routes,
   scrollBehavior(to, from, savedPosition) {
+    if (to.hash) {
+      return { el: to.hash, top: 96, behavior: "auto" }
+    }
+
     if (savedPosition) {
       return savedPosition
     }

@@ -289,11 +289,13 @@ export const callVaultSiliconChatStreamCollect = async ({
 
 export const searchVaultTavily = ({
   payload = {},
-  timeoutMs = 25000
+  timeoutMs = 25000,
+  signal
 } = {}) => invokeRuntime({
   action: 'runtime-search',
   payload,
-  timeoutMs
+  timeoutMs,
+  signal
 });
 
 export const resolveVaultActiveKey = ({

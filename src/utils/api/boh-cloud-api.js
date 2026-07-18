@@ -430,37 +430,46 @@ export async function getMyCloudEntriesForAI(userId, { limit = 120 } = {}) {
     return { ok: false, data: [], error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }) };
   }
 
-  const { data, error } = await supabase
-    .from('boh_cloud_entries')
-    .select(CLOUD_COLUMNS)
-    .eq('user_id', safeUserId)
-    .order('updated_at', { ascending: false })
-    .limit(safeLimit);
+  return executeRead(
+    'bohCloud.entriesForAI',
+    { userId: safeUserId, limit: safeLimit },
+    async (signal) => {
+      let query = supabase
+        .from('boh_cloud_entries')
+        .select(CLOUD_COLUMNS)
+        .eq('user_id', safeUserId)
+        .order('updated_at', { ascending: false })
+        .limit(safeLimit);
+      if (signal && typeof query.abortSignal === 'function') query = query.abortSignal(signal);
 
-  if (error) {
-    if (isMissingCloudTableError(error)) {
-      return { ok: false, data: [], error: normalizeDbError(error) };
+      const { data, error } = await query;
+      if (error) return { data: [], error };
+
+      const rows = (Array.isArray(data) ? data : [])
+        .map(normalizeCloudEntryRow)
+        .filter(Boolean)
+        .map((item) => ({
+          id: item.id,
+          userId: item.userId,
+          content: flattenCloudBlocksToText(item.contentBlocks, item.contentText),
+          mood: item.mood || '',
+          tags: ['BOH Cloud+'],
+          isStarred: false,
+          source: item.source === 'ai' ? 'ai' : 'manual',
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt || `${item.entryDate}T00:00:00+08:00`,
+          noteDate: item.entryDate
+        }));
+
+      return { data: rows, error: null };
+    },
+    {
+      ttlMs: CACHE_TTL_LEVELS.USER_DATA,
+      tags: [CLOUD_CACHE_TAG, `${CLOUD_CACHE_TAG}:user:${safeUserId}`],
+      timeoutMs: 9000,
+      retry: 0
     }
-    return { ok: false, data: [], error: normalizeDbError(error) };
-  }
-
-  const rows = (Array.isArray(data) ? data : [])
-    .map(normalizeCloudEntryRow)
-    .filter(Boolean)
-    .map((item) => ({
-      id: item.id,
-      userId: item.userId,
-      content: flattenCloudBlocksToText(item.contentBlocks, item.contentText),
-      mood: item.mood || '',
-      tags: ['BOH Cloud+'],
-      isStarred: false,
-      source: item.source === 'ai' ? 'ai' : 'manual',
-      createdAt: item.createdAt,
-      updatedAt: item.updatedAt || `${item.entryDate}T00:00:00+08:00`,
-      noteDate: item.entryDate
-    }));
-
-  return { ok: true, data: rows, error: null };
+  );
 }
 
 export async function getMyCloudShareChannel() {

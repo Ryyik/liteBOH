@@ -65,6 +65,15 @@ export const sortForumPostsByCreatedAtDesc = (posts = []) => {
   });
 };
 
+export const filterRecentForumPosts = (posts = [], { now = Date.now(), windowDays = 30 } = {}) => {
+  const safeNow = Number(now);
+  const cutoff = safeNow - Math.max(1, Number(windowDays) || 30) * 24 * 60 * 60 * 1000;
+  return (Array.isArray(posts) ? posts : []).filter((post) => {
+    const timestamp = new Date(post?.created_at || 0).getTime();
+    return Number.isFinite(timestamp) && timestamp >= cutoff && timestamp <= safeNow + 24 * 60 * 60 * 1000;
+  });
+};
+
 export const normalizeForumSummaryText = (text = '', maxChars = 260) => {
   const normalized = String(text || '')
     .replace(/<[^>]*>/g, ' ')

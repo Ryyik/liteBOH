@@ -2,18 +2,22 @@ import { computed, reactive, ref } from 'vue';
 
 export const USER_SPACE_VALID_TABS = ['posts', 'community', 'messages', 'profile', 'shows', 'ai'];
 
-export const useUserSpaceTabs = (navItems) => {
-  const currentTab = ref('posts');
+export const useUserSpaceTabs = (navItems, initialTab = 'posts') => {
+  const safeInitialTab = USER_SPACE_VALID_TABS.includes(initialTab) ? initialTab : 'posts';
+  const currentTab = ref(safeInitialTab);
   const profileSection = ref('home');
   const isAICollapsed = ref(true);
   const mountedTabs = reactive({
-    posts: true,
+    posts: safeInitialTab === 'posts',
     community: false,
     messages: false,
     shows: false,
     ai: false,
-    profile: false
+    profile: safeInitialTab === 'profile'
   });
+  if (Object.prototype.hasOwnProperty.call(mountedTabs, safeInitialTab)) {
+    mountedTabs[safeInitialTab] = true;
+  }
 
   const activeNavIndex = computed(() => Math.max(
     0,

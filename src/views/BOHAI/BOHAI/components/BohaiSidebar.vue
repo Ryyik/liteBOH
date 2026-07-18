@@ -1,7 +1,9 @@
 <template>
-  <Teleport to="body">
-    <aside v-show="isComponentVisible"
-      :class="['sidebar', { open: isOpen, 'is-embedded': embedded }]">
+  <Teleport to="body" :disabled="overlayMode">
+    <Transition name="bohai-sidebar-panel">
+      <aside v-if="isComponentVisible && isOpen"
+        :class="['sidebar', { open: isOpen, 'is-embedded': embedded, 'is-overlay-panel': overlayMode, 'is-standalone': standalone, 'reduce-motion': reduceMotion }]"
+        :data-theme="theme">
       <div class="sidebar-header">
         <span class="sidebar-mark" aria-hidden="true">BOH</span>
         <button class="sidebar-icon-btn sidebar-close-btn" type="button" title="收起侧栏"
@@ -27,6 +29,10 @@
           </span>
           <span>新对话</span>
         </button>
+        <button class="sidebar-quick-action secondary" type="button" @click="$emit('startTemporaryChat')">
+          <span class="quick-action-icon">◌</span>
+          <span>临时对话</span>
+        </button>
       </div>
 
       <div class="sidebar-section-title">
@@ -46,12 +52,23 @@
             @touchmove.passive="onSessionTouchMove($event, item.index)"
             @touchend="onSessionTouchEnd(item.index)"
             :class="['session-item', { active: currentSessionIndex === item.index, 'is-swiping': swipeState.index === item.index }]"
-            :style="swipeState.index === item.index ? { transform: `translateX(${swipeState.offset}px)` } : {}">
-            <span class="session-title">{{ item.session.title || '新对话' }}</span>
-            <button v-if="chatSessions.length > 1" @click.stop="$emit('deleteSession', item.index)"
-              class="delete-btn" title="删除">
-              <Trash2 size="14" />
-            </button>
+            :style="{ '--session-order': Math.min(item.index, 10), ...(swipeState.index === item.index ? { transform: `translateX(${swipeState.offset}px)` } : {}) }">
+            <Pin v-if="item.session.pinned" class="session-pin" size="12" />
+            <input v-if="renamingIndex === item.index" ref="renameInputRef" v-model="renameValue"
+              class="session-rename-input" maxlength="48" @click.stop @keydown.enter.stop="commitRename(item.index)"
+              @keydown.escape.stop="cancelRename" @blur="commitRename(item.index)" />
+            <span v-else class="session-title-wrap">
+              <span class="session-title">{{ item.session.title || '新对话' }}</span>
+              <small v-if="sidebarSearchQuery && getMatchPreview(item.session)">{{ getMatchPreview(item.session) }}</small>
+            </span>
+            <span v-if="item.session.temporary" class="session-temporary-badge">临时</span>
+            <button v-if="renamingIndex !== item.index" @click.stop="toggleSessionMenu(item.index)"
+              class="delete-btn session-more-btn" title="更多操作"><MoreHorizontal size="15" /></button>
+            <div v-if="sessionMenuIndex === item.index" class="session-action-menu" @click.stop>
+              <button type="button" @click="beginRename(item)"><Pencil size="14" />重命名</button>
+              <button type="button" @click="$emit('togglePin', item.index); sessionMenuIndex = null"><Pin size="14" />{{ item.session.pinned ? '取消置顶' : '置顶' }}</button>
+              <button v-if="chatSessions.length > 1" type="button" class="danger" @click="$emit('deleteSession', item.index); sessionMenuIndex = null"><Trash2 size="14" />删除</button>
+            </div>
           </div>
         </div>
         <div v-if="filteredGroupedChatSessions.length === 0" class="session-empty">
@@ -72,21 +89,22 @@
           </button>
         </div>
       </div>
-    </aside>
+      </aside>
+    </Transition>
 
     <div v-if="isOpen" v-show="isComponentVisible"
       :class="['sidebar-overlay', { 'is-embedded': embedded }]" @click="closeSidebar"></div>
   </Teleport>
 
-  <button v-if="!isOpen" class="sidebar-open-btn" type="button" title="打开侧边栏"
+  <button v-if="!isOpen && showOpenButton" class="sidebar-open-btn" type="button" title="打开侧边栏"
     @click="openSidebar">
     <PanelLeft size="20" />
   </button>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
-import { Search, Plus, ChevronDown, Trash2, Settings, PanelLeft } from 'lucide-vue-next';
+import { ref, computed } from 'vue';
+import { Search, Plus, ChevronDown, Trash2, Settings, PanelLeft, MoreHorizontal, Pencil, Pin } from 'lucide-vue-next';
 
 const props = defineProps({
   modelValue: {
@@ -109,47 +127,26 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  overlayMode: { type: Boolean, default: false },
+  standalone: { type: Boolean, default: false },
+  showOpenButton: { type: Boolean, default: true },
+  reduceMotion: { type: Boolean, default: false },
+  theme: { type: String, default: 'light' },
   isComponentVisible: {
     type: Boolean,
     default: true
   }
 });
 
-const emit = defineEmits(['update:modelValue', 'startNewChat', 'switchSession', 'deleteSession', 'openSettings']);
+const emit = defineEmits(['update:modelValue', 'startNewChat', 'startTemporaryChat', 'switchSession', 'deleteSession', 'renameSession', 'togglePin', 'openSettings']);
 
 const isOpen = computed(() => props.modelValue);
 
-// 调试日志：显示层级信息
-watch(isOpen, (val) => {
-  if (val) {
-    setTimeout(() => {
-      const sidebar = document.querySelector('.sidebar');
-      const sidebarOverlay = document.querySelector('.sidebar-overlay');
-      const glassOverlay = document.querySelector('.global-ai-glass-overlay');
-      console.log('===== BohaiSidebar 层级调试 =====');
-      console.log('BohaiSidebar (.sidebar):', {
-        存在: !!sidebar,
-        computedZIndex: sidebar ? getComputedStyle(sidebar).zIndex : 'N/A',
-        DOM位置: sidebar ? Array.from(document.body.children).indexOf(sidebar) : 'N/A',
-        类名: sidebar ? sidebar.className : 'N/A'
-      });
-      console.log('Sidebar Overlay (.sidebar-overlay):', {
-        存在: !!sidebarOverlay,
-        computedZIndex: sidebarOverlay ? getComputedStyle(sidebarOverlay).zIndex : 'N/A',
-        DOM位置: sidebarOverlay ? Array.from(document.body.children).indexOf(sidebarOverlay) : 'N/A'
-      });
-      console.log('GlobalAiGlassOverlay (.global-ai-glass-overlay):', {
-        存在: !!glassOverlay,
-        computedZIndex: glassOverlay ? getComputedStyle(glassOverlay).zIndex : 'N/A',
-        DOM位置: glassOverlay ? Array.from(document.body.children).indexOf(glassOverlay) : 'N/A'
-      });
-      console.log('===================================');
-    }, 50);
-  }
-});
-
 const showSidebarSearch = ref(false);
 const sidebarSearchQuery = ref('');
+const sessionMenuIndex = ref(null);
+const renamingIndex = ref(null);
+const renameValue = ref('');
 
 const sidebarUsername = computed(() => {
   return String(props.userInfo?.username || 'BOH 用户').trim();
@@ -183,10 +180,7 @@ const onSessionTouchMove = (e, sessionIndex) => {
 
 const onSessionTouchEnd = (sessionIndex) => {
   if (swipeState.value.index !== sessionIndex) return;
-  const threshold = 80;
-  if (swipeState.value.offset > threshold && props.chatSessions.length > 1) {
-    emit('deleteSession', sessionIndex);
-  }
+  // 滑动只提供视觉反馈，删除必须通过显式菜单确认，避免误删。
   swipeState.value = { index: null, startX: 0, offset: 0 };
 };
 
@@ -208,6 +202,7 @@ const getSessionGroupId = (timestamp) => {
 
 const groupedChatSessions = computed(() => {
   const groups = [
+    { id: 'pinned', label: '置顶', items: [] },
     { id: 'today', label: '今天', items: [] },
     { id: 'yesterday', label: '昨天', items: [] },
     { id: 'thisWeek', label: '本周', items: [] },
@@ -217,9 +212,10 @@ const groupedChatSessions = computed(() => {
   const groupMap = Object.fromEntries(groups.map((g) => [g.id, g]));
 
   props.chatSessions.forEach((session, index) => {
-    const group = groupMap[getSessionGroupId(session?.timestamp)] || groupMap['earlier'];
+    const group = session?.pinned ? groupMap.pinned : (groupMap[getSessionGroupId(session?.timestamp)] || groupMap['earlier']);
     group.items.push({ session, index });
   });
+  groups.forEach((group) => group.items.sort((a, b) => Number(Boolean(b.session?.pinned)) - Number(Boolean(a.session?.pinned))));
   return groups.filter((group) => group.items.length > 0);
 });
 
@@ -240,13 +236,16 @@ const filteredGroupedChatSessions = computed(() => {
     .filter((group) => group.items.length > 0);
 });
 
+const getMatchPreview = (session) => {
+  const query = String(sidebarSearchQuery.value || '').trim().toLowerCase();
+  if (!query) return '';
+  const matched = (Array.isArray(session?.messages) ? session.messages : []).find((message) => String(message?.content || '').toLowerCase().includes(query));
+  return String(matched?.content || '').replace(/\s+/g, ' ').slice(0, 62);
+};
+
 // ─── 侧栏操作 ──────────────────────────────────────────────────────────────────
 const closeSidebar = () => {
-  const overlay = document.querySelector('.sidebar-overlay');
-  if (overlay) overlay.classList.add('exiting');
-  setTimeout(() => {
-    emit('update:modelValue', false);
-  }, 280);
+  emit('update:modelValue', false);
 };
 
 const openSidebar = () => {
@@ -264,36 +263,200 @@ const toggleSidebarSearch = () => {
     sidebarSearchQuery.value = '';
   }
 };
+
+const toggleSessionMenu = (index) => {
+  sessionMenuIndex.value = sessionMenuIndex.value === index ? null : index;
+};
+
+const beginRename = (item) => {
+  sessionMenuIndex.value = null;
+  renamingIndex.value = item.index;
+  renameValue.value = String(item.session?.title || '新对话');
+};
+
+const cancelRename = () => {
+  renamingIndex.value = null;
+  renameValue.value = '';
+};
+
+const commitRename = (index) => {
+  if (renamingIndex.value !== index) return;
+  const title = renameValue.value.trim();
+  if (title) emit('renameSession', { index, title });
+  cancelRename();
+};
 </script>
 
 <style>
-/* Sidebar: white translucent frosted glass with rounded corners */
+/* Quiet, utility-first conversation drawer. */
 .sidebar,
 .sidebar.is-embedded {
-  background: rgba(255, 255, 255, 0.72) !important;
-  border-right: 1px solid rgba(255, 255, 255, 0.45) !important;
-  border-radius: 0 28px 28px 0 !important;
-  box-shadow: 14px 0 36px rgba(15, 23, 42, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.5) !important;
-  backdrop-filter: blur(28px) saturate(1.4) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(1.4) !important;
+  background: #f9f9f9 !important;
+  border-right: 1px solid #e5e5e5 !important;
+  border-radius: 0 !important;
+  box-shadow: 8px 0 24px rgba(0, 0, 0, 0.08) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 /* Desktop: sidebar is persistent, with rounded right corners */
 @media (min-width: 1024px) {
   .sidebar,
   .sidebar.is-embedded {
-    border-radius: 0 28px 28px 0 !important;
-    background: rgba(255, 255, 255, 0.82) !important;
-    border-right: 1px solid rgba(148, 163, 184, 0.14) !important;
-    box-shadow: 1px 0 0 rgba(255, 255, 255, 0.72) inset !important;
-    backdrop-filter: blur(20px) saturate(1.3) !important;
-    -webkit-backdrop-filter: blur(20px) saturate(1.3) !important;
+    border-radius: 0 !important;
+    background: #f9f9f9 !important;
+    border-right: 1px solid #e5e5e5 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+/* 快捷 AI 使用抽屉内部的独立历史列，不覆盖宿主页面。 */
+.sidebar.is-overlay-panel {
+  position: relative !important;
+  inset: auto !important;
+  width: 260px !important;
+  height: 100% !important;
+  flex: 0 0 260px !important;
+  transform: translateX(0) !important;
+  box-shadow: none !important;
+  z-index: 2147483050 !important;
+}
+
+.sidebar.is-overlay-panel + .sidebar-overlay { display: none !important; }
+.bohai-page.overlay-mode .sidebar-open-btn { display: none !important; }
+.sidebar.is-standalone .sidebar-close-btn { display: inline-flex !important; }
+.sidebar.is-standalone {
+  top: var(--bohai-standalone-nav-height, 72px) !important;
+  bottom: 0 !important;
+  width: 280px !important;
+  height: auto !important;
+  border-radius: 0 !important;
+  background: #f9f9f9 !important;
+  box-shadow: none !important;
+}
+.sidebar.is-overlay-panel .sidebar-header { display: none !important; }
+
+.sidebar-quick-actions { display: grid !important; grid-template-columns: minmax(0, 1fr); gap: 4px !important; }
+.sidebar.is-overlay-panel .sidebar-quick-action { min-height: 38px !important; justify-content: flex-start !important; white-space: nowrap; }
+.sidebar.is-overlay-panel .sidebar-nav-row svg { width: 20px; height: 20px; }
+.sidebar-quick-action.secondary { color: #525252 !important; background: transparent !important; }
+.sidebar-quick-action.secondary .quick-action-icon { font-size: 18px; }
+
+.session-pin { flex: 0 0 auto; color: #737373; }
+.session-title-wrap { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.session-title-wrap .session-title { width: 100%; }
+.session-title-wrap small { overflow: hidden; color: #8a8a8a; font-size: 10px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.session-temporary-badge { flex: 0 0 auto; padding: 2px 5px; border-radius: 5px; background: #ececec; color: #737373; font-size: 10px; }
+.session-item { position: relative; }
+.session-rename-input { min-width: 0; width: 100%; height: 28px; padding: 0 7px; border: 1px solid #bdbdbd; border-radius: 6px; outline: none; background: #fff; color: #171717; }
+.session-action-menu {
+  position: absolute;
+  top: calc(100% - 4px);
+  right: 6px;
+  z-index: 20;
+  width: 142px;
+  padding: 5px;
+  border: 1px solid #dedede;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(0,0,0,.14);
+}
+.session-action-menu button { width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px; border: 0; border-radius: 6px; background: transparent; color: #404040; font-size: 12px; cursor: pointer; }
+.session-action-menu button:hover { background: #f2f2f2; }
+.session-action-menu button.danger { color: #dc2626; }
+
+.bohai-sidebar-panel-enter-active,
+.bohai-sidebar-panel-leave-active {
+  transition: opacity 240ms ease, transform 300ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.bohai-sidebar-panel-enter-from,
+.bohai-sidebar-panel-leave-to {
+  opacity: 0;
+  transform: translateX(-100%) !important;
+}
+
+.sidebar .sidebar-nav-row,
+.sidebar .sidebar-quick-actions,
+.sidebar .sidebar-section-title,
+.sidebar .sidebar-footer {
+  animation: sidebar-content-enter 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.sidebar .sidebar-quick-actions { animation-delay: 35ms; }
+.sidebar .sidebar-section-title { animation-delay: 70ms; }
+.sidebar .sidebar-footer { animation-delay: 100ms; }
+
+.sidebar .session-item {
+  animation: sidebar-session-enter 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(min(var(--session-order, 0), 10) * 24ms + 85ms);
+  transition: transform 150ms ease, background-color 150ms ease, border-color 150ms ease, color 150ms ease !important;
+}
+
+.sidebar .session-item:hover { transform: translateX(2px); }
+.sidebar .session-item:active { transform: scale(0.985); }
+
+.sidebar .session-action-menu {
+  animation: sidebar-menu-enter 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: top right;
+}
+
+.sidebar button {
+  transition: transform 140ms ease, background-color 160ms ease, color 160ms ease, border-color 160ms ease !important;
+}
+
+.sidebar button:active { transform: scale(0.96); }
+
+@keyframes sidebar-content-enter {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes sidebar-session-enter {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes sidebar-menu-enter {
+  from { opacity: 0; transform: translateY(-4px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .sidebar *,
+  .sidebar *::before,
+  .sidebar *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+[data-theme="dark"] .session-action-menu { background: #2b2b2b; border-color: #454545; }
+[data-theme="dark"] .session-action-menu button { color: #e5e5e5; }
+[data-theme="dark"] .session-action-menu button:hover { background: #3b3b3b; }
+.sidebar[data-theme="dark"] .session-action-menu { background: #2b2b2b; border-color: #454545; }
+.sidebar[data-theme="dark"] .session-action-menu button { color: #e5e5e5; }
+.sidebar[data-theme="dark"] .session-action-menu button:hover { background: #3b3b3b; }
+
+@media (max-width: 1023px) {
+  .sidebar.is-overlay-panel {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    padding-top: 0 !important;
+    z-index: 2147483050 !important;
   }
 }
 
 /* Dark mode sidebar */
 [data-theme="dark"] .sidebar,
-[data-theme="dark"] .sidebar.is-embedded {
+[data-theme="dark"] .sidebar.is-embedded,
+.sidebar[data-theme="dark"],
+.sidebar.is-embedded[data-theme="dark"] {
   background: rgba(15, 23, 42, 0.72) !important;
   border-right: 1px solid rgba(255, 255, 255, 0.12) !important;
   box-shadow: 18px 0 44px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
@@ -342,13 +505,13 @@ const toggleSidebarSearch = () => {
   z-index: 2147482100 !important;
 }
 
-/* --- overlay-mode 侧栏层级提升 --- */
+/* Keep overlay layers ordered within the browser's valid z-index range. */
 .bohai-page.overlay-mode .sidebar-overlay {
-  z-index: 2147483648 !important; /* 高于 GlobalAiGlassOverlay 的 2147483656 */
+  z-index: 2147483400 !important;
 }
 
 .bohai-page.overlay-mode .sidebar {
-  z-index: 2147483649 !important; /* 高于遮罩层，确保在最上层 */
+  z-index: 2147483450 !important;
 }
 
 /* ================================================================
@@ -360,7 +523,7 @@ const toggleSidebarSearch = () => {
 .sidebar {
   position: fixed !important;
   inset: 0 auto 0 0 !important;
-  z-index: 2147483650 !important; /* 高于 GlobalAiGlassOverlay 的 2147483656 */
+  z-index: 2147483450 !important;
 }
 
 .sidebar.open {
@@ -371,23 +534,23 @@ const toggleSidebarSearch = () => {
 .sidebar.is-embedded {
   top: var(--userspace-top-offset, 80px) !important;
   bottom: calc(var(--userspace-bottom-nav-offset, 80px) + env(safe-area-inset-bottom, 0px)) !important;
-  z-index: 2147483651 !important; /* 高于基础侧栏 */
+  z-index: 2147483450 !important;
 }
 
 .bohai-page.embedded-mode .sidebar {
   top: var(--userspace-top-offset, 80px) !important;
   bottom: calc(var(--userspace-bottom-nav-offset, 80px) + env(safe-area-inset-bottom, 0px)) !important;
-  z-index: 2147483651 !important;
+  z-index: 2147483450 !important;
 }
 
 /* --- 侧栏遮罩层（:global() 规则中完全缺失） --- */
 .sidebar-overlay {
   position: fixed !important;
   inset: 0 !important;
-  z-index: 2147483648 !important; /* 高于 GlobalAiGlassOverlay 的 2147483656 */
-  background: rgba(15, 23, 42, 0.32) !important;
-  backdrop-filter: blur(4px) !important;
-  -webkit-backdrop-filter: blur(4px) !important;
+  z-index: 2147483400 !important;
+  background: rgba(0, 0, 0, 0.28) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   animation: sidebar-overlay-fade 0.2s ease !important;
 }
 
@@ -399,13 +562,13 @@ const toggleSidebarSearch = () => {
 .sidebar-overlay.is-embedded {
   top: var(--userspace-top-offset, 80px) !important;
   bottom: calc(var(--userspace-bottom-nav-offset, 80px) + env(safe-area-inset-bottom, 0px)) !important;
-  z-index: 2147483649 !important; /* 高于基础遮罩层 */
+  z-index: 2147483400 !important;
 }
 
 .bohai-page.embedded-mode .sidebar-overlay {
   top: var(--userspace-top-offset, 80px) !important;
   bottom: calc(var(--userspace-bottom-nav-offset, 80px) + env(safe-area-inset-bottom, 0px)) !important;
-  z-index: 2147483649 !important;
+  z-index: 2147483400 !important;
 }
 
 /* --- 交互状态（hover/active，:global() 规则中缺失） --- */
@@ -484,21 +647,21 @@ const toggleSidebarSearch = () => {
     left: 0 !important;
     bottom: 0 !important;
     width: clamp(248px, 19vw, 312px) !important;
-    z-index: 1100 !important;
+    z-index: 2147483450 !important;
     transform: none !important;
-    border-radius: 0 28px 28px 0 !important;
-    background: rgba(255, 255, 255, 0.82) !important;
+    border-radius: 0 !important;
+    background: #f9f9f9 !important;
     isolation: isolate !important;
     border-right: 1px solid rgba(148, 163, 184, 0.14) !important;
-    box-shadow: 1px 0 0 rgba(255, 255, 255, 0.72) inset !important;
-    backdrop-filter: blur(20px) saturate(1.3) !important;
-    -webkit-backdrop-filter: blur(20px) saturate(1.3) !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 
   .bohai-page.embedded-mode .sidebar {
     top: var(--userspace-top-offset, 0px) !important;
     bottom: var(--userspace-bottom-nav-offset, 0px) !important;
-    z-index: 1100 !important;
+    z-index: 2147483450 !important;
   }
 
   .sidebar-close-btn,
@@ -518,7 +681,45 @@ const toggleSidebarSearch = () => {
   .session-item {
     min-height: 42px !important;
     padding: 9px 10px !important;
-    border-radius: 12px !important;
+    border-radius: 8px !important;
   }
+}
+
+/* Must follow the legacy embedded/full-page rules above. */
+.bohai-page.embedded-mode .sidebar.is-overlay-panel,
+.bohai-page.overlay-mode .sidebar.is-overlay-panel {
+  position: relative !important;
+  inset: auto !important;
+  width: 260px !important;
+  height: 100% !important;
+  flex: 0 0 260px !important;
+  padding-top: 0 !important;
+  transform: none !important;
+  border-radius: 0 !important;
+}
+
+@media (max-width: 1023px) {
+  .bohai-page.embedded-mode .sidebar.is-overlay-panel,
+  .bohai-page.overlay-mode .sidebar.is-overlay-panel {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+  }
+}
+
+/* Keep transition transforms above legacy sidebar transform overrides. */
+.sidebar.bohai-sidebar-panel-enter-from,
+.sidebar.bohai-sidebar-panel-leave-to {
+  opacity: 0 !important;
+  transform: translateX(-100%) !important;
+}
+
+.sidebar.reduce-motion,
+.sidebar.reduce-motion *,
+.sidebar.reduce-motion *::before,
+.sidebar.reduce-motion *::after {
+  animation-duration: 1ms !important;
+  animation-delay: 0ms !important;
+  transition-duration: 1ms !important;
 }
 </style>

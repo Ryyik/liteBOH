@@ -32,6 +32,7 @@ export const tabs = [
   { id: 'api-keys', label: 'API Key', icon: '🔑', module: 'ai-config', type: 'page' },
   { id: 'freemodels', label: '免费模型库', icon: '🆓', module: 'ai-config', type: 'page' },
   { id: 'bohaiModels', label: 'BOHAI 模型', icon: '🤖', module: 'ai-config', type: 'table' },
+  { id: 'ai-quota', label: 'AI 额度', icon: '📊', module: 'ai-config', type: 'page' },
   { id: 'moderation-model', label: '审核模型', icon: '🛡️', module: 'ai-config', type: 'page' },
   { id: 'lab-ai-model', label: '实验室模型', icon: '🧪', module: 'ai-config', type: 'page' }
 ];
@@ -87,7 +88,7 @@ export const tabModules = [
     icon: Sparkles,
     section: 'data',
     defaultTab: 'api-keys',
-    tabIds: ['api-keys', 'freemodels', 'bohaiModels', 'moderation-model', 'lab-ai-model'],
+    tabIds: ['api-keys', 'freemodels', 'bohaiModels', 'ai-quota', 'moderation-model', 'lab-ai-model'],
     description: 'API Key、免费模型库与各场景模型配置'
   },
   {
@@ -125,6 +126,7 @@ export const TABS_ACTIONS = {
   'api-keys': ['view', 'create', 'edit', 'delete'],
   freemodels: ['view', 'create', 'edit', 'delete'],
   bohaiModels: ['view', 'create', 'edit', 'delete'],
+  'ai-quota': ['view', 'edit'],
   'moderation-model': ['view', 'edit'],
   'lab-ai-model': ['view', 'edit']
 };

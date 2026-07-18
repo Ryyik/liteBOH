@@ -18,6 +18,17 @@ import {
 } from './chat-engine-config.js';
 
 export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
+  const readBooleanSetting = (key, fallback = false) => {
+    if (typeof window === 'undefined') return fallback;
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved === null) return fallback;
+      return saved === '1' || saved === 'true';
+    } catch {
+      return fallback;
+    }
+  };
+
   // 处理 ref 参数：如果是 ref，使用 .value；否则直接使用
   const getAvailableModels = () => {
     return availableModels && typeof availableModels === 'object' && 'value' in availableModels
@@ -60,7 +71,9 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
 
   const isMemoryCaptureEnabled = ref(false);
 
-  const isTreeholeMemoryEnabled = ref(false);
+  const isTreeholeMemoryEnabled = ref(
+    readBooleanSetting(TREEHOLE_MEMORY_SYNC_SETTING_KEY, readBooleanSetting(LEGACY_TREEHOLE_MEMORY_SYNC_SETTING_KEY, false))
+  );
 
   const isTreeholeMemoryToggling = ref(false);
 
@@ -68,7 +81,7 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
 
   const isPlanModeEnabled = ref(false);
 
-  const isSharedMemoryEnabled = ref(false);
+  const isSharedMemoryEnabled = ref(readBooleanSetting(SHARED_MEMORY_SETTING_KEY, false));
 
   const isKnowledgeBaseEnabled = ref(false);
 
@@ -121,9 +134,15 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
 
   // ─── Other state ───────────────────────────────────────────────────────────────
 
-  const cloudReferenceConsent = ref(
-    'denied'
-  );
+  const cloudReferenceConsent = ref((() => {
+    if (typeof window === 'undefined') return 'unknown';
+    try {
+      const saved = localStorage.getItem(CLOUD_REFERENCE_CONSENT_KEY);
+      return saved === 'granted' || saved === 'denied' ? saved : 'unknown';
+    } catch {
+      return 'unknown';
+    }
+  })());
 
   // 会话级"联网搜索未配置"提示去重：避免每轮都刷一条。
   const webSearchDisabledNoticeShownFor = new Set();
@@ -188,7 +207,7 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
 
   const persistTreeholeMemorySetting = () => {
     if (typeof window === 'undefined') return;
-    localStorage.removeItem(TREEHOLE_MEMORY_SYNC_SETTING_KEY);
+    localStorage.setItem(TREEHOLE_MEMORY_SYNC_SETTING_KEY, isTreeholeMemoryEnabled.value ? '1' : '0');
     localStorage.removeItem(LEGACY_TREEHOLE_MEMORY_SYNC_SETTING_KEY);
   };
 
@@ -199,7 +218,7 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
 
   const persistSharedMemorySetting = () => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(SHARED_MEMORY_SETTING_KEY, '0');
+    localStorage.setItem(SHARED_MEMORY_SETTING_KEY, isSharedMemoryEnabled.value ? '1' : '0');
   };
 
   const persistKnowledgeBaseSetting = () => {

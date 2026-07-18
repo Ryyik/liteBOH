@@ -104,8 +104,17 @@ export default defineConfig({
       workbox: {
         // 预缓存文件大小上限（4MB，避免大文件静默跳过）
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
-        // 预缓存所有静态资源（Cache-First）
-        globPatterns: ['**/*.{js,css,html,woff,woff2,ico,png,webp,svg}'],
+        // 只预缓存应用壳。页面 chunk 和大图按需加载，避免每次发布都在后台更新整站资源。
+        globPatterns: [
+          'index.html',
+          'registerSW.js',
+          'manifest.webmanifest',
+          'static/js/app-*.js',
+          'static/js/{vue-vendor,state-vendor,auth-store,ui-components,supabase-vendor,ui-icons}-*.js',
+          'static/css/{index,ui-components}-*.css',
+          'static/fonts/*.{woff,woff2}',
+        ],
+        cleanupOutdatedCaches: true,
         // 强制更新：新 Service Worker 立即激活，不等待旧页面关闭
         skipWaiting: true,
         clientsClaim: true,
@@ -124,7 +133,7 @@ export default defineConfig({
           },
           {
             // Cloudinary 图片：Stale-While-Revalidate
-            urlPattern: /^https:\/\/cdn\.blockofhome\.cn\/.*/i,
+            urlPattern: /^https:\/\/(cdn\.blockofhome\.cn|res\.cloudinary\.com)\/.*/i,
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'images-cloudinary',
@@ -198,7 +207,7 @@ export default defineConfig({
       output: {
         // 优化 chunk 文件名
         chunkFileNames: 'static/js/[name]-[hash].js',
-        entryFileNames: 'static/js/[name]-[hash].js',
+        entryFileNames: 'static/js/app-[hash].js',
         // 优化长期缓存
         assetFileNames: (assetInfo) => {
           const name = assetInfo.name || '';
@@ -271,20 +280,7 @@ export default defineConfig({
           if (id.includes('src/stores/auth.ts')) return 'auth-store';
           if (id.includes('src/data/products.js')) return 'content-datasets';
 
-          // ============================================
-          // 大视图独立 chunk（经排查 BOHAI 与 DataManagement 无循环依赖，拆分为独立 chunk 降低单文件体积）
-          // ============================================
-          if (id.includes('src/views/user-center/UserSpace/')) return 'view-userspace';
-          if (id.includes('src/views/BOHAI/')) return 'view-bohai';
-          if (id.includes('src/views/DataManagement/')) return 'view-admin';
-          if (id.includes('src/views/Profile/')) return 'view-profile';
-          if (id.includes('src/views/user-center/Cloud+/')) return 'view-cloudplus';
-          if (id.includes('src/views/PostDetail/')) return 'view-postdetail';
-          if (id.includes('src/views/Forum/')) return 'view-forum';
-          if (id.includes('src/views/Lab/')) return 'view-lab';
         },
-        // 自动代码分割
-        experimentalMinChunkSize: 20000,
       },
     },
     // 启用 CSS 分割，降低首屏阻塞体积

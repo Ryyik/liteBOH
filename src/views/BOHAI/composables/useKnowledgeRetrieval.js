@@ -75,6 +75,7 @@ import {
   getForumTagFilterFromQuery,
   getForumSortModeFromQuery,
   isLatestForumSummaryQuery,
+  filterRecentForumPosts,
   sortForumPostsByCreatedAtDesc,
   normalizeForumSummaryText,
   buildForumPostNaturalSummary,
@@ -609,9 +610,11 @@ export function useKnowledgeRetrieval(deps) {
       const posts = mergedPosts;
       if (!Array.isArray(posts) || posts.length === 0) return '';
 
-      const rankedPosts = latestSummaryMode
-        ? sortForumPostsByCreatedAtDesc(posts)
-        : rankForumPostsByQuery(posts, queryText);
+      const recentPosts = filterRecentForumPosts(posts);
+      const recentSource = recentPosts.length > 0 ? recentPosts : posts;
+      const rankedPosts = sortMode === 'latest'
+        ? sortForumPostsByCreatedAtDesc(recentSource)
+        : rankForumPostsByQuery(recentSource, queryText);
       const selectedPosts = rankedPosts.slice(0, FORUM_MAX_POSTS);
       const forumContext = selectedPosts.map((post, index) => {
         const parsed = getPostTitleAndBody(post);
@@ -636,7 +639,7 @@ export function useKnowledgeRetrieval(deps) {
       }).join('\n\n');
 
       return {
-        context: `【社区帖子检索结果】\n检索词：${candidateQueries.join(' / ') || '最新社区帖子'}\n排序：${sortMode === 'hottest' ? '热门优先' : '最新优先'}${tagFilter ? `\n标签过滤：${tagFilter}` : ''}${latestSummaryMode ? `\n输出约束：必须严格按 [F1] 到 [F${selectedPosts.length}] 的顺序总结；[F1] 是当前检索到的最新发布帖子，后续依次按发布时间从新到旧排列。不要按热度、重要性或相关性重排。` : ''}\n\n${forumContext}`,
+        context: `【社区帖子检索结果】\n检索词：${candidateQueries.join(' / ') || '最新社区帖子'}\n范围：近 30 日优先${recentPosts.length > 0 ? '' : '（近 30 日无结果，回退到最近可用帖子）'}\n排序：${sortMode === 'hottest' ? '近期热门优先' : '最新优先'}${tagFilter ? `\n标签过滤：${tagFilter}` : ''}${latestSummaryMode || sortMode === 'latest' ? `\n输出约束：必须严格按 [F1] 到 [F${selectedPosts.length}] 的顺序总结；[F1] 是当前检索到的最新发布帖子，后续依次按发布时间从新到旧排列。不要按热度、重要性或相关性重排。` : ''}\n\n${forumContext}`,
         total: selectedPosts.length,
         evidenceRefs: selectedPosts.map((_, index) => `F${index + 1}`),
         labels: [`社区帖子(${selectedPosts.length}条)`],
@@ -646,6 +649,8 @@ export function useKnowledgeRetrieval(deps) {
           tagFilter,
           query: candidateQueries[0] || '',
           latestSummaryMode,
+          recentOnly: recentPosts.length > 0,
+          recentWindowDays: 30,
           posts: selectedPosts
         }
       };
@@ -1086,6 +1091,7 @@ export function useKnowledgeRetrieval(deps) {
     rankForumPostsByQuery,
     getForumTagFilterFromQuery,
     getForumSortModeFromQuery,
+    filterRecentForumPosts,
     isLatestForumSummaryQuery,
     sortForumPostsByCreatedAtDesc,
     normalizeForumSummaryText,

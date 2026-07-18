@@ -9,6 +9,7 @@ const MODEL_BUNDLE_LOAD_TIMEOUT_MS = 30000;
 const MODEL_INIT_TIMEOUT_MS = 30000;
 const IMAGE_DECODE_TIMEOUT_MS = 15000;
 const IMAGE_CLASSIFY_TIMEOUT_MS = 20000;
+const MODERATION_SURFACE_MAX_SIDE = 448;
 const TFJS_CDN_URL = String(
   import.meta.env?.VITE_NSFWJS_TFJS_CDN_URL
   || 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js'
@@ -203,6 +204,28 @@ function createImageElement(file) {
   });
 }
 
+function createModerationSurface(image) {
+  if (typeof document === 'undefined') {
+    throw new Error('当前浏览器不支持图片安全检测');
+  }
+  const sourceWidth = Number(image?.naturalWidth || image?.width || 0);
+  const sourceHeight = Number(image?.naturalHeight || image?.height || 0);
+  if (!sourceWidth || !sourceHeight) {
+    throw new Error('图片尺寸无效，请换一张图片');
+  }
+
+  const scale = Math.min(1, MODERATION_SURFACE_MAX_SIDE / Math.max(sourceWidth, sourceHeight));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+  canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+  const context = canvas.getContext('2d', { alpha: false });
+  if (!context) {
+    throw new Error('当前浏览器无法创建图片安全检测画布');
+  }
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
 export function classifyNsfwPredictions(predictions = []) {
   const scores = Object.fromEntries(
     (Array.isArray(predictions) ? predictions : [])
@@ -247,10 +270,21 @@ export function classifyNsfwPredictions(predictions = []) {
 }
 
 let classifyMutex = Promise.resolve();
+let classifyBlockedError = null;
 
 export async function moderateForumImageFile(file) {
   const { image, objectUrl } = await createImageElement(file);
+  let surface;
+  let classificationOwnsSurface = false;
   try {
+    surface = createModerationSurface(image);
+  } finally {
+    try { image.src = ''; } catch { /* ignore */ }
+    URL.revokeObjectURL(objectUrl);
+  }
+
+  try {
+    if (classifyBlockedError) throw classifyBlockedError;
     const model = await getNsfwModel();
 
     // TFJS WebGL backend 不支持并发 classify，必须串行化避免 GPU 崩溃
@@ -259,20 +293,48 @@ export async function moderateForumImageFile(file) {
     classifyMutex = new Promise((resolve) => { release = resolve; });
     await prev;
 
+    if (classifyBlockedError) {
+      release();
+      throw classifyBlockedError;
+    }
+
+    classificationOwnsSurface = true;
+    const classificationPromise = Promise.resolve().then(() => model.classify(surface));
     try {
       const predictions = await withTimeout(
-        model.classify(image),
+        classificationPromise,
         IMAGE_CLASSIFY_TIMEOUT_MS,
         '图片安全检测超时，请稍后重试或换一张图片'
       );
       return classifyNsfwPredictions(predictions);
+    } catch (error) {
+      if (error?.code === 'IMAGE_MODERATION_TIMEOUT') {
+        classifyBlockedError = error;
+      }
+      throw error;
     } finally {
-      release();
-      // 释放 Image 元素内存，避免多图累积导致 GPU/CPU 内存耗尽
-      try { image.src = ''; } catch { /* ignore */ }
+      // 超时无法取消 TFJS 底层推理。等真实任务结束后再释放锁，避免下一张与残留 GPU 任务重叠。
+      void classificationPromise
+        .catch(() => {
+          modelPromise = null;
+        })
+        .finally(() => {
+          classifyBlockedError = null;
+          if (surface) {
+            surface.width = 1;
+            surface.height = 1;
+            surface = null;
+          }
+          release();
+        });
     }
   } finally {
-    URL.revokeObjectURL(objectUrl);
+    // 正常完成时上面的任务清理会先执行；模型加载失败时在这里释放画布。
+    if (surface && !classificationOwnsSurface) {
+      surface.width = 1;
+      surface.height = 1;
+      surface = null;
+    }
   }
 }
 

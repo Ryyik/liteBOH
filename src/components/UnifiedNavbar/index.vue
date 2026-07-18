@@ -3,6 +3,7 @@
     'mobile-menu-open': isMobileMenuOpen,
     scrolled: isScrolled
   }" data-theme>
+    <div class="unified-nav-surface">
     <div class="nav-container">
       <router-link to="/" class="nav-logo">
         <div class="nav-logo-icon">
@@ -119,6 +120,7 @@
         </div>
       </div>
     </div>
+    </div>
   </div>
 </template>
 
@@ -152,7 +154,8 @@ const isHomeCatActive = computed(() => (
 // ============================================
 
 const isScrolled = ref(false);
-const SCROLL_THRESHOLD = 50;
+const SCROLL_ENTER_THRESHOLD = 72;
+const SCROLL_EXIT_THRESHOLD = 32;
 
 let scrollRafId = null;
 let resizeRafId = null;
@@ -162,12 +165,14 @@ const handleScroll = (event) => {
   if (scrollRafId) return;
   const target = event?.target;
   if (target && target !== document && target !== document.documentElement && target !== window) {
-    pendingScrollY = target.scrollTop;
+    pendingScrollY = Math.max(window.scrollY, Number(target.scrollTop) || 0);
   } else {
     pendingScrollY = window.scrollY;
   }
   scrollRafId = requestAnimationFrame(() => {
-    isScrolled.value = pendingScrollY > SCROLL_THRESHOLD;
+    isScrolled.value = isScrolled.value
+      ? pendingScrollY > SCROLL_EXIT_THRESHOLD
+      : pendingScrollY > SCROLL_ENTER_THRESHOLD;
     scrollRafId = null;
   });
 };
@@ -600,7 +605,7 @@ onMounted(() => {
   // 这样浏览器先绘制了无 scrolled 的基准状态，过渡才能正确触发
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      isScrolled.value = window.scrollY > SCROLL_THRESHOLD;
+      isScrolled.value = window.scrollY > SCROLL_ENTER_THRESHOLD;
     });
   });
 });
