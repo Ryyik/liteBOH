@@ -7,6 +7,8 @@ import { ensureThemeCSS } from './theme-css-loader.js';
 import { logger } from './logger.js';
 
 const DEFAULT_THEME = 'anniversary-mc';
+const ANNIVERSARY_THEME_MIGRATION_KEY = 'boh-theme-anniversary-mc-default-v1';
+const VALID_THEMES = ['light', 'dark', 'system', 'home-cat', 'anniversary-mc'];
 
 class ThemeManager {
   constructor() {
@@ -30,14 +32,22 @@ class ThemeManager {
     if (this.initialized) return;
     this.initialized = true;
 
-    // 优先读取用户设置；未设置时使用八周年主题作为全站默认值。
+    // Apply the campaign default once on existing devices. Later user choices remain authoritative.
     const savedTheme = localStorage.getItem('boh-theme');
     const savedUiStyle = localStorage.getItem('boh-ui-style');
+    const needsAnniversaryMigration = localStorage.getItem(ANNIVERSARY_THEME_MIGRATION_KEY) !== 'done';
 
-    this.preference = ['light', 'dark', 'system', 'home-cat', 'anniversary-mc'].includes(savedTheme) ? savedTheme : DEFAULT_THEME;
+    this.preference = needsAnniversaryMigration
+      ? DEFAULT_THEME
+      : (VALID_THEMES.includes(savedTheme) ? savedTheme : DEFAULT_THEME);
     this.uiStyle = ['flat', 'glass'].includes(savedUiStyle) ? savedUiStyle : 'glass';
     this.theme = this.resolveTheme(this.preference);
     this.updateSystemThemeListener();
+
+    if (needsAnniversaryMigration) {
+      localStorage.setItem('boh-theme', DEFAULT_THEME);
+      localStorage.setItem(ANNIVERSARY_THEME_MIGRATION_KEY, 'done');
+    }
 
     // 应用主题
     this.applyTheme(this.theme, this.preference);
@@ -152,7 +162,7 @@ class ThemeManager {
    * @param {string} theme - 'light'、'dark' 或自定义主题
    */
   setTheme(theme) {
-    if (theme === 'light' || theme === 'dark' || theme === 'home-cat' || theme === 'anniversary-mc') {
+    if (VALID_THEMES.includes(theme) && theme !== 'system') {
       this.preference = theme;
       this.updateSystemThemeListener();
       this.applyTheme(theme, theme);

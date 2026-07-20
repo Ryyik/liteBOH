@@ -26,10 +26,7 @@ vi.stubGlobal('document', {
 vi.stubGlobal('window', {
   dispatchEvent: mockDispatchEvent,
   matchMedia: mockMatchMedia,
-  localStorage: {
-    getItem: vi.fn(() => null),
-    setItem: vi.fn(),
-  },
+  localStorage: globalThis.localStorage,
   navigator: { userAgent: '', maxTouchPoints: 0 },
 });
 
@@ -42,6 +39,7 @@ let ThemeManager;
 beforeEach(async () => {
   vi.resetModules();
   vi.clearAllMocks();
+  localStorage.clear();
   const mod = await import('../../src/utils/theme-manager.js');
   ThemeManager = mod.themeManager.constructor;
 });
@@ -265,6 +263,30 @@ describe('theme-manager: addListener / removeListener', () => {
 });
 
 describe('theme-manager: init', () => {
+  it('migrates an existing device to the anniversary theme once', () => {
+    localStorage.setItem('boh-theme', 'dark');
+    const tm = createInstance();
+
+    tm.init();
+
+    expect(tm.theme).toBe('anniversary-mc');
+    expect(tm.preference).toBe('anniversary-mc');
+    expect(localStorage.getItem('boh-theme')).toBe('anniversary-mc');
+    expect(localStorage.getItem('boh-theme-anniversary-mc-default-v1')).toBe('done');
+  });
+
+  it('preserves the user theme after the anniversary migration has run', () => {
+    localStorage.setItem('boh-theme', 'dark');
+    localStorage.setItem('boh-theme-anniversary-mc-default-v1', 'done');
+    const tm = createInstance();
+
+    tm.init();
+
+    expect(tm.theme).toBe('dark');
+    expect(tm.preference).toBe('dark');
+    expect(localStorage.getItem('boh-theme')).toBe('dark');
+  });
+
   it('does not re-initialize', () => {
     const tm = createInstance();
     tm.initialized = true;
