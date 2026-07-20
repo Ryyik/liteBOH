@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   ArrowUp,
   Coffee,
@@ -39,9 +40,15 @@ import elevenSkin from '@/assets/images/anniversary-cafe/skins/eleven-cutout.web
 import endSkin from '@/assets/images/anniversary-cafe/skins/end-cutout.webp'
 import yufuquSkin from '@/assets/images/anniversary-cafe/skins/yufuqu-cutout.webp'
 import fivegeSkin from '@/assets/images/anniversary-cafe/skins/fivege-cutout.webp'
+import {
+  getAnniversaryCafeResultTitle,
+  getAnniversaryCafeStars
+} from '@/utils/anniversary-cafe-result.js'
+import { createPausableTaskScheduler } from '@/utils/pausable-task-scheduler.js'
 
 const ROUND_SECONDS = 150
 const CAT_HELP_COST = 8
+const router = useRouter()
 
 const stepDefinitions = {
   grind: { name: '研磨咖啡豆', short: '研磨', icon: Coffee, mode: 'hold', visual: 'grind', target: [62, 78], rate: 29, action: '按住研磨' },
@@ -105,6 +112,9 @@ const activeOrderId = ref(null)
 const isPaused = ref(false)
 const soundEnabled = ref(true)
 const showMenu = ref(false)
+const showExitConfirm = ref(false)
+const exitTarget = ref('intro')
+const pauseReason = ref('')
 const customerIndex = ref(-1)
 const catAffinity = ref(0)
 const catMood = ref('idle')
@@ -120,6 +130,8 @@ const upgrades = ref({ grinder: 0, machine: 0, steam: 0 })
 const discoveredMemories = ref([])
 const activeMemoryId = ref(null)
 const memoryMessage = ref(null)
+const pauseResumeButton = ref(null)
+const exitCancelButton = ref(null)
 
 const order = computed(() => orders.value.find((item) => item.id === activeOrderId.value) || null)
 
@@ -147,6 +159,7 @@ const kettleAngle = activeOrderField('kettleAngle', 0)
 const steamPosition = activeOrderField('steamPosition', 50)
 const latteTrail = activeOrderField('latteTrail', [])
 const latteReversals = activeOrderField('latteReversals', 0)
+const keyboardPourDirection = activeOrderField('keyboardPourDirection', 0)
 
 const currentDrink = computed(() => drinks.find((drink) => drink.id === order.value?.drinkId) || drinks[0])
 const currentCustomer = computed(() => customers[order.value?.customerIndex ?? 0])
@@ -155,22 +168,14 @@ const currentStep = computed(() => currentStepId.value ? stepDefinitions[current
 const canServe = computed(() => activeStepIndex.value >= currentDrink.value.steps.length)
 const isTapStep = computed(() => currentStep.value?.mode === 'tap')
 const progress = computed(() => ((ROUND_SECONDS - timeLeft.value) / ROUND_SECONDS) * 100)
-const catHelpReady = computed(() => catAffinity.value >= CAT_HELP_COST && phase.value === 'playing' && !isResolving.value)
+const catHelpReady = computed(() => catAffinity.value >= CAT_HELP_COST && phase.value === 'playing' && !isPaused.value && !isResolving.value)
 const catPositionStyle = computed(() => ({ '--cat-spot': `${43 + catSpot.value * 18}%` }))
 const currentQuality = computed(() => stepQualities.value.length
   ? Math.round(stepQualities.value.reduce((sum, value) => sum + value, 0) / stepQualities.value.length)
   : 0)
 const averageQuality = computed(() => served.value ? Math.round(totalQuality.value / served.value) : 0)
-const resultTitle = computed(() => {
-  if (served.value >= 8 && averageQuality.value >= 88) return '今天是金牌营业日'
-  if (served.value >= 6) return '云上咖啡店座无虚席'
-  return '忙碌而温暖的一天'
-})
-const stars = computed(() => {
-  if (served.value >= 8 && averageQuality.value >= 85) return 3
-  if (served.value >= 5) return 2
-  return 1
-})
+const resultTitle = computed(() => getAnniversaryCafeResultTitle(served.value, averageQuality.value))
+const stars = computed(() => getAnniversaryCafeStars(served.value, averageQuality.value))
 const targetBounds = computed(() => {
   if (!currentStep.value || isTapStep.value) return [0, 100]
   const [start, end] = currentStep.value.target
@@ -201,6 +206,12 @@ const machineActionLabel = computed(() => {
 const gestureInstruction = computed(() => {
   return currentStep.value?.instruction || ''
 })
+const keyboardGestureInstruction = computed(() => {
+  if (currentStep.value?.gesture === 'water') return '方向键上下调整用量，回车确认'
+  if (currentStep.value?.gesture === 'steam') return '方向键上下移动奶缸，回车确认'
+  if (currentStep.value?.gesture === 'pour') return '方向键左右往复拉花，回车确认'
+  return ''
+})
 const usesEquipmentGesture = computed(() => currentStep.value?.mode === 'gesture')
 const queueCount = computed(() => orders.value.filter((item) => !item.isResolving).length)
 const activeMemory = computed(() => cafeMemories.find((memory) => memory.id === activeMemoryId.value) || null)
@@ -220,9 +231,13 @@ let lastPetAt = 0
 let equipmentGesture = null
 let arrivalTimer = null
 let orderSerial = 0
-let maintenanceTimer = null
-let memoryTimer = null
-const managedTimers = new Set()
+let memoryTask = null
+let pausedAt = 0
+let roundDeadline = 0
+let lastGameTickAt = 0
+let lastFocusedElement = null
+let exitWasPaused = false
+const taskScheduler = createPausableTaskScheduler()
 
 function playTone(kind = 'tap') {
   if (!soundEnabled.value || typeof window === 'undefined') return
@@ -258,8 +273,8 @@ function selectNextMemory() {
 }
 
 function closeMemory() {
-  window.clearTimeout(memoryTimer)
-  memoryTimer = null
+  taskScheduler.cancel(memoryTask)
+  memoryTask = null
   memoryMessage.value = null
   if (phase.value === 'playing') selectNextMemory()
 }
@@ -273,7 +288,7 @@ function discoverMemory(memory) {
   activeMemoryId.value = null
   memoryMessage.value = memory
   playTone('success')
-  memoryTimer = window.setTimeout(closeMemory, 4200)
+  memoryTask = taskScheduler.schedule(closeMemory, 4200)
 }
 
 function cancelProcessFrame() {
@@ -289,15 +304,11 @@ function clearTimers() {
   window.clearInterval(gameTimer)
   window.clearInterval(catTimer)
   window.clearInterval(arrivalTimer)
-  window.clearTimeout(maintenanceTimer)
-  window.clearTimeout(memoryTimer)
-  managedTimers.forEach((timer) => window.clearTimeout(timer))
-  managedTimers.clear()
+  taskScheduler.clear()
   gameTimer = null
   catTimer = null
   arrivalTimer = null
-  maintenanceTimer = null
-  memoryTimer = null
+  memoryTask = null
   cancelProcessFrame()
 }
 
@@ -327,7 +338,8 @@ function createOrder() {
     kettleAngle: 0,
     steamPosition: 50,
     latteTrail: [],
-    latteReversals: 0
+    latteReversals: 0,
+    keyboardPourDirection: 0
   }
   orders.value.push(newOrder)
   if (!activeOrderId.value) activeOrderId.value = newOrder.id
@@ -358,11 +370,9 @@ function selectOrder(orderId) {
 }
 
 function scheduleReplacement(delay = 1200) {
-  const timer = window.setTimeout(() => {
-    managedTimers.delete(timer)
+  taskScheduler.schedule(() => {
     if (phase.value === 'playing') createOrder()
   }, delay)
-  managedTimers.add(timer)
 }
 
 function removeOrder(orderId) {
@@ -374,8 +384,10 @@ function removeOrder(orderId) {
 
 function startGame() {
   clearTimers()
+  taskScheduler.resume()
   phase.value = 'playing'
   showMenu.value = false
+  showExitConfirm.value = false
   timeLeft.value = ROUND_SECONDS
   coins.value = 0
   served.value = 0
@@ -391,7 +403,10 @@ function startGame() {
   discoveredMemories.value = []
   memoryMessage.value = null
   catMood.value = 'idle'
+  catMessage.value = ''
+  hearts.value = []
   isPaused.value = false
+  pauseReason.value = ''
   machineHeat.value = 0
   steamCleanliness.value = 100
   counterCleanliness.value = 100
@@ -399,16 +414,24 @@ function startGame() {
   selectNextMemory()
   createOrder()
   createOrder()
+  createOrder()
   playTone('success')
+
+  const startedAt = Date.now()
+  roundDeadline = startedAt + ROUND_SECONDS * 1000
+  lastGameTickAt = startedAt
 
   gameTimer = window.setInterval(() => {
     if (isPaused.value || phase.value !== 'playing') return
-    timeLeft.value = Math.max(0, timeLeft.value - 1)
-    machineHeat.value = Math.max(0, machineHeat.value - (2.5 + upgrades.value.machine * 0.35))
+    const now = Date.now()
+    const elapsedSeconds = Math.max(0, (now - lastGameTickAt) / 1000)
+    lastGameTickAt = now
+    timeLeft.value = Math.max(0, Math.ceil((roundDeadline - now) / 1000))
+    machineHeat.value = Math.max(0, machineHeat.value - (2.5 + upgrades.value.machine * 0.35) * elapsedSeconds)
     const expiredOrders = []
     for (const queuedOrder of orders.value) {
       if (queuedOrder.isResolving) continue
-      queuedOrder.patience = Math.max(0, queuedOrder.patience - (0.62 + served.value * 0.055))
+      queuedOrder.patience = Math.max(0, queuedOrder.patience - (0.62 + served.value * 0.055) * elapsedSeconds)
       if (queuedOrder.patience <= 0) expiredOrders.push(queuedOrder.id)
     }
     expiredOrders.forEach(loseOrder)
@@ -424,7 +447,7 @@ function startGame() {
     catSpot.value = Math.floor(Math.random() * 3)
     catMood.value = Math.random() > 0.7 ? 'sleep' : 'walk'
     catMessage.value = catMood.value === 'sleep' ? '呼噜…' : ''
-    window.setTimeout(() => {
+    taskScheduler.schedule(() => {
       if (catMood.value !== 'chase') catMood.value = 'idle'
     }, 1800)
   }, 5600)
@@ -446,11 +469,30 @@ function finishGame() {
   playTone('success')
 }
 
-function togglePause() {
+function setPaused(nextPaused, reason = '', withSound = true) {
   if (phase.value !== 'playing') return
-  isPaused.value = !isPaused.value
-  if (isPaused.value) cancelProcessFrame()
-  playTone('tap')
+  if (isPaused.value === nextPaused) return
+  isPaused.value = nextPaused
+  if (nextPaused) {
+    pauseReason.value = reason
+    pausedAt = Date.now()
+    lastFocusedElement = document.activeElement
+    cancelProcessFrame()
+    taskScheduler.pause()
+    nextTick(() => pauseResumeButton.value?.focus())
+  } else {
+    const resumedAt = Date.now()
+    roundDeadline += Math.max(0, resumedAt - pausedAt)
+    lastGameTickAt = resumedAt
+    pauseReason.value = ''
+    taskScheduler.resume()
+    nextTick(() => lastFocusedElement?.focus?.())
+  }
+  if (withSound) playTone('tap')
+}
+
+function togglePause() {
+  setPaused(!isPaused.value)
 }
 
 function processLoop(timestamp) {
@@ -573,6 +615,59 @@ function endEquipmentGesture(event) {
   gradeStep()
 }
 
+function handleEquipmentKeydown(event) {
+  if (!usesEquipmentGesture.value || isPaused.value || isResolving.value) return
+  if (event.key === 'Enter') {
+    event.preventDefault()
+    if (processState.value !== 'running') return
+    if (currentStep.value?.gesture === 'steam' && (steamPosition.value < 36 || steamPosition.value > 66)) {
+      failStep('奶缸位置偏离蒸汽旋涡')
+      return
+    }
+    if (currentStep.value?.gesture === 'pour' && latteReversals.value < 3) {
+      failStep('拉花需要至少三次左右往复')
+      return
+    }
+    gradeStep()
+    return
+  }
+
+  const isVertical = ['ArrowUp', 'ArrowDown'].includes(event.key)
+  const isHorizontal = ['ArrowLeft', 'ArrowRight'].includes(event.key)
+  const gesture = currentStep.value?.gesture
+  if ((gesture === 'pour' && !isHorizontal) || (gesture !== 'pour' && !isVertical)) return
+  event.preventDefault()
+
+  if (maintenanceLock.value) {
+    setFeedback('设备正在维护，请稍候', 'error')
+    return
+  }
+  if (gesture === 'steam' && steamCleanliness.value < 24) {
+    setFeedback('蒸汽棒需要先清洁和排气', 'error')
+    playTone('error')
+    return
+  }
+  if (['passed', 'error'].includes(processState.value)) return
+
+  processState.value = 'running'
+  if (gesture === 'water') {
+    const delta = event.key === 'ArrowUp' ? 6 : -6
+    processProgress.value = Math.max(0, Math.min(99, processProgress.value + delta))
+    kettleAngle.value = Math.max(0, Math.min(55, processProgress.value * 0.65))
+  } else if (gesture === 'steam') {
+    steamPosition.value = Math.max(0, Math.min(100, steamPosition.value + (event.key === 'ArrowUp' ? -7 : 7)))
+    const stability = steamPosition.value >= 36 && steamPosition.value <= 66 ? 9 : 4
+    processProgress.value = Math.min(99, processProgress.value + stability)
+  } else {
+    const direction = event.key === 'ArrowLeft' ? -1 : 1
+    if (keyboardPourDirection.value && keyboardPourDirection.value !== direction) latteReversals.value += 1
+    keyboardPourDirection.value = direction
+    processProgress.value = Math.min(99, processProgress.value + 9)
+  }
+  setFeedback(`${keyboardGestureInstruction.value} · 当前 ${measurement.value}`)
+  playTone('tap')
+}
+
 function releaseHold() {
   if (!isHolding.value) return
   isHolding.value = false
@@ -646,8 +741,7 @@ function completeStep(quality, message) {
   if (currentStepId.value === 'steam') steamCleanliness.value = Math.max(0, steamCleanliness.value - Math.max(14, 29 - upgrades.value.steam * 3))
   playTone('success')
   const completedOrderId = completedOrder.id
-  const timer = window.setTimeout(() => {
-    managedTimers.delete(timer)
+  taskScheduler.schedule(() => {
     const targetOrder = orders.value.find((item) => item.id === completedOrderId)
     if (!targetOrder) return
     targetOrder.activeStepIndex += 1
@@ -660,7 +754,6 @@ function completeStep(quality, message) {
     targetOrder.feedback = nextStepId ? `下一步：${stepDefinitions[nextStepId].name}` : `制作完成 · 综合品质 ${average}`
     targetOrder.feedbackTone = nextStepId ? 'neutral' : 'success'
   }, 480)
-  managedTimers.add(timer)
 }
 
 function failStep(message) {
@@ -673,15 +766,13 @@ function failStep(message) {
   failedOrder.feedbackTone = 'error'
   playTone('error')
   const failedOrderId = failedOrder.id
-  const timer = window.setTimeout(() => {
-    managedTimers.delete(timer)
+  taskScheduler.schedule(() => {
     const targetOrder = orders.value.find((item) => item.id === failedOrderId)
     if (!targetOrder) return
     targetOrder.processProgress = 0
     targetOrder.syrupPumps = 0
     targetOrder.processState = 'idle'
   }, 650)
-  managedTimers.add(timer)
 }
 
 function resetCurrentStep() {
@@ -693,12 +784,14 @@ function resetCurrentStep() {
   steamPosition.value = 50
   latteTrail.value = []
   latteReversals.value = 0
+  keyboardPourDirection.value = 0
   processState.value = 'idle'
   setFeedback(`已重置「${currentStep.value.name}」`)
   playTone('tap')
 }
 
 function resolveSuccess({ catAssist = false, orderId = activeOrderId.value } = {}) {
+  if (phase.value !== 'playing') return
   const completedOrder = orders.value.find((item) => item.id === orderId)
   if (!completedOrder || completedOrder.isResolving) return
   completedOrder.isResolving = true
@@ -724,11 +817,9 @@ function resolveSuccess({ catAssist = false, orderId = activeOrderId.value } = {
     cancelProcessFrame()
     activeOrderId.value = orders.value.find((item) => item.id !== orderId && !item.isResolving)?.id || orderId
   }
-  const timer = window.setTimeout(() => {
-    managedTimers.delete(timer)
+  taskScheduler.schedule(() => {
     removeOrder(orderId)
   }, 650)
-  managedTimers.add(timer)
 }
 
 function serveDrink() {
@@ -752,7 +843,7 @@ function serviceEquipment(kind) {
   maintenanceLock.value = kind
   cancelProcessFrame()
   playTone('machine')
-  maintenanceTimer = window.setTimeout(() => {
+  taskScheduler.schedule(() => {
     if (kind === 'machine') machineHeat.value = Math.max(0, machineHeat.value - 42)
     if (kind === 'steam') steamCleanliness.value = 100
     if (kind === 'counter') counterCleanliness.value = 100
@@ -787,22 +878,21 @@ function loseOrder(orderId = activeOrderId.value) {
   if (activeOrderId.value === orderId) {
     activeOrderId.value = orders.value.find((item) => item.id !== orderId && !item.isResolving)?.id || orderId
   }
-  const timer = window.setTimeout(() => {
-    managedTimers.delete(timer)
+  taskScheduler.schedule(() => {
     removeOrder(orderId)
   }, 650)
-  managedTimers.add(timer)
 }
 
 function spawnHeart() {
   const id = heartId += 1
   hearts.value.push({ id, left: 42 + Math.random() * 16 })
-  window.setTimeout(() => {
+  taskScheduler.schedule(() => {
     hearts.value = hearts.value.filter((heart) => heart.id !== id)
   }, 1100)
 }
 
 function petCat() {
+  if (phase.value !== 'playing' || isPaused.value) return
   const now = Date.now()
   if (now - lastPetAt < 320) return
   lastPetAt = now
@@ -811,20 +901,20 @@ function petCat() {
   catMessage.value = catAffinity.value >= CAT_HELP_COST ? '我能帮忙！' : '喵~'
   spawnHeart()
   playTone('purr')
-  window.setTimeout(() => {
+  taskScheduler.schedule(() => {
     if (catMood.value === 'happy') catMood.value = 'idle'
     catMessage.value = ''
   }, 1200)
 }
 
 function playWithCat() {
-  if (catMood.value === 'chase') return
+  if (phase.value !== 'playing' || isPaused.value || catMood.value === 'chase') return
   catMood.value = 'chase'
   catMessage.value = '抓到了！'
   catAffinity.value = Math.min(16, catAffinity.value + 2)
   catSpot.value = (catSpot.value + 1) % 3
   playTone('tap')
-  window.setTimeout(() => {
+  taskScheduler.schedule(() => {
     catMood.value = 'happy'
     catMessage.value = ''
   }, 1300)
@@ -840,25 +930,80 @@ function askCatForHelp() {
   activeStepIndex.value = currentDrink.value.steps.length
   stepQualities.value = currentDrink.value.steps.map(() => 82)
   processState.value = 'passed'
-  window.setTimeout(() => resolveSuccess({ catAssist: true, orderId: assistedOrderId }), 350)
-  window.setTimeout(() => {
+  taskScheduler.schedule(() => resolveSuccess({ catAssist: true, orderId: assistedOrderId }), 350)
+  taskScheduler.schedule(() => {
     catMood.value = 'idle'
     catMessage.value = ''
   }, 1500)
 }
 
+function requestExit(target) {
+  if (phase.value !== 'playing') {
+    if (target === 'home') router.push('/')
+    else returnToIntro()
+    return
+  }
+  exitTarget.value = target
+  exitWasPaused = isPaused.value
+  if (!isPaused.value) setPaused(true)
+  showExitConfirm.value = true
+  nextTick(() => exitCancelButton.value?.focus())
+}
+
+function cancelExit() {
+  showExitConfirm.value = false
+  if (!exitWasPaused) setPaused(false)
+  else nextTick(() => pauseResumeButton.value?.focus())
+}
+
+function confirmExit() {
+  const target = exitTarget.value
+  showExitConfirm.value = false
+  if (target === 'home') {
+    clearTimers()
+    router.push('/')
+    return
+  }
+  returnToIntro()
+}
+
+function handleGlobalKeydown(event) {
+  if (event.key !== 'Escape') return
+  if (showExitConfirm.value) {
+    cancelExit()
+    return
+  }
+  if (showMenu.value) {
+    showMenu.value = false
+    return
+  }
+  if (isPaused.value) togglePause()
+}
+
+function handleVisibilityChange() {
+  if (document.hidden && phase.value === 'playing' && !isPaused.value) {
+    setPaused(true, '切换页面时已自动暂停', false)
+  }
+}
+
 function returnToIntro() {
   clearTimers()
+  taskScheduler.resume()
   phase.value = 'intro'
   showMenu.value = false
+  showExitConfirm.value = false
   memoryMessage.value = null
   activeMemoryId.value = null
   orders.value = []
   activeOrderId.value = null
+  isPaused.value = false
+  pauseReason.value = ''
 }
 
 onMounted(() => {
   document.documentElement.classList.add('anniversary-cafe-open')
+  document.addEventListener('keydown', handleGlobalKeydown)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
   try {
     bestScore.value = Number(localStorage.getItem('boh-anniversary-cafe-best')) || 0
     wallet.value = Math.max(0, Number(localStorage.getItem('boh-anniversary-cafe-wallet')) || 0)
@@ -872,6 +1017,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   clearTimers()
+  document.removeEventListener('keydown', handleGlobalKeydown)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
   document.documentElement.classList.remove('anniversary-cafe-open')
   audioContext?.close()
 })
@@ -882,8 +1029,8 @@ onUnmounted(() => {
     <div class="cafe-backdrop" aria-hidden="true"></div>
     <div class="cafe-shade" aria-hidden="true"></div>
 
-    <header class="game-bar">
-      <button type="button" class="brand-lockup" aria-label="返回开场" @click="returnToIntro">
+    <header class="game-bar" :inert="isPaused || showExitConfirm">
+      <button type="button" class="brand-lockup" aria-label="返回开场" @click="requestExit('intro')">
         <span class="brand-mark">BOH</span>
         <span><strong>云上咖啡店</strong><small>八周年营业日</small></span>
       </button>
@@ -891,9 +1038,9 @@ onUnmounted(() => {
         <span>营业中</span><div><i :style="{ transform: `scaleX(${progress / 100})` }"></i></div><strong>{{ timeLeft }}s</strong>
       </div>
       <div class="bar-actions">
-        <router-link to="/" class="icon-button" aria-label="返回网站首页">
+        <button type="button" class="icon-button" aria-label="返回网站首页" @click="requestExit('home')">
           <House :size="18" />
-        </router-link>
+        </button>
         <button type="button" class="icon-button" :aria-label="soundEnabled ? '关闭音效' : '打开音效'" @click="soundEnabled = !soundEnabled">
           <Volume2 v-if="soundEnabled" :size="18" /><VolumeX v-else :size="18" />
         </button>
@@ -903,13 +1050,13 @@ onUnmounted(() => {
       </div>
     </header>
 
-    <section v-if="phase === 'playing'" class="hud" aria-label="营业数据">
+    <section v-if="phase === 'playing'" class="hud" aria-label="营业数据" aria-live="polite">
       <div><small>营业额</small><strong>¥ {{ coins }}</strong></div>
       <div><small>已出杯</small><strong>{{ served }}</strong></div>
       <div :class="{ active: combo > 1 }"><small>连杯</small><strong>× {{ combo }}</strong></div>
     </section>
 
-    <section v-if="phase === 'playing'" class="game-stage" :class="{ paused: isPaused }">
+    <section v-if="phase === 'playing'" class="game-stage" :class="{ paused: isPaused }" :inert="isPaused || showExitConfirm">
       <nav class="order-queue" aria-label="待制作订单">
         <header><span>ORDER QUEUE</span><strong>{{ queueCount }} / 3</strong></header>
         <button
@@ -990,7 +1137,7 @@ onUnmounted(() => {
 
       <section v-if="order" class="workbench" aria-label="咖啡制作台">
         <header class="ticket-rail">
-          <button type="button" class="menu-toggle" @click="showMenu = !showMenu"><Coffee :size="16" /><span>{{ currentDrink.name }}</span></button>
+          <button type="button" class="menu-toggle" aria-controls="cafe-menu-sheet" :aria-expanded="showMenu" @click="showMenu = !showMenu"><Coffee :size="16" /><span>{{ currentDrink.name }}</span></button>
           <ol class="process-steps">
             <li
               v-for="(stepId, index) in currentDrink.steps"
@@ -1011,11 +1158,13 @@ onUnmounted(() => {
             :class="{ interactive: usesEquipmentGesture, 'gesture-active': isHolding }"
             :role="usesEquipmentGesture ? 'button' : undefined"
             :tabindex="usesEquipmentGesture ? 0 : undefined"
-            :aria-label="usesEquipmentGesture ? gestureInstruction : undefined"
+            :aria-label="usesEquipmentGesture ? `${gestureInstruction}。键盘操作：${keyboardGestureInstruction}` : undefined"
+            :aria-keyshortcuts="usesEquipmentGesture ? 'ArrowUp ArrowDown ArrowLeft ArrowRight Enter' : undefined"
             @pointerdown="beginEquipmentGesture"
             @pointermove="moveEquipmentGesture"
             @pointerup="endEquipmentGesture"
             @pointercancel="endEquipmentGesture"
+            @keydown="handleEquipmentKeydown"
           >
             <div
               v-if="usesEquipmentGesture"
@@ -1103,7 +1252,7 @@ onUnmounted(() => {
       </section>
 
       <Transition name="menu-pop">
-        <aside v-if="showMenu" class="menu-sheet" aria-label="完整菜单">
+        <aside v-if="showMenu" id="cafe-menu-sheet" class="menu-sheet" aria-label="完整菜单">
           <div class="menu-sheet-head"><div><small>MENU / 今日菜单</small><strong>云上咖啡</strong></div><button type="button" class="icon-button" aria-label="关闭菜单" @click="showMenu = false"><X :size="18" /></button></div>
           <div v-for="drink in drinks" :key="drink.id" class="menu-line">
             <span :style="{ '--drink-color': drink.color }"></span><strong>{{ drink.name }}</strong><small>{{ drink.steps.map((step) => stepDefinitions[step].short).join(' → ') }}</small><b>¥{{ drink.price }}</b>
@@ -1126,7 +1275,7 @@ onUnmounted(() => {
       <div class="result-stars" :aria-label="`${stars} 星评价`"><Sparkles v-for="star in 3" :key="star" :class="{ lit: star <= stars }" :size="24" fill="currentColor" /></div>
       <h2>{{ resultTitle }}</h2>
       <p>最后一位客人离开后，小满跳上操作台，认真检查了咖啡机和今天的账本。</p>
-      <div class="result-grid"><div><small>营业额</small><strong>¥{{ coins }}</strong></div><div><small>完成订单</small><strong>{{ served }}</strong></div><div><small>平均品质</small><strong>{{ averageQuality }}</strong></div><div><small>最高连杯</small><strong>×{{ bestCombo }}</strong></div></div>
+      <div class="result-grid"><div><small>营业额</small><strong>¥{{ coins }}</strong></div><div><small>完成订单</small><strong>{{ served }}</strong></div><div><small>漏单</small><strong>{{ missed }}</strong></div><div><small>平均品质</small><strong>{{ averageQuality }}</strong></div><div><small>最高连杯</small><strong>×{{ bestCombo }}</strong></div></div>
       <section v-if="discoveredMemories.length" class="memory-log" aria-label="本局发现的方块之家回忆">
         <header><span>今日找到的回忆</span><strong>{{ discoveredMemories.length }} / {{ cafeMemories.length }}</strong></header>
         <div><span v-for="memory in discoveredMemories" :key="memory.id"><img :src="memory.image" alt=""><b>{{ memory.year }}</b>{{ memory.title }}</span></div>
@@ -1143,7 +1292,26 @@ onUnmounted(() => {
       <div class="result-actions"><button type="button" class="secondary-button" @click="returnToIntro">回到店外</button><button type="button" class="start-button" @click="startGame"><RotateCcw :size="18" />再营业一次</button></div>
     </section>
 
-    <Transition name="pause-fade"><div v-if="isPaused" class="pause-overlay"><button type="button" aria-label="继续营业" @click="togglePause"><Play :size="28" fill="currentColor" /></button><strong>暂停营业</strong><span>咖啡机和顾客耐心都已暂停</span></div></Transition>
+    <Transition name="pause-fade">
+      <div v-if="isPaused && !showExitConfirm" class="pause-overlay" role="dialog" aria-modal="true" aria-labelledby="cafe-pause-title" aria-describedby="cafe-pause-description">
+        <button ref="pauseResumeButton" type="button" aria-label="继续营业" @click="togglePause"><Play :size="28" fill="currentColor" /></button>
+        <strong id="cafe-pause-title">暂停营业</strong>
+        <span id="cafe-pause-description">{{ pauseReason || '计时、订单、设备和顾客耐心都已暂停' }}</span>
+      </div>
+    </Transition>
+
+    <Transition name="pause-fade">
+      <div v-if="showExitConfirm" class="exit-confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="cafe-exit-title" aria-describedby="cafe-exit-description">
+        <section class="exit-confirm-panel">
+          <strong id="cafe-exit-title">要结束本次营业吗？</strong>
+          <p id="cafe-exit-description">本局营业额和进度不会保存，永久升级不会受到影响。</p>
+          <div>
+            <button ref="exitCancelButton" type="button" class="secondary-button" @click="cancelExit">继续营业</button>
+            <button type="button" class="danger-button" @click="confirmExit">结束并{{ exitTarget === 'home' ? '返回首页' : '回到店外' }}</button>
+          </div>
+        </section>
+      </div>
+    </Transition>
   </main>
 </template>
 
