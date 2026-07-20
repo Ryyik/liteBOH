@@ -24,7 +24,7 @@
       <div class="home-footer-bottom">
         <span class="home-footer-copyright">{{ footerCopyright }}</span>
         <div class="home-footer-bottom-links">
-          <span v-for="(link, i) in footerBottomLinks" :key="link.label" class="home-footer-bottom-link-wrap">
+          <span v-for="link in footerBottomLinks" :key="link.label" class="home-footer-bottom-link-wrap">
             <router-link v-if="link.to" :to="link.to" class="home-footer-link">{{ link.label }}</router-link>
             <button v-else-if="link.agreement" type="button" class="home-footer-link home-footer-link-btn" @click="openAgreement(link.agreement)">{{ link.label }}</button>
           </span>
