@@ -1253,7 +1253,8 @@
   pointer-events: none;
 }
 
-.reunion-frame img,
+.reunion-frame > .reunion-ghost,
+.reunion-frame > .reunion-photo,
 .reunion-sheen {
   position: absolute;
   inset: 0;
@@ -1261,7 +1262,8 @@
   height: 100%;
 }
 
-.reunion-frame img {
+.reunion-frame > .reunion-ghost,
+.reunion-frame > .reunion-photo {
   object-fit: contain;
 }
 
@@ -1275,6 +1277,13 @@
 .reunion-fragment {
   z-index: 3;
   will-change: transform, opacity, filter;
+  overflow: hidden;
+}
+
+.reunion-fragment > img {
+  position: absolute;
+  max-width: none;
+  object-fit: fill;
 }
 
 .reunion-photo {

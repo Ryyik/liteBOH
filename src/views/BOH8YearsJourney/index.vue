@@ -347,6 +347,28 @@ const reunionFragments = [
   { id: 'peace', clip: 'polygon(67% 53%, 95% 53%, 96% 100%, 66% 100%)', x: 38, y: 31, r: -7, s: .76, cx: 81, cy: 77, delay: .47 }
 ]
 
+function prepareReunionFragment(fragment) {
+  const points = [...fragment.clip.matchAll(/([\d.]+)%\s+([\d.]+)%/g)].map((match) => ({
+    x: Number(match[1]),
+    y: Number(match[2])
+  }))
+  const left = Math.min(...points.map((point) => point.x))
+  const top = Math.min(...points.map((point) => point.y))
+  const right = Math.max(...points.map((point) => point.x))
+  const bottom = Math.max(...points.map((point) => point.y))
+  const width = Math.max(right - left, 0.01)
+  const height = Math.max(bottom - top, 0.01)
+  const localClip = `polygon(${points.map((point) => `${((point.x - left) / width) * 100}% ${((point.y - top) / height) * 100}%`).join(', ')})`
+
+  return {
+    ...fragment,
+    crop: { left, top, width, height },
+    localClip
+  }
+}
+
+const reunionFragmentLayers = reunionFragments.map(prepareReunionFragment)
+
 const currentChapter = computed(() => chapters[activeChapter.value])
 const collectedCount = computed(() => collectedYears.value.size)
 const pageProgress = computed(() => documentProgress.value)
@@ -751,6 +773,7 @@ function figureBlockStyle(block) {
     top: `${block.y}%`,
     width: `${block.size}px`,
     height: `${block.size}px`,
+    willChange: finaleProgress.value < 0.38 ? 'transform, opacity' : 'auto',
     transform: `translate3d(${block.sx * (1 - settle)}px, ${block.sy * (1 - settle)}px, 0) rotate(${block.sr * (1 - settle)}deg) scale(${0.45 + settle * 0.55})`,
     opacity: Math.min(1, 0.12 + assemble * 1.4)
   }
@@ -761,6 +784,7 @@ const figureStyle = computed(() => {
   const exit = clamp((finaleProgress.value - 0.27) / 0.09)
   return {
     opacity: 1 - exit,
+    willChange: finaleProgress.value < 0.38 ? 'transform, opacity' : 'auto',
     transform: `translate(-50%, -50%) rotate(${infinity * 90}deg) scale(${0.86 + infinity * 0.14 + exit * 0.16})`
   }
 })
@@ -768,17 +792,35 @@ const figureStyle = computed(() => {
 const reunionProgress = computed(() => clamp((finaleProgress.value - 0.25) / 0.62))
 
 function reunionFragmentStyle(fragment) {
-  if (reduceMotion.value) return { clipPath: fragment.clip, opacity: 0 }
+  const crop = fragment.crop
+  const base = {
+    left: `${crop.left}%`,
+    top: `${crop.top}%`,
+    width: `${crop.width}%`,
+    height: `${crop.height}%`,
+    clipPath: fragment.localClip,
+    transformOrigin: `${((fragment.cx - crop.left) / crop.width) * 100}% ${((fragment.cy - crop.top) / crop.height) * 100}%`
+  }
+  if (reduceMotion.value) return { ...base, opacity: 0 }
   const local = clamp((reunionProgress.value - fragment.delay) / Math.max(0.01, 0.78 - fragment.delay))
   const settle = 1 - Math.pow(1 - local, 3)
   const handoff = clamp((reunionProgress.value - 0.84) / 0.12)
   const motionScale = viewportWidth.value <= 560 ? 0.58 : 1
   return {
-    clipPath: fragment.clip,
-    transformOrigin: `${fragment.cx}% ${fragment.cy}%`,
+    ...base,
     opacity: Math.min(1, local * 1.8) * (1 - handoff),
     filter: `blur(${(1 - settle) * 8}px) saturate(${0.45 + settle * 0.55}) brightness(${0.7 + settle * 0.3})`,
     transform: `translate3d(${fragment.x * motionScale * (1 - settle)}vw, ${fragment.y * motionScale * (1 - settle)}vh, 0) rotate(${fragment.r * (1 - settle)}deg) scale(${fragment.s + (1 - fragment.s) * settle})`
+  }
+}
+
+function reunionFragmentImageStyle(fragment) {
+  const { crop } = fragment
+  return {
+    left: `${-(crop.left / crop.width) * 100}%`,
+    top: `${-(crop.top / crop.height) * 100}%`,
+    width: `${10000 / crop.width}%`,
+    height: `${10000 / crop.height}%`
   }
 }
 
@@ -1267,17 +1309,21 @@ onUnmounted(() => {
 
         <div class="reunion-frame" :style="reunionFrameStyle">
           <img class="reunion-ghost" :src="reunionImage" alt="" loading="lazy" decoding="async" aria-hidden="true">
-          <img
-            v-for="fragment in reunionFragments"
+          <div
+            v-for="fragment in reunionFragmentLayers"
             :key="fragment.id"
             class="reunion-fragment"
-            :src="reunionImage"
-            alt=""
-            loading="lazy"
-            decoding="async"
-            aria-hidden="true"
             :style="reunionFragmentStyle(fragment)"
           >
+            <img
+              :src="reunionImage"
+              alt=""
+              loading="lazy"
+              decoding="async"
+              aria-hidden="true"
+              :style="reunionFragmentImageStyle(fragment)"
+            >
+          </div>
           <img
             class="reunion-photo"
             :src="reunionImage"
