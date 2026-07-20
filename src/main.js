@@ -2,6 +2,11 @@ import { createApp } from "vue";
 import { MotionPlugin } from "@vueuse/motion";
 
 // ============================================
+// Motion Tokens — 必须在所有其他样式之前加载
+// ============================================
+import "./styles/common/tokens.css";
+
+// ============================================
 // 第三方库样式 (Vendor Styles)
 // ============================================
 import "./styles/vendor/fonts.css";

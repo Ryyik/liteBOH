@@ -21,6 +21,7 @@ import {
   readForumReturnState,
   clearForumReturnState,
   getForumReturnKeyFromQuery,
+  isSafePostDetailHistoryReturn,
 } from '../../src/utils/forum-return-state.js';
 
 describe('forum-return-state', () => {
@@ -110,6 +111,20 @@ describe('forum-return-state', () => {
 
     it('handles array returnKey', () => {
       expect(getForumReturnKeyFromQuery({ returnKey: ['user-space'] })).toBe('user-space');
+    });
+  });
+
+  describe('isSafePostDetailHistoryReturn', () => {
+    it('accepts the matching forum and user-space history entries', () => {
+      expect(isSafePostDetailHistoryReturn('/user-space?tab=posts', 'user-space')).toBe(true);
+      expect(isSafePostDetailHistoryReturn('/forum?restore=1', 'forum')).toBe(true);
+      expect(isSafePostDetailHistoryReturn('/user-space?tab=posts', 'forum')).toBe(true);
+    });
+
+    it('rejects unrelated or mismatched history entries', () => {
+      expect(isSafePostDetailHistoryReturn('/', 'forum')).toBe(false);
+      expect(isSafePostDetailHistoryReturn('/user-space?tab=posts', 'profile')).toBe(false);
+      expect(isSafePostDetailHistoryReturn('', 'user-space')).toBe(false);
     });
   });
 });

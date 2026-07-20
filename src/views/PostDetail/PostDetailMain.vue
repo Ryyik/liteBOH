@@ -25,7 +25,7 @@ import { formatSmartTime } from '../../utils/time.js';
 import { logger } from '@/utils/logger.js';
 import CommonAlertModal from '../../components/CommonAlertModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
-import { getForumReturnKeyFromQuery } from '@/utils/forum-return-state.js';
+import { getForumReturnKeyFromQuery, isSafePostDetailHistoryReturn } from '@/utils/forum-return-state.js';
 import { getHomeCatAsset, isHomeCatTheme } from '@/utils/home-cat-theme.js';
 import { themeManager } from '@/utils/theme-manager.js';
 import { buildReplyDraft } from '@/utils/forum-helpers.js';
@@ -63,6 +63,7 @@ const cooldownNow = ref(Date.now());
 const replyCooldownUntil = ref(0);
 const detailImageIndex = ref(0);
 const currentTheme = ref(themeManager.getTheme());
+const isAnniversaryMcTheme = computed(() => currentTheme.value === 'anniversary-mc');
 let cooldownTimer = null;
 let detailFetchSeq = 0;
 let likePulseTimer = null;
@@ -1143,9 +1144,15 @@ const createForumHomeLocation = (query = {}) => ({
 const goBack = () => {
   const source = getQueryString(route.query.from);
   const returnKey = getForumReturnKeyFromQuery(route.query, source === 'forum' ? 'forum' : 'user-space');
+  const historyBack = typeof window !== 'undefined' ? getQueryString(window.history.state?.back) : '';
+
+  if (isSafePostDetailHistoryReturn(historyBack, source)) {
+    router.back();
+    return;
+  }
 
   if (source === 'user-space') {
-    router.push(createForumHomeLocation({
+    router.replace(createForumHomeLocation({
       tab: getQueryString(route.query.tab) || 'posts',
       restore: '1',
       returnKey
@@ -1154,7 +1161,7 @@ const goBack = () => {
   }
 
   if (source === 'forum') {
-    router.push(createForumHomeLocation({
+    router.replace(createForumHomeLocation({
       restore: '1',
       returnKey
     }));
@@ -1168,12 +1175,12 @@ const goBack = () => {
       const url = origin
         ? `/profile/${encodeURIComponent(sourceUsername)}?from=${encodeURIComponent(origin)}`
         : `/profile/${encodeURIComponent(sourceUsername)}`;
-      router.push(url);
+      router.replace(url);
       return;
     }
   }
 
-  router.push(createForumHomeLocation());
+  router.replace(createForumHomeLocation());
 };
 
 const sharePost = async () => {
@@ -1242,7 +1249,8 @@ const handleChangeCommentSortMode = async (mode) => {
 </script>
 
 <template>
-  <div class="post-detail-page" :data-theme="currentTheme">
+  <div class="post-detail-page" :data-theme="currentTheme"
+    :data-anniversary-skin="isAnniversaryMcTheme ? 'active' : 'off'">
     <UserCenterPageHeader title="帖子详情" max-width="1400px" @back="goBack" />
 
     <div class="detail-container">

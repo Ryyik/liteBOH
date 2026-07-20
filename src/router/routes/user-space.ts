@@ -99,6 +99,7 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
     path: "/user-space",
     name: "UserSpace",
     component: () => import("../../views/user-center/UserSpace/index.vue"),
+    meta: { keepAlive: true },
   },
   {
     path: "/user-space/profile",

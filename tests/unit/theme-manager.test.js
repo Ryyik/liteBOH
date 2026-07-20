@@ -58,10 +58,10 @@ function createInstance() {
 }
 
 describe('theme-manager: constructor', () => {
-  it('starts with light theme', () => {
+  it('starts with the eighth anniversary MC theme', () => {
     const tm = createInstance();
-    expect(tm.theme).toBe('light');
-    expect(tm.preference).toBe('light');
+    expect(tm.theme).toBe('anniversary-mc');
+    expect(tm.preference).toBe('anniversary-mc');
     expect(tm.uiStyle).toBe('glass');
     expect(tm.initialized).toBe(false);
   });
@@ -90,6 +90,7 @@ describe('theme-manager: resolveTheme', () => {
     expect(tm.resolveTheme('light')).toBe('light');
     expect(tm.resolveTheme('dark')).toBe('dark');
     expect(tm.resolveTheme('home-cat')).toBe('home-cat');
+    expect(tm.resolveTheme('anniversary-mc')).toBe('anniversary-mc');
   });
 
   it('uses current preference when no argument', () => {
@@ -140,6 +141,13 @@ describe('theme-manager: setTheme', () => {
     tm.setTheme('home-cat');
     expect(tm.theme).toBe('home-cat');
     expect(tm.preference).toBe('home-cat');
+  });
+
+  it('sets theme to the eighth anniversary MC theme', () => {
+    const tm = createInstance();
+    tm.setTheme('anniversary-mc');
+    expect(tm.theme).toBe('anniversary-mc');
+    expect(tm.preference).toBe('anniversary-mc');
   });
 
   it('ignores invalid theme values', () => {

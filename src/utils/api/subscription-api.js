@@ -121,3 +121,57 @@ export async function subscribeWithPoints(payload = {}) {
     error: null
   };
 }
+
+function normalizeAnniversaryClaim(payload = {}) {
+  const source = Array.isArray(payload) ? payload[0] : payload;
+  const safe = source || {};
+  return {
+    ok: safe.ok === true,
+    message: String(safe.message || ''),
+    alreadyClaimed: Boolean(safe.already_claimed),
+    planCode: String(safe.plan_code || ''),
+    planName: String(safe.plan_name || ''),
+    subscriptionId: safe.subscription_id || null,
+    startedAt: safe.started_at || null,
+    expiresAt: safe.expires_at || null
+  };
+}
+
+export async function getAnniversarySubscriptionClaim(userId) {
+  if (!userId) return { ok: false, data: null, error: null };
+  const { data, error } = await supabase
+    .from('anniversary_subscription_claims')
+    .select('granted_plan_code, granted_plan_name, subscription_id, started_at, expires_at')
+    .eq('campaign_code', 'boh-8th-anniversary-2026')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) return { ok: false, data: null, error: normalizeDbError(error) };
+  if (!data) return { ok: true, data: null, error: null };
+  return {
+    ok: true,
+    data: normalizeAnniversaryClaim({
+      ok: true,
+      already_claimed: true,
+      plan_code: data.granted_plan_code,
+      plan_name: data.granted_plan_name,
+      subscription_id: data.subscription_id,
+      started_at: data.started_at,
+      expires_at: data.expires_at
+    }),
+    error: null
+  };
+}
+
+export async function claimAnniversarySubscription({ preferCurrentTier = true } = {}) {
+  const { data, error } = await supabase.rpc('claim_boh_eighth_anniversary_subscription', {
+    p_prefer_current_tier: Boolean(preferCurrentTier)
+  });
+
+  if (error) return { ok: false, data: normalizeAnniversaryClaim(), error: normalizeDbError(error) };
+  const normalized = normalizeAnniversaryClaim(data);
+  if (normalized.ok || normalized.alreadyClaimed) {
+    invalidateByTags(['profiles', 'subscriptions']);
+  }
+  return { ok: normalized.ok, data: normalized, error: null };
+}

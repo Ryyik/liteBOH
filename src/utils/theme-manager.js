@@ -6,10 +6,12 @@
 import { ensureThemeCSS } from './theme-css-loader.js';
 import { logger } from './logger.js';
 
+const DEFAULT_THEME = 'anniversary-mc';
+
 class ThemeManager {
   constructor() {
-    this.theme = 'light';
-    this.preference = 'light';
+    this.theme = DEFAULT_THEME;
+    this.preference = DEFAULT_THEME;
     this.uiStyle = 'glass';
     this.listeners = [];
     this.initialized = false;
@@ -28,11 +30,11 @@ class ThemeManager {
     if (this.initialized) return;
     this.initialized = true;
 
-    // 优先从 localStorage 读取用户设置；未设置时保持默认浅色。
+    // 优先读取用户设置；未设置时使用八周年主题作为全站默认值。
     const savedTheme = localStorage.getItem('boh-theme');
     const savedUiStyle = localStorage.getItem('boh-ui-style');
 
-    this.preference = ['light', 'dark', 'system', 'home-cat'].includes(savedTheme) ? savedTheme : 'light';
+    this.preference = ['light', 'dark', 'system', 'home-cat', 'anniversary-mc'].includes(savedTheme) ? savedTheme : DEFAULT_THEME;
     this.uiStyle = ['flat', 'glass'].includes(savedUiStyle) ? savedUiStyle : 'glass';
     this.theme = this.resolveTheme(this.preference);
     this.updateSystemThemeListener();
@@ -150,7 +152,7 @@ class ThemeManager {
    * @param {string} theme - 'light'、'dark' 或自定义主题
    */
   setTheme(theme) {
-    if (theme === 'light' || theme === 'dark' || theme === 'home-cat') {
+    if (theme === 'light' || theme === 'dark' || theme === 'home-cat' || theme === 'anniversary-mc') {
       this.preference = theme;
       this.updateSystemThemeListener();
       this.applyTheme(theme, theme);
@@ -168,7 +170,7 @@ class ThemeManager {
 
   /**
    * 获取用户选择的主题偏好
-   * @returns {'light'|'dark'|'system'|'home-cat'}
+   * @returns {'light'|'dark'|'system'|'home-cat'|'anniversary-mc'}
    */
   getPreference() {
     return this.preference;
@@ -255,7 +257,9 @@ class ThemeManager {
     if (metaThemeColor) {
       metaThemeColor.setAttribute(
         'content',
-        theme === 'dark' ? '#0a0a0f' : (theme === 'home-cat' ? '#fffdf8' : '#ffffff')
+        theme === 'dark'
+          ? '#0a0a0f'
+          : (theme === 'home-cat' ? '#fffdf8' : (theme === 'anniversary-mc' ? '#79a947' : '#ffffff'))
       );
     }
   }

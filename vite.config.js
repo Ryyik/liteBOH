@@ -155,7 +155,7 @@ export default defineConfig({
         name: 'Block of Home',
         short_name: 'BOH',
         description: 'Block of Home - 你的家居灵感社区',
-        theme_color: '#42b983',
+        theme_color: '#79a947',
         icons: [
           {
             src: '/favicon.png',

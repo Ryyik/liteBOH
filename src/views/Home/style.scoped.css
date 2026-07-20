@@ -389,6 +389,87 @@
   font-size: 14px;
 }
 
+.anniversary-gift {
+  margin-top: 30px;
+  padding: 22px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f7f8fa;
+  text-align: left;
+}
+
+.anniversary-gift-copy h3 {
+  margin: 0 0 5px;
+  color: #1d1d1f;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.anniversary-gift-copy p {
+  margin: 0;
+  color: #6e6e73;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.anniversary-upgrade-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 14px;
+  color: #333;
+  font-size: 13px;
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.anniversary-upgrade-option input {
+  width: 17px;
+  height: 17px;
+  margin: 1px 0 0;
+  accent-color: #1d1d1f;
+}
+
+.anniversary-claim-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 46px;
+  margin-top: 16px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 10px;
+  background: #1d1d1f;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color .18s ease, transform .18s ease, opacity .18s ease;
+}
+
+.anniversary-claim-btn:hover:not(:disabled) {
+  background: #333;
+  transform: translateY(-1px);
+}
+
+.anniversary-claim-btn:disabled {
+  cursor: default;
+  opacity: .5;
+}
+
+.anniversary-gift-status {
+  margin: 12px 0 0;
+  color: #52525b;
+  font-size: 12px;
+  line-height: 1.5;
+  text-indent: 0;
+}
+
+.anniversary-gift-status.success { color: #087f5b; }
+.anniversary-gift-status.error { color: #b42318; }
+
 /* ============================================
    弹窗：遇见福州
    ============================================ */
@@ -626,6 +707,7 @@
   .letter-logo-img { width: min(100%, 190px); }
   .letter-title { font-size: 21px; }
   .letter-body { font-size: 15px; line-height: 1.75; }
+  .anniversary-gift { padding: 18px; }
 }
 
 @media (max-width: 768px) {

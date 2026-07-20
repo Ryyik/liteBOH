@@ -22,6 +22,45 @@
     </div>
 
     <div v-else>
+      <button type="button" class="block-wall-entry" @click="router.push({ name: 'BlockWall' })">
+        <span class="block-wall-entry-icon" aria-hidden="true">
+          <StickyNote :size="23" :stroke-width="1.8" />
+        </span>
+        <span class="block-wall-entry-copy">
+          <span class="block-wall-entry-heading">
+            <strong>方块墙</strong>
+            <span class="block-wall-entry-badge">新</span>
+          </span>
+          <small>发纸条 · 晒照片 · 看大家的此刻</small>
+        </span>
+        <span class="block-wall-entry-action">
+          去看看
+          <ChevronRight :size="18" aria-hidden="true" />
+        </span>
+      </button>
+
+      <section class="community-pulse" aria-labelledby="community-pulse-title">
+        <div class="community-pulse-heading">
+          <span class="community-pulse-live" aria-hidden="true"></span>
+          <strong id="community-pulse-title">社区动态</strong>
+          <small>此刻</small>
+        </div>
+        <div class="community-pulse-grid">
+          <button type="button" @click="setCommunityFilter('active')">
+            <span>{{ activeCommunityCount }}</span>
+            <small>正在活跃</small>
+          </button>
+          <button type="button" @click="setCommunityFilter('new')">
+            <span>{{ newCommunityCount }}</span>
+            <small>最近加入</small>
+          </button>
+          <button type="button" @click="toggleBirthdaysExpand">
+            <span>{{ recentBirthdayUsers.length }}</span>
+            <small>生日将至</small>
+          </button>
+        </div>
+      </section>
+
       <button type="button" class="community-group glass-group" @click="toggleCommunityExpand"
         :aria-expanded="isCommunityExpanded">
         <HomeCatMascot v-if="isHomeCatActive" class="community-group-cat" pool="ambient" seed="community-recent"
@@ -57,17 +96,26 @@
             <span v-if="isSearching" class="search-loading-spinner" aria-hidden="true"></span>
           </div>
 
+          <div class="community-filter-tabs" role="tablist" aria-label="社区伙伴筛选">
+            <button v-for="filter in communityFilters" :key="filter.id" type="button" role="tab"
+              :aria-selected="communityFilter === filter.id" :class="{ active: communityFilter === filter.id }"
+              @click="setCommunityFilter(filter.id)">
+              {{ filter.label }}
+            </button>
+          </div>
+
           <div v-if="totalCommunityPages > 1" class="community-pagination-info">
             <span class="pagination-text">第 {{ currentCommunityPage }} / {{ totalCommunityPages }} 页</span>
           </div>
 
-          <div v-if="communityUsers.length === 0" class="empty-state glass-empty">
+          <div v-if="visibleCommunityUsers.length === 0" class="empty-state glass-empty">
             <Users class="empty-icon" :size="30" :stroke-width="1.7" aria-hidden="true" />
-            <p>{{ communitySearchQuery.trim() ? '没有找到匹配的社区伙伴' : '暂无社区伙伴' }}</p>
+            <p>{{ communityEmptyText }}</p>
           </div>
 
-          <div v-for="(user, index) in communityUsers" :key="user.id" class="user-item glass-user"
-            :style="{ '--item-index': index }" @click="goToProfile(user.username)">
+          <button v-for="(user, index) in visibleCommunityUsers" :key="user.id" type="button"
+            class="user-item glass-user community-user-button" :style="{ '--item-index': index }"
+            @click="goToProfile(user.username)">
             <div class="user-avatar">
               <img v-if="user.avatar_url" :src="user.avatar_url" alt="用户头像" class="avatar-image" loading="lazy"
                 decoding="async" />
@@ -115,9 +163,10 @@
                 </span>
               </div>
             </div>
-          </div>
+          </button>
 
-          <div v-if="totalCommunityPages > 1" class="community-pagination glass-pagination">
+          <div v-if="communityFilter === 'all' && totalCommunityPages > 1"
+            class="community-pagination glass-pagination community-pagination-desktop">
             <button class="community-page-btn glass-page-btn"
               :disabled="isLoadingCommunity || currentCommunityPage === 1"
               @click.stop="currentCommunityPage--" aria-label="上一页">
@@ -126,10 +175,10 @@
               </svg>
             </button>
             <div class="page-dots">
-              <span v-for="page in totalCommunityPages" :key="page" class="page-dot"
+              <button v-for="page in totalCommunityPages" :key="page" type="button" class="page-dot"
                 :class="{ active: page === currentCommunityPage }"
                 @click.stop="currentCommunityPage = page"
-                :aria-label="`第 ${page} 页`"></span>
+                :aria-label="`第 ${page} 页`"></button>
             </div>
             <button class="community-page-btn glass-page-btn"
               :disabled="isLoadingCommunity || currentCommunityPage === totalCommunityPages"
@@ -139,6 +188,11 @@
               </svg>
             </button>
           </div>
+          <button v-if="isMobileLayout && communityFilter === 'all' && currentCommunityPage < totalCommunityPages"
+            ref="communityLoadMoreRef" type="button" class="community-load-more" :disabled="isLoadingCommunity"
+            aria-live="polite" @click="loadMoreCommunityUsers">
+            {{ isLoadingCommunity ? '加载中...' : '加载更多伙伴' }}
+          </button>
         </div>
       </transition>
 
@@ -198,18 +252,7 @@
         </div>
       </transition>
 
-      <button type="button" class="block-wall-entry" @click="router.push({ name: 'BlockWall' })">
-        <span class="block-wall-entry-icon" aria-hidden="true">
-          <StickyNote :size="23" :stroke-width="1.8" />
-        </span>
-        <span class="block-wall-entry-copy">
-          <strong>方块墙</strong>
-          <small>贴下一张纸条，或留住一张拍立得</small>
-        </span>
-        <ChevronRight class="block-wall-entry-arrow" :size="20" aria-hidden="true" />
-      </button>
-
-      <div class="shows-entry-card-glass" @click="emit('switch-tab', 'shows')">
+      <button type="button" class="shows-entry-card-glass" @click="emit('switch-tab', 'shows')">
         <div class="shows-entry-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="5 3 19 12 5 21 5 3"></polygon>
@@ -224,13 +267,13 @@
             <polyline points="9 18 15 12 9 6"></polyline>
           </svg>
         </div>
-      </div>
+      </button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { Users, Cake, ChevronRight, StickyNote } from 'lucide-vue-next';
@@ -239,7 +282,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useUserOnlineStatus } from '../composables/useUserOnlineStatus.js';
 import { createMemoryTtlCache } from '../composables/useMemoryTtlCache.js';
 import { getProfilesPage, getRecentBirthdayProfiles } from '@/utils/api/auth-api.js';
-import { getFollowCountsBatch } from '@/utils/api/profile-api.js';
+import { getFollowCountsBatch, getFollowing } from '@/utils/api/profile-api.js';
 import { logger } from '@/utils/logger.js';
 import { themeManager } from '@/utils/theme-manager.js';
 import { isHomeCatTheme } from '@/utils/home-cat-theme.js';
@@ -273,6 +316,9 @@ const isLoadingBirthdays = ref(false);
 const isCommunityExpanded = ref(true);
 const isBirthdaysExpanded = ref(false);
 const communityUsers = ref([]);
+const communityFilter = ref('all');
+const followingIds = ref(new Set());
+const isMobileLayout = ref(typeof window !== 'undefined' && window.innerWidth <= 767);
 const recentBirthdayUsers = ref([]);
 const communitySearchQuery = ref('');
 const debouncedCommunitySearchQuery = ref('');
@@ -283,11 +329,19 @@ const COMMUNITY_BIRTHDAY_LIMIT = 8;
 const hasLoadedCommunity = ref(false);
 const hasLoadedBirthdays = ref(false);
 const isSearching = ref(false);
+const communityLoadMoreRef = ref(null);
+const communityFilters = [
+  { id: 'all', label: '全部' },
+  { id: 'active', label: '正在活跃' },
+  { id: 'following', label: '我关注的' },
+  { id: 'new', label: '新加入' }
+];
 
 let communityRefreshTimer = null;
 let communitySearchDebounceTimer = null;
 let latestCommunityFetchId = 0;
 let latestBirthdayFetchId = 0;
+let communityLoadMoreObserver = null;
 
 const startCommunityRefreshTimer = () => {
   stopCommunityRefreshTimer();
@@ -312,6 +366,31 @@ const handleVisibilityChange = () => {
 };
 
 const totalCommunityPages = computed(() => Math.max(1, Math.ceil(totalCommunityUsers.value / COMMUNITY_PAGE_SIZE)));
+const isRecentlyJoined = (user = {}) => {
+  const time = new Date(user.join_date || 0).getTime();
+  return Number.isFinite(time) && time > 0 && Date.now() - time <= 30 * 24 * 60 * 60 * 1000;
+};
+const activeCommunityCount = computed(() => communityUsers.value.filter((user) => isUserOnline(user, hideOnlineStatus.value)).length);
+const newCommunityCount = computed(() => communityUsers.value.filter(isRecentlyJoined).length);
+const visibleCommunityUsers = computed(() => {
+  if (communityFilter.value === 'active') {
+    return communityUsers.value.filter((user) => isUserOnline(user, hideOnlineStatus.value));
+  }
+  if (communityFilter.value === 'following') {
+    return communityUsers.value.filter((user) => followingIds.value.has(user.id));
+  }
+  if (communityFilter.value === 'new') {
+    return communityUsers.value.filter(isRecentlyJoined);
+  }
+  return communityUsers.value;
+});
+const communityEmptyText = computed(() => {
+  if (communitySearchQuery.value.trim()) return '没有找到匹配的社区伙伴';
+  if (communityFilter.value === 'active') return '现在没有公开在线状态的伙伴';
+  if (communityFilter.value === 'following') return userInfo.value?.id ? '你关注的伙伴暂未出现在结果中' : '登录后查看你关注的伙伴';
+  if (communityFilter.value === 'new') return '最近 30 天还没有新伙伴';
+  return '暂无社区伙伴';
+});
 
 const birthdayGroupSummary = computed(() => {
   if (isLoadingBirthdays.value && recentBirthdayUsers.value.length === 0) {
@@ -347,6 +426,26 @@ const formatBirthdayDistance = (user = {}) => {
 
 const toggleCommunityExpand = () => {
   isCommunityExpanded.value = !isCommunityExpanded.value;
+};
+
+const setCommunityFilter = (filterId) => {
+  if (!communityFilters.some((item) => item.id === filterId)) return;
+  if (communityFilter.value === filterId) return;
+  const wasFirstPage = currentCommunityPage.value === 1;
+  communityFilter.value = filterId;
+  currentCommunityPage.value = 1;
+  communityUsers.value = [];
+  if (wasFirstPage) void fetchCommunityUsers({ force: true });
+};
+
+const loadFollowingIds = async () => {
+  const userId = String(userInfo.value?.id || '').trim();
+  if (!userId) {
+    followingIds.value = new Set();
+    return;
+  }
+  const result = await getFollowing(userId, { page: 1, pageSize: 100 });
+  if (!result.error) followingIds.value = new Set((result.data || []).map((user) => user.id).filter(Boolean));
 };
 
 const toggleBirthdaysExpand = () => {
@@ -385,11 +484,17 @@ const loadCommunityFollowCounts = async () => {
 
 const fetchCommunityUsers = async ({ force = false } = {}) => {
   const searchKey = String(debouncedCommunitySearchQuery.value || '').trim().toLowerCase();
-  const cacheKey = `community:${currentCommunityPage.value}:${COMMUNITY_PAGE_SIZE}:${searchKey}`;
+  const isFilteredPool = communityFilter.value !== 'all';
+  const requestPage = isFilteredPool ? 1 : currentCommunityPage.value;
+  const requestPageSize = isFilteredPool ? 100 : COMMUNITY_PAGE_SIZE;
+  const shouldAppend = isMobileLayout.value && !isFilteredPool && requestPage > 1;
+  const cacheKey = `community:${requestPage}:${requestPageSize}:${searchKey}`;
   const cachedCommunity = communityMemoryCache.get(cacheKey, CACHE_TTL.community);
   if (!force) {
     if (cachedCommunity) {
-      communityUsers.value = cachedCommunity.items || [];
+      communityUsers.value = shouldAppend
+        ? [...communityUsers.value, ...(cachedCommunity.items || []).filter((item) => !communityUsers.value.some((user) => user.id === item.id))]
+        : (cachedCommunity.items || []);
       totalCommunityUsers.value = cachedCommunity.total || 0;
       hasLoadedCommunity.value = true;
       isLoadingCommunity.value = false;
@@ -397,18 +502,20 @@ const fetchCommunityUsers = async ({ force = false } = {}) => {
       return;
     }
   } else if (cachedCommunity) {
-    communityUsers.value = cachedCommunity.items || [];
+    communityUsers.value = shouldAppend
+      ? [...communityUsers.value, ...(cachedCommunity.items || []).filter((item) => !communityUsers.value.some((user) => user.id === item.id))]
+      : (cachedCommunity.items || []);
     totalCommunityUsers.value = cachedCommunity.total || 0;
     hasLoadedCommunity.value = true;
   }
 
   const fetchId = ++latestCommunityFetchId;
-  isLoadingCommunity.value = !hasLoadedCommunity.value;
+  isLoadingCommunity.value = true;
 
   try {
     const { data, error } = await getProfilesPage({
-      page: currentCommunityPage.value,
-      pageSize: COMMUNITY_PAGE_SIZE,
+      page: requestPage,
+      pageSize: requestPageSize,
       search: debouncedCommunitySearchQuery.value,
       countMode: 'planned'
     });
@@ -418,7 +525,7 @@ const fetchCommunityUsers = async ({ force = false } = {}) => {
     if (!error && data) {
       const currentUsername = userInfo.value.username;
       const nowISO = new Date().toISOString();
-      communityUsers.value = (data.items || [])
+      const nextUsers = (data.items || [])
         .map((u) =>
           u.username === currentUsername ? { ...u, last_active_at: nowISO } : u
         )
@@ -427,13 +534,16 @@ const fetchCommunityUsers = async ({ force = false } = {}) => {
           const tb = b.last_active_at ? new Date(b.last_active_at).getTime() : 0;
           return tb - ta;
         });
+      communityUsers.value = shouldAppend
+        ? [...communityUsers.value, ...nextUsers.filter((item) => !communityUsers.value.some((user) => user.id === item.id))]
+        : nextUsers;
       totalCommunityUsers.value = data.total || 0;
       hasLoadedCommunity.value = true;
 
       void loadCommunityFollowCounts();
 
       communityMemoryCache.set(cacheKey, {
-        items: communityUsers.value,
+        items: nextUsers,
         total: totalCommunityUsers.value
       });
     } else {
@@ -498,8 +608,30 @@ const fetchRecentBirthdays = async ({ force = false } = {}) => {
 const fetchCommunityOverview = async () => {
   await Promise.all([
     fetchCommunityUsers(),
-    hasLoadedBirthdays.value ? Promise.resolve() : fetchRecentBirthdays()
+    hasLoadedBirthdays.value ? Promise.resolve() : fetchRecentBirthdays(),
+    loadFollowingIds()
   ]);
+};
+
+const loadMoreCommunityUsers = () => {
+  if (isLoadingCommunity.value || currentCommunityPage.value >= totalCommunityPages.value) return;
+  currentCommunityPage.value += 1;
+};
+
+const setupCommunityLoadMoreObserver = async () => {
+  await nextTick();
+  communityLoadMoreObserver?.disconnect();
+  communityLoadMoreObserver = null;
+  if (!isMobileLayout.value || communityFilter.value !== 'all' || !communityLoadMoreRef.value) return;
+  if (typeof IntersectionObserver === 'undefined') return;
+  communityLoadMoreObserver = new IntersectionObserver((entries) => {
+    if (entries.some((entry) => entry.isIntersecting)) loadMoreCommunityUsers();
+  }, { rootMargin: '160px 0px' });
+  communityLoadMoreObserver.observe(communityLoadMoreRef.value);
+};
+
+const handleCommunityResize = () => {
+  isMobileLayout.value = window.innerWidth <= 767;
 };
 
 // --- 生命周期 ---
@@ -508,6 +640,8 @@ onMounted(() => {
   fetchCommunityOverview();
   startCommunityRefreshTimer();
   document.addEventListener('visibilitychange', handleVisibilityChange);
+  window.addEventListener('resize', handleCommunityResize);
+  void setupCommunityLoadMoreObserver();
 });
 
 onUnmounted(() => {
@@ -517,6 +651,9 @@ onUnmounted(() => {
     communitySearchDebounceTimer = null;
   }
   document.removeEventListener('visibilitychange', handleVisibilityChange);
+  window.removeEventListener('resize', handleCommunityResize);
+  communityLoadMoreObserver?.disconnect();
+  communityLoadMoreObserver = null;
 });
 
 // --- 搜索防抖 ---
@@ -544,6 +681,10 @@ watch(debouncedCommunitySearchQuery, () => {
 
 watch(currentCommunityPage, () => {
   fetchCommunityUsers();
+});
+
+watch([isMobileLayout, communityFilter, currentCommunityPage, totalCommunityPages, isLoadingCommunity], () => {
+  void setupCommunityLoadMoreObserver();
 });
 
 const communityTierMap = useTierMap(

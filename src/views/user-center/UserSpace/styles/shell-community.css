@@ -1202,7 +1202,7 @@
 /* ---------- 方块墙入口 ---------- */
 .block-wall-entry {
   width: 100%; display: flex; align-items: center; gap: 14px;
-  padding: 18px 20px; margin-top: 4px; text-align: left; cursor: pointer;
+  padding: 18px 20px; margin: 0 0 16px; text-align: left; cursor: pointer;
   border: 1px solid rgba(173, 120, 63, 0.2); border-radius: 20px;
   background: linear-gradient(135deg, rgba(255, 249, 225, 0.92), rgba(255, 232, 225, 0.88));
   color: #5f4632;
@@ -1217,19 +1217,157 @@
   box-shadow: 0 4px 12px rgba(114, 76, 39, 0.13);
 }
 .block-wall-entry-copy { display: grid; gap: 3px; flex: 1; min-width: 0; }
-.block-wall-entry-copy strong { font-size: 16px; font-weight: 750; }
+.block-wall-entry-heading { display: flex; align-items: center; gap: 8px; }
+.block-wall-entry-copy strong { font-size: 17px; font-weight: 750; }
+.block-wall-entry-badge {
+  display: inline-grid; min-width: 22px; height: 20px; padding: 0 6px; place-items: center;
+  border-radius: 999px; color: #fff; background: #d76b4b; font-size: 11px; font-weight: 800;
+  box-shadow: 0 3px 8px rgba(185, 76, 50, 0.22);
+}
 .block-wall-entry-copy small {
   overflow: hidden; color: rgba(95, 70, 50, 0.68); font-size: 13px;
   text-overflow: ellipsis; white-space: nowrap;
 }
-.block-wall-entry-arrow { flex: 0 0 auto; color: rgba(95, 70, 50, 0.48); transition: transform 0.2s ease; }
-.block-wall-entry:hover .block-wall-entry-arrow { transform: translateX(3px); }
+.block-wall-entry-action {
+  display: inline-flex; align-items: center; gap: 2px; flex: 0 0 auto;
+  color: #9a573a; font-size: 13px; font-weight: 700; transition: transform 0.2s ease;
+}
+.block-wall-entry:hover .block-wall-entry-action { transform: translateX(3px); }
 .user-space-page[data-theme="dark"] .block-wall-entry {
   border-color: rgba(246, 190, 121, 0.16);
   background: linear-gradient(135deg, rgba(67, 52, 39, 0.94), rgba(66, 43, 43, 0.9));
   color: #ffe9ca;
 }
 .user-space-page[data-theme="dark"] .block-wall-entry-copy small { color: rgba(255, 233, 202, 0.62); }
+.user-space-page[data-theme="dark"] .block-wall-entry-action { color: #ffd19f; }
+
+/* ---------- 社区动态与筛选 ---------- */
+.community-pulse {
+  margin: 0 0 16px;
+  padding: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+}
+
+.community-pulse-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: #18212f;
+}
+
+.community-pulse-heading strong { font-size: 14px; }
+.community-pulse-heading small { margin-left: auto; color: #8a94a3; font-size: 12px; }
+.community-pulse-live {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22a06b;
+  box-shadow: 0 0 0 4px rgba(34, 160, 107, 0.12);
+}
+
+.community-pulse-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.community-pulse-grid button {
+  min-width: 0;
+  padding: 11px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: #f4f6f8;
+  color: #18212f;
+  cursor: pointer;
+  text-align: left;
+}
+
+.community-pulse-grid span,
+.community-pulse-grid small { display: block; }
+.community-pulse-grid span { font-size: 18px; font-weight: 800; }
+.community-pulse-grid small { margin-top: 2px; color: #778190; font-size: 11px; }
+
+.community-filter-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 10px 0 14px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.community-filter-tabs::-webkit-scrollbar { display: none; }
+.community-filter-tabs button {
+  min-height: 34px;
+  padding: 0 13px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.74);
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.community-filter-tabs button.active {
+  border-color: #1f2937;
+  background: #1f2937;
+  color: #fff;
+}
+
+.community-user-button {
+  width: 100%;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.page-dot {
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+}
+
+.community-load-more {
+  display: none;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.09);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #273142;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.user-space-page[data-theme="dark"] .community-pulse,
+.user-space-page[data-theme="dark"] .community-filter-tabs button,
+.user-space-page[data-theme="dark"] .community-load-more {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(38, 40, 45, 0.88);
+  color: #f7f7f8;
+}
+
+.user-space-page[data-theme="dark"] .community-pulse-heading { color: #f7f7f8; }
+.user-space-page[data-theme="dark"] .community-pulse-grid button { background: rgba(255, 255, 255, 0.07); color: #f7f7f8; }
+.user-space-page[data-theme="dark"] .community-filter-tabs button.active { background: #f7f7f8; color: #17181a; }
+
+@media (max-width: 520px) {
+  .block-wall-entry { gap: 12px; padding: 16px; border-radius: 18px; }
+  .block-wall-entry-icon { width: 42px; height: 42px; }
+  .block-wall-entry-action { font-size: 0; }
+  .block-wall-entry-action svg { width: 20px; height: 20px; }
+  .community-pulse { padding: 14px; }
+  .community-pagination-desktop { display: none; }
+  .community-load-more { display: block; }
+}
 
 /* ---------- 节目入口深色玻璃卡片 ---------- */
 .shows-entry-card-glass {

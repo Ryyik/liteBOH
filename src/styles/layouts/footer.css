@@ -22,15 +22,21 @@
 /************************** 
 * Font-weight
 ***************************/
-/************************** 
+/**************************
 * Transition
+* （.transition helper 已废弃。社交链接/隐私政策链接限定具体属性，避免 layout/paint）
 ***************************/
-.transition, .menu-social-links-container ul li a, .menu-social-links-container ul li a:hover, .privacy-policy-link a, .privacy-policy-link a:hover {
-  -webkit-transition: all 0.5s ease-in-out !important;
-  -o-transition: all 0.5s ease-in-out !important;
-  transition: all 0.5s ease-in-out !important; }
+.menu-social-links-container ul li a,
+.menu-social-links-container ul li a:hover,
+.privacy-policy-link a,
+.privacy-policy-link a:hover {
+  transition:
+    transform 0.2s var(--ease-out),
+    background-color 0.2s var(--ease-out),
+    color 0.2s var(--ease-out),
+    opacity 0.2s var(--ease-out) !important; }
 
-/************************** 
+/**************************
 * Box Shadow
 ***************************/
 .box-shadownone {

@@ -22,16 +22,19 @@
 /************************** 
 * Font-weight
 ***************************/
-/************************** 
+/**************************
 * Transition
+* （.transition helper 已废弃。.btn 限定具体属性，避免 transition: all 触发 layout/paint）
 ***************************/
-.transition, .btn, .btn:hover,
-.btn:focus {
-  -webkit-transition: all 0.5s ease-in-out !important;
-  -o-transition: all 0.5s ease-in-out !important;
-  transition: all 0.5s ease-in-out !important; }
+.btn, .btn:hover, .btn:focus {
+  transition:
+    transform 0.2s var(--ease-out),
+    background-color 0.2s var(--ease-out),
+    color 0.2s var(--ease-out),
+    border-color 0.2s var(--ease-out),
+    box-shadow 0.2s var(--ease-out) !important; }
 
-/************************** 
+/**************************
 * Box Shadow
 ***************************/
 .box-shadownone, .btn:hover,

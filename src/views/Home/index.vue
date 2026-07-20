@@ -5,6 +5,22 @@
       <AnniversaryHero />
     </HomeHeroRow>
 
+    <HomeHeroRow layout="full" aria-label="云上咖啡店网页游戏">
+      <HomeOverlayHero
+        class="anniversary-cafe-hero"
+        eyebrow="八周年 · 网页游戏"
+        title="云上咖啡店"
+        subtitle="招待方块熟客，亲手完成研磨、萃取、奶泡与拉花。"
+        :image-src="anniversaryCafeImg"
+        image-alt="云上咖啡店的 Minecraft 风格咖啡馆"
+        image-position="center 54%"
+        :links="[
+          { text: '开始营业', type: 'primary', to: '/anniversary-cafe' },
+          { text: '走进八年旅程', type: 'secondary', to: '/boh-8-years-journey' }
+        ]"
+      />
+    </HomeHeroRow>
+
     <HomeHeroRow layout="full" aria-label="遇见福州">
       <AppleHeroBanner
         class="fuzhou-hero"
@@ -222,17 +238,49 @@
                 <h2 id="anniversary-letter-title" class="letter-title">来自 Ryyik 的一封信</h2>
               </header>
               <div class="letter-body">
-                <p class="letter-paragraph">亲爱的方块之家成员们：</p>
-                <p class="letter-paragraph">时光飞逝，转眼间方块之家已经陪伴大家走过了八个年头。</p>
-                <p class="letter-paragraph">八年前，我们怀着对 Minecraft 的热爱，创建了这个小小的社区。从最初几个人的服务器，发展到今天的大家庭，这一切都离不开每一位成员的支持与陪伴。</p>
-                <p class="letter-paragraph">在这里，有人找到了志同道合的朋友，有人收获了珍贵的回忆，也有人从新手成长为独当一面的创作者。每一个方块都承载着我们的故事，每一次冒险都记录着我们的成长。</p>
-                <p class="letter-paragraph">感谢每一位曾经和现在为方块之家付出的人。感谢管理团队的辛勤工作，感谢创作者们留下的精彩作品，也感谢每一位普通成员始终如一的陪伴与支持。</p>
-                <p class="letter-paragraph">八周年不是终点，而是新的起点。我们会继续创造更多值得共同记住的时刻。</p>
-                <p class="letter-paragraph">让我们一起期待下一个八年。</p>
+                <p class="letter-paragraph">TO：方块之家的各位</p>
+                <p class="letter-paragraph">祝方块之家八周年快乐！</p>
+                <p class="letter-paragraph">回望这一路，我总觉得不可思议：我们竟然真的从 2018 年，一起走到了 2026 年。</p>
+                <p class="letter-paragraph">这八年里，与你们共度的每一天，都构成了我青春中无比珍贵的一部分。因为有你们，才有了方块之家；也正因为有你们，我们才能一直走到今天。</p>
+                <p class="letter-paragraph">八年前，当我第一次遇见小天光时，我从未想过，后来会认识这么多人，会与大家共同写下这么多故事。因为你们，我们愿意笨拙地拍摄一部又一部纪念短片，搭建一张又一张周年庆地图，一遍遍设计和完善属于我们的角色。我们一起构建了一个很特别的社群——一个会认真庆祝周年、举办生日会，也会一起策划各种活动的社群。</p>
+                <p class="letter-paragraph">到了 2026 年，我又执着地想要建设一个能够承载我们共同回忆的网站。那些曾经觉得遥不可及的功能，竟然在短短几个月里一点点变成了现实。支撑我不断做下去的动力，是想到屏幕另一边还有你们，愿意成为这些故事的观众，也愿意继续参与其中。</p>
+                <p class="letter-paragraph">而事实证明，这一切都值得。</p>
+                <p class="letter-paragraph">因为有你们在，一切才有意义。</p>
+                <p class="letter-paragraph">这么多年，我们共同创造了许多地图。但最打动我的，始终是你们愿意一次又一次回到方块街。正是这种反复的归来，让我每一次登录，都像是回到了家。</p>
+                <p class="letter-paragraph">从最初那个尚且懵懂的“未开智”时期，到如今陆续步入大学，我们彼此包容，共同经历，也一起长大。我愿意把这段情谊称为我人生二十年来最美好的经历之一。</p>
+                <p class="letter-paragraph">最初遇见的小天光、小仙、3759、小牛、Zombater、AWGIU、厕所君、LF、好奇、橙子、百城、Daji、End、物理外挂……后来加入的汉堡、Eleven、丁老师、YUFUQU、黑白……以及许许多多陪伴过方块之家的群友们——每一个名字，都构成了这段漫长故事的一部分。</p>
+                <p class="letter-paragraph">后来，我第一次在现实中见到了百城、LF 和物理外挂。经过这么多年密切的交流，真正见到你们的那一刻，我由衷地感到开心。我没有想到，一段诞生于互联网的友谊，最终可以变得如此真实而具体。</p>
+                <p class="letter-paragraph">我也迫不及待地想要见到更多的各位。只是受限于眼下的条件，这个愿望还不能立刻实现。但我相信，未来还很长。愿我们有足够的时间，也有足够的缘分，在现实中的某一天真正相见。</p>
+                <p class="letter-paragraph">八年不是终点，而是我们共同故事中的又一个坐标。</p>
+                <p class="letter-paragraph">谢谢你们曾经来到这里，也谢谢你们愿意一直留在这里。因为有你们，方块之家才不只是一张地图、一个群聊或一个网站，而是一段真实发生过，并且仍在继续的共同经历。</p>
+                <p class="letter-paragraph">未来，我们或许会走向不同的地方，拥有各自新的生活，但我相信，这八年间共同创造的一切，都会成为我们记忆中无法替代的一部分。</p>
+                <p class="letter-paragraph">愿我们继续创造新的故事，也愿多年以后，当我们再次谈起方块之家时，依然会为曾经拥有这样一段时光而感到庆幸。</p>
+                <p class="letter-paragraph">祝方块之家八周年快乐！</p>
+                <p class="letter-paragraph">也祝方块之家的每一位，在各自的人生中平安顺遂，始终保有热爱，并继续成为自己想成为的人。</p>
                 <footer class="letter-signature">
                   <p>Ryyik</p>
-                  <p class="letter-date">2026 年 4 月</p>
+                  <p class="letter-date">2026 年 7 月</p>
                 </footer>
+                <section class="anniversary-gift" aria-labelledby="anniversary-gift-title">
+                  <div class="anniversary-gift-copy">
+                    <h3 id="anniversary-gift-title">八周年订阅礼物</h3>
+                    <p>每个账号可免费领取一次 Max 订阅权益，有效期一个月。</p>
+                  </div>
+                  <label v-if="anniversaryHigherPlan" class="anniversary-upgrade-option">
+                    <input v-model="preferCurrentAnniversaryTier" type="checkbox">
+                    <span>升级为 {{ anniversaryHigherPlanName }}，为当前订阅续期一个月</span>
+                  </label>
+                  <button type="button" class="anniversary-claim-btn"
+                    :disabled="isAnniversaryGiftLoading || anniversaryGiftClaimed"
+                    :aria-busy="isAnniversaryGiftLoading" @click="claimAnniversaryGift">
+                    <Gift :size="17" :stroke-width="2" aria-hidden="true" />
+                    <span>免费领取订阅</span>
+                  </button>
+                  <p v-if="anniversaryGiftMessage" class="anniversary-gift-status"
+                    :class="{ success: anniversaryGiftClaimed, error: anniversaryGiftError }" role="status">
+                    {{ anniversaryGiftMessage }}
+                  </p>
+                </section>
               </div>
             </div>
           </article>
@@ -299,19 +347,36 @@
       </Transition>
     </Teleport>
 
+    <!-- 首屏页脚 — 仅 Home 显示 -->
+    <HomeFooter />
+
   </div>
 </template>
 
 <script setup>
-import { nextTick, ref, onMounted, onUnmounted, watch } from "vue";
+import { computed, nextTick, ref, onMounted, onUnmounted, watch } from "vue";
+import { Gift } from "lucide-vue-next";
+import { storeToRefs } from "pinia";
 import HomeCatMascot from "@/components/HomeCatMascot.vue";
 import AppleHeroBanner from "@/components/AppleHeroBanner.vue";
 import AppleGridCard from "@/components/AppleGridCard.vue";
 import HomeHeroRow from "./components/HomeHeroRow.vue";
+import HomeOverlayHero from "./components/HomeOverlayHero.vue";
 import AnniversaryHero from "./components/AnniversaryHero.vue";
+import HomeFooter from "./components/HomeFooter.vue";
 import { useRoute, useRouter } from "vue-router";
 import { getPosts } from "../../utils/api/forum-api.js";
 import { getForumPostExcerpt } from "../../utils/forum-post-format.js";
+import { useAuthStore } from "@/stores/auth";
+import {
+  claimAnniversarySubscription,
+  getAnniversarySubscriptionClaim,
+  getMySubscriptions
+} from "@/utils/api/subscription-api.js";
+import {
+  PLAN_DISPLAY_NAMES,
+  resolveHighestTierCode
+} from "@/utils/subscription-benefits.js";
 
 // 静态引入首屏关键图片
 import bohCloudImg from "@/assets/images/BOHcloud.webp?url";
@@ -320,18 +385,97 @@ import toybreadProductImg from "@/assets/images/toybreadproduct.webp?url";
 import habitrainImg from "@/assets/images/habitrain.webp?url";
 import fuzhouImg from "@/assets/images/fuzhou.webp?url";
 import anniversaryTextImg from "@/assets/images/8yearstext.webp?url";
+import anniversaryCafeImg from "@/assets/images/26coffee4.webp?url";
 
 // 路由相关
 const router = useRouter();
 const route = useRoute();
+const authStore = useAuthStore();
+const { isLoggedIn, userInfo, showLoginModal } = storeToRefs(authStore);
 
 const showJoinGameModal = ref(false);
 const showAnniversaryLetter = ref(false);
 const showCloudPlusModal = ref(false);
+const isAnniversaryGiftLoading = ref(false);
+const anniversaryGiftClaimed = ref(false);
+const anniversaryGiftError = ref(false);
+const anniversaryGiftMessage = ref('');
+const anniversaryHigherPlan = ref('');
+const preferCurrentAnniversaryTier = ref(true);
+const anniversaryHigherPlanName = computed(() => (
+  PLAN_DISPLAY_NAMES[anniversaryHigherPlan.value] || anniversaryHigherPlan.value
+));
+
+const formatAnniversaryExpiry = (value) => {
+  const date = new Date(value || '');
+  if (Number.isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+};
+
+const loadAnniversaryGiftState = async () => {
+  anniversaryGiftError.value = false;
+  anniversaryHigherPlan.value = '';
+  preferCurrentAnniversaryTier.value = true;
+  if (!isLoggedIn.value || !userInfo.value?.id) {
+    anniversaryGiftClaimed.value = false;
+    anniversaryGiftMessage.value = '';
+    return;
+  }
+
+  isAnniversaryGiftLoading.value = true;
+  const [claimResult, subscriptionsResult] = await Promise.all([
+    getAnniversarySubscriptionClaim(userInfo.value.id),
+    getMySubscriptions(userInfo.value.id, { includeExpired: false })
+  ]);
+
+  if (claimResult.data) {
+    anniversaryGiftClaimed.value = true;
+    const expiry = formatAnniversaryExpiry(claimResult.data.expiresAt);
+    anniversaryGiftMessage.value = `已领取 ${claimResult.data.planName || 'Max'}${expiry ? `，有效期至 ${expiry}` : ''}`;
+  } else {
+    anniversaryGiftClaimed.value = false;
+    anniversaryGiftMessage.value = '';
+  }
+
+  const highestTier = subscriptionsResult.error
+    ? ''
+    : resolveHighestTierCode(subscriptionsResult.data || []);
+  if (['ultra'].includes(highestTier)) anniversaryHigherPlan.value = highestTier;
+  isAnniversaryGiftLoading.value = false;
+};
+
+const claimAnniversaryGift = async () => {
+  anniversaryGiftError.value = false;
+  if (!isLoggedIn.value || !userInfo.value?.id) {
+    anniversaryGiftMessage.value = '请先登录，再领取八周年订阅礼物。';
+    showLoginModal.value = true;
+    return;
+  }
+  if (isAnniversaryGiftLoading.value || anniversaryGiftClaimed.value) return;
+
+  isAnniversaryGiftLoading.value = true;
+  anniversaryGiftMessage.value = '';
+  const result = await claimAnniversarySubscription({
+    preferCurrentTier: Boolean(anniversaryHigherPlan.value && preferCurrentAnniversaryTier.value)
+  });
+  const claim = result.data;
+
+  if (result.ok || claim?.alreadyClaimed) {
+    anniversaryGiftClaimed.value = true;
+    const expiry = formatAnniversaryExpiry(claim?.expiresAt);
+    anniversaryGiftMessage.value = `${claim?.alreadyClaimed ? '你已经领取过' : '领取成功：'} ${claim?.planName || 'Max'}${expiry ? `，有效期至 ${expiry}` : ''}`;
+    window.dispatchEvent(new CustomEvent('boh_subscription_refresh'));
+  } else {
+    anniversaryGiftError.value = true;
+    anniversaryGiftMessage.value = result.error?.message || '领取失败，请稍后重试。';
+  }
+  isAnniversaryGiftLoading.value = false;
+};
 
 const openAnniversaryLetter = () => {
   showAnniversaryLetter.value = true;
   document.body.style.overflow = 'hidden';
+  void loadAnniversaryGiftState();
 };
 
 const closeAnniversaryLetter = () => {
@@ -348,6 +492,10 @@ watch(
   },
   { immediate: true },
 );
+
+watch(isLoggedIn, () => {
+  if (showAnniversaryLetter.value) void loadAnniversaryGiftState();
+});
 
 const openCloudPlusModal = () => {
   showCloudPlusModal.value = true;

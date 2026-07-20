@@ -214,7 +214,12 @@ const showGlobalNavbar = computed(() => {
   <UnifiedNavbar v-if="showGlobalNavbar" />
   <Suspense>
     <template #default>
-      <router-view />
+      <RouterView v-slot="{ Component, route: activeRoute }">
+        <KeepAlive>
+          <component v-if="activeRoute.meta?.keepAlive" :is="Component" :key="activeRoute.name" />
+        </KeepAlive>
+        <component v-if="!activeRoute.meta?.keepAlive" :is="Component" :key="activeRoute.fullPath" />
+      </RouterView>
     </template>
     <template #fallback>
       <div class="page-suspense-fallback">
@@ -229,7 +234,7 @@ const showGlobalNavbar = computed(() => {
       </div>
     </template>
   </Suspense>
-  <Footer />
+  <Footer v-if="!route.meta?.hideFooter" />
 
   <!-- 全局登录模态框 -->
   <LoginView v-if="showLoginModal" :show="showLoginModal" :is-modal="true" @close="showLoginModal = false" />

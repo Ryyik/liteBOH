@@ -1378,6 +1378,46 @@
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
 }
 
+@media (min-width: 769px) {
+  .login-prompt-card {
+    padding: 18px 22px;
+    margin-bottom: 22px;
+    border-width: 1px;
+    border-style: solid;
+    border-radius: 18px;
+    text-align: left;
+  }
+
+  .login-prompt-card .prompt-content {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .login-prompt-card .lock-icon {
+    margin: 0;
+    font-size: 26px;
+    line-height: 1;
+  }
+
+  .login-prompt-card .prompt-text h3 {
+    margin: 0 0 3px;
+    font-size: 17px;
+    letter-spacing: 0;
+  }
+
+  .login-prompt-card .prompt-text p {
+    font-size: 13px;
+  }
+
+  .login-prompt-card .login-trigger-btn {
+    margin: 0;
+    padding: 10px 20px;
+    font-size: 14px;
+  }
+}
+
 /* Stats Card */
 .stats-header {
   padding: 24px clamp(22px, 2vw, 32px) 0;

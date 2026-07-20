@@ -19,15 +19,14 @@
 /************************** 
 * Font-weight
 ***************************/
-/************************** 
+/**************************
 * Transition
+* （旧 .transition helper 已废弃 — 使用全局 .transition-all/.transition-fast
+*   或直接在元素上写 transition: 具体属性。
+*   避免 transition: all 触发 layout/paint。）
 ***************************/
-.transition {
-  -webkit-transition: all 0.5s ease-in-out !important;
-  -o-transition: all 0.5s ease-in-out !important;
-  transition: all 0.5s ease-in-out !important; }
 
-/************************** 
+/**************************
 * Box Shadow
 ***************************/
 .box-shadownone {

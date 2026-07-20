@@ -157,6 +157,14 @@
                                 </section>
                                 <div class="message-content" v-html="renderMarkdown(stripAiQuestion(msg.content))">
                                 </div>
+                                <div v-if="msg.role === 'assistant' && getRetrievalTraceSources(msg).some((source) => source.ok)"
+                                    class="assistant-source-strip" aria-label="本次回答来源">
+                                    <span class="assistant-source-label">来源</span>
+                                    <span v-for="source in getRetrievalTraceSources(msg).filter((item) => item.ok).slice(0, 4)"
+                                        :key="source.connectorId || source.label" class="assistant-source-chip">
+                                        {{ source.label || source.source }}
+                                    </span>
+                                </div>
                                 <div v-if="activeInlineQuestion && activeInlineQuestion.messageIndex === idx"
                                     class="ai-question-inline">
                                     <div class="ai-question-inline-question">{{ activeInlineQuestion.question }}</div>

@@ -242,9 +242,11 @@
 .bohai-page.reduce-motion *::before,
 .bohai-page.reduce-motion *::after {
   scroll-behavior: auto !important;
-  animation-duration: 1ms !important;
+  animation-duration: 0.001ms !important;
   animation-delay: 0ms !important;
-  transition-duration: 1ms !important;
+  /* 保留 100ms transition 让消息气泡 opacity 淡入仍可感知 */
+  transition-duration: 100ms !important;
+  transition-delay: 0ms !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -252,8 +254,9 @@
   .bohai-page *::before,
   .bohai-page *::after {
     scroll-behavior: auto !important;
-    animation-duration: 1ms !important;
+    animation-duration: 0.001ms !important;
     animation-delay: 0ms !important;
-    transition-duration: 1ms !important;
+    transition-duration: 100ms !important;
+    transition-delay: 0ms !important;
   }
 }

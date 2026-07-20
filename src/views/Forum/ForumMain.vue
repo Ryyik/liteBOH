@@ -35,6 +35,10 @@ const notificationStoreRef = ref(getNotificationStoreSync());
 const unreadCount = computed(() => notificationStoreRef.value?.unreadCount || 0);
 const currentUiStyle = ref('glass');
 const currentTheme = ref(themeManager.getTheme());
+const isAnniversaryMcTheme = computed(() => currentTheme.value === 'anniversary-mc');
+const anniversaryForumStyle = computed(() => isAnniversaryMcTheme.value
+  ? { '--forum-anniversary-image': `url(${anniversaryForumImage})` }
+  : undefined);
 
 const readActiveForumTheme = () => {
   if (typeof document === 'undefined') return themeManager.getTheme();
@@ -118,6 +122,7 @@ import { buildReplyDraft, escapeHtml, resolveReplyUsername, calculateOptimisticL
 import { supabase } from '../../utils/supabase-client.js';
 import { themeManager } from '@/utils/theme-manager.js';
 import { getHomeCatAsset, getHomeCatTypeBySeed, isHomeCatTheme } from '@/utils/home-cat-theme.js';
+import anniversaryForumImage from '@/assets/images/blockschool.webp';
 import { formatSmartTime } from '../../utils/time.js';
 import { addExperience, XP_REWARDS } from '../../utils/xp.js';
 import DOMPurify from '@/utils/dompurify.js';
@@ -206,8 +211,17 @@ const normalizeForumSortMode = (mode = '', fallback = 'latest') => {
   return ['latest', 'hottest'].includes(safeMode) ? safeMode : fallback;
 };
 const getQueryString = (value) => String(Array.isArray(value) ? value[0] || '' : value || '').trim();
-const shouldRestoreForumReturnState = () => getQueryString(route.query.restore) === '1';
 const getForumReturnKey = () => getForumReturnKeyFromQuery(route.query, props.embedded ? 'user-space' : 'forum');
+const isHistoryReturnFromPostDetail = () => {
+  if (typeof window === 'undefined') return false;
+  const forwardPath = getQueryString(window.history.state?.forward);
+  return forwardPath.startsWith('/forum/post/');
+};
+const shouldRestoreForumReturnState = () => {
+  if (getQueryString(route.query.restore) === '1') return true;
+  if (!isHistoryReturnFromPostDetail()) return false;
+  return Boolean(readForumReturnState(getForumReturnKey()));
+};
 const getForumScrollContainer = () => {
   if (typeof window === 'undefined') return null;
   if (!props.embedded) return window;
@@ -1362,6 +1376,11 @@ onMounted(() => {
 
 onActivated(() => {
   if (!props.embedded) return;
+  const savedReturnState = readForumReturnState(getForumReturnKey());
+  if (savedReturnState) {
+    scrollForumTo(Math.max(0, Number(savedReturnState.scrollY || 0)));
+    clearForumReturnState(getForumReturnKey());
+  }
   updateMobileStatus();
   setupForumLoadMoreObserver();
   setupForumWindowObserverOnce();
@@ -3119,7 +3138,8 @@ const openPostDetail = (postId) => {
 
 <template>
   <div ref="forumPageRef" class="forum-page" :class="{ 'embedded-mode': embedded }" :data-theme="currentTheme"
-    :data-ui-style="currentUiStyle">
+    :data-ui-style="currentUiStyle" :data-anniversary-skin="isAnniversaryMcTheme ? 'active' : 'off'"
+    :style="anniversaryForumStyle">
     <link rel="preconnect" :href="cdnDeliveryBase" crossorigin />
     <link rel="dns-prefetch" :href="cdnDeliveryBase" />
 
@@ -3127,10 +3147,11 @@ const openPostDetail = (postId) => {
       <!-- 头部区域 -->
       <header v-if="showHeader" class="forum-header fade-in-up">
         <div class="header-content">
-          <span class="header-tag">BOH COMMUNITY</span>
-          <h1 class="header-title">社区论坛</h1>
-          <p class="header-subtitle">分享你的创意，连接方块世界。</p>
+          <span class="header-tag">{{ isAnniversaryMcTheme ? 'BLOCK OF HOME · 2018—2026' : 'BOH COMMUNITY' }}</span>
+          <h1 class="header-title">{{ isAnniversaryMcTheme ? '八周年方块社区' : '社区论坛' }}</h1>
+          <p class="header-subtitle">{{ isAnniversaryMcTheme ? '挖掘旧回忆，继续建造我们的第九年。' : '分享你的创意，连接方块世界。' }}</p>
         </div>
+        <div v-if="isAnniversaryMcTheme" class="anniversary-seal" aria-hidden="true"><strong>8</strong><span>周年限定<br>方块主题</span></div>
 
         <!-- 浮动操作按钮：消息通知 -->
         <div v-if="isLoggedIn" class="floating-actions-container fade-in-up" style="animation-delay: 0.1s;">
@@ -3212,7 +3233,7 @@ const openPostDetail = (postId) => {
               </div>
             </div>
 
-            <div v-else class="posts-list">
+            <div v-else class="posts-list stagger-list">
               <div v-if="forumData.length === 0" class="empty-state glass-panel">
                 <HomeCatMascot v-if="isHomeCatActive" type="decor" size="lg" decorative />
                 <span class="empty-icon">🔍</span>
@@ -3514,4 +3535,5 @@ const openPostDetail = (postId) => {
 @import './styles/feed.css';
 @import './styles/replies-responsive.css';
 @import './styles/drawers-skeletons.css';
+@import './styles/anniversary.css';
 </style>

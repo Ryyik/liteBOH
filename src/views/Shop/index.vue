@@ -85,7 +85,7 @@
       <section v-else-if="searchQuery" class="product-flow-section search-results">
         <h2 class="section-title">搜索结果</h2>
         <div class="product-flow-container">
-          <div class="product-flow" v-if="filteredProducts.length > 0">
+          <div class="product-flow stagger-list" v-if="filteredProducts.length > 0">
             <div v-for="product in filteredProducts" :key="product.id" class="apple-card product-card"
               ref="productCards" @click="openProductDetails(product)">
               <div class="card-image">

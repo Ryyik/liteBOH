@@ -13,6 +13,144 @@
   padding-bottom: 80px;
 }
 
+.post-detail-page[data-anniversary-skin="active"] {
+  --detail-ink: #292c26;
+  --detail-muted: #666b5e;
+  --detail-line: rgba(75, 57, 38, 0.25);
+  --detail-soft: rgba(255, 253, 240, 0.96);
+  background-color: #e7eee0;
+  background-image:
+    linear-gradient(rgba(78, 107, 55, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(78, 107, 55, 0.055) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.post-detail-page[data-anniversary-skin="active"] .x-main-column {
+  overflow: hidden;
+  border: 3px solid #4b3b2a;
+  border-radius: 3px;
+  background: rgba(255, 253, 240, 0.97);
+  box-shadow: inset 7px 0 #6c9f3d, 7px 7px 0 rgba(67, 52, 35, 0.15);
+}
+
+.post-detail-page[data-anniversary-skin="active"] .x-main-column::before {
+  content: '';
+  display: block;
+  height: 8px;
+  background: repeating-linear-gradient(90deg, #8cba49 0 24px, #67983a 24px 42px);
+}
+
+.post-detail-page[data-anniversary-skin="active"] .post-detail-title,
+.post-detail-page[data-anniversary-skin="active"] .author-name {
+  color: #28231f;
+}
+
+.post-detail-page[data-anniversary-skin="active"] .like-btn.is-liked,
+.post-detail-page[data-anniversary-skin="active"] .post-location-tag {
+  color: #c44c3f;
+}
+
+.post-detail-page[data-anniversary-skin="active"] .author-avatar,
+.post-detail-page[data-anniversary-skin="active"] .avatar-image {
+  border-radius: 2px;
+  image-rendering: pixelated;
+}
+
+.post-detail-page[data-anniversary-skin="active"] .user-center-page-header {
+  --mc-header-surface: rgba(231, 238, 224, 0.94);
+}
+
+.post-detail-page[data-anniversary-skin="active"] .home-btn,
+.post-detail-page[data-anniversary-skin="active"] .submit-reply-btn {
+  border: 2px solid #3e5f28;
+  border-radius: 2px;
+  color: #fffdf0;
+  background: #5f9138;
+  box-shadow: inset 2px 2px #91bd5c, inset -2px -2px #3f6728, 3px 3px 0 rgba(44, 66, 30, 0.2);
+}
+
+.post-detail-page[data-anniversary-skin="active"] .action-bar {
+  gap: 9px;
+}
+
+.post-detail-page[data-anniversary-skin="active"] .action-btn {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 2px solid #52473d;
+  border-radius: 0;
+  color: #514a40;
+  background: #d8d0bc;
+  box-shadow:
+    inset 2px 2px #fff8e8,
+    inset -2px -2px #9b907c,
+    3px 3px 0 rgba(49, 42, 36, 0.3);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1), color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.post-detail-page[data-anniversary-skin="active"] .action-btn:hover {
+  border-color: #3e5732;
+  color: #2f4726;
+  background: #cbd9b8;
+  box-shadow:
+    inset 2px 2px #f4ffe1,
+    inset -2px -2px #82966d,
+    3px 3px 0 rgba(49, 67, 39, 0.34);
+}
+
+.post-detail-page[data-anniversary-skin="active"] .action-btn:active {
+  transform: translate(2px, 2px) scale(0.98);
+  box-shadow: inset 2px 2px #8b816f, inset -1px -1px #eee6d2;
+}
+
+.post-detail-page[data-anniversary-skin="active"] .action-svg {
+  width: 16px;
+  height: 16px;
+  filter: drop-shadow(1px 1px 0 rgba(255, 255, 255, 0.48));
+  shape-rendering: crispEdges;
+}
+
+.post-detail-page[data-anniversary-skin="active"] .action-count-bold,
+.post-detail-page[data-anniversary-skin="active"] .action-label {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.post-detail-page[data-anniversary-skin="active"] .like-btn.is-liked {
+  border-color: #713b34;
+  color: #8f3029;
+  background: #e5a28d;
+  box-shadow:
+    inset 2px 2px #ffd5bd,
+    inset -2px -2px #a95c50,
+    3px 3px 0 rgba(91, 43, 37, 0.32);
+}
+
+.post-detail-page[data-anniversary-skin="active"] .like-btn.is-liked .action-label {
+  color: currentColor;
+}
+
+.post-detail-page[data-anniversary-skin="active"] .comment-btn:hover {
+  color: #355044;
+  background: #c5dbcb;
+}
+
+.post-detail-page[data-anniversary-skin="active"] .share-btn:hover,
+.post-detail-page[data-anniversary-skin="active"] .share-btn.is-copy-success {
+  border-color: #302923;
+  color: #f9f2df;
+  background: #665447;
+  box-shadow:
+    inset 2px 2px #8d7868,
+    inset -2px -2px #332b25,
+    3px 3px 0 rgba(38, 31, 27, 0.38);
+}
+
+.post-detail-page[data-anniversary-skin="active"] .share-btn.is-copy-success .action-label {
+  color: currentColor;
+}
+
 @media (max-width: 480px) {
   .post-detail-page {
     --user-center-nav-offset: 0px;

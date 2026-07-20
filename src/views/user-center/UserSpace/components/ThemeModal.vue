@@ -81,6 +81,21 @@
               <Check v-if="currentThemePreference === 'home-cat'" class="theme-check" :size="16" :stroke-width="2.2"
                 aria-hidden="true" />
             </div>
+
+            <div class="theme-option anniversary-mc-theme-option"
+              :class="{ active: currentThemePreference === 'anniversary-mc' }"
+              @click="$emit('select', 'anniversary-mc')">
+              <div class="theme-preview anniversary-mc-preview" aria-hidden="true">
+                <span class="mc-preview-sky"></span>
+                <span class="mc-preview-grass"></span>
+                <span class="mc-preview-dirt"></span>
+                <span class="mc-preview-eight">8</span>
+                <span class="mc-preview-torch"></span>
+              </div>
+              <span class="theme-name">八周年 MC 限定</span>
+              <Check v-if="currentThemePreference === 'anniversary-mc'" class="theme-check" :size="16"
+                :stroke-width="2.2" aria-hidden="true" />
+            </div>
           </div>
 
           <div class="clean-actions">

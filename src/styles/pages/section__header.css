@@ -22,27 +22,12 @@
 /************************** 
 * Font-weight
 ***************************/
-/************************** 
+/**************************
 * Transition
+* （旧 .transition helper 已废弃 — 避免触发 layout/paint）
 ***************************/
-.transition,
-.banner
-  .menu-burger
-  #navigationWrap
-  .menu
-  .main-nav-container
-  .main-nav-column-top
-  .main-nav-column
-  nav
-  ul
-  li
-  a:hover {
-  -webkit-transition: all 0.5s ease-in-out !important;
-  -o-transition: all 0.5s ease-in-out !important;
-  transition: all 0.5s ease-in-out !important;
-}
 
-/************************** 
+/**************************
 * Box Shadow
 ***************************/
 .box-shadownone {

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import AltchaWidget from '@/components/AltchaWidget.vue';
 import AgreementModal from '@/components/AgreementModal.vue';
+import { useDelight } from '@/composables/useDelight';
 import { userAgreementContent, privacyPolicyContent } from '@/data/agreementData.js';
 import DOMPurify from '@/utils/dompurify.js'; // 修复：添加 DOMPurify 防止 XSS
 import { getLoginDeviceIdHash } from '@/utils/device-trust.js';
@@ -29,6 +30,7 @@ const props = defineProps({
 const emit = defineEmits(['close', 'success']);
 const router = useRouter();
 const authStore = useAuthStore();
+const delight = useDelight();
 const { login, resetPassword } = authStore;
 const loginHeroSrcset = [
   `${getImageUrl('@/assets/images/main1-768.webp')} 768w`,
@@ -291,6 +293,7 @@ const handleLogin = async () => {
     );
     if (result.success) {
       localStorage.setItem(REMEMBER_ME_STORAGE_KEY, loginForm.rememberMe ? '1' : '0');
+      delight.success();
       if (props.isModal) {
         emit('success');
         handleClose();
@@ -975,7 +978,7 @@ onUnmounted(() => {
 }
 
 .login-form-section .boh-login-btn:active {
-  transform: translateY(0);
+  transform: translateY(0) scale(0.97);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 

@@ -74,6 +74,7 @@
               @background-click="handleProfileBackgroundClick"
               @view-impressions="openProfileImpressions" @sponsor="openSponsorPage"
               @data-management="openProfileDataManagement" @cloud-plus="openCloudPlusArea"
+              @account-security="router.push('/user-space/account-security?from=userspace')"
               @subscription="router.push('/user-space/subscriptions?from=userspace')"
               @post-click="openProfilePost"
               @switch-tab="switchTab"
@@ -916,6 +917,9 @@ const currentTheme = ref(themeManager.getTheme());
 const currentThemePreference = ref(themeManager.getPreference?.() || currentTheme.value);
 const isHomeCatActive = computed(() => isHomeCatTheme(currentTheme.value) || isHomeCatTheme(currentThemePreference.value));
 const themeDisplayText = computed(() => {
+  if (currentThemePreference.value === 'anniversary-mc') {
+    return '八周年 MC 限定';
+  }
   if (currentThemePreference.value === 'home-cat') {
     return '方块小窝';
   }
@@ -1714,6 +1718,8 @@ const syncUserSpaceTabRoute = (tabId) => {
 
 const handleBottomNavClick = (tabId) => {
   if (tabId === 'ai') {
+    const nextQuery = { ...route.query, assistant: 'quick' };
+    void router.push({ path: '/user-space', query: nextQuery });
     openGlobalAi();
     return;
   }
@@ -2314,6 +2320,21 @@ watch(() => route.query.tab, (newTab) => {
     runProfileCriticalFetches();
     void openSettingsPanelFromRoute();
   }
+});
+
+watch(() => route.query.assistant, (mode) => {
+  if (mode === 'quick') {
+    openGlobalAi();
+  } else if (isAiOverlayOpen.value) {
+    closeGlobalAi();
+  }
+}, { immediate: true });
+
+watch(isAiOverlayOpen, (open) => {
+  if (open || route.query.assistant !== 'quick') return;
+  const nextQuery = { ...route.query };
+  delete nextQuery.assistant;
+  void router.replace({ path: '/user-space', query: nextQuery });
 });
 
 watch(() => route.query.view, () => {

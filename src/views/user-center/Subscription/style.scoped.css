@@ -1031,8 +1031,8 @@
   .card-transition-enter-active,
   .card-transition-leave-active,
   .card-transition-move {
-    animation-duration: 0.01ms !important;
+    animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    transition-duration: 100ms !important;
   }
 }

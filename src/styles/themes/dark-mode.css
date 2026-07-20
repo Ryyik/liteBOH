@@ -210,12 +210,4 @@
   outline-offset: 2px;
 }
 
-/* 减少动画偏好 */
-@media (prefers-reduced-motion: reduce) {
-  [data-theme="dark"] *,
-  [data-theme="dark"] *::before,
-  [data-theme="dark"] *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
-}
+/* 减少动画偏好 — 由全局 animations.css 接管，dark-mode 不重复定义 */

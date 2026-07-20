@@ -10,6 +10,7 @@ import fiveYearsImage from '@/assets/images/2023-7-5years.webp'
 import homeImage from '@/assets/images/2024-1-fangkuai.webp'
 import sevenYearsImage from '@/assets/images/2025-7years.webp'
 import futureImage from '@/assets/images/2025wintermap.webp'
+import reunionImage from '@/assets/images/blockschool.webp'
 
 const router = useRouter()
 const rootRef = ref(null)
@@ -22,6 +23,7 @@ const tunnelProgress = ref(0)
 const finaleProgress = ref(0)
 const activeChapter = ref(0)
 const reduceMotion = ref(false)
+const viewportWidth = ref(1024)
 
 const chapters = [
   {
@@ -116,6 +118,23 @@ const figureBlocks = Array.from({ length: 78 }, (_, index) => {
   }
 })
 
+const reunionFragments = [
+  { id: 'staff', clip: 'polygon(18% 4%, 38% 4%, 38% 58%, 17% 58%)', x: -34, y: -22, r: -8, s: .82, cx: 28, cy: 31, delay: 0 },
+  { id: 'back-center', clip: 'polygon(40% 4%, 55% 4%, 57% 39%, 39% 39%)', x: 8, y: -36, r: 5, s: .78, cx: 48, cy: 21, delay: .08 },
+  { id: 'back-white', clip: 'polygon(55% 3%, 70% 3%, 70% 45%, 54% 45%)', x: -8, y: -34, r: -4, s: .8, cx: 62, cy: 23, delay: .03 },
+  { id: 'back-right', clip: 'polygon(68% 3%, 84% 3%, 85% 49%, 68% 49%)', x: 32, y: -24, r: 7, s: .84, cx: 76, cy: 25, delay: .13 },
+  { id: 'drink', clip: 'polygon(6% 24%, 24% 24%, 25% 62%, 5% 62%)', x: -38, y: -5, r: -7, s: .8, cx: 15, cy: 43, delay: .18 },
+  { id: 'ice-cream', clip: 'polygon(22% 27%, 42% 27%, 43% 70%, 21% 70%)', x: -32, y: 13, r: 6, s: .8, cx: 32, cy: 49, delay: .27 },
+  { id: 'camera', clip: 'polygon(37% 26%, 55% 26%, 56% 74%, 36% 74%)', x: 2, y: 30, r: -5, s: .76, cx: 46, cy: 50, delay: .2 },
+  { id: 'headphones', clip: 'polygon(51% 29%, 68% 29%, 69% 66%, 50% 66%)', x: 4, y: -30, r: 5, s: .82, cx: 60, cy: 48, delay: .3 },
+  { id: 'purple', clip: 'polygon(63% 29%, 81% 29%, 82% 79%, 62% 79%)', x: 34, y: 7, r: -6, s: .78, cx: 72, cy: 54, delay: .22 },
+  { id: 'pink', clip: 'polygon(78% 27%, 98% 27%, 98% 76%, 77% 76%)', x: 40, y: -3, r: 8, s: .82, cx: 88, cy: 51, delay: .35 },
+  { id: 'lollipop', clip: 'polygon(2% 52%, 30% 52%, 31% 100%, 1% 100%)', x: -42, y: 28, r: 8, s: .76, cx: 16, cy: 77, delay: .39 },
+  { id: 'pufferfish', clip: 'polygon(25% 56%, 57% 56%, 58% 100%, 24% 100%)', x: -10, y: 38, r: -7, s: .74, cx: 41, cy: 79, delay: .32 },
+  { id: 'burger', clip: 'polygon(50% 55%, 72% 55%, 73% 100%, 49% 100%)', x: 12, y: 40, r: 6, s: .76, cx: 61, cy: 78, delay: .43 },
+  { id: 'peace', clip: 'polygon(67% 53%, 95% 53%, 96% 100%, 66% 100%)', x: 38, y: 31, r: -7, s: .76, cx: 81, cy: 77, delay: .47 }
+]
+
 const currentChapter = computed(() => chapters[activeChapter.value])
 const pageProgress = computed(() => (
   (heroProgress.value * 0.18) + (tunnelProgress.value * 0.62) + (finaleProgress.value * 0.2)
@@ -172,7 +191,7 @@ function imageStyle(index) {
 }
 
 function figureBlockStyle(block) {
-  const assemble = clamp(finaleProgress.value / 0.58)
+  const assemble = clamp(finaleProgress.value / 0.2)
   const settle = 1 - Math.pow(1 - assemble, 3)
   return {
     left: `${block.x}%`,
@@ -185,9 +204,44 @@ function figureBlockStyle(block) {
 }
 
 const figureStyle = computed(() => {
-  const infinity = clamp((finaleProgress.value - 0.68) / 0.28)
+  const infinity = clamp((finaleProgress.value - 0.18) / 0.1)
+  const exit = clamp((finaleProgress.value - 0.27) / 0.09)
   return {
-    transform: `translate(-50%, -50%) rotate(${infinity * 90}deg) scale(${0.86 + infinity * 0.14})`
+    opacity: 1 - exit,
+    transform: `translate(-50%, -50%) rotate(${infinity * 90}deg) scale(${0.86 + infinity * 0.14 + exit * 0.16})`
+  }
+})
+
+const reunionProgress = computed(() => clamp((finaleProgress.value - 0.3) / 0.58))
+
+function reunionFragmentStyle(fragment) {
+  if (reduceMotion.value) return { clipPath: fragment.clip, opacity: 0 }
+  const local = clamp((reunionProgress.value - fragment.delay) / Math.max(0.01, 0.68 - fragment.delay))
+  const settle = 1 - Math.pow(1 - local, 3)
+  const handoff = clamp((reunionProgress.value - 0.82) / 0.12)
+  const motionScale = viewportWidth.value <= 560 ? 0.58 : 1
+  return {
+    clipPath: fragment.clip,
+    transformOrigin: `${fragment.cx}% ${fragment.cy}%`,
+    opacity: Math.min(1, local * 1.8) * (1 - handoff),
+    filter: `blur(${(1 - settle) * 8}px) saturate(${0.45 + settle * 0.55}) brightness(${0.7 + settle * 0.3})`,
+    transform: `translate3d(${fragment.x * motionScale * (1 - settle)}vw, ${fragment.y * motionScale * (1 - settle)}vh, 0) rotate(${fragment.r * (1 - settle)}deg) scale(${fragment.s + (1 - fragment.s) * settle})`
+  }
+}
+
+const reunionFrameStyle = computed(() => {
+  const arrive = 1 - Math.pow(1 - reunionProgress.value, 3)
+  return {
+    opacity: clamp(reunionProgress.value * 2.4),
+    transform: `translate(-50%, calc(-50% + var(--stage-offset))) scale(${1.12 - arrive * 0.12})`
+  }
+})
+
+const reunionPhotoStyle = computed(() => {
+  const reveal = reduceMotion.value ? 1 : clamp((reunionProgress.value - 0.72) / 0.2)
+  return {
+    opacity: reveal,
+    filter: `blur(${(1 - reveal) * 5}px) saturate(${0.76 + reveal * 0.24})`
   }
 })
 
@@ -205,6 +259,7 @@ let scrollFrame = 0
 function requestScrollUpdate() {
   if (scrollFrame) return
   scrollFrame = requestAnimationFrame(() => {
+    viewportWidth.value = window.innerWidth
     updateScroll()
     scrollFrame = 0
   })
@@ -220,6 +275,7 @@ function handlePointerMove(event) {
 
 onMounted(() => {
   reduceMotion.value = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  viewportWidth.value = window.innerWidth
   document.documentElement.classList.add('boh-journey-scroll')
   updateScroll()
   window.addEventListener('scroll', requestScrollUpdate, { passive: true })
@@ -403,20 +459,50 @@ onUnmounted(() => {
         </div>
 
         <div class="assembly-copy" :style="{
-          opacity: clamp(1 - finaleProgress * 2.3),
+          opacity: clamp(1 - finaleProgress * 5),
           transform: `translateY(${finaleProgress * -40}px)`
         }">
           <span>FINAL BUILD</span>
           <h2>把散落的记忆<br>重新放在一起</h2>
         </div>
 
-        <div class="reveal-copy" :class="{ visible: finaleProgress > 0.5, infinity: finaleProgress > 0.78 }">
+        <div class="reveal-copy" :class="{ visible: finaleProgress > 0.18 && finaleProgress < 0.35 }">
           <p class="reveal-year">2018 — 2026</p>
-          <h2>{{ finaleProgress > 0.78 ? '下一程，无限可能。' : '八年，感谢有你。' }}</h2>
-          <p>{{ finaleProgress > 0.78 ? '第九年的第一块，等你一起放下。' : '每一个名字，都是这个世界的一部分。' }}</p>
+          <h2>八年，感谢有你。</h2>
+          <p>每一个名字，都是这个世界的一部分。</p>
         </div>
 
-        <div class="finale-actions" :class="{ visible: finaleProgress > 0.9 }">
+        <div class="reunion-frame" :style="reunionFrameStyle">
+          <img class="reunion-ghost" :src="reunionImage" alt="" aria-hidden="true">
+          <img
+            v-for="fragment in reunionFragments"
+            :key="fragment.id"
+            class="reunion-fragment"
+            :src="reunionImage"
+            alt=""
+            aria-hidden="true"
+            :style="reunionFragmentStyle(fragment)"
+          >
+          <img
+            class="reunion-photo"
+            :src="reunionImage"
+            alt="方块之家八周年校园设定集大合照"
+            :style="reunionPhotoStyle"
+          >
+          <div class="reunion-sheen" aria-hidden="true" />
+        </div>
+
+        <div class="reunion-guide" :class="{ visible: finaleProgress > 0.34 && finaleProgress < 0.76 }">
+          <span>FINAL PORTRAIT</span>
+          <p>让每一个名字，回到属于自己的位置。</p>
+        </div>
+
+        <div class="reunion-finale-copy" :class="{ visible: finaleProgress > 0.83 }">
+          <p class="reveal-year">BLOCK OF HOME · 8TH ANNIVERSARY</p>
+          <h2>这一张合照，装下了我们的第八年。</h2>
+        </div>
+
+        <div class="finale-actions" :class="{ visible: finaleProgress > 0.94 }">
           <button class="primary-action" @click="router.push({ path: '/', hash: '#ryyik-letter' })">查看信件</button>
           <button class="text-action" @click="router.push('/')">返回方块之家</button>
         </div>

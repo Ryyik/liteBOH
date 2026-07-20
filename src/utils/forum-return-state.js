@@ -59,3 +59,15 @@ export function getForumReturnKeyFromQuery(query = {}, fallback = 'forum') {
   const raw = Array.isArray(query.returnKey) ? query.returnKey[0] : query.returnKey;
   return normalizeKey(raw || fallback);
 }
+
+export function isSafePostDetailHistoryReturn(path = '', source = '') {
+  const safePath = String(path || '').trim();
+  const safeSource = String(source || '').trim();
+  if (!safePath) return false;
+  if (safeSource === 'profile') return safePath.startsWith('/profile/');
+  if (safeSource === 'user-space') return safePath.startsWith('/user-space');
+  if (safeSource === 'forum') {
+    return safePath.startsWith('/forum') || safePath.startsWith('/user-space');
+  }
+  return false;
+}

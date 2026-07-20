@@ -5,7 +5,7 @@
         <UserCenterPageHeader title="消息中心" @back="goBack" />
       </template>
       <!-- Sticky Header -->
-      <header v-if="!minimal" class="x-header">
+      <header v-if="!minimal && isLoggedIn" class="x-header">
         <div class="x-filter-bar">
         <template v-if="isSelectMode">
           <button type="button" class="x-filter-chip select-all" @click="selectAllFiltered">
@@ -88,7 +88,7 @@
     </header>
 
     <!-- Minimal Mode Header -->
-    <header v-if="minimal" class="x-header-minimal">
+    <header v-if="minimal && isLoggedIn" class="x-header-minimal">
       <div class="x-minimal-main">
         <div class="x-filter-bar minimal-filter-bar">
           <template v-if="isSelectMode">
@@ -179,7 +179,16 @@
     <!-- Notifications List -->
     <div class="x-list">
       <!-- Error State (优先显示错误状态) -->
-      <div v-if="notificationsLoadError" class="x-empty">
+      <div v-if="!isLoggedIn" class="x-empty x-login-required">
+        <div class="x-empty-visual">
+          <UserRound class="empty-icon-circle" :size="44" :stroke-width="1.7" aria-hidden="true" />
+          <div class="empty-glow"></div>
+        </div>
+        <h3>登录以查看消息</h3>
+        <p>登录后可以接收回复、点赞和系统通知。</p>
+        <button class="refresh-btn" @click="showLoginModal = true">立即登录</button>
+      </div>
+      <div v-else-if="notificationsLoadError" class="x-empty">
         <div class="x-empty-visual">
           <TriangleAlert class="empty-icon-circle" :size="44" :stroke-width="1.7" aria-hidden="true" />
           <div class="empty-glow"></div>
@@ -492,7 +501,7 @@
 <script setup>
 import { ref, computed, onMounted, watch, onUnmounted, reactive, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { Bell, TriangleAlert } from 'lucide-vue-next';
+import { Bell, TriangleAlert, UserRound } from 'lucide-vue-next';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader';
@@ -560,7 +569,7 @@ const refreshUnreadCount = async (options = {}) => {
 
 const router = useRouter();
 const authStore = useAuthStore();
-const { userInfo, isLoggedIn, isInitialized } = storeToRefs(authStore);
+const { userInfo, isLoggedIn, isInitialized, showLoginModal } = storeToRefs(authStore);
 const messages = ref([]);
 const selectedMessage = ref(null);
 const lastFocusedMessageId = ref(null);

@@ -66,11 +66,14 @@
         </template>
       </div>
 
-      <div class="nav-hamburger" id="nav-hamburger" @click="toggleMobileMenu">
+      <button type="button" class="nav-hamburger" id="nav-hamburger"
+        :class="{ active: isMobileMenuOpen }" :aria-expanded="isMobileMenuOpen"
+        aria-controls="nav-menu-mobile" :aria-label="isMobileMenuOpen ? '关闭导航菜单' : '打开导航菜单'"
+        @click="toggleMobileMenu">
         <span></span>
         <span></span>
         <span></span>
-      </div>
+      </button>
     </div>
 
     <div class="nav-menu-mobile" id="nav-menu-mobile" :class="{ active: isMobileMenuOpen }">
@@ -240,6 +243,7 @@ const navMenuItems = [
     label: "社区",
     children: [
       { name: "forum", path: "/user-space?tab=posts", label: "论坛" },
+      { name: "block-wall", path: "/block-wall", label: "方块墙" },
       { name: "activities", path: "/activities", label: "活动" },
       { name: "lotteries", path: "/lotteries", label: "抽奖" },
       { name: "shows", path: "/shows", label: "节目" }
@@ -253,7 +257,8 @@ const navMenuItems = [
       { name: "mbti", path: "/mbti", label: "MBTI" },
       { name: "lab", path: "/lab", label: "实验室" },
       { name: "birthday", path: "/birthday", label: "生日会" },
-      { name: "boh-8-years-journey", path: "/boh-8-years-journey", label: "八周年" }
+      { name: "boh-8-years-journey", path: "/boh-8-years-journey", label: "八周年" },
+      { name: "anniversary-cafe", path: "/anniversary-cafe", label: "云上咖啡店" }
     ]
   },
   {

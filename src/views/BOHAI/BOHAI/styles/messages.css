@@ -522,6 +522,39 @@
     margin-top: 7px;
 }
 
+.assistant-source-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  color: #737373;
+  font-size: 11px;
+}
+
+.assistant-source-label {
+  font-weight: 750;
+  color: #525252;
+}
+
+.assistant-source-chip {
+  padding: 4px 7px;
+  border: 1px solid rgba(82, 82, 82, 0.12);
+  border-radius: 6px;
+  background: rgba(245, 245, 245, 0.78);
+  color: #525252;
+}
+
+.bohai-page[data-theme="dark"] .assistant-source-label,
+.bohai-page[data-theme="dark"] .assistant-source-chip {
+  color: #d4d4d4;
+}
+
+.bohai-page[data-theme="dark"] .assistant-source-chip {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .meta-chip {
     display: inline-flex;
     align-items: center;

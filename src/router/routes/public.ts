@@ -92,4 +92,10 @@ export const publicRoutes: RouteRecordRaw[] = [
     name: "BOH8YearsJourney",
     component: () => import("../../views/BOH8YearsJourney/index.vue"),
   },
+  {
+    path: "/anniversary-cafe",
+    name: "AnniversaryCafe",
+    component: () => import("../../views/AnniversaryCafe/index.vue"),
+    meta: { hideNavbar: true, hideFooter: true },
+  },
 ]

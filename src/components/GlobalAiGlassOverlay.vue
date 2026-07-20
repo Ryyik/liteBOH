@@ -240,8 +240,13 @@ function capturePageContext() {
   const title = String(document.title || '').replace(/\s*[-|]\s*BOH.*$/i, '').trim().slice(0, 120)
   const url = window.location.href
   const path = window.location.hash || window.location.pathname
+  const hashQuery = String(window.location.hash || '').split('?')[1] || ''
+  const userSpaceTab = new URLSearchParams(hashQuery).get('tab') || ''
   let suggestions = ['帮我整理一个计划', '总结一下我的想法', '快速查找相关信息']
   if (/forum|post/i.test(path)) suggestions = ['总结当前帖子', '帮我起草一条回复', '提取讨论中的关键观点']
+  else if (userSpaceTab === 'messages') suggestions = ['总结我的未读消息', '找出需要我回复的消息', '按主题整理最近通知']
+  else if (userSpaceTab === 'community') suggestions = ['帮我找正在活跃的伙伴', '看看最近加入了哪些伙伴', '为即将生日的伙伴写一句祝福']
+  else if (userSpaceTab === 'profile') suggestions = ['帮我润色个人简介', '分析我的近期帖子', '检查我的账号与资料状态']
   else if (/profile|user-space/i.test(path)) suggestions = ['总结这个页面', '帮我完善个人介绍', '整理最近要做的事']
   else if (/lab/i.test(path)) suggestions = ['解释当前工具', '帮我设计处理步骤', '检查我的输出思路']
   const parts = []

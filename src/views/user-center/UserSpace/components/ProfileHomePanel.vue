@@ -134,8 +134,53 @@
       </button>
     </section>
 
+    <section class="profile-status-section" aria-label="账号状态">
+      <div class="profile-section-heading">
+        <span>账号状态</span>
+        <small>集中检查常用状态</small>
+      </div>
+      <div class="profile-status-grid">
+        <button type="button" class="profile-status-card" @click="$emit('edit-profile')">
+          <span class="profile-status-icon bg-teal">
+            <UserRoundCheck aria-hidden="true" />
+          </span>
+          <span class="profile-status-copy">
+            <strong>{{ profileCompleteness }}% 完整</strong>
+            <small>个人资料</small>
+          </span>
+          <span class="profile-status-meter"><span :style="{ width: `${profileCompleteness}%` }"></span></span>
+        </button>
+        <button type="button" class="profile-status-card" @click="$emit('account-security')">
+          <span class="profile-status-icon bg-yellow">
+            <ShieldCheck aria-hidden="true" />
+          </span>
+          <span class="profile-status-copy">
+            <strong>安全检查</strong>
+            <small>登录与账号保护</small>
+          </span>
+        </button>
+        <button type="button" class="profile-status-card" @click="$emit('cloud-plus', 'content')">
+          <span class="profile-status-icon bg-gold">
+            <Cloud aria-hidden="true" />
+          </span>
+          <span class="profile-status-copy">
+            <strong>Cloud+</strong>
+            <small>{{ cloudPlusUsageText || '查看使用状态' }}</small>
+          </span>
+        </button>
+      </div>
+    </section>
+
     <section class="profile-content-panel">
-      <div v-if="isContentLoading" class="profile-forum-skeleton-feed" aria-hidden="true">
+      <div class="profile-content-tabs" role="tablist" aria-label="我的内容">
+        <button v-for="tab in contentTabs" :key="tab.id" type="button" role="tab" class="profile-content-tab"
+          :class="{ active: activeContentTab === tab.id }" :aria-selected="activeContentTab === tab.id"
+          @click="activeContentTab = tab.id">
+          {{ tab.label }}<span v-if="tab.count !== null" class="profile-content-count">{{ tab.count }}</span>
+        </button>
+      </div>
+
+      <div v-if="activeContentTab === 'posts' && isContentLoading" class="profile-forum-skeleton-feed" aria-hidden="true">
         <div v-for="item in 3" :key="`my-post-skeleton-${item}`" class="profile-forum-skeleton-card">
           <div class="profile-forum-skeleton-header">
             <div class="profile-forum-skeleton-avatar profile-forum-skeleton-item"></div>
@@ -157,7 +202,7 @@
           </div>
         </div>
       </div>
-      <div v-else-if="posts.length" class="profile-post-grid">
+      <div v-else-if="activeContentTab === 'posts' && posts.length" class="profile-post-grid">
         <article v-for="post in posts" :key="post.id" class="profile-post-card"
           :class="{ 'text-only': !getProfilePostCover(post) }" @click="$emit('post-click', post.id)">
           <div v-if="getProfilePostCover(post)" class="profile-post-cover">
@@ -180,10 +225,45 @@
           </button>
         </div>
       </div>
-      <div v-else class="profile-content-empty">
+      <div v-else-if="activeContentTab === 'posts'" class="profile-content-empty">
         <h3>还没有发帖</h3>
         <p>发布后的内容会直接出现在这里。</p>
         <button type="button" @click="$emit('switch-tab', 'posts')">去发帖</button>
+      </div>
+
+      <div v-else-if="activeContentTab === 'replies' && repliesLoading" class="profile-forum-skeleton-feed" aria-hidden="true">
+        <div v-for="item in 3" :key="`reply-skeleton-${item}`" class="profile-forum-skeleton-card">
+          <div class="profile-forum-skeleton-line long profile-forum-skeleton-item"></div>
+          <div class="profile-forum-skeleton-line medium profile-forum-skeleton-item"></div>
+        </div>
+      </div>
+      <div v-else-if="activeContentTab === 'replies' && replies.length" class="profile-reply-list">
+        <button v-for="reply in replies" :key="reply.id" type="button" class="profile-reply-item"
+          @click="$emit('post-click', reply.post_id)">
+          <span class="profile-reply-target">回复了《{{ getReplyPostTitle(reply) }}》</span>
+          <strong>{{ getReplySummary(reply) }}</strong>
+          <small>{{ formatProfilePostDate(reply) }}</small>
+        </button>
+      </div>
+      <div v-else-if="activeContentTab === 'replies'" class="profile-content-empty">
+        <h3>还没有回复</h3>
+        <p>参与讨论后，回复会集中出现在这里。</p>
+        <button type="button" @click="$emit('switch-tab', 'posts')">去看看帖子</button>
+      </div>
+
+      <div v-else-if="drafts.length" class="profile-draft-list">
+        <button v-for="draft in drafts" :key="draft.savedAt" type="button" class="profile-draft-item"
+          @click="$emit('switch-tab', 'posts')">
+          <span class="profile-draft-badge">草稿</span>
+          <strong>{{ draft.title || '未命名帖子' }}</strong>
+          <p>{{ getDraftSummary(draft) }}</p>
+          <small>{{ formatProfilePostDate({ created_at: draft.savedAt }) }}</small>
+        </button>
+      </div>
+      <div v-else class="profile-content-empty">
+        <h3>没有未完成的草稿</h3>
+        <p>论坛编辑器中保存的帖子草稿会显示在这里。</p>
+        <button type="button" @click="$emit('switch-tab', 'posts')">开始写帖子</button>
       </div>
     </section>
 
@@ -204,9 +284,10 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch, onMounted } from 'vue';
+import { computed, reactive, ref, watch, onMounted, onUnmounted } from 'vue';
+import { Cloud, ShieldCheck, UserRoundCheck } from 'lucide-vue-next';
 import FollowListModal from '@/components/FollowListModal.vue';
-import { getFollowers, getFollowing, unfollowUser } from '@/utils/api/profile-api.js';
+import { getCommentsByUsername, getFollowers, getFollowing, unfollowUser } from '@/utils/api/profile-api.js';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { PLAN_DISPLAY_NAMES } from '@/utils/subscription-benefits.js';
 
@@ -220,6 +301,15 @@ const followModal = reactive({
   currentPage: 1
 });
 const FOLLOW_PAGE_SIZE = 20;
+const activeContentTab = ref('posts');
+const replies = ref([]);
+const repliesLoading = ref(false);
+const drafts = ref([]);
+const contentTabs = computed(() => [
+  { id: 'posts', label: '帖子', count: props.posts.length },
+  { id: 'replies', label: '回复', count: replies.value.length },
+  { id: 'drafts', label: '草稿', count: drafts.value.length }
+]);
 
 const openFollowList = async (type) => {
   followModal.type = type;
@@ -340,6 +430,7 @@ defineEmits([
   'sponsor',
   'data-management',
   'cloud-plus',
+  'account-security',
   'subscription',
   'post-click',
   'switch-tab',
@@ -362,6 +453,10 @@ watch(profileId, async (id) => {
 }, { immediate: true });
 const displayInitial = computed(() => (props.profile.username || 'U').charAt(0).toUpperCase());
 const isAdmin = computed(() => props.profile.role === 'admin');
+const profileCompleteness = computed(() => {
+  const fields = [props.avatarUrl, props.profile.bio, props.profile.joinDate, props.profile.birthMonth && props.profile.birthDay];
+  return Math.round((fields.filter(Boolean).length / fields.length) * 100);
+});
 
 const profileBio = computed(() => {
   const bio = String(props.profile.bio || '').trim();
@@ -446,6 +541,59 @@ const formatProfilePostDate = (post = {}) => {
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}.${month}.${day}`;
 };
+
+const getReplyPostTitle = (reply = {}) => normalizeProfileText(reply.post?.title, '帖子');
+const getReplySummary = (reply = {}) => {
+  const content = normalizeProfileText(reply.content, '暂无回复内容');
+  return content.length > 80 ? `${content.slice(0, 80)}...` : content;
+};
+const getDraftSummary = (draft = {}) => {
+  const content = normalizeProfileText(draft.content, '尚未填写正文');
+  return content.length > 72 ? `${content.slice(0, 72)}...` : content;
+};
+
+const loadReplies = async () => {
+  const username = String(props.profile.username || '').trim();
+  const userId = String(props.profile.id || '').trim();
+  if (!username && !userId) return;
+  repliesLoading.value = true;
+  const result = await getCommentsByUsername(username, userId, { page: 1, pageSize: 20 });
+  replies.value = result.error ? [] : (result.data || []);
+  repliesLoading.value = false;
+};
+
+const readDrafts = () => {
+  const userId = String(props.profile.id || 'guest').trim() || 'guest';
+  const keys = [`boh_forum_post_draft_${userId}`, `boh_forum_post_draft_${userId}_versions`];
+  const collected = [];
+  keys.forEach((key) => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key) || (key.endsWith('_versions') ? '[]' : 'null'));
+      const rows = Array.isArray(parsed) ? parsed : (parsed ? [parsed] : []);
+      rows.forEach((draft) => {
+        if (!draft || (!String(draft.title || '').trim() && !String(draft.content || '').trim())) return;
+        collected.push({ ...draft, savedAt: Number(draft.savedAt || Date.now()) });
+      });
+    } catch {
+      // Ignore malformed legacy drafts.
+    }
+  });
+  const unique = new Map();
+  collected.sort((a, b) => b.savedAt - a.savedAt).forEach((draft) => unique.set(draft.savedAt, draft));
+  drafts.value = [...unique.values()].slice(0, 10);
+};
+
+const handleDraftStorage = (event) => {
+  if (String(event.key || '').startsWith('boh_forum_post_draft_')) readDrafts();
+};
+
+watch(profileId, () => {
+  void loadReplies();
+  readDrafts();
+}, { immediate: true });
+
+onMounted(() => window.addEventListener('storage', handleDraftStorage));
+onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
 </script>
 
 <style scoped>

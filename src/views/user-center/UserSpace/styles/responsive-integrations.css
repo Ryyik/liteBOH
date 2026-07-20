@@ -481,7 +481,7 @@
    主题设置模态框样式
    ============================================ */
 .theme-modal-card {
-  max-width: 460px;
+  max-width: 560px;
 }
 
 .theme-header {
@@ -686,6 +686,81 @@
 
 .theme-option.home-cat-theme-option.active .theme-check {
   background: #2f2f2f;
+}
+
+.anniversary-mc-preview {
+  position: relative;
+  border: 3px solid #34291f;
+  border-radius: 2px;
+  background: #82c8df;
+  image-rendering: pixelated;
+}
+
+.mc-preview-sky,
+.mc-preview-grass,
+.mc-preview-dirt,
+.mc-preview-eight,
+.mc-preview-torch {
+  position: absolute;
+  display: block;
+}
+
+.mc-preview-sky {
+  inset: 0 0 25px;
+  background:
+    linear-gradient(90deg, transparent 0 10px, rgba(255, 255, 255, 0.9) 10px 24px, transparent 24px) 8px 9px / 38px 8px no-repeat,
+    #82c8df;
+}
+
+.mc-preview-grass {
+  right: 0;
+  bottom: 20px;
+  left: 0;
+  height: 8px;
+  background: repeating-linear-gradient(90deg, #74a83e 0 8px, #8dbb48 8px 16px, #5e9138 16px 24px);
+}
+
+.mc-preview-dirt {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 20px;
+  background:
+    linear-gradient(90deg, transparent 0 12px, #765037 12px 18px, transparent 18px 35px, #9a6842 35px 42px, transparent 42px),
+    #875a3d;
+}
+
+.mc-preview-eight {
+  left: 31px;
+  top: 8px;
+  color: #fff4bd;
+  font: 900 30px/1 ui-monospace, monospace;
+  text-shadow: 3px 0 #4b3828, -3px 0 #4b3828, 0 3px #4b3828, 0 -3px #4b3828;
+}
+
+.mc-preview-torch {
+  right: 9px;
+  bottom: 15px;
+  width: 5px;
+  height: 20px;
+  background: #7b4a28;
+  box-shadow: 0 -6px 0 2px #ffd24a, 0 -9px 0 #ff7a22;
+}
+
+.theme-option.anniversary-mc-theme-option.active {
+  border-color: #66943b;
+  background: #f2f8e9;
+}
+
+.theme-option.anniversary-mc-theme-option.active .theme-check {
+  border-radius: 2px;
+  background: #527c32;
+}
+
+.user-space-page[data-theme="anniversary-mc"] {
+  --bg: #eef3e9;
+  --accent: #527c32;
+  background-color: #eef3e9;
 }
 
 .user-space-page[data-theme="home-cat"] {

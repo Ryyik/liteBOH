@@ -494,7 +494,7 @@
 
 .finale-scroll {
   position: relative;
-  height: 330vh;
+  height: 520vh;
   background: #030405;
 }
 
@@ -520,7 +520,7 @@
   z-index: 3;
   width: min(48vw, 540px);
   height: min(70vh, 690px);
-  will-change: transform;
+  will-change: transform, opacity;
   filter: drop-shadow(0 20px 55px rgba(0,0,0,.55));
 }
 
@@ -549,13 +549,131 @@
 }
 
 .reveal-copy.visible { opacity: 1; transform: translateY(0); }
-.reveal-copy.infinity { transform: translateY(-19vh); }
 .reveal-year { margin: 0 0 24px; color: #f6b958; font: 500 11px 'DM Mono', monospace; letter-spacing: .24em; }
 .reveal-copy > p:last-child { margin: 24px 0 0; color: rgba(255,255,255,.55); font-size: clamp(14px, 1.4vw, 19px); }
 
+.reunion-frame {
+  position: absolute;
+  top: calc(50% + var(--stage-offset) + 35px);
+  left: 50%;
+  z-index: 4;
+  width: min(92vw, calc(68dvh * 1.7768));
+  aspect-ratio: 1672 / 941;
+  overflow: hidden;
+  opacity: 0;
+  will-change: transform, opacity;
+  background: #0a0d0c;
+  box-shadow: 0 36px 120px rgba(0, 0, 0, .72);
+}
+
+.reunion-frame::after {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  border: 1px solid rgba(255, 255, 255, .16);
+  content: '';
+  pointer-events: none;
+}
+
+.reunion-frame img,
+.reunion-sheen {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.reunion-frame img {
+  object-fit: contain;
+}
+
+.reunion-ghost {
+  z-index: 1;
+  opacity: .13;
+  filter: blur(15px) saturate(.35) brightness(.4);
+  transform: scale(1.035);
+}
+
+.reunion-fragment {
+  z-index: 3;
+  will-change: transform, opacity, filter;
+}
+
+.reunion-photo {
+  z-index: 10;
+  will-change: opacity, filter;
+}
+
+.reunion-sheen {
+  z-index: 12;
+  opacity: .2;
+  pointer-events: none;
+  background: linear-gradient(112deg, transparent 35%, rgba(255,255,255,.3) 49%, transparent 63%);
+  transform: translateX(-130%);
+  animation: portrait-sheen 5s ease-in-out infinite;
+}
+
+.reunion-guide,
+.reunion-finale-copy {
+  position: absolute;
+  z-index: 15;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .5s ease, transform .65s cubic-bezier(.2,.8,.2,1);
+}
+
+.reunion-guide {
+  left: 50%;
+  bottom: 7vh;
+  width: min(760px, calc(100% - 48px));
+  text-align: center;
+  transform: translate(-50%, 22px);
+}
+
+.reunion-guide.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.reunion-guide span {
+  color: #f6b958;
+  font: 500 10px 'DM Mono', monospace;
+  letter-spacing: .22em;
+}
+
+.reunion-guide p {
+  margin: 12px 0 0;
+  color: rgba(255,255,255,.66);
+  font-size: clamp(15px, 1.5vw, 21px);
+}
+
+.reunion-finale-copy {
+  top: max(88px, calc(env(safe-area-inset-top) + 10px));
+  left: 5vw;
+  max-width: min(900px, 88vw);
+  padding: 0 12px;
+  text-shadow: 0 4px 24px rgba(0,0,0,.9);
+  transform: translateY(-20px);
+}
+
+.reunion-finale-copy.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.reunion-finale-copy h2 {
+  margin: 0;
+  font-size: clamp(24px, 2.5vw, 36px);
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -.04em;
+}
+
+.reunion-finale-copy .reveal-year { margin-bottom: 8px; }
+
 .finale-actions {
   position: absolute;
-  bottom: max(8vh, calc(env(safe-area-inset-bottom) + 20px));
+  bottom: max(2.5vh, calc(env(safe-area-inset-bottom) + 12px));
   z-index: 8;
   display: flex;
   align-items: center;
@@ -579,6 +697,7 @@
 @keyframes grid-pulse { to { background: rgba(33,33,30,.2); } }
 @keyframes pixel-flash { 0% { opacity: 0; transform: scale(.2) rotate(0); } 35% { opacity: .8; } 100% { opacity: 0; transform: scale(2.5) rotate(90deg); } }
 @keyframes aurora { to { transform: rotate(360deg); } }
+@keyframes portrait-sheen { 0%, 62% { transform: translateX(-130%); } 88%, 100% { transform: translateX(130%); } }
 
 @media (max-width: 900px) {
   .journey-progress { right: 10px; }
@@ -597,6 +716,8 @@
   .break-image-c { width: 44vw; height: 32vw; }
   .break-copy { width: calc(100% - 48px); }
   .figure-eight { width: 72vw; height: 60vh; }
+  .reunion-frame { width: min(94vw, calc(68dvh * 1.7768)); }
+  .reunion-finale-copy { left: 3vw; }
 }
 
 @media (max-width: 560px) {
@@ -623,6 +744,11 @@
   .break-copy h2 { font-size: 44px; }
   .figure-eight { width: 84vw; height: 60dvh; }
   .reveal-copy h2, .assembly-copy h2 { font-size: 49px; }
+  .reunion-frame { top: calc(45% + var(--stage-offset)); width: calc(100vw - 24px); }
+  .reunion-guide { bottom: 23dvh; }
+  .reunion-guide p { font-size: 14px; }
+  .reunion-finale-copy { top: 7dvh; left: 12px; max-width: calc(100% - 24px); padding: 12px; }
+  .reunion-finale-copy h2 { font-size: 30px; }
   .finale-actions { bottom: max(5dvh, calc(env(safe-area-inset-bottom) + 16px)); flex-direction: column; gap: 3px; }
 }
 
@@ -630,6 +756,7 @@
   .grain,
   .voxel-particle,
   .finale-aurora,
+  .reunion-sheen,
   .manifesto-grid span,
   .memory-panel.active .panel-pixels span {
     animation: none !important;

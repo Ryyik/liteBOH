@@ -138,6 +138,14 @@
   animation: userspace-panel-in 300ms var(--ease-out) 30ms both;
 }
 
+.profile-status-section {
+  padding: 0 0 2px;
+}
+
+.profile-status-section > .profile-section-heading {
+  padding: 2px 2px 10px;
+}
+
 .profile-status-card {
   position: relative;
   min-width: 0;
@@ -405,6 +413,62 @@
   background: #ff2d55;
   transform: translateX(-50%);
   animation: profile-tab-underline 220ms var(--ease-out);
+}
+
+.profile-content-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 5px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.07);
+  color: inherit;
+  font-size: 10px;
+}
+
+.profile-reply-list,
+.profile-draft-list {
+  display: grid;
+  gap: 0;
+}
+
+.profile-reply-item,
+.profile-draft-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+  padding: 16px;
+  border: 0;
+  border-bottom: 1px solid var(--stroke);
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.profile-reply-item:last-child,
+.profile-draft-item:last-child { border-bottom: 0; }
+.profile-reply-item:hover,
+.profile-draft-item:hover { background: rgba(15, 23, 42, 0.035); }
+.profile-reply-target { color: #667085; font-size: 12px; font-weight: 700; }
+.profile-reply-item strong,
+.profile-draft-item strong { font-size: 14px; line-height: 1.5; }
+.profile-reply-item small,
+.profile-draft-item small { color: var(--text-secondary); font-size: 11px; }
+.profile-draft-item p { margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+.profile-draft-badge {
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: #fff4cc;
+  color: #8a5d00;
+  font-size: 10px;
+  font-weight: 800;
 }
 
 @keyframes userspace-panel-in {
