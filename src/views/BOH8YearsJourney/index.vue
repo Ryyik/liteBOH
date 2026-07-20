@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Box, Check } from 'lucide-vue-next'
 import { applyJourneyCopyDraft, loadJourneyCopyDraft } from './copy-editor-store.js'
@@ -64,12 +64,16 @@ const finalBlockOffset = ref({ x: 0, y: 0 })
 const finalBlockDragging = ref(false)
 const finalBlockSettling = ref(false)
 
+const sectionMetrics = new Map()
+let rootMetrics = null
+
 let photoPointer = null
 let photoDeckTimer = 0
 let suppressPhotoClick = false
 let finalDrag = null
 let suppressFinalClick = false
 let finalSettleTimer = 0
+let geometryObserver = null
 
 const chapters = [
   {
@@ -367,17 +371,43 @@ function clamp(value, min = 0, max = 1) {
   return Math.min(max, Math.max(min, value))
 }
 
+function measureScrollGeometry() {
+  const sections = [heroRef.value, tunnelRef.value, thenNowRef.value, worldRef.value, strataRef.value, finaleRef.value]
+  const scrollY = window.scrollY
+  sectionMetrics.clear()
+  sections.forEach((element) => {
+    if (!element) return
+    const rect = element.getBoundingClientRect()
+    sectionMetrics.set(element, {
+      top: scrollY + rect.top,
+      bottom: scrollY + rect.bottom,
+      height: element.offsetHeight
+    })
+  })
+
+  const root = rootRef.value
+  if (root) {
+    const rect = root.getBoundingClientRect()
+    rootMetrics = {
+      top: scrollY + rect.top,
+      height: root.scrollHeight
+    }
+  } else {
+    rootMetrics = null
+  }
+}
+
 function sectionProgress(element) {
-  if (!element) return 0
-  const rect = element.getBoundingClientRect()
-  const distance = element.offsetHeight - window.innerHeight
-  return distance > 0 ? clamp(-rect.top / distance) : 0
+  const metrics = sectionMetrics.get(element)
+  if (!metrics) return 0
+  const distance = metrics.height - window.innerHeight
+  return distance > 0 ? clamp((window.scrollY - metrics.top) / distance) : 0
 }
 
 function ownsStickyViewport(element) {
-  if (!element) return false
-  const rect = element.getBoundingClientRect()
-  return rect.top <= 0 && rect.bottom >= window.innerHeight
+  const metrics = sectionMetrics.get(element)
+  if (!metrics) return false
+  return window.scrollY >= metrics.top && window.scrollY + window.innerHeight <= metrics.bottom
 }
 
 function tunnelPosition() {
@@ -402,6 +432,7 @@ function panelStyle(index) {
     '--accent': chapters[index].accent,
     opacity: visible ? Math.max(0, 1 - distance * 0.76) : 0,
     visibility: visible ? 'visible' : 'hidden',
+    willChange: visible ? 'transform, opacity' : 'auto',
     transform: reduceMotion.value
       ? `translate3d(0, calc(${delta * 16}vh + var(--stage-offset)), 0)`
       : `translate3d(0, calc(${delta * 16}vh + var(--stage-offset)), ${-distance * 520}px) rotateX(${delta * -42}deg) rotateZ(${delta * 1.2}deg) scale(${easedScale})`,
@@ -409,10 +440,7 @@ function panelStyle(index) {
   }
 }
 
-function thenNowTileStyle(tile) {
-  const reveal = clamp((thenNowProgress.value - 0.18 - tile.delay) / 0.36)
-  const horizontal = (tile.column - 3.5) * 13 * reveal
-  const vertical = (tile.row - 2) * 11 * reveal
+const thenNowTileBaseStyles = computed(() => {
   const frameWidth = viewportWidth.value
   const frameHeight = viewportHeight.value
   const sourceWidth = 973
@@ -424,10 +452,20 @@ function thenNowTileStyle(tile) {
   const tileHeight = frameHeight / 5
   const imageLeft = (frameWidth - renderedWidth) / 2
   const imageTop = (frameHeight - renderedHeight) / 2
-  return {
+
+  return thenNowTiles.map((tile) => ({
     backgroundImage: `url(${originImage})`,
     backgroundSize: `${renderedWidth}px ${renderedHeight}px`,
-    backgroundPosition: `${imageLeft - tile.column * tileWidth}px ${imageTop - tile.row * tileHeight}px`,
+    backgroundPosition: `${imageLeft - tile.column * tileWidth}px ${imageTop - tile.row * tileHeight}px`
+  }))
+})
+
+function thenNowTileStyle(tile) {
+  const reveal = clamp((thenNowProgress.value - 0.18 - tile.delay) / 0.36)
+  const horizontal = (tile.column - 3.5) * 13 * reveal
+  const vertical = (tile.row - 2) * 11 * reveal
+  return {
+    ...thenNowTileBaseStyles.value[tile.id],
     opacity: 1 - reveal,
     transform: reduceMotion.value
       ? 'none'
@@ -456,6 +494,7 @@ function worldNodeStyle(index) {
     top: `${index * spacing}px`,
     '--node-accent': worldNodes[index].accent,
     opacity: Math.max(0.12, 1 - visibleDistance * 0.34),
+    willChange: distance < 2.8 ? 'transform, opacity' : 'auto',
     transform: reduceMotion.value
       ? `translate3d(calc(-50% + ${side * horizontal}px), 0, 0)`
       : `translate3d(calc(-50% + ${side * horizontal}px), 0, ${-visibleDistance * 70}px) scale(${1 - visibleDistance * 0.07})`
@@ -475,6 +514,7 @@ function stratumStyle(index) {
     '--stratum-accent': worldStrata[index].accent,
     opacity: visible ? Math.max(0, 1 - distance * 0.68) : 0,
     visibility: visible ? 'visible' : 'hidden',
+    willChange: visible ? 'transform, opacity' : 'auto',
     transform: reduceMotion.value
       ? `translate3d(-50%, calc(-50% + ${delta * 16}dvh), 0)`
       : `translate3d(-50%, calc(-50% + ${delta * verticalStep}dvh), ${-distance * 260}px) rotateX(${tilt}deg) scale(${scale})`,
@@ -765,11 +805,9 @@ function updateScroll() {
   worldProgress.value = sectionProgress(worldRef.value)
   strataProgress.value = sectionProgress(strataRef.value)
   finaleProgress.value = sectionProgress(finaleRef.value)
-  const root = rootRef.value
-  if (root) {
-    const rootTop = window.scrollY + root.getBoundingClientRect().top
-    const distance = root.scrollHeight - window.innerHeight
-    documentProgress.value = distance > 0 ? clamp((window.scrollY - rootTop) / distance) : 0
+  if (rootMetrics) {
+    const distance = rootMetrics.height - window.innerHeight
+    documentProgress.value = distance > 0 ? clamp((window.scrollY - rootMetrics.top) / distance) : 0
   }
   activeStage.value = ownsStickyViewport(strataRef.value)
     ? 'strata'
@@ -788,10 +826,17 @@ let scrollFrame = 0
 function requestScrollUpdate() {
   if (scrollFrame) return
   scrollFrame = requestAnimationFrame(() => {
-    viewportWidth.value = document.documentElement.clientWidth
-    viewportHeight.value = window.innerHeight
     updateScroll()
     scrollFrame = 0
+  })
+}
+
+function handleResize() {
+  viewportWidth.value = document.documentElement.clientWidth
+  viewportHeight.value = window.innerHeight
+  nextTick(() => {
+    measureScrollGeometry()
+    requestScrollUpdate()
   })
 }
 
@@ -816,9 +861,17 @@ onMounted(() => {
   } catch {
     collectedYears.value = new Set()
   }
+  measureScrollGeometry()
   updateScroll()
+  if ('ResizeObserver' in window && rootRef.value) {
+    geometryObserver = new ResizeObserver(() => {
+      measureScrollGeometry()
+      requestScrollUpdate()
+    })
+    geometryObserver.observe(rootRef.value)
+  }
   window.addEventListener('scroll', requestScrollUpdate, { passive: true })
-  window.addEventListener('resize', requestScrollUpdate, { passive: true })
+  window.addEventListener('resize', handleResize, { passive: true })
   window.addEventListener('pointermove', handlePointerMove, { passive: true })
 })
 
@@ -835,10 +888,12 @@ watch(finalBlockPlaced, (placed) => {
 onUnmounted(() => {
   document.documentElement.classList.remove('boh-journey-scroll')
   window.removeEventListener('scroll', requestScrollUpdate)
-  window.removeEventListener('resize', requestScrollUpdate)
+  window.removeEventListener('resize', handleResize)
   window.removeEventListener('pointermove', handlePointerMove)
   window.clearTimeout(photoDeckTimer)
   window.clearTimeout(finalSettleTimer)
+  geometryObserver?.disconnect()
+  geometryObserver = null
   if (scrollFrame) cancelAnimationFrame(scrollFrame)
 })
 </script>
@@ -861,7 +916,7 @@ onUnmounted(() => {
           transform: `scale(${1.06 + heroProgress * 0.22}) translate3d(0, ${heroProgress * -4}%, 0)`,
           opacity: 1 - heroProgress * 0.86
         }">
-          <img :src="sevenYearsImage" alt="方块之家成员在方块世界中的七周年合影">
+          <img :src="sevenYearsImage" alt="方块之家成员在方块世界中的七周年合影" decoding="async" fetchpriority="high">
         </div>
         <div class="hero-vignette" />
 
@@ -968,7 +1023,7 @@ onUnmounted(() => {
                 @pointercancel="finishPhotoDrag"
                 @click="handlePhotoClick(index)"
               >
-                <img :src="photo.image" :alt="`${chapter.year} · ${photo.title}`" draggable="false">
+                <img :src="photo.image" :alt="`${chapter.year} · ${photo.title}`" loading="lazy" decoding="async" draggable="false">
                 <span class="memory-photo-caption">
                   <strong>{{ photo.title }}</strong>
                 <small>{{ photo.date ? `${photo.date} · ` : '' }}{{ String(photoIndex + 1).padStart(2, '0') }} / {{ String(chapterPhotoSets[index].length).padStart(2, '0') }}</small>
@@ -1040,12 +1095,16 @@ onUnmounted(() => {
           class="then-now-image then-now-future-image"
           :src="sevenYearsImage"
           alt="2025 年方块之家成员回到空岛的七周年合照"
+          loading="lazy"
+          decoding="async"
           :style="{ transform: `scale(${1.08 - thenNowProgress * 0.04})` }"
         >
         <img
           class="then-now-image then-now-origin-image"
           :src="originImage"
           alt="2018 年方块之家第一张空岛地图"
+          loading="lazy"
+          decoding="async"
           :style="{ opacity: 1 - clamp((thenNowProgress - 0.14) / 0.14) }"
         >
         <div class="then-now-tiles" aria-hidden="true">
@@ -1093,7 +1152,7 @@ onUnmounted(() => {
               :style="worldNodeStyle(index)"
             >
               <div class="world-node-image">
-                <img :src="node.image" :alt="`${node.year} · ${node.title}`">
+                <img :src="node.image" :alt="`${node.year} · ${node.title}`" loading="lazy" decoding="async">
               </div>
               <div class="world-node-copy">
                 <span>{{ node.code }}</span>
@@ -1138,7 +1197,7 @@ onUnmounted(() => {
             :style="stratumStyle(index)"
           >
             <div class="stratum-media">
-              <img :src="stratum.image" :alt="`${stratum.year} · ${stratum.name}`">
+              <img :src="stratum.image" :alt="`${stratum.year} · ${stratum.name}`" loading="lazy" decoding="async">
               <span>{{ stratum.depth }}</span>
             </div>
             <div class="stratum-copy">
@@ -1164,13 +1223,13 @@ onUnmounted(() => {
 
     <section class="memory-break">
       <div class="break-image break-image-a">
-        <img :src="islandImage" alt="方块之家 2019 空岛全景">
+        <img :src="islandImage" alt="方块之家 2019 空岛全景" loading="lazy" decoding="async">
       </div>
       <div class="break-image break-image-b">
-        <img :src="fourYearsNewYearImage" alt="方块之家 2022 新年烟花合照">
+        <img :src="fourYearsNewYearImage" alt="方块之家 2022 新年烟花合照" loading="lazy" decoding="async">
       </div>
       <div class="break-image break-image-c">
-        <img :src="homeNewYearImage" alt="方块之家 2024 新年活动合照">
+        <img :src="homeNewYearImage" alt="方块之家 2024 新年活动合照" loading="lazy" decoding="async">
       </div>
       <div class="break-copy">
         <span>150+ MEMBERS · 2922 DAYS</span>
@@ -1207,13 +1266,15 @@ onUnmounted(() => {
         </div>
 
         <div class="reunion-frame" :style="reunionFrameStyle">
-          <img class="reunion-ghost" :src="reunionImage" alt="" aria-hidden="true">
+          <img class="reunion-ghost" :src="reunionImage" alt="" loading="lazy" decoding="async" aria-hidden="true">
           <img
             v-for="fragment in reunionFragments"
             :key="fragment.id"
             class="reunion-fragment"
             :src="reunionImage"
             alt=""
+            loading="lazy"
+            decoding="async"
             aria-hidden="true"
             :style="reunionFragmentStyle(fragment)"
           >
@@ -1221,6 +1282,8 @@ onUnmounted(() => {
             class="reunion-photo"
             :src="reunionImage"
             alt="方块之家八周年校园设定集大合照"
+            loading="lazy"
+            decoding="async"
             :style="reunionPhotoStyle"
           >
           <div class="reunion-sheen" aria-hidden="true" />
