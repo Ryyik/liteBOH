@@ -589,6 +589,8 @@ function photoCardStyle(chapterIndex, photoIndex) {
 function resetPhotoDeckState() {
   photoDeckState.value = { chapterIndex: -1, x: 0, dragging: false, settling: false, leaving: false }
   photoPointer = null
+  // 交互结束，解除冻结，立即同步 panel 到当前 scroll 位置
+  requestScrollUpdate()
 }
 
 function beginPhotoDrag(event, chapterIndex, photoIndex) {
@@ -625,6 +627,11 @@ function movePhotoDrag(event) {
     photoPointer.axis = 'x'
     photoPointer.element.setPointerCapture?.(event.pointerId)
     suppressPhotoClick = true
+    // 确定为水平手势的瞬间立即阻止浏览器滚动，避免触屏方向锁定导致页面跟着翻页
+    event.preventDefault()
+  } else if (photoPointer.axis === 'x') {
+    // 持续阻止，直到 pointerup 释放
+    event.preventDefault()
   }
 
   const elapsed = Math.max(1, event.timeStamp - photoPointer.lastTime)
@@ -856,14 +863,23 @@ function updateScroll() {
     chapters.length - 1,
     Math.max(0, Math.round(tunnelPosition()))
   )
-  if (nextActiveChapter !== activeChapter.value) {
+  // 切图交互期间冻结 chapter 切换，避免 panel active class 变化引起过渡
+  if (nextActiveChapter !== activeChapter.value && !isPhotoInteracting()) {
     tunnelProgress.value = tunnelVisualProgress
     activeChapter.value = nextActiveChapter
   }
 }
 
+// 切图交互进行中（拖动/回弹/飞出）时冻结 tunnel panel 视觉，防止 progress 微变导致卡片 3D 过渡
+function isPhotoInteracting() {
+  const s = photoDeckState.value
+  return s.dragging || s.settling || s.leaving
+}
+
 function applyTunnelPanelStyles(progress) {
   if (!tunnelPanelElements.length || progress === appliedTunnelProgress) return
+  // 切图期间 panel 完全冻结，松手后由 resetPhotoDeckState 触发的 updateScroll 恢复
+  if (isPhotoInteracting()) return
   appliedTunnelProgress = progress
   tunnelPanelElements.forEach((element, index) => {
     if (!element) return
