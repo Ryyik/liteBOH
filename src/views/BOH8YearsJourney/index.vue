@@ -1062,21 +1062,23 @@ onUnmounted(() => {
         <article
           v-for="(chapter, index) in chapters"
           :key="chapter.year"
+          v-memo="[
+            index,
+            index === activeChapter,
+            photoIndices[index],
+            collectedYears.has(chapter.year),
+            isPanelPhotoWindowActive(index),
+            photoDeckState.chapterIndex === index ? photoDeckState.x : 0,
+            photoDeckState.chapterIndex === index ? photoDeckState.dragging : false,
+            photoDeckState.chapterIndex === index ? photoDeckState.settling : false,
+            photoDeckState.chapterIndex === index ? photoDeckState.leaving : false
+          ]"
           class="memory-panel"
           :class="{ active: index === activeChapter }"
           :ref="(element) => { tunnelPanelElements[index] = element }"
           :style="panelStyle(index)"
         >
           <div
-            v-memo="[
-              index,
-              photoIndices[index],
-              isPanelPhotoWindowActive(index),
-              photoDeckState.chapterIndex === index ? photoDeckState.x : 0,
-              photoDeckState.chapterIndex === index ? photoDeckState.dragging : false,
-              photoDeckState.chapterIndex === index ? photoDeckState.settling : false,
-              photoDeckState.chapterIndex === index ? photoDeckState.leaving : false
-            ]"
             class="panel-media"
           >
             <div class="memory-photo-deck" :class="{ single: chapterPhotoSets[index].length === 1 }">
@@ -1131,7 +1133,7 @@ onUnmounted(() => {
           </div>
 
           <div class="panel-year" aria-hidden="true">{{ chapter.year }}</div>
-          <div v-memo="[index, photoIndices[index], collectedYears.has(chapter.year)]" class="panel-copy">
+          <div class="panel-copy">
             <p class="panel-kicker">{{ activePhoto(index).date ? `${activePhoto(index).date} / ACTIVITY` : chapter.kicker }}</p>
             <h2 :key="`${chapter.year}-${photoIndices[index]}-title`">{{ activePhoto(index).title }}</h2>
             <p class="panel-description" :key="`${chapter.year}-${photoIndices[index]}-copy`">{{ activePhoto(index).copy }}</p>
