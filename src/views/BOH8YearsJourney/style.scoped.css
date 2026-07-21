@@ -389,15 +389,15 @@
   touch-action: pan-y;
   transform-origin: center 76%;
   user-select: none;
-  will-change: transform, opacity;
   transition: transform 300ms cubic-bezier(.2,.8,.2,1), opacity 220ms ease, filter 300ms ease;
 }
 
 .memory-photo-card.current { cursor: grab; }
 .memory-photo-deck.single .memory-photo-card.current { cursor: default; }
 .memory-photo-card.dragging { cursor: grabbing; transition: none; }
-.memory-photo-card.leaving { opacity: .2 !important; transition: transform 300ms cubic-bezier(.2,.8,.2,1), opacity 260ms ease; }
-.memory-photo-card.settling { transition: transform 380ms cubic-bezier(.2,.9,.2,1.12), opacity 220ms ease; }
+.memory-photo-card.leaving { opacity: .2 !important; will-change: transform, opacity; transition: transform 300ms cubic-bezier(.2,.8,.2,1), opacity 260ms ease; }
+.memory-photo-card.settling { will-change: transform, opacity; transition: transform 380ms cubic-bezier(.2,.9,.2,1.12), opacity 220ms ease; }
+.memory-photo-card.dragging { will-change: transform, opacity; }
 .memory-photo-card:focus-visible { outline: 2px solid #fff; outline-offset: 4px; }
 
 .memory-photo-card > img {

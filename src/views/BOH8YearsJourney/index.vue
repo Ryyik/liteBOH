@@ -450,6 +450,17 @@ function panelStyle(index) {
   const visible = distance < 1.35
   const easedScale = Math.max(0.74, 1 - distance * 0.16)
 
+  if (distance >= 1.8) {
+    return {
+      '--accent': chapters[index].accent,
+      opacity: 0,
+      visibility: 'hidden',
+      willChange: 'auto',
+      transform: `translate3d(0, calc(${Math.sign(delta) * 32}vh + var(--stage-offset)), -900px)`,
+      zIndex: 0
+    }
+  }
+
   return {
     '--accent': chapters[index].accent,
     opacity: visible ? Math.max(0, 1 - distance * 0.76) : 0,
@@ -556,6 +567,14 @@ function stratumBackdropStyle(index) {
 function photoPosition(chapterIndex, photoIndex) {
   const count = chapterPhotoSets[chapterIndex].length
   return (photoIndex - photoIndices.value[chapterIndex] + count) % count
+}
+
+function isPanelPhotoWindowActive(chapterIndex) {
+  return Math.abs(chapterIndex - tunnelPosition()) < 2.4
+}
+
+function shouldRenderPanelPhoto(chapterIndex, photoIndex) {
+  return isPanelPhotoWindowActive(chapterIndex) && photoPosition(chapterIndex, photoIndex) < 3
 }
 
 function activePhoto(chapterIndex) {
@@ -1041,7 +1060,18 @@ onUnmounted(() => {
           :class="{ active: index === activeChapter }"
           :style="panelStyle(index)"
         >
-          <div class="panel-media">
+          <div
+            v-memo="[
+              index,
+              photoIndices[index],
+              isPanelPhotoWindowActive(index),
+              photoDeckState.chapterIndex === index ? photoDeckState.x : 0,
+              photoDeckState.chapterIndex === index ? photoDeckState.dragging : false,
+              photoDeckState.chapterIndex === index ? photoDeckState.settling : false,
+              photoDeckState.chapterIndex === index ? photoDeckState.leaving : false
+            ]"
+            class="panel-media"
+          >
             <div class="memory-photo-deck" :class="{ single: chapterPhotoSets[index].length === 1 }">
               <button
                 v-for="(photo, photoIndex) in chapterPhotoSets[index]"
@@ -1065,7 +1095,14 @@ onUnmounted(() => {
                 @pointercancel="finishPhotoDrag"
                 @click="handlePhotoClick(index)"
               >
-                <img :src="photo.image" :alt="`${chapter.year} · ${photo.title}`" loading="lazy" decoding="async" draggable="false">
+                <img
+                  v-if="shouldRenderPanelPhoto(index, photoIndex)"
+                  :src="photo.image"
+                  :alt="`${chapter.year} · ${photo.title}`"
+                  loading="lazy"
+                  decoding="async"
+                  draggable="false"
+                >
                 <span class="memory-photo-caption">
                   <strong>{{ photo.title }}</strong>
                 <small>{{ photo.date ? `${photo.date} · ` : '' }}{{ String(photoIndex + 1).padStart(2, '0') }} / {{ String(chapterPhotoSets[index].length).padStart(2, '0') }}</small>
@@ -1095,7 +1132,7 @@ onUnmounted(() => {
           </div>
 
           <div class="panel-year" aria-hidden="true">{{ chapter.year }}</div>
-          <div class="panel-copy">
+          <div v-memo="[index, photoIndices[index], collectedYears.has(chapter.year)]" class="panel-copy">
             <p class="panel-kicker">{{ activePhoto(index).date ? `${activePhoto(index).date} / ACTIVITY` : chapter.kicker }}</p>
             <h2 :key="`${chapter.year}-${photoIndices[index]}-title`">{{ activePhoto(index).title }}</h2>
             <p class="panel-description" :key="`${chapter.year}-${photoIndices[index]}-copy`">{{ activePhoto(index).copy }}</p>
