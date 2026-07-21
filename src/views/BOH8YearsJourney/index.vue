@@ -305,17 +305,6 @@ worldStrata.forEach((stratum, index) => {
 })
 
 const blockColors = ['grass', 'dirt', 'stone', 'gold', 'water', 'wood', 'light']
-const floatingBlocks = Array.from({ length: 54 }, (_, index) => ({
-  id: index,
-  type: blockColors[index % blockColors.length],
-  x: (index * 37 + 11) % 101,
-  y: (index * 61 + 7) % 96,
-  size: 8 + ((index * 13) % 24),
-  depth: -80 - ((index * 47) % 620),
-  delay: (index % 9) * -0.7,
-  turn: ((index * 29) % 70) - 35
-}))
-
 const figureBlocks = Array.from({ length: 78 }, (_, index) => {
   const t = (index / 78) * Math.PI * 2
   return {
@@ -981,27 +970,6 @@ onUnmounted(() => {
         </div>
         <div class="hero-vignette" />
 
-        <div class="voxel-space" aria-hidden="true" :style="{
-          transform: `translate3d(0, ${heroProgress * -12}vh, 0) rotate(${heroProgress * 3}deg)`
-        }">
-          <span
-            v-for="block in floatingBlocks"
-            :key="block.id"
-            class="voxel-particle"
-            :class="`is-${block.type}`"
-            :style="{
-              left: `${block.x}%`,
-              top: `${block.y}%`,
-              width: `${block.size}px`,
-              height: `${block.size}px`,
-              '--depth': `${block.depth}px`,
-              '--delay': `${block.delay}s`,
-              '--turn': `${block.turn}deg`,
-              opacity: heroProgress > 0.08 ? Math.min(0.8, heroProgress * 1.3) : 0
-            }"
-          />
-        </div>
-
         <div class="hero-copy" :style="{
           transform: `translate3d(calc(var(--pointer-x) * -10px), calc(var(--stage-offset) - ${heroProgress * 16}vh), 0)`,
           opacity: 1 - heroProgress * 1.35
@@ -1110,14 +1078,6 @@ onUnmounted(() => {
               </button>
             </div>
             <div class="panel-shade" />
-            <div class="panel-pixels" aria-hidden="true">
-              <span v-for="pixel in 18" :key="pixel" :style="{
-                '--x': `${(pixel * 23) % 100}%`,
-                '--y': `${(pixel * 41) % 100}%`,
-                '--s': `${6 + (pixel % 5) * 4}px`,
-                '--d': `${(pixel % 7) * -0.2}s`
-              }" />
-            </div>
             <nav v-if="chapterPhotoSets[index].length > 1" class="photo-deck-pagination" :aria-label="`${chapter.year} 照片`">
               <button
                 v-for="(photo, photoIndex) in chapterPhotoSets[index]"

@@ -94,8 +94,7 @@
 
 .hero-image,
 .hero-image img,
-.hero-vignette,
-.voxel-space {
+.hero-vignette {
   position: absolute;
   inset: 0;
 }
@@ -117,24 +116,11 @@
     radial-gradient(circle at 50% 45%, transparent 10%, rgba(2, 3, 5, .48) 86%);
 }
 
-.voxel-space {
-  z-index: 2;
-  transform-style: preserve-3d;
-  pointer-events: none;
-}
-
-.voxel-particle,
 .figure-block {
   position: absolute;
   display: block;
   border: 1px solid rgba(255, 255, 255, .12);
   box-shadow: inset -4px -5px 0 rgba(0, 0, 0, .18), inset 3px 3px 0 rgba(255, 255, 255, .1), 0 8px 20px rgba(0, 0, 0, .24);
-}
-
-.voxel-particle {
-  transform: translateZ(var(--depth)) rotate(var(--turn));
-  transition: opacity .4s ease;
-  animation: block-drift 6s ease-in-out var(--delay) infinite alternate;
 }
 
 .is-grass {
@@ -472,19 +458,6 @@
 .photo-deck-pagination button:focus-visible { outline: none; }
 
 .panel-shade { position: absolute; inset: 0; z-index: 10; background: linear-gradient(90deg, transparent 58%, rgba(5,6,8,.34)), linear-gradient(0deg, rgba(3,4,5,.22), transparent 40%); pointer-events: none; }
-
-.panel-pixels span {
-  position: absolute;
-  left: var(--x);
-  top: var(--y);
-  width: var(--s);
-  height: var(--s);
-  opacity: 0;
-  background: var(--accent);
-  box-shadow: 0 0 20px var(--accent);
-}
-
-.memory-panel.active .panel-pixels span { animation: pixel-flash 1.5s steps(4) var(--d) both; }
 
 .panel-copy {
   position: relative;
@@ -1443,10 +1416,8 @@
 .text-action:hover { color: #fff; }
 
 @keyframes grain-shift { 0% { transform: translate(0,0); } 25% { transform: translate(3%,-2%); } 50% { transform: translate(-2%,3%); } 75% { transform: translate(4%,2%); } 100% { transform: translate(-3%,-4%); } }
-@keyframes block-drift { to { transform: translate3d(calc(var(--pointer-x) * 18px), calc(-20px + var(--pointer-y) * 12px), var(--depth)) rotate(calc(var(--turn) + 28deg)); } }
 @keyframes cue { 0% { transform: translateX(-105%); } 50%, 100% { transform: translateX(105%); } }
 @keyframes grid-pulse { to { background: rgba(33,33,30,.2); } }
-@keyframes pixel-flash { 0% { opacity: 0; transform: scale(.2) rotate(0); } 35% { opacity: .8; } 100% { opacity: 0; transform: scale(2.5) rotate(90deg); } }
 @keyframes aurora { to { transform: rotate(360deg); } }
 @keyframes portrait-sheen { 0%, 62% { transform: translateX(-130%); } 88%, 100% { transform: translateX(130%); } }
 @keyframes keystone-signal { from { opacity: .7; transform: scale(.76); } to { opacity: 0; transform: scale(1.34); } }
@@ -1594,11 +1565,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .grain,
-  .voxel-particle,
   .finale-aurora,
   .reunion-sheen,
   .manifesto-grid span,
-  .memory-panel.active .panel-pixels span,
   .keystone-block::after {
     animation: none !important;
   }
