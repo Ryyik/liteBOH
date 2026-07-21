@@ -66,7 +66,16 @@
         >
           <template v-if="item.item_type === 'photo'">
             <div class="photo-tape" aria-hidden="true"></div>
-            <img :src="item.image_url" :alt="item.content || `${item.author_username} 的照片`" loading="lazy" decoding="async" />
+            <img
+              :src="item.image_thumb_url || item.image_url"
+              :alt="item.content || `${item.author_username} 的照片`"
+              :width="item.image_width || undefined"
+              :height="item.image_height || undefined"
+              :style="item.image_lqip_url ? { backgroundImage: `url(${item.image_lqip_url})`, backgroundSize: 'cover' } : null"
+              loading="lazy"
+              decoding="async"
+              @load="onPhotoLoad"
+            />
             <p>{{ item.content || '留住这一天' }}</p>
           </template>
           <template v-else>
@@ -85,7 +94,7 @@
         >
           <template v-if="draft.type === 'photo'">
             <div class="photo-tape" aria-hidden="true"></div>
-            <img :src="draft.previewUrl" alt="待发布照片预览" />
+            <img :src="draft.previewUrl" alt="待发布照片预览" loading="lazy" decoding="async" />
             <p>{{ draft.content || '留住这一天' }}</p>
           </template>
           <template v-else>
@@ -135,7 +144,7 @@
 
           <template v-else>
             <button class="photo-picker" type="button" @click="fileInput?.click()">
-              <img v-if="draft.previewUrl" :src="draft.previewUrl" alt="照片预览" />
+              <img v-if="draft.previewUrl" :src="draft.previewUrl" alt="照片预览" loading="lazy" decoding="async" />
               <span v-else><ImagePlus :size="30" /><strong>选择一张照片</strong><small>支持 JPG、PNG、WebP</small></span>
             </button>
             <input ref="fileInput" class="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" @change="handleFile" />
@@ -156,7 +165,16 @@
       <div v-if="selectedItem" class="modal-backdrop" @click.self="selectedItem = null">
         <section class="detail-sheet" role="dialog" aria-modal="true">
           <button class="detail-close icon-button" type="button" aria-label="关闭" @click="selectedItem = null"><X :size="20" /></button>
-          <img v-if="selectedItem.item_type === 'photo'" :src="selectedItem.image_url" :alt="selectedItem.content" />
+          <img
+            v-if="selectedItem.item_type === 'photo'"
+            :src="selectedItem.image_detail_url || selectedItem.image_url"
+            :alt="selectedItem.content"
+            :width="selectedItem.image_width || undefined"
+            :height="selectedItem.image_height || undefined"
+            loading="lazy"
+            decoding="async"
+            @load="onPhotoLoad"
+          />
           <p class="detail-content">{{ selectedItem.content || '留住这一天' }}</p>
           <div class="detail-author">
             <span class="mini-avatar">
@@ -257,6 +275,10 @@ const showToast = (message) => {
   toastTimer = window.setTimeout(() => { toastMessage.value = ''; }, 2600);
 };
 const onItemAnimationEnd = (id) => { landedIds.value.add(id); };
+const onPhotoLoad = (event) => {
+  const target = event?.target;
+  if (target && !target.classList.contains('loaded')) target.classList.add('loaded');
+};
 const errorText = (error, fallback) => String(error?.message || error?.details || fallback);
 const isMine = (item) => Boolean(isLoggedIn.value && item?.author_id === userInfo.value?.id);
 const formatDate = (value) => new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric' }).format(new Date(value));

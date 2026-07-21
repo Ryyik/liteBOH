@@ -1,13 +1,21 @@
 import { supabase } from '@/utils/supabase-client.js';
 import { normalizeDbError } from '@/utils/request-core.js';
-import { deleteCloudinaryAssetsByPublicIds, markCloudinaryUploadsClaimed, uploadImageToCloudinary } from '@/utils/cloudinary-client.js';
+import { deleteCloudinaryAssetsByPublicIds, getCloudinaryTransformedUrl, markCloudinaryUploadsClaimed, uploadImageToCloudinary } from '@/utils/cloudinary-client.js';
 import { moderateForumImageFile } from '@/utils/forum-image-moderation.js';
 import { runKeywordPrecheck, runSyncStrictModeration, UNIFIED_REJECTED_STATUS } from '@/utils/unified-content-moderation.js';
 
 const TABLE = 'block_wall_items';
 const ALLOWED_COLORS = new Set(['butter', 'blush', 'mint', 'sky', 'lilac', 'cream']);
+
+// Cloudinary 变换常量：列表拍立得显示约 158px 高，缩略图 w_420 足够覆盖 2x retina
+export const BLOCK_WALL_THUMB_TRANSFORM = 'f_auto,q_auto:good,c_fill,w_420,h_320';
+export const BLOCK_WALL_THUMB_TRANSFORM_SM = 'f_auto,q_auto:good,c_fill,w_240,h_180';
+export const BLOCK_WALL_LQIP_TRANSFORM = 'f_auto,q_auto:low,c_fill,w_48,h_36,e_blur:1000';
+export const BLOCK_WALL_DETAIL_TRANSFORM = 'f_auto,q_auto:good,c_limit,w_1200';
+
 const normalizeItem = (item = {}) => {
   const author = item.author || {};
+  const rawImageUrl = String(item.image_url || '').trim();
   return {
     ...item,
     author_id: author.id || item.author_id,
@@ -20,7 +28,13 @@ const normalizeItem = (item = {}) => {
     },
     position_x: Number(item.position_x || 50),
     position_y: Number(item.position_y || 50),
-    rotation: Number(item.rotation || 0)
+    rotation: Number(item.rotation || 0),
+    image_width: Number(item.image_width || 0),
+    image_height: Number(item.image_height || 0),
+    image_thumb_url: rawImageUrl ? getCloudinaryTransformedUrl(rawImageUrl, BLOCK_WALL_THUMB_TRANSFORM) : '',
+    image_thumb_url_sm: rawImageUrl ? getCloudinaryTransformedUrl(rawImageUrl, BLOCK_WALL_THUMB_TRANSFORM_SM) : '',
+    image_lqip_url: rawImageUrl ? getCloudinaryTransformedUrl(rawImageUrl, BLOCK_WALL_LQIP_TRANSFORM) : '',
+    image_detail_url: rawImageUrl ? getCloudinaryTransformedUrl(rawImageUrl, BLOCK_WALL_DETAIL_TRANSFORM) : ''
   };
 };
 

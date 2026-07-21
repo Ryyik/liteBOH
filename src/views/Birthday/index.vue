@@ -1,7 +1,62 @@
 <template>
   <div class="birthday-page">
     <main>
-      <section class="hero-section">
+      <section v-if="isLoading" class="birthday-skeleton" aria-hidden="true">
+        <div class="bd-skel-hero glass-panel">
+          <div class="bd-skel-badge animate-skeleton-wave"></div>
+          <div class="bd-skel-title animate-skeleton-wave"></div>
+          <div class="bd-skel-subtitle animate-skeleton-wave"></div>
+          <div class="bd-skel-quote animate-skeleton-wave"></div>
+          <div class="bd-skel-pill animate-skeleton-wave"></div>
+          <div class="bd-skel-actions">
+            <div class="bd-skel-btn primary animate-skeleton-wave"></div>
+            <div class="bd-skel-btn animate-skeleton-wave"></div>
+            <div class="bd-skel-btn animate-skeleton-wave"></div>
+          </div>
+        </div>
+
+        <div class="bd-skel-section-label">
+          <div class="bd-skel-badge small animate-skeleton-wave"></div>
+          <div class="bd-skel-h2 animate-skeleton-wave"></div>
+        </div>
+
+        <div class="bd-skel-candle-row">
+          <div class="bd-skel-candle-card glass-panel animate-skeleton-wave"></div>
+          <div class="bd-skel-wish-card glass-panel">
+            <div class="bd-skel-eyebrow animate-skeleton-wave"></div>
+            <div class="bd-skel-h3 animate-skeleton-wave"></div>
+            <div class="bd-skel-line w-90 animate-skeleton-wave"></div>
+            <div class="bd-skel-line w-70 animate-skeleton-wave"></div>
+            <div class="bd-skel-metrics">
+              <div v-for="i in 3" :key="`bd-skel-metric-${i}`" class="bd-skel-metric">
+                <div class="bd-skel-metric-strong animate-skeleton-wave"></div>
+                <div class="bd-skel-metric-label animate-skeleton-wave"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bd-skel-section-label">
+          <div class="bd-skel-badge small animate-skeleton-wave"></div>
+          <div class="bd-skel-h2 animate-skeleton-wave"></div>
+        </div>
+
+        <div class="bd-skel-flip-grid">
+          <article v-for="i in 4" :key="`bd-skel-flip-${i}`" class="bd-skel-flip-card glass-panel">
+            <div class="bd-skel-flip-avatar animate-skeleton-wave"></div>
+            <div class="bd-skel-flip-body">
+              <div class="bd-skel-line w-80 animate-skeleton-wave"></div>
+              <div class="bd-skel-line w-60 animate-skeleton-wave"></div>
+            </div>
+            <div class="bd-skel-flip-footer">
+              <div class="bd-skel-line w-40 animate-skeleton-wave"></div>
+              <div class="bd-skel-line w-30 short animate-skeleton-wave"></div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section v-else class="hero-section">
         <div class="hero-gradient"></div>
         <div class="hero-content">
           <div class="hero-badge">
@@ -334,6 +389,7 @@ const wishes = ref([]);
 const targetUsername = ref("朋友");
 const isEventActive = ref(false);
 const celebrationDate = ref("");
+const isLoading = ref(true);
 
 let scratchContext = null;
 let isScratching = false;
@@ -639,14 +695,221 @@ const waitForPosterAssets = async () => {
 const closePosterModal = () => { showPosterModal.value = false; };
 
 onMounted(async () => {
-  await fetchEvent();
-  await fetchWishes();
-  visitorName.value = userInfo.value?.username || "";
-  nextTick(initScratchCard);
-  if (isToday.value) setTimeout(() => burstConfetti({ y: 0.4 }), 500);
+  try {
+    await fetchEvent();
+    await fetchWishes();
+    visitorName.value = userInfo.value?.username || "";
+    nextTick(initScratchCard);
+    if (isToday.value) setTimeout(() => burstConfetti({ y: 0.4 }), 500);
+  } finally {
+    isLoading.value = false;
+  }
 });
 </script>
 
 <style scoped>
 @import './style.scoped.css';
+</style>
+
+<style scoped>
+/* 加载骨架屏 — 仅覆盖 fetchEvent / fetchWishes 阶段，不依赖主样式表 */
+.birthday-skeleton {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.bd-skel-hero {
+  padding: 40px 28px;
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.bd-skel-badge {
+  width: 180px;
+  height: 24px;
+  border-radius: 12px;
+}
+
+.bd-skel-badge.small {
+  width: 120px;
+  height: 18px;
+  border-radius: 9px;
+}
+
+.bd-skel-title {
+  width: 70%;
+  height: 36px;
+  border-radius: 8px;
+  margin-top: 4px;
+}
+
+.bd-skel-subtitle {
+  width: 55%;
+  height: 16px;
+  border-radius: 6px;
+}
+
+.bd-skel-quote {
+  width: 40%;
+  height: 14px;
+  border-radius: 6px;
+}
+
+.bd-skel-pill {
+  width: 220px;
+  height: 32px;
+  border-radius: 16px;
+  margin-top: 4px;
+}
+
+.bd-skel-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.bd-skel-btn {
+  width: 120px;
+  height: 40px;
+  border-radius: 12px;
+}
+
+.bd-skel-btn.primary {
+  width: 140px;
+}
+
+.bd-skel-section-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bd-skel-h2 {
+  width: 160px;
+  height: 24px;
+  border-radius: 6px;
+}
+
+.bd-skel-h3 {
+  width: 200px;
+  height: 20px;
+  border-radius: 6px;
+}
+
+.bd-skel-eyebrow {
+  width: 110px;
+  height: 12px;
+  border-radius: 6px;
+}
+
+.bd-skel-candle-row {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 16px;
+}
+
+@media (max-width: 760px) {
+  .bd-skel-candle-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.bd-skel-candle-card {
+  min-height: 220px;
+  border-radius: 16px;
+}
+
+.bd-skel-wish-card {
+  padding: 22px 24px;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bd-skel-line {
+  height: 14px;
+  border-radius: 6px;
+}
+
+.bd-skel-line.w-90 { width: 90%; }
+.bd-skel-line.w-80 { width: 80%; }
+.bd-skel-line.w-70 { width: 70%; }
+.bd-skel-line.w-60 { width: 60%; }
+.bd-skel-line.w-40 { width: 40%; }
+.bd-skel-line.w-30 { width: 30%; }
+.bd-skel-line.w-30.short { width: 26%; height: 12px; }
+
+.bd-skel-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.bd-skel-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bd-skel-metric-strong {
+  width: 70%;
+  height: 22px;
+  border-radius: 6px;
+}
+
+.bd-skel-metric-label {
+  width: 50%;
+  height: 10px;
+  border-radius: 4px;
+}
+
+.bd-skel-flip-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .bd-skel-flip-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.bd-skel-flip-card {
+  padding: 18px 20px;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bd-skel-flip-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+}
+
+.bd-skel-flip-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bd-skel-flip-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 4px;
+}
 </style>

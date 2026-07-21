@@ -283,9 +283,15 @@ button { color: inherit; }
   flex: 0 0 158px;
   display: block;
   object-fit: cover;
-  background: #ede4d6;
+  background-color: #ede4d6;
+  background-size: cover;
+  background-position: center;
   border-radius: 1px;
+  opacity: 0;
+  transition: opacity 0.4s ease;
 }
+
+.polaroid img.loaded { opacity: 1; }
 
 .polaroid > p {
   height: 24px;
@@ -547,7 +553,18 @@ button { color: inherit; }
 
 .detail-sheet { position: relative; padding: 24px; }
 .detail-close { position: absolute; z-index: 2; top: 12px; right: 12px; background: rgba(255, 252, 247, 0.9); }
-.detail-sheet > img { width: 100%; max-height: 54vh; display: block; object-fit: contain; border-radius: 4px; background: #eee4d7; }
+.detail-sheet > img {
+  width: 100%;
+  max-height: 54vh;
+  display: block;
+  object-fit: contain;
+  border-radius: 4px;
+  background-color: #eee4d7;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.detail-sheet > img.loaded { opacity: 1; }
 .detail-content { margin: 17px 0; white-space: pre-wrap; color: #574235; font-size: 16px; line-height: 1.75; word-break: break-word; }
 .detail-author { display: flex; align-items: center; gap: 10px; padding-top: 14px; border-top: 1px solid rgba(120, 95, 70, 0.1); }
 .mini-avatar { width: 42px; height: 42px; display: grid; place-items: center; flex: 0 0 42px; overflow: hidden; border-radius: 10px; background: #f0d9c2; font-size: 13px; font-weight: 700; color: #6b5647; }
