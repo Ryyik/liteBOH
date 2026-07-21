@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 import { Box, Check } from 'lucide-vue-next'
 import { applyJourneyCopyDraft, loadJourneyCopyDraft } from './copy-editor-store.js'
@@ -37,6 +37,7 @@ const router = useRouter()
 const journeyCopyDraft = loadJourneyCopyDraft()
 const rootRef = ref(null)
 const heroRef = ref(null)
+const grainRef = ref(null)
 const tunnelRef = ref(null)
 const thenNowRef = ref(null)
 const worldRef = ref(null)
@@ -49,7 +50,6 @@ const thenNowProgress = ref(0)
 const worldProgress = ref(0)
 const strataProgress = ref(0)
 const finaleProgress = ref(0)
-const documentProgress = ref(0)
 const activeStage = ref('timeline')
 const activeChapter = ref(0)
 const reduceMotion = ref(false)
@@ -60,11 +60,13 @@ const finalBlockPlaced = ref(false)
 const photoDeckState = ref({ chapterIndex: -1, x: 0, dragging: false, settling: false, leaving: false })
 const finalTargetRef = ref(null)
 const finalBlockRef = ref(null)
+const progressFillRef = ref(null)
 const finalBlockOffset = ref({ x: 0, y: 0 })
 const finalBlockDragging = ref(false)
 const finalBlockSettling = ref(false)
 
 const sectionMetrics = new Map()
+const tunnelPanelElements = []
 let rootMetrics = null
 
 let photoPointer = null
@@ -74,6 +76,9 @@ let finalDrag = null
 let suppressFinalClick = false
 let finalSettleTimer = 0
 let geometryObserver = null
+let grainObserver = null
+let tunnelVisualProgress = 0
+let appliedTunnelProgress = -1
 
 const chapters = [
   {
@@ -305,6 +310,17 @@ worldStrata.forEach((stratum, index) => {
 })
 
 const blockColors = ['grass', 'dirt', 'stone', 'gold', 'water', 'wood', 'light']
+const floatingBlocks = Array.from({ length: 54 }, (_, index) => ({
+  id: index,
+  type: blockColors[index % blockColors.length],
+  x: (index * 37 + 11) % 101,
+  y: (index * 61 + 7) % 96,
+  size: 8 + ((index * 13) % 24),
+  depth: -80 - ((index * 47) % 620),
+  delay: (index % 9) * -0.7,
+  turn: ((index * 29) % 70) - 35
+}))
+
 const figureBlocks = Array.from({ length: 78 }, (_, index) => {
   const t = (index / 78) * Math.PI * 2
   return {
@@ -336,31 +352,8 @@ const reunionFragments = [
   { id: 'peace', clip: 'polygon(67% 53%, 95% 53%, 96% 100%, 66% 100%)', x: 38, y: 31, r: -7, s: .76, cx: 81, cy: 77, delay: .47 }
 ]
 
-function prepareReunionFragment(fragment) {
-  const points = [...fragment.clip.matchAll(/([\d.]+)%\s+([\d.]+)%/g)].map((match) => ({
-    x: Number(match[1]),
-    y: Number(match[2])
-  }))
-  const left = Math.min(...points.map((point) => point.x))
-  const top = Math.min(...points.map((point) => point.y))
-  const right = Math.max(...points.map((point) => point.x))
-  const bottom = Math.max(...points.map((point) => point.y))
-  const width = Math.max(right - left, 0.01)
-  const height = Math.max(bottom - top, 0.01)
-  const localClip = `polygon(${points.map((point) => `${((point.x - left) / width) * 100}% ${((point.y - top) / height) * 100}%`).join(', ')})`
-
-  return {
-    ...fragment,
-    crop: { left, top, width, height },
-    localClip
-  }
-}
-
-const reunionFragmentLayers = reunionFragments.map(prepareReunionFragment)
-
 const currentChapter = computed(() => chapters[activeChapter.value])
 const collectedCount = computed(() => collectedYears.value.size)
-const pageProgress = computed(() => documentProgress.value)
 const activeWorldIndex = computed(() => Math.min(
   worldNodes.length - 1,
   Math.max(0, Math.round(worldProgress.value * (worldNodes.length - 1)))
@@ -421,19 +414,19 @@ function ownsStickyViewport(element) {
   return window.scrollY >= metrics.top && window.scrollY + window.innerHeight <= metrics.bottom
 }
 
-function tunnelPosition() {
-  const raw = tunnelProgress.value * (chapters.length - 1)
+function tunnelPosition(progress = tunnelVisualProgress) {
+  const raw = progress * (chapters.length - 1)
   if (raw >= chapters.length - 1) return chapters.length - 1
 
   const chapter = Math.floor(raw)
   const local = raw - chapter
-  const transition = clamp((local - 0.72) / 0.28)
+  const transition = clamp((local - 0.4) / 0.6)
   const eased = transition * transition * (3 - 2 * transition)
   return chapter + eased
 }
 
-function panelStyle(index) {
-  const position = tunnelPosition()
+function panelStyle(index, progress = tunnelProgress.value) {
+  const position = tunnelPosition(progress)
   const delta = index - position
   const distance = Math.abs(delta)
   const visible = distance < 1.35
@@ -486,9 +479,13 @@ function thenNowTileStyle(tile) {
   const reveal = clamp((thenNowProgress.value - 0.18 - tile.delay) / 0.36)
   const horizontal = (tile.column - 3.5) * 13 * reveal
   const vertical = (tile.row - 2) * 11 * reveal
+  // 飞出视口的瓷砖直接隐藏，避免常驻合成层
+  const hidden = reveal >= 0.995
   return {
     ...thenNowTileBaseStyles.value[tile.id],
     opacity: 1 - reveal,
+    visibility: hidden ? 'hidden' : 'visible',
+    willChange: reveal > 0.02 && reveal < 0.98 ? 'transform, opacity' : 'auto',
     transform: reduceMotion.value
       ? 'none'
       : `translate3d(${horizontal}px, ${vertical}px, ${reveal * 110}px) rotateX(${tile.turn * reveal * -0.7}deg) rotateY(${tile.turn * reveal}deg) scale(${1 - reveal * 0.08})`
@@ -781,7 +778,6 @@ function figureBlockStyle(block) {
     top: `${block.y}%`,
     width: `${block.size}px`,
     height: `${block.size}px`,
-    willChange: finaleProgress.value < 0.38 ? 'transform, opacity' : 'auto',
     transform: `translate3d(${block.sx * (1 - settle)}px, ${block.sy * (1 - settle)}px, 0) rotate(${block.sr * (1 - settle)}deg) scale(${0.45 + settle * 0.55})`,
     opacity: Math.min(1, 0.12 + assemble * 1.4)
   }
@@ -799,38 +795,26 @@ const figureStyle = computed(() => {
 
 const reunionProgress = computed(() => clamp((finaleProgress.value - 0.25) / 0.62))
 
-function reunionFragmentStyle(fragment) {
-  const crop = fragment.crop
-  const base = {
-    left: `${crop.left}%`,
-    top: `${crop.top}%`,
-    width: `${crop.width}%`,
-    height: `${crop.height}%`,
-    clipPath: fragment.localClip,
-    transformOrigin: `${((fragment.cx - crop.left) / crop.width) * 100}% ${((fragment.cy - crop.top) / crop.height) * 100}%`
-  }
-  if (reduceMotion.value) return { ...base, opacity: 0 }
-  const local = clamp((reunionProgress.value - fragment.delay) / Math.max(0.01, 0.78 - fragment.delay))
-  const settle = 1 - Math.pow(1 - local, 3)
-  const handoff = clamp((reunionProgress.value - 0.84) / 0.12)
-  const motionScale = viewportWidth.value <= 560 ? 0.58 : 1
+const reunionFrameRef = ref(null)
+
+// 每个 fragment 的固有属性只绑定一次，filter/opacity/transform 由 CSS 变量驱动
+function reunionFragmentStaticStyle(fragment) {
   return {
-    ...base,
-    opacity: Math.min(1, local * 1.8) * (1 - handoff),
-    filter: `blur(${(1 - settle) * 8}px) saturate(${0.45 + settle * 0.55}) brightness(${0.7 + settle * 0.3})`,
-    transform: `translate3d(${fragment.x * motionScale * (1 - settle)}vw, ${fragment.y * motionScale * (1 - settle)}vh, 0) rotate(${fragment.r * (1 - settle)}deg) scale(${fragment.s + (1 - fragment.s) * settle})`
+    clipPath: fragment.clip,
+    '--fragment-delay': fragment.delay,
+    '--fragment-x': fragment.x,
+    '--fragment-y': fragment.y,
+    '--fragment-r': fragment.r,
+    '--fragment-s': fragment.s,
+    '--fragment-cx': fragment.cx,
+    '--fragment-cy': fragment.cy
   }
 }
 
-function reunionFragmentImageStyle(fragment) {
-  const { crop } = fragment
-  return {
-    left: `${-(crop.left / crop.width) * 100}%`,
-    top: `${-(crop.top / crop.height) * 100}%`,
-    width: `${10000 / crop.width}%`,
-    height: `${10000 / crop.height}%`
-  }
-}
+watchEffect(() => {
+  if (!reunionFrameRef.value) return
+  reunionFrameRef.value.style.setProperty('--reunion-progress', reunionProgress.value.toFixed(4))
+})
 
 const reunionFrameStyle = computed(() => {
   const arrive = 1 - Math.pow(1 - reunionProgress.value, 3)
@@ -850,14 +834,16 @@ const reunionPhotoStyle = computed(() => {
 
 function updateScroll() {
   heroProgress.value = sectionProgress(heroRef.value)
-  tunnelProgress.value = sectionProgress(tunnelRef.value)
+  tunnelVisualProgress = sectionProgress(tunnelRef.value)
+  applyTunnelPanelStyles(tunnelVisualProgress)
   thenNowProgress.value = sectionProgress(thenNowRef.value)
   worldProgress.value = sectionProgress(worldRef.value)
   strataProgress.value = sectionProgress(strataRef.value)
   finaleProgress.value = sectionProgress(finaleRef.value)
   if (rootMetrics) {
     const distance = rootMetrics.height - window.innerHeight
-    documentProgress.value = distance > 0 ? clamp((window.scrollY - rootMetrics.top) / distance) : 0
+    const progress = distance > 0 ? clamp((window.scrollY - rootMetrics.top) / distance) : 0
+    if (progressFillRef.value) progressFillRef.value.style.transform = `scaleY(${progress})`
   }
   activeStage.value = ownsStickyViewport(strataRef.value)
     ? 'strata'
@@ -866,10 +852,28 @@ function updateScroll() {
       : ownsStickyViewport(thenNowRef.value)
         ? 'then-now'
         : 'timeline'
-  activeChapter.value = Math.min(
+  const nextActiveChapter = Math.min(
     chapters.length - 1,
     Math.max(0, Math.round(tunnelPosition()))
   )
+  if (nextActiveChapter !== activeChapter.value) {
+    tunnelProgress.value = tunnelVisualProgress
+    activeChapter.value = nextActiveChapter
+  }
+}
+
+function applyTunnelPanelStyles(progress) {
+  if (!tunnelPanelElements.length || progress === appliedTunnelProgress) return
+  appliedTunnelProgress = progress
+  tunnelPanelElements.forEach((element, index) => {
+    if (!element) return
+    const style = panelStyle(index, progress)
+    element.style.opacity = String(style.opacity)
+    element.style.visibility = style.visibility
+    element.style.willChange = style.willChange
+    element.style.transform = style.transform
+    element.style.zIndex = String(style.zIndex)
+  })
 }
 
 let scrollFrame = 0
@@ -920,9 +924,20 @@ onMounted(() => {
     })
     geometryObserver.observe(rootRef.value)
   }
+  // grain 噪声只在 hero 区可视，hero 滚出视口后暂停以节省合成
+  if ('IntersectionObserver' in window && heroRef.value && grainRef.value) {
+    grainObserver = new IntersectionObserver((entries) => {
+      const visible = entries[0]?.isIntersecting
+      grainRef.value.classList.toggle('paused', !visible)
+    }, { rootMargin: '50px' })
+    grainObserver.observe(heroRef.value)
+  }
   window.addEventListener('scroll', requestScrollUpdate, { passive: true })
   window.addEventListener('resize', handleResize, { passive: true })
-  window.addEventListener('pointermove', handlePointerMove, { passive: true })
+  // 仅在精确指针设备上启用视差，触屏设备 pointermove 仅在按住时触发，会造成不必要的样式重算
+  if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+    window.addEventListener('pointermove', handlePointerMove, { passive: true })
+  }
 })
 
 watch(collectedYears, (years) => {
@@ -944,18 +959,20 @@ onUnmounted(() => {
   window.clearTimeout(finalSettleTimer)
   geometryObserver?.disconnect()
   geometryObserver = null
+  grainObserver?.disconnect()
+  grainObserver = null
   if (scrollFrame) cancelAnimationFrame(scrollFrame)
 })
 </script>
 
 <template>
   <main ref="rootRef" class="voxel-journey">
-    <div class="grain" aria-hidden="true" />
+    <div ref="grainRef" class="grain" aria-hidden="true" />
 
     <aside class="journey-progress" aria-label="八周年旅程进度">
       <span class="progress-year">{{ progressYear }}</span>
       <span class="progress-track">
-        <span class="progress-fill" :style="{ transform: `scaleY(${pageProgress})` }" />
+        <span ref="progressFillRef" class="progress-fill" style="transform: scaleY(0)" />
       </span>
       <span class="progress-index">{{ String(activeChapter + 1).padStart(2, '0') }} / {{ String(chapters.length).padStart(2, '0') }}</span>
     </aside>
@@ -969,6 +986,27 @@ onUnmounted(() => {
           <img :src="sevenYearsImage" alt="方块之家成员在方块世界中的七周年合影" decoding="async" fetchpriority="high">
         </div>
         <div class="hero-vignette" />
+
+        <div class="voxel-space" aria-hidden="true" :style="{
+          transform: `translate3d(0, ${heroProgress * -12}vh, 0) rotate(${heroProgress * 3}deg)`
+        }">
+          <span
+            v-for="block in floatingBlocks"
+            :key="block.id"
+            class="voxel-particle"
+            :class="[`is-${block.type}`, { 'is-active': heroProgress > 0.05 && heroProgress < 0.95 }]"
+            :style="{
+              left: `${block.x}%`,
+              top: `${block.y}%`,
+              width: `${block.size}px`,
+              height: `${block.size}px`,
+              '--depth': `${block.depth}px`,
+              '--delay': `${block.delay}s`,
+              '--turn': `${block.turn}deg`,
+              opacity: heroProgress > 0.08 ? Math.min(0.8, heroProgress * 1.3) : 0
+            }"
+          />
+        </div>
 
         <div class="hero-copy" :style="{
           transform: `translate3d(calc(var(--pointer-x) * -10px), calc(var(--stage-offset) - ${heroProgress * 16}vh), 0)`,
@@ -1026,6 +1064,7 @@ onUnmounted(() => {
           :key="chapter.year"
           class="memory-panel"
           :class="{ active: index === activeChapter }"
+          :ref="(element) => { tunnelPanelElements[index] = element }"
           :style="panelStyle(index)"
         >
           <div
@@ -1285,7 +1324,7 @@ onUnmounted(() => {
             v-for="block in figureBlocks"
             :key="block.id"
             class="figure-block"
-            :class="`is-${block.type}`"
+            :class="[`is-${block.type}`, { 'is-active': finaleProgress < 0.38 }]"
             :style="figureBlockStyle(block)"
           />
         </div>
@@ -1304,23 +1343,19 @@ onUnmounted(() => {
           <p>每一个名字，都是这个世界的一部分。</p>
         </div>
 
-        <div class="reunion-frame" :style="reunionFrameStyle">
+        <div ref="reunionFrameRef" class="reunion-frame" :style="reunionFrameStyle">
           <img class="reunion-ghost" :src="reunionImage" alt="" loading="lazy" decoding="async" aria-hidden="true">
-          <div
-            v-for="fragment in reunionFragmentLayers"
+          <img
+            v-for="fragment in reunionFragments"
             :key="fragment.id"
             class="reunion-fragment"
-            :style="reunionFragmentStyle(fragment)"
+            :src="reunionImage"
+            alt=""
+            loading="lazy"
+            decoding="async"
+            aria-hidden="true"
+            :style="reunionFragmentStaticStyle(fragment)"
           >
-            <img
-              :src="reunionImage"
-              alt=""
-              loading="lazy"
-              decoding="async"
-              aria-hidden="true"
-              :style="reunionFragmentImageStyle(fragment)"
-            >
-          </div>
           <img
             class="reunion-photo"
             :src="reunionImage"
