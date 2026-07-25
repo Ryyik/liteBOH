@@ -49,6 +49,11 @@ export const testApiKey = (id, payload = {}) => invokeVault({
   ...payload
 });
 
+export const discoverModels = (payload = {}) => invokeVault({
+  action: 'discover-models',
+  ...payload
+});
+
 export const deleteApiKey = (id) => invokeVault({
   action: 'delete',
   id

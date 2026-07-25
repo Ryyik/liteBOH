@@ -29,14 +29,41 @@ export function useGenerationPipeline({ availableModels, abortController, curren
   // SSE (Server-Sent Events) 解析器
   // ==============================================================
 
-  const handleSsePayloadLine = (line, onPayload) => {
+  const handleSsePayloadLine = (line, onPayload, state) => {
     if (!line) return false
+    if (line.startsWith('event:')) {
+      state.currentEvent = line.slice(6).trim().toLowerCase()
+      return false
+    }
     if (line.startsWith('data: [DONE]')) return true
-    if (line.startsWith('data: ')) {
-      onPayload(line.slice(6))
+    if (line.startsWith('data:')) {
+      // 兼容 "data: {...}" 和 "data:{...}" 两种格式
+      const payloadText = line.startsWith('data: ')
+        ? line.slice(6)
+        : line.slice(5)
+      if (state.currentEvent === 'error') {
+        // SSE error 事件：解析 data 中的错误信息
+        let errorMsg = '流式生成失败'
+        try {
+          const errData = JSON.parse(payloadText.trim())
+          errorMsg = errData?.message || errorMsg
+        } catch {
+          if (payloadText.trim()) errorMsg = payloadText.trim().slice(0, 240)
+        }
+        state.lastError = new Error(errorMsg)
+        return true
+      }
+      if (state.currentEvent === 'meta') {
+        // meta 事件携带 keyInfo，不影响内容流
+        state.currentEvent = ''
+        return false
+      }
+      onPayload(payloadText)
+      state.currentEvent = ''
       return false
     }
     if (line.startsWith('error:')) {
+      state.lastError = new Error(line.slice(6).trim() || '流式生成失败')
       return true
     }
     return false
@@ -45,6 +72,7 @@ export function useGenerationPipeline({ availableModels, abortController, curren
   const createSseLineParser = (onPayload) => {
     let lineBuffer = '';
     let done = false;
+    const state = { currentEvent: '', lastError: null }
 
     return {
       push(chunkText) {
@@ -53,7 +81,7 @@ export function useGenerationPipeline({ availableModels, abortController, curren
         const lines = lineBuffer.split(/\r?\n/);
         lineBuffer = lines.pop() || '';
         for (const line of lines) {
-          if (handleSsePayloadLine(line, onPayload)) {
+          if (handleSsePayloadLine(line, onPayload, state)) {
             done = true;
             lineBuffer = '';
             break;
@@ -62,13 +90,16 @@ export function useGenerationPipeline({ availableModels, abortController, curren
       },
       flush() {
         if (!lineBuffer || done) return;
-        if (handleSsePayloadLine(lineBuffer, onPayload)) {
+        if (handleSsePayloadLine(lineBuffer, onPayload, state)) {
           done = true;
         }
         lineBuffer = '';
       },
       isDone() {
-        return done;
+        return done
+      },
+      getError() {
+        return state.lastError
       }
     };
   };
@@ -446,6 +477,12 @@ export function useGenerationPipeline({ availableModels, abortController, curren
       if (!sseParser.isDone()) {
         sseParser.push(decoder.decode());
         sseParser.flush();
+      }
+
+      // SSE error 事件处理：边缘函数在流中发送 event: error 时，抛出错误让上层捕获
+      const sseError = sseParser.getError?.();
+      if (sseError) {
+        throw sseError;
       }
 
       const remainingContent = flushThinkingBuffer(thinkingState);

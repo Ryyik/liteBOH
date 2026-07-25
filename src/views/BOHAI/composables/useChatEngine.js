@@ -136,9 +136,12 @@ import {
   appendPromptSection,
   normalizePromptLine,
   buildContextualFollowUpQuery,
+  isContextDependentFollowUp,
   getStorableDialogueMessages,
   buildConversationSummaryFingerprint,
   buildHistoryMessagesWithCachedSummary,
+  getCachedSummaryIfUsable,
+  buildSearchResultsContext,
   rankEvidenceContextBlocks,
   buildSharedEvidenceContext,
   buildSystemEvidenceContext,
@@ -171,6 +174,8 @@ import {
   buildStructuredMemoryBlock,
   compactMessages,
   buildAgentContext,
+  buildPageContextBlock,
+  MAX_PAGE_CONTEXT_CHARS,
   CONTEXT_CATEGORIES
 } from './bohai-engine-helpers.js';
 import {
@@ -254,6 +259,9 @@ export function useChatEngine() {
   });
 
   const isStreamingGeneration = ref(false);
+  const attachedContext = ref(null);
+  const setAttachedContext = (ctx) => { attachedContext.value = ctx; };
+  const clearAttachedContext = () => { attachedContext.value = null; };
 
   // chatSessions 为 reactive，直接 watch 会被 Vue 强制 deep 遍历（含每条消息内容），
   // 流式 token 追加也会触发全量遍历。改用轻量 getter 仅跟踪会话数与各会话消息数，
@@ -622,10 +630,11 @@ export function useChatEngine() {
   // computeContextBudgetUsage / contextBudgetUsage / isCompressingContext / compressingSessionIndex
   // 已委托给 useConversationManager 管理。
 
+  // refreshConversationSummaryCache 采用 forward-declaration：
+  // 先声明 wrapper，wrapper 在被调用时才读取 refreshConversationSummaryCacheFn 的当前值。
+  // 真正的实现（依赖 callModelInternal）在下方 L893 处赋值给 refreshConversationSummaryCacheFn，
+  // 此时 wrapper 通过闭包自动拿到真正的实现。
   let refreshConversationSummaryCacheFn = null;
-  const registerRefreshConversationSummaryCache = (fn) => {
-    refreshConversationSummaryCacheFn = fn;
-  };
   const refreshConversationSummaryCache = (...args) => {
     if (refreshConversationSummaryCacheFn) return refreshConversationSummaryCacheFn(...args);
   };
@@ -635,7 +644,7 @@ export function useChatEngine() {
     isCompressingContext,
     compressingSessionIndex,
     computeContextBudgetUsage,
-    registerRefreshConversationSummaryCache
+    refreshConversationSummaryCache
   });
 
   // Scroll Helper
@@ -887,7 +896,8 @@ export function useChatEngine() {
     }
   };
 
-  refreshConversationSummaryCacheFn = async (sessionIndex, requestSignal = undefined) => {
+  refreshConversationSummaryCacheFn = async (sessionIndex, requestSignal = undefined, options = {}) => {
+    const { force: forceRegenerate = false } = options;
     const targetSession = getSessionByIndex(sessionIndex);
     if (!targetSession) return;
 
@@ -896,8 +906,9 @@ export function useChatEngine() {
 
     const fingerprint = buildConversationSummaryFingerprint(targetSession.messages);
     if (!fingerprint) return;
-    if (
-      targetSession.contextSummary?.version === CONVERSATION_SUMMARY_STORAGE_VERSION
+    // 手动触发（force=true）时跳过 fingerprint 命中检查，允许重新生成摘要
+    if (!forceRegenerate
+      && targetSession.contextSummary?.version === CONVERSATION_SUMMARY_STORAGE_VERSION
       && targetSession.contextSummary?.fingerprint === fingerprint
       && normalizePromptLine(targetSession.contextSummary?.content, 20)
     ) {
@@ -907,36 +918,34 @@ export function useChatEngine() {
     const olderMessages = dialogueMessages.slice(0, -CONVERSATION_SUMMARY_RECENT_MESSAGES);
     if (olderMessages.length < 4) return;
 
-    // C6 fix: 长会话（50+）二层摘要 — 将已有摘要压缩为"摘要的摘要"，再追加新摘要
+    // 增量合并：一层摘要也继承已有摘要，避免重新生成时丢失关键细节
+    // 之前只有 50+ 条消息的二层摘要才合并，10-50 条区间每次全量重建导致信息丢失
     const existingSummary = normalizePromptLine(targetSession.contextSummary?.content, 20);
-    let summaryPrompt;
-    if (existingSummary && dialogueMessages.length > CONVERSATION_SUMMARY_TWO_LEVEL_THRESHOLD) {
-      // 二层摘要：已有摘要 + 中间层消息
-      const middleMessages = olderMessages.slice(-Math.floor(olderMessages.length / 2));
-      summaryPrompt = [
-        '请把以下 BOH AI 对话历史和已有摘要合并压缩成一段可复用上下文摘要。',
-        '要求：',
-        '- 最多 500 中文字。',
-        '- 保留用户目标、偏好、已确认事实、当前任务状态。',
-        '- 删除寒暄、重复内容、无效报错和已解决细节。',
-        '- 不要添加原文没有的信息。',
-        '',
-        `【已有摘要】${existingSummary}`,
-        '',
-        middleMessages.map((message) => `${message.role}: ${message.content}`).join('\n')
-      ].join('\n');
-    } else {
-      summaryPrompt = [
-        '请把以下 BOH AI 对话历史压缩成一段可复用上下文摘要。',
-        '要求：',
-        '- 最多 500 中文字。',
-        '- 保留用户目标、偏好、已确认事实、当前任务状态。',
-        '- 删除寒暄、重复内容、无效报错和已解决细节。',
-        '- 不要添加原文没有的信息。',
-        '',
-        olderMessages.map((message) => `${message.role}: ${message.content}`).join('\n')
-      ].join('\n');
-    }
+    const isTwoLevel = existingSummary && dialogueMessages.length > CONVERSATION_SUMMARY_TWO_LEVEL_THRESHOLD;
+    // 二层摘要取后半段中间消息，一层摘要取全部 olderMessages
+    const messagesToSummarize = isTwoLevel
+      ? olderMessages.slice(-Math.floor(olderMessages.length / 2))
+      : olderMessages;
+
+    // 结构化摘要：facts（已确认事实）+ progress（对话进展），信息密度更高
+    const summaryPrompt = [
+      '请把以下 BOH AI 对话历史和已有摘要（若有）合并压缩成结构化上下文摘要。',
+      '输出格式（严格遵守）：',
+      '<facts>',
+      '已确认的用户身份/目标/偏好/关键事实，每条一行，最多 8 条，共不超过 300 字。',
+      '</facts>',
+      '<progress>',
+      '对话进展和当前任务状态，不超过 400 字。保留关键结论和待办，删除寒暄/重复/已解决细节。',
+      '</progress>',
+      '要求：',
+      '- 不要添加原文没有的信息。',
+      '- 不要输出 <facts> 和 <progress> 以外的任何内容。',
+      '',
+      existingSummary ? `【已有摘要】${existingSummary}` : '【无已有摘要】',
+      '',
+      '【待压缩对话】',
+      messagesToSummarize.map((message) => `${message.role}: ${message.content}`).join('\n')
+    ].join('\n');
 
     const summaryModel = runtimeAvailableModels.value.find(m => m.id === 'Qwen/Qwen2.5-7B-Instruct') || runtimeAvailableModels.value[0];
     if (!summaryModel?.id) return;
@@ -946,11 +955,12 @@ export function useChatEngine() {
       const summary = await callModelInternal(
         summaryModel.id,
         summaryPrompt,
-        '<role>你是 BOH AI 的本地对话摘要器。</role>\n<constraints>\n- 只输出摘要正文，不要额外说明\n- 不要添加原文没有的信息\n</constraints>',
+        '<role>你是 BOH AI 的本地对话摘要器。</role>\n<constraints>\n- 只输出 <facts> 和 <progress> 两个 XML 段落\n- 不要添加原文没有的信息\n- 不要输出任何额外说明\n</constraints>',
         [],
         summarySignal,
         0,
-        { max_tokens: 1100, temperature: 0.08, top_p: 0.55, frequency_penalty: 0.05 }
+        // max_tokens 从 1100 提到 1400，容纳结构化输出（facts 300 + progress 400 + 标签开销）
+        { max_tokens: 1400, temperature: 0.08, top_p: 0.55, frequency_penalty: 0.05 }
       );
 
       const latestSession = getSessionByIndex(sessionIndex);
@@ -1030,6 +1040,7 @@ export function useChatEngine() {
       isStreamingGeneration.value = true;
       appendUserMessageWithTitle(sessionIndex, userText);
       resetComposerInput();
+      clearAttachedContext();
       scrollToBottom(true);
       // Agent 集群分支同样会携带历史消息，先压缩上下文让 BOH AI 看到的就是压缩后窗口
       await ensureContextCompression(sessionIndex);
@@ -1164,6 +1175,7 @@ export function useChatEngine() {
 
     appendUserMessageWithTitle(sessionIndex, userText);
     resetComposerInput();
+    clearAttachedContext();
     scrollToBottom(true);
 
     session.isLoading = true;
@@ -1285,7 +1297,9 @@ export function useChatEngine() {
     const communityNeedsEvidence = communityQuestion && !communityCreativeRequest;
     const bohInternalFactualQuestion = isLikelyBohInternalFactualQuestion(routingQueryText, { operationQuestion });
     const factualQuestion = isLikelyFactualQuestion(routingQueryText, { operationQuestion }) || bohInternalFactualQuestion;
-    // 联网：仅由用户手动开关控制，自动决策不再越权触发搜索
+    // 联网搜索触发条件：仅当用户手动开启联网搜索开关时才触发。
+    // 之前 autoDecision.shouldSearchWeb 会让 AI 在用户未开启搜索时自动发起联网搜索，
+    // 与用户预期不符，已移除自动触发逻辑。
     const enableSearch = isSearching.value;
     session.isLoading = true;
     session.isThinking = true;
@@ -1511,6 +1525,33 @@ export function useChatEngine() {
         }
       }
 
+      // 把本轮搜索结果存到 assistant 消息 meta，供下一轮追问复用（保持对话连贯）
+      // 只存精简版（url+title+截断content），避免 localStorage 持久化膨胀
+      if (enableSearch && webSearchResult?.ok && webEvidenceContext) {
+        const compactResults = (Array.isArray(webSearchResult.results) ? webSearchResult.results : [])
+          .slice(0, 5)
+          .map((r) => ({
+            title: String(r?.title || '').slice(0, 120),
+            url: String(r?.url || '').slice(0, 240),
+            content: String(r?.content || '').slice(0, 400)
+          }));
+        mergeAssistantMessageMeta(sessionIndex, messageIndex, {
+          searchContext: {
+            query: String(routingQueryText || '').slice(0, 200),
+            results: compactResults,
+            aiAnswer: String(webSearchResult?.aiAnswer || '').slice(0, 600)
+          }
+        });
+      }
+      // 内部证据（知识库/论坛/Cloud+）也写入 meta，供追问时复用
+      // 解决"追问 [F1] 是谁时模型不知道 [F1] 内容"的割裂问题
+      if (internalEvidenceContext && groundingEvidenceRefs.length > 0) {
+        mergeAssistantMessageMeta(sessionIndex, messageIndex, {
+          evidenceContext: String(internalEvidenceContext).slice(0, 4000),
+          evidenceRefs: groundingEvidenceRefs.slice(0, 16)
+        });
+      }
+
       const shouldEnforceGrounding = factualQuestion || operationQuestion || enableSearch || communityNeedsEvidence || bohInternalFactualQuestion;
 
       const latestForumSummaryMode = isLatestForumSummaryQuery(routingQueryText);
@@ -1519,12 +1560,24 @@ export function useChatEngine() {
       // 模式选择（4 模式下不再做自动路由）：
       // 1) 当前模式 (currentModeId.value)
       // 2) isPlanModeEnabled 开启时强制 plan（不覆盖 agent 自身）
-      // 3) 兜底 fast
+      // 3) 追问场景：若当前文本是上下文依赖型追问，沿用上一轮 routedMode（保持分析深度连贯）
+      // 4) 兜底 fast
       let activeModeId = currentModeId.value;
       if (isPlanModeEnabled.value && activeModeId !== 'agent-cluster') {
         activeModeId = 'plan';
+      } else if (shouldUseContextualQuery || isContextDependentFollowUp(userText)) {
+        // 追问场景：从历史 assistant 消息读取上一轮 routedMode 并沿用
+        for (let i = historyMessagesForCurrentTurn.length - 1; i >= 0; i -= 1) {
+          const prevMsg = historyMessagesForCurrentTurn[i];
+          if (prevMsg?.role !== 'assistant') continue;
+          const prevMode = prevMsg?.meta?.routedMode;
+          if (prevMode && prevMode !== 'agent-cluster' && prevMode !== 'auto') {
+            activeModeId = prevMode;
+            break;
+          }
+        }
       }
-      // 暴露给 UI：本轮路由到的具体模式（含 plan 模式提升）
+      // 暴露给 UI：本轮路由到的具体模式（含 plan 模式提升 / 追问沿用）
       lastRoutedMode.value = activeModeId;
       // 在消息 meta 中记录 routedMode：供后续追问场景做"沿用上一轮模式"判断
       mergeAssistantMessageMeta(sessionIndex, messageIndex, { routedMode: activeModeId });
@@ -1576,6 +1629,44 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
       const actualExtraChars = (internalEvidenceContext.length || 0) + (webEvidenceContext.length || 0) + (communityRules.length || 0) + (evidenceRules.length || 0) + (operationRules.length || 0);
       updateLastActualExtraChars(actualExtraChars);
 
+      // 对话连贯性修复：当前轮未搜索时，复用上一轮 assistant 消息的搜索结果
+      // 解决"追问时 AI 不知道上一轮 [W1][W2] 的实际内容"导致的不连贯问题
+      if (!webEvidenceContext && historyMessagesForCurrentTurn.length >= 2) {
+        for (let i = historyMessagesForCurrentTurn.length - 1; i >= 0; i -= 1) {
+          const prevMsg = historyMessagesForCurrentTurn[i];
+          if (prevMsg?.role !== 'assistant') continue;
+          const prevSearch = prevMsg?.meta?.searchContext;
+          if (!prevSearch || !Array.isArray(prevSearch.results) || prevSearch.results.length === 0) break;
+          // 用上一轮的精简搜索结果重建 context
+          const restoredResults = prevSearch.results.map((r) => ({
+            title: String(r?.title || ''),
+            url: String(r?.url || ''),
+            content: String(r?.content || '')
+          }));
+          webEvidenceContext = buildSearchResultsContext(restoredResults, String(prevSearch.aiAnswer || ''));
+          // 标记为复用上下文，供后续逻辑识别
+          searchResultCount = restoredResults.length;
+          webSearchVerified = true;
+          break;
+        }
+      }
+      // 内部证据跨轮恢复：当前轮未检索到内部证据时，复用上一轮的 evidenceContext
+      // 解决"追问 [F1] 是谁时模型不知道 [F1] 内容"的割裂问题
+      if (!internalEvidenceContext && historyMessagesForCurrentTurn.length >= 2) {
+        for (let i = historyMessagesForCurrentTurn.length - 1; i >= 0; i -= 1) {
+          const prevMsg = historyMessagesForCurrentTurn[i];
+          if (prevMsg?.role !== 'assistant') continue;
+          const prevEvidence = prevMsg?.meta?.evidenceContext;
+          const prevRefs = prevMsg?.meta?.evidenceRefs;
+          if (!prevEvidence) break;
+          internalEvidenceContext = String(prevEvidence);
+          if (Array.isArray(prevRefs) && prevRefs.length > 0) {
+            groundingEvidenceRefs = prevRefs.slice(0, 32);
+          }
+          break;
+        }
+      }
+
       // C2+C5 fix: 共享 8000 字预算 + URL 去重
       const evidenceUrls = Array.isArray(groundingEvidenceRefs) ? groundingEvidenceRefs.map((r) => String(r?.url || r?.source || '').trim()).filter(Boolean) : [];
       const searchUrls = Array.isArray(webSearchResult?.results) ? webSearchResult.results.map((r) => String(r?.url || '').trim()).filter(Boolean) : [];
@@ -1617,6 +1708,10 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         searchContext: sharedContext.searchContext
       });
 
+      // 上下文压缩修复：在构建历史消息前 await 摘要，
+      // 确保本轮就能用上新摘要（之前在第 1722 行才 await，首跨阈值轮拿不到新摘要）
+      await compressionPromise;
+
       // 优化1: Token 预算监控
       const budgetTracker = createContextBudgetTracker();
       budgetTracker.addEstimate(CONTEXT_CATEGORIES.SYSTEM_PROMPT, BASE_SYSTEM_PROMPT);
@@ -1628,8 +1723,15 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
       const structuredMemoryBlock = buildStructuredMemoryBlock(structuredMemories);
       budgetTracker.addEstimate(CONTEXT_CATEGORIES.STRUCTURED_MEMORY, structuredMemoryBlock);
 
+      // 摘要并入主 system prompt 的 context 段落（之前作为独立 system 消息，部分模型处理不一致）
+      const cachedSummary = getCachedSummaryIfUsable(session);
+      const pageContextBlock = buildPageContextBlock(attachedContext.value);
+      const contextBlock = [pageContextBlock, evidenceContextBlock, cachedSummary ? `\n<conversation_summary>\n${cachedSummary}\n</conversation_summary>\n` : '']
+        .filter((s) => String(s || '').trim())
+        .join('\n');
+
       const systemPromptContent = [
-        BASE_SYSTEM_PROMPT.replace(`\n${CONTEXT_PLACEHOLDER}\n`, evidenceContextBlock ? `\n${evidenceContextBlock}\n` : ''),
+        BASE_SYSTEM_PROMPT.replace(`\n${CONTEXT_PLACEHOLDER}\n`, contextBlock ? `\n${contextBlock}\n` : ''),
         structuredMemoryBlock,
         isPlanMode ? PLAN_MODE_PROMPT_APPENDIX : '',
         stylePromptAppendix
@@ -1639,7 +1741,6 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         operationQuestion
       });
 
-      await compressionPromise;
       const recentMessages = buildHistoryMessagesWithCachedSummary({
         ...session,
         messages: historyMessagesForCurrentTurn
@@ -1915,6 +2016,12 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         }
       }
 
+      // SSE error 事件处理：边缘函数在流中发送 event: error 时，抛出错误让上层捕获
+      const sseError = sseParser.getError?.();
+      if (sseError) {
+        throw sseError;
+      }
+
       if (shouldRepairDegenerateStream) {
         const retryPrompt = appendPromptSection(
           finalPrompt,
@@ -2139,6 +2246,12 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
     messages,
     contextBudgetUsage,
     isCompressingContext,
+    compressingSessionIndex,
+    // 主动压缩：用户可手动触发上下文压缩，force=true 绕过阈值检查
+    compressContextManually: (sessionIndex) => ensureContextCompression(
+      sessionIndex ?? currentSessionIndex.value,
+      { force: true }
+    ),
     onScrollToBottom,
     // Auto 路由相关：让 UI 能看到本轮路由结果
     lastRoutedMode,
@@ -2167,6 +2280,9 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
     cancelPendingActionDraftFromUI,
     confirmPendingActionDraftFromUI,
     stopGeneration,
-    clearCache
+    clearCache,
+    attachedContext,
+    setAttachedContext,
+    clearAttachedContext
   };
 }

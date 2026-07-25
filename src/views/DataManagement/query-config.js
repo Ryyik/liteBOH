@@ -102,7 +102,7 @@ export const TAB_SELECT_COLUMNS = {
   reviewPosts: 'id, content, author_id, author_username, created_at, updated_at, status',
   reviewComments: 'id, post_id, author_id, author_username, content, created_at, status, parent_id, reply_to_username',
   coreMemories: 'id, title, content, category, tags, priority, source_label, source_url, status, updated_by, created_at, updated_at',
-  bohaiModels: 'id, mode_id, display_name, tagline, description, provider, provider_label, model_id, api_url, capability, icon, temperature, top_p, frequency_penalty, max_tokens, status, sort_order, notes, created_by, updated_by, created_at, updated_at',
+  bohaiModels: 'id, mode_id, display_name, tagline, description, provider, provider_label, model_id, api_url, capability, icon, temperature, top_p, frequency_penalty, max_tokens, quota_multiplier, status, sort_order, notes, created_by, updated_by, created_at, updated_at',
   lotteries: 'id, title, description, prize_title, prize_description, cover_image_url, status, is_community_visible, max_entries, winner_count, entry_deadline_at, draw_at, drawn_at, draw_attempted_at, draw_failed_at, draw_failure_message, draw_entry_count_snapshot, draw_candidate_hash, draw_algorithm_version, winner_entry_id, winner_user_id, winner_username, fulfillment_status, created_by, updated_by, created_at, updated_at',
   lotteryEntries: `
     id,

@@ -52,6 +52,7 @@ function dismiss(id) {
 defineExpose({ show, dismiss, success: (t, m, d) => show({ title: t, message: m, type: 'success', duration: d }),
   error: (t, m, d) => show({ title: t, message: m, type: 'error', duration: d }),
   info: (t, m, d) => show({ title: t, message: m, type: 'info', duration: d }),
+  warning: (t, m, d) => show({ title: t, message: m, type: 'warning', duration: d }),
 })
 </script>
 
@@ -83,6 +84,7 @@ defineExpose({ show, dismiss, success: (t, m, d) => show({ title: t, message: m,
 }
 .toast--info { background: #ffffff; }
 .toast--success { background: #ffffff; }
+.toast--warning { background: #fff8e6; border-color: #f0c36d; }
 .toast--error { background: #d64545; color: #ffffff; border-color: transparent; }
 .toast--error .toast-title { color: #ffffff; }
 .toast--error .toast-message { color: rgba(255, 255, 255, 0.85); }
@@ -96,9 +98,11 @@ defineExpose({ show, dismiss, success: (t, m, d) => show({ title: t, message: m,
 }
 .icon-info { background: #fbf2ed; }
 .icon-success { background: #f0f3ea; }
+.icon-warning { background: #fff3d6; }
 .icon-error { background: rgba(255, 255, 255, 0.2); }
 .icon-info::after { content: 'i'; color: #C96442; font-weight: 700; font-size: 15px; font-style: italic; }
 .icon-success::after { content: '✓'; color: #788c5d; font-weight: 700; font-size: 16px; }
+.icon-warning::after { content: '!'; color: #b7791f; font-weight: 700; font-size: 15px; }
 .icon-error::after { content: '!'; color: #fff; font-weight: 700; font-size: 15px; }
 
 .toast-body { flex: 1; min-width: 0; }

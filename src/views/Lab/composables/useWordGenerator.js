@@ -4,7 +4,7 @@ import { supabase } from '@/utils/supabase-client.js'
 import { buildWordDoc, buildAndDownloadWord } from '../engine/word-builder.js'
 import { DEFAULT_PRESET_ID } from '../config/design-tokens.js'
 import {
-  WORD_OUTLINE_PROMPT, WORD_DETAIL_PROMPT, WORD_SCHEMA, extractJSON,
+  WORD_OUTLINE_PROMPT, WORD_DETAIL_PROMPT, WORD_SCHEMA, extractJSON, FRONTEND_MAX_OUTPUT_TOKENS,
 } from '../config/ai-schemas.js'
 
 const API_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions'
@@ -47,7 +47,7 @@ export function useWordGenerator() {
    * @param {string} context - 上下文
    * @param {function} onProgress - 进度回调 (stage, progress, text)
    */
-  async function generateOutline(topic, context = '', onProgress = null) {
+  async function generateOutline(topic, context = '', onProgress = null, signal) {
     isGenerating.value = true
     error.value = ''
     stage.value = 'outline'
@@ -77,6 +77,7 @@ ${context ? `额外要求：${context}` : ''}
         purpose: modelConfig.apiKeyPurpose,
         apiUrl: API_URL,
         timeoutMs: 120000,
+        signal,
         payload: {
           model: modelConfig.model,
           messages: [
@@ -85,7 +86,7 @@ ${context ? `额外要求：${context}` : ''}
           ],
           stream: true,
           temperature: modelConfig.temperature,
-          max_tokens: modelConfig.max_tokens,
+          max_tokens: Math.min(modelConfig.max_tokens, FRONTEND_MAX_OUTPUT_TOKENS),
         },
       })
 
@@ -115,7 +116,7 @@ ${context ? `额外要求：${context}` : ''}
    * @param {object} outlineData - 大纲数据
    * @param {function} onProgress - 进度回调 (stage, progress, text)
    */
-  async function generateDoc(topic, context = '', outlineData = null, onProgress = null) {
+  async function generateDoc(topic, context = '', outlineData = null, onProgress = null, signal) {
     isGenerating.value = true
     error.value = ''
     stage.value = 'detail'
@@ -149,6 +150,7 @@ ${JSON.stringify(WORD_SCHEMA, null, 2)}
         purpose: modelConfig.apiKeyPurpose,
         apiUrl: API_URL,
         timeoutMs: 180000,
+        signal,
         payload: {
           model: modelConfig.model,
           messages: [
@@ -157,7 +159,7 @@ ${JSON.stringify(WORD_SCHEMA, null, 2)}
           ],
           stream: true,
           temperature: modelConfig.temperature,
-          max_tokens: modelConfig.max_tokens,
+          max_tokens: Math.min(modelConfig.max_tokens, FRONTEND_MAX_OUTPUT_TOKENS),
         },
       })
 

@@ -76,6 +76,35 @@
                 readonly></textarea>
             </div>
 
+            <!-- BOHAI 模型配置：从 API Key 预填助手 -->
+            <div v-if="currentTab === 'bohaiModels'" class="bohai-key-assist-panel">
+              <div class="assist-title">从 API Key 预填（可选）</div>
+              <div class="bohai-key-assist-body">
+                <select v-model="bohaiSelectedKeyId" class="form-select bohai-key-select"
+                  @change="onBohaiKeySelectChange" :disabled="bohaiKeysLoading">
+                  <option value="">{{ bohaiKeysLoading ? '加载 API Key 列表中...' : '不使用 API Key，手动填' }}</option>
+                  <option v-for="k in bohaiAvailableKeys" :key="k.id" :value="k.id">
+                    {{ k.label || `${k.provider} ${k.purpose}` }} · {{ k.provider }}
+                  </option>
+                </select>
+                <p v-if="bohaiSelectedKeyMeta" class="bohai-key-hint">
+                  已选「{{ bohaiSelectedKeyMeta.label }}」｜API URL：
+                  <code class="code-font">{{ bohaiSelectedKeyMeta.apiUrl || '未配置' }}</code>
+                  <template v-if="!bohaiSelectedKeyMeta.apiUrl">
+                    <br/>
+                    <strong class="is-warn">该 Key 未配置 API URL，接口地址需手动填写。</strong>
+                    可前往「API Key 管理」编辑该 Key 并补填 API URL（中转站的 chat completions 端点）。
+                  </template>
+                  <template v-else>
+                    <br/>下方 provider / API URL 已自动填充。
+                  </template>
+                </p>
+                <p v-else class="bohai-key-hint is-muted">
+                  选中后会自动填充下方「供应商标识」与「接口地址」，并联动 provider_label。
+                </p>
+              </div>
+            </div>
+
             <!-- 可折叠分组（accordion）-->
             <div v-for="group in fieldGroups" :key="group.key" class="field-group"
               :class="{ collapsed: isGroupCollapsed(group.key) }">
@@ -350,6 +379,7 @@
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue';
 import { getImageUrl } from '../../../utils/asset-helper';
 import { supabase } from '../../../utils/supabase-client.js';
+import { listApiKeys } from '../../../utils/api/api-key-vault-api.js';
 
 // 异步选项缓存：key = optionsSource标识，value = 选项数组
 const asyncOptionsCache = ref({});
@@ -394,6 +424,59 @@ const getFieldOptions = (field) => {
 
 const isFieldOptionsLoading = (field) => {
   return !!(field.optionsSource && asyncOptionsLoading.value[field.optionsSource]);
+};
+
+// ===== BOHAI 模型配置：API Key 预填助手 =====
+const bohaiApiKeys = ref([]);
+const bohaiSelectedKeyId = ref('');
+const bohaiKeysLoading = ref(false);
+
+// 仅展示可用作模型来源的 Key（chat 类 + custom/openrouter/siliconflow/zhipu）
+const bohaiAvailableKeys = computed(() => {
+  return bohaiApiKeys.value.filter((k) => {
+    if (k.status !== 'active') return false;
+    return ['siliconflow', 'openrouter', 'zhipu', 'custom'].includes(k.provider);
+  });
+});
+
+// 当前选中的 Key 元数据
+const bohaiSelectedKeyMeta = computed(() => {
+  if (!bohaiSelectedKeyId.value) return null;
+  const k = bohaiApiKeys.value.find((x) => x.id === bohaiSelectedKeyId.value);
+  if (!k) return null;
+  return {
+    id: k.id,
+    provider: k.provider,
+    purpose: k.purpose,
+    label: k.label || `${k.provider} ${k.purpose}`,
+    apiUrl: k.metadata?.apiUrl || ''
+  };
+});
+
+const loadBohaiApiKeys = async (force = false) => {
+  if (!force && bohaiApiKeys.value.length > 0) return;
+  bohaiKeysLoading.value = true;
+  try {
+    const result = await listApiKeys();
+    if (result.ok) {
+      bohaiApiKeys.value = Array.isArray(result.data) ? result.data : [];
+    }
+  } catch (e) {
+    console.warn('[EditDrawer] 加载 API Key 列表失败:', e?.message || e);
+  } finally {
+    bohaiKeysLoading.value = false;
+  }
+};
+
+const onBohaiKeySelectChange = () => {
+  const meta = bohaiSelectedKeyMeta.value;
+  if (meta) {
+    emit('bohaiKeySelect', meta);
+  }
+};
+
+const clearBohaiKeySelect = () => {
+  bohaiSelectedKeyId.value = '';
 };
 
 const titleId = 'edit-drawer-title';
@@ -592,6 +675,7 @@ const emit = defineEmits([
   'update:userPickerKeyword',
   'prev-record',
   'next-record',
+  'bohaiKeySelect',
 ]);
 
 // Reassign fieldGroups and related computeds/watches after defineProps
@@ -642,6 +726,11 @@ watch(() => props.show, async (visible) => {
     });
     sources.forEach((source) => loadAsyncOptions(source, true));
 
+    // BOHAI 模型配置：抽屉打开时加载 API Key 列表
+    if (props.currentTab === 'bohaiModels') {
+      loadBohaiApiKeys(true);
+    }
+
     if (typeof document !== 'undefined') {
       lastFocusedElement = document.activeElement;
     }
@@ -654,6 +743,8 @@ watch(() => props.show, async (visible) => {
       lastFocusedElement.focus();
     }
     lastFocusedElement = null;
+    // 关闭抽屉时清空 BOHAI Key 选择，避免下次打开残留
+    clearBohaiKeySelect();
   }
 });
 

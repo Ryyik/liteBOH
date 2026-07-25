@@ -20,8 +20,8 @@ const isOriginAllowed = (origin: string | null): boolean => {
   return ALLOWED_ORIGINS.some((allowed) => origin === allowed);
 };
 
-export const buildCorsHeaders = (origin: string | null) => ({
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+export const buildCorsHeaders = (origin: string | null, extraHeaders: string[] = []) => ({
+  'Access-Control-Allow-Headers': ['authorization', 'x-client-info', 'apikey', 'content-type', ...extraHeaders].join(', '),
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Origin': origin && isOriginAllowed(origin) ? origin : 'null',
   'Access-Control-Allow-Credentials': 'true',
@@ -33,11 +33,12 @@ export const jsonResponse = (
   body: unknown,
   status = 200,
   origin: string | null = null,
+  extraHeaders: string[] = [],
 ) =>
   new Response(JSON.stringify(body), {
     status,
     headers: {
-      ...buildCorsHeaders(origin),
+      ...buildCorsHeaders(origin, extraHeaders),
       'Content-Type': 'application/json; charset=utf-8',
     },
   });

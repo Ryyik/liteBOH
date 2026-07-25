@@ -360,3 +360,16 @@ export function extractJSON(raw) {
     return null
   }
 }
+
+// ===== Token 限制（与后端 TIER_MAX_OUTPUT_TOKENS 对齐） =====
+// P2-11: 前端 max_tokens 不应超过后端 tier 限制，避免发送无效的大值。
+// 后端 buildRuntimePayload 会用 policy.maxTokens 覆盖前端值，此处 clamp 仅为减少请求体冗余和让前端有正确预期。
+// 取 ultra tier 上限作为前端 clamp 上界（实际限制由后端按用户 tier 强制执行）。
+export const TIER_MAX_OUTPUT_TOKENS = {
+  free: 1200,
+  plus: 1800,
+  pro: 2400,
+  max: 4096,
+  ultra: 4096,
+}
+export const FRONTEND_MAX_OUTPUT_TOKENS = TIER_MAX_OUTPUT_TOKENS.ultra

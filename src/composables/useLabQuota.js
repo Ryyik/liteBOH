@@ -123,8 +123,8 @@ export function useLabQuota() {
       if (error) throw error;
       usageCount.value = Number(data) || 0;
     } catch (e) {
-      lastError.value = e?.message || '获取使用次数失败';
-      // 兜底：假设已用0次
+      // 静默处理：未登录态或网络中断时不应噪音化，兜底为 0 次
+      lastError.value = null;
       usageCount.value = 0;
     } finally {
       isLoading.value = false;

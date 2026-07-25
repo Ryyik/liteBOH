@@ -16,6 +16,7 @@ const defaults = Object.freeze({
   defaultWebSearch: false,
   pageContextEnabled: false,
   selectionContextEnabled: true,
+  contextMode: 'full',
   appearance: 'system',
   density: 'comfortable',
   fontScale: 'medium',

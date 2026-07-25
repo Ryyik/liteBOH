@@ -182,13 +182,28 @@
         </header>
         <form class="g-dialog-form" @submit.prevent="handleBatchAdd">
           <div class="g-field">
+            <label>从 API Key 选择（可选）</label>
+            <select v-model="batchKeyId" class="g-select" @change="onKeySelectChange">
+              <option value="">不使用 API Key，手动选平台</option>
+              <option v-for="k in availableApiKeys" :key="k.id" :value="k.id">
+                {{ k.label || `${k.provider} ${k.purpose}` }} · {{ k.provider }}
+              </option>
+            </select>
+            <span class="g-field-hint">
+              选中后会自动填充下方平台与 API 地址（来自该 Key 的配置）
+              <span v-if="selectedKeyMeta">｜当前 Key 的 API URL：<code class="is-mono">{{ selectedKeyMeta.apiUrl || '未配置' }}</code></span>
+            </span>
+          </div>
+          <div class="g-field">
             <label>API 平台</label>
-            <select v-model="batchProvider" class="g-select">
+            <select v-model="batchProvider" class="g-select" :disabled="!!batchKeyId">
               <option v-for="opt in FREEMODEL_PROVIDER_OPTIONS" :key="opt.value" :value="opt.value">
                 {{ opt.label }}
               </option>
             </select>
-            <span class="g-field-hint">批量添加的模型都会归属于该平台</span>
+            <span class="g-field-hint">
+              {{ batchKeyId ? '已由所选 API Key 自动锁定' : '批量添加的模型都会归属于该平台' }}
+            </span>
           </div>
           <div class="g-field">
             <label>模型 ID 列表（英文逗号或换行分割）</label>
@@ -215,6 +230,7 @@ import { Plus, RefreshCw, Edit3, Trash2, LoaderCircle, ListPlus, X, Filter } fro
 import { supabase } from '@/utils/supabase-client.js'
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js'
 import { FREEMODEL_PROVIDER_OPTIONS } from '../config/fields.js'
+import { listApiKeys } from '../../../utils/api/api-key-vault-api.js'
 import DashboardHero from './shared/DashboardHero.vue';
 import DashboardNotice from './shared/DashboardNotice.vue';
 
@@ -230,6 +246,40 @@ const batchModelIds = ref('')
 const isBatchAdding = ref(false)
 const batchProvider = ref('siliconflow')
 const filterProvider = ref('all')
+
+// 批量添加时可选择已存的 API Key，自动填充 provider / api_base_url
+const apiKeys = ref([])
+const batchKeyId = ref('')  // 选中的 API Key id
+
+// 仅展示可用作模型来源的 Key（chat 类 + custom/openrouter/siliconflow/zhipu）
+const availableApiKeys = computed(() => {
+  return apiKeys.value.filter((k) => {
+    if (k.status !== 'active') return false
+    return ['siliconflow', 'openrouter', 'zhipu', 'custom'].includes(k.provider)
+  })
+})
+
+// 当前选中的 Key 对应的元数据
+const selectedKeyMeta = computed(() => {
+  if (!batchKeyId.value) return null
+  const k = apiKeys.value.find((x) => x.id === batchKeyId.value)
+  if (!k) return null
+  return {
+    id: k.id,
+    provider: k.provider,
+    purpose: k.purpose,
+    label: k.label || `${k.provider} ${k.purpose}`,
+    apiUrl: k.metadata?.apiUrl || ''
+  }
+})
+
+// 选中 Key 时自动同步 batchProvider（provider 下拉随之联动）
+const onKeySelectChange = () => {
+  const meta = selectedKeyMeta.value
+  if (meta) {
+    batchProvider.value = meta.provider
+  }
+}
 
 const providerLabelMap = computed(() => {
   const map = {}
@@ -499,13 +549,23 @@ async function handleBatchAdd() {
     // 获取当前最大排序值
     const maxSortOrder = models.value.reduce((max, m) => Math.max(max, m.sort_order || 0), 0)
 
+    // 优先使用所选 API Key 的 api_base_url；否则回退到 provider 默认值
+    const keyMeta = selectedKeyMeta.value
+    const effectiveProvider = keyMeta ? keyMeta.provider : batchProvider.value
+    const effectiveProviderLabel = keyMeta
+      ? (keyMeta.label || getProviderLabel(effectiveProvider))
+      : getProviderLabel(effectiveProvider)
+    const effectiveApiBaseUrl = keyMeta
+      ? (keyMeta.apiUrl || getProviderApiBaseUrl(effectiveProvider) || null)
+      : (getProviderApiBaseUrl(effectiveProvider) || null)
+
     // 批量插入模型（使用模型ID作为默认名称）
     const insertData = newIds.map((id, index) => ({
       model_id: id,
       name: id.split('/').pop() || id, // 从模型ID提取名称
-      provider: batchProvider.value,
-      provider_label: getProviderLabel(batchProvider.value),
-      api_base_url: getProviderApiBaseUrl(batchProvider.value) || null,
+      provider: effectiveProvider,
+      provider_label: effectiveProviderLabel,
+      api_base_url: effectiveApiBaseUrl,
       family_label: '通用',
       best_for: '多场景聊天',
       sort_order: maxSortOrder + index + 1,
@@ -526,6 +586,7 @@ async function handleBatchAdd() {
 
     showBatchAddDialog.value = false
     batchModelIds.value = ''
+    batchKeyId.value = ''
     await loadModels()
   } catch (e) {
     await confirm({
@@ -538,8 +599,16 @@ async function handleBatchAdd() {
   }
 }
 
+async function loadApiKeys() {
+  const result = await listApiKeys()
+  if (result.ok) {
+    apiKeys.value = Array.isArray(result.data) ? result.data : []
+  }
+}
+
 onMounted(() => {
   loadModels()
+  loadApiKeys()
 })
 </script>
 

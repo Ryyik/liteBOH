@@ -25,10 +25,13 @@
           <strong>{{ panelState.title || 'BOH AI' }}</strong>
           <span>{{ panelState.temporary ? '临时对话 · 不保存' : '快捷对话' }}</span>
         </div>
-        <button v-if="pageContext.available" class="global-ai-context-btn" :class="{ attached: pageContext.attached }"
-          type="button" :title="pageContext.attached ? '已附加当前页面' : '附加当前页面上下文'" @click="attachPageContext">
+        <button v-if="pageContext.available && !pageContext.attached" class="global-ai-context-btn" type="button" title="附加当前页面上下文" @click="toggleContextPreview">
           <Paperclip :size="16" />
-          <span>{{ pageContext.attached ? '已附加' : pageContext.label }}</span>
+          <span>{{ pageContext.label }}</span>
+        </button>
+        <button v-if="pageContext.attached" class="global-ai-context-btn attached" type="button" title="已附加 — 点击移除" @click="detachPageContext">
+          <Paperclip :size="16" />
+          <span>已附加</span>
         </button>
         <div class="global-ai-header-actions">
           <button class="global-ai-header-btn global-ai-settings-button" type="button" title="设置" aria-label="打开设置" @click="openSettings">
@@ -50,6 +53,45 @@
         </div>
       </header>
 
+      <div v-if="showContextPreview && previewContext" class="global-ai-context-preview" @click.stop>
+        <div class="context-preview-header">
+          <strong>附加页面内容</strong>
+          <button type="button" class="context-preview-close" @click="showContextPreview = false">
+            <X :size="16" />
+          </button>
+        </div>
+        <div class="context-preview-body">
+          <div class="context-preview-field"><span class="cp-label">页面</span><span class="cp-value">{{ previewContext.title || '无标题' }}</span></div>
+          <div class="context-preview-field"><span class="cp-label">字符</span><span class="cp-value">{{ previewContext.charCount }} (~{{ previewContext.tokenEstimate }} tokens)</span></div>
+          <div v-if="previewContext.selection" class="context-preview-section">
+            <div class="cp-section-label">选中文本</div>
+            <div class="cp-section-content">{{ previewContext.selection.slice(0, 200) }}{{ previewContext.selection.length > 200 ? '…' : '' }}</div>
+          </div>
+          <div v-if="previewContext.content" class="context-preview-section">
+            <div class="cp-section-label">页面正文 ({{ previewContext.content.length }} 字符)</div>
+            <div class="cp-section-content">{{ previewContext.content.slice(0, 300) }}{{ previewContext.content.length > 300 ? '…' : '' }}</div>
+          </div>
+          <div class="context-preview-options">
+            <label class="cp-option" :class="{ active: contextMode === CONTEXT_MODE_TITLE_URL }">
+              <input type="radio" v-model="contextMode" :value="CONTEXT_MODE_TITLE_URL" />
+              <span>仅标题+URL</span>
+            </label>
+            <label class="cp-option" :class="{ active: contextMode === CONTEXT_MODE_SELECTION }">
+              <input type="radio" v-model="contextMode" :value="CONTEXT_MODE_SELECTION" />
+              <span>包含选中文本</span>
+            </label>
+            <label class="cp-option" :class="{ active: contextMode === CONTEXT_MODE_FULL }">
+              <input type="radio" v-model="contextMode" :value="CONTEXT_MODE_FULL" />
+              <span>完整页面</span>
+            </label>
+          </div>
+        </div>
+        <div class="context-preview-footer">
+          <button type="button" class="cp-btn cp-btn-secondary" @click="showContextPreview = false">取消</button>
+          <button type="button" class="cp-btn cp-btn-primary" @click="confirmAttachContext">附加到对话</button>
+        </div>
+      </div>
+
       <div v-if="mountedOnce" class="global-ai-glass-chat" ref="chatRef">
         <BOHAIChat ref="chatApiRef" :embedded="true" :overlay-mode="true" :quick-active="isOpen"
           :quick-suggestions="pageContext.suggestions"
@@ -61,11 +103,12 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { X, PanelLeft, ExternalLink, SlidersHorizontal, Paperclip, Maximize2, Minimize2 } from 'lucide-vue-next'
+import { X, PanelLeft, ExternalLink, SlidersHorizontal, Paperclip, Maximize2, Minimize2, Eye } from 'lucide-vue-next'
 import { defineAsyncComponent, h } from 'vue'
 import { useRouter } from 'vue-router'
 import AiChatSkeleton from '@/components/AiChatLoadingSkeleton.vue'
 import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay'
+import { extractPageContext, CONTEXT_MODE_FULL, CONTEXT_MODE_SELECTION, CONTEXT_MODE_TITLE_URL } from '@/utils/page-context-extractor.js'
 import { useGlobalAiPreferences } from '@/composables/useGlobalAiPreferences.js'
 
 const BOHAIChat = defineAsyncComponent({
@@ -119,6 +162,9 @@ let snapTimer = null
 let isEditingFocused = false
 const panelState = ref({ sidebarOpen: false, title: 'BOH AI', temporary: false, settingsOpen: false })
 const pageContext = ref({ available: false, attached: false, label: '当前页面', text: '', suggestions: [] })
+const showContextPreview = ref(false)
+const contextMode = ref(CONTEXT_MODE_FULL)
+const previewContext = ref(null)
 
 const resolvedTheme = computed(() => {
   if (preferences.appearance === 'light' || preferences.appearance === 'dark') return preferences.appearance
@@ -234,41 +280,44 @@ function openFullPage() {
 }
 
 function capturePageContext() {
-  const selection = preferences.selectionContextEnabled
-    ? String(window.getSelection?.()?.toString() || '').trim().slice(0, 1800)
-    : ''
-  const title = String(document.title || '').replace(/\s*[-|]\s*BOH.*$/i, '').trim().slice(0, 120)
-  const url = window.location.href
-  const path = window.location.hash || window.location.pathname
-  const hashQuery = String(window.location.hash || '').split('?')[1] || ''
-  const userSpaceTab = new URLSearchParams(hashQuery).get('tab') || ''
-  let suggestions = ['帮我整理一个计划', '总结一下我的想法', '快速查找相关信息']
-  if (/forum|post/i.test(path)) suggestions = ['总结当前帖子', '帮我起草一条回复', '提取讨论中的关键观点']
-  else if (userSpaceTab === 'messages') suggestions = ['总结我的未读消息', '找出需要我回复的消息', '按主题整理最近通知']
-  else if (userSpaceTab === 'community') suggestions = ['帮我找正在活跃的伙伴', '看看最近加入了哪些伙伴', '为即将生日的伙伴写一句祝福']
-  else if (userSpaceTab === 'profile') suggestions = ['帮我润色个人简介', '分析我的近期帖子', '检查我的账号与资料状态']
-  else if (/profile|user-space/i.test(path)) suggestions = ['总结这个页面', '帮我完善个人介绍', '整理最近要做的事']
-  else if (/lab/i.test(path)) suggestions = ['解释当前工具', '帮我设计处理步骤', '检查我的输出思路']
-  const parts = []
-  if (title) parts.push(`页面标题：${title}`)
-  parts.push(`页面地址：${url}`)
-  if (selection) parts.push(`选中的内容：\n${selection}`)
+  const mode = preferences.selectionContextEnabled ? CONTEXT_MODE_FULL : CONTEXT_MODE_TITLE_URL
+  const ctx = extractPageContext({ maxContentChars: 4000, mode })
   pageContext.value = {
-    available: Boolean(title || selection),
+    available: Boolean(ctx.title || ctx.selection || ctx.content),
     attached: false,
-    label: selection ? '选中文本' : '当前页面',
-    text: `【当前页面上下文】\n${parts.join('\n')}`,
-    suggestions
+    label: ctx.selection ? '选中文本' : '当前页面',
+    text: ctx.text,
+    suggestions: ctx.suggestions
   }
+  previewContext.value = ctx
 }
 
-function attachPageContext() {
-  if (!pageContext.value.available || pageContext.value.attached) return
-  const hostMain = document.querySelector('#app main')
-  const excerpt = String(hostMain?.innerText || '').replace(/\n{3,}/g, '\n\n').trim().slice(0, 4000)
-  const contextText = `${pageContext.value.text}${excerpt ? `\n页面正文摘录：\n${excerpt}` : ''}`
-  chatApiRef.value?.appendToComposer?.(contextText)
+function toggleContextPreview() {
+  capturePageContext()
+  showContextPreview.value = !showContextPreview.value
+}
+
+function confirmAttachContext() {
+  const mode = contextMode.value || preferences.contextMode || CONTEXT_MODE_FULL
+  preferences.contextMode = mode
+  const ctx = extractPageContext({ maxContentChars: 4000, mode })
+  const contextForPrompt = {
+    title: ctx.title,
+    url: ctx.url,
+    selection: ctx.selection,
+    content: mode === CONTEXT_MODE_FULL ? ctx.content : '',
+    description: ctx.description,
+    tokenEstimate: ctx.tokenEstimate,
+    charCount: ctx.charCount
+  }
+  chatApiRef.value?.setAttachedContext?.(contextForPrompt)
   pageContext.value.attached = true
+  showContextPreview.value = false
+}
+
+function detachPageContext() {
+  chatApiRef.value?.clearAttachedContext?.()
+  pageContext.value.attached = false
 }
 
 async function applyOpenPreferences() {
@@ -280,7 +329,7 @@ async function applyOpenPreferences() {
   panelState.value = { ...panelState.value, sidebarOpen: false, settingsOpen: false }
   if (preferences.openBehavior === 'new') chatApiRef.value?.startNewChat?.()
   if (preferences.openBehavior === 'temporary') chatApiRef.value?.startTemporaryChat?.()
-  if (preferences.pageContextEnabled) attachPageContext()
+  if (preferences.pageContextEnabled) confirmAttachContext()
   if (preferences.autoFocus) chatApiRef.value?.focusComposer?.()
 }
 
@@ -1049,6 +1098,156 @@ onUnmounted(() => {
   .global-ai-glass-overlay.is-snapping.is-open::after {
     animation: lightSweep 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
+}
+
+.global-ai-context-preview {
+  position: absolute;
+  z-index: 30;
+  top: 50px;
+  left: 12px;
+  right: 12px;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  overflow: hidden;
+  font-size: 13px;
+}
+.global-ai-glass-overlay[data-theme="dark"] .global-ai-context-preview {
+  background: #1a1a2e;
+  border-color: #2a2a3e;
+}
+.context-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e5e5e5;
+  font-size: 14px;
+}
+.global-ai-glass-overlay[data-theme="dark"] .context-preview-header {
+  border-color: #2a2a3e;
+}
+.context-preview-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  color: #666;
+  display: flex;
+}
+.context-preview-body {
+  padding: 10px 14px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.context-preview-field {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.cp-label {
+  color: #888;
+  min-width: 36px;
+  flex-shrink: 0;
+}
+.cp-value {
+  color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.global-ai-glass-overlay[data-theme="dark"] .cp-value {
+  color: #ccc;
+}
+.context-preview-section {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #eee;
+}
+.global-ai-glass-overlay[data-theme="dark"] .context-preview-section {
+  border-color: #2a2a3e;
+}
+.cp-section-label {
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.cp-section-content {
+  color: #555;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.global-ai-glass-overlay[data-theme="dark"] .cp-section-content {
+  color: #999;
+}
+.context-preview-options {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #eee;
+}
+.global-ai-glass-overlay[data-theme="dark"] .context-preview-options {
+  border-color: #2a2a3e;
+}
+.cp-option {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #e5e5e5;
+  cursor: pointer;
+  font-size: 12px;
+  color: #555;
+}
+.cp-option.active {
+  border-color: #10a37f;
+  color: #10a37f;
+  background: rgba(16,163,127,0.06);
+}
+.cp-option input { display: none; }
+.context-preview-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid #e5e5e5;
+}
+.global-ai-glass-overlay[data-theme="dark"] .context-preview-footer {
+  border-color: #2a2a3e;
+}
+.cp-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid #e5e5e5;
+  cursor: pointer;
+  font-size: 13px;
+  background: #fff;
+  color: #333;
+}
+.cp-btn-primary {
+  background: #10a37f;
+  color: #fff;
+  border-color: #10a37f;
+}
+.cp-btn-secondary:hover {
+  background: #f5f5f5;
+}
+.global-ai-glass-overlay[data-theme="dark"] .cp-btn {
+  background: #2a2a3e;
+  color: #ccc;
+  border-color: #3a3a4e;
+}
+.global-ai-glass-overlay[data-theme="dark"] .cp-btn-primary {
+  background: #10a37f;
+  color: #fff;
+  border-color: #10a37f;
 }
 
 @media (prefers-reduced-motion: reduce) {

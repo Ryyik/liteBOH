@@ -235,6 +235,18 @@
                                         </svg>
                                         <span class="ring-percent">{{ contextBudgetPercentText }}</span>
                                     </div>
+                                    <div v-if="showCompressSuccess" class="compress-success-hint">
+                                        <CheckCircle2 size="12" />
+                                        <span>上下文已压缩</span>
+                                    </div>
+                                    <button v-else-if="!isCompressingContext && canCompressContext"
+                                        class="compress-now-btn" type="button"
+                                        :disabled="isCompressingContext"
+                                        @click="handleManualCompress"
+                                        title="立即压缩历史对话，整理早期内容为摘要">
+                                        <Archive size="12" />
+                                        <span>整理上下文</span>
+                                    </button>
                                 </div>
                             </div>
                             <div v-if="isMessageDetailsOpen(idx)" class="message-meta-panel">
@@ -305,6 +317,28 @@
                             <X size="13" />
                         </button>
                     </div>
+                    <div v-if="attachedContext" class="composer-chips context-chip-row">
+                        <div class="composer-chip context-chip" @click="clearAttachedContext">
+                            <FileText size="14" />
+                            <span class="context-chip-label">{{ attachedContext.title ? attachedContext.title.slice(0, 24) + (attachedContext.title.length > 24 ? '…' : '') : '当前页面' }}</span>
+                            <span class="context-chip-badge">AI 可见</span>
+                            <span class="context-chip-tokens">~{{ attachedContext.tokenEstimate || '?' }}</span>
+                            <X size="13" />
+                            <div class="context-chip-preview" @click.stop>
+                                <div class="ccp-header">附加到当前对话的内容：</div>
+                                <div class="ccp-url">{{ attachedContext.url || '' }}</div>
+                                <div v-if="attachedContext.selection" class="ccp-section">
+                                    <div class="ccp-section-label">选中文本</div>
+                                    <div class="ccp-section-text">{{ attachedContext.selection.slice(0, 160) }}{{ attachedContext.selection.length > 160 ? '…' : '' }}</div>
+                                </div>
+                                <div v-if="attachedContext.content" class="ccp-section">
+                                    <div class="ccp-section-label">页面正文 ({{ attachedContext.content.length }} 字符)</div>
+                                    <div class="ccp-section-text">{{ attachedContext.content.slice(0, 200) }}{{ attachedContext.content.length > 200 ? '…' : '' }}</div>
+                                </div>
+                                <div class="ccp-footer">发送时 AI 会看到以上内容</div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="input-box">
                         <div class="input-left">
                             <button @click="toggleFeaturesMenu" class="features-btn"
@@ -350,7 +384,9 @@
 
                         <div class="composer-main">
                             <textarea ref="textareaRef" v-model="inputMessage" @keydown="handleComposerKeydown"
-                                placeholder="有问题，尽管问" class="input-textarea" rows="1" @input="handleComposerInput"></textarea>
+                                :disabled="isCompressingContext"
+                                :placeholder="isCompressingContext ? '正在整理上下文，请稍候…' : '有问题，尽管问'"
+                                class="input-textarea" rows="1" @input="handleComposerInput"></textarea>
                         </div>
 
                         <div class="input-right">
@@ -369,7 +405,13 @@
                                         :data-mode-id="mode.id" :data-mode-index="index"
                                         @click.stop="selectMode(mode.id)">
                                         <span class="mode-option-main">
-                                            <strong>{{ mode.name }}</strong>
+                                            <span class="mode-option-name">
+                                                <strong>{{ mode.name }}</strong>
+                                                <span v-if="mode.quotaMultiplier > 1" class="mode-option-multiplier"
+                                                    :title="`该模式消耗倍率为 ${mode.quotaMultiplier}x，会使用更多 Token`">
+                                                    {{ mode.quotaMultiplier }}x
+                                                </span>
+                                            </span>
                                             <small>{{ mode.tagline }}</small>
                                         </span>
                                     </button>
@@ -382,7 +424,7 @@
                                 <button v-if="isLoading" @click="stopGeneration" class="stop-btn">
                                     <Square size="18" />
                                 </button>
-                                <button v-else @click="sendMessage" :disabled="!inputMessage.trim()" class="send-btn">
+                                <button v-else @click="sendMessage" :disabled="!inputMessage.trim() || isCompressingContext" class="send-btn">
                                     <ArrowUp size="18" />
                                 </button>
                             </div>
@@ -428,7 +470,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, nextTick, watch, onUnmounted } from 'vue';
-import { Plus, Trash2, Square, Globe, Cloud, Search, X, ChevronDown, Copy, ThumbsUp, ThumbsDown, MoreHorizontal, ArrowUp, CheckCircle2, LoaderCircle, Circle, PanelLeft, Settings2, AlertCircle, RotateCcw } from 'lucide-vue-next';
+import { Plus, Trash2, Square, Globe, Cloud, Search, X, ChevronDown, Copy, ThumbsUp, ThumbsDown, MoreHorizontal, ArrowUp, CheckCircle2, LoaderCircle, Circle, PanelLeft, Settings2, AlertCircle, RotateCcw, Archive, FileText } from 'lucide-vue-next';
 import { useChatEngine } from '../composables/useChatEngine';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
@@ -634,6 +676,7 @@ const {
     messages,
     contextBudgetUsage,
     isCompressingContext,
+    compressContextManually,
     onScrollToBottom,
     startNewChat: startNewChatEngine,
     clearCurrentSession,
@@ -643,6 +686,9 @@ const {
     sendMessage,
     stopGeneration,
     clearCache,
+    attachedContext,
+    setAttachedContext,
+    clearAttachedContext,
     agentClusterState,
     currentResponseStyleId,
     setResponseStyle,
@@ -873,6 +919,57 @@ const ringColorClass = computed(() => {
     const level = contextBudgetUsage.value?.level || 'low';
     return `level-${level}`;
 });
+
+// 主动压缩可用条件：
+// - 上下文预算级别 >= mid（55%），说明历史窗口开始紧张，有压缩价值
+// - 当前未在压缩
+// 压缩成功后 level 会降到 low，按钮自然消失；消息增加 level 再次升到 mid 时按钮再现
+const canCompressContext = computed(() => {
+    const usage = contextBudgetUsage.value;
+    if (!usage) return false;
+    return usage.level !== 'low' && !isCompressingContext.value;
+});
+
+// 压缩成功反馈：在按钮位置显示"✓ 上下文已压缩"3 秒，比 Island Message 更直接
+const showCompressSuccess = ref(false);
+let compressSuccessTimer = null;
+const triggerCompressSuccess = () => {
+    showCompressSuccess.value = true;
+    if (compressSuccessTimer) clearTimeout(compressSuccessTimer);
+    compressSuccessTimer = setTimeout(() => {
+        showCompressSuccess.value = false;
+    }, 3000);
+};
+
+const handleManualCompress = async () => {
+    if (isCompressingContext.value) return;
+    // 压缩期间 isCompressingContext=true，预算环位置会显示"正在压缩上下文"+ 旋转图标
+    // 输入框和发送按钮已通过 :disabled="isCompressingContext" 禁用
+    try {
+        const ok = await compressContextManually();
+        if (ok) {
+            triggerCompressSuccess();
+        } else {
+            emitIslandMessage({
+                title: '无需整理',
+                message: '当前对话还不足以生成有效摘要，多聊几轮后再试。',
+                icon: 'ai',
+                type: 'notification',
+                actionLabel: '知道了',
+                durationMs: 3000
+            });
+        }
+    } catch (err) {
+        emitIslandMessage({
+            title: '整理失败',
+            message: '上下文压缩未完成，请稍后重试。',
+            icon: 'ai',
+            type: 'notification',
+            actionLabel: '知道了',
+            durationMs: 3000
+        });
+    }
+};
 
 const hiddenMessageCount = computed(() => {
     const total = Array.isArray(messages.value) ? messages.value.length : 0;
@@ -1597,15 +1694,12 @@ const selectMode = (modeId) => {
     currentModeId.value = modeId;
     persistModeSetting();
     closeModeMenu();
-    const isAuroraMode = String(modeId || '').toLowerCase() === 'ultra'
-        || String(mode.name || '').trim().toLowerCase() === 'aurora';
-    if (isAuroraMode) {
-        notifyUnavailable('Aurora 会使用更多 Token，可能快速消耗今日额度');
-        return;
-    }
+    const multiplierHint = mode.quotaMultiplier > 1
+        ? `消耗倍率 ${mode.quotaMultiplier}x，会使用更多 Token`
+        : (mode.description || mode.tagline || 'BOH AI 模式已更新');
     emitIslandMessage({
         title: `已切换 ${mode.name}`,
-        message: mode.description || mode.tagline || 'BOH AI 模式已更新',
+        message: multiplierHint,
         icon: 'ai',
         type: 'notification',
         actionLabel: '知道了',
@@ -1911,6 +2005,8 @@ defineExpose({
     startTemporaryChat,
     focusComposer,
     appendToComposer,
+    setAttachedContext,
+    clearAttachedContext,
     handleEscapeLayer,
     closeOverlayPanels,
     resetQuickNavigation
@@ -1930,17 +2026,9 @@ watch(messages, () => {
     });
 }, { deep: true });
 
-watch(isCompressingContext, (compressing) => {
-    if (!compressing) return;
-    emitIslandMessage({
-        title: 'BOH AI 自动压缩',
-        message: '历史窗口已满，正在自动摘要并压缩历史会话...',
-        icon: 'ai',
-        type: 'notification',
-        actionLabel: '知道了',
-        durationMs: 4000
-    });
-});
+// 注：手动压缩的"压缩中/已完成"提示由 handleManualCompress 统一管理。
+// 自动压缩的"压缩中"状态通过预算环位置的 context-compressing-hint 显示（L222），
+// 不再通过 emitIslandMessage 弹出提示，避免与手动压缩反馈冲突。
 
 
 </script>

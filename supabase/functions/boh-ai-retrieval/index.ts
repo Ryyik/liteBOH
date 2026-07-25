@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.99.1';
+import { buildCorsHeaders as buildSharedCorsHeaders, jsonResponse as jsonSharedResponse } from '../_shared/cors.ts';
 
 type SourceType = 'core_memory' | 'shared_memory' | 'cloud_entry' | 'knowledge_base';
 
@@ -87,26 +88,14 @@ const KEYWORD_CANDIDATE_LIMIT = 120;
 const MAX_IMPORT_CHUNKS = 500;
 const MAX_IMPORT_CHUNK_CHARS = 3000;
 
-const buildCorsHeaders = (origin: string | null) => ({
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-retrieval-sync-secret',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Origin': origin || '*',
-  'Cache-Control': 'no-store',
-  Vary: 'Origin',
-});
+const buildCorsHeaders = (origin: string | null) =>
+  buildSharedCorsHeaders(origin, ['x-retrieval-sync-secret']);
 
 const jsonResponse = (
   body: unknown,
   status = 200,
   origin: string | null = null,
-) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      ...buildCorsHeaders(origin),
-      'Content-Type': 'application/json; charset=utf-8',
-    },
-  });
+) => jsonSharedResponse(body, status, origin, ['x-retrieval-sync-secret']);
 
 const clampInt = (value: unknown, fallback: number, min: number, max: number) => {
   const parsed = Number(value);

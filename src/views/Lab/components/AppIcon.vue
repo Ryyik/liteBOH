@@ -67,6 +67,7 @@ const icons = {
   'console': '<polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>',
   'shield': '<path d="M12 2l7 4v5c0 5-3.5 9.7-7 11-3.5-1.3-7-6-7-11V6l7-4z"/>',
   'wand': '<path d="M15 4V2m0 2v2m0-2h2m-2 0h-2"/><path d="M5 20l10-10"/><path d="M15 20l-2-2"/><path d="M5 10l2-2"/><path d="M9 6l-4 4"/><path d="M13 2l-2 2"/>',
+  'stop': '<rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" stroke="none"/>',
 }
 
 const pathData = computed(() => icons[props.name] || icons['doc'])

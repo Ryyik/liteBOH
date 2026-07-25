@@ -359,6 +359,20 @@ const PROFILE_SELECT_COLUMNS = `
           clearSessionHeartbeat();
         }
       } catch (error) {
+        // 未登录态下会话不存在是预期，不打印警告避免噪音
+        // 仅在已登录态或会话明确失效时才 warn
+        const isLoggedInBefore = isLoggedIn.value;
+        if (!isLoggedInBefore && reason === 'init') {
+          // init 时未登录是正常状态，静默处理
+          if (isAuthSessionMissingError(error as AuthError)) {
+            isInitialized.value = true;
+            return;
+          }
+          // 其他错误在未登录 init 时也不应噪音化
+          logger.debug('auth-store', `init 未登录态同步跳过(${reason})`, error);
+          isInitialized.value = true;
+          return;
+        }
         logger.warn('auth-store', `同步登录状态失败(${reason})`, error);
         if (isAuthSessionMissingError(error as AuthError)) {
           // 会话明确失效时，立即清理持久化登录态，避免使用过期 userInfo 继续请求受保护资源。

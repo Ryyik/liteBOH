@@ -309,6 +309,40 @@
   color: #78dec7;
 }
 
+.bohai-page[data-theme="dark"] .context-chip-badge,
+[data-theme="dark"] .bohai-page .context-chip-badge {
+  background: rgba(16, 163, 127, 0.25);
+  color: #78dec7;
+}
+
+.bohai-page[data-theme="dark"] .context-chip-preview,
+[data-theme="dark"] .bohai-page .context-chip-preview {
+  background: #1a1a2e;
+  border-color: #2a2a3e;
+  color: #ccc;
+}
+
+.bohai-page[data-theme="dark"] .context-chip-preview .ccp-header,
+[data-theme="dark"] .bohai-page .context-chip-preview .ccp-header {
+  color: #eee;
+}
+
+.bohai-page[data-theme="dark"] .context-chip-preview .ccp-section,
+[data-theme="dark"] .bohai-page .context-chip-preview .ccp-section {
+  border-top-color: #2a2a3e;
+}
+
+.bohai-page[data-theme="dark"] .context-chip-preview .ccp-section-text,
+[data-theme="dark"] .bohai-page .context-chip-preview .ccp-section-text {
+  color: #999;
+}
+
+.bohai-page[data-theme="dark"] .context-chip-preview .ccp-footer,
+[data-theme="dark"] .bohai-page .context-chip-preview .ccp-footer {
+  border-top-color: #2a2a3e;
+  color: #777;
+}
+
 .bohai-page[data-theme="dark"] .send-btn:disabled,
 [data-theme="dark"] .bohai-page .send-btn:disabled {
   background: #676767;

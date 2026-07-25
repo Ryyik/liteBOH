@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.99.1';
+import { buildCorsHeaders as buildSharedCorsHeaders, jsonResponse as jsonSharedResponse } from '../_shared/cors.ts';
 
 type ModerationJob = {
   id: string;
@@ -40,8 +41,12 @@ const MODERATION_MODEL_ID = String(
 ).trim();
 const WORKER_SECRET = String(Deno.env.get('MODERATION_WORKER_SECRET') || '').trim();
 const DEFAULT_WORKER_ID = `edge-${crypto.randomUUID()}`;
-const DEFAULT_BATCH_SIZE = 10;
-const DEFAULT_LOCK_SECONDS = 180;
+// P1-6: 单 job 处理，避免批量审核导致 Edge Function 执行超时。
+// 单次审核最坏情况 ≈ 12s(首次) + 350ms(重试延迟) + 12s(重试) ≈ 24.35s，
+// 远低于 Supabase Edge Function 的执行时间上限。需要处理更多 job 时由调用方频繁触发。
+const DEFAULT_BATCH_SIZE = 1;
+const MAX_BATCH_SIZE = 1;
+const DEFAULT_LOCK_SECONDS = 60;
 const REQUEST_TIMEOUT_MS = 12000;
 const RETRY_DELAY_MS = 350;
 const REJECT_DECISION_MIN_CONFIDENCE = 0.96;
@@ -50,26 +55,14 @@ const STRONG_REJECT_CONFIDENCE = 0.995;
 const supabaseUrl = String(Deno.env.get('SUPABASE_URL') || '').trim();
 const supabaseServiceRoleKey = String(Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '').trim();
 
-const buildCorsHeaders = (origin: string | null) => ({
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-worker-secret',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Origin': origin || '*',
-  'Cache-Control': 'no-store',
-  Vary: 'Origin',
-});
+const buildCorsHeaders = (origin: string | null) =>
+  buildSharedCorsHeaders(origin, ['x-worker-secret']);
 
 const jsonResponse = (
   body: unknown,
   status = 200,
   origin: string | null = null,
-) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      ...buildCorsHeaders(origin),
-      'Content-Type': 'application/json; charset=utf-8',
-    },
-  });
+) => jsonSharedResponse(body, status, origin, ['x-worker-secret']);
 
 const createServiceClient = () => {
   if (!supabaseUrl) {
@@ -384,7 +377,8 @@ Deno.serve(async (request) => {
   }
 
   const body = await request.json().catch(() => ({}));
-  const batchSize = Math.min(Math.max(Number(body?.limit || DEFAULT_BATCH_SIZE), 1), 50);
+  // P1-6: 强制单 job，上限 MAX_BATCH_SIZE=1，忽略调用方传入的更大值
+  const batchSize = Math.min(Math.max(Number(body?.limit || DEFAULT_BATCH_SIZE), 1), MAX_BATCH_SIZE);
   const workerId = String(body?.workerId || DEFAULT_WORKER_ID).trim().slice(0, 120) || DEFAULT_WORKER_ID;
   const serviceClient = createServiceClient();
 

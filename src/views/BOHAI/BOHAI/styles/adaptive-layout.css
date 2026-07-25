@@ -853,6 +853,99 @@
     flex: 0 0 auto;
 }
 
+.bohai-page .context-chip-row {
+    position: relative;
+}
+.bohai-page .context-chip {
+    position: relative;
+    cursor: pointer;
+    padding-right: 8px;
+}
+.bohai-page .context-chip-badge {
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: rgba(16, 163, 127, 0.18);
+    color: #0f7f64;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    line-height: 1.3;
+}
+.bohai-page .context-chip-tokens {
+    font-size: 11px;
+    opacity: 0.6;
+}
+.bohai-page .context-chip-label {
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.bohai-page .context-chip-preview {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 0;
+    z-index: 100;
+    width: 320px;
+    max-height: 260px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 10px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.12);
+    padding: 10px 12px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #353740;
+    cursor: auto;
+}
+.bohai-page .context-chip:hover .context-chip-preview {
+    display: block;
+}
+.bohai-page .ccp-header {
+    font-weight: 600;
+    font-size: 12px;
+    margin-bottom: 6px;
+    color: #202123;
+}
+.bohai-page .ccp-url {
+    font-size: 11px;
+    color: #888;
+    margin-bottom: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.bohai-page .ccp-section {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid #eee;
+}
+.bohai-page .ccp-section-label {
+    font-size: 10px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 3px;
+}
+.bohai-page .ccp-section-text {
+    font-size: 12px;
+    color: #555;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 80px;
+    overflow: hidden;
+}
+.bohai-page .ccp-footer {
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid #eee;
+    font-size: 11px;
+    color: #888;
+    text-align: center;
+}
+
 .bohai-page .input-textarea {
     flex: 1 1 auto;
     width: 100%;
@@ -1123,6 +1216,30 @@
 
 .bohai-page .mode-option-main small {
     display: none;
+}
+
+.bohai-page .mode-option-name {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 7px;
+    min-width: 0;
+}
+
+.bohai-page .mode-option-multiplier {
+    flex: none;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.6;
+    letter-spacing: 0.02em;
+    color: #b45309;
+    background: rgba(245, 158, 11, 0.18);
+}
+
+.bohai-page[data-theme="dark"] .mode-option-multiplier {
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.16);
 }
 
 .bohai-page .mode-menu-footer {

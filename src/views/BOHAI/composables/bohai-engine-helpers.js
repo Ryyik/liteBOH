@@ -268,12 +268,17 @@ export const normalizePromptLine = (text, maxChars = MAX_HISTORY_MESSAGE_CHARS) 
 };
 
 export const isContextDependentFollowUp = (text = '') => {
-  const normalized = normalizePromptLine(text, 160);
+  const normalized = normalizePromptLine(text, 200);
   if (!normalized) return false;
-  const explicitFollowUpPattern = /(这个|那个|上面|刚才|刚刚|前面|继续|展开|详细|多说|那|它|其|然后呢|还有呢)/i;
+  // 显式追问词：代词/时间副词/延续动词/编号引用
+  const explicitFollowUpPattern = /(这个|那个|上面|刚才|刚刚|前面|继续|展开|详细|多说|那|它|其|然后呢|还有呢|刚才提到|你说的|上一条|前面提到|接着|接下来|进一步|深入|细说)/i;
+  // 编号引用追问：[W1]、F1、第2点、第二条等
+  const referenceFollowUpPattern = /\[?[wfd]\d+\]?|第[一二三四五六七八九十\d]+\s*[条点步个]|上面\s*第\s*\d+\s*点/i;
   const shortAttributeQuestionPattern = /^(?:这个|那个|它|那)?(?:作用|用途|原理|好处|区别|怎么做|怎么练|有什么用|为什么|是什么|怎么办|咋办)(?:是?什么|呢|吗|呀|啊)?$/i;
-  return (explicitFollowUpPattern.test(normalized) || shortAttributeQuestionPattern.test(normalized))
-    && normalized.length <= 42;
+  return (explicitFollowUpPattern.test(normalized)
+    || referenceFollowUpPattern.test(normalized)
+    || shortAttributeQuestionPattern.test(normalized))
+    && normalized.length <= 120;
 };
 
 export const buildContextualFollowUpQuery = (
@@ -290,7 +295,7 @@ export const buildContextualFollowUpQuery = (
     const item = source[index];
     if (item?.meta?.kind === 'memory_saved_notice') continue;
     if (item?.role !== 'assistant' && item?.role !== 'user') continue;
-    const content = normalizePromptLine(item?.content, 260);
+    const content = truncateText(String(item?.content || '').trim(), 600);
     if (!content) continue;
     previousTurns.unshift(`${item.role === 'assistant' ? '助手' : '用户'}：${content}`);
     if (previousTurns.length >= 4) break;
@@ -311,7 +316,9 @@ export const buildHistoryMessagesWithinBudget = (
   for (let index = source.length - 1; index >= 0; index -= 1) {
     const item = source[index];
     if (item?.meta?.kind === 'memory_saved_notice') continue;
-    const content = normalizePromptLine(item?.content, maxPerMessage);
+    // 连贯性修复：保留原始换行和结构，只做首尾 trim + 长度截断
+    // 之前用 normalizePromptLine 会把换行压成单空格，破坏代码块/列表/段落结构
+    const content = truncateText(String(item?.content ?? '').trim(), maxPerMessage);
     if (!content) continue;
 
     const role = item?.role === 'assistant' || item?.role === 'system' ? item.role : 'user';
@@ -344,14 +351,17 @@ export const buildConversationSummaryFingerprint = (messages = []) => {
   const source = getStorableDialogueMessages(messages);
   if (source.length <= CONVERSATION_SUMMARY_RECENT_MESSAGES) return '';
   const summarized = source.slice(0, -CONVERSATION_SUMMARY_RECENT_MESSAGES);
-  const lastSummarized = summarized[summarized.length - 1];
-  const firstSummarized = summarized[0];
-  return [
-    CONVERSATION_SUMMARY_STORAGE_VERSION,
-    summarized.length,
-    normalizePromptLine(firstSummarized?.content, 80),
-    normalizePromptLine(lastSummarized?.content, 120)
-  ].join('|');
+  // fingerprint 之前依赖首尾消息内容前缀，流式过滤/编辑导致内容变化即失效。
+  // 改为：对每条被摘要消息的 role + content 前 20 字符做轻量 hash，
+  // 内容小幅变化（如末尾标点）不影响 hash，大幅变化（如编辑）才会失效。
+  const parts = summarized.map((m) => `${m.role[0]}:${m.content.slice(0, 20)}`);
+  let hash = 0x811c9dc5;
+  const str = parts.join('|');
+  for (let i = 0; i < str.length; i += 1) {
+    hash ^= str.charCodeAt(i);
+    hash = (hash + ((hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24))) >>> 0;
+  }
+  return `${CONVERSATION_SUMMARY_STORAGE_VERSION}:${summarized.length}:${hash.toString(36)}`;
 };
 
 export const buildHistoryMessagesWithCachedSummary = (
@@ -360,33 +370,24 @@ export const buildHistoryMessagesWithCachedSummary = (
 ) => {
   const allMessages = getStorableDialogueMessages(session?.messages);
   const recentSource = allMessages.slice(-CONVERSATION_SUMMARY_RECENT_MESSAGES);
-  const summary = session?.contextSummary;
-  const expectedFingerprint = buildConversationSummaryFingerprint(session?.messages);
-  const hasUsableSummary = Boolean(
-    summary
-    && summary.version === CONVERSATION_SUMMARY_STORAGE_VERSION
-    && summary.fingerprint === expectedFingerprint
-    && normalizePromptLine(summary.content, 20)
-  );
 
-  const recentMessages = buildHistoryMessagesWithinBudget(recentSource, {
+  // 只返回 recentMessages，摘要由 useChatEngine 并入主 system prompt 的 context 段落
+  // 之前作为独立 system 消息注入，部分模型对多 system 消息处理不一致
+  return buildHistoryMessagesWithinBudget(recentSource, {
     maxChars,
     maxMessages,
     maxPerMessage
   });
+};
 
-  if (!hasUsableSummary) return recentMessages;
-
-  const summaryContent = normalizePromptLine(summary.content, CONVERSATION_SUMMARY_MAX_CHARS);
-  if (!summaryContent) return recentMessages;
-
-  return [
-    {
-      role: 'system',
-      content: `【此前对话摘要】${summaryContent}`
-    },
-    ...recentMessages
-  ];
+// 独立导出：供 useChatEngine 判断摘要是否可用并取出内容，并入主 system prompt
+export const getCachedSummaryIfUsable = (session = {}) => {
+  const summary = session?.contextSummary;
+  if (!summary || summary.version !== CONVERSATION_SUMMARY_STORAGE_VERSION) return '';
+  const expectedFingerprint = buildConversationSummaryFingerprint(session?.messages);
+  if (summary.fingerprint !== expectedFingerprint) return '';
+  const content = normalizePromptLine(summary.content, CONVERSATION_SUMMARY_MAX_CHARS);
+  return content || '';
 };
 
 export const rankEvidenceContextBlocks = (results = [], queryText = '') => {
@@ -639,13 +640,24 @@ export const escapePromptXmlAttr = (text) => String(text || '')
   .replace(/</g, '&lt;')
   .replace(/>/g, '&gt;');
 
-export const buildSearchResultsContext = (results = []) => {
-  if (!Array.isArray(results) || results.length === 0) return '';
+export const buildSearchResultsContext = (results = [], aiAnswer = '') => {
+  if (!Array.isArray(results) || results.length === 0) {
+    // 即使没有结构化结果，若有 AI 摘要也作为上下文返回，避免完全无依据
+    if (aiAnswer) {
+      return `\n\n以下是实时搜索摘要，请据此回答用户：\n<search_answer>\n${escapePromptXmlAttr(normalizePromptLine(aiAnswer, MAX_PROMPT_EXTRA_CHARS - 200))}\n</search_answer>\n\n请在回答时说明这是基于网络搜索的结果。\n\n`;
+    }
+    return '';
+  }
 
   const SEARCH_SUFFIX_TEMPLATE = '\n\n以下是实时搜索结果，请根据这些信息回答用户，如果搜索结果不相关，请忽略：\n<search_results>\n\n</search_results>\n\n请在回答时，在引用搜索结果的地方标注编号，如 [W1], [W2]。并在回答结束时列出参考来源。\n\n';
   const effectiveMax = Math.max(0, MAX_PROMPT_EXTRA_CHARS - SEARCH_SUFFIX_TEMPLATE.length);
 
   let body = '';
+  // Tavily advanced 模式返回的 AI 摘要，置于结果之前作为高优先级上下文
+  if (aiAnswer) {
+    const answerLine = `<ai_answer>${escapePromptXmlAttr(normalizePromptLine(aiAnswer, 800))}</ai_answer>\n`;
+    body += answerLine;
+  }
   for (let i = 0; i < results.length; i += 1) {
     const item = results[i];
     const ref = `W${i + 1}`;
@@ -668,11 +680,14 @@ export const searchWebForPrompt = async (queryText, requestSignal = undefined) =
     throw new DOMException('Aborted', 'AbortError');
   }
 
+  // Tavily advanced 模式 + days 限制：优先返回近 30 天的实时结果，
+  // 避免 basic 模式返回过时缓存数据（如"特斯拉暴跌"返回 2023 年旧数据）。
   const payload = {
       query: queryText,
-      search_depth: 'basic',
-      include_answer: false,
-      max_results: 3
+      search_depth: 'advanced',
+      include_answer: true,
+      max_results: 5,
+      days: 30
     };
 
   const vaultResult = await searchVaultTavily({
@@ -696,12 +711,14 @@ export const searchWebForPrompt = async (queryText, requestSignal = undefined) =
   const searchData = vaultResult.data || {};
 
   const results = Array.isArray(searchData?.results) ? searchData.results : [];
+  const aiAnswer = typeof searchData?.answer === 'string' ? searchData.answer.trim() : '';
   return {
     ok: true,
     disabled: false,
     count: results.length,
-    context: buildSearchResultsContext(results),
-    results
+    context: buildSearchResultsContext(results, aiAnswer),
+    results,
+    aiAnswer
   };
 };
 
@@ -1265,6 +1282,32 @@ export const compactMessages = (messages, maxTokens) => {
 
   return [...system, ...kept];
 };
+
+// ============================================================
+// 页面上下文块构建（替代原来的 appendToComposer 混入方式）
+// 将附加的页面上下文构建为结构化的 <page_context> 块，
+// 与用户问题分离，不占用 MAX_USER_INPUT_CHARS 预算。
+// ============================================================
+
+export const MAX_PAGE_CONTEXT_CHARS = 4000
+
+export const buildPageContextBlock = (pageContext = null) => {
+  if (!pageContext) return ''
+  const { title = '', url = '', selection = '', content = '', description = '' } = pageContext
+  if (!title && !url && !selection && !content) return ''
+
+  const sections = []
+  if (title) sections.push(`页面标题：${title}`)
+  if (url) sections.push(`页面地址：${url}`)
+  if (description) sections.push(`页面描述：${description}`)
+  if (selection) sections.push(`选中的内容：\n${selection}`)
+  if (content) {
+    const trimmed = content.slice(0, MAX_PAGE_CONTEXT_CHARS)
+    sections.push(`页面正文：\n${trimmed}`)
+  }
+
+  return `<page_context>\n${sections.join('\n')}\n</page_context>`
+}
 
 // ============================================================
 // 优化 4: 子代理上下文构建

@@ -317,3 +317,11 @@ export const getAiQuotaStatus = ({
   action: 'quota-status',
   timeoutMs
 });
+
+// 清除边缘函数的模型配置内存缓存：管理员修改模型配置后调用，使新配置立即生效
+export const clearVaultModelCache = ({
+  timeoutMs = 5000
+} = {}) => invokeRuntime({
+  action: 'clear-model-cache',
+  timeoutMs
+});

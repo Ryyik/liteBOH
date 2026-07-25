@@ -304,7 +304,8 @@
 .field-group-body .form-group.field-image,
 .field-group-body .form-group.field-user-picker,
 .field-group-body .news-assist-panel,
-.field-group-body .gift-address-copy-box {
+.field-group-body .gift-address-copy-box,
+.field-group-body .bohai-key-assist-panel {
   grid-column: 1 / -1;
 }
 
@@ -382,6 +383,56 @@
   margin: 0;
   font-size: 12px;
   color: #7f8d9f;
+}
+
+/* BOHAI 模型配置：API Key 预填助手面板 */
+.bohai-key-assist-panel {
+  border: 1px solid var(--dm-border, #ebebeb);
+  border-radius: 8px;
+  background: var(--dm-soft, #eff1f4);
+  padding: 14px;
+  margin-bottom: 20px;
+}
+
+.bohai-key-assist-panel .assist-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foreground);
+  margin-bottom: 10px;
+}
+
+.bohai-key-assist-panel .bohai-key-assist-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bohai-key-assist-panel .bohai-key-select {
+  width: 100%;
+}
+
+.bohai-key-assist-panel .bohai-key-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #7f8d9f;
+  line-height: 1.6;
+}
+
+.bohai-key-assist-panel .bohai-key-hint code {
+  background: rgba(0, 0, 0, 0.04);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--foreground);
+}
+
+.bohai-key-assist-panel .bohai-key-hint.is-muted {
+  opacity: 0.8;
+}
+
+.bohai-key-assist-panel .bohai-key-hint .is-warn {
+  color: var(--destructive, #dc2626);
+  font-weight: 600;
 }
 
 .form-label {

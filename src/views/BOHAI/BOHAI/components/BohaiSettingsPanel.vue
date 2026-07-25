@@ -208,6 +208,11 @@
                   <div class="ai-settings-row-left"><div class="ai-settings-icon"><span class="settings-glyph">T</span></div><div class="ai-settings-label-stack"><span class="ai-settings-label">识别选中文本</span><span class="ai-settings-desc">仅在你主动附加或允许自动附加时使用</span></div></div>
                   <span :class="['ai-settings-switch', { enabled: preferences.selectionContextEnabled }]"></span>
                 </div>
+                <div class="ai-settings-inline-segmented" style="margin-top: 8px;">
+                  <button :class="{ active: preferences.contextMode === 'title-url' }" @click="preferences.contextMode = 'title-url'">仅标题</button>
+                  <button :class="{ active: preferences.contextMode === 'selection' }" @click="preferences.contextMode = 'selection'">含选中</button>
+                  <button :class="{ active: preferences.contextMode === 'full' }" @click="preferences.contextMode = 'full'">完整页面</button>
+                </div>
                 <div v-if="memoryStatusText" class="ai-settings-memory-status" role="status">{{ memoryStatusText }}</div>
               </div>
             </div>

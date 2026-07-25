@@ -5,19 +5,9 @@ export function useContextCompression({
   isCompressingContext,
   compressingSessionIndex,
   computeContextBudgetUsage,
-  registerRefreshConversationSummaryCache
+  refreshConversationSummaryCache
 }) {
-  let refreshConversationSummaryCacheFn = null;
   let currentAbortController = null; // 修复竞态条件:保存当前的AbortController
-
-  const registerSummaryCache = (fn) => {
-    refreshConversationSummaryCacheFn = fn;
-  };
-
-  if (registerRefreshConversationSummaryCache) {
-    registerRefreshConversationSummaryCache(registerSummaryCache);
-  }
-
   const compressionQueue = new Map();
 
   const ensureContextCompression = async (sessionIndex, { force = false, signal } = {}) => {
@@ -39,10 +29,13 @@ export function useContextCompression({
 
     if (!force) {
       const usage = computeContextBudgetUsage(targetSession, { pendingCount: 1 });
-      if (usage.level !== 'high' && usage.level !== 'full') return false;
+      // mid 级别（55%）也触发摘要：让 5-6 轮短对话就开始压缩，
+      // 避免早期上下文被 maxMessages=30 截断后完全丢失。
+      // low 级别不触发（对话刚起步，没必要压缩）。
+      if (usage.level === 'low') return false;
     }
 
-    if (!refreshConversationSummaryCacheFn) {
+    if (typeof refreshConversationSummaryCache !== 'function') {
       logger.warn('boh-ai', 'Context compression skipped: refreshConversationSummaryCache not registered');
       return false;
     }
@@ -72,7 +65,7 @@ export function useContextCompression({
     compressingSessionIndex.value = sessionIndex;
 
     try {
-      await refreshConversationSummaryCacheFn(sessionIndex, abortController.signal);
+      await refreshConversationSummaryCache(sessionIndex, abortController.signal, { force });
       return true;
     } catch (error) {
       // 如果是取消导致的错误,不记录警告

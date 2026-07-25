@@ -205,6 +205,16 @@
               </div>
             </div>
             <button
+              v-if="aiLoading"
+              class="composer-stop"
+              title="停止生成"
+              @click="stopGeneration"
+            >
+              <AppIcon name="stop" size="small" weight="semibold" />
+              <span>停止</span>
+            </button>
+            <button
+              v-else
               class="composer-send"
               :disabled="!canSend"
               @click="send"
@@ -383,15 +393,15 @@
               </div>
             </div>
           </div>
-          <!-- AI 思考中（仅当没有进度卡片时显示） -->
-          <div v-if="aiLoading && progressMsgIndex < 0" class="message assistant">
+          <!-- AI 思考中（仅当没有进度卡片且尚未收到任何流式内容时显示） -->
+          <div v-if="aiLoading && progressMsgIndex < 0 && streamingTokens === 0" class="message assistant">
             <div class="message-avatar">B</div>
             <div class="message-body">
               <div class="message-meta">
                 <span class="meta-name">BOH Agent</span>
                 <span class="meta-time">思考中</span>
               </div>
-              <div class="thinking"><span class="dot"></span></div>
+              <div class="thinking"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
             </div>
           </div>
         </div>
@@ -443,6 +453,16 @@
               </div>
             </div>
             <button
+              v-if="aiLoading"
+              class="composer-stop"
+              title="停止生成"
+              @click="stopGeneration"
+            >
+              <AppIcon name="stop" size="small" weight="semibold" />
+              <span>停止</span>
+            </button>
+            <button
+              v-else
               class="composer-send"
               :disabled="!canSend"
               @click="send"
@@ -785,8 +805,8 @@ import { withRetry } from './utils/withRetry.js'
 import { callVaultSiliconChatStream } from '@/utils/api/api-key-runtime-api.js'
 const CHAT_API_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions'
 import { useLabQuota } from '@/composables/useLabQuota.js'
+import { BASE_SYSTEM_PROMPT } from '@/prompts/index.js'
 import { STYLE_PRESETS, DEFAULT_PRESET_ID, getPresetById } from './config/design-tokens.js'
-import './styles/claude-theme.css'
 
 const router = useRouter()
 const { chat, aiLoading } = useDocumentAI()
@@ -880,6 +900,38 @@ const bottomFileInput = ref(null)
 
 // 流式生成中的 token 实时计数（由 onChunk 更新）
 const streamingTokens = ref(0)
+
+// P1-9: rAF 节流的流式 content 更新，将同一帧内的多次 chunk 合并为一次 messages 赋值，
+// 减少 Vue deep diff 触发频率（流式时每个 chunk 都会触发 messages 响应式更新）。
+// flushStreamContent 在取消/错误/完成时必须显式调用，确保最终 content 落盘。
+let _streamContentRafId = null
+let _pendingStreamContent = { idx: -1, text: '' }
+function _applyStreamContent() {
+  _streamContentRafId = null
+  const { idx, text } = _pendingStreamContent
+  _pendingStreamContent.idx = -1
+  if (idx >= 0 && messages.value[idx]) {
+    messages.value[idx].content = text
+  }
+}
+function scheduleStreamContent(idx, text) {
+  _pendingStreamContent = { idx, text }
+  if (_streamContentRafId === null) {
+    _streamContentRafId = requestAnimationFrame(_applyStreamContent)
+  }
+}
+function flushStreamContent() {
+  if (_streamContentRafId !== null) {
+    cancelAnimationFrame(_streamContentRafId)
+    _applyStreamContent()
+  }
+}
+
+// AbortController：用于停止 AI 生成（覆盖所有 sendXxx 流程）
+const abortController = ref(null)
+
+// 判断是否为用户主动取消
+const isAbortError = (e) => e?.name === 'AbortError' || e?.name === 'TimeoutError'
 
 // 布局 computed
 const tokenUsage = computed(() => {
@@ -1305,9 +1357,8 @@ async function send(presetText) {
   if (!content && !pendingFile.value) return
   // 安全守卫：如果 aiLoading/isLoading 卡在 true（HMR 残留/异常退出），强制重置而非静默返回
   if (aiLoading.value || isLoading.value) {
-    aiLoading.value = false
-    isLoading.value = false
-    progressMsgIndex.value = -1
+    // 若有正在进行的生成，先停止它（而非直接强重置，避免后台流继续消耗 token）
+    stopGeneration()
   }
 
   // 有待解析文件时先解析
@@ -1328,25 +1379,72 @@ async function send(presetText) {
     await scrollToBottom()
   }
 
+  // 为本次生成创建独立的 AbortController
+  abortController.value = new AbortController()
+  const currentSignal = abortController.value.signal
+
   // 单一对话流：AI 自主识别意图，无需手动切换模式
-  const flow = detectIntent(userText)
-  if (flow === 'doc' && docData.value) {
-    await sendDoc(userText)
-  } else if (flow === 'ppt') {
-    await sendPPT(userText)
-  } else if (flow === 'word') {
-    await sendWord(userText)
-  } else if (flow === 'code') {
-    await sendCode(userText)
-  } else {
-    await sendGeneralChat(userText)
+  let flow = detectIntent(userText)
+  // 注：P2-12 的 confirmIntentWithLLM 已移除——LLM 意图分类器对技术问题误判率高
+  // （如"Vue 3 响应式原理"被误判为 code 生成），且额外消耗 guest tier 配额。
+  // detectIntent 正则已能覆盖明确生成指令（"做PPT"/"生成文档"/"写网页"），
+  // 未命中的统一走 sendGeneralChat，由用户在对话中自然表达需求。
+  try {
+    if (flow === 'doc' && docData.value) {
+      await sendDoc(userText, currentSignal)
+    } else if (flow === 'ppt') {
+      await sendPPT(userText, currentSignal)
+    } else if (flow === 'word') {
+      await sendWord(userText, currentSignal)
+    } else if (flow === 'code') {
+      await sendCode(userText, currentSignal)
+    } else {
+      await sendGeneralChat(userText, currentSignal)
+    }
+  } finally {
+    // 生成结束（正常或异常）后清理 controller 引用
+    if (abortController.value?.signal === currentSignal) {
+      abortController.value = null
+    }
   }
+}
+
+/**
+ * 停止当前正在进行的 AI 生成
+ * 会触发 AbortController.abort()，让上游 fetch 立即终止
+ */
+function stopGeneration() {
+  if (abortController.value) {
+    try {
+      abortController.value.abort()
+    } catch { /* ignore */ }
+    abortController.value = null
+  }
+  // 重置加载状态，让 UI 立即响应
+  aiLoading.value = false
+  isLoading.value = false
+  // P1-9: flush 确保 content 已落盘，避免下方检查 msg.content 时读到 rAF pending 的旧值
+  flushStreamContent()
+  // 保留 progressMsgIndex 对应的进度卡片内容（让用户看到已停止时的状态），但移除进度指示
+  if (progressMsgIndex.value >= 0 && messages.value[progressMsgIndex.value]) {
+    const msg = messages.value[progressMsgIndex.value]
+    if (typeof msg.progress === 'number') {
+      msg.progress = undefined
+      msg.content = msg.content || ''
+      if (!msg.content) {
+        // 进度卡片从未收到内容，直接移除
+        messages.value.splice(progressMsgIndex.value, 1)
+      }
+    }
+  }
+  progressMsgIndex.value = -1
+  streamingTokens.value = 0
 }
 
 /**
  * 通用 AI 对话（非任务流时的普通聊天）
  */
-async function sendGeneralChat(content) {
+async function sendGeneralChat(content, signal) {
   // 配额预检查，与其他 sendXxx 一致
   if (isExceeded.value) {
     toastRef.value?.warning('对话次数已达上限', getUpgradeHint())
@@ -1375,10 +1473,11 @@ async function sendGeneralChat(content) {
       purpose: 'chat',
       apiUrl: CHAT_API_URL,
       timeoutMs: 120000,
+      signal,
       payload: {
         model,
         messages: [
-          { role: 'system', content: '你是 BOH Assistant，一个智能助手。请用中文回答，简洁专业。' },
+          { role: 'system', content: BASE_SYSTEM_PROMPT },
           ...history,
         ],
         stream: true,
@@ -1425,7 +1524,7 @@ async function sendGeneralChat(content) {
             if (delta) {
               fullContent += delta
               if (messages.value[msgIdx]) {
-                messages.value[msgIdx].content = fullContent
+                scheduleStreamContent(msgIdx, fullContent)
                 streamingTokens.value = estimateTokens(fullContent)
               }
             }
@@ -1435,10 +1534,26 @@ async function sendGeneralChat(content) {
       }
     }
 
+    flushStreamContent()
     if (!fullContent) {
       messages.value[msgIdx].content = '（AI 未返回有效回复，请稍后重试）'
     }
   } catch (e) {
+    // P1-9: flush 确保 content 已落盘，避免取消时读到 rAF pending 的旧值
+    flushStreamContent()
+    // 用户主动取消：保留已生成的部分内容
+    if (isAbortError(e)) {
+      if (messages.value[msgIdx]) {
+        if (messages.value[msgIdx].content) {
+          // 已有部分内容，追加停止提示
+          messages.value[msgIdx].content += '\n\n_（已停止生成）_'
+        } else {
+          // 没有任何内容，直接移除空消息
+          messages.value.splice(msgIdx, 1)
+        }
+      }
+      return
+    }
     // 处理配额超限错误（429）和其他 API 错误
     const isQuotaError = e.status === 429 && e.quota
     messages.value.splice(msgIdx, 1)
@@ -1476,7 +1591,7 @@ function outlineTypeLabel(type) {
   return map[type] || type
 }
 
-async function sendDoc(content) {
+async function sendDoc(content, signal) {
   if (!docData.value) {
     messages.value.push({
       role: 'assistant',
@@ -1490,7 +1605,8 @@ async function sendDoc(content) {
       content,
       messages.value,
       docData.value.styles.styles,
-      docData.value.content
+      docData.value.content,
+      signal
     )
     const reply = result.reply || '已处理。'
     const operations = result.operations || []
@@ -1517,6 +1633,7 @@ async function sendDoc(content) {
       toastRef.value?.success('样式已更新', `共 ${operations.length} 项修改`)
     }
   } catch (e) {
+    if (isAbortError(e)) return // 用户主动取消，静默处理
     messages.value.push({
       role: 'assistant',
       content: `出错：${e.message}`,
@@ -1527,7 +1644,7 @@ async function sendDoc(content) {
   await scrollToBottom()
 }
 
-async function sendPPT(content) {
+async function sendPPT(content, signal) {
   // 生成前检查限额，避免浪费 token
   if (isExceeded.value) {
     toastRef.value?.warning('生成次数已达上限', getUpgradeHint())
@@ -1558,7 +1675,7 @@ async function sendPPT(content) {
 
   try {
     // 第一阶段：生成大纲
-    const outlineData = await generatePPTOutline(content, '', handleProgress)
+    const outlineData = await generatePPTOutline(content, '', handleProgress, signal)
     nextTask('outline')
     updateTask('detail', 'doing', '正在生成完整 PPT')
 
@@ -1584,7 +1701,7 @@ async function sendPPT(content) {
       time: nowTime(),
     })
 
-    const data = await generatePPTStructure(content, '', outlineData, handleProgress)
+    const data = await generatePPTStructure(content, '', outlineData, handleProgress, signal)
     lastPPTData.value = data
 
     nextTask('detail')
@@ -1602,6 +1719,20 @@ async function sendPPT(content) {
     })
     toastRef.value?.success('PPT 生成成功', `${data.slides.length} 张幻灯片 · ${currentPresetName.value}`)
   } catch (e) {
+    // 用户主动取消：保留已生成的大纲信息，回退配额
+    if (isAbortError(e)) {
+      if (progressMsgIndex.value >= 0) {
+        messages.value.splice(progressMsgIndex.value, 1)
+        progressMsgIndex.value = -1
+      }
+      messages.value.push({
+        role: 'assistant',
+        content: '已停止 PPT 生成。',
+        time: nowTime(),
+      })
+      await refundQuota('ppt')
+      return
+    }
     // 移除进度卡片，显示错误
     if (progressMsgIndex.value >= 0) {
       messages.value.splice(progressMsgIndex.value, 1)
@@ -1622,7 +1753,7 @@ async function sendPPT(content) {
   await scrollToBottom()
 }
 
-async function sendWord(content) {
+async function sendWord(content, signal) {
   // 生成前检查限额，避免浪费 token
   if (isExceeded.value) {
     toastRef.value?.warning('生成次数已达上限', getUpgradeHint())
@@ -1653,7 +1784,7 @@ async function sendWord(content) {
 
   try {
     // 第一阶段：生成大纲
-    const outlineData = await generateWordOutline(content, '', handleProgress)
+    const outlineData = await generateWordOutline(content, '', handleProgress, signal)
     nextTask('outline')
     updateTask('detail', 'doing', '正在生成完整文档')
 
@@ -1679,7 +1810,7 @@ async function sendWord(content) {
       time: nowTime(),
     })
 
-    const data = await generateWordDoc(content, '', outlineData, handleProgress)
+    const data = await generateWordDoc(content, '', outlineData, handleProgress, signal)
     lastWordData.value = data
     const blockCount = (data.blocks || []).length
 
@@ -1698,6 +1829,20 @@ async function sendWord(content) {
     })
     toastRef.value?.success('Word 生成成功', `${blockCount} 个内容块 · ${currentPresetName.value}`)
   } catch (e) {
+    // 用户主动取消：回退配额
+    if (isAbortError(e)) {
+      if (progressMsgIndex.value >= 0) {
+        messages.value.splice(progressMsgIndex.value, 1)
+        progressMsgIndex.value = -1
+      }
+      messages.value.push({
+        role: 'assistant',
+        content: '已停止 Word 生成。',
+        time: nowTime(),
+      })
+      await refundQuota('word')
+      return
+    }
     // 移除进度卡片，显示错误
     if (progressMsgIndex.value >= 0) {
       messages.value.splice(progressMsgIndex.value, 1)
@@ -1720,7 +1865,7 @@ async function sendWord(content) {
 
 // ===== Code 生成方法 =====
 
-async function sendCode(content) {
+async function sendCode(content, signal) {
   if (isExceeded.value) {
     toastRef.value?.warning('生成次数已达上限', getUpgradeHint())
     return
@@ -1747,7 +1892,7 @@ async function sendCode(content) {
 
   try {
     // 第一阶段：生成架构大纲
-    const outlineData = await generateCodeOutline(content, '', handleProgress, thinkingBudgetValue.value)
+    const outlineData = await generateCodeOutline(content, '', handleProgress, thinkingBudgetValue.value, signal)
     nextTask('outline')
     updateTask('detail', 'doing', '正在编写网页代码')
 
@@ -1779,10 +1924,11 @@ async function sendCode(content) {
       thinkingBudgetValue.value,
       (text) => {
         if (progressMsgIndex.value >= 0 && messages.value[progressMsgIndex.value]) {
-          messages.value[progressMsgIndex.value].content = text
+          scheduleStreamContent(progressMsgIndex.value, text)
           streamingTokens.value = estimateTokens(text)
         }
-      }
+      },
+      signal
     )
     lastCodeData.value = data
 
@@ -1802,6 +1948,35 @@ async function sendCode(content) {
     rightPanelTab.value = 'code'
     toastRef.value?.success('网页生成成功', '点击右侧面板下载')
   } catch (e) {
+    // P1-9: flush 确保 content 已落盘，避免取消时 partialContent 读到 rAF pending 的旧值
+    flushStreamContent()
+    // 用户主动取消：回退配额
+    if (isAbortError(e)) {
+      if (progressMsgIndex.value >= 0) {
+        // 保留已生成的部分代码到结果中
+        const partialContent = messages.value[progressMsgIndex.value].content
+        messages.value.splice(progressMsgIndex.value, 1)
+        progressMsgIndex.value = -1
+        if (partialContent) {
+          messages.value.push({
+            role: 'assistant',
+            content: '已停止网页代码生成（部分代码已显示）。',
+            code: { title: 'AI 生成网页（未完成）', html: partialContent },
+            time: nowTime(),
+          })
+          rightPanelOpen.value = true
+          rightPanelTab.value = 'code'
+        } else {
+          messages.value.push({
+            role: 'assistant',
+            content: '已停止网页代码生成。',
+            time: nowTime(),
+          })
+        }
+      }
+      await refundQuota('code')
+      return
+    }
     if (progressMsgIndex.value >= 0) {
       messages.value.splice(progressMsgIndex.value, 1)
       progressMsgIndex.value = -1
@@ -1865,11 +2040,19 @@ async function downloadWord(wordData) {
   }
 }
 
-async function scrollToBottom() {
-  await nextTick()
-  if (threadRef.value) {
-    threadRef.value.scrollTop = threadRef.value.scrollHeight
-  }
+// P1-8: rAF 节流的 scrollToBottom，合并同一帧内的多次调用，避免流式生成时频繁 scroll 触发布局抖动。
+let _scrollRafId = null
+function scrollToBottom() {
+  if (_scrollRafId !== null) return Promise.resolve()
+  return new Promise((resolve) => {
+    _scrollRafId = requestAnimationFrame(() => {
+      _scrollRafId = null
+      if (threadRef.value) {
+        threadRef.value.scrollTop = threadRef.value.scrollHeight
+      }
+      resolve()
+    })
+  })
 }
 
 function onContextAction({ action }) {
@@ -2160,17 +2343,21 @@ onMounted(() => {
   aiLoading.value = false
   isLoading.value = false
   progressMsgIndex.value = -1
-  // 引入 Claude 字体
-  if (!document.getElementById('claude-fonts')) {
-    const link = document.createElement('link')
-    link.id = 'claude-fonts'
-    link.rel = 'stylesheet'
-    link.href = 'https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,18..72,300;0,18..72,400;0,18..72,500;1,18..72,400&display=swap'
-    document.head.appendChild(link)
-  }
 })
 
 onBeforeUnmount(() => {
+  // 组件卸载时停止所有正在进行的 AI 生成，避免内存泄漏和后台流继续消耗 token
+  stopGeneration()
+  // 取消 pending 的 scroll rAF
+  if (_scrollRafId !== null) {
+    cancelAnimationFrame(_scrollRafId)
+    _scrollRafId = null
+  }
+  // 取消 pending 的流式 content rAF
+  if (_streamContentRafId !== null) {
+    cancelAnimationFrame(_streamContentRafId)
+    _streamContentRafId = null
+  }
   document.removeEventListener('click', onDocClick)
   document.removeEventListener('keydown', handleKeyboardShortcuts)
 })
@@ -2187,6 +2374,7 @@ onBeforeUnmount(() => {
   --border: #e5e5ea;
   --border-light: #f0f0f2;
   --accent: #0071e3;
+  --accent-hover: #0058b9;
   --accent-light: #e8f1fd;
   --accent-foreground: #ffffff;
   --destructive: #ff3b30;
@@ -2865,7 +3053,7 @@ onBeforeUnmount(() => {
   color: var(--muted-foreground);
 }
 
-/* ===== + 菜单：极简窄边框 ===== */
+/* ===== + 菜单：圆形按钮 + 玻璃弹层 ===== */
 .plus-wrap {
   position: relative;
 }
@@ -2873,31 +3061,36 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: transparent;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--muted);
   color: var(--muted-foreground);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
   flex-shrink: 0;
 }
 .plus-btn:hover,
 .plus-btn.active {
-  background: var(--muted);
+  background: var(--border);
   color: var(--foreground);
+}
+.plus-btn:active {
+  transform: scale(0.94);
 }
 .plus-menu {
   position: absolute;
-  bottom: calc(100% + 6px);
+  bottom: calc(100% + 8px);
   left: 0;
-  min-width: 200px;
-  background: var(--background);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-  padding: 4px;
+  min-width: 220px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 12px 32px rgba(0, 0, 0, 0.06);
+  padding: 6px;
   z-index: 20;
 }
 .plus-item {
@@ -2905,14 +3098,14 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 8px 10px;
+  padding: 9px 12px;
   background: transparent;
   border: none;
   border-radius: var(--radius-sm);
   color: var(--foreground);
   font-family: var(--font-sans);
   font-size: 13px;
-  font-weight: 400;
+  font-weight: 500;
   cursor: pointer;
   text-align: left;
   transition: background 0.12s ease;
@@ -2921,32 +3114,33 @@ onBeforeUnmount(() => {
   background: var(--muted);
 }
 .popover-enter-active, .popover-leave-active {
-  transition: opacity 0.15s ease;
+  transition: opacity 0.18s ease, transform 0.18s ease;
 }
 .popover-enter-from, .popover-leave-to {
   opacity: 0;
+  transform: translateY(4px);
 }
 
-/* ===== 附件标签：中性色 ===== */
+/* ===== 附件标签：Apple 风格胶囊 ===== */
 .composer-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 0 16px 4px;
+  padding: 0 18px 6px;
 }
 .attach-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 8px 4px 10px;
+  padding: 5px 10px 5px 12px;
   background: var(--muted);
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: var(--radius-full);
   color: var(--foreground);
   font-family: var(--font-sans);
   font-size: 12px;
-  font-weight: 400;
-  max-width: 260px;
+  font-weight: 500;
+  max-width: 280px;
 }
 .chip-text {
   overflow: hidden;
@@ -2972,19 +3166,19 @@ onBeforeUnmount(() => {
   opacity: 1;
 }
 
-/* ===== 空状态：大面积留白，仅居中引导文字 ===== */
+/* ===== 空状态：Apple 风格大留白居中 ===== */
 .empty-state {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 48px 24px 40px;
-  gap: 28px;
+  padding: 56px 24px 48px;
+  gap: 32px;
 }
 .empty-hero {
   text-align: center;
-  max-width: 560px;
+  max-width: 580px;
 }
 .hero-icon {
   display: none;
@@ -2992,38 +3186,39 @@ onBeforeUnmount(() => {
 .hero-title {
   margin: 0;
   font-family: var(--font-sans);
-  font-weight: 500;
-  font-size: 22px;
-  line-height: 1.3;
-  letter-spacing: -0.01em;
+  font-weight: 600;
+  font-size: 26px;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
   color: var(--foreground);
   text-wrap: balance;
 }
 .hero-subtitle {
-  margin: 8px 0 0;
+  margin: 10px 0 0;
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
   color: var(--muted-foreground);
-  max-width: 420px;
+  max-width: 440px;
   margin-left: auto;
   margin-right: auto;
 }
 
-/* ===== 对话框（Composer）：pill 胶囊圆角 ===== */
+/* ===== 对话框（Composer）：Apple 风格大圆角 + 微阴影 ===== */
 .composer {
   width: min(100%, 720px);
   background: var(--background);
   border: 1px solid var(--border);
-  border-radius: var(--radius-full);
-  box-shadow: none;
+  border-radius: 24px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
   overflow: visible;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .composer:focus-within {
-  border-color: var(--muted-foreground);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-light), 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
 }
 .composer-input {
   width: 100%;
@@ -3031,12 +3226,12 @@ onBeforeUnmount(() => {
   background: transparent;
   outline: none;
   resize: none;
-  padding: 14px 20px 6px;
+  padding: 16px 22px 8px;
   font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 15px;
+  line-height: 1.55;
   color: var(--foreground);
-  min-height: 48px;
+  min-height: 52px;
   box-sizing: border-box;
 }
 .composer-input::placeholder {
@@ -3050,7 +3245,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 6px 10px 8px 16px;
+  padding: 8px 12px 10px 14px;
 }
 .composer-left {
   display: flex;
@@ -3062,35 +3257,64 @@ onBeforeUnmount(() => {
 .composer-send {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 7px 16px;
+  padding: 8px 18px;
   background: var(--accent);
   color: var(--accent-foreground);
   border: 1px solid transparent;
   border-radius: var(--radius-full);
   font-family: var(--font-sans);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.15s ease, transform 0.1s ease, background-color 0.15s ease;
   box-shadow: none;
   white-space: nowrap;
   flex-shrink: 0;
-  min-height: 32px;
+  min-height: 34px;
 }
 .composer-send:hover:not(:disabled) {
-  opacity: 0.85;
+  background: var(--accent-hover, #0058b9);
 }
 .composer-send:active:not(:disabled) {
-  opacity: 0.7;
+  transform: scale(0.96);
 }
 .composer-send:disabled {
-  opacity: 0.3;
+  background: var(--muted);
+  color: var(--muted-foreground);
   cursor: not-allowed;
   box-shadow: none;
 }
+/* 停止生成按钮：与发送按钮同尺寸，但用中性灰背景以示区别 */
+.composer-stop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 18px;
+  background: var(--muted-foreground);
+  color: #ffffff;
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+  box-shadow: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-height: 34px;
+}
+.composer-stop:hover {
+  opacity: 0.88;
+}
+.composer-stop:active {
+  transform: scale(0.96);
+}
 
-/* ===== 建议提示：极简细边框胶囊 ===== */
+/* ===== 建议提示：Apple 风格浅底胶囊 ===== */
 .suggestions {
   display: flex;
   flex-wrap: wrap;
@@ -3099,22 +3323,24 @@ onBeforeUnmount(() => {
   max-width: 720px;
 }
 .suggestion-chip {
-  padding: 7px 14px;
-  background: transparent;
-  border: 1px solid var(--border);
+  padding: 8px 14px;
+  background: var(--muted);
+  border: 1px solid transparent;
   border-radius: var(--radius-full);
   color: var(--muted-foreground);
   font-family: var(--font-sans);
   font-size: 13px;
-  font-weight: 400;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
   box-shadow: none;
 }
 .suggestion-chip:hover {
-  background: var(--muted);
+  background: var(--border);
   color: var(--foreground);
-  border-color: var(--border);
+}
+.suggestion-chip:active {
+  transform: scale(0.96);
 }
 
 /* ===== 加载状态 ===== */
@@ -3717,34 +3943,38 @@ onBeforeUnmount(() => {
   opacity: 0;
 }
 
-/* ===== 思考动画：极简单点，无容器 ===== */
+/* ===== 思考动画：三点波浪 ===== */
 .thinking {
   display: inline-flex;
   align-items: center;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
+  gap: 5px;
+  padding: 4px 0;
 }
-.dot {
-  width: 8px;
-  height: 8px;
+.thinking .dot {
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--muted-foreground);
-  animation: thinkingBreath 1.45s ease-in-out infinite;
+  opacity: 0.4;
+  animation: thinkingWave 1.2s ease-in-out infinite;
 }
-@keyframes thinkingBreath {
-  0%, 100% { opacity: 0.3; transform: scale(0.8); }
-  50% { opacity: 1; transform: scale(1.1); }
+.thinking .dot:nth-child(2) { animation-delay: 0.15s; }
+.thinking .dot:nth-child(3) { animation-delay: 0.3s; }
+@keyframes thinkingWave {
+  0%, 60%, 100% { opacity: 0.35; transform: scale(0.85); }
+  30% { opacity: 1; transform: scale(1.1); }
 }
 
-/* ===== 底部对话框：纯背景 ===== */
+/* ===== 底部对话框：毛玻璃 sticky ===== */
 .composer-bottom {
   position: sticky;
   bottom: 0;
   margin: 12px 0 0;
-  background: var(--background);
+  padding: 8px 0 4px;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  z-index: 5;
 }
 
 /* ===== 错误提示：极简窄边框 ===== */

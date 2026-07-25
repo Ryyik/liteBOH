@@ -600,21 +600,282 @@ const testTavily = async (apiKey: string) => {
   return 'Tavily 连接正常。';
 };
 
+// ============================================================
+// 模型自动发现：调用中转站 GET /v1/models，返回可用模型列表
+// ============================================================
+// 与 testKey 不同，这里调用 OpenAI 兼容的 models 列表接口。
+// 各 provider 的 models 端点：
+//   siliconflow: https://api.siliconflow.cn/v1/models
+//   zhipu:       https://open.bigmodel.cn/api/paas/v4/models
+//   openrouter:  https://openrouter.ai/api/v1/models
+//   custom:      从 metadata.apiUrl 推导（剥掉 /chat/completions 后缀，附加 /models）
+const DEFAULT_MODELS_URL: Record<string, string> = {
+  siliconflow: 'https://api.siliconflow.cn/v1/models',
+  zhipu: 'https://open.bigmodel.cn/api/paas/v4/models',
+  openrouter: 'https://openrouter.ai/api/v1/models',
+};
+
+const deriveModelsUrl = (provider: string, metadata: Record<string, unknown>): string => {
+  const fallback = DEFAULT_MODELS_URL[provider] || '';
+  const chatUrl = toText(metadata.apiUrl, 240);
+  if (chatUrl) {
+    const trimmed = chatUrl.replace(/\/+$/, '');
+    // 标准情况：以 /chat/completions 结尾 → 替换为 /models
+    if (/\/chat\/completions$/i.test(trimmed)) {
+      return validateRuntimeApiUrl(trimmed.replace(/\/chat\/completions$/i, '/models'), fallback);
+    }
+    // 以 /v1 /v2 等版本号结尾 → 附加 /models
+    if (/\/v\d+$/i.test(trimmed)) {
+      return validateRuntimeApiUrl(`${trimmed}/models`, fallback);
+    }
+    // 以 /models 结尾 → 已经是 models URL，直接用
+    if (/\/models$/i.test(trimmed)) {
+      return validateRuntimeApiUrl(trimmed, fallback);
+    }
+    // 其他情况：附加 /v1/models（兼容只填了域名的中转站）
+    return validateRuntimeApiUrl(`${trimmed}/v1/models`, fallback);
+  }
+  return validateRuntimeApiUrl(fallback, fallback);
+};
+
+type DiscoveredModel = {
+  id: string;
+  name?: string;
+  owned_by?: string;
+};
+
+type DiscoveryResult = {
+  ok: boolean;
+  status: 'success' | 'fetch_failed' | 'parse_failed' | 'not_configured' | 'invalid_key' | 'unsupported_provider' | 'disabled_key';
+  message: string;
+  upstreamStatus?: number;
+  upstreamBodyPreview?: string;
+  modelsUrl: string;
+  apiBaseUrl: string;
+  provider: string;
+  purpose: string;
+  models: DiscoveredModel[];
+  total: number;
+};
+
+const discoverProviderModels = async (
+  apiKey: string,
+  provider: string,
+  metadata: Record<string, unknown>,
+  overrideModelsUrl?: string,
+): Promise<{ ok: true; models: DiscoveredModel[]; modelsUrl: string } | { ok: false; status: DiscoveryResult['status']; message: string; upstreamStatus?: number; upstreamBodyPreview?: string; modelsUrl: string }> => {
+  // 优先使用前端传入的 overrideModelsUrl（仍做 SSRF 校验），否则走自动推导
+  let modelsUrl = '';
+  if (overrideModelsUrl) {
+    modelsUrl = validateRuntimeApiUrl(toText(overrideModelsUrl, 240), '');
+    if (!modelsUrl) {
+      return {
+        ok: false,
+        status: 'not_configured',
+        message: `手动指定的 models URL 不合法（被 SSRF 校验拒绝或格式错误）：${overrideModelsUrl}`,
+        modelsUrl: '',
+      };
+    }
+  } else {
+    modelsUrl = deriveModelsUrl(provider, metadata);
+  }
+  if (!modelsUrl) {
+    return {
+      ok: false,
+      status: 'not_configured',
+      message: `Provider "${provider}" 未配置 models 端点。请在表单中填写 api_url（chat completions URL，会自动推导出 /models 端点），或在弹窗里手动指定 models URL。`,
+      modelsUrl: '',
+    };
+  }
+  let response: Response;
+  try {
+    response = await fetch(modelsUrl, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: 'application/json',
+      },
+      signal: AbortSignal.timeout(20000),
+    });
+  } catch (e) {
+    return {
+      ok: false,
+      status: 'fetch_failed',
+      message: `请求 ${modelsUrl} 失败：${e instanceof Error ? e.message : '网络错误'}`,
+      modelsUrl,
+    };
+  }
+  // 把原始响应体读出来（用于诊断）
+  const rawText = await response.text().catch(() => '');
+  if (!response.ok) {
+    // 尝试从 JSON 中提取错误信息
+    let upstreamMessage = '';
+    try {
+      const payload = JSON.parse(rawText);
+      upstreamMessage = String(payload?.error?.message || payload?.message || payload?.error || '');
+    } catch { /* 非 JSON 响应，直接走 HTTP 状态码 */ }
+    const status: DiscoveryResult['status'] = response.status === 401 || response.status === 403 ? 'invalid_key' : 'fetch_failed';
+    return {
+      ok: false,
+      status,
+      message: upstreamMessage
+        ? `中转站返回 HTTP ${response.status}：${upstreamMessage}`
+        : `中转站返回 HTTP ${response.status}（${response.statusText || '错误'}）`,
+      upstreamStatus: response.status,
+      upstreamBodyPreview: rawText.slice(0, 400),
+      modelsUrl,
+    };
+  }
+  // 解析 JSON
+  let payload: unknown;
+  try {
+    payload = JSON.parse(rawText);
+  } catch {
+    return {
+      ok: false,
+      status: 'parse_failed',
+      message: `中转站返回了非 JSON 响应（可能是 HTML 错误页或该接口不支持 /v1/models）。响应内容前 200 字符：${rawText.slice(0, 200)}`,
+      upstreamStatus: response.status,
+      upstreamBodyPreview: rawText.slice(0, 400),
+      modelsUrl,
+    };
+  }
+  // OpenAI 兼容格式：{ data: [{ id, object, owned_by }, ...] }
+  // 部分中转站可能直接返回数组：[{ id, ... }]
+  const rawList = Array.isArray(payload) ? payload : Array.isArray((payload as { data?: unknown })?.data) ? (payload as { data: unknown[] }).data : [];
+  const models: DiscoveredModel[] = [];
+  for (const item of rawList) {
+    if (!item || typeof item !== 'object') continue;
+    const id = toText((item as { id?: unknown }).id, 200);
+    if (!id) continue;
+    models.push({
+      id,
+      name: toText((item as { name?: unknown; id?: unknown }).name || (item as { id?: unknown }).id, 200) || undefined,
+      owned_by: toText((item as { owned_by?: unknown; owner?: unknown }).owned_by || (item as { owner?: unknown }).owner, 120) || undefined,
+    });
+  }
+  // 去重（按 id）
+  const seen = new Set<string>();
+  const deduped = models.filter((m) => {
+    const key = m.id.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return { ok: true, models: deduped, modelsUrl };
+};
+
+const discoverModels = async (
+  client: ReturnType<typeof createServiceClient>,
+  body: Record<string, unknown>,
+): Promise<DiscoveryResult> => {
+  const row = String(body.id || '').startsWith('fallback:')
+    ? (await resolveActiveSecret(
+      client,
+      toText(body.provider, 40).toLowerCase(),
+      toText(body.purpose, 60).toLowerCase(),
+    )).row
+    : await resolveRow(client, body);
+
+  const apiBaseUrl = toText(row.metadata?.apiUrl, 240) || DEFAULT_MODELS_URL[row.provider] || '';
+  const baseResult = {
+    provider: row.provider,
+    purpose: row.purpose,
+    apiBaseUrl,
+    models: [] as DiscoveredModel[],
+    total: 0,
+  };
+
+  if (row.status !== 'active') {
+    return {
+      ok: false,
+      status: 'disabled_key',
+      message: '该 API Key 已停用，请先启用后再发现模型。',
+      modelsUrl: '',
+      ...baseResult,
+    };
+  }
+  const supported = ['siliconflow', 'zhipu', 'openrouter', 'custom'];
+  if (!supported.includes(row.provider)) {
+    return {
+      ok: false,
+      status: 'unsupported_provider',
+      message: `Provider "${row.provider}" 暂不支持模型发现，仅支持 ${supported.join(' / ')}。`,
+      modelsUrl: '',
+      ...baseResult,
+    };
+  }
+
+  let apiKey: string;
+  try {
+    apiKey = row.encrypted_value
+      ? await decryptSecret(row.encrypted_value)
+      : (await resolveActiveSecret(client, row.provider, row.purpose)).apiKey;
+  } catch (e) {
+    return {
+      ok: false,
+      status: 'invalid_key',
+      message: `解密 API Key 失败：${e instanceof Error ? e.message : '未知错误'}`,
+      modelsUrl: '',
+      ...baseResult,
+    };
+  }
+
+  const result = await discoverProviderModels(
+    apiKey,
+    row.provider,
+    row.metadata || {},
+    toText(body.modelsUrl, 240) || undefined,
+  );
+  if (!result.ok) {
+    return {
+      ok: false,
+      status: result.status,
+      message: result.message,
+      upstreamStatus: result.upstreamStatus,
+      upstreamBodyPreview: result.upstreamBodyPreview,
+      modelsUrl: result.modelsUrl,
+      ...baseResult,
+    };
+  }
+  return {
+    ok: true,
+    status: 'success',
+    message: `成功获取 ${result.models.length} 个模型。`,
+    modelsUrl: result.modelsUrl,
+    models: result.models,
+    total: result.models.length,
+    ...baseResult,
+  };
+};
+
 const resolveActiveSecret = async (
   client: ReturnType<typeof createServiceClient>,
   provider: string,
   purpose: string,
 ) => {
   console.log('[vault] resolveActiveSecret called, provider:', provider, 'purpose:', purpose);
-  try {
-    const row = await resolveRow(client, { provider, purpose });
-    console.log('[vault] resolveRow result:', row ? 'found' : 'not found', 'status:', row?.status);
-    if (row.status !== 'active') throw new Error(`${provider}/${purpose} API Key 已停用。`);
+  const attemptResolve = async (p: string) => {
+    const row = await resolveRow(client, { provider, purpose: p });
+    if (row.status !== 'active') throw new Error(`${provider}/${p} API Key 已停用。`);
     return {
       row,
       apiKey: await decryptSecret(row.encrypted_value),
     };
+  };
+  try {
+    return await attemptResolve(purpose);
   } catch (error) {
+    // 当 chat purpose 在数据库中未找到时，回退到 default purpose（custom provider 场景：
+    // custom provider 的 key 默认 purpose 为 'default'，但 runtime chat 硬编码查找 'chat'）
+    if (purpose === 'chat' && String(error?.message || '').includes('未找到')) {
+      try {
+        console.log('[vault] chat purpose not found, falling back to default purpose');
+        return await attemptResolve('default');
+      } catch {
+        // default 也找不到，继续走环境变量回退
+      }
+    }
     console.log('[vault] resolveRow failed, trying fallback secrets:', error.message);
     let fallbackKey = '';
     if (provider === 'tavily') {
@@ -858,13 +1119,19 @@ const runtimeTavilySearch = async (
 ) => {
   const { apiKey } = await resolveActiveSecret(client, 'tavily', 'web_search');
   const rawPayload = toMetadata(body.payload);
-  const payload = {
+  const searchDepth = toText(rawPayload.search_depth, 20) || 'advanced';
+  const payload: Record<string, unknown> = {
     ...rawPayload,
     api_key: apiKey,
     query: toText(rawPayload.query, 500),
-    search_depth: toText(rawPayload.search_depth, 20) || 'basic',
-    max_results: clampInt(rawPayload.max_results, 3, 1, 8),
+    search_depth: searchDepth,
+    max_results: clampInt(rawPayload.max_results, 5, 1, 8),
   };
+  // advanced 模式支持 days 参数（限制返回结果的时间范围，提升实时性）
+  const days = clampInt(rawPayload.days, 30, 1, 365);
+  if (searchDepth === 'advanced' && days > 0) {
+    payload.days = days;
+  }
   if (!payload.query) throw new Error('搜索关键词不能为空。');
 
   const response = await fetch('https://api.tavily.com/search', {
@@ -982,6 +1249,16 @@ const QUOTA_CACHE_TTL_MS = 60_000;
 type QuotaPolicy = { tokenLimit: number; webSearchLimit: number };
 const QUOTA_CONFIG_CACHE = new Map<string, { policy: QuotaPolicy; fetchedAt: number }>();
 
+// 5 分钟内存缓存：减少 runtime-chat 热路径上的 DB 往返。
+// - USER_TIER_CACHE: user_subscriptions 行级数据，按 user_id 索引
+// - MODEL_CONFIG_CACHE: bohai_model_configs 原始行（active 状态），按 mode_id 小写索引
+// 缓存命中时仍会基于当前 tier 重新计算策略，避免 tier 变更导致越权。
+const RUNTIME_CACHE_TTL_MS = 5 * 60_000;
+type UserTierRow = { plans: string[] };
+const USER_TIER_CACHE = new Map<string, { row: UserTierRow; fetchedAt: number }>();
+type ModelConfigRow = Record<string, unknown> & { min_tier?: string };
+const MODEL_CONFIG_CACHE = new Map<string, { row: ModelConfigRow; fetchedAt: number }>();
+
 type TokenUsage = {
   promptTokens: number;
   completionTokens: number;
@@ -1085,13 +1362,25 @@ async function resolveUserTier(
   userId: string | null,
 ): Promise<string> {
   if (!userId) return 'guest';
-  const { data } = await client
-    .from('user_subscriptions')
-    .select('plan_code')
-    .eq('user_id', userId)
-    .eq('status', 'active')
-    .gt('expires_at', new Date().toISOString());
-  const plans = new Set((data || []).map((r: Record<string, unknown>) => String(r.plan_code || '')));
+  // 5 分钟内存缓存：订阅变更（升级/降级）最多延迟 5 分钟生效，可接受。
+  // 注意：缓存的是 plan_code 列表，过期判断（expires_at > now）在每次调用时重新计算。
+  const cached = USER_TIER_CACHE.get(userId);
+  let plans: Set<string>;
+  if (cached && Date.now() - cached.fetchedAt < RUNTIME_CACHE_TTL_MS) {
+    plans = new Set(cached.row.plans);
+  } else {
+    const { data } = await client
+      .from('user_subscriptions')
+      .select('plan_code, expires_at')
+      .eq('user_id', userId)
+      .eq('status', 'active');
+    const nowIso = new Date().toISOString();
+    const activePlans = (data || [])
+      .filter((r: Record<string, unknown>) => String(r.expires_at || '') > nowIso)
+      .map((r: Record<string, unknown>) => String(r.plan_code || ''));
+    USER_TIER_CACHE.set(userId, { row: { plans: activePlans }, fetchedAt: Date.now() });
+    plans = new Set(activePlans);
+  }
   if (plans.has('ultra')) return 'ultra';
   if (plans.has('max') || plans.has('boh-max')) return 'max';
   if (plans.has('pro') || plans.has('boh-pro')) return 'pro';
@@ -1121,13 +1410,28 @@ async function resolveRuntimeModelPolicy(
   if (!/^[a-z0-9][a-z0-9._:-]{0,79}$/.test(mode)) {
     throw runtimeAccessError('模式 ID 格式无效。', 400, 'MODE_ID_INVALID');
   }
-  const { data, error } = await client
-    .from('bohai_model_configs')
-    .select('mode_id, provider, model_id, api_url, max_tokens, temperature, top_p, frequency_penalty, quota_multiplier, status, min_tier')
-    .ilike('mode_id', mode)
-    .eq('status', 'active')
-    .maybeSingle();
-  if (error || !data) throw runtimeAccessError('当前模式暂不可用，请重新选择。', 400, 'MODE_UNAVAILABLE');
+  // 5 分钟内存缓存：模式配置是低频变更的元数据，缓存原始行数据。
+  // tier 检查仍每次执行，确保用户降级后立即被拦截。
+  const cacheKey = mode.toLowerCase();
+  const cached = MODEL_CONFIG_CACHE.get(cacheKey);
+  let data: ModelConfigRow | null = null;
+  if (cached && Date.now() - cached.fetchedAt < RUNTIME_CACHE_TTL_MS) {
+    data = cached.row;
+  } else {
+    const { data: dbData, error } = await client
+      .from('bohai_model_configs')
+      .select('mode_id, provider, model_id, api_url, max_tokens, temperature, top_p, frequency_penalty, quota_multiplier, status, min_tier')
+      .ilike('mode_id', mode)
+      .eq('status', 'active')
+      .maybeSingle();
+    if (error || !dbData) {
+      // 缓存未命中且 DB 查询失败，清理可能存在的旧缓存避免脏数据。
+      MODEL_CONFIG_CACHE.delete(cacheKey);
+      throw runtimeAccessError('当前模式暂不可用，请重新选择。', 400, 'MODE_UNAVAILABLE');
+    }
+    data = dbData as ModelConfigRow;
+    MODEL_CONFIG_CACHE.set(cacheKey, { row: data, fetchedAt: Date.now() });
+  }
 
   const requiredTier = normalizeTier(toText(data.min_tier, 'free').toLowerCase());
   if (!tierAllows(tier, requiredTier)) {
@@ -1139,7 +1443,7 @@ async function resolveRuntimeModelPolicy(
     throw runtimeAccessError('当前模式配置无效，请联系管理员。', 500, 'MODE_CONFIG_INVALID');
   }
   return {
-    mode: normalizeModeId(data.mode_id),
+    mode: normalizeModeId(String(data.mode_id || '')),
     provider,
     modelId: toText(data.model_id, 120),
     apiUrl: toText(data.api_url, 240),
@@ -1369,20 +1673,26 @@ async function reserveTokenQuota(
 async function checkTokenQuota(
   client: ReturnType<typeof createServiceClient>,
   request: Request,
+  preResolved?: { userId: string | null; ipAddress: string | null; tier: string },
 ): Promise<TokenQuota> {
-  const token = getBearerToken(request);
-  let userId: string | null = null;
-  let ipAddress: string | null = null;
+  // P1-5: runtime-chat 热路径已由 resolveRuntimeIdentity 解析过身份与 tier，
+  // 此处复用预解析结果，避免重复调用 auth.getUser（每次约 30-80ms 网络往返）。
+  let userId: string | null = preResolved?.userId ?? null;
+  let ipAddress: string | null = preResolved?.ipAddress ?? null;
+  let tier: string = preResolved?.tier ?? 'guest';
 
-  if (token) {
-    const { data: userData } = await client.auth.getUser(token).catch(() => ({ data: null }));
-    userId = userData?.user?.id || null;
-  }
-  if (!userId) {
-    ipAddress = getClientIp(request);
+  if (!preResolved) {
+    const token = getBearerToken(request);
+    if (token) {
+      const { data: userData } = await client.auth.getUser(token).catch(() => ({ data: null }));
+      userId = userData?.user?.id || null;
+    }
+    if (!userId) {
+      ipAddress = getClientIp(request);
+    }
+    tier = await resolveUserTier(client, userId);
   }
 
-  const tier = await resolveUserTier(client, userId);
   const policy = await getQuotaPolicy(client, tier);
   const tokenLimit = policy.tokenLimit;
   const usedTokens = tokenLimit === -1 ? 0 : await countTodayTokenUsage(client, userId, ipAddress);
@@ -1471,7 +1781,8 @@ Deno.serve(async (request) => {
       const tier = identity.tier;
       const policy = await resolveRuntimeModelPolicy(client, toText(body.mode, 80), tier);
       console.log('[vault] user auth ok, checking token quota');
-      let quota = await checkTokenQuota(client, request);
+      // P1-5: 复用 identity 避免重复 auth.getUser 往返
+      let quota = await checkTokenQuota(client, request, { userId: identity.userId, ipAddress: identity.ipAddress, tier });
       quota = await reserveTokenQuota(client, quota, body, policy.maxTokens, policy.quotaMultiplier);
       if (!quota.allowed) {
         console.log('[vault] quota exceeded');
@@ -1519,7 +1830,8 @@ Deno.serve(async (request) => {
       }
       const tier = identity.tier;
       const policy = await resolveRuntimeModelPolicy(client, toText(body.mode, 80), tier);
-      let quota = await checkTokenQuota(client, request);
+      // P1-5: 复用 identity 避免重复 auth.getUser 往返
+      let quota = await checkTokenQuota(client, request, { userId: identity.userId, ipAddress: identity.ipAddress, tier });
       quota = await reserveTokenQuota(client, quota, body, policy.maxTokens, policy.quotaMultiplier);
       if (!quota.allowed) {
         console.log('[vault] quota exceeded');
@@ -1605,6 +1917,14 @@ Deno.serve(async (request) => {
       return jsonResponse({ ok: false, code: admin.code, message: admin.message }, admin.status, origin);
     }
 
+    // 清除模型配置内存缓存：管理员在数据面板修改模型配置后调用，使新配置立即生效
+    if (action === 'clear-model-cache') {
+      const before = MODEL_CONFIG_CACHE.size;
+      MODEL_CONFIG_CACHE.clear();
+      console.log(`[vault] model config cache cleared by admin, removed ${before} entries`);
+      return jsonResponse({ ok: true, data: { cleared: before } }, 200, origin);
+    }
+
     if (action === 'list') {
       return jsonResponse({ ok: true, data: await listKeys(client) }, 200, origin);
     }
@@ -1619,6 +1939,9 @@ Deno.serve(async (request) => {
     }
     if (action === 'test') {
       return jsonResponse({ ok: true, data: await testKey(client, admin.userId, body) }, 200, origin);
+    }
+    if (action === 'discover-models') {
+      return jsonResponse({ ok: true, data: await discoverModels(client, body) }, 200, origin);
     }
 
     return jsonResponse({ ok: false, code: 'UNKNOWN_ACTION', message: '未知操作。' }, 400, origin);

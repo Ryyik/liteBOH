@@ -1861,6 +1861,55 @@
     font-variant-numeric: tabular-nums;
 }
 
+.compress-now-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 8px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #71717a;
+    background: transparent;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    line-height: 1;
+}
+
+.compress-now-btn:hover:not(:disabled) {
+    color: #18181b;
+    border-color: rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.03);
+}
+
+.compress-now-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.compress-success-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 8px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #16a34a;
+    background: rgba(22, 163, 74, 0.08);
+    border: 1px solid rgba(22, 163, 74, 0.2);
+    border-radius: 6px;
+    line-height: 1;
+    animation: compress-success-pop 0.3s ease;
+}
+
+@keyframes compress-success-pop {
+    0% { opacity: 0; transform: scale(0.9); }
+    100% { opacity: 1; transform: scale(1); }
+}
+
 /* 深色模式 */
 [data-boh-theme="dark"] .ring-track { stroke: rgba(255, 255, 255, 0.12); }
 [data-boh-theme="dark"] .ring-percent { color: #a1a1aa; }
@@ -1869,3 +1918,17 @@
 [data-boh-theme="dark"] .context-ring-wrap.level-mid .ring-fill { stroke: #d4d4d8; }
 [data-boh-theme="dark"] .context-ring-wrap.level-high .ring-fill { stroke: #e4e4e7; }
 [data-boh-theme="dark"] .context-ring-wrap.level-full .ring-fill { stroke: #ffffff; }
+[data-boh-theme="dark"] .compress-now-btn {
+    color: #a1a1aa;
+    border-color: rgba(255, 255, 255, 0.12);
+}
+[data-boh-theme="dark"] .compress-now-btn:hover:not(:disabled) {
+    color: #fafafa;
+    border-color: rgba(255, 255, 255, 0.24);
+    background: rgba(255, 255, 255, 0.06);
+}
+[data-boh-theme="dark"] .compress-success-hint {
+    color: #4ade80;
+    background: rgba(74, 222, 128, 0.1);
+    border-color: rgba(74, 222, 128, 0.24);
+}

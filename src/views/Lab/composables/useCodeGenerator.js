@@ -3,7 +3,7 @@ import { callVaultSiliconChatStream, callVaultSiliconChatStreamCollect } from '@
 import { supabase } from '@/utils/supabase-client.js'
 import { buildCodeZip, downloadZipBlob } from '../engine/html-renderer.js'
 import { CODE_OUTLINE_PROMPT, CODE_DETAIL_PROMPT } from '../config/code-prompts.js'
-import { extractJSON, buildThinkingInstruction } from '../config/ai-schemas.js'
+import { extractJSON, buildThinkingInstruction, FRONTEND_MAX_OUTPUT_TOKENS } from '../config/ai-schemas.js'
 
 const API_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions'
 
@@ -42,7 +42,7 @@ export function useCodeGenerator() {
   /**
    * 第一阶段：生成网页架构大纲
    */
-  async function generateOutline(topic, context = '', onProgress = null, thinkingLevel = 0.5) {
+  async function generateOutline(topic, context = '', onProgress = null, thinkingLevel = 0.5, signal) {
     isGenerating.value = true
     error.value = ''
     stage.value = 'outline'
@@ -75,6 +75,7 @@ ${context ? `额外要求：${context}` : ''}
         purpose: modelConfig.apiKeyPurpose,
         apiUrl: API_URL,
         timeoutMs: 120000,
+        signal,
         payload: {
           model: modelConfig.model,
           messages: [
@@ -83,7 +84,7 @@ ${context ? `额外要求：${context}` : ''}
           ],
           stream: true,
           temperature: modelConfig.temperature,
-          max_tokens: Math.max(modelConfig.max_tokens, 8192),
+          max_tokens: Math.min(Math.max(modelConfig.max_tokens, 8192), FRONTEND_MAX_OUTPUT_TOKENS),
         },
       })
 
@@ -111,7 +112,7 @@ ${context ? `额外要求：${context}` : ''}
   /**
    * 第二阶段：基于大纲生成完整 HTML 代码
    */
-  async function generateCode(topic, context = '', outlineData = null, onProgress = null, thinkingLevel = 0.5, onChunk = null) {
+  async function generateCode(topic, context = '', outlineData = null, onProgress = null, thinkingLevel = 0.5, onChunk = null, signal) {
     isGenerating.value = true
     error.value = ''
     stage.value = 'detail'
@@ -141,6 +142,7 @@ ${JSON.stringify(useOutline, null, 2)}
         purpose: modelConfig.apiKeyPurpose,
         apiUrl: API_URL,
         timeoutMs: 240000,
+        signal,
         payload: {
           model: modelConfig.model,
           messages: [
@@ -149,7 +151,7 @@ ${JSON.stringify(useOutline, null, 2)}
           ],
           stream: true,
           temperature: modelConfig.temperature,
-          max_tokens: Math.max(modelConfig.max_tokens, 32768),
+          max_tokens: Math.min(Math.max(modelConfig.max_tokens, 32768), FRONTEND_MAX_OUTPUT_TOKENS),
         },
       })
 
@@ -157,6 +159,7 @@ ${JSON.stringify(useOutline, null, 2)}
       const decoder = new TextDecoder()
       let fullContent = ''
       let buffer = ''
+      let sseError = null
 
       while (true) {
         const { done, value } = await reader.read()
@@ -167,17 +170,30 @@ ${JSON.stringify(useOutline, null, 2)}
         buffer = lines.pop() || ''
 
         for (const line of lines) {
+          // 显式处理 Edge Function 发来的 SSE error 事件
+          if (line.startsWith('event: error')) {
+            sseError = true
+            continue
+          }
           if (line.startsWith('data:')) {
             const dataStr = line.slice(5).trim()
             if (!dataStr) continue
             try {
               const parsed = JSON.parse(dataStr)
+              if (sseError || parsed.ok === false) {
+                throw new Error(parsed.message || 'AI 服务返回错误')
+              }
               const delta = parsed.choices?.[0]?.delta?.content || ''
               if (delta) {
                 fullContent += delta
                 if (onChunk) onChunk(fullContent)
               }
-            } catch { /* skip non-JSON lines */ }
+            } catch (parseErr) {
+              // 若是已识别的 SSE 错误，向上抛出
+              if (sseError) throw parseErr
+              /* skip non-JSON lines */
+            }
+            sseError = false
           }
         }
       }

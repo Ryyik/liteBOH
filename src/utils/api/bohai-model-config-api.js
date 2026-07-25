@@ -44,7 +44,8 @@ export const normalizeBohaiModelConfigRow = (row = {}) => {
     frequency_penalty: toFiniteNumber(row.frequency_penalty, 0.06, 0, 2),
     max_tokens: Math.trunc(toFiniteNumber(row.max_tokens, 1800, 256, 4096)),
     status: toText(row.status, 'active'),
-    sortOrder: Math.trunc(toFiniteNumber(row.sort_order || row.sortOrder, 100, 0, 10000))
+    sortOrder: Math.trunc(toFiniteNumber(row.sort_order || row.sortOrder, 100, 0, 10000)),
+    quotaMultiplier: toFiniteNumber(row.quota_multiplier || row.quotaMultiplier, 1.00, 0.1, 100)
   };
 };
 
@@ -124,7 +125,8 @@ export const buildBohaiRuntimeModels = (rows = []) => {
     description: item.description,
     icon: item.icon,
     model: item.modelId,
-    capability: item.capability
+    capability: item.capability,
+    quotaMultiplier: item.quotaMultiplier
   }));
 
   const modelMap = new Map();

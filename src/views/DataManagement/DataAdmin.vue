@@ -23,10 +23,12 @@
           :is-refreshing="isRefreshing"
           :is-sidebar-open="isAdminSidebarOpen"
           :searchable="false"
+          :theme="currentTheme"
           :title="currentAdminPageMeta.title"
           @create="handleAdminCreate"
           @refresh="refreshAllData"
           @toggle-sidebar="isAdminSidebarOpen = !isAdminSidebarOpen"
+          @toggle-theme="() => toggleAdminTheme()"
         />
 
         <div class="main-container">
@@ -772,6 +774,7 @@
       @update-field="handleUpdateField"
       @update-json-buffer="handleUpdateJsonBuffer"
       @update-spec-field="handleUpdateSpecField"
+      @bohai-key-select="handleBohaiKeySelect"
     />
 
     <!-- 全局提示 -->
@@ -839,6 +842,7 @@ import {
 } from '@/utils/cloudinary-client.js';
 import { getExpiredActiveGiftIds, markGiftsAsHistory } from '@/utils/gift-archive.js';
 import { getDefaultApiUrlForBohaiProvider } from '@/utils/api/bohai-model-config-api.js';
+import { clearVaultModelCache } from '@/utils/api/api-key-runtime-api.js';
 import { logger } from '@/utils/logger.js';
 import {
   ADMIN_PAGE_META,
@@ -853,6 +857,7 @@ import {
   tabs
 } from './config.js';
 import { tabModules } from './config/tabs.js';
+import { BOHAI_MODEL_PROVIDER_OPTIONS } from './config/fields.js';
 import {
   ADMIN_SECTION_DEFAULT_TABS,
   DATA_CONSOLE_SECTIONS,
@@ -982,6 +987,7 @@ const isDataTreeCollapsed = ref(false);
 const isMobileView = ref(window.innerWidth < 768);
 const handleResize = () => { isMobileView.value = window.innerWidth < 768; };
 
+const currentTheme = ref('light');
 const uploadingImageFields = ref([]);
 const tabTotals = reactive(tabs.reduce((acc, tab) => {
   acc[tab.id] = 0;
@@ -1078,6 +1084,29 @@ const handleUpdateField = (fieldKey, value) => {
   if (fieldKey && editingItem.value) {
     editingItem.value[fieldKey] = value;
   }
+};
+
+// BOHAI 模型配置：从 API Key 预填 provider / provider_label / api_url
+const handleBohaiKeySelect = (keyMeta) => {
+  if (!editingItem.value || !keyMeta) return;
+  // 同步 provider
+  editingItem.value.provider = keyMeta.provider;
+  // 同步 provider_label（优先用 Key 自带 label，否则按 provider 取默认显示名）
+  const providerOpt = BOHAI_MODEL_PROVIDER_OPTIONS.find((o) => o.value === keyMeta.provider);
+  editingItem.value.provider_label = keyMeta.label || providerOpt?.label || keyMeta.provider;
+  // 同步 api_url：仅当 Key 自身配置了 apiUrl 时才覆盖；
+  // 否则保留当前 editingItem 的 api_url（避免给 custom 错填 siliconflow 默认值）
+  if (keyMeta.apiUrl) {
+    editingItem.value.api_url = keyMeta.apiUrl;
+  } else if (keyMeta.provider === 'custom') {
+    // custom provider 没有默认 URL，清空让用户手填
+    editingItem.value.api_url = '';
+  } else {
+    // 其他 provider 走默认值兜底
+    editingItem.value.api_url = getDefaultApiUrlForBohaiProvider(keyMeta.provider);
+  }
+  // model_id 清空，让用户从 freemodels 下拉里重新选（不同 provider 对应不同模型）
+  editingItem.value.model_id = '';
 };
 
 const handleUpdateJsonBuffer = (fieldKey, value) => {
@@ -2054,9 +2083,11 @@ const toggleAdminTheme = (forced) => {
   const page = document.querySelector('.data-management-page');
   if (page) {
     page.classList.toggle('dark', nextDark);
+    page.setAttribute('data-theme', nextDark ? 'dark' : 'light');
   }
+  currentTheme.value = nextDark ? 'dark' : 'light';
   try {
-    localStorage.setItem('dm-theme', nextDark ? 'dark' : 'light');
+    localStorage.setItem('dm-theme', currentTheme.value);
   } catch (e) {
     /* storage may be unavailable in private mode */
   }
@@ -3258,6 +3289,7 @@ const openEditModal = async (item = null) => {
         editingItem.value.top_p = 0.72;
         editingItem.value.frequency_penalty = 0.05;
         editingItem.value.max_tokens = 1600;
+        editingItem.value.quota_multiplier = 1;
         editingItem.value.sort_order = 10;
         editingItem.value.status = 'active';
         editingItem.value.notes = '';
@@ -3498,6 +3530,9 @@ const saveData = async () => {
       if (currentTab.value === 'products') invalidateProductsCache();
       if (currentTab.value === 'subscriptions') invalidateSubscriptionCache(dataToSave.user_id || editingItem.value.user_id);
       if (currentTab.value === 'coreMemories') await syncCoreMemoriesIndex();
+      if (currentTab.value === 'bohaiModels') {
+        clearVaultModelCache().catch((e) => logger.warn('清除模型缓存失败:', e));
+      }
       addChangeLogEntry('update', editingItem.value, {
         diffs: getPayloadDiffs(editingOriginalItem.value || {}, dataToSave).slice(0, 20)
       });
@@ -3515,6 +3550,9 @@ const saveData = async () => {
       if (currentTab.value === 'products') invalidateProductsCache();
       if (currentTab.value === 'subscriptions') invalidateSubscriptionCache(dataToSave.user_id);
       if (currentTab.value === 'coreMemories') await syncCoreMemoriesIndex();
+      if (currentTab.value === 'bohaiModels') {
+        clearVaultModelCache().catch((e) => logger.warn('清除模型缓存失败:', e));
+      }
       searchQuery.value = '';
       currentPage.value = 1;
       addChangeLogEntry('create', { id: dataToSave.id || editingItem.value.id || '' }, {
@@ -3614,6 +3652,9 @@ const saveInlineEdit = async (item, col) => {
     addChangeLogEntry('inline_update', item, { field: col.key, from: oldValue, to: normalizedValue });
     if (currentTab.value === 'products') invalidateProductsCache();
     if (currentTab.value === 'subscriptions') invalidateSubscriptionCache(item?.user_id);
+    if (currentTab.value === 'bohaiModels') {
+      clearVaultModelCache().catch((e) => logger.warn('清除模型缓存失败:', e));
+    }
     showToast('行内编辑已保存', 'success');
     cancelInlineEdit();
     await refreshCurrentViewAfterMutation();
@@ -3696,6 +3737,9 @@ const applyBatchEdit = async () => {
     });
     if (currentTab.value === 'products') invalidateProductsCache();
     if (currentTab.value === 'subscriptions') selectedItems.value.forEach((item) => invalidateSubscriptionCache(item?.user_id));
+    if (currentTab.value === 'bohaiModels') {
+      clearVaultModelCache().catch((e) => logger.warn('清除模型缓存失败:', e));
+    }
     showToast('批量编辑成功', 'success');
     selectedItems.value = [];
     batchEditState.fieldKey = '';

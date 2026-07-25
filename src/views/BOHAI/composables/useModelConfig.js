@@ -134,9 +134,25 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
 
   // ─── Other state ───────────────────────────────────────────────────────────────
 
+  // cloudReferenceConsent 初始化：
+  // 此处 userInfo 尚未加载（authStore 异步恢复会话），无法直接构造 per-user key。
+  // 扫描 localStorage 中所有 per-user key（boh_ai_cloud_reference_consent_v1:<userId>），
+  // 若任一为 'granted' 则初始即为 'granted'，避免页面加载后短暂为 'unknown' 触发重复弹窗。
+  // refreshCloudReferenceConsent 会在 userInfo 就绪后精确修正为当前用户的值。
   const cloudReferenceConsent = ref((() => {
     if (typeof window === 'undefined') return 'unknown';
     try {
+      // 1. 扫描 per-user key（当前实现唯一持久化方式）
+      const prefix = `${CLOUD_REFERENCE_CONSENT_KEY}:`;
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(prefix)) {
+          const v = localStorage.getItem(k);
+          if (v === 'granted') return 'granted';
+          if (v === 'denied') return 'denied';
+        }
+      }
+      // 2. 兜底：legacy 全局 key（兼容旧版本，首次升级场景）
       const saved = localStorage.getItem(CLOUD_REFERENCE_CONSENT_KEY);
       return saved === 'granted' || saved === 'denied' ? saved : 'unknown';
     } catch {

@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { callVaultSiliconChatStreamCollect } from '@/utils/api/api-key-runtime-api.js'
 import { supabase } from '@/utils/supabase-client.js'
+import { FRONTEND_MAX_OUTPUT_TOKENS } from '../config/ai-schemas.js'
 
 const API_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions'
 const FALLBACK_MODEL = 'Qwen/Qwen3-8B'
@@ -108,7 +109,7 @@ export function useDocumentAI() {
     return `【样式清单】\n${s || '(无)'}\n\n【内容预览】\n${c || '(空)'}`
   }
 
-  async function chat(userMessage, history, styles, content) {
+  async function chat(userMessage, history, styles, content, signal) {
     aiLoading.value = true
     const docSummary = buildDocSummary(styles, content)
     const systemPrompt = `${SYSTEM_PROMPT}\n\n## 当前文档\n${docSummary}`
@@ -124,15 +125,19 @@ export function useDocumentAI() {
       const vaultResult = await callVaultSiliconChatStreamCollect({
         provider: 'siliconflow',
         purpose: modelConfig.apiKeyPurpose,
-        payload: { model: modelConfig.model, messages, stream: true, temperature: modelConfig.temperature, max_tokens: modelConfig.max_tokens },
+        payload: { model: modelConfig.model, messages, stream: true, temperature: modelConfig.temperature, max_tokens: Math.min(modelConfig.max_tokens, FRONTEND_MAX_OUTPUT_TOKENS) },
         apiUrl: API_URL,
         timeoutMs: 120000,
+        signal,
       })
 
       if (!vaultResult.ok) throw new Error(vaultResult.error?.message || 'AI 调用失败')
       const raw = vaultResult.data?.choices?.[0]?.message?.content || ''
       return parseResponse(raw)
     } catch (e) {
+      if (e?.name === 'AbortError' || e?.name === 'TimeoutError') {
+        return { reply: '已停止生成。', operations: [] }
+      }
       return { reply: `调用失败：${e.message}，请重试`, operations: [] }
     } finally {
       aiLoading.value = false

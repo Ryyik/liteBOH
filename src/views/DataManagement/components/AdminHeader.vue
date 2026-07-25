@@ -65,6 +65,16 @@
           <Plus :size="16" />
           <span>新增记录</span>
         </button>
+        <button
+          type="button"
+          class="g-icon-btn round is-ghost"
+          :aria-label="theme === 'dark' ? '切换为浅色模式' : '切换为深色模式'"
+          :title="theme === 'dark' ? '切换为浅色模式' : '切换为深色模式'"
+          @click="$emit('toggle-theme')"
+        >
+          <Sun v-if="theme === 'dark'" :size="18" />
+          <Moon v-else :size="18" />
+        </button>
         <slot name="avatar">
           <div class="g-topbar-avatar" aria-hidden="true">A</div>
         </slot>
@@ -80,7 +90,9 @@ import {
   PanelLeftClose,
   Plus,
   RefreshCw,
-  Search as SearchIcon
+  Search as SearchIcon,
+  Sun,
+  Moon
 } from 'lucide-vue-next';
 
 const props = defineProps({
@@ -91,10 +103,11 @@ const props = defineProps({
   searchValue: { type: String, default: '' },
   isRefreshing: { type: Boolean, default: false },
   isSidebarOpen: { type: Boolean, default: false },
-  canCreate: { type: Boolean, default: true }
+  canCreate: { type: Boolean, default: true },
+  theme: { type: String, default: 'light' }
 });
 
-const emit = defineEmits(['refresh', 'create', 'toggle-sidebar', 'search', 'update:searchValue']);
+const emit = defineEmits(['refresh', 'create', 'toggle-sidebar', 'search', 'update:searchValue', 'toggle-theme']);
 
 const searchModel = ref(props.searchValue);
 
