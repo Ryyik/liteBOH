@@ -226,6 +226,7 @@ function formatPosts(rawPosts = [], currentUserId = null) {
       comment_count: rest.comment_count ?? comments?.[0]?.count ?? 0,
       like_count: rest.like_count ?? likes_count?.[0]?.count ?? likes?.[0]?.count ?? 0,
       author_avatar_url: author?.avatar_url,
+      author_is_banned: Boolean(author?.is_banned),
       isLiked: currentUserId ? Boolean(user_likes?.some((like) => like.user_id === currentUserId)) : false
     };
   });
@@ -239,7 +240,8 @@ function normalizeRpcReplyPreview(replies = []) {
   const source = Array.isArray(replies) ? replies : [];
   return source.map((reply) => ({
     ...reply,
-    author_avatar_url: reply?.author_avatar_url || reply?.author?.avatar_url || null
+    author_avatar_url: reply?.author_avatar_url || reply?.author?.avatar_url || null,
+    author_is_banned: Boolean(reply?.author_is_banned ?? reply?.author?.is_banned)
   }));
 }
 
@@ -454,7 +456,7 @@ export async function getPosts(userId = null, pagination = {}) {
               comments:comments(count),
               likes_count:likes(count),
               user_likes:likes!left(user_id),
-              author:author_id(avatar_url),
+              author:author_id(avatar_url, is_banned),
               forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
             `);
         } else {
@@ -464,7 +466,7 @@ export async function getPosts(userId = null, pagination = {}) {
               *,
               comments:comments(count),
               likes_count:likes(count),
-              author:author_id(avatar_url),
+              author:author_id(avatar_url, is_banned),
               forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
             `);
         }
@@ -543,7 +545,7 @@ export async function getPosts(userId = null, pagination = {}) {
               comments:comments(count),
               likes_count:likes(count),
               user_likes:likes!left(user_id),
-              author:author_id(avatar_url),
+              author:author_id(avatar_url, is_banned),
               forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
             `);
         } else {
@@ -553,7 +555,7 @@ export async function getPosts(userId = null, pagination = {}) {
               *,
               comments:comments(count),
               likes_count:likes(count),
-              author:author_id(avatar_url),
+              author:author_id(avatar_url, is_banned),
               forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
             `);
         }
@@ -1154,7 +1156,7 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
               comments:comments(count),
               likes_count:likes(count),
               user_likes:likes!left(user_id),
-              author:author_id(avatar_url),
+              author:author_id(avatar_url, is_banned),
               forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
             `);
         } else {
@@ -1164,7 +1166,7 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
               *,
               comments:comments(count),
               likes_count:likes(count),
-              author:author_id(avatar_url),
+              author:author_id(avatar_url, is_banned),
               forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
             `);
         }
@@ -1242,7 +1244,7 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
               comments:comments(count),
               likes_count:likes(count),
               user_likes:likes!left(user_id),
-              author:author_id(avatar_url),
+              author:author_id(avatar_url, is_banned),
               forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
             `);
         } else {
@@ -1252,7 +1254,7 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
               *,
               comments:comments(count),
               likes_count:likes(count),
-              author:author_id(avatar_url),
+              author:author_id(avatar_url, is_banned),
               forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
             `);
         }

@@ -6,12 +6,14 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 const {
   mockSanitizeChatSessionForStorage,
   mockBuildHistoryMessagesWithCachedSummary,
+  mockGetCachedSummaryIfUsable,
   mockNormalizePromptLine,
 } = vi.hoisted(() => {
   const mockSanitizeChatSessionForStorage = vi.fn((session) => ({ ...session }));
   const mockBuildHistoryMessagesWithCachedSummary = vi.fn(() => []);
+  const mockGetCachedSummaryIfUsable = vi.fn(() => '');
   const mockNormalizePromptLine = vi.fn((text) => String(text || ''));
-  return { mockSanitizeChatSessionForStorage, mockBuildHistoryMessagesWithCachedSummary, mockNormalizePromptLine };
+  return { mockSanitizeChatSessionForStorage, mockBuildHistoryMessagesWithCachedSummary, mockGetCachedSummaryIfUsable, mockNormalizePromptLine };
 });
 
 vi.mock('@/utils/bohai-chat-session-store.js', () => ({
@@ -36,6 +38,7 @@ vi.mock('@/utils/logger.js', () => ({
 
 vi.mock('../../src/views/BOHAI/composables/bohai-engine-helpers.js', () => ({
   buildHistoryMessagesWithCachedSummary: mockBuildHistoryMessagesWithCachedSummary,
+  getCachedSummaryIfUsable: mockGetCachedSummaryIfUsable,
   normalizePromptLine: mockNormalizePromptLine,
   getStorableDialogueMessages: vi.fn((messages) => Array.isArray(messages) ? messages : []),
   CONVERSATION_SUMMARY_MAX_CHARS: 2000,
@@ -615,6 +618,7 @@ describe('useConversationManager', () => {
   describe('computeContextBudgetUsage', () => {
     beforeEach(() => {
       vi.clearAllMocks();
+      mockGetCachedSummaryIfUsable.mockReturnValue('');
       updateLastActualExtraChars(2000);
     });
 
@@ -671,9 +675,9 @@ describe('useConversationManager', () => {
       expect(result.includedMessageCount).toBe(0);
     });
 
-    it('reports hasSummary when summary system message is present', () => {
+    it('reports hasSummary when a usable cached summary is present', () => {
+      mockGetCachedSummaryIfUsable.mockReturnValue('Some summary text');
       mockBuildHistoryMessagesWithCachedSummary.mockReturnValue([
-        { role: 'system', content: '【此前对话摘要】Some summary text' },
         { role: 'user', content: 'Hello' },
       ]);
       const session = {
@@ -696,35 +700,35 @@ describe('useConversationManager', () => {
 
     it('returns level mid when percent >= 55 and < 80', () => {
       // Mock to generate enough characters for mid level
-      const longContent = 'x'.repeat(15000);
+      const longContent = 'x'.repeat(7600);
       mockBuildHistoryMessagesWithCachedSummary.mockReturnValue([
         { role: 'user', content: longContent },
       ]);
       const result = manager.computeContextBudgetUsage({
         messages: [{ role: 'user', content: 'x' }, { role: 'assistant', content: 'x' }, { role: 'user', content: longContent }],
-      });
+      }, { pendingCount: 0 });
       expect(result.level).toBe('mid');
     });
 
-    it('returns level high when percent >= 80 and < 95', () => {
-      const longContent = 'x'.repeat(22000);
+    it('returns level high when percent >= 80 and < 100', () => {
+      const longContent = 'x'.repeat(11200);
       mockBuildHistoryMessagesWithCachedSummary.mockReturnValue([
         { role: 'user', content: longContent },
       ]);
       const result = manager.computeContextBudgetUsage({
         messages: [{ role: 'user', content: 'x' }, { role: 'assistant', content: 'x' }, { role: 'user', content: longContent }],
-      });
+      }, { pendingCount: 0 });
       expect(result.level).toBe('high');
     });
 
-    it('returns level full when percent >= 95', () => {
-      const longContent = 'x'.repeat(28000);
+    it('returns level full when percent reaches 100', () => {
+      const longContent = 'x'.repeat(13500);
       mockBuildHistoryMessagesWithCachedSummary.mockReturnValue([
         { role: 'user', content: longContent },
       ]);
       const result = manager.computeContextBudgetUsage({
         messages: [{ role: 'user', content: 'x' }, { role: 'assistant', content: 'x' }, { role: 'user', content: longContent }],
-      });
+      }, { pendingCount: 0 });
       expect(result.level).toBe('full');
     });
 
@@ -737,6 +741,31 @@ describe('useConversationManager', () => {
         messages: [{ role: 'user', content: 'x' }, { role: 'assistant', content: 'x' }, { role: 'user', content: longContent }],
       });
       expect(result.percent).toBeLessThanOrEqual(100);
+    });
+
+    it('resets the visible compression cycle after a summary and then grows monotonically', () => {
+      mockGetCachedSummaryIfUsable.mockReturnValue('summary');
+      mockBuildHistoryMessagesWithCachedSummary.mockReturnValue([]);
+      const baseMessages = [
+        { role: 'user', content: 'A' },
+        { role: 'assistant', content: 'B' },
+        { role: 'user', content: 'C' },
+        { role: 'assistant', content: 'D' },
+      ];
+      const session = {
+        messages: baseMessages,
+        contextSummary: {
+          sourceMessageCount: 4,
+          retainedHistoryChars: 100
+        }
+      };
+
+      const resetUsage = manager.computeContextBudgetUsage(session, { pendingCount: 0 });
+      session.messages.push({ role: 'user', content: 'new question' });
+      const nextUsage = manager.computeContextBudgetUsage(session, { pendingCount: 0 });
+
+      expect(resetUsage.historyPercent).toBe(0);
+      expect(nextUsage.historyPercent).toBeGreaterThan(resetUsage.historyPercent);
     });
 
     it('returns the correct structure', () => {

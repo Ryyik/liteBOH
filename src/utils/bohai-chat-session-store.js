@@ -29,6 +29,9 @@ export const createBohAIChatSessionSanitizer = ({
             version: Number(session.contextSummary.version || 0),
             fingerprint: String(session.contextSummary.fingerprint || ''),
             content: normalizeText(session.contextSummary.content).slice(0, maxSummaryChars),
+            coveredMessageCount: Math.max(0, Math.trunc(Number(session.contextSummary.coveredMessageCount) || 0)),
+            sourceMessageCount: Math.max(0, Math.trunc(Number(session.contextSummary.sourceMessageCount) || 0)),
+            retainedHistoryChars: Math.max(0, Math.trunc(Number(session.contextSummary.retainedHistoryChars) || 0)),
             updatedAt: Number(session.contextSummary.updatedAt || 0)
           }
         : null,

@@ -233,7 +233,7 @@
                                                 :stroke-dasharray="`${ringProgress} ${ringCircumference}`"
                                                 transform="rotate(-90 10 10)" />
                                         </svg>
-                                        <span class="ring-percent">{{ contextBudgetPercentText }}</span>
+                                        <span class="ring-percent">{{ contextBudgetLabel }}</span>
                                     </div>
                                     <div v-if="showCompressSuccess" class="compress-success-hint">
                                         <CheckCircle2 size="12" />
@@ -439,7 +439,7 @@
                             <line x1="12" y1="8" x2="12" y2="12" />
                             <line x1="12" y1="16" x2="12.01" y2="16" />
                         </svg>
-                        <span>当前对话上下文已满，继续发送将自动压缩历史消息</span>
+                        <span>{{ contextWarningText }}</span>
                     </div>
                 </footer>
 
@@ -873,7 +873,12 @@ const activeUserMessageIndex = ref(-1);
 const contextBudgetPercentText = computed(() => {
     const usage = contextBudgetUsage.value;
     const pct = usage?.historyPercent ?? usage?.percent ?? 0;
-    return `${Math.round(pct)}%`;
+    // 99.x% 仍显示 99%，避免界面先显示 100% 但自动整理尚未触发。
+    return `${Math.floor(Math.max(0, Math.min(100, pct)))}%`;
+});
+
+const contextBudgetLabel = computed(() => {
+    return `上下文 ${contextBudgetPercentText.value}`;
 });
 
 // 顶层模式（4 个）：Fast / Pro / Plan / Agent。
@@ -884,12 +889,12 @@ const contextBudgetPercentText = computed(() => {
 // AUTO 模式已于 2026-06-08 移除，不再有"自动路由到哪个子模式"的 chip 概念。
 
 const contextBudgetTitle = computed(() => {
-    const usage = contextBudgetUsage.value || { used: 0, max: 0, percent: 0, includedMessageCount: 0, totalMessageCount: 0, hasSummary: false };
-    const summaryHint = usage.hasSummary ? '（已包含此前对话摘要）' : '';
+    const usage = contextBudgetUsage.value || { windowUsed: 0, windowMax: 0, includedMessageCount: 0, totalMessageCount: 0, hasSummary: false };
+    const summaryHint = usage.hasSummary ? '，更早内容已保存在摘要中' : '';
     if (isCompressingContext.value) {
-        return `上下文已满，正在自动压缩 BOH AI 历史窗口：已用 ${usage.used} / ${usage.max} 字符 · ${contextBudgetPercentText.value} · 实际携带 ${usage.includedMessageCount} 条消息${summaryHint}`;
+        return `上下文已到 100%，正在整理早期对话${summaryHint}`;
     }
-    return `BOH AI 上下文窗口：已用 ${usage.used} / ${usage.max} 字符 · ${contextBudgetPercentText.value} · 实际携带 ${usage.includedMessageCount} 条消息${summaryHint}`;
+    return `距下次自动整理：${contextBudgetPercentText.value} · 本轮约 ${usage.windowUsed} / ${usage.windowMax} 字符${summaryHint}`;
 });
 
 const lastAssistantMessageIndex = computed(() => {
@@ -903,15 +908,22 @@ const lastAssistantMessageIndex = computed(() => {
 const showContextWarning = computed(() => {
     const usage = contextBudgetUsage.value;
     if (!usage) return false;
-    const pct = Math.max(usage?.historyPercent ?? 0, usage?.percent ?? 0);
+    const pct = usage?.historyPercent ?? 0;
     return pct >= 80;
+});
+
+const contextWarningText = computed(() => {
+    const pct = contextBudgetUsage.value?.historyPercent ?? 0;
+    return pct >= 100
+        ? '上下文已到 100%，下次发送时会先自动整理早期对话'
+        : '上下文接近 100%，到达后会自动整理早期对话';
 });
 
 const RING_RADIUS = 8;
 const ringCircumference = 2 * Math.PI * RING_RADIUS;
 
 const ringProgress = computed(() => {
-    const percent = Math.max(0, Math.min(100, contextBudgetUsage.value?.percent || 0));
+    const percent = Math.max(0, Math.min(100, contextBudgetUsage.value?.historyPercent || 0));
     return (percent / 100) * ringCircumference;
 });
 

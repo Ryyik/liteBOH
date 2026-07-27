@@ -1153,6 +1153,37 @@ const runtimeTavilySearch = async (
   return { ok: true, status: response.status, data };
 };
 
+const runtimeFreeSearch = async (body: Record<string, unknown>) => {
+  const rawPayload = toMetadata(body.payload);
+  const query = toText(rawPayload.query, 500);
+  const searchDepth = toText(rawPayload.search_depth, 20) || 'advanced';
+  const maxResults = clampInt(rawPayload.max_results, 5, 1, 8);
+  if (!query) throw new Error('搜索关键词不能为空。');
+
+  const response = await fetch('https://searchfree.site/api/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      query,
+      search_depth: searchDepth,
+      max_results: maxResults,
+      include_answer: true,
+    }),
+    signal: AbortSignal.timeout(clampInt(body.timeoutMs, 25000, 3000, 60000)),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    return {
+      ok: false,
+      status: response.status,
+      message: String(data?.error || data?.message || `Free Search 请求失败：${response.status}`),
+      data,
+    };
+  }
+  return { ok: true, status: response.status, data };
+};
+
 const runtimeResolveActiveKey = async (
   client: ReturnType<typeof createServiceClient>,
   body: Record<string, unknown>,
@@ -1898,6 +1929,14 @@ Deno.serve(async (request) => {
         }
         throw error;
       }
+    }
+    if (action === 'runtime-free-search') {
+      const user = await requireUser(request, client);
+      if (!user.ok) {
+        return jsonResponse({ ok: false, code: user.code, message: user.message }, user.status, origin);
+      }
+      const result = await runtimeFreeSearch(body);
+      return jsonResponse(result, result.ok ? 200 : 502, origin);
     }
     if (action === 'runtime-resolve') {
       const user = await requireUser(request, client);

@@ -2559,6 +2559,27 @@ const handlePost = async () => {
     return;
   }
 
+  // 优先检查封禁状态（封禁比禁言更严重，封禁用户应被完全禁止发言）
+  if (userInfo.isBanned) {
+    const isPermanentBan = !userInfo.bannedUntil;
+    const isTempBanActive = userInfo.bannedUntil && new Date(userInfo.bannedUntil) > new Date();
+
+    if (isPermanentBan || isTempBanActive) {
+      let banMessage = '您的账号已被封禁，无法发布帖子。';
+      if (userInfo.banReason) {
+        banMessage += ` 原因：${userInfo.banReason}`;
+      }
+      if (userInfo.bannedUntil) {
+        const expiryDate = new Date(userInfo.bannedUntil);
+        banMessage += ` 解封时间：${expiryDate.toLocaleDateString('zh-CN')}`;
+      } else {
+        banMessage += '（永久封禁）';
+      }
+      showModal('warning', '封禁提示', banMessage);
+      return;
+    }
+  }
+
   // 检查用户禁言状态
   if (userInfo.isMuted) {
     // 判断禁言是否有效：永久禁言或临时禁言未过期
@@ -2782,6 +2803,41 @@ const submitReply = async (post) => {
     showLoginModal.value = true;
     return;
   }
+
+  // 优先检查封禁状态
+  if (userInfo.isBanned) {
+    const isPermanentBan = !userInfo.bannedUntil;
+    const isTempBanActive = userInfo.bannedUntil && new Date(userInfo.bannedUntil) > new Date();
+    if (isPermanentBan || isTempBanActive) {
+      let banMessage = '您的账号已被封禁，无法回复。';
+      if (userInfo.banReason) banMessage += ` 原因：${userInfo.banReason}`;
+      if (userInfo.bannedUntil) {
+        banMessage += ` 解封时间：${new Date(userInfo.bannedUntil).toLocaleDateString('zh-CN')}`;
+      } else {
+        banMessage += '（永久封禁）';
+      }
+      showModal('warning', '封禁提示', banMessage);
+      return;
+    }
+  }
+
+  // 检查禁言状态
+  if (userInfo.isMuted) {
+    const isPermanentMute = !userInfo.mutedUntil;
+    const isTempMuteActive = userInfo.mutedUntil && new Date(userInfo.mutedUntil) > new Date();
+    if (isPermanentMute || isTempMuteActive) {
+      let muteMessage = '您已被禁言，无法回复。';
+      if (userInfo.muteReason) muteMessage += ` 原因：${userInfo.muteReason}`;
+      if (userInfo.mutedUntil) {
+        muteMessage += ` 解禁时间：${new Date(userInfo.mutedUntil).toLocaleDateString('zh-CN')}`;
+      } else {
+        muteMessage += '（永久禁言）';
+      }
+      showModal('warning', '禁言提示', muteMessage);
+      return;
+    }
+  }
+
   if (!replyContent.value.trim()) return;
   if (isReplySubmitting.value) return;
   if (replyCooldownSeconds.value > 0) {

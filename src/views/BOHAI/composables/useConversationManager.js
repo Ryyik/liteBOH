@@ -21,6 +21,7 @@ import {
 } from '@/utils/bohai-action-audit.js';
 import {
   buildHistoryMessagesWithCachedSummary,
+  getCachedSummaryIfUsable,
   getStorableDialogueMessages,
   isEmptyAssistantPlaceholder,
   normalizePromptLine,
@@ -237,33 +238,60 @@ export function useConversationManager({
       historyChars += String(item?.content || '').length + 20;
     });
 
+    const summaryText = getCachedSummaryIfUsable({
+      ...(session || {}),
+      messages: historySource
+    });
+    const summaryChars = String(summaryText || '').length;
+    const dialogueHistory = getStorableDialogueMessages(historySource);
+    const sourceMessageCount = summaryText
+      ? Math.max(0, Math.trunc(Number(session?.contextSummary?.sourceMessageCount) || 0))
+      : 0;
+    const cycleMessages = sourceMessageCount > 0 && sourceMessageCount <= dialogueHistory.length
+      ? dialogueHistory.slice(sourceMessageCount)
+      : dialogueHistory;
+    const cycleUsedChars = cycleMessages.reduce(
+      (total, item) => total + String(item?.content || '').length + 20,
+      0
+    );
+    const retainedHistoryChars = summaryText
+      ? Math.max(0, Math.min(
+        MAX_HISTORY_CONTEXT_CHARS - 2000,
+        Math.trunc(Number(session?.contextSummary?.retainedHistoryChars) || 0)
+      ))
+      : 0;
+    const cycleMaxChars = Math.max(2000, MAX_HISTORY_CONTEXT_CHARS - retainedHistoryChars);
+    const compressionPercent = Math.max(0, Math.min(100, (cycleUsedChars / cycleMaxChars) * 100));
+
     // 实际模型上下文 = 系统提示词(~600) + 历史消息 + 结构化用户提示词(含检索证据/规则, 最多 MAX_FINAL_PROMPT_CHARS)
     // 用总预算来反映真实占用，而不是只看历史消息占比
     const estimatedExtraChars = Math.min(
       MAX_PROMPT_EXTRA_CHARS,
       Math.max(_lastActualExtraChars.value, 2000)
     );
-    const totalUsedChars = ESTIMATED_SYSTEM_PROMPT_CHARS + historyChars + estimatedExtraChars;
-    const totalBudget = ESTIMATED_SYSTEM_PROMPT_CHARS + MAX_HISTORY_CONTEXT_CHARS + MAX_FINAL_PROMPT_CHARS;
+    const totalUsedChars = ESTIMATED_SYSTEM_PROMPT_CHARS + summaryChars + historyChars + estimatedExtraChars;
+    const totalBudget = ESTIMATED_SYSTEM_PROMPT_CHARS + CONVERSATION_SUMMARY_MAX_CHARS + MAX_HISTORY_CONTEXT_CHARS + MAX_FINAL_PROMPT_CHARS;
 
     const rawPercent = totalBudget > 0 ? (totalUsedChars / totalBudget) * 100 : 0;
     const percent = Math.max(0, Math.min(100, rawPercent));
-    // 显示用：仅历史 + 系统提示词基线，去掉不可控的 estimatedExtraChars，消息增加时百分比真实增长
-    const historyBudget = ESTIMATED_SYSTEM_PROMPT_CHARS + MAX_HISTORY_CONTEXT_CHARS;
-    const historyPercent = historyBudget > 0 ? ((ESTIMATED_SYSTEM_PROMPT_CHARS + historyChars) / historyBudget) * 100 : 0;
     const includedMessageCount = recentBuilt.length;
     const totalMessageCount = getStorableDialogueMessages(source).length;
-    const hasSummary = recentBuilt.some((item) => item?.role === 'system' && /【此前对话摘要】/.test(String(item?.content || '')));
+    const hasSummary = Boolean(summaryText);
 
     return {
       used: totalUsedChars,
       max: totalBudget,
       percent,
-      historyPercent: Math.max(0, Math.min(100, historyPercent)),
+      windowUsed: cycleUsedChars,
+      windowMax: cycleMaxChars,
+      cycleUsedChars,
+      cycleMaxChars,
+      historyPercent: compressionPercent,
       includedMessageCount,
       totalMessageCount,
       hasSummary,
-      level: percent >= 95 ? 'full' : percent >= 80 ? 'high' : percent >= 55 ? 'mid' : 'low'
+      summaryChars,
+      level: compressionPercent >= 100 ? 'full' : compressionPercent >= 80 ? 'high' : compressionPercent >= 55 ? 'mid' : 'low'
     };
   };
 

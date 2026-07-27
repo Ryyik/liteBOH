@@ -123,7 +123,7 @@ export async function getComments(postId, currentUserId = null, options = {}) {
         .from('comments')
         .select(`
           *,
-          author:author_id(avatar_url)
+          author:author_id(avatar_url, is_banned)
         `)
         .eq('post_id', safePostId)
         .or('status.is.null,status.eq.approved');
@@ -150,7 +150,8 @@ export async function getComments(postId, currentUserId = null, options = {}) {
 
       const formattedData = slicedRows.map((comment) => ({
         ...comment,
-        author_avatar_url: comment.author?.avatar_url
+        author_avatar_url: comment.author?.avatar_url,
+        author_is_banned: Boolean(comment.author?.is_banned)
       }));
 
       return { data: formattedData, error: null, hasMore };
@@ -202,7 +203,7 @@ export async function getCommentThreadReplies(postId, rootCommentId, currentUser
         .from('comments')
         .select(`
           *,
-          author:author_id(avatar_url)
+          author:author_id(avatar_url, is_banned)
         `)
         .eq('post_id', safePostId)
         .or('status.is.null,status.eq.approved')
@@ -215,7 +216,8 @@ export async function getCommentThreadReplies(postId, rootCommentId, currentUser
       return {
         data: safeRows.slice(0, pageSize).map((comment) => ({
           ...comment,
-          author_avatar_url: comment.author?.avatar_url
+          author_avatar_url: comment.author?.avatar_url,
+          author_is_banned: Boolean(comment.author?.is_banned)
         })),
         error: null,
         hasMore: safeRows.length > pageSize

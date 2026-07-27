@@ -28,7 +28,6 @@ export function useResourceSearch({
   stopThinkingTimer,
   setThinkingStatus,
   cleanupGenerationState,
-  refreshConversationSummaryCache,
   appendUserMessageWithTitle,
   resetComposerInput,
   mergeAssistantMessageMeta,
@@ -475,7 +474,6 @@ export function useResourceSearch({
         resourceSearch: payload
       });
       nextTick(scrollToBottom);
-      void refreshConversationSummaryCache(sessionIndex);
       return true;
     } catch (error) {
       const targetSession = getSessionByIndex(sessionIndex);

@@ -135,6 +135,58 @@ Deno.serve(async (request) => {
       );
     }
 
+    // 安全：密码校验通过后，立即在服务端查询封禁状态。
+    // 客户端 login() 也会查一次，但客户端检查可被绕过（直接 curl 拿 token），
+    // 此处是服务端根本防线：命中封禁则立刻撤销刚签发的 session，并返回 403。
+    const authUserId = authData.user?.id;
+    if (authUserId) {
+      const { data: profileRow } = await serviceClient
+        .from('profiles')
+        .select('is_banned, ban_reason, banned_until')
+        .eq('id', authUserId)
+        .maybeSingle();
+
+      const isBanned = Boolean(profileRow?.is_banned);
+      const bannedUntil = profileRow?.banned_until ? String(profileRow.banned_until) : null;
+      const isPermanentBan = isBanned && !bannedUntil;
+      const isTempBanActive = isBanned && bannedUntil && new Date(bannedUntil) > new Date();
+
+      if (isPermanentBan || isTempBanActive) {
+        // 立即撤销刚签发的 session，避免泄漏有效 token
+        try {
+          await serviceClient.auth.admin.signOut(authUserId);
+        } catch (signOutError) {
+          // 撤销失败不阻断错误返回，仍以 403 拒绝登录
+          console.error('banned-user signOut failed:', signOutError);
+        }
+
+        let banMessage = '您的账号已被封禁，无法登录。';
+        if (profileRow?.ban_reason) {
+          banMessage += ` 原因：${profileRow.ban_reason}`;
+        }
+        if (bannedUntil) {
+          try {
+            const expiryDate = new Date(bannedUntil).toLocaleDateString('zh-CN');
+            banMessage += ` 解封时间：${expiryDate}`;
+          } catch {
+            banMessage += ` 解封时间：${bannedUntil}`;
+          }
+        } else {
+          banMessage += '（永久封禁）';
+        }
+
+        return jsonResponse(
+          {
+            ok: false,
+            code: 'USER_BANNED',
+            message: banMessage,
+          },
+          403,
+          origin,
+        );
+      }
+    }
+
     return jsonResponse(
       {
         ok: true,

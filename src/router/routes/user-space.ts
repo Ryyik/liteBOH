@@ -77,7 +77,7 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
     path: "/user-space/subscriptions",
     name: "Subscriptions",
     component: () => import("../../views/user-center/Subscription/index.vue"),
-    meta: { ...userSpaceMeta, hideNavbar: true },
+    meta: { ...userSpaceMeta },
   },
   {
     path: "/user-space/gifts",

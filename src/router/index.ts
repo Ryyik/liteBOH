@@ -49,6 +49,19 @@ const router = createRouter({
   },
 })
 
+// 判断当前用户是否处于有效封禁状态（永久封禁或临时封禁未过期）
+const isActiveBanned = (): boolean => {
+  if (!authStore) return false
+  const { userInfo } = authStore
+  if (!userInfo?.isBanned) return false
+  if (!userInfo.bannedUntil) return true // 永久封禁
+  try {
+    return new Date(userInfo.bannedUntil) > new Date()
+  } catch {
+    return true // 日期解析失败时按封禁处理
+  }
+}
+
 router.beforeEach(async (to, from, next) => {
   initAuthStore()
   if (!authStore) return next()
@@ -65,6 +78,22 @@ router.beforeEach(async (to, from, next) => {
 
   if (requiresLogin && !isLoggedIn) {
     notify('请先登录', 'warning')
+    return next("/login")
+  }
+
+  // 封禁用户禁止访问任何需要登录的路由（包括 UserSpace 空间）。
+  // 触发强制登出由 syncAuthState 心跳处理，这里只做路由层拦截，避免在心跳间隔内访问受保护页面。
+  if (requiresLogin && isLoggedIn && isActiveBanned()) {
+    let banMessage = '您的账号已被封禁，无法访问该页面。'
+    const { userInfo } = authStore
+    if (userInfo?.banReason) {
+      banMessage += ` 原因：${userInfo.banReason}`
+    }
+    notify(banMessage, 'error')
+    // 触发异步强制登出（不阻塞路由跳转）
+    if (typeof authStore.logout === "function") {
+      void authStore.logout()
+    }
     return next("/login")
   }
 

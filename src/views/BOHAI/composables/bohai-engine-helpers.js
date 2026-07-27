@@ -23,7 +23,7 @@ import {
 } from './chat-engine-config.js';
 import { logger } from '@/utils/logger.js';
 import { EVIDENCE_SOURCE_WEIGHTS, RANKING_SCORE_WEIGHTS, KEYWORD_CACHE_MAX_SIZE } from '@/utils/bohai-constants.js';
-import { searchVaultTavily } from '@/utils/api/api-key-runtime-api.js';
+import { searchVaultFree } from '@/utils/api/api-key-runtime-api.js';
 
 let aiMemoryCache = '';
 let aiMemoryLoader = null;
@@ -267,6 +267,13 @@ export const normalizePromptLine = (text, maxChars = MAX_HISTORY_MESSAGE_CHARS) 
   return truncateText(normalized, maxChars);
 };
 
+const ELLIPTICAL_ELABORATION_PATTERN = /^(?:(?:请|麻烦)\s*)?(?:介绍(?:一?下)?|简单介绍(?:一?下)?|详细介绍(?:一?下)?|讲讲|讲一?下|说说|说一?下|展开讲讲|展开说说)(?:呢|吧|可以吗)?[？?。！!]*$/i;
+
+export const isEllipticalElaborationFollowUp = (text = '') => {
+  const normalized = normalizePromptLine(text, 80);
+  return Boolean(normalized && ELLIPTICAL_ELABORATION_PATTERN.test(normalized));
+};
+
 export const isContextDependentFollowUp = (text = '') => {
   const normalized = normalizePromptLine(text, 200);
   if (!normalized) return false;
@@ -275,9 +282,14 @@ export const isContextDependentFollowUp = (text = '') => {
   // 编号引用追问：[W1]、F1、第2点、第二条等
   const referenceFollowUpPattern = /\[?[wfd]\d+\]?|第[一二三四五六七八九十\d]+\s*[条点步个]|上面\s*第\s*\d+\s*点/i;
   const shortAttributeQuestionPattern = /^(?:这个|那个|它|那)?(?:作用|用途|原理|好处|区别|怎么做|怎么练|有什么用|为什么|是什么|怎么办|咋办)(?:是?什么|呢|吗|呀|啊)?$/i;
+  // 用户常用短句修正上一轮问题的时间范围。缺少主题时必须携带上一轮话题去检索，
+  // 否则搜索引擎会把“最近呢，就这几天”当成词义问题。
+  const temporalScopeFollowUpPattern = /^(?:(?:那|不(?:是)?|我是说|我的意思是)\s*[，,]?\s*)?(?:(?:最近|近期)(?:(?:几|两|三|一)天|一周|一个月)?(?:内|呢|的)?|(?:就\s*)?(?:这|近|过去)(?:几|两|三|一)天(?:内|呢)?)(?:\s*[，,]?\s*(?:就\s*)?(?:这|近|过去)(?:几|两|三|一)天(?:内|呢)?)?[？?。！!]*$/i;
   return (explicitFollowUpPattern.test(normalized)
     || referenceFollowUpPattern.test(normalized)
-    || shortAttributeQuestionPattern.test(normalized))
+    || shortAttributeQuestionPattern.test(normalized)
+    || temporalScopeFollowUpPattern.test(normalized)
+    || isEllipticalElaborationFollowUp(normalized))
     && normalized.length <= 120;
 };
 
@@ -303,6 +315,42 @@ export const buildContextualFollowUpQuery = (
 
   if (previousTurns.length === 0) return current;
   return truncateText(`最近对话：${previousTurns.join(' | ')}\n当前追问：${current}`, maxChars);
+};
+
+// 联网检索默认只继承用户表达过的主题。“介绍一下”这类完全省略对象的追问会额外
+// 携带上一轮回答用于定位实体，但明确标记为待核实，避免把它直接当成已确认事实。
+export const buildContextualWebSearchQuery = (
+  userText = '',
+  historyMessages = [],
+  { maxChars = 600 } = {}
+) => {
+  const current = normalizePromptLine(userText, MAX_HISTORY_MESSAGE_CHARS);
+  if (!current || !isContextDependentFollowUp(current)) return current;
+
+  const source = Array.isArray(historyMessages) ? historyMessages : [];
+  const previousUserTurns = [];
+  let previousAssistantTurn = '';
+  for (let index = source.length - 1; index >= 0; index -= 1) {
+    const item = source[index];
+    if (item?.meta?.kind === 'memory_saved_notice') continue;
+    if (!previousAssistantTurn && item?.role === 'assistant') {
+      previousAssistantTurn = normalizePromptLine(item?.content, 240);
+      continue;
+    }
+    if (item?.role !== 'user') continue;
+    const content = normalizePromptLine(item?.content, 260);
+    if (!content || content === current) continue;
+    previousUserTurns.unshift(content);
+    if (previousUserTurns.length >= 2) break;
+  }
+
+  if (previousUserTurns.length === 0) return current;
+  const queryParts = [`用户话题：${previousUserTurns.join('；')}`];
+  if (isEllipticalElaborationFollowUp(current) && previousAssistantTurn) {
+    queryParts.push(`上一轮回答提到（仅用于定位对象，请联网核实）：${previousAssistantTurn}`);
+  }
+  queryParts.push(`当前追问：${current}`);
+  return truncateText(queryParts.join('；'), maxChars);
 };
 
 export const buildHistoryMessagesWithinBudget = (
@@ -369,11 +417,21 @@ export const buildHistoryMessagesWithCachedSummary = (
   { maxChars = MAX_HISTORY_CONTEXT_CHARS, maxMessages = MAX_CONTEXT_MESSAGES, maxPerMessage = MAX_HISTORY_MESSAGE_CHARS } = {}
 ) => {
   const allMessages = getStorableDialogueMessages(session?.messages);
-  const recentSource = allMessages.slice(-CONVERSATION_SUMMARY_RECENT_MESSAGES);
+  const cachedSummary = getCachedSummaryIfUsable({
+    ...(session || {}),
+    messages: allMessages
+  });
+  // 摘要可用前必须保留完整预算内历史。旧实现无条件只取最近 8 条，导致第 9 条开始
+  // 早期消息可能在摘要尚未生成时就从模型上下文消失。
+  const coveredMessageCount = Math.max(0, Math.trunc(Number(session?.contextSummary?.coveredMessageCount) || 0));
+  const historySource = cachedSummary
+    ? allMessages.slice(coveredMessageCount > 0
+      ? coveredMessageCount
+      : -CONVERSATION_SUMMARY_RECENT_MESSAGES)
+    : allMessages;
 
-  // 只返回 recentMessages，摘要由 useChatEngine 并入主 system prompt 的 context 段落
-  // 之前作为独立 system 消息注入，部分模型对多 system 消息处理不一致
-  return buildHistoryMessagesWithinBudget(recentSource, {
+  // 只返回历史消息，摘要由 useChatEngine 并入主 system prompt 的 context 段落。
+  return buildHistoryMessagesWithinBudget(historySource, {
     maxChars,
     maxMessages,
     maxPerMessage
@@ -384,10 +442,19 @@ export const buildHistoryMessagesWithCachedSummary = (
 export const getCachedSummaryIfUsable = (session = {}) => {
   const summary = session?.contextSummary;
   if (!summary || summary.version !== CONVERSATION_SUMMARY_STORAGE_VERSION) return '';
-  const expectedFingerprint = buildConversationSummaryFingerprint(session?.messages);
-  if (summary.fingerprint !== expectedFingerprint) return '';
   const content = normalizePromptLine(summary.content, CONVERSATION_SUMMARY_MAX_CHARS);
-  return content || '';
+  if (!content) return '';
+
+  const allMessages = getStorableDialogueMessages(session?.messages);
+  const sourceMessageCount = Math.max(0, Math.trunc(Number(summary.sourceMessageCount) || 0));
+  if (sourceMessageCount > 0 && sourceMessageCount <= allMessages.length) {
+    const sourceFingerprint = buildConversationSummaryFingerprint(allMessages.slice(0, sourceMessageCount));
+    return summary.fingerprint === sourceFingerprint ? content : '';
+  }
+
+  // 兼容尚未带覆盖范围元数据的旧会话摘要。
+  const expectedFingerprint = buildConversationSummaryFingerprint(allMessages);
+  return summary.fingerprint === expectedFingerprint ? content : '';
 };
 
 export const rankEvidenceContextBlocks = (results = [], queryText = '') => {
@@ -674,23 +741,34 @@ export const buildSearchResultsContext = (results = [], aiAnswer = '') => {
   return `\n\n以下是实时搜索结果，请根据这些信息回答用户，如果搜索结果不相关，请忽略：\n<search_results>\n${body}</search_results>\n\n请在回答时，在引用搜索结果的地方标注编号，如 [W1], [W2]。并在回答结束时列出参考来源。\n\n`;
 };
 
+export const getWebSearchFreshnessDays = (queryText = '') => {
+  const normalized = normalizePromptLine(queryText, 800);
+  if (!normalized) return null;
+  if (/(今天|今日|刚刚|刚才|这几天|近几天|过去几天|过去[一二两三四五六七八九十\d]+天)/i.test(normalized)) {
+    return 7;
+  }
+  if (/(最近|近期|最新|本周|这周|本月|这个月|新发布|刚发布|新闻|动态|近况)/i.test(normalized)) {
+    return 30;
+  }
+  return null;
+};
+
 export const searchWebForPrompt = async (queryText, requestSignal = undefined) => {
   const WEB_SEARCH_TIMEOUT_MS = 25_000;
   if (requestSignal?.aborted) {
     throw new DOMException('Aborted', 'AbortError');
   }
 
-  // Tavily advanced 模式 + days 限制：优先返回近 30 天的实时结果，
-  // 避免 basic 模式返回过时缓存数据（如"特斯拉暴跌"返回 2023 年旧数据）。
+  const freshnessDays = getWebSearchFreshnessDays(queryText);
   const payload = {
       query: queryText,
       search_depth: 'advanced',
       include_answer: true,
       max_results: 5,
-      days: 30
+      ...(freshnessDays ? { days: freshnessDays } : {})
     };
 
-  const vaultResult = await searchVaultTavily({
+  const vaultResult = await searchVaultFree({
     payload,
     timeoutMs: WEB_SEARCH_TIMEOUT_MS,
     signal: requestSignal
@@ -705,7 +783,8 @@ export const searchWebForPrompt = async (queryText, requestSignal = undefined) =
       disabled,
       count: 0,
       context: '',
-      message
+      message,
+      error: vaultResult.error
     };
   }
   const searchData = vaultResult.data || {};
@@ -1005,11 +1084,25 @@ export const INTERNAL_PROGRESS_LINE_PATTERNS = [
   /^\s*>\s*\d+\.\s*\[[^\]]+\]\((?:https?:\/\/|www\.)[^)]+\)\s*$/u
 ];
 
+// 模型幻觉输出的工具调用标签（项目未注册任何 LLM 工具，这类文本需统一清洗）。
+// 覆盖单行自闭合、单行成对、多行块三种形态，args 内容不含 '<' 字符，可安全用 [^<] 匹配单行。
+const TOOL_HALLUCINATION_PATTERNS = [
+  /<tool_call>[\s\S]*?<\/tool_call>\s*/gi,
+  /<function_call>[\s\S]*?<\/function_call>\s*/gi,
+  /<tool\s+name=["'][^"']+["'][^<]*?\/\s*>\s*/gi,
+  /<tool\s+name=["'][^"']+["'][\s\S]*?<\/tool>\s*/gi
+];
+
 export const cleanAssistantVisibleReply = (text) => {
   const raw = String(text || '');
   if (!raw) return '';
 
-  const filteredLines = raw
+  const sanitized = TOOL_HALLUCINATION_PATTERNS.reduce(
+    (acc, pattern) => acc.replace(pattern, ''),
+    raw
+  );
+
+  const filteredLines = sanitized
     .split('\n')
     .filter((line) => !INTERNAL_PROGRESS_LINE_PATTERNS.some((pattern) => pattern.test(line)));
 

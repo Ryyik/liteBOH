@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, ref, reactive } from 'vue';
 import { logger } from '@/utils/logger.js';
+import { notify } from '@/utils/notify.js';
 import type { UserInfo, LoginResult, AsyncOpResult } from '@/types';
 import type * as AuthModule from '@/utils/auth.js';
 
@@ -353,6 +354,40 @@ const PROFILE_SELECT_COLUMNS = `
       try {
         const user = await resolveSessionUser(reason);
         await updateLocalState(user, { force });
+
+        // 中途封禁检测：心跳/可见性/网络恢复等场景下，若发现当前用户已被封禁，
+        // 立即强制登出并提示。login() 流程不走 syncAuthState，有自己的封禁检查，不会冲突。
+        if (user && userInfo.isBanned) {
+          const isPermanentBan = !userInfo.bannedUntil;
+          const isTempBanActive = userInfo.bannedUntil && new Date(userInfo.bannedUntil) > new Date();
+          if (isPermanentBan || isTempBanActive) {
+            let banMessage = '您的账号已被封禁，已自动退出登录。';
+            if (userInfo.banReason) {
+              banMessage += ` 原因：${userInfo.banReason}`;
+            }
+            if (userInfo.bannedUntil) {
+              try {
+                const expiryDate = new Date(userInfo.bannedUntil).toLocaleDateString('zh-CN');
+                banMessage += ` 解封时间：${expiryDate}`;
+              } catch {
+                // 日期解析失败时忽略
+              }
+            } else {
+              banMessage += '（永久封禁）';
+            }
+            logger.warn('auth-store', `检测到封禁状态，强制登出(${reason})`, {
+              userId: userInfo.id,
+              banReason: userInfo.banReason,
+              bannedUntil: userInfo.bannedUntil
+            });
+            notify(banMessage, 'error');
+            const { signOut } = await loadAuthApi();
+            await signOut();
+            await resetState();
+            return;
+          }
+        }
+
         if (user) {
           ensureSessionHeartbeat();
         } else {

@@ -5,12 +5,12 @@ export const SILICON_EMBEDDING_URL = import.meta.env.VITE_SILICON_EMBEDDING_URL 
 export const SILICON_RERANK_URL = import.meta.env.VITE_SILICON_RERANK_URL || 'https://api.siliconflow.cn/v1/rerank';
 export const ZHIPU_CHAT_URL = import.meta.env.VITE_ZHIPU_CHAT_URL || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
 
-// 历史上下文窗口：高灵敏度配置（进度条对每条消息变化敏感）
+// 历史上下文窗口：进度从 0% 单调增长到 100%，到达后自动整理并开启下一轮。
 // - MAX_CONTEXT_MESSAGES=30: 一轮窗口内可保留 30 条历史。
 // - MAX_HISTORY_CONTEXT_CHARS=12000: 全部历史合计 ≤ 12000 字符（约 3K tokens），
-//   约 10 轮短对话即可让进度条走到 50%，可视化反馈非常灵敏。
+//   进度只统计当前整理周期内新增的对话，不混入每轮波动的检索证据。
 // - MAX_HISTORY_MESSAGE_CHARS=2000: 单条历史 ≤ 2000 字符，避免长代码/长草稿被截断。
-// 触发自动压缩的阈值仍在 computeContextBudgetUsage 内（80% high / 95% full），无需调整。
+// 自动整理阈值固定为 100%；55% 后仍允许用户手动整理。
 export const MAX_CONTEXT_MESSAGES = 30;
 export const RATE_LIMIT_WINDOW_MS = 60000;
 export const MAX_MESSAGES_PER_WINDOW = 10;
@@ -112,6 +112,7 @@ ${CONTEXT_PLACEHOLDER}
 - 绝对不能：逐段复述"内部检索资料"原文或输出"操作手册/知识库全文"。
 - 绝对不能：过度道歉。用户没有表达不满时，不要说"抱歉"或"对不起"。
 - 绝对不能：暴露内部 Agent 名称、模型名、prompt 等技术词。
+- 绝对不能：输出 <tool>、<tool_call>、<function_call> 等工具调用标签或任何 XML-like 工具调用文本。本系统不支持模型主动触发工具；当用户在界面开启联网搜索后，搜索结果会自动注入到上方 <context> 块，你只需基于该上下文回答，不要再请求调用外部工具。
 </constraints>
 
 <output_format>
@@ -352,5 +353,4 @@ export const ACTION_POST_TRIGGER_PATTERN = /(发帖|发个帖|发(?:一条|一�
 //   - auto   = 历史保留，运行时已不再使用；新会话默认走 'fast'。
 export const BOH_DEFAULT_MODE_ID = 'fast';
 export const BOH_AUTO_MODE_ID = 'auto';
-
 

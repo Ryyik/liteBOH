@@ -29,10 +29,9 @@ export function useContextCompression({
 
     if (!force) {
       const usage = computeContextBudgetUsage(targetSession, { pendingCount: 1 });
-      // mid 级别（55%）也触发摘要：让 5-6 轮短对话就开始压缩，
-      // 避免早期上下文被 maxMessages=30 截断后完全丢失。
-      // low 级别不触发（对话刚起步，没必要压缩）。
-      if (usage.level === 'low') return false;
+      // 自动整理只在本轮累积完整走到 100% 后触发；中途不再后台刷新摘要，
+      // 保证用户看到的进度单调递增并在整理完成后重置。
+      if (Number(usage.historyPercent || 0) < 100) return false;
     }
 
     if (typeof refreshConversationSummaryCache !== 'function') {

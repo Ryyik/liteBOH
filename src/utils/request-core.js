@@ -158,6 +158,19 @@ export function normalizeDbError(error, fallbackMessage = '请求失败') {
     return { message: error, code: 'APP_ERROR', details: null, hint: null };
   }
   const rawMessage = String(error.message || fallbackMessage);
+  // RLS 拦截封禁/禁言用户时的友好提示
+  const errorCode = String(error.code || '').toUpperCase();
+  const isRlsViolation = errorCode === '42501'
+    || /row-level security policy/i.test(rawMessage)
+    || /new row violates row-level security/i.test(rawMessage);
+  if (isRlsViolation) {
+    return {
+      message: '您的账号已被封禁或禁言，无法执行此操作。',
+      code: 'USER_BANNED_OR_MUTED',
+      details: null,
+      hint: null
+    };
+  }
   if (rawMessage.startsWith('FORUM_RATE_LIMIT:')) {
     const [, ruleCode, ...messageParts] = rawMessage.split(':');
     return {

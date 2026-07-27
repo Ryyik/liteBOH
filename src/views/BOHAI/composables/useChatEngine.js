@@ -136,6 +136,7 @@ import {
   appendPromptSection,
   normalizePromptLine,
   buildContextualFollowUpQuery,
+  buildContextualWebSearchQuery,
   isContextDependentFollowUp,
   getStorableDialogueMessages,
   buildConversationSummaryFingerprint,
@@ -624,7 +625,7 @@ export function useChatEngine() {
 
   const messages = computed(() => chatSessions[currentSessionIndex.value]?.messages || []);
 
-  // 自动上下文压缩：当下一轮 BOH AI 实际可见的上下文达到 high/full 时，
+  // 自动上下文压缩：当本轮上下文进度完整达到 100% 时，
   // 在 sendMessage 中主动调用 ensureContextCompression 让刷新出的摘要赶上本轮请求，
   // 这样 BOH AI 真正看到的就是压缩后的窗口。isCompressingContext 暴露给 UI 用于显示"压缩中"状态。
   // computeContextBudgetUsage / contextBudgetUsage / isCompressingContext / compressingSessionIndex
@@ -969,6 +970,11 @@ export function useChatEngine() {
         version: CONVERSATION_SUMMARY_STORAGE_VERSION,
         fingerprint,
         content: normalizePromptLine(filterThinkingContent(summary), CONVERSATION_SUMMARY_MAX_CHARS),
+        coveredMessageCount: olderMessages.length,
+        sourceMessageCount: dialogueMessages.length,
+        retainedHistoryChars: dialogueMessages
+          .slice(-CONVERSATION_SUMMARY_RECENT_MESSAGES)
+          .reduce((total, message) => total + String(message?.content || '').length + 20, 0),
         updatedAt: Date.now()
       };
       scheduleSaveSessions();
@@ -1005,7 +1011,6 @@ export function useChatEngine() {
     stopThinkingTimer,
     setThinkingStatus,
     cleanupGenerationState,
-    refreshConversationSummaryCache,
     appendUserMessageWithTitle,
     resetComposerInput,
     mergeAssistantMessageMeta,
@@ -1183,8 +1188,10 @@ export function useChatEngine() {
     activeGenerationSessionIndex.value = sessionIndex;
     // 上下文窗口接近上限时，先把会话历史压成摘要，再让模型拿到真正"压缩后"的上下文。
     // 摘要生成失败/无更新会快速 no-op 退出，不会阻塞发送。
-    const compressionPromise = ensureContextCompression(sessionIndex);
     const preflightController = new AbortController();
+    const compressionPromise = ensureContextCompression(sessionIndex, {
+      signal: preflightController.signal
+    });
     abortController.value = preflightController;
     session.messages.push({
       role: 'assistant',
@@ -1220,11 +1227,68 @@ export function useChatEngine() {
     const historyMessagesForCurrentTurn = Array.isArray(session.messages)
       ? session.messages.slice(0, -2)
       : [];
-    const contextualQuery = buildContextualFollowUpQuery(userText, historyMessagesForCurrentTurn, {
+    const localContextualQuery = buildContextualFollowUpQuery(userText, historyMessagesForCurrentTurn, {
       maxChars: MAX_USER_INPUT_CHARS
     });
+    const enableSearch = isSearching.value;
+    let autonomousContextualQuery = '';
+
+    // 无论是否联网，都先让模型自主消解短消息中的省略指代。解析后的完整意图统一用于
+    // 回答路由、资料检索和最终提示；固定规则仅在解析失败时兜底。
+    if (userText.length <= 160 && historyMessagesForCurrentTurn.length >= 2) {
+      const resolverModel = currentModel.value || runtimeAvailableModels.value[0];
+      if (resolverModel?.id) {
+        try {
+          setThinkingStatus('正在结合最近对话理解你的追问...');
+          const resolverHistory = historyMessagesForCurrentTurn
+            .filter((item) => item?.role === 'user' || item?.role === 'assistant')
+            .slice(-6)
+            .map((item) => ({
+              role: item.role,
+              content: truncateText(String(item?.content || '').trim(), 1200)
+            }))
+            .filter((item) => item.content);
+          const rewrittenQuery = await callModelInternal(
+            resolverModel.id,
+            userText,
+            `<role>你是 BOH AI 的上下文理解器。</role>
+<task>结合最近对话，把当前用户消息改写成一条含义完整、脱离聊天记录也能正确理解的问题或指令。</task>
+<constraints>
+- 自主判断省略的对象、代词和时间范围；不要只解释当前短语的字面意思。
+- 上一轮助手提到的实体可以用于定位对象，但不得把助手未经证实的说法当成已确认事实。
+- 如果当前消息本身已经完整，原样输出。
+- 只输出改写后的问题或指令，不要回答，不要加“查询：”等前缀。
+</constraints>`,
+            resolverHistory,
+            preflightController.signal,
+            0,
+            { max_tokens: 256, temperature: 0, top_p: 0.3, frequency_penalty: 0 }
+          );
+          autonomousContextualQuery = normalizePromptLine(
+            filterThinkingContent(rewrittenQuery)
+              .replace(/^(?:独立查询|搜索查询|查询|改写)\s*[:：]\s*/i, '')
+              .replace(/^["'“”]|["'“”]$/g, ''),
+            600
+          );
+        } catch (resolverError) {
+          if (isAbortError(resolverError)) {
+            removePreflightLoader();
+            finishPreflightOnly();
+            return;
+          }
+          logger.warn('boh-ai', 'Contextual query rewrite failed, using local fallback', resolverError);
+        }
+      }
+    }
+
+    const contextualQuery = autonomousContextualQuery || localContextualQuery;
     const shouldUseContextualQuery = contextualQuery && contextualQuery !== userText;
     const routingQueryText = shouldUseContextualQuery ? contextualQuery : userText;
+    const webSearchQueryText = autonomousContextualQuery || buildContextualWebSearchQuery(
+      userText,
+      historyMessagesForCurrentTurn,
+      { maxChars: MAX_USER_INPUT_CHARS }
+    );
     refreshCloudReferenceConsent();
 
     // 4 模式不再做"自动路由"，但 capability 决策（联网/Cloud+ 引用/保存/指令）仍统一由
@@ -1300,7 +1364,6 @@ export function useChatEngine() {
     // 联网搜索触发条件：仅当用户手动开启联网搜索开关时才触发。
     // 之前 autoDecision.shouldSearchWeb 会让 AI 在用户未开启搜索时自动发起联网搜索，
     // 与用户预期不符，已移除自动触发逻辑。
-    const enableSearch = isSearching.value;
     session.isLoading = true;
     session.isThinking = true;
     const requestController = new AbortController();
@@ -1366,12 +1429,12 @@ export function useChatEngine() {
         ? AbortSignal.any([requestController.signal, AbortSignal.timeout(WEB_SEARCH_TIMEOUT_MS)])
         : requestController.signal;
       const webSearchPromise = enableSearch
-        ? runWebSearch(routingQueryText, webSearchSignal)
+        ? runWebSearch(webSearchQueryText || userText, webSearchSignal)
         : Promise.resolve({ ok: true, disabled: false, count: 0, context: '', results: [] });
 
       if (enableSearch) {
         markGenerationProgress('正在并行搜索网络资料...');
-        setProgressContent(`正在搜索"${routingQueryText}"...\n\n`);
+        setProgressContent('正在搜索相关网络资料...\n\n');
       }
 
       // C1 fix: 知识检索与联网搜索并行启动，减少串行等待时间
@@ -1537,7 +1600,7 @@ export function useChatEngine() {
           }));
         mergeAssistantMessageMeta(sessionIndex, messageIndex, {
           searchContext: {
-            query: String(routingQueryText || '').slice(0, 200),
+            query: String(webSearchQueryText || userText).slice(0, 600),
             results: compactResults,
             aiAnswer: String(webSearchResult?.aiAnswer || '').slice(0, 600)
           }
@@ -1665,6 +1728,22 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
           }
           break;
         }
+      }
+
+      // 搜索状态兜底：用户开启了联网搜索但当前轮搜索失败/无结果，且没有上一轮结果可复用时，
+      // 把失败状态注入 webEvidenceContext，让模型知道搜索未能完成并据实告知用户，
+      // 而不是因为上下文为空就回答"我没有访问实时数据的能力"。
+      if (enableSearch && !webEvidenceContext) {
+        let searchStatusReason = '搜索未能完成';
+        if (webSearchResult?.disabled) {
+          searchStatusReason = '联网搜索未配置（Tavily Key 缺失）';
+        } else if (webSearchResult?.ok && searchResultCount === 0) {
+          searchStatusReason = '未找到相关搜索结果';
+        } else if (!webSearchResult?.ok) {
+          const failMsg = String(webSearchResult?.message || '').trim();
+          searchStatusReason = failMsg || '搜索服务暂时不可用';
+        }
+        webEvidenceContext = `<web_search_status>\n用户已开启联网搜索，但${searchStatusReason}。请在回答开头用一句话简要告知用户搜索未能完成及原因，再基于你已有的知识尽力回答用户问题；不要说"我没有访问实时数据的能力"这类话。\n</web_search_status>`;
       }
 
       // C2+C5 fix: 共享 8000 字预算 + URL 去重
@@ -1813,7 +1892,6 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
           userText,
           assistantText: finalNarrativeAnswer
         });
-        void refreshConversationSummaryCache(sessionIndex);
         return;
       }
 
@@ -2064,7 +2142,6 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
           userText,
           assistantText: groundedRepairedContent
         });
-        void refreshConversationSummaryCache(sessionIndex);
         return;
       }
 
@@ -2160,7 +2237,6 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         userText,
         assistantText: finalFilteredContent
       });
-      void refreshConversationSummaryCache(sessionIndex);
     } catch (error) {
       const targetSession = getSessionByIndex(sessionIndex);
       const currentContent = targetSession?.messages?.[messageIndex]?.content || '';

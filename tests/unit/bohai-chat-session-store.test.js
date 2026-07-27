@@ -73,6 +73,9 @@ describe('bohai-chat-session: createBohAIChatSessionSanitizer', () => {
         version: 1,
         fingerprint: 'abc123',
         content: 'Context summary text',
+        coveredMessageCount: 8,
+        sourceMessageCount: 16,
+        retainedHistoryChars: 1200,
         updatedAt: 1234567890,
       },
     });
@@ -80,6 +83,9 @@ describe('bohai-chat-session: createBohAIChatSessionSanitizer', () => {
     expect(session.contextSummary.version).toBe(1);
     expect(session.contextSummary.fingerprint).toBe('abc123');
     expect(session.contextSummary.content).toBe('Context summary text');
+    expect(session.contextSummary.coveredMessageCount).toBe(8);
+    expect(session.contextSummary.sourceMessageCount).toBe(16);
+    expect(session.contextSummary.retainedHistoryChars).toBe(1200);
   });
 
   it('preserves valid timestamp', () => {

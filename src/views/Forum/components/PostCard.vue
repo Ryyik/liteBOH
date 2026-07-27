@@ -178,6 +178,7 @@ const replyTierMap = useTierMap(
         <div class="post-author-info">
           <span class="post-author-v2" :class="authorTierClass" @click.stop="emit('go-to-profile', post.author_username)">@{{
             post.author_username }}</span>
+          <span v-if="post.author_is_banned" class="author-banned-pill" title="该账号已被封禁">已封禁</span>
           <span class="post-date-v2">{{ formatDate(post.created_at) }}</span>
         </div>
       </div>
@@ -337,6 +338,7 @@ const replyTierMap = useTierMap(
               <div class="reply-user-info">
                 <span class="reply-author-v2" :class="replyTierMap[reply.author_id] || ''" @click="emit('go-to-profile', reply.author_username)">{{
                   reply.author_username }}</span>
+                <span v-if="reply.author_is_banned" class="author-banned-pill" title="该账号已被封禁">已封禁</span>
                 <span v-if="reply.reply_to_username" class="reply-to-tag">
                   回复 <span class="target-name">@{{ reply.reply_to_username }}</span>
                 </span>
@@ -366,6 +368,21 @@ const replyTierMap = useTierMap(
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.author-banned-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #fff;
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  border-radius: 6px;
+  margin-left: 6px;
+  letter-spacing: 0.2px;
+  vertical-align: middle;
 }
 
 .post-author-avatar {

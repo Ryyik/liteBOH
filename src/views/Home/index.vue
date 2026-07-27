@@ -1,5 +1,18 @@
 <template>
   <div class="home">
+    <!-- 生日英雄区：检测到今日有用户生日时显示（当前为预览模式） -->
+    <HomeHeroRow v-if="showBirthdayHero" layout="full" aria-label="今日生日">
+      <BirthdayHero :people="birthdayPeople" @more="onBirthdayMore" />
+    </HomeHeroRow>
+
+    <HomeHeroRow layout="full" aria-label="方块墙">
+      <BlockWallHero />
+    </HomeHeroRow>
+
+    <HomeHeroRow layout="full" aria-label="方块之家吉祥物">
+      <MascotEvolutionHero />
+    </HomeHeroRow>
+
     <!-- 固定模板 A：独占一行的横屏英雄区 -->
     <HomeHeroRow layout="full" aria-label="方块之家八周年">
       <AnniversaryHero />
@@ -35,8 +48,7 @@
       />
     </HomeHeroRow>
 
-    <!-- 固定模板 B：两个小英雄区拼成一行 -->
-    <HomeHeroRow layout="split" aria-label="主题与游戏">
+    <HomeHeroRow layout="split" aria-label="主题与云端">
       <AppleGridCard
         title="BOH X 小猫主题"
         subtitle="快来体验萌萌小猫～"
@@ -47,21 +59,6 @@
       </AppleGridCard>
 
       <AppleGridCard
-        class="habitrain-grid-card"
-        title="哈比快车<br>谋杀案"
-        subtitle="方块之家游戏进行中"
-        variant="light"
-        :image-src="habitrainImg"
-        image-alt="哈比快车谋杀案"
-        :links="[
-          { text: '获取下载', type: 'primary', to: '/download' },
-          { text: '加入游戏', type: 'secondary', onClick: () => { showJoinGameModal = true } }
-        ]"
-      />
-    </HomeHeroRow>
-
-    <HomeHeroRow layout="split" aria-label="云端与好礼">
-      <AppleGridCard
         title="BOH Cloud+"
         subtitle="云端内容，随时可达"
         variant="light"
@@ -70,19 +67,6 @@
         :links="[
           { text: '立即体验', type: 'primary', to: '/user-space/note' },
           { text: '了解更多', type: 'secondary', onClick: openCloudPlusModal }
-        ]"
-      />
-
-      <!-- Halo 好礼 -->
-      <AppleGridCard
-        title="Halo，<br>与BOH好礼见个面。"
-        subtitle="探索BOH的精选周边"
-        variant="light"
-        :image-src="toybreadProductImg"
-        image-alt="BOH好礼"
-        :links="[
-          { text: '探索好礼', type: 'primary', to: '/shop?product=300' },
-          { text: '了解更多', type: 'secondary', to: '/shop' }
         ]"
       />
     </HomeHeroRow>
@@ -117,76 +101,6 @@
         >
       </AppleGridCard>
     </HomeHeroRow>
-
-    <!-- 社区动态：信息区，标题仍使用大英雄模板 -->
-    <section class="community-section">
-      <HomeHeroRow layout="full">
-        <AppleHeroBanner
-          title="社区最新动态"
-          subtitle="来自方块社区的最新帖子"
-          variant="light"
-          card
-          :links="[{ text: '进入方块社区', type: 'primary', to: '/user-space?tab=posts' }]"
-        />
-      </HomeHeroRow>
-      <div class="community-posts-wrapper" v-if="latestThreeForumPosts.length > 0 && !isPostsLoading">
-        <div class="community-posts">
-          <div
-            v-for="post in latestThreeForumPosts"
-            :key="post.id"
-            class="community-post-item"
-            @click="goToPostDetail(post.id)"
-          >
-            <div class="cp-author-group">
-              <div class="cp-avatar">
-                <img v-if="post.author_avatar_url" :src="post.author_avatar_url" class="cp-avatar-img" />
-                <div v-else class="cp-avatar-placeholder">{{ post.username?.charAt(0)?.toUpperCase?.() || 'U' }}</div>
-              </div>
-              <span class="cp-author">{{ post.username }}</span>
-              <span class="cp-date">{{ post.date }}</span>
-            </div>
-            <h3 class="cp-title">{{ post.title }}</h3>
-            <p class="cp-excerpt">{{ getPostExcerpt(post) }}</p>
-          </div>
-        </div>
-      </div>
-      <div class="community-posts-wrapper" v-else-if="isPostsLoading">
-        <div class="community-posts community-skeleton">
-          <div v-for="item in 3" :key="`cp-loading-${item}`" class="community-post-item cp-skeleton">
-            <div class="home-skeleton-block cp-sk-avatar"></div>
-            <div class="home-skeleton-block cp-sk-title"></div>
-            <div class="home-skeleton-block cp-sk-line"></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 加入游戏提示弹窗 -->
-    <Teleport to="body">
-      <Transition name="modal-fade">
-        <div v-if="showJoinGameModal" class="join-game-modal-overlay" @click.self="showJoinGameModal = false">
-          <div class="join-game-modal-card">
-            <button class="modal-close-btn" @click="showJoinGameModal = false">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
-            <div class="join-game-content">
-              <div class="join-game-icon">🎮</div>
-              <h2 class="join-game-title">加入游戏</h2>
-              <p class="join-game-desc">该游戏由 BOH 社群驱动，<br>请前往社群加入。</p>
-              <div class="join-game-actions">
-                <router-link to="/join" class="join-game-btn" @click="showJoinGameModal = false">
-                  前往社群
-                </router-link>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
 
     <!-- 遇见福州 弹窗 -->
     <Teleport to="body">
@@ -364,9 +278,11 @@ import HomeHeroRow from "./components/HomeHeroRow.vue";
 import HomeOverlayHero from "./components/HomeOverlayHero.vue";
 import AnniversaryHero from "./components/AnniversaryHero.vue";
 import HomeFooter from "./components/HomeFooter.vue";
+import BlockWallHero from "./components/BlockWallHero.vue";
+import MascotEvolutionHero from "./components/MascotEvolutionHero.vue";
+import BirthdayHero from "./components/BirthdayHero.vue";
+import { isBirthdayToday } from "@/utils/birthday.js";
 import { useRoute, useRouter } from "vue-router";
-import { getPosts } from "../../utils/api/forum-api.js";
-import { getForumPostExcerpt } from "../../utils/forum-post-format.js";
 import { useAuthStore } from "@/stores/auth";
 import {
   claimAnniversarySubscription,
@@ -381,8 +297,6 @@ import {
 // 静态引入首屏关键图片
 import bohCloudImg from "@/assets/images/BOHcloud.webp?url";
 import faviconImg from "@/assets/images/favicon.webp?url";
-import toybreadProductImg from "@/assets/images/toybreadproduct.webp?url";
-import habitrainImg from "@/assets/images/habitrain.webp?url";
 import fuzhouImg from "@/assets/images/fuzhou.webp?url";
 import anniversaryTextImg from "@/assets/images/8yearstext.webp?url";
 import anniversaryCafeImg from "@/assets/images/26coffee4.webp?url";
@@ -393,9 +307,23 @@ const route = useRoute();
 const authStore = useAuthStore();
 const { isLoggedIn, userInfo, showLoginModal } = storeToRefs(authStore);
 
-const showJoinGameModal = ref(false);
 const showAnniversaryLetter = ref(false);
 const showCloudPlusModal = ref(false);
+
+// ============================================
+// 生日英雄区：仅在登录用户生日当天显示
+// ============================================
+const birthdayPeople = computed(() => {
+  if (!isLoggedIn.value) return [];
+  const { birthMonth, birthDay, username, avatarUrl } = userInfo.value || {};
+  if (!isBirthdayToday(birthMonth, birthDay)) return [];
+  return [{ name: username || '你', avatarUrl: avatarUrl || '' }];
+});
+const showBirthdayHero = computed(() => birthdayPeople.value.length > 0);
+const onBirthdayMore = () => {
+  router.push('/birthday');
+};
+
 const isAnniversaryGiftLoading = ref(false);
 const anniversaryGiftClaimed = ref(false);
 const anniversaryGiftError = ref(false);
@@ -520,45 +448,6 @@ const closeFuzhouModal = () => {
   document.body.style.overflow = '';
 };
 
-// 社区动态最新帖子
-const latestThreeForumPosts = ref([]);
-const isPostsLoading = ref(true);
-
-const fetchLatestPosts = async () => {
-  isPostsLoading.value = true;
-  try {
-    const { data, error } = await getPosts(null, { page: 1, pageSize: 3, limit: 3 });
-    if (error) throw error;
-
-    const safePosts = Array.isArray(data) ? data : [];
-    latestThreeForumPosts.value = safePosts.map((post, index) => ({
-      ...post,
-      username: post?.author_username || '匿名',
-      date: post?.created_at ? String(post.created_at).split('T')[0] : '未知日期',
-      id: String(post?.id ?? `fallback-${index}`),
-      author_avatar_url: post?.author_avatar_url || ''
-    }));
-  } catch (err) {
-    console.error('获取最新帖子失败:', err);
-    latestThreeForumPosts.value = [];
-  } finally {
-    isPostsLoading.value = false;
-  }
-};
-
-// 提取帖子摘要
-const getPostExcerpt = (post) => {
-  return getForumPostExcerpt(post, 80);
-};
-
-// 跳转到帖子详情
-const goToPostDetail = (postId) => {
-  router.push({
-    name: 'PostDetail',
-    params: { id: postId }
-  });
-};
-
 // 滚动触发的观察器逻辑
 let observer = null;
 
@@ -594,8 +483,6 @@ const cleanupObserver = () => {
 };
 
 onMounted(async () => {
-  fetchLatestPosts();
-
   document.body.classList.add("is-loaded");
 
   initIntersectionObserver();

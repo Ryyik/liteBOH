@@ -298,6 +298,17 @@ export const searchVaultTavily = ({
   signal
 });
 
+export const searchVaultFree = ({
+  payload = {},
+  timeoutMs = 25000,
+  signal
+} = {}) => invokeRuntime({
+  action: 'runtime-free-search',
+  payload,
+  timeoutMs,
+  signal
+});
+
 export const resolveVaultActiveKey = ({
   provider = 'siliconflow',
   purpose = 'chat',

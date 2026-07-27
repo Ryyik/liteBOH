@@ -267,6 +267,7 @@ const navMenuItems = [
     children: [
       { name: "ai-chat", path: "/ai-chat", label: "BOH AI" },
       { name: "shop", path: "/shop", label: "周边商城" },
+      { name: "subscription", path: "/user-space/subscriptions", label: "订阅计划" },
       { name: "tutorial", path: "/tutorial", label: "教程中心" },
       { name: "download", path: "/download", label: "下载中心" },
       { name: "admin-panel", action: "goToAdmin", label: "管理面板" },

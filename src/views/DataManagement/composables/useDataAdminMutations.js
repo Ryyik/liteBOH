@@ -579,6 +579,19 @@ export const createMutationsCenter = (deps) => {
         throw new Error(String(rpcData?.message || '封禁失败'));
       }
 
+      // 撤销目标用户已签发的所有 session，避免其在 JWT 自然过期前继续访问。
+      // 即使撤销失败也不回滚封禁状态（数据库已置 is_banned=true，心跳会兜底登出）。
+      try {
+        const { error: revokeError } = await supabase.functions.invoke('admin-revoke-session', {
+          body: { user_id: item.id }
+        });
+        if (revokeError) {
+          logger.warn('data-admin', '撤销被封禁用户会话失败（不阻断封禁）:', revokeError);
+        }
+      } catch (revokeErr) {
+        logger.warn('data-admin', '撤销被封禁用户会话异常（不阻断封禁）:', revokeErr);
+      }
+
       // P1 修复: 直接更新 dataStore.users 中的状态
       updateUserStatusInDataStore(item.id, {
         is_banned: true,
