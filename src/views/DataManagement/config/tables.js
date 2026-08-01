@@ -12,6 +12,7 @@ import {
   BOHAI_MODEL_CAPABILITY_OPTIONS,
   BOHAI_MODEL_STATUS_OPTIONS,
   BOHAI_MODEL_ICON_OPTIONS,
+  BOHAI_MODEL_MIN_TIER_OPTIONS,
   LOTTERY_STATUS_OPTIONS,
   LOTTERY_COMMUNITY_VISIBLE_OPTIONS,
   LOTTERY_FULFILLMENT_STATUS_OPTIONS,
@@ -167,6 +168,37 @@ export const dataConfig = {
       { key: 'completed_at', label: '完成日期', type: 'datetime', placeholder: '可自定义完成日期', group: 'time' }
     ]
   },
+  posterRequests: {
+    table: 'poster_requests',
+    columns: [
+      { key: 'username', label: '用户名' },
+      { key: 'recipient', label: '收件人' },
+      { key: 'phone', label: '联系电话' },
+      { key: 'address', label: '收货地址', maxLength: 28 },
+      { key: 'material_fee', label: '物料费', type: 'price' },
+      { key: 'status', label: '状态', type: 'badge' },
+      { key: 'created_at', label: '申请时间', type: 'datetime' }
+    ],
+    fields: [
+      { key: 'id', label: '申请ID', type: 'text', disabled: true, group: 'detail' },
+      { key: 'user_id', label: '用户', type: 'user-picker', required: true, group: 'user' },
+      { key: 'username', label: '用户名', type: 'text', disabled: true, group: 'user' },
+      { key: 'recipient', label: '收件人', type: 'text', disabled: true, group: 'detail' },
+      { key: 'phone', label: '联系电话', type: 'text', disabled: true, group: 'detail' },
+      { key: 'address', label: '收货地址', type: 'textarea', disabled: true, group: 'detail' },
+      { key: 'material_fee', label: '物料费 (RMB)', type: 'number', disabled: true, min: 0, group: 'detail' },
+      { key: 'campaign_code', label: '活动代号', type: 'text', disabled: true, group: 'detail' },
+      {
+        key: 'status', label: '申请状态', type: 'select', options: [
+          { value: 'pending', label: '已收到申请' },
+          { value: 'processing', label: '处理中' },
+          { value: 'shipped', label: '已寄出' },
+          { value: 'completed', label: '已送达' }
+        ], group: 'time'
+      },
+      { key: 'created_at', label: '申请时间', type: 'datetime', disabled: true, group: 'time' }
+    ]
+  },
   forum: {
     table: 'posts',
     columns: [
@@ -256,6 +288,7 @@ export const dataConfig = {
       { key: 'provider_label', label: '供应商', type: 'badge' },
       { key: 'model_id', label: '模型ID', maxLength: 30 },
       { key: 'capability', label: '能力', type: 'badge' },
+      { key: 'min_tier', label: '最低档位', type: 'badge' },
       { key: 'status', label: '状态', type: 'badge' },
       { key: 'temperature', label: '温度', type: 'number' },
       { key: 'max_tokens', label: '输出上限', type: 'number' },
@@ -280,6 +313,7 @@ export const dataConfig = {
       { key: 'max_tokens', label: '最大输出 tokens', type: 'number', min: 256, max: 4096, required: true, group: 'params' },
       { key: 'quota_multiplier', label: '额度消耗倍率', type: 'number', min: 0.1, max: 100, step: 0.1, required: true, hint: '实际 Token × 此倍率计入今日额度。', group: 'params' },
       { key: 'sort_order', label: '显示排序', type: 'number', min: 0, max: 10000, required: true, group: 'extra' },
+      { key: 'min_tier', label: '最低订阅档位', type: 'select', required: true, options: BOHAI_MODEL_MIN_TIER_OPTIONS, hint: '普通档位按订阅等级校验；Coding 档位仅订阅对应（或更高）Coding 附加包的用户可用。', group: 'extra' },
       { key: 'status', label: '状态', type: 'select', required: true, options: BOHAI_MODEL_STATUS_OPTIONS, group: 'extra' },
       { key: 'notes', label: '管理员备注', type: 'textarea', rows: 3, maxLength: 1000, group: 'extra' }
     ]

@@ -1342,6 +1342,44 @@ const WEB_SEARCH_DAILY_LIMIT_FALLBACKS: Record<string, number> = {
   ultra: 240,
 };
 
+// BOH AI Coding 附加包额度加成：与订阅页 CODING_PLANS 文案一致，按 active 订阅叠加。
+const CODING_PLAN_BONUSES: Record<string, { tokenBonus: number; webSearchBonus: number }> = {
+  'coding-lite': { tokenBonus: 500_000, webSearchBonus: 10 },
+  'coding-plus': { tokenBonus: 1_500_000, webSearchBonus: 30 },
+  'coding-pro': { tokenBonus: 3_000_000, webSearchBonus: 60 },
+  'coding-ultra': { tokenBonus: 6_000_000, webSearchBonus: 120 },
+};
+
+const sumCodingBonuses = (plans: Set<string>): { tokenBonus: number; webSearchBonus: number } => {
+  let tokenBonus = 0;
+  let webSearchBonus = 0;
+  for (const code of plans) {
+    const bonus = CODING_PLAN_BONUSES[code];
+    if (bonus) {
+      tokenBonus += bonus.tokenBonus;
+      webSearchBonus += bonus.webSearchBonus;
+    }
+  }
+  return { tokenBonus, webSearchBonus };
+};
+
+// Coding 附加包档位：用于 min_tier 为 coding 计划码时的模式访问门槛校验。
+const CODING_PLAN_RANK: Record<string, number> = {
+  'coding-lite': 1,
+  'coding-plus': 2,
+  'coding-pro': 3,
+  'coding-ultra': 4,
+};
+
+const getCodingPlanRank = (plans: Set<string>): number => {
+  let rank = 0;
+  for (const code of plans) {
+    const r = CODING_PLAN_RANK[code];
+    if (r !== undefined && r > rank) rank = r;
+  }
+  return rank;
+};
+
 const TIER_MAX_OUTPUT_TOKENS: Record<string, number> = {
   free: 1200,
   plus: 1800,
@@ -1388,11 +1426,11 @@ function getTomorrowBeijingStartUTC(): string {
   return new Date(beijing.getTime() - 8 * 3600000).toISOString();
 }
 
-async function resolveUserTier(
+async function resolveUserPlans(
   client: ReturnType<typeof createServiceClient>,
   userId: string | null,
-): Promise<string> {
-  if (!userId) return 'guest';
+): Promise<Set<string>> {
+  if (!userId) return new Set();
   // 5 分钟内存缓存：订阅变更（升级/降级）最多延迟 5 分钟生效，可接受。
   // 注意：缓存的是 plan_code 列表，过期判断（expires_at > now）在每次调用时重新计算。
   const cached = USER_TIER_CACHE.get(userId);
@@ -1412,6 +1450,15 @@ async function resolveUserTier(
     USER_TIER_CACHE.set(userId, { row: { plans: activePlans }, fetchedAt: Date.now() });
     plans = new Set(activePlans);
   }
+  return plans;
+}
+
+async function resolveUserTier(
+  client: ReturnType<typeof createServiceClient>,
+  userId: string | null,
+): Promise<string> {
+  if (!userId) return 'guest';
+  const plans = await resolveUserPlans(client, userId);
   if (plans.has('ultra')) return 'ultra';
   if (plans.has('max') || plans.has('boh-max')) return 'max';
   if (plans.has('pro') || plans.has('boh-pro')) return 'pro';
@@ -1436,6 +1483,7 @@ async function resolveRuntimeModelPolicy(
   client: ReturnType<typeof createServiceClient>,
   requestedMode: string,
   tier: string,
+  userId: string | null,
 ): Promise<RuntimeModelPolicy> {
   const mode = normalizeModeId(requestedMode) || 'fast';
   if (!/^[a-z0-9][a-z0-9._:-]{0,79}$/.test(mode)) {
@@ -1464,9 +1512,17 @@ async function resolveRuntimeModelPolicy(
     MODEL_CONFIG_CACHE.set(cacheKey, { row: data, fetchedAt: Date.now() });
   }
 
-  const requiredTier = normalizeTier(toText(data.min_tier, 'free').toLowerCase());
-  if (!tierAllows(tier, requiredTier)) {
-    throw runtimeAccessError('当前订阅暂不支持此模式，请升级后重试。');
+  const minTier = toText(data.min_tier, 'free').toLowerCase();
+  const codingRank = CODING_PLAN_RANK[minTier];
+  if (codingRank !== undefined) {
+    if (getCodingPlanRank(await resolveUserPlans(client, userId)) < codingRank) {
+      throw runtimeAccessError('当前订阅暂不支持此 Coding 模式，请订阅对应的 Coding 附加包后重试。');
+    }
+  } else {
+    const requiredTier = normalizeTier(minTier);
+    if (!tierAllows(tier, requiredTier)) {
+      throw runtimeAccessError('当前订阅暂不支持此模式，请升级后重试。');
+    }
   }
 
   const provider = toText(data.provider, 'siliconflow').toLowerCase();
@@ -1725,7 +1781,11 @@ async function checkTokenQuota(
   }
 
   const policy = await getQuotaPolicy(client, tier);
-  const tokenLimit = policy.tokenLimit;
+  let tokenLimit = policy.tokenLimit;
+  if (userId && tokenLimit !== -1) {
+    const bonuses = sumCodingBonuses(await resolveUserPlans(client, userId));
+    tokenLimit += bonuses.tokenBonus;
+  }
   const usedTokens = tokenLimit === -1 ? 0 : await countTodayTokenUsage(client, userId, ipAddress);
   const remainingTokens = tokenLimit === -1 ? -1 : Math.max(0, tokenLimit - usedTokens);
   return {
@@ -1761,10 +1821,15 @@ async function handleQuotaStatus(
 
   const tier = await resolveUserTier(client, userId);
   const policy = await getQuotaPolicy(client, tier);
-  const tokenLimit = policy.tokenLimit;
+  let tokenLimit = policy.tokenLimit;
+  let webSearchLimit = policy.webSearchLimit;
+  if (userId) {
+    const bonuses = sumCodingBonuses(await resolveUserPlans(client, userId));
+    if (tokenLimit !== -1) tokenLimit += bonuses.tokenBonus;
+    if (webSearchLimit !== -1) webSearchLimit += bonuses.webSearchBonus;
+  }
   const usedTokens = tokenLimit === -1 ? 0 : await countTodayTokenUsage(client, userId, ipAddress);
   const remainingTokens = tokenLimit === -1 ? -1 : Math.max(0, tokenLimit - usedTokens);
-  const webSearchLimit = policy.webSearchLimit;
   const webSearchUsed = webSearchLimit === -1 ? 0 : await countTodayWebSearchUsage(client, userId);
   const webSearchRemaining = webSearchLimit === -1 ? -1 : Math.max(0, webSearchLimit - webSearchUsed);
 
@@ -1810,7 +1875,7 @@ Deno.serve(async (request) => {
         return jsonResponse({ ok: false, status: 429, code: 'RATE_LIMITED', message: `请求过于频繁，请 ${rate.retryAfter} 秒后再试。` }, 429, origin);
       }
       const tier = identity.tier;
-      const policy = await resolveRuntimeModelPolicy(client, toText(body.mode, 80), tier);
+      const policy = await resolveRuntimeModelPolicy(client, toText(body.mode, 80), tier, identity.userId);
       console.log('[vault] user auth ok, checking token quota');
       // P1-5: 复用 identity 避免重复 auth.getUser 往返
       let quota = await checkTokenQuota(client, request, { userId: identity.userId, ipAddress: identity.ipAddress, tier });
@@ -1860,7 +1925,7 @@ Deno.serve(async (request) => {
         return jsonResponse({ ok: false, status: 429, code: 'RATE_LIMITED', message: `请求过于频繁，请 ${rate.retryAfter} 秒后再试。` }, 429, origin);
       }
       const tier = identity.tier;
-      const policy = await resolveRuntimeModelPolicy(client, toText(body.mode, 80), tier);
+      const policy = await resolveRuntimeModelPolicy(client, toText(body.mode, 80), tier, identity.userId);
       // P1-5: 复用 identity 避免重复 auth.getUser 往返
       let quota = await checkTokenQuota(client, request, { userId: identity.userId, ipAddress: identity.ipAddress, tier });
       quota = await reserveTokenQuota(client, quota, body, policy.maxTokens, policy.quotaMultiplier);
@@ -1892,7 +1957,11 @@ Deno.serve(async (request) => {
       if (!searchRate.ok) {
         return jsonResponse({ ok: false, code: 'SEARCH_RATE_LIMITED', message: `联网搜索过于频繁，请 ${searchRate.retryAfter} 秒后再试。` }, 429, origin);
       }
-      const dailyLimit = (await getQuotaPolicy(client, tier)).webSearchLimit;
+      let dailyLimit = (await getQuotaPolicy(client, tier)).webSearchLimit;
+      if (dailyLimit !== -1) {
+        const bonuses = sumCodingBonuses(await resolveUserPlans(client, user.userId));
+        dailyLimit += bonuses.webSearchBonus;
+      }
       if (dailyLimit === 0) {
         return jsonResponse({ ok: false, code: 'SEARCH_DAILY_LIMIT', message: '当前订阅暂不支持联网搜索。' }, 429, origin);
       }
@@ -1949,6 +2018,25 @@ Deno.serve(async (request) => {
     if (action === 'quota-status') {
       const data = await handleQuotaStatus(client, request);
       return jsonResponse({ ok: true, data }, 200, origin);
+    }
+    if (action === 'clear-user-tier-cache') {
+      const targetUserId = String(body?.targetUserId || '').trim();
+      if (targetUserId) {
+        const admin = await requireAdmin(request, client);
+        if (!admin.ok) {
+          return jsonResponse({ ok: false, code: admin.code, message: admin.message }, admin.status, origin);
+        }
+        const cleared = USER_TIER_CACHE.delete(targetUserId);
+        console.log(`[vault] user tier cache cleared for target ${targetUserId} by admin ${admin.userId}, wasCached=${cleared}`);
+        return jsonResponse({ ok: true, data: { cleared } }, 200, origin);
+      }
+      const user = await requireUser(request, client);
+      if (!user.ok) {
+        return jsonResponse({ ok: false, code: user.code, message: user.message }, user.status, origin);
+      }
+      const cleared = USER_TIER_CACHE.delete(user.userId);
+      console.log(`[vault] user tier cache cleared for ${user.userId}, wasCached=${cleared}`);
+      return jsonResponse({ ok: true, data: { cleared } }, 200, origin);
     }
 
     const admin = await requireAdmin(request, client);

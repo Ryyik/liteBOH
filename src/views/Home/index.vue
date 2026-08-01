@@ -15,7 +15,7 @@
 
     <!-- 固定模板 A：独占一行的横屏英雄区 -->
     <HomeHeroRow layout="full" aria-label="方块之家八周年">
-      <AnniversaryHero />
+      <AnniversaryHero @poster="openPosterModal" />
     </HomeHeroRow>
 
     <HomeHeroRow layout="full" aria-label="云上咖啡店网页游戏">
@@ -261,6 +261,77 @@
       </Transition>
     </Teleport>
 
+    <!-- 八周年纪念海报申请弹窗 -->
+    <Teleport to="body">
+      <Transition name="poster-fade">
+        <div v-if="showPosterModal" class="poster-modal-overlay" @click.self="closePosterModal">
+          <div class="poster-modal-card" role="dialog" aria-modal="true" aria-labelledby="poster-modal-title">
+            <span class="poster-modal-orb poster-orb-a" aria-hidden="true"></span>
+            <span class="poster-modal-orb poster-orb-b" aria-hidden="true"></span>
+            <button class="poster-close-btn" aria-label="关闭海报申请" @click="closePosterModal">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            <div class="poster-modal-content">
+              <div class="poster-modal-header">
+                <div class="poster-modal-icon">
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="16" rx="3"></rect>
+                    <circle cx="8.5" cy="9" r="1.6"></circle>
+                    <path d="M4 17l4.5-4.5c.8-.8 2.1-.8 2.9 0l3.2 3.2"></path>
+                    <path d="M17.5 15.5l-1.4-1.4c-.8-.8-2.1-.8-2.9 0L11 16"></path>
+                  </svg>
+                </div>
+                <h2 id="poster-modal-title" class="poster-modal-title">八周年纪念海报</h2>
+                <p class="poster-modal-subtitle">方块之家八周年 · 校园设定集纪念海报</p>
+              </div>
+              <div class="poster-modal-notice">
+                <p>海报采用实体印刷，提交申请后 <strong>5 天内送达</strong>。</p>
+                <p>每份海报需支付 <strong>5 RMB 物料费</strong>，运费由方块之家承担。</p>
+              </div>
+              <form class="poster-form" @submit.prevent="submitPosterApplication">
+                <div class="poster-form-grid">
+                  <div class="poster-input-group">
+                    <label for="poster-recipient">收件人姓名</label>
+                    <input id="poster-recipient" v-model="posterForm.recipient" type="text" maxlength="40"
+                      placeholder="请输入收件人姓名" autocomplete="name" :disabled="posterSubmitted">
+                  </div>
+                  <div class="poster-input-group">
+                    <label for="poster-phone">联系电话</label>
+                    <input id="poster-phone" v-model="posterForm.phone" type="tel" maxlength="20"
+                      placeholder="请输入联系电话" autocomplete="tel" :disabled="posterSubmitted">
+                  </div>
+                  <div class="poster-input-group poster-full-row">
+                    <label for="poster-address">详细收货地址</label>
+                    <textarea id="poster-address" v-model="posterForm.address" maxlength="200" rows="3"
+                      class="poster-textarea" placeholder="请输入省市区及详细地址" autocomplete="street-address"
+                      :disabled="posterSubmitted"></textarea>
+                  </div>
+                </div>
+                <p v-if="posterMessage" class="poster-status" :class="{ success: posterSuccess, error: posterError }"
+                  role="status">
+                  {{ posterMessage }}
+                </p>
+                <div class="poster-modal-actions">
+                  <button v-if="!posterSubmitted" type="submit" class="poster-primary-btn"
+                    :disabled="isPosterSubmitting" :aria-busy="isPosterSubmitting">
+                    {{ isPosterSubmitting ? '正在提交...' : '提交申请' }}
+                  </button>
+                  <button v-else type="button" class="poster-primary-btn" @click="closePosterModal">
+                    完成
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
     <!-- 首屏页脚 — 仅 Home 显示 -->
     <HomeFooter />
 
@@ -293,6 +364,7 @@ import {
   PLAN_DISPLAY_NAMES,
   resolveHighestTierCode
 } from "@/utils/subscription-benefits.js";
+import { submitPosterRequest } from "@/utils/api/poster-api.js";
 
 // 静态引入首屏关键图片
 import bohCloudImg from "@/assets/images/BOHcloud.webp?url";
@@ -309,6 +381,65 @@ const { isLoggedIn, userInfo, showLoginModal } = storeToRefs(authStore);
 
 const showAnniversaryLetter = ref(false);
 const showCloudPlusModal = ref(false);
+
+// ============================================
+// 八周年纪念海报申请
+// ============================================
+const showPosterModal = ref(false);
+const posterForm = ref({ recipient: '', phone: '', address: '' });
+const isPosterSubmitting = ref(false);
+const posterSubmitted = ref(false);
+const posterSuccess = ref(false);
+const posterError = ref(false);
+const posterMessage = ref('');
+
+const openPosterModal = () => {
+  showPosterModal.value = true;
+  document.body.style.overflow = 'hidden';
+};
+
+const closePosterModal = () => {
+  showPosterModal.value = false;
+  document.body.style.overflow = '';
+  posterForm.value = { recipient: '', phone: '', address: '' };
+  isPosterSubmitting.value = false;
+  posterSubmitted.value = false;
+  posterSuccess.value = false;
+  posterError.value = false;
+  posterMessage.value = '';
+};
+
+const submitPosterApplication = async () => {
+  posterError.value = false;
+  if (!isLoggedIn.value || !userInfo.value?.id) {
+    posterMessage.value = '请先登录，再提交海报申请。';
+    posterError.value = true;
+    showLoginModal.value = true;
+    return;
+  }
+  if (isPosterSubmitting.value || posterSubmitted.value) return;
+
+  const { recipient, phone, address } = posterForm.value;
+  if (!recipient.trim() || !phone.trim() || !address.trim()) {
+    posterMessage.value = '请填写完整的收件信息。';
+    posterError.value = true;
+    return;
+  }
+
+  isPosterSubmitting.value = true;
+  posterMessage.value = '';
+  const result = await submitPosterRequest({ recipient, phone, address });
+
+  if (result.ok) {
+    posterSubmitted.value = true;
+    posterSuccess.value = true;
+    posterMessage.value = '申请已提交，海报将在 5 天内送达（物料费 5 RMB）。详细内容请于“礼物”页面查看。';
+  } else {
+    posterError.value = true;
+    posterMessage.value = result.error?.message || '申请提交失败，请稍后重试。';
+  }
+  isPosterSubmitting.value = false;
+};
 
 // ============================================
 // 生日英雄区：仅在登录用户生日当天显示

@@ -1,5 +1,5 @@
 <template>
-  <div class="address-page" :class="{ 'admin-layout': isAdmin, 'sidebar-collapsed': !isAdminSidebarOpen }">
+  <div class="address-page">
 
     <!-- Global Notice -->
     <Transition name="glass-fade">
@@ -7,66 +7,6 @@
         {{ notice.text }}
       </div>
     </Transition>
-
-    <!-- Admin Sidebar (Users List) -->
-    <aside v-if="isAdmin" class="admin-sidebar glass-container-light">
-      <div class="sidebar-header">
-        <div class="sidebar-title-row">
-          <h3 v-if="isAdminSidebarOpen">社区成员</h3>
-          <Users v-else class="collapsed-logo" :size="24" :stroke-width="1.8" aria-hidden="true" />
-          <button class="collapse-toggle" @click="toggleAdminSidebar">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path v-if="isAdminSidebarOpen" d="M15 18l-6-6 6-6" />
-              <path v-else d="M9 18l6-6-6-6" />
-            </svg>
-          </button>
-        </div>
-        <div v-if="isAdminSidebarOpen" class="search-box fade-in">
-          <input v-model="adminSearchUser" @input="handleSearchUsers" placeholder="搜索用户..." class="sidebar-search" />
-        </div>
-      </div>
-
-      <div v-if="isAdminSidebarOpen" class="user-list custom-scrollbar fade-in">
-        <div v-if="isLoadingUsers" class="admin-user-skeleton-list" aria-hidden="true">
-          <div v-for="item in 7" :key="`admin-user-loading-${item}`" class="user-item skeleton">
-            <div class="address-skeleton-block user-avatar-skeleton"></div>
-            <div class="user-info">
-              <div class="address-skeleton-block user-name-skeleton"></div>
-              <div class="address-skeleton-block user-role-skeleton"></div>
-            </div>
-          </div>
-        </div>
-        <div v-else-if="partnersLoadError" class="sidebar-loading">
-          <span>{{ partnersLoadError }}</span>
-        </div>
-        <template v-else>
-          <div v-for="p in allPartners" :key="p.id" class="user-item" :class="{ active: targetProfile?.id === p.id }"
-            @click="selectUserByAdmin(p)">
-            <div class="user-avatar">{{ p.username?.charAt(0)?.toUpperCase?.() || 'U' }}</div>
-            <div class="user-info">
-              <span class="user-name">{{ p.username }}</span>
-              <span class="user-role">{{ getRoleLabel(p.role) }}</span>
-            </div>
-          </div>
-        </template>
-      </div>
-
-      <!-- Sidebar Pagination -->
-      <div v-if="isAdminSidebarOpen && userTotalPages > 1" class="sidebar-pagination fade-in">
-        <button class="pag-btn" :disabled="userCurrentPage === 1" @click="handleUserPageChange(userCurrentPage - 1)">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
-        </button>
-        <span class="pag-info">{{ userCurrentPage }} / {{ userTotalPages }}</span>
-        <button class="pag-btn" :disabled="userCurrentPage === userTotalPages"
-          @click="handleUserPageChange(userCurrentPage + 1)">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <path d="M9 18l6-6-6-6" />
-          </svg>
-        </button>
-      </div>
-    </aside>
 
     <!-- Main Content Area -->
     <div class="main-content-wrap">
@@ -166,7 +106,7 @@
 
         <!-- Current Gift View (Apple Style) -->
         <div v-else class="current-gift-container fade-in">
-          <div v-if="!currentGift && !isAdmin" class="no-gift-state">
+          <div v-if="!currentGift" class="no-gift-state">
             <Gift class="no-gift-icon" :size="72" :stroke-width="1.6" aria-hidden="true" />
             <h3>开启你的礼物之旅</h3>
             <p>目前还没有待收到的礼物，积极参与社区活动来赢取吧！</p>
@@ -174,8 +114,7 @@
 
           <template v-else>
             <!-- 1. Apple Style Order Status Section -->
-            <section class="apple-order-status glass-container-light"
-              :class="{ 'no-gift-admin': !currentGift && isAdmin }">
+            <section class="apple-order-status glass-container-light">
               <div v-if="currentGift" class="order-main-row">
                 <!-- Left: Gift Image Placeholder -->
                 <div class="gift-visual">
@@ -204,32 +143,6 @@
                   </div>
 
                   <p class="status-desc">{{ getAppleStatusDesc }}</p>
-                </div>
-              </div>
-
-              <div v-else-if="isAdmin" class="no-gift-admin-hint">
-                <Gift class="no-gift-icon" :size="64" :stroke-width="1.6" aria-hidden="true" />
-                <h3>该用户目前没有礼物</h3>
-                <p>您可以为该用户发布一个新的礼物计划。</p>
-              </div>
-
-              <!-- Admin Controls (Overlay style) -->
-              <div v-if="isAdmin && targetProfile" class="admin-quick-actions">
-                <div v-if="currentGift" class="admin-action-group">
-                  <label>状态变更</label>
-                  <div class="status-chips">
-                    <button v-for="s in ['preparing', 'processing', 'shipped', 'completed']" :key="s"
-                      :class="{ active: currentGift?.gift_status === s }" @click="updateGiftStatus(s)">
-                      {{ getStatusLabel(s) }}
-                    </button>
-                  </div>
-                </div>
-                <div class="admin-action-group">
-                  <label>礼物操作</label>
-                  <div class="action-buttons">
-                    <button v-if="currentGift" class="edit-gift-btn-small" @click="openEditGiftModal">编辑详情</button>
-                    <button class="add-gift-btn" @click="openNewGiftModal">新建礼物</button>
-                  </div>
                 </div>
               </div>
             </section>
@@ -273,14 +186,35 @@
           </template>
         </div>
 
+        <!-- 3. 八周年海报申请订单状态 -->
+        <section v-if="posterRequests.length" class="poster-section-bottom glass-container-light">
+          <div class="section-header">
+            <div class="section-title-group">
+              <h3>八周年海报申请</h3>
+            </div>
+          </div>
+          <div class="poster-request-list">
+            <div v-for="request in posterRequests" :key="request.id" class="poster-request-card">
+              <div class="poster-request-head">
+                <span class="poster-request-no">#{{ formatPosterNo(request) }}</span>
+                <span class="poster-request-status" :class="request.status">
+                  {{ getPosterStatusLabel(request.status) }}
+                </span>
+              </div>
+              <div class="poster-request-meta">
+                <span class="poster-request-item">收件人：{{ request.recipient }}</span>
+                <span class="poster-request-item">物料费：RMB {{ Number(request.material_fee) || 5 }}</span>
+                <span class="poster-request-item">申请时间：{{ formatPosterDate(request.created_at) }}</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- Address Management (Separate Section) -->
         <section class="address-section-bottom glass-container-light">
           <div class="section-header">
             <div class="section-title-group">
               <h3>收货地址管理</h3>
-              <div v-if="isAdmin && targetProfile" class="target-user-badge">
-                <span class="user-name-tag">当前操作用户: {{ targetProfile.username }}</span>
-              </div>
             </div>
             <div v-if="isAddressEditable && !isEditing" class="section-actions">
               <button class="edit-link" @click="startEdit" :disabled="saving || deletingAddress">
@@ -350,68 +284,6 @@
       </template>
     </div>
 
-    <!-- New Gift Modal (Admin Only) -->
-    <Teleport to="body">
-      <div v-if="showNewGiftModal" class="modal-overlay" @click.self="showNewGiftModal = false">
-        <div class="gift-edit-modal glass-card">
-          <h3>发布新礼物</h3>
-          <div class="modal-form">
-            <div class="m-field">
-              <label>礼物编号</label>
-              <input v-model="newGift.gift_no" placeholder="如: BOH-2026-001" />
-            </div>
-            <div class="m-field">
-              <label>价格 (RMB)</label>
-              <input type="number" v-model="newGift.gift_price" placeholder="0" />
-            </div>
-            <div class="m-field full">
-              <label>礼物内容</label>
-              <input v-model="newGift.gift_content" placeholder="输入礼物名称..." />
-            </div>
-            <div class="m-field full">
-              <label>图片链接 (可选)</label>
-              <input v-model="newGift.gift_image" placeholder="https://..." />
-            </div>
-          </div>
-          <div class="modal-actions">
-            <button @click="showNewGiftModal = false">取消</button>
-            <button class="primary" @click="createNewGift">确认发布</button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
-
-    <!-- Edit Gift Modal (Admin Only) -->
-    <Teleport to="body">
-      <div v-if="showEditGiftModal" class="modal-overlay" @click.self="showEditGiftModal = false">
-        <div class="gift-edit-modal glass-card">
-          <h3>编辑礼物详情</h3>
-          <div class="modal-form">
-            <div class="m-field">
-              <label>礼物编号</label>
-              <input v-model="editGiftData.gift_no" placeholder="如: BOH-2026-001" />
-            </div>
-            <div class="m-field">
-              <label>价格 (RMB)</label>
-              <input type="number" v-model="editGiftData.gift_price" placeholder="0" />
-            </div>
-            <div class="m-field full">
-              <label>礼物内容</label>
-              <input v-model="editGiftData.gift_content" placeholder="输入礼物名称..." />
-            </div>
-            <div class="m-field full">
-              <label>图片链接 (可选)</label>
-              <input v-model="editGiftData.gift_image" placeholder="https://..." />
-            </div>
-          </div>
-          <div class="modal-actions">
-            <button @click="showEditGiftModal = false">取消</button>
-            <button class="primary" @click="updateGiftInfo">确认更新</button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
-
     <!-- AI Confirm Modal -->
     <Teleport to="body">
       <div v-if="showAiConfirm" class="modal-overlay">
@@ -435,12 +307,11 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed, reactive } from "vue";
 import { useRouter, useRoute } from "vue-router";
-import { Gift, MapPin, TriangleAlert, Users } from "lucide-vue-next";
+import { Gift, MapPin, TriangleAlert } from "lucide-vue-next";
 import { useAuthStore } from "@/stores/auth";
 import { storeToRefs } from "pinia";
 import { supabase } from "@/utils/supabase-client.js";
 import { logger } from '@/utils/logger.js';
-import { createNotification } from "@/utils/api/notifications-api.js";
 import { callVaultSiliconChat } from "@/utils/api/api-key-runtime-api.js";
 import { getExpiredActiveGiftIds, markGiftsAsHistory, isGiftExpiredCompleted } from "@/utils/gift-archive.js";
 import { resolveSettingsBackLocation } from "@/utils/user-space-navigation.js";
@@ -464,7 +335,7 @@ const showNotice = (text, type = 'info') => {
 const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
-const { userInfo, isLoggedIn, isAdmin } = storeToRefs(authStore);
+const { userInfo, isLoggedIn } = storeToRefs(authStore);
 
 // --- State ---
 const loading = ref(true);
@@ -473,8 +344,6 @@ const saving = ref(false);
 const deletingAddress = ref(false);
 const isEditing = ref(false);
 const targetProfile = ref(null);
-const adminSearchUser = ref("");
-const allPartners = ref([]);
 const isOwnProfile = ref(true);
 const showHistory = ref(false);
 const historyGifts = ref([]);
@@ -482,15 +351,8 @@ const historyLoading = ref(false);
 const historyLoadError = ref("");
 const historyLoadedUserId = ref("");
 const currentGift = ref(null);
-const showNewGiftModal = ref(false);
-const showEditGiftModal = ref(false);
+const posterRequests = ref([]);
 
-const isAdminSidebarOpen = ref(true);
-const userPageSize = 10;
-const userCurrentPage = ref(1);
-const userTotalCount = ref(0);
-const isLoadingUsers = ref(false);
-const partnersLoadError = ref("");
 const TASK_TIMEOUT_MS = 12000;
 
 const withTaskTimeout = (promise, timeoutMs = TASK_TIMEOUT_MS, message = '请求超时，请稍后重试') =>
@@ -506,21 +368,6 @@ const withTaskTimeout = (promise, timeoutMs = TASK_TIMEOUT_MS, message = '请求
         reject(error);
       });
   });
-
-const newGift = reactive({
-  gift_no: "",
-  gift_content: "",
-  gift_price: 0,
-  gift_image: ""
-});
-
-const editGiftData = reactive({
-  id: "",
-  gift_no: "",
-  gift_content: "",
-  gift_price: 0,
-  gift_image: ""
-});
 
 // Form state
 const form = reactive({
@@ -540,12 +387,34 @@ const aiResult = reactive({
 });
 
 // --- Computed ---
-const isAddressEditable = computed(() => Boolean(isOwnProfile.value || isAdmin.value));
+const isAddressEditable = computed(() => Boolean(isOwnProfile.value));
 const hasAddressData = computed(() => Boolean(
   String(targetProfile.value?.shipping_address || "").trim()
   || String(targetProfile.value?.shipping_recipient || "").trim()
   || String(targetProfile.value?.shipping_phone || "").trim()
 ));
+
+const getPosterStatusLabel = (status) => {
+  const map = {
+    'pending': '已收到申请',
+    'processing': '处理中',
+    'shipped': '已寄出',
+    'completed': '已送达'
+  };
+  return map[status] || '待处理';
+};
+
+const formatPosterNo = (request) => {
+  const raw = String(request?.id || '');
+  return raw.slice(0, 8).toUpperCase() || 'BOH-POSTER';
+};
+
+const formatPosterDate = (dateStr) => {
+  if (!dateStr) return "";
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
 
 const currentStatusIndex = computed(() => {
   const status = currentGift.value?.gift_status || 'preparing';
@@ -584,11 +453,6 @@ const getAppleStatusDesc = computed(() => {
 
 // --- Methods ---
 
-const getRoleLabel = (role) => {
-  const map = { 'admin': '管理员', 'user': '成员', 'vip': 'VIP' };
-  return map[role] || '成员';
-};
-
 const getStatusLabel = (s) => {
   const map = {
     'preparing': '备货中',
@@ -603,67 +467,6 @@ const formatDateShort = (dateStr) => {
   if (!dateStr) return "";
   const date = new Date(dateStr);
   return `${date.getMonth() + 1}月 ${date.getDate()}日`;
-};
-
-const selectUserByAdmin = (user) => {
-  isEditing.value = false;
-  pastedText.value = "";
-  fetchData(user.id);
-};
-
-const userTotalPages = computed(() => Math.ceil(userTotalCount.value / userPageSize));
-
-const fetchAllPartners = async () => {
-  if (!isAdmin.value) return;
-  isLoadingUsers.value = true;
-  partnersLoadError.value = "";
-  try {
-    const search = adminSearchUser.value.trim();
-    let query = supabase
-      .from('profiles')
-      .select('id, username, role', { count: 'exact' })
-      .order('username');
-
-    if (search) {
-      query = query.ilike('username', `%${search}%`);
-    }
-
-    const start = (userCurrentPage.value - 1) * userPageSize;
-    const { data, error, count } = await withTaskTimeout(
-      query.range(start, start + userPageSize - 1)
-    );
-
-    if (!error) {
-      allPartners.value = data || [];
-      userTotalCount.value = count || 0;
-    } else {
-      partnersLoadError.value = error.message || "加载成员失败";
-    }
-  } catch (err) {
-    logger.error('address', err);
-    partnersLoadError.value = err?.message || "加载成员失败";
-  } finally {
-    isLoadingUsers.value = false;
-  }
-};
-
-const handleUserPageChange = (page) => {
-  if (page < 1 || page > userTotalPages.value) return;
-  userCurrentPage.value = page;
-  fetchAllPartners();
-};
-
-let searchTimeout = null;
-const handleSearchUsers = () => {
-  if (searchTimeout) clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => {
-    userCurrentPage.value = 1;
-    fetchAllPartners();
-  }, 500);
-};
-
-const toggleAdminSidebar = () => {
-  isAdminSidebarOpen.value = !isAdminSidebarOpen.value;
 };
 
 const resetHistoryState = () => {
@@ -713,17 +516,6 @@ const loadHistoryGifts = async (uid = targetProfile.value?.id || userInfo.value?
 
     if (expiredGiftIds.length > 0) {
       normalizedGifts = markGiftsAsHistory(normalizedGifts, expiredGiftIds);
-
-      // 仅管理员尝试持久化归档，普通用户按前端规则展示为历史礼物。
-      if (isAdmin.value) {
-        const { error: archiveError } = await supabase
-          .from('user_gifts')
-          .update({ is_active: false })
-          .in('id', expiredGiftIds);
-        if (archiveError) {
-          logger.warn('address', '自动归档过期礼物失败:', archiveError);
-        }
-      }
     }
 
     const currentGiftId = currentGift.value?.id;
@@ -798,15 +590,6 @@ const fetchData = async (uid = userInfo.value.id) => {
 
       // 与旧逻辑保持一致：过期且已完成的当前礼物自动视为历史礼物。
       if (normalizedCurrentGift && isGiftExpiredCompleted(normalizedCurrentGift)) {
-        if (isAdmin.value) {
-          const { error: archiveError } = await supabase
-            .from('user_gifts')
-            .update({ is_active: false })
-            .eq('id', normalizedCurrentGift.id);
-          if (archiveError) {
-            logger.warn('address', '自动归档过期礼物失败:', archiveError);
-          }
-        }
         normalizedCurrentGift = { ...normalizedCurrentGift, is_active: false };
       }
 
@@ -825,6 +608,19 @@ const fetchData = async (uid = userInfo.value.id) => {
       } else {
         currentGift.value = null;
       }
+    }
+
+    // 八周年海报申请订单状态（RLS：仅本人可见）
+    const { data: posterData, error: posterError } = await supabase
+      .from('poster_requests')
+      .select('id, recipient, material_fee, status, created_at')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false });
+    if (!posterError) {
+      posterRequests.value = Array.isArray(posterData) ? posterData : [];
+    } else {
+      posterRequests.value = [];
+      logger.warn('address', '加载海报申请失败:', posterError);
     }
 
     if (showHistory.value) {
@@ -1057,153 +853,6 @@ const applyAiResult = () => {
   pastedText.value = "";
 };
 
-// --- Admin Actions ---
-const updateGiftStatus = async (status) => {
-  if (!currentGift.value || !isAdmin.value) return;
-  try {
-    const nowIso = new Date().toISOString();
-    const completedAt = status === 'completed'
-      ? (currentGift.value.completed_at || nowIso)
-      : null;
-
-    const { error } = await supabase
-      .from('user_gifts')
-      .update({
-        gift_status: status,
-        completed_at: completedAt,
-        updated_at: nowIso
-      })
-      .eq('id', currentGift.value.id);
-    if (!error) {
-      currentGift.value.gift_status = status;
-      currentGift.value.completed_at = completedAt;
-      currentGift.value.updated_at = nowIso;
-      // 同时更新历史记录中的对应项
-      const historyItem = historyGifts.value.find(g => g.id === currentGift.value.id);
-      if (historyItem) {
-        historyItem.gift_status = status;
-        historyItem.completed_at = completedAt;
-        historyItem.updated_at = nowIso;
-      }
-
-      // 发送通知给用户
-      const statusLabels = {
-        'preparing': '备货中',
-        'processing': '正在处理',
-        'shipped': '已发货',
-        'completed': '已送达'
-      };
-      await createNotification(
-        targetProfile.value.id,
-        userInfo.value?.id || null,
-        'gift',
-        {
-          gift_id: currentGift.value.id,
-          content: `您的礼物 [${currentGift.value.gift_content}] 状态已更新为: ${statusLabels[status]}`
-        }
-      );
-    }
-  } catch (err) {
-    logger.error('address', err);
-  }
-};
-
-const openNewGiftModal = () => {
-  newGift.gift_no = `BOH-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
-  newGift.gift_content = ""; newGift.gift_price = 0; newGift.gift_image = "";
-  showNewGiftModal.value = true;
-};
-
-const openEditGiftModal = () => {
-  if (!currentGift.value) return;
-  editGiftData.id = currentGift.value.id;
-  editGiftData.gift_no = currentGift.value.gift_no;
-  editGiftData.gift_content = currentGift.value.gift_content;
-  editGiftData.gift_price = currentGift.value.gift_price;
-  editGiftData.gift_image = currentGift.value.gift_image || "";
-  showEditGiftModal.value = true;
-};
-
-const updateGiftInfo = async () => {
-  if (!editGiftData.gift_content) return showNotice("请输入礼物内容");
-  try {
-    const { data, error } = await supabase
-      .from('user_gifts')
-      .update({
-        gift_no: editGiftData.gift_no,
-        gift_content: editGiftData.gift_content,
-        gift_price: editGiftData.gift_price,
-        gift_image: editGiftData.gift_image,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', editGiftData.id)
-      .select()
-      .single();
-
-    if (!error) {
-      currentGift.value = data;
-      // 同时更新历史记录中的对应项
-      const historyItem = historyGifts.value.find(g => g.id === data.id);
-      if (historyItem) {
-        Object.assign(historyItem, data);
-      }
-      showEditGiftModal.value = false;
-      showNotice("更新成功");
-    } else {
-      showNotice("更新失败: " + error.message);
-    }
-  } catch (err) {
-    logger.error('address', err);
-    showNotice('更新失败，请稍后重试');
-  }
-};
-
-const createNewGift = async () => {
-  if (!newGift.gift_content) return showNotice("请输入礼物内容");
-  try {
-    const previousCurrentGift = currentGift.value
-      ? { ...currentGift.value, is_active: false, updated_at: new Date().toISOString() }
-      : null;
-
-    // 1. Deactivate old gifts
-    await supabase.from('user_gifts').update({ is_active: false }).eq('user_id', targetProfile.value.id);
-
-    // 2. Insert new
-    const { data, error } = await supabase.from('user_gifts').insert({
-      user_id: targetProfile.value.id,
-      ...newGift,
-      is_active: true
-    }).select().single();
-
-    if (!error) {
-      currentGift.value = data;
-      if (historyLoadedUserId.value === targetProfile.value.id) {
-        const dedupedHistory = historyGifts.value.filter((gift) =>
-          gift.id !== data.id && gift.id !== previousCurrentGift?.id
-        );
-        historyGifts.value = previousCurrentGift
-          ? [previousCurrentGift, ...dedupedHistory]
-          : dedupedHistory;
-      }
-      showNewGiftModal.value = false;
-
-      // 发送通知给用户
-      await createNotification(
-        targetProfile.value.id,
-        userInfo.value?.id || null,
-        'gift',
-        {
-          gift_id: data.id,
-          content: `为您发布了一份新的礼物: [${data.gift_content}]，快去查看进度吧！`
-        }
-      );
-    }
-  } catch (err) {
-    logger.error('address', err);
-    showNotice('创建礼物失败，请稍后重试');
-  }
-};
-
 const viewGiftDetail = (gift) => {
   currentGift.value = gift;
   showHistory.value = false;
@@ -1211,7 +860,7 @@ const viewGiftDetail = (gift) => {
 
 onMounted(() => {
   if (isLoggedIn.value) {
-    void Promise.allSettled([fetchData(), fetchAllPartners()]);
+    void fetchData();
   } else {
     router.push('/login');
   }

@@ -186,6 +186,7 @@ export const SAVE_STRATEGIES = {
     const normalizedCapability = String(editingItem.capability || 'chat').trim().toLowerCase();
     const normalizedStatus = String(editingItem.status || 'active').trim().toLowerCase();
     const normalizedIcon = String(editingItem.icon || 'sparkles').trim() || 'sparkles';
+    const normalizedMinTier = String(editingItem.min_tier || 'free').trim().toLowerCase();
     const normalizedTemperature = Number(editingItem.temperature);
     const normalizedTopP = Number(editingItem.top_p);
     const normalizedFrequencyPenalty = Number(editingItem.frequency_penalty);
@@ -201,6 +202,8 @@ export const SAVE_STRATEGIES = {
     if (!normalizedModelId) throw new Error('模型 ID 不能为空');
     if (!['chat', 'multimodal', 'plan', 'agent'].includes(normalizedCapability)) throw new Error('能力类型无效');
     if (!['active', 'disabled'].includes(normalizedStatus)) throw new Error('状态必须是 active 或 disabled');
+    const allowedMinTiers = new Set(['guest', 'free', 'plus', 'pro', 'max', 'ultra', 'coding-lite', 'coding-plus', 'coding-pro', 'coding-ultra']);
+    if (!allowedMinTiers.has(normalizedMinTier)) throw new Error('最低订阅档位无效');
     if (!Number.isFinite(normalizedTemperature) || normalizedTemperature < 0 || normalizedTemperature > 1.2) throw new Error('Temperature 必须在 0-1.2 之间');
     if (!Number.isFinite(normalizedTopP) || normalizedTopP < 0.1 || normalizedTopP > 1) throw new Error('Top P 必须在 0.1-1 之间');
     if (!Number.isFinite(normalizedFrequencyPenalty) || normalizedFrequencyPenalty < 0 || normalizedFrequencyPenalty > 2) throw new Error('Frequency Penalty 必须在 0-2 之间');
@@ -224,6 +227,7 @@ export const SAVE_STRATEGIES = {
       frequency_penalty: normalizedFrequencyPenalty,
       max_tokens: normalizedMaxTokens,
       quota_multiplier: normalizedQuotaMultiplier,
+      min_tier: normalizedMinTier,
       sort_order: normalizedSortOrder,
       status: normalizedStatus,
       notes: String(editingItem.notes || '').trim(),
@@ -371,6 +375,21 @@ export const SAVE_STRATEGIES = {
       is_active: normalizedIsActive,
       completed_at: normalizedCompletedAt,
       updated_at: nowIso
+    });
+  },
+
+  posterRequests: async ({ editingItem }) => {
+    const normalizedUserId = String(editingItem.user_id || '').trim();
+    if (!normalizedUserId) throw new Error('请先选择用户');
+
+    const normalizedStatus = String(editingItem.status || 'pending').trim() || 'pending';
+    const allowedStatuses = new Set(['pending', 'processing', 'shipped', 'completed']);
+    if (!allowedStatuses.has(normalizedStatus)) throw new Error('海报申请状态无效');
+
+    return pickWritableFields('posterRequests', {
+      user_id: normalizedUserId,
+      status: normalizedStatus,
+      updated_at: new Date().toISOString()
     });
   }
 };

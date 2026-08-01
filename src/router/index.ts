@@ -70,8 +70,23 @@ router.beforeEach(async (to, from, next) => {
   const requiresAdmin = to.matched.some((record) => record.meta?.requiresAdmin)
   const requiresAuth = requiresLogin || requiresAdmin
 
+  // 不再阻塞跳转：受保护路由在未初始化时也允许进入，让首屏立即渲染。
+  // initLoginState 完成后若发现未登录/无权限，通过异步 replace 跳转到 /login 或 /，
+  // 避免用户点击"我的方块"等按钮后长时间无响应（initLoginState 内含远程会话同步）。
   if (requiresAuth && !authStore.isInitialized && typeof authStore.initLoginState === "function") {
-    await authStore.initLoginState()
+    const storeSnapshot = authStore!
+    authStore.initLoginState().then(() => {
+      // 仅当用户仍停留在本次跳转的目标路由时才执行权限回弹，
+      // 避免在用户已主动导航到其他页面时打断。
+      if (router.currentRoute.value.path !== to.path) return
+      if (requiresLogin && !storeSnapshot.isLoggedIn) {
+        notify('请先登录', 'warning')
+        router.replace('/login')
+      } else if (requiresAdmin && !storeSnapshot.isAdmin) {
+        notify('您没有权限访问该页面', 'error')
+        router.replace('/')
+      }
+    }).catch(() => { /* 错误已在 store 内处理 */ })
   }
 
   const { isLoggedIn } = authStore

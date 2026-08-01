@@ -661,6 +661,302 @@
 .cloud-plus-modal-primary-btn:hover { background: #333; }
 
 /* ============================================
+   弹窗：八周年纪念海报申请（毛玻璃极简）
+   ============================================ */
+.poster-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(12, 14, 22, 0.42);
+  backdrop-filter: blur(22px) saturate(1.15);
+  -webkit-backdrop-filter: blur(22px) saturate(1.15);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  padding: 24px;
+}
+
+.poster-modal-card {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  max-height: 85vh;
+  border-radius: 30px;
+  overflow: hidden;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.78) 0%, rgba(255, 255, 255, 0.52) 100%);
+  backdrop-filter: blur(44px) saturate(1.8);
+  -webkit-backdrop-filter: blur(44px) saturate(1.8);
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  box-shadow:
+    0 40px 90px rgba(10, 12, 20, 0.35),
+    0 8px 24px rgba(10, 12, 20, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  animation: posterReveal .55s cubic-bezier(.16, 1, .3, 1);
+}
+
+/* 玻璃内的环境光斑，让毛玻璃有光可滤 */
+.poster-modal-orb {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(60px);
+  z-index: 0;
+}
+
+.poster-orb-a {
+  top: -110px;
+  right: -90px;
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(circle, rgba(90, 160, 255, 0.5) 0%, rgba(90, 160, 255, 0) 70%);
+}
+
+.poster-orb-b {
+  bottom: -120px;
+  left: -100px;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(255, 120, 160, 0.4) 0%, rgba(255, 120, 160, 0) 70%);
+}
+
+.poster-modal-content {
+  position: relative;
+  z-index: 1;
+  padding: 40px;
+  overflow-y: auto;
+  max-height: 85vh;
+}
+
+.poster-modal-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.poster-modal-icon {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 16px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1d1d1f;
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow:
+    0 8px 24px rgba(30, 40, 70, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.poster-modal-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: #1d1d1f;
+  margin: 0 0 6px;
+  letter-spacing: -0.03em;
+}
+
+.poster-modal-subtitle {
+  font-size: 14px;
+  color: rgba(29, 29, 31, 0.62);
+  margin: 0;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.poster-modal-notice {
+  margin-bottom: 24px;
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.42);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 18px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: rgba(29, 29, 31, 0.72);
+}
+
+.poster-modal-notice p { margin: 0 0 6px; }
+.poster-modal-notice p:last-child { margin-bottom: 0; }
+.poster-modal-notice strong { color: #1d1d1f; font-weight: 650; }
+
+.poster-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.poster-full-row { grid-column: 1 / -1; }
+
+.poster-input-group { display: flex; flex-direction: column; gap: 8px; }
+
+.poster-input-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(29, 29, 31, 0.78);
+  letter-spacing: 0.01em;
+  padding-left: 2px;
+}
+
+.poster-input-group input,
+.poster-textarea {
+  width: 100%;
+  padding: 13px 15px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(12px) saturate(1.3);
+  -webkit-backdrop-filter: blur(12px) saturate(1.3);
+  color: #1d1d1f;
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+  transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+  box-sizing: border-box;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.poster-input-group input::placeholder,
+.poster-textarea::placeholder {
+  color: rgba(29, 29, 31, 0.36);
+}
+
+.poster-input-group input:focus,
+.poster-textarea:focus {
+  border-color: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow:
+    0 0 0 4px rgba(10, 132, 255, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.poster-textarea {
+  resize: vertical;
+  min-height: 88px;
+  line-height: 1.5;
+}
+
+.poster-input-group input:disabled,
+.poster-textarea:disabled {
+  background: rgba(255, 255, 255, 0.35);
+  color: rgba(29, 29, 31, 0.5);
+  cursor: not-allowed;
+}
+
+.poster-status {
+  margin: 16px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.poster-status.success { color: #087f5b; }
+.poster-status.error { color: #b42318; }
+
+.poster-modal-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+}
+
+.poster-primary-btn {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 160px;
+  padding: 14px 36px;
+  background: #1d1d1f;
+  color: #fff;
+  border-radius: 980px;
+  font-size: 15px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: background .2s ease, transform .2s ease, opacity .2s ease, box-shadow .2s ease;
+  box-shadow: 0 8px 20px rgba(29, 29, 31, 0.25);
+}
+
+.poster-primary-btn:hover { background: #333; box-shadow: 0 10px 26px rgba(29, 29, 31, 0.3); }
+.poster-primary-btn:active { transform: scale(0.97); }
+.poster-primary-btn:disabled {
+  background: rgba(29, 29, 31, 0.45);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* 毛玻璃圆形关闭按钮（仅海报弹窗） */
+.poster-close-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(29, 29, 31, 0.75);
+  transition: background .2s ease, color .2s ease, transform .2s ease;
+  z-index: 10;
+}
+
+.poster-close-btn:hover {
+  background: rgba(255, 255, 255, 0.7);
+  color: #1d1d1f;
+  transform: rotate(90deg);
+}
+
+@keyframes posterReveal {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(18px);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0);
+  }
+}
+
+.poster-fade-enter-active,
+.poster-fade-leave-active { transition: opacity .35s ease; }
+.poster-fade-enter-from,
+.poster-fade-leave-to { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .poster-modal-card {
+    animation: none;
+  }
+  .poster-fade-enter-active,
+  .poster-fade-leave-active { transition: opacity .2s ease; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .poster-modal-overlay { background: rgba(12, 14, 22, 0.6); backdrop-filter: none; }
+  .poster-modal-card {
+    background: #fff;
+    backdrop-filter: none;
+    border: 1px solid #e5e5ea;
+  }
+  .poster-modal-icon,
+  .poster-modal-notice,
+  .poster-input-group input,
+  .poster-textarea,
+  .poster-close-btn {
+    background: #f5f5f7;
+    backdrop-filter: none;
+  }
+}
+
+/* ============================================
    弹窗通用
    ============================================ */
 .modal-close-btn {
@@ -721,6 +1017,8 @@
 
   .fuzhou-modal-content { padding: 32px 24px 28px; }
   .cloud-plus-modal-content { padding: 28px 20px; }
+  .poster-modal-content { padding: 28px 20px; }
+  .poster-form-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 480px) {

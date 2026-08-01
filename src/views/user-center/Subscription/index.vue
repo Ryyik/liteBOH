@@ -216,6 +216,7 @@ import { Bot, Cake, Check, Crown, Gift, Zap, Code, Cloud, Rocket, Star, Cpu } fr
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { getMySubscriptions, subscribeWithPoints } from '@/utils/api/subscription-api.js';
+import { clearUserTierCache } from '@/utils/api/api-key-runtime-api.js';
 import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import { logger } from '@/utils/logger.js';
@@ -520,6 +521,8 @@ const confirmSubscribe = async () => {
     authStore.$patch({ userInfo: { ...authStore.userInfo, points: latestPoints } });
 
     await loadMySubscriptions();
+
+    clearUserTierCache().catch(() => undefined);
 
     const expiresText = data.expiresAt ? `，有效期至 ${formatDateText(data.expiresAt)}` : '';
     showToastMessage(`订阅成功！已开通 ${plan.name}${expiresText}`);

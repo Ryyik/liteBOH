@@ -44,6 +44,7 @@ export const normalizeBohaiModelConfigRow = (row = {}) => {
     frequency_penalty: toFiniteNumber(row.frequency_penalty, 0.06, 0, 2),
     max_tokens: Math.trunc(toFiniteNumber(row.max_tokens, 1800, 256, 4096)),
     status: toText(row.status, 'active'),
+    minTier: toText(row.min_tier || row.minTier, 'free').toLowerCase(),
     sortOrder: Math.trunc(toFiniteNumber(row.sort_order || row.sortOrder, 100, 0, 10000)),
     quotaMultiplier: toFiniteNumber(row.quota_multiplier || row.quotaMultiplier, 1.00, 0.1, 100)
   };
@@ -105,6 +106,7 @@ export const listActiveBohaiPublicModeConfigs = async () => {
         tagline: toText(row.tagline),
         capability: toText(row.capability, 'chat'),
         icon: toText(row.icon, 'sparkles'),
+        minTier: toText(row.min_tier, 'free').toLowerCase(),
         sortOrder: Math.trunc(toFiniteNumber(row.sort_order, 100, 0, 10000))
       }))
       .filter((item) => item.modeId && item.displayName),
@@ -126,6 +128,7 @@ export const buildBohaiRuntimeModels = (rows = []) => {
     icon: item.icon,
     model: item.modelId,
     capability: item.capability,
+    minTier: item.minTier,
     quotaMultiplier: item.quotaMultiplier
   }));
 

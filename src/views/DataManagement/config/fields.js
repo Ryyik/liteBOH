@@ -3,9 +3,10 @@ export const TAB_WRITABLE_FIELDS = {
   points: ['role', 'points', 'experience', 'join_date'],
   subscriptions: ['user_id', 'plan_code', 'plan_name', 'billing_cycle', 'points_cost', 'duration_months', 'started_at', 'expires_at', 'status', 'metadata', 'updated_at'],
   gifts: ['user_id', 'gift_no', 'gift_content', 'gift_price', 'gift_image', 'gift_status', 'is_active', 'completed_at', 'updated_at'],
+  posterRequests: ['user_id', 'status', 'updated_at'],
   forum: ['content', 'author_id', 'author_username', 'status', 'updated_at'],
   coreMemories: ['title', 'content', 'category', 'tags', 'priority', 'source_label', 'source_url', 'status', 'updated_by'],
-  bohaiModels: ['mode_id', 'display_name', 'tagline', 'description', 'provider', 'provider_label', 'model_id', 'api_url', 'capability', 'icon', 'temperature', 'top_p', 'frequency_penalty', 'max_tokens', 'quota_multiplier', 'status', 'sort_order', 'notes', 'created_by', 'updated_by'],
+  bohaiModels: ['mode_id', 'display_name', 'tagline', 'description', 'provider', 'provider_label', 'model_id', 'api_url', 'capability', 'icon', 'temperature', 'top_p', 'frequency_penalty', 'max_tokens', 'quota_multiplier', 'min_tier', 'status', 'sort_order', 'notes', 'created_by', 'updated_by'],
   lotteries: ['title', 'description', 'prize_title', 'prize_description', 'cover_image_url', 'status', 'is_community_visible', 'max_entries', 'winner_count', 'entry_deadline_at', 'draw_at', 'fulfillment_status', 'created_by', 'updated_by'],
   news: ['id', 'category', 'title', 'excerpt', 'content', 'date', 'author', 'image'],
   activities: ['id', 'title', 'date', 'image', 'description'],
@@ -45,7 +46,11 @@ export const SUBSCRIPTION_PLAN_OPTIONS = [
   { value: 'plus', label: 'Plus' },
   { value: 'pro', label: 'Pro' },
   { value: 'max', label: 'Max' },
-  { value: 'ultra', label: 'Ultra' }
+  { value: 'ultra', label: 'Ultra' },
+  { value: 'coding-lite', label: 'Coding Lite（¥5/月）' },
+  { value: 'coding-plus', label: 'Coding Plus（¥12/月）' },
+  { value: 'coding-pro', label: 'Coding Pro（¥20/月）' },
+  { value: 'coding-ultra', label: 'Coding Ultra（¥35/月）' }
 ];
 
 export const SUBSCRIPTION_PLAN_NAMES = SUBSCRIPTION_PLAN_OPTIONS.reduce((map, item) => {
@@ -105,6 +110,19 @@ export const BOHAI_MODEL_STATUS_OPTIONS = [
   { value: 'disabled', label: '停用（disabled）' }
 ];
 
+export const BOHAI_MODEL_MIN_TIER_OPTIONS = [
+  { value: 'guest', label: '游客（guest）' },
+  { value: 'free', label: 'Free' },
+  { value: 'plus', label: 'Plus' },
+  { value: 'pro', label: 'Pro' },
+  { value: 'max', label: 'Max' },
+  { value: 'ultra', label: 'Ultra' },
+  { value: 'coding-lite', label: 'Coding Lite（附加包）' },
+  { value: 'coding-plus', label: 'Coding Plus（附加包）' },
+  { value: 'coding-pro', label: 'Coding Pro（附加包）' },
+  { value: 'coding-ultra', label: 'Coding Ultra（附加包）' }
+];
+
 export const BOHAI_MODEL_ICON_OPTIONS = [
   { value: 'zap', label: '闪电（Fast）' },
   { value: 'sparkles', label: '星光（Pro）' },
@@ -118,6 +136,13 @@ export const LOTTERY_STATUS_OPTIONS = [
   { value: 'open', label: '报名中（open）' },
   { value: 'drawn', label: '已开奖（drawn）' },
   { value: 'closed', label: '已关闭（closed）' }
+];
+
+export const POSTER_REQUEST_STATUS_OPTIONS = [
+  { value: 'pending', label: '已收到申请（pending）' },
+  { value: 'processing', label: '处理中（processing）' },
+  { value: 'shipped', label: '已寄出（shipped）' },
+  { value: 'completed', label: '已送达（completed）' }
 ];
 
 export const LOTTERY_COMMUNITY_VISIBLE_OPTIONS = [

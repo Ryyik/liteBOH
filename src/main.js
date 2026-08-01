@@ -246,8 +246,9 @@ app.config.errorHandler = (err, instance, info) => {
 const authStore = useAuthStore();
 const bagStore = useBagStore();
 
-// 预热免费模型缓存（从数据库加载），确保后续同步 API 可用
-await loadFreemodelsFromDB().catch(err => {
+// 预热免费模型缓存（从数据库加载），仅作 fire-and-forget 触发，不阻塞首屏挂载。
+// 该数据仅在 AI 对话页用到，同步 API (getFreeChatModels) 会按需 await inflightPromise。
+loadFreemodelsFromDB().catch(err => {
   logger.warn('freemodels', '免费模型缓存预热失败', err);
 });
 

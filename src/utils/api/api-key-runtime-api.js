@@ -329,6 +329,17 @@ export const getAiQuotaStatus = ({
   timeoutMs
 });
 
+// 清除服务端订阅缓存（5 分钟 TTL）：订阅/管理后台变更后调用可让额度立即生效
+// targetUserId: 仅管理员可传，用于清除指定用户的缓存（如管理员后台代开订阅后立即生效）
+export const clearUserTierCache = ({
+  targetUserId = '',
+  timeoutMs = 5000
+} = {}) => invokeRuntime({
+  action: 'clear-user-tier-cache',
+  targetUserId: String(targetUserId || '').trim(),
+  timeoutMs
+});
+
 // 清除边缘函数的模型配置内存缓存：管理员修改模型配置后调用，使新配置立即生效
 export const clearVaultModelCache = ({
   timeoutMs = 5000

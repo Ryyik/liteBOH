@@ -842,7 +842,7 @@ import {
 } from '@/utils/cloudinary-client.js';
 import { getExpiredActiveGiftIds, markGiftsAsHistory } from '@/utils/gift-archive.js';
 import { getDefaultApiUrlForBohaiProvider } from '@/utils/api/bohai-model-config-api.js';
-import { clearVaultModelCache } from '@/utils/api/api-key-runtime-api.js';
+import { clearVaultModelCache, clearUserTierCache } from '@/utils/api/api-key-runtime-api.js';
 import { logger } from '@/utils/logger.js';
 import {
   ADMIN_PAGE_META,
@@ -1129,6 +1129,12 @@ const invalidateSubscriptionCache = (userId = '') => {
     tags.push(`subscriptions:user:${normalizedUserId}`);
   }
   invalidateByTags(tags);
+  // 管理员代开/变更订阅后，同步清除目标用户的服务端 tier 缓存（5 分钟 TTL），让额度/模式立即生效
+  if (normalizedUserId && isCurrentUserAdmin.value) {
+    clearUserTierCache({ targetUserId: normalizedUserId }).catch((error) => {
+      logger.warn('data-admin', '清除目标用户服务端订阅缓存失败:', error);
+    });
+  }
 };
 
 const buildActionErrorMessage = (error, fallback = '操作失败') => {
@@ -2370,6 +2376,7 @@ const fetchStats = async () => {
     subscriptions: fetchCount('user_subscriptions'),
     activeSubscriptions: fetchCount('user_subscriptions', (query) => query.eq('status', 'active').gt('expires_at', nowIso)),
     gifts: fetchCount('user_gifts'),
+    posterRequests: fetchCount('poster_requests'),
     forum: fetchCount('posts'),
     reportedPosts: fetchCount('posts', (query) => query.eq('status', 'limited')),
     reviewPosts: fetchCount('posts', (query) => query.ilike('status', 'rejected')),
@@ -2612,6 +2619,19 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
         logger.warn('data-admin', '获取礼物收货信息失败:', secError);
       }
       assignTabRows(tabId, giftRows, count);
+      return;
+    }
+
+    if (tabId === 'posterRequests') {
+      const posterRows = rows.map((request) => {
+        const { profile: rawProfile, ...restRequest } = request;
+        const profile = normalizeJoinedObject(rawProfile);
+        return {
+          ...restRequest,
+          username: profile.username || '-'
+        };
+      });
+      assignTabRows(tabId, posterRows, count);
       return;
     }
 
@@ -3290,6 +3310,7 @@ const openEditModal = async (item = null) => {
         editingItem.value.frequency_penalty = 0.05;
         editingItem.value.max_tokens = 1600;
         editingItem.value.quota_multiplier = 1;
+        editingItem.value.min_tier = 'free';
         editingItem.value.sort_order = 10;
         editingItem.value.status = 'active';
         editingItem.value.notes = '';

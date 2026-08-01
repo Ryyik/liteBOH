@@ -16,6 +16,7 @@ export const tabs = [
   { id: 'points', label: '积分管理', icon: '⭐', module: 'users' },
   { id: 'subscriptions', label: '订阅管理', icon: '💎', module: 'users' },
   { id: 'gifts', label: '礼物管理', icon: '📦', module: 'users' },
+  { id: 'posterRequests', label: '海报申请', icon: '🖼️', module: 'users' },
   { id: 'forum', label: '论坛帖子', icon: '💬', module: 'content' },
   { id: 'news', label: '新闻管理', icon: '📰', module: 'content' },
   { id: 'activities', label: '活动管理', icon: '🎉', module: 'content' },
@@ -52,7 +53,7 @@ export const tabModules = [
     icon: Users,
     section: 'data',
     defaultTab: 'users',
-    tabIds: ['users', 'points', 'subscriptions', 'gifts'],
+    tabIds: ['users', 'points', 'subscriptions', 'gifts', 'posterRequests'],
     description: '账号、积分、订阅和礼物'
   },
   {
@@ -110,6 +111,7 @@ export const TABS_ACTIONS = {
   points: ['view', 'edit'],
   subscriptions: ['view', 'create', 'edit', 'delete'],
   gifts: ['view', 'create', 'edit', 'delete'],
+  posterRequests: ['view', 'edit'],
   forum: ['view', 'create', 'edit', 'delete'],
   news: ['view', 'create', 'edit', 'delete'],
   activities: ['view', 'create', 'edit', 'delete'],

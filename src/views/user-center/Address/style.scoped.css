@@ -1932,3 +1932,116 @@
 .glass-fade-leave-to {
   opacity: 0;
 }
+
+/* ---- 八周年海报申请订单状态 ---- */
+.poster-section-bottom .section-header {
+  margin-bottom: 24px;
+}
+
+.poster-section-bottom .section-header h3 {
+  font-size: 22px;
+}
+
+.poster-request-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.poster-request-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px 24px;
+  border-radius: 20px;
+  background: #ffffff;
+  border: 1px solid #f2f2f7;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.poster-request-card:hover {
+  border-color: #e5e5e7;
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.05);
+}
+
+.poster-request-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.poster-request-no {
+  font-size: 12px;
+  font-weight: 900;
+  color: #1d1d1f;
+  background: #f9f9fb;
+  padding: 6px 12px;
+  border-radius: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.poster-request-status {
+  font-size: 13px;
+  font-weight: 800;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.poster-request-status.pending {
+  color: #b42318;
+  background: #fff5f5;
+  border-color: #ffd5d5;
+}
+
+.poster-request-status.processing {
+  color: #b45309;
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.poster-request-status.shipped {
+  color: #0369a1;
+  background: #f0f9ff;
+  border-color: #bae6fd;
+}
+
+.poster-request-status.completed {
+  color: #15803d;
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.poster-request-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+.poster-request-item {
+  font-size: 14px;
+  font-weight: 600;
+  color: #636a76;
+}
+
+@media (max-width: 640px) {
+  .poster-request-card {
+    padding: 18px 20px;
+    border-radius: 16px;
+  }
+
+  .poster-request-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .poster-request-meta {
+    flex-direction: column;
+    gap: 6px;
+  }
+}
+
