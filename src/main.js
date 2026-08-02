@@ -59,6 +59,7 @@ import { setupVitePreloadErrorRecovery } from './utils/vite-preload-recovery.js'
 import { initImageOptimizer } from './utils/image-optimizer.js';
 import { initVersionChecker } from './utils/version-checker.js';
 import { loadFreemodelsFromDB } from './utils/siliconflow-free-models.js';
+import { initHiagentWidget } from './utils/hiagent-widget.js';
 
 // ============================================
 // 延迟加载的非关键样式
@@ -222,12 +223,39 @@ if (typeof window !== "undefined") {
   // ============================================
   initVersionChecker();
 
-  // 初始化 --real-vh CSS 变量（为不支持 dvh 的浏览器提供降级方案）
-  const setRealVh = () => {
-    document.documentElement.style.setProperty('--real-vh', `${window.innerHeight * 0.01}px`);
+  // 同步真实可视区域。移动浏览器旋转时 visualViewport 往往晚于
+  // orientationchange 才稳定，因此立即、下一帧和延迟后各同步一次。
+  const syncViewportMetrics = () => {
+    const viewport = window.visualViewport;
+    const width = Math.round(viewport?.width || document.documentElement.clientWidth || window.innerWidth);
+    const height = Math.round(viewport?.height || window.innerHeight);
+    const orientation = width > height ? 'landscape' : 'portrait';
+    const root = document.documentElement;
+
+    root.style.setProperty('--real-vh', `${height * 0.01}px`);
+    root.style.setProperty('--viewport-width', `${width}px`);
+    root.style.setProperty('--viewport-height', `${height}px`);
+    root.style.setProperty('--profile-shell-max-width', orientation === 'landscape' ? '1120px' : '980px');
+    root.dataset.viewportOrientation = orientation;
+
+    window.dispatchEvent(new CustomEvent('boh:viewport-change', {
+      detail: { width, height, orientation },
+    }));
   };
-  setRealVh();
-  window.addEventListener('resize', setRealVh);
+
+  let viewportSyncTimer = 0;
+  const scheduleViewportSync = () => {
+    syncViewportMetrics();
+    window.requestAnimationFrame(syncViewportMetrics);
+    window.clearTimeout(viewportSyncTimer);
+    viewportSyncTimer = window.setTimeout(syncViewportMetrics, 240);
+  };
+
+  scheduleViewportSync();
+  window.addEventListener('resize', scheduleViewportSync, { passive: true });
+  window.addEventListener('orientationchange', scheduleViewportSync, { passive: true });
+  window.addEventListener('pageshow', scheduleViewportSync, { passive: true });
+  window.visualViewport?.addEventListener('resize', scheduleViewportSync, { passive: true });
 }
 
 const app = createApp(App);
@@ -262,3 +290,8 @@ bagStore.loadShoppingBag();
 
 // 初始化主题管理器（在应用挂载后，确保 DOM 元素已存在）
 themeManager.init();
+
+// 初始化 BOHAgent AI 助手（动态注入 SDK，不阻塞首屏）
+initHiagentWidget().catch(err => {
+  logger.warn('hiagent', 'BOHAgent 初始化失败', err);
+});

@@ -83,6 +83,7 @@ const handleOverlayClick = () => {
   width: 100%;
   max-width: 800px;
   max-height: 90vh;
+  max-height: 90dvh;
   display: flex;
   flex-direction: column;
   box-shadow: 0 20px 60px -10px rgba(0, 0, 0, 0.3);
@@ -263,6 +264,7 @@ const handleOverlayClick = () => {
   .agreement-modal {
     border-radius: 16px;
     max-height: 95vh;
+    max-height: 95dvh;
   }
   
   .agreement-header {
@@ -297,6 +299,7 @@ const handleOverlayClick = () => {
   .agreement-modal {
     border-radius: 0;
     max-height: 100vh;
+    max-height: 100dvh;
     height: 100%;
   }
   

@@ -115,6 +115,11 @@ describe('BOH AI quota visualization', () => {
     expect(quotaPanel).toContain('webSearchRemaining');
     expect(quotaPanel).not.toContain('Math.round((usedTokens.value / tokenLimit.value) * 100)');
   });
+
+  it('subscribes to thinking state only after the chat engine is initialized', () => {
+    const main = readFileSync(mainPath, 'utf8');
+    expect(main.indexOf('watch(isThinking')).toBeGreaterThan(main.indexOf('} = useChatEngine();'));
+  });
 });
 
 describe('BOH AI Cloud+ consent', () => {

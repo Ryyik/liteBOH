@@ -65,14 +65,14 @@
               </p>
             </div>
 
-            <div v-if="currentTab === 'gifts'" class="gift-address-copy-box">
+            <div v-if="addressBundleText" class="gift-address-copy-box">
               <div class="gift-address-copy-header">
-                <span>用户地址整段（便于复制）</span>
-                <button type="button" class="btn btn-secondary address-copy-btn" @click="$emit('copyGiftAddress')">
+                <span>收件信息整段（便于复制）</span>
+                <button type="button" class="btn btn-secondary address-copy-btn" @click="$emit('copyAddressBundle')">
                   复制整段
                 </button>
               </div>
-              <textarea class="form-textarea code-font address-copy-textarea" :value="giftAddressBundleText" rows="4"
+              <textarea class="form-textarea code-font address-copy-textarea" :value="addressBundleText" rows="4"
                 readonly></textarea>
             </div>
 
@@ -637,7 +637,7 @@ const props = defineProps({
   showUserPicker: Boolean,
   userPickerKeyword: String,
   filteredGiftUsers: Array,
-  giftAddressBundleText: String,
+  addressBundleText: String,
   uploadingImageFields: Array,
   userPickerLoading: { type: Boolean, default: false },
   isFieldDisabled: { type: Function, default: () => false },
@@ -655,7 +655,7 @@ const emit = defineEmits([
   'regenerateNewsId',
   'injectNewsTemplate',
   'generateExcerpt',
-  'copyGiftAddress',
+  'copyAddressBundle',
   'openUserPicker',
   'closeUserPicker',
   'selectGiftUser',

@@ -93,8 +93,8 @@ export default defineConfig({
     VitePWA({
       // 确保使用 generateSW 策略自动生成 sw.js
       strategies: 'generateSW',
-      // 注册类型：prompt 会提示用户更新，autoUpdate 自动更新
-      registerType: 'prompt',
+      // 新 SW 自动安装并接管；版本指纹检测器负责在旧页面上安全地刷新一次。
+      registerType: 'autoUpdate',
       // Service Worker 文件名（确保生成到 dist 根目录）
       filename: 'sw.js',
       // 启用开发环境 SW（用于调试，生产环境自动禁用）
@@ -331,9 +331,17 @@ export default defineConfig({
   // 开发服务器配置
   server: {
     port: 5173,
+    // 避免已有开发服务时静默启动到 5174，导致浏览器仍停留在旧实例。
+    strictPort: true,
     open: false,
     // 启用 CORS
     cors: true,
+    // 开发环境必须始终从 Vite 读取最新入口与模块。
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      Pragma: 'no-cache',
+      Expires: '0',
+    },
   },
 
   // 预览服务器配置

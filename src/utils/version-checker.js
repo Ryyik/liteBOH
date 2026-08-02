@@ -242,11 +242,9 @@ export const initVersionChecker = () => {
     }
   };
 
-  // 页面启动立即检查。检测到新版本时仅派发弹窗事件，由用户在 PWAUpdateToast 中
-  // 主动确认后再执行 forceCleanAndReload。避免每次部署后首次访问被强制清空缓存
-  // 导致"零缓存冷启动"，造成数秒白屏与全部 JS chunk 重新下载。
-  // skipWaiting:true 的新 SW 已能激活新资源，老 chunk 会被 cleanupOutdatedCaches 清理。
-  void autoCheck({ autoApply: false });
+  // 页面启动时若发现自己属于旧构建，自动应用一次新构建。同一目标 buildId
+  // 只尝试一次，CDN 尚未完成切换时会退回更新提示，避免刷新循环。
+  void autoCheck({ autoApply: true });
 
   // 定时轮询
   intervalId = setInterval(() => {

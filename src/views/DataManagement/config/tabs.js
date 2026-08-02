@@ -15,7 +15,7 @@ export const tabs = [
   { id: 'users', label: '用户管理', icon: '👤', module: 'users' },
   { id: 'points', label: '积分管理', icon: '⭐', module: 'users' },
   { id: 'subscriptions', label: '订阅管理', icon: '💎', module: 'users' },
-  { id: 'gifts', label: '礼物管理', icon: '📦', module: 'users' },
+  { id: 'gifts', label: '礼物管理', icon: '📦', module: 'gifts' },
   { id: 'posterRequests', label: '海报申请', icon: '🖼️', module: 'users' },
   { id: 'forum', label: '论坛帖子', icon: '💬', module: 'content' },
   { id: 'news', label: '新闻管理', icon: '📰', module: 'content' },
@@ -53,8 +53,17 @@ export const tabModules = [
     icon: Users,
     section: 'data',
     defaultTab: 'users',
-    tabIds: ['users', 'points', 'subscriptions', 'gifts', 'posterRequests'],
+    tabIds: ['users', 'points', 'subscriptions', 'posterRequests'],
     description: '账号、积分、订阅和礼物'
+  },
+  {
+    id: 'gifts',
+    label: '礼物',
+    icon: Gift,
+    section: 'data',
+    defaultTab: 'gifts',
+    tabIds: ['gifts'],
+    description: '管理用户礼物、进度和快递信息'
   },
   {
     id: 'content',
@@ -147,6 +156,12 @@ export const ADMIN_PAGE_META = {
     title: '用户管理',
     description: '管理用户账号、积分、订阅和礼物履约。',
     icon: Users
+  },
+  gifts: {
+    eyebrow: 'Gifts',
+    title: '礼物管理',
+    description: '管理用户礼物、进度和快递信息。',
+    icon: Gift
   },
   content: {
     eyebrow: 'Content',

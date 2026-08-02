@@ -142,6 +142,7 @@ const cancel = () => {
   display: flex;
   flex-direction: column;
   max-height: 90vh;
+  max-height: 90dvh;
   margin: 16px;
   animation: modal-slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   overscroll-behavior: contain;

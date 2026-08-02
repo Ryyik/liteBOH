@@ -4,8 +4,8 @@
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 48px;
-  padding: 72px 0 100px;
+  gap: 32px;
+  padding: 24px 0 80px;
   min-height: 100vh;
   font-family: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro Display", sans-serif;
   color: #1d1d1f;
@@ -356,7 +356,7 @@
 
 .main-content-wrap {
   flex: 1;
-  padding: 0 80px 100px;
+  padding: 0 80px 60px;
   overflow-y: auto;
   height: calc(100vh - 72px);
 }
@@ -555,25 +555,10 @@
   margin-top: 24px;
 }
 
-.no-gift-state {
-  padding: 120px 40px;
-  text-align: center;
-  background: #f9f9fb;
-  border-radius: 48px;
-  border: 2px dashed #eeeeef;
-}
+/* no-gift-state 样式见页面底部 v2 重做区块 */
 
 .no-gift-icon {
-  margin: 0 auto 32px;
-  display: block;
   color: currentColor;
-}
-
-.no-gift-state h3 {
-  font-size: 36px;
-  font-weight: 900;
-  margin: 0 0 20px;
-  letter-spacing: -0.04em;
 }
 
 .no-gift-state p {
@@ -1571,8 +1556,8 @@
 
 @media (max-width: 768px) {
   .address-page {
-    padding: 56px 16px 60px;
-    gap: 32px;
+    padding: 20px 16px 40px;
+    gap: 24px;
   }
 
   .x-addr-header {
@@ -1740,10 +1725,6 @@
   .no-gift-state {
     padding: 56px 20px;
     border-radius: 28px;
-  }
-
-  .no-gift-state h3 {
-    font-size: 28px;
   }
 
   .no-gift-state p {
@@ -2042,6 +2023,302 @@
   .poster-request-meta {
     flex-direction: column;
     gap: 6px;
+  }
+}
+
+/* === 礼物页重做: 分区顺序布局 === */
+.history-section {
+  padding: 40px;
+  border-radius: 32px;
+  margin-top: 40px;
+}
+
+.history-section .section-header {
+  margin-bottom: 24px;
+}
+
+.history-section .section-header h3 {
+  font-size: 22px;
+}
+
+.section-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: #86868b;
+  background: #f2f2f7;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-section .history-list {
+  gap: 16px;
+}
+
+.history-section .history-card {
+  padding: 20px 24px;
+  border-radius: 18px;
+  cursor: default;
+}
+
+.history-section .history-card:hover {
+  transform: translateY(-2px);
+}
+
+.history-section .history-empty-card {
+  padding: 32px 24px;
+  text-align: center;
+}
+
+.history-section .history-empty-card p {
+  margin: 12px 0 0;
+  color: #86868b;
+  font-size: 15px;
+}
+
+@media (max-width: 768px) {
+  .history-section {
+    padding: 24px 20px;
+    border-radius: 24px;
+    margin-top: 24px;
+  }
+
+  .history-section .history-card {
+    padding: 16px 18px;
+  }
+}
+
+/* === 礼物页重做 v2: 当前礼物 + 地址 两行布局 === */
+.gift-section {
+  margin-bottom: 24px;
+}
+
+.gift-section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 0 4px;
+}
+
+.gift-section-title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #1d1d1f;
+}
+
+.gift-history-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  color: #86868b;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 999px;
+  transition: color .18s ease, background-color .18s ease;
+}
+
+.gift-history-link:hover {
+  color: #1d1d1f;
+  background: #f2f2f7;
+}
+
+.gift-history-link svg {
+  transition: transform .18s ease;
+}
+
+.gift-history-link:hover svg {
+  transform: translateX(2px);
+}
+
+.gift-card {
+  padding: 28px;
+  border-radius: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.gift-card-head {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.gift-card-visual {
+  width: 76px;
+  height: 76px;
+  flex-shrink: 0;
+  border-radius: 18px;
+  background: #f5f5f7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: #86868b;
+}
+
+.gift-card-visual img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gift-card-intro {
+  flex: 1;
+  min-width: 0;
+}
+
+.gift-card-eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  color: #86868b;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.gift-card-title {
+  margin: 4px 0 6px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #1d1d1f;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gift-card-price {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #6e6e73;
+  font-variant-numeric: tabular-nums;
+}
+
+.gift-card-progress {
+  padding: 4px 0;
+}
+
+.gift-card-progress .apple-progress-bar {
+  height: 10px;
+  margin-bottom: 14px;
+}
+
+.gift-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-top: 20px;
+  border-top: 1px solid #f2f2f7;
+}
+
+.gift-card-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.gift-card-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #86868b;
+  flex-shrink: 0;
+}
+
+.gift-card-status.preparing .gift-card-status-dot { background: #f59e0b; }
+.gift-card-status.processing .gift-card-status-dot { background: #3b82f6; }
+.gift-card-status.shipped .gift-card-status-dot { background: #6366f1; }
+.gift-card-status.completed .gift-card-status-dot { background: #16a34a; }
+
+.gift-card-desc {
+  font-size: 13px;
+  color: #86868b;
+  line-height: 1.5;
+  text-align: right;
+  max-width: 60%;
+}
+
+.no-gift-state {
+  padding: 32px 24px;
+  text-align: center;
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  background: #f9f9fb;
+  border: 1px solid #f2f2f7;
+}
+
+.no-gift-state .no-gift-icon {
+  color: #86868b;
+}
+
+.no-gift-state p {
+  margin: 0;
+  font-size: 15px;
+  color: #86868b;
+  max-width: 320px;
+  line-height: 1.5;
+}
+
+/* 历史礼物下移后, 间距调整 */
+.gift-section ~ .history-section {
+  margin-top: 24px;
+}
+
+@media (max-width: 768px) {
+  .gift-section-title {
+    font-size: 22px;
+  }
+
+  .gift-card {
+    padding: 20px;
+    border-radius: 20px;
+    gap: 18px;
+  }
+
+  .gift-card-head {
+    gap: 14px;
+  }
+
+  .gift-card-visual {
+    width: 60px;
+    height: 60px;
+    border-radius: 14px;
+  }
+
+  .gift-card-title {
+    font-size: 17px;
+  }
+
+  .gift-card-foot {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .gift-card-desc {
+    text-align: left;
+    max-width: 100%;
+  }
+
+  .no-gift-state {
+    padding: 36px 20px;
   }
 }
 

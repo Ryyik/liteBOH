@@ -25,6 +25,7 @@
 
   background-color: #ffffff;
   min-height: 100vh;
+  min-height: 100dvh;
   padding-top: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   width: 100%;
@@ -71,12 +72,18 @@
 }
 
 .profile-home-shell {
-  width: min(100%, 980px);
+  width: min(100%, var(--profile-shell-max-width, 980px));
   margin: 0 auto;
   padding: 16px 20px 120px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+@media (orientation: landscape) and (max-height: 600px) {
+  .profile-home-shell {
+    padding-top: 8px;
+  }
 }
 
 .profile-container {
@@ -87,6 +94,7 @@
   border: none !important;
   /* 移除侧边框 */
   min-height: calc(100vh - 80px);
+  min-height: calc(100dvh - 80px);
   background: #fff;
   position: relative;
   display: flex;
@@ -1289,6 +1297,7 @@
   width: 680px;
   max-width: 92vw;
   max-height: 88vh;
+  max-height: 88dvh;
   background: #fff;
   border-radius: 20px;
   overflow: hidden;
@@ -1357,6 +1366,7 @@
 .creator-tag-modal {
   width: min(560px, calc(100vw - 32px));
   max-height: min(80vh, 680px);
+  max-height: min(80dvh, 680px);
   background: #fff;
   border-radius: 18px;
   overflow: hidden;
@@ -1790,6 +1800,7 @@
   .profile-container {
     border: none;
     min-height: 100vh;
+    min-height: 100dvh;
   }
 
   .profile-nav-header {
@@ -1810,6 +1821,7 @@
     width: calc(100vw - 24px);
     max-width: calc(100vw - 24px);
     max-height: 88vh;
+    max-height: 88dvh;
     border-radius: 14px;
   }
 
@@ -1853,6 +1865,7 @@
   .creator-tag-modal {
     width: calc(100vw - 24px);
     max-height: 84vh;
+    max-height: 84dvh;
     border-radius: 14px;
   }
 
@@ -1917,10 +1930,12 @@
 @media (orientation: landscape) and (max-width: 1024px) {
   .edit-profile-modal {
     max-height: 90vh;
+    max-height: 90dvh;
   }
 
   .creator-tag-modal {
     max-height: 88vh;
+    max-height: 88dvh;
     width: min(700px, calc(100vw - 28px));
   }
 

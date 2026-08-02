@@ -973,6 +973,14 @@ const runtimeChatCompletionStream = async (
   const provider = policy.provider;
   const purpose = 'chat';
   const { row, apiKey } = await resolveActiveSecret(client, provider, purpose);
+
+  const streamHeaders = {
+    ...buildCorsHeaders(origin),
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  };
+
   let defaultApiUrl = 'https://api.siliconflow.cn/v1/chat/completions';
   if (provider === 'zhipu') {
     defaultApiUrl = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
@@ -1002,13 +1010,6 @@ const runtimeChatCompletionStream = async (
     body: JSON.stringify(payload),
     signal: AbortSignal.timeout(clampInt(body.timeoutMs, 30000, 3000, 120000)),
   });
-
-  const streamHeaders = {
-    ...buildCorsHeaders(origin),
-    'Content-Type': 'text/event-stream; charset=utf-8',
-    'Connection': 'keep-alive',
-    'X-Accel-Buffering': 'no',
-  };
 
   if (!response.ok) {
     const text = await response.text().catch(() => '');

@@ -234,6 +234,10 @@
                                                 transform="rotate(-90 10 10)" />
                                         </svg>
                                         <span class="ring-percent">{{ contextBudgetLabel }}</span>
+                                        <span v-if="todayTokenUsage" class="context-tokens"
+                                            :title="todayTokenTitle" @click="openQuotaPanel">
+                                            {{ todayTokenLabel }}
+                                        </span>
                                     </div>
                                     <div v-if="showCompressSuccess" class="compress-success-hint">
                                         <CheckCircle2 size="12" />
@@ -480,6 +484,7 @@ import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import AiQuotaSidePanel from '@/components/ai/AiQuotaSidePanel.vue';
 import { marked } from 'marked';
 import { logger } from '@/utils/logger.js';
+import { getAiQuotaStatus } from '@/utils/api/api-key-runtime-api.js';
 import DOMPurify from '@/utils/dompurify.js';
 import { themeManager } from '@/utils/theme-manager.js';
 import { useGlobalAiPreferences } from '@/composables/useGlobalAiPreferences.js';
@@ -535,6 +540,7 @@ const messageFeedbackByIndex = ref({});
 const modeMenuOpen = ref(false);
 const settingsOpen = ref(false);
 const isQuotaPanelOpen = ref(false);
+const todayTokenUsage = ref(null);
 const taskPanelExpanded = ref(true);
 const taskLifecycleOverride = ref('');
 const fullPageSuggestions = [
@@ -555,6 +561,7 @@ watch(() => authStore.isLoggedIn, (loggedIn) => {
     if (!loggedIn && currentModeId.value !== 'fast') {
         currentModeId.value = 'fast';
     }
+    fetchTodayQuota();
 });
 const confirmState = reactive({
     show: false,
@@ -583,6 +590,28 @@ const openQuotaPanel = () => {
 const closeQuotaPanel = () => {
     isQuotaPanelOpen.value = false;
     if (props.overlayMode || isStandalone.value) settingsOpen.value = true;
+};
+
+let quotaRefreshTimer = null;
+let quotaRefreshing = false;
+
+// 今日已用 Token 额度：与服务端"使用情况"面板同源（quota-status），保证数字一致
+const fetchTodayQuota = async () => {
+    if (quotaRefreshing) return;
+    quotaRefreshing = true;
+    try {
+        const result = await getAiQuotaStatus({ timeoutMs: 6000 });
+        if (result?.ok && result.data) {
+            todayTokenUsage.value = {
+                used: Math.max(0, Number(result.data.usedTokens ?? result.data.used ?? 0)),
+                limit: Number(result.data.tokenLimit ?? result.data.limit ?? 0)
+            };
+        }
+    } catch {
+        // 拉取失败保留原值，不打断聊天界面
+    } finally {
+        quotaRefreshing = false;
+    }
 };
 
 const clearAllChatData = () => {
@@ -703,6 +732,14 @@ const {
     pendingCloudReferenceConsent,
     memoryCaptureTip
 } = useChatEngine();
+
+// useChatEngine 初始化完成后再订阅回答状态，避免 setup 阶段访问暂时性死区。
+watch(isThinking, (thinking, wasThinking) => {
+    if (wasThinking && !thinking) {
+        clearTimeout(quotaRefreshTimer);
+        quotaRefreshTimer = setTimeout(fetchTodayQuota, 1500);
+    }
+});
 
 const currentSessionTitle = computed(() => chatSessions[currentSessionIndex.value]?.title || '新对话');
 
@@ -895,6 +932,22 @@ const contextBudgetTitle = computed(() => {
         return `上下文已到 100%，正在整理早期对话${summaryHint}`;
     }
     return `距下次自动整理：${contextBudgetPercentText.value} · 本轮约 ${usage.windowUsed} / ${usage.windowMax} 字符${summaryHint}`;
+});
+
+const formatTodayToken = (value) => new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 0 })
+    .format(Math.max(0, Number(value || 0)));
+
+const todayTokenLabel = computed(() => {
+    if (!todayTokenUsage.value) return '';
+    return `今日 ${formatTodayToken(todayTokenUsage.value.used)}`;
+});
+
+const todayTokenTitle = computed(() => {
+    if (!todayTokenUsage.value) return '';
+    const { used, limit } = todayTokenUsage.value;
+    return limit === -1
+        ? `今日已用 ${formatTodayToken(used)} Tokens（当前方案不限量）`
+        : `今日已用 ${formatTodayToken(used)} / ${formatTodayToken(limit)} Tokens · 北京时间 0:00 重置`;
 });
 
 const lastAssistantMessageIndex = computed(() => {
@@ -1913,6 +1966,7 @@ onMounted(() => {
     settleInitialScrollPosition();
     document.addEventListener('click', handleClickOutside);
     window.addEventListener('resize', syncStandaloneViewport);
+    fetchTodayQuota();
 
     // Detect component visibility for Teleported elements (sidebar/overlay).
     // When the parent tab switches away (v-show="false"), the .bohai-page
@@ -1946,6 +2000,10 @@ onUnmounted(() => {
     themeManager.removeListener(handleThemeChange);
     document.removeEventListener('click', handleClickOutside);
     window.removeEventListener('resize', syncStandaloneViewport);
+    if (quotaRefreshTimer) {
+        clearTimeout(quotaRefreshTimer);
+        quotaRefreshTimer = null;
+    }
     if (visibilityObserver) {
         visibilityObserver.cleanup();
         visibilityObserver = null;

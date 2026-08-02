@@ -518,6 +518,7 @@ watch(
   width: 680px;
   max-width: 92vw;
   max-height: 88vh;
+  max-height: 88dvh;
   background: #fff;
   border-radius: 20px;
   overflow: hidden;
@@ -904,6 +905,7 @@ watch(
     width: calc(100vw - 24px);
     max-width: calc(100vw - 24px);
     max-height: 88vh;
+    max-height: 88dvh;
     border-radius: 14px;
   }
 
@@ -944,6 +946,7 @@ watch(
 @media (orientation: landscape) and (max-width: 1024px) {
   .edit-profile-modal {
     max-height: 90vh;
+    max-height: 90dvh;
   }
 
   .creator-platform-fields {

@@ -17,7 +17,7 @@ const SECTION_TO_MODULE_MAP = {
 };
 
 // 归属于 'data' section 的模块：保留用户已选模块，避免被 'data' → 'users' 覆盖
-const DATA_SECTION_MODULES = new Set(['users', 'content', 'moderation', 'lottery', 'ai-config']);
+const DATA_SECTION_MODULES = new Set(['users', 'gifts', 'content', 'moderation', 'lottery', 'ai-config']);
 
 const ROUTE_MAP = {
   overview: '/admin/data-management',

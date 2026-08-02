@@ -132,43 +132,24 @@
         </span>
         <span class="profile-action-chevron">›</span>
       </button>
-    </section>
 
-    <section class="profile-status-section" aria-label="账号状态">
-      <div class="profile-section-heading">
-        <span>账号状态</span>
-        <small>集中检查常用状态</small>
-      </div>
-      <div class="profile-status-grid">
-        <button type="button" class="profile-status-card" @click="$emit('edit-profile')">
-          <span class="profile-status-icon bg-teal">
-            <UserRoundCheck aria-hidden="true" />
-          </span>
-          <span class="profile-status-copy">
-            <strong>{{ profileCompleteness }}% 完整</strong>
-            <small>个人资料</small>
-          </span>
-          <span class="profile-status-meter"><span :style="{ width: `${profileCompleteness}%` }"></span></span>
-        </button>
-        <button type="button" class="profile-status-card" @click="$emit('account-security')">
-          <span class="profile-status-icon bg-yellow">
-            <ShieldCheck aria-hidden="true" />
-          </span>
-          <span class="profile-status-copy">
-            <strong>安全检查</strong>
-            <small>登录与账号保护</small>
-          </span>
-        </button>
-        <button type="button" class="profile-status-card" @click="$emit('cloud-plus', 'content')">
-          <span class="profile-status-icon bg-gold">
-            <Cloud aria-hidden="true" />
-          </span>
-          <span class="profile-status-copy">
-            <strong>Cloud+</strong>
-            <small>{{ cloudPlusUsageText || '查看使用状态' }}</small>
-          </span>
-        </button>
-      </div>
+      <button type="button" class="profile-service-row" @click="$emit('gift')">
+        <span class="profile-service-icon bg-pink">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <polyline points="20 12 20 22 4 22 4 12"></polyline>
+            <rect x="2" y="7" width="20" height="5"></rect>
+            <line x1="12" y1="22" x2="12" y2="7"></line>
+            <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path>
+            <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path>
+          </svg>
+        </span>
+        <span class="profile-service-body">
+          <strong>我的礼物</strong>
+          <small class="profile-service-hint">{{ giftProgressText || '查看礼物进度与收货地址' }}</small>
+        </span>
+        <span class="profile-action-chevron">›</span>
+      </button>
     </section>
 
     <section class="profile-content-panel">
@@ -285,7 +266,6 @@
 
 <script setup>
 import { computed, reactive, ref, watch, onMounted, onUnmounted } from 'vue';
-import { Cloud, ShieldCheck, UserRoundCheck } from 'lucide-vue-next';
 import FollowListModal from '@/components/FollowListModal.vue';
 import { getCommentsByUsername, getFollowers, getFollowing, unfollowUser } from '@/utils/api/profile-api.js';
 import { useUserTier } from '@/composables/useUserTier.js';
@@ -403,6 +383,10 @@ const props = defineProps({
     type: String,
     default: ''
   },
+  giftProgressText: {
+    type: String,
+    default: ''
+  },
   isContentLoading: {
     type: Boolean,
     default: false
@@ -428,9 +412,9 @@ defineEmits([
   'background-click',
   'view-impressions',
   'sponsor',
+  'gift',
   'data-management',
   'cloud-plus',
-  'account-security',
   'subscription',
   'post-click',
   'switch-tab',
@@ -453,10 +437,6 @@ watch(profileId, async (id) => {
 }, { immediate: true });
 const displayInitial = computed(() => (props.profile.username || 'U').charAt(0).toUpperCase());
 const isAdmin = computed(() => props.profile.role === 'admin');
-const profileCompleteness = computed(() => {
-  const fields = [props.avatarUrl, props.profile.bio, props.profile.joinDate, props.profile.birthMonth && props.profile.birthDay];
-  return Math.round((fields.filter(Boolean).length / fields.length) * 100);
-});
 
 const profileBio = computed(() => {
   const bio = String(props.profile.bio || '').trim();

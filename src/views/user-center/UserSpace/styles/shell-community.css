@@ -1670,10 +1670,6 @@
 }
 
 @media (max-width: 380px) {
-  .profile-status-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   .tab-page .page-content {
     padding: 80px 12px 140px 12px;
   }
@@ -1684,20 +1680,6 @@
 
   .user-space-page :deep(.forum-page.embedded-mode .forum-feed) {
     padding: 0 12px;
-  }
-}
-
-@media (max-width: 350px) {
-  .profile-status-grid {
-    gap: 10px;
-  }
-
-  .profile-status-card {
-    padding: 12px;
-  }
-
-  .profile-status-card .stat-value {
-    font-size: 20px;
   }
 }
 

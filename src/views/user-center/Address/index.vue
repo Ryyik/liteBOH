@@ -10,13 +10,7 @@
 
     <!-- Main Content Area -->
     <div class="main-content-wrap">
-      <UserCenterPageHeader title="礼物" @back="goBack">
-        <template #actions>
-          <button v-if="isLoggedIn" class="history-toggle-btn" @click="toggleHistoryView">
-            {{ showHistory ? '查看当前' : '历史礼物' }}
-          </button>
-        </template>
-      </UserCenterPageHeader>
+      <UserCenterPageHeader title="礼物" @back="goBack" />
 
       <div v-if="loading" class="gift-page-skeleton" aria-hidden="true">
         <section class="apple-order-status">
@@ -62,155 +56,62 @@
       </div>
 
       <template v-else>
-        <!-- History View -->
-        <div v-if="showHistory" class="history-container fade-in">
-          <div class="section-title">历史礼物记录</div>
-          <div v-if="historyLoading" class="history-list history-skeleton-list" aria-hidden="true">
-            <div v-for="item in 4" :key="`history-gift-loading-${item}`" class="history-card skeleton">
-              <div class="h-gift-info">
-                <div class="address-skeleton-block history-no-skeleton"></div>
-                <div class="address-skeleton-block history-name-skeleton"></div>
-              </div>
-              <div class="h-gift-meta">
-                <div class="address-skeleton-block history-date-skeleton"></div>
-                <div class="address-skeleton-block history-status-skeleton"></div>
-              </div>
-            </div>
-          </div>
-          <div v-else-if="historyLoadError" class="history-empty-card is-error">
-            <TriangleAlert class="history-empty-icon" :size="34" :stroke-width="1.7" aria-hidden="true" />
-            <h4>历史记录加载失败</h4>
-            <p>{{ historyLoadError }}</p>
-            <button class="history-toggle-btn" @click="loadHistoryGifts()">重试加载</button>
-          </div>
-          <div v-else-if="historyGifts.length === 0" class="history-empty-card">
-            <Gift class="history-empty-icon" :size="34" :stroke-width="1.7" aria-hidden="true" />
-            <h4>暂无历史礼物</h4>
-            <p>当礼物完成后，会自动归档到这里。</p>
-            <button class="history-empty-action" @click="showHistory = false">查看当前礼物</button>
-          </div>
-          <div v-else class="history-list">
-            <div v-for="gift in historyGifts" :key="gift.id" class="history-card glass-container-light"
-              @click="viewGiftDetail(gift)">
-              <div class="h-gift-info">
-                <span class="h-gift-no">#{{ gift.gift_no }}</span>
-                <span class="h-gift-name">{{ gift.gift_content }}</span>
-              </div>
-              <div class="h-gift-meta">
-                <span class="h-gift-date">{{ formatDateShort(gift.created_at) }}</span>
-                <span class="h-gift-status" :class="gift.gift_status">{{ getStatusLabel(gift.gift_status) }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+        <!-- 第一行: 当前礼物 -->
+        <section class="gift-section">
+          <header class="gift-section-header">
+            <h2 class="gift-section-title">当前礼物</h2>
+            <button
+              v-if="historyGifts.length"
+              type="button"
+              class="gift-history-link"
+              @click="scrollToHistory"
+            >
+              查看历史礼物 ({{ historyGifts.length }})
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+          </header>
 
-        <!-- Current Gift View (Apple Style) -->
-        <div v-else class="current-gift-container fade-in">
-          <div v-if="!currentGift" class="no-gift-state">
-            <Gift class="no-gift-icon" :size="72" :stroke-width="1.6" aria-hidden="true" />
-            <h3>开启你的礼物之旅</h3>
+          <div v-if="!currentGift" class="no-gift-state glass-container-light">
+            <Gift class="no-gift-icon" :size="56" :stroke-width="1.6" aria-hidden="true" />
             <p>目前还没有待收到的礼物，积极参与社区活动来赢取吧！</p>
           </div>
 
-          <template v-else>
-            <!-- 1. Apple Style Order Status Section -->
-            <section class="apple-order-status glass-container-light">
-              <div v-if="currentGift" class="order-main-row">
-                <!-- Left: Gift Image Placeholder -->
-                <div class="gift-visual">
-                  <div class="gift-image-box">
-                    <img v-if="currentGift?.gift_image" :src="currentGift.gift_image" alt="Gift"  loading="lazy" />
-                    <Gift v-else class="gift-placeholder-icon" :size="88" :stroke-width="1.5" aria-hidden="true" />
-                  </div>
-                </div>
-
-                <!-- Right: Status Info -->
-                <div class="order-status-info">
-                  <div class="product-name">{{ currentGift?.gift_content || '待命中的礼物' }}</div>
-                  <h1 class="status-title">{{ getAppleStatusTitle }}</h1>
-
-                  <!-- Apple Style Thick Progress Bar -->
-                  <div class="apple-progress-wrap">
-                    <div class="apple-progress-bar">
-                      <div class="apple-progress-fill" :style="{ width: appleProgressWidth + '%' }"></div>
-                    </div>
-                    <div class="apple-progress-steps">
-                      <span :class="{ active: currentStatusIndex >= 0 }">已收到请求</span>
-                      <span :class="{ active: currentStatusIndex >= 1 }">正在处理</span>
-                      <span :class="{ active: currentStatusIndex >= 2 }">已寄出/可取</span>
-                      <span :class="{ active: currentStatusIndex >= 3 }">已送达</span>
-                    </div>
-                  </div>
-
-                  <p class="status-desc">{{ getAppleStatusDesc }}</p>
-                </div>
+          <article v-else class="gift-card glass-container-light">
+            <div class="gift-card-head">
+              <div class="gift-card-visual">
+                <img v-if="currentGift.gift_image" :src="currentGift.gift_image" alt="礼物图片" loading="lazy" />
+                <Gift v-else :size="44" :stroke-width="1.5" aria-hidden="true" />
               </div>
-            </section>
-
-            <!-- 2. Apple Style Detailed Info Grid -->
-            <section class="apple-details-grid">
-              <!-- Item 1: Gift Details -->
-              <div class="detail-column">
-                <h4 class="detail-label">礼物详情</h4>
-                <div class="detail-value-group">
-                  <p class="detail-primary">{{ currentGift?.gift_content }}</p>
-                  <p class="detail-secondary">编号: {{ currentGift?.gift_no || 'BOH-NEW' }}</p>
-                  <p class="detail-price">RMB {{ currentGift?.gift_price || '0' }}</p>
-                </div>
-              </div>
-
-              <!-- Item 2: Delivery Info -->
-              <div class="detail-column">
-                <h4 class="detail-label">送达方式</h4>
-                <div class="detail-value-group">
-                  <p class="detail-primary">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                      <circle cx="12" cy="10" r="3"></circle>
-                    </svg>
-                    快递寄送
-                  </p>
-                  <p class="detail-secondary address-text">{{ targetProfile?.shipping_address || '未填写收货地址' }}</p>
-                </div>
-              </div>
-
-              <!-- Item 3: Recipient Info -->
-              <div class="detail-column">
-                <h4 class="detail-label">收货联系人</h4>
-                <div class="detail-value-group">
-                  <p class="detail-primary">{{ targetProfile?.shipping_recipient || '匿名伙伴' }}</p>
-                  <p class="detail-secondary">{{ targetProfile?.shipping_phone || '电话未留' }}</p>
-                </div>
-              </div>
-            </section>
-          </template>
-        </div>
-
-        <!-- 3. 八周年海报申请订单状态 -->
-        <section v-if="posterRequests.length" class="poster-section-bottom glass-container-light">
-          <div class="section-header">
-            <div class="section-title-group">
-              <h3>八周年海报申请</h3>
-            </div>
-          </div>
-          <div class="poster-request-list">
-            <div v-for="request in posterRequests" :key="request.id" class="poster-request-card">
-              <div class="poster-request-head">
-                <span class="poster-request-no">#{{ formatPosterNo(request) }}</span>
-                <span class="poster-request-status" :class="request.status">
-                  {{ getPosterStatusLabel(request.status) }}
-                </span>
-              </div>
-              <div class="poster-request-meta">
-                <span class="poster-request-item">收件人：{{ request.recipient }}</span>
-                <span class="poster-request-item">物料费：RMB {{ Number(request.material_fee) || 5 }}</span>
-                <span class="poster-request-item">申请时间：{{ formatPosterDate(request.created_at) }}</span>
+              <div class="gift-card-intro">
+                <span class="gift-card-eyebrow">编号 {{ currentGift.gift_no || 'BOH-NEW' }}</span>
+                <h3 class="gift-card-title">{{ currentGift.gift_content || '待命中的礼物' }}</h3>
+                <p class="gift-card-price">RMB {{ currentGift.gift_price || '0' }}</p>
               </div>
             </div>
-          </div>
+
+            <div class="gift-card-progress">
+              <div class="apple-progress-bar">
+                <div class="apple-progress-fill" :style="{ width: appleProgressWidth + '%' }"></div>
+              </div>
+              <div class="apple-progress-steps">
+                <span :class="{ active: currentStatusIndex >= 0 }">已收到请求</span>
+                <span :class="{ active: currentStatusIndex >= 1 }">正在处理</span>
+                <span :class="{ active: currentStatusIndex >= 2 }">已寄出</span>
+                <span :class="{ active: currentStatusIndex >= 3 }">已送达</span>
+              </div>
+            </div>
+
+            <footer class="gift-card-foot">
+              <span class="gift-card-status" :class="currentGift.gift_status">
+                <span class="gift-card-status-dot"></span>
+                {{ getAppleStatusTitle }}
+              </span>
+              <span class="gift-card-desc">{{ getAppleStatusDesc }}</span>
+            </footer>
+          </article>
         </section>
 
-        <!-- Address Management (Separate Section) -->
+        <!-- 第二行: 收货地址管理 -->
         <section class="address-section-bottom glass-container-light">
           <div class="section-header">
             <div class="section-title-group">
@@ -249,7 +150,6 @@
           </div>
 
           <div v-else class="address-editor-wrap fade-in">
-            <!-- AI Area remains similar -->
             <div class="ai-paste-zone">
               <div class="ai-badge">AI 智能辅助</div>
               <textarea v-model="pastedText" placeholder="在此粘贴整段地址信息，AI 将为您自动识别并填充表单..."></textarea>
@@ -278,6 +178,50 @@
               <button class="save-btn" @click="saveAddress" :disabled="saving">
                 {{ saving ? '正在保存...' : '保存更改' }}
               </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- 历史礼物 (折鲁在下方) -->
+        <section v-if="historyGifts.length" id="history-gifts" class="history-section glass-container-light fade-in">
+          <div class="section-header">
+            <h3>历史礼物</h3>
+            <span class="section-count">{{ historyGifts.length }} 份</span>
+          </div>
+          <div class="history-list">
+            <div v-for="gift in historyGifts" :key="gift.id" class="history-card">
+              <div class="h-gift-info">
+                <span class="h-gift-no">#{{ gift.gift_no }}</span>
+                <span class="h-gift-name">{{ gift.gift_content }}</span>
+              </div>
+              <div class="h-gift-meta">
+                <span class="h-gift-date">{{ formatDateShort(gift.created_at) }}</span>
+                <span class="h-gift-status" :class="gift.gift_status">{{ getStatusLabel(gift.gift_status) }}</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 八周年海报申请 -->
+        <section v-if="posterRequests.length" class="poster-section-bottom glass-container-light">
+          <div class="section-header">
+            <div class="section-title-group">
+              <h3>八周年海报申请</h3>
+            </div>
+          </div>
+          <div class="poster-request-list">
+            <div v-for="request in posterRequests" :key="request.id" class="poster-request-card">
+              <div class="poster-request-head">
+                <span class="poster-request-no">#{{ formatPosterNo(request) }}</span>
+                <span class="poster-request-status" :class="request.status">
+                  {{ getPosterStatusLabel(request.status) }}
+                </span>
+              </div>
+              <div class="poster-request-meta">
+                <span class="poster-request-item">收件人：{{ request.recipient }}</span>
+                <span class="poster-request-item">物料费：RMB {{ Number(request.material_fee) || 5 }}</span>
+                <span class="poster-request-item">申请时间：{{ formatPosterDate(request.created_at) }}</span>
+              </div>
             </div>
           </div>
         </section>
@@ -345,7 +289,6 @@ const deletingAddress = ref(false);
 const isEditing = ref(false);
 const targetProfile = ref(null);
 const isOwnProfile = ref(true);
-const showHistory = ref(false);
 const historyGifts = ref([]);
 const historyLoading = ref(false);
 const historyLoadError = ref("");
@@ -530,13 +473,6 @@ const loadHistoryGifts = async (uid = targetProfile.value?.id || userInfo.value?
   }
 };
 
-const toggleHistoryView = async () => {
-  showHistory.value = !showHistory.value;
-  if (showHistory.value) {
-    await loadHistoryGifts();
-  }
-};
-
 const fetchData = async (uid = userInfo.value.id) => {
   loading.value = true;
   mainLoadError.value = "";
@@ -623,9 +559,8 @@ const fetchData = async (uid = userInfo.value.id) => {
       logger.warn('address', '加载海报申请失败:', posterError);
     }
 
-    if (showHistory.value) {
-      void loadHistoryGifts(uid);
-    }
+    // 历史礼物与主数据并行加载, 无需手动切换
+    void loadHistoryGifts(uid);
   } catch (err) {
     logger.error('address', 'Fetch error:', err);
     mainLoadError.value = err?.message || "加载失败，请稍后重试";
@@ -853,9 +788,11 @@ const applyAiResult = () => {
   pastedText.value = "";
 };
 
-const viewGiftDetail = (gift) => {
-  currentGift.value = gift;
-  showHistory.value = false;
+const scrollToHistory = () => {
+  const el = document.getElementById('history-gifts');
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 };
 
 onMounted(() => {

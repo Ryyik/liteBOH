@@ -183,6 +183,29 @@
           </div>
         </div>
 
+        <!-- 收集结果概览: 状态分布 chip, 点击即筛选 -->
+        <section
+          v-if="isCollectionResultTab && collectionStatusBreakdown.length"
+          class="collection-overview"
+        >
+          <span class="collection-overview-label">状态分布</span>
+          <div class="collection-chips">
+            <button
+              v-for="chip in collectionStatusBreakdown"
+              :key="chip.value || 'all'"
+              type="button"
+              class="collection-chip"
+              :class="[`tone-${chip.tone}`, { 'is-active': chip.active }]"
+              :aria-pressed="chip.active"
+              @click="applyCollectionStatusFilter(chip.value)"
+            >
+              <span class="collection-chip-label">{{ chip.label }}</span>
+              <span class="collection-chip-count">{{ chip.count }}</span>
+            </button>
+          </div>
+          <span class="collection-overview-hint">当前视图 {{ currentData.length }} 条</span>
+        </section>
+
         <div v-if="showGlobalSearchPanel" class="editor-panel search-panel">
           <div class="panel-inline-form">
             <input v-model="globalSearchQuery" class="form-input" type="text" placeholder="跨表搜索用户 ID / 邮箱 / 抽奖 ID / 帖子关键词" @keydown.enter.prevent="runGlobalSearch" />
@@ -741,7 +764,7 @@
       :user-picker-keyword="userPickerKeyword"
       @update:user-picker-keyword="(v) => (userPickerKeyword = v)"
       :filtered-gift-users="filteredGiftUsers"
-      :gift-address-bundle-text="giftAddressBundleText"
+      :address-bundle-text="addressBundleText"
       :uploading-image-fields="uploadingImageFields"
       :user-picker-loading="userPickerLoading"
       :is-field-disabled="isFieldDisabled"
@@ -757,7 +780,7 @@
       @regenerate-news-id="regenerateNewsId"
       @inject-news-template="injectNewsTemplate"
       @generate-excerpt="generateExcerptFromContent"
-      @copy-gift-address="copyGiftAddressBundle"
+      @copy-address-bundle="copyAddressBundle"
       @open-user-picker="openUserPicker"
       @close-user-picker="closeUserPicker"
       @select-gift-user="selectGiftUser"
@@ -1335,6 +1358,41 @@ const tableMiniStats = computed(() => [
   { label: '列显示', value: `${visibleCurrentColumns.value.length}/${currentColumns.value.length}` }
 ]);
 
+// 收集结果类 tab: 管理员查看用户提交的收集表数据 (当前为海报申请, 后续可扩展自建收集表)
+const COLLECTION_RESULT_TABS = new Set(['posterRequests']);
+const isCollectionResultTab = computed(() => COLLECTION_RESULT_TABS.has(currentTab.value));
+
+// 收集结果状态分布概览: 基于当前视图统计各状态条数, 点击 chip 即按状态筛选
+const collectionStatusBreakdown = computed(() => {
+  if (!isCollectionResultTab.value) return [];
+  const options = statusFilterOptions.value;
+  const counts = new Map();
+  let total = 0;
+  for (const row of currentData.value) {
+    total++;
+    const statusKey = String(row?.status ?? '');
+    if (statusKey) counts.set(statusKey, (counts.get(statusKey) || 0) + 1);
+  }
+  return [
+    { value: '', label: '全部', count: total, tone: 'muted', active: statusFilter.value === '' },
+    ...options.map((option) => {
+      const value = String(option.value);
+      return {
+        value,
+        label: option.label,
+        count: counts.get(value) || 0,
+        tone: getBadgeType(value),
+        active: statusFilter.value === value
+      };
+    })
+  ];
+});
+
+const applyCollectionStatusFilter = (value) => {
+  statusFilter.value = value;
+  handleFilterChange();
+};
+
 const diagnosticIssueCount = computed(() => {
   const dueDraws = Number(lotterySchedulerStatus.value?.due_count || 0);
   const schedulerFailed = ['failed', 'partial_failure'].includes(String(lotterySchedulerStatus.value?.last_run?.status || ''));
@@ -1426,18 +1484,29 @@ const filteredGiftUsers = computed(() => {
     .slice(0, 200);
 });
 
-const giftAddressBundleText = computed(() => {
-  if (currentTab.value !== 'gifts') return '';
-
-  const recipient = String(editingItem.value?.shipping_recipient || '').trim() || '未填写';
-  const address = String(editingItem.value?.shipping_address || '').trim() || '未填写';
-  const phone = String(editingItem.value?.shipping_phone || '').trim() || '未填写';
-
-  return [
-    `收货人：${recipient}`,
-    `地址：${address}`,
-    `电话：${phone}`
-  ].join('\n');
+// 收件信息整段文本: gifts 用 profiles 的 shipping_*, posterRequests 用表内 recipient/phone/address
+const addressBundleText = computed(() => {
+  if (currentTab.value === 'gifts') {
+    const recipient = String(editingItem.value?.shipping_recipient || '').trim() || '未填写';
+    const address = String(editingItem.value?.shipping_address || '').trim() || '未填写';
+    const phone = String(editingItem.value?.shipping_phone || '').trim() || '未填写';
+    return [
+      `收货人：${recipient}`,
+      `地址：${address}`,
+      `电话：${phone}`
+    ].join('\n');
+  }
+  if (currentTab.value === 'posterRequests') {
+    const recipient = String(editingItem.value?.recipient || '').trim() || '未填写';
+    const phone = String(editingItem.value?.phone || '').trim() || '未填写';
+    const address = String(editingItem.value?.address || '').trim() || '未填写';
+    const username = String(editingItem.value?.username || '').trim();
+    const lines = [];
+    if (username) lines.push(`用户名：${username}`);
+    lines.push(`收件人：${recipient}`, `电话：${phone}`, `地址：${address}`);
+    return lines.join('\n');
+  }
+  return '';
 });
 
 const dashboardTableIds = ['users', 'subscriptions', 'forum', 'news', 'activities', 'products'];
@@ -1945,10 +2014,10 @@ const resetColumnSettings = () => {
 // createChangeLogCenter 已移至 createNavigationCenter 之后注入 (依赖 switchTab)
 // 见下方 "变更日志中心注入" 区块
 
-const copyGiftAddressBundle = async () => {
-  const content = giftAddressBundleText.value;
+const copyAddressBundle = async () => {
+  const content = addressBundleText.value;
   if (!content) {
-    showToast('暂无可复制的地址信息', 'error');
+    showToast('暂无可复制的收件信息', 'error');
     return;
   }
 
@@ -1966,9 +2035,9 @@ const copyGiftAddressBundle = async () => {
       document.execCommand('copy');
       document.body.removeChild(textArea);
     }
-    showToast('地址信息已复制', 'success');
+    showToast('收件信息已复制', 'success');
   } catch (error) {
-    logger.error('data-admin', '复制地址失败:', error);
+    logger.error('data-admin', '复制收件信息失败:', error);
     showToast('复制失败，请手动复制', 'error');
   }
 };
@@ -4026,6 +4095,81 @@ onUnmounted(() => {
 @media (max-width: 768px) {
   .sidebar-scrim.is-visible { display: block; }
   .main-container { padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4) calc(var(--spacing) * 8); }
+}
+
+/* 收集结果概览条 */
+.collection-overview {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 14px;
+  margin: 0 0 12px;
+  background: var(--card, #fff);
+  border: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
+  border-radius: 12px;
+}
+.collection-overview-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--foreground) 55%, transparent);
+  letter-spacing: 0.02em;
+}
+.collection-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.collection-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 5px 12px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+}
+.collection-chip:hover {
+  border-color: color-mix(in srgb, var(--foreground) 24%, transparent);
+  transform: translateY(-1px);
+}
+.collection-chip:active { transform: translateY(0) scale(0.98); }
+.collection-chip-label { font-weight: 500; }
+.collection-chip-count {
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+  color: color-mix(in srgb, var(--foreground) 70%, transparent);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  transition: background-color .18s ease, color .18s ease;
+}
+.collection-chip.is-active {
+  color: #fff;
+  border-color: transparent;
+}
+.collection-chip.is-active .collection-chip-count {
+  background: color-mix(in srgb, #fff 28%, transparent);
+  color: #fff;
+}
+.collection-chip.tone-muted.is-active { background: color-mix(in srgb, var(--foreground) 52%, #888); }
+.collection-chip.tone-warning.is-active { background: #d97706; }
+.collection-chip.tone-info.is-active { background: #2563eb; }
+.collection-chip.tone-success.is-active { background: #16a34a; }
+.collection-chip.tone-danger.is-active { background: #dc2626; }
+.collection-overview-hint {
+  margin-left: auto;
+  font-size: 12px;
+  color: color-mix(in srgb, var(--foreground) 45%, transparent);
+  font-variant-numeric: tabular-nums;
 }
 </style>
 

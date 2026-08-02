@@ -1,5 +1,10 @@
 <template>
   <div class="home">
+    <!-- BOH Agent Preview 英雄区 -->
+    <HomeHeroRow layout="full" aria-label="BOH Agent Preview">
+      <AgentPreviewHero />
+    </HomeHeroRow>
+
     <!-- 生日英雄区：检测到今日有用户生日时显示（当前为预览模式） -->
     <HomeHeroRow v-if="showBirthdayHero" layout="full" aria-label="今日生日">
       <BirthdayHero :people="birthdayPeople" @more="onBirthdayMore" />
@@ -352,6 +357,7 @@ import HomeFooter from "./components/HomeFooter.vue";
 import BlockWallHero from "./components/BlockWallHero.vue";
 import MascotEvolutionHero from "./components/MascotEvolutionHero.vue";
 import BirthdayHero from "./components/BirthdayHero.vue";
+import AgentPreviewHero from "./components/AgentPreviewHero.vue";
 import { isBirthdayToday } from "@/utils/birthday.js";
 import { useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";

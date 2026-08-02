@@ -139,6 +139,7 @@ import { themeManager } from "@/utils/theme-manager.js";
 import { isHomeCatTheme } from "@/utils/home-cat-theme.js";
 import { useConfirmDialog } from "@/composables/useConfirmDialog.js";
 import { useVersionCheck } from "@/composables/useVersionCheck.js";
+import { toggleHiagentChat } from "@/utils/hiagent-widget.js";
 
 const authStore = useAuthStore();
 const { isLoggedIn, isInitialized, showLoginModal, isAdmin } = storeToRefs(authStore);
@@ -253,6 +254,7 @@ const navMenuItems = [
     name: "explore",
     label: "探索",
     children: [
+      { name: "boh-agent", action: "openAiAssistant", label: "BOHAgent" },
       { name: "character-book", path: "/character-book", label: "设定集" },
       { name: "mbti", path: "/mbti", label: "MBTI" },
       { name: "lab", path: "/lab", label: "实验室" },
@@ -339,6 +341,9 @@ const handleMenuAction = async (action) => {
     }
     // 有权限，跳转到管理面板
     router.push("/admin/data-management");
+  } else if (action === "openAiAssistant") {
+    // 打开 BOHAgent AI 助手
+    toggleHiagentChat();
   } else if (action === "checkVersion") {
     // 版本检测
     if (isChecking.value) {

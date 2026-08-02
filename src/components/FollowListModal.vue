@@ -104,6 +104,7 @@ const formatDate = (dateStr) => {
   width: 420px;
   max-width: 90vw;
   max-height: 70vh;
+  max-height: 70dvh;
   display: flex;
   flex-direction: column;
   background: white;
