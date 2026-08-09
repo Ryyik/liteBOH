@@ -2036,42 +2036,12 @@ const renderSearchExcerpt = (excerpt) => {
   });
 };
 
-const getWeeklyCheckinCycleProgress = (status) => {
-  const cycleSize = Math.max(1, Number(status?.cycleSize || 4));
-  const explicitProgress = Number(status?.cycleProgress);
-  if (Number.isFinite(explicitProgress)) {
-    return Math.min(Math.max(0, explicitProgress), cycleSize - 1);
-  }
-
-  const normalizedStreak = Math.max(0, Number(status?.currentStreak || status?.streakTotal || 0));
-  return normalizedStreak === 0 ? 0 : ((normalizedStreak - 1) % cycleSize) + 1;
-};
-
-const weeklyCheckinCycleProgress = computed(() => (
-  getWeeklyCheckinCycleProgress(weeklyCheckinStatus.value)
-));
-
-const weeklyCheckinProgressText = computed(() => (
-  `连续 ${weeklyCheckinCycleProgress.value} / ${weeklyCheckinStatus.value.cycleSize || 4} 周`
-));
-
-const weeklyCheckinProgressPercent = computed(() => {
-  const cycleSize = Math.max(1, Number(weeklyCheckinStatus.value.cycleSize || 4));
-  return Math.round((weeklyCheckinCycleProgress.value / cycleSize) * 100);
+const weeklyCheckinProgressText = computed(() => {
+  const points = WEEKLY_CHECKIN_REWARD_POINTS;
+  return weeklyCheckinStatus.value.hasSignedThisWeek
+    ? `本周已签 +${points} 积分`
+    : `本周未签 +${points} 积分`;
 });
-
-const weeklyCheckinCycleSize = computed(() => Math.max(1, Number(weeklyCheckinStatus.value.cycleSize || 4)));
-
-const weeklyCheckinDisplayWeek = computed(() => {
-  const progress = weeklyCheckinCycleProgress.value;
-  const cycleSize = weeklyCheckinCycleSize.value;
-  if (weeklyCheckinStatus.value.hasSignedThisWeek) {
-    return Math.max(1, Math.min(cycleSize, progress || cycleSize));
-  }
-  return Math.max(1, Math.min(cycleSize, (progress % cycleSize) + 1));
-});
-
-const formatCheckinDate = (date) => `${date.getMonth() + 1}.${date.getDate()}`;
 
 const checkinCalendarDays = computed(() => {
   const sourceDate = weeklyCheckinStatus.value.currentWeekStart
@@ -2102,30 +2072,30 @@ const checkinCalendarDays = computed(() => {
   });
 });
 
-const weeklyCheckinRangeText = computed(() => {
-  const days = checkinCalendarDays.value;
-  if (!days.length) return '';
-  const start = new Date(days[0].key);
-  const end = new Date(days[days.length - 1].key);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return '';
-  return `${formatCheckinDate(start)} - ${formatCheckinDate(end)}`;
-});
-
-const weeklyCheckinCycleWeeks = computed(() => {
-  const displayWeek = weeklyCheckinDisplayWeek.value;
-  return Array.from({ length: weeklyCheckinCycleSize.value }, (_, index) => {
-    const week = index + 1;
-    return {
-      week,
-      isCurrent: week === displayWeek,
-      isCompleted: week < displayWeek || (week === displayWeek && weeklyCheckinStatus.value.hasSignedThisWeek)
-    };
-  });
-});
-
-const weeklyCheckinPanelTitle = computed(() => (
-  weeklyCheckinStatus.value.hasSignedThisWeek ? '本周签到已完成' : '完成本周签到'
+const weeklyCheckinWeekDots = computed(() => (
+  checkinCalendarDays.value.map((day) => ({
+    key: day.key,
+    today: day.isToday,
+    signed: day.isSigned
+  }))
 ));
+
+const weeklyCheckinNextCheckin = computed(() => {
+  const sourceDate = weeklyCheckinStatus.value.currentWeekStart
+    ? new Date(weeklyCheckinStatus.value.currentWeekStart)
+    : new Date();
+  const monday = Number.isNaN(sourceDate.getTime()) ? new Date() : sourceDate;
+  const nextMonday = new Date(monday);
+  nextMonday.setHours(0, 0, 0, 0);
+  nextMonday.setDate(nextMonday.getDate() + 7);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.max(0, Math.round((nextMonday.getTime() - today.getTime()) / 86400000));
+  return {
+    dateText: `${nextMonday.getMonth() + 1}.${nextMonday.getDate()}`,
+    days
+  };
+});
 
 const openWeeklyCheckinCalendar = () => {
   if (!isLoggedIn.value) {
@@ -2141,12 +2111,12 @@ const closeWeeklyCheckinCalendar = () => {
 
 const weeklyCheckinHintText = computed(() => {
   if (!isLoggedIn.value) {
-    return `登录后每周可签到一次，签到可获得 ${WEEKLY_CHECKIN_REWARD_POINTS} 积分`;
+    return `登录后每周可签到一次，签到可得 ${WEEKLY_CHECKIN_REWARD_POINTS} 积分`;
   }
   if (weeklyCheckinStatus.value.hasSignedThisWeek) {
-    return `本周已签到 +${WEEKLY_CHECKIN_REWARD_POINTS} 积分`;
+    return `本周已签到 +${WEEKLY_CHECKIN_REWARD_POINTS} 积分，下周再来`;
   }
-  return `本周签到可获得 ${WEEKLY_CHECKIN_REWARD_POINTS} 积分`;
+  return `本周签到可得 +${WEEKLY_CHECKIN_REWARD_POINTS} 积分，每周一刷新`;
 });
 
 const loadWeeklyCheckinStatus = async () => {
@@ -3237,7 +3207,7 @@ const openPostDetail = (postId) => {
             :is-uploading-post-image="isUploadingPostImage" :post-image-upload-status="postImageUploadStatus"
             :post-cooldown-seconds="postCooldownSeconds" :weekly-checkin-status="weeklyCheckinStatus"
             :weekly-checkin-progress-text="weeklyCheckinProgressText"
-            :weekly-checkin-progress-percent="weeklyCheckinProgressPercent"
+            :weekly-checkin-week-dots="weeklyCheckinWeekDots"
             :weekly-checkin-hint-text="weeklyCheckinHintText" :is-weekly-checkin-loading="isWeeklyCheckinLoading"
             :is-weekly-checkin-submitting="isWeeklyCheckinSubmitting" :forum-tag-options="FORUM_TAG_OPTIONS"
             :max-post-images="FORUM_POST_IMAGE_MAX_COUNT" :mention-users="forumMentionUsers"
@@ -3429,7 +3399,7 @@ const openPostDetail = (postId) => {
               :post-images="postImages" :is-submitting="isSubmitting" :is-uploading-post-image="isUploadingPostImage"
               :post-image-upload-status="postImageUploadStatus" :post-cooldown-seconds="postCooldownSeconds"
               :weekly-checkin-status="weeklyCheckinStatus" :weekly-checkin-progress-text="weeklyCheckinProgressText"
-              :weekly-checkin-progress-percent="weeklyCheckinProgressPercent"
+              :weekly-checkin-week-dots="weeklyCheckinWeekDots"
               :weekly-checkin-hint-text="weeklyCheckinHintText" :is-weekly-checkin-loading="isWeeklyCheckinLoading"
               :is-weekly-checkin-submitting="isWeeklyCheckinSubmitting" :forum-tag-options="FORUM_TAG_OPTIONS"
               :max-post-images="FORUM_POST_IMAGE_MAX_COUNT" :mention-users="forumMentionUsers"
@@ -3445,9 +3415,8 @@ const openPostDetail = (postId) => {
     </Teleport>
 
     <WeeklyCheckinCalendar v-model:open="isWeeklyCheckinCalendarOpen" :status="weeklyCheckinStatus"
-      :calendar-days="checkinCalendarDays" :cycle-weeks="weeklyCheckinCycleWeeks"
-      :progress-percent="weeklyCheckinProgressPercent" :panel-title="weeklyCheckinPanelTitle"
-      :range-text="weeklyCheckinRangeText" :hint-text="weeklyCheckinHintText" :loading="isWeeklyCheckinLoading"
+      :calendar-days="checkinCalendarDays" :next-checkin="weeklyCheckinNextCheckin"
+      :loading="isWeeklyCheckinLoading"
       :submitting="isWeeklyCheckinSubmitting" @close="closeWeeklyCheckinCalendar" @checkin="handleWeeklyCheckin" />
 
     <Teleport to="body">

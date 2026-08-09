@@ -32,6 +32,11 @@ export const publicRoutes: RouteRecordRaw[] = [
     component: () => import("../../views/MBTI/index.vue"),
   },
   {
+    path: "/history",
+    name: "History",
+    component: () => import("../../views/History/index.vue"),
+  },
+  {
     path: "/birthday",
     name: "Birthday",
     component: () => import("../../views/Birthday/index.vue"),

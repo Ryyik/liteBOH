@@ -100,6 +100,18 @@
   color: #a1a1aa;
 }
 
+.forum-page[data-theme="dark"] .checkin-week-dot {
+  background: #3f3f4b;
+}
+
+.forum-page[data-theme="dark"] .checkin-week-dot.today {
+  box-shadow: 0 0 0 1.5px #17171f, 0 0 0 3px #fafafa;
+}
+
+.forum-page[data-theme="dark"] .checkin-week-dot.signed {
+  background: #fafafa;
+}
+
 .forum-page[data-theme="dark"] .weekly-checkin-status-skeleton .skeleton-item,
 .forum-page[data-theme="dark"] .weekly-checkin-btn .checkin-skeleton-button-label,
 [data-theme="dark"] .forum-page .weekly-checkin-status-skeleton .skeleton-item,

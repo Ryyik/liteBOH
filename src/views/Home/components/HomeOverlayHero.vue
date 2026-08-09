@@ -11,17 +11,21 @@
     @pointerup="finishPosterDrag"
     @pointercancel="finishPosterDrag"
   >
-    <img
-      ref="imageElement"
-      class="overlay-hero-image"
-      :src="imageSrc"
-      :alt="imageAlt"
-      :style="{ objectPosition: posterPan ? undefined : imagePosition }"
-      :loading="priority ? 'eager' : 'lazy'"
-      decoding="async"
-      :fetchpriority="priority ? 'high' : 'auto'"
-      draggable="false"
-    >
+    <picture>
+      <source v-if="imageSrcPortrait" media="(orientation: portrait)" :srcset="imageSrcPortrait" />
+      <source v-if="imageSrcLandscape" media="(orientation: landscape)" :srcset="imageSrcLandscape" />
+      <img
+        ref="imageElement"
+        class="overlay-hero-image"
+        :src="imageSrc"
+        :alt="imageAlt"
+        :style="{ objectPosition: posterPan ? undefined : imagePosition }"
+        :loading="priority ? 'eager' : 'lazy'"
+        decoding="async"
+        :fetchpriority="priority ? 'high' : 'auto'"
+        draggable="false"
+      />
+    </picture>
     <div class="overlay-hero-shade" aria-hidden="true"></div>
 
     <div class="overlay-hero-content">
@@ -73,6 +77,8 @@ const props = defineProps({
   eyebrow: { type: String, default: '' },
   subtitle: { type: String, default: '' },
   imageSrc: { type: String, required: true },
+  imageSrcPortrait: { type: String, default: '' },
+  imageSrcLandscape: { type: String, default: '' },
   imageAlt: { type: String, default: '' },
   imagePosition: { type: String, default: 'center center' },
   priority: { type: Boolean, default: false },
@@ -230,6 +236,7 @@ onBeforeUnmount(() => {
   background: #151515;
 }
 
+.overlay-hero > picture,
 .overlay-hero-image,
 .overlay-hero-shade {
   position: absolute;

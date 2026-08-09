@@ -157,5 +157,18 @@ export const products = [
     specifications: [
       { label: "默认款", value: "Default" }
     ]
+  },
+  {
+    id: 501,
+    category: "BOH 装饰",
+    title: "BOH 吉祥物公仔",
+    description: "软乎乎的全新吉祥物玩偶，陪你走过方块之家的每一天。手感软糯，治愈满满～",
+    points_cost: 45,
+    stock: 100,
+    image: "mascot-new-landscape-orig.webp",
+    specifications: [
+      { label: "标准版 20cm", value: "Standard" },
+      { label: "大号 30cm", value: "Large" }
+    ]
   }
 ];

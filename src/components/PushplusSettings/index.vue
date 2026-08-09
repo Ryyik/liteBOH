@@ -4,10 +4,7 @@
       <!-- 头部区域 -->
       <div class="card-header">
         <div class="header-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-          </svg>
+          <Bell :size="24" :stroke-width="2" aria-hidden="true" />
         </div>
         <div class="header-content">
           <h3 class="settings-title">离线消息推送</h3>
@@ -24,10 +21,8 @@
           <div class="status-title">{{ enabled ? '推送服务已启用' : '推送服务已暂停' }}</div>
           <div class="status-desc">{{ enabled ? '离线时将通过微信接收消息' : '已暂停离线推送功能' }}</div>
         </div>
-        <label class="toggle-switch">
-          <input type="checkbox" v-model="enabled" @change="toggleEnabled" :disabled="isLoading" />
-          <span class="toggle-slider"></span>
-        </label>
+        <SettingToggle :model-value="enabled" :disabled="isLoading" label="离线消息推送"
+            @update:model-value="handleToggleUpdate" />
       </div>
 
       <!-- 引导关注公众号 -->
@@ -192,6 +187,8 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
+import { Bell } from 'lucide-vue-next';
+import SettingToggle from '@/views/user-center/UserSpace/components/SettingToggle.vue';
 import { useAuthStore } from '@/stores/auth';
 import {
   getPushplusSettings,
@@ -336,6 +333,11 @@ const confirmClearToken = async () => {
   } finally {
     isLoading.value = false;
   }
+};
+
+const handleToggleUpdate = (value) => {
+  enabled.value = Boolean(value);
+  toggleEnabled();
 };
 
 const toggleEnabled = async () => {

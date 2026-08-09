@@ -23,7 +23,8 @@ export const PRODUCTS_CACHE_KEY = 'boh_products_cache_v1';
 
 export const invalidateProductsCache = () => {
   try {
-    localStorage.removeItem(PRODUCTS_CACHE_KEY);
+    [PRODUCTS_CACHE_KEY, 'boh_products_cache_v2', 'boh_products_cache_v3', 'boh_products_cache_v4']
+      .forEach((key) => localStorage.removeItem(key));
   } catch (error) {
     logger.warn('DataConfig', '清理商品缓存失败:', error);
   }
@@ -480,7 +481,9 @@ export const dataConfig = {
       { key: 'title', label: '商品名称', maxLength: 25 },
       { key: 'category', label: '分类', type: 'badge' },
       { key: 'points_cost', label: '积分定价', type: 'number' },
-      { key: 'stock', label: '库存', type: 'number' }
+      { key: 'stock', label: '库存', type: 'number' },
+      { key: 'is_active', label: '商城展示', type: 'badge' },
+      { key: 'is_purchasable', label: '允许购买', type: 'badge' }
     ],
     fields: [
       { key: 'id', label: '商品ID', type: 'number', disabled: true, hint: '新增商品自动生成 ID。', group: 'basic' },
@@ -489,6 +492,8 @@ export const dataConfig = {
       { key: 'description', label: '商品描述', type: 'textarea', placeholder: '直接写给用户看的商品介绍。', group: 'detail' },
       { key: 'points_cost', label: '积分定价', type: 'number', placeholder: '例如：40', required: true, min: 0, group: 'pricing' },
       { key: 'stock', label: '库存', type: 'number', required: true, min: 0, group: 'pricing' },
+      { key: 'is_active', label: '商城展示', type: 'select', options: [{ value: true, label: '显示' }, { value: false, label: '隐藏' }], group: 'pricing' },
+      { key: 'is_purchasable', label: '允许购买', type: 'select', options: [{ value: true, label: '允许购买' }, { value: false, label: '不可购买' }], group: 'pricing' },
       { key: 'image', label: '商品图片', type: 'image', placeholder: '上传后自动填入，也可以粘贴 https:// 图片链接', hint: '推荐使用"上传到 Cloud"。', group: 'media' },
       { key: 'specifications', label: '规格选项', type: 'specifications', group: 'specs' }
     ]

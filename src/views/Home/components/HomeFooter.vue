@@ -1,6 +1,9 @@
 <template>
   <footer class="home-footer" aria-label="网站页脚">
     <div class="home-footer-inner">
+      <!-- 第零层：历史回顾（归档的英雄区） -->
+      <HomeArchiveSection :archived-count="archivedHomeHeroes.length" />
+
       <!-- 第一层：免责声明 -->
       <div class="home-footer-disclaimer">
         <p v-for="(line, i) in footerDisclaimer" :key="i">{{ line }}</p>
@@ -55,6 +58,8 @@ import { ref, computed } from 'vue';
 import DOMPurify from '@/utils/dompurify.js';
 import AgreementModal from '@/components/AgreementModal.vue';
 import { userAgreementContent, privacyPolicyContent } from '@/data/agreementData.js';
+import HomeArchiveSection from './HomeArchiveSection.vue';
+import { archivedHomeHeroes } from './homeArchiveData.js';
 import {
   footerDisclaimer,
   footerColumns,

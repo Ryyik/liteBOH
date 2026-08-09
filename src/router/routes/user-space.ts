@@ -81,7 +81,7 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
   },
   {
     path: "/user-space/gifts",
-    name: "Address",
+    name: "Gifts",
     component: () => import("../../views/user-center/Address/index.vue"),
     meta: { ...userSpaceMeta, hideNavbar: true },
   },

@@ -49,8 +49,9 @@
       <AsyncMessages :minimal="true" />
     </div>
 
-    <div v-if="currentTab === 'profile'" :ref="(el) => setTabPageRef('profile', el)"
-      class="tab-page profile-tab" :class="{ 'profile-home-active': profileSection === 'home' }">
+    <div v-if="currentTab === 'profile' || leavingTab === 'profile'"
+      :ref="(el) => setTabPageRef('profile', el)" class="tab-page profile-tab"
+      :class="{ 'profile-home-active': profileSection === 'home', 'is-leaving': leavingTab === 'profile' }">
       <div class="profile-page-content">
         <!-- ✅ 性能优化：静态内容使用 v-once，避免重复渲染 -->
         <div v-if="!isLoggedIn" class="login-prompt" v-once>

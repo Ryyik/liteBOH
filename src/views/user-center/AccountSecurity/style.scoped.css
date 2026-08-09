@@ -1,518 +1,433 @@
+/* ================================================================
+   AccountSecurity —— 与 UserSpace 设置面板共用同一套设计体系
+   （复用 profile-base/profile-panels 的 apple-card / apple-item 类，
+   页面自持 token 以兼容独立路由页）
+   ================================================================ */
+@import '../UserSpace/styles/profile-base.css';
+@import '../UserSpace/styles/profile-panels.css';
+
 .account-security-page {
+  --bg: #f5f5f7;
+  --surface: #ffffff;
+  --surface-soft: #f8fafc;
+  --text-primary: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-muted: #86868b;
+  --stroke: rgba(15, 23, 42, 0.08);
+  --stroke-strong: rgba(15, 23, 42, 0.18);
+  --accent: #007aff;
+  --accent-strong: #2563eb;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.02), 0 4px 16px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.03);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --user-center-nav-offset: 0px;
+
   min-height: 100vh;
-  padding-top: var(--user-center-nav-offset);
-  background:
-    radial-gradient(circle at top left, rgba(59, 130, 246, 0.12), transparent 32%),
-    radial-gradient(circle at top right, rgba(14, 165, 233, 0.08), transparent 24%),
-    linear-gradient(180deg, #f8fbff 0%, #f3f6fb 52%, #eef2f8 100%);
-  color: #0f172a;
+  background: var(--bg);
+  color: var(--text-primary);
 }
 
-@media (max-width: 480px) {
-  .account-security-page {
-    --user-center-nav-offset: 0px;
-  }
+:global([data-theme="dark"]) .account-security-page {
+  --bg: #181a20;
+  --surface: #1a1a24;
+  --surface-soft: #252532;
+  --text-primary: #f5f5f7;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --stroke: rgba(255, 255, 255, 0.1);
+  --stroke-strong: rgba(255, 255, 255, 0.2);
+  --accent: #3b82f6;
+  --accent-strong: #3b82f6;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1), 0 4px 16px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
-.x-security-header {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  background: rgba(255, 255, 255, 0.9);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+/* ---------- 页内微调：独立页顶部留白 ---------- */
+.account-security-page .profile-subpage-shell {
+  padding: 24px 0 60px;
 }
 
-.x-header-content {
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 12px 20px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+/* ---------- 菜单列表行 ---------- */
+.security-danger-item:hover {
+  background-color: rgba(255, 59, 48, 0.07);
 }
 
-.x-header-left {
-  display: flex;
-  align-items: center;
-  gap: 14px;
+.security-danger-item .text-danger {
+  font-size: 15px;
 }
 
-.x-header-title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 700;
+/* ---------- 面板卡片 ---------- */
+.security-panel {
+  padding: 24px 20px 22px;
 }
 
-.security-shell {
-  width: 100%;
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 24px 20px 48px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  box-sizing: border-box;
+.apple-card.danger-card {
+  border-color: rgba(255, 59, 48, 0.25);
 }
 
-.security-entry-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.05);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-radius: 20px;
-  overflow: hidden;
+.panel-head {
+  margin-bottom: 16px;
 }
 
-.hero-card,
-.security-card {
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.06);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-radius: 24px;
-}
-
-.hero-card {
-  padding: 18px 20px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.hero-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  flex-shrink: 0;
-}
-
-.hero-copy h1 {
-  margin: 0 0 4px;
+.panel-head h3 {
+  margin: 0 0 6px;
   font-size: 22px;
-  line-height: 1.15;
-}
-
-.hero-copy p {
-  margin: 0;
-  color: #475569;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.security-card {
-  padding: 24px;
-}
-
-.entry-card {
-  border: 0;
-  border-radius: 0;
-  padding: 16px 18px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  text-align: left;
-  color: #0f172a;
-  cursor: pointer;
-  transition: background 0.18s ease;
-}
-
-.entry-card:hover {
-  background: rgba(248, 250, 252, 0.88);
-}
-
-.danger-entry-card {
-  background: transparent;
-  border-top: 1px solid rgba(148, 163, 184, 0.14);
-}
-
-.entry-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  flex-shrink: 0;
-}
-
-.password-entry-icon {
-  background: linear-gradient(135deg, #effaf5 0%, #d1fae5 100%);
-}
-
-.danger-entry-icon {
-  background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%);
-}
-
-.entry-copy {
-  flex: 1;
-  min-width: 0;
-}
-
-.entry-copy h3 {
-  margin: 2px 0 4px;
-  font-size: 18px;
-  line-height: 1.2;
-}
-
-.entry-copy p:last-child {
-  margin: 0;
-  color: #475569;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.entry-kicker {
-  margin: 0;
-  color: #2563eb;
-  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
 }
 
-.entry-arrow {
-  color: #94a3b8;
-  font-size: 28px;
-  line-height: 1;
-  align-self: center;
-}
-
-.section-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 10px;
-}
-
-.section-head h3 {
-  margin: 4px 0 0;
-  font-size: 22px;
-  line-height: 1.2;
-}
-
-.section-kicker {
+.panel-desc {
   margin: 0;
-  color: #2563eb;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.danger-kicker {
-  color: #dc2626;
-}
-
-.section-desc {
-  margin: 0 0 16px;
-  color: #475569;
-  font-size: 14px;
-  line-height: 1.7;
-}
-
-.secondary-btn,
-.danger-secondary-btn,
-.primary-danger-btn,
-.trusted-device-revoke-btn {
-  border-radius: 999px;
-  padding: 10px 16px;
   font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  line-height: 1.6;
+  color: var(--text-secondary);
 }
 
-.secondary-btn {
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  background: #fff;
-  color: #0f172a;
-}
-
-.danger-secondary-btn {
-  border: 1px solid rgba(220, 38, 38, 0.24);
-  background: rgba(254, 242, 242, 0.95);
-  color: #b91c1c;
-}
-
-.primary-danger-btn {
-  border: none;
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  color: #fff;
-  box-shadow: 0 14px 30px rgba(220, 38, 38, 0.22);
-}
-
-.primary-btn {
-  border: none;
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-  color: #fff;
-  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.22);
-  border-radius: 999px;
-  padding: 10px 16px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
-}
-
-.secondary-btn:hover,
-.danger-secondary-btn:hover,
-.primary-btn:hover,
-.primary-danger-btn:hover,
-.trusted-device-revoke-btn:hover {
-  transform: translateY(-1px);
-}
-
-.secondary-btn:disabled,
-.danger-secondary-btn:disabled,
-.primary-btn:disabled,
-.primary-danger-btn:disabled,
-.trusted-device-revoke-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
+/* ---------- 表单 ---------- */
 .form-stack {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .field-label {
-  color: #0f172a;
+  display: block;
+  margin: 10px 0 0;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0;
 }
 
 .security-input,
 .delete-account-input {
   width: 100%;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  background: rgba(255, 255, 255, 0.94);
-  border-radius: 16px;
-  padding: 14px 16px;
+  height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--stroke-strong);
+  border-radius: 12px;
+  background-color: var(--surface-soft);
+  color: var(--text-primary);
   font-size: 14px;
-  color: #0f172a;
+  font-family: inherit;
   outline: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.security-input::placeholder,
+.delete-account-input::placeholder {
+  color: var(--text-muted);
 }
 
 .security-input:focus,
 .delete-account-input:focus {
-  border-color: rgba(37, 99, 235, 0.34);
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+  border-color: var(--accent);
+  background-color: var(--surface);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.security-input:disabled,
+.delete-account-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .form-help-text {
-  margin: 14px 0 0;
-  color: #64748b;
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.inline-success {
-  margin: 14px 0 0;
-  color: #15803d;
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.trusted-devices-empty {
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  background: #f8fafc;
-  border-radius: 16px;
-  padding: 14px 16px;
-  color: #334155;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.trusted-devices-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.trusted-device-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(255, 255, 255, 0.92);
-  border-radius: 18px;
-  padding: 16px;
-}
-
-.trusted-device-main {
-  min-width: 0;
-  flex: 1;
-}
-
-.trusted-device-title {
-  margin: 0;
-  font-size: 15px;
-  color: #0f172a;
-  font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.current-device-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: rgba(37, 99, 235, 0.12);
-  color: #1d4ed8;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 8px;
-}
-
-.trusted-device-agent {
-  margin: 8px 0 4px;
-  color: #334155;
-  font-size: 13px;
-  line-height: 1.6;
-  word-break: break-word;
-}
-
-.trusted-device-meta {
-  margin: 0;
-  color: #64748b;
+  margin: 12px 0 0;
   font-size: 12px;
-  line-height: 1.6;
-}
-
-.trusted-device-revoke-btn {
-  border: 1px solid rgba(220, 38, 38, 0.42);
-  background: #fff;
-  color: #dc2626;
-  white-space: nowrap;
-}
-
-.section-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 18px;
-}
-
-.danger-card {
-  border-color: rgba(254, 202, 202, 0.72);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.84) 0%, rgba(255, 247, 247, 0.9) 100%);
-}
-
-.delete-step-label {
-  margin: 0 0 12px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #dc2626;
-  letter-spacing: 0.04em;
-}
-
-.delete-risk-list {
-  margin: 0 0 16px;
-  padding-left: 20px;
-  color: #475569;
-  font-size: 14px;
-  line-height: 1.8;
-}
-
-.delete-check-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #0f172a;
-  font-size: 14px;
-}
-
-.delete-help-text,
-.delete-account-email {
-  margin: 0 0 12px;
-  color: #475569;
-  font-size: 14px;
-  line-height: 1.7;
-}
-
-.danger-card .delete-account-input:focus {
-  border-color: rgba(220, 38, 38, 0.34);
-  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
+  color: var(--text-muted);
 }
 
 .inline-error {
-  margin: 0 0 14px;
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 59, 48, 0.08);
   color: #dc2626;
   font-size: 13px;
+  line-height: 1.5;
+}
+
+.inline-success {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(52, 199, 89, 0.1);
+  color: #1a9e45;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.inline-error.danger-error {
+  margin-bottom: 4px;
+}
+
+/* ---------- 注销流程 ---------- */
+.delete-step-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  margin: 0 0 16px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255, 59, 48, 0.1);
+  color: #ff3b30;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.delete-risk-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 12px 14px 12px 32px;
+  border-radius: 12px;
+  background: rgba(255, 59, 48, 0.05);
+}
+
+.delete-risk-list li {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  list-style: disc;
+}
+
+.delete-check-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.delete-check-row input {
+  width: 16px;
+  height: 16px;
+  accent-color: #ff3b30;
+}
+
+.delete-help-text {
+  margin: 0 0 10px;
+  font-size: 13px;
   line-height: 1.6;
+  color: var(--text-secondary);
 }
 
-.danger-error {
-  margin-top: 14px;
+.delete-help-text strong {
+  color: var(--accent);
+  font-weight: 700;
 }
 
+.delete-account-email {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  word-break: break-all;
+}
+
+/* ---------- 操作区 ---------- */
+.section-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--stroke);
+}
+
+.secondary-btn {
+  height: 38px;
+  padding: 0 18px;
+  border: 1px solid var(--stroke-strong);
+  border-radius: 12px;
+  background-color: var(--surface);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.secondary-btn:hover {
+  background-color: var(--surface-soft);
+}
+
+.secondary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.primary-btn {
+  height: 38px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #3b82f6, var(--accent-strong));
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 3px 8px rgba(37, 99, 235, 0.28);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.primary-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.32);
+}
+
+.primary-btn:active {
+  transform: translateY(0);
+}
+
+.primary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.primary-danger-btn {
+  height: 38px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ff453a, #d70015);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 3px 8px rgba(215, 0, 21, 0.24);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.primary-danger-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(215, 0, 21, 0.28);
+}
+
+.primary-danger-btn:active {
+  transform: translateY(0);
+}
+
+.primary-danger-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ---------- 面板切换动画 ---------- */
+.security-panel-enter-active,
+.security-panel-leave-active {
+  transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out);
+}
+
+.security-panel-enter-from,
+.security-panel-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+/* ================================================================
+   深色模式 —— 与 user-space-dark.css 相同的调整策略
+   ================================================================ */
+:global([data-theme="dark"]) .account-security-page .apple-item.clickable:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+:global([data-theme="dark"]) .account-security-page .apple-item:not(:last-child)::after {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+:global([data-theme="dark"]) .account-security-page .icon-wrapper {
+  background-color: #2a2a3a;
+}
+
+:global([data-theme="dark"]) .account-security-page .bg-blue {
+  background-color: rgba(59, 130, 246, 0.2);
+}
+
+:global([data-theme="dark"]) .account-security-page .bg-blue svg {
+  stroke: #60a5fa;
+}
+
+:global([data-theme="dark"]) .account-security-page .bg-red {
+  background-color: rgba(239, 68, 68, 0.2);
+}
+
+:global([data-theme="dark"]) .account-security-page .bg-red svg {
+  stroke: #f87171;
+}
+
+:global([data-theme="dark"]) .account-security-page .chevron {
+  color: #71717a;
+}
+
+:global([data-theme="dark"]) .account-security-page .chevron.text-danger {
+  color: #f87171;
+}
+
+:global([data-theme="dark"]) .account-security-page .text-danger {
+  color: #f87171;
+}
+
+:global([data-theme="dark"]) .account-security-page .security-danger-item:hover {
+  background-color: rgba(239, 68, 68, 0.14);
+}
+
+:global([data-theme="dark"]) .account-security-page .security-input,
+:global([data-theme="dark"]) .account-security-page .delete-account-input {
+  background-color: var(--surface-soft);
+  border-color: var(--stroke-strong);
+}
+
+:global([data-theme="dark"]) .account-security-page .security-input:focus,
+:global([data-theme="dark"]) .account-security-page .delete-account-input:focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+:global([data-theme="dark"]) .account-security-page .inline-error {
+  background: rgba(239, 68, 68, 0.14);
+  color: #f87171;
+}
+
+:global([data-theme="dark"]) .account-security-page .inline-success {
+  background: rgba(52, 199, 89, 0.14);
+  color: #4ade80;
+}
+
+:global([data-theme="dark"]) .account-security-page .delete-risk-list {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+:global([data-theme="dark"]) .account-security-page .apple-card.danger-card {
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+/* ---------- 移动端 ---------- */
 @media (max-width: 768px) {
-  .x-header-content {
-    padding: 14px 16px;
+  .account-security-page .profile-subpage-shell {
+    padding: 16px 16px 48px;
   }
 
-  .security-shell {
-    padding: 20px 16px 40px;
-    gap: 16px;
-  }
-
-  .hero-card,
-  .security-card,
-  .entry-card {
-    border-radius: 20px;
-  }
-
-  .hero-card {
-    padding: 20px;
-    align-items: flex-start;
-  }
-
-  .hero-copy h1 {
-    font-size: 24px;
-  }
-
-  .security-entry-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .section-head,
-  .trusted-device-row {
-    flex-direction: column;
-  }
-
-  .trusted-device-revoke-btn,
-  .secondary-btn,
-  .primary-btn,
-  .danger-secondary-btn,
-  .primary-danger-btn {
-    width: 100%;
-    justify-content: center;
+  .security-panel {
+    padding: 20px 16px 18px;
   }
 
   .section-actions {
-    flex-direction: column;
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .section-actions button {
+    width: 100%;
   }
 }

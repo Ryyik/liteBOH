@@ -1,0 +1,40 @@
+<template>
+  <div class="history-page">
+    <!-- 已被设为旧内容的首页英雄区，自动出现在这里 -->
+    <HistoryHeroSection
+      v-for="hero in archivedHeroes"
+      :key="hero.id"
+      :id="hero.id"
+    />
+  </div>
+</template>
+
+<script setup>
+import HistoryHeroSection from './components/HistoryHeroSection.vue';
+import { archivedHomeHeroes as archivedHeroes } from '../Home/components/homeArchiveData.js';
+</script>
+
+<style scoped>
+.history-page {
+  --home-nav-safe-offset: 84px;
+  width: 100%;
+  overflow-x: hidden;
+  background-color: #f5f5f7;
+  color: #000000;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, "Microsoft YaHei", "微软雅黑", sans-serif;
+  -webkit-overflow-scrolling: touch;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: var(--home-nav-safe-offset);
+}
+
+@media (max-width: 995px) {
+  .history-page { --home-nav-safe-offset: 72px; }
+}
+
+@media (max-width: 660px) {
+  .history-page { --home-nav-safe-offset: 66px; }
+}
+</style>

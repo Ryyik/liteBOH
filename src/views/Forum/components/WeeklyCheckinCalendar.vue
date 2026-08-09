@@ -1,59 +1,32 @@
 <script setup>
 import { computed } from 'vue';
-import { Calendar, Check, Flame, X } from 'lucide-vue-next';
+import { CalendarDays, Check, CircleCheck, Coins, X } from 'lucide-vue-next';
 import { WEEKLY_CHECKIN_REWARD_POINTS } from '../forum-config.js';
 
 const props = defineProps({
   open: { type: Boolean, default: false },
   status: { type: Object, default: () => ({}) },
   calendarDays: { type: Array, default: () => [] },
-  cycleWeeks: { type: Array, default: () => [] },
-  progressPercent: { type: Number, default: 0 },
-  panelTitle: { type: String, default: '' },
-  rangeText: { type: String, default: '' },
-  hintText: { type: String, default: '' },
+  nextCheckin: { type: Object, default: () => ({ dateText: '', days: 0 }) },
   loading: { type: Boolean, default: false },
   submitting: { type: Boolean, default: false }
 });
 
 const emit = defineEmits(['close', 'checkin']);
 
-function getWeeklyCheckinCycleProgress(status) {
-  const cycleSize = Math.max(1, Number(status?.cycleSize || 4));
-  const explicitProgress = Number(status?.cycleProgress);
-  if (Number.isFinite(explicitProgress)) {
-    return Math.min(Math.max(0, explicitProgress), cycleSize - 1);
-  }
-  const normalizedStreak = Math.max(0, Number(status?.currentStreak || status?.streakTotal || 0));
-  return normalizedStreak === 0 ? 0 : ((normalizedStreak - 1) % cycleSize) + 1;
-}
+const signed = computed(() => Boolean(props.status.hasSignedThisWeek));
 
-const weeklyCheckinCycleProgress = computed(() =>
-  getWeeklyCheckinCycleProgress(props.status)
-);
-
-const weeklyCheckinCycleSize = computed(() =>
-  Math.max(1, Number(props.status.cycleSize || 4))
-);
-
-const weeklyCheckinDisplayWeek = computed(() => {
-  const progress = weeklyCheckinCycleProgress.value;
-  const cycleSize = weeklyCheckinCycleSize.value;
-  if (props.status.hasSignedThisWeek) {
-    return Math.max(1, Math.min(cycleSize, progress || cycleSize));
-  }
-  return Math.max(1, Math.min(cycleSize, (progress % cycleSize) + 1));
+const currentPoints = computed(() => {
+  const value = Number(props.status.currentPoints);
+  return Number.isFinite(value) ? value : 0;
 });
 
-const weeklyCheckinProgressText = computed(() =>
-  `连续 ${weeklyCheckinCycleProgress.value} / ${props.status.cycleSize || 4} 周`
-);
-
-const nextWeeks = computed(() => {
-  const cycleSize = Math.max(1, Number(props.status.cycleSize || 4));
-  const cycleProgress = getWeeklyCheckinCycleProgress(props.status);
-  const nextReward = Math.max(1, Number(props.status.nextRewardIn || cycleSize));
-  return Math.max(0, nextReward - 1);
+const nextCheckinText = computed(() => {
+  const { dateText, days } = props.nextCheckin;
+  if (dateText) {
+    return days > 0 ? `${dateText}（还有 ${days} 天）` : dateText;
+  }
+  return '下周一';
 });
 
 function close() {
@@ -73,7 +46,7 @@ function handleCheckin() {
         <section class="checkin-modal" aria-label="周签到面板" @click.stop>
           <div class="checkin-header">
             <div class="checkin-header-left">
-              <span class="checkin-kicker">签到</span>
+              <span class="checkin-kicker">论坛奖励</span>
               <h3 class="checkin-title">每周签到</h3>
             </div>
             <button type="button" class="checkin-close" aria-label="关闭" @click="close">
@@ -82,13 +55,19 @@ function handleCheckin() {
           </div>
 
           <div class="checkin-body">
-            <div class="checkin-progress-section">
-              <div class="checkin-progress-top">
-                <span class="checkin-week-label">第 {{ weeklyCheckinDisplayWeek }} / {{ weeklyCheckinCycleSize }} 周</span>
-                <span class="checkin-percent">{{ progressPercent }}%</span>
+            <div class="checkin-hero" :class="{ 'is-signed': signed }">
+              <div class="checkin-hero-icon">
+                <CircleCheck v-if="signed" :size="24" :stroke-width="2.2" aria-hidden="true" />
+                <Coins v-else :size="24" :stroke-width="2" aria-hidden="true" />
               </div>
-              <div class="checkin-progress-track" :class="{ signed: status.hasSignedThisWeek }">
-                <div class="checkin-progress-fill" :style="{ width: `${progressPercent}%` }"></div>
+              <div class="checkin-hero-copy">
+                <span class="checkin-hero-points">
+                  {{ signed ? `+${WEEKLY_CHECKIN_REWARD_POINTS} 积分已到账` : `+${WEEKLY_CHECKIN_REWARD_POINTS} 积分` }}
+                </span>
+                <span class="checkin-hero-title">{{ signed ? '本周已签到' : '本周签到奖励' }}</span>
+                <span class="checkin-hero-sub">
+                  {{ signed ? '积分已到账，下周再来签到' : '每周一刷新 · 每周仅一次' }}
+                </span>
               </div>
             </div>
 
@@ -106,33 +85,35 @@ function handleCheckin() {
               </div>
             </div>
 
-            <div class="checkin-streak-section">
-              <div class="checkin-streak-main">
-                <Flame :size="22" :stroke-width="1.8" class="checkin-streak-icon" />
-                <span class="checkin-streak-count">{{ weeklyCheckinCycleProgress }}</span>
-                <span class="checkin-streak-label">周连续签到</span>
-              </div>
-              <p class="checkin-streak-hint">
-                <template v-if="!status.hasSignedThisWeek">本周签到可获得 {{ WEEKLY_CHECKIN_REWARD_POINTS }} 积分</template>
-                <template v-else>本周签到已完成 +{{ WEEKLY_CHECKIN_REWARD_POINTS }} 积分</template>
-              </p>
+            <div class="checkin-next-row">
+              <span class="checkin-next-label">
+                <CalendarDays :size="15" :stroke-width="2" aria-hidden="true" />
+                <template v-if="signed">下次签到 {{ nextCheckinText }}</template>
+                <template v-else>今天签到，立得 +{{ WEEKLY_CHECKIN_REWARD_POINTS }} 积分</template>
+              </span>
+              <span v-if="signed" class="checkin-next-count">每周一刷新</span>
+            </div>
+
+            <div class="checkin-points-row">
+              <span>当前积分</span>
+              <b>{{ currentPoints }}</b>
             </div>
 
             <button class="checkin-submit-btn"
-              :class="{ 'is-done': status.hasSignedThisWeek }"
+              :class="{ 'is-done': signed }"
               @click="handleCheckin"
-              :disabled="loading || submitting || status.hasSignedThisWeek">
+              :disabled="loading || submitting || signed">
               <span v-if="loading" class="checkin-skeleton-label"></span>
               <template v-else-if="submitting">
                 <span>签到中...</span>
               </template>
-              <template v-else-if="status.hasSignedThisWeek">
+              <template v-else-if="signed">
                 <Check :size="18" :stroke-width="2.5" />
                 <span>本周已签到</span>
               </template>
               <template v-else>
-                <Calendar :size="18" :stroke-width="1.8" />
-                <span>签到领积分</span>
+                <Coins :size="18" :stroke-width="2" />
+                <span>签到领 +{{ WEEKLY_CHECKIN_REWARD_POINTS }} 积分</span>
               </template>
             </button>
           </div>

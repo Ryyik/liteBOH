@@ -310,7 +310,9 @@ export const SAVE_STRATEGIES = {
       points_cost: Math.round(normalizedPointsCost),
       stock: Math.round(normalizedStock),
       image: String(editingItem.image || '').trim(),
-      specifications: normalizedSpecifications
+      specifications: normalizedSpecifications,
+      is_active: editingItem.is_active === true || editingItem.is_active === 'true',
+      is_purchasable: editingItem.is_purchasable === true || editingItem.is_purchasable === 'true'
     });
   },
 

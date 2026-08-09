@@ -32,4 +32,10 @@ export const adminRoutes: RouteRecordRaw[] = [
     component: () => import("../../views/BirthdayManagement/index.vue"),
     meta: { requiresAdmin: true, hideNavbar: true },
   },
+  {
+    path: "/admin/shop-console",
+    name: "ShopConsole",
+    component: () => import("../../views/ShopConsole/index.vue"),
+    meta: { requiresAdmin: true, hideNavbar: true },
+  },
 ]

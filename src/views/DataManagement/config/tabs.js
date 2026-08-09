@@ -8,7 +8,8 @@ import {
   FileText,
   Flag,
   Sparkles,
-  Gift
+  Gift,
+  Store
 } from 'lucide-vue-next';
 
 export const tabs = [
@@ -73,6 +74,14 @@ export const tabModules = [
     defaultTab: 'forum',
     tabIds: ['forum', 'news', 'activities', 'products', 'coreMemories'],
     description: '论坛、新闻、活动、商品和知识'
+  },
+  {
+    id: 'shop-console',
+    label: '商城装修',
+    icon: Store,
+    section: 'data',
+    type: 'page',
+    description: '可视化编辑商城商品与展示'
   },
   {
     id: 'moderation',
@@ -168,6 +177,12 @@ export const ADMIN_PAGE_META = {
     title: '内容管理',
     description: '管理论坛帖子、新闻、活动、商品和官方知识。',
     icon: FileText
+  },
+  'shop-console': {
+    eyebrow: 'Shop Console',
+    title: '商城装修',
+    description: '可视化编辑商城商品与展示，保存后立即生效。',
+    icon: Store
   },
   moderation: {
     eyebrow: 'Moderation',

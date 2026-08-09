@@ -28,7 +28,7 @@ export const useBagStore = defineStore('bag', () => {
           quantity: Number.isFinite(quantity) && quantity > 0 ? Math.round(quantity) : 1,
         } as BagItem
       })
-      .filter((item) => item.points_cost > 0)
+      .filter((item) => item.is_purchasable !== false && item.points_cost > 0)
   }
 
   const loadShoppingBag = (): void => {
@@ -65,6 +65,9 @@ export const useBagStore = defineStore('bag', () => {
   }
 
   const addToBag = (product: Record<string, unknown>, specValue: string, specLabel: string): BagOpResult => {
+    if (product?.is_purchasable === false) {
+      return { ok: false, reason: 'PRODUCT_NOT_PURCHASABLE' }
+    }
     const normalizedPoints = parseExchangeablePoints(product?.points_cost)
     if (normalizedPoints === null) {
       return { ok: false, reason: 'PRODUCT_NOT_EXCHANGEABLE' }

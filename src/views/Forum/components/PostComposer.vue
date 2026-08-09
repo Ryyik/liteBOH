@@ -33,7 +33,7 @@ const props = defineProps({
   mentionUsers: { type: Array, default: () => [] },
   weeklyCheckinStatus: { type: Object, default: () => ({}) },
   weeklyCheckinProgressText: { type: String, default: '' },
-  weeklyCheckinProgressPercent: { type: Number, default: 0 },
+  weeklyCheckinWeekDots: { type: Array, default: () => [] },
   weeklyCheckinHintText: { type: String, default: '' },
   isWeeklyCheckinLoading: { type: Boolean, default: false },
   isWeeklyCheckinSubmitting: { type: Boolean, default: false },
@@ -713,9 +713,9 @@ onUnmounted(() => {
           </div>
           <div v-else class="weekly-checkin-status">
             <span class="tool-hint">周签到：{{ weeklyCheckinProgressText }}</span>
-            <div class="checkin-progress-track" :class="{ signed: weeklyCheckinStatus.hasSignedThisWeek }"
-              aria-hidden="true">
-              <div class="checkin-progress-fill" :style="{ width: `${weeklyCheckinProgressPercent}%` }"></div>
+            <div class="checkin-week-dots" aria-hidden="true">
+              <span v-for="dot in weeklyCheckinWeekDots" :key="dot.key" class="checkin-week-dot"
+                :class="{ today: dot.today, signed: dot.signed }"></span>
             </div>
             <span class="checkin-hint">{{ weeklyCheckinHintText }}</span>
           </div>

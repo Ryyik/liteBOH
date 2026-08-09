@@ -80,6 +80,7 @@ export interface Product {
   image: string
   specifications: ProductSpec[]
   is_active: boolean
+  is_purchasable: boolean
 }
 
 // --- Router ---

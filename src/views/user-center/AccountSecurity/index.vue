@@ -1,167 +1,167 @@
 <template>
   <div class="account-security-page">
-    <UserCenterPageHeader title="账户安全" max-width="760px" @back="handleHeaderBack" />
+    <UserCenterPageHeader title="账户安全" max-width="650px" @back="handleHeaderBack" />
 
-    <div class="security-shell">
-      <section class="hero-card">
-        <ShieldCheck class="hero-icon" :size="34" :stroke-width="1.7" aria-hidden="true" />
-        <div class="hero-copy">
-          <h1>守护你的账户访问安全</h1>
-          <p>在这里修改登录密码，并在需要时完成账号注销操作。</p>
-        </div>
-      </section>
+    <div class="profile-subpage-shell">
+      <div class="profile-subpage-body">
+        <Transition name="security-panel" mode="out-in">
+          <div v-if="activePanel === 'menu'" key="menu" class="apple-card">
+            <div class="apple-list-group">
+              <div class="apple-item clickable" @click="openChangePasswordPanel">
+                <span class="item-left">
+                  <span class="icon-wrapper bg-blue">
+                    <KeyRound :size="16" :stroke-width="2" aria-hidden="true" />
+                  </span>
+                  <span class="setting-label-stack">
+                    <span class="item-label">修改密码</span>
+                    <span class="item-desc">输入当前密码并设置新密码，更新登录凭证</span>
+                  </span>
+                </span>
+                <span class="item-right"><span class="chevron" aria-hidden="true">›</span></span>
+              </div>
 
-      <section v-if="activePanel === 'menu'" class="security-entry-grid">
-        <button class="entry-card" @click="openChangePasswordPanel">
-          <KeyRound class="entry-icon password-entry-icon" :size="26" :stroke-width="1.7" aria-hidden="true" />
-          <div class="entry-copy">
-            <p class="entry-kicker">登录安全</p>
-            <h3>修改密码</h3>
-            <p>输入当前密码并设置新密码，更新你的账户登录凭证。</p>
+              <div
+                class="apple-item clickable security-danger-item"
+                @click="openDeleteAccountPanel"
+              >
+                <span class="item-left">
+                  <span class="icon-wrapper bg-red">
+                    <TriangleAlert :size="16" :stroke-width="2" aria-hidden="true" />
+                  </span>
+                  <span class="setting-label-stack">
+                    <span class="item-label text-danger">注销账号</span>
+                    <span class="item-desc">高风险操作，三步确认后永久注销账号</span>
+                  </span>
+                </span>
+                <span class="item-right"><span class="chevron text-danger" aria-hidden="true">›</span></span>
+              </div>
+            </div>
           </div>
-          <span class="entry-arrow">›</span>
-        </button>
 
-        <button class="entry-card danger-entry-card" @click="openDeleteAccountPanel">
-          <TriangleAlert class="entry-icon danger-entry-icon" :size="26" :stroke-width="1.7" aria-hidden="true" />
-          <div class="entry-copy">
-            <p class="entry-kicker danger-kicker">高风险操作</p>
-            <h3>注销账号</h3>
-            <p>进入三步确认流程，完成账号永久注销。</p>
+          <div v-else-if="activePanel === 'password'" key="password" class="apple-card security-panel">
+            <div class="panel-head">
+              <h3>修改密码</h3>
+              <p class="panel-desc">为安全起见，请先输入当前密码，再设置一个新的登录密码。</p>
+            </div>
+
+            <div class="form-stack">
+              <label class="field-label" for="current-password">当前密码</label>
+              <input
+                id="current-password"
+                v-model="passwordForm.currentPassword"
+                type="password"
+                class="security-input"
+                placeholder="请输入当前密码"
+                autocomplete="current-password"
+                :disabled="isUpdatingPassword"
+              >
+
+              <label class="field-label" for="new-password">新密码</label>
+              <input
+                id="new-password"
+                v-model="passwordForm.newPassword"
+                type="password"
+                class="security-input"
+                placeholder="请输入新密码"
+                autocomplete="new-password"
+                :disabled="isUpdatingPassword"
+              >
+
+              <label class="field-label" for="confirm-password">确认新密码</label>
+              <input
+                id="confirm-password"
+                v-model="passwordForm.confirmPassword"
+                type="password"
+                class="security-input"
+                placeholder="请再次输入新密码"
+                autocomplete="new-password"
+                :disabled="isUpdatingPassword"
+              >
+            </div>
+
+            <p class="form-help-text">建议使用至少 8 位密码，并同时包含字母与数字。</p>
+            <p v-if="passwordUpdateError" class="inline-error">{{ passwordUpdateError }}</p>
+            <p v-if="passwordUpdateSuccess" class="inline-success">{{ passwordUpdateSuccess }}</p>
+
+            <div class="section-actions">
+              <button class="secondary-btn" :disabled="isUpdatingPassword" @click="backToMenu">返回</button>
+              <button class="primary-btn" :disabled="isUpdatingPassword" @click="submitPasswordChange">
+                {{ isUpdatingPassword ? '修改中...' : '确认修改密码' }}
+              </button>
+            </div>
           </div>
-          <span class="entry-arrow">›</span>
-        </button>
-      </section>
 
-      <section v-else-if="activePanel === 'password'" class="security-card">
-        <div class="section-head">
-          <div>
-            <p class="section-kicker">登录安全</p>
-            <h3>修改密码</h3>
+          <div v-else key="delete" class="apple-card security-panel danger-card">
+            <div class="panel-head">
+              <h3>注销账号</h3>
+              <p class="panel-desc">账号注销后不可恢复，系统会尝试删除你的账号资料与关联数据，请谨慎操作。</p>
+            </div>
+
+            <p class="delete-step-badge">账号注销 · 步骤 {{ deleteAccountStep }}/3</p>
+
+            <template v-if="deleteAccountStep === 1">
+              <ul class="delete-risk-list">
+                <li>你的登录身份、个人资料、积分与订阅记录将无法恢复。</li>
+                <li>你发布的帖子、评论、消息等内容可能会被删除或失效。</li>
+                <li>注销完成后，你会立即退出当前登录状态。</li>
+              </ul>
+
+              <label class="delete-check-row">
+                <input v-model="deleteRiskAccepted" type="checkbox" :disabled="isDeletingAccount">
+                <span>我已阅读并理解以上风险</span>
+              </label>
+            </template>
+
+            <template v-else-if="deleteAccountStep === 2">
+              <p class="delete-help-text">
+                请输入确认口令 <strong>{{ DELETE_ACCOUNT_CONFIRM_TEXT }}</strong> 继续。
+              </p>
+              <input
+                v-model.trim="deleteConfirmKeyword"
+                type="text"
+                class="delete-account-input"
+                :placeholder="`请输入：${DELETE_ACCOUNT_CONFIRM_TEXT}`"
+                :disabled="isDeletingAccount"
+              >
+            </template>
+
+            <template v-else>
+              <p class="delete-help-text">为了安全，请输入当前账号密码完成最终确认。</p>
+              <p class="delete-account-email">当前账号：{{ currentEmail }}</p>
+              <input
+                v-model="deletePassword"
+                type="password"
+                class="delete-account-input"
+                placeholder="请输入当前账号密码"
+                autocomplete="current-password"
+                :disabled="isDeletingAccount"
+              >
+            </template>
+
+            <p v-if="deleteAccountError" class="inline-error danger-error">{{ deleteAccountError }}</p>
+
+            <div class="section-actions">
+              <button class="secondary-btn" :disabled="isDeletingAccount" @click="backToMenu">返回</button>
+              <button
+                v-if="deleteAccountStep < 3"
+                class="primary-danger-btn"
+                :disabled="isDeletingAccount"
+                @click="goDeleteAccountNextStep"
+              >
+                {{ deleteAccountStep === 1 ? '继续' : '下一步' }}
+              </button>
+              <button
+                v-else
+                class="primary-danger-btn"
+                :disabled="isDeletingAccount"
+                @click="confirmDeleteAccount"
+              >
+                {{ isDeletingAccount ? '正在注销...' : '确认注销账号' }}
+              </button>
+            </div>
           </div>
-        </div>
-
-        <p class="section-desc">为安全起见，请先输入当前密码，再设置一个新的登录密码。</p>
-
-        <div class="form-stack">
-          <label class="field-label" for="current-password">当前密码</label>
-          <input
-            id="current-password"
-            v-model="passwordForm.currentPassword"
-            type="password"
-            class="security-input"
-            placeholder="请输入当前密码"
-            autocomplete="current-password"
-            :disabled="isUpdatingPassword"
-          >
-
-          <label class="field-label" for="new-password">新密码</label>
-          <input
-            id="new-password"
-            v-model="passwordForm.newPassword"
-            type="password"
-            class="security-input"
-            placeholder="请输入新密码"
-            autocomplete="new-password"
-            :disabled="isUpdatingPassword"
-          >
-
-          <label class="field-label" for="confirm-password">确认新密码</label>
-          <input
-            id="confirm-password"
-            v-model="passwordForm.confirmPassword"
-            type="password"
-            class="security-input"
-            placeholder="请再次输入新密码"
-            autocomplete="new-password"
-            :disabled="isUpdatingPassword"
-          >
-        </div>
-
-        <p class="form-help-text">建议使用至少 8 位密码，并同时包含字母与数字。</p>
-        <p v-if="passwordUpdateError" class="inline-error">{{ passwordUpdateError }}</p>
-        <p v-if="passwordUpdateSuccess" class="inline-success">{{ passwordUpdateSuccess }}</p>
-
-        <div class="section-actions">
-          <button class="secondary-btn" :disabled="isUpdatingPassword" @click="backToMenu">返回</button>
-          <button class="primary-btn" :disabled="isUpdatingPassword" @click="submitPasswordChange">
-            {{ isUpdatingPassword ? '修改中...' : '确认修改密码' }}
-          </button>
-        </div>
-      </section>
-
-      <section v-else class="security-card danger-card">
-        <div class="section-head">
-          <div>
-            <p class="section-kicker danger-kicker">高风险操作</p>
-            <h3>注销账号</h3>
-          </div>
-        </div>
-
-        <p class="section-desc">账号注销后不可恢复，系统会尝试删除你的账号资料与关联数据，请谨慎操作。</p>
-        <p class="delete-step-label">账号注销 · 步骤 {{ deleteAccountStep }}/3</p>
-
-        <template v-if="deleteAccountStep === 1">
-          <ul class="delete-risk-list">
-            <li>你的登录身份、个人资料、积分与订阅记录将无法恢复。</li>
-            <li>你发布的帖子、评论、消息等内容可能会被删除或失效。</li>
-            <li>注销完成后，你会立即退出当前登录状态。</li>
-          </ul>
-
-          <label class="delete-check-row">
-            <input v-model="deleteRiskAccepted" type="checkbox" :disabled="isDeletingAccount">
-            <span>我已阅读并理解以上风险</span>
-          </label>
-        </template>
-
-        <template v-else-if="deleteAccountStep === 2">
-          <p class="delete-help-text">
-            请输入确认口令 <strong>{{ DELETE_ACCOUNT_CONFIRM_TEXT }}</strong> 继续。
-          </p>
-          <input
-            v-model.trim="deleteConfirmKeyword"
-            type="text"
-            class="delete-account-input"
-            :placeholder="`请输入：${DELETE_ACCOUNT_CONFIRM_TEXT}`"
-            :disabled="isDeletingAccount"
-          >
-        </template>
-
-        <template v-else>
-          <p class="delete-help-text">为了安全，请输入当前账号密码完成最终确认。</p>
-          <p class="delete-account-email">当前账号：{{ currentEmail }}</p>
-          <input
-            v-model="deletePassword"
-            type="password"
-            class="delete-account-input"
-            placeholder="请输入当前账号密码"
-            autocomplete="current-password"
-            :disabled="isDeletingAccount"
-          >
-        </template>
-
-        <p v-if="deleteAccountError" class="inline-error danger-error">{{ deleteAccountError }}</p>
-
-        <div class="section-actions">
-          <button class="secondary-btn" :disabled="isDeletingAccount" @click="backToMenu">返回</button>
-          <button
-            v-if="deleteAccountStep < 3"
-            class="primary-danger-btn"
-            :disabled="isDeletingAccount"
-            @click="goDeleteAccountNextStep"
-          >
-            {{ deleteAccountStep === 1 ? '继续' : '下一步' }}
-          </button>
-          <button
-            v-else
-            class="primary-danger-btn"
-            :disabled="isDeletingAccount"
-            @click="confirmDeleteAccount"
-          >
-            {{ isDeletingAccount ? '正在注销...' : '确认注销账号' }}
-          </button>
-        </div>
-      </section>
+        </Transition>
+      </div>
     </div>
 
     <CommonAlertModal
@@ -177,7 +177,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import { KeyRound, ShieldCheck, TriangleAlert } from 'lucide-vue-next';
+import { KeyRound, TriangleAlert } from 'lucide-vue-next';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import { useAuthStore } from '@/stores/auth';

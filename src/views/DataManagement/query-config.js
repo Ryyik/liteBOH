@@ -185,7 +185,7 @@ export const TAB_SELECT_COLUMNS = {
   `,
   news: 'id, category, title, excerpt, date, author, image, content, created_at, updated_at',
   activities: 'id, title, date, image, description, created_at, updated_at',
-  products: 'id, title, category, description, points_cost, stock, image, specifications'
+  products: 'id, title, category, description, points_cost, stock, image, specifications, is_active, is_purchasable'
 };
 
 export const LOTTERY_LEGACY_SELECT_COLUMNS = 'id, title, description, prize_title, prize_description, cover_image_url, status, is_community_visible, max_entries, winner_count, entry_deadline_at, draw_at, drawn_at, winner_entry_id, winner_user_id, winner_username, fulfillment_status, created_by, updated_by, created_at, updated_at';

@@ -136,8 +136,10 @@
   left: var(--active-nav-center);
   width: clamp(68px, calc(100% / var(--nav-count) - 4px), 82px);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+  background: rgba(0, 122, 255, 0.14);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 122, 255, 0.18),
+    0 6px 18px rgba(0, 122, 255, 0.12);
   transform: translateX(-50%) scaleX(1);
   transition:
     left 210ms var(--bottom-nav-ease),
@@ -210,7 +212,7 @@
 }
 
 .nav-item.active {
-  color: var(--text-primary);
+  color: #1d1d1f;
   background: transparent;
   box-shadow: none;
 }
@@ -777,8 +779,10 @@
 }
 
 :global(.user-space-page[data-theme="dark"]) .nav-items::before {
-  background: rgba(255, 255, 255, 0.14);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+  background: rgba(99, 179, 237, 0.22);
+  box-shadow:
+    inset 0 0 0 1px rgba(99, 179, 237, 0.28),
+    0 8px 22px rgba(0, 0, 0, 0.28);
 }
 
 @media (max-width: 768px) {

@@ -10,7 +10,7 @@ export const TAB_WRITABLE_FIELDS = {
   lotteries: ['title', 'description', 'prize_title', 'prize_description', 'cover_image_url', 'status', 'is_community_visible', 'max_entries', 'winner_count', 'entry_deadline_at', 'draw_at', 'fulfillment_status', 'created_by', 'updated_by'],
   news: ['id', 'category', 'title', 'excerpt', 'content', 'date', 'author', 'image'],
   activities: ['id', 'title', 'date', 'image', 'description'],
-  products: ['id', 'title', 'category', 'description', 'points_cost', 'stock', 'image', 'specifications']
+  products: ['id', 'title', 'category', 'description', 'points_cost', 'stock', 'image', 'specifications', 'is_active', 'is_purchasable']
 };
 
 export const NEWS_CATEGORY_OPTIONS = [

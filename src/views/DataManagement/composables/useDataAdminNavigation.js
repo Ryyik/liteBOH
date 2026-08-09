@@ -20,14 +20,15 @@ const SECTION_TO_MODULE_MAP = {
 const DATA_SECTION_MODULES = new Set(['users', 'gifts', 'content', 'moderation', 'lottery', 'ai-config']);
 
 const ROUTE_MAP = {
-  overview: '/admin/data-management',
-  'api-keys': '/admin/api-keys',
-  'moderation-model': '/admin/data-management',
-  'lab-ai-model': '/admin/data-management',
-  data: '/admin/data-management',
-  media: '/admin/data-management',
-  settings: '/admin/data-management'
-};
+    overview: '/admin/data-management',
+    'api-keys': '/admin/api-keys',
+    'moderation-model': '/admin/data-management',
+    'lab-ai-model': '/admin/data-management',
+    'shop-console': '/admin/shop-console',
+    data: '/admin/data-management',
+    media: '/admin/data-management',
+    settings: '/admin/data-management'
+  };
 
 export const createNavigationCenter = ({
   activeAdminSectionRef,
@@ -89,6 +90,13 @@ export const createNavigationCenter = ({
     if (mod.id === 'overview') {
       activeAdminSectionRef.value = 'overview';
       navigateTo('/admin/data-management');
+      isAdminSidebarOpenRef.value = false;
+      return;
+    }
+
+    // 独立页面模块：直接跳转到外部子应用页
+    if (mod.type === 'page' && ROUTE_MAP[mod.id]) {
+      navigateTo(ROUTE_MAP[mod.id]);
       isAdminSidebarOpenRef.value = false;
       return;
     }

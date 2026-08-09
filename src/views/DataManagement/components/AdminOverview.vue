@@ -26,6 +26,25 @@
       />
     </div>
 
+    <!-- Quick tools -->
+    <article class="g-card" style="margin-top: calc(var(--spacing) * 4);">
+      <div class="g-card-head">
+        <div>
+          <div class="g-eyebrow">快捷工具</div>
+          <strong>独立管理页</strong>
+        </div>
+        <span class="g-badge is-muted">1 项</span>
+      </div>
+      <button type="button" class="g-quick-tool" @click="goToShopConsole">
+        <StoreIcon :size="18" class="g-quick-tool-icon" />
+        <span class="g-quick-tool-copy">
+          <strong>商城装修</strong>
+          <small>可视化编辑商城商品与展示，保存即生效</small>
+        </span>
+        <span class="g-quick-tool-arrow">→</span>
+      </button>
+    </article>
+
     <!-- Diagnostics -->
     <article class="g-card" style="margin-top: calc(var(--spacing) * 5);">
       <div class="g-card-head">
@@ -270,7 +289,8 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
-import { Cloud, Layers, LoaderCircle, RefreshCw, Table as TableIcon, Activity as ActivityIcon, Home as HomeIcon } from 'lucide-vue-next';
+import { useRouter } from 'vue-router';
+import { Cloud, Layers, LoaderCircle, RefreshCw, Store as StoreIcon, Table as TableIcon, Activity as ActivityIcon, Home as HomeIcon } from 'lucide-vue-next';
 import {
   getSupabaseProjectStatus,
   getCloudinaryUsageStatus,
@@ -298,6 +318,12 @@ const props = defineProps({
 });
 
 defineEmits(['refresh-now', 'select-tab']);
+
+const router = useRouter();
+
+const goToShopConsole = () => {
+  router.push('/admin/shop-console').catch(() => {});
+};
 
 // Tabs state
 const activeTab = ref('overview');
@@ -484,6 +510,30 @@ watch(() => props.isRefreshing, (newVal, oldVal) => {
   gap: calc(var(--spacing) * 4);
   margin-top: calc(var(--spacing) * 4);
 }
+
+/* ---------- Quick tools ---------- */
+.g-quick-tool {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 3);
+  width: 100%;
+  padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4);
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.16s ease;
+}
+.g-quick-tool:hover { background: var(--accent); border-color: var(--ring); }
+.g-quick-tool:active { transform: scale(0.997); }
+.g-quick-tool:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.g-quick-tool-icon { color: var(--primary); flex: 0 0 18px; }
+.g-quick-tool-copy { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.g-quick-tool-copy strong { font-size: 0.86rem; color: var(--foreground); }
+.g-quick-tool-copy small { font-size: 0.74rem; color: var(--muted-foreground); }
+.g-quick-tool-arrow { color: var(--muted-foreground); font-size: 1.1rem; flex: 0 0 auto; }
 
 /* ---------- Diagnostic rows ---------- */
 .g-diagnostic-row {

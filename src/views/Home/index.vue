@@ -1,29 +1,34 @@
 <template>
   <div class="home">
+    <!-- 全新吉祥物英雄区 -->
+    <HomeHeroRow v-if="!isArchived('mascot-new')" layout="full" aria-label="全新吉祥物现已上线">
+      <MascotNewHero />
+    </HomeHeroRow>
+
     <!-- BOH Agent Preview 英雄区 -->
-    <HomeHeroRow layout="full" aria-label="BOH Agent Preview">
+    <HomeHeroRow v-if="!isArchived('agent-preview')" layout="full" aria-label="BOH Agent Preview">
       <AgentPreviewHero />
     </HomeHeroRow>
 
     <!-- 生日英雄区：检测到今日有用户生日时显示（当前为预览模式） -->
-    <HomeHeroRow v-if="showBirthdayHero" layout="full" aria-label="今日生日">
+    <HomeHeroRow v-if="!isArchived('birthday') && showBirthdayHero" layout="full" aria-label="今日生日">
       <BirthdayHero :people="birthdayPeople" @more="onBirthdayMore" />
     </HomeHeroRow>
 
-    <HomeHeroRow layout="full" aria-label="方块墙">
+    <HomeHeroRow v-if="!isArchived('block-wall')" layout="full" aria-label="方块墙">
       <BlockWallHero />
     </HomeHeroRow>
 
-    <HomeHeroRow layout="full" aria-label="方块之家吉祥物">
+    <HomeHeroRow v-if="!isArchived('mascot-evolution')" layout="full" aria-label="方块之家吉祥物">
       <MascotEvolutionHero />
     </HomeHeroRow>
 
     <!-- 固定模板 A：独占一行的横屏英雄区 -->
-    <HomeHeroRow layout="full" aria-label="方块之家八周年">
+    <HomeHeroRow v-if="!isArchived('anniversary-8')" layout="full" aria-label="方块之家八周年">
       <AnniversaryHero @poster="openPosterModal" />
     </HomeHeroRow>
 
-    <HomeHeroRow layout="full" aria-label="云上咖啡店网页游戏">
+    <HomeHeroRow v-if="!isArchived('cloud-cafe')" layout="full" aria-label="云上咖啡店网页游戏">
       <HomeOverlayHero
         class="anniversary-cafe-hero"
         eyebrow="八周年 · 网页游戏"
@@ -39,7 +44,7 @@
       />
     </HomeHeroRow>
 
-    <HomeHeroRow layout="full" aria-label="遇见福州">
+    <HomeHeroRow v-if="!isArchived('fuzhou')" layout="full" aria-label="遇见福州">
       <AppleHeroBanner
         class="fuzhou-hero"
         tag="遇见系列"
@@ -53,7 +58,7 @@
       />
     </HomeHeroRow>
 
-    <HomeHeroRow layout="split" aria-label="主题与云端">
+    <HomeHeroRow v-if="!isArchived('split-theme-cloud')" layout="split" aria-label="主题与云端">
       <AppleGridCard
         title="BOH X 小猫主题"
         subtitle="快来体验萌萌小猫～"
@@ -76,7 +81,7 @@
       />
     </HomeHeroRow>
 
-    <HomeHeroRow id="ryyik-letter" layout="split" aria-label="品牌与八周年寄语">
+    <HomeHeroRow v-if="!isArchived('split-brand-letter')" id="ryyik-letter" layout="split" aria-label="品牌与八周年寄语">
       <AppleGridCard
         title="了解，<br>什么是BOH"
         subtitle="一个属于方块之家的生态平台"
@@ -356,8 +361,10 @@ import AnniversaryHero from "./components/AnniversaryHero.vue";
 import HomeFooter from "./components/HomeFooter.vue";
 import BlockWallHero from "./components/BlockWallHero.vue";
 import MascotEvolutionHero from "./components/MascotEvolutionHero.vue";
+import MascotNewHero from "./components/MascotNewHero.vue";
 import BirthdayHero from "./components/BirthdayHero.vue";
 import AgentPreviewHero from "./components/AgentPreviewHero.vue";
+import { archivedHomeHeroIds } from "./components/homeArchiveData.js";
 import { isBirthdayToday } from "@/utils/birthday.js";
 import { useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
@@ -470,6 +477,9 @@ const preferCurrentAnniversaryTier = ref(true);
 const anniversaryHigherPlanName = computed(() => (
   PLAN_DISPLAY_NAMES[anniversaryHigherPlan.value] || anniversaryHigherPlan.value
 ));
+
+// 归档判断：位于 archivedHomeHeroIds 的英雄区将不再显示在首屏，而是出现在 Footer 历史回顾区内
+const isArchived = (key) => archivedHomeHeroIds.includes(key);
 
 const formatAnniversaryExpiry = (value) => {
   const date = new Date(value || '');
