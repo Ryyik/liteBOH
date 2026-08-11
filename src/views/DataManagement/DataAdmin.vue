@@ -2897,6 +2897,7 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
       try {
         const giftUserIds = normalizedGifts.map(g => g.user_id).filter(Boolean);
         if (giftUserIds.length > 0) {
+          // 1. 先从 profiles.shipping_* 兜底填充
           const { data: sensitiveList } = await supabase.rpc('admin_list_users_with_sensitive', {
             p_search: null, p_limit: 500
           });
@@ -2909,6 +2910,31 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
                   row.shipping_recipient = s.shipping_recipient || '-';
                   row.shipping_phone = s.shipping_phone || '-';
                   row.shipping_address = s.shipping_address || '-';
+                }
+              }
+            });
+          }
+          // 2. 优先用 user_addresses 默认地址覆盖，保持与地址管理一致
+          const { data: addressList } = await supabase
+            .from('user_addresses')
+            .select('user_id, recipient, phone, region, detail, is_default, created_at')
+            .in('user_id', giftUserIds)
+            .order('is_default', { ascending: false })
+            .order('created_at', { ascending: false });
+          if (Array.isArray(addressList) && addressList.length > 0) {
+            const addressMap = new Map();
+            addressList.forEach(addr => {
+              if (!addressMap.has(addr.user_id)) addressMap.set(addr.user_id, addr);
+            });
+            giftRows.forEach(row => {
+              if (row.user_id) {
+                const addr = addressMap.get(row.user_id);
+                if (addr) {
+                  row.shipping_recipient = addr.recipient || row.shipping_recipient;
+                  row.shipping_phone = addr.phone || row.shipping_phone;
+                  const region = addr.region ? addr.region + ' ' : '';
+                  const fullAddr = (region + (addr.detail || '')).trim();
+                  row.shipping_address = fullAddr || row.shipping_address;
                 }
               }
             });
@@ -3772,7 +3798,7 @@ const closeUserPicker = () => {
   showUserPickerModal.value = false;
 };
 
-const selectGiftUser = (user) => {
+const selectGiftUser = async (user) => {
   editingItem.value.user_id = user.id;
   editingItem.value.username = user.username || '';
   // addresses / posterRequests 表用 recipient / phone（posterRequests 额外有 address）
@@ -3785,9 +3811,30 @@ const selectGiftUser = (user) => {
     }
   } else {
     editingItem.value.email = user.email || '';
-    editingItem.value.shipping_recipient = user.shipping_recipient || '';
-    editingItem.value.shipping_phone = user.shipping_phone || '';
-    editingItem.value.shipping_address = user.shipping_address || '';
+    // 优先从 user_addresses 取默认地址，与地址管理保持一致
+    let defaultAddr = null;
+    try {
+      const { data: addrRows } = await supabase
+        .from('user_addresses')
+        .select('recipient, phone, region, detail, is_default, created_at')
+        .eq('user_id', user.id)
+        .order('is_default', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(1);
+      defaultAddr = Array.isArray(addrRows) && addrRows.length > 0 ? addrRows[0] : null;
+    } catch (addrError) {
+      logger.warn('data-admin', '查询用户默认地址失败，回退 profiles:', addrError);
+    }
+    if (defaultAddr) {
+      editingItem.value.shipping_recipient = defaultAddr.recipient || '';
+      editingItem.value.shipping_phone = defaultAddr.phone || '';
+      const region = defaultAddr.region ? defaultAddr.region + ' ' : '';
+      editingItem.value.shipping_address = (region + (defaultAddr.detail || '')).trim();
+    } else {
+      editingItem.value.shipping_recipient = user.shipping_recipient || '';
+      editingItem.value.shipping_phone = user.shipping_phone || '';
+      editingItem.value.shipping_address = user.shipping_address || '';
+    }
   }
   showUserPickerModal.value = false;
 };
