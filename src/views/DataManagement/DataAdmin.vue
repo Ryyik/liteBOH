@@ -1598,6 +1598,18 @@ const selectedGiftUser = computed(() => {
   const fromStore = [...(dataStore.users || []), ...(userPickerUsers.value || [])].find((user) => user.id === userId);
   if (fromStore) return fromStore;
 
+  // addresses / posterRequests 表使用 recipient / phone 字段，归一化为 EditDrawer 显示所需的 shipping_* 键
+  if (currentTab.value === 'addresses' || currentTab.value === 'posterRequests') {
+    return {
+      id: userId,
+      username: editingItem.value?.username || '',
+      email: '',
+      shipping_recipient: editingItem.value?.recipient || '',
+      shipping_phone: editingItem.value?.phone || '',
+      shipping_address: currentTab.value === 'posterRequests' ? (editingItem.value?.address || '') : ''
+    };
+  }
+
   return {
     id: userId,
     username: editingItem.value?.username || '',
@@ -2428,6 +2440,12 @@ const isFieldDisabled = (field) => {
     if (alwaysReadonly.includes(field.key)) return true;
     // 编辑礼物时不允许更换所属用户；新增时可填写 user_id。
     if (isEditing.value && field.key === 'user_id') return true;
+  }
+
+  // posterRequests 的 recipient/phone/address 均为 disabled，编辑时换 user_id 会导致
+  // 收件信息与所属用户错位且无法手动修正，故编辑态禁止换人。
+  if (currentTab.value === 'posterRequests' && isEditing.value && field.key === 'user_id') {
+    return true;
   }
 
   return false;
@@ -3618,6 +3636,17 @@ const openEditModal = async (item = null) => {
         editingItem.value.winner_username = '';
       }
 
+      if (currentTab.value === 'addresses') {
+        editingItem.value.user_id = '';
+        editingItem.value.username = '';
+        editingItem.value.recipient = '';
+        editingItem.value.phone = '';
+        editingItem.value.region = '';
+        editingItem.value.detail = '';
+        editingItem.value.tag = '';
+        editingItem.value.is_default = false;
+      }
+
       if (currentTab.value === 'activities') {
         editingItem.value.id = await fetchNextNumericId('activities', dataStore.activities);
         editingItem.value.title = '';
@@ -3724,7 +3753,7 @@ const fetchUserPickerUsers = async () => {
 };
 
 const openUserPicker = () => {
-  if (!['gifts', 'subscriptions'].includes(currentTab.value)) return;
+  if (!['gifts', 'subscriptions', 'addresses', 'posterRequests'].includes(currentTab.value)) return;
   showUserPickerModal.value = true;
   fetchUserPickerUsers();
 };
@@ -3736,20 +3765,36 @@ const closeUserPicker = () => {
 const selectGiftUser = (user) => {
   editingItem.value.user_id = user.id;
   editingItem.value.username = user.username || '';
-  editingItem.value.email = user.email || '';
-  editingItem.value.shipping_recipient = user.shipping_recipient || '';
-  editingItem.value.shipping_phone = user.shipping_phone || '';
-  editingItem.value.shipping_address = user.shipping_address || '';
+  // addresses / posterRequests 表用 recipient / phone（posterRequests 额外有 address）
+  // 仅在为空时自动填充用户已有收货信息，避免覆盖已编辑内容
+  if (currentTab.value === 'addresses' || currentTab.value === 'posterRequests') {
+    if (!editingItem.value.recipient) editingItem.value.recipient = user.shipping_recipient || '';
+    if (!editingItem.value.phone) editingItem.value.phone = user.shipping_phone || '';
+    if (currentTab.value === 'posterRequests' && !editingItem.value.address) {
+      editingItem.value.address = user.shipping_address || '';
+    }
+  } else {
+    editingItem.value.email = user.email || '';
+    editingItem.value.shipping_recipient = user.shipping_recipient || '';
+    editingItem.value.shipping_phone = user.shipping_phone || '';
+    editingItem.value.shipping_address = user.shipping_address || '';
+  }
   showUserPickerModal.value = false;
 };
 
 const clearSelectedGiftUser = () => {
   editingItem.value.user_id = '';
   editingItem.value.username = '';
-  editingItem.value.email = '';
-  editingItem.value.shipping_recipient = '';
-  editingItem.value.shipping_phone = '';
-  editingItem.value.shipping_address = '';
+  if (currentTab.value === 'addresses' || currentTab.value === 'posterRequests') {
+    editingItem.value.recipient = '';
+    editingItem.value.phone = '';
+    if (currentTab.value === 'posterRequests') editingItem.value.address = '';
+  } else {
+    editingItem.value.email = '';
+    editingItem.value.shipping_recipient = '';
+    editingItem.value.shipping_phone = '';
+    editingItem.value.shipping_address = '';
+  }
 };
 
 // P0 修复: saveData 竞态条件 - 使用 saveDataId 模式防止重复提交

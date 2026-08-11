@@ -3,6 +3,7 @@ export const TAB_WRITABLE_FIELDS = {
   points: ['role', 'points', 'experience', 'join_date'],
   subscriptions: ['user_id', 'plan_code', 'plan_name', 'billing_cycle', 'points_cost', 'duration_months', 'started_at', 'expires_at', 'status', 'metadata', 'updated_at'],
   gifts: ['user_id', 'gift_no', 'gift_content', 'gift_price', 'gift_image', 'gift_status', 'is_active', 'completed_at', 'updated_at'],
+  addresses: ['user_id', 'recipient', 'phone', 'region', 'detail', 'tag', 'is_default', 'updated_at'],
   posterRequests: ['user_id', 'status', 'updated_at'],
   forum: ['content', 'author_id', 'author_username', 'status', 'updated_at'],
   coreMemories: ['title', 'content', 'category', 'tags', 'priority', 'source_label', 'source_url', 'status', 'updated_by'],

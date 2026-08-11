@@ -380,6 +380,40 @@ export const SAVE_STRATEGIES = {
     });
   },
 
+  addresses: async ({ editingItem }) => {
+    const normalizedUserId = String(editingItem.user_id || '').trim();
+    if (!normalizedUserId) throw new Error('请先选择用户');
+
+    const recipient = String(editingItem.recipient || '').trim();
+    if (!recipient) throw new Error('收件人不能为空');
+
+    const phone = String(editingItem.phone || '').trim();
+    if (!phone) throw new Error('联系电话不能为空');
+
+    const detail = String(editingItem.detail || '').trim();
+    if (!detail) throw new Error('详细地址不能为空');
+
+    const allowedTags = new Set(['', 'home', 'company', 'school']);
+    const tag = String(editingItem.tag || '').trim();
+    if (!allowedTags.has(tag)) throw new Error('地址标签无效');
+
+    // is_default 来自 select 字段，可能是字符串 'true'/'false' 或布尔值
+    const normalizedIsDefault = typeof editingItem.is_default === 'string'
+      ? editingItem.is_default === 'true'
+      : Boolean(editingItem.is_default);
+
+    return pickWritableFields('addresses', {
+      user_id: normalizedUserId,
+      recipient,
+      phone,
+      region: String(editingItem.region || '').trim(),
+      detail,
+      tag,
+      is_default: normalizedIsDefault,
+      updated_at: new Date().toISOString()
+    });
+  },
+
   posterRequests: async ({ editingItem }) => {
     const normalizedUserId = String(editingItem.user_id || '').trim();
     if (!normalizedUserId) throw new Error('请先选择用户');
