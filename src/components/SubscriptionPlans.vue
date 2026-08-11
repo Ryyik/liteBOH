@@ -1814,6 +1814,11 @@ onBeforeUnmount(() => {
   .pricing-card:hover {
     transform: translateY(-8px) !important;
   }
+
+  /* Coding 附加包 → 2 列 */
+  .coding-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 /* Single column */
@@ -1865,6 +1870,37 @@ onBeforeUnmount(() => {
   .amount {
     font-size: 36px;
   }
+
+  /* Coding 附加包 → 单列，收窄留白 */
+  .coding-section {
+    padding: 0 16px 40px;
+  }
+
+  .coding-section-header {
+    margin-bottom: 24px;
+  }
+
+  .coding-section-title {
+    font-size: 22px;
+  }
+
+  .coding-section-desc {
+    font-size: 13px;
+    padding: 0 8px;
+  }
+
+  .coding-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .coding-card {
+    padding: 24px 20px 20px;
+  }
+
+  .coding-card-header {
+    margin-bottom: 16px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1874,6 +1910,19 @@ onBeforeUnmount(() => {
 
   .pricing-card {
     padding: 20px 16px 18px;
+  }
+
+  .coding-card {
+    padding: 20px 16px 18px;
+  }
+
+  .coding-amount {
+    font-size: 32px;
+  }
+
+  .coding-card-badge {
+    font-size: 8px;
+    padding: 3px 10px;
   }
 }
 
