@@ -446,6 +446,10 @@
             style="position: relative;"
           >
             <template #actions>
+              <div v-if="hasCardView" class="lottery-view-toggle" role="tablist" aria-label="视图模式">
+                <button type="button" :class="{ 'is-active': cardViewMode === 'card' }" @click="cardViewMode = 'card'">卡片</button>
+                <button type="button" :class="{ 'is-active': cardViewMode === 'table' }" @click="cardViewMode = 'table'">表格</button>
+              </div>
               <select v-model="pageSize" class="g-select" style="height: 32px; width: auto; padding: 0 calc(var(--spacing) * 3); font-size: 0.78rem;" aria-label="每页条数">
                 <option :value="10">10 条/页</option>
                 <option :value="20">20 条/页</option>
@@ -458,7 +462,71 @@
               <div class="filter-loading-shimmer"></div>
             </div>
 
-            <table class="g-table-sheet">
+            <!-- 卡片视图 -->
+            <div v-if="isCardViewActive" class="lottery-card-grid">
+              <article
+                v-for="item in paginatedData"
+                :key="item.id || getRowIdentity(item)"
+                class="lottery-card"
+                :class="{ selected: isSelected(item), anomaly: isAnomalyRow(item) }"
+              >
+                <div v-if="currentCardViewConfig.imageKey" class="lottery-card-cover" :class="{ 'is-placeholder': !item[currentCardViewConfig.imageKey] }">
+                  <img v-if="item[currentCardViewConfig.imageKey]" :src="getImageUrl(item[currentCardViewConfig.imageKey], { silent: true })" :alt="item[currentCardViewConfig.titleKey]" loading="lazy" />
+                  <span v-else class="lottery-card-cover-icon">{{ currentCardViewConfig.placeholderIcon || '📦' }}</span>
+                  <span v-if="getCardStatusMeta(item, currentCardViewConfig)" class="lottery-card-status" :class="`tone-${getCardStatusMeta(item, currentCardViewConfig).tone}`">
+                    {{ getCardStatusMeta(item, currentCardViewConfig).label }}
+                  </span>
+                </div>
+                <div class="lottery-card-body">
+                  <h4 class="lottery-card-title" :title="item[currentCardViewConfig.titleKey]">{{ item[currentCardViewConfig.titleKey] || '未命名' }}</h4>
+                  <div v-if="currentCardViewConfig.subtitleKey && formatCardSubtitle(item, currentCardViewConfig)" class="lottery-card-prize">
+                    <span v-if="currentCardViewConfig.subtitleLabel" class="lottery-card-prize-label">{{ currentCardViewConfig.subtitleLabel }}</span>
+                    <span class="lottery-card-prize-value">{{ formatCardSubtitle(item, currentCardViewConfig) }}</span>
+                  </div>
+                  <div v-if="currentCardViewConfig.stats?.length" class="lottery-card-stats">
+                    <div v-for="stat in currentCardViewConfig.stats" :key="stat.key" class="lottery-card-stat">
+                      <span class="lottery-card-stat-label">{{ stat.label }}</span>
+                      <span class="lottery-card-stat-value">{{ formatCardStatValue(item, stat) }}</span>
+                    </div>
+                  </div>
+                  <div v-if="currentCardViewConfig.meta?.length" class="lottery-card-meta">
+                    <template v-for="meta in currentCardViewConfig.meta" :key="meta.key">
+                      <div v-if="item[meta.key] != null && item[meta.key] !== ''" class="lottery-card-meta-row">
+                        <span class="lottery-card-meta-label">{{ meta.label }}</span>
+                        <span class="lottery-card-meta-value">{{ formatCardMetaValue(item, meta) }}</span>
+                        <button
+                          v-if="meta.copyable"
+                          type="button"
+                          class="card-copy-btn"
+                          :class="{ copied: isCardFieldCopied(meta, item) }"
+                          @click="copyCardField(item, meta)"
+                          :title="isCardFieldCopied(meta, item) ? '已复制' : '一键复制'"
+                          aria-label="复制"
+                        >
+                          <svg v-if="!isCardFieldCopied(meta, item)" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                          <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        </button>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+                <div class="lottery-card-actions">
+                  <button v-if="currentTab === 'lotteries' && item.status === 'open'" class="review-btn approve" :disabled="isLotteryActionPending(item.id)" @click="drawLotteryNow(item)" title="立即随机开奖">开奖</button>
+                  <button v-if="currentTab === 'lotteries' && item.status === 'drawn'" class="review-btn approve" :disabled="isLotteryActionPending(item.id)" @click="redrawLottery(item)" title="保留历史记录并重新随机开奖">重抽</button>
+                  <button v-if="currentTab === 'lotteries'" class="review-btn approve" @click="viewLotteryEntries(item)" title="查看本次抽奖报名名单">名单</button>
+                  <button v-if="currentTab === 'lotteries'" class="review-btn approve" @click="viewLotteryDrawLogs(item)" title="查看本次抽奖开奖日志">日志</button>
+                  <button v-if="currentTab === 'lotteries' && item.status !== 'closed'" class="review-btn reject" :disabled="isLotteryActionPending(item.id)" @click="closeLottery(item)" title="关闭该抽奖">关闭</button>
+                  <button v-if="canEditCurrentTab" class="icon-btn edit" @click="openEditModal(item)" title="编辑" aria-label="编辑">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                  </button>
+                  <button v-if="canDeleteCurrentTab && !isProfileDerivedTab" class="icon-btn delete" @click="deleteItem(item)" title="删除" aria-label="删除">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                  </button>
+                </div>
+              </article>
+            </div>
+
+            <table v-show="!isCardViewActive" class="g-table-sheet">
               <thead>
                 <tr>
                   <th class="checkbox-col">
@@ -767,6 +835,13 @@
       :address-bundle-text="addressBundleText"
       :uploading-image-fields="uploadingImageFields"
       :user-picker-loading="userPickerLoading"
+      :show-product-picker="showProductPicker"
+      :product-picker-keyword="productPickerKeyword"
+      :product-picker-loading="productPickerLoading"
+      :filtered-products="filteredProducts"
+      @update:product-picker-keyword="(v) => (productPickerKeyword = v)"
+      @toggle-product-picker="toggleProductPicker"
+      @select-product="selectProduct"
       :is-field-disabled="isFieldDisabled"
       :is-image-upload-pending="isImageUploadPending"
       :has-prev-record="editDrawerNav.hasPrev"
@@ -999,6 +1074,11 @@ const dateFromFilter = ref('');
 const dateToFilter = ref('');
 const advancedFilterRules = ref([]);
 const userPickerKeyword = ref('');
+// 商品选择器状态（礼物编辑专用）
+const showProductPicker = ref(false);
+const productPickerKeyword = ref('');
+const productPickerLoading = ref(false);
+const productPickerProducts = ref([]);
 const selectedItems = ref([]);
 const currentPage = ref(1);
 const pageSize = ref(20);
@@ -1010,6 +1090,75 @@ const activeAdminSection = ref(typeof routeAdminSection === 'string' && routeAdm
 const isDataTreeCollapsed = ref(false);
 const isMobileView = ref(window.innerWidth < 768);
 const handleResize = () => { isMobileView.value = window.innerWidth < 768; };
+
+// 卡片视图模式：'card' | 'table'，仅对配置了 cardView 的 tab 生效，默认卡片视图
+const cardViewMode = ref('card');
+const currentCardViewConfig = computed(() => currentConfig.value?.cardView || null);
+const hasCardView = computed(() => Boolean(currentCardViewConfig.value));
+const isCardViewActive = computed(() => hasCardView.value && cardViewMode.value === 'card');
+
+// 卡片视图通用格式化
+const formatCardStatValue = (item, stat) => {
+  const raw = item?.[stat.key];
+  if (raw == null || raw === '') return '—';
+  if (stat.values) {
+    const key = String(raw);
+    return stat.values[key] ?? stat.values[String(raw === true)] ?? String(raw);
+  }
+  if (stat.format === 'price') return `¥${raw}`;
+  if (stat.format === 'datetime') return formatDateTime(raw);
+  if (stat.format === 'date') return formatDate(raw);
+  return String(raw);
+};
+const formatCardMetaValue = (item, meta) => {
+  const raw = item?.[meta.key];
+  if (raw == null || raw === '') return '—';
+  if (meta.format === 'price') return `¥${raw}`;
+  if (meta.format === 'datetime') return formatDateTime(raw);
+  if (meta.format === 'date') return formatDate(raw);
+  return String(raw);
+};
+const formatCardSubtitle = (item, config) => {
+  if (!config?.subtitleKey) return '';
+  const raw = item?.[config.subtitleKey];
+  if (raw == null || raw === '') return '';
+  if (config.subtitleFormat === 'datetime') return formatDateTime(raw);
+  if (config.subtitleFormat === 'date') return formatDate(raw);
+  return String(raw);
+};
+const getCardStatusMeta = (item, config) => {
+  if (!config?.statusKey) return null;
+  const raw = item?.[config.statusKey];
+  const key = String(raw);
+  const meta = config.statusMeta?.[key] || config.statusMeta?.[String(raw === true)] || config.statusMeta?.[key.toLowerCase?.()];
+  if (meta) return meta;
+  if (raw == null || raw === '') return null;
+  return { label: String(raw), tone: 'muted' };
+};
+
+// 卡片一键复制
+const copiedFieldKey = ref('');
+const copyCardField = async (item, meta) => {
+  let text;
+  if (meta.copyText === 'fullAddress') {
+    const parts = [item.recipient, item.phone, item.region, item.detail].filter(Boolean);
+    text = parts.join(' ');
+  } else {
+    text = String(item?.[meta.key] ?? '');
+  }
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    const stamp = `${meta.key}-${Date.now()}`;
+    copiedFieldKey.value = stamp;
+    setTimeout(() => { if (copiedFieldKey.value === stamp) copiedFieldKey.value = ''; }, 1500);
+  } catch (e) {
+    console.warn('[DataAdmin] 复制失败:', e);
+  }
+};
+const isCardFieldCopied = (meta, item) => {
+  return copiedFieldKey.value === `${meta.key}-${item?.id}` || copiedFieldKey.value.startsWith(`${meta.key}-`);
+};
 
 const currentTheme = ref('light');
 const uploadingImageFields = ref([]);
@@ -1255,7 +1404,7 @@ const editableFields = computed(() => {
   return currentFields.value.filter((field) =>
     writable.has(field.key)
     && !field.disabled
-    && !['json', 'tags', 'specifications', 'image', 'user-picker', 'textarea'].includes(field.type)
+    && !['json', 'tags', 'specifications', 'image', 'user-picker', 'product-picker', 'textarea'].includes(field.type)
   );
 });
 const inlineEditableFieldKeys = computed(() => new Set(
@@ -1485,6 +1634,57 @@ const filteredGiftUsers = computed(() => {
     })
     .slice(0, 200);
 });
+
+// 商品选择器：过滤后的商品列表
+const filteredProducts = computed(() => {
+  const keyword = productPickerKeyword.value.trim().toLowerCase();
+  const products = productPickerProducts.value;
+  if (!keyword) return products.slice(0, 50);
+  return products
+    .filter((p) => String(p.title || '').toLowerCase().includes(keyword))
+    .slice(0, 50);
+});
+
+// 商品选择器：加载商城商品
+const loadProductPickerProducts = async (force = false) => {
+  if (!force && productPickerProducts.value.length > 0) return;
+  productPickerLoading.value = true;
+  try {
+    const { data, error } = await supabase
+      .from('products')
+      .select('id, title, image, points_cost, is_active')
+      .order('id', { ascending: true })
+      .limit(200);
+    if (error) throw error;
+    productPickerProducts.value = Array.isArray(data) ? data : [];
+  } catch (e) {
+    console.warn('[DataAdmin] 加载商城商品失败:', e?.message || e);
+  } finally {
+    productPickerLoading.value = false;
+  }
+};
+
+// 商品选择器：切换展开/收起
+const toggleProductPicker = () => {
+  showProductPicker.value = !showProductPicker.value;
+  if (showProductPicker.value && productPickerProducts.value.length === 0) {
+    void loadProductPickerProducts();
+  }
+};
+
+// 商品选择器：选中商品后自动填充
+const selectProduct = (product) => {
+  if (!editingItem.value || !product) return;
+  editingItem.value = {
+    ...editingItem.value,
+    gift_content: product.title || '',
+    gift_image: product.image || '',
+    gift_price: product.points_cost ?? 0
+  };
+  showProductPicker.value = false;
+  productPickerKeyword.value = '';
+  showToast(`已从商城填入「${product.title || '未命名商品'}」`, 'success');
+};
 
 // 收件信息整段文本: gifts 用 profiles 的 shipping_*, posterRequests 用表内 recipient/phone/address
 const addressBundleText = computed(() => {
@@ -1880,6 +2080,7 @@ const getTabCount = (tabId) => {
     case 'points': return tabTotals.points;
     case 'subscriptions': return tabTotals.subscriptions;
     case 'gifts': return tabTotals.gifts;
+    case 'addresses': return tabTotals.addresses;
     case 'forum': return stats.totalPosts;
     case 'reportedPosts': return tabTotals.reportedPosts;
     case 'reviewPosts': return tabTotals.reviewPosts;
@@ -2693,6 +2894,19 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
       return;
     }
 
+    if (tabId === 'addresses') {
+      const addressRows = rows.map((addr) => {
+        const { profile: rawProfile, ...restAddr } = addr;
+        const profile = normalizeJoinedObject(rawProfile);
+        return {
+          ...restAddr,
+          username: profile.username || '-'
+        };
+      });
+      assignTabRows(tabId, addressRows, count);
+      return;
+    }
+
     if (tabId === 'posterRequests') {
       const posterRows = rows.map((request) => {
         const { profile: rawProfile, ...restRequest } = request;
@@ -3475,6 +3689,8 @@ const closeModal = async ({ askDraft = true } = {}) => {
   showModal.value = false;
   showUserPickerModal.value = false;
   userPickerKeyword.value = '';
+  showProductPicker.value = false;
+  productPickerKeyword.value = '';
   editingItem.value = {};
   editingOriginalItem.value = null;
   jsonBuffers.value = {};
@@ -4172,6 +4388,202 @@ onUnmounted(() => {
   font-size: 12px;
   color: color-mix(in srgb, var(--foreground) 45%, transparent);
   font-variant-numeric: tabular-nums;
+}
+
+/* 抽奖视图切换 */
+.lottery-view-toggle {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 9px;
+  background: var(--muted, #f1f5f9);
+  gap: 2px;
+}
+.lottery-view-toggle button {
+  border: none;
+  background: transparent;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted-foreground, #64748b);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.lottery-view-toggle button.is-active {
+  background: var(--card, #fff);
+  color: var(--foreground, #0f172a);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+/* 抽奖卡片视图 */
+.lottery-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+  padding: 4px;
+}
+.lottery-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 12px;
+  background: var(--card, #fff);
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.lottery-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  border-color: color-mix(in srgb, var(--foreground, #0f172a) 20%, var(--border, #e2e8f0));
+}
+.lottery-card.selected {
+  border-color: var(--primary, #2563eb);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary, #2563eb) 25%, transparent);
+}
+.lottery-card.is-closed { opacity: 0.78; }
+
+.lottery-card-cover {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: linear-gradient(135deg, #f8fafc, #eef2f7);
+  overflow: hidden;
+}
+.lottery-card-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.lottery-card-cover.is-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lottery-card-cover-icon { font-size: 38px; opacity: 0.5; }
+.lottery-card-status {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(6px);
+  background: rgba(255, 255, 255, 0.85);
+}
+.lottery-card-status.tone-muted { color: #64748b; }
+.lottery-card-status.tone-info { background: rgba(59, 130, 246, 0.12); color: #2563eb; }
+.lottery-card-status.tone-success { background: rgba(34, 197, 94, 0.12); color: #16a34a; }
+.lottery-card-status.tone-neutral { background: rgba(100, 116, 139, 0.15); color: #475569; }
+
+.lottery-card-body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+.lottery-card-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foreground, #0f172a);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lottery-card-prize {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.lottery-card-prize-label { color: var(--muted-foreground, #64748b); flex-shrink: 0; }
+.lottery-card-prize-value {
+  color: var(--foreground, #0f172a);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lottery-card-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border, #e2e8f0);
+  border-bottom: 1px solid var(--border, #e2e8f0);
+}
+.lottery-card-stat { display: flex; flex-direction: column; gap: 2px; align-items: center; }
+.lottery-card-stat-label { font-size: 10px; color: var(--muted-foreground, #64748b); }
+.lottery-card-stat-value { font-size: 13px; font-weight: 700; color: var(--foreground, #0f172a); }
+.lottery-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+}
+.lottery-card-meta-row { display: flex; justify-content: space-between; gap: 8px; }
+.lottery-card-meta-label { color: var(--muted-foreground, #64748b); flex-shrink: 0; }
+.lottery-card-meta-value {
+  color: var(--foreground, #0f172a);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tone-text-muted { color: #64748b; }
+.tone-text-info { color: #2563eb; }
+.tone-text-success { color: #16a34a; }
+.tone-text-warning { color: #d97706; }
+.tone-text-danger { color: #dc2626; }
+.tone-text-neutral { color: #475569; }
+
+/* 卡片一键复制按钮 */
+.card-copy-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted-foreground, #64748b);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.card-copy-btn:hover {
+  background: var(--muted, #f1f5f9);
+  color: var(--foreground, #0f172a);
+  border-color: color-mix(in srgb, var(--foreground, #0f172a) 30%, transparent);
+}
+.card-copy-btn.copied {
+  background: #ecfdf3;
+  border-color: #16a34a;
+  color: #16a34a;
+}
+
+.lottery-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border, #e2e8f0);
+  background: color-mix(in srgb, var(--muted, #f1f5f9) 50%, transparent);
+}
+.lottery-card-actions .review-btn,
+.lottery-card-actions .icon-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  min-height: 28px;
+  border-radius: 6px;
+}
+
+@media (max-width: 720px) {
+  .lottery-card-grid { grid-template-columns: 1fr; }
 }
 </style>
 

@@ -132,6 +132,11 @@
           </article>
         </div>
       </section>
+
+      <!-- 收货地址 Tab -->
+      <section v-else-if="activeTab === 'addresses'" class="ah-section">
+        <AddressManager variant="glass" :show-header="false" />
+      </section>
     </div>
   </div>
 </template>
@@ -141,10 +146,11 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import {
-  CalendarCheck, Coins, Crown, Package, ScrollText, Send, ShoppingBag
+  CalendarCheck, Coins, Crown, MapPin, Package, ScrollText, Send, ShoppingBag
 } from 'lucide-vue-next';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import SubscriptionPlans from '@/components/SubscriptionPlans.vue';
+import AddressManager from '@/components/AddressManager.vue';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/utils/supabase-client.js';
 import { useUserTier } from '@/composables/useUserTier.js';
@@ -166,6 +172,7 @@ const tabs = [
   { id: 'subscription', label: '订阅计划', icon: Crown },
   { id: 'shop', label: '商城', icon: ShoppingBag },
   { id: 'orders', label: '订单', icon: Package },
+  { id: 'addresses', label: '收货地址', icon: MapPin },
 ];
 
 const activeTabIndex = computed(() => Math.max(0, tabs.findIndex(t => t.id === activeTab.value)));

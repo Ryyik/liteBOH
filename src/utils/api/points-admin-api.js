@@ -13,11 +13,23 @@ export async function grantPoints({ userIds = null, amount = 0, remark = '' }) {
   return data;
 }
 
-export async function fetchRecentGrants(limit = 20) {
+export async function revokeGrant(batchId) {
+  const safeBatchId = String(batchId || '').trim();
+  if (!safeBatchId) throw new Error('批次 ID 不能为空');
+  const { data, error } = await supabase.rpc('admin_revoke_grant', {
+    p_batch_id: safeBatchId
+  });
+  if (error) {
+    throw new Error(normalizeDbError(error)?.message || error.message || '撤销积分发放失败');
+  }
+  return data;
+}
+
+export async function fetchRecentGrants(limit = 200) {
   const { data, error } = await supabase
     .from('points_transactions')
-    .select('id, user_id, amount, balance_after, reason, remark, operator_id, created_at')
-    .eq('reason', 'admin_grant')
+    .select('id, user_id, amount, balance_after, reason, remark, operator_id, batch_id, created_at')
+    .in('reason', ['admin_grant', 'admin_revoke'])
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) {

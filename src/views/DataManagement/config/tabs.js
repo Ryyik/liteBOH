@@ -19,6 +19,7 @@ export const tabs = [
   { id: 'points-grant', label: '积分发放', icon: '🎁', module: 'users', type: 'page' },
   { id: 'subscriptions', label: '订阅管理', icon: '💎', module: 'users' },
   { id: 'gifts', label: '礼物管理', icon: '📦', module: 'gifts' },
+  { id: 'addresses', label: '地址管理', icon: '📍', module: 'gifts' },
   { id: 'posterRequests', label: '海报申请', icon: '🖼️', module: 'users' },
   { id: 'forum', label: '论坛帖子', icon: '💬', module: 'content' },
   { id: 'news', label: '新闻管理', icon: '📰', module: 'content' },
@@ -65,8 +66,8 @@ export const tabModules = [
     icon: Gift,
     section: 'data',
     defaultTab: 'gifts',
-    tabIds: ['gifts'],
-    description: '管理用户礼物、进度和快递信息'
+    tabIds: ['gifts', 'addresses'],
+    description: '管理用户礼物、地址和快递信息'
   },
   {
     id: 'content',
@@ -139,6 +140,7 @@ export const TABS_ACTIONS = {
   points: ['view', 'edit'],
   subscriptions: ['view', 'create', 'edit', 'delete'],
   gifts: ['view', 'create', 'edit', 'delete'],
+  addresses: ['view', 'create', 'edit', 'delete'],
   posterRequests: ['view', 'edit'],
   forum: ['view', 'create', 'edit', 'delete'],
   news: ['view', 'create', 'edit', 'delete'],

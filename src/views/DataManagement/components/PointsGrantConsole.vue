@@ -92,35 +92,52 @@
 
     <section class="quota-panel grant-panel">
       <div class="quota-panel-heading">
-        <div><h3>最近发放记录</h3><p>仅展示管理员操作产生的积分流水。</p></div>
-        <span>{{ recentGrants.length }} 条</span>
+        <div><h3>最近发放记录</h3><p>按发放批次展示，可整批撤销。</p></div>
+        <span>{{ batchList.length }} 批次</span>
       </div>
       <div v-if="recentLoading" class="grant-loading">正在加载发放记录…</div>
-      <div v-else-if="recentGrants.length === 0" class="grant-empty">
+      <div v-else-if="batchList.length === 0" class="grant-empty">
         <Inbox :size="26" :stroke-width="1.5" />
         <p>暂无发放记录</p>
       </div>
-      <div v-else class="grant-table-wrap">
-        <table class="quota-table">
-          <thead>
-            <tr><th>用户</th><th>数量</th><th>备注</th><th>发放时间</th></tr>
-          </thead>
-          <tbody>
-            <tr v-for="grant in recentGrants" :key="grant.id">
-              <td>
-                <strong>{{ grant.username || '未命名用户' }}</strong>
-                <code class="grant-user-code">{{ String(grant.user_id || '').slice(0, 8) }}</code>
-              </td>
-              <td>
-                <span class="grant-amount" :class="{ negative: grant.amount < 0 }">
-                  {{ grant.amount > 0 ? '+' : '' }}{{ grant.amount }}
-                </span>
-              </td>
-              <td class="muted">{{ grant.remark || '—' }}</td>
-              <td class="muted">{{ formatDate(grant.created_at) }}</td>
-            </tr>
-          </tbody>
-        </table>
+      <div v-else class="grant-batch-list">
+        <div
+          v-for="batch in batchList"
+          :key="batch.key"
+          class="grant-batch-card"
+          :class="{ 'is-revoked': batch.revoked }"
+        >
+          <div class="grant-batch-head">
+            <div class="grant-batch-meta">
+              <span class="grant-batch-time">{{ formatDate(batch.createdAt) }}</span>
+              <span class="grant-batch-amount">
+                +{{ batch.amount }} 积分 × {{ batch.count }} 位用户（共 {{ batch.amount * batch.count }} 积分）
+              </span>
+              <span v-if="batch.revoked" class="grant-batch-tag revoked">已撤销</span>
+              <span v-else class="grant-batch-tag active">有效</span>
+            </div>
+            <div class="grant-batch-remark" v-if="batch.remark">{{ batch.remark }}</div>
+            <button
+              v-if="batch.canRevoke"
+              class="quota-btn danger-ghost"
+              type="button"
+              :disabled="revokingBatchId === batch.batchId"
+              @click="handleRevoke(batch)"
+            >
+              <Undo2 :size="14" />
+              {{ revokingBatchId === batch.batchId ? '撤销中…' : '撤销发放' }}
+            </button>
+          </div>
+          <details class="grant-batch-detail">
+            <summary>展开查看 {{ batch.count }} 位用户明细</summary>
+            <div class="grant-batch-users">
+              <span v-for="grant in batch.grants" :key="grant.id" class="grant-batch-user">
+                <span class="grant-batch-user-name">{{ grant.username || '未命名用户' }}</span>
+                <span class="grant-batch-user-bal">余额 {{ grant.balance_after ?? '—' }}</span>
+              </span>
+            </div>
+          </details>
+        </div>
       </div>
     </section>
   </section>
@@ -128,9 +145,9 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue';
-import { Inbox, RefreshCw, Search, Send } from 'lucide-vue-next';
+import { Inbox, RefreshCw, Search, Send, Undo2 } from 'lucide-vue-next';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
-import { fetchRecentGrants, grantPoints, searchGrantTargetUsers } from '@/utils/api/points-admin-api.js';
+import { fetchRecentGrants, grantPoints, revokeGrant, searchGrantTargetUsers } from '@/utils/api/points-admin-api.js';
 import { supabase } from '@/utils/supabase-client.js';
 
 const { confirm } = useConfirmDialog();
@@ -148,6 +165,7 @@ const messageTone = ref('success');
 const loading = ref(false);
 const recentLoading = ref(false);
 const recentGrants = ref([]);
+const revokingBatchId = ref('');
 
 const amountText = computed(() => Number(amount.value || 0).toLocaleString());
 const canSubmit = computed(() => {
@@ -187,11 +205,11 @@ const submitGrant = async () => {
   if (!canSubmit.value) return;
   const userIds = mode.value === 'all' ? null : selectedUsers.value.map(u => u.id);
   const targetCount = mode.value === 'all' ? '全部' : selectedUsers.value.length;
-  const accepted = await confirm(
-    '确认发放积分',
-    `将向 ${targetCount} 位用户发放 ${amount.value} 积分${remark.value ? `，备注「${remark.value}」` : ''}。该操作立即生效，不可撤销。`,
-    '确认发放'
-  );
+  const accepted = await confirm({
+    title: '确认发放积分',
+    message: `将向 ${targetCount} 位用户发放 ${amount.value} 积分${remark.value ? `，备注「${remark.value}」` : ''}。该操作立即生效，如需取消可在发放记录中撤销。`,
+    confirmText: '确认发放'
+  });
   if (!accepted) return;
 
   saving.value = true;
@@ -204,6 +222,7 @@ const submitGrant = async () => {
     searchResults.value = [];
     void loadRecent();
   } catch (error) {
+    console.error('[PointsGrantConsole] 发放积分失败:', error);
     notify(error?.message || '发放积分失败', 'error');
   } finally {
     saving.value = false;
@@ -220,7 +239,7 @@ const formatDate = (d) => {
 const loadRecent = async () => {
   recentLoading.value = true;
   try {
-    const rows = await fetchRecentGrants(20);
+    const rows = await fetchRecentGrants(200);
     const ids = [...new Set(rows.map(r => r.user_id).filter(Boolean))];
     let userMap = {};
     if (ids.length > 0) {
@@ -235,6 +254,67 @@ const loadRecent = async () => {
   }
 };
 
+// 按 batch_id 分组发放记录；同一批次的 admin_grant 汇总为一条，admin_revoke 标记为已撤销
+const batchList = computed(() => {
+  const map = new Map();
+  for (const grant of recentGrants.value) {
+    const batchId = grant.batch_id || `legacy-${grant.id}`;
+    if (!map.has(batchId)) {
+      map.set(batchId, {
+        key: batchId,
+        batchId: grant.batch_id || null,
+        amount: 0,
+        count: 0,
+        remark: '',
+        createdAt: grant.created_at,
+        grants: [],
+        revoked: false,
+        canRevoke: Boolean(grant.batch_id)
+      });
+    }
+    const batch = map.get(batchId);
+    if (grant.reason === 'admin_grant') {
+      batch.grants.push(grant);
+      batch.count += 1;
+      batch.amount = grant.amount;
+      if (grant.remark) batch.remark = grant.remark;
+      if (!batch.createdAt || grant.created_at < batch.createdAt) {
+        batch.createdAt = grant.created_at;
+      }
+    } else if (grant.reason === 'admin_revoke') {
+      batch.revoked = true;
+      batch.canRevoke = false;
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => {
+    const ta = new Date(a.createdAt || 0).getTime();
+    const tb = new Date(b.createdAt || 0).getTime();
+    return tb - ta;
+  });
+});
+
+const handleRevoke = async (batch) => {
+  if (!batch.batchId) return;
+  const accepted = await confirm({
+    title: '确认撤销发放',
+    message: `将撤销 ${formatDate(batch.createdAt)} 的发放批次：${batch.amount} 积分 × ${batch.count} 位用户。所有用户将扣回对应积分，该操作不可恢复。`,
+    confirmText: '确认撤销'
+  });
+  if (!accepted) return;
+
+  revokingBatchId.value = batch.batchId;
+  try {
+    const result = await revokeGrant(batch.batchId);
+    notify(`已撤销 ${result?.revoked ?? batch.count} 位用户的 ${batch.amount} 积分发放`);
+    void loadRecent();
+  } catch (error) {
+    console.error('[PointsGrantConsole] 撤销发放失败:', error);
+    notify(error?.message || '撤销发放失败', 'error');
+  } finally {
+    revokingBatchId.value = '';
+  }
+};
+
 onMounted(() => {
   void loadRecent();
 });
@@ -242,6 +322,39 @@ onMounted(() => {
 
 <style scoped>
 .points-grant-page { display: grid; gap: 16px; color: var(--foreground); }
+
+/* quota-* 基础样式（scoped 自包含，与 AiQuotaConfigConsole 一致） */
+.quota-config-hero, .quota-panel { border: 1px solid var(--border); border-radius: 14px; background: var(--card); }
+.quota-config-hero { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 22px; }
+.quota-kicker { color: var(--muted-foreground); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.quota-config-hero h2 { margin: 4px 0 0; font-size: 22px; }
+.quota-config-hero h2, .quota-panel-heading h3 { color: var(--foreground); }
+.quota-config-hero p, .quota-panel-heading p { margin: 5px 0 0; color: var(--muted-foreground); font-size: 13px; line-height: 1.5; }
+.quota-hero-actions { display: flex; gap: 8px; }
+.quota-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 0 13px; border: 1px solid var(--border); border-radius: 9px; background: var(--card); color: var(--foreground); font-weight: 650; cursor: pointer; }
+.quota-btn.primary { background: var(--foreground); color: var(--background); border-color: var(--foreground); }
+.quota-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.spinning { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.quota-notice { padding: 11px 14px; border-radius: 10px; font-size: 13px; }
+.quota-notice.success { background: #ecfdf3; color: #067647; }
+.quota-notice.error { background: #fff1f0; color: #b42318; }
+.quota-panel { overflow: hidden; }
+.quota-panel-heading { display: flex; align-items: center; justify-content: space-between; padding: 17px 18px; border-bottom: 1px solid var(--border); }
+.quota-panel-heading h3 { font-size: 15px; color: var(--foreground); }
+.quota-panel-heading > span { color: var(--muted-foreground); font-size: 12px; }
+.quota-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.quota-table th, .quota-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+.quota-table th { color: var(--muted-foreground); font-size: 11px; font-weight: 650; }
+.quota-table tbody tr:last-child td { border-bottom: 0; }
+.quota-table code { color: var(--muted-foreground); font-size: 11px; }
+.muted { color: var(--muted-foreground); max-width: 250px; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 720px) {
+  .quota-config-hero { align-items: stretch; flex-direction: column; }
+  .quota-hero-actions { width: 100%; }
+  .quota-hero-actions .quota-btn { flex: 1; }
+}
+
 .grant-panel { overflow: hidden; }
 .grant-mode-switch {
   display: inline-flex;
@@ -381,4 +494,91 @@ onMounted(() => {
 .grant-amount { font-weight: 800; color: #12b76a; }
 .grant-amount.negative { color: #f04438; }
 .grant-user-code { margin-left: 8px; }
+
+/* 批次分组卡片 */
+.grant-batch-list { display: grid; gap: 10px; padding: 14px; }
+.grant-batch-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--background);
+  overflow: hidden;
+  transition: border-color 0.18s ease, opacity 0.18s ease;
+}
+.grant-batch-card.is-revoked { opacity: 0.62; border-style: dashed; }
+.grant-batch-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  flex-wrap: wrap;
+}
+.grant-batch-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: 1; min-width: 0; }
+.grant-batch-time { font-size: 12px; color: var(--muted-foreground); white-space: nowrap; }
+.grant-batch-amount { font-size: 13px; font-weight: 700; color: var(--foreground); white-space: nowrap; }
+.grant-batch-remark { font-size: 12px; color: var(--muted-foreground); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grant-batch-tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.grant-batch-tag.active { background: #ecfdf3; color: #067647; }
+.grant-batch-tag.revoked { background: #fef0c7; color: #b54708; }
+.grant-batch-card.is-revoked .grant-batch-tag.revoked { background: #fee4e2; color: #b42318; }
+
+.quota-btn.danger-ghost {
+  border-color: color-mix(in srgb, #f04438 35%, transparent);
+  color: #f04438;
+  background: transparent;
+}
+.quota-btn.danger-ghost:hover:not(:disabled) {
+  background: color-mix(in srgb, #f04438 8%, transparent);
+}
+.quota-btn.danger-ghost:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.grant-batch-detail { border-top: 1px solid var(--border); }
+.grant-batch-detail > summary {
+  padding: 9px 14px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+.grant-batch-detail > summary::-webkit-details-marker { display: none; }
+.grant-batch-detail > summary::before { content: '▸'; margin-right: 6px; transition: transform 0.15s ease; display: inline-block; }
+.grant-batch-detail[open] > summary::before { transform: rotate(90deg); }
+.grant-batch-detail[open] > summary { color: var(--foreground); }
+
+.grant-batch-users {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 14px 12px;
+}
+.grant-batch-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 5px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  background: var(--muted);
+  color: var(--foreground);
+  max-width: 220px;
+}
+.grant-batch-user-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.grant-batch-user-bal {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.grant-batch-card.is-revoked .grant-batch-user { opacity: 0.7; }
 </style>

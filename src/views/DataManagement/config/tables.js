@@ -158,7 +158,7 @@ export const dataConfig = {
           { value: 'completed', label: '已完成' }
         ], group: 'time'
       },
-      { key: 'gift_content', label: '礼物内容', type: 'text', group: 'detail' },
+      { key: 'gift_content', label: '礼物内容', type: 'product-picker', hint: '可从商城商品中选择，或直接手动填写礼物名称。选择商品后会自动填充名称、图片和金额。', group: 'detail' },
       { key: 'gift_no', label: '快递单号', type: 'text', group: 'detail' },
       { key: 'gift_price', label: '礼物金额', type: 'number', group: 'detail' },
       { key: 'gift_image', label: '礼物图片', type: 'text', group: 'detail' },
@@ -167,7 +167,82 @@ export const dataConfig = {
         { value: false, label: '历史礼物' }
       ], group: 'time' },
       { key: 'completed_at', label: '完成日期', type: 'datetime', placeholder: '可自定义完成日期', group: 'time' }
-    ]
+    ],
+    cardView: {
+      imageKey: 'gift_image',
+      placeholderIcon: '📦',
+      titleKey: 'gift_content',
+      subtitleKey: 'username',
+      subtitleLabel: '用户',
+      statusKey: 'gift_status',
+      statusMeta: {
+        preparing: { label: '准备中', tone: 'muted' },
+        processing: { label: '处理中', tone: 'info' },
+        shipped: { label: '已发货', tone: 'warning' },
+        completed: { label: '已完成', tone: 'success' }
+      },
+      stats: [
+        { label: '类型', key: 'gift_scope_label' },
+        { label: '金额', key: 'gift_price', format: 'price' },
+        { label: '快递单号', key: 'gift_no' }
+      ],
+      meta: [
+        { label: '收件人', key: 'shipping_recipient' },
+        { label: '联系电话', key: 'shipping_phone' },
+        { label: '收货地址', key: 'shipping_address' },
+        { label: '完成日期', key: 'completed_at', format: 'datetime' }
+      ]
+    }
+  },
+  addresses: {
+    table: 'user_addresses',
+    columns: [
+      { key: 'username', label: '用户名' },
+      { key: 'recipient', label: '收件人' },
+      { key: 'phone', label: '联系电话' },
+      { key: 'detail', label: '详细地址', maxLength: 28 },
+      { key: 'tag', label: '标签', type: 'badge' },
+      { key: 'is_default', label: '默认', type: 'badge' },
+      { key: 'created_at', label: '创建时间', type: 'datetime' }
+    ],
+    fields: [
+      { key: 'id', label: '地址ID', type: 'text', disabled: true, group: 'basic' },
+      { key: 'user_id', label: '所属用户', type: 'user-picker', required: true, group: 'user' },
+      { key: 'username', label: '用户名', type: 'text', disabled: true, group: 'user' },
+      { key: 'recipient', label: '收件人', type: 'text', required: true, group: 'basic' },
+      { key: 'phone', label: '联系电话', type: 'text', required: true, group: 'basic' },
+      { key: 'region', label: '地区', type: 'text', placeholder: '如：广东省深圳市', group: 'detail' },
+      { key: 'detail', label: '详细地址', type: 'textarea', required: true, rows: 2, group: 'detail' },
+      { key: 'tag', label: '标签', type: 'select', options: [
+        { value: '', label: '无' },
+        { value: 'home', label: '家' },
+        { value: 'company', label: '公司' },
+        { value: 'school', label: '学校' }
+      ], group: 'detail' },
+      { key: 'is_default', label: '默认地址', type: 'select', options: [
+        { value: true, label: '默认' },
+        { value: false, label: '非默认' }
+      ], group: 'detail' }
+    ],
+    cardView: {
+      placeholderIcon: '📍',
+      titleKey: 'recipient',
+      subtitleKey: 'username',
+      subtitleLabel: '用户',
+      statusKey: 'is_default',
+      statusMeta: {
+        true: { label: '默认', tone: 'success' },
+        false: { label: '', tone: 'muted' }
+      },
+      stats: [
+        { label: '标签', key: 'tag', values: { home: '家', company: '公司', school: '学校', '': '无' } },
+        { label: '地区', key: 'region' }
+      ],
+      meta: [
+        { label: '联系电话', key: 'phone', copyable: true },
+        { label: '详细地址', key: 'detail', copyable: true, copyText: 'fullAddress' }
+      ]
+    }
   },
   posterRequests: {
     table: 'poster_requests',
@@ -198,7 +273,30 @@ export const dataConfig = {
         ], group: 'time'
       },
       { key: 'created_at', label: '申请时间', type: 'datetime', disabled: true, group: 'time' }
-    ]
+    ],
+    cardView: {
+      placeholderIcon: '🖼️',
+      titleKey: 'recipient',
+      subtitleKey: 'username',
+      subtitleLabel: '用户',
+      statusKey: 'status',
+      statusMeta: {
+        pending: { label: '已收到', tone: 'muted' },
+        processing: { label: '处理中', tone: 'info' },
+        shipped: { label: '已寄出', tone: 'warning' },
+        completed: { label: '已送达', tone: 'success' }
+      },
+      stats: [
+        { label: '物料费', key: 'material_fee', format: 'price' },
+        { label: '活动代号', key: 'campaign_code' }
+      ],
+      meta: [
+        { label: '收件人', key: 'recipient' },
+        { label: '联系电话', key: 'phone' },
+        { label: '收货地址', key: 'address' },
+        { label: '申请时间', key: 'created_at', format: 'datetime' }
+      ]
+    }
   },
   forum: {
     table: 'posts',
@@ -356,7 +454,34 @@ export const dataConfig = {
       { key: 'draw_candidate_hash', label: '候选名单 Hash', type: 'text', disabled: true, hint: '开奖时按报名名单生成的 MD5 摘要，用于事后审计候选池是否变化。', group: 'draw' },
       { key: 'draw_algorithm_version', label: '随机算法版本', type: 'text', disabled: true, group: 'draw' },
       { key: 'winner_username', label: '首位中奖者', type: 'text', disabled: true, group: 'draw' }
-    ]
+    ],
+    cardView: {
+      imageKey: 'cover_image_url',
+      placeholderIcon: '🎲',
+      titleKey: 'title',
+      subtitleKey: 'prize_title',
+      subtitleLabel: '奖品',
+      statusKey: 'status',
+      statusMeta: {
+        draft: { label: '草稿', tone: 'muted' },
+        open: { label: '报名中', tone: 'info' },
+        drawn: { label: '已开奖', tone: 'success' },
+        closed: { label: '已关闭', tone: 'neutral' }
+      },
+      stats: [
+        { label: '报名', key: 'entry_count' },
+        { label: '中奖', key: 'winner_count' },
+        { label: '处理', key: 'fulfillment_status', values: {
+          pending_contact: '待联系', confirmed: '已确认', fulfilled: '已发放', voided: '已作废'
+        } }
+      ],
+      meta: [
+        { label: '首位中奖', key: 'winner_username' },
+        { label: '报名截止', key: 'entry_deadline_at', format: 'datetime' },
+        { label: '计划开奖', key: 'draw_at', format: 'datetime' },
+        { label: '实际开奖', key: 'drawn_at', format: 'datetime' }
+      ]
+    }
   },
   lotteryEntries: {
     table: 'lottery_entries',
@@ -455,7 +580,25 @@ export const dataConfig = {
       { key: 'excerpt', label: '摘要', type: 'textarea', required: true, rows: 3, placeholder: '用 1-2 句话写新闻列表预览，建议 30-80 字。', group: 'content' },
       { key: 'content', label: '正文内容', type: 'textarea', required: true, rows: 9, placeholder: '直接写正文即可。空行会分段，以“- ”开头会自动变成列表。', group: 'content' },
       { key: 'image', label: '封面图', type: 'image', placeholder: '上传后自动填入，也可以粘贴 https:// 图片链接', hint: '推荐使用"上传到 Cloud"，也支持 @/assets 路径或远程图片地址。', group: 'media' }
-    ]
+    ],
+    cardView: {
+      imageKey: 'image',
+      placeholderIcon: '📰',
+      titleKey: 'title',
+      subtitleKey: 'author',
+      subtitleLabel: '作者',
+      statusKey: 'category',
+      statusMeta: {
+        event: { label: '活动公告', tone: 'info' },
+        update: { label: '功能更新', tone: 'success' },
+        community: { label: '社区动态', tone: 'warning' },
+        announce: { label: '站内公告', tone: 'danger' }
+      },
+      meta: [
+        { label: '发布日期', key: 'date', format: 'date' },
+        { label: '摘要', key: 'excerpt' }
+      ]
+    }
   },
   activities: {
     table: 'activities',
@@ -471,7 +614,18 @@ export const dataConfig = {
       { key: 'date', label: '日期', type: 'date', required: true, group: 'basic' },
       { key: 'description', label: '描述', type: 'textarea', placeholder: '直接写活动介绍，不需要填写任何代码。', group: 'basic' },
       { key: 'image', label: '活动图', type: 'image', placeholder: '上传后自动填入，也可以粘贴 https:// 图片链接', hint: '推荐使用"上传到 Cloud"。', group: 'media' }
-    ]
+    ],
+    cardView: {
+      imageKey: 'image',
+      placeholderIcon: '🎉',
+      titleKey: 'title',
+      subtitleKey: 'date',
+      subtitleLabel: '活动日期',
+      subtitleFormat: 'date',
+      meta: [
+        { label: '描述', key: 'description' }
+      ]
+    }
   },
   products: {
     table: 'products',
@@ -496,6 +650,23 @@ export const dataConfig = {
       { key: 'is_purchasable', label: '允许购买', type: 'select', options: [{ value: true, label: '允许购买' }, { value: false, label: '不可购买' }], group: 'pricing' },
       { key: 'image', label: '商品图片', type: 'image', placeholder: '上传后自动填入，也可以粘贴 https:// 图片链接', hint: '推荐使用"上传到 Cloud"。', group: 'media' },
       { key: 'specifications', label: '规格选项', type: 'specifications', group: 'specs' }
-    ]
+    ],
+    cardView: {
+      imageKey: 'image',
+      placeholderIcon: '🎁',
+      titleKey: 'title',
+      subtitleKey: 'category',
+      subtitleType: 'badge',
+      statusKey: 'is_active',
+      statusMeta: {
+        true: { label: '上架', tone: 'success' },
+        false: { label: '隐藏', tone: 'muted' }
+      },
+      stats: [
+        { label: '积分', key: 'points_cost' },
+        { label: '库存', key: 'stock' },
+        { label: '可购', key: 'is_purchasable', values: { true: '允许', false: '禁止' } }
+      ]
+    }
   }
 };

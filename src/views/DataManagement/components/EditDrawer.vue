@@ -162,6 +162,52 @@
                       </div>
                     </div>
 
+                    <!-- 商品选择器（礼物专用：可从商城选或手动填） -->
+                    <div v-else-if="field.type === 'product-picker'" class="product-picker-field">
+                      <div class="product-picker-search-row">
+                        <input
+                          :value="productPickerKeyword"
+                          type="text"
+                          class="form-input product-picker-search"
+                          placeholder="搜索商城商品名称…"
+                          @input="$emit('update:productPickerKeyword', $event.target.value)"
+                        />
+                        <button type="button" class="btn btn-secondary product-picker-toggle-btn"
+                          :disabled="productPickerLoading"
+                          @click="$emit('toggleProductPicker')">
+                          {{ productPickerLoading ? '加载中…' : (showProductPicker ? '收起' : '从商城选') }}
+                        </button>
+                      </div>
+                      <div v-if="showProductPicker" class="product-picker-dropdown">
+                        <div v-if="productPickerLoading" class="product-picker-loading">正在加载商品…</div>
+                        <button
+                          v-for="product in filteredProducts"
+                          v-else
+                          :key="product.id"
+                          type="button"
+                          class="product-picker-item"
+                          @click="$emit('selectProduct', product)"
+                        >
+                          <img v-if="product.image" :src="getImageUrl(product.image, { silent: true })" :alt="product.title" class="product-picker-item-img" loading="lazy" />
+                          <span v-else class="product-picker-item-placeholder">🎁</span>
+                          <span class="product-picker-item-name">{{ product.title || '未命名商品' }}</span>
+                          <span class="product-picker-item-price">{{ product.points_cost }} 积分</span>
+                        </button>
+                        <div v-if="!productPickerLoading && filteredProducts.length === 0" class="product-picker-empty">
+                          未找到匹配的商品
+                        </div>
+                      </div>
+                      <input
+                        :value="editingItem[field.key]"
+                        type="text"
+                        class="form-input product-picker-manual"
+                        :placeholder="field.placeholder || '可直接手动填写礼物名称'"
+                        :disabled="isFieldDisabled(field)"
+                        @input="setField(field.key, $event.target.value); $emit('clearFieldError', field.key)"
+                      />
+                      <p v-if="field.hint" class="field-hint">{{ field.hint }}</p>
+                    </div>
+
                     <!-- 文本输入 -->
                     <input v-else-if="field.type === 'text'" :id="`f-${currentTab}-${field.key}`"
                       :value="editingItem[field.key]" type="text"
@@ -490,7 +536,8 @@ const FULL_WIDTH_TYPES = new Set([
   'tags',
   'specifications',
   'image',
-  'user-picker'
+  'user-picker',
+  'product-picker'
 ]);
 
 const isFullWidthField = (field) => FULL_WIDTH_TYPES.has(field?.type) || field?.fullWidth;
@@ -562,7 +609,7 @@ const inferFieldGroup = (currentTab, field) => {
   // 默认回退规则
   if (['date', 'datetime'].includes(field.type)) return 'time';
   if (['number'].includes(field.type)) return 'stats';
-  if (['textarea', 'json', 'image', 'tags', 'specifications', 'user-picker'].includes(field.type)) return 'content';
+  if (['textarea', 'json', 'image', 'tags', 'specifications', 'user-picker', 'product-picker'].includes(field.type)) return 'content';
   if (['select', 'email'].includes(field.type)) return 'basic';
   return 'basic';
 };
@@ -640,6 +687,10 @@ const props = defineProps({
   addressBundleText: String,
   uploadingImageFields: Array,
   userPickerLoading: { type: Boolean, default: false },
+  showProductPicker: { type: Boolean, default: false },
+  productPickerKeyword: { type: String, default: '' },
+  productPickerLoading: { type: Boolean, default: false },
+  filteredProducts: { type: Array, default: () => [] },
   isFieldDisabled: { type: Function, default: () => false },
   isImageUploadPending: { type: Function, default: () => false },
   hasPrevRecord: { type: Boolean, default: false },
@@ -673,6 +724,9 @@ const emit = defineEmits([
   'updateJsonBuffer',
   'updateSpecField',
   'update:userPickerKeyword',
+  'update:productPickerKeyword',
+  'toggleProductPicker',
+  'selectProduct',
   'prev-record',
   'next-record',
   'bohaiKeySelect',

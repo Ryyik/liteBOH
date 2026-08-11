@@ -81,6 +81,19 @@ export const TAB_SELECT_COLUMNS = {
     updated_at,
     profile:user_id(username)
   `,
+  addresses: `
+    id,
+    user_id,
+    recipient,
+    phone,
+    region,
+    detail,
+    tag,
+    is_default,
+    created_at,
+    updated_at,
+    profile:user_id(username)
+  `,
   posterRequests: `
     id,
     campaign_code,
