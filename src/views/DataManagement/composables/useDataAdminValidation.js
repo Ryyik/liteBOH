@@ -192,8 +192,10 @@ export const createFieldValidator = (deps) => (fieldKey) => {
   }
 
   if (field.type === 'select' && Array.isArray(field.options) && field.options.length > 0) {
-    const allowedValues = field.options.map((opt) => opt.value);
-    if (!allowedValues.includes(value)) {
+    // HTML <select> change 事件始终返回字符串，而 options.value 可能是布尔值/数字，
+    // 用字符串化对比避免类型不匹配（如 [true,false].includes("true") 为 false）。
+    const allowedValues = field.options.map((opt) => String(opt.value));
+    if (!allowedValues.includes(String(value))) {
       fieldErrors[fieldKey] = `${field.label}选项无效`;
       return false;
     }
