@@ -5,6 +5,7 @@ export const products = [
     title: "BOH BAG Air",
     description: "轻便胸包，BOH BAG 系列标识",
     points_cost: 40,
+    payment_mode: "points_only",
     stock: 99,
     image: "Bagair.webp",
     specifications: [
@@ -18,6 +19,7 @@ export const products = [
     title: "BOH BAG Pro",
     description: "帆布袋,耐用帆布材质，简约图形设计",
     points_cost: 30,
+    payment_mode: "points_only",
     stock: 50,
     image: "bagpro.webp",
     specifications: [
@@ -28,73 +30,81 @@ export const products = [
     id: 103,
     category: "BOH Bag",
     title: "BOH BAG Pro Max",
-    description: "超大容量，一体化设计， perfect for packing your essentials",
+    description: "大容量双肩包，BOH BAG 系列顶配",
     points_cost: 60,
-    stock: 20,
-    image: "xnbag-3.webp",
+    payment_mode: "points_only",
+    stock: 30,
+    image: "Bagpromax.webp",
     specifications: [
-      { label: "限定色", value: "Gold" },
+      { label: "标准款", value: "Standard" }
     ]
   },
   {
     id: 201,
     category: "BOH 装饰",
     title: "BOH 纪念勋章",
-    description: "精致金属材质，BOH 经典标识，极具收藏价值",
+    description: "金属烤漆材质，经典方块图案",
     points_cost: 16,
-    stock: 150,
-    image: "main2.webp",
+    payment_mode: "points_only",
+    stock: 100,
+    image: "seclogo.png",
     specifications: [
-      { label: "经典款", value: "Classic" },
-      { label: "周年限量版", value: "Limited" }
+      { label: "金银可选", value: "Gold" },
+      { label: "玫瑰金", value: "Rose" }
     ]
   },
   {
     id: 202,
     category: "BOH 虚拟",
     title: "BOH 地图服务",
-    description: "方块之家地图制作服务",
+    description: "个性化地图定制与导航优化。通过积分兑换地图服务，由管理员联系实现。",
     points_cost: 80,
-    stock: 999,
-    image: "",
+    payment_mode: "points_only",
+    stock: 50,
+    image: "map-image-2.webp",
     specifications: [
-      { label: "本次有效", value: "Permanent" }
-    ]
-  },
-  {
-    id: 300,
-    category: "BOH 装饰",
-    title: "BOH特别礼物面包Toy(2024+)",
-    description: "如果你是第一次收到方块之家送你的礼物，且你的加入日期是2024之后，那你肯定会收到这个！",
-    points_cost: 14,
-    stock: 200,
-    image: "breadgift.webp",
-    specifications: [
-      { label: "现货", value: "A2H" }
-    ]
-  },
-  {
-    id: 299,
-    category: "BOH 装饰",
-    title: "BOH特别礼物小熊Toy(2021-2024)",
-    description: "如果你是第一次收到方块之家送你的礼物，且你的加入日期是2021-2024之间，那你肯定会收到这个！现已绝版。",
-    points_cost: 0,
-    stock: 200,
-    image: "toybeargift.webp",
-    specifications: [
-      { label: "绝版", value: "A2H" }
+      { label: "基础版", value: "Basic" },
+      { label: "增强版", value: "Enhanced" }
     ]
   },
   {
     id: 301,
     category: "BOH 装饰",
-    title: "周年纪念海报",
-    description: "高品质印刷，记录周年瞬间",
-    points_cost: 13,
-    stock: 200,
-    image: "2024-newyears.webp",
+    title: "BOH 面包 Toy",
+    description: "软萌面包造型公仔玩具",
+    points_cost: 14,
+    payment_mode: "points_only",
+    stock: 40,
+    image: "面包.webp",
     specifications: [
-      { label: "横版 A2", value: "A2H" }
+      { label: "默认款", value: "Default" }
+    ]
+  },
+  {
+    id: 310,
+    category: "BOH 装饰",
+    title: "BOH 小熊 Toy",
+    description: "纪念绝版形象",
+    points_cost: 0,
+    payment_mode: "points_only",
+    stock: 0,
+    image: "小熊.webp",
+    specifications: [
+      { label: "默认款", value: "Default" }
+    ]
+  },
+  {
+    id: 311,
+    category: "BOH 装饰",
+    title: "BOH 纪念海报",
+    description: "高精度艺术微喷，裱装品质",
+    points_cost: 13,
+    payment_mode: "points_only",
+    stock: 60,
+    image: "poster-sample.webp",
+    specifications: [
+      { label: "A3 尺寸", value: "A3" },
+      { label: "A4 尺寸", value: "A4" }
     ]
   },
   {
@@ -103,6 +113,7 @@ export const products = [
     title: "明信片套装（8张）",
     description: "精选建筑风光图集",
     points_cost: 9,
+    payment_mode: "points_only",
     stock: 80,
     image: "2025-7years.webp",
     specifications: [
@@ -116,6 +127,7 @@ export const products = [
     title: "BOH 特制贴纸",
     description: "防水材质，适合贴在笔记本或手机壳上",
     points_cost: 5,
+    payment_mode: "points_only",
     stock: 500,
     image: "tiezhi.webp",
     specifications: [
@@ -128,6 +140,7 @@ export const products = [
     title: "像素乐高形象定制",
     description: "根据你的设计定制专属像素形象",
     points_cost: 200,
+    payment_mode: "points_only",
     stock: 10,
     image: "xnbag-3.webp",
     specifications: [
@@ -140,6 +153,7 @@ export const products = [
     title: "方块之家7周年纪念册",
     description: "硬壳精装版，记录方块之家7年来的点点滴滴。",
     points_cost: 35,
+    payment_mode: "points_only",
     stock: 30,
     image: "jiniance.webp",
     specifications: [
@@ -152,23 +166,11 @@ export const products = [
     title: "小牛定制流麻",
     description: "动态流沙麻将，blingbling效果。",
     points_cost: 30,
+    payment_mode: "points_only",
     stock: 45,
     image: "main2.webp",
     specifications: [
       { label: "默认款", value: "Default" }
-    ]
-  },
-  {
-    id: 501,
-    category: "BOH 装饰",
-    title: "BOH 吉祥物公仔",
-    description: "软乎乎的全新吉祥物玩偶，陪你走过方块之家的每一天。手感软糯，治愈满满～",
-    points_cost: 45,
-    stock: 100,
-    image: "mascot-new-landscape-orig.webp",
-    specifications: [
-      { label: "标准版 20cm", value: "Standard" },
-      { label: "大号 30cm", value: "Large" }
     ]
   }
 ];

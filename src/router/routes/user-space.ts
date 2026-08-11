@@ -83,7 +83,7 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
     path: "/user-space/gifts",
     name: "Gifts",
     component: () => import("../../views/user-center/Address/index.vue"),
-    meta: { ...userSpaceMeta, hideNavbar: true },
+    meta: { ...userSpaceMeta },
   },
   {
     path: "/user-space/messages",
@@ -93,7 +93,7 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
     path: "/user-space/partners",
     name: "Partners",
     component: () => import("../../views/user-center/Partners.vue"),
-    meta: { ...userSpaceMeta, hideNavbar: true },
+    meta: { ...userSpaceMeta },
   },
   {
     path: "/user-space",
@@ -121,30 +121,30 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
     path: "/user-space/account-security",
     name: "AccountSecurity",
     component: () => import("../../views/user-center/AccountSecurity/index.vue"),
-    meta: { ...userSpaceMeta, hideNavbar: true },
+    meta: { ...userSpaceMeta },
   },
   {
     path: "/user-space/note",
     name: "BOHCloudPlus",
     component: () => import("../../views/user-center/Cloud+/index.vue"),
-    meta: { ...userSpaceMeta, hideNavbar: true },
+    meta: { ...userSpaceMeta },
   },
   {
     path: "/user-space/shared-memories",
     name: "SharedMemoryManagement",
     component: () => import("../../views/user-center/SharedMemoryManagement.vue"),
-    meta: { ...userSpaceMeta, hideNavbar: true },
+    meta: { ...userSpaceMeta },
   },
   {
     path: "/user-space/tags-impressions",
     name: "TagsImpressions",
     component: () => import("../../views/user-center/TagsImpressions.vue"),
-    meta: { ...userSpaceMeta, hideNavbar: true },
+    meta: { ...userSpaceMeta },
   },
   {
     path: "/user-space/pushplus-settings",
     name: "PushplusSettings",
     component: () => import("../../views/user-center/PushplusSettingsPage.vue"),
-    meta: { ...userSpaceMeta, hideNavbar: true },
+    meta: { ...userSpaceMeta },
   },
 ]

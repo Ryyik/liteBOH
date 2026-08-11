@@ -15,9 +15,13 @@ const CHECK_INTERVAL = 5 * 60 * 1000; // 每 5 分钟检查一次
 const VERSION_URL = './version.json'; // 相对路径，适配任意部署路径
 const RELOAD_TARGET_KEY = 'boh_version_reload_target';
 const UPDATE_QUERY_KEY = '__boh_update';
+const UPDATE_CLEANUP_TIMEOUT = 1500;
+const VERSION_REQUEST_TIMEOUT = 10_000;
 
 let intervalId = null;
 let visibilityHandler = null;
+let versionFetchInFlight = null;
+let automaticCheckInFlight = null;
 let currentVersion = null; // 当前语义版本（来自 meta boh-version，如 4.7.2）
 let currentBuildId = null; // 当前构建指纹（来自 meta boh-build-id，用于比对）
 
@@ -32,6 +36,53 @@ export const buildVersionReloadPath = (href, targetBuildId = '') => {
   reloadUrl.searchParams.delete('clearCache');
   reloadUrl.searchParams.set(UPDATE_QUERY_KEY, String(targetBuildId || Date.now()));
   return `${reloadUrl.pathname}${reloadUrl.search}${reloadUrl.hash}`;
+};
+
+const waitForCleanup = async (cleanupPromise, timeout = UPDATE_CLEANUP_TIMEOUT) => {
+  let timeoutId = null;
+  try {
+    return await Promise.race([
+      cleanupPromise.then(() => true),
+      new Promise((resolve) => {
+        timeoutId = window.setTimeout(() => resolve(false), timeout);
+      }),
+    ]);
+  } finally {
+    if (timeoutId !== null) window.clearTimeout(timeoutId);
+  }
+};
+
+const readReloadTarget = () => {
+  let storedTarget = '';
+  try {
+    storedTarget = sessionStorage.getItem(RELOAD_TARGET_KEY) || '';
+  } catch (err) {
+    logger.warn('version', '无法读取目标构建标记', err);
+  }
+  if (storedTarget) return storedTarget;
+
+  // sessionStorage 不可用时，刷新 URL 中的目标构建仍能阻止自动刷新循环。
+  try {
+    return new URL(window.location.href).searchParams.get(UPDATE_QUERY_KEY) || '';
+  } catch {
+    return '';
+  }
+};
+
+const writeReloadTarget = (targetBuildId) => {
+  try {
+    sessionStorage.setItem(RELOAD_TARGET_KEY, targetBuildId);
+  } catch (err) {
+    logger.warn('version', '无法记录目标构建，继续执行更新', err);
+  }
+};
+
+const clearReloadTarget = () => {
+  try {
+    sessionStorage.removeItem(RELOAD_TARGET_KEY);
+  } catch (err) {
+    logger.warn('version', '无法清除目标构建标记', err);
+  }
 };
 
 /**
@@ -57,18 +108,33 @@ const readCurrentBuildId = () => {
  * 使用 cache: 'no-store' 绕过浏览器缓存
  * 加时间戳查询参数绕过 CDN 缓存（GitHub Pages CDN 对 .json 有缓存）
  */
-const fetchRemoteVersion = async () => {
-  const url = `${VERSION_URL}?_t=${Date.now()}`;
-  const res = await fetch(url, {
-    method: 'GET',
-    cache: 'no-store',
-    credentials: 'omit',
-    headers: { 'Accept': 'application/json' },
+const fetchRemoteVersion = () => {
+  if (versionFetchInFlight) return versionFetchInFlight;
+
+  versionFetchInFlight = (async () => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), VERSION_REQUEST_TIMEOUT);
+    try {
+      const url = `${VERSION_URL}?_t=${Date.now()}`;
+      const res = await fetch(url, {
+        method: 'GET',
+        cache: 'no-store',
+        credentials: 'omit',
+        headers: { 'Accept': 'application/json' },
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        throw new Error(`version.json 请求失败: ${res.status}`);
+      }
+      return await res.json();
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  })().finally(() => {
+    versionFetchInFlight = null;
   });
-  if (!res.ok) {
-    throw new Error(`version.json 请求失败: ${res.status}`);
-  }
-  return res.json();
+
+  return versionFetchInFlight;
 };
 
 /**
@@ -77,9 +143,7 @@ const fetchRemoteVersion = async () => {
  */
 export const forceCleanAndReload = async (targetBuildId = '') => {
   const safeTargetBuildId = String(targetBuildId || '').trim();
-  if (safeTargetBuildId) {
-    sessionStorage.setItem(RELOAD_TARGET_KEY, safeTargetBuildId);
-  }
+  const reloadPath = buildVersionReloadPath(window.location.href, safeTargetBuildId);
 
   logger.info('version', '用户确认更新，开始清除缓存并刷新', {
     from: currentVersion,
@@ -87,26 +151,41 @@ export const forceCleanAndReload = async (targetBuildId = '') => {
   });
 
   try {
-    // 1. 注销所有 Service Worker
+    if (safeTargetBuildId) {
+      writeReloadTarget(safeTargetBuildId);
+    }
+
+    // 必须先完成 SW 注销，否则超时导航仍可能被旧 SW 接管并返回旧页面。
     if ('serviceWorker' in navigator) {
       const registrations = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(registrations.map((r) => r.unregister()));
+      await Promise.allSettled(registrations.map((registration) => registration.unregister()));
       logger.info('version', `已注销 ${registrations.length} 个 Service Worker`);
     }
 
-    // 2. 清空所有 Cache Storage
+    // Cache Storage 在部分 WebKit 环境可能长时间不结束。SW 已注销后，即使
+    // 缓存清理超时，带构建指纹的导航也会直接访问网络，不会再被旧 SW 拦截。
     if ('caches' in window) {
-      const keys = await caches.keys();
-      await Promise.all(keys.map((k) => caches.delete(k)));
-      logger.info('version', `已清除 ${keys.length} 个缓存`);
+      const cacheCleanupCompleted = await waitForCleanup(
+        caches.keys().then(async (keys) => {
+          await Promise.allSettled(keys.map((key) => caches.delete(key)));
+          logger.info('version', `已清除 ${keys.length} 个缓存`);
+        })
+      );
+      if (!cacheCleanupCompleted) {
+        logger.warn('version', '缓存清理等待超时，继续刷新');
+      }
     }
-
-    // 3. 使用新 buildId 作为 HTML 查询参数，同时绕过 GitHub Pages/CDN 的旧 index.html。
-    window.location.replace(buildVersionReloadPath(window.location.href, safeTargetBuildId));
   } catch (err) {
     logger.error('version', '强制更新流程出错', err);
-    // 即使出错也尝试刷新
-    window.location.reload();
+  } finally {
+    // 无论清理成功、失败或超时，都必须离开当前旧文档。查询参数同时
+    // 绕过浏览器和 CDN 对 index.html 的缓存，并保留 Hash 路由。
+    try {
+      window.location.replace(reloadPath);
+    } catch (err) {
+      logger.error('version', '更新导航失败，退回普通刷新', err);
+      window.location.reload();
+    }
   }
 };
 
@@ -137,7 +216,7 @@ const notifyUpdateAvailable = (remoteVersion, remoteBuildId) => {
 
 const clearCompletedReloadState = (remoteBuildId) => {
   if (!remoteBuildId || remoteBuildId !== currentBuildId) return;
-  sessionStorage.removeItem(RELOAD_TARGET_KEY);
+  clearReloadTarget();
   const currentUrl = new URL(window.location.href);
   if (!currentUrl.searchParams.has(UPDATE_QUERY_KEY)) return;
   currentUrl.searchParams.delete(UPDATE_QUERY_KEY);
@@ -219,27 +298,39 @@ export const initVersionChecker = () => {
     logger.debug('version', '开发环境，跳过版本检测器初始化');
     return;
   }
+  if (intervalId || visibilityHandler) {
+    logger.debug('version', '版本检测器已初始化，跳过重复启动');
+    return;
+  }
 
   // 自动轮询检测：检测到新版本时派发 boh:update-available 事件，
   // 由 PWAUpdateToast 弹出统一对话框提示用户，不直接强制刷新
-  const autoCheck = async ({ autoApply = false } = {}) => {
-    try {
-      const result = await checkVersion();
-      if (result.hasUpdate) {
-        const attemptedTarget = sessionStorage.getItem(RELOAD_TARGET_KEY) || '';
-        if (autoApply && shouldAutoApplyVersion(result.remoteBuildId, attemptedTarget)) {
-          logger.info('version', '页面启动时发现新构建，自动清理旧缓存并刷新', {
-            currentBuildId,
-            remoteBuildId: result.remoteBuildId,
-          });
-          await forceCleanAndReload(result.remoteBuildId);
-          return;
+  const autoCheck = ({ autoApply = false } = {}) => {
+    if (automaticCheckInFlight) return automaticCheckInFlight;
+
+    automaticCheckInFlight = (async () => {
+      try {
+        const result = await checkVersion();
+        if (result.hasUpdate) {
+          const attemptedTarget = readReloadTarget();
+          if (autoApply && shouldAutoApplyVersion(result.remoteBuildId, attemptedTarget)) {
+            logger.info('version', '页面启动时发现新构建，自动清理旧缓存并刷新', {
+              currentBuildId,
+              remoteBuildId: result.remoteBuildId,
+            });
+            await forceCleanAndReload(result.remoteBuildId);
+            return;
+          }
+          notifyUpdateAvailable(result.remoteVersion, result.remoteBuildId);
         }
-        notifyUpdateAvailable(result.remoteVersion, result.remoteBuildId);
+      } catch (err) {
+        logger.warn('version', '自动版本检查异常', err?.message || err);
       }
-    } catch (err) {
-      logger.warn('version', '自动版本检查异常', err?.message || err);
-    }
+    })().finally(() => {
+      automaticCheckInFlight = null;
+    });
+
+    return automaticCheckInFlight;
   };
 
   // 页面启动时若发现自己属于旧构建，自动应用一次新构建。同一目标 buildId

@@ -1,6 +1,6 @@
 <template>
-  <div class="account-security-page">
-    <UserCenterPageHeader title="账户安全" max-width="650px" @back="handleHeaderBack" />
+  <div class="account-security-page" :style="{ '--user-center-nav-offset': isFromUserSpace ? '0px' : '72px', paddingTop: isFromUserSpace ? '0px' : '72px' }">
+    <UserCenterPageHeader v-if="isFromUserSpace" title="账户安全" max-width="1200px" @back="handleHeaderBack" />
 
     <div class="profile-subpage-shell">
       <div class="profile-subpage-body">
@@ -188,6 +188,7 @@ const DELETE_ACCOUNT_CONFIRM_TEXT = '确认注销';
 
 const router = useRouter();
 const route = useRoute();
+const isFromUserSpace = computed(() => String(route.query.from || '').startsWith('userspace'));
 const authStore = useAuthStore();
 const { isLoggedIn, userInfo } = storeToRefs(authStore);
 

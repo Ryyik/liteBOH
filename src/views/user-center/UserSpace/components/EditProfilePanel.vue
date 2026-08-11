@@ -1,6 +1,6 @@
 <template>
   <div class="profile-edit-page-shell">
-    <UserCenterPageHeader title="编辑资料" back-label="返回我的" max-width="650px" @back="$emit('close')" />
+    <UserCenterPageHeader title="编辑资料" back-label="返回我的" max-width="1200px" @back="$emit('close')" />
 
     <section class="profile-edit-page-card">
       <div class="profile-edit-page-hero">

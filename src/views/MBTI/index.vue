@@ -374,10 +374,12 @@ const shareResult = async () => {
   showAlert("info", "分享我的结果", fallbackText);
 };
 
+// answers 需要 deep（selectOption 中 answers.value[qid] = score 是属性赋值）
+watch([answers], persistProgress, { deep: true });
+// 其余 7 个源只需浅监听（基础类型 + 整体替换）
 watch(
-  [answers, currentPage, testStarted, showResult, resultType, resultName, resultDesc, scores],
-  persistProgress,
-  { deep: true }
+  [currentPage, testStarted, showResult, resultType, resultName, resultDesc, scores],
+  persistProgress
 );
 
 onMounted(() => {

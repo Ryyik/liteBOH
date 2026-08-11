@@ -6,8 +6,7 @@
 import { ensureThemeCSS } from './theme-css-loader.js';
 import { logger } from './logger.js';
 
-const DEFAULT_THEME = 'anniversary-mc';
-const ANNIVERSARY_THEME_MIGRATION_KEY = 'boh-theme-anniversary-mc-default-v1';
+const DEFAULT_THEME = 'light';
 const VALID_THEMES = ['light', 'dark', 'system', 'home-cat', 'anniversary-mc'];
 
 class ThemeManager {
@@ -32,22 +31,13 @@ class ThemeManager {
     if (this.initialized) return;
     this.initialized = true;
 
-    // Apply the campaign default once on existing devices. Later user choices remain authoritative.
     const savedTheme = localStorage.getItem('boh-theme');
     const savedUiStyle = localStorage.getItem('boh-ui-style');
-    const needsAnniversaryMigration = localStorage.getItem(ANNIVERSARY_THEME_MIGRATION_KEY) !== 'done';
 
-    this.preference = needsAnniversaryMigration
-      ? DEFAULT_THEME
-      : (VALID_THEMES.includes(savedTheme) ? savedTheme : DEFAULT_THEME);
+    this.preference = VALID_THEMES.includes(savedTheme) ? savedTheme : DEFAULT_THEME;
     this.uiStyle = ['flat', 'glass'].includes(savedUiStyle) ? savedUiStyle : 'glass';
     this.theme = this.resolveTheme(this.preference);
     this.updateSystemThemeListener();
-
-    if (needsAnniversaryMigration) {
-      localStorage.setItem('boh-theme', DEFAULT_THEME);
-      localStorage.setItem(ANNIVERSARY_THEME_MIGRATION_KEY, 'done');
-    }
 
     // 应用主题
     this.applyTheme(this.theme, this.preference);

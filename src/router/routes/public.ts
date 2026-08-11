@@ -12,6 +12,12 @@ export const publicRoutes: RouteRecordRaw[] = [
     component: () => import("../../views/Shop/index.vue"),
   },
   {
+    path: "/shop/account",
+    name: "ShopAccount",
+    component: () => import("../../views/Shop/ShopAccountPage.vue"),
+    meta: { requiresLogin: true },
+  },
+  {
     path: "/gift",
     name: "Gift",
     component: () => import("../../views/Gift/index.vue"),

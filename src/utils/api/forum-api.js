@@ -20,6 +20,8 @@ export {
 export {
   getComments,
   getCommentThreadReplies,
+  getCommentAncestors,
+  getCommentThreadPreviewsBatch,
   createComment,
   deleteComment
 } from './forum/comment-api.js';

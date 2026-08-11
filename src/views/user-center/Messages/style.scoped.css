@@ -1,12 +1,12 @@
 .x-notifications-container {
-  --user-center-nav-offset: 72px;
+  --user-center-nav-offset: 0px;
   --user-center-page-header-height: 76px;
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
   background: #f8f9fa;
   min-height: 100vh;
-  padding: 72px 0 40px;
+  padding: 0 0 40px;
   font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   box-sizing: border-box;
 }
@@ -2145,7 +2145,7 @@
     overflow-y: auto;
     overflow-x: hidden;
     border-right: 1px solid rgba(16, 24, 40, 0.08);
-    padding: 72px 0 0;
+    padding: 0 0 0;
   }
 
   .x-notifications-container.detail-open.minimal-mode .x-master-panel {

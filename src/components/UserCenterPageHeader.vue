@@ -70,7 +70,7 @@ defineEmits(['back']);
   margin: 0 auto;
   padding: 0 clamp(18px, 4vw, 40px);
   display: grid;
-  grid-template-columns: minmax(52px, 1fr) auto minmax(52px, 1fr);
+  grid-template-columns: 52px 1fr 52px;
   align-items: center;
   box-sizing: border-box;
 }

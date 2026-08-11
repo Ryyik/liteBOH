@@ -33,13 +33,21 @@
           <div class="g-eyebrow">快捷工具</div>
           <strong>独立管理页</strong>
         </div>
-        <span class="g-badge is-muted">1 项</span>
+        <span class="g-badge is-muted">2 项</span>
       </div>
       <button type="button" class="g-quick-tool" @click="goToShopConsole">
         <StoreIcon :size="18" class="g-quick-tool-icon" />
         <span class="g-quick-tool-copy">
           <strong>商城装修</strong>
           <small>可视化编辑商城商品与展示，保存即生效</small>
+        </span>
+        <span class="g-quick-tool-arrow">→</span>
+      </button>
+      <button type="button" class="g-quick-tool" @click="goToHeroConsole">
+        <LayoutIcon :size="18" class="g-quick-tool-icon" />
+        <span class="g-quick-tool-copy">
+          <strong>首页装修</strong>
+          <small>可视化编辑首页英雄区，模板/预览/裁切/发布</small>
         </span>
         <span class="g-quick-tool-arrow">→</span>
       </button>
@@ -290,7 +298,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { Cloud, Layers, LoaderCircle, RefreshCw, Store as StoreIcon, Table as TableIcon, Activity as ActivityIcon, Home as HomeIcon } from 'lucide-vue-next';
+import { Cloud, Layers, LoaderCircle, RefreshCw, Store as StoreIcon, Table as TableIcon, Activity as ActivityIcon, Home as HomeIcon, Layout as LayoutIcon } from 'lucide-vue-next';
 import {
   getSupabaseProjectStatus,
   getCloudinaryUsageStatus,
@@ -323,6 +331,10 @@ const router = useRouter();
 
 const goToShopConsole = () => {
   router.push('/admin/shop-console').catch(() => {});
+};
+
+const goToHeroConsole = () => {
+  router.push('/admin/hero-console').catch(() => {});
 };
 
 // Tabs state

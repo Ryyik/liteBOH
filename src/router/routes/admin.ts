@@ -38,4 +38,10 @@ export const adminRoutes: RouteRecordRaw[] = [
     component: () => import("../../views/ShopConsole/index.vue"),
     meta: { requiresAdmin: true, hideNavbar: true },
   },
+  {
+    path: "/admin/hero-console",
+    name: "HeroConsole",
+    component: () => import("../../views/HeroConsole/index.vue"),
+    meta: { requiresAdmin: true, hideNavbar: true },
+  },
 ]

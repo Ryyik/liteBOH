@@ -1,6 +1,6 @@
 <template>
-  <div class="tags-impressions-page">
-    <UserCenterPageHeader title="标签与印象" max-width="800px" @back="goBack" />
+  <div class="tags-impressions-page" :style="{ '--user-center-nav-offset': isFromUserSpace ? '0px' : '72px', paddingTop: isFromUserSpace ? '0px' : '72px' }">
+    <UserCenterPageHeader v-if="isFromUserSpace" title="标签与印象" max-width="1200px" @back="goBack" />
 
     <div class="content-container">
       <!-- Info Card -->
@@ -70,7 +70,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive } from 'vue';
+import { ref, computed, onMounted, reactive } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { MessageCircle, Tag } from 'lucide-vue-next';
 import { supabase } from '@/utils/supabase-client.js';
@@ -85,6 +85,7 @@ import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 
 const router = useRouter();
 const route = useRoute();
+const isFromUserSpace = computed(() => String(route.query.from || '').startsWith('userspace'));
 const authStore = useAuthStore();
 const { userInfo } = storeToRefs(authStore);
 
@@ -192,9 +193,10 @@ onMounted(fetchImpressions);
 
 <style scoped>
 .tags-impressions-page {
+  --user-center-nav-offset: 0px;
   min-height: 100vh;
   background-color: #f5f5f7;
-  padding: 72px 0 60px;
+  padding: 0 0 60px;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
 }
 

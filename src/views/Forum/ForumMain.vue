@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, watch } from 'vue';
+import { ref, shallowRef, computed, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, watch, triggerRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   Check,
@@ -36,7 +36,9 @@ const unreadCount = computed(() => notificationStoreRef.value?.unreadCount || 0)
 const currentUiStyle = ref('glass');
 const currentTheme = ref(themeManager.getTheme());
 const isAnniversaryMcTheme = computed(() => currentTheme.value === 'anniversary-mc');
-const anniversaryForumStyle = computed(() => isAnniversaryMcTheme.value
+const showAnniversaryBg = ref(false);
+let anniversaryObserver = null;
+const anniversaryForumStyle = computed(() => (isAnniversaryMcTheme.value && showAnniversaryBg.value)
   ? { '--forum-anniversary-image': `url(${anniversaryForumImage})` }
   : undefined);
 
@@ -170,7 +172,7 @@ import {
 const formatDate = formatSmartTime;
 
 // 论坛数据
-const forumData = ref([]);
+const forumData = shallowRef([]);
 const isLoading = ref(true);
 const isLoadingMore = ref(false);
 const hasMoreData = ref(true);
@@ -1352,6 +1354,20 @@ onMounted(() => {
   currentTheme.value = readActiveForumTheme();
   currentUiStyle.value = themeManager.getUiStyle?.() || 'glass';
   themeManager.addListener(handleThemeChange);
+  if (forumPageRef.value && typeof IntersectionObserver !== 'undefined') {
+    anniversaryObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          showAnniversaryBg.value = true;
+          anniversaryObserver?.disconnect();
+          anniversaryObserver = null;
+        }
+      });
+    }, { rootMargin: '100px' });
+    anniversaryObserver.observe(forumPageRef.value);
+  } else {
+    showAnniversaryBg.value = true;
+  }
   loadRetriedNotificationIds();
   restorePostDraft();
   // ✨ 移除：startAutoSaveDraftTimer()调用（改为手动保存）
@@ -1415,6 +1431,8 @@ onDeactivated(() => {
 
 onUnmounted(() => {
   forumWindowObserverAborted = true;
+  anniversaryObserver?.disconnect();
+  anniversaryObserver = null;
   themeManager.removeListener(handleThemeChange);
   clearForumImageModerationPreloadTask();
   // ✨ 移除：clearAutoSaveDraftTimer()调用（函数已不存在）
@@ -2742,6 +2760,7 @@ const loadPostReplyPreview = async (post) => {
   post.replies = Array.isArray(data) ? data : [];
   post.replies_has_more = Boolean(hasMore);
   post.replies_preloaded = true;
+  triggerRef(forumData);
 };
 
 const refreshPostEngagementStats = async (post) => {
@@ -2750,6 +2769,7 @@ const refreshPostEngagementStats = async (post) => {
   if (!statsRes.ok) return;
   post.comment_count = Number(statsRes.data?.commentCount || 0);
   post.like_count = Number(statsRes.data?.likeCount || 0);
+  triggerRef(forumData);
 };
 
 const toggleRepliesList = async (post) => {
@@ -2904,6 +2924,7 @@ const handleToggleLike = async (post) => {
       post.isLiked = false;
     }
     addUiMarker(likePulsePostIds, post.id, 1900, 'like-pulse');
+    triggerRef(forumData);
 
     emitProfileSync({
       userId: post.author_id,

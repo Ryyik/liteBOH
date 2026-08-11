@@ -13,7 +13,7 @@ import {
 } from 'lucide-vue-next';
 import { getHomeCatAsset, getHomeCatTypeBySeed } from '@/utils/home-cat-theme.js';
 import { formatSmartTime } from '@/utils/time.js';
-import DOMPurify from '@/utils/dompurify.js';
+import { getAvatarUrl } from '@/utils/avatar.js';
 import { FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT } from '../forum-config.js';
 
 const props = defineProps({
@@ -64,13 +64,14 @@ const escapeHtml = (value) => String(value || '')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#39;');
 
+const excerptCache = new Map();
 const renderSearchExcerpt = (excerpt) => {
+  if (excerptCache.has(excerpt)) return excerptCache.get(excerpt);
   const escaped = escapeHtml(excerpt);
-  const withMarks = escaped.replace(/\[\[([\s\S]*?)\]\]/g, '<mark>$1</mark>');
-  return DOMPurify.sanitize(withMarks, {
-    ALLOWED_TAGS: ['mark'],
-    ALLOWED_ATTR: []
-  });
+  const result = escaped.replace(/\[\[([\s\S]*?)\]\]/g, '<mark>$1</mark>');
+  if (excerptCache.size > 500) excerptCache.clear();
+  excerptCache.set(excerpt, result);
+  return result;
 };
 
 const getPostCardCatType = (index, post) => {
@@ -170,7 +171,7 @@ const replyTierMap = useTierMap(
     <div class="post-header-v2">
       <div class="post-author-section">
         <div class="post-author-avatar">
-          <img v-if="post.author_avatar_url" :src="post.author_avatar_url" alt="作者头像"
+          <img v-if="post.author_avatar_url" :src="getAvatarUrl(post.author_avatar_url, 'sm')" alt="作者头像"
             class="avatar-image"  loading="lazy" />
           <span v-else>{{ post.author_username ? post.author_username.charAt(0).toUpperCase() : 'U'
           }}</span>
@@ -329,7 +330,7 @@ const replyTierMap = useTierMap(
         <div v-for="reply in post.replies" :key="reply.id" class="reply-item-v2">
           <div class="reply-header-v2">
             <div class="reply-avatar">
-              <img v-if="reply.author_avatar_url" :src="reply.author_avatar_url" alt="回复者头像"
+              <img v-if="reply.author_avatar_url" :src="getAvatarUrl(reply.author_avatar_url, 'xs')" alt="回复者头像"
                 class="avatar-image"  loading="lazy" />
               <span v-else>{{ reply.author_username ? reply.author_username.charAt(0).toUpperCase() : 'U'
               }}</span>

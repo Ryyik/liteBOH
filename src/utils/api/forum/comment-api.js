@@ -227,6 +227,78 @@ export async function getCommentThreadReplies(postId, rootCommentId, currentUser
   );
 }
 
+/**
+ * 查询评论祖先链（从目标到根，含目标自身）
+ * 用于 PostDetailMain.vue 的深链定位，替代循环向上查询
+ * RPC 不存在时返回 fallback: true，调用方据此降级
+ */
+export async function getCommentAncestors(commentId, postId) {
+  const safeCommentId = String(commentId || '').trim();
+  const safePostId = String(postId || '').trim();
+
+  if (!safeCommentId || !safePostId) {
+    return { ok: false, data: null, error: normalizeDbError({ message: '评论参数不完整' }), fallback: false };
+  }
+
+  return executeRead(
+    'comments.getCommentAncestors',
+    { safeCommentId, safePostId },
+    async () => {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('get_comment_ancestors', {
+        p_comment_id: safeCommentId,
+        p_post_id: safePostId
+      });
+
+      if (!rpcError) {
+        return { data: Array.isArray(rpcData) ? rpcData : [], error: null, fallback: false };
+      }
+
+      if (isMissingRpcFunctionError(rpcError, 'get_comment_ancestors')) {
+        return { data: null, error: null, fallback: true };
+      }
+      return { data: null, error: rpcError, fallback: false };
+    },
+    { ttlMs: CACHE_TTL_LEVELS.USER_DATA, tags: ['comments', `comments:post:${safePostId}`], timeoutMs: 5000, retry: 1 }
+  );
+}
+
+/**
+ * 批量查询多个顶层评论的子回复预览（每条最早 1 条 + has_more）
+ * 用于 PostDetailMain.vue 的楼中楼预加载，替代逐条加载
+ * RPC 不存在时返回 fallback: true，调用方据此降级
+ */
+export async function getCommentThreadPreviewsBatch(postId, commentIds) {
+  const safePostId = String(postId || '').trim();
+  const safeCommentIds = Array.isArray(commentIds)
+    ? commentIds.map((id) => String(id || '').trim()).filter(Boolean)
+    : [];
+
+  if (!safePostId || safeCommentIds.length === 0) {
+    return { ok: false, data: [], error: normalizeDbError({ message: '评论参数不完整' }), fallback: false };
+  }
+
+  return executeRead(
+    'comments.getCommentThreadPreviewsBatch',
+    { safePostId, safeCommentIds },
+    async () => {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('get_comment_thread_previews', {
+        p_post_id: safePostId,
+        p_comment_ids: safeCommentIds
+      });
+
+      if (!rpcError) {
+        return { data: Array.isArray(rpcData) ? rpcData : [], error: null, fallback: false };
+      }
+
+      if (isMissingRpcFunctionError(rpcError, 'get_comment_thread_previews')) {
+        return { data: null, error: null, fallback: true };
+      }
+      return { data: null, error: rpcError, fallback: false };
+    },
+    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['comments', `comments:post:${safePostId}`], timeoutMs: 8000, retry: 1 }
+  );
+}
+
 export async function createComment(postId, content, authorId, authorUsername, status = 'approved', parentId = null, replyToUsername = null) {
   const safePostId = String(postId || '').trim();
   const safeContent = String(content || '').trim();

@@ -1,8 +1,8 @@
 <template>
-  <div class="shared-memory-page">
+  <div class="shared-memory-page" :style="{ '--user-center-nav-offset': isFromUserSpace ? '0px' : '72px', paddingTop: isFromUserSpace ? '0px' : '72px' }">
 
     <div class="shared-memory-shell">
-      <UserCenterPageHeader title="公共记忆管理" @back="goBack" />
+      <UserCenterPageHeader v-if="isFromUserSpace" title="公共记忆管理" max-width="1200px" @back="goBack" />
 
       <div class="page-description">
         <p>这里可以手动归档或删除你沉淀的 AI 公共记忆</p>
@@ -131,6 +131,7 @@ import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';
 
 const router = useRouter();
 const route = useRoute();
+const isFromUserSpace = computed(() => String(route.query.from || '').startsWith('userspace'));
 const authStore = useAuthStore();
 const { isLoggedIn, userInfo, showLoginModal } = storeToRefs(authStore);
 
@@ -440,6 +441,7 @@ onUnmounted(() => {
 
 <style scoped>
 .shared-memory-page {
+  --user-center-nav-offset: 0px;
   min-height: 100vh;
   background: linear-gradient(180deg, #f7f9fc 0%, #eef2f7 100%);
 }

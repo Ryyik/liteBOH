@@ -43,7 +43,7 @@ describe('bag store', () => {
         '规格A'
       );
       expect(result.ok).toBe(false);
-      expect(result.reason).toBe('PRODUCT_NOT_PURCHASABLE');
+      expect(result.reason).toBe('PRODUCT_NOT_EXCHANGEABLE');
       expect(store.shoppingBag).toHaveLength(0);
     });
 

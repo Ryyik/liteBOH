@@ -2,7 +2,7 @@
 
 /**
  * 构建产物分析脚本
- * 分析 index-XFFXz8D0.js 包含的模块
+ * 动态查找入口 chunk（app-*.js 或 index-*.js）并分析其包含的模块
  */
 
 import fs from 'fs';
@@ -61,11 +61,34 @@ function findChunk(data, chunkName) {
   return null;
 }
 
-// 分析 index-XFFXz8D0.js
-const indexChunk = findChunk(treeData, 'index-XFFXz8D0.js');
+// 动态查找入口 chunk：优先 app-*.js，其次最大的 index-*.js
+function findEntryChunk(data) {
+  let appChunk = null;
+  let largestIndexChunk = null;
+
+  function walk(node) {
+    if (Array.isArray(node)) {
+      node.forEach(walk);
+    } else if (node && node.name) {
+      if (/^app-[^/]+\.js$/.test(node.name)) {
+        appChunk = node;
+      } else if (/^index-[^/]+\.js$/.test(node.name)) {
+        if (!largestIndexChunk || (node.size || 0) > (largestIndexChunk.size || 0)) {
+          largestIndexChunk = node;
+        }
+      }
+      if (node.groups) node.groups.forEach(walk);
+    }
+  }
+  walk(data);
+
+  return appChunk || largestIndexChunk;
+}
+
+const indexChunk = findEntryChunk(treeData);
 
 if (!indexChunk) {
-  console.error('无法找到 index-XFFXz8D0.js');
+  console.error('无法找到入口 chunk（app-*.js 或 index-*.js）');
   console.log('尝试查找其他 chunk...');
   // 如果找不到，尝试分析整个数据
   console.log('\n所有 chunk:');
@@ -87,7 +110,7 @@ if (!indexChunk) {
 }
 
 console.log('\n========================================');
-console.log('index-XFFXz8D0.js 分析结果');
+console.log(`${indexChunk.name} 分析结果`);
 console.log('========================================\n');
 
 console.log(`文件大小: ${(indexChunk.size / 1024).toFixed(2)} KB`);

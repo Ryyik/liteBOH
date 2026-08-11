@@ -3,7 +3,7 @@
    ========================================== */
 
 .subscription-page {
-  --user-center-nav-offset: 72px;
+  --user-center-nav-offset: 0px;
   width: 100%;
   max-width: 1600px;
   margin: 0 auto;
@@ -1015,7 +1015,7 @@
 
 @media (max-width: 480px) {
   .subscription-page {
-    --user-center-nav-offset: 56px;
+    --user-center-nav-offset: 0px;
   }
 
   .discount-tag {

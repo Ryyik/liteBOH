@@ -2084,7 +2084,7 @@ defineExpose({
 
 // 消息列表深度监听的滚动节流
 let deepWatchScrollRafId = null;
-watch(messages, () => {
+watch(() => messages.value.length, () => {
     if (props.overlayMode && !isInitialScrollReady.value) {
         return;
     }
@@ -2094,7 +2094,7 @@ watch(messages, () => {
         scrollToBottom();
         nextTick(updateActiveUserMessageFromScroll);
     });
-}, { deep: true });
+});
 
 // 注：手动压缩的"压缩中/已完成"提示由 handleManualCompress 统一管理。
 // 自动压缩的"压缩中"状态通过预算环位置的 context-compressing-hint 显示（L222），

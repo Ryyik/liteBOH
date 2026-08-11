@@ -9,7 +9,8 @@ import {
   Flag,
   Sparkles,
   Gift,
-  Store
+  Store,
+  Layout
 } from 'lucide-vue-next';
 
 export const tabs = [
@@ -82,6 +83,14 @@ export const tabModules = [
     section: 'data',
     type: 'page',
     description: '可视化编辑商城商品与展示'
+  },
+  {
+    id: 'hero-console',
+    label: '首页装修',
+    icon: Layout,
+    section: 'data',
+    type: 'page',
+    description: '可视化编辑首页英雄区，支持模板/预览/裁切/发布'
   },
   {
     id: 'moderation',
@@ -183,6 +192,12 @@ export const ADMIN_PAGE_META = {
     title: '商城装修',
     description: '可视化编辑商城商品与展示，保存后立即生效。',
     icon: Store
+  },
+  'hero-console': {
+    eyebrow: 'Hero Console',
+    title: '首页装修',
+    description: '可视化编辑首页英雄区，支持模板选择、实时预览、图片裁切、草稿/发布分离。',
+    icon: Layout
   },
   moderation: {
     eyebrow: 'Moderation',

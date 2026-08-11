@@ -53,6 +53,8 @@ export interface AsyncOpResult {
 export interface BagItem {
   id: number
   points_cost: number
+  rmb_price?: number | null
+  payment_mode?: string
   quantity: number
   selectedSpec?: string
   selectedSpecLabel?: string
@@ -70,12 +72,16 @@ export interface ProductSpec {
   value: string
 }
 
+export type PaymentMode = 'points_only' | 'rmb_only' | 'combined'
+
 export interface Product {
   id: number
   category: string
   title: string
   description: string
   points_cost: number
+  rmb_price?: number | null
+  payment_mode?: PaymentMode
   stock: number
   image: string
   specifications: ProductSpec[]
@@ -107,4 +113,64 @@ export interface NotificationPayload {
   type: NotificationType
   content?: string
   [key: string]: unknown
+}
+
+// --- Home Heroes Store ---
+export type HomeHeroTemplate = 'standard' | 'overlay' | 'split' | 'responsive'
+export type HomeHeroVariant = 'light' | 'dark'
+export type HomeHeroStatus = 'draft' | 'published'
+
+export interface HeroLink {
+  text: string
+  type?: 'primary' | 'secondary'
+  to?: string
+  href?: string
+  onClick?: string // 形如 'modal:fuzhou'，由前端解析
+}
+
+export interface HeroImageConfig {
+  src?: string
+  alt?: string
+  position?: string // overlay 模板的图片定位，如 'center 54%'
+  landscapeSrc?: string // responsive 模板的横屏图
+  portraitSrc?: string // responsive 模板的竖屏图
+}
+
+export interface SplitCardConfig {
+  title: string
+  subtitle?: string
+  variant?: HomeHeroVariant
+  image_config: HeroImageConfig
+  links: HeroLink[]
+}
+
+export interface HomeHero {
+  id: string
+  sort_order: number
+  is_archived: boolean
+  template: HomeHeroTemplate
+  variant: HomeHeroVariant
+  eyebrow?: string | null
+  title: string
+  subtitle?: string | null
+  image_config: HeroImageConfig
+  links: HeroLink[]
+  split_cards?: SplitCardConfig[] | null
+  label?: string | null
+  aria_label?: string | null
+  status: HomeHeroStatus
+  published_at?: string | null
+  published_by?: string | null
+  created_at: string
+  updated_at: string
+  created_by?: string | null
+  updated_by?: string | null
+}
+
+export interface HomeHeroRevision {
+  id: string
+  hero_id: string
+  snapshot: HomeHero
+  published_at: string
+  published_by?: string | null
 }

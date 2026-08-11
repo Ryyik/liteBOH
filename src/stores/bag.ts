@@ -3,7 +3,6 @@ import { ref } from 'vue'
 import { logger } from '@/utils/logger.js'
 import type { BagItem, BagOpResult } from '@/types'
 
-// debounce helper for localStorage writes
 let saveBagTimer: ReturnType<typeof setTimeout> | null = null
 const SAVE_BAG_DELAY_MS = 300
 
@@ -16,19 +15,45 @@ export const useBagStore = defineStore('bag', () => {
     return Math.round(normalized)
   }
 
+  const parseRmbPrice = (rmbPrice: unknown): number | null => {
+    const normalized = Number(rmbPrice)
+    if (!Number.isFinite(normalized) || normalized <= 0) return null
+    return Math.round(normalized) // cents
+  }
+
+  const isPurchasable = (product: Record<string, unknown>): boolean => {
+    if (product?.is_purchasable === false) return false
+    const mode = String(product?.payment_mode || 'points_only')
+
+    if (mode === 'points_only') {
+      return parseExchangeablePoints(product?.points_cost) !== null
+    }
+    if (mode === 'rmb_only') {
+      return parseRmbPrice(product?.rmb_price) !== null
+    }
+    if (mode === 'combined') {
+      return parseExchangeablePoints(product?.points_cost) !== null
+        && parseRmbPrice(product?.rmb_price) !== null
+    }
+    return false
+  }
+
   const normalizeBagItems = (items: unknown): BagItem[] => {
     if (!Array.isArray(items)) return []
     return items
       .map((item) => {
         const pointsCost = parseExchangeablePoints(item?.points_cost)
+        const rmbPrice = parseRmbPrice(item?.rmb_price)
         const quantity = Number(item?.quantity)
         return {
           ...item,
           points_cost: pointsCost || 0,
+          rmb_price: rmbPrice ?? null,
+          payment_mode: item?.payment_mode || 'points_only',
           quantity: Number.isFinite(quantity) && quantity > 0 ? Math.round(quantity) : 1,
         } as BagItem
       })
-      .filter((item) => item.is_purchasable !== false && item.points_cost > 0)
+      .filter((item) => (item.is_purchasable !== false) && isPurchasable(item))
   }
 
   const loadShoppingBag = (): void => {
@@ -46,16 +71,13 @@ export const useBagStore = defineStore('bag', () => {
   }
 
   const saveShoppingBag = (): void => {
-    if (saveBagTimer) {
-      clearTimeout(saveBagTimer)
-    }
+    if (saveBagTimer) clearTimeout(saveBagTimer)
     saveBagTimer = setTimeout(() => {
       saveBagTimer = null
       localStorage.setItem('boh_shopping_bag', JSON.stringify(shoppingBag.value))
     }, SAVE_BAG_DELAY_MS)
   }
 
-  // 立即保存（用于页面卸载前）
   const flushShoppingBag = (): void => {
     if (saveBagTimer) {
       clearTimeout(saveBagTimer)
@@ -65,13 +87,15 @@ export const useBagStore = defineStore('bag', () => {
   }
 
   const addToBag = (product: Record<string, unknown>, specValue: string, specLabel: string): BagOpResult => {
-    if (product?.is_purchasable === false) {
-      return { ok: false, reason: 'PRODUCT_NOT_PURCHASABLE' }
-    }
-    const normalizedPoints = parseExchangeablePoints(product?.points_cost)
-    if (normalizedPoints === null) {
+    if (!isPurchasable(product)) {
+      const mode = String(product?.payment_mode || 'points_only')
+      if (mode === 'rmb_only') return { ok: false, reason: 'PRODUCT_NOT_PURCHASABLE' }
       return { ok: false, reason: 'PRODUCT_NOT_EXCHANGEABLE' }
     }
+
+    const pointsCost = parseExchangeablePoints(product?.points_cost) || 0
+    const rmbPrice = parseRmbPrice(product?.rmb_price) ?? null
+    const mode = String(product?.payment_mode || 'points_only')
 
     const existingItemIndex = shoppingBag.value.findIndex(
       (item) => item.id === product.id && item.selectedSpec === specValue
@@ -82,7 +106,9 @@ export const useBagStore = defineStore('bag', () => {
     } else {
       shoppingBag.value.push({
         ...product,
-        points_cost: normalizedPoints,
+        points_cost: pointsCost,
+        rmb_price: rmbPrice,
+        payment_mode: mode,
         quantity: 1,
         selectedSpec: specValue,
         selectedSpecLabel: specLabel,
@@ -96,7 +122,6 @@ export const useBagStore = defineStore('bag', () => {
     const itemIndex = shoppingBag.value.findIndex(
       (item) => item.id === productId && item.selectedSpec === specValue
     )
-
     if (itemIndex !== -1) {
       const newQuantity = shoppingBag.value[itemIndex].quantity + delta
       if (newQuantity > 0) {

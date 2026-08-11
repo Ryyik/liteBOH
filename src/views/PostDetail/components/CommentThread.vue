@@ -1,4 +1,5 @@
 <script setup>
+import { computed } from 'vue';
 import { Reply } from 'lucide-vue-next';
 import { useTierMap } from '@/composables/useTierMap.js';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
@@ -115,6 +116,58 @@ const getChildReplyLoadMoreLabel = (parentId) => {
   return state.isLoading ? '加载中...' : '加载更多回复';
 };
 
+// 模板专用 computed 缓存：按 reply.id 索引，避免模板内重复方法调用
+const childReplyStateMap = computed(() => {
+  const map = {};
+  for (const reply of props.comments) {
+    map[reply.id] = getChildReplyState(reply.id);
+  }
+  return map;
+});
+
+const visibleChildRepliesMap = computed(() => {
+  const map = {};
+  for (const reply of props.comments) {
+    map[reply.id] = getVisibleChildReplies(reply.id);
+  }
+  return map;
+});
+
+const showExpandChildMap = computed(() => {
+  const map = {};
+  for (const reply of props.comments) {
+    map[reply.id] = shouldShowExpandChildReplies(reply.id);
+  }
+  return map;
+});
+
+const toggleLabelMap = computed(() => {
+  const map = {};
+  for (const reply of props.comments) {
+    map[reply.id] = getChildReplyToggleLabel(reply.id);
+  }
+  return map;
+});
+
+const showLoadMoreMap = computed(() => {
+  const map = {};
+  for (const reply of props.comments) {
+    map[reply.id] = shouldShowLoadMoreChildReplies(reply.id);
+  }
+  return map;
+});
+
+const loadMoreLabelMap = computed(() => {
+  const map = {};
+  for (const reply of props.comments) {
+    map[reply.id] = getChildReplyLoadMoreLabel(reply.id);
+  }
+  return map;
+});
+
+// 静态资源预计算，避免模板每次渲染都调用
+const successCatAsset = getHomeCatAsset('success');
+
 const onReplyInput = (event) => {
   emit('update:replyContent', event.target.value);
 };
@@ -125,7 +178,7 @@ const onReplyInput = (event) => {
     <transition name="fade-slide">
       <div v-if="activeReplyId" class="x-reply-box" :class="{ 'is-thread-reply': Boolean(replyToUser) }">
         <img v-if="isHomeCatActive && isReplySuccessPopping" class="detail-reply-success-cat-img"
-          :src="getHomeCatAsset('success')" alt="" draggable="false"  loading="lazy" />
+          :src="successCatAsset" alt="" draggable="false"  loading="lazy" />
         <div class="reply-input-wrapper">
           <div class="reply-context-bar">
             <div class="reply-context-main">
@@ -209,18 +262,18 @@ const onReplyInput = (event) => {
               <Reply :size="14" :stroke-width="1.8" aria-hidden="true" />
               回复
             </button>
-            <button v-if="shouldShowExpandChildReplies(reply.id)" class="comment-thread-btn-mini"
-              :disabled="getChildReplyState(reply.id).isLoading" @click="$emit('toggle-child-replies', reply)">
-              {{ getChildReplyToggleLabel(reply.id) }}
+            <button v-if="showExpandChildMap[reply.id]" class="comment-thread-btn-mini"
+              :disabled="childReplyStateMap[reply.id].isLoading" @click="$emit('toggle-child-replies', reply)">
+              {{ toggleLabelMap[reply.id] }}
             </button>
             <button v-if="isLoggedIn && (reply.author_id === currentUserId || currentUserRole === 'admin')"
               class="del-comment-btn-mini" aria-label="删除评论" title="删除评论" @click="$emit('delete-comment', { comment: reply, parentId: null })">删除</button>
           </div>
 
-          <div v-if="getChildReplyState(reply.id).totalCount > 0 || getChildReplyState(reply.id).isLoading"
+          <div v-if="childReplyStateMap[reply.id].totalCount > 0 || childReplyStateMap[reply.id].isLoading"
             class="child-replies-wrap">
             <div
-              v-if="getChildReplyState(reply.id).isLoading && getVisibleChildReplies(reply.id).length === 0"
+              v-if="childReplyStateMap[reply.id].isLoading && visibleChildRepliesMap[reply.id].length === 0"
               class="child-replies-loading" aria-hidden="true">
               <div v-for="item in 2" :key="`child-reply-loading-${reply.id}-${item}`"
                 class="child-reply-skeleton-row">
@@ -229,7 +282,7 @@ const onReplyInput = (event) => {
               </div>
             </div>
 
-            <div v-for="child in getVisibleChildReplies(reply.id)" :key="child.id" :id="`comment-${child.id}`"
+            <div v-for="child in visibleChildRepliesMap[reply.id]" :key="child.id" :id="`comment-${child.id}`"
               class="child-reply-item"
               :class="{ 'is-highlighted': highlightedCommentId === String(child.id) }">
               <div class="child-reply-head" @click="$emit('go-to-profile', child.author_username)">
@@ -251,10 +304,10 @@ const onReplyInput = (event) => {
               </div>
             </div>
 
-            <button v-if="shouldShowLoadMoreChildReplies(reply.id)" class="child-load-more-btn"
-              :disabled="getChildReplyState(reply.id).isLoading"
+            <button v-if="showLoadMoreMap[reply.id]" class="child-load-more-btn"
+              :disabled="childReplyStateMap[reply.id].isLoading"
               @click="$emit('load-child-replies', { parentId: reply.id, options: { reset: false } })">
-              {{ getChildReplyLoadMoreLabel(reply.id) }}
+              {{ loadMoreLabelMap[reply.id] }}
             </button>
           </div>
         </div>

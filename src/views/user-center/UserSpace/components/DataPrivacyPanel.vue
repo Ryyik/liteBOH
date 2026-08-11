@@ -1,6 +1,6 @@
 <template>
   <div class="profile-subpage-shell">
-    <UserCenterPageHeader title="数据与隐私" back-label="返回设置" max-width="650px" @back="$emit('back')" />
+    <UserCenterPageHeader title="数据与隐私" back-label="返回设置" max-width="1200px" @back="$emit('back')" />
 
     <div class="profile-subpage-body">
       <div class="apple-card">

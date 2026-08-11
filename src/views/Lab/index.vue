@@ -130,7 +130,7 @@
         <div v-if="!sidebarCollapsed" class="sidebar-sessions">
           <div
             v-for="(s, si) in sessions"
-            :key="si"
+            :key="s.id"
             class="sidebar-session"
             :class="{ active: si === currentSessionIndex }"
             @click="switchSession(si)"
@@ -257,8 +257,8 @@
       <section v-else class="conversation">
         <div ref="threadRef" class="thread">
           <div
-            v-for="(msg, i) in messages"
-            :key="i"
+            v-for="msg in messages"
+            :key="msg.id"
             class="message"
             :class="msg.role"
           >
@@ -308,7 +308,7 @@
                 <div class="ppt-slide-previews">
                   <div
                     v-for="(slide, si) in msg.ppt.slides"
-                    :key="si"
+                    :key="msg.id + '-s' + si"
                     class="ppt-slide-mini"
                     :class="`slide-${slide.type}`"
                   >
@@ -347,7 +347,7 @@
                 <div class="word-block-previews">
                   <div
                     v-for="(block, bi) in (msg.word.blocks || []).slice(0, 12)"
-                    :key="bi"
+                    :key="msg.id + '-b' + bi"
                     class="word-block-mini"
                     :class="`block-${block.type}`"
                   >
@@ -378,7 +378,7 @@
                 <div class="outline-items">
                   <div
                     v-for="(item, oi) in msg.outline.outline"
-                    :key="oi"
+                    :key="msg.id + '-o' + oi"
                     class="outline-item"
                     :class="`outline-type-${item.type}`"
                   >
@@ -579,7 +579,7 @@
           <div v-if="docOutlineItems.length" class="outline-tree">
             <div
               v-for="(item, oi) in docOutlineItems"
-              :key="oi"
+              :key="'outline-' + oi"
               class="outline-tree-item"
             >
               <span class="outline-tree-type">{{ outlineTypeLabel(item.type) }}</span>
@@ -774,7 +774,6 @@
 <script setup>
 import { ref, reactive, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
-import * as mammoth from 'mammoth'
 import DOMPurify from '@/utils/dompurify.js'
 import AppIcon from './components/AppIcon.vue'
 import ProgressRing from './components/ProgressRing.vue'
@@ -887,6 +886,8 @@ const labModelConfig = reactive({
 })
 const text = ref('')
 const messages = ref([])
+let _idSeq = 0
+const genId = () => ++_idSeq
 const pendingFile = ref(null)
 const isLoading = ref(false)
 const loadingMessage = ref('正在解析文档...')
@@ -1287,6 +1288,7 @@ function addHistory(label, detail, type = 'style') {
 async function updatePreview(blob) {
   previewLoading.value = true
   try {
+    const mammoth = await import('mammoth')
     const result = await mammoth.convertToHtml({ arrayBuffer: await blob.arrayBuffer() })
     previewHtml.value = DOMPurify.sanitize(result.value)
   } catch (e) {
@@ -1317,7 +1319,7 @@ async function handleFileUpload(file) {
     docData.value = await parseDocx(file)
     await rebuildAndPreview()
     addHistory('文档上传', `解析 ${docData.value.content.length} 段内容`, 'content')
-    messages.value.push({
+    messages.value.push({ id: genId(),
       role: 'assistant',
       content: `已读取「${docData.value.fileName}」，共 ${docData.value.content.length} 段、${docData.value.styles.styles.length} 种样式。想怎么调整？`,
       time: nowTime(),
@@ -1375,7 +1377,7 @@ async function send(presetText) {
 
   const userText = content || (pendingFile.value ? '帮我优化这份文档的排版' : '')
   if (userText) {
-    messages.value.push({ role: 'user', content: userText, time: nowTime() })
+    messages.value.push({ id: genId(), role: 'user', content: userText, time: nowTime() })
     await scrollToBottom()
   }
 
@@ -1453,7 +1455,7 @@ async function sendGeneralChat(content, signal) {
 
   aiLoading.value = true
   const msgIdx = messages.value.length
-  messages.value.push({
+  messages.value.push({ id: genId(),
     role: 'assistant',
     content: '',
     time: nowTime(),
@@ -1513,7 +1515,7 @@ async function sendGeneralChat(content, signal) {
             if (sseError || parsed.ok === false) {
               const errMsg = parsed.message || 'AI 服务返回错误'
               messages.value.splice(msgIdx, 1)
-              messages.value.push({
+              messages.value.push({ id: genId(),
                 role: 'assistant',
                 content: `抱歉，出错了：${errMsg}`,
                 time: nowTime(),
@@ -1557,7 +1559,7 @@ async function sendGeneralChat(content, signal) {
     // 处理配额超限错误（429）和其他 API 错误
     const isQuotaError = e.status === 429 && e.quota
     messages.value.splice(msgIdx, 1)
-    messages.value.push({
+    messages.value.push({ id: genId(),
       role: 'assistant',
       content: isQuotaError
         ? '今日 BOH AI Token 额度已用完，明天 0:00 重置。'
@@ -1593,7 +1595,7 @@ function outlineTypeLabel(type) {
 
 async function sendDoc(content, signal) {
   if (!docData.value) {
-    messages.value.push({
+    messages.value.push({ id: genId(),
       role: 'assistant',
       content: '请先上传一份 .docx 文档，我才能帮你调整样式。',
       time: nowTime(),
@@ -1610,7 +1612,7 @@ async function sendDoc(content, signal) {
     )
     const reply = result.reply || '已处理。'
     const operations = result.operations || []
-    messages.value.push({
+    messages.value.push({ id: genId(),
       role: 'assistant',
       content: reply,
       operations,
@@ -1634,7 +1636,7 @@ async function sendDoc(content, signal) {
     }
   } catch (e) {
     if (isAbortError(e)) return // 用户主动取消，静默处理
-    messages.value.push({
+    messages.value.push({ id: genId(),
       role: 'assistant',
       content: `出错：${e.message}`,
       time: nowTime(),
@@ -1665,7 +1667,7 @@ async function sendPPT(content, signal) {
 
   // 添加进度卡片到消息流
   progressMsgIndex.value = messages.value.length
-  messages.value.push({
+  messages.value.push({ id: genId(),
     role: 'assistant',
     content: '',
     progress: 0,
@@ -1682,7 +1684,7 @@ async function sendPPT(content, signal) {
     // 展示大纲（只读，不再要求确认）
     messages.value.splice(progressMsgIndex.value, 1)
     progressMsgIndex.value = messages.value.length
-    messages.value.push({
+    messages.value.push({ id: genId(),
       role: 'assistant',
       content: `已为「${content}」规划大纲，共 ${outlineData.outline.length} 个章节，正在生成完整 PPT…`,
       outline: outlineData,
@@ -1693,7 +1695,7 @@ async function sendPPT(content, signal) {
 
     // 第二阶段：直接生成完整 PPT（无需用户确认）
     progressMsgIndex.value = messages.value.length
-    messages.value.push({
+    messages.value.push({ id: genId(),
       role: 'assistant',
       content: '',
       progress: 0,
@@ -1711,7 +1713,7 @@ async function sendPPT(content, signal) {
     messages.value.splice(progressMsgIndex.value, 1)
     progressMsgIndex.value = -1
 
-    messages.value.push({
+    messages.value.push({ id: genId(),
       role: 'assistant',
       content: `已为你生成完整 PPT「${data.title}」，共 ${data.slides.length} 张幻灯片，样式集「${currentPresetName.value}」。可以下载查看，或告诉我要调整的地方。`,
       ppt: data,
@@ -1725,7 +1727,7 @@ async function sendPPT(content, signal) {
         messages.value.splice(progressMsgIndex.value, 1)
         progressMsgIndex.value = -1
       }
-      messages.value.push({
+      messages.value.push({ id: genId(),
         role: 'assistant',
         content: '已停止 PPT 生成。',
         time: nowTime(),
@@ -1739,7 +1741,7 @@ async function sendPPT(content, signal) {
       progressMsgIndex.value = -1
     }
     updateTask('outline', 'error', e.message)
-    messages.value.push({
+    messages.value.push({ id: genId(),
       role: 'assistant',
       content: `PPT 生成失败：${e.message}`,
       time: nowTime(),
@@ -1774,7 +1776,7 @@ async function sendWord(content, signal) {
 
   // 添加进度卡片到消息流
   progressMsgIndex.value = messages.value.length
-  messages.value.push({
+  messages.value.push({ id: genId(),
     role: 'assistant',
     content: '',
     progress: 0,
@@ -1791,7 +1793,7 @@ async function sendWord(content, signal) {
     // 展示大纲（只读，不再要求确认）
     messages.value.splice(progressMsgIndex.value, 1)
     progressMsgIndex.value = messages.value.length
-    messages.value.push({
+    messages.value.push({ id: genId(),
       role: 'assistant',
       content: `已为「${content}」规划大纲，共 ${outlineData.outline.length} 个章节，正在生成完整 Word…`,
       outline: outlineData,
@@ -1802,7 +1804,7 @@ async function sendWord(content, signal) {
 
     // 第二阶段：直接生成完整 Word（无需用户确认）
     progressMsgIndex.value = messages.value.length
-    messages.value.push({
+    messages.value.push({ id: genId(),
       role: 'assistant',
       content: '',
       progress: 0,
@@ -1821,7 +1823,7 @@ async function sendWord(content, signal) {
     messages.value.splice(progressMsgIndex.value, 1)
     progressMsgIndex.value = -1
 
-    messages.value.push({
+    messages.value.push({ id: genId(),
       role: 'assistant',
       content: `已为你生成完整 Word 文档「${data.title}」，共 ${blockCount} 个内容块，样式集「${currentPresetName.value}」。可以下载查看，或告诉我要调整的地方。`,
       word: data,
@@ -1835,7 +1837,7 @@ async function sendWord(content, signal) {
         messages.value.splice(progressMsgIndex.value, 1)
         progressMsgIndex.value = -1
       }
-      messages.value.push({
+      messages.value.push({ id: genId(),
         role: 'assistant',
         content: '已停止 Word 生成。',
         time: nowTime(),
@@ -1849,7 +1851,7 @@ async function sendWord(content, signal) {
       progressMsgIndex.value = -1
     }
     updateTask('outline', 'error', e.message)
-    messages.value.push({
+    messages.value.push({ id: genId(),
       role: 'assistant',
       content: `Word 生成失败：${e.message}`,
       time: nowTime(),
@@ -1882,7 +1884,7 @@ async function sendCode(content, signal) {
   initTaskFlow('code', content)
 
   progressMsgIndex.value = messages.value.length
-  messages.value.push({
+  messages.value.push({ id: genId(),
     role: 'assistant',
     content: '',
     progress: 0,
@@ -1899,7 +1901,7 @@ async function sendCode(content, signal) {
     // 展示架构（只读，不再要求确认）
     messages.value.splice(progressMsgIndex.value, 1)
     progressMsgIndex.value = messages.value.length
-    messages.value.push({
+    messages.value.push({ id: genId(),
       role: 'assistant',
       content: `已为「${content}」规划网页架构，共 ${outlineData.outline.length} 个区域，正在编写代码…`,
       outline: outlineData,
@@ -1910,7 +1912,7 @@ async function sendCode(content, signal) {
 
     // 第二阶段：直接生成完整网页代码（无需用户确认）
     progressMsgIndex.value = messages.value.length
-    messages.value.push({
+    messages.value.push({ id: genId(),
       role: 'assistant',
       content: '',
       progress: 0,
@@ -1938,7 +1940,7 @@ async function sendCode(content, signal) {
     messages.value.splice(progressMsgIndex.value, 1)
     progressMsgIndex.value = -1
 
-    messages.value.push({
+    messages.value.push({ id: genId(),
       role: 'assistant',
       content: `已为你生成网页「${data.title || 'AI 生成网页'}」。你可以继续告诉我需要调整的地方，或在右侧面板下载完整文件。`,
       code: data,
@@ -1958,7 +1960,7 @@ async function sendCode(content, signal) {
         messages.value.splice(progressMsgIndex.value, 1)
         progressMsgIndex.value = -1
         if (partialContent) {
-          messages.value.push({
+          messages.value.push({ id: genId(),
             role: 'assistant',
             content: '已停止网页代码生成（部分代码已显示）。',
             code: { title: 'AI 生成网页（未完成）', html: partialContent },
@@ -1967,7 +1969,7 @@ async function sendCode(content, signal) {
           rightPanelOpen.value = true
           rightPanelTab.value = 'code'
         } else {
-          messages.value.push({
+          messages.value.push({ id: genId(),
             role: 'assistant',
             content: '已停止网页代码生成。',
             time: nowTime(),
@@ -1982,7 +1984,7 @@ async function sendCode(content, signal) {
       progressMsgIndex.value = -1
     }
     updateTask('outline', 'error', e.message)
-    messages.value.push({
+    messages.value.push({ id: genId(),
       role: 'assistant',
       content: `网页生成失败：${e.message}`,
       time: nowTime(),
@@ -2075,7 +2077,7 @@ function refreshTemplates() {
 async function handleTemplateSelect(tpl) {
   if (!docData.value) return
   const content = `应用模板「${tpl.name}」到当前文档`
-  messages.value.push({ role: 'user', content, time: nowTime() })
+  messages.value.push({ id: genId(), role: 'user', content, time: nowTime() })
   await scrollToBottom()
   try {
     const result = await chat(
@@ -2085,7 +2087,7 @@ async function handleTemplateSelect(tpl) {
       docData.value.content
     )
     const operations = result.operations || []
-    messages.value.push({
+    messages.value.push({ id: genId(),
       role: 'assistant',
       content: result.reply || `已应用「${tpl.name}」`,
       operations,
@@ -2103,7 +2105,7 @@ async function handleTemplateSelect(tpl) {
       toastRef.value?.success('模板已应用', tpl.name)
     }
   } catch (e) {
-    messages.value.push({
+    messages.value.push({ id: genId(),
       role: 'assistant',
       content: `模板应用失败：${e.message}`,
       time: nowTime(),
@@ -2174,7 +2176,7 @@ async function handleCompressContext() {
     const summary = await withRetry(() => generateSummary(messages.value))
     const trimmed = trimMessages(messages.value)
     messages.value = trimmed
-    messages.value.unshift({
+    messages.value.unshift({ id: genId(),
       role: 'system',
       content: `【上下文压缩摘要】\n${summary}`,
       compressed: true,

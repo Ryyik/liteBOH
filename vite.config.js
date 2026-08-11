@@ -108,10 +108,9 @@ export default defineConfig({
         globPatterns: [
           'index.html',
           'registerSW.js',
-          'manifest.webmanifest',
           'static/js/app-*.js',
-          'static/js/{vue-vendor,state-vendor,auth-store,ui-components,supabase-vendor,ui-icons}-*.js',
-          'static/css/{index,ui-components}-*.css',
+          'static/js/{vue-vendor,state-vendor,auth-store,ui-components,supabase-vendor,ui-icons,vue-utils-vendor}-*.js',
+          'static/css/ui-components-*.css',
           'static/fonts/*.{woff,woff2}',
         ],
         cleanupOutdatedCaches: true,
@@ -266,6 +265,12 @@ export default defineConfig({
           // ============================================
           if (id.includes('node_modules/html2canvas')) return 'image-processing-vendor';
           if (id.includes('node_modules/file-saver')) return 'image-processing-vendor';
+          // canvas-confetti（庆祝动画，特定功能使用）
+          if (id.includes('node_modules/canvas-confetti')) return 'confetti-vendor';
+          // 图片压缩库（特定功能使用）
+          if (id.includes('node_modules/browser-image-compression')) return 'image-compression-vendor';
+          // 图片裁剪库（头像裁剪使用）
+          if (id.includes('node_modules/vue-advanced-cropper')) return 'cropper-vendor';
 
           // ============================================
           // 已有的命名 chunk
@@ -292,8 +297,6 @@ export default defineConfig({
         // 生产环境移除 console 和 debugger
         drop_console: true,
         drop_debugger: true,
-        // 优化代码
-        pure_funcs: ['console.log', 'console.warn'],
         passes: 2, // 进行两遍压缩
         toplevel: true, // 在顶级作用域压缩
       },
@@ -306,12 +309,9 @@ export default defineConfig({
     },
     // 目标浏览器
     target: 'es2022',
-    // 启用 modulepreload polyfill，确保关键 chunk (auth-store, supabase-vendor) 预加载
+    // 禁用 modulepreload polyfill（target es2022 浏览器原生支持）
     modulePreload: {
-      polyfill: true,
-      // 不预加载 view 级别 chunk，它们由路由懒加载按需触发，避免首屏下载冗余 JS
-      resolveDependencies: (_filename, deps) =>
-        deps.filter((dep) => !/view-(bohai|admin|postdetail|profile|userspace|forum|cloudplus)/.test(dep)),
+      polyfill: false,
     },
     // 启用图片优化 - 4KB以下的资源内联为 base64
     assetsInlineLimit: 4096,

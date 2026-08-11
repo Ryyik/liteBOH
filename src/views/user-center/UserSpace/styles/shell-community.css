@@ -301,6 +301,51 @@
   }
 }
 
+/* iOS WebKit does not reliably scroll a nested, transformed 100dvh layer.
+   Let the document own vertical scrolling on phones; the fixed bottom nav
+   remains outside the flow and the tab content can grow naturally. */
+@media (max-width: 767px) {
+  .user-space-page {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+    display: block;
+  }
+
+  .tab-page,
+  .tab-page.posts-tab {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+    -webkit-overflow-scrolling: auto;
+    overscroll-behavior-y: auto;
+    touch-action: pan-y;
+  }
+
+  /* Keep the outgoing page layered during the short tab transition without
+     making the active page a transformed scroll container. */
+  .tab-page.is-leaving {
+    position: absolute;
+    inset: 0;
+    min-height: 100%;
+    pointer-events: none;
+  }
+
+  .user-space-page.tab-transition-forward .tab-page:not(.is-leaving),
+  .user-space-page.tab-transition-back .tab-page:not(.is-leaving) {
+    animation-name: userspace-tab-in-fade;
+    will-change: opacity;
+  }
+
+  @keyframes userspace-tab-in-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
+
 /* ---------- Loading & Empty 状态 ---------- */
 .loading-state {
   display: flex;

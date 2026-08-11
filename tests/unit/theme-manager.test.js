@@ -56,10 +56,10 @@ function createInstance() {
 }
 
 describe('theme-manager: constructor', () => {
-  it('starts with the eighth anniversary MC theme', () => {
+  it('starts with the light theme', () => {
     const tm = createInstance();
-    expect(tm.theme).toBe('anniversary-mc');
-    expect(tm.preference).toBe('anniversary-mc');
+    expect(tm.theme).toBe('light');
+    expect(tm.preference).toBe('light');
     expect(tm.uiStyle).toBe('glass');
     expect(tm.initialized).toBe(false);
   });
@@ -263,21 +263,18 @@ describe('theme-manager: addListener / removeListener', () => {
 });
 
 describe('theme-manager: init', () => {
-  it('migrates an existing device to the anniversary theme once', () => {
-    localStorage.setItem('boh-theme', 'dark');
+  it('uses light when the user has not chosen a theme', () => {
     const tm = createInstance();
 
     tm.init();
 
-    expect(tm.theme).toBe('anniversary-mc');
-    expect(tm.preference).toBe('anniversary-mc');
-    expect(localStorage.getItem('boh-theme')).toBe('anniversary-mc');
-    expect(localStorage.getItem('boh-theme-anniversary-mc-default-v1')).toBe('done');
+    expect(tm.theme).toBe('light');
+    expect(tm.preference).toBe('light');
+    expect(localStorage.getItem('boh-theme')).toBeNull();
   });
 
-  it('preserves the user theme after the anniversary migration has run', () => {
+  it('preserves a saved user theme', () => {
     localStorage.setItem('boh-theme', 'dark');
-    localStorage.setItem('boh-theme-anniversary-mc-default-v1', 'done');
     const tm = createInstance();
 
     tm.init();
@@ -285,6 +282,28 @@ describe('theme-manager: init', () => {
     expect(tm.theme).toBe('dark');
     expect(tm.preference).toBe('dark');
     expect(localStorage.getItem('boh-theme')).toBe('dark');
+  });
+
+  it('keeps a user theme choice across manager instances', () => {
+    const first = createInstance();
+    first.setTheme('home-cat');
+
+    const next = createInstance();
+    next.init();
+
+    expect(next.theme).toBe('home-cat');
+    expect(next.preference).toBe('home-cat');
+    expect(localStorage.getItem('boh-theme')).toBe('home-cat');
+  });
+
+  it('falls back to light for an invalid saved theme', () => {
+    localStorage.setItem('boh-theme', 'invalid');
+    const tm = createInstance();
+
+    tm.init();
+
+    expect(tm.theme).toBe('light');
+    expect(tm.preference).toBe('light');
   });
 
   it('does not re-initialize', () => {

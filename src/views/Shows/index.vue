@@ -79,7 +79,7 @@
         <div class="featured-show-content">
           <div class="featured-show-visual">
             <div class="featured-show-image-wrapper">
-              <img :src="getImageUrl('@/assets/images/main1.webp')" alt="方块街" class="featured-show-image"  loading="lazy" />
+              <img :src="getImageUrl('@/assets/images/main1-1280.webp')" :srcset="`${getImageUrl('@/assets/images/main1-768.webp')} 768w, ${getImageUrl('@/assets/images/main1-1280.webp')} 1280w, ${getImageUrl('@/assets/images/main1-1920.webp')} 1920w`" sizes="(max-width: 1024px) 100vw, 50vw" alt="方块街" class="featured-show-image" loading="lazy" />
               <div class="featured-show-overlay"></div>
               <div class="featured-show-play">
                 <svg viewBox="0 0 24 24" fill="currentColor">
@@ -138,7 +138,7 @@
           <div v-for="(show, index) in shows" :key="show.id" class="show-card"
             :style="{ '--delay': index * 100 + 'ms' }">
             <div class="show-card-image-wrapper">
-              <img :src="getImageUrl(show.image)" :alt="show.title" class="show-card-image"  loading="lazy" />
+              <img :src="getImageUrl(show.image)" :alt="show.title" class="show-card-image" width="480" height="300" loading="lazy" />
               <div class="show-card-overlay">
                 <div class="show-card-play">
                   <svg viewBox="0 0 24 24" fill="currentColor">

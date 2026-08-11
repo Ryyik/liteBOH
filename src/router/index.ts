@@ -70,23 +70,21 @@ router.beforeEach(async (to, from, next) => {
   const requiresAdmin = to.matched.some((record) => record.meta?.requiresAdmin)
   const requiresAuth = requiresLogin || requiresAdmin
 
-  // 不再阻塞跳转：受保护路由在未初始化时也允许进入，让首屏立即渲染。
-  // initLoginState 完成后若发现未登录/无权限，通过异步 replace 跳转到 /login 或 /，
-  // 避免用户点击"我的方块"等按钮后长时间无响应（initLoginState 内含远程会话同步）。
+  // 恢复阻塞语义，但加超时兜底，避免远程会话同步慢导致长时间无响应。
+  // commit d0e9e85 曾改为 fire-and-forget 异步，导致两个回归：
+  //   B1: localStorage 中 isLoggedIn=true 但 session 已失效时，同步代码立即放行，
+  //       用户短暂看到受保护页面后才被异步回调弹回（未授权访问窗口）。
+  //   B4: localStorage 丢失但 session 仍有效时，同步代码立即弹回 /login，
+  //       异步 init 完成后才发现 session 有效（错误弹回回归）。
+  // 修复：await initLoginState 但用 Promise.race 加 3s 超时，超时后回落到
+  // localStorage 持久化的 isLoggedIn 态进行同步判断；initLoginState 不取消，
+  // 仍在后台完成，完成后由 syncAuthState 心跳纠正任何不一致状态。
   if (requiresAuth && !authStore.isInitialized && typeof authStore.initLoginState === "function") {
-    const storeSnapshot = authStore!
-    authStore.initLoginState().then(() => {
-      // 仅当用户仍停留在本次跳转的目标路由时才执行权限回弹，
-      // 避免在用户已主动导航到其他页面时打断。
-      if (router.currentRoute.value.path !== to.path) return
-      if (requiresLogin && !storeSnapshot.isLoggedIn) {
-        notify('请先登录', 'warning')
-        router.replace('/login')
-      } else if (requiresAdmin && !storeSnapshot.isAdmin) {
-        notify('您没有权限访问该页面', 'error')
-        router.replace('/')
-      }
-    }).catch(() => { /* 错误已在 store 内处理 */ })
+    const INIT_TIMEOUT_MS = 3000
+    await Promise.race([
+      authStore.initLoginState(),
+      new Promise<void>((resolve) => setTimeout(resolve, INIT_TIMEOUT_MS)),
+    ])
   }
 
   const { isLoggedIn } = authStore

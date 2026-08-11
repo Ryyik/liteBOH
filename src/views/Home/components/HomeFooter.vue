@@ -2,7 +2,7 @@
   <footer class="home-footer" aria-label="网站页脚">
     <div class="home-footer-inner">
       <!-- 第零层：历史回顾（归档的英雄区） -->
-      <HomeArchiveSection :archived-count="archivedHomeHeroes.length" />
+      <HomeArchiveSection :archived-count="totalArchivedCount" />
 
       <!-- 第一层：免责声明 -->
       <div class="home-footer-disclaimer">
@@ -54,12 +54,13 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import DOMPurify from '@/utils/dompurify.js';
 import AgreementModal from '@/components/AgreementModal.vue';
 import { userAgreementContent, privacyPolicyContent } from '@/data/agreementData.js';
 import HomeArchiveSection from './HomeArchiveSection.vue';
 import { archivedHomeHeroes } from './homeArchiveData.js';
+import { useHomeHeroesStore } from '@/stores/homeHeroes';
 import {
   footerDisclaimer,
   footerColumns,
@@ -86,6 +87,21 @@ const openAgreement = (type) => {
   agreementType.value = type;
   showAgreementModal.value = true;
 };
+
+// 动态归档英雄区：合并硬编码归档 + 数据库归档
+const homeHeroesStore = useHomeHeroesStore();
+const totalArchivedCount = computed(() =>
+  archivedHomeHeroes.length + homeHeroesStore.archivedHeroes.length
+);
+
+onMounted(async () => {
+  // 静默加载动态归档英雄区，失败不影响页脚
+  try {
+    await homeHeroesStore.fetchArchived();
+  } catch {
+    // 表不存在时仅返回空数组
+  }
+});
 </script>
 
 <style scoped>

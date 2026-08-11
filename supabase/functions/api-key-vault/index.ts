@@ -1287,7 +1287,10 @@ const QUOTA_CONFIG_CACHE = new Map<string, { policy: QuotaPolicy; fetchedAt: num
 // 缓存命中时仍会基于当前 tier 重新计算策略，避免 tier 变更导致越权。
 const RUNTIME_CACHE_TTL_MS = 5 * 60_000;
 type UserTierRow = { plans: string[] };
-const USER_TIER_CACHE = new Map<string, { row: UserTierRow; fetchedAt: number }>();
+// single-flight 缓存：值持有 in-flight Promise 而非已完成的数据，
+// 缓存过期时并发请求共享同一个 Promise，避免 cache stampede（B3 修复）。
+// 失败的 Promise 会被清理，下次调用重新发起查询。
+const USER_TIER_CACHE = new Map<string, { promise: Promise<string[]>; fetchedAt: number }>();
 type ModelConfigRow = Record<string, unknown> & { min_tier?: string };
 const MODEL_CONFIG_CACHE = new Map<string, { row: ModelConfigRow; fetchedAt: number }>();
 
@@ -1435,10 +1438,14 @@ async function resolveUserPlans(
   // 5 分钟内存缓存：订阅变更（升级/降级）最多延迟 5 分钟生效，可接受。
   // 注意：缓存的是 plan_code 列表，过期判断（expires_at > now）在每次调用时重新计算。
   const cached = USER_TIER_CACHE.get(userId);
-  let plans: Set<string>;
   if (cached && Date.now() - cached.fetchedAt < RUNTIME_CACHE_TTL_MS) {
-    plans = new Set(cached.row.plans);
-  } else {
+    // 缓存命中：await 共享的 in-flight Promise，返回新的 Set 实例避免 mutable 共享
+    const plans = await cached.promise;
+    return new Set(plans);
+  }
+  // 缓存 miss 或过期：立即创建 in-flight Promise 并存入缓存，
+  // 同一 userId 的并发请求会命中 cached.promise 共享同一个 DB 查询（single-flight）
+  const promise = (async () => {
     const { data } = await client
       .from('user_subscriptions')
       .select('plan_code, expires_at')
@@ -1448,10 +1455,17 @@ async function resolveUserPlans(
     const activePlans = (data || [])
       .filter((r: Record<string, unknown>) => String(r.expires_at || '') > nowIso)
       .map((r: Record<string, unknown>) => String(r.plan_code || ''));
-    USER_TIER_CACHE.set(userId, { row: { plans: activePlans }, fetchedAt: Date.now() });
-    plans = new Set(activePlans);
-  }
-  return plans;
+    return activePlans;
+  })();
+  USER_TIER_CACHE.set(userId, { promise, fetchedAt: Date.now() });
+  // 查询失败时清理缓存，避免后续请求共享一个 rejected Promise
+  promise.catch(() => {
+    // 仅当 Map 中仍是同一个 Promise 时才清理，避免清掉后来的重试 Promise
+    const current = USER_TIER_CACHE.get(userId);
+    if (current?.promise === promise) USER_TIER_CACHE.delete(userId);
+  });
+  const plans = await promise;
+  return new Set(plans);
 }
 
 async function resolveUserTier(

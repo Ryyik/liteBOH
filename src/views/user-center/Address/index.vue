@@ -1,5 +1,5 @@
 <template>
-  <div class="gift-center">
+  <div class="gift-center" :style="{ '--user-center-nav-offset': isFromUserSpace ? '0px' : '72px', paddingTop: isFromUserSpace ? '0px' : '72px' }">
     <!-- 全局提示 -->
     <transition name="toast-fade">
       <div v-if="notice.visible" class="gc-toast" :class="notice.type" @click="notice.visible = false">
@@ -8,7 +8,7 @@
     </transition>
 
     <!-- 页头 -->
-    <UserCenterPageHeader title="礼物" @back="goBack" />
+    <UserCenterPageHeader v-if="isFromUserSpace" title="礼物" max-width="1200px" @back="goBack" />
 
     <div class="gc-body">
       <!-- 分段导航 -->
@@ -345,6 +345,7 @@ const showNotice = (text, type = 'info') => {
 
 const router = useRouter();
 const route = useRoute();
+const isFromUserSpace = computed(() => String(route.query.from || '').startsWith('userspace'));
 const authStore = useAuthStore();
 const { userInfo, isLoggedIn } = storeToRefs(authStore);
 

@@ -365,7 +365,7 @@ const handleMenuAction = async (action) => {
         tone: "success"
       });
       if (shouldUpdate) {
-        await applyUpdate();
+        await applyUpdate(result.remoteBuildId);
         // 更新后会自动刷新页面
       }
     } else {

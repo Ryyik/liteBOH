@@ -588,6 +588,8 @@ function normalizeShopOrderPayload(payload = {}) {
     pointsDeducted: Number(safe.points_deducted || 0),
     currentPoints: Number(safe.current_points || 0),
     requiredPoints: Number(safe.required_points || 0),
+    paymentMode: safe.payment_mode || 'points_only',
+    rmbTotal: safe.rmb_total ? Number(safe.rmb_total) : null,
     items: Array.isArray(safe.items) ? safe.items : []
   };
 }
@@ -624,7 +626,7 @@ export async function createShopOrderWithPoints(payload = {}) {
     };
   }
 
-  const { data, error } = await supabase.rpc('create_shop_order_with_points', {
+  const { data, error } = await supabase.rpc('create_shop_order', {
     p_items: normalizedItems,
     p_contact_type: String(contactType || '').trim(),
     p_contact_value: String(contactValue || '').trim()

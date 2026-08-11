@@ -1,5 +1,15 @@
 <template>
   <div class="home">
+    <!-- 动态英雄区（数据驱动，来自管理面板发布） -->
+    <HomeHeroRow
+      v-for="hero in dynamicHeroes"
+      :key="`dynamic-${hero.id}`"
+      :layout="hero.template === 'split' ? 'split' : 'full'"
+      :aria-label="hero.aria_label || hero.label || hero.title"
+    >
+      <DynamicHomeHero :hero="hero" @link-click="handleDynamicLinkClick" />
+    </HomeHeroRow>
+
     <!-- 全新吉祥物英雄区 -->
     <HomeHeroRow v-if="!isArchived('mascot-new')" layout="full" aria-label="全新吉祥物现已上线">
       <MascotNewHero />
@@ -364,7 +374,9 @@ import MascotEvolutionHero from "./components/MascotEvolutionHero.vue";
 import MascotNewHero from "./components/MascotNewHero.vue";
 import BirthdayHero from "./components/BirthdayHero.vue";
 import AgentPreviewHero from "./components/AgentPreviewHero.vue";
+import DynamicHomeHero from "./components/DynamicHomeHero.vue";
 import { archivedHomeHeroIds } from "./components/homeArchiveData.js";
+import { useHomeHeroesStore } from "@/stores/homeHeroes";
 import { isBirthdayToday } from "@/utils/birthday.js";
 import { useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
@@ -481,6 +493,12 @@ const anniversaryHigherPlanName = computed(() => (
 // 归档判断：位于 archivedHomeHeroIds 的英雄区将不再显示在首屏，而是出现在 Footer 历史回顾区内
 const isArchived = (key) => archivedHomeHeroIds.includes(key);
 
+// ============================================
+// 动态英雄区：从管理面板发布的英雄区
+// ============================================
+const homeHeroesStore = useHomeHeroesStore();
+const dynamicHeroes = computed(() => homeHeroesStore.publishedHeroes);
+
 const formatAnniversaryExpiry = (value) => {
   const date = new Date(value || '');
   if (Number.isNaN(date.getTime())) return '';
@@ -595,6 +613,17 @@ const closeFuzhouModal = () => {
   document.body.style.overflow = '';
 };
 
+// 处理动态英雄区按钮点击（onClick 字符串约定：'modal:<key>'）
+const handleDynamicLinkClick = (onClickStr) => {
+  if (!onClickStr) return;
+  const [type, key] = onClickStr.split(':');
+  if (type === 'modal') {
+    if (key === 'fuzhou') openFuzhouModal();
+    else if (key === 'cloud-plus') openCloudPlusModal();
+    else if (key === 'anniversary-letter') openAnniversaryLetter();
+  }
+};
+
 // 滚动触发的观察器逻辑
 let observer = null;
 
@@ -633,6 +662,13 @@ onMounted(async () => {
   document.body.classList.add("is-loaded");
 
   initIntersectionObserver();
+
+  // 加载已发布动态英雄区（失败不影响首屏，硬编码英雄区照常显示）
+  try {
+    await homeHeroesStore.fetchPublished();
+  } catch {
+    // 静默失败：动态英雄区是增量，表不存在时仅返回空数组
+  }
 });
 
 onUnmounted(() => {

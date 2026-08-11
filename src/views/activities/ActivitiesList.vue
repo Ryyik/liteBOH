@@ -1,7 +1,5 @@
 <template>
   <div class="activities-list-page">
-    <!-- 统一导航栏 -->
-
     <!-- 活动列表标题区域 -->
     <header class="activities-header">
       <h1 class="page-title-text">方块之家活动列表</h1>
@@ -26,35 +24,68 @@
       </template>
       <template v-else>
         <!-- 活动卡片 -->
-        <div v-for="activity in activities" :key="activity.id" class="activity-card">
+        <div
+          v-for="activity in activities"
+          :key="activity.id"
+          class="activity-card"
+          @click="openDetail(activity)"
+        >
           <!-- 活动图片 -->
           <div class="activity-card-image">
-            <img :src="getImageUrl(activity.image)" :alt="activity.title" class="activity-image" loading="lazy" />
+            <img :src="getImageUrl(activity.image)" :alt="activity.title" class="activity-image" width="400" height="280" loading="lazy" />
             <div class="activity-date-badge">{{ activity.date }}</div>
           </div>
 
           <!-- 活动信息 -->
           <div class="activity-card-content">
             <h3 class="activity-title">{{ activity.title }}</h3>
-            <p class="activity-description">{{ activity.description }}</p>
+            <p class="activity-description clamp">{{ activity.description }}</p>
+            <span class="activity-hint">点击查看详情</span>
           </div>
         </div>
       </template>
     </div>
+
+    <!-- 活动详情弹窗 -->
+    <Transition name="modal">
+      <div v-if="selectedActivity" class="detail-overlay" @click="selectedActivity = null">
+        <article class="detail-modal" role="dialog" aria-modal="true" :aria-label="selectedActivity.title" @click.stop>
+          <button type="button" class="detail-close" aria-label="关闭" @click="selectedActivity = null">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+          <div class="detail-image-wrap">
+            <img :src="getImageUrl(selectedActivity.image)" :alt="selectedActivity.title" class="detail-image" />
+          </div>
+          <div class="detail-content">
+            <span class="detail-date">{{ selectedActivity.date }}</span>
+            <h2 class="detail-title">{{ selectedActivity.title }}</h2>
+            <p class="detail-desc">{{ selectedActivity.description }}</p>
+          </div>
+        </article>
+      </div>
+    </Transition>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from "vue";
 import { getImageUrl } from "@/utils/asset-helper.js";
-// 导入活动 composable
 import { initActivities, getAllActivities } from "@/composables/useActivities";
 
-// 活动数据
 const activities = ref([]);
 const loading = ref(true);
+const selectedActivity = ref(null);
 
-// 加载活动数据
+const openDetail = (activity) => {
+  selectedActivity.value = activity;
+  document.body.style.overflow = 'hidden';
+};
+
+const closeDetail = () => {
+  selectedActivity.value = null;
+  document.body.style.overflow = '';
+};
+
 const loadActivities = async () => {
   loading.value = true;
   await initActivities();
@@ -63,10 +94,7 @@ const loadActivities = async () => {
 };
 
 onMounted(async () => {
-  // 添加页面加载完成类
   document.body.classList.add("is-loaded");
-  
-  // 加载活动数据
   await loadActivities();
 });
 </script>
@@ -169,23 +197,22 @@ onMounted(async () => {
 /* 页面基础样式 */
 .activities-list-page {
   width: 100%;
-  background: #ffffff; /* 纯白背景 */
+  background: #ffffff;
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   min-height: 100vh;
   color: #1d1d1f;
 }
 
-/* 头部区域 */
 .activities-header {
   text-align: center;
-  padding: 160px 20px 100px; /* 增加留白 */
+  padding: 160px 20px 100px;
   max-width: 1000px;
   margin: 0 auto;
 }
 
 .page-title-text {
-  font-size: 72px; /* 更大的标题 */
-  font-weight: 800; /* 醒目的粗体 */
+  font-size: 72px;
+  font-weight: 800;
   margin-bottom: 24px;
   letter-spacing: -0.03em;
   color: #1d1d1f;
@@ -201,24 +228,23 @@ onMounted(async () => {
   margin: 0 auto;
 }
 
-/* 活动列表容器 */
 .activities-container {
-  max-width: 1400px; /* 更宽的容器 */
+  max-width: 1400px;
   margin: 0 auto;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-  gap: 48px; /* 更大的间距 */
+  gap: 48px;
   padding: 0 40px 160px;
 }
 
 /* 活动卡片 */
 .activity-card {
   background-color: #ffffff;
-  border-radius: 32px; /* 更大的圆角 */
+  border-radius: 32px;
   overflow: hidden;
-  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.04); /* 柔和阴影 */
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.04);
   transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-  border: 1px solid rgba(0, 0, 0, 0.03); /* 极细边框 */
+  border: 1px solid rgba(0, 0, 0, 0.03);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -235,10 +261,9 @@ onMounted(async () => {
   box-shadow: 0 30px 60px rgba(0, 0, 0, 0.12);
 }
 
-/* 活动卡片图片 */
 .activity-card-image {
   width: 100%;
-  height: 280px; /* 更高的图片区域 */
+  height: 280px;
   position: relative;
   overflow: hidden;
   background-color: #f5f5f7;
@@ -270,7 +295,6 @@ onMounted(async () => {
   letter-spacing: -0.01em;
 }
 
-/* 活动卡片内容 */
 .activity-card-content {
   padding: 40px;
   flex: 1;
@@ -278,43 +302,143 @@ onMounted(async () => {
   flex-direction: column;
 }
 
-/* 活动标题 */
 .activity-title {
   font-size: 24px;
-  font-weight: 800; /* 醒目的粗体 */
+  font-weight: 800;
   color: #1d1d1f;
   margin-bottom: 16px;
   line-height: 1.3;
   letter-spacing: -0.02em;
 }
 
-/* 活动描述 */
 .activity-description {
   font-size: 16px;
   color: #86868b;
   line-height: 1.7;
   flex: 1;
-  margin-bottom: 32px;
+  margin-bottom: 16px;
 }
 
-.activity-action {
-  font-size: 15px;
+.activity-description.clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activity-hint {
+  font-size: 13px;
+  color: #aeaeaf;
+  font-weight: 500;
+}
+
+/* ===== 详情弹窗 ===== */
+.detail-overlay {
+  position: fixed;
+  z-index: 10002;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.detail-modal {
+  width: min(720px, 100%);
+  max-height: calc(100dvh - 48px);
+  position: relative;
+  border-radius: 28px;
+  overflow: auto;
+  background: #ffffff;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  scrollbar-width: thin;
+}
+
+.detail-modal::-webkit-scrollbar { width: 4px; }
+.detail-modal::-webkit-scrollbar-thumb { border-radius: 2px; background: rgba(0,0,0,0.1); }
+
+.detail-close {
+  position: absolute;
+  z-index: 2;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  cursor: pointer;
+  color: #1d1d1f;
+  transition: transform 150ms ease;
+}
+
+.detail-close:active { transform: scale(0.92); }
+
+.detail-image-wrap {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: #f5f5f7;
+}
+
+.detail-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.detail-content {
+  padding: 36px 40px 44px;
+}
+
+.detail-date {
+  display: inline-block;
+  margin-bottom: 12px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 13px;
   font-weight: 700;
   color: #1d1d1f;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  background: #f5f5f7;
 }
 
-.activity-action span {
-  transition: transform 0.2s ease;
+.detail-title {
+  margin: 0 0 18px;
+  padding-right: 48px;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: #1d1d1f;
 }
 
-.activity-card:hover .activity-action span {
-  transform: translateX(4px);
+.detail-desc {
+  margin: 0;
+  font-size: 16px;
+  color: #86868b;
+  line-height: 1.8;
 }
 
-/* 响应式设计 */
+/* ===== Motion ===== */
+.modal-enter-active { transition: opacity 300ms cubic-bezier(0.32, 0.72, 0, 1); }
+.modal-leave-active { transition: opacity 250ms cubic-bezier(0.55, 0, 1, 0.45); }
+.modal-enter-active .detail-modal { transition: transform 450ms cubic-bezier(0.22, 0.95, 0.36, 1), opacity 300ms ease; }
+.modal-leave-active .detail-modal { transition: transform 250ms cubic-bezier(0.55, 0, 1, 0.45), opacity 200ms ease; }
+.modal-enter-from { opacity: 0; }
+.modal-enter-from .detail-modal { transform: scale(0.94) translateY(16px); opacity: 0; }
+.modal-leave-to { opacity: 0; }
+.modal-leave-to .detail-modal { transform: scale(0.96) translateY(8px); opacity: 0; }
+
+/* ===== 响应式 ===== */
 @media (max-width: 1200px) {
   .activities-container {
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -335,15 +459,6 @@ onMounted(async () => {
   .page-subtitle-text {
     font-size: 16px;
   }
-  
-  .view-switcher {
-    margin-top: 32px;
-  }
-  
-  .switcher-btn {
-    padding: 10px 20px;
-    font-size: 14px;
-  }
 
   .activities-container {
     grid-template-columns: 1fr;
@@ -354,9 +469,30 @@ onMounted(async () => {
   .activity-card-content {
     padding: 24px;
   }
-  
+
   .activity-card-image {
     height: 240px;
+  }
+
+  .detail-overlay {
+    padding: 0;
+    align-items: end;
+  }
+
+  .detail-modal {
+    width: calc(100% - 16px);
+    max-height: 92dvh;
+    margin: 0 8px 8px;
+    border-radius: 24px;
+  }
+
+  .detail-content {
+    padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+  }
+
+  .detail-title {
+    font-size: 26px;
+    padding-right: 40px;
   }
 }
 </style>

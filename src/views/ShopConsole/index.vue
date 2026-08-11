@@ -91,17 +91,26 @@
             </div>
             <div v-if="isUploading" class="upload-overlay">
               <LoaderCircle :size="24" class="spinning" aria-hidden="true" />
-              <span>正在上传裁切图</span>
+              <span>正在上传图片</span>
             </div>
           </div>
 
           <div class="image-actions">
-            <label class="primary-button upload-button" :class="{ disabled: isUploading }">
-              <Crop :size="17" aria-hidden="true" /> 选择并裁切
-              <input type="file" accept="image/png,image/jpeg,image/webp" :disabled="isUploading" @change="handleImageSelection" />
-            </label>
-            <button v-if="selectedProduct.image" type="button" class="secondary-button" :disabled="isUploading" @click="clearImage">
-              <Trash2 :size="16" aria-hidden="true" /> 移除图片
+            <button type="button" class="primary-button upload-button" :disabled="isUploading" @click="openCropPicker">
+              <Crop :size="17" aria-hidden="true" /> 裁切上传
+            </button>
+            <button type="button" class="secondary-button" :disabled="isUploading" @click="openDirectUpload">
+              <Upload :size="16" aria-hidden="true" /> 直接上传
+            </button>
+            <input ref="cropInputRef" type="file" accept="image/png,image/jpeg,image/webp" style="display:none" @change="handleCropFileSelect" />
+            <input ref="directInputRef" type="file" accept="image/png,image/jpeg,image/webp" style="display:none" @change="handleDirectFileSelect" />
+          </div>
+          <div v-if="selectedProduct.image" class="image-actions-secondary">
+            <button type="button" class="text-button" :disabled="isUploading" @click="recropImage">
+              <Crop :size="14" aria-hidden="true" /> 重新裁切
+            </button>
+            <button type="button" class="text-button is-danger" :disabled="isUploading" @click="clearImage">
+              <Trash2 :size="14" aria-hidden="true" /> 移除图片
             </button>
           </div>
 
@@ -161,6 +170,18 @@
             <label class="field">
               <span>积分价格</span>
               <input v-model.number="selectedProduct.points_cost" type="number" min="0" inputmode="numeric" @input="markDirty(selectedProduct.id)" />
+            </label>
+            <label class="field">
+              <span>支付方式</span>
+              <select v-model="selectedProduct.payment_mode" @change="markDirty(selectedProduct.id)">
+                <option value="points_only">纯积分</option>
+                <option value="rmb_only">纯现金</option>
+                <option value="combined">积分+现金</option>
+              </select>
+            </label>
+            <label class="field" v-if="selectedProduct.payment_mode !== 'points_only'">
+              <span>现金价格 (分)</span>
+              <input v-model.number="selectedProduct.rmb_price" type="number" min="0" inputmode="numeric" placeholder="单位：分" @input="markDirty(selectedProduct.id)" />
             </label>
             <label class="field">
               <span>库存</span>
@@ -227,7 +248,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   ChevronLeft, Crop, Image as ImageIcon, LoaderCircle, PackageSearch, Plus,
-  RefreshCw, Save, Search, Trash2, X
+  RefreshCw, Save, Search, Trash2, Upload, X
 } from 'lucide-vue-next';
 import AvatarCropModal from '@/components/AvatarCropModal.vue';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
@@ -237,8 +258,10 @@ import { uploadImageToCloudinary, isCloudinaryNoteUploadConfigured } from '@/uti
 import { logger } from '@/utils/logger.js';
 import { supabase } from '@/utils/supabase-client';
 import { invalidateProductsCache, PRODUCT_CATEGORY_OPTIONS } from '@/views/DataManagement/config.js';
+import { useProductsStore } from '@/stores/products';
 
 const router = useRouter();
+const productsStore = useProductsStore();
 const authStore = useAuthStore();
 const dialog = useConfirmDialog();
 const products = ref([]);
@@ -251,6 +274,8 @@ const statusFilter = ref('all');
 const isLoading = ref(false);
 const isSaving = ref(false);
 const isUploading = ref(false);
+const cropInputRef = ref(null);
+const directInputRef = ref(null);
 const cropVisible = ref(false);
 const cropSource = ref('');
 const toast = ref({ show: false, message: '' });
@@ -275,12 +300,14 @@ const cloneProduct = (product) => ({
   title: String(product.title || ''),
   category: String(product.category || categoryOptions[0]?.value || ''),
   description: String(product.description || ''),
+  payment_mode: String(product.payment_mode || 'points_only'),
   points_cost: Math.max(0, Math.round(Number(product.points_cost) || 0)),
+  rmb_price: product.rmb_price != null ? Math.max(0, Math.round(Number(product.rmb_price) || 0)) : null,
   stock: Math.max(0, Math.round(Number(product.stock) || 0)),
   image: String(product.image || ''),
   specifications: normalizeSpecs(product.specifications),
   is_active: product.is_active !== false,
-  is_purchasable: product.is_purchasable !== false && Number(product.points_cost) > 0
+  is_purchasable: product.is_purchasable !== false
 });
 
 const dirtyCount = computed(() => dirtyIds.size);
@@ -306,9 +333,16 @@ const filteredProducts = computed(() => {
 const resolveImage = (path) => path?.startsWith('blob:') ? path : getImageUrl(path, { silent: true });
 const isDirty = (id) => dirtyIds.has(parseId(id));
 const markDirty = (id) => dirtyIds.add(parseId(id));
-const displayPoints = (product) => product?.is_purchasable === false || Number(product?.points_cost) <= 0
-  ? '不可购买'
-  : `${Math.round(Number(product.points_cost))} 积分`;
+const displayPoints = (product) => {
+  if (product?.is_purchasable === false) return '不可购买';
+  const mode = String(product?.payment_mode || 'points_only');
+  const pts = Number.isFinite(Number(product?.points_cost)) && Number(product?.points_cost) > 0
+    ? `${Math.round(Number(product.points_cost))} 积分` : '';
+  const rmb = Number.isFinite(Number(product?.rmb_price)) && Number(product?.rmb_price) > 0
+    ? `¥${(Number(product.rmb_price) / 100).toFixed(2)}` : '';
+  if (mode === 'combined') return [pts, rmb].filter(Boolean).join(' + ') || '—';
+  return pts || rmb || '—';
+};
 const productStatus = (product) => {
   if (!product.is_active) return { label: '隐藏', tone: 'muted' };
   if (!product.is_purchasable) return { label: '不可购买', tone: 'warning' };
@@ -331,7 +365,7 @@ function startNewProduct() {
   const product = cloneProduct({
     id: tempCounter,
     category: categoryOptions[0]?.value,
-    title: '', description: '', points_cost: 0, stock: 0, image: '', specifications: [],
+    title: '', description: '', payment_mode: 'points_only', points_cost: 0, rmb_price: null, stock: 0, image: '', specifications: [],
     is_active: true, is_purchasable: false
   });
   drafts[tempCounter] = product;
@@ -355,7 +389,7 @@ function releaseCropSource() {
   if (cropSource.value.startsWith('blob:')) URL.revokeObjectURL(cropSource.value);
   cropSource.value = '';
 }
-function handleImageSelection(event) {
+function handleCropFileSelect(event) {
   const file = event.target?.files?.[0];
   event.target.value = '';
   if (!file) return;
@@ -363,6 +397,61 @@ function handleImageSelection(event) {
   releaseCropSource();
   cropSource.value = URL.createObjectURL(file);
   cropVisible.value = true;
+}
+function openCropPicker() {
+  cropInputRef.value?.click();
+}
+function openDirectUpload() {
+  directInputRef.value?.click();
+}
+
+// 直接上传原图（不走裁切）
+async function handleDirectFileSelect(event) {
+  const file = event.target?.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+  if (!String(file.type).startsWith('image/')) return showToast('请选择图片文件');
+
+  if (!isCloudinaryNoteUploadConfigured()) return showToast('请先配置 Cloudinary 上传');
+  const previousImage = selectedProduct.value.image;
+  isUploading.value = true;
+  try {
+    const uploaded = await uploadImageToCloudinary(file, {
+      folder: 'boh-cloud-plus/admin-shop-console',
+      pendingSource: 'shop-console'
+    });
+    if (!uploaded.url) throw new Error('上传成功但未返回图片地址');
+    selectedProduct.value.image = uploaded.url;
+    markDirty(selectedId.value);
+    showToast('原图已上传，保存商品后生效');
+  } catch (error) {
+    if (selectedProduct.value) selectedProduct.value.image = previousImage;
+    logger.error('shop-console', '商品图片上传失败', error);
+    showToast(`图片上传失败：${error?.message || '未知错误'}`);
+  } finally {
+    isUploading.value = false;
+  }
+}
+
+// 对已上传图片重新裁切
+async function recropImage() {
+  if (!selectedProduct.value?.image || isUploading.value) return;
+  const imageUrl = resolveImage(selectedProduct.value.image);
+
+  // 尝试把已有图片转成 blob 用于裁切
+  releaseCropSource();
+  try {
+    const resp = await fetch(imageUrl);
+    if (!resp.ok) throw new Error('图片加载失败');
+    const blob = await resp.blob();
+    if (!String(blob.type).startsWith('image/')) throw new Error('不是有效的图片');
+    cropSource.value = URL.createObjectURL(blob);
+    cropVisible.value = true;
+  } catch {
+    // fetch 可能被 CORS 拦截，fallback 直接用 url
+    cropSource.value = imageUrl;
+    cropVisible.value = true;
+  }
 }
 async function handleCropConfirm(blob) {
   if (!selectedProduct.value || isUploading.value) return;
@@ -401,21 +490,33 @@ async function handleCropConfirm(blob) {
 function validateDraft(draft) {
   if (!String(draft.title || '').trim()) return '商品名称不能为空';
   if (!String(draft.category || '').trim()) return '请选择商品分类';
-  if (!Number.isFinite(Number(draft.points_cost)) || Number(draft.points_cost) < 0) return '积分价格不能小于 0';
+  const mode = String(draft.payment_mode || 'points_only');
+  if (mode === 'points_only' || mode === 'combined') {
+    if (!Number.isFinite(Number(draft.points_cost)) || Number(draft.points_cost) < 0) return '积分价格不能小于 0';
+  }
+  if (mode === 'rmb_only' || mode === 'combined') {
+    if (!Number.isFinite(Number(draft.rmb_price)) || Number(draft.rmb_price) <= 0) return '现金价格必须大于 0';
+  }
   if (!Number.isFinite(Number(draft.stock)) || Number(draft.stock) < 0) return '库存不能小于 0';
   return '';
 }
-const buildPayload = (draft) => ({
-  title: String(draft.title || '').trim(),
-  category: String(draft.category || '').trim(),
-  description: String(draft.description || '').trim(),
-  points_cost: Math.max(0, Math.round(Number(draft.points_cost) || 0)),
-  stock: Math.max(0, Math.round(Number(draft.stock) || 0)),
-  image: String(draft.image || '').trim(),
-  specifications: normalizeSpecs(draft.specifications).filter((item) => item.label.trim() && item.value.trim()),
-  is_active: draft.is_active !== false,
-  is_purchasable: draft.is_purchasable !== false
-});
+const buildPayload = (draft) => {
+  const mode = String(draft.payment_mode || 'points_only');
+  const base = {
+    title: String(draft.title || '').trim(),
+    category: String(draft.category || '').trim(),
+    description: String(draft.description || '').trim(),
+    payment_mode: mode,
+    points_cost: Math.max(0, Math.round(Number(draft.points_cost) || 0)),
+    rmb_price: (mode === 'rmb_only' || mode === 'combined') ? Math.max(1, Math.round(Number(draft.rmb_price) || 0)) : null,
+    stock: Math.max(0, Math.round(Number(draft.stock) || 0)),
+    image: String(draft.image || '').trim(),
+    specifications: normalizeSpecs(draft.specifications).filter((item) => item.label.trim() && item.value.trim()),
+    is_active: draft.is_active !== false,
+    is_purchasable: draft.is_purchasable !== false
+  };
+  return base;
+};
 async function persistDraft(id) {
   const draft = drafts[id];
   if (!draft) return { ok: false, message: '商品草稿不存在' };
@@ -443,6 +544,8 @@ async function saveProduct(id) {
     const result = await persistDraft(parseId(id));
     if (!result.ok) return showToast(result.message);
     invalidateProductsCache();
+    productsStore.bumpCacheVersion();
+    productsStore.bumpCacheVersion();
     await loadProducts(result.id);
     showToast('商品已保存，商城数据已刷新');
   } catch (error) {
@@ -461,6 +564,7 @@ async function saveAll() {
       if (id === selectedId.value) lastId = result.id;
     }
     invalidateProductsCache();
+    productsStore.bumpCacheVersion();
     await loadProducts(lastId);
     showToast('全部修改已保存');
   } catch (error) {
@@ -488,6 +592,7 @@ async function deleteProduct(id) {
     dirtyIds.delete(product.id);
     selectedId.value = null;
     invalidateProductsCache();
+    productsStore.bumpCacheVersion();
     await loadProducts();
     showToast('商品已删除');
   } catch (error) {

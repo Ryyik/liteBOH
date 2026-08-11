@@ -7,7 +7,7 @@
           <h1>方块商店</h1>
         </div>
         <button class="avatar-button" type="button" aria-label="我的方块" @click="handleAvatarClick">
-          <img v-if="isLoggedIn && userInfo.avatarUrl" :src="userInfo.avatarUrl" :alt="userInfo.username" />
+          <img v-if="isLoggedIn && userInfo.avatarUrl" :src="userInfo.avatarUrl" :alt="userInfo.username" width="40" height="40" />
           <span v-else-if="isLoggedIn">{{ avatarInitial }}</span>
           <User v-else :size="20" :stroke-width="1.9" aria-hidden="true" />
         </button>
@@ -33,7 +33,7 @@
 
       <template v-else-if="activeNavId === 'for-you'">
         <section v-if="featuredProduct" class="mascot-hero">
-          <img :src="mascotHeroUrl" alt="BOH 吉祥物公仔" />
+          <img :src="mascotHeroUrl" alt="BOH 吉祥物公仔" width="800" height="600" />
           <div class="mascot-copy">
             <span class="status-pill">2026 秋季新朋友</span>
             <h2>把方块之家的温度，带回家。</h2>
@@ -61,13 +61,13 @@
             <button v-for="product in recommendedProducts" :key="product.id" type="button" class="product-card"
               @click="openProductDetails(product)">
               <span class="product-media">
-                <img v-if="product.image" :src="displayImageUrl(product)" :alt="product.title" loading="lazy" />
+                <img v-if="product.image" :src="displayImageUrl(product)" :alt="product.title" width="400" height="300" loading="lazy" />
                 <Package v-else :size="52" :stroke-width="1.3" aria-hidden="true" />
               </span>
               <span class="product-info">
                 <small>{{ product.category }}</small>
                 <strong>{{ product.title }}</strong>
-                <span>{{ formatPointsDisplay(product.points_cost) }}</span>
+                <span>{{ formatPriceDisplay(product) }}</span>
               </span>
             </button>
           </div>
@@ -102,13 +102,13 @@
             <button v-for="product in filteredProducts" :key="product.id" type="button" class="product-card"
               @click="openProductDetails(product)">
               <span class="product-media">
-                <img v-if="product.image" :src="displayImageUrl(product)" :alt="product.title" loading="lazy" />
+                <img v-if="product.image" :src="displayImageUrl(product)" :alt="product.title" width="400" height="300" loading="lazy" />
                 <Package v-else :size="52" :stroke-width="1.3" aria-hidden="true" />
               </span>
               <span class="product-info">
                 <small>{{ product.category }}</small>
                 <strong>{{ product.title }}</strong>
-                <span>{{ formatPointsDisplay(product.points_cost) }}</span>
+                <span>{{ formatPriceDisplay(product) }}</span>
               </span>
             </button>
           </div>
@@ -173,13 +173,13 @@
           <button class="close-button" type="button" aria-label="关闭商品详情" @click="closeProductDetails"><X :size="20" /></button>
           <div class="sheet-grabber" aria-hidden="true"></div>
           <div class="detail-media">
-            <img v-if="selectedProduct.image" :src="displayImageUrl(selectedProduct)" :alt="selectedProduct.title" />
+            <img v-if="selectedProduct.image" :src="displayImageUrl(selectedProduct)" :alt="selectedProduct.title" width="400" height="400" />
             <Package v-else :size="64" :stroke-width="1.2" aria-hidden="true" />
           </div>
           <div class="detail-content">
             <p class="detail-category">{{ selectedProduct.category }}</p>
             <h2>{{ selectedProduct.title }}</h2>
-            <p class="detail-price">{{ formatPointsDisplay(selectedProduct.points_cost) }}</p>
+            <p class="detail-price">{{ formatPriceDisplay(selectedProduct) }}</p>
             <p class="detail-description">{{ selectedProduct.description }}</p>
             <div v-if="selectedProduct.specifications?.length" class="spec-section">
               <span>选择规格</span>
@@ -212,9 +212,9 @@
           <button type="button" class="secondary-button" @click="continueShopping">继续购物</button>
         </div>
         <div v-else class="bag-content">
-          <div class="bag-items">
+          <TransitionGroup name="bag-item" tag="div" class="bag-items">
             <article v-for="item in shoppingBag" :key="`${item.id}-${item.selectedSpec}`" class="bag-item">
-              <div class="bag-item-media"><img :src="displayImageUrl(item)" :alt="item.title" /></div>
+              <div class="bag-item-media"><img :src="displayImageUrl(item)" :alt="item.title" width="80" height="80" /></div>
               <div class="bag-item-copy">
                 <h3>{{ item.title }}</h3><p>{{ item.selectedSpecLabel }}</p>
                 <div class="bag-item-bottom">
@@ -223,15 +223,16 @@
                     <span>{{ item.quantity }}</span>
                     <button type="button" aria-label="增加数量" @click="updateQuantity(item.id, item.selectedSpec, 1)"><Plus :size="15" /></button>
                   </div>
-                  <strong>{{ formatPointsDisplay(item.points_cost * item.quantity) }}</strong>
+                  <strong>{{ formatPriceDisplay(item) }}</strong>
                 </div>
               </div>
             </article>
-          </div>
+          </TransitionGroup>
           <footer class="bag-summary">
-            <div><span>总计</span><strong>{{ totalPointsText }}</strong></div>
+            <div><span>积分</span><strong>{{ totalPointsText || '—' }}</strong></div>
+            <div v-if="totalRmb"><span>现金</span><strong>{{ totalRmbText }}</strong></div>
             <div><span>当前积分</span><span>{{ isLoggedIn ? userPoints : '请先登录' }}</span></div>
-            <button type="button" class="checkout-button" :disabled="!canCheckout" @click="getSettlement">积分结账</button>
+            <button type="button" class="checkout-button" :disabled="!canCheckout" @click="getSettlement">提交订单</button>
           </footer>
         </div>
       </aside>
@@ -242,6 +243,8 @@
         <section class="contact-sheet" role="dialog" aria-modal="true" aria-label="填写联系方式" @click.stop>
           <button class="close-button" type="button" aria-label="关闭" @click="closeContactModal"><X :size="20" /></button>
           <p class="section-kicker">订单确认</p><h2>留下联系方式</h2><p>管理员会联系你确认兑换与交付方式。</p>
+          <div v-if="totalPoints" class="contact-summary-line"><span>积分支付</span><strong>{{ totalPointsText }}</strong></div>
+          <div v-if="totalRmb" class="contact-summary-line"><span>现金支付</span><strong>{{ totalRmbText }}</strong></div>
           <div class="contact-types">
             <button type="button" :class="{ selected: contactType === 'qq' }" @click="contactType = 'qq'">QQ</button>
             <button type="button" :class="{ selected: contactType === 'vx' }" @click="contactType = 'vx'">微信</button>
@@ -249,6 +252,14 @@
           <label><span>{{ contactType === 'vx' ? '微信号' : 'QQ 号' }}</span><input v-model.trim="contactValue" type="text" :placeholder="contactType === 'vx' ? '请输入微信号' : '请输入 QQ 号'" /></label>
           <button class="checkout-button" type="button" :disabled="!contactType || !contactValue" @click="submitContact">确认提交</button>
         </section>
+      </div>
+    </Transition>
+
+    <Transition name="reveal">
+      <div v-if="showAccountOverlay" class="modal-overlay account-overlay" @click="showAccountOverlay = false">
+        <div class="account-card-overlay" @click.stop>
+          <ShopAccountPanel mode="overlay" @close="showAccountOverlay = false" />
+        </div>
       </div>
     </Transition>
 
@@ -274,6 +285,7 @@ import { getAllProfiles } from '@/utils/api/auth-api.js';
 import { createShopOrderWithPoints, getProfileByUsername } from '@/utils/api/profile-api.js';
 import { sendMerchandiseSettlementEmail } from '@/utils/email-service.js';
 import { logger } from '@/utils/logger.js';
+import ShopAccountPanel from './ShopAccountPanel.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -297,6 +309,12 @@ const contactType = ref('');
 const contactValue = ref('');
 const operationToast = ref({ show: false, message: '' });
 let toastTimer = null;
+
+// 横屏/竖屏检测 & 账户面板
+const isLandscape = ref(false);
+const showAccountOverlay = ref(false);
+let orientationMql = null;
+let orientationHandler = null;
 
 const categoryOptions = [
   { label: '全部', value: 'all' },
@@ -346,19 +364,57 @@ const navIndicatorStyle = computed(() => {
 const avatarInitial = computed(() => String(userInfo.username || '?').trim().charAt(0).toUpperCase());
 const shoppingBagCount = computed(() => shoppingBag.value.reduce((sum, item) => sum + item.quantity, 0));
 const totalPoints = computed(() => shoppingBag.value.reduce((sum, item) => sum + (parsePointsCost(item.points_cost) || 0) * item.quantity, 0));
-const totalPointsText = computed(() => `${totalPoints.value} 积分`);
+const totalPointsText = computed(() => totalPoints.value ? `${totalPoints.value} 积分` : '');
+const totalRmb = computed(() => shoppingBag.value.reduce((sum, item) => {
+  const rmb = Number(item.rmb_price);
+  return sum + (Number.isFinite(rmb) && rmb > 0 ? rmb * item.quantity : 0);
+}, 0));
+const totalRmbText = computed(() => totalRmb.value > 0 ? `¥${(totalRmb.value / 100).toFixed(2)}` : '');
 const userPoints = computed(() => `${Number(userInfo.points) || 0} 积分`);
-const canCheckout = computed(() => shoppingBag.value.length > 0 && shoppingBag.value.every((item) => item.is_purchasable !== false && parsePointsCost(item.points_cost) !== null));
+const canCheckout = computed(() => {
+  if (!shoppingBag.value.length) return false;
+  return shoppingBag.value.every((item) => {
+    if (item.is_purchasable === false) return false;
+    const mode = String(item.payment_mode || 'points_only');
+    if (mode === 'points_only') return parsePointsCost(item.points_cost) !== null;
+    if (mode === 'rmb_only') return Number(item.rmb_price) > 0;
+    if (mode === 'combined') return parsePointsCost(item.points_cost) !== null && Number(item.rmb_price) > 0;
+    return false;
+  });
+});
 
 function parsePointsCost(value) {
   const points = Number(value);
   return Number.isFinite(points) && points > 0 ? Math.round(points) : null;
 }
-function formatPointsDisplay(value) {
-  const points = parsePointsCost(value);
-  return points === null ? '暂不可兑换' : `${points} 积分`;
+function formatRmb(value) {
+  const cents = Number(value);
+  if (!Number.isFinite(cents) || cents <= 0) return null;
+  return `¥${(cents / 100).toFixed(2)}`;
 }
-const isProductExchangeable = (product) => product?.is_purchasable !== false && parsePointsCost(product?.points_cost) !== null;
+function formatPriceDisplay(product) {
+  const mode = String(product?.payment_mode || 'points_only');
+  const points = parsePointsCost(product?.points_cost);
+  const rmb = formatRmb(product?.rmb_price);
+
+  if (mode === 'points_only') return points !== null ? `${points} 积分` : '暂不可兑换';
+  if (mode === 'rmb_only') return rmb || '暂不可购买';
+  if (mode === 'combined') {
+    const parts = [];
+    if (points !== null) parts.push(`${points} 积分`);
+    if (rmb) parts.push(rmb);
+    return parts.length ? parts.join(' + ') : '暂不可兑换';
+  }
+  return '暂不可兑换';
+}
+const isProductExchangeable = (product) => {
+  if (product?.is_purchasable === false) return false;
+  const mode = String(product?.payment_mode || 'points_only');
+  if (mode === 'points_only') return parsePointsCost(product?.points_cost) !== null;
+  if (mode === 'rmb_only') return Number(product?.rmb_price) > 0;
+  if (mode === 'combined') return parsePointsCost(product?.points_cost) !== null && Number(product?.rmb_price) > 0;
+  return false;
+};
 const displayImageUrl = (product) => Number(product?.id) === 501 ? mascotHeroUrl : getImageUrl(product?.image);
 
 function handleBottomNav(id) {
@@ -371,7 +427,14 @@ function switchToProducts() { activeNavId.value = 'products'; selectedCategory.v
 function openProductsForSearch() { activeNavId.value = 'products'; }
 function openCollection(value) { selectedCategory.value = value; activeNavId.value = 'products'; window.scrollTo({ top: 0, behavior: 'smooth' }); }
 function resetCatalog() { searchQuery.value = ''; selectedCategory.value = 'all'; }
-function handleAvatarClick() { if (!isLoggedIn.value) showLoginModal.value = true; else router.push('/user-space'); }
+function handleAvatarClick() {
+  if (!isLoggedIn.value) { showLoginModal.value = true; return; }
+  if (isLandscape.value) {
+    showAccountOverlay.value = true;
+  } else {
+    router.push('/shop/account');
+  }
+}
 
 function openProductDetails(product) {
   selectedProduct.value = product;
@@ -402,8 +465,8 @@ function showOperationToast(message) {
 
 function closeContactModal() { showContactModal.value = false; contactType.value = ''; contactValue.value = ''; }
 function getSettlement() {
-  if (!isLoggedIn.value) { closeSidebar(); showLoginModal.value = true; return showOperationToast('请先登录后再使用积分支付'); }
-  if (!canCheckout.value || totalPoints.value <= 0) return showOperationToast('订单内容无效，请检查购物袋');
+  if (!isLoggedIn.value) { closeSidebar(); showLoginModal.value = true; return showOperationToast('请先登录后再提交订单'); }
+  if (!canCheckout.value) return showOperationToast('订单内容无效，请检查购物袋');
   showContactModal.value = true;
 }
 const buildOrderItemsPayload = () => shoppingBag.value.map((item) => ({
@@ -447,24 +510,47 @@ async function submitContact() {
   const result = await createShopOrderWithPoints({ items: buildOrderItemsPayload(), contactType: contactType.value, contactValue: contactValue.value });
   if (!result.ok) return showOperationToast(resolveOrderErrorMessage(result));
 
-  const paidPoints = Number(result.data?.pointsDeducted || totalPoints.value);
-  const remainingPoints = Number(result.data?.currentPoints || 0);
+  const paidPoints = Number(result.data?.pointsDeducted || 0);
+  const paidRmb = result.data?.rmbTotal ? Number(result.data.rmbTotal) : 0;
+  const remainingPoints = Number(result.data?.currentPoints || userInfo.points);
   const orderNo = result.data?.orderNo || '未知订单号';
   const time = formatDateTime(new Date());
   const contactLabel = contactType.value === 'qq' ? 'QQ' : '微信';
+  const paymentMode = result.data?.paymentMode || 'points_only';
   const itemText = snapshot.map((item) => `${item.title} (${item.selectedSpecLabel}) x${item.quantity}`).join('\n- ');
-  const summary = `--- 方块之家周边结算单 ---\n订单号: ${orderNo}\n用户: ${userInfo.username}\n时间: ${time}\n${contactLabel}: ${contactValue.value}\n\n商品清单:\n- ${itemText}\n\n总计积分: ${paidPoints}\n剩余积分: ${remainingPoints}`;
+
+  let paymentSummary = '';
+  if (paymentMode === 'points_only') paymentSummary = `积分: ${paidPoints}`;
+  else if (paymentMode === 'rmb_only') paymentSummary = `现金: ¥${(paidRmb / 100).toFixed(2)}`;
+  else paymentSummary = `积分: ${paidPoints} + 现金: ¥${(paidRmb / 100).toFixed(2)}`;
+
+  const summary = `--- 方块之家周边结算单 ---\n订单号: ${orderNo}\n用户: ${userInfo.username}\n时间: ${time}\n${contactLabel}: ${contactValue.value}\n\n支付方式: ${paymentSummary}\n\n商品清单:\n- ${itemText}\n\n剩余积分: ${remainingPoints}`;
   const savedContact = contactValue.value;
   userInfo.points = remainingPoints;
   await copyToClipboard(summary);
   closeContactModal(); clearBag(); closeSidebar();
-  void sendMerchandiseSettlementEmail({ userId: userInfo.username, orderNo, orderTime: time, items: snapshot, totalPrice: `${paidPoints} 积分`, paymentMethod: '积分支付', buyerName: userInfo.username, buyerRole: userInfo.role, isLoggedIn: true, contactType: contactLabel, contactValue: savedContact }).catch((error) => logger.error('shop', '订单邮件发送失败', error));
-  void notifyAdministrators(`收到新的周边订单！\n订单号: ${orderNo}\n用户: ${userInfo.username}\n商品: ${itemText}\n总计积分: ${paidPoints}`);
-  showOperationToast('积分支付成功，订单已提交');
+  void sendMerchandiseSettlementEmail({ userId: userInfo.username, orderNo, orderTime: time, items: snapshot, totalPrice: paymentSummary, paymentMethod: paymentSummary, buyerName: userInfo.username, buyerRole: userInfo.role, isLoggedIn: true, contactType: contactLabel, contactValue: savedContact }).catch((error) => logger.error('shop', '订单邮件发送失败', error));
+  void notifyAdministrators(`收到新的周边订单！\n订单号: ${orderNo}\n用户: ${userInfo.username}\n支付: ${paymentSummary}\n商品: ${itemText}`);
+  showOperationToast('订单已提交');
 }
 
-onMounted(() => productsStore.fetchProducts({ force: true }).catch((error) => logger.error('shop', '商品加载失败', error)));
-onBeforeUnmount(() => { if (toastTimer) clearTimeout(toastTimer); document.body.style.overflow = ''; bagStore.flushShoppingBag(); });
+onMounted(() => {
+  productsStore.fetchProducts({ force: true }).catch((error) => logger.error('shop', '商品加载失败', error));
+  orientationMql = window.matchMedia('(orientation: landscape)');
+  isLandscape.value = orientationMql.matches;
+  orientationHandler = (e) => { isLandscape.value = e.matches; };
+  orientationMql.addEventListener('change', orientationHandler);
+});
+onBeforeUnmount(() => {
+  if (toastTimer) clearTimeout(toastTimer);
+  document.body.style.overflow = '';
+  bagStore.flushShoppingBag();
+  if (orientationMql && orientationHandler) {
+    orientationMql.removeEventListener('change', orientationHandler);
+    orientationMql = null;
+    orientationHandler = null;
+  }
+});
 </script>
 
 <style scoped src="./style.scoped.css"></style>

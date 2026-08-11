@@ -151,19 +151,13 @@ if (typeof window !== "undefined") {
   if ('serviceWorker' in navigator && !import.meta.env.DEV) {
     // 监听 Service Worker 更新事件
     navigator.serviceWorker.ready.then((registration) => {
-      // 每次启动立即检查 sw.js，不等待第一个 10 分钟轮询。
+      // 每次启动立即检查 sw.js
       registration.update().catch((err) => {
         logger.warn('pwa', 'SW 启动更新检查失败', err);
       });
 
-      // 定期检查更新（每10分钟）
-      setInterval(() => {
-        registration.update().catch((err) => {
-          logger.warn('pwa', 'SW 更新检查失败', err);
-        });
-      }, 10 * 60 * 1000);
-
       // 页面可见时检查更新（用户切换标签页回来时）
+      // version-checker 也会在 visibilitychange 时检测 version.json，这里作为 SW 层补充
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
           registration.update().catch((err) => {
@@ -273,12 +267,6 @@ app.config.errorHandler = (err, instance, info) => {
 
 const authStore = useAuthStore();
 const bagStore = useBagStore();
-
-// 预热免费模型缓存（从数据库加载），仅作 fire-and-forget 触发，不阻塞首屏挂载。
-// 该数据仅在 AI 对话页用到，同步 API (getFreeChatModels) 会按需 await inflightPromise。
-loadFreemodelsFromDB().catch(err => {
-  logger.warn('freemodels', '免费模型缓存预热失败', err);
-});
 
 app.mount("#app");
 

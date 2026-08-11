@@ -11,6 +11,8 @@ import {
   getComments,
   createComment,
   getCommentThreadReplies,
+  getCommentAncestors,
+  getCommentThreadPreviewsBatch,
   toggleLike,
   reportPost,
   checkIfLiked,
@@ -508,6 +510,60 @@ const loadChildReplyPreview = async (parentId) => {
 const preloadChildReplyPreviews = async (comments = []) => {
   const safeComments = Array.isArray(comments) ? comments : [];
   if (safeComments.length === 0) return;
+
+  const commentIds = safeComments.map((c) => c?.id).filter(Boolean);
+  if (commentIds.length === 0) return;
+
+  const postId = String(post.value?.id || '').trim();
+  if (!postId) return;
+
+  // RPC 路径：批量获取所有顶层评论的子回复预览
+  try {
+    const result = await getCommentThreadPreviewsBatch(postId, commentIds);
+    if (!result?.error && !result?.fallback && Array.isArray(result?.data)) {
+      const previewMap = new Map();
+      for (const row of result.data) {
+        if (row?.root_comment_id) {
+          previewMap.set(String(row.root_comment_id), row);
+        }
+      }
+
+      for (const id of commentIds) {
+        const rootId = toIdKey(id);
+        const state = getChildReplyState(rootId);
+        if (state.isLoading || state.fullLoaded || Number(state.totalCount || 0) > 0) continue;
+
+        const preview = previewMap.get(String(id));
+        if (preview) {
+          const previewRows = [preview];
+          patchChildReplyState(rootId, {
+            items: previewRows,
+            totalCount: previewRows.length,
+            fullLoaded: !Boolean(preview.has_more),
+            hasMore: Boolean(preview.has_more),
+            page: 1,
+            isLoading: false,
+            expanded: false
+          });
+        } else {
+          patchChildReplyState(rootId, {
+            items: [],
+            totalCount: 0,
+            fullLoaded: true,
+            hasMore: false,
+            page: 1,
+            isLoading: false,
+            expanded: false
+          });
+        }
+      }
+      return;
+    }
+  } catch (err) {
+    logger.warn('post-detail', 'get_comment_thread_previews RPC 失败，降级到逐条加载', err);
+  }
+
+  // Fallback：原逐条并行加载（RPC 失败或不存在时降级）
   await Promise.allSettled(
     safeComments
       .filter((comment) => comment?.id)
@@ -639,6 +695,36 @@ const ensureChildCommentLoaded = async (parentId, targetCommentId) => {
 };
 
 const resolveRootCommentId = async (comment) => {
+  const commentId = String(comment?.id || '').trim();
+  const postId = String(post.value?.id || '').trim();
+
+  // RPC 路径：一次性获取祖先链
+  if (commentId && postId) {
+    try {
+      const result = await getCommentAncestors(commentId, postId);
+      if (!result?.error && !result?.fallback && Array.isArray(result?.data) && result.data.length > 0) {
+        const ancestors = result.data;
+        for (const ancestor of ancestors) {
+          const depth = Number(ancestor?.depth ?? 0);
+          if (depth === 0) continue;
+
+          const status = String(ancestor?.status || 'approved').trim().toLowerCase();
+          if (status !== 'approved') {
+            return String(ancestor?.id || '').trim();
+          }
+          if (!ancestor?.parent_id) {
+            return String(ancestor?.id || '').trim();
+          }
+        }
+        const last = ancestors[ancestors.length - 1];
+        return String(last?.parent_id || last?.id || '').trim();
+      }
+    } catch (err) {
+      logger.warn('post-detail', 'get_comment_ancestors RPC 失败，降级到循环查询', err);
+    }
+  }
+
+  // Fallback：原循环逻辑（RPC 失败或不存在时降级）
   let current = comment;
   const visited = new Set();
 

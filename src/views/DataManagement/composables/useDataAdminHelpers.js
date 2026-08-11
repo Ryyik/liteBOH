@@ -1,4 +1,4 @@
-import DOMPurify from '@/utils/dompurify.js';
+import { watch } from 'vue';
 import { escapeHtml } from './useDataAdminValidation.js';
 import { sanitizeSearchTerm } from './useDataAdminFilters.js';
 
@@ -137,21 +137,38 @@ export const getTags = (value) => {
   return [String(value)];
 };
 
-const sanitizeHighlightHtml = (html) => DOMPurify.sanitize(String(html || ''), {
-  ALLOWED_TAGS: ['mark'],
-  ALLOWED_ATTR: []
-});
-
 export const createHighlightHelpers = ({ searchQueryRef, globalSearchQueryRef }) => {
   const getHighlightKeyword = () => sanitizeSearchTerm(searchQueryRef.value || globalSearchQueryRef.value);
 
+  // 高亮结果缓存：key = `${value}|${keyword}`，避免表格每行每列重复执行 escape+replace
+  const highlightCache = new Map();
+  // 缓存上限，防止长期运行内存增长
+  const HIGHLIGHT_CACHE_MAX = 2000;
+
+  // 监听 keyword 变化时清空缓存（搜索关键词改变后旧缓存失效）
+  watch(searchQueryRef, () => highlightCache.clear());
+  watch(globalSearchQueryRef, () => highlightCache.clear());
+
   const highlightCellValue = (value, maxLength) => {
+    const keyword = getHighlightKeyword();
+    const cacheKey = `${maxLength}|${keyword}|${value}`;
+    if (highlightCache.has(cacheKey)) return highlightCache.get(cacheKey);
+
     const display = formatCellValue(value, maxLength);
     const escaped = escapeHtml(display);
-    const keyword = getHighlightKeyword();
-    if (!keyword || display === '-') return escaped;
-    const safeKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return sanitizeHighlightHtml(escaped.replace(new RegExp(`(${safeKeyword})`, 'ig'), '<mark>$1</mark>'));
+    let result;
+    if (!keyword || display === '-') {
+      result = escaped;
+    } else {
+      const safeKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      result = escaped.replace(new RegExp(`(${safeKeyword})`, 'ig'), '<mark>$1</mark>');
+    }
+    if (highlightCache.size >= HIGHLIGHT_CACHE_MAX) {
+      // 简单 LRU：超限时清空
+      highlightCache.clear();
+    }
+    highlightCache.set(cacheKey, result);
+    return result;
   };
 
   return { getHighlightKeyword, highlightCellValue };

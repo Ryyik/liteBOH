@@ -46,8 +46,6 @@ export function getFreeChatModels() {
   return cachedFreemodels || [];
 }
 
-loadFreemodelsFromDB().catch(() => {});
-
 export async function isSiliconFlowFreeModelAsync(modelId = '') {
   const safeModelId = String(modelId || '').trim();
   const models = await loadFreemodelsFromDB();

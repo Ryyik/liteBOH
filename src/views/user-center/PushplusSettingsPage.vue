@@ -1,8 +1,8 @@
 <template>
-  <div class="pushplus-settings-page">
+  <div class="pushplus-settings-page" :style="{ '--user-center-nav-offset': isFromUserSpace ? '0px' : '72px', paddingTop: isFromUserSpace ? '0px' : '72px' }">
 
     <div class="page-container">
-      <UserCenterPageHeader title="推送设置" max-width="650px" @back="goBack" />
+      <UserCenterPageHeader v-if="isFromUserSpace" title="推送设置" max-width="1200px" @back="goBack" />
 
       <div class="page-description">
         <p>配置离线消息推送，随时随地接收通知</p>
@@ -14,6 +14,7 @@
 </template>
 
 <script setup>
+import { ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import PushplusSettings from '@/components/PushplusSettings/index.vue';
@@ -21,6 +22,7 @@ import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';
 
 const router = useRouter();
 const route = useRoute();
+const isFromUserSpace = computed(() => String(route.query.from || '').startsWith('userspace'));
 
 const goBack = () => {
   router.push(resolveSettingsBackLocation(route));
@@ -29,6 +31,7 @@ const goBack = () => {
 
 <style scoped>
 .pushplus-settings-page {
+  --user-center-nav-offset: 0px;
   min-height: 100vh;
   background-color: #f5f5f7;
 }

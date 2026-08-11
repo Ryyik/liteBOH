@@ -1,6 +1,6 @@
 <template>
   <div key="profile-settings" class="profile-subpage-shell">
-    <UserCenterPageHeader title="设置" back-label="返回我的" max-width="650px" @back="$emit('back')" />
+    <UserCenterPageHeader title="设置" back-label="返回我的" max-width="1200px" @back="$emit('back')" />
 
     <div class="profile-subpage-body">
       <HomeCatMascot v-if="isHomeCatActive" class="settings-page-cat" pool="background"

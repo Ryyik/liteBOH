@@ -148,6 +148,8 @@ vi.mock('../../src/utils/api/forum/_shared.js', () => ({
 import {
   getComments,
   getCommentThreadReplies,
+  getCommentAncestors,
+  getCommentThreadPreviewsBatch,
   createComment,
   deleteComment,
 } from '../../src/utils/api/forum/comment-api.js';
@@ -1197,5 +1199,118 @@ describe('deleteComment', () => {
     await deleteComment('c1', 'user-1', 'user');
 
     expect(mockInvalidateByTags).not.toHaveBeenCalled();
+  });
+});
+
+describe('getCommentAncestors', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    rpcMock.mockReset();
+    mockIsMissingRpcFunctionError.mockReset();
+  });
+
+  it('returns ancestor chain when RPC succeeds', async () => {
+    const mockAncestors = [
+      { id: 'c1', parent_id: 'c2', post_id: 'p1', status: 'approved', depth: 0 },
+      { id: 'c2', parent_id: 'c3', post_id: 'p1', status: 'approved', depth: 1 },
+      { id: 'c3', parent_id: null, post_id: 'p1', status: 'approved', depth: 2 }
+    ];
+    rpcMock.mockResolvedValue({ data: mockAncestors, error: null });
+
+    const result = await getCommentAncestors('c1', 'p1');
+
+    expect(result.ok).toBe(true);
+    expect(result.fallback).toBe(false);
+    expect(result.error).toBeNull();
+    expect(result.data).toEqual(mockAncestors);
+    expect(rpcMock).toHaveBeenCalledWith('get_comment_ancestors', {
+      p_comment_id: 'c1',
+      p_post_id: 'p1'
+    });
+  });
+
+  it('returns fallback:true when RPC function is missing (PGRST202)', async () => {
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: { code: 'PGRST202', message: 'Could not find the function get_comment_ancestors' }
+    });
+    mockIsMissingRpcFunctionError.mockReturnValue(true);
+
+    const result = await getCommentAncestors('c1', 'p1');
+
+    expect(result.fallback).toBe(true);
+    expect(result.data).toBeNull();
+  });
+
+  it('returns error for invalid params', async () => {
+    const result = await getCommentAncestors('', 'p1');
+    expect(result.ok).toBe(false);
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it('returns error for non-PGRST202 RPC errors', async () => {
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: { code: '42501', message: 'permission denied' }
+    });
+
+    const result = await getCommentAncestors('c1', 'p1');
+
+    expect(result.fallback).toBe(false);
+    expect(result.ok).toBe(false);
+  });
+});
+
+describe('getCommentThreadPreviewsBatch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    rpcMock.mockReset();
+    mockIsMissingRpcFunctionError.mockReset();
+  });
+
+  it('returns batch previews when RPC succeeds', async () => {
+    const mockPreviews = [
+      { root_comment_id: 'c1', id: 'r1', content: 'reply 1', has_more: true },
+      { root_comment_id: 'c3', id: 'r2', content: 'reply 2', has_more: false }
+    ];
+    rpcMock.mockResolvedValue({ data: mockPreviews, error: null });
+
+    const result = await getCommentThreadPreviewsBatch('p1', ['c1', 'c2', 'c3']);
+
+    expect(result.ok).toBe(true);
+    expect(result.fallback).toBe(false);
+    expect(result.data).toEqual(mockPreviews);
+    expect(rpcMock).toHaveBeenCalledWith('get_comment_thread_previews', {
+      p_post_id: 'p1',
+      p_comment_ids: ['c1', 'c2', 'c3']
+    });
+  });
+
+  it('returns fallback:true when RPC function is missing', async () => {
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: { code: 'PGRST202', message: 'Could not find the function get_comment_thread_previews' }
+    });
+    mockIsMissingRpcFunctionError.mockReturnValue(true);
+
+    const result = await getCommentThreadPreviewsBatch('p1', ['c1']);
+
+    expect(result.fallback).toBe(true);
+  });
+
+  it('returns empty data for empty commentIds', async () => {
+    const result = await getCommentThreadPreviewsBatch('p1', []);
+    expect(result.ok).toBe(false);
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it('filters falsy ids from commentIds', async () => {
+    rpcMock.mockResolvedValue({ data: [], error: null });
+    await getCommentThreadPreviewsBatch('p1', ['c1', null, '', 'c2', undefined]);
+
+    expect(rpcMock).toHaveBeenCalledWith('get_comment_thread_previews', {
+      p_post_id: 'p1',
+      p_comment_ids: ['c1', 'c2']
+    });
   });
 });

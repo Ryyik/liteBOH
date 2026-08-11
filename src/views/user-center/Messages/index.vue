@@ -1,8 +1,8 @@
 <template>
-  <div class="x-notifications-container" :class="{ 'minimal-mode': minimal, 'detail-open': selectedMessage }">
+  <div class="x-notifications-container" :class="{ 'minimal-mode': minimal, 'detail-open': selectedMessage }" :style="{ '--user-center-nav-offset': isFromUserSpace ? '0px' : '72px', paddingTop: isFromUserSpace ? '0px' : '72px' }">
     <div class="x-master-panel">
       <template v-if="!minimal">
-        <UserCenterPageHeader title="消息中心" @back="goBack" />
+        <UserCenterPageHeader title="消息中心" max-width="1200px" @back="goBack" />
       </template>
       <!-- Sticky Header -->
       <header v-if="!minimal && isLoggedIn" class="x-header">
@@ -552,6 +552,7 @@ defineProps({
 });
 
 const route = useRoute();
+const isFromUserSpace = computed(() => String(route.query.from || '').startsWith('userspace'));
 const notificationStoreRef = ref(getNotificationStoreSync());
 
 const ensureNotificationStore = async () => {

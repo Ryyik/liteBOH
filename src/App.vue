@@ -8,8 +8,8 @@ import { storeToRefs } from "pinia";
 import { loadNotificationStore, getNotificationStoreSync } from "@/stores/notification-loader";
 import { logger } from "@/utils/logger.js";
 import { useGlobalAiOverlay } from "@/composables/useGlobalAiOverlay";
-import AiEdgeTrigger from "@/components/AiEdgeTrigger.vue";
-import AdminConfirmModal from "@/components/AdminConfirmModal.vue";
+const AiEdgeTrigger = defineAsyncComponent(() => import("@/components/AiEdgeTrigger.vue"));
+const AdminConfirmModal = defineAsyncComponent(() => import("@/components/AdminConfirmModal.vue"));
 import { useConfirmDialog } from "@/composables/useConfirmDialog.js";
 import PWAUpdateToast from "@/components/PWAUpdateToast/index.vue";
 import { useGlobalAiPreferences, matchesGlobalAiShortcut } from "@/composables/useGlobalAiPreferences.js";
@@ -196,10 +196,11 @@ watch(isInitialized, (newVal) => {
   }
 });
 
-// 全局导航栏：隐藏在桌面嵌入模式、路由标记隐藏、或个人资料子页面时
+// 全局导航栏：隐藏在桌面嵌入模式、路由标记隐藏、UserSpace内部子页面、或个人资料子页面时
 const showGlobalNavbar = computed(() => {
   if (route.query?.embed === 'desktop') return false;
   if (route.meta?.hideNavbar) return false;
+  if (String(route.query?.from || '').startsWith('userspace')) return false;
   if (
     route.path === '/user-space' &&
     route.query?.tab === 'profile' &&

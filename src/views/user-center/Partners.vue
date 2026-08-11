@@ -1,6 +1,6 @@
 <template>
-  <div class="partners-container">
-    <UserCenterPageHeader title="社区里的伙伴" @back="goBack" />
+  <div class="partners-container" :style="{ '--user-center-nav-offset': isFromUserSpace ? '0px' : '72px', paddingTop: isFromUserSpace ? '0px' : '72px' }">
+    <UserCenterPageHeader v-if="isFromUserSpace" title="社区里的伙伴" max-width="1200px" @back="goBack" />
 
     <!-- 1. Dashboard Header (Stats) -->
     <div class="dashboard-header">
@@ -221,6 +221,7 @@ import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 // State
 const router = useRouter();
 const route = useRoute();
+const isFromUserSpace = computed(() => String(route.query.from || '').startsWith('userspace'));
 const authStore = useAuthStore();
 const { isLoggedIn, userInfo } = storeToRefs(authStore);
 const hideOnlineStatus = computed(() => userInfo.value?.hideOnlineStatus ?? false);
@@ -553,6 +554,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .partners-container {
+  --user-center-nav-offset: 0px;
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;

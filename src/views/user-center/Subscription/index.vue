@@ -1,6 +1,6 @@
 <template>
-  <div class="subscription-page">
-    <UserCenterPageHeader title="订阅与积分" @back="goBack" />
+  <div class="subscription-page" :style="{ '--user-center-nav-offset': isFromUserSpace ? '0px' : '72px', paddingTop: isFromUserSpace ? '0px' : '72px' }">
+    <UserCenterPageHeader v-if="isFromUserSpace" title="订阅与积分" max-width="1200px" @back="goBack" />
 
     <!-- Header Area -->
     <div class="header-section">
@@ -225,6 +225,7 @@ const BILLING_MONTHLY = 'monthly';
 
 const router = useRouter();
 const route = useRoute();
+const isFromUserSpace = computed(() => String(route.query.from || '').startsWith('userspace'));
 const authStore = useAuthStore();
 const { userInfo } = storeToRefs(authStore);
 

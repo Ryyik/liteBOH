@@ -40,14 +40,14 @@ export const useVersionCheck = () => {
    * 应用更新（清除 SW + 缓存并强制刷新）
    * @returns {Promise<boolean>}
    */
-  const applyUpdate = async () => {
+  const applyUpdate = async (targetBuildId = '') => {
     // 开发环境下直接强制刷新
     if (import.meta.env.DEV) {
       window.location.reload();
       return true;
     }
 
-    await forceCleanAndReload();
+    await forceCleanAndReload(targetBuildId);
     return true;
   };
 
