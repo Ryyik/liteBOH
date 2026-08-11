@@ -308,6 +308,24 @@
                       </option>
                     </select>
 
+                    <!-- 地址选择器（gifts 专用：从用户地址簿选择收货地址） -->
+                    <div v-else-if="field.type === 'address-picker'" class="address-picker-wrapper">
+                      <select :id="`f-${currentTab}-${field.key}`"
+                        :value="editingItem[field.key] || ''"
+                        class="form-select"
+                        :disabled="!editingItem.user_id || giftAddressOptions.length === 0"
+                        @change="$emit('selectGiftAddress', $event.target.value)"
+                      >
+                        <option value="">{{ giftAddressOptions.length === 0 ? (editingItem.user_id ? '该用户暂无地址' : '请先选择用户') : '使用默认地址' }}</option>
+                        <option v-for="opt in giftAddressOptions" :key="opt.value" :value="opt.value">
+                          {{ opt.label }}
+                        </option>
+                      </select>
+                      <p v-if="giftAddressOptions.length > 1" class="assist-hint" style="margin-top: 4px;">
+                        该用户共有 {{ giftAddressOptions.length }} 个地址，可选择其中一个
+                      </p>
+                    </div>
+
                     <!-- 图片输入 -->
                     <div v-else-if="field.type === 'image'" class="image-input">
                       <div class="image-preview" v-if="editingItem[field.key]">
@@ -722,6 +740,7 @@ const props = defineProps({
   addressBundleText: String,
   addressAiText: { type: String, default: '' },
   isProcessingAddressAi: { type: Boolean, default: false },
+  giftAddressOptions: { type: Array, default: () => [] },
   uploadingImageFields: Array,
   userPickerLoading: { type: Boolean, default: false },
   showProductPicker: { type: Boolean, default: false },
@@ -747,6 +766,7 @@ const emit = defineEmits([
   'extractAddress',
   'update:addressAiText',
   'clearAddressAiText',
+  'selectGiftAddress',
   'openUserPicker',
   'closeUserPicker',
   'selectGiftUser',

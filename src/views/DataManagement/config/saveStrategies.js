@@ -375,6 +375,7 @@ export const SAVE_STRATEGIES = {
       gift_image: editingItem.gift_image,
       gift_status: normalizedGiftStatus,
       is_active: normalizedIsActive,
+      address_id: editingItem.address_id || null,
       completed_at: normalizedCompletedAt,
       updated_at: nowIso
     });

@@ -835,9 +835,11 @@
       :address-bundle-text="addressBundleText"
       :address-ai-text="addressAiText"
       :is-processing-address-ai="isProcessingAddressAi"
+      :gift-address-options="giftAddressOptions"
       @update:address-ai-text="(v) => (addressAiText = v)"
       @extract-address="handleExtractAddress"
       @clear-address-ai-text="clearAddressAiText"
+      @select-gift-address="handleSelectGiftAddress"
       :uploading-image-fields="uploadingImageFields"
       :user-picker-loading="userPickerLoading"
       :show-product-picker="showProductPicker"
@@ -1183,6 +1185,9 @@ const userPickerSearchDebounceTimer = ref(null);
 const addressAiText = ref('');
 const isProcessingAddressAi = ref(false);
 const addressAiModelRef = ref(null);
+// 礼物地址选择：当前选中用户的地址列表 options
+const giftAddressOptions = ref([]);
+const giftAddressRawList = ref([]);
 const moderationPendingIds = ref([]);
 const lotterySchedulerStatus = ref(null);
 const lotterySchedulerStatusLoading = ref(false);
@@ -2897,46 +2902,36 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
       try {
         const giftUserIds = normalizedGifts.map(g => g.user_id).filter(Boolean);
         if (giftUserIds.length > 0) {
-          // 1. 先从 profiles.shipping_* 兜底填充
-          const { data: sensitiveList } = await supabase.rpc('admin_list_users_with_sensitive', {
-            p_search: null, p_limit: 500
-          });
-          if (Array.isArray(sensitiveList)) {
-            const shippingMap = new Map(sensitiveList.map(s => [s.id, s]));
-            giftRows.forEach(row => {
-              if (row.user_id) {
-                const s = shippingMap.get(row.user_id);
-                if (s) {
-                  row.shipping_recipient = s.shipping_recipient || '-';
-                  row.shipping_phone = s.shipping_phone || '-';
-                  row.shipping_address = s.shipping_address || '-';
-                }
-              }
-            });
-          }
-          // 2. 优先用 user_addresses 默认地址覆盖，保持与地址管理一致
+          // 统一从 user_addresses 取地址（地址管理是唯一地址源）
+          // 查询所有相关用户的地址，按 is_default 优先、created_at 倒序排列
           const { data: addressList } = await supabase
             .from('user_addresses')
-            .select('user_id, recipient, phone, region, detail, is_default, created_at')
+            .select('id, user_id, recipient, phone, region, detail, is_default, created_at')
             .in('user_id', giftUserIds)
             .order('is_default', { ascending: false })
             .order('created_at', { ascending: false });
+
           if (Array.isArray(addressList) && addressList.length > 0) {
+            // 按 user_id 分组
             const addressMap = new Map();
             addressList.forEach(addr => {
-              if (!addressMap.has(addr.user_id)) addressMap.set(addr.user_id, addr);
+              if (!addressMap.has(addr.user_id)) addressMap.set(addr.user_id, []);
+              addressMap.get(addr.user_id).push(addr);
             });
             giftRows.forEach(row => {
-              if (row.user_id) {
-                const addr = addressMap.get(row.user_id);
-                if (addr) {
-                  row.shipping_recipient = addr.recipient || row.shipping_recipient;
-                  row.shipping_phone = addr.phone || row.shipping_phone;
-                  const region = addr.region ? addr.region + ' ' : '';
-                  const fullAddr = (region + (addr.detail || '')).trim();
-                  row.shipping_address = fullAddr || row.shipping_address;
-                }
-              }
+              if (!row.user_id) return;
+              const userAddrs = addressMap.get(row.user_id);
+              if (!userAddrs || userAddrs.length === 0) return;
+              // 若礼物绑定了 address_id，优先用绑定的地址；否则取默认地址（列表已排序，第一条即默认）
+              const matched = row.address_id
+                ? userAddrs.find(a => a.id === row.address_id) || userAddrs[0]
+                : userAddrs[0];
+              row.shipping_recipient = matched.recipient || '-';
+              row.shipping_phone = matched.phone || '-';
+              const region = matched.region ? matched.region + ' ' : '';
+              const fullAddr = (region + (matched.detail || '')).trim();
+              row.shipping_address = fullAddr || '-';
+              row.address_count = userAddrs.length;
             });
           }
         }
@@ -3553,6 +3548,31 @@ const openEditModal = async (item = null) => {
           editingItem.value[field.key] = toDateInputValue(item[field.key]);
         }
       });
+
+      // 编辑已有礼物时，加载该用户的地址列表填充地址选择器
+      if (currentTab.value === 'gifts' && item.user_id) {
+        const addrList = await loadGiftAddresses(item.user_id);
+        const existingAddressId = item.address_id;
+        const matched = existingAddressId
+          ? addrList.find(a => a.id === existingAddressId)
+          : null;
+        const defaultAddr = matched || addrList[0] || null;
+        if (defaultAddr) {
+          editingItem.value.address_id = matched ? existingAddressId : defaultAddr.id;
+          editingItem.value.shipping_recipient = defaultAddr.recipient || '';
+          editingItem.value.shipping_phone = defaultAddr.phone || '';
+          const region = defaultAddr.region ? defaultAddr.region + ' ' : '';
+          editingItem.value.shipping_address = (region + (defaultAddr.detail || '')).trim();
+        } else {
+          editingItem.value.address_id = '';
+          editingItem.value.shipping_recipient = '-';
+          editingItem.value.shipping_phone = '-';
+          editingItem.value.shipping_address = '该用户暂无收货地址';
+        }
+      } else if (currentTab.value === 'gifts') {
+        giftAddressOptions.value = [];
+        giftAddressRawList.value = [];
+      }
     } else {
       isEditing.value = false;
       editingItem.value = {};
@@ -3572,6 +3592,7 @@ const openEditModal = async (item = null) => {
         const serial = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
         editingItem.value.user_id = '';
         editingItem.value.username = '';
+        editingItem.value.address_id = '';
         editingItem.value.shipping_recipient = '';
         editingItem.value.shipping_phone = '';
         editingItem.value.shipping_address = '';
@@ -3580,6 +3601,8 @@ const openEditModal = async (item = null) => {
         editingItem.value.gift_price = 0;
         editingItem.value.is_active = true;
         editingItem.value.completed_at = '';
+        giftAddressOptions.value = [];
+        giftAddressRawList.value = [];
       }
 
       if (currentTab.value === 'subscriptions') {
@@ -3756,6 +3779,8 @@ const closeModal = async ({ askDraft = true } = {}) => {
   showProductPicker.value = false;
   productPickerKeyword.value = '';
   addressAiText.value = '';
+  giftAddressOptions.value = [];
+  giftAddressRawList.value = [];
   editingItem.value = {};
   editingOriginalItem.value = null;
   jsonBuffers.value = {};
@@ -3798,6 +3823,40 @@ const closeUserPicker = () => {
   showUserPickerModal.value = false;
 };
 
+// 加载指定用户的地址列表，填充 giftAddressOptions 和 giftAddressRawList
+const loadGiftAddresses = async (userId) => {
+  if (!userId) {
+    giftAddressOptions.value = [];
+    giftAddressRawList.value = [];
+    return [];
+  }
+  try {
+    const { data: addrRows } = await supabase
+      .from('user_addresses')
+      .select('id, recipient, phone, region, detail, is_default, created_at')
+      .eq('user_id', userId)
+      .order('is_default', { ascending: false })
+      .order('created_at', { ascending: false });
+    const list = Array.isArray(addrRows) ? addrRows : [];
+    giftAddressRawList.value = list;
+    giftAddressOptions.value = list.map(addr => {
+      const region = addr.region ? addr.region + ' ' : '';
+      const fullAddr = (region + (addr.detail || '')).trim();
+      const tag = addr.is_default ? '【默认】' : '';
+      return {
+        value: addr.id,
+        label: `${tag}${addr.recipient} ${addr.phone} ${fullAddr}`.trim()
+      };
+    });
+    return list;
+  } catch (err) {
+    logger.warn('data-admin', '加载用户地址列表失败:', err);
+    giftAddressOptions.value = [];
+    giftAddressRawList.value = [];
+    return [];
+  }
+};
+
 const selectGiftUser = async (user) => {
   editingItem.value.user_id = user.id;
   editingItem.value.username = user.username || '';
@@ -3811,32 +3870,59 @@ const selectGiftUser = async (user) => {
     }
   } else {
     editingItem.value.email = user.email || '';
-    // 优先从 user_addresses 取默认地址，与地址管理保持一致
-    let defaultAddr = null;
-    try {
-      const { data: addrRows } = await supabase
-        .from('user_addresses')
-        .select('recipient, phone, region, detail, is_default, created_at')
-        .eq('user_id', user.id)
-        .order('is_default', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(1);
-      defaultAddr = Array.isArray(addrRows) && addrRows.length > 0 ? addrRows[0] : null;
-    } catch (addrError) {
-      logger.warn('data-admin', '查询用户默认地址失败，回退 profiles:', addrError);
+    // 从 user_addresses 加载地址列表，填入地址选择器
+    const addrList = await loadGiftAddresses(user.id);
+    // 默认选 is_default 的地址（列表已排序，第一条即默认）；若礼物已绑定 address_id 则保留
+    const existingAddressId = editingItem.value.address_id || '';
+    const matched = existingAddressId
+      ? addrList.find(a => a.id === existingAddressId)
+      : null;
+    const defaultAddr = matched || addrList[0] || null;
+    if (defaultAddr) {
+      editingItem.value.address_id = defaultAddr.id;
+      editingItem.value.shipping_recipient = defaultAddr.recipient || '';
+      editingItem.value.shipping_phone = defaultAddr.phone || '';
+      const region = defaultAddr.region ? defaultAddr.region + ' ' : '';
+      editingItem.value.shipping_address = (region + (defaultAddr.detail || '')).trim();
+    } else {
+      editingItem.value.address_id = '';
+      editingItem.value.shipping_recipient = '-';
+      editingItem.value.shipping_phone = '-';
+      editingItem.value.shipping_address = '该用户暂无收货地址，请先在地址管理中添加';
     }
+  }
+  showUserPickerModal.value = false;
+};
+
+// 礼物编辑：切换地址选择器
+const handleSelectGiftAddress = (addrId) => {
+  const id = String(addrId || '').trim();
+  if (!id) {
+    // 选「使用默认地址」：取 is_default 的地址（giftAddressOptions 第一条）
+    editingItem.value.address_id = '';
+    // 重新从已加载列表取默认地址更新展示
+    const _list = giftAddressRawList.value;
+    const defaultAddr = _list.find(a => a.is_default) || _list[0] || null;
     if (defaultAddr) {
       editingItem.value.shipping_recipient = defaultAddr.recipient || '';
       editingItem.value.shipping_phone = defaultAddr.phone || '';
       const region = defaultAddr.region ? defaultAddr.region + ' ' : '';
       editingItem.value.shipping_address = (region + (defaultAddr.detail || '')).trim();
     } else {
-      editingItem.value.shipping_recipient = user.shipping_recipient || '';
-      editingItem.value.shipping_phone = user.shipping_phone || '';
-      editingItem.value.shipping_address = user.shipping_address || '';
+      editingItem.value.shipping_recipient = '-';
+      editingItem.value.shipping_phone = '-';
+      editingItem.value.shipping_address = '该用户暂无收货地址';
     }
+    return;
   }
-  showUserPickerModal.value = false;
+  editingItem.value.address_id = id;
+  const matched = giftAddressRawList.value.find(a => a.id === id);
+  if (matched) {
+    editingItem.value.shipping_recipient = matched.recipient || '';
+    editingItem.value.shipping_phone = matched.phone || '';
+    const region = matched.region ? matched.region + ' ' : '';
+    editingItem.value.shipping_address = (region + (matched.detail || '')).trim();
+  }
 };
 
 const clearSelectedGiftUser = () => {

@@ -76,6 +76,7 @@ export const TAB_SELECT_COLUMNS = {
     gift_image,
     gift_status,
     is_active,
+    address_id,
     created_at,
     completed_at,
     updated_at,

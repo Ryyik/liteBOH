@@ -147,6 +147,7 @@ export const dataConfig = {
       { key: 'id', label: '礼物ID', type: 'text', disabled: true, group: 'detail' },
       { key: 'user_id', label: '用户', type: 'user-picker', required: true, group: 'user' },
       { key: 'username', label: '用户名', type: 'text', disabled: true, group: 'user' },
+      { key: 'address_id', label: '收货地址', type: 'address-picker', hint: '选择该用户的一个收货地址；若不选择则使用默认地址', group: 'user' },
       { key: 'shipping_recipient', label: '收件人', type: 'text', disabled: true, group: 'user' },
       { key: 'shipping_phone', label: '联系电话', type: 'text', disabled: true, group: 'user' },
       { key: 'shipping_address', label: '收货地址', type: 'textarea', disabled: true, group: 'user' },
