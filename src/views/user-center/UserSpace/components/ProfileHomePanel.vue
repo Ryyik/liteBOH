@@ -104,16 +104,18 @@
         <span class="profile-action-chevron">›</span>
       </button>
 
-      <button type="button" class="profile-service-row" @click="$emit('subscription')">
+      <button type="button" class="profile-service-row" @click="$emit('assets')">
         <span class="profile-service-icon bg-yellow">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
             stroke-linejoin="round">
-            <path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"></path>
+            <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path>
+            <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path>
+            <path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path>
           </svg>
         </span>
         <span class="profile-service-body">
-          <strong>订阅权益</strong>
-          <small class="profile-service-hint">{{ subscriptionSummaryText }}</small>
+          <strong>积分与会员</strong>
+          <small class="profile-service-hint">{{ formatPoints(stats.points) || '0' }} 积分 · {{ subscriptionSummaryText }}</small>
         </span>
         <span class="profile-action-chevron">›</span>
       </button>
@@ -129,24 +131,6 @@
         <span class="profile-service-body">
           <strong>赞助</strong>
           <small>支持项目发展</small>
-        </span>
-        <span class="profile-action-chevron">›</span>
-      </button>
-
-      <button type="button" class="profile-service-row" @click="$emit('gift')">
-        <span class="profile-service-icon bg-pink">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-            stroke-linejoin="round">
-            <polyline points="20 12 20 22 4 22 4 12"></polyline>
-            <rect x="2" y="7" width="20" height="5"></rect>
-            <line x1="12" y1="22" x2="12" y2="7"></line>
-            <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path>
-            <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path>
-          </svg>
-        </span>
-        <span class="profile-service-body">
-          <strong>我的礼物</strong>
-          <small class="profile-service-hint">{{ giftProgressText || '查看礼物进度与收货地址' }}</small>
         </span>
         <span class="profile-action-chevron">›</span>
       </button>
@@ -412,10 +396,9 @@ defineEmits([
   'background-click',
   'view-impressions',
   'sponsor',
-  'gift',
+  'assets',
   'data-management',
   'cloud-plus',
-  'subscription',
   'post-click',
   'switch-tab',
   'load-more'

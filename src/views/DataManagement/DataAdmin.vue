@@ -853,6 +853,7 @@ import LabAiModelConfig from './components/LabAiModelConfig.vue';
 import ModerationModelConfig from './components/ModerationModelConfig.vue';
 import FreemodelsConfig from './components/FreemodelsConfig.vue';
 import AiQuotaConfigConsole from './components/AiQuotaConfigConsole.vue';
+import PointsGrantConsole from './components/PointsGrantConsole.vue';
 import EditDrawer from './components/EditDrawer.vue';
 import DashboardSheet from './components/shared/DashboardSheet.vue';
 import DashboardPagination from './components/shared/DashboardPagination.vue';
@@ -1289,7 +1290,8 @@ const PAGE_TAB_COMPONENTS = {
   'freemodels': FreemodelsConfig,
   'ai-quota': AiQuotaConfigConsole,
   'moderation-model': ModerationModelConfig,
-  'lab-ai-model': LabAiModelConfig
+  'lab-ai-model': LabAiModelConfig,
+  'points-grant': PointsGrantConsole
 };
 const currentPageComponent = computed(() => PAGE_TAB_COMPONENTS[currentTab.value] || null);
 const lotteryOpsTabs = new Set(['lotteries', 'lotteryDrawLogs', 'lotterySchedulerLogs', 'lotteryNotificationJobs', 'lotteryJoinAttempts']);

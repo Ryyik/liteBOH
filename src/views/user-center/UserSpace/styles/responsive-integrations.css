@@ -132,7 +132,7 @@
   }
 
   .profile-subpage-shell {
-    padding: 76px 0 32px;
+    padding: env(safe-area-inset-top, 0px) 0 32px;
     gap: 16px;
   }
 

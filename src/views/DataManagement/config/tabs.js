@@ -16,6 +16,7 @@ import {
 export const tabs = [
   { id: 'users', label: '用户管理', icon: '👤', module: 'users' },
   { id: 'points', label: '积分管理', icon: '⭐', module: 'users' },
+  { id: 'points-grant', label: '积分发放', icon: '🎁', module: 'users', type: 'page' },
   { id: 'subscriptions', label: '订阅管理', icon: '💎', module: 'users' },
   { id: 'gifts', label: '礼物管理', icon: '📦', module: 'gifts' },
   { id: 'posterRequests', label: '海报申请', icon: '🖼️', module: 'users' },
@@ -55,7 +56,7 @@ export const tabModules = [
     icon: Users,
     section: 'data',
     defaultTab: 'users',
-    tabIds: ['users', 'points', 'subscriptions', 'posterRequests'],
+    tabIds: ['users', 'points', 'points-grant', 'subscriptions', 'posterRequests'],
     description: '账号、积分、订阅和礼物'
   },
   {

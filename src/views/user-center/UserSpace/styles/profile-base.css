@@ -23,6 +23,17 @@
   width: 100%;
 }
 
+/* 积分与会员页：与独立订阅页一致的全屏横屏布局（1600px） */
+.profile-page-content.assets-active {
+  max-width: 1600px;
+}
+
+@media (max-width: 767px) {
+  .profile-page-content.assets-active {
+    padding: 0 10px 0;
+  }
+}
+
 .login-prompt {
   display: flex;
   flex-direction: column;

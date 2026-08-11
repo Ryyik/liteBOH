@@ -27,7 +27,7 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
   },
   {
     path: "/user-center/points",
-    redirect: redirectWithQuery("/user-space/subscriptions"),
+    redirect: redirectWithQuery("/user-space?tab=profile&view=assets"),
   },
   {
     path: "/user-center",
@@ -43,11 +43,11 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
   },
   {
     path: "/user-center/subscriptions",
-    redirect: redirectWithQuery("/user-space/subscriptions"),
+    redirect: redirectWithQuery("/user-space?tab=profile&view=assets"),
   },
   {
     path: "/user-center/address",
-    redirect: redirectWithQuery("/user-space/gifts"),
+    redirect: redirectWithQuery("/user-space?tab=profile&view=assets"),
   },
   {
     path: "/user-center/messages",

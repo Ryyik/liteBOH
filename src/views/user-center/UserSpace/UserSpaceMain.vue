@@ -52,7 +52,8 @@
     <div v-if="currentTab === 'profile' || leavingTab === 'profile'"
       :ref="(el) => setTabPageRef('profile', el)" class="tab-page profile-tab"
       :class="{ 'profile-home-active': profileSection === 'home', 'is-leaving': leavingTab === 'profile' }">
-      <div class="profile-page-content">
+      <div class="profile-page-content"
+        :class="{ 'assets-active': profileSection === 'assets' }">
         <!-- ✅ 性能优化：静态内容使用 v-once，避免重复渲染 -->
         <div v-if="!isLoggedIn" class="login-prompt" v-once>
           <User class="login-prompt-icon" :size="34" :stroke-width="1.7" aria-hidden="true" />
@@ -76,8 +77,7 @@
               @background-click="handleProfileBackgroundClick"
               @view-impressions="openProfileImpressions" @sponsor="openSponsorPage"
               @data-management="openProfileDataManagement" @cloud-plus="openCloudPlusArea"
-              @gift="router.push('/user-space/gifts?from=userspace')"
-              @subscription="router.push('/user-space/subscriptions?from=userspace')"
+              @assets="openAssetsHub"
               @post-click="openProfilePost"
               @switch-tab="switchTab"
               @load-more="loadMoreProfilePosts" />
@@ -128,6 +128,9 @@
             <ProfileImpressionsPanel v-else-if="profileSection === 'impressions'" key="profile-impressions"
               :is-impressions-loading="dataState.impressions.loading" :impressions="profileImpressions"
               @back="backToProfileHome" @delete-impression="handleDeleteProfileImpression" />
+
+            <AssetsHubPanel v-else-if="profileSection === 'assets'" key="profile-assets"
+              @back="backToProfileHome" />
 
             <!-- ✅ 性能优化：静态子页面使用 v-memo -->
             <DataPrivacyPanel v-else key="profile-data-management" v-memo="[profileSection, isAdmin]"
@@ -188,6 +191,7 @@ const ProfileSettingsPanel = defineAsyncComponent(() => import('./components/Pro
 const EditProfilePanel = defineAsyncComponent(() => import('./components/EditProfilePanel.vue'));
 const SponsorPanel = defineAsyncComponent(() => import('./components/SponsorPanel.vue'));
 const DataPrivacyPanel = defineAsyncComponent(() => import('./components/DataPrivacyPanel.vue'));
+const AssetsHubPanel = defineAsyncComponent(() => import('./components/AssetsHubPanel.vue'));
 import ThemeModal from './components/ThemeModal.vue';
 import { useBottomNavIslandQueue } from './composables/useBottomNavIslandQueue.js';
 import { createMemoryTtlCache } from './composables/useMemoryTtlCache.js';
@@ -358,7 +362,7 @@ const initialUserSpaceTab = validTabs.includes(String(route.query.tab || ''))
 if (initialUserSpaceTab === 'profile') {
   void preloadProfileStyles();
 }
-const validProfileSections = ['home', 'edit-profile', 'impressions', 'sponsor', 'settings', 'data-management'];
+const validProfileSections = ['home', 'edit-profile', 'impressions', 'sponsor', 'settings', 'data-management', 'assets'];
 const tabTransitionDirection = ref('forward');
 const leavingTab = ref(null);
 const {
@@ -1317,6 +1321,11 @@ const openSponsorPage = () => {
   sponsorQrLoadFailed.value = false;
   sponsorQrLoading.value = false;
   sponsorCatBurstKey.value += 1;
+};
+
+const openAssetsHub = () => {
+  profileSection.value = 'assets';
+  setProfileSectionRoute('assets');
 };
 
 const backToProfileHome = () => {
