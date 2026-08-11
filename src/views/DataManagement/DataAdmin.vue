@@ -833,6 +833,11 @@
       @update:user-picker-keyword="(v) => (userPickerKeyword = v)"
       :filtered-gift-users="filteredGiftUsers"
       :address-bundle-text="addressBundleText"
+      :address-ai-text="addressAiText"
+      :is-processing-address-ai="isProcessingAddressAi"
+      @update:address-ai-text="(v) => (addressAiText = v)"
+      @extract-address="handleExtractAddress"
+      @clear-address-ai-text="clearAddressAiText"
       :uploading-image-fields="uploadingImageFields"
       :user-picker-loading="userPickerLoading"
       :show-product-picker="showProductPicker"
@@ -940,8 +945,8 @@ import {
   uploadImageToCloudinary
 } from '@/utils/cloudinary-client.js';
 import { getExpiredActiveGiftIds, markGiftsAsHistory } from '@/utils/gift-archive.js';
-import { getDefaultApiUrlForBohaiProvider } from '@/utils/api/bohai-model-config-api.js';
-import { clearVaultModelCache, clearUserTierCache } from '@/utils/api/api-key-runtime-api.js';
+import { getDefaultApiUrlForBohaiProvider, listActiveBohaiModelConfigs, buildBohaiRuntimeModels } from '@/utils/api/bohai-model-config-api.js';
+import { clearVaultModelCache, clearUserTierCache, callVaultSiliconChat } from '@/utils/api/api-key-runtime-api.js';
 import { logger } from '@/utils/logger.js';
 import {
   ADMIN_PAGE_META,
@@ -1174,6 +1179,10 @@ const userPickerUsers = ref([]);
 const userPickerLoading = ref(false);
 const userPickerFetchId = ref(0);
 const userPickerSearchDebounceTimer = ref(null);
+// 地址管理 AI 识别
+const addressAiText = ref('');
+const isProcessingAddressAi = ref(false);
+const addressAiModelRef = ref(null);
 const moderationPendingIds = ref([]);
 const lotterySchedulerStatus = ref(null);
 const lotterySchedulerStatusLoading = ref(false);
@@ -3720,6 +3729,7 @@ const closeModal = async ({ askDraft = true } = {}) => {
   userPickerKeyword.value = '';
   showProductPicker.value = false;
   productPickerKeyword.value = '';
+  addressAiText.value = '';
   editingItem.value = {};
   editingOriginalItem.value = null;
   jsonBuffers.value = {};
@@ -3795,6 +3805,110 @@ const clearSelectedGiftUser = () => {
     editingItem.value.shipping_phone = '';
     editingItem.value.shipping_address = '';
   }
+};
+
+// 地址管理 AI 识别：从粘贴文本提取收件人/电话/地区/详细地址
+const extractJsonPayload = (rawText = '') => {
+  const normalizedText = String(rawText || '').trim();
+  if (!normalizedText) return null;
+  const fencedMatch = normalizedText.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  const directSource = fencedMatch?.[1] || normalizedText;
+  const jsonBlockMatch = directSource.match(/\{[\s\S]*\}/);
+  const source = (jsonBlockMatch?.[0] || directSource).trim();
+  try {
+    return JSON.parse(source);
+  } catch {
+    return null;
+  }
+};
+
+const normalizePhone = (value = '') => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const hasLeadingPlus = raw.startsWith('+');
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return '';
+  return hasLeadingPlus ? `+${digits}` : digits;
+};
+
+const loadAddressAiModel = async () => {
+  if (addressAiModelRef.value) return addressAiModelRef.value;
+  try {
+    const result = await listActiveBohaiModelConfigs();
+    if (!result.ok || !Array.isArray(result.data) || result.data.length === 0) return null;
+    const { chatModes, availableModels } = buildBohaiRuntimeModels(result.data);
+    const mode = chatModes.find((m) => m.id === 'fast') || chatModes[0];
+    const resolved = availableModels.find((m) => m.id === mode?.model) || availableModels[0];
+    addressAiModelRef.value = {
+      modeId: mode?.id || 'fast',
+      provider: resolved?.providerKey || 'boh',
+      url: resolved?.url || '',
+      modelTag: resolved?.id || 'boh:fast'
+    };
+    return addressAiModelRef.value;
+  } catch (err) {
+    logger.warn('data-admin', '加载地址 AI 模型失败:', err);
+    return null;
+  }
+};
+
+const handleExtractAddress = async () => {
+  const rawText = String(addressAiText.value || '').trim();
+  if (!rawText) return showToast('请先粘贴地址原文', 'warning');
+
+  const model = await loadAddressAiModel();
+  if (!model?.modeId) return showToast('AI 地址识别模型未配置，请手动填写', 'error');
+
+  isProcessingAddressAi.value = true;
+  const systemPrompt = [
+    '你是一个地址信息提取助手。',
+    '从用户粘贴的文本中提取收件人姓名、联系电话、省市区、详细地址。',
+    '只返回 JSON。',
+    '返回格式: {"recipient":"...","phone":"...","region":"...","detail":"..."}'
+  ].join('');
+  try {
+    const payload = {
+      model: model.modelTag,
+      messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: rawText }],
+      temperature: 0.1,
+      stream: false
+    };
+    const vaultResult = await callVaultSiliconChat({
+      provider: model.provider,
+      purpose: 'chat',
+      mode: model.modeId,
+      apiUrl: model.url,
+      payload,
+      timeoutMs: 12000
+    });
+    if (!vaultResult.ok) throw new Error(vaultResult.error?.message || 'AI 识别代理请求失败');
+    const rawContent = vaultResult.data?.choices?.[0]?.message?.content;
+    const result = extractJsonPayload(rawContent);
+    if (!result || typeof result !== 'object') throw new Error('AI 返回内容不可解析');
+
+    const recipient = String(result.recipient || '').trim();
+    const phone = normalizePhone(result.phone || '');
+    const region = String(result.region || '').trim();
+    const detail = String(result.detail || '').trim();
+
+    if (!recipient && !phone && !region && !detail) {
+      return showToast('AI 未识别到有效信息，请补充文本', 'warning');
+    }
+    if (recipient) editingItem.value.recipient = recipient;
+    if (phone) editingItem.value.phone = phone;
+    if (region) editingItem.value.region = region;
+    if (detail) editingItem.value.detail = detail;
+    showToast('已填入识别结果，请核对后保存', 'success');
+  } catch (err) {
+    logger.error('data-admin', 'AI 地址识别失败:', err);
+    showToast('AI 识别失败，请手动填写', 'error');
+  } finally {
+    isProcessingAddressAi.value = false;
+  }
+};
+
+const clearAddressAiText = () => {
+  addressAiText.value = '';
 };
 
 // P0 修复: saveData 竞态条件 - 使用 saveDataId 模式防止重复提交

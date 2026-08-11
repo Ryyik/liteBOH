@@ -76,6 +76,41 @@
                 readonly></textarea>
             </div>
 
+            <!-- 地址管理：AI 识别地址助手 -->
+            <div v-if="currentTab === 'addresses'" class="news-assist-panel">
+              <div class="assist-title">AI 识别地址</div>
+              <p class="assist-hint">
+                粘贴一段完整的收货信息（如聊天记录、电商订单地址），AI 会自动识别并填入收件人、电话、地区和详细地址。
+              </p>
+              <textarea
+                :value="addressAiText"
+                @input="$emit('update:addressAiText', $event.target.value)"
+                class="form-textarea address-ai-textarea"
+                rows="3"
+                placeholder="例如：张三 13800138000 广东省深圳市南山区科技园路1号"
+                :disabled="isProcessingAddressAi"
+              ></textarea>
+              <div class="assist-actions">
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  :disabled="isProcessingAddressAi || !addressAiText"
+                  @click="$emit('extractAddress')"
+                >
+                  <span v-if="isProcessingAddressAi" class="btn-spinner"></span>
+                  <span>{{ isProcessingAddressAi ? '识别中…' : '开始智能识别' }}</span>
+                </button>
+                <button
+                  v-if="addressAiText && !isProcessingAddressAi"
+                  type="button"
+                  class="btn btn-secondary"
+                  @click="$emit('clearAddressAiText')"
+                >
+                  清空
+                </button>
+              </div>
+            </div>
+
             <!-- BOHAI 模型配置：从 API Key 预填助手 -->
             <div v-if="currentTab === 'bohaiModels'" class="bohai-key-assist-panel">
               <div class="assist-title">从 API Key 预填（可选）</div>
@@ -685,6 +720,8 @@ const props = defineProps({
   userPickerKeyword: String,
   filteredGiftUsers: Array,
   addressBundleText: String,
+  addressAiText: { type: String, default: '' },
+  isProcessingAddressAi: { type: Boolean, default: false },
   uploadingImageFields: Array,
   userPickerLoading: { type: Boolean, default: false },
   showProductPicker: { type: Boolean, default: false },
@@ -707,6 +744,9 @@ const emit = defineEmits([
   'injectNewsTemplate',
   'generateExcerpt',
   'copyAddressBundle',
+  'extractAddress',
+  'update:addressAiText',
+  'clearAddressAiText',
   'openUserPicker',
   'closeUserPicker',
   'selectGiftUser',
