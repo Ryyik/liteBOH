@@ -116,7 +116,7 @@ export interface NotificationPayload {
 }
 
 // --- Home Heroes Store ---
-export type HomeHeroTemplate = 'standard' | 'overlay' | 'split' | 'responsive'
+export type HomeHeroTemplate = 'standard' | 'overlay' | 'split' | 'responsive' | 'builtin'
 export type HomeHeroVariant = 'light' | 'dark'
 export type HomeHeroStatus = 'draft' | 'published'
 
@@ -129,11 +129,39 @@ export interface HeroLink {
 }
 
 export interface HeroImageConfig {
-  src?: string
+  src?: string // 主图片（桌面端）
   alt?: string
-  position?: string // overlay 模板的图片定位，如 'center 54%'
-  landscapeSrc?: string // responsive 模板的横屏图
-  portraitSrc?: string // responsive 模板的竖屏图
+  position?: string // 图片定位，如 'center 54%'
+  // 竖屏端独立配置（留空则继承桌面端）
+  mobile_src?: string // 竖屏端独立图片
+  mobile_position?: string // 竖屏端图片定位
+  mobile_object_fit?: 'cover' | 'contain' // 竖屏端填充模式
+  mobile_scale?: number // 竖屏端取景缩放，1 表示原始取景
+  // responsive 模板专用
+  landscapeSrc?: string // 横屏图
+  portraitSrc?: string // 竖屏图
+  portrait_position?: string // responsive 竖屏图定位
+}
+
+/**
+ * 文字区块布局配置
+ * 控制英雄区内文字（眉题/标题/副标题/按钮）的位置和对齐
+ */
+export interface ContentLayoutValues {
+  align?: 'left' | 'center' | 'right' // 水平位置（flex justify-content）
+  valign?: 'top' | 'center' | 'bottom' // 垂直位置（flex align-items）
+  text_align?: 'left' | 'center' | 'right' // 文字对齐方向
+  max_width?: number // 文字最大宽度（px），控制换行密度
+  offset_x?: number // 相对锚点的水平偏移（px）
+  offset_y?: number // 相对锚点的垂直偏移（px）
+}
+
+/**
+ * 文字布局可按设备分别配置。旧记录仍可直接使用顶层字段，竖屏未配置时继承桌面端。
+ */
+export interface ContentLayout extends ContentLayoutValues {
+  desktop?: ContentLayoutValues
+  mobile?: ContentLayoutValues | null
 }
 
 export interface SplitCardConfig {
@@ -142,6 +170,7 @@ export interface SplitCardConfig {
   variant?: HomeHeroVariant
   image_config: HeroImageConfig
   links: HeroLink[]
+  content_layout?: ContentLayout | null
 }
 
 export interface HomeHero {
@@ -150,10 +179,12 @@ export interface HomeHero {
   is_archived: boolean
   template: HomeHeroTemplate
   variant: HomeHeroVariant
+  builtin_key?: string | null
   eyebrow?: string | null
   title: string
   subtitle?: string | null
   image_config: HeroImageConfig
+  content_layout?: ContentLayout | null
   links: HeroLink[]
   split_cards?: SplitCardConfig[] | null
   label?: string | null

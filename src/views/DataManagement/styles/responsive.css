@@ -1567,14 +1567,28 @@
   .drawer {
     width: 100%;
     max-width: 100%;
+    /* 100dvh 动态视口高度，解决移动端地址栏导致 100vh 超出可视区域的问题 */
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
+  }
+
+  /* drawer-body 在移动端需要明确的触摸滚动支持，否则 iOS 下无法滑动 */
+  .drawer-body {
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    overscroll-behavior: contain;
   }
 
   .field-group-body {
     grid-template-columns: 1fr;
   }
 
+  /* 移动端 overlay 不再自身滚动，避免与 drawer-body 内部滚动冲突导致卡顿 */
   .drawer-overlay {
     padding: 0;
+    overflow: hidden;
   }
 
   .gift-address-copy-header {

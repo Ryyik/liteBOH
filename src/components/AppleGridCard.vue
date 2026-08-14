@@ -1,9 +1,9 @@
 <template>
   <div class="apple-grid-card" :class="[`variant-${variant}`]">
-    <div class="agc-content">
+    <div class="agc-content" :style="contentStyle">
       <h3 class="agc-title" v-html="title"></h3>
       <p v-if="subtitle" class="agc-subtitle">{{ subtitle }}</p>
-      <div v-if="links && links.length" class="agc-links">
+      <div v-if="links && links.length" class="agc-links" :style="{ justifyContent: textAlignment }">
         <template v-for="(link, i) in links" :key="i">
           <router-link
             v-if="link.to"
@@ -40,21 +40,72 @@
     </div>
     <div class="agc-visual">
       <slot>
-        <img v-if="imageSrc" :src="imageSrc" :alt="imageAlt" class="agc-image" loading="lazy" decoding="async" />
+        <img
+          v-if="imageSrc"
+          :src="imageSrc"
+          :alt="imageAlt"
+          class="agc-image"
+          :class="{ 'is-position-editable': imagePositionEditable }"
+          :style="imageStyle"
+          loading="lazy"
+          decoding="async"
+          @pointerdown="startImagePositionDrag"
+          @pointermove="updateImagePositionDrag"
+          @pointerup="stopImagePositionDrag"
+          @pointercancel="stopImagePositionDrag"
+        />
       </slot>
     </div>
   </div>
 </template>
 
 <script setup>
-defineProps({
+import { computed } from 'vue'
+
+const props = defineProps({
   title: { type: String, required: true },
   subtitle: { type: String, default: '' },
   variant: { type: String, default: 'dark', validator: v => ['dark', 'light'].includes(v) },
   imageSrc: { type: String, default: '' },
   imageAlt: { type: String, default: '' },
-  links: { type: Array, default: () => [] }
+  links: { type: Array, default: () => [] },
+  imageStyle: { type: Object, default: () => ({}) },
+  contentLayout: { type: Object, default: null },
+  imagePositionEditable: { type: Boolean, default: false }
 })
+const emit = defineEmits(['image-position'])
+
+const textAlignment = computed(() => props.contentLayout?.text_align || 'center')
+const contentStyle = computed(() => ({
+  textAlign: textAlignment.value,
+  alignSelf: ({ left: 'flex-start', center: 'center', right: 'flex-end' })[props.contentLayout?.align] || 'center',
+  maxWidth: props.contentLayout?.max_width ? `${props.contentLayout.max_width}px` : undefined
+}))
+
+let draggingImage = false
+const emitImagePosition = (event) => {
+  if (!props.imagePositionEditable) return
+  const rect = event.currentTarget.getBoundingClientRect()
+  if (!rect.width || !rect.height) return
+  emit('image-position', {
+    x: Math.max(0, Math.min(100, Math.round(((event.clientX - rect.left) / rect.width) * 100))),
+    y: Math.max(0, Math.min(100, Math.round(((event.clientY - rect.top) / rect.height) * 100)))
+  })
+}
+const startImagePositionDrag = (event) => {
+  if (!props.imagePositionEditable) return
+  draggingImage = true
+  event.preventDefault()
+  event.currentTarget.setPointerCapture?.(event.pointerId)
+  emitImagePosition(event)
+}
+const updateImagePositionDrag = (event) => {
+  if (draggingImage) emitImagePosition(event)
+}
+const stopImagePositionDrag = (event) => {
+  draggingImage = false
+  event.currentTarget.releasePointerCapture?.(event.pointerId)
+}
 </script>
 
 <style scoped>
@@ -207,6 +258,26 @@ defineProps({
   object-fit: contain;
   display: block;
 }
+.agc-image.is-position-editable { cursor: crosshair; touch-action: none; }
+
+/* 固定预览画布内改用容器单位，确保字号与真实画布宽度一致。 */
+.apple-grid-card.is-preview .agc-title { font-size: clamp(28px, 4cqw, 40px); }
+.apple-grid-card.is-preview .agc-subtitle { font-size: clamp(14px, 2cqw, 19px); }
+.apple-grid-card.is-preview .agc-link { font-size: clamp(14px, 1.8cqw, 17px); }
+.apple-grid-card.is-preview.is-portrait {
+  padding: 40px 22px 32px;
+  min-height: 380px;
+}
+.apple-grid-card.is-preview.is-portrait .agc-title { font-size: 28px; }
+.apple-grid-card.is-preview.is-portrait .agc-subtitle { font-size: 15px; }
+.apple-grid-card.is-preview.is-portrait .agc-links { gap: 10px; }
+.apple-grid-card.is-preview.is-portrait .agc-link-primary,
+.apple-grid-card.is-preview.is-portrait .agc-link-secondary {
+  min-width: auto;
+  padding: 9px 20px;
+  font-size: 14px;
+}
+.apple-grid-card.is-preview.is-portrait .agc-image { max-height: 220px; }
 
 @keyframes agcFadeIn {
   from { opacity: 0; transform: translateY(20px); }

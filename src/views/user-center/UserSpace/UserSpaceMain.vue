@@ -70,7 +70,6 @@
               :stats="userStats" :is-stats-loading="dataState.stats.loading" :cloud-plus-usage-text="cloudPlusUsageText"
               :cloud-plus-usage-meter-style="cloudPlusUsageMeterStyle"
               :subscription-summary-text="subscriptionSummaryText"
-              :gift-progress-text="giftProgressText"
               :is-content-loading="dataState.profile.loading"
               :posts="profilePosts" :has-more-posts="hasMoreProfilePosts" :is-loading-more="isLoadingMoreProfilePosts"
               @edit-profile="openEditProfileModal" @settings="openProfileSettings" @avatar-click="handleAvatarClick"
@@ -130,6 +129,7 @@
               @back="backToProfileHome" @delete-impression="handleDeleteProfileImpression" />
 
             <AssetsHubPanel v-else-if="profileSection === 'assets'" key="profile-assets"
+              :initial-tab="assetsInitialTab"
               @back="backToProfileHome" />
 
             <!-- ✅ 性能优化：静态子页面使用 v-memo -->
@@ -261,12 +261,8 @@ const refreshUnreadCount = async () => {
 };
 
 const username = computed(() => userInfo.value.username);
-const giftProgressText = ref('');
-const GIFT_PROGRESS_CACHE_TTL_MS = 60 * 1000;
-const GIFT_PROGRESS_MIN_REFRESH_INTERVAL_MS = 5 * 1000;
+const assetsInitialTab = ref('');
 const TAB_LEAVE_CLEAR_DELAY_MS = 170;
-let lastGiftProgressRefreshAt = 0;
-let giftProgressInflight = null;
 let userSpaceWarmupTimeoutId = null;
 // ✅ 性能优化：使用 markRaw 标记静态配置，避免不必要的响应式追踪
 const USERSPACE_CACHE_TTL = markRaw({
@@ -1323,7 +1319,9 @@ const openSponsorPage = () => {
   sponsorCatBurstKey.value += 1;
 };
 
-const openAssetsHub = () => {
+const openAssetsHub = (initialTab = '') => {
+  const validTabs = ['overview', 'points', 'subscription', 'orders', 'gifts', 'addresses'];
+  assetsInitialTab.value = validTabs.includes(String(initialTab)) ? String(initialTab) : '';
   profileSection.value = 'assets';
   setProfileSectionRoute('assets');
 };
@@ -1331,6 +1329,7 @@ const openAssetsHub = () => {
 const backToProfileHome = () => {
   profileSection.value = 'home';
   setProfileSectionRoute('home');
+  assetsInitialTab.value = '';
 };
 
 const openProfileDataManagement = () => {
@@ -2035,118 +2034,6 @@ const uploadToSupabase = async (file) => {
   }
 };
 
-const getGiftStatusLabel = (status) => {
-  const statusMap = {
-    preparing: '备货中',
-    processing: '正在处理',
-    shipped: '已发货',
-    completed: '已完成'
-  };
-  return statusMap[status] || '进行中';
-};
-
-const getGiftProgressCacheKey = (userId) => `boh_gift_progress_cache_${userId}`;
-
-const saveGiftProgressCache = (userId, value) => {
-  if (!userId) return;
-  try {
-    const payload = {
-      value: value || '',
-      timestamp: Date.now()
-    };
-    localStorage.setItem(getGiftProgressCacheKey(userId), JSON.stringify(payload));
-  } catch (error) {
-    logger.warn('user-space', '写入礼物进度缓存失败:', error);
-  }
-};
-
-const loadGiftProgressCache = (userId) => {
-  if (!userId) return null;
-  try {
-    const raw = localStorage.getItem(getGiftProgressCacheKey(userId));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed.timestamp !== 'number') return null;
-    if (Date.now() - parsed.timestamp > GIFT_PROGRESS_CACHE_TTL_MS) return null;
-    return typeof parsed.value === 'string' ? parsed.value : '';
-  } catch (error) {
-    logger.warn('user-space', '读取礼物进度缓存失败:', error);
-    return null;
-  }
-};
-
-const fetchGiftProgressFromServer = async (userId) => {
-  try {
-    const { data, error } = await supabase
-      .from('user_gifts')
-      .select('gift_status')
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .neq('gift_status', 'completed')
-      .limit(1);
-
-    if (error) throw error;
-
-    const gift = Array.isArray(data) ? data[0] : null;
-    return gift ? getGiftStatusLabel(gift.gift_status) : '';
-  } catch (error) {
-    logger.warn('user-space', '读取 user_gifts 礼物进度失败，尝试回退 profiles 字段:', error);
-  }
-
-  try {
-    // H-1 修复：gift_content 是敏感字段已收窄，
-    // gift_status 非敏感走 from('profiles')，gift_content 走 RPC（仅本人可读）。
-    const isOwn = userId === authStore.userInfo?.id;
-    const [pubRes, secRes] = await Promise.all([
-      supabase.from('profiles').select('gift_status').eq('id', userId).single(),
-      isOwn ? supabase.rpc('get_my_sensitive_profile') : Promise.resolve({ data: null, error: null })
-    ]);
-
-    if (pubRes.error) throw pubRes.error;
-    const giftContent = secRes.data?.gift_content || null;
-    return Boolean(giftContent) && pubRes.data?.gift_status !== 'completed'
-      ? getGiftStatusLabel(pubRes.data?.gift_status)
-      : '';
-  } catch (error) {
-    logger.warn('user-space', '读取 profiles 回退礼物进度失败:', error);
-    return '';
-  }
-};
-
-const refreshPendingGift = async ({ force = false } = {}) => {
-  const userId = userInfo.value?.id;
-  if (!isLoggedIn.value || !userId) {
-    giftProgressText.value = '';
-    return;
-  }
-
-  if (!force) {
-    const cached = loadGiftProgressCache(userId);
-    if (cached !== null) {
-      giftProgressText.value = cached;
-      return;
-    }
-  }
-
-  if (giftProgressInflight) {
-    await giftProgressInflight;
-    return;
-  }
-
-  giftProgressInflight = (async () => {
-    const latest = await fetchGiftProgressFromServer(userId);
-    giftProgressText.value = latest;
-    saveGiftProgressCache(userId, latest);
-    lastGiftProgressRefreshAt = Date.now();
-  })();
-
-  try {
-    await giftProgressInflight;
-  } finally {
-    giftProgressInflight = null;
-  }
-};
-
 const initUserData = async () => {
   if (isLoggedIn.value && userInfo.value.id) {
     await authStore.updateLocalState({
@@ -2165,7 +2052,6 @@ const clearUserSpaceWarmup = () => {
 };
 
 const runProfileCriticalFetches = ({ force = false } = {}) => {
-  void refreshPendingGift({ force });
   void fetchUserStats({ force });
   void fetchCloudPlusUsage({ force });
   void fetchProfileContent({ force, reset: force });
@@ -2177,7 +2063,6 @@ const scheduleUserSpaceWarmup = ({ force = false } = {}) => {
   userSpaceWarmupTimeoutId = window.setTimeout(() => {
     userSpaceWarmupTimeoutId = null;
     if (!isLoggedIn.value || !userInfo.value.id) return;
-    void refreshPendingGift({ force });
     void fetchUserStats({ force });
     if (currentTab.value === 'profile') {
       void fetchCloudPlusUsage({ force });
@@ -2216,7 +2101,6 @@ watch(
         latestUserStatsFetchToken += 1;
         dataState.stats.loading = false;
         resetUserStats();
-        giftProgressText.value = '';
         pushplusStatus.loaded = false;
         pushplusStatus.hasToken = false;
         pushplusStatus.enabled = false;
@@ -2400,9 +2284,6 @@ const handleUnreadRefresh = (event) => {
     await refreshUnreadCount();
     await showUnreadBottomNavIsland(detail);
   })();
-  if (Date.now() - lastGiftProgressRefreshAt >= GIFT_PROGRESS_MIN_REFRESH_INTERVAL_MS) {
-    refreshPendingGift({ force: true });
-  }
 };
 </script>
 

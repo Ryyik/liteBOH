@@ -23,7 +23,7 @@
   width: 100%;
 }
 
-/* 积分与会员页：与独立订阅页一致的全屏横屏布局（1600px） */
+/* 积分与礼物页：与独立订阅页一致的全屏横屏布局（1600px） */
 .profile-page-content.assets-active {
   max-width: 1600px;
 }

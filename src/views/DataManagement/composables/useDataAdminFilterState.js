@@ -140,25 +140,31 @@ export const createFilterState = (deps) => {
     advancedFilterRules.value = [];
   };
 
-  // 搜索: 重置到第一页 + 拉取数据
+  // 统一的防抖拉取入口: 搜索/筛选/清空合并到同一个 300ms 防抖, 避免高频操作整页重查
+  const debouncedRefetch = () => {
+    if (searchDebounceTimer.value) clearTimeout(searchDebounceTimer.value);
+    searchDebounceTimer.value = setTimeout(() => {
+      searchDebounceTimer.value = null;
+      fetchTabData(currentTab.value);
+    }, 300);
+  };
+
+  // 搜索: 重置到第一页 + 防抖拉取数据
   const handleSearch = () => {
     if (currentPage.value !== 1) {
       suppressNextPageFetch.value = true;
       currentPage.value = 1;
     }
-    if (searchDebounceTimer.value) clearTimeout(searchDebounceTimer.value);
-    searchDebounceTimer.value = setTimeout(() => {
-      fetchTabData(currentTab.value);
-    }, 300);
+    debouncedRefetch();
   };
 
-  // 筛选/排序变化: 重置到第一页 + 拉取
+  // 筛选/排序变化: 重置到第一页 + 防抖拉取
   const handleFilterChange = () => {
     if (currentPage.value !== 1) {
       suppressNextPageFetch.value = true;
       currentPage.value = 1;
     }
-    fetchTabData(currentTab.value);
+    debouncedRefetch();
   };
 
   // 清空搜索
@@ -168,7 +174,7 @@ export const createFilterState = (deps) => {
       suppressNextPageFetch.value = true;
       currentPage.value = 1;
     }
-    fetchTabData(currentTab.value);
+    debouncedRefetch();
   };
 
   // 清空所有筛选

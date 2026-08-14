@@ -100,6 +100,9 @@ export const SAVE_STRATEGIES = {
     const normalizedAuthorId = String(editingItem.author_id || '').trim();
     const normalizedAuthorUsername = String(editingItem.author_username || '').trim();
     const normalizedStatus = String(editingItem.status || 'approved').trim() || 'approved';
+    const normalizedTag = String(editingItem.tag || '').trim();
+    const normalizedCoverImageUrl = String(editingItem.cover_image_url || '').trim();
+    const normalizedLocationName = String(editingItem.location_name || '').trim();
 
     if (!forumTitle) throw new Error('帖子标题不能为空');
     if (!forumBody) throw new Error('帖子正文不能为空');
@@ -111,6 +114,9 @@ export const SAVE_STRATEGIES = {
       author_id: normalizedAuthorId || null,
       author_username: normalizedAuthorUsername || null,
       status: normalizedStatus,
+      tag: normalizedTag,
+      cover_image_url: normalizedCoverImageUrl,
+      location_name: normalizedLocationName || null,
       updated_at: new Date().toISOString()
     });
   },
@@ -242,6 +248,8 @@ export const SAVE_STRATEGIES = {
     const normalizedStatus = String(editingItem.status || 'open').trim() || 'open';
     const normalizedFulfillmentStatus = String(editingItem.fulfillment_status || 'pending_contact').trim() || 'pending_contact';
     const normalizedCommunityVisible = editingItem.is_community_visible !== false && editingItem.is_community_visible !== 'false';
+    const normalizedHomeVisible = editingItem.is_home_visible !== false && editingItem.is_home_visible !== 'false';
+    const normalizedEnforceAccountAgeCheck = editingItem.enforce_account_age_check === true || editingItem.enforce_account_age_check === 'true';
     const rawMaxEntries = editingItem.max_entries;
     const hasMaxEntries = rawMaxEntries !== null && rawMaxEntries !== undefined && rawMaxEntries !== '';
     const normalizedMaxEntries = hasMaxEntries ? Number(rawMaxEntries) : null;
@@ -274,6 +282,8 @@ export const SAVE_STRATEGIES = {
       status: normalizedStatus,
       fulfillment_status: normalizedFulfillmentStatus,
       is_community_visible: normalizedCommunityVisible,
+      is_home_visible: normalizedHomeVisible,
+      enforce_account_age_check: normalizedEnforceAccountAgeCheck,
       max_entries: normalizedMaxEntries,
       winner_count: normalizedWinnerCount,
       entry_deadline_at: normalizedEntryDeadlineAt,
@@ -293,6 +303,16 @@ export const SAVE_STRATEGIES = {
     const normalizedStock = Number(editingItem.stock);
     if (!Number.isFinite(normalizedStock) || normalizedStock < 0) throw new Error('库存必须是大于等于 0 的数字');
 
+    const normalizedPaymentMode = String(editingItem.payment_mode || 'points').trim();
+    if (!['points', 'rmb', 'mixed'].includes(normalizedPaymentMode)) throw new Error('支付模式无效');
+
+    const normalizedRmbPrice = editingItem.rmb_price !== null && editingItem.rmb_price !== undefined && editingItem.rmb_price !== ''
+      ? Number(editingItem.rmb_price)
+      : null;
+    if (normalizedRmbPrice !== null && (!Number.isFinite(normalizedRmbPrice) || normalizedRmbPrice < 0)) {
+      throw new Error('RMB 定价必须是大于等于 0 的数字');
+    }
+
     const normalizedSpecifications = Array.isArray(editingItem.specifications)
       ? editingItem.specifications
         .map((spec) => ({
@@ -307,12 +327,83 @@ export const SAVE_STRATEGIES = {
       title: String(editingItem.title || '').trim(),
       category: String(editingItem.category || '').trim(),
       description: String(editingItem.description || '').trim(),
+      payment_mode: normalizedPaymentMode,
       points_cost: Math.round(normalizedPointsCost),
+      rmb_price: normalizedRmbPrice !== null ? Math.round(normalizedRmbPrice) : null,
       stock: Math.round(normalizedStock),
       image: String(editingItem.image || '').trim(),
       specifications: normalizedSpecifications,
       is_active: editingItem.is_active === true || editingItem.is_active === 'true',
       is_purchasable: editingItem.is_purchasable === true || editingItem.is_purchasable === 'true'
+    });
+  },
+
+  shopOrders: async ({ editingItem }) => {
+    const normalizedStatus = String(editingItem.status || 'pending').trim();
+    const allowedStatuses = new Set(['pending', 'processing', 'shipped', 'completed', 'cancelled']);
+    if (!allowedStatuses.has(normalizedStatus)) throw new Error('订单状态无效');
+
+    return pickWritableFields('shopOrders', {
+      status: normalizedStatus,
+      updated_at: new Date().toISOString()
+    });
+  },
+
+  birthdayEvents: async ({ editingItem }) => {
+    const normalizedTitle = String(editingItem.title || '').trim();
+    if (!normalizedTitle) throw new Error('标题不能为空');
+    const normalizedDate = toDateInputValue(editingItem.celebration_date);
+    if (!normalizedDate) throw new Error('庆祝日期不能为空');
+
+    return pickWritableFields('birthdayEvents', {
+      title: normalizedTitle,
+      subtitle: String(editingItem.subtitle || '').trim(),
+      hero_quote: String(editingItem.hero_quote || '').trim(),
+      page_copy: editingItem.page_copy || {},
+      celebration_date: normalizedDate,
+      is_active: editingItem.is_active === true || editingItem.is_active === 'true',
+      sort_order: Number(editingItem.sort_order || 0),
+      updated_at: new Date().toISOString()
+    });
+  },
+
+  birthdayWishes: async ({ editingItem }) => {
+    const normalizedStatus = String(editingItem.status || 'pending').trim();
+    if (!['pending', 'approved', 'rejected'].includes(normalizedStatus)) throw new Error('祝福状态无效');
+
+    return pickWritableFields('birthdayWishes', {
+      status: normalizedStatus,
+      is_featured: editingItem.is_featured === true || editingItem.is_featured === 'true',
+      updated_at: new Date().toISOString()
+    });
+  },
+
+  blockWallItems: async ({ editingItem }) => {
+    return pickWritableFields('blockWallItems', {
+      content: String(editingItem.content || '').trim(),
+      color: String(editingItem.color || '').trim(),
+      image_url: String(editingItem.image_url || '').trim(),
+      image_public_id: String(editingItem.image_public_id || '').trim() || null,
+      position_x: Number(editingItem.position_x || 0),
+      position_y: Number(editingItem.position_y || 0),
+      rotation: Number(editingItem.rotation || 0),
+      updated_at: new Date().toISOString()
+    });
+  },
+
+  bohCreatorShows: async ({ editingItem }) => {
+    const normalizedTitle = String(editingItem.title || '').trim();
+    if (!normalizedTitle) throw new Error('标题不能为空');
+    const normalizedVideoUrl = String(editingItem.video_url || '').trim();
+    if (!normalizedVideoUrl) throw new Error('视频链接不能为空');
+
+    return pickWritableFields('bohCreatorShows', {
+      title: normalizedTitle,
+      description: String(editingItem.description || '').trim(),
+      video_url: normalizedVideoUrl,
+      creator_platform: String(editingItem.creator_platform || 'other').trim(),
+      creator_platform_id: String(editingItem.creator_platform_id || '').trim(),
+      updated_at: new Date().toISOString()
     });
   },
 
@@ -367,11 +458,16 @@ export const SAVE_STRATEGIES = {
       ? (customCompletedAt || nowIso)
       : null;
 
+    const normalizedGiftPoints = editingItem.gift_points !== null && editingItem.gift_points !== undefined && editingItem.gift_points !== ''
+      ? Number(editingItem.gift_points)
+      : 0;
+
     return pickWritableFields('gifts', {
       user_id: normalizedUserId,
       gift_no: editingItem.gift_no,
       gift_content: editingItem.gift_content,
       gift_price: editingItem.gift_price,
+      gift_points: Math.max(0, Math.round(normalizedGiftPoints)),
       gift_image: editingItem.gift_image,
       gift_status: normalizedGiftStatus,
       is_active: normalizedIsActive,

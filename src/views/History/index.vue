@@ -1,17 +1,29 @@
 <template>
   <div class="history-page">
-    <!-- 已被设为旧内容的首页英雄区，自动出现在这里 -->
+    <!-- 已归档英雄区：统一从数据库读取（含 builtin 与数据驱动两类） -->
     <HistoryHeroSection
       v-for="hero in archivedHeroes"
       :key="hero.id"
-      :id="hero.id"
+      :hero="hero"
     />
   </div>
 </template>
 
 <script setup>
+import { onMounted } from 'vue';
 import HistoryHeroSection from './components/HistoryHeroSection.vue';
-import { archivedHomeHeroes as archivedHeroes } from '../Home/components/homeArchiveData.js';
+import { useHomeHeroesStore } from '@/stores/homeHeroes';
+
+const homeHeroesStore = useHomeHeroesStore();
+const archivedHeroes = homeHeroesStore.archivedHeroes;
+
+onMounted(async () => {
+  try {
+    await homeHeroesStore.fetchArchived({ force: true });
+  } catch {
+    // 表不存在时仅返回空数组
+  }
+});
 </script>
 
 <style scoped>

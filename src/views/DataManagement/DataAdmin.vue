@@ -104,6 +104,19 @@
           </button>
         </div>
 
+        <LotteryOperationsPanel
+          v-if="activeModule === 'lottery'"
+          :snapshot="lotteryOperationsSnapshot"
+          :scheduler-status="lotterySchedulerStatus"
+          :due-draw-pending="lotteryDueDrawPending"
+          @advance-fulfillment="advanceLotteryFulfillment"
+          @open-tab="switchTab"
+          @refresh="refreshLotteryOperationsSnapshot"
+          @replace-winner="replaceLotteryWinner"
+          @retry-notification="retryLotteryNotification"
+          @run-due-draws="runDueLotteryDraws"
+        />
+
         <!-- 页面类型 Tab：直接渲染对应组件 -->
         <div v-if="isPageTab && currentPageComponent" class="page-tab-container">
           <component :is="currentPageComponent" />
@@ -270,6 +283,9 @@
               <button class="btn btn-secondary" type="button" @click="showChangeLogPanel = !showChangeLogPanel">
                 变更日志
               </button>
+              <button v-if="currentTab === 'lotterySchedulerLogs'" class="btn btn-secondary" type="button" :disabled="isCleaningLogs" @click="cleanupSchedulerLogs">
+                {{ isCleaningLogs ? '清理中...' : '清理日志' }}
+              </button>
               <button v-if="selectedItems.length > 0 && editableFields.length && canEditCurrentTab" class="btn btn-secondary" type="button" @click="showBatchEditPanel = !showBatchEditPanel">
                 批量编辑 ({{ selectedItems.length }})
               </button>
@@ -428,6 +444,15 @@
                 </div>
               </div>
               <div class="mobile-card-actions">
+                <button v-if="currentTab === 'lotteries' && item.status === 'open'" class="review-btn approve mobile-lottery-btn" :disabled="isLotteryActionPending(item.id)" @click="drawLotteryNow(item)">开奖</button>
+                <button v-if="currentTab === 'lotteries' && item.status === 'drawn'" class="review-btn approve mobile-lottery-btn" :disabled="isLotteryActionPending(item.id)" @click="redrawLottery(item)">重抽</button>
+                <button v-if="currentTab === 'lotteries'" class="review-btn approve mobile-lottery-btn" @click="viewLotteryFulfillments(item)">履约</button>
+                <button v-if="currentTab === 'lotteries'" class="review-btn approve mobile-lottery-btn" @click="viewLotteryEntries(item)">名单</button>
+                <button v-if="currentTab === 'lotteries'" class="review-btn approve mobile-lottery-btn" @click="viewLotteryDrawLogs(item)">日志</button>
+                <button v-if="currentTab === 'lotteries' && item.status !== 'closed'" class="review-btn reject mobile-lottery-btn" :disabled="isLotteryActionPending(item.id)" @click="closeLottery(item)">关闭</button>
+                <button v-if="currentTab === 'lotteryFulfillments' && item.is_current && !['fulfilled', 'forfeited', 'voided'].includes(item.status)" class="review-btn approve mobile-lottery-btn" @click="advanceLotteryFulfillment(item)">推进</button>
+                <button v-if="currentTab === 'lotteryFulfillments' && item.is_current && item.status !== 'fulfilled'" class="review-btn reject mobile-lottery-btn" @click="replaceLotteryWinner(item)">替补</button>
+                <button v-if="currentTab === 'lotteryNotificationJobs' && item.status !== 'sent'" class="review-btn approve mobile-lottery-btn" @click="retryLotteryNotification(item)">重试</button>
                 <button v-if="canEditCurrentTab" class="mobile-action-btn edit" @click="openEditModal(item)" aria-label="编辑">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                 </button>
@@ -470,8 +495,14 @@
                 class="lottery-card"
                 :class="{ selected: isSelected(item), anomaly: isAnomalyRow(item) }"
               >
-                <div v-if="currentCardViewConfig.imageKey" class="lottery-card-cover" :class="{ 'is-placeholder': !item[currentCardViewConfig.imageKey] }">
-                  <img v-if="item[currentCardViewConfig.imageKey]" :src="getImageUrl(item[currentCardViewConfig.imageKey], { silent: true })" :alt="item[currentCardViewConfig.titleKey]" loading="lazy" />
+                <div v-if="currentCardViewConfig.imageKey" class="lottery-card-cover" :class="{ 'is-placeholder': !item[currentCardViewConfig.imageKey] || isCardImageBroken(item, currentCardViewConfig) }">
+                  <img
+                    v-if="item[currentCardViewConfig.imageKey] && !isCardImageBroken(item, currentCardViewConfig)"
+                    :src="getImageUrl(item[currentCardViewConfig.imageKey], { silent: true })"
+                    :alt="item[currentCardViewConfig.titleKey]"
+                    loading="lazy"
+                    @error="onCardImageError(item, currentCardViewConfig)"
+                  />
                   <span v-else class="lottery-card-cover-icon">{{ currentCardViewConfig.placeholderIcon || '📦' }}</span>
                   <span v-if="getCardStatusMeta(item, currentCardViewConfig)" class="lottery-card-status" :class="`tone-${getCardStatusMeta(item, currentCardViewConfig).tone}`">
                     {{ getCardStatusMeta(item, currentCardViewConfig).label }}
@@ -512,8 +543,9 @@
                 </div>
                 <div class="lottery-card-actions">
                   <button v-if="currentTab === 'lotteries' && item.status === 'open'" class="review-btn approve" :disabled="isLotteryActionPending(item.id)" @click="drawLotteryNow(item)" title="立即随机开奖">开奖</button>
-                  <button v-if="currentTab === 'lotteries' && item.status === 'drawn'" class="review-btn approve" :disabled="isLotteryActionPending(item.id)" @click="redrawLottery(item)" title="保留历史记录并重新随机开奖">重抽</button>
-                  <button v-if="currentTab === 'lotteries'" class="review-btn approve" @click="viewLotteryEntries(item)" title="查看本次抽奖报名名单">名单</button>
+                <button v-if="currentTab === 'lotteries' && item.status === 'drawn'" class="review-btn approve" :disabled="isLotteryActionPending(item.id)" @click="redrawLottery(item)" title="保留历史记录并重新随机开奖">重抽</button>
+                <button v-if="currentTab === 'lotteries'" class="review-btn approve" @click="viewLotteryFulfillments(item)" title="按中奖人处理联系、发货和替补">履约</button>
+                <button v-if="currentTab === 'lotteries'" class="review-btn approve" @click="viewLotteryEntries(item)" title="查看本次抽奖报名名单">名单</button>
                   <button v-if="currentTab === 'lotteries'" class="review-btn approve" @click="viewLotteryDrawLogs(item)" title="查看本次抽奖开奖日志">日志</button>
                   <button v-if="currentTab === 'lotteries' && item.status !== 'closed'" class="review-btn reject" :disabled="isLotteryActionPending(item.id)" @click="closeLottery(item)" title="关闭该抽奖">关闭</button>
                   <button v-if="canEditCurrentTab" class="icon-btn edit" @click="openEditModal(item)" title="编辑" aria-label="编辑">
@@ -710,6 +742,14 @@
                         <button
                           v-if="currentTab === 'lotteries'"
                           class="review-btn approve"
+                          @click="viewLotteryFulfillments(item)"
+                          title="按中奖人处理联系、发货和替补"
+                        >
+                          履约
+                        </button>
+                        <button
+                          v-if="currentTab === 'lotteries'"
+                          class="review-btn approve"
                           @click="viewLotteryEntries(item)"
                           title="查看本次抽奖报名名单"
                         >
@@ -731,6 +771,30 @@
                           title="关闭该抽奖"
                         >
                           关闭
+                        </button>
+                        <button
+                          v-if="currentTab === 'lotteryFulfillments' && item.is_current && !['fulfilled', 'forfeited', 'voided'].includes(item.status)"
+                          class="review-btn approve"
+                          @click="advanceLotteryFulfillment(item)"
+                          title="推进下一履约状态"
+                        >
+                          推进
+                        </button>
+                        <button
+                          v-if="currentTab === 'lotteryFulfillments' && item.is_current && item.status !== 'fulfilled'"
+                          class="review-btn reject"
+                          @click="replaceLotteryWinner(item)"
+                          title="取消当前资格并随机替补同一席位"
+                        >
+                          替补
+                        </button>
+                        <button
+                          v-if="currentTab === 'lotteryNotificationJobs' && item.status !== 'sent'"
+                          class="review-btn approve"
+                          @click="retryLotteryNotification(item)"
+                          title="重新发送中奖通知"
+                        >
+                          重试
                         </button>
                         <!-- 用户封禁/禁言操作按钮 -->
                         <template v-if="canBanMute">
@@ -930,6 +994,7 @@ import {
 import AdminHeader from './components/AdminHeader.vue';
 import AdminOverview from './components/AdminOverview.vue';
 import AdminSidebar from './components/AdminSidebar.vue';
+import LotteryOperationsPanel from './components/LotteryOperationsPanel.vue';
 import ApiKeyConsole from './components/ApiKeyConsole.vue';
 import LabAiModelConfig from './components/LabAiModelConfig.vue';
 import ModerationModelConfig from './components/ModerationModelConfig.vue';
@@ -1010,6 +1075,7 @@ import {
 import { createChangeLogCenter } from './composables/useDataAdminChangeLog.js';
 import { createFilterState } from './composables/useDataAdminFilterState.js';
 import { createMutationsCenter } from './composables/useDataAdminMutations.js';
+import { createLotteryOperationsCenter } from './composables/useLotteryOperations.js';
 import { SAVE_STRATEGIES } from './config/saveStrategies.js';
 import { setupDataAdminLifecycle } from './composables/useDataAdminLifecycle.js';
 import {
@@ -1067,7 +1133,9 @@ const showAdvancedFilterPanel = ref(false);
 const showColumnPanel = ref(false);
 const showBatchEditPanel = ref(false);
 const showChangeLogPanel = ref(false);
+const isCleaningLogs = ref(false);
 const showFilterBar = ref(false);
+const brokenCardImages = ref(new Set());
 const isEditing = ref(false);
 const editingItem = ref({});
 const editingOriginalItem = ref(null);
@@ -1132,6 +1200,16 @@ const formatCardSubtitle = (item, config) => {
   if (config.subtitleFormat === 'datetime') return formatDateTime(raw);
   if (config.subtitleFormat === 'date') return formatDate(raw);
   return String(raw);
+};
+const isCardImageBroken = (item, config) => {
+  const id = item?.id || getRowIdentity(item);
+  return brokenCardImages.value.has(`${id}:${config?.imageKey}`);
+};
+const onCardImageError = (item, config) => {
+  const id = item?.id || getRowIdentity(item);
+  brokenCardImages.value.add(`${id}:${config?.imageKey}`);
+  // 触发响应式更新
+  brokenCardImages.value = new Set(brokenCardImages.value);
 };
 const getCardStatusMeta = (item, config) => {
   if (!config?.statusKey) return null;
@@ -1361,9 +1439,11 @@ const dataStore = shallowReactive({
   lotteries: [],
   lotteryEntries: [],
   lotteryDrawLogs: [],
+  lotteryFulfillments: [],
   lotterySchedulerLogs: [],
   lotteryNotificationJobs: [],
   lotteryJoinAttempts: [],
+  lotteryAuditLogs: [],
   news: [],
   activities: [],
   products: []
@@ -1429,6 +1509,10 @@ const inlineEditableFieldKeys = computed(() => new Set(
 const currentTabLabel = computed(() => tabs.find(t => t.id === currentTab.value)?.label || '');
 const isNewsTab = computed(() => currentTab.value === 'news');
 const isCurrentUserAdmin = computed(() => String(userInfo.value?.role || '').trim() === 'admin');
+const {
+  lotteryOperationsSnapshot,
+  refreshLotteryOperationsSnapshot
+} = createLotteryOperationsCenter({ isCurrentUserAdmin, showToast });
 const canRegenerateAutoId = computed(() =>
   !isEditing.value && ['news', 'activities', 'products'].includes(currentTab.value)
 );
@@ -1457,7 +1541,7 @@ const PAGE_TAB_COMPONENTS = {
   'points-grant': PointsGrantConsole
 };
 const currentPageComponent = computed(() => PAGE_TAB_COMPONENTS[currentTab.value] || null);
-const lotteryOpsTabs = new Set(['lotteries', 'lotteryDrawLogs', 'lotterySchedulerLogs', 'lotteryNotificationJobs', 'lotteryJoinAttempts']);
+const lotteryOpsTabs = new Set(['lotteries', 'lotteryFulfillments', 'lotteryDrawLogs', 'lotterySchedulerLogs', 'lotteryNotificationJobs', 'lotteryJoinAttempts', 'lotteryAuditLogs']);
 const isLotteryOpsTab = computed(() => lotteryOpsTabs.has(currentTab.value));
 const moderationTabConfig = computed(() => {
   if (!hasTabAction('moderate')) return null;
@@ -1495,7 +1579,9 @@ const hasActionColumn = computed(() =>
   canEditCurrentTab.value ||
   canDeleteCurrentTab.value ||
   canBanMute.value ||
-  currentTab.value === 'lotteries'
+  currentTab.value === 'lotteries' ||
+  currentTab.value === 'lotteryFulfillments' ||
+  currentTab.value === 'lotteryNotificationJobs'
 );
 const isRejectedModerationTab = computed(() => ['reviewPosts', 'reviewComments'].includes(currentTab.value));
 const isMessageModerationTab = computed(() => currentTab.value === 'reviewComments');
@@ -1823,20 +1909,46 @@ const activeDiagnostics = computed(() => [
     tone: getTabCount('reviewComments') > 0 ? 'danger' : 'success'
   },
   {
+    id: 'lottery-fulfillments',
+    tab: 'lotteryFulfillments',
+    title: '中奖履约',
+    description: '等待联系、确认或发货的中奖人',
+    count: lotteryOperationsSnapshot.isLoaded
+      ? lotteryOperationsSnapshot.fulfillments.length
+      : getTabCount('lotteryFulfillments'),
+    tone: (lotteryOperationsSnapshot.isLoaded
+      ? lotteryOperationsSnapshot.fulfillments.length
+      : getTabCount('lotteryFulfillments')) > 0 ? 'warning' : 'success'
+  },
+  {
+    id: 'lottery-due-draws',
+    tab: 'lotteries',
+    title: '待开奖抽奖',
+    description: '已到开奖时间、等待调度处理',
+    count: lotteryOperationsSnapshot.dueLotteries.length,
+    tone: lotteryOperationsSnapshot.dueLotteries.length > 0 ? 'warning' : 'success'
+  },
+  {
     id: 'lottery-risk',
     tab: 'lotteryJoinAttempts',
     title: '报名风控',
-    description: '抽奖报名尝试记录',
-    count: getTabCount('lotteryJoinAttempts'),
-    tone: 'info'
+    description: '最近 50 次报名中的异常尝试',
+    count: lotteryOperationsSnapshot.isLoaded
+      ? lotteryOperationsSnapshot.joinRiskCount
+      : getTabCount('lotteryJoinAttempts'),
+    tone: lotteryOperationsSnapshot.joinRiskCount > 0 ? 'warning' : 'success'
   },
   {
     id: 'lottery-notifications',
     tab: 'lotteryNotificationJobs',
     title: '中奖通知',
-    description: '待发送或失败通知任务',
-    count: getTabCount('lotteryNotificationJobs'),
-    tone: getTabCount('lotteryNotificationJobs') > 0 ? 'warning' : 'success'
+    description: '待发送或发送失败的中奖通知',
+    count: lotteryOperationsSnapshot.isLoaded
+      ? lotteryOperationsSnapshot.notificationFailures.length
+      : getTabCount('lotteryNotificationJobs'),
+    tone: (lotteryOperationsSnapshot.isLoaded
+      ? lotteryOperationsSnapshot.notificationFailures.length
+      : getTabCount('lotteryNotificationJobs')) > 0 ? 'warning' : 'success'
   }
 ]);
 
@@ -2602,6 +2714,9 @@ const clearTabFetchCache = (tabId = '') => {
       delete tabFetchCache[key];
     }
   });
+  if (!tabId) {
+    brokenCardImages.value = new Set();
+  }
 };
 
 const assignTabRows = (tabId, rows, total) => {
@@ -2715,6 +2830,41 @@ const fetchStats = async () => {
   applyCountMap(fallbackCounts);
 };
 
+// 敏感用户数据缓存: admin_list_users_with_sensitive 每次最多返回 500 行,
+// 翻页/搜索/筛选/刷新都会重复拉取同样的大载荷, 会话内按参数缓存复用
+const SENSITIVE_USERS_CACHE_TTL = 90 * 1000;
+const sensitiveUsersCacheMap = new Map();
+
+const fetchSensitiveUsers = async ({ p_search = null, p_limit = 500 } = {}) => {
+  const key = `${p_search === null ? '' : String(p_search)}|${Math.max(1, Number(p_limit) || 500)}`;
+  const now = Date.now();
+  const cached = sensitiveUsersCacheMap.get(key);
+  if (cached?.data && now - cached.fetchedAt < SENSITIVE_USERS_CACHE_TTL) {
+    return cached.data;
+  }
+  if (cached?.pending) return cached.pending;
+
+  const entry = { data: null, fetchedAt: 0, pending: null };
+  sensitiveUsersCacheMap.set(key, entry);
+  entry.pending = supabase
+    .rpc('admin_list_users_with_sensitive', { p_search, p_limit })
+    .then(({ data }) => {
+      entry.data = Array.isArray(data) ? data : [];
+      entry.fetchedAt = Date.now();
+      entry.pending = null;
+      return entry.data;
+    })
+    .catch((error) => {
+      entry.pending = null;
+      throw error;
+    });
+  return entry.pending;
+};
+
+const flushSensitiveUsersCache = () => {
+  sensitiveUsersCacheMap.clear();
+};
+
 const fetchTabData = async (tabId = currentTab.value, options = {}) => {
   const cacheKey = getTabFetchCacheKey(tabId);
   const cached = options.useCache ? tabFetchCache[cacheKey] : null;
@@ -2796,7 +2946,7 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
     if (fetchId !== activeFetchId.value) return;
     if (error) throw error;
 
-    const rows = Array.isArray(data) ? data : [];
+    let rows = Array.isArray(data) ? data : [];
     const offset = Math.max(0, ((Number(currentPage.value) || 1) - 1) * (Number(pageSize.value) || 20));
 
     if (tabId === 'users' || tabId === 'points') {
@@ -2805,11 +2955,8 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
       try {
         const userIds = rows.map(r => r.id).filter(Boolean);
         if (userIds.length > 0) {
-          // 获取当前页用户的敏感字段
-          const { data: sensitiveList } = await supabase.rpc('admin_list_users_with_sensitive', {
-            p_search: null,
-            p_limit: 500
-          });
+          // 获取当前页用户的敏感字段（会话内缓存复用，避免翻页/搜索时重复拉取 500 行）
+          const sensitiveList = await fetchSensitiveUsers({ p_search: null, p_limit: 500 });
           if (Array.isArray(sensitiveList)) {
             const sensitiveMap = new Map(sensitiveList.map(s => [s.id, s]));
             rows.forEach(row => {
@@ -2844,9 +2991,7 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
       try {
         const userIds = rows.map(r => r.user_id).filter(Boolean);
         if (userIds.length > 0) {
-          const { data: sensitiveList } = await supabase.rpc('admin_list_users_with_sensitive', {
-            p_search: null, p_limit: 500
-          });
+          const sensitiveList = await fetchSensitiveUsers({ p_search: null, p_limit: 500 });
           if (Array.isArray(sensitiveList)) {
             const emailMap = new Map(sensitiveList.map(s => [s.id, s.email || '-']));
             enrichedRows.forEach(row => {
@@ -3060,6 +3205,20 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
       return;
     }
 
+    if (tabId === 'lotteryFulfillments') {
+      assignTabRows(tabId, rows.map((fulfillment) => {
+        const lottery = normalizeJoinedObject(fulfillment.lottery);
+        const profile = normalizeJoinedObject(fulfillment.profile);
+        return {
+          ...fulfillment,
+          lottery_title: lottery.title || '-',
+          username: fulfillment.username_snapshot || profile.username || profile.email || '-',
+          is_current_label: fulfillment.is_current ? '当前' : '历史'
+        };
+      }), count);
+      return;
+    }
+
     if (tabId === 'lotteryDrawLogs') {
       assignTabRows(tabId, rows.map((log) => {
         const lottery = normalizeJoinedObject(log.lottery);
@@ -3106,6 +3265,50 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
         };
       }), count);
       return;
+    }
+
+    if (tabId === 'lotteryAuditLogs') {
+      assignTabRows(tabId, rows.map((audit) => {
+        const lottery = normalizeJoinedObject(audit.lottery);
+        const actor = normalizeJoinedObject(audit.actor);
+        return {
+          ...audit,
+          lottery_title: lottery.title || '-',
+          actor_username: actor.username || actor.email || (audit.actor_id ? '管理员' : '系统'),
+          detail_preview: JSON.stringify(audit.detail || {})
+        };
+      }), count);
+      return;
+    }
+
+    // 通用扁平化：将关联查询返回的嵌套对象提取为顶层字段
+    const flattenFieldMap = {
+      profile: 'username',
+      reporter: 'reporter_name',
+      resolver: 'resolver_name',
+      sender: 'sender_name',
+      recipient: 'recipient_name',
+      operator: 'operator_name',
+      follower: 'follower_name',
+      following: 'following_name',
+      author: 'author_name',
+      target: 'target_name'
+    };
+    const needsFlatten = ['forumPostImages', 'shopOrders', 'pointsTransactions', 'forumWeeklyCheckins',
+      'cloudinaryUploads', 'aiWebSearchLog', 'anniversaryClaims', 'forumPostReports',
+      'notifications', 'userFollows', 'userImpressions'].includes(tabId);
+    if (needsFlatten) {
+      rows = rows.map((row) => {
+        const flat = { ...row };
+        for (const [nestedKey, flatKey] of Object.entries(flattenFieldMap)) {
+          if (row[nestedKey] != null) {
+            const obj = normalizeJoinedObject(row[nestedKey]);
+            if (obj.username) flat[flatKey] = obj.username;
+            delete flat[nestedKey];
+          }
+        }
+        return flat;
+      });
     }
 
     assignTabRows(tabId, rows, count);
@@ -3161,7 +3364,10 @@ const {
 const fetchSecondaryData = async () => {
   await Promise.allSettled([
     fetchStats(),
-    isLotteryOpsTab.value ? loadLotterySchedulerStatus() : Promise.resolve()
+    isLotteryOpsTab.value ? loadLotterySchedulerStatus() : Promise.resolve(),
+    (activeModule.value === 'lottery' || activeAdminSection.value === 'overview')
+      ? refreshLotteryOperationsSnapshot()
+      : Promise.resolve()
   ]);
 };
 
@@ -3224,6 +3430,12 @@ const {
   loadLotterySchedulerStatus
 });
 
+watch(activeModule, (moduleId) => {
+  if (moduleId !== 'lottery') return;
+  loadLotterySchedulerStatus();
+  refreshLotteryOperationsSnapshot();
+}, { immediate: true });
+
 // ==================== 变更日志中心注入 ====================
 // 在 createNavigationCenter 之后注入, 因为需要 switchTab
 const {
@@ -3253,6 +3465,8 @@ const startAutoRefresh = () => {
   stopAutoRefresh();
   secondsUntilRefresh.value = 30;
   autoRefreshInterval.value = setInterval(() => {
+    // 页面在后台时暂停倒计时与统计刷新, 避免无意义的 21 个 count 请求
+    if (document.visibilityState === 'hidden') return;
     secondsUntilRefresh.value--;
     if (secondsUntilRefresh.value <= 0) {
       secondsUntilRefresh.value = 30;
@@ -3297,6 +3511,8 @@ const fetchData = async ({ deferSecondary = false } = {}) => {
 };
 
 const refreshCurrentViewAfterMutation = async () => {
+  // 数据已变更, 敏感字段缓存立即失效, 下次查询拉取最新数据
+  flushSensitiveUsersCache();
   clearTabFetchCache(currentTab.value);
   await fetchTabData(currentTab.value);
   lastRefreshedAt.value = new Date().toISOString();
@@ -3317,6 +3533,10 @@ const {
   closeLottery,
   viewLotteryEntries,
   viewLotteryDrawLogs,
+  viewLotteryFulfillments,
+  advanceLotteryFulfillment,
+  replaceLotteryWinner,
+  retryLotteryNotification,
   approveModerationItem,
   rejectModerationItem,
   keepLimitedModerationItem,
@@ -3360,10 +3580,36 @@ const {
 
 const refreshAllData = async () => {
   isRefreshing.value = true;
+  flushSensitiveUsersCache();
   clearTabFetchCache();
   await fetchData();
   isRefreshing.value = false;
   showToast('数据已刷新', 'success');
+};
+
+const cleanupSchedulerLogs = async () => {
+  if (isCleaningLogs.value) return;
+  const confirmed = await dialog.confirm({
+    title: '清理调度日志',
+    message: '将删除 30 天前的调度日志（保留最近 30 天）。确定执行？',
+    confirmText: '清理'
+  });
+  if (!confirmed) return;
+
+  isCleaningLogs.value = true;
+  try {
+    const { data, error } = await supabase.rpc('cleanup_lottery_scheduler_logs', { p_retention_days: 30 });
+    if (error) throw error;
+    const deletedCount = data?.deleted_count ?? 0;
+    showToast(`已清理 ${deletedCount} 条过期日志`, 'success');
+    clearTabFetchCache();
+    await fetchData();
+  } catch (err) {
+    logger.error('清理调度日志失败:', err);
+    showToast(`清理失败: ${err.message || '未知错误'}`, 'error');
+  } finally {
+    isCleaningLogs.value = false;
+  }
 };
 
 // loadLotterySchedulerStatus 已上移至 fetchSecondaryData 之后, 以解决 createNavigationCenter 的 TDZ 依赖
@@ -3795,13 +4041,15 @@ const fetchUserPickerUsers = async () => {
     // H-1 修复：profiles 敏感字段已通过列级权限收窄，
     // admin 查询用户列表（含敏感字段）改用 admin_list_users_with_sensitive RPC。
     const keyword = sanitizeSearchTerm(userPickerKeyword.value);
-    const { data, error } = await supabase.rpc('admin_list_users_with_sensitive', {
-      p_search: keyword || null,
-      p_limit: 200
-    });
+    let data;
+    try {
+      data = await fetchSensitiveUsers({ p_search: keyword || null, p_limit: 200 });
+    } catch (fetchError) {
+      if (fetchId !== userPickerFetchId.value) return;
+      throw fetchError;
+    }
 
     if (fetchId !== userPickerFetchId.value) return;
-    if (error) throw error;
     userPickerUsers.value = Array.isArray(data) ? data : [];
   } catch (error) {
     logger.warn('data-admin', '加载用户选择器失败:', error);

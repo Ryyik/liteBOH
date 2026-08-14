@@ -101,6 +101,8 @@
 
 .drawer-body {
   flex: 1;
+  /* min-height: 0 是 flexbox 滚动容器的关键，否则 min-height:auto 会阻止收缩导致 overflow 失效 */
+  min-height: 0;
   overflow-y: auto;
   padding: 20px 24px;
   background: var(--card);

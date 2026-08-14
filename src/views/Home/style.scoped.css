@@ -26,36 +26,7 @@
   flex-shrink: 0;
 }
 
-/* ============================================
-   福州首屏：图片铺满卡片底部和左右
-   ============================================ */
-.fuzhou-hero :deep(.ahb-container) {
-  padding-bottom: 0;
-}
-.fuzhou-hero :deep(.ahb-visual) {
-  margin-top: 0;
-  margin-left: calc(-1 * var(--apple-section-padding-x));
-  margin-right: calc(-1 * var(--apple-section-padding-x));
-}
-.fuzhou-hero :deep(.ahb-image) {
-  display: block;
-}
-
-/* 小猫主题 slot 内的猫咪样式 */
-.cat-theme-main-cat {
-  width: 220px;
-  height: 220px;
-  filter: drop-shadow(0 24px 34px rgba(255, 134, 168, 0.24));
-}
-
-.agc-anniversary-logo {
-  display: block;
-  width: min(100%, 520px);
-  height: auto;
-  margin: auto;
-  object-fit: contain;
-}
-
+/* ryyik-letter 锚点偏移（仍在 Home 模板上） */
 #ryyik-letter {
   scroll-margin-top: 96px;
 }
@@ -1008,8 +979,6 @@
 
 @media (max-width: 768px) {
 
-  .cat-theme-main-cat { width: 160px; height: 160px; }
-
   .community-posts-wrapper { padding: 0 16px 40px; }
   .community-posts { grid-template-columns: 1fr; gap: 16px; }
 
@@ -1022,8 +991,6 @@
 }
 
 @media (max-width: 480px) {
-
-  .cat-theme-main-cat { width: 120px; height: 120px; }
 
   .community-post-item { padding: 18px; }
   .cp-title { font-size: 15px; }

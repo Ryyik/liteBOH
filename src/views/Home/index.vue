@@ -1,125 +1,28 @@
 <template>
   <div class="home">
-    <!-- 动态英雄区（数据驱动，来自管理面板发布） -->
+    <!-- 统一英雄区渲染：数据库驱动排序/显隐/归档，按 template 分流渲染 -->
     <HomeHeroRow
-      v-for="hero in dynamicHeroes"
-      :key="`dynamic-${hero.id}`"
-      :layout="hero.template === 'split' ? 'split' : 'full'"
+      v-for="hero in visibleHeroes"
+      :key="hero.id"
+      :layout="heroLayout(hero)"
       :aria-label="hero.aria_label || hero.label || hero.title"
+      :id="hero.builtin_key === 'split-brand-letter' ? 'ryyik-letter' : undefined"
     >
-      <DynamicHomeHero :hero="hero" @link-click="handleDynamicLinkClick" />
-    </HomeHeroRow>
-
-    <!-- 全新吉祥物英雄区 -->
-    <HomeHeroRow v-if="!isArchived('mascot-new')" layout="full" aria-label="全新吉祥物现已上线">
-      <MascotNewHero />
-    </HomeHeroRow>
-
-    <!-- BOH Agent Preview 英雄区 -->
-    <HomeHeroRow v-if="!isArchived('agent-preview')" layout="full" aria-label="BOH Agent Preview">
-      <AgentPreviewHero />
-    </HomeHeroRow>
-
-    <!-- 生日英雄区：检测到今日有用户生日时显示（当前为预览模式） -->
-    <HomeHeroRow v-if="!isArchived('birthday') && showBirthdayHero" layout="full" aria-label="今日生日">
-      <BirthdayHero :people="birthdayPeople" @more="onBirthdayMore" />
-    </HomeHeroRow>
-
-    <HomeHeroRow v-if="!isArchived('block-wall')" layout="full" aria-label="方块墙">
-      <BlockWallHero />
-    </HomeHeroRow>
-
-    <HomeHeroRow v-if="!isArchived('mascot-evolution')" layout="full" aria-label="方块之家吉祥物">
-      <MascotEvolutionHero />
-    </HomeHeroRow>
-
-    <!-- 固定模板 A：独占一行的横屏英雄区 -->
-    <HomeHeroRow v-if="!isArchived('anniversary-8')" layout="full" aria-label="方块之家八周年">
-      <AnniversaryHero @poster="openPosterModal" />
-    </HomeHeroRow>
-
-    <HomeHeroRow v-if="!isArchived('cloud-cafe')" layout="full" aria-label="云上咖啡店网页游戏">
-      <HomeOverlayHero
-        class="anniversary-cafe-hero"
-        eyebrow="八周年 · 网页游戏"
-        title="云上咖啡店"
-        subtitle="招待方块熟客，亲手完成研磨、萃取、奶泡与拉花。"
-        :image-src="anniversaryCafeImg"
-        image-alt="云上咖啡店的 Minecraft 风格咖啡馆"
-        image-position="center 54%"
-        :links="[
-          { text: '开始营业', type: 'primary', to: '/anniversary-cafe' },
-          { text: '走进八年旅程', type: 'secondary', to: '/boh-8-years-journey' }
-        ]"
+      <DynamicHomeHero
+        v-if="hero.template !== 'builtin'"
+        :hero="hero"
+        @link-click="handleDynamicLinkClick"
       />
-    </HomeHeroRow>
-
-    <HomeHeroRow v-if="!isArchived('fuzhou')" layout="full" aria-label="遇见福州">
-      <AppleHeroBanner
-        class="fuzhou-hero"
-        tag="遇见系列"
-        title="Halo，福州。"
-        :image-src="fuzhouImg"
-        image-alt="福州"
-        variant="light"
-        card
-        :full-bleed-image="true"
-        :links="[{ text: '了解活动', type: 'primary', onClick: openFuzhouModal }]"
+      <BuiltinHeroRenderer
+        v-else
+        :hero="hero"
+        :birthday-people="birthdayPeople"
+        @poster="openPosterModal"
+        @birthday-more="onBirthdayMore"
+        @open-fuzhou="openFuzhouModal"
+        @open-cloud-plus="openCloudPlusModal"
+        @open-anniversary-letter="openAnniversaryLetter"
       />
-    </HomeHeroRow>
-
-    <HomeHeroRow v-if="!isArchived('split-theme-cloud')" layout="split" aria-label="主题与云端">
-      <AppleGridCard
-        title="BOH X 小猫主题"
-        subtitle="快来体验萌萌小猫～"
-        variant="light"
-        :links="[{ text: '去设置', type: 'primary', to: '/user-space?tab=profile&view=settings&setting=theme' }]"
-      >
-        <HomeCatMascot class="cat-theme-main-cat" type="theme" size="lg" decorative />
-      </AppleGridCard>
-
-      <AppleGridCard
-        title="BOH Cloud+"
-        subtitle="云端内容，随时可达"
-        variant="light"
-        :image-src="bohCloudImg"
-        image-alt="BOH Cloud+"
-        :links="[
-          { text: '立即体验', type: 'primary', to: '/user-space/note' },
-          { text: '了解更多', type: 'secondary', onClick: openCloudPlusModal }
-        ]"
-      />
-    </HomeHeroRow>
-
-    <HomeHeroRow v-if="!isArchived('split-brand-letter')" id="ryyik-letter" layout="split" aria-label="品牌与八周年寄语">
-      <AppleGridCard
-        title="了解，<br>什么是BOH"
-        subtitle="一个属于方块之家的生态平台"
-        variant="light"
-        :image-src="faviconImg"
-        image-alt="方块之家"
-        :links="[
-          { text: '了解更多', type: 'primary', to: '/about' },
-          { text: '加入我们', type: 'secondary', to: '/join' }
-        ]"
-      />
-
-      <AppleGridCard
-        title="来自 Ryyik 的一封信"
-        subtitle="方块之家八周年"
-        variant="light"
-        :links="[{ text: '查看信件', type: 'secondary', onClick: openAnniversaryLetter }]"
-      >
-        <img
-          :src="anniversaryTextImg"
-          alt="方块之家八周年"
-          class="agc-anniversary-logo"
-          loading="lazy"
-          decoding="async"
-          width="768"
-          height="512"
-        >
-      </AppleGridCard>
     </HomeHeroRow>
 
     <!-- 遇见福州 弹窗 -->
@@ -362,20 +265,11 @@
 import { computed, nextTick, ref, onMounted, onUnmounted, watch } from "vue";
 import { Gift } from "lucide-vue-next";
 import { storeToRefs } from "pinia";
-import HomeCatMascot from "@/components/HomeCatMascot.vue";
-import AppleHeroBanner from "@/components/AppleHeroBanner.vue";
-import AppleGridCard from "@/components/AppleGridCard.vue";
 import HomeHeroRow from "./components/HomeHeroRow.vue";
-import HomeOverlayHero from "./components/HomeOverlayHero.vue";
-import AnniversaryHero from "./components/AnniversaryHero.vue";
 import HomeFooter from "./components/HomeFooter.vue";
-import BlockWallHero from "./components/BlockWallHero.vue";
-import MascotEvolutionHero from "./components/MascotEvolutionHero.vue";
-import MascotNewHero from "./components/MascotNewHero.vue";
-import BirthdayHero from "./components/BirthdayHero.vue";
-import AgentPreviewHero from "./components/AgentPreviewHero.vue";
 import DynamicHomeHero from "./components/DynamicHomeHero.vue";
-import { archivedHomeHeroIds } from "./components/homeArchiveData.js";
+import BuiltinHeroRenderer from "./components/BuiltinHeroRenderer.vue";
+import { builtinHeroLayout } from "./components/homeArchiveData.js";
 import { useHomeHeroesStore } from "@/stores/homeHeroes";
 import { isBirthdayToday } from "@/utils/birthday.js";
 import { useRoute, useRouter } from "vue-router";
@@ -391,12 +285,8 @@ import {
 } from "@/utils/subscription-benefits.js";
 import { submitPosterRequest } from "@/utils/api/poster-api.js";
 
-// 静态引入首屏关键图片
-import bohCloudImg from "@/assets/images/BOHcloud.webp?url";
-import faviconImg from "@/assets/images/favicon.webp?url";
-import fuzhouImg from "@/assets/images/fuzhou.webp?url";
+// 八周年信件弹窗用到的图片（仍在 Home 内使用）
 import anniversaryTextImg from "@/assets/images/8yearstext.webp?url";
-import anniversaryCafeImg from "@/assets/images/26coffee4.webp?url";
 
 // 路由相关
 const router = useRouter();
@@ -490,14 +380,29 @@ const anniversaryHigherPlanName = computed(() => (
   PLAN_DISPLAY_NAMES[anniversaryHigherPlan.value] || anniversaryHigherPlan.value
 ));
 
-// 归档判断：位于 archivedHomeHeroIds 的英雄区将不再显示在首屏，而是出现在 Footer 历史回顾区内
-const isArchived = (key) => archivedHomeHeroIds.includes(key);
-
 // ============================================
-// 动态英雄区：从管理面板发布的英雄区
+// 统一英雄区：数据库驱动排序/显隐/归档
+// builtin 类型按 builtin_key 分发到对应硬编码组件，其余走 DynamicHomeHero
 // ============================================
 const homeHeroesStore = useHomeHeroesStore();
-const dynamicHeroes = computed(() => homeHeroesStore.publishedHeroes);
+
+// 可见英雄区列表：已发布未归档，birthday 需额外检测今日是否有用户生日
+const visibleHeroes = computed(() =>
+  homeHeroesStore.publishedHeroes.filter((hero) => {
+    if (hero.template === 'builtin' && hero.builtin_key === 'birthday') {
+      return showBirthdayHero.value;
+    }
+    return true;
+  })
+);
+
+// 英雄区布局：builtin 类型查映射表，其余按 template 判断
+const heroLayout = (hero) => {
+  if (hero.template === 'builtin') {
+    return builtinHeroLayout[hero.builtin_key] || 'full';
+  }
+  return hero.template === 'split' ? 'split' : 'full';
+};
 
 const formatAnniversaryExpiry = (value) => {
   const date = new Date(value || '');

@@ -1,11 +1,9 @@
 <template>
   <div class="profile-subpage-shell">
-    <UserCenterPageHeader title="积分与会员" back-label="返回我的" max-width="1200px" @back="$emit('back')" />
+    <UserCenterPageHeader title="积分与礼物" back-label="返回我的" max-width="1200px" @back="$emit('back')" />
 
     <div class="profile-subpage-body">
-      <!-- 用户 + 积分 + Tab 合并大卡片 -->
-      <nav class="ah-hub-card" role="tablist" :style="tabIndicatorStyle">
-        <!-- 用户信息 + 当前积分（同一行） -->
+      <nav class="ah-hub-card">
         <div class="ah-top-row">
           <div class="ah-user-left">
             <div v-if="avatarUrl" class="ah-avatar has-avatar">
@@ -21,7 +19,7 @@
             </div>
           </div>
 
-          <div class="ah-points-block">
+          <div v-if="activeTab !== 'overview'" class="ah-points-block">
             <div class="ah-points-icon-wrap">
               <Coins :size="18" :stroke-width="1.7" />
             </div>
@@ -32,28 +30,159 @@
           </div>
         </div>
 
-        <!-- Tab 区 · 底部导航栏同款 -->
-        <div class="ah-hub-tabs">
-          <button
-            v-for="tab in tabs"
-            :key="tab.id"
-            type="button"
-            role="tab"
-            :aria-selected="activeTab === tab.id"
-            class="ah-tab"
-            :class="{ active: activeTab === tab.id }"
-            @click="activeTab = tab.id"
-          >
-            <component :is="tab.icon" class="ah-tab-icon" :size="18" :stroke-width="1.9" aria-hidden="true" />
-            <span class="ah-tab-label">{{ tab.label }}</span>
-          </button>
+        <div class="ah-tab-groups">
+          <div v-for="group in tabGroups" :key="group.label" class="ah-tab-group" role="tablist" :aria-label="group.label">
+            <span class="ah-tab-group-label">{{ group.label }}</span>
+            <div class="ah-hub-tabs">
+              <button
+                v-for="tab in group.tabs"
+                :key="tab.id"
+                type="button"
+                role="tab"
+                :aria-selected="activeTab === tab.id"
+                class="ah-tab"
+                :class="{ active: activeTab === tab.id }"
+                @click="activateTab(tab.id)"
+              >
+                <component :is="tab.icon" class="ah-tab-icon" :size="17" :stroke-width="1.9" aria-hidden="true" />
+                <span class="ah-tab-label">{{ tab.label }}</span>
+              </button>
+            </div>
+          </div>
         </div>
       </nav>
 
-      <!-- 积分明细 Tab：周签到 + 管理员发放 + 商城订单 -->
-      <section v-if="activeTab === 'points'" class="ah-section">
+      <Transition name="ah-panel" mode="out-in">
+      <section v-if="activeTab === 'overview'" key="overview" class="ah-section ah-overview">
+        <header class="ah-overview-heading">
+          <div>
+            <span>智能概览</span>
+            <h2>{{ overviewTitle }}</h2>
+            <p>{{ overviewSubtitle }}</p>
+          </div>
+          <span v-if="overviewLoading" class="ah-overview-updating">正在更新</span>
+          <button v-else-if="overviewHasErrors" type="button" class="ah-overview-retry" @click="retryOverviewIssues">
+            部分动态未更新
+          </button>
+        </header>
+
+        <button
+          type="button"
+          class="ah-smart-focus"
+          :class="`tone-${primaryInsight.tone}`"
+          :disabled="overviewLoading"
+          @click="handleSmartAction(primaryInsight.action)"
+        >
+          <span class="ah-smart-focus-icon"><component :is="primaryInsight.icon" :size="22" :stroke-width="1.8" aria-hidden="true" /></span>
+          <span class="ah-smart-focus-copy">
+            <span>{{ primaryInsight.kicker }}</span>
+            <strong>{{ primaryInsight.title }}</strong>
+            <small>{{ primaryInsight.detail }}</small>
+          </span>
+          <span class="ah-smart-focus-action">
+            {{ primaryInsight.actionLabel }}
+            <ChevronRight :size="17" :stroke-width="2" aria-hidden="true" />
+          </span>
+        </button>
+
+        <div class="ah-overview-summary">
+          <article class="ah-overview-primary">
+            <div class="ah-overview-card-icon is-blue"><Coins :size="19" :stroke-width="1.8" aria-hidden="true" /></div>
+            <div class="ah-overview-copy">
+              <span class="ah-overview-kicker">可用积分</span>
+              <strong>{{ pointsDisplay }}</strong>
+              <span>{{ pointsContextText }}</span>
+            </div>
+            <button type="button" class="ah-overview-link" @click="activateTab('points')">
+              明细
+              <ChevronRight :size="16" :stroke-width="2" aria-hidden="true" />
+            </button>
+          </article>
+
+          <article class="ah-overview-membership" :class="{ 'is-expiring': subscriptionExpiryDays !== null && subscriptionExpiryDays <= 30 }">
+            <div class="ah-overview-card-icon is-gold"><Crown :size="19" :stroke-width="1.8" aria-hidden="true" /></div>
+            <div>
+              <span>{{ subscriptionLoading ? '正在读取会员状态' : '当前会员' }}</span>
+              <strong>{{ subscriptionDisplayName }}</strong>
+              <p>{{ membershipContextText }}</p>
+            </div>
+            <button type="button" class="ah-icon-command" title="管理会员" aria-label="管理会员" @click="activateTab('subscription')">
+              <ChevronRight :size="18" :stroke-width="2" aria-hidden="true" />
+            </button>
+          </article>
+        </div>
+
+        <div class="ah-smart-columns">
+          <section class="ah-smart-section" aria-label="最近动态">
+            <div class="ah-smart-section-head">
+              <div>
+                <span>最近动态</span>
+                <strong>刚刚发生</strong>
+              </div>
+              <button type="button" aria-label="查看积分明细" title="查看积分明细" @click="activateTab('points')">
+                <ChevronRight :size="17" :stroke-width="2" aria-hidden="true" />
+              </button>
+            </div>
+            <div v-if="recentActivities.length" class="ah-smart-timeline">
+              <button
+                v-for="item in recentActivities"
+                :key="item.id"
+                type="button"
+                class="ah-smart-activity"
+                @click="handleSmartAction(item.action)"
+              >
+                <span class="ah-smart-activity-time">{{ item.timeLabel }}</span>
+                <span class="ah-smart-activity-marker" :class="`tone-${item.tone}`"></span>
+                <span class="ah-smart-activity-copy">
+                  <strong>{{ item.title }}</strong>
+                  <small>{{ item.detail }}</small>
+                </span>
+                <ChevronRight :size="15" :stroke-width="2" aria-hidden="true" />
+              </button>
+            </div>
+            <div v-else class="ah-smart-quiet">暂时没有新的账户动态</div>
+          </section>
+
+          <section class="ah-smart-section" aria-label="接下来">
+            <div class="ah-smart-section-head">
+              <div>
+                <span>接下来</span>
+                <strong>{{ upcomingItems.length ? '值得留意' : '无需处理' }}</strong>
+              </div>
+            </div>
+            <div v-if="upcomingItems.length" class="ah-smart-next-list">
+              <button
+                v-for="item in upcomingItems"
+                :key="item.id"
+                type="button"
+                class="ah-smart-next"
+                :class="`tone-${item.tone}`"
+                @click="handleSmartAction(item.action)"
+              >
+                <span class="ah-smart-next-icon"><component :is="item.icon" :size="18" :stroke-width="1.8" aria-hidden="true" /></span>
+                <span class="ah-smart-next-copy">
+                  <strong>{{ item.title }}</strong>
+                  <span>{{ item.detail }}</span>
+                </span>
+                <ChevronRight :size="16" :stroke-width="2" aria-hidden="true" />
+              </button>
+            </div>
+            <div v-else class="ah-smart-ready">
+              <Check :size="18" :stroke-width="2.3" aria-hidden="true" />
+              <div><strong>账户一切就绪</strong><span>没有即将到期或需要补充的信息</span></div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section v-else-if="activeTab === 'points'" key="points" class="ah-section">
         <div v-if="ledgerLoading" class="ah-order-skeleton">
           <div v-for="n in 4" :key="n" class="ah-skeleton-block" />
+        </div>
+        <div v-else-if="ledgerError" class="ah-empty-state">
+          <div class="ah-empty-icon"><ScrollText :size="26" :stroke-width="1.5" /></div>
+          <h3>积分明细暂时无法加载</h3>
+          <button type="button" class="ah-shop-btn ah-shop-btn-ghost" @click="loadLedger">重试</button>
         </div>
         <div v-else-if="ledger.length === 0" class="ah-empty-state">
           <div class="ah-empty-icon">
@@ -63,53 +192,61 @@
           <p>周签到、管理员发放与商城订单都会记录在这里</p>
         </div>
         <div v-else class="ah-ledger">
-          <article v-for="item in ledger" :key="item.key" class="ah-ledger-item">
-            <div class="ah-ledger-icon" :class="`tone-${item.tone}`">
-              <component :is="item.icon" :size="17" :stroke-width="1.8" />
+          <section v-for="group in ledgerGroups" :key="group.label" class="ah-ledger-group">
+            <h2>{{ group.label }}</h2>
+            <div class="ah-ledger-list">
+              <article v-for="item in group.items" :key="item.key" class="ah-ledger-item">
+                <div class="ah-ledger-icon" :class="`tone-${item.tone}`">
+                  <component :is="item.icon" :size="17" :stroke-width="1.8" />
+                </div>
+                <div class="ah-ledger-main">
+                  <span class="ah-ledger-title">{{ item.title }}</span>
+                  <span v-if="item.remark" class="ah-ledger-remark">{{ item.remark }}</span>
+                </div>
+                <div class="ah-ledger-right">
+                  <span class="ah-ledger-amount" :class="{ negative: item.amount < 0, zero: item.amount === 0 }">
+                    {{ item.amount >= 0 ? '+' : '' }}{{ item.amount }}
+                  </span>
+                  <span class="ah-ledger-date">{{ formatDate(item.time) }}</span>
+                </div>
+              </article>
             </div>
-            <div class="ah-ledger-main">
-              <span class="ah-ledger-title">{{ item.title }}</span>
-              <span v-if="item.remark" class="ah-ledger-remark">{{ item.remark }}</span>
+          </section>
+        </div>
+      </section>
+
+      <section v-else-if="activeTab === 'subscription'" key="subscription" class="ah-section">
+        <div v-if="subscriptionLoading" class="ah-order-skeleton"><div class="ah-skeleton-block" /></div>
+        <template v-else>
+          <article class="ah-membership-card" :class="{ 'is-free': !activeSubscription }">
+            <div class="ah-membership-card-top">
+              <span>当前会员</span>
+              <span class="ah-membership-status">{{ activeSubscription ? '生效中' : '免费版' }}</span>
             </div>
-            <div class="ah-ledger-right">
-              <span class="ah-ledger-amount" :class="{ negative: item.amount < 0, zero: item.amount === 0 }">
-                {{ item.amount >= 0 ? '+' : '' }}{{ item.amount }}
-              </span>
-              <span class="ah-ledger-date">{{ formatDate(item.time) }}</span>
+            <h2>{{ subscriptionDisplayName }}</h2>
+            <p>{{ subscriptionExpiryText }}</p>
+            <div class="ah-membership-meta">
+              <span>Cloud+ {{ cloudImageLimit }} 张</span>
+              <span>{{ activeSubscription?.billingCycle === 'yearly' ? '年度订阅' : activeSubscription ? '月度订阅' : '基础额度' }}</span>
             </div>
+            <button type="button" class="ah-shop-btn" @click="showPlanComparison = !showPlanComparison">
+              {{ showPlanComparison ? '收起方案' : activeSubscription ? '更改方案' : '选择会员方案' }}
+              <ChevronRight :size="16" :stroke-width="2" aria-hidden="true" />
+            </button>
           </article>
-        </div>
-      </section>
-
-      <!-- 订阅计划 Tab（与订阅页完全一致的卡片） -->
-      <section v-else-if="activeTab === 'subscription'" class="ah-section">
-        <SubscriptionPlans />
-      </section>
-
-      <!-- 商城 Tab -->
-      <section v-else-if="activeTab === 'shop'" class="ah-section">
-        <div class="ah-shop-preview">
-          <div class="ah-shop-stats">
-            <div class="ah-shop-stat">
-              <span class="ah-shop-stat-value">{{ productsCount }}</span>
-              <span class="ah-shop-stat-label">在售商品</span>
-            </div>
-            <div class="ah-shop-stat">
-              <span class="ah-shop-stat-value">{{ formatPoints(userPoints) }}</span>
-              <span class="ah-shop-stat-label">可用积分</span>
-            </div>
-          </div>
-          <button class="ah-shop-btn" @click="goToShop">
-            <ShoppingBag :size="15" :stroke-width="1.8" />
-            进入方块商店
-          </button>
-        </div>
+          <SubscriptionPlans v-if="showPlanComparison" />
+        </template>
       </section>
 
       <!-- 订单 Tab -->
-      <section v-else-if="activeTab === 'orders'" class="ah-section">
+      <section v-else-if="activeTab === 'orders'" key="orders" class="ah-section">
         <div v-if="ordersLoading" class="ah-order-skeleton">
           <div v-for="n in 3" :key="n" class="ah-skeleton-block" />
+        </div>
+        <div v-else-if="ordersError" class="ah-empty-state">
+          <div class="ah-empty-icon"><Package :size="26" :stroke-width="1.5" /></div>
+          <h3>订单暂时无法加载</h3>
+          <button type="button" class="ah-shop-btn ah-shop-btn-ghost" @click="loadOrders">重试</button>
         </div>
         <div v-else-if="orders.length === 0" class="ah-empty-state">
           <div class="ah-empty-icon">
@@ -133,10 +270,123 @@
         </div>
       </section>
 
+      <!-- 礼物 Tab：当前礼物 + 历史礼物列表 -->
+      <section v-else-if="activeTab === 'gifts'" key="gifts" class="ah-section">
+        <div v-if="giftsLoading" class="ah-order-skeleton">
+          <div v-for="n in 3" :key="n" class="ah-skeleton-block" />
+        </div>
+        <div v-else-if="giftsError" class="ah-empty-state">
+          <div class="ah-empty-icon"><Gift :size="26" :stroke-width="1.5" /></div>
+          <h3>礼物信息暂时无法加载</h3>
+          <button type="button" class="ah-shop-btn ah-shop-btn-ghost" @click="loadGifts">重试</button>
+        </div>
+        <template v-else>
+          <!-- 当前礼物卡片 -->
+          <div v-if="!currentGift" class="ah-empty-state">
+            <div class="ah-empty-icon">
+              <Gift :size="26" :stroke-width="1.5" />
+            </div>
+            <h3>还没有待收到的礼物</h3>
+            <p>积极参与社区活动来赢取吧，收到礼物后这里会及时更新状态。</p>
+          </div>
+          <article v-else class="ah-gift-card">
+            <header class="ah-gift-header">
+              <span class="ah-gift-eyebrow">
+                <PackageCheck :size="14" :stroke-width="2" aria-hidden="true" />
+                当前礼物
+              </span>
+              <span class="ah-gift-header-date">更新于 {{ giftStatusDate }}</span>
+            </header>
+
+            <div class="ah-gift-overview">
+              <div class="ah-gift-thumb" :class="{ 'has-image': currentGift.gift_image }">
+                <img v-if="currentGift.gift_image" :src="currentGift.gift_image" :alt="currentGift.gift_content" loading="lazy" />
+                <Gift v-else :size="30" :stroke-width="1.6" aria-hidden="true" />
+              </div>
+              <div class="ah-gift-headinfo">
+                <h3>{{ currentGift.gift_content || '待命中的礼物' }}</h3>
+                <div class="ah-gift-headsub">
+                  <span v-if="currentGift.gift_price" class="ah-gift-amount">RMB {{ currentGift.gift_price }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="ah-gift-status-panel" :class="currentGift.gift_status">
+              <div class="ah-gift-status-icon">
+                <PackageCheck :size="19" :stroke-width="1.8" aria-hidden="true" />
+              </div>
+              <div class="ah-gift-status-copy">
+                <strong>{{ giftStatusHeadline }}</strong>
+                <p>{{ giftStatusDesc }}</p>
+              </div>
+            </div>
+
+            <div v-if="currentGift.gift_no || currentGift.shipping_recipient || currentGift.shipping_address" class="ah-gift-details">
+              <div v-if="currentGift.gift_no" class="ah-gift-detail-row">
+                <div class="ah-gift-detail-icon"><PackageCheck :size="18" :stroke-width="1.8" aria-hidden="true" /></div>
+                <div class="ah-gift-detail-copy">
+                  <span>快递单号</span>
+                  <strong>{{ currentGift.gift_no }}</strong>
+                </div>
+                <button
+                  type="button"
+                  class="ah-gift-copy"
+                  :class="{ copied: expressCopied }"
+                  :aria-label="expressCopied ? '已复制快递单号' : '复制快递单号'"
+                  :title="expressCopied ? '已复制' : '复制快递单号'"
+                  @click="copyExpressNo(currentGift.gift_no)"
+                >
+                  <Transition name="ah-icon-swap" mode="out-in">
+                    <Check v-if="expressCopied" key="copied" :size="17" :stroke-width="2.4" aria-hidden="true" />
+                    <Copy v-else key="copy" :size="17" :stroke-width="2" aria-hidden="true" />
+                  </Transition>
+                </button>
+              </div>
+              <div v-if="currentGift.shipping_recipient || currentGift.shipping_address" class="ah-gift-detail-row">
+                <div class="ah-gift-detail-icon"><MapPin :size="18" :stroke-width="1.8" aria-hidden="true" /></div>
+                <div class="ah-gift-detail-copy">
+                  <span>收货信息</span>
+                  <strong>{{ currentGift.shipping_recipient || '收件人' }}<em v-if="currentGift.shipping_phone">{{ currentGift.shipping_phone }}</em></strong>
+                  <p>{{ currentGift.shipping_address || '暂无收货地址' }}</p>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <!-- 历史礼物列表 -->
+          <div v-if="historyGifts.length" class="ah-gift-history">
+            <div class="ah-gift-history-head">
+              <span>历史礼物</span>
+              <span class="ah-gift-history-count">{{ historyGifts.length }} 份</span>
+            </div>
+            <div class="ah-gift-history-list">
+              <article v-for="gift in historyGifts" :key="gift.id" class="ah-gift-history-item">
+                <div class="ah-gift-history-thumb" :class="{ 'has-image': gift.gift_image }">
+                  <img v-if="gift.gift_image" :src="gift.gift_image" :alt="gift.gift_content" loading="lazy" />
+                  <Gift v-else :size="18" :stroke-width="1.8" aria-hidden="true" />
+                </div>
+                <div class="ah-gift-history-main">
+                  <strong>{{ gift.gift_content || '未命名礼物' }}</strong>
+                  <span class="ah-gift-history-meta-line">
+                    <span v-if="gift.gift_no" class="ah-gift-history-no">{{ gift.gift_no }}</span>
+                    <span class="ah-gift-history-date">{{ formatDateShort(gift.created_at) }}</span>
+                  </span>
+                </div>
+                <div class="ah-gift-history-side">
+                  <span v-if="gift.gift_price" class="ah-gift-history-price">RMB {{ gift.gift_price }}</span>
+                  <span class="ah-gift-badge is-flat" :class="gift.gift_status">{{ getGiftStatusLabel(gift.gift_status) }}</span>
+                </div>
+              </article>
+            </div>
+          </div>
+        </template>
+      </section>
+
       <!-- 收货地址 Tab -->
-      <section v-else-if="activeTab === 'addresses'" class="ah-section">
+      <section v-else-if="activeTab === 'addresses'" key="addresses" class="ah-section">
         <AddressManager variant="glass" :show-header="false" />
       </section>
+      </Transition>
     </div>
   </div>
 </template>
@@ -146,54 +396,149 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import {
-  CalendarCheck, Coins, Crown, MapPin, Package, ScrollText, Send, ShoppingBag
+  CalendarCheck, Check, ChevronRight, Coins, Copy, Crown, Gift, LayoutDashboard, MapPin, Package, PackageCheck, ScrollText, Send, ShoppingBag
 } from 'lucide-vue-next';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import SubscriptionPlans from '@/components/SubscriptionPlans.vue';
 import AddressManager from '@/components/AddressManager.vue';
 import { useAuthStore } from '@/stores/auth';
+import { useProductsStore } from '@/stores/products';
 import { supabase } from '@/utils/supabase-client.js';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { PLAN_DISPLAY_NAMES } from '@/utils/subscription-benefits.js';
+import { getExpiredActiveGiftIds, markGiftsAsHistory } from '@/utils/gift-archive.js';
+import { logger } from '@/utils/logger.js';
+import { getMySubscriptions } from '@/utils/api/subscription-api.js';
 
 defineEmits(['back']);
+
+const props = defineProps({
+  initialTab: { type: String, default: '' }
+});
 
 const router = useRouter();
 const authStore = useAuthStore();
 const { userInfo } = storeToRefs(authStore);
+const productsStore = useProductsStore();
+const { productsData } = storeToRefs(productsStore);
 
 const { fetchUserTier, getUserTierCode } = useUserTier();
 const tierCode = ref('');
 const tierDisplayName = computed(() => PLAN_DISPLAY_NAMES[tierCode.value] || '');
 
-const activeTab = ref('points');
-const tabs = [
-  { id: 'points', label: '积分明细', icon: ScrollText },
-  { id: 'subscription', label: '订阅计划', icon: Crown },
-  { id: 'shop', label: '商城', icon: ShoppingBag },
-  { id: 'orders', label: '订单', icon: Package },
-  { id: 'addresses', label: '收货地址', icon: MapPin },
+const validTabIds = new Set(['overview', 'points', 'subscription', 'orders', 'gifts', 'addresses']);
+const activeTab = ref(validTabIds.has(props.initialTab) ? props.initialTab : 'overview');
+const tabGroups = [
+  {
+    label: '账户',
+    tabs: [
+      { id: 'overview', label: '概览', icon: LayoutDashboard },
+      { id: 'points', label: '积分', icon: ScrollText },
+      { id: 'subscription', label: '会员', icon: Crown },
+    ]
+  },
+  {
+    label: '服务',
+    tabs: [
+      { id: 'orders', label: '订单', icon: Package },
+      { id: 'gifts', label: '礼物', icon: Gift },
+      { id: 'addresses', label: '地址', icon: MapPin },
+    ]
+  }
 ];
-
-const activeTabIndex = computed(() => Math.max(0, tabs.findIndex(t => t.id === activeTab.value)));
-const tabIndicatorStyle = computed(() => ({
-  '--ah-tab-count': tabs.length,
-  '--ah-active-center': `${((activeTabIndex.value + 0.5) / tabs.length) * 100}%`,
-}));
 
 const avatarUrl = computed(() => String(userInfo.value?.avatarUrl || '').trim());
 const displayName = computed(() => String(userInfo.value?.username || '').trim() || '未命名用户');
 const displayInitial = computed(() => displayName.value.charAt(0).toUpperCase());
 const uidShort = computed(() => String(userInfo.value?.id || '').slice(0, 8));
 
-const ordersLoading = ref(true);
+const ordersLoading = ref(false);
+const ordersLoaded = ref(false);
+const ordersError = ref('');
 const orders = ref([]);
-const productsCount = ref(0);
-const ledgerLoading = ref(true);
+const ledgerLoading = ref(false);
+const ledgerLoaded = ref(false);
+const ledgerError = ref('');
 const ledger = ref([]);
+const subscriptionLoading = ref(true);
+const activeSubscription = ref(null);
+const showPlanComparison = ref(false);
+const overviewLoading = ref(true);
+const addressCount = ref(0);
 
 const userPoints = computed(() => Number(userInfo.value?.points) || 0);
 const pointsDisplay = computed(() => userPoints.value.toLocaleString());
+const cloudImageLimit = computed(() => ({ free: 150, plus: 300, pro: 450, max: 900, ultra: 1200 }[tierCode.value] || 150));
+const subscriptionDisplayName = computed(() => {
+  const subscription = activeSubscription.value;
+  return subscription?.planName || PLAN_DISPLAY_NAMES[subscription?.planCode] || tierDisplayName.value || 'Free';
+});
+const subscriptionExpiryDays = computed(() => {
+  const expiresAt = Date.parse(activeSubscription.value?.expiresAt || '');
+  if (!Number.isFinite(expiresAt)) return null;
+  return Math.max(0, Math.ceil((expiresAt - Date.now()) / 86400000));
+});
+const subscriptionExpiryText = computed(() => {
+  if (!activeSubscription.value?.expiresAt) return '当前为基础账户，可随时选择会员方案';
+  const expiresAt = new Date(activeSubscription.value.expiresAt);
+  if (Number.isNaN(expiresAt.getTime())) return '会员状态已生效';
+  if (subscriptionExpiryDays.value <= 30) return `还有 ${subscriptionExpiryDays.value} 天到期，请及时续订`;
+  return `有效期至 ${expiresAt.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}`;
+});
+
+const availableProducts = computed(() => Array.isArray(productsData.value) ? productsData.value : []);
+const redeemableProducts = computed(() => availableProducts.value
+  .filter((product) => product.is_active !== false
+    && product.is_purchasable !== false
+    && product.payment_mode !== 'rmb_only'
+    && Number(product.points_cost) > 0
+    && Number(product.stock) !== 0
+    && Number(product.points_cost) <= userPoints.value)
+  .sort((a, b) => Number(a.points_cost) - Number(b.points_cost)));
+
+const nextRewardProduct = computed(() => availableProducts.value
+  .filter((product) => product.is_active !== false
+    && product.is_purchasable !== false
+    && product.payment_mode !== 'rmb_only'
+    && Number(product.points_cost) > userPoints.value
+    && Number(product.stock) !== 0)
+  .sort((a, b) => Number(a.points_cost) - Number(b.points_cost))[0] || null);
+
+const recentPointsNet = computed(() => ledger.value
+  .filter((item) => isWithinDays(item.time, 30))
+  .reduce((sum, item) => sum + (Number(item.amount) || 0), 0));
+
+const pointsContextText = computed(() => {
+  if (recentPointsNet.value !== 0) return `近 30 天净变化 ${recentPointsNet.value > 0 ? '+' : ''}${recentPointsNet.value}`;
+  if (redeemableProducts.value.length > 0) return `当前可兑换 ${redeemableProducts.value.length} 件商品`;
+  if (nextRewardProduct.value) {
+    const gap = Number(nextRewardProduct.value.points_cost) - userPoints.value;
+    return `距离 ${nextRewardProduct.value.title} 还差 ${gap} 积分`;
+  }
+  return '积分可用于商城兑换';
+});
+
+const membershipContextText = computed(() => {
+  if (!activeSubscription.value) return '基础账户，可随时查看会员方案';
+  if (subscriptionExpiryDays.value !== null && subscriptionExpiryDays.value <= 30) return `还有 ${subscriptionExpiryDays.value} 天到期`;
+  if (subscriptionExpiryDays.value !== null) return `剩余 ${subscriptionExpiryDays.value} 天`;
+  return subscriptionExpiryText.value;
+});
+
+const ledgerGroups = computed(() => {
+  const buckets = new Map([['今天', []], ['近 7 天', []], ['更早', []]]);
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const weekStart = todayStart - 6 * 86400000;
+  ledger.value.forEach((item) => {
+    const timestamp = new Date(item.time).getTime();
+    const label = timestamp >= todayStart ? '今天' : timestamp >= weekStart ? '近 7 天' : '更早';
+    buckets.get(label).push(item);
+  });
+  return [...buckets.entries()]
+    .filter(([, items]) => items.length > 0)
+    .map(([label, items]) => ({ label, items }));
+});
 
 const formatPoints = (pts) => {
   const n = Number(pts) || 0;
@@ -209,26 +554,42 @@ const formatDate = (d) => {
   return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
 };
 
-const loadOrders = async () => {
-  if (!userInfo.value?.id) { ordersLoading.value = false; return; }
-  const { data, error } = await supabase
-    .from('shop_points_orders')
-    .select('id, order_no, total_points, items, created_at')
-    .eq('user_id', userInfo.value.id)
-    .order('created_at', { ascending: false })
-    .limit(20);
-  ordersLoading.value = false;
-  if (!error && Array.isArray(data)) {
-    orders.value = data.map(o => ({
-      ...o,
-      item_count: Array.isArray(o.items) ? o.items.reduce((s, i) => s + (Number(i?.quantity) || 0), 0) : 0,
-    }));
-  }
+const isWithinDays = (dateValue, days) => {
+  const timestamp = Date.parse(dateValue || '');
+  return Number.isFinite(timestamp) && timestamp >= Date.now() - days * 86400000;
 };
 
-const loadProductsCount = async () => {
-  const { count, error } = await supabase.from('products').select('id', { count: 'exact', head: true });
-  if (!error && Number.isFinite(count)) productsCount.value = count;
+const isMissingColumnError = (error, columnName) => {
+  const code = String(error?.code || '').trim().toUpperCase();
+  const detail = `${error?.message || ''} ${error?.details || ''} ${error?.hint || ''}`.toLowerCase();
+  const column = String(columnName || '').trim().toLowerCase();
+  return code === '42703' || code === 'PGRST204' || (column && detail.includes(column) && detail.includes('column'));
+};
+
+const loadOrders = async () => {
+  if (ordersLoading.value || ordersLoaded.value) return;
+  if (!userInfo.value?.id) { ordersLoaded.value = true; return; }
+  ordersLoading.value = true;
+  ordersError.value = '';
+  try {
+    const { data, error } = await supabase
+      .from('shop_points_orders')
+      .select('id, order_no, total_points, items, created_at')
+      .eq('user_id', userInfo.value.id)
+      .order('created_at', { ascending: false })
+      .limit(20);
+    if (error) throw error;
+    orders.value = Array.isArray(data) ? data.map(o => ({
+      ...o,
+      item_count: Array.isArray(o.items) ? o.items.reduce((s, i) => s + (Number(i?.quantity) || 0), 0) : 0,
+    })) : [];
+    ordersLoaded.value = true;
+  } catch (error) {
+    ordersError.value = '加载失败';
+    logger.warn('assets-hub', '加载订单失败:', error);
+  } finally {
+    ordersLoading.value = false;
+  }
 };
 
 const WEEKLY_CHECKIN_POINTS = 5;
@@ -258,12 +619,16 @@ const resolveCheckinAmount = (signedAt, weekStartDate, weekSet) => {
 };
 
 const loadLedger = async () => {
+  if (ledgerLoading.value || ledgerLoaded.value) return;
   const userId = userInfo.value?.id;
-  if (!userId) { ledgerLoading.value = false; return; }
+  if (!userId) { ledgerLoaded.value = true; return; }
+  ledgerLoading.value = true;
+  ledgerError.value = '';
 
-  const results = [];
+  try {
+    const results = [];
 
-  const [checkinRes, adminRes, orderRes] = await Promise.allSettled([
+    const [checkinRes, adminRes, orderRes] = await Promise.allSettled([
     supabase.from('forum_weekly_checkins')
       .select('id, week_start_date, signed_at')
       .eq('user_id', userId)
@@ -281,7 +646,7 @@ const loadLedger = async () => {
       .limit(50)
   ]);
 
-  if (checkinRes.status === 'fulfilled' && !checkinRes.value.error && Array.isArray(checkinRes.value.data)) {
+    if (checkinRes.status === 'fulfilled' && !checkinRes.value.error && Array.isArray(checkinRes.value.data)) {
     const weekSet = new Set(checkinRes.value.data.map((r) => String(r.week_start_date)));
     checkinRes.value.data.forEach((row) => {
       const amount = resolveCheckinAmount(row.signed_at, row.week_start_date, weekSet);
@@ -297,7 +662,7 @@ const loadLedger = async () => {
     });
   }
 
-  if (adminRes.status === 'fulfilled' && !adminRes.value.error && Array.isArray(adminRes.value.data)) {
+    if (adminRes.status === 'fulfilled' && !adminRes.value.error && Array.isArray(adminRes.value.data)) {
     adminRes.value.data
       .filter((row) => row.reason === 'admin_grant')
       .forEach((row) => {
@@ -313,7 +678,7 @@ const loadLedger = async () => {
       });
   }
 
-  if (orderRes.status === 'fulfilled' && !orderRes.value.error && Array.isArray(orderRes.value.data)) {
+    if (orderRes.status === 'fulfilled' && !orderRes.value.error && Array.isArray(orderRes.value.data)) {
     orderRes.value.data.forEach((row) => {
       results.push({
         key: `order-${row.id}`,
@@ -327,9 +692,15 @@ const loadLedger = async () => {
     });
   }
 
-  results.sort((a, b) => new Date(b.time) - new Date(a.time));
-  ledger.value = results;
-  ledgerLoading.value = false;
+    results.sort((a, b) => new Date(b.time) - new Date(a.time));
+    ledger.value = results;
+    ledgerLoaded.value = true;
+  } catch (error) {
+    ledgerError.value = '加载失败';
+    logger.warn('assets-hub', '加载积分明细失败:', error);
+  } finally {
+    ledgerLoading.value = false;
+  }
 };
 
 const formatWeekLabel = (weekStart) => {
@@ -351,11 +722,313 @@ const loadTier = async () => {
   tierCode.value = getUserTierCode(id) || 'free';
 };
 
+const loadSubscription = async () => {
+  const userId = userInfo.value?.id;
+  if (!userId) { subscriptionLoading.value = false; return; }
+  subscriptionLoading.value = true;
+  try {
+    const result = await getMySubscriptions(userId, { includeExpired: false });
+    activeSubscription.value = result.ok && Array.isArray(result.data) ? result.data[0] || null : null;
+  } catch (error) {
+    logger.warn('assets-hub', '加载会员状态失败:', error);
+    activeSubscription.value = null;
+  } finally {
+    subscriptionLoading.value = false;
+  }
+};
+
+const activateTab = (tabId) => {
+  if (!validTabIds.has(tabId)) return;
+  activeTab.value = tabId;
+  if (tabId === 'points') void loadLedger();
+  if (tabId === 'orders') void loadOrders();
+  if (tabId === 'gifts') void loadGifts();
+};
+
+// ─── 礼物数据 ───
+const giftsLoading = ref(false);
+const giftsLoaded = ref(false);
+const giftsError = ref('');
+const currentGift = ref(null);
+const historyGifts = ref([]);
+
+const recentOrder = computed(() => orders.value.find((order) => isWithinDays(order.created_at, 30)) || null);
+const overviewHasErrors = computed(() => Boolean(giftsError.value || ordersError.value || ledgerError.value));
+
+const formatRelativeDay = (dateValue) => {
+  const timestamp = Date.parse(dateValue || '');
+  if (!Number.isFinite(timestamp)) return '最近';
+  const date = new Date(timestamp);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const days = Math.round((today - target) / 86400000);
+  if (days <= 0) return '今天';
+  if (days === 1) return '昨天';
+  if (days < 7) return `${days} 天前`;
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+};
+
+const primaryInsight = computed(() => {
+  if (overviewLoading.value) {
+    return { tone: 'neutral', icon: LayoutDashboard, kicker: '正在更新', title: '整理你的账户动态', detail: '正在同步礼物、订单、积分和会员状态。', action: 'overview', actionLabel: '请稍候' };
+  }
+  const gift = currentGift.value;
+  if (gift && addressCount.value === 0) {
+    return { tone: 'red', icon: MapPin, kicker: '需要处理', title: '补充礼物收货地址', detail: '当前账户还没有可用的收货地址，补充后礼物才能准确寄送。', action: 'addresses', actionLabel: '添加地址' };
+  }
+  if (gift?.gift_status === 'shipped') {
+    return { tone: 'orange', icon: PackageCheck, kicker: '当前最重要', title: '你的礼物已经寄出', detail: gift.gift_no ? `快递单号 ${gift.gift_no}` : '请留意快递信息或取货通知。', action: 'gifts', actionLabel: '查看礼物' };
+  }
+  if (subscriptionExpiryDays.value !== null && subscriptionExpiryDays.value <= 7) {
+    return { tone: 'orange', icon: Crown, kicker: '即将到期', title: `会员还有 ${subscriptionExpiryDays.value} 天到期`, detail: '查看当前方案和可选会员权益，避免服务到期。', action: 'subscription', actionLabel: '管理会员' };
+  }
+  if (gift) {
+    return { tone: 'blue', icon: Gift, kicker: '礼物动态', title: giftStatusHeadline.value, detail: giftStatusDesc.value, action: 'gifts', actionLabel: '查看详情' };
+  }
+  if (recentOrder.value) {
+    return { tone: 'blue', icon: Package, kicker: '最近订单', title: `已兑换 ${recentOrder.value.item_count} 件商品`, detail: `${formatRelativeDay(recentOrder.value.created_at)}使用 ${recentOrder.value.total_points} 积分完成兑换。`, action: 'orders', actionLabel: '查看订单' };
+  }
+  if (redeemableProducts.value.length > 0) {
+    return { tone: 'green', icon: ShoppingBag, kicker: '可立即使用', title: `你现在可以兑换 ${redeemableProducts.value.length} 件商品`, detail: `从 ${redeemableProducts.value[0].title} 开始，最低需要 ${redeemableProducts.value[0].points_cost} 积分。`, action: 'shop', actionLabel: '去兑换' };
+  }
+  return { tone: 'neutral', icon: Check, kicker: '账户状态', title: '账户一切就绪', detail: pointsContextText.value, action: 'points', actionLabel: '查看明细' };
+});
+
+const overviewTitle = computed(() => {
+  if (currentGift.value && addressCount.value === 0) return '有一项信息需要补充';
+  if (currentGift.value?.gift_status === 'shipped') return '你的礼物正在路上';
+  if (subscriptionExpiryDays.value !== null && subscriptionExpiryDays.value <= 7) return '有一项权益即将到期';
+  if (currentGift.value || recentOrder.value) return '最近有新的账户动态';
+  if (redeemableProducts.value.length > 0) return '你的积分现在可以使用';
+  return '账户状态良好';
+});
+const overviewSubtitle = computed(() => {
+  if (overviewLoading.value) return '正在整理你的账户动态';
+  if (overviewHasErrors.value) return '部分信息暂未更新，其余内容仍可正常查看';
+  return primaryInsight.value.detail;
+});
+
+const recentActivities = computed(() => {
+  const activities = [];
+  if (currentGift.value) {
+    activities.push({ id: `gift-${currentGift.value.id}`, time: currentGift.value.updated_at || currentGift.value.created_at, tone: currentGift.value.gift_status === 'shipped' ? 'orange' : 'blue', title: getGiftStatusLabel(currentGift.value.gift_status), detail: currentGift.value.gift_content || '当前礼物状态已更新', action: 'gifts' });
+  }
+  orders.value.slice(0, 2).forEach((order) => activities.push({ id: `order-${order.id}`, time: order.created_at, tone: 'blue', title: '商城订单', detail: `${order.item_count} 件商品 · -${order.total_points} 积分`, action: 'orders' }));
+  ledger.value.filter((item) => !String(item.key).startsWith('order-')).slice(0, 3).forEach((item) => activities.push({ id: item.key, time: item.time, tone: item.tone, title: item.title, detail: `${item.remark || '积分变动'}${item.amount ? ` · ${item.amount > 0 ? '+' : ''}${item.amount}` : ''}`, action: 'points' }));
+  return activities
+    .filter((item) => Number.isFinite(Date.parse(item.time || '')))
+    .sort((a, b) => Date.parse(b.time) - Date.parse(a.time))
+    .slice(0, 3)
+    .map((item) => ({ ...item, timeLabel: formatRelativeDay(item.time) }));
+});
+
+const upcomingItems = computed(() => {
+  const items = [];
+  if (currentGift.value && addressCount.value === 0) items.push({ id: 'address', tone: 'red', icon: MapPin, title: '补充收货地址', detail: '礼物寄送前需要一个有效地址', action: 'addresses' });
+  if (subscriptionExpiryDays.value !== null && subscriptionExpiryDays.value <= 30) items.push({ id: 'expiry', tone: subscriptionExpiryDays.value <= 7 ? 'red' : 'orange', icon: Crown, title: `会员 ${subscriptionExpiryDays.value} 天后到期`, detail: '提前查看续订或更改方案', action: 'subscription' });
+  const secondaryItems = items.filter((item) => item.action !== primaryInsight.value.action);
+  if (!secondaryItems.length && !redeemableProducts.value.length && nextRewardProduct.value) {
+    const gap = Number(nextRewardProduct.value.points_cost) - userPoints.value;
+    secondaryItems.push({ id: 'next-reward', tone: 'blue', icon: Coins, title: `再获得 ${gap} 积分`, detail: `即可兑换 ${nextRewardProduct.value.title}`, action: 'points' });
+  }
+  return secondaryItems.slice(0, 2);
+});
+
+const handleSmartAction = (action) => {
+  if (action === 'shop') { goToShop(); return; }
+  activateTab(action || 'overview');
+};
+
+const retryOverviewIssues = () => {
+  if (giftsError.value) giftsLoaded.value = false;
+  if (ordersError.value) ordersLoaded.value = false;
+  if (ledgerError.value) ledgerLoaded.value = false;
+  void loadOverview();
+};
+
+const getGiftStatusLabel = (s) => {
+  const map = { preparing: '备货中', processing: '正在处理', shipped: '已发货', completed: '已完成' };
+  return map[s] || s;
+};
+
+const giftStatusTitle = computed(() => {
+  if (!currentGift.value) return '待命中的礼物';
+  const status = currentGift.value.gift_status;
+  const dateSource = status === 'completed'
+    ? (currentGift.value.completed_at || currentGift.value.updated_at || currentGift.value.created_at)
+    : (currentGift.value.updated_at || currentGift.value.created_at);
+  const date = formatDateShort(dateSource);
+  if (status === 'preparing') return `备货中 ${date}`;
+  if (status === 'processing') return `正在处理 ${date}`;
+  if (status === 'shipped') return `已发货 ${date}`;
+  if (status === 'completed') return `已送达 ${date}`;
+  return '礼物状态';
+});
+
+const giftStatusDate = computed(() => {
+  if (!currentGift.value) return '';
+  const status = currentGift.value.gift_status;
+  const dateSource = status === 'completed'
+    ? (currentGift.value.completed_at || currentGift.value.updated_at || currentGift.value.created_at)
+    : (currentGift.value.updated_at || currentGift.value.created_at);
+  return formatDateShort(dateSource);
+});
+
+const giftStatusHeadline = computed(() => {
+  const map = {
+    preparing: '礼物已进入备货',
+    processing: '礼物正在处理中',
+    shipped: '礼物已经寄出',
+    completed: '礼物已送达'
+  };
+  return map[currentGift.value?.gift_status] || '礼物状态已更新';
+});
+
+const giftStatusDesc = computed(() => {
+  if (!currentGift.value) return '方块之家正在为你构思一份特别的礼物。';
+  const status = currentGift.value.gift_status;
+  if (status === 'preparing') return '我们已收到你的礼物请求，正在准备精美礼品。';
+  if (status === 'processing') return '礼物正在快马加鞭包装中，即将离开方块之家。';
+  if (status === 'shipped') return '你的礼物已在路上，请留意快递信息或取货通知。';
+  if (status === 'completed') return '礼物已成功送达，希望它能为你带来快乐。';
+  return '';
+});
+
+const formatDateShort = (dateStr) => {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${date.getMonth() + 1}月 ${date.getDate()}日`;
+};
+
+const expressCopied = ref(false);
+let expressCopyTimer = null;
+const copyExpressNo = async (no) => {
+  if (!no) return;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(String(no));
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = String(no);
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    expressCopied.value = true;
+    if (expressCopyTimer) clearTimeout(expressCopyTimer);
+    expressCopyTimer = setTimeout(() => { expressCopied.value = false; }, 1800);
+  } catch (err) {
+    logger.warn('assets-hub', '复制快递单号失败:', err);
+  }
+};
+
+const loadGifts = async () => {
+  if (giftsLoading.value || giftsLoaded.value) return;
+  const uid = userInfo.value?.id;
+  if (!uid) { giftsLoaded.value = true; return; }
+  giftsLoading.value = true;
+  giftsError.value = '';
+  try {
+    const [initialGiftsRes, addressesRes] = await Promise.all([
+      supabase
+        .from('user_gifts')
+        .select('id, user_id, gift_no, gift_content, gift_price, gift_image, gift_status, is_active, address_id, completed_at, created_at, updated_at')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('user_addresses')
+        .select('id, user_id, recipient, phone, region, detail, is_default, created_at')
+        .eq('user_id', uid)
+        .order('is_default', { ascending: false })
+        .order('created_at', { ascending: false })
+    ]);
+    let giftsRes = initialGiftsRes;
+    if (isMissingColumnError(giftsRes.error, 'address_id')) {
+      giftsRes = await supabase
+        .from('user_gifts')
+        .select('id, user_id, gift_no, gift_content, gift_price, gift_image, gift_status, is_active, completed_at, created_at, updated_at')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false });
+    }
+    if (giftsRes.error) throw giftsRes.error;
+
+    // 构建地址 map：优先 address_id 匹配，否则取默认地址（列表已排序，首条为默认）
+    const addressList = Array.isArray(addressesRes.data) ? addressesRes.data : [];
+    addressCount.value = addressList.length;
+    const addressByUser = new Map();
+    addressList.forEach((addr) => {
+      if (!addressByUser.has(addr.user_id)) addressByUser.set(addr.user_id, []);
+      addressByUser.get(addr.user_id).push(addr);
+    });
+
+    const resolveAddress = (gift) => {
+      const userAddrs = addressByUser.get(gift.user_id) || [];
+      if (userAddrs.length === 0) return null;
+      // 若礼物绑定了 address_id（字段已部署），优先用绑定的地址；否则取默认地址
+      const matched = gift.address_id
+        ? userAddrs.find((a) => a.id === gift.address_id) || userAddrs[0]
+        : userAddrs[0];
+      return matched || null;
+    };
+
+    let normalizedGifts = (Array.isArray(giftsRes.data) ? giftsRes.data : []).map((g) => {
+      const addr = resolveAddress(g);
+      const region = addr?.region ? addr.region + ' ' : '';
+      return {
+        ...g,
+        shipping_recipient: addr?.recipient || '',
+        shipping_phone: addr?.phone || '',
+        shipping_address: (region + (addr?.detail || '')).trim(),
+        address_count: (addressByUser.get(g.user_id) || []).length
+      };
+    });
+
+    const expiredGiftIds = getExpiredActiveGiftIds(normalizedGifts);
+    if (expiredGiftIds.length > 0) {
+      normalizedGifts = markGiftsAsHistory(normalizedGifts, expiredGiftIds);
+    }
+    // 当前礼物：激活中且未完成
+    const active = normalizedGifts.find((g) => g.is_active && g.gift_status !== 'completed');
+    currentGift.value = active || null;
+    // 历史礼物：已完成或非激活
+    const currentId = currentGift.value?.id;
+    historyGifts.value = normalizedGifts.filter((g) => g.id !== currentId && (!g.is_active || g.gift_status === 'completed'));
+    giftsLoaded.value = true;
+  } catch (err) {
+    logger.warn('assets-hub', '加载礼物数据失败:', err);
+    currentGift.value = null;
+    historyGifts.value = [];
+    addressCount.value = 0;
+    giftsError.value = '加载失败';
+  } finally {
+    giftsLoading.value = false;
+  }
+};
+
+const loadOverview = async () => {
+  overviewLoading.value = true;
+  try {
+    await Promise.all([
+      loadSubscription(),
+      loadOrders(),
+      loadGifts(),
+      loadLedger(),
+      productsStore.fetchProducts()
+    ]);
+  } finally {
+    overviewLoading.value = false;
+  }
+};
+
 onMounted(() => {
-  void loadOrders();
-  void loadProductsCount();
-  void loadLedger();
   void loadTier();
+  void loadOverview();
+  activateTab(activeTab.value);
 });
 </script>
 
@@ -377,6 +1050,7 @@ onMounted(() => {
   width: 100%;
   max-width: 980px;
   margin: 0 auto;
+  transform: translateZ(0);
 }
 
 /* 顶部行：用户信息（左）+ 当前积分（右，同一行） */
@@ -412,6 +1086,7 @@ onMounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 220ms var(--ah-ease);
 }
 .ah-user-info {
   display: flex;
@@ -461,6 +1136,7 @@ onMounted(() => {
   border: 1px solid rgba(0, 122, 255, 0.1);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
   flex-shrink: 0;
+  animation: ah-materialize 200ms var(--ah-ease) both;
 }
 .ah-points-icon-wrap {
   width: 30px;
@@ -473,6 +1149,7 @@ onMounted(() => {
   background: rgba(0, 122, 255, 0.12);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
   flex-shrink: 0;
+  transition: transform 180ms var(--ah-ease);
 }
 .ah-points-meta {
   display: flex;
@@ -539,7 +1216,8 @@ onMounted(() => {
   transition:
     background-color 150ms ease,
     color 150ms ease,
-    transform 130ms var(--ah-ease);
+    transform 130ms var(--ah-ease),
+    box-shadow 180ms ease;
   color: var(--text-secondary);
   position: relative;
   overflow: hidden;
@@ -557,15 +1235,7 @@ onMounted(() => {
   flex-shrink: 0;
   transition: transform 170ms var(--ah-ease), color 140ms ease;
 }
-.ah-tab.active .ah-tab-icon {
-  transform: translateY(-3px) scale(1.14);
-  animation: ah-nav-icon-pop 180ms var(--ah-ease) both;
-}
-@keyframes ah-nav-icon-pop {
-  0% { transform: translateY(1px) scale(0.9); }
-  70% { transform: translateY(-5px) scale(1.2); }
-  100% { transform: translateY(-3px) scale(1.14); }
-}
+.ah-tab.active .ah-tab-icon { transform: translateY(-2px) scale(1.08); }
 .ah-tab-label {
   font-size: 12px;
   letter-spacing: 0;
@@ -576,13 +1246,173 @@ onMounted(() => {
 .ah-tab.active .ah-tab-label { font-weight: 600; transform: translateY(-1px); }
 
 /* ─── Section 通用 ─── */
-.ah-section {
-  animation: ah-fade 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+.ah-section { transform-origin: 50% 0; }
+.ah-panel-enter-active { transition: opacity 210ms var(--ah-ease), transform 210ms var(--ah-ease), filter 180ms ease; }
+.ah-panel-leave-active { transition: opacity 110ms ease, transform 110ms ease, filter 100ms ease; }
+.ah-panel-enter-from { opacity: 0; transform: translateY(7px) scale(0.992); filter: blur(2px); }
+.ah-panel-leave-to { opacity: 0; transform: translateY(-3px) scale(0.996); filter: blur(1px); }
+
+@keyframes ah-materialize {
+  from { opacity: 0; transform: translateY(6px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
-@keyframes ah-fade {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+
+/* ─── 账户导航与概览 ─── */
+.ah-hub-card {
+  padding: 18px 20px 14px;
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(28px) saturate(165%);
+  -webkit-backdrop-filter: blur(28px) saturate(165%);
+  border-color: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 22px 52px rgba(15, 23, 42, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
+.ah-tab-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.ah-tab-group { min-width: 0; }
+.ah-tab-group-label { display: block; margin: 0 0 5px 2px; color: #78808d; font-size: 11px; font-weight: 700; }
+.ah-hub-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border: 1px solid rgba(255, 255, 255, 0.7); border-radius: 16px; background: rgba(255, 255, 255, 0.34); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7); }
+.ah-hub-tabs::before { content: none; }
+.ah-tab { min-height: 38px; flex-direction: row; gap: 5px; padding: 6px 4px; border-radius: 12px; color: #78808d; }
+.ah-tab:hover { background: rgba(255, 255, 255, 0.52); color: #1d1d1f; }
+.ah-tab.active { color: #1d1d1f; background: rgba(255, 255, 255, 0.82); box-shadow: 0 6px 16px rgba(15, 23, 42, 0.09), inset 0 1px 0 #fff; }
+.ah-tab-icon { width: 16px; height: 16px; transition: color 150ms ease; }
+.ah-tab.active .ah-tab-icon { transform: scale(1.08); color: #2563eb; }
+.ah-tab-label { font-size: 12px; font-weight: 600; transition: color 150ms ease; }
+.ah-tab.active .ah-tab-label { font-weight: 700; transform: none; }
+
+.ah-overview { display: flex; flex-direction: column; gap: 14px; }
+.ah-overview-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 4px 2px 0; }
+.ah-overview-heading > div { min-width: 0; }
+.ah-overview-heading span:first-child { color: #6e6e73; font-size: 12px; font-weight: 650; }
+.ah-overview-heading h2 { margin: 3px 0 0; color: #1d1d1f; font-size: 22px; font-weight: 750; line-height: 1.15; }
+.ah-overview-heading p { max-width: 620px; margin: 5px 0 0; color: #747b86; font-size: 12px; line-height: 1.5; }
+.ah-overview-updating { flex: 0 0 auto; color: #6e6e73; font-size: 11px; font-weight: 600; }
+.ah-overview-retry { flex: 0 0 auto; padding: 7px 11px; border: 1px solid rgba(255, 255, 255, 0.7); border-radius: 13px; background: rgba(255, 255, 255, 0.48); color: #64748b; cursor: pointer; font-size: 11px; font-weight: 650; box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06); transition: background-color 150ms ease, color 150ms ease, transform 150ms ease; }
+.ah-overview-retry:hover { background: rgba(37, 99, 235, 0.1); color: #2563eb; }
+.ah-overview-retry:active { transform: scale(0.97); }
+
+.ah-smart-focus {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 112px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.56);
+  backdrop-filter: blur(30px) saturate(165%);
+  -webkit-backdrop-filter: blur(30px) saturate(165%);
+  box-shadow: 0 22px 46px rgba(15, 23, 42, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  color: #1d1d1f;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 190ms var(--ah-ease), box-shadow 190ms ease, background-color 190ms ease;
+}
+.ah-smart-focus-icon { display: grid; width: 48px; height: 48px; place-items: center; border-radius: 17px; background: rgba(37, 99, 235, 0.11); color: #2563eb; }
+.ah-smart-focus-copy { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.ah-smart-focus-copy > span { color: #64748b; font-size: 11px; font-weight: 700; }
+.ah-smart-focus-copy strong { color: #1d1d1f; font-size: 18px; font-weight: 780; line-height: 1.25; }
+.ah-smart-focus-copy small { color: #6e6e73; font-size: 12px; line-height: 1.5; }
+.ah-smart-focus-action { display: inline-flex; align-items: center; gap: 3px; color: #2563eb; font-size: 12px; font-weight: 720; white-space: nowrap; }
+.ah-smart-focus-icon,
+.ah-smart-focus-action svg { transition: transform 180ms var(--ah-ease); }
+.ah-smart-focus.tone-orange { border-color: rgba(253, 186, 116, 0.52); background: rgba(255, 247, 237, 0.62); }
+.ah-smart-focus.tone-orange .ah-smart-focus-icon { background: rgba(217, 119, 6, 0.12); color: #b45309; }
+.ah-smart-focus.tone-red { border-color: rgba(253, 164, 175, 0.55); background: rgba(255, 241, 242, 0.62); }
+.ah-smart-focus.tone-red .ah-smart-focus-icon { background: rgba(225, 29, 72, 0.1); color: #e11d48; }
+.ah-smart-focus.tone-green { border-color: rgba(134, 239, 172, 0.52); background: rgba(240, 253, 244, 0.62); }
+.ah-smart-focus.tone-green .ah-smart-focus-icon { background: rgba(34, 197, 94, 0.11); color: #16a34a; }
+.ah-smart-focus:active { transform: scale(0.99); }
+.ah-smart-focus:disabled { cursor: default; opacity: 0.78; }
+.ah-overview-summary { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr); gap: 12px; }
+.ah-overview-primary,
+.ah-overview-membership,
+.ah-membership-card {
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.56);
+  backdrop-filter: blur(30px) saturate(165%);
+  -webkit-backdrop-filter: blur(30px) saturate(165%);
+  box-shadow: 0 20px 42px rgba(15, 23, 42, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.88);
+}
+.ah-overview-primary { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; min-height: 164px; align-items: start; gap: 14px; padding: 20px; overflow: hidden; background: rgba(236, 246, 255, 0.72); border-color: rgba(191, 219, 254, 0.8); transition: transform 190ms var(--ah-ease), box-shadow 190ms ease, background-color 190ms ease; }
+.ah-overview-card-icon { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 14px; flex: 0 0 auto; }
+.ah-overview-card-icon.is-blue { background: rgba(37, 99, 235, 0.12); color: #2563eb; }
+.ah-overview-card-icon.is-gold { background: rgba(217, 119, 6, 0.12); color: #b45309; }
+.ah-overview-copy { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.ah-overview-kicker { color: #3567a9; font-size: 12px; font-weight: 700; }
+.ah-overview-copy strong { color: #123b70; font-size: 34px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.ah-overview-copy > span:last-child { color: #4b6b91; font-size: 12px; line-height: 1.45; }
+.ah-overview-link { align-self: end; display: inline-flex; width: fit-content; align-items: center; gap: 2px; padding: 7px 0; border: 0; background: transparent; color: #2563eb; cursor: pointer; font-size: 12px; font-weight: 700; transition: color 150ms ease, transform 150ms ease; }
+.ah-overview-link svg { transition: transform 170ms var(--ah-ease); }
+.ah-overview-link:active { transform: scale(0.97); }
+.ah-overview-membership { display: flex; min-height: 164px; align-items: center; gap: 12px; padding: 20px; transition: transform 190ms var(--ah-ease), box-shadow 190ms ease, background-color 190ms ease; }
+.ah-overview-membership > div:nth-child(2) { min-width: 0; flex: 1; }
+.ah-overview-membership span { color: #78808d; font-size: 11px; font-weight: 650; }
+.ah-overview-membership strong { display: block; margin-top: 3px; color: #1d1d1f; font-size: 18px; font-weight: 750; }
+.ah-overview-membership p { margin: 4px 0 0; overflow: hidden; color: #6e6e73; font-size: 12px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+.ah-overview-membership.is-expiring { background: rgba(255, 247, 237, 0.74); border-color: rgba(253, 186, 116, 0.55); }
+.ah-icon-command { display: grid; width: 36px; height: 36px; place-items: center; padding: 0; border: 1px solid rgba(255, 255, 255, 0.76); border-radius: 14px; background: rgba(255, 255, 255, 0.58); color: #1d1d1f; cursor: pointer; box-shadow: 0 7px 18px rgba(15, 23, 42, 0.08); transition: transform 150ms var(--ah-ease), background-color 150ms ease, border-color 150ms ease; }
+.ah-icon-command svg { transition: transform 170ms var(--ah-ease); }
+.ah-icon-command:active { transform: scale(0.95); }
+.ah-smart-columns { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr); gap: 12px; }
+.ah-smart-section { min-width: 0; padding: 18px; border: 1px solid rgba(255, 255, 255, 0.72); border-radius: 22px; background: rgba(255, 255, 255, 0.46); backdrop-filter: blur(26px) saturate(155%); -webkit-backdrop-filter: blur(26px) saturate(155%); box-shadow: 0 16px 34px rgba(15, 23, 42, 0.075), inset 0 1px 0 rgba(255, 255, 255, 0.84); }
+.ah-smart-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.ah-smart-section-head > div { display: flex; flex-direction: column; gap: 2px; }
+.ah-smart-section-head span { color: #7b8491; font-size: 10px; font-weight: 700; }
+.ah-smart-section-head strong { color: #1d1d1f; font-size: 14px; font-weight: 760; }
+.ah-smart-section-head button { display: grid; width: 30px; height: 30px; place-items: center; padding: 0; border: 0; border-radius: 11px; background: rgba(255, 255, 255, 0.54); color: #64748b; cursor: pointer; transition: transform 150ms var(--ah-ease), background-color 150ms ease; }
+.ah-smart-timeline,
+.ah-smart-next-list { display: flex; flex-direction: column; }
+.ah-smart-activity { display: grid; grid-template-columns: 52px 10px minmax(0, 1fr) auto; align-items: center; gap: 9px; min-width: 0; padding: 9px 0; border: 0; border-top: 1px solid rgba(15, 23, 42, 0.07); background: transparent; color: #1d1d1f; cursor: pointer; text-align: left; }
+.ah-smart-activity:first-child { border-top: 0; }
+.ah-smart-activity-time { color: #8a919c; font-size: 10px; font-weight: 650; }
+.ah-smart-activity-marker { width: 7px; height: 7px; border-radius: 50%; background: #2563eb; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.09); }
+.ah-smart-activity-marker.tone-orange { background: #d97706; box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.09); }
+.ah-smart-activity-marker.tone-green { background: #16a34a; box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.09); }
+.ah-smart-activity-marker.tone-gray { background: #8e8e93; box-shadow: 0 0 0 4px rgba(142, 142, 147, 0.09); }
+.ah-smart-activity-copy { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.ah-smart-activity-copy strong { overflow: hidden; color: #1d1d1f; font-size: 12px; font-weight: 720; text-overflow: ellipsis; white-space: nowrap; }
+.ah-smart-activity-copy small { overflow: hidden; color: #737b87; font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; }
+.ah-smart-activity > svg { color: #a0a6af; transition: transform 170ms var(--ah-ease); }
+.ah-smart-next { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 11px 0; border: 0; border-top: 1px solid rgba(15, 23, 42, 0.07); background: transparent; color: #1d1d1f; cursor: pointer; text-align: left; }
+.ah-smart-next:first-child { border-top: 0; }
+.ah-smart-next-icon { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 12px; background: rgba(37, 99, 235, 0.1); color: #2563eb; transition: transform 170ms var(--ah-ease); }
+.ah-smart-next.tone-orange .ah-smart-next-icon { background: rgba(217, 119, 6, 0.11); color: #b45309; }
+.ah-smart-next.tone-red .ah-smart-next-icon { background: rgba(225, 29, 72, 0.09); color: #e11d48; }
+.ah-smart-next.tone-green .ah-smart-next-icon { background: rgba(22, 163, 74, 0.1); color: #16a34a; }
+.ah-smart-next-copy { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.ah-smart-next-copy strong { color: #1d1d1f; font-size: 12px; font-weight: 720; }
+.ah-smart-next-copy span { overflow: hidden; color: #737b87; font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; }
+.ah-smart-next > svg { color: #a0a6af; transition: transform 170ms var(--ah-ease); }
+.ah-smart-ready { display: flex; align-items: center; gap: 11px; min-height: 72px; color: #16a34a; }
+.ah-smart-ready > svg { flex: 0 0 auto; }
+.ah-smart-ready > div { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.ah-smart-ready strong { color: #1d1d1f; font-size: 12px; font-weight: 730; }
+.ah-smart-ready span,
+.ah-smart-quiet { color: #7b8491; font-size: 10.5px; line-height: 1.45; }
+.ah-smart-quiet { min-height: 72px; display: grid; place-items: center; text-align: center; }
+
+.ah-membership-card { display: flex; flex-direction: column; gap: 12px; padding: 22px; }
+.ah-membership-card-top { display: flex; align-items: center; justify-content: space-between; color: #78808d; font-size: 12px; font-weight: 700; }
+.ah-membership-status { padding: 3px 8px; border-radius: 999px; background: #ecfdf3; color: #15803d; font-size: 11px; }
+.ah-membership-card.is-free .ah-membership-status { background: #f3f4f6; color: #6b7280; }
+.ah-membership-card h2 { margin: 0; color: #1d1d1f; font-size: 26px; font-weight: 800; }
+.ah-membership-card p { margin: -5px 0 0; color: #6e6e73; font-size: 13px; }
+.ah-membership-meta { display: flex; gap: 8px; flex-wrap: wrap; }
+.ah-membership-meta span { padding: 6px 10px; border-radius: 11px; background: rgba(243, 244, 246, 0.72); color: #4b5563; font-size: 11px; font-weight: 650; }
+
+/* ─── 记录列表 ─── */
+.ah-ledger { gap: 20px; }
+.ah-ledger-group h2 { margin: 0 0 5px; color: #6b7280; font-size: 12px; font-weight: 750; }
+.ah-ledger-list,
+.ah-order-list { gap: 0; border-top: 1px solid rgba(15, 23, 42, 0.1); }
+.ah-ledger-item,
+.ah-order-item { padding: 13px 4px; border: 0; border-radius: 0; border-bottom: 1px solid rgba(15, 23, 42, 0.1); background: transparent; box-shadow: none; }
+.ah-ledger-item:hover,
+.ah-order-item:hover { transform: none; background: rgba(15, 23, 42, 0.025); box-shadow: none; }
 
 /* ─── 积分明细流水 ─── */
 .ah-ledger {
@@ -595,15 +1425,15 @@ onMounted(() => {
   align-items: center;
   gap: 14px;
   padding: 14px 18px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.48);
+  backdrop-filter: blur(24px) saturate(155%);
+  -webkit-backdrop-filter: blur(24px) saturate(155%);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.075), inset 0 1px 0 rgba(255, 255, 255, 0.86);
   transition: transform 0.2s var(--ah-ease), box-shadow 0.2s ease;
+  animation: ah-materialize 220ms var(--ah-ease) both;
 }
-.ah-ledger-item:hover { transform: translateY(-2px); box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8); }
 .ah-ledger-icon {
   width: 38px;
   height: 38px;
@@ -612,6 +1442,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  transition: transform 180ms var(--ah-ease);
 }
 .ah-ledger-icon.tone-green { color: #34c759; background: rgba(52, 199, 89, 0.12); }
 .ah-ledger-icon.tone-blue { color: #007aff; background: rgba(0, 122, 255, 0.12); }
@@ -652,12 +1483,12 @@ onMounted(() => {
   gap: 8px;
   padding: 44px 24px;
   text-align: center;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.74);
+  box-shadow: 0 20px 44px rgba(15, 23, 42, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.88);
 }
 .ah-empty-icon {
   width: 56px;
@@ -684,12 +1515,12 @@ onMounted(() => {
   align-items: center;
   gap: 4px;
   padding: 22px 16px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(24px) saturate(155%);
+  -webkit-backdrop-filter: blur(24px) saturate(155%);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.86);
 }
 .ah-shop-stat-value { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; color: #1d1d1f; }
 .ah-shop-stat-label { font-size: 11px; font-weight: 600; color: #8e8e93; }
@@ -707,10 +1538,13 @@ onMounted(() => {
   background: #1d1d1f;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition:
+    background-color 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.ah-shop-btn:hover { background: #000; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18); }
-.ah-shop-btn:active { transform: translateY(0); }
+.ah-shop-btn svg { transition: transform 180ms var(--ah-ease); }
+.ah-shop-btn:active { transform: scale(0.97); transition-duration: 100ms; }
 .ah-shop-btn-ghost {
   margin-top: 8px;
   padding: 0 28px;
@@ -720,7 +1554,6 @@ onMounted(() => {
   box-shadow: none;
   height: 40px;
 }
-.ah-shop-btn-ghost:hover { background: rgba(0, 122, 255, 0.2); color: #007aff; }
 
 /* ─── 订单 ─── */
 .ah-order-skeleton { display: flex; flex-direction: column; gap: 10px; }
@@ -729,21 +1562,21 @@ onMounted(() => {
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.5);
-  animation: ah-skel 1.4s ease-in-out infinite alternate;
+  animation: ah-skel 900ms ease-in-out infinite alternate;
 }
-@keyframes ah-skel { to { opacity: 0.45; } }
+@keyframes ah-skel { to { opacity: 0.52; } }
 .ah-order-list { display: flex; flex-direction: column; gap: 10px; }
 .ah-order-item {
   padding: 16px 20px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.48);
+  backdrop-filter: blur(24px) saturate(155%);
+  -webkit-backdrop-filter: blur(24px) saturate(155%);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.075), inset 0 1px 0 rgba(255, 255, 255, 0.86);
   transition: transform 0.2s var(--ah-ease), box-shadow 0.2s ease;
+  animation: ah-materialize 220ms var(--ah-ease) both;
 }
-.ah-order-item:hover { transform: translateY(-2px); box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8); }
 .ah-order-top { display: flex; justify-content: space-between; margin-bottom: 6px; }
 .ah-order-no { font-size: 12px; font-weight: 700; color: #1d1d1f; font-family: ui-monospace, "SF Mono", monospace; }
 .ah-order-date { font-size: 11px; color: #8e8e93; }
@@ -751,11 +1584,329 @@ onMounted(() => {
 .ah-order-items { font-size: 12px; color: #6e6e73; }
 .ah-order-points { font-size: 12px; font-weight: 700; color: #ff3b30; }
 
+/* ─── 礼物 ─── */
+.ah-gift-card {
+  padding: 0;
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.54);
+  backdrop-filter: blur(30px) saturate(165%);
+  -webkit-backdrop-filter: blur(30px) saturate(165%);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  box-shadow: 0 24px 52px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  overflow: hidden;
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 180ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ah-gift-card:hover { transform: translateY(-3px); box-shadow: 0 30px 60px rgba(15, 23, 42, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.94); }
+}
+.ah-gift-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+.ah-gift-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #5f6878;
+  font-size: 12px;
+  font-weight: 700;
+}
+.ah-gift-header-date { color: #8e8e93; font-size: 11px; font-weight: 550; white-space: nowrap; }
+.ah-gift-overview {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 18px 16px;
+}
+.ah-gift-thumb {
+  width: 68px;
+  height: 68px;
+  border-radius: 18px;
+  background: #fff4d8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ff9500;
+  flex-shrink: 0;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(184, 126, 0, 0.12);
+  transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ah-gift-thumb.has-image { background: rgba(15, 23, 42, 0.04); }
+.ah-gift-thumb img { width: 100%; height: 100%; object-fit: cover; }
+@media (hover: hover) and (pointer: fine) {
+  .ah-gift-card:hover .ah-gift-thumb.has-image { transform: scale(1.02); }
+}
+.ah-gift-headinfo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.ah-gift-headtop { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.ah-gift-headinfo h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 750;
+  color: #1d1d1f;
+  letter-spacing: 0;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.ah-gift-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(0, 122, 255, 0.1);
+  color: #007aff;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.ah-gift-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.ah-gift-badge.preparing { background: rgba(142, 142, 147, 0.12); color: #8e8e93; }
+.ah-gift-badge.processing { background: rgba(0, 122, 255, 0.1); color: #007aff; }
+.ah-gift-badge.shipped { background: #fff4df; color: #b45309; }
+.ah-gift-badge.completed { background: rgba(52, 199, 89, 0.12); color: #34c759; }
+.ah-gift-badge.is-flat { font-size: 10.5px; padding: 3px 8px; }
+.ah-gift-badge.is-flat .ah-gift-badge-dot { display: none; }
+.ah-gift-headsub { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ah-gift-amount { font-size: 13px; font-weight: 750; color: #b45309; }
+
+.ah-gift-status-panel {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin: 0 16px 14px;
+  padding: 13px;
+  border: 1px solid rgba(0, 122, 255, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.42);
+  backdrop-filter: blur(18px) saturate(145%);
+  -webkit-backdrop-filter: blur(18px) saturate(145%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72), 0 8px 20px rgba(15, 23, 42, 0.045);
+}
+.ah-gift-status-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 13px;
+  background: rgba(0, 122, 255, 0.12);
+  color: #007aff;
+  animation: ah-materialize 240ms var(--ah-ease) 70ms both;
+}
+.ah-gift-status-copy { min-width: 0; padding-top: 1px; }
+.ah-gift-status-copy strong { display: block; color: #1d1d1f; font-size: 13px; font-weight: 750; line-height: 1.35; }
+.ah-gift-status-copy p { margin: 3px 0 0; color: #6e6e73; font-size: 12px; font-weight: 500; line-height: 1.5; }
+.ah-gift-status-panel.preparing { border-color: rgba(142, 142, 147, 0.14); background: rgba(255, 255, 255, 0.38); }
+.ah-gift-status-panel.preparing .ah-gift-status-icon { background: rgba(142, 142, 147, 0.12); color: #6e6e73; }
+.ah-gift-status-panel.shipped { border-color: rgba(217, 119, 6, 0.16); background: rgba(255, 247, 237, 0.5); }
+.ah-gift-status-panel.shipped .ah-gift-status-icon { background: rgba(255, 149, 0, 0.13); color: #b45309; }
+.ah-gift-status-panel.completed { border-color: rgba(52, 199, 89, 0.16); background: rgba(240, 253, 244, 0.5); }
+.ah-gift-status-panel.completed .ah-gift-status-icon { background: rgba(52, 199, 89, 0.13); color: #248a3d; }
+
+/* 订单与收货信息 */
+.ah-gift-details {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 16px;
+}
+.ah-gift-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 62px;
+  padding: 12px 0;
+}
+.ah-gift-detail-row + .ah-gift-detail-row {
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+.ah-gift-detail-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 12px;
+  background: #eef5ff;
+  color: #2563eb;
+}
+.ah-gift-detail-copy { min-width: 0; flex: 1; }
+.ah-gift-detail-copy > span {
+  display: block;
+  color: #78808d;
+  font-size: 11px;
+  font-weight: 600;
+}
+.ah-gift-detail-copy strong {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 2px;
+  color: #1d1d1f;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ah-gift-detail-copy em { color: #78808d; font-size: 12px; font-style: normal; font-weight: 500; }
+.ah-gift-detail-copy p { margin: 3px 0 0; color: #6e6e73; font-size: 12px; line-height: 1.45; }
+.ah-gift-copy {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.62);
+  color: #2563eb;
+  cursor: pointer;
+  transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1), background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+  flex-shrink: 0;
+}
+.ah-gift-copy:active { transform: scale(0.95); }
+.ah-gift-copy.copied {
+  background: #ecfdf3;
+  border-color: #a7f3c6;
+  color: #15803d;
+}
+.ah-icon-swap-enter-active { transition: opacity 150ms var(--ah-ease), transform 150ms var(--ah-ease), filter 150ms ease; }
+.ah-icon-swap-leave-active { transition: opacity 90ms ease, transform 90ms ease, filter 90ms ease; }
+.ah-icon-swap-enter-from { opacity: 0; transform: scale(0.82) rotate(-10deg); filter: blur(1px); }
+.ah-icon-swap-leave-to { opacity: 0; transform: scale(0.9) rotate(8deg); filter: blur(1px); }
+
+/* ─── 历史礼物 ─── */
+.ah-gift-history { margin-top: 24px; display: flex; flex-direction: column; gap: 8px; }
+.ah-gift-history-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 4px;
+}
+.ah-gift-history-head span:first-child { font-size: 13px; font-weight: 750; color: #1d1d1f; letter-spacing: 0; }
+.ah-gift-history-count { font-size: 11px; color: #8e8e93; font-weight: 600; }
+.ah-gift-history-list { display: flex; flex-direction: column; border-top: 1px solid rgba(15, 23, 42, 0.1); }
+.ah-gift-history-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.66);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  transition: transform 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+  animation: ah-materialize 220ms var(--ah-ease) both;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ah-gift-history-item:hover { transform: translateY(-2px); background: rgba(255, 255, 255, 0.62); box-shadow: 0 16px 30px rgba(15, 23, 42, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.86); }
+}
+.ah-gift-history-thumb {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: #fff4d8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ff9500;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.ah-gift-history-thumb.has-image { background: rgba(15, 23, 42, 0.04); }
+.ah-gift-history-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.ah-gift-history-thumb { transition: transform 180ms var(--ah-ease); }
+.ah-gift-history-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.ah-gift-history-main strong {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1d1d1f;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ah-gift-history-meta-line { display: flex; align-items: center; gap: 8px; }
+.ah-gift-history-no {
+  font-size: 10.5px;
+  color: #8e8e93;
+  font-family: ui-monospace, "SF Mono", monospace;
+  letter-spacing: 0.02em;
+}
+.ah-gift-history-date { font-size: 11px; color: #8e8e93; }
+.ah-gift-history-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.ah-gift-history-price { font-size: 12px; font-weight: 700; color: #b45309; }
+
+.ah-ledger-item:nth-child(2),
+.ah-order-item:nth-child(2),
+.ah-gift-history-item:nth-child(2) { animation-delay: 25ms; }
+.ah-ledger-item:nth-child(3),
+.ah-order-item:nth-child(3),
+.ah-gift-history-item:nth-child(3) { animation-delay: 50ms; }
+.ah-ledger-item:nth-child(4),
+.ah-order-item:nth-child(4),
+.ah-gift-history-item:nth-child(4) { animation-delay: 75ms; }
+.ah-ledger-item:nth-child(5),
+.ah-order-item:nth-child(5),
+.ah-gift-history-item:nth-child(5) { animation-delay: 100ms; }
+
+@media (hover: hover) and (pointer: fine) {
+  .ah-avatar:hover .ah-avatar-img { transform: scale(1.045); }
+  .ah-points-block:hover .ah-points-icon-wrap { transform: rotate(-5deg) scale(1.06); }
+  .ah-overview-primary:hover,
+  .ah-overview-membership:hover { transform: translateY(-3px); box-shadow: 0 26px 48px rgba(15, 23, 42, 0.13), inset 0 1px 0 rgba(255, 255, 255, 0.92); }
+  .ah-overview-link:hover { color: #1d4ed8; }
+  .ah-icon-command:hover { background: rgba(255, 255, 255, 0.95); border-color: rgba(15, 23, 42, 0.18); }
+  .ah-overview-link:hover svg,
+  .ah-icon-command:hover svg,
+  .ah-shop-btn:hover svg { transform: translateX(3px); }
+  .ah-smart-focus:hover { transform: translateY(-3px); box-shadow: 0 28px 54px rgba(15, 23, 42, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.94); }
+  .ah-smart-focus:hover .ah-smart-focus-icon,
+  .ah-smart-next:hover .ah-smart-next-icon { transform: scale(1.06); }
+  .ah-smart-focus:hover .ah-smart-focus-action svg,
+  .ah-smart-activity:hover > svg,
+  .ah-smart-next:hover > svg,
+  .ah-smart-section-head button:hover svg { transform: translateX(3px); }
+  .ah-smart-activity:hover,
+  .ah-smart-next:hover { background: rgba(255, 255, 255, 0.34); }
+  .ah-smart-section-head button:hover { background: rgba(255, 255, 255, 0.82); }
+  .ah-ledger-item:hover .ah-ledger-icon { transform: scale(1.06); }
+  .ah-ledger-item:hover,
+  .ah-order-item:hover { transform: translateY(-3px); box-shadow: 0 22px 40px rgba(15, 23, 42, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.9); }
+  .ah-shop-btn:hover { background: #000; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18); }
+  .ah-shop-btn-ghost:hover { background: rgba(0, 122, 255, 0.2); color: #007aff; }
+  .ah-gift-copy:hover { background: #eff6ff; border-color: rgba(37, 99, 235, 0.38); }
+  .ah-gift-history-item:hover .ah-gift-history-thumb { transform: scale(1.05); }
+}
+
 /* ─── 深色模式 ─── */
 :global(.user-space-page[data-theme="dark"]) .ah-hub-card {
-  background: rgba(24, 26, 32, 0.72);
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  background: rgba(24, 26, 32, 0.62);
+  border-color: rgba(255, 255, 255, 0.13);
+  box-shadow: 0 24px 54px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 :global(.user-space-page[data-theme="dark"]) .ah-points-block {
   background: rgba(99, 179, 237, 0.1);
@@ -779,10 +1930,13 @@ onMounted(() => {
 :global(.user-space-page[data-theme="dark"]) .ah-tab:hover {
   background: rgba(255, 255, 255, 0.08);
 }
+:global(.user-space-page[data-theme="dark"]) .ah-hub-tabs { background: rgba(255, 255, 255, 0.045); border-color: rgba(255, 255, 255, 0.1); }
+:global(.user-space-page[data-theme="dark"]) .ah-tab.active { background: rgba(255, 255, 255, 0.12); box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.1); }
 :global(.user-space-page[data-theme="dark"]) .ah-empty-state,
 :global(.user-space-page[data-theme="dark"]) .ah-shop-stat,
 :global(.user-space-page[data-theme="dark"]) .ah-order-item,
 :global(.user-space-page[data-theme="dark"]) .ah-ledger-item,
+:global(.user-space-page[data-theme="dark"]) .ah-gift-card,
 :global(.user-space-page[data-theme="dark"]) .ah-skeleton-block {
   background: rgba(24, 26, 32, 0.55);
   border-color: rgba(255, 255, 255, 0.1);
@@ -790,7 +1944,12 @@ onMounted(() => {
 }
 :global(.user-space-page[data-theme="dark"]) .ah-empty-state h3,
 :global(.user-space-page[data-theme="dark"]) .ah-shop-stat-value,
-:global(.user-space-page[data-theme="dark"]) .ah-order-no {
+:global(.user-space-page[data-theme="dark"]) .ah-order-no,
+:global(.user-space-page[data-theme="dark"]) .ah-gift-headinfo h3,
+:global(.user-space-page[data-theme="dark"]) .ah-gift-history-main strong,
+:global(.user-space-page[data-theme="dark"]) .ah-gift-history-head span:first-child,
+:global(.user-space-page[data-theme="dark"]) .ah-gift-detail-copy strong,
+:global(.user-space-page[data-theme="dark"]) .ah-gift-status-copy strong {
   color: #f5f7fa;
 }
 :global(.user-space-page[data-theme="dark"]) .ah-empty-state p,
@@ -798,8 +1957,53 @@ onMounted(() => {
 :global(.user-space-page[data-theme="dark"]) .ah-order-date,
 :global(.user-space-page[data-theme="dark"]) .ah-order-items,
 :global(.user-space-page[data-theme="dark"]) .ah-ledger-remark,
-:global(.user-space-page[data-theme="dark"]) .ah-ledger-date {
+:global(.user-space-page[data-theme="dark"]) .ah-ledger-date,
+:global(.user-space-page[data-theme="dark"]) .ah-gift-header-date,
+:global(.user-space-page[data-theme="dark"]) .ah-gift-history-no,
+:global(.user-space-page[data-theme="dark"]) .ah-gift-history-count,
+:global(.user-space-page[data-theme="dark"]) .ah-gift-history-date,
+:global(.user-space-page[data-theme="dark"]) .ah-gift-status-copy p,
+:global(.user-space-page[data-theme="dark"]) .ah-gift-detail-copy > span,
+:global(.user-space-page[data-theme="dark"]) .ah-gift-detail-copy em,
+:global(.user-space-page[data-theme="dark"]) .ah-gift-detail-copy p,
+:global(.user-space-page[data-theme="dark"]) .ah-gift-eyebrow {
   color: #8b8e96;
+}
+:global(.user-space-page[data-theme="dark"]) .ah-gift-thumb:not(.has-image) {
+  background: rgba(217, 119, 6, 0.16);
+  color: #ffb340;
+}
+:global(.user-space-page[data-theme="dark"]) .ah-gift-history-thumb:not(.has-image) {
+  background: rgba(217, 119, 6, 0.16);
+  color: #ffb340;
+}
+:global(.user-space-page[data-theme="dark"]) .ah-gift-header {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+:global(.user-space-page[data-theme="dark"]) .ah-gift-detail-row + .ah-gift-detail-row {
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+:global(.user-space-page[data-theme="dark"]) .ah-gift-status-panel { background: rgba(255, 255, 255, 0.045); border-color: rgba(255, 255, 255, 0.08); }
+:global(.user-space-page[data-theme="dark"]) .ah-gift-copy {
+  background: rgba(99, 179, 237, 0.12);
+  border-color: rgba(99, 179, 237, 0.3);
+  color: #7cb8f5;
+}
+:global(.user-space-page[data-theme="dark"]) .ah-gift-copy:hover {
+  background: rgba(99, 179, 237, 0.24);
+}
+:global(.user-space-page[data-theme="dark"]) .ah-gift-copy.copied {
+  background: rgba(52, 199, 89, 0.14);
+  border-color: rgba(52, 199, 89, 0.28);
+  color: #30d158;
+}
+:global(.user-space-page[data-theme="dark"]) .ah-gift-detail-icon {
+  background: rgba(99, 179, 237, 0.14);
+  color: #7cb8f5;
+}
+:global(.user-space-page[data-theme="dark"]) .ah-gift-history-list,
+:global(.user-space-page[data-theme="dark"]) .ah-gift-history-item {
+  border-color: rgba(255, 255, 255, 0.1);
 }
 :global(.user-space-page[data-theme="dark"]) .ah-empty-icon {
   background: rgba(255, 255, 255, 0.06);
@@ -811,10 +2015,75 @@ onMounted(() => {
 :global(.user-space-page[data-theme="dark"]) .ah-shop-btn-ghost:hover {
   background: rgba(99, 179, 237, 0.26);
 }
+:global(.user-space-page[data-theme="dark"]) .ah-tab-group-label,
+:global(.user-space-page[data-theme="dark"]) .ah-overview-membership span,
+:global(.user-space-page[data-theme="dark"]) .ah-overview-membership p,
+:global(.user-space-page[data-theme="dark"]) .ah-membership-card-top,
+:global(.user-space-page[data-theme="dark"]) .ah-membership-card p,
+:global(.user-space-page[data-theme="dark"]) .ah-ledger-group h2 {
+  color: #a7acb5;
+}
+:global(.user-space-page[data-theme="dark"]) .ah-hub-tabs,
+:global(.user-space-page[data-theme="dark"]) .ah-ledger-list,
+:global(.user-space-page[data-theme="dark"]) .ah-order-list,
+:global(.user-space-page[data-theme="dark"]) .ah-ledger-item,
+:global(.user-space-page[data-theme="dark"]) .ah-order-item {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+:global(.user-space-page[data-theme="dark"]) .ah-overview-primary {
+  background: rgba(37, 99, 235, 0.17);
+  border-color: rgba(96, 165, 250, 0.26);
+}
+:global(.user-space-page[data-theme="dark"]) .ah-overview-copy strong { color: #e7f1ff; }
+:global(.user-space-page[data-theme="dark"]) .ah-overview-copy > span:last-child,
+:global(.user-space-page[data-theme="dark"]) .ah-overview-kicker { color: #a9cbff; }
+:global(.user-space-page[data-theme="dark"]) .ah-overview-membership,
+:global(.user-space-page[data-theme="dark"]) .ah-membership-card {
+  background: rgba(24, 26, 32, 0.72);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+:global(.user-space-page[data-theme="dark"]) .ah-overview-heading h2 { color: #f5f7fa; }
+:global(.user-space-page[data-theme="dark"]) .ah-overview-heading span:first-child,
+:global(.user-space-page[data-theme="dark"]) .ah-overview-updating { color: #a7acb5; }
+:global(.user-space-page[data-theme="dark"]) .ah-overview-retry { background: rgba(255, 255, 255, 0.07); color: #a7acb5; }
+:global(.user-space-page[data-theme="dark"]) .ah-overview-membership.is-expiring { background: rgba(180, 83, 9, 0.17); border-color: rgba(251, 146, 60, 0.3); }
+:global(.user-space-page[data-theme="dark"]) .ah-overview-membership strong,
+:global(.user-space-page[data-theme="dark"]) .ah-membership-card h2 { color: #f5f7fa; }
+:global(.user-space-page[data-theme="dark"]) .ah-smart-focus,
+:global(.user-space-page[data-theme="dark"]) .ah-smart-section { background: rgba(24, 26, 32, 0.58); border-color: rgba(255, 255, 255, 0.12); box-shadow: 0 20px 44px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.07); }
+:global(.user-space-page[data-theme="dark"]) .ah-smart-focus.tone-orange { background: rgba(180, 83, 9, 0.17); border-color: rgba(251, 146, 60, 0.28); }
+:global(.user-space-page[data-theme="dark"]) .ah-smart-focus.tone-red { background: rgba(190, 24, 93, 0.15); border-color: rgba(251, 113, 133, 0.28); }
+:global(.user-space-page[data-theme="dark"]) .ah-smart-focus.tone-green { background: rgba(22, 101, 52, 0.17); border-color: rgba(74, 222, 128, 0.25); }
+:global(.user-space-page[data-theme="dark"]) .ah-smart-focus-copy strong,
+:global(.user-space-page[data-theme="dark"]) .ah-smart-section-head strong,
+:global(.user-space-page[data-theme="dark"]) .ah-smart-activity-copy strong,
+:global(.user-space-page[data-theme="dark"]) .ah-smart-next-copy strong,
+:global(.user-space-page[data-theme="dark"]) .ah-smart-ready strong { color: #f5f7fa; }
+:global(.user-space-page[data-theme="dark"]) .ah-smart-focus-copy > span,
+:global(.user-space-page[data-theme="dark"]) .ah-smart-focus-copy small,
+:global(.user-space-page[data-theme="dark"]) .ah-smart-section-head span,
+:global(.user-space-page[data-theme="dark"]) .ah-smart-activity-time,
+:global(.user-space-page[data-theme="dark"]) .ah-smart-activity-copy small,
+:global(.user-space-page[data-theme="dark"]) .ah-smart-next-copy span,
+:global(.user-space-page[data-theme="dark"]) .ah-smart-ready span,
+:global(.user-space-page[data-theme="dark"]) .ah-smart-quiet { color: #a7acb5; }
+:global(.user-space-page[data-theme="dark"]) .ah-smart-activity,
+:global(.user-space-page[data-theme="dark"]) .ah-smart-next { border-top-color: rgba(255, 255, 255, 0.09); }
+:global(.user-space-page[data-theme="dark"]) .ah-smart-section-head button { background: rgba(255, 255, 255, 0.07); color: #a7acb5; }
+:global(.user-space-page[data-theme="dark"]) .ah-smart-activity:hover,
+:global(.user-space-page[data-theme="dark"]) .ah-smart-next:hover,
+:global(.user-space-page[data-theme="dark"]) .ah-smart-section-head button:hover { background: rgba(255, 255, 255, 0.08); }
+:global(.user-space-page[data-theme="dark"]) .ah-icon-command { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.14); color: #f5f7fa; }
+:global(.user-space-page[data-theme="dark"]) .ah-ledger-item:hover,
+:global(.user-space-page[data-theme="dark"]) .ah-order-item:hover { background: rgba(255, 255, 255, 0.06); }
+:global(.user-space-page[data-theme="dark"]) .ah-ledger-item,
+:global(.user-space-page[data-theme="dark"]) .ah-order-item { background: rgba(24, 26, 32, 0.5); border-color: rgba(255, 255, 255, 0.11); box-shadow: 0 16px 34px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.07); }
+:global(.user-space-page[data-theme="dark"]) .ah-gift-history-item { background: rgba(24, 26, 32, 0.46); border-color: rgba(255, 255, 255, 0.1); box-shadow: 0 14px 28px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+:global(.user-space-page[data-theme="dark"]) .ah-membership-meta span { background: rgba(255, 255, 255, 0.08); color: #c5cad2; }
 
 /* ─── 响应式 ─── */
 @media (max-width: 767px) {
-  .ah-hub-card { max-width: none; border-radius: 24px; padding: 16px 16px 8px; }
+  .ah-hub-card { max-width: none; border-radius: 22px; padding: 16px 14px 12px; }
   .ah-top-row { gap: 8px; padding-bottom: 14px; }
   .ah-user-left { gap: 12px; }
   .ah-avatar { width: 44px; height: 44px; font-size: 18px; }
@@ -824,11 +2093,132 @@ onMounted(() => {
   .ah-points-icon-wrap { width: 26px; height: 26px; }
   .ah-points-label { display: none; }
   .ah-points-value { font-size: 19px; }
-  .ah-tab { min-height: 42px; padding: 6px 6px; gap: 2px; }
+  .ah-tab-groups { gap: 14px; }
+  .ah-tab-group-label { margin-bottom: 3px; font-size: 10px; }
+  .ah-hub-tabs { gap: 2px; padding: 3px; border-radius: 14px; }
+  .ah-tab { min-height: 38px; padding: 6px 2px; border-radius: 11px; }
+  .ah-tab-icon { display: none; }
   .ah-tab-label { font-size: 11px; }
-  .ah-ledger-item { padding: 12px 14px; gap: 12px; }
+  .ah-overview { grid-template-columns: 1fr; gap: 10px; }
+  .ah-overview-heading { align-items: flex-start; }
+  .ah-overview-heading h2 { font-size: 20px; }
+  .ah-overview-summary { grid-template-columns: 1fr; gap: 10px; }
+  .ah-smart-focus { grid-template-columns: auto minmax(0, 1fr); min-height: 0; gap: 12px; padding: 15px; border-radius: 21px; }
+  .ah-smart-focus-icon { width: 42px; height: 42px; border-radius: 15px; }
+  .ah-smart-focus-copy strong { font-size: 16px; }
+  .ah-smart-focus-action { grid-column: 2; justify-self: start; }
+  .ah-smart-columns { grid-template-columns: 1fr; gap: 10px; }
+  .ah-smart-section { padding: 15px; border-radius: 20px; }
+  .ah-overview-primary { min-height: 142px; padding: 18px; }
+  .ah-overview-copy strong { font-size: 30px; }
+  .ah-overview-membership { padding: 16px; }
+  .ah-membership-card { padding: 18px; }
+  .ah-ledger-item { padding: 12px; gap: 12px; border-radius: 18px; }
   .ah-ledger-amount { font-size: 15px; }
   .ah-empty-state { padding: 36px 18px; }
   .ah-shop-stat { padding: 18px 12px; }
+  .ah-gift-header { padding: 11px 14px; }
+  .ah-gift-overview { padding: 16px 14px; gap: 12px; }
+  .ah-gift-card { border-radius: 22px; }
+  .ah-gift-thumb { width: 56px; height: 56px; border-radius: 15px; }
+  .ah-gift-headinfo h3 { font-size: 15px; }
+  .ah-gift-badge { font-size: 10px; padding: 3px 8px; }
+  .ah-gift-status-panel { margin: 0 14px 12px; padding: 12px; }
+  .ah-gift-details { padding: 2px 14px; }
+  .ah-gift-detail-row { min-height: 58px; }
+  .ah-gift-history-item { padding: 10px; border-radius: 16px; }
+  .ah-gift-history-thumb { width: 38px; height: 38px; }
+  .ah-gift-history-main strong { font-size: 13px; }
+  .ah-gift-history-side { gap: 3px; }
+  .ah-gift-history-price { font-size: 11px; }
+}
+
+@media (max-height: 560px) and (orientation: landscape) {
+  .ah-hub-card { padding: 13px 16px 10px; }
+  .ah-top-row { padding-bottom: 10px; }
+  .ah-avatar { width: 40px; height: 40px; font-size: 16px; }
+  .ah-tab-groups { gap: 14px; }
+  .ah-tab { min-height: 34px; }
+  .ah-overview { gap: 10px; }
+  .ah-overview-heading { padding-top: 0; }
+  .ah-overview-heading h2 { font-size: 19px; }
+  .ah-overview-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ah-overview-primary,
+  .ah-overview-membership { min-height: 118px; padding: 14px; }
+  .ah-smart-focus { min-height: 92px; padding: 14px; }
+  .ah-smart-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ah-smart-section { padding: 14px; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .ah-hub-card,
+  .ah-smart-focus,
+  .ah-smart-section,
+  .ah-overview-primary,
+  .ah-overview-membership,
+  .ah-membership-card,
+  .ah-empty-state,
+  .ah-ledger-item,
+  .ah-order-item,
+  .ah-gift-card,
+  .ah-gift-status-panel,
+  .ah-gift-history-item {
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  :global(.user-space-page[data-theme="dark"]) .ah-hub-card,
+  :global(.user-space-page[data-theme="dark"]) .ah-smart-focus,
+  :global(.user-space-page[data-theme="dark"]) .ah-smart-section,
+  :global(.user-space-page[data-theme="dark"]) .ah-overview-membership,
+  :global(.user-space-page[data-theme="dark"]) .ah-membership-card,
+  :global(.user-space-page[data-theme="dark"]) .ah-empty-state,
+  :global(.user-space-page[data-theme="dark"]) .ah-ledger-item,
+  :global(.user-space-page[data-theme="dark"]) .ah-order-item,
+  :global(.user-space-page[data-theme="dark"]) .ah-gift-card,
+  :global(.user-space-page[data-theme="dark"]) .ah-gift-status-panel,
+  :global(.user-space-page[data-theme="dark"]) .ah-gift-history-item { background: #1c1e24; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ah-panel-enter-active,
+  .ah-panel-leave-active,
+  .ah-icon-swap-enter-active,
+  .ah-icon-swap-leave-active {
+    transition: opacity 120ms ease !important;
+  }
+  .ah-panel-enter-from,
+  .ah-panel-leave-to,
+  .ah-icon-swap-enter-from,
+  .ah-icon-swap-leave-to {
+    filter: none !important;
+    transform: none !important;
+  }
+  .ah-section,
+  .ah-points-block,
+  .ah-tab,
+  .ah-tab-icon,
+  .ah-tab-label,
+  .ah-gift-thumb,
+  .ah-gift-status-icon,
+  .ah-gift-copy,
+  .ah-gift-card,
+  .ah-gift-history-item,
+  .ah-smart-focus,
+  .ah-smart-focus-icon,
+  .ah-smart-focus-action svg,
+  .ah-smart-section-head button,
+  .ah-smart-activity,
+  .ah-smart-activity > svg,
+  .ah-smart-next,
+  .ah-smart-next-icon,
+  .ah-smart-next > svg,
+  .ah-icon-command,
+  .ah-ledger-item,
+  .ah-order-item {
+    animation: none !important;
+    transition: opacity 150ms ease, color 150ms ease, background-color 150ms ease !important;
+    transform: none !important;
+  }
 }
 </style>

@@ -21,16 +21,49 @@
               <span>{{ item.label }}</span>
             </a>
             <ul class="nav-submenu" :class="{ active: item.isExpanded }">
-              <li v-for="child in item.children" :key="child.name">
-                <router-link v-if="child.path" :to="child.path" :class="{ active: isActive(child.path) }"
-                  @click="expandedMenu = null">
-                  {{ child.label }}
-                </router-link>
-                <a v-else-if="child.action" href="javascript:;"
-                  @click="handleMenuAction(child.action); expandedMenu = null">
-                  {{ child.label }}
-                </a>
-              </li>
+              <!-- 有分组的菜单：分组列表 ↔ 三级下钻（带切换动画） -->
+              <template v-if="hasGroupChildren(item)">
+                <Transition name="nav-drill" mode="out-in">
+                  <div v-if="activeGroup" :key="`grand-${item.name}-${activeGroup}`" class="nav-submenu-pane nav-submenu-pane-grand">
+                    <li class="nav-submenu-back">
+                      <a href="javascript:;" @click="activeGroup = null">
+                        <span class="nav-submenu-back-arrow">←</span> 返回
+                      </a>
+                    </li>
+                    <li v-for="grand in activeGroupChildren(item)" :key="grand.name">
+                      <router-link v-if="grand.path" :to="grand.path" :class="{ active: isActive(grand.path) }"
+                        @click="expandedMenu = null">
+                        {{ grand.label }}
+                      </router-link>
+                      <a v-else-if="grand.action" href="javascript:;"
+                        @click="handleMenuAction(grand.action); expandedMenu = null">
+                        {{ grand.label }}
+                      </a>
+                    </li>
+                  </div>
+                  <div v-else :key="`groups-${item.name}`" class="nav-submenu-pane nav-submenu-pane-groups">
+                    <li v-for="child in item.children" :key="child.name">
+                      <a href="javascript:;" class="nav-submenu-group-title"
+                        @click="activeGroup = child.name; activeGroupParent = item.name">
+                        {{ child.label }}
+                      </a>
+                    </li>
+                  </div>
+                </Transition>
+              </template>
+              <!-- 扁平二级（无分组，如社区） -->
+              <template v-else>
+                <li v-for="child in item.children" :key="child.name">
+                  <router-link v-if="child.path" :to="child.path" :class="{ active: isActive(child.path) }"
+                    @click="expandedMenu = null">
+                    {{ child.label }}
+                  </router-link>
+                  <a v-else-if="child.action" href="javascript:;"
+                    @click="handleMenuAction(child.action); expandedMenu = null">
+                    {{ child.label }}
+                  </a>
+                </li>
+              </template>
             </ul>
           </template>
           <template v-else>
@@ -107,15 +140,43 @@
             <div v-show="hasChildren(item) && item.isExpanded" class="nav-mobile-submenu-section">
               <div class="nav-mobile-submenu-heading">{{ item.label }}</div>
               <div class="nav-mobile-submenu" :class="{ active: item.isExpanded }">
-                <template v-for="child in item.children" :key="child.name">
-                  <router-link v-if="child.path" :to="child.path" :class="{ active: isActive(child.path) }"
-                    @click="closeMobileMenu">
-                    {{ child.label }}
-                  </router-link>
-                  <a v-else-if="child.action" href="javascript:;"
-                    @click="handleMenuAction(child.action); closeMobileMenu()">
-                    {{ child.label }}
-                  </a>
+                <!-- 有分组的菜单：分组列表 ↔ 三级下钻 -->
+                <template v-if="hasGroupChildren(item)">
+                  <template v-if="activeGroup && activeGroupParent === item.name">
+                    <div class="nav-mobile-group-back" @click="activeGroup = null; activeGroupParent = null">
+                      <span class="group-back-arrow">←</span>
+                      <span>返回分组</span>
+                    </div>
+                    <template v-for="grand in activeGroupChildren(item)" :key="grand.name">
+                      <router-link v-if="grand.path" :to="grand.path" :class="{ active: isActive(grand.path) }"
+                        @click="closeMobileMenu">
+                        {{ grand.label }}
+                      </router-link>
+                      <a v-else-if="grand.action" href="javascript:;"
+                        @click="handleMenuAction(grand.action); closeMobileMenu()">
+                        {{ grand.label }}
+                      </a>
+                    </template>
+                  </template>
+                  <template v-else>
+                    <div v-for="child in item.children" :key="child.name" class="nav-mobile-group-entry"
+                      @click="activeGroup = child.name; activeGroupParent = item.name">
+                      <span class="nav-mobile-group-entry-label">{{ child.label }}</span>
+                    </div>
+                  </template>
+                </template>
+                <!-- 扁平二级（无分组，如社区） -->
+                <template v-else>
+                  <template v-for="child in item.children" :key="child.name">
+                    <router-link v-if="child.path" :to="child.path" :class="{ active: isActive(child.path) }"
+                      @click="closeMobileMenu">
+                      {{ child.label }}
+                    </router-link>
+                    <a v-else-if="child.action" href="javascript:;"
+                      @click="handleMenuAction(child.action); closeMobileMenu()">
+                      {{ child.label }}
+                    </a>
+                  </template>
                 </template>
               </div>
             </div>
@@ -235,7 +296,9 @@ const avatarUrl = computed(() => authStore.userInfo.avatarUrl || '');
 
 /**
  * 导航菜单配置
- * 支持二级菜单嵌套结构
+ * 支持二级/三级菜单嵌套结构：
+ * - children 为二级项（直接链接）
+ * - children[].children 为三级分组（分组标题 + 入口链接）
  */
 const navMenuItems = [
   { name: "index", path: "/", label: "首页" },
@@ -254,29 +317,65 @@ const navMenuItems = [
     name: "explore",
     label: "探索",
     children: [
-      { name: "boh-agent", action: "openAiAssistant", label: "BOHAgent" },
-      { name: "character-book", path: "/character-book", label: "设定集" },
-      { name: "mbti", path: "/mbti", label: "MBTI" },
-      { name: "lab", path: "/lab", label: "实验室" },
-      { name: "birthday", path: "/birthday", label: "生日会" },
-      { name: "boh-8-years-journey", path: "/boh-8-years-journey", label: "八周年" },
-      { name: "anniversary-cafe", path: "/anniversary-cafe", label: "云上咖啡店" }
+      {
+        name: "ai-group",
+        label: "AI 助手",
+        children: [
+          { name: "boh-agent", action: "openAiAssistant", label: "BOHAgent" },
+          { name: "ai-chat", path: "/ai-chat", label: "BOH AI" }
+        ]
+      },
+      {
+        name: "lab-group",
+        label: "实验室",
+        children: [
+          { name: "lab", path: "/lab", label: "实验室" },
+          { name: "mbti", path: "/mbti", label: "MBTI" }
+        ]
+      },
+      {
+        name: "world-group",
+        label: "方块世界",
+        children: [
+          { name: "character-book", path: "/character-book", label: "设定集" },
+          { name: "birthday", path: "/birthday", label: "生日会" },
+          { name: "boh-8-years-journey", path: "/boh-8-years-journey", label: "八周年" }
+        ]
+      }
     ]
   },
   {
     name: "services",
     label: "服务",
     children: [
-      { name: "ai-chat", path: "/ai-chat", label: "BOH AI" },
-      { name: "shop", path: "/shop", label: "周边商城" },
-      { name: "subscription", path: "/user-space/subscriptions", label: "订阅计划" },
-      { name: "tutorial", path: "/tutorial", label: "教程中心" },
-      { name: "download", path: "/download", label: "下载中心" },
-      { name: "admin-panel", action: "goToAdmin", label: "管理面板" },
-      { name: "version-check", action: "checkVersion", label: "版本检测" }
+      {
+        name: "store-group",
+        label: "商城",
+        children: [
+          { name: "shop", path: "/shop", label: "周边商城" },
+          { name: "subscription", path: "/user-space/subscriptions", label: "订阅计划" }
+        ]
+      },
+      {
+        name: "support-group",
+        label: "支持中心",
+        children: [
+          { name: "tutorial", path: "/tutorial", label: "教程中心" },
+          { name: "download", path: "/download", label: "下载中心" },
+          { name: "admin-panel", action: "goToAdmin", label: "管理面板", adminOnly: true }
+        ]
+      }
     ]
   },
-  { name: "about", path: "/about", label: "关于" }
+  {
+    name: "about",
+    label: "关于",
+    children: [
+      { name: "anniversary-cafe", path: "/anniversary-cafe", label: "云上咖啡店" },
+      { name: "version-check", action: "checkVersion", label: "版本检测" },
+      { name: "about", path: "/about", label: "关于我们" }
+    ]
+  }
 ];
 
 /**
@@ -284,6 +383,34 @@ const navMenuItems = [
  * 用于控制二级菜单的显示/隐藏
  */
 const expandedMenu = ref(null);
+
+/**
+ * 当前下钻的三级分组名称（用于三级菜单）
+ */
+const activeGroup = ref(null);
+/**
+ * 当前下钻分组所属的一级菜单名称
+ */
+const activeGroupParent = ref(null);
+
+/**
+ * 判断菜单项的子菜单中是否存在分组（三级结构）
+ * @param {Object} item - 菜单项
+ * @returns {boolean}
+ */
+const hasGroupChildren = (item) => {
+  return item.children && item.children.some(child => child.children && child.children.length > 0);
+};
+
+/**
+ * 获取当前下钻分组的三级菜单项
+ * @param {Object} item - 菜单项
+ * @returns {Array}
+ */
+const activeGroupChildren = (item) => {
+  const group = item.children.find(child => child.name === activeGroup.value);
+  return group ? group.children : [];
+};
 
 /**
  * 切换二级菜单展开状态
@@ -295,6 +422,9 @@ const toggleSubMenu = (menuName) => {
   } else {
     expandedMenu.value = menuName;
   }
+  // 切换一级菜单时重置三级下钻状态
+  activeGroup.value = null;
+  activeGroupParent.value = null;
 };
 
 /**
@@ -302,6 +432,8 @@ const toggleSubMenu = (menuName) => {
  */
 const closeSubMenu = () => {
   expandedMenu.value = null;
+  activeGroup.value = null;
+  activeGroupParent.value = null;
 };
 
 /**
@@ -430,7 +562,7 @@ const createDesktopShortcut = async () => {
 };
 
 /**
- * 判断一级菜单是否激活（自身或子菜单匹配当前路由）
+ * 判断一级菜单是否激活（自身或子菜单匹配当前路由，支持三级嵌套）
  * @param {Object} item - 菜单项
  * @returns {boolean}
  */
@@ -439,7 +571,7 @@ const isMenuActive = (item) => {
     return isActive(item.path);
   }
   if (item.children) {
-    return item.children.some(child => isActive(child.path));
+    return item.children.some(child => isMenuActive(child));
   }
   return false;
 };
@@ -451,6 +583,13 @@ const isMenuActive = (item) => {
 const navItems = computed(() => {
   return navMenuItems.map(item => ({
     ...item,
+    children: item.children
+      ? item.children
+          .map(child => child.children
+            ? { ...child, children: child.children.filter(g => g.adminOnly ? isAdmin.value : true) }
+            : child)
+          .filter(child => child.adminOnly ? isAdmin.value : true)
+      : undefined,
     isActive: isMenuActive(item),
     isExpanded: expandedMenu.value === item.name
   }));
@@ -496,12 +635,19 @@ const toggleMobileMenu = () => {
 const closeMobileMenu = () => {
   isMobileMenuOpen.value = false;
   expandedMenu.value = null;
+  activeGroup.value = null;
+  activeGroupParent.value = null;
   document.body.style.overflow = "";
 };
 /**
  * 点击外部关闭下拉菜单和二级菜单
  */
 const handleClickOutside = (event) => {
+  // 点击目标在事件冒泡期间已被 Vue 重新渲染移除（如点击分组标题后 v-if 切换 DOM）
+  // 说明点击发生在菜单内部，不应触发关闭
+  if (!event.target || event.target.isConnected === false) {
+    return;
+  }
   if (
     expandedMenu.value &&
     !event.target.closest(".nav-menu-item") &&

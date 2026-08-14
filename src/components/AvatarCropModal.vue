@@ -20,11 +20,8 @@
           </header>
 
           <div class="modal-body">
-            <div class="cropper-container" :style="{ '--cropper-aspect-ratio': String(aspectRatio) }">
-              <Cropper ref="cropperRef" class="cropper" :src="imageSrc" :stencil-props="{
-                aspectRatio,
-                class: stencilClass
-              }" :stencil-component="stencilComponent" image-restriction="none" />
+            <div class="cropper-container" :class="{ 'free-crop': !aspectRatio }" :style="cropperContainerStyle">
+              <Cropper ref="cropperRef" class="cropper" :src="imageSrc" :stencil-props="stencilProps" :stencil-component="stencilComponent" image-restriction="none" />
             </div>
 
             <div class="crop-hint">
@@ -61,7 +58,7 @@ const props = defineProps({
   },
   aspectRatio: {
     type: Number,
-    default: 1
+    default: null
   },
   shape: {
     type: String,
@@ -81,9 +78,23 @@ const emit = defineEmits(['update:visible', 'confirm', 'cancel']);
 
 const cropperRef = ref(null);
 const isCircleCrop = computed(() => props.shape === 'circle');
-const isWideCrop = computed(() => Number(props.aspectRatio || 1) > 1.5);
+const isWideCrop = computed(() => Number(props.aspectRatio || 0) > 1.5);
 const stencilComponent = computed(() => (isCircleCrop.value ? CircleStencil : RectangleStencil));
 const stencilClass = computed(() => (isCircleCrop.value ? 'circle-stencil' : 'rectangle-stencil'));
+
+// 自由裁切时传 null 给 vue-advanced-cropper，裁切框宽高比不固定
+const stencilProps = computed(() => ({
+  aspectRatio: props.aspectRatio ?? null,
+  class: stencilClass.value
+}));
+
+// 裁切容器样式：固定比例时用 aspect-ratio，自由裁切时用固定高度
+const cropperContainerStyle = computed(() => {
+  if (props.aspectRatio) {
+    return { '--cropper-aspect-ratio': String(props.aspectRatio) };
+  }
+  return {};
+});
 
 // 锁定/解锁页面滚动
 watch(() => props.visible, (newVal) => {
@@ -248,6 +259,12 @@ const cancel = () => {
   margin-bottom: 20px;
   box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.1);
   touch-action: none;
+}
+
+/* 自由裁切模式：不固定容器比例，给一个合理的固定高度 */
+.cropper-container.free-crop {
+  aspect-ratio: auto;
+  height: clamp(320px, 56vh, 560px);
 }
 
 .cropper {

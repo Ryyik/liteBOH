@@ -6,6 +6,8 @@ import type {
   HomeHero,
   HomeHeroRevision,
   HomeHeroTemplate,
+  ContentLayout,
+  ContentLayoutValues,
   HeroImageConfig,
   HeroLink,
   SplitCardConfig
@@ -79,9 +81,55 @@ const normalizeImageConfig = (raw: unknown): HeroImageConfig => {
   if (typeof cfg.src === 'string') result.src = cfg.src
   if (typeof cfg.alt === 'string') result.alt = cfg.alt
   if (typeof cfg.position === 'string') result.position = cfg.position
+  // 竖屏端独立配置
+  if (typeof cfg.mobile_src === 'string') result.mobile_src = cfg.mobile_src
+  if (typeof cfg.mobile_position === 'string') result.mobile_position = cfg.mobile_position
+  if (cfg.mobile_object_fit === 'cover' || cfg.mobile_object_fit === 'contain') {
+    result.mobile_object_fit = cfg.mobile_object_fit
+  }
+  if (typeof cfg.mobile_scale === 'number' && Number.isFinite(cfg.mobile_scale)) {
+    result.mobile_scale = Math.max(1, Math.min(2.2, cfg.mobile_scale))
+  }
+  // responsive 模板专用
   if (typeof cfg.landscapeSrc === 'string') result.landscapeSrc = cfg.landscapeSrc
   if (typeof cfg.portraitSrc === 'string') result.portraitSrc = cfg.portraitSrc
+  if (typeof cfg.portrait_position === 'string') result.portrait_position = cfg.portrait_position
   return result
+}
+
+const normalizeLayoutValues = (raw: unknown): ContentLayoutValues | null => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const cfg = raw as Record<string, unknown>
+  const result: ContentLayoutValues = {}
+  if (cfg.align === 'left' || cfg.align === 'center' || cfg.align === 'right') result.align = cfg.align
+  if (cfg.valign === 'top' || cfg.valign === 'center' || cfg.valign === 'bottom') result.valign = cfg.valign
+  if (cfg.text_align === 'left' || cfg.text_align === 'center' || cfg.text_align === 'right') result.text_align = cfg.text_align
+  if (typeof cfg.max_width === 'number' && cfg.max_width > 0) result.max_width = cfg.max_width
+  if (typeof cfg.offset_x === 'number' && Number.isFinite(cfg.offset_x)) result.offset_x = cfg.offset_x
+  if (typeof cfg.offset_y === 'number' && Number.isFinite(cfg.offset_y)) result.offset_y = cfg.offset_y
+  return Object.keys(result).length ? result : null
+}
+
+const normalizeContentLayout = (raw: unknown): ContentLayout | null => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const cfg = raw as Record<string, unknown>
+  const legacy = normalizeLayoutValues(cfg)
+  const desktop = normalizeLayoutValues(cfg.desktop)
+  const mobile = normalizeLayoutValues(cfg.mobile)
+  if (!desktop && !mobile) return legacy
+  return {
+    desktop: desktop || legacy || undefined,
+    mobile: mobile || null
+  }
+}
+
+const cloneContentLayout = (layout: ContentLayout | null | undefined): ContentLayout | null => {
+  if (!layout) return null
+  return {
+    ...layout,
+    desktop: layout.desktop ? { ...layout.desktop } : undefined,
+    mobile: layout.mobile ? { ...layout.mobile } : null
+  }
 }
 
 const normalizeSplitCards = (raw: unknown): SplitCardConfig[] | null => {
@@ -93,7 +141,8 @@ const normalizeSplitCards = (raw: unknown): SplitCardConfig[] | null => {
       subtitle: typeof item.subtitle === 'string' ? item.subtitle : undefined,
       variant: item.variant === 'dark' ? 'dark' : 'light',
       image_config: normalizeImageConfig(item.image_config),
-      links: normalizeLinks(item.links)
+      links: normalizeLinks(item.links),
+      content_layout: normalizeContentLayout(item.content_layout)
     }))
 }
 
@@ -101,14 +150,16 @@ const normalizeHero = (item: Record<string, unknown>): HomeHero => ({
   id: String(item.id || ''),
   sort_order: Number(item.sort_order) || 0,
   is_archived: Boolean(item.is_archived),
-  template: (['standard', 'overlay', 'split', 'responsive'].includes(String(item.template))
+  template: (['standard', 'overlay', 'split', 'responsive', 'builtin'].includes(String(item.template))
     ? String(item.template)
     : 'standard') as HomeHeroTemplate,
   variant: item.variant === 'dark' ? 'dark' : 'light',
+  builtin_key: typeof item.builtin_key === 'string' && item.builtin_key ? item.builtin_key : null,
   eyebrow: typeof item.eyebrow === 'string' && item.eyebrow ? item.eyebrow : null,
   title: String(item.title || ''),
   subtitle: typeof item.subtitle === 'string' && item.subtitle ? item.subtitle : null,
   image_config: normalizeImageConfig(item.image_config),
+  content_layout: normalizeContentLayout(item.content_layout),
   links: normalizeLinks(item.links),
   split_cards: normalizeSplitCards(item.split_cards),
   label: typeof item.label === 'string' && item.label ? item.label : null,
@@ -125,10 +176,12 @@ const normalizeHero = (item: Record<string, unknown>): HomeHero => ({
 const buildSnapshot = (hero: HomeHero): HomeHero => ({
   ...hero,
   image_config: { ...hero.image_config },
+  content_layout: cloneContentLayout(hero.content_layout),
   links: hero.links.map((l) => ({ ...l })),
   split_cards: hero.split_cards?.map((c) => ({
     ...c,
     image_config: { ...c.image_config },
+    content_layout: cloneContentLayout(c.content_layout),
     links: c.links.map((l) => ({ ...l }))
   })) ?? null
 })
@@ -261,10 +314,12 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
         is_archived: Boolean(payload.is_archived),
         template: payload.template || 'standard',
         variant: payload.variant || 'light',
+        builtin_key: payload.builtin_key || null,
         eyebrow: payload.eyebrow || null,
         title: payload.title || '未命名英雄区',
         subtitle: payload.subtitle || null,
         image_config: payload.image_config || {},
+        content_layout: payload.content_layout || null,
         links: payload.links || [],
         split_cards: payload.split_cards || null,
         label: payload.label || null,
@@ -298,10 +353,12 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
         is_archived: Boolean(payload.is_archived),
         template: payload.template,
         variant: payload.variant,
+        builtin_key: payload.builtin_key ?? null,
         eyebrow: payload.eyebrow || null,
         title: payload.title,
         subtitle: payload.subtitle || null,
         image_config: payload.image_config || {},
+        content_layout: payload.content_layout || null,
         links: payload.links || [],
         split_cards: payload.split_cards || null,
         label: payload.label || null,
@@ -395,10 +452,12 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
         .update({
           template: snapshot.template,
           variant: snapshot.variant,
+          builtin_key: snapshot.builtin_key ?? null,
           eyebrow: snapshot.eyebrow,
           title: snapshot.title,
           subtitle: snapshot.subtitle,
           image_config: snapshot.image_config,
+          content_layout: snapshot.content_layout,
           links: snapshot.links,
           split_cards: snapshot.split_cards,
           label: snapshot.label,

@@ -333,6 +333,102 @@ export const createMutationsCenter = (deps) => {
     switchTab('lotteryDrawLogs', { search: String(item.id) });
   };
 
+  const viewLotteryFulfillments = (item) => {
+    if (!item?.id) return;
+    addRecentRecord(item);
+    switchTab('lotteryFulfillments', { search: String(item.id) });
+  };
+
+  const advanceLotteryFulfillment = async (item) => {
+    if (!item?.id || !item.is_current) return;
+    const nextStatus = {
+      pending_contact: 'contacted',
+      contacted: 'confirmed',
+      confirmed: 'shipping',
+      shipping: 'fulfilled'
+    }[String(item.status || '')];
+    if (!nextStatus) {
+      showToast('当前履约状态无需继续推进', 'warning');
+      return;
+    }
+    if (!await dialog.confirm({
+      title: '推进中奖履约',
+      message: `将「${item.username || item.username_snapshot || '该中奖用户'}」更新为 ${nextStatus}。确定继续？`,
+      confirmText: '确认推进'
+    })) return;
+    try {
+      assertAdminAction();
+      const { data, error } = await supabase.rpc('admin_update_lottery_winner_fulfillment', {
+        p_fulfillment_id: item.id,
+        p_status: nextStatus,
+        p_contact_note: item.contact_note || null,
+        p_address_id: item.address_id || null,
+        p_shipping_carrier: item.shipping_carrier || null,
+        p_tracking_number: item.tracking_number || null
+      });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(String(data?.message || '更新履约失败'));
+      addChangeLogEntry('lottery_fulfillment_advance', item, { status: nextStatus });
+      showToast('中奖履约已更新', 'success');
+      await refreshCurrentViewAfterMutation();
+    } catch (error) {
+      logger.error('data-admin', '推进中奖履约失败:', error);
+      showToast('更新失败: ' + buildActionErrorMessage(error, '更新中奖履约失败'), 'error');
+    }
+  };
+
+  const replaceLotteryWinner = async (item) => {
+    if (!item?.id || !item.is_current) return;
+    const reason = await dialog.prompt({
+      title: '替补中奖人',
+      message: '请输入取消当前中奖资格的原因。系统将从符合条件的报名用户中随机替补同一席位。',
+      placeholder: '必填，例如：多次联系未回应',
+      defaultValue: ''
+    });
+    if (reason === null) return;
+    const normalizedReason = String(reason || '').trim();
+    if (!normalizedReason) {
+      showToast('替补必须填写原因', 'error');
+      return;
+    }
+    try {
+      assertAdminAction();
+      const { data, error } = await supabase.rpc('admin_replace_lottery_winner', {
+        p_fulfillment_id: item.id,
+        p_reason: normalizedReason
+      });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(String(data?.message || '没有可用候补用户'));
+      addChangeLogEntry('lottery_winner_replaced', item, { reason: normalizedReason });
+      showToast('已完成替补，并已创建中奖通知', 'success');
+      await refreshCurrentViewAfterMutation();
+    } catch (error) {
+      logger.error('data-admin', '替补中奖人失败:', error);
+      showToast('替补失败: ' + buildActionErrorMessage(error, '替补中奖人失败'), 'error');
+    }
+  };
+
+  const retryLotteryNotification = async (item) => {
+    if (!item?.id || item.status === 'sent') return;
+    if (!await dialog.confirm({
+      title: '重试中奖通知',
+      message: `将重新向「${item.username || '中奖用户'}」发送中奖通知。`,
+      confirmText: '重新发送'
+    })) return;
+    try {
+      assertAdminAction();
+      const { data, error } = await supabase.rpc('admin_retry_lottery_notification', { p_job_id: item.id });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(String(data?.message || '通知发送失败'));
+      addChangeLogEntry('lottery_notification_retry', item, { attempt: Number(item.attempt_count || 0) + 1 });
+      showToast('中奖通知已重新发送', 'success');
+      await refreshCurrentViewAfterMutation();
+    } catch (error) {
+      logger.error('data-admin', '重试中奖通知失败:', error);
+      showToast('重试失败: ' + buildActionErrorMessage(error, '重试中奖通知失败'), 'error');
+    }
+  };
+
   // ==================== 审核操作 ====================
 
   // 写入审核日志(失败不阻断主流程)
@@ -886,6 +982,10 @@ export const createMutationsCenter = (deps) => {
     closeLottery,
     viewLotteryEntries,
     viewLotteryDrawLogs,
+    viewLotteryFulfillments,
+    advanceLotteryFulfillment,
+    replaceLotteryWinner,
+    retryLotteryNotification,
     // 审核
     saveModerationLog,
     updateModerationStatus,

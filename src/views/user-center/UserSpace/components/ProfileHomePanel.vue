@@ -114,7 +114,7 @@
           </svg>
         </span>
         <span class="profile-service-body">
-          <strong>积分与会员</strong>
+          <strong>积分与礼物</strong>
           <small class="profile-service-hint">{{ formatPoints(stats.points) || '0' }} 积分 · {{ subscriptionSummaryText }}</small>
         </span>
         <span class="profile-action-chevron">›</span>
@@ -364,10 +364,6 @@ const props = defineProps({
     default: () => ({})
   },
   subscriptionSummaryText: {
-    type: String,
-    default: ''
-  },
-  giftProgressText: {
     type: String,
     default: ''
   },

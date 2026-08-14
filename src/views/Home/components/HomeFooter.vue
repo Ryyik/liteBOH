@@ -59,7 +59,6 @@ import DOMPurify from '@/utils/dompurify.js';
 import AgreementModal from '@/components/AgreementModal.vue';
 import { userAgreementContent, privacyPolicyContent } from '@/data/agreementData.js';
 import HomeArchiveSection from './HomeArchiveSection.vue';
-import { archivedHomeHeroes } from './homeArchiveData.js';
 import { useHomeHeroesStore } from '@/stores/homeHeroes';
 import {
   footerDisclaimer,
@@ -88,11 +87,9 @@ const openAgreement = (type) => {
   showAgreementModal.value = true;
 };
 
-// 动态归档英雄区：合并硬编码归档 + 数据库归档
+// 动态归档英雄区：统一从数据库读取（含 builtin 与数据驱动两类）
 const homeHeroesStore = useHomeHeroesStore();
-const totalArchivedCount = computed(() =>
-  archivedHomeHeroes.length + homeHeroesStore.archivedHeroes.length
-);
+const totalArchivedCount = computed(() => homeHeroesStore.archivedHeroes.length);
 
 onMounted(async () => {
   // 静默加载动态归档英雄区，失败不影响页脚

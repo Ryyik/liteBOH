@@ -10,31 +10,17 @@
 
     <main class="community-lottery-main">
       <header class="community-lottery-header">
-        <div>
-          <span class="community-lottery-kicker">COMMUNITY LOTTERY</span>
+        <div class="community-lottery-heading">
+          <span class="community-lottery-kicker"><Ticket :size="14" :stroke-width="2.2" aria-hidden="true" /> COMMUNITY LOTTERY</span>
           <h1>社区抽奖</h1>
           <p>报名正在进行的抽奖，查看历史开奖和中奖名单。</p>
-        </div>
-        <div class="community-lottery-stats" aria-label="抽奖概览">
-          <div>
-            <span>{{ activeLotteries.length }}</span>
-            <small>进行中</small>
-          </div>
-          <div>
-            <span>{{ historyLotteries.length }}</span>
-            <small>历史抽奖</small>
-          </div>
-          <div>
-            <span>{{ totalEntryCount }}</span>
-            <small>累计报名</small>
-          </div>
         </div>
       </header>
 
       <div class="community-lottery-toolbar">
         <div class="community-lottery-tabs" role="tablist" aria-label="抽奖筛选">
-          <button :class="{ active: activeTab === 'active' }" @click="activeTab = 'active'">进行中</button>
-          <button :class="{ active: activeTab === 'history' }" @click="activeTab = 'history'">历史抽奖</button>
+          <button :class="{ active: activeTab === 'active' }" :aria-selected="activeTab === 'active'" @click="activeTab = 'active'">进行中</button>
+          <button :class="{ active: activeTab === 'history' }" :aria-selected="activeTab === 'history'" @click="activeTab = 'history'">历史抽奖</button>
         </div>
 
         <div v-if="activeTab === 'history'" class="lottery-filter-row" aria-label="历史抽奖筛选">
@@ -48,6 +34,12 @@
             <option value="created">最新创建</option>
             <option value="entries">参与人数</option>
           </select>
+        </div>
+
+        <div class="community-lottery-overview" aria-label="抽奖概览">
+          <span><Trophy :size="15" aria-hidden="true" /><strong>{{ activeLotteries.length }}</strong> 进行中</span>
+          <span><History :size="15" aria-hidden="true" /><strong>{{ historyLotteries.length }}</strong> 历史</span>
+          <span><Users :size="15" aria-hidden="true" /><strong>{{ totalEntryCount }}</strong> 已报名</span>
         </div>
       </div>
 
@@ -70,7 +62,7 @@
         <section v-if="primaryActiveLottery" class="lottery-featured-section">
           <article class="lottery-featured-card" :class="{ 'no-cover': !primaryActiveLottery.cover_image_url }">
             <div v-if="primaryActiveLottery.cover_image_url" class="lottery-featured-cover">
-              <img :src="getImageUrl(primaryActiveLottery.cover_image_url)" :alt="primaryActiveLottery.prize_title" loading="eager" decoding="async" />
+              <img :src="getImageUrl(primaryActiveLottery.cover_image_url)" :alt="primaryActiveLottery.prize_title" width="1600" height="960" fetchpriority="high" loading="eager" decoding="async" />
             </div>
 
             <div class="lottery-featured-content">
@@ -126,11 +118,13 @@
                 >
                   {{ getJoinButtonText(primaryActiveLottery) }}
                 </button>
-                <button type="button" class="lottery-secondary-action" @click="openLotteryDetail(primaryActiveLottery)">查看详情</button>
-                <button type="button" class="lottery-secondary-action" @click="copyLotteryLink(primaryActiveLottery)">分享</button>
+                <button type="button" class="lottery-icon-action" title="查看抽奖详情" aria-label="查看抽奖详情" @click="openLotteryDetail(primaryActiveLottery)"><Info :size="18" aria-hidden="true" /></button>
+                <button type="button" class="lottery-icon-action" title="分享抽奖" aria-label="分享抽奖" @click="copyLotteryLink(primaryActiveLottery)"><Share2 :size="18" aria-hidden="true" /></button>
               </div>
 
-              <p class="lottery-eligibility">每个账号每期仅可报名一次。账号创建满 24 小时后可参与。</p>
+              <p class="lottery-eligibility">
+                每个账号每期仅可报名一次。<template v-if="primaryActiveLottery.enforce_account_age_check">账号创建满 24 小时后可参与。</template>
+              </p>
             </div>
           </article>
 
@@ -142,7 +136,7 @@
               :class="{ 'no-cover': !lottery.cover_image_url }"
             >
               <div v-if="lottery.cover_image_url" class="community-lottery-cover">
-                <img :src="getImageUrl(lottery.cover_image_url)" :alt="lottery.prize_title" loading="lazy" decoding="async" />
+                <img :src="getImageUrl(lottery.cover_image_url)" :alt="lottery.prize_title" width="720" height="480" loading="lazy" decoding="async" />
               </div>
               <div v-else class="community-lottery-cover lottery-cover-fallback">
                 <span>PRIZE</span>
@@ -202,7 +196,7 @@
                     >
                       {{ getJoinButtonText(lottery) }}
                     </button>
-                    <button type="button" class="lottery-icon-action" title="查看详情" @click="openLotteryDetail(lottery)">详情</button>
+                    <button type="button" class="lottery-icon-action" title="查看抽奖详情" aria-label="查看抽奖详情" @click="openLotteryDetail(lottery)"><ChevronRight :size="18" aria-hidden="true" /></button>
                   </div>
                 </div>
               </div>
@@ -225,7 +219,7 @@
             :class="{ 'no-cover': !lottery.cover_image_url }"
           >
             <div v-if="lottery.cover_image_url" class="community-lottery-cover">
-              <img :src="getImageUrl(lottery.cover_image_url)" :alt="lottery.prize_title" loading="lazy" decoding="async" />
+              <img :src="getImageUrl(lottery.cover_image_url)" :alt="lottery.prize_title" width="720" height="480" loading="lazy" decoding="async" />
             </div>
             <div v-else class="community-lottery-cover lottery-cover-fallback">
               <span>PRIZE</span>
@@ -292,7 +286,7 @@
       <Transition name="lottery-modal">
         <div v-if="selectedLottery" class="lottery-detail-overlay" @click.self="closeLotteryDetail">
           <section class="lottery-detail-modal" role="dialog" aria-modal="true" aria-label="抽奖详情">
-            <button class="lottery-detail-close" type="button" @click="closeLotteryDetail" aria-label="关闭">×</button>
+            <button class="lottery-detail-close" type="button" @click="closeLotteryDetail" aria-label="关闭"><X :size="19" aria-hidden="true" /></button>
             <div class="lottery-detail-header">
               <span class="lottery-status" :class="getLotteryStatusClass(selectedLottery)">{{ getLotteryStatusText(selectedLottery) }}</span>
               <h2>{{ selectedLottery.title }}</h2>
@@ -326,7 +320,7 @@
 
             <div v-if="selectedLottery.status === 'open'" class="lottery-detail-rules">
               <h3>参与说明</h3>
-              <p>每个账号每期抽奖只能报名一次。账号创建满 24 小时后可参与；报名截止或人数满额后不能继续报名。</p>
+              <p>每个账号每期抽奖只能报名一次。<template v-if="selectedLottery.enforce_account_age_check">账号创建满 24 小时后可参与；</template>报名截止或人数满额后不能继续报名。</p>
             </div>
 
             <div v-else class="lottery-detail-winners">
@@ -363,6 +357,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
+import { ChevronRight, History, Info, Share2, Ticket, Trophy, Users, X } from 'lucide-vue-next';
 import { useAuthStore } from '@/stores/auth';
 import { getImageUrl } from '../../utils/asset-helper.js';
 import { getCommunityLotteries, joinCommunityLottery } from '../../utils/api/lottery-api.js';
@@ -390,6 +385,8 @@ const toast = ref({
 let nowTimer = null;
 let toastTimer = null;
 let dueRefreshLotteryIds = new Set();
+const COMMUNITY_LOTTERY_CACHE_TTL = 30 * 1000;
+const COMMUNITY_LOTTERY_CACHE_PREFIX = 'boh:community-lotteries:';
 
 const getLotteryTimeValue = (lottery) => {
   const timestamp = Date.parse(lottery?.drawn_at || lottery?.draw_at || lottery?.created_at || '');
@@ -444,25 +441,58 @@ const openRouteLottery = () => {
   selectedLottery.value = matchedLottery;
 };
 
-const loadLotteries = async () => {
-  isLoading.value = true;
+const getLotteryCacheKey = () => `${COMMUNITY_LOTTERY_CACHE_PREFIX}${authStore.userInfo?.id || 'guest'}`;
+
+const readLotteryCache = () => {
+  try {
+    const raw = window.sessionStorage.getItem(getLotteryCacheKey());
+    if (!raw) return null;
+    const cached = JSON.parse(raw);
+    if (!Array.isArray(cached?.data) || Date.now() - Number(cached.timestamp || 0) > COMMUNITY_LOTTERY_CACHE_TTL) return null;
+    return cached.data;
+  } catch {
+    return null;
+  }
+};
+
+const writeLotteryCache = (data) => {
+  try {
+    window.sessionStorage.setItem(getLotteryCacheKey(), JSON.stringify({ timestamp: Date.now(), data }));
+  } catch {
+    // Storage is an optional perceived-performance enhancement.
+  }
+};
+
+const applyLotteries = (data) => {
+  lotteries.value = Array.isArray(data) ? data : [];
+  syncSelectedLottery();
+  openRouteLottery();
+  now.value = Date.now();
+  dueRefreshLotteryIds = new Set(
+    lotteries.value
+      .filter((lottery) => lottery.status === 'open' && isDrawDue(lottery))
+      .map((lottery) => lottery.id)
+  );
+  syncNowTimer();
+};
+
+const loadLotteries = async ({ force = false } = {}) => {
+  const cachedLotteries = force ? null : readLotteryCache();
+  isLoading.value = !cachedLotteries;
   loadError.value = '';
+  if (cachedLotteries) applyLotteries(cachedLotteries);
+
   try {
     const { data, error } = await getCommunityLotteries();
     if (error) throw error;
-    lotteries.value = Array.isArray(data) ? data : [];
-    syncSelectedLottery();
-    openRouteLottery();
-    now.value = Date.now();
-    dueRefreshLotteryIds = new Set(
-      lotteries.value
-        .filter((lottery) => lottery.status === 'open' && isDrawDue(lottery))
-        .map((lottery) => lottery.id)
-    );
+    applyLotteries(data);
+    writeLotteryCache(lotteries.value);
   } catch (error) {
     console.warn('加载社区抽奖失败:', error);
-    lotteries.value = [];
-    loadError.value = error?.message || '网络异常，请稍后再试。';
+    if (!cachedLotteries) {
+      lotteries.value = [];
+      loadError.value = error?.message || '网络异常，请稍后再试。';
+    }
   } finally {
     isLoading.value = false;
   }
@@ -619,7 +649,7 @@ const handleJoinLottery = async (lottery) => {
     const { data, error } = await joinCommunityLottery(lottery.id);
     if (error) throw error;
     if (!data?.ok) throw new Error(String(data?.message || '报名失败'));
-    await loadLotteries();
+    await loadLotteries({ force: true });
     const latestLottery = lotteries.value.find((item) => item.id === lottery.id);
     if (selectedLottery.value?.id === lottery.id && latestLottery) {
       selectedLottery.value = latestLottery;
@@ -628,7 +658,7 @@ const handleJoinLottery = async (lottery) => {
   } catch (error) {
     console.warn('社区抽奖报名失败:', error);
     showPageToast('报名失败', error?.message || '请稍后再试。', 'error');
-    await loadLotteries();
+    await loadLotteries({ force: true });
   } finally {
     joiningLotteryId.value = '';
   }
@@ -671,21 +701,48 @@ const copyLotteryLink = async (lottery) => {
   }
 };
 
+const hasLiveLotteryClock = () => lotteries.value.some((lottery) => (
+  lottery.status === 'open'
+  && (lottery.entry_deadline_at || lottery.draw_at)
+));
+
+const stopNowTimer = () => {
+  if (!nowTimer) return;
+  window.clearInterval(nowTimer);
+  nowTimer = null;
+};
+
+const tickNow = () => {
+  if (document.hidden) return;
+  now.value = Date.now();
+  const dueLottery = lotteries.value.find((lottery) => (
+    lottery.status === 'open'
+    && lottery.draw_at
+    && !dueRefreshLotteryIds.has(lottery.id)
+    && isDrawDue(lottery)
+  ));
+  if (dueLottery) {
+    dueRefreshLotteryIds.add(dueLottery.id);
+    void loadLotteries({ force: true });
+  }
+};
+
+const syncNowTimer = () => {
+  if (document.hidden || !hasLiveLotteryClock()) {
+    stopNowTimer();
+    return;
+  }
+  if (!nowTimer) nowTimer = window.setInterval(tickNow, 1000);
+};
+
+const handleVisibilityChange = () => {
+  if (!document.hidden) tickNow();
+  syncNowTimer();
+};
+
 onMounted(() => {
-  loadLotteries();
-  nowTimer = window.setInterval(() => {
-    now.value = Date.now();
-    const dueLottery = lotteries.value.find((lottery) => (
-      lottery.status === 'open'
-      && lottery.draw_at
-      && !dueRefreshLotteryIds.has(lottery.id)
-      && isDrawDue(lottery)
-    ));
-    if (dueLottery) {
-      dueRefreshLotteryIds.add(dueLottery.id);
-      loadLotteries();
-    }
-  }, 1000);
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  void loadLotteries();
 });
 
 watch(
@@ -696,7 +753,8 @@ watch(
 );
 
 onUnmounted(() => {
-  if (nowTimer) window.clearInterval(nowTimer);
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
+  stopNowTimer();
   if (toastTimer) window.clearTimeout(toastTimer);
 });
 </script>

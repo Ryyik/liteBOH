@@ -1,23 +1,13 @@
 /**
- * Home 历史回顾区配置 — Apple Style 归档机制
+ * Home 英雄区归档元数据 — 分层混合方案
  *
  * 职责：
- * 1. homeArchiveMeta：为首页每一个英雄区登记「归档卡片」所需的展示元数据
- *    （标题、眉题、日期、封面图、跳转）。
- * 2. archivedHomeHeroIds —— 决定哪些英雄区「过时」并被移至 Footer 历史区。
- *    · 从数组移除某个 id → 该英雄区重新出现在首屏。
- *    · 往数组添加一个 id → 该英雄区从首屏消失，并出现在历史区内。
+ * 1. homeArchiveMeta：为内置（builtin）英雄区登记「归档卡片」所需的展示元数据
+ *    （标题、眉题、日期、封面图、跳转）。数据库英雄区归档后直接用自身字段展示。
+ * 2. builtinHeroLayout：内置英雄区的布局类型（full / split），供首页渲染时使用。
  *
- * 首页英雄区 key 对照：
- *  - agent-preview      BOH Agent 预览
- *  - birthday           今日生日
- *  - block-wall         方块墙
- *  - mascot-evolution   吉祥物进化史
- *  - anniversary-8      八周年
- *  - cloud-cafe         云上咖啡店
- *  - fuzhou             遇见福州
- *  - split-theme-cloud  主题 & Cloud+（分栏）
- *  - split-brand-letter BOH & Ryyik 的信（分栏）
+ * 显隐/归档控制已统一到数据库 home_heroes 表的 is_archived 字段，
+ * 不再使用前端硬编码的 archivedHomeHeroIds 数组。
  */
 import blockWallImg from '@/assets/images/2024-1-fangkuai.webp?url';
 import mascotImg from '@/assets/images/breadgift.webp?url';
@@ -25,9 +15,17 @@ import anniversaryImg from '@/assets/images/8yearstext.webp?url';
 import cafeImg from '@/assets/images/26coffee4.webp?url';
 import fuzhouImg from '@/assets/images/fuzhou.webp?url';
 
-export const archivedHomeHeroIds = ['mascot-evolution', 'split-theme-cloud'];
-
+/**
+ * 内置英雄区归档卡片展示元数据
+ * key 对应 home_heroes 表的 builtin_key 字段
+ */
 export const homeArchiveMeta = {
+  'mascot-new': {
+    title: '全新吉祥物',
+    eyebrow: '全新上线',
+    date: '2026',
+    description: '全新吉祥物现已上线。',
+  },
   'agent-preview': {
     title: 'BOH Agent 预览',
     eyebrow: 'Agent',
@@ -92,6 +90,19 @@ export const homeArchiveMeta = {
   },
 };
 
-export const archivedHomeHeroes = archivedHomeHeroIds
-  .map((id) => ({ id, ...homeArchiveMeta[id] }))
-  .filter((entry) => entry && entry.title);
+/**
+ * 内置英雄区的布局类型
+ * 用于 HomeHeroRow 的 layout prop
+ */
+export const builtinHeroLayout = {
+  'mascot-new': 'full',
+  'agent-preview': 'full',
+  'birthday': 'full',
+  'block-wall': 'full',
+  'mascot-evolution': 'full',
+  'anniversary-8': 'full',
+  'cloud-cafe': 'full',
+  'fuzhou': 'full',
+  'split-theme-cloud': 'split',
+  'split-brand-letter': 'split',
+};

@@ -21,6 +21,7 @@ const normalizeLottery = (value) => {
     cover_image_url: String(value.cover_image_url || ''),
     status: String(value.status || 'open'),
     is_community_visible: value.is_community_visible !== false,
+    enforce_account_age_check: value.enforce_account_age_check === true || value.enforce_account_age_check === 'true',
     max_entries: value.max_entries === null || value.max_entries === undefined ? null : Number(value.max_entries),
     winner_count: value.winner_count === null || value.winner_count === undefined ? 1 : Number(value.winner_count),
     entry_count: Number(value.entry_count || 0),
@@ -108,7 +109,7 @@ const getCommunityLotteriesFallback = async () => {
   try {
     const { data, error } = await supabase
       .from('lotteries')
-      .select('id, title, description, prize_title, prize_description, cover_image_url, status, is_community_visible, max_entries, winner_count, entry_deadline_at, draw_at, drawn_at, winner_user_id, winner_username, fulfillment_status, created_at, updated_at')
+      .select('id, title, description, prize_title, prize_description, cover_image_url, status, is_community_visible, enforce_account_age_check, max_entries, winner_count, entry_deadline_at, draw_at, drawn_at, winner_user_id, winner_username, fulfillment_status, created_at, updated_at')
       .eq('is_community_visible', true)
       .in('status', ['open', 'drawn', 'closed'])
       .order('status', { ascending: false })
