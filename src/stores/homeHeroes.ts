@@ -22,7 +22,9 @@ import type {
 // 3. 管理面板：fetchAllForAdmin() / saveHero() / publishHero() / rollbackHero() / deleteHero()
 // 草稿/发布分离：首页仅渲染 status='published' 的记录。
 
-const CACHE_KEY = 'boh_home_heroes_v1'
+// 版本化缓存：字段结构变更时升级版本，避免旧记录按新模板渲染。
+const CACHE_KEY = 'boh_home_heroes_v2'
+const LEGACY_CACHE_KEYS = ['boh_home_heroes_v1']
 const CACHE_TTL_MS = 5 * 60 * 1000
 
 interface HeroesCache {
@@ -54,6 +56,7 @@ const writeCache = (data: HomeHero[]): void => {
 const clearCache = (): void => {
   try {
     localStorage.removeItem(CACHE_KEY)
+    LEGACY_CACHE_KEYS.forEach((key) => localStorage.removeItem(key))
   } catch {
     // 忽略
   }
@@ -196,6 +199,39 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
   const isFetching = ref(false)
   const isSaving = ref(false)
   const fetchError = ref('')
+  let publishedFetchPromise: Promise<HomeHero[]> | null = null
+
+  const fetchPublishedFromRemote = (): Promise<HomeHero[]> => {
+    if (publishedFetchPromise) return publishedFetchPromise
+
+    isFetching.value = true
+    fetchError.value = ''
+    publishedFetchPromise = (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('home_heroes')
+          .select('*')
+          .eq('status', 'published')
+          .eq('is_archived', false)
+          .order('sort_order', { ascending: true })
+          .limit(50)
+        if (error) throw error
+        const heroes = (data || []).map((item) => normalizeHero(item as Record<string, unknown>))
+        publishedHeroes.value = heroes
+        writeCache(heroes)
+        return heroes
+      } catch (error) {
+        logger.error('home-heroes-store', '获取已发布英雄区失败', error)
+        fetchError.value = (error as Error)?.message || 'HOME_HEROES_FETCH_FAILED'
+        return publishedHeroes.value
+      } finally {
+        isFetching.value = false
+        publishedFetchPromise = null
+      }
+    })()
+
+    return publishedFetchPromise
+  }
 
   // 首页：读取已发布未归档英雄区
   const fetchPublished = async ({ force = false } = {}): Promise<HomeHero[]> => {
@@ -206,31 +242,12 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
       const cached = readCache()
       if (cached?.length) {
         publishedHeroes.value = cached
+        // 缓存只用于首屏加速，随后始终同步远端，避免持续展示旧结构。
+        void fetchPublishedFromRemote()
         return cached
       }
     }
-    fetchError.value = ''
-    isFetching.value = true
-    try {
-      const { data, error } = await supabase
-        .from('home_heroes')
-        .select('*')
-        .eq('status', 'published')
-        .eq('is_archived', false)
-        .order('sort_order', { ascending: true })
-        .limit(50)
-      if (error) throw error
-      const heroes = (data || []).map((item) => normalizeHero(item as Record<string, unknown>))
-      publishedHeroes.value = heroes
-      writeCache(heroes)
-      return heroes
-    } catch (error) {
-      logger.error('home-heroes-store', '获取已发布英雄区失败', error)
-      fetchError.value = (error as Error)?.message || 'HOME_HEROES_FETCH_FAILED'
-      return []
-    } finally {
-      isFetching.value = false
-    }
+    return fetchPublishedFromRemote()
   }
 
   // Footer 历史区：读取已归档英雄区

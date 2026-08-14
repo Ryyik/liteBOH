@@ -13,7 +13,7 @@
     <div class="g-sheet-body">
       <slot />
     </div>
-    <footer v-if="$slots.foot || pagination || summary" class="g-sheet-foot">
+    <footer v-if="$slots.foot || $slots.pagination || pagination || summary" class="g-sheet-foot">
       <span v-if="summary" class="g-sheet-foot-text">{{ summary }}</span>
       <slot v-else name="foot" />
       <slot name="pagination">

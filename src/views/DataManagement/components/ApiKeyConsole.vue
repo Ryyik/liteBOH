@@ -74,7 +74,7 @@
         <div v-else-if="apiKeys.length === 0" class="g-empty">还没有保存任何 API Key。</div>
         <div v-else class="g-list">
           <article
-            v-for="item in apiKeys"
+            v-for="item in pagedApiKeys"
             :key="item.id"
             :class="['g-api-key-row', { 'is-active': isActiveKey(item), 'is-readonly': item.readonly }]"
           >
@@ -145,6 +145,12 @@
             </div>
           </article>
         </div>
+        <footer v-if="apiKeys.length > keyPageSize" class="g-sheet-foot g-api-key-pagination">
+          <span class="g-sheet-foot-text">
+            显示 {{ (keyPage - 1) * keyPageSize + 1 }} - {{ Math.min(keyPage * keyPageSize, apiKeys.length) }} 项 / 共 {{ apiKeys.length }} 项
+          </span>
+          <DashboardPagination v-model="keyPage" :total="apiKeys.length" :page-size="keyPageSize" aria-label="API Key 列表分页" />
+        </footer>
       </article>
 
       <!-- Form panel -->
@@ -245,7 +251,7 @@
             </div>
             <div class="g-discovery-toolbar-meta">
               <span v-if="!discovery.loading" class="g-badge is-muted">
-                共 {{ discovery.models.length }} 个 / 选中 {{ discovery.selectedIds.size }}
+                共 {{ filteredDiscoveredModels.length }} 个 / 选中 {{ discovery.selectedIds.size }}
               </span>
             </div>
             <button
@@ -329,7 +335,7 @@
           <!-- 模型列表 -->
           <div v-else class="g-discovery-list">
             <label
-              v-for="m in filteredDiscoveredModels"
+              v-for="m in pagedDiscoveredModels"
               :key="m.id"
               class="g-discovery-item"
               :class="{ 'is-selected': discovery.selectedIds.has(m.id) }"
@@ -346,6 +352,17 @@
               </div>
               <small v-if="m.name && m.name !== m.id" class="g-discovery-item-name">{{ m.name }}</small>
             </label>
+          </div>
+          <div v-if="filteredDiscoveredModels.length > discoveryPageSize" class="g-discovery-pagination">
+            <span class="g-sheet-foot-text">
+              显示 {{ (discovery.page - 1) * discoveryPageSize + 1 }} - {{ Math.min(discovery.page * discoveryPageSize, filteredDiscoveredModels.length) }} 项
+            </span>
+            <DashboardPagination
+              v-model="discovery.page"
+              :total="filteredDiscoveredModels.length"
+              :page-size="discoveryPageSize"
+              aria-label="发现模型列表分页"
+            />
           </div>
 
           <footer class="g-discovery-foot">
@@ -374,7 +391,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import {
   CheckCircle2,
   KeyRound,
@@ -406,6 +423,7 @@ import { resolveVaultActiveKey } from '../../../utils/api/api-key-runtime-api.js
 import { useConfirmDialog } from '../../../composables/useConfirmDialog.js';
 import DashboardHero from './shared/DashboardHero.vue';
 import DashboardNotice from './shared/DashboardNotice.vue';
+import DashboardPagination from './shared/DashboardPagination.vue';
 
 const { confirm } = useConfirmDialog();
 
@@ -461,6 +479,8 @@ const getDefaultLabelForProvider = (provider, purpose = 'chat') => (
 );
 
 const apiKeys = ref([]);
+const keyPage = ref(1);
+const keyPageSize = 10;
 const isLoading = ref(false);
 const isSubmitting = ref(false);
 const workingId = ref('');
@@ -490,6 +510,16 @@ let formHighlightTimer = null;
 const filteredPurposeOptions = computed(() =>
   purposeOptions.filter((p) => p.provider === form.provider)
 );
+
+const pagedApiKeys = computed(() => {
+  const start = (keyPage.value - 1) * keyPageSize;
+  return apiKeys.value.slice(start, start + keyPageSize);
+});
+
+watch(apiKeys, (items) => {
+  const totalPages = Math.max(1, Math.ceil(items.length / keyPageSize));
+  if (keyPage.value > totalPages) keyPage.value = totalPages;
+});
 
 const summaryCards = computed(() => {
   const total = apiKeys.value.length;
@@ -581,6 +611,7 @@ const loadKeys = async () => {
     return;
   }
   apiKeys.value = Array.isArray(result.data) ? result.data : [];
+  keyPage.value = 1;
 };
 
 const resetForm = () => {
@@ -682,6 +713,7 @@ const discovery = reactive({
   models: [],
   selectedIds: new Set(),
   filter: '',
+  page: 1,
   error: '',
   importResult: null
 });
@@ -694,6 +726,21 @@ const filteredDiscoveredModels = computed(() => {
     || String(m.name || '').toLowerCase().includes(kw)
     || String(m.owned_by || '').toLowerCase().includes(kw)
   );
+});
+
+const discoveryPageSize = 20;
+const pagedDiscoveredModels = computed(() => {
+  const start = (discovery.page - 1) * discoveryPageSize;
+  return filteredDiscoveredModels.value.slice(start, start + discoveryPageSize);
+});
+
+watch(filteredDiscoveredModels, (items) => {
+  const totalPages = Math.max(1, Math.ceil(items.length / discoveryPageSize));
+  if (discovery.page > totalPages) discovery.page = totalPages;
+});
+
+watch(() => discovery.filter, () => {
+  discovery.page = 1;
 });
 
 const allFilteredSelected = computed(() => {
@@ -724,6 +771,7 @@ const closeDiscovery = () => {
   discovery.models = [];
   discovery.selectedIds.clear();
   discovery.filter = '';
+  discovery.page = 1;
   discovery.error = '';
   discovery.importResult = null;
   discovery.keyId = '';
@@ -743,6 +791,7 @@ const runDiscovery = async (modelsUrlOverride) => {
   discovery.importResult = null;
   discovery.models = [];
   discovery.selectedIds.clear();
+  discovery.page = 1;
   discovery.upstreamStatus = null;
   discovery.upstreamBodyPreview = '';
 
@@ -1130,6 +1179,14 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: calc(var(--spacing) * 1);
+}
+.g-api-key-pagination { padding-inline: calc(var(--spacing) * 4); }
+.g-discovery-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--spacing) * 3);
+  padding-top: calc(var(--spacing) * 3);
 }
 
 /* Form */

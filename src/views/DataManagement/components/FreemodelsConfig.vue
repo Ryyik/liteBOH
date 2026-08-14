@@ -68,7 +68,7 @@
       </div>
       <div v-else-if="sortedModels.length === 0" class="g-empty">暂无模型配置，点击上方按钮添加。</div>
       <div v-else class="g-freemodels-grid">
-        <article v-for="model in sortedModels" :key="model.id" :class="['g-freemodel-card', { 'is-active': model.is_active }]">
+        <article v-for="model in pagedModels" :key="model.id" :class="['g-freemodel-card', { 'is-active': model.is_active }]">
           <div class="g-freemodel-card-head">
             <div class="g-freemodel-card-titles">
               <strong class="g-freemodel-card-name">{{ model.name }}</strong>
@@ -107,6 +107,12 @@
           </div>
         </article>
       </div>
+      <footer v-if="sortedModels.length > modelPageSize" class="g-sheet-foot">
+        <span class="g-sheet-foot-text">
+          显示 {{ (modelPage - 1) * modelPageSize + 1 }} - {{ Math.min(modelPage * modelPageSize, sortedModels.length) }} 项 / 共 {{ sortedModels.length }} 项
+        </span>
+        <DashboardPagination v-model="modelPage" :total="sortedModels.length" :page-size="modelPageSize" aria-label="免费模型库分页" />
+      </footer>
     </article>
 
     <!-- 编辑/添加对话框 -->
@@ -225,7 +231,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { Plus, RefreshCw, Edit3, Trash2, LoaderCircle, ListPlus, X, Filter } from 'lucide-vue-next'
 import { supabase } from '@/utils/supabase-client.js'
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js'
@@ -233,6 +239,7 @@ import { FREEMODEL_PROVIDER_OPTIONS } from '../config/fields.js'
 import { listApiKeys } from '../../../utils/api/api-key-vault-api.js'
 import DashboardHero from './shared/DashboardHero.vue';
 import DashboardNotice from './shared/DashboardNotice.vue';
+import DashboardPagination from './shared/DashboardPagination.vue';
 
 const { confirm } = useConfirmDialog()
 
@@ -246,6 +253,8 @@ const batchModelIds = ref('')
 const isBatchAdding = ref(false)
 const batchProvider = ref('siliconflow')
 const filterProvider = ref('all')
+const modelPage = ref(1)
+const modelPageSize = 12
 
 // 批量添加时可选择已存的 API Key，自动填充 provider / api_base_url
 const apiKeys = ref([])
@@ -319,6 +328,20 @@ const sortedModels = computed(() =>
     .filter(m => filterProvider.value === 'all' || m.provider === filterProvider.value)
     .sort((a, b) => a.sort_order - b.sort_order)
 )
+
+const pagedModels = computed(() => {
+  const start = (modelPage.value - 1) * modelPageSize
+  return sortedModels.value.slice(start, start + modelPageSize)
+})
+
+watch(filterProvider, () => {
+  modelPage.value = 1
+})
+
+watch(sortedModels, (items) => {
+  const totalPages = Math.max(1, Math.ceil(items.length / modelPageSize))
+  if (modelPage.value > totalPages) modelPage.value = totalPages
+})
 
 const uniqueFamilyCount = computed(() => new Set(models.value.map(m => m.family_label).filter(Boolean)).size)
 

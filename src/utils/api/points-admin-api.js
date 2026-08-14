@@ -25,17 +25,21 @@ export async function revokeGrant(batchId) {
   return data;
 }
 
-export async function fetchRecentGrants(limit = 200) {
-  const { data, error } = await supabase
-    .from('points_transactions')
-    .select('id, user_id, amount, balance_after, reason, remark, operator_id, batch_id, created_at')
-    .in('reason', ['admin_grant', 'admin_revoke'])
-    .order('created_at', { ascending: false })
-    .limit(limit);
+export async function fetchRecentGrants({ page = 1, pageSize = 20 } = {}) {
+  const safePage = Math.max(1, Math.trunc(Number(page) || 1));
+  const safePageSize = Math.min(50, Math.max(1, Math.trunc(Number(pageSize) || 20)));
+  const { data, error } = await supabase.rpc('admin_list_point_grant_batches', {
+    p_page: safePage,
+    p_page_size: safePageSize
+  });
   if (error) {
     throw new Error(normalizeDbError(error)?.message || error.message || '加载发放记录失败');
   }
-  return Array.isArray(data) ? data : [];
+  const rows = Array.isArray(data) ? data : [];
+  return {
+    rows,
+    total: Number(rows[0]?.total_count || 0)
+  };
 }
 
 export async function searchGrantTargetUsers(query = '', limit = 30) {

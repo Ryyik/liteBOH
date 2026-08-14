@@ -93,7 +93,7 @@
     <section class="quota-panel grant-panel">
       <div class="quota-panel-heading">
         <div><h3>最近发放记录</h3><p>按发放批次展示，可整批撤销。</p></div>
-        <span>{{ batchList.length }} 批次</span>
+        <span>{{ recentTotal }} 批次</span>
       </div>
       <div v-if="recentLoading" class="grant-loading">正在加载发放记录…</div>
       <div v-else-if="batchList.length === 0" class="grant-empty">
@@ -139,6 +139,18 @@
           </details>
         </div>
       </div>
+      <footer v-if="recentTotal > recentPageSize" class="g-sheet-foot grant-pagination">
+        <span class="g-sheet-foot-text">
+          显示 {{ (recentPage - 1) * recentPageSize + 1 }} - {{ Math.min(recentPage * recentPageSize, recentTotal) }} 批 / 共 {{ recentTotal }} 批
+        </span>
+        <DashboardPagination
+          :model-value="recentPage"
+          :total="recentTotal"
+          :page-size="recentPageSize"
+          aria-label="积分发放记录分页"
+          @update:model-value="loadRecent"
+        />
+      </footer>
     </section>
   </section>
 </template>
@@ -148,7 +160,7 @@ import { computed, onMounted, ref } from 'vue';
 import { Inbox, RefreshCw, Search, Send, Undo2 } from 'lucide-vue-next';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { fetchRecentGrants, grantPoints, revokeGrant, searchGrantTargetUsers } from '@/utils/api/points-admin-api.js';
-import { supabase } from '@/utils/supabase-client.js';
+import DashboardPagination from './shared/DashboardPagination.vue';
 
 const { confirm } = useConfirmDialog();
 
@@ -164,7 +176,10 @@ const message = ref('');
 const messageTone = ref('success');
 const loading = ref(false);
 const recentLoading = ref(false);
-const recentGrants = ref([]);
+const batchList = ref([]);
+const recentPage = ref(1);
+const recentTotal = ref(0);
+const recentPageSize = 20;
 const revokingBatchId = ref('');
 
 const amountText = computed(() => Number(amount.value || 0).toLocaleString());
@@ -220,7 +235,7 @@ const submitGrant = async () => {
     remark.value = '';
     selectedUsers.value = [];
     searchResults.value = [];
-    void loadRecent();
+    void loadRecent(1);
   } catch (error) {
     console.error('[PointsGrantConsole] 发放积分失败:', error);
     notify(error?.message || '发放积分失败', 'error');
@@ -236,62 +251,35 @@ const formatDate = (d) => {
   return date.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 };
 
-const loadRecent = async () => {
+const loadRecent = async (page = recentPage.value) => {
   recentLoading.value = true;
   try {
-    const rows = await fetchRecentGrants(200);
-    const ids = [...new Set(rows.map(r => r.user_id).filter(Boolean))];
-    let userMap = {};
-    if (ids.length > 0) {
-      const { data } = await supabase.from('profiles').select('id, username').in('id', ids);
-      userMap = Object.fromEntries((data || []).map(u => [u.id, u.username]));
+    const result = await fetchRecentGrants({ page, pageSize: recentPageSize });
+    const total = Number(result.total || 0);
+    const totalPages = Math.max(1, Math.ceil(total / recentPageSize));
+    if (total > 0 && page > totalPages) {
+      await loadRecent(totalPages);
+      return;
     }
-    recentGrants.value = rows.map(r => ({ ...r, username: userMap[r.user_id] || '' }));
+    recentPage.value = page;
+    recentTotal.value = total;
+    batchList.value = result.rows.map((batch) => ({
+      key: batch.batch_key,
+      batchId: batch.batch_id || null,
+      amount: Number(batch.amount || 0),
+      count: Number(batch.grant_count || 0),
+      remark: batch.remark || '',
+      createdAt: batch.created_at,
+      grants: Array.isArray(batch.grants) ? batch.grants : [],
+      revoked: Boolean(batch.revoked),
+      canRevoke: Boolean(batch.batch_id) && !batch.revoked
+    }));
   } catch (error) {
     notify(error?.message || '加载发放记录失败', 'error');
   } finally {
     recentLoading.value = false;
   }
 };
-
-// 按 batch_id 分组发放记录；同一批次的 admin_grant 汇总为一条，admin_revoke 标记为已撤销
-const batchList = computed(() => {
-  const map = new Map();
-  for (const grant of recentGrants.value) {
-    const batchId = grant.batch_id || `legacy-${grant.id}`;
-    if (!map.has(batchId)) {
-      map.set(batchId, {
-        key: batchId,
-        batchId: grant.batch_id || null,
-        amount: 0,
-        count: 0,
-        remark: '',
-        createdAt: grant.created_at,
-        grants: [],
-        revoked: false,
-        canRevoke: Boolean(grant.batch_id)
-      });
-    }
-    const batch = map.get(batchId);
-    if (grant.reason === 'admin_grant') {
-      batch.grants.push(grant);
-      batch.count += 1;
-      batch.amount = grant.amount;
-      if (grant.remark) batch.remark = grant.remark;
-      if (!batch.createdAt || grant.created_at < batch.createdAt) {
-        batch.createdAt = grant.created_at;
-      }
-    } else if (grant.reason === 'admin_revoke') {
-      batch.revoked = true;
-      batch.canRevoke = false;
-    }
-  }
-  return Array.from(map.values()).sort((a, b) => {
-    const ta = new Date(a.createdAt || 0).getTime();
-    const tb = new Date(b.createdAt || 0).getTime();
-    return tb - ta;
-  });
-});
 
 const handleRevoke = async (batch) => {
   if (!batch.batchId) return;
@@ -306,7 +294,7 @@ const handleRevoke = async (batch) => {
   try {
     const result = await revokeGrant(batch.batchId);
     notify(`已撤销 ${result?.revoked ?? batch.count} 位用户的 ${batch.amount} 积分发放`);
-    void loadRecent();
+    void loadRecent(1);
   } catch (error) {
     console.error('[PointsGrantConsole] 撤销发放失败:', error);
     notify(error?.message || '撤销发放失败', 'error');
@@ -581,4 +569,5 @@ onMounted(() => {
   white-space: nowrap;
 }
 .grant-batch-card.is-revoked .grant-batch-user { opacity: 0.7; }
+.grant-pagination { padding-inline: 14px; }
 </style>
