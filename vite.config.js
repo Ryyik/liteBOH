@@ -109,7 +109,8 @@ export default defineConfig({
           'index.html',
           'registerSW.js',
           'static/js/app-*.js',
-          'static/js/{vue-vendor,state-vendor,auth-store,ui-components,supabase-vendor,ui-icons,vue-utils-vendor}-*.js',
+          // 只预缓存应用壳；Supabase、图标和 Vue 工具在实际路由/功能触发时缓存。
+          'static/js/{vue-vendor,state-vendor,auth-store,ui-components}-*.js',
           'static/css/ui-components-*.css',
           'static/fonts/*.{woff,woff2}',
         ],

@@ -118,7 +118,7 @@ const onLazyImageRef = (el) => {
   if (el) nextTick(() => emit('lazy-image-observe', el));
 };
 
-const { fetchUserTier, getNicknameClass } = useUserTier();
+const { fetchUserTier, fetchUserTiersBatch, getNicknameClass } = useUserTier();
 const authorTierClass = ref('');
 const authorTierCode = ref('');
 
@@ -142,7 +142,8 @@ watch(() => props.post?.author_id, async (id) => {
 const replyTierMap = useTierMap(
   () => collectReplyAuthorIds(props.post?.replies),
   getNicknameClass,
-  fetchUserTier
+  fetchUserTier,
+  fetchUserTiersBatch
 );
 </script>
 

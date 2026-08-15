@@ -1,6 +1,6 @@
 <template>
   <div class="profile-subpage-shell">
-    <UserCenterPageHeader title="积分与礼物" back-label="返回我的" max-width="1200px" @back="$emit('back')" />
+    <UserCenterPageHeader :title="beta5 ? '方块积分' : '积分与礼物'" back-label="返回我的" max-width="1200px" @back="$emit('back')" />
 
     <div class="profile-subpage-body">
       <nav class="ah-hub-card">
@@ -85,31 +85,47 @@
           </span>
         </button>
 
-        <div class="ah-overview-summary">
-          <article class="ah-overview-primary">
-            <div class="ah-overview-card-icon is-blue"><Coins :size="19" :stroke-width="1.8" aria-hidden="true" /></div>
-            <div class="ah-overview-copy">
-              <span class="ah-overview-kicker">可用积分</span>
-              <strong>{{ pointsDisplay }}</strong>
-              <span>{{ pointsContextText }}</span>
-            </div>
-            <button type="button" class="ah-overview-link" @click="activateTab('points')">
-              明细
-              <ChevronRight :size="16" :stroke-width="2" aria-hidden="true" />
-            </button>
-          </article>
+        <div class="ah-overview-summary" :class="{ 'has-points-card': beta5 }">
+          <PointsCard
+            v-if="beta5"
+            class="ah-overview-points-card"
+            :points="userPoints"
+            :username="displayName"
+            :tier-label="tierDisplayName || 'BOH'"
+            :skin="userInfo?.pointsCardSkin"
+            :image-url="userInfo?.pointsCardImageUrl"
+            interactive
+            show-sponsor-action
+            @click="activateTab('cards')"
+            @sponsor="$emit('sponsor')"
+          />
 
-          <article class="ah-overview-membership" :class="{ 'is-expiring': subscriptionExpiryDays !== null && subscriptionExpiryDays <= 30 }">
-            <div class="ah-overview-card-icon is-gold"><Crown :size="19" :stroke-width="1.8" aria-hidden="true" /></div>
-            <div>
-              <span>{{ subscriptionLoading ? '正在读取会员状态' : '当前会员' }}</span>
-              <strong>{{ subscriptionDisplayName }}</strong>
-              <p>{{ membershipContextText }}</p>
-            </div>
-            <button type="button" class="ah-icon-command" title="管理会员" aria-label="管理会员" @click="activateTab('subscription')">
-              <ChevronRight :size="18" :stroke-width="2" aria-hidden="true" />
-            </button>
-          </article>
+          <div class="ah-overview-insights">
+            <article class="ah-overview-primary">
+              <div class="ah-overview-card-icon is-blue"><Coins :size="19" :stroke-width="1.8" aria-hidden="true" /></div>
+              <div class="ah-overview-copy">
+                <span class="ah-overview-kicker">可用积分</span>
+                <strong>{{ pointsDisplay }}</strong>
+                <span>{{ pointsContextText }}</span>
+              </div>
+              <button type="button" class="ah-overview-link" @click="activateTab('points')">
+                明细
+                <ChevronRight :size="16" :stroke-width="2" aria-hidden="true" />
+              </button>
+            </article>
+
+            <article class="ah-overview-membership" :class="{ 'is-expiring': subscriptionExpiryDays !== null && subscriptionExpiryDays <= 30 }">
+              <div class="ah-overview-card-icon is-gold"><Crown :size="19" :stroke-width="1.8" aria-hidden="true" /></div>
+              <div>
+                <span>{{ subscriptionLoading ? '正在读取会员状态' : '当前会员' }}</span>
+                <strong>{{ subscriptionDisplayName }}</strong>
+                <p>{{ membershipContextText }}</p>
+              </div>
+              <button type="button" class="ah-icon-command" title="管理会员" aria-label="管理会员" @click="activateTab('subscription')">
+                <ChevronRight :size="18" :stroke-width="2" aria-hidden="true" />
+              </button>
+            </article>
+          </div>
         </div>
 
         <div class="ah-smart-columns">
@@ -175,6 +191,63 @@
         </div>
       </section>
 
+      <section v-else-if="activeTab === 'cards' && beta5" key="cards" class="ah-section ah-cards-section">
+        <div class="ah-cards-heading">
+          <div><span>积分卡</span><h2>展示你的方块积分</h2><p>选择空白卡、全员小猫主题，或上传自己的卡面。</p></div>
+        </div>
+        <PointsCard :points="userPoints" :username="displayName" :tier-label="tierDisplayName || 'BOH'"
+          :skin="userInfo?.pointsCardSkin" :image-url="userInfo?.pointsCardImageUrl" show-sponsor-action
+          @sponsor="$emit('sponsor')" />
+        <div class="ah-skin-grid" aria-label="积分卡皮肤">
+          <button type="button" class="ah-skin-option" :class="{ active: userInfo?.pointsCardSkin === 'blank' }" @click="$emit('set-points-card-skin', 'blank')">
+            <span class="ah-skin-preview is-blank"><Coins :size="18" :stroke-width="1.8" /></span><strong>空白卡</strong><small>默认样式</small>
+          </button>
+          <button type="button" class="ah-skin-option is-cats-skin" :class="{ active: pointsCardCatsUnlocked && userInfo?.pointsCardSkin === 'cats' }" :disabled="isRedeemingPointsCardCats" @click="handleCatsSkinClick">
+            <span class="ah-skin-preview is-cats"><img v-for="cat in catSkinPreviewAssets" :key="cat.id" :src="cat.src" alt=""></span><strong>全员小猫</strong><small>{{ isRedeemingPointsCardCats ? '兑换中' : (pointsCardCatsUnlocked ? '已兑换' : '3 积分兑换') }}</small>
+          </button>
+          <button type="button" class="ah-skin-option" :disabled="isPointsCardPresetQuotaLoading || !canAddPointsCardPreset" @click="$emit('upload-points-card')">
+            <span class="ah-skin-preview is-custom"><ImagePlus :size="18" :stroke-width="1.8" /></span><strong>添加卡面</strong><small>上传并裁切</small>
+          </button>
+        </div>
+
+        <section class="ah-card-presets" aria-label="自定义卡面预设">
+          <div class="ah-card-presets-heading">
+            <span>自定义预设</span>
+            <small v-if="!isPointsCardPresetsLoading">{{ pointsCardPresets.length }} / {{ pointsCardPresetCapacity }} 张</small>
+          </div>
+          <div v-if="isPointsCardPresetsLoading" class="ah-card-presets-loading">正在读取卡面</div>
+          <div v-else-if="pointsCardPresets.length" class="ah-card-preset-grid">
+            <article
+              v-for="preset in pointsCardPresets"
+              :key="preset.id"
+              class="ah-card-preset"
+              :class="{ active: userInfo?.pointsCardSkin === 'custom' && userInfo?.pointsCardImageUrl === preset.imageUrl }"
+            >
+              <button
+                type="button"
+                class="ah-card-preset-select"
+                :aria-label="'使用自定义卡面预设'"
+                @click="$emit('select-points-card-preset', preset.id)"
+              >
+                <img :src="preset.imageUrl" alt="自定义卡面预设" loading="lazy">
+                <span>自定义卡面</span>
+              </button>
+              <button
+                type="button"
+                class="ah-card-preset-delete"
+                aria-label="删除此自定义卡面预设"
+                title="删除此预设"
+                @click="$emit('delete-points-card-preset', preset.id)"
+              >
+                <Trash2 :size="15" :stroke-width="2" aria-hidden="true" />
+              </button>
+            </article>
+          </div>
+          <div v-else class="ah-card-presets-empty">暂无自定义预设</div>
+          <p v-if="!isPointsCardPresetsLoading" class="ah-card-presets-retention">未启用的卡面超过 90 天会自动清理</p>
+        </section>
+      </section>
+
       <section v-else-if="activeTab === 'points'" key="points" class="ah-section">
         <div v-if="ledgerLoading" class="ah-order-skeleton">
           <div v-for="n in 4" :key="n" class="ah-skeleton-block" />
@@ -236,6 +309,23 @@
           </article>
           <SubscriptionPlans v-if="showPlanComparison" />
         </template>
+      </section>
+
+      <section v-else-if="activeTab === 'fulfillment' && beta5" key="fulfillment" class="ah-section ah-fulfillment-section">
+        <header class="ah-fulfillment-heading"><div><span>履约中心</span><h2>订单与礼物</h2><p>商城兑换和社区礼物在同一处跟进。</p></div></header>
+        <section class="ah-fusion-block">
+          <div class="ah-fusion-block-head"><span><Package :size="17" :stroke-width="1.8" />订单</span><button type="button" @click="loadOrders">刷新</button></div>
+          <div v-if="ordersLoading" class="ah-order-skeleton"><div v-for="n in 2" :key="n" class="ah-skeleton-block" /></div>
+          <div v-else-if="ordersError" class="ah-inline-empty">订单暂时无法加载 <button type="button" @click="loadOrders">重试</button></div>
+          <div v-else-if="orders.length === 0" class="ah-inline-empty">暂无商城订单 <button type="button" @click="goToShop">去商城</button></div>
+          <div v-else class="ah-order-list"><article v-for="order in orders" :key="order.id" class="ah-order-item"><div class="ah-order-top"><span class="ah-order-no">{{ order.order_no }}</span><span class="ah-order-date">{{ formatDate(order.created_at) }}</span></div><div class="ah-order-bottom"><span class="ah-order-items">{{ order.item_count }} 件商品</span><span class="ah-order-points">-{{ order.total_points }} 积分</span></div></article></div>
+        </section>
+        <section class="ah-fusion-block">
+          <div class="ah-fusion-block-head"><span><Gift :size="17" :stroke-width="1.8" />礼物</span><button type="button" @click="loadGifts">刷新</button></div>
+          <div v-if="giftsLoading" class="ah-order-skeleton"><div v-for="n in 2" :key="n" class="ah-skeleton-block" /></div>
+          <div v-else-if="giftsError" class="ah-inline-empty">礼物信息暂时无法加载 <button type="button" @click="loadGifts">重试</button></div>
+          <template v-else><article v-if="currentGift" class="ah-gift-card"><div class="ah-gift-overview"><div class="ah-gift-thumb" :class="{ 'has-image': currentGift.gift_image }"><img v-if="currentGift.gift_image" :src="currentGift.gift_image" :alt="currentGift.gift_content" loading="lazy"><Gift v-else :size="30" :stroke-width="1.6" /></div><div class="ah-gift-headinfo"><h3>{{ currentGift.gift_content || '待命中的礼物' }}</h3><div class="ah-gift-headsub"><span v-if="currentGift.gift_price" class="ah-gift-amount">RMB {{ currentGift.gift_price }}</span></div></div></div><div class="ah-gift-status-panel" :class="currentGift.gift_status"><div class="ah-gift-status-copy"><strong>{{ giftStatusHeadline }}</strong><p>{{ giftStatusDesc }}</p></div></div></article><div v-else class="ah-inline-empty">还没有待收到的礼物</div><div v-if="historyGifts.length" class="ah-gift-history"><div class="ah-gift-history-head"><span>历史礼物</span><span class="ah-gift-history-count">{{ historyGifts.length }} 份</span></div><div class="ah-gift-history-list"><article v-for="gift in historyGifts" :key="gift.id" class="ah-gift-history-item"><div class="ah-gift-history-thumb" :class="{ 'has-image': gift.gift_image }"><img v-if="gift.gift_image" :src="gift.gift_image" :alt="gift.gift_content" loading="lazy"><Gift v-else :size="18" :stroke-width="1.8" /></div><div class="ah-gift-history-main"><strong>{{ gift.gift_content || '未命名礼物' }}</strong><span class="ah-gift-history-date">{{ formatDateShort(gift.created_at) }}</span></div><span class="ah-gift-badge is-flat" :class="gift.gift_status">{{ getGiftStatusLabel(gift.gift_status) }}</span></article></div></div></template>
+        </section>
       </section>
 
       <!-- 订单 Tab -->
@@ -396,7 +486,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import {
-  CalendarCheck, Check, ChevronRight, Coins, Copy, Crown, Gift, LayoutDashboard, MapPin, Package, PackageCheck, ScrollText, Send, ShoppingBag
+  CalendarCheck, Check, ChevronRight, Coins, Copy, Crown, Gift, ImagePlus, LayoutDashboard, MapPin, Package, PackageCheck, ScrollText, Send, ShoppingBag, Trash2
 } from 'lucide-vue-next';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import SubscriptionPlans from '@/components/SubscriptionPlans.vue';
@@ -409,11 +499,20 @@ import { PLAN_DISPLAY_NAMES } from '@/utils/subscription-benefits.js';
 import { getExpiredActiveGiftIds, markGiftsAsHistory } from '@/utils/gift-archive.js';
 import { logger } from '@/utils/logger.js';
 import { getMySubscriptions } from '@/utils/api/subscription-api.js';
+import PointsCard from './PointsCard.vue';
+import { HOME_CAT_ASSETS } from '@/utils/home-cat-theme.js';
 
-defineEmits(['back']);
+const emit = defineEmits(['back', 'upload-points-card', 'set-points-card-skin', 'select-points-card-preset', 'delete-points-card-preset', 'redeem-points-card-cats', 'sponsor', 'load-points-card-data']);
 
 const props = defineProps({
-  initialTab: { type: String, default: '' }
+  initialTab: { type: String, default: '' },
+  beta5: { type: Boolean, default: false },
+  pointsCardPresets: { type: Array, default: () => [] },
+  isPointsCardPresetsLoading: { type: Boolean, default: false },
+  pointsCardPresetCapacity: { type: Number, default: 3 },
+  isPointsCardPresetQuotaLoading: { type: Boolean, default: false },
+  pointsCardCatsUnlocked: { type: Boolean, default: false },
+  isRedeemingPointsCardCats: { type: Boolean, default: false }
 });
 
 const router = useRouter();
@@ -425,27 +524,48 @@ const { productsData } = storeToRefs(productsStore);
 const { fetchUserTier, getUserTierCode } = useUserTier();
 const tierCode = ref('');
 const tierDisplayName = computed(() => PLAN_DISPLAY_NAMES[tierCode.value] || '');
-
-const validTabIds = new Set(['overview', 'points', 'subscription', 'orders', 'gifts', 'addresses']);
-const activeTab = ref(validTabIds.has(props.initialTab) ? props.initialTab : 'overview');
-const tabGroups = [
-  {
-    label: '账户',
-    tabs: [
-      { id: 'overview', label: '概览', icon: LayoutDashboard },
-      { id: 'points', label: '积分', icon: ScrollText },
-      { id: 'subscription', label: '会员', icon: Crown },
-    ]
-  },
-  {
-    label: '服务',
-    tabs: [
-      { id: 'orders', label: '订单', icon: Package },
-      { id: 'gifts', label: '礼物', icon: Gift },
-      { id: 'addresses', label: '地址', icon: MapPin },
-    ]
+const canAddPointsCardPreset = computed(() => Number(props.pointsCardPresets.length) < Math.max(3, Number(props.pointsCardPresetCapacity) || 3));
+const catSkinPreviewAssets = Object.entries(HOME_CAT_ASSETS).map(([id, src]) => ({ id, src }));
+const handleCatsSkinClick = () => {
+  if (props.isRedeemingPointsCardCats) return;
+  if (props.pointsCardCatsUnlocked) {
+    emit('set-points-card-skin', 'cats');
+    return;
   }
-];
+  emit('redeem-points-card-cats');
+};
+
+const betaTabIds = new Set(['overview', 'cards', 'points', 'subscription', 'fulfillment', 'addresses']);
+const stableTabIds = new Set(['overview', 'points', 'subscription', 'orders', 'gifts', 'addresses']);
+const normalizeInitialTab = () => {
+  let tab = String(props.initialTab || '');
+  if (props.beta5 && ['orders', 'gifts'].includes(tab)) tab = 'fulfillment';
+  return (props.beta5 ? betaTabIds : stableTabIds).has(tab) ? tab : 'overview';
+};
+const activeTab = ref(normalizeInitialTab());
+const tabGroups = computed(() => props.beta5 ? [
+  { label: '账户', tabs: [
+    { id: 'overview', label: '概览', icon: LayoutDashboard },
+    { id: 'cards', label: '卡面', icon: ImagePlus },
+    { id: 'points', label: '积分', icon: ScrollText },
+    { id: 'subscription', label: '订阅', icon: Crown }
+  ] },
+  { label: '服务', tabs: [
+    { id: 'fulfillment', label: '订单与礼物', icon: Package },
+    { id: 'addresses', label: '地址', icon: MapPin }
+  ] }
+] : [
+  { label: '账户', tabs: [
+    { id: 'overview', label: '概览', icon: LayoutDashboard },
+    { id: 'points', label: '积分', icon: ScrollText },
+    { id: 'subscription', label: '会员', icon: Crown }
+  ] },
+  { label: '服务', tabs: [
+    { id: 'orders', label: '订单', icon: Package },
+    { id: 'gifts', label: '礼物', icon: Gift },
+    { id: 'addresses', label: '地址', icon: MapPin }
+  ] }
+]);
 
 const avatarUrl = computed(() => String(userInfo.value?.avatarUrl || '').trim());
 const displayName = computed(() => String(userInfo.value?.username || '').trim() || '未命名用户');
@@ -628,23 +748,33 @@ const loadLedger = async () => {
   try {
     const results = [];
 
-    const [checkinRes, adminRes, orderRes] = await Promise.allSettled([
-    supabase.from('forum_weekly_checkins')
-      .select('id, week_start_date, signed_at')
-      .eq('user_id', userId)
-      .order('signed_at', { ascending: false })
-      .limit(50),
-    supabase.from('points_transactions')
-      .select('id, amount, balance_after, reason, remark, created_at')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(50),
-    supabase.from('shop_points_orders')
-      .select('id, order_no, total_points, created_at')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(50)
-  ]);
+    const ledgerRequests = [
+      supabase.from('forum_weekly_checkins')
+        .select('id, week_start_date, signed_at')
+        .eq('user_id', userId)
+        .order('signed_at', { ascending: false })
+        .limit(50),
+      supabase.from('points_transactions')
+        .select('id, amount, balance_after, reason, remark, created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(50)
+    ];
+    // 概览已读取订单时直接复用，避免首次进入资产中心重复请求同一张表。
+    if (!ordersLoaded.value) {
+      ledgerRequests.push(
+        supabase.from('shop_points_orders')
+          .select('id, order_no, total_points, created_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(50)
+      );
+    }
+    const settled = await Promise.allSettled(ledgerRequests);
+    const [checkinRes, adminRes] = settled;
+    const orderRes = ordersLoaded.value
+      ? { status: 'fulfilled', value: { data: orders.value, error: null } }
+      : settled[2];
 
     if (checkinRes.status === 'fulfilled' && !checkinRes.value.error && Array.isArray(checkinRes.value.data)) {
     const weekSet = new Set(checkinRes.value.data.map((r) => String(r.week_start_date)));
@@ -664,14 +794,15 @@ const loadLedger = async () => {
 
     if (adminRes.status === 'fulfilled' && !adminRes.value.error && Array.isArray(adminRes.value.data)) {
     adminRes.value.data
-      .filter((row) => row.reason === 'admin_grant')
+      .filter((row) => ['admin_grant', 'points_card_cats'].includes(row.reason))
       .forEach((row) => {
+        const isCatsRedemption = row.reason === 'points_card_cats';
         results.push({
-          key: `grant-${row.id}`,
-          icon: Send,
-          tone: 'blue',
-          title: '管理员发放',
-          remark: String(row.remark || '').trim() || '积分发放',
+          key: `${isCatsRedemption ? 'cats-card' : 'grant'}-${row.id}`,
+          icon: isCatsRedemption ? Coins : Send,
+          tone: isCatsRedemption ? 'orange' : 'blue',
+          title: isCatsRedemption ? '兑换全员小猫卡面' : '管理员发放',
+          remark: String(row.remark || '').trim() || (isCatsRedemption ? '小猫卡面' : '积分发放'),
           amount: Number(row.amount) || 0,
           time: row.created_at
         });
@@ -738,11 +869,18 @@ const loadSubscription = async () => {
 };
 
 const activateTab = (tabId) => {
-  if (!validTabIds.has(tabId)) return;
+  if (!(props.beta5 ? betaTabIds : stableTabIds).has(tabId)) return;
   activeTab.value = tabId;
+  if (tabId === 'overview') void loadOverview();
+  if (tabId === 'cards') emit('load-points-card-data');
   if (tabId === 'points') void loadLedger();
+  if (tabId === 'subscription') void loadSubscription();
   if (tabId === 'orders') void loadOrders();
   if (tabId === 'gifts') void loadGifts();
+  if (tabId === 'fulfillment') {
+    void loadOrders();
+    void loadGifts();
+  }
 };
 
 // ─── 礼物数据 ───
@@ -837,7 +975,7 @@ const upcomingItems = computed(() => {
 
 const handleSmartAction = (action) => {
   if (action === 'shop') { goToShop(); return; }
-  activateTab(action || 'overview');
+  activateTab(props.beta5 && ['orders', 'gifts'].includes(action) ? 'fulfillment' : (action || 'overview'));
 };
 
 const retryOverviewIssues = () => {
@@ -1017,13 +1155,13 @@ const loadGifts = async () => {
 };
 
 const loadOverview = async () => {
+  if (overviewLoading.value) return;
   overviewLoading.value = true;
   try {
     await Promise.all([
       loadSubscription(),
       loadOrders(),
       loadGifts(),
-      loadLedger(),
       productsStore.fetchProducts()
     ]);
   } finally {
@@ -1033,7 +1171,6 @@ const loadOverview = async () => {
 
 onMounted(() => {
   void loadTier();
-  void loadOverview();
   activateTab(activeTab.value);
 });
 </script>
@@ -1332,7 +1469,11 @@ onMounted(() => {
 .ah-smart-focus.tone-green .ah-smart-focus-icon { background: rgba(34, 197, 94, 0.11); color: #16a34a; }
 .ah-smart-focus:active { transform: scale(0.99); }
 .ah-smart-focus:disabled { cursor: default; opacity: 0.78; }
-.ah-overview-summary { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr); gap: 12px; }
+.ah-overview-summary { display: block; }
+.ah-overview-summary.has-points-card { display: grid; grid-template-columns: minmax(300px, 0.92fr) minmax(320px, 1.08fr); align-items: stretch; gap: 12px; }
+.ah-overview-insights { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr); gap: 12px; }
+.ah-overview-summary.has-points-card .ah-overview-insights { grid-template-columns: 1fr; grid-template-rows: repeat(2, minmax(0, 1fr)); }
+.ah-overview-points-card { min-width: 0; align-self: center; }
 .ah-overview-primary,
 .ah-overview-membership,
 .ah-membership-card {
@@ -2108,7 +2249,9 @@ onMounted(() => {
   .ah-overview { grid-template-columns: 1fr; gap: 10px; }
   .ah-overview-heading { align-items: flex-start; }
   .ah-overview-heading h2 { font-size: 20px; }
-  .ah-overview-summary { grid-template-columns: 1fr; gap: 10px; }
+  .ah-overview-summary.has-points-card { grid-template-columns: 1fr; gap: 10px; }
+  .ah-overview-insights,
+  .ah-overview-summary.has-points-card .ah-overview-insights { grid-template-columns: 1fr; gap: 10px; }
   .ah-smart-focus { grid-template-columns: auto minmax(0, 1fr); min-height: 0; gap: 12px; padding: 15px; border-radius: 21px; }
   .ah-smart-focus-icon { width: 42px; height: 42px; border-radius: 15px; }
   .ah-smart-focus-copy strong { font-size: 16px; }
@@ -2148,7 +2291,9 @@ onMounted(() => {
   .ah-overview { gap: 10px; }
   .ah-overview-heading { padding-top: 0; }
   .ah-overview-heading h2 { font-size: 19px; }
-  .ah-overview-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ah-overview-summary.has-points-card { grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); }
+  .ah-overview-insights { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ah-overview-summary.has-points-card .ah-overview-insights { grid-template-columns: 1fr; }
   .ah-overview-primary,
   .ah-overview-membership { min-height: 118px; padding: 14px; }
   .ah-smart-focus { min-height: 92px; padding: 14px; }
@@ -2185,6 +2330,19 @@ onMounted(() => {
   :global(.user-space-page[data-theme="dark"]) .ah-gift-status-panel,
   :global(.user-space-page[data-theme="dark"]) .ah-gift-history-item { background: #1c1e24; }
 }
+
+.ah-cards-section { display: grid; gap: 18px; max-width: 620px; }
+.ah-cards-heading span, .ah-fulfillment-heading span { color: #377f76; font-size: 12px; font-weight: 760; }.ah-cards-heading span { color: #b7667e; }
+.ah-cards-heading h2, .ah-fulfillment-heading h2 { margin: 5px 0 6px; color: #1d1d1f; font-size: 22px; letter-spacing: 0; }
+.ah-cards-heading p, .ah-fulfillment-heading p { margin: 0; color: #68727b; font-size: 13px; line-height: 1.6; }
+.ah-skin-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ah-skin-option { min-height: 126px; padding: 12px; border: 1px solid rgba(23, 45, 59, .12); border-radius: 14px; background: rgba(255,255,255,.58); color: #1d1d1f; text-align: left; cursor: pointer; }.ah-skin-option:disabled { cursor: default; opacity: .72; }
+.ah-skin-option.active { border-color: #2f887a; box-shadow: 0 0 0 2px rgba(47,136,122,.16); }.ah-skin-option.is-cats-skin.active { border-color: #d77f96; box-shadow: 0 0 0 2px rgba(215,127,150,.18); }.ah-skin-option strong, .ah-skin-option small { display: block; }.ah-skin-option strong { margin-top: 11px; font-size: 13px; }.ah-skin-option small { margin-top: 3px; color: #75808a; font-size: 11px; }
+.ah-skin-preview { display: flex; align-items: center; justify-content: center; width: 100%; height: 45px; border-radius: 9px; overflow: hidden; }.ah-skin-preview.is-blank { background: #eaf0f1; color: #315b68; }.ah-skin-preview.is-cats { position: relative; background: #fff; }.ah-skin-preview.is-cats img { width: 28px; height: 28px; flex: 0 0 28px; object-fit: contain; margin-left: -13px; filter: drop-shadow(0 2px 2px rgba(113,65,77,.12)); }.ah-skin-preview.is-cats img:first-child { margin-left: 0; }.ah-skin-preview.is-custom { background: #e8ebf2; color: #526179; }
+.ah-card-presets { display: grid; gap: 10px; }.ah-card-presets-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #3d4852; font-size: 13px; font-weight: 760; }.ah-card-presets-heading small { color: #7a858e; font-size: 11px; font-weight: 650; }.ah-card-presets-loading, .ah-card-presets-empty { min-height: 76px; display: grid; place-items: center; border: 1px dashed rgba(23, 45, 59, .18); border-radius: 14px; color: #7a858e; font-size: 12px; }.ah-card-preset-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }.ah-card-preset { position: relative; min-width: 0; padding: 4px; border: 1px solid rgba(23, 45, 59, .13); border-radius: 14px; background: rgba(255,255,255,.58); }.ah-card-preset.active { border-color: #2f887a; box-shadow: 0 0 0 2px rgba(47,136,122,.16); }.ah-card-preset-select { display: grid; width: 100%; gap: 7px; padding: 0; border: 0; background: transparent; color: #26323b; cursor: pointer; text-align: left; font: inherit; font-size: 11px; font-weight: 700; }.ah-card-preset-select img { display: block; width: 100%; aspect-ratio: 8 / 5; border-radius: 10px; object-fit: cover; background: #e8ebf2; }.ah-card-preset-select > span { padding: 0 4px 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.ah-card-preset-delete { position: absolute; top: 10px; right: 10px; display: grid; width: 28px; height: 28px; place-items: center; padding: 0; border: 1px solid rgba(255,255,255,.78); border-radius: 10px; background: rgba(255,255,255,.84); color: #a24444; cursor: pointer; box-shadow: 0 5px 12px rgba(25,37,49,.14); }.ah-card-preset-delete:hover { background: #fff; }.ah-card-presets-retention { margin: 0; color: #7a858e; font-size: 11px; line-height: 1.5; }
+.ah-fulfillment-section { display: grid; gap: 15px; }.ah-fusion-block { padding: 15px; border: 1px solid rgba(18, 38, 50, .1); border-radius: 18px; background: rgba(255,255,255,.58); }.ah-fusion-block-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; color: #1d1d1f; font-weight: 760; }.ah-fusion-block-head > span { display: inline-flex; align-items: center; gap: 7px; }.ah-fusion-block-head button, .ah-inline-empty button { border: 0; background: transparent; color: #23796c; font: inherit; font-size: 12px; cursor: pointer; }.ah-inline-empty { padding: 16px 4px; color: #74808a; font-size: 13px; }.ah-fusion-block .ah-gift-card { box-shadow: none; }
+:global(.user-space-page[data-theme="dark"]) .ah-cards-heading h2, :global(.user-space-page[data-theme="dark"]) .ah-fulfillment-heading h2, :global(.user-space-page[data-theme="dark"]) .ah-skin-option, :global(.user-space-page[data-theme="dark"]) .ah-card-presets-heading, :global(.user-space-page[data-theme="dark"]) .ah-card-preset-select, :global(.user-space-page[data-theme="dark"]) .ah-fusion-block-head { color: #f4f7f8; }.ah-skin-option, .ah-card-preset, .ah-fusion-block { background: rgba(255,255,255,.58); }:global(.user-space-page[data-theme="dark"]) .ah-skin-option, :global(.user-space-page[data-theme="dark"]) .ah-card-preset, :global(.user-space-page[data-theme="dark"]) .ah-fusion-block { background: rgba(28,30,36,.72); border-color: rgba(255,255,255,.1); }:global(.user-space-page[data-theme="dark"]) .ah-card-presets-loading, :global(.user-space-page[data-theme="dark"]) .ah-card-presets-empty { border-color: rgba(255,255,255,.18); color: #a7acb5; }:global(.user-space-page[data-theme="dark"]) .ah-card-preset-delete { border-color: rgba(255,255,255,.18); background: rgba(28,30,36,.9); color: #ff9ca9; }
+@media (max-width: 560px) { .ah-skin-grid { grid-template-columns: 1fr; }.ah-skin-option { min-height: 82px; display: grid; grid-template-columns: 70px 1fr; align-content: center; column-gap: 12px; }.ah-skin-option strong, .ah-skin-option small { grid-column: 2; }.ah-skin-option strong { margin-top: 0; }.ah-skin-preview { grid-row: 1 / span 2; height: 50px; }.ah-card-preset-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 @media (prefers-reduced-motion: reduce) {
   .ah-panel-enter-active,

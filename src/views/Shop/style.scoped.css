@@ -753,6 +753,9 @@ button {
   place-items: center;
 }
 
+/* 联系方式确认必须盖过仍保持打开状态的购物袋抽屉。 */
+.contact-modal-overlay { z-index: 200; }
+
 /* ===== Product detail sheet ===== */
 .product-sheet {
   width: min(920px, 100%);
@@ -1131,7 +1134,7 @@ button {
 .product-card:nth-child(6) { animation-delay: 250ms; }
 .product-card:nth-child(7) { animation-delay: 20ms; }
 .product-card:nth-child(8) { animation-delay: 60ms; }
-.product-card:nth-child(n+9) { animation-delay: calc(10ms * (nth-child - 1)); }
+.product-card:nth-child(n+9) { animation-delay: 80ms; }
 
 /* Subtle hero entrance */
 @keyframes heroReveal {

@@ -1,7 +1,6 @@
 import { ref } from 'vue'
 import { callVaultSiliconChatStreamCollect } from '@/utils/api/api-key-runtime-api.js'
 import { supabase } from '@/utils/supabase-client.js'
-import { buildPPT as renderPPT } from '../engine/ppt-renderer.js'
 import { STYLE_PRESETS, DEFAULT_PRESET_ID } from '../config/design-tokens.js'
 import {
   PPT_OUTLINE_PROMPT, PPT_DETAIL_PROMPT, PPT_SCHEMA, OUTLINE_SCHEMA, extractJSON, FRONTEND_MAX_OUTPUT_TOKENS,
@@ -185,6 +184,7 @@ ${JSON.stringify(PPT_SCHEMA, null, 2)}
    * 构建 PPT 文件（接入新引擎）
    */
   async function buildPPTFile(data, presetId = DEFAULT_PRESET_ID, fileName = 'AI生成.pptx', options = {}) {
+    const { buildPPT: renderPPT } = await import('../engine/ppt-renderer.js')
     return renderPPT(data, presetId, fileName, options)
   }
 

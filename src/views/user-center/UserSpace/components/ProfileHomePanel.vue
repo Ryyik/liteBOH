@@ -116,13 +116,13 @@
           </svg>
         </span>
         <span class="profile-service-body">
-          <strong>积分与礼物</strong>
+          <strong>{{ beta5 ? '方块积分' : '积分与礼物' }}</strong>
           <small class="profile-service-hint">{{ formatPoints(stats.points) || '0' }} 积分 · {{ subscriptionSummaryText }}</small>
         </span>
         <span class="profile-action-chevron">›</span>
       </button>
 
-      <button type="button" class="profile-service-row" @click="$emit('sponsor')">
+      <button v-if="!beta5" type="button" class="profile-service-row" @click="$emit('sponsor')">
         <span class="profile-service-icon bg-gold">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
             stroke-linejoin="round">
@@ -270,6 +270,7 @@ const FOLLOW_PAGE_SIZE = 20;
 const activeContentTab = ref('posts');
 const replies = ref([]);
 const repliesLoading = ref(false);
+const repliesLoaded = ref(false);
 const drafts = ref([]);
 const contentTabs = computed(() => [
   { id: 'posts', label: '帖子', count: props.posts.length },
@@ -346,6 +347,10 @@ const props = defineProps({
     default: () => ({})
   },
   isUploadingProfileBackground: {
+    type: Boolean,
+    default: false
+  },
+  beta5: {
     type: Boolean,
     default: false
   },
@@ -520,6 +525,7 @@ const loadReplies = async () => {
   repliesLoading.value = true;
   const result = await getCommentsByUsername(username, userId, { page: 1, pageSize: 20 });
   replies.value = result.error ? [] : (result.data || []);
+  repliesLoaded.value = true;
   repliesLoading.value = false;
 };
 
@@ -549,9 +555,17 @@ const handleDraftStorage = (event) => {
 };
 
 watch(profileId, () => {
-  void loadReplies();
+  replies.value = [];
+  repliesLoaded.value = false;
+  if (activeContentTab.value === 'replies') void loadReplies();
   readDrafts();
 }, { immediate: true });
+
+watch(activeContentTab, (tab) => {
+  if (tab === 'replies' && !repliesLoading.value && !repliesLoaded.value) {
+    void loadReplies();
+  }
+});
 
 onMounted(() => window.addEventListener('storage', handleDraftStorage));
 onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
@@ -834,6 +848,7 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   box-shadow: var(--shadow-sm);
   animation: userspace-panel-in 320ms var(--ease-out) 50ms both;
 }
+
 
 .profile-service-row {
   width: 100%;

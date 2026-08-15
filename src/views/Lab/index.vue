@@ -789,9 +789,6 @@ import DiffViewer from './components/DiffViewer.vue'
 import CommandPalette from './components/CommandPalette.vue'
 import GuardrailDialog from './components/GuardrailDialog.vue'
 import ThinkingBudgetSlider from './components/ThinkingBudgetSlider.vue'
-import { parseDocx, reparseStylesFromDoc } from './engine/docx-parser.js'
-import { applyOperations, applyContentOperations } from './engine/style-engine.js'
-import { buildModifiedDocx } from './engine/docx-builder.js'
 import { getAllTemplates, saveTemplate } from './engine/template-store.js'
 import { useDocumentAI } from './composables/useDocumentAI.js'
 import { usePPTGenerator } from './composables/usePPTGenerator.js'
@@ -811,6 +808,10 @@ const router = useRouter()
 const { chat, aiLoading } = useDocumentAI()
 const { generatePPTStructure, generateOutline: generatePPTOutline, buildPPT, buildPPTFile } = usePPTGenerator()
 const { generateDoc: generateWordDoc, generateOutline: generateWordOutline, buildWordFile } = useWordGenerator()
+
+const loadDocParser = () => import('./engine/docx-parser.js')
+const loadDocStyleEngine = () => import('./engine/style-engine.js')
+const loadDocBuilder = () => import('./engine/docx-builder.js')
 const {
   generateOutline: generateCodeOutline,
   generateCode,
@@ -1302,6 +1303,7 @@ async function updatePreview(blob) {
 
 async function rebuildAndPreview() {
   if (!docData.value) return
+  const { buildModifiedDocx } = await loadDocBuilder()
   const blob = await buildModifiedDocx(
     docData.value.zip,
     docData.value.stylesDoc,
@@ -1318,6 +1320,7 @@ async function handleFileUpload(file) {
   error.value = ''
   modifiedBlob.value = null
   try {
+    const { parseDocx } = await loadDocParser()
     docData.value = await parseDocx(file)
     await rebuildAndPreview()
     addHistory('文档上传', `解析 ${docData.value.content.length} 段内容`, 'content')
@@ -1605,6 +1608,10 @@ async function sendDoc(content, signal) {
     return
   }
   try {
+    const [{ applyOperations, applyContentOperations }, { reparseStylesFromDoc }] = await Promise.all([
+      loadDocStyleEngine(),
+      loadDocParser(),
+    ])
     const result = await chat(
       content,
       messages.value,
@@ -2082,6 +2089,10 @@ async function handleTemplateSelect(tpl) {
   messages.value.push({ id: genId(), role: 'user', content, time: nowTime() })
   await scrollToBottom()
   try {
+    const [{ applyOperations }, { reparseStylesFromDoc }] = await Promise.all([
+      loadDocStyleEngine(),
+      loadDocParser(),
+    ])
     const result = await chat(
       content,
       messages.value,
@@ -2285,12 +2296,14 @@ function handleRedo() {
 function restoreSnapshot(snapshot) {
   if (!snapshot) return
   if (snapshot.stylesDoc && docData.value) {
-    docData.value.stylesDoc = snapshot.stylesDoc
-    docData.value.styles = reparseStylesFromDoc(snapshot.stylesDoc)
-    if (snapshot.historyItems) {
-      historyItems.value = snapshot.historyItems
-    }
-    rebuildAndPreview()
+    void loadDocParser().then(({ reparseStylesFromDoc }) => {
+      docData.value.stylesDoc = snapshot.stylesDoc
+      docData.value.styles = reparseStylesFromDoc(snapshot.stylesDoc)
+      if (snapshot.historyItems) {
+        historyItems.value = snapshot.historyItems
+      }
+      return rebuildAndPreview()
+    })
   }
 }
 

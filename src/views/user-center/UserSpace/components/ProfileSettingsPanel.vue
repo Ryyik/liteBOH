@@ -165,6 +165,21 @@
               <span class="chevron">›</span>
             </div>
           </div>
+          <div class="apple-item clickable" @click="$emit('open-data-export')">
+            <div class="item-left">
+              <div class="icon-wrapper bg-indigo">
+                <Archive :size="16" :stroke-width="2" aria-hidden="true" />
+              </div>
+              <span class="setting-label-stack">
+                <span class="item-label">导出我的数据</span>
+                <span class="item-desc">打包个人资料、帖子、云空间等为 ZIP 下载</span>
+              </span>
+            </div>
+            <div class="item-right">
+              <span class="text-secondary">ZIP 打包</span>
+              <span class="chevron">›</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -191,7 +206,7 @@
 <script setup>
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
-import { Bell, Database, EyeOff, FlaskConical, LogOut, MessagesSquare, Moon, Shield, Sun, Users } from 'lucide-vue-next';
+import { Archive, Bell, Database, EyeOff, FlaskConical, LogOut, MessagesSquare, Moon, Shield, Sun, Users } from 'lucide-vue-next';
 import SettingToggle from './SettingToggle.vue';
 
 defineProps({
@@ -242,6 +257,7 @@ defineEmits([
   'open-beta-preview',
   'open-data',
   'open-data-management',
+  'open-data-export',
   'logout',
   'toggle-hide-online',
   'toggle-hide-follow-data'

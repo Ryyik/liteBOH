@@ -1,7 +1,6 @@
 import { ref } from 'vue'
 import { callVaultSiliconChatStreamCollect } from '@/utils/api/api-key-runtime-api.js'
 import { supabase } from '@/utils/supabase-client.js'
-import { buildWordDoc, buildAndDownloadWord } from '../engine/word-builder.js'
 import { DEFAULT_PRESET_ID } from '../config/design-tokens.js'
 import {
   WORD_OUTLINE_PROMPT, WORD_DETAIL_PROMPT, WORD_SCHEMA, extractJSON, FRONTEND_MAX_OUTPUT_TOKENS,
@@ -186,6 +185,7 @@ ${JSON.stringify(WORD_SCHEMA, null, 2)}
    * 构建 Word 文件
    */
   async function buildWordFile(data, presetId = DEFAULT_PRESET_ID, fileName = 'AI生成.docx') {
+    const { buildAndDownloadWord } = await import('../engine/word-builder.js')
     return buildAndDownloadWord(data, presetId, fileName)
   }
 
@@ -193,6 +193,7 @@ ${JSON.stringify(WORD_SCHEMA, null, 2)}
    * 构建 Word Blob（不触发下载，用于预览）
    */
   async function buildWordBlob(data, presetId = DEFAULT_PRESET_ID) {
+    const { buildWordDoc } = await import('../engine/word-builder.js')
     return buildWordDoc(data, presetId)
   }
 

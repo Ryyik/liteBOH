@@ -12,6 +12,7 @@
     :image-style="standardImageStyle"
     :content-layout="contentLayout"
     :image-position-editable="Boolean(previewDevice)"
+    :priority="priority"
     :links="resolvedLinks"
     @image-position="emitCardImagePosition"
   />
@@ -30,8 +31,9 @@
       :alt="hero.image_config.alt || hero.title"
       class="dynamic-overlay-image"
       :style="overlayImageStyle"
-      loading="lazy"
+      :loading="priority ? 'eager' : 'lazy'"
       decoding="async"
+      :fetchpriority="priority ? 'high' : 'auto'"
       draggable="false"
       @pointerdown="startImagePositionDrag"
       @pointermove="updateImagePositionDrag"
@@ -97,6 +99,7 @@
       :image-src="card.image_config.src || ''"
       :image-alt="card.image_config.alt || ''"
       :image-style="splitCardImageStyle(card.image_config)"
+      :priority="priority"
       :content-layout="resolveContentLayout(card.content_layout)"
       :links="resolveLinks(card.links)"
     />
@@ -118,9 +121,9 @@
         :src="responsiveImageSrc"
         :alt="hero.image_config.alt || hero.title"
         class="dynamic-responsive-image"
-        loading="eager"
+        :loading="priority ? 'eager' : 'lazy'"
         decoding="async"
-        fetchpriority="high"
+        :fetchpriority="priority ? 'high' : 'auto'"
         draggable="false"
         :style="responsiveImageStyle"
         @pointerdown="startImagePositionDrag"
@@ -140,7 +143,8 @@ import DOMPurify from '@/utils/dompurify.js';
 
 const props = defineProps({
   hero: { type: Object, required: true },
-  previewDevice: { type: String, default: '' }
+  previewDevice: { type: String, default: '' },
+  priority: { type: Boolean, default: false }
 });
 
 const emit = defineEmits(['link-click', 'image-position', 'content-offset']);

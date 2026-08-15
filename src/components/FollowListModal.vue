@@ -69,7 +69,7 @@ const handleUnfollow = (user) => {
 };
 const router = useRouter();
 
-const { fetchUserTier, getNicknameClass } = useUserTier();
+const { fetchUserTier, fetchUserTiersBatch, getNicknameClass } = useUserTier();
 const userTierMap = useTierMap(
   () => {
     const ids = new Set();
@@ -77,7 +77,8 @@ const userTierMap = useTierMap(
     return [...ids];
   },
   getNicknameClass,
-  fetchUserTier
+  fetchUserTier,
+  fetchUserTiersBatch
 );
 
 const goToProfile = (username) => {

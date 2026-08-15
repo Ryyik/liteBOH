@@ -1,5 +1,5 @@
 <template>
-  <footer class="home-footer" aria-label="网站页脚">
+  <footer ref="footerRef" class="home-footer" aria-label="网站页脚">
     <div class="home-footer-inner">
       <!-- 第零层：历史回顾（归档的英雄区） -->
       <HomeArchiveSection :archived-count="totalArchivedCount" />
@@ -54,7 +54,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onBeforeUnmount, onMounted } from 'vue';
 import DOMPurify from '@/utils/dompurify.js';
 import AgreementModal from '@/components/AgreementModal.vue';
 import { userAgreementContent, privacyPolicyContent } from '@/data/agreementData.js';
@@ -90,14 +90,35 @@ const openAgreement = (type) => {
 // 动态归档英雄区：统一从数据库读取（含 builtin 与数据驱动两类）
 const homeHeroesStore = useHomeHeroesStore();
 const totalArchivedCount = computed(() => homeHeroesStore.archivedHeroes.length);
+const footerRef = ref(null);
+let archiveObserver = null;
+let hasStartedArchiveLoad = false;
 
-onMounted(async () => {
-  // 静默加载动态归档英雄区，失败不影响页脚
-  try {
-    await homeHeroesStore.fetchArchived();
-  } catch {
-    // 表不存在时仅返回空数组
+const loadArchivedHeroes = () => {
+  if (hasStartedArchiveLoad) return;
+  hasStartedArchiveLoad = true;
+  // 归档数据仅用于页脚计数，不能与首屏英雄区争抢首次数据库请求。
+  void homeHeroesStore.fetchArchived();
+};
+
+onMounted(() => {
+  if (!('IntersectionObserver' in window) || !footerRef.value) {
+    loadArchivedHeroes();
+    return;
   }
+
+  archiveObserver = new IntersectionObserver((entries) => {
+    if (!entries.some((entry) => entry.isIntersecting)) return;
+    loadArchivedHeroes();
+    archiveObserver?.disconnect();
+    archiveObserver = null;
+  }, { rootMargin: '800px 0px' });
+  archiveObserver.observe(footerRef.value);
+});
+
+onBeforeUnmount(() => {
+  archiveObserver?.disconnect();
+  archiveObserver = null;
 });
 </script>
 

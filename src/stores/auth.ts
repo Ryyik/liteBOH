@@ -146,6 +146,9 @@ export const useAuthStore = defineStore('auth', () => {
     avatarUrl: '',
     profileBackgroundUrl: '',
     profileBackgroundPublicId: '',
+    pointsCardSkin: 'blank',
+    pointsCardImageUrl: '',
+    pointsCardImagePublicId: '',
     bio: '',
     experience: 0,
     isBohCreator: false,
@@ -182,6 +185,9 @@ const PROFILE_SELECT_COLUMNS = `
   avatar_url,
   profile_background_url,
   profile_background_public_id,
+  points_card_skin,
+  points_card_image_url,
+  points_card_image_public_id,
   tags,
   bio,
   experience,
@@ -452,6 +458,9 @@ const PROFILE_SELECT_COLUMNS = `
     userInfo.avatarUrl = (data.avatar_url as string) || '';
     userInfo.profileBackgroundUrl = (data.profile_background_url as string) || '';
     userInfo.profileBackgroundPublicId = (data.profile_background_public_id as string) || '';
+    userInfo.pointsCardSkin = (data.points_card_skin as string) || 'blank';
+    userInfo.pointsCardImageUrl = (data.points_card_image_url as string) || '';
+    userInfo.pointsCardImagePublicId = (data.points_card_image_public_id as string) || '';
     userInfo.tags = (data.tags as string[]) || [];
     userInfo.bio = (data.bio as string) || '';
     userInfo.experience = (data.experience as number) || 0;
@@ -524,6 +533,9 @@ const PROFILE_SELECT_COLUMNS = `
       avatarUrl: '',
       profileBackgroundUrl: '',
       profileBackgroundPublicId: '',
+      pointsCardSkin: 'blank',
+      pointsCardImageUrl: '',
+      pointsCardImagePublicId: '',
       bio: '',
       experience: 0,
       isBohCreator: false,
@@ -915,6 +927,9 @@ const PROFILE_SELECT_COLUMNS = `
       if (updates.avatar_url !== undefined) dbUpdates.avatar_url = updates.avatar_url;
       if (updates.profile_background_url !== undefined) dbUpdates.profile_background_url = updates.profile_background_url;
       if (updates.profile_background_public_id !== undefined) dbUpdates.profile_background_public_id = updates.profile_background_public_id;
+      if (updates.points_card_skin !== undefined) dbUpdates.points_card_skin = updates.points_card_skin;
+      if (updates.points_card_image_url !== undefined) dbUpdates.points_card_image_url = updates.points_card_image_url;
+      if (updates.points_card_image_public_id !== undefined) dbUpdates.points_card_image_public_id = updates.points_card_image_public_id;
       if (updates.is_boh_creator !== undefined) dbUpdates.is_boh_creator = Boolean(updates.is_boh_creator);
       if (updates.creator_platform_ids !== undefined) {
         dbUpdates.creator_platform_ids = normalizeCreatorPlatformIds(updates.creator_platform_ids);
@@ -963,6 +978,9 @@ const PROFILE_SELECT_COLUMNS = `
         if (updates.avatar_url !== undefined) userInfo.avatarUrl = updates.avatar_url as string;
         if (updates.profile_background_url !== undefined) userInfo.profileBackgroundUrl = updates.profile_background_url as string;
         if (updates.profile_background_public_id !== undefined) userInfo.profileBackgroundPublicId = updates.profile_background_public_id as string;
+        if (updates.points_card_skin !== undefined) userInfo.pointsCardSkin = (updates.points_card_skin as string) || 'blank';
+        if (updates.points_card_image_url !== undefined) userInfo.pointsCardImageUrl = (updates.points_card_image_url as string) || '';
+        if (updates.points_card_image_public_id !== undefined) userInfo.pointsCardImagePublicId = (updates.points_card_image_public_id as string) || '';
         if (updates.is_boh_creator !== undefined) userInfo.isBohCreator = Boolean(updates.is_boh_creator);
         if (updates.creator_platform_ids !== undefined) {
           const normalizedCreatorIds = normalizeCreatorPlatformIds(updates.creator_platform_ids);

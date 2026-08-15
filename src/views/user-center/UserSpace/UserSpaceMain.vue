@@ -14,6 +14,8 @@
     <input type="file" ref="avatarInputRef" class="hidden-file-input" accept="image/*" @change="handleAvatarFileChange">
     <input type="file" ref="profileBackgroundInputRef" class="hidden-file-input" accept="image/*"
       @change="handleProfileBackgroundFileChange">
+    <input type="file" ref="pointsCardInputRef" class="hidden-file-input" accept="image/jpeg,image/png,image/webp"
+      @change="handlePointsCardFileChange">
 
     <div v-show="currentTab === 'posts' || leavingTab === 'posts'"
       :ref="(el) => setTabPageRef('posts', el)" class="tab-page posts-tab"
@@ -70,6 +72,7 @@
             <ProfileHomePanel v-if="profileSection === 'home'" key="profile-home" :profile="userInfo"
               :avatar-url="avatarUrl" :profile-background-url="profileBackgroundUrl"
               :profile-cover-style="profileCoverStyle" :is-uploading-profile-background="isUploadingProfileBackground"
+              :beta5="isBeta5"
               :stats="userStats" :is-stats-loading="dataState.stats.loading" :cloud-plus-usage-text="cloudPlusUsageText"
               :cloud-plus-usage-meter-style="cloudPlusUsageMeterStyle"
               :subscription-summary-text="subscriptionSummaryText"
@@ -125,6 +128,7 @@
               @open-security="router.push('/user-space/account-security?from=userspace-settings')"
               @open-beta-preview="router.push('/user-space/settings/beta-preview')"
               @open-data="openProfileDataManagement" @open-data-management="openProfileDataManagement"
+              @open-data-export="openProfileDataExport"
               @logout="handleLogout" @toggle-hide-online="toggleHideOnlineStatus"
               @toggle-hide-follow-data="toggleHideFollowData" />
 
@@ -133,10 +137,22 @@
               @back="backToProfileHome" @delete-impression="handleDeleteProfileImpression" />
 
             <AssetsHubPanel v-else-if="profileSection === 'assets'" key="profile-assets"
-              :initial-tab="assetsInitialTab"
-              @back="backToProfileHome" />
+              :initial-tab="assetsInitialTab" :beta5="isBeta5"
+              :points-card-presets="pointsCardPresets" :is-points-card-presets-loading="isPointsCardPresetsLoading"
+              :points-card-preset-capacity="pointsCardPresetQuota.capacity"
+              :is-points-card-preset-quota-loading="isPointsCardPresetQuotaLoading"
+              :points-card-cats-unlocked="isPointsCardCatsUnlocked"
+              :is-redeeming-points-card-cats="isRedeemingPointsCardCats"
+              @back="backToProfileHome" @upload-points-card="handlePointsCardClick"
+              @set-points-card-skin="setPointsCardSkin" @select-points-card-preset="selectPointsCardPreset"
+              @delete-points-card-preset="deletePointsCardPreset"
+              @redeem-points-card-cats="redeemPointsCardCats" @load-points-card-data="loadPointsCardData"
+              @sponsor="openSponsorPage" />
 
             <!-- ✅ 性能优化：静态子页面使用 v-memo -->
+            <DataExportPanel v-else-if="profileSection === 'data-export'" key="profile-data-export"
+              v-memo="[profileSection]" @back="backToProfileSettings" />
+
             <DataPrivacyPanel v-else key="profile-data-management" v-memo="[profileSection, isAdmin]"
               :is-admin="isAdmin" @back="backToProfileSettings"
               @navigate="handleDataPrivacyNavigate" />
@@ -187,6 +203,7 @@ import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
 import { useAppMode } from '@/composables/useAppMode.js';
+import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { useEdgeSwipeGesture } from '@/composables/useEdgeSwipeGesture';
 import { useDebounce } from '@/composables/useDebounceThrottle';
 import UserSpaceBottomNav from './components/UserSpaceBottomNav.vue';
@@ -197,6 +214,7 @@ const ProfileSettingsPanel = defineAsyncComponent(() => import('./components/Pro
 const EditProfilePanel = defineAsyncComponent(() => import('./components/EditProfilePanel.vue'));
 const SponsorPanel = defineAsyncComponent(() => import('./components/SponsorPanel.vue'));
 const DataPrivacyPanel = defineAsyncComponent(() => import('./components/DataPrivacyPanel.vue'));
+const DataExportPanel = defineAsyncComponent(() => import('./components/DataExportPanel.vue'));
 const AssetsHubPanel = defineAsyncComponent(() => import('./components/AssetsHubPanel.vue'));
 import ThemeModal from './components/ThemeModal.vue';
 import { useBottomNavIslandQueue } from './composables/useBottomNavIslandQueue.js';
@@ -236,6 +254,7 @@ import {
   deleteCloudinaryAssetsByPublicIds,
   extractCloudinaryPublicIdFromUrl,
   getCloudinaryDisplayUrl,
+  markCloudinaryUploadsClaimed,
   uploadImageToCloudinary
 } from '@/utils/cloudinary-client.js';
 import sponsorQrImage from '@/assets/images/qrcode.webp';
@@ -249,6 +268,7 @@ const { loadImageCompression } = useImageCompressionLoader();
 
 const router = useRouter();
 const route = useRoute();
+const dialog = useConfirmDialog();
 const authStore = useAuthStore();
 const { isLoggedIn, isInitialized, userInfo, showLoginModal } = storeToRefs(authStore);
 const notificationStoreRef = ref(getNotificationStoreSync());
@@ -366,7 +386,7 @@ const initialUserSpaceTab = validTabs.includes(String(route.query.tab || ''))
 if (initialUserSpaceTab === 'profile') {
   void preloadProfileStyles();
 }
-const validProfileSections = ['home', 'edit-profile', 'impressions', 'sponsor', 'settings', 'data-management', 'assets'];
+const validProfileSections = ['home', 'edit-profile', 'impressions', 'sponsor', 'settings', 'data-management', 'data-export', 'assets'];
 const tabTransitionDirection = ref('forward');
 const leavingTab = ref(null);
 const {
@@ -507,21 +527,34 @@ const profileBirthdayText = computed(() => userBirthday.value ? formatBirthdayLa
 const profileJoinDateText = computed(() => joinDate.value ? formatJoinDateLabel(joinDate.value) : '未设置');
 const avatarInputRef = ref(null);
 const profileBackgroundInputRef = ref(null);
+const pointsCardInputRef = ref(null);
 const showCropModal = ref(false);
 const cropImageSrc = ref('');
 const cropPurpose = ref('avatar');
 const isProcessingCrop = ref(false);
 const isUploadingProfileBackground = ref(false);
+const isUploadingPointsCard = ref(false);
+const isRedeemingPointsCardCats = ref(false);
+const isPointsCardCatsUnlocked = ref(false);
+const pointsCardPresets = ref([]);
+const isPointsCardPresetsLoading = ref(false);
+const pointsCardPresetQuota = ref({ capacity: 3, currentCount: 0, tierCode: 'free', canAdd: true });
+const isPointsCardPresetQuotaLoading = ref(false);
 const BACKGROUND_CROP_ASPECT_RATIO = 3;
-const cropModalAspectRatio = computed(() => cropPurpose.value === 'profile-background' ? BACKGROUND_CROP_ASPECT_RATIO : 1);
-const cropModalShape = computed(() => cropPurpose.value === 'profile-background' ? 'rectangle' : 'circle');
-const cropModalTitle = computed(() => cropPurpose.value === 'profile-background' ? '裁切背景' : '裁切头像');
+const POINTS_CARD_CROP_ASPECT_RATIO = 8 / 5;
+const cropModalAspectRatio = computed(() => cropPurpose.value === 'profile-background'
+  ? BACKGROUND_CROP_ASPECT_RATIO
+  : (cropPurpose.value === 'points-card' ? POINTS_CARD_CROP_ASPECT_RATIO : 1));
+const cropModalShape = computed(() => ['profile-background', 'points-card'].includes(cropPurpose.value) ? 'rectangle' : 'circle');
+const cropModalTitle = computed(() => cropPurpose.value === 'profile-background'
+  ? '裁切背景'
+  : (cropPurpose.value === 'points-card' ? '裁切积分卡面' : '裁切头像'));
 const cropModalHint = computed(() => cropPurpose.value === 'profile-background'
   ? '拖动图片来选择个人卡片背景的显示范围'
-  : '拖动以调整位置，缩放以改变大小');
+  : (cropPurpose.value === 'points-card' ? '拖动图片来选择积分卡面的显示范围' : '拖动以调整位置，缩放以改变大小'));
 const cropModalSubHint = computed(() => cropPurpose.value === 'profile-background'
   ? '裁切后的横幅会作为个人卡片背景'
-  : '裁切后的效果将作为您的新头像');
+  : (cropPurpose.value === 'points-card' ? '裁切后的图片将作为方块积分自定义卡面' : '裁切后的效果将作为您的新头像'));
 
 const escapeCssUrl = (url = '') => String(url || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 const profileCoverStyle = computed(() => {
@@ -1340,8 +1373,11 @@ const openSponsorPage = () => {
 };
 
 const openAssetsHub = (initialTab = '') => {
-  const validTabs = ['overview', 'points', 'subscription', 'orders', 'gifts', 'addresses'];
-  assetsInitialTab.value = validTabs.includes(String(initialTab)) ? String(initialTab) : '';
+  const betaTabs = ['overview', 'cards', 'points', 'subscription', 'fulfillment', 'addresses'];
+  const stableTabs = ['overview', 'points', 'subscription', 'orders', 'gifts', 'addresses'];
+  let nextTab = String(initialTab);
+  if (isBeta5.value && ['orders', 'gifts'].includes(nextTab)) nextTab = 'fulfillment';
+  assetsInitialTab.value = (isBeta5.value ? betaTabs : stableTabs).includes(nextTab) ? nextTab : '';
   profileSection.value = 'assets';
   setProfileSectionRoute('assets');
 };
@@ -1355,6 +1391,11 @@ const backToProfileHome = () => {
 const openProfileDataManagement = () => {
   profileSection.value = 'data-management';
   setProfileSectionRoute('data-management');
+};
+
+const openProfileDataExport = () => {
+  profileSection.value = 'data-export';
+  setProfileSectionRoute('data-export');
 };
 
 const handleDataPrivacyNavigate = (route) => {
@@ -1704,7 +1745,7 @@ const preloadUserSpaceTab = (tabId) => {
   if (!validTabs.includes(safeTab)) return;
   if (safeTab === 'posts') {
     scheduleIdleTask('tab:posts', () => void preloadForumComponent());
-  } else if (safeTab === 'messages' && canOpenUserSpaceTab('messages')) {
+  } else if (safeTab === 'messages' && isLoggedIn.value) {
     scheduleIdleTask('tab:messages', () => void preloadMessagesComponent());
   } else if (safeTab === 'shows') {
     scheduleIdleTask('tab:shows', () => void preloadShowsComponent());
@@ -1918,6 +1959,298 @@ const uploadProfileBackgroundFile = async (file) => {
   }
 };
 
+const handlePointsCardClick = () => {
+  if (!isBeta5.value || isUploadingPointsCard.value) return;
+  if (!isPointsCardPresetQuotaLoading.value && !pointsCardPresetQuota.value.canAdd) {
+    showBottomNavIsland({ title: '卡面已达上限', message: `当前会员最多保存 ${pointsCardPresetQuota.value.capacity} 张自定义卡面`, icon: 'warning', type: 'warning', durationMs: 3600 });
+    return;
+  }
+  pointsCardInputRef.value?.click();
+};
+
+const handlePointsCardFileChange = (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  const supportedTypes = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
+  if (!supportedTypes.has(file.type)) {
+    showAlert('warning', '格式不支持', '请选择 JPG、PNG 或 WebP 图片');
+    event.target.value = '';
+    return;
+  }
+  if (file.size > PROFILE_BACKGROUND_MAX_FILE_SIZE_BYTES) {
+    showAlert('warning', '图片过大', '请选择不超过 10MB 的图片');
+    event.target.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    cropPurpose.value = 'points-card';
+    cropImageSrc.value = e.target.result;
+    showCropModal.value = true;
+  };
+  reader.onerror = () => showAlert('error', '读取失败', '图片读取失败，请重新选择');
+  reader.readAsDataURL(file);
+  event.target.value = '';
+};
+
+const cleanupCloudinaryPointsCard = async (publicId, fallbackUrl = '') => {
+  const safePublicId = String(publicId || extractCloudinaryPublicIdFromUrl(fallbackUrl)).trim();
+  if (!safePublicId) return { ok: true };
+  return deleteCloudinaryAssetsByPublicIds([safePublicId]);
+};
+
+const normalizePointsCardPreset = (preset = {}) => ({
+  id: String(preset.id || '').trim(),
+  imageUrl: String(preset.image_url || preset.imageUrl || '').trim(),
+  imagePublicId: String(preset.image_public_id || preset.imagePublicId || '').trim(),
+  createdAt: String(preset.created_at || preset.createdAt || ''),
+  lastUsedAt: String(preset.last_used_at || preset.lastUsedAt || '')
+});
+
+const normalizePointsCardPresetQuota = (quota = {}) => ({
+  capacity: Math.max(3, Number(quota.capacity || 3) || 3),
+  currentCount: Math.max(0, Number(quota.current_count ?? quota.currentCount ?? 0) || 0),
+  tierCode: String(quota.tier_code || quota.tierCode || 'free').trim().toLowerCase() || 'free',
+  canAdd: Boolean(quota.can_add ?? quota.canAdd)
+});
+
+const loadPointsCardPresetQuota = async () => {
+  if (!isBeta5.value || !userInfo.value?.id || isPointsCardPresetQuotaLoading.value) return pointsCardPresetQuota.value;
+  isPointsCardPresetQuotaLoading.value = true;
+  try {
+    const { data, error } = await supabase.rpc('get_points_card_preset_quota');
+    if (error) throw error;
+    if (!data?.ok) throw new Error(data?.message || '读取卡面容量失败');
+    pointsCardPresetQuota.value = normalizePointsCardPresetQuota(data);
+    return pointsCardPresetQuota.value;
+  } catch (error) {
+    logger.error('user-space', '加载积分卡面容量失败:', error);
+    return pointsCardPresetQuota.value;
+  } finally {
+    isPointsCardPresetQuotaLoading.value = false;
+  }
+};
+
+const loadPointsCardPresets = async () => {
+  if (!isBeta5.value || !userInfo.value?.id || isPointsCardPresetsLoading.value) return;
+  isPointsCardPresetsLoading.value = true;
+  try {
+    const { data, error } = await supabase
+      .from('points_card_presets')
+      .select('id, image_url, image_public_id, created_at, last_used_at')
+      .eq('user_id', userInfo.value.id)
+      .eq('purge_state', 'active')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    pointsCardPresets.value = (data || [])
+      .map(normalizePointsCardPreset)
+      .filter((preset) => preset.id && preset.imageUrl);
+  } catch (error) {
+    logger.error('user-space', '加载积分卡面预设失败:', error);
+    pointsCardPresets.value = [];
+  } finally {
+    isPointsCardPresetsLoading.value = false;
+  }
+};
+
+const loadPointsCardCatsUnlock = async () => {
+  if (!isBeta5.value || !userInfo.value?.id) return;
+  try {
+    const { data, error } = await supabase
+      .from('points_card_cats_unlocks')
+      .select('user_id')
+      .eq('user_id', userInfo.value.id)
+      .maybeSingle();
+    if (error) throw error;
+    isPointsCardCatsUnlocked.value = Boolean(data?.user_id);
+  } catch (error) {
+    logger.error('user-space', '加载小猫卡面兑换状态失败:', error);
+    isPointsCardCatsUnlocked.value = false;
+  }
+};
+
+const loadPointsCardData = () => {
+  void loadPointsCardPresets();
+  void loadPointsCardPresetQuota();
+  void loadPointsCardCatsUnlock();
+};
+
+const uploadPointsCardFile = async (file) => {
+  let uploaded = null;
+  let createdPreset = null;
+  isUploadingPointsCard.value = true;
+  try {
+    const quota = await loadPointsCardPresetQuota();
+    if (!quota.canAdd) {
+      showBottomNavIsland({ title: '卡面已达上限', message: `当前会员最多保存 ${quota.capacity} 张自定义卡面`, icon: 'warning', type: 'warning', durationMs: 3600 });
+      return false;
+    }
+
+    uploaded = await uploadImageToCloudinary(file, { pendingSource: 'points-card', folder: 'boh-points-cards' });
+    const { data, error } = await supabase.rpc('create_points_card_preset', {
+      p_image_url: uploaded.url,
+      p_image_public_id: uploaded.publicId || null
+    });
+    if (error) throw error;
+    if (!data?.ok) {
+      if (data?.message === 'PRESET_CAPACITY_REACHED') {
+        pointsCardPresetQuota.value = normalizePointsCardPresetQuota(data);
+      }
+      throw new Error(data?.message === 'PRESET_CAPACITY_REACHED'
+        ? `当前会员最多保存 ${pointsCardPresetQuota.value.capacity} 张自定义卡面`
+        : (data?.message || '保存卡面失败'));
+    }
+    createdPreset = normalizePointsCardPreset(data.preset || {});
+
+    const { data: useResult, error: useError } = await supabase.rpc('use_points_card_preset', { p_preset_id: createdPreset.id });
+    if (useError) throw useError;
+    if (!useResult?.ok) throw new Error(useResult?.message || '应用卡面失败');
+
+    await markCloudinaryUploadsClaimed([uploaded.publicId]);
+    await authStore.refreshCurrentUserProfile({ force: true });
+
+    pointsCardPresets.value = [createdPreset, ...pointsCardPresets.value.filter((preset) => preset.id !== createdPreset.id)];
+    pointsCardPresetQuota.value = normalizePointsCardPresetQuota(data);
+    showBottomNavIsland({ title: '卡面已添加', message: '已保存为自定义卡面预设', icon: 'success', type: 'success', durationMs: 3600 });
+    return true;
+  } catch (error) {
+    logger.error('user-space', '积分卡面上传失败:', error);
+    if (uploaded?.publicId) await cleanupCloudinaryPointsCard(uploaded.publicId, uploaded.url);
+    if (createdPreset?.id) {
+      await supabase.rpc('delete_points_card_preset', { p_preset_id: createdPreset.id });
+    }
+    showAlert('error', '上传失败', error.message || '卡面上传过程出错');
+    return false;
+  } finally {
+    isUploadingPointsCard.value = false;
+  }
+};
+
+const selectPointsCardPreset = async (presetId) => {
+  if (!isBeta5.value) return;
+  const preset = pointsCardPresets.value.find((item) => item.id === String(presetId || ''));
+  if (!preset) return;
+  const { data, error } = await supabase.rpc('use_points_card_preset', { p_preset_id: preset.id });
+  if (error || !data?.ok) {
+    showBottomNavIsland('切换自定义卡面失败，请重试');
+    return;
+  }
+  await authStore.refreshCurrentUserProfile({ force: true });
+  preset.lastUsedAt = new Date().toISOString();
+  showBottomNavIsland({ title: '卡面已应用', message: '已切换到所选自定义卡面', icon: 'success', type: 'success', durationMs: 2800 });
+};
+
+const setPointsCardSkin = async (skin) => {
+  if (!isBeta5.value || !['blank', 'cats'].includes(String(skin))) return;
+  if (skin === 'cats' && !isPointsCardCatsUnlocked.value) {
+    await redeemPointsCardCats();
+    return;
+  }
+  const result = await authStore.updateUserProfile({ points_card_skin: skin });
+  if (!result.success) {
+    showBottomNavIsland('卡片皮肤更新失败，请重试');
+    return;
+  }
+  showBottomNavIsland({ title: '皮肤已应用', message: skin === 'cats' ? '小猫卡面已启用' : '已切换为空白卡', icon: 'success', type: 'success', durationMs: 2800 });
+};
+
+const redeemPointsCardCats = async () => {
+  if (!isBeta5.value || isRedeemingPointsCardCats.value) return;
+  if (isPointsCardCatsUnlocked.value) {
+    await setPointsCardSkin('cats');
+    return;
+  }
+
+  let confirmed = false;
+  try {
+    confirmed = await dialog.confirm({
+      title: '兑换全员小猫卡面',
+      message: `将扣除 3 积分（当前 ${Math.max(0, Number(userInfo.value.points) || 0)} 积分）。兑换后会永久同步到你的账户，是否确认兑换？`,
+      tone: 'default',
+      confirmText: '确认兑换',
+      cancelText: '暂不兑换'
+    });
+  } catch (error) {
+    logger.warn('user-space', '积分卡兑换确认弹窗未打开:', error);
+    showBottomNavIsland('请先完成当前操作后再兑换卡面');
+    return;
+  }
+  if (!confirmed) return;
+
+  isRedeemingPointsCardCats.value = true;
+  try {
+    const { data, error } = await supabase.rpc('redeem_points_card_cats');
+    if (error) throw error;
+    if (!data?.ok) {
+      if (data?.message === 'INSUFFICIENT_POINTS') {
+        showBottomNavIsland({ title: '积分不足', message: `兑换全员小猫还需 ${Math.max(0, Number(data.required_points || 3) - Number(data.current_points || 0))} 积分`, icon: 'warning', type: 'warning', durationMs: 3600 });
+        return;
+      }
+      throw new Error(data?.message || '兑换失败');
+    }
+
+    await authStore.refreshCurrentUserProfile({ force: true });
+    userStats.points = Number(userInfo.value.points) || 0;
+    isPointsCardCatsUnlocked.value = true;
+    showBottomNavIsland({
+      title: data.already_unlocked ? '小猫卡面已启用' : '兑换成功',
+      message: data.already_unlocked ? '全员小猫卡面已应用' : '已扣除 3 积分并同步到云端',
+      icon: 'success',
+      type: 'success',
+      durationMs: 3600
+    });
+  } catch (error) {
+    logger.error('user-space', '兑换全员小猫卡面失败:', error);
+    showAlert('error', '兑换失败', error.message || '暂时无法兑换小猫卡面，请稍后重试');
+  } finally {
+    isRedeemingPointsCardCats.value = false;
+  }
+};
+
+const deletePointsCardPreset = async (presetId) => {
+  if (!isBeta5.value) return;
+  const preset = pointsCardPresets.value.find((item) => item.id === String(presetId || ''));
+  if (!preset) return;
+
+  // Delete the Cloudinary asset while the preset is still owned by this user.
+  const cleanupResult = await cleanupCloudinaryPointsCard(preset.imagePublicId, preset.imageUrl);
+  if (!cleanupResult.ok) {
+    showAlert('error', '删除失败', cleanupResult.error?.message || '云端卡面删除失败，请稍后重试');
+    return;
+  }
+
+  const { data, error } = await supabase.rpc('delete_points_card_preset', { p_preset_id: preset.id });
+  if (error || !data?.ok) {
+    logger.error('user-space', '删除积分卡面预设失败:', error || data?.message);
+    showBottomNavIsland('删除自定义卡面失败，请重试');
+    return;
+  }
+  await authStore.refreshCurrentUserProfile({ force: true });
+  pointsCardPresets.value = pointsCardPresets.value.filter((item) => item.id !== preset.id);
+  await loadPointsCardPresetQuota();
+  showBottomNavIsland({
+    title: data.was_current ? '当前卡面已删除' : '卡面预设已删除',
+    message: data.was_current ? '已切换为空白卡' : '其余预设不受影响',
+    icon: 'success',
+    type: 'success',
+    durationMs: 2800
+  });
+};
+
+watch(
+  [profileSection, isBeta5, isLoggedIn],
+  ([, , loggedIn]) => {
+    if (!loggedIn) {
+      pointsCardPresets.value = [];
+      pointsCardPresetQuota.value = { capacity: 3, currentCount: 0, tierCode: 'free', canAdd: true };
+      isPointsCardCatsUnlocked.value = false;
+    }
+  },
+  { immediate: true }
+);
+
 const handleAvatarClick = () => {
   avatarInputRef.value?.click();
 };
@@ -1972,6 +2305,20 @@ const handleCropConfirm = async (blob) => {
       return;
     }
 
+    if (cropPurpose.value === 'points-card') {
+      const file = new File([blob], 'points-card.png', { type: 'image/png' });
+      const imageCompression = await loadImageCompression();
+      const compressedFile = await imageCompression(file, {
+        maxSizeMB: 1.2,
+        maxWidthOrHeight: 1600,
+        useWebWorker: true,
+        fileType: 'image/webp'
+      });
+      const ok = await uploadPointsCardFile(compressedFile);
+      if (ok) showCropModal.value = false;
+      return;
+    }
+
     const file = new File([blob], 'avatar.png', { type: 'image/png' });
     const imageCompression = await loadImageCompression();
 
@@ -1986,7 +2333,10 @@ const handleCropConfirm = async (blob) => {
     showCropModal.value = false;
   } catch (error) {
     logger.error('user-space', '裁切处理失败:', error);
-    showAlert('error', '处理失败', cropPurpose.value === 'profile-background' ? '背景裁切出错，请重试' : '头像裁切出错，请重试');
+    const targetLabel = cropPurpose.value === 'profile-background'
+      ? '背景'
+      : (cropPurpose.value === 'points-card' ? '积分卡面' : '头像');
+    showAlert('error', '处理失败', `${targetLabel}裁切出错，请重试`);
   } finally {
     isProcessingCrop.value = false;
   }
@@ -2195,7 +2545,10 @@ onMounted(() => {
     }
   }
   void maybeShowBottomNavOnboardingNotice();
-  void refreshUnreadCount();
+  // 消息页自身会在加载列表后同步未读数，避免首屏并发重复读取 notifications。
+  if (isLoggedIn.value && currentTab.value !== 'messages') {
+    void refreshUnreadCount();
+  }
   window.addEventListener('boh_unread_refresh', handleUnreadRefresh);
   window.addEventListener('boh_userspace_nav_island', handleBottomNavIslandEvent);
   // ✨ 新增：监听全局灵动岛事件（跨组件通信）

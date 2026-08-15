@@ -58,9 +58,8 @@ import { logger } from './utils/logger.js';
 import { setupVitePreloadErrorRecovery } from './utils/vite-preload-recovery.js';
 import { initImageOptimizer } from './utils/image-optimizer.js';
 import { initVersionChecker } from './utils/version-checker.js';
-import { loadFreemodelsFromDB } from './utils/siliconflow-free-models.js';
-import { initHiagentWidget } from './utils/hiagent-widget.js';
 import { initAppModeManager } from './utils/app-mode-manager.js';
+import { applyPerformanceProfile } from './utils/performance-profile.js';
 
 // ============================================
 // 延迟加载的非关键样式
@@ -90,6 +89,7 @@ const scheduleDeferredGlobalStyles = () => {
 if (typeof window !== "undefined") {
   // Apply the selected experience before Vue mounts so Beta 5 chrome never flashes as stable.
   initAppModeManager();
+  applyPerformanceProfile(window);
   setupVitePreloadErrorRecovery();
   initImageOptimizer({ onReady: scheduleDeferredGlobalStyles });
 
@@ -218,8 +218,6 @@ if (typeof window !== "undefined") {
   // 绕过 SW 缓存，直接 HTTP 拉取 version.json 比对
   // 版本不一致时强制清缓存刷新，确保用户刷新即可拿到新代码
   // ============================================
-  initVersionChecker();
-
   // 同步真实可视区域。移动浏览器旋转时 visualViewport 往往晚于
   // orientationchange 才稳定，因此立即、下一帧和延迟后各同步一次。
   const syncViewportMetrics = () => {
@@ -269,6 +267,19 @@ const bagStore = useBagStore();
 
 app.mount("#app");
 
+// 非首屏维护任务延后到首个可交互帧之后，避免与首页英雄区竞争主线程和网络。
+const schedulePostMountMaintenance = () => {
+  const run = () => {
+    initVersionChecker();
+  };
+  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(run, { timeout: 2500 });
+  } else {
+    window.setTimeout(run, 1500);
+  }
+};
+schedulePostMountMaintenance();
+
 // 异步初始化登录状态和购物袋（不阻塞首屏渲染）
 authStore.initLoginState().catch(err => {
   logger.warn('auth', '登录状态初始化失败', err);
@@ -278,7 +289,4 @@ bagStore.loadShoppingBag();
 // 初始化主题管理器（在应用挂载后，确保 DOM 元素已存在）
 themeManager.init();
 
-// 初始化 BOHAgent AI 助手（动态注入 SDK，不阻塞首屏）
-initHiagentWidget().catch(err => {
-  logger.warn('hiagent', 'BOHAgent 初始化失败', err);
-});
+// BOHAgent 由用户首次打开时初始化，避免匿名首页启动时加载第三方 SDK。

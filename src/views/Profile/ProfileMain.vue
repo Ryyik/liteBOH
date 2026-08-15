@@ -531,7 +531,7 @@ const profile = computed(() => {
   return isOwnProfile.value ? ownProfileSnapshot.value : fetchedProfile.value;
 });
 
-const { fetchUserTier, getNicknameClass, getUserTierCode } = useUserTier();
+const { fetchUserTier, fetchUserTiersBatch, getNicknameClass, getUserTierCode } = useUserTier();
 const nicknameClass = ref('');
 const tierCode = ref('');
 const tierDisplayName = computed(() => PLAN_DISPLAY_NAMES[tierCode.value] || '');
@@ -553,7 +553,8 @@ const commentTierMap = useTierMap(
     return [...ids];
   },
   getNicknameClass,
-  fetchUserTier
+  fetchUserTier,
+  fetchUserTiersBatch
 );
 
 const impressionTierMap = useTierMap(
@@ -563,7 +564,8 @@ const impressionTierMap = useTierMap(
     return [...ids];
   },
   getNicknameClass,
-  fetchUserTier
+  fetchUserTier,
+  fetchUserTiersBatch
 );
 
 const profileBannerStyle = computed(() => {

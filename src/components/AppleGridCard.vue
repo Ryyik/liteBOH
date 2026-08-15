@@ -47,8 +47,9 @@
           class="agc-image"
           :class="{ 'is-position-editable': imagePositionEditable }"
           :style="imageStyle"
-          loading="lazy"
+          :loading="priority ? 'eager' : 'lazy'"
           decoding="async"
+          :fetchpriority="priority ? 'high' : 'auto'"
           @pointerdown="startImagePositionDrag"
           @pointermove="updateImagePositionDrag"
           @pointerup="stopImagePositionDrag"
@@ -72,7 +73,8 @@ const props = defineProps({
   links: { type: Array, default: () => [] },
   imageStyle: { type: Object, default: () => ({}) },
   contentLayout: { type: Object, default: null },
-  imagePositionEditable: { type: Boolean, default: false }
+  imagePositionEditable: { type: Boolean, default: false },
+  priority: { type: Boolean, default: false }
 })
 const emit = defineEmits(['image-position'])
 

@@ -1,6 +1,6 @@
 <template>
   <!-- 按 builtin_key 分发渲染对应的硬编码英雄区组件 -->
-  <MascotNewHero v-if="builtinKey === 'mascot-new'" />
+  <MascotNewHero v-if="builtinKey === 'mascot-new'" :priority="priority" />
 
   <AgentPreviewHero v-else-if="builtinKey === 'agent-preview'" />
 
@@ -129,6 +129,7 @@ import anniversaryCafeImg from '@/assets/images/26coffee4.webp?url';
 const props = defineProps({
   hero: { type: Object, required: true },
   birthdayPeople: { type: Array, default: () => [] },
+  priority: { type: Boolean, default: false },
 });
 
 defineEmits(['poster', 'birthday-more', 'open-fuzhou', 'open-cloud-plus', 'open-anniversary-letter']);

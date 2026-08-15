@@ -106,6 +106,11 @@
                 <li>注销完成后，你会立即退出当前登录状态。</li>
               </ul>
 
+              <p class="delete-export-hint">
+                建议先在「设置 → 导出我的数据」中打包下载你的数据副本，注销后将无法再导出。
+                <a class="delete-export-link" href="/user-space?tab=profile&view=data-export">前往导出</a>
+              </p>
+
               <label class="delete-check-row">
                 <input v-model="deleteRiskAccepted" type="checkbox" :disabled="isDeletingAccount">
                 <span>我已阅读并理解以上风险</span>

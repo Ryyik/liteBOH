@@ -196,6 +196,27 @@
   list-style: disc;
 }
 
+.delete-export-hint {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  background: rgba(10, 132, 255, 0.06);
+}
+
+.delete-export-link {
+  color: var(--accent, #0a84ff);
+  font-weight: 600;
+  text-decoration: none;
+  margin-left: 4px;
+}
+
+.delete-export-link:hover {
+  text-decoration: underline;
+}
+
 .delete-check-row {
   display: inline-flex;
   align-items: center;

@@ -1,9 +1,10 @@
 <template>
   <div class="home">
     <!-- 统一英雄区渲染：数据库驱动排序/显隐/归档，按 template 分流渲染 -->
-    <HomeHeroRow
-      v-for="hero in visibleHeroes"
-      :key="hero.id"
+      <HomeHeroRow
+      v-for="(hero, heroIndex) in visibleHeroes"
+      :key="hero.template === 'builtin' ? `builtin:${hero.builtin_key}` : hero.id"
+      :eager="heroIndex === 0"
       :layout="heroLayout(hero)"
       :aria-label="hero.aria_label || hero.label || hero.title"
       :id="hero.builtin_key === 'split-brand-letter' ? 'ryyik-letter' : undefined"
@@ -11,11 +12,13 @@
       <DynamicHomeHero
         v-if="hero.template !== 'builtin'"
         :hero="hero"
+        :priority="heroIndex === 0"
         @link-click="handleDynamicLinkClick"
       />
       <BuiltinHeroRenderer
         v-else
         :hero="hero"
+        :priority="heroIndex === 0"
         :birthday-people="birthdayPeople"
         @poster="openPosterModal"
         @birthday-more="onBirthdayMore"

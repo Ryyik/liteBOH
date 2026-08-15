@@ -50,7 +50,7 @@ const COMMENT_SORT_OPTIONS = [
 
 const formatDate = formatSmartTime;
 
-const { fetchUserTier, getNicknameClass } = useUserTier();
+const { fetchUserTier, fetchUserTiersBatch, getNicknameClass } = useUserTier();
 
 const collectCommentAuthorIds = (comments) => {
   const ids = new Set();
@@ -65,7 +65,8 @@ const collectCommentAuthorIds = (comments) => {
 const commentTierMap = useTierMap(
   () => collectCommentAuthorIds(props.comments),
   getNicknameClass,
-  fetchUserTier
+  fetchUserTier,
+  fetchUserTiersBatch
 );
 
 const getChildReplyState = (parentId) => {

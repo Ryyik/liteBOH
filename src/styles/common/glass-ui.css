@@ -572,6 +572,35 @@
   }
 }
 
+/* Low-memory / data-saving devices use opaque surfaces to reduce compositor work. */
+.boh-perf-lite .glass-container-light,
+.boh-perf-lite .glass-container-medium,
+.boh-perf-lite .glass-container-heavy,
+.boh-perf-lite .glass-overlay,
+.boh-perf-lite .glass-overlay-light,
+.boh-perf-lite .glass-modal-content,
+.boh-perf-lite .glass-modal-container,
+.boh-perf-lite .glass-card,
+.boh-perf-lite .glass-button,
+.boh-perf-lite .glass-input,
+.boh-perf-lite .glass-navbar,
+.boh-perf-lite .glass-chat-input,
+.boh-perf-lite .glass-sidebar,
+.boh-perf-lite .glass-message-bubble,
+.boh-perf-lite .glass-user-bubble {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.boh-reduced-motion *,
+.boh-reduced-motion *::before,
+.boh-reduced-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-duration: 0.001ms !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .glass-card,
   .glass-button,

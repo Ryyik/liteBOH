@@ -17,10 +17,11 @@ import { computed, ref, watch } from 'vue';
  * @param {() => string[]} idsGetter - 返回去重后用户 ID 列表的响应式 getter
  *   （需遍历源数组以建立 length 依赖，从而捕获 push/splice 等变更）
  * @param {(id: string) => string} getNicknameClassFn - 根据缓存返回等级样式类名
- * @param {(id: string) => Promise<string>} fetchUserTierFn - 拉取并缓存用户等级
+ * @param {(id: string) => Promise<string>} fetchUserTierFn - 单个拉取并缓存用户等级的兜底函数
+ * @param {(ids: string[]) => Promise<Map<string, string>>} [fetchUserTiersBatchFn] - 批量拉取函数
  * @returns {import('vue').ComputedRef<Record<string, string>>} tierMap
  */
-export function useTierMap(idsGetter, getNicknameClassFn, fetchUserTierFn) {
+export function useTierMap(idsGetter, getNicknameClassFn, fetchUserTierFn, fetchUserTiersBatchFn = null) {
   // fetch 完成后自增，使 computed 在缓存被填充后重新求值
   const fetchVersion = ref(0);
 
@@ -40,7 +41,12 @@ export function useTierMap(idsGetter, getNicknameClassFn, fetchUserTierFn) {
     const idList = idsGetter();
     if (!idList || !Array.isArray(idList)) return;
     try {
-      await Promise.all(idList.map((id) => fetchUserTierFn(id)));
+      const uniqueIds = [...new Set(idList.filter(Boolean))];
+      if (typeof fetchUserTiersBatchFn === 'function') {
+        await fetchUserTiersBatchFn(uniqueIds);
+      } else {
+        await Promise.all(uniqueIds.map((id) => fetchUserTierFn(id)));
+      }
     } catch {
       // 静默处理，fetchUserTierFn 内部已有兜底
     } finally {

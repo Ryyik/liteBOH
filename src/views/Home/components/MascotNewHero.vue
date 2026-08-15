@@ -16,9 +16,9 @@
         :src="mascotLandscapeImg"
         alt="方块之家全新吉祥物玩偶"
         class="mascot-new-image"
-        loading="eager"
+        :loading="priority ? 'eager' : 'lazy'"
         decoding="async"
-        fetchpriority="high"
+        :fetchpriority="priority ? 'high' : 'auto'"
         draggable="false"
       />
     </picture>
@@ -29,6 +29,10 @@
 import AppleGridCard from '@/components/AppleGridCard.vue';
 import mascotLandscapeImg from '@/assets/images/mascot-new-landscape-clean.webp?url';
 import mascotPortraitImg from '@/assets/images/mascot-new-portrait.webp?url';
+
+defineProps({
+  priority: { type: Boolean, default: false },
+});
 </script>
 
 <style scoped>

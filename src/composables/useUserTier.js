@@ -3,6 +3,7 @@ import { resolveNicknameTierClass } from '@/utils/subscription-benefits.js';
 
 const TIER_CACHE_TTL_MS = 5 * 60 * 1000; // 5 分钟
 const tierCache = new Map();
+const tierRequestInFlight = new Map();
 
 function getCachedTier(userId) {
   const entry = tierCache.get(userId);
@@ -24,13 +25,22 @@ export function useUserTier() {
     if (!userId) return '';
     const cached = getCachedTier(userId);
     if (cached !== undefined) return cached;
-    const { data, error } = await supabase
-      .rpc('get_user_subscription_tier', { p_user_id: userId });
-    const tier = (!error && data) ? String(data).trim().toLowerCase() : '';
-    // 统一处理：空tier视为free，确保缓存和返回值一致
-    const normalizedTier = tier || 'free';
-    setCachedTier(userId, normalizedTier);
-    return normalizedTier;
+    if (tierRequestInFlight.has(userId)) return tierRequestInFlight.get(userId);
+
+    const request = (async () => {
+      const { data, error } = await supabase
+        .rpc('get_user_subscription_tier', { p_user_id: userId });
+      const tier = (!error && data) ? String(data).trim().toLowerCase() : '';
+      const normalizedTier = tier || 'free';
+      setCachedTier(userId, normalizedTier);
+      return normalizedTier;
+    })();
+    tierRequestInFlight.set(userId, request);
+    try {
+      return await request;
+    } finally {
+      tierRequestInFlight.delete(userId);
+    }
   }
 
   /**
@@ -54,12 +64,17 @@ export function useUserTier() {
     }
     if (uncached.length === 0) return result;
 
+    const pending = uncached.filter((id) => tierRequestInFlight.has(id));
+    const requestIds = uncached.filter((id) => !tierRequestInFlight.has(id));
+    await Promise.all(pending.map(async (id) => result.set(id, await tierRequestInFlight.get(id))));
+    if (requestIds.length === 0) return result;
+
     const { data, error } = await supabase
-      .rpc('get_user_subscription_tiers', { p_user_ids: uncached });
+      .rpc('get_user_subscription_tiers', { p_user_ids: requestIds });
 
     if (error || !Array.isArray(data)) {
       // 回退：逐个调用 fetchUserTier
-      for (const id of uncached) {
+      for (const id of requestIds) {
         result.set(id, await fetchUserTier(id));
       }
       return result;
@@ -69,6 +84,13 @@ export function useUserTier() {
       const tier = String(row.tier || '').trim().toLowerCase() || 'free';
       setCachedTier(row.user_id, tier);
       result.set(row.user_id, tier);
+    }
+    // RPC 正常返回但缺少成员时同样缓存 free，避免每次渲染重新查询。
+    for (const id of requestIds) {
+      if (!result.has(id)) {
+        setCachedTier(id, 'free');
+        result.set(id, 'free');
+      }
     }
     return result;
   }

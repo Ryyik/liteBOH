@@ -25,7 +25,51 @@ import type {
 // 版本化缓存：字段结构变更时升级版本，避免旧记录按新模板渲染。
 const CACHE_KEY = 'boh_home_heroes_v2'
 const LEGACY_CACHE_KEYS = ['boh_home_heroes_v1']
-const CACHE_TTL_MS = 5 * 60 * 1000
+// 缓存用于首屏即时渲染；每次进入首页仍会在后台请求最新配置。
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000
+
+const FALLBACK_TIMESTAMP = '2026-08-14T00:00:00.000Z'
+
+const createBuiltinFallback = (
+  builtinKey: string,
+  sortOrder: number,
+  title: string,
+  ariaLabel: string
+): HomeHero => ({
+  id: `builtin-${builtinKey}`,
+  sort_order: sortOrder,
+  is_archived: false,
+  template: 'builtin',
+  variant: 'light',
+  builtin_key: builtinKey,
+  title,
+  image_config: {},
+  links: [],
+  status: 'published',
+  aria_label: ariaLabel,
+  created_at: FALLBACK_TIMESTAMP,
+  updated_at: FALLBACK_TIMESTAMP
+})
+
+// 内置区块迁入数据库后，首次访问不能再以网络请求作为首屏渲染前提。
+// 远端配置到达后会覆盖此基线，管理员的排序与显隐设置仍然是最终来源。
+export const HOME_HERO_BASELINE: HomeHero[] = [
+  createBuiltinFallback('mascot-new', 10, '全新吉祥物现已上线', '全新吉祥物现已上线'),
+  createBuiltinFallback('agent-preview', 20, 'BOH Agent Preview', 'BOH Agent Preview'),
+  createBuiltinFallback('birthday', 30, '今日生日', '今日生日'),
+  createBuiltinFallback('block-wall', 40, '方块墙', '方块墙'),
+  createBuiltinFallback('anniversary-8', 60, '八周年庆典', '方块之家八周年'),
+  createBuiltinFallback('cloud-cafe', 70, '云上咖啡店', '云上咖啡店网页游戏'),
+  createBuiltinFallback('fuzhou', 80, '遇见福州', '遇见福州'),
+  createBuiltinFallback('split-brand-letter', 100, 'BOH 与 Ryyik 的信', '品牌与八周年寄语')
+]
+
+const HOME_HERO_SELECT_COLUMNS = [
+  'id', 'sort_order', 'is_archived', 'template', 'variant', 'builtin_key',
+  'eyebrow', 'title', 'subtitle', 'image_config', 'content_layout', 'links',
+  'split_cards', 'label', 'aria_label', 'status', 'published_at', 'published_by',
+  'created_at', 'updated_at', 'created_by', 'updated_by'
+].join(',')
 
 interface HeroesCache {
   timestamp: number
@@ -190,8 +234,12 @@ const buildSnapshot = (hero: HomeHero): HomeHero => ({
 })
 
 export const useHomeHeroesStore = defineStore('homeHeroes', () => {
+  const cachedPublishedHeroes = readCache()
+  const hasPublishedCache = Boolean(cachedPublishedHeroes?.length)
   // 首页已发布英雄区（未归档）
-  const publishedHeroes = ref<HomeHero[]>([])
+  const publishedHeroes = ref<HomeHero[]>(
+    cachedPublishedHeroes?.length ? cachedPublishedHeroes : HOME_HERO_BASELINE
+  )
   // 首页已归档英雄区（历史区）
   const archivedHeroes = ref<HomeHero[]>([])
   // 管理面板：全部英雄区（含草稿）
@@ -200,6 +248,7 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
   const isSaving = ref(false)
   const fetchError = ref('')
   let publishedFetchPromise: Promise<HomeHero[]> | null = null
+  let hasPublishedRemoteData = false
   // 请求代次令牌：force 刷新后旧在途请求不得回写数据，也不得清掉新请求的去重引用
   let publishedFetchToken = 0
 
@@ -213,7 +262,7 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
       try {
         const { data, error } = await supabase
           .from('home_heroes')
-          .select('*')
+          .select(HOME_HERO_SELECT_COLUMNS)
           .eq('status', 'published')
           .eq('is_archived', false)
           .order('sort_order', { ascending: true })
@@ -221,8 +270,9 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
         if (error) throw error
         // 已被更新的 force 请求取代：丢弃本次结果，避免旧数据晚到覆盖新数据
         if (token !== publishedFetchToken) return publishedHeroes.value
-        const heroes = (data || []).map((item) => normalizeHero(item as Record<string, unknown>))
+        const heroes = (data || []).map((item) => normalizeHero(item as unknown as Record<string, unknown>))
         publishedHeroes.value = heroes
+        hasPublishedRemoteData = true
         writeCache(heroes)
         return heroes
       } catch (error) {
@@ -244,17 +294,13 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
 
   // 首页：读取已发布未归档英雄区
   const fetchPublished = async ({ force = false } = {}): Promise<HomeHero[]> => {
-    if (!force && publishedHeroes.value.length > 0) {
+    if (!force && hasPublishedRemoteData) {
       return publishedHeroes.value
     }
-    if (!force) {
-      const cached = readCache()
-      if (cached?.length) {
-        publishedHeroes.value = cached
-        // 缓存只用于首屏加速，随后始终同步远端，避免持续展示旧结构。
-        void fetchPublishedFromRemote()
-        return cached
-      }
+    if (!force && hasPublishedCache) {
+      // 缓存只用于首屏加速，随后始终同步远端，避免持续展示旧结构。
+      void fetchPublishedFromRemote()
+      return publishedHeroes.value
     }
     // force=true 时作废在途请求（旧请求结果与 finally 清理均会被令牌拦截），确保发起新请求
     if (force) {
@@ -568,9 +614,10 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
   }
 
   const resetState = (): void => {
-    publishedHeroes.value = []
+    publishedHeroes.value = HOME_HERO_BASELINE
     archivedHeroes.value = []
     allHeroes.value = []
+    hasPublishedRemoteData = false
     isFetching.value = false
     isSaving.value = false
     fetchError.value = ''

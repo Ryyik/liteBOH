@@ -73,29 +73,9 @@ export const sendGiftEmail = async (data) => {
  * @returns {Promise<Object>}
  */
 export const sendMerchandiseSettlementEmail = async (data) => {
-  const productList = data.items && data.items.length > 0
-    ? data.items.map(item => `${item.title} (${item.selectedSpecLabel}) x${item.quantity}`).join('\n- ')
-    : '无商品';
+  const orderId = String(data?.orderId || '').trim();
+  if (!orderId) throw new Error('订单 ID 缺失，无法发送订单邮件');
 
-  const contactLabel = data.contactType === 'qq' ? 'QQ' : '微信';
-  const contactInfo = data.contactType && data.contactValue
-    ? `${contactLabel}: ${data.contactValue}`
-    : '未提供';
-
-  const templateParams = {
-    product: '方块之家周边订单',
-    specifications: productList,
-    giftOptions: '周边购物',
-    paymentMethod: '待确认',
-    paymentAmount: data.totalPrice || '0',
-    deliveryMethod: '待确认',
-    totalPrice: data.totalPrice || '0',
-    giftMessage: `用户ID: ${data.userId || 'N/A'}\n时间: ${data.orderTime || new Date().toLocaleString('zh-CN')}\n联系方式: ${contactInfo}`,
-    buyerName: data.buyerName || '匿名用户',
-    buyerRole: data.buyerRole || '普通用户',
-    isLoggedIn: data.isLoggedIn ? '是' : '否',
-    orderTime: data.orderTime || new Date().toLocaleString('zh-CN'),
-  };
-
-  return callSendEmailFunction('merchandise_settlement', templateParams);
+  // 服务端按订单 ID 读取已落库的商品与联系方式，避免使用页面上的可篡改快照。
+  return callSendEmailFunction('merchandise_settlement', { orderId });
 };

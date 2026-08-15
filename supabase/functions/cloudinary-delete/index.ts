@@ -101,6 +101,37 @@ const filterOwnedCloudPublicIds = async (userId: string, publicIds: string[]) =>
     }
     if (Array.isArray(entries) && entries.length > 0) {
       ownedPublicIds.push(publicId);
+      continue;
+    }
+
+    const { data: pointsCardPreset, error: pointsCardPresetError } = await serviceClient
+      .from('points_card_presets')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('image_public_id', publicId)
+      .maybeSingle();
+
+    if (pointsCardPresetError) {
+      throw pointsCardPresetError;
+    }
+    if (pointsCardPreset?.id) {
+      ownedPublicIds.push(publicId);
+      continue;
+    }
+
+    const { data: pendingUpload, error: pendingUploadError } = await serviceClient
+      .from('cloudinary_pending_uploads')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('public_id', publicId)
+      .is('deleted_at', null)
+      .maybeSingle();
+
+    if (pendingUploadError) {
+      throw pendingUploadError;
+    }
+    if (pendingUpload?.id) {
+      ownedPublicIds.push(publicId);
     }
   }
 

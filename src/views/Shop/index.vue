@@ -239,7 +239,7 @@
     </Transition>
 
     <Transition name="modal">
-      <div v-if="showContactModal" class="modal-overlay" @click="closeContactModal">
+      <div v-if="showContactModal" class="modal-overlay contact-modal-overlay" @click="closeContactModal">
         <section class="contact-sheet" role="dialog" aria-modal="true" aria-label="填写联系方式" @click.stop>
           <button class="close-button" type="button" aria-label="关闭" @click="closeContactModal"><X :size="20" /></button>
           <p class="section-kicker">订单确认</p><h2>留下联系方式</h2><p>管理员会联系你确认兑换与交付方式。</p>
@@ -262,6 +262,17 @@
         </div>
       </div>
     </Transition>
+
+    <ShopPaymentSuccessModal
+      :visible="Boolean(paymentSuccess)"
+      :username="userInfo.username"
+      :points="userInfo.points"
+      :skin="userInfo.pointsCardSkin"
+      :image-url="userInfo.pointsCardImageUrl"
+      :order-no="paymentSuccess?.orderNo || ''"
+      :payment-summary="paymentSuccess?.paymentSummary || ''"
+      @close="closePaymentSuccess"
+    />
 
     <Transition name="toast"><div v-if="operationToast.show" class="operation-toast">{{ operationToast.message }}</div></Transition>
   </div>
@@ -286,6 +297,7 @@ import { createShopOrderWithPoints, getProfileByUsername } from '@/utils/api/pro
 import { sendMerchandiseSettlementEmail } from '@/utils/email-service.js';
 import { logger } from '@/utils/logger.js';
 import ShopAccountPanel from './ShopAccountPanel.vue';
+import ShopPaymentSuccessModal from './ShopPaymentSuccessModal.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -308,6 +320,7 @@ const showContactModal = ref(false);
 const contactType = ref('');
 const contactValue = ref('');
 const operationToast = ref({ show: false, message: '' });
+const paymentSuccess = ref(null);
 let toastTimer = null;
 
 // 横屏/竖屏检测 & 账户面板
@@ -464,6 +477,10 @@ function showOperationToast(message) {
 }
 
 function closeContactModal() { showContactModal.value = false; contactType.value = ''; contactValue.value = ''; }
+function closePaymentSuccess() {
+  paymentSuccess.value = null;
+  document.body.style.overflow = '';
+}
 function getSettlement() {
   if (!isLoggedIn.value) { closeSidebar(); showLoginModal.value = true; return showOperationToast('请先登录后再提交订单'); }
   if (!canCheckout.value) return showOperationToast('订单内容无效，请检查购物袋');
@@ -506,7 +523,6 @@ async function notifyAdministrators(content) {
 }
 async function submitContact() {
   if (!contactType.value || !contactValue.value || !canCheckout.value) return;
-  const snapshot = shoppingBag.value.map((item) => ({ ...item }));
   const result = await createShopOrderWithPoints({ items: buildOrderItemsPayload(), contactType: contactType.value, contactValue: contactValue.value });
   if (!result.ok) return showOperationToast(resolveOrderErrorMessage(result));
 
@@ -517,7 +533,11 @@ async function submitContact() {
   const time = formatDateTime(new Date());
   const contactLabel = contactType.value === 'qq' ? 'QQ' : '微信';
   const paymentMode = result.data?.paymentMode || 'points_only';
-  const itemText = snapshot.map((item) => `${item.title} (${item.selectedSpecLabel}) x${item.quantity}`).join('\n- ');
+  const orderedItems = Array.isArray(result.data?.items) && result.data.items.length ? result.data.items : shoppingBag.value;
+  const itemText = orderedItems.map((item) => {
+    const specification = item.selected_spec_label || item.selectedSpecLabel || '默认规格';
+    return `${item.title} (${specification}) x${item.quantity}`;
+  }).join('\n- ');
 
   let paymentSummary = '';
   if (paymentMode === 'points_only') paymentSummary = `积分: ${paidPoints}`;
@@ -525,11 +545,15 @@ async function submitContact() {
   else paymentSummary = `积分: ${paidPoints} + 现金: ¥${(paidRmb / 100).toFixed(2)}`;
 
   const summary = `--- 方块之家周边结算单 ---\n订单号: ${orderNo}\n用户: ${userInfo.username}\n时间: ${time}\n${contactLabel}: ${contactValue.value}\n\n支付方式: ${paymentSummary}\n\n商品清单:\n- ${itemText}\n\n剩余积分: ${remainingPoints}`;
-  const savedContact = contactValue.value;
   userInfo.points = remainingPoints;
   await copyToClipboard(summary);
   closeContactModal(); clearBag(); closeSidebar();
-  void sendMerchandiseSettlementEmail({ userId: userInfo.username, orderNo, orderTime: time, items: snapshot, totalPrice: paymentSummary, paymentMethod: paymentSummary, buyerName: userInfo.username, buyerRole: userInfo.role, isLoggedIn: true, contactType: contactLabel, contactValue: savedContact }).catch((error) => logger.error('shop', '订单邮件发送失败', error));
+  paymentSuccess.value = { orderNo, paymentSummary };
+  document.body.style.overflow = 'hidden';
+  void sendMerchandiseSettlementEmail({ orderId: result.data.orderId }).catch((error) => {
+    logger.error('shop', '订单邮件发送失败', error);
+    showOperationToast('订单已提交，但邮件通知发送失败');
+  });
   void notifyAdministrators(`收到新的周边订单！\n订单号: ${orderNo}\n用户: ${userInfo.username}\n支付: ${paymentSummary}\n商品: ${itemText}`);
   showOperationToast('订单已提交');
 }

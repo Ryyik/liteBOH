@@ -316,7 +316,7 @@ const { isUserOnline, formatUserOnlineStatus, formatOnlineStatusTooltip } = useU
 
 const hideOnlineStatus = computed(() => userInfo.value?.hideOnlineStatus ?? false);
 
-const { fetchUserTier, getNicknameClass } = useUserTier();
+const { fetchUserTier, fetchUserTiersBatch, getNicknameClass } = useUserTier();
 
 const communityMemoryCache = createMemoryTtlCache();
 const CACHE_TTL = {
@@ -709,7 +709,8 @@ const communityTierMap = useTierMap(
     return [...ids];
   },
   getNicknameClass,
-  fetchUserTier
+  fetchUserTier,
+  fetchUserTiersBatch
 );
 
 const birthdayTierMap = useTierMap(
@@ -719,6 +720,7 @@ const birthdayTierMap = useTierMap(
     return [...ids];
   },
   getNicknameClass,
-  fetchUserTier
+  fetchUserTier,
+  fetchUserTiersBatch
 );
 </script>

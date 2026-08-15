@@ -104,80 +104,25 @@ describe('email-service', () => {
   });
 
   describe('sendMerchandiseSettlementEmail', () => {
-    it('formats product list correctly', async () => {
+    it('sends only the persisted order ID for server-side order lookup', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({ ok: true }),
       });
 
       await sendMerchandiseSettlementEmail({
-        items: [
-          { title: 'Item A', selectedSpecLabel: 'S', quantity: 2 },
-          { title: 'Item B', selectedSpecLabel: 'M', quantity: 1 },
-        ],
-        totalPrice: '300',
-        buyerName: 'User',
+        orderId: 'ca052c3d-77c6-461b-a1e0-eae4b1b8f169',
       });
 
       const [, options] = mockFetch.mock.calls[0];
       const body = JSON.parse(options.body);
       expect(body.templateType).toBe('merchandise_settlement');
-      expect(body.templateParams.specifications).toContain('Item A');
-      expect(body.templateParams.specifications).toContain('x2');
-      expect(body.templateParams.specifications).toContain('Item B');
+      expect(body.templateParams).toEqual({ orderId: 'ca052c3d-77c6-461b-a1e0-eae4b1b8f169' });
     });
 
-    it('handles empty items array', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ ok: true }),
-      });
-
-      await sendMerchandiseSettlementEmail({
-        items: [],
-        totalPrice: '0',
-        buyerName: 'User',
-      });
-
-      const [, options] = mockFetch.mock.calls[0];
-      const body = JSON.parse(options.body);
-      expect(body.templateParams.specifications).toBe('无商品');
-    });
-
-    it('formats contact info correctly', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ ok: true }),
-      });
-
-      await sendMerchandiseSettlementEmail({
-        items: [],
-        totalPrice: '0',
-        buyerName: 'User',
-        contactType: 'qq',
-        contactValue: '12345678',
-      });
-
-      const [, options] = mockFetch.mock.calls[0];
-      const body = JSON.parse(options.body);
-      expect(body.templateParams.giftMessage).toContain('QQ: 12345678');
-    });
-
-    it('shows "未提供" when no contact info', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ ok: true }),
-      });
-
-      await sendMerchandiseSettlementEmail({
-        items: [],
-        totalPrice: '0',
-        buyerName: 'User',
-      });
-
-      const [, options] = mockFetch.mock.calls[0];
-      const body = JSON.parse(options.body);
-      expect(body.templateParams.giftMessage).toContain('未提供');
+    it('requires a persisted order ID', async () => {
+      await expect(sendMerchandiseSettlementEmail({})).rejects.toThrow('订单 ID 缺失');
+      expect(mockFetch).not.toHaveBeenCalled();
     });
   });
 });

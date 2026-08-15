@@ -17,6 +17,9 @@ export interface UserInfo {
   avatarUrl: string
   profileBackgroundUrl: string
   profileBackgroundPublicId: string
+  pointsCardSkin: string
+  pointsCardImageUrl: string
+  pointsCardImagePublicId: string
   bio: string
   experience: number
   isBohCreator: boolean
