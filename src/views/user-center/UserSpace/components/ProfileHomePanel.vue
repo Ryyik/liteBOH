@@ -22,6 +22,7 @@
         </svg>
       </button>
 
+      <div class="profile-identity-stack">
       <div class="profile-hero-body">
         <div class="apple-avatar-wrapper profile-hero-avatar clickable" @click="$emit('avatar-click')">
           <div v-if="avatarUrl" class="apple-avatar has-avatar">
@@ -80,6 +81,7 @@
             <span class="stat-chip-label">关注</span>
           </button>
         </template>
+      </div>
       </div>
     </section>
 
@@ -1179,4 +1181,5 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
 .user-space-page[data-theme="dark"] .profile-post-cover.empty {
   background: linear-gradient(135deg, rgba(49, 46, 129, 0.45), rgba(24, 24, 27, 0.92));
 }
+
 </style>

@@ -679,6 +679,11 @@ export function useChatEngine() {
       abortController.value = null;
     }
 
+    if (generationTimeoutTimer) {
+      clearTimeout(generationTimeoutTimer);
+      generationTimeoutTimer = null;
+    }
+
     if (activeIndex !== null) {
       const activeSession = getSessionByIndex(activeIndex);
       if (activeSession) {

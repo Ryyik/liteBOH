@@ -454,7 +454,8 @@ export async function subscribeToNotifications(userId, callback) {
   }
 
   const channel = supabase
-    .channel(`notifications:user:${userId}`)
+    // 时间戳后缀确保每次订阅拿到全新通道，避免复用已关闭/异常的旧通道
+    .channel(`notifications:${userId}:${Date.now()}`)
     .on(
       'postgres_changes',
       {
@@ -464,12 +465,22 @@ export async function subscribeToNotifications(userId, callback) {
         filter: `recipient_id=eq.${userId}`
       },
       (payload) => {
-        if (typeof callback === 'function') {
+        if (typeof callback !== 'function') return;
+        // 回调抛错不能冒泡进 Supabase Realtime 派发循环，否则可能导致通道后续回调失效
+        try {
           callback(payload.new);
+        } catch (error) {
+          logger.error('notifications-api', '实时通知回调执行失败:', error);
         }
       }
     )
-    .subscribe();
+    .subscribe((status, err) => {
+      if (status === 'SUBSCRIBED') {
+        logger.info('notifications-api', '实时订阅成功', { userId });
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        logger.error('notifications-api', `通知订阅状态异常: ${status}`, err);
+      }
+    });
 
   return channel;
 }

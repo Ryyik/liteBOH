@@ -158,6 +158,14 @@ const safariBarHeight = ref(0)
 // 上一次"非键盘态"的视觉视口高度，用于精确测出键盘高度（排除 URL 栏变化）
 let baselineVisualHeight = 0
 let snapTimer = null
+const viewportTimers = new Set()
+const scheduleViewportUpdate = (delay) => {
+  const id = setTimeout(() => {
+    viewportTimers.delete(id)
+    updateViewport()
+  }, delay)
+  viewportTimers.add(id)
+}
 // 焦点是否在遮罩内的可编辑控件
 let isEditingFocused = false
 const panelState = ref({ sidebarOpen: false, title: 'BOH AI', temporary: false, settingsOpen: false })
@@ -380,15 +388,15 @@ function onOverlayFocusIn(e) {
   // 记录键盘弹起前的视觉视口高度（用于精确测出键盘本身的高度）
   baselineVisualHeight = visualHeight.value || 0
   // 等待键盘动画完成再测量（iOS 弹出/收起约 250-400ms）
-  setTimeout(updateViewport, 350)
+  scheduleViewportUpdate(350)
   // 立即刷新一次以缩短空白
-  setTimeout(updateViewport, 60)
+  scheduleViewportUpdate(60)
 }
 
 function onOverlayFocusOut(e) {
   if (!isEditableElement(e.target)) return
   isEditingFocused = false
-  setTimeout(updateViewport, 350)
+  scheduleViewportUpdate(350)
 }
 
 // 全面更新视觉视口与键盘状态
@@ -459,7 +467,8 @@ function updateViewport() {
 
   // 键盘弹出时，自动滚动到输入框附近
   if (keyboardVisible.value && chatRef.value) {
-    setTimeout(() => {
+    const scrollId = setTimeout(() => {
+      viewportTimers.delete(scrollId)
       const chatContainer = chatRef.value?.querySelector('.chat-container')
       if (chatContainer) {
         chatContainer.scrollTo({
@@ -468,6 +477,7 @@ function updateViewport() {
         })
       }
     }, 150)
+    viewportTimers.add(scrollId)
   }
 
   // 拖拽距离计算使用视觉视口高度，避免 iOS URL 栏影响拖拽手感
@@ -549,6 +559,8 @@ onUnmounted(() => {
   window.removeEventListener('boh-ai-focus-composer', focusComposerFromShortcut)
   window.removeEventListener('keydown', handleOverlayKeydown)
   clearTimeout(snapTimer)
+  viewportTimers.forEach(id => clearTimeout(id))
+  viewportTimers.clear()
 })
 </script>
 

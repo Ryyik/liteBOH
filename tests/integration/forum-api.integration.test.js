@@ -148,6 +148,35 @@ describe('forum-api integration: createPostWithImages', () => {
     expect(result.ok).toBe(true);
     expect(fm.rpcMock).toHaveBeenCalledWith('create_forum_post_with_images', expect.any(Object));
   });
+
+  it('uses the idempotent RPC when a submission id is provided', async () => {
+    fm.authGetUser.mockResolvedValue({
+      data: { user: { id: 'u1', user_metadata: { username: 'author' } } },
+      error: null,
+    });
+    fm.rpcMock.mockResolvedValue({
+      data: { id: 'post-img-2', content: '【标题】\n正文', image_count: 1 },
+      error: null,
+    });
+
+    const result = await createPostWithImages(
+      '正文',
+      'u1',
+      'author',
+      'approved',
+      '标题',
+      [{ url: 'https://img.url', public_id: 'pub-1' }],
+      '',
+      null,
+      { submissionId: 'b3eacb6a-1b8e-4cf5-8fd4-7140e0252e89' }
+    );
+
+    expect(result.ok).toBe(true);
+    expect(fm.rpcMock).toHaveBeenCalledWith(
+      'create_forum_post_with_images_idempotent',
+      expect.objectContaining({ p_submission_id: 'b3eacb6a-1b8e-4cf5-8fd4-7140e0252e89' })
+    );
+  });
 });
 
 describe('forum-api integration: deletePost', () => {

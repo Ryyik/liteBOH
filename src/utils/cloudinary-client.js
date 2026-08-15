@@ -41,6 +41,54 @@ function stripFileExtension(name = '') {
   return String(name || '').replace(/\.[^.]+$/, '').trim();
 }
 
+function uploadFormDataWithProgress(url, formData, options = {}) {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    const timeoutId = window.setTimeout(() => request.abort(), 60000);
+    const signal = options.signal;
+    let settled = false;
+
+    const finish = (callback) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      signal?.removeEventListener?.('abort', abortRequest);
+      callback();
+    };
+    const abortRequest = () => request.abort();
+
+    request.open('POST', url, true);
+    request.responseType = 'text';
+    request.upload.onprogress = (event) => {
+      if (!event.lengthComputable || typeof options.onProgress !== 'function') return;
+      options.onProgress(Math.max(0, Math.min(100, (event.loaded / event.total) * 100)));
+    };
+    request.onload = () => finish(() => {
+      let data = {};
+      try {
+        data = JSON.parse(request.responseText || '{}');
+      } catch {
+        reject(new Error('Cloudinary 上传响应无效'));
+        return;
+      }
+      if (request.status < 200 || request.status >= 300) {
+        reject(new Error(data?.error?.message || 'Cloudinary 上传失败'));
+        return;
+      }
+      resolve(data);
+    });
+    request.onerror = () => finish(() => reject(new Error('Cloudinary 上传失败')));
+    request.onabort = () => finish(() => reject(new Error('Cloudinary 上传超时或已取消')));
+    signal?.addEventListener?.('abort', abortRequest, { once: true });
+    if (signal?.aborted) {
+      abortRequest();
+      return;
+    }
+    options.onProgress?.(0);
+    request.send(formData);
+  });
+}
+
 export function isCloudinaryNoteUploadConfigured() {
   return Boolean(CLOUDINARY_CLOUD_NAME && DEFAULT_UPLOAD_PRESET);
 }
@@ -251,22 +299,26 @@ export async function uploadImageToCloudinary(file, options = {}) {
       formData.append('folder', folder);
     }
 
-    const uploadController = new AbortController();
-    const uploadTimeoutId = setTimeout(() => uploadController.abort(), 60000);
-    let response;
-    try {
-      response = await fetch(resolveUploadUrl('image'), {
-        method: 'POST',
-        body: formData,
-        signal: uploadController.signal
-      });
-    } finally {
-      clearTimeout(uploadTimeoutId);
-    }
-
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(data?.error?.message || 'Cloudinary 上传失败');
+    let data;
+    if (typeof options.onProgress === 'function' && typeof XMLHttpRequest !== 'undefined') {
+      data = await uploadFormDataWithProgress(resolveUploadUrl('image'), formData, options);
+    } else {
+      const uploadController = new AbortController();
+      const uploadTimeoutId = setTimeout(() => uploadController.abort(), 60000);
+      let response;
+      try {
+        response = await fetch(resolveUploadUrl('image'), {
+          method: 'POST',
+          body: formData,
+          signal: options.signal || uploadController.signal
+        });
+      } finally {
+        clearTimeout(uploadTimeoutId);
+      }
+      data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error?.message || 'Cloudinary 上传失败');
+      }
     }
     validateCloudinaryUploadResult(data, {
       cloudName: CLOUDINARY_CLOUD_NAME,

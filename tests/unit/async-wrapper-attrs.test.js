@@ -14,6 +14,8 @@ import { resolve } from 'path';
     path: 'src/views/user-center/UserSpace/index.vue',
     mainFile: 'UserSpaceMain.vue',
     mainVar: 'UserSpaceMain',
+    // UserSpace 已改为静态导入 + v-bind="$attrs" 直接透传（嵌入式 tab 容器，无异步边界）
+    async: false,
   },
   {
     name: 'BOHAI',
@@ -40,12 +42,6 @@ import { resolve } from 'path';
     path: 'src/views/PostDetail/index.vue',
     mainFile: 'PostDetailMain.vue',
     mainVar: 'PostDetailMain',
-  },
-  {
-    name: 'Forum',
-    path: 'src/views/Forum/index.vue',
-    mainFile: 'ForumMain.vue',
-    mainVar: 'ForumMain',
   },
   {
     name: 'DataManagement',
@@ -129,14 +125,6 @@ describe('async wrapper attrs pass-through', () => {
   });
 
   describe('known consumers pass props/emits (regression guard)', () => {
-    it('BohAiGlassOverlay imports AsyncBOHAI from async-loaders and passes props + events', () => {
-      const overlay = readEntryFile('src/views/user-center/UserSpace/components/BohAiGlassOverlay.vue');
-      expect(overlay).toMatch(/import \{ AsyncBOHAI as BOHAIChat \} from ['"]\.\.\/async-loaders\.js['"]/);
-      expect(overlay).toMatch(/:embedded="true"/);
-      expect(overlay).toMatch(/:overlay-mode="true"/);
-      expect(overlay).toMatch(/@island-message/);
-    });
-
     it('async-loaders.js loads ForumMain.vue directly (no double-wrap)', () => {
       const asyncLoaders = readEntryFile('src/views/user-center/UserSpace/async-loaders.js');
       expect(asyncLoaders).toMatch(/import\(['"]@\/views\/Forum\/ForumMain\.vue['"]\)/);

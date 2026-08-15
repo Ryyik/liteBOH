@@ -199,6 +199,7 @@ import HomeCatMascot from "@/components/HomeCatMascot.vue";
 import { themeManager } from "@/utils/theme-manager.js";
 import { isHomeCatTheme } from "@/utils/home-cat-theme.js";
 import { useConfirmDialog } from "@/composables/useConfirmDialog.js";
+import { useAppMode } from "@/composables/useAppMode.js";
 import { useVersionCheck } from "@/composables/useVersionCheck.js";
 import { toggleHiagentChat } from "@/utils/hiagent-widget.js";
 
@@ -207,6 +208,7 @@ const { isLoggedIn, isInitialized, showLoginModal, isAdmin } = storeToRefs(authS
 const notificationStoreRef = ref(getNotificationStoreSync());
 const { alert, confirm } = useConfirmDialog();
 const { checkForUpdate, applyUpdate, isChecking } = useVersionCheck();
+const { isBeta5 } = useAppMode();
 const router = useRouter();
 const currentTheme = ref(themeManager.getTheme());
 const currentThemePreference = ref(themeManager.getPreference?.() || currentTheme.value);
@@ -227,13 +229,20 @@ let resizeRafId = null;
 let pendingScrollY = 0;
 
 const handleScroll = (event) => {
-  if (scrollRafId) return;
-  const target = event?.target;
-  if (target && target !== document && target !== document.documentElement && target !== window) {
-    pendingScrollY = Math.max(window.scrollY, Number(target.scrollTop) || 0);
-  } else {
-    pendingScrollY = window.scrollY;
+  if (isBeta5.value) {
+    if (isScrolled.value) isScrolled.value = false;
+    return;
   }
+
+  const target = event?.target;
+  const isPageScroll = !target || target === document || target === document.documentElement
+    || target === document.body || target === window;
+  // 顶栏悬浮状态只跟页面级滚动相关：内部容器（评论列表、代码块等）滚动与顶栏无关，
+  // 旧实现把两个坐标系的滚动位置取 max，会导致在内部容器滚动时顶栏被误触发且无法回落
+  if (!isPageScroll) return;
+  // 始终刷新 pendingScrollY：同一帧内多次 scroll 事件时，rAF 回调读到的是最新位置而非首个事件的陈旧值
+  pendingScrollY = window.scrollY;
+  if (scrollRafId) return;
   scrollRafId = requestAnimationFrame(() => {
     isScrolled.value = isScrolled.value
       ? pendingScrollY > SCROLL_EXIT_THRESHOLD
@@ -620,7 +629,7 @@ const toggleMobileMenu = () => {
   const isPortrait = window.innerHeight > window.innerWidth;
 
   // 在竖屏模式下，始终允许页面滚动
-  if (isPortrait) {
+  if (isBeta5.value || isPortrait) {
     document.body.style.overflow = "";
   } else {
     // 仅在非竖屏模式且移动端菜单打开时，才禁用滚动
@@ -704,7 +713,7 @@ const handleResize = () => {
     }
 
     // 在竖屏模式下，始终允许页面滚动
-    if (isPortrait) {
+    if (isBeta5.value || isPortrait) {
       document.body.style.overflow = "";
     } else {
       // 仅在非竖屏模式且移动端菜单打开时，才禁用滚动
@@ -762,9 +771,13 @@ onMounted(() => {
   // 这样浏览器先绘制了无 scrolled 的基准状态，过渡才能正确触发
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      isScrolled.value = window.scrollY > SCROLL_ENTER_THRESHOLD;
+      isScrolled.value = isBeta5.value ? false : window.scrollY > SCROLL_ENTER_THRESHOLD;
     });
   });
+});
+
+watch(isBeta5, (enabled) => {
+  if (enabled) isScrolled.value = false;
 });
 
 /**
@@ -802,7 +815,7 @@ watch(
     const isPortrait = window.innerHeight > window.innerWidth;
 
     // 在竖屏模式下，始终允许页面滚动
-    if (isPortrait) {
+    if (isBeta5.value || isPortrait) {
       document.body.style.overflow = "";
     } else {
       // 仅在非竖屏模式且移动端菜单打开时，才禁用滚动

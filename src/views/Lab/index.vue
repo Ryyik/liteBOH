@@ -1102,9 +1102,11 @@ function nextTask(currentId) {
 /**
  * 关闭任务面板
  */
+let closeTaskPanelTimer = null
 function closeTaskPanel() {
   rightPanelOpen.value = false
-  setTimeout(() => {
+  if (closeTaskPanelTimer) clearTimeout(closeTaskPanelTimer)
+  closeTaskPanelTimer = setTimeout(() => {
     currentTaskFlow.value = null
     taskList.value = []
   }, 300)
@@ -2359,6 +2361,11 @@ onBeforeUnmount(() => {
   if (_streamContentRafId !== null) {
     cancelAnimationFrame(_streamContentRafId)
     _streamContentRafId = null
+  }
+  // 清理 closeTaskPanel 的延迟定时器
+  if (closeTaskPanelTimer) {
+    clearTimeout(closeTaskPanelTimer)
+    closeTaskPanelTimer = null
   }
   document.removeEventListener('click', onDocClick)
   document.removeEventListener('keydown', handleKeyboardShortcuts)

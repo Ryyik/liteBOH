@@ -200,10 +200,13 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
   const isSaving = ref(false)
   const fetchError = ref('')
   let publishedFetchPromise: Promise<HomeHero[]> | null = null
+  // 请求代次令牌：force 刷新后旧在途请求不得回写数据，也不得清掉新请求的去重引用
+  let publishedFetchToken = 0
 
   const fetchPublishedFromRemote = (): Promise<HomeHero[]> => {
     if (publishedFetchPromise) return publishedFetchPromise
 
+    const token = ++publishedFetchToken
     isFetching.value = true
     fetchError.value = ''
     publishedFetchPromise = (async () => {
@@ -216,17 +219,23 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
           .order('sort_order', { ascending: true })
           .limit(50)
         if (error) throw error
+        // 已被更新的 force 请求取代：丢弃本次结果，避免旧数据晚到覆盖新数据
+        if (token !== publishedFetchToken) return publishedHeroes.value
         const heroes = (data || []).map((item) => normalizeHero(item as Record<string, unknown>))
         publishedHeroes.value = heroes
         writeCache(heroes)
         return heroes
       } catch (error) {
-        logger.error('home-heroes-store', '获取已发布英雄区失败', error)
-        fetchError.value = (error as Error)?.message || 'HOME_HEROES_FETCH_FAILED'
+        if (token === publishedFetchToken) {
+          logger.error('home-heroes-store', '获取已发布英雄区失败', error)
+          fetchError.value = (error as Error)?.message || 'HOME_HEROES_FETCH_FAILED'
+        }
         return publishedHeroes.value
       } finally {
-        isFetching.value = false
-        publishedFetchPromise = null
+        if (token === publishedFetchToken) {
+          isFetching.value = false
+          publishedFetchPromise = null
+        }
       }
     })()
 
@@ -246,6 +255,11 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
         void fetchPublishedFromRemote()
         return cached
       }
+    }
+    // force=true 时作废在途请求（旧请求结果与 finally 清理均会被令牌拦截），确保发起新请求
+    if (force) {
+      publishedFetchToken++
+      publishedFetchPromise = null
     }
     return fetchPublishedFromRemote()
   }
@@ -409,23 +423,36 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
       const hero = allHeroes.value.find((h) => h.id === id)
       if (!hero) throw new Error('英雄区不存在')
       // 1. 写入历史快照
-      const { error: revError } = await supabase.from('home_heroes_revisions').insert({
-        hero_id: id,
-        snapshot: buildSnapshot(hero),
-        published_by: userId || null
-      })
-      if (revError) throw revError
-      // 2. 更新状态为 published
-      const { error: updateError } = await supabase
-        .from('home_heroes')
-        .update({
-          status: 'published',
-          published_at: new Date().toISOString(),
-          published_by: userId || null,
-          updated_at: new Date().toISOString()
+      const { data: revisionData, error: revError } = await supabase
+        .from('home_heroes_revisions')
+        .insert({
+          hero_id: id,
+          snapshot: buildSnapshot(hero),
+          published_by: userId || null
         })
-        .eq('id', id)
-      if (updateError) throw updateError
+        .select('id')
+        .single()
+      if (revError) throw revError
+      const revisionId = revisionData?.id
+      try {
+        // 2. 更新状态为 published
+        const { error: updateError } = await supabase
+          .from('home_heroes')
+          .update({
+            status: 'published',
+            published_at: new Date().toISOString(),
+            published_by: userId || null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', id)
+        if (updateError) throw updateError
+      } catch (updateErr) {
+        // L15 修复：补偿性删除已写入的 revision，避免产生孤立 revision 记录
+        if (revisionId) {
+          await supabase.from('home_heroes_revisions').delete().eq('id', revisionId)
+        }
+        throw updateErr
+      }
       // 3. 同步本地
       const idx = allHeroes.value.findIndex((h) => h.id === id)
       if (idx >= 0) {

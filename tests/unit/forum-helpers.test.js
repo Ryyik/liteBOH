@@ -2,41 +2,35 @@ import { describe, expect, it } from 'vitest';
 import { buildReplyDraft, truncateTextSafe, escapeHtml } from '../../src/utils/forum-helpers.js';
 
 // ============================================================
-// Bug #2 修复验证: buildReplyDraft 不应再返回空字符串
+// buildReplyDraft：单参数提及格式（引用内容已移除，仅生成 @提及）
 // ============================================================
 describe('buildReplyDraft', () => {
-  it('有 username 和 quotedContent 时生成引用格式', () => {
-    const result = buildReplyDraft('testuser', '这是一段被引用的内容');
-    expect(result).toBe('> @testuser：这是一段被引用的内容\n\n');
+  it('有效 username 生成 @提及 + 尾随空格', () => {
+    expect(buildReplyDraft('testuser')).toBe('@testuser ');
   });
 
   it('参数为 null/undefined/空字符串时返回空字符串', () => {
-    expect(buildReplyDraft(null, 'content')).toBe('');
-    expect(buildReplyDraft('user', null)).toBe('');
-    expect(buildReplyDraft('', 'content')).toBe('');
-    expect(buildReplyDraft('user', '')).toBe('');
+    expect(buildReplyDraft(null)).toBe('');
+    expect(buildReplyDraft(undefined)).toBe('');
+    expect(buildReplyDraft('')).toBe('');
     expect(buildReplyDraft()).toBe('');
   });
 
-  it('username 或 quotedContent 仅有空白字符时返回空字符串', () => {
-    expect(buildReplyDraft('  ', 'content')).toBe('');
-    expect(buildReplyDraft('user', '  ')).toBe('');
+  it('username 仅有空白字符时返回空字符串', () => {
+    expect(buildReplyDraft('   ')).toBe('');
   });
 
-  it('包含特殊字符的内容正常拼接', () => {
-    const result = buildReplyDraft('user_123', 'Hello <world> & "test"');
-    expect(result).toBe('> @user_123：Hello <world> & "test"\n\n');
+  it('包含特殊字符的 username 正常拼接', () => {
+    expect(buildReplyDraft('user_123')).toBe('@user_123 ');
   });
 
-  it('中文用户名和内容正常处理', () => {
-    const result = buildReplyDraft('测试用户', '你说的很对👍');
-    expect(result).toBe('> @测试用户：你说的很对👍\n\n');
+  it('中文用户名正常处理', () => {
+    expect(buildReplyDraft('测试用户')).toBe('@测试用户 ');
   });
 
   it('参数是数字类型时转为字符串处理', () => {
     // Number 会被 String() 转为字符串
-    const result = buildReplyDraft(12345, 67890);
-    expect(result).toBe('> @12345：67890\n\n');
+    expect(buildReplyDraft(12345)).toBe('@12345 ');
   });
 });
 

@@ -392,7 +392,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import {
@@ -904,6 +904,12 @@ const formatDateShort = (dateStr) => {
 
 const expressCopied = ref(false);
 let expressCopyTimer = null;
+onUnmounted(() => {
+  if (expressCopyTimer) {
+    clearTimeout(expressCopyTimer);
+    expressCopyTimer = null;
+  }
+});
 const copyExpressNo = async (no) => {
   if (!no) return;
   try {

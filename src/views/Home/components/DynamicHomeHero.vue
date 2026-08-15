@@ -49,7 +49,7 @@
       @pointercancel="stopContentPositionDrag"
     >
       <p v-if="hero.eyebrow" class="dynamic-overlay-eyebrow">{{ hero.eyebrow }}</p>
-      <h1 class="dynamic-overlay-title" v-html="hero.title"></h1>
+      <h1 class="dynamic-overlay-title" v-html="sanitizedTitle"></h1>
       <p v-if="hero.subtitle" class="dynamic-overlay-subtitle">{{ hero.subtitle }}</p>
       <div v-if="resolvedLinks.length" class="dynamic-overlay-actions">
         <template v-for="(link, i) in resolvedLinks" :key="`overlay-${i}`">
@@ -136,6 +136,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import AppleGridCard from '@/components/AppleGridCard.vue';
 import { getCloudinaryTransformedUrl } from '@/utils/cloudinary-client.js';
+import DOMPurify from '@/utils/dompurify.js';
 
 const props = defineProps({
   hero: { type: Object, required: true },
@@ -143,6 +144,11 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['link-click', 'image-position', 'content-offset']);
+
+const sanitizedTitle = computed(() => DOMPurify.sanitize(props.hero.title, {
+  ALLOWED_TAGS: ['br', 'b', 'strong', 'em', 'i', 'span'],
+  ALLOWED_ATTR: ['class']
+}));
 
 const HERO_TRANSFORMS = {
   standard: 'f_auto,q_auto:good,c_fill,w_900',

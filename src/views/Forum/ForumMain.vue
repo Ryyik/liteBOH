@@ -1,5 +1,5 @@
 <script setup>
-import { ref, shallowRef, computed, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, watch, triggerRef } from 'vue';
+import { ref, shallowRef, computed, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, reactive, watch, triggerRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   Check,
@@ -15,6 +15,8 @@ import ForumImageViewer from './components/ForumImageViewer.vue';
 import WeeklyCheckinCalendar from './components/WeeklyCheckinCalendar.vue';
 import NotificationDrawer from './components/NotificationDrawer.vue';
 import { useForumImageModerationPreload } from './composables/useForumImageModerationPreload.js';
+import { useForumPostDraftStorage } from './composables/useForumPostDraftStorage.js';
+import { useForumVirtualFeed } from './composables/useForumVirtualFeed.js';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader';
@@ -90,8 +92,11 @@ import {
   getForumPostDraft,
   upsertForumPostDraft,
   deleteForumPostDraft,
+  moderateForumImage,
   preloadForumImageModeration
 } from '../../utils/api/forum-api.js';
+import { uploadApprovedForumImageQueued } from '../../utils/api/forum-api.js';
+import { useAppMode } from '@/composables/useAppMode.js';
 import {
   getUserNotifications,
   markNotificationAsRead,
@@ -117,6 +122,7 @@ import {
 } from '@/utils/forum-return-state.js';
 import {
   buildForumFeedSnapshotKey,
+  clearForumFeedSnapshots,
   readForumFeedSnapshot,
   writeForumFeedSnapshot
 } from '@/utils/forum-feed-cache.js';
@@ -192,12 +198,9 @@ const replySuccessPostIds = ref(new Set());
 const shareCopiedPostIds = ref(new Set());
 const loadedForumImageKeys = ref(new Set());
 const loadMoreSentinelRef = ref(null);
-const activeForumWindowIndex = ref(0);
 const uiAnimationTimers = new Map();
 const hotTagStats = ref([]);
 const forumPageRef = ref(null);
-let forumLoadMoreObserver = null;
-let forumWindowObserver = null;
 const {
   clearForumImageModerationPreloadTask,
   scheduleForumImageModerationPreload
@@ -229,6 +232,30 @@ const getForumScrollContainer = () => {
   if (!props.embedded) return window;
   return forumPageRef.value?.closest?.('.tab-page.posts-tab') || window;
 };
+const {
+  activeForumWindowIndex,
+  shouldVirtualizeForumFeed,
+  visibleForumPosts,
+  virtualFeedTopSpacerHeight,
+  virtualFeedBottomSpacerHeight,
+  getVisiblePostIndex,
+  setupForumLoadMoreObserver,
+  setupForumWindowObserver,
+  setupForumWindowObserverOnce,
+  cleanupForumLoadMoreObserver,
+  cleanupForumWindowObserver,
+  stop: stopForumVirtualFeed
+} = useForumVirtualFeed({
+  feedMode,
+  forumData,
+  forumPageRef,
+  loadMoreSentinelRef,
+  isLoading,
+  isLoadingMore,
+  hasMoreData,
+  getScrollContainer: getForumScrollContainer,
+  onLoadMore: () => fetchForumData(true)
+});
 const getForumScrollMetrics = () => {
   const scroller = getForumScrollContainer();
   if (scroller && scroller !== window) {
@@ -449,11 +476,36 @@ const weeklyCheckinStatus = ref(createDefaultWeeklyCheckinStatus());
 const newPost = ref({ title: '', content: '' });
 const selectedPostTag = ref('daily');
 const isSubmitting = ref(false);
-const postDraftVersions = ref([]);
 const postImages = ref([]);
 const postLocation = ref(null);
 const isUploadingPostImage = ref(false);
 const postImageUploadStatus = ref('');
+const { isBeta5 } = useAppMode();
+const stagedSubmitState = reactive({
+  stage: 'idle',
+  progress: 0,
+  imageIndex: 0,
+  totalImages: 0,
+  message: '',
+  submissionId: '',
+  submissionFingerprint: ''
+});
+const isStagedSubmitting = computed(() => (
+  ['compress', 'detect', 'upload', 'publish'].includes(stagedSubmitState.stage)
+));
+const resetStagedSubmitState = () => {
+  stagedSubmitState.stage = 'idle';
+  stagedSubmitState.progress = 0;
+  stagedSubmitState.imageIndex = 0;
+  stagedSubmitState.totalImages = 0;
+  stagedSubmitState.message = '';
+  stagedSubmitState.submissionId = '';
+  stagedSubmitState.submissionFingerprint = '';
+};
+const createSubmissionId = () => (
+  globalThis.crypto?.randomUUID?.()
+  || `00000000-0000-4000-8000-${`${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`.slice(-12).padStart(12, '0')}`
+);
 const isForumImageViewerOpen = ref(false);
 const forumImageViewerImages = ref([]);
 const forumImageViewerIndex = ref(0);
@@ -476,102 +528,23 @@ let postDraftSyncQueue = Promise.resolve(null);
 // ✨ 移除：autoSaveDraftTimer定时器（改为手动保存）
 // let autoSaveDraftTimer = null;
 let postDraftRestoreSeq = 0;
-const getDraftStorageKey = (userId = userInfo.id) => {
-  const uid = String(userId || 'guest').trim() || 'guest';
-  return `${FORUM_POST_DRAFT_PREFIX}_${uid}`;
-};
-
-const getDraftVersionStorageKey = () => `${getDraftStorageKey()}_versions`;
-const getDraftClearedAtStorageKey = (userId = userInfo.id) => `${getDraftStorageKey(userId)}_cleared_at`;
-
-const readDraftClearedAt = (userId = userInfo.id) => {
-  const clearedAt = Number(localStorage.getItem(getDraftClearedAtStorageKey(userId)) || 0);
-  return Number.isFinite(clearedAt) ? clearedAt : 0;
-};
-
-const markDraftCleared = () => {
-  localStorage.setItem(getDraftClearedAtStorageKey(), String(Date.now()));
-};
-
-const clearDraftClearedMarker = (userId = userInfo.id) => {
-  localStorage.removeItem(getDraftClearedAtStorageKey(userId));
-};
-
-const normalizeDraftPayload = (draft) => {
-  if (!draft || typeof draft !== 'object') return null;
-  const title = String(draft.title || '');
-  const content = String(draft.content || '');
-  const tag = normalizeForumTagValue(draft.tag) || 'daily';
-  const savedAt = Number(draft.savedAt || Date.now()) || Date.now();
-  if (!title.trim() && !content.trim()) return null;
-  return { title, content, tag, savedAt };
-};
-
-const readPostDraft = () => {
-  try {
-    const raw = localStorage.getItem(getDraftStorageKey());
-    if (!raw) return null;
-    return normalizeDraftPayload(JSON.parse(raw));
-  } catch (error) {
-    logger.warn('forum', '读取发帖草稿失败:', error);
-    return null;
-  }
-};
-
-const writeLocalPostDraft = (draft) => {
-  if (!draft) {
-    localStorage.removeItem(getDraftStorageKey());
-    markDraftCleared();
-    return;
-  }
-  clearDraftClearedMarker();
-  localStorage.setItem(getDraftStorageKey(), JSON.stringify(draft));
-};
-
-const readPostDraftVersions = () => {
-  try {
-    const raw = localStorage.getItem(getDraftVersionStorageKey());
-    const parsed = JSON.parse(raw || '[]');
-    return Array.isArray(parsed)
-      ? parsed
-        .map((draft) => normalizeDraftPayload(draft))
-        .filter(Boolean)
-        .slice(0, FORUM_POST_DRAFT_VERSION_LIMIT)
-      : [];
-  } catch (error) {
-    logger.warn('forum', '读取发帖草稿版本失败:', error);
-    return [];
-  }
-};
-
-const writePostDraftVersions = (versions = []) => {
-  const safeVersions = Array.isArray(versions)
-    ? versions.map((draft) => normalizeDraftPayload(draft)).filter(Boolean).slice(0, FORUM_POST_DRAFT_VERSION_LIMIT)
-    : [];
-  postDraftVersions.value = safeVersions;
-  if (!safeVersions.length) {
-    localStorage.removeItem(getDraftVersionStorageKey());
-    return;
-  }
-  localStorage.setItem(getDraftVersionStorageKey(), JSON.stringify(safeVersions));
-};
-
-const rememberPostDraftVersion = (draft) => {
-  const normalizedDraft = normalizeDraftPayload(draft);
-  if (!normalizedDraft) return;
-  const currentVersions = readPostDraftVersions();
-  const latest = currentVersions[0];
-  if (
-    latest
-    && latest.title === normalizedDraft.title
-    && latest.content === normalizedDraft.content
-    && latest.tag === normalizedDraft.tag
-  ) {
-    postDraftVersions.value = currentVersions;
-    return;
-  }
-  writePostDraftVersions([normalizedDraft, ...currentVersions]);
-};
+const {
+  postDraftVersions,
+  normalizeDraftPayload,
+  readDraftClearedAt,
+  clearDraftClearedMarker,
+  readPostDraft,
+  writeLocalPostDraft,
+  readPostDraftVersions,
+  writePostDraftVersions,
+  rememberPostDraftVersion
+} = useForumPostDraftStorage({
+  getUserId: () => userInfo.id,
+  normalizeTag: normalizeForumTagValue,
+  prefix: FORUM_POST_DRAFT_PREFIX,
+  versionLimit: FORUM_POST_DRAFT_VERSION_LIMIT,
+  logger
+});
 
 const refreshPostDraftState = () => {
   savedPostDraft.value = readPostDraft();
@@ -921,7 +894,7 @@ const ensureCanAddPostImage = () => {
     showModal('warning', '图片上传太频繁', `请 ${imageUploadCooldownLabel.value}`);
     return false;
   }
-  if (isUploadingPostImage.value || isSubmitting.value) return false;
+  if (isUploadingPostImage.value || isSubmitting.value || isStagedSubmitting.value) return false;
   return true;
 };
 
@@ -1053,12 +1026,18 @@ const handlePostImageSelection = async (payload) => {
       file,
       url: localPreviewUrl,
       localPreviewUrl,
-      uploadStatus: 'preparing',
-      uploadStatusLabel: '准备中',
+      uploadStatus: isBeta5.value ? 'staged' : 'preparing',
+      uploadStatusLabel: isBeta5.value ? '' : '准备中',
       sortOrder: postImages.value.length + fileIndex
     };
   });
   postImages.value = normalizePostImageSortState([...postImages.value, ...pendingImages]);
+
+  if (isBeta5.value) {
+    // Beta 5 keeps selection as a local-only draft until the user submits.
+    postImageUploadStatus.value = '';
+    return;
+  }
 
   isUploadingPostImage.value = true;
   const failures = [];
@@ -1166,7 +1145,7 @@ const retryPostImageUpload = async (image, index) => {
   }
 };
 
-const prepareForumImageForUpload = async (file, fileIndex, totalCount, uploadId = '') => {
+const prepareForumImageForUpload = async (file, fileIndex, totalCount, uploadId = '', options = {}) => {
   const plan = await getImageCompressionPlan(file, { optimizeForUpload: true });
   if (!plan.shouldCompress) return file;
 
@@ -1180,7 +1159,10 @@ const prepareForumImageForUpload = async (file, fileIndex, totalCount, uploadId 
     uploadStatusLabel: plan.shouldOptimize ? '优化中' : '压缩中'
   });
   postImageUploadStatus.value = `${actionLabel}第 ${fileIndex + 1}/${totalCount} 张图片...`;
-  const compressedFile = await compressImageFileToUploadLimit(file, plan);
+  const compressedFile = await compressImageFileToUploadLimit(file, plan, {
+    onProgress: options.onProgress,
+    signal: options.signal
+  });
   if (Number(compressedFile.size || 0) > Number(plan.maxSizeBytes || 0)) {
     throw new Error(`压缩后仍超过限制（${formatImageFileSize(compressedFile.size)}），请手动压缩后再上传`);
   }
@@ -1189,6 +1171,122 @@ const prepareForumImageForUpload = async (file, fileIndex, totalCount, uploadId 
     uploadStatusLabel: '待审核'
   });
   return compressedFile;
+};
+
+const setStagedSubmitProgress = ({ stage, progress, imageIndex = 0, totalImages = 0, message = '' }) => {
+  stagedSubmitState.stage = stage;
+  stagedSubmitState.progress = Math.max(0, Math.min(100, Number(progress || 0)));
+  stagedSubmitState.imageIndex = imageIndex;
+  stagedSubmitState.totalImages = totalImages;
+  stagedSubmitState.message = message;
+  postImageUploadStatus.value = message;
+};
+
+const failStagedPostImage = (uploadId, error, fallbackMessage) => {
+  const message = error?.message || fallbackMessage;
+  updatePendingPostImage(uploadId, {
+    uploadStatus: 'failed',
+    uploadStatusLabel: '未通过',
+    uploadError: message
+  });
+  const stagedError = new Error(message);
+  stagedError.code = 'BETA5_IMAGE_PIPELINE_FAILED';
+  throw stagedError;
+};
+
+const processStagedPostImages = async () => {
+  const pendingImages = postImages.value.filter((image) => (
+    image?.file && image.uploadStatus !== 'approved'
+  ));
+  const totalImages = pendingImages.length;
+  if (!totalImages) return postImages.value;
+
+  for (const [index, image] of pendingImages.entries()) {
+    const displayIndex = index + 1;
+    const imageStart = (index / totalImages) * 85;
+    const imageSpan = 85 / totalImages;
+    const compressEnd = imageStart + imageSpan * 0.3;
+    const detectEnd = imageStart + imageSpan * 0.6;
+
+    setStagedSubmitProgress({
+      stage: 'compress',
+      progress: imageStart,
+      imageIndex: displayIndex,
+      totalImages,
+      message: `正在准备图片 ${displayIndex}/${totalImages}`
+    });
+    updatePendingPostImage(image.uploadId, { uploadStatus: 'optimizing', uploadStatusLabel: '处理中' });
+    let fallbackMessage = '图片压缩处理失败';
+    try {
+      const file = await prepareForumImageForUpload(image.file, index, totalImages, image.uploadId, {
+        onProgress: (phaseProgress) => {
+          setStagedSubmitProgress({
+            stage: 'compress',
+            progress: imageStart + imageSpan * 0.3 * (Number(phaseProgress || 0) / 100),
+            imageIndex: displayIndex,
+            totalImages,
+            message: `正在准备图片 ${displayIndex}/${totalImages}`
+          });
+        }
+      });
+      setStagedSubmitProgress({
+        stage: 'compress',
+        progress: compressEnd,
+        imageIndex: displayIndex,
+        totalImages,
+        message: `正在检测图片 ${displayIndex}/${totalImages}`
+      });
+      updatePendingPostImage(image.uploadId, { uploadStatus: 'moderating', uploadStatusLabel: '检测中' });
+      fallbackMessage = '图片安全检测失败';
+      setStagedSubmitProgress({
+        stage: 'detect',
+        progress: compressEnd,
+        imageIndex: displayIndex,
+        totalImages,
+        message: `正在检测图片 ${displayIndex}/${totalImages}`
+      });
+      const moderation = await moderateForumImage(file);
+      if (moderation.status !== 'approved') {
+        throw new Error(moderation.reason || '图片未通过安全检测');
+      }
+      updatePendingPostImage(image.uploadId, { uploadStatus: 'uploading', uploadStatusLabel: '上传中' });
+      fallbackMessage = '图片上传失败';
+      setStagedSubmitProgress({
+        stage: 'upload',
+        progress: detectEnd,
+        imageIndex: displayIndex,
+        totalImages,
+        message: `正在上传图片 ${displayIndex}/${totalImages}`
+      });
+      const result = await uploadApprovedForumImageQueued(file, moderation, {
+        onProgress: (phaseProgress) => {
+          setStagedSubmitProgress({
+            stage: 'upload',
+            progress: detectEnd + imageSpan * 0.4 * (Number(phaseProgress || 0) / 100),
+            imageIndex: displayIndex,
+            totalImages,
+            message: `正在上传图片 ${displayIndex}/${totalImages}`
+          });
+        }
+      });
+      if (!result.ok) {
+        applyImageUploadRateLimitCooldown(result.error);
+        throw result.error || new Error(fallbackMessage);
+      }
+      replacePendingPostImage(image.uploadId, result.data);
+      setStagedSubmitProgress({
+        stage: 'upload',
+        progress: imageStart + imageSpan,
+        imageIndex: displayIndex,
+        totalImages,
+        message: `已处理图片 ${displayIndex}/${totalImages}`
+      });
+    } catch (error) {
+      failStagedPostImage(image.uploadId, error, fallbackMessage);
+    }
+  }
+
+  return postImages.value;
 };
 
 const normalizePostImageSortState = (images = []) => {
@@ -1350,6 +1448,25 @@ const handleForumRefreshRequest = () => {
   scrollForumTo(0);
 };
 
+const handleForumPostDeleted = (event) => {
+  const postId = String(event?.detail?.postId || '').trim();
+  if (!postId) return;
+
+  const previousPosts = forumData.value;
+  const remainingPosts = previousPosts.filter((post) => String(post?.id || '') !== postId);
+  if (remainingPosts.length !== previousPosts.length) {
+    forumData.value = remainingPosts;
+    expandedPostIds.value.delete(postId);
+    if (activeReplyTarget.value?.postId === postId) {
+      activeReplyTarget.value = null;
+      replyContent.value = '';
+    }
+  }
+
+  clearForumFeedSnapshots();
+  persistForumFeedSnapshot();
+};
+
 onMounted(() => {
   currentTheme.value = readActiveForumTheme();
   currentUiStyle.value = themeManager.getUiStyle?.() || 'glass';
@@ -1377,6 +1494,7 @@ onMounted(() => {
   document.addEventListener('click', closePostImageSourceMenu);
   // 监听刷新请求事件（从导航栏点击"我的方块"时触发）
   window.addEventListener('boh_forum_refresh_request', handleForumRefreshRequest);
+  window.addEventListener('boh:forum-post-deleted', handleForumPostDeleted);
   // ✨ 新增：beforeunload事件监听（刷新页面时提示保存草稿）
   window.addEventListener('beforeunload', handleBeforeUnload);
 
@@ -1430,7 +1548,7 @@ onDeactivated(() => {
 });
 
 onUnmounted(() => {
-  forumWindowObserverAborted = true;
+  stopForumVirtualFeed();
   anniversaryObserver?.disconnect();
   anniversaryObserver = null;
   themeManager.removeListener(handleThemeChange);
@@ -1442,14 +1560,13 @@ onUnmounted(() => {
   window.removeEventListener('resize', updateMobileStatus);
   window.removeEventListener('orientationchange', updateMobileStatus);
   window.removeEventListener('boh_forum_refresh_request', handleForumRefreshRequest);
+  window.removeEventListener('boh:forum-post-deleted', handleForumPostDeleted);
   // ✨ 新增：移除beforeunload事件监听
   window.removeEventListener('beforeunload', handleBeforeUnload);
   if (resizeRafId) {
     cancelAnimationFrame(resizeRafId);
     resizeRafId = null;
   }
-  cleanupForumLoadMoreObserver();
-  cleanupForumWindowObserver();
   document.removeEventListener('click', closePostImageSourceMenu);
   document.body.style.overflow = '';
   void discardDraftPostImages({ silent: true });
@@ -1915,121 +2032,6 @@ const persistForumFeedSnapshot = () => {
     hasMoreData: hasMoreData.value
   });
 };
-
-const VIRTUAL_FEED_MIN_COUNT = 40;
-const VIRTUAL_FEED_BEFORE = 20;
-const VIRTUAL_FEED_AFTER = 30;
-const VIRTUAL_FEED_ESTIMATED_CARD_HEIGHT = 300;
-
-const shouldVirtualizeForumFeed = computed(() => feedMode.value === 'posts' && forumData.value.length > VIRTUAL_FEED_MIN_COUNT);
-const virtualFeedStartIndex = computed(() => {
-  if (!shouldVirtualizeForumFeed.value) return 0;
-  return Math.max(0, activeForumWindowIndex.value - VIRTUAL_FEED_BEFORE);
-});
-const virtualFeedEndIndex = computed(() => {
-  if (!shouldVirtualizeForumFeed.value) return forumData.value.length;
-  return Math.min(forumData.value.length, activeForumWindowIndex.value + VIRTUAL_FEED_AFTER);
-});
-const visibleForumPosts = computed(() => forumData.value.slice(
-  virtualFeedStartIndex.value,
-  virtualFeedEndIndex.value
-));
-const virtualFeedTopSpacerHeight = computed(() => (
-  shouldVirtualizeForumFeed.value ? virtualFeedStartIndex.value * VIRTUAL_FEED_ESTIMATED_CARD_HEIGHT : 0
-));
-const virtualFeedBottomSpacerHeight = computed(() => (
-  shouldVirtualizeForumFeed.value
-    ? Math.max(0, forumData.value.length - virtualFeedEndIndex.value) * VIRTUAL_FEED_ESTIMATED_CARD_HEIGHT
-    : 0
-));
-const getVisiblePostIndex = (visibleIndex) => virtualFeedStartIndex.value + visibleIndex;
-
-const requestLoadMoreFromSentinel = () => {
-  if (feedMode.value !== 'posts') return;
-  if (isLoading.value || isLoadingMore.value || !hasMoreData.value) return;
-  fetchForumData(true);
-};
-
-const cleanupForumLoadMoreObserver = () => {
-  if (forumLoadMoreObserver) {
-    forumLoadMoreObserver.disconnect();
-    forumLoadMoreObserver = null;
-  }
-};
-
-const setupForumLoadMoreObserver = async () => {
-  if (typeof window === 'undefined') return;
-  await nextTick();
-  cleanupForumLoadMoreObserver();
-  const sentinel = loadMoreSentinelRef.value;
-  if (!sentinel || typeof IntersectionObserver === 'undefined') return;
-  const root = getForumScrollContainer();
-  forumLoadMoreObserver = new IntersectionObserver((entries) => {
-    if (entries.some((entry) => entry.isIntersecting)) {
-      requestLoadMoreFromSentinel();
-    }
-  }, {
-    root: root && root !== window ? root : null,
-    rootMargin: '800px 0px',
-    threshold: 0.01
-  });
-  forumLoadMoreObserver.observe(sentinel);
-};
-
-let forumWindowObserverAborted = false;
-let forumWindowObserverPending = false;
-
-const setupForumWindowObserverOnce = () => {
-  if (forumWindowObserverPending) return;
-  forumWindowObserverPending = true;
-  nextTick(() => {
-    forumWindowObserverPending = false;
-    if (forumWindowObserverAborted) return;
-    setupForumWindowObserver();
-  });
-};
-
-const cleanupForumWindowObserver = () => {
-  if (forumWindowObserver) {
-    forumWindowObserver.disconnect();
-    forumWindowObserver = null;
-  }
-};
-
-const setupForumWindowObserver = async () => {
-  if (typeof window === 'undefined') return;
-  await nextTick();
-  cleanupForumWindowObserver();
-  if (!shouldVirtualizeForumFeed.value || typeof IntersectionObserver === 'undefined') {
-    activeForumWindowIndex.value = Math.min(activeForumWindowIndex.value, Math.max(0, forumData.value.length - 1));
-    return;
-  }
-  const root = getForumScrollContainer();
-  forumWindowObserver = new IntersectionObserver((entries) => {
-    const visibleEntries = entries
-      .filter((entry) => entry.isIntersecting)
-      .map((entry) => ({
-        index: Number(entry.target?.dataset?.forumVirtualIndex || 0),
-        distance: Math.abs(entry.boundingClientRect.top - ((root && root !== window) ? root.clientHeight : window.innerHeight) / 2)
-      }))
-      .sort((a, b) => a.distance - b.distance);
-    if (visibleEntries.length) {
-      activeForumWindowIndex.value = visibleEntries[0].index;
-    }
-  }, {
-    root: root && root !== window ? root : null,
-    rootMargin: '900px 0px',
-    threshold: 0.01
-  });
-  const scope = forumPageRef.value || document;
-  scope.querySelectorAll('[data-forum-virtual-index]').forEach((el) => {
-    forumWindowObserver.observe(el);
-  });
-};
-
-watch(visibleForumPosts, () => {
-  setupForumWindowObserverOnce();
-}, { flush: 'post' });
 
 const openForumImageViewer = (post, index = 0) => {
   const images = Array.isArray(post?.previewImages)
@@ -2604,11 +2606,54 @@ const handlePost = async () => {
     return;
   }
 
+  const hasDeferredImages = postImages.value.some((image) => (
+    image?.file && image.uploadStatus !== 'approved'
+  ));
+  // A staged Beta draft keeps its pipeline even if the user switches modes before publishing.
+  const usesBeta5Pipeline = isBeta5.value || hasDeferredImages;
+  if (usesBeta5Pipeline) {
+    // 内容指纹门控：仅当内容与上次失败的提交完全一致时才复用 submissionId。
+    // 若用户失败后修改了内容，必须换新 id，否则重试会命中幂等缓存返回旧帖，新内容静默丢失。
+    const submissionFingerprint = JSON.stringify([
+      newPost.value.title,
+      newPost.value.content,
+      postImages.value.map((image) => [
+        image?.public_id || image?.asset_id || image?.id || '',
+        image?.file?.name || '',
+        image?.file?.size || 0
+      ])
+    ]);
+    if (!stagedSubmitState.submissionId || stagedSubmitState.submissionFingerprint !== submissionFingerprint) {
+      stagedSubmitState.submissionId = createSubmissionId();
+      stagedSubmitState.submissionFingerprint = submissionFingerprint;
+    }
+    setStagedSubmitProgress({
+      stage: hasDeferredImages ? 'compress' : 'publish',
+      progress: hasDeferredImages ? 0 : 85,
+      totalImages: postImages.value.filter((image) => image?.file && image.uploadStatus !== 'approved').length,
+      message: hasDeferredImages ? '正在准备图片' : '正在发布帖子'
+    });
+  }
+  // 带图帖由 createPostWithImages 携带 submissionId 走幂等 RPC；
+  // 纯文字帖没有幂等保护，网络错误时仍需服务器核验兜底防重复发帖
+  const usedIdempotentRpc = usesBeta5Pipeline && postImages.value.length > 0;
+
   isSubmitting.value = true;
   try {
     const postTitle = newPost.value.title;
     const postBody = newPost.value.content;
     const postStatus = 'approved';
+    if (hasDeferredImages) {
+      await processStagedPostImages();
+    }
+    if (usesBeta5Pipeline) {
+      setStagedSubmitProgress({
+        stage: 'publish',
+        progress: 85,
+        totalImages: stagedSubmitState.totalImages,
+        message: '正在发布帖子'
+      });
+    }
     const result = await createPost(
       postBody,
       userInfo.id,
@@ -2617,7 +2662,8 @@ const handlePost = async () => {
       postTitle,
       postImages.value,
       selectedPostTag.value,
-      postLocation.value
+      postLocation.value,
+      { submissionId: usesBeta5Pipeline ? stagedSubmitState.submissionId : '' }
     );
     if (result.error) throw result.error;
     const createdPostId = String(result.data?.[0]?.id || '').trim();
@@ -2660,12 +2706,25 @@ const handlePost = async () => {
     if (createdPostId) {
       addUiMarker(highlightedPostIds, createdPostId, 2600, 'new-post');
     }
+    if (usesBeta5Pipeline) {
+      setStagedSubmitProgress({
+        stage: 'done',
+        progress: 100,
+        totalImages: stagedSubmitState.totalImages,
+        message: '发布完成'
+      });
+    }
   } catch (error) {
     logger.error('forum', '发帖失败', error);
     applyRateLimitCooldown(error, 'post');
     const shouldCleanupImages = shouldCleanupImagesAfterPostError(error);
     const isNetworkError = isLikelyNetworkError(error);
-    if (isNetworkError) {
+    if (usesBeta5Pipeline) {
+      stagedSubmitState.stage = 'error';
+      stagedSubmitState.message = error?.message || '发布未完成，请重试';
+      postImageUploadStatus.value = '';
+    }
+    if (isNetworkError && !usedIdempotentRpc) {
       const created = await verifyPostCreatedOnServer(userInfo.id, newPost.value.content, newPost.value.title);
       if (created) {
         newPost.value.title = '';
@@ -2696,6 +2755,9 @@ const handlePost = async () => {
     );
   } finally {
     isSubmitting.value = false;
+    if (stagedSubmitState.stage === 'done') {
+      window.setTimeout(resetStagedSubmitState, 900);
+    }
   }
 };
 
@@ -3226,6 +3288,7 @@ const openPostDetail = (postId) => {
             v-model:selected-post-tag="selectedPostTag" v-model:post-location="postLocation" :is-logged-in="isLoggedIn"
             :user-info="userInfo" :post-images="postImages" :is-submitting="isSubmitting"
             :is-uploading-post-image="isUploadingPostImage" :post-image-upload-status="postImageUploadStatus"
+            :staged-submit-state="stagedSubmitState" :is-staged-submitting="isStagedSubmitting"
             :post-cooldown-seconds="postCooldownSeconds" :weekly-checkin-status="weeklyCheckinStatus"
             :weekly-checkin-progress-text="weeklyCheckinProgressText"
             :weekly-checkin-week-dots="weeklyCheckinWeekDots"
@@ -3371,9 +3434,11 @@ const openPostDetail = (postId) => {
             <button type="button" class="mobile-composer-draft-btn" @click="openMobileDraftPanel">
               草稿
             </button>
-            <button type="button" class="mobile-composer-submit" @click="handlePost"
-              :disabled="isSubmitting || isUploadingPostImage || postCooldownSeconds > 0">
-              {{ postCooldownSeconds > 0 ? `${postCooldownSeconds}s` : '发布' }}
+            <button type="button" class="mobile-composer-submit" :class="{ 'is-staged-submitting': isStagedSubmitting }" @click="handlePost"
+              :disabled="isSubmitting || isUploadingPostImage || isStagedSubmitting || postCooldownSeconds > 0">
+              <span class="mobile-composer-submit-label">{{ isStagedSubmitting ? `${Math.round(stagedSubmitState.progress)}%` : (postCooldownSeconds > 0 ? `${postCooldownSeconds}s` : '发布') }}</span>
+              <span v-if="isStagedSubmitting" class="mobile-composer-submit-progress"
+                :style="{ transform: `scaleX(${Math.max(0, Math.min(1, (stagedSubmitState.progress || 0) / 100))})` }"></span>
             </button>
           </div>
           <Transition name="mobile-draft-panel">
@@ -3419,6 +3484,7 @@ const openPostDetail = (postId) => {
               v-model:post-location="postLocation" :is-logged-in="isLoggedIn" :user-info="userInfo"
               :post-images="postImages" :is-submitting="isSubmitting" :is-uploading-post-image="isUploadingPostImage"
               :post-image-upload-status="postImageUploadStatus" :post-cooldown-seconds="postCooldownSeconds"
+              :staged-submit-state="stagedSubmitState" :is-staged-submitting="isStagedSubmitting"
               :weekly-checkin-status="weeklyCheckinStatus" :weekly-checkin-progress-text="weeklyCheckinProgressText"
               :weekly-checkin-week-dots="weeklyCheckinWeekDots"
               :weekly-checkin-hint-text="weeklyCheckinHintText" :is-weekly-checkin-loading="isWeeklyCheckinLoading"

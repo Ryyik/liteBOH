@@ -166,6 +166,8 @@ describe('auth store', () => {
   // --- isAdmin computed ---
   describe('isAdmin', () => {
     it('returns true when role is admin', () => {
+      // isAdmin 含初始化门控：store 未初始化时一律返回 false
+      store.isInitialized = true;
       store.userInfo.role = 'admin';
       expect(store.isAdmin).toBe(true);
     });
@@ -179,6 +181,7 @@ describe('auth store', () => {
     });
 
     it('handles whitespace in role', () => {
+      store.isInitialized = true;
       store.userInfo.role = '  admin  ';
       expect(store.isAdmin).toBe(true);
     });
@@ -562,6 +565,7 @@ describe('auth store', () => {
   // --- ensureAdminAccess ---
   describe('ensureAdminAccess', () => {
     it('returns true immediately if already admin', async () => {
+      store.isInitialized = true;
       store.userInfo.role = 'admin';
       const result = await store.ensureAdminAccess();
       expect(result).toBe(true);

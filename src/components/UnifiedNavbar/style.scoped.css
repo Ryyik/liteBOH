@@ -61,6 +61,62 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
+/* Beta 5 keeps the floating material as persistent chrome. The stable scroll
+   state remains intact above so users can switch modes without a reload. */
+:global(html[data-boh-app-mode="beta5"] #unified-nav-container .unified-nav-surface) {
+  max-width: min(860px, calc(100% - 24px));
+  height: 58px;
+  transform: translateY(10px);
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 100px;
+  background-color: rgba(255, 255, 255, 0.66);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  transition: none;
+  will-change: auto;
+}
+
+/* Beta 5 keeps its navigation in a floating island at rest, so the legacy
+   `.scrolled` submenu selector never applies. Give desktop menus the same
+   bounded, elevated surface instead of the original full-width sheet. */
+@media (min-width: 769px) {
+  :global(html[data-boh-app-mode="beta5"] #unified-nav-container .nav-submenu) {
+    top: 78px;
+    left: 12px;
+    right: 12px;
+    width: 860px;
+    max-width: calc(100% - 24px);
+    max-height: calc(100dvh - 94px);
+    margin: 0 auto;
+    padding: 16px 20px;
+    overflow-y: auto;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 18px;
+    background-color: rgba(255, 255, 255, 0.82) !important;
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.14);
+    backdrop-filter: blur(22px) saturate(160%) !important;
+    -webkit-backdrop-filter: blur(22px) saturate(160%) !important;
+    transform-origin: top center;
+  }
+
+  :global(html[data-boh-app-mode="beta5"] #unified-nav-container[data-theme="dark"] .nav-submenu) {
+    border-color: rgba(255, 255, 255, 0.14);
+    background-color: rgba(28, 28, 30, 0.86) !important;
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.34);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) and (min-width: 769px) {
+  :global(html[data-boh-app-mode="beta5"] #unified-nav-container .nav-submenu) {
+    background-color: #ffffff !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  :global(html[data-boh-app-mode="beta5"] #unified-nav-container[data-theme="dark"] .nav-submenu) {
+    background-color: #1c1c1e !important;
+  }
+}
+
 #unified-nav-container[data-theme="dark"] .unified-nav-surface {
   border-color: rgba(255, 255, 255, 0.1);
   background-color: rgba(24, 24, 26, 0.7);
@@ -75,6 +131,64 @@
     max-width: calc(100% - 16px);
     height: 50px;
     transform: translateY(14px);
+  }
+
+  :global(html[data-boh-app-mode="beta5"] #unified-nav-container .unified-nav-surface) {
+    max-width: calc(100% - 16px);
+    height: 50px;
+    transform: translateY(8px);
+  }
+
+  /* Beta 5 is permanently in the floating-nav state, so it needs its own
+     compact menu instead of relying on the stable mode's .scrolled selector. */
+  :global(html[data-boh-app-mode="beta5"] #unified-nav-container .nav-menu-mobile) {
+    top: 66px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: calc(100% - 16px);
+    height: auto;
+    max-height: calc(100dvh - 82px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 18px;
+    background-color: rgba(255, 255, 255, 0.82) !important;
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.14);
+    overflow: hidden;
+    transform-origin: right top;
+  }
+
+  :global(html[data-boh-app-mode="beta5"] #unified-nav-container .nav-menu-mobile-content) {
+    height: auto;
+    max-height: calc(100dvh - 98px);
+    padding: 10px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  :global(html[data-boh-app-mode="beta5"] #unified-nav-container .nav-mobile-link) {
+    min-height: 44px;
+    padding: 11px 14px;
+    border-radius: 12px;
+  }
+
+  :global(html[data-boh-app-mode="beta5"] #unified-nav-container .nav-mobile-submenu-container) {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    width: auto;
+    padding: 8px 0 0;
+    background-color: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  :global(html[data-boh-app-mode="beta5"] #unified-nav-container[data-theme="dark"] .nav-menu-mobile) {
+    border-color: rgba(255, 255, 255, 0.14);
+    background-color: rgba(28, 28, 30, 0.86) !important;
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.34);
   }
 }
 

@@ -147,4 +147,10 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
     component: () => import("../../views/user-center/PushplusSettingsPage.vue"),
     meta: { ...userSpaceMeta },
   },
+  {
+    path: "/user-space/settings/beta-preview",
+    name: "BetaPreview",
+    component: () => import("../../views/user-center/BetaPreview/BetaPreviewMain.vue"),
+    meta: { ...userSpaceMeta, hideNavbar: true, hideFooter: true },
+  },
 ]

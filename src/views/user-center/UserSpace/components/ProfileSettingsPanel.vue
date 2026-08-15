@@ -30,6 +30,27 @@
       </div>
 
       <div class="apple-card settings-section-card">
+        <div class="group-header-title">内测体验</div>
+        <div class="apple-list-group">
+          <div class="apple-item clickable" @click="$emit('open-beta-preview')">
+            <div class="item-left">
+              <div class="icon-wrapper bg-blue">
+                <FlaskConical :size="16" :stroke-width="2" aria-hidden="true" />
+              </div>
+              <span class="setting-label-stack">
+                <span class="item-label">Beta 5 预览版</span>
+                <span class="item-desc">尝鲜新功能，可随时返回正式版</span>
+              </span>
+            </div>
+            <div class="item-right">
+              <span class="text-secondary">Preview</span>
+              <span class="chevron">›</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="apple-card settings-section-card">
         <HomeCatMascot v-if="isHomeCatActive" class="settings-card-cat alt" pool="ambient"
           seed="settings-cloud" size="sm" decorative />
         <div class="group-header-title">Cloud+</div>
@@ -170,7 +191,7 @@
 <script setup>
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
-import { Bell, Database, EyeOff, LogOut, MessagesSquare, Moon, Shield, Sun, Users } from 'lucide-vue-next';
+import { Bell, Database, EyeOff, FlaskConical, LogOut, MessagesSquare, Moon, Shield, Sun, Users } from 'lucide-vue-next';
 import SettingToggle from './SettingToggle.vue';
 
 defineProps({
@@ -218,6 +239,7 @@ defineEmits([
   'open-cloud',
   'open-pushplus',
   'open-security',
+  'open-beta-preview',
   'open-data',
   'open-data-management',
   'logout',

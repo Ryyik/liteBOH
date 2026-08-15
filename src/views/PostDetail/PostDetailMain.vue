@@ -28,6 +28,7 @@ import { logger } from '@/utils/logger.js';
 import CommonAlertModal from '../../components/CommonAlertModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { getForumReturnKeyFromQuery, isSafePostDetailHistoryReturn } from '@/utils/forum-return-state.js';
+import { clearForumFeedSnapshots } from '@/utils/forum-feed-cache.js';
 import { getHomeCatAsset, isHomeCatTheme } from '@/utils/home-cat-theme.js';
 import { themeManager } from '@/utils/theme-manager.js';
 import { buildReplyDraft } from '@/utils/forum-helpers.js';
@@ -1108,6 +1109,10 @@ const handleDeletePost = async () => {
       username: post.value.author_username,
       reason: 'post_deleted'
     });
+    clearForumFeedSnapshots();
+    window.dispatchEvent(new CustomEvent('boh:forum-post-deleted', {
+      detail: { postId: post.value.id }
+    }));
     goBack();
   } catch (error) {
     logger.error('post-detail', '删除失败:', error);

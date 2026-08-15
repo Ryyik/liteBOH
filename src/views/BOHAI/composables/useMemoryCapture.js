@@ -680,7 +680,7 @@ export function useMemoryCapture(deps) {
   // 修复：用户登录态变化或 userInfo 加载完成后，自动刷新 Cloud+ 同意状态
   // 解决"已同意但每次刷新都重新提示"的问题：useModelConfig 初始化时 userInfo 未就绪，
   // cloudReferenceConsent 为 'unknown'，此处watcher 在 userInfo 就绪后自动读取 per-user 值
-  if (isLoggedIn && typeof isLoggedIn.value !== 'undefined') {
+  if (isLoggedIn) {
     watch(
       [isLoggedIn, () => userInfo.value?.id],
       ([loggedIn, userId]) => {

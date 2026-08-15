@@ -1577,8 +1577,9 @@
   /* drawer-body 在移动端需要明确的触摸滚动支持，否则 iOS 下无法滑动 */
   .drawer-body {
     -webkit-overflow-scrolling: touch;
-    touch-action: pan-y;
+    touch-action: pan-y pinch-zoom;
     overscroll-behavior: contain;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
   }
 
   .field-group-body {
@@ -1589,6 +1590,7 @@
   .drawer-overlay {
     padding: 0;
     overflow: hidden;
+    overscroll-behavior: none;
   }
 
   .gift-address-copy-header {

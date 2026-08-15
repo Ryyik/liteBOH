@@ -188,14 +188,20 @@ ${JSON.stringify(useOutline, null, 2)}
                 fullContent += delta
                 if (onChunk) onChunk(fullContent)
               }
-            } catch (parseErr) {
-              // 若是已识别的 SSE 错误，向上抛出
-              if (sseError) throw parseErr
+            } catch (_parseErr) {
+              // 若是已识别的 SSE 错误，向上抛出（保留原始错误文本）
+              if (sseError) {
+                throw new Error(`AI 服务返回错误：${dataStr}`)
+              }
               /* skip non-JSON lines */
             }
             sseError = false
           }
         }
+      }
+
+      if (sseError) {
+        throw new Error('AI 服务返回错误事件但未提供详细错误信息')
       }
 
       if (onProgress) onProgress('detail', 70, 'BOH Agent正在提取 HTML')

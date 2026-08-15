@@ -23,6 +23,8 @@ type VaultRow = {
 const SUPABASE_URL = String(Deno.env.get('SUPABASE_URL') || '').trim();
 const SUPABASE_SERVICE_ROLE_KEY = String(Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '').trim();
 const VAULT_MASTER_KEY = String(Deno.env.get('API_KEY_VAULT_MASTER_KEY') || '').trim();
+// M3: 日志开关，仅在显式启用时输出敏感调试信息，避免生产环境泄露密钥元信息
+const DEBUG = Deno.env.get('VAULT_DEBUG') === 'true';
 
 const TEXT_ENCODER = new TextEncoder();
 const TEXT_DECODER = new TextDecoder();
@@ -209,12 +211,22 @@ const requireUser = async (request: Request, client: ReturnType<typeof createSer
   return { ok: true as const, userId };
 };
 
-const getClientIp = (request: Request) => (
-  request.headers.get('cf-connecting-ip')?.trim()
-  || request.headers.get('x-real-ip')?.trim()
-  || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-  || 'unknown'
-);
+const getClientIp = (request: Request) => {
+  // L16: cf-connecting-ip 由网关设置最可信；x-real-ip 次之。
+  // x-forwarded-for 取最后一跳（由可信代理追加，比首段更难被客户端伪造）。
+  // 注意：Guest 用户按 IP 计量额度，仍可能被代理池轮换 IP 绕过，
+  // 该问题需结合 C 段限额 / 设备指纹等风控进一步治理，此处仅作 IP 取值加固。
+  const cfIp = request.headers.get('cf-connecting-ip')?.trim();
+  if (cfIp) return cfIp;
+  const realIp = request.headers.get('x-real-ip')?.trim();
+  if (realIp) return realIp;
+  const xff = request.headers.get('x-forwarded-for');
+  if (xff) {
+    const parts = xff.split(',').map((s) => s.trim()).filter(Boolean);
+    if (parts.length) return parts[parts.length - 1];
+  }
+  return 'unknown';
+};
 
 const resolveRuntimeIdentity = async (
   request: Request,
@@ -854,7 +866,7 @@ const resolveActiveSecret = async (
   provider: string,
   purpose: string,
 ) => {
-  console.log('[vault] resolveActiveSecret called, provider:', provider, 'purpose:', purpose);
+  if (DEBUG) console.log('[vault] resolveActiveSecret called, provider:', provider?.slice(0, 2) + '***', 'purpose:', purpose?.slice(0, 2) + '***');
   const attemptResolve = async (p: string) => {
     const row = await resolveRow(client, { provider, purpose: p });
     if (row.status !== 'active') throw new Error(`${provider}/${p} API Key 已停用。`);
@@ -870,13 +882,13 @@ const resolveActiveSecret = async (
     // custom provider 的 key 默认 purpose 为 'default'，但 runtime chat 硬编码查找 'chat'）
     if (purpose === 'chat' && String(error?.message || '').includes('未找到')) {
       try {
-        console.log('[vault] chat purpose not found, falling back to default purpose');
+        if (DEBUG) console.log('[vault] chat purpose not found, falling back to default purpose');
         return await attemptResolve('default');
       } catch {
         // default 也找不到，继续走环境变量回退
       }
     }
-    console.log('[vault] resolveRow failed, trying fallback secrets:', error.message);
+    if (DEBUG) console.log('[vault] resolveRow failed, trying fallback secrets:', error?.message);
     let fallbackKey = '';
     if (provider === 'tavily') {
       fallbackKey = String(Deno.env.get('TAVILY_API_KEY') || '').trim();
@@ -891,7 +903,7 @@ const resolveActiveSecret = async (
           || '',
       ).trim();
     }
-    console.log('[vault] fallback key found:', fallbackKey ? 'yes (length: ' + fallbackKey.length + ')' : 'no');
+    if (DEBUG) console.log('[vault] fallback key found:', fallbackKey ? 'yes' : 'no');
 
     if (!fallbackKey) throw error;
     return {
@@ -1865,7 +1877,7 @@ async function handleQuotaStatus(
 
 Deno.serve(async (request) => {
   const origin = request.headers.get('origin');
-  console.log('[vault] request started, method:', request.method, 'origin:', origin);
+  if (DEBUG) console.log('[vault] request started, method:', request.method);
   
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: buildCorsHeaders(origin) });
@@ -1879,7 +1891,7 @@ Deno.serve(async (request) => {
     const client = createServiceClient();
     const body = await request.json().catch(() => ({}));
     const action = toText(body.action || 'list', 30);
-    console.log('[vault] action:', action, 'provider:', body.provider, 'purpose:', body.purpose);
+    if (DEBUG) console.log('[vault] action:', action);
 
     if (action === 'runtime-chat') {
       const identity = await resolveRuntimeIdentity(request, client);

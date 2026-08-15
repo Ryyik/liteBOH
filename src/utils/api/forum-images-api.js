@@ -51,33 +51,41 @@ export async function preloadForumImageModeration() {
   }
 }
 
-// 内部上传逻辑
-const uploadForumImageCore = async (file) => {
+const validateForumImageFile = (file) => {
+  if (!file || typeof file !== 'object') {
+    throw new Error('请选择有效的图片文件');
+  }
+
+  const mimeType = String(file.type || '').trim().toLowerCase();
+  if (!FORUM_ALLOWED_IMAGE_MIME_TYPES.has(mimeType)) {
+    throw new Error('论坛图片仅支持 PNG、JPG 或 WebP，暂不开放 GIF');
+  }
+  if (Number(file.size || 0) > FORUM_IMAGE_MAX_SIZE_BYTES) {
+    throw new Error(`单张论坛图片大小不能超过 ${FORUM_IMAGE_MAX_SIZE_MB}MB`);
+  }
+};
+
+export async function moderateForumImage(file) {
+  validateForumImageFile(file);
+  const { moderateForumImageFile } = await loadForumImageModeration();
+  return moderateForumImageFile(file);
+}
+
+export async function uploadApprovedForumImage(file, moderation = {}, options = {}) {
   try {
-    if (!file || typeof file !== 'object') {
-      throw new Error('请选择有效的图片文件');
-    }
-
-    const mimeType = String(file.type || '').trim().toLowerCase();
-    if (!FORUM_ALLOWED_IMAGE_MIME_TYPES.has(mimeType)) {
-      throw new Error('论坛图片仅支持 PNG、JPG 或 WebP，暂不开放 GIF');
-    }
-    if (Number(file.size || 0) > FORUM_IMAGE_MAX_SIZE_BYTES) {
-      throw new Error(`单张论坛图片大小不能超过 ${FORUM_IMAGE_MAX_SIZE_MB}MB`);
-    }
-
-    await assertCloudinaryUploadAllowed({ source: 'forum' });
-
-    const { moderateForumImageFile } = await loadForumImageModeration();
-    const moderation = await moderateForumImageFile(file);
+    validateForumImageFile(file);
     if (moderation.status !== APPROVED_STATUS) {
       throw new Error(moderation.reason || '图片未通过安全检测');
     }
 
+    await assertCloudinaryUploadAllowed({ source: 'forum' });
+
     const uploaded = await uploadImageToCloudinary(file, {
       folder: FORUM_CLOUDINARY_FOLDER,
       pendingSource: 'forum',
-      skipUploadPreflight: true
+      skipUploadPreflight: true,
+      onProgress: options.onProgress,
+      signal: options.signal
     });
 
     return {
@@ -97,13 +105,23 @@ const uploadForumImageCore = async (file) => {
   }
 };
 
+// Stable mode keeps its existing public API: moderation and upload happen as one queued operation.
+const uploadForumImageCore = async (file) => {
+  try {
+    const moderation = await moderateForumImage(file);
+    return await uploadApprovedForumImage(file, moderation);
+  } catch (error) {
+    logger.warn('forum-images-api', '论坛图片上传/预筛失败', error);
+    return { ok: false, data: null, error: normalizeForumImageUploadError(error) };
+  }
+};
+
 // 并发队列处理
 const processUploadQueue = async () => {
   while (uploadQueue.length > 0 && activeUploads < MAX_CONCURRENT_UPLOADS) {
     activeUploads++;
-    const { file, resolve } = uploadQueue.shift();
-    // uploadForumImageCore 内部已 try-catch，不会抛出异常
-    const result = await uploadForumImageCore(file);
+    const { run, resolve } = uploadQueue.shift();
+    const result = await run();
     resolve(result);
     activeUploads--;
     processUploadQueue();
@@ -113,7 +131,14 @@ const processUploadQueue = async () => {
 // 导出的上传函数（带并发控制）
 export async function uploadForumImage(file) {
   return new Promise((resolve) => {
-    uploadQueue.push({ file, resolve });
+    uploadQueue.push({ run: () => uploadForumImageCore(file), resolve });
+    processUploadQueue();
+  });
+}
+
+export async function uploadApprovedForumImageQueued(file, moderation, options = {}) {
+  return new Promise((resolve) => {
+    uploadQueue.push({ run: () => uploadApprovedForumImage(file, moderation, options), resolve });
     processUploadQueue();
   });
 }

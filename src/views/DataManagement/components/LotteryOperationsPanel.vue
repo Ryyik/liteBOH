@@ -92,11 +92,20 @@ const props = defineProps({
 defineEmits(['advance-fulfillment', 'open-tab', 'refresh', 'replace-winner', 'retry-notification', 'run-due-draws']);
 
 const dueCount = computed(() => Math.max(
+  Number(props.snapshot.dueLotteryCount || 0),
   Number(props.snapshot.dueLotteries?.length || 0),
   Number(props.schedulerStatus?.due_count || 0)
 ));
-const activeFulfillmentCount = computed(() => Number(props.snapshot.fulfillments?.length || 0));
-const notificationFailureCount = computed(() => Number(props.snapshot.notificationFailures?.length || 0));
+const activeFulfillmentCount = computed(() => Math.max(
+  Number(props.snapshot.fulfillmentCount || 0),
+  Number(props.snapshot.fulfillments?.length || 0)
+));
+const notificationFailureCount = computed(() => {
+  // 优先精确计数（仅 failed）；回退到展示列表中 failed 的数量，pending 不计入异常
+  const exact = Number(props.snapshot.notificationFailureCount || 0);
+  if (exact > 0) return exact;
+  return (props.snapshot.notificationFailures || []).filter((item) => item.status === 'failed').length;
+});
 const schedulerHealth = computed(() => {
   if (!props.schedulerStatus) return '调度状态待加载';
   if (props.schedulerStatus?.last_run?.status === 'failed') return '最近任务失败';

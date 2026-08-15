@@ -1720,7 +1720,8 @@ async function handleImageSelection(event) {
   if (cloudState.upload.abortController) {
     cloudState.upload.abortController.abort();
   }
-  cloudState.upload.abortController = new AbortController();
+  const uploadController = new AbortController();
+  cloudState.upload.abortController = uploadController;
   cloudState.upload.failedImages = [];
 
   cloudState.upload.uploading = true;
@@ -1733,13 +1734,16 @@ async function handleImageSelection(event) {
       cloudState.upload.currentFile = file.name;
 
       // 检查是否被取消
-      if (cloudState.upload.abortController?.signal.aborted) {
+      if (uploadController.signal.aborted) {
         showNotice('上传已取消');
         break;
       }
 
       try {
-        const uploaded = await uploadImageToCloudinary(file);
+        // 传入 signal：用户点取消时真正中止在途 HTTP 上传，而不是只重置 UI 状态让请求继续跑到超时
+        const uploaded = await uploadImageToCloudinary(file, {
+          signal: uploadController.signal
+        });
         uploadedImages.value.push({
           url: uploaded.url,
           publicId: uploaded.publicId,
@@ -1751,6 +1755,11 @@ async function handleImageSelection(event) {
         uploadedCount++;
         cloudState.upload.progress = Math.round((uploadedCount / totalFiles) * 100);
       } catch (uploadError) {
+        // 用户主动取消：中止剩余文件，不计入失败列表
+        if (uploadError?.name === 'AbortError' || uploadController.signal.aborted) {
+          showNotice('上传已取消');
+          break;
+        }
         // 记录失败的图片，提供重试选项
         cloudState.upload.failedImages.push({
           file,
@@ -1782,7 +1791,11 @@ async function handleImageSelection(event) {
     cloudState.upload.uploading = false;
     cloudState.upload.progress = 0;
     cloudState.upload.currentFile = null;
-    cloudState.upload.abortController = null;
+    // 仅当仍是本次流程的 controller 时才清理：取消后重新选文件会创建新 controller，
+    // 旧流程的 finally 不得把它清掉，否则新一轮上传的取消按钮会失效
+    if (cloudState.upload.abortController === uploadController) {
+      cloudState.upload.abortController = null;
+    }
     if (input) input.value = '';
   }
 }

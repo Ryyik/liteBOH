@@ -3,7 +3,7 @@
     <div class="ahb-container">
       <div class="ahb-content">
         <span v-if="tag" class="ahb-tag">{{ tag }}</span>
-        <h1 class="ahb-title" v-html="title"></h1>
+        <h1 class="ahb-title" v-html="sanitizedTitle"></h1>
         <p v-if="subtitle" class="ahb-subtitle">{{ subtitle }}</p>
         <div v-if="links && links.length" class="ahb-links">
           <template v-for="(link, i) in links" :key="i">
@@ -96,6 +96,9 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
+import DOMPurify from '@/utils/dompurify.js'
+
 const props = defineProps({
   title: { type: String, required: true },
   subtitle: { type: String, default: '' },
@@ -111,6 +114,11 @@ const props = defineProps({
   fullBleedImage: { type: Boolean, default: false },
   links: { type: Array, default: () => [] },
 })
+
+const sanitizedTitle = computed(() => DOMPurify.sanitize(props.title, {
+  ALLOWED_TAGS: ['br', 'b', 'strong', 'em', 'i', 'span'],
+  ALLOWED_ATTR: ['class']
+}))
 </script>
 
 <style scoped>

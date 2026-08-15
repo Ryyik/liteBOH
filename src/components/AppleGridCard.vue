@@ -1,7 +1,7 @@
 <template>
   <div class="apple-grid-card" :class="[`variant-${variant}`]">
     <div class="agc-content" :style="contentStyle">
-      <h3 class="agc-title" v-html="title"></h3>
+      <h3 class="agc-title" v-html="sanitizedTitle"></h3>
       <p v-if="subtitle" class="agc-subtitle">{{ subtitle }}</p>
       <div v-if="links && links.length" class="agc-links" :style="{ justifyContent: textAlignment }">
         <template v-for="(link, i) in links" :key="i">
@@ -61,6 +61,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import DOMPurify from '@/utils/dompurify.js'
 
 const props = defineProps({
   title: { type: String, required: true },
@@ -75,6 +76,10 @@ const props = defineProps({
 })
 const emit = defineEmits(['image-position'])
 
+const sanitizedTitle = computed(() => DOMPurify.sanitize(props.title, {
+  ALLOWED_TAGS: ['br', 'b', 'strong', 'em', 'i', 'span'],
+  ALLOWED_ATTR: ['class']
+}))
 const textAlignment = computed(() => props.contentLayout?.text_align || 'center')
 const contentStyle = computed(() => ({
   textAlign: textAlignment.value,

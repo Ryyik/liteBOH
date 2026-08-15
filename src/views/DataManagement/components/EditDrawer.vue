@@ -581,7 +581,7 @@ const clearBohaiKeySelect = () => {
 const titleId = 'edit-drawer-title';
 const overlayRef = ref(null);
 let lastFocusedElement = null;
-let bodyOverflow = '';
+let scrollLockState = null;
 
 const FULL_WIDTH_TYPES = new Set([
   'textarea',
@@ -711,11 +711,54 @@ const focusFirstInteractive = () => {
 
 const lockBodyScroll = (lock) => {
   if (typeof document === 'undefined') return;
+
   if (lock) {
-    bodyOverflow = document.body.style.overflow;
+    // `overflow: hidden` alone does not reliably prevent background scrolling in
+    // iOS Safari. Fix the document at its current offset while the drawer owns
+    // the vertical gesture, then restore the exact position on close.
+    if (scrollLockState) return;
+
+    const { body, documentElement } = document;
+    scrollLockState = {
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+      body: {
+        overflow: body.style.overflow,
+        position: body.style.position,
+        top: body.style.top,
+        left: body.style.left,
+        right: body.style.right,
+        width: body.style.width
+      },
+      documentElement: {
+        overflow: documentElement.style.overflow,
+        overscrollBehavior: documentElement.style.overscrollBehavior
+      }
+    };
+
     document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollLockState.scrollY}px`;
+    document.body.style.left = `-${scrollLockState.scrollX}px`;
+    document.body.style.right = '0';
+    document.body.style.width = '100%';
+    document.documentElement.style.overflow = 'hidden';
+    document.documentElement.style.overscrollBehavior = 'none';
   } else {
-    document.body.style.overflow = bodyOverflow;
+    if (!scrollLockState) return;
+
+    const { body, documentElement } = document;
+    const { scrollX, scrollY, body: bodyStyle, documentElement: documentStyle } = scrollLockState;
+    body.style.overflow = bodyStyle.overflow;
+    body.style.position = bodyStyle.position;
+    body.style.top = bodyStyle.top;
+    body.style.left = bodyStyle.left;
+    body.style.right = bodyStyle.right;
+    body.style.width = bodyStyle.width;
+    documentElement.style.overflow = documentStyle.overflow;
+    documentElement.style.overscrollBehavior = documentStyle.overscrollBehavior;
+    scrollLockState = null;
+    window.scrollTo(scrollX, scrollY);
   }
 };
 

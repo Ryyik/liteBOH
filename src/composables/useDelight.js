@@ -15,6 +15,7 @@
  */
 
 import confetti from "canvas-confetti";
+import { onScopeDispose } from "vue";
 
 const THEME_COLORS_SUCCESS = ["#0071e3", "#34c759", "#5ac8fa", "#ffffff"];
 const THEME_COLORS_CELEBRATE = [
@@ -35,6 +36,8 @@ function prefersReducedMotion() {
 }
 
 export function useDelight() {
+  let celebrateTimer = null;
+
   /**
    * 单次克制 burst — 用于"操作成功"
    * @param {Object} options - { x, y, colors, particleCount, spread }
@@ -98,7 +101,8 @@ export function useDelight() {
     });
 
     // 左右两侧延迟 burst
-    setTimeout(() => {
+    if (celebrateTimer) clearTimeout(celebrateTimer);
+    celebrateTimer = setTimeout(() => {
       burst({
         x: 0.2,
         y: 0.6,
@@ -117,6 +121,13 @@ export function useDelight() {
       });
     }, 200);
   }
+
+  onScopeDispose(() => {
+    if (celebrateTimer) {
+      clearTimeout(celebrateTimer);
+      celebrateTimer = null;
+    }
+  });
 
   return {
     burst,

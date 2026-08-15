@@ -47,8 +47,10 @@ describe('pushplus-api: getPushplusSettings', () => {
   });
 
   it('returns pushplus settings', async () => {
+    // H-1 后：token 走敏感 RPC，enabled 走 profiles 公开列
+    pm.supabaseRpc.mockResolvedValue({ data: { pushplus_token: 'tok-123' }, error: null });
     pm.supabaseFrom.mockReturnValue(makeQuery({
-      data: { pushplus_token: 'tok-123', pushplus_enabled: true },
+      data: { pushplus_enabled: true },
       error: null,
     }));
 
@@ -59,8 +61,9 @@ describe('pushplus-api: getPushplusSettings', () => {
   });
 
   it('returns defaults when no settings', async () => {
+    pm.supabaseRpc.mockResolvedValue({ data: { pushplus_token: null }, error: null });
     pm.supabaseFrom.mockReturnValue(makeQuery({
-      data: { pushplus_token: null, pushplus_enabled: false },
+      data: { pushplus_enabled: false },
       error: null,
     }));
 
@@ -70,10 +73,10 @@ describe('pushplus-api: getPushplusSettings', () => {
   });
 
   it('handles database error gracefully', async () => {
-    pm.supabaseFrom.mockReturnValue(makeQuery({
+    pm.supabaseRpc.mockResolvedValue({
       data: null,
       error: { message: 'DB error', code: 'NOT_FOUND' },
-    }));
+    });
 
     const result = await getPushplusSettings('u1');
     expect(result.error).toBeDefined();
@@ -132,9 +135,9 @@ describe('pushplus-api: togglePushplusEnabled', () => {
   });
 
   it('rejects enabling without token', async () => {
-    // First call returns no token
+    pm.supabaseRpc.mockResolvedValue({ data: { pushplus_token: null }, error: null });
     pm.supabaseFrom.mockReturnValue(makeQuery({
-      data: { pushplus_token: '', pushplus_enabled: false },
+      data: { pushplus_enabled: false },
       error: null,
     }));
 
@@ -144,9 +147,10 @@ describe('pushplus-api: togglePushplusEnabled', () => {
   });
 
   it('enables pushplus with existing token', async () => {
-    // Token check: from → select → eq → single
+    // Token check: rpc（敏感）+ from（enabled）
+    pm.supabaseRpc.mockResolvedValue({ data: { pushplus_token: 'existing-token' }, error: null });
     pm.supabaseFrom.mockReturnValueOnce(makeQuery({
-      data: { pushplus_token: 'existing-token', pushplus_enabled: false },
+      data: { pushplus_enabled: false },
       error: null,
     }));
     // Update: from → update → eq

@@ -60,6 +60,7 @@ import { initImageOptimizer } from './utils/image-optimizer.js';
 import { initVersionChecker } from './utils/version-checker.js';
 import { loadFreemodelsFromDB } from './utils/siliconflow-free-models.js';
 import { initHiagentWidget } from './utils/hiagent-widget.js';
+import { initAppModeManager } from './utils/app-mode-manager.js';
 
 // ============================================
 // 延迟加载的非关键样式
@@ -87,6 +88,8 @@ const scheduleDeferredGlobalStyles = () => {
 // 浏览器端初始化
 // ============================================
 if (typeof window !== "undefined") {
+  // Apply the selected experience before Vue mounts so Beta 5 chrome never flashes as stable.
+  initAppModeManager();
   setupVitePreloadErrorRecovery();
   initImageOptimizer({ onReady: scheduleDeferredGlobalStyles });
 
@@ -231,10 +234,6 @@ if (typeof window !== "undefined") {
     root.style.setProperty('--viewport-height', `${height}px`);
     root.style.setProperty('--profile-shell-max-width', orientation === 'landscape' ? '1120px' : '980px');
     root.dataset.viewportOrientation = orientation;
-
-    window.dispatchEvent(new CustomEvent('boh:viewport-change', {
-      detail: { width, height, orientation },
-    }));
   };
 
   let viewportSyncTimer = 0;

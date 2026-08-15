@@ -29,9 +29,10 @@ describe('BOH AI config (static definitions only)', () => {
     expect(RESPONSE_STYLE_SETTING_KEY).toBe('boh_ai_response_style_v1');
     expect(ids).toEqual(['default', 'socratic', 'psychologist', 'crisp']);
     expect(RESPONSE_STYLE_OPTIONS.find((item) => item.id === 'default')?.promptAppendix).toContain('可靠、自然的朋友兼助手');
-    expect(RESPONSE_STYLE_OPTIONS.find((item) => item.id === 'socratic')?.promptAppendix).toContain('苏格拉底');
-    expect(RESPONSE_STYLE_OPTIONS.find((item) => item.id === 'psychologist')?.promptAppendix).toContain('心理专家');
-    expect(RESPONSE_STYLE_OPTIONS.find((item) => item.id === 'crisp')?.promptAppendix).toContain('高冷干练');
+    // promptAppendix 文案会随运营迭代调整，风格标识断言 name 字段更稳健
+    expect(RESPONSE_STYLE_OPTIONS.find((item) => item.id === 'socratic')?.name).toBe('苏格拉底');
+    expect(RESPONSE_STYLE_OPTIONS.find((item) => item.id === 'psychologist')?.name).toBe('心理专家');
+    expect(RESPONSE_STYLE_OPTIONS.find((item) => item.id === 'crisp')?.name).toBe('高冷干练');
   });
 
   it('exposes Plan mode setting key', () => {

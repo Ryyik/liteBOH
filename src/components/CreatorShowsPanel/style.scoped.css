@@ -1,15 +1,18 @@
 .creator-shows-section {
-  padding: 0 40px 80px;
-  background: #ffffff;
+  padding: clamp(16px, 2.4vw, 30px) 0 0;
+  background: transparent;
 }
 
 .creator-shows-container {
   max-width: 1200px;
   margin: 0 auto;
-  border: 1px solid #ececf0;
-  border-radius: 28px;
-  background: linear-gradient(180deg, #ffffff 0%, #fafafc 100%);
-  padding: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow: 0 20px 48px rgba(38, 55, 73, 0.13), inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  padding: clamp(18px, 3vw, 38px);
 }
 
 .creator-shows-header {
@@ -28,20 +31,20 @@
   font-size: 11px;
   letter-spacing: 0.14em;
   font-weight: 700;
-  color: #7f8697;
+  color: #176b96;
   margin-bottom: 10px;
 }
 
 .creator-shows-title {
   margin: 0;
-  font-size: 34px;
+  font-size: clamp(25px, 3vw, 34px);
   line-height: 1.2;
-  color: #1b1c20;
+  color: #18212d;
 }
 
 .creator-shows-subtitle {
   margin: 10px 0 0;
-  color: #5f6370;
+  color: #5e6b7b;
   line-height: 1.7;
 }
 
@@ -71,12 +74,12 @@
 }
 
 .creator-btn-primary {
-  background: #1d1d1f;
+  background: #176b96;
   color: #ffffff;
 }
 
 .creator-btn-primary:hover {
-  background: #34343a;
+  background: #0d547d;
 }
 
 .creator-btn-primary:disabled {
@@ -85,13 +88,13 @@
 }
 
 .creator-btn-secondary {
-  background: #ffffff;
-  color: #23242a;
-  border-color: #d8dbe4;
+  background: rgba(255, 255, 255, 0.52);
+  color: #18212d;
+  border-color: rgba(23, 107, 150, 0.2);
 }
 
 .creator-btn-secondary:hover {
-  background: #f4f6fa;
+  background: rgba(255, 255, 255, 0.84);
 }
 
 .creator-shows-empty {
@@ -99,8 +102,8 @@
   border-radius: 18px;
   padding: 30px;
   color: #666b78;
-  background: #f5f6fa;
-  border: 1px dashed #d8dbe4;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px dashed rgba(23, 107, 150, 0.24);
   text-align: center;
 }
 
@@ -112,9 +115,10 @@
 }
 
 .creator-show-card {
-  border-radius: 18px;
-  border: 1px solid #ebedf3;
-  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.54);
+  box-shadow: 0 10px 22px rgba(38, 55, 73, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.72);
   padding: 18px;
   display: flex;
   flex-direction: column;
@@ -140,8 +144,8 @@
   align-items: center;
   border-radius: 999px;
   padding: 4px 10px;
-  background: #eef4ff;
-  color: #2a5ecb;
+  background: rgba(23, 107, 150, 0.1);
+  color: #0d547d;
   font-size: 12px;
   font-weight: 700;
 }
@@ -176,14 +180,14 @@
 
 .creator-show-title {
   margin: 0;
-  color: #1e1f24;
+  color: #18212d;
   font-size: 20px;
   line-height: 1.35;
 }
 
 .creator-show-description {
   margin: 0;
-  color: #606574;
+  color: #5e6b7b;
   line-height: 1.7;
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -214,6 +218,32 @@
 
 .creator-show-link:hover {
   text-decoration: underline;
+}
+
+:global(.user-space-page[data-theme="dark"]) .creator-shows-container {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(29, 39, 52, 0.66);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+:global(.user-space-page[data-theme="dark"]) .creator-shows-title,
+:global(.user-space-page[data-theme="dark"]) .creator-show-title,
+:global(.user-space-page[data-theme="dark"]) .creator-btn-secondary {
+  color: #f1f5f9;
+}
+
+:global(.user-space-page[data-theme="dark"]) .creator-shows-subtitle,
+:global(.user-space-page[data-theme="dark"]) .creator-show-description,
+:global(.user-space-page[data-theme="dark"]) .creator-show-author,
+:global(.user-space-page[data-theme="dark"]) .creator-shows-empty {
+  color: #b8c5d2;
+}
+
+:global(.user-space-page[data-theme="dark"]) .creator-show-card,
+:global(.user-space-page[data-theme="dark"]) .creator-btn-secondary,
+:global(.user-space-page[data-theme="dark"]) .creator-shows-empty {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(8, 15, 24, 0.28);
 }
 
 .creator-modal-overlay {

@@ -20,6 +20,7 @@
     "check:views": "node scripts/check-view-collisions.mjs",
     "check:structure": "node scripts/check-project-structure.mjs",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "test:watch": "vitest",
     "check:bundle": "bash scripts/check-bundle-size.sh",
     "import:boh-kb": "node scripts/import-boh-knowledge-base.mjs",
@@ -47,6 +48,7 @@
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.3.1",
     "@types/node": "^25.5.0",
     "@typescript-eslint/eslint-plugin": "^8.61.0",

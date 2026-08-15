@@ -132,14 +132,15 @@ describe('cloudinary-client', () => {
       expect(isCloudinaryNoteUploadConfigured()).toBe(true);
     });
 
-    it('returns false when only cloud name is set (test with unconfigured env)', async () => {
+    it('falls back to built-in cloud name and preset when env is empty', async () => {
       vi.stubEnv('VITE_CLOUDINARY_CLOUD_NAME', '');
       vi.stubEnv('VITE_CLOUDINARY_CLOUD_PLUS_UPLOAD_PRESET', '');
       vi.stubEnv('VITE_CLOUDINARY_NOTE_UPLOAD_PRESET', '');
       vi.stubEnv('VITE_CLOUDINARY_UPLOAD_PRESET', '');
 
       const mod = await import('../../src/utils/cloudinary-client.js?update=' + Date.now());
-      expect(mod.isCloudinaryNoteUploadConfigured()).toBe(false);
+      // 模块内置生产兜底（cloud name + preset），env 缺失时仍视为已配置
+      expect(mod.isCloudinaryNoteUploadConfigured()).toBe(true);
     });
   });
 
@@ -216,11 +217,12 @@ describe('cloudinary-client', () => {
       expect(getCloudinaryDisplayUrl(undefined)).toBe('');
     });
 
-    it('returns input unchanged when delivery base URL is not configured', async () => {
+    it('falls back to built-in delivery base when env is empty', async () => {
       vi.stubEnv('VITE_CLOUDINARY_DELIVERY_BASE_URL', '');
       const mod = await import('../../src/utils/cloudinary-client.js?update=' + Date.now());
       const input = 'https://res.cloudinary.com/mycloud/image/upload/v123/photo.jpg';
-      expect(mod.getCloudinaryDisplayUrl(input)).toBe(input);
+      // 模块内置生产 CDN 兜底，env 缺失时仍重写 delivery 地址
+      expect(mod.getCloudinaryDisplayUrl(input)).toBe('https://cdn.blockofhome.cn/mycloud/image/upload/v123/photo.jpg');
     });
 
     it('returns input unchanged for invalid URL string', () => {
@@ -574,15 +576,17 @@ describe('cloudinary-client', () => {
       await expect(uploadImageToCloudinary(fakeFile)).rejects.toThrow('图片文件头异常');
     });
 
-    it('throws when no upload preset is configured (unconfigured env)', async () => {
+    it('uses built-in preset fallback when env is empty', async () => {
       vi.stubEnv('VITE_CLOUDINARY_CLOUD_PLUS_UPLOAD_PRESET', '');
       vi.stubEnv('VITE_CLOUDINARY_NOTE_UPLOAD_PRESET', '');
       vi.stubEnv('VITE_CLOUDINARY_UPLOAD_PRESET', '');
 
       const mod = await import('../../src/utils/cloudinary-client.js?update=' + Date.now());
-      await expect(
-        mod.uploadImageToCloudinary(fakeFile, { skipUploadPreflight: true })
-      ).rejects.toThrow('缺少 Cloudinary 配置');
+      // 模块内置 'BOHIMG' preset 兜底：env 缺失时上传仍可进行
+      const result = await mod.uploadImageToCloudinary(fakeFile, { skipUploadPreflight: true });
+      expect(result.publicId).toBe('boh-cloud-plus/test');
+      const [, fetchOptions] = hoistedFetch.mock.calls[0];
+      expect(fetchOptions.body.get('upload_preset')).toBe('BOHIMG');
     });
 
     it('runs upload preflight (rate limiting) by default', async () => {

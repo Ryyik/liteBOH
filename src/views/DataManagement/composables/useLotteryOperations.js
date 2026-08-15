@@ -9,7 +9,11 @@ export const createLotteryOperationsCenter = ({ isCurrentUserAdmin, showToast })
     fulfillments: [],
     notificationFailures: [],
     dueLotteries: [],
-    joinRiskCount: 0
+    joinRiskCount: 0,
+    // 精确计数（head count 查询），不受展示列表 limit(6) 截断影响
+    fulfillmentCount: 0,
+    notificationFailureCount: 0,
+    dueLotteryCount: 0
   });
 
   const refreshLotteryOperationsSnapshot = async () => {
@@ -17,7 +21,15 @@ export const createLotteryOperationsCenter = ({ isCurrentUserAdmin, showToast })
     lotteryOperationsSnapshot.isLoading = true;
     try {
       const now = new Date().toISOString();
-      const [fulfillmentsResult, notificationsResult, dueLotteriesResult, joinAttemptsResult] = await Promise.all([
+      const [
+        fulfillmentsResult,
+        notificationsResult,
+        dueLotteriesResult,
+        joinAttemptsResult,
+        fulfillmentCountResult,
+        notificationFailedCountResult,
+        dueLotteryCountResult
+      ] = await Promise.all([
         supabase
           .from('lottery_winner_fulfillments')
           .select('id, lottery_id, username_snapshot, status, contact_note, address_id, shipping_carrier, tracking_number, updated_at, lottery:lottery_id(title), profile:user_id(username)')
@@ -42,12 +54,32 @@ export const createLotteryOperationsCenter = ({ isCurrentUserAdmin, showToast })
           .from('lottery_join_attempts')
           .select('result_code')
           .order('created_at', { ascending: false })
-          .limit(50)
+          .limit(50),
+        // 指标卡使用精确计数，避免被列表 limit(6) 截断
+        supabase
+          .from('lottery_winner_fulfillments')
+          .select('id', { count: 'exact', head: true })
+          .eq('is_current', true)
+          .in('status', ['pending_contact', 'contacted', 'confirmed', 'shipping']),
+        // "通知异常"指标仅统计 failed；pending 属于待调度，不作为异常展示
+        supabase
+          .from('lottery_notification_jobs')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'failed'),
+        supabase
+          .from('lotteries')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'open')
+          .lte('draw_at', now)
       ]);
 
       if (fulfillmentsResult.error) throw fulfillmentsResult.error;
       if (notificationsResult.error) throw notificationsResult.error;
       if (dueLotteriesResult.error) throw dueLotteriesResult.error;
+      if (fulfillmentCountResult.error) logger.warn('data-admin', '统计待履约数量失败:', fulfillmentCountResult.error);
+      if (notificationFailedCountResult.error) logger.warn('data-admin', '统计通知失败数量失败:', notificationFailedCountResult.error);
+      if (dueLotteryCountResult.error) logger.warn('data-admin', '统计待开奖数量失败:', dueLotteryCountResult.error);
+      if (joinAttemptsResult.error) logger.warn('data-admin', '加载抽奖报名风控样本失败:', joinAttemptsResult.error);
 
       const getJoined = (value) => Array.isArray(value) ? (value[0] || {}) : (value || {});
       lotteryOperationsSnapshot.fulfillments = (fulfillmentsResult.data || []).map((item) => ({
@@ -65,6 +97,9 @@ export const createLotteryOperationsCenter = ({ isCurrentUserAdmin, showToast })
       lotteryOperationsSnapshot.joinRiskCount = (joinAttemptsResult.data || []).filter((item) =>
         !successfulResults.has(String(item.result_code || '').toLowerCase())
       ).length;
+      lotteryOperationsSnapshot.fulfillmentCount = Number(fulfillmentCountResult.count || 0);
+      lotteryOperationsSnapshot.notificationFailureCount = Number(notificationFailedCountResult.count || 0);
+      lotteryOperationsSnapshot.dueLotteryCount = Number(dueLotteryCountResult.count || 0);
       lotteryOperationsSnapshot.isLoaded = true;
     } catch (error) {
       logger.warn('data-admin', '加载抽奖运营待办失败:', error);

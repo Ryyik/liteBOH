@@ -123,7 +123,9 @@ export async function compressImageFileToUploadLimit(file, plan = {}, options = 
     useWebWorker: true,
     initialQuality: Number(options.initialQuality || 0.88),
     maxIteration: Number(options.maxIteration || 8),
-    fileType: plan.mimeType || file.type || undefined
+    fileType: plan.mimeType || file.type || undefined,
+    onProgress: typeof options.onProgress === 'function' ? options.onProgress : undefined,
+    signal: options.signal
   });
   return normalizeCompressedFile(file, compressedBlob);
 }

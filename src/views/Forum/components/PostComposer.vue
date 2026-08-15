@@ -28,6 +28,8 @@ const props = defineProps({
   isSubmitting: { type: Boolean, default: false },
   isUploadingPostImage: { type: Boolean, default: false },
   postImageUploadStatus: { type: String, default: '' },
+  stagedSubmitState: { type: Object, default: () => ({ stage: 'idle', progress: 0, message: '' }) },
+  isStagedSubmitting: { type: Boolean, default: false },
   postCooldownSeconds: { type: Number, default: 0 },
   maxPostImages: { type: Number, default: 6 },
   mentionUsers: { type: Array, default: () => [] },
@@ -88,12 +90,16 @@ const selectedTagLabel = computed(() => (
 const hasPostContent = computed(() => Boolean(
   String(props.newPost.title || '').trim() || String(props.newPost.content || '').trim()
 ));
+const isPostBusy = computed(() => props.isSubmitting || props.isUploadingPostImage || props.isStagedSubmitting);
+const stagedSubmitLabel = computed(() => (
+  props.stagedSubmitState?.message || '正在发布帖子'
+));
 
 const titleCharCount = computed(() => String(props.newPost.title || '').length);
 const contentCharCount = computed(() => String(props.newPost.content || '').length);
 const composerCatSeed = computed(() => [
   props.selectedPostTag,
-  props.isUploadingPostImage ? 'uploading' : 'idle',
+  isPostBusy.value ? 'uploading' : 'idle',
   String(props.newPost.title || '').trim().length,
   String(props.newPost.content || '').trim().length,
   props.postImages.length
@@ -134,7 +140,13 @@ const getImageStatusClass = (image) => {
   if (image?.uploadStatus && image.uploadStatus !== 'approved') return 'processing';
   return 'approved';
 };
-const canReorderImage = (image) => !image?.uploadStatus || image.uploadStatus === 'approved';
+const shouldShowImageStatus = (image) => {
+  const status = String(image?.uploadStatus || '');
+  return status === 'failed' || (Boolean(status) && status !== 'staged' && !props.isStagedSubmitting);
+};
+const canReorderImage = (image) => (
+  !image?.uploadStatus || ['approved', 'staged'].includes(image.uploadStatus)
+);
 
 const updateTitle = (value) => {
   emit('update:newPost', { ...props.newPost, title: value });
@@ -215,7 +227,7 @@ const handleImageChange = (event) => {
 };
 
 const requestImageReorder = (fromIndex, toIndex) => {
-  if (props.isSubmitting || props.isUploadingPostImage) return;
+  if (isPostBusy.value) return;
   const total = props.postImages.length;
   const from = Number(fromIndex);
   const to = Number(toIndex);
@@ -225,7 +237,7 @@ const requestImageReorder = (fromIndex, toIndex) => {
 };
 
 const handleImageDragStart = (index, event) => {
-  if (props.isSubmitting || props.isUploadingPostImage) {
+  if (isPostBusy.value) {
     event?.preventDefault?.();
     return;
   }
@@ -532,8 +544,8 @@ onUnmounted(() => {
       </div>
       <HomeCatMascot v-if="isHomeCatTheme" class="composer-theme-cat"
         :class="{ 'is-awake': isComposerCatAwake }"
-        :type="isUploadingPostImage ? 'uploading' : 'decor'"
-        :pool="isUploadingPostImage ? '' : 'background'"
+        :type="isPostBusy ? 'uploading' : 'decor'"
+        :pool="isPostBusy ? '' : 'background'"
         :seed="composerCatSeed"
         size="lg" decorative />
 
@@ -580,14 +592,14 @@ onUnmounted(() => {
       <input ref="postCameraInputRef" type="file" accept="image/png,image/jpeg,image/webp" capture="environment"
         class="post-image-input" @change="handleImageChange" />
 
-      <div v-if="postImages.length > 0 || isUploadingPostImage || postImageUploadStatus" class="post-image-panel">
+      <div v-if="postImages.length > 0 || isUploadingPostImage || isStagedSubmitting || postImageUploadStatus" class="post-image-panel">
         <div v-if="postImages.length > 0" class="post-image-preview-grid">
           <div v-for="(image, index) in postImages" :key="image.publicId || image.uploadId || image.url" class="post-image-preview-item"
             :class="{
               'is-dragging': draggedImageIndex === index,
               'is-drop-target': dragOverImageIndex === index,
               'is-failed': image.uploadStatus === 'failed',
-              'is-processing': image.uploadStatus && image.uploadStatus !== 'approved' && image.uploadStatus !== 'failed'
+              'is-processing': image.uploadStatus && !['approved', 'failed', 'staged'].includes(image.uploadStatus)
             }"
             :draggable="canReorderImage(image)"
             @dragstart="handleImageDragStart(index, $event)"
@@ -606,29 +618,29 @@ onUnmounted(() => {
             <span class="post-image-drag-handle" aria-hidden="true">
               <GripVertical :size="15" :stroke-width="2" />
             </span>
-            <span class="post-image-status-badge" :class="getImageStatusClass(image)">
+            <span v-if="shouldShowImageStatus(image)" class="post-image-status-badge" :class="getImageStatusClass(image)">
               <span v-if="getImageStatusClass(image) === 'processing'" class="post-image-card-spinner" aria-hidden="true"></span>
               {{ getImageStatusLabel(image) }}
             </span>
             <button v-if="image.uploadStatus === 'failed' && image.file" type="button" class="post-image-retry-btn"
-              :disabled="isSubmitting || isUploadingPostImage" @click="emit('retry-image', image, index)">
+              :disabled="isPostBusy" @click="emit('retry-image', image, index)">
               <RefreshCcw :size="14" :stroke-width="2.3" aria-hidden="true" />
               <span>重试</span>
             </button>
             <div v-if="canReorderImage(image)" class="post-image-sort-actions" aria-label="调整图片顺序">
-              <button type="button" class="post-image-sort-btn" :disabled="isSubmitting || isUploadingPostImage || index === 0"
+              <button type="button" class="post-image-sort-btn" :disabled="isPostBusy || index === 0"
                 :aria-label="`将第 ${index + 1} 张图片前移`"
                 @click="requestImageReorder(index, index - 1)">
                 <ArrowLeft :size="15" :stroke-width="2.2" aria-hidden="true" />
               </button>
               <button type="button" class="post-image-sort-btn"
-                :disabled="isSubmitting || isUploadingPostImage || index === postImages.length - 1"
+                :disabled="isPostBusy || index === postImages.length - 1"
                 :aria-label="`将第 ${index + 1} 张图片后移`"
                 @click="requestImageReorder(index, index + 1)">
                 <ArrowRight :size="15" :stroke-width="2.2" aria-hidden="true" />
               </button>
             </div>
-            <button type="button" class="post-image-remove-btn" :disabled="isSubmitting || isUploadingPostImage"
+            <button type="button" class="post-image-remove-btn" :disabled="isPostBusy"
               @click="emit('remove-image', image, index)">×</button>
           </div>
 
@@ -637,7 +649,7 @@ onUnmounted(() => {
             v-if="postImages.length < maxPostImages"
             type="button"
             class="post-image-add-more-card"
-            :disabled="isUploadingPostImage || isSubmitting"
+            :disabled="isPostBusy"
             @click="handleImagePickerRequest"
             aria-label="添加更多图片"
           >
@@ -645,7 +657,7 @@ onUnmounted(() => {
             <span class="add-more-label">添加图片</span>
           </button>
         </div>
-        <div v-if="postImageUploadStatus || isUploadingPostImage" class="post-image-upload-status">
+        <div v-if="!isStagedSubmitting && (postImageUploadStatus || isUploadingPostImage)" class="post-image-upload-status">
           <div class="post-image-upload-status-row">
             <HomeCatMascot v-if="isHomeCatTheme" type="uploading" size="sm" decorative />
             <span v-if="isUploadingPostImage" class="mini-spinner"></span>
@@ -656,7 +668,7 @@ onUnmounted(() => {
           </div>
         </div>
         <button v-if="postImages.length > 0" type="button" class="post-image-clear-btn"
-          :disabled="isSubmitting || isUploadingPostImage" @click="emit('clear-images', { cleanup: true })">
+          :disabled="isPostBusy" @click="emit('clear-images', { cleanup: true })">
           清空图片
         </button>
       </div>
@@ -682,7 +694,7 @@ onUnmounted(() => {
             <Eye :size="23" :stroke-width="2" aria-hidden="true" />
           </button>
           <button type="button" class="mobile-post-tool-btn" :class="{ 'is-full': postImages.length >= maxPostImages }"
-            :disabled="isUploadingPostImage || isSubmitting || postImages.length >= maxPostImages"
+            :disabled="isPostBusy || postImages.length >= maxPostImages"
             :aria-label="`从相册选择图片，已添加 ${postImages.length} 张，最多 ${maxPostImages} 张`"
             @click="handleImagePickerRequest">
             <ImageIcon :size="24" :stroke-width="1.8" aria-hidden="true" />
@@ -750,7 +762,7 @@ onUnmounted(() => {
               <span>{{ isPreviewMode ? '编辑' : '预览' }}</span>
             </button>
             <button type="button" class="desktop-post-tool-btn" :class="{ 'is-full': postImages.length >= maxPostImages }"
-              :disabled="isUploadingPostImage || isSubmitting || postImages.length >= maxPostImages"
+              :disabled="isPostBusy || postImages.length >= maxPostImages"
               :aria-label="`从相册选择图片，已添加 ${postImages.length} 张，最多 ${maxPostImages} 张`"
               @click="handleImagePickerRequest">
               <ImageIcon :size="23" :stroke-width="1.8" aria-hidden="true" />
@@ -758,7 +770,7 @@ onUnmounted(() => {
             </button>
             <!-- ✨ 新增：横屏保存草稿按钮 -->
             <button type="button" class="desktop-post-tool-btn desktop-save-draft-btn"
-              :disabled="!hasPostContent || isSubmitting || isUploadingPostImage"
+              :disabled="!hasPostContent || isPostBusy"
               :aria-label="`保存当前编辑内容为草稿`"
               @click="emit('save-draft')">
               <FileText :size="22" :stroke-width="2" aria-hidden="true" />
@@ -772,13 +784,32 @@ onUnmounted(() => {
               </button>
             </div>
           </div>
-          <button class="post-btn" @click="handleSubmit"
-            :disabled="isSubmitting || isUploadingPostImage || postCooldownSeconds > 0">
-            <span v-if="!isSubmitting">{{ postCooldownSeconds > 0 ? `${postCooldownSeconds}s 后发布` : '发布帖子' }}</span>
-            <div v-else class="mini-spinner white"></div>
+          <button class="post-btn" :class="{ 'is-staged-submitting': isStagedSubmitting }" @click="handleSubmit"
+            :disabled="isPostBusy || postCooldownSeconds > 0" :aria-busy="isPostBusy">
+            <span class="post-btn-label">{{ isStagedSubmitting ? stagedSubmitLabel : (postCooldownSeconds > 0 ? `${postCooldownSeconds}s 后发布` : '发布帖子') }}</span>
+            <span v-if="isStagedSubmitting" class="post-btn-progress" :style="{ transform: `scaleX(${Math.max(0, Math.min(1, (stagedSubmitState.progress || 0) / 100))})` }"></span>
+            <div v-else-if="isSubmitting" class="mini-spinner white"></div>
           </button>
         </div>
       </div>
+
+      <Transition name="post-submit-overlay">
+        <div v-if="isStagedSubmitting" class="post-submit-overlay" role="status" aria-live="polite"
+          aria-label="正在发布帖子">
+          <div class="post-submit-overlay-panel">
+            <span class="post-submit-overlay-progress">{{ Math.round(stagedSubmitState.progress || 0) }}%</span>
+            <p class="post-submit-overlay-label">{{ stagedSubmitLabel }}</p>
+            <span v-if="stagedSubmitState.totalImages" class="post-submit-overlay-count">
+              图片 {{ stagedSubmitState.imageIndex || 1 }}/{{ stagedSubmitState.totalImages }}
+            </span>
+            <div class="post-submit-overlay-track" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+              :aria-valuenow="Math.round(stagedSubmitState.progress || 0)">
+              <span class="post-submit-overlay-fill"
+                :style="{ transform: `scaleX(${Math.max(0, Math.min(1, (stagedSubmitState.progress || 0) / 100))})` }"></span>
+            </div>
+          </div>
+        </div>
+      </Transition>
     </div>
 
     <div v-else class="login-prompt-card glass-panel" @click="handleLogin">
@@ -824,7 +855,7 @@ onUnmounted(() => {
                 <span class="more-menu-label">{{ postLocation ? '更换位置' : '添加位置' }}</span>
               </button>
               <button v-if="isMobileComposer" type="button" class="more-menu-item" :class="{ 'is-full': postImages.length >= maxPostImages }"
-                :disabled="isUploadingPostImage || isSubmitting || postImages.length >= maxPostImages"
+                :disabled="isPostBusy || postImages.length >= maxPostImages"
                 @click="handleCameraRequest(); showMoreMenu = false">
                 <Camera :size="18" :stroke-width="2" aria-hidden="true" />
                 <span class="more-menu-label">拍照</span>

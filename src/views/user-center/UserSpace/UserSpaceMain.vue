@@ -2,7 +2,10 @@
   <div class="user-space-page" :class="{
     'tab-transition-forward': tabTransitionDirection === 'forward',
     'tab-transition-back': tabTransitionDirection === 'back',
-    'edge-swipe-active': isEdgeSwiping
+    'edge-swipe-active': isEdgeSwiping,
+    'community-tab-active': currentTab === 'community' || leavingTab === 'community',
+    'community-nav-island-open': isBottomNavIslandExpanded || isBottomNavIslandCollapsing,
+    'community-nav-island-long': isBottomNavIslandExpanded && bottomNavIsland?.isLong
   }" :data-theme="currentTheme">
 
     <!-- 边缘滑动提示线 -->
@@ -23,7 +26,7 @@
     </div>
 
     <div v-if="currentTab === 'community' || leavingTab === 'community'"
-      :ref="(el) => setTabPageRef('community', el)" class="tab-page"
+      :ref="(el) => setTabPageRef('community', el)" class="tab-page community-tab"
       :class="{ 'is-leaving': leavingTab === 'community' }">
       <AsyncCommunity @switch-tab="switchTab" @open-follow-modal="openUserFollowModal" />
     </div>
@@ -120,6 +123,7 @@
               @open-cloud="openCloudPlusArea"
               @open-pushplus="router.push('/user-space/pushplus-settings?from=userspace-settings')"
               @open-security="router.push('/user-space/account-security?from=userspace-settings')"
+              @open-beta-preview="router.push('/user-space/settings/beta-preview')"
               @open-data="openProfileDataManagement" @open-data-management="openProfileDataManagement"
               @logout="handleLogout" @toggle-hide-online="toggleHideOnlineStatus"
               @toggle-hide-follow-data="toggleHideFollowData" />
@@ -142,6 +146,7 @@
     </div>
 
     <UserSpaceBottomNav :visible="!(currentTab === 'profile' && profileSection === 'edit-profile')"
+      :hidden="isBottomNavHidden"
       :ai-overlay-open="isAiOverlayOpen" :island-visible="isBottomNavIslandExpanded"
       :island-collapsing="isBottomNavIslandCollapsing" :island="bottomNavIsland" :show-cat-sticker="isHomeCatActive"
       :nav-items="navItems" :current-tab="currentTab" :nav-indicator-style="bottomNavIndicatorStyle"
@@ -181,6 +186,7 @@ import { Bot, MessageCircle, Newspaper, User, Users } from 'lucide-vue-next';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
+import { useAppMode } from '@/composables/useAppMode.js';
 import { useEdgeSwipeGesture } from '@/composables/useEdgeSwipeGesture';
 import { useDebounce } from '@/composables/useDebounceThrottle';
 import UserSpaceBottomNav from './components/UserSpaceBottomNav.vue';
@@ -195,6 +201,7 @@ const AssetsHubPanel = defineAsyncComponent(() => import('./components/AssetsHub
 import ThemeModal from './components/ThemeModal.vue';
 import { useBottomNavIslandQueue } from './composables/useBottomNavIslandQueue.js';
 import { createMemoryTtlCache } from './composables/useMemoryTtlCache.js';
+import { useScrollDirectionHide } from './composables/useScrollDirectionHide.js';
 import { USER_SPACE_VALID_TABS, useUserSpaceTabs } from './composables/useUserSpaceTabs.js';
 import { useImageCompressionLoader } from './composables/useImageCompressionLoader.js';
 import {
@@ -331,6 +338,7 @@ const navItems = [
   { id: 'messages', label: '消息', icon: MessageCircle },
   { id: 'profile', label: '我的', icon: User }
 ];
+const { isBeta5 } = useAppMode();
 const { isOpen: isAiOverlayOpen, open: openGlobalAi, close: closeGlobalAi } = useGlobalAiOverlay();
 
 // 边缘滑动手势检测：从右侧边缘向左滑动唤起AI
@@ -1050,6 +1058,18 @@ const {
       switchTab(actionTab);
     }
   }
+});
+
+const isBottomNavForceVisible = computed(() => (
+  !isBeta5.value ||
+  isAiOverlayOpen.value ||
+  isBottomNavIslandExpanded.value ||
+  isBottomNavIslandCollapsing.value ||
+  (currentTab.value === 'profile' && profileSection.value === 'edit-profile')
+));
+const { hidden: isBottomNavHidden, reset: resetBottomNavAutoHide } = useScrollDirectionHide({
+  enabled: isBeta5,
+  forceVisible: isBottomNavForceVisible
 });
 
 const handleBottomNavIslandEvent = (event) => {
@@ -2215,7 +2235,7 @@ watch(() => route.query.tab, (newTab) => {
     runProfileCriticalFetches();
     void openSettingsPanelFromRoute();
   }
-});
+}, { flush: 'sync' });
 
 watch(() => route.query.assistant, (mode) => {
   if (mode === 'quick') {
@@ -2242,6 +2262,7 @@ watch(() => route.query.setting, () => {
 });
 
 watch(currentTab, (newTab, oldTab) => {
+  resetBottomNavAutoHide();
   if (newTab !== 'profile' || oldTab !== 'profile') {
     profileSection.value = 'home';
   }

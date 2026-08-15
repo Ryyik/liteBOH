@@ -6,8 +6,8 @@
     <div class="hero-container">
       <div class="hero-content" ref="contentRef">
         <p v-if="eyebrow" class="hero-eyebrow">{{ eyebrow }}</p>
-        <h1 v-if="titleLevel === 1" class="hero-title" v-html="title"></h1>
-        <h2 v-else class="hero-title hero-title-h2" v-html="title"></h2>
+        <h1 v-if="titleLevel === 1" class="hero-title" v-html="sanitizedTitle"></h1>
+        <h2 v-else class="hero-title hero-title-h2" v-html="sanitizedTitle"></h2>
         <p v-if="subtitle" class="hero-subtitle">{{ subtitle }}</p>
         <div v-if="actions && actions.length" class="hero-actions">
           <template v-for="(action, i) in actions" :key="i">
@@ -61,6 +61,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import DOMPurify from '@/utils/dompurify.js'
 
 const props = defineProps({
   title: { type: String, required: true },
@@ -81,6 +82,11 @@ const props = defineProps({
 })
 
 const contentRef = ref(null)
+
+const sanitizedTitle = computed(() => DOMPurify.sanitize(props.title, {
+  ALLOWED_TAGS: ['br', 'b', 'strong', 'em', 'i', 'span'],
+  ALLOWED_ATTR: ['class']
+}))
 
 const actionClass = (type) => {
   switch (type) {

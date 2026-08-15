@@ -602,6 +602,8 @@
 }
 
 .mobile-composer-submit {
+  position: relative;
+  overflow: hidden;
   justify-self: end;
   min-width: 70px;
   height: 40px;
@@ -623,6 +625,25 @@
 .mobile-composer-submit:disabled {
   opacity: 0.68;
   cursor: not-allowed;
+}
+
+.mobile-composer-submit.is-staged-submitting:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
+.mobile-composer-submit-label {
+  position: relative;
+  z-index: 1;
+}
+
+.mobile-composer-submit-progress {
+  position: absolute;
+  inset: 0;
+  background: #1677ff;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 180ms var(--ease-out);
 }
 
 .mobile-composer-scroll {

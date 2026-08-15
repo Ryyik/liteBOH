@@ -462,7 +462,6 @@ const claimAnniversaryGift = async () => {
     anniversaryGiftClaimed.value = true;
     const expiry = formatAnniversaryExpiry(claim?.expiresAt);
     anniversaryGiftMessage.value = `${claim?.alreadyClaimed ? '你已经领取过' : '领取成功：'} ${claim?.planName || 'Max'}${expiry ? `，有效期至 ${expiry}` : ''}`;
-    window.dispatchEvent(new CustomEvent('boh_subscription_refresh'));
   } else {
     anniversaryGiftError.value = true;
     anniversaryGiftMessage.value = result.error?.message || '领取失败，请稍后重试。';

@@ -13,21 +13,25 @@ const ALLOWED_ORIGINS = [
 
 const isOriginAllowed = (origin: string | null): boolean => {
   if (!origin) return false;
-  // 允许所有 localhost 端口
-  if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
-    return true;
-  }
+  // M4: 仅使用精确列表匹配，移除任意 localhost 端口前缀匹配以避免绕过 ALLOWED_ORIGINS。
   return ALLOWED_ORIGINS.some((allowed) => origin === allowed);
 };
 
-export const buildCorsHeaders = (origin: string | null, extraHeaders: string[] = []) => ({
-  'Access-Control-Allow-Headers': ['authorization', 'x-client-info', 'apikey', 'content-type', ...extraHeaders].join(', '),
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Origin': origin && isOriginAllowed(origin) ? origin : 'null',
-  'Access-Control-Allow-Credentials': 'true',
-  'Cache-Control': 'no-store',
-  'Vary': 'Origin',
-});
+export const buildCorsHeaders = (origin: string | null, extraHeaders: string[] = []) => {
+  const headers: Record<string, string> = {
+    'Access-Control-Allow-Headers': ['authorization', 'x-client-info', 'apikey', 'content-type', ...extraHeaders].join(', '),
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Credentials': 'true',
+    'Cache-Control': 'no-store',
+    'Vary': 'Origin',
+  };
+  // M5: 拒绝的 origin 直接省略 ACAO 头（浏览器按同源策略拦截）。
+  // 不再回退 'null' —— Origin: null（沙盒 iframe / file://）也是可被允许的合法值，回退会意外放行这些来源。
+  if (origin && isOriginAllowed(origin)) {
+    headers['Access-Control-Allow-Origin'] = origin;
+  }
+  return headers;
+};
 
 export const jsonResponse = (
   body: unknown,

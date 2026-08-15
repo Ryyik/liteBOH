@@ -37,6 +37,8 @@ export { normalizeForumTag } from './forum-format.js';
 export {
   deleteUploadedForumImage,
   getForumPostImages,
+  moderateForumImage,
   preloadForumImageModeration,
+  uploadApprovedForumImageQueued,
   uploadForumImage
 } from './forum-images-api.js';

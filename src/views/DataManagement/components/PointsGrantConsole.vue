@@ -136,6 +136,10 @@
                 <span class="grant-batch-user-bal">余额 {{ grant.balance_after ?? '—' }}</span>
               </span>
             </div>
+            <!-- 服务端聚合上界为 200 条：明细被截断时明确提示，避免误以为只有这些人 -->
+            <p v-if="batch.grants.length < batch.count" class="grant-batch-truncated">
+              该批次共 {{ batch.count }} 条明细，此处仅展示前 {{ batch.grants.length }} 条；完整明细请前往「积分流水」按批次追溯
+            </p>
           </details>
         </div>
       </div>
@@ -160,6 +164,7 @@ import { computed, onMounted, ref } from 'vue';
 import { Inbox, RefreshCw, Search, Send, Undo2 } from 'lucide-vue-next';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { fetchRecentGrants, grantPoints, revokeGrant, searchGrantTargetUsers } from '@/utils/api/points-admin-api.js';
+import { logger } from '@/utils/logger.js';
 import DashboardPagination from './shared/DashboardPagination.vue';
 
 const { confirm } = useConfirmDialog();
@@ -180,6 +185,7 @@ const batchList = ref([]);
 const recentPage = ref(1);
 const recentTotal = ref(0);
 const recentPageSize = 20;
+let recentRequestId = 0;
 const revokingBatchId = ref('');
 
 const amountText = computed(() => Number(amount.value || 0).toLocaleString());
@@ -237,7 +243,7 @@ const submitGrant = async () => {
     searchResults.value = [];
     void loadRecent(1);
   } catch (error) {
-    console.error('[PointsGrantConsole] 发放积分失败:', error);
+    logger.error('PointsGrantConsole', '发放积分失败:', error);
     notify(error?.message || '发放积分失败', 'error');
   } finally {
     saving.value = false;
@@ -252,9 +258,11 @@ const formatDate = (d) => {
 };
 
 const loadRecent = async (page = recentPage.value) => {
+  const myRequestId = ++recentRequestId;
   recentLoading.value = true;
   try {
     const result = await fetchRecentGrants({ page, pageSize: recentPageSize });
+    if (myRequestId !== recentRequestId) return;
     const total = Number(result.total || 0);
     const totalPages = Math.max(1, Math.ceil(total / recentPageSize));
     if (total > 0 && page > totalPages) {
@@ -275,9 +283,10 @@ const loadRecent = async (page = recentPage.value) => {
       canRevoke: Boolean(batch.batch_id) && !batch.revoked
     }));
   } catch (error) {
+    if (myRequestId !== recentRequestId) return;
     notify(error?.message || '加载发放记录失败', 'error');
   } finally {
-    recentLoading.value = false;
+    if (myRequestId === recentRequestId) recentLoading.value = false;
   }
 };
 
@@ -296,7 +305,7 @@ const handleRevoke = async (batch) => {
     notify(`已撤销 ${result?.revoked ?? batch.count} 位用户的 ${batch.amount} 积分发放`);
     void loadRecent(1);
   } catch (error) {
-    console.error('[PointsGrantConsole] 撤销发放失败:', error);
+    logger.error('PointsGrantConsole', '撤销发放失败:', error);
     notify(error?.message || '撤销发放失败', 'error');
   } finally {
     revokingBatchId.value = '';
@@ -569,5 +578,11 @@ onMounted(() => {
   white-space: nowrap;
 }
 .grant-batch-card.is-revoked .grant-batch-user { opacity: 0.7; }
+.grant-batch-truncated {
+  margin: 0;
+  padding: 0 14px 12px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
 .grant-pagination { padding-inline: 14px; }
 </style>

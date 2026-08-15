@@ -977,11 +977,21 @@ async function moveHero(direction) {
   const targetIdx = idx + direction;
   const current = list[idx];
   const target = list[targetIdx];
-  // 交换 sort_order
+  // 交换 sort_order（第二步失败时回滚第一步，避免产生半交换状态）
   const currentOrder = current.sort_order;
   const targetOrder = target.sort_order;
-  await homeHeroesStore.saveHero(current.id, { sort_order: targetOrder });
-  await homeHeroesStore.saveHero(target.id, { sort_order: currentOrder });
+  const firstOk = await homeHeroesStore.saveHero(current.id, { sort_order: targetOrder });
+  if (!firstOk) {
+    showToast('调整顺序失败');
+    return;
+  }
+  const secondOk = await homeHeroesStore.saveHero(target.id, { sort_order: currentOrder });
+  if (!secondOk) {
+    await homeHeroesStore.saveHero(current.id, { sort_order: currentOrder });
+    await loadHeroes();
+    showToast('调整顺序失败，已恢复原顺序');
+    return;
+  }
   await loadHeroes();
   showToast('已调整顺序');
 }
@@ -1037,6 +1047,11 @@ async function publishCurrent() {
     await saveCurrent();
   }
   if (String(selectedId.value).startsWith('temp-')) return; // 保存失败
+  // 保存失败（草稿仍为脏）时不得继续发布，否则首页会生效旧数据
+  if (isDirty(selectedId.value)) {
+    showToast('草稿保存失败，已取消发布，请重试保存');
+    return;
+  }
   const ok = await homeHeroesStore.publishHero(selectedId.value, authStore.userInfo?.id);
   showToast(ok ? '已发布，首页即将生效' : '发布失败');
 }
@@ -1253,6 +1268,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   releaseCropSource();
   previewResizeObserver?.disconnect();
+  if (toastTimer) clearTimeout(toastTimer);
 });
 </script>
 

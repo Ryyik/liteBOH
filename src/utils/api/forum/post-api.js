@@ -718,7 +718,7 @@ export async function getPostEngagementStats(postId) {
   };
 }
 
-export async function createPostWithImages(content, authorId, authorUsername, status = 'approved', title = '', images = [], tag = '', location = null) {
+export async function createPostWithImages(content, authorId, authorUsername, status = 'approved', title = '', images = [], tag = '', location = null, options = {}) {
   const safeImages = normalizeForumImages(images);
   const safeTag = normalizeForumTag(tag);
   if (safeImages.length > FORUM_IMAGE_MAX_COUNT) {
@@ -785,7 +785,19 @@ export async function createPostWithImages(content, authorId, authorUsername, st
     p_location_lat: location?.lat ?? null,
     p_location_lng: location?.lng ?? null
   };
-  let { data, error } = await supabase.rpc('create_forum_post_with_images', rpcPayload);
+  const submissionId = String(options?.submissionId || '').trim();
+  const rpcName = submissionId ? 'create_forum_post_with_images_idempotent' : 'create_forum_post_with_images';
+  const requestPayload = submissionId ? { ...rpcPayload, p_submission_id: submissionId } : rpcPayload;
+  let { data, error } = await supabase.rpc(rpcName, requestPayload);
+  if (submissionId && error && isMissingRpcFunctionError(error, rpcName)) {
+    // Deploy compatibility: existing installations still publish through the stable RPC.
+    // 降级会失去幂等保护（网络超时重试可能重复发帖），必须留下可观测告警提醒尽快执行迁移
+    logger.warn('forum-api', '幂等发帖 RPC 未部署，已降级为普通 RPC（请尽快执行 2026081503 迁移）', {
+      rpcName,
+      submissionId
+    });
+    ({ data, error } = await supabase.rpc('create_forum_post_with_images', rpcPayload));
+  }
   if (error && isMissingRpcFunctionError(error, 'create_forum_post_with_images')) {
     const legacyPayload = { ...rpcPayload };
     delete legacyPayload.p_tag;
@@ -852,9 +864,9 @@ export async function createPostWithImages(content, authorId, authorUsername, st
   return { ok: true, data: [insertedPost], error: null };
 }
 
-export async function createPost(content, authorId, authorUsername, status = 'approved', title = '', images = [], tag = '', location = null) {
+export async function createPost(content, authorId, authorUsername, status = 'approved', title = '', images = [], tag = '', location = null, options = {}) {
   if (Array.isArray(images) && images.length > 0) {
-    return createPostWithImages(content, authorId, authorUsername, status, title, images, tag, location);
+    return createPostWithImages(content, authorId, authorUsername, status, title, images, tag, location, options);
   }
 
   const safeTitle = String(title || '').trim();
