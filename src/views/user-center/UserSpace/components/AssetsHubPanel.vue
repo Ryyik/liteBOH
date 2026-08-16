@@ -603,7 +603,9 @@ const ledger = ref([]);
 const subscriptionLoading = ref(true);
 const activeSubscription = ref(null);
 const showPlanComparison = ref(false);
-const overviewLoading = ref(true);
+// The initial overview load is started from onMounted. Starting in the loading
+// state would make that first call return early and leave the panel stuck.
+const overviewLoading = ref(false);
 const addressCount = ref(0);
 
 const userPoints = computed(() => Number(userInfo.value?.points) || 0);
