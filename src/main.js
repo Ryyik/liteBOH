@@ -61,6 +61,26 @@ import { initVersionChecker } from './utils/version-checker.js';
 import { initAppModeManager } from './utils/app-mode-manager.js';
 import { applyPerformanceProfile, watchPerformanceProfile } from './utils/performance-profile.js';
 
+const registerPwaServiceWorker = () => {
+  if (import.meta.env.DEV || !('serviceWorker' in navigator)) return;
+
+  const register = () => {
+    navigator.serviceWorker.register('./sw.js', {
+      scope: './',
+      // sw.js 是无 hash 文件。禁止 HTTP 缓存参与更新检查，避免新旧应用壳长期混用。
+      updateViaCache: 'none',
+    }).catch((err) => {
+      logger.warn('pwa', 'Service Worker 注册失败', err);
+    });
+  };
+
+  if (document.readyState === 'complete') {
+    register();
+  } else {
+    window.addEventListener('load', register, { once: true });
+  }
+};
+
 // ============================================
 // 延迟加载的非关键样式
 // ============================================
@@ -87,6 +107,8 @@ const scheduleDeferredGlobalStyles = () => {
 // 浏览器端初始化
 // ============================================
 if (typeof window !== "undefined") {
+  registerPwaServiceWorker();
+
   // Apply the selected experience before Vue mounts so Beta 5 chrome never flashes as stable.
   initAppModeManager();
   applyPerformanceProfile(window);

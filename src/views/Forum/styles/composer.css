@@ -1152,25 +1152,28 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(0, 0, 0, 0.12);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: rgba(18, 28, 38, 0.28);
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
 }
 
 .checkin-modal {
-  width: min(400px, 100%);
-  padding: 24px;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(0, 0, 0, 0.04);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
+  width: min(464px, 100%);
+  max-height: min(760px, calc(100dvh - 32px));
+  overflow: auto;
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 20px;
+  background: rgba(249, 252, 253, 0.94);
+  box-shadow: 0 28px 72px rgba(13, 27, 39, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  scrollbar-width: thin;
 }
 
 .checkin-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 22px;
+  margin-bottom: 18px;
 }
 
 .checkin-header-left {
@@ -1179,76 +1182,101 @@
 }
 
 .checkin-kicker {
-  color: #8e8e93;
+  color: #66737e;
   font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
+  font-weight: 760;
+  letter-spacing: 0;
 }
 
 .checkin-title {
   margin: 0;
-  color: #1d1d1f;
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
+  color: #152531;
+  font-size: 21px;
+  font-weight: 780;
+  letter-spacing: 0;
+  line-height: 1.15;
 }
 
 .checkin-close {
   width: 32px;
   height: 32px;
   border: none;
-  border-radius: 999px;
-  background: #f5f5f7;
-  color: #86868b;
+  border-radius: 10px;
+  background: rgba(225, 233, 236, 0.72);
+  color: #596874;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.2s, color 0.2s;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1), background-color 180ms ease, color 180ms ease;
   flex-shrink: 0;
 }
 
 .checkin-close:hover {
-  background: #e8e8ed;
-  color: #1d1d1f;
+  background: #dce7e9;
+  color: #152531;
+}
+
+.checkin-close:active {
+  transform: scale(0.96);
 }
 
 .checkin-body {
   display: grid;
-  gap: 18px;
+  gap: 14px;
+}
+
+.checkin-card-stage {
+  min-width: 0;
+}
+
+.checkin-points-card {
+  width: 100%;
+  max-width: none;
+  border-radius: 14px;
+  box-shadow: 0 16px 30px rgba(29, 58, 69, 0.17);
+}
+
+.checkin-card-caption {
+  display: block;
+  margin-top: 7px;
+  color: #687883;
+  font-size: 11px;
+  font-weight: 620;
+  line-height: 1.3;
 }
 
 .checkin-hero {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 18px 16px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, #fff8e6, #fff3d6);
-  border: 1px solid rgba(234, 179, 8, 0.28);
+  padding: 14px;
+  border-radius: 14px;
+  background: #fff9e9;
+  border: 1px solid rgba(205, 151, 38, 0.22);
 }
 
 .checkin-hero.is-signed {
-  background: linear-gradient(135deg, #f0fdf4, #dcfce7);
-  border-color: rgba(34, 197, 94, 0.3);
+  background: #eef8f1;
+  border-color: rgba(42, 141, 85, 0.22);
 }
 
 .checkin-hero-icon {
   flex: 0 0 auto;
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #ffffff;
-  color: #b45309;
-  box-shadow: 0 4px 12px rgba(180, 83, 9, 0.12);
+  background: #fff;
+  color: #a66d14;
+  box-shadow: 0 4px 12px rgba(144, 99, 16, 0.11);
 }
 
 .checkin-hero.is-signed .checkin-hero-icon {
-  color: #16a34a;
-  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.14);
+  color: #217448;
+  box-shadow: 0 4px 12px rgba(33, 116, 72, 0.1);
 }
 
 .checkin-hero-copy {
@@ -1259,36 +1287,40 @@
 
 .checkin-hero-points {
   font-size: 13px;
-  font-weight: 800;
-  color: #b45309;
+  font-weight: 760;
+  color: #9c6514;
 }
 
 .checkin-hero.is-signed .checkin-hero-points {
-  color: #16a34a;
+  color: #217448;
 }
 
 .checkin-hero-title {
-  font-size: 17px;
-  font-weight: 800;
-  color: #1d1d1f;
-  letter-spacing: -0.01em;
+  font-size: 16px;
+  font-weight: 760;
+  color: #24323a;
+  letter-spacing: 0;
   line-height: 1.2;
 }
 
 .checkin-hero-sub {
   font-size: 12px;
   font-weight: 500;
-  color: #a16207;
+  color: #8c6a34;
   line-height: 1.4;
 }
 
 .checkin-hero.is-signed .checkin-hero-sub {
-  color: #15803d;
+  color: #3d7956;
 }
 
 .checkin-week-section {
   display: grid;
-  gap: 4px;
+  gap: 5px;
+  padding: 12px 10px 10px;
+  border: 1px solid rgba(24, 58, 70, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.68);
 }
 
 .checkin-week-row {
@@ -1300,13 +1332,13 @@
 .checkin-week-day-label {
   font-size: 11px;
   font-weight: 700;
-  color: #8e8e93;
+  color: #74818a;
   padding: 4px 0;
   line-height: 1;
 }
 
 .checkin-week-day-label.today {
-  color: #1d1d1f;
+  color: #1d5d67;
 }
 
 .checkin-week-date {
@@ -1314,24 +1346,24 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   margin: 0 auto;
-  border-radius: 999px;
+  border-radius: 10px;
   font-size: 15px;
   font-weight: 600;
-  color: #6e6e73;
+  color: #52626d;
   line-height: 1;
 }
 
 .checkin-week-date.today {
-  background: #f5f5f7;
-  color: #1d1d1f;
+  background: #e4eff0;
+  color: #1b5963;
   font-weight: 700;
 }
 
 .checkin-week-date.signed {
-  background: #1d1d1f;
+  background: #237a6d;
   color: #ffffff;
   font-weight: 700;
 }
@@ -1340,7 +1372,7 @@
   position: absolute;
   top: -1px;
   right: -1px;
-  background: #1d1d1f;
+  background: #237a6d;
   color: #ffffff;
   border-radius: 50%;
   width: 13px;
@@ -1353,13 +1385,13 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: #f9f9fb;
-  border: 1px solid rgba(0, 0, 0, 0.04);
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: rgba(228, 238, 239, 0.62);
+  border: 1px solid rgba(24, 58, 70, 0.08);
   font-size: 13px;
   font-weight: 600;
-  color: #1d1d1f;
+  color: #283942;
 }
 
 .checkin-next-label {
@@ -1371,28 +1403,13 @@
 
 .checkin-next-row svg {
   flex-shrink: 0;
-  color: #86868b;
+  color: #46717a;
 }
 
 .checkin-next-count {
   flex-shrink: 0;
-  color: #8e8e93;
+  color: #70808b;
   font-weight: 600;
-}
-
-.checkin-points-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 13px;
-  font-weight: 600;
-  color: #8e8e93;
-}
-
-.checkin-points-row b {
-  font-size: 14px;
-  font-weight: 800;
-  color: #1d1d1f;
 }
 
 .checkin-submit-btn {
@@ -1401,28 +1418,28 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 46px;
+  min-height: 48px;
   padding: 0 20px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 14px;
-  background: #ffffff;
-  color: #1d1d1f;
+  border: 1px solid #1f5f67;
+  border-radius: 12px;
+  background: #1f5f67;
+  color: #fff;
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
-  transition: transform 0.2s, background-color 0.2s, box-shadow 0.2s, opacity 0.2s;
+  box-shadow: 0 9px 18px rgba(31, 95, 103, 0.22);
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1), background-color 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
 }
 
 .checkin-submit-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  background: #ffffff;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+  background: #174f57;
+  box-shadow: 0 12px 24px rgba(31, 95, 103, 0.26);
 }
 
 .checkin-submit-btn:active:not(:disabled) {
-  transform: scale(0.98);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transform: scale(0.97);
+  box-shadow: 0 4px 10px rgba(31, 95, 103, 0.2);
 }
 
 .checkin-submit-btn:disabled {
@@ -1431,9 +1448,9 @@
 }
 
 .checkin-submit-btn.is-done {
-  background: #f5f5f7;
-  color: #6e6e73;
-  border-color: transparent;
+  background: #e4ecec;
+  color: #52616a;
+  border-color: #d7e1e1;
 }
 
 .checkin-skeleton-label {

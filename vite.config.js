@@ -93,8 +93,9 @@ export default defineConfig({
     VitePWA({
       // 确保使用 generateSW 策略自动生成 sw.js
       strategies: 'generateSW',
-      // 新 SW 自动安装并接管；版本指纹检测器负责在旧页面上安全地刷新一次。
-      registerType: 'autoUpdate',
+      // 由 main.js 以 updateViaCache: 'none' 注册，不能让 CDN 的旧 sw.js
+      // 延迟数小时才被浏览器检查到更新。
+      injectRegister: false,
       // Service Worker 文件名（确保生成到 dist 根目录）
       filename: 'sw.js',
       // 启用开发环境 SW（用于调试，生产环境自动禁用）
@@ -104,14 +105,14 @@ export default defineConfig({
       workbox: {
         // 预缓存文件大小上限（4MB，避免大文件静默跳过）
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
-        // 预缓存应用壳与首屏依赖 chunk（main.js 静态依赖 @vueuse/motion 与 supabase），
-        // 页面级 chunk 和大图按需加载，避免每次发布都在后台更新整站资源。
+        // 预缓存应用壳、首屏依赖和所有 CSS。发布会替换旧 hash 文件；若旧 SW
+        // 仍提供旧 index.html/JS 而 CSS 未缓存，页面会退化为浏览器默认样式。
+        // CSS 通常远小于图片和页面 JS，完整预缓存可保证应用壳版本一致。
         globPatterns: [
           'index.html',
-          'registerSW.js',
           'static/js/app-*.js',
           'static/js/{vue-vendor,state-vendor,auth-store,ui-components,supabase-vendor,ui-icons,vue-utils-vendor}-*.js',
-          'static/css/ui-components-*.css',
+          'static/css/*.css',
           'static/fonts/*.{woff,woff2}',
         ],
         cleanupOutdatedCaches: true,

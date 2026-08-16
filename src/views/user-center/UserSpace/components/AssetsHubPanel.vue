@@ -312,19 +312,39 @@
       </section>
 
       <section v-else-if="activeTab === 'fulfillment' && beta5" key="fulfillment" class="ah-section ah-fulfillment-section">
-        <header class="ah-fulfillment-heading"><div><span>履约中心</span><h2>订单与礼物</h2><p>商城兑换和社区礼物在同一处跟进。</p></div></header>
-        <section class="ah-fusion-block">
-          <div class="ah-fusion-block-head"><span><Package :size="17" :stroke-width="1.8" />订单</span><button type="button" @click="loadOrders">刷新</button></div>
-          <div v-if="ordersLoading" class="ah-order-skeleton"><div v-for="n in 2" :key="n" class="ah-skeleton-block" /></div>
-          <div v-else-if="ordersError" class="ah-inline-empty">订单暂时无法加载 <button type="button" @click="loadOrders">重试</button></div>
-          <div v-else-if="orders.length === 0" class="ah-inline-empty">暂无商城订单 <button type="button" @click="goToShop">去商城</button></div>
-          <div v-else class="ah-order-list"><article v-for="order in orders" :key="order.id" class="ah-order-item"><div class="ah-order-top"><span class="ah-order-no">{{ order.order_no }}</span><span class="ah-order-date">{{ formatDate(order.created_at) }}</span></div><div class="ah-order-bottom"><span class="ah-order-items">{{ order.item_count }} 件商品</span><span class="ah-order-points">-{{ order.total_points }} 积分</span></div></article></div>
-        </section>
-        <section class="ah-fusion-block">
-          <div class="ah-fusion-block-head"><span><Gift :size="17" :stroke-width="1.8" />礼物</span><button type="button" @click="loadGifts">刷新</button></div>
-          <div v-if="giftsLoading" class="ah-order-skeleton"><div v-for="n in 2" :key="n" class="ah-skeleton-block" /></div>
-          <div v-else-if="giftsError" class="ah-inline-empty">礼物信息暂时无法加载 <button type="button" @click="loadGifts">重试</button></div>
-          <template v-else><article v-if="currentGift" class="ah-gift-card"><div class="ah-gift-overview"><div class="ah-gift-thumb" :class="{ 'has-image': currentGift.gift_image }"><img v-if="currentGift.gift_image" :src="currentGift.gift_image" :alt="currentGift.gift_content" loading="lazy"><Gift v-else :size="30" :stroke-width="1.6" /></div><div class="ah-gift-headinfo"><h3>{{ currentGift.gift_content || '待命中的礼物' }}</h3><div class="ah-gift-headsub"><span v-if="currentGift.gift_price" class="ah-gift-amount">RMB {{ currentGift.gift_price }}</span></div></div></div><div class="ah-gift-status-panel" :class="currentGift.gift_status"><div class="ah-gift-status-copy"><strong>{{ giftStatusHeadline }}</strong><p>{{ giftStatusDesc }}</p></div></div></article><div v-else class="ah-inline-empty">还没有待收到的礼物</div><div v-if="historyGifts.length" class="ah-gift-history"><div class="ah-gift-history-head"><span>历史礼物</span><span class="ah-gift-history-count">{{ historyGifts.length }} 份</span></div><div class="ah-gift-history-list"><article v-for="gift in historyGifts" :key="gift.id" class="ah-gift-history-item"><div class="ah-gift-history-thumb" :class="{ 'has-image': gift.gift_image }"><img v-if="gift.gift_image" :src="gift.gift_image" :alt="gift.gift_content" loading="lazy"><Gift v-else :size="18" :stroke-width="1.8" /></div><div class="ah-gift-history-main"><strong>{{ gift.gift_content || '未命名礼物' }}</strong><span class="ah-gift-history-date">{{ formatDateShort(gift.created_at) }}</span></div><span class="ah-gift-badge is-flat" :class="gift.gift_status">{{ getGiftStatusLabel(gift.gift_status) }}</span></article></div></div></template>
+        <header class="ah-fulfillment-heading">
+          <div><span>服务</span><h2>礼物与订单</h2><p>正在处理的礼物和全部兑换记录都在这里。</p></div>
+          <button type="button" class="ah-icon-command" title="刷新礼物与订单" aria-label="刷新礼物与订单" @click="refreshFulfillment">
+            <RefreshCw :size="17" :stroke-width="2" aria-hidden="true" />
+          </button>
+        </header>
+
+        <article v-if="currentGift" class="ah-gift-card ah-current-gift-card">
+          <header class="ah-gift-header"><span class="ah-gift-eyebrow"><Gift :size="14" :stroke-width="2" aria-hidden="true" />进行中的礼物</span><span class="ah-gift-header-date">更新于 {{ giftStatusDate }}</span></header>
+          <div class="ah-gift-overview">
+            <div class="ah-gift-thumb" :class="{ 'has-image': currentGift.gift_image }"><img v-if="currentGift.gift_image" :src="currentGift.gift_image" :alt="currentGift.gift_content" loading="lazy" /><Gift v-else :size="30" :stroke-width="1.6" aria-hidden="true" /></div>
+            <div class="ah-gift-headinfo"><div class="ah-gift-headtop"><h3>{{ currentGift.gift_content || '待命中的礼物' }}</h3><span class="ah-gift-badge" :class="currentGift.gift_status">{{ getGiftStatusLabel(currentGift.gift_status) }}</span></div><div class="ah-gift-headsub"><span v-if="currentGift.gift_price" class="ah-gift-amount">RMB {{ currentGift.gift_price }}</span><span v-if="currentGift.gift_no" class="ah-gift-history-no">{{ currentGift.gift_no }}</span></div></div>
+          </div>
+          <div class="ah-gift-status-panel" :class="currentGift.gift_status"><div class="ah-gift-status-icon"><PackageCheck :size="19" :stroke-width="1.8" aria-hidden="true" /></div><div class="ah-gift-status-copy"><strong>{{ giftStatusHeadline }}</strong><p>{{ giftStatusDesc }}</p></div></div>
+        </article>
+
+        <section class="ah-fulfillment-records" aria-label="礼物与订单记录">
+          <header class="ah-fulfillment-records-head">
+            <div><span>记录</span><h3>礼物与订单记录</h3></div>
+            <div class="ah-record-filter" role="tablist" aria-label="记录筛选">
+              <button v-for="filter in fulfillmentFilters" :key="filter.id" type="button" role="tab" :aria-selected="recordFilter === filter.id" :class="{ active: recordFilter === filter.id }" @click="recordFilter = filter.id">{{ filter.label }}</button>
+            </div>
+          </header>
+          <div v-if="giftsLoading && ordersLoading" class="ah-order-skeleton"><div v-for="n in 3" :key="n" class="ah-skeleton-block" /></div>
+          <div v-else-if="visibleFulfillmentRecords.length" class="ah-fulfillment-record-list">
+            <article v-for="record in visibleFulfillmentRecords" :key="record.id" class="ah-fulfillment-record">
+              <span class="ah-fulfillment-record-icon" :class="record.type"><Gift v-if="record.type === 'gift'" :size="17" :stroke-width="1.8" aria-hidden="true" /><Package v-else :size="17" :stroke-width="1.8" aria-hidden="true" /></span>
+              <div class="ah-fulfillment-record-copy"><strong>{{ record.title }}</strong><span>{{ record.detail }}</span></div>
+              <div class="ah-fulfillment-record-side"><span>{{ formatDateShort(record.time) }}</span><span v-if="record.type === 'gift'" class="ah-gift-badge is-flat" :class="record.status">{{ getGiftStatusLabel(record.status) }}</span><span v-else class="ah-fulfillment-record-points">-{{ record.points }} 积分</span></div>
+            </article>
+          </div>
+          <div v-else class="ah-empty-state"><div class="ah-empty-icon"><Package :size="26" :stroke-width="1.5" /></div><h3>{{ recordFilter === 'gifts' ? '还没有历史礼物' : recordFilter === 'orders' ? '还没有商城订单' : '还没有礼物或订单记录' }}</h3><p v-if="recordFilter !== 'gifts'">商城兑换与已归档礼物会出现在这里。</p></div>
+          <p v-if="giftsError || ordersError" class="ah-fulfillment-partial-error">部分记录暂时无法更新，刷新后重试。</p>
         </section>
       </section>
 
@@ -486,7 +506,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import {
-  CalendarCheck, Check, ChevronRight, Coins, Copy, Crown, Gift, ImagePlus, LayoutDashboard, MapPin, Package, PackageCheck, ScrollText, Send, ShoppingBag, Trash2
+  CalendarCheck, Check, ChevronRight, Coins, Copy, Crown, Gift, ImagePlus, LayoutDashboard, MapPin, Package, PackageCheck, RefreshCw, ScrollText, Send, ShoppingBag, Trash2
 } from 'lucide-vue-next';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import SubscriptionPlans from '@/components/SubscriptionPlans.vue';
@@ -551,7 +571,7 @@ const tabGroups = computed(() => props.beta5 ? [
     { id: 'subscription', label: '订阅', icon: Crown }
   ] },
   { label: '服务', tabs: [
-    { id: 'fulfillment', label: '订单与礼物', icon: Package },
+    { id: 'fulfillment', label: '礼物与订单', icon: Package },
     { id: 'addresses', label: '地址', icon: MapPin }
   ] }
 ] : [
@@ -889,6 +909,38 @@ const giftsLoaded = ref(false);
 const giftsError = ref('');
 const currentGift = ref(null);
 const historyGifts = ref([]);
+const recordFilter = ref('all');
+const fulfillmentFilters = [
+  { id: 'all', label: '全部' },
+  { id: 'gifts', label: '礼物' },
+  { id: 'orders', label: '订单' }
+];
+
+const fulfillmentRecords = computed(() => [
+  ...historyGifts.value.map((gift) => ({
+    id: `gift-${gift.id}`,
+    type: 'gift',
+    title: gift.gift_content || '未命名礼物',
+    detail: gift.gift_no || '礼物记录',
+    status: gift.gift_status,
+    time: gift.completed_at || gift.updated_at || gift.created_at
+  })),
+  ...orders.value.map((order) => ({
+    id: `order-${order.id}`,
+    type: 'order',
+    title: `商城订单 · ${order.item_count} 件商品`,
+    detail: order.order_no || '订单记录',
+    points: Number(order.total_points) || 0,
+    time: order.created_at
+  }))
+].filter((record) => Number.isFinite(Date.parse(record.time || '')))
+  .sort((a, b) => Date.parse(b.time) - Date.parse(a.time)));
+
+const visibleFulfillmentRecords = computed(() => (
+  recordFilter.value === 'all'
+    ? fulfillmentRecords.value
+    : fulfillmentRecords.value.filter((record) => record.type === recordFilter.value.slice(0, -1))
+));
 
 const recentOrder = computed(() => orders.value.find((order) => isWithinDays(order.created_at, 30)) || null);
 const overviewHasErrors = computed(() => Boolean(giftsError.value || ordersError.value || ledgerError.value));
@@ -1153,6 +1205,18 @@ const loadGifts = async () => {
   } finally {
     giftsLoading.value = false;
   }
+};
+
+const refreshGifts = () => {
+  giftsLoaded.value = false;
+  void loadGifts();
+};
+
+const refreshFulfillment = () => {
+  ordersLoaded.value = false;
+  giftsLoaded.value = false;
+  void loadOrders();
+  void loadGifts();
 };
 
 const loadOverview = async () => {
@@ -2341,8 +2405,8 @@ onMounted(() => {
 .ah-skin-option.active { border-color: #2f887a; box-shadow: 0 0 0 2px rgba(47,136,122,.16); }.ah-skin-option.is-cats-skin.active { border-color: #d77f96; box-shadow: 0 0 0 2px rgba(215,127,150,.18); }.ah-skin-option strong, .ah-skin-option small { display: block; }.ah-skin-option strong { margin-top: 11px; font-size: 13px; }.ah-skin-option small { margin-top: 3px; color: #75808a; font-size: 11px; }
 .ah-skin-preview { display: flex; align-items: center; justify-content: center; width: 100%; height: 45px; border-radius: 9px; overflow: hidden; }.ah-skin-preview.is-blank { background: #eaf0f1; color: #315b68; }.ah-skin-preview.is-cats { position: relative; background: #fff; }.ah-skin-preview.is-cats img { width: 28px; height: 28px; flex: 0 0 28px; object-fit: contain; margin-left: -13px; filter: drop-shadow(0 2px 2px rgba(113,65,77,.12)); }.ah-skin-preview.is-cats img:first-child { margin-left: 0; }.ah-skin-preview.is-custom { background: #e8ebf2; color: #526179; }
 .ah-card-presets { display: grid; gap: 10px; }.ah-card-presets-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #3d4852; font-size: 13px; font-weight: 760; }.ah-card-presets-heading small { color: #7a858e; font-size: 11px; font-weight: 650; }.ah-card-presets-loading, .ah-card-presets-empty { min-height: 76px; display: grid; place-items: center; border: 1px dashed rgba(23, 45, 59, .18); border-radius: 14px; color: #7a858e; font-size: 12px; }.ah-card-preset-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }.ah-card-preset { position: relative; min-width: 0; padding: 4px; border: 1px solid rgba(23, 45, 59, .13); border-radius: 14px; background: rgba(255,255,255,.58); }.ah-card-preset.active { border-color: #2f887a; box-shadow: 0 0 0 2px rgba(47,136,122,.16); }.ah-card-preset-select { display: grid; width: 100%; gap: 7px; padding: 0; border: 0; background: transparent; color: #26323b; cursor: pointer; text-align: left; font: inherit; font-size: 11px; font-weight: 700; }.ah-card-preset-select img { display: block; width: 100%; aspect-ratio: 8 / 5; border-radius: 10px; object-fit: cover; background: #e8ebf2; }.ah-card-preset-select > span { padding: 0 4px 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.ah-card-preset-delete { position: absolute; top: 10px; right: 10px; display: grid; width: 28px; height: 28px; place-items: center; padding: 0; border: 1px solid rgba(255,255,255,.78); border-radius: 10px; background: rgba(255,255,255,.84); color: #a24444; cursor: pointer; box-shadow: 0 5px 12px rgba(25,37,49,.14); }.ah-card-preset-delete:hover { background: #fff; }.ah-card-presets-retention { margin: 0; color: #7a858e; font-size: 11px; line-height: 1.5; }
-.ah-fulfillment-section { display: grid; gap: 15px; }.ah-fusion-block { padding: 15px; border: 1px solid rgba(18, 38, 50, .1); border-radius: 18px; background: rgba(255,255,255,.58); }.ah-fusion-block-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; color: #1d1d1f; font-weight: 760; }.ah-fusion-block-head > span { display: inline-flex; align-items: center; gap: 7px; }.ah-fusion-block-head button, .ah-inline-empty button { border: 0; background: transparent; color: #23796c; font: inherit; font-size: 12px; cursor: pointer; }.ah-inline-empty { padding: 16px 4px; color: #74808a; font-size: 13px; }.ah-fusion-block .ah-gift-card { box-shadow: none; }
-:global(.user-space-page[data-theme="dark"]) .ah-cards-heading h2, :global(.user-space-page[data-theme="dark"]) .ah-fulfillment-heading h2, :global(.user-space-page[data-theme="dark"]) .ah-skin-option, :global(.user-space-page[data-theme="dark"]) .ah-card-presets-heading, :global(.user-space-page[data-theme="dark"]) .ah-card-preset-select, :global(.user-space-page[data-theme="dark"]) .ah-fusion-block-head { color: #f4f7f8; }.ah-skin-option, .ah-card-preset, .ah-fusion-block { background: rgba(255,255,255,.58); }:global(.user-space-page[data-theme="dark"]) .ah-skin-option, :global(.user-space-page[data-theme="dark"]) .ah-card-preset, :global(.user-space-page[data-theme="dark"]) .ah-fusion-block { background: rgba(28,30,36,.72); border-color: rgba(255,255,255,.1); }:global(.user-space-page[data-theme="dark"]) .ah-card-presets-loading, :global(.user-space-page[data-theme="dark"]) .ah-card-presets-empty { border-color: rgba(255,255,255,.18); color: #a7acb5; }:global(.user-space-page[data-theme="dark"]) .ah-card-preset-delete { border-color: rgba(255,255,255,.18); background: rgba(28,30,36,.9); color: #ff9ca9; }
+.ah-fulfillment-section { display: grid; gap: 15px; }.ah-current-gift-card { margin: 0; }.ah-fulfillment-records { padding: 16px; border: 1px solid rgba(18, 38, 50, .1); border-radius: 18px; background: rgba(255,255,255,.58); }.ah-fulfillment-records-head { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin-bottom: 12px; }.ah-fulfillment-records-head > div:first-child > span { color: #377f76; font-size: 12px; font-weight: 760; }.ah-fulfillment-records-head h3 { margin: 4px 0 0; color: #1d1d1f; font-size: 16px; font-weight: 760; }.ah-record-filter { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: rgba(18, 38, 50, .07); }.ah-record-filter button { min-width: 42px; min-height: 30px; padding: 0 9px; border: 0; border-radius: 8px; background: transparent; color: #68727b; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }.ah-record-filter button.active { background: rgba(255,255,255,.9); box-shadow: 0 1px 5px rgba(15, 23, 42, .12); color: #1d1d1f; }.ah-fulfillment-record-list { display: grid; }.ah-fulfillment-record { display: flex; align-items: center; gap: 11px; min-width: 0; padding: 12px 0; }.ah-fulfillment-record + .ah-fulfillment-record { border-top: 1px solid rgba(18, 38, 50, .08); }.ah-fulfillment-record-icon { display: grid; width: 34px; height: 34px; place-items: center; flex: 0 0 auto; border-radius: 12px; }.ah-fulfillment-record-icon.gift { background: rgba(183, 102, 126, .12); color: #ad526f; }.ah-fulfillment-record-icon.order { background: rgba(35, 121, 108, .12); color: #23796c; }.ah-fulfillment-record-copy { display: grid; min-width: 0; gap: 3px; flex: 1; }.ah-fulfillment-record-copy strong { overflow: hidden; color: #1d1d1f; font-size: 13px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }.ah-fulfillment-record-copy span, .ah-fulfillment-record-side > span:first-child { overflow: hidden; color: #78808d; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.ah-fulfillment-record-side { display: grid; justify-items: end; gap: 4px; min-width: 68px; }.ah-fulfillment-record-points { color: #b45309; font-size: 11px; font-weight: 750; white-space: nowrap; }.ah-fulfillment-partial-error { margin: 12px 0 0; color: #b45309; font-size: 12px; }.ah-fusion-block { padding: 15px; border: 1px solid rgba(18, 38, 50, .1); border-radius: 18px; background: rgba(255,255,255,.58); }.ah-fusion-block-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; color: #1d1d1f; font-weight: 760; }.ah-fusion-block-head > span { display: inline-flex; align-items: center; gap: 7px; }.ah-fusion-block-head button, .ah-inline-empty button { border: 0; background: transparent; color: #23796c; font: inherit; font-size: 12px; cursor: pointer; }.ah-inline-empty { padding: 16px 4px; color: #74808a; font-size: 13px; }
+:global(.user-space-page[data-theme="dark"]) .ah-cards-heading h2, :global(.user-space-page[data-theme="dark"]) .ah-fulfillment-heading h2, :global(.user-space-page[data-theme="dark"]) .ah-fulfillment-records-head h3, :global(.user-space-page[data-theme="dark"]) .ah-fulfillment-record-copy strong, :global(.user-space-page[data-theme="dark"]) .ah-skin-option, :global(.user-space-page[data-theme="dark"]) .ah-card-presets-heading, :global(.user-space-page[data-theme="dark"]) .ah-card-preset-select, :global(.user-space-page[data-theme="dark"]) .ah-fusion-block-head { color: #f4f7f8; }.ah-skin-option, .ah-card-preset, .ah-fusion-block { background: rgba(255,255,255,.58); }:global(.user-space-page[data-theme="dark"]) .ah-skin-option, :global(.user-space-page[data-theme="dark"]) .ah-card-preset, :global(.user-space-page[data-theme="dark"]) .ah-fusion-block, :global(.user-space-page[data-theme="dark"]) .ah-fulfillment-records { background: rgba(28,30,36,.72); border-color: rgba(255,255,255,.1); }:global(.user-space-page[data-theme="dark"]) .ah-record-filter { background: rgba(255,255,255,.1); }:global(.user-space-page[data-theme="dark"]) .ah-record-filter button { color: #a7acb5; }:global(.user-space-page[data-theme="dark"]) .ah-record-filter button.active { background: rgba(255,255,255,.14); color: #f4f7f8; box-shadow: none; }:global(.user-space-page[data-theme="dark"]) .ah-fulfillment-record + .ah-fulfillment-record { border-top-color: rgba(255,255,255,.09); }:global(.user-space-page[data-theme="dark"]) .ah-card-presets-loading, :global(.user-space-page[data-theme="dark"]) .ah-card-presets-empty { border-color: rgba(255,255,255,.18); color: #a7acb5; }:global(.user-space-page[data-theme="dark"]) .ah-card-preset-delete { border-color: rgba(255,255,255,.18); background: rgba(28,30,36,.9); color: #ff9ca9; }
 @media (max-width: 560px) { .ah-skin-grid { grid-template-columns: 1fr; }.ah-skin-option { min-height: 82px; display: grid; grid-template-columns: 70px 1fr; align-content: center; column-gap: 12px; }.ah-skin-option strong, .ah-skin-option small { grid-column: 2; }.ah-skin-option strong { margin-top: 0; }.ah-skin-preview { grid-row: 1 / span 2; height: 50px; }.ah-card-preset-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 @media (prefers-reduced-motion: reduce) {

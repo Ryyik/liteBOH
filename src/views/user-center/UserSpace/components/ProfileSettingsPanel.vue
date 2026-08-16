@@ -30,20 +30,20 @@
       </div>
 
       <div class="apple-card settings-section-card">
-        <div class="group-header-title">内测体验</div>
+        <div class="group-header-title">版本与回退</div>
         <div class="apple-list-group">
-          <div class="apple-item clickable" @click="$emit('open-beta-preview')">
+          <div class="apple-item clickable" @click="$emit('open-version-settings')">
             <div class="item-left">
               <div class="icon-wrapper bg-blue">
-                <FlaskConical :size="16" :stroke-width="2" aria-hidden="true" />
+                <RotateCcw :size="16" :stroke-width="2" aria-hidden="true" />
               </div>
               <span class="setting-label-stack">
-                <span class="item-label">Beta 5 预览版</span>
-                <span class="item-desc">尝鲜新功能，可随时返回正式版</span>
+                <span class="item-label">版本与回退</span>
+                <span class="item-desc">Beta 5 已默认启用，可临时回退到 4.9.1 兼容模式</span>
               </span>
             </div>
             <div class="item-right">
-              <span class="text-secondary">Preview</span>
+              <span class="text-secondary">Beta 5</span>
               <span class="chevron">›</span>
             </div>
           </div>
@@ -206,7 +206,7 @@
 <script setup>
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
-import { Archive, Bell, Database, EyeOff, FlaskConical, LogOut, MessagesSquare, Moon, Shield, Sun, Users } from 'lucide-vue-next';
+import { Archive, Bell, Database, EyeOff, LogOut, MessagesSquare, Moon, RotateCcw, Shield, Sun, Users } from 'lucide-vue-next';
 import SettingToggle from './SettingToggle.vue';
 
 defineProps({
@@ -254,7 +254,7 @@ defineEmits([
   'open-cloud',
   'open-pushplus',
   'open-security',
-  'open-beta-preview',
+  'open-version-settings',
   'open-data',
   'open-data-management',
   'open-data-export',

@@ -30,8 +30,21 @@ beforeEach(() => {
 });
 
 describe('app-mode-manager', () => {
-  it('defaults invalid storage to stable and writes the root mode marker', async () => {
-    localStorage.getItem.mockReturnValueOnce('unknown');
+  it('migrates legacy mode storage to the released Beta 5 default', async () => {
+    localStorage.setItem('boh_app_mode', 'stable');
+    const { getAppMode, initAppModeManager } = await import('../../src/utils/app-mode-manager.js');
+
+    initAppModeManager();
+
+    expect(getAppMode()).toBe('beta5');
+    expect(documentElement.dataset.bohAppMode).toBe('beta5');
+    expect(localStorage.setItem).toHaveBeenCalledWith('boh_app_mode', 'beta5');
+    expect(localStorage.setItem).toHaveBeenCalledWith('boh_app_mode_release', 'beta5-default');
+  });
+
+  it('keeps a user-selected 4.9.1 fallback after the release migration', async () => {
+    localStorage.setItem('boh_app_mode_release', 'beta5-default');
+    localStorage.setItem('boh_app_mode', 'stable');
     const { getAppMode, initAppModeManager } = await import('../../src/utils/app-mode-manager.js');
 
     initAppModeManager();
@@ -40,16 +53,16 @@ describe('app-mode-manager', () => {
     expect(documentElement.dataset.bohAppMode).toBe('stable');
   });
 
-  it('persists a beta selection and notifies mounted consumers', async () => {
+  it('persists a user-selected 4.9.1 fallback and notifies mounted consumers', async () => {
     const { setAppMode } = await import('../../src/utils/app-mode-manager.js');
 
-    setAppMode('beta5');
+    setAppMode('stable');
 
-    expect(localStorage.setItem).toHaveBeenCalledWith('boh_app_mode', 'beta5');
-    expect(documentElement.dataset.bohAppMode).toBe('beta5');
+    expect(localStorage.setItem).toHaveBeenCalledWith('boh_app_mode', 'stable');
+    expect(documentElement.dataset.bohAppMode).toBe('stable');
     expect(dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({
       type: 'boh:app-mode-changed',
-      detail: { mode: 'beta5' }
+      detail: { mode: 'stable' }
     }));
   });
 });

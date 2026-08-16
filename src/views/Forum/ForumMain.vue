@@ -472,6 +472,10 @@ const createDefaultWeeklyCheckinStatus = () => ({
   currentWeekStart: null
 });
 const weeklyCheckinStatus = ref(createDefaultWeeklyCheckinStatus());
+const weeklyCheckinCardPoints = computed(() => {
+  const statusPoints = Number(weeklyCheckinStatus.value.currentPoints);
+  return Number.isFinite(statusPoints) ? statusPoints : (Number(userInfo.points) || 0);
+});
 
 const newPost = ref({ title: '', content: '' });
 const selectedPostTag = ref('daily');
@@ -3504,7 +3508,10 @@ const openPostDetail = (postId) => {
     <WeeklyCheckinCalendar v-model:open="isWeeklyCheckinCalendarOpen" :status="weeklyCheckinStatus"
       :calendar-days="checkinCalendarDays" :next-checkin="weeklyCheckinNextCheckin"
       :loading="isWeeklyCheckinLoading"
-      :submitting="isWeeklyCheckinSubmitting" @close="closeWeeklyCheckinCalendar" @checkin="handleWeeklyCheckin" />
+      :submitting="isWeeklyCheckinSubmitting" :card-points="weeklyCheckinCardPoints"
+      :card-username="userInfo.username || '未命名用户'" :card-skin="userInfo.pointsCardSkin || 'blank'"
+      :card-image-url="userInfo.pointsCardImageUrl || ''" @close="closeWeeklyCheckinCalendar"
+      @checkin="handleWeeklyCheckin" />
 
     <Teleport to="body">
       <Transition name="mobile-draft-panel">

@@ -228,6 +228,22 @@ let scrollRafId = null;
 let resizeRafId = null;
 let pendingScrollY = 0;
 
+const getUserSpaceScrollTarget = (target) => {
+  if (!target?.classList?.contains('tab-page')) return null;
+  return target.closest?.('.user-space-page') ? target : null;
+};
+
+const getCurrentScrollOffset = () => {
+  const activeUserSpaceTab = document.querySelector('.user-space-page .tab-page:not(.is-leaving)');
+  return activeUserSpaceTab ? activeUserSpaceTab.scrollTop : window.scrollY;
+};
+
+const updateScrolledState = (scrollTop) => {
+  isScrolled.value = isScrolled.value
+    ? scrollTop > SCROLL_EXIT_THRESHOLD
+    : scrollTop > SCROLL_ENTER_THRESHOLD;
+};
+
 const handleScroll = (event) => {
   if (isBeta5.value) {
     if (isScrolled.value) isScrolled.value = false;
@@ -235,18 +251,16 @@ const handleScroll = (event) => {
   }
 
   const target = event?.target;
+  const userSpaceScrollTarget = getUserSpaceScrollTarget(target);
   const isPageScroll = !target || target === document || target === document.documentElement
     || target === document.body || target === window;
-  // 顶栏悬浮状态只跟页面级滚动相关：内部容器（评论列表、代码块等）滚动与顶栏无关，
-  // 旧实现把两个坐标系的滚动位置取 max，会导致在内部容器滚动时顶栏被误触发且无法回落
-  if (!isPageScroll) return;
-  // 始终刷新 pendingScrollY：同一帧内多次 scroll 事件时，rAF 回调读到的是最新位置而非首个事件的陈旧值
-  pendingScrollY = window.scrollY;
+  // 用户空间桌面端由 tab-page 承担页面级滚动；其余嵌套容器（评论、代码块等）不应影响顶栏。
+  if (!isPageScroll && !userSpaceScrollTarget) return;
+  // 始终刷新为最新滚动源的位置，避免同一帧内读取到陈旧坐标。
+  pendingScrollY = userSpaceScrollTarget ? userSpaceScrollTarget.scrollTop : window.scrollY;
   if (scrollRafId) return;
   scrollRafId = requestAnimationFrame(() => {
-    isScrolled.value = isScrolled.value
-      ? pendingScrollY > SCROLL_EXIT_THRESHOLD
-      : pendingScrollY > SCROLL_ENTER_THRESHOLD;
+    updateScrolledState(pendingScrollY);
     scrollRafId = null;
   });
 };
@@ -771,13 +785,17 @@ onMounted(() => {
   // 这样浏览器先绘制了无 scrolled 的基准状态，过渡才能正确触发
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      isScrolled.value = isBeta5.value ? false : window.scrollY > SCROLL_ENTER_THRESHOLD;
+      isScrolled.value = isBeta5.value ? false : getCurrentScrollOffset() > SCROLL_ENTER_THRESHOLD;
     });
   });
 });
 
 watch(isBeta5, (enabled) => {
-  if (enabled) isScrolled.value = false;
+  if (enabled) {
+    isScrolled.value = false;
+    return;
+  }
+  updateScrolledState(getCurrentScrollOffset());
 });
 
 /**

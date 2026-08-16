@@ -148,9 +148,13 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
     meta: { ...userSpaceMeta },
   },
   {
-    path: "/user-space/settings/beta-preview",
-    name: "BetaPreview",
+    path: "/user-space/settings/version",
+    name: "VersionSettings",
     component: () => import("../../views/user-center/BetaPreview/BetaPreviewMain.vue"),
     meta: { ...userSpaceMeta, hideNavbar: true, hideFooter: true },
+  },
+  {
+    path: "/user-space/settings/beta-preview",
+    redirect: "/user-space/settings/version",
   },
 ]

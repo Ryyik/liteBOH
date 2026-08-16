@@ -1,129 +1,97 @@
 <template>
   <main class="beta-preview-page" :data-theme="currentTheme">
     <div class="beta-preview-backdrop" aria-hidden="true"></div>
-    <UserCenterPageHeader title="内测体验" back-label="返回设置" max-width="620px" @back="backToSettings" />
+    <UserCenterPageHeader title="版本与回退" back-label="返回设置" max-width="620px" @back="backToSettings" />
 
     <section class="beta-preview-content" aria-labelledby="beta-preview-title">
       <div class="beta-preview-heading">
-        <span class="preview-eyebrow">BOHLITE SOFTWARE UPDATE</span>
-        <h1 id="beta-preview-title">Beta Preview</h1>
-        <p>切换体验会立即生效，随时可以返回。</p>
+        <span class="preview-eyebrow">BOHLITE SOFTWARE</span>
+        <h1 id="beta-preview-title">版本与回退</h1>
+        <p>Beta 5 已作为默认版本发布；需要旧流程时可暂时回退。</p>
       </div>
 
       <!-- 横条 1：当前版本 -->
       <section class="glass-bar current-bar" aria-label="当前使用版本">
         <span class="bar-symbol" aria-hidden="true">
           <Sparkles v-if="isBeta5" :size="22" :stroke-width="1.9" />
-          <span v-else class="bar-letter">B</span>
+          <RotateCcw v-else :size="21" :stroke-width="1.9" />
         </span>
         <span class="bar-copy">
-          <strong>已使用 BOH Beta {{ isBeta5 ? '5 Preview' : '4.9.1' }}</strong>
+          <strong>已使用 {{ isBeta5 ? 'BOH Beta 5' : 'BOH 4.9.1 兼容模式' }}</strong>
         </span>
         <span class="live-badge" aria-hidden="true">
           <i></i>正在使用
         </span>
       </section>
 
-      <!-- 横条 2：Beta Preview 开关 -->
-      <section class="glass-bar toggle-bar" aria-label="Beta Preview 测试版体验">
+      <section class="glass-bar toggle-bar" aria-label="4.9.1 兼容模式">
         <span class="bar-copy">
-          <strong class="toggle-title">Beta Preview 测试版体验</strong>
-          <small>开启后即可接收 BOH Beta 5 Preview 更新</small>
+          <strong class="toggle-title">4.9.1 兼容模式</strong>
+          <small>{{ isBeta5 ? '默认使用 Beta 5；仅在需要旧版流程时开启。' : '已启用旧版流程，可随时恢复 Beta 5。' }}</small>
         </span>
         <button
           type="button"
           class="apple-switch"
-          :class="{ on: previewEnabled }"
+          :class="{ on: !isBeta5 }"
           role="switch"
-          :aria-checked="previewEnabled"
-          :aria-label="previewEnabled ? '关闭 Beta Preview 测试版体验' : '开启 Beta Preview 测试版体验'"
-          @click="togglePreview"
+          :aria-checked="!isBeta5"
+          :aria-label="isBeta5 ? '开启 4.9.1 兼容模式' : '关闭 4.9.1 兼容模式并恢复 Beta 5'"
+          @click="toggleCompatibilityMode"
         >
           <span class="switch-knob" aria-hidden="true"></span>
         </button>
       </section>
 
-      <!-- 开启后：版本卡片 -->
-      <Transition name="card-expand">
-        <section
-          v-if="previewEnabled"
-          class="glass-card release-card"
-          :aria-label="isBeta5 ? '返回正式版' : '体验 Beta 5 Preview'"
-        >
-          <div :key="isBeta5 ? 'stable' : 'beta'" class="release-inner" @click="startSwitch">
+      <section class="glass-card release-card" :aria-label="isBeta5 ? '回退到 4.9.1 兼容模式' : '恢复 BOH Beta 5'">
+          <div :key="isBeta5 ? 'beta5' : 'stable'" class="release-inner">
             <div class="release-top">
-              <span class="release-avatar" :class="{ preview: !isBeta5 }" aria-hidden="true">
-                <Sparkles v-if="!isBeta5" :size="20" :stroke-width="1.9" />
-                <ShieldCheck v-else :size="20" :stroke-width="1.9" />
+              <span class="release-avatar" :class="{ preview: isBeta5 }" aria-hidden="true">
+                <RotateCcw v-if="isBeta5" :size="20" :stroke-width="1.9" />
+                <Sparkles v-else :size="20" :stroke-width="1.9" />
               </span>
               <span class="release-title">
-                <strong>{{ isBeta5 ? 'BOH Beta 4.9.1' : 'BOH Beta 5 Preview' }}</strong>
-                <span class="version-pill" :class="{ preview: !isBeta5 }">{{ isBeta5 ? '4.9.1' : '5.0.0 Preview 1' }}</span>
+                <strong>{{ isBeta5 ? '需要使用旧版流程？' : '恢复 BOH Beta 5' }}</strong>
+                <span class="version-pill" :class="{ preview: isBeta5 }">{{ isBeta5 ? '4.9.1 兼容模式' : '默认版本' }}</span>
               </span>
               <button
                 type="button"
                 class="action-button"
-                :class="{ preview: !isBeta5 }"
-                :disabled="isSwitching"
-                @click.stop="startSwitch"
+                :class="{ preview: isBeta5 }"
+                @click="toggleCompatibilityMode"
               >
-                {{ isBeta5 ? '切换回正式版' : '立即体验' }}
+                {{ isBeta5 ? '回退' : '恢复' }}
                 <ChevronRight :size="15" :stroke-width="2.4" aria-hidden="true" />
               </button>
             </div>
 
             <p class="release-desc">
               {{ isBeta5
-                ? '正式版，恢复稳定导航与发帖流程。已发布的 Preview 带图草稿仍可继续使用。'
-                : '尝鲜新的悬浮导航与带图发帖流程。你可以随时从这里返回正式版。' }}
+                ? 'Beta 5 是当前默认版本。回退仅用于临时恢复旧导航、旧积分页和旧图片发布流程。'
+                : '你正在使用临时兼容模式。4.9.1 相关界面将在后续版本中移除。' }}
             </p>
 
             <ul class="feature-list">
-              <template v-if="!isBeta5">
+              <template v-if="isBeta5">
                 <li><span class="feature-icon"><PanelTopOpen :size="15" :stroke-width="1.9" aria-hidden="true" /></span>常驻悬浮圆条导航</li>
-                <li><span class="feature-icon"><PanelBottomClose :size="15" :stroke-width="1.9" aria-hidden="true" /></span>下滑收起、上滑唤回的底部导航</li>
+                <li><span class="feature-icon"><PanelBottomClose :size="15" :stroke-width="1.9" aria-hidden="true" /></span>方块积分与礼物订单记录</li>
                 <li><span class="feature-icon"><Send :size="15" :stroke-width="1.9" aria-hidden="true" /></span>点击发布后才处理图片的发帖流程</li>
               </template>
               <template v-else>
-                <li><span class="feature-icon"><ShieldCheck :size="15" :stroke-width="1.9" aria-hidden="true" /></span>稳定的导航与发帖体验</li>
-                <li><span class="feature-icon"><RotateCcw :size="15" :stroke-width="1.9" aria-hidden="true" /></span>随时可再次切换回 Beta 5 Preview</li>
+                <li><span class="feature-icon"><ShieldCheck :size="15" :stroke-width="1.9" aria-hidden="true" /></span>滚动收纳式导航与原积分页</li>
+                <li><span class="feature-icon"><RotateCcw :size="15" :stroke-width="1.9" aria-hidden="true" /></span>可随时恢复 Beta 5 默认体验</li>
               </template>
             </ul>
           </div>
-        </section>
-      </Transition>
+      </section>
 
-      <p class="build-note">当前构建 {{ buildVersion }}，Preview 仅改变本设备上的界面体验。</p>
+      <p class="build-note">当前构建 {{ buildVersion }}。版本选择仅影响本设备，4.9.1 兼容模式将在后续版本中移除。</p>
     </section>
 
-    <!-- 全屏切换特效：白色像素铺满整屏，缓慢四散飘走 -->
-    <div v-if="burst.length" class="particle-stage" aria-hidden="true">
-      <span class="particle-dim"></span>
-      <span
-        v-for="p in burst"
-        :key="p.id"
-        class="particle"
-        :class="p.shape"
-        :style="{
-          left: p.x + 'px',
-          top: p.y + 'px',
-          width: p.size + 'px',
-          height: p.size + 'px',
-          background: p.alpha,
-          '--p-dx': p.dx + 'px',
-          '--p-dy': p.dy + 'px',
-          '--p-rot': p.rot + 'deg',
-          '--p-dur': p.dur + 'ms',
-          '--p-delay': p.delay + 'ms',
-          '--p-scale': p.scale
-        }"
-      ></span>
-    </div>
   </main>
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ChevronRight, PanelBottomClose, PanelTopOpen, RotateCcw, Send, ShieldCheck, Sparkles } from 'lucide-vue-next';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
@@ -133,15 +101,6 @@ import { themeManager } from '@/utils/theme-manager.js';
 const router = useRouter();
 const { beta5Mode, isBeta5, setAppMode, stableMode } = useAppMode();
 const currentTheme = ref(themeManager.getTheme());
-const previewEnabled = ref(isBeta5.value);
-// 模式与开关保持双向一致：关闭开关即退出 Beta（含切换动画），外部切换模式时同步开关状态
-watch(isBeta5, (enabled) => {
-  previewEnabled.value = enabled;
-});
-const isSwitching = ref(false);
-const burst = ref([]);
-let burstId = 0;
-let burstTimers = [];
 
 const buildVersion = computed(() => (
   document.querySelector('meta[name="boh-version"]')?.getAttribute('content') || '4.9.1'
@@ -151,76 +110,14 @@ const backToSettings = () => {
   void router.replace({ path: '/user-space', query: { tab: 'profile', view: 'settings' } });
 };
 
-// 关闭开关时若正处于 Beta 5，立即走正式切换流程退出，保证开关状态与实际模式一致
-const togglePreview = () => {
-  if (previewEnabled.value && isBeta5.value) {
-    void startSwitch();
-    return;
-  }
-  previewEnabled.value = !previewEnabled.value;
-};
-
-/* 全屏像素场：白色像素随机铺满整屏，朝四面八方缓慢漂移、渐隐消散 */
-const spawnParticles = () => {
-  const count = 96;
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  const list = [];
-  for (let i = 0; i < count; i += 1) {
-    const angle = Math.random() * Math.PI * 2;
-    const dist = 150 + Math.random() * 360;
-    const size = 3 + Math.random() * 10;
-    list.push({
-      id: `${burstId}-${i}`,
-      x: Math.random() * vw,
-      y: vh * 0.1 + Math.random() * vh * 0.95,
-      dx: Math.cos(angle) * dist,
-      dy: Math.sin(angle) * dist - 70 - Math.random() * 110,
-      size,
-      alpha: Math.random() < 0.22 ? 'rgba(255, 255, 255, 0.72)' : 'rgba(255, 255, 255, 0.98)',
-      rot: (Math.random() - 0.5) * 220,
-      dur: 1700 + Math.random() * 1300,
-      delay: Math.random() * 380,
-      scale: (0.25 + Math.random() * 0.4).toFixed(3),
-      shape: Math.random() < 0.78 ? 'square' : (Math.random() < 0.55 ? 'star' : 'dot')
-    });
-  }
-  burst.value = list;
-};
-
-const startSwitch = async () => {
-  if (isSwitching.value) return;
-  const nextMode = isBeta5.value ? stableMode : beta5Mode;
-
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!reduceMotion) {
-    spawnParticles();
-  }
-
-  isSwitching.value = true;
-  await nextTick();
-  setAppMode(nextMode);
-
-  const clearAt = reduceMotion ? 80 : 420;
-  const endAt = reduceMotion ? 100 : 2300;
-  burstTimers.push(
-    window.setTimeout(() => {
-      burst.value = [];
-    }, clearAt),
-    window.setTimeout(() => {
-      isSwitching.value = false;
-    }, endAt)
-  );
+const toggleCompatibilityMode = () => {
+  setAppMode(isBeta5.value ? stableMode : beta5Mode);
 };
 
 onMounted(() => {
   window.scrollTo(0, 0);
 });
 
-onBeforeUnmount(() => {
-  burstTimers.forEach((t) => window.clearTimeout(t));
-  burstTimers = [];
-});
 </script>
 
 <style scoped>
@@ -468,55 +365,6 @@ onBeforeUnmount(() => {
 
 .build-note { margin: 16px 8px 0; color: #7a828d; font-size: 12px; line-height: 1.5; }
 
-/* 卡片展开过渡 */
-.card-expand-enter-active { transition: opacity 260ms cubic-bezier(0.16, 1, 0.3, 1), transform 320ms cubic-bezier(0.16, 1, 0.3, 1); }
-.card-expand-leave-active { transition: opacity 180ms cubic-bezier(0.16, 1, 0.3, 1), transform 220ms cubic-bezier(0.16, 1, 0.3, 1); }
-.card-expand-enter-from { opacity: 0; transform: translateY(-6px) scale(0.985); }
-.card-expand-leave-to { opacity: 0; transform: translateY(-4px) scale(0.99); }
-
-/* ---------- 粒子切换特效 ---------- */
-.particle-stage { position: fixed; inset: 0; z-index: 13000; pointer-events: none; overflow: hidden; }
-
-/* 极淡的纱幕：让白色像素在浅色背景下也清晰可见 */
-.particle-dim {
-  position: fixed;
-  inset: 0;
-  background: radial-gradient(120% 120% at 50% 45%, rgba(10, 14, 22, 0.22), rgba(10, 14, 22, 0.42));
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-  animation: dim-in-out 2100ms cubic-bezier(0.2, 0.65, 0.35, 1) both;
-}
-@keyframes dim-in-out {
-  0% { opacity: 0; }
-  12% { opacity: 1; }
-  78% { opacity: 1; }
-  100% { opacity: 0; }
-}
-
-.particle {
-  position: fixed;
-  transform: translate(-50%, -50%);
-  opacity: 0;
-  animation: particle-drift var(--p-dur) cubic-bezier(0.2, 0.6, 0.35, 1) var(--p-delay) both;
-}
-.particle.square { border-radius: 12%; }
-.particle.star {
-  clip-path: polygon(50% 0%, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0% 50%, 39% 39%);
-  border-radius: 0;
-}
-.particle.dot { border-radius: 50%; }
-@keyframes particle-drift {
-  0% {
-    transform: translate(-50%, -50%) translate(0, 0) rotate(0deg) scale(0.7);
-    opacity: 0;
-  }
-  10% { opacity: 0.95; }
-  100% {
-    transform: translate(-50%, -50%) translate(var(--p-dx), var(--p-dy)) rotate(var(--p-rot)) scale(var(--p-scale));
-    opacity: 0;
-  }
-}
-
 /* ---------- 暗色模式 ---------- */
 :global([data-theme="dark"]) .beta-preview-page { background: #101216; color: #f4f6f8; }
 :global([data-theme="dark"]) .beta-preview-backdrop {
@@ -555,7 +403,7 @@ onBeforeUnmount(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .glass-bar, .glass-card, .release-inner, .particle, .particle-dim {
+  .glass-bar, .glass-card, .release-inner {
     animation: none;
     transition-duration: 1ms;
   }

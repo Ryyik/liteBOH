@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { CalendarDays, Check, CircleCheck, Coins, X } from 'lucide-vue-next';
 import { WEEKLY_CHECKIN_REWARD_POINTS } from '../forum-config.js';
+import PointsCard from '@/views/user-center/UserSpace/components/PointsCard.vue';
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -9,17 +10,17 @@ const props = defineProps({
   calendarDays: { type: Array, default: () => [] },
   nextCheckin: { type: Object, default: () => ({ dateText: '', days: 0 }) },
   loading: { type: Boolean, default: false },
-  submitting: { type: Boolean, default: false }
+  submitting: { type: Boolean, default: false },
+  cardPoints: { type: Number, default: 0 },
+  cardUsername: { type: String, default: '未命名用户' },
+  cardTierLabel: { type: String, default: 'BOH' },
+  cardSkin: { type: String, default: 'blank' },
+  cardImageUrl: { type: String, default: '' }
 });
 
 const emit = defineEmits(['close', 'checkin']);
 
 const signed = computed(() => Boolean(props.status.hasSignedThisWeek));
-
-const currentPoints = computed(() => {
-  const value = Number(props.status.currentPoints);
-  return Number.isFinite(value) ? value : 0;
-});
 
 const nextCheckinText = computed(() => {
   const { dateText, days } = props.nextCheckin;
@@ -55,6 +56,19 @@ function handleCheckin() {
           </div>
 
           <div class="checkin-body">
+            <div class="checkin-card-stage">
+              <PointsCard
+                class="checkin-points-card"
+                :points="cardPoints"
+                :username="cardUsername"
+                :tier-label="cardTierLabel"
+                :skin="cardSkin"
+                :image-url="cardImageUrl"
+                compact
+              />
+              <span class="checkin-card-caption">本次奖励将计入这张积分卡</span>
+            </div>
+
             <div class="checkin-hero" :class="{ 'is-signed': signed }">
               <div class="checkin-hero-icon">
                 <CircleCheck v-if="signed" :size="24" :stroke-width="2.2" aria-hidden="true" />
@@ -92,11 +106,6 @@ function handleCheckin() {
                 <template v-else>今天签到，立得 +{{ WEEKLY_CHECKIN_REWARD_POINTS }} 积分</template>
               </span>
               <span v-if="signed" class="checkin-next-count">每周一刷新</span>
-            </div>
-
-            <div class="checkin-points-row">
-              <span>当前积分</span>
-              <b>{{ currentPoints }}</b>
             </div>
 
             <button class="checkin-submit-btn"

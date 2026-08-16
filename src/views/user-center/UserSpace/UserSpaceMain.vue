@@ -126,7 +126,7 @@
               @open-cloud="openCloudPlusArea"
               @open-pushplus="router.push('/user-space/pushplus-settings?from=userspace-settings')"
               @open-security="router.push('/user-space/account-security?from=userspace-settings')"
-              @open-beta-preview="router.push('/user-space/settings/beta-preview')"
+              @open-version-settings="router.push('/user-space/settings/version')"
               @open-data="openProfileDataManagement" @open-data-management="openProfileDataManagement"
               @open-data-export="openProfileDataExport"
               @logout="handleLogout" @toggle-hide-online="toggleHideOnlineStatus"
