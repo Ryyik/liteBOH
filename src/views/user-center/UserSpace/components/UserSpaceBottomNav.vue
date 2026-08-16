@@ -4,20 +4,9 @@
     class="bottom-nav-glass"
     :class="{
       'is-hidden': hidden,
-      'ai-overlay-open': aiOverlayOpen,
-      'island-open': islandVisible,
-      'island-collapsing': islandCollapsing,
-      'island-long': islandVisible && island?.isLong
+      'ai-overlay-open': aiOverlayOpen
     }"
   >
-    <BottomNavIsland
-      :item="island"
-      :show-cat-sticker="showCatSticker"
-      @action="$emit('island-action')"
-      @before-leave="$emit('island-before-leave')"
-      @after-leave="$emit('island-after-leave')"
-    />
-
     <div class="nav-items" :style="navIndicatorStyle">
       <button
         v-for="item in navItems"
@@ -40,15 +29,7 @@
 </template>
 
 <script setup>
-import BottomNavIsland from './BottomNavIsland.vue';
-
-const emit = defineEmits([
-  'island-action',
-  'island-before-leave',
-  'island-after-leave',
-  'preload-tab',
-  'nav-click'
-]);
+const emit = defineEmits(['preload-tab', 'nav-click']);
 
 defineProps({
   visible: {
@@ -56,22 +37,6 @@ defineProps({
     default: true
   },
   hidden: {
-    type: Boolean,
-    default: false
-  },
-  islandVisible: {
-    type: Boolean,
-    default: false
-  },
-  islandCollapsing: {
-    type: Boolean,
-    default: false
-  },
-  island: {
-    type: Object,
-    default: null
-  },
-  showCatSticker: {
     type: Boolean,
     default: false
   },

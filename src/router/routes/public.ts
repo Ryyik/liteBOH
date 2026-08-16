@@ -6,7 +6,7 @@ export const publicRoutes: RouteRecordRaw[] = [
       path: "/__dev/motion",
       name: "MotionLab",
       component: () => import("../../views/Dev/MotionLab.vue"),
-      meta: { hideNavbar: true, hideFooter: true },
+      meta: { hideFooter: true },
     }]
     : []),
   {

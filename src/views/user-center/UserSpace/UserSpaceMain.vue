@@ -3,9 +3,7 @@
     'tab-transition-forward': tabTransitionDirection === 'forward',
     'tab-transition-back': tabTransitionDirection === 'back',
     'edge-swipe-active': isEdgeSwiping,
-    'community-tab-active': currentTab === 'community' || leavingTab === 'community',
-    'community-nav-island-open': isBottomNavIslandExpanded || isBottomNavIslandCollapsing,
-    'community-nav-island-long': isBottomNavIslandExpanded && bottomNavIsland?.isLong
+    'community-tab-active': currentTab === 'community' || leavingTab === 'community'
   }" :data-theme="currentTheme">
 
     <!-- 边缘滑动提示线 -->
@@ -23,7 +21,7 @@
       <KeepAlive>
         <AsyncForum v-if="currentTab === 'posts' || leavingTab === 'posts'" ref="forumViewRef"
           :show-navbar="false" :show-header="false" :embedded="true"
-          @island-message="showBottomNavIsland" />
+          @island-message="showTopNavStatus" />
       </KeepAlive>
     </div>
 
@@ -42,7 +40,7 @@
     <div v-if="currentTab === 'ai' || leavingTab === 'ai'"
       :ref="(el) => setTabPageRef('ai', el)" class="tab-page ai-tab" :class="{ 'is-leaving': leavingTab === 'ai' }">
       <section class="ai-workspace" aria-label="BOH AI 聊天">
-        <AsyncBOHAI :embedded="true" @island-message="showBottomNavIsland" />
+        <AsyncBOHAI :embedded="true" @island-message="showTopNavStatus" />
       </section>
     </div>
 
@@ -162,12 +160,9 @@
     </div>
 
     <UserSpaceBottomNav :visible="!(currentTab === 'profile' && profileSection === 'edit-profile')"
-      :hidden="isBottomNavHidden"
-      :ai-overlay-open="isAiOverlayOpen" :island-visible="isBottomNavIslandExpanded"
-      :island-collapsing="isBottomNavIslandCollapsing" :island="bottomNavIsland" :show-cat-sticker="isHomeCatActive"
+      :hidden="isBottomNavHidden" :ai-overlay-open="isAiOverlayOpen"
       :nav-items="navItems" :current-tab="currentTab" :nav-indicator-style="bottomNavIndicatorStyle"
-      :has-unread-messages="hasUnreadMessages" :unread-count="unreadCount" @island-action="handleBottomNavIslandAction"
-      @island-before-leave="handleBottomNavIslandBeforeLeave" @island-after-leave="handleBottomNavIslandAfterLeave"
+      :has-unread-messages="hasUnreadMessages" :unread-count="unreadCount"
       @preload-tab="preloadUserSpaceTab" @nav-click="handleBottomNavClick" />
 
     <ThemeModal :open="showThemeModal" :current-theme-preference="currentThemePreference" @close="closeThemeModal"
@@ -217,7 +212,7 @@ const DataPrivacyPanel = defineAsyncComponent(() => import('./components/DataPri
 const DataExportPanel = defineAsyncComponent(() => import('./components/DataExportPanel.vue'));
 const AssetsHubPanel = defineAsyncComponent(() => import('./components/AssetsHubPanel.vue'));
 import ThemeModal from './components/ThemeModal.vue';
-import { useBottomNavIslandQueue } from './composables/useBottomNavIslandQueue.js';
+import { showGlobalNavStatus } from '@/composables/useGlobalNavStatus.js';
 import { createMemoryTtlCache } from './composables/useMemoryTtlCache.js';
 import { useScrollDirectionHide } from './composables/useScrollDirectionHide.js';
 import { USER_SPACE_VALID_TABS, useUserSpaceTabs } from './composables/useUserSpaceTabs.js';
@@ -1071,32 +1066,23 @@ const subscriptionSummaryText = computed(() => {
   }
   return '基础权益';
 });
-let latestUnreadIslandEventAt = 0;
-let hasScheduledBottomNavOnboardingNotice = false;
-const BOTTOM_NAV_ONBOARDING_NOTICE_VERSION = 'v1';
+let latestUnreadNavStatusAt = 0;
+let hasScheduledGlobalNavOnboardingNotice = false;
+const GLOBAL_NAV_ONBOARDING_NOTICE_VERSION = 'v2';
 
-const {
-  island: bottomNavIsland,
-  isCollapsing: isBottomNavIslandCollapsing,
-  isExpanded: isBottomNavIslandExpanded,
-  show: showBottomNavIsland,
-  handleAction: handleBottomNavIslandAction,
-  handleBeforeLeave: handleBottomNavIslandBeforeLeave,
-  handleAfterLeave: handleBottomNavIslandAfterLeave,
-  dispose: disposeBottomNavIsland
-} = useBottomNavIslandQueue({
-  onAction: (actionTab) => {
-    if (actionTab && validTabs.includes(actionTab)) {
-      switchTab(actionTab);
-    }
-  }
-});
+const showTopNavStatus = (payload = {}) => {
+  const actionTab = String(payload.actionTab || '').trim();
+  return showGlobalNavStatus({
+    ...payload,
+    onAction: actionTab && validTabs.includes(actionTab)
+      ? () => switchTab(actionTab)
+      : undefined
+  });
+};
 
 const isBottomNavForceVisible = computed(() => (
   !isBeta5.value ||
   isAiOverlayOpen.value ||
-  isBottomNavIslandExpanded.value ||
-  isBottomNavIslandCollapsing.value ||
   (currentTab.value === 'profile' && profileSection.value === 'edit-profile')
 ));
 const { hidden: isBottomNavHidden, reset: resetBottomNavAutoHide } = useScrollDirectionHide({
@@ -1104,58 +1090,44 @@ const { hidden: isBottomNavHidden, reset: resetBottomNavAutoHide } = useScrollDi
   forceVisible: isBottomNavForceVisible
 });
 
-const handleBottomNavIslandEvent = (event) => {
-  showBottomNavIsland(event?.detail || {});
-};
-
-// ✨ 新增：处理全局灵动岛事件（跨组件通信）
-const handleGlobalIslandMessage = (event) => {
-  logger.debug('user-space', '收到全局灵动岛事件', { detail: event?.detail });
-  showBottomNavIsland(event?.detail || {});
-};
-
-const getBottomNavOnboardingNoticeKey = () => {
+const getGlobalNavOnboardingNoticeKey = () => {
   const userId = String(userInfo.value?.id || 'guest').trim() || 'guest';
-  return `boh-userspace-bottom-nav-onboarding-${BOTTOM_NAV_ONBOARDING_NOTICE_VERSION}-${userId}`;
+  return `boh-global-nav-onboarding-${GLOBAL_NAV_ONBOARDING_NOTICE_VERSION}-${userId}`;
 };
 
-const hasSeenBottomNavOnboardingNotice = () => {
+const hasSeenGlobalNavOnboardingNotice = () => {
   try {
-    return localStorage.getItem(getBottomNavOnboardingNoticeKey()) === '1';
+    return localStorage.getItem(getGlobalNavOnboardingNoticeKey()) === '1';
   } catch (error) {
-    logger.warn('user-space', '读取灵动导航栏引导状态失败:', error);
+    logger.warn('user-space', '读取顶部导航栏状态引导失败:', error);
     return false;
   }
 };
 
-const markBottomNavOnboardingNoticeSeen = () => {
+const markGlobalNavOnboardingNoticeSeen = () => {
   try {
-    localStorage.setItem(getBottomNavOnboardingNoticeKey(), '1');
+    localStorage.setItem(getGlobalNavOnboardingNoticeKey(), '1');
   } catch (error) {
-    logger.warn('user-space', '写入灵动导航栏引导状态失败:', error);
+    logger.warn('user-space', '写入顶部导航栏状态引导失败:', error);
   }
 };
 
-const maybeShowBottomNavOnboardingNotice = async () => {
-  if (hasScheduledBottomNavOnboardingNotice) return;
+const maybeShowGlobalNavOnboardingNotice = async () => {
+  if (hasScheduledGlobalNavOnboardingNotice) return;
   if (!isInitialized.value) return;
-  if (hasSeenBottomNavOnboardingNotice()) return;
+  if (hasSeenGlobalNavOnboardingNotice()) return;
 
-  hasScheduledBottomNavOnboardingNotice = true;
+  hasScheduledGlobalNavOnboardingNotice = true;
   await nextTick();
 
-  showBottomNavIsland({
-    title: '灵动导航栏上线',
-    message: '以后弹窗提示都在这哦',
+  showTopNavStatus({
+    title: '顶部动态导航已启用',
+    message: '重要状态会在这里显示',
     icon: 'notification',
     type: 'notification',
-    actionLabel: '知道了',
     durationMs: 5600,
-    catSticker: 'cardExtra',
-    catStickerMode: 'hero',
-    forceCatSticker: true
   });
-  markBottomNavOnboardingNoticeSeen();
+  markGlobalNavOnboardingNoticeSeen();
 };
 
 const buildUnreadIslandMessage = (detail = {}) => {
@@ -1168,14 +1140,14 @@ const buildUnreadIslandMessage = (detail = {}) => {
   };
 };
 
-const showUnreadBottomNavIsland = async (detail = {}) => {
+const showUnreadTopNavStatus = async (detail = {}) => {
   if (!isLoggedIn.value) return;
   if (String(detail.source || '') !== 'realtime') return;
   const now = Date.now();
-  if (now - latestUnreadIslandEventAt < 900) return;
-  latestUnreadIslandEventAt = now;
+  if (now - latestUnreadNavStatusAt < 900) return;
+  latestUnreadNavStatusAt = now;
 
-  showBottomNavIsland(buildUnreadIslandMessage(detail));
+  showTopNavStatus(buildUnreadIslandMessage(detail));
 };
 
 // ✅ 性能优化：使用 AbortController 和 lastFetchTime 优化请求管理
@@ -1649,7 +1621,7 @@ const submitEditProfile = async () => {
     if (!result.success) {
       throw new Error(result.message || '更新失败');
     }
-    showBottomNavIsland({
+    showTopNavStatus({
       title: '个人资料已保存',
       message: '你的资料更新已同步',
       icon: 'success',
@@ -1850,7 +1822,7 @@ const toggleHideOnlineStatus = async () => {
     hide_online_status: !userInfo.value.hideOnlineStatus
   });
   if (!success) {
-    showBottomNavIsland({ title: '更新失败，请重试', icon: 'warning' });
+    showTopNavStatus({ title: '更新失败，请重试', icon: 'warning' });
   }
 };
 
@@ -1859,7 +1831,7 @@ const toggleHideFollowData = async () => {
     hide_follow_data: !userInfo.value.hideFollowData
   });
   if (!success) {
-    showBottomNavIsland({ title: '更新失败，请重试', icon: 'warning' });
+    showTopNavStatus({ title: '更新失败，请重试', icon: 'warning' });
   }
 };
 
@@ -1933,7 +1905,7 @@ const uploadProfileBackgroundFile = async (file) => {
       }
     }
 
-    showBottomNavIsland({
+    showTopNavStatus({
       title: '背景已更新',
       message: '个人卡片背景已更换',
       icon: 'success',
@@ -1961,7 +1933,7 @@ const uploadProfileBackgroundFile = async (file) => {
 const handlePointsCardClick = () => {
   if (!isBeta5.value || isUploadingPointsCard.value) return;
   if (!isPointsCardPresetQuotaLoading.value && !pointsCardPresetQuota.value.canAdd) {
-    showBottomNavIsland({ title: '卡面已达上限', message: `当前会员最多保存 ${pointsCardPresetQuota.value.capacity} 张自定义卡面`, icon: 'warning', type: 'warning', durationMs: 3600 });
+    showTopNavStatus({ title: '卡面已达上限', message: `当前会员最多保存 ${pointsCardPresetQuota.value.capacity} 张自定义卡面`, icon: 'warning', type: 'warning', durationMs: 3600 });
     return;
   }
   pointsCardInputRef.value?.click();
@@ -2083,7 +2055,7 @@ const uploadPointsCardFile = async (file) => {
   try {
     const quota = await loadPointsCardPresetQuota();
     if (!quota.canAdd) {
-      showBottomNavIsland({ title: '卡面已达上限', message: `当前会员最多保存 ${quota.capacity} 张自定义卡面`, icon: 'warning', type: 'warning', durationMs: 3600 });
+      showTopNavStatus({ title: '卡面已达上限', message: `当前会员最多保存 ${quota.capacity} 张自定义卡面`, icon: 'warning', type: 'warning', durationMs: 3600 });
       return false;
     }
 
@@ -2112,7 +2084,7 @@ const uploadPointsCardFile = async (file) => {
 
     pointsCardPresets.value = [createdPreset, ...pointsCardPresets.value.filter((preset) => preset.id !== createdPreset.id)];
     await loadPointsCardPresetQuota();
-    showBottomNavIsland({ title: '卡面已添加', message: '已保存为自定义卡面预设', icon: 'success', type: 'success', durationMs: 3600 });
+    showTopNavStatus({ title: '卡面已添加', message: '已保存为自定义卡面预设', icon: 'success', type: 'success', durationMs: 3600 });
     return true;
   } catch (error) {
     logger.error('user-space', '积分卡面上传失败:', error);
@@ -2133,12 +2105,12 @@ const selectPointsCardPreset = async (presetId) => {
   if (!preset) return;
   const { data, error } = await supabase.rpc('use_points_card_preset', { p_preset_id: preset.id });
   if (error || !data?.ok) {
-    showBottomNavIsland({ title: '切换自定义卡面失败，请重试', icon: 'warning' });
+    showTopNavStatus({ title: '切换自定义卡面失败，请重试', icon: 'warning' });
     return;
   }
   await authStore.refreshCurrentUserProfile({ force: true });
   preset.lastUsedAt = new Date().toISOString();
-  showBottomNavIsland({ title: '卡面已应用', message: '已切换到所选自定义卡面', icon: 'success', type: 'success', durationMs: 2800 });
+  showTopNavStatus({ title: '卡面已应用', message: '已切换到所选自定义卡面', icon: 'success', type: 'success', durationMs: 2800 });
 };
 
 const setPointsCardSkin = async (skin) => {
@@ -2149,10 +2121,10 @@ const setPointsCardSkin = async (skin) => {
   }
   const result = await authStore.updateUserProfile({ points_card_skin: skin });
   if (!result.success) {
-    showBottomNavIsland({ title: '卡片皮肤更新失败，请重试', icon: 'warning' });
+    showTopNavStatus({ title: '卡片皮肤更新失败，请重试', icon: 'warning' });
     return;
   }
-  showBottomNavIsland({ title: '皮肤已应用', message: skin === 'cats' ? '小猫卡面已启用' : '已切换为空白卡', icon: 'success', type: 'success', durationMs: 2800 });
+  showTopNavStatus({ title: '皮肤已应用', message: skin === 'cats' ? '小猫卡面已启用' : '已切换为空白卡', icon: 'success', type: 'success', durationMs: 2800 });
 };
 
 const redeemPointsCardCats = async () => {
@@ -2173,7 +2145,7 @@ const redeemPointsCardCats = async () => {
     });
   } catch (error) {
     logger.warn('user-space', '积分卡兑换确认弹窗未打开:', error);
-    showBottomNavIsland({ title: '请先完成当前操作后再兑换卡面', icon: 'warning' });
+    showTopNavStatus({ title: '请先完成当前操作后再兑换卡面', icon: 'warning' });
     return;
   }
   if (!confirmed) return;
@@ -2184,7 +2156,7 @@ const redeemPointsCardCats = async () => {
     if (error) throw error;
     if (!data?.ok) {
       if (data?.message === 'INSUFFICIENT_POINTS') {
-        showBottomNavIsland({ title: '积分不足', message: `兑换全员小猫还需 ${Math.max(0, Number(data.required_points || 3) - Number(data.current_points || 0))} 积分`, icon: 'warning', type: 'warning', durationMs: 3600 });
+        showTopNavStatus({ title: '积分不足', message: `兑换全员小猫还需 ${Math.max(0, Number(data.required_points || 3) - Number(data.current_points || 0))} 积分`, icon: 'warning', type: 'warning', durationMs: 3600 });
         return;
       }
       throw new Error(data?.message || '兑换失败');
@@ -2193,7 +2165,7 @@ const redeemPointsCardCats = async () => {
     await authStore.refreshCurrentUserProfile({ force: true });
     userStats.points = Number(userInfo.value.points) || 0;
     isPointsCardCatsUnlocked.value = true;
-    showBottomNavIsland({
+    showTopNavStatus({
       title: data.already_unlocked ? '小猫卡面已启用' : '兑换成功',
       message: data.already_unlocked ? '全员小猫卡面已应用' : '已扣除 3 积分并同步到云端',
       icon: 'success',
@@ -2216,7 +2188,7 @@ const deletePointsCardPreset = async (presetId) => {
   const { data, error } = await supabase.rpc('delete_points_card_preset', { p_preset_id: preset.id });
   if (error || !data?.ok) {
     logger.error('user-space', '删除积分卡面预设失败:', error || data?.message);
-    showBottomNavIsland({ title: '删除自定义卡面失败，请重试', icon: 'warning' });
+    showTopNavStatus({ title: '删除自定义卡面失败，请重试', icon: 'warning' });
     return;
   }
   await authStore.refreshCurrentUserProfile({ force: true });
@@ -2233,7 +2205,7 @@ const deletePointsCardPreset = async (presetId) => {
     }
   });
 
-  showBottomNavIsland({
+  showTopNavStatus({
     title: data.was_current ? '当前卡面已删除' : '卡面预设已删除',
     message: data.was_current ? '已切换为空白卡' : '其余预设不受影响',
     icon: 'success',
@@ -2392,7 +2364,7 @@ const uploadToSupabase = async (file) => {
 
     await authStore.updateUserProfile({ avatar_url: finalUrl });
 
-    showBottomNavIsland({
+    showTopNavStatus({
       title: '头像已更新',
       message: '新的头像已经同步',
       icon: 'success',
@@ -2488,7 +2460,7 @@ watch(
 
     // 处理初始化完成
     if (isReady && !oldVal?.isReady) {
-      void maybeShowBottomNavOnboardingNotice();
+      void maybeShowGlobalNavOnboardingNotice();
       if (isLoggedIn.value && userId) {
         void fetchUserStats();
       }
@@ -2547,15 +2519,12 @@ onMounted(() => {
       void fetchCloudPlusUsage();
     }
   }
-  void maybeShowBottomNavOnboardingNotice();
+  void maybeShowGlobalNavOnboardingNotice();
   // 消息页自身会在加载列表后同步未读数，避免首屏并发重复读取 notifications。
   if (isLoggedIn.value && currentTab.value !== 'messages') {
     void refreshUnreadCount();
   }
   window.addEventListener('boh_unread_refresh', handleUnreadRefresh);
-  window.addEventListener('boh_userspace_nav_island', handleBottomNavIslandEvent);
-  // ✨ 新增：监听全局灵动岛事件（跨组件通信）
-  window.addEventListener('boh_island_message', handleGlobalIslandMessage);
   // 添加主题变化监听
   themeManager.addListener(handleThemeChange);
 });
@@ -2637,16 +2606,12 @@ onUnmounted(() => {
   clearScheduledForumPreload();
   clearIdlePreloadTasks();
   clearUserSpaceWarmup();
-  disposeBottomNavIsland();
   userSpaceMemoryCache.clear();
-  // ✨ 新增：移除全局灵动岛事件监听
-  window.removeEventListener('boh_island_message', handleGlobalIslandMessage);
   if (userStatsRetryTimerId) {
     clearTimeout(userStatsRetryTimerId);
     userStatsRetryTimerId = null;
   }
   window.removeEventListener('boh_unread_refresh', handleUnreadRefresh);
-  window.removeEventListener('boh_userspace_nav_island', handleBottomNavIslandEvent);
   if (clearLeavingTabTimer) {
     clearTimeout(clearLeavingTabTimer);
     clearLeavingTabTimer = null;
@@ -2659,7 +2624,7 @@ const handleUnreadRefresh = (event) => {
   const detail = event?.detail || {};
   void (async () => {
     await refreshUnreadCount();
-    await showUnreadBottomNavIsland(detail);
+    await showUnreadTopNavStatus(detail);
   })();
 };
 </script>

@@ -3075,12 +3075,11 @@ const sharePost = async (post) => {
     await navigator.clipboard.writeText(`来看看这个帖子：${url}`);
     addUiMarker(shareCopiedPostIds, post.id, 1500, 'share-copied');
 
-    // ✨ 新增：触发灵动岛提示
-    logger.debug('forum', '触发分享链接灵动岛事件', { postId: post.id, url });
+    logger.debug('forum', '触发顶部导航状态', { postId: post.id, url });
 
     // 如果是嵌入式组件，emit事件
     if (props.embedded) {
-      logger.debug('forum', '使用emit触发灵动岛（嵌入式）');
+      logger.debug('forum', '使用 emit 触发顶部导航状态（嵌入式）');
       emit('island-message', {
         title: '分享链接已复制到剪贴板',
         icon: 'success',
@@ -3088,9 +3087,8 @@ const sharePost = async (post) => {
         actionLabel: '知道了'
       });
     } else {
-      // 否则使用全局事件
-      logger.debug('forum', '使用window.dispatchEvent触发灵动岛（全局）');
-      window.dispatchEvent(new CustomEvent('boh_island_message', {
+      logger.debug('forum', '使用全局顶部导航状态事件');
+      window.dispatchEvent(new CustomEvent('boh_global_nav_status', {
         detail: {
           title: '分享链接已复制到剪贴板',
           icon: 'success',

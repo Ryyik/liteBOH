@@ -1280,8 +1280,8 @@ const sharePost = async () => {
   try {
     await navigator.clipboard.writeText(shareContent);
     showShareCopiedState();
-    // ✨ 新增：触发全局灵动岛事件（跨组件通信）
-    window.dispatchEvent(new CustomEvent('boh_island_message', {
+    // 此路由没有公共顶部导航栏；保留事件供嵌入式宿主承接。
+    window.dispatchEvent(new CustomEvent('boh_global_nav_status', {
       detail: {
         title: '分享链接已复制到剪贴板',
         icon: 'success',

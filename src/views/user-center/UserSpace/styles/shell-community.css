@@ -175,27 +175,12 @@
     20px;
 }
 
-.user-space-page.community-nav-island-open {
-  --userspace-community-bottom-inset: 184px;
-}
-
-.user-space-page.community-nav-island-open.community-nav-island-long {
-  --userspace-community-bottom-inset: 200px;
-}
-
 @media (max-width: 768px) {
   .user-space-page {
     --userspace-community-top-inset: max(64px, calc(52px + env(safe-area-inset-top, 0px) + 8px));
     --userspace-community-bottom-inset: 84px;
   }
 
-  .user-space-page.community-nav-island-open {
-    --userspace-community-bottom-inset: 156px;
-  }
-
-  .user-space-page.community-nav-island-open.community-nav-island-long {
-    --userspace-community-bottom-inset: 174px;
-  }
 }
 
 .tab-page.messages-tab .page-content {

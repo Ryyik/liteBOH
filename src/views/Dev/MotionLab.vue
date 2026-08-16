@@ -19,17 +19,6 @@
       <aside class="control-panel">
         <section class="control-section">
           <div class="section-heading">
-            <PanelTop :size="16" aria-hidden="true" />
-            <h2>位置</h2>
-          </div>
-          <div class="segmented-control" role="group" aria-label="状态岛位置">
-            <button type="button" :class="{ active: placement === 'top' }" @click="placement = 'top'">顶部</button>
-            <button type="button" :class="{ active: placement === 'bottom' }" @click="placement = 'bottom'">底部</button>
-          </div>
-        </section>
-
-        <section class="control-section">
-          <div class="section-heading">
             <BellRing :size="16" aria-hidden="true" />
             <h2>状态</h2>
           </div>
@@ -56,7 +45,7 @@
             <h2>动效</h2>
           </div>
           <label class="range-label" for="motion-duration"><span>时长</span><output>{{ duration }} ms</output></label>
-          <input id="motion-duration" v-model.number="duration" type="range" min="120" max="700" step="20">
+          <input id="motion-duration" v-model.number="duration" type="range" min="240" max="1200" step="20">
           <label class="range-label" for="motion-distance"><span>位移</span><output>{{ distance }} px</output></label>
           <input id="motion-distance" v-model.number="distance" type="range" min="0" max="48" step="2">
           <label class="range-label" for="motion-blur"><span>模糊</span><output>{{ blur }} px</output></label>
@@ -89,12 +78,7 @@
         </div>
 
         <div class="viewport-stage" :class="`viewport-${viewport}`">
-          <div class="device-screen" :class="[`island-${placement}`, `tone-${tone}`]" :style="islandStyle">
-            <div class="mock-topbar">
-              <span class="mock-brand">BOH</span>
-              <span class="mock-title">社区</span>
-              <Search :size="17" aria-hidden="true" />
-            </div>
+          <div class="device-screen">
             <div class="mock-content">
               <span class="mock-kicker">TODAY</span>
               <div class="mock-heading"></div>
@@ -107,25 +91,6 @@
                 </article>
               </div>
             </div>
-            <nav class="mock-bottom-nav" aria-label="预览导航">
-              <Newspaper :size="17" aria-hidden="true" />
-              <Users :size="17" aria-hidden="true" />
-              <Bot :size="17" aria-hidden="true" />
-              <MessageCircle :size="17" aria-hidden="true" />
-              <User :size="17" aria-hidden="true" />
-            </nav>
-
-            <Transition name="status-island">
-              <button v-if="visible" :key="islandKey" type="button" class="status-island" :class="{ 'is-long': longCopy }" @click="replay">
-                <span class="status-icon"><component :is="activeTone.icon" :size="18" aria-hidden="true" /></span>
-                <span class="status-copy">
-                  <strong>{{ activeTone.title }}</strong>
-                  <span v-if="longCopy">{{ message }}</span>
-                  <span v-else>{{ message.slice(0, 25) }}</span>
-                </span>
-                <ChevronRight class="status-arrow" :size="17" aria-hidden="true" />
-              </button>
-            </Transition>
           </div>
         </div>
       </section>
@@ -134,36 +99,29 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
   BellRing,
   Bot,
   Check,
-  ChevronRight,
   CircleAlert,
   Eye,
   EyeOff,
   Laptop,
   ListRestart,
   MessageCircle,
-  Newspaper,
-  PanelTop,
   RotateCcw,
-  Search,
   SlidersHorizontal,
   Smartphone,
   Tablet,
-  User,
-  Users
 } from 'lucide-vue-next';
 
-const placement = ref('top');
 const tone = ref('success');
 const viewport = ref('mobile');
 const message = ref('已保存为自定义卡面预设');
 const longCopy = ref(false);
 const visible = ref(true);
-const duration = ref(240);
+const duration = ref(620);
 const distance = ref(22);
 const blur = ref(20);
 const reducedMotion = ref(false);
@@ -185,11 +143,21 @@ const viewports = [
 ];
 
 const activeTone = computed(() => tones.find((item) => item.id === tone.value) || tones[0]);
-const islandStyle = computed(() => ({
-  '--island-duration': `${duration.value}ms`,
-  '--island-distance': `${distance.value}px`,
-  '--island-blur': `${blur.value}px`
-}));
+const emitPreviewState = () => {
+  window.dispatchEvent(new CustomEvent('boh_global_nav_status_preview', {
+    detail: {
+      visible: visible.value,
+      title: activeTone.value.title,
+      message: message.value,
+      icon: tone.value,
+      isLong: longCopy.value,
+      duration: duration.value,
+      distance: distance.value,
+      blur: blur.value,
+      reducedMotion: reducedMotion.value
+    }
+  }));
+};
 
 const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
@@ -224,7 +192,11 @@ const playSequence = async () => {
 
 onBeforeUnmount(() => {
   disposed = true;
+  window.dispatchEvent(new CustomEvent('boh_global_nav_status_preview', { detail: { visible: false } }));
 });
+
+watch([tone, message, longCopy, visible, duration, distance, blur, reducedMotion], emitPreviewState);
+onMounted(emitPreviewState);
 </script>
 
 <style scoped>
@@ -389,10 +361,7 @@ input[type="range"] { width: 100%; accent-color: #2874b6; }
 .viewport-tablet .device-screen { width: min(100%, 590px); aspect-ratio: 4 / 3; border-radius: 24px; }
 .viewport-desktop .device-screen { width: min(100%, 840px); aspect-ratio: 16 / 10; border-radius: 15px; }
 
-.mock-topbar { display: flex; align-items: center; gap: 13px; min-height: 58px; padding: 0 18px; border-bottom: 1px solid #e4eaf0; background: rgba(255, 255, 255, 0.82); }
-.mock-brand { display: grid; place-items: center; width: 27px; height: 27px; border-radius: 7px; color: #fff; background: #1271ba; font-size: 12px; font-weight: 800; }
-.mock-title { flex: 1; color: #1e2b3b; font-size: 14px; font-weight: 700; }
-.mock-content { flex: 1; padding: 22px 18px; }
+.mock-content { flex: 1; padding: 78px 18px 24px; }
 .mock-kicker { color: #5d7895; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; }
 .mock-heading { width: 68%; height: 14px; margin-top: 9px; border-radius: 3px; background: #b8c7d5; }
 .mock-heading.short { width: 42%; height: 10px; margin-top: 7px; background: #d6e0e8; }
@@ -404,47 +373,6 @@ input[type="range"] { width: 100%; accent-color: #2874b6; }
 .mock-story:nth-child(4) .mock-story-image { background: #d1b9c8; }
 .mock-line { width: 85%; height: 7px; margin-top: 8px; border-radius: 2px; background: #c7d3de; }
 .mock-line.short { width: 54%; height: 5px; margin-top: 5px; background: #e1e8ee; }
-.mock-bottom-nav { display: flex; align-items: center; justify-content: space-around; min-height: 53px; padding: 0 12px; border-top: 1px solid #dde5ec; color: #617285; background: rgba(255, 255, 255, 0.92); }
-.mock-bottom-nav svg:nth-child(3) { color: #116fb8; }
-
-.status-island { position: absolute; z-index: 2; display: flex; align-items: center; gap: 10px; width: min(calc(100% - 30px), 390px); min-height: 50px; padding: 8px 10px; border: 1px solid rgba(255, 255, 255, 0.72); border-radius: 24px; color: #1e2938; background: rgba(255, 255, 255, 0.84); box-shadow: 0 12px 27px rgba(25, 42, 63, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.88); backdrop-filter: blur(var(--island-blur)) saturate(150%); -webkit-backdrop-filter: blur(var(--island-blur)) saturate(150%); cursor: pointer; text-align: left; transform-origin: center top; will-change: transform, opacity; }
-.island-top .status-island { top: 13px; left: 50%; transform: translateX(-50%); }
-.island-bottom .status-island { right: 15px; bottom: 65px; left: 15px; width: auto; transform-origin: center bottom; }
-.status-island.is-long { min-height: 68px; border-radius: 20px; }
-.status-icon { display: inline-grid; flex: 0 0 auto; place-items: center; width: 32px; height: 32px; border-radius: 50%; }
-.tone-success .status-icon { color: #057857; background: #d8f4e9; }
-.tone-message .status-icon { color: #1d62d4; background: #dbeafe; }
-.tone-warning .status-icon { color: #b84212; background: #ffedd5; }
-.tone-ai .status-icon { color: #6d38c8; background: #eee4ff; }
-.status-copy { display: grid; flex: 1; min-width: 0; gap: 1px; }
-.status-copy strong { color: #1d2938; font-size: 12px; font-weight: 760; line-height: 1.25; }
-.status-copy span { overflow: hidden; color: #617084; font-size: 11px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
-.status-island.is-long .status-copy span { white-space: normal; }
-.status-arrow { flex: 0 0 auto; color: #708196; }
-
-.status-island-enter-active,
-.status-island-leave-active { transition: transform var(--island-duration) var(--ease-emphasized, cubic-bezier(0.16, 1, 0.3, 1)), opacity calc(var(--island-duration) * 0.7) ease, filter var(--island-duration) ease; }
-.island-top .status-island-enter-from,
-.island-top .status-island-leave-to { opacity: 0; filter: blur(3px); transform: translateX(-50%) translateY(calc(var(--island-distance) * -1)) scale(0.94); }
-.island-bottom .status-island-enter-from,
-.island-bottom .status-island-leave-to { opacity: 0; filter: blur(3px); transform: translateY(var(--island-distance)) scale(0.94); }
-.is-reduced-motion .status-island-enter-active,
-.is-reduced-motion .status-island-leave-active { transition-duration: 120ms; }
-.is-reduced-motion .status-island-enter-from,
-.is-reduced-motion .status-island-leave-to { filter: none; transform: translateX(-50%); }
-.is-reduced-motion .island-bottom .status-island-enter-from,
-.is-reduced-motion .island-bottom .status-island-leave-to { transform: none; }
-
-@media (prefers-reduced-motion: reduce) {
-  .status-island-enter-active,
-  .status-island-leave-active { transition-duration: 120ms; }
-  .status-island-enter-from,
-  .status-island-leave-to { filter: none !important; }
-  .island-top .status-island-enter-from,
-  .island-top .status-island-leave-to { transform: translateX(-50%) !important; }
-  .island-bottom .status-island-enter-from,
-  .island-bottom .status-island-leave-to { transform: none !important; }
-}
 
 @media (max-width: 760px) {
   .motion-lab { padding: 16px; }

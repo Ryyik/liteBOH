@@ -19,9 +19,9 @@ import {
   formatMemorySavePrompt
 } from './useIntentDetection.js';
 
-const dispatchUserSpaceIslandMessage = (payload = {}) => {
+const dispatchGlobalNavStatus = (payload = {}) => {
   if (typeof window === 'undefined') return;
-  window.dispatchEvent(new CustomEvent('boh_userspace_nav_island', { detail: payload }));
+  window.dispatchEvent(new CustomEvent('boh_global_nav_status', { detail: payload }));
 };
 
 export function useMemoryCapture(deps) {
@@ -245,7 +245,7 @@ export function useMemoryCapture(deps) {
         ? '随手记已开启：AI 回答后可选择记录到 Cloud+。'
         : '随手记已关闭。'
     );
-    dispatchUserSpaceIslandMessage({
+    dispatchGlobalNavStatus({
       title: isQuickNoteEnabled.value ? '随手记已开启' : '随手记已关闭',
       message: isQuickNoteEnabled.value ? 'AI 回答后可记录到 Cloud+' : '本轮不再生成随手记提示',
       icon: 'ai',
@@ -312,7 +312,7 @@ export function useMemoryCapture(deps) {
       : currentSessionIndex.value;
     resetPendingQuickNote();
     setMemoryCaptureStatusMessage('已记录到 BOH Cloud+。');
-    dispatchUserSpaceIslandMessage({
+    dispatchGlobalNavStatus({
       title: '已记录到 Cloud+',
       message: title,
       icon: 'success',
@@ -583,7 +583,7 @@ export function useMemoryCapture(deps) {
       isTreeholeMemoryEnabled.value = false;
       persistTreeholeMemorySetting();
       setMemoryCaptureStatusMessage('Cloud+ 参考已关闭。');
-      dispatchUserSpaceIslandMessage({
+      dispatchGlobalNavStatus({
         title: 'Cloud+ 参考已关闭',
         message: '本轮不会读取你的 Cloud+ 内容',
         icon: 'ai',
@@ -610,7 +610,7 @@ export function useMemoryCapture(deps) {
       persistTreeholeMemorySetting();
       resetPendingTreeholeCreation();
       setMemoryCaptureStatusMessage('Cloud+ 参考已开启：AI 将可查看你的全部 Cloud+ 内容作为私有参考。');
-      dispatchUserSpaceIslandMessage({
+      dispatchGlobalNavStatus({
         title: 'Cloud+ 参考已开启',
         message: 'AI 可参考你的 Cloud+ 私有内容',
         icon: 'ai',

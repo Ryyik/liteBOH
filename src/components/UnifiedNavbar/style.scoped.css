@@ -25,6 +25,13 @@
 }
 
 .unified-nav-surface {
+  --global-nav-rest-height: 72px;
+  --global-nav-status-top: 79px;
+  --global-nav-status-card-height: 58px;
+  --global-nav-status-bottom-gap: 7px;
+  --global-nav-open-height: calc(
+    var(--global-nav-status-top) + var(--global-nav-status-card-height) + var(--global-nav-status-bottom-gap)
+  );
   position: relative;
   width: 100%;
   max-width: 100%;
@@ -52,6 +59,8 @@
 }
 
 #unified-nav-container.scrolled .unified-nav-surface {
+  --global-nav-rest-height: 58px;
+  --global-nav-status-top: 65px;
   max-width: min(860px, calc(100% - 24px));
   height: 58px;
   transform: translateY(20px);
@@ -64,6 +73,8 @@
 /* Beta 5 keeps the floating material as persistent chrome. The stable scroll
    state remains intact above so users can switch modes without a reload. */
 :global(html[data-boh-app-mode="beta5"] #unified-nav-container .unified-nav-surface) {
+  --global-nav-rest-height: 58px;
+  --global-nav-status-top: 65px;
   max-width: min(860px, calc(100% - 24px));
   height: 58px;
   transform: translateY(10px);
@@ -73,6 +84,22 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   transition: none;
   will-change: auto;
+}
+
+.unified-nav-surface.has-status-card {
+  height: var(--global-nav-open-height) !important;
+  border-radius: 30px !important;
+  transition:
+    height var(--global-nav-status-duration, 240ms) var(--ease-emphasized, cubic-bezier(0.16, 1, 0.3, 1)),
+    border-radius var(--global-nav-status-duration, 240ms) var(--ease-emphasized, cubic-bezier(0.16, 1, 0.3, 1)),
+    background-color 180ms ease,
+    box-shadow 180ms ease !important;
+}
+
+.unified-nav-surface.has-status-card > .nav-container {
+  position: relative;
+  z-index: 2;
+  height: var(--global-nav-rest-height);
 }
 
 /* Beta 5 keeps its navigation in a floating island at rest, so the legacy
@@ -125,18 +152,30 @@
 @media (orientation: portrait) and (max-width: 768px) {
   .unified-nav-surface {
     height: 60px;
+    --global-nav-rest-height: 60px;
+    --global-nav-status-top: 67px;
+    --global-nav-status-card-height: 54px;
+    --global-nav-status-bottom-gap: 7px;
   }
 
   #unified-nav-container.scrolled .unified-nav-surface {
+    --global-nav-rest-height: 50px;
+    --global-nav-status-top: 57px;
     max-width: calc(100% - 16px);
     height: 50px;
     transform: translateY(14px);
   }
 
   :global(html[data-boh-app-mode="beta5"] #unified-nav-container .unified-nav-surface) {
+    --global-nav-rest-height: 50px;
+    --global-nav-status-top: 57px;
     max-width: calc(100% - 16px);
     height: 50px;
     transform: translateY(8px);
+  }
+
+  .unified-nav-surface.has-status-card {
+    border-radius: 24px !important;
   }
 
   /* Beta 5 is permanently in the floating-nav state, so it needs its own

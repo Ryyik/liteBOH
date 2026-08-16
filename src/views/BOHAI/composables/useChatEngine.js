@@ -185,9 +185,9 @@ import {
   useAgentClusterState
 } from './agent-cluster-helpers.js';
 
-const dispatchUserSpaceIslandMessage = (payload = {}) => {
+const dispatchGlobalNavStatus = (payload = {}) => {
   if (typeof window === 'undefined') return;
-  window.dispatchEvent(new CustomEvent('boh_userspace_nav_island', { detail: payload }));
+  window.dispatchEvent(new CustomEvent('boh_global_nav_status', { detail: payload }));
 };
 
 // ============================================================
@@ -1350,7 +1350,7 @@ export function useChatEngine() {
       isTreeholeMemoryEnabled.value = true;
       persistTreeholeMemorySetting();
       setMemoryCaptureStatusMessage('Auto 已为你开启 Cloud+ 参考。');
-      dispatchUserSpaceIslandMessage({
+      dispatchGlobalNavStatus({
         title: '已开启 Cloud+ 参考',
         message: 'BOH AI 将结合你的 Cloud+ 内容回答',
         icon: 'ai',

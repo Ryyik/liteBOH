@@ -3,7 +3,17 @@
     'mobile-menu-open': isMobileMenuOpen,
     scrolled: isScrolled
   }" data-theme>
-    <div class="unified-nav-surface">
+    <div
+      class="unified-nav-surface"
+      :class="{
+        'has-status-card': navStatus.visible,
+        'has-long-status-card': navStatus.visible && navStatus.isLong,
+      }"
+      :style="{
+        '--global-nav-status-duration': `${navStatus.duration}ms`,
+        '--global-nav-status-card-height': `${navStatusCardHeight}px`,
+      }"
+    >
     <div class="nav-container">
       <router-link to="/" class="nav-logo">
         <div class="nav-logo-icon">
@@ -184,6 +194,12 @@
         </div>
       </div>
     </div>
+    <GlobalNavStatusCard
+      :item="navStatus"
+      @action="handleNavStatusAction"
+      @after-leave="handleNavStatusAfterLeave"
+      @resize="handleStatusCardResize"
+    />
     </div>
   </div>
 </template>
@@ -201,7 +217,9 @@ import { isHomeCatTheme } from "@/utils/home-cat-theme.js";
 import { useConfirmDialog } from "@/composables/useConfirmDialog.js";
 import { useAppMode } from "@/composables/useAppMode.js";
 import { useVersionCheck } from "@/composables/useVersionCheck.js";
+import { GLOBAL_NAV_STATUS_EVENT, LEGACY_ISLAND_EVENT } from "@/composables/useGlobalNavStatus.js";
 import { toggleHiagentChat } from "@/utils/hiagent-widget.js";
+import GlobalNavStatusCard from "./GlobalNavStatusCard.vue";
 
 const authStore = useAuthStore();
 const { isLoggedIn, isInitialized, showLoginModal, isAdmin } = storeToRefs(authStore);
@@ -215,6 +233,108 @@ const currentThemePreference = ref(themeManager.getPreference?.() || currentThem
 const isHomeCatActive = computed(() => (
   isHomeCatTheme(currentTheme.value) || isHomeCatTheme(currentThemePreference.value)
 ));
+const navStatus = ref({
+  visible: false,
+  title: '',
+  message: '',
+  icon: 'success',
+  isLong: false,
+  duration: 620,
+  distance: 22,
+  blur: 20,
+  reducedMotion: false
+});
+const navStatusCardHeight = ref(58);
+const navStatusQueue = [];
+let navStatusDismissTimer = null;
+
+const clearNavStatusDismissTimer = () => {
+  if (!navStatusDismissTimer) return;
+  clearTimeout(navStatusDismissTimer);
+  navStatusDismissTimer = null;
+};
+
+const normalizeNavStatus = (payload = {}) => {
+  const title = String(payload.title || '').trim() || '已完成';
+  const message = String(payload.message || '').trim();
+  const icon = String(payload.icon || payload.type || 'success').trim();
+  const durationMs = Math.min(Math.max(Number(payload.durationMs) || 4200, 1800), 10000);
+
+  return {
+    visible: true,
+    title,
+    message,
+    icon,
+    isLong: Boolean(payload.isLong) || `${title}${message}`.length > 24,
+    duration: Math.min(Math.max(Number(payload.motionDuration) || 620, 240), 1200),
+    distance: Math.min(Math.max(Number(payload.distance) || 22, 0), 48),
+    blur: Math.min(Math.max(Number(payload.blur) || 20, 0), 28),
+    reducedMotion: Boolean(payload.reducedMotion),
+    durationMs,
+    onAction: typeof payload.onAction === 'function' ? payload.onAction : null
+  };
+};
+
+const presentNavStatus = (item) => {
+  clearNavStatusDismissTimer();
+  navStatusCardHeight.value = 58;
+  navStatus.value = item;
+  navStatusDismissTimer = setTimeout(() => {
+    navStatus.value = { ...navStatus.value, visible: false };
+  }, item.durationMs);
+};
+
+const flushNavStatusQueue = () => {
+  if (navStatus.value.visible) return;
+  const next = navStatusQueue.shift();
+  if (next) presentNavStatus(next);
+};
+
+const handleGlobalNavStatus = (event) => {
+  const item = normalizeNavStatus(event?.detail || {});
+  if (navStatus.value.visible) {
+    navStatusQueue.push(item);
+    return;
+  }
+  presentNavStatus(item);
+};
+
+const handleNavStatusPreview = (event) => {
+  clearNavStatusDismissTimer();
+  navStatusQueue.length = 0;
+  const detail = event?.detail || {};
+  navStatus.value = {
+    visible: Boolean(detail.visible),
+    title: String(detail.title || '已完成'),
+    message: String(detail.message || ''),
+    icon: String(detail.icon || 'success'),
+    isLong: Boolean(detail.isLong),
+    duration: Number(detail.duration) || 620,
+    distance: Number(detail.distance) || 22,
+    blur: Number(detail.blur) || 20,
+    reducedMotion: Boolean(detail.reducedMotion)
+  };
+};
+
+const handleNavStatusAction = () => {
+  const { onAction } = navStatus.value;
+  clearNavStatusDismissTimer();
+  navStatusQueue.length = 0;
+  navStatus.value = { ...navStatus.value, visible: false };
+  onAction?.();
+};
+
+const handleNavStatusAfterLeave = () => {
+  clearNavStatusDismissTimer();
+  flushNavStatusQueue();
+};
+
+const handleStatusCardResize = (height) => {
+  const nextHeight = Math.ceil(Number(height) || 58);
+  if (Math.abs(nextHeight - navStatusCardHeight.value) > 1) {
+    navStatusCardHeight.value = nextHeight;
+  }
+};
 
 // ============================================
 // 滚动悬浮效果控制
@@ -759,6 +879,9 @@ const handleThemeChange = (theme, preference = themeManager.getPreference?.() ||
  * 组件挂载时初始化
  */
 onMounted(() => {
+  window.addEventListener('boh_global_nav_status_preview', handleNavStatusPreview);
+  window.addEventListener(GLOBAL_NAV_STATUS_EVENT, handleGlobalNavStatus);
+  window.addEventListener(LEGACY_ISLAND_EVENT, handleGlobalNavStatus);
   checkUnreadMessages();
   // 兜底轮询：实时订阅/事件异常时，最多 60 秒回补一次
   unreadRefreshInterval = setInterval(checkUnreadMessages, 60000);
@@ -802,6 +925,11 @@ watch(isBeta5, (enabled) => {
  * 组件卸载时清理
  */
 onUnmounted(() => {
+  window.removeEventListener('boh_global_nav_status_preview', handleNavStatusPreview);
+  window.removeEventListener(GLOBAL_NAV_STATUS_EVENT, handleGlobalNavStatus);
+  window.removeEventListener(LEGACY_ISLAND_EVENT, handleGlobalNavStatus);
+  clearNavStatusDismissTimer();
+  navStatusQueue.length = 0;
   if (unreadRefreshInterval) {
     clearInterval(unreadRefreshInterval);
   }
