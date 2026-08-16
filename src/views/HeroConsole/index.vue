@@ -992,6 +992,9 @@ async function moveHero(direction) {
     showToast('调整顺序失败，已恢复原顺序');
     return;
   }
+  // 草稿会在列表刷新后保留；同步其排序，避免之后“保存草稿”又写回旧顺序。
+  if (drafts[current.id]) drafts[current.id].sort_order = targetOrder;
+  if (drafts[target.id]) drafts[target.id].sort_order = currentOrder;
   await loadHeroes();
   showToast('已调整顺序');
 }

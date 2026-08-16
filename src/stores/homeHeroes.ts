@@ -437,23 +437,22 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
   const saveHero = async (id: string, payload: Partial<HomeHero>): Promise<boolean> => {
     isSaving.value = true
     try {
-      const updatePayload: Record<string, unknown> = {
-        sort_order: Number(payload.sort_order) || 0,
-        is_archived: Boolean(payload.is_archived),
-        template: payload.template,
-        variant: payload.variant,
-        builtin_key: payload.builtin_key ?? null,
-        eyebrow: payload.eyebrow || null,
-        title: payload.title,
-        subtitle: payload.subtitle || null,
-        image_config: payload.image_config || {},
-        content_layout: payload.content_layout || null,
-        links: payload.links || [],
-        split_cards: payload.split_cards || null,
-        label: payload.label || null,
-        aria_label: payload.aria_label || null,
-        updated_at: new Date().toISOString()
+      // saveHero 接受 Partial<HomeHero>，排序等局部更新不得把未传字段写成空值。
+      const updatePayload: Record<string, unknown> = { updated_at: new Date().toISOString() }
+      const editableFields = [
+        'sort_order', 'is_archived', 'template', 'variant', 'builtin_key', 'eyebrow',
+        'title', 'subtitle', 'image_config', 'content_layout', 'links', 'split_cards',
+        'label', 'aria_label'
+      ] as const
+
+      for (const field of editableFields) {
+        if (payload[field] !== undefined) updatePayload[field] = payload[field]
       }
+
+      if (payload.sort_order !== undefined) {
+        updatePayload.sort_order = Number(payload.sort_order) || 0
+      }
+
       const { error } = await supabase
         .from('home_heroes')
         .update(updatePayload)
@@ -463,6 +462,9 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
       const idx = allHeroes.value.findIndex((h) => h.id === id)
       if (idx >= 0) {
         allHeroes.value[idx] = { ...allHeroes.value[idx], ...payload } as HomeHero
+        if (allHeroes.value[idx].status === 'published' && payload.sort_order !== undefined) {
+          clearCache()
+        }
       }
       return true
     } catch (error) {

@@ -45,7 +45,11 @@
             window.location.search.includes('clearCache=true')) {
           console.log('[PWA] 检测到强制更新参数，开始清除缓存');
 
-          var cleanUrl = window.location.pathname + window.location.hash;
+          // 保留资源恢复标记。该标记会让 CDN 将这次导航视为新请求，避免在
+          // 刚发布后再次拿到仍引用已删除 hash 资源的旧 index.html。
+          var cleanUrl = new URL(window.location.href);
+          cleanUrl.searchParams.delete('forceUpdate');
+          cleanUrl.searchParams.delete('clearCache');
 
           // SW 注销任务（不支持 SW 时返回空数组）
           var swTask = ('serviceWorker' in navigator)
@@ -75,14 +79,50 @@
           Promise.all([swTask, cacheTask]).then(function() {
             console.log('[PWA] 所有缓存已清除');
             console.log('[PWA] 重定向到: ' + cleanUrl);
-            window.location.replace(cleanUrl);
+            window.location.replace(cleanUrl.href);
           }).catch(function(err) {
             console.error('[PWA] 清理失败:', err);
             // 即使失败也尝试重定向
-            window.location.replace(cleanUrl);
+            window.location.replace(cleanUrl.href);
           });
         }
       })();
+    </script>
+    <!--
+      GitHub Pages 发布会替换带 hash 的构建文件，但旧 index.html 可能仍被
+      CDN 或浏览器短暂缓存。若它引用的 CSS/应用入口已不存在，自动清除
+      PWA 缓存并使用唯一 URL 请求最新入口，避免页面退化为默认浏览器样式。
+    -->
+    <script>
+      (function () {
+        var recoveryParam = 'bohAssetRecovery';
+        var hasRecovered = new URL(window.location.href).searchParams.has(recoveryParam);
+
+        window.addEventListener('error', function (event) {
+          if (hasRecovered) return;
+
+          var target = event.target;
+          var isStylesheet = target && target.tagName === 'LINK' && target.rel === 'stylesheet';
+          var isAppModule = target && target.tagName === 'SCRIPT' && target.type === 'module';
+          var assetUrl = target && (target.href || target.src);
+
+          if ((!isStylesheet && !isAppModule) || !assetUrl || assetUrl.indexOf('/static/') === -1) return;
+
+          var recoveryUrl = new URL(window.location.href);
+          recoveryUrl.searchParams.set('forceUpdate', 'true');
+          recoveryUrl.searchParams.set(recoveryParam, Date.now().toString());
+          window.location.replace(recoveryUrl.href);
+        }, true);
+
+        // 成功恢复后移除 URL 中的内部标记，避免影响分享和普通导航。
+        if (hasRecovered && window.history && window.history.replaceState) {
+          window.addEventListener('load', function () {
+            var cleanUrl = new URL(window.location.href);
+            cleanUrl.searchParams.delete(recoveryParam);
+            window.history.replaceState(null, '', cleanUrl.href);
+          }, { once: true });
+        }
+      }());
     </script>
   </head>
   <body>
