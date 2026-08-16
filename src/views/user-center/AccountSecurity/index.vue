@@ -108,7 +108,7 @@
 
               <p class="delete-export-hint">
                 建议先在「设置 → 导出我的数据」中打包下载你的数据副本，注销后将无法再导出。
-                <a class="delete-export-link" href="/user-space?tab=profile&view=data-export">前往导出</a>
+                <router-link :to="{ path: '/user-space', query: { tab: 'profile', view: 'data-export' } }" class="delete-export-link">前往导出</router-link>
               </p>
 
               <label class="delete-check-row">

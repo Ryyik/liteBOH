@@ -592,6 +592,33 @@
   -webkit-backdrop-filter: none !important;
 }
 
+/* Perf-lite opaque fallbacks: with backdrop blur disabled, near-transparent
+   (< 0.3 alpha) surfaces become unreadable, so give them solid backgrounds.
+   .glass-container-light/medium/heavy (0.7-0.85 alpha) stay untouched. */
+.boh-perf-lite .glass-card,
+.boh-perf-lite .glass-user-bubble {
+  background: rgba(255, 255, 255, 0.88) !important;
+}
+
+.boh-perf-lite .glass-overlay-light,
+.boh-perf-lite .glass-modal-overlay-light {
+  background: rgba(15, 17, 21, 0.45) !important;
+}
+
+/* Dark variants mirror the two dark mechanisms used across the codebase
+   (system preference + [data-theme="dark"] on <html>). */
+@media (prefers-color-scheme: dark) {
+  .boh-perf-lite .glass-card,
+  .boh-perf-lite .glass-user-bubble {
+    background: rgba(30, 30, 30, 0.92) !important;
+  }
+}
+
+[data-theme="dark"] .boh-perf-lite .glass-card,
+[data-theme="dark"] .boh-perf-lite .glass-user-bubble {
+  background: rgba(30, 30, 40, 0.92) !important;
+}
+
 .boh-reduced-motion *,
 .boh-reduced-motion *::before,
 .boh-reduced-motion *::after {
@@ -599,6 +626,14 @@
   animation-iteration-count: 1 !important;
   scroll-behavior: auto !important;
   transition-duration: 0.001ms !important;
+}
+
+/* Loading indicators are exempt: a frozen spinner looks like a broken page,
+   so keep spinners / loading states animating under reduced motion. */
+.boh-reduced-motion [class*='spin'],
+.boh-reduced-motion [class*='loading'] {
+  animation-duration: 1s !important;
+  animation-iteration-count: infinite !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

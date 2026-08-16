@@ -1,6 +1,6 @@
 <template>
   <!-- 统一渲染：builtin 走 BuiltinHeroRenderer，其余走 DynamicHomeHero -->
-  <HomeHeroRow :layout="layout" :aria-label="hero.aria_label || hero.label || hero.title">
+  <HomeHeroRow :layout="layout" :aria-label="hero.aria_label || hero.label || hero.title" :eager="eager">
     <DynamicHomeHero v-if="hero.template !== 'builtin'" :hero="hero" />
     <BuiltinHeroRenderer
       v-else
@@ -23,6 +23,7 @@ import { builtinHeroLayout } from '../../Home/components/homeArchiveData.js';
 
 const props = defineProps({
   hero: { type: Object, required: true },
+  eager: { type: Boolean, default: false },
 });
 
 const router = useRouter();

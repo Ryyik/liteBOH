@@ -2,9 +2,10 @@
   <div class="history-page">
     <!-- 已归档英雄区：统一从数据库读取（含 builtin 与数据驱动两类） -->
     <HistoryHeroSection
-      v-for="hero in archivedHeroes"
+      v-for="(hero, heroIndex) in archivedHeroes"
       :key="hero.id"
       :hero="hero"
+      :eager="heroIndex === 0"
     />
   </div>
 </template>

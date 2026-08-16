@@ -109,15 +109,13 @@ const handleDownload = (_url) => {
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
 /* ============================================
    GLASS MORPHISM DESIGN SYSTEM
    Black, White & Gray Color Palette
    ============================================ */
 
 .download-page {
-  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%);  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%);
   color: #ffffff;
   padding-top: 80px;
   min-height: 100vh;

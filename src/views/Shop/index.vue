@@ -250,7 +250,7 @@
             <button type="button" :class="{ selected: contactType === 'vx' }" @click="contactType = 'vx'">微信</button>
           </div>
           <label><span>{{ contactType === 'vx' ? '微信号' : 'QQ 号' }}</span><input v-model.trim="contactValue" type="text" :placeholder="contactType === 'vx' ? '请输入微信号' : '请输入 QQ 号'" /></label>
-          <button class="checkout-button" type="button" :disabled="!contactType || !contactValue" @click="submitContact">确认提交</button>
+          <button class="checkout-button" type="button" :disabled="!contactType || !contactValue || submittingContact" @click="submitContact">确认提交</button>
         </section>
       </div>
     </Transition>
@@ -319,6 +319,7 @@ const cartAnimation = ref(false);
 const showContactModal = ref(false);
 const contactType = ref('');
 const contactValue = ref('');
+const submittingContact = ref(false);
 const operationToast = ref({ show: false, message: '' });
 const paymentSuccess = ref(null);
 let toastTimer = null;
@@ -522,40 +523,46 @@ async function notifyAdministrators(content) {
   } catch (error) { logger.error('shop', '发送管理员通知失败', error); }
 }
 async function submitContact() {
+  if (submittingContact.value) return;
   if (!contactType.value || !contactValue.value || !canCheckout.value) return;
-  const result = await createShopOrderWithPoints({ items: buildOrderItemsPayload(), contactType: contactType.value, contactValue: contactValue.value });
-  if (!result.ok) return showOperationToast(resolveOrderErrorMessage(result));
+  submittingContact.value = true;
+  try {
+    const result = await createShopOrderWithPoints({ items: buildOrderItemsPayload(), contactType: contactType.value, contactValue: contactValue.value });
+    if (!result.ok) return showOperationToast(resolveOrderErrorMessage(result));
 
-  const paidPoints = Number(result.data?.pointsDeducted || 0);
-  const paidRmb = result.data?.rmbTotal ? Number(result.data.rmbTotal) : 0;
-  const remainingPoints = Number(result.data?.currentPoints || userInfo.points);
-  const orderNo = result.data?.orderNo || '未知订单号';
-  const time = formatDateTime(new Date());
-  const contactLabel = contactType.value === 'qq' ? 'QQ' : '微信';
-  const paymentMode = result.data?.paymentMode || 'points_only';
-  const orderedItems = Array.isArray(result.data?.items) && result.data.items.length ? result.data.items : shoppingBag.value;
-  const itemText = orderedItems.map((item) => {
-    const specification = item.selected_spec_label || item.selectedSpecLabel || '默认规格';
-    return `${item.title} (${specification}) x${item.quantity}`;
-  }).join('\n- ');
+    const paidPoints = Number(result.data?.pointsDeducted || 0);
+    const paidRmb = result.data?.rmbTotal ? Number(result.data.rmbTotal) : 0;
+    const remainingPoints = Number(result.data?.currentPoints || userInfo.points);
+    const orderNo = result.data?.orderNo || '未知订单号';
+    const time = formatDateTime(new Date());
+    const contactLabel = contactType.value === 'qq' ? 'QQ' : '微信';
+    const paymentMode = result.data?.paymentMode || 'points_only';
+    const orderedItems = Array.isArray(result.data?.items) && result.data.items.length ? result.data.items : shoppingBag.value;
+    const itemText = orderedItems.map((item) => {
+      const specification = item.selected_spec_label || item.selectedSpecLabel || '默认规格';
+      return `${item.title} (${specification}) x${item.quantity}`;
+    }).join('\n- ');
 
-  let paymentSummary = '';
-  if (paymentMode === 'points_only') paymentSummary = `积分: ${paidPoints}`;
-  else if (paymentMode === 'rmb_only') paymentSummary = `现金: ¥${(paidRmb / 100).toFixed(2)}`;
-  else paymentSummary = `积分: ${paidPoints} + 现金: ¥${(paidRmb / 100).toFixed(2)}`;
+    let paymentSummary = '';
+    if (paymentMode === 'points_only') paymentSummary = `积分: ${paidPoints}`;
+    else if (paymentMode === 'rmb_only') paymentSummary = `现金: ¥${(paidRmb / 100).toFixed(2)}`;
+    else paymentSummary = `积分: ${paidPoints} + 现金: ¥${(paidRmb / 100).toFixed(2)}`;
 
-  const summary = `--- 方块之家周边结算单 ---\n订单号: ${orderNo}\n用户: ${userInfo.username}\n时间: ${time}\n${contactLabel}: ${contactValue.value}\n\n支付方式: ${paymentSummary}\n\n商品清单:\n- ${itemText}\n\n剩余积分: ${remainingPoints}`;
-  userInfo.points = remainingPoints;
-  await copyToClipboard(summary);
-  closeContactModal(); clearBag(); closeSidebar();
-  paymentSuccess.value = { orderNo, paymentSummary };
-  document.body.style.overflow = 'hidden';
-  void sendMerchandiseSettlementEmail({ orderId: result.data.orderId }).catch((error) => {
-    logger.error('shop', '订单邮件发送失败', error);
-    showOperationToast('订单已提交，但邮件通知发送失败');
-  });
-  void notifyAdministrators(`收到新的周边订单！\n订单号: ${orderNo}\n用户: ${userInfo.username}\n支付: ${paymentSummary}\n商品: ${itemText}`);
-  showOperationToast('订单已提交');
+    const summary = `--- 方块之家周边结算单 ---\n订单号: ${orderNo}\n用户: ${userInfo.username}\n时间: ${time}\n${contactLabel}: ${contactValue.value}\n\n支付方式: ${paymentSummary}\n\n商品清单:\n- ${itemText}\n\n剩余积分: ${remainingPoints}`;
+    userInfo.points = remainingPoints;
+    await copyToClipboard(summary);
+    closeContactModal(); clearBag(); closeSidebar();
+    paymentSuccess.value = { orderNo, paymentSummary };
+    document.body.style.overflow = 'hidden';
+    void sendMerchandiseSettlementEmail({ orderId: result.data.orderId }).catch((error) => {
+      logger.error('shop', '订单邮件发送失败', error);
+      showOperationToast('订单已提交，但邮件通知发送失败');
+    });
+    void notifyAdministrators(`收到新的周边订单！\n订单号: ${orderNo}\n用户: ${userInfo.username}\n支付: ${paymentSummary}\n商品: ${itemText}`);
+    showOperationToast('订单已提交');
+  } finally {
+    submittingContact.value = false;
+  }
 }
 
 onMounted(() => {

@@ -4,7 +4,8 @@ import { applyPerformanceProfile, getPerformanceProfile } from '../../src/utils/
 describe('performance profile', () => {
   it('selects lite mode for data-saving and constrained devices', () => {
     expect(getPerformanceProfile({ connection: { saveData: true } }).lite).toBe(true);
-    expect(getPerformanceProfile({ deviceMemory: 4, hardwareConcurrency: 4 }).lite).toBe(true);
+    expect(getPerformanceProfile({ deviceMemory: 2, hardwareConcurrency: 2 }).lite).toBe(true);
+    expect(getPerformanceProfile({ deviceMemory: 4, hardwareConcurrency: 4 }).lite).toBe(false);
     expect(getPerformanceProfile({ deviceMemory: 8, hardwareConcurrency: 8 }).lite).toBe(false);
   });
 

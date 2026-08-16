@@ -104,13 +104,13 @@ export default defineConfig({
       workbox: {
         // 预缓存文件大小上限（4MB，避免大文件静默跳过）
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
-        // 只预缓存应用壳。页面 chunk 和大图按需加载，避免每次发布都在后台更新整站资源。
+        // 预缓存应用壳与首屏依赖 chunk（main.js 静态依赖 @vueuse/motion 与 supabase），
+        // 页面级 chunk 和大图按需加载，避免每次发布都在后台更新整站资源。
         globPatterns: [
           'index.html',
           'registerSW.js',
           'static/js/app-*.js',
-          // 只预缓存应用壳；Supabase、图标和 Vue 工具在实际路由/功能触发时缓存。
-          'static/js/{vue-vendor,state-vendor,auth-store,ui-components}-*.js',
+          'static/js/{vue-vendor,state-vendor,auth-store,ui-components,supabase-vendor,ui-icons,vue-utils-vendor}-*.js',
           'static/css/ui-components-*.css',
           'static/fonts/*.{woff,woff2}',
         ],
@@ -138,15 +138,6 @@ export default defineConfig({
             options: {
               cacheName: 'images-cloudinary',
               expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 30 },
-            },
-          },
-          {
-            // Google Fonts 字体：Cache-First（离线可用）
-            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts',
-              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
             },
           },
         ],

@@ -20,8 +20,9 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
+import { checkRateLimitDb } from '../_shared/rate-limiter.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.99.1';
-import JSZip from 'npm:jszip@3.10.1';
+import { JSZip } from 'npm:jszip@3.10.1';
 
 const EXPORT_BUCKET = 'user-exports';
 const RATE_LIMIT_DAYS = 7;
@@ -35,6 +36,23 @@ const TIME_BUDGET_MS = 100_000; // 图片下载阶段预算；确保整体（下
 const UPLOAD_TIMEOUT_MS = 60_000;
 const STALE_THRESHOLD_MS = 3 * 60_000;
 const PROGRESS_WRITE_INTERVAL_MS = 2_000;
+
+// M2: create 入口限流（5 次/小时），防止高频创建任务造成资源放大
+const EXPORT_CREATE_RATE_LIMIT_MAX_REQUESTS = 5;
+const EXPORT_CREATE_RATE_LIMIT_WINDOW_MS = 3_600_000;
+
+// M1: 图片下载域名白名单（防 SSRF）。仅允许可信 CDN 与当前 Supabase 项目 host
+// （avatars 等 storage 直链）。新增自托管图片域名时，在下方数组追加小写 hostname（不含协议与端口）。
+const ALLOWED_IMAGE_HOSTS = new Set([
+  'res.cloudinary.com',
+  'cdn.blockofhome.cn',
+]);
+try {
+  const supabaseHost = new URL(Deno.env.get('SUPABASE_URL') || '').hostname.toLowerCase();
+  if (supabaseHost) ALLOWED_IMAGE_HOSTS.add(supabaseHost);
+} catch {
+  // SUPABASE_URL 缺失或非法时忽略
+}
 
 /** 用户数据表导出清单：表名 / ZIP 内路径 / 过滤列 */
 interface TableSpec {
@@ -171,6 +189,15 @@ const looksLikeImageUrl = (s: unknown): s is string =>
   /^https?:\/\//i.test(s) &&
   (s.includes('/image/upload/') || /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?|$)/i.test(s));
 
+// M1: 图片 URL 域名必须在白名单内，防止 SSRF（URL.hostname 已天然去除端口）
+const isAllowedImageHost = (url: string): boolean => {
+  try {
+    return ALLOWED_IMAGE_HOSTS.has(new URL(url).hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+};
+
 const collectImageUrlsFromJson = (node: unknown, out: Set<string>) => {
   if (!node) return;
   if (looksLikeImageUrl(node)) {
@@ -210,6 +237,8 @@ const runExport = async (userId: string, jobId: string) => {
   const svc = createServiceClient();
   const startedAt = Date.now();
   let lastProgressWrite = 0;
+  // L1: 已上传的导出文件路径；取消/竞态时用它清理孤儿文件（外层 catch 需要访问）
+  let filePath = '';
 
   const writeProgress = async (progress: number, stage: string, force = false) => {
     const now = Date.now();
@@ -237,6 +266,8 @@ const runExport = async (userId: string, jobId: string) => {
     const jsonFiles = new Map<string, unknown[]>();
     const totals: Record<string, number> = {};
     const skipped: Array<{ table: string; path: string; reason: string }> = [];
+    // L2: 达到单表行数上限（ROW_LIMIT）被截断的表，记录到 manifest.truncated_tables 供前端提示
+    const truncatedTables: string[] = [];
 
     const { data: profileRow } = await svc
       .from('profiles')
@@ -255,15 +286,21 @@ const runExport = async (userId: string, jobId: string) => {
         query = query.eq(spec.column!, userId);
       }
       const { data, error } = await query;
+      // 每张表查询后即时响应取消，避免阶段一长时间无法取消
+      await checkCancelled();
       if (error) {
-        // 单表失败（如表已移除）只记录，不中断
-        skipped.push({ table: spec.table, path: spec.path, reason: error.message });
+        // L3: 单表失败（如表已移除）只记录、不中断、不透传原始错误细节
+        console.error('[user-data-export] table skipped:', spec.table, error);
+        skipped.push({ table: spec.table, path: spec.path, reason: '数据表暂时无法读取' });
         totals[spec.label] = 0;
         continue;
       }
       const rows = data ?? [];
       jsonFiles.set(spec.path, rows);
       totals[spec.label] = rows.length;
+      if (rows.length >= ROW_LIMIT) {
+        truncatedTables.push(spec.label);
+      }
       await writeProgress(5 + ((i + 1) / TABLE_SPECS.length) * 20, `正在收集数据（${i + 1}/${TABLE_SPECS.length}）`);
     }
 
@@ -275,6 +312,12 @@ const runExport = async (userId: string, jobId: string) => {
     const seenUrls = new Set<string>();
     const pushImage = (url: unknown, folder: string, prefix: string) => {
       if (!looksLikeImageUrl(url) || seenUrls.has(url)) return;
+      // M1: 域名白名单校验，非白名单图片记入 skipped 不下载
+      if (!isAllowedImageHost(url)) {
+        skipped.push({ table: 'images', path: url, reason: 'UNSUPPORTED_IMAGE_HOST' });
+        seenUrls.add(url);
+        return;
+      }
       seenUrls.add(url);
       images.push({ url, path: `${folder}/${prefix}_${String(images.length + 1).padStart(3, '0')}${extOf(url)}` });
     };
@@ -360,6 +403,7 @@ const runExport = async (userId: string, jobId: string) => {
       version: 1,
       exportedAt: nowIso(),
       totals,
+      truncated_tables: truncatedTables,
       images: {
         discovered: discoveredImageCount,
         downloaded: downloaded.size,
@@ -412,7 +456,7 @@ const runExport = async (userId: string, jobId: string) => {
 
     // ---------- 阶段四：上传并完成（96% → 100%） ----------
     await writeProgress(96, '正在上传', true);
-    const filePath = `${userId}/${jobId}.zip`;
+    filePath = `${userId}/${jobId}.zip`;
 
     // 上传期间保持心跳，避免长传输被 stale 检测误判为中断
     const heartbeat = setInterval(() => {
@@ -452,7 +496,7 @@ const runExport = async (userId: string, jobId: string) => {
 
       await checkCancelled();
 
-      const { error: finalizeError } = await svc
+      const { data: finalizedRows, error: finalizeError } = await svc
         .from('user_data_export_jobs')
         .update({
           status: 'ready',
@@ -466,20 +510,41 @@ const runExport = async (userId: string, jobId: string) => {
           last_active_at: nowIso(),
         })
         .eq('id', jobId)
-        .eq('status', 'processing');
+        .eq('status', 'processing')
+        .select('id');
       if (finalizeError) throw new Error(`更新任务状态失败：${finalizeError.message}`);
+      // L1: 0 行匹配说明 processing 行已被取消流程抢先更新（竞态），清理孤儿文件
+      if (!Array.isArray(finalizedRows) || finalizedRows.length === 0) {
+        try {
+          await svc.storage.from(EXPORT_BUCKET).remove([filePath]);
+        } catch (cleanupError) {
+          console.error('user-data-export: 竞态清理导出文件失败', cleanupError);
+        }
+        return;
+      }
     } finally {
       clearInterval(heartbeat);
     }
   } catch (error) {
-    if (error instanceof CancelledError) return;
+    if (error instanceof CancelledError) {
+      // L1: 上传完成后才被取消时，删除已上传的孤儿 ZIP，避免存储泄漏
+      if (filePath) {
+        try {
+          await svc.storage.from(EXPORT_BUCKET).remove([filePath]);
+        } catch (cleanupError) {
+          console.error('user-data-export: 取消后清理导出文件失败', cleanupError);
+        }
+      }
+      return;
+    }
+    // L3: 原始错误仅进服务端日志，对外固定文案避免泄露内部细节
     console.error('user-data-export: 导出失败', error);
     await svc
       .from('user_data_export_jobs')
       .update({
         status: 'failed',
         stage: '导出失败',
-        error: String((error as Error)?.message || error).slice(0, 500),
+        error: '导出过程出现异常，请稍后重试',
         completed_at: nowIso(),
         last_active_at: nowIso(),
       })
@@ -494,6 +559,24 @@ const runExport = async (userId: string, jobId: string) => {
 
 const handleCreate = async (userId: string, origin: string | null) => {
   const svc = createServiceClient();
+
+  // M2: create 入口限流（5 次/小时），防止高频创建导出任务造成资源放大
+  const rateCheck = await checkRateLimitDb(
+    `export-create:${userId}`,
+    EXPORT_CREATE_RATE_LIMIT_MAX_REQUESTS,
+    EXPORT_CREATE_RATE_LIMIT_WINDOW_MS,
+  );
+  if (!rateCheck.ok) {
+    return jsonResponse(
+      {
+        ok: false,
+        error: '导出申请过于频繁，请稍后再试',
+        nextAvailableAt: new Date(Date.now() + rateCheck.retryAfter * 1000).toISOString(),
+      },
+      429,
+      origin,
+    );
+  }
 
   await cleanupExpiredJobs(svc, userId);
   await markStaleJobsFailed(svc, userId);
@@ -541,6 +624,10 @@ const handleCreate = async (userId: string, origin: string | null) => {
     .insert({ user_id: userId, status: 'processing', stage: '准备中', progress: 0 })
     .select('*')
     .maybeSingle();
+  // M3: (user_id) where status='processing' 唯一部分索引兜底，与并行请求撞车时返回 409
+  if (insertError?.code === '23505') {
+    return jsonResponse({ ok: false, error: '已有进行中的导出任务，请等待完成' }, 409, origin);
+  }
   if (insertError || !job) {
     return jsonResponse({ ok: false, error: '创建导出任务失败，请稍后重试' }, 500, origin);
   }

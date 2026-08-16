@@ -10,8 +10,8 @@ export const getPerformanceProfile = (navigatorLike = {}) => {
   const deviceMemory = Number(navigatorLike.deviceMemory || 0);
   const hardwareConcurrency = Number(navigatorLike.hardwareConcurrency || 0);
   const lite = saveData || effectiveType === 'slow-2g' || effectiveType === '2g'
-    || (deviceMemory > 0 && deviceMemory <= 4)
-    || (hardwareConcurrency > 0 && hardwareConcurrency <= 4);
+    || (deviceMemory > 0 && deviceMemory <= 2)
+    || (hardwareConcurrency > 0 && hardwareConcurrency <= 2);
 
   return { lite, saveData, effectiveType };
 };
@@ -26,4 +26,25 @@ export const applyPerformanceProfile = (windowLike = globalThis) => {
     root.classList.add('boh-reduced-motion');
   }
   return profile;
+};
+
+// Re-evaluate the profile when network conditions change (e.g. saveData off,
+// slow-2g -> 4g) so boh-perf-lite can be lifted without a page reload.
+// Module-level singleton: registered once per page lifecycle, no cleanup.
+let profileWatcherRegistered = false;
+let profileWatcherConnection = null;
+let profileWatcherHandler = null;
+
+export const watchPerformanceProfile = (windowLike = globalThis) => {
+  if (profileWatcherRegistered) return;
+  const navigatorLike = windowLike?.navigator || {};
+  const connection = navigatorLike.connection
+    || navigatorLike.mozConnection
+    || navigatorLike.webkitConnection;
+  if (typeof connection?.addEventListener !== 'function') return;
+
+  profileWatcherRegistered = true;
+  profileWatcherConnection = connection;
+  profileWatcherHandler = () => applyPerformanceProfile(windowLike);
+  profileWatcherConnection.addEventListener('change', profileWatcherHandler);
 };

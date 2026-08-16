@@ -107,6 +107,7 @@ const actionLoading = ref(false);
 const downloadLoading = ref(false);
 const errorText = ref('');
 let pollTimer = null;
+let pollGeneration = 0;
 
 const formatBytes = (bytes) => {
   const n = Number(bytes);
@@ -131,12 +132,15 @@ const stopPolling = () => {
     clearInterval(pollTimer);
     pollTimer = null;
   }
+  pollGeneration++;
 };
 
 const startPolling = () => {
   stopPolling();
+  const gen = ++pollGeneration;
   pollTimer = setInterval(async () => {
     const res = await getExportStatus();
+    if (gen !== pollGeneration) return;
     if (res.ok) {
       job.value = res.data.job;
       if (res.data.job?.status !== 'processing') stopPolling();

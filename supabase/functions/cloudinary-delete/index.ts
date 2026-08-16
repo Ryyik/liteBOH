@@ -77,6 +77,51 @@ const destroyAsset = async (publicId: string, resourceType = 'image') => {
   };
 };
 
+type AssetContextResult =
+  | { status: 'found'; contextUid: string }
+  | { status: 'not_found' }
+  | { status: 'error' };
+
+// 查询 Cloudinary 资产上传时写入的 context（uid 归属标记）。
+// GET /v1_1/{cloud}/resources/{resourceType}?public_ids[0]={publicId}
+// 签名规则与 destroyAsset 一致：除 file/api_key/signature 外的参数按字母序 key=value 用 & 连接，
+// 拼接 api_secret 后 sha1；GET 请求把 api_key/timestamp/signature 作为 query 参数。
+const fetchAssetContext = async (publicId: string, resourceType: string): Promise<AssetContextResult> => {
+  const timestamp = Math.floor(Date.now() / 1000);
+  const signature = await sha1Hex(`public_ids[0]=${publicId}&timestamp=${timestamp}${CLOUDINARY_API_SECRET}`);
+
+  const query = new URLSearchParams();
+  query.set('public_ids[0]', publicId);
+  query.set('timestamp', String(timestamp));
+  query.set('api_key', CLOUDINARY_API_KEY);
+  query.set('signature', signature);
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/resources/${resourceType}?${query.toString()}`,
+    );
+  } catch {
+    // 网络错误保守处理，由调用方拒绝删除
+    return { status: 'error' };
+  }
+
+  const data = await response.json().catch(() => null);
+  if (response.status === 404) return { status: 'not_found' };
+  if (!response.ok || !data || !Array.isArray(data?.resources)) {
+    const message = String(data?.error?.message || '').toLowerCase();
+    if (message.includes('not found')) return { status: 'not_found' };
+    return { status: 'error' };
+  }
+
+  const resources = data.resources as Array<Record<string, unknown>>;
+  const asset = resources.find((item) => String(item?.public_id || '') === publicId);
+  if (!asset) return { status: 'not_found' };
+
+  const custom = (asset?.context as { custom?: Record<string, unknown> } | undefined)?.custom;
+  return { status: 'found', contextUid: String(custom?.uid || '').trim() };
+};
+
 const filterOwnedCloudPublicIds = async (userId: string, publicIds: string[]) => {
   const serviceClient = createServiceClient();
   const ownedPublicIds: string[] = [];
@@ -177,14 +222,40 @@ Deno.serve(async (request) => {
       return jsonResponse({ ok: false, code: 'FORBIDDEN_PUBLIC_ID', message: '只能删除当前账号 Cloud+ 内容中已保存的图片。' }, 403, origin);
     }
 
-    const results = await Promise.allSettled(ownedPublicIds.map((publicId) => destroyAsset(publicId, resourceType)));
+    // 归属强验证：数据库归属可被伪造（用户可写表），以上传时写入 Cloudinary 的 context.uid 为准。
+    // publicIds 已被 normalizePublicIds 截断为最多 50 个，逐个查询开销可控。
+    const verifiedPublicIds: string[] = [];
+    const contextFailed: Array<{ publicId: string; message: string }> = [];
+    for (const publicId of ownedPublicIds) {
+      const contextResult = await fetchAssetContext(publicId, resourceType);
+      if (contextResult.status === 'found') {
+        if (!contextResult.contextUid) {
+          // 存量资产上传早于 context 标记上线：保持放行（存量过渡策略，待旧资产随清理自然消亡后可移除）
+          verifiedPublicIds.push(publicId);
+        } else if (contextResult.contextUid === authResult.userId) {
+          verifiedPublicIds.push(publicId);
+        } else {
+          contextFailed.push({ publicId, message: '只能删除本账号上传的图片' });
+        }
+      } else if (contextResult.status === 'not_found') {
+        contextFailed.push({ publicId, message: '图片不存在或已删除' });
+      } else {
+        // 网络或服务异常时保守拒绝，避免误删
+        contextFailed.push({ publicId, message: '图片信息校验失败，请稍后重试' });
+      }
+    }
+
+    const results = await Promise.allSettled(verifiedPublicIds.map((publicId) => destroyAsset(publicId, resourceType)));
     const deleted = [];
-    const failed = publicIds
-      .filter((publicId) => !ownedPublicIds.includes(publicId))
-      .map((publicId) => ({
-        publicId,
-        message: '只能删除当前账号 Cloud+ 内容中已保存的图片。',
-      }));
+    const failed = [
+      ...publicIds
+        .filter((publicId) => !ownedPublicIds.includes(publicId))
+        .map((publicId) => ({
+          publicId,
+          message: '只能删除当前账号 Cloud+ 内容中已保存的图片。',
+        })),
+      ...contextFailed,
+    ];
 
     results.forEach((result, index) => {
       if (result.status === 'fulfilled') {
@@ -192,7 +263,7 @@ Deno.serve(async (request) => {
         return;
       }
       failed.push({
-        publicId: ownedPublicIds[index],
+        publicId: verifiedPublicIds[index],
         message: result.reason instanceof Error ? result.reason.message : 'Cloudinary 删除失败',
       });
     });

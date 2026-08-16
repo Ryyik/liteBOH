@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -16,10 +16,18 @@ vi.mock('@/utils/supabase-client.js', () => ({
   },
 }));
 
-// Mock VITE_SUPABASE_URL
-vi.stubEnv('VITE_SUPABASE_URL', 'https://test.supabase.co');
+// email-service.js 在模块求值期（顶层）固化 import.meta.env.VITE_SUPABASE_URL，
+// 静态 import 会被 ESM 提升到 vi.stubEnv 之前执行导致 stub 失效，
+// 因此必须先 stubEnv 再动态导入，保证不依赖仓库根目录 .env 的真实值。
+let sendGiftEmail;
+let sendMerchandiseSettlementEmail;
 
-import { sendGiftEmail, sendMerchandiseSettlementEmail } from '@/utils/email-service.js';
+beforeAll(async () => {
+  vi.stubEnv('VITE_SUPABASE_URL', 'https://test.supabase.co');
+  const mod = await import('@/utils/email-service.js');
+  sendGiftEmail = mod.sendGiftEmail;
+  sendMerchandiseSettlementEmail = mod.sendMerchandiseSettlementEmail;
+});
 
 describe('email-service', () => {
   beforeEach(() => {

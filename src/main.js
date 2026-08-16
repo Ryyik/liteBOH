@@ -59,7 +59,7 @@ import { setupVitePreloadErrorRecovery } from './utils/vite-preload-recovery.js'
 import { initImageOptimizer } from './utils/image-optimizer.js';
 import { initVersionChecker } from './utils/version-checker.js';
 import { initAppModeManager } from './utils/app-mode-manager.js';
-import { applyPerformanceProfile } from './utils/performance-profile.js';
+import { applyPerformanceProfile, watchPerformanceProfile } from './utils/performance-profile.js';
 
 // ============================================
 // 延迟加载的非关键样式
@@ -90,6 +90,7 @@ if (typeof window !== "undefined") {
   // Apply the selected experience before Vue mounts so Beta 5 chrome never flashes as stable.
   initAppModeManager();
   applyPerformanceProfile(window);
+  watchPerformanceProfile(window);
   setupVitePreloadErrorRecovery();
   initImageOptimizer({ onReady: scheduleDeferredGlobalStyles });
 

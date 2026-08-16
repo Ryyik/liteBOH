@@ -292,17 +292,27 @@ export async function uploadImageToCloudinary(file, options = {}) {
       });
     }
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', uploadPreset);
-    if (folder) {
-      formData.append('folder', folder);
-    }
+    // 上传归属标记：cloudinary-delete Edge Function 会比对 context.uid 与登录用户，
+    // 防止删除他人上传的图片；未登录时不上传 context
+    const uploadUid = await getCurrentSupabaseUserId();
 
-    let data;
-    if (typeof options.onProgress === 'function' && typeof XMLHttpRequest !== 'undefined') {
-      data = await uploadFormDataWithProgress(resolveUploadUrl('image'), formData, options);
-    } else {
+    const buildUploadFormData = (withContext) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', uploadPreset);
+      if (folder) {
+        formData.append('folder', folder);
+      }
+      if (withContext && uploadUid) {
+        formData.append('context', `uid=${uploadUid}`);
+      }
+      return formData;
+    };
+
+    const sendUploadRequest = async (formData) => {
+      if (typeof options.onProgress === 'function' && typeof XMLHttpRequest !== 'undefined') {
+        return uploadFormDataWithProgress(resolveUploadUrl('image'), formData, options);
+      }
       const uploadController = new AbortController();
       const uploadTimeoutId = setTimeout(() => uploadController.abort(), 60000);
       let response;
@@ -315,9 +325,22 @@ export async function uploadImageToCloudinary(file, options = {}) {
       } finally {
         clearTimeout(uploadTimeoutId);
       }
-      data = await response.json().catch(() => ({}));
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(data?.error?.message || 'Cloudinary 上传失败');
+      }
+      return data;
+    };
+
+    let data;
+    try {
+      data = await sendUploadRequest(buildUploadFormData(true));
+    } catch (error) {
+      // 降级保护：upload preset 不允许 context 参数时（如 unsigned 上传被拒），去掉 context 重试一次
+      if (uploadUid && /context|not allowed|unsigned/i.test(String(error?.message || ''))) {
+        data = await sendUploadRequest(buildUploadFormData(false));
+      } else {
+        throw error;
       }
     }
     validateCloudinaryUploadResult(data, {

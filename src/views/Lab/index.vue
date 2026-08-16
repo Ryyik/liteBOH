@@ -2297,12 +2297,15 @@ function restoreSnapshot(snapshot) {
   if (!snapshot) return
   if (snapshot.stylesDoc && docData.value) {
     void loadDocParser().then(({ reparseStylesFromDoc }) => {
+      if (!docData.value) return
       docData.value.stylesDoc = snapshot.stylesDoc
       docData.value.styles = reparseStylesFromDoc(snapshot.stylesDoc)
       if (snapshot.historyItems) {
         historyItems.value = snapshot.historyItems
       }
       return rebuildAndPreview()
+    }).catch((error) => {
+      console.error('[lab] restore snapshot failed:', error)
     })
   }
 }

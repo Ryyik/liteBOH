@@ -24,9 +24,12 @@ describe('frontend performance guardrails', () => {
     expect(read('src/views/Lab/index.vue')).toMatch(/import\('\.\/engine\/docx-parser\.js'\)/);
   });
 
-  it('limits PWA precache to application-shell chunks', () => {
+  it('pre-caches app shell plus first-screen dependency chunks', () => {
     const source = read('vite.config.js');
-    expect(source).toMatch(/vue-vendor,state-vendor,auth-store,ui-components/);
-    expect(source).not.toMatch(/vue-vendor,state-vendor,auth-store,ui-components,supabase-vendor/);
+    // 离线白屏回归修复：main.js 静态依赖 @vueuse/motion 与首页 supabase，
+    // 首屏依赖 chunk（supabase-vendor/ui-icons/vue-utils-vendor）必须随应用壳预缓存。
+    expect(source).toMatch(
+      /vue-vendor,state-vendor,auth-store,ui-components,supabase-vendor,ui-icons,vue-utils-vendor/,
+    );
   });
 });

@@ -172,10 +172,11 @@ Deno.serve(async (request) => {
     let safeParams: Record<string, string> = {};
     if (templateType === 'merchandise_settlement') {
       const orderId = String(templateParams.orderId || '').trim();
-      // 前端分批发布期间兼容旧版参数；新版一旦提供订单 ID，始终以数据库快照为准。
-      safeParams = orderId
-        ? await buildMerchandiseTemplateParams(authResult, orderId)
-        : sanitizeTemplateParams(templateParams);
+      // H2: 结算邮件必须携带订单 ID，服务端始终以数据库快照为准，不再回退透传任意模板参数。
+      if (!orderId) {
+        return jsonResponse({ ok: false, code: 'MISSING_ORDER_ID', message: '缺少订单参数，无法发送结算邮件。' }, 400, origin);
+      }
+      safeParams = await buildMerchandiseTemplateParams(authResult, orderId);
     } else {
       safeParams = sanitizeTemplateParams(templateParams);
     }

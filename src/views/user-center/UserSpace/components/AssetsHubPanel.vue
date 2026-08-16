@@ -697,7 +697,7 @@ const loadOrders = async () => {
       .select('id, order_no, total_points, items, created_at')
       .eq('user_id', userInfo.value.id)
       .order('created_at', { ascending: false })
-      .limit(20);
+      .limit(50);
     if (error) throw error;
     orders.value = Array.isArray(data) ? data.map(o => ({
       ...o,
@@ -982,7 +982,8 @@ const retryOverviewIssues = () => {
   if (giftsError.value) giftsLoaded.value = false;
   if (ordersError.value) ordersLoaded.value = false;
   if (ledgerError.value) ledgerLoaded.value = false;
-  void loadOverview();
+  if (ledgerError.value) void loadLedger();
+  if (giftsError.value || ordersError.value) void loadOverview();
 };
 
 const getGiftStatusLabel = (s) => {

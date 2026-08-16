@@ -74,11 +74,15 @@ Deno.serve(async (request) => {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Cloudinary 删除失败';
       failed.push({ id, message });
-      await serviceClient.rpc('complete_points_card_preset_purge', {
+      const { error: completeError } = await serviceClient.rpc('complete_points_card_preset_purge', {
         p_preset_id: id,
         p_deleted: false,
         p_error: message,
       });
+      // L4: complete 失败仅记日志不改变控制流（数据库侧已有 pending 超时自愈迁移兜底）
+      if (completeError) {
+        console.error('[purge] complete rpc failed:', id, completeError);
+      }
     }
   }
 

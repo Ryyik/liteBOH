@@ -27,6 +27,8 @@ const CACHE_KEY = 'boh_home_heroes_v2'
 const LEGACY_CACHE_KEYS = ['boh_home_heroes_v1']
 // 缓存用于首屏即时渲染；每次进入首页仍会在后台请求最新配置。
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000
+// 远端不可达时的陈旧守卫：缓存超过 1 小时不再兜底，回退内置基线
+const STALE_CACHE_FALLBACK_MS = 60 * 60 * 1000
 
 const FALLBACK_TIMESTAMP = '2026-08-14T00:00:00.000Z'
 
@@ -76,14 +78,14 @@ interface HeroesCache {
   data: HomeHero[]
 }
 
-const readCache = (): HomeHero[] | null => {
+const readCache = (): HeroesCache | null => {
   try {
     const raw = localStorage.getItem(CACHE_KEY)
     if (!raw) return null
     const parsed: HeroesCache = JSON.parse(raw)
     if (!parsed?.timestamp || !Array.isArray(parsed?.data)) return null
     if (Date.now() - parsed.timestamp > CACHE_TTL_MS) return null
-    return parsed.data
+    return parsed
   } catch {
     return null
   }
@@ -234,8 +236,10 @@ const buildSnapshot = (hero: HomeHero): HomeHero => ({
 })
 
 export const useHomeHeroesStore = defineStore('homeHeroes', () => {
-  const cachedPublishedHeroes = readCache()
-  const hasPublishedCache = Boolean(cachedPublishedHeroes?.length)
+  const cachedPublishedEntry = readCache()
+  const cachedPublishedHeroes = cachedPublishedEntry?.data ?? null
+  const cachedPublishedAt = cachedPublishedEntry?.timestamp ?? 0
+  let hasPublishedCache = Boolean(cachedPublishedHeroes?.length)
   // 首页已发布英雄区（未归档）
   const publishedHeroes = ref<HomeHero[]>(
     cachedPublishedHeroes?.length ? cachedPublishedHeroes : HOME_HERO_BASELINE
@@ -279,6 +283,14 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
         if (token === publishedFetchToken) {
           logger.error('home-heroes-store', '获取已发布英雄区失败', error)
           fetchError.value = (error as Error)?.message || 'HOME_HEROES_FETCH_FAILED'
+          // 缓存陈旧守卫：远端不可达且缓存已超过 1 小时时，清缓存并回退内置基线，
+          // 避免持续渲染最长 24 小时的陈旧配置；1 小时内的旧缓存继续兜底。
+          if (hasPublishedCache && !hasPublishedRemoteData
+            && Date.now() - cachedPublishedAt > STALE_CACHE_FALLBACK_MS) {
+            clearCache()
+            hasPublishedCache = false
+            publishedHeroes.value = HOME_HERO_BASELINE
+          }
         }
         return publishedHeroes.value
       } finally {

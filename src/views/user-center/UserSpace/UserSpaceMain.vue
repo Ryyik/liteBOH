@@ -1851,7 +1851,7 @@ const toggleHideOnlineStatus = async () => {
     hide_online_status: !userInfo.value.hideOnlineStatus
   });
   if (!success) {
-    showBottomNavIsland('更新失败，请重试');
+    showBottomNavIsland({ title: '更新失败，请重试', icon: 'warning' });
   }
 };
 
@@ -1860,7 +1860,7 @@ const toggleHideFollowData = async () => {
     hide_follow_data: !userInfo.value.hideFollowData
   });
   if (!success) {
-    showBottomNavIsland('更新失败，请重试');
+    showBottomNavIsland({ title: '更新失败，请重试', icon: 'warning' });
   }
 };
 
@@ -2096,7 +2096,7 @@ const uploadPointsCardFile = async (file) => {
     if (error) throw error;
     if (!data?.ok) {
       if (data?.message === 'PRESET_CAPACITY_REACHED') {
-        pointsCardPresetQuota.value = normalizePointsCardPresetQuota(data);
+        await loadPointsCardPresetQuota();
       }
       throw new Error(data?.message === 'PRESET_CAPACITY_REACHED'
         ? `当前会员最多保存 ${pointsCardPresetQuota.value.capacity} 张自定义卡面`
@@ -2112,7 +2112,7 @@ const uploadPointsCardFile = async (file) => {
     await authStore.refreshCurrentUserProfile({ force: true });
 
     pointsCardPresets.value = [createdPreset, ...pointsCardPresets.value.filter((preset) => preset.id !== createdPreset.id)];
-    pointsCardPresetQuota.value = normalizePointsCardPresetQuota(data);
+    await loadPointsCardPresetQuota();
     showBottomNavIsland({ title: '卡面已添加', message: '已保存为自定义卡面预设', icon: 'success', type: 'success', durationMs: 3600 });
     return true;
   } catch (error) {
@@ -2134,7 +2134,7 @@ const selectPointsCardPreset = async (presetId) => {
   if (!preset) return;
   const { data, error } = await supabase.rpc('use_points_card_preset', { p_preset_id: preset.id });
   if (error || !data?.ok) {
-    showBottomNavIsland('切换自定义卡面失败，请重试');
+    showBottomNavIsland({ title: '切换自定义卡面失败，请重试', icon: 'warning' });
     return;
   }
   await authStore.refreshCurrentUserProfile({ force: true });
@@ -2150,7 +2150,7 @@ const setPointsCardSkin = async (skin) => {
   }
   const result = await authStore.updateUserProfile({ points_card_skin: skin });
   if (!result.success) {
-    showBottomNavIsland('卡片皮肤更新失败，请重试');
+    showBottomNavIsland({ title: '卡片皮肤更新失败，请重试', icon: 'warning' });
     return;
   }
   showBottomNavIsland({ title: '皮肤已应用', message: skin === 'cats' ? '小猫卡面已启用' : '已切换为空白卡', icon: 'success', type: 'success', durationMs: 2800 });
@@ -2174,7 +2174,7 @@ const redeemPointsCardCats = async () => {
     });
   } catch (error) {
     logger.warn('user-space', '积分卡兑换确认弹窗未打开:', error);
-    showBottomNavIsland('请先完成当前操作后再兑换卡面');
+    showBottomNavIsland({ title: '请先完成当前操作后再兑换卡面', icon: 'warning' });
     return;
   }
   if (!confirmed) return;
@@ -2224,7 +2224,7 @@ const deletePointsCardPreset = async (presetId) => {
   const { data, error } = await supabase.rpc('delete_points_card_preset', { p_preset_id: preset.id });
   if (error || !data?.ok) {
     logger.error('user-space', '删除积分卡面预设失败:', error || data?.message);
-    showBottomNavIsland('删除自定义卡面失败，请重试');
+    showBottomNavIsland({ title: '删除自定义卡面失败，请重试', icon: 'warning' });
     return;
   }
   await authStore.refreshCurrentUserProfile({ force: true });

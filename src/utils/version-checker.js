@@ -305,6 +305,12 @@ export const initVersionChecker = () => {
 
   // 自动轮询检测：检测到新版本时派发 boh:update-available 事件，
   // 由 PWAUpdateToast 弹出统一对话框提示用户，不直接强制刷新
+  const isTypingInForm = (el) => {
+    if (!el) return false;
+    const tag = String(el.tagName || '').toUpperCase();
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable === true;
+  };
+
   const autoCheck = ({ autoApply = false } = {}) => {
     if (automaticCheckInFlight) return automaticCheckInFlight;
 
@@ -314,12 +320,20 @@ export const initVersionChecker = () => {
         if (result.hasUpdate) {
           const attemptedTarget = readReloadTarget();
           if (autoApply && shouldAutoApplyVersion(result.remoteBuildId, attemptedTarget)) {
-            logger.info('version', '页面启动时发现新构建，自动清理旧缓存并刷新', {
-              currentBuildId,
-              remoteBuildId: result.remoteBuildId,
-            });
-            await forceCleanAndReload(result.remoteBuildId);
-            return;
+            // L11 加固：用户正在输入时跳过自动强刷，保持页面可用；
+            // 后续 visibilitychange 触发的检查仍有机会完成更新
+            if (isTypingInForm(document.activeElement)) {
+              logger.info('version', '用户正在输入，跳过本次自动强刷', {
+                remoteBuildId: result.remoteBuildId,
+              });
+            } else {
+              logger.info('version', '页面启动时发现新构建，自动清理旧缓存并刷新', {
+                currentBuildId,
+                remoteBuildId: result.remoteBuildId,
+              });
+              await forceCleanAndReload(result.remoteBuildId);
+              return;
+            }
           }
           notifyUpdateAvailable(result.remoteVersion, result.remoteBuildId);
         }
