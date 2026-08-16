@@ -16,11 +16,14 @@ const mockPost = {
   is_liked: false
 };
 
-async function mockForumApi(page) {
+async function mockForumApi(page, { posts = [mockPost] } = {}) {
   await page.route('**://**.supabase.co/**', async (route) => {
     const url = route.request().url();
     let body = [];
-    if (url.includes('/rest/v1/posts')) body = [mockPost];
+    if (url.includes('/rest/v1/posts')) {
+      // The keyset request for the next page contains the last post timestamp.
+      body = decodeURIComponent(url).includes('created_at.lt.') ? posts.slice(20) : posts;
+    }
     if (url.includes('get_forum_tag_stats')) {
       body = [{ tag: 'daily', post_count: 1 }, { tag: 'question', post_count: 0 }];
     }
@@ -49,4 +52,23 @@ test('mobile forum feed does not introduce horizontal scrolling', async ({ page 
   test.skip(testInfo.project.name !== 'mobile', 'Only applies to the mobile viewport.');
   await expect(page.locator('.mobile-compose-fab')).toBeVisible();
   await expect(page.locator('html')).toHaveJSProperty('scrollWidth', await page.locator('html').evaluate((element) => element.clientWidth));
+});
+
+test('mobile forum feed loads older posts while the document scrolls', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile', 'Only applies to the mobile viewport.');
+  const posts = Array.from({ length: 21 }, (_, index) => ({
+    ...mockPost,
+    id: `11111111-1111-4111-8111-${String(index + 1).padStart(12, '0')}`,
+    title: `分页帖子 ${index + 1}`,
+    content: `【分页帖子 ${index + 1}】\n用于验证手机端继续加载更早的帖子。`,
+    created_at: new Date(Date.UTC(2026, 7, 14, 12, 0, -index)).toISOString()
+  }));
+
+  await page.unroute('**://**.supabase.co/**');
+  await mockForumApi(page, { posts });
+  await page.goto('/#/forum');
+  await expect(page.getByRole('article')).toHaveCount(20);
+
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect(page.getByRole('article')).toHaveCount(21);
 });

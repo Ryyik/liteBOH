@@ -230,7 +230,13 @@ const shouldRestoreForumReturnState = () => {
 const getForumScrollContainer = () => {
   if (typeof window === 'undefined') return null;
   if (!props.embedded) return window;
-  return forumPageRef.value?.closest?.('.tab-page.posts-tab') || window;
+  const tabPage = forumPageRef.value?.closest?.('.tab-page.posts-tab');
+  if (!tabPage) return window;
+
+  // Phones use document scrolling because nested viewport-height scrollers are
+  // unreliable in WebKit. IntersectionObserver must use the same scroll root.
+  const overflowY = window.getComputedStyle(tabPage).overflowY;
+  return ['auto', 'scroll', 'overlay'].includes(overflowY) ? tabPage : window;
 };
 const {
   activeForumWindowIndex,
