@@ -268,6 +268,20 @@ Deno.serve(async (request) => {
       });
     });
 
+    const deletedPublicIds = deleted
+      .map((item) => String(item?.publicId || '').trim())
+      .filter(Boolean);
+    if (deletedPublicIds.length) {
+      const { error: markDeletedError } = await serviceClient
+        .from('cloudinary_pending_uploads')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('user_id', authResult.userId)
+        .in('public_id', deletedPublicIds);
+      if (markDeletedError) {
+        console.error('Unable to mark deleted Cloudinary uploads', markDeletedError);
+      }
+    }
+
     return jsonResponse(
       {
         ok: failed.length === 0,

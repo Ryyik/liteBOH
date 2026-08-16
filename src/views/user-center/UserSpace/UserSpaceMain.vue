@@ -541,20 +541,19 @@ const isPointsCardPresetsLoading = ref(false);
 const pointsCardPresetQuota = ref({ capacity: 3, currentCount: 0, tierCode: 'free', canAdd: true });
 const isPointsCardPresetQuotaLoading = ref(false);
 const BACKGROUND_CROP_ASPECT_RATIO = 3;
-const POINTS_CARD_CROP_ASPECT_RATIO = 8 / 5;
 const cropModalAspectRatio = computed(() => cropPurpose.value === 'profile-background'
   ? BACKGROUND_CROP_ASPECT_RATIO
-  : (cropPurpose.value === 'points-card' ? POINTS_CARD_CROP_ASPECT_RATIO : 1));
+  : (cropPurpose.value === 'points-card' ? null : 1));
 const cropModalShape = computed(() => ['profile-background', 'points-card'].includes(cropPurpose.value) ? 'rectangle' : 'circle');
 const cropModalTitle = computed(() => cropPurpose.value === 'profile-background'
   ? '裁切背景'
   : (cropPurpose.value === 'points-card' ? '裁切积分卡面' : '裁切头像'));
 const cropModalHint = computed(() => cropPurpose.value === 'profile-background'
   ? '拖动图片来选择个人卡片背景的显示范围'
-  : (cropPurpose.value === 'points-card' ? '拖动图片来选择积分卡面的显示范围' : '拖动以调整位置，缩放以改变大小'));
+  : (cropPurpose.value === 'points-card' ? '拖动图片，并按需调整裁切框的宽高和显示范围' : '拖动以调整位置，缩放以改变大小'));
 const cropModalSubHint = computed(() => cropPurpose.value === 'profile-background'
   ? '裁切后的横幅会作为个人卡片背景'
-  : (cropPurpose.value === 'points-card' ? '裁切后的图片将作为方块积分自定义卡面' : '裁切后的效果将作为您的新头像'));
+  : (cropPurpose.value === 'points-card' ? '积分卡会自动适配你的自定义卡面' : '裁切后的效果将作为您的新头像'));
 
 const escapeCssUrl = (url = '') => String(url || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 const profileCoverStyle = computed(() => {
@@ -2214,13 +2213,6 @@ const deletePointsCardPreset = async (presetId) => {
   const preset = pointsCardPresets.value.find((item) => item.id === String(presetId || ''));
   if (!preset) return;
 
-  // Delete the Cloudinary asset while the preset is still owned by this user.
-  const cleanupResult = await cleanupCloudinaryPointsCard(preset.imagePublicId, preset.imageUrl);
-  if (!cleanupResult.ok) {
-    showAlert('error', '删除失败', cleanupResult.error?.message || '云端卡面删除失败，请稍后重试');
-    return;
-  }
-
   const { data, error } = await supabase.rpc('delete_points_card_preset', { p_preset_id: preset.id });
   if (error || !data?.ok) {
     logger.error('user-space', '删除积分卡面预设失败:', error || data?.message);
@@ -2230,6 +2222,17 @@ const deletePointsCardPreset = async (presetId) => {
   await authStore.refreshCurrentUserProfile({ force: true });
   pointsCardPresets.value = pointsCardPresets.value.filter((item) => item.id !== preset.id);
   await loadPointsCardPresetQuota();
+
+  const publicId = String(data?.image_public_id || preset.imagePublicId || extractCloudinaryPublicIdFromUrl(data?.image_url || preset.imageUrl)).trim();
+  const imageUrl = String(data?.image_url || preset.imageUrl || '').trim();
+  // The database has recorded ownership before removing the preset, so a
+  // transient cleanup failure cannot block the user's delete action.
+  void cleanupCloudinaryPointsCard(publicId, imageUrl).then((cleanupResult) => {
+    if (!cleanupResult.ok) {
+      logger.warn('user-space', '积分卡面已删除，但云端素材清理稍后重试:', cleanupResult.error);
+    }
+  });
+
   showBottomNavIsland({
     title: data.was_current ? '当前卡面已删除' : '卡面预设已删除',
     message: data.was_current ? '已切换为空白卡' : '其余预设不受影响',
