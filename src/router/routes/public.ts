@@ -1,6 +1,14 @@
 import type { RouteRecordRaw } from 'vue-router'
 
 export const publicRoutes: RouteRecordRaw[] = [
+  ...(import.meta.env.DEV
+    ? [{
+      path: "/__dev/motion",
+      name: "MotionLab",
+      component: () => import("../../views/Dev/MotionLab.vue"),
+      meta: { hideNavbar: true, hideFooter: true },
+    }]
+    : []),
   {
     path: "/",
     name: "Home",
