@@ -18,4 +18,16 @@ describe('AssetsHubPanel overview initial load', () => {
     expect(loadOverview).toContain('finally');
     expect(loadOverview).toContain('overviewLoading.value = false');
   });
+
+  it('ranks a shared insight pool and removes the focused event from recent activity', () => {
+    expect(source).toContain('const overviewCandidates = computed(() => {');
+    expect(source).toContain('b.priority - a.priority || getOverviewTimestamp(b.time) - getOverviewTimestamp(a.time)');
+    expect(source).toContain('const focusActivityIds = new Set(primaryInsight.value.activityIds || []);');
+    expect(source).toContain('.filter((item) => !focusActivityIds.has(item.id))');
+  });
+
+  it('deduplicates recent activity entries and secondary actions', () => {
+    expect(source).toContain('const seenIds = new Set();');
+    expect(source).toContain('const seenActions = new Set([primaryInsight.value.action]);');
+  });
 });

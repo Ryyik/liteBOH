@@ -961,65 +961,202 @@ const formatRelativeDay = (dateValue) => {
   return `${date.getMonth() + 1}/${date.getDate()}`;
 };
 
+const getOverviewTimestamp = (value) => {
+  const timestamp = Date.parse(value || '');
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const overviewCandidates = computed(() => {
+  const candidates = [];
+  const gift = currentGift.value;
+  const giftTime = gift?.updated_at || gift?.created_at || '';
+
+  if (gift && addressCount.value === 0) {
+    const giftAlreadyShipped = gift.gift_status === 'shipped';
+    candidates.push({
+      id: `gift-address-${gift.id}`,
+      priority: 100,
+      tone: 'red',
+      icon: MapPin,
+      kicker: '需要处理',
+      title: '补充礼物收货地址',
+      detail: giftAlreadyShipped
+        ? '礼物已寄出，请尽快补充地址以便后续服务联系。'
+        : '礼物寄送前需要一个有效地址，补充后才能准确安排。',
+      action: 'addresses',
+      actionLabel: '添加地址',
+      activityIds: [`gift-${gift.id}`],
+      time: giftTime,
+      showAsUpcoming: false
+    });
+  } else if (gift?.gift_status === 'shipped') {
+    candidates.push({
+      id: `gift-shipped-${gift.id}`,
+      priority: 90,
+      tone: 'orange',
+      icon: PackageCheck,
+      kicker: '当前最重要',
+      title: '你的礼物已经寄出',
+      detail: gift.gift_no ? `快递单号 ${gift.gift_no}` : '请留意快递信息或取货通知。',
+      action: 'gifts',
+      actionLabel: '查看礼物',
+      activityIds: [`gift-${gift.id}`],
+      time: giftTime,
+      showAsUpcoming: false
+    });
+  } else if (gift) {
+    candidates.push({
+      id: `gift-${gift.id}`,
+      priority: 58,
+      tone: 'blue',
+      icon: Gift,
+      kicker: '礼物动态',
+      title: giftStatusHeadline.value,
+      detail: giftStatusDesc.value,
+      action: 'gifts',
+      actionLabel: '查看详情',
+      activityIds: [`gift-${gift.id}`],
+      time: giftTime,
+      showAsUpcoming: false
+    });
+  }
+
+  if (subscriptionExpiryDays.value !== null && subscriptionExpiryDays.value <= 30) {
+    const isUrgent = subscriptionExpiryDays.value <= 7;
+    candidates.push({
+      id: 'subscription-expiry',
+      priority: isUrgent ? 85 : 68,
+      tone: isUrgent ? 'red' : 'orange',
+      icon: Crown,
+      kicker: isUrgent ? '即将到期' : '值得留意',
+      title: `会员还有 ${subscriptionExpiryDays.value} 天到期`,
+      detail: '查看当前方案和可选会员权益，提前决定是否续订。',
+      action: 'subscription',
+      actionLabel: '管理会员',
+      activityIds: [],
+      time: activeSubscription.value?.expiresAt || '',
+      showAsUpcoming: true
+    });
+  }
+
+  if (recentOrder.value) {
+    candidates.push({
+      id: `order-${recentOrder.value.id}`,
+      priority: 46,
+      tone: 'blue',
+      icon: Package,
+      kicker: '最近订单',
+      title: `已兑换 ${recentOrder.value.item_count} 件商品`,
+      detail: `${formatRelativeDay(recentOrder.value.created_at)}使用 ${recentOrder.value.total_points} 积分完成兑换。`,
+      action: 'orders',
+      actionLabel: '查看订单',
+      activityIds: [`order-${recentOrder.value.id}`],
+      time: recentOrder.value.created_at,
+      showAsUpcoming: false
+    });
+  }
+
+  if (redeemableProducts.value.length > 0) {
+    candidates.push({
+      id: 'redeemable-products',
+      priority: 30,
+      tone: 'green',
+      icon: ShoppingBag,
+      kicker: '可立即使用',
+      title: `你现在可以兑换 ${redeemableProducts.value.length} 件商品`,
+      detail: `从 ${redeemableProducts.value[0].title} 开始，最低需要 ${redeemableProducts.value[0].points_cost} 积分。`,
+      action: 'shop',
+      actionLabel: '去兑换',
+      activityIds: [],
+      time: '',
+      showAsUpcoming: false
+    });
+  }
+
+  return candidates.sort((a, b) => (
+    b.priority - a.priority || getOverviewTimestamp(b.time) - getOverviewTimestamp(a.time)
+  ));
+});
+
 const primaryInsight = computed(() => {
   if (overviewLoading.value) {
-    return { tone: 'neutral', icon: LayoutDashboard, kicker: '正在更新', title: '整理你的账户动态', detail: '正在同步礼物、订单、积分和会员状态。', action: 'overview', actionLabel: '请稍候' };
+    return { id: 'loading', tone: 'neutral', icon: LayoutDashboard, kicker: '正在更新', title: '整理你的账户动态', detail: '正在同步礼物、订单、积分和会员状态。', action: 'overview', actionLabel: '请稍候', activityIds: [], priority: 0 };
   }
-  const gift = currentGift.value;
-  if (gift && addressCount.value === 0) {
-    return { tone: 'red', icon: MapPin, kicker: '需要处理', title: '补充礼物收货地址', detail: '当前账户还没有可用的收货地址，补充后礼物才能准确寄送。', action: 'addresses', actionLabel: '添加地址' };
-  }
-  if (gift?.gift_status === 'shipped') {
-    return { tone: 'orange', icon: PackageCheck, kicker: '当前最重要', title: '你的礼物已经寄出', detail: gift.gift_no ? `快递单号 ${gift.gift_no}` : '请留意快递信息或取货通知。', action: 'gifts', actionLabel: '查看礼物' };
-  }
-  if (subscriptionExpiryDays.value !== null && subscriptionExpiryDays.value <= 7) {
-    return { tone: 'orange', icon: Crown, kicker: '即将到期', title: `会员还有 ${subscriptionExpiryDays.value} 天到期`, detail: '查看当前方案和可选会员权益，避免服务到期。', action: 'subscription', actionLabel: '管理会员' };
-  }
-  if (gift) {
-    return { tone: 'blue', icon: Gift, kicker: '礼物动态', title: giftStatusHeadline.value, detail: giftStatusDesc.value, action: 'gifts', actionLabel: '查看详情' };
-  }
-  if (recentOrder.value) {
-    return { tone: 'blue', icon: Package, kicker: '最近订单', title: `已兑换 ${recentOrder.value.item_count} 件商品`, detail: `${formatRelativeDay(recentOrder.value.created_at)}使用 ${recentOrder.value.total_points} 积分完成兑换。`, action: 'orders', actionLabel: '查看订单' };
-  }
-  if (redeemableProducts.value.length > 0) {
-    return { tone: 'green', icon: ShoppingBag, kicker: '可立即使用', title: `你现在可以兑换 ${redeemableProducts.value.length} 件商品`, detail: `从 ${redeemableProducts.value[0].title} 开始，最低需要 ${redeemableProducts.value[0].points_cost} 积分。`, action: 'shop', actionLabel: '去兑换' };
-  }
-  return { tone: 'neutral', icon: Check, kicker: '账户状态', title: '账户一切就绪', detail: pointsContextText.value, action: 'points', actionLabel: '查看明细' };
+  return overviewCandidates.value[0] || {
+    id: 'all-clear',
+    tone: 'neutral',
+    icon: Check,
+    kicker: '账户状态',
+    title: '账户一切就绪',
+    detail: pointsContextText.value,
+    action: 'points',
+    actionLabel: '查看明细',
+    activityIds: [],
+    priority: 0
+  };
 });
 
 const overviewTitle = computed(() => {
-  if (currentGift.value && addressCount.value === 0) return '有一项信息需要补充';
-  if (currentGift.value?.gift_status === 'shipped') return '你的礼物正在路上';
-  if (subscriptionExpiryDays.value !== null && subscriptionExpiryDays.value <= 7) return '有一项权益即将到期';
-  if (currentGift.value || recentOrder.value) return '最近有新的账户动态';
-  if (redeemableProducts.value.length > 0) return '你的积分现在可以使用';
+  if (overviewLoading.value) return '正在整理账户动态';
+  if (primaryInsight.value.priority >= 80) return '优先处理这件事';
+  if (primaryInsight.value.id.startsWith('gift-') || primaryInsight.value.id.startsWith('order-')) return '最近有新的账户动态';
+  if (primaryInsight.value.id === 'redeemable-products') return '你的积分现在可以使用';
   return '账户状态良好';
 });
 const overviewSubtitle = computed(() => {
   if (overviewLoading.value) return '正在整理你的账户动态';
   if (overviewHasErrors.value) return '部分信息暂未更新，其余内容仍可正常查看';
-  return primaryInsight.value.detail;
+  return '已按紧急程度、时效和可操作性完成排序';
 });
 
 const recentActivities = computed(() => {
+  const focusActivityIds = new Set(primaryInsight.value.activityIds || []);
   const activities = [];
   if (currentGift.value) {
     activities.push({ id: `gift-${currentGift.value.id}`, time: currentGift.value.updated_at || currentGift.value.created_at, tone: currentGift.value.gift_status === 'shipped' ? 'orange' : 'blue', title: getGiftStatusLabel(currentGift.value.gift_status), detail: currentGift.value.gift_content || '当前礼物状态已更新', action: 'gifts' });
   }
-  orders.value.slice(0, 2).forEach((order) => activities.push({ id: `order-${order.id}`, time: order.created_at, tone: 'blue', title: '商城订单', detail: `${order.item_count} 件商品 · -${order.total_points} 积分`, action: 'orders' }));
+  fulfillmentRecords.value.slice(0, 3).forEach((record) => activities.push({
+    id: record.id,
+    time: record.time,
+    tone: record.type === 'gift' ? (record.status === 'shipped' ? 'orange' : 'blue') : 'blue',
+    title: record.type === 'gift' ? getGiftStatusLabel(record.status) : '商城订单',
+    detail: record.type === 'gift'
+      ? (record.title || '礼物状态已更新')
+      : `${record.title.replace('商城订单 · ', '')} · -${record.points} 积分`,
+    action: record.type === 'gift' ? 'gifts' : 'orders'
+  }));
   ledger.value.filter((item) => !String(item.key).startsWith('order-')).slice(0, 3).forEach((item) => activities.push({ id: item.key, time: item.time, tone: item.tone, title: item.title, detail: `${item.remark || '积分变动'}${item.amount ? ` · ${item.amount > 0 ? '+' : ''}${item.amount}` : ''}`, action: 'points' }));
+  const seenIds = new Set();
   return activities
+    .filter((item) => !focusActivityIds.has(item.id))
     .filter((item) => Number.isFinite(Date.parse(item.time || '')))
     .sort((a, b) => Date.parse(b.time) - Date.parse(a.time))
+    .filter((item) => {
+      if (seenIds.has(item.id)) return false;
+      seenIds.add(item.id);
+      return true;
+    })
     .slice(0, 3)
     .map((item) => ({ ...item, timeLabel: formatRelativeDay(item.time) }));
 });
 
 const upcomingItems = computed(() => {
-  const items = [];
-  if (currentGift.value && addressCount.value === 0) items.push({ id: 'address', tone: 'red', icon: MapPin, title: '补充收货地址', detail: '礼物寄送前需要一个有效地址', action: 'addresses' });
-  if (subscriptionExpiryDays.value !== null && subscriptionExpiryDays.value <= 30) items.push({ id: 'expiry', tone: subscriptionExpiryDays.value <= 7 ? 'red' : 'orange', icon: Crown, title: `会员 ${subscriptionExpiryDays.value} 天后到期`, detail: '提前查看续订或更改方案', action: 'subscription' });
-  const secondaryItems = items.filter((item) => item.action !== primaryInsight.value.action);
+  const seenActions = new Set([primaryInsight.value.action]);
+  const secondaryItems = overviewCandidates.value
+    .filter((item) => item.showAsUpcoming && item.id !== primaryInsight.value.id)
+    .filter((item) => {
+      if (seenActions.has(item.action)) return false;
+      seenActions.add(item.action);
+      return true;
+    })
+    .map((item) => ({
+      id: item.id,
+      tone: item.tone,
+      icon: item.icon,
+      title: item.title,
+      detail: item.detail,
+      action: item.action
+    }));
   if (!secondaryItems.length && !redeemableProducts.value.length && nextRewardProduct.value) {
     const gap = Number(nextRewardProduct.value.points_cost) - userPoints.value;
     secondaryItems.push({ id: 'next-reward', tone: 'blue', icon: Coins, title: `再获得 ${gap} 积分`, detail: `即可兑换 ${nextRewardProduct.value.title}`, action: 'points' });
