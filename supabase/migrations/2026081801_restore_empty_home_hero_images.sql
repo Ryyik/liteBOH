@@ -8,7 +8,10 @@ with latest_valid_snapshots as (
     snapshot -> 'image_config' as image_config
   from public.home_heroes_revisions
   where jsonb_typeof(snapshot -> 'image_config') = 'object'
-    and jsonb_object_length(snapshot -> 'image_config') > 0
+    and exists (
+      select 1
+      from jsonb_object_keys(snapshot -> 'image_config') as image_key
+    )
     and coalesce(snapshot ->> 'template', '') <> 'split'
   order by hero_id, published_at desc
 )
