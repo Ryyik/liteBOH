@@ -159,14 +159,14 @@ defineExpose({ searchModel });
   position: sticky;
   top: 0;
   z-index: 1000;
-  height: var(--dm-header-height);
+  height: calc(var(--dm-header-height) + env(safe-area-inset-top));
   background: var(--background);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: calc(var(--spacing) * 4);
-  padding: 0 calc(var(--spacing) * 6);
+  padding: env(safe-area-inset-top) calc(var(--spacing) * 6) 0;
 }
 
 .g-topbar-left,

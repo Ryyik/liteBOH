@@ -8,7 +8,7 @@ export const TAB_WRITABLE_FIELDS = {
   forum: ['content', 'author_id', 'author_username', 'status', 'tag', 'cover_image_url', 'location_name', 'updated_at'],
   coreMemories: ['title', 'content', 'category', 'tags', 'priority', 'source_label', 'source_url', 'status', 'updated_by'],
   bohaiModels: ['mode_id', 'display_name', 'tagline', 'description', 'provider', 'provider_label', 'model_id', 'api_url', 'capability', 'icon', 'temperature', 'top_p', 'frequency_penalty', 'max_tokens', 'quota_multiplier', 'min_tier', 'status', 'sort_order', 'notes', 'created_by', 'updated_by'],
-  lotteries: ['title', 'description', 'prize_title', 'prize_description', 'cover_image_url', 'status', 'is_community_visible', 'is_home_visible', 'enforce_account_age_check', 'max_entries', 'winner_count', 'entry_deadline_at', 'draw_at', 'fulfillment_status', 'created_by', 'updated_by'],
+  lotteries: ['title', 'description', 'prize_title', 'prize_description', 'cover_image_url', 'status', 'is_community_visible', 'is_home_visible', 'enforce_account_age_check', 'max_entries', 'winner_count', 'pity_winner_count', 'pity_mode', 'entry_deadline_at', 'draw_at', 'fulfillment_status', 'created_by', 'updated_by'],
   news: ['id', 'category', 'title', 'excerpt', 'content', 'date', 'author', 'image'],
   activities: ['id', 'title', 'date', 'image', 'description'],
   products: ['id', 'title', 'category', 'description', 'points_cost', 'stock', 'image', 'specifications', 'is_active', 'is_purchasable', 'payment_mode', 'rmb_price'],
@@ -38,6 +38,12 @@ export const FORUM_STATUS_OPTIONS = [
   { value: 'approved', label: '已通过（approved）' },
   { value: 'limited', label: '仅作者可见（limited）' },
   { value: 'rejected', label: '已拒绝（rejected）' }
+];
+
+export const LOTTERY_PITY_MODE_OPTIONS = [
+  { value: 'none', label: '不计入保底失败' },
+  { value: 'count_only', label: '计入保底失败，不允许保底中奖' },
+  { value: 'eligible', label: '计入保底失败，允许保底中奖' }
 ];
 
 export const PRODUCT_CATEGORY_OPTIONS = [

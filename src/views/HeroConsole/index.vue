@@ -400,9 +400,21 @@
               <button type="button" class="text-button" @click="openCropper('split', idx)">
                 <Crop :size="14" /> 裁切卡片 {{ idx + 1 }} 图片
               </button>
+              </div>
             </div>
           </div>
-        </div>
+
+          <div class="compression-settings" role="group" aria-label="图片压缩设置">
+            <label class="compression-toggle">
+              <input v-model="autoCompressImages" type="checkbox" />
+              <span>上传时自动压缩</span>
+            </label>
+            <label v-if="autoCompressImages" class="compression-quality">
+              <span>压缩质量 {{ compressionQuality }}%</span>
+              <input v-model.number="compressionQuality" type="range" min="40" max="100" step="1" />
+            </label>
+            <small>仅当文件超过 10MB 时自动压缩；10MB 以内保持原图质量。</small>
+          </div>
 
         <!-- 按钮配置 -->
         <div class="spec-section" v-if="!isBuiltin">
@@ -549,6 +561,12 @@ import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { useAuthStore } from '@/stores/auth';
 import { useHomeHeroesStore } from '@/stores/homeHeroes';
 import { uploadImageToCloudinary, isCloudinaryNoteUploadConfigured } from '@/utils/cloudinary-client.js';
+import {
+  compressImageFileToUploadLimit,
+  formatImageFileSize,
+  getImageCompressionPlan
+} from '@/utils/image-compression.js';
+import { CLOUD_UPLOAD_MAX_IMAGE_SIZE_BYTES } from '@/utils/cloud-upload-guard.js';
 import { supabase } from '@/utils/supabase-client.js';
 import { logger } from '@/utils/logger.js';
 
@@ -580,6 +598,17 @@ const cropVisible = ref(false);
 const cropSource = ref('');
 const cropTarget = ref({ type: 'main', splitIndex: -1 }); // main / split
 const isUploading = ref(false);
+const HERO_COMPRESSION_SETTINGS_KEY = 'boh.hero-console.image-compression.v1';
+const savedCompressionSettings = (() => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(HERO_COMPRESSION_SETTINGS_KEY) || '{}');
+    return raw && typeof raw === 'object' ? raw : {};
+  } catch {
+    return {};
+  }
+})();
+const autoCompressImages = ref(savedCompressionSettings.autoCompress !== false);
+const compressionQuality = ref(Math.min(100, Math.max(40, Number(savedCompressionSettings.quality) || 82)));
 let tempCounter = 0;
 
 // 抽奖活动选择器
@@ -925,7 +954,8 @@ function startNewHero() {
   const tempId = `temp-${tempCounter}`;
   const newHero = {
     id: tempId,
-    sort_order: heroes.value.length,
+    // 新建项使用负数排序值，确保保存后位于所有现有英雄区之前。
+    sort_order: -1,
     is_archived: false,
     template: 'standard',
     variant: 'light',
@@ -1106,6 +1136,73 @@ function openCropper(type, splitIndex = -1) {
   input.click();
 }
 
+function persistCompressionSettings() {
+  try {
+    localStorage.setItem(HERO_COMPRESSION_SETTINGS_KEY, JSON.stringify({
+      autoCompress: autoCompressImages.value,
+      quality: compressionQuality.value
+    }));
+  } catch {
+    // 本地存储不可用时仍保持当前页面设置。
+  }
+}
+
+watch([autoCompressImages, compressionQuality], persistCompressionSettings);
+
+async function prepareHeroImage(file) {
+  const originalSize = Number(file?.size || 0);
+  if (!autoCompressImages.value || !file) {
+    return {
+      file,
+      changed: false,
+      status: autoCompressImages.value ? 'empty' : 'disabled',
+      originalSize,
+      compressedSize: originalSize
+    };
+  }
+  if (originalSize <= CLOUD_UPLOAD_MAX_IMAGE_SIZE_BYTES) {
+    return { file, changed: false, status: 'not-needed', originalSize, compressedSize: originalSize };
+  }
+
+  try {
+    const plan = await getImageCompressionPlan(file, {
+      maxSizeBytes: CLOUD_UPLOAD_MAX_IMAGE_SIZE_BYTES,
+      optimizeForUpload: true,
+      optimizedTargetSizeMB: 9.6,
+      optimizedMaxDimension: 2048,
+      targetSizeMB: 9.6
+    });
+    if (!plan.canCompress || !plan.shouldCompress) {
+      return { file, changed: false, status: 'not-needed', originalSize, compressedSize: originalSize };
+    }
+
+    const compressedFile = await compressImageFileToUploadLimit(file, plan, {
+      initialQuality: compressionQuality.value / 100,
+      targetSizeMB: plan.targetSizeMB,
+      maxIteration: 8
+    });
+    const compressedSize = Number(compressedFile?.size || 0);
+    if (!compressedSize || compressedSize >= originalSize) {
+      return { file, changed: false, status: 'not-smaller', originalSize, compressedSize: originalSize };
+    }
+    return { file: compressedFile, changed: true, status: 'compressed', originalSize, compressedSize };
+  } catch (error) {
+    logger.warn('hero-console', '图片自动压缩失败，将尝试上传原图', error);
+    return { file, changed: false, status: 'failed', originalSize, compressedSize: originalSize, compressionError: true };
+  }
+}
+
+function compressionToast(result) {
+  if (result?.status === 'compressed') {
+    return `图片已自动压缩：${formatImageFileSize(result.originalSize)} → ${formatImageFileSize(result.compressedSize)}`;
+  }
+  if (result?.status === 'disabled') return '图片已上传（自动压缩未开启）';
+  if (result?.status === 'failed') return '自动压缩失败，已上传原图';
+  if (result?.status === 'not-smaller') return '图片已上传（压缩后没有更小，保留原图）';
+  if (result?.status === 'not-needed') return '图片已上传（原图已符合压缩条件，无需处理）';
+  return '图片已上传';
+}
+
 async function openDirectUpload(type, splitIndex = -1) {
   const input = document.createElement('input');
   input.type = 'file';
@@ -1123,7 +1220,8 @@ async function openDirectUpload(type, splitIndex = -1) {
     }
     isUploading.value = true;
     try {
-      const uploaded = await uploadImageToCloudinary(file, {
+      const prepared = await prepareHeroImage(file);
+      const uploaded = await uploadImageToCloudinary(prepared.file, {
         folder: 'boh-cloud-plus/admin-hero-console',
         pendingSource: 'hero-console'
       });
@@ -1142,7 +1240,7 @@ async function openDirectUpload(type, splitIndex = -1) {
         draftHero.value.image_config.src = uploaded.url;
       }
       markDirty(selectedId.value);
-      showToast('图片已上传');
+      showToast(compressionToast(prepared));
     } catch (error) {
       logger.error('hero-console', '英雄区图片上传失败', error);
       showToast(`图片上传失败：${error?.message || '未知错误'}`);
@@ -1161,7 +1259,8 @@ async function handleCropConfirm(blob) {
     isUploading.value = true;
     localPreview = URL.createObjectURL(blob);
     const file = new File([blob], `hero-${Date.now()}.webp`, { type: 'image/webp' });
-    const uploaded = await uploadImageToCloudinary(file, {
+    const prepared = await prepareHeroImage(file);
+    const uploaded = await uploadImageToCloudinary(prepared.file, {
       folder: 'boh-cloud-plus/admin-hero-console',
       pendingSource: 'hero-console'
     });
@@ -1185,7 +1284,7 @@ async function handleCropConfirm(blob) {
     localPreview = '';
     cropVisible.value = false;
     releaseCropSource();
-    showToast('图片已上传，保存后生效');
+    showToast(`${compressionToast(prepared)}，保存后生效`);
   } catch (error) {
     if (localPreview) {
       URL.revokeObjectURL(localPreview);
@@ -1285,6 +1384,55 @@ onBeforeUnmount(() => {
   color: var(--text);
   background: #f2f2f7;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+}
+
+.compression-settings {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr);
+  align-items: center;
+  gap: 8px 16px;
+  margin: 12px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--fill) 62%, transparent);
+}
+
+.compression-settings small {
+  grid-column: 1 / -1;
+  color: var(--secondary);
+  font-size: 12px;
+}
+
+.compression-toggle,
+.compression-quality {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.compression-quality {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.compression-quality input[type='range'] {
+  min-width: 120px;
+  accent-color: var(--blue);
+}
+
+@media (max-width: 720px) {
+  .compression-settings {
+    grid-template-columns: 1fr;
+  }
+
+  .compression-quality {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
 }
 
 .hero-console button, .hero-console input, .hero-console select, .hero-console textarea {

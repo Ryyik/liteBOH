@@ -46,7 +46,7 @@
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  padding: 18px 24px;
+  padding: calc(18px + env(safe-area-inset-top)) 24px 18px;
   border-bottom: 1px solid var(--border);
   background: var(--card);
   flex-shrink: 0;
@@ -116,7 +116,7 @@
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  padding: 12px 24px;
+  padding: 12px 24px calc(12px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--border);
   background: var(--card);
   flex-shrink: 0;
@@ -690,7 +690,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   font-family: "DM Sans", ui-sans-serif, sans-serif, system-ui;
 }
 

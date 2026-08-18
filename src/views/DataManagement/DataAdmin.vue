@@ -444,22 +444,89 @@
                 </div>
               </div>
               <div class="mobile-card-actions">
-                <button v-if="currentTab === 'lotteries' && item.status === 'open'" class="review-btn approve mobile-lottery-btn" :disabled="isLotteryActionPending(item.id)" @click="drawLotteryNow(item)">开奖</button>
-                <button v-if="currentTab === 'lotteries' && item.status === 'drawn'" class="review-btn approve mobile-lottery-btn" :disabled="isLotteryActionPending(item.id)" @click="redrawLottery(item)">重抽</button>
-                <button v-if="currentTab === 'lotteries'" class="review-btn approve mobile-lottery-btn" @click="viewLotteryFulfillments(item)">履约</button>
-                <button v-if="currentTab === 'lotteries'" class="review-btn approve mobile-lottery-btn" @click="viewLotteryEntries(item)">名单</button>
-                <button v-if="currentTab === 'lotteries'" class="review-btn approve mobile-lottery-btn" @click="viewLotteryDrawLogs(item)">日志</button>
-                <button v-if="currentTab === 'lotteries' && item.status !== 'closed'" class="review-btn reject mobile-lottery-btn" :disabled="isLotteryActionPending(item.id)" @click="closeLottery(item)">关闭</button>
-                <button v-if="currentTab === 'lotteryFulfillments' && item.is_current && !['fulfilled', 'forfeited', 'voided'].includes(item.status)" class="review-btn approve mobile-lottery-btn" @click="advanceLotteryFulfillment(item)">推进</button>
-                <button v-if="currentTab === 'lotteryFulfillments' && item.is_current && item.status !== 'fulfilled'" class="review-btn reject mobile-lottery-btn" @click="replaceLotteryWinner(item)">替补</button>
-                <button v-if="currentTab === 'lotteryNotificationJobs' && item.status !== 'sent'" class="review-btn approve mobile-lottery-btn" @click="retryLotteryNotification(item)">重试</button>
-                <button v-if="canEditCurrentTab" class="mobile-action-btn edit" @click="openEditModal(item)" aria-label="编辑">
+                <template v-if="isModerationTab">
+                  <button
+                    type="button"
+                    class="review-btn approve"
+                    :disabled="isModerationActionPending(item.id)"
+                    @click="approveModerationItem(item)"
+                  >{{ isRejectedModerationRecord(item) ? '恢复' : '通过' }}</button>
+                  <button
+                    v-if="isMessageModerationTab && !isRejectedModerationRecord(item)"
+                    type="button"
+                    class="review-btn reject"
+                    :disabled="isModerationActionPending(item.id)"
+                    @click="rejectModerationItem(item)"
+                  >拒绝</button>
+                  <button
+                    v-if="isReportedPostModerationTab && !isRejectedModerationRecord(item)"
+                    type="button"
+                    class="review-btn reject"
+                    :disabled="isModerationActionPending(item.id)"
+                    @click="keepLimitedModerationItem(item)"
+                  >维持下架</button>
+                  <button
+                    v-if="isRejectedModerationRecord(item) || isMessageModerationTab"
+                    type="button"
+                    class="review-btn reject"
+                    :disabled="isModerationActionPending(item.id)"
+                    @click="deleteModerationItem(item)"
+                  >删除</button>
+                  <button
+                    v-else
+                    type="button"
+                    class="review-btn reject"
+                    :disabled="isModerationActionPending(item.id)"
+                    @click="rejectModerationItem(item)"
+                  >拒绝</button>
+                </template>
+                <template v-else>
+                  <button v-if="currentTab === 'lotteries' && item.status === 'open'" type="button" class="review-btn approve mobile-lottery-btn" :disabled="isLotteryActionPending(item.id)" @click="drawLotteryNow(item)">开奖</button>
+                  <button v-if="currentTab === 'lotteries' && item.status === 'drawn' && item.pity_mode !== 'eligible'" type="button" class="review-btn approve mobile-lottery-btn" :disabled="isLotteryActionPending(item.id)" @click="redrawLottery(item)">重抽</button>
+                  <button v-if="currentTab === 'lotteries'" type="button" class="review-btn approve mobile-lottery-btn" @click="viewLotteryFulfillments(item)">履约</button>
+                  <button v-if="currentTab === 'lotteries'" type="button" class="review-btn approve mobile-lottery-btn" @click="viewLotteryEntries(item)">名单</button>
+                  <button v-if="currentTab === 'lotteries'" type="button" class="review-btn approve mobile-lottery-btn" @click="viewLotteryDrawLogs(item)">日志</button>
+                  <button v-if="currentTab === 'lotteries' && item.status !== 'closed'" type="button" class="review-btn reject mobile-lottery-btn" :disabled="isLotteryActionPending(item.id)" @click="closeLottery(item)">关闭</button>
+                  <button v-if="currentTab === 'lotteryFulfillments' && item.is_current && !['fulfilled', 'forfeited', 'voided'].includes(item.status)" type="button" class="review-btn approve mobile-lottery-btn" @click="advanceLotteryFulfillment(item)">推进</button>
+                  <button v-if="currentTab === 'lotteryFulfillments' && item.is_current && item.status !== 'fulfilled'" type="button" class="review-btn reject mobile-lottery-btn" @click="replaceLotteryWinner(item)">替补</button>
+                  <button v-if="currentTab === 'lotteryNotificationJobs' && item.status !== 'sent'" type="button" class="review-btn approve mobile-lottery-btn" @click="retryLotteryNotification(item)">重试</button>
+                  <template v-if="canBanMute">
+                    <button v-if="!item.is_banned" type="button" class="review-btn reject" @click="banUser(item)">封禁</button>
+                    <button v-else type="button" class="review-btn approve" @click="unbanUser(item)">解封</button>
+                    <button v-if="!item.is_muted" type="button" class="review-btn reject" @click="muteUser(item)">禁言</button>
+                    <button v-else type="button" class="review-btn approve" @click="unmuteUser(item)">解禁</button>
+                  </template>
+                </template>
+                <button v-if="canEditCurrentTab" type="button" class="mobile-action-btn edit" @click="openEditModal(item)" aria-label="编辑">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                 </button>
-                <button v-if="canDeleteCurrentTab && !isProfileDerivedTab" class="mobile-action-btn delete" @click="deleteItem(item)" aria-label="删除">
+                <button v-if="canDeleteCurrentTab && !isProfileDerivedTab" type="button" class="mobile-action-btn delete" @click="deleteItem(item)" aria-label="删除">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                 </button>
               </div>
+            </div>
+          </div>
+
+          <div v-if="isMobileView && totalRecordCount > 0" class="mobile-data-pagination">
+            <span class="g-sheet-foot-text">
+              显示 {{ (currentPage - 1) * pageSize + 1 }} - {{ Math.min(currentPage * pageSize, totalRecordCount) }} 条 / 共 {{ totalRecordCount }} 条
+            </span>
+            <div class="mobile-pagination-controls">
+              <label class="mobile-page-size">
+                每页
+                <select v-model="pageSize" aria-label="每页条数">
+                  <option :value="10">10</option>
+                  <option :value="20">20</option>
+                  <option :value="50">50</option>
+                  <option :value="100">100</option>
+                </select>
+                条
+              </label>
+              <DashboardPagination
+                v-model="currentPage"
+                :total="totalRecordCount"
+                :page-size="pageSize"
+              />
             </div>
           </div>
 
@@ -543,7 +610,7 @@
                 </div>
                 <div class="lottery-card-actions">
                   <button v-if="currentTab === 'lotteries' && item.status === 'open'" class="review-btn approve" :disabled="isLotteryActionPending(item.id)" @click="drawLotteryNow(item)" title="立即随机开奖">开奖</button>
-                <button v-if="currentTab === 'lotteries' && item.status === 'drawn'" class="review-btn approve" :disabled="isLotteryActionPending(item.id)" @click="redrawLottery(item)" title="保留历史记录并重新随机开奖">重抽</button>
+                <button v-if="currentTab === 'lotteries' && item.status === 'drawn' && item.pity_mode !== 'eligible'" class="review-btn approve" :disabled="isLotteryActionPending(item.id)" @click="redrawLottery(item)" title="保留历史记录并重新随机开奖">重抽</button>
                 <button v-if="currentTab === 'lotteries'" class="review-btn approve" @click="viewLotteryFulfillments(item)" title="按中奖人处理联系、发货和替补">履约</button>
                 <button v-if="currentTab === 'lotteries'" class="review-btn approve" @click="viewLotteryEntries(item)" title="查看本次抽奖报名名单">名单</button>
                   <button v-if="currentTab === 'lotteries'" class="review-btn approve" @click="viewLotteryDrawLogs(item)" title="查看本次抽奖开奖日志">日志</button>
@@ -731,7 +798,7 @@
                           开奖
                         </button>
                         <button
-                          v-if="currentTab === 'lotteries' && item.status === 'drawn'"
+                          v-if="currentTab === 'lotteries' && item.status === 'drawn' && item.pity_mode !== 'eligible'"
                           class="review-btn approve"
                           :disabled="isLotteryActionPending(item.id)"
                           @click="redrawLottery(item)"
@@ -1223,6 +1290,7 @@ const getCardStatusMeta = (item, config) => {
 
 // 卡片一键复制
 const copiedFieldKey = ref('');
+const getCardFieldCopyKey = (item, meta) => `${item?.id || getRowIdentity(item)}:${meta?.key || ''}`;
 const copyCardField = async (item, meta) => {
   let text;
   if (meta.copyText === 'fullAddress') {
@@ -1234,7 +1302,7 @@ const copyCardField = async (item, meta) => {
   if (!text) return;
   try {
     await navigator.clipboard.writeText(text);
-    const stamp = `${meta.key}-${Date.now()}`;
+    const stamp = getCardFieldCopyKey(item, meta);
     copiedFieldKey.value = stamp;
     setTimeout(() => { if (copiedFieldKey.value === stamp) copiedFieldKey.value = ''; }, 1500);
   } catch (e) {
@@ -1242,7 +1310,7 @@ const copyCardField = async (item, meta) => {
   }
 };
 const isCardFieldCopied = (meta, item) => {
-  return copiedFieldKey.value === `${meta.key}-${item?.id}` || copiedFieldKey.value.startsWith(`${meta.key}-`);
+  return copiedFieldKey.value === getCardFieldCopyKey(item, meta);
 };
 
 const currentTheme = ref('light');
@@ -3934,6 +4002,8 @@ const openEditModal = async (item = null) => {
         editingItem.value.is_community_visible = true;
         editingItem.value.max_entries = null;
         editingItem.value.winner_count = 1;
+        editingItem.value.pity_winner_count = null;
+        editingItem.value.pity_mode = 'count_only';
         editingItem.value.entry_deadline_at = '';
         editingItem.value.draw_at = '';
         editingItem.value.drawn_at = '';
@@ -4776,6 +4846,11 @@ onUnmounted(() => {
 @import './styles/console.css';
 @import './styles/responsive.css';
 
+/* 侧栏与遮罩从管理页顶部工具栏下方开始，避免移动端覆盖操作区。 */
+.data-management-page {
+  --dm-nav-height: calc(var(--dm-header-height) + env(safe-area-inset-top));
+}
+
 /* Module sub-tabs (Google-style underline tabs) */
 .g-module-tabs {
   display: flex;
@@ -4823,6 +4898,7 @@ onUnmounted(() => {
   align-items: stretch;
   gap: 0;
   min-height: calc(100vh - var(--dm-nav-height));
+  min-height: calc(100dvh - var(--dm-nav-height));
   position: relative;
   background: var(--background);
 }
@@ -4840,6 +4916,81 @@ onUnmounted(() => {
   max-width: 1320px;
   width: 100%;
   margin: 0 auto;
+}
+
+@media (max-width: 768px) {
+  .data-management-page {
+    --dm-header-height: 58px;
+  }
+
+  .advanced-filter-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .advanced-filter-row > *,
+  .panel-inline-form > * {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .editor-panel {
+    margin-inline: 0;
+  }
+
+  .mobile-data-pagination {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin-top: 16px;
+    padding: 12px 4px calc(12px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border);
+  }
+
+  .mobile-data-pagination .g-sheet-foot-text {
+    text-align: center;
+  }
+
+  .mobile-data-pagination .g-pager {
+    justify-content: center;
+  }
+
+  .mobile-pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .mobile-page-size {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--muted-foreground);
+    font-size: 0.78rem;
+  }
+
+  .mobile-page-size select {
+    min-height: 32px;
+    padding: 0 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--card);
+    color: var(--foreground);
+  }
+}
+
+@media (min-width: 769px) {
+  .mobile-data-pagination {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .data-management-page {
+    --dm-header-height: 56px;
+  }
 }
 
 .sidebar-scrim {

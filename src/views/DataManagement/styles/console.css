@@ -1533,8 +1533,9 @@
 .mobile-card-field {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
+  min-width: 0;
 }
 
 .mobile-card-label {
@@ -1550,8 +1551,10 @@
   text-align: right;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
   max-width: 60%;
+  min-width: 0;
 }
 
 .mobile-card-actions {
@@ -1600,8 +1603,8 @@
 /* ==================== FAB 按钮 ==================== */
 .fab-button {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  right: calc(24px + env(safe-area-inset-right));
   width: 56px;
   height: 56px;
   border-radius: 50%;

@@ -156,7 +156,7 @@
               </button>
               <div class="field-group-body">
                 <template v-for="field in group.fields" :key="field.key">
-                  <div class="form-group" :class="[`field-${field.type}`, { 'full-width': isFullWidthField(field) }]">
+                  <div v-if="isFieldVisible(field)" class="form-group" :class="[`field-${field.type}`, { 'full-width': isFullWidthField(field) }]">
                     <label class="form-label" :for="`f-${currentTab}-${field.key}`">
                       <span>{{ field.label }}</span>
                       <span v-if="field.required" class="required">*</span>
@@ -594,6 +594,11 @@ const FULL_WIDTH_TYPES = new Set([
 ]);
 
 const isFullWidthField = (field) => FULL_WIDTH_TYPES.has(field?.type) || field?.fullWidth;
+
+const isFieldVisible = (field) => {
+  if (typeof field?.visibleWhen !== 'function') return true;
+  return field.visibleWhen(props.editingItem || {});
+};
 
 // 字段分组规则: 每个 tab 单独定义分组
 const GROUP_RULES = {

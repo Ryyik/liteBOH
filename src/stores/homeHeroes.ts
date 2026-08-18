@@ -422,7 +422,8 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
         .single()
       if (error) throw error
       const hero = normalizeHero(data as Record<string, unknown>)
-      allHeroes.value = [...allHeroes.value, hero]
+      // 新建英雄区的负数 sort_order 位于顶部；同步本地状态时也立即插到首位。
+      allHeroes.value = [hero, ...allHeroes.value]
       return hero
     } catch (error) {
       logger.error('home-heroes-store', '创建英雄区失败', error)

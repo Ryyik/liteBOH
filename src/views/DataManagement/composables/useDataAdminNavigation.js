@@ -156,6 +156,7 @@ export const createNavigationCenter = ({
   const handleOverviewTabClick = (tabId) => {
     activeAdminSectionRef.value = 'data';
     switchTab(tabId);
+    isAdminSidebarOpenRef.value = false;
   };
 
   const handleSidebarTabClick = (tabId) => {
@@ -168,15 +169,18 @@ export const createNavigationCenter = ({
   const handlePlaceholderAction = (action) => {
     if (action?.route) {
       router.push(action.route);
+      isAdminSidebarOpenRef.value = false;
       return;
     }
     if (action?.section && !action?.tab) {
       activeAdminSectionRef.value = action.section;
+      isAdminSidebarOpenRef.value = false;
       return;
     }
     if (!action?.tab) return;
     activeAdminSectionRef.value = action.section || 'data';
     switchTab(action.tab);
+    isAdminSidebarOpenRef.value = false;
   };
 
   const getTabsByGroup = (group) => {
@@ -188,6 +192,7 @@ export const createNavigationCenter = ({
     if (activeAdminSectionRef.value === 'overview' || isPlaceholderAdminSectionRef.value) {
       activeAdminSectionRef.value = 'data';
     }
+    isAdminSidebarOpenRef.value = false;
     currentTabRef.value = tabId;
     const tabInfo = tabs.find(t => t.id === tabId);
     if (tabInfo?.module && activeModule.value !== tabInfo.module) {

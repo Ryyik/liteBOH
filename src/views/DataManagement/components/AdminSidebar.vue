@@ -120,6 +120,7 @@ const clearSearch = () => {
   position: sticky;
   top: var(--dm-nav-height);
   height: calc(100vh - var(--dm-nav-height));
+  height: calc(100dvh - var(--dm-nav-height));
   background: var(--sidebar);
   color: var(--sidebar-foreground);
   border-right: 1px solid var(--sidebar-border);
@@ -355,6 +356,8 @@ const clearSearch = () => {
     transform: translateX(-100%);
     transition: transform 0.35s cubic-bezier(0.25, 0.1, 0.25, 1);
     z-index: 1050;
+    padding-bottom: calc(var(--spacing) * 4 + env(safe-area-inset-bottom));
+    overscroll-behavior: contain;
   }
   .g-sidebar.open { transform: translateX(0); }
 }
