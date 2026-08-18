@@ -72,8 +72,10 @@ jobs:
             exit 0
           fi
 
-          curl --fail-with-body --silent --show-error --request POST \
+          if ! curl --fail-with-body --silent --show-error --request POST \
             "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/purge_cache" \
             --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             --header "Content-Type: application/json" \
-            --data '{"files":["https://www.blockofhome.cn/","https://www.blockofhome.cn/index.html","https://www.blockofhome.cn/sw.js","https://www.blockofhome.cn/version.json","https://www.blockofhome.cn/manifest.webmanifest","https://blockofhome.cn/","https://blockofhome.cn/index.html","https://blockofhome.cn/sw.js","https://blockofhome.cn/version.json","https://blockofhome.cn/manifest.webmanifest"]}'
+            --data '{"files":["https://www.blockofhome.cn/","https://www.blockofhome.cn/index.html","https://www.blockofhome.cn/sw.js","https://www.blockofhome.cn/version.json","https://www.blockofhome.cn/manifest.webmanifest","https://blockofhome.cn/","https://blockofhome.cn/index.html","https://blockofhome.cn/sw.js","https://blockofhome.cn/version.json","https://blockofhome.cn/manifest.webmanifest"]}'; then
+            echo "::warning::Cloudflare cache purge failed; GitHub Pages deployment will continue."
+          fi
