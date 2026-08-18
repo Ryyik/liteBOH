@@ -3445,8 +3445,7 @@ const openPostDetail = (postId) => {
             <button type="button" class="mobile-composer-submit" :class="{ 'is-staged-submitting': isStagedSubmitting }" @click="handlePost"
               :disabled="isSubmitting || isUploadingPostImage || isStagedSubmitting || postCooldownSeconds > 0">
               <span class="mobile-composer-submit-label">{{ isStagedSubmitting ? `${Math.round(stagedSubmitState.progress)}%` : (postCooldownSeconds > 0 ? `${postCooldownSeconds}s` : '发布') }}</span>
-              <span v-if="isStagedSubmitting" class="mobile-composer-submit-progress"
-                :style="{ transform: `scaleX(${Math.max(0, Math.min(1, (stagedSubmitState.progress || 0) / 100))})` }"></span>
+              <span v-if="isStagedSubmitting" class="mobile-composer-submit-progress" :style="{ transform: `scaleX(${Math.max(0, Math.min(1, (stagedSubmitState.progress || 0) / 100))})` }" aria-hidden="true"></span>
             </button>
           </div>
           <Transition name="mobile-draft-panel">

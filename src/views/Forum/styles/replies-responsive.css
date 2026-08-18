@@ -558,7 +558,7 @@
   padding: env(safe-area-inset-top) 18px 0;
   display: grid;
   grid-template-columns: 1fr auto auto;
-  gap: 22px;
+  gap: 16px;
   align-items: center;
   border-bottom: none;
   background: rgba(255, 255, 255, 0.32);
@@ -870,13 +870,13 @@
 
 .mobile-composer-enter-active,
 .mobile-composer-leave-active {
-  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.34s var(--ease-drawer), opacity 0.24s var(--ease-out);
 }
 
 .mobile-composer-enter-from,
 .mobile-composer-leave-to {
   opacity: 0;
-  transform: translateY(18px);
+  transform: translateY(42px);
 }
 
 /* Mobile Adjustments */

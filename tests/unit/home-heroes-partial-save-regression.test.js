@@ -19,7 +19,20 @@ describe('home hero partial-save regression', () => {
   it('keeps cached editor drafts aligned with a successful reorder', () => {
     const source = read('src/views/HeroConsole/index.vue');
 
-    expect(source).toContain('drafts[current.id].sort_order = targetOrder');
-    expect(source).toContain('drafts[target.id].sort_order = currentOrder');
+    expect(source).toContain('homeHeroesStore.reorderHeroes(orderedIds)');
+    expect(source).toContain('drafts[id].sort_order = order');
+  });
+
+  it('remounts moved hero rows so image nodes are not reused after sorting', () => {
+    const source = read('src/views/Home/index.vue');
+
+    expect(source).toContain(":key=\"(hero.template === 'builtin' ? 'builtin:' + hero.builtin_key : hero.id) + ':' + hero.sort_order\"");
+  });
+
+  it('renders a row when it becomes the eager first hero after sorting', () => {
+    const source = read('src/views/Home/components/HomeHeroRow.vue');
+
+    expect(source).toContain("watch(() => props.eager, (eager) => {");
+    expect(source).toContain('if (eager) shouldRender.value = true;');
   });
 });

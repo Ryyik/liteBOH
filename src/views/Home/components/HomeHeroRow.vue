@@ -12,7 +12,7 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 const props = defineProps({
   layout: {
@@ -27,6 +27,10 @@ const props = defineProps({
 const rowRef = ref(null);
 const shouldRender = ref(props.eager);
 let observer = null;
+
+watch(() => props.eager, (eager) => {
+  if (eager) shouldRender.value = true;
+});
 
 onMounted(() => {
   if (shouldRender.value || typeof IntersectionObserver === 'undefined') {

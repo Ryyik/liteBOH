@@ -975,26 +975,21 @@ async function moveHero(direction) {
   const list = filteredHeroes.value;
   const idx = list.findIndex(h => h.id === selectedId.value);
   const targetIdx = idx + direction;
-  const current = list[idx];
-  const target = list[targetIdx];
-  // 交换 sort_order（第二步失败时回滚第一步，避免产生半交换状态）
-  const currentOrder = current.sort_order;
-  const targetOrder = target.sort_order;
-  const firstOk = await homeHeroesStore.saveHero(current.id, { sort_order: targetOrder });
-  if (!firstOk) {
+  // 过滤条件只影响可操作邻居，持久化时仍按完整列表重排，避免把被过滤的区块挤到错误位置。
+  const orderedIds = heroes.value.map((hero) => hero.id);
+  const currentIndex = orderedIds.indexOf(list[idx].id);
+  const targetIndex = orderedIds.indexOf(list[targetIdx].id);
+  if (currentIndex < 0 || targetIndex < 0) return;
+  [orderedIds[currentIndex], orderedIds[targetIndex]] = [orderedIds[targetIndex], orderedIds[currentIndex]];
+  const ok = await homeHeroesStore.reorderHeroes(orderedIds);
+  if (!ok) {
     showToast('调整顺序失败');
     return;
   }
-  const secondOk = await homeHeroesStore.saveHero(target.id, { sort_order: currentOrder });
-  if (!secondOk) {
-    await homeHeroesStore.saveHero(current.id, { sort_order: currentOrder });
-    await loadHeroes();
-    showToast('调整顺序失败，已恢复原顺序');
-    return;
-  }
   // 草稿会在列表刷新后保留；同步其排序，避免之后“保存草稿”又写回旧顺序。
-  if (drafts[current.id]) drafts[current.id].sort_order = targetOrder;
-  if (drafts[target.id]) drafts[target.id].sort_order = currentOrder;
+  orderedIds.forEach((id, order) => {
+    if (drafts[id]) drafts[id].sort_order = order;
+  });
   await loadHeroes();
   showToast('已调整顺序');
 }

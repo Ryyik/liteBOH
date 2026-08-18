@@ -3,7 +3,7 @@
     <!-- 统一英雄区渲染：数据库驱动排序/显隐/归档，按 template 分流渲染 -->
       <HomeHeroRow
       v-for="(hero, heroIndex) in visibleHeroes"
-      :key="hero.template === 'builtin' ? `builtin:${hero.builtin_key}` : hero.id"
+      :key="(hero.template === 'builtin' ? 'builtin:' + hero.builtin_key : hero.id) + ':' + hero.sort_order"
       :eager="heroIndex === 0"
       :layout="heroLayout(hero)"
       :aria-label="hero.aria_label || hero.label || hero.title"

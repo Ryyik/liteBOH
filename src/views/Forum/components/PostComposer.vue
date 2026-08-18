@@ -91,9 +91,7 @@ const hasPostContent = computed(() => Boolean(
   String(props.newPost.title || '').trim() || String(props.newPost.content || '').trim()
 ));
 const isPostBusy = computed(() => props.isSubmitting || props.isUploadingPostImage || props.isStagedSubmitting);
-const stagedSubmitLabel = computed(() => (
-  props.stagedSubmitState?.message || '正在发布帖子'
-));
+const stagedSubmitLabel = computed(() => '正在把这份分享送出去…');
 
 const titleCharCount = computed(() => String(props.newPost.title || '').length);
 const contentCharCount = computed(() => String(props.newPost.content || '').length);
@@ -786,8 +784,8 @@ onUnmounted(() => {
           </div>
           <button class="post-btn" :class="{ 'is-staged-submitting': isStagedSubmitting }" @click="handleSubmit"
             :disabled="isPostBusy || postCooldownSeconds > 0" :aria-busy="isPostBusy">
-            <span class="post-btn-label">{{ isStagedSubmitting ? stagedSubmitLabel : (postCooldownSeconds > 0 ? `${postCooldownSeconds}s 后发布` : '发布帖子') }}</span>
-            <span v-if="isStagedSubmitting" class="post-btn-progress" :style="{ transform: `scaleX(${Math.max(0, Math.min(1, (stagedSubmitState.progress || 0) / 100))})` }"></span>
+            <span class="post-btn-label">{{ isStagedSubmitting ? stagedSubmitLabel : (postCooldownSeconds > 0 ? `${postCooldownSeconds}s 后发布` : '发布') }}</span>
+            <span v-if="isStagedSubmitting" class="post-btn-progress" :style="{ transform: `scaleX(${Math.max(0, Math.min(1, (stagedSubmitState.progress || 0) / 100))})` }" aria-hidden="true"></span>
             <div v-else-if="isSubmitting" class="mini-spinner white"></div>
           </button>
         </div>
@@ -795,13 +793,10 @@ onUnmounted(() => {
 
       <Transition name="post-submit-overlay">
         <div v-if="isStagedSubmitting" class="post-submit-overlay" role="status" aria-live="polite"
-          aria-label="正在发布帖子">
+          aria-label="正在把这份分享送出去">
           <div class="post-submit-overlay-panel">
             <span class="post-submit-overlay-progress">{{ Math.round(stagedSubmitState.progress || 0) }}%</span>
             <p class="post-submit-overlay-label">{{ stagedSubmitLabel }}</p>
-            <span v-if="stagedSubmitState.totalImages" class="post-submit-overlay-count">
-              图片 {{ stagedSubmitState.imageIndex || 1 }}/{{ stagedSubmitState.totalImages }}
-            </span>
             <div class="post-submit-overlay-track" role="progressbar" aria-valuemin="0" aria-valuemax="100"
               :aria-valuenow="Math.round(stagedSubmitState.progress || 0)">
               <span class="post-submit-overlay-fill"
