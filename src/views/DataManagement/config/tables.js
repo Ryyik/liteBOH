@@ -495,8 +495,8 @@ export const dataConfig = {
       { key: 'fulfillment_status', label: '处理状态', type: 'badge' },
       { key: 'entry_count', label: '报名人数', type: 'number' },
       { key: 'max_entries_label', label: '人数上限' },
-      { key: 'winner_count', label: '最多中奖人数', type: 'number' },
-      { key: 'pity_winner_count', label: '允许保底人数', type: 'number' },
+      { key: 'winner_count', label: '中奖人数', type: 'number' },
+      { key: 'pity_reward_title', label: '保底礼', maxLength: 24 },
       { key: 'pity_mode', label: '保底失败计算' },
       { key: 'winner_username', label: '中奖者', maxLength: 18 },
       { key: 'entry_deadline_at', label: '报名截止', type: 'datetime' },
@@ -510,6 +510,8 @@ export const dataConfig = {
       { key: 'description', label: '抽奖说明', type: 'textarea', rows: 4, maxLength: 1200, placeholder: '写给社区抽奖页和首页映射模块看的活动说明。', group: 'prize' },
       { key: 'prize_title', label: '奖品名称', type: 'text', required: true, maxLength: 120, placeholder: '例如：BOH 纪念礼盒', group: 'prize' },
       { key: 'prize_description', label: '奖品说明', type: 'textarea', rows: 3, maxLength: 800, placeholder: '可写规格、数量、发放方式等。', group: 'prize' },
+      { key: 'pity_reward_title', label: '保底礼', type: 'text', maxLength: 120, placeholder: '例如：BOH 基础礼盒', hint: '仅限 1 位达到保底且未获得普通奖的用户获得。', visibleWhen: (item) => item.pity_mode === 'eligible', group: 'prize' },
+      { key: 'pity_reward_description', label: '保底礼说明', type: 'textarea', rows: 2, maxLength: 800, placeholder: '写明规格、发放方式或使用条件。', visibleWhen: (item) => item.pity_mode === 'eligible', group: 'prize' },
       { key: 'cover_image_url', label: '抽奖封面', type: 'image', placeholder: '上传后自动填入，也可以粘贴 https:// 图片链接', group: 'prize' },
       { key: 'status', label: '抽奖状态', type: 'select', required: true, options: LOTTERY_STATUS_OPTIONS, group: 'rule' },
       { key: 'fulfillment_status', label: '中奖处理状态', type: 'select', required: true, options: LOTTERY_FULFILLMENT_STATUS_OPTIONS, hint: '开奖后用于跟踪联系、确认和发放进度。', group: 'rule' },
@@ -520,9 +522,8 @@ export const dataConfig = {
         { value: false, label: '不启用' }
       ], hint: '启用后仅满足账号年龄要求的用户可报名。', group: 'rule' },
       { key: 'max_entries', label: '报名人数上限', type: 'number', min: 1, placeholder: '留空表示不限制', hint: '不填写即不限人数。', group: 'rule' },
-      { key: 'winner_count', label: '最多中奖人数（含保底）', type: 'number', required: true, min: 1, placeholder: '默认 1', hint: '保底中奖会优先占用名额，普通随机中奖只使用剩余名额。', group: 'rule' },
-      { key: 'pity_winner_count', label: '允许保底中奖人数', type: 'number', min: 1, placeholder: '默认 1', hint: '本次最多允许几名达到保底的用户中奖，不能超过最多中奖人数。', visibleWhen: (item) => item.pity_mode === 'eligible', group: 'rule' },
-      { key: 'pity_mode', label: '保底失败计算', type: 'select', required: true, options: LOTTERY_PITY_MODE_OPTIONS, hint: '新活动默认计入保底失败，但不允许保底中奖。允许保底中奖时，保底仅保证获得奖品，不代表最高奖。', group: 'rule' },
+      { key: 'winner_count', label: '中奖人数', type: 'number', required: true, min: 1, max: 2, placeholder: '默认 1', hint: '不兑现保底时固定 1 人；兑现保底时固定 2 人：1 位普通中奖人和至多 1 位保底中奖人。', group: 'rule' },
+      { key: 'pity_mode', label: '保底规则', type: 'select', required: true, options: LOTTERY_PITY_MODE_OPTIONS, hint: '所有中奖都会重置保底次数；保底中奖人与普通中奖人必定不同。', group: 'rule' },
       { key: 'entry_deadline_at', label: '报名截止时间', type: 'datetime', hint: '到达该时间后用户不能再报名；留空表示报名直到开奖前。报名截止时间必须早于或等于自动开奖时间。', group: 'rule' },
       { key: 'draw_at', label: '自动开奖时间', type: 'datetime', hint: '到达该时间后，数据库定时任务会自动随机开奖；用户打开抽奖页或报名时也会兜底触发。', group: 'rule' },
       { key: 'drawn_at', label: '实际开奖时间', type: 'datetime', disabled: true, group: 'draw' },
@@ -548,9 +549,9 @@ export const dataConfig = {
       },
       stats: [
         { label: '报名', key: 'entry_count' },
-        { label: '最多中奖', key: 'winner_count' },
-        { label: '允许保底', key: 'pity_winner_count' },
-        { label: '保底', key: 'pity_mode', values: { none: '不计入', count_only: '计入失败', eligible: '允许保底' } },
+        { label: '中奖人数', key: 'winner_count' },
+        { label: '保底礼', key: 'pity_reward_title' },
+        { label: '保底', key: 'pity_mode', values: { none: '不计入', count_only: '仅计入', eligible: '计入并兑现' } },
         { label: '处理', key: 'fulfillment_status', values: {
           pending_contact: '待联系', confirmed: '已确认', fulfilled: '已发放', voided: '已作废'
         } }
@@ -568,6 +569,8 @@ export const dataConfig = {
     columns: [
       { key: 'lottery_title', label: '抽奖', maxLength: 24 },
       { key: 'username', label: '中奖用户' },
+      { key: 'award_kind', label: '奖项类型', type: 'badge' },
+      { key: 'award_title', label: '实际奖品', maxLength: 24 },
       { key: 'winner_position', label: '席位', type: 'number' },
       { key: 'status', label: '履约状态', type: 'badge' },
       { key: 'is_current_label', label: '当前资格', type: 'badge' },

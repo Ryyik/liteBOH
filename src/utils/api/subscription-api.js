@@ -122,6 +122,34 @@ export async function subscribeWithPoints(payload = {}) {
   };
 }
 
+function normalizeLotteryPityStatus(payload = {}) {
+  const safe = Array.isArray(payload) ? payload[0] || {} : payload || {};
+  return {
+    ok: safe.ok === true,
+    tierCode: String(safe.tier_code || 'free'),
+    eligible: Boolean(safe.eligible),
+    consecutiveLosses: Math.max(0, Number(safe.consecutive_losses || 0)),
+    threshold: Math.max(0, Number(safe.threshold || 0)),
+    remainingLosses: safe.remaining_losses === null || safe.remaining_losses === undefined
+      ? null
+      : Math.max(0, Number(safe.remaining_losses || 0)),
+    isDue: Boolean(safe.is_due),
+    updatedAt: safe.updated_at || null
+  };
+}
+
+export async function getMyLotteryPityStatus() {
+  const { data, error } = await supabase.rpc('get_my_lottery_pity_status');
+  if (error) return { ok: false, data: null, error: normalizeDbError(error) };
+
+  const normalized = normalizeLotteryPityStatus(data);
+  return {
+    ok: normalized.ok,
+    data: normalized.ok ? normalized : null,
+    error: normalized.ok ? null : normalizeDbError({ message: '保底进度暂不可用', code: 'PITY_STATUS_UNAVAILABLE' })
+  };
+}
+
 function normalizeAnniversaryClaim(payload = {}) {
   const source = Array.isArray(payload) ? payload[0] : payload;
   const safe = source || {};

@@ -258,10 +258,8 @@ export const SAVE_STRATEGIES = {
     const normalizedWinnerCount = rawWinnerCount === null || rawWinnerCount === undefined || rawWinnerCount === ''
       ? 1
       : Number(rawWinnerCount);
-    const rawPityWinnerCount = editingItem.pity_winner_count;
-    const normalizedPityWinnerCount = normalizedPityMode === 'eligible'
-      ? (rawPityWinnerCount === null || rawPityWinnerCount === undefined || rawPityWinnerCount === '' ? 1 : Number(rawPityWinnerCount))
-      : null;
+    const normalizedPityRewardTitle = String(editingItem.pity_reward_title || '').trim();
+    const normalizedPityRewardDescription = String(editingItem.pity_reward_description || '').trim();
     const normalizedEntryDeadlineAt = toISOStringFromInput(editingItem.entry_deadline_at);
     const normalizedDrawAt = toISOStringFromInput(editingItem.draw_at);
 
@@ -270,11 +268,12 @@ export const SAVE_STRATEGIES = {
     if (!['draft', 'open', 'drawn', 'closed'].includes(normalizedStatus)) throw new Error('抽奖状态无效');
     if (!['pending_contact', 'confirmed', 'fulfilled', 'voided'].includes(normalizedFulfillmentStatus)) throw new Error('中奖处理状态无效');
     if (hasMaxEntries && (!Number.isInteger(normalizedMaxEntries) || normalizedMaxEntries <= 0)) throw new Error('报名人数上限必须是正整数，或留空表示不限');
-    if (!Number.isInteger(normalizedWinnerCount) || normalizedWinnerCount <= 0) throw new Error('中奖人数必须是正整数');
+    if (!Number.isInteger(normalizedWinnerCount) || ![1, 2].includes(normalizedWinnerCount)) throw new Error('中奖人数只能为 1 或 2');
     if (!['none', 'count_only', 'eligible'].includes(normalizedPityMode)) throw new Error('保底失败计算方式无效');
-    if (normalizedPityMode === 'eligible' && (!Number.isInteger(normalizedPityWinnerCount) || normalizedPityWinnerCount <= 0)) throw new Error('允许保底中奖人数必须是正整数');
+    if (normalizedPityMode === 'eligible' && normalizedWinnerCount !== 2) throw new Error('兑现保底时中奖人数固定为 2：1 位普通中奖人和 1 位保底中奖人');
+    if (normalizedPityMode !== 'eligible' && normalizedWinnerCount !== 1) throw new Error('不兑现保底时中奖人数固定为 1 位普通中奖人');
     if (normalizedMaxEntries !== null && normalizedWinnerCount > normalizedMaxEntries) throw new Error('中奖人数不能大于报名人数上限');
-    if (normalizedPityMode === 'eligible' && normalizedPityWinnerCount > normalizedWinnerCount) throw new Error('允许保底中奖人数不能大于最多中奖人数');
+    if (normalizedPityMode === 'eligible' && !normalizedPityRewardTitle) throw new Error('允许保底时必须填写主保底礼');
     if (editingItem.draw_at && !normalizedDrawAt) throw new Error('自动开奖时间无效');
     if (editingItem.entry_deadline_at && !normalizedEntryDeadlineAt) throw new Error('报名截止时间无效');
     if (normalizedEntryDeadlineAt && normalizedDrawAt && Date.parse(normalizedEntryDeadlineAt) > Date.parse(normalizedDrawAt)) {
@@ -286,6 +285,8 @@ export const SAVE_STRATEGIES = {
       description: String(editingItem.description || '').trim(),
       prize_title: normalizedPrizeTitle,
       prize_description: String(editingItem.prize_description || '').trim(),
+      pity_reward_title: normalizedPityMode === 'eligible' ? normalizedPityRewardTitle : null,
+      pity_reward_description: normalizedPityMode === 'eligible' ? normalizedPityRewardDescription : null,
       cover_image_url: String(editingItem.cover_image_url || '').trim(),
       status: normalizedStatus,
       fulfillment_status: normalizedFulfillmentStatus,
@@ -294,7 +295,6 @@ export const SAVE_STRATEGIES = {
       enforce_account_age_check: normalizedEnforceAccountAgeCheck,
       max_entries: normalizedMaxEntries,
       winner_count: normalizedWinnerCount,
-      pity_winner_count: normalizedPityWinnerCount,
       pity_mode: normalizedPityMode,
       entry_deadline_at: normalizedEntryDeadlineAt,
       draw_at: normalizedDrawAt,

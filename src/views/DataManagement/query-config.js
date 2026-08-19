@@ -167,7 +167,7 @@ export const TAB_SELECT_COLUMNS = {
   reviewComments: 'id, post_id, author_id, author_username, content, created_at, status, parent_id, reply_to_username',
   coreMemories: 'id, title, content, category, tags, priority, source_label, source_url, status, updated_by, created_at, updated_at',
   bohaiModels: 'id, mode_id, display_name, tagline, description, provider, provider_label, model_id, api_url, capability, icon, temperature, top_p, frequency_penalty, max_tokens, quota_multiplier, min_tier, status, sort_order, notes, created_by, updated_by, created_at, updated_at',
-  lotteries: 'id, title, description, prize_title, prize_description, cover_image_url, status, is_community_visible, is_home_visible, enforce_account_age_check, max_entries, winner_count, pity_winner_count, pity_mode, entry_deadline_at, draw_at, drawn_at, draw_attempted_at, draw_failed_at, draw_failure_message, draw_entry_count_snapshot, draw_candidate_hash, draw_algorithm_version, winner_entry_id, winner_user_id, winner_username, fulfillment_status, created_by, updated_by, created_at, updated_at',
+  lotteries: 'id, title, description, prize_title, prize_description, pity_reward_title, pity_reward_description, pity_overflow_reward_title, pity_overflow_reward_description, cover_image_url, status, is_community_visible, is_home_visible, enforce_account_age_check, max_entries, winner_count, pity_mode, entry_deadline_at, draw_at, drawn_at, draw_attempted_at, draw_failed_at, draw_failure_message, draw_entry_count_snapshot, draw_candidate_hash, draw_algorithm_version, winner_entry_id, winner_user_id, winner_username, fulfillment_status, created_by, updated_by, created_at, updated_at',
   lotteryFulfillments: `
     id,
     lottery_id,
@@ -176,6 +176,9 @@ export const TAB_SELECT_COLUMNS = {
     entry_id,
     user_id,
     username_snapshot,
+    award_kind,
+    award_title,
+    award_description,
     status,
     is_current,
     replacement_of,

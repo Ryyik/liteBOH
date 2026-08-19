@@ -67,7 +67,12 @@
                 <span class="period">积分{{ billingCycle === 'monthly' ? '/月' : '/年' }}</span>
               </div>
               <div class="billing-desc" v-if="billingCycle === 'yearly' && plan.monthlyCost > 0">
-                相当于 {{ Math.round(plan.monthlyCost * 10 / 12) }} 积分/月
+                <template v-if="plan.yearlyGift">立省 {{ plan.monthlyCost * 2 }} 积分 · 含年度纪念徽章</template>
+                <template v-else>相当于 {{ Math.round(plan.monthlyCost * 10 / 12) }} 积分/月</template>
+              </div>
+              <div v-if="billingCycle === 'yearly' && plan.yearlyGift" class="annual-gift-badge" aria-label="年度会员纪念徽章">
+                <span class="annual-gift-badge-icon"><Award :size="14" :stroke-width="2.2" aria-hidden="true" /></span>
+                <span>{{ plan.yearlyGift }}</span>
               </div>
               <div class="active-period" v-if="plan.activeSubscription">
                 生效至 {{ formatDateText(plan.activeSubscription.expiresAt) }}
@@ -180,6 +185,10 @@
                 <span class="confirm-label">付费周期</span>
                 <span class="confirm-value">{{ billingCycle === 'monthly' ? '月付' : '年付' }}</span>
               </div>
+              <div v-if="billingCycle === 'yearly' && confirmPlan.yearlyGift" class="confirm-row">
+                <span class="confirm-label">年度专属礼</span>
+                <span class="confirm-value">{{ confirmPlan.yearlyGift }}</span>
+              </div>
               <div class="confirm-row">
                 <span class="confirm-label">所需积分</span>
                 <span class="confirm-value highlight">{{ calculatePrice(confirmPlan) }}</span>
@@ -209,7 +218,7 @@
 
 <script setup>
 import { ref, computed, watch, onBeforeUnmount } from 'vue';
-import { Bot, Cake, Check, Crown, Gift, Zap, Code, Rocket, Star, Cpu } from 'lucide-vue-next';
+import { Award, Bot, Cake, Check, Crown, Gift, Zap, Code, Rocket, Star, Cpu } from 'lucide-vue-next';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { getMySubscriptions, subscribeWithPoints } from '@/utils/api/subscription-api.js';
@@ -228,7 +237,7 @@ const BASE_PLANS = [
     name: 'Free',
     icon: Cake,
     monthlyCost: 0,
-    features: ['生日当天专属祝福', '神秘生日礼物', '社区徽章', 'BOH AI 20万 Token/天', 'Cloud+ 150张', '实验室 PPT/Word 10次/月', '抽奖活动可参与，但不享有保底'],
+    features: ['生日当天专属祝福', '神秘生日礼物', '社区徽章', 'BOH AI 20万 Token/天', 'Cloud+ 150张', '实验室 PPT/Word 10次/月', '可参与抽奖；不累计会员保底进度'],
     featured: false,
     alwaysActive: true
   },
@@ -238,7 +247,8 @@ const BASE_PLANS = [
     name: 'Plus',
     icon: Bot,
     monthlyCost: 8,
-    features: ['BOH AI 80万 Token/天', 'Cloud+ 300张', '礼物定制月×1次', '多模态交互', '实验室 PPT/Word 15次/月', '抽奖保底：连续 25 个符合条件的活动未中奖后，第 26 个活动必定获得奖品（并非最高奖）'],
+    yearlyGift: '年度会员纪念徽章',
+    features: ['BOH AI 80万 Token/天', 'Cloud+ 300张', '礼物定制月×1次', '多模态交互', '实验室 PPT/Word 15次/月', '抽奖保底：连续 24 个计入活动未获奖后，下次保底活动必得保底礼'],
     featured: true
   },
   {
@@ -247,7 +257,8 @@ const BASE_PLANS = [
     name: 'Pro',
     icon: Zap,
     monthlyCost: 20,
-    features: ['BOH AI 200万 Token/天', 'Cloud+ 450张', '礼物定制月×2次', '多模态交互', '金色昵称', '实验室 PPT/Word 20次/月', '抽奖保底：连续 20 个符合条件的活动未中奖后，第 21 个活动必定获得奖品（并非最高奖）'],
+    yearlyGift: '年度会员纪念徽章',
+    features: ['BOH AI 200万 Token/天', 'Cloud+ 450张', '礼物定制月×2次', '多模态交互', '金色昵称', '实验室 PPT/Word 20次/月', '抽奖保底：连续 18 个计入活动未获奖后，下次保底活动必得保底礼'],
     featured: false
   },
   {
@@ -256,7 +267,8 @@ const BASE_PLANS = [
     name: 'Max',
     icon: Gift,
     monthlyCost: 40,
-    features: ['BOH AI 500万 Token/天', 'Cloud+ 900张', '礼物定制月×4次', 'Agent & Plan', '金色昵称', '实验室 PPT/Word 30次/月', '抽奖保底：连续 20 个符合条件的活动未中奖后，第 21 个活动必定获得奖品（并非最高奖）'],
+    yearlyGift: '年度会员纪念徽章',
+    features: ['BOH AI 500万 Token/天', 'Cloud+ 900张', '礼物定制月×4次', 'Agent & Plan', '金色昵称', '实验室 PPT/Word 30次/月', '抽奖保底：连续 12 个计入活动未获奖后，下次保底活动必得保底礼'],
     featured: false
   },
   {
@@ -265,7 +277,8 @@ const BASE_PLANS = [
     name: 'Ultra',
     icon: Crown,
     monthlyCost: 70,
-    features: ['BOH AI 1000万 Token/天', 'Cloud+ 1200张', '礼物定制月×8次', 'Agent & Plan', '彩虹昵称', '实验室 PPT/Word 不限次数', '抽奖保底：连续 10 个符合条件的活动未中奖后，第 11 个活动必定获得奖品（并非最高奖）'],
+    yearlyGift: '年度会员纪念徽章',
+    features: ['BOH AI 1000万 Token/天', 'Cloud+ 1200张', '礼物定制月×8次', 'Agent & Plan', '彩虹昵称', '实验室 PPT/Word 不限次数', '抽奖保底：连续 8 个计入活动未获奖后，下次保底活动必得保底礼'],
     featured: false
   }
 ];
@@ -514,7 +527,8 @@ const confirmSubscribe = async () => {
     clearUserTierCache().catch(() => undefined);
 
     const expiresText = data.expiresAt ? `，有效期至 ${formatDateText(data.expiresAt)}` : '';
-    showToastMessage(`订阅成功！已开通 ${plan.name}${expiresText}`);
+    const yearlyGiftText = billingCycle.value === 'yearly' && plan.yearlyGift ? `，已获得${plan.yearlyGift}` : '';
+    showToastMessage(`订阅成功！已开通 ${plan.name}${yearlyGiftText}${expiresText}`);
   } catch (error) {
     logger.error('subscription', '订阅失败:', error);
     showToastMessage('订阅失败，请稍后重试');
@@ -1170,6 +1184,32 @@ onBeforeUnmount(() => {
   padding: 3px 10px;
   border-radius: 4px;
   font-weight: 600;
+}
+
+.annual-gift-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  margin-top: 9px;
+  padding: 5px 9px 5px 6px;
+  border: 1px solid rgba(180, 133, 38, 0.32);
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255, 247, 204, 0.96), rgba(255, 232, 156, 0.78));
+  color: #7a5510;
+  font-size: 11px;
+  font-weight: 750;
+  box-shadow: 0 4px 12px rgba(180, 133, 38, 0.12);
+}
+
+.annual-gift-badge-icon {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 50%;
+  background: #fff7cc;
+  color: #a36d0b;
 }
 
 /* ==========================================

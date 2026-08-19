@@ -301,7 +301,15 @@
             <div class="ah-membership-meta">
               <span>Cloud+ {{ cloudImageLimit }} 张</span>
               <span>{{ activeSubscription?.billingCycle === 'yearly' ? '年度订阅' : activeSubscription ? '月度订阅' : '基础额度' }}</span>
+              <span v-if="annualGiftLabel">{{ annualGiftLabel }}</span>
             </div>
+            <section class="ah-pity-progress" :class="{ 'is-due': pityStatus?.isDue, 'is-unavailable': !pityStatus?.eligible }" aria-label="抽奖保底进度">
+              <div class="ah-pity-progress-head"><span>抽奖保底进度</span><strong>{{ pityProgressLabel }}</strong></div>
+              <div v-if="pityStatus?.eligible" class="ah-pity-progress-track" role="progressbar" aria-label="连续未中奖进度" :aria-valuenow="pityStatus.consecutiveLosses" :aria-valuemin="0" :aria-valuemax="pityStatus.threshold">
+                <div class="ah-pity-progress-fill" :style="{ width: `${pityProgressPercent}%` }"></div>
+              </div>
+              <p>{{ pityProgressDescription }}</p>
+            </section>
             <button type="button" class="ah-shop-btn" @click="showPlanComparison = !showPlanComparison">
               {{ showPlanComparison ? '收起方案' : activeSubscription ? '更改方案' : '选择会员方案' }}
               <ChevronRight :size="16" :stroke-width="2" aria-hidden="true" />
@@ -518,7 +526,7 @@ import { useUserTier } from '@/composables/useUserTier.js';
 import { PLAN_DISPLAY_NAMES } from '@/utils/subscription-benefits.js';
 import { getExpiredActiveGiftIds, markGiftsAsHistory } from '@/utils/gift-archive.js';
 import { logger } from '@/utils/logger.js';
-import { getMySubscriptions } from '@/utils/api/subscription-api.js';
+import { getMyLotteryPityStatus, getMySubscriptions } from '@/utils/api/subscription-api.js';
 import PointsCard from './PointsCard.vue';
 import { HOME_CAT_ASSETS } from '@/utils/home-cat-theme.js';
 
@@ -602,6 +610,8 @@ const ledgerError = ref('');
 const ledger = ref([]);
 const subscriptionLoading = ref(true);
 const activeSubscription = ref(null);
+const annualGiftSubscription = ref(null);
+const pityStatus = ref(null);
 const showPlanComparison = ref(false);
 // The initial overview load is started from onMounted. Starting in the loading
 // state would make that first call return early and leave the panel stuck.
@@ -626,6 +636,21 @@ const subscriptionExpiryText = computed(() => {
   if (Number.isNaN(expiresAt.getTime())) return '会员状态已生效';
   if (subscriptionExpiryDays.value <= 30) return `还有 ${subscriptionExpiryDays.value} 天到期，请及时续订`;
   return `有效期至 ${expiresAt.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}`;
+});
+const annualGiftLabel = computed(() => String(annualGiftSubscription.value?.metadata?.yearly_gift?.label || '').trim());
+const pityProgressPercent = computed(() => {
+  if (!pityStatus.value?.eligible || pityStatus.value.threshold <= 0) return 0;
+  return Math.min(100, Math.round((pityStatus.value.consecutiveLosses / pityStatus.value.threshold) * 100));
+});
+const pityProgressLabel = computed(() => {
+  if (!pityStatus.value?.eligible) return '订阅 Plus 后开启';
+  if (pityStatus.value.isDue) return '下一次保底活动可兑现';
+  return `${pityStatus.value.consecutiveLosses} / ${pityStatus.value.threshold} 场`;
+});
+const pityProgressDescription = computed(() => {
+  if (!pityStatus.value?.eligible) return 'Free 账户可参与抽奖，但不累计会员保底进度。';
+  if (pityStatus.value.isDue) return '已达到保底条件；下一次参与“计入失败，并兑现保底礼”的活动即可获得保底礼。';
+  return `连续参与计入活动但未获奖 ${pityStatus.value.consecutiveLosses} 场，还差 ${pityStatus.value.remainingLosses} 场进入保底。`;
 });
 
 const availableProducts = computed(() => Array.isArray(productsData.value) ? productsData.value : []);
@@ -877,14 +902,28 @@ const loadTier = async () => {
 
 const loadSubscription = async () => {
   const userId = userInfo.value?.id;
-  if (!userId) { subscriptionLoading.value = false; return; }
+  if (!userId) {
+    activeSubscription.value = null;
+    annualGiftSubscription.value = null;
+    pityStatus.value = null;
+    subscriptionLoading.value = false;
+    return;
+  }
   subscriptionLoading.value = true;
   try {
-    const result = await getMySubscriptions(userId, { includeExpired: false });
-    activeSubscription.value = result.ok && Array.isArray(result.data) ? result.data[0] || null : null;
+    const [result, pityResult] = await Promise.all([
+      getMySubscriptions(userId, { includeExpired: false }),
+      getMyLotteryPityStatus()
+    ]);
+    const activeItems = result.ok && Array.isArray(result.data) ? result.data : [];
+    activeSubscription.value = activeItems[0] || null;
+    annualGiftSubscription.value = activeItems.find((item) => String(item?.metadata?.yearly_gift?.label || '').trim()) || null;
+    pityStatus.value = pityResult.ok ? pityResult.data : null;
   } catch (error) {
     logger.warn('assets-hub', '加载会员状态失败:', error);
     activeSubscription.value = null;
+    annualGiftSubscription.value = null;
+    pityStatus.value = null;
   } finally {
     subscriptionLoading.value = false;
   }
@@ -1754,6 +1793,15 @@ onMounted(() => {
 .ah-membership-card p { margin: -5px 0 0; color: #6e6e73; font-size: 13px; }
 .ah-membership-meta { display: flex; gap: 8px; flex-wrap: wrap; }
 .ah-membership-meta span { padding: 6px 10px; border-radius: 11px; background: rgba(243, 244, 246, 0.72); color: #4b5563; font-size: 11px; font-weight: 650; }
+.ah-pity-progress { display: grid; gap: 8px; padding-top: 2px; }
+.ah-pity-progress-head { display: flex; justify-content: space-between; gap: 12px; color: #4b5563; font-size: 12px; font-weight: 700; }
+.ah-pity-progress-head strong { color: #1d1d1f; font-weight: 800; }
+.ah-pity-progress-track { height: 6px; overflow: hidden; background: #e5e7eb; border-radius: 3px; }
+.ah-pity-progress-fill { height: 100%; min-width: 0; background: #17803d; transition: width 240ms ease; }
+.ah-pity-progress p { margin: 0; color: #6e6e73; font-size: 12px; line-height: 1.55; }
+.ah-pity-progress.is-due .ah-pity-progress-fill { background: #b7791f; }
+.ah-pity-progress.is-due .ah-pity-progress-head strong { color: #9a6700; }
+.ah-pity-progress.is-unavailable .ah-pity-progress-head strong { color: #6b7280; }
 
 /* ─── 记录列表 ─── */
 .ah-ledger { gap: 20px; }
@@ -2431,6 +2479,10 @@ onMounted(() => {
 :global(.user-space-page[data-theme="dark"]) .ah-order-item { background: rgba(24, 26, 32, 0.5); border-color: rgba(255, 255, 255, 0.11); box-shadow: 0 16px 34px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.07); }
 :global(.user-space-page[data-theme="dark"]) .ah-gift-history-item { background: rgba(24, 26, 32, 0.46); border-color: rgba(255, 255, 255, 0.1); box-shadow: 0 14px 28px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.06); }
 :global(.user-space-page[data-theme="dark"]) .ah-membership-meta span { background: rgba(255, 255, 255, 0.08); color: #c5cad2; }
+:global(.user-space-page[data-theme="dark"]) .ah-pity-progress-head { color: #c5cad2; }
+:global(.user-space-page[data-theme="dark"]) .ah-pity-progress-head strong { color: #f5f7fa; }
+:global(.user-space-page[data-theme="dark"]) .ah-pity-progress-track { background: rgba(255, 255, 255, 0.12); }
+:global(.user-space-page[data-theme="dark"]) .ah-pity-progress p { color: #aeb6c2; }
 
 /* ─── 响应式 ─── */
 @media (max-width: 767px) {

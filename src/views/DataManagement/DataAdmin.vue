@@ -482,7 +482,7 @@
                 </template>
                 <template v-else>
                   <button v-if="currentTab === 'lotteries' && item.status === 'open'" type="button" class="review-btn approve mobile-lottery-btn" :disabled="isLotteryActionPending(item.id)" @click="drawLotteryNow(item)">开奖</button>
-                  <button v-if="currentTab === 'lotteries' && item.status === 'drawn' && item.pity_mode !== 'eligible'" type="button" class="review-btn approve mobile-lottery-btn" :disabled="isLotteryActionPending(item.id)" @click="redrawLottery(item)">重抽</button>
+                  <button v-if="currentTab === 'lotteries' && item.status === 'drawn' && item.pity_mode === 'none'" type="button" class="review-btn approve mobile-lottery-btn" :disabled="isLotteryActionPending(item.id)" @click="redrawLottery(item)">重抽</button>
                   <button v-if="currentTab === 'lotteries'" type="button" class="review-btn approve mobile-lottery-btn" @click="viewLotteryFulfillments(item)">履约</button>
                   <button v-if="currentTab === 'lotteries'" type="button" class="review-btn approve mobile-lottery-btn" @click="viewLotteryEntries(item)">名单</button>
                   <button v-if="currentTab === 'lotteries'" type="button" class="review-btn approve mobile-lottery-btn" @click="viewLotteryDrawLogs(item)">日志</button>
@@ -610,7 +610,7 @@
                 </div>
                 <div class="lottery-card-actions">
                   <button v-if="currentTab === 'lotteries' && item.status === 'open'" class="review-btn approve" :disabled="isLotteryActionPending(item.id)" @click="drawLotteryNow(item)" title="立即随机开奖">开奖</button>
-                <button v-if="currentTab === 'lotteries' && item.status === 'drawn' && item.pity_mode !== 'eligible'" class="review-btn approve" :disabled="isLotteryActionPending(item.id)" @click="redrawLottery(item)" title="保留历史记录并重新随机开奖">重抽</button>
+                <button v-if="currentTab === 'lotteries' && item.status === 'drawn' && item.pity_mode === 'none'" class="review-btn approve" :disabled="isLotteryActionPending(item.id)" @click="redrawLottery(item)" title="保留历史记录并重新随机开奖">重抽</button>
                 <button v-if="currentTab === 'lotteries'" class="review-btn approve" @click="viewLotteryFulfillments(item)" title="按中奖人处理联系、发货和替补">履约</button>
                 <button v-if="currentTab === 'lotteries'" class="review-btn approve" @click="viewLotteryEntries(item)" title="查看本次抽奖报名名单">名单</button>
                   <button v-if="currentTab === 'lotteries'" class="review-btn approve" @click="viewLotteryDrawLogs(item)" title="查看本次抽奖开奖日志">日志</button>
@@ -798,7 +798,7 @@
                           开奖
                         </button>
                         <button
-                          v-if="currentTab === 'lotteries' && item.status === 'drawn' && item.pity_mode !== 'eligible'"
+                          v-if="currentTab === 'lotteries' && item.status === 'drawn' && item.pity_mode === 'none'"
                           class="review-btn approve"
                           :disabled="isLotteryActionPending(item.id)"
                           @click="redrawLottery(item)"
@@ -4013,8 +4013,11 @@ const openEditModal = async (item = null) => {
         editingItem.value.is_community_visible = true;
         editingItem.value.max_entries = null;
         editingItem.value.winner_count = 1;
-        editingItem.value.pity_winner_count = null;
         editingItem.value.pity_mode = 'count_only';
+        editingItem.value.pity_reward_title = '';
+        editingItem.value.pity_reward_description = '';
+        editingItem.value.pity_overflow_reward_title = '';
+        editingItem.value.pity_overflow_reward_description = '';
         editingItem.value.entry_deadline_at = '';
         editingItem.value.draw_at = '';
         editingItem.value.drawn_at = '';
