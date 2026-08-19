@@ -1507,6 +1507,7 @@ const dataStore = shallowReactive({
   lotteries: [],
   lotteryEntries: [],
   lotteryDrawLogs: [],
+  lotteryFailureStats: [],
   lotteryFulfillments: [],
   lotterySchedulerLogs: [],
   lotteryNotificationJobs: [],
@@ -1609,7 +1610,7 @@ const PAGE_TAB_COMPONENTS = {
   'points-grant': PointsGrantConsole
 };
 const currentPageComponent = computed(() => PAGE_TAB_COMPONENTS[currentTab.value] || null);
-const lotteryOpsTabs = new Set(['lotteries', 'lotteryFulfillments', 'lotteryDrawLogs', 'lotterySchedulerLogs', 'lotteryNotificationJobs', 'lotteryJoinAttempts', 'lotteryAuditLogs']);
+const lotteryOpsTabs = new Set(['lotteries', 'lotteryFulfillments', 'lotteryDrawLogs', 'lotteryFailureStats', 'lotterySchedulerLogs', 'lotteryNotificationJobs', 'lotteryJoinAttempts', 'lotteryAuditLogs']);
 const isLotteryOpsTab = computed(() => lotteryOpsTabs.has(currentTab.value));
 const moderationTabConfig = computed(() => {
   if (!hasTabAction('moderate')) return null;
@@ -2850,6 +2851,15 @@ const fetchStats = async () => {
   const { data: rpcCounts, error: rpcCountsError } = await supabase.rpc('admin_data_management_counts');
   if (!rpcCountsError && rpcCounts?.ok) {
     applyCountMap(rpcCounts);
+    // The overview RPC predates derived reporting views; keep this new tab's count accurate.
+    try {
+      const { count, error } = await supabase
+        .from('lottery_failure_stats')
+        .select('id', { count: 'exact', head: true });
+      if (!error) setTabTotal('lotteryFailureStats', count || 0);
+    } catch (error) {
+      logger.warn('data-admin', '获取抽奖失败统计数量失败:', error);
+    }
     return;
   }
   if (rpcCountsError && !isMissingRpcFunctionError(rpcCountsError, 'admin_data_management_counts')) {
@@ -2873,6 +2883,7 @@ const fetchStats = async () => {
     lotteries: fetchCount('lotteries'),
     lotteryEntries: fetchCount('lottery_entries'),
     lotteryDrawLogs: fetchCount('lottery_draw_logs'),
+    lotteryFailureStats: fetchCount('lottery_failure_stats'),
     lotterySchedulerLogs: fetchCount('lottery_scheduler_logs'),
     lotteryNotificationJobs: fetchCount('lottery_notification_jobs'),
     lotteryJoinAttempts: fetchCount('lottery_join_attempts'),

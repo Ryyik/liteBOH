@@ -605,6 +605,21 @@ export const dataConfig = {
     ],
     fields: []
   },
+  lotteryFailureStats: {
+    table: 'lottery_failure_stats',
+    columns: [
+      { key: 'username', label: '用户' },
+      { key: 'total_participations', label: '历史参与', type: 'number' },
+      { key: 'win_count', label: '中奖次数', type: 'number' },
+      { key: 'failure_count', label: '失败次数', type: 'number' },
+      { key: 'current_failure_streak', label: '当前连续失败', type: 'number' },
+      { key: 'failure_rate', label: '失败率', type: 'number' },
+      { key: 'last_result_label', label: '最近结果', type: 'badge' },
+      { key: 'last_participated_at', label: '最近参与', type: 'datetime' },
+      { key: 'latest_lottery_title', label: '最近抽奖', maxLength: 28 }
+    ],
+    fields: []
+  },
   lotterySchedulerLogs: {
     table: 'lottery_scheduler_logs',
     columns: [

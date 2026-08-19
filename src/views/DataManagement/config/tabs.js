@@ -48,6 +48,7 @@ export const tabs = [
   { id: 'lotteryFulfillments', label: '中奖履约', icon: '📦', module: 'lottery' },
   { id: 'lotteryEntries', label: '抽奖报名', icon: '🧾', module: 'lottery' },
   { id: 'lotteryDrawLogs', label: '开奖日志', icon: '🏆', module: 'lottery' },
+  { id: 'lotteryFailureStats', label: '失败统计', icon: '📉', module: 'lottery' },
   { id: 'lotterySchedulerLogs', label: '任务记录', icon: '⚙️', module: 'lottery' },
   { id: 'lotteryNotificationJobs', label: '中奖通知', icon: '📣', module: 'lottery' },
   { id: 'lotteryJoinAttempts', label: '报名风控', icon: '🛡️', module: 'lottery' },
@@ -152,7 +153,7 @@ export const tabModules = [
     icon: Gift,
     section: 'data',
     defaultTab: 'lotteries',
-    tabIds: ['lotteries', 'lotteryFulfillments', 'lotteryEntries', 'lotteryDrawLogs', 'lotterySchedulerLogs', 'lotteryNotificationJobs', 'lotteryJoinAttempts', 'lotteryAuditLogs'],
+    tabIds: ['lotteries', 'lotteryFulfillments', 'lotteryEntries', 'lotteryDrawLogs', 'lotteryFailureStats', 'lotterySchedulerLogs', 'lotteryNotificationJobs', 'lotteryJoinAttempts', 'lotteryAuditLogs'],
     description: '抽奖配置、履约、开奖、通知、风控和审计'
   },
   {
@@ -218,6 +219,7 @@ export const TABS_ACTIONS = {
   lotteryFulfillments: ['view', 'manage'],
   lotteryEntries: ['view'],
   lotteryDrawLogs: ['view'],
+  lotteryFailureStats: ['view'],
   lotterySchedulerLogs: ['view'],
   lotteryNotificationJobs: ['view'],
   lotteryJoinAttempts: ['view'],
