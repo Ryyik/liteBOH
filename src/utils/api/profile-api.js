@@ -470,6 +470,7 @@ export async function getCommentsByUsername(username, userId = null, options = {
           author_id,
           author_username,
           status,
+          author:author_id(username, avatar_url),
           post:posts(title, body, content, author_username)
         `)
         .or(CONTENT_STATUS_FILTER)
@@ -487,6 +488,7 @@ export async function getCommentsByUsername(username, userId = null, options = {
             author_id,
             author_username,
             status,
+            author:author_id(username, avatar_url),
             post:posts(title, body, content, author_username)
           `)
           .or(`author_id.eq.${userId},author_username.eq.${filterSafeUsername}`)
