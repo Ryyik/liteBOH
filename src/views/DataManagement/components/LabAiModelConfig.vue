@@ -3,7 +3,7 @@
     <DashboardHero
       eyebrow="Lab AI Models"
       title="实验室模型配置"
-      description="管理实验室文档排版和 PPT 生成功能使用的 AI 模型，模型从免费模型库中选择。"
+      description="管理实验室文档、PPT 和论坛周报使用的 AI 模型，模型从免费模型库中选择。"
     >
       <template #actions>
         <button type="button" class="g-btn g-btn-ghost" @click="loadAll" :disabled="isLoading">
@@ -93,6 +93,10 @@
             <button type="button" class="g-btn g-btn-secondary g-btn-sm" @click="handleToggleStatus(config)">
               {{ config.is_active ? '停用' : '启用' }}
             </button>
+            <button v-if="config.feature_key === 'forum-weekly-report'" type="button" class="g-btn g-btn-secondary g-btn-sm" @click="handleGenerateReport(config)" :disabled="generatingId === config.id">
+              <Newspaper :size="14" />
+              <span>{{ generatingId === config.id ? '生成中...' : '立即生成' }}</span>
+            </button>
             <button type="submit" class="g-btn g-btn-primary g-btn-sm" :disabled="savingId === config.id">
               <Save :size="14" />
               <span>{{ savingId === config.id ? '保存中...' : '保存' }}</span>
@@ -106,8 +110,9 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue';
-import { RefreshCw, Save, LoaderCircle, FileText, Presentation, Code2, FileEdit } from 'lucide-vue-next';
+import { RefreshCw, Save, LoaderCircle, FileText, Presentation, Code2, FileEdit, Newspaper } from 'lucide-vue-next';
 import { supabase } from '@/utils/supabase-client.js';
+import { generateForumWeeklyReport } from '@/utils/api/forum-api.js';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { listApiKeys } from '@/utils/api/api-key-vault-api.js';
 import DashboardHero from './shared/DashboardHero.vue';
@@ -122,6 +127,7 @@ const isLoading = ref(false);
 const isLoadingFreemodels = ref(false);
 const isLoadingApiKeys = ref(false);
 const savingId = ref('');
+const generatingId = ref('');
 const errorMessage = ref('');
 const successMessage = ref('');
 let successTimer = null;
@@ -142,7 +148,8 @@ const FEATURE_ICONS = {
   'doc-formatting': FileText,
   'ppt-generator': Presentation,
   'code-generator': Code2,
-  'word-generator': FileEdit
+  'word-generator': FileEdit,
+  'forum-weekly-report': Newspaper
 };
 
 const getFeatureIcon = (key) => FEATURE_ICONS[key] || FileText;
@@ -255,6 +262,22 @@ async function handleToggleStatus(config) {
     scheduleSuccessClear();
   } catch (e) {
     errorMessage.value = `操作失败: ${e.message}`;
+  }
+}
+
+async function handleGenerateReport(config) {
+  generatingId.value = config.id;
+  errorMessage.value = '';
+  successMessage.value = '';
+  try {
+    const result = await generateForumWeeklyReport();
+    if (result.error) throw result.error;
+    successMessage.value = '论坛周报已生成并发布';
+    scheduleSuccessClear();
+  } catch (e) {
+    errorMessage.value = `生成周报失败: ${e.message}`;
+  } finally {
+    generatingId.value = '';
   }
 }
 

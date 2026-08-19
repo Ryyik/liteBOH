@@ -16,8 +16,17 @@ export const PLAN_CLOUD_IMAGE_LIMITS = {
   'ultra': 1200
 };
 
+const PLAN_CODE_ALIASES = {
+  'boh-ai-plus': 'plus',
+  'boh-plus': 'plus',
+  'boh-pro': 'pro',
+  'boh-max': 'max',
+  'boh-ultra': 'ultra'
+};
+
 export function normalizeSubscriptionPlanCode(planCode = '') {
-  return String(planCode || '').trim().toLowerCase();
+  const normalized = String(planCode || '').trim().toLowerCase();
+  return PLAN_CODE_ALIASES[normalized] || normalized;
 }
 
 export function isSubscriptionRecordActive(record, nowTs = Date.now()) {

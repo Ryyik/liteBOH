@@ -6,7 +6,11 @@ import {
   Heart,
   MessageCircle,
   Reply,
-  Share2
+  Share2,
+  ArrowUpRight,
+  BookOpen,
+  Newspaper,
+  X
 } from 'lucide-vue-next';
 import PostComposer from './components/PostComposer.vue';
 import PostCard from './components/PostCard.vue';
@@ -84,7 +88,7 @@ import {
   toggleLike,
   getUserPosts,
   deleteComment,
-  getForumTagStats,
+  getLatestForumWeeklyReport,
   getPostEngagementStats,
   retryPostModeration,
   getWeeklyCheckinStatus,
@@ -199,7 +203,9 @@ const shareCopiedPostIds = ref(new Set());
 const loadedForumImageKeys = ref(new Set());
 const loadMoreSentinelRef = ref(null);
 const uiAnimationTimers = new Map();
-const hotTagStats = ref([]);
+const forumWeeklyReport = ref(null);
+const isWeeklyReportLoading = ref(false);
+const isWeeklyReportOpen = ref(false);
 const forumPageRef = ref(null);
 const {
   clearForumImageModerationPreloadTask,
@@ -1511,7 +1517,7 @@ onMounted(() => {
   void initializeForumData();
   setupForumLoadMoreObserver();
   setupForumWindowObserver();
-  loadHotTagStats();
+  loadForumWeeklyReport();
   if (isLoggedIn.value) {
     loadWeeklyCheckinStatus();
     scheduleForumImageModerationPreload();
@@ -2355,30 +2361,29 @@ const cdnDeliveryBase = computed(() => {
   return cloudName ? `https://res.cloudinary.com/${cloudName}` : '';
 });
 
-const normalizedHotTagStats = computed(() => {
-  const countMap = new Map();
-  for (const row of hotTagStats.value || []) {
-    const tag = normalizeForumTagValue(row?.tag);
-    if (!tag) continue;
-    countMap.set(tag, Number(row?.post_count ?? row?.count ?? 0) || 0);
-  }
-  return FORUM_TAG_OPTIONS
-    .map((tag) => ({
-      ...tag,
-      count: countMap.get(tag.value) || 0
-    }))
-    .sort((a, b) => b.count - a.count);
-});
-
-const loadHotTagStats = async () => {
+const loadForumWeeklyReport = async () => {
+  isWeeklyReportLoading.value = true;
   try {
-    const result = await getForumTagStats();
-    if (!result.error && Array.isArray(result.data)) {
-      hotTagStats.value = result.data;
-    }
+    const result = await getLatestForumWeeklyReport();
+    if (!result.error) forumWeeklyReport.value = result.data;
   } catch (error) {
-    logger.warn('forum', '加载热门标签失败:', error);
+    logger.warn('forum', '加载论坛周报失败:', error);
+  } finally {
+    isWeeklyReportLoading.value = false;
   }
+};
+
+const formatReportPeriod = (report) => {
+  if (!report?.week_start || !report?.week_end) return '上一完整周';
+  return `${String(report.week_start).replace(/-/g, '.')} - ${String(report.week_end).replace(/-/g, '.')}`;
+};
+
+const reportMetric = (key) => Number(forumWeeklyReport.value?.metrics?.[key] || 0);
+const openWeeklyReport = () => { if (forumWeeklyReport.value) isWeeklyReportOpen.value = true; };
+const closeWeeklyReport = () => { isWeeklyReportOpen.value = false; };
+const openReportPost = (postId) => {
+  closeWeeklyReport();
+  if (postId) openPostDetail(postId);
 };
 
 // formatDate 已由 formatSmartTime 提供
@@ -2712,7 +2717,7 @@ const handlePost = async () => {
     });
 
     await fetchForumData();
-    loadHotTagStats();
+    void loadForumWeeklyReport();
     if (createdPostId) {
       addUiMarker(highlightedPostIds, createdPostId, 2600, 'new-post');
     }
@@ -2745,7 +2750,7 @@ const handlePost = async () => {
         await closeMobileComposer();
         void addExperience(supabase, userInfo.id, XP_REWARDS.POST).catch(err => logger.error('forum', '经验值增加失败:', err));
         await fetchForumData();
-        loadHotTagStats();
+        void loadForumWeeklyReport();
         emitProfileSync({
           userId: userInfo.id,
           username: userInfo.username,
@@ -3406,21 +3411,41 @@ const openPostDetail = (postId) => {
           </section>
         </div>
 
-        <!-- 右侧：热门标签 -->
+        <!-- 右侧：AI 论坛周报 -->
         <aside class="forum-sidebar fade-in-up" style="animation-delay: 0.3s;">
-          <div class="hot-tags-card glass-panel fade-in-up" style="animation-delay: 0.35s;">
-            <div class="stats-header">
-              <h4>热门标签</h4>
+          <div class="weekly-report-card glass-panel fade-in-up" style="animation-delay: 0.35s;">
+            <div class="weekly-report-card-head">
+              <div>
+                <span class="weekly-report-kicker"><Newspaper :size="14" /> AI 周报</span>
+                <h4>本周论坛周报</h4>
+              </div>
+              <span v-if="forumWeeklyReport" class="weekly-report-period">{{ formatReportPeriod(forumWeeklyReport) }}</span>
             </div>
-            <div class="hot-tags-list">
-              <button v-for="tag in normalizedHotTagStats" :key="tag.value" class="hot-tag-item"
-                :class="{ active: selectedTagFilter === tag.value }" @click="setTagFilter(tag.value)">
-                <span class="hot-tag-name">{{ tag.label }}</span>
-                <span class="hot-tag-count">{{ tag.count }}</span>
+            <div v-if="isWeeklyReportLoading" class="weekly-report-skeleton" aria-label="周报加载中">
+              <span /><span /><span />
+            </div>
+            <template v-else-if="forumWeeklyReport">
+              <p class="weekly-report-summary">{{ forumWeeklyReport.summary }}</p>
+              <div class="weekly-report-metrics">
+                <span><strong>{{ reportMetric('post_count') }}</strong> 帖子</span>
+                <span><strong>{{ reportMetric('active_authors') }}</strong> 作者</span>
+                <span><strong>{{ reportMetric('comment_count') }}</strong> 讨论</span>
+              </div>
+              <div v-if="forumWeeklyReport.topics?.length" class="weekly-report-topics">
+                <span v-for="topic in forumWeeklyReport.topics.slice(0, 3)" :key="topic.name" class="weekly-report-topic">
+                  {{ topic.name }}
+                </span>
+              </div>
+              <button type="button" class="weekly-report-open-btn" @click="openWeeklyReport">
+                <BookOpen :size="15" /> 查看完整周报 <ArrowUpRight :size="15" />
               </button>
+            </template>
+            <div v-else class="weekly-report-empty">
+              <Newspaper :size="20" />
+              <p>本周周报正在整理中</p>
+              <span>下一次更新后会显示在这里</span>
             </div>
           </div>
-
         </aside>
       </main>
     </div>
@@ -3430,6 +3455,54 @@ const openPostDetail = (postId) => {
         :class="{ 'embedded-compose-fab': embedded }" aria-label="发布帖子" @click="openMobileComposer">
         <span>+</span>
       </button>
+    </Teleport>
+
+    <Teleport to="body">
+      <Transition name="weekly-report-modal">
+        <div v-if="isWeeklyReportOpen" class="weekly-report-overlay" @click.self="closeWeeklyReport">
+          <section class="weekly-report-modal" role="dialog" aria-modal="true" aria-labelledby="weekly-report-title">
+            <header class="weekly-report-modal-head">
+              <div>
+                <span class="weekly-report-kicker"><Newspaper :size="15" /> AI 论坛周报</span>
+                <h2 id="weekly-report-title">本周论坛周报</h2>
+                <p>{{ formatReportPeriod(forumWeeklyReport) }}</p>
+              </div>
+              <button type="button" class="weekly-report-close" aria-label="关闭周报" @click="closeWeeklyReport"><X :size="19" /></button>
+            </header>
+            <div v-if="forumWeeklyReport" class="weekly-report-modal-body">
+              <section class="weekly-report-overview">
+                <h3>本周概览</h3>
+                <p>{{ forumWeeklyReport.summary }}</p>
+                <div class="weekly-report-metric-grid">
+                  <div><strong>{{ reportMetric('post_count') }}</strong><span>帖子</span></div>
+                  <div><strong>{{ reportMetric('active_authors') }}</strong><span>活跃作者</span></div>
+                  <div><strong>{{ reportMetric('comment_count') }}</strong><span>评论</span></div>
+                  <div><strong>{{ reportMetric('like_count') }}</strong><span>获赞</span></div>
+                </div>
+              </section>
+              <section v-if="forumWeeklyReport.topics?.length" class="weekly-report-section">
+                <h3>主要讨论主题</h3>
+                <article v-for="topic in forumWeeklyReport.topics" :key="topic.name" class="weekly-report-topic-detail">
+                  <div class="weekly-report-topic-title"><strong>{{ topic.name }}</strong><span>{{ topic.post_count || 0 }} 帖</span></div>
+                  <p>{{ topic.summary }}</p>
+                </article>
+              </section>
+              <section v-if="forumWeeklyReport.featured_posts?.length" class="weekly-report-section">
+                <h3>帖子精选</h3>
+                <article v-for="post in forumWeeklyReport.featured_posts" :key="post.post_id || post.title" class="weekly-report-post-detail">
+                  <div class="weekly-report-post-title"><strong>{{ post.title }}</strong><button type="button" @click="openReportPost(post.post_id)">查看原帖 <ArrowUpRight :size="14" /></button></div>
+                  <p>{{ post.summary }}</p>
+                  <span v-if="post.reason" class="weekly-report-post-reason">入选理由：{{ post.reason }}</span>
+                </article>
+              </section>
+              <section v-if="forumWeeklyReport.open_questions?.length" class="weekly-report-section">
+                <h3>值得继续讨论</h3>
+                <ul class="weekly-report-questions"><li v-for="question in forumWeeklyReport.open_questions" :key="question">{{ question }}</li></ul>
+              </section>
+            </div>
+          </section>
+        </div>
+      </Transition>
     </Teleport>
 
     <Teleport to="body">
@@ -3658,4 +3731,5 @@ const openPostDetail = (postId) => {
 @import './styles/replies-responsive.css';
 @import './styles/drawers-skeletons.css';
 @import './styles/anniversary.css';
+@import './styles/weekly-report.css';
 </style>

@@ -34,6 +34,7 @@ export {
 
 // Preserve original re-exports
 export { normalizeForumTag } from './forum-format.js';
+export { getLatestForumWeeklyReport, generateForumWeeklyReport } from './forum/forum-weekly-report-api.js';
 export {
   deleteUploadedForumImage,
   getForumPostImages,
