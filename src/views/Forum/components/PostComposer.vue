@@ -50,6 +50,7 @@ const props = defineProps({
 
 const emit = defineEmits([
   'submit',
+  'close',
   'login',
   'update:newPost',
   'update:selectedPostTag',
@@ -66,6 +67,16 @@ const emit = defineEmits([
   'open-draft',
   'save-draft' // ✨ 新增：保存草稿事件
 ]);
+
+const isEditMode = computed(() => Boolean(props.editMode));
+const editorGreetingLabel = computed(() => (isEditMode.value ? '编辑帖子' : `你好，${props.userInfo.username || '朋友'}！`));
+const editorPromptLabel = computed(() => (isEditMode.value ? '修改你的分享，记得保存～' : '今天想和大家分享什么？'));
+const submitButtonLabel = computed(() => {
+  if (isEditMode.value) return isPostBusy.value ? '保存中…' : '保存修改';
+  if (isStagedSubmitting.value) return stagedSubmitLabel;
+  if (postCooldownSeconds.value > 0) return `${postCooldownSeconds.value}s 后发布`;
+  return '发布';
+});
 
 const postImageInputRef = ref(null);
 const postCameraInputRef = ref(null);
@@ -536,9 +547,12 @@ onUnmounted(() => {
           <span v-else>{{ userInfo.username ? userInfo.username.charAt(0).toUpperCase() : 'U' }}</span>
         </div>
         <div class="user-info-text">
-          <span class="user-greeting">你好，{{ userInfo.username }}！</span>
-          <span class="editor-prompt">今天想和大家分享什么？</span>
+          <span class="user-greeting">{{ editorGreetingLabel }}</span>
+          <span class="editor-prompt">{{ editorPromptLabel }}</span>
         </div>
+        <button v-if="isEditMode" type="button" class="editor-close-btn" aria-label="关闭编辑" @click="emit('close')">
+          <X :size="20" :stroke-width="2.2" aria-hidden="true" />
+        </button>
       </div>
       <HomeCatMascot v-if="isHomeCatTheme" class="composer-theme-cat"
         :class="{ 'is-awake': isComposerCatAwake }"
@@ -548,7 +562,7 @@ onUnmounted(() => {
         size="lg" decorative />
 
       <div class="input-group post-title-input-group">
-        <input :value="newPost.title" type="text" :placeholder="isMobileComposer ? '标题' : '起个响亮的标题...'"
+        <input :value="newPost.title" type="text" :placeholder="isEditMode ? '修改标题' : (isMobileComposer ? '标题' : '起个响亮的标题...')"
           class="post-title-input"
           @input="updateTitle($event.target.value)" />
       </div>
@@ -697,7 +711,7 @@ onUnmounted(() => {
             @click="handleImagePickerRequest">
             <ImageIcon :size="24" :stroke-width="1.8" aria-hidden="true" />
           </button>
-          <div class="mobile-more-tool-wrap">
+          <div class="mobile-more-tool-wrap" v-if="!isEditMode">
             <button type="button" class="mobile-post-tool-btn mobile-more-tool-btn"
               :class="{ active: showMoreMenu }" aria-label="更多选项"
               :aria-expanded="showMoreMenu" @click="handleMoreButtonClick">
@@ -715,7 +729,7 @@ onUnmounted(() => {
 
       <div class="editor-footer">
         <div v-if="autoSaveDraftLabel" class="auto-save-hint">{{ autoSaveDraftLabel }}</div>
-        <div class="editor-tools weekly-checkin-panel inline-checkin-panel">
+        <div v-if="!isEditMode" class="editor-tools weekly-checkin-panel inline-checkin-panel">
           <div v-if="isWeeklyCheckinLoading" class="weekly-checkin-status weekly-checkin-status-skeleton"
             aria-label="正在加载周签到状态">
             <span class="checkin-skeleton-title skeleton-item"></span>
@@ -767,14 +781,14 @@ onUnmounted(() => {
               <span class="desktop-image-count">{{ postImages.length }}/{{ maxPostImages }}</span>
             </button>
             <!-- ✨ 新增：横屏保存草稿按钮 -->
-            <button type="button" class="desktop-post-tool-btn desktop-save-draft-btn"
+            <button v-if="!isEditMode" type="button" class="desktop-post-tool-btn desktop-save-draft-btn"
               :disabled="!hasPostContent || isPostBusy"
               :aria-label="`保存当前编辑内容为草稿`"
               @click="emit('save-draft')">
               <FileText :size="22" :stroke-width="2" aria-hidden="true" />
               <span>保存草稿</span>
             </button>
-            <div class="desktop-more-tool-wrap">
+            <div v-if="!isEditMode" class="desktop-more-tool-wrap">
               <button type="button" class="desktop-post-tool-btn desktop-more-tool-btn"
                 :class="{ active: showMoreMenu }" aria-label="更多选项"
                 :aria-expanded="showMoreMenu" @click="handleMoreButtonClick">
@@ -784,7 +798,7 @@ onUnmounted(() => {
           </div>
           <button class="post-btn" :class="{ 'is-staged-submitting': isStagedSubmitting }" @click="handleSubmit"
             :disabled="isPostBusy || postCooldownSeconds > 0" :aria-busy="isPostBusy">
-            <span class="post-btn-label">{{ isStagedSubmitting ? stagedSubmitLabel : (postCooldownSeconds > 0 ? `${postCooldownSeconds}s 后发布` : '发布') }}</span>
+            <span class="post-btn-label">{{ submitButtonLabel }}</span>
             <span v-if="isStagedSubmitting" class="post-btn-progress" :style="{ transform: `scaleX(${Math.max(0, Math.min(1, (stagedSubmitState.progress || 0) / 100))})` }" aria-hidden="true"></span>
             <div v-else-if="isSubmitting" class="mini-spinner white"></div>
           </button>
@@ -1244,6 +1258,29 @@ onUnmounted(() => {
   padding: 0 4px;
   margin-right: 12px;
   white-space: nowrap;
+}
+
+/* ---- 编辑模式关闭按钮 ---- */
+.editor-close-btn {
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  color: #6e6e73;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s, transform 0.2s;
+}
+
+.editor-close-btn:hover {
+  background: rgba(0, 0, 0, 0.12);
+  color: #1d1d1f;
+  transform: rotate(90deg);
 }
 
 /* ---- 更多菜单（横竖屏共用，按钮上方弹出） ---- */

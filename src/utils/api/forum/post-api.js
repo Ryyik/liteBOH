@@ -1385,6 +1385,64 @@ export async function updatePost(postId, content, userId, userRole, title = '') 
   return { ok: true, success: true, error: null };
 }
 
+/**
+ * 帖子编辑：更新帖子的图片集合（删除被移除的旧图、插入新图、按传入顺序重排）。
+ * images 元素格式：
+ *  - 保留的旧图：{ id: '<forum_post_images.id>' }
+ *  - 新图：{ url, publicId, width, height, format, moderationScore, moderationReason }
+ * 通过 security definer RPC update_forum_post_images 完成（表级增删改仅 service_role 可用）。
+ */
+export async function updateForumPostImages(postId, images = []) {
+  const safePostId = String(postId || '').trim();
+  const safeImages = Array.isArray(images) ? images : [];
+  if (!safePostId) {
+    return { ok: false, data: null, error: normalizeDbError({ message: '缺少帖子 ID' }) };
+  }
+
+  try {
+    const { data, error } = await supabase.rpc('update_forum_post_images', {
+      p_post_id: safePostId,
+      p_images: safeImages
+    });
+
+    if (error) {
+      logger.warn('forum-api', '更新帖子图片失败', { postId: safePostId, error });
+      const message = String(error.message || '').trim();
+      // RPC 未部署时给出可操作的降级提示
+      if (isMissingRpcFunctionError(error, 'update_forum_post_images')) {
+        return {
+          ok: false,
+          data: null,
+          error: normalizeDbError({
+            code: 'FORUM_IMAGE_MIGRATION_REQUIRED',
+            message: '帖子图片编辑的数据库迁移尚未部署，请先执行最新 Supabase migration 后再试'
+          })
+        };
+      }
+      // 拆出业务错误码与用户可读文案（RPC 内以 "CODE:message" 抛出）
+      const colonIndex = message.indexOf(':');
+      if (colonIndex > 0) {
+        const code = message.slice(0, colonIndex).trim();
+        return {
+          ok: false,
+          data: null,
+          error: normalizeDbError({
+            code,
+            message: message.slice(colonIndex + 1).trim() || message
+          })
+        };
+      }
+      return { ok: false, data: null, error: normalizeDbError(error) };
+    }
+
+    invalidateByTags(['posts', 'comments', 'notifications', 'boh-cloud']);
+    return { ok: true, data, error: null };
+  } catch (error) {
+    logger.error('forum-api', '更新帖子图片异常', error);
+    return { ok: false, data: null, error: normalizeDbError(error) };
+  }
+}
+
 export async function retryPostModeration(postId, userId) {
   const safePostId = String(postId || '').trim();
   if (!safePostId || !userId) {

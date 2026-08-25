@@ -2761,6 +2761,8 @@ const handlePost = async () => {
     if (createdPostId) {
       claimPostPublishReward(supabase, createdPostId)
         .then((reward) => {
+          // 诊断日志：把关键字段拼成字符串，控制台直接可见，无需展开对象
+          logger.info('forum', `发帖奖励诊断 createdPostId=${createdPostId} ok=${reward?.ok} awarded=${reward?.awarded} message=${reward?.message || ''} reason=${reward?.reason || ''} alreadyClaimed=${reward?.alreadyClaimed} skipped=${reward?.skipped} currentPoints=${reward?.currentPoints} error=${reward?.error?.message || ''}`);
           if (reward && reward.ok && Number(reward.awarded) > 0) {
             if (Number.isFinite(Number(reward.currentPoints))) {
               userInfo.points = Number(reward.currentPoints);

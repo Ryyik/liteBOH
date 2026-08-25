@@ -174,8 +174,8 @@ export function useActionDraft(deps) {
         return {
           ok: true,
           message: createdPostId
-            ? `帖子已发布成功（ID: ${createdPostId}），系统将异步完成内容审查。`
-            : '帖子已发布成功，系统将异步完成内容审查。',
+            ? `帖子已发布成功（ID: ${createdPostId}）。`
+            : '帖子已发布成功。',
           data: { id: createdPostId }
         };
       }
@@ -321,7 +321,7 @@ export function useActionDraft(deps) {
     appendSessionMessage(
       sessionIndex,
       'assistant',
-      result.message || '帖子已发布成功，系统将异步完成内容审查。',
+      result.message || '帖子已发布成功。',
       { kind: 'action_committed', actionAudit: result.metadata?.audit || null }
     );
 

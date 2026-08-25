@@ -12,6 +12,7 @@ export {
   deletePost,
   getUserPosts,
   updatePost,
+  updateForumPostImages,
   retryPostModeration,
   getWeeklyCheckinStatus,
   submitWeeklyCheckin,

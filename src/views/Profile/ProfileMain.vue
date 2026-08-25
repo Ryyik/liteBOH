@@ -1700,7 +1700,7 @@ const handleCreatePost = async (safeTitle, safeContent) => {
       postsPage.value = 2;
       hasMorePosts.value = true;
       showPostModal.value = false;
-      showAlert('success', '发布成功', '您的新动态已同步至社区，系统将异步完成内容审查');
+      showAlert('success', '发布成功', '您的新动态已同步至社区');
     } else {
       showAlert('error', '发布失败', error.message);
     }
