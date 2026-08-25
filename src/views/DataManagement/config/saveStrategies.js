@@ -477,6 +477,44 @@ export const SAVE_STRATEGIES = {
     });
   },
 
+  postReward: async ({ editingItem }) => {
+    const normalizedTitle = String(editingItem.title || '').trim();
+    const normalizedStatus = String(editingItem.status || 'active').trim() || 'active';
+    const rawPoints = editingItem.points_per_post;
+    const normalizedPoints = (rawPoints === null || rawPoints === undefined || rawPoints === '')
+      ? 0
+      : Number(rawPoints);
+    const rawDaily = editingItem.daily_limit;
+    const normalizedDaily = (rawDaily === null || rawDaily === undefined || rawDaily === '')
+      ? 0
+      : Number(rawDaily);
+    const rawMonthly = editingItem.monthly_limit;
+    const normalizedMonthly = (rawMonthly === null || rawMonthly === undefined || rawMonthly === '')
+      ? 0
+      : Number(rawMonthly);
+    const normalizedStartAt = toISOStringFromInput(editingItem.start_at);
+    const normalizedEndAt = toISOStringFromInput(editingItem.end_at);
+
+    if (!normalizedTitle) throw new Error('活动标题不能为空');
+    if (!['active', 'inactive'].includes(normalizedStatus)) throw new Error('活动状态无效');
+    if (!Number.isInteger(normalizedPoints) || normalizedPoints <= 0) throw new Error('每帖积分必须是大于 0 的整数');
+    if (!Number.isInteger(normalizedDaily) || normalizedDaily < 0) throw new Error('每日上限必须是非负整数，0 表示不限制');
+    if (!Number.isInteger(normalizedMonthly) || normalizedMonthly < 0) throw new Error('每月上限必须是非负整数，0 表示不限制');
+    if (!normalizedStartAt) throw new Error('开始时间无效');
+    if (!normalizedEndAt) throw new Error('结束时间无效');
+    if (Date.parse(normalizedStartAt) >= Date.parse(normalizedEndAt)) throw new Error('结束时间必须晚于开始时间');
+
+    return pickWritableFields('postReward', {
+      title: normalizedTitle,
+      status: normalizedStatus,
+      points_per_post: normalizedPoints,
+      daily_limit: normalizedDaily,
+      monthly_limit: normalizedMonthly,
+      start_at: normalizedStartAt,
+      end_at: normalizedEndAt
+    });
+  },
+
   gifts: async ({ editingItem }) => {
     const normalizedUserId = String(editingItem.user_id || '').trim();
     if (!normalizedUserId) throw new Error('请先选择用户');

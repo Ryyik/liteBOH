@@ -30,7 +30,7 @@
 }
 .sidebar-search-input:focus {
   background: var(--muted);
-  border-color: #4285f4;
+  border-color: var(--primary);
   box-shadow: none;
 }
 .sidebar-search-clear {
@@ -72,7 +72,7 @@
 }
 .quick-action-btn:hover {
   background: var(--muted);
-  color: #4285f4;
+  color: var(--primary);
 }
 
 /* ==================== 管理区域 ==================== */
@@ -131,8 +131,8 @@
 }
 
 .tab-group-btn.active {
-  border-color: #4285f4;
-  background: #4285f4;
+  border-color: var(--primary);
+  background: var(--primary);
   color: var(--primary-foreground);
 }
 
@@ -236,7 +236,7 @@
 }
 
 .mobile-tab-option.active {
-  background: #4285f4;
+  background: var(--primary);
   color: var(--primary-foreground);
 }
 
@@ -284,7 +284,7 @@
 }
 
 .tab-btn.active {
-  background: #4285f4;
+  background: var(--primary);
   color: var(--primary-foreground);
 }
 
@@ -334,7 +334,7 @@
   outline: none;
   background: var(--muted);
   box-shadow: none;
-  border-color: #4285f4;
+  border-color: var(--primary);
 }
 
 .search-icon {
@@ -379,7 +379,7 @@
 .date-filter input:focus {
   outline: none;
   box-shadow: none;
-  border-color: #4285f4;
+  border-color: var(--primary);
 }
 
 .date-filter {
@@ -395,7 +395,7 @@
   border-radius: 8px;
   border: none;
   background: transparent;
-  color: #4285f4;
+  color: var(--primary);
   font-size: 13px;
   font-weight: 500;
   padding: 6px 12px;
@@ -455,9 +455,9 @@
 }
 
 .filter-toggle.active {
-  background: #4285f4;
+  background: var(--primary);
   color: var(--primary-foreground);
-  border-color: #4285f4;
+  border-color: var(--primary);
 }
 
 .filter-bar {
@@ -558,7 +558,7 @@
   border: 1px solid rgba(66,133,244,0.2);
   border-radius: 999px;
   background: rgba(66,133,244,0.06);
-  color: #4285f4;
+  color: var(--primary);
   font-size: 12px;
   font-weight: 500;
   padding: 5px 10px;
@@ -588,6 +588,126 @@
   margin-bottom: 20px;
   flex-wrap: wrap;
   gap: 16px;
+}
+
+/* 跨页全选状态横幅 */
+.selection-all-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  border: 1px solid rgba(66,133,244,0.3);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  color: var(--foreground);
+  font-size: 13px;
+}
+
+/* ⌘K / Ctrl+K 命令面板 */
+.command-palette-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 13000;
+  background: rgba(14, 17, 21, 0.32);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+}
+.command-palette {
+  width: min(560px, calc(100vw - 32px));
+  background: color-mix(in srgb, var(--card) 86%, transparent);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+.command-palette-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.command-palette-search-icon {
+  color: var(--muted-foreground);
+  flex: 0 0 16px;
+}
+.command-palette-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+}
+.command-palette-kbd {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+.command-palette-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  max-height: 48vh;
+  overflow-y: auto;
+}
+.command-palette-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--foreground);
+}
+.command-palette-item.is-active {
+  background: rgba(66, 133, 244, 0.12);
+}
+.command-palette-hint {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+.command-palette-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  margin: 0;
+}
+
+/* 命令面板过渡：淡入 + 轻微缩放 */
+.palette-enter-active,
+.palette-leave-active {
+  transition: opacity 0.18s ease;
+}
+.palette-enter-active .command-palette,
+.palette-leave-active .command-palette {
+  transition: transform 0.18s cubic-bezier(0.25, 0.1, 0.25, 1), opacity 0.18s ease;
+}
+.palette-enter-from,
+.palette-leave-to {
+  opacity: 0;
+}
+.palette-enter-from .command-palette,
+.palette-leave-to .command-palette {
+  transform: scale(0.97) translateY(-4px);
+  opacity: 0;
 }
 
 .toolbar-left {
@@ -769,7 +889,7 @@
 }
 
 .lottery-scheduler-card.tone-success {
-  border-left: 3px solid #34a853;
+  border-left: 3px solid var(--success);
   background: var(--card);
 }
 
@@ -779,12 +899,12 @@
 }
 
 .lottery-scheduler-card.tone-danger {
-  border-left: 3px solid #ea4335;
+  border-left: 3px solid var(--danger);
   background: var(--card);
 }
 
 .lottery-scheduler-card.tone-info {
-  border-left: 3px solid #4285f4;
+  border-left: 3px solid var(--primary);
   background: var(--card);
 }
 
@@ -823,7 +943,7 @@
 }
 
 .btn:focus-visible {
-  outline: 2px solid #4285f4;
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
 
@@ -833,7 +953,7 @@
 }
 
 .btn-primary {
-  background: #4285f4;
+  background: var(--primary);
   color: var(--primary-foreground);
   border-color: transparent;
   box-shadow: 0 1px 2px rgba(14, 17, 21, 0.12), 0 1px 3px rgba(14, 17, 21, 0.08);
@@ -858,14 +978,14 @@
 
 .btn-danger {
   background: transparent;
-  color: #ef4444;
+  color: var(--danger);
   border: 1px solid var(--input);
   box-shadow: none;
 }
 
 .btn-danger:hover {
   background: rgba(239, 68, 68, 0.08);
-  border-color: #ef4444;
+  border-color: var(--danger);
 }
 
 .btn:disabled {
@@ -1070,8 +1190,8 @@
 }
 
 .checkbox-wrapper input:checked ~ .checkmark {
-  background: #4285f4;
-  border-color: #4285f4;
+  background: var(--primary);
+  border-color: var(--primary);
 }
 
 .checkbox-wrapper input:checked ~ .checkmark::after {
@@ -1112,13 +1232,13 @@
 }
 
 .cell-badge.badge-success {
-  background: rgba(52,168,83,0.14);
-  color: #34a853;
+  background: var(--success-soft);
+  color: var(--success);
 }
 
 .cell-badge.badge-info {
   background: rgba(66,133,244,0.14);
-  color: #4285f4;
+  color: var(--primary);
 }
 
 .cell-badge.badge-warning {
@@ -1127,8 +1247,8 @@
 }
 
 .cell-badge.badge-danger {
-  background: rgba(234,67,53,0.12);
-  color: #ea4335;
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .cell-badge.badge-muted {
@@ -1158,10 +1278,49 @@
   text-decoration-style: dotted;
 }
 
+/* 行内编辑可见入口（悬停/聚焦时显示 pencil） */
+.g-table-sheet td {
+  position: relative;
+}
+.cell-edit-trigger {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+.g-table-sheet tr:hover .cell-edit-trigger,
+.cell-edit-trigger:focus-visible {
+  opacity: 1;
+}
+.cell-edit-trigger:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+.cell-text.editable:focus-visible,
+.cell-badge:focus-visible,
+.cell-price:focus-visible,
+.cell-date:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .cell-link {
   border: 0;
   background: transparent;
-  color: #4285f4;
+  color: var(--primary);
   padding: 0;
   cursor: pointer;
   font: inherit;
@@ -1193,7 +1352,7 @@
 
 .inline-edit-input:focus {
   outline: none;
-  border-color: #4285f4;
+  border-color: var(--primary);
   box-shadow: none;
 }
 
@@ -1206,6 +1365,11 @@
   font-weight: 500;
   padding: 6px 8px;
   cursor: pointer;
+}
+
+.inline-edit-action:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 .cell-tags {
@@ -1286,18 +1450,18 @@
 .icon-btn.edit:hover {
   background: var(--muted);
   border-color: var(--border);
-  color: #4285f4;
+  color: var(--primary);
 }
 
 .icon-btn.delete:hover {
-  background: rgba(234,67,53,0.1);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
   border-color: var(--border);
-  color: #ea4335;
+  color: var(--danger);
 }
 
 .icon-btn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(66,133,244,0.25);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent);
 }
 
 .review-btn {
@@ -1317,24 +1481,29 @@
   font-family: 'DM Sans', ui-sans-serif, sans-serif, system-ui;
 }
 
+.review-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
 .review-btn.approve {
-  color: #34a853;
-  background: rgba(52,168,83,0.14);
-  border-color: rgba(52,168,83,0.3);
+  color: var(--success);
+  background: var(--success-soft);
+  border-color: color-mix(in srgb, var(--success) 30%, transparent);
 }
 
 .review-btn.approve:hover {
-  background: rgba(52,168,83,0.22);
+  background: color-mix(in srgb, var(--success) 22%, transparent);
 }
 
 .review-btn.reject {
-  color: #ea4335;
-  background: rgba(234,67,53,0.12);
-  border-color: rgba(234,67,53,0.3);
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
 }
 
 .review-btn.reject:hover {
-  background: rgba(234,67,53,0.2);
+  background: color-mix(in srgb, var(--danger) 20%, transparent);
 }
 
 .review-btn:disabled {
@@ -1423,9 +1592,9 @@
 
 .dm-page-number.active,
 .page-number.active {
-  background: #4285f4;
+  background: var(--primary);
   color: var(--primary-foreground);
-  border-color: #4285f4;
+  border-color: var(--primary);
 }
 
 .dm-page-size-selector select,
@@ -1451,7 +1620,7 @@
   width: 40px;
   height: 40px;
   border: 3px solid var(--border);
-  border-top-color: #4285f4;
+  border-top-color: var(--primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   margin: 0 auto 16px;
@@ -1500,7 +1669,7 @@
 
 .mobile-card.selected {
   background: var(--muted);
-  border-color: #4285f4;
+  border-color: var(--primary);
 }
 
 .mobile-card.anomaly {
@@ -1591,13 +1760,13 @@
 .mobile-action-btn.edit:hover {
   background: var(--muted);
   border-color: var(--border);
-  color: #4285f4;
+  color: var(--primary);
 }
 
 .mobile-action-btn.delete:hover {
-  background: rgba(234,67,53,0.1);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
   border-color: var(--border);
-  color: #ea4335;
+  color: var(--danger);
 }
 
 /* ==================== FAB 按钮 ==================== */
@@ -1608,7 +1777,7 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: #4285f4;
+  background: var(--primary);
   color: var(--primary-foreground);
   border: none;
   cursor: pointer;
@@ -1627,6 +1796,11 @@
 
 .fab-button:active {
   transform: scale(0.96);
+}
+
+.fab-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 35%, transparent);
 }
 
 /* Skeleton animation */
@@ -1735,8 +1909,8 @@
 }
 
 .status-success .status-card-icon {
-  background: rgba(52,168,83,0.14);
-  color: #34a853;
+  background: var(--success-soft);
+  color: var(--success);
 }
 
 .status-warning .status-card-icon {
@@ -1745,13 +1919,13 @@
 }
 
 .status-danger .status-card-icon {
-  background: rgba(234,67,53,0.12);
-  color: #ea4335;
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .status-info .status-card-icon {
   background: rgba(66,133,244,0.14);
-  color: #4285f4;
+  color: var(--primary);
 }
 
 .status-card-body {
@@ -1852,7 +2026,7 @@
 }
 
 .overview-table-card.active {
-  border-color: #4285f4;
+  border-color: var(--primary);
   background: var(--muted);
 }
 
@@ -1865,7 +2039,7 @@
 .overview-table-count {
   font-size: 14px;
   font-weight: 600;
-  color: #4285f4;
+  color: var(--primary);
 }
 
 .overview-grid-2col {
@@ -1906,7 +2080,7 @@
 }
 
 .tone-success .diagnostic-dot {
-  background: #34a853;
+  background: var(--success);
 }
 
 .tone-warning .diagnostic-dot {
@@ -1914,11 +2088,11 @@
 }
 
 .tone-danger .diagnostic-dot {
-  background: #ea4335;
+  background: var(--danger);
 }
 
 .tone-info .diagnostic-dot {
-  background: #4285f4;
+  background: var(--primary);
 }
 
 .diagnostic-body {
@@ -1952,7 +2126,7 @@
   border-radius: 8px;
   border: 1px solid var(--border);
   background: transparent;
-  color: #4285f4;
+  color: var(--primary);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -2017,7 +2191,7 @@
 }
 
 .tone-success {
-  border-left: 3px solid #34a853;
+  border-left: 3px solid var(--success);
 }
 
 .tone-warning {
@@ -2025,11 +2199,11 @@
 }
 
 .tone-danger {
-  border-left: 3px solid #ea4335;
+  border-left: 3px solid var(--danger);
 }
 
 .tone-info {
-  border-left: 3px solid #4285f4;
+  border-left: 3px solid var(--primary);
 }
 
 .filter-loading-overlay {

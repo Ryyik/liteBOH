@@ -133,22 +133,14 @@ const detect = () => {
 };
 
 const handleResize = () => detect();
-const handleKey = (e) => {
-  if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
-    e.preventDefault();
-    document.querySelector('.g-topbar-search input')?.focus();
-  }
-};
 
 onMounted(() => {
   detect();
   window.addEventListener('resize', handleResize);
-  window.addEventListener('keydown', handleKey);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize);
-  window.removeEventListener('keydown', handleKey);
 });
 
 defineExpose({ searchModel });
@@ -160,7 +152,9 @@ defineExpose({ searchModel });
   top: 0;
   z-index: 1000;
   height: calc(var(--dm-header-height) + env(safe-area-inset-top));
-  background: var(--background);
+  background: color-mix(in srgb, var(--background) 72%, transparent);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;

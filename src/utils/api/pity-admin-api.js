@@ -57,6 +57,22 @@ export async function batchAdjustPity({ userIds = null, delta, reason = '' }) {
   return data;
 }
 
+export async function undoPity({ userId, reason = '' }) {
+  const safeUserId = String(userId || '').trim();
+  if (!safeUserId) throw new Error('用户 ID 不能为空');
+  const { data, error } = await supabase.rpc('admin_undo_pity', {
+    p_user_id: safeUserId,
+    p_reason: String(reason || '').trim() || null
+  });
+  if (error) {
+    throw new Error(normalizeDbError(error)?.message || error.message || '撤销保底修改失败');
+  }
+  if (data && data.ok === false) {
+    throw new Error(data.message || '撤销保底修改失败');
+  }
+  return data;
+}
+
 export async function batchSetPity({ userIds = null, value, reason = '' }) {
   const safeValue = Number(value);
   if (!Number.isInteger(safeValue) || safeValue < 0) throw new Error('保底次数必须为大于等于 0 的整数');
@@ -73,6 +89,37 @@ export async function batchSetPity({ userIds = null, value, reason = '' }) {
     throw new Error(data.message || '批量设置保底失败');
   }
   return data;
+}
+
+export async function undoPityBatch({ logId, reason = '' }) {
+  const safeLogId = String(logId || '').trim();
+  if (!safeLogId) throw new Error('批次记录 ID 不能为空');
+  const { data, error } = await supabase.rpc('admin_undo_pity_batch', {
+    p_log_id: safeLogId,
+    p_reason: String(reason || '').trim() || null
+  });
+  if (error) {
+    throw new Error(normalizeDbError(error)?.message || error.message || '撤销保底批次失败');
+  }
+  if (data && data.ok === false) {
+    throw new Error(data.message || '撤销保底批次失败');
+  }
+  return data;
+}
+
+export async function fetchPityBatchOps(limit = 20) {
+  const safeLimit = Math.min(100, Math.max(1, Math.trunc(Number(limit) || 20)));
+  const { data, error } = await supabase.rpc('admin_list_pity_batch_ops', {
+    p_limit: safeLimit
+  });
+  if (error) {
+    throw new Error(normalizeDbError(error)?.message || error.message || '加载保底操作批次失败');
+  }
+  const result = data || {};
+  return {
+    rows: Array.isArray(result.rows) ? result.rows : [],
+    total: Number(result.total || 0)
+  };
 }
 
 // 复用积分发放的搜索：搜索用户名/ID，带防注入

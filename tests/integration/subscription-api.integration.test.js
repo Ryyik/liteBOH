@@ -16,6 +16,7 @@ import { clearRequestCache } from '../../src/utils/request-core.js';
 import {
   getMySubscriptions,
   subscribeWithPoints,
+  startSubscriptionTrial,
 } from '../../src/utils/api/subscription-api.js';
 
 function makeQuery(result, calls = []) {
@@ -111,6 +112,48 @@ describe('subscription-api: subscribeWithPoints', () => {
     }));
   });
 
+  it('normalizes upgrade proration fields', async () => {
+    sm.supabaseRpc.mockResolvedValue({
+      data: { ok: true, subscription_id: 'sub-up', plan_code: 'ultra', plan_name: 'Ultra', billing_cycle: 'monthly', points_deducted: 46, current_points: 854, required_points: 70, action: 'upgrade', previous_plan_code: 'plus', credit_applied: 24, remaining_days: 11, started_at: '2024-01-01', expires_at: '2025-02-01' },
+      error: null,
+    });
+
+    const result = await subscribeWithPoints({
+      planCode: 'ultra',
+      planName: 'Ultra',
+      billingCycle: 'monthly',
+      pointsCost: 70,
+      durationMonths: 1,
+    });
+    expect(result.ok).toBe(true);
+    expect(result.data.action).toBe('upgrade');
+    expect(result.data.previousPlanCode).toBe('plus');
+    expect(result.data.creditApplied).toBe(24);
+    expect(result.data.remainingDays).toBe(11);
+    expect(result.data.pointsDeducted).toBe(46);
+    expect(result.data.requiredPoints).toBe(70);
+  });
+
+  it('normalizes renew action with no proration fields', async () => {
+    sm.supabaseRpc.mockResolvedValue({
+      data: { ok: true, subscription_id: 'sub-renew', plan_code: 'pro', plan_name: 'Pro', billing_cycle: 'monthly', points_deducted: 20, current_points: 880, required_points: 20, action: 'renew', previous_plan_code: '', credit_applied: 0, remaining_days: 0, started_at: '2025-02-01', expires_at: '2025-03-01' },
+      error: null,
+    });
+
+    const result = await subscribeWithPoints({
+      planCode: 'pro',
+      planName: 'Pro',
+      billingCycle: 'monthly',
+      pointsCost: 20,
+      durationMonths: 1,
+    });
+    expect(result.ok).toBe(true);
+    expect(result.data.action).toBe('renew');
+    expect(result.data.previousPlanCode).toBe(null);
+    expect(result.data.creditApplied).toBe(0);
+    expect(result.data.remainingDays).toBe(0);
+  });
+
   it('handles RPC error', async () => {
     sm.supabaseRpc.mockResolvedValue({
       data: null,
@@ -155,5 +198,51 @@ describe('subscription-api: subscribeWithPoints', () => {
       pointsCost: 100,
     });
     expect(result.ok).toBe(false);
+  });
+});
+
+describe('subscription-api: startSubscriptionTrial', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    clearRequestCache();
+  });
+
+  it('calls RPC with normalized args and maps response', async () => {
+    sm.supabaseRpc.mockResolvedValue({
+      data: { ok: true, message: 'TRIAL_STARTED', subscription_id: 'sub-trial', plan_code: 'pro', plan_name: 'Pro', expires_at: '2024-01-04', trial_days: 3 },
+      error: null,
+    });
+
+    const result = await startSubscriptionTrial({ planCode: 'pro', durationDays: 3 });
+    expect(result.ok).toBe(true);
+    expect(result.data.subscriptionId).toBe('sub-trial');
+    expect(result.data.planCode).toBe('pro');
+    expect(result.data.trialDays).toBe(3);
+    expect(sm.supabaseRpc).toHaveBeenCalledWith('start_subscription_trial', expect.objectContaining({
+      p_plan_code: 'pro',
+      p_duration_days: 3,
+    }));
+  });
+
+  it('returns failure when RPC returns ok: false', async () => {
+    sm.supabaseRpc.mockResolvedValue({
+      data: { ok: false, message: 'TRIAL_ALREADY_USED', subscription_id: null },
+      error: null,
+    });
+
+    const result = await startSubscriptionTrial({ planCode: 'pro', durationDays: 3 });
+    expect(result.ok).toBe(false);
+    expect(result.data.message).toBe('TRIAL_ALREADY_USED');
+  });
+
+  it('propagates RPC error', async () => {
+    sm.supabaseRpc.mockResolvedValue({
+      data: null,
+      error: { message: 'auth', code: 'NOT_AUTHENTICATED' },
+    });
+
+    const result = await startSubscriptionTrial({ planCode: 'pro', durationDays: 3 });
+    expect(result.ok).toBe(false);
+    expect(result.error).toBeDefined();
   });
 });

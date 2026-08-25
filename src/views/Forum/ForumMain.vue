@@ -23,6 +23,7 @@ import { useForumImageModerationPreload } from './composables/useForumImageModer
 import { useForumPostDraftStorage } from './composables/useForumPostDraftStorage.js';
 import { useForumVirtualFeed } from './composables/useForumVirtualFeed.js';
 import { useActiveAds } from './composables/useActiveAds.js';
+import { useUserTier } from '@/composables/useUserTier.js';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader';
@@ -95,6 +96,7 @@ import {
   retryPostModeration,
   getWeeklyCheckinStatus,
   submitWeeklyCheckin,
+  claimPostPublishReward,
   getForumPostDraft,
   upsertForumPostDraft,
   deleteForumPostDraft,
@@ -213,6 +215,16 @@ const {
   clearForumImageModerationPreloadTask,
   scheduleForumImageModerationPreload
 } = useForumImageModerationPreload(preloadForumImageModeration);
+
+// 批量预取帖子作者的订阅等级：把原先 PostCard 挂载时各自发起的单发
+// get_user_subscription_tier RPC 合并为一次 get_user_subscription_tiers 批量请求。
+// useUserTier 内部预注册 in-flight，PostCard 并发的 fetchUserTier 会命中而不再发 RPC。
+const { fetchUserTiersBatch: prefetchPostAuthorTiers } = useUserTier();
+const prefetchAuthorTiersFor = (rows) => {
+  if (!Array.isArray(rows) || !rows.length) return;
+  const authorIds = [...new Set(rows.map((p) => p?.author_id).filter(Boolean))];
+  if (authorIds.length) void prefetchPostAuthorTiers(authorIds);
+};
 
 const normalizeForumTagValue = (tag = '') => {
   const safeTag = String(tag || '').trim().toLowerCase();
@@ -398,6 +410,7 @@ const initializeForumData = async () => {
       currentPage.value = snapshot.currentPage;
       nextPageCursor.value = snapshot.nextPageCursor;
       hasMoreData.value = snapshot.hasMoreData;
+      prefetchAuthorTiersFor(snapshot.posts);
       isLoading.value = false;
       void fetchForumData(false, { background: true });
       return;
@@ -2351,9 +2364,11 @@ const fetchForumData = async (isLoadMore = false, { background = false } = {}) =
           ...prepareForumPosts(newPosts, forumData.value.length)
         ];
         currentPage.value = pageToLoad;
+        prefetchAuthorTiersFor(newPosts);
       } else {
         forumData.value = prepareForumPosts(safeRows);
         currentPage.value = 1;
+        prefetchAuthorTiersFor(safeRows);
       }
       nextPageCursor.value = hasNextCursor;
       forumLoadError.value = '';
@@ -2741,6 +2756,28 @@ const handlePost = async () => {
 
     // 增加发帖经验
     addExperience(supabase, userInfo.id, XP_REWARDS.POST).catch(err => logger.error('forum', '经验值增加失败:', err));
+
+    // 发帖有奖：帖子发布成功后，按“当前进行中”的活动发放积分（无活动/超限/已领则静默跳过）
+    if (createdPostId) {
+      claimPostPublishReward(supabase, createdPostId)
+        .then((reward) => {
+          if (reward && reward.ok && Number(reward.awarded) > 0) {
+            if (Number.isFinite(Number(reward.currentPoints))) {
+              userInfo.points = Number(reward.currentPoints);
+            }
+            const tip = reward.campaignTitle ? `「${reward.campaignTitle}」` : '';
+            if (!showEmbeddedSuccessIsland({
+              title: '发帖得积分',
+              message: `获得 ${reward.awarded} 积分${tip}`,
+              icon: 'gift',
+              type: 'success'
+            })) {
+              showModal('success', '发帖得积分', `获得 ${reward.awarded} 积分${tip}`);
+            }
+          }
+        })
+        .catch((err) => logger.error('forum', '发帖奖励发放失败:', err));
+    }
 
     emitProfileSync({
       userId: userInfo.id,

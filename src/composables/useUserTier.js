@@ -57,6 +57,10 @@ export function useUserTier() {
   /**
    * 批量获取多个用户的订阅等级，调用 get_user_subscription_tiers RPC。
    * 已缓存且未过期的用户直接使用缓存，未命中的批量查询。
+   *
+   * 跨方法去重：批量 RPC 发起前，把待查 id 预注册进 tierRequestInFlight，
+   * 使同一时刻并发调用的 fetchUserTier(id) 命中 in-flight 而不再各自发起单发 RPC。
+   * 这样「父组件批量预取 + 子组件挂载时单发兜底」的组合只产生 1 次批量 RPC。
    * @param {string[]} userIds
    * @returns {Promise<Map<string, string>>} userId -> tier
    */
@@ -84,33 +88,67 @@ export function useUserTier() {
 
       const pending = uncached.filter((id) => tierRequestInFlight.has(id));
       const requestIds = uncached.filter((id) => !tierRequestInFlight.has(id));
+
+      // 预注册必须在任何 await 之前同步完成：父组件 `void fetchUserTiersBatch(...)`
+      // 返回后，子组件挂载时的 fetchUserTier(id) 才能立即命中 in-flight 而不发单发 RPC。
+      // 若在此处之前有 await，会让出执行权导致子组件单发 RPC 抢先发起。
+      let settleBatch;
+      const batchGate = new Promise((res) => { settleBatch = res; });
+      const registeredEntries = new Map();
+      for (const id of requestIds) {
+        const entryPromise = batchGate.then(() => getCachedTier(id) ?? 'free');
+        tierRequestInFlight.set(id, entryPromise);
+        registeredEntries.set(id, entryPromise);
+      }
+
+      // 等待已在飞行中的单发请求（来自其它路径），它们的结果会写入缓存
       await Promise.all(pending.map(async (id) => result.set(id, await tierRequestInFlight.get(id))));
-      if (requestIds.length === 0) return result;
-
-      const { data, error } = await supabase
-        .rpc('get_user_subscription_tiers', { p_user_ids: requestIds });
-
-      if (error || !Array.isArray(data)) {
-        // 回退：逐个调用 fetchUserTier
-        for (const id of requestIds) {
-          result.set(id, await fetchUserTier(id));
-        }
+      if (requestIds.length === 0) {
+        settleBatch();
         return result;
       }
 
-      for (const row of data) {
-        const tier = normalizeSubscriptionPlanCode(row.tier) || 'free';
-        setCachedTier(row.user_id, tier);
-        result.set(row.user_id, tier);
-      }
-      // RPC 正常返回但缺少成员时同样缓存 free，避免每次渲染重新查询。
-      for (const id of requestIds) {
-        if (!result.has(id)) {
-          setCachedTier(id, 'free');
-          result.set(id, 'free');
+      try {
+        const { data, error } = await supabase
+          .rpc('get_user_subscription_tiers', { p_user_ids: requestIds });
+
+        if (error || !Array.isArray(data)) {
+          // 批量失败：先清除本批预注册（避免下方 fetchUserTier 递归命中自己死锁），
+          // 再回退到逐个 fetchUserTier 单发路径。
+          for (const id of requestIds) {
+            if (tierRequestInFlight.get(id) === registeredEntries.get(id)) {
+              tierRequestInFlight.delete(id);
+            }
+          }
+          settleBatch();
+          for (const id of requestIds) {
+            result.set(id, await fetchUserTier(id));
+          }
+          return result;
         }
+
+        for (const row of data) {
+          const tier = normalizeSubscriptionPlanCode(row.tier) || 'free';
+          setCachedTier(row.user_id, tier);
+          result.set(row.user_id, tier);
+        }
+        // RPC 正常返回但缺少成员时同样缓存 free，避免每次渲染重新查询。
+        for (const id of requestIds) {
+          if (!result.has(id)) {
+            setCachedTier(id, 'free');
+            result.set(id, 'free');
+          }
+        }
+        return result;
+      } finally {
+        // 批量结束：清除本批预注册（缓存已就绪，后续 fetchUserTier 走正常缓存命中）。
+        for (const id of requestIds) {
+          if (tierRequestInFlight.get(id) === registeredEntries.get(id)) {
+            tierRequestInFlight.delete(id);
+          }
+        }
+        settleBatch();
       }
-      return result;
     })();
 
     tierBatchInFlight.set(batchKey, request);

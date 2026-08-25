@@ -190,6 +190,9 @@
             <button type="button" class="pity-mini-btn" :disabled="rowActionId === row.user_id" @click="quickAdjust(row, -1)" title="−1">−1</button>
             <button type="button" class="pity-mini-btn danger" :disabled="rowActionId === row.user_id" @click="quickSet(row, 0)" title="清零">清零</button>
             <button type="button" class="pity-mini-btn ghost" :disabled="rowActionId === row.user_id" @click="openSetDialog(row)" title="设值">设值</button>
+            <button type="button" class="pity-mini-btn undo" :disabled="rowActionId === row.user_id" @click="undoRow(row)" title="撤销最近一次修改">
+              <Undo2 :size="13" />撤销
+            </button>
           </span>
         </div>
       </div>
@@ -207,20 +210,70 @@
         />
       </footer>
     </section>
+
+    <!-- 最近操作批次 -->
+    <section class="quota-panel grant-panel">
+      <div class="quota-panel-heading">
+        <div><h3>最近操作批次</h3><p>按批次查看批量增减/设值记录，可展开查看每个用户的前后值。</p></div>
+        <span>{{ batchOpsTotal }} 条记录</span>
+      </div>
+
+      <div v-if="loadingBatchOps" class="grant-loading">正在加载操作记录…</div>
+      <div v-else-if="batchOpsList.length === 0" class="grant-empty">
+        <Inbox :size="26" :stroke-width="1.5" />
+        <p>暂无批量操作记录</p>
+      </div>
+      <div v-else class="pity-batch-list">
+        <div v-for="op in batchOpsList" :key="op.id" class="pity-batch-card">
+          <div class="pity-batch-head">
+            <div class="pity-batch-meta">
+              <span class="pity-batch-time">{{ formatDate(op.created_at) }}</span>
+              <span class="pity-batch-type">{{ op.action === 'pity.batch_adjust' ? '批量增减' : '批量设值' }}</span>
+              <span class="pity-batch-amount" :class="op.action === 'pity.batch_adjust' && Number(op.delta) < 0 ? 'pity-negative' : ''">
+                {{ op.action === 'pity.batch_adjust' ? (Number(op.delta) > 0 ? '+' : '') + (op.delta ?? 0) : '设为 ' + (op.value ?? 0) }}
+              </span>
+              <span class="pity-batch-count">成功 {{ op.success ?? 0 }} / 跳过 {{ op.skipped ?? 0 }} / 失败 {{ op.failed ?? 0 }}</span>
+            </div>
+            <div class="pity-batch-head-right">
+              <span v-if="op.reason" class="pity-batch-reason">「{{ op.reason }}」</span>
+              <span v-if="op.undone" class="pity-batch-undone-tag">已撤销</span>
+              <button v-else type="button" class="pity-mini-btn undo" :disabled="batchActionId === op.id" @click="undoBatch(op)">
+                <Undo2 :size="13" />撤销批次
+              </button>
+            </div>
+          </div>
+          <details class="pity-batch-detail">
+            <summary>查看 {{ (op.details || []).length }} 位用户明细</summary>
+            <div class="pity-batch-detail-list">
+              <div v-for="d in op.details" :key="d.user_id" class="pity-batch-detail-row">
+                <span class="pity-batch-detail-name">{{ d.username || '未命名用户' }}</span>
+                <span v-if="d.ok" class="pity-batch-detail-change">{{ d.before }} → {{ d.after }}</span>
+                <span v-else class="pity-batch-detail-skip">
+                  {{ d.code === 'NOT_ELIGIBLE' ? 'Free/阈值0跳过' : (d.code === 'NOT_FOUND' ? '用户不存在' : '失败') }}
+                </span>
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
   </section>
 </template>
 
 <script setup>
 import { computed, onMounted, ref } from 'vue';
-import { Inbox, RefreshCw, Search, Send } from 'lucide-vue-next';
+import { Inbox, RefreshCw, Search, Send, Undo2 } from 'lucide-vue-next';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import {
   adjustPity,
   batchAdjustPity,
   batchSetPity,
+  fetchPityBatchOps,
   fetchPityProgress,
   searchPityTargetUsers,
-  setPity
+  setPity,
+  undoPity,
+  undoPityBatch
 } from '@/utils/api/pity-admin-api.js';
 import { logger } from '@/utils/logger.js';
 import DashboardPagination from './shared/DashboardPagination.vue';
@@ -246,6 +299,10 @@ const progressPage = ref(1);
 const progressPageSize = 20;
 const progressSearch = ref('');
 const rowActionId = ref('');
+const batchOpsList = ref([]);
+const batchOpsTotal = ref(0);
+const loadingBatchOps = ref(false);
+const batchActionId = ref('');
 let progressRequestId = 0;
 
 const canSubmit = computed(() => {
@@ -295,6 +352,24 @@ const loadProgress = async (page = progressPage.value) => {
   }
 };
 
+const formatDate = (d) => {
+  if (!d) return '--';
+  const date = new Date(d);
+  if (Number.isNaN(date.getTime())) return '--';
+  return date.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+};
+
+const loadBatchOps = async () => {
+  loadingBatchOps.value = true;
+  try {
+    const { rows, total } = await fetchPityBatchOps(20);
+    batchOpsList.value = Array.isArray(rows) ? rows : [];
+    batchOpsTotal.value = Number(total || 0);
+  } catch (e) {
+    notify(e?.message || '加载操作批次失败', 'error');
+  } finally { loadingBatchOps.value = false; }
+};
+
 const submitBatch = async () => {
   if (!canSubmit.value || saving.value) return;
   const targetCount = mode.value === 'all' ? '全部' : selectedUsers.value.length;
@@ -322,6 +397,7 @@ const submitBatch = async () => {
     selectedUsers.value = [];
     searchResults.value = [];
     await loadProgress(1);
+    await loadBatchOps();
   } catch (e) {
     logger.error('PityGrantConsole', '批量操作失败:', e);
     notify(e?.message || '批量操作失败', 'error');
@@ -377,7 +453,48 @@ const openSetDialog = async (row) => {
   } finally { rowActionId.value = ''; }
 };
 
-onMounted(() => { void loadProgress(1); });
+const undoRow = async (row) => {
+  const userId = row.user_id || row.id;
+  if (!userId || rowActionId.value) return;
+  const accepted = await confirm({
+    title: '撤销保底修改',
+    message: `将「${row.username}」的保底次数恢复到最近一次修改前的值（当前 ${row.consecutive_losses ?? 0}）。该操作会写入审计日志。`,
+    confirmText: '确认撤销',
+    tone: 'danger'
+  });
+  if (!accepted) return;
+  rowActionId.value = userId;
+  try {
+    const res = await undoPity({ userId, reason: '快捷撤销' });
+    notify(`已撤销「${row.username}」：${res.before} → ${res.after}（回退自 ${res.undo_from || '未知操作'}）`);
+    await loadProgress(progressPage.value);
+  } catch (e) {
+    notify(e?.message || '撤销失败', 'error');
+  } finally { rowActionId.value = ''; }
+};
+
+const undoBatch = async (op) => {
+  if (!op.id || batchActionId.value) return;
+  const opLabel = op.action === 'pity.batch_adjust' ? `批量${Number(op.delta) > 0 ? '+' : ''}${op.delta}` : `设为 ${op.value}`;
+  const accepted = await confirm({
+    title: '撤销保底批次',
+    message: `将「${formatDate(op.created_at)}」的${opLabel}批次（成功 ${op.success ?? 0} 位用户）全部恢复到操作前的值。该操作会写入审计日志。`,
+    confirmText: '确认撤销',
+    tone: 'danger'
+  });
+  if (!accepted) return;
+  batchActionId.value = op.id;
+  try {
+    const res = await undoPityBatch({ logId: op.id, reason: '批次撤销' });
+    notify(`已撤销批次：${res.affected ?? 0} 位用户已恢复（跳过 ${res.skipped ?? 0}）`);
+    await loadBatchOps();
+    await loadProgress(progressPage.value);
+  } catch (e) {
+    notify(e?.message || '撤销批次失败', 'error');
+  } finally { batchActionId.value = ''; }
+};
+
+onMounted(() => { void loadProgress(1); void loadBatchOps(); });
 </script>
 
 <style scoped>
@@ -478,6 +595,7 @@ onMounted(() => { void loadProgress(1); });
 .pity-mini-btn:hover { background: var(--muted); }
 .pity-mini-btn.danger { color: #f04438; border-color: color-mix(in srgb, #f04438 28%, transparent); }
 .pity-mini-btn.ghost { color: var(--muted-foreground); }
+.pity-mini-btn.undo { color: #7a5af8; border-color: color-mix(in srgb, #7a5af8 28%, transparent); display: inline-flex; align-items: center; gap: 4px; }
 .pity-mini-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 @media (max-width: 900px) {
   .pity-progress-head { display: none; }
@@ -485,4 +603,28 @@ onMounted(() => { void loadProgress(1); });
   .pity-row-actions { justify-content: flex-start; }
   .quota-config-hero { flex-direction: column; align-items: stretch; }
 }
+
+.pity-batch-list { display: grid; gap: 8px; padding: 14px; }
+.pity-batch-card { border: 1px solid var(--border); border-radius: 12px; background: var(--card); overflow: hidden; }
+.pity-batch-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; flex-wrap: wrap; }
+.pity-batch-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pity-batch-time { color: var(--muted-foreground); font-size: 12px; }
+.pity-batch-type { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--muted); color: var(--foreground); }
+.pity-batch-amount { font-weight: 800; font-size: 13px; }
+.pity-batch-count { color: var(--muted-foreground); font-size: 12px; }
+.pity-batch-head-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pity-batch-reason { color: var(--muted-foreground); font-size: 12px; }
+.pity-batch-undone-tag { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--muted); color: var(--muted-foreground); }
+.pity-batch-detail { border-top: 1px solid var(--border); }
+.pity-batch-detail summary { padding: 10px 14px; font-size: 12px; color: var(--muted-foreground); cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px; }
+.pity-batch-detail summary::-webkit-details-marker { display: none; }
+.pity-batch-detail summary::before { content: '▸'; transition: transform 0.15s ease; }
+.pity-batch-detail[open] summary::before { transform: rotate(90deg); }
+.pity-batch-detail summary:hover { background: var(--muted); }
+.pity-batch-detail-list { display: grid; max-height: 260px; overflow-y: auto; border-top: 1px solid var(--border); }
+.pity-batch-detail-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 14px; font-size: 12px; border-bottom: 1px solid var(--border); }
+.pity-batch-detail-row:last-child { border-bottom: none; }
+.pity-batch-detail-name { font-weight: 650; color: var(--foreground); }
+.pity-batch-detail-change { color: var(--foreground); font-variant-numeric: tabular-nums; }
+.pity-batch-detail-skip { color: var(--muted-foreground); font-size: 11px; }
 </style>

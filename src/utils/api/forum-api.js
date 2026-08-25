@@ -14,7 +14,9 @@ export {
   updatePost,
   retryPostModeration,
   getWeeklyCheckinStatus,
-  submitWeeklyCheckin
+  submitWeeklyCheckin,
+  claimPostPublishReward,
+  getActivePostReward
 } from './forum/post-api.js';
 
 export {

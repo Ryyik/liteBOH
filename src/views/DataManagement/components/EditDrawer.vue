@@ -2,7 +2,7 @@
   <!-- 编辑/新增抽屉 -->
   <Transition name="drawer">
     <div v-if="show" class="drawer-overlay" role="dialog" aria-modal="true" :aria-labelledby="titleId"
-      @click.self="$emit('close')" @keydown.esc.stop="$emit('close')" tabindex="-1" ref="overlayRef">
+      @click.self="$emit('close')" @keydown.esc.stop="$emit('close')" @keydown.tab="trapFocus" tabindex="-1" ref="overlayRef">
       <div class="drawer" @keydown.esc.stop="$emit('close')">
         <div class="drawer-header">
           <div class="drawer-title-group">
@@ -909,6 +909,26 @@ watch(() => props.show, async (visible) => {
     clearBohaiKeySelect();
   }
 });
+
+// 焦点陷阱：Tab 循环保持在抽屉内
+const trapFocus = (e) => {
+  if (!props.show || e.key !== 'Tab') return;
+  const overlay = overlayRef.value;
+  if (!overlay) return;
+  const focusables = [...overlay.querySelectorAll(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  )].filter((el) => !el.disabled && el.offsetParent !== null);
+  if (!focusables.length) return;
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
+};
 
 function setField(fieldKey, value) {
   emit('updateField', fieldKey, value);

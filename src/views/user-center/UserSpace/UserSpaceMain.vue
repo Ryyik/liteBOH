@@ -2531,7 +2531,9 @@ onMounted(() => {
 });
 
 watch(() => route.query.tab, (newTab) => {
-  // 当 tab 参数为空或不有效时，切换到默认标签（profile）
+  // 注意：本 watch 的兜底是 'profile'，但 onMounted 初始化路径 resolveAccessibleTab
+  // 的兜底是 'posts'（见上方 resolveAccessibleTab 定义与 onMounted 调用）。
+  // 二者不一致属已知历史遗留，待产品确认未登录/无 tab 时的默认页后统一。
   const safeTab = validTabs.includes(newTab) ? newTab : 'profile';
   const nextTab = resolveAccessibleTab(safeTab, { promptLogin: true });
   if (currentTab.value === nextTab) return;

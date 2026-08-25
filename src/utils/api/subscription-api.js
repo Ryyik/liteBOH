@@ -34,6 +34,10 @@ function normalizeSubscribePayload(payload = {}) {
     pointsDeducted: Number(safe.points_deducted || 0),
     currentPoints: Number(safe.current_points || 0),
     requiredPoints: Number(safe.required_points || 0),
+    action: String(safe.action || ''),
+    previousPlanCode: safe.previous_plan_code || null,
+    creditApplied: Number(safe.credit_applied || 0),
+    remainingDays: Number(safe.remaining_days || 0),
     startedAt: safe.started_at || null,
     expiresAt: safe.expires_at || null
   };
@@ -111,6 +115,43 @@ export async function subscribeWithPoints(payload = {}) {
   }
 
   const normalized = normalizeSubscribePayload(data);
+  if (normalized.ok) {
+    invalidateByTags(['profiles', 'subscriptions']);
+  }
+
+  return {
+    ok: normalized.ok,
+    data: normalized,
+    error: null
+  };
+}
+
+function normalizeTrialPayload(payload = {}) {
+  const source = Array.isArray(payload) ? payload[0] : payload;
+  const safe = source || {};
+  return {
+    ok: safe.ok === true,
+    message: String(safe.message || ''),
+    subscriptionId: safe.subscription_id || null,
+    planCode: String(safe.plan_code || ''),
+    planName: String(safe.plan_name || ''),
+    expiresAt: safe.expires_at || null,
+    trialDays: Number(safe.trial_days || 0)
+  };
+}
+
+export async function startSubscriptionTrial({ planCode = 'pro', durationDays = 3, metadata = {} } = {}) {
+  const { data, error } = await supabase.rpc('start_subscription_trial', {
+    p_plan_code: String(planCode || 'pro'),
+    p_duration_days: Number(durationDays || 3),
+    p_metadata: metadata || {}
+  });
+
+  if (error) {
+    return { ok: false, data: normalizeTrialPayload(), error: normalizeDbError(error) };
+  }
+
+  const normalized = normalizeTrialPayload(data);
   if (normalized.ok) {
     invalidateByTags(['profiles', 'subscriptions']);
   }

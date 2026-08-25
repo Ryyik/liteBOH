@@ -18,6 +18,8 @@
         ref="imageElement"
         class="overlay-hero-image"
         :src="imageSrc"
+        :srcset="imageSrcset || undefined"
+        :sizes="imageSizes || undefined"
         :alt="imageAlt"
         :style="{ objectPosition: posterPan ? undefined : imagePosition }"
         :loading="priority ? 'eager' : 'lazy'"
@@ -77,6 +79,12 @@ const props = defineProps({
   eyebrow: { type: String, default: '' },
   subtitle: { type: String, default: '' },
   imageSrc: { type: String, required: true },
+  // 宽度描述符 srcset（如 "a-390.webp 390w, a-768.webp 768w, a-1920.webp 1920w"），
+  // 配合 imageSizes 让浏览器按视口自选最小合适图，移动端不再下载 1920 宽大图。
+  // 注意：当 imageSrcPortrait/Landscape 命中其 orientation media 时，<source> 优先，
+  // 此 srcset 被忽略；仅在不传方向变体或方向 source 未命中时生效。
+  imageSrcset: { type: String, default: '' },
+  imageSizes: { type: String, default: '' },
   imageSrcPortrait: { type: String, default: '' },
   imageSrcLandscape: { type: String, default: '' },
   imageAlt: { type: String, default: '' },

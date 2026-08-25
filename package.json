@@ -1,7 +1,7 @@
 {
   "name": "bohvue",
   "private": true,
-  "version": "5.0.0",
+  "version": "5.1.1",
   "sideEffects": [
     "*.css",
     "*.vue",
@@ -11,8 +11,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run check:views && npm run check:structure && npm run type-check && vite build",
-    "build:full": "npm run build && npm run compress-images",
+    "build": "npm run check:views && npm run check:structure && npm run type-check && npm run compress-images && vite build",
+    "build:full": "npm run build",
     "compress-images": "node scripts/compress-images.mjs",
     "preview": "vite preview",
     "lint": "eslint .",

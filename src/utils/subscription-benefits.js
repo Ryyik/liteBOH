@@ -35,6 +35,15 @@ export function isSubscriptionRecordActive(record, nowTs = Date.now()) {
   return Number.isFinite(expiresTs) && expiresTs > nowTs;
 }
 
+// 决定权益是否生效：active 或 trial（未过期）均发放完整权益
+export function isSubscriptionRecordGrantingBenefits(record, nowTs = Date.now()) {
+  if (!record) return false;
+  const status = String(record.status || '').trim().toLowerCase();
+  if (status !== 'active' && status !== 'trial') return false;
+  const expiresTs = Date.parse(record.expiresAt || record.expires_at || '');
+  return Number.isFinite(expiresTs) && expiresTs > nowTs;
+}
+
 export function resolveCloudBenefitFromPlanCodes(planCodes = []) {
   let matchedPlanCode = '';
   let cloudImageLimit = DEFAULT_CLOUD_IMAGE_LIMIT;
@@ -57,7 +66,7 @@ export function resolveCloudBenefitFromPlanCodes(planCodes = []) {
 
 export function resolveCloudBenefitFromSubscriptions(subscriptions = [], nowTs = Date.now()) {
   const activePlanCodes = (Array.isArray(subscriptions) ? subscriptions : [])
-    .filter((record) => isSubscriptionRecordActive(record, nowTs))
+    .filter((record) => isSubscriptionRecordGrantingBenefits(record, nowTs))
     .map((record) => record.planCode || record.plan_code);
 
   return resolveCloudBenefitFromPlanCodes(activePlanCodes);
@@ -83,7 +92,7 @@ export function resolveHighestTierCode(subscriptions = [], nowTs = Date.now()) {
   (Array.isArray(subscriptions) ? subscriptions : []).forEach((record) => {
     const code = normalizeSubscriptionPlanCode(record.planCode || record.plan_code);
     const idx = TIER_ORDER.indexOf(code);
-    if (code && idx > bestIdx && isSubscriptionRecordActive(record, nowTs)) {
+    if (code && idx > bestIdx && isSubscriptionRecordGrantingBenefits(record, nowTs)) {
       bestIdx = idx;
       best = code;
     }

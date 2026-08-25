@@ -7,9 +7,7 @@
         :has-unmoderated="moderationPendingCount > 0"
         :is-open="isAdminSidebarOpen"
         :modules="sidebarModules"
-        :search-query="globalSearchQuery"
         @module-click="handleModuleClick"
-        @update:search-query="val => globalSearchQuery = val"
         @create-record="handleAdminCreate"
         @refresh-data="refreshAllData"
       />
@@ -138,30 +136,19 @@
           </div>
           <div class="toolbar-right">
             <button v-if="!isModerationTab && canCreateCurrentTab" class="btn btn-primary" @click="openEditModal()">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
+              <Plus :size="16" />
               新增
             </button>
           </div>
         </div>
         <div class="toolbar-secondary">
           <div class="search-box">
-            <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2" aria-hidden="true">
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
+            <Search class="search-icon" :size="18" aria-hidden="true" />
             <input v-model="searchQuery" type="text" placeholder="搜索数据..." aria-label="搜索数据" @input="handleSearch" />
             <button v-if="searchQuery" class="clear-search" @click="clearSearch">×</button>
           </div>
           <button class="filter-toggle" type="button" @click="showFilterBar = !showFilterBar">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="4" y1="6" x2="20" y2="6"></line>
-              <line x1="8" y1="12" x2="20" y2="12"></line>
-              <line x1="12" y1="18" x2="20" y2="18"></line>
-            </svg>
+            <Filter :size="16" />
             筛选
           </button>
           <div v-if="showFilterBar" class="filter-bar">
@@ -198,13 +185,13 @@
 
         <!-- 收集结果概览: 状态分布 chip, 点击即筛选 -->
         <section
-          v-if="isCollectionResultTab && collectionStatusBreakdown.length"
+          v-if="statusBreakdownForCurrentTab.length"
           class="collection-overview"
         >
           <span class="collection-overview-label">状态分布</span>
           <div class="collection-chips">
             <button
-              v-for="chip in collectionStatusBreakdown"
+              v-for="chip in statusBreakdownForCurrentTab"
               :key="chip.value || 'all'"
               type="button"
               class="collection-chip"
@@ -286,43 +273,37 @@
               <button v-if="currentTab === 'lotterySchedulerLogs'" class="btn btn-secondary" type="button" :disabled="isCleaningLogs" @click="cleanupSchedulerLogs">
                 {{ isCleaningLogs ? '清理中...' : '清理日志' }}
               </button>
+              <button v-if="!selectAllResultsMode && totalRecordCount > paginatedData.length" class="btn btn-secondary" type="button" @click="selectAllResults">
+                全选所有结果 ({{ totalRecordCount }})
+              </button>
               <button v-if="selectedItems.length > 0 && editableFields.length && canEditCurrentTab" class="btn btn-secondary" type="button" @click="showBatchEditPanel = !showBatchEditPanel">
                 批量编辑 ({{ selectedItems.length }})
               </button>
               <button v-if="selectedItems.length > 0 && !isModerationTab && canDeleteCurrentTab && !isProfileDerivedTab" class="btn btn-danger" @click="batchDelete">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="3 6 5 6 21 6"></polyline>
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                </svg>
+                <Trash2 :size="16" />
                 删除选中 ({{ selectedItems.length }})
               </button>
               <button class="btn btn-secondary" @click="exportData">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="7 10 12 15 17 10"></polyline>
-                  <line x1="12" y1="15" x2="12" y2="3"></line>
-                </svg>
+                <Download :size="16" />
                 导出当前表
               </button>
               <button class="btn btn-secondary" :disabled="isExportingBackup" @click="exportBackupData">
                 <Database :size="16" />
                 {{ isExportingBackup ? '备份中' : '备份全部' }}
               </button>
-      <div v-if="isBackupExporting" class="backup-progress-overlay">
-        <div class="backup-progress-panel">
-          <div class="backup-progress-header">数据备份导出中...</div>
-          <div class="backup-progress-bar-track">
-            <div class="backup-progress-bar-fill" :style="{ width: backupProgress + '%' }"></div>
-          </div>
-          <div class="backup-progress-text">{{ backupProgressText }}</div>
-          <button class="btn btn-secondary btn-sm" @click="cancelBackupExport">取消</button>
-        </div>
-      </div>
               <button v-if="isLotteryOpsTab" class="btn btn-secondary" :disabled="lotteryDueDrawPending" @click="runDueLotteryDraws">
                 <RefreshCw :size="16" :class="{ spinning: lotteryDueDrawPending }" />
                 执行到期开奖
               </button>
+              <button class="btn btn-secondary" type="button" title="命令面板（⌘K / Ctrl+K）" @click="openCommandPalette">
+                命令 ⌘K
+              </button>
             </div>
+          </div>
+
+          <div v-if="selectAllResultsMode" class="selection-all-banner" role="status">
+            <span>已选择全部 <strong>{{ selectedItems.length }}</strong> 条结果（跨页）</span>
+            <button type="button" class="btn btn-secondary btn-sm" @click="clearAllSelection">清除选择</button>
           </div>
 
           <div class="table-mini-stats">
@@ -373,6 +354,28 @@
             </div>
           </div>
 
+          <!-- 引用面板：一条记录的所有关联入口 -->
+          <div v-if="showRelatedPanel && relatedPanelItem" class="editor-panel related-panel">
+            <div class="advanced-filter-head">
+              <strong>关联记录</strong>
+              <button class="btn btn-secondary" type="button" @click="closeRelatedPanel">关闭</button>
+            </div>
+            <div class="related-list">
+              <button
+                v-for="r in relatedJumpsForItem(relatedPanelItem)"
+                :key="`${r.tabId}-${r.search}`"
+                type="button"
+                class="related-item"
+                @click="jumpToRelatedRecord({ tabId: r.tabId, search: r.search }, relatedPanelItem)"
+              >
+                <span class="related-item-label">{{ r.field }}</span>
+                <span class="related-item-target">{{ r.tabLabel }}</span>
+                <span class="related-item-search">{{ r.search }}</span>
+              </button>
+              <p v-if="!relatedJumpsForItem(relatedPanelItem).length" class="panel-empty-text">暂无关联</p>
+            </div>
+          </div>
+
           <div v-if="showChangeLogPanel" class="editor-panel">
             <div class="advanced-filter-head">
               <strong>变更日志</strong>
@@ -419,10 +422,7 @@
             <h3>暂无数据</h3>
             <p>{{ searchQuery ? '没有找到匹配的数据' : '当前模块还没有数据，点击新增按钮添加第一条记录' }}</p>
             <button v-if="!searchQuery && !isModerationTab && canCreateCurrentTab" class="btn btn-primary" @click="openEditModal()">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
+              <Plus :size="16" />
               新增数据
             </button>
           </div>
@@ -497,11 +497,14 @@
                     <button v-else type="button" class="review-btn approve" @click="unmuteUser(item)">解禁</button>
                   </template>
                 </template>
+                <button v-if="relatedJumpsForItem(item).length" type="button" class="mobile-action-btn" @click="openRelatedPanel(item)" aria-label="关联记录">
+                  <Link :size="15" />
+                </button>
                 <button v-if="canEditCurrentTab" type="button" class="mobile-action-btn edit" @click="openEditModal(item)" aria-label="编辑">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                  <Pencil :size="16" />
                 </button>
                 <button v-if="canDeleteCurrentTab && !isProfileDerivedTab" type="button" class="mobile-action-btn delete" @click="deleteItem(item)" aria-label="删除">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                  <Trash2 :size="16" />
                 </button>
               </div>
             </div>
@@ -538,9 +541,15 @@
             style="position: relative;"
           >
             <template #actions>
-              <div v-if="hasCardView" class="lottery-view-toggle" role="tablist" aria-label="视图模式">
-                <button type="button" :class="{ 'is-active': cardViewMode === 'card' }" @click="cardViewMode = 'card'">卡片</button>
-                <button type="button" :class="{ 'is-active': cardViewMode === 'table' }" @click="cardViewMode = 'table'">表格</button>
+              <div v-if="availableViewModes.length > 1" class="view-mode-toggle" role="tablist" aria-label="视图模式">
+                <button
+                  v-for="mode in availableViewModes"
+                  :key="mode"
+                  type="button"
+                  :class="{ 'is-active': viewMode === mode }"
+                  :aria-pressed="viewMode === mode"
+                  @click="setViewMode(mode)"
+                >{{ VIEW_MODE_LABELS[mode] }}</button>
               </div>
               <select v-model="pageSize" class="g-select" style="height: 32px; width: auto; padding: 0 calc(var(--spacing) * 3); font-size: 0.78rem;" aria-label="每页条数">
                 <option :value="10">10 条/页</option>
@@ -601,8 +610,8 @@
                           :title="isCardFieldCopied(meta, item) ? '已复制' : '一键复制'"
                           aria-label="复制"
                         >
-                          <svg v-if="!isCardFieldCopied(meta, item)" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                          <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                          <Copy v-if="!isCardFieldCopied(meta, item)" :size="12" />
+                          <Check v-else :size="12" />
                         </button>
                       </div>
                     </template>
@@ -616,26 +625,114 @@
                   <button v-if="currentTab === 'lotteries'" class="review-btn approve" @click="viewLotteryDrawLogs(item)" title="查看本次抽奖开奖日志">日志</button>
                   <button v-if="currentTab === 'lotteries' && item.status !== 'closed'" class="review-btn reject" :disabled="isLotteryActionPending(item.id)" @click="closeLottery(item)" title="关闭该抽奖">关闭</button>
                   <button v-if="canEditCurrentTab" class="icon-btn edit" @click="openEditModal(item)" title="编辑" aria-label="编辑">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    <Pencil :size="15" />
                   </button>
                   <button v-if="canDeleteCurrentTab && !isProfileDerivedTab" class="icon-btn delete" @click="deleteItem(item)" title="删除" aria-label="删除">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    <Trash2 :size="15" />
                   </button>
                 </div>
               </article>
             </div>
 
-            <table v-show="!isCardViewActive" class="g-table-sheet">
+            <!-- 看板视图（状态分列，config 驱动） -->
+            <div v-if="isKanbanViewActive" class="kanban-board">
+              <div
+                v-for="col in kanbanViewConfig.columns"
+                :key="String(col.value)"
+                class="kanban-col"
+              >
+                <div class="kanban-col-head">
+                  <span class="kanban-col-dot" :class="`tone-${col.tone}`"></span>
+                  <span class="kanban-col-label">{{ col.label }}</span>
+                  <span class="kanban-col-count">{{ kanbanItemsInCol(col.value).length }}</span>
+                </div>
+                <div class="kanban-col-body">
+                  <div
+                    v-for="item in kanbanItemsInCol(col.value)"
+                    :key="item.id || getRowIdentity(item)"
+                    class="kanban-card"
+                    role="button"
+                    tabindex="0"
+                    :aria-label="`查看 ${getCardTitle(item)}`"
+                    @click="openEditModal(item)"
+                    @keydown.enter.prevent="openEditModal(item)"
+                    @keydown.space.prevent="openEditModal(item)"
+                  >
+                    <span class="kanban-card-title">{{ getCardTitle(item) }}</span>
+                    <span class="kanban-card-sub">{{ kanbanCardSubtitle(item) }}</span>
+                    <span v-if="isModerationTab" class="kanban-card-actions" @click.stop>
+                      <button
+                        v-if="!isRejectedModerationRecord(item)"
+                        type="button"
+                        class="kanban-mini-btn approve"
+                        :disabled="isModerationActionPending(item.id)"
+                        @click="approveModerationItem(item)"
+                      >通过</button>
+                      <button
+                        v-if="!isRejectedModerationRecord(item)"
+                        type="button"
+                        class="kanban-mini-btn reject"
+                        :disabled="isModerationActionPending(item.id)"
+                        @click="rejectModerationItem(item)"
+                      >拒绝</button>
+                      <button
+                        v-else
+                        type="button"
+                        class="kanban-mini-btn approve"
+                        :disabled="isModerationActionPending(item.id)"
+                        @click="approveModerationItem(item)"
+                      >恢复</button>
+                    </span>
+                  </div>
+                  <p v-if="kanbanItemsInCol(col.value).length === 0" class="kanban-col-empty">空</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- 时间线视图（日志/流水，config 驱动） -->
+            <div v-if="isTimelineViewActive" class="timeline-view">
+              <div v-for="day in timelineDays" :key="day.label" class="timeline-day">
+                <div class="timeline-day-label">{{ day.label }}</div>
+                <div
+                  v-for="item in day.items"
+                  :key="item.id || getRowIdentity(item)"
+                  class="timeline-item"
+                  role="button"
+                  tabindex="0"
+                  :aria-label="`查看 ${timelineTitle(item)}`"
+                  @click="openEditModal(item)"
+                  @keydown.enter.prevent="openEditModal(item)"
+                >
+                  <div class="timeline-item-head">
+                    <span class="timeline-item-title">{{ timelineTitle(item) }}</span>
+                    <span class="timeline-item-time">{{ timelineTimeText(item) }}</span>
+                  </div>
+                  <div v-if="timelineBody(item).length" class="timeline-item-body">
+                    <span v-for="f in timelineBody(item)" :key="f.key" class="timeline-item-field">
+                      <strong>{{ f.label }}</strong>{{ f.value }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <table v-show="viewMode === 'table'" class="g-table-sheet">
               <thead>
                 <tr>
                   <th class="checkbox-col">
                     <label class="checkbox-wrapper">
-                      <input type="checkbox" :checked="isAllSelected" @change="toggleSelectAll" />
+                      <input type="checkbox" :checked="isAllSelected" :aria-label="selectAllResultsMode ? '取消全选所有结果' : '全选本页'" :title="selectAllResultsMode ? '取消全选所有结果' : '全选本页'" @change="toggleSelectAll" />
                       <span class="checkmark"></span>
                     </label>
                   </th>
                   <th v-for="col in visibleCurrentColumns" :key="col.key" :class="{ sortable: col.sortable }"
-                    @click="col.sortable && sortBy(col.key)">
+                    :tabindex="col.sortable ? 0 : -1"
+                    :aria-sort="col.sortable
+                      ? (sortKey === col.key ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none')
+                      : null"
+                    @click="col.sortable && sortBy(col.key)"
+                    @keydown.enter.prevent="col.sortable && sortBy(col.key)"
+                    @keydown.space.prevent="col.sortable && sortBy(col.key)">
                     {{ col.label }}
                     <span v-if="sortKey === col.key" class="sort-indicator">
                       {{ sortOrder === 'asc' ? '↑' : '↓' }}
@@ -693,12 +790,20 @@
                         :class="col.key === 'is_banned' || col.key === 'is_muted'
                           ? (item[col.key] === true ? 'badge-danger' : 'badge-muted')
                           : `badge-${getBadgeType(item[col.key])}`"
+                        :tabindex="isInlineEditable(col, item) ? 0 : -1"
+                        role="button"
+                        :aria-label="`编辑 ${col.label}`"
                         @dblclick="startInlineEdit(item, col)"
+                        @keydown.enter.prevent="startInlineEdit(item, col)"
+                        @keydown.space.prevent="startInlineEdit(item, col)"
                       >
                         {{ col.key === 'is_banned' || col.key === 'is_muted'
                           ? (item[col.key] === true ? '是' : '否')
                           : (item[col.key] || '-') }}
                       </span>
+                      <button v-if="isInlineEditable(col, item) && !isInlineEditing(item, col)" type="button" class="cell-edit-trigger" :aria-label="`编辑 ${col.label}`" title="编辑" @click="startInlineEdit(item, col)">
+                        <Pencil :size="12" />
+                      </button>
                     </template>
                     <template v-else-if="col.type === 'tags'">
                       <div class="cell-tags">
@@ -706,13 +811,43 @@
                       </div>
                     </template>
                     <template v-else-if="col.type === 'price'">
-                      <span class="cell-price" @dblclick="startInlineEdit(item, col)">{{ item[col.key] || '-' }}</span>
+                      <span class="cell-price"
+                        :tabindex="isInlineEditable(col, item) ? 0 : -1"
+                        role="button"
+                        :aria-label="`编辑 ${col.label}`"
+                        @dblclick="startInlineEdit(item, col)"
+                        @keydown.enter.prevent="startInlineEdit(item, col)"
+                        @keydown.space.prevent="startInlineEdit(item, col)"
+                      >{{ item[col.key] || '-' }}</span>
+                      <button v-if="isInlineEditable(col, item) && !isInlineEditing(item, col)" type="button" class="cell-edit-trigger" :aria-label="`编辑 ${col.label}`" title="编辑" @click="startInlineEdit(item, col)">
+                        <Pencil :size="12" />
+                      </button>
                     </template>
                     <template v-else-if="col.type === 'date'">
-                      <span class="cell-date" @dblclick="startInlineEdit(item, col)">{{ formatDate(item[col.key]) }}</span>
+                      <span class="cell-date"
+                        :tabindex="isInlineEditable(col, item) ? 0 : -1"
+                        role="button"
+                        :aria-label="`编辑 ${col.label}`"
+                        @dblclick="startInlineEdit(item, col)"
+                        @keydown.enter.prevent="startInlineEdit(item, col)"
+                        @keydown.space.prevent="startInlineEdit(item, col)"
+                      >{{ formatDate(item[col.key]) }}</span>
+                      <button v-if="isInlineEditable(col, item) && !isInlineEditing(item, col)" type="button" class="cell-edit-trigger" :aria-label="`编辑 ${col.label}`" title="编辑" @click="startInlineEdit(item, col)">
+                        <Pencil :size="12" />
+                      </button>
                     </template>
                     <template v-else-if="col.type === 'datetime'">
-                      <span class="cell-date" @dblclick="startInlineEdit(item, col)">{{ formatDateTime(item[col.key]) }}</span>
+                      <span class="cell-date"
+                        :tabindex="isInlineEditable(col, item) ? 0 : -1"
+                        role="button"
+                        :aria-label="`编辑 ${col.label}`"
+                        @dblclick="startInlineEdit(item, col)"
+                        @keydown.enter.prevent="startInlineEdit(item, col)"
+                        @keydown.space.prevent="startInlineEdit(item, col)"
+                      >{{ formatDateTime(item[col.key]) }}</span>
+                      <button v-if="isInlineEditable(col, item) && !isInlineEditing(item, col)" type="button" class="cell-edit-trigger" :aria-label="`编辑 ${col.label}`" title="编辑" @click="startInlineEdit(item, col)">
+                        <Pencil :size="12" />
+                      </button>
                     </template>
                     <template v-else-if="col.type === 'json'">
                       <span class="cell-json" :title="JSON.stringify(item[col.key])">
@@ -733,10 +868,18 @@
                         v-else
                         class="cell-text"
                         :class="{ editable: isInlineEditable(col, item) }"
+                        :tabindex="isInlineEditable(col, item) ? 0 : -1"
+                        role="button"
+                        :aria-label="`编辑 ${col.label}`"
                         :title="`${item[col.key] || ''}${isAnomalyRow(item) && col.key === visibleCurrentColumns[0]?.key ? ` · ${getAnomalyReason(item)}` : ''}`"
                         @dblclick="startInlineEdit(item, col)"
+                        @keydown.enter.prevent="startInlineEdit(item, col)"
+                        @keydown.space.prevent="startInlineEdit(item, col)"
                         v-html="highlightCellValue(item[col.key], col.maxLength)"
                       ></span>
+                      <button v-if="isInlineEditable(col, item) && !isInlineEditing(item, col)" type="button" class="cell-edit-trigger" :aria-label="`编辑 ${col.label}`" title="编辑" @click="startInlineEdit(item, col)">
+                        <Pencil :size="12" />
+                      </button>
                     </template>
                   </td>
                   <td v-if="hasActionColumn" class="actions-col">
@@ -898,20 +1041,14 @@
                             解禁
                           </button>
                         </template>
+                        <button v-if="relatedJumpsForItem(item).length" class="icon-btn" @click="openRelatedPanel(item)" title="关联记录" aria-label="关联记录">
+                          <Link :size="15" />
+                        </button>
                         <button v-if="canEditCurrentTab" class="icon-btn edit" @click="openEditModal(item)" title="编辑">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                          </svg>
+                          <Pencil :size="16" />
                         </button>
                         <button v-if="canDeleteCurrentTab && !isProfileDerivedTab" class="icon-btn delete" @click="deleteItem(item)" title="删除">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2">
-                            <polyline points="3 6 5 6 21 6"></polyline>
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2">
-                            </path>
-                          </svg>
+                          <Trash2 :size="16" />
                         </button>
                       </template>
                     </div>
@@ -934,10 +1071,7 @@
             </template>
           </DashboardSheet>
           <button v-if="isMobileView && !isModerationTab && canCreateCurrentTab" class="fab-button" @click="openEditModal()" aria-label="新增">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <line x1="12" y1="5" x2="12" y2="19"></line>
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
+            <Plus :size="24" />
           </button>
         </div>
         </template>
@@ -1014,6 +1148,59 @@
     />
 
     <!-- 全局提示 -->
+    <div v-if="isBackupExporting" class="backup-progress-overlay" role="dialog" aria-modal="true" aria-label="数据备份导出中">
+      <div class="backup-progress-panel">
+        <div class="backup-progress-header">数据备份导出中...</div>
+        <div class="backup-progress-bar-track">
+          <div class="backup-progress-bar-fill" :style="{ width: backupProgress + '%' }"></div>
+        </div>
+        <div class="backup-progress-text">{{ backupProgressText }}</div>
+        <button class="btn btn-secondary btn-sm" @click="cancelBackupExport">取消</button>
+      </div>
+    </div>
+
+    <Transition name="palette">
+      <div
+        v-if="showCommandPalette"
+        class="command-palette-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-label="命令面板"
+        @click.self="closeCommandPalette"
+      >
+        <div class="command-palette">
+          <div class="command-palette-input-row">
+            <Search :size="16" class="command-palette-search-icon" aria-hidden="true" />
+            <input
+              ref="commandInputRef"
+              v-model="commandQuery"
+              type="text"
+              class="command-palette-input"
+              placeholder="输入命令或模块名称..."
+              aria-label="命令搜索"
+              @keydown="onCommandInputKeydown"
+            />
+            <span class="command-palette-kbd">ESC</span>
+          </div>
+          <ul v-if="filteredCommandPaletteItems.length" class="command-palette-list" role="listbox" aria-label="命令列表">
+            <li
+              v-for="(item, idx) in filteredCommandPaletteItems"
+              :key="item.id"
+              role="option"
+              :aria-selected="idx === commandActiveIndex"
+              :class="['command-palette-item', { 'is-active': idx === commandActiveIndex }]"
+              @mouseenter="commandActiveIndex = idx"
+              @click="runCommandPaletteItem(item)"
+            >
+              <span class="command-palette-label">{{ item.label }}</span>
+              <span v-if="item.hint" class="command-palette-hint">{{ item.hint }}</span>
+            </li>
+          </ul>
+          <p v-else class="command-palette-empty">没有匹配的命令</p>
+        </div>
+      </div>
+    </Transition>
+
     <Transition name="toast">
       <div
         v-if="toast.show"
@@ -1025,10 +1212,7 @@
         <span class="toast-icon" aria-hidden="true">{{ toast.type === 'success' ? '✓' : toast.type === 'error' ? '✗' : 'ℹ' }}</span>
         <span class="toast-message">{{ toast.message }}</span>
         <button v-if="toast.type === 'error'" class="toast-dismiss" @click="dismissToast" aria-label="关闭提示">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
+          <X :size="14" aria-hidden="true" />
         </button>
       </div>
     </Transition>
@@ -1042,21 +1226,31 @@ import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
 import {
   Activity,
+  Check,
+  Copy,
   Cpu,
   Database,
+  Download,
   FileText,
+  Filter,
   Gauge,
   Home,
   Image,
   KeyRound,
+  Link,
   MessageSquare,
   Network,
+  Pencil,
+  Plus,
   RefreshCw,
+  Search,
   Settings,
   ShieldCheck,
   Server,
   Sparkles,
-  Users
+  Trash2,
+  Users,
+  X
 } from 'lucide-vue-next';
 import AdminHeader from './components/AdminHeader.vue';
 import AdminOverview from './components/AdminOverview.vue';
@@ -1069,6 +1263,7 @@ import FreemodelsConfig from './components/FreemodelsConfig.vue';
 import AiQuotaConfigConsole from './components/AiQuotaConfigConsole.vue';
 import PointsGrantConsole from './components/PointsGrantConsole.vue';
 import PityGrantConsole from './components/PityGrantConsole.vue';
+import SubscriptionGrantConsole from './components/SubscriptionGrantConsole.vue';
 import EditDrawer from './components/EditDrawer.vue';
 import DashboardSheet from './components/shared/DashboardSheet.vue';
 import DashboardPagination from './components/shared/DashboardPagination.vue';
@@ -1223,6 +1418,8 @@ const productPickerKeyword = ref('');
 const productPickerLoading = ref(false);
 const productPickerProducts = ref([]);
 const selectedItems = ref([]);
+// 全选所有结果模式：为 true 时 selectedItems 代表跨页全选（Gmail 语义）
+const selectAllResultsMode = ref(false);
 const currentPage = ref(1);
 const pageSize = ref(20);
 const sortKey = ref('');
@@ -1234,11 +1431,133 @@ const isDataTreeCollapsed = ref(false);
 const isMobileView = ref(window.innerWidth < 768);
 const handleResize = () => { isMobileView.value = window.innerWidth < 768; };
 
-// 卡片视图模式：'card' | 'table'，仅对配置了 cardView 的 tab 生效，默认卡片视图
-const cardViewMode = ref('card');
+// ==================== 通用视图形态：table | card | kanban | timeline ====================
+const VIEW_MODE_LABELS = { table: '表格', card: '卡片', kanban: '看板', timeline: '时间线' };
 const currentCardViewConfig = computed(() => currentConfig.value?.cardView || null);
 const hasCardView = computed(() => Boolean(currentCardViewConfig.value));
-const isCardViewActive = computed(() => hasCardView.value && cardViewMode.value === 'card');
+
+// 看板配置：kanban.statusKey/statusMeta 显式 > cardView.statusKey/statusMeta > 自动推断 status select 字段
+const kanbanViewConfig = computed(() => {
+  const cfg = currentConfig.value || {};
+  if (cfg.kanban === false) return null;
+  const fieldsAll = [...(cfg.fields || []), ...(cfg.columns || [])];
+  const explicit = cfg.kanban && typeof cfg.kanban === 'object' ? cfg.kanban : null;
+  const statusField = (explicit?.statusKey && fieldsAll.find(f => f.key === explicit.statusKey))
+    || (cfg.cardView?.statusKey && fieldsAll.find(f => f.key === cfg.cardView.statusKey))
+    || fieldsAll.find(f => /status/i.test(f.key) && f.type === 'select' && Array.isArray(f.options));
+  if (!statusField) return null;
+  const statusMeta = { ...(cfg.cardView?.statusMeta || {}), ...(explicit?.statusMeta || {}) };
+  const rawCols = explicit?.statusMeta
+    ? Object.entries(explicit.statusMeta)
+    : (statusField.options || []).map(o => [o.value, { label: o.label, tone: 'muted' }]);
+  const columns = rawCols.map(([value, meta]) => ({ value, label: meta.label, tone: meta.tone || 'muted' }));
+  if (!columns.length) return null;
+  return { statusKey: statusField.key, columns, statusMeta };
+});
+
+// 时间线配置：timeline.dateKey/titleKey/bodyKeys 显式 > 自动推断 datetime 列 + 首文本列
+const timelineViewConfig = computed(() => {
+  const cfg = currentConfig.value || {};
+  if (cfg.timeline === false) return null;
+  const cols = cfg.columns || [];
+  const explicit = cfg.timeline && typeof cfg.timeline === 'object' ? cfg.timeline : null;
+  const dateField = (explicit?.dateKey && cols.find(f => f.key === explicit.dateKey))
+    || cols.find(f => f.type === 'datetime' || f.type === 'date')
+    || cols.find(f => /time|date|at$/i.test(f.key));
+  if (!dateField) return null;
+  const titleField = (explicit?.titleKey && cols.find(f => f.key === explicit.titleKey))
+    || cols.find(f => f.key !== dateField.key && !/id$/i.test(f.key) && f.type !== 'datetime' && f.type !== 'date')
+    || cols.find(f => f.key !== dateField.key);
+  const bodyFields = (explicit?.bodyKeys || [])
+    .map(k => cols.find(f => f.key === k)).filter(Boolean);
+  const bodyFieldsAuto = bodyFields.length
+    ? bodyFields
+    : cols.filter(f => f.key !== dateField.key && f.key !== titleField?.key
+        && f.type !== 'datetime' && f.type !== 'date' && !/^id$/i.test(f.key)).slice(0, 4);
+  return { dateKey: dateField.key, titleKey: titleField?.key, bodyFields: bodyFieldsAuto };
+});
+
+const hasKanbanView = computed(() => Boolean(kanbanViewConfig.value));
+const hasTimelineView = computed(() => Boolean(timelineViewConfig.value));
+const availableViewModes = computed(() => {
+  const modes = ['table'];
+  if (hasCardView.value) modes.push('card');
+  if (hasKanbanView.value) modes.push('kanban');
+  if (hasTimelineView.value) modes.push('timeline');
+  return modes;
+});
+
+const defaultViewMode = computed(() => currentConfig.value?.defaultView || (hasCardView.value ? 'card' : 'table'));
+const viewMode = ref('table');
+const viewModeStorageKey = () => `dm-view-${currentTab.value}`;
+const loadViewMode = () => {
+  try {
+    const stored = localStorage.getItem(viewModeStorageKey());
+    if (stored && availableViewModes.value.includes(stored)) return stored;
+  } catch (e) { /* ignore */ }
+  return defaultViewMode.value;
+};
+const setViewMode = (mode) => {
+  if (!availableViewModes.value.includes(mode)) return;
+  viewMode.value = mode;
+  try { localStorage.setItem(viewModeStorageKey(), mode); } catch (e) { /* ignore */ }
+};
+watch(currentTab, () => { viewMode.value = loadViewMode(); }, { immediate: true });
+
+const isCardViewActive = computed(() => viewMode.value === 'card');
+const isKanbanViewActive = computed(() => viewMode.value === 'kanban');
+const isTimelineViewActive = computed(() => viewMode.value === 'timeline');
+
+// ===== 看板辅助 =====
+const kanbanItemsInCol = (colValue) => {
+  const statusKey = kanbanViewConfig.value?.statusKey;
+  if (!statusKey) return [];
+  return currentData.value.filter(item => String(item[statusKey] ?? '') === String(colValue));
+};
+const kanbanCardSubtitle = (item) => {
+  const cfg = currentCardViewConfig.value;
+  if (cfg?.subtitleKey) return formatCardSubtitle(item, cfg);
+  const cols = currentConfig.value?.columns || [];
+  const first = cols.find(f => f.key !== kanbanViewConfig.value?.statusKey
+    && !/id$/i.test(f.key) && f.type !== 'datetime' && f.type !== 'date');
+  return first ? formatCellValue(item[first.key], first.maxLength) : '';
+};
+
+// ===== 时间线辅助 =====
+const timelineDays = computed(() => {
+  const cfg = timelineViewConfig.value;
+  if (!cfg) return [];
+  const groups = new Map();
+  for (const item of currentData.value) {
+    const raw = item[cfg.dateKey];
+    const label = raw ? formatDate(raw) : '未标注时间';
+    if (!groups.has(label)) groups.set(label, []);
+    groups.get(label).push(item);
+  }
+  const days = [...groups.entries()].map(([label, items]) => ({ label, items }));
+  days.sort((a, b) => (a.label > b.label ? -1 : a.label < b.label ? 1 : 0));
+  return days;
+});
+const timelineTitle = (item) => {
+  const cfg = timelineViewConfig.value;
+  if (cfg?.titleKey) {
+    const v = item[cfg.titleKey];
+    if (v != null && v !== '') return String(v);
+  }
+  return getCardTitle(item);
+};
+const timelineTimeText = (item) => {
+  const cfg = timelineViewConfig.value;
+  if (!cfg) return '';
+  return item[cfg.dateKey] ? formatDateTime(item[cfg.dateKey]) : '';
+};
+const timelineBody = (item) => {
+  const cfg = timelineViewConfig.value;
+  if (!cfg) return [];
+  return cfg.bodyFields
+    .map(f => ({ key: f.key, label: f.label, value: formatCellValue(item[f.key], f.maxLength) }))
+    .filter(f => f.value !== '' && f.value !== null && f.value !== undefined);
+};
 
 // 卡片视图通用格式化
 const formatCardStatValue = (item, stat) => {
@@ -1609,7 +1928,8 @@ const PAGE_TAB_COMPONENTS = {
   'moderation-model': ModerationModelConfig,
   'lab-ai-model': LabAiModelConfig,
   'points-grant': PointsGrantConsole,
-  'pity-grant': PityGrantConsole
+  'pity-grant': PityGrantConsole,
+  'subscriptions-grant': SubscriptionGrantConsole
 };
 const currentPageComponent = computed(() => PAGE_TAB_COMPONENTS[currentTab.value] || null);
 const lotteryOpsTabs = new Set(['lotteries', 'lotteryFulfillments', 'lotteryEntries', 'lotteryAuditLogs']);
@@ -1713,6 +2033,29 @@ const applyCollectionStatusFilter = (value) => {
   statusFilter.value = value;
   handleFilterChange();
 };
+
+// 通用状态分布（config 驱动）：有看板/状态字段的表都显示状态分布条并支持下钻筛选
+const statusBreakdownForCurrentTab = computed(() => {
+  const kb = kanbanViewConfig.value;
+  if (!kb) return collectionStatusBreakdown.value;
+  const counts = new Map();
+  let total = 0;
+  for (const row of currentData.value) {
+    total++;
+    const key = String(row?.[kb.statusKey] ?? '');
+    if (key) counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return [
+    { value: '', label: '全部', count: total, tone: 'muted', active: statusFilter.value === '' },
+    ...kb.columns.map(col => ({
+      value: col.value,
+      label: col.label,
+      count: counts.get(col.value) || 0,
+      tone: col.tone,
+      active: statusFilter.value === col.value
+    }))
+  ];
+});
 
 const diagnosticIssueCount = computed(() => {
   const dueDraws = Number(lotterySchedulerStatus.value?.due_count || 0);
@@ -2114,7 +2457,7 @@ const visiblePages = computed(() => {
 
 // 选择相关
 const isAllSelected = computed(() => {
-  return paginatedData.value.length > 0 && paginatedData.value.every(item => isSelected(item));
+  return selectAllResultsMode.value || (paginatedData.value.length > 0 && paginatedData.value.every(item => isSelected(item)));
 });
 
 const setModerationPending = (itemId, pending) => {
@@ -2612,6 +2955,12 @@ const handleQuickEdit = async (record) => {
 };
 
 const toggleSelectAll = () => {
+  if (selectAllResultsMode.value) {
+    // 已全选所有结果时，再次点击 = 取消全选
+    selectAllResultsMode.value = false;
+    selectedItems.value = [];
+    return;
+  }
   if (isAllSelected.value) {
     selectedItems.value = selectedItems.value.filter(
       selected => !paginatedData.value.some(item => item.id === selected.id)
@@ -2620,6 +2969,17 @@ const toggleSelectAll = () => {
     const newSelections = paginatedData.value.filter(item => !isSelected(item));
     selectedItems.value.push(...newSelections);
   }
+};
+
+const selectAllResults = () => {
+  selectAllResultsMode.value = true;
+  selectedItems.value = [...currentData.value];
+  showToast(`已选择全部 ${selectedItems.value.length} 条结果`, 'success');
+};
+
+const clearAllSelection = () => {
+  selectAllResultsMode.value = false;
+  selectedItems.value = [];
 };
 
 const itemIndex = (item) => {
@@ -2994,7 +3354,7 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
         tabSortColumns: TAB_SORT_COLUMNS,
         tabDefaultSort: TAB_DEFAULT_SORT
       },
-      allowedAdvancedFields: (currentColumns.value || []).map((c) => c.key)
+      allowedAdvancedFields: (currentColumns.value || []).filter((c) => !c.virtual).map((c) => c.key)
     }));
 
     if (tabId === 'lotteries' && error && isMissingLotteryObservabilitySchemaError(error)) {
@@ -3019,7 +3379,7 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
           tabSortColumns: TAB_SORT_COLUMNS,
           tabDefaultSort: TAB_DEFAULT_SORT
         },
-        allowedAdvancedFields: (currentColumns.value || []).map((c) => c.key)
+        allowedAdvancedFields: (currentColumns.value || []).filter((c) => !c.virtual).map((c) => c.key)
       })));
     }
 
@@ -3389,6 +3749,12 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
         }
         return flat;
       });
+    }
+
+    // 行装饰器：为行派生只读展示字段（如 postReward 的生命周期），需在写入缓存前应用
+    const rowDecorator = dataConfig[tabId]?.rowDecorator;
+    if (typeof rowDecorator === 'function') {
+      rows = rows.map(rowDecorator);
     }
 
     assignTabRows(tabId, rows, count);
@@ -4534,6 +4900,30 @@ const jumpToRelatedRecord = (jump, item) => {
   switchTab(jump.tabId, { search: jump.search });
 };
 
+// ===== 引用面板：一条记录的所有关联入口（复用 RELATED_JUMP_MAP）=====
+const showRelatedPanel = ref(false);
+const relatedPanelItem = ref(null);
+const relatedJumpsForItem = (item) => {
+  if (!item) return [];
+  return currentColumns.value
+    .map(col => ({ col, jump: getRelatedJump(col, item) }))
+    .filter(x => x.jump)
+    .map(x => ({
+      field: x.col.label,
+      tabId: x.jump.tabId,
+      search: x.jump.search,
+      tabLabel: getTabLabel(x.jump.tabId)
+    }));
+};
+const openRelatedPanel = (item) => {
+  relatedPanelItem.value = item;
+  showRelatedPanel.value = true;
+};
+const closeRelatedPanel = () => {
+  showRelatedPanel.value = false;
+  relatedPanelItem.value = null;
+};
+
 const isInlineEditable = (col, item) => {
   if (!item?.id || isReadOnlyTab.value || isModerationTab.value) return false;
   return inlineEditableFieldKeys.value.has(col.key);
@@ -4737,9 +5127,85 @@ const handleVisibilityChange = () => {
   }
 };
 
+// ==================== ⌘K / Ctrl+K 命令面板 ====================
+const showCommandPalette = ref(false);
+const commandQuery = ref('');
+const commandActiveIndex = ref(0);
+const commandInputRef = ref(null);
+
+const commandPaletteItems = computed(() => {
+  const items = [];
+  if (!isModerationTab.value && canCreateCurrentTab.value) {
+    items.push({ id: 'create', label: '新增记录', hint: 'N', run: () => openEditModal() });
+  }
+  items.push({ id: 'refresh', label: '刷新数据', hint: '', run: () => refreshAllData() });
+  items.push({ id: 'theme', label: '切换深/浅色主题', hint: '', run: () => toggleAdminTheme() });
+  items.push({ id: 'export', label: '导出当前表', hint: '', run: () => exportData() });
+  items.push({ id: 'backup', label: '备份全部数据', hint: '', run: () => exportBackupData() });
+  items.push({ id: 'global-search', label: '跨表搜索', hint: '/', run: () => { showGlobalSearchPanel.value = true; } });
+  items.push({ id: 'advanced-filter', label: '高级筛选', hint: '', run: () => { showAdvancedFilterPanel.value = true; } });
+  items.push({ id: 'columns', label: '列配置', hint: '', run: () => { showColumnPanel.value = true; } });
+  items.push({ id: 'changelog', label: '变更日志', hint: '', run: () => { showChangeLogPanel.value = true; } });
+  if (selectedItems.value.length > 0 && !isModerationTab.value && canDeleteCurrentTab.value && !isProfileDerivedTab.value) {
+    items.push({ id: 'batch-delete', label: `删除选中 (${selectedItems.value.length})`, hint: '', run: () => batchDelete() });
+  }
+  if (Array.isArray(sidebarModules.value)) {
+    for (const mod of sidebarModules.value) {
+      items.push({ id: `module-${mod.id}`, label: `切换到：${mod.label}`, hint: '', run: () => handleModuleClick(mod) });
+    }
+  }
+  return items;
+});
+
+const filteredCommandPaletteItems = computed(() => {
+  const q = commandQuery.value.trim().toLowerCase();
+  if (!q) return commandPaletteItems.value;
+  return commandPaletteItems.value.filter((it) => it.label.toLowerCase().includes(q));
+});
+
+const openCommandPalette = () => {
+  showCommandPalette.value = true;
+  commandQuery.value = '';
+  commandActiveIndex.value = 0;
+  nextTick(() => commandInputRef.value?.focus());
+};
+const closeCommandPalette = () => {
+  showCommandPalette.value = false;
+  commandQuery.value = '';
+};
+const runCommandPaletteItem = (item) => {
+  closeCommandPalette();
+  item.run();
+};
+const onCommandInputKeydown = (e) => {
+  const list = filteredCommandPaletteItems.value;
+  const len = list.length;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    commandActiveIndex.value = len ? (commandActiveIndex.value + 1) % len : 0;
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    commandActiveIndex.value = len ? (commandActiveIndex.value - 1 + len) % len : 0;
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (list[commandActiveIndex.value]) runCommandPaletteItem(list[commandActiveIndex.value]);
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    closeCommandPalette();
+  }
+};
+const handleCommandPaletteKey = (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    if (showCommandPalette.value) closeCommandPalette();
+    else openCommandPalette();
+  }
+};
+
 onMounted(() => {
   window.addEventListener('resize', handleResize);
   document.addEventListener('keydown', handleGlobalShortcuts);
+  document.addEventListener('keydown', handleCommandPaletteKey);
   document.addEventListener('visibilitychange', handleVisibilityChange);
   // 初始化主题: 读取 localStorage 或跟随系统偏好
   try {
@@ -4754,6 +5220,7 @@ onUnmounted(() => {
   stopAutoRefresh();
   window.removeEventListener('resize', handleResize);
   document.removeEventListener('keydown', handleGlobalShortcuts);
+  document.removeEventListener('keydown', handleCommandPaletteKey);
   document.removeEventListener('visibilitychange', handleVisibilityChange);
 });
 // 第二阶段: 所有 onMounted / onUnmounted / watch 已迁移至 composables/useDataAdminLifecycle.js
@@ -4876,6 +5343,8 @@ onUnmounted(() => {
   padding: 0 calc(var(--spacing) * 1);
   flex: 0 0 auto;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
 .g-module-tabs::-webkit-scrollbar { display: none; }
@@ -5097,14 +5566,14 @@ onUnmounted(() => {
 }
 
 /* 抽奖视图切换 */
-.lottery-view-toggle {
+.view-mode-toggle {
   display: inline-flex;
   padding: 3px;
   border-radius: 9px;
   background: var(--muted, #f1f5f9);
   gap: 2px;
 }
-.lottery-view-toggle button {
+.view-mode-toggle button {
   border: none;
   background: transparent;
   padding: 5px 12px;
@@ -5115,10 +5584,282 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.15s ease;
 }
-.lottery-view-toggle button.is-active {
+.view-mode-toggle button.is-active {
   background: var(--card, #fff);
   color: var(--foreground, #0f172a);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.view-mode-toggle button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+/* 看板视图 */
+.kanban-board {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  align-items: flex-start;
+}
+.kanban-col {
+  flex: 0 0 248px;
+  max-width: 248px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface, var(--card));
+  max-height: calc(100vh - 260px);
+}
+.kanban-col-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+.kanban-col-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #888;
+}
+.kanban-col-dot.tone-success { background: #16a34a; }
+.kanban-col-dot.tone-warning { background: #d97706; }
+.kanban-col-dot.tone-info { background: #2563eb; }
+.kanban-col-dot.tone-danger { background: #dc2626; }
+.kanban-col-dot.tone-muted { background: #64748b; }
+.kanban-col-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kanban-col-count {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  background: var(--muted);
+  border-radius: 999px;
+  padding: 1px 8px;
+  flex: 0 0 auto;
+}
+.kanban-col-body {
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 auto;
+}
+.kanban-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  text-align: left;
+}
+.kanban-card:hover {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+}
+.kanban-card:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.kanban-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.kanban-card-sub {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kanban-card-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+.kanban-mini-btn {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.kanban-mini-btn.approve {
+  color: #34a853;
+  background: rgba(52, 168, 83, 0.14);
+  border-color: rgba(52, 168, 83, 0.3);
+}
+.kanban-mini-btn.reject {
+  color: #ea4335;
+  background: rgba(234, 67, 53, 0.12);
+  border-color: rgba(234, 67, 53, 0.3);
+}
+.kanban-mini-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.kanban-mini-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.kanban-col-empty {
+  text-align: center;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  padding: 16px 0;
+  margin: 0;
+}
+
+/* 时间线视图 */
+.timeline-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.timeline-day-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  padding: 4px 0 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+.timeline-item {
+  position: relative;
+  padding: 10px 12px 10px 20px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  margin-bottom: 8px;
+}
+.timeline-item::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 14px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+.timeline-item:hover {
+  border-color: var(--primary);
+  transform: translateX(2px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+.timeline-item:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.timeline-item-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.timeline-item-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.timeline-item-time {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  flex: 0 0 auto;
+}
+.timeline-item-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 6px;
+}
+.timeline-item-field {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.timeline-item-field strong {
+  color: var(--foreground);
+  font-weight: 500;
+  margin-right: 4px;
+}
+
+/* 引用面板 */
+.related-panel {
+  margin-top: 12px;
+}
+.related-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+.related-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  padding: 8px 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease;
+}
+.related-item:hover {
+  border-color: var(--primary);
+}
+.related-item:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.related-item-label {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  flex: 0 0 auto;
+}
+.related-item-target {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--foreground);
+  flex: 0 0 auto;
+}
+.related-item-search {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 40%;
 }
 
 /* 抽奖卡片视图 */

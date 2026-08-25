@@ -23,7 +23,8 @@ import {
   ORDER_CONTACT_TYPE_OPTIONS,
   BIRTHDAY_WISH_STATUS_OPTIONS,
   FORUM_POST_TAG_OPTIONS,
-  BOOLEAN_DISPLAY_OPTIONS
+  BOOLEAN_DISPLAY_OPTIONS,
+  POST_REWARD_STATUS_OPTIONS
 } from './fields.js';
 
 export const PRODUCTS_CACHE_KEY = 'boh_products_cache_v1';
@@ -454,7 +455,15 @@ export const dataConfig = {
       { key: 'status', label: '状态', type: 'badge' },
       { key: 'created_at', label: '发布时间', type: 'date' }
     ],
-    fields: []
+    fields: [],
+    kanban: {
+      statusKey: 'status',
+      statusMeta: {
+        approved: { label: '已通过', tone: 'success' },
+        limited: { label: '仅作者可见', tone: 'warning' },
+        rejected: { label: '已拒绝', tone: 'danger' }
+      }
+    }
   },
   reportedPosts: {
     table: 'posts',
@@ -469,7 +478,15 @@ export const dataConfig = {
       { key: 'created_at', label: '发布时间', type: 'date' },
       { key: 'content', label: '内容', maxLength: 48 }
     ],
-    fields: []
+    fields: [],
+    kanban: {
+      statusKey: 'status',
+      statusMeta: {
+        approved: { label: '已通过', tone: 'success' },
+        limited: { label: '仅作者可见', tone: 'warning' },
+        rejected: { label: '已拒绝', tone: 'danger' }
+      }
+    }
   },
   reviewComments: {
     table: 'comments',
@@ -481,7 +498,15 @@ export const dataConfig = {
       { key: 'status', label: '状态', type: 'badge' },
       { key: 'created_at', label: '发布时间', type: 'date' }
     ],
-    fields: []
+    fields: [],
+    kanban: {
+      statusKey: 'status',
+      statusMeta: {
+        approved: { label: '已通过', tone: 'success' },
+        limited: { label: '仅作者可见', tone: 'warning' },
+        rejected: { label: '已拒绝', tone: 'danger' }
+      }
+    }
   },
   coreMemories: {
     table: 'boh_ai_core_memories',
@@ -494,6 +519,24 @@ export const dataConfig = {
       { key: 'updated_at', label: '更新时间', type: 'datetime' },
       { key: 'content', label: '内容', maxLength: 60 }
     ],
+    cardView: {
+      placeholderIcon: '📚',
+      titleKey: 'title',
+      subtitleKey: 'category',
+      subtitleLabel: '分类',
+      statusKey: 'status',
+      statusMeta: {
+        active: { label: '启用', tone: 'success' },
+        draft: { label: '草稿', tone: 'warning' },
+        archived: { label: '归档', tone: 'muted' }
+      },
+      stats: [
+        { label: '优先级', key: 'priority' }
+      ],
+      meta: [
+        { label: '更新时间', key: 'updated_at', format: 'datetime' }
+      ]
+    },
     fields: [
       { key: 'id', label: '事实ID', type: 'text', disabled: true, hint: 'UUID 主键由系统生成，不可手动修改。', group: 'basic' },
       { key: 'title', label: '标题', type: 'text', required: true, maxLength: 160, placeholder: '例如：方块之家社区起源', group: 'basic' },
@@ -637,7 +680,16 @@ export const dataConfig = {
       { key: 'contacted_at', label: '首次联系', type: 'datetime' },
       { key: 'updated_at', label: '更新时间', type: 'datetime' }
     ],
-    fields: []
+    fields: [],
+    kanban: {
+      statusKey: 'status',
+      statusMeta: {
+        pending_contact: { label: '待联系', tone: 'warning' },
+        confirmed: { label: '已确认', tone: 'info' },
+        fulfilled: { label: '已发放', tone: 'success' },
+        voided: { label: '已作废', tone: 'muted' }
+      }
+    }
   },
   lotteryEntries: {
     table: 'lottery_entries',
@@ -806,6 +858,53 @@ export const dataConfig = {
       subtitleFormat: 'date',
       meta: [
         { label: '描述', key: 'description' }
+      ]
+    }
+  },
+  postReward: {
+    table: 'post_reward_campaigns',
+    columns: [
+      { key: 'id', label: '活动ID' },
+      { key: 'title', label: '活动标题', maxLength: 30 },
+      { key: 'status', label: '状态', type: 'badge' },
+      { key: 'lifecycle', label: '生命周期', type: 'badge', virtual: true },
+      { key: 'points_per_post', label: '每帖积分', type: 'number' },
+      { key: 'daily_limit', label: '每日上限', type: 'number' },
+      { key: 'monthly_limit', label: '每月上限', type: 'number' },
+      { key: 'start_at', label: '开始', type: 'datetime' },
+      { key: 'end_at', label: '结束', type: 'datetime' }
+    ],
+    fields: [
+      { key: 'id', label: '活动ID', type: 'number', disabled: true, hint: '新增活动自动生成 ID。', group: 'basic' },
+      { key: 'title', label: '活动标题', type: 'text', required: true, maxLength: 255, placeholder: '例如：8月发帖有奖', group: 'basic' },
+      { key: 'status', label: '状态', type: 'select', required: true, options: POST_REWARD_STATUS_OPTIONS, group: 'basic' },
+      { key: 'points_per_post', label: '每帖积分', type: 'number', required: true, min: 1, max: 1000, placeholder: '每成功发帖发放的积分', group: 'rule' },
+      { key: 'daily_limit', label: '每日上限(次)', type: 'number', min: 0, placeholder: '0 = 不限制', hint: '单个用户每日最多可领次数，0 表示不限制。', group: 'rule' },
+      { key: 'monthly_limit', label: '每月上限(次)', type: 'number', min: 0, placeholder: '0 = 不限制', hint: '单个用户每月最多可领次数，0 表示不限制。', group: 'rule' },
+      { key: 'start_at', label: '开始时间', type: 'datetime', required: true, hint: '活动生效开始时间，用户在此之后发帖可领奖。', group: 'time' },
+      { key: 'end_at', label: '结束时间', type: 'datetime', required: true, hint: '活动结束时间，用户在此之前发帖可领奖。', group: 'time' }
+    ],
+    // 生命周期：按起止时间 + 状态派生的只读展示字段（virtual = 不入库、不进高级筛选）
+    rowDecorator: (row) => {
+      const now = Date.now();
+      const start = row?.start_at ? new Date(row.start_at).getTime() : NaN;
+      const end = row?.end_at ? new Date(row.end_at).getTime() : NaN;
+      const LABELS = { upcoming: '即将开始', ongoing: '进行中', paused: '已停用', ended: '已结束' };
+      let lifecycle = 'ended';
+      if (Number.isFinite(start) && Number.isFinite(end)) {
+        if (now < start) lifecycle = 'upcoming';
+        else if (now > end) lifecycle = 'ended';
+        else lifecycle = row?.status === 'active' ? 'ongoing' : 'paused';
+      }
+      return { ...row, lifecycle: LABELS[lifecycle] };
+    },
+    cardView: {
+      placeholderIcon: '🎁',
+      titleKey: 'title',
+      subtitleKey: 'status',
+      subtitleLabel: '状态',
+      meta: [
+        { label: '生命周期', key: 'lifecycle' }
       ]
     }
   },

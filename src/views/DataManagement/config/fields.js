@@ -12,6 +12,7 @@ export const TAB_WRITABLE_FIELDS = {
   lotteries: ['title', 'description', 'prize_title', 'prize_description', 'pity_reward_title', 'pity_reward_description', 'cover_image_url', 'status', 'is_community_visible', 'is_home_visible', 'enforce_account_age_check', 'max_entries', 'winner_count', 'pity_mode', 'entry_deadline_at', 'draw_at', 'fulfillment_status', 'created_by', 'updated_by'],
   news: ['id', 'category', 'title', 'excerpt', 'content', 'date', 'author', 'image'],
   activities: ['id', 'title', 'date', 'image', 'description'],
+  postReward: ['title', 'start_at', 'end_at', 'points_per_post', 'daily_limit', 'monthly_limit', 'status'],
   products: ['id', 'title', 'category', 'description', 'points_cost', 'stock', 'image', 'specifications', 'is_active', 'is_purchasable', 'payment_mode', 'rmb_price'],
   shopOrders: ['status', 'updated_at'],
   birthdayEvents: ['title', 'subtitle', 'hero_quote', 'page_copy', 'celebration_date', 'is_active', 'sort_order', 'updated_at'],
@@ -149,6 +150,11 @@ export const LOTTERY_STATUS_OPTIONS = [
   { value: 'open', label: '报名中（open）' },
   { value: 'drawn', label: '已开奖（drawn）' },
   { value: 'closed', label: '已关闭（closed）' }
+];
+
+export const POST_REWARD_STATUS_OPTIONS = [
+  { value: 'active', label: '启用（active）' },
+  { value: 'inactive', label: '停用（inactive）' }
 ];
 
 export const POSTER_REQUEST_STATUS_OPTIONS = [

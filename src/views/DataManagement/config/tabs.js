@@ -22,6 +22,7 @@ export const tabs = [
   { id: 'points-grant', label: '积分发放', icon: '🎁', module: 'users', type: 'page' },
   { id: 'pointsTransactions', label: '积分流水', icon: '📋', module: 'users' },
   { id: 'subscriptions', label: '订阅管理', icon: '💎', module: 'users' },
+  { id: 'subscriptions-grant', label: '订阅发放', icon: '💳', module: 'users', type: 'page' },
   { id: 'anniversaryClaims', label: '周年领取', icon: '🎈', module: 'users' },
   { id: 'gifts', label: '礼物管理', icon: '📦', module: 'gifts' },
   { id: 'addresses', label: '地址管理', icon: '📍', module: 'gifts' },
@@ -35,6 +36,7 @@ export const tabs = [
   { id: 'blockWallItems', label: '方块墙', icon: '🧱', module: 'community' },
   { id: 'news', label: '新闻管理', icon: '📰', module: 'operations' },
   { id: 'activities', label: '活动管理', icon: '🎉', module: 'operations' },
+  { id: 'postReward', label: '发帖有奖', icon: '🎁', module: 'operations' },
   { id: 'coreMemories', label: '官方事实', icon: '📚', module: 'operations' },
   { id: 'bohCreatorShows', label: '创作者展示', icon: '🎬', module: 'operations' },
   { id: 'birthdayEvents', label: '生日活动', icon: '🎂', module: 'operations' },
@@ -80,7 +82,7 @@ export const tabModules = [
     icon: Users,
     section: 'data',
     defaultTab: 'users',
-    tabIds: ['users', 'points', 'points-grant', 'pointsTransactions', 'subscriptions', 'anniversaryClaims'],
+    tabIds: ['users', 'points', 'points-grant', 'pointsTransactions', 'subscriptions', 'subscriptions-grant', 'anniversaryClaims'],
     description: '账号、积分、订阅和领取记录'
   },
   {
@@ -117,7 +119,7 @@ export const tabModules = [
     icon: Megaphone,
     section: 'data',
     defaultTab: 'news',
-    tabIds: ['news', 'activities', 'coreMemories', 'bohCreatorShows', 'birthdayEvents', 'birthdayWishes', 'posterRequests'],
+    tabIds: ['news', 'activities', 'postReward', 'coreMemories', 'bohCreatorShows', 'birthdayEvents', 'birthdayWishes', 'posterRequests'],
     description: '新闻、活动、官方事实、创作者和生日运营'
   },
   {
@@ -191,6 +193,7 @@ export const TABS_ACTIONS = {
   points: ['view', 'edit'],
   pointsTransactions: ['view'],
   subscriptions: ['view', 'create', 'edit', 'delete'],
+  'subscriptions-grant': ['view'],
   anniversaryClaims: ['view'],
   gifts: ['view', 'create', 'edit', 'delete'],
   addresses: ['view', 'create', 'edit', 'delete'],
@@ -203,6 +206,7 @@ export const TABS_ACTIONS = {
   forumPostReports: ['view'],
   news: ['view', 'create', 'edit', 'delete'],
   activities: ['view', 'create', 'edit', 'delete'],
+  postReward: ['view', 'create', 'edit', 'delete'],
   products: ['view', 'create', 'edit', 'delete'],
   coreMemories: ['view', 'create', 'edit', 'delete'],
   blockWallItems: ['view', 'create', 'edit', 'delete'],

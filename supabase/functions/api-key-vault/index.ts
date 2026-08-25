@@ -1475,7 +1475,9 @@ async function resolveUserPlans(
       .from('user_subscriptions')
       .select('plan_code, expires_at')
       .eq('user_id', userId)
-      .eq('status', 'active');
+      // 同时纳入 'trial'：试用用户应拿到对应档位的完整权益（Token 额度、模型权限）。
+      // 试用期由 expires_at > now 过滤，到期自动回落 free，无需单独处理。
+      .in('status', ['active', 'trial']);
     const nowIso = new Date().toISOString();
     const activePlans = (data || [])
       .filter((r: Record<string, unknown>) => String(r.expires_at || '') > nowIso)

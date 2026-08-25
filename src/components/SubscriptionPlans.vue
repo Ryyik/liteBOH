@@ -29,8 +29,22 @@
         <div class="billing-switch" role="tablist" aria-label="计费周期">
           <button v-for="tab in billingTabs" :key="tab.value" :class="{ active: billingCycle === tab.value }" @click="handleTabClick(tab)">{{ tab.label }}<em v-if="tab.discount">{{ tab.discount }}</em></button>
         </div>
-        <div v-if="highestActivePlan" class="active-chip">当前订阅：{{ highestActivePlan.name }} · 至 {{ formatDateText(highestActivePlan.expiresAt) }}</div>
+        <div v-if="highestActivePlan" class="active-chip" :class="{ 'is-trial': topIsTrial }">{{ topIsTrial ? '试用中' : '当前订阅' }}：{{ highestActivePlan.name }} · 至 {{ formatDateText(highestActivePlan.expiresAt) }}</div>
         <div class="points-row"><span>当前积分</span><strong>{{ currentPoints }}</strong><span>积分</span></div>
+      </div>
+      <div v-if="canShowTrial" class="trial-banner">
+        <div class="trial-banner-text">
+          <strong>免费试用 Pro 3 天</strong>
+          <span>完整体验 BOH AI Pro 档权益，每个账号限一次，无需付积分。</span>
+        </div>
+        <button class="trial-button" type="button" :disabled="isSubmitting || isLoadingSubscriptions" @click="handleStartTrial">{{ isSubmitting ? '开启中…' : '免费试用' }}</button>
+      </div>
+      <div v-else-if="isTrialing" class="trial-banner trialing">
+        <div class="trial-banner-text">
+          <strong>正在试用 Pro（剩余 {{ trialRemainingDays }} 天）</strong>
+          <span>试用权益已生效，升级正式版可享更长有效期与完整服务。</span>
+        </div>
+        <button class="trial-button ghost" type="button" :disabled="isSubmitting || isLoadingSubscriptions" @click="handleTrialUpgrade">升级正式版</button>
       </div>
       <div class="cards" aria-label="会员套餐">
       <article v-for="plan in paidPlans" :key="plan.code" class="plan-card" :class="{ featured: plan.featured }">
@@ -38,7 +52,7 @@
         <div class="plan-head"><h2>{{ plan.name }}</h2><p>{{ resolvePlanPosition(plan.code) }}</p></div>
         <div class="price"><span class="price-cny">￥</span><strong>{{ calculatePrice(plan) }}</strong><span class="price-per">/ {{ billingCycle === BILLING_YEARLY ? '年' : '月' }}</span><span v-if="plan.monthlyCost && billingCycle === BILLING_YEARLY" class="save-badge">省 {{ plan.monthlyCost * 2 }} 积分</span></div>
         <p class="price-note" v-if="plan.monthlyCost && billingCycle === BILLING_YEARLY">相当于 ￥{{ Math.round(calculatePrice(plan) / 12) }} / 月 · 年付日均更划算</p>
-        <button class="subscribe" :class="{ active: plan.status === 'active' }" :disabled="plan.status === 'active' || isSubmitting || isLoadingSubscriptions" @click="handleSubscribe(plan)">{{ getButtonText(plan) }}</button>
+        <button class="subscribe" :class="{ active: plan.status === 'active', ghost: plan.status === 'blocked' }" :disabled="plan.status === 'active' || plan.status === 'blocked' || isSubmitting || isLoadingSubscriptions" @click="handleSubscribe(plan)">{{ getButtonText(plan) }}</button>
         <ul class="benefits"><li v-for="item in plan.features" :key="item"><span class="tick" aria-hidden="true"><Check :size="13" /></span>{{ item }}</li></ul>
       </article>
       </div>
@@ -87,18 +101,22 @@
           </template>
           <template v-else>
             <h2>积分不足</h2>
-            <p class="sheet-desc">当前积分不足以订阅 {{ currentService?.name }}，请先补充积分后再试。</p>
+            <p class="sheet-desc">当前积分不足以{{ currentService?.status === 'upgradable' ? '升级至' : '订阅' }} {{ currentService?.name }}，请先补充积分后再试。</p>
           </template>
 
           <div v-if="showConfirmModal" class="summary-list">
             <div class="summary-row"><span>订阅计划</span><strong>{{ confirmPlan?.name }} · {{ resolvePlanPosition(confirmPlan?.code || '') }}</strong></div>
             <div class="summary-row"><span>计费时长</span><strong>{{ billingCycle === BILLING_YEARLY ? '单年 (12 个月)' : '单月' }}</strong></div>
-            <div class="summary-row accent"><span>需扣除积分</span><strong>{{ calculatePrice(confirmPlan) }} 积分</strong></div>
+            <template v-if="confirmPlanPreview">
+              <div class="summary-row"><span>当前订阅抵扣</span><strong>−{{ confirmPlanPreview.credit }} 积分（剩余 {{ confirmPlanPreview.remainingDays }} 天）</strong></div>
+            </template>
+            <div v-else-if="confirmPlan?.status === 'renew'" class="summary-row"><span>生效方式</span><strong>当前订阅到期后顺延</strong></div>
+            <div class="summary-row accent"><span>需扣除积分</span><strong>{{ confirmDue }} 积分</strong></div>
           </div>
           <div v-else class="summary-list">
             <div class="summary-row"><span>当前积分</span><strong>{{ currentPoints }} 积分</strong></div>
-            <div class="summary-row"><span>所需积分</span><strong>{{ calculatePrice(currentService) }} 积分</strong></div>
-            <div class="summary-row accent shortage"><span>积分差额</span><strong>{{ Math.max(0, calculatePrice(currentService) - currentPoints) }} 积分</strong></div>
+            <div class="summary-row"><span>所需积分</span><strong>{{ requiredCostFor(currentService) }} 积分</strong></div>
+            <div class="summary-row accent shortage"><span>积分差额</span><strong>{{ Math.max(0, requiredCostFor(currentService) - currentPoints) }} 积分</strong></div>
           </div>
 
           <button v-if="showConfirmModal" class="checkout-button" type="button" @click="confirmSubscribe">确认订阅</button>
@@ -114,7 +132,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { Check, ChevronDown, X, Zap, Cloud, Bot, FileText, Eye, Gift } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
-import { getMySubscriptions, subscribeWithPoints } from '@/utils/api/subscription-api.js';
+import { getMySubscriptions, subscribeWithPoints, startSubscriptionTrial } from '@/utils/api/subscription-api.js';
 import { clearUserTierCache } from '@/utils/api/api-key-runtime-api.js';
 import { showGlobalNavStatus } from '@/composables/useGlobalNavStatus.js';
 import PointsCard from '@/views/user-center/UserSpace/components/PointsCard.vue';
@@ -138,19 +156,38 @@ const openFaqIndex = ref(0);
 
 const plans = [
   { code: 'free', name: 'Free', monthlyCost: 0, featured: false, alwaysActive: true, position: '日常使用', features: ['BOH AI 20 万 Token / 天', 'Cloud+ 150 张', '实验室 PPT / Word 10 次 / 月', '可参与抽奖'] },
-  { code: 'plus', name: 'Plus', monthlyCost: 8, featured: false, position: '效率升级', features: ['BOH AI 80 万 Token / 天', 'Cloud+ 300 张', '多模态交互', '实验室 PPT / Word 15 次 / 月', '抽奖保底累计 24 次'] },
-  { code: 'pro', name: 'Pro', monthlyCost: 20, featured: true, position: '专业创作', features: ['BOH AI 200 万 Token / 天', 'Cloud+ 450 张', '多模态交互', '金色昵称', '实验室 PPT / Word 20 次 / 月', '抽奖保底累计 18 次'] },
-  { code: 'max', name: 'Max', monthlyCost: 40, featured: false, position: '全能尊享', features: ['BOH AI 500 万 Token / 天', 'Cloud+ 900 张', 'Agent & Plan', '金色昵称', '实验室 PPT / Word 30 次 / 月', '抽奖保底累计 12 次'] },
-  { code: 'ultra', name: 'Ultra', monthlyCost: 70, featured: false, position: '研究级无限', features: ['BOH AI 1000 万 Token / 天', 'Cloud+ 1200 张', 'Agent & Plan', '彩虹昵称', '实验室 PPT / Word 不限次数', '抽奖保底累计 8 次'] }
+  { code: 'plus', name: 'Plus', monthlyCost: 8, featured: false, position: '效率升级', features: ['BOH AI 80 万 Token / 天', 'Cloud+ 300 张', '多模态交互', '实验室 PPT / Word 15 次 / 月', '抽奖保底累计 24 次（门槛较高）'] },
+  { code: 'pro', name: 'Pro', monthlyCost: 20, featured: true, position: '专业创作', features: ['BOH AI 200 万 Token / 天', 'Cloud+ 450 张', '多模态交互', '金色昵称', '实验室 PPT / Word 20 次 / 月', '抽奖保底累计 18 次（门槛中等）'] },
+  { code: 'max', name: 'Max', monthlyCost: 40, featured: false, position: '全能尊享', features: ['BOH AI 500 万 Token / 天', 'Cloud+ 900 张', 'Agent & Plan', '金色昵称', '实验室 PPT / Word 30 次 / 月', '抽奖保底累计 12 次（门槛较低）'] },
+  { code: 'ultra', name: 'Ultra', monthlyCost: 70, featured: false, position: '研究级无限', features: ['BOH AI 1000 万 Token / 天', 'Cloud+ 1200 张', 'Agent & Plan', '彩虹昵称', '实验室 PPT / Word 不限次数', '抽奖保底累计 8 次（门槛最低·最易保底）'] }
 ];
+const TIER_RANK = { free: 0, plus: 1, pro: 2, max: 3, ultra: 4 };
 const paidPlans = computed(() => plans.slice(1).map(withStatus));
-const withStatus = (plan) => ({ ...plan, status: plan.alwaysActive || activeSubscriptions.value[plan.code] ? 'active' : 'purchasable', activeSubscription: activeSubscriptions.value[plan.code] });
+const currentTopTierCode = computed(() => {
+  const active = Object.values(activeSubscriptions.value).filter((s) => s?.planCode && TIER_RANK[s.planCode] !== undefined);
+  if (!active.length) return '';
+  return active.reduce((top, sub) => (TIER_RANK[sub.planCode] > TIER_RANK[top] ? sub.planCode : top), active[0].planCode);
+});
+const withStatus = (plan) => {
+  if (plan.alwaysActive) return { ...plan, status: 'active', activeSubscription: null };
+  const top = currentTopTierCode.value;
+  const topRank = TIER_RANK[top] ?? -1;
+  const rank = TIER_RANK[plan.code] ?? -1;
+  const activeSubscription = activeSubscriptions.value[plan.code];
+  if (top && rank < topRank) return { ...plan, status: 'blocked', activeSubscription };
+  if (activeSubscription) {
+    if (activeSubscription.status === 'trial') return { ...plan, status: 'convert', activeSubscription };
+    return { ...plan, status: 'renew', activeSubscription };
+  }
+  if (top && rank > topRank) return { ...plan, status: 'upgradable', activeSubscription };
+  return { ...plan, status: 'purchasable', activeSubscription };
+};
 const displayPlans = computed(() => plans.map(withStatus));
 const billingTabs = [{ value: BILLING_MONTHLY, label: '单月' }, { value: BILLING_YEARLY, label: '单年', discount: '省 17%' }];
 const comparisonRows = [
   { label: 'BOH AI Token / 天', values: { free: '20 万', plus: '80 万', pro: '200 万', max: '500 万', ultra: '1000 万' } },
   { label: 'Agent 任务并行', values: { free: '1 个任务', plus: '1 个任务', pro: '2 个任务', max: '4 个任务', ultra: '8 个任务' } },
-  { label: 'Cloud+ 存储空间', values: { free: '500MB', plus: '20GB', pro: '20GB', max: '20GB', ultra: '50GB' } },
+  { label: 'Cloud+ 存储空间', values: { free: '150 张', plus: '300 张', pro: '450 张', max: '900 张', ultra: '1200 张' } },
   { label: '多模态交互', values: { free: false, plus: true, pro: true, max: true, ultra: true } },
   { label: 'Agent & Plan 工作流', values: { free: false, plus: false, pro: false, max: true, ultra: true } },
   { label: '实验室 PPT / Word', values: { free: '10 次 / 月', plus: '15 次 / 月', pro: '20 次 / 月', max: '30 次 / 月', ultra: '不限次数' } },
@@ -159,15 +196,54 @@ const comparisonRows = [
   { label: '客服优先级', values: { free: '普通', plus: '普通', pro: '普通', max: '优先', ultra: '最高优先级' } }
 ];
 const faqList = [
-  { q: '如何升级会员计划？', a: ['选择更高级别的计划并点击预订订阅，升级会按剩余天数折算积分差额。'] },
+  { q: '如何升级会员计划？', a: ['选择比当前更高级别的计划并点击"升级"，升级立即生效；已购订阅会按剩余天数折算成积分抵扣升级差额，不会浪费。'] },
+  { q: '订阅快到期了怎么续费？', a: ['在订阅页选择你当前的档位并点击"续费"，新周期会在当前订阅到期后自动顺延，无需等待到期重买。'] },
   { q: '会员权益有效期多久？', a: ['单月订阅自开通日起 30 天有效；单年订阅自开通日起 365 天有效。'] },
-  { q: '积分不够怎么办？', a: ['完成每日签到、参与社区活动或邀请好友注册，可获得额外积分奖励。'] }
+  { q: '积分不够怎么办？', a: ['完成每日签到、参与社区活动或邀请好友注册，可获得额外积分奖励。'] },
+  { q: '可以免费试用吗？', a: ['新用户可免费试用 Pro 3 天，每个账号限一次，无需消耗积分。试用期间享受 Pro 完整权益，到期前可随时升级为正式会员，升级后权益立即生效、无需等待试用结束。'] }
 ];
 
 const resolvePlanPosition = (code) => plans.find((p) => p.code === code)?.position || '';
 const calculatePrice = (plan) => !plan ? 0 : (billingCycle.value === BILLING_YEARLY ? plan.monthlyCost * 10 : plan.monthlyCost);
 const formatDateText = (value) => value ? new Intl.DateTimeFormat('zh-CN').format(new Date(value)) : '--';
-const getButtonText = (plan) => plan.status === 'active' ? '正在生效' : plan.monthlyCost ? '立即订阅' : '免费加入';
+const getButtonText = (plan) => ({
+  active: '正在生效',
+  renew: '续费',
+  convert: '升级正式版',
+  upgradable: '升级',
+  blocked: '已是更高级会员',
+  purchasable: plan.monthlyCost ? '立即订阅' : '免费加入'
+}[plan.status] || '立即订阅');
+const buildUpgradePreview = (plan, fullCost) => {
+  if (!plan || plan.status !== 'upgradable') return null;
+  const active = Object.values(activeSubscriptions.value).filter((s) => s?.planCode && TIER_RANK[s.planCode] !== undefined);
+  if (!active.length) return null;
+  const top = active.reduce((a, b) => (TIER_RANK[b.planCode] > TIER_RANK[a.planCode] ? b : a));
+  const expiresAt = Date.parse(top.expiresAt || '');
+  if (!Number.isFinite(expiresAt)) return null;
+  const remainingDays = Math.max(0, Math.ceil((expiresAt - Date.now()) / 86400000));
+  const totalDays = (top.durationMonths || 1) * 30;
+  const daily = (Number(top.pointsCost) || 0) / totalDays;
+  const credit = Math.round(daily * remainingDays);
+  const due = Math.max(0, Number(fullCost || 0) - credit);
+  return { credit, due, remainingDays, previousPlanCode: top.planCode };
+};
+const requiredCostFor = (plan) => {
+  if (!plan) return 0;
+  const full = calculatePrice(plan);
+  const preview = buildUpgradePreview(plan, full);
+  return preview ? preview.due : full;
+};
+const confirmPlanPreview = computed(() => {
+  if (!confirmPlan.value) return null;
+  return buildUpgradePreview(confirmPlan.value, calculatePrice(confirmPlan.value));
+});
+const confirmDue = computed(() => {
+  if (!confirmPlan.value) return 0;
+  const full = calculatePrice(confirmPlan.value);
+  const preview = confirmPlanPreview.value;
+  return preview ? preview.due : full;
+});
 const notify = (title, message = '', icon = 'success') => { showGlobalNavStatus({ title, message, icon, durationMs: 2800 }); };
 const handleTabClick = (tab) => { billingCycle.value = tab.value; };
 const toggleFaq = (index) => { openFaqIndex.value = openFaqIndex.value === index ? null : index; };
@@ -175,11 +251,105 @@ const scrollToPlans = () => { document.getElementById('plans')?.scrollIntoView({
 
 watch(() => userInfo.value?.points, (value) => { currentPoints.value = Number(value || 0); }, { immediate: true });
 watch(() => userInfo.value?.id, () => { void loadMySubscriptions(); }, { immediate: true });
-function buildActiveSubscriptionMap(list) { const now = Date.now(); activeSubscriptions.value = Object.fromEntries((list || []).filter((item) => item?.status === 'active' && item.planCode && Date.parse(item.expiresAt || '') > now).map((item) => [item.planCode, item])); }
+function buildActiveSubscriptionMap(list) { const now = Date.now(); activeSubscriptions.value = Object.fromEntries((list || []).filter((item) => (item?.status === 'active' || item?.status === 'trial') && item.planCode && Date.parse(item.expiresAt || '') > now).map((item) => [item.planCode, item])); }
 async function loadMySubscriptions() { if (!userInfo.value?.id) { activeSubscriptions.value = {}; return; } isLoadingSubscriptions.value = true; const result = await getMySubscriptions(userInfo.value.id, { includeExpired: true }); isLoadingSubscriptions.value = false; if (!result.ok) { logger.error('subscription', '加载订阅记录失败:', result.error); return; } subscriptions.value = Array.isArray(result.data) ? result.data : []; buildActiveSubscriptionMap(subscriptions.value); }
 const highestActivePlan = computed(() => { const active = Object.values(activeSubscriptions.value); if (!active.length) return null; const current = active.sort((a, b) => plans.findIndex((p) => p.code === b.planCode) - plans.findIndex((p) => p.code === a.planCode))[0]; return { ...current, name: plans.find((p) => p.code === current.planCode)?.name || current.planCode }; });
-const handleSubscribe = async (plan) => { if (plan.status === 'active' || isSubmitting.value || isLoadingSubscriptions.value) return; if (!authStore.isLoggedIn || !userInfo.value?.id) { notify('请先登录后再订阅', '', 'warning'); authStore.showLoginModal = true; return; } if (!plan.monthlyCost) { notify('免费权益无需扣除积分', '', 'success'); return; } if (currentPoints.value < calculatePrice(plan)) { currentService.value = plan; showModal.value = true; return; } confirmPlan.value = plan; showConfirmModal.value = true; };
-const confirmSubscribe = async () => { const plan = confirmPlan.value; if (!plan) return; showConfirmModal.value = false; isSubmitting.value = true; currentService.value = plan; const price = calculatePrice(plan); try { const result = await subscribeWithPoints({ planCode: plan.code, planName: plan.name, billingCycle: billingCycle.value, pointsCost: price, durationMonths: billingCycle.value === BILLING_YEARLY ? 12 : 1, metadata: { source: 'user-center/subscription' } }); if (!result.ok) { notify('订阅失败', result.error?.message || result.data?.message || '请稍后重试', 'warning'); return; } const points = Number(result.data?.currentPoints ?? currentPoints.value - price); currentPoints.value = points; authStore.$patch({ userInfo: { ...authStore.userInfo, points } }); await loadMySubscriptions(); clearUserTierCache().catch(() => undefined); notify(`订阅成功！已开通 ${plan.name}`, '', 'success'); } catch (error) { logger.error('subscription', '订阅失败:', error); notify('订阅失败', '请稍后重试', 'warning'); } finally { isSubmitting.value = false; currentService.value = null; confirmPlan.value = null; } };
+const topIsTrial = computed(() => highestActivePlan.value?.status === 'trial');
+
+// 试用状态：trial 记录（有效中） / 是否曾领取过 / 是否可展示试用入口
+const trialSubscription = computed(() => {
+  const now = Date.now();
+  return (subscriptions.value || []).find((s) => s?.status === 'trial' && s.planCode && Date.parse(s.expiresAt || '') > now) || null;
+});
+const isTrialing = computed(() => !!trialSubscription.value);
+const trialEverUsed = computed(() => (subscriptions.value || []).some((s) => s?.metadata && s.metadata.source === 'trial'));
+const canShowTrial = computed(() => !currentTopTierCode.value && !isTrialing.value && !trialEverUsed.value);
+const trialRemainingDays = computed(() => {
+  if (!trialSubscription.value) return 0;
+  const expires = Date.parse(trialSubscription.value.expiresAt || '');
+  if (!Number.isFinite(expires)) return 0;
+  return Math.max(0, Math.ceil((expires - Date.now()) / 86400000));
+});
+const proPlan = computed(() => plans.find((p) => p.code === 'pro') || null);
+
+const handleStartTrial = async () => {
+  if (isSubmitting.value || isLoadingSubscriptions.value) return;
+  if (!authStore.isLoggedIn || !userInfo.value?.id) { notify('请先登录后再开启试用', '', 'warning'); authStore.showLoginModal = true; return; }
+  isSubmitting.value = true;
+  try {
+    const result = await startSubscriptionTrial({ planCode: 'pro', durationDays: 3, metadata: { source: 'user-center/subscription' } });
+    if (!result.ok) {
+      const msg = result.error?.message || result.data?.message || '请稍后重试';
+      notify('开启试用失败', msg, 'warning');
+      return;
+    }
+    await loadMySubscriptions();
+    clearUserTierCache().catch(() => undefined);
+    notify('试用已开启！Pro 权益已生效，有效期 3 天', '', 'success');
+  } catch (error) {
+    logger.error('subscription', '开启试用失败:', error);
+    notify('开启试用失败', '请稍后重试', 'warning');
+  } finally {
+    isSubmitting.value = false;
+  }
+};
+const handleTrialUpgrade = () => {
+  const plan = proPlan.value;
+  if (plan) handleSubscribe(plan);
+};
+const handleSubscribe = async (plan) => {
+  if (plan.status === 'active' || plan.status === 'blocked' || isSubmitting.value || isLoadingSubscriptions.value) return;
+  if (!authStore.isLoggedIn || !userInfo.value?.id) { notify('请先登录后再订阅', '', 'warning'); authStore.showLoginModal = true; return; }
+  if (!plan.monthlyCost) { notify('免费权益无需扣除积分', '', 'success'); return; }
+  if (currentPoints.value < requiredCostFor(plan)) { currentService.value = plan; showModal.value = true; return; }
+  confirmPlan.value = plan; showConfirmModal.value = true;
+};
+const confirmSubscribe = async () => {
+  const plan = confirmPlan.value;
+  if (!plan) return;
+  showConfirmModal.value = false;
+  isSubmitting.value = true;
+  currentService.value = plan;
+  const price = calculatePrice(plan);
+  try {
+    const result = await subscribeWithPoints({
+      planCode: plan.code,
+      planName: plan.name,
+      billingCycle: billingCycle.value,
+      pointsCost: price,
+      durationMonths: billingCycle.value === BILLING_YEARLY ? 12 : 1,
+      metadata: { source: 'user-center/subscription', action: plan.status }
+    });
+    if (!result.ok) {
+      notify('订阅失败', result.error?.message || result.data?.message || '请稍后重试', 'warning');
+      return;
+    }
+    const deducted = Number(result.data?.pointsDeducted ?? price);
+    const points = Number(result.data?.currentPoints ?? currentPoints.value - deducted);
+    currentPoints.value = points;
+    authStore.$patch({ userInfo: { ...authStore.userInfo, points } });
+    await loadMySubscriptions();
+    clearUserTierCache().catch(() => undefined);
+    const action = result.data?.action || plan.status;
+    const credit = Number(result.data?.creditApplied || 0);
+    if (action === 'upgrade') {
+      notify(`已升级至 ${plan.name}`, credit > 0 ? `当前订阅抵扣 ${credit} 积分` : '', 'success');
+    } else if (action === 'renew') {
+      notify(`续费成功！${plan.name} 将在当前订阅到期后顺延生效`, '', 'success');
+    } else if (action === 'convert') {
+      notify(`试用已转为正式会员！${plan.name} 权益立即生效`, '', 'success');
+    } else {
+      notify(`订阅成功！已开通 ${plan.name}`, '', 'success');
+    }
+  } catch (error) {
+    logger.error('subscription', '订阅失败:', error);
+    notify('订阅失败', '请稍后重试', 'warning');
+  } finally {
+    isSubmitting.value = false;
+    currentService.value = null;
+    confirmPlan.value = null;
+  }
+};
 const closeAllModals = () => { showModal.value = false; showConfirmModal.value = false; confirmPlan.value = null; };
 </script>
 
@@ -230,6 +400,24 @@ const closeAllModals = () => { showModal.value = false; showConfirmModal.value =
 .billing-switch button.active { background: #000; color: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.18); }
 .billing-switch em { color: rgba(0,113,227,.95); font-style: normal; margin-left: 6px; font-size: 13px; }
 .active-chip { color: #1d1d1f; font-size: 13px; font-weight: 500; }
+.active-chip.is-trial { color: #0071e3; font-weight: 600; }
+
+/* 试用引导横幅 */
+.trial-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; padding: 18px 22px; border-radius: 18px; background: linear-gradient(120deg, rgba(0,113,227,.10), rgba(0,113,227,.04)); border: 1px solid rgba(0,113,227,.28); box-shadow: 0 8px 30px rgba(0,113,227,.08); }
+.trial-banner.trialing { background: rgba(255,255,255,.7); border-color: rgba(0,113,227,.35); }
+.trial-banner-text { display: flex; flex-direction: column; gap: 4px; }
+.trial-banner-text strong { font-size: 16px; font-weight: 700; color: #1d1d1f; letter-spacing: -0.01em; }
+.trial-banner-text span { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.trial-button { flex: none; border: 0; border-radius: 980px; background: #0071e3; color: #fff; padding: 13px 30px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background .2s, transform .1s, box-shadow .2s; box-shadow: 0 8px 20px rgba(0,113,227,.28); }
+.trial-button:hover { background: #0077ed; box-shadow: 0 10px 26px rgba(0,113,227,.34); }
+.trial-button:active { transform: scale(0.98); }
+.trial-button.ghost { background: #1d1d1f; box-shadow: 0 8px 20px rgba(0,0,0,.18); }
+.trial-button.ghost:hover { background: #2a2a2c; }
+.trial-button:disabled { opacity: .7; cursor: default; }
+@media (max-width: 620px) {
+  .trial-banner { flex-direction: column; align-items: stretch; text-align: center; }
+  .trial-button { width: 100%; }
+}
 .points-row { display: inline-flex; align-items: baseline; gap: 8px; color: var(--muted); font-size: 14px; }
 .points-row strong { color: var(--ink); font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
 .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: stretch; }

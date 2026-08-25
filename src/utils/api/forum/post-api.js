@@ -1486,3 +1486,63 @@ export async function submitWeeklyCheckin() {
     error: null
   };
 }
+
+/**
+ * 发帖有奖：帖子发布成功后调用，按“当前进行中”的活动发放积分。
+ * 返回 { ok, awarded, currentPoints, alreadyClaimed, skipped, reason, message }
+ * - 无进行中活动 / 已达上限 / 已领过：awarded=0，不影响发帖主流程
+ * - 成功：awarded>0 且 currentPoints 为新余额
+ */
+export async function claimPostPublishReward(supabaseClient, postId) {
+  const safePostId = String(postId || '').trim();
+  if (!safePostId) {
+    return { ok: false, awarded: 0, error: new Error('缺少帖子 ID') };
+  }
+  try {
+    const { data, error } = await supabaseClient.rpc('grant_post_publish_reward', {
+      p_post_id: safePostId
+    });
+    if (error) {
+      logger.warn('forum-api', '发帖奖励发放失败', { postId: safePostId, error });
+      return { ok: false, awarded: 0, error: normalizeDbError(error) };
+    }
+    const safe = data && typeof data === 'object' ? data : {};
+    return {
+      ok: Boolean(safe.ok),
+      awarded: Number(safe.awarded || 0),
+      currentPoints: Number(safe.current_points || 0),
+      alreadyClaimed: Boolean(safe.already_claimed),
+      skipped: Boolean(safe.skipped),
+      reason: safe.reason || '',
+      campaignTitle: safe.campaign_title || '',
+      message: safe.message || ''
+    };
+  } catch (err) {
+    logger.error('forum-api', 'claimPostPublishReward 异常', err);
+    return { ok: false, awarded: 0, error: err };
+  }
+}
+
+/**
+ * 查询当前进行中的“发帖有奖”活动，供论坛发帖区横幅展示。
+ * 返回 { id, title, pointsPerPost, endAt } 或 null。
+ */
+export async function getActivePostReward(supabaseClient) {
+  try {
+    const { data, error } = await supabaseClient.rpc('get_active_post_reward');
+    if (error) {
+      logger.warn('forum-api', '查询进行中发帖活动失败', error);
+      return null;
+    }
+    if (!data || typeof data !== 'object') return null;
+    return {
+      id: data.id,
+      title: data.title || '',
+      pointsPerPost: Number(data.pointsPerPost || 0),
+      endAt: data.endAt || null
+    };
+  } catch (err) {
+    logger.error('forum-api', 'getActivePostReward 异常', err);
+    return null;
+  }
+}

@@ -53,7 +53,15 @@
                   </div>
                   <div v-else :key="`groups-${item.name}`" class="nav-submenu-pane nav-submenu-pane-groups">
                     <li v-for="child in item.children" :key="child.name">
-                      <a href="javascript:;" class="nav-submenu-group-title"
+                      <router-link v-if="child.path" :to="child.path" :class="{ active: isActive(child.path) }"
+                        @click="expandedMenu = null">
+                        {{ child.label }}
+                      </router-link>
+                      <a v-else-if="child.action" href="javascript:;"
+                        @click="handleMenuAction(child.action); expandedMenu = null">
+                        {{ child.label }}
+                      </a>
+                      <a v-else href="javascript:;" class="nav-submenu-group-title"
                         @click="activeGroup = child.name; activeGroupParent = item.name">
                         {{ child.label }}
                       </a>
@@ -169,10 +177,20 @@
                     </template>
                   </template>
                   <template v-else>
-                    <div v-for="child in item.children" :key="child.name" class="nav-mobile-group-entry"
-                      @click="activeGroup = child.name; activeGroupParent = item.name">
-                      <span class="nav-mobile-group-entry-label">{{ child.label }}</span>
-                    </div>
+                    <template v-for="child in item.children" :key="child.name">
+                      <router-link v-if="child.path" :to="child.path" :class="{ active: isActive(child.path) }"
+                        @click="closeMobileMenu">
+                        {{ child.label }}
+                      </router-link>
+                      <a v-else-if="child.action" href="javascript:;"
+                        @click="handleMenuAction(child.action); closeMobileMenu()">
+                        {{ child.label }}
+                      </a>
+                      <div v-else class="nav-mobile-group-entry"
+                        @click="activeGroup = child.name; activeGroupParent = item.name">
+                        <span class="nav-mobile-group-entry-label">{{ child.label }}</span>
+                      </div>
+                    </template>
                   </template>
                 </template>
                 <!-- 扁平二级（无分组，如社区） -->
@@ -491,14 +509,8 @@ const navMenuItems = [
     name: "services",
     label: "服务",
     children: [
-      {
-        name: "store-group",
-        label: "商城",
-        children: [
-          { name: "shop", path: "/shop", label: "周边商城" },
-          { name: "subscription", path: "/user-space/subscriptions", label: "订阅计划" }
-        ]
-      },
+      { name: "shop", path: "/shop", label: "周边商城" },
+      { name: "subscription", path: "/user-space/subscriptions", label: "订阅计划" },
       {
         name: "support-group",
         label: "支持中心",
