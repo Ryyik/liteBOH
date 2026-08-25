@@ -3,13 +3,18 @@
     width: 100%;
     max-width: none;
     margin: 0;
-    padding-bottom: 112px;
+    padding-bottom: 96px;
   }
 
   .messages-tab :deep(.x-header-minimal) {
-    padding: 10px;
-    margin: 0 8px 12px;
-    border-radius: 16px;
+    padding: 4px 4px 8px;
+    margin: 0 0 8px;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border-radius: 0;
   }
 
   .messages-tab :deep(.x-minimal-main) {

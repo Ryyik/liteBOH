@@ -197,18 +197,39 @@
         <p>{{ notificationsLoadError }}</p>
         <button class="refresh-btn" @click="loadNotifications">点击重试</button>
       </div>
-      <!-- Skeleton Loading -->
-      <div v-else-if="loading && currentTab !== 'archived'" class="x-skeleton-list">
-        <div v-for="i in 5" :key="i" class="x-skeleton-item">
-          <div class="x-skeleton-avatar"></div>
-          <div class="x-skeleton-content">
-            <div class="x-skeleton-line x-skeleton-title"></div>
-            <div class="x-skeleton-line x-skeleton-text"></div>
-            <div class="x-skeleton-line x-skeleton-text short"></div>
+      <!-- Skeleton Loading — 1:1 复刻 P1 左列表 + 右详情 -->
+      <div v-else-if="loading && currentTab !== 'archived'" class="x-skeleton-wrap">
+        <div class="x-skeleton-list">
+          <div v-for="i in 5" :key="i" class="x-skeleton-item">
+            <div class="x-skeleton-avatar"></div>
+            <div class="x-skeleton-content">
+              <div class="x-skeleton-line x-skeleton-title"></div>
+              <div class="x-skeleton-line x-skeleton-text"></div>
+              <div class="x-skeleton-line x-skeleton-text short"></div>
+            </div>
+            <div class="x-skeleton-right">
+              <div class="x-skeleton-line x-skeleton-badge"></div>
+            </div>
           </div>
-          <div class="x-skeleton-right">
-            <div class="x-skeleton-line x-skeleton-badge"></div>
+        </div>
+        <div class="x-skeleton-detail" aria-hidden="true">
+          <div class="x-skeleton-detail-header">通知详情</div>
+          <div class="x-skeleton-detail-card">
+            <div class="x-skeleton-detail-avatar"></div>
+            <div class="x-skeleton-detail-meta">
+              <div class="x-skeleton-line" style="width: 140px; height: 16px;"></div>
+              <div class="x-skeleton-line" style="width: 80px; height: 20px; border-radius: 8px; margin-top: 8px;"></div>
+            </div>
           </div>
+          <div class="x-skeleton-line" style="width: 60%; height: 22px; margin: 24px 0 12px;"></div>
+          <div class="x-skeleton-line" style="width: 90%; height: 14px;"></div>
+          <div class="x-skeleton-line" style="width: 80%; height: 14px; margin-top: 8px;"></div>
+          <div class="x-skeleton-detail-source">
+            <div class="x-skeleton-line" style="width: 80px; height: 12px; margin-bottom: 12px;"></div>
+            <div class="x-skeleton-line" style="width: 100%; height: 14px;"></div>
+            <div class="x-skeleton-line" style="width: 92%; height: 14px; margin-top: 8px;"></div>
+          </div>
+          <div class="x-skeleton-line" style="width: 160px; height: 12px; margin-top: 32px;"></div>
         </div>
       </div>
       <div v-else-if="currentTab === 'archived' && archivedLoading" class="x-skeleton-list">
@@ -544,7 +565,7 @@ import { useDebounce, useThrottle } from '@/composables/useDebounceThrottle';
 import { useVirtualList } from '@vueuse/core';
 
 // Props
-defineProps({
+const props = defineProps({
   minimal: {
     type: Boolean,
     default: false
@@ -552,7 +573,7 @@ defineProps({
 });
 
 const route = useRoute();
-const isFromUserSpace = computed(() => String(route.query.from || '').startsWith('userspace'));
+const isFromUserSpace = computed(() => props.minimal || String(route.query.from || '').startsWith('userspace') || route.path === '/user-space');
 const notificationStoreRef = ref(getNotificationStoreSync());
 
 const ensureNotificationStore = async () => {

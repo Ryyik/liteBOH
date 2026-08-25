@@ -30,7 +30,7 @@
           </div>
         </div>
 
-        <div class="ah-tab-groups">
+        <div class="ah-tab-groups" ref="hubGroupsRef">
           <div v-for="group in tabGroups" :key="group.label" class="ah-tab-group" role="tablist" :aria-label="group.label">
             <span class="ah-tab-group-label">{{ group.label }}</span>
             <div class="ah-hub-tabs">
@@ -66,11 +66,27 @@
           </button>
         </header>
 
+        <div v-if="overviewLoading" class="ah-overview-skeleton" aria-hidden="true">
+          <div class="ah-skeleton ah-skeleton-focus">
+            <div class="ah-skeleton-icon"></div>
+            <div class="ah-skeleton-lines">
+              <div class="ah-skeleton-line w-24"></div>
+              <div class="ah-skeleton-line w-60"></div>
+              <div class="ah-skeleton-line w-80"></div>
+            </div>
+          </div>
+          <div v-if="beta5" class="ah-skeleton ah-skeleton-points-card is-centered"></div>
+          <div v-else class="ah-overview-insights">
+            <div class="ah-skeleton ah-skeleton-card-sm"></div>
+            <div class="ah-skeleton ah-skeleton-card-sm"></div>
+          </div>
+          <div class="ah-skeleton ah-skeleton-timeline"></div>
+        </div>
+        <template v-else>
         <button
           type="button"
           class="ah-smart-focus"
           :class="`tone-${primaryInsight.tone}`"
-          :disabled="overviewLoading"
           @click="handleSmartAction(primaryInsight.action)"
         >
           <span class="ah-smart-focus-icon"><component :is="primaryInsight.icon" :size="22" :stroke-width="1.8" aria-hidden="true" /></span>
@@ -85,9 +101,8 @@
           </span>
         </button>
 
-        <div class="ah-overview-summary" :class="{ 'has-points-card': beta5 }">
+        <div v-if="beta5" class="ah-overview-points-wrap">
           <PointsCard
-            v-if="beta5"
             class="ah-overview-points-card"
             :points="userPoints"
             :username="displayName"
@@ -95,12 +110,12 @@
             :skin="userInfo?.pointsCardSkin"
             :image-url="userInfo?.pointsCardImageUrl"
             interactive
-            show-sponsor-action
+            :show-sponsor-action="false"
             @click="activateTab('cards')"
-            @sponsor="$emit('sponsor')"
           />
+        </div>
 
-          <div class="ah-overview-insights">
+        <div v-if="!beta5" class="ah-overview-insights">
             <article class="ah-overview-primary">
               <div class="ah-overview-card-icon is-blue"><Coins :size="19" :stroke-width="1.8" aria-hidden="true" /></div>
               <div class="ah-overview-copy">
@@ -126,9 +141,8 @@
               </button>
             </article>
           </div>
-        </div>
 
-        <div class="ah-smart-columns">
+        <div class="ah-smart-columns ah-single-timeline">
           <section class="ah-smart-section" aria-label="最近动态">
             <div class="ah-smart-section-head">
               <div>
@@ -189,6 +203,7 @@
             </div>
           </section>
         </div>
+        </template>
       </section>
 
       <section v-else-if="activeTab === 'cards' && beta5" key="cards" class="ah-section ah-cards-section">
@@ -215,7 +230,9 @@
             <span>自定义预设</span>
             <small v-if="!isPointsCardPresetsLoading">{{ pointsCardPresets.length }} / {{ pointsCardPresetCapacity }} 张</small>
           </div>
-          <div v-if="isPointsCardPresetsLoading" class="ah-card-presets-loading">正在读取卡面</div>
+          <div v-if="isPointsCardPresetsLoading" class="ah-card-preset-grid" aria-hidden="true">
+            <div v-for="n in 3" :key="n" class="ah-skeleton ah-skeleton-preset"></div>
+          </div>
           <div v-else-if="pointsCardPresets.length" class="ah-card-preset-grid">
             <article
               v-for="preset in pointsCardPresets"
@@ -504,6 +521,93 @@
       <section v-else-if="activeTab === 'addresses'" key="addresses" class="ah-section">
         <AddressManager variant="glass" :show-header="false" />
       </section>
+
+      <section v-else-if="activeTab === 'lottery'" key="lottery" class="ah-section ah-lottery-section">
+        <div class="ah-lottery-hero">
+          <div class="ah-lottery-hero-icon"><Ticket :size="22" :stroke-width="1.8" aria-hidden="true" /></div>
+          <div>
+            <span>社区抽奖</span>
+            <h2>参与抽奖，赢取方块好礼</h2>
+            <p>免费报名，中奖可获奖品与积分回馈。订阅会员可累计保底进度。</p>
+          </div>
+          <button type="button" class="ah-lottery-hero-action" @click="router.push('/lotteries').catch(()=>{})">查看全部</button>
+        </div>
+        <div v-if="pityStatus" class="ah-lottery-pity-inline" :class="{ 'is-due': pityStatus.isDue, 'is-unavailable': !pityStatus.eligible }">
+          <div class="ah-lottery-pity-head"><span>保底进度</span><strong>{{ pityProgressLabel }}</strong></div>
+          <div v-if="pityStatus.eligible" class="ah-lottery-pity-track"><div class="ah-lottery-pity-fill" :style="{ width: `${pityProgressPercent}%` }"></div></div>
+          <p>{{ pityProgressDescription }}</p>
+        </div>
+        <div v-if="lotteryLoading" class="ah-lottery-skeleton">
+          <div v-for="n in 3" :key="n" class="ah-skeleton ah-skeleton-lottery"></div>
+        </div>
+        <div v-else-if="lotteryError" class="ah-empty-state">
+          <div class="ah-empty-icon"><Ticket :size="26" :stroke-width="1.5" /></div>
+          <h3>抽奖加载失败</h3>
+          <p>{{ lotteryError }}</p>
+          <button type="button" class="ah-shop-btn ah-shop-btn-ghost" @click="loadLotteries(true)">重试</button>
+        </div>
+        <div v-else-if="!lotteries.length" class="ah-empty-state">
+          <div class="ah-empty-icon"><Ticket :size="26" :stroke-width="1.5" /></div>
+          <h3>暂无进行中的抽奖</h3>
+          <p>社区抽奖会不定期开启，请稍后再来或查看历史</p>
+          <button type="button" class="ah-shop-btn ah-shop-btn-ghost" @click="router.push('/lotteries').catch(()=>{})">去抽奖页看看</button>
+        </div>
+        <div v-else class="ah-lottery-grid">
+          <article v-for="item in lotteries" :key="item.id" class="ah-lottery-card" :class="`status-${item.status}`">
+            <div v-if="item.cover_image_url" class="ah-lottery-cover"><img :src="item.cover_image_url" :alt="item.title" loading="lazy" /></div>
+            <div v-else class="ah-lottery-cover is-empty"><Ticket :size="28" :stroke-width="1.6" /></div>
+            <div class="ah-lottery-body">
+              <div class="ah-lottery-top"><span class="ah-lottery-status" :class="item.status">{{ getLotteryStatusLabel(item.status) }}</span><span v-if="item.current_user_entry_id" class="ah-lottery-joined">已报名</span><span v-if="item.pity_mode==='eligible'" class="ah-lottery-pity-badge">保底</span></div>
+              <h3 :title="item.title">{{ item.title || '未命名抽奖' }}</h3>
+              <p class="ah-lottery-prize" :title="item.prize_title">奖品：{{ item.prize_title || '—' }}</p>
+              <div class="ah-lottery-meta"><span>{{ item.entry_count || 0 }}人已报名</span><span>开奖 {{ formatLotteryDrawAt(item.draw_at) }}</span></div>
+              <div class="ah-lottery-actions">
+                <button v-if="item.status==='open' && !item.current_user_entry_id" type="button" class="ah-shop-btn ah-lottery-join" :disabled="joiningLotteryId===item.id" @click="handleJoinLottery(item)">{{ joiningLotteryId===item.id ? '报名中' : '立即报名' }}</button>
+                <button v-else-if="item.current_user_entry_id" type="button" class="ah-shop-btn ah-lottery-joined-btn" disabled>已报名 #{{ item.current_user_entry_number || '-' }}</button>
+                <button v-else type="button" class="ah-shop-btn ah-shop-btn-ghost" @click="router.push('/lotteries').catch(()=>{})">查看详情</button>
+                <button type="button" class="ah-lottery-link" @click="router.push(`/lotteries?lottery=${encodeURIComponent(item.id)}`).catch(()=>{})">详情</button>
+              </div>
+            </div>
+          </article>
+        </div>
+        <div class="ah-lottery-foot">
+          <p>抽奖免费参与，保底仅对会员计入。祝你好运。</p>
+          <button type="button" class="ah-shop-btn ah-shop-btn-ghost" @click="router.push('/lotteries').catch(()=>{})">前往抽奖页</button>
+        </div>
+      </section>
+
+      <section v-else-if="activeTab === 'sponsor'" key="sponsor" class="ah-section ah-sponsor-section">
+        <div class="ah-sponsor-hero">
+          <div class="ah-sponsor-hero-icon"><Heart :size="22" :stroke-width="1.8" aria-hidden="true" /></div>
+          <div>
+            <span>支持社区</span>
+            <h2>赞助方块之家</h2>
+            <p>你的每一份支持，都让社区的方块更温暖。赞助款将用于服务器与活动奖品。</p>
+          </div>
+        </div>
+        <div class="ah-sponsor-grid">
+          <article class="ah-sponsor-card">
+            <h3><span class="ah-sponsor-badge">推荐</span> 微信赞赏</h3>
+            <p>扫码赞赏，金额随心。赞助后可在积分卡展示赞助标识。</p>
+            <div class="ah-sponsor-qr-wrap">
+              <img :src="sponsorQrImage" alt="微信赞赏码" loading="lazy" />
+            </div>
+            <small>长按保存 · 微信扫码</small>
+          </article>
+          <article class="ah-sponsor-card is-muted">
+            <h3>支付宝</h3>
+            <p>暂未开通，敬请期待。</p>
+            <div class="ah-sponsor-qr-wrap is-placeholder">
+              <span>—</span>
+            </div>
+            <small>后续开放</small>
+          </article>
+        </div>
+        <div class="ah-sponsor-foot">
+          <p>赞助属自愿行为，不与抽奖保底、积分权益挂钩。感谢每一位支持者。</p>
+          <button type="button" class="ah-shop-btn ah-shop-btn-ghost" @click="activateTab('overview')">返回概览</button>
+        </div>
+      </section>
       </Transition>
     </div>
   </div>
@@ -514,11 +618,12 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import {
-  CalendarCheck, Check, ChevronRight, Coins, Copy, Crown, Gift, ImagePlus, LayoutDashboard, MapPin, Package, PackageCheck, RefreshCw, ScrollText, Send, ShoppingBag, Trash2
+  CalendarCheck, Check, ChevronRight, Coins, Copy, Crown, Gift, Heart, ImagePlus, LayoutDashboard, MapPin, Package, PackageCheck, RefreshCw, ScrollText, Send, ShoppingBag, Ticket, Trash2, Trophy
 } from 'lucide-vue-next';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import SubscriptionPlans from '@/components/SubscriptionPlans.vue';
 import AddressManager from '@/components/AddressManager.vue';
+import sponsorQrImage from '@/assets/images/qrcode.webp';
 import { useAuthStore } from '@/stores/auth';
 import { useProductsStore } from '@/stores/products';
 import { supabase } from '@/utils/supabase-client.js';
@@ -527,6 +632,7 @@ import { PLAN_DISPLAY_NAMES } from '@/utils/subscription-benefits.js';
 import { getExpiredActiveGiftIds, markGiftsAsHistory } from '@/utils/gift-archive.js';
 import { logger } from '@/utils/logger.js';
 import { getMyLotteryPityStatus, getMySubscriptions } from '@/utils/api/subscription-api.js';
+import { getCommunityLotteries, joinCommunityLottery } from '@/utils/api/lottery-api.js';
 import PointsCard from './PointsCard.vue';
 import { HOME_CAT_ASSETS } from '@/utils/home-cat-theme.js';
 
@@ -563,8 +669,8 @@ const handleCatsSkinClick = () => {
   emit('redeem-points-card-cats');
 };
 
-const betaTabIds = new Set(['overview', 'cards', 'points', 'subscription', 'fulfillment', 'addresses']);
-const stableTabIds = new Set(['overview', 'points', 'subscription', 'orders', 'gifts', 'addresses']);
+const betaTabIds = new Set(['overview', 'cards', 'points', 'subscription', 'fulfillment', 'addresses', 'lottery', 'sponsor']);
+const stableTabIds = new Set(['overview', 'points', 'subscription', 'orders', 'gifts', 'addresses', 'lottery', 'sponsor']);
 const normalizeInitialTab = () => {
   let tab = String(props.initialTab || '');
   if (props.beta5 && ['orders', 'gifts'].includes(tab)) tab = 'fulfillment';
@@ -580,7 +686,9 @@ const tabGroups = computed(() => props.beta5 ? [
   ] },
   { label: '服务', tabs: [
     { id: 'fulfillment', label: '礼物与订单', icon: Package },
-    { id: 'addresses', label: '地址', icon: MapPin }
+    { id: 'addresses', label: '地址', icon: MapPin },
+    { id: 'lottery', label: '抽奖', icon: Ticket },
+    { id: 'sponsor', label: '赞助', icon: Heart }
   ] }
 ] : [
   { label: '账户', tabs: [
@@ -591,7 +699,9 @@ const tabGroups = computed(() => props.beta5 ? [
   { label: '服务', tabs: [
     { id: 'orders', label: '订单', icon: Package },
     { id: 'gifts', label: '礼物', icon: Gift },
-    { id: 'addresses', label: '地址', icon: MapPin }
+    { id: 'addresses', label: '地址', icon: MapPin },
+    { id: 'lottery', label: '抽奖', icon: Ticket },
+    { id: 'sponsor', label: '赞助', icon: Heart }
   ] }
 ]);
 
@@ -938,10 +1048,73 @@ const activateTab = (tabId) => {
   if (tabId === 'subscription') void loadSubscription();
   if (tabId === 'orders') void loadOrders();
   if (tabId === 'gifts') void loadGifts();
+  if (tabId === 'lottery') void loadLotteries();
   if (tabId === 'fulfillment') {
     void loadOrders();
     void loadGifts();
   }
+};
+
+// ─── 抽奖数据（独立小分页） ───
+const lotteryLoading = ref(false);
+const lotteryLoaded = ref(false);
+const lotteryError = ref('');
+const lotteries = ref([]);
+const joiningLotteryId = ref('');
+const showToast = (msg, type='info') => {
+  // 复用全局 toast 若存在，否则降级为 console
+  try { window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: msg, type } })); } catch {}
+  logger.info('lottery-tab', `${type}: ${msg}`);
+};
+const loadLotteries = async (force=false) => {
+  if (lotteryLoading.value) return;
+  if (lotteryLoaded.value && !force) return;
+  lotteryLoading.value = true;
+  lotteryError.value = '';
+  try {
+    const { data, error } = await getCommunityLotteries();
+    if (error) throw error;
+    lotteries.value = Array.isArray(data) ? data : [];
+    lotteryLoaded.value = true;
+  } catch (e) {
+    lotteryError.value = e?.message || '加载失败';
+    logger.warn('lottery-tab', '加载抽奖失败:', e);
+  } finally {
+    lotteryLoading.value = false;
+  }
+};
+const handleJoinLottery = async (lottery) => {
+  if (!lottery?.id || joiningLotteryId.value) return;
+  if (lottery.current_user_entry_id) {
+    showToast('已报名，无需重复', 'info');
+    return;
+  }
+  joiningLotteryId.value = lottery.id;
+  try {
+    const { data, error } = await joinCommunityLottery(lottery.id);
+    if (error) throw error;
+    if (data && data.ok === false) throw new Error(data.message || '报名失败');
+    showToast('报名成功', 'success');
+    await loadLotteries(true);
+    await loadLotteryPityStatus();
+  } catch (e) {
+    showToast(e?.message || '报名失败', 'error');
+  } finally {
+    joiningLotteryId.value = '';
+  }
+};
+const loadLotteryPityStatus = async () => {
+  try {
+    const { data } = await getMyLotteryPityStatus();
+    if (data) pityStatus.value = data;
+  } catch {}
+};
+const getLotteryStatusLabel = (s) => ({ open:'报名中', drawn:'已开奖', closed:'已结束' }[String(s||'')] || String(s||''));
+const formatLotteryDrawAt = (v) => {
+  if (!v) return '待定';
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return '待定';
+  return `${d.getMonth()+1}月${d.getDate()}日 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 };
 
 // ─── 礼物数据 ───
@@ -1112,6 +1285,76 @@ const overviewCandidates = computed(() => {
     });
   }
 
+  if (pityStatus.value?.eligible) {
+    const remaining = Number(pityStatus.value.remainingLosses || 0);
+    const isDue = Boolean(pityStatus.value.isDue);
+    if (isDue) {
+      candidates.push({
+        id: 'pity-due',
+        priority: 88,
+        tone: 'gold',
+        icon: Trophy,
+        kicker: '保底就绪',
+        title: '下一次保底活动可兑现',
+        detail: `已连续 ${pityStatus.value.consecutiveLosses}/${pityStatus.value.threshold} 场未中奖，参与计入并兑现的活动即可获得保底礼。`,
+        action: 'lottery',
+        actionLabel: '去抽奖',
+        activityIds: [],
+        time: pityStatus.value.updatedAt || '',
+        showAsUpcoming: true
+      });
+    } else if (remaining > 0 && remaining <= 3) {
+      candidates.push({
+        id: 'pity-near',
+        priority: 75,
+        tone: 'blue',
+        icon: Ticket,
+        kicker: '保底临近',
+        title: `还差 ${remaining} 场进入保底`,
+        detail: `连续 ${pityStatus.value.consecutiveLosses}/${pityStatus.value.threshold} 场未中奖，当前 ${pityStatus.value.consecutiveLosses} 场。`,
+        action: 'lottery',
+        actionLabel: '查看抽奖',
+        activityIds: [],
+        time: pityStatus.value.updatedAt || '',
+        showAsUpcoming: true
+      });
+    }
+  }
+
+  if (!candidates.some((c) => c.action === 'lottery')) {
+    candidates.push({
+      id: 'lottery-general',
+      priority: 35,
+      tone: 'blue',
+      icon: Ticket,
+      kicker: '社区抽奖',
+      title: '查看进行中的社区抽奖',
+      detail: '参与可计入保底，免费报名，中奖可获奖品与积分回馈。',
+      action: 'lottery',
+      actionLabel: '去抽奖',
+      activityIds: [],
+      time: '',
+      showAsUpcoming: true
+    });
+  }
+
+  if (recentPointsNet.value < -15) {
+    candidates.push({
+      id: 'points-trend-down',
+      priority: 52,
+      tone: 'orange',
+      icon: ScrollText,
+      kicker: '积分动态',
+      title: `近30天净消耗 ${Math.abs(recentPointsNet.value)} 积分`,
+      detail: '查看明细了解去向，抽奖参与未来可获返奖。',
+      action: 'points',
+      actionLabel: '查看明细',
+      activityIds: [],
+      time: '',
+      showAsUpcoming: true
+    });
+  }
+
   return candidates.sort((a, b) => (
     b.priority - a.priority || getOverviewTimestamp(b.time) - getOverviewTimestamp(a.time)
   ));
@@ -1205,6 +1448,7 @@ const upcomingItems = computed(() => {
 
 const handleSmartAction = (action) => {
   if (action === 'shop') { goToShop(); return; }
+  if (action === 'lottery') { router.push('/lotteries').catch(()=>{}); return; }
   activateTab(props.beta5 && ['orders', 'gifts'].includes(action) ? 'fulfillment' : (action || 'overview'));
 };
 
@@ -1273,11 +1517,33 @@ const formatDateShort = (dateStr) => {
 
 const expressCopied = ref(false);
 let expressCopyTimer = null;
+const hubGroupsRef = ref(null);
+let hubOverflowObserver = null;
+const syncHubOverflow = () => {
+  const el = hubGroupsRef.value;
+  if (!el) return;
+  el.querySelectorAll('.ah-hub-tabs').forEach((list) => {
+    list.classList.toggle('has-overflow', list.scrollWidth > list.clientWidth + 1);
+  });
+};
+onMounted(() => {
+  const el = hubGroupsRef.value;
+  if (!el || typeof ResizeObserver === 'undefined') return;
+  hubOverflowObserver = new ResizeObserver(syncHubOverflow);
+  hubOverflowObserver.observe(el);
+  el.querySelectorAll('.ah-hub-tabs').forEach((list) => {
+    hubOverflowObserver.observe(list);
+    list.querySelectorAll('.ah-tab').forEach((tab) => hubOverflowObserver.observe(tab));
+  });
+  syncHubOverflow();
+});
 onUnmounted(() => {
   if (expressCopyTimer) {
     clearTimeout(expressCopyTimer);
     expressCopyTimer = null;
   }
+  hubOverflowObserver?.disconnect();
+  hubOverflowObserver = null;
 });
 const copyExpressNo = async (no) => {
   if (!no) return;
@@ -1423,16 +1689,16 @@ onMounted(() => {
 .ah-hub-card {
   --ah-tab-count: 4;
   --ah-active-center: 12.5%;
-  --ah-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ah-ease: cubic-bezier(0.32, 0.72, 0, 1);
   display: flex;
   flex-direction: column;
-  padding: 20px 24px 10px;
-  border-radius: 28px;
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  padding: 16px 20px 8px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.68);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border: 0.5px solid rgba(255, 255, 255, 0.62);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
   width: 100%;
   max-width: 980px;
   margin: 0 auto;
@@ -1614,7 +1880,8 @@ onMounted(() => {
 }
 .ah-tab.active:hover { background: transparent; }
 .ah-tab:active { transform: translateY(0) scale(0.975); }
-.ah-tab.active { color: #1d1d1f; }
+.ah-tab.active { color: #1d1d1f; background: rgba(255,255,255,0.92); box-shadow: 0 1px 6px rgba(15,23,42,0.08); }
+:global(.user-space-page[data-theme="dark"]) .ah-tab.active { background: rgba(255,255,255,0.14); color: #f4f7f8; box-shadow: none; }
 .ah-tab-icon {
   width: 18px;
   height: 18px;
@@ -1631,12 +1898,26 @@ onMounted(() => {
 }
 .ah-tab.active .ah-tab-label { font-weight: 600; transform: translateY(-1px); }
 
-/* ─── Section 通用 ─── */
-.ah-section { transform-origin: 50% 0; }
-.ah-panel-enter-active { transition: opacity 210ms var(--ah-ease), transform 210ms var(--ah-ease), filter 180ms ease; }
-.ah-panel-leave-active { transition: opacity 110ms ease, transform 110ms ease, filter 100ms ease; }
-.ah-panel-enter-from { opacity: 0; transform: translateY(7px) scale(0.992); filter: blur(2px); }
-.ah-panel-leave-to { opacity: 0; transform: translateY(-3px) scale(0.996); filter: blur(1px); }
+/* ─── Section 通用 + 骨架 ─── */
+.ah-section { transform-origin: 50% 0; min-height: 240px; }
+.ah-panel-enter-active { transition: opacity 260ms cubic-bezier(0.32,0.72,0,1), transform 320ms cubic-bezier(0.32,0.72,0,1), filter 220ms ease; }
+.ah-panel-leave-active { transition: opacity 140ms ease, transform 180ms ease, filter 140ms ease; }
+.ah-panel-enter-from { opacity: 0; transform: translateY(10px) scale(0.985); filter: blur(4px); }
+.ah-panel-leave-to { opacity: 0; transform: translateY(-6px) scale(0.990); filter: blur(2px); }
+
+.ah-overview-skeleton { display: grid; gap: 16px; }
+.ah-skeleton { background: linear-gradient(90deg, rgba(15,23,42,0.06) 25%, rgba(15,23,42,0.03) 50%, rgba(15,23,42,0.06) 75%); background-size: 200% 100%; animation: ah-shimmer 1.2s infinite linear; border-radius: 14px; }
+.ah-skeleton-focus { display: flex; gap: 12px; align-items: center; padding: 16px; min-height: 112px; border: 0.5px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.52); backdrop-filter: blur(16px); }
+.ah-skeleton-focus .ah-skeleton-icon { width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0; }
+.ah-skeleton-lines { flex: 1; display: grid; gap: 8px; }
+.ah-skeleton-line { height: 12px; border-radius: 6px; }
+.ah-skeleton-line.w-24 { width: 24%; } .ah-skeleton-line.w-60 { width: 60%; } .ah-skeleton-line.w-80 { width: 80%; }
+.ah-skeleton-points-card { height: 168px; border-radius: 18px; }
+.ah-skeleton-card-sm { height: 128px; border-radius: 16px; }
+.ah-skeleton-column { height: 220px; border-radius: 16px; }
+.ah-skeleton-preset { height: 132px; border-radius: 14px; }
+@keyframes ah-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+:global(.user-space-page[data-theme="dark"]) .ah-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.08) 25%, rgba(255,255,255,0.04) 50%, rgba(255,255,255,0.08) 75%); background-size: 200% 100%; }
 
 @keyframes ah-materialize {
   from { opacity: 0; transform: translateY(6px) scale(0.985); }
@@ -1653,12 +1934,12 @@ onMounted(() => {
   border-color: rgba(255, 255, 255, 0.78);
   box-shadow: 0 22px 52px rgba(15, 23, 42, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
-.ah-tab-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.ah-tab-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .ah-tab-group { min-width: 0; }
-.ah-tab-group-label { display: block; margin: 0 0 5px 2px; color: #78808d; font-size: 11px; font-weight: 700; }
-.ah-hub-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border: 1px solid rgba(255, 255, 255, 0.7); border-radius: 16px; background: rgba(255, 255, 255, 0.34); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7); }
+.ah-tab-group-label { display: block; margin: 0 0 5px 2px; color: #78808d; font-size: 11px; font-weight: 700; letter-spacing: 0.02em; }
+.ah-hub-tabs { display: flex; gap: 4px; padding: 4px; border: 0.5px solid rgba(255, 255, 255, 0.68); border-radius: 14px; background: rgba(255, 255, 255, 0.38); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7); }
 .ah-hub-tabs::before { content: none; }
-.ah-tab { min-height: 38px; flex-direction: row; gap: 5px; padding: 6px 4px; border-radius: 12px; color: #78808d; }
+.ah-tab { flex: 1 1 0; min-width: 0; min-height: 36px; flex-direction: row; gap: 5px; padding: 6px 8px; border-radius: 10px; color: #78808d; white-space: nowrap; }
 .ah-tab:hover { background: rgba(255, 255, 255, 0.52); color: #1d1d1f; }
 .ah-tab.active { color: #1d1d1f; background: rgba(255, 255, 255, 0.82); box-shadow: 0 6px 16px rgba(15, 23, 42, 0.09), inset 0 1px 0 #fff; }
 .ah-tab-icon { width: 16px; height: 16px; transition: color 150ms ease; }
@@ -1710,22 +1991,35 @@ onMounted(() => {
 .ah-smart-focus.tone-red .ah-smart-focus-icon { background: rgba(225, 29, 72, 0.1); color: #e11d48; }
 .ah-smart-focus.tone-green { border-color: rgba(134, 239, 172, 0.52); background: rgba(240, 253, 244, 0.62); }
 .ah-smart-focus.tone-green .ah-smart-focus-icon { background: rgba(34, 197, 94, 0.11); color: #16a34a; }
+.ah-smart-focus.tone-blue { border-color: rgba(191, 219, 254, 0.62); background: rgba(239, 246, 255, 0.64); }
+.ah-smart-focus.tone-blue .ah-smart-focus-icon { background: rgba(37, 99, 235, 0.11); color: #2563eb; }
+.ah-smart-focus.tone-gold { border-color: rgba(251, 191, 36, 0.5); background: rgba(255, 251, 235, 0.66); }
+.ah-smart-focus.tone-gold .ah-smart-focus-icon { background: rgba(180, 83, 9, 0.12); color: #b7791f; }
+.ah-smart-focus.tone-neutral { border-color: rgba(226, 232, 240, 0.9); background: rgba(248, 250, 252, 0.62); }
+.ah-smart-focus.tone-neutral .ah-smart-focus-icon { background: rgba(100, 116, 139, 0.12); color: #475569; }
 .ah-smart-focus:active { transform: scale(0.99); }
 .ah-smart-focus:disabled { cursor: default; opacity: 0.78; }
-.ah-overview-summary { display: block; }
-.ah-overview-summary.has-points-card { display: grid; grid-template-columns: minmax(300px, 0.92fr) minmax(320px, 1.08fr); align-items: stretch; gap: 12px; }
-.ah-overview-insights { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr); gap: 12px; }
-.ah-overview-summary.has-points-card .ah-overview-insights { grid-template-columns: 1fr; grid-template-rows: repeat(2, minmax(0, 1fr)); }
-.ah-overview-points-card { min-width: 0; align-self: center; }
+.ah-overview { display: flex; flex-direction: column; gap: 24px; }
+.ah-overview-points-wrap { display: flex; justify-content: center; margin: 0 auto; width: 100%; max-width: 360px; }
+.ah-overview-points-wrap .ah-overview-points-card { width: 100%; }
+.ah-overview-insights { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; }
+.ah-overview-points-card { min-width: 0; align-self: start; }
+.ah-smart-columns.ah-single-timeline { grid-template-columns: 1fr; gap: 16px; }
+.ah-skeleton-points-card.is-centered { max-width: 360px; margin: 0 auto; }
+.ah-skeleton-timeline { height: 180px; border-radius: 16px; }
+@media (orientation: landscape) and (min-width: 768px) {
+  .ah-overview-points-wrap { justify-content: flex-start; margin: 0; max-width: 400px; }
+  .ah-skeleton-points-card.is-centered { margin: 0; }
+}
 .ah-overview-primary,
 .ah-overview-membership,
 .ah-membership-card {
-  border: 1px solid rgba(255, 255, 255, 0.68);
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.56);
-  backdrop-filter: blur(30px) saturate(165%);
-  -webkit-backdrop-filter: blur(30px) saturate(165%);
-  box-shadow: 0 20px 42px rgba(15, 23, 42, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  border: 0.5px solid rgba(255, 255, 255, 0.62);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.58);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
 }
 .ah-overview-primary { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; min-height: 164px; align-items: start; gap: 14px; padding: 20px; overflow: hidden; background: rgba(236, 246, 255, 0.72); border-color: rgba(191, 219, 254, 0.8); transition: transform 190ms var(--ah-ease), box-shadow 190ms ease, background-color 190ms ease; }
 .ah-overview-card-icon { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 14px; flex: 0 0 auto; }
@@ -1813,25 +2107,27 @@ onMounted(() => {
 .ah-ledger-item:hover,
 .ah-order-item:hover { transform: none; background: rgba(15, 23, 42, 0.025); box-shadow: none; }
 
-/* ─── 积分明细流水 ─── */
+/* ─── 积分明细流水 · 列表化 去卡片化 ─── */
 .ah-ledger {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
 }
+.ah-ledger-group { gap: 0; }
 .ah-ledger-item {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 14px 18px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.48);
-  backdrop-filter: blur(24px) saturate(155%);
-  -webkit-backdrop-filter: blur(24px) saturate(155%);
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.075), inset 0 1px 0 rgba(255, 255, 255, 0.86);
-  transition: transform 0.2s var(--ah-ease), box-shadow 0.2s ease;
-  animation: ah-materialize 220ms var(--ah-ease) both;
+  gap: 12px;
+  padding: 12px 2px;
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 0;
+  border-bottom: 0.5px solid rgba(15, 23, 42, 0.07);
+  box-shadow: none;
+  transition: background-color 140ms ease;
+  animation: none;
 }
 .ah-ledger-icon {
   width: 38px;
@@ -2483,43 +2779,79 @@ onMounted(() => {
 :global(.user-space-page[data-theme="dark"]) .ah-pity-progress-head strong { color: #f5f7fa; }
 :global(.user-space-page[data-theme="dark"]) .ah-pity-progress-track { background: rgba(255, 255, 255, 0.12); }
 :global(.user-space-page[data-theme="dark"]) .ah-pity-progress p { color: #aeb6c2; }
+:global(.user-space-page[data-theme="dark"]) .ah-sponsor-hero { background: linear-gradient(135deg, rgba(45,28,32,0.72), rgba(28,30,36,0.68)); border-color: rgba(255,255,255,0.10); box-shadow: 0 16px 36px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.07); }
+:global(.user-space-page[data-theme="dark"]) .ah-sponsor-hero h2 { color: #f5f7fa; }
+:global(.user-space-page[data-theme="dark"]) .ah-sponsor-hero p { color: #a1a1aa; }
+:global(.user-space-page[data-theme="dark"]) .ah-sponsor-hero span { color: #fb7185; }
+:global(.user-space-page[data-theme="dark"]) .ah-sponsor-hero-icon { background: linear-gradient(135deg, rgba(225,29,72,0.18), rgba(225,29,72,0.28)); color: #fb7185; border-color: rgba(251,113,133,0.18); box-shadow: 0 8px 20px rgba(0,0,0,0.28); }
+:global(.user-space-page[data-theme="dark"]) .ah-sponsor-card { background: rgba(28,30,36,0.62); border-color: rgba(255,255,255,0.09); box-shadow: 0 12px 32px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06); }
+:global(.user-space-page[data-theme="dark"]) .ah-sponsor-card h3 { color: #f5f7fa; }
+:global(.user-space-page[data-theme="dark"]) .ah-sponsor-card p { color: #a1a1aa; }
+:global(.user-space-page[data-theme="dark"]) .ah-sponsor-card small { color: #8b8e96; }
+:global(.user-space-page[data-theme="dark"]) .ah-sponsor-qr-wrap { background: #ffffff; border-color: rgba(255,255,255,0.08); }
+:global(.user-space-page[data-theme="dark"]) .ah-sponsor-qr-wrap.is-placeholder { background: rgba(255,255,255,0.04); color: #6b7280; border-color: rgba(255,255,255,0.10); }
+:global(.user-space-page[data-theme="dark"]) .ah-sponsor-foot p { color: #8b8e96; }
+:global(.user-space-page[data-theme="dark"]) .ah-lottery-hero { background: linear-gradient(135deg, rgba(30,38,64,0.72), rgba(28,30,36,0.68)); border-color: rgba(255,255,255,0.10); box-shadow: 0 16px 36px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.07); }
+:global(.user-space-page[data-theme="dark"]) .ah-lottery-hero h2 { color: #f5f7fa; }
+:global(.user-space-page[data-theme="dark"]) .ah-lottery-hero p { color: #a1a1aa; }
+:global(.user-space-page[data-theme="dark"]) .ah-lottery-hero span { color: #93c5fd; }
+:global(.user-space-page[data-theme="dark"]) .ah-lottery-hero-icon { background: linear-gradient(135deg, rgba(37,99,235,0.18), rgba(37,99,235,0.28)); color: #93c5fd; border-color: rgba(147,197,253,0.18); }
+:global(.user-space-page[data-theme="dark"]) .ah-lottery-pity-inline { background: rgba(28,30,36,0.58); border-color: rgba(255,255,255,0.10); }
+:global(.user-space-page[data-theme="dark"]) .ah-lottery-pity-inline p { color: #a1a1aa; }
+:global(.user-space-page[data-theme="dark"]) .ah-lottery-pity-head { color: #a1a1aa; }
+:global(.user-space-page[data-theme="dark"]) .ah-lottery-pity-head strong { color: #f5f7fa; }
+:global(.user-space-page[data-theme="dark"]) .ah-lottery-card { background: rgba(28,30,36,0.62); border-color: rgba(255,255,255,0.09); }
+:global(.user-space-page[data-theme="dark"]) .ah-lottery-body h3 { color: #f5f7fa; }
+:global(.user-space-page[data-theme="dark"]) .ah-lottery-prize { color: #93c5fd; }
+:global(.user-space-page[data-theme="dark"]) .ah-lottery-meta { color: #8b8e96; }
+:global(.user-space-page[data-theme="dark"]) .ah-lottery-foot p { color: #8b8e96; }
 
 /* ─── 响应式 ─── */
 @media (max-width: 767px) {
-  .ah-hub-card { max-width: none; border-radius: 22px; padding: 16px 14px 12px; }
-  .ah-top-row { gap: 8px; padding-bottom: 14px; }
-  .ah-user-left { gap: 12px; }
+  .ah-hub-card { max-width: none; border-radius: 20px; padding: 14px 14px 10px; box-shadow: 0 6px 18px rgba(15,23,42,0.07); }
+  .ah-top-row { gap: 8px; padding-bottom: 12px; }
+  .ah-user-left { gap: 10px; }
   .ah-avatar { width: 44px; height: 44px; font-size: 18px; }
-  .ah-username { font-size: 17px; }
+  .ah-username { font-size: 17px; letter-spacing: -0.02em; }
   .ah-name-row { gap: 5px; }
-  .ah-points-block { gap: 8px; padding: 6px 10px; }
+  .ah-points-block { gap: 8px; padding: 6px 10px; border-radius: 999px; }
   .ah-points-icon-wrap { width: 26px; height: 26px; }
   .ah-points-label { display: none; }
-  .ah-points-value { font-size: 19px; }
-  .ah-tab-groups { gap: 14px; }
-  .ah-tab-group-label { margin-bottom: 3px; font-size: 10px; }
-  .ah-hub-tabs { gap: 2px; padding: 3px; border-radius: 14px; }
-  .ah-tab { min-height: 38px; padding: 6px 2px; border-radius: 11px; }
+  .ah-points-value { font-size: 18px; font-variant-numeric: tabular-nums; }
+  .ah-tab-groups { gap: 12px; }
+  .ah-tab-group-label { margin-bottom: 2px; font-size: 10px; letter-spacing: 0.06em; }
+  .ah-hub-tabs { gap: 2px; padding: 3px; border-radius: 14px; background: rgba(29,29,31,0.06); }
+  .ah-tab { min-height: 36px; padding: 6px 2px; border-radius: 10px; }
   .ah-tab-icon { display: none; }
-  .ah-tab-label { font-size: 11px; }
-  .ah-overview { grid-template-columns: 1fr; gap: 10px; }
-  .ah-overview-heading { align-items: flex-start; }
-  .ah-overview-heading h2 { font-size: 20px; }
-  .ah-overview-summary.has-points-card { grid-template-columns: 1fr; gap: 10px; }
+  .ah-tab-label { font-size: 11px; font-weight: 650; white-space: nowrap; }
+  .ah-overview { display: grid; gap: 16px; }
+  .ah-overview-heading { align-items: flex-start; gap: 8px; }
+  .ah-overview-heading h2 { font-size: 20px; line-height: 1.2; }
+  .ah-overview-heading p { font-size: 13px; line-height: 1.5; }
+  .ah-overview-summary.has-points-card { grid-template-columns: 1fr; gap: 16px; }
+  .ah-overview-points-card { order: -1; }
   .ah-overview-insights,
-  .ah-overview-summary.has-points-card .ah-overview-insights { grid-template-columns: 1fr; gap: 10px; }
-  .ah-smart-focus { grid-template-columns: auto minmax(0, 1fr); min-height: 0; gap: 12px; padding: 15px; border-radius: 21px; }
-  .ah-smart-focus-icon { width: 42px; height: 42px; border-radius: 15px; }
-  .ah-smart-focus-copy strong { font-size: 16px; }
-  .ah-smart-focus-action { grid-column: 2; justify-self: start; }
-  .ah-smart-columns { grid-template-columns: 1fr; gap: 10px; }
-  .ah-smart-section { padding: 15px; border-radius: 20px; }
-  .ah-overview-primary { min-height: 142px; padding: 18px; }
-  .ah-overview-copy strong { font-size: 30px; }
-  .ah-overview-membership { padding: 16px; }
-  .ah-membership-card { padding: 18px; }
-  .ah-ledger-item { padding: 12px; gap: 12px; border-radius: 18px; }
-  .ah-ledger-amount { font-size: 15px; }
+  .ah-overview-summary.has-points-card .ah-overview-insights { grid-template-columns: 1fr; gap: 12px; }
+  .ah-smart-focus { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; min-height: 0; gap: 12px; padding: 14px 14px; border-radius: 16px; align-items: center; }
+  .ah-smart-focus-icon { width: 44px; height: 44px; border-radius: 12px; }
+  .ah-smart-focus-copy { gap: 2px; }
+  .ah-smart-focus-copy strong { font-size: 15.5px; line-height: 1.3; }
+  .ah-smart-focus-copy small { font-size: 12px; line-height: 1.4; }
+  .ah-smart-focus-action { grid-column: 3; justify-self: end; align-self: center; font-size: 12.5px; }
+  .ah-smart-columns { grid-template-columns: 1fr; gap: 16px; }
+  .ah-smart-section { padding: 14px; border-radius: 16px; border: 0.5px solid rgba(255,255,255,0.62); background: rgba(255,255,255,0.56); backdrop-filter: blur(16px) saturate(140%); box-shadow: 0 6px 16px rgba(15,23,42,0.06); }
+  .ah-smart-section-head { margin-bottom: 10px; }
+  .ah-overview-primary { min-height: 128px; padding: 16px; border-radius: 16px; }
+  .ah-overview-copy strong { font-size: 28px; letter-spacing: -0.02em; }
+  .ah-overview-copy > span:last-child { font-size: 12px; }
+  .ah-overview-membership { padding: 14px 14px; min-height: 128px; border-radius: 16px; }
+  .ah-membership-card { padding: 16px; border-radius: 16px; }
+  .ah-ledger-item { padding: 10px 2px; gap: 10px; border-radius: 0; border: 0; border-bottom: 0.5px solid rgba(15,23,42,0.07); background: transparent; backdrop-filter: none; box-shadow: none; }
+  .ah-ledger-item:hover { background: rgba(15,23,42,0.02); transform: none; }
+  .ah-ledger-icon { width: 32px; height: 32px; }
+  .ah-ledger-title { font-size: 13.5px; }
+  .ah-ledger-remark { font-size: 11.5px; }
+  .ah-ledger-amount { font-size: 14.5px; }
   .ah-empty-state { padding: 36px 18px; }
   .ah-shop-stat { padding: 18px 12px; }
   .ah-gift-header { padding: 11px 14px; }
@@ -2536,6 +2868,138 @@ onMounted(() => {
   .ah-gift-history-main strong { font-size: 13px; }
   .ah-gift-history-side { gap: 3px; }
   .ah-gift-history-price { font-size: 11px; }
+}
+
+/* ─── 竖屏端（≤767 portrait）：Tab 组改单列堆叠，加大可点性 ─── */
+@media (max-width: 767px) and (orientation: portrait) {
+  /* 两组上下单列，每组 4 tab 满宽均分，无需缩写 */
+  .ah-tab-groups { grid-template-columns: 1fr; gap: 10px; }
+  /* 组内 tab：图上文下、更大触控区；active pill 保留白底 + 阴影 */
+  .ah-hub-tabs { gap: 6px; padding: 4px; }
+  .ah-tab { flex: 1 1 0; min-width: 72px; min-height: 44px; padding: 8px 6px; border-radius: 12px; flex-direction: column; gap: 3px; }
+  .ah-tab:hover { background: rgba(255, 255, 255, 0.52); color: #1d1d1f; }
+  .ah-tab.active { color: #1d1d1f; background: rgba(255, 255, 255, 0.92); box-shadow: 0 1px 6px rgba(15, 23, 42, 0.08); }
+  .ah-tab-icon { display: block; width: 16px; height: 16px; margin: 0 auto; }
+  .ah-tab-label { font-size: 12px; font-weight: 700; line-height: 1.15; white-space: nowrap; }
+
+  /* 兜底：组内 tab 超过一屏时才启用横向滚动（避免常态下裁掉 active 阴影）+ 首尾 fade 12px，不二次截断 */
+  .ah-hub-tabs.has-overflow { overflow-x: auto; scroll-snap-type: x mandatory; -ms-overflow-style: none; scrollbar-width: none; }
+  .ah-hub-tabs.has-overflow::-webkit-scrollbar { display: none; }
+  .ah-hub-tabs.has-overflow .ah-tab { scroll-snap-align: start; }
+  .ah-hub-tabs.has-overflow {
+    mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+  }
+}
+
+.ah-sponsor-section { display: grid; gap: 18px; max-width: 700px; width: 100%; margin: 0 auto; align-self: center; justify-items: stretch; animation: ah-materialize 260ms var(--ah-ease) both; }
+  .ah-sponsor-hero { position: relative; display: flex; gap: 16px; align-items: center; padding: 22px 20px; border: 0.5px solid rgba(255,255,255,0.78); border-radius: 20px; background: linear-gradient(135deg, rgba(255,241,242,0.92) 0%, rgba(255,255,255,0.74) 100%); backdrop-filter: blur(20px) saturate(160%); -webkit-backdrop-filter: blur(20px) saturate(160%); box-shadow: 0 16px 36px rgba(225,29,72,0.07), 0 6px 16px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.96); overflow: hidden; }
+  .ah-sponsor-hero::before { content:""; position: absolute; inset: 0; background: radial-gradient(520px 200px at 18% 0%, rgba(225,29,72,0.07), transparent 68%), radial-gradient(360px 180px at 92% 100%, rgba(244,114,182,0.07), transparent 70%); pointer-events: none; }
+  .ah-sponsor-hero-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: linear-gradient(135deg, #ffffff 0%, #ffe4e6 100%); color: #e11d48; flex-shrink: 0; box-shadow: 0 8px 20px rgba(225,29,72,0.16), inset 0 1px 0 rgba(255,255,255,1); border: 0.5px solid rgba(225,29,72,0.14); position: relative; z-index: 1; }
+  .ah-sponsor-hero > div { position: relative; z-index: 1; min-width: 0; }
+  .ah-sponsor-hero h2 { margin: 3px 0 4px; font-size: 19px; font-weight: 850; color: #1d1d1f; letter-spacing: -0.025em; line-height: 1.2; }
+  .ah-sponsor-hero p { margin: 0; font-size: 13px; color: #6e6e73; line-height: 1.65; font-weight: 500; }
+  .ah-sponsor-hero span { font-size: 11px; font-weight: 750; color: #e11d48; letter-spacing: 0.06em; text-transform: uppercase; }
+  .ah-sponsor-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+  .ah-sponsor-card { position: relative; padding: 18px 16px 16px; border: 0.5px solid rgba(255,255,255,0.74); border-radius: 18px; background: rgba(255,255,255,0.68); backdrop-filter: blur(18px) saturate(150%); -webkit-backdrop-filter: blur(18px) saturate(150%); box-shadow: 0 10px 28px rgba(15,23,42,0.07), inset 0 1px 0 rgba(255,255,255,0.92); transition: transform 180ms var(--ah-ease), box-shadow 180ms ease, border-color 180ms ease, background-color 180ms ease; overflow: hidden; }
+  .ah-sponsor-card::before { content:""; position: absolute; inset: 0; border-radius: 18px; background: radial-gradient(340px 140px at 50% 0%, rgba(255,255,255,0.58), transparent 72%); pointer-events: none; }
+  .ah-sponsor-card:hover { transform: translateY(-2px); box-shadow: 0 16px 36px rgba(15,23,42,0.10), inset 0 1px 0 rgba(255,255,255,0.98); border-color: rgba(255,255,255,0.86); }
+  .ah-sponsor-card.is-muted { opacity: 0.72; }
+  .ah-sponsor-card.is-muted:hover { transform: none; box-shadow: 0 10px 28px rgba(15,23,42,0.07); }
+  .ah-sponsor-card h3 { position: relative; z-index: 1; margin: 0; font-size: 14.5px; font-weight: 800; color: #1d1d1f; display: flex; align-items: center; gap: 8px; letter-spacing: -0.01em; }
+  .ah-sponsor-badge { position: relative; z-index: 1; display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); color: #fff; font-size: 11px; font-weight: 750; letter-spacing: 0.02em; box-shadow: 0 4px 12px rgba(225,29,72,0.28); }
+  .ah-sponsor-card p { position: relative; z-index: 1; margin: 9px 0 0; font-size: 12.5px; color: #6e6e73; line-height: 1.65; }
+  .ah-sponsor-qr-wrap { position: relative; z-index: 1; margin: 16px 0 12px; display: grid; place-items: center; padding: 0; background: transparent; border: none; border-radius: 14px; overflow: hidden; box-shadow: none; transition: transform 180ms var(--ah-ease); }
+  .ah-sponsor-card:hover .ah-sponsor-qr-wrap { transform: scale(1.02); }
+  .ah-sponsor-qr-wrap img { width: 100%; max-width: 280px; height: auto; object-fit: contain; display: block; border-radius: 14px; box-shadow: 0 8px 24px rgba(15,23,42,0.08); }
+  .ah-sponsor-qr-wrap.is-placeholder { height: auto; min-height: 240px; aspect-ratio: 1 / 1; padding: 0; background: linear-gradient(180deg, rgba(15,23,42,0.03), rgba(15,23,42,0.02)); color: #a1a1aa; font-size: 28px; font-weight: 500; border: 1px dashed rgba(15,23,42,0.10); border-radius: 14px; box-shadow: none; }
+  .ah-sponsor-card small { position: relative; z-index: 1; display: block; text-align: center; font-size: 11px; color: #8e8e93; font-weight: 600; letter-spacing: 0.01em; }
+  .ah-sponsor-foot { display: grid; gap: 14px; padding: 10px 4px 4px; justify-items: center; text-align: center; }
+  .ah-sponsor-foot p { margin: 0; font-size: 12px; color: #8e8e93; line-height: 1.65; max-width: 520px; }
+  .ah-sponsor-foot .ah-shop-btn { justify-self: center; min-width: 136px; height: 38px; border-radius: 999px; font-size: 13px; font-weight: 750; box-shadow: 0 6px 16px rgba(15,23,42,0.08); }
+   @media (max-width: 560px) { .ah-sponsor-section { gap: 14px; } .ah-sponsor-hero { padding: 18px 16px; gap: 12px; border-radius: 18px; } .ah-sponsor-hero-icon { width: 42px; height: 42px; border-radius: 12px; } .ah-sponsor-grid { grid-template-columns: 1fr; gap: 12px; } .ah-sponsor-card { padding: 16px; border-radius: 16px; } .ah-sponsor-qr-wrap { padding: 0; } .ah-sponsor-qr-wrap img { width: 100%; max-width: 260px; height: auto; } .ah-sponsor-qr-wrap.is-placeholder { min-height: 220px; height: auto; } }
+
+/* ─── 抽奖 独立分页（居中） ─── */
+.ah-lottery-section { display: grid; gap: 18px; max-width: 700px; width: 100%; margin: 0 auto; align-self: center; animation: ah-materialize 260ms var(--ah-ease) both; }
+.ah-lottery-hero { position: relative; display: flex; gap: 16px; align-items: center; padding: 22px 20px; border: 0.5px solid rgba(255,255,255,0.78); border-radius: 20px; background: linear-gradient(135deg, rgba(239,246,255,0.92), rgba(255,255,255,0.74)); backdrop-filter: blur(20px) saturate(160%); -webkit-backdrop-filter: blur(20px) saturate(160%); box-shadow: 0 16px 36px rgba(37,99,235,0.07), 0 6px 16px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.96); overflow: hidden; }
+.ah-lottery-hero::before { content:""; position: absolute; inset: 0; background: radial-gradient(520px 200px at 18% 0%, rgba(37,99,235,0.07), transparent 68%), radial-gradient(360px 180px at 92% 100%, rgba(14,165,233,0.06), transparent 70%); pointer-events: none; }
+.ah-lottery-hero-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: linear-gradient(135deg, #ffffff 0%, #dbeafe 100%); color: #2563eb; flex-shrink: 0; box-shadow: 0 8px 20px rgba(37,99,235,0.16), inset 0 1px 0 rgba(255,255,255,1); border: 0.5px solid rgba(37,99,235,0.14); position: relative; z-index: 1; }
+.ah-lottery-hero > div { position: relative; z-index: 1; min-width: 0; flex: 1; }
+.ah-lottery-hero h2 { margin: 3px 0 4px; font-size: 19px; font-weight: 850; color: #1d1d1f; letter-spacing: -0.025em; line-height: 1.2; }
+.ah-lottery-hero p { margin: 0; font-size: 13px; color: #6e6e73; line-height: 1.65; font-weight: 500; }
+.ah-lottery-hero span { font-size: 11px; font-weight: 750; color: #2563eb; letter-spacing: 0.06em; text-transform: uppercase; }
+.ah-lottery-hero-action { position: relative; z-index: 1; flex-shrink: 0; min-height: 36px; padding: 0 14px; border-radius: 999px; border: 0.5px solid rgba(37,99,235,0.18); background: rgba(255,255,255,0.82); color: #2563eb; font-size: 12px; font-weight: 750; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.10); transition: transform 150ms var(--ah-ease), background 150ms ease; }
+.ah-lottery-hero-action:hover { background: #fff; transform: translateY(-1px); } .ah-lottery-hero-action:active { transform: scale(0.98); }
+.ah-lottery-pity-inline { display: grid; gap: 8px; padding: 14px 16px; border-radius: 16px; border: 0.5px solid rgba(255,255,255,0.72); background: rgba(255,255,255,0.58); backdrop-filter: blur(16px) saturate(150%); box-shadow: 0 8px 20px rgba(15,23,42,0.06); }
+.ah-lottery-pity-head { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; font-weight: 700; color: #4b5563; } .ah-lottery-pity-head strong { color: #1d1d1f; font-weight: 800; } .ah-lottery-pity-track { height: 6px; overflow: hidden; background: #e5e7eb; border-radius: 999px; } .ah-lottery-pity-fill { height: 100%; background: #2563eb; transition: width 240ms ease; } .ah-lottery-pity-inline.is-due .ah-lottery-pity-fill { background: #b7791f; } .ah-lottery-pity-inline.is-due .ah-lottery-pity-head strong { color: #9a6700; } .ah-lottery-pity-inline.is-unavailable .ah-lottery-pity-head strong { color: #6b7280; } .ah-lottery-pity-inline p { margin: 0; font-size: 12px; color: #6e6e73; line-height: 1.5; }
+.ah-lottery-skeleton { display: grid; gap: 12px; } .ah-skeleton-lottery { height: 132px; border-radius: 16px; }
+.ah-lottery-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+.ah-lottery-card { position: relative; display: flex; flex-direction: column; overflow: hidden; border-radius: 18px; border: 0.5px solid rgba(255,255,255,0.74); background: rgba(255,255,255,0.68); backdrop-filter: blur(18px) saturate(150%); -webkit-backdrop-filter: blur(18px) saturate(150%); box-shadow: 0 10px 28px rgba(15,23,42,0.07), inset 0 1px 0 rgba(255,255,255,0.92); transition: transform 180ms var(--ah-ease), box-shadow 180ms ease; }
+.ah-lottery-card:hover { transform: translateY(-2px); box-shadow: 0 16px 36px rgba(15,23,42,0.10); }
+.ah-lottery-cover { height: 132px; background: linear-gradient(135deg, #dbeafe, #f3e8ff); display: grid; place-items: center; color: #2563eb; overflow: hidden; } .ah-lottery-cover img { width: 100%; height: 100%; object-fit: cover; display: block; } .ah-lottery-cover.is-empty { background: linear-gradient(135deg, #e0f2fe, #f5f3ff); }
+.ah-lottery-body { display: grid; gap: 8px; padding: 14px 14px 12px; flex: 1; }
+.ah-lottery-top { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; } .ah-lottery-status { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 750; background: rgba(37,99,235,0.12); color: #2563eb; } .ah-lottery-status.drawn { background: rgba(52,199,89,0.12); color: #15803d; } .ah-lottery-status.closed { background: rgba(142,142,147,0.12); color: #6b7280; } .ah-lottery-joined { display: inline-flex; height: 20px; padding: 0 8px; border-radius: 999px; background: #dcfce7; color: #15803d; font-size: 11px; font-weight: 700; } .ah-lottery-pity-badge { display: inline-flex; height: 20px; padding: 0 7px; border-radius: 999px; background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; font-size: 11px; font-weight: 750; box-shadow: 0 3px 8px rgba(217,119,6,0.24); }
+.ah-lottery-body h3 { margin: 0; font-size: 15px; font-weight: 800; color: #1d1d1f; letter-spacing: -0.01em; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ah-lottery-prize { margin: 0; font-size: 12.5px; color: #2563eb; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ah-lottery-meta { display: flex; gap: 10px; font-size: 11px; color: #8e8e93; font-weight: 600; }
+.ah-lottery-actions { display: flex; gap: 8px; align-items: center; margin-top: 2px; } .ah-lottery-join { flex: 1; min-height: 36px; font-size: 13px; } .ah-lottery-joined-btn { flex: 1; min-height: 36px; background: rgba(22,163,74,0.10) !important; color: #15803d !important; box-shadow: none !important; cursor: default; } .ah-lottery-link { min-height: 36px; padding: 0 12px; border: none; background: transparent; color: #6b7280; font-size: 12px; font-weight: 700; cursor: pointer; } .ah-lottery-link:hover { color: #1d1d1f; }
+.ah-lottery-foot { display: grid; gap: 12px; justify-items: center; text-align: center; padding: 8px 4px 0; } .ah-lottery-foot p { margin: 0; font-size: 12px; color: #8e8e93; }
+@media (max-width: 560px) { .ah-lottery-section { gap: 14px; } .ah-lottery-hero { padding: 18px 16px; gap: 12px; border-radius: 18px; flex-wrap: wrap; } .ah-lottery-hero-icon { width: 42px; height: 42px; border-radius: 12px; } .ah-lottery-hero-action { width: 100%; justify-content: center; } .ah-lottery-grid { grid-template-columns: 1fr; } .ah-lottery-cover { height: 148px; } }
+
+/* ─── 赞助 竖屏精细化 ─── */
+@media (orientation: portrait) and (max-width: 560px) {
+  .ah-sponsor-section { gap: 16px; padding-bottom: env(safe-area-inset-bottom, 0); }
+  .ah-sponsor-hero { flex-direction: column; align-items: center; text-align: center; padding: 20px 16px; gap: 10px; }
+  .ah-sponsor-hero > div { text-align: center; }
+  .ah-sponsor-hero p { text-align: center; }
+  .ah-sponsor-card { text-align: center; }
+  .ah-sponsor-card h3 { justify-content: center; }
+  .ah-sponsor-card p { text-align: center; }
+  .ah-sponsor-qr-wrap img { max-width: 280px; }
+  .ah-lottery-section { gap: 16px; padding-bottom: env(safe-area-inset-bottom, 0); }
+  .ah-lottery-hero { flex-direction: column; align-items: center; text-align: center; padding: 20px 16px; gap: 10px; }
+  .ah-lottery-hero > div { text-align: center; }
+  .ah-lottery-hero p { text-align: center; }
+  .ah-lottery-hero-action { width: 100%; }
+  .ah-lottery-grid { grid-template-columns: 1fr; }
+}
+@media (orientation: portrait) and (min-width: 561px) and (max-width: 768px) {
+  .ah-sponsor-section { max-width: 640px; }
+  .ah-sponsor-grid { grid-template-columns: 1fr; }
+  .ah-lottery-section { max-width: 640px; }
+  .ah-lottery-grid { grid-template-columns: 1fr; }
+}
+
+/* ─── 赞助 横屏精细化 ─── */
+@media (orientation: landscape) and (max-height: 600px) {
+  .ah-sponsor-section { max-width: 860px; gap: 12px; }
+  .ah-sponsor-hero { padding: 14px 16px; gap: 12px; border-radius: 16px; }
+  .ah-sponsor-hero-icon { width: 36px; height: 36px; border-radius: 10px; }
+  .ah-sponsor-hero h2 { font-size: 16px; }
+  .ah-sponsor-hero p { font-size: 12px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .ah-sponsor-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .ah-sponsor-card { padding: 14px; }
+  .ah-sponsor-qr-wrap { margin: 8px 0 8px; }
+  .ah-sponsor-qr-wrap img { max-width: min(220px, 38vh); }
+  .ah-sponsor-qr-wrap.is-placeholder { min-height: min(220px, 38vh); }
+  .ah-sponsor-foot { gap: 8px; padding: 6px 0 0; }
+  .ah-sponsor-foot p { font-size: 11px; }
+  .ah-lottery-section { max-width: 860px; gap: 12px; }
+  .ah-lottery-hero { padding: 14px 16px; gap: 12px; border-radius: 16px; }
+  .ah-lottery-hero-icon { width: 36px; height: 36px; border-radius: 10px; }
+  .ah-lottery-hero h2 { font-size: 16px; }
+  .ah-lottery-hero p { font-size: 12px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .ah-lottery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .ah-lottery-card { border-radius: 16px; }
+  .ah-lottery-cover { height: 110px; }
+  .ah-lottery-foot { gap: 8px; padding: 6px 0 0; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .ah-sponsor-hero p { display: none; }
+  .ah-sponsor-card p { display: none; }
+  .ah-sponsor-card small { display: none; }
+  .ah-sponsor-qr-wrap { margin: 6px 0 4px; }
+  .ah-lottery-hero p { display: none; }
+  .ah-lottery-prize { display: none; }
+  .ah-lottery-meta { display: none; }
 }
 
 @media (max-height: 560px) and (orientation: landscape) {
@@ -2587,7 +3051,7 @@ onMounted(() => {
   :global(.user-space-page[data-theme="dark"]) .ah-gift-history-item { background: #1c1e24; }
 }
 
-.ah-cards-section { display: grid; gap: 18px; max-width: 620px; }
+.ah-cards-section { display: grid; gap: 18px; max-width: 620px; width: 100%; margin: 0 auto; }
 .ah-cards-heading span, .ah-fulfillment-heading span { color: #377f76; font-size: 12px; font-weight: 760; }.ah-cards-heading span { color: #b7667e; }
 .ah-cards-heading h2, .ah-fulfillment-heading h2 { margin: 5px 0 6px; color: #1d1d1f; font-size: 22px; letter-spacing: 0; }
 .ah-cards-heading p, .ah-fulfillment-heading p { margin: 0; color: #68727b; font-size: 13px; line-height: 1.6; }

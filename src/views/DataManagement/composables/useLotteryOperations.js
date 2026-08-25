@@ -32,7 +32,7 @@ export const createLotteryOperationsCenter = ({ isCurrentUserAdmin, showToast })
       ] = await Promise.all([
         supabase
           .from('lottery_winner_fulfillments')
-          .select('id, lottery_id, username_snapshot, status, contact_note, address_id, shipping_carrier, tracking_number, updated_at, lottery:lottery_id(title), profile:user_id(username)')
+          .select('id, lottery_id, username_snapshot, status, is_current, contact_note, address_id, shipping_carrier, tracking_number, updated_at, lottery:lottery_id(title), profile:user_id(username)')
           .eq('is_current', true)
           .in('status', ['pending_contact', 'contacted', 'confirmed', 'shipping'])
           .order('updated_at', { ascending: true })
@@ -84,6 +84,7 @@ export const createLotteryOperationsCenter = ({ isCurrentUserAdmin, showToast })
       const getJoined = (value) => Array.isArray(value) ? (value[0] || {}) : (value || {});
       lotteryOperationsSnapshot.fulfillments = (fulfillmentsResult.data || []).map((item) => ({
         ...item,
+        is_current: item.is_current ?? true,
         lottery_title: getJoined(item.lottery).title || '未命名抽奖',
         username: getJoined(item.profile).username || item.username_snapshot || '中奖用户'
       }));

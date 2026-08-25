@@ -24,20 +24,20 @@
         <strong>{{ activeFulfillmentCount }}</strong>
         <small>联系、确认与发货</small>
       </button>
-      <button type="button" class="lottery-metric is-actionable" @click="$emit('open-tab', 'lotteryNotificationJobs')">
+      <button type="button" class="lottery-metric is-actionable" @click="$emit('open-tab', 'lotteryFulfillments')">
         <span>通知异常</span>
         <strong>{{ notificationFailureCount }}</strong>
-        <small>需要重新发送</small>
+        <small>需要重新发送（并入履约）</small>
       </button>
       <button type="button" class="lottery-metric is-actionable" @click="$emit('open-tab', 'lotteries')">
         <span>待开奖</span>
         <strong>{{ dueCount }}</strong>
         <small>{{ schedulerHealth }}</small>
       </button>
-      <button type="button" class="lottery-metric is-actionable" @click="$emit('open-tab', 'lotteryJoinAttempts')">
+      <button type="button" class="lottery-metric is-actionable" @click="$emit('open-tab', 'lotteryEntries')">
         <span>报名风控</span>
         <strong>{{ snapshot.joinRiskCount || 0 }}</strong>
-        <small>最近异常尝试</small>
+        <small>最近异常尝试（并入报名）</small>
       </button>
     </div>
 
@@ -113,7 +113,7 @@ const schedulerHealth = computed(() => {
 });
 const taskTab = computed(() => {
   if (activeFulfillmentCount.value) return 'lotteryFulfillments';
-  if (notificationFailureCount.value) return 'lotteryNotificationJobs';
+  if (notificationFailureCount.value) return 'lotteryFulfillments';
   return 'lotteries';
 });
 const tasks = computed(() => [

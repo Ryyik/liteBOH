@@ -1068,6 +1068,7 @@ import ModerationModelConfig from './components/ModerationModelConfig.vue';
 import FreemodelsConfig from './components/FreemodelsConfig.vue';
 import AiQuotaConfigConsole from './components/AiQuotaConfigConsole.vue';
 import PointsGrantConsole from './components/PointsGrantConsole.vue';
+import PityGrantConsole from './components/PityGrantConsole.vue';
 import EditDrawer from './components/EditDrawer.vue';
 import DashboardSheet from './components/shared/DashboardSheet.vue';
 import DashboardPagination from './components/shared/DashboardPagination.vue';
@@ -1607,10 +1608,11 @@ const PAGE_TAB_COMPONENTS = {
   'ai-quota': AiQuotaConfigConsole,
   'moderation-model': ModerationModelConfig,
   'lab-ai-model': LabAiModelConfig,
-  'points-grant': PointsGrantConsole
+  'points-grant': PointsGrantConsole,
+  'pity-grant': PityGrantConsole
 };
 const currentPageComponent = computed(() => PAGE_TAB_COMPONENTS[currentTab.value] || null);
-const lotteryOpsTabs = new Set(['lotteries', 'lotteryFulfillments', 'lotteryDrawLogs', 'lotteryFailureStats', 'lotterySchedulerLogs', 'lotteryNotificationJobs', 'lotteryJoinAttempts', 'lotteryAuditLogs']);
+const lotteryOpsTabs = new Set(['lotteries', 'lotteryFulfillments', 'lotteryEntries', 'lotteryAuditLogs']);
 const isLotteryOpsTab = computed(() => lotteryOpsTabs.has(currentTab.value));
 const moderationTabConfig = computed(() => {
   if (!hasTabAction('moderate')) return null;
@@ -1649,8 +1651,7 @@ const hasActionColumn = computed(() =>
   canDeleteCurrentTab.value ||
   canBanMute.value ||
   currentTab.value === 'lotteries' ||
-  currentTab.value === 'lotteryFulfillments' ||
-  currentTab.value === 'lotteryNotificationJobs'
+  currentTab.value === 'lotteryFulfillments'
 );
 const isRejectedModerationTab = computed(() => ['reviewPosts', 'reviewComments'].includes(currentTab.value));
 const isMessageModerationTab = computed(() => currentTab.value === 'reviewComments');
@@ -1914,7 +1915,7 @@ const currentAdminPageActions = computed(() => {
     return [
       { label: 'API Key 管理', value: 'Vault', section: 'api-keys', icon: KeyRound },
       { label: '官方事实配置', value: getTabCount('coreMemories'), tab: 'coreMemories', icon: Database, section: 'data' },
-      { label: '中奖通知', value: getTabCount('lotteryNotificationJobs'), tab: 'lotteryNotificationJobs', icon: MessageSquare, section: 'data' },
+      { label: '履约与通知', value: getTabCount('lotteryFulfillments'), tab: 'lotteryFulfillments', icon: MessageSquare, section: 'data' },
       { label: '管理员权限', value: isCurrentUserAdmin.value ? 'Admin' : '受限', tab: 'users', icon: ShieldCheck, section: 'data' }
     ];
   }
@@ -1941,7 +1942,7 @@ const currentAdminPageMetrics = computed(() => {
   if (section === 'settings') {
     return [
       { label: '健康度', value: `${healthScore.value}%` },
-      { label: '通知任务', value: getTabCount('lotteryNotificationJobs') },
+      { label: '通知任务', value: getTabCount('lotteryFulfillments') },
       { label: '最近刷新', value: lastRefreshLabel.value }
     ];
   }
@@ -1999,25 +2000,25 @@ const activeDiagnostics = computed(() => [
   },
   {
     id: 'lottery-risk',
-    tab: 'lotteryJoinAttempts',
+    tab: 'lotteryEntries',
     title: '报名风控',
-    description: '最近 50 次报名中的异常尝试',
+    description: '最近 50 次报名中的异常尝试（并入报名明细）',
     count: lotteryOperationsSnapshot.isLoaded
       ? lotteryOperationsSnapshot.joinRiskCount
-      : getTabCount('lotteryJoinAttempts'),
+      : 0,
     tone: lotteryOperationsSnapshot.joinRiskCount > 0 ? 'warning' : 'success'
   },
   {
     id: 'lottery-notifications',
-    tab: 'lotteryNotificationJobs',
+    tab: 'lotteryFulfillments',
     title: '中奖通知',
-    description: '待发送或发送失败的中奖通知',
+    description: '待发送或发送失败的中奖通知（并入履约）',
     count: lotteryOperationsSnapshot.isLoaded
       ? lotteryOperationsSnapshot.notificationFailures.length
-      : getTabCount('lotteryNotificationJobs'),
+      : getTabCount('lotteryFulfillments'),
     tone: (lotteryOperationsSnapshot.isLoaded
       ? lotteryOperationsSnapshot.notificationFailures.length
-      : getTabCount('lotteryNotificationJobs')) > 0 ? 'warning' : 'success'
+      : getTabCount('lotteryFulfillments')) > 0 ? 'warning' : 'success'
   }
 ]);
 

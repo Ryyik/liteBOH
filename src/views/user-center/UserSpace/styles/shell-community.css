@@ -6,6 +6,7 @@
 .user-space-page {
   /* Community owns a scroll viewport between the two fixed navigation surfaces. */
   --userspace-community-top-inset: max(84px, calc(72px + env(safe-area-inset-top, 0px) + 12px));
+  --userspace-messages-top-inset: max(68px, calc(58px + env(safe-area-inset-top, 0px) + 4px));
   --userspace-community-bottom-inset: 108px;
   --userspace-community-inline-padding: clamp(16px, 3vw, 48px);
   --bg: #f5f5f7;
@@ -62,7 +63,7 @@
   --entry-blue-glow: rgba(37, 99, 235, 0.2);
 }
 
-/* The safety buffer visually continues the fixed top navigation instead of exposing page gray. */
+/* Safety buffer — keep transparent so page gray shows, avoid white bar under navbar */
 .user-space-page.community-tab-active::before {
   content: '';
   position: absolute;
@@ -70,7 +71,7 @@
   right: 0;
   left: 0;
   height: var(--userspace-community-top-inset);
-  background: var(--surface);
+  background: var(--bg);
   pointer-events: none;
   z-index: 0;
 }
@@ -178,9 +179,15 @@
 @media (max-width: 768px) {
   .user-space-page {
     --userspace-community-top-inset: max(64px, calc(52px + env(safe-area-inset-top, 0px) + 8px));
+    --userspace-messages-top-inset: max(62px, calc(50px + env(safe-area-inset-top, 0px) + 4px));
     --userspace-community-bottom-inset: 84px;
   }
+}
 
+@media (orientation: landscape) and (max-width: 1024px) {
+  .user-space-page {
+    --userspace-messages-top-inset: max(68px, calc(60px + env(safe-area-inset-top, 0px) + 4px));
+  }
 }
 
 .tab-page.messages-tab .page-content {
@@ -203,7 +210,7 @@
 
 .tab-page.messages-tab {
   box-sizing: border-box;
-  padding-top: 72px;
+  padding-top: var(--userspace-messages-top-inset);
 }
 
 .tab-page.shows-tab {

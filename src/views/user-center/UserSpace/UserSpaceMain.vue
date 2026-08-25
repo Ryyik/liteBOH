@@ -667,7 +667,8 @@ const fetchProfileContent = async ({ force = false, reset = false } = {}) => {
 
   const fetchToken = ++latestProfileContentFetchToken;
   const abortController = createAbortController('profile-posts');
-  if (reset) {
+  const shouldShowGlobalLoading = reset || profilePosts.value.length === 0;
+  if (shouldShowGlobalLoading) {
     dataState.profile.loading = true;
   }
 

@@ -386,6 +386,65 @@ export const dataConfig = {
       ]
     }
   },
+  ads: {
+    table: 'advertisements',
+    columns: [
+      { key: 'title', label: '广告名称', maxLength: 28 },
+      { key: 'placement', label: '广告位', type: 'badge' },
+      { key: 'status', label: '状态', type: 'badge' },
+      { key: 'sort_order', label: '排序', type: 'number' },
+      { key: 'feed_interval', label: '间隔', type: 'number' },
+      { key: 'clicks', label: '点击', type: 'number' },
+      { key: 'image_url', label: '图片', type: 'image' },
+      { key: 'created_at', label: '创建时间', type: 'datetime' }
+    ],
+    fields: [
+      { key: 'id', label: '广告ID', type: 'text', disabled: true, hint: 'UUID 主键由系统生成，不可手动修改。', group: 'basic' },
+      { key: 'title', label: '广告名称', type: 'text', required: true, maxLength: 120, placeholder: '例如：BOH 订阅计划推广', group: 'basic' },
+      { key: 'placement', label: '广告位', type: 'select', required: true, options: [
+        { value: 'list_feed', label: '列表信息流' },
+        { value: 'top_banner', label: '顶部横幅' },
+        { value: 'bottom_banner', label: '底部横幅' },
+        { value: 'detail_between', label: '详情信息流' },
+        { value: 'sidebar', label: '侧边栏' }
+      ], hint: '当前已落地"列表信息流"，其余广告位为预留。', group: 'basic' },
+      { key: 'status', label: '状态', type: 'select', required: true, options: [
+        { value: 'active', label: '启用' },
+        { value: 'inactive', label: '停用' }
+      ], group: 'basic' },
+      { key: 'image_url', label: '广告图片', type: 'image', hint: '建议使用 16:9 或帖子同宽的横向图。', group: 'creative' },
+      { key: 'link_url', label: '跳转链接', type: 'text', placeholder: '例如：/user-space/subscriptions', hint: '点击广告后跳转的地址，可填完整 URL 或站内路径。', group: 'creative' },
+      { key: 'sort_order', label: '排序', type: 'number', min: 0, required: true, hint: '同广告位内展示顺序，越小越靠前。', group: 'target' },
+      { key: 'feed_interval', label: '信息流间隔', type: 'number', min: 2, required: true, hint: '列表信息流中每隔多少条帖子插入一条广告，最小 2。', group: 'target' },
+      { key: 'clicks', label: '点击量', type: 'number', disabled: true, hint: '由前端点击自动累计，仅用于统计。', group: 'stats' },
+      { key: 'created_at', label: '创建时间', type: 'datetime', disabled: true, group: 'stats' }
+    ],
+    cardView: {
+      imageKey: 'image_url',
+      placeholderIcon: '📢',
+      titleKey: 'title',
+      subtitleKey: 'placement',
+      subtitleLabel: '广告位',
+      statusKey: 'status',
+      statusMeta: {
+        active: { label: '启用', tone: 'success' },
+        inactive: { label: '停用', tone: 'muted' }
+      },
+      stats: [
+        { label: '广告位', key: 'placement', values: {
+          list_feed: '列表信息流', top_banner: '顶部横幅', bottom_banner: '底部横幅',
+          detail_between: '详情信息流', sidebar: '侧边栏'
+        } },
+        { label: '排序', key: 'sort_order' },
+        { label: '间隔', key: 'feed_interval' },
+        { label: '点击', key: 'clicks' }
+      ],
+      meta: [
+        { label: '跳转链接', key: 'link_url', copyable: true },
+        { label: '创建时间', key: 'created_at', format: 'datetime' }
+      ]
+    }
+  },
   reviewPosts: {
     table: 'posts',
     columns: [

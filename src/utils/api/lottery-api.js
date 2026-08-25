@@ -12,6 +12,8 @@ const normalizeLottery = (value) => {
       username: String(winner?.username || '')
     })).filter((winner) => winner.user_id || winner.username)
     : [];
+  const rawPityMode = String(value.pity_mode || value.pityMode || '').trim().toLowerCase();
+  const pityMode = rawPityMode === 'eligible' || rawPityMode === 'count_only' ? rawPityMode : (rawPityMode === 'none' ? 'none' : null);
   return {
     id: String(value.id || ''),
     title: String(value.title || ''),
@@ -37,7 +39,13 @@ const normalizeLottery = (value) => {
       ? null
       : Number(value.current_user_entry_number),
     created_at: value.created_at || null,
-    updated_at: value.updated_at || null
+    updated_at: value.updated_at || null,
+    pity_mode: pityMode,
+    pity_winner_count: value.pity_winner_count === null || value.pity_winner_count === undefined ? null : Number(value.pity_winner_count),
+    pity_reward_title: String(value.pity_reward_title || value.pityRewardTitle || ''),
+    pity_reward_description: String(value.pity_reward_description || ''),
+    pity_overflow_reward_title: String(value.pity_overflow_reward_title || ''),
+    pity_overflow_reward_description: String(value.pity_overflow_reward_description || '')
   };
 };
 
@@ -102,14 +110,48 @@ export const getCommunityLotteries = async () => {
     return { data: [], error };
   }
   const list = Array.isArray(data) ? data : [];
-  return { data: list.map(normalizeLottery).filter(Boolean), error: null };
+  const normalized = list.map(normalizeLottery).filter(Boolean);
+  const needsPityEnrich = normalized.some((item) => !item.pity_mode);
+  if (needsPityEnrich && normalized.length > 0) {
+    try {
+      const ids = normalized.map((item) => item.id).filter(Boolean);
+      const { data: pityRows } = await supabase
+        .from('lotteries')
+        .select('id, pity_mode, pity_winner_count, pity_reward_title, pity_reward_description, pity_overflow_reward_title, pity_overflow_reward_description')
+        .in('id', ids);
+      if (Array.isArray(pityRows) && pityRows.length) {
+        const pityMap = new Map(pityRows.map((row) => [String(row.id), row]));
+        normalized.forEach((item) => {
+          if (!item.pity_mode) {
+            const row = pityMap.get(item.id);
+            if (row) {
+              const m = String(row.pity_mode || '').trim().toLowerCase();
+              item.pity_mode = m === 'eligible' || m === 'count_only' ? m : 'none';
+              item.pity_reward_title = String(row.pity_reward_title || '');
+              item.pity_reward_description = String(row.pity_reward_description || '');
+              item.pity_overflow_reward_title = String(row.pity_overflow_reward_title || '');
+              item.pity_overflow_reward_description = String(row.pity_overflow_reward_description || '');
+              item.pity_winner_count = row.pity_winner_count == null ? null : Number(row.pity_winner_count);
+            } else {
+              item.pity_mode = 'none';
+            }
+          }
+        });
+      } else {
+        normalized.forEach((item) => { if (!item.pity_mode) item.pity_mode = 'none'; });
+      }
+    } catch {
+      normalized.forEach((item) => { if (!item.pity_mode) item.pity_mode = 'none'; });
+    }
+  }
+  return { data: normalized, error: null };
 };
 
 const getCommunityLotteriesFallback = async () => {
   try {
     const { data, error } = await supabase
       .from('lotteries')
-      .select('id, title, description, prize_title, prize_description, cover_image_url, status, is_community_visible, enforce_account_age_check, max_entries, winner_count, entry_deadline_at, draw_at, drawn_at, winner_user_id, winner_username, fulfillment_status, created_at, updated_at')
+      .select('id, title, description, prize_title, prize_description, cover_image_url, status, is_community_visible, enforce_account_age_check, max_entries, winner_count, entry_deadline_at, draw_at, drawn_at, winner_user_id, winner_username, fulfillment_status, pity_mode, pity_winner_count, pity_reward_title, pity_reward_description, pity_overflow_reward_title, pity_overflow_reward_description, created_at, updated_at')
       .eq('is_community_visible', true)
       .in('status', ['open', 'drawn', 'closed'])
       .order('status', { ascending: false })

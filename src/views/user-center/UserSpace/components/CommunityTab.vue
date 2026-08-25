@@ -36,7 +36,7 @@
           </button>
           <button type="button" @click="setCommunityFilter('active')">
             <span>{{ activeCommunityCount }}</span>
-            <small>正在活跃</small>
+            <small>最近活跃</small>
           </button>
           <button type="button" @click="setCommunityFilter('new')">
             <span>{{ newCommunityCount }}</span>
@@ -187,7 +187,7 @@
               </div>
             </button>
 
-            <nav v-if="!isMobileLayout && communityFilter === 'all' && totalCommunityPages > 1"
+            <nav v-if="!isMobileLayout && isPaginatedFilter(communityFilter) && totalCommunityPages > 1"
               class="community-pagination" aria-label="社区伙伴分页">
               <button type="button" class="community-page-btn glass-page-btn"
                 :disabled="isLoadingCommunity || currentCommunityPage === 1"
@@ -212,7 +212,7 @@
               </button>
             </nav>
 
-            <button v-if="isMobileLayout && communityFilter === 'all' && currentCommunityPage < totalCommunityPages"
+            <button v-if="isMobileLayout && isPaginatedFilter(communityFilter) && currentCommunityPage < totalCommunityPages"
               ref="communityLoadMoreRef" type="button" class="community-load-more" :disabled="isLoadingCommunity"
               aria-live="polite" @click="loadMoreCommunityUsers">
               {{ isLoadingCommunity ? '加载中...' : '加载更多伙伴' }}
@@ -312,7 +312,7 @@ const currentTheme = ref(themeManager.getTheme());
 const currentThemePreference = ref(themeManager.getPreference?.() || currentTheme.value);
 const isHomeCatActive = computed(() => isHomeCatTheme(currentTheme.value) || isHomeCatTheme(currentThemePreference.value));
 
-const { isUserOnline, formatUserOnlineStatus, formatOnlineStatusTooltip } = useUserOnlineStatus();
+const { isUserOnline, isRecentlyActive, formatUserOnlineStatus, formatOnlineStatusTooltip } = useUserOnlineStatus();
 
 const hideOnlineStatus = computed(() => userInfo.value?.hideOnlineStatus ?? false);
 
@@ -337,6 +337,7 @@ const communitySearchQuery = ref('');
 const debouncedCommunitySearchQuery = ref('');
 const currentCommunityPage = ref(1);
 const totalCommunityUsers = ref(0);
+const totalRecentActiveUsers = ref(0);
 const COMMUNITY_PAGE_SIZE = 10;
 const COMMUNITY_BIRTHDAY_LIMIT = 8;
 const hasLoadedCommunity = ref(false);
@@ -345,7 +346,7 @@ const isSearching = ref(false);
 const communityLoadMoreRef = ref(null);
 const communityFilters = [
   { id: 'all', label: '全部' },
-  { id: 'active', label: '正在活跃' },
+  { id: 'active', label: '最近活跃' },
   { id: 'following', label: '我关注的' },
   { id: 'new', label: '新加入' }
 ];
@@ -378,16 +379,28 @@ const handleVisibilityChange = () => {
   }
 };
 
-const totalCommunityPages = computed(() => Math.max(1, Math.ceil(totalCommunityUsers.value / COMMUNITY_PAGE_SIZE)));
+const totalCommunityPages = computed(() => {
+  const total = communityFilter.value === 'active' ? totalRecentActiveUsers.value : totalCommunityUsers.value;
+  return Math.max(1, Math.ceil(total / COMMUNITY_PAGE_SIZE));
+});
 const isRecentlyJoined = (user = {}) => {
   const time = new Date(user.join_date || 0).getTime();
   return Number.isFinite(time) && time > 0 && Date.now() - time <= 30 * 24 * 60 * 60 * 1000;
 };
-const activeCommunityCount = computed(() => communityUsers.value.filter((user) => isUserOnline(user, hideOnlineStatus.value)).length);
+const isPaginatedFilter = (filterId) => filterId === 'all' || filterId === 'active';
+const activeCommunityCount = computed(() => {
+  // 脉冲区展示最近活跃总数：当处于最近活跃分页时使用服务端 total，否则用当前加载池的 3 天内统计
+  if (hideOnlineStatus.value) return 0;
+  if (communityFilter.value === 'active') return totalRecentActiveUsers.value;
+  return communityUsers.value.filter((user) => isRecentlyActive(user, hideOnlineStatus.value)).length;
+});
 const newCommunityCount = computed(() => communityUsers.value.filter(isRecentlyJoined).length);
 const visibleCommunityUsers = computed(() => {
   if (communityFilter.value === 'active') {
-    return communityUsers.value.filter((user) => isUserOnline(user, hideOnlineStatus.value));
+    // 最近活跃为服务端分页，已按 3 天过滤；若用户隐藏在线状态则不展示
+    if (hideOnlineStatus.value) return [];
+    // 服务端已过滤 3 天，客户端仅需过滤隐藏标记（hide_online_status）
+    return communityUsers.value.filter((user) => !user?.hide_online_status && !user?.hideOnlineStatus);
   }
   if (communityFilter.value === 'following') {
     return communityUsers.value.filter((user) => followingIds.value.has(user.id));
@@ -399,16 +412,21 @@ const visibleCommunityUsers = computed(() => {
 });
 const communityEmptyText = computed(() => {
   if (communitySearchQuery.value.trim()) return '没有找到匹配的社区伙伴';
-  if (communityFilter.value === 'active') return '现在没有公开在线状态的伙伴';
+  if (communityFilter.value === 'active') return '最近 3 天没有活跃的伙伴';
   if (communityFilter.value === 'following') return userInfo.value?.id ? '你关注的伙伴不在最近活跃的成员中' : '登录后查看你关注的伙伴';
   if (communityFilter.value === 'new') return '最近 30 天还没有新伙伴';
   return '暂无社区伙伴';
 });
-// 筛选（活跃/关注/新加入）为客户端过滤，数据源上限 100 条；计数口径与全量 total 不同
-const isCommunityFilterPool = computed(() => communityFilter.value !== 'all');
-const displayCommunityCount = computed(() => (
-  isCommunityFilterPool.value ? visibleCommunityUsers.value.length : totalCommunityUsers.value
-));
+// 仅 following / new 为客户端过滤（上限 100 条）；all 与最近活跃为服务端分页，计数口径与全量 total 一致
+const isCommunityFilterPool = computed(() => !isPaginatedFilter(communityFilter.value));
+const displayCommunityCount = computed(() => {
+  if (isCommunityFilterPool.value) return visibleCommunityUsers.value.length;
+  if (communityFilter.value === 'active') {
+    if (hideOnlineStatus.value) return 0;
+    return totalRecentActiveUsers.value;
+  }
+  return totalCommunityUsers.value;
+});
 
 const birthdayGroupSummary = computed(() => {
   if (isLoadingBirthdays.value && recentBirthdayUsers.value.length === 0) {
@@ -502,18 +520,21 @@ const loadCommunityFollowCounts = async () => {
 
 const fetchCommunityUsers = async ({ force = false } = {}) => {
   const searchKey = String(debouncedCommunitySearchQuery.value || '').trim().toLowerCase();
-  const isFilteredPool = communityFilter.value !== 'all';
+  const isFilteredPool = !isPaginatedFilter(communityFilter.value);
+  const isRecentActiveFilter = communityFilter.value === 'active';
   const requestPage = isFilteredPool ? 1 : currentCommunityPage.value;
   const requestPageSize = isFilteredPool ? 100 : COMMUNITY_PAGE_SIZE;
-  const shouldAppend = isMobileLayout.value && !isFilteredPool && requestPage > 1;
-  const cacheKey = `community:${requestPage}:${requestPageSize}:${searchKey}`;
+  const shouldAppend = isMobileLayout.value && isPaginatedFilter(communityFilter.value) && requestPage > 1;
+  // 最近活跃为服务端分页，需在缓存键中区分
+  const cacheKey = `community:${communityFilter.value}:${requestPage}:${requestPageSize}:${searchKey}:${isRecentActiveFilter ? 'recent' : 'all'}`;
   const cachedCommunity = communityMemoryCache.get(cacheKey, CACHE_TTL.community);
   if (!force) {
     if (cachedCommunity) {
       communityUsers.value = shouldAppend
         ? [...communityUsers.value, ...(cachedCommunity.items || []).filter((item) => !communityUsers.value.some((user) => user.id === item.id))]
         : (cachedCommunity.items || []);
-      totalCommunityUsers.value = cachedCommunity.total || 0;
+      if (isRecentActiveFilter) totalRecentActiveUsers.value = cachedCommunity.total || 0;
+      else totalCommunityUsers.value = cachedCommunity.total || 0;
       hasLoadedCommunity.value = true;
       isLoadingCommunity.value = false;
       isSearching.value = false;
@@ -523,7 +544,8 @@ const fetchCommunityUsers = async ({ force = false } = {}) => {
     communityUsers.value = shouldAppend
       ? [...communityUsers.value, ...(cachedCommunity.items || []).filter((item) => !communityUsers.value.some((user) => user.id === item.id))]
       : (cachedCommunity.items || []);
-    totalCommunityUsers.value = cachedCommunity.total || 0;
+    if (isRecentActiveFilter) totalRecentActiveUsers.value = cachedCommunity.total || 0;
+    else totalCommunityUsers.value = cachedCommunity.total || 0;
     hasLoadedCommunity.value = true;
   }
 
@@ -535,7 +557,8 @@ const fetchCommunityUsers = async ({ force = false } = {}) => {
       page: requestPage,
       pageSize: requestPageSize,
       search: debouncedCommunitySearchQuery.value,
-      countMode: 'planned'
+      countMode: 'planned',
+      onlyRecentActive: isRecentActiveFilter
     });
 
     if (fetchId !== latestCommunityFetchId) return;
@@ -555,14 +578,15 @@ const fetchCommunityUsers = async ({ force = false } = {}) => {
       communityUsers.value = shouldAppend
         ? [...communityUsers.value, ...nextUsers.filter((item) => !communityUsers.value.some((user) => user.id === item.id))]
         : nextUsers;
-      totalCommunityUsers.value = data.total || 0;
+      if (isRecentActiveFilter) totalRecentActiveUsers.value = data.total || 0;
+      else totalCommunityUsers.value = data.total || 0;
       hasLoadedCommunity.value = true;
 
       void loadCommunityFollowCounts();
 
       communityMemoryCache.set(cacheKey, {
         items: nextUsers,
-        total: totalCommunityUsers.value
+        total: data.total || 0
       });
     } else {
       // 刷新/加载失败时保留已加载数据，避免一次瞬时网络错误清空整个列表（含移动端已累积的多页）
@@ -637,7 +661,7 @@ const setupCommunityLoadMoreObserver = async () => {
   await nextTick();
   communityLoadMoreObserver?.disconnect();
   communityLoadMoreObserver = null;
-  if (!isMobileLayout.value || communityFilter.value !== 'all' || !communityLoadMoreRef.value) return;
+  if (!isMobileLayout.value || !isPaginatedFilter(communityFilter.value) || !communityLoadMoreRef.value) return;
   if (typeof IntersectionObserver === 'undefined') return;
   communityLoadMoreObserver = new IntersectionObserver((entries) => {
     if (entries.some((entry) => entry.isIntersecting)) loadMoreCommunityUsers();

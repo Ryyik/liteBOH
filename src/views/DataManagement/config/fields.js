@@ -6,6 +6,7 @@ export const TAB_WRITABLE_FIELDS = {
   addresses: ['user_id', 'recipient', 'phone', 'region', 'detail', 'tag', 'is_default', 'updated_at'],
   posterRequests: ['user_id', 'status', 'updated_at'],
   forum: ['content', 'author_id', 'author_username', 'status', 'tag', 'cover_image_url', 'location_name', 'updated_at'],
+  ads: ['title', 'placement', 'status', 'image_url', 'link_url', 'sort_order', 'feed_interval', 'updated_at'],
   coreMemories: ['title', 'content', 'category', 'tags', 'priority', 'source_label', 'source_url', 'status', 'updated_by'],
   bohaiModels: ['mode_id', 'display_name', 'tagline', 'description', 'provider', 'provider_label', 'model_id', 'api_url', 'capability', 'icon', 'temperature', 'top_p', 'frequency_penalty', 'max_tokens', 'quota_multiplier', 'min_tier', 'status', 'sort_order', 'notes', 'created_by', 'updated_by'],
   lotteries: ['title', 'description', 'prize_title', 'prize_description', 'pity_reward_title', 'pity_reward_description', 'cover_image_url', 'status', 'is_community_visible', 'is_home_visible', 'enforce_account_age_check', 'max_entries', 'winner_count', 'pity_mode', 'entry_deadline_at', 'draw_at', 'fulfillment_status', 'created_by', 'updated_by'],

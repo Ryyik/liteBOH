@@ -142,8 +142,11 @@
       <div class="profile-content-tabs" role="tablist" aria-label="我的内容">
         <button v-for="tab in contentTabs" :key="tab.id" type="button" role="tab" class="profile-content-tab"
           :class="{ active: activeContentTab === tab.id }" :aria-selected="activeContentTab === tab.id"
+          :aria-busy="tab.loading ? 'true' : 'false'"
           @click="activeContentTab = tab.id">
-          {{ tab.label }}<span v-if="tab.count !== null" class="profile-content-count">{{ tab.count }}</span>
+          {{ tab.label }}
+          <span v-if="tab.loading" class="profile-content-count is-loading" aria-hidden="true"><span class="profile-content-count-skeleton"></span></span>
+          <span v-else class="profile-content-count">{{ tab.count ?? 0 }}</span>
         </button>
       </div>
 
@@ -218,7 +221,13 @@
         <button type="button" @click="$emit('switch-tab', 'posts')">去看看帖子</button>
       </div>
 
-      <div v-else-if="drafts.length" class="profile-draft-list">
+      <div v-else-if="activeContentTab === 'drafts' && !draftsLoaded" class="profile-forum-skeleton-feed" aria-hidden="true">
+        <div v-for="item in 2" :key="`draft-skeleton-${item}`" class="profile-forum-skeleton-card">
+          <div class="profile-forum-skeleton-line long profile-forum-skeleton-item"></div>
+          <div class="profile-forum-skeleton-line medium profile-forum-skeleton-item"></div>
+        </div>
+      </div>
+      <div v-else-if="activeContentTab === 'drafts' && drafts.length" class="profile-draft-list">
         <button v-for="draft in drafts" :key="draft.savedAt" type="button" class="profile-draft-item"
           @click="$emit('switch-tab', 'posts')">
           <span class="profile-draft-badge">草稿</span>
@@ -227,7 +236,7 @@
           <small>{{ formatProfilePostDate({ created_at: draft.savedAt }) }}</small>
         </button>
       </div>
-      <div v-else class="profile-content-empty">
+      <div v-else-if="activeContentTab === 'drafts'" class="profile-content-empty">
         <h3>没有未完成的草稿</h3>
         <p>论坛编辑器中保存的帖子草稿会显示在这里。</p>
         <button type="button" @click="$emit('switch-tab', 'posts')">开始写帖子</button>
@@ -272,11 +281,23 @@ const replies = ref([]);
 const repliesLoading = ref(false);
 const repliesLoaded = ref(false);
 const drafts = ref([]);
-const contentTabs = computed(() => [
-  { id: 'posts', label: '帖子', count: props.posts.length },
-  { id: 'replies', label: '回复', count: replies.value.length },
-  { id: 'drafts', label: '草稿', count: drafts.value.length }
-]);
+const draftsLoaded = ref(false);
+const contentTabs = computed(() => {
+  const hasValidStatsCount = Number.isFinite(props.stats?.posts);
+  const postsLoading = hasValidStatsCount ? props.isStatsLoading : (props.isStatsLoading || props.isContentLoading);
+  const postsCount = postsLoading
+    ? null
+    : (hasValidStatsCount ? props.stats.posts : props.posts.length);
+  const repliesLoadingState = repliesLoading.value || (!repliesLoaded.value && !!profileId.value);
+  const repliesCount = repliesLoadingState ? null : replies.value.length;
+  const draftsLoadingState = !draftsLoaded.value;
+  const draftsCount = draftsLoadingState ? null : drafts.value.length;
+  return [
+    { id: 'posts', label: '帖子', count: postsCount, loading: postsLoading },
+    { id: 'replies', label: '回复', count: repliesCount, loading: repliesLoadingState },
+    { id: 'drafts', label: '草稿', count: draftsCount, loading: draftsLoadingState }
+  ];
+});
 
 const openFollowList = async (type) => {
   followModal.type = type;
@@ -548,6 +569,7 @@ const readDrafts = () => {
   const unique = new Map();
   collected.sort((a, b) => b.savedAt - a.savedAt).forEach((draft) => unique.set(draft.savedAt, draft));
   drafts.value = [...unique.values()].slice(0, 10);
+  draftsLoaded.value = true;
 };
 
 const handleDraftStorage = (event) => {
@@ -557,7 +579,8 @@ const handleDraftStorage = (event) => {
 watch(profileId, () => {
   replies.value = [];
   repliesLoaded.value = false;
-  if (activeContentTab.value === 'replies') void loadReplies();
+  repliesLoading.value = false;
+  if (profileId.value) void loadReplies();
   readDrafts();
 }, { immediate: true });
 
@@ -1195,6 +1218,51 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
 
 .user-space-page[data-theme="dark"] .profile-post-cover.empty {
   background: linear-gradient(135deg, rgba(49, 46, 129, 0.45), rgba(24, 24, 27, 0.92));
+}
+
+.profile-content-count.is-loading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 18px;
+  margin-left: 5px;
+  padding: 0;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.profile-content-count-skeleton {
+  display: inline-block;
+  width: 22px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.28);
+  position: relative;
+  overflow: hidden;
+}
+
+.profile-content-count-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0));
+  animation: userspace-stat-shimmer 1.15s ease-in-out infinite;
+}
+
+.user-space-page[data-theme="dark"] .profile-content-count-skeleton {
+  background: rgba(71, 85, 105, 0.5);
+}
+
+.user-space-page[data-theme="dark"] .profile-content-count-skeleton::after {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-content-count-skeleton::after {
+    animation: none;
+  }
 }
 
 </style>

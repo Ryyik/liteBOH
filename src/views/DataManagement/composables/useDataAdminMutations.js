@@ -326,11 +326,11 @@ export const createMutationsCenter = (deps) => {
     switchTab('lotteryEntries', { search: String(item.id) });
   };
 
-  // 查看开奖日志
+  // 查看开奖日志（已并入运行审计）
   const viewLotteryDrawLogs = (item) => {
     if (!item?.id) return;
     addRecentRecord(item);
-    switchTab('lotteryDrawLogs', { search: String(item.id) });
+    switchTab('lotteryAuditLogs', { search: String(item.id) });
   };
 
   const viewLotteryFulfillments = (item) => {
@@ -340,7 +340,11 @@ export const createMutationsCenter = (deps) => {
   };
 
   const advanceLotteryFulfillment = async (item) => {
-    if (!item?.id || !item.is_current) return;
+    if (!item?.id) return;
+    if (item.is_current === false) {
+      showToast('该履约记录已不是当前资格，无法推进', 'warning');
+      return;
+    }
     const nextStatus = {
       pending_contact: 'contacted',
       contacted: 'confirmed',
@@ -378,7 +382,11 @@ export const createMutationsCenter = (deps) => {
   };
 
   const replaceLotteryWinner = async (item) => {
-    if (!item?.id || !item.is_current) return;
+    if (!item?.id) return;
+    if (item.is_current === false) {
+      showToast('该履约记录已不是当前资格，无法替补', 'warning');
+      return;
+    }
     const reason = await dialog.prompt({
       title: '替补中奖人',
       message: '请输入取消当前中奖资格的原因。系统将从符合条件的报名用户中随机替补同一席位。',

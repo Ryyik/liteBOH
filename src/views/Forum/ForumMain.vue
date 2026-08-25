@@ -14,6 +14,7 @@ import {
 } from 'lucide-vue-next';
 import PostComposer from './components/PostComposer.vue';
 import PostCard from './components/PostCard.vue';
+import AdSlot from './components/AdSlot.vue';
 import ForumToolbar from './components/ForumToolbar.vue';
 import ForumImageViewer from './components/ForumImageViewer.vue';
 import WeeklyCheckinCalendar from './components/WeeklyCheckinCalendar.vue';
@@ -21,6 +22,7 @@ import NotificationDrawer from './components/NotificationDrawer.vue';
 import { useForumImageModerationPreload } from './composables/useForumImageModerationPreload.js';
 import { useForumPostDraftStorage } from './composables/useForumPostDraftStorage.js';
 import { useForumVirtualFeed } from './composables/useForumVirtualFeed.js';
+import { useActiveAds } from './composables/useActiveAds.js';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader';
@@ -268,6 +270,35 @@ const {
   getScrollContainer: getForumScrollContainer,
   onLoadMore: () => fetchForumData(true)
 });
+
+// ===== 广告：列表信息流（当前落地订阅计划广告）=====
+const {
+  ads: activeAds,
+  load: loadActiveAds
+} = useActiveAds('list_feed');
+
+// 在可见帖子流中按 feed_interval 间隔插入广告卡片；广告项不带 data-forum-virtual-index，
+// 因此不影响虚拟滚动的窗口观测与滚动位置对齐
+const feedWithAds = computed(() => {
+  const posts = visibleForumPosts.value;
+  const list = activeAds.value;
+  if (!list.length) {
+    return posts.map((post, visIndex) => ({ isAd: false, key: post.id, post, visIndex }));
+  }
+  const interval = Math.max(2, Number(list[0].feed_interval) || 5);
+  const out = [];
+  let adCursor = 0;
+  posts.forEach((post, visIndex) => {
+    out.push({ isAd: false, key: post.id, post, visIndex });
+    if ((visIndex + 1) % interval === 0) {
+      const ad = list[adCursor % list.length];
+      out.push({ isAd: true, key: `ad-${ad.id}-${visIndex}`, ad });
+      adCursor += 1;
+    }
+  });
+  return out;
+});
+
 const getForumScrollMetrics = () => {
   const scroller = getForumScrollContainer();
   if (scroller && scroller !== window) {
@@ -1518,6 +1549,7 @@ onMounted(() => {
   setupForumLoadMoreObserver();
   setupForumWindowObserver();
   loadForumWeeklyReport();
+  loadActiveAds();
   if (isLoggedIn.value) {
     loadWeeklyCheckinStatus();
     scheduleForumImageModerationPreload();
@@ -3370,25 +3402,29 @@ const openPostDetail = (postId) => {
               <div v-if="virtualFeedTopSpacerHeight > 0" class="forum-virtual-spacer"
                 :style="{ height: `${virtualFeedTopSpacerHeight}px` }" aria-hidden="true"></div>
 
-              <div v-for="(post, index) in visibleForumPosts" :key="post.id" class="forum-virtual-post"
-                :data-forum-virtual-index="getVisiblePostIndex(index)">
-                <PostCard :post="post" :index="getVisiblePostIndex(index)" :is-home-cat-active="isHomeCatActive"
-                  :is-expanded="expandedPostIds.has(post.id)"
-                  :active-reply-target="activeReplyTarget && activeReplyTarget.postId === post.id ? activeReplyTarget : null"
-                  :reply-content="replyContent" :is-reply-submitting="isReplySubmitting"
-                  :reply-cooldown-seconds="replyCooldownSeconds" :reply-submit-label="replySubmitLabel"
-                  :is-like-submitting="!!isLikeSubmitting[post.id]" :is-liked-pulsing="isPostLikePulsing(post.id)"
-                  :is-share-copied="isPostShareCopied(post.id)" :is-highlighted="isPostHighlighted(post.id)"
-                  :is-reply-success="hasUiMarker(replySuccessPostIds, post.id)" :search-keyword="searchKeyword"
-                  :is-logged-in="isLoggedIn" :user-info="userInfo" :loaded-image-keys="loadedForumImageKeys"
-                  @click="openPostDetail" @go-to-profile="goToProfile" @toggle-like="handleToggleLike"
-                  @toggle-replies="toggleRepliesList" @toggle-reply-input="handlePostCardToggleReplyInput"
-                  @share="sharePost" @submit-reply="submitReply" @delete-comment="handleDeleteComment"
-                  @open-image-viewer="openForumImageViewer" @update:reply-content="replyContent = $event"
-                  @clear-reply-target="handlePostCardClearReplyTarget" @cancel-reply="handlePostCardCancelReply"
-                  @image-loaded="markForumImageLoaded" @lazy-image-observe="observeForumLazyImage"
-                  @more-replies="openPostDetail" />
-              </div>
+              <template v-for="item in feedWithAds" :key="item.key">
+                <AdSlot v-if="item.isAd" :ad="item.ad" />
+                <div v-else class="forum-virtual-post"
+                  :data-forum-virtual-index="getVisiblePostIndex(item.visIndex)">
+                  <PostCard :post="item.post" :index="getVisiblePostIndex(item.visIndex)"
+                    :is-home-cat-active="isHomeCatActive"
+                    :is-expanded="expandedPostIds.has(item.post.id)"
+                    :active-reply-target="activeReplyTarget && activeReplyTarget.postId === item.post.id ? activeReplyTarget : null"
+                    :reply-content="replyContent" :is-reply-submitting="isReplySubmitting"
+                    :reply-cooldown-seconds="replyCooldownSeconds" :reply-submit-label="replySubmitLabel"
+                    :is-like-submitting="!!isLikeSubmitting[item.post.id]" :is-liked-pulsing="isPostLikePulsing(item.post.id)"
+                    :is-share-copied="isPostShareCopied(item.post.id)" :is-highlighted="isPostHighlighted(item.post.id)"
+                    :is-reply-success="hasUiMarker(replySuccessPostIds, item.post.id)" :search-keyword="searchKeyword"
+                    :is-logged-in="isLoggedIn" :user-info="userInfo" :loaded-image-keys="loadedForumImageKeys"
+                    @click="openPostDetail" @go-to-profile="goToProfile" @toggle-like="handleToggleLike"
+                    @toggle-replies="toggleRepliesList" @toggle-reply-input="handlePostCardToggleReplyInput"
+                    @share="sharePost" @submit-reply="submitReply" @delete-comment="handleDeleteComment"
+                    @open-image-viewer="openForumImageViewer" @update:reply-content="replyContent = $event"
+                    @clear-reply-target="handlePostCardClearReplyTarget" @cancel-reply="handlePostCardCancelReply"
+                    @image-loaded="markForumImageLoaded" @lazy-image-observe="observeForumLazyImage"
+                    @more-replies="openPostDetail" />
+                </div>
+              </template>
 
               <div v-if="virtualFeedBottomSpacerHeight > 0" class="forum-virtual-spacer"
                 :style="{ height: `${virtualFeedBottomSpacerHeight}px` }" aria-hidden="true"></div>

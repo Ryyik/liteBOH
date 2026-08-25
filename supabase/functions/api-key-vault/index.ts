@@ -1366,6 +1366,19 @@ const CODING_PLAN_BONUSES: Record<string, { tokenBonus: number; webSearchBonus: 
   'coding-ultra': { tokenBonus: 6_000_000, webSearchBonus: 120 },
 };
 
+const SUBSCRIPTION_PLAN_ALIASES: Record<string, string> = {
+  'boh-ai-plus': 'plus',
+  'boh-plus': 'plus',
+  'boh-pro': 'pro',
+  'boh-max': 'max',
+  'boh-ultra': 'ultra',
+};
+
+const normalizeSubscriptionPlanCode = (planCode: unknown): string => {
+  const normalized = String(planCode || '').trim().toLowerCase();
+  return SUBSCRIPTION_PLAN_ALIASES[normalized] || normalized;
+};
+
 const sumCodingBonuses = (plans: Set<string>): { tokenBonus: number; webSearchBonus: number } => {
   let tokenBonus = 0;
   let webSearchBonus = 0;
@@ -1466,7 +1479,7 @@ async function resolveUserPlans(
     const nowIso = new Date().toISOString();
     const activePlans = (data || [])
       .filter((r: Record<string, unknown>) => String(r.expires_at || '') > nowIso)
-      .map((r: Record<string, unknown>) => String(r.plan_code || ''));
+      .map((r: Record<string, unknown>) => normalizeSubscriptionPlanCode(r.plan_code));
     return activePlans;
   })();
   USER_TIER_CACHE.set(userId, { promise, fetchedAt: Date.now() });
@@ -1487,9 +1500,9 @@ async function resolveUserTier(
   if (!userId) return 'guest';
   const plans = await resolveUserPlans(client, userId);
   if (plans.has('ultra')) return 'ultra';
-  if (plans.has('max') || plans.has('boh-max')) return 'max';
-  if (plans.has('pro') || plans.has('boh-pro')) return 'pro';
-  if (plans.has('plus') || plans.has('boh-ai-plus')) return 'plus';
+  if (plans.has('max')) return 'max';
+  if (plans.has('pro')) return 'pro';
+  if (plans.has('plus')) return 'plus';
   return 'free';
 }
 

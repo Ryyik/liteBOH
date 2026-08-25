@@ -1,5 +1,5 @@
 import { supabase } from '@/utils/supabase-client.js';
-import { resolveNicknameTierClass } from '@/utils/subscription-benefits.js';
+import { normalizeSubscriptionPlanCode, resolveNicknameTierClass } from '@/utils/subscription-benefits.js';
 
 const TIER_CACHE_TTL_MS = 5 * 60 * 1000; // 5 分钟
 const TIER_CACHE_MAX_ENTRIES = 500;
@@ -42,7 +42,7 @@ export function useUserTier() {
         // RPC 失败不写缓存（避免负缓存 free 5 分钟），当次渲染回退 free，下次仍会重试
         return 'free';
       }
-      const normalizedTier = String(data).trim().toLowerCase() || 'free';
+      const normalizedTier = normalizeSubscriptionPlanCode(data) || 'free';
       setCachedTier(userId, normalizedTier);
       return normalizedTier;
     })();
@@ -99,7 +99,7 @@ export function useUserTier() {
       }
 
       for (const row of data) {
-        const tier = String(row.tier || '').trim().toLowerCase() || 'free';
+        const tier = normalizeSubscriptionPlanCode(row.tier) || 'free';
         setCachedTier(row.user_id, tier);
         result.set(row.user_id, tier);
       }

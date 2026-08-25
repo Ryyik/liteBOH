@@ -1,4 +1,5 @@
 const ONLINE_THRESHOLD_MS = 3 * 60 * 1000;
+const RECENT_ACTIVE_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000;
 
 export function useUserOnlineStatus() {
   const isUserOnline = (user, hideAll = false) => {
@@ -7,6 +8,14 @@ export function useUserOnlineStatus() {
     if (user?.hide_online_status) return false;
     if (user?.hideOnlineStatus) return false;
     return Date.now() - new Date(user.last_active_at).getTime() < ONLINE_THRESHOLD_MS;
+  };
+
+  const isRecentlyActive = (user, hideAll = false) => {
+    if (hideAll) return false;
+    if (!user?.last_active_at) return false;
+    if (user?.hide_online_status) return false;
+    if (user?.hideOnlineStatus) return false;
+    return Date.now() - new Date(user.last_active_at).getTime() < RECENT_ACTIVE_THRESHOLD_MS;
   };
 
   const formatUserOnlineStatus = (user, hideAll = false) => {
@@ -34,5 +43,5 @@ export function useUserOnlineStatus() {
     return new Date(user.last_active_at).toLocaleString('zh-CN');
   };
 
-  return { isUserOnline, formatUserOnlineStatus, formatOnlineStatusTooltip, ONLINE_THRESHOLD_MS };
+  return { isUserOnline, isRecentlyActive, formatUserOnlineStatus, formatOnlineStatusTooltip, ONLINE_THRESHOLD_MS, RECENT_ACTIVE_THRESHOLD_MS };
 }

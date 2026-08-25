@@ -9,7 +9,8 @@
   --lottery-shadow: 0 18px 48px rgba(29, 29, 31, 0.12);
   min-height: 100vh;
   min-height: 100dvh;
-  overflow: clip;
+  overflow-x: clip;
+  overflow-y: visible;
   background: var(--lottery-canvas);
   color: var(--lottery-ink);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI", sans-serif;
@@ -66,19 +67,21 @@
 
 .community-lottery-toolbar {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 58px;
-  margin-bottom: 20px;
-  padding: 7px 8px;
-  border: 1px solid var(--lottery-stroke);
+  gap: 10px;
+  min-height: 52px;
+  margin-bottom: 16px;
+  padding: 6px 6px;
+  border: 0.5px solid rgba(255,255,255,0.62);
   border-radius: 16px;
   background: var(--lottery-glass);
-  box-shadow: 0 10px 28px rgba(29, 29, 31, 0.06);
+  box-shadow: 0 8px 24px rgba(29, 29, 31, 0.06);
   backdrop-filter: blur(16px) saturate(150%);
   -webkit-backdrop-filter: blur(16px) saturate(150%);
+  flex-wrap: nowrap;
+  overflow: visible;
 }
 
 .community-lottery-tabs {
@@ -91,23 +94,21 @@
   background: rgba(29, 29, 31, 0.06);
 }
 
-.community-lottery-tabs button,
-.lottery-filter-row select {
-  min-height: 36px;
-  border: 0;
-  color: #636366;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 650;
-  letter-spacing: 0;
-}
-
 .community-lottery-tabs button {
-  padding: 0 15px;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
   border-radius: 9px;
   background: transparent;
+  color: #636366;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  flex: 0 0 auto;
   cursor: pointer;
-  transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease, transform var(--duration-press) var(--ease-out), box-shadow var(--duration-fast) ease;
+  transition: background-color 180ms ease, color 180ms ease, transform 150ms var(--ease-out, cubic-bezier(0.32,0.72,0,1)), box-shadow 180ms ease;
 }
 
 .community-lottery-tabs button.active {
@@ -119,30 +120,124 @@
 .lottery-filter-row {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: 2px;
 }
 
-.lottery-filter-row select {
-  min-width: 112px;
-  padding: 0 30px 0 11px;
-  border: 1px solid rgba(29, 29, 31, 0.1);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.52);
-  cursor: pointer;
+/* Apple 胶囊自定义筛选 - 替代原生 select */
+.lottery-custom-select {
+  position: relative;
+  flex: 0 0 auto;
 }
+
+.lottery-select-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 8px 0 12px;
+  border: 0.5px solid rgba(29, 29, 31, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.64);
+  color: var(--lottery-ink);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 590;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  cursor: pointer;
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 150ms ease;
+  max-width: 132px;
+}
+
+.lottery-select-trigger:hover {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(29, 29, 31, 0.12);
+  box-shadow: 0 2px 8px rgba(29,29,31,0.06);
+}
+
+.lottery-select-trigger:active { transform: scale(0.97); }
+.lottery-custom-select.open .lottery-select-trigger {
+  background: rgba(255,255,255,0.92);
+  border-color: rgba(0,113,227,0.18);
+  box-shadow: 0 2px 10px rgba(0,113,227,0.12);
+  color: #0071e3;
+}
+
+.lottery-select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 92px;
+}
+
+.lottery-select-chevron {
+  flex: 0 0 auto;
+  color: #86868b;
+  transition: transform 180ms cubic-bezier(0.32,0.72,0,1), color 160ms ease;
+}
+.lottery-select-chevron.rotated { transform: rotate(180deg); color: #0071e3; }
+
+.lottery-select-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  min-width: 100%;
+  width: max-content;
+  max-width: min(200px, 72vw);
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 0.5px solid rgba(29,29,31,0.08);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.94);
+  box-shadow: 0 10px 28px rgba(29,29,31,0.12), 0 1px 3px rgba(29,29,31,0.06);
+  backdrop-filter: blur(20px) saturate(170%);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  display: grid;
+  gap: 2px;
+}
+
+.lottery-select-menu li {
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: #515154;
+  font-size: 13px;
+  font-weight: 510;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.lottery-select-menu li:hover { background: rgba(29,29,31,0.06); color: var(--lottery-ink); }
+.lottery-select-menu li.active { background: rgba(0,113,227,0.10); color: #0071e3; font-weight: 650; }
+.lottery-select-menu li:active { transform: scale(0.99); }
+
+.lottery-select-enter-active, .lottery-select-leave-active {
+  transition: opacity 160ms cubic-bezier(0.32,0.72,0,1), transform 160ms cubic-bezier(0.32,0.72,0,1);
+}
+.lottery-select-enter-from, .lottery-select-leave-to { opacity: 0; transform: translateY(-4px) scale(0.98); }
 
 .community-lottery-overview {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 14px;
+  gap: 12px;
+  flex: 0 0 auto;
   min-width: 0;
   margin-left: auto;
-  padding: 0 8px;
+  padding: 0 6px 0 8px;
   color: var(--lottery-secondary);
   font-size: 12px;
   font-weight: 550;
   white-space: nowrap;
+  flex-wrap: nowrap;
 }
 
 .community-lottery-overview span {
@@ -242,13 +337,13 @@
   display: grid;
   grid-template-columns: 154px minmax(0, 1fr);
   overflow: hidden;
-  border: 1px solid var(--lottery-stroke);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.54);
-  box-shadow: 0 8px 22px rgba(29, 29, 31, 0.05);
-  backdrop-filter: blur(12px) saturate(135%);
-  -webkit-backdrop-filter: blur(12px) saturate(135%);
-  transition: transform var(--duration-base) var(--ease-out), box-shadow var(--duration-base) ease, background-color var(--duration-fast) ease;
+  border: 0.5px solid rgba(255,255,255,0.62);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.56);
+  box-shadow: 0 6px 18px rgba(29, 29, 31, 0.06);
+  backdrop-filter: blur(14px) saturate(135%);
+  -webkit-backdrop-filter: blur(14px) saturate(135%);
+  transition: transform 220ms cubic-bezier(0.32,0.72,0,1), box-shadow 220ms ease, background-color 180ms ease, border-color 180ms ease;
 }
 
 .community-lottery-card.no-cover {
@@ -463,11 +558,11 @@
 }
 
 .lottery-progress {
-  height: 4px;
+  height: 3px;
   overflow: hidden;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
   border-radius: 999px;
-  background: rgba(29, 29, 31, 0.1);
+  background: rgba(29, 29, 31, 0.09);
 }
 
 .lottery-progress div {
@@ -590,6 +685,42 @@
   background: rgba(255, 255, 255, 0.48);
   color: #3a3a3c;
 }
+
+.lottery-boost-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0.5px solid rgba(0, 113, 227, 0.14);
+  border-radius: 999px;
+  background: rgba(0, 113, 227, 0.08);
+  color: #0071e3;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 160ms ease, transform 150ms ease, opacity 160ms ease;
+}
+
+.lottery-boost-action.compact {
+  min-height: 32px;
+  min-width: 32px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.lottery-boost-action:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+  background: rgba(0, 113, 227, 0.06);
+}
+
+.lottery-boost-action:not(:disabled):hover { background: rgba(0,113,227,0.12); }
+.lottery-boost-action:not(:disabled):active { transform: scale(0.97); }
 
 .lottery-eligibility {
   margin: 13px 0 0;
@@ -984,49 +1115,91 @@
 
 @media (orientation: landscape) and (max-height: 760px) {
   .community-lottery-main {
-    padding-top: 100px;
+    padding-top: 88px;
+    padding-bottom: 40px;
   }
 
   .community-lottery-header {
-    margin-bottom: 18px;
+    margin-bottom: 14px;
   }
 
   .community-lottery-header h1 {
-    font-size: 46px;
+    font-size: 42px;
+    line-height: 1.06;
   }
+
+  .community-lottery-header p {
+    font-size: 15px;
+    margin-top: 8px;
+  }
+
+  .community-lottery-toolbar {
+    position: sticky;
+    top: calc(64px + env(safe-area-inset-top));
+    z-index: 5;
+    min-height: 46px;
+    padding: 5px 6px;
+    backdrop-filter: blur(20px) saturate(170%);
+    -webkit-backdrop-filter: blur(20px) saturate(170%);
+  }
+
+  .lottery-pity-capsule-wrap { margin-bottom: 10px; }
 
   .lottery-featured-card,
   .lottery-featured-content {
-    min-height: 470px;
+    min-height: 420px;
   }
 
+  .lottery-featured-card { border-radius: 20px; }
+
   .lottery-featured-content {
-    padding: 28px 34px;
+    padding: 22px 26px;
+    min-height: 420px;
   }
 
   .lottery-featured-content h2 {
-    font-size: 34px;
+    font-size: 30px;
   }
 
   .lottery-countdown-panel {
-    margin-top: 16px;
+    margin-top: 12px;
+    padding-top: 10px;
+  }
+
+  .lottery-countdown-panel strong { font-size: 24px; }
+
+  .lottery-detail-modal {
+    max-height: min(92dvh, 640px);
+    padding: 20px 24px;
   }
 }
 
-@media (max-width: 980px) {
+@media (max-width: 860px) {
   .community-lottery-main {
     width: min(100% - 36px, 760px);
   }
 
-  .community-lottery-toolbar {
-    flex-wrap: wrap;
-  }
+  .community-lottery-header h1 { font-size: 48px; }
+  .community-lottery-header p { font-size: 16px; }
 
-  .community-lottery-overview {
-    width: 100%;
-    justify-content: flex-start;
-    margin-left: 0;
-    padding: 2px 4px 5px;
+  .lottery-featured-content { padding: 28px; }
+  .lottery-featured-content h2 { font-size: 34px; }
+  .lottery-featured-content .lottery-prize strong { font-size: 20px; }
+
+  .community-lottery-card { grid-template-columns: 136px minmax(0, 1fr); border-radius: 12px; }
+  .community-lottery-cover img { min-height: 240px; }
+  .community-lottery-card h2 { font-size: 19px; }
+  .community-lottery-card-body { padding: 18px; }
+
+  /* keep 2-col until 640, but tighten gap */
+  .community-lottery-grid { gap: 12px; }
+  .history-card { grid-column: 1 / -1; }
+}
+
+@media (max-width: 640px) {
+  .community-lottery-main {
+    width: min(100% - 28px, 640px);
+    padding: 92px 0 48px;
   }
 
   .community-lottery-grid {
@@ -1036,6 +1209,27 @@
   .history-card {
     grid-column: auto;
   }
+
+  .community-lottery-overview {
+    gap: 8px;
+    padding: 0 4px;
+    font-size: 11px;
+  }
+
+  .community-lottery-overview strong { font-size: 12px; }
+  .community-lottery-overview span { gap: 4px; }
+  .community-lottery-overview svg { width: 13px; height: 13px; }
+
+  .community-lottery-toolbar {
+    min-height: 48px;
+    padding: 6px 6px;
+    gap: 6px;
+    flex-wrap: nowrap;
+  }
+
+  .lottery-filter-row { gap: 6px; }
+  .lottery-select-trigger { min-height: 30px; padding: 0 8px 0 10px; font-size: 12px; max-width: 116px; }
+  .lottery-select-value { max-width: 80px; }
 }
 
 @media (orientation: portrait) and (max-width: 760px) {
@@ -1045,142 +1239,228 @@
   }
 
   .community-lottery-header {
-    margin-bottom: 20px;
+    margin-bottom: 18px;
   }
 
   .community-lottery-header h1 {
-    font-size: 40px;
-    line-height: 1.1;
+    font-size: 38px;
+    line-height: 1.08;
+    letter-spacing: -0.02em;
   }
 
   .community-lottery-header p {
     font-size: 15px;
+    line-height: 1.5;
   }
 
   .community-lottery-toolbar {
-    align-items: stretch;
-    padding: 7px;
-    border-radius: 12px;
+    align-items: center;
+    min-height: 48px;
+    padding: 6px 6px;
+    border-radius: 14px;
+    gap: 8px;
   }
 
   .community-lottery-tabs {
-    flex: 1;
+    flex: 0 1 auto;
   }
 
   .community-lottery-tabs button {
-    flex: 1;
+    padding: 0 13px;
+    font-size: 13.5px;
   }
 
   .lottery-filter-row {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    width: 100%;
+    display: flex;
+    flex: 0 1 auto;
+    gap: 6px;
+    min-width: 0;
+    flex-wrap: nowrap;
   }
 
-  .lottery-filter-row select {
-    width: 100%;
-    min-width: 0;
-  }
+  .lottery-custom-select { flex: 0 0 auto; }
+  .lottery-select-trigger { min-height: 30px; font-size: 12px; }
+  .lottery-select-value { max-width: 76px; }
 
   .community-lottery-overview {
-    justify-content: space-between;
+    display: flex;
     gap: 8px;
-    overflow-x: auto;
-    padding: 3px 4px 5px;
+    padding: 0 2px;
+    font-size: 11px;
+    margin-left: auto;
   }
+
+  .community-lottery-overview strong { font-size: 12px; }
+  .community-lottery-overview span { gap: 4px; }
 
   .lottery-featured-card,
   .lottery-featured-card.no-cover {
-    min-height: 650px;
-    border-radius: 18px;
+    min-height: 520px;
+    border-radius: 20px;
   }
 
   .lottery-featured-cover {
     inset: 0 0 auto;
-    height: 280px;
+    height: 200px;
+  }
+
+  .lottery-featured-cover img {
+    object-position: center 28%;
   }
 
   .lottery-featured-cover::after {
-    background: rgba(15, 18, 23, 0.12);
+    background: linear-gradient(to bottom, rgba(15,18,23,0.08) 0%, rgba(15,18,23,0.16) 100%);
   }
 
   .lottery-featured-content,
   .lottery-featured-card.no-cover .lottery-featured-content {
     align-self: flex-end;
     flex-basis: 100%;
-    min-height: 438px;
-    margin-top: 212px;
-    padding: 26px 22px 22px;
-    border-top: 1px solid rgba(255, 255, 255, 0.48);
+    min-height: 0;
+    margin-top: 160px;
+    padding: 22px 20px 20px;
+    border-top: 0.5px solid rgba(255, 255, 255, 0.42);
     border-left: 0;
-    border-radius: 18px 18px 0 0;
-    background: rgba(255, 255, 255, 0.8);
-    box-shadow: 0 -14px 36px rgba(0, 0, 0, 0.08);
+    border-radius: 20px 20px 0 0;
+    background: rgba(255, 255, 255, 0.68);
+    box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.07);
+    backdrop-filter: blur(16px) saturate(150%);
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
   }
 
   .lottery-featured-card.no-cover .lottery-featured-content {
-    min-height: 650px;
+    min-height: 520px;
     margin-top: 0;
-    border-radius: 0;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.72);
   }
 
   .lottery-featured-content h2 {
-    font-size: 32px;
+    font-size: 28px;
+    line-height: 1.12;
+  }
+
+  .lottery-featured-content .lottery-description {
+    font-size: 14px;
+    margin-top: 6px;
   }
 
   .lottery-countdown-panel {
-    margin-top: 17px;
+    margin-top: 14px;
+    padding-top: 10px;
   }
 
   .lottery-countdown-panel strong {
-    font-size: 27px;
+    font-size: 24px;
+  }
+
+  .lottery-featured-content .lottery-prize {
+    margin: 12px 0 12px;
   }
 
   .lottery-featured-content .lottery-prize strong {
-    font-size: 20px;
+    font-size: 18px;
   }
 
   .lottery-facts {
-    grid-template-columns: 1fr;
-    gap: 12px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+    margin: 4px 0 12px;
+    padding: 10px 0;
+    border-top: 0.5px solid var(--lottery-hairline);
+    border-bottom: 0.5px solid var(--lottery-hairline);
   }
 
   .lottery-facts div {
-    padding: 0;
-    border-left: 0;
+    padding: 0 8px;
+    border-left: 0.5px solid var(--lottery-hairline);
   }
+
+  .lottery-facts div:first-child { padding-left: 0; border-left: 0; }
+  .lottery-facts strong { font-size: 12.5px; margin-top: 2px; }
+  .lottery-facts span { font-size: 10.5px; }
 
   .community-lottery-card,
   .community-lottery-card.no-cover,
   .history-card {
     grid-template-columns: 116px minmax(0, 1fr);
+    border-radius: 14px;
   }
 
   .community-lottery-cover img,
   .history-card .community-lottery-cover img {
     min-height: 100%;
+    object-fit: cover;
   }
 
   .community-lottery-card-body {
-    padding: 17px;
+    padding: 14px 14px 12px;
+    gap: 2px;
   }
+
+  .community-lottery-card-top { margin-bottom: 8px; }
 
   .lottery-cover-fallback strong {
     display: none;
   }
 
   .community-lottery-card h2 {
-    font-size: 19px;
+    font-size: 17px;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
-  .community-lottery-card .lottery-facts,
-  .community-lottery-card .lottery-progress,
+  .community-lottery-card .lottery-description {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 12.5px;
+    margin-top: 4px;
+  }
+
+  /* 竖屏保留信息密度：不隐藏，改为紧凑单行 */
+  .community-lottery-card .lottery-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    margin: 8px 0 8px;
+    padding: 8px 0;
+    border-top: 0.5px solid var(--lottery-hairline);
+    border-bottom: 0;
+  }
+
+  .community-lottery-card .lottery-facts div {
+    padding: 0 6px;
+    border-left: 0.5px solid var(--lottery-hairline);
+  }
+
+  .community-lottery-card .lottery-facts div:first-child { padding-left: 0; border-left: 0; }
+  .community-lottery-card .lottery-facts div:last-child { display: none; }
+  .community-lottery-card .lottery-facts strong { font-size: 11.5px; }
+  .community-lottery-card .lottery-facts span { font-size: 10px; }
+
+  .community-lottery-card .lottery-progress {
+    display: block;
+    height: 2px;
+    margin-bottom: 10px;
+    background: rgba(29,29,31,0.08);
+  }
+
   .community-lottery-card .lottery-entry-state.compact {
-    display: none;
+    display: flex;
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    font-size: 12px;
   }
 
   .lottery-card-footer {
-    align-items: flex-end;
+    align-items: center;
+    gap: 8px;
   }
 
   .lottery-card-footer .lottery-winners {
@@ -1188,9 +1468,18 @@
   }
 
   .lottery-card-footer:has(.lottery-winners) {
-    align-items: flex-start;
-    flex-direction: column;
+    align-items: center;
+    flex-direction: row;
   }
+
+  .lottery-prize {
+    margin: 8px 0 8px;
+    padding-left: 10px;
+    border-left-width: 2.5px;
+  }
+
+  .lottery-prize strong { font-size: 15px; }
+  .lottery-prize small { font-size: 12px; }
 
   .lottery-action-row {
     gap: 8px;
@@ -1198,6 +1487,7 @@
 
   .lottery-join-action.primary {
     flex: 1;
+    min-height: 40px;
   }
 
   .lottery-detail-overlay {
@@ -1207,75 +1497,120 @@
 
   .lottery-detail-modal {
     width: 100%;
-    max-height: min(82dvh, 760px);
-    padding: 26px 20px calc(22px + env(safe-area-inset-bottom));
+    max-height: min(84dvh, 760px);
+    padding: 14px 20px calc(22px + env(safe-area-inset-bottom));
     border-radius: 20px 20px 0 0;
   }
 
+  .lottery-detail-modal::before {
+    content: "";
+    display: block;
+    width: 36px;
+    height: 4px;
+    margin: 0 auto 14px;
+    border-radius: 999px;
+    background: rgba(29,29,31,0.16);
+  }
+
+  .lottery-detail-close {
+    top: 14px;
+    right: 14px;
+    width: 30px;
+    height: 30px;
+  }
+
+  .lottery-detail-header { padding-right: 44px; }
   .lottery-detail-header h2 {
-    font-size: 30px;
+    font-size: 26px;
+    margin-top: 10px;
   }
 
   .lottery-detail-grid {
-    grid-template-columns: 1fr;
-    gap: 14px;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: 12px;
   }
 
   .lottery-detail-grid div {
-    padding: 0;
-    border-left: 0;
+    padding: 0 8px;
+    border-left: 0.5px solid var(--lottery-hairline);
   }
 
+  .lottery-detail-grid div:nth-child(odd) { padding-left: 0; border-left: 0; }
+  .lottery-detail-grid div:nth-child(even) { padding-right: 0; }
+
   .lottery-toast {
-    top: 74px;
+    top: calc(74px + env(safe-area-inset-top));
     right: 14px;
   }
 
   .lottery-modal-enter-from .lottery-detail-modal,
   .lottery-modal-leave-to .lottery-detail-modal {
-    transform: translateY(6%);
+    transform: translateY(8%);
   }
 }
 
 @media (orientation: portrait) and (max-width: 420px) {
   .community-lottery-main {
-    width: min(100% - 24px, 640px);
+    width: min(100% - 20px, 640px);
+    padding: 88px 0 32px;
   }
 
   .community-lottery-header h1 {
-    font-size: 36px;
+    font-size: 32px;
+    letter-spacing: -0.03em;
   }
 
-  .community-lottery-overview {
-    font-size: 11px;
-  }
+  .community-lottery-header p { font-size: 14px; }
 
-  .community-lottery-overview strong {
-    font-size: 13px;
-  }
+  .community-lottery-kicker { font-size: 10px; min-height: 26px; }
 
   .community-lottery-card,
   .community-lottery-card.no-cover,
   .history-card {
-    grid-template-columns: 94px minmax(0, 1fr);
+    grid-template-columns: 96px minmax(0, 1fr);
+    border-radius: 12px;
   }
 
   .community-lottery-card-body {
-    padding: 15px;
+    padding: 12px 12px 10px;
   }
 
+  .community-lottery-card h2 { font-size: 15.5px; }
+  .community-lottery-card .lottery-description { font-size: 11.5px; }
+
+  .lottery-cover-fallback { padding: 12px; }
+  .lottery-cover-fallback strong { font-size: 13px; }
+
   .lottery-card-footer {
-    align-items: stretch;
     flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
   }
+
+  .lottery-submeta { gap: 4px; }
+  .lottery-submeta span { font-size: 11px; }
 
   .lottery-card-actions {
     width: 100%;
+    gap: 6px;
   }
 
   .lottery-card-actions .lottery-join-action {
     flex: 1;
+    min-height: 36px;
+    font-size: 13.5px;
+    padding: 0 14px;
   }
+
+  .lottery-join-action.primary { min-height: 38px; font-size: 14px; }
+
+  .lottery-icon-action { width: 36px; min-width: 36px; height: 36px; min-height: 36px; }
+
+  .lottery-detail-modal { padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); }
+  .lottery-detail-header h2 { font-size: 23px; }
+  .lottery-detail-prize strong { font-size: 19px; }
+
+  .pity-popover { padding: 14px 14px 12px; border-radius: 14px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1304,12 +1639,657 @@
   }
 }
 
+/* ── Apple Minimal Pity + Points 一体化胶囊 ── */
+.lottery-pity-capsule-wrap {
+  position: relative;
+  z-index: 6;
+  display: block;
+  margin-bottom: 14px;
+  isolation: isolate;
+}
+
+/* 兼容旧结构保留 */
+.lottery-pity-points-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lottery-points-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 0.5px solid rgba(29, 29, 31, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--lottery-ink);
+  font-size: 12.5px;
+  font-weight: 590;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  cursor: pointer;
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  transition: background-color 160ms ease, box-shadow 160ms ease, transform 150ms ease;
+}
+
+.lottery-points-capsule:hover { background: rgba(255,255,255,0.82); box-shadow: 0 2px 8px rgba(29,29,31,0.06); }
+.lottery-points-capsule:active { transform: scale(0.97); }
+.lottery-points-capsule.is-guest { opacity: 0.72; }
+.lottery-points-value { font-variant-numeric: tabular-nums; font-weight: 700; }
+.lottery-points-sub { color: var(--lottery-secondary); font-weight: 500; font-size: 12px; }
+.lottery-points-free { color: #86868b; font-weight: 450; font-size: 11.5px; }
+
+.pity-popover-points { color: var(--lottery-secondary); margin-left: 6px; }
+.pity-popover-accelerate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(0,113,227,0.08);
+  color: #0071e3;
+  font-size: 12px;
+  font-weight: 600;
+}
+.pity-accelerate-hint { font-weight: 500; opacity: 0.85; font-size: 11.5px; }
+.pity-popover-accelerate-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: #0071e3;
+  color: #fff;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 650;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,113,227,0.18);
+  transition: background-color 150ms ease, transform 150ms ease, opacity 150ms ease;
+}
+.pity-popover-accelerate-btn:hover { background: #0077ed; }
+.pity-popover-accelerate-btn:active { transform: scale(0.97); }
+.pity-popover-accelerate-btn:disabled { background: rgba(29,29,31,0.10); color: #86868b; box-shadow: none; cursor: not-allowed; }
+
+/* 一体化胶囊 - 更明显的进度条 + 积分融合 */
+.lottery-pity-unified {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 100%;
+  padding: 9px 6px 10px 10px;
+  border: 0.5px solid rgba(29, 29, 31, 0.09);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 2px 12px rgba(29, 29, 31, 0.07), 0 1px 2px rgba(29,29,31,0.04);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  transition: background-color 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.lottery-pity-unified:hover {
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 4px 18px rgba(29, 29, 31, 0.09);
+  border-color: rgba(29,29,31,0.12);
+}
+
+.lottery-pity-unified.variant-due {
+  border-color: rgba(183,121,31,0.18);
+  background: rgba(255, 251, 235, 0.78);
+  box-shadow: 0 2px 12px rgba(183,121,31,0.12), 0 1px 2px rgba(29,29,31,0.04);
+}
+.lottery-pity-unified.variant-free,
+.lottery-pity-unified.variant-guest {
+  border-color: rgba(29,29,31,0.06);
+  background: rgba(255,255,255,0.62);
+}
+.lottery-pity-unified.variant-loading { opacity: 0.92; }
+.lottery-pity-unified.variant-error { border-color: rgba(255,59,48,0.18); }
+
+.pity-unified-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+
+.pity-unified-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+  padding: 0 4px 0 2px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 8px;
+  transition: background-color 150ms ease;
+}
+.pity-unified-main:hover { background: rgba(29,29,31,0.04); }
+.pity-unified-main:active { transform: scale(0.99); }
+
+.pity-unified-divider {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 18px;
+  background: rgba(29,29,31,0.10);
+  margin: 0 2px;
+}
+
+.pity-unified-points {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  min-height: 26px;
+  padding: 0 10px;
+  border: 0.5px solid rgba(29,29,31,0.08);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.72);
+  color: var(--lottery-ink);
+  font-size: 12.5px;
+  font-weight: 590;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  cursor: pointer;
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  transition: background-color 160ms ease, box-shadow 160ms ease, transform 150ms ease, border-color 160ms ease;
+}
+.pity-unified-points:hover { background: rgba(255,255,255,0.92); border-color: rgba(29,29,31,0.12); box-shadow: 0 1px 6px rgba(29,29,31,0.06); }
+.pity-unified-points:active { transform: scale(0.97); }
+.pity-unified-points.is-guest { opacity: 0.72; }
+
+.pity-unified-track-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0 6px 0 2px;
+}
+
+.pity-unified-track {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(29, 29, 31, 0.10);
+  box-shadow: inset 0 1px 1px rgba(0,0,0,0.04);
+  position: relative;
+}
+
+.pity-unified-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #1d1d1f 0%, #2c2c2e 100%);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.06) inset;
+  transition: width 480ms cubic-bezier(0.32, 0.72, 0, 1);
+  position: relative;
+}
+
+/* 进度条上的光泽 */
+.pity-unified-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.18) 50%, transparent 100%);
+  opacity: 0.5;
+}
+
+.lottery-pity-unified.variant-due .pity-unified-fill {
+  background: linear-gradient(90deg, #b7791f 0%, #d4a017 100%);
+  box-shadow: 0 0 8px rgba(183,121,31,0.30);
+}
+.lottery-pity-unified.variant-due .pity-unified-track { background: rgba(183,121,31,0.14); }
+
+.pity-unified-track-label {
+  flex: 0 0 auto;
+  min-width: 32px;
+  text-align: right;
+  color: var(--lottery-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.pity-unified-hint {
+  padding: 0 6px 0 2px;
+  color: var(--lottery-secondary);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.4;
+}
+
+/* 积分加速 - 直接融于进度条，常显入口 */
+.pity-unified-accelerate {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 6px 6px 8px;
+  margin-top: 2px;
+  border-radius: 10px;
+  background: rgba(0, 113, 227, 0.08);
+  border: 0.5px solid rgba(0, 113, 227, 0.10);
+}
+
+.pity-unified-accelerate-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #0071e3;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.pity-unified-accelerate-divider {
+  color: rgba(0, 113, 227, 0.32);
+  font-size: 11px;
+}
+
+.pity-unified-accelerate-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: #0071e3;
+  color: #fff;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,113,227,0.22);
+  transition: background-color 150ms ease, transform 150ms ease, opacity 150ms ease;
+}
+.pity-unified-accelerate-btn:hover { background: #0077ed; }
+.pity-unified-accelerate-btn:active { transform: scale(0.97); }
+.pity-unified-accelerate-btn:disabled {
+  background: rgba(29,29,31,0.10);
+  color: #86868b;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.pity-unified-accelerate-hint {
+  margin-left: auto;
+  color: #86868b;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* 保留旧 pity-capsule 样式以兼容 */
+.lottery-pity-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  max-width: 100%;
+  padding: 4px 4px 4px 13px;
+  border: 0.5px solid rgba(29, 29, 31, 0.09);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 2px 10px rgba(29, 29, 31, 0.06);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  cursor: pointer;
+  transition: background-color 180ms ease, box-shadow 180ms ease, transform 160ms var(--ease-out, cubic-bezier(0.32, 0.72, 0, 1));
+}
+
+.lottery-pity-capsule:hover {
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 4px 16px rgba(29, 29, 31, 0.08);
+}
+
+.lottery-pity-capsule:active {
+  transform: scale(0.985);
+}
+
+.pity-capsule-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.pity-capsule-dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #aeaeb2;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04) inset;
+  transition: background-color 200ms ease, transform 200ms ease, box-shadow 200ms ease;
+}
+
+.pity-capsule-dot.dot-progress { background: #1d1d1f; }
+.pity-capsule-dot.dot-due { background: #b7791f; box-shadow: 0 0 8px rgba(183, 121, 31, 0.35); }
+.pity-capsule-dot.dot-free { background: #aeaeb2; opacity: 0.9; }
+.pity-capsule-dot.dot-guest { background: #aeaeb2; opacity: 0.7; }
+.pity-capsule-dot.dot-loading { background: #aeaeb2; animation: pity-dot-pulse 1.2s ease-in-out infinite; }
+.pity-capsule-dot.dot-error { background: #ff3b30; }
+
+@keyframes pity-dot-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+
+.pity-capsule-label {
+  color: var(--lottery-ink);
+  font-size: 12.5px;
+  font-weight: 590;
+  letter-spacing: -0.08px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pity-capsule-sub {
+  color: var(--lottery-secondary);
+  font-size: 12px;
+  font-weight: 450;
+  letter-spacing: -0.02px;
+  white-space: nowrap;
+  opacity: 0.9;
+}
+
+.pity-capsule-track {
+  flex: 0 0 auto;
+  width: 96px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(29, 29, 31, 0.11);
+  margin-left: 2px;
+}
+
+.pity-capsule-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #1d1d1f;
+  transition: width 420ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.lottery-pity-capsule.variant-due .pity-capsule-fill { background: #b7791f; }
+.lottery-pity-capsule.variant-free .pity-capsule-track,
+.lottery-pity-capsule.variant-guest .pity-capsule-track { display: none; }
+
+.pity-capsule-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(29, 29, 31, 0.07);
+  color: #6e6e73;
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease, transform 150ms ease;
+}
+
+.pity-capsule-help:hover { background: rgba(29, 29, 31, 0.12); color: var(--lottery-ink); }
+.pity-capsule-help:active { transform: scale(0.92); }
+
+/* Popover - 提升层级确保在工具栏之上，竖屏下自适应 */
+.pity-popover {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  z-index: 30;
+  width: min(420px, calc(100vw - 32px));
+  max-width: calc(100% + 16px);
+  padding: 16px 18px 14px;
+  border: 0.5px solid rgba(29, 29, 31, 0.1);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 16px 40px rgba(29, 29, 31, 0.16), 0 1px 3px rgba(29, 29, 31, 0.08);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  transform-origin: top left;
+}
+
+.pity-popover h4 {
+  margin: 0 24px 6px 0;
+  color: var(--lottery-ink);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.06px;
+}
+
+.pity-popover p {
+  margin: 0;
+  color: #515154;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.pity-popover-meta {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 0.5px solid rgba(29, 29, 31, 0.08);
+  color: #6e6e73;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.pity-popover-detail {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+  color: var(--lottery-secondary);
+  font-size: 11.5px;
+  font-weight: 550;
+}
+
+.pity-popover-detail .is-due { color: #b7791f; font-weight: 700; }
+.pity-popover-link {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #0071e3;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pity-popover-link:hover { color: #005bb5; }
+
+.pity-popover-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(29, 29, 31, 0.07);
+  color: #6e6e73;
+  cursor: pointer;
+}
+
+.pity-popover-enter-active, .pity-popover-leave-active {
+  transition: opacity 180ms cubic-bezier(0.32, 0.72, 0, 1), transform 180ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.pity-popover-enter-from, .pity-popover-leave-to { opacity: 0; transform: translateY(-4px) scale(0.99); }
+
+/* Ghost per card — minimal captain */
+.lottery-pity-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 6px;
+  color: #6e6e73;
+  font-size: 11px;
+  font-weight: 540;
+  letter-spacing: -0.02px;
+  line-height: 1.4;
+}
+
+.lottery-pity-ghost.compact { margin: 2px 0 8px; }
+
+.pity-ghost-dot {
+  flex: 0 0 auto;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #aeaeb2;
+  opacity: 0.95;
+}
+
+.ghost-eligible .pity-ghost-dot { background: #1d1d1f; }
+.ghost-eligible .pity-ghost-dot.is-due { background: #b7791f; box-shadow: 0 0 6px rgba(183, 121, 31, 0.4); }
+.ghost-count .pity-ghost-dot { background: #aeaeb2; }
+
+.pity-ghost-extra {
+  color: #515154;
+  font-weight: 500;
+  opacity: 0.9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+}
+
+.lottery-detail-pity {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 14px 0 0;
+  padding: 8px 11px;
+  border-radius: 999px;
+  background: rgba(29, 29, 31, 0.06);
+  color: #515154;
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.lottery-detail-pity .pity-ghost-dot { width: 6px; height: 6px; }
+.lottery-detail-pity.pity-eligible { background: rgba(29, 29, 31, 0.07); }
+
+@media (max-width: 760px) {
+  .lottery-pity-capsule-wrap { margin-bottom: 12px; }
+  .lottery-pity-unified { padding: 8px 5px 9px 9px; border-radius: 14px; gap: 7px; }
+  .pity-unified-points { min-height: 24px; padding: 0 9px; font-size: 12px; }
+  .pity-unified-divider { height: 16px; }
+  .pity-unified-track { height: 6px; }
+  .pity-unified-accelerate { padding: 6px 8px; gap: 6px; flex-wrap: wrap; }
+  .pity-unified-accelerate-text { font-size: 11px; }
+  .pity-unified-accelerate-btn { font-size: 11px; min-height: 22px; }
+  .pity-capsule-track { width: 72px; }
+  .pity-capsule-label { font-size: 12px; }
+  .pity-popover {
+    left: 0;
+    right: 0;
+    width: auto;
+    max-width: none;
+    /* 竖屏下自适应 wrap 宽度，避免被 viewport 或 toolbar 裁切 */
+  }
+}
+
+:global([data-theme="dark"]) .lottery-select-trigger {
+  background: rgba(58,58,60,0.82);
+  border-color: rgba(255,255,255,0.12);
+  color: #f5f5f7;
+}
+:global([data-theme="dark"]) .lottery-select-menu {
+  background: rgba(44,44,46,0.96);
+  border-color: rgba(255,255,255,0.12);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+}
+:global([data-theme="dark"]) .lottery-select-menu li { color: #c7c7cc; }
+:global([data-theme="dark"]) .lottery-select-menu li:hover { background: rgba(255,255,255,0.08); color: #f5f5f7; }
+:global([data-theme="dark"]) .lottery-select-menu li.active { background: rgba(0,122,255,0.18); color: #0a84ff; }
+
+:global([data-theme="dark"]) .lottery-points-capsule {
+  background: rgba(44,44,46,0.72);
+  border-color: rgba(255,255,255,0.1);
+  color: #f5f5f7;
+}
+:global([data-theme="dark"]) .pity-popover-accelerate { background: rgba(0,122,255,0.16); color: #0a84ff; }
+
+:global([data-theme="dark"]) .lottery-pity-unified {
+  background: rgba(44, 44, 46, 0.78);
+  border-color: rgba(255, 255, 255, 0.10);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.24);
+}
+:global([data-theme="dark"]) .lottery-pity-unified:hover { background: rgba(58, 58, 60, 0.84); }
+:global([data-theme="dark"]) .pity-unified-divider { background: rgba(255,255,255,0.12); }
+:global([data-theme="dark"]) .pity-unified-points {
+  background: rgba(58,58,60,0.82);
+  border-color: rgba(255,255,255,0.10);
+  color: #f5f5f7;
+}
+:global([data-theme="dark"]) .pity-unified-track { background: rgba(255,255,255,0.14); }
+:global([data-theme="dark"]) .pity-unified-fill { background: linear-gradient(90deg, #f5f5f7 0%, #e5e5ea 100%); }
+:global([data-theme="dark"]) .lottery-pity-unified.variant-due .pity-unified-fill { background: linear-gradient(90deg, #e0a23a 0%, #f0c040 100%); }
+:global([data-theme="dark"]) .lottery-pity-unified.variant-due .pity-unified-track { background: rgba(224,162,58,0.18); }
+:global([data-theme="dark"]) .pity-unified-track-label { color: #a1a1a6; }
+:global([data-theme="dark"]) .pity-unified-hint { color: #a1a1a6; }
+:global([data-theme="dark"]) .pity-unified-accelerate { background: rgba(0,122,255,0.14); border-color: rgba(0,122,255,0.18); }
+:global([data-theme="dark"]) .pity-unified-accelerate-text { color: #0a84ff; }
+:global([data-theme="dark"]) .pity-popover-accelerate-btn { background: #0a84ff; }
+
+:global([data-theme="dark"]) .lottery-pity-capsule {
+  background: rgba(44, 44, 46, 0.72);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.22);
+}
+:global([data-theme="dark"]) .lottery-pity-capsule:hover { background: rgba(58, 58, 60, 0.82); }
+:global([data-theme="dark"]) .pity-capsule-dot.dot-progress { background: #f5f5f7; }
+:global([data-theme="dark"]) .pity-capsule-track { background: rgba(255, 255, 255, 0.14); }
+:global([data-theme="dark"]) .pity-capsule-fill { background: #f5f5f7; }
+:global([data-theme="dark"]) .lottery-pity-capsule.variant-due .pity-capsule-fill { background: #e0a23a; }
+:global([data-theme="dark"]) .pity-capsule-help { background: rgba(255,255,255,0.1); color: #a1a1a6; }
+:global([data-theme="dark"]) .pity-popover {
+  background: rgba(44, 44, 46, 0.88);
+  border-color: rgba(255,255,255,0.12);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.4);
+}
+:global([data-theme="dark"]) .pity-popover p { color: #c7c7cc; }
+:global([data-theme="dark"]) .lottery-pity-ghost { color: #a1a1a6; }
+:global([data-theme="dark"]) .ghost-eligible .pity-ghost-dot { background: #f5f5f7; }
+:global([data-theme="dark"]) .ghost-eligible .pity-ghost-dot.is-due { background: #e0a23a; }
+:global([data-theme="dark"]) .lottery-detail-pity { background: rgba(255,255,255,0.08); color: #c7c7cc; }
+
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   .community-lottery-toolbar,
   .lottery-featured-content,
   .community-lottery-card,
   .lottery-detail-modal,
-  .community-lottery-empty {
+  .community-lottery-empty,
+  .lottery-pity-unified,
+  .pity-popover {
     background: #ffffff;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;

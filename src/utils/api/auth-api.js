@@ -510,17 +510,18 @@ export async function getAllProfiles() {
   );
 }
 
-export async function getProfilesPage({ page = 1, pageSize = 10, search = '', countMode = 'planned' } = {}) {
+export async function getProfilesPage({ page = 1, pageSize = 10, search = '', countMode = 'planned', onlyRecentActive = false } = {}) {
   const safePage = Number.isFinite(page) ? Math.max(1, Math.trunc(page)) : 1;
   const safePageSize = Number.isFinite(pageSize) ? Math.min(100, Math.max(1, Math.trunc(pageSize))) : 10;
   const safeSearch = String(search || '').trim();
   const safeCountMode = ['exact', 'planned', 'estimated'].includes(countMode) ? countMode : 'planned';
+  const safeOnlyRecentActive = Boolean(onlyRecentActive);
   const from = (safePage - 1) * safePageSize;
   const to = from + safePageSize - 1;
 
   return executeRead(
     'profiles.getProfilesPage',
-    { page: safePage, pageSize: safePageSize, search: safeSearch, countMode: safeCountMode },
+    { page: safePage, pageSize: safePageSize, search: safeSearch, countMode: safeCountMode, onlyRecentActive: safeOnlyRecentActive },
     async () => {
       let query = supabase
         .from('profiles')
@@ -540,6 +541,11 @@ export async function getProfilesPage({ page = 1, pageSize = 10, search = '', co
         .order('last_active_at', { ascending: false, nullsFirst: false })
         .order('username', { ascending: true })
         .range(from, to);
+
+      if (safeOnlyRecentActive) {
+        const thresholdIso = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+        query = query.gte('last_active_at', thresholdIso).eq('hide_online_status', false);
+      }
 
       if (safeSearch) {
         query = query.ilike('username', `%${escapeLikePattern(safeSearch)}%`);

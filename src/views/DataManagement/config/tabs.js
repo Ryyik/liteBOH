@@ -28,6 +28,7 @@ export const tabs = [
   { id: 'shopOrders', label: '商城订单', icon: '🛒', module: 'shop' },
   { id: 'products', label: '商品管理', icon: '🎁', module: 'shop' },
   { id: 'forum', label: '论坛帖子', icon: '💬', module: 'community' },
+  { id: 'ads', label: '广告管理', icon: '📢', module: 'community' },
   { id: 'forumWeeklyCheckins', label: '每周签到', icon: '📅', module: 'community' },
   { id: 'forumPostImages', label: '图片审核', icon: '🖼️', module: 'community' },
   { id: 'forumPostReports', label: '举报明细', icon: '🚩', module: 'community' },
@@ -45,14 +46,10 @@ export const tabs = [
   { id: 'moderationLogs', label: '审核日志', icon: '📝', module: 'moderation' },
   { id: 'notifications', label: '通知管理', icon: '🔔', module: 'moderation' },
   { id: 'lotteries', label: '抽奖管理', icon: '🎲', module: 'lottery' },
-  { id: 'lotteryFulfillments', label: '中奖履约', icon: '📦', module: 'lottery' },
-  { id: 'lotteryEntries', label: '抽奖报名', icon: '🧾', module: 'lottery' },
-  { id: 'lotteryDrawLogs', label: '开奖日志', icon: '🏆', module: 'lottery' },
-  { id: 'lotteryFailureStats', label: '失败统计', icon: '📉', module: 'lottery' },
-  { id: 'lotterySchedulerLogs', label: '任务记录', icon: '⚙️', module: 'lottery' },
-  { id: 'lotteryNotificationJobs', label: '中奖通知', icon: '📣', module: 'lottery' },
-  { id: 'lotteryJoinAttempts', label: '报名风控', icon: '🛡️', module: 'lottery' },
-  { id: 'lotteryAuditLogs', label: '操作审计', icon: '📜', module: 'lottery' },
+  { id: 'lotteryFulfillments', label: '履约与通知', icon: '📦', module: 'lottery' },
+  { id: 'lotteryEntries', label: '报名明细', icon: '🧾', module: 'lottery' },
+  { id: 'lotteryAuditLogs', label: '运行审计', icon: '📜', module: 'lottery' },
+  { id: 'pity-grant', label: '保底中心', icon: '🛡️', module: 'lottery', type: 'page' },
   { id: 'api-keys', label: 'API Key', icon: '🔑', module: 'ai-config', type: 'page' },
   { id: 'freemodels', label: '免费模型库', icon: '🆓', module: 'ai-config', type: 'page' },
   { id: 'bohaiModels', label: 'BOHAI 模型', icon: '🤖', module: 'ai-config', type: 'table' },
@@ -64,7 +61,8 @@ export const tabs = [
   { id: 'labUsageRecords', label: '实验室用量', icon: '🧪', module: 'logs' },
   { id: 'cloudinaryUploads', label: '上传队列', icon: '☁️', module: 'logs' },
   { id: 'userFollows', label: '关注关系', icon: '👥', module: 'logs' },
-  { id: 'userImpressions', label: '访客记录', icon: '👁️', module: 'logs' }
+  { id: 'userImpressions', label: '访客记录', icon: '👁️', module: 'logs' },
+  { id: 'lotterySchedulerLogs', label: '抽奖调度', icon: '⚙️', module: 'logs' }
 ];
 
 export const tabModules = [
@@ -110,7 +108,7 @@ export const tabModules = [
     icon: MessageCircle,
     section: 'data',
     defaultTab: 'forum',
-    tabIds: ['forum', 'forumWeeklyCheckins', 'forumPostImages', 'forumPostReports', 'blockWallItems'],
+    tabIds: ['forum', 'ads', 'forumWeeklyCheckins', 'forumPostImages', 'forumPostReports', 'blockWallItems'],
     description: '论坛、签到、图片审核、举报和方块墙'
   },
   {
@@ -153,8 +151,8 @@ export const tabModules = [
     icon: Gift,
     section: 'data',
     defaultTab: 'lotteries',
-    tabIds: ['lotteries', 'lotteryFulfillments', 'lotteryEntries', 'lotteryDrawLogs', 'lotteryFailureStats', 'lotterySchedulerLogs', 'lotteryNotificationJobs', 'lotteryJoinAttempts', 'lotteryAuditLogs'],
-    description: '抽奖配置、履约、开奖、通知、风控和审计'
+    tabIds: ['lotteries', 'lotteryFulfillments', 'lotteryEntries', 'lotteryAuditLogs', 'pity-grant'],
+    description: '抽奖配置、履约与通知、报名明细、运行审计和保底中心'
   },
   {
     id: 'ai-config',
@@ -171,8 +169,8 @@ export const tabModules = [
     icon: Activity,
     section: 'data',
     defaultTab: 'aiWebSearchLog',
-    tabIds: ['aiWebSearchLog', 'apiKeyAuditLogs', 'labUsageRecords', 'cloudinaryUploads', 'userFollows', 'userImpressions'],
-    description: 'AI搜索、Key审计、实验室、上传、关注和访客日志'
+    tabIds: ['aiWebSearchLog', 'apiKeyAuditLogs', 'labUsageRecords', 'cloudinaryUploads', 'userFollows', 'userImpressions', 'lotterySchedulerLogs'],
+    description: 'AI搜索、Key审计、实验室、上传、关注、访客与抽奖调度日志'
   },
   {
     id: 'system',
@@ -199,6 +197,7 @@ export const TABS_ACTIONS = {
   posterRequests: ['view', 'edit'],
   shopOrders: ['view', 'edit'],
   forum: ['view', 'create', 'edit', 'delete'],
+  ads: ['view', 'create', 'edit', 'delete'],
   forumWeeklyCheckins: ['view'],
   forumPostImages: ['view'],
   forumPostReports: ['view'],
@@ -310,7 +309,7 @@ export const ADMIN_PAGE_META = {
   lottery: {
     eyebrow: 'Lottery',
     title: '抽奖管理',
-    description: '配置抽奖活动、查看报名和开奖记录。',
+    description: '抽奖管理、履约与通知、报名明细、运行审计与保底中心。',
     icon: Gift
   },
   'ai-config': {

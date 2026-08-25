@@ -121,6 +121,30 @@ export const SAVE_STRATEGIES = {
     });
   },
 
+  ads: async ({ editingItem }) => {
+    const normalizedTitle = String(editingItem.title || '').trim();
+    const normalizedPlacement = String(editingItem.placement || '').trim();
+    const normalizedStatus = String(editingItem.status || 'inactive').trim() || 'inactive';
+    const normalizedFeedInterval = Number(editingItem.feed_interval);
+
+    if (!normalizedTitle) throw new Error('广告名称不能为空');
+    if (!normalizedPlacement) throw new Error('请选择广告位');
+    if (Number.isInteger(normalizedFeedInterval) && normalizedFeedInterval < 2) {
+      throw new Error('信息流间隔必须大于等于 2');
+    }
+
+    return pickWritableFields('ads', {
+      title: normalizedTitle,
+      placement: normalizedPlacement,
+      status: normalizedStatus,
+      image_url: String(editingItem.image_url || '').trim() || null,
+      link_url: String(editingItem.link_url || '').trim() || null,
+      sort_order: editingItem.sort_order != null ? Number(editingItem.sort_order) : 0,
+      feed_interval: Number.isInteger(normalizedFeedInterval) ? normalizedFeedInterval : 5,
+      updated_at: new Date().toISOString()
+    });
+  },
+
   subscriptions: async ({ editingItem }) => {
     const normalizedUserId = String(editingItem.user_id || '').trim();
     const normalizedPlanCode = String(editingItem.plan_code || '').trim();

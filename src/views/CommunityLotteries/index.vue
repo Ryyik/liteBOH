@@ -17,6 +17,66 @@
         </div>
       </header>
 
+      <section class="lottery-pity-capsule-wrap" aria-label="抽奖保底与积分">
+        <!-- 一体化保底+积分胶囊：进度条更明显，与积分融为一体 -->
+        <div class="lottery-pity-unified" :class="pityCapsuleVariantClass">
+          <div class="pity-unified-top">
+            <button
+              type="button"
+              class="pity-unified-main"
+              :aria-busy="pityLoading ? 'true' : 'false'"
+              :aria-label="pityCapsuleLabel"
+              @click="handlePityCapsuleClick"
+              @keydown.enter.prevent="handlePityCapsuleClick"
+              @keydown.space.prevent="handlePityCapsuleClick"
+            >
+              <span class="pity-capsule-dot" :class="pityDotClass" aria-hidden="true"></span>
+              <span class="pity-capsule-label">{{ pityCapsuleLabel }}</span>
+              <span v-if="pityCapsuleSub" class="pity-capsule-sub">{{ pityCapsuleSub }}</span>
+            </button>
+            <span class="pity-unified-divider" aria-hidden="true"></span>
+            <button v-if="isLoggedIn" type="button" class="pity-unified-points" aria-label="当前方块积分，去积分明细" @click="goToPoints">
+              <Coins :size="13" :stroke-width="2" aria-hidden="true" />
+              <span class="lottery-points-value">{{ userPointsDisplay }}</span>
+              <span class="lottery-points-sub">积分</span>
+              <span class="lottery-points-free">· 参与免费</span>
+            </button>
+            <button v-else type="button" class="pity-unified-points is-guest" @click="showLoginModal = true">
+              <Coins :size="13" :stroke-width="2" aria-hidden="true" />
+              <span>登录查看积分</span>
+            </button>
+            <button type="button" class="pity-capsule-help" :aria-label="showPityPopover ? '关闭保底说明' : '查看保底说明'" @click.stop="togglePityPopover">
+              <HelpCircle :size="14" :stroke-width="2" aria-hidden="true" />
+            </button>
+          </div>
+          <div v-if="pityShowTrack" class="pity-unified-track-wrap">
+            <div class="pity-unified-track" role="progressbar" :aria-valuenow="pityStatus?.consecutiveLosses || 0" :aria-valuemin="0" :aria-valuemax="pityStatus?.threshold || 1" aria-label="保底进度">
+              <div class="pity-unified-fill" :style="{ width: pityProgressPercent + '%' }"></div>
+            </div>
+            <span class="pity-unified-track-label" aria-hidden="true">{{ pityProgressPercent }}%</span>
+          </div>
+          <div v-else-if="!pityShowTrack && isLoggedIn && pityStatus && !pityStatus.eligible" class="pity-unified-hint">订阅后开启保底进度 · 当前 {{ userPointsDisplay }} 积分可用</div>
+        </div>
+        <!-- 弹窗使用 fixed 蒙层方式避免被工具栏/页面 clip 裁切；竖屏下全宽居中 -->
+        <Transition name="pity-popover">
+          <div v-if="showPityPopover" class="pity-popover" role="dialog" aria-label="保底规则说明" @click.stop>
+            <button class="pity-popover-close" type="button" aria-label="关闭保底说明" @click="showPityPopover = false"><X :size="14" aria-hidden="true" /></button>
+            <h4>保底规则</h4>
+            <p>仅「计入并兑现」与「仅计入」活动会累计连续未中奖场次；Free 账户不累计；中奖后清零，达到阈值后下一次参与「计入并兑现」活动可获得保底礼。</p>
+            <div class="pity-popover-meta"><span>阈值 · Plus 24 · Pro 18 · Max 12 · Ultra 8</span><span v-if="isLoggedIn" class="pity-popover-points">· 当前 {{ userPointsDisplay }} 积分</span></div>
+            <div v-if="pityStatus?.eligible" class="pity-popover-detail">
+              <span>当前 {{ pityStatus.consecutiveLosses }} / {{ pityStatus.threshold }} 场</span>
+              <span v-if="!pityStatus.isDue">还差 {{ pityStatus.remainingLosses }} 场</span>
+              <span v-else class="is-due">已就绪，下次可兑现</span>
+            </div>
+            <div v-else-if="isLoggedIn && pityStatus && !pityStatus.eligible" class="pity-popover-detail">
+              <span>Free 不累计进度</span>
+              <button type="button" class="pity-popover-link" @click="goToSubscription">查看会员方案 ›</button>
+            </div>
+          </div>
+        </Transition>
+      </section>
+
       <div class="community-lottery-toolbar">
         <div class="community-lottery-tabs" role="tablist" aria-label="抽奖筛选">
           <button :class="{ active: activeTab === 'active' }" :aria-selected="activeTab === 'active'" @click="activeTab = 'active'">进行中</button>
@@ -24,22 +84,33 @@
         </div>
 
         <div v-if="activeTab === 'history'" class="lottery-filter-row" aria-label="历史抽奖筛选">
-          <select v-model="historyStatusFilter" aria-label="历史状态筛选">
-            <option value="all">全部历史</option>
-            <option value="drawn">已开奖</option>
-            <option value="closed">已关闭</option>
-          </select>
-          <select v-model="historySort" aria-label="历史排序">
-            <option value="latest">最新开奖</option>
-            <option value="created">最新创建</option>
-            <option value="entries">参与人数</option>
-          </select>
+          <div class="lottery-custom-select" :class="{ open: showStatusFilterMenu }" @click.stop>
+            <button type="button" class="lottery-select-trigger" :aria-expanded="showStatusFilterMenu" aria-haspopup="listbox" aria-label="历史状态筛选" @click="toggleStatusFilterMenu">
+              <span class="lottery-select-value">{{ statusFilterLabel }}</span>
+              <ChevronDown :size="14" :stroke-width="2.2" class="lottery-select-chevron" :class="{ rotated: showStatusFilterMenu }" aria-hidden="true" />
+            </button>
+            <Transition name="lottery-select">
+              <ul v-if="showStatusFilterMenu" class="lottery-select-menu" role="listbox" aria-label="历史状态筛选">
+                <li v-for="opt in statusFilterOptions" :key="opt.value" role="option" :aria-selected="historyStatusFilter === opt.value" :class="{ active: historyStatusFilter === opt.value }" @click="selectStatusFilter(opt.value)">{{ opt.label }}</li>
+              </ul>
+            </Transition>
+          </div>
+          <div class="lottery-custom-select" :class="{ open: showSortMenu }" @click.stop>
+            <button type="button" class="lottery-select-trigger" :aria-expanded="showSortMenu" aria-haspopup="listbox" aria-label="历史排序" @click="toggleSortMenu">
+              <span class="lottery-select-value">{{ sortLabel }}</span>
+              <ChevronDown :size="14" :stroke-width="2.2" class="lottery-select-chevron" :class="{ rotated: showSortMenu }" aria-hidden="true" />
+            </button>
+            <Transition name="lottery-select">
+              <ul v-if="showSortMenu" class="lottery-select-menu" role="listbox" aria-label="历史排序">
+                <li v-for="opt in sortOptions" :key="opt.value" role="option" :aria-selected="historySort === opt.value" :class="{ active: historySort === opt.value }" @click="selectSort(opt.value)">{{ opt.label }}</li>
+              </ul>
+            </Transition>
+          </div>
         </div>
 
         <div class="community-lottery-overview" aria-label="抽奖概览">
-          <span><Trophy :size="15" aria-hidden="true" /><strong>{{ activeLotteries.length }}</strong> 进行中</span>
-          <span><History :size="15" aria-hidden="true" /><strong>{{ historyLotteries.length }}</strong> 历史</span>
-          <span><Users :size="15" aria-hidden="true" /><strong>{{ totalEntryCount }}</strong> 已报名</span>
+          <span><Trophy :size="14" aria-hidden="true" /><strong>{{ activeLotteries.length }}</strong> 进行中</span>
+          <span><History :size="14" aria-hidden="true" /><strong>{{ historyLotteries.length }}</strong> 历史</span>
         </div>
       </div>
 
@@ -72,6 +143,11 @@
               </div>
 
               <h2>{{ primaryActiveLottery.title }}</h2>
+              <p v-if="getPityGhost(primaryActiveLottery)" class="lottery-pity-ghost" :class="`ghost-${getPityGhost(primaryActiveLottery).dot}`">
+                <span class="pity-ghost-dot" :class="{ 'is-due': getPityGhost(primaryActiveLottery).isDue }"></span>
+                <span>{{ getPityGhost(primaryActiveLottery).text }}</span>
+                <span v-if="getPityGhost(primaryActiveLottery).extra" class="pity-ghost-extra">{{ getPityGhost(primaryActiveLottery).extra }}</span>
+              </p>
               <p v-if="primaryActiveLottery.description" class="lottery-description">{{ primaryActiveLottery.description }}</p>
 
               <div class="lottery-countdown-panel" v-if="lotteryCountdownText(primaryActiveLottery)">
@@ -118,12 +194,15 @@
                 >
                   {{ getJoinButtonText(primaryActiveLottery) }}
                 </button>
+                <button type="button" class="lottery-boost-action" disabled title="积分加注 +1 注需 5 积分（即将开放）" aria-label="积分加注">
+                  <Coins :size="14" :stroke-width="2" aria-hidden="true" /> 加注
+                </button>
                 <button type="button" class="lottery-icon-action" title="查看抽奖详情" aria-label="查看抽奖详情" @click="openLotteryDetail(primaryActiveLottery)"><Info :size="18" aria-hidden="true" /></button>
                 <button type="button" class="lottery-icon-action" title="分享抽奖" aria-label="分享抽奖" @click="copyLotteryLink(primaryActiveLottery)"><Share2 :size="18" aria-hidden="true" /></button>
               </div>
 
               <p class="lottery-eligibility">
-                每个账号每期仅可报名一次。<template v-if="primaryActiveLottery.enforce_account_age_check">账号创建满 24 小时后可参与。</template>
+                每个账号每期仅可报名一次。<template v-if="primaryActiveLottery.enforce_account_age_check">账号创建满 24 小时后可参与。</template> · 参与计入保底，未来参与奖可获积分回馈。
               </p>
             </div>
           </article>
@@ -150,6 +229,11 @@
                 </div>
 
                 <h2>{{ lottery.title }}</h2>
+                <p v-if="getPityGhost(lottery)" class="lottery-pity-ghost compact" :class="`ghost-${getPityGhost(lottery).dot}`">
+                  <span class="pity-ghost-dot" :class="{ 'is-due': getPityGhost(lottery).isDue }"></span>
+                  <span>{{ getPityGhost(lottery).text }}</span>
+                  <span v-if="getPityGhost(lottery).extra" class="pity-ghost-extra">{{ getPityGhost(lottery).extra }}</span>
+                </p>
                 <p v-if="lottery.description" class="lottery-description">{{ lottery.description }}</p>
 
                 <div class="lottery-prize">
@@ -196,6 +280,7 @@
                     >
                       {{ getJoinButtonText(lottery) }}
                     </button>
+                    <button type="button" class="lottery-boost-action compact" disabled title="积分加注即将开放"><Coins :size="12" :stroke-width="2" aria-hidden="true" /></button>
                     <button type="button" class="lottery-icon-action" title="查看抽奖详情" aria-label="查看抽奖详情" @click="openLotteryDetail(lottery)"><ChevronRight :size="18" aria-hidden="true" /></button>
                   </div>
                 </div>
@@ -299,6 +384,12 @@
               <p v-if="selectedLottery.prize_description">{{ selectedLottery.prize_description }}</p>
             </div>
 
+            <div v-if="selectedLottery.pity_mode && selectedLottery.pity_mode !== 'none'" class="lottery-detail-pity" :class="`pity-${selectedLottery.pity_mode}`">
+              <span class="pity-ghost-dot" :class="{ 'is-due': pityStatus?.isDue && selectedLottery.pity_mode === 'eligible' }"></span>
+              <span v-if="selectedLottery.pity_mode === 'eligible'">此活动计入并兑现保底<span v-if="selectedLottery.pity_reward_title"> · 保底礼《{{ selectedLottery.pity_reward_title }}》</span></span>
+              <span v-else>此活动仅计入保底，不兑现</span>
+            </div>
+
             <div class="lottery-detail-grid">
               <div>
                 <span>报名人数</span>
@@ -357,15 +448,22 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import { ChevronRight, History, Info, Share2, Ticket, Trophy, Users, X } from 'lucide-vue-next';
+import { ChevronDown, ChevronRight, Coins, HelpCircle, History, Info, Share2, Ticket, Trophy, Users, X } from 'lucide-vue-next';
 import { useAuthStore } from '@/stores/auth';
 import { getImageUrl } from '../../utils/asset-helper.js';
 import { getCommunityLotteries, joinCommunityLottery } from '../../utils/api/lottery-api.js';
+import { getMyLotteryPityStatus } from '../../utils/api/subscription-api.js';
 
 const authStore = useAuthStore();
-const { isLoggedIn, showLoginModal } = storeToRefs(authStore);
+const { isLoggedIn, showLoginModal, userInfo } = storeToRefs(authStore);
 const route = useRoute();
 const router = useRouter();
+
+const userPoints = computed(() => Number(userInfo.value?.points || 0));
+const userPointsDisplay = computed(() => userPoints.value.toLocaleString());
+const goToPoints = () => {
+  router.push('/user-space?tab=profile&view=assets').catch(() => router.push('/user-space').catch(()=>{}));
+};
 
 const lotteries = ref([]);
 const isLoading = ref(true);
@@ -374,8 +472,48 @@ const joiningLotteryId = ref('');
 const activeTab = ref('active');
 const historyStatusFilter = ref('all');
 const historySort = ref('latest');
+const showStatusFilterMenu = ref(false);
+const showSortMenu = ref(false);
 const now = ref(Date.now());
+
+const statusFilterOptions = [
+  { value: 'all', label: '全部历史' },
+  { value: 'drawn', label: '已开奖' },
+  { value: 'closed', label: '已关闭' }
+];
+const sortOptions = [
+  { value: 'latest', label: '最新开奖' },
+  { value: 'created', label: '最新创建' },
+  { value: 'entries', label: '参与人数' }
+];
+const statusFilterLabel = computed(() => statusFilterOptions.find((o) => o.value === historyStatusFilter.value)?.label || '全部历史');
+const sortLabel = computed(() => sortOptions.find((o) => o.value === historySort.value)?.label || '最新开奖');
+
+const toggleStatusFilterMenu = () => {
+  showStatusFilterMenu.value = !showStatusFilterMenu.value;
+  if (showStatusFilterMenu.value) showSortMenu.value = false;
+};
+const toggleSortMenu = () => {
+  showSortMenu.value = !showSortMenu.value;
+  if (showSortMenu.value) showStatusFilterMenu.value = false;
+};
+const selectStatusFilter = (value) => {
+  historyStatusFilter.value = value;
+  showStatusFilterMenu.value = false;
+};
+const selectSort = (value) => {
+  historySort.value = value;
+  showSortMenu.value = false;
+};
+const closeFilterMenus = () => {
+  showStatusFilterMenu.value = false;
+  showSortMenu.value = false;
+};
 const selectedLottery = ref(null);
+const pityStatus = ref(null);
+const pityLoading = ref(false);
+const pityError = ref('');
+const showPityPopover = ref(false);
 const toast = ref({
   show: false,
   type: 'info',
@@ -398,6 +536,42 @@ const historyLotteries = computed(() => lotteries.value.filter((lottery) => lott
 const primaryActiveLottery = computed(() => activeLotteries.value[0] || null);
 const secondaryActiveLotteries = computed(() => activeLotteries.value.slice(1));
 const totalEntryCount = computed(() => lotteries.value.reduce((total, lottery) => total + Number(lottery.entry_count || 0), 0));
+
+const pityProgressPercent = computed(() => {
+  if (!pityStatus.value?.eligible || !pityStatus.value.threshold) return 0;
+  return Math.min(100, Math.round((Number(pityStatus.value.consecutiveLosses || 0) / Number(pityStatus.value.threshold)) * 100));
+});
+const pityShowTrack = computed(() => Boolean(pityStatus.value?.eligible && pityStatus.value.threshold > 0));
+const pityCapsuleLabel = computed(() => {
+  if (pityLoading.value) return '正在读取保底';
+  if (!isLoggedIn.value) return '登录查看保底';
+  if (pityError.value) return '保底暂不可用';
+  if (!pityStatus.value) return '保底读取中';
+  if (!pityStatus.value.eligible) return '订阅后开启保底';
+  if (pityStatus.value.isDue) return `${pityStatus.value.consecutiveLosses}/${pityStatus.value.threshold} · 下次可兑现`;
+  return `${pityStatus.value.consecutiveLosses}/${pityStatus.value.threshold} · 还差${pityStatus.value.remainingLosses}场`;
+});
+const pityCapsuleSub = computed(() => {
+  if (pityLoading.value || !isLoggedIn.value || pityError.value || !pityStatus.value?.eligible) return '';
+  if (pityStatus.value.isDue) return '';
+  return '';
+});
+const pityCapsuleVariantClass = computed(() => {
+  if (!isLoggedIn.value) return 'variant-guest';
+  if (pityLoading.value) return 'variant-loading';
+  if (pityError.value || !pityStatus.value) return 'variant-error';
+  if (!pityStatus.value.eligible) return 'variant-free';
+  if (pityStatus.value.isDue) return 'variant-due';
+  return 'variant-progress';
+});
+const pityDotClass = computed(() => {
+  if (!isLoggedIn.value) return 'dot-guest';
+  if (pityLoading.value) return 'dot-loading';
+  if (pityError.value || !pityStatus.value) return 'dot-error';
+  if (!pityStatus.value.eligible) return 'dot-free';
+  if (pityStatus.value.isDue) return 'dot-due';
+  return 'dot-progress';
+});
 
 const visibleHistoryLotteries = computed(() => {
   const filtered = historyLotteries.value.filter((lottery) => (
@@ -474,6 +648,87 @@ const applyLotteries = (data) => {
       .map((lottery) => lottery.id)
   );
   syncNowTimer();
+};
+
+const loadPityStatus = async () => {
+  if (!isLoggedIn.value) {
+    pityStatus.value = null;
+    pityError.value = '';
+    pityLoading.value = false;
+    return;
+  }
+  pityLoading.value = true;
+  pityError.value = '';
+  try {
+    const { ok, data, error } = await getMyLotteryPityStatus();
+    if (!ok) throw error || new Error('保底不可用');
+    pityStatus.value = data;
+  } catch (error) {
+    pityError.value = error?.message || '保底暂不可用';
+    pityStatus.value = null;
+  } finally {
+    pityLoading.value = false;
+  }
+};
+
+const togglePityPopover = () => {
+  showPityPopover.value = !showPityPopover.value;
+};
+
+const handlePityCapsuleClick = () => {
+  if (!isLoggedIn.value) {
+    showLoginModal.value = true;
+    return;
+  }
+  togglePityPopover();
+};
+
+const goToSubscription = () => {
+  showPityPopover.value = false;
+  router.push('/user-space?tab=profile&view=assets').catch(() => {
+    router.push('/user-space/subscriptions').catch(() => {});
+  });
+};
+
+const getPityGhost = (lottery) => {
+  if (!lottery || lottery.status !== 'open') return null;
+  const mode = String(lottery.pity_mode || '').trim().toLowerCase();
+  if (mode === 'none') return null;
+  if (mode === 'eligible') {
+    const title = String(lottery.pity_reward_title || '').trim();
+    const extra = title ? `· ${title}` : '';
+    return {
+      text: '计入并兑现保底',
+      extra,
+      dot: 'eligible',
+      isDue: Boolean(pityStatus.value?.isDue)
+    };
+  }
+  if (mode === 'count_only') {
+    return { text: '仅计入保底', extra: '', dot: 'count', isDue: false };
+  }
+  return null;
+};
+
+const handlePityOutsideClick = (event) => {
+  const target = event.target;
+  if (showPityPopover.value) {
+    const wrap = document.querySelector('.lottery-pity-capsule-wrap');
+    if (wrap && !wrap.contains(target)) showPityPopover.value = false;
+  }
+  if (showStatusFilterMenu.value || showSortMenu.value) {
+    const selects = document.querySelectorAll('.lottery-custom-select');
+    let inside = false;
+    selects.forEach((el) => { if (el.contains(target)) inside = true; });
+    if (!inside) closeFilterMenus();
+  }
+};
+
+const handleGlobalKeydown = (event) => {
+  if (event.key === 'Escape') {
+    showPityPopover.value = false;
+    closeFilterMenus();
+  }
 };
 
 const loadLotteries = async ({ force = false } = {}) => {
@@ -649,7 +904,7 @@ const handleJoinLottery = async (lottery) => {
     const { data, error } = await joinCommunityLottery(lottery.id);
     if (error) throw error;
     if (!data?.ok) throw new Error(String(data?.message || '报名失败'));
-    await loadLotteries({ force: true });
+    await Promise.all([loadLotteries({ force: true }), loadPityStatus()]);
     const latestLottery = lotteries.value.find((item) => item.id === lottery.id);
     if (selectedLottery.value?.id === lottery.id && latestLottery) {
       selectedLottery.value = latestLottery;
@@ -658,7 +913,7 @@ const handleJoinLottery = async (lottery) => {
   } catch (error) {
     console.warn('社区抽奖报名失败:', error);
     showPageToast('报名失败', error?.message || '请稍后再试。', 'error');
-    await loadLotteries({ force: true });
+    await Promise.all([loadLotteries({ force: true }), loadPityStatus()]);
   } finally {
     joiningLotteryId.value = '';
   }
@@ -742,7 +997,10 @@ const handleVisibilityChange = () => {
 
 onMounted(() => {
   document.addEventListener('visibilitychange', handleVisibilityChange);
+  document.addEventListener('click', handlePityOutsideClick);
+  document.addEventListener('keydown', handleGlobalKeydown);
   void loadLotteries();
+  void loadPityStatus();
 });
 
 watch(
@@ -752,8 +1010,18 @@ watch(
   }
 );
 
+watch(isLoggedIn, () => {
+  void loadPityStatus();
+});
+
+watch(activeTab, () => {
+  closeFilterMenus();
+});
+
 onUnmounted(() => {
   document.removeEventListener('visibilitychange', handleVisibilityChange);
+  document.removeEventListener('click', handlePityOutsideClick);
+  document.removeEventListener('keydown', handleGlobalKeydown);
   stopNowTimer();
   if (toastTimer) window.clearTimeout(toastTimer);
 });
