@@ -36,7 +36,8 @@ export const STATUS_FILTER_FIELDS = {
   birthdayWishes: 'status',
   blockWallItems: 'item_type',
   bohCreatorShows: 'creator_platform',
-  aiWebSearchLog: 'status'
+  aiWebSearchLog: 'status',
+  postReward: 'status'
 };
 
 export const DATE_FILTER_FIELDS = {
@@ -63,6 +64,7 @@ export const DATE_FILTER_FIELDS = {
   lotteryAuditLogs: 'created_at',
   news: 'date',
   activities: 'date',
+  postReward: 'start_at',
   shopOrders: 'created_at',
   pointsTransactions: 'created_at',
   notifications: 'created_at',
@@ -289,6 +291,7 @@ export const TAB_SELECT_COLUMNS = {
   `,
   news: 'id, category, title, excerpt, date, author, image, content, created_at, updated_at',
   activities: 'id, title, date, image, description, created_at, updated_at',
+  postReward: 'id, title, status, points_per_post, daily_limit, monthly_limit, start_at, end_at, created_at',
   products: 'id, title, category, description, points_cost, rmb_price, payment_mode, stock, image, specifications, is_active, is_purchasable',
 
   // ========== 商城订单 ==========
@@ -568,6 +571,7 @@ export const TAB_DEFAULT_SORT = {
   lotteryAuditLogs: { column: 'created_at', ascending: false },
   news: { column: 'date', ascending: false },
   activities: { column: 'date', ascending: false },
+  postReward: { column: 'start_at', ascending: false },
   products: { column: 'id', ascending: true },
   shopOrders: { column: 'created_at', ascending: false },
   pointsTransactions: { column: 'created_at', ascending: false },
@@ -613,6 +617,7 @@ export const TAB_SORT_COLUMNS = {
   lotteryAuditLogs: new Set(['created_at', 'action', 'lottery_id', 'actor_id']),
   news: new Set(['id', 'date', 'category', 'author']),
   activities: new Set(['id', 'date', 'created_at']),
+  postReward: new Set(['id', 'status', 'points_per_post', 'daily_limit', 'monthly_limit', 'start_at', 'end_at', 'created_at']),
   products: new Set(['id', 'category', 'points_cost', 'rmb_price', 'payment_mode', 'stock']),
   shopOrders: new Set(['created_at', 'status', 'payment_mode', 'total_points', 'rmb_total']),
   pointsTransactions: new Set(['created_at', 'amount', 'reason', 'batch_id']),
@@ -659,6 +664,7 @@ export const TAB_SEARCH_FIELDS = {
   lotteryAuditLogs: [{ column: 'id', type: 'uuid' }, { column: 'lottery_id', type: 'uuid' }, { column: 'actor_id', type: 'uuid' }, { column: 'action', type: 'text' }],
   news: [{ column: 'id', type: 'number' }, { column: 'category', type: 'text' }, { column: 'title', type: 'text' }, { column: 'excerpt', type: 'text' }, { column: 'author', type: 'text' }],
   activities: [{ column: 'id', type: 'number' }, { column: 'title', type: 'text' }, { column: 'date', type: 'text' }, { column: 'description', type: 'text' }],
+  postReward: [{ column: 'id', type: 'number' }, { column: 'title', type: 'text' }, { column: 'status', type: 'text' }, { column: 'start_at', type: 'text' }, { column: 'end_at', type: 'text' }],
   products: [{ column: 'id', type: 'number' }, { column: 'title', type: 'text' }, { column: 'category', type: 'text' }, { column: 'description', type: 'text' }, { column: 'payment_mode', type: 'text' }],
   shopOrders: [{ column: 'id', type: 'uuid' }, { column: 'order_no', type: 'text' }, { column: 'username', type: 'text' }, { column: 'contact_value', type: 'text' }, { column: 'status', type: 'text' }, { column: 'payment_mode', type: 'text' }],
   pointsTransactions: [{ column: 'id', type: 'uuid' }, { column: 'username', type: 'text' }, { column: 'reason', type: 'text' }, { column: 'remark', type: 'text' }, { column: 'batch_id', type: 'uuid' }],
