@@ -1068,7 +1068,6 @@
 
   .mobile-composer-section .post-image-panel {
     grid-column: 1 / -1;
-    grid-row: 3;
     border-radius: 16px;
     background: #f7f9f9;
     border-color: rgba(15, 20, 25, 0.08);
@@ -1076,7 +1075,6 @@
 
   .mobile-composer-section .mobile-post-image-toolbar {
     grid-column: 1 / -1;
-    grid-row: 4;
     margin-top: 0;
     padding: 16px 0 18px;
     border-top: 1px solid rgba(15, 20, 25, 0.08);
