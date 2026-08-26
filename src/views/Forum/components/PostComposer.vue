@@ -74,7 +74,7 @@ const editorPromptLabel = computed(() => (isEditMode.value ? '修改你的分享
 const submitButtonLabel = computed(() => {
   if (isEditMode.value) return isPostBusy.value ? '保存中…' : '保存修改';
   if (props.isStagedSubmitting) return stagedSubmitLabel.value;
-  if (postCooldownSeconds.value > 0) return `${postCooldownSeconds.value}s 后发布`;
+  if (props.postCooldownSeconds > 0) return `${props.postCooldownSeconds}s 后发布`;
   return '发布';
 });
 
