@@ -1345,7 +1345,7 @@
 
   .image-post-thumb-grid.count-2 {
     max-width: 100%;
-    aspect-ratio: 16 / 9;
+    aspect-ratio: 4 / 3;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

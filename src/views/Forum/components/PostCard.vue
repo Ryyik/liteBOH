@@ -256,7 +256,7 @@ const replyTierMap = useTierMap(
             @error="onImageError(post.id, image.url)" />
         </button>
         <span v-if="post.hasMultipleImages" class="image-post-count-badge" aria-hidden="true">
-          多图 {{ post.imageCount }}
+          +{{ Math.max(1, Number(post.imageCount || post.previewImages.length) - 1) }}
         </span>
       </div>
       <p v-if="searchKeyword && post.search_excerpt" class="search-highlight-snippet"
