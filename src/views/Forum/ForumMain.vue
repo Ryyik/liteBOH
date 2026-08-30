@@ -3049,8 +3049,8 @@ const handlePost = async () => {
       return;
     }
   }
-  if (!newPost.value.title.trim() || !newPost.value.content.trim()) {
-    showModal('warning', '提示', '请填写标题和内容');
+  if (!newPost.value.title.trim()) {
+    showModal('warning', '提示', '请填写标题');
     return;
   }
   if (postImages.value.length > FORUM_POST_IMAGE_MAX_COUNT) {

@@ -405,7 +405,7 @@
   padding: 12px;
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 14px;
-  background: #fafafa;
+  background: rgba(255, 255, 255, 0.48);
   display: grid;
   gap: 10px;
 }
@@ -415,6 +415,13 @@
   grid-template-columns: repeat(3, minmax(84px, 1fr));
   gap: 10px;
   max-width: 440px;
+}
+
+@media (min-width: 769px) {
+  .post-image-preview-grid {
+    grid-template-columns: repeat(4, minmax(84px, 1fr));
+    max-width: 620px;
+  }
 }
 
 .post-image-preview-item {

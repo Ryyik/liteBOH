@@ -604,8 +604,8 @@ onUnmounted(() => {
       <input ref="postCameraInputRef" type="file" accept="image/png,image/jpeg,image/webp" capture="environment"
         class="post-image-input" @change="handleImageChange" />
 
-      <div v-if="postImages.length > 0 || isUploadingPostImage || isStagedSubmitting || postImageUploadStatus" class="post-image-panel">
-        <div v-if="postImages.length > 0" class="post-image-preview-grid">
+      <div class="post-image-panel">
+        <div class="post-image-preview-grid">
           <div v-for="(image, index) in postImages" :key="image.publicId || image.uploadId || image.url" class="post-image-preview-item"
             :class="{
               'is-dragging': draggedImageIndex === index,
@@ -949,14 +949,14 @@ onUnmounted(() => {
 </style>
 
 <style scoped>
-/* ✨ 新增：添加更多图片方框样式 */
+/* 图片占位入口：保持轻量平面，不抢正文焦点。 */
 .post-image-add-more-card {
   width: 100%;
   aspect-ratio: 1 / 1; /* 正方形 */
-  border: 2px dashed rgba(0, 113, 227, 0.24);
+  border: 1px dashed rgba(255, 59, 48, 0.28);
   border-radius: 16px;
-  background: rgba(0, 113, 227, 0.04);
-  color: #0071e3;
+  background: #f2f2f7;
+  color: #ff3b30;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -970,8 +970,8 @@ onUnmounted(() => {
 }
 
 .post-image-add-more-card:hover:not(:disabled) {
-  border-color: #0071e3;
-  background: rgba(0, 113, 227, 0.08);
+  border-color: rgba(255, 59, 48, 0.55);
+  background: #ececf1;
 }
 
 .post-image-add-more-card:disabled {
@@ -982,7 +982,7 @@ onUnmounted(() => {
 .add-more-label {
   font-size: 13px;
   font-weight: 600;
-  color: #0071e3;
+  color: #8b9098;
   line-height: 1.2;
 }
 

@@ -734,13 +734,13 @@ export async function createPostWithImages(content, authorId, authorUsername, st
 
   const safeTitle = String(title || '').trim();
   const safeContent = String(content || '').trim();
-  if (!safeTitle || !safeContent) {
+  if (!safeTitle) {
     return {
       ok: false,
       data: null,
       error: normalizeDbError({
         code: 'EMPTY_POST_CONTENT',
-        message: '请填写标题和内容'
+        message: '请填写标题'
       })
     };
   }
