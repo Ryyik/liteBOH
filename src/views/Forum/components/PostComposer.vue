@@ -687,23 +687,31 @@ onUnmounted(() => {
       </div>
 
       <div v-if="isMobileComposer" class="mobile-composer-setting-list">
-        <button type="button" class="mobile-composer-setting" @click="handleLocationClick">
+        <button type="button" class="mobile-composer-setting" @click.stop="handleLocationClick">
           <MapPin :size="20" :stroke-width="1.8" aria-hidden="true" />
           <span>Location</span>
           <strong v-if="postLocation">{{ postLocation.name }}</strong>
           <ChevronRight :size="18" :stroke-width="1.8" aria-hidden="true" />
         </button>
-        <button type="button" class="mobile-composer-setting" @click="handleDraftOpen">
+        <button type="button" class="mobile-composer-setting" @click.stop="handleDraftOpen">
           <FileText :size="20" :stroke-width="1.8" aria-hidden="true" />
           <span>草稿</span>
           <strong v-if="autoSaveDraftLabel">{{ autoSaveDraftLabel }}</strong>
           <ChevronRight :size="18" :stroke-width="1.8" aria-hidden="true" />
         </button>
-        <button type="button" class="mobile-composer-setting" @click="showMobileTagMenu = !showMobileTagMenu">
+        <button type="button" class="mobile-composer-setting" @click.stop="showMobileTagMenu = !showMobileTagMenu">
           <Hash :size="20" :stroke-width="1.8" aria-hidden="true" />
           <span>标签</span>
           <strong v-if="selectedTagLabel">#{{ selectedTagLabel }}</strong>
           <ChevronRight :size="18" :stroke-width="1.8" aria-hidden="true" />
+        </button>
+      </div>
+
+      <div v-if="isMobileComposer && showMobileTagMenu" class="mobile-composer-setting-menu" role="menu" aria-label="选择帖子标签">
+        <button v-for="tag in forumTagOptions" :key="tag.value" type="button" class="mobile-composer-setting-menu-item"
+          :class="{ active: selectedPostTag === tag.value }" role="menuitemradio"
+          :aria-checked="selectedPostTag === tag.value" @click="handleTagSelect(tag.value)">
+          {{ tag.label }}
         </button>
       </div>
 

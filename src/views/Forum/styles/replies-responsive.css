@@ -1094,6 +1094,12 @@
 
   .mobile-composer-section .mobile-composer-setting-list {
     margin-top: 16px;
+    width: 100%;
+  }
+
+  .mobile-composer-section .mobile-composer-setting-menu {
+    margin-left: 38px;
+    margin-right: 0;
   }
 
   .mobile-composer-section .mobile-post-image-toolbar {
