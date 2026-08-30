@@ -151,6 +151,7 @@ import { ChevronLeft, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/utils/supabase-client.js';
 import { logger } from '@/utils/logger.js';
+import { showGlobalNavStatus } from '@/composables/useGlobalNavStatus.js';
 
 defineProps({
   mode: { type: String, default: 'overlay' }
@@ -172,12 +173,28 @@ const form = reactive({ recipient: '', phone: '', region: '', detail: '', tag: '
 
 const toast = reactive({ show: false, message: '', type: 'info' });
 let toastTimer = null;
-const showToast = (message, type = 'info') => {
+const _originShowToast = (message, type = 'info') => {
   if (toastTimer) clearTimeout(toastTimer);
   toast.message = message;
   toast.type = type;
   toast.show = true;
   toastTimer = setTimeout(() => { toast.show = false; }, 3000);
+};
+const showToast = (message, type = 'info') => {
+  const text = String(message || '');
+  const icon = type === 'error' ? 'warning' : (text.includes('请填写') || text.includes('长度需') ? 'warning' : 'success');
+  let title = text;
+  let msg = '';
+  if (text === '已保存') { title = '已保存'; msg = '地址已更新'; }
+  else if (text === '已设为默认') { title = '已设为默认'; msg = '默认地址已更新'; }
+  else if (text === '已删除') { title = '已删除'; msg = '地址已移除'; }
+  else if (text === '保存失败' || text === '设置失败' || text === '删除失败' || text === '系统错误') { title = text; msg = '请稍后重试'; }
+  else if (text.startsWith('请先登录')) { title = '请先登录'; msg = '登录后可管理地址'; }
+  else if (text.length > 24) { title = text.slice(0, 24); msg = text.slice(24); }
+  let ok = false;
+  try { ok = showGlobalNavStatus({ title, message: msg, icon, durationMs: icon === 'warning' ? 3600 : 2800 }); } catch { ok = false; }
+  if (ok) return;
+  return _originShowToast(message, type);
 };
 
 const pointsDisplay = computed(() => {

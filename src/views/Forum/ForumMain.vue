@@ -19,11 +19,14 @@ import ForumToolbar from './components/ForumToolbar.vue';
 import ForumImageViewer from './components/ForumImageViewer.vue';
 import WeeklyCheckinCalendar from './components/WeeklyCheckinCalendar.vue';
 import NotificationDrawer from './components/NotificationDrawer.vue';
+import ForumPublishIsland from './components/ForumPublishIsland.vue';
+import { useForumPublishQueueStore } from '@/stores/forumPublishQueue.js';
 import { useForumImageModerationPreload } from './composables/useForumImageModerationPreload.js';
 import { useForumPostDraftStorage } from './composables/useForumPostDraftStorage.js';
 import { useForumVirtualFeed } from './composables/useForumVirtualFeed.js';
 import { useActiveAds } from './composables/useActiveAds.js';
 import { useUserTier } from '@/composables/useUserTier.js';
+import { getAvatarUrl } from '@/utils/avatar.js';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader';
@@ -566,6 +569,403 @@ const createSubmissionId = () => (
   globalThis.crypto?.randomUUID?.()
   || `00000000-0000-4000-8000-${`${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`.slice(-12).padStart(12, '0')}`
 );
+// ===== 即发即走：后台发布队列（与灵动岛/顶部常驻条联动，简化进度不暴露压缩/检测细节） =====
+const publishQueueStore = useForumPublishQueueStore();
+const publishQueueItems = computed(() => publishQueueStore.items);
+let publishWorkerRunning = false;
+const publishAbortControllers = new Map();
+const showPublishIsland = (payload) => {
+  const detail = { ...payload, at: Date.now() };
+  // 优先走全局灵动岛（#unified-nav-container 存在时）
+  const dispatched = (() => {
+    try {
+      const hasNav = typeof document !== 'undefined' && document.getElementById('unified-nav-container');
+      if (!hasNav) return false;
+      window.dispatchEvent(new CustomEvent('boh_global_nav_status', { detail }));
+      return true;
+    } catch { return false; }
+  })();
+  if (!dispatched) {
+    // 嵌入模式 fallback 到外层 UserSpace 的 island-message
+    showEmbeddedSuccessIsland(payload);
+  }
+};
+const buildOptimisticPost = (queueItem) => {
+  const nowIso = new Date().toISOString();
+  const previewImages = (queueItem.images || []).slice(0, 6).map((img, idx) => ({
+    id: img.uploadId || `optimistic-img-${queueItem.id}-${idx}`,
+    url: img.localPreviewUrl || img.url || '',
+    originalUrl: img.localPreviewUrl || img.url || '',
+    detailUrl: img.localPreviewUrl || img.url || '',
+    width: img.width || 0,
+    height: img.height || 0,
+    sortOrder: idx,
+    _optimistic: true,
+    _failed: queueItem.state==='failed' && queueItem.failedImageIndex===idx
+  })).filter(i=>i.url);
+  const titleText = String(queueItem.title||'').trim();
+  const bodyText = String(queueItem.body||'').trim();
+  const combined = titleText && bodyText ? `【${titleText}】\n${bodyText}` : (titleText || bodyText);
+  // 头像自动加载：使用队列快照中的头像，失败时回退到当前 userInfo
+  const rawAvatar = String(queueItem.authorAvatarUrl || userInfo.avatarUrl || userInfo.avatar_url || '').trim();
+  return prepareForumPostForDisplay({
+    id: queueItem.id,
+    title: titleText,
+    body: bodyText,
+    content: combined,
+    author_id: queueItem.authorId,
+    author_username: queueItem.authorUsername,
+    author_avatar_url: rawAvatar,
+    created_at: nowIso,
+    tag: queueItem.tag,
+    location_name: queueItem.location?.name || queueItem.location?.cityName || '',
+    images: previewImages,
+    cover_image_url: previewImages[0]?.url || '',
+    like_count: 0,
+    comment_count: 0,
+    isLiked: false,
+    status: 'approved',
+    // 乐观扩展字段
+    _optimistic: true,
+    _queueId: queueItem.id,
+    _publishState: queueItem.state,
+    _progress: queueItem.progress,
+    _failType: queueItem.failType,
+    _failedImageIndex: queueItem.failedImageIndex
+  }, 0);
+};
+const insertOptimisticPost = (queueItem) => {
+  const optimistic = buildOptimisticPost(queueItem);
+  // 去重：若已存在同 queueId 乐观卡则替换
+  const existsIdx = forumData.value.findIndex(p=> p._queueId===queueItem.id);
+  if (existsIdx>=0) {
+    const next = [...forumData.value];
+    next[existsIdx]=optimistic;
+    forumData.value = next;
+  } else {
+    forumData.value = [optimistic, ...forumData.value];
+  }
+  addUiMarker(highlightedPostIds, queueItem.id, 2600, 'new-post');
+  triggerRef(forumData);
+};
+const updateOptimisticPost = (queueId, patch={}) => {
+  const idx = forumData.value.findIndex(p=> p._queueId===queueId || p.id===queueId);
+  if (idx<0) return;
+  const cur = forumData.value[idx];
+  const next = { ...cur, ...patch, _queueId: queueId };
+  // 若传了 queueItem 整体则重建 previewImages 失败标记
+  if (patch._publishState || patch._progress!==undefined || patch._failType!==undefined) {
+    const q = publishQueueStore.items.find(i=>i.id===queueId);
+    if (q) {
+      const rebuilt = buildOptimisticPost(q);
+      // 保留已有的 display 字段但更新状态相关
+      Object.assign(next, {
+        _publishState: q.state,
+        _progress: q.progress,
+        _failType: q.failType,
+        _failedImageIndex: q.failedImageIndex,
+        previewImages: rebuilt.previewImages
+      });
+    }
+  }
+  const arr = [...forumData.value];
+  arr[idx]=next;
+  forumData.value=arr;
+  triggerRef(forumData);
+};
+const removeOptimisticPost = (queueId) => {
+  const beforeLen = forumData.value.length;
+  forumData.value = forumData.value.filter(p=> p._queueId!==queueId && p.id!==queueId);
+  if (forumData.value.length!==beforeLen) triggerRef(forumData);
+};
+const replaceOptimisticWithReal = (queueId, realPost) => {
+  const idx = forumData.value.findIndex(p=> p._queueId===queueId || p.id===queueId);
+  const queueItem = publishQueueStore.items.find(i=>i.id===queueId);
+  // 真实接口仅返回 id，头像/用户名需用队列快照或当前用户信息回填，否则会显示 R
+  const merged = {
+    ...realPost,
+    author_id: realPost.author_id || queueItem?.authorId || userInfo.id,
+    author_username: realPost.author_username || queueItem?.authorUsername || userInfo.username,
+    author_avatar_url: realPost.author_avatar_url || queueItem?.authorAvatarUrl || userInfo.avatarUrl || '',
+    title: realPost.title || queueItem?.title || '',
+    body: realPost.body || queueItem?.body || '',
+    content: realPost.content || (queueItem ? `【${queueItem.title}】\n${queueItem.body}` : ''),
+    tag: realPost.tag || queueItem?.tag || 'daily',
+    location_name: realPost.location_name || queueItem?.location?.name || queueItem?.location?.cityName || '',
+    // 若真实返回未含图片，使用队列最终上传结果
+    images: Array.isArray(realPost.images) && realPost.images.length ? realPost.images : (queueItem?.images || []),
+    cover_image_url: realPost.cover_image_url || queueItem?.images?.[0]?.url || queueItem?.images?.[0]?.localPreviewUrl || ''
+  };
+  const prepared = prepareForumPostForDisplay(merged, 0);
+  if (idx>=0) {
+    const arr=[...forumData.value];
+    arr[idx]=prepared;
+    forumData.value=arr;
+  } else {
+    forumData.value=[prepared, ...forumData.value];
+  }
+  addUiMarker(highlightedPostIds, String(realPost.id||queueId), 2600, 'new-post');
+  triggerRef(forumData);
+};
+const getQueueItemErrorType = (error) => {
+  const msg = String(error?.message||'').toLowerCase();
+  const code = String(error?.code||'').toUpperCase();
+  // 审核类：本地关键词、同步审核、NSFW 未通过
+  if (['LOCAL_KEYWORD_BLOCK','SYNC_MODERATION_BLOCK','BETA5_IMAGE_PIPELINE_FAILED'].includes(code)) return 'moderation';
+  if (msg.includes('安全检测') || msg.includes('未通过') || msg.includes('敏感') || msg.includes('审核')) return 'moderation';
+  if (isLikelyNetworkError(error)) return 'network';
+  return 'network';
+};
+const processPublishImagesForQueue = async (queueItem, signal) => {
+  const pending = (queueItem.images||[]).filter(img=> img?.file && img.uploadStatus!=='approved');
+  const total = pending.length;
+  if (!total) return queueItem.images;
+  // 初始化进度
+  publishQueueStore.setProgress(queueItem.id, 2);
+  for (let idx=0; idx<pending.length; idx++) {
+    if (signal?.aborted) throw Object.assign(new Error('已取消'), { code:'PUBLISH_CANCELLED' });
+    const img = pending[idx];
+    const imageStart = (idx/total)*82;
+    const imageSpan = 82/total;
+    const updateProgressForPhase = (phase, phaseProgress) => {
+      // phase: compress 0-0.32, moderate 0.32-0.58, upload 0.58-1
+      let offset = 0;
+      if (phase==='compress') offset = imageSpan*0.32*(Number(phaseProgress||0)/100);
+      else if (phase==='moderate') offset = imageSpan*0.32 + imageSpan*0.26*(Number(phaseProgress||0)/100);
+      else if (phase==='upload') offset = imageSpan*0.58 + imageSpan*0.42*(Number(phaseProgress||0)/100);
+      const prog = imageStart + offset;
+      publishQueueStore.setProgress(queueItem.id, prog);
+      updateOptimisticPost(queueItem.id, { _progress: prog });
+    };
+    try {
+      // 1) 压缩/优化（进度 0-32% of image）
+      updateProgressForPhase('compress', 0);
+      const file = await prepareForumImageForUpload(img.file, idx, total, img.uploadId, {
+        onProgress: (p)=> updateProgressForPhase('compress', p),
+        signal
+      });
+      // 2) 检测（32-58%）
+      updateProgressForPhase('moderate', 0);
+      // 将检测进度模拟为 0->100 快速推进
+      updateProgressForPhase('moderate', 40);
+      const moderation = await moderateForumImage(file);
+      if (moderation.status!=='approved') {
+        const err = new Error(moderation.reason || '图片未通过安全检测');
+        err.code='BETA5_IMAGE_PIPELINE_FAILED';
+        throw err;
+      }
+      updateProgressForPhase('moderate', 100);
+      // 3) 上传（58-100%）
+      updateProgressForPhase('upload', 0);
+      const result = await uploadApprovedForumImageQueued(file, moderation, {
+        onProgress: (p)=> updateProgressForPhase('upload', p),
+        signal
+      });
+      if (!result.ok) {
+        if (result.error?.code==='CLOUDINARY_UPLOAD_RATE_LIMIT') applyImageUploadRateLimitCooldown(result.error);
+        throw result.error || new Error('图片上传失败');
+      }
+      // 成功：用服务端返回的图替换
+      const qIdx = publishQueueStore.items.findIndex(i=>i.id===queueItem.id);
+      if (qIdx>=0) {
+        const curItem = publishQueueStore.items[qIdx];
+        const imgIdx = curItem.images.findIndex(x=> x.uploadId===img.uploadId);
+        if (imgIdx>=0) {
+          const nextImages=[...curItem.images];
+          nextImages[imgIdx]={ ...result.data, uploadStatus:'approved', sortOrder: imgIdx, file: null, localPreviewUrl: result.data.url || nextImages[imgIdx].localPreviewUrl };
+          publishQueueStore.updateItem(queueItem.id, { images: nextImages });
+        }
+      }
+      updateProgressForPhase('upload', 100);
+    } catch (error) {
+      if (error?.code==='PUBLISH_CANCELLED' || signal?.aborted) throw error;
+      // 标记失败图索引
+      const failIdx = (queueItem.images||[]).findIndex(x=> x.uploadId===img.uploadId);
+      const failType = getQueueItemErrorType(error);
+      publishQueueStore.updateItem(queueItem.id, {
+        failType: failType==='moderation' ? 'moderation' : 'network',
+        failedImageIndex: failIdx>=0? failIdx : idx,
+        failedImageId: img.uploadId,
+        errorMessage: error?.message || '图片处理失败'
+      });
+      // 同步到乐观卡：标记对应图失败
+      updateOptimisticPost(queueItem.id, { _publishState:'failed', _failType: failType==='moderation'?'moderation':'network', _failedImageIndex: failIdx>=0?failIdx:idx });
+      const wrapped = new Error(error?.message || '图片处理失败');
+      wrapped.code = error?.code || (failType==='moderation' ? 'BETA5_IMAGE_PIPELINE_FAILED' : 'IMAGE_UPLOAD_FAILED');
+      wrapped.failType = failType;
+      throw wrapped;
+    }
+  }
+  const finalItem = publishQueueStore.items.find(i=>i.id===queueItem.id);
+  return finalItem ? finalItem.images : queueItem.images;
+};
+const runPublishQueue = async () => {
+  if (publishWorkerRunning) return;
+  publishWorkerRunning = true;
+  try {
+    while (true) {
+      const next = publishQueueStore.items.find(i=> i.state==='queued');
+      if (!next) break;
+      publishQueueStore.setState(next.id, 'uploading');
+      updateOptimisticPost(next.id, { _publishState:'uploading' });
+      const controller = new AbortController();
+      publishAbortControllers.set(next.id, controller);
+      try {
+        // 图片流水线（若有待处理图）
+        let finalImages = next.images;
+        const hasPending = (next.images||[]).some(img=> img?.file && img.uploadStatus!=='approved');
+        if (hasPending) {
+          finalImages = await processPublishImagesForQueue(next, controller.signal);
+        }
+        if (controller.signal.aborted) throw Object.assign(new Error('已取消'), { code:'PUBLISH_CANCELLED' });
+        // 发布阶段 82->96
+        publishQueueStore.setProgress(next.id, 88);
+        updateOptimisticPost(next.id, { _progress: 88, _publishState:'publishing' });
+        publishQueueStore.setState(next.id, 'publishing');
+        const result = await createPost(
+          next.body,
+          next.authorId,
+          next.authorUsername,
+          'approved',
+          next.title,
+          finalImages,
+          next.tag,
+          next.location,
+          { submissionId: next.submissionId }
+        );
+        if (controller.signal.aborted) throw Object.assign(new Error('已取消'), { code:'PUBLISH_CANCELLED' });
+        if (result.error) throw result.error;
+        const realPost = Array.isArray(result.data) ? result.data[0] : result.data;
+        if (!realPost || !realPost.id) throw new Error('发布返回异常，请刷新后查看');
+        // 成功
+        publishQueueStore.setProgress(next.id, 100);
+        publishQueueStore.setState(next.id, 'success');
+        updateOptimisticPost(next.id, { _progress:100, _publishState:'success' });
+        // 清理预览 URL
+        (next.images||[]).forEach(img=> { if (img.localPreviewUrl) { try{ URL.revokeObjectURL(img.localPreviewUrl);}catch{} } });
+        // 替换乐观卡为真实卡
+        replaceOptimisticWithReal(next.id, realPost);
+        // 经验与奖励
+        void addExperience(supabase, next.authorId, XP_REWARDS.POST).catch(err=> logger.error('forum','经验值增加失败:',err));
+        if (realPost.id) {
+          claimPostPublishReward(supabase, String(realPost.id)).then(reward=>{
+            if (reward && reward.ok && Number(reward.awarded)>0) {
+              if (Number.isFinite(Number(reward.currentPoints))) userInfo.points = Number(reward.currentPoints);
+              const tip = reward.campaignTitle ? `「${reward.campaignTitle}」` : '';
+              // 奖励用瞬时岛（队列成功岛 900ms 后已收起，不冲突）
+              showPublishIsland({ title:'发帖得积分', message:`获得 ${reward.awarded} 积分${tip}`, icon:'gift', type:'success' });
+            }
+          }).catch(err=> logger.error('forum','发帖奖励发放失败:',err));
+        }
+        emitProfileSync({ userId: next.authorId, username: next.authorUsername, reason:'post_created' });
+        // 成功态由常驻 Airdrop 岛展示（isSuccess），不再发瞬时岛避免重叠
+        // 刷新周报但不整页重拉（避免覆盖刚插入的帖子）；后台静默刷新快照
+        void loadForumWeeklyReport();
+        persistForumFeedSnapshot();
+        // 成功后短暂保留再移除队列项
+        await new Promise(r=> setTimeout(r, 900));
+        publishQueueStore.removeItem(next.id);
+        publishAbortControllers.delete(next.id);
+      } catch (error) {
+        publishAbortControllers.delete(next.id);
+        if (error?.code==='PUBLISH_CANCELLED' || controller.signal.aborted) {
+          // 已在 cancel 分支处理移除
+          continue;
+        }
+        logger.error('forum','后台发帖失败', error);
+        // 限流
+        applyRateLimitCooldown(error,'post');
+        const failType = error?.failType || getQueueItemErrorType(error);
+        const isMod = failType==='moderation';
+        const code = String(error?.code||'').toUpperCase();
+        // 若为不可重试的本地校验类，直接清理图片但保留卡片供用户编辑
+        const shouldCleanup = shouldCleanupImagesAfterPostError(error);
+        if (shouldCleanup && !isMod) {
+          // 对审核失败不清理，后续可移除单图重试
+        }
+        publishQueueStore.setState(next.id, 'failed', {
+          failType: isMod ? 'moderation' : 'network',
+          errorMessage: error?.message || (isMod ? '图片未通过审核' : '网络异常，发送失败'),
+          failedImageIndex: publishQueueStore.items.find(i=>i.id===next.id)?.failedImageIndex ?? null
+        });
+        publishQueueStore.setProgress(next.id, Math.max(12, Number(publishQueueStore.items.find(i=>i.id===next.id)?.progress||62)));
+        updateOptimisticPost(next.id, { _publishState:'failed', _failType: isMod?'moderation':'network' });
+        // 失败态由常驻岛展示（橙/红常驻需操作），不再发瞬时岛
+        break; // 中断队列，等待用户操作后继续
+      }
+    }
+  } finally {
+    publishWorkerRunning=false;
+  }
+};
+const retryPublish = async (queueId) => {
+  const item = publishQueueStore.items.find(i=>i.id===queueId);
+  if (!item) return;
+  publishQueueStore.incrementRetry(queueId);
+  // 重置进度与失败标记，但保留已成功上传的图
+  publishQueueStore.updateItem(queueId, {
+    state:'queued',
+    failType:null,
+    failedImageIndex:null,
+    failedImageId:null,
+    errorMessage:'',
+    progress: Math.max(8, Number(item.progress||0)-12)
+  });
+  updateOptimisticPost(queueId, { _publishState:'queued', _failType:null, _progress: Math.max(8, Number(item.progress||0)-12) });
+  // 隐藏失败提示，乐观卡回到发送中
+  const elFailMsg = document.querySelector(`[data-queue-failmsg="${queueId}"]`);
+  if (elFailMsg) elFailMsg.style.display='none';
+  // 重试由常驻岛环恢复为发送态
+  void runPublishQueue();
+};
+const cancelPublish = async (queueId) => {
+  const controller = publishAbortControllers.get(queueId);
+  if (controller) { try{ controller.abort(); }catch{} publishAbortControllers.delete(queueId); }
+  const item = publishQueueStore.items.find(i=>i.id===queueId);
+  if (item) {
+    // 清理已上传但未落库的云端图
+    const toCleanup = (item.images||[]).filter(img=> img.publicId || img.deleteToken);
+    if (toCleanup.length) {
+      toCleanup.forEach(img=> { void cleanupUploadedForumImage(img, { silent:true }); if (img.localPreviewUrl) try{ URL.revokeObjectURL(img.localPreviewUrl);}catch{} });
+    } else {
+      (item.images||[]).forEach(img=> { if (img.localPreviewUrl) try{ URL.revokeObjectURL(img.localPreviewUrl);}catch{} });
+    }
+  }
+  publishQueueStore.removeItem(queueId);
+  removeOptimisticPost(queueId);
+  // 取消后常驻岛自动收起（无瞬时岛）
+  // 若还有队列则继续
+  if (publishQueueStore.items.some(i=>i.state==='queued')) void runPublishQueue();
+};
+const fixModerationPublish = async (queueId) => {
+  const item = publishQueueStore.items.find(i=>i.id===queueId);
+  if (!item) return;
+  const failedIdx = Number(item.failedImageIndex);
+  const hasFailed = Number.isInteger(failedIdx) && failedIdx>=0 && failedIdx < (item.images||[]).length;
+  let nextImages;
+  if (hasFailed) {
+    const failedImg = item.images[failedIdx];
+    if (failedImg?.localPreviewUrl) try{ URL.revokeObjectURL(failedImg.localPreviewUrl);}catch{}
+    // 若已上传到云端但未落库，需删除
+    if (failedImg?.publicId || failedImg?.deleteToken) void cleanupUploadedForumImage(failedImg, { silent:true });
+    nextImages = item.images.filter((_,i)=> i!==failedIdx).map((img,i)=> ({...img, sortOrder:i}));
+    // 若移除后无图，则保留纯文
+  } else {
+    nextImages = item.images;
+  }
+  publishQueueStore.updateItem(queueId, {
+    images: nextImages,
+    state:'queued',
+    failType:null,
+    failedImageIndex:null,
+    failedImageId:null,
+    errorMessage:'',
+    progress: Math.max(18, Number(item.progress||0)-10)
+  });
+  updateOptimisticPost(queueId, { _publishState:'queued', _failType:null, _progress: Math.max(18, Number(item.progress||0)-10) });
+  // 移除后由常驻岛恢复发送态
+  void runPublishQueue();
+};
 const isForumImageViewerOpen = ref(false);
 const forumImageViewerImages = ref([]);
 const forumImageViewerIndex = ref(0);
@@ -770,8 +1170,14 @@ const hasUnsavedChanges = () => {
   return hasTitle || hasContent || hasImages;
 };
 
-// ✨ 新增：beforeunload事件处理（刷新页面时提示保存草稿）
+// ✨ 新增：beforeunload事件处理（刷新页面时提示保存草稿 + 队列发送中提示）
 const handleBeforeUnload = (e) => {
+  const hasPendingPublish = publishQueueStore.items.some(i=> ['queued','uploading','publishing'].includes(i.state));
+  if (hasPendingPublish) {
+    e.preventDefault();
+    e.returnValue = '有内容正在发送，离开将中断发送';
+    return e.returnValue;
+  }
   if (!isMobileComposerOpen.value || !hasUnsavedChanges()) return;
 
   e.preventDefault();
@@ -2086,8 +2492,10 @@ const getForumFeedSnapshotKey = () => buildForumFeedSnapshotKey({
 
 const persistForumFeedSnapshot = () => {
   if (feedMode.value !== 'posts' || forumLoadError.value) return;
+  // 乐观帖不落快照，避免刷新后残留
+  const snapshotPosts = forumData.value.filter(p=> !p._optimistic);
   writeForumFeedSnapshot(getForumFeedSnapshotKey(), {
-    posts: forumData.value,
+    posts: snapshotPosts,
     currentPage: currentPage.value,
     nextPageCursor: nextPageCursor.value,
     hasMoreData: hasMoreData.value
@@ -2366,7 +2774,12 @@ const fetchForumData = async (isLoadMore = false, { background = false } = {}) =
         currentPage.value = pageToLoad;
         prefetchAuthorTiersFor(newPosts);
       } else {
-        forumData.value = prepareForumPosts(safeRows);
+        // 保留乐观卡（正在后台发送的帖子）在列表顶部，避免刷新将其冲掉
+        const optimisticPosts = forumData.value.filter(p=> p._optimistic);
+        // 若处于搜索/标签筛选，非 all 视图下暂时隐藏乐观卡
+        const shouldShowOptimistic = !searchKeyword.value.trim() && !selectedTagFilter.value && viewMode.value!=='my' && !showFollowingOnly.value;
+        const basePosts = prepareForumPosts(safeRows);
+        forumData.value = shouldShowOptimistic ? [...optimisticPosts, ...basePosts.filter(p=> !optimisticPosts.some(o=> o.id===p.id))] : basePosts;
         currentPage.value = 1;
         prefetchAuthorTiersFor(safeRows);
       }
@@ -2610,51 +3023,32 @@ const handlePost = async () => {
     showLoginModal.value = true;
     return;
   }
-
-  // 优先检查封禁状态（封禁比禁言更严重，封禁用户应被完全禁止发言）
   if (userInfo.isBanned) {
     const isPermanentBan = !userInfo.bannedUntil;
     const isTempBanActive = userInfo.bannedUntil && new Date(userInfo.bannedUntil) > new Date();
-
     if (isPermanentBan || isTempBanActive) {
       let banMessage = '您的账号已被封禁，无法发布帖子。';
-      if (userInfo.banReason) {
-        banMessage += ` 原因：${userInfo.banReason}`;
-      }
+      if (userInfo.banReason) banMessage += ` 原因：${userInfo.banReason}`;
       if (userInfo.bannedUntil) {
         const expiryDate = new Date(userInfo.bannedUntil);
         banMessage += ` 解封时间：${expiryDate.toLocaleDateString('zh-CN')}`;
-      } else {
-        banMessage += '（永久封禁）';
-      }
+      } else banMessage += '（永久封禁）';
       showModal('warning', '封禁提示', banMessage);
       return;
     }
   }
-
-  // 检查用户禁言状态
   if (userInfo.isMuted) {
-    // 判断禁言是否有效：永久禁言或临时禁言未过期
     const isPermanentMute = !userInfo.mutedUntil;
     const isTempMuteActive = userInfo.mutedUntil && new Date(userInfo.mutedUntil) > new Date();
-
     if (isPermanentMute || isTempMuteActive) {
       let muteMessage = '您已被禁言，无法发布帖子。';
-      if (userInfo.muteReason) {
-        muteMessage += ` 原因：${userInfo.muteReason}`;
-      }
-      if (userInfo.mutedUntil) {
-        const expiryDate = new Date(userInfo.mutedUntil);
-        muteMessage += ` 解禁时间：${expiryDate.toLocaleDateString('zh-CN')}`;
-      } else {
-        muteMessage += '（永久禁言）';
-      }
+      if (userInfo.muteReason) muteMessage += ` 原因：${userInfo.muteReason}`;
+      if (userInfo.mutedUntil) muteMessage += ` 解禁时间：${new Date(userInfo.mutedUntil).toLocaleDateString('zh-CN')}`;
+      else muteMessage += '（永久禁言）';
       showModal('warning', '禁言提示', muteMessage);
       return;
     }
-    // 临时禁言已过期，允许操作
   }
-
   if (!newPost.value.title.trim() || !newPost.value.content.trim()) {
     showModal('warning', '提示', '请填写标题和内容');
     return;
@@ -2667,184 +3061,81 @@ const handlePost = async () => {
     showModal('warning', '发布太频繁', `请 ${postCooldownSeconds.value} 秒后再试`);
     return;
   }
-
-  const hasDeferredImages = postImages.value.some((image) => (
-    image?.file && image.uploadStatus !== 'approved'
-  ));
-  // A staged Beta draft keeps its pipeline even if the user switches modes before publishing.
-  const usesBeta5Pipeline = isBeta5.value || hasDeferredImages;
-  if (usesBeta5Pipeline) {
-    // 内容指纹门控：仅当内容与上次失败的提交完全一致时才复用 submissionId。
-    // 若用户失败后修改了内容，必须换新 id，否则重试会命中幂等缓存返回旧帖，新内容静默丢失。
-    const submissionFingerprint = JSON.stringify([
-      newPost.value.title,
-      newPost.value.content,
-      postImages.value.map((image) => [
-        image?.public_id || image?.asset_id || image?.id || '',
-        image?.file?.name || '',
-        image?.file?.size || 0
-      ])
-    ]);
-    if (!stagedSubmitState.submissionId || stagedSubmitState.submissionFingerprint !== submissionFingerprint) {
-      stagedSubmitState.submissionId = createSubmissionId();
-      stagedSubmitState.submissionFingerprint = submissionFingerprint;
-    }
-    setStagedSubmitProgress({
-      stage: hasDeferredImages ? 'compress' : 'publish',
-      progress: hasDeferredImages ? 0 : 85,
-      totalImages: postImages.value.filter((image) => image?.file && image.uploadStatus !== 'approved').length,
-      message: hasDeferredImages ? '正在准备图片' : '正在发布帖子'
-    });
+  // 捕获当前编辑快照（用于乐观卡与队列）
+  const snapshotTitle = String(newPost.value.title || '');
+  const snapshotBody = String(newPost.value.content || '');
+  const snapshotTag = normalizeForumTagValue(selectedPostTag.value) || 'daily';
+  const snapshotLocation = postLocation.value ? { ...postLocation.value } : null;
+  const snapshotImages = [...postImages.value].map((img, idx) => ({
+    ...img,
+    // 保留 File 与本地预览，队列将接管上传
+    file: img.file || null,
+    localPreviewUrl: img.localPreviewUrl || img.url || '',
+    uploadStatus: img.uploadStatus || (img.file ? 'staged' : 'approved'),
+    sortOrder: idx
+  }));
+  const submissionId = createSubmissionId();
+  const submissionFingerprint = JSON.stringify([
+    snapshotTitle, snapshotBody,
+    snapshotImages.map(i=> [i?.publicId||i?.public_id||'', i?.file?.name||'', i?.file?.size||0])
+  ]);
+  // 校验队列：避免重复指纹正在发送中
+  const dup = publishQueueStore.items.find(i=> i.fingerprint===submissionFingerprint && ['queued','uploading','publishing'].includes(i.state));
+  if (dup) {
+    showModal('warning', '正在发送中', '相同内容的帖子正在发送，请稍候');
+    return;
   }
-  // 带图帖由 createPostWithImages 携带 submissionId 走幂等 RPC；
-  // 纯文字帖没有幂等保护，网络错误时仍需服务器核验兜底防重复发帖
-  const usedIdempotentRpc = usesBeta5Pipeline && postImages.value.length > 0;
-
-  isSubmitting.value = true;
-  try {
-    const postTitle = newPost.value.title;
-    const postBody = newPost.value.content;
-    const postStatus = 'approved';
-    if (hasDeferredImages) {
-      await processStagedPostImages();
-    }
-    if (usesBeta5Pipeline) {
-      setStagedSubmitProgress({
-        stage: 'publish',
-        progress: 85,
-        totalImages: stagedSubmitState.totalImages,
-        message: '正在发布帖子'
-      });
-    }
-    const result = await createPost(
-      postBody,
-      userInfo.id,
-      userInfo.username,
-      postStatus,
-      postTitle,
-      postImages.value,
-      selectedPostTag.value,
-      postLocation.value,
-      { submissionId: usesBeta5Pipeline ? stagedSubmitState.submissionId : '' }
-    );
-    if (result.error) throw result.error;
-    const createdPostId = String(result.data?.[0]?.id || '').trim();
-
-    newPost.value.title = '';
-    newPost.value.content = '';
-    selectedPostTag.value = 'daily';
-    postLocation.value = null;
-    clearPostDraft();
-    clearPostImages({ cleanup: false });
-    await closeMobileComposer();
-    await nextTick();
-    if (!showEmbeddedSuccessIsland({
-      title: '发帖成功',
-      message: '你的帖子已经加入社区动态',
-      icon: 'post',
-      type: 'success',
-      catSticker: 'success',
-      catStickerMode: 'hero',
-      forceCatSticker: true
-    })) {
-      showModal(
-        'success',
-        '发布成功',
-        '编辑器已关闭，帖子已加入社区动态'
-      );
-    }
-
-    // 增加发帖经验
-    addExperience(supabase, userInfo.id, XP_REWARDS.POST).catch(err => logger.error('forum', '经验值增加失败:', err));
-
-    // 发帖有奖：帖子发布成功后，按“当前进行中”的活动发放积分（无活动/超限/已领则静默跳过）
-    if (createdPostId) {
-      claimPostPublishReward(supabase, createdPostId)
-        .then((reward) => {
-          // 诊断日志：把关键字段拼成字符串，控制台直接可见，无需展开对象
-          logger.info('forum', `发帖奖励诊断 createdPostId=${createdPostId} ok=${reward?.ok} awarded=${reward?.awarded} message=${reward?.message || ''} reason=${reward?.reason || ''} alreadyClaimed=${reward?.alreadyClaimed} skipped=${reward?.skipped} currentPoints=${reward?.currentPoints} error=${reward?.error?.message || ''}`);
-          if (reward && reward.ok && Number(reward.awarded) > 0) {
-            if (Number.isFinite(Number(reward.currentPoints))) {
-              userInfo.points = Number(reward.currentPoints);
-            }
-            const tip = reward.campaignTitle ? `「${reward.campaignTitle}」` : '';
-            if (!showEmbeddedSuccessIsland({
-              title: '发帖得积分',
-              message: `获得 ${reward.awarded} 积分${tip}`,
-              icon: 'gift',
-              type: 'success'
-            })) {
-              showModal('success', '发帖得积分', `获得 ${reward.awarded} 积分${tip}`);
-            }
-          }
-        })
-        .catch((err) => logger.error('forum', '发帖奖励发放失败:', err));
-    }
-
-    emitProfileSync({
-      userId: userInfo.id,
-      username: userInfo.username,
-      reason: 'post_created'
-    });
-
-    await fetchForumData();
-    void loadForumWeeklyReport();
-    if (createdPostId) {
-      addUiMarker(highlightedPostIds, createdPostId, 2600, 'new-post');
-    }
-    if (usesBeta5Pipeline) {
-      setStagedSubmitProgress({
-        stage: 'done',
-        progress: 100,
-        totalImages: stagedSubmitState.totalImages,
-        message: '发布完成'
-      });
-    }
-  } catch (error) {
-    logger.error('forum', '发帖失败', error);
-    applyRateLimitCooldown(error, 'post');
-    const shouldCleanupImages = shouldCleanupImagesAfterPostError(error);
-    const isNetworkError = isLikelyNetworkError(error);
-    if (usesBeta5Pipeline) {
-      stagedSubmitState.stage = 'error';
-      stagedSubmitState.message = error?.message || '发布未完成，请重试';
-      postImageUploadStatus.value = '';
-    }
-    if (isNetworkError && !usedIdempotentRpc) {
-      const created = await verifyPostCreatedOnServer(userInfo.id, newPost.value.content, newPost.value.title);
-      if (created) {
-        newPost.value.title = '';
-        newPost.value.content = '';
-        selectedPostTag.value = 'daily';
-        clearPostDraft();
-        clearPostImages({ cleanup: false });
-        await closeMobileComposer();
-        void addExperience(supabase, userInfo.id, XP_REWARDS.POST).catch(err => logger.error('forum', '经验值增加失败:', err));
-        await fetchForumData();
-        void loadForumWeeklyReport();
-        emitProfileSync({
-          userId: userInfo.id,
-          username: userInfo.username,
-          reason: 'post_created'
-        });
-        showModal('success', '发布成功', '帖子已成功发布到社区。');
-        return;
-      }
-      await discardDraftPostImages({ silent: true });
-    } else if (shouldCleanupImages) {
-      await discardDraftPostImages({ silent: true });
-    }
-    showModal(
-      'error',
-      '发布失败',
-      error?.message || '请稍后重试'
-    );
-  } finally {
-    isSubmitting.value = false;
-    if (stagedSubmitState.stage === 'done') {
-      window.setTimeout(resetStagedSubmitState, 900);
-    }
+  const queueId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+  const rawAvatar = String(userInfo.avatarUrl || userInfo.avatar_url || '').trim();
+  const queueItemPayload = {
+    id: queueId,
+    title: snapshotTitle,
+    body: snapshotBody,
+    tag: snapshotTag,
+    location: snapshotLocation,
+    images: snapshotImages,
+    authorId: userInfo.id,
+    authorUsername: userInfo.username,
+    authorAvatarUrl: rawAvatar,
+    submissionId,
+    fingerprint: submissionFingerprint
+  };
+  const queueItem = publishQueueStore.enqueue(queueItemPayload);
+  // 插入乐观帖子到列表顶部（简化：不暴露压缩/检测阶段，只显示百分比）
+  insertOptimisticPost(queueItem);
+  // 立即清空编辑器并退出（即发即走）
+  const prevDraftImages = [...postImages.value];
+  newPost.value.title = '';
+  newPost.value.content = '';
+  selectedPostTag.value = 'daily';
+  postLocation.value = null;
+  // 清理草稿但不清理已快照的图片（队列持有 file）
+  postDraftRestoreSeq += 1;
+  if (postDraftSaveTimer) { clearTimeout(postDraftSaveTimer); postDraftSaveTimer=null; }
+  writeLocalPostDraft(null);
+  savedPostDraft.value = null;
+  lastAutoSaveTime.value = null;
+  writePostDraftVersions([]);
+  void savePostDraftToDatabase(null);
+  // 清空编辑器图片状态（不触发云端删除，因队列已接管）
+  prevDraftImages.forEach(img=> { /* 保留 localPreviewUrl 给队列，编辑器端移除 */ });
+  postImages.value = [];
+  postImageUploadStatus.value = '';
+  resetStagedSubmitState();
+  // 关闭移动端编辑器（无二次确认，因已入队）
+  showPostImageSourceMenu.value = false;
+  isMobileDraftPanelOpen.value = false;
+  if (isMobileComposerOpen.value) {
+    isMobileComposerOpen.value = false;
+    document.body.style.overflow = '';
   }
+  await nextTick();
+  // 即发即走：不走瞬时岛，靠 ForumPublishIsland 常驻（Airdrop 同款，带堆叠缩略图直到成功）
+  scrollForumTo(0);
+  // 限流冷却仍需计时
+  startActionCooldown('post', 8);
+  // 启动后台队列
+  void runPublishQueue();
 };
 
 const expandedPostIds = ref(new Set());
@@ -3387,6 +3678,9 @@ const openPostDetail = (postId) => {
             @weekly-checkin="handleWeeklyCheckin" @open-draft="openMobileDraftPanel"
             @save-draft="saveMobileDraft" />
 
+          <!-- 发布进度：灵动岛常驻显示（百分比在岛上，简化不暴露压缩/检测细节） -->
+          <ForumPublishIsland :items="publishQueueItems" @retry="retryPublish" @cancel="cancelPublish" @fix="fixModerationPublish" />
+
           <!-- 帖子列表 -->
           <section class="posts-feed fade-in-up" style="animation-delay: 0.2s;">
             <div v-if="isLoggedIn" class="feed-mode-tabs">
@@ -3445,7 +3739,48 @@ const openPostDetail = (postId) => {
                 <AdSlot v-if="item.isAd" :ad="item.ad" />
                 <div v-else class="forum-virtual-post"
                   :data-forum-virtual-index="getVisiblePostIndex(item.visIndex)">
-                  <PostCard :post="item.post" :index="getVisiblePostIndex(item.visIndex)"
+                  <article v-if="item.post._optimistic" class="post-card-v2 glass-panel optimistic-post-card" :class="{ 'is-failed': item.post._publishState==='failed', 'is-moderation': item.post._failType==='moderation' }" :data-forum-post-id="item.post.id" @click.stop>
+                    <div class="optimistic-progress-track"><i :style="{ width: Math.round(item.post._progress||0)+'%', background: item.post._failType==='moderation' ? '#f59e0b' : item.post._publishState==='failed' ? '#ff3b30' : item.post._publishState==='success' ? '#00b578' : '#1677ff' }"></i></div>
+                    <div class="post-header-v2">
+                      <div class="post-author-section">
+                        <div class="post-author-avatar">
+                          <img v-if="getAvatarUrl(item.post.author_avatar_url || userInfo.avatarUrl, 'sm')" :src="getAvatarUrl(item.post.author_avatar_url || userInfo.avatarUrl, 'sm')" class="avatar-image" loading="eager" />
+                          <span v-else>{{ item.post.author_username ? item.post.author_username.charAt(0).toUpperCase() : 'U' }}</span>
+                        </div>
+                        <div class="post-author-info">
+                          <span class="post-author-v2">{{ '@'+ item.post.author_username }}</span>
+                          <span class="post-date-v2">刚刚 · 仅你可见</span>
+                        </div>
+                        <span class="optimistic-badge" :class="item.post._publishState==='failed' ? (item.post._failType==='moderation' ? 'moderation' : 'failed') : item.post._publishState==='success' ? 'success' : 'sending'">
+                          <template v-if="item.post._publishState==='failed' && item.post._failType==='moderation'">审核未通过</template>
+                          <template v-else-if="item.post._publishState==='failed'">发送失败</template>
+                          <template v-else-if="item.post._publishState==='success'">发送成功</template>
+                          <template v-else>发送中 · {{ Math.round(item.post._progress||0) }}%</template>
+                        </span>
+                      </div>
+                    </div>
+                    <div class="post-content-v2">
+                      <h3 class="post-title-v2">{{ item.post.displayTitle }}</h3>
+                      <div v-if="item.post.tagLabel" class="post-card-tags"><span class="post-card-tag">{{ item.post.tagLabel }}</span></div>
+                      <div v-if="item.post.previewImages && item.post.previewImages.length" class="image-post-thumb-grid" :class="['count-'+ Math.min(item.post.previewImages.length, 3)]">
+                        <div v-for="(img, idx) in item.post.previewImages" :key="img.id||img.url" class="image-post-thumb-shell is-loaded" :class="{ 'is-failed-mark': item.post._failedImageIndex===idx && item.post._publishState==='failed' && item.post._failType==='moderation' }">
+                          <img :src="img.url" :alt="`图片 ${idx+1}`" class="image-post-thumb is-loaded" style="opacity:.92" />
+                          <span v-if="item.post._failedImageIndex===idx && item.post._publishState==='failed' && item.post._failType==='moderation'" class="optimistic-fail-mark">审核未过</span>
+                        </div>
+                      </div>
+                      <p class="post-text-v2">{{ item.post.displayBody }}</p>
+                      <div v-if="item.post._publishState==='failed'" :data-queue-failmsg="item.post._queueId" class="optimistic-fail-msg" :class="item.post._failType==='moderation' ? 'moderation' : 'network'">
+                        <template v-if="item.post._failType==='moderation'">第 {{ (item.post._failedImageIndex||0)+1 }} 张图片未通过安全检测 · 可能含敏感内容，可移除该图后重试，其他内容不受影响。</template>
+                        <template v-else>网络异常，未能完成发送。请检查网络后重试，无需重新编辑。</template>
+                      </div>
+                    </div>
+                    <div class="optimistic-actions" @click.stop>
+                      <button v-if="item.post._publishState==='failed' && item.post._failType==='moderation'" class="optimistic-btn fix" @click="fixModerationPublish(item.post._queueId)">移除该图后重试</button>
+                      <button v-if="item.post._publishState==='failed'" class="optimistic-btn retry" @click="item.post._failType==='moderation' ? fixModerationPublish(item.post._queueId) : retryPublish(item.post._queueId)">{{ item.post._failType==='moderation' ? '移除该图' : '重试' }}</button>
+                      <button class="optimistic-btn ghost" @click="cancelPublish(item.post._queueId)">取消</button>
+                    </div>
+                  </article>
+                  <PostCard v-else :post="item.post" :index="getVisiblePostIndex(item.visIndex)"
                     :is-home-cat-active="isHomeCatActive"
                     :is-expanded="expandedPostIds.has(item.post.id)"
                     :active-reply-target="activeReplyTarget && activeReplyTarget.postId === item.post.id ? activeReplyTarget : null"
@@ -3807,4 +4142,25 @@ const openPostDetail = (postId) => {
 @import './styles/drawers-skeletons.css';
 @import './styles/anniversary.css';
 @import './styles/weekly-report.css';
+</style>
+<style scoped>
+.optimistic-post-card{ position:relative; overflow:hidden; border-color: rgba(22,119,255,.18); box-shadow: 0 8px 30px rgba(22,119,255,.10); }
+.optimistic-progress-track{ position:absolute; left:0; right:0; top:0; height:3px; background: rgba(0,0,0,.06); overflow:hidden; }
+.optimistic-progress-track i{ display:block; height:100%; width:0%; transition: width .35s cubic-bezier(.16,1,.3,1); border-radius:999px; }
+.optimistic-badge{ margin-left:auto; font-size:10px; font-weight:800; letter-spacing:.04em; padding:5px 8px; border-radius:999px; }
+.optimistic-badge.sending{ background:#e8f0ff; color:#1677ff }
+.optimistic-badge.failed{ background:#ffe8e6; color:#c0392b }
+.optimistic-badge.moderation{ background:#fff7ed; color:#b45309; border:1px solid rgba(180,83,9,.14) }
+.optimistic-badge.success{ background:#d8f4e9; color:#057857 }
+.optimistic-fail-msg{ margin-top:8px; padding:10px 12px; border-radius:14px; font-size:12px; font-weight:600; line-height:1.5 }
+.optimistic-fail-msg.moderation{ background:#fff7ed; color:#7c3b0a; border:1px solid rgba(180,83,9,.12) }
+.optimistic-fail-msg.network{ background:#fff1f0; color:#7f1d1d; border:1px solid rgba(255,59,48,.12) }
+.optimistic-actions{ display:flex; gap:8px; justify-content:flex-end; padding-top:4px }
+.optimistic-btn{ border:none; border-radius:999px; padding:7px 12px; font-size:11px; font-weight:800; cursor:pointer; transition:.2s }
+.optimistic-btn.fix{ background:#b45309; color:#fff }
+.optimistic-btn.retry{ background:#1d1d1f; color:#fff }
+.optimistic-btn.ghost{ background:#fff; border:1px solid rgba(0,0,0,.08); color:#1d1d1f }
+.optimistic-btn:active{ transform:scale(.97) }
+.optimistic-fail-mark{ position:absolute; top:6px; right:6px; background:#ff3b30; color:#fff; font-size:10px; font-weight:800; padding:3px 6px; border-radius:999px }
+.image-post-thumb-shell.is-failed-mark img{ outline:2px solid #ff3b30; outline-offset:2px; opacity:.55 !important; }
 </style>

@@ -85,6 +85,32 @@
       </div>
     </section>
 
+    <section class="profile-points-card-section is-own" aria-label="方块积分卡">
+      <div class="profile-points-card-head">
+        <span class="profile-points-card-kicker">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+          方块积分卡
+          <span v-if="tierDisplayName" class="tier-badge" :class="`tier-${tierCode}`" style="margin-left: 4px; height: 18px; font-size: 9px; padding: 0 7px;">{{ tierDisplayName }}</span>
+        </span>
+        <button type="button" class="profile-points-card-action" @click="handlePointsCardClick">
+          设置卡面
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+      </div>
+      <div class="profile-points-card-wrap">
+        <PointsCard
+          :points="pointsCardPoints"
+          :username="displayName"
+          :tier-label="tierDisplayName || 'BOH'"
+          :skin="pointsCardSkin"
+          :image-url="pointsCardImageUrl"
+          interactive
+          @click="handlePointsCardClick"
+        />
+      </div>
+      <p class="profile-points-card-hint">点击卡面去设置空白/小猫或自定义卡面</p>
+    </section>
+
     <section class="profile-service-panel" aria-label="服务">
       <div class="profile-section-heading">
         <span>服务</span>
@@ -262,6 +288,7 @@
 <script setup>
 import { computed, reactive, ref, watch, onMounted, onUnmounted } from 'vue';
 import FollowListModal from '@/components/FollowListModal.vue';
+import PointsCard from './PointsCard.vue';
 import { getCommentsByUsername, getFollowers, getFollowing, unfollowUser } from '@/utils/api/profile-api.js';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { PLAN_DISPLAY_NAMES } from '@/utils/subscription-benefits.js';
@@ -413,7 +440,7 @@ const props = defineProps({
   }
 });
 
-defineEmits([
+const emit = defineEmits([
   'edit-profile',
   'settings',
   'avatar-click',
@@ -444,6 +471,16 @@ watch(profileId, async (id) => {
 }, { immediate: true });
 const displayInitial = computed(() => (props.profile.username || 'U').charAt(0).toUpperCase());
 const isAdmin = computed(() => props.profile.role === 'admin');
+
+const pointsCardPoints = computed(() => Number(props.profile.points ?? props.stats?.points ?? 0));
+const pointsCardSkin = computed(() => {
+  const raw = props.profile.pointsCardSkin ?? props.profile.points_card_skin ?? 'blank';
+  return ['blank', 'cats', 'custom'].includes(String(raw)) ? String(raw) : 'blank';
+});
+const pointsCardImageUrl = computed(() => String(props.profile.pointsCardImageUrl ?? props.profile.points_card_image_url ?? '').trim());
+const handlePointsCardClick = () => {
+  emit('assets', 'cards');
+};
 
 const profileBio = computed(() => {
   const bio = String(props.profile.bio || '').trim();
@@ -915,8 +952,11 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   min-width: 0;
   flex: 1;
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  text-align: left;
 }
 
 .profile-service-body strong {
@@ -992,14 +1032,16 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
 }
 
 .profile-post-grid {
-  columns: 3 210px;
-  column-gap: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 18px;
 }
 
 @media (max-width: 767px) {
   .profile-post-grid {
-    columns: 2 150px;
-    column-gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    padding-inline: 4px;
   }
 
   .profile-post-copy {
@@ -1010,20 +1052,21 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
     font-size: 14px;
   }
 
-  .profile-post-card.text-only {
-    margin-bottom: 10px;
+  .profile-post-cover {
+    min-height: 120px;
   }
+}
 
-  .profile-post-card:not(.text-only):nth-child(5n+2) {
-    margin-top: 16px;
-  }
-
-  .profile-post-card:not(.text-only):nth-child(7n+4) {
-    margin-top: 24px;
+@media (max-width: 767px) and (orientation: portrait) {
+  .profile-post-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    padding-inline: 6px;
   }
 
   .profile-post-cover {
-    min-height: 120px;
+    aspect-ratio: 16 / 10;
+    min-height: 0;
   }
 }
 
@@ -1058,16 +1101,15 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
 }
 
 .profile-post-card {
-  display: inline-block;
+  display: flex;
+  flex-direction: column;
   width: 100%;
-  margin: 0 0 14px;
+  margin: 0;
   overflow: hidden;
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 14px;
   background: #ffffff;
   cursor: pointer;
-  break-inside: avoid;
-  -webkit-column-break-inside: avoid;
   transform: none;
   transition: border-color 0.16s ease, box-shadow 0.16s ease;
   animation: profile-post-card-in 260ms ease-out both;
@@ -1085,14 +1127,6 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
 
 .profile-post-card.text-only {
   min-height: auto;
-}
-
-.profile-post-card:not(.text-only):nth-child(5n+2) {
-  margin-top: 22px;
-}
-
-.profile-post-card:not(.text-only):nth-child(7n+4) {
-  margin-top: 38px;
 }
 
 .profile-post-card.text-only .profile-post-copy {
@@ -1121,18 +1155,6 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   font-size: 42px;
   font-weight: 900;
   overflow: hidden;
-}
-
-.profile-post-card:nth-child(3n+1) .profile-post-cover {
-  aspect-ratio: 4 / 5.35;
-}
-
-.profile-post-card:nth-child(4n+2) .profile-post-cover {
-  aspect-ratio: 1 / 1;
-}
-
-.profile-post-card:nth-child(5n+3) .profile-post-cover {
-  aspect-ratio: 4 / 3.35;
 }
 
 .profile-post-cover img {
@@ -1218,6 +1240,57 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
 
 .user-space-page[data-theme="dark"] .profile-post-cover.empty {
   background: linear-gradient(135deg, rgba(49, 46, 129, 0.45), rgba(24, 24, 27, 0.92));
+}
+
+/* 最终响应式覆盖：避免竖屏图片重新回到高纵向比例 */
+@media (max-width: 767px) and (orientation: portrait) {
+  .profile-post-cover,
+  .profile-post-card:nth-child(3n+1) .profile-post-cover,
+  .profile-post-card:nth-child(4n+2) .profile-post-cover,
+  .profile-post-card:nth-child(5n+3) .profile-post-cover {
+    aspect-ratio: 3 / 2;
+    min-height: 0;
+    max-height: 240px;
+  }
+}
+
+@media (orientation: landscape) {
+  .profile-points-card-section {
+    width: min(100%, 430px);
+    align-self: center;
+    box-sizing: border-box;
+  }
+
+  .profile-post-cover,
+  .profile-post-card:nth-child(3n+1) .profile-post-cover,
+  .profile-post-card:nth-child(4n+2) .profile-post-cover,
+  .profile-post-card:nth-child(5n+3) .profile-post-cover {
+    aspect-ratio: 3 / 2;
+    min-height: 0;
+  }
+}
+
+/* 宽屏：积分卡与服务并排，内容区继续占满整行 */
+@media (min-width: 768px) and (orientation: landscape) {
+  .profile-home-shell {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 18px;
+  }
+
+  .profile-home-shell > .profile-hero-panel,
+  .profile-home-shell > .profile-content-panel {
+    grid-column: 1 / -1;
+  }
+
+  .profile-home-shell > .profile-points-card-section,
+  .profile-home-shell > .profile-service-panel {
+    width: 100%;
+    max-width: none;
+    align-self: stretch;
+    box-sizing: border-box;
+  }
 }
 
 .profile-content-count.is-loading {

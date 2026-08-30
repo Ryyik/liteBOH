@@ -122,7 +122,7 @@ const fetchImpressions = async () => {
   try {
     const { data: { user: authUser } } = await supabase.auth.getUser();
     if (!authUser) {
-      router.push('/login');
+      authStore.showLoginModal = true;
       return;
     }
 

@@ -402,7 +402,7 @@ onMounted(() => {
   if (isLoggedIn.value) {
     void loadData();
   } else {
-    router.push('/login');
+    authStore.showLoginModal = true;
   }
 });
 </script>

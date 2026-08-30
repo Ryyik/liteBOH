@@ -305,7 +305,11 @@ export async function getProfileByUsername(username) {
         last_active_at,
         hide_online_status,
         hide_follow_data,
-        profile_background_url
+        profile_background_url,
+        profile_background_public_id,
+        points_card_skin,
+        points_card_image_url,
+        points_card_image_public_id
       `)
       .eq('username', username)
       .single(),

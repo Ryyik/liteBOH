@@ -90,8 +90,9 @@ router.beforeEach(async (to, from, next) => {
   const { isLoggedIn } = authStore
 
   if (requiresLogin && !isLoggedIn) {
-    notify('请先登录', 'warning')
-    return next("/login")
+    // 受保护路由也使用全局登录灵动岛；保留当前页面，登录成功后用户无需重新寻找入口。
+    authStore.showLoginModal = true
+    return from.name ? next(false) : next("/")
   }
 
   // 封禁用户禁止访问任何需要登录的路由（包括 UserSpace 空间）。
@@ -112,8 +113,8 @@ router.beforeEach(async (to, from, next) => {
 
   if (requiresAdmin) {
     if (!isLoggedIn) {
-      notify('请先登录', 'warning')
-      return next("/login")
+      authStore.showLoginModal = true
+      return from.name ? next(false) : next("/")
     }
 
     const hasAdminAccess = authStore.isAdmin

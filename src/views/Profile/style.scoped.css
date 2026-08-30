@@ -2922,7 +2922,7 @@
   }
 
   .posts-list {
-    padding: 10px 0;
+    padding: 14px 12px 16px;
   }
 
   .posts-list .public-profile-post-card {
@@ -2933,6 +2933,17 @@
   .skeleton-post-card {
     padding: 20px;
     border-radius: 20px;
+  }
+}
+
+@media (max-width: 768px) and (orientation: portrait) {
+  .posts-list {
+    padding-inline: 14px;
+  }
+
+  .posts-list .profile-post-grid {
+    gap: 16px;
+    padding-inline: 2px;
   }
 }
 
@@ -2959,3 +2970,712 @@
   color: #10b981;
 }
 
+/* ===================================================================
+   全量修复：他人空间 - 现代化排版重构 (2026)
+   覆盖旧的 profile-home-shell / hero / tabs / grid / impressions
+   =================================================================== */
+
+/* --- 容器与整体节奏 --- */
+.profile-home-shell {
+  width: min(100%, 980px);
+  margin: 0 auto;
+  padding: 20px 20px 120px;
+  gap: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Hero 增强：更通透的封面与信息层级 --- */
+.profile-hero-panel {
+  min-height: 320px;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  box-shadow: 0 8px 32px rgba(15,23,42,0.06);
+}
+
+.profile-cover-band {
+  height: 148px;
+}
+
+.profile-hero-body {
+  margin-top: -44px;
+  gap: 20px;
+}
+
+.profile-hero-avatar .apple-avatar {
+  box-shadow: 0 14px 32px rgba(15,23,42,0.18), 0 0 0 1px rgba(255,255,255,0.6) inset;
+}
+
+/* 统计区：居中、带分割线、悬浮感 */
+.profile-hero-stats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin: 0 24px 22px;
+  padding: 16px 0 0;
+  border-top: 1px solid rgba(15,23,42,0.06);
+}
+
+.profile-hero-stats .stat-chip {
+  flex: 1;
+  justify-content: center;
+  padding: 6px 8px;
+  border-radius: 10px;
+  transition: background 0.16s ease, transform 0.16s ease;
+}
+
+.profile-hero-stats .stat-chip:hover {
+  background: rgba(15,23,42,0.04);
+  color: var(--text-primary);
+}
+
+.profile-hero-stats .stat-dot {
+  color: rgba(15,23,42,0.18);
+  padding: 0 2px;
+}
+
+/* 服务面板：统一图标背景与文案层级 */
+.profile-service-panel {
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  box-shadow: 0 8px 32px rgba(15,23,42,0.05);
+}
+
+.profile-service-row {
+  min-height: 64px;
+  padding: 12px 16px;
+}
+
+/* Tabs：胶囊容器 + 选中指示 + 计数气泡 */
+.profile-tabs {
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  padding: 6px;
+  gap: 6px;
+  border: 1px solid rgba(15,23,42,0.08);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: 0 4px 16px rgba(15,23,42,0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.tab-item {
+  flex: 1;
+  height: 42px;
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.18s var(--ease-out);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.tab-item:hover {
+  background: rgba(15,23,42,0.04);
+  color: var(--text-primary);
+}
+
+.tab-item.active {
+  background: #0f172a;
+  color: #fff;
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(15,23,42,0.16);
+}
+
+.tab-item.active .tab-indicator {
+  display: none;
+}
+
+.tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.16);
+  color: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.tab-item:not(.active) .tab-count {
+  background: rgba(15,23,42,0.08);
+  color: var(--text-secondary);
+}
+
+.tab-content-list {
+  border: 1px solid rgba(15,23,42,0.08);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: 0 4px 16px rgba(15,23,42,0.06);
+  overflow: hidden;
+}
+
+.posts-list,
+.profile-replies-list,
+.impressions-list-tab {
+  padding: 16px;
+}
+
+/* 代表作：更精致的卡片与空状态 */
+.profile-showcase-section {
+  margin: 0 0 16px;
+  padding: 16px;
+  border: 1px solid rgba(15,23,42,0.06);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+}
+
+.showcase-header h3 {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.showcase-item {
+  border-radius: 14px;
+  transition: all 0.18s var(--ease-out);
+}
+
+.showcase-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(15,23,42,0.08);
+}
+
+/* 帖子网格：在 base 的 grid 基础上增强卡片细节 */
+.profile-post-grid {
+  gap: 16px;
+}
+
+.profile-post-card {
+  border-radius: 16px;
+}
+
+.profile-post-cover {
+  aspect-ratio: 16 / 10;
+  min-height: 160px;
+}
+
+.profile-post-copy {
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.profile-post-copy h3 {
+  font-size: 15px;
+  line-height: 1.4;
+  font-weight: 800;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  min-height: calc(1.4em * 2);
+}
+
+.profile-post-copy p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  flex: 1;
+}
+
+.profile-post-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.profile-post-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.profile-post-meta span + span::before {
+  content: "·";
+  color: rgba(15,23,42,0.22);
+  margin-right: 8px;
+}
+
+/* 固定置顶按钮：在卡片右上角更精致 */
+.profile-post-pin-action {
+  top: 10px;
+  right: 10px;
+}
+
+.pin-post-btn {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  font-size: 11px;
+  padding: 5px 10px;
+  box-shadow: 0 4px 12px rgba(15,23,42,0.08);
+}
+
+/* 回复：卡片化、更易读 */
+.replies-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.replies-list .feed-item {
+  padding: 16px;
+  border: 1px solid rgba(15,23,42,0.06);
+  border-radius: 16px;
+  background: var(--surface-soft);
+  transition: all 0.16s ease;
+  cursor: default;
+}
+
+.replies-list .feed-item:hover {
+  background: #fff;
+  border-color: rgba(15,23,42,0.10);
+  box-shadow: 0 8px 24px rgba(15,23,42,0.06);
+  transform: translateY(-1px);
+}
+
+.item-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.item-author {
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.item-handle {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.replying-to {
+  margin: 6px 0 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: rgba(15,23,42,0.04);
+  padding: 6px 10px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+}
+
+.item-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.quoted-post {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid rgba(15,23,42,0.06);
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.quoted-post:hover {
+  border-color: rgba(37,99,235,0.18);
+  background: rgba(37,99,235,0.02);
+}
+
+/* 印象墙：2列网格、词云与输入区更融合 */
+.word-cloud-section {
+  padding: 20px;
+  margin: 0 0 16px;
+  border: 1px solid rgba(15,23,42,0.06);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
+}
+
+.word-cloud-title {
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
+.add-impression-section {
+  padding: 16px;
+  background: var(--surface-soft);
+  border: 1px solid rgba(15,23,42,0.06);
+  border-radius: 16px;
+  margin-bottom: 16px;
+}
+
+.add-impression-section textarea {
+  border: 1px solid rgba(15,23,42,0.10);
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 88px;
+  transition: all 0.16s ease;
+}
+
+.add-impression-section textarea:focus {
+  border-color: rgba(37,99,235,0.32);
+  box-shadow: 0 0 0 4px rgba(37,99,235,0.08);
+  background: #fff;
+}
+
+.add-imp-actions {
+  margin-top: 12px;
+}
+
+.char-hint {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.submit-imp-btn {
+  min-height: 36px;
+  padding: 0 20px;
+  border-radius: 999px;
+  font-weight: 800;
+  box-shadow: 0 8px 20px rgba(37,99,235,0.18);
+  transition: all 0.16s var(--ease-out);
+}
+
+.submit-imp-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(37,99,235,0.22);
+}
+
+.impressions-wall-profile {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+  padding: 0;
+}
+
+.impression-card-profile {
+  background: var(--surface-soft);
+  border: 1px solid rgba(15,23,42,0.06);
+  border-radius: 16px;
+  padding: 16px;
+  transition: all 0.16s var(--ease-out);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.impression-card-profile:hover {
+  background: #fff;
+  border-color: rgba(15,23,42,0.08);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(15,23,42,0.08);
+}
+
+.imp-text {
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.imp-footer {
+  padding-top: 12px;
+  border-top: 1px solid rgba(15,23,42,0.06);
+}
+
+/* 空状态：更友好、带插画感 */
+.empty-list-state {
+  padding: 48px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.empty-list-state h3 {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.empty-list-state p {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin: 0;
+  max-width: 320px;
+}
+
+.empty-action-btn {
+  margin-top: 16px;
+  min-height: 38px;
+  padding: 0 20px;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #fff;
+  border: 0;
+  font-weight: 700;
+  box-shadow: 0 8px 20px rgba(15,23,42,0.12);
+  transition: all 0.16s var(--ease-out);
+}
+
+.empty-action-btn:hover {
+  background: #000;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(15,23,42,0.16);
+  color: #fff;
+  border-color: transparent;
+}
+
+/* 加载更多：更轻量 */
+.list-load-more-wrap {
+  padding: 20px 0 8px;
+}
+
+.load-more-btn {
+  min-height: 40px;
+  padding: 0 22px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid rgba(15,23,42,0.10);
+  font-weight: 700;
+  font-size: 13px;
+  box-shadow: 0 4px 12px rgba(15,23,42,0.04);
+  transition: all 0.16s ease;
+}
+
+.load-more-btn:hover:not(:disabled) {
+  border-color: rgba(15,23,42,0.16);
+  background: #f8fafc;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(15,23,42,0.06);
+  color: #0f172a;
+}
+
+/* 骨架：与新 hero 同步 */
+.profile-skeleton-wrap {
+  width: min(100%, 980px);
+  margin: 0 auto;
+  padding: 20px 20px 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.profile-skeleton-wrap .profile-hero-panel {
+  min-height: 320px;
+}
+
+/* 深色模式适配 */
+.profile-page[data-theme="dark"] {
+  background:
+    radial-gradient(900px 320px at 50% -120px, rgba(59,130,246,0.10), transparent 60%),
+    #0f1115 !important;
+}
+
+.profile-page[data-theme="dark"] .profile-hero-panel,
+.profile-page[data-theme="dark"] .profile-service-panel,
+.profile-page[data-theme="dark"] .profile-tabs,
+.profile-page[data-theme="dark"] .tab-content-list,
+.profile-page[data-theme="dark"] .profile-showcase-section,
+.profile-page[data-theme="dark"] .word-cloud-section,
+.profile-page[data-theme="dark"] .add-impression-section {
+  background: rgba(24,26,32,0.96) !important;
+  border-color: rgba(255,255,255,0.08) !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24) !important;
+}
+
+.profile-page[data-theme="dark"] .profile-post-card,
+.profile-page[data-theme="dark"] .replies-list .feed-item,
+.profile-page[data-theme="dark"] .impression-card-profile,
+.profile-page[data-theme="dark"] .showcase-item,
+.profile-page[data-theme="dark"] .quoted-post {
+  background: #1a1a24 !important;
+  border-color: rgba(255,255,255,0.06) !important;
+}
+
+.profile-page[data-theme="dark"] .tab-item {
+  color: #a1a1aa;
+}
+
+.profile-page[data-theme="dark"] .tab-item:hover {
+  background: rgba(255,255,255,0.06);
+  color: #f5f5f7;
+}
+
+.profile-page[data-theme="dark"] .tab-item.active {
+  background: #f5f5f7;
+  color: #18181b;
+}
+
+.profile-page[data-theme="dark"] .profile-bio,
+.profile-page[data-theme="dark"] .profile-name,
+.profile-page[data-theme="dark"] .item-text,
+.profile-page[data-theme="dark"] .imp-text,
+.profile-page[data-theme="dark"] .profile-post-copy h3 {
+  color: #f5f5f7 !important;
+}
+
+.profile-page[data-theme="dark"] .profile-handle,
+.profile-page[data-theme="dark"] .profile-bio-toggle,
+.profile-page[data-theme="dark"] .profile-post-copy p,
+.profile-page[data-theme="dark"] .item-handle,
+.profile-page[data-theme="dark"] .imp-date {
+  color: #a1a1aa !important;
+}
+
+.profile-page[data-theme="dark"] .profile-service-icon.bg-blue { background: rgba(59,130,246,0.12); color: #60a5fa; }
+.profile-page[data-theme="dark"] .profile-service-icon.bg-teal { background: rgba(20,184,166,0.12); color: #2dd4bf; }
+.profile-page[data-theme="dark"] .profile-service-icon.bg-purple { background: rgba(168,85,247,0.12); color: #c084fc; }
+.profile-page[data-theme="dark"] .profile-service-icon.bg-pink { background: rgba(244,63,94,0.12); color: #fb7185; }
+
+/* 移动端：他人空间专用微调 */
+@media (max-width: 768px) {
+  .profile-home-shell,
+  .profile-skeleton-wrap {
+    padding: 14px 14px 100px;
+    gap: 14px;
+  }
+
+  .profile-hero-panel {
+    border-radius: 18px;
+  }
+
+  .profile-cover-band {
+    height: 112px;
+  }
+
+  .profile-hero-body {
+    margin-top: -32px;
+    padding: 0 16px 16px;
+    gap: 14px;
+  }
+
+  .profile-hero-avatar .apple-avatar {
+    width: 82px;
+    height: 82px;
+    border-radius: 24px;
+  }
+
+  .profile-hero-copy {
+    padding-top: 0;
+    gap: 8px;
+  }
+
+  .profile-hero-actions {
+    gap: 8px;
+  }
+
+  .profile-hero-stats {
+    margin: 0 16px 16px;
+    padding-top: 14px;
+  }
+
+  .profile-tabs {
+    padding: 4px;
+    gap: 4px;
+    border-radius: 16px;
+  }
+
+  .tab-item {
+    height: 38px;
+    font-size: 13px;
+    border-radius: 10px;
+  }
+
+  .posts-list,
+  .profile-replies-list,
+  .impressions-list-tab {
+    padding: 12px;
+  }
+
+  .profile-post-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .profile-post-cover {
+    min-height: 180px;
+  }
+
+  .impressions-wall-profile {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .replies-list .feed-item {
+    padding: 14px;
+  }
+
+  .word-cloud-section,
+  .add-impression-section {
+    padding: 14px;
+    border-radius: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .profile-hero-actions {
+    width: 100%;
+  }
+
+  .profile-follow-btn,
+  .profile-message-btn,
+  .profile-edit-btn {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+/* 动效：尊重用户偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .profile-post-card,
+  .profile-hero-panel,
+  .profile-service-panel,
+  .replies-list .feed-item,
+  .impression-card-profile {
+    animation: none !important;
+    transition: none !important;
+  }
+  .profile-post-card:hover,
+  .replies-list .feed-item:hover,
+  .impression-card-profile:hover {
+    transform: none !important;
+  }
+}

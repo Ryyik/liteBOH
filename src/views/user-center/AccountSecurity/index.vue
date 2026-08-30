@@ -390,7 +390,7 @@ const confirmDeleteAccount = async () => {
 
 onMounted(async () => {
   if (!isLoggedIn.value) {
-    router.push('/login');
+    authStore.showLoginModal = true;
     return;
   }
 

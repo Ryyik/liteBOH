@@ -650,12 +650,13 @@ button { color: inherit; }
   100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
 }
 
-@media (max-width: 700px) {
+@media (max-width: 768px) {
   .wall-header { height: 62px; padding: 0 12px; }
   .wall-title span { display: none; }
   .wall-title h1 { font-size: 18px; }
-  .add-button { padding: 0 12px; }
-  .wall-shell { width: 100%; padding: 14px 0 0; }
+  .add-button { padding: 0 12px; min-height: 44px; }
+  .icon-button { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
+  .wall-shell { width: 100%; padding: 14px 0 0; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
   .wall-intro { padding: 0 15px 11px; }
   .wall-intro span { display: none; }
   .story-wall {
@@ -677,16 +678,17 @@ button { color: inherit; }
   .cat-brr { right: 5%; bottom: 0%; }
   .wall-item { width: 148px; height: 142px; }
   .paper-note { height: 142px; padding: 22px 14px 12px; }
-  .paper-note > p { min-height: 78px; max-height: 78px; font-size: 12px; line-height: 1.58; }
+  .paper-note > p { min-height: 78px; max-height: 78px; font-size: 12px; line-height: 1.58; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .polaroid { height: 172px; padding: 8px 8px 10px; }
   .polaroid img { height: 108px; flex-basis: 108px; }
   .polaroid > p { height: 20px; margin-top: 4px; font-size: 11px; line-height: 20px; }
-  .placement-bar { bottom: 10px; flex-wrap: wrap; }
+  .placement-bar { bottom: max(10px, env(safe-area-inset-bottom)); flex-wrap: wrap; }
   .placement-bar > div { width: 100%; flex-basis: 100%; justify-content: center; }
-  .placement-bar button { flex: 1; }
+  .placement-bar button { flex: 1; min-height: 44px; min-width: 44px; }
   .composer { padding: 19px; }
-  .modal-backdrop { align-items: end; padding: 10px; }
-  .composer, .detail-sheet { max-height: calc(100dvh - 20px); }
+  .modal-backdrop { align-items: end; padding: 10px; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+  .composer, .detail-sheet { max-height: calc(100dvh - 20px); max-height: calc(100dvh - env(safe-area-inset-bottom) - 20px); }
+  .wall-toast { bottom: max(26px, env(safe-area-inset-bottom)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

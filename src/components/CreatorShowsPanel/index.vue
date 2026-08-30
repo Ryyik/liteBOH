@@ -15,9 +15,9 @@
           <button v-if="canPublishShow" type="button" class="creator-btn creator-btn-primary" @click="openPublishModal">
             发布节目
           </button>
-          <router-link v-else-if="!isLoggedIn" to="/login" class="creator-btn creator-btn-secondary">
+          <button v-else-if="!isLoggedIn" type="button" class="creator-btn creator-btn-secondary" @click="authStore.showLoginModal = true">
             登录后发布
-          </router-link>
+          </button>
           <router-link v-else :to="profileRoute" class="creator-btn creator-btn-secondary">
             去资料页认证
           </router-link>

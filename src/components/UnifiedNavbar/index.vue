@@ -8,6 +8,7 @@
       :class="{
         'has-status-card': navStatus.visible,
         'has-long-status-card': navStatus.visible && navStatus.isLong,
+        'has-login-card': showLoginModal,
       }"
       :style="{
         '--global-nav-status-duration': `${navStatus.duration}ms`,

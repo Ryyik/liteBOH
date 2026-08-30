@@ -24,7 +24,7 @@
             <Cloud class="login-icon" :size="40" :stroke-width="1.6" aria-hidden="true" />
             <h3>登录后开启你的 BOH Cloud+</h3>
             <p>这里会保存你的文字、图片和图文混合内容。</p>
-            <button class="primary-btn" @click="router.push('/login')">去登录</button>
+            <button class="primary-btn" @click="authStore.showLoginModal = true">去登录</button>
           </div>
         </div>
 
@@ -611,6 +611,7 @@ import {
   resolveSettingsBackLocation
 } from '@/utils/user-space-navigation.js';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
+import { showGlobalNavStatus } from '@/composables/useGlobalNavStatus.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -1525,6 +1526,52 @@ function showNotice(message) {
   }, 2600);
 }
 showNotice.timer = null;
+
+// 劫持原始 showNotice：优先灵动岛，失败回退本地 notice-bar
+const _originShowNotice = showNotice;
+function showCloudIsland(title, message = '', icon = 'success', durationMs = 3200) {
+  try {
+    const ok = showGlobalNavStatus({ title, message, icon, durationMs });
+    return ok;
+  } catch {
+    return false;
+  }
+}
+function showNoticeWithIsland(message, opts = {}) {
+  const title = String(opts.title || message || '提示').trim() || '提示';
+  const msg = String(opts.message ?? (opts.title ? message : '')).trim();
+  const icon = opts.icon || (/失败|错误|不足|超过|无效|请先|超过|受限|频繁/.test(String(message)) ? 'warning' : 'success');
+  const durationMs = opts.durationMs || (icon === 'warning' ? 3600 : 3000);
+  const ok = showCloudIsland(title, msg, icon, durationMs);
+  if (!ok) _originShowNotice(message);
+  return ok;
+}
+let _cloudNoticeTimer = null;
+showNotice = function(message) {
+  const text = String(message || '');
+  const isError = /失败|错误|不足|超过|无效|超过|不能为空|不能超过|未变化|请先|受限|频繁|无法识别|已满|取消/.test(text);
+  const icon = isError ? (/已取消|已退出/.test(text) ? 'success' : 'warning') : 'success';
+  const title = text.length > 24 ? text.slice(0, 24) : text;
+  const msg = text.length > 24 ? text.slice(24) : '';
+  let ok = false;
+  try { ok = showGlobalNavStatus({ title, message: msg, icon, durationMs: isError ? 3600 : 3000 }); } catch { ok = false; }
+  if (ok) {
+    noticeText.value = '';
+    window.clearTimeout(_cloudNoticeTimer);
+    window.clearTimeout(_originShowNotice.timer);
+    window.clearTimeout(showNotice.timer);
+    return;
+  }
+  noticeText.value = text;
+  window.clearTimeout(_cloudNoticeTimer);
+  window.clearTimeout(_originShowNotice.timer);
+  window.clearTimeout(showNotice.timer);
+  const timer = window.setTimeout(() => { if (noticeText.value === text) noticeText.value = ''; }, 2600);
+  _cloudNoticeTimer = timer;
+  _originShowNotice.timer = timer;
+  showNotice.timer = timer;
+};
+showNotice.timer = _originShowNotice.timer;
 
 async function deleteDraftAssetFromCloudinary(image, { silent = false, keepalive = false } = {}) {
   const token = String(image?.deleteToken || '').trim();

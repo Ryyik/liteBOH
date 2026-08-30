@@ -274,7 +274,7 @@ const proPlan = computed(() => plans.find((p) => p.code === 'pro') || null);
 
 const handleStartTrial = async () => {
   if (isSubmitting.value || isLoadingSubscriptions.value) return;
-  if (!authStore.isLoggedIn || !userInfo.value?.id) { notify('请先登录后再开启试用', '', 'warning'); authStore.showLoginModal = true; return; }
+  if (!authStore.isLoggedIn || !userInfo.value?.id) { authStore.showLoginModal = true; return; }
   isSubmitting.value = true;
   try {
     const result = await startSubscriptionTrial({ planCode: 'pro', durationDays: 3, metadata: { source: 'user-center/subscription' } });
@@ -299,7 +299,7 @@ const handleTrialUpgrade = () => {
 };
 const handleSubscribe = async (plan) => {
   if (plan.status === 'active' || plan.status === 'blocked' || isSubmitting.value || isLoadingSubscriptions.value) return;
-  if (!authStore.isLoggedIn || !userInfo.value?.id) { notify('请先登录后再订阅', '', 'warning'); authStore.showLoginModal = true; return; }
+  if (!authStore.isLoggedIn || !userInfo.value?.id) { authStore.showLoginModal = true; return; }
   if (!plan.monthlyCost) { notify('免费权益无需扣除积分', '', 'success'); return; }
   if (currentPoints.value < requiredCostFor(plan)) { currentService.value = plan; showModal.value = true; return; }
   confirmPlan.value = plan; showConfirmModal.value = true;

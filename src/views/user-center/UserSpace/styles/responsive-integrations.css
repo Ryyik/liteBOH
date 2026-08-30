@@ -36,14 +36,15 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 2px;
-    padding: 0 18px 14px;
-    margin-top: -28px;
+    gap: 14px;
+    padding: 0 18px 16px;
+    margin-top: -32px;
   }
 
   .profile-hero-copy {
     padding-top: 0;
     width: 100%;
+    gap: 8px;
   }
 
   .profile-hero-avatar {
@@ -56,9 +57,16 @@
   }
 
   .profile-hero-avatar .apple-avatar {
-    width: 74px;
-    height: 74px;
-    border-radius: 21px;
+    width: 82px;
+    height: 82px;
+    border-radius: 24px;
+    border-width: 3px;
+  }
+
+  .avatar-online-indicator {
+    width: 14px;
+    height: 14px;
+    border-width: 2.5px;
   }
 
   .profile-hero-name-row,
@@ -66,8 +74,17 @@
     justify-content: flex-start;
   }
 
+  .profile-name {
+    font-size: 20px;
+  }
+
+  .profile-meta-row {
+    gap: 6px;
+  }
+
   .profile-bio {
     font-size: 14px;
+    line-height: 1.5;
   }
 
   .profile-chip-row {
@@ -76,14 +93,25 @@
     padding-bottom: 0;
   }
 
-  .profile-edit-btn {
-    min-height: 36px;
+  .profile-edit-btn,
+  .profile-follow-btn,
+  .profile-message-btn {
+    min-height: 34px;
     padding: 0 16px;
-    margin-top: 12px;
+    font-size: 13px;
+  }
+
+  .profile-hero-actions {
+    margin-top: 8px;
+    gap: 8px;
   }
 
   .profile-hero-stats {
     margin: 0 18px 18px;
+  }
+
+  .profile-cover-band {
+    height: 112px;
   }
 
   .profile-shortcut-strip {
@@ -843,7 +871,7 @@
     display: flex !important;
     flex-direction: column;
     align-items: flex-start;
-    gap: 0 !important;
+    gap: 14px !important;
     margin-top: -28px;
     padding: 0 16px 16px;
   }
@@ -943,6 +971,25 @@
   .profile-hero-stats {
     margin: 0 16px 18px;
     padding-top: 14px;
+  }
+
+  .profile-hero-actions {
+    gap: 8px;
+    margin-top: 6px;
+  }
+
+  .profile-meta-row {
+    gap: 6px;
+  }
+
+  .profile-cover-band {
+    height: 112px;
+  }
+
+  .avatar-online-indicator {
+    width: 14px;
+    height: 14px;
+    border-width: 2.5px;
   }
 
   .profile-action-panel {
@@ -1076,21 +1123,18 @@
     border-radius: 12px;
   }
 
+  .profile-points-card-section {
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .profile-points-card-wrap .points-card {
+    max-width: none;
+  }
+
   .profile-post-grid {
-    columns: 2 150px;
-    column-gap: 10px;
-  }
-
-  .profile-post-card.text-only {
-    margin-bottom: 10px;
-  }
-
-  .profile-post-card:not(.text-only):nth-child(5n+2) {
-    margin-top: 16px;
-  }
-
-  .profile-post-card:not(.text-only):nth-child(7n+4) {
-    margin-top: 24px;
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
 
   .profile-cloud-embed :deep(.cloud-shell) {
@@ -1105,6 +1149,32 @@
 
   .profile-cloud-embed :deep(.cloud-main) {
     gap: 18px;
+  }
+}
+
+/* 横屏：压缩积分卡高度，并保持帖子为规则双列 */
+@media (max-width: 767px) and (orientation: landscape) {
+  .profile-points-card-section {
+    padding: 10px 14px;
+    gap: 10px;
+  }
+
+  .profile-points-card-wrap .points-card {
+    width: min(100%, 340px);
+    max-width: 340px;
+    aspect-ratio: 2.08 / 1;
+  }
+
+  .profile-post-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+}
+
+@media (min-width: 768px) and (orientation: landscape) {
+  .profile-points-card-wrap .points-card {
+    max-width: 380px;
+    aspect-ratio: 2.08 / 1;
   }
 }
 

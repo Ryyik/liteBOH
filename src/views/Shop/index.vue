@@ -296,6 +296,7 @@ import { getAllProfiles } from '@/utils/api/auth-api.js';
 import { createShopOrderWithPoints, getProfileByUsername } from '@/utils/api/profile-api.js';
 import { sendMerchandiseSettlementEmail } from '@/utils/email-service.js';
 import { logger } from '@/utils/logger.js';
+import { showGlobalNavStatus } from '@/composables/useGlobalNavStatus.js';
 import ShopAccountPanel from './ShopAccountPanel.vue';
 import ShopPaymentSuccessModal from './ShopPaymentSuccessModal.vue';
 
@@ -471,11 +472,37 @@ function toggleSidebar() { isSidebarOpen.value = !isSidebarOpen.value; document.
 function closeSidebar() { isSidebarOpen.value = false; document.body.style.overflow = ''; }
 function continueShopping() { closeSidebar(); switchToProducts(); }
 function updateQuantity(id, spec, delta) { updateBagItemQuantity(id, spec, delta); }
+function showShopIsland(title, message = '', icon = 'success', durationMs = 3000, onAction = null) {
+  try {
+    const payload = { title, message, icon, durationMs };
+    if (typeof onAction === 'function') payload.onAction = onAction;
+    return showGlobalNavStatus(payload);
+  } catch {
+    return false;
+  }
+}
 function showOperationToast(message) {
+  const text = String(message || '');
+  const isError = /不可兑换|无效|不足|失败|错误|请先登录|请检查/.test(text);
+  const icon = isError ? 'warning' : 'success';
+  let title = text;
+  let msg = '';
+  // 精细化标题映射
+  if (text === '已加入购物袋') { title = '已加入购物袋'; msg = selectedProduct.value?.title ? String(selectedProduct.value.title).slice(0, 32) : ''; }
+  else if (text === '订单已提交') { title = '订单已提交'; msg = '管理员会尽快与你确认'; }
+  else if (text === '订单已提交，但邮件通知发送失败') { title = '订单已提交'; msg = '邮件通知发送失败'; }
+  else if (text.startsWith('积分不足')) { title = '积分不足'; msg = text.replace(/^积分不足[:：]?\s*/, ''); }
+  else if (text === '该商品暂不可兑换') { title = '暂不可兑换'; msg = '该商品当前不可兑换'; }
+  else if (text === '请先登录后再提交订单') { title = '请先登录'; msg = '登录后可提交订单'; }
+  else if (text === '订单内容无效，请检查购物袋') { title = '订单无效'; msg = '请检查购物袋'; }
+  else if (text.length > 24) { title = text.slice(0, 24); msg = text.slice(24); }
+  const ok = showShopIsland(title, msg, icon, isError ? 3600 : 3000, isError && text === '请先登录后再提交订单' ? () => { showLoginModal.value = true; } : null);
+  if (ok) return;
   if (toastTimer) clearTimeout(toastTimer);
   operationToast.value = { show: true, message };
   toastTimer = setTimeout(() => { operationToast.value.show = false; }, 2600);
 }
+
 
 function closeContactModal() { showContactModal.value = false; contactType.value = ''; contactValue.value = ''; }
 function closePaymentSuccess() {

@@ -563,6 +563,7 @@ import {
 } from '@/utils/moderation-retry-cache.js';
 import { useDebounce, useThrottle } from '@/composables/useDebounceThrottle';
 import { useVirtualList } from '@vueuse/core';
+import { showGlobalNavStatus } from '@/composables/useGlobalNavStatus.js';
 
 // Props
 const props = defineProps({
@@ -815,7 +816,19 @@ const hideFeedback = () => {
   feedbackToast.action = null;
 };
 
-const showFeedback = (message, type = 'info', options = {}) => {
+const showMessageIsland = (title, message = '', type = 'info', options = {}) => {
+  const iconMap = { success: 'success', error: 'warning', warning: 'warning', info: 'notification' };
+  const icon = iconMap[type] || 'notification';
+  const durationMs = options.action ? 5200 : (type === 'error' || type === 'warning' ? 3600 : 3000);
+  try {
+    const payload = { title, message, icon, durationMs };
+    if (typeof options.action === 'function') payload.onAction = options.action;
+    return showGlobalNavStatus(payload);
+  } catch {
+    return false;
+  }
+};
+const _originShowFeedback = (message, type = 'info', options = {}) => {
   if (feedbackToastTimer) {
     clearTimeout(feedbackToastTimer);
     feedbackToastTimer = null;
@@ -829,6 +842,24 @@ const showFeedback = (message, type = 'info', options = {}) => {
     hideFeedback();
     feedbackToastTimer = null;
   }, feedbackToast.action ? 5200 : 2400);
+};
+const showFeedback = (message, type = 'info', options = {}) => {
+  const text = String(message || '');
+  // 将常见消息拆为标题/副标题
+  let title = text;
+  let msg = '';
+  if (text.startsWith('已归档') || text.startsWith('已取消归档') || text.startsWith('已标记') || text.startsWith('已恢复') || text.startsWith('已撤销')) {
+    const parts = text.split('，');
+    title = parts[0].slice(0, 24);
+    msg = parts.slice(1).join('，') || (text.length > 24 ? text.slice(24) : '');
+  } else if (text.length > 24) {
+    title = text.slice(0, 24);
+    msg = text.slice(24);
+  }
+  // 优先灵动岛
+  const ok = showMessageIsland(title, msg, type, options);
+  if (ok) return;
+  return _originShowFeedback(message, type, options);
 };
 
 const runFeedbackAction = async () => {

@@ -803,6 +803,7 @@ const CHAT_API_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.sili
 import { useLabQuota } from '@/composables/useLabQuota.js'
 import { BASE_SYSTEM_PROMPT } from '@/prompts/index.js'
 import { STYLE_PRESETS, DEFAULT_PRESET_ID, getPresetById } from './config/design-tokens.js'
+import { showGlobalNavStatus } from '@/composables/useGlobalNavStatus.js'
 
 const router = useRouter()
 const { chat, aiLoading } = useDocumentAI()
@@ -895,6 +896,30 @@ const loadingMessage = ref('正在解析文档...')
 const error = ref('')
 const toastRef = ref(null)
 const threadRef = ref(null)
+
+// ===== 灵动岛封装：优先走全局顶部状态卡，失败回退本地 NotificationToast =====
+const showLabIsland = (payload = {}) => {
+  try {
+    return showGlobalNavStatus(payload)
+  } catch {
+    return false
+  }
+}
+const notifyLab = (title, message = '', type = 'info') => {
+  const iconMap = { success: 'success', error: 'warning', warning: 'warning', info: 'ai' }
+  const icon = iconMap[type] || 'ai'
+  const durationMs = type === 'error' || type === 'warning' ? 3600 : 3200
+  const ok = showLabIsland({ title, message, icon, durationMs })
+  if (ok) return true
+  const t = toastRef.value
+  if (!t) return false
+  if (type === 'success' && t.success) t.success(title, message)
+  else if (type === 'error' && t.error) t.error(title, message)
+  else if (type === 'warning' && t.warning) t.warning(title, message)
+  else if (t.info) t.info(title, message)
+  else if (t.success) t.success(title, message)
+  return false
+}
 const heroTextareaRef = ref(null)
 const bottomTextareaRef = ref(null)
 const heroFileInput = ref(null)
@@ -1330,12 +1355,12 @@ async function handleFileUpload(file) {
       time: nowTime(),
       file: docData.value.fileName,
     })
-    toastRef.value?.success('文档解析成功', `${docData.value.content.length} 段 · ${docData.value.styles.styles.length} 样式`)
+    notifyLab('文档解析成功', `${docData.value.content.length} 段 · ${docData.value.styles.styles.length} 样式`, 'success')
   } catch (e) {
     error.value = `解析失败：${e.message}`
     docData.value = null
     pendingFile.value = null
-    toastRef.value?.error('解析失败', e.message)
+    notifyLab('解析失败', e.message, 'error')
   } finally {
     isLoading.value = false
   }
@@ -1454,7 +1479,7 @@ function stopGeneration() {
 async function sendGeneralChat(content, signal) {
   // 配额预检查，与其他 sendXxx 一致
   if (isExceeded.value) {
-    toastRef.value?.warning('对话次数已达上限', getUpgradeHint())
+    notifyLab('次数已达上限', getUpgradeHint(), 'warning')
     return
   }
 
@@ -1572,7 +1597,7 @@ async function sendGeneralChat(content, signal) {
       time: nowTime(),
     })
     if (isQuotaError) {
-      toastRef.value?.warning('对话次数已达上限', getUpgradeHint())
+      notifyLab('次数已达上限', getUpgradeHint(), 'warning')
     }
   } finally {
     aiLoading.value = false
@@ -1641,7 +1666,7 @@ async function sendDoc(content, signal) {
       await rebuildAndPreview()
       error.value = ''
       addHistory('样式修改', `已修改 ${operations.length} 项样式`, 'style')
-      toastRef.value?.success('样式已更新', `共 ${operations.length} 项修改`)
+      notifyLab('样式已更新', `共 ${operations.length} 项修改`, 'success')
     }
   } catch (e) {
     if (isAbortError(e)) return // 用户主动取消，静默处理
@@ -1650,7 +1675,7 @@ async function sendDoc(content, signal) {
       content: `出错：${e.message}`,
       time: nowTime(),
     })
-    toastRef.value?.error('操作失败', e.message)
+    notifyLab('操作失败', e.message, 'error')
   }
   await scrollToBottom()
 }
@@ -1658,14 +1683,14 @@ async function sendDoc(content, signal) {
 async function sendPPT(content, signal) {
   // 生成前检查限额，避免浪费 token
   if (isExceeded.value) {
-    toastRef.value?.warning('生成次数已达上限', getUpgradeHint())
+    notifyLab('生成次数已达上限', getUpgradeHint(), 'warning')
     return
   }
 
   // H-3 修复：AI 调用前预扣减配额，防止 TOCTOU 竞态导致无限生成消耗 token
   const quotaResult = await preConsumeQuota('ppt')
   if (!quotaResult.success) {
-    toastRef.value?.warning('生成次数已达上限', quotaResult.error || getUpgradeHint())
+    notifyLab('生成次数已达上限', quotaResult.error || getUpgradeHint(), 'warning')
     return
   }
 
@@ -1728,7 +1753,7 @@ async function sendPPT(content, signal) {
       ppt: data,
       time: nowTime(),
     })
-    toastRef.value?.success('PPT 生成成功', `${data.slides.length} 张幻灯片 · ${currentPresetName.value}`)
+    notifyLab('PPT 生成成功', `${data.slides.length} 张幻灯片 · ${currentPresetName.value}`, 'success')
   } catch (e) {
     // 用户主动取消：保留已生成的大纲信息，回退配额
     if (isAbortError(e)) {
@@ -1755,7 +1780,7 @@ async function sendPPT(content, signal) {
       content: `PPT 生成失败：${e.message}`,
       time: nowTime(),
     })
-    toastRef.value?.error('PPT 生成失败', e.message)
+    notifyLab('PPT 生成失败', e.message, 'error')
     // H-3 修复：AI 调用失败，回退预扣减的配额
     await refundQuota('ppt')
   } finally {
@@ -1767,14 +1792,14 @@ async function sendPPT(content, signal) {
 async function sendWord(content, signal) {
   // 生成前检查限额，避免浪费 token
   if (isExceeded.value) {
-    toastRef.value?.warning('生成次数已达上限', getUpgradeHint())
+    notifyLab('生成次数已达上限', getUpgradeHint(), 'warning')
     return
   }
 
   // H-3 修复：AI 调用前预扣减配额
   const quotaResult = await preConsumeQuota('word')
   if (!quotaResult.success) {
-    toastRef.value?.warning('生成次数已达上限', quotaResult.error || getUpgradeHint())
+    notifyLab('生成次数已达上限', quotaResult.error || getUpgradeHint(), 'warning')
     return
   }
 
@@ -1838,7 +1863,7 @@ async function sendWord(content, signal) {
       word: data,
       time: nowTime(),
     })
-    toastRef.value?.success('Word 生成成功', `${blockCount} 个内容块 · ${currentPresetName.value}`)
+    notifyLab('Word 生成成功', `${blockCount} 个内容块 · ${currentPresetName.value}`, 'success')
   } catch (e) {
     // 用户主动取消：回退配额
     if (isAbortError(e)) {
@@ -1865,7 +1890,7 @@ async function sendWord(content, signal) {
       content: `Word 生成失败：${e.message}`,
       time: nowTime(),
     })
-    toastRef.value?.error('Word 生成失败', e.message)
+    notifyLab('Word 生成失败', e.message, 'error')
     // H-3 修复：AI 调用失败，回退预扣减的配额
     await refundQuota('word')
   } finally {
@@ -1878,14 +1903,14 @@ async function sendWord(content, signal) {
 
 async function sendCode(content, signal) {
   if (isExceeded.value) {
-    toastRef.value?.warning('生成次数已达上限', getUpgradeHint())
+    notifyLab('生成次数已达上限', getUpgradeHint(), 'warning')
     return
   }
 
   // H-3 修复：AI 调用前预扣减配额
   const quotaResult = await preConsumeQuota('code')
   if (!quotaResult.success) {
-    toastRef.value?.warning('生成次数已达上限', quotaResult.error || getUpgradeHint())
+    notifyLab('生成次数已达上限', quotaResult.error || getUpgradeHint(), 'warning')
     return
   }
 
@@ -1957,7 +1982,7 @@ async function sendCode(content, signal) {
     })
     rightPanelOpen.value = true
     rightPanelTab.value = 'code'
-    toastRef.value?.success('网页生成成功', '点击右侧面板下载')
+    notifyLab('网页生成成功', '点击右侧面板下载', 'success')
   } catch (e) {
     // P1-9: flush 确保 content 已落盘，避免取消时 partialContent 读到 rAF pending 的旧值
     flushStreamContent()
@@ -1998,7 +2023,7 @@ async function sendCode(content, signal) {
       content: `网页生成失败：${e.message}`,
       time: nowTime(),
     })
-    toastRef.value?.error('网页生成失败', e.message)
+    notifyLab('网页生成失败', e.message, 'error')
     // H-3 修复：AI 调用失败，回退预扣减的配额
     await refundQuota('code')
   } finally {
@@ -2013,10 +2038,10 @@ async function downloadCodeFromPanel() {
     const fileName = `${(lastCodeData.value.title || 'AI生成网页').replace(/\s+/g, '_')}.zip`
     await downloadCode(lastCodeData.value, fileName)
     // H-3 修复：配额已在 sendCode 阶段预扣减，此处无需再记录
-    toastRef.value?.success('下载成功', fileName)
+    notifyLab('下载成功', fileName, 'success')
   } catch (e) {
     console.error('downloadCodeFromPanel 失败:', e, 'lastCodeData:', lastCodeData.value)
-    toastRef.value?.error('下载失败', `${e.message}（HTML 长度: ${lastCodeData.value?.html?.length || 0}）`)
+    notifyLab('下载失败', `${e.message}（HTML 长度: ${lastCodeData.value?.html?.length || 0}）`, 'error')
   }
 }
 
@@ -2027,10 +2052,10 @@ async function downloadPPT(pptData) {
     await buildPPTFile(pptData, selectedPresetId.value, fileName)
 
     // H-3 修复：配额已在 sendPPT 阶段预扣减，此处无需再记录
-    toastRef.value?.success('下载成功', fileName)
+    notifyLab('下载成功', fileName, 'success')
   } catch (e) {
     error.value = `下载失败：${e.message}`
-    toastRef.value?.error('下载失败', e.message)
+    notifyLab('下载失败', e.message, 'error')
   }
 }
 
@@ -2041,13 +2066,13 @@ async function downloadWord(wordData) {
     await buildWordFile(wordData, selectedPresetId.value, fileName)
 
     // H-3 修复：配额已在 sendWord 阶段预扣减，此处无需再记录
-    toastRef.value?.success('下载成功', fileName)
+    notifyLab('下载成功', fileName, 'success')
 
     // 刷新限额状态
     await initializeQuota()
   } catch (e) {
     error.value = `下载失败：${e.message}`
-    toastRef.value?.error('下载失败', e.message)
+    notifyLab('下载失败', e.message, 'error')
   }
 }
 
@@ -2115,7 +2140,7 @@ async function handleTemplateSelect(tpl) {
       activeTemplateId.value = tpl.id
       error.value = ''
       addHistory('模板应用', `应用「${tpl.name}」`, 'template')
-      toastRef.value?.success('模板已应用', tpl.name)
+      notifyLab('模板已应用', tpl.name, 'success')
     }
   } catch (e) {
     messages.value.push({ id: genId(),
@@ -2123,7 +2148,7 @@ async function handleTemplateSelect(tpl) {
       content: `模板应用失败：${e.message}`,
       time: nowTime(),
     })
-    toastRef.value?.error('模板应用失败', e.message)
+    notifyLab('模板应用失败', e.message, 'error')
   }
   await scrollToBottom()
 }
@@ -2151,7 +2176,7 @@ function saveCurrentAsTemplate(name) {
   saveTemplate(name, `从 ${docData.value.fileName} 保存`, ops)
   refreshTemplates()
   addHistory('保存模板', `保存「${name}」`, 'template')
-  toastRef.value?.success('模板已保存', name)
+  notifyLab('模板已保存', name, 'success')
 }
 
 function downloadModified() {
@@ -2162,7 +2187,7 @@ function downloadModified() {
   a.download = `modified_${docData.value?.fileName || 'doc.docx'}`
   a.click()
   URL.revokeObjectURL(url)
-  toastRef.value?.success('下载成功', docData.value?.fileName || '文档')
+  notifyLab('下载成功', docData.value?.fileName || '文档', 'success')
 }
 
 function handleUpgradeFromBadge() {
@@ -2170,7 +2195,7 @@ function handleUpgradeFromBadge() {
 }
 
 function onHistoryRestore(index) {
-  toastRef.value?.info('历史回滚', `已定位到第 ${index + 1} 步操作（完整回滚功能开发中）`)
+  notifyLab('历史回滚', `已定位到第 ${index + 1} 步操作（完整回滚功能开发中）`, 'info')
   addHistory('回滚操作', `尝试回滚到步骤 ${index + 1}`, 'undo')
 }
 
@@ -2196,9 +2221,9 @@ async function handleCompressContext() {
       time: nowTime(),
     })
     contextCompressed.value = true
-    toastRef.value?.success('上下文已压缩', `从 ${messages.value.length + trimmed.length} 轮压缩至 ${messages.value.length} 轮`)
+    notifyLab('上下文已压缩', `从 ${messages.value.length + trimmed.length} 轮压缩至 ${messages.value.length} 轮`, 'success')
   } catch (e) {
-    toastRef.value?.error('压缩失败', e.message)
+    notifyLab('压缩失败', e.message, 'error')
   } finally {
     contextCompressing.value = false
   }
@@ -2244,7 +2269,7 @@ function executeCommand(cmd) {
       break
     case 'toggleAutoMode':
       autoMode.value = !autoMode.value
-      toastRef.value?.info('智能模式', autoMode.value ? '已开启' : '已关闭')
+      notifyLab('智能模式', autoMode.value ? '已开启' : '已关闭', 'info')
       break
     case 'toggleTreePanel':
       toggleTreePanel()
@@ -2281,7 +2306,7 @@ function handleUndo() {
   const snapshot = undo()
   if (snapshot) {
     restoreSnapshot(snapshot)
-    toastRef.value?.info('撤销', snapshot.label || '上一步操作')
+    notifyLab('撤销', snapshot.label || '上一步操作', 'info')
   }
 }
 
@@ -2289,7 +2314,7 @@ function handleRedo() {
   const snapshot = redo()
   if (snapshot) {
     restoreSnapshot(snapshot)
-    toastRef.value?.info('重做', snapshot.label || '下一步操作')
+    notifyLab('重做', snapshot.label || '下一步操作', 'info')
   }
 }
 
@@ -2333,7 +2358,7 @@ function switchBranch(nodeId) {
   const branchMessages = treeGetMessages()
   if (branchMessages.length > 0) {
     messages.value = branchMessages
-    toastRef.value?.info('已切换分支', `当前路径 ${treeNodes.value.indexOf(findNode(nodeId)) + 1} 条消息`)
+    notifyLab('已切换分支', `当前路径 ${treeNodes.value.indexOf(findNode(nodeId)) + 1} 条消息`, 'info')
     scrollToBottom()
   }
 }

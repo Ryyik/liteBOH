@@ -633,6 +633,7 @@ import { getExpiredActiveGiftIds, markGiftsAsHistory } from '@/utils/gift-archiv
 import { logger } from '@/utils/logger.js';
 import { getMyLotteryPityStatus, getMySubscriptions } from '@/utils/api/subscription-api.js';
 import { getCommunityLotteries, joinCommunityLottery } from '@/utils/api/lottery-api.js';
+import { showGlobalNavStatus } from '@/composables/useGlobalNavStatus.js';
 import PointsCard from './PointsCard.vue';
 import { HOME_CAT_ASSETS } from '@/utils/home-cat-theme.js';
 
@@ -1061,10 +1062,24 @@ const lotteryLoaded = ref(false);
 const lotteryError = ref('');
 const lotteries = ref([]);
 const joiningLotteryId = ref('');
-const showToast = (msg, type='info') => {
-  // 复用全局 toast 若存在，否则降级为 console
+const _originShowToast = (msg, type='info') => {
   try { window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: msg, type } })); } catch {}
   logger.info('lottery-tab', `${type}: ${msg}`);
+};
+const showToast = (msg, type='info') => {
+  const text = String(msg || '');
+  const iconMap = { success: 'success', error: 'warning', info: 'notification' };
+  const icon = iconMap[type] || 'notification';
+  let title = text;
+  let message = '';
+  if (text === '已报名，无需重复') { title = '已报名'; message = '该抽奖已报名无需重复'; }
+  else if (text === '报名成功') { title = '报名成功'; message = '已获得本期抽奖资格'; }
+  else if (text === '报名失败' || text.includes('报名失败')) { title = '报名失败'; message = text.replace(/^报名失败[:：]?\s*/, '') || '请稍后重试'; }
+  else if (text.length > 24) { title = text.slice(0, 24); message = text.slice(24); }
+  let ok = false;
+  try { ok = showGlobalNavStatus({ title, message, icon, durationMs: icon === 'warning' ? 3600 : 3200 }); } catch { ok = false; }
+  if (ok) return;
+  return _originShowToast(msg ? `${title} ${message}`.trim() : title, type) || _originShowToast(text, type);
 };
 const loadLotteries = async (force=false) => {
   if (lotteryLoading.value) return;

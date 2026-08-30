@@ -77,7 +77,8 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
     path: "/user-space/subscriptions",
     name: "Subscriptions",
     component: () => import("../../views/user-center/Subscription/index.vue"),
-    meta: { ...userSpaceMeta },
+    // 订阅方案对访客可见；点击试用/订阅时由 SubscriptionPlans 打开登录灵动岛。
+    meta: {},
   },
   {
     path: "/user-space/gifts",

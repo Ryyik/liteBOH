@@ -251,7 +251,7 @@ const selectedAuthor = computed(() => ({
 }));
 const placementStyle = computed(() => ({ left: `${position.x}%`, top: `${position.y}%`, '--r': `${position.rotation}deg`, zIndex: 300 }));
 
-const isNarrowLayout = () => viewportSize.width <= 700;
+const isNarrowLayout = () => viewportSize.width <= 768;
 const wallHeight = computed(() => {
   const count = Math.max(items.value.length + (placingNew.value ? 1 : 0), 1);
   if (isNarrowLayout()) {

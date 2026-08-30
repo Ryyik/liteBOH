@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BOHLITE · 灵动岛 Airdrop 质感 Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800&family=SF+Pro+Display:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --nav-h:64px;
+    --ease: cubic-bezier(.16,1,.3,1);
+    --spring: cubic-bezier(.34,1.56,.64,1);
+    --ease-out: cubic-bezier(.25,.1,.25,1);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:#f5f5f7;color:#1d1d1f;font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;-webkit-font-smoothing:antialiased}
+  /* Top bar for controls */
+  .demo-bar{
+    position:sticky;top:0;z-index:30;
+    backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+    background:rgba(255,255,255,.82); border-bottom:1px solid rgba(0,0,0,.06);
+    padding:12px 16px; display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between;
+  }
+  .demo-bar h1{font-size:14px;font-weight:800;letter-spacing:-.02em;margin:0}
+  .demo-bar h1 em{font-style:normal;color:#86868b;font-weight:600;font-size:11px;margin-left:8px}
+  .seg{display:flex;background:#f5f5f7;border-radius:999px;padding:3px;gap:2px}
+  .seg button{border:none;background:transparent;padding:7px 12px;border-radius:999px;font-size:11px;font-weight:800;cursor:pointer;color:#6e6e73;transition:.2s var(--ease)}
+  .seg button.active{background:#1d1d1f;color:#fff}
+  .btn{border:none;border-radius:999px;padding:9px 14px;font-size:12px;font-weight:800;cursor:pointer;transition:.2s var(--ease)}
+  .btn-primary{background:#1d1d1f;color:#fff}
+  .btn-primary:hover{transform:translateY(-1px)}
+  .btn-ghost{background:#fff;border:1px solid rgba(0,0,0,.08);color:#1d1d1f}
+  .hint{font-size:11px;color:#86868b;font-weight:600}
+
+  /* Unified Nav mock */
+  #unified-nav-container{
+    position:sticky;top:44px;z-index:20;
+    height:var(--nav-h); display:flex;align-items:center;justify-content:space-between;
+    padding:0 14px; gap:12px;
+    background:rgba(255,255,255,.72); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+    border-bottom:1px solid rgba(0,0,0,.06);
+  }
+  .nav-left,.nav-right{display:flex;align-items:center;gap:10px}
+  .nav-logo{width:32px;height:32px;border-radius:10px;background:#1d1d1f;color:#fff;display:grid;place-items:center;font-weight:800;font-size:13px}
+  .nav-tabs{display:flex; gap:6px; background:#f5f5f7; padding:3px; border-radius:999px}
+  .nav-tab{padding:6px 12px;border-radius:999px;font-size:12px;font-weight:700;color:#6e6e73}
+  .nav-tab.active{background:#fff;color:#1d1d1f;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+  .nav-center{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:min(420px, 48vw); display:flex; justify-content:center; pointer-events:none}
+  .nav-right .icon-btn{width:36px;height:36px;border-radius:12px;background:#fff;border:1px solid rgba(0,0,0,.06);display:grid;place-items:center}
+
+  /* Island - Airdrop style */
+  .island-shell{pointer-events:auto; position:relative; width:100%; display:flex; justify-content:center}
+  .island{
+    display:flex;align-items:center;gap:10px;
+    background:#1d1d1f;color:#fff;
+    border-radius:999px;
+    padding:7px 14px 7px 7px;
+    box-shadow:0 10px 36px rgba(0,0,0,.22), 0 1px 0 rgba(255,255,255,.08) inset;
+    transition: all .55s var(--ease);
+    will-change: transform, width, border-radius, background, box-shadow;
+    transform-origin:center top;
+    overflow:hidden;
+  }
+  .island.idle{padding:7px 14px}
+  .island.busy{
+    background:rgba(255,255,255,.96);
+    color:#1d1d1f;
+    border:1px solid rgba(0,0,0,.07);
+    border-radius:24px;
+    width:100%;
+    padding:10px 12px;
+    box-shadow:0 16px 48px rgba(0,0,0,.14), inset 0 1px 0 rgba(255,255,255,.6);
+    backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+  }
+  .island.success{
+    background:#1d1d1f; color:#fff; border:none;
+  }
+  .island.failed{ background:#fff; color:#1d1d1f; border:1px solid rgba(255,59,48,.14)}
+  /* thumbnail stack - Airdrop style */
+  .thumb-stack{position:relative;width:44px;height:44px;flex-shrink:0}
+  .thumb-stack .thumb{
+    position:absolute; width:36px;height:36px; border-radius:10px; overflow:hidden;
+    border:2px solid #fff; box-shadow:0 4px 12px rgba(0,0,0,.12);
+    background:#f5f5f7; transition: transform .45s var(--ease);
+  }
+  .thumb-stack .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .thumb-stack .thumb:nth-child(1){ left:0; top:0; transform:rotate(-4deg); z-index:1}
+  .thumb-stack .thumb:nth-child(2){ left:8px; top:4px; transform:rotate(5deg); z-index:2}
+  .thumb-stack .thumb:nth-child(3){ left:4px; top:8px; transform:rotate(0deg); z-index:3; width:38px;height:38px; border-radius:11px}
+  .thumb-stack.single .thumb{ left:0; top:0; width:44px;height:44px; transform:none; border-radius:12px}
+  .thumb-stack.text-only{ width:36px;height:36px; border-radius:50%; display:grid; place-items:center; background:linear-gradient(135deg,#a5b4fc,#f0abfc); color:#fff; font-weight:800}
+  /* copy */
+  .island-copy{display:grid;gap:1px;flex:1;min-width:0;text-align:left}
+  .island-copy strong{font-size:13px;font-weight:800;letter-spacing:-.01em;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .island-copy span{font-size:11px;font-weight:600;opacity:.62;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .island-copy .pct-line{font-variant-numeric:tabular-nums}
+  /* progress ring - Airdrop style with gradient stroke — 加大避免数字压边 */
+  .island-ring{position:relative;width:44px;height:44px;flex-shrink:0;display:grid;place-items:center}
+  .island-ring svg{transform:rotate(-90deg); filter:drop-shadow(0 1px 2px rgba(22,119,255,.15))}
+  .island-ring .pct{position:absolute;inset:0;display:grid;place-items:center;font-size:11px;font-weight:800;letter-spacing:-.02em}
+  /* success check - scale pop */
+  .check-pop{width:44px;height:44px;border-radius:50%;background:#00c853;color:#fff;display:grid;place-items:center;transform:scale(0);animation: checkPop .5s var(--spring) forwards}
+  @keyframes checkPop{0%{transform:scale(0)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
+  /* actions */
+  .island-actions{display:flex;gap:6px}
+  .island-actions button{border:none;border-radius:999px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;transition:.18s}
+  .island-actions .retry{background:#1d1d1f;color:#fff}
+  .island-actions .fix{background:#b45309;color:#fff}
+  .island-actions .dismiss{background:#f5f5f7;color:#1d1d1f;border:1px solid rgba(0,0,0,.06)}
+  /* island morph animation - clip-path like GlobalNavStatusCard */
+  .island-enter-active{ transition: clip-path .42s var(--ease), transform .42s var(--ease), opacity .28s ease, filter .3s ease }
+  .island-leave-active{ transition: clip-path .32s var(--ease), transform .32s var(--ease), opacity .22s ease }
+  .island-enter-from,.island-leave-to{ opacity:0; filter:blur(4px); clip-path: inset(0 0 100% 0 round 24px); transform: translateY(-8px) scale(.98) }
+
+  /* Design doc */
+  .doc{max-width:880px;margin:18px auto;padding:0 16px;display:grid;gap:14px}
+  .doc-card{background:rgba(255,255,255,.86);backdrop-filter:blur(12px);border:1px solid rgba(0,0,0,.06);border-radius:20px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,.04)}
+  .doc-card h3{margin:0 0 8px;font-size:13px;font-weight:800;letter-spacing:-.01em}
+  .doc-card p,.doc-card li{font-size:12px;line-height:1.7;color:#3a3a3c}
+  .doc-card ul{margin:6px 0 0 16px;padding:0}
+  .kbd{font-family:ui-monospace,monospace;font-size:11px;background:#f5f5f7;border:1px solid rgba(0,0,0,.08);border-bottom-width:2px;padding:2px 6px;border-radius:6px}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:760px){ .two-col{grid-template-columns:1fr} .nav-center{width:64vw} }
+
+  /* Forum page mock */
+  .forum-page{background:#fbfbfd;min-height:70vh;padding:18px 0 80px}
+  .forum-container{max-width:720px;margin:0 auto;padding:0 16px}
+  .composer{background:rgba(255,255,255,.92);backdrop-filter:blur(14px);border:1px solid rgba(0,0,0,.06);border-radius:24px;box-shadow:0 8px 24px rgba(0,0,0,.04);padding:14px;display:grid;gap:10px}
+  .composer textarea{width:100%;min-height:62px;border:none;background:#f5f5f7;border-radius:14px;padding:12px;font:inherit;font-size:13px;resize:none;outline:none}
+  .composer-foot{display:flex;justify-content:space-between;align-items:center}
+  .chip{padding:6px 10px;border-radius:999px;background:#f5f5f7;font-size:11px;font-weight:700;color:#6e6e73}
+  .fab-send{background:#1d1d1f;color:#fff;border:none;border-radius:999px;padding:10px 18px;font-size:13px;font-weight:800;cursor:pointer}
+  .grid{display:grid;gap:12px;margin-top:18px}
+  .post{background:rgba(255,255,255,.9);backdrop-filter:blur(10px);border:1px solid rgba(0,0,0,.06);border-radius:22px;box-shadow:0 4px 20px rgba(0,0,0,.04);padding:16px;display:grid;gap:10px;position:relative;overflow:hidden}
+  .post.optimistic{border-color:rgba(22,119,255,.14)}
+  .post.optimistic::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:#1677ff;transform-origin:left;transform:scaleX(var(--p,0));transition:transform .35s var(--ease)}
+  .post-head{display:flex;gap:10px;align-items:center}
+  .badge{margin-left:auto;font-size:10px;font-weight:800;letter-spacing:.04em;padding:5px 8px;border-radius:999px;background:#e8f0ff;color:#1677ff}
+  .badge.failed{background:#ffe8e6;color:#ff3b30}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(12px);background:#1d1d1f;color:#fff;padding:10px 14px;border-radius:999px;font-size:12px;font-weight:700;box-shadow:0 12px 32px rgba(0,0,0,.22);opacity:0;pointer-events:none;transition:.3s var(--ease);z-index:40}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<div class="demo-bar">
+  <h1>Airdrop 风格灵动岛 <em>发送中常驻 · 成功才消失 · 带图缩略图</em></h1>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <span class="hint">島常驻直至成功/失败需操作</span>
+  </div>
+</div>
+
+<div class="demo-bar" style="top:44px;background:rgba(251,251,253,.9);border-top:1px solid rgba(0,0,0,.04)">
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn btn-primary" onclick="publish('text')">发布纯文</button>
+    <button class="btn btn-primary" style="background:#1677ff" onclick="publish('single')">发布单图</button>
+    <button class="btn btn-primary" style="background:#1677ff" onclick="publish('multi')">发布多图(3)</button>
+    <button class="btn btn-ghost" onclick="publishMany()">连发2条</button>
+    <button class="btn btn-ghost" style="border-color:rgba(255,149,0,.28);color:#b45309;background:#fff7ed" onclick="triggerFail('moderation')">审核不通过</button>
+    <button class="btn btn-ghost" style="border-color:rgba(255,59,48,.2);color:#c0392b;background:#fff1f0" onclick="triggerFail('network')">网络失败</button>
+    <button class="btn btn-ghost" onclick="resetDemo()">重置</button>
+  </div>
+  <span class="hint">灵动岛内：缩略图 + 标题 + 进度环百分比 · 参考 Airdrop 弹簧与毛玻璃</span>
+</div>
+
+<div id="unified-nav-container">
+  <div class="nav-left"><div class="nav-logo">B</div><div class="nav-tabs"><span class="nav-tab active">论坛</span><span class="nav-tab">发现</span></div></div>
+  <div class="nav-center">
+    <div class="island-shell" id="islandShell">
+      <div id="islandIdle" class="island idle" style="opacity:.92"><span style="width:6px;height:6px;background:#00d084;border-radius:50%;box-shadow:0 0 8px #00d084"></span><span style="font-size:12px;font-weight:800">BOHLITE</span></div>
+      <div id="islandBusy" class="island busy" style="display:none"></div>
+    </div>
+  </div>
+  <div class="nav-right"><div class="icon-btn">🔔</div><div class="icon-btn">👤</div></div>
+</div>
+
+<!-- 设计说明 -->
+<div class="doc">
+  <div class="doc-card" style="border-color:rgba(22,119,255,.12);background:rgba(238,242,255,.7)">
+    <h3>设计方案（对标 Apple Airdrop）</h3>
+    <div class="two-col">
+      <div>
+        <p><strong>常驻规则</strong>：发帖后立即返回列表，岛从 <span class="kbd">idle 小药丸</span> 弹簧展开为 <span class="kbd">busy 卡片</span>，<strong>发送中不自动消失</strong>，持续显示缩略图+进度环百分比，直至 <span class="kbd">success</span> 弹跳对勾 1.4s 后收起；<span class="kbd">failed</span> 常驻至用户操作（重试/移除该图/取消），避免信息丢失。</p>
+        <ul>
+          <li><strong>动效</strong>：`clip-path inset` + `transform translateY/scale` 420ms <span class="kbd">cubic-bezier(.16,1,.3,1)</span>，入场带 4px blur，进图弹簧 `.34,1.56,.64,1`，符合 Airdrop 抛物线。</li>
+          <li><strong>材质</strong>：`background rgba(255,255,255,.96) + backdrop-filter blur 20px + inset 1px 白边`，阴影 `0 16px 48px rgba(0,0,0,.14)`，与 `GlobalNavStatusCard.vue:82` 同层。</li>
+          <li><strong>缩略图</strong>：单图 44px 圆角 12px；多图 3 张堆叠（-4°/5°/0°，白边 2px，阴影），与 Airdrop 文件堆一致；纯文则用渐变圆头像占位。</li>
+        </ul>
+      </div>
+      <div>
+        <ul>
+          <li><strong>进度</strong>：右侧 34px 圆环 `stroke-dasharray 62.8`，`stroke #1677ff → #00b578`，中心 `pct 10px 800`，文案区 `正在发送 · 42%`（不暴露压缩/检测细节，环+百分比双重反馈）。</li>
+          <li><strong>成功</strong>：环→对勾 `scale 0→1.15→1` 弹簧，背景切回黑底 `#1d1d1f`，1.4s 后 `clip-path inset 0 0 100%` 收起。</li>
+          <li><strong>失败</strong>：网络失败红底 `!` + `重试` 黑钮；审核不通过橙底 `!` + `移除该图` 橙钮（与乐观卡第2张红框 `审核未过` 联动，`fixModeration` 移除后进度 -10% 重试）。</li>
+          <li><strong>多任务</strong>：岛仅显示队头，标题自动叠为 `正在发送 2 条…`，列表内乐观卡顶部 3px 进度条 `scaleX(--p)` 同步。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="doc-card two-col">
+    <div><h3>交互时序</h3><p>点发布 → 乐观卡插入 `forumData.unshift` + 岛弹簧展开（缩略图+环）→ 后台流水线 `compress 0→30% → moderate 30→58% → upload 58→100%` 仅映射为环百分比 → 成功：环→对勾→岛收起，卡 `发送成功 → 刚刚` → 失败：岛切橙/红常驻，卡显示对应失败条</p></div>
+    <div><h3>与现有代码映射</h3><p><span class="kbd">ForumPublishIsland.vue</span> `Teleport #unified-nav-container` 读取 `forumPublishQueue` 队头；<span class="kbd">ForumMain.vue:handlePost</span> 改为入队即清屏；<span class="kbd">processPublishImagesForQueue</span> 的 `setProgress` 驱动岛环与卡条。</p></div>
+  </div>
+</div>
+
+<div class="forum-page">
+  <div class="forum-container">
+    <div class="composer" id="composer">
+      <textarea id="composerInput">今天在山里拍到了超好看的光，分享一下～</textarea>
+      <div class="composer-foot"><span class="chip"># 日常 · 📍 成都</span><button class="fab-send" onclick="publish('multi')">发布</button></div>
+    </div>
+    <div class="grid" id="feed">
+      <article class="post"><div class="post-head"><span>林浩 · 2小时前</span><span class="badge">日常</span></div><h3>周末露营清单分享｜10件提升幸福感的小物</h3><p style="font-size:13px;color:#6e6e73">天幕、蛋卷桌、氛围灯…</p></article>
+      <article class="post"><div class="post-head"><span>子涵 · 5小时前</span></div><h3>求助：新入坑胶片，有什么机身推荐？</h3><p style="font-size:13px">预算 3000 左右，想要轻便好带的</p></article>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast">已加入队列</div>
+
+<script>
+let queue=[]; let timer=null; let seq=0;
+const $idle=document.getElementById('islandIdle');
+const $busy=document.getElementById('islandBusy');
+
+function islandTemplate(item){
+  const p=Math.round(item.progress);
+  const isMod=item.state==='failed' && item.failType==='moderation';
+  const isNet=item.state==='failed' && item.failType!=='moderation';
+  const isSuccess=item.state==='success';
+  const isSending=['queued','uploading','publishing'].includes(item.state);
+  // thumb
+  let thumbHtml='';
+  if (item.images && item.images.length){
+    if (item.images.length===1){
+      thumbHtml=`<div class="thumb-stack single"><div class="thumb"><img src="${item.images[0].url}" alt=""></div></div>`;
+    } else {
+      const imgs=item.images.slice(0,3).map(u=>`<div class="thumb"><img src="${u.url}" alt=""></div>`).join('');
+      thumbHtml=`<div class="thumb-stack">${imgs}</div>`;
+    }
+  } else {
+    thumbHtml=`<div class="thumb-stack text-only">文</div>`;
+  }
+  // title/message
+  let title='', msg='';
+  if (isMod){ title='审核未通过'; msg=`第${(item.failedIndex||1)+1}张需处理`; }
+  else if (isNet){ title='发送失败'; msg='网络异常'; }
+  else if (isSuccess){ title='发帖成功'; msg='已发布'; }
+  else {
+    const more = queue.length>1 ? ` · ${queue.length}条` : '';
+    title=`正在发送${more}`;
+    msg=`${p}%`;
+  }
+  // right side
+  let right='';
+  if (isSending || isSuccess){
+    if (isSuccess){
+      right=`<div class="check-pop">✓</div>`;
+    } else {
+      const dash=62.8 - 62.8*p/100;
+      const col = isMod ? '#f59e0b' : isNet ? '#ff3b30' : isSuccess ? '#00b578' : '#1677ff';
+      right=`<div class="island-ring"><svg width="44" height="44" viewBox="0 0 44 44"><circle cx="22" cy="22" r="13" stroke="rgba(0,0,0,.08)" stroke-width="3.6" fill="none"/><circle stroke="${col}" cx="22" cy="22" r="13" stroke-width="3.6" fill="none" stroke-linecap="round" stroke-dasharray="81.68" stroke-dashoffset="${(81.68 - 81.68*p/100).toFixed(2)}" style="transition: stroke-dashoffset .35s var(--ease)"/></svg><span class="pct">${p}%</span></div>`;
+    }
+  } else {
+    // failed actions
+    if (isMod) right=`<span class="island-actions"><button class="fix" onclick="fixCurrent()">移除该图</button><button class="dismiss" onclick="cancelCurrent()">取消</button></span>`;
+    else right=`<span class="island-actions"><button class="retry" onclick="retryCurrent()">重试</button><button class="dismiss" onclick="cancelCurrent()">取消</button></span>`;
+  }
+  return `${thumbHtml}<div class="island-copy"><strong>${title}</strong><span class="pct-line">${msg}</span></div>${right}`;
+}
+
+function renderIsland(){
+  const active = queue.find(q=>['queued','uploading','publishing'].includes(q.state)) || queue.find(q=>q.state==='failed') || queue[0];
+  if (!active){
+    $busy.style.display='none';
+    $idle.style.display='flex';
+    $busy.className='island busy';
+    return;
+  }
+  $idle.style.display='none';
+  $busy.style.display='flex';
+  // busy state classes for bg
+  $busy.className='island busy' + (active.state==='success'?' success':'') + (active.state==='failed' && active.failType==='moderation' ? ' failed' : active.state==='failed' ? ' failed':'');
+  $busy.innerHTML = islandTemplate(active);
+  // animate thumb stack on change
+  $busy.querySelectorAll('.thumb').forEach((el,i)=>{
+    el.style.animation=`thumbIn .45s var(--spring) ${i*60}ms both`;
+  });
+}
+
+function publish(kind){
+  const id='optimistic-'+Date.now()+'-'+(++seq);
+  const title = document.getElementById('composerInput').value.slice(0,24) || '今天的光超级治愈';
+  let images=[];
+  if (kind==='single'){
+    images=[{url:`https://picsum.photos/seed/a${seq}1/300/300`}];
+  } else if (kind==='multi'){
+    images=[1,2,3].map(i=>({url:`https://picsum.photos/seed/m${seq}${i}/300/300`}));
+  } // text -> []
+  const postEl = makeOptimisticEl(id,title,images);
+  document.getElementById('feed').prepend(postEl);
+  const item={id,title,images,progress:0,state:'queued', fail:false, failType:null, failedIndex:null, el:postEl};
+  queue.unshift(item);
+  document.getElementById('composerInput').value='';
+  showToast('已加入队列 · 岛常驻');
+  // morph to busy
+  $idle.style.display='none'; $busy.style.display='flex'; $busy.className='island busy';
+  renderIsland();
+  startTicker();
+}
+
+function publishMany(){ publish('text'); setTimeout(()=>publish('multi'), 380); }
+function triggerFail(type){ const a=queue.find(q=>['queued','uploading','publishing'].includes(q.state))||queue[0]; if(!a){ publish('multi'); setTimeout(()=>{const b=queue[0]; b.fail=type;},700); return;} a.fail=type; }
+
+function makeOptimisticEl(id,title,images){
+  const el=document.createElement('article'); el.className='post optimistic'; el.id=id; el.style.setProperty('--p','0');
+  el.innerHTML=`<div class="post-head"><span>你 · 刚刚</span><span class="badge" data-badge>发送中 · 0%</span></div><h3>${title}</h3>${images.length?`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">${images.map((im,idx)=>`<div style="position:relative"><img src="${im.url}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:12px"><span data-mark="${idx}" style="display:none;position:absolute;top:6px;right:6px;background:#ff3b30;color:#fff;font-size:10px;font-weight:800;padding:3px 6px;border-radius:999px">审核未过</span></div>`).join('')}</div>`: `<p style="font-size:13px;color:#3a3a3c">纯文内容，不含图片，发送更快</p>`}<div data-failmsg style="display:none;margin-top:8px;padding:10px 12px;border-radius:12px;font-size:12px;font-weight:600;line-height:1.5"></div><div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px"><button onclick="cancelOne('${id}')" style="border:1px solid rgba(0,0,0,.08);background:#fff;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:800">取消</button><button data-retry style="display:none;background:#1d1d1f;color:#fff;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:800" onclick="retryOne('${id}')">重试</button><button data-fix style="display:none;background:#fff7ed;color:#b45309;border:1px solid #f59e0b;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:800" onclick="fixOne('${id}')">移除该图后重试</button></div>`;
+  return el;
+}
+
+function startTicker(){
+  if(timer) return;
+  timer=setInterval(()=>{
+    const active=queue.find(q=>['queued','uploading','publishing'].includes(q.state));
+    if(!active){ if(queue.every(q=>q.state!=='uploading' && q.state!=='queued')){ clearInterval(timer); timer=null; } renderIsland(); return; }
+    if(active.state==='queued') active.state='uploading';
+    const step = active.progress<30? 2.4 : active.progress<70? 1.8 : 1.2;
+    active.progress=Math.min(100, active.progress + step + Math.random()*1.1);
+    // fail injection
+    if(active.fail && active.progress>58 && active.progress<72){
+      active.state='failed'; active.failType=active.fail; active.failedIndex=1; active.progress=62;
+      const badge=active.el.querySelector('[data-badge]'); if(badge){ badge.textContent= active.fail==='moderation'?'审核未通过':'发送失败'; badge.className='badge failed'; }
+      const failMsg=active.el.querySelector('[data-failmsg]'); if(failMsg){ failMsg.style.display='block'; if(active.fail==='moderation'){ failMsg.style.background='#fff7ed'; failMsg.style.color='#7c3b0a'; failMsg.textContent='第2张图片未通过安全检测，可移除该图后重试'; active.el.querySelector('[data-mark="1"]').style.display='block'; active.el.querySelector('[data-fix]').style.display='inline-block'; } else { failMsg.style.background='#fff1f0'; failMsg.style.color='#7f1d1d'; failMsg.textContent='网络异常，请检查网络后重试'; active.el.querySelector('[data-retry]').style.display='inline-block'; } }
+      active.el.style.setProperty('--p','0.62'); active.el.style.borderColor='rgba(255,59,48,.18)';
+      clearInterval(timer); timer=null; renderIsland(); return;
+    }
+    if(active.progress>=100){
+      active.progress=100; active.state='success';
+      const badge=active.el.querySelector('[data-badge]'); if(badge){ badge.textContent='发送成功'; badge.style.background='#d8f4e9'; badge.style.color='#057857'; }
+      active.el.style.setProperty('--p','1'); active.el.style.borderColor='rgba(0,181,120,.22)';
+      renderIsland();
+      setTimeout(()=>{
+        // island收起动画后移除
+        if(queue.every(q=>q.state==='success')){
+          $busy.style.transform='scale(.98)'; $busy.style.opacity='0';
+          setTimeout(()=>{ queue=[]; document.querySelectorAll('.post.optimistic').forEach(el=>{ el.style.borderColor='rgba(0,0,0,.06)'; const b=el.querySelector('[data-badge]'); if(b){ b.textContent='刚刚'; b.style.background='#f5f5f7'; b.style.color='#6e6e73'; } el.style.setProperty('--p','1'); el.classList.remove('optimistic'); }); renderIsland(); $busy.style.transform=''; $busy.style.opacity=''; }, 420);
+        }
+      }, 1400);
+      // 结束后继续下一条
+      const next=queue.find(q=>q.state==='queued');
+      if(next) next.state='uploading';
+      if(queue.every(q=>q.state==='success')){ clearInterval(timer); timer=null; }
+    }
+    // update optimistic badge and bar
+    active.el.style.setProperty('--p', active.progress/100);
+    const b=active.el.querySelector('[data-badge]'); if(b && active.state==='uploading') b.textContent=`发送中 · ${Math.round(active.progress)}%`;
+    renderIsland();
+  }, 90);
+}
+
+function retryCurrent(){ const it=queue.find(q=>q.state==='failed'); if(it) retryOne(it.id); }
+function fixCurrent(){ const it=queue.find(q=>q.state==='failed' && q.failType==='moderation'); if(it) fixOne(it.id); else retryCurrent(); }
+function cancelCurrent(){ const it=queue.find(q=>['queued','uploading','publishing'].includes(q.state))||queue.find(q=>q.state==='failed')||queue[0]; if(it) cancelOne(it.id); }
+function retryOne(id){ const it=queue.find(q=>q.id===id); if(!it) return; it.state='uploading'; it.progress=Math.max(8,it.progress-12); it.fail=false; it.failType=null; const f=it.el.querySelector('[data-failmsg]'); if(f) f.style.display='none'; const r=it.el.querySelector('[data-retry]'); if(r) r.style.display='none'; it.el.querySelector('[data-badge]').textContent=`发送中 · ${Math.round(it.progress)}%`; it.el.style.borderColor='rgba(22,119,255,.14)'; showToast('正在重试…'); startTicker(); renderIsland(); }
+function fixOne(id){ const it=queue.find(q=>q.id===id); if(!it) return; // 移除第2张
+  const imgs=it.el.querySelectorAll('[data-mark]'); if(imgs[1]) imgs[1].parentElement.style.display='none'; const imgArr=it.images; if(imgArr.length>1) imgArr.splice(1,1);
+  const f=it.el.querySelector('[data-failmsg]'); if(f){ f.style.display='block'; f.style.background='#d8f4e9'; f.style.color='#065f46'; f.textContent='已移除未通过的图片，正在重新发送…'; }
+  it.el.querySelector('[data-fix]').style.display='none'; it.el.querySelector('[data-badge]').textContent=`发送中 · ${Math.round(it.progress)}%`; it.el.style.borderColor='rgba(22,119,255,.14)';
+  it.state='uploading'; it.progress=Math.max(18,it.progress-10); it.fail=false; it.failType=null; it.failedIndex=null; showToast('已移除该图…'); startTicker(); renderIsland();
+}
+function cancelOne(id){ const idx=queue.findIndex(q=>q.id===id); if(idx>=0){ const it=queue[idx]; if(it.el) it.el.remove(); queue.splice(idx,1); showToast('已取消'); } if(!queue.length){ clearInterval(timer); timer=null; renderIsland(); } else renderIsland(); }
+function showToast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'), 2200); }
+function resetDemo(){ queue=[]; clearInterval(timer); timer=null; document.querySelectorAll('.post.optimistic').forEach(el=>el.remove()); renderIsland(); showToast('已重置'); }
+renderIsland();
+</script>
+</body>
+</html>

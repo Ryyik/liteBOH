@@ -453,6 +453,7 @@ import { useAuthStore } from '@/stores/auth';
 import { getImageUrl } from '../../utils/asset-helper.js';
 import { getCommunityLotteries, joinCommunityLottery } from '../../utils/api/lottery-api.js';
 import { getMyLotteryPityStatus } from '../../utils/api/subscription-api.js';
+import { showGlobalNavStatus } from '@/composables/useGlobalNavStatus.js';
 
 const authStore = useAuthStore();
 const { isLoggedIn, showLoginModal, userInfo } = storeToRefs(authStore);
@@ -589,13 +590,22 @@ const visibleHistoryLotteries = computed(() => {
   });
 });
 
-const showPageToast = (title, message, type = 'info') => {
+const _originShowPageToast = (title, message, type = 'info') => {
   if (toastTimer) window.clearTimeout(toastTimer);
   toast.value = { show: true, type, title, message };
   toastTimer = window.setTimeout(() => {
     toast.value.show = false;
     toastTimer = null;
   }, 3200);
+};
+const showPageToast = (title, message, type = 'info') => {
+  const iconMap = { success: 'success', error: 'warning', warning: 'warning', info: 'notification' };
+  const icon = iconMap[type] || 'success';
+  const durationMs = type === 'error' ? 3800 : 3200;
+  let ok = false;
+  try { ok = showGlobalNavStatus({ title, message, icon, durationMs }); } catch { ok = false; }
+  if (ok) return;
+  return _originShowPageToast(title, message, type);
 };
 
 const syncSelectedLottery = () => {

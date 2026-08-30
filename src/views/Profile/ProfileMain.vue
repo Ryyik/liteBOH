@@ -5,20 +5,40 @@
 
     <div v-if="loading" class="profile-skeleton-wrap" aria-hidden="true">
       <section class="profile-hero-panel" style="border-radius: 20px; overflow: hidden;">
-        <div class="profile-cover-band" style="height: 120px; background: var(--skeleton);"></div>
-        <div class="profile-hero-body" style="padding: 0 24px 18px; margin-top: -36px;">
+        <div class="profile-cover-band" style="height: 148px; background: linear-gradient(90deg, #eef2f7 25%, #e6ebf2 50%, #eef2f7 75%); background-size: 200% 100%;"></div>
+        <div class="profile-hero-body" style="padding: 0 24px 18px; margin-top: -44px;">
           <div class="profile-hero-avatar">
-            <div class="apple-avatar" style="width: 96px; height: 96px; border-radius: 28px; background: var(--skeleton);"></div>
+            <div class="apple-avatar skeleton-item" style="width: 96px; height: 96px; border-radius: 28px;"></div>
           </div>
-          <div class="profile-hero-copy" style="padding-top: 52px;">
-            <div class="skeleton-title skeleton-item" style="width: 140px; height: 22px; border-radius: 6px; margin-bottom: 8px;"></div>
-            <div class="skeleton-line medium skeleton-item" style="width: 100px; height: 14px; border-radius: 4px; margin-bottom: 6px;"></div>
-            <div class="skeleton-line long skeleton-item" style="width: 220px; height: 14px; border-radius: 4px;"></div>
+          <div class="profile-hero-copy" style="padding-top: 48px; gap: 10px;">
+            <div class="skeleton-title skeleton-item" style="width: 140px; height: 22px; border-radius: 8px;"></div>
+            <div class="skeleton-line medium skeleton-item" style="width: 110px; height: 14px; border-radius: 999px;"></div>
+            <div class="skeleton-line long skeleton-item" style="width: 240px; height: 14px; border-radius: 999px;"></div>
+            <div class="skeleton-line short skeleton-item" style="width: 88px; height: 32px; border-radius: 999px; margin-top: 6px;"></div>
           </div>
         </div>
+        <div style="margin: 0 24px 18px; padding-top: 16px; border-top: 1px solid rgba(15,23,42,0.06); display: flex; gap: 12px; justify-content: center;">
+          <span class="skeleton-item" style="width: 64px; height: 14px; border-radius: 999px;"></span>
+          <span class="skeleton-item" style="width: 64px; height: 14px; border-radius: 999px;"></span>
+          <span class="skeleton-item" style="width: 64px; height: 14px; border-radius: 999px;"></span>
+        </div>
       </section>
-      <div class="profile-post-grid" style="margin-top: 16px;">
-        <div v-for="item in 4" :key="`profile-page-loading-${item}`" class="profile-post-card skeleton-item" style="height: 120px; border-radius: 16px;"></div>
+      <section class="profile-points-card-section" aria-hidden="true" style="opacity:0.7;">
+        <div class="profile-points-card-head">
+          <span class="skeleton-item" style="width: 88px; height: 14px; border-radius: 999px;"></span>
+          <span class="skeleton-item" style="width: 72px; height: 28px; border-radius: 999px;"></span>
+        </div>
+        <div class="profile-points-card-wrap">
+          <div class="points-card skeleton-item" style="width:100%; max-width:420px; aspect-ratio:8/5; border-radius:18px;"></div>
+        </div>
+      </section>
+      <div class="profile-tabs" style="opacity: 0.6; pointer-events: none;">
+        <span class="tab-item" style="background: var(--surface);"><span class="skeleton-item" style="width: 40px; height: 12px; border-radius: 999px;"></span></span>
+        <span class="tab-item" style="background: var(--surface);"><span class="skeleton-item" style="width: 40px; height: 12px; border-radius: 999px;"></span></span>
+        <span class="tab-item" style="background: var(--surface);"><span class="skeleton-item" style="width: 40px; height: 12px; border-radius: 999px;"></span></span>
+      </div>
+      <div class="profile-post-grid">
+        <div v-for="item in 6" :key="`profile-page-loading-${item}`" class="profile-post-card skeleton-item" style="height: 220px; border-radius: 16px;"></div>
       </div>
     </div>
 
@@ -53,6 +73,7 @@
                 <circle cx="12" cy="13" r="4" />
               </svg>
             </div>
+            <span v-if="!isOwnProfile && profile.last_active_at && !profile.hide_online_status && !profile.hideOnlineStatus" class="avatar-online-indicator" :class="{ online: isUserOnline(profile) }" :title="formatOnlineStatusTooltip(profile)" aria-hidden="true"></span>
           </div>
 
           <div class="profile-hero-copy">
@@ -61,15 +82,31 @@
               <span v-if="tierCode && tierCode !== 'free'" class="tier-badge" :class="`tier-${tierCode}`">{{ tierDisplayName }}</span>
               <span class="level-badge" :title="`等级 ${levelInfo.level}`">Lv.{{ levelInfo.level }}</span>
             </div>
-            <p class="profile-handle">@{{ profile.username }}</p>
+            <div class="profile-meta-row">
+              <span class="profile-handle">@{{ profile.username }}</span>
+              <template v-if="!isOwnProfile && profile.last_active_at && !profile.hide_online_status && !profile.hideOnlineStatus">
+                <span class="profile-online-dot" :class="{ online: isUserOnline(profile) }" aria-hidden="true"></span>
+                <span class="profile-online-text" :class="{ online: isUserOnline(profile) }">{{ formatUserOnlineStatus(profile) }}</span>
+              </template>
+            </div>
 
             <div class="profile-bio-wrap">
               <p ref="bioRef" class="profile-bio" :class="{ clamped: !bioExpanded, expanded: bioExpanded }">{{ profile.bio || (isOwnProfile ? '点击编辑资料，向大家介绍一下自己吧。' : '还没有介绍。') }}</p>
               <button v-if="bioHasOverflow" type="button" class="profile-bio-toggle" @click="toggleBio">{{ bioExpanded ? '收起' : '全文' }}</button>
             </div>
 
-            <button v-if="isOwnProfile" class="profile-edit-btn" @click="openEditModal">编辑资料</button>
-            <button v-else-if="isLoggedIn" class="profile-edit-btn" :class="{ 'is-following': followState.isFollowing }" :disabled="followState.toggling" @click="handleToggleFollow">{{ followState.toggling ? '处理中...' : (followState.isFollowing ? '已关注' : '关注') }}</button>
+            <div class="profile-hero-actions">
+              <button v-if="isOwnProfile" class="profile-edit-btn profile-edit-btn--primary" @click="openEditModal">编辑资料</button>
+              <template v-else-if="isLoggedIn">
+                <button class="profile-follow-btn" :class="{ 'is-following': followState.isFollowing, 'is-toggling': followState.toggling }" :disabled="followState.toggling" @click="handleToggleFollow">
+                  <svg v-if="!followState.isFollowing" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M20 8v6"/><path d="M23 11v2"/><path d="M17 11v2"/></svg>
+                  <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
+                  {{ followState.toggling ? '处理中...' : (followState.isFollowing ? '已关注' : '关注') }}
+                </button>
+                <button class="profile-message-btn" @click="openImpressionModal">发印象</button>
+              </template>
+              <button v-else class="profile-follow-btn profile-follow-btn--ghost" @click="authStore.showLoginModal = true">关注</button>
+            </div>
           </div>
         </div>
 
@@ -96,9 +133,37 @@
         </div>
       </section>
 
+      <section class="profile-points-card-section" :class="{ 'is-own': isOwnProfile }" aria-label="方块积分卡">
+        <div class="profile-points-card-head">
+          <span class="profile-points-card-kicker">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+            方块积分卡
+            <span v-if="tierDisplayName" class="tier-badge" :class="`tier-${tierCode}`" style="margin-left: 4px; height: 18px; font-size: 9px; padding: 0 7px;">{{ tierDisplayName }}</span>
+          </span>
+          <button v-if="isOwnProfile" type="button" class="profile-points-card-action" @click="handlePointsCardClick">
+            设置卡面
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+          <span v-else class="profile-points-card-hint" style="text-align:right; margin:0;">{{ pointsCardPoints.toLocaleString('zh-CN') }} 积分</span>
+        </div>
+        <div class="profile-points-card-wrap">
+          <PointsCard
+            :points="pointsCardPoints"
+            :username="profile.username || '未命名用户'"
+            :tier-label="tierDisplayName || 'BOH'"
+            :skin="pointsCardSkin"
+            :image-url="pointsCardImageUrl"
+            :interactive="isOwnProfile"
+            @click="handlePointsCardClick"
+          />
+        </div>
+        <p v-if="isOwnProfile" class="profile-points-card-hint">点击卡面去设置空白/小猫或自定义卡面</p>
+        <p v-else class="profile-points-card-hint">做任务、发帖与签到可获得积分</p>
+      </section>
+
       <section class="profile-service-panel" aria-label="用户信息">
         <button v-for="binding in creatorBindings" :key="binding.key" type="button" class="profile-service-row" @click="openCreatorBindingHomepage(binding)">
-          <span class="profile-service-icon">
+          <span class="profile-service-icon bg-purple">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M14 3h7v7"></path>
               <path d="M10 14L21 3"></path>
@@ -108,11 +173,12 @@
           </span>
           <span class="profile-service-body">
             <strong>{{ binding.label }}{{ isOwnProfile && binding.visibility === 'private' ? '（私密）' : '' }}主页</strong>
+            <small>{{ binding.id }}</small>
           </span>
           <span class="profile-action-chevron">›</span>
         </button>
         <button type="button" class="profile-service-row" @click="setActiveTab('posts')">
-          <span class="profile-service-icon">
+          <span class="profile-service-icon bg-blue">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
               <line x1="16" y1="2" x2="16" y2="6" />
@@ -122,11 +188,12 @@
           </span>
           <span class="profile-service-body">
             <strong>{{ formatDate(profile.join_date) }} 加入</strong>
+            <small>加入社区的时间</small>
           </span>
           <span class="profile-action-chevron">›</span>
         </button>
         <button v-if="profile.join_date" type="button" class="profile-service-row" @click="setActiveTab('posts')">
-          <span class="profile-service-icon">
+          <span class="profile-service-icon bg-teal">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
               <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
@@ -135,11 +202,12 @@
           </span>
           <span class="profile-service-body">
             <strong>方块年龄 {{ calculateBlockAge(profile.join_date) }} 天</strong>
+            <small>在方块世界中度过的日子</small>
           </span>
           <span class="profile-action-chevron">›</span>
         </button>
-        <div v-if="profile.birth_month && profile.birth_day" class="profile-service-row">
-          <span class="profile-service-icon">
+        <div v-if="profile.birth_month && profile.birth_day" class="profile-service-row is-static">
+          <span class="profile-service-icon bg-pink">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8" />
               <path d="M4 16h16" />
@@ -149,15 +217,21 @@
           </span>
           <span class="profile-service-body">
             <strong>{{ profile.birth_month }}月{{ profile.birth_day }}日 生日</strong>
+            <small>每年都会收到祝福</small>
           </span>
-          <span class="profile-action-chevron">›</span>
         </div>
       </section>
 
-      <div class="profile-tabs">
-        <button class="tab-item" :class="{ active: activeTab === 'posts' }" @click="setActiveTab('posts')">帖子 <div class="tab-indicator"></div></button>
-        <button class="tab-item" :class="{ active: activeTab === 'replies' }" @click="setActiveTab('replies')">回复 <div class="tab-indicator"></div></button>
-        <button class="tab-item" :class="{ active: activeTab === 'impressions' }" @click="setActiveTab('impressions')">印象 <div class="tab-indicator"></div></button>
+      <div class="profile-tabs" role="tablist" aria-label="内容分类">
+        <button class="tab-item" :class="{ active: activeTab === 'posts' }" role="tab" :aria-selected="activeTab === 'posts'" @click="setActiveTab('posts')">
+          帖子 <span v-if="totalPostCount>0" class="tab-count">{{ totalPostCount }}</span> <div class="tab-indicator"></div>
+        </button>
+        <button class="tab-item" :class="{ active: activeTab === 'replies' }" role="tab" :aria-selected="activeTab === 'replies'" @click="setActiveTab('replies')">
+          回复 <span v-if="comments.length>0" class="tab-count">{{ comments.length }}</span> <div class="tab-indicator"></div>
+        </button>
+        <button class="tab-item" :class="{ active: activeTab === 'impressions' }" role="tab" :aria-selected="activeTab === 'impressions'" @click="setActiveTab('impressions')">
+          印象 <span v-if="impressions.length>0" class="tab-count">{{ impressions.length }}</span> <div class="tab-indicator"></div>
+        </button>
       </div>
 
       <div class="tab-content-list">
@@ -179,14 +253,13 @@
             </div>
           </section>
 
-          <div v-if="isTabLoading.posts && posts.length === 0" class="profile-feed-skeleton" aria-hidden="true">
-            <div v-for="item in 3" :key="`posts-loading-${item}`" class="profile-feed-skeleton-item">
-              <div class="profile-skeleton-block profile-feed-avatar"></div>
-              <div class="profile-feed-skeleton-body">
-                <div class="profile-skeleton-block profile-feed-line name"></div>
-                <div class="profile-skeleton-block profile-feed-line title"></div>
-                <div class="profile-skeleton-block profile-feed-line text"></div>
-                <div class="profile-skeleton-block profile-feed-line short"></div>
+          <div v-if="isTabLoading.posts && posts.length === 0" class="profile-post-grid" aria-hidden="true">
+            <div v-for="item in 4" :key="`posts-loading-${item}`" class="profile-post-card" style="padding:0; overflow:hidden;">
+              <div class="profile-skeleton-block" style="height:160px; background:#eef2f7;"></div>
+              <div style="padding:14px 16px 16px; display:flex; flex-direction:column; gap:10px;">
+                <div class="profile-skeleton-block" style="height:16px; width:70%; border-radius:999px;"></div>
+                <div class="profile-skeleton-block" style="height:12px; width:90%; border-radius:999px;"></div>
+                <div class="profile-skeleton-block" style="height:12px; width:60%; border-radius:999px;"></div>
               </div>
             </div>
           </div>
@@ -369,6 +442,7 @@ import AvatarCropModal from '@/components/AvatarCropModal.vue';
 import WordCloud from '@/components/WordCloud.vue';
 import ProfileEditModal from './components/ProfileEditModal.vue';
 import PostCreateModal from './components/PostCreateModal.vue';
+import PointsCard from '@/views/user-center/UserSpace/components/PointsCard.vue';
 import { supabase } from '@/utils/supabase-client.js';
 import {
   getProfileByUsername,
@@ -535,6 +609,20 @@ const { fetchUserTier, fetchUserTiersBatch, getNicknameClass, getUserTierCode } 
 const nicknameClass = ref('');
 const tierCode = ref('');
 const tierDisplayName = computed(() => PLAN_DISPLAY_NAMES[tierCode.value] || '');
+const pointsCardPoints = computed(() => isOwnProfile.value ? Number(userInfo.value.points || 0) : Number(profile.value?.points || 0));
+const pointsCardSkin = computed(() => {
+  const raw = isOwnProfile.value ? userInfo.value.pointsCardSkin : (profile.value?.points_card_skin || profile.value?.pointsCardSkin);
+  return ['blank', 'cats', 'custom'].includes(String(raw)) ? String(raw) : 'blank';
+});
+const pointsCardImageUrl = computed(() => {
+  const raw = isOwnProfile.value ? userInfo.value.pointsCardImageUrl : (profile.value?.points_card_image_url || profile.value?.pointsCardImageUrl);
+  return String(raw || '').trim();
+});
+const handlePointsCardClick = () => {
+  if (isOwnProfile.value) {
+    router.push('/user-space?tab=profile&view=assets');
+  }
+};
 watch(() => profile.value?.id, async (id) => {
   if (id) {
     await fetchUserTier(id);
@@ -1012,6 +1100,10 @@ const syncOwnProfileSnapshot = () => {
     ),
     showcase_post_ids: normalizeShowcasePostIds(userInfo.value.showcasePostIds),
     profile_background_url: userInfo.value.profileBackgroundUrl || '',
+    profile_background_public_id: userInfo.value.profileBackgroundPublicId || '',
+    points_card_skin: userInfo.value.pointsCardSkin || 'blank',
+    points_card_image_url: userInfo.value.pointsCardImageUrl || '',
+    points_card_image_public_id: userInfo.value.pointsCardImagePublicId || '',
     id: userInfo.value.id
   };
 };
@@ -1033,7 +1125,10 @@ watch(
     JSON.stringify(userInfo.value.creatorPlatformVisibility || {}),
     JSON.stringify(userInfo.value.creatorPlatformOrder || []),
     JSON.stringify(userInfo.value.showcasePostIds || []),
-    userInfo.value.profileBackgroundUrl
+    userInfo.value.profileBackgroundUrl,
+    userInfo.value.pointsCardSkin,
+    userInfo.value.pointsCardImageUrl,
+    userInfo.value.pointsCardImagePublicId
   ],
   syncOwnProfileSnapshot,
   { immediate: true }

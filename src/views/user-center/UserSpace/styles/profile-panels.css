@@ -1593,11 +1593,8 @@
    Shared Panel Styles (imported by ProfileMain and ProfileHomePanel)
    ================================================================ */
 .profile-edit-btn {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  margin-top: 14px;
-  min-height: 38px;
+  position: static;
+  min-height: 36px;
   padding: 0 18px;
   border: 0;
   border-radius: 999px;
@@ -1606,13 +1603,23 @@
   font-size: 14px;
   font-weight: 800;
   cursor: pointer;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
   transition: transform 160ms var(--ease-out), box-shadow 180ms var(--ease-out), background-color 180ms ease;
+}
+
+.profile-edit-btn--primary {
+  min-height: 36px;
+  padding: 0 18px;
 }
 
 .profile-edit-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.18);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+  background: #000;
 }
 
 .profile-edit-btn:active {
@@ -1630,8 +1637,8 @@
 
 .profile-service-row {
   width: 100%;
-  min-height: 52px;
-  padding: 8px 16px;
+  min-height: 56px;
+  padding: 10px 16px;
   border: 0;
   background: transparent;
   color: var(--text-primary);
@@ -1651,6 +1658,42 @@
   background: rgba(15, 23, 42, 0.06);
 }
 
+.profile-service-row.is-static {
+  cursor: default;
+}
+
+.profile-service-row.is-static:hover {
+  background: transparent;
+}
+
+.profile-service-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.profile-service-body strong {
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-service-body small {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .profile-service-icon {
   width: 34px;
   height: 34px;
@@ -1660,6 +1703,11 @@
   justify-content: center;
   flex: 0 0 auto;
 }
+
+.profile-service-icon.bg-blue { background: #EBF5FF; color: #007AFF; }
+.profile-service-icon.bg-teal { background: #E7F9F6; color: #0F766E; }
+.profile-service-icon.bg-purple { background: #F7EFFF; color: #AF52DE; }
+.profile-service-icon.bg-pink { background: #FFF0F3; color: #FF2D55; }
 
 .profile-service-icon svg {
   width: 17px;
@@ -1672,4 +1720,10 @@
   color: var(--text-tertiary);
   line-height: 1;
   flex: 0 0 auto;
+  transition: transform 160ms var(--ease-out), color 160ms ease;
+}
+
+.profile-service-row:hover .profile-action-chevron {
+  transform: translateX(2px);
+  color: var(--text-primary);
 }
