@@ -1086,20 +1086,18 @@
     border: 0;
   }
 
+  .mobile-composer-section .post-image-add-more-card {
+    width: 112px;
+    max-width: 112px;
+    border-radius: 12px;
+  }
+
   .mobile-composer-section .mobile-composer-setting-list {
     margin-top: 16px;
   }
 
   .mobile-composer-section .mobile-post-image-toolbar {
-    grid-column: 1 / -1;
-    margin-top: 0;
-    padding: 16px 0 18px;
-    border-top: 1px solid rgba(15, 20, 25, 0.08);
-    display: flex;
-    align-items: center;
-    background: transparent;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+    display: none;
   }
 
   .mobile-composer-section .mobile-post-tool-group {

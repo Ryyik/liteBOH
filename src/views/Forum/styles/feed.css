@@ -534,26 +534,6 @@
   background: rgba(252, 245, 248, 0.86);
 }
 
-.forum-tier-tag {
-  display: inline-flex;
-  align-items: center;
-  margin-left: auto;
-  min-height: 18px;
-  padding: 0 7px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 750;
-  letter-spacing: .03em;
-  line-height: 1;
-  text-transform: uppercase;
-  vertical-align: middle;
-}
-
-.forum-tier-tag.tier-plus { color: #6a8fc9; background: rgba(106, 143, 201, .1); }
-.forum-tier-tag.tier-pro { color: #8e9aaf; background: rgba(142, 154, 175, .1); }
-.forum-tier-tag.tier-max { color: #b8860b; background: rgba(184, 137, 11, .1); }
-.forum-tier-tag.tier-ultra { color: #8e44ad; background: rgba(142, 68, 173, .1); }
-
 /* Keep the P2 card silhouette: a continuous feed can still use a quiet glass boundary. */
 .posts-list .post-card-v2 {
   margin-bottom: 16px;

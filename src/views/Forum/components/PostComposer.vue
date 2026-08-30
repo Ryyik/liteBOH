@@ -975,7 +975,7 @@ onUnmounted(() => {
 .post-image-add-more-card {
   width: 100%;
   aspect-ratio: 1 / 1; /* 正方形 */
-  border: 1px dashed rgba(255, 59, 48, 0.28);
+  border: 1px solid rgba(29, 29, 31, 0.08);
   border-radius: 16px;
   background: #f2f2f7;
   color: #ff3b30;
@@ -983,7 +983,7 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 4px;
   cursor: pointer;
   transition: all 0.2s ease;
   padding: 0;
@@ -992,7 +992,7 @@ onUnmounted(() => {
 }
 
 .post-image-add-more-card:hover:not(:disabled) {
-  border-color: rgba(255, 59, 48, 0.55);
+  border-color: rgba(29, 29, 31, 0.16);
   background: #ececf1;
 }
 
@@ -1002,7 +1002,7 @@ onUnmounted(() => {
 }
 
 .add-more-label {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 600;
   color: #8b9098;
   line-height: 1.2;

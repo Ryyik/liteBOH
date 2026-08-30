@@ -183,7 +183,6 @@ const replyTierMap = useTierMap(
           <span v-if="post.author_is_banned" class="author-banned-pill" title="该账号已被封禁">已封禁</span>
           <span class="post-date-v2">{{ formatDate(post.created_at) }}</span>
         </div>
-        <span v-if="authorTierCode" class="forum-tier-tag" :class="`tier-${authorTierCode}`">{{ authorTierCode }}</span>
       </div>
     </div>
 
