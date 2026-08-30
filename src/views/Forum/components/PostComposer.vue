@@ -5,6 +5,7 @@ import {
   ArrowRight,
   AtSign,
   Camera,
+  ChevronRight,
   Eye,
   FileText,
   GripVertical,
@@ -682,6 +683,27 @@ onUnmounted(() => {
         <button v-if="postImages.length > 0" type="button" class="post-image-clear-btn"
           :disabled="isPostBusy" @click="emit('clear-images', { cleanup: true })">
           清空图片
+        </button>
+      </div>
+
+      <div v-if="isMobileComposer" class="mobile-composer-setting-list">
+        <button type="button" class="mobile-composer-setting" @click="handleLocationClick">
+          <MapPin :size="20" :stroke-width="1.8" aria-hidden="true" />
+          <span>Location</span>
+          <strong v-if="postLocation">{{ postLocation.name }}</strong>
+          <ChevronRight :size="18" :stroke-width="1.8" aria-hidden="true" />
+        </button>
+        <button type="button" class="mobile-composer-setting" @click="handleDraftOpen">
+          <FileText :size="20" :stroke-width="1.8" aria-hidden="true" />
+          <span>草稿</span>
+          <strong v-if="autoSaveDraftLabel">{{ autoSaveDraftLabel }}</strong>
+          <ChevronRight :size="18" :stroke-width="1.8" aria-hidden="true" />
+        </button>
+        <button type="button" class="mobile-composer-setting" @click="showMobileTagMenu = !showMobileTagMenu">
+          <Hash :size="20" :stroke-width="1.8" aria-hidden="true" />
+          <span>标签</span>
+          <strong v-if="selectedTagLabel">#{{ selectedTagLabel }}</strong>
+          <ChevronRight :size="18" :stroke-width="1.8" aria-hidden="true" />
         </button>
       </div>
 

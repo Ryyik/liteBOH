@@ -402,13 +402,39 @@
 
 .post-image-panel {
   margin-top: 14px;
-  padding: 12px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.48);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   display: grid;
   gap: 10px;
 }
+
+.mobile-composer-setting-list {
+  display: grid;
+  grid-column: 1 / -1;
+  margin-top: 16px;
+  border-top: 1px solid rgba(15, 20, 25, 0.08);
+}
+
+.mobile-composer-setting {
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto 20px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 1px solid rgba(15, 20, 25, 0.08);
+  background: transparent;
+  color: #1d1d1f;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mobile-composer-setting:hover { background: rgba(15, 20, 25, 0.03); }
+.mobile-composer-setting > svg { color: #58616b; }
+.mobile-composer-setting > strong { color: #7a828b; font-size: 12px; font-weight: 650; }
 
 .post-image-preview-grid {
   display: grid;

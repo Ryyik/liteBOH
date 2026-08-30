@@ -1079,9 +1079,15 @@
 
   .mobile-composer-section .post-image-panel {
     grid-column: 1 / -1;
-    border-radius: 16px;
-    background: #f7f9f9;
-    border-color: rgba(15, 20, 25, 0.08);
+    margin-top: 12px;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    border: 0;
+  }
+
+  .mobile-composer-section .mobile-composer-setting-list {
+    margin-top: 16px;
   }
 
   .mobile-composer-section .mobile-post-image-toolbar {
