@@ -549,18 +549,16 @@
 .forum-tier-tag.tier-max { color: #b8860b; background: rgba(184, 137, 11, .1); }
 .forum-tier-tag.tier-ultra { color: #8e44ad; background: rgba(142, 68, 173, .1); }
 
-/* Feed cards read as one continuous stream; membership tint remains the only card-level distinction. */
+/* Keep the P2 card silhouette: a continuous feed can still use a quiet glass boundary. */
 .posts-list .post-card-v2 {
-  margin-bottom: 0;
-  border-radius: 0;
-  border-right-color: transparent;
-  border-left-color: transparent;
-  box-shadow: none;
+  margin-bottom: 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, .86);
+  box-shadow: 0 3px 14px rgba(29, 29, 31, .045);
 }
 
-.posts-list .post-card-v2 + .post-card-v2,
-.posts-list .forum-virtual-post + .forum-virtual-post .post-card-v2 {
-  border-top-color: rgba(15, 23, 42, .08);
+.posts-list .post-card-v2:hover {
+  box-shadow: 0 7px 20px rgba(29, 29, 31, .07);
 }
 
 .image-post-card-v2 {
