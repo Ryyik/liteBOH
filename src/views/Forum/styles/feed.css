@@ -506,13 +506,18 @@
 }
 
 .nickname-rainbow {
-  color: #8e44ad !important;
-  background: none !important;
-  -webkit-background-clip: initial !important;
-  background-clip: initial !important;
-  -webkit-text-fill-color: currentColor !important;
-  animation: none !important;
+  background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff, #9b59b6, #ff6b6b) !important;
+  background-size: 200% 100% !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  animation: nickname-rainbow-shift 3s linear infinite !important;
   font-weight: 700;
+}
+
+@keyframes nickname-rainbow-shift {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
 }
 
 /* 订阅等级卡片背景微色调 */
