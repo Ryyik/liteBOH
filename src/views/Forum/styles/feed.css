@@ -506,11 +506,11 @@
 }
 
 .nickname-rainbow {
-  background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff, #9b59b6, #ff6b6b) !important;
-  background-size: 200% 100% !important;
-  -webkit-background-clip: text !important;
-  background-clip: text !important;
-  -webkit-text-fill-color: transparent !important;
+  color: #8e44ad !important;
+  background: none !important;
+  -webkit-background-clip: initial !important;
+  background-clip: initial !important;
+  -webkit-text-fill-color: currentColor !important;
   animation: none !important;
   font-weight: 700;
 }
@@ -528,6 +528,25 @@
 .post-card-v2.tier-ultra {
   background: rgba(252, 245, 248, 0.86);
 }
+
+.forum-tier-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .03em;
+  line-height: 1;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.forum-tier-tag.tier-plus { color: #6a8fc9; background: rgba(106, 143, 201, .1); }
+.forum-tier-tag.tier-pro { color: #8e9aaf; background: rgba(142, 154, 175, .1); }
+.forum-tier-tag.tier-max { color: #b8860b; background: rgba(184, 137, 11, .1); }
+.forum-tier-tag.tier-ultra { color: #8e44ad; background: rgba(142, 68, 173, .1); }
 
 .image-post-card-v2 {
   contain-intrinsic-size: 0 520px;
@@ -918,7 +937,7 @@
   padding-left: 28px;
   text-align: right;
   color: #4b5563;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.94) 42%);
+  background: rgba(255, 255, 255, 0.94);
   pointer-events: none;
 }
 
@@ -964,8 +983,8 @@
 }
 
 .action-item-v2 {
-  background: rgba(15, 23, 42, 0.024);
-  border: 1px solid rgba(15, 23, 42, 0.035);
+  background: transparent;
+  border: 0;
   font-weight: 650;
   font-size: 13px;
   color: #7b8494;
@@ -975,14 +994,14 @@
   gap: 6px;
   min-height: 32px;
   padding: 5px 9px;
-  border-radius: 999px;
+  border-radius: 8px;
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
   white-space: nowrap;
 }
 
 .action-item-v2:hover {
-  background: rgba(15, 23, 42, 0.06);
-  border-color: rgba(15, 23, 42, 0.08);
+  background: rgba(15, 23, 42, 0.045);
+  border-color: transparent;
   color: #334155;
 }
 
