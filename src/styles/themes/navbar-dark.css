@@ -99,3 +99,54 @@
   color: #f5f5f7 !important;
   background: rgba(255, 255, 255, 0.05) !important;
 }
+
+/* The vendor navbar uses different class names than the legacy theme rules
+   above. Keep every readable label white in dark mode. */
+[data-theme="dark"] #unified-nav-container .unified-nav-surface,
+#unified-nav-container[data-theme="dark"] .unified-nav-surface {
+  background: rgba(20, 27, 37, 0.9) !important;
+  border-color: rgba(220, 235, 255, 0.16) !important;
+}
+
+[data-theme="dark"] #unified-nav-container .nav-logo,
+[data-theme="dark"] #unified-nav-container .nav-logo-text,
+[data-theme="dark"] #unified-nav-container .nav-menu a,
+[data-theme="dark"] #unified-nav-container .nav-link-wrapper,
+[data-theme="dark"] #unified-nav-container .nav-link-wrapper.active,
+[data-theme="dark"] #unified-nav-container .nav-user-profile,
+[data-theme="dark"] #unified-nav-container .nav-username,
+[data-theme="dark"] #unified-nav-container .nav-login-btn,
+#unified-nav-container[data-theme="dark"] .nav-logo,
+#unified-nav-container[data-theme="dark"] .nav-logo-text,
+#unified-nav-container[data-theme="dark"] .nav-menu a,
+#unified-nav-container[data-theme="dark"] .nav-link-wrapper,
+#unified-nav-container[data-theme="dark"] .nav-user-profile,
+#unified-nav-container[data-theme="dark"] .nav-username,
+#unified-nav-container[data-theme="dark"] .nav-login-btn {
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] #unified-nav-container .nav-menu a:hover,
+[data-theme="dark"] #unified-nav-container .nav-link-wrapper:hover,
+[data-theme="dark"] #unified-nav-container .nav-user-profile:hover,
+#unified-nav-container[data-theme="dark"] .nav-menu a:hover,
+#unified-nav-container[data-theme="dark"] .nav-link-wrapper:hover {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-theme="dark"] #unified-nav-container .nav-dropdown,
+[data-theme="dark"] #unified-nav-container .nav-submenu,
+[data-theme="dark"] #unified-nav-container .nav-modal {
+  background: #1b2430 !important;
+  border-color: rgba(220, 235, 255, 0.16) !important;
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] #unified-nav-container .nav-dropdown-item,
+[data-theme="dark"] #unified-nav-container .nav-submenu a,
+[data-theme="dark"] #unified-nav-container .nav-submenu-group-title,
+[data-theme="dark"] #unified-nav-container .nav-mobile-link,
+[data-theme="dark"] #unified-nav-container .nav-mobile-submenu a {
+  color: #ffffff !important;
+}

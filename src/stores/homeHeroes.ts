@@ -63,6 +63,7 @@ export const HOME_HERO_BASELINE: HomeHero[] = [
   createBuiltinFallback('anniversary-8', 60, '八周年庆典', '方块之家八周年'),
   createBuiltinFallback('cloud-cafe', 70, '云上咖啡店', '云上咖啡店网页游戏'),
   createBuiltinFallback('fuzhou', 80, '遇见福州', '遇见福州'),
+  createBuiltinFallback('special-custom', 90, '特别企划', '特别企划'),
   createBuiltinFallback('split-brand-letter', 100, 'BOH 与 Ryyik 的信', '品牌与八周年寄语')
 ]
 

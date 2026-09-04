@@ -1,0 +1,127 @@
+/**
+ * ==============================================
+ * Liquid Glass — iOS 26/27 液态玻璃封装
+ * ==============================================
+ * 纯 CSS 实现，无 JS。直接加类即可调用。
+ * 依赖 src/styles/common/tokens.css 的 --liquid-* 变量
+ * 用法：
+ *   <div class="liquid-glass">外卡</div>
+ *   <div class="liquid-glass liquid-glass--pill liquid-glass--subtle">工具栏</div>
+ *   <div class="liquid-glass liquid-glass--inset">设置组</div>
+ * Vue: <LiquidGlass variant="inset"><.../></LiquidGlass>
+ * ==============================================
+ */
+
+/* 基础液态玻璃 — 对应外卡/弹窗 */
+.liquid-glass {
+  background: var(--liquid-bg, rgba(255, 255, 255, 0.72));
+  border: 1px solid var(--liquid-border, rgba(255, 255, 255, 0.65));
+  border-radius: var(--liquid-radius-lg, 28px);
+  box-shadow: var(--liquid-highlight, inset 0 1px 0 rgba(255,255,255,0.86)), inset 0 -1px 0 rgba(255,255,255,0.22), var(--liquid-shadow, 0 20px 60px rgba(15,23,42,0.07));
+  backdrop-filter: blur(var(--liquid-blur, 28px)) saturate(var(--liquid-saturate, 180%)) brightness(1.02);
+  -webkit-backdrop-filter: blur(var(--liquid-blur, 28px)) saturate(var(--liquid-saturate, 180%)) brightness(1.02);
+  isolation: isolate;
+  contain: paint;
+}
+
+@supports (corner-shape: squircle) {
+  .liquid-glass { corner-shape: squircle; }
+}
+
+/* 变体：强调态（输入框/按钮） */
+.liquid-glass--strong {
+  background: var(--liquid-bg-strong, rgba(255, 255, 255, 0.84));
+  backdrop-filter: blur(12px) saturate(160%) brightness(1.02);
+  -webkit-backdrop-filter: blur(12px) saturate(160%) brightness(1.02);
+  border-radius: var(--liquid-radius-md, 16px);
+  box-shadow: var(--liquid-shadow-sm, 0 8px 24px rgba(15,23,42,0.06));
+}
+
+/* 变体：轻量态（工具胶囊/次级背景） */
+.liquid-glass--subtle {
+  background: var(--liquid-bg-subtle, rgba(255, 255, 255, 0.58));
+  backdrop-filter: blur(var(--liquid-blur-sm, 18px)) saturate(var(--liquid-saturate, 180%)) brightness(1.02);
+  -webkit-backdrop-filter: blur(var(--liquid-blur-sm, 18px)) saturate(var(--liquid-saturate, 180%)) brightness(1.02);
+}
+
+/* 变体：全屏遮罩（竖屏 overlay） */
+.liquid-glass--overlay {
+  background: rgba(248, 250, 252, 0.62);
+  backdrop-filter: blur(var(--liquid-blur-lg, 36px)) saturate(var(--liquid-saturate, 180%)) brightness(1.02);
+  -webkit-backdrop-filter: blur(var(--liquid-blur-lg, 36px)) saturate(var(--liquid-saturate, 180%)) brightness(1.02);
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* 形态：胶囊（工具栏） */
+.liquid-glass--pill {
+  border-radius: var(--liquid-radius-pill, 999px);
+  padding: 4px;
+  box-shadow: var(--liquid-highlight-subtle, inset 0 1px 0 rgba(255,255,255,0.55)), var(--liquid-shadow-sm);
+}
+
+/* 形态：Inset Grouped（竖屏 Location/草稿/标签 列表） */
+.liquid-glass--inset {
+  background: var(--liquid-bg, rgba(255, 255, 255, 0.72));
+  border: 1px solid var(--liquid-border, rgba(255,255,255,0.62));
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.76), 0 8px 24px rgba(15,23,42,0.06);
+  backdrop-filter: blur(20px) saturate(180%) brightness(1.02);
+  -webkit-backdrop-filter: blur(20px) saturate(180%) brightness(1.02);
+}
+
+/* 工具：无玻璃（自由排版时外容器透明） */
+.liquid-glass--clear {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  isolation: auto;
+  contain: none;
+}
+
+/* 交互：悬停微抬升（仅在支持悬停的设备） */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .liquid-glass--interactive { transition: transform var(--duration-base, 240ms) var(--ease-emphasized, cubic-bezier(0.16,1,0.3,1)), box-shadow var(--duration-base) var(--ease-out), border-color var(--duration-fast) ease; }
+  .liquid-glass--interactive:hover { transform: translateY(-2px); box-shadow: var(--liquid-highlight), inset 0 -1px 0 rgba(255,255,255,0.22), 0 24px 64px rgba(15,23,42,0.08), 0 1px 3px rgba(15,23,42,0.06); }
+  .liquid-glass:active { transform: scale(0.99); }
+}
+
+/* 暗色由 tokens.css 的 [data-theme="dark"] 变量自动切换；此处仅补遮罩暗色 */
+[data-theme="dark"] .liquid-glass--overlay { background: rgba(18, 18, 26, 0.68); }
+
+/* 性能优化：移动端仅保留外层玻璃，内层全部实色，层数 3→1 */
+@media (max-width: 768px) {
+  .liquid-glass { --liquid-blur: 16px; --liquid-saturate: 150%; }
+  .liquid-glass--overlay { backdrop-filter: blur(20px) saturate(150%) brightness(1.02); -webkit-backdrop-filter: blur(20px) saturate(150%) brightness(1.02); }
+  /* 内层胶囊/列表在移动端不再叠加模糊，避免嵌套离屏纹理 */
+  .liquid-glass--inset,
+  .liquid-glass--pill,
+  .liquid-glass--subtle,
+  .liquid-glass--strong {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: rgba(255, 255, 255, 0.92) !important;
+    box-shadow: 0 4px 12px rgba(15,23,42,0.06) !important;
+  }
+  [data-theme="dark"] .liquid-glass--inset,
+  [data-theme="dark"] .liquid-glass--pill,
+  [data-theme="dark"] .liquid-glass--subtle { background: rgba(40,40,52,0.92) !important; }
+  /* 隔离与合成隔离只保留外层，减少重绘 */
+  .liquid-glass--inset, .liquid-glass--pill, .liquid-glass--subtle { isolation: auto; contain: none; }
+}
+
+/* 降级：不支持 backdrop-filter 与省电模式 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .liquid-glass, .liquid-glass--strong, .liquid-glass--subtle, .liquid-glass--inset { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(255,255,255,0.96); }
+  [data-theme="dark"] .liquid-glass, [data-theme="dark"] .liquid-glass--strong { background: #1e1e2a; }
+}
+.boh-perf-lite .liquid-glass { backdrop-filter: blur(12px) saturate(140%); -webkit-backdrop-filter: blur(12px) saturate(140%); }
+.boh-perf-lite .liquid-glass--overlay { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); background: rgba(255,255,255,0.88); }
+.boh-perf-lite .liquid-glass--inset,
+.boh-perf-lite .liquid-glass--pill,
+.boh-perf-lite .liquid-glass--subtle { backdrop-filter: none !important; background: rgba(255,255,255,0.92) !important; }

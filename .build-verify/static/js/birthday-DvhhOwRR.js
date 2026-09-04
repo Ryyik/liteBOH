@@ -1,0 +1,1 @@
+const t=t=>{const e=Number(t);return Number.isFinite(e)?Math.trunc(e):null},e=(e,n,a=new Date)=>{const r=((e,n)=>{const a=t(e),r=t(n);return!a||!r||a<1||a>12||r<1||r>new Date(2024,a,0).getDate()?null:{month:a,day:r}})(e,n);return!(!(r&&a instanceof Date)||Number.isNaN(a.getTime()))&&r.month===a.getMonth()+1&&r.day===a.getDate()};export{e as i};

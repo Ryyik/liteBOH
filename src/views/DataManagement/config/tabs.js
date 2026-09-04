@@ -64,7 +64,8 @@ export const tabs = [
   { id: 'cloudinaryUploads', label: '上传队列', icon: '☁️', module: 'logs' },
   { id: 'userFollows', label: '关注关系', icon: '👥', module: 'logs' },
   { id: 'userImpressions', label: '访客记录', icon: '👁️', module: 'logs' },
-  { id: 'lotterySchedulerLogs', label: '抽奖调度', icon: '⚙️', module: 'logs' }
+  { id: 'lotterySchedulerLogs', label: '抽奖调度', icon: '⚙️', module: 'logs' },
+  { id: 'userDataExportJobs', label: '用户数据导出', icon: '📤', module: 'logs' }
 ];
 
 export const tabModules = [
@@ -171,7 +172,7 @@ export const tabModules = [
     icon: Activity,
     section: 'data',
     defaultTab: 'aiWebSearchLog',
-    tabIds: ['aiWebSearchLog', 'apiKeyAuditLogs', 'labUsageRecords', 'cloudinaryUploads', 'userFollows', 'userImpressions', 'lotterySchedulerLogs'],
+    tabIds: ['aiWebSearchLog', 'apiKeyAuditLogs', 'labUsageRecords', 'cloudinaryUploads', 'userFollows', 'userImpressions', 'lotterySchedulerLogs', 'userDataExportJobs'],
     description: 'AI搜索、Key审计、实验室、上传、关注、访客与抽奖调度日志'
   },
   {
@@ -238,7 +239,8 @@ export const TABS_ACTIONS = {
   labUsageRecords: ['view'],
   cloudinaryUploads: ['view', 'delete'],
   userFollows: ['view'],
-  userImpressions: ['view']
+  userImpressions: ['view'],
+  userDataExportJobs: ['view']
 };
 
 export const TABS_KEEP_ID_ON_INSERT = new Set(['news', 'activities', 'products']);

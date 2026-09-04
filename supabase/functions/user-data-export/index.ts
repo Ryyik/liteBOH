@@ -22,7 +22,10 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { checkRateLimitDb } from '../_shared/rate-limiter.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.99.1';
-import { JSZip } from 'npm:jszip@3.10.1';
+// jszip exposes its constructor as the package default export in Deno's npm
+// compatibility layer. A named import makes the function fail during module
+// initialization before it can handle any request.
+import JSZip from 'npm:jszip@3.10.1';
 
 const EXPORT_BUCKET = 'user-exports';
 const RATE_LIMIT_DAYS = 7;
@@ -97,6 +100,13 @@ class CancelledError extends Error {
 
 const nowIso = () => new Date().toISOString();
 
+const escapeHtml = (value: unknown) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
 const createServiceClient = () => {
   const url = Deno.env.get('SUPABASE_URL') || '';
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
@@ -105,10 +115,47 @@ const createServiceClient = () => {
   });
 };
 
+// Supabase's newer `sb_secret_...` keys are valid API keys but are not JWTs.
+// supabase-js Storage currently mirrors the key into `Authorization: Bearer`,
+// which makes Storage reject them with "Invalid Compact JWS". Keep the key in
+// `apikey` and only send a Bearer header when it is an actual JWT.
+const getStorageHeaders = (token: string, contentType?: string) => {
+  const anonKey = String(Deno.env.get('SUPABASE_ANON_KEY') || '').trim().replace(/^['"]|['"]$/g, '');
+  const headers: Record<string, string> = { apikey: anonKey, Authorization: `Bearer ${token}` };
+  if (contentType) headers['Content-Type'] = contentType;
+  return headers;
+};
+
+const uploadExportFile = async (path: string, bytes: Uint8Array, token: string) => {
+  const base = String(Deno.env.get('SUPABASE_URL') || '').replace(/\/$/, '');
+  const url = `${base}/storage/v1/object/${EXPORT_BUCKET}/${path}`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { ...getStorageHeaders(token, 'application/zip'), 'x-upsert': 'true' },
+    body: bytes,
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new Error(`上传导出文件失败 HTTP ${response.status}: ${detail.slice(0, 300)}`);
+  }
+};
+
+const createExportSignedUrl = async (path: string, expiresIn: number, token: string) => {
+  const base = String(Deno.env.get('SUPABASE_URL') || '').replace(/\/$/, '');
+  const response = await fetch(`${base}/storage/v1/object/sign/${EXPORT_BUCKET}/${path}`, {
+    method: 'POST',
+    headers: { ...getStorageHeaders(token, 'application/json') },
+    body: JSON.stringify({ expiresIn }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body?.signedURL) return null;
+  return body.signedURL.startsWith('http') ? body.signedURL : `${base}/storage/v1${body.signedURL}`;
+};
+
 const verifyUser = async (
   request: Request,
 ): Promise<
-  | { ok: true; userId: string }
+  | { ok: true; userId: string; token: string }
   | { ok: false; status: number; message: string }
 > => {
   const authHeader = request.headers.get('authorization') || '';
@@ -128,7 +175,7 @@ const verifyUser = async (
   if (error || !data?.user?.id) {
     return { ok: false, status: 401, message: '登录状态已失效，请重新登录' };
   }
-  return { ok: true, userId: data.user.id };
+  return { ok: true, userId: data.user.id, token };
 };
 
 // =============================================
@@ -233,7 +280,7 @@ interface ImageTask {
 // 后台导出主流程
 // =============================================
 
-const runExport = async (userId: string, jobId: string) => {
+const runExport = async (userId: string, jobId: string, storageToken: string) => {
   const svc = createServiceClient();
   const startedAt = Date.now();
   let lastProgressWrite = 0;
@@ -430,6 +477,42 @@ const runExport = async (userId: string, jobId: string) => {
       '数据截止至生成时间。如需再次导出，请在设置中重新申请（每 7 天一次）。',
     ].filter(Boolean).join('\n');
 
+    const fileRows = [...jsonFiles.keys()]
+      .map((path) => `<li><a href="${escapeHtml(path)}">${escapeHtml(path)}</a></li>`)
+      .join('');
+    const previewPayload = {
+      totals,
+      files: Object.fromEntries(jsonFiles.entries()),
+      images: [...downloaded.keys()],
+      exportedAt: manifest.exportedAt,
+    };
+    const previewDataJson = JSON.stringify(previewPayload).replace(/</g, '\\u003c');
+    const previewHtml = `<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BOH 数据导出预览</title>
+<style>
+ :root{color-scheme:light;--ink:#171717;--muted:#6b6b6b;--line:#ffffffb8;--glass:#ffffffa6;--soft:#f0f0f0b8;--accent:#111}
+ *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 18% 10%,#fff 0,#f4f4f4 34%,#dedede 100%);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+ main{max-width:920px;margin:44px auto;padding:0 20px}h1{margin:0;font-size:30px}h2{font-size:18px;margin:0 0 12px}.muted{color:var(--muted)}
+ .panel{background:var(--glass);backdrop-filter:blur(24px) saturate(120%);-webkit-backdrop-filter:blur(24px) saturate(120%);border:1px solid var(--line);border-radius:16px;padding:20px;margin-top:16px;box-shadow:0 12px 32px #00000012,inset 0 1px #ffffffd9}.hero{display:flex;align-items:center;gap:14px}.icon{width:42px;height:42px;display:grid;place-items:center;border-radius:12px;background:#ffffffc7;font-size:22px}
+ .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.stat{background:#ffffff70;border:1px solid #fff9;border-radius:12px;padding:13px 15px}.stat b{display:block;font-size:25px;color:var(--accent)}.stat span{color:var(--muted);font-size:13px}
+ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:10px 8px;border-bottom:1px solid #00000012}th{color:var(--muted);font-weight:600}td:last-child,th:last-child{text-align:right}
+ .tabs{display:flex;gap:6px;overflow:auto}.tab{border:1px solid #ffffffb8;background:#ffffff70;color:var(--muted);padding:9px 15px;border-radius:10px;cursor:pointer;white-space:nowrap;font:inherit}.tab.active{background:#171717;color:#fff;border-color:#171717}.view{display:none}.view.active{display:block}.item{border:1px solid #ffffffb8;border-radius:12px;padding:15px;margin-top:12px;background:#ffffff55}.meta{font-size:13px;color:var(--muted)}.title{font-weight:700;margin:8px 0 3px}.text{white-space:pre-wrap;color:#414141}.comment{border-left:3px solid #999;margin-top:12px;padding-left:12px;color:#4b4b4b}.thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:12px}.thumb{width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:9px;background:#ddd;border:1px solid #fff}.record{display:flex;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid #00000012}.record:last-child{border-bottom:0}.record small{display:block;color:var(--muted)}.files{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:0;padding:0;list-style:none}.files a{display:block;padding:10px 12px;border:1px solid #ffffffb8;border-radius:10px;color:var(--ink);text-decoration:none;background:#ffffff70}
+ @media(max-width:620px){main{margin:24px auto}.stats{grid-template-columns:1fr}.files{grid-template-columns:1fr}h1{font-size:26px}}
+ </style></head><body><main>
+ <h1>BOH 数据导出预览</h1><div class="muted">本地打开，无需联网 · 生成时间：<span id="date"></span></div>
+ <section class="panel hero"><div class="icon">▣</div><div><strong>你的数据副本</strong><div class="muted">文字、图片、论坛和互动记录均已整理。</div></div></section>
+ <section class="panel"><div class="stats"><div class="stat"><b id="total">0</b><span>数据记录</span></div><div class="stat"><b id="imageCount">0</b><span>已下载图片</span></div><div class="stat"><b>${escapeHtml(failedImages.length)}</b><span>失败图片</span></div></div></section>
+ <section class="panel"><div class="tabs"><button class="tab active" data-view="forum">论坛</button><button class="tab" data-view="cloud">Cloud+</button><button class="tab" data-view="treehole">树洞</button><button class="tab" data-view="activity">互动记录</button><button class="tab" data-view="records">文字记录</button></div><div id="forum" class="view active"></div><div id="cloud" class="view"></div><div id="treehole" class="view"></div><div id="activity" class="view"></div><div id="records" class="view"></div></section>
+ <section class="panel"><h2>数据文件</h2><ul class="files">${fileRows}</ul><p class="muted">完整统计见 <a href="manifest.json">manifest.json</a>。</p></section>
+ </main><script>const DATA=${previewDataJson};
+ const esc=(v)=>String(v??'').replace(/[&<>\"]/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]));const rows=(...names)=>names.flatMap((n)=>Array.isArray(DATA.files[n])?DATA.files[n]:[]);const pick=(o,...keys)=>{for(const k of keys)if(o&&o[k]!=null)return o[k];return ''};const fmt=(v)=>v?new Date(v).toLocaleString('zh-CN'):'';
+ const post=(r)=>'<article class="item"><strong>'+esc(pick(r,'author_name','nickname','username','author_id','user_id','title'))+'</strong><div class="meta">'+esc(fmt(pick(r,'created_at','published_at','updated_at')))+' </div><div class="title">'+esc(pick(r,'title','subject'))+'</div><div class="text">'+esc(pick(r,'content','body','text','description'))+'</div></article>';
+ const record=(r)=>'<div class="record"><div><strong>'+esc(pick(r,'title','type','action','content','name')||'记录')+'</strong><small>'+esc(fmt(pick(r,'created_at','occurred_at'))+'</small></div><b>'+esc(pick(r,'amount','status','value'))+'</b></div>';
+ const render=()=>{document.getElementById('date').textContent=fmt(DATA.exportedAt);document.getElementById('imageCount').textContent=DATA.images.length;document.getElementById('total').textContent=Object.values(DATA.totals).reduce((a,b)=>a+Number(b||0),0);const posts=rows('forum/posts.json'),comments=rows('forum/comments.json');document.getElementById('forum').innerHTML=(posts.length?posts.slice(0,50).map(post).join(''):'<div class="item">暂无论坛文字记录</div>')+(comments.length?'<h2 style="margin-top:20px">评论</h2>'+comments.slice(0,80).map(post).join(''):'');document.getElementById('cloud').innerHTML=(rows('cloud/entries.json').slice(0,50).map(post).join('')||'<div class="item">暂无 Cloud+ 记录</div>');document.getElementById('treehole').innerHTML=(rows('treehole/memories.json','treehole/space.json').slice(0,50).map(post).join('')||'<div class="item">暂无树洞文字记录</div>');document.getElementById('activity').innerHTML=rows('interactions/notifications.json','interactions/impressions_authored.json','interactions/impressions_received.json','interactions/block_wall_items.json').slice(0,80).map(record).join('')||'<div class="item">暂无互动记录</div>';document.getElementById('records').innerHTML=rows('records/points_transactions.json','records/lottery_entries.json','records/gifts.json','records/poster_requests.json','records/messages.json').slice(0,100).map(record).join('')||'<div class="item">暂无文字记录</div>';};document.querySelectorAll('.tab').forEach((t)=>t.onclick=()=>{document.querySelectorAll('.tab,.view').forEach((e)=>e.classList.remove('active'));t.classList.add('active');document.getElementById(t.dataset.view).classList.add('active')});render();</script></body></html>`;
+
+    zip.file(`${root}/index.html`, previewHtml);
     zip.file(`${root}/README.txt`, readme);
     zip.file(`${root}/manifest.json`, JSON.stringify(manifest, null, 2));
     for (const [path, rows] of jsonFiles) {
@@ -473,19 +556,12 @@ const runExport = async (userId: string, jobId: string) => {
       let lastUploadError = '';
       for (let attempt = 1; attempt <= 2 && !uploaded; attempt++) {
         try {
-          const uploadPromise = svc.storage
-            .from(EXPORT_BUCKET)
-            .upload(filePath, bytes, { contentType: 'application/zip', upsert: true });
+          const uploadPromise = uploadExportFile(filePath, bytes, storageToken);
           const timeoutPromise = new Promise<never>((_, reject) => {
             setTimeout(() => reject(new Error(`上传超过 ${UPLOAD_TIMEOUT_MS / 1000}s 未完成`)), UPLOAD_TIMEOUT_MS);
           });
-          const { error: uploadError } = await Promise.race([uploadPromise, timeoutPromise]);
-          if (!uploadError) {
-            uploaded = true;
-          } else {
-            lastUploadError = uploadError.message;
-            console.error(`user-data-export: 上传失败（第 ${attempt} 次）`, uploadError.message);
-          }
+          await Promise.race([uploadPromise, timeoutPromise]);
+          uploaded = true;
         } catch (uploadError) {
           lastUploadError = String((uploadError as Error)?.message || uploadError);
           console.error(`user-data-export: 上传异常（第 ${attempt} 次）`, uploadError);
@@ -557,7 +633,7 @@ const runExport = async (userId: string, jobId: string) => {
 // HTTP action 处理
 // =============================================
 
-const handleCreate = async (userId: string, origin: string | null) => {
+const handleCreate = async (userId: string, storageToken: string, origin: string | null) => {
   const svc = createServiceClient();
 
   // M2: create 入口限流（5 次/小时），防止高频创建导出任务造成资源放大
@@ -633,7 +709,7 @@ const handleCreate = async (userId: string, origin: string | null) => {
   }
 
   // 后台异步执行；EdgeRuntime.waitUntil 保证响应返回后继续运行
-  const processing = runExport(userId, job.id);
+  const processing = runExport(userId, job.id, storageToken);
   if (typeof (globalThis as { EdgeRuntime?: { waitUntil: (p: Promise<unknown>) => void } }).EdgeRuntime !== 'undefined') {
     (globalThis as { EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void } }).EdgeRuntime.waitUntil(processing);
   } else {
@@ -651,7 +727,7 @@ const handleStatus = async (userId: string, origin: string | null) => {
   return jsonResponse({ ok: true, job }, 200, origin);
 };
 
-const handleDownload = async (userId: string, origin: string | null) => {
+const handleDownload = async (userId: string, storageToken: string, origin: string | null) => {
   const svc = createServiceClient();
   await cleanupExpiredJobs(svc, userId);
 
@@ -660,17 +736,15 @@ const handleDownload = async (userId: string, origin: string | null) => {
     return jsonResponse({ ok: false, error: '没有可下载的导出文件' }, 404, origin);
   }
 
-  const { data: signed, error: signError } = await svc.storage
-    .from(EXPORT_BUCKET)
-    .createSignedUrl(job.file_path, LINK_VALID_SECONDS);
-  if (signError || !signed?.signedUrl) {
+  const signedUrl = await createExportSignedUrl(job.file_path, LINK_VALID_SECONDS, storageToken);
+  if (!signedUrl) {
     return jsonResponse({ ok: false, error: '生成下载链接失败，请稍后重试' }, 500, origin);
   }
 
   return jsonResponse(
     {
       ok: true,
-      url: signed.signedUrl,
+      url: signedUrl,
       expiresIn: LINK_VALID_SECONDS,
       fileName: `BOH_export_${String(job.id).slice(0, 8)}.zip`,
       fileSize: job.file_size ?? null,
@@ -723,11 +797,11 @@ serve(async (req: Request) => {
 
     switch (action) {
       case 'create':
-        return await handleCreate(auth.userId, origin);
+        return await handleCreate(auth.userId, auth.token, origin);
       case 'status':
         return await handleStatus(auth.userId, origin);
       case 'download':
-        return await handleDownload(auth.userId, origin);
+        return await handleDownload(auth.userId, auth.token, origin);
       case 'cancel':
         return await handleCancel(auth.userId, origin);
       default:

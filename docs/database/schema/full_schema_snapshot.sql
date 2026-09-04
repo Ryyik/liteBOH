@@ -270,3 +270,54 @@ create table public.user_impressions (
   constraint user_impressions_author_id_fkey foreign KEY (author_id) references profiles (id) on delete CASCADE,
   constraint user_impressions_target_id_fkey foreign KEY (target_id) references profiles (id) on delete CASCADE
 ) TABLESPACE pg_default;
+
+create table public.health_profiles (
+  user_id uuid not null,
+  sex text null,
+  birth_year smallint null,
+  height_cm numeric(5, 1) null,
+  weight_kg numeric(5, 1) null,
+  target_weight_kg numeric(5, 1) null,
+  activity_level text null,
+  goals jsonb null default '{}'::jsonb,
+  created_at timestamp with time zone null default now(),
+  updated_at timestamp with time zone null default now(),
+  constraint health_profiles_pkey primary key (user_id),
+  constraint health_profiles_user_id_fkey foreign KEY (user_id) references auth.users (id) on delete CASCADE
+) TABLESPACE pg_default;
+
+create table public.health_weight_logs (
+  id uuid not null default gen_random_uuid (),
+  user_id uuid not null,
+  weight_kg numeric(5, 1) not null,
+  logged_at timestamp with time zone not null default now(),
+  created_at timestamp with time zone null default now(),
+  constraint health_weight_logs_pkey primary key (id),
+  constraint health_weight_logs_user_id_fkey foreign KEY (user_id) references auth.users (id) on delete CASCADE
+) TABLESPACE pg_default;
+
+create table public.health_daily_logs (
+  id uuid not null default gen_random_uuid (),
+  user_id uuid not null,
+  log_date date not null,
+  sleep_hours numeric(4, 1) null,
+  steps integer null,
+  water_cups integer null,
+  mood text null,
+  mood_note text null,
+  created_at timestamp with time zone null default now(),
+  constraint health_daily_logs_pkey primary key (id),
+  constraint health_daily_logs_user_id_fkey foreign KEY (user_id) references auth.users (id) on delete CASCADE,
+  constraint health_daily_logs_user_id_log_date_key unique (user_id, log_date)
+) TABLESPACE pg_default;
+
+create table public.health_vault_records (
+  id uuid not null default gen_random_uuid (),
+  user_id uuid not null,
+  title text not null,
+  indicators jsonb null default '{}'::jsonb,
+  file_name text null,
+  created_at timestamp with time zone null default now(),
+  constraint health_vault_records_pkey primary key (id),
+  constraint health_vault_records_user_id_fkey foreign KEY (user_id) references auth.users (id) on delete CASCADE
+) TABLESPACE pg_default;

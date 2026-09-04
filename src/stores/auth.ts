@@ -167,6 +167,10 @@ export const useAuthStore = defineStore('auth', () => {
     bannedUntil: null,
     mutedUntil: null
   });
+  // 会话级离线概览锚点：在首次刷新 last_active_at 前快照，避免离线期间内容被排除。
+  // 不持久化（persist paths 只含 isLoggedIn/userInfo），每次会话重新捕获。
+  const offlineAnchorAt = ref<string | null>(null);
+
   const isAdmin = computed(() => {
     if (!isInitialized.value) return false;
     return String(userInfo.role || '').trim() === 'admin';
@@ -825,6 +829,11 @@ const PROFILE_SELECT_COLUMNS = `
 
   const updateOnlineStatus = async () => {
     try {
+      // 两阶段锚点：首次刷新前捕获 DB 中保存的旧活跃时间（syncAuthState 已写入 userInfo），
+      // 之后 RPC 与本地覆盖都会让 userInfo.lastActiveAt 变成"刚刚"，概览只能依赖此快照。
+      if (!offlineAnchorAt.value && userInfo.lastActiveAt) {
+        offlineAnchorAt.value = userInfo.lastActiveAt;
+      }
       const { supabase } = await loadAuthApi();
       await supabase.rpc('update_last_active_at');
       userInfo.lastActiveAt = new Date().toISOString();
@@ -890,6 +899,7 @@ const PROFILE_SELECT_COLUMNS = `
 
   const resetState = async (): Promise<void> => {
     isLoggedIn.value = false;
+    offlineAnchorAt.value = null;
     clearSessionHeartbeat();
     clearBrowserLifecycleSync();
     authStateSubscription?.unsubscribe?.();
@@ -1045,6 +1055,7 @@ const PROFILE_SELECT_COLUMNS = `
     deleteAccount,
     logout,
     initLoginState,
+    offlineAnchorAt,
     refreshCurrentUserProfile,
     ensureAdminAccess,
     deductPoints,

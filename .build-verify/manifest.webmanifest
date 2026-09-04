@@ -1,0 +1,1 @@
+{"name":"Block of Home","short_name":"BOH","description":"Block of Home - 你的家居灵感社区","start_url":"./","display":"standalone","background_color":"#ffffff","theme_color":"#79a947","lang":"en","scope":"./","icons":[{"src":"/favicon.png","sizes":"192x192","type":"image/png"},{"src":"/favicon.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}]}

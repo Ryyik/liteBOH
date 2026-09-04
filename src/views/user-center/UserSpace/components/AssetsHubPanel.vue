@@ -265,44 +265,46 @@
         </section>
       </section>
 
-      <section v-else-if="activeTab === 'points'" key="points" class="ah-section">
-        <div v-if="ledgerLoading" class="ah-order-skeleton">
-          <div v-for="n in 4" :key="n" class="ah-skeleton-block" />
-        </div>
-        <div v-else-if="ledgerError" class="ah-empty-state">
-          <div class="ah-empty-icon"><ScrollText :size="26" :stroke-width="1.5" /></div>
-          <h3>积分明细暂时无法加载</h3>
-          <button type="button" class="ah-shop-btn ah-shop-btn-ghost" @click="loadLedger">重试</button>
-        </div>
-        <div v-else-if="ledger.length === 0" class="ah-empty-state">
-          <div class="ah-empty-icon">
-            <ScrollText :size="26" :stroke-width="1.5" />
+      <section v-else-if="activeTab === 'points'" key="points" class="ah-section ah-points-section">
+        <template v-if="pointsView === 'actions'">
+          <header class="ah-points-heading">
+            <span>方块积分</span>
+            <h2>管理你的积分</h2>
+            <p>充值补充积分，或查看每一笔积分变动。</p>
+          </header>
+          <div class="ah-points-action-grid">
+            <button type="button" class="ah-points-action-card is-recharge" @click="isRechargeOpen = true">
+              <span class="ah-points-action-icon"><Coins :size="23" :stroke-width="1.8" aria-hidden="true" /></span>
+              <span class="ah-points-action-copy"><strong>充值积分</strong><small>扫码联系管理员充值</small></span>
+              <ChevronRight :size="19" :stroke-width="2" aria-hidden="true" />
+            </button>
+            <button type="button" class="ah-points-action-card is-detail" @click="openPointsDetail">
+              <span class="ah-points-action-icon"><ScrollText :size="23" :stroke-width="1.8" aria-hidden="true" /></span>
+              <span class="ah-points-action-copy"><strong>积分获取明细</strong><small>查看签到、发放与兑换记录</small></span>
+              <ChevronRight :size="19" :stroke-width="2" aria-hidden="true" />
+            </button>
           </div>
-          <h3>暂无积分明细</h3>
-          <p>周签到、管理员发放与商城订单都会记录在这里</p>
-        </div>
-        <div v-else class="ah-ledger">
-          <section v-for="group in ledgerGroups" :key="group.label" class="ah-ledger-group">
-            <h2>{{ group.label }}</h2>
-            <div class="ah-ledger-list">
-              <article v-for="item in group.items" :key="item.key" class="ah-ledger-item">
-                <div class="ah-ledger-icon" :class="`tone-${item.tone}`">
-                  <component :is="item.icon" :size="17" :stroke-width="1.8" />
-                </div>
-                <div class="ah-ledger-main">
-                  <span class="ah-ledger-title">{{ item.title }}</span>
-                  <span v-if="item.remark" class="ah-ledger-remark">{{ item.remark }}</span>
-                </div>
-                <div class="ah-ledger-right">
-                  <span class="ah-ledger-amount" :class="{ negative: item.amount < 0, zero: item.amount === 0 }">
-                    {{ item.amount >= 0 ? '+' : '' }}{{ item.amount }}
-                  </span>
-                  <span class="ah-ledger-date">{{ formatDate(item.time) }}</span>
-                </div>
-              </article>
-            </div>
-          </section>
-        </div>
+        </template>
+
+        <template v-else>
+          <header class="ah-points-detail-heading">
+            <button type="button" class="ah-points-back" aria-label="返回积分管理" @click="pointsView = 'actions'"><ChevronRight :size="18" :stroke-width="2" aria-hidden="true" /></button>
+            <div><span>积分记录</span><h2>积分获取明细</h2></div>
+            <div class="ah-points-total"><span>当前积分</span><strong>{{ pointsDisplay }}</strong></div>
+          </header>
+          <div class="ah-points-filter" role="tablist" aria-label="积分明细时间筛选">
+            <button v-for="filter in pointsDetailFilters" :key="filter.id" type="button" role="tab" :aria-selected="pointsDetailFilter === filter.id" :class="{ active: pointsDetailFilter === filter.id }" @click="pointsDetailFilter = filter.id">{{ filter.label }}</button>
+          </div>
+          <div v-if="ledgerLoading" class="ah-order-skeleton"><div v-for="n in 4" :key="n" class="ah-skeleton-block" /></div>
+          <div v-else-if="ledgerError" class="ah-empty-state"><div class="ah-empty-icon"><ScrollText :size="26" :stroke-width="1.5" /></div><h3>积分明细暂时无法加载</h3><button type="button" class="ah-shop-btn ah-shop-btn-ghost" @click="retryLedger">重试</button></div>
+          <div v-else-if="ledger.length === 0" class="ah-empty-state"><div class="ah-empty-icon"><ScrollText :size="26" :stroke-width="1.5" /></div><h3>暂无积分明细</h3><p>周签到、管理员发放与商城订单都会记录在这里</p></div>
+          <div v-else-if="filteredLedger.length === 0" class="ah-empty-state"><div class="ah-empty-icon"><ScrollText :size="26" :stroke-width="1.5" /></div><h3>这个时间段暂无记录</h3><p>试试选择更长的时间范围</p></div>
+          <div v-else class="ah-ledger">
+            <section v-for="group in ledgerGroups" :key="group.label" class="ah-ledger-group"><h2>{{ group.label }}</h2><div class="ah-ledger-list"><article v-for="item in group.items" :key="item.key" class="ah-ledger-item"><div class="ah-ledger-icon" :class="`tone-${item.tone}`"><component :is="item.icon" :size="17" :stroke-width="1.8" /></div><div class="ah-ledger-main"><span class="ah-ledger-title">{{ item.title }}</span><span v-if="item.remark" class="ah-ledger-remark">{{ item.remark }}</span></div><div class="ah-ledger-right"><span class="ah-ledger-amount" :class="{ negative: item.amount < 0, zero: item.amount === 0 }">{{ item.amount >= 0 ? '+' : '' }}{{ item.amount }}</span><span class="ah-ledger-date">{{ formatDate(item.time) }}</span></div></article></div></section>
+          </div>
+        </template>
+
+        <Transition name="ah-qr-modal"><div v-if="isRechargeOpen" class="ah-qr-overlay" @click.self="isRechargeOpen = false"><section class="ah-qr-modal" role="dialog" aria-modal="true" aria-labelledby="recharge-points-title"><button type="button" class="ah-qr-close" aria-label="关闭充值积分" @click="isRechargeOpen = false"><X :size="17" :stroke-width="2" aria-hidden="true" /></button><span class="ah-qr-kicker">充值积分</span><h2 id="recharge-points-title">扫码联系管理员</h2><p>请使用微信扫描收款码，备注你的 UID，管理员确认后将为你充值积分。</p><div class="ah-qr-frame"><img :src="sponsorQrImage" alt="积分充值收款二维码" class="ah-recharge-qr" /></div><span class="ah-qr-uid">UID · {{ uidShort }}</span></section></div></Transition>
       </section>
 
       <section v-else-if="activeTab === 'subscription'" key="subscription" class="ah-section">
@@ -618,7 +620,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import {
-  CalendarCheck, Check, ChevronRight, Coins, Copy, Crown, Gift, Heart, ImagePlus, LayoutDashboard, MapPin, Package, PackageCheck, RefreshCw, ScrollText, Send, ShoppingBag, Ticket, Trash2, Trophy
+  CalendarCheck, Check, ChevronRight, Coins, Copy, Crown, Gift, Heart, ImagePlus, LayoutDashboard, MapPin, Package, PackageCheck, RefreshCw, ScrollText, Send, ShoppingBag, Ticket, Trash2, Trophy, X
 } from 'lucide-vue-next';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import SubscriptionPlans from '@/components/SubscriptionPlans.vue';
@@ -719,6 +721,14 @@ const ledgerLoading = ref(false);
 const ledgerLoaded = ref(false);
 const ledgerError = ref('');
 const ledger = ref([]);
+const pointsView = ref('actions');
+const isRechargeOpen = ref(false);
+const pointsDetailFilter = ref('week');
+const pointsDetailFilters = [
+  { id: 'week', label: '一周' },
+  { id: 'month', label: '一个月' },
+  { id: 'all', label: '更久' }
+];
 const subscriptionLoading = ref(true);
 const activeSubscription = ref(null);
 const annualGiftSubscription = ref(null);
@@ -803,12 +813,18 @@ const membershipContextText = computed(() => {
   return subscriptionExpiryText.value;
 });
 
+const filteredLedger = computed(() => {
+  const days = pointsDetailFilter.value === 'week' ? 7 : pointsDetailFilter.value === 'month' ? 30 : null;
+  if (!days) return ledger.value;
+  return ledger.value.filter((item) => isWithinDays(item.time, days));
+});
+
 const ledgerGroups = computed(() => {
   const buckets = new Map([['今天', []], ['近 7 天', []], ['更早', []]]);
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const weekStart = todayStart - 6 * 86400000;
-  ledger.value.forEach((item) => {
+  filteredLedger.value.forEach((item) => {
     const timestamp = new Date(item.time).getTime();
     const label = timestamp >= todayStart ? '今天' : timestamp >= weekStart ? '近 7 天' : '更早';
     buckets.get(label).push(item);
@@ -817,6 +833,15 @@ const ledgerGroups = computed(() => {
     .filter(([, items]) => items.length > 0)
     .map(([label, items]) => ({ label, items }));
 });
+
+const openPointsDetail = () => {
+  pointsView.value = 'detail';
+  void loadLedger();
+};
+const retryLedger = () => {
+  ledgerLoaded.value = false;
+  void loadLedger();
+};
 
 const formatPoints = (pts) => {
   const n = Number(pts) || 0;
@@ -3067,6 +3092,35 @@ onMounted(() => {
 }
 
 .ah-cards-section { display: grid; gap: 18px; max-width: 620px; width: 100%; margin: 0 auto; }
+.ah-points-section { display: grid; gap: 18px; max-width: 760px; width: 100%; margin: 0 auto; }
+.ah-points-heading { padding: 4px 2px 0; }
+.ah-points-heading > span, .ah-points-detail-heading span { color: #6e6e73; font-size: 12px; font-weight: 700; }
+.ah-points-heading h2, .ah-points-detail-heading h2 { margin: 4px 0 6px; color: #1d1d1f; font-size: 22px; font-weight: 780; }
+.ah-points-heading p { margin: 0; color: #747b86; font-size: 13px; }
+.ah-points-action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.ah-points-action-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 13px; min-height: 132px; padding: 20px; border: 1px solid rgba(255,255,255,.78); border-radius: 22px; color: #1d1d1f; text-align: left; cursor: pointer; box-shadow: 0 18px 38px rgba(15,23,42,.08), inset 0 1px 0 rgba(255,255,255,.88); transition: transform 180ms var(--ah-ease), box-shadow 180ms ease; }
+.ah-points-action-card:hover { transform: translateY(-2px); box-shadow: 0 24px 46px rgba(15,23,42,.12), inset 0 1px 0 rgba(255,255,255,.92); }
+.ah-points-action-card:active { transform: scale(.985); }
+.ah-points-action-card.is-recharge { background: rgba(239,246,255,.72); border-color: rgba(191,219,254,.82); }
+.ah-points-action-card.is-detail { background: rgba(240,253,244,.68); border-color: rgba(187,247,208,.82); }
+.ah-points-action-icon { display: grid; width: 48px; height: 48px; place-items: center; border-radius: 16px; background: rgba(37,99,235,.12); color: #2563eb; }
+.is-detail .ah-points-action-icon { background: rgba(22,163,74,.12); color: #16a34a; }
+.ah-points-action-copy { display: grid; gap: 5px; min-width: 0; }
+.ah-points-action-copy strong { font-size: 16px; font-weight: 780; }
+.ah-points-action-copy small { color: #68727b; font-size: 12px; line-height: 1.4; }
+.ah-points-action-card > svg { color: #7b8491; transition: transform 170ms var(--ah-ease); }
+.ah-points-detail-heading { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.ah-points-back { display: grid; width: 34px; height: 34px; place-items: center; padding: 0; border: 0; border-radius: 12px; background: rgba(255,255,255,.6); color: #64748b; cursor: pointer; transform: rotate(180deg); }
+.ah-points-total { display: grid; justify-items: end; gap: 2px; }.ah-points-total span { font-size: 11px; font-weight: 650; }.ah-points-total strong { color: #1d1d1f; font-size: 25px; line-height: 1; }
+.ah-points-filter { display: inline-flex; width: fit-content; gap: 2px; padding: 3px; border-radius: 11px; background: rgba(15,23,42,.07); }
+.ah-points-filter button { min-width: 56px; height: 32px; padding: 0 11px; border: 0; border-radius: 8px; background: transparent; color: #68727b; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }.ah-points-filter button.active { background: rgba(255,255,255,.92); color: #1d1d1f; box-shadow: 0 1px 5px rgba(15,23,42,.12); }
+.ah-qr-overlay { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(225,232,242,.14); backdrop-filter: blur(22px) saturate(125%); -webkit-backdrop-filter: blur(22px) saturate(125%); }
+.ah-qr-modal { position: relative; display: grid; justify-items: center; width: min(100%, 348px); padding: 30px 28px 25px; border: 1px solid rgba(255,255,255,.72); border-radius: 30px; background: rgba(255,255,255,.66); backdrop-filter: blur(28px) saturate(145%); -webkit-backdrop-filter: blur(28px) saturate(145%); box-shadow: 0 24px 65px rgba(31,41,55,.13), 0 2px 8px rgba(31,41,55,.04), inset 0 1px 0 rgba(255,255,255,.9); text-align: center; }
+.ah-qr-close { position: absolute; top: 13px; right: 14px; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; background: rgba(255,255,255,.42); color: #64748b; cursor: pointer; transition: transform 150ms var(--ah-ease), background-color 150ms ease; }.ah-qr-close:hover { background: rgba(255,255,255,.75); }.ah-qr-close:active { transform: scale(.92); }.ah-qr-kicker { color: #2563eb; font-size: 12px; font-weight: 750; }.ah-qr-modal h2 { margin: 5px 0 7px; color: #1d1d1f; font-size: 21px; }.ah-qr-modal p { max-width: 270px; margin: 0; color: #68727b; font-size: 12px; line-height: 1.55; }.ah-qr-frame { display: grid; place-items: center; margin: 18px 0 12px; padding: 10px; border-radius: 20px; background: rgba(255,255,255,.78); box-shadow: 0 12px 28px rgba(31,41,55,.08), inset 0 1px 0 rgba(255,255,255,.92); }.ah-recharge-qr { display: block; width: 204px; height: 204px; border-radius: 12px; background: #fff; }.ah-qr-uid { color: #8e8e93; font: 600 11px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .05em; }
+.ah-qr-modal-enter-active, .ah-qr-modal-leave-active { transition: opacity 240ms ease; }.ah-qr-modal-enter-active .ah-qr-modal, .ah-qr-modal-leave-active .ah-qr-modal { transition: transform 300ms var(--ah-ease), opacity 220ms ease; }.ah-qr-modal-enter-from, .ah-qr-modal-leave-to { opacity: 0; }.ah-qr-modal-enter-from .ah-qr-modal, .ah-qr-modal-leave-to .ah-qr-modal { opacity: 0; transform: translateY(10px) scale(.97); }
+:global(.user-space-page[data-theme="dark"]) .ah-points-heading h2, :global(.user-space-page[data-theme="dark"]) .ah-points-detail-heading h2, :global(.user-space-page[data-theme="dark"]) .ah-points-total strong, :global(.user-space-page[data-theme="dark"]) .ah-points-action-card, :global(.user-space-page[data-theme="dark"]) .ah-qr-modal h2 { color: #f4f7f8; }
+:global(.user-space-page[data-theme="dark"]) .ah-points-action-card.is-recharge { background: rgba(30,58,95,.56); }:global(.user-space-page[data-theme="dark"]) .ah-points-action-card.is-detail { background: rgba(22,75,55,.5); }:global(.user-space-page[data-theme="dark"]) .ah-points-filter button.active, :global(.user-space-page[data-theme="dark"]) .ah-points-back { background: rgba(255,255,255,.14); color: #f4f7f8; }:global(.user-space-page[data-theme="dark"]) .ah-qr-modal { background: rgba(28,30,36,.95); }
+@media (max-width: 560px) { .ah-points-action-grid { grid-template-columns: 1fr; }.ah-points-action-card { min-height: 104px; padding: 16px; }.ah-points-detail-heading h2 { font-size: 19px; }.ah-points-total strong { font-size: 21px; } }
 .ah-cards-heading span, .ah-fulfillment-heading span { color: #377f76; font-size: 12px; font-weight: 760; }.ah-cards-heading span { color: #b7667e; }
 .ah-cards-heading h2, .ah-fulfillment-heading h2 { margin: 5px 0 6px; color: #1d1d1f; font-size: 22px; letter-spacing: 0; }
 .ah-cards-heading p, .ah-fulfillment-heading p { margin: 0; color: #68727b; font-size: 13px; line-height: 1.6; }

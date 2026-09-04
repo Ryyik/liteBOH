@@ -108,6 +108,7 @@ import {
 } from '../../utils/api/forum-api.js';
 import { uploadApprovedForumImageQueued } from '../../utils/api/forum-api.js';
 import { useAppMode } from '@/composables/useAppMode.js';
+import { showGlobalNavStatus } from '@/composables/useGlobalNavStatus.js';
 import {
   getUserNotifications,
   markNotificationAsRead,
@@ -2667,26 +2668,26 @@ const handleWeeklyCheckin = async () => {
       userInfo.points = currentPoints;
     }
 
+    let successMessage;
     if (Number(data.pointsAwarded || 0) > 0) {
-      showModal('success', '签到成功', `已完成 ${data.cycleSize || 4} 周连签，获得 ${data.pointsAwarded} 积分奖励！下一轮进度 ${data.cycleProgress || 0} / ${data.cycleSize || 4}`);
+      successMessage = `已完成 ${data.cycleSize || 4} 周连签，获得 ${data.pointsAwarded} 积分奖励！下一轮进度 ${data.cycleProgress || 0} / ${data.cycleSize || 4}`;
       emitProfileSync({
         userId: userInfo.id,
         username: userInfo.username,
         reason: 'weekly_checkin_reward'
       });
-      return;
+    } else {
+      successMessage = `本周签到完成，当前本轮连续 ${getWeeklyCheckinCycleProgress(data)} / ${data.cycleSize || 4} 周，再连续 ${data.nextRewardIn} 周可得 ${WEEKLY_CHECKIN_REWARD_POINTS} 积分`;
+      emitProfileSync({
+        userId: userInfo.id,
+        username: userInfo.username,
+        reason: 'weekly_checkin'
+      });
     }
 
-    showModal(
-      'success',
-      '签到成功',
-      `本周签到完成，当前本轮连续 ${getWeeklyCheckinCycleProgress(data)} / ${data.cycleSize || 4} 周，再连续 ${data.nextRewardIn} 周可得 ${WEEKLY_CHECKIN_REWARD_POINTS} 积分`
-    );
-    emitProfileSync({
-      userId: userInfo.id,
-      username: userInfo.username,
-      reason: 'weekly_checkin'
-    });
+    closeWeeklyCheckinCalendar();
+    await nextTick();
+    showCheckinSuccessIsland(successMessage);
   } catch (error) {
     logger.error('forum', '周签到失败:', error);
     showModal('error', '签到失败', error?.message || '请稍后重试');
@@ -2879,6 +2880,19 @@ const showEmbeddedSuccessIsland = (payload = {}) => {
   if (!props.embedded) return false;
   emit('island-message', payload);
   return true;
+};
+
+const showCheckinSuccessIsland = (message) => {
+  const payload = {
+    title: '签到成功',
+    message,
+    icon: 'success',
+    durationMs: 3600,
+    at: Date.now()
+  };
+
+  if (showEmbeddedSuccessIsland(payload)) return true;
+  return showGlobalNavStatus(payload);
 };
 
 const closeConfirm = (confirmed = false) => {
@@ -3985,7 +3999,8 @@ const openPostDetail = (postId) => {
               @toggle-image-source-menu="togglePostImageSourceMenu" @request-image-picker="openPostImagePicker"
               @request-camera="openPostCamera" @image-selection="handlePostImageSelection"
               @remove-image="removePostImage" @retry-image="retryPostImageUpload" @reorder-image="reorderPostImage"
-              @clear-images="clearPostImages" @weekly-checkin="handleWeeklyCheckin" />
+              @clear-images="clearPostImages" @weekly-checkin="handleWeeklyCheckin"
+              @open-draft="openMobileDraftPanel" @save-draft="saveMobileDraft" />
           </div>
         </div>
       </Transition>

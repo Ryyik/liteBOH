@@ -1473,5 +1473,21 @@ export const dataConfig = {
       { key: 'created_at', label: '创建时间', type: 'datetime' }
     ],
     fields: []
+  },
+  // ========== 用户数据导出任务 ==========
+  userDataExportJobs: {
+    table: 'user_data_export_jobs',
+    columns: [
+      { key: 'id', label: '任务ID', maxLength: 24 },
+      { key: 'user_id', label: '用户ID', maxLength: 24 },
+      { key: 'status', label: '状态', type: 'badge' },
+      { key: 'stage', label: '处理阶段' },
+      { key: 'progress', label: '进度', type: 'number' },
+      { key: 'file_size', label: '文件大小', type: 'number' },
+      { key: 'error', label: '错误信息', maxLength: 80 },
+      { key: 'requested_at', label: '申请时间', type: 'datetime' },
+      { key: 'expires_at', label: '过期时间', type: 'datetime' }
+    ],
+    fields: []
   }
 };

@@ -31,6 +31,7 @@
         </div>
         <div v-if="highestActivePlan" class="active-chip" :class="{ 'is-trial': topIsTrial }">{{ topIsTrial ? '试用中' : '当前订阅' }}：{{ highestActivePlan.name }} · 至 {{ formatDateText(highestActivePlan.expiresAt) }}</div>
         <div class="points-row"><span>当前积分</span><strong>{{ currentPoints }}</strong><span>积分</span></div>
+        <button type="button" class="recharge-points-trigger" @click="showRechargeModal = true"><span class="recharge-points-icon"><Coins :size="16" :stroke-width="1.9" aria-hidden="true" /></span><span><strong>充值积分</strong><small>扫码补充</small></span><ChevronRight :size="15" :stroke-width="2" aria-hidden="true" /></button>
       </div>
       <div v-if="canShowTrial" class="trial-banner">
         <div class="trial-banner-text">
@@ -124,12 +125,25 @@
         </section>
       </div>
     </Transition>
+    <Teleport to="body">
+    <Transition name="recharge-modal">
+      <div v-if="showRechargeModal" class="recharge-overlay" @click.self="showRechargeModal = false">
+        <section class="recharge-sheet" role="dialog" aria-modal="true" aria-labelledby="subscription-recharge-title" @click.stop>
+          <button class="recharge-close" type="button" aria-label="关闭充值积分" @click="showRechargeModal = false"><X :size="17" :stroke-width="2" /></button>
+          <span class="recharge-kicker">积分服务</span><h2 id="subscription-recharge-title">充值积分</h2>
+          <p>扫描收款码并备注 UID，管理员确认后会为你补充积分。</p>
+          <div class="recharge-qr-frame"><img :src="sponsorQrImage" alt="积分充值收款二维码" /></div>
+          <span class="recharge-uid">UID · {{ String(userInfo?.id || '').slice(0, 8) }}</span>
+        </section>
+      </div>
+    </Transition>
+    </Teleport>
   </main>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
-import { Check, ChevronDown, X, Zap, Cloud, Bot, FileText, Eye, Gift } from 'lucide-vue-next';
+import { Check, ChevronDown, X, Zap, Cloud, Bot, FileText, Eye, Gift, Coins, ChevronRight } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
 import { getMySubscriptions, subscribeWithPoints, startSubscriptionTrial } from '@/utils/api/subscription-api.js';
@@ -137,6 +151,7 @@ import { clearUserTierCache } from '@/utils/api/api-key-runtime-api.js';
 import { showGlobalNavStatus } from '@/composables/useGlobalNavStatus.js';
 import PointsCard from '@/views/user-center/UserSpace/components/PointsCard.vue';
 import { logger } from '@/utils/logger.js';
+import sponsorQrImage from '@/assets/images/qrcode.webp';
 
 const BILLING_MONTHLY = 'monthly';
 const BILLING_YEARLY = 'yearly';
@@ -150,6 +165,7 @@ const isSubmitting = ref(false);
 const isLoadingSubscriptions = ref(false);
 const showModal = ref(false);
 const showConfirmModal = ref(false);
+const showRechargeModal = ref(false);
 const currentService = ref(null);
 const confirmPlan = ref(null);
 const openFaqIndex = ref(0);
@@ -420,6 +436,15 @@ const closeAllModals = () => { showModal.value = false; showConfirmModal.value =
 }
 .points-row { display: inline-flex; align-items: baseline; gap: 8px; color: var(--muted); font-size: 14px; }
 .points-row strong { color: var(--ink); font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+.recharge-points-trigger { display: inline-flex; align-items: center; gap: 9px; min-height: 45px; padding: 6px 11px 6px 7px; border: 1px solid rgba(0,113,227,.16); border-radius: 14px; background: rgba(0,113,227,.065); color: var(--ink); cursor: pointer; transition: transform .18s ease, background .18s ease, box-shadow .18s ease; }
+.recharge-points-trigger:hover { transform: translateY(-1px); background: rgba(0,113,227,.11); box-shadow: 0 7px 18px rgba(0,113,227,.1); }
+.recharge-points-trigger:active { transform: scale(.97); }
+.recharge-points-trigger > span:nth-child(2) { display: grid; gap: 1px; text-align: left; }.recharge-points-trigger strong { font-size: 12px; font-weight: 750; }.recharge-points-trigger small { color: var(--muted); font-size: 10px; }.recharge-points-icon { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 10px; background: rgba(0,113,227,.13); color: var(--accent-blue); }
+.recharge-points-trigger > svg { color: #7f8b98; }
+.recharge-overlay { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(225,232,242,.14); backdrop-filter: blur(22px) saturate(125%); -webkit-backdrop-filter: blur(22px) saturate(125%); }
+.recharge-sheet { position: relative; display: grid; justify-items: center; width: min(100%, 340px); padding: 29px 26px 24px; border: 1px solid rgba(255,255,255,.72); border-radius: 28px; background: rgba(255,255,255,.68); backdrop-filter: blur(28px) saturate(145%); -webkit-backdrop-filter: blur(28px) saturate(145%); box-shadow: 0 24px 65px rgba(31,41,55,.13), inset 0 1px 0 rgba(255,255,255,.9); text-align: center; }
+.recharge-close { position: absolute; top: 12px; right: 13px; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; background: rgba(255,255,255,.45); color: #64748b; cursor: pointer; }.recharge-kicker { color: #2563eb; font-size: 12px; font-weight: 750; }.recharge-sheet h2 { margin: 5px 0 7px; font-size: 21px; }.recharge-sheet p { max-width: 270px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }.recharge-qr-frame { display: grid; place-items: center; margin: 18px 0 12px; padding: 10px; border-radius: 20px; background: rgba(255,255,255,.8); box-shadow: 0 12px 28px rgba(31,41,55,.08); }.recharge-qr-frame img { display: block; width: 200px; height: 200px; border-radius: 12px; }.recharge-uid { color: #8e8e93; font: 600 11px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .05em; }
+.recharge-modal-enter-active, .recharge-modal-leave-active { transition: opacity .22s ease; }.recharge-modal-enter-active .recharge-sheet, .recharge-modal-leave-active .recharge-sheet { transition: transform .3s cubic-bezier(.32,.72,0,1), opacity .2s ease; }.recharge-modal-enter-from, .recharge-modal-leave-to { opacity: 0; }.recharge-modal-enter-from .recharge-sheet, .recharge-modal-leave-to .recharge-sheet { opacity: 0; transform: translateY(10px) scale(.97); }
 .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: stretch; }
 .plan-card { background: var(--glass-bg); border: var(--glass-border); border-radius: 20px; padding: 32px 28px 26px; display: flex; flex-direction: column; box-shadow: 0 8px 30px rgba(0,0,0,.06); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); position: relative; overflow: hidden; transition: transform .25s ease, box-shadow .25s ease, background .25s ease; }
 .plan-card:hover { transform: translateY(-5px); box-shadow: 0 16px 44px rgba(0,0,0,.11); background: rgba(255,255,255,.72); }
@@ -554,6 +579,7 @@ thead strong small { font-size: 12px; font-weight: 400; }
   .billing-switch { width: 100%; justify-content: space-between; }
   .billing-switch button { flex: 1; padding-inline: 8px; font-size: 14px; text-align: center; }
   .points-row { justify-content: center; }
+  .recharge-points-trigger { justify-content: center; }
   .plan-card { padding: 26px 20px 22px; }
   .price strong { font-size: 42px; }
   .price { margin-top: 24px; flex-wrap: wrap; }

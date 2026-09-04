@@ -9,6 +9,7 @@
         'has-status-card': navStatus.visible,
         'has-long-status-card': navStatus.visible && navStatus.isLong,
         'has-login-card': showLoginModal,
+        'has-bohai-island': isBohaiIslandOpen
       }"
       :style="{
         '--global-nav-status-duration': `${navStatus.duration}ms`,
@@ -94,6 +95,17 @@
       </ul>
 
       <div class="nav-user" id="nav-user-area">
+        <!-- DEV-TEST：智能概览灵动岛手动触发按钮（仅开发环境渲染，上线前整块删除） -->
+        <button
+          v-if="isDevMode && isLoggedIn"
+          type="button"
+          class="nav-dev-island-btn"
+          title="测试：模拟离线 30 天，用数据库真实内容强制触发智能概览灵动岛"
+          @click="forceShowOverviewIsland({ simulateDays: 30 })"
+        >
+          <Bot :size="13" :stroke-width="2.2" aria-hidden="true" />
+          <span>岛</span>
+        </button>
         <template v-if="isLoggedIn">
           <router-link to="/user-space?tab=posts" class="nav-user-info nav-user-profile" id="nav-user-info" title="进入我的方块" @click="handleMyBlockClick">
             <div class="nav-avatar">
@@ -219,6 +231,7 @@
       @after-leave="handleNavStatusAfterLeave"
       @resize="handleStatusCardResize"
     />
+    <BOHAIIsland />
     </div>
   </div>
 </template>
@@ -230,6 +243,7 @@ import { getImageUrl } from "../../utils/asset-helper.js";
 import { useAuthStore } from "@/stores/auth";
 import { storeToRefs } from "pinia";
 import { loadNotificationStore, getNotificationStoreSync } from "@/stores/notification-loader";
+import { Bot } from "lucide-vue-next";
 import HomeCatMascot from "@/components/HomeCatMascot.vue";
 import { themeManager } from "@/utils/theme-manager.js";
 import { isHomeCatTheme } from "@/utils/home-cat-theme.js";
@@ -237,11 +251,19 @@ import { useConfirmDialog } from "@/composables/useConfirmDialog.js";
 import { useAppMode } from "@/composables/useAppMode.js";
 import { useVersionCheck } from "@/composables/useVersionCheck.js";
 import { GLOBAL_NAV_STATUS_EVENT, LEGACY_ISLAND_EVENT } from "@/composables/useGlobalNavStatus.js";
+import { useOverviewIsland } from "@/composables/useOverviewIsland.js";
 import { toggleHiagentChat } from "@/utils/hiagent-widget.js";
 import GlobalNavStatusCard from "./GlobalNavStatusCard.vue";
+import BOHAIIsland from "./BOHAIIsland.vue";
+import { useBohaiIsland } from "@/composables/useBohaiIsland.js";
 
 const authStore = useAuthStore();
 const { isLoggedIn, isInitialized, showLoginModal, isAdmin } = storeToRefs(authStore);
+const { maybeShowOverviewIsland, forceShowOverviewIsland } = useOverviewIsland();
+// BOHAI 灵动岛：岛组件内部已订阅 isExpanded，navbar 仅读取用于 surface 类名联动
+const { isExpanded: isBohaiIslandOpen } = useBohaiIsland();
+// DEV-TEST：仅开发环境显示灵动岛测试按钮（与模板中 DEV-TEST 块一起删除）
+const isDevMode = import.meta.env.DEV;
 const notificationStoreRef = ref(getNotificationStoreSync());
 const { alert, confirm } = useConfirmDialog();
 const { checkForUpdate, applyUpdate, isChecking } = useVersionCheck();
@@ -278,12 +300,25 @@ const normalizeNavStatus = (payload = {}) => {
   const message = String(payload.message || '').trim();
   const icon = String(payload.icon || payload.type || 'success').trim();
   const durationMs = Math.min(Math.max(Number(payload.durationMs) || 4200, 1800), 10000);
+  const previews = Array.isArray(payload.previews)
+    ? payload.previews
+        .filter((p) => p && typeof p === 'object' && String(p.title || '').trim())
+        .slice(0, 3)
+        .map((p) => ({
+          type: p.type === 'news' ? 'news' : 'post',
+          title: String(p.title).trim(),
+          excerpt: String(p.excerpt || '').trim(),
+          time: String(p.time || '').trim(),
+          image: String(p.image || '').trim()
+        }))
+    : [];
 
   return {
     visible: true,
     title,
     message,
     icon,
+    previews,
     isLong: Boolean(payload.isLong) || `${title}${message}`.length > 24,
     duration: Math.min(Math.max(Number(payload.motionDuration) || 620, 240), 1200),
     distance: Math.min(Math.max(Number(payload.distance) || 22, 0), 48),
@@ -445,7 +480,10 @@ const handleMyBlockClick = (event) => {
     } else {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
+    return;
   }
+  // 进入我的方块时触发智能概览灵动岛（会话内一次，无新内容不弹）
+  maybeShowOverviewIsland({ currentPath: route.path });
 };
 
 // 使用 store 中的状态
@@ -468,6 +506,7 @@ const navMenuItems = [
     name: "community",
     label: "社区",
     children: [
+      { name: "smart-overview", path: "/overview", label: "智能概览" },
       { name: "forum", path: "/user-space?tab=posts", label: "论坛" },
       { name: "block-wall", path: "/block-wall", label: "方块墙" },
       { name: "activities", path: "/activities", label: "活动" },
@@ -510,6 +549,13 @@ const navMenuItems = [
     name: "services",
     label: "服务",
     children: [
+      {
+        name: "health-group",
+        label: "健康服务",
+        children: [
+          { name: "boh-health", path: "/health", label: "BOH Health" }
+        ]
+      },
       { name: "shop", path: "/shop", label: "周边商城" },
       { name: "subscription", path: "/user-space/subscriptions", label: "订阅计划" },
       {

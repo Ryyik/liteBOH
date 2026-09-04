@@ -754,7 +754,8 @@ html [data-theme="dark"] .user-space-page .profile-email,
    主题设置模态框深色模式
    ============================================ */
 .user-space-page[data-theme="dark"] .theme-header {
-  background: linear-gradient(180deg, #1a2d4a 0%, #252532 100%);
+  background: #1b2430 !important;
+  box-shadow: inset 0 -1px 0 rgba(220, 235, 255, 0.12);
 }
 
 .user-space-page[data-theme="dark"] .theme-option {
@@ -789,4 +790,19 @@ html [data-theme="dark"] .user-space-page .profile-email,
 
 .user-space-page[data-theme="dark"] .dark-preview .preview-line {
   background: #3a3a4a;
+}
+
+/* Settings subpage header: remove the light blurred gradient inherited from
+   responsive-integrations.css. */
+[data-theme="dark"] .user-space-page .profile-subpage-header,
+[data-theme="dark"] .user-space-page .profile-subpage-header::before,
+[data-theme="dark"] .user-space-page .profile-subpage-header::after {
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+[data-theme="dark"] .user-space-page .profile-subpage-title,
+[data-theme="dark"] .user-space-page .profile-subpage-header button {
+  color: #ffffff !important;
 }

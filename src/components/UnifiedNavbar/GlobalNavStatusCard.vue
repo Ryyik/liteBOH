@@ -5,7 +5,7 @@
       type="button"
       class="global-nav-status-card"
       ref="card"
-      :class="{ 'is-long': isLong, 'is-reduced-motion': item.reducedMotion }"
+      :class="{ 'is-long': isLong, 'has-previews': previews.length > 0, 'is-reduced-motion': item.reducedMotion }"
       :style="cardStyle"
       @click="$emit('action')"
     >
@@ -15,6 +15,17 @@
       <span class="status-copy">
         <strong>{{ item.title }}</strong>
         <span>{{ item.message }}</span>
+        <span v-if="previews.length" class="status-previews">
+          <span v-for="(p, i) in previews" :key="`${p.type}-${i}`" class="status-preview-row" :class="{ 'has-image': p.image, 'is-featured': p.image && i === 0 }">
+            <span class="status-preview-mark" :class="`is-${p.type}`" aria-hidden="true">{{ p.type === 'post' ? '帖子' : '新闻' }}</span>
+            <span class="status-preview-main">
+              <span class="status-preview-title">{{ p.title }}</span>
+              <span v-if="p.time" class="status-preview-time">{{ p.time }}</span>
+              <span v-if="p.excerpt" class="status-preview-excerpt">{{ p.excerpt }}</span>
+            </span>
+            <img v-if="p.image" class="status-preview-image" :src="p.image" alt="" loading="lazy" decoding="async" @load="reportHeight" />
+          </span>
+        </span>
       </span>
       <ChevronRight :size="18" aria-hidden="true" />
     </button>
@@ -48,6 +59,20 @@ const iconMap = {
 };
 
 const activeIcon = computed(() => iconMap[props.item?.icon] || Check);
+const previews = computed(() => {
+  const raw = Array.isArray(props.item?.previews) ? props.item.previews : [];
+  return raw
+    .filter((p) => p && typeof p === 'object')
+    .slice(0, 3)
+    .map((p) => ({
+      type: p.type === 'news' ? 'news' : 'post',
+      title: String(p.title || '').trim().slice(0, 60),
+      excerpt: String(p.excerpt || '').trim().slice(0, 180),
+      time: String(p.time || '').trim(),
+      image: String(p.image || '').trim()
+    }))
+    .filter((p) => p.title);
+});
 const isLong = computed(() => props.item?.isLong || String(props.item?.message || '').length > 24);
 const cardStyle = computed(() => ({
   '--global-nav-status-duration': `${props.item?.duration || 240}ms`,
@@ -70,7 +95,7 @@ onMounted(async () => {
 onBeforeUnmount(() => resizeObserver?.disconnect());
 
 watch(
-  () => [props.item?.visible, props.item?.title, props.item?.message, props.item?.isLong],
+  () => [props.item?.visible, props.item?.title, props.item?.message, props.item?.isLong, props.item?.previews?.length],
   async () => {
     await nextTick();
     reportHeight();
@@ -87,15 +112,17 @@ watch(
   left: 7px;
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 13px;
   width: auto;
-  min-height: 58px;
-  padding: 10px 13px;
-  border: 1px solid rgba(255, 255, 255, 0.26);
-  border-radius: 22px;
+  min-height: 64px;
+  padding: 13px 15px 15px;
+  border: 1px solid rgba(255, 255, 255, 0.46);
+  border-radius: 24px;
   color: #1e2938;
-  background: rgba(255, 255, 255, 0.16);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  background: linear-gradient(135deg, rgba(255,255,255,.68), rgba(255,255,255,.30));
+  box-shadow: 0 14px 32px rgba(29, 41, 56, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.72), inset 0 -1px 0 rgba(255,255,255,.18);
+  backdrop-filter: blur(28px) saturate(175%);
+  -webkit-backdrop-filter: blur(28px) saturate(175%);
   cursor: pointer;
   text-align: left;
   transform: none;
@@ -104,7 +131,7 @@ watch(
   will-change: transform, opacity;
 }
 
-.global-nav-status-card.is-long { min-height: 74px; border-radius: 20px; }
+.global-nav-status-card.is-long { min-height: 78px; border-radius: 24px; }
 .status-icon { display: inline-grid; flex: 0 0 auto; place-items: center; width: 34px; height: 34px; border-radius: 50%; }
 .status-icon.tone-success { color: #057857; background: #d8f4e9; }
 .status-icon.tone-message { color: #1d62d4; background: #dbeafe; }
@@ -116,13 +143,77 @@ watch(
 .status-icon.tone-ai { color: #6d38c8; background: #eee4ff; }
 .status-copy { display: grid; flex: 1; min-width: 0; gap: 2px; }
 .status-copy strong { color: #1d2938; font-size: 13px; font-weight: 760; line-height: 1.25; }
-.status-copy span { overflow: hidden; color: #617084; font-size: 12px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
-.is-long .status-copy span { overflow: visible; overflow-wrap: anywhere; text-overflow: clip; white-space: normal; }
+.status-copy > span:not(.status-previews) { overflow: hidden; color: #617084; font-size: 12px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.is-long .status-copy > span:not(.status-previews) { overflow: visible; overflow-wrap: anywhere; text-overflow: clip; white-space: normal; }
+
+/* ===== 内容预览行（智能概览灵动岛扩展） ===== */
+.global-nav-status-card.has-previews { align-items: flex-start; padding: 15px 16px 17px; }
+.has-previews .status-icon { margin-top: 1px; }
+.has-previews > :last-child { margin-top: 4px; }
+.status-previews { display: grid; gap: 0; margin-top: 11px; overflow: visible; white-space: normal; }
+.status-preview-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 10px 3px 11px;
+  border-bottom: 1px solid rgba(100,116,139,.13);
+}
+.status-preview-mark { flex: 0 0 auto; color: #1d62d4; font-size: 10px; font-weight: 750; line-height: 1; }
+.status-preview-mark.is-news { color: #b8660b; }
+.status-preview-main { display: grid; min-width: 0; flex: 1; gap: 3px; }
+.status-preview-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.status-preview-time { color: #8593a8; font-size: 10.5px; line-height: 1; white-space: nowrap; }
+.status-preview-excerpt {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #66758a;
+  font-size: 12px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+.status-preview-image {
+  grid-column: 1 / -1;
+  order: 3;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: 190px;
+  margin: 8px auto 0;
+  border-radius: 12px;
+  object-fit: contain;
+  object-position: center;
+  background: transparent;
+  box-shadow: 0 8px 20px rgba(29, 41, 56, 0.10);
+}
+.status-preview-row.is-featured { padding-top: 12px; padding-bottom: 14px; }
+.status-preview-row.is-featured .status-preview-image { max-height: 230px; border-radius: 14px; }
+.status-preview-row.is-featured .status-preview-title { font-size: 15px; font-weight: 750; }
+
+:global(#unified-nav-container[data-theme="dark"]) .status-preview-row { border-bottom-color: rgba(255,255,255,.12); }
+:global(#unified-nav-container[data-theme="dark"]) .status-preview-title { color: rgba(226, 232, 240, 0.9); }
+:global(#unified-nav-container[data-theme="dark"]) .status-preview-time { color: rgba(148, 163, 184, 0.85); }
+:global(#unified-nav-container[data-theme="dark"]) .status-preview-row.is-featured { background: rgba(255, 255, 255, 0.1); }
+:global(#unified-nav-container[data-theme="dark"]) .status-preview-mark.is-post { color: #60a5fa; }
+:global(#unified-nav-container[data-theme="dark"]) .status-preview-mark.is-news { color: #fbbf24; }
 
 :global(#unified-nav-container[data-theme="dark"]) .global-nav-status-card {
   color: #f8fafc;
   border-color: rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.06);
+  background: linear-gradient(135deg, rgba(35,39,49,.78), rgba(22,25,33,.58));
+  box-shadow: 0 16px 36px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.12);
 }
 
 :global(#unified-nav-container[data-theme="dark"]) .status-copy strong { color: #f8fafc; }
@@ -146,7 +237,9 @@ watch(
 .is-reduced-motion.global-nav-status-card { transition-duration: 120ms; }
 
 @media (max-width: 768px) {
-  .global-nav-status-card { right: 5px; left: 5px; min-height: 54px; }
+  .global-nav-status-card { right: 5px; left: 5px; min-height: 58px; padding-left: 12px; padding-right: 12px; }
+  .status-preview-image { max-height: 150px; }
+  .status-preview-row.is-featured .status-preview-image { max-height: 185px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -20,6 +20,7 @@ export const BOHAI_CONNECTOR_IDS = {
   siteGuide: 'siteGuide',
   forum: 'forum',
   userPrivate: 'userPrivate',
+  health: 'health',
   webSearch: 'webSearch'
 };
 

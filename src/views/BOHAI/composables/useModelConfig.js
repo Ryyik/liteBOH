@@ -68,6 +68,9 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
   const isCommandMode = ref(false);
   const isSearching = ref(false);
   const isForumSearchEnabled = ref(false);
+  // 健康分析：开启后，本轮回答会读取用户本机的 BOH Health 数据。
+  // 数据来源是 localStorage，不要求登录。
+  const isHealthAnalysisEnabled = ref(false);
 
   const isMemoryCaptureEnabled = ref(false);
 
@@ -254,6 +257,7 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
     isCommandMode,
     isSearching,
     isForumSearchEnabled,
+    isHealthAnalysisEnabled,
     isMemoryCaptureEnabled,
     isTreeholeMemoryEnabled,
     isTreeholeMemoryToggling,

@@ -20,7 +20,6 @@ const { showLoginModal, isLoggedIn, isInitialized } = storeToRefs(authStore);
 const userInfo = authStore.userInfo;
 const notificationStoreRef = ref(getNotificationStoreSync());
 const LoginView = defineAsyncComponent(() => import("./views/Login/index.vue"));
-const GlobalAiGlassOverlay = defineAsyncComponent(() => import("@/components/GlobalAiGlassOverlay.vue"));
 const showToast = computed(() => notificationStoreRef.value?.showToast || false);
 
 const {
@@ -28,10 +27,6 @@ const {
   theme: globalAiTheme
 } = useGlobalAiOverlay();
 const { preferences: globalAiPreferences } = useGlobalAiPreferences();
-const hasMountedGlobalAi = ref(globalAiOpen.value);
-watch(globalAiOpen, (isOpen) => {
-  if (isOpen) hasMountedGlobalAi.value = true;
-});
 const toastTitle = computed(() => notificationStoreRef.value?.toastTitle || "");
 const toastDesc = computed(() => notificationStoreRef.value?.toastDesc || "");
 const toastIcon = computed(() => notificationStoreRef.value?.toastIcon || "🔔");
@@ -240,7 +235,7 @@ const showGlobalNavbar = computed(() => {
   <!-- 全局登录模态框 -->
   <LoginView v-if="showLoginModal" :show="showLoginModal" :is-modal="true" @close="showLoginModal = false" />
 
-  <!-- AI 边缘触发区（移动端侧拉唤起） -->
+  <!-- AI 边缘触发区（移动端侧拉唤起 BOHAI 灵动岛） -->
   <AiEdgeTrigger
     :show="!globalAiOpen && globalAiPreferences.gestureEnabled && route.name !== 'AiChat'"
     :side="globalAiPreferences.gestureSide"
@@ -248,14 +243,6 @@ const showGlobalNavbar = computed(() => {
     :haptics="globalAiPreferences.hapticsEnabled"
     :animations="globalAiPreferences.animationsEnabled"
     @trigger="openGlobalAi({ snap: globalAiPreferences.initialHeight === 'full' ? 2 : 1 })"
-  />
-
-  <!-- 全局 AI 快速对话覆盖层 -->
-  <GlobalAiGlassOverlay
-    v-if="hasMountedGlobalAi"
-    :show="globalAiOpen"
-    :theme="globalAiTheme"
-    @close="closeGlobalAi"
   />
 
   <!-- 首次进入提示 & 消息通知 -->

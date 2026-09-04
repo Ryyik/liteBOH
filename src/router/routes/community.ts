@@ -2,6 +2,12 @@ import type { RouteRecordRaw } from 'vue-router'
 
 export const communityRoutes: RouteRecordRaw[] = [
   {
+    path: "/overview",
+    name: "SmartOverview",
+    component: () => import("../../views/SmartOverview/index.vue"),
+    meta: { requiresLogin: true },
+  },
+  {
     path: "/newsroom",
     name: "Newsroom",
     component: () => import("../../views/Newsroom/index.vue"),

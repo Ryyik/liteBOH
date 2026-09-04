@@ -7,6 +7,7 @@ import { communityRoutes } from "./routes/community"
 import { creatorRoutes } from "./routes/creator"
 import { publicRoutes } from "./routes/public"
 import { userSpaceRoutes } from "./routes/user-space"
+import { healthRoutes } from "./routes/health"
 
 let authStore: ReturnType<typeof useAuthStore> | null = null
 
@@ -19,6 +20,7 @@ const initAuthStore = (): void => {
 const routes: RouteRecordRaw[] = [
   ...publicRoutes,
   ...communityRoutes,
+  ...healthRoutes,
   ...adminRoutes,
   ...creatorRoutes,
   ...userSpaceRoutes,

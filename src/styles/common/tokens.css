@@ -27,4 +27,57 @@
   --duration-base: 240ms;      /* dropdown / popover */
   --duration-slow: 360ms;      /* modal / drawer */
   --duration-page: 500ms;      /* 整页过渡上限 */
+
+  /* Liquid Glass — iOS 26/27 液态玻璃 token（纯 CSS backdrop-filter 实现） */
+  --liquid-bg: rgba(255, 255, 255, 0.72);
+  --liquid-bg-strong: rgba(255, 255, 255, 0.84);
+  --liquid-bg-subtle: rgba(255, 255, 255, 0.58);
+  --liquid-border: rgba(255, 255, 255, 0.65);
+  --liquid-border-hairline: rgba(15, 23, 42, 0.06);
+  --liquid-blur: 28px;
+  --liquid-blur-sm: 18px;
+  --liquid-blur-lg: 36px;
+  --liquid-saturate: 180%;
+  --liquid-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  --liquid-highlight-subtle: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  --liquid-shadow: 0 20px 60px rgba(15, 23, 42, 0.07), 0 1px 3px rgba(15, 23, 42, 0.06);
+  --liquid-shadow-sm: 0 8px 24px rgba(15, 23, 42, 0.06);
+  --liquid-radius-lg: 28px;
+  --liquid-radius-md: 16px;
+  --liquid-radius-pill: 999px;
+  --liquid-text-primary: #1d1d1f;
+  --liquid-text-secondary: #6e6e73;
+  --liquid-text-tertiary: #8b9098;
+}
+
+[data-theme="dark"] {
+  --liquid-bg: rgba(28, 28, 36, 0.72);
+  --liquid-bg-strong: rgba(40, 40, 52, 0.84);
+  --liquid-bg-subtle: rgba(38, 38, 48, 0.58);
+  --liquid-border: rgba(255, 255, 255, 0.12);
+  --liquid-border-hairline: rgba(255, 255, 255, 0.08);
+  --liquid-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --liquid-highlight-subtle: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --liquid-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --liquid-shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+/* Liquid Glass 降级：不支持 backdrop-filter 或性能省电模式时回退为实色 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --liquid-bg: rgba(255, 255, 255, 0.96);
+    --liquid-bg-strong: #ffffff;
+    --liquid-bg-subtle: #f5f5f7;
+  }
+  [data-theme="dark"] {
+    --liquid-bg: #1e1e2a;
+    --liquid-bg-strong: #252532;
+  }
+}
+
+.boh-perf-lite {
+  --liquid-blur: 12px;
+  --liquid-blur-sm: 8px;
+  --liquid-blur-lg: 12px;
+  --liquid-saturate: 140%;
 }

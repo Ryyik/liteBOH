@@ -12,7 +12,7 @@ import {
   normalizePromptLine
 } from './bohai-engine-helpers.js';
 import { normalizeActionDecisionText } from '@/utils/bohai-action-draft-intent.js';
-import { SHARED_MEMORY_TRIGGER_KEYWORDS, BOH_MEMBER_NAMES } from './chat-engine-config.js';
+import { SHARED_MEMORY_TRIGGER_KEYWORDS, BOH_MEMBER_NAMES, HEALTH_TRIGGER_KEYWORDS } from './chat-engine-config.js';
 
 // ─── 社群意图 ────────────────────────────────────────────────────────────────
 
@@ -78,6 +78,28 @@ export const shouldUseSharedMemoryContext = (text) => {
   const memoryJudgementPattern = /(谁|什么|发生|提到|记得|之前|曾经|最近|历史|往事|来源|细节|介绍)/;
   return memoryJudgementPattern.test(normalized);
 };
+
+// ─── BOH Health 健康意图 ────────────────────────────────────────────────────
+
+export const isHealthQuestion = (text) => {
+  if (!text || typeof text !== 'string') {
+    return false;
+  }
+
+  const normalized = normalizeText(text);
+  if (!normalized) return false;
+  // 站点操作类问题（例如「健康页面在哪里」）不走健康数据检索
+  if (isOperationQuestion(normalized)) return false;
+
+  return containsAnyKeyword(normalized, HEALTH_TRIGGER_KEYWORDS);
+};
+
+/**
+ * shouldUseHealthContext — 命中健康关键词即读取本机 BOH Health 数据。
+ * 数据来源是 localStorage，不要求登录。
+ * @param {string} text
+ */
+export const shouldUseHealthContext = (text) => isHealthQuestion(text);
 
 // ─── 树洞意图 ────────────────────────────────────────────────────────────────
 

@@ -1002,3 +1002,71 @@
 [data-theme="dark"] .bohai-page .feature-action-row:hover {
   background: rgba(255, 255, 255, 0.08);
 }
+
+/* Readability pass for the standalone/embedded BOHAI surface. Keep the panel
+   visibly separate from the host page without introducing a second palette. */
+[data-theme="dark"] .bohai-page {
+  --bohai-bg: #141a22;
+  --bohai-panel: #1b2430;
+  --bohai-surface: #202b38;
+  --bohai-surface-hover: #29405a;
+  --bohai-text: #f2f5f8;
+  --bohai-muted: #b8c2cf;
+  --bohai-muted-soft: #8d99a8;
+  background: rgba(20, 27, 37, 0.88) !important;
+  border-color: rgba(220, 235, 255, 0.16) !important;
+  box-shadow: -18px 0 48px rgba(0, 0, 0, 0.34) !important;
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+}
+
+[data-theme="dark"] .bohai-page .empty-state,
+[data-theme="dark"] .bohai-page .empty-state h1,
+[data-theme="dark"] .bohai-page .empty-state h2,
+[data-theme="dark"] .bohai-page .empty-state p,
+[data-theme="dark"] .bohai-page .empty-subtitle,
+[data-theme="dark"] .bohai-page .quick-prompt-btn,
+[data-theme="dark"] .bohai-page .empty-suggestion-card,
+[data-theme="dark"] .bohai-page .empty-suggestion-text {
+  color: #f2f5f8 !important;
+}
+
+[data-theme="dark"] .bohai-page .quick-prompt-btn,
+[data-theme="dark"] .bohai-page .empty-suggestion-card {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(220, 235, 255, 0.12) !important;
+}
+
+[data-theme="dark"] .bohai-page .quick-prompt-btn:hover,
+[data-theme="dark"] .bohai-page .empty-suggestion-card:hover:not(:disabled) {
+  background: rgba(98, 176, 255, 0.16) !important;
+  border-color: rgba(98, 176, 255, 0.42) !important;
+}
+
+[data-theme="dark"] .bohai-page .input-area,
+[data-theme="dark"] .bohai-page .input-box {
+  background: rgba(32, 43, 56, 0.96) !important;
+  border-color: rgba(220, 235, 255, 0.18) !important;
+}
+
+[data-theme="dark"] .bohai-page .input-textarea,
+[data-theme="dark"] .bohai-page .input-textarea::placeholder {
+  color: #f2f5f8 !important;
+}
+
+[data-theme="dark"] .bohai-page .input-textarea::placeholder {
+  color: #8d99a8 !important;
+}
+
+[data-theme="dark"] .bohai-page .mode-selector,
+[data-theme="dark"] .bohai-page .model-selector,
+[data-theme="dark"] .bohai-page .composer-chip {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #b8c2cf !important;
+  border-color: rgba(220, 235, 255, 0.14) !important;
+}
+
+[data-theme="dark"] .bohai-page :focus-visible {
+  outline-color: #62b0ff !important;
+  box-shadow: 0 0 0 3px rgba(98, 176, 255, 0.24) !important;
+}

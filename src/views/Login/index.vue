@@ -2051,7 +2051,9 @@ onUnmounted(() => {
 
   .boh-login-modal-overlay.mobile-login-closing .boh-login-modal-container,
   .login-page.mobile-login-closing .login-split-container {
-    transform: scale(0.32) translateY(-42vh);
+    /* The compact state is positioned with left: 50%; retain its centering
+       transform during the exit so the logo cannot drift to the right. */
+    transform: translateX(-50%) scale(0.32) translateY(-42vh);
     border-radius: 30px;
     opacity: 0.92;
   }
@@ -2165,7 +2167,7 @@ onUnmounted(() => {
 
   .mobile-login-closing .boh-login-modal-container,
   .mobile-login-closing .login-split-container {
-    transform: scale(0.32) translateY(-42vh);
+    transform: translateX(-50%) scale(0.32) translateY(-42vh);
     border-radius: 30px;
     opacity: 0.92;
   }

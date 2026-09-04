@@ -1,0 +1,319 @@
+/* 智能概览：新闻详情弹窗（弹窗被 Teleport 到 body，不能依赖页面级 CSS 变量） */
+
+.overview-news-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.news-modal-panel {
+  position: relative;
+  width: min(680px, 100%);
+  max-height: min(84vh, 780px);
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 24px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.26);
+  overflow: hidden;
+}
+
+.news-modal-scroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 36px 30px 30px;
+  min-height: 0;
+}
+
+.news-modal-close {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.05);
+  color: #515154;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.news-modal-close:hover {
+  background: rgba(0, 0, 0, 0.1);
+  transform: rotate(90deg);
+}
+
+.news-modal-header {
+  padding-right: 40px;
+}
+
+.news-modal-title {
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.018em;
+  line-height: 1.3;
+  margin: 0 0 8px;
+  color: #1d1d1f;
+}
+
+.news-modal-meta {
+  font-size: 13px;
+  color: #86868b;
+  line-height: 1.5;
+}
+
+.news-modal-body {
+  margin-top: 14px;
+}
+
+.news-modal-image {
+  display: block;
+  width: 100%;
+  border-radius: 16px;
+  margin-bottom: 18px;
+}
+
+.news-modal-content {
+  font-size: 15px;
+  line-height: 1.75;
+  color: #1d1d1f;
+  word-break: break-word;
+}
+
+.news-modal-content :deep(a) {
+  color: #0071e3;
+  text-decoration: none;
+}
+
+.news-modal-content :deep(a:hover) {
+  text-decoration: underline;
+}
+
+.news-modal-content :deep(img) {
+  max-width: 100%;
+  border-radius: 12px;
+}
+
+.news-modal-content :deep(blockquote) {
+  margin: 12px 0;
+  padding: 4px 14px;
+  border-left: 3px solid rgba(0, 0, 0, 0.12);
+  color: #6e6e73;
+}
+
+.news-modal-content :deep(code) {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 13px;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.news-modal-content :deep(pre) {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 14px 16px;
+  border-radius: 12px;
+  overflow-x: auto;
+}
+
+.news-modal-content :deep(pre code) {
+  background: none;
+  padding: 0;
+}
+
+.news-modal-error {
+  text-align: center;
+  padding: 40px 16px;
+  color: #515154;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.news-modal-error .overview-btn {
+  margin-top: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 20px;
+  border-radius: 999px;
+  background: #0071e3;
+  color: #fff;
+  border: none;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* 弹窗内加载骨架 */
+.news-modal-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.news-modal-skeleton .skeleton-line {
+  position: relative;
+  overflow: hidden;
+  height: 14px;
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.news-modal-skeleton .skeleton-line::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.news-modal-skeleton .skeleton-line-title {
+  width: 62%;
+  height: 18px;
+}
+
+.news-modal-skeleton .skeleton-line-short {
+  width: 55%;
+}
+
+/* =================== 弹窗过渡 =================== */
+
+.news-modal-fade-enter-active {
+  transition: opacity 0.28s ease;
+}
+
+.news-modal-fade-enter-active .news-modal-panel {
+  transition: transform 0.34s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.news-modal-fade-enter-from {
+  opacity: 0;
+}
+
+.news-modal-fade-enter-from .news-modal-panel {
+  transform: translateY(20px) scale(0.97);
+}
+
+.news-modal-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.news-modal-fade-leave-active .news-modal-panel {
+  transition: transform 0.2s ease;
+}
+
+.news-modal-fade-leave-to {
+  opacity: 0;
+}
+
+.news-modal-fade-leave-to .news-modal-panel {
+  transform: translateY(10px) scale(0.985);
+}
+
+/* =================== 暗色主题 =================== */
+
+html[data-theme='dark'] .news-modal-panel {
+  background: rgba(26, 28, 34, 0.98);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+}
+
+html[data-theme='dark'] .news-modal-close {
+  background: rgba(255, 255, 255, 0.08);
+  color: #a1a1a6;
+}
+
+html[data-theme='dark'] .news-modal-close:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+html[data-theme='dark'] .news-modal-title {
+  color: #f5f5f7;
+}
+
+html[data-theme='dark'] .news-modal-content {
+  color: #e8e8ed;
+}
+
+html[data-theme='dark'] .news-modal-content :deep(a) {
+  color: #409cff;
+}
+
+html[data-theme='dark'] .news-modal-content :deep(blockquote) {
+  border-left-color: rgba(255, 255, 255, 0.2);
+  color: #a1a1a6;
+}
+
+html[data-theme='dark'] .news-modal-content :deep(code) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+html[data-theme='dark'] .news-modal-content :deep(pre) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+html[data-theme='dark'] .news-modal-error {
+  color: #a1a1a6;
+}
+
+html[data-theme='dark'] .news-modal-skeleton .skeleton-line {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+html[data-theme='dark'] .news-modal-skeleton .skeleton-line::after {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+}
+
+/* =================== 无障碍：减弱动效 =================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .overview-news-modal,
+  .news-modal-panel,
+  .news-modal-close {
+    transition: none;
+  }
+
+  .news-modal-skeleton .skeleton-line::after {
+    animation-duration: 2.8s;
+  }
+}
+
+/* =================== 移动端 =================== */
+
+@media (max-width: 560px) {
+  .overview-news-modal {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .news-modal-panel {
+    width: 100%;
+    max-height: 100dvh;
+    border-radius: 0;
+    border: none;
+  }
+
+  .news-modal-scroll {
+    padding: 44px 20px 28px;
+  }
+
+  .news-modal-title {
+    font-size: 20px;
+  }
+}

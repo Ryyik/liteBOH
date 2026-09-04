@@ -88,6 +88,13 @@ export const homeArchiveMeta = {
     image: anniversaryImg,
     to: '/about',
   },
+  'special-custom': {
+    title: '特别企划',
+    eyebrow: '代码接管',
+    date: '2026',
+    description: '由代码定义的特殊英雄区，归档后显示此卡片。',
+    image: anniversaryImg,
+  },
 };
 
 /**
@@ -105,4 +112,5 @@ export const builtinHeroLayout = {
   'fuzhou': 'full',
   'split-theme-cloud': 'split',
   'split-brand-letter': 'split',
+  'special-custom': 'full',
 };

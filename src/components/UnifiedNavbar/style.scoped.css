@@ -9,7 +9,10 @@
   right: 0 !important;
   width: 100% !important;
   max-width: none !important;
-  height: 78px !important;
+  /* BOHAI 灵动岛需要 surface 向下延伸（~520px 高度），外层高度必须让位。
+     原来锁死 78px 会把岛裁掉。这里改为 min-height 兜底 + 不锁定上限。 */
+  height: auto !important;
+  min-height: 78px;
   margin: 0 !important;
   padding: 0 !important;
   transform: none !important;
@@ -87,8 +90,13 @@
 }
 
 .unified-nav-surface.has-status-card {
+  max-width: min(920px, calc(100% - 20px));
   height: var(--global-nav-open-height) !important;
   border-radius: 30px !important;
+  background-color: rgba(255, 255, 255, 0.56);
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.14), inset 0 1px 0 rgba(255,255,255,.72);
+  backdrop-filter: blur(22px) saturate(165%);
+  -webkit-backdrop-filter: blur(22px) saturate(165%);
   transition:
     height var(--global-nav-status-duration, 240ms) var(--ease-emphasized, cubic-bezier(0.16, 1, 0.3, 1)),
     border-radius var(--global-nav-status-duration, 240ms) var(--ease-emphasized, cubic-bezier(0.16, 1, 0.3, 1)),
@@ -417,4 +425,71 @@
   border: 1.5px solid rgba(255, 255, 255, 0.8);
   box-shadow: 0 0 4px rgba(255, 77, 79, 0.4);
   z-index: 10;
+}
+
+/* ============================================
+   DEV-TEST：智能概览灵动岛测试按钮（仅开发环境，上线前整块删除）
+   ============================================ */
+.nav-dev-island-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px dashed #ff9500;
+  border-radius: 999px;
+  background: rgba(255, 149, 0, 0.08);
+  color: #b25000;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.nav-dev-island-btn:hover {
+  background: rgba(255, 149, 0, 0.18);
+  transform: translateY(-1px);
+}
+
+.nav-dev-island-btn:active {
+  transform: scale(0.95);
+}
+
+/* ============================================
+   BOHAI 灵动岛：surface 形态补丁
+   完整样式在 BOHAIIsland.vue 的样式里（用 :global() 包裹）。
+   这里只追加 surface 高度补丁，保证 has-bohai-island 优先级 ≥ has-status-card，
+   并在主样式表（vendor）未及时覆盖时兜底。
+   ============================================ */
+.unified-nav-surface.has-status-card.has-bohai-island,
+.unified-nav-surface.has-bohai-island {
+  height: calc(
+    var(--global-nav-status-top, 79px)
+    + min(50vh, 520px)
+    + 12px
+  ) !important;
+  border-radius: 30px !important;
+  /* transition 沿用默认 500ms，与岛的 Vue Transition 同步 */
+}
+
+/* 关键修复：岛展开时 nav-container 必须保持原高度（72px）并贴顶，
+   否则 height:100% 会让导航栏内容跟着 surface 一起拉长，
+   导致标题/按钮跑到中间或被遮挡。 */
+.unified-nav-surface.has-bohai-island > .nav-container {
+  height: var(--global-nav-rest-height, 72px) !important;
+  position: relative;
+  z-index: 3;
+}
+
+@media (max-width: 768px) {
+  .unified-nav-surface.has-status-card.has-bohai-island,
+  .unified-nav-surface.has-bohai-island {
+    height: calc(
+      var(--global-nav-status-top, 67px)
+      + min(54vh, 460px)
+      + 12px
+    ) !important;
+  }
 }

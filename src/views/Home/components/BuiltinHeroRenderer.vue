@@ -73,6 +73,9 @@
     />
   </template>
 
+  <!-- 代码接管示例：特殊英雄区（方案A） -->
+  <SpecialHero v-else-if="builtinKey === 'special-custom'" :priority="priority" />
+
   <!-- 品牌与八周年寄语：分栏并排 -->
   <template v-else-if="builtinKey === 'split-brand-letter'">
     <AppleGridCard
@@ -118,6 +121,7 @@ import MascotEvolutionHero from './MascotEvolutionHero.vue';
 import MascotNewHero from './MascotNewHero.vue';
 import BirthdayHero from './BirthdayHero.vue';
 import AgentPreviewHero from './AgentPreviewHero.vue';
+import SpecialHero from './SpecialHero.vue';
 
 // 内置英雄区所需的静态图片资源
 import bohCloudImg from '@/assets/images/BOHcloud.webp?url';

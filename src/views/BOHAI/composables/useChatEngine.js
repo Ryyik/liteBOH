@@ -64,6 +64,7 @@ import {
   FORUM_MAX_CHARS_PER_POST,
   FORUM_MAX_POSTS,
   GIFT_STATUS_LABELS,
+  HEALTH_ANALYSIS_PROMPT_APPENDIX,
   KNOWLEDGE_CONTEXT_MAX_BLOCK_CHARS,
   KNOWLEDGE_CONTEXT_MAX_CHARS,
   MAX_CONTEXT_MESSAGES,
@@ -324,7 +325,7 @@ export function useChatEngine() {
   const {
     currentModeId, currentMode, currentModelId, currentModel,
     lastRoutedMode,
-    isCommandMode, isSearching, isForumSearchEnabled,
+    isCommandMode, isSearching, isForumSearchEnabled, isHealthAnalysisEnabled,
     isMemoryCaptureEnabled, isTreeholeMemoryEnabled, isTreeholeMemoryToggling,
     isQuickNoteEnabled, isPlanModeEnabled,
     isSharedMemoryEnabled, isKnowledgeBaseEnabled,
@@ -439,6 +440,7 @@ export function useChatEngine() {
     userInfo,
     isTreeholeMemoryEnabled,
     isForumSearchEnabled,
+    isHealthAnalysisEnabled,
     isSharedMemoryEnabled,
     isKnowledgeBaseEnabled,
     treeholeMemoryCache,
@@ -666,6 +668,7 @@ export function useChatEngine() {
     isCommandMode.value = false; // Reset modes
     isSearching.value = false;
     isForumSearchEnabled.value = false;
+    isHealthAnalysisEnabled.value = false;
     isKnowledgeBaseEnabled.value = false;
     // Auto 路由相关状态重置
     lastRoutedMode.value = '';
@@ -1412,6 +1415,8 @@ export function useChatEngine() {
       let searchResultCount = 0;
       let webSearchVerified = false;
       let hasKnowledgeContext = false;
+      // 本轮是否命中 BOH Health 本机健康数据（决定要不要注入健康分析附录）
+      let healthAnalysisActive = false;
       let latestForumSummaryPosts = [];
       const showProgress = SHOW_INTERNAL_PROGRESS_NOTES;
 
@@ -1519,6 +1524,13 @@ export function useChatEngine() {
           if (retrievalPlan.forum) retrievalTargets.push('社区帖子');
           if (retrievalPlan.userPrivate && Array.isArray(userPrivateLabels) && userPrivateLabels.length > 0) {
             retrievalTargets.push(...userPrivateLabels.slice(0, 3));
+          }
+          if (retrievalPlan.health) {
+            const healthResult = successfulConnectorResults.find((item) => item?.connectorId === BOHAI_CONNECTOR_IDS.health);
+            if (healthResult && Number(healthResult.total || 0) > 0) {
+              healthAnalysisActive = true;
+              retrievalTargets.push(`BOH Health(${healthResult.total}组)`);
+            }
           }
 
           mergeAssistantMessageMeta(sessionIndex, messageIndex, { ragTrace: retrievalTrace });
@@ -1799,6 +1811,9 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
       // 优化1: Token 预算监控
       const budgetTracker = createContextBudgetTracker();
       budgetTracker.addEstimate(CONTEXT_CATEGORIES.SYSTEM_PROMPT, BASE_SYSTEM_PROMPT);
+      if (healthAnalysisActive) {
+        budgetTracker.addEstimate(CONTEXT_CATEGORIES.SYSTEM_PROMPT, HEALTH_ANALYSIS_PROMPT_APPENDIX);
+      }
       budgetTracker.addEstimate(CONTEXT_CATEGORIES.EVIDENCE, evidenceContextBlock);
       budgetTracker.addEstimate(CONTEXT_CATEGORIES.RULES, finalPrompt);
 
@@ -1818,6 +1833,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         BASE_SYSTEM_PROMPT.replace(`\n${CONTEXT_PLACEHOLDER}\n`, contextBlock ? `\n${contextBlock}\n` : ''),
         structuredMemoryBlock,
         isPlanMode ? PLAN_MODE_PROMPT_APPENDIX : '',
+        healthAnalysisActive ? HEALTH_ANALYSIS_PROMPT_APPENDIX : '',
         stylePromptAppendix
       ].filter((section) => String(section || '').trim()).join('\n');
       const generationProfile = getGenerationProfile(activeModeId, {
@@ -2302,6 +2318,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
     webSearchActive,
     communitySearchActive,
     isForumSearchEnabled,
+    isHealthAnalysisEnabled,
     isMemoryCaptureEnabled,
     isTreeholeMemoryEnabled,
     isTreeholeMemoryToggling,

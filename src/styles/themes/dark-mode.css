@@ -44,9 +44,9 @@
   --boh-bg-elevated: #222230;
   
   --boh-text-primary: #f5f5f7;
-  --boh-text-secondary: #a1a1aa;
-  --boh-text-tertiary: #71717a;
-  --boh-text-muted: #52525b;
+  --boh-text-secondary: #b8c2cf;
+  --boh-text-tertiary: #8d99a8;
+  --boh-text-muted: #6f7b8b;
   
   --boh-border-primary: rgba(255, 255, 255, 0.08);
   --boh-border-secondary: rgba(255, 255, 255, 0.05);
@@ -63,6 +63,33 @@
   
   --boh-glass-bg: rgba(30, 30, 40, 0.75);
   --boh-glass-border: rgba(255, 255, 255, 0.08);
+}
+
+/* Keep framework tokens in sync with the runtime theme. A number of pages use
+   Tailwind/base variables instead of the BOH tokens above. */
+[data-theme="dark"] {
+  --background: #0d1117;
+  --foreground: #f2f5f8;
+  --card: #1b2430;
+  --card-foreground: #f2f5f8;
+  --popover: #202b38;
+  --popover-foreground: #f2f5f8;
+  --secondary: #243142;
+  --secondary-foreground: #f2f5f8;
+  --muted: #202b38;
+  --muted-foreground: #aab6c4;
+  --accent: #29405a;
+  --accent-foreground: #f2f5f8;
+  --border: rgba(220, 235, 255, 0.14);
+  --input: rgba(220, 235, 255, 0.18);
+  --ring: #62b0ff;
+  --apple-text-primary: #f2f5f8;
+  --apple-text-secondary: #aab6c4;
+  --apple-text-tertiary: #8d99a8;
+  --apple-bg-white: #1b2430;
+  --apple-bg-gray: #141a22;
+  --apple-bg-light: #202b38;
+  --apple-border: rgba(220, 235, 255, 0.14);
 }
 
 /* ============================================
@@ -163,7 +190,8 @@
 
 /* 输入框 */
 [data-theme="dark"] input,
-[data-theme="dark"] textarea {
+[data-theme="dark"] textarea,
+[data-theme="dark"] select {
   background: var(--boh-bg-tertiary);
   border-color: var(--boh-border-primary);
   color: var(--boh-text-primary);

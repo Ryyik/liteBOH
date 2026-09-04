@@ -1,0 +1,638 @@
+/* ============================================================
+   BOH Health — iOS 26/27 Liquid Glass
+   结构参考 iOS 健康「摘要」页，材质为液态玻璃
+   所有类名以 hk- 前缀隔离，避免污染全局
+   ============================================================ */
+
+/* Sheet 通过 Teleport 挂到 body，脱离了 .hk-page 作用域，
+   因此变量需同时在传送层根节点上声明，否则表单内 var(--hk-*) 全部取不到值 */
+.hk-page,
+.hk-sheet-mask {
+  /* 兜底值；index.vue 在挂载后会用 ResizeObserver 实测全局导航高度覆盖它 */
+  --hk-nav-h: 78px;
+
+  /* 文字 */
+  --hk-text: #1d1d1f;
+  --hk-text-2: rgba(60, 60, 67, 0.6);
+  --hk-text-3: rgba(60, 60, 67, 0.34);
+  --hk-hair: rgba(60, 60, 67, 0.11);
+
+  /* 指标色 */
+  --hk-blue: #007aff;
+  --hk-red: #fa114f;
+  --hk-indigo: #5e5ce6;
+  --hk-cyan: #32ade6;
+  --hk-green: #30d158;
+  --hk-orange: #ff9f0a;
+  --hk-crimson: #ff453a;
+  --hk-sky: #64d2ff;
+
+  /* 玻璃材质 */
+  --hk-bg: #f2f2f7;
+  --hk-glass-top: rgba(255, 255, 255, 0.74);
+  --hk-glass-bottom: rgba(255, 255, 255, 0.42);
+  --hk-glass-border: rgba(255, 255, 255, 0.72);
+  --hk-glass-inner: rgba(255, 255, 255, 0.92);
+  --hk-glass-shade: rgba(16, 24, 40, 0.08);
+  --hk-fill: rgba(255, 255, 255, 0.56);
+}
+
+.hk-page {
+  position: relative;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  background: var(--hk-bg);
+  color: var(--hk-text);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  padding-top: var(--hk-nav-h);
+  padding-bottom: 72px;
+}
+.hk-sheet-mask {
+  color: var(--hk-text);
+}
+
+/* ---------- 环境光：给玻璃提供折射底 ---------- */
+.hk-orb {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(70px);
+  z-index: 0;
+}
+.hk-orb-a {
+  width: 620px; height: 620px; top: -220px; right: -180px;
+  background: radial-gradient(circle at 40% 40%, rgba(120, 170, 255, 0.5) 0%, rgba(120, 170, 255, 0) 68%);
+}
+.hk-orb-b {
+  width: 560px; height: 560px; top: 300px; left: -240px;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 150, 185, 0.38) 0%, rgba(255, 150, 185, 0) 70%);
+}
+.hk-orb-c {
+  width: 520px; height: 520px; bottom: -200px; left: 34%;
+  background: radial-gradient(circle at 50% 50%, rgba(90, 220, 200, 0.3) 0%, rgba(90, 220, 200, 0) 70%);
+}
+
+/* ---------- 液态玻璃基底 ---------- */
+.hk-glass,
+.hk-card {
+  position: relative;
+  border-radius: 24px;
+  background: linear-gradient(180deg, var(--hk-glass-top) 0%, var(--hk-glass-bottom) 100%);
+  -webkit-backdrop-filter: blur(30px) saturate(190%);
+  backdrop-filter: blur(30px) saturate(190%);
+  box-shadow:
+    0 12px 38px var(--hk-glass-shade),
+    inset 0 1px 0 var(--hk-glass-inner),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.28);
+}
+/* iOS 27 高光折射边：用渐变描边模拟镜面棱 */
+.hk-glass::before,
+.hk-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.1) 34%, rgba(255, 255, 255, 0) 58%, rgba(255, 255, 255, 0.6) 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 1;
+}
+.hk-card > * { position: relative; z-index: 2; }
+
+/* ---------- 顶部大标题 ---------- */
+.hk-topbar {
+  position: relative;
+  padding: 14px 0 10px;
+}
+.hk-topbar-date {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hk-text-2);
+  letter-spacing: 0.01em;
+}
+.hk-topbar-title {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin-top: 2px;
+}
+.hk-wrap {
+  position: relative;
+  z-index: 1;
+  width: min(780px, calc(100% - 32px));
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ---------- 网格 ---------- */
+.hk-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.hk-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 560px) {
+  .hk-grid-3 { gap: 10px; }
+  .hk-grid-2 { grid-template-columns: 1fr; }
+}
+
+/* ---------- 通用文本 ---------- */
+.hk-label {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--hk-text-3);
+}
+.hk-value {
+  font-size: 24px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--hk-text);
+}
+.hk-value .u {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hk-text-2);
+  margin-left: 2px;
+}
+
+/* ---------- 卡片：可点击 ---------- */
+.hk-tappable {
+  appearance: none;
+  border: none;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  padding: 14px 16px;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+}
+.hk-tappable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 44px var(--hk-glass-shade), inset 0 1px 0 var(--hk-glass-inner);
+}
+.hk-tappable:active { transform: scale(0.985); }
+.hk-tappable:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.18), 0 12px 38px var(--hk-glass-shade);
+}
+
+/* ---------- BMI 主卡 ---------- */
+.hk-bmi { padding: 18px 20px 16px; }
+.hk-bmi-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.hk-chip {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.hk-bmi-value {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 44px;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  transition: color 0.3s ease;
+}
+.hk-bmi-value.is-thin { color: var(--hk-sky); }
+.hk-bmi-value.is-normal { color: var(--hk-green); }
+.hk-bmi-value.is-over { color: var(--hk-orange); }
+.hk-bmi-value.is-obese { color: var(--hk-crimson); }
+.hk-bmi-value.is-empty { color: var(--hk-text-3); }
+.hk-bmi-value .u {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hk-text-2);
+  letter-spacing: 0;
+}
+.hk-scale { margin-top: 16px; }
+.hk-scale-track {
+  position: relative;
+  display: flex;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12), 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+.hk-scale-track .seg { height: 100%; display: block; opacity: 0.92; }
+.hk-scale-knob {
+  position: absolute;
+  top: -5px;
+  width: 6px;
+  height: 18px;
+  margin-left: -3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.95);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28), inset 0 0 0 1px rgba(255, 255, 255, 0.9);
+  transition: left 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.hk-scale-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--hk-text-3);
+}
+
+/* ---------- 指标小卡 ---------- */
+.hk-tile { padding: 13px 15px 14px; }
+.hk-tile .hk-value { margin-top: 3px; }
+
+/* ---------- 列表卡 ---------- */
+.hk-list { padding: 6px 0 6px; }
+.hk-list-title {
+  padding: 8px 16px 6px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  color: var(--hk-text-3);
+}
+.hk-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-top: 0.5px solid var(--hk-hair);
+  transition: background 0.18s ease;
+}
+.hk-row:first-of-type { border-top: none; }
+.hk-row:hover { background: rgba(255, 255, 255, 0.5); }
+.hk-row:active { background: rgba(255, 255, 255, 0.72); }
+.hk-row:focus-visible { outline: none; background: rgba(255, 255, 255, 0.72); }
+.hk-row-name { font-size: 14px; font-weight: 500; letter-spacing: -0.01em; }
+.hk-row-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--hk-text-2);
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.hk-chev { color: rgba(60, 60, 67, 0.28); font-size: 15px; line-height: 1; }
+.hk-row-danger .hk-row-name { color: #d70015; }
+.hk-list-foot {
+  padding: 4px 16px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--hk-text-3);
+}
+
+/* ---------- 圆环卡 ---------- */
+.hk-ring { padding: 14px; display: flex; align-items: center; gap: 12px; }
+.hk-ring svg { flex-shrink: 0; }
+.hk-ring-val { font-size: 17px; font-weight: 650; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.hk-ring-sub { font-size: 11px; font-weight: 600; color: var(--hk-text-2); margin-top: 1px; }
+
+/* ---------- 趋势 ---------- */
+.hk-trend { padding: 16px 18px 14px; }
+.hk-trend-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.hk-trend-title { font-size: 15px; font-weight: 650; letter-spacing: -0.02em; }
+.hk-trend-sub { font-size: 12px; font-weight: 600; color: var(--hk-text-2); }
+.hk-bars {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  align-items: end;
+  height: 68px;
+}
+.hk-bar {
+  border-radius: 5px;
+  min-height: 4px;
+  background: linear-gradient(180deg, rgba(94, 92, 230, 0.95) 0%, rgba(94, 92, 230, 0.62) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  transition: height 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.hk-bar.is-empty {
+  background: rgba(120, 120, 128, 0.12);
+  box-shadow: none;
+}
+.hk-bar-labels {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--hk-text-3);
+  text-align: center;
+}
+
+/* ---------- 底部说明 ---------- */
+.hk-foot {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--hk-text-3);
+  padding: 2px 16px;
+  line-height: 1.6;
+}
+
+/* ---------- Sheet ---------- */
+.hk-sheet-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  animation: hk-fade 0.24s ease;
+}
+@media (min-width: 640px) {
+  .hk-sheet-mask { align-items: center; padding: 24px; }
+}
+.hk-sheet {
+  width: min(440px, 100%);
+  max-height: 88dvh;
+  overflow-y: auto;
+  border-radius: 30px 30px 0 0;
+  padding: 8px 18px 22px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(255, 255, 255, 0.88) 100%);
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  backdrop-filter: blur(40px) saturate(200%);
+  box-shadow:
+    0 -10px 30px rgba(15, 23, 42, 0.06),
+    0 20px 60px rgba(15, 23, 42, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  animation: hk-rise 0.34s cubic-bezier(0.16, 1, 0.3, 1);
+  -webkit-overflow-scrolling: touch;
+}
+@media (min-width: 640px) {
+  .hk-sheet { border-radius: 30px; max-height: 84dvh; }
+}
+@keyframes hk-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes hk-rise { from { transform: translateY(24px); opacity: 0.4; } to { transform: translateY(0); opacity: 1; } }
+
+.hk-sheet-handle {
+  width: 38px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(60, 60, 67, 0.22);
+  margin: 2px auto 8px;
+}
+.hk-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 2px 12px;
+}
+.hk-sheet-title { font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }
+.hk-sheet-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--hk-blue);
+  cursor: pointer;
+  padding: 4px 2px;
+  min-width: 44px;
+}
+.hk-sheet-btn.ghost { color: var(--hk-text-2); text-align: left; }
+.hk-sheet-btn.done { text-align: right; font-weight: 700; }
+.hk-sheet-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* 分段控件 */
+.hk-seg {
+  display: grid;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 12px;
+  background: rgba(120, 120, 128, 0.12);
+  -webkit-backdrop-filter: blur(14px) saturate(180%);
+  backdrop-filter: blur(14px) saturate(180%);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.hk-seg.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.hk-seg.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.hk-seg.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.hk-seg-item {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 8px 4px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hk-text);
+  cursor: pointer;
+  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+.hk-seg-item.is-on {
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* Sheet 表单行 */
+.hk-field { padding: 12px 0; border-top: 0.5px solid var(--hk-hair); }
+.hk-field:first-child { border-top: none; }
+.hk-field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+.hk-field-name { font-size: 14px; font-weight: 500; }
+.hk-field-val {
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--hk-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.hk-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(120, 120, 128, 0.2);
+  outline: none;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+.hk-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.96);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.22), inset 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+  cursor: grab;
+}
+.hk-slider::-moz-range-thumb {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.22);
+  cursor: grab;
+}
+.hk-stepper { display: inline-flex; align-items: center; gap: 8px; }
+.hk-step-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.8);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--hk-text);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.hk-step-btn:active { transform: scale(0.94); }
+.hk-input {
+  width: 100%;
+  height: 42px;
+  padding: 0 14px;
+  border-radius: 13px;
+  border: none;
+  background: rgba(255, 255, 255, 0.62);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 0 0 0.5px rgba(60, 60, 67, 0.1);
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--hk-text);
+  outline: none;
+}
+.hk-input::placeholder { color: var(--hk-text-3); font-weight: 500; }
+.hk-input:focus { box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.16), inset 0 0 0 0.5px rgba(0, 122, 255, 0.35); }
+.hk-hint { font-size: 11px; font-weight: 600; color: var(--hk-text-3); margin-top: 8px; line-height: 1.5; }
+
+/* Sheet 内的实时 BMI */
+.hk-live {
+  margin-top: 14px;
+  padding: 15px 16px 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.5);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  backdrop-filter: blur(18px) saturate(180%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+/* 档案条目 */
+.hk-vault-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 0;
+  border-top: 0.5px solid var(--hk-hair);
+}
+.hk-vault-item strong { font-size: 13.5px; font-weight: 650; }
+.hk-vault-item small { font-size: 11px; color: var(--hk-text-3); font-weight: 600; }
+.hk-vault-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.hk-vault-badge {
+  font-size: 11px;
+  font-weight: 650;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(0, 122, 255, 0.12);
+  color: #0060df;
+}
+.hk-empty {
+  padding: 16px 0;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hk-text-3);
+}
+
+/* ---------- 深色模式 ---------- */
+html[data-theme="dark"] .hk-page,
+html[data-theme="dark"] .hk-sheet-mask {
+  --hk-bg: #000;
+  --hk-text: #f5f5f7;
+  --hk-text-2: rgba(235, 235, 245, 0.6);
+  --hk-text-3: rgba(235, 235, 245, 0.36);
+  --hk-hair: rgba(84, 84, 88, 0.5);
+  --hk-glass-top: rgba(44, 44, 46, 0.72);
+  --hk-glass-bottom: rgba(28, 28, 30, 0.5);
+  --hk-glass-border: rgba(255, 255, 255, 0.12);
+  --hk-glass-inner: rgba(255, 255, 255, 0.1);
+  --hk-glass-shade: rgba(0, 0, 0, 0.44);
+  --hk-fill: rgba(120, 120, 128, 0.2);
+}
+html[data-theme="dark"] .hk-orb { opacity: 0.5; }
+html[data-theme="dark"] .hk-row:hover,
+html[data-theme="dark"] .hk-row:active { background: rgba(255, 255, 255, 0.06); }
+html[data-theme="dark"] .hk-input,
+html[data-theme="dark"] .hk-live { background: rgba(58, 58, 60, 0.6); }
+html[data-theme="dark"] .hk-seg-item.is-on { background: rgba(120, 120, 128, 0.36); }
+html[data-theme="dark"] .hk-step-btn { background: rgba(120, 120, 128, 0.32); color: #f5f5f7; }
+html[data-theme="dark"] .hk-bar.is-empty { background: rgba(120, 120, 128, 0.24); }
+html[data-theme="dark"] .hk-vault-badge { background: rgba(10, 132, 255, 0.22); color: #7ab8ff; }
+/* 表单在深色模式下同样提高不透明度，避免背景光斑透出 */
+html[data-theme="dark"] .hk-sheet {
+  background: linear-gradient(180deg, rgba(58, 58, 60, 0.96) 0%, rgba(28, 28, 30, 0.94) 100%);
+  box-shadow:
+    0 -10px 30px rgba(0, 0, 0, 0.3),
+    0 20px 60px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+/* ---------- 无障碍降级 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .hk-topbar, .hk-topbar-title, .hk-tappable, .hk-bar, .hk-scale-knob, .hk-sheet, .hk-sheet-mask {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .hk-glass, .hk-card { background: #fff; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  html[data-theme="dark"] .hk-glass,
+  html[data-theme="dark"] .hk-card { background: #1c1c1e; }
+}

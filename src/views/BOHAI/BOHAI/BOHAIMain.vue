@@ -304,7 +304,7 @@
                         </button>
                         <div v-if="filteredSlashCommands.length === 0" class="slash-command-empty">没有匹配的命令</div>
                     </div>
-                    <div v-if="isSearching || isForumSearchEnabled || isTreeholeMemoryEnabled" class="composer-chips">
+                    <div v-if="isSearching || isForumSearchEnabled || isTreeholeMemoryEnabled || isHealthAnalysisEnabled" class="composer-chips">
                         <button v-if="isSearching" type="button" class="composer-chip" @click="toggleSearch">
                             <Globe size="14" />
                             <span>联网搜索</span>
@@ -318,6 +318,11 @@
                         <button v-if="isTreeholeMemoryEnabled" type="button" class="composer-chip" @click="handleTreeholeMemoryToggle">
                             <Cloud size="14" />
                             <span>个人 Cloud+</span>
+                            <X size="13" />
+                        </button>
+                        <button v-if="isHealthAnalysisEnabled" type="button" class="composer-chip" @click="toggleHealthAnalysis">
+                            <HeartPulse size="14" />
+                            <span>健康分析</span>
                             <X size="13" />
                         </button>
                     </div>
@@ -381,6 +386,16 @@
                                             <small>参考你的 Cloud+ 私有内容</small>
                                         </span>
                                         <span v-if="isTreeholeMemoryEnabled" class="feature-action-check"></span>
+                                    </button>
+                                    <button type="button" class="feature-action-row" @click="toggleHealthAnalysis">
+                                        <span class="feature-action-icon">
+                                            <HeartPulse size="16" />
+                                        </span>
+                                        <span class="feature-action-copy">
+                                            <strong>健康分析</strong>
+                                            <small>参考你本机的 BOH Health 数据</small>
+                                        </span>
+                                        <span v-if="isHealthAnalysisEnabled" class="feature-action-check"></span>
                                     </button>
                                 </div>
                             </div>
@@ -474,7 +489,8 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, nextTick, watch, onUnmounted } from 'vue';
-import { Plus, Trash2, Square, Globe, Cloud, Search, X, ChevronDown, Copy, ThumbsUp, ThumbsDown, MoreHorizontal, ArrowUp, CheckCircle2, LoaderCircle, Circle, PanelLeft, Settings2, AlertCircle, RotateCcw, Archive, FileText } from 'lucide-vue-next';
+import { useRoute } from 'vue-router';
+import { Plus, Trash2, Square, Globe, Cloud, Search, X, ChevronDown, Copy, ThumbsUp, ThumbsDown, MoreHorizontal, ArrowUp, CheckCircle2, LoaderCircle, Circle, PanelLeft, Settings2, AlertCircle, RotateCcw, Archive, FileText, HeartPulse } from 'lucide-vue-next';
 import { useChatEngine } from '../composables/useChatEngine';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
@@ -534,6 +550,7 @@ const resolvedAiTheme = computed(() => {
     return currentSiteTheme.value;
 });
 const uiNotice = ref('');
+const route = useRoute();
 const visibleMessageLimit = ref(80);
 const expandedMessageDetails = ref(new Set());
 const messageFeedbackByIndex = ref({});
@@ -697,6 +714,7 @@ const {
     webSearchActive,
     communitySearchActive,
     isForumSearchEnabled,
+    isHealthAnalysisEnabled,
     isTreeholeMemoryEnabled,
     isPlanModeEnabled,
     isSharedMemoryEnabled,
@@ -1785,6 +1803,12 @@ const toggleForumSearch = () => {
     closeFeaturesMenu();
 };
 
+// 健康分析：开启后本轮回答会带上用户本机的 BOH Health 数据（localStorage，无需登录）
+const toggleHealthAnalysis = () => {
+    isHealthAnalysisEnabled.value = !isHealthAnalysisEnabled.value;
+    closeFeaturesMenu();
+};
+
 const slashQuery = computed(() => {
     const value = String(inputMessage.value || '');
     if (!value.startsWith('/') || value.includes('\n') || /\s/.test(value)) return null;
@@ -1795,6 +1819,7 @@ const slashCommands = computed(() => [
     { id: 'web', keyword: 'web', label: '联网搜索', description: '为下一条消息获取最新网络信息', action: 'web' },
     { id: 'community', keyword: 'community', label: '社区搜索', description: '为下一条消息查找 BOH 社区内容', action: 'community' },
     { id: 'cloud', keyword: 'cloud', label: '个人 Cloud+', description: '允许下一条回答参考你的 Cloud+ 内容', action: 'cloud' },
+    { id: 'health', keyword: 'health', label: '健康分析', description: '让下一条回答参考你的 BOH Health 数据', action: 'health' },
     ...(chatModes.value || []).map((mode) => ({
         id: `mode-${mode.id}`,
         keyword: String(mode.name || mode.id).toLowerCase().replace(/\s+/g, '-'),
@@ -1846,6 +1871,17 @@ const runSlashCommand = async (command) => {
         } else {
             await toggleTreeholeMemory();
         }
+    }
+    if (command.action === 'health') {
+        isHealthAnalysisEnabled.value = true;
+        emitIslandMessage({
+            title: '已开启健康分析',
+            message: '接下来的回答会带上你的 BOH Health 数据，点输入框上的「健康分析」标签可关闭',
+            icon: 'ai',
+            type: 'notification',
+            actionLabel: '知道了',
+            durationMs: 3600
+        });
     }
 };
 
@@ -1967,6 +2003,36 @@ onMounted(() => {
     document.addEventListener('click', handleClickOutside);
     window.addEventListener('resize', syncStandaloneViewport);
     fetchTodayQuota();
+
+    // 支持其他页面带种子提问跳转过来（例如 BOH Health 的「用 BOH AI 分析」）：
+    // /ai-chat?ask=... 仅在独立页面模式生效，全局浮层不参与路由。
+    const seedAsk = String(route.query?.ask || '').trim();
+    if (seedAsk && isStandalone.value) {
+        // 注意：这里必须用 history.replaceState，不能用 router.replace。
+        // App.vue 的 RouterView 用 activeRoute.fullPath 作为组件 :key，
+        // router.replace 会把 fullPath 从 /ai-chat?ask=... 改成 /ai-chat，
+        // 导致本组件被销毁重建，下面预填进输入框的内容会连同组件一起丢失。
+        // replaceState 只改地址栏、不通知 vue-router，因此不会触发重建。
+        if (window.history?.replaceState) {
+            window.history.replaceState(
+                {},
+                '',
+                `${window.location.pathname}${window.location.search}#/ai-chat`
+            );
+        }
+        inputMessage.value = seedAsk;
+        nextTick(() => {
+            autoResize();
+            textareaRef.value?.focus();
+        });
+        // 等配额与会话初始化完成后自动发出，完成无缝接力；
+        // 若用户在这期间改动了输入框，则不再自动发送。
+        window.setTimeout(() => {
+            if (!isLoading.value && inputMessage.value === seedAsk) {
+                sendMessage();
+            }
+        }, 700);
+    }
 
     // Detect component visibility for Teleported elements (sidebar/overlay).
     // When the parent tab switches away (v-show="false"), the .bohai-page

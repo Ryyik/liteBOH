@@ -979,13 +979,15 @@ onUnmounted(() => {
 </style>
 
 <style scoped>
-/* 图片占位入口：保持轻量平面，不抢正文焦点。 */
+/* 图片占位入口：液态玻璃 — 极简扁平，虚线在玻璃上更轻盈 */
 .post-image-add-more-card {
   width: 100%;
-  aspect-ratio: 1 / 1; /* 正方形 */
-  border: 1px solid rgba(29, 29, 31, 0.08);
+  aspect-ratio: 1 / 1;
+  border: 1.2px dashed var(--liquid-border-hairline, rgba(15,23,42,0.10));
   border-radius: 16px;
-  background: #f2f2f7;
+  background: var(--liquid-bg-strong, rgba(255,255,255,0.84));
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
   color: #ff3b30;
   display: flex;
   flex-direction: column;
@@ -993,15 +995,18 @@ onUnmounted(() => {
   justify-content: center;
   gap: 4px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
   padding: 0;
   min-height: 0;
   box-sizing: border-box;
+  box-shadow: var(--liquid-shadow-sm, 0 8px 24px rgba(15,23,42,0.06));
 }
 
 .post-image-add-more-card:hover:not(:disabled) {
-  border-color: rgba(29, 29, 31, 0.16);
-  background: #ececf1;
+  border-color: rgba(0, 113, 227, 0.22);
+  border-style: solid;
+  background: #ffffff;
+  transform: translateY(-1px);
 }
 
 .post-image-add-more-card:disabled {
@@ -1016,23 +1021,28 @@ onUnmounted(() => {
   line-height: 1.2;
 }
 
-/* ✨ 新增：横屏保存草稿按钮样式 */
+/* 横屏保存草稿按钮 — 液态玻璃 + 蓝色描边，保持克制 */
 .desktop-save-draft-btn {
-  border-radius: 14px;
-  padding: 10px 16px;
-  background: rgba(0, 113, 227, 0.06);
+  border-radius: 999px;
+  padding: 0 14px;
+  min-height: 36px;
+  background: var(--liquid-bg-strong, rgba(255,255,255,0.84));
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
   border: 1px solid rgba(0, 113, 227, 0.18);
   color: #0071e3;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  transition: all 0.2s ease;
+  gap: 6px;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
 
 .desktop-save-draft-btn:hover:not(:disabled) {
-  background: rgba(0, 113, 227, 0.12);
+  background: #ffffff;
   border-color: rgba(0, 113, 227, 0.32);
+  transform: translateY(-1px);
 }
 
 .desktop-save-draft-btn:disabled {
@@ -1056,14 +1066,15 @@ onUnmounted(() => {
   max-width: calc(100vw - 32px);
   max-height: 80vh;
   overflow-y: auto;
-  padding: 24px;
-  border-radius: 32px;
-  border: 1px solid var(--glass-border, rgba(0, 0, 0, 0.05));
-  background: var(--glass-bg, rgba(255, 255, 255, 0.75));
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+  padding: 22px;
+  border-radius: 28px;
+  border: 1px solid var(--liquid-border, rgba(255,255,255,0.65));
+  background: var(--liquid-bg, rgba(255,255,255,0.72));
+  backdrop-filter: blur(28px) saturate(180%) brightness(1.02);
+  -webkit-backdrop-filter: blur(28px) saturate(180%) brightness(1.02);
+  box-shadow: var(--liquid-highlight, inset 0 1px 0 rgba(255,255,255,0.86)), var(--liquid-shadow, 0 20px 60px rgba(15,23,42,0.07));
   isolation: isolate;
+  contain: paint;
 }
 
 .location-panel-header {
@@ -1330,13 +1341,13 @@ onUnmounted(() => {
 .more-panel {
   position: fixed;
   z-index: 220101;
-  padding: 12px 16px;
-  border-radius: 32px;
-  border: 1px solid var(--glass-border, rgba(0, 0, 0, 0.05));
-  background: var(--glass-bg, rgba(255, 255, 255, 0.75));
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+  padding: 14px;
+  border-radius: 28px;
+  border: 1px solid var(--liquid-border, rgba(255,255,255,0.65));
+  background: var(--liquid-bg, rgba(255,255,255,0.72));
+  backdrop-filter: blur(28px) saturate(180%) brightness(1.02);
+  -webkit-backdrop-filter: blur(28px) saturate(180%) brightness(1.02);
+  box-shadow: var(--liquid-highlight, inset 0 1px 0 rgba(255,255,255,0.86)), var(--liquid-shadow, 0 20px 60px rgba(15,23,42,0.07));
   width: 280px;
   overflow: hidden;
   contain: paint;
