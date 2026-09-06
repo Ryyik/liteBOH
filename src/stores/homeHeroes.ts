@@ -10,7 +10,9 @@ import type {
   ContentLayoutValues,
   HeroImageConfig,
   HeroLink,
-  SplitCardConfig
+  SplitCardConfig,
+  ShowcaseConfig,
+  ShowcaseCharacterConfig
 } from '@/types'
 
 // ============================================
@@ -23,8 +25,8 @@ import type {
 // 草稿/发布分离：首页仅渲染 status='published' 的记录。
 
 // 版本化缓存：字段结构变更时升级版本，避免旧记录按新模板渲染。
-const CACHE_KEY = 'boh_home_heroes_v2'
-const LEGACY_CACHE_KEYS = ['boh_home_heroes_v1']
+const CACHE_KEY = 'boh_home_heroes_v3'
+const LEGACY_CACHE_KEYS = ['boh_home_heroes_v1', 'boh_home_heroes_v2']
 // 缓存用于首屏即时渲染；每次进入首页仍会在后台请求最新配置。
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000
 // 远端不可达时的陈旧守卫：缓存超过 1 小时不再兜底，回退内置基线
@@ -70,7 +72,7 @@ export const HOME_HERO_BASELINE: HomeHero[] = [
 const HOME_HERO_SELECT_COLUMNS = [
   'id', 'sort_order', 'is_archived', 'template', 'variant', 'builtin_key',
   'eyebrow', 'title', 'subtitle', 'image_config', 'content_layout', 'links',
-  'split_cards', 'label', 'aria_label', 'status', 'published_at', 'published_by',
+  'split_cards', 'showcase_config', 'label', 'aria_label', 'status', 'published_at', 'published_by',
   'created_at', 'updated_at', 'created_by', 'updated_by'
 ].join(',')
 
@@ -196,11 +198,51 @@ const normalizeSplitCards = (raw: unknown): SplitCardConfig[] | null => {
     }))
 }
 
+const normalizeShowcaseCharacter = (raw: Record<string, unknown>): ShowcaseCharacterConfig => {
+  const depth = Number(raw.depth)
+  const scale = Number(raw.scale)
+  return {
+    key: typeof raw.key === 'string' && raw.key ? raw.key : undefined,
+    src: typeof raw.src === 'string' && raw.src ? raw.src : undefined,
+    name: typeof raw.name === 'string' && raw.name ? raw.name : undefined,
+    side: raw.side === 'right' ? 'right' : 'left',
+    depth: depth === 1 || depth === 2 || depth === 3 ? depth : 2,
+    scale: Number.isFinite(scale) ? Math.max(0.6, Math.min(1.4, scale)) : 1,
+    mobile_hidden: Boolean(raw.mobile_hidden)
+  }
+}
+
+const normalizeShowcaseConfig = (raw: unknown): ShowcaseConfig | null => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const cfg = raw as Record<string, unknown>
+  const characters = Array.isArray(cfg.characters)
+    ? cfg.characters
+      .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+      .slice(0, 8)
+      .map(normalizeShowcaseCharacter)
+    : []
+  return {
+    badge_text: typeof cfg.badge_text === 'string' && cfg.badge_text ? cfg.badge_text : undefined,
+    particles: cfg.particles !== false,
+    cover_src: typeof cfg.cover_src === 'string' && cfg.cover_src ? cfg.cover_src : undefined,
+    cover_alt: typeof cfg.cover_alt === 'string' && cfg.cover_alt ? cfg.cover_alt : undefined,
+    characters
+  }
+}
+
+const cloneShowcaseConfig = (config: ShowcaseConfig | null | undefined): ShowcaseConfig | null => {
+  if (!config) return null
+  return {
+    ...config,
+    characters: (config.characters || []).map((c) => ({ ...c }))
+  }
+}
+
 const normalizeHero = (item: Record<string, unknown>): HomeHero => ({
   id: String(item.id || ''),
   sort_order: Number(item.sort_order) || 0,
   is_archived: Boolean(item.is_archived),
-  template: (['standard', 'overlay', 'split', 'responsive', 'builtin'].includes(String(item.template))
+  template: (['standard', 'overlay', 'split', 'responsive', 'showcase', 'builtin'].includes(String(item.template))
     ? String(item.template)
     : 'standard') as HomeHeroTemplate,
   variant: item.variant === 'dark' ? 'dark' : 'light',
@@ -212,6 +254,7 @@ const normalizeHero = (item: Record<string, unknown>): HomeHero => ({
   content_layout: normalizeContentLayout(item.content_layout),
   links: normalizeLinks(item.links),
   split_cards: normalizeSplitCards(item.split_cards),
+  showcase_config: normalizeShowcaseConfig(item.showcase_config),
   label: typeof item.label === 'string' && item.label ? item.label : null,
   aria_label: typeof item.aria_label === 'string' && item.aria_label ? item.aria_label : null,
   status: item.status === 'published' ? 'published' : 'draft',
@@ -228,6 +271,7 @@ const buildSnapshot = (hero: HomeHero): HomeHero => ({
   image_config: { ...hero.image_config },
   content_layout: cloneContentLayout(hero.content_layout),
   links: hero.links.map((l) => ({ ...l })),
+  showcase_config: cloneShowcaseConfig(hero.showcase_config),
   split_cards: hero.split_cards?.map((c) => ({
     ...c,
     image_config: { ...c.image_config },
@@ -311,9 +355,20 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
       return publishedHeroes.value
     }
     if (!force && hasPublishedCache) {
-      // 缓存只用于首屏加速，随后始终同步远端，避免持续展示旧结构。
-      void fetchPublishedFromRemote()
-      return publishedHeroes.value
+      // 首屏等待远端结果，避免缓存内容先渲染后又被替换造成闪现。
+      // supabase-js 查询没有客户端超时，弱网/连接悬挂时请求可能永不返回，
+      // 这里加 6s 竞速兜底：超时先放行缓存渲染，远端结果返回后仍会更新 store。
+      const remote = fetchPublishedFromRemote()
+      let timer: ReturnType<typeof setTimeout> | null = null
+      const timeout = new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), 6000)
+      })
+      try {
+        const result = await Promise.race([remote, timeout])
+        return result ?? publishedHeroes.value
+      } finally {
+        if (timer) clearTimeout(timer)
+      }
     }
     // force=true 时作废在途请求（旧请求结果与 finally 清理均会被令牌拦截），确保发起新请求
     if (force) {
@@ -412,6 +467,8 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
         content_layout: payload.content_layout || null,
         links: payload.links || [],
         split_cards: payload.split_cards || null,
+        // showcase_config 在迁移中是 NOT NULL；非 showcase 模板使用空对象。
+        showcase_config: payload.showcase_config || {},
         label: payload.label || null,
         aria_label: payload.aria_label || null,
         status: 'draft'
@@ -444,11 +501,16 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
       const editableFields = [
         'sort_order', 'is_archived', 'template', 'variant', 'builtin_key', 'eyebrow',
         'title', 'subtitle', 'image_config', 'content_layout', 'links', 'split_cards',
-        'label', 'aria_label'
+        'showcase_config', 'label', 'aria_label'
       ] as const
 
       for (const field of editableFields) {
-        if (payload[field] !== undefined) updatePayload[field] = payload[field]
+        if (payload[field] !== undefined) {
+          // showcase_config 在迁移中是 NOT NULL，避免旧草稿/非 showcase 模板写入 null。
+          updatePayload[field] = field === 'showcase_config' && payload[field] == null
+            ? {}
+            : payload[field]
+        }
       }
 
       if (payload.sort_order !== undefined) {
@@ -569,6 +631,7 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
           label: snapshot.label,
           aria_label: snapshot.aria_label,
           is_archived: snapshot.is_archived,
+          showcase_config: snapshot.showcase_config || {},
           sort_order: snapshot.sort_order,
           updated_at: new Date().toISOString()
         })

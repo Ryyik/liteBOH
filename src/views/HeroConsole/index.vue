@@ -168,6 +168,7 @@
               <option value="overlay">全幅图片叠加型</option>
               <option value="split">分栏并排型</option>
               <option value="responsive">横竖屏适配型</option>
+              <option value="showcase">设定集书页型</option>
             </select>
           </label>
           <label class="field">
@@ -188,7 +189,7 @@
             <input v-model="draftHero.aria_label" type="text" placeholder="如：全新吉祥物上线" @input="markDirty(selectedHero.id)" />
           </label>
 
-          <label class="field field-wide" v-if="draftHero.template === 'overlay'">
+          <label class="field field-wide" v-if="draftHero.template === 'overlay' || draftHero.template === 'showcase'">
             <span>眉题（Eyebrow）</span>
             <input v-model="draftHero.eyebrow" type="text" placeholder="如：遇见系列" @input="markDirty(selectedHero.id)" />
           </label>
@@ -264,7 +265,7 @@
         </div>
 
         <!-- 图片配置区：根据模板显示不同字段 -->
-        <div class="image-section" v-if="!isBuiltin && draftHero.template !== 'split'">
+        <div class="image-section" v-if="!isBuiltin && draftHero.template !== 'split' && draftHero.template !== 'showcase'">
           <div class="spec-heading">
             <span>图片配置</span>
             <div class="spec-heading-actions">
@@ -416,6 +417,123 @@
             <small>仅当文件超过 10MB 时自动压缩；10MB 以内保持原图质量。</small>
           </div>
 
+        <!-- showcase 模板：设定集书页配置 -->
+        <div class="image-section" v-if="!isBuiltin && draftHero.template === 'showcase' && draftHero.showcase_config">
+          <div class="spec-heading">
+            <span>设定集配置</span>
+          </div>
+
+          <label class="field">
+            <span>发布徽标文案</span>
+            <input v-model="draftHero.showcase_config.badge_text" type="text" placeholder="如：晚秋发布（留空则不显示徽标）" @input="markDirty(selectedHero.id)" />
+          </label>
+
+          <label class="toggle-row showcase-toggle">
+            <span><strong>飘落像素落叶</strong><small>晚秋氛围粒子，关闭后为静态舞台</small></span>
+            <input type="checkbox" :checked="draftHero.showcase_config.particles !== false" @change="setShowcaseParticles($event.target.checked)" />
+            <i aria-hidden="true"></i>
+          </label>
+
+          <div class="spec-heading showcase-subheading">
+            <span>书封</span>
+            <div class="spec-heading-actions">
+              <button type="button" class="text-button" @click="openDirectUpload('cover')" :disabled="isUploading">
+                <Upload :size="14" /> 上传书封
+              </button>
+              <button type="button" class="text-button" @click="openCropper('cover')">
+                <Crop :size="14" /> 裁切书封
+              </button>
+            </div>
+          </div>
+          <label class="url-field">
+            <span>书封图片链接</span>
+            <input v-model="draftHero.showcase_config.cover_src" type="url" placeholder="留空使用默认渐变封面" @input="markDirty(selectedHero.id)" />
+          </label>
+          <label class="field">
+            <span>书封 Alt 文本</span>
+            <input v-model="draftHero.showcase_config.cover_alt" type="text" placeholder="如：方块之家设定集封面" @input="markDirty(selectedHero.id)" />
+          </label>
+
+          <div class="spec-heading showcase-subheading">
+            <span>环绕人物（{{ draftHero.showcase_config.characters.length }}/8）</span>
+            <div class="spec-heading-actions">
+              <button type="button" class="text-button" @click="showcasePickerOpen = !showcasePickerOpen">
+                <Plus :size="14" /> {{ showcasePickerOpen ? '收起皮肤库' : '从皮肤库选择' }}
+              </button>
+            </div>
+          </div>
+
+          <div v-if="showcasePickerOpen" class="skin-picker">
+            <div v-for="group in skinLibraryGroups" :key="group.key" class="skin-picker-group">
+              <small>{{ group.label }}</small>
+              <div class="skin-picker-grid">
+                <button
+                  v-for="item in group.items"
+                  :key="item.key"
+                  type="button"
+                  class="skin-picker-item"
+                  :title="item.name"
+                  :aria-label="`添加人物 ${item.name}`"
+                  @click="addShowcaseCharacter(item)"
+                >
+                  <img :src="item.src" :alt="item.name" loading="lazy" draggable="false" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div
+            class="showcase-character-editor"
+            v-for="(char, idx) in draftHero.showcase_config.characters"
+            :key="`showcase-char-${idx}`"
+          >
+            <div class="showcase-char-head">
+              <img v-if="showcaseCharacterThumb(char)" :src="showcaseCharacterThumb(char)" :alt="char.name || '人物立绘'" class="showcase-char-thumb" />
+              <strong>{{ char.name || getSkinLibraryItem(char.key)?.name || '自定义人物' }}</strong>
+              <span class="showcase-char-meta">{{ char.key ? '皮肤库' : '自定义' }} · 景深 {{ char.depth }}</span>
+              <span class="showcase-char-actions">
+                <button type="button" class="text-button" @click="openDirectUpload('character', idx)" :disabled="isUploading">
+                  <Upload :size="13" /> 替换立绘
+                </button>
+                <button type="button" class="spec-remove" title="移除人物" @click="removeShowcaseCharacter(idx)">
+                  <X :size="14" />
+                </button>
+              </span>
+            </div>
+            <div class="showcase-char-grid">
+              <label class="field">
+                <span>站位</span>
+                <select v-model="char.side" @change="markDirty(selectedHero.id)">
+                  <option value="left">左侧</option>
+                  <option value="right">右侧</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>景深层次</span>
+                <select v-model.number="char.depth" @change="markDirty(selectedHero.id)">
+                  <option :value="1">前景（贴近书）</option>
+                  <option :value="2">中景</option>
+                  <option :value="3">后景（远景）</option>
+                </select>
+              </label>
+              <label class="field showcase-char-scale">
+                <span>缩放 {{ Number(char.scale || 1).toFixed(2) }}x</span>
+                <input type="range" min="0.6" max="1.4" step="0.05" v-model.number="char.scale" @input="markDirty(selectedHero.id)" />
+              </label>
+              <label class="toggle-row showcase-toggle compact">
+                <span><strong>移动端隐藏</strong></span>
+                <input type="checkbox" v-model="char.mobile_hidden" @change="markDirty(selectedHero.id)" />
+                <i aria-hidden="true"></i>
+              </label>
+            </div>
+            <label class="url-field">
+              <span>自定义立绘 URL（优先于皮肤库）</span>
+              <input v-model="char.src" type="url" placeholder="留空使用皮肤库立绘" @input="markDirty(selectedHero.id)" />
+            </label>
+          </div>
+          <p v-if="!draftHero.showcase_config.characters.length" class="spec-empty">还没有环绕人物，点击「从皮肤库选择」添加</p>
+        </div>
+
         <!-- 按钮配置 -->
         <div class="spec-section" v-if="!isBuiltin">
           <div class="spec-heading">
@@ -557,6 +675,7 @@ import {
 } from 'lucide-vue-next';
 import AvatarCropModal from '@/components/AvatarCropModal.vue';
 import DynamicHomeHero from '@/views/Home/components/DynamicHomeHero.vue';
+import { SKIN_LIBRARY, resolveSkinAsset, getSkinLibraryItem } from '@/data/skinLibrary.js';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { useAuthStore } from '@/stores/auth';
 import { useHomeHeroesStore } from '@/stores/homeHeroes';
@@ -630,8 +749,83 @@ const templateLabel = (t) => ({
   overlay: '全幅叠加',
   split: '分栏并排',
   responsive: '横竖屏',
+  showcase: '设定集书页',
   builtin: '内置组件'
 })[t] || t;
+
+// ===== 设定集（showcase）模板 =====
+const showcasePickerOpen = ref(false);
+const skinLibraryGroups = [
+  { key: 'classic', label: '经典立绘', items: SKIN_LIBRARY.filter((i) => i.group === 'classic') },
+  { key: 'train', label: '列车系列', items: SKIN_LIBRARY.filter((i) => i.group === 'train') }
+];
+
+// 新建时的推荐阵容：三层景深、左右交替
+const DEFAULT_SHOWCASE_CHARACTERS = Object.freeze([
+  { key: 'hamburger_style', name: '汉堡', side: 'left', depth: 1, scale: 1, mobile_hidden: false },
+  { key: 'chengzi_style', name: '橙子', side: 'right', depth: 1, scale: 1, mobile_hidden: false },
+  { key: 'ryyik_style', name: 'ryyik', side: 'left', depth: 2, scale: 1, mobile_hidden: false },
+  { key: 'baicheng_style', name: '白城', side: 'right', depth: 2, scale: 1, mobile_hidden: false },
+  { key: 'thoik_style', name: 'thoik', side: 'left', depth: 3, scale: 1, mobile_hidden: true },
+  { key: 'xiaoniu_style', name: '小牛', side: 'right', depth: 3, scale: 1, mobile_hidden: true }
+]);
+
+const createDefaultShowcaseConfig = () => ({
+  badge_text: '晚秋发布',
+  particles: true,
+  cover_src: '',
+  cover_alt: '',
+  characters: DEFAULT_SHOWCASE_CHARACTERS.map((c) => ({ ...c }))
+});
+
+function ensureShowcaseConfig() {
+  if (!draftHero.value) return null;
+  if (!draftHero.value.showcase_config) {
+    draftHero.value.showcase_config = createDefaultShowcaseConfig();
+  }
+  if (!Array.isArray(draftHero.value.showcase_config.characters)) {
+    draftHero.value.showcase_config.characters = [];
+  }
+  return draftHero.value.showcase_config;
+}
+
+function setShowcaseParticles(enabled) {
+  const config = ensureShowcaseConfig();
+  if (!config) return;
+  config.particles = enabled;
+  markDirty(selectedId.value);
+}
+
+function addShowcaseCharacter(item) {
+  const config = ensureShowcaseConfig();
+  if (!config) return;
+  if (config.characters.length >= 8) {
+    showToast('最多添加 8 位环绕人物');
+    return;
+  }
+  const leftCount = config.characters.filter((c) => c.side === 'left').length;
+  const rightCount = config.characters.filter((c) => c.side === 'right').length;
+  config.characters.push({
+    key: item.key,
+    name: item.name,
+    src: '',
+    side: leftCount <= rightCount ? 'left' : 'right',
+    depth: 2,
+    scale: 1,
+    mobile_hidden: false
+  });
+  markDirty(selectedId.value);
+  showToast(`已添加 ${item.name}`);
+}
+
+function removeShowcaseCharacter(idx) {
+  const config = ensureShowcaseConfig();
+  if (!config) return;
+  config.characters.splice(idx, 1);
+  markDirty(selectedId.value);
+}
+
+const showcaseCharacterThumb = (char) => resolveSkinAsset(char.key, char.src || '');
 
 // 状态
 const dirtyCount = computed(() => dirtyIds.size);
@@ -678,6 +872,12 @@ const heroStatus = (hero) => {
 const getThumbUrl = (hero) => {
   if (hero.template === 'responsive') return hero.image_config.landscapeSrc || hero.image_config.portraitSrc || '';
   if (hero.template === 'split') return hero.split_cards?.[0]?.image_config?.src || '';
+  if (hero.template === 'showcase') {
+    const firstChar = hero.showcase_config?.characters?.[0];
+    return hero.showcase_config?.cover_src
+      || (firstChar ? resolveSkinAsset(firstChar.key, firstChar.src || '') : '')
+      || '';
+  }
   return hero.image_config.src || '';
 };
 
@@ -857,11 +1057,17 @@ const cloneContentLayout = (layout) => layout ? {
   mobile: layout.mobile ? { ...layout.mobile } : null
 } : null;
 
+const cloneShowcaseConfig = (config) => config ? {
+  ...config,
+  characters: (config.characters || []).map((c) => ({ ...c }))
+} : null;
+
 const cloneHero = (hero) => ({
   ...hero,
   image_config: { ...hero.image_config },
   content_layout: cloneContentLayout(hero.content_layout),
   links: (hero.links || []).map(l => ({ ...l })),
+  showcase_config: cloneShowcaseConfig(hero.showcase_config),
   split_cards: (hero.split_cards || []).map(c => ({
     ...c,
     image_config: { ...c.image_config },
@@ -965,6 +1171,7 @@ function startNewHero() {
     image_config: { src: '', alt: '' },
     content_layout: { desktop: { ...defaultContentLayout }, mobile: null },
     links: [],
+    showcase_config: createDefaultShowcaseConfig(),
     split_cards: [
       { title: '卡片一', subtitle: '', variant: 'light', image_config: { src: '', alt: '' }, content_layout: { ...defaultContentLayout }, links: [] },
       { title: '卡片二', subtitle: '', variant: 'light', image_config: { src: '', alt: '' }, content_layout: { ...defaultContentLayout }, links: [] }
@@ -1045,6 +1252,8 @@ async function saveCurrent() {
     content_layout: draft.content_layout || null,
     links: draft.links,
     split_cards: draft.template === 'split' ? draft.split_cards : null,
+    // 数据库字段为 NOT NULL；非 showcase 模板保存为空对象而不是 null。
+    showcase_config: draft.template === 'showcase' ? (draft.showcase_config || {}) : {},
     label: draft.label || null,
     aria_label: draft.aria_label || null
   };
@@ -1203,7 +1412,7 @@ function compressionToast(result) {
   return '图片已上传';
 }
 
-async function openDirectUpload(type, splitIndex = -1) {
+async function openDirectUpload(type, index = -1) {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/png,image/jpeg,image/webp';
@@ -1227,8 +1436,8 @@ async function openDirectUpload(type, splitIndex = -1) {
       });
       if (!uploaded.url) throw new Error('上传成功但未返回图片地址');
       if (type === 'split') {
-        if (draftHero.value.split_cards[splitIndex]) {
-          draftHero.value.split_cards[splitIndex].image_config.src = uploaded.url;
+        if (draftHero.value.split_cards[index]) {
+          draftHero.value.split_cards[index].image_config.src = uploaded.url;
         }
       } else if (type === 'mobile') {
         draftHero.value.image_config.mobile_src = uploaded.url;
@@ -1236,6 +1445,12 @@ async function openDirectUpload(type, splitIndex = -1) {
         draftHero.value.image_config.landscapeSrc = uploaded.url;
       } else if (type === 'portrait') {
         draftHero.value.image_config.portraitSrc = uploaded.url;
+      } else if (type === 'cover') {
+        const config = ensureShowcaseConfig();
+        if (config) config.cover_src = uploaded.url;
+      } else if (type === 'character') {
+        const config = ensureShowcaseConfig();
+        if (config?.characters[index]) config.characters[index].src = uploaded.url;
       } else {
         draftHero.value.image_config.src = uploaded.url;
       }
@@ -1276,6 +1491,14 @@ async function handleCropConfirm(blob) {
       draftHero.value.image_config.landscapeSrc = url;
     } else if (cropTarget.value.type === 'portrait') {
       draftHero.value.image_config.portraitSrc = url;
+    } else if (cropTarget.value.type === 'cover') {
+      const config = ensureShowcaseConfig();
+      if (config) config.cover_src = url;
+    } else if (cropTarget.value.type === 'character') {
+      const config = ensureShowcaseConfig();
+      if (config?.characters[cropTarget.value.splitIndex]) {
+        config.characters[cropTarget.value.splitIndex].src = url;
+      }
     } else {
       draftHero.value.image_config.src = url;
     }
@@ -1306,6 +1529,11 @@ watch([selectedId, showRevisions], async ([id, show]) => {
   revisionsLoading.value = true;
   revisions.value = await homeHeroesStore.fetchRevisions(id);
   revisionsLoading.value = false;
+});
+
+// 旧数据切换到 showcase 模板时补齐默认配置
+watch(() => draftHero.value?.template, (tpl) => {
+  if (tpl === 'showcase' && draftHero.value) ensureShowcaseConfig();
 });
 
 watch([draftHero, previewDevice], () => {
