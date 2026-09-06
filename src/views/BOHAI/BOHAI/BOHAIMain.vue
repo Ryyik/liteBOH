@@ -410,7 +410,8 @@
 
                         <div class="input-right">
                             <div class="composer-mode-picker" @click.stop>
-                                <button type="button" class="composer-mode-button" :class="{ open: modeMenuOpen }"
+                                <button type="button" class="composer-mode-button"
+                                    :class="{ open: modeMenuOpen, loading: chatModesLoading }"
                                     :title="currentMode.description || currentMode.tagline"
                                     :aria-expanded="modeMenuOpen" aria-haspopup="menu" @click.stop="toggleModeMenu">
                                     <span>{{ currentMode.name }}</span>
@@ -418,20 +419,32 @@
                                 </button>
                                 <div v-show="modeMenuOpen" class="composer-mode-menu" role="menu"
                                     aria-label="选择 BOH AI 模式" @click.stop>
+                                    <div v-if="chatModesLoading" class="composer-mode-menu-loading" aria-live="polite">
+                                        <div v-for="i in 3" :key="`mode-skeleton-row-${i}`" class="mode-skeleton-row">
+                                            <span class="mode-skeleton-line" :class="{ short: i === 3 }"
+                                                aria-hidden="true"></span>
+                                            <span class="mode-skeleton-tail" aria-hidden="true"></span>
+                                        </div>
+                                        <p class="mode-menu-loading-hint">模式加载中…</p>
+                                    </div>
+                                    <div v-else-if="filteredChatModes.length === 0" class="mode-menu-empty">
+                                        暂无可用模式
+                                    </div>
                                     <button v-for="(mode, index) in filteredChatModes" :key="mode.id" type="button"
                                         class="composer-mode-option" :class="{ active: currentModeId === mode.id }"
                                         role="menuitemradio" :aria-checked="currentModeId === mode.id"
                                         :data-mode-id="mode.id" :data-mode-index="index"
                                         @click.stop="selectMode(mode.id)">
                                         <span class="mode-option-main">
-                                            <span class="mode-option-name">
-                                                <strong>{{ mode.name }}</strong>
-                                                <span v-if="mode.quotaMultiplier > 1" class="mode-option-multiplier"
-                                                    :title="`该模式消耗倍率为 ${mode.quotaMultiplier}x，会使用更多 Token`">
-                                                    {{ mode.quotaMultiplier }}x
+                                            <strong>{{ mode.name }}</strong>
+                                            <span class="mode-option-meta">
+                                                <span class="mode-option-multiplier"
+                                                    :title="`该模式消耗倍率为 ${formatQuotaMultiplier(mode.quotaMultiplier)}x`">
+                                                    {{ formatQuotaMultiplier(mode.quotaMultiplier) }}x
                                                 </span>
+                                                <Check v-if="currentModeId === mode.id" class="mode-option-check"
+                                                    :size="15" aria-hidden="true" />
                                             </span>
-                                            <small>{{ mode.tagline }}</small>
                                         </span>
                                     </button>
                                     <div class="mode-menu-footer">
@@ -490,7 +503,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, nextTick, watch, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
-import { Plus, Trash2, Square, Globe, Cloud, Search, X, ChevronDown, Copy, ThumbsUp, ThumbsDown, MoreHorizontal, ArrowUp, CheckCircle2, LoaderCircle, Circle, PanelLeft, Settings2, AlertCircle, RotateCcw, Archive, FileText, HeartPulse } from 'lucide-vue-next';
+import { Plus, Trash2, Square, Globe, Cloud, Search, X, ChevronDown, Copy, ThumbsUp, ThumbsDown, MoreHorizontal, ArrowUp, Check, CheckCircle2, LoaderCircle, Circle, PanelLeft, Settings2, AlertCircle, RotateCcw, Archive, FileText, HeartPulse } from 'lucide-vue-next';
 import { useChatEngine } from '../composables/useChatEngine';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
@@ -720,6 +733,7 @@ const {
     isSharedMemoryEnabled,
     rateLimitMessage,
     chatModes,
+    chatModesLoading,
     messages,
     contextBudgetUsage,
     isCompressingContext,
@@ -843,6 +857,18 @@ const appendToComposer = (text) => {
     nextTick(() => {
         autoResize();
         textareaRef.value?.focus();
+    });
+};
+
+// 供外部（灵动岛/健康页种子提问）直接预填并立即发送。
+// 上一轮改动只在 defineExpose 里引用了该函数却未定义，导致 setup 抛
+// ReferenceError，整个 AI 聊天入口（/ai-chat 与灵动岛）无法挂载。
+const appendAndSend = (text) => {
+    const content = String(text || '').trim();
+    if (!content) return;
+    appendToComposer(content);
+    nextTick(() => {
+        Promise.resolve(sendMessage()).catch((err) => logger.error('bohai', 'Seed prompt send failed', err));
     });
 };
 
@@ -1590,6 +1616,13 @@ const closeModeMenu = () => {
     }
 };
 
+// 消耗倍率显示：去掉多余的尾零（1.00 → 1，0.50 → 0.5，0.06 → 0.06）
+const formatQuotaMultiplier = (value) => {
+    const num = Number(value);
+    if (!Number.isFinite(num) || num <= 0) return '1';
+    return String(parseFloat(num.toFixed(2)));
+};
+
 const formatActionAudit = (audit) => {
     if (!audit) return '';
     const status = audit.ok ? '成功' : '失败';
@@ -1874,6 +1907,7 @@ const runSlashCommand = async (command) => {
     }
     if (command.action === 'health') {
         isHealthAnalysisEnabled.value = true;
+        isHealthAnalysisDismissed.value = false;
         emitIslandMessage({
             title: '已开启健康分析',
             message: '接下来的回答会带上你的 BOH Health 数据，点输入框上的「健康分析」标签可关闭',
@@ -2141,6 +2175,7 @@ defineExpose({
     startTemporaryChat,
     focusComposer,
     appendToComposer,
+    appendAndSend,
     setAttachedContext,
     clearAttachedContext,
     handleEscapeLayer,
@@ -2181,8 +2216,8 @@ watch(() => messages.value.length, () => {
     padding: 16px 18px;
     border-radius: 14px;
     background: rgba(255, 255, 255, 0.55);
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+    backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
     border: 1px solid rgba(255, 255, 255, 0.7);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }

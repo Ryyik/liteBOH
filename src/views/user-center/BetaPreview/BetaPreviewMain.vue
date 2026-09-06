@@ -169,8 +169,8 @@ onMounted(() => {
   border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.62);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
+  -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.75),
     0 1px 2px rgba(16, 24, 40, 0.03),
@@ -258,8 +258,8 @@ onMounted(() => {
   border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.66);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
+  -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.75),
     0 1px 2px rgba(16, 24, 40, 0.03),

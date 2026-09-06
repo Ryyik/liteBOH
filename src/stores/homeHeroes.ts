@@ -559,11 +559,13 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
       if (revError) throw revError
       const revisionId = revisionData?.id
       try {
-        // 2. 更新状态为 published
+        // 2. 更新状态为 published（发布即视为取消归档，否则 fetchPublished 的
+        //    is_archived=false 过滤会让"已发布"的英雄永远不上首页）
         const { error: updateError } = await supabase
           .from('home_heroes')
           .update({
             status: 'published',
+            is_archived: false,
             published_at: new Date().toISOString(),
             published_by: userId || null,
             updated_at: new Date().toISOString()
@@ -583,6 +585,7 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
         allHeroes.value[idx] = {
           ...allHeroes.value[idx],
           status: 'published',
+          is_archived: false,
           published_at: new Date().toISOString()
         }
       }

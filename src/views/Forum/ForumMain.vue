@@ -1,5 +1,5 @@
 <script setup>
-import { ref, shallowRef, computed, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, reactive, watch, triggerRef } from 'vue';
+import { ref, shallowRef, computed, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, watch, triggerRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   Check,
@@ -19,7 +19,6 @@ import ForumToolbar from './components/ForumToolbar.vue';
 import ForumImageViewer from './components/ForumImageViewer.vue';
 import WeeklyCheckinCalendar from './components/WeeklyCheckinCalendar.vue';
 import NotificationDrawer from './components/NotificationDrawer.vue';
-import ForumPublishIsland from './components/ForumPublishIsland.vue';
 import { useForumPublishQueueStore } from '@/stores/forumPublishQueue.js';
 import { useForumImageModerationPreload } from './composables/useForumImageModerationPreload.js';
 import { useForumPostDraftStorage } from './composables/useForumPostDraftStorage.js';
@@ -108,7 +107,7 @@ import {
 } from '../../utils/api/forum-api.js';
 import { uploadApprovedForumImageQueued } from '../../utils/api/forum-api.js';
 import { useAppMode } from '@/composables/useAppMode.js';
-import { showGlobalNavStatus } from '@/composables/useGlobalNavStatus.js';
+import { showIsland } from '@/composables/useIsland.js';
 import {
   getUserNotifications,
   markNotificationAsRead,
@@ -545,27 +544,6 @@ const postLocation = ref(null);
 const isUploadingPostImage = ref(false);
 const postImageUploadStatus = ref('');
 const { isBeta5 } = useAppMode();
-const stagedSubmitState = reactive({
-  stage: 'idle',
-  progress: 0,
-  imageIndex: 0,
-  totalImages: 0,
-  message: '',
-  submissionId: '',
-  submissionFingerprint: ''
-});
-const isStagedSubmitting = computed(() => (
-  ['compress', 'detect', 'upload', 'publish'].includes(stagedSubmitState.stage)
-));
-const resetStagedSubmitState = () => {
-  stagedSubmitState.stage = 'idle';
-  stagedSubmitState.progress = 0;
-  stagedSubmitState.imageIndex = 0;
-  stagedSubmitState.totalImages = 0;
-  stagedSubmitState.message = '';
-  stagedSubmitState.submissionId = '';
-  stagedSubmitState.submissionFingerprint = '';
-};
 const createSubmissionId = () => (
   globalThis.crypto?.randomUUID?.()
   || `00000000-0000-4000-8000-${`${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`.slice(-12).padStart(12, '0')}`
@@ -576,21 +554,89 @@ const publishQueueItems = computed(() => publishQueueStore.items);
 let publishWorkerRunning = false;
 const publishAbortControllers = new Map();
 const showPublishIsland = (payload) => {
-  const detail = { ...payload, at: Date.now() };
-  // 优先走全局灵动岛（#unified-nav-container 存在时）
-  const dispatched = (() => {
-    try {
-      const hasNav = typeof document !== 'undefined' && document.getElementById('unified-nav-container');
-      if (!hasNav) return false;
-      window.dispatchEvent(new CustomEvent('boh_global_nav_status', { detail }));
-      return true;
-    } catch { return false; }
-  })();
-  if (!dispatched) {
-    // 嵌入模式 fallback 到外层 UserSpace 的 island-message
-    showEmbeddedSuccessIsland(payload);
-  }
+  // 统一走灵动岛调度中心；导航栏不存在时（嵌入模式）fallback 到外层 UserSpace 的 island-message
+  showIsland.notify({
+    ...payload,
+    at: Date.now(),
+    fallback: () => showEmbeddedSuccessIsland(payload)
+  });
 };
+
+// ===== 发布队列 → 统一任务岛（showIsland.task）同步 =====
+// 常驻进度岛：进行中显示进度环，成功自动收起，失败常驻并带操作按钮
+let publishTaskHandle = null;
+let publishTaskHandleId = '';
+const PUBLISH_TASK_ACTIONS = {
+  moderation: [
+    { id: 'fix', label: '移除该图', kind: 'danger' },
+    { id: 'edit', label: '编辑', kind: 'ghost' },
+    { id: 'cancel', label: '取消', kind: 'ghost' }
+  ],
+  network: [
+    { id: 'retry', label: '重试', kind: 'primary' },
+    { id: 'edit', label: '编辑', kind: 'ghost' },
+    { id: 'cancel', label: '取消', kind: 'ghost' }
+  ]
+};
+watch(publishQueueItems, (items) => {
+  const active = items.find(i => ['queued','uploading','publishing'].includes(i.state))
+    || items.find(i => i.state === 'failed')
+    || items[0]
+    || null;
+  if (!active) {
+    publishTaskHandle?.close();
+    publishTaskHandle = null;
+    publishTaskHandleId = '';
+    return;
+  }
+  const queueId = String(active.id);
+  if (publishTaskHandleId !== queueId || !publishTaskHandle) {
+    publishTaskHandle?.close();
+    publishTaskHandle = showIsland.task({
+      id: `forum-publish-${queueId}`,
+      onAction: (actionId) => {
+        if (actionId === 'retry') retryPublish(queueId);
+        else if (actionId === 'fix') fixModerationPublish(queueId);
+        else if (actionId === 'edit') editFailedPublish(queueId);
+        else if (actionId === 'cancel') cancelPublish(queueId);
+      }
+    });
+    publishTaskHandleId = queueId;
+  }
+
+  const progress = Math.round(active.progress || 0);
+  const thumbs = (active.images || [])
+    .map(i => String(i.localPreviewUrl || i.url || '').trim())
+    .filter(Boolean)
+    .slice(0, 3);
+
+  if (active.state === 'success') {
+    publishTaskHandle.success({ title: '发帖成功', message: '已发布', durationMs: 900 });
+  } else if (active.state === 'failed') {
+    const isModeration = active.failType === 'moderation';
+    const detail = String(active.errorMessage || '').trim();
+    publishTaskHandle.fail({
+      tone: isModeration ? 'warning' : 'danger',
+      title: isModeration ? '审核未通过' : '发布失败',
+      message: detail ? detail.slice(0, 60) : (isModeration ? '点击处理' : '点击重试'),
+      actions: isModeration ? PUBLISH_TASK_ACTIONS.moderation : PUBLISH_TASK_ACTIONS.network
+    });
+  } else if (active.state === 'queued') {
+    publishTaskHandle.update({ title: '已提交，后台处理中', message: '系统会继续处理', progress, thumbs });
+  } else {
+    publishTaskHandle.update({
+      title: '正在处理',
+      message: active.images?.length ? `正在处理图片 · ${progress}%` : `审核中 · ${progress}%`,
+      progress,
+      thumbs
+    });
+  }
+}, { deep: true });
+onUnmounted(() => {
+  publishTaskHandle?.close();
+  publishTaskHandle = null;
+  publishTaskHandleId = '';
+});
 const buildOptimisticPost = (queueItem) => {
   const nowIso = new Date().toISOString();
   const previewImages = (queueItem.images || []).slice(0, 6).map((img, idx) => ({
@@ -632,6 +678,7 @@ const buildOptimisticPost = (queueItem) => {
     _publishState: queueItem.state,
     _progress: queueItem.progress,
     _failType: queueItem.failType,
+    _failMessage: queueItem.errorMessage || '',
     _failedImageIndex: queueItem.failedImageIndex
   }, 0);
 };
@@ -664,6 +711,7 @@ const updateOptimisticPost = (queueId, patch={}) => {
         _publishState: q.state,
         _progress: q.progress,
         _failType: q.failType,
+        _failMessage: q.errorMessage || '',
         _failedImageIndex: q.failedImageIndex,
         previewImages: rebuilt.previewImages
       });
@@ -711,9 +759,11 @@ const replaceOptimisticWithReal = (queueId, realPost) => {
 const getQueueItemErrorType = (error) => {
   const msg = String(error?.message||'').toLowerCase();
   const code = String(error?.code||'').toUpperCase();
-  // 审核类：本地关键词、同步审核、NSFW 未通过
+  // 审核类：仅限真正的判定未通过（本地关键词、同步审核、NSFW 判定失败）
   if (['LOCAL_KEYWORD_BLOCK','SYNC_MODERATION_BLOCK','BETA5_IMAGE_PIPELINE_FAILED'].includes(code)) return 'moderation';
-  if (msg.includes('安全检测') || msg.includes('未通过') || msg.includes('敏感') || msg.includes('审核')) return 'moderation';
+  if (msg.includes('未通过') || msg.includes('敏感') || msg.includes('审核')) return 'moderation';
+  // 检测环境不可用（模型加载失败/超时/WebGL 挂起）按网络类处理，允许直接重试
+  if (['IMAGE_MODERATION_UNAVAILABLE','IMAGE_MODERATION_TIMEOUT'].includes(code)) return 'network';
   if (isLikelyNetworkError(error)) return 'network';
   return 'network';
 };
@@ -721,82 +771,115 @@ const processPublishImagesForQueue = async (queueItem, signal) => {
   const pending = (queueItem.images||[]).filter(img=> img?.file && img.uploadStatus!=='approved');
   const total = pending.length;
   if (!total) return queueItem.images;
-  // 初始化进度
+  // 流水线进度模型：2-42% 压缩+检测（串行，GPU），42-82% 上传（后台流水线，网络）。
+  // 上传与下一张的检测重叠执行，多图帖总耗时 ≈ max(检测串行和, 上传串行和) 而非两者相加。
   publishQueueStore.setProgress(queueItem.id, 2);
+  const setProg = (v) => {
+    publishQueueStore.setProgress(queueItem.id, v);
+    updateOptimisticPost(queueItem.id, { _progress: v });
+  };
+  const replaceUploadedImage = (uploadId, data) => {
+    const qIdx = publishQueueStore.items.findIndex(i=>i.id===queueItem.id);
+    if (qIdx<0) return;
+    const curItem = publishQueueStore.items[qIdx];
+    const imgIdx = curItem.images.findIndex(x=> x.uploadId===uploadId);
+    if (imgIdx<0) return;
+    const nextImages=[...curItem.images];
+    nextImages[imgIdx]={ ...data, uploadStatus:'approved', sortOrder: imgIdx, file: null, localPreviewUrl: data.url || nextImages[imgIdx].localPreviewUrl };
+    publishQueueStore.updateItem(queueItem.id, { images: nextImages });
+  };
+  const markImageFailure = (img, failIdx, error) => {
+    const failType = getQueueItemErrorType(error);
+    publishQueueStore.updateItem(queueItem.id, {
+      failType: failType==='moderation' ? 'moderation' : 'network',
+      failedImageIndex: failIdx,
+      failedImageId: img?.uploadId || null,
+      errorMessage: error?.message || '图片处理失败'
+    });
+    updateOptimisticPost(queueItem.id, { _publishState:'failed', _failType: failType==='moderation'?'moderation':'network', _failMessage: error?.message || '图片处理失败', _failedImageIndex: failIdx });
+    const wrapped = new Error(error?.message || '图片处理失败');
+    wrapped.code = error?.code || (failType==='moderation' ? 'BETA5_IMAGE_PIPELINE_FAILED' : 'IMAGE_UPLOAD_FAILED');
+    wrapped.failType = failType;
+    return wrapped;
+  };
+
+  // 在途上传任务：fraction 为单张上传进度 0-1，done 表示已落库替换
+  const uploadTasks = [];
+  let preparedCount = 0;
+  let currentPrepareFraction = 0; // 当前张压缩+检测进度 0-1
+  let prepareError = null; // { img, failIdx, error }
+  const recalcProgress = () => {
+    const uploadAgg = uploadTasks.reduce((acc,t)=> acc + (t.done ? 1 : Math.min(1, Number(t.fraction||0))), 0);
+    setProg(2 + ((preparedCount + Math.min(1, currentPrepareFraction))/total)*40 + (uploadAgg/total)*40);
+  };
+
   for (let idx=0; idx<pending.length; idx++) {
     if (signal?.aborted) throw Object.assign(new Error('已取消'), { code:'PUBLISH_CANCELLED' });
     const img = pending[idx];
-    const imageStart = (idx/total)*82;
-    const imageSpan = 82/total;
-    const updateProgressForPhase = (phase, phaseProgress) => {
-      // phase: compress 0-0.32, moderate 0.32-0.58, upload 0.58-1
-      let offset = 0;
-      if (phase==='compress') offset = imageSpan*0.32*(Number(phaseProgress||0)/100);
-      else if (phase==='moderate') offset = imageSpan*0.32 + imageSpan*0.26*(Number(phaseProgress||0)/100);
-      else if (phase==='upload') offset = imageSpan*0.58 + imageSpan*0.42*(Number(phaseProgress||0)/100);
-      const prog = imageStart + offset;
-      publishQueueStore.setProgress(queueItem.id, prog);
-      updateOptimisticPost(queueItem.id, { _progress: prog });
-    };
+    const imgFailIdx = (queueItem.images||[]).findIndex(x=> x.uploadId===img.uploadId);
+    currentPrepareFraction = 0;
     try {
-      // 1) 压缩/优化（进度 0-32% of image）
-      updateProgressForPhase('compress', 0);
+      // 1) 压缩/优化（主循环内，GPU/CPU 串行）
       const file = await prepareForumImageForUpload(img.file, idx, total, img.uploadId, {
-        onProgress: (p)=> updateProgressForPhase('compress', p),
+        onProgress: (p)=> { currentPrepareFraction = Number(p||0)/100 * 0.75; recalcProgress(); },
         signal
       });
-      // 2) 检测（32-58%）
-      updateProgressForPhase('moderate', 0);
-      // 将检测进度模拟为 0->100 快速推进
-      updateProgressForPhase('moderate', 40);
+      // 2) 检测（GPU 串行，主循环内）
+      currentPrepareFraction = 0.75;
+      recalcProgress();
       const moderation = await moderateForumImage(file);
       if (moderation.status!=='approved') {
         const err = new Error(moderation.reason || '图片未通过安全检测');
         err.code='BETA5_IMAGE_PIPELINE_FAILED';
         throw err;
       }
-      updateProgressForPhase('moderate', 100);
-      // 3) 上传（58-100%）
-      updateProgressForPhase('upload', 0);
-      const result = await uploadApprovedForumImageQueued(file, moderation, {
-        onProgress: (p)=> updateProgressForPhase('upload', p),
+      currentPrepareFraction = 1;
+      // 3) 上传（网络）交给后台流水线，主循环立刻准备下一张；上传队列内部仍串行避免限流
+      const task = { img, failIdx: imgFailIdx>=0? imgFailIdx : idx, fraction: 0, done: false, promise: null };
+      task.promise = uploadApprovedForumImageQueued(file, moderation, {
+        onProgress: (p)=> { task.fraction = Number(p||0)/100; recalcProgress(); },
         signal
-      });
-      if (!result.ok) {
-        if (result.error?.code==='CLOUDINARY_UPLOAD_RATE_LIMIT') applyImageUploadRateLimitCooldown(result.error);
-        throw result.error || new Error('图片上传失败');
-      }
-      // 成功：用服务端返回的图替换
-      const qIdx = publishQueueStore.items.findIndex(i=>i.id===queueItem.id);
-      if (qIdx>=0) {
-        const curItem = publishQueueStore.items[qIdx];
-        const imgIdx = curItem.images.findIndex(x=> x.uploadId===img.uploadId);
-        if (imgIdx>=0) {
-          const nextImages=[...curItem.images];
-          nextImages[imgIdx]={ ...result.data, uploadStatus:'approved', sortOrder: imgIdx, file: null, localPreviewUrl: result.data.url || nextImages[imgIdx].localPreviewUrl };
-          publishQueueStore.updateItem(queueItem.id, { images: nextImages });
+      }).then((result)=>{
+        if (!result.ok) {
+          if (result.error?.code==='CLOUDINARY_UPLOAD_RATE_LIMIT') applyImageUploadRateLimitCooldown(result.error);
+          throw result.error || new Error('图片上传失败');
         }
-      }
-      updateProgressForPhase('upload', 100);
+        replaceUploadedImage(img.uploadId, result.data);
+        task.done = true;
+        recalcProgress();
+        return result.data;
+      });
+      uploadTasks.push(task);
+      // 防 unhandled rejection：取消/中断时在途上传的失败由 allSettled 或此处兜底
+      task.promise.catch(() => {});
     } catch (error) {
       if (error?.code==='PUBLISH_CANCELLED' || signal?.aborted) throw error;
-      // 标记失败图索引
-      const failIdx = (queueItem.images||[]).findIndex(x=> x.uploadId===img.uploadId);
-      const failType = getQueueItemErrorType(error);
-      publishQueueStore.updateItem(queueItem.id, {
-        failType: failType==='moderation' ? 'moderation' : 'network',
-        failedImageIndex: failIdx>=0? failIdx : idx,
-        failedImageId: img.uploadId,
-        errorMessage: error?.message || '图片处理失败'
-      });
-      // 同步到乐观卡：标记对应图失败
-      updateOptimisticPost(queueItem.id, { _publishState:'failed', _failType: failType==='moderation'?'moderation':'network', _failedImageIndex: failIdx>=0?failIdx:idx });
-      const wrapped = new Error(error?.message || '图片处理失败');
-      wrapped.code = error?.code || (failType==='moderation' ? 'BETA5_IMAGE_PIPELINE_FAILED' : 'IMAGE_UPLOAD_FAILED');
-      wrapped.failType = failType;
-      throw wrapped;
+      // 压缩/检测失败：停止准备后续图，但在途上传会继续完成（成功结果保留，重试不用重传）
+      prepareError = { img, failIdx: imgFailIdx>=0? imgFailIdx : idx, error };
+      break;
+    }
+    preparedCount += 1;
+    currentPrepareFraction = 0;
+    recalcProgress();
+  }
+
+  // 等待所有在途上传结束（含失败）
+  const settled = uploadTasks.length ? await Promise.allSettled(uploadTasks.map(t=>t.promise)) : [];
+  if (signal?.aborted) throw Object.assign(new Error('已取消'), { code:'PUBLISH_CANCELLED' });
+
+  // 失败归因：优先压缩/检测错误；否则取第一个上传失败
+  if (!prepareError) {
+    const rejectedIdx = settled.findIndex(r=> r.status==='rejected');
+    if (rejectedIdx>=0) {
+      const task = uploadTasks[rejectedIdx];
+      prepareError = { img: task?.img || pending[rejectedIdx], failIdx: task?.failIdx ?? rejectedIdx, error: settled[rejectedIdx].reason };
     }
   }
+  if (prepareError) {
+    throw markImageFailure(prepareError.img, prepareError.failIdx, prepareError.error);
+  }
+
+  setProg(82);
   const finalItem = publishQueueStore.items.find(i=>i.id===queueItem.id);
   return finalItem ? finalItem.images : queueItem.images;
 };
@@ -890,7 +973,7 @@ const runPublishQueue = async () => {
           failedImageIndex: publishQueueStore.items.find(i=>i.id===next.id)?.failedImageIndex ?? null
         });
         publishQueueStore.setProgress(next.id, Math.max(12, Number(publishQueueStore.items.find(i=>i.id===next.id)?.progress||62)));
-        updateOptimisticPost(next.id, { _publishState:'failed', _failType: isMod?'moderation':'network' });
+        updateOptimisticPost(next.id, { _publishState:'failed', _failType: isMod?'moderation':'network', _failMessage: error?.message || (isMod ? '图片未通过审核' : '网络异常，发送失败') });
         // 失败态由常驻岛展示（橙/红常驻需操作），不再发瞬时岛
         break; // 中断队列，等待用户操作后继续
       }
@@ -966,6 +1049,27 @@ const fixModerationPublish = async (queueId) => {
   updateOptimisticPost(queueId, { _publishState:'queued', _failType:null, _progress: Math.max(18, Number(item.progress||0)-10) });
   // 移除后由常驻岛恢复发送态
   void runPublishQueue();
+};
+// 发布失败后取回内容重新编辑：快照（含未上传的本地图片）交还编辑器，队列项与乐观卡移除
+const editFailedPublish = (queueId) => {
+  const item = publishQueueStore.items.find(i=>i.id===queueId);
+  if (!item) return;
+  const controller = publishAbortControllers.get(queueId);
+  if (controller) { try{ controller.abort(); }catch{} publishAbortControllers.delete(queueId); }
+  newPost.value.title = String(item.title || '');
+  newPost.value.content = String(item.body || '');
+  selectedPostTag.value = item.tag || 'daily';
+  postLocation.value = item.location ? { ...item.location } : null;
+  // 已上传成功的图保留 approved 状态（带云端 url，重发时跳过上传），
+  // 未完成的图保留 file + 本地预览，重发时由队列重新走压缩/检测/上传
+  postImages.value = normalizePostImageSortState((item.images || []).map((img, idx) => ({ ...img, sortOrder: idx })));
+  postImageUploadStatus.value = '';
+  publishQueueStore.removeItem(queueId);
+  removeOptimisticPost(queueId);
+  // 打开编辑器（移动端）
+  if (isMobileComposerMode.value) {
+    isMobileComposerOpen.value = true;
+  }
 };
 const isForumImageViewerOpen = ref(false);
 const forumImageViewerImages = ref([]);
@@ -1361,7 +1465,7 @@ const ensureCanAddPostImage = () => {
     showModal('warning', '图片上传太频繁', `请 ${imageUploadCooldownLabel.value}`);
     return false;
   }
-  if (isUploadingPostImage.value || isSubmitting.value || isStagedSubmitting.value) return false;
+  if (isUploadingPostImage.value || isSubmitting.value) return false;
   return true;
 };
 
@@ -1503,6 +1607,8 @@ const handlePostImageSelection = async (payload) => {
   if (isBeta5.value) {
     // Beta 5 keeps selection as a local-only draft until the user submits.
     postImageUploadStatus.value = '';
+    // 选图后后台队列必然要跑 NSFW 检测，提前预载模型省一次首次等待
+    scheduleForumImageModerationPreload({ immediate: true });
     return;
   }
 
@@ -1638,122 +1744,6 @@ const prepareForumImageForUpload = async (file, fileIndex, totalCount, uploadId 
     uploadStatusLabel: '待审核'
   });
   return compressedFile;
-};
-
-const setStagedSubmitProgress = ({ stage, progress, imageIndex = 0, totalImages = 0, message = '' }) => {
-  stagedSubmitState.stage = stage;
-  stagedSubmitState.progress = Math.max(0, Math.min(100, Number(progress || 0)));
-  stagedSubmitState.imageIndex = imageIndex;
-  stagedSubmitState.totalImages = totalImages;
-  stagedSubmitState.message = message;
-  postImageUploadStatus.value = message;
-};
-
-const failStagedPostImage = (uploadId, error, fallbackMessage) => {
-  const message = error?.message || fallbackMessage;
-  updatePendingPostImage(uploadId, {
-    uploadStatus: 'failed',
-    uploadStatusLabel: '未通过',
-    uploadError: message
-  });
-  const stagedError = new Error(message);
-  stagedError.code = 'BETA5_IMAGE_PIPELINE_FAILED';
-  throw stagedError;
-};
-
-const processStagedPostImages = async () => {
-  const pendingImages = postImages.value.filter((image) => (
-    image?.file && image.uploadStatus !== 'approved'
-  ));
-  const totalImages = pendingImages.length;
-  if (!totalImages) return postImages.value;
-
-  for (const [index, image] of pendingImages.entries()) {
-    const displayIndex = index + 1;
-    const imageStart = (index / totalImages) * 85;
-    const imageSpan = 85 / totalImages;
-    const compressEnd = imageStart + imageSpan * 0.3;
-    const detectEnd = imageStart + imageSpan * 0.6;
-
-    setStagedSubmitProgress({
-      stage: 'compress',
-      progress: imageStart,
-      imageIndex: displayIndex,
-      totalImages,
-      message: `正在准备图片 ${displayIndex}/${totalImages}`
-    });
-    updatePendingPostImage(image.uploadId, { uploadStatus: 'optimizing', uploadStatusLabel: '处理中' });
-    let fallbackMessage = '图片压缩处理失败';
-    try {
-      const file = await prepareForumImageForUpload(image.file, index, totalImages, image.uploadId, {
-        onProgress: (phaseProgress) => {
-          setStagedSubmitProgress({
-            stage: 'compress',
-            progress: imageStart + imageSpan * 0.3 * (Number(phaseProgress || 0) / 100),
-            imageIndex: displayIndex,
-            totalImages,
-            message: `正在准备图片 ${displayIndex}/${totalImages}`
-          });
-        }
-      });
-      setStagedSubmitProgress({
-        stage: 'compress',
-        progress: compressEnd,
-        imageIndex: displayIndex,
-        totalImages,
-        message: `正在检测图片 ${displayIndex}/${totalImages}`
-      });
-      updatePendingPostImage(image.uploadId, { uploadStatus: 'moderating', uploadStatusLabel: '检测中' });
-      fallbackMessage = '图片安全检测失败';
-      setStagedSubmitProgress({
-        stage: 'detect',
-        progress: compressEnd,
-        imageIndex: displayIndex,
-        totalImages,
-        message: `正在检测图片 ${displayIndex}/${totalImages}`
-      });
-      const moderation = await moderateForumImage(file);
-      if (moderation.status !== 'approved') {
-        throw new Error(moderation.reason || '图片未通过安全检测');
-      }
-      updatePendingPostImage(image.uploadId, { uploadStatus: 'uploading', uploadStatusLabel: '上传中' });
-      fallbackMessage = '图片上传失败';
-      setStagedSubmitProgress({
-        stage: 'upload',
-        progress: detectEnd,
-        imageIndex: displayIndex,
-        totalImages,
-        message: `正在上传图片 ${displayIndex}/${totalImages}`
-      });
-      const result = await uploadApprovedForumImageQueued(file, moderation, {
-        onProgress: (phaseProgress) => {
-          setStagedSubmitProgress({
-            stage: 'upload',
-            progress: detectEnd + imageSpan * 0.4 * (Number(phaseProgress || 0) / 100),
-            imageIndex: displayIndex,
-            totalImages,
-            message: `正在上传图片 ${displayIndex}/${totalImages}`
-          });
-        }
-      });
-      if (!result.ok) {
-        applyImageUploadRateLimitCooldown(result.error);
-        throw result.error || new Error(fallbackMessage);
-      }
-      replacePendingPostImage(image.uploadId, result.data);
-      setStagedSubmitProgress({
-        stage: 'upload',
-        progress: imageStart + imageSpan,
-        imageIndex: displayIndex,
-        totalImages,
-        message: `已处理图片 ${displayIndex}/${totalImages}`
-      });
-    } catch (error) {
-      failStagedPostImage(image.uploadId, error, fallbackMessage);
-    }
-  }
-
-  return postImages.value;
 };
 
 const normalizePostImageSortState = (images = []) => {
@@ -2061,6 +2051,8 @@ onUnmounted(() => {
 
 watch(isMobileComposerOpen, (isOpen) => {
   document.body.style.overflow = isOpen ? 'hidden' : '';
+  // 用户打开编辑器即为发图意图信号，移动端此时才开始预载检测模型
+  if (isOpen) scheduleForumImageModerationPreload({ immediate: true });
 });
 
 // 监听弹窗状态，控制 body 滚动
@@ -2892,7 +2884,7 @@ const showCheckinSuccessIsland = (message) => {
   };
 
   if (showEmbeddedSuccessIsland(payload)) return true;
-  return showGlobalNavStatus(payload);
+  return showIsland.notify(payload);
 };
 
 const closeConfirm = (confirmed = false) => {
@@ -3135,7 +3127,6 @@ const handlePost = async () => {
   prevDraftImages.forEach(img=> { /* 保留 localPreviewUrl 给队列，编辑器端移除 */ });
   postImages.value = [];
   postImageUploadStatus.value = '';
-  resetStagedSubmitState();
   // 关闭移动端编辑器（无二次确认，因已入队）
   showPostImageSourceMenu.value = false;
   isMobileDraftPanelOpen.value = false;
@@ -3144,7 +3135,7 @@ const handlePost = async () => {
     document.body.style.overflow = '';
   }
   await nextTick();
-  // 即发即走：不走瞬时岛，靠 ForumPublishIsland 常驻（Airdrop 同款，带堆叠缩略图直到成功）
+  // 即发即走：不走瞬时岛，靠统一任务岛常驻（Airdrop 同款，带堆叠缩略图直到成功）
   scrollForumTo(0);
   // 限流冷却仍需计时
   startActionCooldown('post', 8);
@@ -3677,7 +3668,6 @@ const openPostDetail = (postId) => {
             v-model:selected-post-tag="selectedPostTag" v-model:post-location="postLocation" :is-logged-in="isLoggedIn"
             :user-info="userInfo" :post-images="postImages" :is-submitting="isSubmitting"
             :is-uploading-post-image="isUploadingPostImage" :post-image-upload-status="postImageUploadStatus"
-            :staged-submit-state="stagedSubmitState" :is-staged-submitting="isStagedSubmitting"
             :post-cooldown-seconds="postCooldownSeconds" :weekly-checkin-status="weeklyCheckinStatus"
             :weekly-checkin-progress-text="weeklyCheckinProgressText"
             :weekly-checkin-week-dots="weeklyCheckinWeekDots"
@@ -3692,8 +3682,7 @@ const openPostDetail = (postId) => {
             @weekly-checkin="handleWeeklyCheckin" @open-draft="openMobileDraftPanel"
             @save-draft="saveMobileDraft" />
 
-          <!-- 发布进度：灵动岛常驻显示（百分比在岛上，简化不暴露压缩/检测细节） -->
-          <ForumPublishIsland :items="publishQueueItems" @retry="retryPublish" @cancel="cancelPublish" @fix="fixModerationPublish" />
+          <!-- 发布进度：已迁移到统一任务岛（useIsland 调度中心 showIsland.task），由发布队列 watcher 驱动 -->
 
           <!-- 帖子列表 -->
           <section class="posts-feed fade-in-up" style="animation-delay: 0.2s;">
@@ -3784,13 +3773,15 @@ const openPostDetail = (postId) => {
                       </div>
                       <p class="post-text-v2">{{ item.post.displayBody }}</p>
                       <div v-if="item.post._publishState==='failed'" :data-queue-failmsg="item.post._queueId" class="optimistic-fail-msg" :class="item.post._failType==='moderation' ? 'moderation' : 'network'">
-                        <template v-if="item.post._failType==='moderation'">第 {{ (item.post._failedImageIndex||0)+1 }} 张图片未通过安全检测 · 可能含敏感内容，可移除该图后重试，其他内容不受影响。</template>
+                        <template v-if="item.post._failMessage">{{ item.post._failMessage }}</template>
+                        <template v-else-if="item.post._failType==='moderation'">第 {{ (item.post._failedImageIndex||0)+1 }} 张图片未通过安全检测 · 可能含敏感内容，可移除该图后重试，其他内容不受影响。</template>
                         <template v-else>网络异常，未能完成发送。请检查网络后重试，无需重新编辑。</template>
                       </div>
                     </div>
                     <div class="optimistic-actions" @click.stop>
                       <button v-if="item.post._publishState==='failed' && item.post._failType==='moderation'" class="optimistic-btn fix" @click="fixModerationPublish(item.post._queueId)">移除该图后重试</button>
                       <button v-if="item.post._publishState==='failed'" class="optimistic-btn retry" @click="item.post._failType==='moderation' ? fixModerationPublish(item.post._queueId) : retryPublish(item.post._queueId)">{{ item.post._failType==='moderation' ? '移除该图' : '重试' }}</button>
+                      <button v-if="item.post._publishState==='failed'" class="optimistic-btn ghost" @click="editFailedPublish(item.post._queueId)">编辑</button>
                       <button class="optimistic-btn ghost" @click="cancelPublish(item.post._queueId)">取消</button>
                     </div>
                   </article>
@@ -3939,10 +3930,9 @@ const openPostDetail = (postId) => {
             <button type="button" class="mobile-composer-draft-btn" @click="openMobileDraftPanel">
               草稿
             </button>
-            <button type="button" class="mobile-composer-submit" :class="{ 'is-staged-submitting': isStagedSubmitting }" @click="handlePost"
-              :disabled="isSubmitting || isUploadingPostImage || isStagedSubmitting || postCooldownSeconds > 0">
-              <span class="mobile-composer-submit-label">{{ isStagedSubmitting ? `${Math.round(stagedSubmitState.progress)}%` : (postCooldownSeconds > 0 ? `${postCooldownSeconds}s` : '发布') }}</span>
-              <span v-if="isStagedSubmitting" class="mobile-composer-submit-progress" :style="{ transform: `scaleX(${Math.max(0, Math.min(1, (stagedSubmitState.progress || 0) / 100))})` }" aria-hidden="true"></span>
+            <button type="button" class="mobile-composer-submit" @click="handlePost"
+              :disabled="isSubmitting || isUploadingPostImage || postCooldownSeconds > 0">
+              <span class="mobile-composer-submit-label">{{ postCooldownSeconds > 0 ? `${postCooldownSeconds}s` : '发布' }}</span>
             </button>
           </div>
           <Transition name="mobile-draft-panel">
@@ -3988,7 +3978,6 @@ const openPostDetail = (postId) => {
               v-model:post-location="postLocation" :is-logged-in="isLoggedIn" :user-info="userInfo"
               :post-images="postImages" :is-submitting="isSubmitting" :is-uploading-post-image="isUploadingPostImage"
               :post-image-upload-status="postImageUploadStatus" :post-cooldown-seconds="postCooldownSeconds"
-              :staged-submit-state="stagedSubmitState" :is-staged-submitting="isStagedSubmitting"
               :weekly-checkin-status="weeklyCheckinStatus" :weekly-checkin-progress-text="weeklyCheckinProgressText"
               :weekly-checkin-week-dots="weeklyCheckinWeekDots"
               :weekly-checkin-hint-text="weeklyCheckinHintText" :is-weekly-checkin-loading="isWeeklyCheckinLoading"

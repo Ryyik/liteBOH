@@ -12,7 +12,7 @@ describe('project structure', () => {
     const report = collectStructureReport(process.cwd());
 
     expect(report.errors).toEqual([]);
-  });
+  }, 20000); // 全量并发跑时全仓扫描偶发超过默认 5s，单独跑约 1.6s，放宽超时余量
 
   it('catches re-exported names used as missing runtime bindings', () => {
     const root = mkdtempSync(path.join(tmpdir(), 'boh-structure-'));

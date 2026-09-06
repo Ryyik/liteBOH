@@ -93,8 +93,8 @@
   font-weight: 850;
   cursor: pointer;
   box-shadow: 0 10px 24px rgba(31, 41, 55, 0.08), var(--liquid-inner-highlight);
-  backdrop-filter: blur(18px) saturate(160%);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: var(--glass-filter-sm, blur(18px));
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
   transition: transform 0.2s, background-color 0.2s, box-shadow 0.2s;
 }
 
@@ -243,8 +243,8 @@
   font-size: 12px;
   font-weight: 800;
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05), var(--liquid-inner-highlight);
-  backdrop-filter: blur(22px) saturate(170%);
-  -webkit-backdrop-filter: blur(22px) saturate(170%);
+  backdrop-filter: var(--glass-filter, blur(28px));
+  -webkit-backdrop-filter: var(--glass-filter, blur(28px));
 }
 
 .ai-search-spinner {
@@ -351,8 +351,8 @@
   position: relative;
   animation: forumPostCardEnter 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
   animation-delay: var(--post-appear-delay, 0ms);
-  backdrop-filter: blur(14px) saturate(120%);
-  -webkit-backdrop-filter: blur(14px) saturate(120%);
+  backdrop-filter: var(--glass-filter-sm, blur(18px));
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
 }
 
 .post-card-theme-cat {
@@ -756,7 +756,7 @@
   height: 100%;
   object-fit: cover;
   display: block;
-  filter: blur(12px);
+  filter: var(--glass-filter-sm, blur(18px));
   transform: scale(1.08);
   z-index: 0;
   transition: opacity 0.4s ease 0.1s;
@@ -927,8 +927,15 @@
   min-width: 72px;
   padding-left: 28px;
   text-align: right;
-  color: #4b5563;
-  background: rgba(255, 255, 255, 0.94);
+  /* 继承正文颜色：暗色主题下省略号自动跟随亮色文字 */
+  color: inherit;
+  /* 液态玻璃做法：不铺任何底色（玻璃叠玻璃会发白发亮），
+     直接用 backdrop-filter 把背后的文字尾行磨成玻璃雾，
+     mask 把左边缘羽化，任何主题/底色下都无色差 */
+  backdrop-filter: blur(14px) saturate(180%);
+  -webkit-backdrop-filter: blur(14px) saturate(180%);
+  mask-image: linear-gradient(90deg, transparent, #000 45%);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 45%);
   pointer-events: none;
 }
 

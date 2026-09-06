@@ -296,7 +296,7 @@ import { getAllProfiles } from '@/utils/api/auth-api.js';
 import { createShopOrderWithPoints, getProfileByUsername } from '@/utils/api/profile-api.js';
 import { sendMerchandiseSettlementEmail } from '@/utils/email-service.js';
 import { logger } from '@/utils/logger.js';
-import { showGlobalNavStatus } from '@/composables/useGlobalNavStatus.js';
+import { showIsland } from '@/composables/useIsland.js';
 import ShopAccountPanel from './ShopAccountPanel.vue';
 import ShopPaymentSuccessModal from './ShopPaymentSuccessModal.vue';
 
@@ -476,7 +476,7 @@ function showShopIsland(title, message = '', icon = 'success', durationMs = 3000
   try {
     const payload = { title, message, icon, durationMs };
     if (typeof onAction === 'function') payload.onAction = onAction;
-    return showGlobalNavStatus(payload);
+    return showIsland.notify(payload);
   } catch {
     return false;
   }

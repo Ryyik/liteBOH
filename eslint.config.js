@@ -6,6 +6,7 @@ export default [
   {
     ignores: [
       'dist/**',
+      '.build-verify/**', // 构建校验产物（minified），不参与 lint
       'node_modules/**',
       'coverage/**'
     ]

@@ -238,6 +238,58 @@
   100% { opacity: 1; transform: scale(1); }
 }
 
+/* 模式加载中：按钮呼吸态（不改尺寸布局） */
+.bohai-page .composer-mode-button.loading {
+  animation: bohai-mode-button-breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes bohai-mode-button-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* 模式加载中：骨架行 shimmer 扫光（基础色由 --bohai-line / --bohai-line-strong 提供，暗色可读） */
+.bohai-page .mode-skeleton-line::after,
+.bohai-page .mode-skeleton-tail::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, var(--bohai-line-strong), transparent);
+  animation: bohai-mode-shimmer 1.4s ease-in-out infinite;
+}
+
+.bohai-page .mode-skeleton-line::after {
+  animation-delay: 0ms;
+}
+
+.bohai-page .mode-skeleton-row:nth-child(2) .mode-skeleton-line::after {
+  animation-delay: 140ms;
+}
+
+.bohai-page .mode-skeleton-row:nth-child(3) .mode-skeleton-line::after {
+  animation-delay: 280ms;
+}
+
+@keyframes bohai-mode-shimmer {
+  100% { transform: translateX(100%); }
+}
+
+/* 静态降级：偏好减少动效时停掉 shimmer 与呼吸态，保留静态骨架色 */
+@media (prefers-reduced-motion: reduce) {
+  .bohai-page .composer-mode-button.loading {
+    animation: none;
+    opacity: 0.75;
+  }
+
+  .bohai-page .mode-skeleton-line::after,
+  .bohai-page .mode-skeleton-tail::after {
+    animation: none;
+    display: none;
+  }
+}
+
+
 .bohai-page.reduce-motion *,
 .bohai-page.reduce-motion *::before,
 .bohai-page.reduce-motion *::after {

@@ -257,8 +257,8 @@
 .bohai-page[data-ui-style="glass"] .quick-note-card {
     border-color: rgba(148, 163, 184, 0.42);
     box-shadow: none;
-    backdrop-filter: blur(24px) saturate(1.35);
-    -webkit-backdrop-filter: blur(24px) saturate(1.35);
+    backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
+    -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
 }
 
 @media (min-width: 1024px) {
@@ -312,8 +312,8 @@
         padding: 6px 12px;
         border-radius: 16px;
         background: rgba(255, 255, 255, 0.62);
-        backdrop-filter: blur(28px) saturate(1.5);
-        -webkit-backdrop-filter: blur(28px) saturate(1.5);
+        backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
+        -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
         border: 1px solid rgba(255, 255, 255, 0.55);
         box-shadow: 0 4px 24px rgba(0, 0, 0, 0.07);
         z-index: 120;
@@ -599,8 +599,8 @@
         padding: 0 20px;
         border-radius: 0;
         background: rgba(255, 255, 255, 0.62);
-        backdrop-filter: blur(18px) saturate(1.25);
-        -webkit-backdrop-filter: blur(18px) saturate(1.25);
+        backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
+        -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
         border: none;
         border-bottom: 1px solid rgba(0, 0, 0, 0.06);
         box-shadow: none;
@@ -674,8 +674,8 @@
         background: rgba(255, 255, 255, 0.68);
         border-right: 1px solid rgba(255, 255, 255, 0.45);
         box-shadow: 14px 0 36px rgba(15, 23, 42, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
-        backdrop-filter: blur(28px) saturate(1.4);
-        -webkit-backdrop-filter: blur(28px) saturate(1.4);
+        backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
+        -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
     }
 
     .sidebar-header {
@@ -708,8 +708,8 @@
         min-height: 48px;
         padding: 8px 12px;
         background: rgba(255, 255, 255, 0.5);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+        -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
     }
 }
 
@@ -1280,8 +1280,8 @@
     justify-content: flex-start;
     padding: 12px;
     background: rgba(15, 23, 42, 0.22);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+    -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
 }
 
 .boh-ai-settings-panel {

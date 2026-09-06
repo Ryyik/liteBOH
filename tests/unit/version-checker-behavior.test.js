@@ -55,50 +55,38 @@ describe('version-checker behavior', () => {
     vi.unstubAllGlobals();
   });
 
-  it('unregisters service workers before clearing caches and navigating', async () => {
-    let finishUnregister;
-    const unregister = vi.fn(() => new Promise((resolve) => {
-      finishUnregister = resolve;
-    }));
-    const cacheStorage = {
-      keys: vi.fn(async () => ['app-cache']),
-      delete: vi.fn(async () => true),
-    };
-    window.caches = cacheStorage;
-    vi.stubGlobal('caches', cacheStorage);
+  it('updates service workers before navigating without deleting the active app shell cache', async () => {
+    const update = vi.fn(async () => undefined);
     vi.stubGlobal('navigator', {
       serviceWorker: {
-        getRegistrations: vi.fn(async () => [{ unregister }]),
+        getRegistrations: vi.fn(async () => [{ update }]),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
       },
     });
     const { forceCleanAndReload } = await import('../../src/utils/version-checker.js');
 
-    const updatePromise = forceCleanAndReload('remote-build');
-    await vi.waitFor(() => expect(unregister).toHaveBeenCalledOnce());
-    expect(cacheStorage.keys).not.toHaveBeenCalled();
-    expect(window.location.replace).not.toHaveBeenCalled();
+    await forceCleanAndReload('remote-build');
 
-    finishUnregister(true);
-    await updatePromise;
-
-    expect(cacheStorage.keys).toHaveBeenCalledOnce();
+    expect(update).toHaveBeenCalledOnce();
     expect(window.location.replace).toHaveBeenCalledWith(
       '/app/?from=test&__boh_update=remote-build#/user-space'
     );
   });
 
-  it('continues navigation when cache cleanup exceeds the timeout', async () => {
+  it('continues navigation when service worker update exceeds the timeout', async () => {
     vi.useFakeTimers();
-    const cacheStorage = {
-      keys: vi.fn(() => new Promise(() => {})),
-      delete: vi.fn(),
-    };
-    window.caches = cacheStorage;
-    vi.stubGlobal('caches', cacheStorage);
+    vi.stubGlobal('navigator', {
+      serviceWorker: {
+        getRegistrations: vi.fn(async () => [{ update: vi.fn(() => new Promise(() => {})) }]),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      },
+    });
     const { forceCleanAndReload } = await import('../../src/utils/version-checker.js');
 
     const updatePromise = forceCleanAndReload('remote-build');
-    await vi.advanceTimersByTimeAsync(1500);
+    await vi.advanceTimersByTimeAsync(1800);
     await updatePromise;
 
     expect(window.location.replace).toHaveBeenCalledOnce();

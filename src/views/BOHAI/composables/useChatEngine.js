@@ -138,7 +138,6 @@ import {
   normalizePromptLine,
   buildContextualFollowUpQuery,
   buildContextualWebSearchQuery,
-  isContextDependentFollowUp,
   getStorableDialogueMessages,
   buildConversationSummaryFingerprint,
   buildHistoryMessagesWithCachedSummary,
@@ -304,6 +303,7 @@ export function useChatEngine() {
   const abortController = ref(null);
   const runtimeAvailableModels = ref([]);
   const runtimeChatModes = ref([]);
+  const chatModesLoading = ref(true);
   const runtimeGenerationProfiles = ref({});
 
   const {
@@ -325,7 +325,7 @@ export function useChatEngine() {
   const {
     currentModeId, currentMode, currentModelId, currentModel,
     lastRoutedMode,
-    isCommandMode, isSearching, isForumSearchEnabled, isHealthAnalysisEnabled,
+    isCommandMode, isSearching, isForumSearchEnabled, isHealthAnalysisEnabled, isHealthAnalysisDismissed,
     isMemoryCaptureEnabled, isTreeholeMemoryEnabled, isTreeholeMemoryToggling,
     isQuickNoteEnabled, isPlanModeEnabled,
     isSharedMemoryEnabled, isKnowledgeBaseEnabled,
@@ -392,6 +392,9 @@ export function useChatEngine() {
       applyRuntimeModelConfig(buildBohaiRuntimeModels(result.data));
     } catch (error) {
       logger.error('boh-ai', 'BOHAI 模型配置加载异常', error);
+    } finally {
+      // 无论成功、失败还是空数据，模式加载流程都已结束
+      chatModesLoading.value = false;
     }
   };
   void loadRuntimeModelConfig();
@@ -441,6 +444,7 @@ export function useChatEngine() {
     isTreeholeMemoryEnabled,
     isForumSearchEnabled,
     isHealthAnalysisEnabled,
+    isHealthAnalysisDismissed,
     isSharedMemoryEnabled,
     isKnowledgeBaseEnabled,
     treeholeMemoryCache,
@@ -669,6 +673,7 @@ export function useChatEngine() {
     isSearching.value = false;
     isForumSearchEnabled.value = false;
     isHealthAnalysisEnabled.value = false;
+    isHealthAnalysisDismissed.value = false;
     isKnowledgeBaseEnabled.value = false;
     // Auto 路由相关状态重置
     lastRoutedMode.value = '';
@@ -1032,6 +1037,21 @@ export function useChatEngine() {
 
   const sendMessage = async () => {
     if (!inputMessage.value.trim() || isLoading.value || abortController.value) return;
+
+    // 模型配置尚未加载完成时先等待（最多 8s），避免 runtimeAvailableModels 为空导致后面取 generationModel.url 抛 TypeError
+    if (runtimeAvailableModels.value.length === 0) {
+      if (chatModesLoading.value) {
+        const configWaitStart = Date.now();
+        while (runtimeAvailableModels.value.length === 0 && chatModesLoading.value && Date.now() - configWaitStart < 8000) {
+          await new Promise((resolve) => setTimeout(resolve, 150));
+        }
+      }
+      if (runtimeAvailableModels.value.length === 0) {
+        // 输入内容保留不清空；与 checkRateLimit 的静默拦截保持一致，仅记录日志
+        logger.warn('boh-ai', 'sendMessage aborted: BOHAI 模型配置未加载（公共模式列表为空）');
+        return;
+      }
+    }
 
     const rateLimitResult = checkRateLimit();
     if (rateLimitResult.blocked) return;
@@ -1585,7 +1605,7 @@ export function useChatEngine() {
             const results = Array.isArray(webSearchResult.results) ? webSearchResult.results : [];
             webSearchVerified = results.length > 0;
             if (results.length > 0) {
-              setProgressContent(`找到 ${results.length} 个结果：\n${results.map((r, i) => `${i + 1}. [${r.title}](${r.url})`).join('\n')}\n\n`);
+              setProgressContent(`找到 ${results.length} 个结果：\n${results.map((r, i) => `${i + 1}. [${r?.title || '无标题'}](${r?.url || ''})`).join('\n')}\n\n`);
             } else {
               setProgressContent('未找到相关结果\n\n');
             }
@@ -1638,24 +1658,14 @@ export function useChatEngine() {
       const personalSupportMode = isLikelyPersonalSupportRequest(userText);
 
       // 模式选择（4 模式下不再做自动路由）：
-      // 1) 当前模式 (currentModeId.value)
+      // 1) 当前模式 (currentModeId.value) —— 用户手动选什么就走什么，最高优先级
       // 2) isPlanModeEnabled 开启时强制 plan（不覆盖 agent 自身）
-      // 3) 追问场景：若当前文本是上下文依赖型追问，沿用上一轮 routedMode（保持分析深度连贯）
-      // 4) 兜底 fast
+      // 注意：不再沿用上一轮 routedMode 覆盖用户手动选择 —— 旧逻辑会在追问场景把模式
+      // 悄悄切回上一轮（例如上一轮用过 Code 被拒后，之后所有追问都会继续打 Code 报
+      // "Coding 模式"403），与"用户主动选择什么就走什么"的设计矛盾。
       let activeModeId = currentModeId.value;
       if (isPlanModeEnabled.value && activeModeId !== 'agent-cluster') {
         activeModeId = 'plan';
-      } else if (shouldUseContextualQuery || isContextDependentFollowUp(userText)) {
-        // 追问场景：从历史 assistant 消息读取上一轮 routedMode 并沿用
-        for (let i = historyMessagesForCurrentTurn.length - 1; i >= 0; i -= 1) {
-          const prevMsg = historyMessagesForCurrentTurn[i];
-          if (prevMsg?.role !== 'assistant') continue;
-          const prevMode = prevMsg?.meta?.routedMode;
-          if (prevMode && prevMode !== 'agent-cluster' && prevMode !== 'auto') {
-            activeModeId = prevMode;
-            break;
-          }
-        }
       }
       // 暴露给 UI：本轮路由到的具体模式（含 plan 模式提升 / 追问沿用）
       lastRoutedMode.value = activeModeId;
@@ -1791,6 +1801,11 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
       const generationModel = preferAccuracyModel && planModel
         ? planModel
         : (hasKnowledgeContext && planModel ? planModel : routedModeModel);
+      // 兜底：运行时模型列表为空（list_public_bohai_modes 加载失败/返回空）时
+      // generationModel 会是 undefined，直接取 .url 会抛 "Cannot read properties of undefined (reading 'url')"
+      if (!generationModel) {
+        throw new Error('BOHAI 模型配置未加载（公共模式列表为空），请刷新页面重试；若持续出现，请检查后台 bohai 模式配置');
+      }
       markGenerationProgress('正在生成回答...');
 
       let url = generationModel.url;
@@ -2341,6 +2356,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
     isRateLimited,
     rateLimitMessage,
     chatModes: computed(() => runtimeChatModes.value),
+    chatModesLoading,
     messages,
     contextBudgetUsage,
     isCompressingContext,

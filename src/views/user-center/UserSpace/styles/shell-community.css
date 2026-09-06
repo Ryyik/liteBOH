@@ -34,15 +34,17 @@
   --surface-elevated: #ffffff;
   --stroke-strong: rgba(15, 23, 42, 0.18);
   --accent-soft: rgba(37, 99, 235, 0.06);
-  --glass-bg-primary: rgba(255, 255, 255, 0.58);
-  --glass-bg-secondary: rgba(255, 255, 255, 0.42);
-  --glass-bg-elevated: rgba(255, 255, 255, 0.82);
-  --glass-border: rgba(255, 255, 255, 0.55);
-  --glass-border-strong: rgba(255, 255, 255, 0.7);
-  --glass-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.02), 0 4px 16px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.6);
-  --glass-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.03);
-  --glass-blur: blur(20px) saturate(180%);
-  --glass-blur-sm: blur(12px) saturate(160%);
+  /* 玻璃变量统一映射到全局 liquid-glass tokens（src/styles/common/tokens.css），
+     暗色切换 / 降级回退 / boh-perf-lite 降载均自动跟随，不再本地维护第二套数值 */
+  --glass-bg-primary: var(--liquid-bg-subtle);
+  --glass-bg-secondary: color-mix(in srgb, var(--liquid-bg-subtle) 72%, transparent);
+  --glass-bg-elevated: var(--liquid-bg-strong);
+  --glass-border: var(--liquid-border);
+  --glass-border-strong: rgba(255, 255, 255, 0.7); /* 唯一无对应 token 的变量，保留字面量（暗色在下方覆盖） */
+  --glass-shadow-sm: var(--liquid-shadow-sm), var(--liquid-highlight-subtle);
+  --glass-shadow-md: var(--liquid-shadow-sm), 0 2px 8px rgba(0, 0, 0, 0.03);
+  --glass-blur: blur(var(--liquid-blur)) saturate(var(--liquid-saturate)) brightness(1.02);
+  --glass-blur-sm: blur(var(--liquid-blur-sm)) saturate(var(--liquid-saturate)) brightness(1.02);
   --surface: #ffffff;
   --surface-soft: #f8fafc;
   --stroke: rgba(15, 23, 42, 0.08);
@@ -89,13 +91,8 @@
   --shadow-sm: rgba(0, 0, 0, 0.15);
   --shadow-md: rgba(0, 0, 0, 0.2);
   --shadow-lg: rgba(0, 0, 0, 0.3);
-  --glass-bg-primary: rgba(24, 26, 32, 0.50);
-  --glass-bg-secondary: rgba(24, 26, 32, 0.38);
-  --glass-bg-elevated: rgba(24, 26, 32, 0.65);
-  --glass-border: rgba(255, 255, 255, 0.08);
+  /* 玻璃变量已映射到 --liquid-* tokens，暗色自动切换；仅保留无对应 token 的 border-strong */
   --glass-border-strong: rgba(255, 255, 255, 0.14);
-  --glass-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1), 0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  --glass-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(0, 0, 0, 0.15);
   --surface: #1a1a24;
   --surface-soft: #252532;
   --surface-elevated: #252532;
@@ -1355,8 +1352,8 @@
   border: 1px solid color-mix(in srgb, var(--entry-blue) 18%, transparent);
   border-radius: 22px;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.8), rgba(244, 249, 255, 0.56));
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   color: var(--text-primary);
   box-shadow:
     0 1px 2px rgba(15, 23, 42, 0.04),
@@ -1536,8 +1533,8 @@
   color: var(--text-primary);
   cursor: pointer;
   text-align: left;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
   transition: border-color 0.2s var(--ease-spring), background 0.2s var(--ease-spring),
     transform 0.2s var(--ease-spring), box-shadow 0.2s var(--ease-spring);
 }
@@ -1674,8 +1671,8 @@
   border: 1px solid color-mix(in srgb, var(--entry-blue) 18%, transparent);
   border-radius: 22px;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.8), rgba(239, 246, 255, 0.56));
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   color: var(--text-primary);
   box-shadow:
     0 1px 2px rgba(15, 23, 42, 0.04),

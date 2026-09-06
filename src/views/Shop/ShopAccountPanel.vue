@@ -151,7 +151,7 @@ import { ChevronLeft, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/utils/supabase-client.js';
 import { logger } from '@/utils/logger.js';
-import { showGlobalNavStatus } from '@/composables/useGlobalNavStatus.js';
+import { showIsland } from '@/composables/useIsland.js';
 
 defineProps({
   mode: { type: String, default: 'overlay' }
@@ -192,7 +192,7 @@ const showToast = (message, type = 'info') => {
   else if (text.startsWith('请先登录')) { title = '请先登录'; msg = '登录后可管理地址'; }
   else if (text.length > 24) { title = text.slice(0, 24); msg = text.slice(24); }
   let ok = false;
-  try { ok = showGlobalNavStatus({ title, message: msg, icon, durationMs: icon === 'warning' ? 3600 : 2800 }); } catch { ok = false; }
+  try { ok = showIsland.notify({ title, message: msg, icon, durationMs: icon === 'warning' ? 3600 : 2800 }); } catch { ok = false; }
   if (ok) return;
   return _originShowToast(message, type);
 };

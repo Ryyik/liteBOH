@@ -13,20 +13,35 @@ export const communityRoutes: RouteRecordRaw[] = [
     component: () => import("../../views/Newsroom/index.vue"),
   },
   {
+    // 活动与方块墙组合页（液态玻璃分段切换）
+    path: "/activities-wall",
+    name: "ActivitiesWall",
+    component: () => import("../../views/ActivitiesWall/index.vue"),
+  },
+  {
+    // 旧活动页深链兼容：全部导向组合页的活动面板
     path: "/activities",
     name: "Activities",
-    component: () => import("../../views/activities/index.vue"),
-    redirect: "/activities/list",
+    redirect: (to) => ({
+      path: "/activities-wall",
+      query: { ...to.query },
+    }),
     children: [
       {
         path: "photo-wall",
         name: "ActivitiesPhotoWall",
-        component: () => import("../../views/activities/ActivitiesPhotoWall.vue"),
+        redirect: (to) => ({
+          path: "/activities-wall",
+          query: { ...to.query },
+        }),
       },
       {
         path: "list",
         name: "ActivitiesList",
-        component: () => import("../../views/activities/ActivitiesList.vue"),
+        redirect: (to) => ({
+          path: "/activities-wall",
+          query: { ...to.query },
+        }),
       },
     ],
   },
@@ -47,10 +62,13 @@ export const communityRoutes: RouteRecordRaw[] = [
     component: () => import("../../views/CommunityLotteries/index.vue"),
   },
   {
+    // 旧方块墙深链兼容：导向组合页的方块墙面板（保留 name 供命名跳转）
     path: "/block-wall",
     name: "BlockWall",
-    meta: { hideNavbar: true },
-    component: () => import("../../views/BlockWall/index.vue"),
+    redirect: (to) => ({
+      path: "/activities-wall",
+      query: { ...to.query, tab: "wall" },
+    }),
   },
   {
     path: "/forum/post/:id",

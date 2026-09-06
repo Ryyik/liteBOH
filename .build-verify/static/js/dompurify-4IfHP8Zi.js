@@ -1,1 +1,0 @@
-import{p as l}from"./ui-sanitize-DMScWxpY.js";const e="undefined"!=typeof window?l(window):null,i={sanitize:(l,i={})=>e?e.sanitize(String(l??""),i):String(l??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;")};export{i as D};

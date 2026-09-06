@@ -47,3 +47,6 @@ stats.html
 
 # Supabase CLI 临时文件
 supabase/.temp/
+
+# 构建验证产物（构建站点快照，不应入库）
+.build-verify*/

@@ -2,10 +2,11 @@
 
 .smart-overview-page {
   --ov-bg: #f5f5f7;
-  --ov-glass-bg: rgba(255, 255, 255, 0.72);
-  --ov-glass-bg-elevated: rgba(255, 255, 255, 0.9);
-  --ov-glass-border: rgba(255, 255, 255, 0.65);
-  --ov-blur: blur(20px) saturate(180%);
+  /* 玻璃变量映射到 --liquid-* tokens，暗色自动切换 */
+  --ov-glass-bg: var(--liquid-bg);
+  --ov-glass-bg-elevated: var(--liquid-bg-strong);
+  --ov-glass-border: var(--liquid-border);
+  --ov-blur: blur(var(--liquid-blur)) saturate(var(--liquid-saturate)) brightness(1.02);
   --ov-shadow: 0 1px 2px rgba(0, 0, 0, 0.02), 0 8px 28px rgba(15, 23, 42, 0.06),
     inset 0 1px 0 rgba(255, 255, 255, 0.6);
   --ov-shadow-hover: 0 2px 6px rgba(0, 0, 0, 0.04), 0 18px 44px rgba(15, 23, 42, 0.12),
@@ -482,9 +483,7 @@
 
 html[data-theme='dark'] .smart-overview-page {
   --ov-bg: #0d0e12;
-  --ov-glass-bg: rgba(24, 26, 32, 0.55);
-  --ov-glass-bg-elevated: rgba(30, 32, 40, 0.74);
-  --ov-glass-border: rgba(255, 255, 255, 0.08);
+  /* 玻璃变量随 tokens 自动切换暗色，无需覆盖 */
   --ov-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 28px rgba(0, 0, 0, 0.35),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
   --ov-shadow-hover: 0 2px 6px rgba(0, 0, 0, 0.25), 0 18px 44px rgba(0, 0, 0, 0.5),

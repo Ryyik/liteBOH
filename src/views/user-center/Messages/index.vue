@@ -563,7 +563,7 @@ import {
 } from '@/utils/moderation-retry-cache.js';
 import { useDebounce, useThrottle } from '@/composables/useDebounceThrottle';
 import { useVirtualList } from '@vueuse/core';
-import { showGlobalNavStatus } from '@/composables/useGlobalNavStatus.js';
+import { showIsland } from '@/composables/useIsland.js';
 
 // Props
 const props = defineProps({
@@ -823,7 +823,7 @@ const showMessageIsland = (title, message = '', type = 'info', options = {}) => 
   try {
     const payload = { title, message, icon, durationMs };
     if (typeof options.action === 'function') payload.onAction = options.action;
-    return showGlobalNavStatus(payload);
+    return showIsland.notify(payload);
   } catch {
     return false;
   }

@@ -1,28 +1,37 @@
 <template>
   <HkSheet title="今日记录" done-text="保存" @close="$emit('close')" @save="$emit('save', snapshot())">
-    <div class="hk-field">
-      <div class="hk-field-head">
-        <span class="hk-field-name">睡眠</span>
-        <span class="hk-field-val">{{ draft.sleepHours.toFixed(1) }} h</span>
-      </div>
-      <input class="hk-slider" type="range" min="0" max="12" step="0.5" v-model.number="draft.sleepHours" />
-    </div>
+    <HkNumberField
+      v-model="draft.sleepHours"
+      label="睡眠"
+      unit="h"
+      :min="0"
+      :max="12"
+      :step="0.5"
+      :digits="1"
+      inputmode="decimal"
+    />
 
-    <div class="hk-field">
-      <div class="hk-field-head">
-        <span class="hk-field-name">步数</span>
-        <span class="hk-field-val">{{ draft.steps.toLocaleString() }}</span>
-      </div>
-      <input class="hk-slider" type="range" min="0" max="20000" step="500" v-model.number="draft.steps" />
-    </div>
+    <HkNumberField
+      v-model="draft.steps"
+      label="步数"
+      unit="步"
+      :min="0"
+      :max="20000"
+      :step="500"
+      :digits="0"
+      inputmode="numeric"
+    />
 
-    <div class="hk-field">
-      <div class="hk-field-head">
-        <span class="hk-field-name">饮水</span>
-        <span class="hk-field-val">{{ draft.waterCups }} 杯</span>
-      </div>
-      <input class="hk-slider" type="range" min="0" max="16" step="1" v-model.number="draft.waterCups" />
-    </div>
+    <HkNumberField
+      v-model="draft.waterCups"
+      label="饮水"
+      unit="杯"
+      :min="0"
+      :max="16"
+      :step="1"
+      :digits="0"
+      inputmode="numeric"
+    />
 
     <div class="hk-field">
       <div class="hk-field-head"><span class="hk-field-name">心情</span></div>
@@ -43,6 +52,7 @@
 <script setup>
 import { reactive } from 'vue'
 import HkSheet from './HkSheet.vue'
+import HkNumberField from './HkNumberField.vue'
 
 const props = defineProps({
   log: { type: Object, default: null }
@@ -57,17 +67,21 @@ const MOODS = [
   { value: 'bad', label: '很差' }
 ]
 
+// 未记录的字段用 null（界面显示"—"），不再用 7.5h/8000步/8杯 假默认值冒充数据——
+// 此前打开弹层直接点"保存"就会写入一条假记录
 const draft = reactive({
-  sleepHours: props.log?.sleepHours ?? 7.5,
-  steps: props.log?.steps ?? 8000,
-  waterCups: props.log?.waterCups ?? 8,
-  mood: props.log?.mood ?? 'good'
+  sleepHours: props.log?.sleepHours ?? null,
+  steps: props.log?.steps ?? null,
+  waterCups: props.log?.waterCups ?? null,
+  mood: props.log?.mood ?? ''
 })
 
+const toNumOrNull = (v) => (v === null || v === undefined || v === '' ? null : Number(v))
+
 const snapshot = () => ({
-  sleepHours: Number(draft.sleepHours),
-  steps: Number(draft.steps),
-  waterCups: Number(draft.waterCups),
+  sleepHours: toNumOrNull(draft.sleepHours),
+  steps: toNumOrNull(draft.steps),
+  waterCups: toNumOrNull(draft.waterCups),
   mood: draft.mood
 })
 </script>

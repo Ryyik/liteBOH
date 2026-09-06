@@ -485,7 +485,7 @@
           <div
             class="showcase-character-editor"
             v-for="(char, idx) in draftHero.showcase_config.characters"
-            :key="`showcase-char-${idx}`"
+            :key="`showcase-char-${char.key || char.src || idx}`"
           >
             <div class="showcase-char-head">
               <img v-if="showcaseCharacterThumb(char)" :src="showcaseCharacterThumb(char)" :alt="char.name || '人物立绘'" class="showcase-char-thumb" />

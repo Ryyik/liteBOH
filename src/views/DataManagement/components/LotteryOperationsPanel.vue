@@ -184,7 +184,9 @@ const formatDateTime = (value) => {
   justify-content: space-between;
   gap: 20px;
   padding: 18px;
-  backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  box-shadow: var(--dm-liquid-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.55));
 }
 .lottery-operations-eyebrow {
   display: block;

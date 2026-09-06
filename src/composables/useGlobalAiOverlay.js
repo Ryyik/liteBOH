@@ -7,6 +7,8 @@ const theme = ref('light')
 const dragProgress = ref(1)
 const isDragging = ref(false)
 const openRequestId = ref(0)
+// Prompt passed by another view is held until the overlay has mounted its chat API.
+const pendingPrompt = ref('')
 
 let resolveOverlayHeight = () => {
   if (typeof window !== 'undefined') return window.innerHeight
@@ -20,11 +22,18 @@ function useSharedState() {
   const route = useRoute()
 
   const canOpen = computed(() => {
-    return route.name !== 'AiChat'
+    if (route.name === 'AiChat') return false
+    // 岛体挂在 UnifiedNavbar 内：导航栏被隐藏的路由（admin/user-space 子页等）
+    // 没有宿主容器，不能打开（调用方可据此回退到 /ai-chat 全页）
+    if (route.meta?.hideNavbar) return false
+    return true
   })
 
   function open(options = {}) {
     if (!canOpen.value) return
+    if (typeof options.prompt === 'string' && options.prompt.trim()) {
+      pendingPrompt.value = options.prompt
+    }
     cancelScheduledClose()
     isOpen.value = true
     dragProgress.value = Number(options.snap) === 2 ? 2 : 1
@@ -42,6 +51,12 @@ function useSharedState() {
   function toggle() {
     if (isOpen.value) close()
     else open()
+  }
+
+  function consumePendingPrompt() {
+    const prompt = pendingPrompt.value
+    pendingPrompt.value = ''
+    return prompt
   }
 
   function syncTheme() {
@@ -107,8 +122,10 @@ function useSharedState() {
   return {
     isOpen, theme, canOpen, openRequestId,
     dragProgress, isDragging,
+    pendingPrompt,
     open, close, toggle, syncTheme,
-    setOverlayHeight, startDrag, moveDrag, endDrag
+    setOverlayHeight, startDrag, moveDrag, endDrag,
+    consumePendingPrompt
   }
 }
 

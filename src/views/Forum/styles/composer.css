@@ -28,8 +28,8 @@
   }
 }
 .boh-perf-lite .editor-card {
-  backdrop-filter: blur(12px) saturate(140%);
-  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  backdrop-filter: var(--glass-filter-sm, blur(18px));
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
   background: rgba(255, 255, 255, 0.88);
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255,255,255,0.8);
 }
@@ -83,109 +83,6 @@
 .editor-card .editor-actions {
   position: relative;
   z-index: 1;
-}
-
-.post-submit-overlay {
-  position: absolute;
-  z-index: 5;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: rgba(245, 247, 250, 0.42);
-  backdrop-filter: blur(14px) saturate(1.12);
-  -webkit-backdrop-filter: blur(14px) saturate(1.12);
-  cursor: progress;
-}
-
-.post-submit-overlay-panel {
-  width: min(100%, 360px);
-  padding: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.78);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 18px 50px rgba(29, 29, 31, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.86);
-  backdrop-filter: blur(14px) saturate(145%);
-  -webkit-backdrop-filter: blur(14px) saturate(145%);
-  text-align: center;
-}
-
-.post-submit-overlay-progress {
-  display: block;
-  color: #1d1d1f;
-  font-size: 30px;
-  font-weight: 800;
-  line-height: 1;
-  margin: 0 auto;
-  font-variant-numeric: tabular-nums;
-}
-
-.post-submit-overlay-label {
-  margin: 10px 0 0;
-  color: #3a3a3c;
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.35;
-}
-
-.post-submit-overlay-count {
-  display: block;
-  min-height: 18px;
-  margin-top: 4px;
-  color: #6e6e73;
-  font-size: 12px;
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-}
-
-.post-submit-overlay-track {
-  height: 6px;
-  margin-top: 18px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(60, 60, 67, 0.14);
-}
-
-.post-submit-overlay-fill {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: inherit;
-  transform: scaleX(0);
-  transform-origin: left center;
-  background: #1677ff;
-  transition: transform 220ms var(--ease-out);
-}
-
-.post-submit-overlay-enter-active,
-.post-submit-overlay-leave-active {
-  transition: opacity 180ms ease;
-}
-
-.post-submit-overlay-enter-active .post-submit-overlay-panel,
-.post-submit-overlay-leave-active .post-submit-overlay-panel {
-  transition: opacity 180ms ease, transform 220ms cubic-bezier(0.22, 0.8, 0.24, 1);
-}
-
-.post-submit-overlay-enter-from,
-.post-submit-overlay-leave-to {
-  opacity: 0;
-}
-
-.post-submit-overlay-enter-from .post-submit-overlay-panel,
-.post-submit-overlay-leave-to .post-submit-overlay-panel {
-  opacity: 0;
-  transform: translateY(8px) scale(0.985);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .post-submit-overlay-fill,
-  .post-submit-overlay-enter-active,
-  .post-submit-overlay-leave-active,
-  .post-submit-overlay-enter-active .post-submit-overlay-panel,
-  .post-submit-overlay-leave-active .post-submit-overlay-panel {
-    transition-duration: 1ms;
-  }
 }
 
 .user-avatar {
@@ -335,8 +232,8 @@
   border: 1px solid var(--liquid-border-hairline, rgba(15,23,42,0.06));
   border-radius: var(--liquid-radius-md, 16px);
   background: var(--liquid-bg-strong, rgba(255,255,255,0.84));
-  backdrop-filter: blur(12px) saturate(160%);
-  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  backdrop-filter: var(--glass-filter-sm, blur(18px));
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
   padding: 16px;
   color: var(--liquid-text-primary, #1d1d1f);
   box-shadow: var(--liquid-shadow-sm);
@@ -394,8 +291,8 @@
   border-radius: 14px;
   background: var(--liquid-bg-strong, rgba(255,255,255,0.84));
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.12), var(--liquid-highlight-subtle);
-  backdrop-filter: blur(18px) saturate(170%);
-  -webkit-backdrop-filter: blur(18px) saturate(170%);
+  backdrop-filter: var(--glass-filter-sm, blur(18px));
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
 }
 
 .composer-mention-item {
@@ -473,8 +370,8 @@
   border-radius: 16px;
   overflow: hidden;
   background: var(--liquid-bg, rgba(255,255,255,0.72));
-  backdrop-filter: blur(20px) saturate(180%) brightness(1.02);
-  -webkit-backdrop-filter: blur(20px) saturate(180%) brightness(1.02);
+  backdrop-filter: var(--glass-filter, blur(28px));
+  -webkit-backdrop-filter: var(--glass-filter, blur(28px));
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.76), 0 8px 24px rgba(15,23,42,0.06);
 }
 @media (max-width: 768px) {
@@ -548,8 +445,8 @@
   border: 1px solid var(--liquid-border-hairline, rgba(15,23,42,0.06));
   border-radius: 12px;
   background: var(--liquid-bg, rgba(255,255,255,0.72));
-  backdrop-filter: blur(12px) saturate(160%);
-  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  backdrop-filter: var(--glass-filter-sm, blur(18px));
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
   box-shadow: var(--liquid-shadow-sm);
 }
 
@@ -670,8 +567,8 @@
   justify-content: center;
   background: rgba(0, 0, 0, 0.58);
   color: #ffffff;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: var(--glass-filter-sm, blur(18px));
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
 }
 
 .post-image-status-badge {
@@ -691,8 +588,8 @@
   font-weight: 900;
   line-height: 1;
   white-space: nowrap;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: var(--glass-filter-sm, blur(18px));
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
 }
 
 .post-image-status-badge.failed {
@@ -761,8 +658,8 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: var(--glass-filter-sm, blur(18px));
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
 }
 
 .post-image-sort-btn:disabled {
@@ -1032,8 +929,8 @@
   border-radius: 16px;
   background: var(--liquid-bg-strong, rgba(255,255,255,0.84));
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.14), var(--liquid-highlight-subtle);
-  backdrop-filter: blur(22px) saturate(170%);
-  -webkit-backdrop-filter: blur(22px) saturate(170%);
+  backdrop-filter: var(--glass-filter, blur(28px));
+  -webkit-backdrop-filter: var(--glass-filter, blur(28px));
   display: grid;
   gap: 4px;
 }
@@ -1160,8 +1057,8 @@
   border-radius: 16px;
   background: var(--liquid-bg-strong, rgba(255,255,255,0.84));
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.14), var(--liquid-highlight-subtle);
-  backdrop-filter: blur(22px) saturate(170%);
-  -webkit-backdrop-filter: blur(22px) saturate(170%);
+  backdrop-filter: var(--glass-filter, blur(28px));
+  -webkit-backdrop-filter: var(--glass-filter, blur(28px));
   display: grid;
   gap: 4px;
 }
@@ -1318,8 +1215,8 @@
 .weekly-checkin-btn {
   border: 1px solid var(--liquid-border-hairline, rgba(15,23,42,0.06));
   background: var(--liquid-bg-strong, rgba(255,255,255,0.84));
-  backdrop-filter: blur(12px) saturate(160%);
-  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  backdrop-filter: var(--glass-filter-sm, blur(18px));
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
   color: var(--liquid-text-primary, #1d1d1f);
   border-radius: 12px;
   padding: 10px 16px;
@@ -1359,8 +1256,8 @@
   justify-content: center;
   padding: 24px;
   background: rgba(18, 28, 38, 0.28);
-  backdrop-filter: blur(10px) saturate(120%);
-  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  backdrop-filter: var(--glass-filter-sm, blur(18px));
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
 }
 
 .checkin-modal {
@@ -1703,32 +1600,12 @@
   transform: none;
 }
 
-.post-btn.is-staged-submitting:disabled {
-  opacity: 1;
-  color: #ffffff;
-  background: #111827;
-  cursor: progress;
-}
-
 .post-btn-label {
   position: relative;
   z-index: 1;
   overflow: hidden;
   max-width: 180px;
   text-overflow: ellipsis;
-}
-
-.post-btn-progress {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  width: 100%;
-  background: #1677ff;
-  transition: transform 180ms var(--ease-out);
-}
-
-.post-btn.is-staged-submitting .post-btn-label {
-  max-width: none;
 }
 
 /* Login Prompt */

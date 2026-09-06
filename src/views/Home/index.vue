@@ -1,32 +1,46 @@
 <template>
   <div class="home">
     <!-- 统一英雄区渲染：数据库驱动排序/显隐/归档，按 template 分流渲染 -->
-      <HomeHeroRow
-      v-for="(hero, heroIndex) in visibleHeroes"
-      :key="(hero.template === 'builtin' ? 'builtin:' + hero.builtin_key : hero.id) + ':' + hero.sort_order"
-      :eager="heroIndex === 0"
-      :layout="heroLayout(hero)"
-      :aria-label="hero.aria_label || hero.label || hero.title"
-      :id="hero.builtin_key === 'split-brand-letter' ? 'ryyik-letter' : undefined"
-    >
-      <DynamicHomeHero
-        v-if="hero.template !== 'builtin'"
-        :hero="hero"
-        :priority="heroIndex === 0"
-        @link-click="handleDynamicLinkClick"
-      />
-      <BuiltinHeroRenderer
-        v-else
-        :hero="hero"
-        :priority="heroIndex === 0"
-        :birthday-people="birthdayPeople"
-        @poster="openPosterModal"
-        @birthday-more="onBirthdayMore"
-        @open-fuzhou="openFuzhouModal"
-        @open-cloud-plus="openCloudPlusModal"
-        @open-anniversary-letter="openAnniversaryLetter"
-      />
-    </HomeHeroRow>
+    <Transition name="home-hero-loading-fade" mode="out-in">
+      <section v-if="heroLoading" key="hero-loading" class="home-hero-loading" aria-label="正在加载首页内容">
+        <div class="home-hero-loading-visual">
+          <img :src="homeLogoImg" alt="方块之家" class="home-hero-loading-logo" width="240" height="240">
+        </div>
+        <div class="home-hero-loading-copy" aria-hidden="true">
+          <div class="home-hero-loading-line"></div>
+          <div class="home-hero-loading-line home-hero-loading-line-short"></div>
+          <div class="home-hero-loading-button"></div>
+        </div>
+      </section>
+      <div v-else key="hero-content" class="home-hero-content">
+        <HomeHeroRow
+          v-for="(hero, heroIndex) in visibleHeroes"
+          :key="(hero.template === 'builtin' ? 'builtin:' + hero.builtin_key : hero.id) + ':' + hero.sort_order"
+          :eager="heroIndex === 0"
+          :layout="heroLayout(hero)"
+          :aria-label="hero.aria_label || hero.label || hero.title"
+          :id="hero.builtin_key === 'split-brand-letter' ? 'ryyik-letter' : undefined"
+        >
+          <DynamicHomeHero
+            v-if="hero.template !== 'builtin'"
+            :hero="hero"
+            :priority="heroIndex === 0"
+            @link-click="handleDynamicLinkClick"
+          />
+          <BuiltinHeroRenderer
+            v-else
+            :hero="hero"
+            :priority="heroIndex === 0"
+            :birthday-people="birthdayPeople"
+            @poster="openPosterModal"
+            @birthday-more="onBirthdayMore"
+            @open-fuzhou="openFuzhouModal"
+            @open-cloud-plus="openCloudPlusModal"
+            @open-anniversary-letter="openAnniversaryLetter"
+          />
+        </HomeHeroRow>
+      </div>
+    </Transition>
 
     <!-- 遇见福州 弹窗 -->
     <Teleport to="body">
@@ -290,6 +304,7 @@ import { submitPosterRequest } from "@/utils/api/poster-api.js";
 
 // 八周年信件弹窗用到的图片（仍在 Home 内使用）
 import anniversaryTextImg from "@/assets/images/8yearstext.webp?url";
+import homeLogoImg from "@/assets/images/favicon.webp?url";
 
 // 路由相关
 const router = useRouter();
@@ -388,6 +403,8 @@ const anniversaryHigherPlanName = computed(() => (
 // builtin 类型按 builtin_key 分发到对应硬编码组件，其余走 DynamicHomeHero
 // ============================================
 const homeHeroesStore = useHomeHeroesStore();
+// store 已有数据（SPA 内返回首页）时跳过骨架屏，避免 1-2 帧闪现
+const heroLoading = ref(homeHeroesStore.publishedHeroes.length === 0);
 
 // 可见英雄区列表：已发布未归档，birthday 需额外检测今日是否有用户生日
 const visibleHeroes = computed(() =>
@@ -570,11 +587,14 @@ onMounted(async () => {
 
   initIntersectionObserver();
 
-  // 加载已发布动态英雄区（失败不影响首屏，硬编码英雄区照常显示）
+  // 加载已发布动态英雄区（失败不影响首屏：fetchPublished 内部有缓存/baseline 兜底，
+  // 且带 6s 超时竞速，弱网下骨架屏最多停留 6 秒）
   try {
     await homeHeroesStore.fetchPublished();
   } catch {
     // 静默失败：动态英雄区是增量，表不存在时仅返回空数组
+  } finally {
+    heroLoading.value = false;
   }
 });
 

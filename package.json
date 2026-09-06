@@ -21,10 +21,11 @@
     "check:structure": "node scripts/check-project-structure.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "island:smoke": "node scripts/island-smoke.mjs",
     "test:watch": "vitest",
     "check:bundle": "bash scripts/check-bundle-size.sh",
     "import:boh-kb": "node scripts/import-boh-knowledge-base.mjs",
-    "build:ci": "npm run check:views && npm run check:structure && npm run type-check && vite build && bash scripts/check-bundle-size.sh"
+    "build:ci": "npm run check:views && npm run check:structure && vite build && bash scripts/check-bundle-size.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.1",

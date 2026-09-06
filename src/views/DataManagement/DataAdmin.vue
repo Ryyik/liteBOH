@@ -716,7 +716,8 @@
               </div>
             </div>
 
-            <table v-show="viewMode === 'table'" class="g-table-sheet">
+            <div v-show="viewMode === 'table'" class="g-sheet-table-scroll" role="region" aria-label="数据表格" tabindex="0">
+            <table class="g-table-sheet">
               <thead>
                 <tr>
                   <th class="checkbox-col">
@@ -1041,21 +1042,22 @@
                             解禁
                           </button>
                         </template>
-                        <button v-if="relatedJumpsForItem(item).length" class="icon-btn" @click="openRelatedPanel(item)" title="关联记录" aria-label="关联记录">
-                          <Link :size="15" />
-                        </button>
-                        <button v-if="canEditCurrentTab" class="icon-btn edit" @click="openEditModal(item)" title="编辑">
-                          <Pencil :size="16" />
-                        </button>
-                        <button v-if="canDeleteCurrentTab && !isProfileDerivedTab" class="icon-btn delete" @click="deleteItem(item)" title="删除">
-                          <Trash2 :size="16" />
-                        </button>
                       </template>
+                      <button v-if="relatedJumpsForItem(item).length" class="icon-btn" @click="openRelatedPanel(item)" title="关联记录" aria-label="关联记录">
+                        <Link :size="15" />
+                      </button>
+                      <button v-if="canEditCurrentTab" class="icon-btn edit" @click="openEditModal(item)" title="编辑" aria-label="编辑">
+                        <Pencil :size="16" />
+                      </button>
+                      <button v-if="canDeleteCurrentTab && !isProfileDerivedTab" class="icon-btn delete" @click="deleteItem(item)" title="删除" aria-label="删除">
+                        <Trash2 :size="16" />
+                      </button>
                     </div>
                   </td>
                 </tr>
               </TransitionGroup>
             </table>
+            </div>
 
             <template #pagination>
               <span v-if="totalRecordCount > 0" class="g-sheet-foot-text">
@@ -5916,7 +5918,8 @@ onUnmounted(() => {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.02em;
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(12px) saturate(160%) brightness(1.02);
+  -webkit-backdrop-filter: blur(12px) saturate(160%) brightness(1.02);
   background: rgba(255, 255, 255, 0.85);
 }
 .lottery-card-status.tone-muted { color: #64748b; }

@@ -611,7 +611,7 @@ import {
   resolveSettingsBackLocation
 } from '@/utils/user-space-navigation.js';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
-import { showGlobalNavStatus } from '@/composables/useGlobalNavStatus.js';
+import { showIsland } from '@/composables/useIsland.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -1531,7 +1531,7 @@ showNotice.timer = null;
 const _originShowNotice = showNotice;
 function showCloudIsland(title, message = '', icon = 'success', durationMs = 3200) {
   try {
-    const ok = showGlobalNavStatus({ title, message, icon, durationMs });
+    const ok = showIsland.notify({ title, message, icon, durationMs });
     return ok;
   } catch {
     return false;
@@ -1554,7 +1554,7 @@ showNotice = function(message) {
   const title = text.length > 24 ? text.slice(0, 24) : text;
   const msg = text.length > 24 ? text.slice(24) : '';
   let ok = false;
-  try { ok = showGlobalNavStatus({ title, message: msg, icon, durationMs: isError ? 3600 : 3000 }); } catch { ok = false; }
+  try { ok = showIsland.notify({ title, message: msg, icon, durationMs: isError ? 3600 : 3000 }); } catch { ok = false; }
   if (ok) {
     noticeText.value = '';
     window.clearTimeout(_cloudNoticeTimer);

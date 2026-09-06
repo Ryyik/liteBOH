@@ -119,7 +119,7 @@ export interface NotificationPayload {
 }
 
 // --- Home Heroes Store ---
-export type HomeHeroTemplate = 'standard' | 'overlay' | 'split' | 'responsive' | 'builtin'
+export type HomeHeroTemplate = 'standard' | 'overlay' | 'split' | 'responsive' | 'showcase' | 'builtin'
 export type HomeHeroVariant = 'light' | 'dark'
 export type HomeHeroStatus = 'draft' | 'published'
 
@@ -176,6 +176,29 @@ export interface SplitCardConfig {
   content_layout?: ContentLayout | null
 }
 
+/**
+ * showcase（设定集书页）模板：环绕人物配置
+ * key 指向 src/data/skinLibrary.js 的内置皮肤库；src 为自定义上传立绘（优先于 key）
+ */
+export interface ShowcaseCharacterConfig {
+  key?: string
+  src?: string
+  name?: string
+  side?: 'left' | 'right'
+  depth?: 1 | 2 | 3
+  scale?: number
+  mobile_hidden?: boolean
+}
+
+export interface ShowcaseConfig {
+  layout?: 'ring' | 'free' // 布局模式：ring=群像环绕（环布局+关粒子），缺省按 free；历史数据回退标题判定
+  badge_text?: string // 发布徽标文案（如"晚秋发布"），留空不显示
+  particles?: boolean // 飘落像素落叶粒子开关
+  cover_src?: string // 书封图片（留空使用默认渐变封面）
+  cover_alt?: string
+  characters: ShowcaseCharacterConfig[]
+}
+
 export interface HomeHero {
   id: string
   sort_order: number
@@ -190,6 +213,7 @@ export interface HomeHero {
   content_layout?: ContentLayout | null
   links: HeroLink[]
   split_cards?: SplitCardConfig[] | null
+  showcase_config?: ShowcaseConfig | null
   label?: string | null
   aria_label?: string | null
   status: HomeHeroStatus

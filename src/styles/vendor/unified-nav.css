@@ -636,8 +636,8 @@
   height: calc(100dvh - 64px);
   max-height: calc(100dvh - 64px);
   background-color: rgba(255, 255, 255, 0.85) !important;
-  backdrop-filter: blur(20px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02)) !important;
+  -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02)) !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.3);
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
   z-index: 9998;
@@ -782,8 +782,8 @@
   visibility: hidden;
   transform: translateX(20px) scale(0.97);
   filter: brightness(0.95);
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
   /* 收起态：快速退出 */
   transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
               visibility 0.2s cubic-bezier(0.4, 0, 0.2, 1),
@@ -810,8 +810,8 @@
   visibility: visible;
   transform: translateX(0) scale(1);
   filter: brightness(1);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
+  -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
   /* 展开态：回弹缓动 */
   transition: opacity 0.4s var(--ease-emphasized),
               visibility 0.4s var(--ease-emphasized),
@@ -1082,8 +1082,8 @@
     margin-top: 6px !important;
     min-width: 140px !important;
     background-color: rgba(255, 255, 255, 0.9) !important;
-    backdrop-filter: blur(10px) !important;
-    -webkit-backdrop-filter: blur(10px) !important;
+    backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02)) !important;
+    -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02)) !important;
     border: 1px solid rgba(255, 255, 255, 0.3) !important;
     border-radius: 12px !important;
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1) !important;
@@ -1178,8 +1178,8 @@
     margin-top: 6px !important;
     min-width: 140px !important;
     background-color: rgba(255, 255, 255, 0.9) !important;
-    backdrop-filter: blur(10px) !important;
-    -webkit-backdrop-filter: blur(10px) !important;
+    backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02)) !important;
+    -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02)) !important;
     border: 1px solid rgba(255, 255, 255, 0.3) !important;
     border-radius: 12px !important;
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1) !important;
@@ -1420,8 +1420,8 @@ body.page-shop .page-header {
   /* 确保下拉菜单在深色模式下也保持白色透明磨砂玻璃效果 */
   .unified-nav .nav-dropdown {
     background-color: rgba(255, 255, 255, 0.95) !important;
-    backdrop-filter: blur(14px) !important;
-    -webkit-backdrop-filter: blur(14px) !important;
+    backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02)) !important;
+    -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02)) !important;
     border: 1px solid rgba(255, 255, 255, 0.3) !important;
   }
 
@@ -1432,8 +1432,8 @@ body.page-shop .page-header {
 
   .unified-nav .nav-modal {
     background-color: rgba(30, 30, 30, 0.95);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+    -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
   }
 
   .unified-nav .nav-modal-title,
@@ -1519,8 +1519,8 @@ body.page-service .unified-nav .nav-dropdown,
 body.page-shop .unified-nav .nav-dropdown,
 body.page-shop-user .unified-nav .nav-dropdown {
   background-color: rgba(255, 255, 255, 0.9) !important;
-  backdrop-filter: blur(10px) !important;
-  -webkit-backdrop-filter: blur(10px) !important;
+  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02)) !important;
+  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02)) !important;
   border: 1px solid rgba(255, 255, 255, 0.3) !important;
   /* 确保过渡动画正常工作 */
   transition:
@@ -1544,8 +1544,8 @@ body.page-shop-user .unified-nav .nav-dropdown {
   margin-top: 6px !important;
   min-width: 160px !important;
   background-color: rgba(255, 255, 255, 0.9) !important;
-  backdrop-filter: blur(10px) !important;
-  -webkit-backdrop-filter: blur(10px) !important;
+  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02)) !important;
+  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02)) !important;
   border: 1px solid rgba(255, 255, 255, 0.3) !important;
   border-radius: 12px !important;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1) !important;
@@ -1707,8 +1707,8 @@ body.page-shop-user .unified-nav .nav-dropdown-item {
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.3);
     background-color: rgba(255, 255, 255, 0.78) !important;
-    backdrop-filter: blur(20px) saturate(180%) !important;
-    -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+    backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02)) !important;
+    -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02)) !important;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
     padding: 6px 6px;
     transform: translateX(-50%) translateY(-12px);
@@ -1741,8 +1741,8 @@ body.page-shop-user .unified-nav .nav-dropdown-item {
     max-height: calc(100dvh - 84px);
     border-radius: 20px;
     background-color: rgba(255, 255, 255, 0.78) !important;
-    backdrop-filter: blur(20px) saturate(180%) !important;
-    -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+    backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02)) !important;
+    -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02)) !important;
     border: 1px solid rgba(255, 255, 255, 0.3);
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
     overflow: hidden;
@@ -1844,8 +1844,8 @@ body.page-shop-user .unified-nav .nav-dropdown-item {
   margin: 0 20px;
   padding: 40px 30px;
   background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
+  -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
@@ -2025,8 +2025,8 @@ body.page-shop-user .unified-nav .nav-dropdown-item {
     box-shadow 0.3s var(--ease-out),
     border-color 0.3s var(--ease-out);
   letter-spacing: 1px;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
 }
 
 

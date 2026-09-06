@@ -102,8 +102,8 @@ onMounted(() => {
   z-index: 100;
   height: 56px;
   background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
+  -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
@@ -160,8 +160,8 @@ onMounted(() => {
 
 .uss-post-card {
   background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
+  -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
   border: 1px solid rgba(0, 0, 0, 0.05);
   border-radius: 24px;
   padding: 24px;
@@ -256,8 +256,8 @@ onMounted(() => {
   gap: 8px;
   padding: 7px;
   background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
+  -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
   border-radius: 36px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.04);
   border: 1px solid rgba(0, 0, 0, 0.04);

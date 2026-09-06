@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="dM035byFad2Bf8OHJSks3a">
+<head data-page-node-id="Y3uh38hxp9sJUeSugq6ZZA">
+<meta charset="UTF-8" data-page-node-id="P8hGcWPdho6UXHovn7pYCO">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="zDDwgQrhPyFgXW1c18VBRh">
+<title>2026-09-06 Git 改动 Bug 审查报告</title>
+<style>
+  :root { --ink:#1d2938; --ink2:#5b6b7f; --line:#e3e8ef; --bg:#f6f8fb; --card:#ffffff;
+    --red:#c62828; --red-bg:#fdecec; --org:#b45309; --org-bg:#fef3e2; --grn:#1b7f4d; --grn-bg:#e8f6ee;
+    --blu:#1d5fd1; --blu-bg:#eaf1fd; --gray:#64748b; --gray-bg:#eef1f5; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",sans-serif;
+    background:var(--bg); color:var(--ink); line-height:1.65; padding:32px 16px 64px; }
+  .wrap { max-width:960px; margin:0 auto; }
+  header.hero { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:28px 32px; margin-bottom:20px; }
+  h1 { font-size:24px; letter-spacing:.5px; }
+  .meta { color:var(--ink2); font-size:13px; margin-top:10px; display:flex; flex-wrap:wrap; gap:6px 22px; }
+  .meta b { color:var(--ink); font-weight:600; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin:20px 0 24px; }
+  .stat { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 18px; }
+  .stat .num { font-size:26px; font-weight:700; }
+  .stat .lbl { font-size:12px; color:var(--ink2); margin-top:2px; }
+  .num.hi { color:var(--red); } .num.md { color:var(--org); } .num.lo { color:var(--blu); } .num.ok { color:var(--grn); }
+  h2 { font-size:17px; margin:30px 0 14px; padding-left:10px; border-left:4px solid var(--blu); }
+  .issue { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px 24px; margin-bottom:16px; }
+  .issue-head { display:flex; align-items:flex-start; gap:10px; flex-wrap:wrap; }
+  .badge { font-size:11px; font-weight:700; padding:2px 10px; border-radius:99px; white-space:nowrap; margin-top:3px; }
+  .b-high { background:var(--red-bg); color:var(--red); }
+  .b-med  { background:var(--org-bg); color:var(--org); }
+  .b-low  { background:var(--blu-bg); color:var(--blu); }
+  .b-ok   { background:var(--grn-bg); color:var(--grn); }
+  .issue-title { font-size:15.5px; font-weight:700; flex:1; min-width:240px; }
+  .loc { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; color:var(--blu);
+    background:var(--blu-bg); border-radius:6px; padding:1px 8px; display:inline-block; margin:8px 0 4px; }
+  .sec { margin-top:10px; font-size:13.5px; }
+  .sec .k { font-weight:700; color:var(--ink2); margin-right:6px; }
+  .sec code, .loc2 { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px;
+    background:var(--gray-bg); border-radius:4px; padding:1px 5px; }
+  pre { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; background:#f1f4f8;
+    border:1px solid var(--line); border-radius:8px; padding:10px 14px; overflow-x:auto; margin:8px 0 2px; color:#333; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line);
+    border-radius:12px; overflow:hidden; font-size:13px; }
+  th,td { padding:10px 14px; text-align:left; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { background:#f0f3f8; font-size:12px; color:var(--ink2); }
+  tr:last-child td { border-bottom:none; }
+  .note { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 24px; font-size:13.5px; color:var(--ink2); }
+  .note b { color:var(--ink); }
+  footer { text-align:center; color:var(--ink2); font-size:12px; margin-top:36px; }
+</style>
+</head>
+<body data-page-node-id="i2nCTkKM0vBsCqwzshbp2S">
+<div class="wrap" data-page-node-id="CFSsYbIhnioLQX4CunYQBP">
+
+<header class="hero" data-page-node-id="yjyCvy4DPzuQaUGrdTJNIO">
+  <h1 data-page-node-id="F6ADjDSUWmeDyB3Fmn62sU">🐛 2026-09-06 Git 改动 Bug 审查报告</h1>
+  <div class="meta" data-page-node-id="wgdhj1w0Mc4EAYrp2YtKIF">
+    <span data-page-node-id="bhtarzZxUF5wWTNPmVuWqx">仓库：<b data-page-node-id="4lfoZS207R2z2Qi95DwUIL">BOHLITEBeta2.5</b></span>
+    <span data-page-node-id="lODUmMgjRtOIymGgB8hnmO">审查范围：<b data-page-node-id="krFuhkNjdZzjPaGQP27iob">今日提交 cdb635b + 全部未暂存/未跟踪改动（暂存区为空）</b></span>
+    <span data-page-node-id="nWkZVoITaxvGgfkQjsqa0E">方法：<b data-page-node-id="iAeDARfVaO48FbZAN26waC">5 路分区审查 → 主审逐条交叉验证 → 机械兜底</b></span>
+    <span data-page-node-id="Gv7OIWDBxSHi7ijguYOp45">结论置信度：<b data-page-node-id="0rJFS1ePUwmlAFoi2SndoI">所有问题均经源码逐行实证</b></span>
+  </div>
+</header>
+
+<div class="stats" data-page-node-id="TltG3akb18MGQByLySkR6K">
+  <div class="stat" data-page-node-id="QvabFMbu8HCkV0X8lWbmtM"><div class="num hi" data-page-node-id="Os1zbdFwRGxgewVOqAApNA">2</div><div class="lbl" data-page-node-id="yraCfw9L5LQ00kQKld8mak">高严重度</div></div>
+  <div class="stat" data-page-node-id="7YyULWFjgtknwOolxGqEHf"><div class="num md" data-page-node-id="jqATlKiLyua5cteprmapfz">4</div><div class="lbl" data-page-node-id="PcgCXOEJT9Z2rp7g7eJ0p2">中严重度</div></div>
+  <div class="stat" data-page-node-id="DYKNxwbTATIFT5rRyToPBA"><div class="num lo" data-page-node-id="iEsz2nAw6TwT28jB1zowtH">5</div><div class="lbl" data-page-node-id="RtJVP2H228JxChHnC4v9Sq">低严重度</div></div>
+  <div class="stat" data-page-node-id="wKwxTHgCORuXFLD89WuLSt"><div class="num ok" data-page-node-id="CIa8PHuOjKF5BeHV5OZxrL">5</div><div class="lbl" data-page-node-id="pTYHZqBWgxC2BYSUjv2k4G">误报已排除</div></div>
+  <div class="stat" data-page-node-id="pdyYZ3GWWCCbljTmXnjFS1"><div class="num" data-page-node-id="t0eREBiHnlzNsCKghOgYx4">~130</div><div class="lbl" data-page-node-id="07zrfLE40bWo7tjeMPvHkb">审查文件数</div></div>
+</div>
+
+<div class="note" style="margin-bottom:6px" data-page-node-id="DSzWZMIIaUFsLtyEXYIULz">
+  <b data-page-node-id="Y8vomGPVpQJE4RrHBXLq3L">审查范围与口径</b> — ① 今日提交 <code data-page-node-id="WuYrNGJr8PRRP4MN6AYL53">cdb635b</code>（fix: allow archiving and publishing home heroes，homeHeroes.ts +83 / HeroConsole +238）；② 未暂存改动 113 个修改 + 440 个删除（删除全部为 <code data-page-node-id="7lsOmgsjiYRvwLV8rFrmaa">.build-verify/</code> 构建产物目录移除，非代码风险）；③ 未跟踪新源码（岛系统、ActivitiesWall、ShowcaseBookHero、skinLibrary、forum-async-worker、4 个 SQL 迁移等）；④ 暂存区（staged）经 <code data-page-node-id="rWmXpOvl7G1d0DmS0uqn9e">git diff --cached</code> 确认为 <b data-page-node-id="AOETWjZVIzr8Cr4G56fxOC">0 个文件</b>。<br data-page-node-id="kSTyxyyVOvd5CSUN8FXJG3">
+  <b data-page-node-id="VqtIEQaQLWD19qP7x3OGDi">验证手段</b> — 5 个分区审查代理 + 主审对每条候选问题亲自读源码复核（只保留实证问题）；<code data-page-node-id="zW86qY8icNrkZKy7FtxrBR">vue-tsc</code> 全量类型检查通过（0 错误，同时证明此类模板悬挂标识符静态检查无法捕获，必须人工审查）；删除文件残留引用 grep（0 活引用）；GitHub Actions 版本联网核实。
+</div>
+
+<h2 data-page-node-id="fjcyr9ozcRgH3XSKmq8eiO">确认的问题</h2>
+
+<!-- 1 -->
+<div class="issue" data-page-node-id="fQC8A0Q9dJfQ8CopACqy7G">
+  <div class="issue-head" data-page-node-id="cjjHj6KEfzUvRnDBlYuX5U"><span class="badge b-high" data-page-node-id="qVoEJKLF8lPCsFlne1OcNF">高</span>
+    <div class="issue-title" data-page-node-id="2lGOGic2zQ0gM2eZtfZC5B">forum-async-worker 无 Cron 唤醒 —— 任务会永久卡死，整个重试机制形同虚设</div></div>
+  <span class="loc" data-page-node-id="wONQSlKX82ENUEr733SEDp">src/utils/api/forum/post-api.js:158 · supabase/functions/forum-async-worker/index.ts:61,122 · supabase/migrations/（缺失）</span>
+  <div class="sec" data-page-node-id="VqjOHVts73m8bKHCmrxBtW"><span class="k" data-page-node-id="DSCvSQlybkatpvvWhTCi8T">证据：</span>前端入队后仅一次性 fire-and-forget 唤醒 worker（<code data-page-node-id="tFOwCpsefcxMa0VILfrHjg">void supabase.functions.invoke('forum-async-worker')</code>），worker 每次 <code data-page-node-id="62zQQGmBJdfJgbxpVAsHx5">processOne</code> 只处理 1 个 job（<code data-page-node-id="Ap7i92e0rgZya3nXp5RZu4">p_limit: 1</code>）。迁移 0601 的 <code data-page-node-id="CUUlznLPVa14RMKa7dYlXN">fail_forum_async_job</code> 将失败任务置回 <code data-page-node-id="6u5beTCOjzw3ONvubuG9nD">pending</code> 并设 <code data-page-node-id="i1PEfSZ2HhB3ui0R1ABgd5">run_after = now()+30s</code>，但全库 grep（supabase/migrations、functions、scripts）不存在任何唤醒 forum-async-worker 的 pg_cron 任务——<code data-page-node-id="uM2Kl0BSDrFOSsgXAeglnR">FORUM_WORKER_SECRET / x-worker-secret</code> 仅在 worker 自身出现。设计文档 <code data-page-node-id="5AbmF78Ya90DfflnySQG8M">plans/006-forum-image-backend-moderation.md:42-43, 80</code> 明确要求「pg_cron 每 5 分钟唤醒 worker 兜底」，未落地。</div>
+  <div class="sec" data-page-node-id="i29bSeEksWdBNI7LNOsfXP"><span class="k" data-page-node-id="bCYYvWeb7Mi8d1SPfyLKEB">影响：</span>① 前端那次唤醒因网络/边缘函数抖动失败时，job 永远停在 pending；② 失败任务置回 pending 后再无任何调用方来 claim，<code data-page-node-id="CjQbxxLEf7jTnQrFpGyJ9F">max_attempts=5</code> 的重试链路完全失效；③ 高峰期多 job 排队时单次唤醒只消化 1 个，形成积压。</div>
+  <div class="sec" data-page-node-id="JGEQj7DTShM0wnkEccYYzP"><span class="k" data-page-node-id="V64gA2VGC90wUOF6zOyEs5">修复建议：</span>新增迁移，仿照 2026090602 周报模式注册 pg_cron（每 5 分钟带 <code data-page-node-id="O6y7KMD1YyoYX1svYbBZRz">x-worker-secret</code> POST worker），worker 的 Cron 通道代码已就绪（index.ts:103,122），只差注册。</div>
+  <div class="sec" data-page-node-id="JJByODt19SOY1EfoQLEj0Q"><span class="k" data-page-node-id="dKlGCNJuK4fiKSGnsLbEfF">验证方式：</span>grep 全部迁移与脚本 0 命中 cron 注册；读 worker 源码确认单 job 模式与双通道鉴权；对照设计文档承诺。</div>
+</div>
+
+<!-- 2 -->
+<div class="issue" data-page-node-id="qaBCRHaEDBWtP3HY22pLnM">
+  <div class="issue-head" data-page-node-id="ytqN0WEOOVLtOzahNbfdKP"><span class="badge b-high" data-page-node-id="W4EqyFKsWupCQl3APZCk2w">高</span>
+    <div class="issue-title" data-page-node-id="lCBVGFZpIU3ywdcEdaiGGA">Health 日期基准分裂（今日引入的回归）：写入用 UTC 日期，读取用本地日期</div></div>
+  <span class="loc" data-page-node-id="nVSiHDPLWAwOO8TTMdlXqr">src/views/Health/index.vue:205 · src/stores/health.ts:46→601-604</span>
+  <div class="sec" data-page-node-id="A0TJHnw3zDNpGQ3rQXDrgg"><span class="k" data-page-node-id="MJNQm7vrGpOA41xTfClqqw">证据：</span><code data-page-node-id="FVvCS7lZd1YdAN2wthVcCW">git show HEAD</code> 证实改动前 <code data-page-node-id="mdQJvCIBEr12IzW1zP5LlZ">todayISODate = () => new Date().toISOString().slice(0,10)</code>（UTC），读写两侧一致。本次改动把 <code data-page-node-id="rxrJ93su97Yn1RWn9yEr7X">todayISODate</code> 改为 <code data-page-node-id="lUyZyKXcpnw17An4n5oVOv">localDateISO()</code>（本地时区，health.ts:46 与 last7Days 注释「与写入侧保持同一基准」），但写入侧 <code data-page-node-id="wWADKRdScM6mlmRLIsYY1Q">saveToday</code> 仍是内联的 <code data-page-node-id="9DDFKz286sy7ViHzCaKBwV">new Date().toISOString().slice(0, 10)</code>，漏改。</div>
+  <pre data-page-node-id="jAs04aokb7gj9oPqz0pgt5">index.vue:205  healthStore.upsertDailyLog(new Date().toISOString().slice(0, 10), payload)
+health.ts:602  const iso = todayISODate()   // 已改为本地时区 localDateISO()</pre>
+  <div class="sec" data-page-node-id="PUqOSNmkQbFaXYk29AaBUt"><span class="k" data-page-node-id="dVHehSivc3GGTd9sa4FLt7">影响：</span>UTC+8 环境每日 0:00–7:59，UTC 日期仍是「昨天」：凌晨记录的睡眠/体重被归入昨天，<code data-page-node-id="QU3uV8fwVcwJsrBQsK2Vh7">todayLog</code>（本地键）读不到，7 日趋势错列。这是本次改动引入的读写基准不一致。</div>
+  <div class="sec" data-page-node-id="mXmmuk41eIi3ebvbeQ7XiU"><span class="k" data-page-node-id="YT08VuGdu22hcp3WwIiL2T">修复建议：</span>index.vue:205 改用 <code data-page-node-id="It3kUawbPJ2xyY7woAZmHC">todayISODate()</code> 或已 import 的 <code data-page-node-id="OO6LaZihNm93UC75BXnqgy">localDateISO()</code>（该 import 今日已加入但未被此行使用）。</div>
+  <div class="sec" data-page-node-id="GhwDOMDBewbMevrFF19Ucy"><span class="k" data-page-node-id="m4eTfgHjy0dttleZxoREih">验证方式：</span><code data-page-node-id="bxUhAwRcHDjmDEZpoBhXdU">git show HEAD</code> 对比两侧日期函数前后版本；通读 upsertDailyLog（512-513）确认直接使用传入 date 键。</div>
+</div>
+
+<!-- 3 -->
+<div class="issue" data-page-node-id="oZRHXu2WNHn0e1DABHIgRg">
+  <div class="issue-head" data-page-node-id="RDi8kFqRUAgDRNAY2YiAJ9"><span class="badge b-med" data-page-node-id="M7ipaTH6EVnw0NEXxtAqt9">中</span>
+    <div class="issue-title" data-page-node-id="fijHir9S1KqvlvY9FLP39k">编辑帖子不再触发后端复审：ON CONFLICT 不重置任务状态</div></div>
+  <span class="loc" data-page-node-id="nvafIvETX5YbTP4OInYVqZ">supabase/migrations/2026090601_forum_async_publish_jobs.sql:61-62,84 · src/utils/api/forum/post-api.js:1395</span>
+  <div class="sec" data-page-node-id="UzFILacwZbd3EWWcc6PeGP"><span class="k" data-page-node-id="FmqpYLwUBH5PCpTkeHVmC1">证据：</span>部分唯一索引谓词为 <code data-page-node-id="J2cRHOBfK3g8U40OjWA0pR">where status not in ('canceled')</code>（包含 succeeded/failed 行），而 <code data-page-node-id="IDziJa6NcVa2YSYJOqRtnR">enqueue_forum_post_moderation</code> 冲突时仅更新时间戳：</div>
+  <pre data-page-node-id="b9h8j9Of9F7hrq3mm6kIQB">on conflict (job_type, post_id) where status not in ('canceled')
+do update set updated_at = now(), run_after = least(forum_async_jobs.run_after, now())
+-- 未重置 status = 'pending'；而 claim 只取 status in ('pending','running')（第 84 行）</pre>
+  <div class="sec" data-page-node-id="DCwyKUUP50fEs7Zc4r1TTO"><span class="k" data-page-node-id="tepsxnwyEwpD1xBM5ozdxH">影响：</span>正常路径「发布 → 审核完成（succeeded）→ 用户编辑帖子」时，<code data-page-node-id="lOYSBl8r9A6svBrPQWgvqN">updatePost</code>（post-api.js:1343→1395）虽会再次入队，但冲突只刷新时间戳，job 停留在 succeeded，claim 永不选中——编辑后的新内容不再经过后端复审，属于内容安全回归。</div>
+  <div class="sec" data-page-node-id="iQbYyB7sVFOUXrZvWd3Ido"><span class="k" data-page-node-id="QtBJdJYrWPYw3dEcfjmJrD">修复建议：</span>DO UPDATE 增加 <code data-page-node-id="3ewEOJmIbruNlrphkB3But">status = 'pending', attempt_count = 0, last_error = null, completed_at = null</code>。</div>
+  <div class="sec" data-page-node-id="kZRsLRlQtGlGKzfZQmxI24"><span class="k" data-page-node-id="ULHnXXzvabNtAeo7gtfmKS">验证方式：</span>通读 0601 迁移全文（索引谓词、enqueue、claim、fail 四段）+ updatePost 调用链。</div>
+</div>
+
+<!-- 4 -->
+<div class="issue" data-page-node-id="MduyZenjRzHEGjFrG4eivi">
+  <div class="issue-head" data-page-node-id="wydFldbwSHlBZ9uXK6Rs39"><span class="badge b-med" data-page-node-id="BhM0DGBcZ46Q4aVZluH5pb">中</span>
+    <div class="issue-title" data-page-node-id="SRBpgLgfER9ybgs1ZWeJ17">BOH AI 模式菜单加载态「死亡」：chatModesLoading 未导出、未解构</div></div>
+  <span class="loc" data-page-node-id="eFd2GMguCra8DOCWnQ3F9k">src/views/BOHAI/composables/useChatEngine.js:306（声明）· 2318-2400（return 缺失）· src/views/BOHAI/BOHAI/BOHAIMain.vue:414,422（模板引用）· 714-765（解构缺失）</span>
+  <div class="sec" data-page-node-id="rNSJijW13oVduRKmvHuzBr"><span class="k" data-page-node-id="FaSmkJVHY0Ed98JtOa3pYT">证据：</span><code data-page-node-id="XK6DZx3o8nZ3JjD5atAX1z">chatModesLoading</code> 在 useChatEngine.js:306 声明并内部使用（397/1043/1045），但完整 return 块（2318-2400）不含它；BOHAIMain 解构（714-765）也没有；模板却在使用：</div>
+  <pre data-page-node-id="SYfRtAavUmaKMSgEhtWETE">:class="{ open: modeMenuOpen, loading: chatModesLoading }"          <!-- 414 -->
+<div v-if="chatModesLoading" class="composer-mode-menu-loading" data-page-node-id="mpNI0lWLXoorxU6cIn9TOp">     <!-- 422 -->
+  …骨架屏… <p class="mode-menu-loading-hint" data-page-node-id="hwyW9GMjBnquW2YF8vZblZ">模式加载中…</p></pre>
+  <div class="sec" data-page-node-id="BPVGTUkDp908ANJMoClqa5"><span class="k" data-page-node-id="1DgQwgEahc52ww9xHutdoH">影响：</span>BOHAIMain 为 <code data-page-node-id="TMzzaTp14n40PE3g3zOIx9">&lt;script setup&gt;</code>，未解析标识符回退为 <code data-page-node-id="4sW5O2MKA2e0itYDrCa9XC">_ctx.chatModesLoading</code>（undefined），<b data-page-node-id="zQBZf2P3jrsUdMOigCxqgs">不会崩溃</b>（修正子代理「ReferenceError 渲染崩溃」的误判），但：骨架屏永不显示；模式尚未加载完成时打开菜单会直接落到 <code data-page-node-id="uD0iHlZNQFoL69pCpwPEMG">v-else-if="filteredChatModes.length === 0"</code> 分支，显示误导性的「暂无可用模式」；按钮 loading 样式类永不生效。vue-tsc 全量通过（默认非 strictTemplates 下悬挂标识符为 any），证明只能靠人工审查发现。</div>
+  <div class="sec" data-page-node-id="FqBsGXoZcpMUfZF54XfPvQ"><span class="k" data-page-node-id="ST8FijaMGta8bfezalvJpP">修复建议：</span>useChatEngine return 补 <code data-page-node-id="urXuOmrMfC4Wy3TjgdOR9a">chatModesLoading</code>，BOHAIMain 解构补同名项。</div>
+  <div class="sec" data-page-node-id="d3gONs3M0E3UuDopIfHetg"><span class="k" data-page-node-id="IM0xAEkeWEua2dYxJjITqC">验证方式：</span>逐行读 useChatEngine 完整 return 块与 BOHAIMain 完整解构清单；确认 modeMenuOpen(570)/filteredChatModes(583) 均本地定义，唯独此项缺失。</div>
+</div>
+
+<!-- 5 -->
+<div class="issue" data-page-node-id="vbxSEAB5HpmiBCztCG8ZWn">
+  <div class="issue-head" data-page-node-id="3Ml440Nl8nwQCPVrOl5yn7"><span class="badge b-med" data-page-node-id="4BZEPjgDYstWUO0mBYTZBQ">中</span>
+    <div class="issue-title" data-page-node-id="FvPD6dfJCXXwbJUcxn3SgO">HkNumberField 失焦逻辑缺陷：无法清空数值；空值下失焦会静默写入最小值 0</div></div>
+  <span class="loc" data-page-node-id="NYZDyddsqPCSrvtuUvsG65">src/views/Health/components/HkNumberField.vue:121-136 · src/views/Health/components/HkLogSheet.vue:72-77</span>
+  <div class="sec" data-page-node-id="APdlXrv0I0UwmF8bGCHkxp"><span class="k" data-page-node-id="jWpnxFABlQrN5tbEQ2ooDK">证据：</span><code data-page-node-id="wN7Qb8ogE8ibfk15qorlnD">onNumberInput</code> 对空串故意不 emit（注释「等失焦/提交再处理」），但 <code data-page-node-id="gLnrWZlUCGY5hbFgSQTx0N">onNumberBlur</code> 只钳制 <code data-page-node-id="zG4J0XkUBSrbPZweNdoHjq">props.modelValue</code>（旧值），从不读取输入框当前文本：</div>
+  <pre data-page-node-id="bIjowVIPumobxewZkCwU4Z">const onNumberBlur = () => {
+  const clamped = clampToStep(props.modelValue)   // 旧值；清空时仍是旧值
+  if (clamped !== null && clamped !== props.modelValue) emit('update:modelValue', clamped)
+  emit('change', clamped) }
+// clampToStep(null)：Number(null)=0 → 被钳到 min</pre>
+  <div class="sec" data-page-node-id="52pD12DB04zxnxASkvrLm1"><span class="k" data-page-node-id="47AbJBvH3pvq9xOTKopzS9">影响（两个变体）：</span>① 已有值 → 清空 → 失焦：值回弹旧值，用户永远无法置空；② HkLogSheet 专门用 <code data-page-node-id="WErCvGR9x3ojZYaGh8VePp">null</code> 表示「未记录」（72-77 行，注释明确「不再用假默认值冒充数据」）→ 打开输入框不输入直接失焦：<code data-page-node-id="V4XmJNB75PnmQIBf1vrdsO">clampToStep(null)</code> 把 0 钳到 min，静默写入 睡眠 0h / 0 步 / 0 杯——恰好违背该设计初衷。</div>
+  <div class="sec" data-page-node-id="ycFnuBUotnIJb42LiGbFMe"><span class="k" data-page-node-id="3WoAIyAUz50tSLF9Do88Yu">修复建议：</span>blur 时读取 <code data-page-node-id="na72vh6aadIjGqAg3ccptC">numEl.value</code>：空串则 emit <code data-page-node-id="6zYPB0VqRUgjyOLwAHytpY">update:modelValue</code> 为 null；否则再走钳制。</div>
+  <div class="sec" data-page-node-id="xgSTAGLb7Fvy56GLG5u8Yg"><span class="k" data-page-node-id="DHTUzgE8lV8yje3DCeAmSV">验证方式：</span>通读组件全文 + 两个父组件的 draft 初始化，确认 null 草稿可达（HkBodySheet 经 <code data-page-node-id="5knFmwZZ8PBcg2NxlaBEJq">?? 170/60</code> 兜底不可达，HkLogSheet 直接可达）。</div>
+</div>
+
+<!-- 6 -->
+<div class="issue" data-page-node-id="4tdehnhsz593GIwWRG6JK0">
+  <div class="issue-head" data-page-node-id="zHXkBuLcd7oYQVGii92onY"><span class="badge b-med" data-page-node-id="3a6SqXzjaAdiW2779TtTK2">中</span>
+    <div class="issue-title" data-page-node-id="Qt6YQffHE9Hkd0XPXofXv1">clearAll 异步结果被忽略：云端删除失败时用户零感知</div></div>
+  <span class="loc" data-page-node-id="JnZC9e8dRjtodHwYKtnQTq">src/views/Health/index.vue:288 · src/stores/health.ts:561-575</span>
+  <div class="sec" data-page-node-id="pDPui7lHBQhearCDw4ZFlb"><span class="k" data-page-node-id="eNQI1B2mHeKaIcQkZCipHP">证据：</span>store 的 <code data-page-node-id="QyLUt1vWyYtm6A3irTM5JK">clearAll</code> 本次改为 async（先删云端），云端任一表失败时按设计「保留本地防复活」并 <code data-page-node-id="erSFf2iONIPhVf7kWGQpWx">return { ok:false }</code>；但调用处 <code data-page-node-id="LdhKccCq9Ryd07P8DVpvEp">healthStore.clearAll()</code> 未 await、返回值被丢弃，随后无条件关闭弹层。</div>
+  <div class="sec" data-page-node-id="En3whG3gm21TyMFtIHpC9R"><span class="k" data-page-node-id="ehGW734g8M8whabZb1HIX2">影响：</span>云端删除失败（弱网/RLS 异常）时用户看不到任何提示，界面表现为「已清空」，数据实际还在，二次进入页面数据「复活」，易被当成灵异 bug 反复投诉。</div>
+  <div class="sec" data-page-node-id="8FSInzA2cyAKeSchsLk6im"><span class="k" data-page-node-id="fP21lR1DTRvXOcqcmVXK7Z">修复建议：</span><code data-page-node-id="Yb3mK78vJA9rAhipyHcEgQ">const r = await healthStore.clearAll(); if (r?.ok === false) showToast/toast 错误</code>。</div>
+  <div class="sec" data-page-node-id="1pzV5F4h1dMKcUBmUjcKGJ"><span class="k" data-page-node-id="0Csbu84ZucQF1aOsAPDABJ">验证方式：</span>读 store clearAll 全文（561-575，含失败早退分支）与调用处上下文。</div>
+</div>
+
+<!-- 7 -->
+<div class="issue" data-page-node-id="kKpI4WFvmI9LJgLbHDH1Cu">
+  <div class="issue-head" data-page-node-id="cCmMmVBZkR9JTRWGD65WGd"><span class="badge b-low" data-page-node-id="1X0x3YAxroEzzlt8NRWgmA">低</span>
+    <div class="issue-title" data-page-node-id="bFN0wAwXmxzdqivr3N7zRD">已归档英雄可「发布成功」但首页永不生效（toast 与事实矛盾）</div></div>
+  <span class="loc" data-page-node-id="oZiY18LSpI24PyYfXMwjXo">src/views/HeroConsole/index.vue:152,1279-1294 · src/stores/homeHeroes.ts:544-570,316</span>
+  <div class="sec" data-page-node-id="AQlYLW3lICKDq7qHW5m2nt"><span class="k" data-page-node-id="UzqiQSGhmOd9ddDAcM6dRd">证据：</span>控制台有归档勾选（152 行 <code data-page-node-id="vGAC8xrlUVS6uBItHUCk3i">v-model="draftHero.is_archived"</code>）；<code data-page-node-id="R3KN1G8H6nNqi8YI9B86GR">publishCurrent()</code> 无 is_archived 校验；<code data-page-node-id="I6NIP2OD4L2bFk30IDVRMs">publishHero</code> 的 update 只写 <code data-page-node-id="nYbaIGWth5BVT1SqMJa4YF">status/published_at/published_by/updated_at</code>，不重置 is_archived；而 <code data-page-node-id="T8FFeFD8AU4ULlUiBBe8rP">fetchPublished</code> 过滤 <code data-page-node-id="BbONDDl4ZTvDHixzGnD5Qo">.eq('is_archived', false)</code>（316 行）。</div>
+  <div class="sec" data-page-node-id="rgzyudI0LodcB5Do2UN8Yx"><span class="k" data-page-node-id="lRhnSVMxCeOmemKG7fMVPX">影响：</span>勾选归档后直接点发布 → toast「已发布，首页即将生效」，但首页永不展示该英雄。若为有意设计（归档需手动取消），至少 toast 与按钮态存在误导。</div>
+  <div class="sec" data-page-node-id="FZiIoXWPEXw9r5xoguInXF"><span class="k" data-page-node-id="yhQIbOLrULEgQh43GTKupr">修复建议：</span>publishHero 对归档英雄提示并阻止，或发布时带 <code data-page-node-id="E5tWYg55iIv83SJNxRctBI">is_archived: false</code>。</div>
+  <div class="sec" data-page-node-id="pbMbF08E8kgXZygqBXAKPD"><span class="k" data-page-node-id="Z2lQUB3cBR0ZKIqrQY12dF">验证方式：</span>读 publishCurrent/publishHero/fetchPublished 三段源码 + grep HeroConsole 中 archive 接线。</div>
+</div>
+
+<!-- 8 -->
+<div class="issue" data-page-node-id="v8C3UNAwyHQUGvIxLmKAp1">
+  <div class="issue-head" data-page-node-id="bYHFaECBQeOjRZEgl9j2dl"><span class="badge b-low" data-page-node-id="q4Sw8kK4vDoQnYc125lOpu">低</span>
+    <div class="issue-title" data-page-node-id="NYko2xKuLNs8cnH7APAojq">useOfflineOverview 声明了「请求时序守卫」但从未实现（死代码 + 并发竞态暴露）</div></div>
+  <span class="loc" data-page-node-id="R08Ho0syLOCrhImgMuRitm">src/composables/useOfflineOverview.js:19-21,93</span>
+  <div class="sec" data-page-node-id="5TdoJAK4ikDK00lbHWeFE3"><span class="k" data-page-node-id="zjC9fmhUcoL6V04GHUUBhX">证据：</span>注释宣称「requestSeq：refresh 与 loadMore 并发时只让最后一次请求的结果生效」，但 <code data-page-node-id="nVSTvQFoqGdqDWbfq0ySDX">requestSeq</code> 全文件仅第 21 行声明一处，从未 <code data-page-node-id="3PLrc8dax1x2RNUmA2WlwA">++</code> 或比较。且 <code data-page-node-id="hg5YQ3rjkP3p7kKUA94Jdh">refresh = () => load()</code> 无在途守卫（loadMore 有 isLoading 守卫，refresh 没有）。</div>
+  <div class="sec" data-page-node-id="Y7wCn9RERzmZiX8bc7ISXA"><span class="k" data-page-node-id="DDZfwRKm328ep7toISAMQ6">影响：</span>下拉刷新与加载更多并发时，慢的旧响应可把旧窗口数据 <code data-page-node-id="FGy8ZfaFPtDS4e7QhrDLrC">concat</code> 进新列表（重复/错序）。</div>
+  <div class="sec" data-page-node-id="Xg0kIEtFKrTNLA3UBZquEH"><span class="k" data-page-node-id="2ZCkTSmGwpD0rauDozA5YT">修复建议：</span>每次 load 前 <code data-page-node-id="ISEoElygpJkkiioyWXiexB">const seq = ++requestSeq</code>，响应回来 <code data-page-node-id="ZF5ovAujmUWB0vn1THhC8W">if (seq !== requestSeq) return</code>。</div>
+  <div class="sec" data-page-node-id="oYTbq7rg2ttJpeHAHvwv1w"><span class="k" data-page-node-id="sMwYEpfi0RtuFvXc9b7p8n">验证方式：</span>grep 全文件仅 1 处命中；通读 load/refresh/loadMore 全文。</div>
+</div>
+
+<!-- 9 -->
+<div class="issue" data-page-node-id="kX12CFABizbrEc59QhSV7E">
+  <div class="issue-head" data-page-node-id="ExeLxkGB778yLR8HLutxvR"><span class="badge b-low" data-page-node-id="CnDkEGFInEV9nTw7npHwK4">低</span>
+    <div class="issue-title" data-page-node-id="aM3QfKSAslv06mKVAe89uE">ShowcaseBookHero 6 处硬编码标题字符串「方块设定集」作为模式开关</div></div>
+  <span class="loc" data-page-node-id="RYo2p8tcCE0EQFzEuPHIat">src/views/Home/components/ShowcaseBookHero.vue:4,147,189,229,230,324</span>
+  <div class="sec" data-page-node-id="4zcbVGnsdQjUOe825XySc0"><span class="k" data-page-node-id="1x833VVY6hGhlk3j99nYWz">证据：</span>群像环布局类（<code data-page-node-id="oUy11rknTA9eHaeTOvHEwy">is-character-ring</code>）、粒子开关、角色列表分支、移动端过滤、每侧上限均以 <code data-page-node-id="43X8SfMXMxXcNJMj5wolK7">props.hero.title === '方块设定集'</code> 判定。</div>
+  <div class="sec" data-page-node-id="sYMgAlbUp4p5LrPQlZGu1Y"><span class="k" data-page-node-id="cyKojM0DKrq2sYOrC1K8P9">影响：</span>运营侧一旦修改英雄区标题，环模式静默退化为普通布局、粒子误开。属脆弱耦合而非即时故障。</div>
+  <div class="sec" data-page-node-id="szEh2ac5ora5VhhxeTjZHx"><span class="k" data-page-node-id="rR4e43uGuGyq69rOIAwuNV">修复建议：</span>改用 <code data-page-node-id="PYSaU9ITluSUzg5nUdJRHH">hero.template === 'showcase' && hero.builtin_key === …</code> 或专用的 <code data-page-node-id="J7A1PxbrGplaVtNbcU7dLZ">use_character_ring</code> 配置位（showcase_config jsonb 已存在）。</div>
+  <div class="sec" data-page-node-id="Ap5IuG15icoVqFTwdAAsPa"><span class="k" data-page-node-id="hVqLNvmIrbXnl4eRlHCJv9">验证方式：</span>grep 精确列出 6 处命中行号。</div>
+</div>
+
+<!-- 10 -->
+<div class="issue" data-page-node-id="MWyFteeBTAB9LqAoRndHOg">
+  <div class="issue-head" data-page-node-id="FD6QAiabnFyG1zgcCBYszT"><span class="badge b-low" data-page-node-id="7wBWy7KWfH7xSwBypv4Cyb">低</span>
+    <div class="issue-title" data-page-node-id="GkvYWCo1UGW9PnT4DGXEwT">GlobalNavTaskCard 的 ResizeObserver 在任务卡切换后观察已脱离 DOM 的旧节点</div></div>
+  <span class="loc" data-page-node-id="pKbgSASBlQfoUl97ibMevl">src/components/UnifiedNavbar/GlobalNavTaskCard.vue:122-134</span>
+  <div class="sec" data-page-node-id="QFfTRqyfVtvyLPBCD4fpx4"><span class="k" data-page-node-id="pHnhAEyfn88FVrnPrDnUsE">证据：</span>重建 observer 的 watch 仅依赖 <code data-page-node-id="3G3CEm3DLThk7mjOSYrK4E">props.item?.visible</code>；任务 A→B 切换时内层 <code data-page-node-id="BXEUMTyM61PMPSIvWoGaDR">:key</code> 导致卡片 DOM 重建而 visible 恒为 true，watch 不触发，observer 仍指向旧节点。</div>
+  <div class="sec" data-page-node-id="yt7atYzNiiG2cybn6cQFCF"><span class="k" data-page-node-id="UR8V6BTqspwp2LxClSLtXh">影响：</span>有限——第二个 watch（136-142）在内容变化时主动 <code data-page-node-id="BL4dVIBuqXKSbiGxKrpQxe">reportHeight()</code> 读取当前 <code data-page-node-id="6rJaEn8WiZBKBmxzBIoy4e">card.value</code>，高度上报基本可用；仅纯尺寸自变化（无内容字段变更）场景失效。卸载时有 disconnect，无泄漏。</div>
+  <div class="sec" data-page-node-id="0HZCeDbXCkt9Kraasi5lrU"><span class="k" data-page-node-id="eiaRGteigf73jNT44liKI1">修复建议：</span>watch 源加入 <code data-page-node-id="a9EtdbbdQxD5bZ7OsU4nuv">props.item?.id</code>，或改用 <code data-page-node-id="mH7410O6ACL5Tw8LVlvbrZ">{ flush: 'post' }</code> 的统一重建时机。</div>
+  <div class="sec" data-page-node-id="r1GtfmjIW2xOz8KZVfrOOI"><span class="k" data-page-node-id="yCVBGFeEhJaDfhdFPS5BG8">验证方式：</span>读两个 watch 与 onBeforeUnmount 全文。</div>
+</div>
+
+<!-- 11 -->
+<div class="issue" data-page-node-id="YzZYaZPxgpGcRRfGmLemUL">
+  <div class="issue-head" data-page-node-id="xxjbvKyIDO7iLNz2qxqDud"><span class="badge b-low" data-page-node-id="n8i5K1xHaE9QopKTgFSGGb">低</span>
+    <div class="issue-title" data-page-node-id="akCiQKGcB3SlFmz3h34cxF">HeroConsole 群像角色列表 v-for 使用数组下标作为 key</div></div>
+  <span class="loc" data-page-node-id="u44y0cI6nDqe5gCNGwN7SO">src/views/HeroConsole/index.vue:~467（:key="`showcase-char-${idx}`"）</span>
+  <div class="sec" data-page-node-id="nHLaLuePWXG3rQZVsu8d5N"><span class="k" data-page-node-id="Gznb6oq6jnNMn82ufwZ7la">影响：</span>删除中间角色后 DOM 按下标复用，输入控件可能出现焦点/光标错位（值绑定仍正确，不丢数据）。</div>
+  <div class="sec" data-page-node-id="VoHW7n1ZbjgVsdymtQsvTx"><span class="k" data-page-node-id="TybPWmisGiCjKptwC7IS9f">修复建议：</span>改用 <code data-page-node-id="Hz3nqjevagkGveMM8kIVTh">char.key || char.src</code> 等稳定标识。</div>
+  <div class="sec" data-page-node-id="l3yEE7bf6krgMTjj02lGYv"><span class="k" data-page-node-id="IBkPDpaX8mFKZpSQeBKxHA">验证方式：</span>定位模板行并核对循环体。</div>
+</div>
+
+<h2 data-page-node-id="Dtt9YB0tI6SjZBwQf1kxuX">交叉验证中排除的误报</h2>
+<table data-page-node-id="o6aXZGDDFFgwmW85MGtNxf">
+  <tr data-page-node-id="Sh3nwjmwPkBQ8MiWJskfkG"><th style="width:34%" data-page-node-id="cmuRey7ysEdhbCxMFtzZpS">候选问题（来源）</th><th data-page-node-id="4KOVK6Sc4hm61OqXJmlmCd">排除理由（实证过程）</th></tr>
+  <tr data-page-node-id="eaK06mqxuYDNNGfUHgcf8p"><td data-page-node-id="KrySoEDPmCdLnobQ5ftgcc">chatModesLoading 导致 ReferenceError、渲染子树崩溃（分区代理）</td><td data-page-node-id="8nPfIvkBsoIEZuQlyZGqxs"><b data-page-node-id="nsELGj5Z5VIHnU7Zjqq7PK">部分修正后保留。</b>script setup 下未解析模板标识符回退 <code data-page-node-id="A5MIB1i9zuf6Ewh9LqcoIQ">_ctx.</code>，不抛错不崩溃；真实影响降级为「加载态失效/误导文案」（见问题 4）。</td></tr>
+  <tr data-page-node-id="ErEc2JHvColPKa1aApDuzu"><td data-page-node-id="lVWnFBgLGDoPEXrA6TQDLd">deploy.yml 升级 actions/checkout@v5 / setup-node@v5 可能不存在（分区代理）</td><td data-page-node-id="1JQS33MKV2NLapjfxTZItI"><b data-page-node-id="21H8uEaFUFFS1RZo67peRW">排除。</b>联网核实：checkout v5.0.0（2025-08，node24）、setup-node v5.0.0（2025-09-03）均已正式发布，升级有效。</td></tr>
+  <tr data-page-node-id="4WTo3qZxzlX2WZYXksDU3z"><td data-page-node-id="SOf20ffsKxj1L7GJWg0fRr">删除的 useBohaiIsland / useGlobalNavStatus / ForumPublishIsland 有功能漏迁移</td><td data-page-node-id="q9bGtGSZqKbYnaTDztiyKF"><b data-page-node-id="PG4jQgLQCYzupaaNhFQStA">排除。</b>grep 全 src 仅 2 处注释性提及，0 活引用；retry/fix/cancel/缩略图能力已完整映射到 <code data-page-node-id="DDvKbM3xRaIAQt82cNGQtL">showIsland.task</code>（ForumMain）。</td></tr>
+  <tr data-page-node-id="xpcMmlF5u6FvAFVm4Sinak"><td data-page-node-id="u62tERMDyam5np8yx27cCX">worker 未实现图片审核分支（分区代理报 bug）</td><td data-page-node-id="Tg1MHyx6ZSfD7IzLFaU6NN"><b data-page-node-id="mopyY1mthbJdENItrqkU40">重新定性为计划内未完成项。</b>设计文档 006 复用清单第 57 行明示「图片分支处理逻辑 🆕 唯一要新写的核心」，非回归。<b data-page-node-id="Sly7eCaJ2AFCIBbvvFcSca">风险提示</b>：当前图片仅客户端 nsfwjs 预审，绕过客户端直发图片暂无后端复审，应尽快补齐（依赖问题 1 的 Cron 先落地）。</td></tr>
+  <tr data-page-node-id="LIiQJ37hNHhhPA1kLZVnJY"><td data-page-node-id="uZT7DFHDIJDnB9PGsfVycs">周报 cron / SQL RLS / security definer 配置有误</td><td data-page-node-id="VwmlVhrDih3ThVb3k60Sss"><b data-page-node-id="2vb8kVADYCWmLtoUYPS0eP">排除。</b>0601 全部函数 security definer + search_path 固定 + grant/revoke 正确；0602 幂等、表达式 <code data-page-node-id="xC5AzHTdBixvr5A6Bq4Akv">15 1 * * 1</code> = 北京时间周一 09:15 正确；0603 约束值与 normalizeHero 白名单一致；0604 与前端校验一致。</td></tr>
+</table>
+
+<h2 data-page-node-id="EOPG6fegT2D0ZBhJ8Jc2D8">机械兜底检查结果</h2>
+<table data-page-node-id="jpEymvzjDlnUNAyJinALTc">
+  <tr data-page-node-id="uaesLKqEe21SVHwQgQ3GCU"><th style="width:40%" data-page-node-id="H5rsdcLNDsMqonAcysajlP">检查项</th><th data-page-node-id="Vb3PAJta6L2UIqe1RIbETX">结果</th></tr>
+  <tr data-page-node-id="nQoA8fNRO0UjiNFII3yRjD"><td data-page-node-id="ibQWskoCmEd6cM0Ldjv0yi"><code data-page-node-id="iodjhzKNAh3d6Xk6Cq4FmG">npm run type-check</code>（vue-tsc 全量）</td><td data-page-node-id="8JtgGrT0gtPonD31ajQTna"><span class="badge b-ok" data-page-node-id="lGiP8BZ7CUBx4NJuj4XARx">通过</span> 0 错误（同时证明问题 4 类悬挂标识符静态检查无法捕获）</td></tr>
+  <tr data-page-node-id="9eljCt7rhImH6TrvHE7nBu"><td data-page-node-id="ast2GLxCoejQZHMdVfvNSL">删除文件残留引用 grep（src + tests）</td><td data-page-node-id="ztsmIgiZHwoJSTGVAWqGRy"><span class="badge b-ok" data-page-node-id="XemOZBQEJECtsyOyBJyfLE">通过</span> 0 活引用</td></tr>
+  <tr data-page-node-id="dSZh9aXF7bGHaBak0YOBwm"><td data-page-node-id="MeECeVzR04dd7FtgMcXctq">暂存区检查 <code data-page-node-id="EC0IUmmz3zPyEebI47hFJo">git diff --cached</code></td><td data-page-node-id="hILItfs3oCJ4nOMTHFVU2r">0 个文件（本次改动全部为未暂存/未跟踪）</td></tr>
+  <tr data-page-node-id="KeN1lLa9VCBMSw5RZZ6Wzo"><td data-page-node-id="5dZOqkFW0eu8XRBkdnrHKg">新增皮肤资源路径（skinLibrary 33 个 webp）</td><td data-page-node-id="CWUA32G59r8EGVRzyFSJ4L"><span class="badge b-ok" data-page-node-id="QJ4DRI58ebODqYDzb6XQE2">通过</span> 逐一核对全部存在</td></tr>
+  <tr data-page-node-id="4ptD7Ez2yXGR21p9BQXzhZ"><td data-page-node-id="p2OvAcKxU3gHeW69SuWZFi">新路由 /activities-wall 等指向组件存在性</td><td data-page-node-id="7UTZYbhqP3Gl7xTJIedMtg"><span class="badge b-ok" data-page-node-id="rxiDgwIKeCGhtkNxxyMxCE">通过</span></td></tr>
+</table>
+
+<div class="note" style="margin-top:22px" data-page-node-id="S4CNj4NivOOW0uZQ03dOZv">
+  <b data-page-node-id="s2wgOFUkh2sDL7Uu5f79m4">修复优先级建议</b> — 立即：问题 1（补 Cron 迁移，worker 通道已就绪，10 分钟工作量）与问题 2（index.vue:205 一行改动）；本周内：问题 3（SQL 一处 DO UPDATE 补状态重置）、问题 4（两处补导出/解构）、问题 5（blur 读输入框现值）、问题 6（await + 错误提示）；择机：问题 7-11。
+</div>
+
+<footer data-page-node-id="sU8jvfjeS2XhfFRQwCE861">BOHLITE · 2026-09-06 · 审查人：BOAHI · 全部问题均经源码逐行交叉验证，非推测性报告</footer>
+</div>
+</body>
+</html>

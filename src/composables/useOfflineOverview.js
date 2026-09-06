@@ -16,6 +16,9 @@ const isLoadMore = ref(false);
 const loadError = ref(null);
 const dismissedKeys = ref(new Set());
 const loadedUserId = ref('');
+// 请求时序守卫：refresh 与 loadMore 并发时，只让最后一次请求的结果生效，
+// 防止慢的旧响应把旧窗口数据拼进新列表（重复/错序）
+let requestSeq = 0;
 
 /**
  * 离线回顾智能概览
@@ -55,11 +58,13 @@ export function useOfflineOverview() {
     isLoading.value = !append;
     isLoadMore.value = append;
     loadError.value = null;
+    const seq = ++requestSeq;
 
     try {
       // 等待初始化完成，确保锚点快照已捕获（与路由守卫共用同一去重 Promise）
       await authStore.initLoginState();
       if (!authStore.isLoggedIn) {
+        if (seq !== requestSeq) return;
         loadError.value = '请先登录后再查看智能概览';
         return;
       }
@@ -70,6 +75,9 @@ export function useOfflineOverview() {
         offset
       });
 
+      // 时序守卫：refresh 与 loadMore 并发时，慢的旧响应不得覆盖新结果
+      if (seq !== requestSeq) return;
+
       loadedUserId.value = authStore.userInfo.id || '';
       anchorTime.value = result.anchor;
       anchorSource.value = result.anchorSource;
@@ -78,12 +86,16 @@ export function useOfflineOverview() {
       hasMore.value = result.hasMore;
       items.value = append ? items.value.concat(result.items) : result.items;
     } catch (error) {
+      if (seq !== requestSeq) return; // 旧请求的失败同样不覆盖新状态
       logger.error('offline-overview', '加载离线概览失败', error);
       loadError.value = error?.message || '加载失败，请稍后重试';
       if (!append) items.value = [];
     } finally {
-      isLoading.value = false;
-      isLoadMore.value = false;
+      // 只有最后一次请求有权收敛加载态，避免旧请求提前关闭新请求的 loading
+      if (seq === requestSeq) {
+        isLoading.value = false;
+        isLoadMore.value = false;
+      }
     }
   };
 

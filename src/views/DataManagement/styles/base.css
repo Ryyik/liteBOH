@@ -17,9 +17,12 @@
 
   --background: #ffffff;
   --foreground: #0e1115;
-  --card: #ffffff;
+  /* 透明液态玻璃：--card/--popover 半透明化，--*-solid 留给 sticky 等必须遮底的表面 */
+  --card: rgba(255, 255, 255, 0.62);
+  --card-solid: #ffffff;
   --card-foreground: #0e1115;
-  --popover: #f9f9fa;
+  --popover: rgba(255, 255, 255, 0.9);
+  --popover-solid: #f9f9fa;
   --popover-foreground: #0e1115;
   --muted: #eff1f4;
   --muted-foreground: #7f8d9f;
@@ -72,8 +75,20 @@
   --dm-sidebar-width: 260px;
   --dm-sidebar-width-collapsed: 84px;
 
+  /* Liquid Glass adapter — 玻璃表面顶部内高光（随本页三条暗色路径切换，
+     滤镜本体直接用全局 --liquid-filter / --liquid-filter-sm token） */
+  --dm-liquid-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  --dm-liquid-bg: rgba(255, 255, 255, 0.72);
+  --dm-liquid-sidebar: rgba(240, 246, 255, 0.6);
+
   min-height: 100vh;
-  background: var(--background);
+  /* 透明液态玻璃环境光底（Google 色系淡光晕，fixed 跟随视口，玻璃面才有东西可透） */
+  background:
+    radial-gradient(1100px 720px at 10% -8%, rgba(66, 133, 244, 0.10), transparent 60%),
+    radial-gradient(900px 640px at 108% 12%, rgba(52, 168, 83, 0.08), transparent 58%),
+    radial-gradient(880px 640px at 50% 116%, rgba(251, 188, 5, 0.07), transparent 60%),
+    var(--background);
+  background-attachment: fixed;
   font-family: var(--font-family);
   color: var(--foreground);
   letter-spacing: 0em;
@@ -93,9 +108,11 @@
 
   --background: #161616;
   --foreground: #eff1f4;
-  --card: #1d1d1c;
+  --card: rgba(29, 29, 28, 0.66);
+  --card-solid: #1d1d1c;
   --card-foreground: #eff1f4;
-  --popover: #2e2e2e;
+  --popover: rgba(46, 46, 46, 0.92);
+  --popover-solid: #2e2e2e;
   --popover-foreground: #e5e5e5;
   --muted: #383838;
   --muted-foreground: #949494;
@@ -129,7 +146,16 @@
   --sidebar-border: #404040;
   --sidebar-ring: #00266b;
 
-  background: var(--background);
+  --dm-liquid-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --dm-liquid-bg: rgba(29, 29, 28, 0.72);
+  --dm-liquid-sidebar: rgba(23, 23, 23, 0.62);
+
+  background:
+    radial-gradient(1100px 720px at 10% -8%, rgba(66, 133, 244, 0.14), transparent 60%),
+    radial-gradient(900px 640px at 108% 12%, rgba(52, 168, 83, 0.09), transparent 58%),
+    radial-gradient(880px 640px at 50% 116%, rgba(234, 67, 53, 0.08), transparent 60%),
+    var(--background);
+  background-attachment: fixed;
   color: var(--foreground);
 }
 
@@ -148,9 +174,11 @@
 
     --background: #161616;
     --foreground: #eff1f4;
-    --card: #1d1d1c;
+    --card: rgba(29, 29, 28, 0.66);
+    --card-solid: #1d1d1c;
     --card-foreground: #eff1f4;
-    --popover: #2e2e2e;
+    --popover: rgba(46, 46, 46, 0.92);
+    --popover-solid: #2e2e2e;
     --popover-foreground: #e5e5e5;
     --muted: #383838;
     --muted-foreground: #949494;
@@ -183,12 +211,26 @@
     --sidebar-accent-foreground: #bfdbfe;
     --sidebar-border: #404040;
     --sidebar-ring: #00266b;
+
+    --dm-liquid-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    --dm-liquid-bg: rgba(29, 29, 28, 0.72);
+    --dm-liquid-sidebar: rgba(23, 23, 23, 0.62);
+
+    background:
+      radial-gradient(1100px 720px at 10% -8%, rgba(66, 133, 244, 0.14), transparent 60%),
+      radial-gradient(900px 640px at 108% 12%, rgba(52, 168, 83, 0.09), transparent 58%),
+      radial-gradient(880px 640px at 50% 116%, rgba(234, 67, 53, 0.08), transparent 60%),
+      var(--background);
+    background-attachment: fixed;
   }
 }
 
 /* ==================== Header ==================== */
 .dm-header {
-  background: var(--background);
+  background: var(--dm-liquid-bg, var(--background));
+  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  box-shadow: var(--dm-liquid-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.55));
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: var(--dm-nav-height);
@@ -508,5 +550,57 @@
 @keyframes dmSkeletonShimmer {
   100% {
     transform: translateX(100%);
+  }
+}
+
+/* ==================== 透明液态玻璃卡面 ==================== */
+/* --card 已在上方 token 层半透明化；这里只给"第一层"大容器雾化，
+   嵌套小卡（kanban/timeline/lottery-scheduler 等）只透不加 blur，避免离屏纹理叠加。 */
+.management-section,
+.overview-section,
+.editor-panel,
+.table-wrapper,
+.mobile-tab-panel,
+.mobile-card,
+.g-card,
+.freemodels-config-shell,
+.edit-dialog {
+  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  box-shadow: var(--dm-liquid-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.55));
+}
+
+/* 移动端降载：只保留外层 chrome（顶栏/抽屉）的雾化，内容卡退化为纯半透明 */
+@media (max-width: 768px) {
+  .management-section,
+  .overview-section,
+  .editor-panel,
+  .table-wrapper,
+  .mobile-tab-panel,
+  .mobile-card,
+  .g-card,
+  .freemodels-config-shell,
+  .edit-dialog {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* 不支持 backdrop-filter 时回退实色卡面 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .data-management-page {
+    --card: #ffffff;
+    --popover: #f9f9fa;
+  }
+  .data-management-page[data-theme="dark"],
+  .data-management-page.dark {
+    --card: #1d1d1c;
+    --popover: #2e2e2e;
+  }
+  @media (prefers-color-scheme: dark) {
+    .data-management-page:not([data-theme="light"]) {
+      --card: #1d1d1c;
+      --popover: #2e2e2e;
+    }
   }
 }

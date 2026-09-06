@@ -11,6 +11,7 @@ describe('home hero baseline', () => {
       'anniversary-8',
       'cloud-cafe',
       'fuzhou',
+      'special-custom',
       'split-brand-letter'
     ]);
     expect(HOME_HERO_BASELINE.every((hero) => (

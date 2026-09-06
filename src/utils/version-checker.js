@@ -15,8 +15,8 @@ const CHECK_INTERVAL = 5 * 60 * 1000; // 每 5 分钟检查一次
 const VERSION_URL = './version.json'; // 相对路径，适配任意部署路径
 const RELOAD_TARGET_KEY = 'boh_version_reload_target';
 const UPDATE_QUERY_KEY = '__boh_update';
-const UPDATE_CLEANUP_TIMEOUT = 1500;
 const VERSION_REQUEST_TIMEOUT = 10_000;
+const SERVICE_WORKER_UPDATE_TIMEOUT = 1800;
 
 let intervalId = null;
 let visibilityHandler = null;
@@ -38,17 +38,37 @@ export const buildVersionReloadPath = (href, targetBuildId = '') => {
   return `${reloadUrl.pathname}${reloadUrl.search}${reloadUrl.hash}`;
 };
 
-const waitForCleanup = async (cleanupPromise, timeout = UPDATE_CLEANUP_TIMEOUT) => {
+// Safari 在注销仍控制当前页面的 SW 后立刻导航时，仍可能命中旧的 NavigationRoute
+// 缓存。更新时应先让新 SW 接管；其 cleanupOutdatedCaches 会负责移除旧预缓存。
+const updateServiceWorkerBeforeReload = async () => {
+  if (!('serviceWorker' in navigator)) return;
+
+  const registrations = await navigator.serviceWorker.getRegistrations();
+  if (!registrations.length) return;
+
+  let controllerChangeHandler = null;
   let timeoutId = null;
+  const controllerChanged = new Promise((resolve) => {
+    controllerChangeHandler = () => resolve(true);
+    navigator.serviceWorker.addEventListener('controllerchange', controllerChangeHandler, { once: true });
+  });
+  const timeout = new Promise((resolve) => {
+    timeoutId = window.setTimeout(() => resolve(false), SERVICE_WORKER_UPDATE_TIMEOUT);
+  });
+
   try {
-    return await Promise.race([
-      cleanupPromise.then(() => true),
-      new Promise((resolve) => {
-        timeoutId = window.setTimeout(() => resolve(false), timeout);
-      }),
+    const updateFinished = await Promise.race([
+      Promise.allSettled(registrations.map((registration) => registration.update())).then(() => true),
+      timeout,
     ]);
+    if (updateFinished && navigator.serviceWorker.controller) {
+      await Promise.race([controllerChanged, timeout]);
+    }
   } finally {
     if (timeoutId !== null) window.clearTimeout(timeoutId);
+    if (controllerChangeHandler) {
+      navigator.serviceWorker.removeEventListener('controllerchange', controllerChangeHandler);
+    }
   }
 };
 
@@ -138,14 +158,14 @@ const fetchRemoteVersion = () => {
 };
 
 /**
- * 清除所有 Service Worker 和 Cache Storage，然后刷新页面
- * 用户在更新提示弹窗中点击"立即更新"后调用
+ * 让最新 Service Worker 接管后，使用带构建指纹的导航刷新页面。
+ * 不主动删除 Workbox 缓存：旧 SW 仍控制当前页面时清缓存会让导航继续命中旧应用壳。
  */
 export const forceCleanAndReload = async (targetBuildId = '') => {
   const safeTargetBuildId = String(targetBuildId || '').trim();
   const reloadPath = buildVersionReloadPath(window.location.href, safeTargetBuildId);
 
-  logger.info('version', '用户确认更新，开始清除缓存并刷新', {
+  logger.info('version', '用户确认更新，正在切换到最新应用壳', {
     from: currentVersion,
     buildId: currentBuildId,
   });
@@ -155,25 +175,8 @@ export const forceCleanAndReload = async (targetBuildId = '') => {
       writeReloadTarget(safeTargetBuildId);
     }
 
-    // 必须先完成 SW 注销，否则超时导航仍可能被旧 SW 接管并返回旧页面。
     if ('serviceWorker' in navigator) {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      await Promise.allSettled(registrations.map((registration) => registration.unregister()));
-      logger.info('version', `已注销 ${registrations.length} 个 Service Worker`);
-    }
-
-    // Cache Storage 在部分 WebKit 环境可能长时间不结束。SW 已注销后，即使
-    // 缓存清理超时，带构建指纹的导航也会直接访问网络，不会再被旧 SW 拦截。
-    if ('caches' in window) {
-      const cacheCleanupCompleted = await waitForCleanup(
-        caches.keys().then(async (keys) => {
-          await Promise.allSettled(keys.map((key) => caches.delete(key)));
-          logger.info('version', `已清除 ${keys.length} 个缓存`);
-        })
-      );
-      if (!cacheCleanupCompleted) {
-        logger.warn('version', '缓存清理等待超时，继续刷新');
-      }
+      await updateServiceWorkerBeforeReload();
     }
   } catch (err) {
     logger.error('version', '强制更新流程出错', err);

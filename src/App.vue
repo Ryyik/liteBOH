@@ -120,6 +120,9 @@ const handleGlobalAiKeydown = (e) => {
     // Lab 自带命令面板使用 Mod+K；保留该页面原有快捷键，用户仍可在设置中改为 Mod+J/Space。
     if (route.name === 'Lab' && globalAiPreferences.shortcut === 'mod+k') return;
     if (route.name === 'AiChat') return;
+    // 灵动岛挂在 UnifiedNavbar 内：导航栏被隐藏的路由（admin/user-space 子页等）
+    // 没有宿主容器，open() 只会置位 isOpen 而永远不渲染，必须直接忽略
+    if (!showGlobalNavbar.value) return;
     e.preventDefault();
     if (globalAiOpen.value) {
       window.dispatchEvent(new CustomEvent('boh-ai-focus-composer'));
@@ -235,9 +238,9 @@ const showGlobalNavbar = computed(() => {
   <!-- 全局登录模态框 -->
   <LoginView v-if="showLoginModal" :show="showLoginModal" :is-modal="true" @close="showLoginModal = false" />
 
-  <!-- AI 边缘触发区（移动端侧拉唤起 BOHAI 灵动岛） -->
+  <!-- AI 边缘触发区（移动端侧拉唤起 BOHAI 灵动岛）；导航栏隐藏的路由上岛无宿主，一并隐藏 -->
   <AiEdgeTrigger
-    :show="!globalAiOpen && globalAiPreferences.gestureEnabled && route.name !== 'AiChat'"
+    :show="showGlobalNavbar && !globalAiOpen && globalAiPreferences.gestureEnabled && route.name !== 'AiChat'"
     :side="globalAiPreferences.gestureSide"
     :sensitivity="globalAiPreferences.gestureSensitivity"
     :haptics="globalAiPreferences.hapticsEnabled"

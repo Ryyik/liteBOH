@@ -718,7 +718,7 @@
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(12px);
+  backdrop-filter: var(--glass-blur-sm, blur(12px));
   z-index: 10001;
   display: flex;
   align-items: center;
@@ -727,9 +727,9 @@
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.8) !important;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: var(--glass-bg-elevated, rgba(255, 255, 255, 0.8)) !important;
+  backdrop-filter: var(--glass-blur, blur(20px));
+  -webkit-backdrop-filter: var(--glass-blur, blur(20px));
 }
 
 .modal-card {
@@ -1510,8 +1510,8 @@
   color: #b7791f;
   font-size: 13px;
   font-weight: 800;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
 }
 
 .sponsor-qr-placeholder {

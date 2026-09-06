@@ -1880,8 +1880,8 @@ const handleChangeCommentSortMode = async (mode) => {
   justify-content: center;
   padding: 28px;
   background: rgba(0, 0, 0, 0.38);
-  backdrop-filter: blur(24px) saturate(1.3);
-  -webkit-backdrop-filter: blur(24px) saturate(1.3);
+  backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
+  -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
 }
 
 .post-edit-overlay.is-portrait {
@@ -1898,8 +1898,8 @@ const handleChangeCommentSortMode = async (mode) => {
   border-radius: 32px;
   border: 1px solid var(--glass-border, rgba(0, 0, 0, 0.06));
   background: var(--glass-bg, rgba(255, 255, 255, 0.8));
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
+  -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.18);
   isolation: isolate;
 }
@@ -1928,8 +1928,8 @@ const handleChangeCommentSortMode = async (mode) => {
   gap: 12px;
   align-items: center;
   background: rgba(255, 255, 255, 0.32);
-  backdrop-filter: blur(22px) saturate(160%);
-  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
+  -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
   border-bottom: 1px solid rgba(15, 20, 25, 0.06);
 }
 

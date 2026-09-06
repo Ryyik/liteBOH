@@ -2,6 +2,8 @@ import { createRouter, createWebHashHistory } from "vue-router"
 import type { RouteRecordRaw } from "vue-router"
 import { useAuthStore } from "../stores/auth"
 import { notify } from "../utils/notify"
+import { forceCleanAndReload } from "../utils/version-checker.js"
+import { logger } from "../utils/logger.js"
 import { adminRoutes } from "./routes/admin"
 import { communityRoutes } from "./routes/community"
 import { creatorRoutes } from "./routes/creator"
@@ -49,6 +51,33 @@ const router = createRouter({
 
     return { top: 0, behavior: "auto" }
   },
+})
+
+const ROUTE_CHUNK_RELOAD_KEY = 'boh_route_chunk_reload_ts'
+const ROUTE_CHUNK_RELOAD_COOLDOWN_MS = 30 * 1000
+const isDynamicModuleLoadError = (error: unknown): boolean => {
+  const message = error instanceof Error ? error.message : String(error || '')
+  return /failed to fetch dynamically imported module|importing a module script failed|loading chunk|error loading dynamically imported module|unable to preload css/i.test(message)
+}
+
+// 部署刚完成时，旧入口引用的 hash chunk 可能已不存在。若路由组件加载失败，
+// 直接恢复到最新构建，而不是只留下导航栏和空白 RouterView。
+router.onError((error) => {
+  if (!isDynamicModuleLoadError(error)) {
+    logger.error('router', '路由导航失败', error)
+    return
+  }
+
+  const now = Date.now()
+  const lastReloadAt = Number(sessionStorage.getItem(ROUTE_CHUNK_RELOAD_KEY) || 0)
+  if (Number.isFinite(lastReloadAt) && now - lastReloadAt < ROUTE_CHUNK_RELOAD_COOLDOWN_MS) {
+    logger.error('router', '动态模块加载失败，已在冷却期内，停止自动刷新', error)
+    return
+  }
+
+  sessionStorage.setItem(ROUTE_CHUNK_RELOAD_KEY, String(now))
+  logger.warn('router', '动态模块加载失败，切换到最新构建', error)
+  void forceCleanAndReload()
 })
 
 // 判断当前用户是否处于有效封禁状态（永久封禁或临时封禁未过期）

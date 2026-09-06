@@ -88,6 +88,11 @@ const TABLE_SPECS: TableSpec[] = [
   { table: 'user_gifts', path: 'records/gifts.json', column: 'user_id', label: '礼物记录' },
   { table: 'points_transactions', path: 'records/points_transactions.json', column: 'user_id', label: '积分流水' },
   { table: 'poster_requests', path: 'records/poster_requests.json', column: 'user_id', label: '海报申请' },
+  // BOH Health 四表：健康数据已云同步，必须纳入用户数据导出（可携权）
+  { table: 'health_profiles', path: 'health/profile.json', column: 'user_id', label: '健康档案' },
+  { table: 'health_weight_logs', path: 'health/weight_logs.json', column: 'user_id', label: '体重记录' },
+  { table: 'health_daily_logs', path: 'health/daily_logs.json', column: 'user_id', label: '每日健康日志' },
+  { table: 'health_vault_records', path: 'health/vault_records.json', column: 'user_id', label: '体检报告库' },
   // messages 表可能已被移除，查询失败时静默跳过并记录到 manifest
   { table: 'messages', path: 'records/messages.json', column: null, orFilter: true, label: '私信' },
 ];
@@ -555,16 +560,20 @@ const runExport = async (userId: string, jobId: string, storageToken: string) =>
       let uploaded = false;
       let lastUploadError = '';
       for (let attempt = 1; attempt <= 2 && !uploaded; attempt++) {
+        let timeoutTimer: ReturnType<typeof setTimeout> | null = null;
         try {
           const uploadPromise = uploadExportFile(filePath, bytes, storageToken);
+          // 定时器在竞速分出胜负后清理，避免残留 reject 触发 unhandled rejection
           const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error(`上传超过 ${UPLOAD_TIMEOUT_MS / 1000}s 未完成`)), UPLOAD_TIMEOUT_MS);
+            timeoutTimer = setTimeout(() => reject(new Error(`上传超过 ${UPLOAD_TIMEOUT_MS / 1000}s 未完成`)), UPLOAD_TIMEOUT_MS);
           });
           await Promise.race([uploadPromise, timeoutPromise]);
           uploaded = true;
         } catch (uploadError) {
           lastUploadError = String((uploadError as Error)?.message || uploadError);
           console.error(`user-data-export: 上传异常（第 ${attempt} 次）`, uploadError);
+        } finally {
+          if (timeoutTimer) clearTimeout(timeoutTimer);
         }
         if (!uploaded && attempt < 2) await new Promise((r) => setTimeout(r, 2_000 * attempt));
       }

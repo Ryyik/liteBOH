@@ -678,7 +678,21 @@
   gap: calc(var(--spacing) * 2);
   flex-shrink: 0;
 }
-.g-sheet-body { display: block; }
+.g-sheet-body { display: block; min-width: 0; }
+.g-sheet-table-scroll {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+.g-sheet-table-scroll:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
 .g-sheet-foot {
   display: flex;
   justify-content: space-between;
@@ -741,6 +755,7 @@
   border-collapse: collapse;
   font-size: 0.82rem;
 }
+.g-sheet-table-scroll > .g-table-sheet { min-width: max-content; }
 .g-table-sheet thead th {
   text-align: left;
   font-size: 0.7rem;
@@ -766,6 +781,23 @@
   padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4);
   vertical-align: middle;
   color: var(--foreground);
+}
+.g-table-sheet .actions-col {
+  position: sticky;
+  right: 0;
+  z-index: 3;
+  min-width: 112px;
+  width: 112px;
+  background: var(--card-solid, var(--card));
+  box-shadow: -6px 0 10px -10px color-mix(in srgb, var(--foreground) 45%, transparent);
+}
+.g-table-sheet thead .actions-col {
+  z-index: 4;
+  background: var(--background);
+}
+.g-table-sheet tbody tr:hover .actions-col,
+.g-table-sheet tbody tr.is-selected .actions-col {
+  background: var(--muted);
 }
 .g-table-sheet tbody td.is-muted { color: var(--muted-foreground); }
 .g-table-sheet tbody td.is-mono { font-family: var(--font-mono); font-size: 0.78rem; }

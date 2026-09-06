@@ -212,7 +212,7 @@ const DataPrivacyPanel = defineAsyncComponent(() => import('./components/DataPri
 const DataExportPanel = defineAsyncComponent(() => import('./components/DataExportPanel.vue'));
 const AssetsHubPanel = defineAsyncComponent(() => import('./components/AssetsHubPanel.vue'));
 import ThemeModal from './components/ThemeModal.vue';
-import { showGlobalNavStatus } from '@/composables/useGlobalNavStatus.js';
+import { showIsland } from '@/composables/useIsland.js';
 import { createMemoryTtlCache } from './composables/useMemoryTtlCache.js';
 import { useScrollDirectionHide } from './composables/useScrollDirectionHide.js';
 import { USER_SPACE_VALID_TABS, useUserSpaceTabs } from './composables/useUserSpaceTabs.js';
@@ -1073,7 +1073,7 @@ const GLOBAL_NAV_ONBOARDING_NOTICE_VERSION = 'v2';
 
 const showTopNavStatus = (payload = {}) => {
   const actionTab = String(payload.actionTab || '').trim();
-  return showGlobalNavStatus({
+  return showIsland.notify({
     ...payload,
     onAction: actionTab && validTabs.includes(actionTab)
       ? () => switchTab(actionTab)

@@ -1,7 +1,8 @@
 <template>
   <div class="block-wall-page">
-    <header class="wall-header">
-      <button class="icon-button" type="button" aria-label="返回社区" title="返回社区" @click="goBack">
+    <!-- 嵌入「活动&方块墙」组合页时隐藏横条：刷新/贴一张由父页面的灵动岛接管 -->
+    <header v-if="!embedded" class="wall-header" :class="{ embedded }">
+      <button v-if="!embedded" class="icon-button" type="button" aria-label="返回社区" title="返回社区" @click="goBack">
         <ArrowLeft :size="21" />
       </button>
       <div class="wall-title">
@@ -207,6 +208,12 @@ import { ArrowLeft, ArrowRight, Check, CircleAlert, CloudOff, Image, ImagePlus, 
 import { useAuthStore } from '@/stores/auth';
 import { createBlockWallItem, listBlockWallItems, moveBlockWallItem, removeBlockWallItem, uploadBlockWallImage } from '@/utils/api/block-wall-api.js';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
+
+// embedded：作为「活动&方块墙」组合页的子面板嵌入时使用——
+// 隐藏返回按钮，吸顶位置由父页面通过 --aw-nav-offset 下发
+defineProps({
+  embedded: { type: Boolean, default: false }
+});
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -514,6 +521,15 @@ const confirmPlacement = async () => {
     showToast(errorText(error, '没有贴成功，请稍后重试'));
   } finally { isSaving.value = false; }
 };
+
+// 供组合页的灵动岛调用：刷新 / 贴一张 / 状态展示
+defineExpose({
+  openComposer,
+  loadItems,
+  isLoading,
+  items,
+  total
+});
 
 const openItem = (item) => {
   if (isArranging.value) return;

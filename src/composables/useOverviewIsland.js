@@ -1,6 +1,6 @@
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
-import { showGlobalNavStatus } from '@/composables/useGlobalNavStatus.js';
+import { showIsland } from '@/composables/useIsland.js';
 import { fetchOfflineOverviewSummary } from '@/utils/api/overview-api.js';
 import { formatSmartTime } from '@/utils/time.js';
 import { logger } from '@/utils/logger.js';
@@ -87,7 +87,7 @@ export function useOverviewIsland() {
       }));
 
     markShownThisSession();
-    showGlobalNavStatus({
+    showIsland.notify({
       ...buildStatusPayload({
         total: summary.total,
         offlineDays,
@@ -96,7 +96,7 @@ export function useOverviewIsland() {
       }),
       icon: 'ai',
       previews,
-      durationMs: 9500,
+      durationMs: 6000,
       onAction: () => {
         router.push('/overview');
       }
@@ -140,11 +140,11 @@ export function useOverviewIsland() {
     try {
       await authStore.initLoginState();
       if (!authStore.isLoggedIn) {
-        showGlobalNavStatus({
+        showIsland.notify({
           title: '（测试）未登录',
           message: '智能概览灵动岛需要登录后使用',
           icon: 'warning',
-          durationMs: 9000
+          durationMs: 6000
         });
         return;
       }
@@ -168,22 +168,22 @@ export function useOverviewIsland() {
             hour12: false
           })
         : '未知';
-      showGlobalNavStatus({
+      showIsland.notify({
         title: '（测试）灵动岛管线连通正常',
         message: `锚点 ${anchorText} 之后新增 0 条内容（真实触发时无新内容不弹卡）`,
         icon: 'ai',
-        durationMs: 9000,
+        durationMs: 6000,
         onAction: () => {
           router.push('/overview');
         }
       });
     } catch (error) {
       logger.error('overview-island', '（测试）强制触发失败', error);
-      showGlobalNavStatus({
+      showIsland.notify({
         title: '（测试）灵动岛检查失败',
         message: error?.message || '未知错误，详见控制台日志',
         icon: 'warning',
-        durationMs: 9000
+        durationMs: 6000
       });
     }
   };

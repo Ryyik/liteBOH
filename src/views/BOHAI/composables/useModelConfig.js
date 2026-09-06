@@ -71,6 +71,9 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
   // 健康分析：开启后，本轮回答会读取用户本机的 BOH Health 数据。
   // 数据来源是 localStorage，不要求登录。
   const isHealthAnalysisEnabled = ref(false);
+  // 用户显式关闭过健康分析：此后即使消息命中健康关键词也不再读取健康数据；
+  // 未动过开关（默认）时保留按关键词自动触发的设计
+  const isHealthAnalysisDismissed = ref(false);
 
   const isMemoryCaptureEnabled = ref(false);
 
@@ -258,6 +261,7 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
     isSearching,
     isForumSearchEnabled,
     isHealthAnalysisEnabled,
+    isHealthAnalysisDismissed,
     isMemoryCaptureEnabled,
     isTreeholeMemoryEnabled,
     isTreeholeMemoryToggling,

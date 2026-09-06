@@ -5,11 +5,12 @@
  * 组装成带 [H1]/[H2] 引用标记的证据块，供 BOH AI 做健康分析时引用。
  *
  * 设计原则：
- * - 只读本机数据，不发网络请求，不要求登录。
- * - 只输出用户真实记录过的字段；缺失字段明确标注「未记录」，不推算、不编造。
+ * - 读取 useHealthStore 的内存态（登录后该 store 会与云端同步，多端一致）。
+ * - 只输出用户真实记录过的字段；缺失字段标注「未记录」，不推算、不编造。
+ * - 自由文本（备注/指标）先中性化再进 prompt；只送年龄段不送确切年龄。
  */
 
-import { useHealthStore } from '@/stores/health';
+import { useHealthStore, localDateISO } from '@/stores/health';
 import {
   HEALTH_CONTEXT_MAX_CHARS,
   HEALTH_CONTEXT_MAX_LOGS
@@ -54,6 +55,22 @@ const num = (value, digits = 0) => (
 const trimTo = (text, maxChars) => {
   const raw = String(text || '');
   return raw.length > maxChars ? `${raw.slice(0, Math.max(0, maxChars - 1))}…` : raw;
+};
+
+// 自由文本（心情备注/体检指标）进入 system prompt 前的中性化：
+// 去掉尖括号与反引号，防闭合标记逃逸和代码围栏注入；换行压成空格
+const sanitizeFreeText = (text, maxChars) => trimTo(
+  String(text || '')
+    .replace(/[<>`]/g, "'")
+    .replace(/[\r\n]+/g, ' '),
+  maxChars
+);
+
+// 年龄段化：不把确切出生年份/年龄送出本机，只给模型粗粒度年龄段
+const ageBandOf = (age) => {
+  if (age === null || age === undefined) return null;
+  const lo = Math.floor(age / 10) * 10;
+  return `${lo}-${lo + 9} 岁`;
 };
 
 /**
@@ -135,8 +152,8 @@ export const getHealthContext = () => {
         parts.push(`步数 ${log.steps !== null && log.steps !== undefined ? Number(log.steps).toLocaleString() : '未记录'}`);
         parts.push(`饮水 ${log.waterCups !== null && log.waterCups !== undefined ? `${log.waterCups} 杯` : '未记录'}`);
         parts.push(`心情 ${MOOD_LABELS[log.mood] || '-'}`);
-        const line = `${log.date} ${weekdayOf(log.date)}：${parts.join(' · ')}`;
-        return log.moodNote ? `${line}｜备注：${trimTo(log.moodNote, 60)}` : line;
+        const line = `${localDateISO(new Date(`${log.date}T00:00:00`))} ${weekdayOf(log.date)}：${parts.join(' · ')}`;
+        return log.moodNote ? `${line}｜备注：${sanitizeFreeText(log.moodNote, 60)}` : line;
       })
       .join('\n');
 
@@ -145,15 +162,13 @@ export const getHealthContext = () => {
       ? `（近 7 天平均睡眠 ${avgSleep} h）`
       : '';
     pushBlock(`BOH Health 日常记录（近 ${sortedLogs.length} 条${summary}）`, body);
-  } else {
-    pushBlock('BOH Health 日常记录', '用户还没有任何日常记录（睡眠/步数/饮水/心情均为空）。');
   }
 
   // ── 3. 体重变化 ──────────────────────────────────────────────────────────
   if (weightLogs.length > 1) {
     const recent = weightLogs.slice(0, 8);
     const body = recent
-      .map((log) => `${String(log.loggedAt).slice(0, 10)}：${num(log.weightKg, 1)} kg`)
+      .map((log) => `${localDateISO(new Date(log.loggedAt))}：${num(log.weightKg, 1)} kg`)
       .join('\n');
     const oldest = recent[recent.length - 1];
     const newest = recent[0];

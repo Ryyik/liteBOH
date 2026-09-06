@@ -136,7 +136,8 @@ defineEmits(['close', 'island-message'])
 
 const {
   isOpen, isDragging, dragProgress,
-  close, setOverlayHeight, startDrag, moveDrag, endDrag
+  close, setOverlayHeight, startDrag, moveDrag, endDrag,
+  consumePendingPrompt
 } = useGlobalAiOverlay()
 const { preferences } = useGlobalAiPreferences()
 const router = useRouter()
@@ -339,6 +340,19 @@ async function applyOpenPreferences() {
   if (preferences.openBehavior === 'temporary') chatApiRef.value?.startTemporaryChat?.()
   if (preferences.pageContextEnabled) confirmAttachContext()
   if (preferences.autoFocus) chatApiRef.value?.focusComposer?.()
+
+  // 消费外部传入的种子 prompt(健康页「用 BOH AI 分析」等场景)
+  const seedPrompt = consumePendingPrompt()
+  if (seedPrompt) {
+    await nextTick()
+    // 优先用 appendAndSend 直接发出;若 sendMessage 还在初始化中,
+    // 退回 appendToComposer 至少先把内容填好,用户可以再点一次发送
+    if (typeof chatApiRef.value?.appendAndSend === 'function') {
+      chatApiRef.value.appendAndSend(seedPrompt)
+    } else {
+      chatApiRef.value?.appendToComposer?.(seedPrompt)
+    }
+  }
 }
 
 watch(isDragging, (val) => {

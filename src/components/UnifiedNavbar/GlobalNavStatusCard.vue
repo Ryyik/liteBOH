@@ -1,14 +1,33 @@
 <template>
   <Transition name="global-nav-status" @after-leave="$emit('after-leave')">
-    <button
+    <component
       v-if="item?.visible"
+      :is="item.kind === 'news-tools' ? 'div' : 'button'"
       type="button"
       class="global-nav-status-card"
       ref="card"
-      :class="{ 'is-long': isLong, 'has-previews': previews.length > 0, 'is-reduced-motion': item.reducedMotion }"
+      :class="{ 'is-long': isLong, 'has-previews': previews.length > 0, 'is-reduced-motion': item.reducedMotion, 'is-news-tools': item.kind === 'news-tools' }"
       :style="cardStyle"
-      @click="$emit('action')"
+      @click="item.kind === 'news-tools' ? undefined : $emit('action')"
     >
+      <template v-if="item.kind === 'news-tools'">
+        <Search :size="17" class="news-tools-icon" aria-hidden="true" />
+        <input v-model="newsQuery" class="news-tools-input" type="search" placeholder="搜索新闻、节目、作者..." aria-label="搜索新闻与节目" @keydown.enter="submitNewsSearch" />
+        <button v-if="newsQuery" type="button" class="news-tools-clear" aria-label="清除搜索" @click="newsQuery = ''; submitNewsSearch()">×</button>
+        <span class="news-tools-divider" aria-hidden="true"></span>
+        <button type="button" class="news-tools-filter" :class="{ active: newsFilter !== 'all' }" aria-label="筛选新闻与节目" @click.stop="toggleNewsFilter"><SlidersHorizontal :size="17" aria-hidden="true" /></button>
+        <div v-if="newsFilterOpen" class="news-tools-options" role="listbox" aria-label="筛选内容">
+          <button v-for="option in primaryNewsOptions" :key="option.value" type="button" role="option" :aria-selected="newsFilter === option.value" :class="{ selected: newsFilter === option.value }" @click.stop="selectNewsFilter(option.value)">{{ option.label }}</button>
+          <button type="button" class="news-tools-more" :aria-expanded="showNewsCategories" @click.stop="showNewsCategories = !showNewsCategories">{{ showNewsCategories ? '收起分类' : '更多分类' }}</button>
+          <template v-if="showNewsCategories">
+            <span class="news-tools-category-label">新闻分类</span>
+            <button v-for="option in newsCategoryOptions" :key="option.value" type="button" role="option" :aria-selected="newsFilter === option.value" :class="{ selected: newsFilter === option.value }" @click.stop="selectNewsFilter(option.value)">{{ option.label }}</button>
+            <span class="news-tools-category-label">节目分类</span>
+            <button v-for="option in showCategoryOptions" :key="option.value" type="button" role="option" :aria-selected="newsFilter === option.value" :class="{ selected: newsFilter === option.value }" @click.stop="selectNewsFilter(option.value)">{{ option.label }}</button>
+          </template>
+        </div>
+      </template>
+      <template v-else>
       <span class="status-icon" :class="`tone-${item.icon}`">
         <component :is="activeIcon" :size="18" :stroke-width="2.1" aria-hidden="true" />
       </span>
@@ -23,18 +42,19 @@
               <span v-if="p.time" class="status-preview-time">{{ p.time }}</span>
               <span v-if="p.excerpt" class="status-preview-excerpt">{{ p.excerpt }}</span>
             </span>
-            <img v-if="p.image" class="status-preview-image" :src="p.image" alt="" loading="lazy" decoding="async" @load="reportHeight" />
+            <img v-if="p.image" class="status-preview-image" :src="p.image" alt="" loading="lazy" decoding="async" @load="reportHeight" @error="onPreviewImgError" />
           </span>
         </span>
       </span>
       <ChevronRight :size="18" aria-hidden="true" />
-    </button>
+      </template>
+    </component>
   </Transition>
 </template>
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { Bell, Bot, Check, ChevronRight, CircleAlert, MessageCircle, Newspaper, Search } from 'lucide-vue-next';
+import { Bell, Bot, Check, ChevronRight, CircleAlert, MessageCircle, Newspaper, Search, SlidersHorizontal } from 'lucide-vue-next';
 
 const props = defineProps({
   item: {
@@ -45,7 +65,20 @@ const props = defineProps({
 
 const emit = defineEmits(['action', 'after-leave', 'resize']);
 const card = ref(null);
+const newsQuery = ref(props.item?.query || '');
+const newsFilter = ref(props.item?.filter || 'all');
+const newsFilterOpen = ref(false);
+const showNewsCategories = ref(false);
 let resizeObserver;
+const newsOptions = computed(() => Array.isArray(props.item?.options) ? props.item.options : []);
+const primaryNewsOptions = computed(() => newsOptions.value.slice(0, 3));
+const newsCategoryOptions = computed(() => newsOptions.value.slice(3, 7));
+const showCategoryOptions = computed(() => newsOptions.value.slice(7));
+const submitNewsSearch = () => props.item?.onSearch?.(newsQuery.value.trim());
+const toggleNewsFilter = () => { newsFilterOpen.value = !newsFilterOpen.value; };
+const selectNewsFilter = (value) => { newsFilter.value = value; newsFilterOpen.value = false; showNewsCategories.value = false; props.item?.onFilter?.(value); };
+watch(() => props.item?.query, (value) => { newsQuery.value = String(value || ''); });
+watch(() => props.item?.filter, (value) => { newsFilter.value = String(value || 'all'); });
 
 const iconMap = {
   success: Check,
@@ -85,6 +118,11 @@ const reportHeight = () => {
   if (height) emit('resize', height);
 };
 
+// 预览图破图兜底：隐藏占位区域，避免空白撑高卡片
+const onPreviewImgError = (event) => {
+  if (event?.target) event.target.style.display = 'none';
+};
+
 onMounted(async () => {
   await nextTick();
   reportHeight();
@@ -93,6 +131,21 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => resizeObserver?.disconnect());
+
+// 卡片 v-if 隐藏期间 ref 为 null，重挂载后需要重新 observe（否则高度上报失效）
+watch(
+  () => props.item?.visible,
+  async (visible) => {
+    if (!visible) return;
+    await nextTick();
+    if (card.value) {
+      resizeObserver?.disconnect();
+      resizeObserver = new ResizeObserver(reportHeight);
+      resizeObserver.observe(card.value);
+    }
+    reportHeight();
+  }
+);
 
 watch(
   () => [props.item?.visible, props.item?.title, props.item?.message, props.item?.isLong, props.item?.previews?.length],
@@ -132,6 +185,18 @@ watch(
 }
 
 .global-nav-status-card.is-long { min-height: 78px; border-radius: 24px; }
+.global-nav-status-card.is-news-tools { cursor: default; clip-path: none; overflow: visible; }
+.news-tools-icon { flex: 0 0 auto; color: #64748b; }
+.news-tools-input { flex: 1; min-width: 0; border: 0; outline: 0; color: #1d1d1f; background: transparent; font: inherit; font-size: 14px; }
+.news-tools-clear, .news-tools-filter { display: inline-flex; align-items: center; justify-content: center; border: 0; background: transparent; color: #64748b; cursor: pointer; }
+.news-tools-filter { width: 34px; height: 34px; border-radius: 50%; }
+.news-tools-filter.active, .news-tools-filter:hover { color: #fff; background: #1d1d1f; }
+.news-tools-divider { width: 1px; height: 24px; background: rgba(100,116,139,.2); }
+.news-tools-options { position: absolute; top: calc(100% + 8px); right: 16px; left: 16px; z-index: 3; display: flex; flex-wrap: wrap; gap: 6px; padding: 10px; border: 1px solid rgba(255,255,255,.68); border-radius: 16px; background: rgba(255,255,255,.9); box-shadow: 0 14px 32px rgba(15,23,42,.16); backdrop-filter: blur(20px); }
+.news-tools-options button { border: 1px solid rgba(100,116,139,.14); border-radius: 10px; padding: 7px 10px; color: #475569; background: rgba(255,255,255,.5); font: inherit; font-size: 12px; cursor: pointer; }
+.news-tools-options button.selected { color: #fff; background: #1d1d1f; border-color: #1d1d1f; }
+.news-tools-more { width: 100%; color: #64748b !important; background: transparent !important; border-style: dashed !important; }
+.news-tools-category-label { width: 100%; margin-top: 3px; color: #98a2b3; font-size: 10px; font-weight: 700; }
 .status-icon { display: inline-grid; flex: 0 0 auto; place-items: center; width: 34px; height: 34px; border-radius: 50%; }
 .status-icon.tone-success { color: #057857; background: #d8f4e9; }
 .status-icon.tone-message { color: #1d62d4; background: #dbeafe; }
@@ -215,6 +280,10 @@ watch(
   background: linear-gradient(135deg, rgba(35,39,49,.78), rgba(22,25,33,.58));
   box-shadow: 0 16px 36px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.12);
 }
+:global(#unified-nav-container[data-theme="dark"]) .news-tools-input { color: #f5f5f7; }
+:global(#unified-nav-container[data-theme="dark"]) .news-tools-options { background: rgba(28,28,30,.94); border-color: rgba(255,255,255,.14); }
+:global(#unified-nav-container[data-theme="dark"]) .news-tools-options button { color: #e5e5ea; background: rgba(255,255,255,.08); }
+:global(#unified-nav-container[data-theme="dark"]) .news-tools-options button.selected { color: #1d1d1f; background: #f5f5f7; }
 
 :global(#unified-nav-container[data-theme="dark"]) .status-copy strong { color: #f8fafc; }
 :global(#unified-nav-container[data-theme="dark"]) .status-copy span { color: rgba(226, 232, 240, 0.76); }

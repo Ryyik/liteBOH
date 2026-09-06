@@ -105,6 +105,16 @@
     />
   </div>
 
+  <!-- 设定集书页型：中央立体书 + 人物环绕（showcase） -->
+  <ShowcaseBookHero
+    v-else-if="hero.template === 'showcase'"
+    class="dynamic-showcase-hero"
+    :hero="hero"
+    :preview-device="previewDevice"
+    :priority="priority"
+    @link-click="(payload) => emit('link-click', payload)"
+  />
+
   <!-- 横竖屏适配型：picture + source 切换 -->
   <AppleGridCard
     v-else-if="hero.template === 'responsive'"
@@ -138,6 +148,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import AppleGridCard from '@/components/AppleGridCard.vue';
+import ShowcaseBookHero from './ShowcaseBookHero.vue';
 import { getCloudinaryTransformedUrl } from '@/utils/cloudinary-client.js';
 import DOMPurify from '@/utils/dompurify.js';
 

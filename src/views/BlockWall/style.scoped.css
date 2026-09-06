@@ -417,7 +417,8 @@ button { color: inherit; }
 
 .modal-backdrop {
   position: fixed;
-  z-index: 1000;
+  /* 高于全局导航栏（#unified-nav-container z-index: 9999），与活动详情弹窗一致 */
+  z-index: 10002;
   inset: 0;
   display: grid;
   place-items: center;
@@ -616,7 +617,7 @@ button { color: inherit; }
 
 .wall-toast {
   position: fixed;
-  z-index: 1400;
+  z-index: 10010;
   left: 50%;
   bottom: 26px;
   transform: translateX(-50%);

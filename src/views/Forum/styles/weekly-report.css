@@ -17,7 +17,7 @@
 .weekly-report-skeleton span:nth-child(2) { width: 82%; }
 .weekly-report-skeleton span:nth-child(3) { width: 65%; }
 @keyframes weeklyReportShimmer { to { background-position: -200% 0; } }
-.weekly-report-overlay { position: fixed; inset: 0; z-index: 12000; padding: 36px 20px; background: rgba(15,23,42,.28); backdrop-filter: blur(10px); display: grid; place-items: center; }
+.weekly-report-overlay { position: fixed; inset: 0; z-index: 12000; padding: 36px 20px; background: rgba(15,23,42,.28); backdrop-filter: var(--glass-filter-sm, blur(18px)); display: grid; place-items: center; }
 .weekly-report-modal { width: min(780px, 100%); max-height: min(88vh, 900px); overflow: auto; background: rgba(255,255,255,.96); border: 1px solid rgba(0,0,0,.08); border-radius: 18px; box-shadow: 0 24px 80px rgba(0,0,0,.18); }
 .weekly-report-modal-head { padding: 28px 30px 22px; border-bottom: 1px solid rgba(0,0,0,.07); }
 .weekly-report-modal-head h2 { margin: 9px 0 5px; font-size: 28px; color: #1d1d1f; }

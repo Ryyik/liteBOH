@@ -29,8 +29,6 @@ const props = defineProps({
   isSubmitting: { type: Boolean, default: false },
   isUploadingPostImage: { type: Boolean, default: false },
   postImageUploadStatus: { type: String, default: '' },
-  stagedSubmitState: { type: Object, default: () => ({ stage: 'idle', progress: 0, message: '' }) },
-  isStagedSubmitting: { type: Boolean, default: false },
   postCooldownSeconds: { type: Number, default: 0 },
   maxPostImages: { type: Number, default: 6 },
   mentionUsers: { type: Array, default: () => [] },
@@ -74,7 +72,6 @@ const editorGreetingLabel = computed(() => (isEditMode.value ? '编辑帖子' : 
 const editorPromptLabel = computed(() => (isEditMode.value ? '修改你的分享，记得保存～' : '今天想和大家分享什么？'));
 const submitButtonLabel = computed(() => {
   if (isEditMode.value) return isPostBusy.value ? '保存中…' : '保存修改';
-  if (props.isStagedSubmitting) return stagedSubmitLabel.value;
   if (props.postCooldownSeconds > 0) return `${props.postCooldownSeconds}s 后发布`;
   return '发布';
 });
@@ -102,8 +99,7 @@ const selectedTagLabel = computed(() => (
 const hasPostContent = computed(() => Boolean(
   String(props.newPost.title || '').trim() || String(props.newPost.content || '').trim()
 ));
-const isPostBusy = computed(() => props.isSubmitting || props.isUploadingPostImage || props.isStagedSubmitting);
-const stagedSubmitLabel = computed(() => '正在把这份分享送出去…');
+const isPostBusy = computed(() => props.isSubmitting || props.isUploadingPostImage);
 
 const titleCharCount = computed(() => String(props.newPost.title || '').length);
 const contentCharCount = computed(() => String(props.newPost.content || '').length);
@@ -152,7 +148,7 @@ const getImageStatusClass = (image) => {
 };
 const shouldShowImageStatus = (image) => {
   const status = String(image?.uploadStatus || '');
-  return status === 'failed' || (Boolean(status) && status !== 'staged' && !props.isStagedSubmitting);
+  return status === 'failed' || (Boolean(status) && status !== 'staged');
 };
 const canReorderImage = (image) => (
   !image?.uploadStatus || ['approved', 'staged'].includes(image.uploadStatus)
@@ -670,7 +666,7 @@ onUnmounted(() => {
             <span class="add-more-label">添加图片</span>
           </button>
         </div>
-        <div v-if="!isStagedSubmitting && (postImageUploadStatus || isUploadingPostImage)" class="post-image-upload-status">
+        <div v-if="postImageUploadStatus || isUploadingPostImage" class="post-image-upload-status">
           <div class="post-image-upload-status-row">
             <HomeCatMascot v-if="isHomeCatTheme" type="uploading" size="sm" decorative />
             <span v-if="isUploadingPostImage" class="mini-spinner"></span>
@@ -826,29 +822,13 @@ onUnmounted(() => {
               </button>
             </div>
           </div>
-          <button class="post-btn" :class="{ 'is-staged-submitting': isStagedSubmitting }" @click="handleSubmit"
+          <button class="post-btn" @click="handleSubmit"
             :disabled="isPostBusy || postCooldownSeconds > 0" :aria-busy="isPostBusy">
             <span class="post-btn-label">{{ submitButtonLabel }}</span>
-            <span v-if="isStagedSubmitting" class="post-btn-progress" :style="{ transform: `scaleX(${Math.max(0, Math.min(1, (stagedSubmitState.progress || 0) / 100))})` }" aria-hidden="true"></span>
-            <div v-else-if="isSubmitting" class="mini-spinner white"></div>
+            <div v-if="isSubmitting" class="mini-spinner white"></div>
           </button>
         </div>
       </div>
-
-      <Transition name="post-submit-overlay">
-        <div v-if="isStagedSubmitting" class="post-submit-overlay" role="status" aria-live="polite"
-          aria-label="正在把这份分享送出去">
-          <div class="post-submit-overlay-panel">
-            <span class="post-submit-overlay-progress">{{ Math.round(stagedSubmitState.progress || 0) }}%</span>
-            <p class="post-submit-overlay-label">{{ stagedSubmitLabel }}</p>
-            <div class="post-submit-overlay-track" role="progressbar" aria-valuemin="0" aria-valuemax="100"
-              :aria-valuenow="Math.round(stagedSubmitState.progress || 0)">
-              <span class="post-submit-overlay-fill"
-                :style="{ transform: `scaleX(${Math.max(0, Math.min(1, (stagedSubmitState.progress || 0) / 100))})` }"></span>
-            </div>
-          </div>
-        </div>
-      </Transition>
     </div>
 
     <div v-else class="login-prompt-card glass-panel" @click="handleLogin">

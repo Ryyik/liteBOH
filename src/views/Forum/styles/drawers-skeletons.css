@@ -26,8 +26,8 @@
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: var(--glass-filter-sm, blur(18px));
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
   z-index: 20000;
 }
 
@@ -40,8 +40,8 @@
   height: 100vh;
   height: 100dvh;
   background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: var(--glass-filter-sm, blur(18px));
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
   box-shadow: -30px 0 80px rgba(0, 0, 0, 0.2);
   display: flex;
   flex-direction: column;
@@ -297,8 +297,8 @@
 /* 骨架屏帖子卡片 */
 .skeleton-post-card {
   background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: var(--glass-filter, blur(28px));
+  -webkit-backdrop-filter: var(--glass-filter, blur(28px));
   border: 1px solid rgba(0, 0, 0, 0.05);
   border-radius: 24px;
   padding: 24px;
@@ -526,8 +526,9 @@
 }
 
 .forum-page[data-ui-style="glass"] {
-  --glass-bg: rgba(255, 255, 255, 0.62);
-  --glass-border: rgba(255, 255, 255, 0.72);
+  /* 派生自 --liquid-* tokens；flat / home-cat 主题为刻意实色/暖色皮肤，保持字面量 */
+  --glass-bg: var(--liquid-bg-subtle);
+  --glass-border: var(--liquid-border);
   --liquid-shadow: 0 18px 48px rgba(31, 41, 55, 0.1);
   --liquid-inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.78);
 }
@@ -538,8 +539,8 @@
 .forum-page[data-ui-style="glass"] .checkin-week-day,
 .forum-page[data-ui-style="glass"] .checkin-cycle-panel,
 .forum-page[data-ui-style="glass"] .checkin-calendar-progress {
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: var(--glass-filter, blur(28px));
+  -webkit-backdrop-filter: var(--glass-filter, blur(28px));
 }
 
 .forum-page[data-theme="home-cat"] {
@@ -742,8 +743,8 @@
   justify-content: center;
   padding: 20px;
   background: rgba(15, 23, 42, 0.46);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: var(--glass-filter-sm, blur(18px));
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
 }
 
 .forum-confirm-modal {
@@ -837,8 +838,8 @@
     background: rgba(255, 255, 255, 0.24) !important;
     border-color: rgba(255, 255, 255, 0.22) !important;
     box-shadow: none !important;
-    backdrop-filter: blur(24px) saturate(165%) !important;
-    -webkit-backdrop-filter: blur(24px) saturate(165%) !important;
+    backdrop-filter: var(--glass-filter, blur(28px)) !important;
+    -webkit-backdrop-filter: var(--glass-filter, blur(28px)) !important;
   }
 
   .forum-page[data-ui-style="flat"] .mobile-composer-section .post-title-input,

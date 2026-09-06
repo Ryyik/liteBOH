@@ -618,12 +618,12 @@
 }
 .command-palette {
   width: min(560px, calc(100vw - 32px));
-  background: color-mix(in srgb, var(--card) 86%, transparent);
-  backdrop-filter: blur(22px) saturate(140%);
-  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  background: var(--dm-liquid-bg, rgba(255, 255, 255, 0.72));
+  backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
+  -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
   border: 1px solid var(--border);
   border-radius: 14px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--liquid-shadow, 0 20px 60px rgba(15, 23, 42, 0.07)), var(--dm-liquid-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.55));
   overflow: hidden;
 }
 .command-palette-input-row {
@@ -1155,12 +1155,13 @@
   text-align: right;
   position: sticky;
   right: 0;
-  background: var(--card);
+  /* sticky 列滚到内容上方，必须实底遮住下层，用 --card-solid */
+  background: var(--card-solid, var(--card));
   z-index: 2;
 }
 
 .data-table tbody tr .actions-col {
-  background: var(--card);
+  background: var(--card-solid, var(--card));
 }
 
 .data-table tbody tr:hover .actions-col {
@@ -1297,7 +1298,7 @@
   background: transparent;
   color: var(--muted-foreground);
   cursor: pointer;
-  opacity: 0;
+  opacity: 0.72;
   transition: opacity 0.15s ease, background-color 0.15s ease;
 }
 .g-table-sheet tr:hover .cell-edit-trigger,
@@ -1315,6 +1316,10 @@
   outline: 2px solid var(--ring);
   outline-offset: 2px;
   border-radius: 4px;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .cell-edit-trigger { opacity: 0.86; }
 }
 
 .cell-link {

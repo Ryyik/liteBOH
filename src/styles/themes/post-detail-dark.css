@@ -566,17 +566,17 @@
 }
 
 /* ============================================
-   展开按钮
+   展开按钮（液态玻璃）
    ============================================ */
 .post-detail-page[data-theme="dark"] .expand-btn,
 [data-theme="dark"] .post-detail-page .expand-btn {
-  background: #1a1a25 !important;
+  background: var(--liquid-bg-subtle, #1a1a25) !important;
   color: #3b82f6 !important;
 }
 
 .post-detail-page[data-theme="dark"] .expand-btn:hover,
 [data-theme="dark"] .post-detail-page .expand-btn:hover {
-  background: #222230 !important;
+  background: var(--liquid-bg-strong, #222230) !important;
 }
 
 /* ============================================

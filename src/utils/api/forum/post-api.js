@@ -147,6 +147,25 @@ async function schedulePostModeration(post = {}) {
   const content = String(post.content || '').trim();
   if (!postId || !authorId || !content) return;
 
+  // The durable enqueue is a short authenticated DB call. It happens before
+  // the caller can leave the page; only waking the worker is fire-and-forget.
+  try {
+    const { data: jobId, error: enqueueError } = await supabase.rpc('enqueue_forum_post_moderation', {
+      p_post_id: postId
+    });
+    if (enqueueError) throw enqueueError;
+
+    void supabase.functions.invoke('forum-async-worker', {
+      body: { postId }
+    }).catch((error) => {
+      logger.warn('forum-api', '后台审核 worker 唤醒失败，等待 Cron 重试', { postId, jobId, error });
+    });
+    logger.debug('forum-api', '帖子审核任务已入队', { postId, jobId });
+    return;
+  } catch (error) {
+    logger.warn('forum-api', '后台审核任务入队失败，回退浏览器审核', { postId, error });
+  }
+
   const MAX_RETRIES = 3;
   const BASE_DELAY_MS = 2000;
 
@@ -842,7 +861,7 @@ export async function createPostWithImages(content, authorId, authorUsername, st
   }
   invalidateByTags(['posts', 'profiles', 'boh-cloud']);
   if (normalizeContentStatus(status) === APPROVED_STATUS && insertedPostId) {
-    void schedulePostModeration({
+    await schedulePostModeration({
       id: insertedPostId,
       author_id: resolvedAuthorId,
       content: finalContent
@@ -973,7 +992,7 @@ export async function createPost(content, authorId, authorUsername, status = 'ap
   if (!error) {
     invalidateByTags(['posts', 'profiles']);
     if (normalizedStatus === APPROVED_STATUS && insertedPostId) {
-      void schedulePostModeration({
+      await schedulePostModeration({
         id: insertedPostId,
         author_id: resolvedAuthorId,
         content: finalContent
@@ -1328,9 +1347,7 @@ export async function updatePost(postId, content, userId, userRole, title = '') 
   if (!safeTitle && !safeBody) {
     return { ok: false, success: false, error: '帖子内容不能为空' };
   }
-  if (safeTitle && !safeBody) {
-    return { ok: false, success: false, error: '帖子正文不能为空' };
-  }
+  // 正文允许为空（与带图帖发布规则一致），仅要求标题或正文至少一项
 
   const { data: post, error: postError } = await supabase
     .from('posts')
@@ -1375,7 +1392,7 @@ export async function updatePost(postId, content, userId, userRole, title = '') 
     return { ok: false, success: false, error: `更新失败: ${updateError.message}` };
   }
 
-  void schedulePostModeration({
+  await schedulePostModeration({
     id: postId,
     author_id: post.author_id,
     content: safeContent

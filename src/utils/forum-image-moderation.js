@@ -1,4 +1,6 @@
-const DEFAULT_MODEL_NAME = 'MobileNetV2Mid';
+// MobileNetV2：单分片、模型体积与推理耗时约为 Mid 版一半；如需更高检出精度，
+// 可通过 VITE_NSFWJS_MODEL_NAME=MobileNetV2Mid / InceptionV3 切回
+const DEFAULT_MODEL_NAME = 'MobileNetV2';
 
 const NSFW_REJECT_THRESHOLD = 0.75;
 const NSFW_REVIEW_THRESHOLD = 0.45;
@@ -145,16 +147,19 @@ async function loadNsfwModelBundle(modelName) {
         MODEL_BUNDLE_LOAD_TIMEOUT_MS,
         '图片安全检测模型文件加载超时，请检查网络后重试'
       );
+      // 权重分片互相独立，并行下载缩短首次加载时间
+      const shardLoads = [];
       for (let index = 1; index <= bundle.shards; index += 1) {
-        await withTimeout(
+        shardLoads.push(withTimeout(
           loadScriptOnce(
             `${baseUrl}/group1-shard${index}of${bundle.shards}.min.js`,
             `group1_shard${index}of${bundle.shards}`
           ),
           MODEL_BUNDLE_LOAD_TIMEOUT_MS,
           '图片安全检测模型权重加载超时，请检查网络后重试'
-        );
+        ));
       }
+      await Promise.all(shardLoads);
     })();
   }
 
@@ -273,6 +278,17 @@ let classifyMutex = Promise.resolve();
 let classifyBlockedError = null;
 
 export async function moderateForumImageFile(file) {
+  try {
+    return await runForumImageModeration(file);
+  } catch (error) {
+    // 环境类错误（模型加载失败/超时/图片解析失败）统一打标，供上层区分
+    // 「检测服务不可用（可重试）」与「图片真的未过审（只能移除图）」
+    if (!error?.code) error.code = 'IMAGE_MODERATION_UNAVAILABLE';
+    throw error;
+  }
+}
+
+async function runForumImageModeration(file) {
   const { image, objectUrl } = await createImageElement(file);
   let surface;
   let classificationOwnsSurface = false;
@@ -313,12 +329,21 @@ export async function moderateForumImageFile(file) {
       }
       throw error;
     } finally {
+      let watchdogId = setTimeout(() => {
+        watchdogId = null;
+        // 兜底：若 TFJS 底层推理永久挂起（promise 永不 settle），
+        // 强制清锁并重置模型，避免后续所有图片永远卡在互斥队列里
+        classifyBlockedError = null;
+        modelPromise = null;
+        release();
+      }, 30000);
       // 超时无法取消 TFJS 底层推理。等真实任务结束后再释放锁，避免下一张与残留 GPU 任务重叠。
       void classificationPromise
         .catch(() => {
           modelPromise = null;
         })
         .finally(() => {
+          if (watchdogId) { clearTimeout(watchdogId); watchdogId = null; }
           classifyBlockedError = null;
           if (surface) {
             surface.width = 1;

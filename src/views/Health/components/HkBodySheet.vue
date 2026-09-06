@@ -1,18 +1,18 @@
 <template>
   <HkSheet :title="isFirstRun ? '先填三项数据' : '编辑身体测量'" done-text="完成" @close="$emit('close')" @save="$emit('save', snapshot())">
-    <div class="hk-field">
-      <div class="hk-label" style="margin-bottom:8px">性别</div>
-      <div class="hk-seg cols-3">
-        <button
-          v-for="s in SEX_OPTIONS"
-          :key="s.value"
-          type="button"
-          class="hk-seg-item"
-          :class="{ 'is-on': draft.sex === s.value }"
-          @click="draft.sex = s.value"
-        >{{ s.label }}</button>
+      <div class="hk-field">
+        <div class="hk-label" style="margin-bottom:8px">性别</div>
+        <div class="hk-seg cols-4">
+          <button
+            v-for="s in SEX_OPTIONS"
+            :key="s.value"
+            type="button"
+            class="hk-seg-item"
+            :class="{ 'is-on': draft.sex === s.value }"
+            @click="draft.sex = s.value"
+          >{{ s.label }}</button>
+        </div>
       </div>
-    </div>
 
     <div class="hk-field">
       <div class="hk-field-head">
@@ -26,21 +26,27 @@
       <div class="hk-hint" style="margin-top:0">出生年 {{ draft.birthYear || '—' }}</div>
     </div>
 
-    <div class="hk-field">
-      <div class="hk-field-head">
-        <span class="hk-field-name">身高</span>
-        <span class="hk-field-val">{{ draft.heightCm ?? 170 }} cm</span>
-      </div>
-      <input class="hk-slider" type="range" min="120" max="220" step="0.5" v-model.number="draft.heightCm" />
-    </div>
+    <HkNumberField
+      v-model="draft.heightCm"
+      label="身高"
+      unit="cm"
+      :min="120"
+      :max="220"
+      :step="0.5"
+      :digits="1"
+      inputmode="decimal"
+    />
 
-    <div class="hk-field">
-      <div class="hk-field-head">
-        <span class="hk-field-name">体重</span>
-        <span class="hk-field-val">{{ Number(draft.weightKg ?? 60).toFixed(1) }} kg</span>
-      </div>
-      <input class="hk-slider" type="range" min="30" max="180" step="0.1" v-model.number="draft.weightKg" />
-    </div>
+    <HkNumberField
+      v-model="draft.weightKg"
+      label="体重"
+      unit="kg"
+      :min="30"
+      :max="180"
+      :step="0.1"
+      :digits="1"
+      inputmode="decimal"
+    />
 
     <div class="hk-field">
       <div class="hk-field-head">
@@ -69,7 +75,7 @@
       <HkBmiScale :value="live" />
     </div>
 
-    <div class="hk-hint">数据仅保存在本机，随时可删除。</div>
+    <div class="hk-hint">{{ syncHint }}</div>
   </HkSheet>
 </template>
 
@@ -77,7 +83,11 @@
 import { computed, reactive } from 'vue'
 import HkSheet from './HkSheet.vue'
 import HkBmiScale from './HkBmiScale.vue'
+import HkNumberField from './HkNumberField.vue'
 import { calcBmi, bmiTier } from '../bmi'
+import { useHealthStore } from '@/stores/health'
+
+const healthStore = useHealthStore()
 
 const props = defineProps({
   profile: { type: Object, required: true },
@@ -85,10 +95,18 @@ const props = defineProps({
 })
 const emit = defineEmits(['close', 'save'])
 
+// 底部文案与实际同步状态一致：未登录/失败时不再宣称"已保存到云端"
+const syncHint = computed(() => {
+  if (healthStore.cloudSynced) return '数据已加密保存到云端 · 仅供参考，不构成医疗建议'
+  if (healthStore.cloudSyncError) return '云端同步失败 · 数据已存本机，联网后重试'
+  return '数据已保存 · 仅供参考，不构成医疗建议'
+})
+
 const SEX_OPTIONS = [
   { value: 'male', label: '男' },
   { value: 'female', label: '女' },
-  { value: 'other', label: '其他' }
+  { value: 'other', label: '其他' },
+  { value: 'prefer_not_to_say', label: '不愿透露' }
 ]
 const ACTIVITY_OPTIONS = [
   { value: 'sedentary', label: '久坐' },

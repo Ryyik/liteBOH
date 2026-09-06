@@ -42,7 +42,7 @@ export const footerColumns = [
     h: '帮助',
     items: [
       { label: '下载', to: '/download' },
-      { label: '入门教程', to: '/tutorial' },
+      { label: '入门教程', to: '/download?tab=tutorial' },
       { label: '联系客服', href: 'mailto:3197329096@qq.com' },
       { label: '问题反馈', href: 'mailto:3197329096@qq.com' },
       { label: '帮助中心', to: '/tutorial' },
@@ -53,7 +53,7 @@ export const footerColumns = [
     items: [
       { label: '关于方块', to: '/about' },
       { label: '加入我们', to: '/join' },
-      { label: '新闻社', to: '/newsroom' },
+      { label: '新闻&节目', to: '/newsroom' },
       { label: '隐私政策', agreement: 'privacy' },
       { label: '服务条款', agreement: 'user' },
     ],
@@ -63,7 +63,7 @@ export const footerColumns = [
 export const footerBottomLinks = [
   { label: '隐私政策', agreement: 'privacy' },
   { label: '服务条款', agreement: 'user' },
-  { label: '帮助中心', to: '/tutorial' },
+  { label: '帮助中心', to: '/download?tab=tutorial' },
 ];
 
 export const footerCopyright = '© 2018-2026 方块之家. 保留所有权利。';

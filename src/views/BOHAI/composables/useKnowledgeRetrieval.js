@@ -103,6 +103,7 @@ import {
  * @param {import('vue').Ref<boolean>} deps.isTreeholeMemoryEnabled
  * @param {import('vue').Ref<boolean>} deps.isForumSearchEnabled
  * @param {import('vue').Ref<boolean>} deps.isHealthAnalysisEnabled
+ * @param {import('vue').Ref<boolean>} deps.isHealthAnalysisDismissed
  * @param {import('vue').Ref<boolean>} deps.isSharedMemoryEnabled
  * @param {import('vue').Ref<boolean>} deps.isKnowledgeBaseEnabled
  * @param {Object} deps.treeholeMemoryCache
@@ -126,6 +127,7 @@ export function useKnowledgeRetrieval(deps) {
     isTreeholeMemoryEnabled,
     isForumSearchEnabled,
     isHealthAnalysisEnabled,
+    isHealthAnalysisDismissed,
     isSharedMemoryEnabled,
     isKnowledgeBaseEnabled,
     treeholeMemoryCache,
@@ -1044,6 +1046,9 @@ export function useKnowledgeRetrieval(deps) {
     // 无需问题里恰好出现健康关键词。
     if (isHealthAnalysisEnabled?.value) {
       retrievalPlan.health = true;
+    } else if (isHealthAnalysisDismissed?.value) {
+      // 用户显式关闭过健康分析：即使命中健康关键词也不再读取健康数据
+      retrievalPlan.health = false;
     }
     // 统一开关过滤：未开启的知识源强制关闭
     if (!isSharedMemoryEnabled.value) {

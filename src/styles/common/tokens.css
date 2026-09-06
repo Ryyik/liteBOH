@@ -38,6 +38,10 @@
   --liquid-blur-sm: 18px;
   --liquid-blur-lg: 36px;
   --liquid-saturate: 180%;
+  /* 液态滤镜成品档（直接用于 backdrop-filter）：主 / 轻 / 强 三档 */
+  --liquid-filter: blur(var(--liquid-blur)) saturate(var(--liquid-saturate)) brightness(1.02);
+  --liquid-filter-sm: blur(var(--liquid-blur-sm)) saturate(var(--liquid-saturate)) brightness(1.02);
+  --liquid-filter-lg: blur(var(--liquid-blur-lg)) saturate(var(--liquid-saturate)) brightness(1.02);
   --liquid-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.86);
   --liquid-highlight-subtle: inset 0 1px 0 rgba(255, 255, 255, 0.55);
   --liquid-shadow: 0 20px 60px rgba(15, 23, 42, 0.07), 0 1px 3px rgba(15, 23, 42, 0.06);

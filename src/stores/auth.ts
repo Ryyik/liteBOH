@@ -549,7 +549,15 @@ const PROFILE_SELECT_COLUMNS = `
       showcasePostIds: [],
       lastActiveAt: null,
       hideOnlineStatus: false,
-      hideFollowData: false
+      hideFollowData: false,
+      // 封禁/禁言字段一并复位：此前漏清会随 persist 写入 localStorage，
+      // 登出后同设备下一位用户会读到脏封禁状态
+      isBanned: false,
+      isMuted: false,
+      banReason: null,
+      muteReason: null,
+      bannedUntil: null,
+      mutedUntil: null
     });
   };
 
@@ -831,8 +839,16 @@ const PROFILE_SELECT_COLUMNS = `
     try {
       // 两阶段锚点：首次刷新前捕获 DB 中保存的旧活跃时间（syncAuthState 已写入 userInfo），
       // 之后 RPC 与本地覆盖都会让 userInfo.lastActiveAt 变成"刚刚"，概览只能依赖此快照。
-      if (!offlineAnchorAt.value && userInfo.lastActiveAt) {
-        offlineAnchorAt.value = userInfo.lastActiveAt;
+      if (!offlineAnchorAt.value) {
+        if (userInfo.lastActiveAt) {
+          offlineAnchorAt.value = userInfo.lastActiveAt;
+        } else {
+          // 全新账号（DB 无 last_active_at）：紧接着的 update_last_active_at RPC
+          // 会立刻把 DB 写成 now，get_offline_overview 的 first_login 分支因此
+          // 永远不可达、概览恒为空。这里在写库前主动放一个 7 天锚点，
+          // 让首次登录能看到最近 7 天的内容。
+          offlineAnchorAt.value = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        }
       }
       const { supabase } = await loadAuthApi();
       await supabase.rpc('update_last_active_at');

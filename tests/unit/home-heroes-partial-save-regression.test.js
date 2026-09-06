@@ -12,7 +12,12 @@ describe('home hero partial-save regression', () => {
       source.indexOf('// 发布英雄区')
     );
 
-    expect(saveHeroSource).toContain('if (payload[field] !== undefined) updatePayload[field] = payload[field]');
+    // saveHero 已重构为 editableFields 循环 + showcase_config 非空守卫，
+    // 部分保存语义不变：未传字段不得写入，showcase_config 禁止写 null。
+    expect(saveHeroSource).toContain('if (payload[field] !== undefined) {');
+    expect(saveHeroSource).toContain(
+      "updatePayload[field] = field === 'showcase_config' && payload[field] == null"
+    );
     expect(saveHeroSource).not.toContain('image_config: payload.image_config || {}');
   });
 

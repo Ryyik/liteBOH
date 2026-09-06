@@ -2,7 +2,11 @@
 .reply-input-section-v2 {
   margin-top: 20px;
   padding: 16px;
-  background: #f5f5f7;
+  /* 液态玻璃：替代原先突兀的灰色实底 */
+  background: var(--glass-bg, rgba(255, 255, 255, 0.72));
+  backdrop-filter: var(--glass-filter-sm, blur(18px) saturate(180%));
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px) saturate(180%));
+  border: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
   border-radius: 16px;
 }
 
@@ -160,7 +164,7 @@
   margin-bottom: 12px;
   font-size: 13px;
   color: #86868b;
-  background: #f5f5f7;
+  background: rgba(15, 23, 42, 0.045);
   padding: 6px 12px;
   border-radius: 8px;
   width: fit-content;
@@ -185,7 +189,8 @@
 .replies-list {
   margin-top: 24px;
   padding: 12px 18px;
-  background: #f8fafc;
+  /* 透明化：直接透出帖子卡片本身的玻璃底，不再叠灰色实底 */
+  background: transparent;
   border-radius: 18px;
   border: 1px solid rgba(0, 0, 0, 0.04);
   max-height: 500px;
@@ -197,7 +202,7 @@
   margin-top: 8px;
   border: none;
   border-radius: 12px;
-  background: #f2f4f8;
+  background: rgba(15, 23, 42, 0.05);
   color: #3b4a5a;
   padding: 10px 14px;
   font-size: 14px;
@@ -207,7 +212,7 @@
 }
 
 .more-replies-link-v2:hover {
-  background: #e8edf4;
+  background: rgba(15, 23, 42, 0.09);
   transform: translateY(-1px);
 }
 
@@ -352,8 +357,8 @@
   max-height: 600px;
   z-index: 9999;
   background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: var(--glass-filter-sm, blur(18px));
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
   border: 1px solid rgba(0, 0, 0, 0.05);
   border-radius: 32px;
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.15);
@@ -515,8 +520,8 @@
   align-items: center;
   justify-content: center;
   box-shadow: var(--liquid-shadow-sm, 0 8px 24px rgba(15,23,42,0.06)), 0 14px 28px rgba(0,0,0,0.12);
-  backdrop-filter: blur(18px) saturate(170%);
-  -webkit-backdrop-filter: blur(18px) saturate(170%);
+  backdrop-filter: var(--glass-filter-sm, blur(18px));
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
 }
@@ -550,8 +555,8 @@
   background: rgba(248, 250, 252, 0.62);
   color: var(--liquid-text-primary, #0f1419);
   /* 优化：36px→20px 移动端，避免全屏大模糊掉帧 */
-  backdrop-filter: blur(20px) saturate(150%) brightness(1.02);
-  -webkit-backdrop-filter: blur(20px) saturate(150%) brightness(1.02);
+  backdrop-filter: var(--glass-filter, blur(28px));
+  -webkit-backdrop-filter: var(--glass-filter, blur(28px));
   padding-bottom: env(safe-area-inset-bottom);
   /* 提示浏览器该层会动，单独合成层 */
   will-change: backdrop-filter;
@@ -652,23 +657,9 @@
   cursor: not-allowed;
 }
 
-.mobile-composer-submit.is-staged-submitting:disabled {
-  opacity: 1;
-  cursor: progress;
-}
-
 .mobile-composer-submit-label {
   position: relative;
   z-index: 1;
-}
-
-.mobile-composer-submit-progress {
-  position: absolute;
-  inset: 0;
-  background: #1677ff;
-  transform: scaleX(0);
-  transform-origin: left center;
-  transition: transform 180ms var(--ease-out);
 }
 
 .mobile-composer-scroll {
@@ -1214,8 +1205,8 @@
     border-radius: 18px;
     border: 1px solid var(--liquid-border, rgba(255,255,255,0.65));
     background: var(--liquid-bg-strong, rgba(255,255,255,0.84));
-    backdrop-filter: blur(22px) saturate(170%);
-    -webkit-backdrop-filter: blur(22px) saturate(170%);
+    backdrop-filter: var(--glass-filter, blur(28px));
+    -webkit-backdrop-filter: var(--glass-filter, blur(28px));
     box-shadow: 0 18px 44px rgba(15, 20, 25, 0.14), var(--liquid-highlight-subtle);
     display: grid;
     gap: 6px;

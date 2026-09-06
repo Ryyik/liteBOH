@@ -42,8 +42,20 @@
         </div>
       </div>
 
+      <!-- 空状态（当前页全部被点过后若还有更多，提供继续加载入口而不是"全部看完"） -->
+      <div v-else-if="visibleItems.length === 0 && hasMore" class="overview-status-card">
+        <CheckCircle2 class="overview-status-icon" :size="36" :stroke-width="1.6" aria-hidden="true" />
+        <h2 class="overview-status-title">当前内容都看过了</h2>
+        <p class="overview-status-text">后面还有内容，继续加载看看</p>
+        <div class="overview-status-actions">
+          <button class="overview-btn" type="button" :disabled="isLoadMore" @click="loadMore">
+            {{ isLoadMore ? '正在加载…' : '加载更多' }}
+          </button>
+        </div>
+      </div>
+
       <!-- 空状态 -->
-      <div v-else-if="visibleItems.length === 0" class="overview-status-card">
+      <div v-else-if="visibleItems.length === 0 && !hasMore" class="overview-status-card">
         <CheckCircle2 class="overview-status-icon" :size="36" :stroke-width="1.6" aria-hidden="true" />
         <h2 class="overview-status-title">{{ emptyTitle }}</h2>
         <p class="overview-status-text">{{ emptyText }}</p>
@@ -56,6 +68,18 @@
 
       <!-- 内容流 -->
       <template v-else>
+        <!-- 已有内容时的追加/刷新失败提示：不再静默吞掉翻页失败 -->
+        <div v-if="loadError" class="overview-status-card" role="alert">
+          <CloudOff class="overview-status-icon" :size="22" :stroke-width="1.6" aria-hidden="true" />
+          <p class="overview-status-text">{{ loadError }}</p>
+          <div class="overview-status-actions">
+            <button class="overview-btn overview-btn-secondary" type="button" @click="refresh">
+              <RefreshCw :size="14" :stroke-width="2" aria-hidden="true" />
+              重新加载
+            </button>
+          </div>
+        </div>
+
         <div class="overview-stream">
           <OverviewCard
             v-for="(item, index) in visibleItems"
@@ -188,8 +212,12 @@ const newsDetail = ref(null);
 const isNewsModalOpen = ref(false);
 const isNewsLoading = ref(false);
 const newsLoadError = ref('');
+// 弹窗详情请求时序守卫：快速连开两条新闻时，只让最后一次请求的结果生效，
+// 防止慢的旧响应把"A 的正文"渲染进"B 的弹窗"
+let newsDetailSeq = 0;
 
 const openNewsModal = async (item) => {
+  const seq = ++newsDetailSeq;
   newsBase.value = item;
   newsDetail.value = null;
   newsLoadError.value = '';
@@ -197,12 +225,14 @@ const openNewsModal = async (item) => {
   isNewsLoading.value = true;
   try {
     const detail = await fetchNewsDetail(item.id);
+    if (seq !== newsDetailSeq) return;
     if (!detail) throw new Error('未找到这条新闻，可能已被下架');
     newsDetail.value = detail;
   } catch (error) {
+    if (seq !== newsDetailSeq) return;
     newsLoadError.value = error?.message || '暂时无法获取这条新闻';
   } finally {
-    isNewsLoading.value = false;
+    if (seq === newsDetailSeq) isNewsLoading.value = false;
   }
 };
 

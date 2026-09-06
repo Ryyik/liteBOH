@@ -6,10 +6,16 @@
     <div
       class="unified-nav-surface"
       :class="{
-        'has-status-card': navStatus.visible,
-        'has-long-status-card': navStatus.visible && navStatus.isLong,
+        'has-status-card': statusCardItem.visible,
+        'has-long-status-card': statusCardItem.visible && statusCardItem.isLong,
         'has-login-card': showLoginModal,
-        'has-bohai-island': isBohaiIslandOpen
+        'has-bohai-island': isBohaiIslandOpen,
+        'has-task-card': isTaskCardShown,
+        'has-custom-card': !!islandCustomSlot.component,
+        // 新闻中心的搜索/筛选是从灵动导航栏向下衍生的扩展卡片，不占用导航文字行。
+        'has-nav-island-panel': false,
+        'has-nav-search-panel': false,
+        'has-nav-filter-menu': false
       }"
       :style="{
         '--global-nav-status-duration': `${navStatus.duration}ms`,
@@ -226,18 +232,32 @@
       </div>
     </div>
     <GlobalNavStatusCard
-      :item="navStatus"
+      :item="statusCardItem"
       @action="handleNavStatusAction"
       @after-leave="handleNavStatusAfterLeave"
       @resize="handleStatusCardResize"
     />
+    <GlobalNavTaskCard
+      :item="islandTaskView"
+      @action="handleIslandTaskAction"
+      @after-leave="handleIslandTaskAfterLeave"
+      @resize="handleStatusCardResize"
+    />
+    <div
+      v-if="islandCustomSlot.component"
+      :key="`island-custom-${islandCustomSlot.key}`"
+      ref="islandCustomHost"
+      class="island-custom-host"
+    >
+      <component :is="islandCustomSlot.component" v-bind="islandCustomSlot.props || {}" />
+    </div>
     <BOHAIIsland />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from "vue";
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { getImageUrl } from "../../utils/asset-helper.js";
 import { useAuthStore } from "@/stores/auth";
@@ -250,18 +270,35 @@ import { isHomeCatTheme } from "@/utils/home-cat-theme.js";
 import { useConfirmDialog } from "@/composables/useConfirmDialog.js";
 import { useAppMode } from "@/composables/useAppMode.js";
 import { useVersionCheck } from "@/composables/useVersionCheck.js";
-import { GLOBAL_NAV_STATUS_EVENT, LEGACY_ISLAND_EVENT } from "@/composables/useGlobalNavStatus.js";
 import { useOverviewIsland } from "@/composables/useOverviewIsland.js";
 import { toggleHiagentChat } from "@/utils/hiagent-widget.js";
 import GlobalNavStatusCard from "./GlobalNavStatusCard.vue";
+import GlobalNavTaskCard from "./GlobalNavTaskCard.vue";
 import BOHAIIsland from "./BOHAIIsland.vue";
-import { useBohaiIsland } from "@/composables/useBohaiIsland.js";
+import { useGlobalAiOverlay } from "@/composables/useGlobalAiOverlay.js";
+import {
+  GLOBAL_NAV_STATUS_EVENT,
+  registerIslandAiOpener,
+  setIslandAiPaused,
+  islandTaskAction,
+  islandTaskCardLeft,
+  islandTaskView,
+  islandCustomSlot
+} from "@/composables/useIsland.js";
 
 const authStore = useAuthStore();
 const { isLoggedIn, isInitialized, showLoginModal, isAdmin } = storeToRefs(authStore);
 const { maybeShowOverviewIsland, forceShowOverviewIsland } = useOverviewIsland();
 // BOHAI 灵动岛：岛组件内部已订阅 isExpanded，navbar 仅读取用于 surface 类名联动
-const { isExpanded: isBohaiIslandOpen } = useBohaiIsland();
+// （原 useBohaiIsland 薄包装已内联，状态统一来自 useGlobalAiOverlay 单例）
+const { isOpen: isBohaiOverlayOpen, canOpen: isBohaiIslandAllowed, open: openBohaiOverlay } = useGlobalAiOverlay();
+const isBohaiIslandOpen = computed(() => isBohaiOverlayOpen.value && isBohaiIslandAllowed.value);
+// 注册 AI 岛 opener：showIsland.ai() 由这里真正打开 BOH AI 岛（可带种子 prompt）
+registerIslandAiOpener(({ prompt } = {}) => {
+  if (!isBohaiIslandAllowed.value) return false;
+  openBohaiOverlay({ prompt });
+  return true;
+});
 // DEV-TEST：仅开发环境显示灵动岛测试按钮（与模板中 DEV-TEST 块一起删除）
 const isDevMode = import.meta.env.DEV;
 const notificationStoreRef = ref(getNotificationStoreSync());
@@ -289,6 +326,21 @@ const navStatusCardHeight = ref(58);
 const navStatusQueue = [];
 let navStatusDismissTimer = null;
 
+// ============================================
+// 灵动岛统一仲裁（useIsland 调度中心）
+// 优先级：AI 岛 > 任务岛 > 通知岛，同一时刻 surface 只展示一张卡
+// ============================================
+
+const isTaskCardShown = computed(() => !!islandTaskView.value);
+
+// 任务岛/AI 岛占用期间通知卡暂停展示（转为隐藏并保持队列，收起后自动恢复）
+const statusCardItem = computed(() => {
+  if (isBohaiIslandOpen.value || isTaskCardShown.value) {
+    return { ...navStatus.value, visible: false };
+  }
+  return navStatus.value;
+});
+
 const clearNavStatusDismissTimer = () => {
   if (!navStatusDismissTimer) return;
   clearTimeout(navStatusDismissTimer);
@@ -315,6 +367,7 @@ const normalizeNavStatus = (payload = {}) => {
 
   return {
     visible: true,
+    kind: payload.kind || '',
     title,
     message,
     icon,
@@ -325,7 +378,13 @@ const normalizeNavStatus = (payload = {}) => {
     blur: Math.min(Math.max(Number(payload.blur) || 20, 0), 28),
     reducedMotion: Boolean(payload.reducedMotion),
     durationMs,
-    onAction: typeof payload.onAction === 'function' ? payload.onAction : null
+    onAction: typeof payload.onAction === 'function' ? payload.onAction : null,
+    query: payload.query || '',
+    filter: payload.filter || 'all',
+    options: payload.options || [],
+    onSearch: payload.onSearch,
+    onFilter: payload.onFilter,
+    persistent: Boolean(payload.persistent)
   };
 };
 
@@ -333,20 +392,21 @@ const presentNavStatus = (item) => {
   clearNavStatusDismissTimer();
   navStatusCardHeight.value = 58;
   navStatus.value = item;
+  if (item.persistent) return;
   navStatusDismissTimer = setTimeout(() => {
     navStatus.value = { ...navStatus.value, visible: false };
   }, item.durationMs);
 };
 
 const flushNavStatusQueue = () => {
-  if (navStatus.value.visible) return;
+  if (navStatus.value.visible || isTaskCardShown.value || isBohaiIslandOpen.value) return;
   const next = navStatusQueue.shift();
   if (next) presentNavStatus(next);
 };
 
 const handleGlobalNavStatus = (event) => {
   const item = normalizeNavStatus(event?.detail || {});
-  if (navStatus.value.visible) {
+  if (navStatus.value.visible || isTaskCardShown.value || isBohaiIslandOpen.value) {
     navStatusQueue.push(item);
     return;
   }
@@ -389,6 +449,48 @@ const handleStatusCardResize = (height) => {
     navStatusCardHeight.value = nextHeight;
   }
 };
+
+// ---- 任务岛（GlobalNavTaskCard）事件 ----
+
+const handleIslandTaskAction = (actionId) => {
+  islandTaskAction(actionId);
+};
+
+const handleIslandTaskAfterLeave = () => {
+  islandTaskCardLeft();
+  flushNavStatusQueue();
+};
+
+// 任务岛收起后恢复队列中的通知
+watch(isTaskCardShown, (shown, prev) => {
+  if (!shown && prev) flushNavStatusQueue();
+});
+
+// AI 岛开关：占用期间暂停任务卡展示，收起后恢复并冲刷通知队列
+// immediate：navbar 卸载期间 AI 岛仍可能保持展开，重挂载时需同步一次
+watch(isBohaiIslandOpen, (open) => {
+  setIslandAiPaused(open);
+  if (!open) flushNavStatusQueue();
+}, { immediate: true });
+
+// ---- 自定义岛（showIsland.custom）高度上报 ----
+
+const islandCustomHost = ref(null);
+let customHostResizeObserver = null;
+
+const observeIslandCustomHost = async () => {
+  await nextTick();
+  customHostResizeObserver?.disconnect();
+  customHostResizeObserver = null;
+  if (!islandCustomHost.value) return;
+  customHostResizeObserver = new ResizeObserver(() => {
+    const height = islandCustomHost.value?.getBoundingClientRect().height;
+    if (height) handleStatusCardResize(height);
+  });
+  customHostResizeObserver.observe(islandCustomHost.value);
+};
+
+watch(() => islandCustomSlot.component, observeIslandCustomHost);
 
 // ============================================
 // 滚动悬浮效果控制
@@ -507,11 +609,10 @@ const navMenuItems = [
     label: "社区",
     children: [
       { name: "smart-overview", path: "/overview", label: "智能概览" },
+      { name: "news-shows", path: "/newsroom", label: "新闻&节目" },
       { name: "forum", path: "/user-space?tab=posts", label: "论坛" },
-      { name: "block-wall", path: "/block-wall", label: "方块墙" },
-      { name: "activities", path: "/activities", label: "活动" },
-      { name: "lotteries", path: "/lotteries", label: "抽奖" },
-      { name: "shows", path: "/shows", label: "节目" }
+      { name: "activities-wall", path: "/activities-wall", label: "活动&方块墙" },
+      { name: "lotteries", path: "/lotteries", label: "抽奖" }
     ]
   },
   {
@@ -562,8 +663,8 @@ const navMenuItems = [
         name: "support-group",
         label: "支持中心",
         children: [
-          { name: "tutorial", path: "/tutorial", label: "教程中心" },
-          { name: "download", path: "/download", label: "下载中心" },
+          // 下载中心与教程中心已融合为「资源中心」单页（/download）
+          { name: "resources", path: "/download", label: "资源中心" },
           { name: "admin-panel", action: "goToAdmin", label: "管理面板", adminOnly: true }
         ]
       }
@@ -940,7 +1041,6 @@ const handleThemeChange = (theme, preference = themeManager.getPreference?.() ||
 onMounted(() => {
   window.addEventListener('boh_global_nav_status_preview', handleNavStatusPreview);
   window.addEventListener(GLOBAL_NAV_STATUS_EVENT, handleGlobalNavStatus);
-  window.addEventListener(LEGACY_ISLAND_EVENT, handleGlobalNavStatus);
   checkUnreadMessages();
   // 兜底轮询：实时订阅/事件异常时，最多 60 秒回补一次
   unreadRefreshInterval = setInterval(checkUnreadMessages, 60000);
@@ -986,9 +1086,11 @@ watch(isBeta5, (enabled) => {
 onUnmounted(() => {
   window.removeEventListener('boh_global_nav_status_preview', handleNavStatusPreview);
   window.removeEventListener(GLOBAL_NAV_STATUS_EVENT, handleGlobalNavStatus);
-  window.removeEventListener(LEGACY_ISLAND_EVENT, handleGlobalNavStatus);
   clearNavStatusDismissTimer();
   navStatusQueue.length = 0;
+  registerIslandAiOpener(null);
+  customHostResizeObserver?.disconnect();
+  customHostResizeObserver = null;
   if (unreadRefreshInterval) {
     clearInterval(unreadRefreshInterval);
   }

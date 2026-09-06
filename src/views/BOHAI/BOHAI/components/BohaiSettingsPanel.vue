@@ -88,9 +88,14 @@
                     @click.stop="$emit('selectMode', mode.id); showModePicker = false">
                     <span class="ai-settings-option-main">
                       <strong>{{ mode.name }}</strong>
-                      <small>{{ mode.tagline }}</small>
                     </span>
-                    <Check v-if="currentModeId === mode.id" size="16" />
+                    <span class="ai-settings-option-meta">
+                      <span class="ai-settings-option-multiplier"
+                        :title="`该模式消耗倍率为 ${formatQuotaMultiplier(mode.quotaMultiplier)}x`">
+                        {{ formatQuotaMultiplier(mode.quotaMultiplier) }}x
+                      </span>
+                      <Check v-if="currentModeId === mode.id" size="16" />
+                    </span>
                   </button>
                 </div>
 
@@ -395,6 +400,13 @@ const closeBtnRef = ref(null);
 const quotaSummary = ref(null);
 let focusRestore = null;
 const { preferences } = useGlobalAiPreferences();
+
+// 消耗倍率显示：去掉多余的尾零（1.00 → 1，0.50 → 0.5，0.06 → 0.06）
+const formatQuotaMultiplier = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return '1';
+  return String(parseFloat(num.toFixed(2)));
+};
 
 const shortcutOptions = [
   { id: 'mod+k', name: '⌘/Ctrl + K', description: '通用且容易记忆；Lab 页面保留给命令面板' },
@@ -931,6 +943,24 @@ onUnmounted(() => {
 
 .ai-settings-option-main strong { font-size: 14px; font-weight: 600; color: #171717; }
 .ai-settings-option-main small { font-size: 12px; color: #737373; line-height: 1.3; }
+
+.ai-settings-option-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.ai-settings-option-multiplier {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: #737373;
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-settings-backdrop[data-theme="dark"] .ai-settings-option-multiplier { color: #a3a3a3; }
 
 .ai-settings-switch {
   position: relative;

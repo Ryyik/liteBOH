@@ -28,7 +28,9 @@ export async function checkRateLimitDb(
     }
     return { ok: true };
   } catch (err) {
+    // 与 RPC error 分支保持一致：基础设施异常同样 fail open，
+    // 不因限流器自身故障误伤正常用户（已 console.error 留痕）
     console.error('[rate-limiter] 数据库限流查询失败', err);
-    return { ok: false, retryAfter: 60 };
+    return { ok: true };
   }
 }

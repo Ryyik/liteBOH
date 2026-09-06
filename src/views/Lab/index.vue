@@ -803,7 +803,7 @@ const CHAT_API_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.sili
 import { useLabQuota } from '@/composables/useLabQuota.js'
 import { BASE_SYSTEM_PROMPT } from '@/prompts/index.js'
 import { STYLE_PRESETS, DEFAULT_PRESET_ID, getPresetById } from './config/design-tokens.js'
-import { showGlobalNavStatus } from '@/composables/useGlobalNavStatus.js'
+import { showIsland } from '@/composables/useIsland.js'
 
 const router = useRouter()
 const { chat, aiLoading } = useDocumentAI()
@@ -900,7 +900,7 @@ const threadRef = ref(null)
 // ===== 灵动岛封装：优先走全局顶部状态卡，失败回退本地 NotificationToast =====
 const showLabIsland = (payload = {}) => {
   try {
-    return showGlobalNavStatus(payload)
+    return showIsland.notify(payload)
   } catch {
     return false
   }

@@ -16,7 +16,10 @@ export const EVIDENCE_SOURCE_WEIGHTS = {
   forum: 16,
   sharedMemory: 14,
   knowledge: 12,
-  siteGuide: 10
+  siteGuide: 10,
+  // BOH Health 本机数据：用户本人的记录，排序应高于通用站点手册，
+  // 否则多源竞争预算时健康证据会落到 defaultSourceScore 垫底
+  health: 15
 };
 
 export const RANKING_SCORE_WEIGHTS = {

@@ -10,7 +10,7 @@
     <div class="activities-container">
       <!-- 加载状态 -->
       <template v-if="loading">
-        <div v-for="item in 6" :key="`activity-loading-${item}`" class="activity-card activity-card-skeleton"
+        <div v-for="item in 6" :key="`activity-loading-${item}`" class="activity-card activity-card-skeleton liquid-glass"
           aria-hidden="true">
           <div class="activity-skeleton-image">
             <div class="activity-skeleton-block activity-skeleton-date"></div>
@@ -237,14 +237,12 @@ onMounted(async () => {
   padding: 0 40px 160px;
 }
 
-/* 活动卡片 */
+/* 活动卡片（液态玻璃外观由全局 .liquid-glass 提供） */
 .activity-card {
-  background-color: #ffffff;
   border-radius: 32px;
   overflow: hidden;
   box-shadow: 0 2px 20px rgba(0, 0, 0, 0.04);
   transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-  border: 1px solid rgba(0, 0, 0, 0.03);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -352,9 +350,7 @@ onMounted(async () => {
   position: relative;
   border-radius: 28px;
   overflow: auto;
-  background: #ffffff;
   box-shadow: 0 28px 80px rgba(0, 0, 0, 0.18);
-  border: 1px solid rgba(0, 0, 0, 0.06);
   scrollbar-width: thin;
 }
 

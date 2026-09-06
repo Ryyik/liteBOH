@@ -730,8 +730,8 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   opacity: 0;
   transform: translateY(4px);
   box-shadow: 0 8px 22px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.62);
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
   transition: opacity 0.18s ease, transform 0.18s ease;
   pointer-events: none;
 }

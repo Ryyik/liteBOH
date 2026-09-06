@@ -67,14 +67,40 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { LoaderCircle, Maximize2, Plus, Sparkles, X } from 'lucide-vue-next'
 import { defineAsyncComponent } from 'vue'
-import { useBohaiIsland } from '@/composables/useBohaiIsland'
+import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay'
 
 const BOHAIMain = defineAsyncComponent(() => import('@/views/BOHAI/BOHAI/BOHAIMain.vue'))
 
-const { isExpanded, collapse, openFullscreen } = useBohaiIsland()
+const route = useRoute()
+const router = useRouter()
+// 岛状态与开关逻辑（原 useBohaiIsland 薄包装，已内联）：
+// 完全复用 useGlobalAiOverlay 单例的 isOpen / open / close，零侵入
+const { isOpen, canOpen, close, consumePendingPrompt, pendingPrompt } = useGlobalAiOverlay()
+
+// 岛"展开"的判定：overlay 打开 + 路由允许（避开 /ai-chat 避免双实例）
+const isExpanded = computed(() => isOpen.value && canOpen.value)
+
+// 路由进入 /ai-chat 时强制关闭岛（避免 BOHAIChat 同时挂在岛和全屏）
+watch(
+  () => route.name,
+  (name) => {
+    if (name === 'AiChat' && isOpen.value) close()
+  },
+  { immediate: true }
+)
+
+// 岛内触发关闭（如用户按 ESC、点 X）
+const collapse = () => close()
+
+// 岛内触发全屏跳转（右上角 ↗ 按钮）
+const openFullscreen = async () => {
+  close()
+  await router.push('/ai-chat')
+}
 
 const theme = computed(() => {
   if (typeof document === 'undefined') return 'light'
@@ -85,7 +111,32 @@ const bohaiMainRef = ref(null)
 const isThinking = ref(false)
 const isEmpty = ref(true)
 
-// 监听展开：聚焦输入框
+// 等待 BOHAIMain 异步组件加载并完成初始化（有界等待，避免死循环）
+const waitForChatApi = async (timeoutMs = 5000) => {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    if (typeof bohaiMainRef.value?.appendAndSend === 'function') return true
+    await nextTick()
+    await new Promise((r) => setTimeout(r, 50))
+  }
+  return Boolean(bohaiMainRef.value?.appendToComposer)
+}
+
+// 消费外部传入的种子 prompt（健康页「用 BOH AI 分析」等场景）。
+// 此前消费逻辑只存在于已无人挂载的 GlobalAiGlassOverlay 中，种子 prompt 永远丢失。
+const tryConsumeSeedPrompt = async () => {
+  const prompt = consumePendingPrompt()
+  if (!prompt) return
+  const ready = await waitForChatApi()
+  if (ready && typeof bohaiMainRef.value?.appendAndSend === 'function') {
+    bohaiMainRef.value.appendAndSend(prompt)
+  } else {
+    // 降级：至少把内容填进输入框，用户可以手动点发送
+    bohaiMainRef.value?.appendToComposer?.(prompt)
+  }
+}
+
+// 监听展开：聚焦输入框 + 消费滞留的种子 prompt
 watch(isExpanded, async (val) => {
   if (!val) return
   await nextTick()
@@ -93,7 +144,26 @@ watch(isExpanded, async (val) => {
   requestAnimationFrame(() => {
     bohaiMainRef.value?.focusComposer?.()
   })
+  tryConsumeSeedPrompt()
 })
+
+// 岛已展开时又收到新的 open({prompt})（isExpanded 不会变化），同样立即消费，
+// 防止 prompt 滞留到下一次无关的打开
+watch(pendingPrompt, (val) => {
+  if (val && isExpanded.value) tryConsumeSeedPrompt()
+})
+
+// ESC 关闭：优先交给 BOHAIMain 处理分层 ESC（功能菜单/设置/侧栏），全关后再收岛
+const handleKeydown = (e) => {
+  if (e.key !== 'Escape') return
+  const handled = bohaiMainRef.value?.handleEscapeLayer?.()
+  if (!handled) collapse()
+}
+watch(isExpanded, (val) => {
+  if (val) document.addEventListener('keydown', handleKeydown)
+  else document.removeEventListener('keydown', handleKeydown)
+})
+onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
 
 function onIslandMessage(payload) {
   // 预留：BOHAIMain 主动发的岛消息
@@ -114,9 +184,6 @@ function onOverlayState(state) {
 function onNewChat() {
   bohaiMainRef.value?.startNewChat?.()
 }
-
-onMounted(() => {})
-onUnmounted(() => {})
 </script>
 
 <style scoped>
@@ -457,6 +524,54 @@ onUnmounted(() => {})
 
 :global(.bohai-island-chat .composer-send-btn:hover) {
   background: linear-gradient(135deg, #b9ecd7, #a5e5cb) !important;
+}
+
+/* ============================================
+   模式选择菜单：岛内高度有限，压缩为紧凑面板并限高滚动，
+   避免被岛的 overflow: hidden 裁切
+   ============================================ */
+:global(.bohai-island .bohai-island-chat .composer-mode-menu) {
+  position: absolute !important;
+  right: 0 !important;
+  left: auto !important;
+  bottom: calc(100% + 8px) !important;
+  width: min(300px, calc(100vw - 130px)) !important;
+  max-width: none !important;
+  max-height: min(320px, calc(var(--bohai-island-height, 520px) - 120px)) !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  padding: 8px 6px !important;
+  border-radius: 16px !important;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16) !important;
+}
+
+:global(.bohai-island .bohai-island-chat .composer-mode-option) {
+  min-height: 34px !important;
+  padding: 5px 10px !important;
+  border-radius: 9px !important;
+}
+
+:global(.bohai-island .bohai-island-chat .mode-option-main strong) {
+  font-size: 13px !important;
+}
+
+:global(.bohai-island .bohai-island-chat .mode-option-multiplier) {
+  font-size: 11.5px !important;
+}
+
+:global(.bohai-island .bohai-island-chat .mode-option-check) {
+  width: 13px !important;
+  height: 13px !important;
+}
+
+:global(.bohai-island .bohai-island-chat .mode-menu-footer) {
+  padding: 5px 6px 2px !important;
+  margin-top: 3px !important;
+}
+
+:global(.bohai-island .bohai-island-chat .mode-menu-intro-link) {
+  font-size: 11.5px !important;
+  padding: 3px 8px !important;
 }
 
 /* ============================================

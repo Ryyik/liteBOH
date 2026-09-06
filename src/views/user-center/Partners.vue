@@ -573,7 +573,7 @@ onBeforeUnmount(() => {
   top: 72px;
   z-index: 100;
   background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
+  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
   border-bottom: 1px solid #eff3f4;
 }
 
@@ -955,7 +955,7 @@ onBeforeUnmount(() => {
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(8px);
+  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
   z-index: 10000;
   display: flex;
   align-items: center;

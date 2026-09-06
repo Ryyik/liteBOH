@@ -73,7 +73,8 @@ export const publicRoutes: RouteRecordRaw[] = [
   {
     path: "/tutorial",
     name: "Tutorial",
-    component: () => import("../../views/Tutorial/index.vue"),
+    // 教程中心已融合进资源中心（/download）
+    redirect: "/download",
   },
   {
     path: "/shows",
