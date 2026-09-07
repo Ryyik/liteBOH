@@ -116,6 +116,7 @@ const isEmptyValue = (value) => value === null
  * @param {Object} deps.fieldErrors - reactive<Record<string, string>>
  * @param {Function} deps.getCurrentTab - () => string
  * @param {Function} deps.clearFieldError - (fieldKey) => void
+ * @param {string[]} [deps.NEWS_CATEGORY_VALUES] - 新闻分类合法值，news 页校验 category 时必需
  */
 export const createFieldValidator = (deps) => (fieldKey) => {
   const {
@@ -210,7 +211,7 @@ export const createFieldValidator = (deps) => (fieldKey) => {
       }
     }
 
-    if (fieldKey === 'category' && !deps.NEWS_CATEGORY_VALUES.includes(textValue)) {
+    if (fieldKey === 'category' && Array.isArray(deps.NEWS_CATEGORY_VALUES) && !deps.NEWS_CATEGORY_VALUES.includes(textValue)) {
       fieldErrors[fieldKey] = '分类必须使用下拉中的系统值';
       return false;
     }

@@ -2611,7 +2611,8 @@ const validateField = createFieldValidator({
   editingItemRef: editingItem,
   fieldErrors,
   getCurrentTab: () => currentTab.value,
-  clearFieldError
+  clearFieldError,
+  NEWS_CATEGORY_VALUES
 });
 const validateRequiredFields = createRequiredFieldsValidator({
   getCurrentFields: () => currentFields.value,

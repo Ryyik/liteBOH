@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
   ArrowLeft,
   ArrowRight,
@@ -68,8 +68,33 @@ const emit = defineEmits([
 ]);
 
 const isEditMode = computed(() => Boolean(props.editMode));
+
+/* 标题上限：与主流社区一致，防止超长标题撑破排版 */
+const TITLE_MAX_LENGTH = 50;
+const postTitleInputRef = ref(null);
+
+const autoResizeTitle = async () => {
+  await nextTick();
+  const el = postTitleInputRef.value;
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = `${Math.min(el.scrollHeight, 132)}px`;
+};
+
+watch(() => props.newPost.title, autoResizeTitle);
+
+onMounted(autoResizeTitle);
+
+const handleTitleInput = (event) => {
+  const value = String(event.target.value || '').slice(0, TITLE_MAX_LENGTH);
+  event.target.value = value;
+  updateTitle(value);
+  autoResizeTitle();
+};
 const editorGreetingLabel = computed(() => (isEditMode.value ? '编辑帖子' : `你好，${props.userInfo.username || '朋友'}！`));
 const editorPromptLabel = computed(() => (isEditMode.value ? '修改你的分享，记得保存～' : '今天想和大家分享什么？'));
+/* 竖屏发帖器头像行使用纯用户名 */
+const editorDisplayName = computed(() => props.userInfo.username || '朋友');
 const submitButtonLabel = computed(() => {
   if (isEditMode.value) return isPostBusy.value ? '保存中…' : '保存修改';
   if (props.postCooldownSeconds > 0) return `${props.postCooldownSeconds}s 后发布`;
@@ -544,7 +569,11 @@ onUnmounted(() => {
           <span v-else>{{ userInfo.username ? userInfo.username.charAt(0).toUpperCase() : 'U' }}</span>
         </div>
         <div class="user-info-text">
-          <span class="user-greeting">{{ editorGreetingLabel }}</span>
+          <span class="user-greeting">
+            <span class="greeting-full">{{ editorGreetingLabel }}</span>
+            <span class="greeting-name">{{ editorDisplayName }}</span>
+            <span class="visibility-badge">公开</span>
+          </span>
           <span class="editor-prompt">{{ editorPromptLabel }}</span>
         </div>
         <button v-if="isEditMode" type="button" class="editor-close-btn" aria-label="关闭编辑" @click="emit('close')">
@@ -559,9 +588,14 @@ onUnmounted(() => {
         size="lg" decorative />
 
       <div class="input-group post-title-input-group">
-        <input :value="newPost.title" type="text" :placeholder="isEditMode ? '修改标题' : (isMobileComposer ? '标题' : '起个响亮的标题...')"
+        <textarea :value="newPost.title" ref="postTitleInputRef" rows="1" :maxlength="TITLE_MAX_LENGTH"
+          :placeholder="isEditMode ? '修改标题' : (isMobileComposer ? '标题' : '起个响亮的标题...')"
           class="post-title-input"
-          @input="updateTitle($event.target.value)" />
+          @input="handleTitleInput"></textarea>
+        <span v-if="titleCharCount > 0" class="composer-title-count"
+          :class="{ 'is-near-limit': titleCharCount >= TITLE_MAX_LENGTH }">
+          {{ titleCharCount }}/{{ TITLE_MAX_LENGTH }}
+        </span>
       </div>
 
       <div class="input-group post-body-input-group">
@@ -683,19 +717,19 @@ onUnmounted(() => {
       </div>
 
       <div v-if="isMobileComposer" class="mobile-composer-setting-list">
-        <button type="button" class="mobile-composer-setting" @click.stop="handleLocationClick">
+        <button type="button" class="mobile-composer-setting is-location" @click.stop="handleLocationClick">
           <MapPin :size="20" :stroke-width="1.8" aria-hidden="true" />
-          <span>Location</span>
+          <span>位置</span>
           <strong v-if="postLocation">{{ postLocation.name }}</strong>
           <ChevronRight :size="18" :stroke-width="1.8" aria-hidden="true" />
         </button>
-        <button type="button" class="mobile-composer-setting" @click.stop="handleDraftOpen">
+        <button type="button" class="mobile-composer-setting is-draft" @click.stop="handleDraftOpen">
           <FileText :size="20" :stroke-width="1.8" aria-hidden="true" />
           <span>草稿</span>
           <strong v-if="autoSaveDraftLabel">{{ autoSaveDraftLabel }}</strong>
           <ChevronRight :size="18" :stroke-width="1.8" aria-hidden="true" />
         </button>
-        <button type="button" class="mobile-composer-setting" @click.stop="showMobileTagMenu = !showMobileTagMenu">
+        <button type="button" class="mobile-composer-setting is-tag" @click.stop="showMobileTagMenu = !showMobileTagMenu">
           <Hash :size="20" :stroke-width="1.8" aria-hidden="true" />
           <span>标签</span>
           <strong v-if="selectedTagLabel">#{{ selectedTagLabel }}</strong>
@@ -959,16 +993,16 @@ onUnmounted(() => {
 </style>
 
 <style scoped>
-/* 图片占位入口：液态玻璃 — 极简扁平，虚线在玻璃上更轻盈 */
+/* 图片占位入口：液态玻璃 — 统一走 --liquid-* token，主色与全站一致（iOS 蓝） */
 .post-image-add-more-card {
   width: 100%;
   aspect-ratio: 1 / 1;
-  border: 1.2px dashed var(--liquid-border-hairline, rgba(15,23,42,0.10));
-  border-radius: 16px;
-  background: var(--liquid-bg-strong, rgba(255,255,255,0.84));
-  backdrop-filter: blur(12px) saturate(160%);
-  -webkit-backdrop-filter: blur(12px) saturate(160%);
-  color: #ff3b30;
+  border: 1px solid var(--liquid-border, rgba(255,255,255,0.65));
+  border-radius: 20px;
+  background: var(--liquid-bg-subtle, rgba(255,255,255,0.58));
+  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  color: var(--apple-blue, #0071e3);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -979,14 +1013,18 @@ onUnmounted(() => {
   padding: 0;
   min-height: 0;
   box-sizing: border-box;
-  box-shadow: var(--liquid-shadow-sm, 0 8px 24px rgba(15,23,42,0.06));
+  box-shadow: var(--liquid-highlight-subtle, inset 0 1px 0 rgba(255,255,255,0.55)), var(--liquid-shadow-sm, 0 8px 24px rgba(15,23,42,0.06));
 }
 
 .post-image-add-more-card:hover:not(:disabled) {
-  border-color: rgba(0, 113, 227, 0.22);
-  border-style: solid;
-  background: #ffffff;
+  border-color: rgba(255, 255, 255, 0.85);
+  background: var(--liquid-bg-strong, rgba(255,255,255,0.84));
   transform: translateY(-1px);
+  box-shadow: var(--liquid-highlight, inset 0 1px 0 rgba(255,255,255,0.86)), 0 12px 28px rgba(15,23,42,0.09);
+}
+
+.post-image-add-more-card:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .post-image-add-more-card:disabled {
@@ -997,20 +1035,20 @@ onUnmounted(() => {
 .add-more-label {
   font-size: 11px;
   font-weight: 600;
-  color: #8b9098;
+  color: var(--liquid-text-tertiary, #8b9098);
   line-height: 1.2;
 }
 
-/* 横屏保存草稿按钮 — 液态玻璃 + 蓝色描边，保持克制 */
+/* 横屏保存草稿按钮 — 液态玻璃 token + 蓝色描边，保持克制 */
 .desktop-save-draft-btn {
-  border-radius: 999px;
+  border-radius: var(--liquid-radius-pill, 999px);
   padding: 0 14px;
   min-height: 36px;
   background: var(--liquid-bg-strong, rgba(255,255,255,0.84));
-  backdrop-filter: blur(12px) saturate(160%);
-  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
   border: 1px solid rgba(0, 113, 227, 0.18);
-  color: #0071e3;
+  color: var(--apple-blue, #0071e3);
   font-size: 13px;
   font-weight: 700;
   display: inline-flex;

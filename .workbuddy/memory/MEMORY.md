@@ -12,8 +12,17 @@
 
 ## 项目其他事实
 - 路由为 hash 模式（探针访问用 `/#/xxx`）；dev server 端口 5173，用户常驻自启，验证时直接用，勿再起 vite。
-- 探针脚本放项目根（probe-*.mjs，playwright chromium channel: 'chrome'），截图存 debug-screenshots/。
+- 探针脚本放项目根（probe-*.mjs，playwright chromium channel: 'chrome'），截图存 debug-screenshots/。探针伪造登录态：`document.querySelector('#app').__vue_app__.config.globalProperties.$pinia.state.value.auth.isLoggedIn = true`（auth init 会清假 localStorage 会话，必须运行时注入）。
 - /activities-wall = 活动&方块墙组合页（ActivitiesWall），/activities、/block-wall 为兼容重定向；BlockWall 支持 `embedded` prop 并 defineExpose 动作给宿主。
+
+## Teleport 弹层样式约定（mobile-composer-overlay 等血泪教训）
+- Teleport 到 body 的弹层不在 `.forum-page` 内：`--glass-filter` 等 base.css 里挂在 .forum-page 的局部变量、forum-dark.css 的 `.forum-page[data-theme=dark]` 前缀暗色规则全部作用不到。只用全局 `--liquid-*` token；暗色适配用 `[data-theme="dark"] .弹层类` 自己写。
+- tokens.css 的 dark 块没有派生 `--liquid-text-*`（暗色下还是深灰字），teleport 弹层暗色要在弹层根上覆盖这三个文字 token。
+- input/textarea/button 不继承字体，弹层内表单元素会退到浏览器等宽默认字体 → 弹层根显式 font-family 栈 + `button,input,textarea { font-family: inherit }`。
+- flex 子项里包 textarea 的壳（如 .composer-body-shell）必须 `flex:1; width:100%; min-width:0`，否则 shrink-to-fit 被 textarea 默认 cols 挤成半宽（竖屏正文不全宽的根因）。
+
+## 竖屏发帖器设计基调（用户拍板）
+- 纯白背景 + 圆角液态玻璃面板（悬浮玻璃顶栏/玻璃设置组/玻璃图片卡），**禁止渐变和色斑**；主色 iOS 蓝 #0071e3；设置列表图标彩色 chip（位置绿/草稿橙/标签蓝）。标题 = 自动增高 textarea，maxlength 50 + 计数。
 
 ## 英雄区群像环（ShowcaseBookHero，is-character-ring）约定
 - 环角色 CSS 全部由 JS 变量驱动（--ring-x/y/scale/aspect + --ring-base-h），只有一条规则，禁止再加媒体查询互相覆盖 transform/height。

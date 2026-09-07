@@ -832,14 +832,15 @@
 }
 
 @media (max-width: 768px) {
+  /* 竖屏发帖器：纯白底上编辑卡全透明（液态玻璃只保留在圆角玻璃面板上），去掉无意义的大模糊 */
   .forum-page[data-ui-style="flat"] .mobile-composer-section .editor-card,
   .forum-page[data-ui-style="glass"] .mobile-composer-section .editor-card,
   .forum-page .mobile-composer-section .editor-card {
-    background: rgba(255, 255, 255, 0.24) !important;
-    border-color: rgba(255, 255, 255, 0.22) !important;
+    background: transparent !important;
+    border-color: transparent !important;
     box-shadow: none !important;
-    backdrop-filter: var(--glass-filter, blur(28px)) !important;
-    -webkit-backdrop-filter: var(--glass-filter, blur(28px)) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 
   .forum-page[data-ui-style="flat"] .mobile-composer-section .post-title-input,

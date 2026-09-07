@@ -1,5 +1,7 @@
 /* Editor Card — Liquid Glass (iOS 26/27) 纯 CSS 液态玻璃：高模糊+高饱和+双层阴影+内高光 */
 .editor-card {
+  /* Teleport 弹层不继承 .forum-page 字体，表单元素默认等宽字体 → 此处统一定义并强制继承 */
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro SC", "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", "Helvetica Neue", sans-serif;
   padding: 28px clamp(24px, 2.4vw, 32px);
   margin-bottom: clamp(36px, 4vw, 56px);
   background: var(--liquid-bg, rgba(255, 255, 255, 0.72));
@@ -13,6 +15,12 @@
   backdrop-filter: blur(var(--liquid-blur, 28px)) saturate(var(--liquid-saturate, 180%)) brightness(1.02);
   -webkit-backdrop-filter: blur(var(--liquid-blur, 28px)) saturate(var(--liquid-saturate, 180%)) brightness(1.02);
   transition: box-shadow var(--duration-base, 240ms) var(--ease-out, cubic-bezier(0.23,1,0.32,1)), border-color var(--duration-fast, 180ms) ease, transform var(--duration-base) var(--ease-emphasized);
+}
+
+.editor-card input,
+.editor-card textarea,
+.editor-card button {
+  font-family: inherit;
 }
 
 @supports (corner-shape: squircle) {
@@ -120,6 +128,25 @@
   letter-spacing: -0.015em;
 }
 
+/* 竖屏发帖器专用：纯用户名 + 可见性徽标（默认隐藏，竖屏媒体查询内翻转显示） */
+.greeting-name,
+.visibility-badge {
+  display: none;
+}
+
+.visibility-badge {
+  margin-left: 6px;
+  padding: 2.5px 8px;
+  border-radius: 999px;
+  background: var(--liquid-bg-subtle, rgba(120, 120, 128, 0.12));
+  color: var(--liquid-text-secondary, #6e6e73);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  vertical-align: 1.5px;
+}
+
 .editor-prompt {
   font-size: 13px;
   color: var(--liquid-text-secondary, #6e6e73);
@@ -127,7 +154,13 @@
 }
 
 /* 标题与正文：无框自由排版 — 极简，横竖屏均为全宽透明，无卡片感 */
+/* 标题为自动增高 textarea：可换行、maxlength=50，JS 控制高度 */
+.post-title-input-group {
+  position: relative;
+}
+
 .post-title-input {
+  display: block;
   width: 100%;
   box-sizing: border-box;
   border: none;
@@ -135,12 +168,17 @@
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   border-radius: 0;
+  font-family: inherit;
   font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.015em;
   line-height: 1.35;
   padding: 8px 0;
   outline: none;
+  resize: none;
+  overflow: hidden;
+  min-height: 46px;
+  max-height: 132px;
   color: var(--liquid-text-primary, #1d1d1f);
   transition: color var(--duration-fast,180ms) ease;
 }
@@ -151,6 +189,19 @@
   box-shadow: none;
 }
 
+.composer-title-count {
+  display: block;
+  text-align: right;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--liquid-text-tertiary, #8b9098);
+  font-variant-numeric: tabular-nums;
+  padding: 0 2px;
+}
+
+.composer-title-count.is-near-limit { color: #ff3b30; }
+
 .post-content-input {
   width: 100%;
   box-sizing: border-box;
@@ -159,6 +210,7 @@
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   border-radius: 0;
+  font-family: inherit;
   font-size: 16px;
   line-height: 1.7;
   padding: 8px 0 28px;
@@ -360,14 +412,14 @@
   gap: 10px;
 }
 
-/* 底部三行 iOS26 Inset Grouped — 桌面保留玻璃，移动端实色优化 */
+/* 底部三行 iOS26 Inset Grouped — 液态玻璃，大圆角与顶栏同族 */
 .mobile-composer-setting-list {
   display: grid;
   grid-column: 1 / -1;
   width: 100%;
   margin-top: 20px;
   border: 1px solid var(--liquid-border, rgba(255,255,255,0.62));
-  border-radius: 16px;
+  border-radius: 20px;
   overflow: hidden;
   background: var(--liquid-bg, rgba(255,255,255,0.72));
   backdrop-filter: var(--glass-filter, blur(28px));
@@ -375,13 +427,12 @@
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.76), 0 8px 24px rgba(15,23,42,0.06);
 }
 @media (max-width: 768px) {
+  /* 移动端保留液态玻璃，仅降档模糊保性能（boh-perf-lite 会进一步降级） */
   .mobile-composer-setting-list {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    background: rgba(255,255,255,0.94) !important;
-    box-shadow: 0 4px 12px rgba(15,23,42,0.06) !important;
+    background: var(--liquid-bg-strong, rgba(255,255,255,0.84));
+    backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+    -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
   }
-  [data-theme="dark"] .mobile-composer-setting-list { background: rgba(40,40,52,0.96) !important; }
 }
 
 .mobile-composer-setting {
@@ -400,13 +451,13 @@
   text-align: left;
   cursor: pointer;
   transition: background-color var(--duration-fast, 180ms) ease;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro SC", "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", "Helvetica Neue", sans-serif;
 }
 .mobile-composer-setting:last-child { border-bottom: none; }
 .mobile-composer-setting:active { background: rgba(120,120,128,0.12); }
-.mobile-composer-setting:hover { background: rgba(255, 255, 255, 0.35); }
+.mobile-composer-setting:hover { background: var(--liquid-bg-subtle, rgba(255, 255, 255, 0.35)); }
 .mobile-composer-setting > svg:first-of-type {
-  color: #6e6e73;
+  color: var(--liquid-text-secondary, #6e6e73);
   background: rgba(120,120,128,0.14);
   border-radius: 7px;
   padding: 4px;
@@ -420,12 +471,12 @@
   font-weight: 400;
   letter-spacing: -0.41px;
   line-height: 1.25;
-  color: #1d1d1f;
+  color: var(--liquid-text-primary, #1d1d1f);
 }
 .mobile-composer-setting > strong {
   min-width: 0;
   justify-self: end;
-  color: #8e8e93;
+  color: var(--liquid-text-secondary, #8e8e93);
   font-size: 15px;
   font-weight: 400;
   letter-spacing: -0.24px;
@@ -434,7 +485,12 @@
   text-overflow: ellipsis;
   max-width: 160px;
 }
-.mobile-composer-setting > svg:last-child { justify-self: end; color: #c7c7cc; }
+.mobile-composer-setting > svg:last-child { justify-self: end; color: var(--liquid-text-tertiary, #c7c7cc); }
+
+/* iOS 设置风格彩色功能图标：纯色圆角 chip + 白色图标（无渐变） */
+.mobile-composer-setting.is-location > svg:first-of-type { background: #34c759; color: #ffffff; }
+.mobile-composer-setting.is-draft > svg:first-of-type { background: #ff9500; color: #ffffff; }
+.mobile-composer-setting.is-tag > svg:first-of-type { background: var(--apple-blue, #0071e3); color: #ffffff; }
 
 .mobile-composer-setting-menu {
   grid-column: 1 / -1;
@@ -456,7 +512,7 @@
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: #1d1d1f;
+  color: var(--liquid-text-primary, #1d1d1f);
   font-size: 14px;
   text-align: left;
   cursor: pointer;
