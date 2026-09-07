@@ -18,8 +18,9 @@ import {
   normalizeForumImages
 } from './forum-format.js';
 
-// 多图上传并发控制（单线程避免崩溃）
-const MAX_CONCURRENT_UPLOADS = 1;
+// 多图上传并发控制：仅网络层并发（压缩/NSFW 检测仍在调用方串行执行，避免移动端 GPU/内存崩溃）。
+// 3 路并发上传可将多图帖总耗时压到 ≈ max(检测串行和, 单图上传耗时)，带宽充足时提速约 3 倍。
+const MAX_CONCURRENT_UPLOADS = 3;
 let uploadQueue = [];
 let activeUploads = 0;
 
@@ -116,15 +117,19 @@ const uploadForumImageCore = async (file) => {
   }
 };
 
-// 并发队列处理
-const processUploadQueue = async () => {
+// 并发队列处理：同步抢占槽位后立即调度下一个（严格维持并发上限），任务异步执行
+const processUploadQueue = () => {
   while (uploadQueue.length > 0 && activeUploads < MAX_CONCURRENT_UPLOADS) {
     activeUploads++;
     const { run, resolve } = uploadQueue.shift();
-    const result = await run();
-    resolve(result);
-    activeUploads--;
-    processUploadQueue();
+    void (async () => {
+      try {
+        resolve(await run());
+      } finally {
+        activeUploads--;
+        processUploadQueue();
+      }
+    })();
   }
 };
 

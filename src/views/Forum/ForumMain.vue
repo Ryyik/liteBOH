@@ -768,11 +768,16 @@ const getQueueItemErrorType = (error) => {
   return 'network';
 };
 const processPublishImagesForQueue = async (queueItem, signal) => {
+  // 全部已就绪（预热已完成）：直接返回
+  const allApproved = (queueItem.images||[]).length > 0
+    && (queueItem.images||[]).every(img=> img?.uploadStatus==='approved' && (img?.url || img?.originalUrl));
+  if (allApproved) {
+    publishQueueStore.setProgress(queueItem.id, 82);
+    return queueItem.images;
+  }
+
   const pending = (queueItem.images||[]).filter(img=> img?.file && img.uploadStatus!=='approved');
   const total = pending.length;
-  if (!total) return queueItem.images;
-  // 流水线进度模型：2-42% 压缩+检测（串行，GPU），42-82% 上传（后台流水线，网络）。
-  // 上传与下一张的检测重叠执行，多图帖总耗时 ≈ max(检测串行和, 上传串行和) 而非两者相加。
   publishQueueStore.setProgress(queueItem.id, 2);
   const setProg = (v) => {
     publishQueueStore.setProgress(queueItem.id, v);
@@ -803,80 +808,63 @@ const processPublishImagesForQueue = async (queueItem, signal) => {
     return wrapped;
   };
 
-  // 在途上传任务：fraction 为单张上传进度 0-1，done 表示已落库替换
-  const uploadTasks = [];
-  let preparedCount = 0;
-  let currentPrepareFraction = 0; // 当前张压缩+检测进度 0-1
-  let prepareError = null; // { img, failIdx, error }
+  // 消费预热管线：等待每张图的「压缩→检测→上传」结果，成功则落库替换
+  let resolvedCount = 0;
   const recalcProgress = () => {
-    const uploadAgg = uploadTasks.reduce((acc,t)=> acc + (t.done ? 1 : Math.min(1, Number(t.fraction||0))), 0);
-    setProg(2 + ((preparedCount + Math.min(1, currentPrepareFraction))/total)*40 + (uploadAgg/total)*40);
+    setProg(2 + (resolvedCount/total)*80);
+  };
+  recalcProgress();
+  let pipelineError = null; // { img, failIdx, error }
+
+  const releaseSlot = (img) => {
+    // 仅在编辑器未持有该图（已发布清空）时释放管线槽位；编辑器仍持有时（编辑失败重发）保留给下一轮
+    const stillInEditor = postImages.value.some(x=> x.uploadId===img?.uploadId);
+    if (!stillInEditor) draftImagePipelines.delete(img?.uploadId);
   };
 
   for (let idx=0; idx<pending.length; idx++) {
     if (signal?.aborted) throw Object.assign(new Error('已取消'), { code:'PUBLISH_CANCELLED' });
     const img = pending[idx];
     const imgFailIdx = (queueItem.images||[]).findIndex(x=> x.uploadId===img.uploadId);
-    currentPrepareFraction = 0;
-    try {
-      // 1) 压缩/优化（主循环内，GPU/CPU 串行）
-      const file = await prepareForumImageForUpload(img.file, idx, total, img.uploadId, {
-        onProgress: (p)=> { currentPrepareFraction = Number(p||0)/100 * 0.75; recalcProgress(); },
-        signal
-      });
-      // 2) 检测（GPU 串行，主循环内）
-      currentPrepareFraction = 0.75;
-      recalcProgress();
-      const moderation = await moderateForumImage(file);
-      if (moderation.status!=='approved') {
-        const err = new Error(moderation.reason || '图片未通过安全检测');
-        err.code='BETA5_IMAGE_PIPELINE_FAILED';
-        throw err;
-      }
-      currentPrepareFraction = 1;
-      // 3) 上传（网络）交给后台流水线，主循环立刻准备下一张；上传队列内部仍串行避免限流
-      const task = { img, failIdx: imgFailIdx>=0? imgFailIdx : idx, fraction: 0, done: false, promise: null };
-      task.promise = uploadApprovedForumImageQueued(file, moderation, {
-        onProgress: (p)=> { task.fraction = Number(p||0)/100; recalcProgress(); },
-        signal
-      }).then((result)=>{
-        if (!result.ok) {
-          if (result.error?.code==='CLOUDINARY_UPLOAD_RATE_LIMIT') applyImageUploadRateLimitCooldown(result.error);
-          throw result.error || new Error('图片上传失败');
-        }
-        replaceUploadedImage(img.uploadId, result.data);
-        task.done = true;
-        recalcProgress();
-        return result.data;
-      });
-      uploadTasks.push(task);
-      // 防 unhandled rejection：取消/中断时在途上传的失败由 allSettled 或此处兜底
-      task.promise.catch(() => {});
-    } catch (error) {
-      if (error?.code==='PUBLISH_CANCELLED' || signal?.aborted) throw error;
-      // 压缩/检测失败：停止准备后续图，但在途上传会继续完成（成功结果保留，重试不用重传）
-      prepareError = { img, failIdx: imgFailIdx>=0? imgFailIdx : idx, error };
+    let entry = draftImagePipelines.get(img.uploadId);
+    // 无预热管线（模型不可用/会话失效/边界场景）：现场补建一条，走同一套等待逻辑
+    if (!entry && img.file) {
+      scheduleDraftImagePipeline(img, idx, total);
+      entry = draftImagePipelines.get(img.uploadId);
+    }
+    if (!entry) {
+      pipelineError = { img, failIdx: imgFailIdx>=0? imgFailIdx : idx, error: new Error('图片处理失败') };
       break;
     }
-    preparedCount += 1;
-    currentPrepareFraction = 0;
-    recalcProgress();
-  }
-
-  // 等待所有在途上传结束（含失败）
-  const settled = uploadTasks.length ? await Promise.allSettled(uploadTasks.map(t=>t.promise)) : [];
-  if (signal?.aborted) throw Object.assign(new Error('已取消'), { code:'PUBLISH_CANCELLED' });
-
-  // 失败归因：优先压缩/检测错误；否则取第一个上传失败
-  if (!prepareError) {
-    const rejectedIdx = settled.findIndex(r=> r.status==='rejected');
-    if (rejectedIdx>=0) {
-      const task = uploadTasks[rejectedIdx];
-      prepareError = { img: task?.img || pending[rejectedIdx], failIdx: task?.failIdx ?? rejectedIdx, error: settled[rejectedIdx].reason };
+    try {
+      await entry.promise;
+    } catch {
+      // 失败态已在管线内记录，下面统一归因
+    }
+    if (signal?.aborted) throw Object.assign(new Error('已取消'), { code:'PUBLISH_CANCELLED' });
+    if (entry.cancelled) {
+      pipelineError = { img, failIdx: imgFailIdx>=0? imgFailIdx : idx, error: Object.assign(new Error('已取消'), { code:'PUBLISH_CANCELLED' }) };
+      break;
+    }
+    if (entry.state==='done' && entry.data) {
+      replaceUploadedImage(img.uploadId, entry.data);
+      releaseSlot(img);
+      resolvedCount += 1;
+      recalcProgress();
+    } else {
+      const rawError = entry.error || new Error('图片处理失败');
+      // 会话级失败：标记并取消后续图的预热（仍在等待的会被跳过/中止）
+      (queueItem.images||[]).forEach(other=> {
+        if (other?.uploadId && other.uploadId!==img.uploadId) cancelDraftImagePipeline(other.uploadId);
+      });
+      pipelineError = { img, failIdx: imgFailIdx>=0? imgFailIdx : idx, error: rawError };
+      break;
     }
   }
-  if (prepareError) {
-    throw markImageFailure(prepareError.img, prepareError.failIdx, prepareError.error);
+
+  if (pipelineError) {
+    if (pipelineError.error?.code==='PUBLISH_CANCELLED') throw pipelineError.error;
+    throw markImageFailure(pipelineError.img, pipelineError.failIdx, pipelineError.error);
   }
 
   setProg(82);
@@ -895,10 +883,9 @@ const runPublishQueue = async () => {
       const controller = new AbortController();
       publishAbortControllers.set(next.id, controller);
       try {
-        // 图片流水线（若有待处理图）
+        // 图片流水线（只要有图就走消费逻辑：内部判断全就绪则秒过，等待中则等剩余部分）
         let finalImages = next.images;
-        const hasPending = (next.images||[]).some(img=> img?.file && img.uploadStatus!=='approved');
-        if (hasPending) {
+        if ((next.images||[]).length > 0) {
           finalImages = await processPublishImagesForQueue(next, controller.signal);
         }
         if (controller.signal.aborted) throw Object.assign(new Error('已取消'), { code:'PUBLISH_CANCELLED' });
@@ -986,7 +973,12 @@ const retryPublish = async (queueId) => {
   const item = publishQueueStore.items.find(i=>i.id===queueId);
   if (!item) return;
   publishQueueStore.incrementRetry(queueId);
-  // 重置进度与失败标记，但保留已成功上传的图
+  // 重置进度与失败标记，但保留已成功上传的图；未完成的图需重启预热管线（重试时可能已被取消）
+  (item.images||[]).forEach((img, idx)=> {
+    if (img?.file && img.uploadStatus!=='approved') {
+      scheduleDraftImagePipeline(img, idx, item.images.length);
+    }
+  });
   publishQueueStore.updateItem(queueId, {
     state:'queued',
     failType:null,
@@ -1007,8 +999,10 @@ const cancelPublish = async (queueId) => {
   if (controller) { try{ controller.abort(); }catch{} publishAbortControllers.delete(queueId); }
   const item = publishQueueStore.items.find(i=>i.id===queueId);
   if (item) {
-    // 清理已上传但未落库的云端图
-    const toCleanup = (item.images||[]).filter(img=> img.publicId || img.deleteToken);
+    // 取消未完成的预热管线；正在上传的让其自然完成并登记 pending（由云端兜底清理），不再主动删除
+    (item.images||[]).forEach(img=> { if (img?.uploadId) cancelDraftImagePipeline(img.uploadId); });
+    // 清理已上传但未落库的云端图（跳过仍被编辑器持有的管线图，避免误删）
+    const toCleanup = (item.images||[]).filter(img=> (img.publicId || img.deleteToken) && !postImages.value.some(x=> x.uploadId===img.uploadId));
     if (toCleanup.length) {
       toCleanup.forEach(img=> { void cleanupUploadedForumImage(img, { silent:true }); if (img.localPreviewUrl) try{ URL.revokeObjectURL(img.localPreviewUrl);}catch{} });
     } else {
@@ -1029,6 +1023,7 @@ const fixModerationPublish = async (queueId) => {
   let nextImages;
   if (hasFailed) {
     const failedImg = item.images[failedIdx];
+    if (failedImg?.uploadId) cancelDraftImagePipeline(failedImg.uploadId);
     if (failedImg?.localPreviewUrl) try{ URL.revokeObjectURL(failedImg.localPreviewUrl);}catch{}
     // 若已上传到云端但未落库，需删除
     if (failedImg?.publicId || failedImg?.deleteToken) void cleanupUploadedForumImage(failedImg, { silent:true });
@@ -1037,6 +1032,12 @@ const fixModerationPublish = async (queueId) => {
   } else {
     nextImages = item.images;
   }
+  // 重启剩余未完成图的预热管线（失败时可能已被取消）
+  (nextImages||[]).forEach((img, idx)=> {
+    if (img?.file && img.uploadStatus!=='approved') {
+      scheduleDraftImagePipeline(img, idx, nextImages.length);
+    }
+  });
   publishQueueStore.updateItem(queueId, {
     images: nextImages,
     state:'queued',
@@ -1066,6 +1067,12 @@ const editFailedPublish = (queueId) => {
   postImageUploadStatus.value = '';
   publishQueueStore.removeItem(queueId);
   removeOptimisticPost(queueId);
+  // 未完成的图重启预热管线（回到编辑器期间继续后台处理，再次发布时接近秒发）
+  postImages.value.forEach((img, idx) => {
+    if (img?.file && img.uploadStatus !== 'approved') {
+      scheduleDraftImagePipeline(img, idx, postImages.value.length);
+    }
+  });
   // 打开编辑器（移动端）
   if (isMobileComposerMode.value) {
     isMobileComposerOpen.value = true;
@@ -1605,10 +1612,9 @@ const handlePostImageSelection = async (payload) => {
   postImages.value = normalizePostImageSortState([...postImages.value, ...pendingImages]);
 
   if (isBeta5.value) {
-    // Beta 5 keeps selection as a local-only draft until the user submits.
+    // Beta5：选图后立刻后台预热「压缩 → 检测(串行) → 上传(并发)」，点发布时多半已就绪
     postImageUploadStatus.value = '';
-    // 选图后后台队列必然要跑 NSFW 检测，提前预载模型省一次首次等待
-    scheduleForumImageModerationPreload({ immediate: true });
+    pendingImages.forEach((img, idx) => scheduleDraftImagePipeline(img, idx, pendingImages.length));
     return;
   }
 
@@ -1718,6 +1724,121 @@ const retryPostImageUpload = async (image, index) => {
   }
 };
 
+// ===== 边选边传：选图后立刻后台预热「压缩 → 检测(全局串行) → 上传(网络层并发)」 =====
+// 用户打字期间图片往往已传完，点发布时只需等待剩余部分 + 一次发帖 RPC，感知接近秒发。
+// 取消发帖/移除图片时中断对应预热；已传完但未发帖的图由 cloudinary_pending_uploads 兜底清理。
+const DRAFT_PIPELINE_FAILED = 'DRAFT_IMAGE_PIPELINE_FAILED';
+const draftImagePipelines = new Map(); // uploadId -> { state, file, moderation, data, error, promise, signal, controller, cleanupPending, cancelled }
+let draftPipelineChain = Promise.resolve(); // 检测锁：压缩/检测串行，避免移动端 GPU/内存并发崩溃
+
+const scheduleDraftImagePipeline = (img, index, total) => {
+  const uploadId = String(img?.uploadId || '').trim();
+  const file = img?.file;
+  if (!uploadId || !file || draftImagePipelines.has(uploadId)) return;
+  const controller = new AbortController();
+  const entry = {
+    uploadId,
+    state: 'pending',
+    file: null,
+    moderation: null,
+    data: null,
+    error: null,
+    promise: null,
+    signal: controller.signal,
+    controller,
+    cleanupPending: false,
+    cancelled: false
+  };
+  draftImagePipelines.set(uploadId, entry);
+  // 阶段一：压缩+检测挂到全局串行链末尾（保证检测不并发，避免移动端 GPU/内存崩溃）
+  const preparePromise = draftPipelineChain.then(async () => {
+    if (entry.cancelled) throw Object.assign(new Error('已取消'), { code: DRAFT_PIPELINE_FAILED });
+    try {
+      entry.state = 'preparing';
+      entry.file = await prepareForumImageForUpload(file, index, total, uploadId, { signal: entry.signal });
+      entry.moderation = await moderateForumImage(entry.file);
+      if (entry.moderation?.status !== 'approved') {
+        const err = new Error(entry.moderation?.reason || '图片未通过安全检测');
+        err.code = 'BETA5_IMAGE_PIPELINE_FAILED';
+        throw err;
+      }
+    } catch (error) {
+      if (!entry.cancelled && error?.code !== DRAFT_PIPELINE_FAILED) {
+        entry.state = 'failed';
+        entry.error = error;
+        updatePendingPostImage(uploadId, {
+          uploadStatus: 'failed',
+          uploadStatusLabel: '处理失败',
+          uploadError: error?.message || '图片处理失败'
+        });
+      }
+      throw error;
+    }
+  });
+  // 链式推进：无论本张成功/失败/取消，都让下一张的压缩/检测继续
+  draftPipelineChain = preparePromise.catch(() => {});
+  // 阶段二：上传进入全局并发队列（仅网络层并发），不占串行链，不阻塞下一张的压缩/检测
+  entry.promise = preparePromise.then(async () => {
+    if (entry.cancelled) return entry;
+    const uploadPromise = uploadApprovedForumImageQueued(entry.file, entry.moderation, { signal: entry.signal });
+    entry.uploadPromise = uploadPromise;
+    entry.state = 'uploading';
+    try {
+      const result = await uploadPromise;
+      if (entry.cancelled) return entry;
+      if (!result?.ok) {
+        const err = result?.error || new Error('图片上传失败');
+        if (err?.code === 'CLOUDINARY_UPLOAD_RATE_LIMIT') applyImageUploadRateLimitCooldown(err);
+        err.code = err?.code || 'IMAGE_UPLOAD_FAILED';
+        throw err;
+      }
+      entry.state = 'done';
+      entry.data = result.data;
+      updatePendingPostImage(uploadId, {
+        ...result.data,
+        uploadStatus: 'approved',
+        uploadStatusLabel: '已就绪',
+        file: entry.file
+      });
+    } catch (error) {
+      if (!entry.cancelled) {
+        entry.state = 'failed';
+        entry.error = error;
+        updatePendingPostImage(uploadId, {
+          uploadStatus: 'failed',
+          uploadStatusLabel: '上传失败',
+          uploadError: error?.message || '图片上传失败'
+        });
+      }
+    }
+    return entry;
+  });
+  // 兜底：取消/失败均吞掉，等待发布路径或清理路径消费
+  entry.promise.catch(() => {});
+};
+
+const cancelDraftImagePipeline = (uploadId) => {
+  const entry = draftImagePipelines.get(uploadId);
+  if (!entry) return null;
+  entry.cancelled = true;
+  // 上传进行中：不 abort 网络请求，让其自然完成并登记 pending（孤儿图由 Edge Function 兜底清理），
+  // 同时标记不再走云端删除（避免 pending 登记与删除竞态）
+  if (entry.state === 'uploading') {
+    entry.cleanupPending = true;
+    entry.uploadPromise?.catch(() => {});
+  } else {
+    try { entry.controller.abort(); } catch { /* ignore */ }
+  }
+  draftImagePipelines.delete(uploadId);
+  return entry;
+};
+
+const clearAllDraftImagePipelines = () => {
+  for (const uploadId of [...draftImagePipelines.keys()]) {
+    cancelDraftImagePipeline(uploadId);
+  }
+};
+
 const prepareForumImageForUpload = async (file, fileIndex, totalCount, uploadId = '', options = {}) => {
   const plan = await getImageCompressionPlan(file, { optimizeForUpload: true });
   if (!plan.shouldCompress) return file;
@@ -1755,9 +1876,12 @@ const normalizePostImageSortState = (images = []) => {
 };
 
 const removePostImage = async (image, index) => {
+  const pipeline = cancelDraftImagePipeline(image?.uploadId);
   revokePostImagePreview(image);
   const nextImages = postImages.value.filter((_, itemIndex) => itemIndex !== index);
   postImages.value = normalizePostImageSortState(nextImages);
+  // 正在上传中的预热让其自然完成并登记 pending（云端兜底清理），不再走云端删除避免竞态
+  if (pipeline?.cleanupPending) return;
   await cleanupUploadedForumImage(image, { silent: false });
 };
 
@@ -1798,12 +1922,20 @@ const cleanupDraftPostImages = async ({ silent = true } = {}) => {
 
 const clearPostImages = ({ cleanup = false, silent = true } = {}) => {
   const images = [...postImages.value];
+  // 先收集正在上传中的管线（cancel 后 entry 已从 map 移除，需提前标记）
+  const pendingCleanupIds = new Set(
+    images.filter((image) => draftImagePipelines.get(image?.uploadId)?.state === 'uploading').map((image) => image.uploadId)
+  );
+  clearAllDraftImagePipelines();
   images.forEach(revokePostImagePreview);
   postImages.value = [];
   postImageUploadStatus.value = '';
   if (cleanup && images.length) {
+    // 正在上传中的预热让其自然完成并登记 pending（云端兜底清理），不再走云端删除避免竞态
     void Promise.allSettled(
-      images.map((image) => cleanupUploadedForumImage(image, { silent }))
+      images
+        .filter((image) => !pendingCleanupIds.has(image?.uploadId))
+        .map((image) => cleanupUploadedForumImage(image, { silent }))
     );
   }
 };

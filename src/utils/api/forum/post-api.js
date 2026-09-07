@@ -860,25 +860,28 @@ export async function createPostWithImages(content, authorId, authorUsername, st
     }
   }
   invalidateByTags(['posts', 'profiles', 'boh-cloud']);
+  // 发帖主流程仅等待核心 RPC；tag 回写、异步审核入队、pending 归属标记全部后台执行，
+  // 减少 2~3 个串行 RTT，让「发帖成功」更快返回（失败均有日志/回退，不影响数据正确性）
   if (normalizeContentStatus(status) === APPROVED_STATUS && insertedPostId) {
-    await schedulePostModeration({
+    void schedulePostModeration({
       id: insertedPostId,
       author_id: resolvedAuthorId,
       content: finalContent
-    });
+    }).catch((err) => logger.warn('forum-api', '帖子异步审核入队失败（后台重试由浏览器端兜底）', err));
   }
-  const claimResult = await markCloudinaryUploadsClaimed(safeImages);
-  if (!claimResult.ok) {
-    logger.warn('forum-api', '论坛图片 pending 归属标记失败', claimResult.error);
-    const orphanPublicIds = cleanupOrphanedUploads(safeImages);
-    if (orphanPublicIds.length > 0) {
-      deleteCloudinaryAssetsByPublicIds(orphanPublicIds).then((cleanupResult) => {
-        if (!cleanupResult.ok) {
-          logger.warn('forum-api', '清理孤儿 Cloudinary 图片失败', cleanupResult.error);
-        }
-      });
+  void markCloudinaryUploadsClaimed(safeImages).then((claimResult) => {
+    if (!claimResult.ok) {
+      logger.warn('forum-api', '论坛图片 pending 归属标记失败', claimResult.error);
+      const orphanPublicIds = cleanupOrphanedUploads(safeImages);
+      if (orphanPublicIds.length > 0) {
+        deleteCloudinaryAssetsByPublicIds(orphanPublicIds).then((cleanupResult) => {
+          if (!cleanupResult.ok) {
+            logger.warn('forum-api', '清理孤儿 Cloudinary 图片失败', cleanupResult.error);
+          }
+        });
+      }
     }
-  }
+  }).catch((err) => logger.warn('forum-api', '论坛图片 pending 归属标记异常', err));
 
   return { ok: true, data: [insertedPost], error: null };
 }

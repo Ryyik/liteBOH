@@ -106,24 +106,32 @@ async function loadImageCompression() {
 }
 
 function normalizeCompressedFile(file, compressedBlob) {
+  const baseName = String(file?.name || 'compressed-image').replace(/\.[a-z0-9]+$/i, '');
   if (compressedBlob instanceof File) {
+    if (compressedBlob.type === 'image/webp' && !/\.webp$/i.test(compressedBlob.name || '')) {
+      return new File([compressedBlob], `${baseName}.webp`, { type: 'image/webp', lastModified: Date.now() });
+    }
     return compressedBlob;
   }
-  return new File([compressedBlob], file.name || 'compressed-image', {
-    type: compressedBlob?.type || file.type || 'image/jpeg',
+  const type = compressedBlob?.type || file.type || 'image/jpeg';
+  const ext = type === 'image/webp' ? '.webp' : (type === 'image/png' ? '.png' : '.jpg');
+  return new File([compressedBlob], `${baseName}${ext}`, {
+    type,
     lastModified: Date.now()
   });
 }
 
 export async function compressImageFileToUploadLimit(file, plan = {}, options = {}) {
   const imageCompression = await loadImageCompression();
+  // 统一输出 WebP：PNG 截图类图片体积可降 60%+，显著缩短上传时间；
+  // 展示端 Cloudinary 走 f_auto 自动格式，源图格式无关紧要（动图 GIF 已在入口处被拒绝）
   const compressedBlob = await imageCompression(file, {
     maxSizeMB: Number(options.targetSizeMB || plan.targetSizeMB || DEFAULT_TARGET_SIZE_MB),
     maxWidthOrHeight: Number(options.maxWidthOrHeight || plan.maxWidthOrHeight || CLOUD_UPLOAD_MAX_DIMENSION),
     useWebWorker: true,
-    initialQuality: Number(options.initialQuality || 0.88),
+    initialQuality: Number(options.initialQuality || 0.85),
     maxIteration: Number(options.maxIteration || 8),
-    fileType: plan.mimeType || file.type || undefined,
+    fileType: 'image/webp',
     onProgress: typeof options.onProgress === 'function' ? options.onProgress : undefined,
     signal: options.signal
   });
