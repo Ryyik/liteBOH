@@ -122,8 +122,8 @@ const clearSearch = () => {
   height: calc(100vh - var(--dm-nav-height));
   height: calc(100dvh - var(--dm-nav-height));
   background: var(--dm-liquid-sidebar, rgba(240, 246, 255, 0.6));
-  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
-  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
   color: var(--sidebar-foreground);
   border-right: 1px solid var(--sidebar-border);
   padding: calc(var(--spacing) * 4);

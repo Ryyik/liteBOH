@@ -18,7 +18,9 @@ export const TAB_WRITABLE_FIELDS = {
   birthdayEvents: ['title', 'subtitle', 'hero_quote', 'page_copy', 'celebration_date', 'is_active', 'sort_order', 'updated_at'],
   birthdayWishes: ['status', 'is_featured', 'updated_at'],
   blockWallItems: ['content', 'color', 'image_url', 'image_public_id', 'position_x', 'position_y', 'rotation', 'updated_at'],
-  bohCreatorShows: ['title', 'description', 'video_url', 'creator_platform', 'creator_platform_id', 'updated_at']
+  bohCreatorShows: ['title', 'description', 'video_url', 'creator_platform', 'creator_platform_id', 'updated_at'],
+  campaigns: ['slug', 'title', 'description', 'stage', 'signup_start_at', 'signup_end_at', 'start_at', 'end_at', 'config'],
+  campaignRewards: ['status']
 };
 
 export const NEWS_CATEGORY_OPTIONS = [
@@ -237,4 +239,20 @@ export const FORUM_POST_TAG_OPTIONS = [
 export const BOOLEAN_DISPLAY_OPTIONS = [
   { value: true, label: '是' },
   { value: false, label: '否' }
+];
+
+// ========== 活动平台化（BETA 6 P1-3）==========
+export const CAMPAIGN_STAGE_OPTIONS = [
+  { value: 'draft', label: '草稿（draft）' },
+  { value: 'signup', label: '报名中（signup）' },
+  { value: 'submission', label: '投稿中（submission）' },
+  { value: 'judging', label: '评审中（judging）' },
+  { value: 'result', label: '结果公示（result）' },
+  { value: 'fulfilled', label: '已完结（fulfilled）' }
+];
+
+export const CAMPAIGN_REWARD_STATUS_OPTIONS = [
+  { value: 'granted', label: '已发放（granted）' },
+  { value: 'fulfilled', label: '已履约（fulfilled）' },
+  { value: 'cancelled', label: '已取消（cancelled）' }
 ];

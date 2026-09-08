@@ -5919,8 +5919,8 @@ onUnmounted(() => {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.02em;
-  backdrop-filter: blur(12px) saturate(160%) brightness(1.02);
-  -webkit-backdrop-filter: blur(12px) saturate(160%) brightness(1.02);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
   background: rgba(255, 255, 255, 0.85);
 }
 .lottery-card-status.tone-muted { color: #64748b; }

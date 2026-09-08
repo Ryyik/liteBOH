@@ -383,6 +383,44 @@ export const SAVE_STRATEGIES = {
     });
   },
 
+  campaigns: async ({ editingItem }) => {
+    const normalizedTitle = String(editingItem.title || '').trim();
+    if (!normalizedTitle) throw new Error('活动标题不能为空');
+    const normalizedSlug = String(editingItem.slug || '').trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+    if (!normalizedSlug) throw new Error('slug 不能为空');
+
+    let config = {};
+    const rawConfig = editingItem.config;
+    if (rawConfig !== null && rawConfig !== undefined && String(rawConfig).trim() !== '') {
+      if (typeof rawConfig === 'object') {
+        config = rawConfig;
+      } else {
+        try {
+          config = JSON.parse(String(rawConfig));
+        } catch {
+          throw new Error('活动配置必须是合法 JSON');
+        }
+      }
+    }
+    const isoOrNull = (v) => (v === null || v === undefined || String(v).trim() === '' ? null : String(v).trim());
+    const stage = String(editingItem.stage || 'draft').trim();
+    if (!['draft', 'signup', 'submission', 'judging', 'result', 'fulfilled'].includes(stage)) {
+      throw new Error('生命周期阶段无效');
+    }
+
+    return pickWritableFields('campaigns', {
+      slug: normalizedSlug,
+      title: normalizedTitle,
+      description: String(editingItem.description || '').trim(),
+      stage,
+      signup_start_at: isoOrNull(editingItem.signup_start_at),
+      signup_end_at: isoOrNull(editingItem.signup_end_at),
+      start_at: isoOrNull(editingItem.start_at),
+      end_at: isoOrNull(editingItem.end_at),
+      config
+    });
+  },
+
   birthdayEvents: async ({ editingItem }) => {
     const normalizedTitle = String(editingItem.title || '').trim();
     if (!normalizedTitle) throw new Error('标题不能为空');

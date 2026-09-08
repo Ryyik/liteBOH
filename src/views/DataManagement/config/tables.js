@@ -18,6 +18,8 @@ import {
   LOTTERY_COMMUNITY_VISIBLE_OPTIONS,
   LOTTERY_FULFILLMENT_STATUS_OPTIONS,
   LOTTERY_PITY_MODE_OPTIONS,
+  CAMPAIGN_STAGE_OPTIONS,
+  CAMPAIGN_REWARD_STATUS_OPTIONS,
   NEWS_CATEGORY_OPTIONS,
   ORDER_STATUS_OPTIONS,
   ORDER_CONTACT_TYPE_OPTIONS,
@@ -1301,6 +1303,55 @@ export const dataConfig = {
     }
   },
   // ========== 创作者展示 ==========
+  campaigns: {
+    table: 'activity_campaigns',
+    columns: [
+      { key: 'slug', label: 'Slug' },
+      { key: 'title', label: '活动标题' },
+      { key: 'stage', label: '阶段', type: 'badge' },
+      { key: 'start_at', label: '开始', type: 'date' },
+      { key: 'end_at', label: '结束', type: 'date' },
+      { key: 'created_at', label: '创建时间', type: 'date' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', type: 'text', disabled: true, hint: 'UUID 主键由系统生成，不可手动修改。', group: 'basic' },
+      { key: 'slug', label: 'Slug（URL 标识）', type: 'text', required: true, maxLength: 64, placeholder: 'boh-9th-birthday', group: 'basic' },
+      { key: 'title', label: '活动标题', type: 'text', required: true, maxLength: 80, group: 'basic' },
+      { key: 'description', label: '活动介绍', type: 'textarea', group: 'basic' },
+      { key: 'stage', label: '生命周期阶段', type: 'select', options: CAMPAIGN_STAGE_OPTIONS, group: 'basic' },
+      { key: 'signup_start_at', label: '报名开始（ISO 时间）', type: 'text', placeholder: '2026-09-10T00:00:00+08:00', group: 'time' },
+      { key: 'signup_end_at', label: '报名截止（ISO 时间）', type: 'text', placeholder: '留空表示不限', group: 'time' },
+      { key: 'start_at', label: '活动开始（ISO 时间）', type: 'text', group: 'time' },
+      { key: 'end_at', label: '活动结束（ISO 时间）', type: 'text', group: 'time' },
+      { key: 'config', label: '活动配置（JSON）', type: 'json', group: 'extra', hint: '报名表单字段、评审规则、文案等私有配置。' }
+    ]
+  },
+  campaignEntries: {
+    table: 'activity_entries',
+    columns: [
+      { key: 'created_at', label: '时间', type: 'date' },
+      { key: 'campaign_id', label: '活动ID' },
+      { key: 'user_id', label: '用户ID' },
+      { key: 'kind', label: '类型', type: 'badge' },
+      { key: 'status', label: '状态', type: 'badge' }
+    ],
+    fields: []
+  },
+  campaignRewards: {
+    table: 'activity_rewards',
+    columns: [
+      { key: 'created_at', label: '时间', type: 'date' },
+      { key: 'campaign_id', label: '活动ID' },
+      { key: 'user_id', label: '用户ID' },
+      { key: 'reward_type', label: '奖励类型', type: 'badge' },
+      { key: 'amount', label: '数量', type: 'number' },
+      { key: 'status', label: '状态', type: 'badge' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic' },
+      { key: 'status', label: '发放状态', type: 'select', options: CAMPAIGN_REWARD_STATUS_OPTIONS, group: 'basic' }
+    ]
+  },
   bohCreatorShows: {
     table: 'boh_creator_shows',
     columns: [

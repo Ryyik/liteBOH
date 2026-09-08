@@ -1,9 +1,7 @@
 import {
   Database,
   Gauge,
-  Image,
   Settings,
-  ShieldCheck,
   Users,
   FileText,
   Flag,
@@ -41,6 +39,9 @@ export const tabs = [
   { id: 'bohCreatorShows', label: '创作者展示', icon: '🎬', module: 'operations' },
   { id: 'birthdayEvents', label: '生日活动', icon: '🎂', module: 'operations' },
   { id: 'birthdayWishes', label: '生日祝福', icon: '💌', module: 'operations' },
+  { id: 'campaigns', label: '活动平台', icon: '🎪', module: 'operations' },
+  { id: 'campaignEntries', label: '活动报名明细', icon: '🧾', module: 'operations' },
+  { id: 'campaignRewards', label: '活动发放台账', icon: '🏅', module: 'operations' },
   { id: 'posterRequests', label: '海报申请', icon: '🖼️', module: 'operations' },
   { id: 'reportedPosts', label: '举报下架', icon: '🚩', module: 'moderation' },
   { id: 'reviewPosts', label: '已拒绝帖子', icon: '🧾', module: 'moderation' },
@@ -120,7 +121,7 @@ export const tabModules = [
     icon: Megaphone,
     section: 'data',
     defaultTab: 'news',
-    tabIds: ['news', 'activities', 'postReward', 'coreMemories', 'bohCreatorShows', 'birthdayEvents', 'birthdayWishes', 'posterRequests'],
+    tabIds: ['news', 'activities', 'postReward', 'coreMemories', 'bohCreatorShows', 'birthdayEvents', 'birthdayWishes', 'campaigns', 'campaignEntries', 'campaignRewards', 'posterRequests'],
     description: '新闻、活动、官方事实、创作者和生日运营'
   },
   {
@@ -214,6 +215,9 @@ export const TABS_ACTIONS = {
   bohCreatorShows: ['view', 'create', 'edit', 'delete'],
   birthdayEvents: ['view', 'create', 'edit', 'delete'],
   birthdayWishes: ['view', 'edit'],
+  campaigns: ['view', 'create', 'edit', 'delete'],
+  campaignEntries: ['view'],
+  campaignRewards: ['view', 'edit'],
   reportedPosts: ['view', 'moderate'],
   reviewPosts: ['view', 'moderate'],
   reviewComments: ['view', 'moderate'],

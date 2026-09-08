@@ -1229,8 +1229,8 @@ onUnmounted(() => {
   justify-content: center;
   padding: calc(var(--spacing) * 4);
   background: rgba(20, 20, 24, 0.45);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
 }
 .g-discovery-modal {
   display: flex;
@@ -1239,8 +1239,8 @@ onUnmounted(() => {
   max-height: min(80vh, 720px);
   /* Teleport 到 body，拿不到页级 --card，用 :root 级液态玻璃 token（自动跟随 html[data-theme]） */
   background: var(--liquid-bg, rgba(255, 255, 255, 0.72));
-  backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
-  -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   border: 1px solid var(--liquid-border-hairline, #e5e7eb);
   border-radius: calc(var(--radius, 12px) + 4px);
   box-shadow: var(--liquid-shadow, 0 24px 64px rgba(0, 0, 0, 0.18)), var(--liquid-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.86));
