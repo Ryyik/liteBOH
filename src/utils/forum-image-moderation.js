@@ -1,38 +1,38 @@
-// MobileNetV2：单分片、模型体积与推理耗时约为 Mid 版一半；如需更高检出精度，
-// 可通过 VITE_NSFWJS_MODEL_NAME=MobileNetV2Mid / InceptionV3 切回
+// 模型本地化（B1）：tfjs/nsfwjs 走 npm 静态依赖，权重由 nsfwjs 包内动态 import 加载
+// （dist/models/*.min.js，Vite 自动拆为按需 chunk，同源 + hash 文件名永久缓存）。
+// 彻底移除 jsdelivr CDN 动态脚本加载——此前 CDN 偶发 >20s 且失败率高，是首图审核卡顿的主因。
 const DEFAULT_MODEL_NAME = 'MobileNetV2';
 
 const NSFW_REJECT_THRESHOLD = 0.75;
 const NSFW_REVIEW_THRESHOLD = 0.45;
 const NSFW_SINGLE_CLASS_REJECT_THRESHOLD = 0.6;
 const NSFW_SEXY_REVIEW_THRESHOLD = 0.65;
-const SCRIPT_LOAD_TIMEOUT_MS = 20000;
-const MODEL_BUNDLE_LOAD_TIMEOUT_MS = 30000;
 const MODEL_INIT_TIMEOUT_MS = 30000;
 const IMAGE_DECODE_TIMEOUT_MS = 15000;
 const IMAGE_CLASSIFY_TIMEOUT_MS = 20000;
-const MODERATION_SURFACE_MAX_SIDE = 448;
-const TFJS_CDN_URL = String(
-  import.meta.env?.VITE_NSFWJS_TFJS_CDN_URL
-  || 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js'
-).trim();
-const NSFWJS_CDN_URL = String(
-  import.meta.env?.VITE_NSFWJS_CDN_URL
-  || 'https://cdn.jsdelivr.net/npm/nsfwjs@4.3.0/dist/browser/nsfwjs.min.js'
-).trim();
-const NSFWJS_MODEL_CDN_BASE_URL = String(
-  import.meta.env?.VITE_NSFWJS_MODEL_CDN_BASE_URL
-  || 'https://cdn.jsdelivr.net/npm/nsfwjs@4.3.0/dist/models'
-).replace(/\/+$/, '');
-const NSFWJS_MODEL_BUNDLES = {
-  MobileNetV2: { directory: 'mobilenet_v2', shards: 1 },
-  MobileNetV2Mid: { directory: 'mobilenet_v2_mid', shards: 2 },
-  InceptionV3: { directory: 'inception_v3', shards: 6 }
-};
+// B3：MobileNetV2 输入即 224×224。此前画 448px 再被 resizeBilinear 二次插值，
+// 直接 224 省一次插值与显存带宽，单张推理耗时 -20~30%。
+const MODERATION_SURFACE_MAX_SIDE = 224;
 
 let modelPromise = null;
-let scriptLoadPromise = null;
-let modelBundleLoadPromise = null;
+
+// D2 输入让路：classify 在主线程 WebGL 执行，用户正在打字时先让路，
+// 静默窗口出现后再推理，保证输入全程不掉帧（最多等 800ms 防饿死）。
+let lastUserInputAt = 0;
+if (typeof document !== 'undefined') {
+  const markUserInput = () => { lastUserInputAt = Date.now(); };
+  document.addEventListener('input', markUserInput, { capture: true, passive: true });
+  document.addEventListener('keydown', markUserInput, { capture: true, passive: true });
+}
+
+async function yieldToTyping(maxWaitMs = 800) {
+  const quietWindowMs = 150;
+  const startAt = Date.now();
+  while (Date.now() - lastUserInputAt < quietWindowMs) {
+    if (Date.now() - startAt >= maxWaitMs) break;
+    await new Promise((resolve) => setTimeout(resolve, 60));
+  }
+}
 
 function createTimeoutError(message) {
   const error = new Error(message);
@@ -58,63 +58,24 @@ function withTimeout(promise, timeoutMs, message) {
   });
 }
 
-function loadScriptOnce(src, globalName) {
-  if (typeof document === 'undefined') {
-    return Promise.reject(new Error('当前环境不支持图片安全检测'));
-  }
-
-  const existingGlobal = globalName ? globalThis[globalName] : null;
-  if (existingGlobal) return Promise.resolve(existingGlobal);
-
-  const existingScript = document.querySelector(`script[data-boh-dynamic-src="${src}"]`);
-  if (existingScript) {
-    return withTimeout(new Promise((resolve, reject) => {
-      existingScript.addEventListener('load', () => resolve(globalName ? globalThis[globalName] : true), { once: true });
-      existingScript.addEventListener('error', () => reject(new Error('图片安全检测模型加载失败')), { once: true });
-    }), SCRIPT_LOAD_TIMEOUT_MS, '图片安全检测模型加载超时，请检查网络后重试');
-  }
-
-  return withTimeout(new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = src;
-    script.async = true;
-    script.crossOrigin = 'anonymous';
-    script.dataset.bohDynamicSrc = src;
-    script.onload = () => resolve(globalName ? globalThis[globalName] : true);
-    script.onerror = () => reject(new Error('图片安全检测模型加载失败，请检查网络后重试'));
-    document.head.appendChild(script);
-  }), SCRIPT_LOAD_TIMEOUT_MS, '图片安全检测模型加载超时，请检查网络后重试');
-}
-
-async function loadNsfwRuntime() {
-  if (!scriptLoadPromise) {
-    scriptLoadPromise = (async () => {
-      const tf = await loadScriptOnce(TFJS_CDN_URL, 'tf');
-      if (typeof tf?.enableProdMode === 'function') {
-        tf.enableProdMode();
-      }
-      const nsfwjs = await loadScriptOnce(NSFWJS_CDN_URL, 'nsfwjs');
-      if (!nsfwjs || typeof nsfwjs.load !== 'function') {
-        throw new Error('图片安全检测模型加载失败');
-      }
-      return nsfwjs;
-    })();
-  }
-
-  try {
-    return await scriptLoadPromise;
-  } catch (error) {
-    scriptLoadPromise = null;
-    throw error;
-  }
-}
-
 async function getNsfwModel() {
   if (!modelPromise) {
     modelPromise = (async () => {
       const modelName = String(import.meta.env?.VITE_NSFWJS_MODEL_NAME || DEFAULT_MODEL_NAME).trim() || DEFAULT_MODEL_NAME;
-      const nsfwjs = await loadNsfwRuntime();
-      await loadNsfwModelBundle(modelName);
+      // 运行时与权重全部来自 npm 包：tfjs 负责注册 WebGL backend，
+      // nsfwjs.load(name) 内部按 DEFAULT_MODELS 注册表动态 import 包内权重 chunk。
+      const [tfModule, nsfwjsModule] = await Promise.all([
+        import('@tensorflow/tfjs'),
+        import('nsfwjs')
+      ]);
+      const tf = tfModule?.enableProdMode ? tfModule : tfModule?.default;
+      if (typeof tf?.enableProdMode === 'function') {
+        tf.enableProdMode();
+      }
+      const nsfwjs = nsfwjsModule?.default?.load ? nsfwjsModule.default : nsfwjsModule;
+      if (!nsfwjs || typeof nsfwjs.load !== 'function') {
+        throw new Error('图片安全检测模块初始化失败');
+      }
       return withTimeout(
         nsfwjs.load(modelName),
         MODEL_INIT_TIMEOUT_MS,
@@ -127,47 +88,7 @@ async function getNsfwModel() {
     return await modelPromise;
   } catch (error) {
     modelPromise = null;
-    const message = String(error?.message || '').trim();
-    if (/Could not load the (model|weight data)|model\.min\.js|shard files/i.test(message)) {
-      throw new Error('图片安全检测模型加载失败，请刷新页面后重试');
-    }
-    throw new Error(message || '图片安全检测模型初始化失败，请刷新后重试');
-  }
-}
-
-async function loadNsfwModelBundle(modelName) {
-  const bundle = NSFWJS_MODEL_BUNDLES[modelName];
-  if (!bundle) return;
-
-  if (!modelBundleLoadPromise) {
-    modelBundleLoadPromise = (async () => {
-      const baseUrl = `${NSFWJS_MODEL_CDN_BASE_URL}/${bundle.directory}`;
-      await withTimeout(
-        loadScriptOnce(`${baseUrl}/model.min.js`, 'model'),
-        MODEL_BUNDLE_LOAD_TIMEOUT_MS,
-        '图片安全检测模型文件加载超时，请检查网络后重试'
-      );
-      // 权重分片互相独立，并行下载缩短首次加载时间
-      const shardLoads = [];
-      for (let index = 1; index <= bundle.shards; index += 1) {
-        shardLoads.push(withTimeout(
-          loadScriptOnce(
-            `${baseUrl}/group1-shard${index}of${bundle.shards}.min.js`,
-            `group1_shard${index}of${bundle.shards}`
-          ),
-          MODEL_BUNDLE_LOAD_TIMEOUT_MS,
-          '图片安全检测模型权重加载超时，请检查网络后重试'
-        ));
-      }
-      await Promise.all(shardLoads);
-    })();
-  }
-
-  try {
-    await modelBundleLoadPromise;
-  } catch (error) {
-    modelBundleLoadPromise = null;
-    throw error;
+    throw new Error(String(error?.message || '').trim() || '图片安全检测模型初始化失败，请刷新后重试');
   }
 }
 
@@ -315,7 +236,11 @@ async function runForumImageModeration(file) {
     }
 
     classificationOwnsSurface = true;
-    const classificationPromise = Promise.resolve().then(() => model.classify(surface));
+    const classificationPromise = Promise.resolve().then(async () => {
+      // D2：拿到锁后先看用户是否正在输入，正在打字就让路，保证输入不掉帧
+      await yieldToTyping();
+      return model.classify(surface);
+    });
     try {
       const predictions = await withTimeout(
         classificationPromise,

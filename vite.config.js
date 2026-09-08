@@ -141,6 +141,17 @@ export default defineConfig({
               expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 30 },
             },
           },
+          {
+            // B2：NSFW 检测模型链缓存。权重 + tfjs/nsfwjs 运行时 chunk 均为 hash 文件名
+            // （内容不可变），CacheFirst 永久缓存后二次会话零下载，SW 重装也不重复拉取
+            urlPattern: /\/static\/js\/(tfjs-vendor|nsfw-vendor|nsfw-weights)-[A-Za-z0-9_-]+\.js$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'nsfw-model-vendor',
+              expiration: { maxEntries: 8, maxAgeSeconds: 60 * 60 * 24 * 90 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
         ],
       },
       manifest: {
@@ -264,6 +275,19 @@ export default defineConfig({
           if (id.includes('node_modules/browser-image-compression')) return 'image-compression-vendor';
           // 图片裁剪库（头像裁剪使用）
           if (id.includes('node_modules/vue-advanced-cropper')) return 'cropper-vendor';
+
+          // ============================================
+          // NSFW 检测模型链（模型本地化 B1/B2）
+          // tfjs 运行时 / nsfwjs 运行时 / 包内权重脚本（UMD，由 nsfwjs 动态 import）
+          // 只固定 MobileNetV2 权重 chunk 名（默认模型）；inception/mid 权重保持
+          // rollup 自然分块（不被加载就不占带宽），避免三个模型合并成 39MB 大 chunk
+          // ============================================
+          if (id.includes('nsfwjs/dist/models/mobilenet_v2/')) return 'nsfw-weights';
+          // 其余模型权重（inception_v3 / mobilenet_v2_mid，约 36MB）不默认加载，
+          // 交给 rollup 自然分块为独立懒 chunk，避免被并进 nsfw-vendor
+          if (id.includes('nsfwjs/dist/models/')) return undefined;
+          if (id.includes('node_modules/nsfwjs')) return 'nsfw-vendor';
+          if (id.includes('node_modules/@tensorflow')) return 'tfjs-vendor';
 
           // ============================================
           // 已有的命名 chunk

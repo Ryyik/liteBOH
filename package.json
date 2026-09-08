@@ -19,16 +19,18 @@
     "type-check": "vue-tsc --noEmit -p tsconfig.app.json",
     "check:views": "node scripts/check-view-collisions.mjs",
     "check:structure": "node scripts/check-project-structure.mjs",
+    "check:liquid-glass": "node scripts/check-liquid-glass.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "island:smoke": "node scripts/island-smoke.mjs",
     "test:watch": "vitest",
     "check:bundle": "bash scripts/check-bundle-size.sh",
     "import:boh-kb": "node scripts/import-boh-knowledge-base.mjs",
-    "build:ci": "npm run check:views && npm run check:structure && vite build && bash scripts/check-bundle-size.sh"
+    "build:ci": "npm run check:views && npm run check:structure && npm run check:liquid-glass && vite build && bash scripts/check-bundle-size.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.1",
+    "@tensorflow/tfjs": "^4.22.0",
     "@vueuse/core": "^14.3.0",
     "@vueuse/motion": "^3.0.3",
     "altcha": "^3.0.3",
@@ -41,6 +43,7 @@
     "lucide-vue-next": "^0.575.0",
     "mammoth": "^1.12.0",
     "marked": "^17.0.2",
+    "nsfwjs": "^4.3.0",
     "pinia": "^3.0.4",
     "pinia-plugin-persistedstate": "^4.7.1",
     "pptxgenjs": "^4.0.1",
