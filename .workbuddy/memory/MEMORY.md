@@ -2,13 +2,14 @@
 
 ## 全局导航栏（UnifiedNavbar）约定
 - `#unified-nav-container` 为 `position: fixed; z-index: 9999`（src/styles/vendor/unified-nav.css）。页面弹窗/浮层要盖住导航栏必须 z-index ≥ 10002（项目先例：活动详情弹窗 .detail-overlay、方块墙 .modal-backdrop）。
-- 页面内容吸顶避让不要写死 72px/58px：导航栏展开灵动岛卡片后实际高度会变（surface 高度 = rest + 卡片高度）。正确做法（Newsroom 先例）：ResizeObserver 监听 `#unified-nav-container`，把实测高度写入页面级 `--nav-h` 之类的变量。
+- 页面内容吸顶避让不要写死 72px/58px：导航栏展开灵动岛卡片后实际高度会变（surface 高度 = rest + 卡片高度）。正确做法（Newsroom 先例，ActivitiesList/Shop 已跟进）：ResizeObserver 监听 `#unified-nav-container`，把实测高度写入页面级 `--nav-h` 之类的变量。**vendor unified-nav.css 里的旧导航固定 padding 避让规则（page-newsroom/page-service/page-shop）已于 2026-09-08 全部删除**（均为死代码或压过 scoped 样式的隐患）；1446+ 行的 `body.page-* .unified-nav` 透明配色/黑字规则是活的（类名在新 DOM 仍存在），shop 页因此导航只有 78px 紧凑形态，勿当死代码误删。
 - 自定义灵动岛：`showIsland.custom(component, props)`（src/composables/useIsland.js），组件渲染进 navbar 的 `.island-custom-host`，高度经 ResizeObserver 自动上报撑开 surface。返回 `{ update(patch), close() }`；页面卸载必须 close()，update/close 内部按组件身份守卫。回调以 props 函数注入，响应式状态用 update 同步。
 - **Vue scoped 暗色规则写法铁律**：禁止 `:global(#id[attr]) .child` 混合写法（本项目编译器会把后代剥掉、规则污染容器且静默失效）；必须整条 `:global(#unified-nav-container[data-theme="dark"] .child)`，分组选择器逐条独立写 :global、逗号不能进括号（错位会让 style 子请求 500 挂整页）。
 - 分享灵动岛：**入口在 PostCard 操作栏 share 按钮**（.share-btn-v2）→ ForumMain.sharePost → `showIsland.custom(ShareIsland, { target, isLoggedIn, requireLogin, onCopied, onClose })`；导航栏无分享按钮。useShareTarget（composables）是基础设施（buildShareUrl + 注册表 API），未来新闻详情接入时两行调用即可；PostDetail 是 hideNavbar 页没有岛宿主，其内分享弹岛需先解决宿主存在性。
 
-## 玻璃体系统一（P0-0 已修复，全站视觉回归走查未做）
-- **✅ 已修（2026-09-07，commit d152b83 顺手修）**：`src/styles/common/glass-ui.css` 三档 filter 已改为 `var(--liquid-filter-sm/-filter/-lg)` 兼容别名，自引用消除。**但 plan 007 要求的全站视觉回归专项走查（首页/论坛/用户空间/导航栏）没有做过**——修好后观感变化一直没被专项确认。
+## 玻璃体系统一（P0-0 已闭环：修复 + 全站视觉回归走查均完成）
+- **✅ 已修（2026-09-07，commit d152b83 顺手修）**：`src/styles/common/glass-ui.css` 三档 filter 已改为 `var(--liquid-filter-sm/-filter/-lg)` 兼容别名，自引用消除。
+- **✅ 视觉回归走查已完成（2026-09-08，commit 0a093af）**：probe-glass-regression.mjs 断言 token 计算链（--liquid-filter* / --glass-filter* 含 blur）+ 首页/论坛/用户空间/新闻四页关键玻璃类 backdrop-filter 实测 + 截图走查，全部 PASS。`#unified-nav-container` 外壳无 blur 是正常的（玻璃面是 .unified-nav-surface）。
 - 全站玻璃单一 token 源 = tokens.css 的 `--liquid-*`（22 个）；liquid-glass.css 是标准类库（.liquid-glass 及变体），glass-ui.css 是轻量档位类库，滤镜复合档 `--liquid-filter / -sm / -lg`（blur+saturate+brightness）。
 - 新代码禁写散装 `backdrop-filter: blur(...)`，用 token 或 .liquid-glass 类；<6px 微装饰模糊可保留。
 - 玻璃卡片上的遮罩/淡出禁止半透白叠加，用 backdrop-filter 或 mask。
@@ -60,6 +61,7 @@
 - 自定义岛高度必须走独立 `--global-nav-custom-card-height`（UnifiedNavbar handleCustomCardResize），严禁写 navStatusCardHeight（会与常驻状态卡互踩，关岛后导航不复原）。
 - Teleport 弹层要盖住导航栏 z-index ≥ 10002（先例：AdminContentPublishModal）。
 - **Edit 工具可能静默丢改动**：重要编辑用 python 原子替换 + 写后重读终验；搜索用内置 Grep（BSD grep 的 \| 与中文 pattern 不可靠）。
+- 页面常驻自定义岛三例：WallIslandCard（活动墙 tab）、PityIslandCard（/lotteries 保底，9/8 晚）。约定：纯展示组件（数据 props + 动作回调由宿主注入，不自查数据）；expanded 等纯 UI 态岛内自管（update 不换 key 实例存活）；页面胶囊类重复 UI 随岛上线即删（保底胶囊已退役，遗留 CSS 未清）。探针伪造暗色须同时给 documentElement 和 #unified-nav-container 挂 data-theme。
 
 ## 本机构建注意事项
 - vite build 在 agent shell 里会被 WorkBuddy node shim 拦（批量清空 dist 需确认 / 新目录 mkdir 被拒）。解法：命令前缀 `CODEBUDDY_BROKERED_FS_HOOK_ENABLED=0 CODEBUDDY_SAFE_DELETE_SANDBOX=0`，配 `--emptyOutDir false` 覆盖写。不要 rm -rf 整个 dist（会丢 broker 规则）。transform 阶段 ✓ 即代表代码编译无问题，输出阶段报错先区分是 shim 还是代码。
