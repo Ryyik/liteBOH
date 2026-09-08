@@ -14,6 +14,7 @@ export function buildForumFeedSnapshotKey(filters = {}) {
     sortMode: String(filters.sortMode || 'latest'),
     searchKeyword: String(filters.searchKeyword || '').trim(),
     tagFilter: String(filters.tagFilter || '').trim(),
+    contentType: String(filters.contentType || '').trim(),
     followingOnly: Boolean(filters.followingOnly)
   };
   return `${CACHE_PREFIX}:${encodeURIComponent(JSON.stringify(normalized))}`;

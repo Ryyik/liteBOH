@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
+import { getImageUrl } from '@/utils/asset-helper.js';
 import { Check, Heart, Image as ImageIcon, MessageCircle, Share2 } from 'lucide-vue-next';
 import UserCenterPageHeader from '../../components/UserCenterPageHeader.vue';
 import CommentThread from './components/CommentThread.vue';
@@ -50,6 +51,18 @@ const postId = computed(() => route.params.id);
 // const emit = defineEmits(['island-message']);
 
 const post = ref(null);
+// 官方卡（新闻/活动镜像）：作者「方块之家」无账号，头像用站点 logo
+const OFFICIAL_AUTHOR_NAME = '方块之家';
+const isOfficialCard = computed(() => {
+  const p = post.value || {};
+  if (p.post_kind === 'news' || p.post_kind === 'activity') return true;
+  return !p.author_id && String(p.author_username || '').trim() === OFFICIAL_AUTHOR_NAME;
+});
+const authorAvatarSrc = computed(() => (
+  isOfficialCard.value && !post.value?.author_avatar_url
+    ? getImageUrl('favicon.webp', { silent: true })
+    : post.value?.author_avatar_url || ''
+));
 const isLoading = ref(true);
 const isReplySubmitting = ref(false);
 const isLikeSubmitting = ref(false);
@@ -1608,9 +1621,9 @@ const handleChangeCommentSortMode = async (mode) => {
               <HomeCatMascot v-if="isHomeCatActive" class="detail-post-decor-cat" pool="card"
                 :seed="`${post.id}:detail`" size="md" decorative />
               <div class="post-header">
-                <div class="author-section" @click="goToProfile(post.author_username)">
-                  <div class="author-avatar">
-                    <img v-if="post.author_avatar_url" :src="post.author_avatar_url" alt="作者头像" class="avatar-image"
+                <div class="author-section" @click="isOfficialCard ? undefined : goToProfile(post.author_username)">
+                  <div class="author-avatar" :class="{ 'is-official': isOfficialCard }">
+                    <img v-if="authorAvatarSrc" :src="authorAvatarSrc" alt="作者头像" class="avatar-image"
                       loading="lazy" />
                     <span v-else>{{ post.author_username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
                   </div>
@@ -1880,8 +1893,8 @@ const handleChangeCommentSortMode = async (mode) => {
   justify-content: center;
   padding: 28px;
   background: rgba(0, 0, 0, 0.38);
-  backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
-  -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
 }
 
 .post-edit-overlay.is-portrait {
@@ -1898,8 +1911,8 @@ const handleChangeCommentSortMode = async (mode) => {
   border-radius: 32px;
   border: 1px solid var(--glass-border, rgba(0, 0, 0, 0.06));
   background: var(--glass-bg, rgba(255, 255, 255, 0.8));
-  backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
-  -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.18);
   isolation: isolate;
 }
@@ -1928,8 +1941,8 @@ const handleChangeCommentSortMode = async (mode) => {
   gap: 12px;
   align-items: center;
   background: rgba(255, 255, 255, 0.32);
-  backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
-  -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   border-bottom: 1px solid rgba(15, 20, 25, 0.06);
 }
 

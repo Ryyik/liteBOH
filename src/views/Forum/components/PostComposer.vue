@@ -171,10 +171,11 @@ const getImageStatusClass = (image) => {
   if (image?.uploadStatus && image.uploadStatus !== 'approved') return 'processing';
   return 'approved';
 };
-const shouldShowImageStatus = (image) => {
-  const status = String(image?.uploadStatus || '');
-  return status === 'failed' || (Boolean(status) && status !== 'staged');
-};
+const shouldShowImageStatus = (image) => (
+  // 设计意图：上传/优化/检测过程不在图片上显示任何加载态（转圈），
+  // 真实进度由灵动岛统一展示；仅失败态保留 badge + 重试入口
+  String(image?.uploadStatus || '') === 'failed'
+);
 const canReorderImage = (image) => (
   !image?.uploadStatus || ['approved', 'staged'].includes(image.uploadStatus)
 );
@@ -641,8 +642,7 @@ onUnmounted(() => {
             :class="{
               'is-dragging': draggedImageIndex === index,
               'is-drop-target': dragOverImageIndex === index,
-              'is-failed': image.uploadStatus === 'failed',
-              'is-processing': image.uploadStatus && !['approved', 'failed', 'staged'].includes(image.uploadStatus)
+              'is-failed': image.uploadStatus === 'failed'
             }"
             :draggable="canReorderImage(image)"
             @dragstart="handleImageDragStart(index, $event)"
@@ -1000,8 +1000,8 @@ onUnmounted(() => {
   border: 1px solid var(--liquid-border, rgba(255,255,255,0.65));
   border-radius: 20px;
   background: var(--liquid-bg-subtle, rgba(255,255,255,0.58));
-  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
-  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
   color: var(--apple-blue, #0071e3);
   display: flex;
   flex-direction: column;
@@ -1045,8 +1045,8 @@ onUnmounted(() => {
   padding: 0 14px;
   min-height: 36px;
   background: var(--liquid-bg-strong, rgba(255,255,255,0.84));
-  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
-  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
   border: 1px solid rgba(0, 113, 227, 0.18);
   color: var(--apple-blue, #0071e3);
   font-size: 13px;
@@ -1088,8 +1088,8 @@ onUnmounted(() => {
   border-radius: 28px;
   border: 1px solid var(--liquid-border, rgba(255,255,255,0.65));
   background: var(--liquid-bg, rgba(255,255,255,0.72));
-  backdrop-filter: blur(28px) saturate(180%) brightness(1.02);
-  -webkit-backdrop-filter: blur(28px) saturate(180%) brightness(1.02);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   box-shadow: var(--liquid-highlight, inset 0 1px 0 rgba(255,255,255,0.86)), var(--liquid-shadow, 0 20px 60px rgba(15,23,42,0.07));
   isolation: isolate;
   contain: paint;
@@ -1363,8 +1363,8 @@ onUnmounted(() => {
   border-radius: 28px;
   border: 1px solid var(--liquid-border, rgba(255,255,255,0.65));
   background: var(--liquid-bg, rgba(255,255,255,0.72));
-  backdrop-filter: blur(28px) saturate(180%) brightness(1.02);
-  -webkit-backdrop-filter: blur(28px) saturate(180%) brightness(1.02);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   box-shadow: var(--liquid-highlight, inset 0 1px 0 rgba(255,255,255,0.86)), var(--liquid-shadow, 0 20px 60px rgba(15,23,42,0.07));
   width: 280px;
   overflow: hidden;

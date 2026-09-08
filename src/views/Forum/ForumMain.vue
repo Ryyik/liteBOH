@@ -14,6 +14,7 @@ import {
 } from 'lucide-vue-next';
 import PostComposer from './components/PostComposer.vue';
 import PostCard from './components/PostCard.vue';
+import ShareIsland from '@/components/UnifiedNavbar/ShareIsland.vue';
 import AdSlot from './components/AdSlot.vue';
 import ForumToolbar from './components/ForumToolbar.vue';
 import ForumImageViewer from './components/ForumImageViewer.vue';
@@ -26,6 +27,7 @@ import { useForumVirtualFeed } from './composables/useForumVirtualFeed.js';
 import { useActiveAds } from './composables/useActiveAds.js';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { getAvatarUrl } from '@/utils/avatar.js';
+import { getImageUrl } from '@/utils/asset-helper.js';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader';
@@ -91,6 +93,7 @@ import {
   getComments,
   createComment,
   toggleLike,
+  createQuoteRepost,
   getUserPosts,
   deleteComment,
   getLatestForumWeeklyReport,
@@ -201,6 +204,7 @@ const sortMode = ref('latest'); // 'latest' | 'hottest'
 const searchQuery = ref('');
 const searchKeyword = ref('');
 const selectedTagFilter = ref('');
+const selectedContentType = ref('');
 const showFollowingOnly = ref(false);
 const feedMode = ref('posts');
 const highlightedPostIds = ref(new Set());
@@ -362,6 +366,7 @@ const buildForumReturnState = (postId = '') => ({
   searchQuery: searchQuery.value,
   searchKeyword: searchKeyword.value,
   selectedTagFilter: selectedTagFilter.value,
+  selectedContentType: selectedContentType.value,
   feedMode: feedMode.value,
   currentPage: currentPage.value,
   hasMoreData: hasMoreData.value
@@ -373,6 +378,8 @@ const applyForumReturnStateFilters = (state = {}) => {
   searchQuery.value = String(state.searchQuery ?? state.searchKeyword ?? '');
   searchKeyword.value = String(state.searchKeyword ?? state.searchQuery ?? '').trim();
   selectedTagFilter.value = normalizeForumTagValue(state.selectedTagFilter || '');
+  const savedContentType = String(state.selectedContentType || '').trim().toLowerCase();
+  selectedContentType.value = ['news', 'activity', 'post'].includes(savedContentType) ? savedContentType : '';
   feedMode.value = 'posts';
 };
 
@@ -626,7 +633,7 @@ watch(publishQueueItems, (items) => {
   } else {
     publishTaskHandle.update({
       title: '正在处理',
-      message: active.images?.length ? `正在处理图片 · ${progress}%` : `审核中 · ${progress}%`,
+      message: active.images?.length ? `正在处理图片 · ${progress}%` : `正在发布 · ${progress}%`,
       progress,
       thumbs
     });
@@ -816,50 +823,80 @@ const processPublishImagesForQueue = async (queueItem, signal) => {
   recalcProgress();
   let pipelineError = null; // { img, failIdx, error }
 
+  // 细粒度进度：轮询聚合各图管线进度（压缩 0-0.35 / 检测 0.35-0.5 / 上传 0.5-1.0）。
+  // 旧模型只有整张图 resolved 才跳格（+80/total），点发送后第一张未完成时进度死停 2%。
+  const resolvedUploadIds = new Set();
+  let progressTicker = null;
+  const stopProgressTicker = () => {
+    if (progressTicker) { clearInterval(progressTicker); progressTicker = null; }
+  };
+  const startProgressTicker = () => {
+    if (total <= 0) return;
+    stopProgressTicker();
+    progressTicker = setInterval(() => {
+      let agg = 0;
+      pending.forEach((img) => {
+        if (resolvedUploadIds.has(img.uploadId)) { agg += 1; return; }
+        const entry = draftImagePipelines.get(img.uploadId);
+        agg += entry ? Math.min(1, Math.max(0, Number(entry.progress || 0))) : 0;
+      });
+      setProg(2 + (agg / total) * 80);
+    }, 300);
+  };
+  startProgressTicker();
+
   const releaseSlot = (img) => {
     // 仅在编辑器未持有该图（已发布清空）时释放管线槽位；编辑器仍持有时（编辑失败重发）保留给下一轮
     const stillInEditor = postImages.value.some(x=> x.uploadId===img?.uploadId);
     if (!stillInEditor) draftImagePipelines.delete(img?.uploadId);
   };
 
-  for (let idx=0; idx<pending.length; idx++) {
-    if (signal?.aborted) throw Object.assign(new Error('已取消'), { code:'PUBLISH_CANCELLED' });
-    const img = pending[idx];
-    const imgFailIdx = (queueItem.images||[]).findIndex(x=> x.uploadId===img.uploadId);
-    let entry = draftImagePipelines.get(img.uploadId);
-    // 无预热管线（模型不可用/会话失效/边界场景）：现场补建一条，走同一套等待逻辑
-    if (!entry && img.file) {
-      scheduleDraftImagePipeline(img, idx, total);
-      entry = draftImagePipelines.get(img.uploadId);
+  try {
+    for (let idx=0; idx<pending.length; idx++) {
+      if (signal?.aborted) throw Object.assign(new Error('已取消'), { code:'PUBLISH_CANCELLED' });
+      const img = pending[idx];
+      const imgFailIdx = (queueItem.images||[]).findIndex(x=> x.uploadId===img.uploadId);
+      let entry = draftImagePipelines.get(img.uploadId);
+      // 无预热管线（模型不可用/会话失效/边界场景）：现场补建一条，走同一套等待逻辑
+      if (!entry && img.file) {
+        scheduleDraftImagePipeline(img, idx, total);
+        entry = draftImagePipelines.get(img.uploadId);
+      }
+      if (!entry) {
+        pipelineError = { img, failIdx: imgFailIdx>=0? imgFailIdx : idx, error: new Error('图片处理失败') };
+        break;
+      }
+      try {
+        await entry.promise;
+      } catch {
+        // 失败态已在管线内记录，下面统一归因
+      }
+      if (signal?.aborted) throw Object.assign(new Error('已取消'), { code:'PUBLISH_CANCELLED' });
+      if (entry.cancelled) {
+        pipelineError = { img, failIdx: imgFailIdx>=0? imgFailIdx : idx, error: Object.assign(new Error('已取消'), { code:'PUBLISH_CANCELLED' }) };
+        break;
+      }
+      if (entry.state==='done' && entry.data) {
+        replaceUploadedImage(img.uploadId, entry.data);
+        resolvedUploadIds.add(img.uploadId);
+        releaseSlot(img);
+        resolvedCount += 1;
+        recalcProgress();
+      } else {
+        const rawError = entry.error || new Error('图片处理失败');
+        // 会话级失败：标记并取消后续图的预热（仍在等待的会被跳过/中止）
+        (queueItem.images||[]).forEach(other=> {
+          if (other?.uploadId && other.uploadId!==img.uploadId) cancelDraftImagePipeline(other.uploadId);
+        });
+        // 失败图自身的 entry 同样必须清除：否则残留在 map 中，
+        // retryPublish 的 scheduleDraftImagePipeline 会因「已存在」拒绝重建 → 重试永远立即失败
+        cancelDraftImagePipeline(img.uploadId);
+        pipelineError = { img, failIdx: imgFailIdx>=0? imgFailIdx : idx, error: rawError };
+        break;
+      }
     }
-    if (!entry) {
-      pipelineError = { img, failIdx: imgFailIdx>=0? imgFailIdx : idx, error: new Error('图片处理失败') };
-      break;
-    }
-    try {
-      await entry.promise;
-    } catch {
-      // 失败态已在管线内记录，下面统一归因
-    }
-    if (signal?.aborted) throw Object.assign(new Error('已取消'), { code:'PUBLISH_CANCELLED' });
-    if (entry.cancelled) {
-      pipelineError = { img, failIdx: imgFailIdx>=0? imgFailIdx : idx, error: Object.assign(new Error('已取消'), { code:'PUBLISH_CANCELLED' }) };
-      break;
-    }
-    if (entry.state==='done' && entry.data) {
-      replaceUploadedImage(img.uploadId, entry.data);
-      releaseSlot(img);
-      resolvedCount += 1;
-      recalcProgress();
-    } else {
-      const rawError = entry.error || new Error('图片处理失败');
-      // 会话级失败：标记并取消后续图的预热（仍在等待的会被跳过/中止）
-      (queueItem.images||[]).forEach(other=> {
-        if (other?.uploadId && other.uploadId!==img.uploadId) cancelDraftImagePipeline(other.uploadId);
-      });
-      pipelineError = { img, failIdx: imgFailIdx>=0? imgFailIdx : idx, error: rawError };
-      break;
-    }
+  } finally {
+    stopProgressTicker();
   }
 
   if (pipelineError) {
@@ -994,10 +1031,23 @@ const retryPublish = async (queueId) => {
   // 重试由常驻岛环恢复为发送态
   void runPublishQueue();
 };
+
+// E1 网络恢复自动重试：弱网/断网失败的帖子在网络恢复后自动重发（2s 节流防抖），
+// 地铁/电梯场景「发送失败」自动变成功，用户无需手动点重试
+let lastOnlineRecoveryAt = 0;
+const handleNetworkOnline = () => {
+  const now = Date.now();
+  if (now - lastOnlineRecoveryAt < 2000) return;
+  lastOnlineRecoveryAt = now;
+  const failedItems = publishQueueStore.items.filter((i) => i.state === 'failed' && i.failType === 'network');
+  failedItems.forEach((item) => retryPublish(item.id));
+};
+onMounted(() => window.addEventListener('online', handleNetworkOnline));
+onUnmounted(() => window.removeEventListener('online', handleNetworkOnline));
+
 const cancelPublish = async (queueId) => {
   const controller = publishAbortControllers.get(queueId);
-  if (controller) { try{ controller.abort(); }catch{} publishAbortControllers.delete(queueId); }
-  const item = publishQueueStore.items.find(i=>i.id===queueId);
+  if (controller) { try{ controller.abort(); }catch{} publishAbortControllers.delete(queueId); }  const item = publishQueueStore.items.find(i=>i.id===queueId);
   if (item) {
     // 取消未完成的预热管线；正在上传的让其自然完成并登记 pending（由云端兜底清理），不再主动删除
     (item.images||[]).forEach(img=> { if (img?.uploadId) cancelDraftImagePipeline(img.uploadId); });
@@ -1614,7 +1664,18 @@ const handlePostImageSelection = async (payload) => {
   if (isBeta5.value) {
     // Beta5：选图后立刻后台预热「压缩 → 检测(串行) → 上传(并发)」，点发布时多半已就绪
     postImageUploadStatus.value = '';
-    pendingImages.forEach((img, idx) => scheduleDraftImagePipeline(img, idx, pendingImages.length));
+    // 模型预载与压缩并行（幂等），避免第一张图检测时阻塞等待 NSFW 模型 CDN 下载
+    scheduleForumImageModerationPreload({ immediate: true });
+    // D2：预热推迟 300ms 启动，躲开相册关闭动画与主线程峰值；批次内过滤已移除的图
+    if (draftPipelineDebounceTimer) clearTimeout(draftPipelineDebounceTimer);
+    const batchImages = pendingImages;
+    draftPipelineDebounceTimer = setTimeout(() => {
+      draftPipelineDebounceTimer = null;
+      batchImages.forEach((img, idx) => {
+        if (!postImages.value.some((x) => x.uploadId === img.uploadId)) return;
+        scheduleDraftImagePipeline(img, idx, batchImages.length);
+      });
+    }, 300);
     return;
   }
 
@@ -1729,12 +1790,39 @@ const retryPostImageUpload = async (image, index) => {
 // 取消发帖/移除图片时中断对应预热；已传完但未发帖的图由 cloudinary_pending_uploads 兜底清理。
 const DRAFT_PIPELINE_FAILED = 'DRAFT_IMAGE_PIPELINE_FAILED';
 const draftImagePipelines = new Map(); // uploadId -> { state, file, moderation, data, error, promise, signal, controller, cleanupPending, cancelled }
-let draftPipelineChain = Promise.resolve(); // 检测锁：压缩/检测串行，避免移动端 GPU/内存并发崩溃
+let draftPipelineChain = Promise.resolve(); // 检测锁：仅检测（WebGL classify）串行，避免移动端 GPU/内存并发崩溃
+let draftPipelineDebounceTimer = null; // D2：选图预热 300ms debounce
+
+// A2 压缩并发池：压缩跑在 browser-image-compression 的 Web Worker 里，天然可并行；
+// 与检测解耦后，第 N 张的压缩可与第 N-1 张的检测重叠执行，多图总耗时从「压缩+检测之和」
+// 变为「两者取 max」。检测仍严格串行。低端机（deviceMemory<4）降回 1 路保内存。
+const COMPRESSION_CONCURRENCY = (() => {
+  try { return Number(navigator.deviceMemory || 8) < 4 ? 1 : 2; } catch { return 2; }
+})();
+let activeCompressions = 0;
+const compressionWaitQueue = [];
+const acquireCompressionSlot = () => new Promise((resolve) => {
+  if (activeCompressions < COMPRESSION_CONCURRENCY) { activeCompressions += 1; resolve(); return; }
+  compressionWaitQueue.push(resolve);
+});
+const releaseCompressionSlot = () => {
+  activeCompressions -= 1;
+  const next = compressionWaitQueue.shift();
+  if (next) { activeCompressions += 1; next(); }
+};
 
 const scheduleDraftImagePipeline = (img, index, total) => {
   const uploadId = String(img?.uploadId || '').trim();
   const file = img?.file;
-  if (!uploadId || !file || draftImagePipelines.has(uploadId)) return;
+  if (!uploadId || !file) return;
+  // 已失败的旧管线必须先删除再重建：否则重试时被下方守卫拦截，
+  // 发布循环永远拿到已 settled 的失败 promise → 重试立即再失败（重试失效根因）。
+  // 进行中（pending/preparing/uploading/done）的管线不重复调度。
+  const existing = draftImagePipelines.get(uploadId);
+  if (existing) {
+    if (existing.state !== 'failed') return;
+    draftImagePipelines.delete(uploadId);
+  }
   const controller = new AbortController();
   const entry = {
     uploadId,
@@ -1744,24 +1832,44 @@ const scheduleDraftImagePipeline = (img, index, total) => {
     data: null,
     error: null,
     promise: null,
+    progress: 0, // 0~1：压缩 0-0.35，检测 0.35-0.5，上传 0.5-1.0（供发布进度聚合）
     signal: controller.signal,
     controller,
     cleanupPending: false,
     cancelled: false
   };
   draftImagePipelines.set(uploadId, entry);
-  // 阶段一：压缩+检测挂到全局串行链末尾（保证检测不并发，避免移动端 GPU/内存崩溃）
+  // 阶段一 A：压缩进 2 路并发池（Web Worker 内执行，不占检测串行链）
+  const compressionPromise = (async () => {
+    await acquireCompressionSlot();
+    try {
+      if (entry.cancelled) throw Object.assign(new Error('已取消'), { code: DRAFT_PIPELINE_FAILED });
+      entry.state = 'preparing';
+      // quiet: 预热阶段不向编辑器写「优化中/待审核」等中间状态（设计意图：图片上不显示加载态）
+      const prepared = await prepareForumImageForUpload(file, index, total, uploadId, {
+        signal: entry.signal,
+        quiet: true,
+        onProgress: (p) => { entry.progress = Math.min(0.35, Math.max(0, (Number(p || 0) / 100)) * 0.35); }
+      });
+      entry.progress = 0.35; // 压缩完成，等待/进入检测
+      return prepared;
+    } finally {
+      releaseCompressionSlot();
+    }
+  })();
+  // 阶段一 B：检测挂在全局串行链末尾（WebGL classify 不并发）；链任务内先等本张压缩完成——
+  // 压缩与上一张的检测重叠执行，多图总耗时 ≈ max(压缩流水, 检测串行和) 而非两者相加
   const preparePromise = draftPipelineChain.then(async () => {
     if (entry.cancelled) throw Object.assign(new Error('已取消'), { code: DRAFT_PIPELINE_FAILED });
     try {
-      entry.state = 'preparing';
-      entry.file = await prepareForumImageForUpload(file, index, total, uploadId, { signal: entry.signal });
+      entry.file = await compressionPromise;
       entry.moderation = await moderateForumImage(entry.file);
       if (entry.moderation?.status !== 'approved') {
         const err = new Error(entry.moderation?.reason || '图片未通过安全检测');
         err.code = 'BETA5_IMAGE_PIPELINE_FAILED';
         throw err;
       }
+      entry.progress = 0.5; // 检测完成，进入上传
     } catch (error) {
       if (!entry.cancelled && error?.code !== DRAFT_PIPELINE_FAILED) {
         entry.state = 'failed';
@@ -1775,12 +1883,15 @@ const scheduleDraftImagePipeline = (img, index, total) => {
       throw error;
     }
   });
-  // 链式推进：无论本张成功/失败/取消，都让下一张的压缩/检测继续
+  // 链式推进：无论本张成功/失败/取消，都让下一张的检测继续（压缩不受链约束）
   draftPipelineChain = preparePromise.catch(() => {});
   // 阶段二：上传进入全局并发队列（仅网络层并发），不占串行链，不阻塞下一张的压缩/检测
   entry.promise = preparePromise.then(async () => {
     if (entry.cancelled) return entry;
-    const uploadPromise = uploadApprovedForumImageQueued(entry.file, entry.moderation, { signal: entry.signal });
+    const uploadPromise = uploadApprovedForumImageQueued(entry.file, entry.moderation, {
+      signal: entry.signal,
+      onProgress: (p) => { entry.progress = 0.5 + Math.min(1, Math.max(0, Number(p || 0) / 100)) * 0.5; }
+    });
     entry.uploadPromise = uploadPromise;
     entry.state = 'uploading';
     try {
@@ -1834,6 +1945,10 @@ const cancelDraftImagePipeline = (uploadId) => {
 };
 
 const clearAllDraftImagePipelines = () => {
+  if (draftPipelineDebounceTimer) {
+    clearTimeout(draftPipelineDebounceTimer);
+    draftPipelineDebounceTimer = null;
+  }
   for (const uploadId of [...draftImagePipelines.keys()]) {
     cancelDraftImagePipeline(uploadId);
   }
@@ -1848,11 +1963,15 @@ const prepareForumImageForUpload = async (file, fileIndex, totalCount, uploadId 
   }
 
   const actionLabel = plan.shouldOptimize ? '正在优化' : '正在压缩';
-  updatePendingPostImage(uploadId, {
-    uploadStatus: 'optimizing',
-    uploadStatusLabel: plan.shouldOptimize ? '优化中' : '压缩中'
-  });
-  postImageUploadStatus.value = `${actionLabel}第 ${fileIndex + 1}/${totalCount} 张图片...`;
+  // quiet（Beta5 预热管线）：不向编辑器写「优化中/压缩中/待审核」中间状态，
+  // 图片上不显示任何加载态（设计意图：真实进度只在灵动岛展示）
+  if (!options.quiet) {
+    updatePendingPostImage(uploadId, {
+      uploadStatus: 'optimizing',
+      uploadStatusLabel: plan.shouldOptimize ? '优化中' : '压缩中'
+    });
+    postImageUploadStatus.value = `${actionLabel}第 ${fileIndex + 1}/${totalCount} 张图片...`;
+  }
   const compressedFile = await compressImageFileToUploadLimit(file, plan, {
     onProgress: options.onProgress,
     signal: options.signal
@@ -1860,10 +1979,12 @@ const prepareForumImageForUpload = async (file, fileIndex, totalCount, uploadId 
   if (Number(compressedFile.size || 0) > Number(plan.maxSizeBytes || 0)) {
     throw new Error(`压缩后仍超过限制（${formatImageFileSize(compressedFile.size)}），请手动压缩后再上传`);
   }
-  updatePendingPostImage(uploadId, {
-    uploadStatus: 'queued',
-    uploadStatusLabel: '待审核'
-  });
+  if (!options.quiet) {
+    updatePendingPostImage(uploadId, {
+      uploadStatus: 'queued',
+      uploadStatusLabel: '待审核'
+    });
+  }
   return compressedFile;
 };
 
@@ -2525,17 +2646,22 @@ const getPostImages = (post) => {
   const coverUrl = String(post?.cover_image_url || post?.coverImageUrl || '').trim();
   if (!coverUrl) return [];
   const rawCoverUrl = String(post?.cover_image_url_raw || coverUrl).trim();
+  // 官方卡（新闻/活动镜像）的 cover_image_url 可能是新闻/活动库里的 Vite 资源引用
+  // （如 @/assets/images/xxx.webp，老数据为 .png，同目录有同名 webp 兜底），
+  // 必须经 getImageUrl 解析成打包 URL，否则 <img> 直接裂图；data:/http 原样直通。
+  const resolvedCoverUrl = getImageUrl(coverUrl, { silent: true }) || coverUrl;
+  const resolvedRawCoverUrl = getImageUrl(rawCoverUrl, { silent: true }) || rawCoverUrl;
   return [{
     id: `${String(post?.id || 'post').trim() || 'post'}-cover`,
-    url: getCloudinaryTransformedUrl(coverUrl, FORUM_LIST_IMAGE_TRANSFORM),
-    originalUrl: rawCoverUrl,
-    detailUrl: getCloudinaryTransformedUrl(rawCoverUrl, FORUM_DETAIL_IMAGE_TRANSFORM),
+    url: getCloudinaryTransformedUrl(resolvedCoverUrl, FORUM_LIST_IMAGE_TRANSFORM),
+    originalUrl: resolvedRawCoverUrl,
+    detailUrl: getCloudinaryTransformedUrl(resolvedRawCoverUrl, FORUM_DETAIL_IMAGE_TRANSFORM),
     srcset: [
-      `${getCloudinaryTransformedUrl(rawCoverUrl, FORUM_LIST_IMAGE_TRANSFORM_SM)} 360w`,
-      `${getCloudinaryTransformedUrl(rawCoverUrl, FORUM_LIST_IMAGE_TRANSFORM_MD)} 540w`,
-      `${getCloudinaryTransformedUrl(rawCoverUrl, FORUM_LIST_IMAGE_TRANSFORM)} 720w`
+      `${getCloudinaryTransformedUrl(resolvedRawCoverUrl, FORUM_LIST_IMAGE_TRANSFORM_SM)} 360w`,
+      `${getCloudinaryTransformedUrl(resolvedRawCoverUrl, FORUM_LIST_IMAGE_TRANSFORM_MD)} 540w`,
+      `${getCloudinaryTransformedUrl(resolvedRawCoverUrl, FORUM_LIST_IMAGE_TRANSFORM)} 720w`
     ].join(', '),
-    lqipUrl: getCloudinaryTransformedUrl(rawCoverUrl, FORUM_LIST_LQIP_TRANSFORM),
+    lqipUrl: getCloudinaryTransformedUrl(resolvedRawCoverUrl, FORUM_LIST_LQIP_TRANSFORM),
     width: Number(post?.cover_image_width || post?.coverImageWidth || 0),
     height: Number(post?.cover_image_height || post?.coverImageHeight || 0),
     sortOrder: 0
@@ -2593,7 +2719,9 @@ const prepareForumPostForDisplay = (post, index = 0) => {
   preparedPost.displayBody = extractPostBody(preparedPost);
   preparedPost.isBodyOverflowLikely = isBodyPreviewOverflowLikely(preparedPost.displayBody);
   preparedPost.tag = normalizeForumTagValue(preparedPost.tag);
-  preparedPost.tagLabel = getForumTagLabel(preparedPost.tag);
+  preparedPost.tagLabel = ['news', 'activity'].includes(preparedPost.post_kind)
+    ? ''
+    : getForumTagLabel(preparedPost.tag);
   preparedPost.previewImages = images;
   preparedPost.hasImages = images.length > 0;
   preparedPost.imageCount = imageCount;
@@ -2603,8 +2731,42 @@ const prepareForumPostForDisplay = (post, index = 0) => {
 };
 
 const prepareForumPosts = (posts = [], startIndex = 0) => (
-  Array.isArray(posts) ? posts.map((post, index) => prepareForumPostForDisplay(post, startIndex + index)) : []
+  Array.isArray(posts) ? posts
+    .filter((post) => {
+      const kind = post?.post_kind || (/^【新闻】/.test(String(post?.content || '')) ? 'news' : /^【活动】/.test(String(post?.content || '')) ? 'activity' : 'unknown');
+      // 「论坛」= 普通帖 + 用户转发（repost），与服务端 p_kind_filter 语义一致
+      return !selectedContentType.value || (selectedContentType.value === 'post'
+        ? kind === 'post' || kind === 'unknown' || kind === 'repost'
+        : kind === selectedContentType.value);
+    })
+    .map((post, index) => prepareForumPostForDisplay(post, startIndex + index)) : []
 );
+
+const hydrateOfficialPostKinds = async (posts = []) => {
+  const ids = (Array.isArray(posts) ? posts : []).map((post) => post?.id).filter(Boolean);
+  if (!ids.length) return posts;
+  const [postMeta, newsMeta, activityMeta] = await Promise.all([
+    supabase.from('posts').select('id, post_kind, cover_image_url, title').in('id', ids),
+    supabase.from('news').select('title, image'),
+    supabase.from('activities').select('title, image')
+  ]);
+  const metadata = new Map((postMeta.data || []).map((row) => [row.id, row]));
+  const newsByTitle = new Map((newsMeta.data || []).map((row) => [String(row.title || '').trim(), row]));
+  const activityByTitle = new Map((activityMeta.data || []).map((row) => [String(row.title || '').trim(), row]));
+  return posts.map((post) => ({
+    ...post,
+    post_kind: metadata.get(post.id)?.post_kind || post.post_kind
+      || (/^【新闻】/.test(String(post.content || '')) ? 'news'
+        : /^【活动】/.test(String(post.content || '')) ? 'activity'
+          : newsByTitle.has(String(post.title || '').trim()) ? 'news'
+            : activityByTitle.has(String(post.title || '').trim()) ? 'activity' : 'unknown'),
+    cover_image_url: post.cover_image_url
+      || metadata.get(post.id)?.cover_image_url
+      || newsByTitle.get(String(post.title || '').trim())?.image
+      || activityByTitle.get(String(post.title || '').trim())?.image
+      || ''
+  }));
+};
 
 const getForumFeedSnapshotKey = () => buildForumFeedSnapshotKey({
   userId: isLoggedIn.value ? userInfo.id : 'guest',
@@ -2612,6 +2774,7 @@ const getForumFeedSnapshotKey = () => buildForumFeedSnapshotKey({
   sortMode: sortMode.value,
   searchKeyword: searchKeyword.value,
   tagFilter: selectedTagFilter.value,
+  contentType: selectedContentType.value,
   followingOnly: showFollowingOnly.value
 });
 
@@ -2863,6 +3026,8 @@ const fetchForumData = async (isLoadMore = false, { background = false } = {}) =
       sortMode: sortMode.value,
       searchQuery: searchKeyword.value.trim(),
       tagFilter: selectedTagFilter.value,
+      // 内容类型筛选下推服务端（list_forum_posts p_kind_filter），否则官方卡沉底导致筛选后空页
+      kindFilter: selectedContentType.value,
       cursorMode: 'keyset',
       cursor: isLoadMore ? nextPageCursor.value : '',
       signal: abortController.signal,
@@ -2881,7 +3046,8 @@ const fetchForumData = async (isLoadMore = false, { background = false } = {}) =
     if (requestSeq !== forumFetchSeq) return;
 
     if (!dataResult.error && dataResult.data) {
-      const safeRows = Array.isArray(dataResult.data) ? dataResult.data : [];
+      let safeRows = Array.isArray(dataResult.data) ? dataResult.data : [];
+      safeRows = await hydrateOfficialPostKinds(safeRows);
       const hasNextCursor = String(dataResult?.nextCursor || '').trim();
       const hasNextPage = hasNextCursor
         ? true
@@ -3545,6 +3711,17 @@ const setTagFilter = (tag = '') => {
   fetchForumData();
 };
 
+const setContentType = (type = '') => {
+  const next = ['news', 'activity', 'post'].includes(type) ? type : '';
+  if (selectedContentType.value === next) return;
+  selectedContentType.value = next;
+  feedMode.value = 'posts';
+  fetchForumData();
+};
+
+const CONTENT_TYPE_LABELS = { news: '新闻', activity: '活动', post: '论坛' };
+const contentTypeLabel = computed(() => CONTENT_TYPE_LABELS[selectedContentType.value] || '');
+
 const handleDeleteComment = async (comment, post) => {
   if (!comment?.id || !post?.id) return;
   const confirmed = await requestConfirm({
@@ -3573,39 +3750,59 @@ const handleDeleteComment = async (comment, post) => {
   }
 };
 
-const sharePost = async (post) => {
-  const url = `${window.location.origin}${window.location.pathname}#/forum/post/${post.id}`;
-  try {
-    await navigator.clipboard.writeText(`来看看这个帖子：${url}`);
-    addUiMarker(shareCopiedPostIds, post.id, 1500, 'share-copied');
+// 帖子分享：点击卡片分享按钮 → 顶部导航灵动岛弹出选择器（复制链接 / 站内转发）
+const buildPostShareTarget = (post) => ({
+  title: String(post?.displayTitle || post?.title || '').replace(/\s+/g, ' ').trim().slice(0, 80),
+  summary: String(post?.displayBody || post?.body || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+  image: post?.previewImages?.[0]?.url || post?.cover_image_url || '',
+  path: `/forum/post/${post.id}`,
+  forward: post?.id ? { postId: post.id } : null
+});
 
-    logger.debug('forum', '触发顶部导航状态', { postId: post.id, url });
-
-    // 如果是嵌入式组件，emit事件
-    if (props.embedded) {
-      logger.debug('forum', '使用 emit 触发顶部导航状态（嵌入式）');
-      emit('island-message', {
-        title: '分享链接已复制到剪贴板',
-        icon: 'success',
-        catSticker: 'success',
-        actionLabel: '知道了'
-      });
-    } else {
-      logger.debug('forum', '使用全局顶部导航状态事件');
-      window.dispatchEvent(new CustomEvent('boh_global_nav_status', {
-        detail: {
-          title: '分享链接已复制到剪贴板',
-          icon: 'success',
-          catSticker: 'success',
-          actionLabel: '知道了',
-          at: Date.now()
-        }
-      }));
+let shareIslandHandle = null;
+const sharePost = (post) => {
+  if (!post?.id) return;
+  shareIslandHandle?.close();
+  shareIslandHandle = showIsland.custom(ShareIsland, {
+    target: buildPostShareTarget(post),
+    isLoggedIn: isLoggedIn.value,
+    requireLogin: () => {
+      showLoginModal.value = true;
+    },
+    onCopied: () => {
+      // 同步点亮卡片上的「已复制」状态
+      addUiMarker(shareCopiedPostIds, post.id, 1500, 'share-copied');
+    },
+    onClose: () => {
+      // × / Esc / 成功自动关闭都走这里：必须真正清掉岛槽位，仅置空句柄岛不会消失
+      shareIslandHandle?.close();
+      shareIslandHandle = null;
     }
-  } catch (error) {
-    logger.error('forum', '复制分享链接失败:', error);
-    showModal('error', '复制失败', '当前环境不支持自动复制，请手动复制地址栏链接');
+  });
+};
+
+const quoteRepostState = ref({ show: false, post: null, commentary: '' });
+const openQuoteRepost = (post) => {
+  if (!isLoggedIn.value) {
+    showLoginModal.value = true;
+    return;
   }
+  quoteRepostState.value = { show: true, post, commentary: '' };
+};
+const closeQuoteRepost = () => {
+  quoteRepostState.value = { show: false, post: null, commentary: '' };
+};
+const submitQuoteRepost = async () => {
+  const { post, commentary } = quoteRepostState.value;
+  if (!post?.id || !String(commentary || '').trim()) return;
+  const result = await createQuoteRepost(post.id, commentary);
+  if (!result.ok) {
+    showModal('error', '转发失败', result.error?.message || '请稍后重试');
+    return;
+  }
+  closeQuoteRepost();
+  showModal('success', '转发成功', '你的留言已生成一条新的论坛帖子');
+  await fetchForumData(false, { background: true });
 };
 
 const handleSearch = () => {
@@ -3824,11 +4021,11 @@ const openPostDetail = (postId) => {
             </div>
             <ForumToolbar v-model:searchQuery="searchQuery" :is-logged-in="isLoggedIn"
               :has-signed-this-week="weeklyCheckinStatus.hasSignedThisWeek" :sort-mode="sortMode"
-              :selected-tag-filter="selectedTagFilter" :is-ai-search-enabled="isAiSearchEnabled"
+              :selected-tag-filter="selectedTagFilter" :selected-content-type="selectedContentType" :is-ai-search-enabled="isAiSearchEnabled"
               :is-ai-search-loading="isAiSearchLoading" :ai-search-hint="aiSearchHint"
               @search-submit="handleSearchSubmit" @toggle-ai-search="toggleAiSearch"
               @open-weekly-checkin="openWeeklyCheckinCalendar" @set-sort-mode="setSortMode"
-              @set-tag-filter="setTagFilter" />
+              @set-tag-filter="setTagFilter" @set-content-type="setContentType" />
 
             <!-- 骨架屏加载状态 -->
             <div v-if="isLoading" class="skeleton-feed">
@@ -3861,8 +4058,8 @@ const openPostDetail = (postId) => {
                 <HomeCatMascot v-if="isHomeCatActive" type="decor" size="lg" decorative />
                 <span class="empty-icon">🔍</span>
                 <p v-if="forumLoadError" class="forum-load-error">{{ forumLoadError }}</p>
-                <p v-else-if="searchKeyword.trim() || selectedTagFilter">
-                  没有找到{{ selectedTagFilter ? `「${getForumTagLabel(selectedTagFilter)}」` : '' }}相关的帖子
+                <p v-else-if="searchKeyword.trim() || selectedTagFilter || selectedContentType">
+                  没有找到{{ selectedContentType ? `「${contentTypeLabel}」` : '' }}{{ selectedTagFilter ? `「${getForumTagLabel(selectedTagFilter)}」` : '' }}相关的内容，换个筛选条件试试
                 </p>
                 <p v-else>这里空空如也，快来发布第一条动态吧！</p>
               </div>
@@ -3929,7 +4126,7 @@ const openPostDetail = (postId) => {
                     :is-logged-in="isLoggedIn" :user-info="userInfo" :loaded-image-keys="loadedForumImageKeys"
                     @click="openPostDetail" @go-to-profile="goToProfile" @toggle-like="handleToggleLike"
                     @toggle-replies="toggleRepliesList" @toggle-reply-input="handlePostCardToggleReplyInput"
-                    @share="sharePost" @submit-reply="submitReply" @delete-comment="handleDeleteComment"
+                    @share="sharePost" @quote-repost="openQuoteRepost" @submit-reply="submitReply" @delete-comment="handleDeleteComment"
                     @open-image-viewer="openForumImageViewer" @update:reply-content="replyContent = $event"
                     @clear-reply-target="handlePostCardClearReplyTarget" @cancel-reply="handlePostCardCancelReply"
                     @image-loaded="markForumImageLoaded" @lazy-image-observe="observeForumLazyImage"
@@ -4204,6 +4401,20 @@ const openPostDetail = (postId) => {
     <!-- 弹窗 -->
     <CommonAlertModal v-model:visible="modalState.show" :type="modalState.type" :title="modalState.title"
       :message="modalState.message" :mascot-src="modalMascotSrc" mascot-alt="方块小窝提示小猫" />
+
+    <Teleport to="body">
+      <div v-if="quoteRepostState.show" class="forum-confirm-overlay" @click.self="closeQuoteRepost">
+        <section class="forum-confirm-modal" role="dialog" aria-modal="true" aria-label="引用转发">
+          <h3>引用转发</h3>
+          <p class="quote-repost-source">{{ quoteRepostState.post?.displayTitle || quoteRepostState.post?.title }}</p>
+          <textarea v-model="quoteRepostState.commentary" maxlength="2000" rows="4" placeholder="添加你的想法..."></textarea>
+          <div class="forum-confirm-actions">
+            <button type="button" class="forum-confirm-btn secondary" @click="closeQuoteRepost">取消</button>
+            <button type="button" class="forum-confirm-btn danger" :disabled="!quoteRepostState.commentary.trim()" @click="submitQuoteRepost">转发</button>
+          </div>
+        </section>
+      </div>
+    </Teleport>
 
     <!-- 消息详情抽屉 -->
     <Teleport to="body">

@@ -1,5 +1,6 @@
 import { getCloudinaryTransformedUrl } from '../cloudinary-client.js';
 import { normalizeDbError } from '../request-core.js';
+import { getImageUrl } from '../asset-helper.js';
 
 export const APPROVED_STATUS = 'approved';
 export const REJECTED_STATUS = 'rejected';
@@ -138,9 +139,21 @@ export function stripLegacyPostTitlePrefix(body = '', title = '') {
   return safeBody.replace(legacyPattern, '');
 }
 
+/**
+ * 解析帖子封面里的 Vite 资源引用。
+ * 官方卡（新闻/活动镜像）的 cover_image_url 老数据存的是 `@/assets/images/xxx.webp`
+ * （部分为 .png，同目录有同名 webp 兜底），不解析直接进 <img> 会裂图；
+ * data:/http(s)/blob:/根路径等合法 URL 由 getImageUrl 原样直通。
+ */
+export function resolveStoredCoverUrl(rawUrl = '') {
+  const safe = String(rawUrl || '').trim();
+  if (!safe) return '';
+  return getImageUrl(safe, { silent: true }) || safe;
+}
+
 export function normalizePostRecord(post = {}) {
   const parts = splitPostContent(post.content, post.title, post.body);
-  const rawCoverUrl = String(post.cover_image_url || post.coverImageUrl || '').trim();
+  const rawCoverUrl = resolveStoredCoverUrl(post.cover_image_url || post.coverImageUrl || '');
   const coverImageUrl = getCloudinaryTransformedUrl(rawCoverUrl, FORUM_DETAIL_IMAGE_TRANSFORM);
   const normalizedImages = normalizeForumImages(post.images || post.forum_post_images || [], { variant: 'detail' });
   const fallbackImages = normalizedImages.length || !coverImageUrl
@@ -170,13 +183,13 @@ export function normalizePostListRecord(post = {}) {
   const parts = splitPostContent(post.content, post.title, post.body);
   const explicitImages = normalizeForumImages(post.images || post.forum_post_images || [], { variant: 'list' });
   const firstImage = explicitImages[0] || null;
-  const rawCoverUrl = String(
+  const rawCoverUrl = resolveStoredCoverUrl(
     post.cover_image_url
     || post.coverImageUrl
     || firstImage?.originalUrl
     || firstImage?.url
     || ''
-  ).trim();
+  );
   const coverImageUrl = getCloudinaryTransformedUrl(rawCoverUrl, FORUM_LIST_IMAGE_TRANSFORM);
   const previewImages = explicitImages.length
     ? explicitImages.slice(0, FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT)

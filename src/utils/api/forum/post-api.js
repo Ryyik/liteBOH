@@ -110,6 +110,25 @@ function resolveFallbackUsernameFromAuthUser(user = null) {
   return '';
 }
 
+async function resolveAuthoritativeForumActor(fallbackUserId = '', fallbackRole = '') {
+  const fallback = { userId: String(fallbackUserId || '').trim(), role: String(fallbackRole || '').trim() };
+  try {
+    if (!supabase.auth?.getUser) return fallback;
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    const userId = String(authData?.user?.id || '').trim();
+    if (authError || !userId) return fallback;
+    const profileQuery = supabase.from('profiles').select('role').eq('id', userId);
+    if (typeof profileQuery?.maybeSingle !== 'function') return fallback;
+    const { data: profile, error: profileError } = await profileQuery.maybeSingle();
+    // Keep compatibility with offline/unit mocks; production Supabase always
+    // returns a profile row or an explicit error here.
+    if (profileError || profile === undefined || profile === null || !Object.prototype.hasOwnProperty.call(profile, 'role')) return fallback;
+    return { userId, role: String(profile?.role || '').trim() };
+  } catch (_error) {
+    return fallback;
+  }
+}
+
 async function resolvePostAuthorIdentity(authorId, authorUsername) {
   let safeAuthorId = String(authorId || '').trim();
   let safeAuthorUsername = String(authorUsername || '').trim();
@@ -428,6 +447,16 @@ async function enrichWeeklyCheckinStatusFallback(status, userId = null) {
   };
 }
 
+// 内容类型筛选规范化：'' 全部；'post' 论坛（含转发）；'news' / 'activity' 官方卡。
+// 返回 { kindFilter: RPC 参数值, kindValues: 直查路径的 post_kind IN 列表 }。
+export const normalizeForumKindFilter = (raw) => {
+  const kind = String(raw || '').trim().toLowerCase();
+  if (kind === 'news') return { kindFilter: 'news', kindValues: ['news'] };
+  if (kind === 'activity') return { kindFilter: 'activity', kindValues: ['activity'] };
+  if (kind === 'post') return { kindFilter: 'post', kindValues: ['post', 'repost'] };
+  return { kindFilter: null, kindValues: null };
+};
+
 export async function getPosts(userId = null, pagination = {}) {
   const { page, pageSize, offset, limit } = normalizePagination(pagination);
   const normalizedPageSize = Math.max(1, Number(pageSize || 10));
@@ -436,6 +465,7 @@ export async function getPosts(userId = null, pagination = {}) {
   const sortMode = normalizeSortMode(pagination.sortMode || pagination.sort || 'latest');
   const searchQuery = String(pagination.searchQuery || '').trim();
   const tagFilter = normalizeForumTag(pagination.tag || pagination.tagFilter || '');
+  const { kindFilter, kindValues } = normalizeForumKindFilter(pagination.kindFilter || pagination.contentType || '');
   const includeUnapprovedForAuthor = Boolean(pagination.includeUnapprovedForAuthor);
   const cursorMode = String(pagination.cursorMode || '').trim().toLowerCase();
   const cursorToken = String(pagination.cursor || '').trim();
@@ -458,6 +488,7 @@ export async function getPosts(userId = null, pagination = {}) {
       sortMode,
       searchQuery,
       tagFilter,
+      kindFilter,
       includeUnapprovedForAuthor,
       cursorMode,
       cursorToken,
@@ -497,6 +528,7 @@ export async function getPosts(userId = null, pagination = {}) {
           .limit(normalizedPageSize + 1);
 
         query = applyForumTagFilter(query, tagFilter);
+        if (kindValues) query = query.in('post_kind', kindValues);
 
         if (parsedCursor?.createdAt && parsedCursor?.id) {
           query = query.or(
@@ -528,7 +560,8 @@ export async function getPosts(userId = null, pagination = {}) {
         p_tag_filter: tagFilter || null,
         p_following_user_ids: Array.isArray(followingUserIds) && followingUserIds.length
           ? followingUserIds
-          : null
+          : null,
+        p_kind_filter: kindFilter || null
       };
 
       let { data: rpcData, error: rpcError } = await withAbortSignal(
@@ -536,15 +569,26 @@ export async function getPosts(userId = null, pagination = {}) {
         abortSignal
       );
       if (rpcError && isMissingRpcFunctionError(rpcError, 'list_forum_posts')) {
+        // 旧签名 RPC（无 p_kind_filter / p_tag_filter）降级：去掉新参数重试，
+        // 并在客户端对结果补做内容类型过滤，保证筛选语义在旧库上不丢。
         const legacyPayload = { ...rpcPayload };
         delete legacyPayload.p_tag_filter;
+        delete legacyPayload.p_kind_filter;
         const legacyResult = await withAbortSignal(
           supabase.rpc('list_forum_posts', legacyPayload),
           abortSignal
         );
-        rpcData = tagFilter && Array.isArray(legacyResult.data)
-          ? legacyResult.data.filter((row) => matchesForumTagFilter(row?.tag, tagFilter))
-          : legacyResult.data;
+        let legacyRows = Array.isArray(legacyResult.data) ? legacyResult.data : [];
+        if (tagFilter && Array.isArray(legacyRows)) {
+          legacyRows = legacyRows.filter((row) => matchesForumTagFilter(row?.tag, tagFilter));
+        }
+        if (kindValues && Array.isArray(legacyRows)) {
+          const kindOfRow = (row) => String(row?.post_kind || '').trim()
+            || (/^【新闻】/.test(String(row?.content || '')) ? 'news'
+              : /^【活动】/.test(String(row?.content || '')) ? 'activity' : 'post');
+          legacyRows = legacyRows.filter((row) => kindOfRow(row) && kindValues.includes(kindOfRow(row)));
+        }
+        rpcData = legacyRows;
         rpcError = legacyResult.error;
       }
 
@@ -581,6 +625,7 @@ export async function getPosts(userId = null, pagination = {}) {
 
         query = query.or(statusFilter);
         query = applyForumTagFilter(query, tagFilter);
+        if (kindValues) query = query.in('post_kind', kindValues);
         if (Array.isArray(followingUserIds) && followingUserIds.length) {
           query = query.in('author_id', followingUserIds);
         }
@@ -1115,13 +1160,15 @@ export async function deletePost(postId, userId, userRole) {
     return { ok: false, success: false, error: '帖子不存在' };
   }
 
-  if (post.author_id !== userId && userRole !== 'admin') {
+  const actor = await resolveAuthoritativeForumActor(userId, userRole);
+  if (post.author_id !== actor.userId && !['admin', 'superadmin'].includes(actor.role)) {
     return { ok: false, success: false, error: '没有权限删除此帖子' };
   }
 
   const { error: deleteError } = await supabase.from('posts').delete().eq('id', safePostId);
   if (deleteError) {
-    return { ok: false, success: false, error: '删除失败' };
+    const denied = deleteError.code === '42501' || /permission|policy|authorized/i.test(String(deleteError.message || ''));
+    return { ok: false, success: false, error: denied ? '没有权限删除此帖子' : '删除失败' };
   }
 
   const publicIds = (Array.isArray(imageResult?.data) ? imageResult.data : [])
@@ -1362,7 +1409,8 @@ export async function updatePost(postId, content, userId, userRole, title = '') 
     return { ok: false, success: false, error: '帖子不存在' };
   }
 
-  if (post.author_id !== userId && userRole !== 'admin') {
+  const actor = await resolveAuthoritativeForumActor(userId, userRole);
+  if (post.author_id !== actor.userId && !['admin', 'superadmin'].includes(actor.role)) {
     return { ok: false, success: false, error: '没有权限编辑此帖子' };
   }
 
@@ -1382,7 +1430,9 @@ export async function updatePost(postId, content, userId, userRole, title = '') 
     content: safeContent,
     title: postParts.title,
     body: postParts.body,
-    status: userRole === 'admin' ? APPROVED_STATUS : currentStatus,
+    // Client-provided roles must never promote content. Admin moderation uses
+    // a server-side RPC; ordinary edits preserve the current status.
+    status: currentStatus,
     updated_at: new Date().toISOString()
   };
   const { error: updateError } = await supabase
@@ -1392,7 +1442,8 @@ export async function updatePost(postId, content, userId, userRole, title = '') 
 
   if (updateError) {
     logger.error('forum-api', '更新帖子失败', updateError);
-    return { ok: false, success: false, error: `更新失败: ${updateError.message}` };
+    const denied = updateError.code === '42501' || /permission|policy|authorized/i.test(String(updateError.message || ''));
+    return { ok: false, success: false, error: denied ? '没有权限编辑此帖子' : `更新失败: ${updateError.message}` };
   }
 
   await schedulePostModeration({

@@ -26,6 +26,23 @@ const COMMENT_ASYNC_MODERATION_TIMEOUT_MS = 45000;
 const COMMENT_SYNC_MODERATION_TIMEOUT_MS = 12000;
 const COMMENT_REJECTED_NOTIFICATION_TYPE = 'comment_rejected';
 
+async function resolveAuthoritativeForumActor(fallbackUserId = '', fallbackRole = '') {
+  const fallback = { userId: String(fallbackUserId || '').trim(), role: String(fallbackRole || '').trim() };
+  try {
+    if (!supabase.auth?.getUser) return fallback;
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    const userId = String(authData?.user?.id || '').trim();
+    if (authError || !userId) return fallback;
+    const profileQuery = supabase.from('profiles').select('role').eq('id', userId);
+    if (typeof profileQuery?.maybeSingle !== 'function') return fallback;
+    const { data: profile, error: profileError } = await profileQuery.maybeSingle();
+    if (profileError || profile === undefined || profile === null || !Object.prototype.hasOwnProperty.call(profile, 'role')) return fallback;
+    return { userId, role: String(profile?.role || '').trim() };
+  } catch (_error) {
+    return fallback;
+  }
+}
+
 async function scheduleCommentModeration(comment = {}) {
   const commentId = String(comment.id || '').trim();
   const authorId = String(comment.author_id || '').trim();
@@ -410,14 +427,16 @@ export async function deleteComment(commentId, userId, userRole) {
     return { ok: false, success: false, error: '评论不存在' };
   }
 
-  if (comment.author_id !== userId && userRole !== 'admin') {
+  const actor = await resolveAuthoritativeForumActor(userId, userRole);
+  if (comment.author_id !== actor.userId && !['admin', 'superadmin'].includes(actor.role)) {
     return { ok: false, success: false, error: '没有权限删除此评论' };
   }
 
   const { error: deleteError } = await supabase.from('comments').delete().eq('id', commentId);
   if (deleteError) {
     logger.error('forum-api', '删除评论失败', deleteError);
-    return { ok: false, success: false, error: `删除失败: ${deleteError.message}` };
+    const denied = deleteError.code === '42501' || /permission|policy|authorized/i.test(String(deleteError.message || ''));
+    return { ok: false, success: false, error: denied ? '没有权限删除此评论' : `删除失败: ${deleteError.message}` };
   }
 
   invalidateByTags(['comments', 'posts', 'notifications']);

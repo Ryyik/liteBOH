@@ -9,6 +9,7 @@ const props = defineProps({
   hasSignedThisWeek: { type: Boolean, default: false },
   sortMode: { type: String, default: 'latest' },
   selectedTagFilter: { type: String, default: '' },
+  selectedContentType: { type: String, default: '' },
   isAiSearchEnabled: { type: Boolean, default: false },
   isAiSearchLoading: { type: Boolean, default: false },
   aiSearchHint: { type: String, default: '' }
@@ -20,7 +21,8 @@ const emit = defineEmits([
   'toggleAiSearch',
   'openWeeklyCheckin',
   'setSortMode',
-  'setTagFilter'
+  'setTagFilter',
+  'setContentType'
 ]);
 
 const isFilterOpen = ref(false);
@@ -30,7 +32,8 @@ const filterSummaryText = computed(() => {
   const sortLabel = props.sortMode === 'hottest' ? '最热' : '最新';
   const tagOption = FORUM_TAG_OPTIONS.find(t => t.value === props.selectedTagFilter);
   const tagLabel = tagOption ? tagOption.label : '全部标签';
-  return `${sortLabel} · ${tagLabel}`;
+  const typeLabel = { news: '新闻', activity: '活动', post: '论坛' }[props.selectedContentType] || '全部内容';
+  return `${sortLabel} · ${typeLabel} · ${tagLabel}`;
 });
 
 const toggleFilter = () => {
@@ -79,6 +82,10 @@ const onSetSortMode = (mode) => {
 
 const onSetTagFilter = (tag) => {
   emit('setTagFilter', tag);
+  closeFilter();
+};
+const onSetContentType = (type) => {
+  emit('setContentType', type);
   closeFilter();
 };
 </script>
@@ -162,6 +169,16 @@ const onSetTagFilter = (tag) => {
           </div>
           <div class="filter-dropdown-divider"></div>
           <div class="filter-dropdown-section">
+            <div class="filter-dropdown-label">内容类型</div>
+            <div class="filter-tag-row">
+              <button class="filter-tag-btn" :class="{ active: selectedContentType === '' }" @click="onSetContentType('')">全部内容</button>
+              <button class="filter-tag-btn" :class="{ active: selectedContentType === 'post' }" @click="onSetContentType('post')">论坛</button>
+              <button class="filter-tag-btn" :class="{ active: selectedContentType === 'news' }" @click="onSetContentType('news')">新闻</button>
+              <button class="filter-tag-btn" :class="{ active: selectedContentType === 'activity' }" @click="onSetContentType('activity')">活动</button>
+            </div>
+          </div>
+          <div class="filter-dropdown-divider"></div>
+          <div class="filter-dropdown-section">
             <div class="filter-dropdown-label">标签筛选</div>
             <div class="filter-tag-row">
               <button
@@ -194,8 +211,8 @@ const onSetTagFilter = (tag) => {
   margin-bottom: 32px;
   padding: 8px 10px 8px 18px;
   background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(18px) saturate(160%);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 20px;
   box-shadow: 0 8px 28px rgba(15, 23, 42, 0.05), var(--liquid-inner-highlight);
@@ -335,8 +352,8 @@ const onSetTagFilter = (tag) => {
   font-size: 12px;
   font-weight: 800;
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
-  backdrop-filter: blur(22px) saturate(170%);
-  -webkit-backdrop-filter: blur(22px) saturate(170%);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   white-space: nowrap;
   z-index: 10;
 }
@@ -399,8 +416,8 @@ const onSetTagFilter = (tag) => {
   font-weight: 850;
   cursor: pointer;
   box-shadow: 0 4px 12px rgba(31, 41, 55, 0.06), var(--liquid-inner-highlight);
-  backdrop-filter: blur(18px) saturate(160%);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
   transition: transform 0.2s, background-color 0.2s, box-shadow 0.2s;
 }
 
@@ -432,8 +449,8 @@ const onSetTagFilter = (tag) => {
   font-weight: 750;
   cursor: pointer;
   box-shadow: 0 4px 12px rgba(31, 41, 55, 0.06), var(--liquid-inner-highlight);
-  backdrop-filter: blur(18px) saturate(160%);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
   transition: transform 0.2s, background-color 0.2s, box-shadow 0.2s;
   white-space: nowrap;
 }
@@ -468,8 +485,8 @@ const onSetTagFilter = (tag) => {
   padding: 12px;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(24px) saturate(170%);
-  -webkit-backdrop-filter: blur(24px) saturate(170%);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   border: 1px solid rgba(0, 0, 0, 0.06);
   box-shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
   z-index: 100;

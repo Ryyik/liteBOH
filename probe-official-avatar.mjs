@@ -1,0 +1,11 @@
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ channel: 'chrome' });
+const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+await page.goto('http://localhost:5173/#/forum', { waitUntil: 'domcontentloaded' });
+await page.waitForTimeout(2600);
+await page.locator('.toolbar-filter-btn').click();
+await page.waitForTimeout(350);
+await page.locator('.filter-dropdown-section', { hasText: '内容类型' }).locator('.filter-tag-btn', { hasText: '新闻' }).first().click();
+await page.waitForTimeout(2400);
+await page.screenshot({ path: 'debug-screenshots/official-avatar-news.png' });
+await browser.close();

@@ -32,6 +32,9 @@ export {
 export {
   toggleLike,
   checkIfLiked,
+  createQuoteRepost,
+  findQuoteRepostSourceId,
+  publishOfficialForumCard,
   reportPost
 } from './forum/forum-interaction-api.js';
 

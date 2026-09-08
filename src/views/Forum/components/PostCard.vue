@@ -1,5 +1,5 @@
 <script setup>
-import { nextTick, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { useTierMap } from '@/composables/useTierMap.js';
 import {
@@ -14,6 +14,7 @@ import {
 import { getHomeCatAsset, getHomeCatTypeBySeed } from '@/utils/home-cat-theme.js';
 import { formatSmartTime } from '@/utils/time.js';
 import { getAvatarUrl } from '@/utils/avatar.js';
+import { getImageUrl } from '@/utils/asset-helper.js';
 import { FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT } from '../forum-config.js';
 
 const props = defineProps({
@@ -56,6 +57,19 @@ const emit = defineEmits([
 ]);
 
 const formatDate = formatSmartTime;
+
+// 官方卡（新闻/活动镜像）：author_id 为空、作者固定「方块之家」，头像用站点 logo
+const OFFICIAL_AUTHOR_NAME = '方块之家';
+const isOfficialCard = computed(() => {
+  const p = props.post || {};
+  if (p.post_kind === 'news' || p.post_kind === 'activity') return true;
+  return !p.author_id && String(p.author_username || '').trim() === OFFICIAL_AUTHOR_NAME;
+});
+const authorAvatarSrc = computed(() => (
+  isOfficialCard.value
+    ? getImageUrl('favicon.webp', { silent: true })
+    : getAvatarUrl(props.post?.author_avatar_url, 'sm')
+));
 
 const escapeHtml = (value) => String(value || '')
   .replace(/&/g, '&amp;')
@@ -171,14 +185,15 @@ const replyTierMap = useTierMap(
     </figure>
     <div class="post-header-v2">
       <div class="post-author-section">
-        <div class="post-author-avatar">
-          <img v-if="post.author_avatar_url" :src="getAvatarUrl(post.author_avatar_url, 'sm')" alt="作者头像"
+        <div class="post-author-avatar" :class="{ 'is-official': isOfficialCard }">
+          <img v-if="authorAvatarSrc" :src="authorAvatarSrc" alt="作者头像"
             class="avatar-image"  loading="lazy" />
           <span v-else>{{ post.author_username ? post.author_username.charAt(0).toUpperCase() : 'U'
           }}</span>
         </div>
         <div class="post-author-info">
-          <span class="post-author-v2" :class="authorTierClass" @click.stop="emit('go-to-profile', post.author_username)">@{{
+          <span class="post-author-v2" :class="authorTierClass"
+            @click.stop="isOfficialCard ? undefined : emit('go-to-profile', post.author_username)">@{{
             post.author_username }}</span>
           <span v-if="post.author_is_banned" class="author-banned-pill" title="该账号已被封禁">已封禁</span>
           <span class="post-date-v2">{{ formatDate(post.created_at) }}</span>
@@ -188,6 +203,8 @@ const replyTierMap = useTierMap(
 
     <div class="post-content-v2">
       <h3 class="post-title-v2">
+        <span v-if="post.post_kind === 'news'" class="post-kind-badge news">新闻</span>
+        <span v-else-if="post.post_kind === 'activity'" class="post-kind-badge activity">活动</span>
         {{ post.displayTitle }}
         <span v-if="post.status === 'limited'" class="post-status-pill limited">仅自己可见</span>
       </h3>
