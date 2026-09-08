@@ -17,6 +17,7 @@ const VIEWPORTS = [
 const PAGES = [
   { tag: "activities", hash: "/#/activities-wall", headerSel: ".activities-header-copy", pageSel: ".activities-list-page" },
   { tag: "newsroom", hash: "/#/newsroom", headerSel: ".news-header-copy", pageSel: ".newsroom-page" },
+  { tag: "shop", hash: "/#/shop", headerSel: ".shop-header", pageSel: ".shop-page" },
 ];
 
 const results = [];

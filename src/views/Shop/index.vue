@@ -598,11 +598,31 @@ onMounted(() => {
   isLandscape.value = orientationMql.matches;
   orientationHandler = (e) => { isLandscape.value = e.matches; };
   orientationMql.addEventListener('change', orientationHandler);
+
+  syncNavHeight();
+  navResizeObserver = new ResizeObserver(syncNavHeight);
+  const navEl = document.getElementById('unified-nav-container');
+  if (navEl && typeof ResizeObserver !== 'undefined') navResizeObserver.observe(navEl);
 });
+
+// 全局导航 position:fixed，实际高度与声明值不一致且灵动岛展开会变高
+// （Newsroom/ActivitiesList 同款方案）：实测导航高度写回页面根 --nav-h，
+// .shop-page 顶部 padding 据此避让。
+let navResizeObserver = null;
+const syncNavHeight = () => {
+  const nav = document.getElementById('unified-nav-container');
+  const page = document.querySelector('.shop-page');
+  if (!nav || !page) return;
+  const h = nav.getBoundingClientRect().height;
+  if (h > 0) page.style.setProperty('--nav-h', `${Math.ceil(h)}px`);
+};
+
 onBeforeUnmount(() => {
   if (toastTimer) clearTimeout(toastTimer);
   document.body.style.overflow = '';
   bagStore.flushShoppingBag();
+  navResizeObserver?.disconnect();
+  navResizeObserver = null;
   if (orientationMql && orientationHandler) {
     orientationMql.removeEventListener('change', orientationHandler);
     orientationMql = null;

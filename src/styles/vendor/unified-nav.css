@@ -1195,35 +1195,9 @@
   }
 }
 
-/* 为页面内容添加顶部间距，避免被固定导航栏遮挡 */
-/* （newsroom 旧固定 100px 避让已删除：导航灵动岛时代实际高度 124-137px，
-    页面自身用 --nav-h 实测值做 padding，见 Newsroom/style.scoped.css .news-header） */
-
-/* 新闻、服务、周边页面的内容容器需要调整 */
-body.page-service .content-container,
-body.page-shop .page-header {
-  transition: padding-top 0.3s ease;
-}
-
-@media (max-width: 768px) {
-  body.page-service .content-container {
-    padding-top: 80px;
-  }
-
-  body.page-shop .page-header {
-    padding-top: 80px;
-  }
-}
-
-@media (min-width: 769px) {
-  body.page-service .content-container {
-    padding-top: 80px;
-  }
-
-  body.page-shop .page-header {
-    padding-top: 100px;
-  }
-}
+/* 旧导航时代的页面固定 padding 避让规则已全部删除（page-newsroom/page-service/page-shop）：
+   service 路由不存在、shop 页面无 .page-header 元素、newsroom 已迁移 --nav-h 实测方案。
+   页面顶部避让统一由各页面 ResizeObserver 实测 #unified-nav-container 写 --nav-h 实现。 */
 
 /* 登录模态框 */
 .unified-nav .nav-modal-overlay {
