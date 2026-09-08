@@ -619,8 +619,8 @@
 .command-palette {
   width: min(560px, calc(100vw - 32px));
   background: var(--dm-liquid-bg, rgba(255, 255, 255, 0.72));
-  backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
-  -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   border: 1px solid var(--border);
   border-radius: 14px;
   box-shadow: var(--liquid-shadow, 0 20px 60px rgba(15, 23, 42, 0.07)), var(--dm-liquid-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.55));

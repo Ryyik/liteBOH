@@ -33,6 +33,7 @@ export const STATUS_FILTER_FIELDS = {
   forumPostImages: 'moderation_status',
   cloudinaryUploads: 'status',
   birthdayEvents: 'is_active',
+  campaigns: 'stage',
   birthdayWishes: 'status',
   blockWallItems: 'item_type',
   bohCreatorShows: 'creator_platform',
@@ -79,6 +80,7 @@ export const DATE_FILTER_FIELDS = {
   blockWallItems: 'created_at',
   bohCreatorShows: 'created_at',
   birthdayEvents: 'celebration_date',
+  campaigns: 'start_at',
   birthdayWishes: 'created_at',
   userFollows: 'created_at',
   userImpressions: 'created_at',
@@ -472,6 +474,21 @@ export const TAB_SELECT_COLUMNS = {
     author:author_id(username)
   `,
 
+  // ========== 活动平台（BETA 6 P1-3）==========
+  campaigns: `
+    id,
+    slug,
+    title,
+    description,
+    stage,
+    signup_start_at,
+    signup_end_at,
+    start_at,
+    end_at,
+    config,
+    created_at
+  `,
+
   // ========== 生日活动 ==========
   birthdayEvents: `
     id,
@@ -587,6 +604,7 @@ export const TAB_DEFAULT_SORT = {
   blockWallItems: { column: 'created_at', ascending: false },
   bohCreatorShows: { column: 'created_at', ascending: false },
   birthdayEvents: { column: 'celebration_date', ascending: false },
+  campaigns: { column: 'created_at', ascending: false },
   birthdayWishes: { column: 'created_at', ascending: false },
   userFollows: { column: 'created_at', ascending: false },
   userImpressions: { column: 'created_at', ascending: false },
@@ -633,6 +651,7 @@ export const TAB_SORT_COLUMNS = {
   blockWallItems: new Set(['created_at', 'item_type']),
   bohCreatorShows: new Set(['created_at', 'creator_platform']),
   birthdayEvents: new Set(['celebration_date', 'is_active', 'sort_order']),
+  campaigns: new Set(['stage']),
   birthdayWishes: new Set(['created_at', 'status', 'is_featured']),
   userFollows: new Set(['created_at']),
   userImpressions: new Set(['created_at']),
@@ -680,6 +699,7 @@ export const TAB_SEARCH_FIELDS = {
   blockWallItems: [{ column: 'id', type: 'uuid' }, { column: 'author_username', type: 'text' }, { column: 'content', type: 'text' }, { column: 'item_type', type: 'text' }],
   bohCreatorShows: [{ column: 'id', type: 'uuid' }, { column: 'author_username', type: 'text' }, { column: 'title', type: 'text' }, { column: 'creator_platform', type: 'text' }],
   birthdayEvents: [{ column: 'id', type: 'uuid' }, { column: 'title', type: 'text' }, { column: 'target_username', type: 'text' }],
+  campaigns: [{ column: 'id', type: 'uuid' }, { column: 'slug', type: 'text' }, { column: 'title', type: 'text' }],
   birthdayWishes: [{ column: 'id', type: 'uuid' }, { column: 'author_name', type: 'text' }, { column: 'content', type: 'text' }, { column: 'status', type: 'text' }],
   userFollows: [{ column: 'id', type: 'uuid' }, { column: 'follower_id', type: 'uuid' }, { column: 'following_id', type: 'uuid' }],
   userImpressions: [{ column: 'id', type: 'uuid' }, { column: 'author_id', type: 'uuid' }, { column: 'target_id', type: 'uuid' }],

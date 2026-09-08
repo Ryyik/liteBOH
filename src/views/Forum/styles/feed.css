@@ -846,6 +846,12 @@
   flex-shrink: 0;
 }
 
+/* 官方卡（新闻/活动「方块之家」）：白底站点 logo，替代深色首字母圆 */
+.post-author-avatar.is-official {
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08), 0 6px 16px rgba(15, 23, 42, 0.08);
+}
+
 .post-author-info {
   display: flex;
   flex-direction: column;
@@ -872,6 +878,20 @@
   margin-bottom: 8px;
   letter-spacing: 0;
 }
+
+.post-kind-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 7px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1;
+  vertical-align: 3px;
+  font-weight: 800;
+}
+.post-kind-badge.news { color: #a23b00; background: rgba(255, 159, 10, .16); }
+.post-kind-badge.activity { color: #087443; background: rgba(52, 199, 89, .16); }
 
 .post-card-tags {
   display: flex;
@@ -932,8 +952,8 @@
   /* 液态玻璃做法：不铺任何底色（玻璃叠玻璃会发白发亮），
      直接用 backdrop-filter 把背后的文字尾行磨成玻璃雾，
      mask 把左边缘羽化，任何主题/底色下都无色差 */
-  backdrop-filter: blur(14px) saturate(180%);
-  -webkit-backdrop-filter: blur(14px) saturate(180%);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
   mask-image: linear-gradient(90deg, transparent, #000 45%);
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 45%);
   pointer-events: none;

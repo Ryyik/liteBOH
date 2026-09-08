@@ -430,8 +430,8 @@
   /* 移动端保留液态玻璃，仅降档模糊保性能（boh-perf-lite 会进一步降级） */
   .mobile-composer-setting-list {
     background: var(--liquid-bg-strong, rgba(255,255,255,0.84));
-    backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
-    -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+    backdrop-filter: var(--liquid-filter-sm);
+    -webkit-backdrop-filter: var(--liquid-filter-sm);
   }
 }
 
@@ -565,11 +565,6 @@
   background: #fff2f0;
   border: 1px solid rgba(255, 59, 48, 0.2);
   cursor: default;
-}
-
-.post-image-preview-item.is-processing img {
-  opacity: 0.72;
-  filter: saturate(0.82);
 }
 
 .post-image-preview-item.is-dragging {

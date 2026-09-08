@@ -2,6 +2,7 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { showIsland } from '@/composables/useIsland.js';
 import { fetchOfflineOverviewSummary } from '@/utils/api/overview-api.js';
+import { getDayFrontierIso, getLocalDayKey, readLastOnlineDay, writeLastOnlineDay } from '@/utils/overview-day-marker.js';
 import { formatSmartTime } from '@/utils/time.js';
 import { logger } from '@/utils/logger.js';
 import { getOverviewCardImage } from '@/views/SmartOverview/utils/image.js';
@@ -36,7 +37,11 @@ const buildStatusPayload = ({ total, offlineDays, isFirstLogin, username }) => {
 /**
  * 智能概览灵动岛：登录用户点击「我的方块」进入用户空间时，
  * 通过导航栏全局状态卡（GlobalNavStatusCard）展示离线概览摘要。
- * 每个用户每个浏览器会话最多自动弹出一次；无新内容不弹出。
+ *
+ * 自动推送采用天粒度「上次在线日」游标（localStorage 持久化，见 overview-day-marker.js）：
+ * - 当天上过线 = 当日及之前全部内容默认已浏览，同日不再自动推送；
+ * - 次日仅当存在上次在线日的次日零点之后新发布的内容才推送，无新一天内容不弹；
+ * - 推送窗口与离线天数均按日历日计算，避免把上次在线日当晚的新帖当作「错过内容」重复推送。
  */
 export function useOverviewIsland() {
   const authStore = useAuthStore();
@@ -68,11 +73,19 @@ export function useOverviewIsland() {
     }
   };
 
-  const showIslandFromSummary = (summary) => {
+  const showIslandFromSummary = (summary, { lastOnlineDay = '' } = {}) => {
     const anchorMs = summary.anchor ? new Date(summary.anchor).getTime() : 0;
-    const offlineDays = Number.isFinite(anchorMs)
+    let offlineDays = Number.isFinite(anchorMs)
       ? Math.max(0, Math.floor((Date.now() - anchorMs) / 86400000))
       : 0;
+    // 天粒度游标下按「上次在线日 → 现在」的日历差展示（如 26 号上线、今天 29 号 = 离开 3 天），
+    // 比锚点时间戳差值更贴近用户对「离开了几天」的直觉
+    if (lastOnlineDay) {
+      const lastDayMs = new Date(`${lastOnlineDay}T00:00:00`).getTime();
+      if (Number.isFinite(lastDayMs)) {
+        offlineDays = Math.max(0, Math.floor((Date.now() - lastDayMs) / 86400000));
+      }
+    }
     const username = String(authStore.userInfo?.username || '').trim() || '方块居民';
     const previews = (Array.isArray(summary.items) ? summary.items : [])
       .slice(0, 3)
@@ -117,13 +130,44 @@ export function useOverviewIsland() {
       if (!authStore.isInitialized) await authStore.initLoginState();
       if (!authStore.isLoggedIn || wasShownThisSession()) return;
 
-      const summary = await fetchOfflineOverviewSummary({ anchor: authStore.offlineAnchorAt });
+      const checkedUserId = authStore.userInfo?.id || userId;
+      if (!checkedUserId) return;
+
+      // —— 天粒度「当日已读」守卫 ——
+      // 当天已成功检查过（无论是否推送过）→ 当日及之前内容视为已浏览，不再自动推送
+      const todayKey = getLocalDayKey();
+      let lastOnlineDay = readLastOnlineDay(checkedUserId);
+      if (lastOnlineDay && lastOnlineDay >= todayKey) return;
+
+      if (!lastOnlineDay) {
+        // 首次启用游标：以会话锚点所在日作为「上次在线日」（锚点缺失则视为今天），
+        // 保证首日推送窗口也是天粒度（仅推上次在线日次日起的新内容）
+        const anchorDay = authStore.offlineAnchorAt
+          ? getLocalDayKey(new Date(authStore.offlineAnchorAt))
+          : '';
+        lastOnlineDay = anchorDay || todayKey;
+      }
+
+      // 推送游标 = 上次在线日的次日零点；上次在线日就是今天（或时钟回拨/脏数据）则无「新一天」内容
+      const pushFrontier = lastOnlineDay < todayKey ? getDayFrontierIso(lastOnlineDay) : null;
+      if (!pushFrontier) {
+        writeLastOnlineDay(checkedUserId, todayKey);
+        return;
+      }
+
+      const summary = await fetchOfflineOverviewSummary({ anchor: pushFrontier });
       lastCheckedAt = Date.now();
-      lastCheckedUserId = userId;
+      lastCheckedUserId = checkedUserId;
 
-      if (!summary || summary.total <= 0) return;
+      if (!summary) return;
 
-      showIslandFromSummary(summary);
+      // 检查成功即标记「今天已上线」：同日后续检查直接短路；
+      // 次日推送窗口自动从今天 24 点后起算（当天上线 = 默认已浏览当日及之前全部内容）
+      writeLastOnlineDay(checkedUserId, todayKey);
+
+      if (summary.total <= 0) return;
+
+      showIslandFromSummary(summary, { lastOnlineDay });
     } catch (error) {
       logger.error('overview-island', '智能概览灵动岛检查失败', error);
     } finally {
@@ -151,6 +195,15 @@ export function useOverviewIsland() {
 
       if (simulateDays > 0) {
         authStore.offlineAnchorAt = new Date(Date.now() - simulateDays * 86400000).toISOString();
+        // 同步把天粒度「上次在线日」游标拨回对应日期：
+        // 之后走真实自动检查（点击「我的方块」）即可复现「离开 N 天」的天粒度推送窗口
+        const simulatedUserId = authStore.userInfo?.id || '';
+        if (simulatedUserId) {
+          writeLastOnlineDay(
+            simulatedUserId,
+            getLocalDayKey(new Date(Date.now() - simulateDays * 86400000))
+          );
+        }
       }
 
       const summary = await fetchOfflineOverviewSummary({ anchor: authStore.offlineAnchorAt });
