@@ -222,8 +222,8 @@ const greeting = computed(() => {
   gap: 6px;
   padding: 8px 16px;
   background: rgba(255, 255, 255, 0.62);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   border: 1px solid rgba(255, 255, 255, 0.7);
   border-radius: 980px;
   font-size: 14px;

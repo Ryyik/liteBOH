@@ -86,7 +86,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.payment-success-overlay { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 24px; color: #1d1d1f; background: rgba(233, 237, 242, .68); backdrop-filter: blur(22px) saturate(140%); -webkit-backdrop-filter: blur(22px) saturate(140%); }
+.payment-success-overlay { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 24px; color: #1d1d1f; background: rgba(233, 237, 242, .68); backdrop-filter: var(--liquid-filter); -webkit-backdrop-filter: var(--liquid-filter); }
 .payment-success-dialog { position: relative; width: min(424px, 100%); padding: 31px 31px 28px; overflow: hidden; border: 1px solid rgba(255, 255, 255, .74); border-radius: 22px; text-align: center; background: rgba(255, 255, 255, .75); box-shadow: 0 28px 80px rgba(23, 39, 58, .2), inset 0 1px rgba(255, 255, 255, .86); }
 .payment-success-close { position: absolute; top: 14px; right: 14px; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; color: #5d6269; background: rgba(235, 238, 242, .9); cursor: pointer; transition: transform 160ms ease, background-color 160ms ease; }.payment-success-close:hover { background: #e5e8ec; }.payment-success-close:active { transform: scale(.92); }
 .payment-success-kicker { margin: 0 0 22px; color: #7a8089; font-size: 11px; font-weight: 700; line-height: 1; letter-spacing: .08em; }

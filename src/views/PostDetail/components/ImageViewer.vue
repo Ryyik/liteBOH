@@ -252,8 +252,8 @@ onUnmounted(() => {
   justify-content: center;
   padding: clamp(18px, 4vw, 52px);
   background: rgba(7, 10, 18, 0.88);
-  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
-  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
 }
 
 .detail-image-viewer-stage {
@@ -308,8 +308,8 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
-  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
   transition: background-color 0.18s ease, transform 0.18s ease;
 }
 
@@ -327,8 +327,8 @@ onUnmounted(() => {
   border-radius: 999px;
   color: #fff;
   background: rgba(255, 255, 255, 0.14);
-  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
-  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
 }
 
 .detail-image-viewer-tool {
@@ -406,8 +406,8 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.14);
   font-size: 13px;
   font-weight: 800;
-  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
-  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
 }
 
 .detail-image-viewer-loader {

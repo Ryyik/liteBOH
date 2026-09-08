@@ -756,8 +756,8 @@ onMounted(async () => {
   box-shadow: var(--am-card-shadow);
 }
 .variant-glass .am-card {
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
 }
 
 /* ============================================

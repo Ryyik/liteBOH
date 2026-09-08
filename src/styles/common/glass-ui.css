@@ -1,9 +1,9 @@
 /**
  * ==============================================
- * 毛玻璃UI样式库 (Glass Morphism UI Library)
+ * 旧玻璃类名兼容层 (Legacy Glass Compatibility)
  * ==============================================
- * 提供统一的毛玻璃效果组件样式
- * 适用于：导航栏、模态框、卡片、按钮等
+ * 旧 glass-* 类名仍可使用，但材质实现统一由 liquid-glass.css 提供。
+ * 新代码请直接使用 liquid-glass / liquid-glass--* 类名。
  * ==============================================
  */
 
@@ -15,9 +15,10 @@
   --glass-blur-medium: var(--liquid-blur-sm);
   --glass-blur-heavy: var(--liquid-blur);
   --glass-blur-overlay: calc(var(--liquid-blur) * 0.29);
-  --glass-filter-light: var(--glass-filter-light) saturate(var(--liquid-saturate, 180%)) brightness(1.02);
-  --glass-filter-medium: var(--glass-filter-medium) saturate(var(--liquid-saturate, 180%)) brightness(1.02);
-  --glass-filter-heavy: var(--glass-filter-heavy) saturate(var(--liquid-saturate, 180%)) brightness(1.02);
+  /* Compatibility aliases. Liquid Glass is the only material implementation. */
+  --glass-filter-light: var(--liquid-filter-sm);
+  --glass-filter-medium: var(--liquid-filter);
+  --glass-filter-heavy: var(--liquid-filter);
 }
 
 /* ===================
@@ -80,8 +81,8 @@
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(var(--glass-blur-overlay));
-  -webkit-backdrop-filter: blur(var(--glass-blur-overlay));
+  backdrop-filter: var(--liquid-filter-lg);
+  -webkit-backdrop-filter: var(--liquid-filter-lg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -98,8 +99,8 @@
   right: 0;
   bottom: 0;
   background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: var(--glass-filter-medium);
-  -webkit-backdrop-filter: var(--glass-filter-medium);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -115,8 +116,8 @@
  */
 .glass-modal-content {
   background: rgba(255, 255, 255, 0.5);
-  backdrop-filter: var(--glass-filter-heavy);
-  -webkit-backdrop-filter: var(--glass-filter-heavy);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 24px;
   box-shadow: 0 25px 60px rgba(0, 0, 0, 0.12);
@@ -131,8 +132,8 @@
  */
 .glass-card {
   background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: var(--glass-filter-medium);
-  -webkit-backdrop-filter: var(--glass-filter-medium);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   transition: transform 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
@@ -363,21 +364,10 @@
   .glass-button,
   .glass-card,
   .glass-input,
-  .glass-navbar {
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-  }
-
-  .glass-container-medium {
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-  }
-
+  .glass-navbar { backdrop-filter: var(--liquid-filter-sm); -webkit-backdrop-filter: var(--liquid-filter-sm); }
+  .glass-container-medium,
   .glass-container-heavy,
-  .glass-modal {
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-  }
+  .glass-modal { backdrop-filter: var(--liquid-filter-sm); -webkit-backdrop-filter: var(--liquid-filter-sm); }
 }
 
 /**
@@ -649,5 +639,112 @@
   .glass-navbar,
   .glass-button-primary {
     transition: none !important;
+  }
+}
+
+/*
+ * Liquid Glass canonical surface
+ *
+ * The legacy glass-* names remain as source-compatible aliases while callers
+ * migrate. Keeping the mapping here prevents a second material system from
+ * drifting away from liquid-glass.css.
+ */
+.glass-container-light,
+.glass-container-medium,
+.glass-container-heavy,
+.glass-card,
+.glass-modal-content,
+.glass-modal-container,
+.glass-modal,
+.glass-navbar,
+.glass-sidebar,
+.glass-chat-header,
+.glass-toast,
+.glass-code-block {
+  background: var(--liquid-bg);
+  border: 1px solid var(--liquid-border);
+  border-radius: var(--liquid-radius-lg);
+  box-shadow: var(--liquid-highlight), inset 0 -1px 0 rgba(255,255,255,0.22), var(--liquid-shadow);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
+  isolation: isolate;
+  contain: paint;
+}
+
+.glass-container-light,
+.glass-navbar,
+.glass-chat-header {
+  background: var(--liquid-bg-subtle);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
+}
+
+.glass-container-heavy,
+.glass-modal-content,
+.glass-modal-container,
+.glass-modal,
+.glass-sidebar,
+.glass-toast {
+  background: var(--liquid-bg-strong);
+}
+
+.glass-overlay,
+.glass-modal-overlay,
+.glass-overlay-light,
+.glass-modal-overlay-light {
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: var(--liquid-filter-lg);
+  -webkit-backdrop-filter: var(--liquid-filter-lg);
+}
+
+.glass-button,
+.glass-input,
+.glass-chat-input,
+.glass-message-bubble,
+.glass-user-bubble,
+.glass-button-primary {
+  background: var(--liquid-bg-subtle);
+  border: 1px solid var(--liquid-border);
+  border-radius: var(--liquid-radius-md);
+  box-shadow: var(--liquid-highlight-subtle), var(--liquid-shadow-sm);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
+}
+
+.glass-card-hover:hover,
+.glass-card:hover,
+.glass-button:hover,
+.glass-button-primary:hover {
+  background: var(--liquid-bg);
+  border-color: var(--liquid-border);
+  box-shadow: var(--liquid-highlight), var(--liquid-shadow);
+}
+
+/* Legacy modifiers now only express shape/decoration; material stays shared. */
+.glass-border-bright { border-color: var(--liquid-border) !important; }
+.glass-bg-more-transparent { background: var(--liquid-bg-subtle) !important; }
+.glass-bg-less-transparent { background: var(--liquid-bg-strong) !important; }
+.glass-no-border { border-color: transparent !important; }
+
+@media (max-width: 768px) {
+  .glass-container-light,
+  .glass-container-medium,
+  .glass-container-heavy,
+  .glass-card,
+  .glass-modal-content,
+  .glass-modal-container,
+  .glass-navbar,
+  .glass-sidebar,
+  .glass-chat-header,
+  .glass-toast,
+  .glass-code-block,
+  .glass-button,
+  .glass-input,
+  .glass-chat-input,
+  .glass-message-bubble,
+  .glass-user-bubble,
+  .glass-button-primary {
+    --liquid-blur: 16px;
+    --liquid-blur-sm: 12px;
   }
 }

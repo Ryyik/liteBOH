@@ -1261,8 +1261,8 @@ onBeforeUnmount(() => {
   height: 54px;
   border-radius: 27px;
   background: rgba(29, 29, 31, 0.9);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
   color: #ffffff;
   border: none;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);

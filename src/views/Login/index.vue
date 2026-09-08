@@ -1445,8 +1445,8 @@ onUnmounted(() => {
     height: 36px;
     background: rgba(245, 245, 247, 0.8);
     border: 1px solid rgba(29, 29, 31, 0.08);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: var(--liquid-filter-sm);
+    -webkit-backdrop-filter: var(--liquid-filter-sm);
   }
 
   /* Beta 5 导航本身是 64px 高并下移 10px，卡片必须以其真实底边为锚点。 */
@@ -1680,8 +1680,8 @@ onUnmounted(() => {
     padding: calc(76px + env(safe-area-inset-top)) var(--mobile-safe-x) calc(28px + env(safe-area-inset-bottom));
     background: rgba(255, 255, 255, 0.84);
     box-shadow: 0 -18px 54px rgba(15, 23, 42, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.9);
-    backdrop-filter: blur(28px) saturate(155%);
-    -webkit-backdrop-filter: blur(28px) saturate(155%);
+    backdrop-filter: var(--liquid-filter);
+    -webkit-backdrop-filter: var(--liquid-filter);
     transform-origin: 50% 0;
     transform: translateY(calc(-100% + 150px)) scaleX(0.86);
     opacity: 0.98;
@@ -1861,8 +1861,8 @@ onUnmounted(() => {
     gap: 12px;
     color: #1d1d1f;
     background: rgba(255,255,255,0.86);
-    backdrop-filter: blur(26px) saturate(155%);
-    -webkit-backdrop-filter: blur(26px) saturate(155%);
+    backdrop-filter: var(--liquid-filter);
+    -webkit-backdrop-filter: var(--liquid-filter);
     animation: mobileSuccessIn 260ms ease both;
   }
 
@@ -1886,8 +1886,8 @@ onUnmounted(() => {
     height: 38px;
     background: rgba(255,255,255,0.68);
     border: 1px solid rgba(29,29,31,0.1);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: var(--liquid-filter-sm);
+    -webkit-backdrop-filter: var(--liquid-filter-sm);
   }
 
   .login-image-section {

@@ -52,8 +52,8 @@
 ) {
   background: rgba(8, 14, 24, 0.84) !important;
   border-bottom: 1px solid var(--uc-dark-border) !important;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
 }
 
 [data-theme="dark"] :is(
@@ -337,8 +337,8 @@
     ),
     rgba(20, 22, 28, 0.35) !important;
   border-color: rgba(255, 255, 255, 0.06) !important;
-  backdrop-filter: blur(32px) !important;
-  -webkit-backdrop-filter: blur(32px) !important;
+  backdrop-filter: var(--liquid-filter) !important;
+  -webkit-backdrop-filter: var(--liquid-filter) !important;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2) !important;
 }
 

@@ -692,8 +692,8 @@
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
-  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
 }
 .ai-confirm-modal {
   width: min(420px, 90vw);

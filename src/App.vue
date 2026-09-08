@@ -313,8 +313,8 @@ html {
 
 .toast-content {
   background: rgba(34, 197, 94, 0.15);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
   border: 1px solid rgba(34, 197, 94, 0.2);
   padding: 16px 20px;
   border-radius: 16px;

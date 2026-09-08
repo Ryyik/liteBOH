@@ -768,8 +768,8 @@ onMounted(() => {
   padding: 10px 20px;
   border-radius: 20px;
   background: rgba(29, 29, 31, 0.88);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   color: #ffffff;
   font-size: 13px;
   font-weight: 500;

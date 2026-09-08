@@ -57,8 +57,8 @@ defineEmits(['back']);
       rgba(248, 249, 252, 0.28) 72%,
       rgba(248, 249, 252, 0) 100%
     );
-  backdrop-filter: blur(30px) saturate(170%);
-  -webkit-backdrop-filter: blur(30px) saturate(170%);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 48%, rgba(0, 0, 0, 0.42) 74%, transparent 100%);
   mask-image: linear-gradient(180deg, #000 0%, #000 48%, rgba(0, 0, 0, 0.42) 74%, transparent 100%);
 }

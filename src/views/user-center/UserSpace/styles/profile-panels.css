@@ -1510,8 +1510,8 @@
   color: #b7791f;
   font-size: 13px;
   font-weight: 800;
-  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
-  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
 }
 
 .sponsor-qr-placeholder {

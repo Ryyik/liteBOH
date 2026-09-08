@@ -854,7 +854,7 @@
   border-radius: 999px;
   color: #fff;
   background: rgba(29, 29, 31, 0.92);
-  backdrop-filter: blur(18px);
+  backdrop-filter: var(--liquid-filter-sm);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
   transform: translateX(-50%);
   font-size: 15px;
@@ -949,7 +949,7 @@
   place-items: center;
   padding: 24px;
   background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(24px);
+  backdrop-filter: var(--liquid-filter);
 }
 
 .poster-preview {

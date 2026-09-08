@@ -19,8 +19,8 @@
   z-index: 10000;
   /* 更柔和的遮罩背景 */
   background-color: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
   display: flex;
   align-items: center;
   justify-content: center;

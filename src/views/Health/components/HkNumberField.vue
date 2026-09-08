@@ -168,8 +168,8 @@ const commitNumber = () => {
   margin: -4px -10px -4px 0;
   border: none;
   background: rgba(255, 255, 255, 0.7);
-  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
-  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
+  backdrop-filter: var(--liquid-filter-sm);
   border-radius: 10px;
   color: var(--hk-text);
   font: inherit;
@@ -215,8 +215,8 @@ const commitNumber = () => {
   border: none;
   border-radius: 13px;
   background: rgba(255, 255, 255, 0.95);
-  -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
-  backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
+  -webkit-backdrop-filter: var(--liquid-filter);
+  backdrop-filter: var(--liquid-filter);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
   font-size: 18px;
   font-weight: 600;

@@ -269,8 +269,8 @@ onMounted(async () => {
   width: 100%;
   height: 100%;
   background-color: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   display: flex;
   align-items: center;
   justify-content: center;

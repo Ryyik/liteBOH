@@ -133,8 +133,8 @@
     border-bottom: 1px solid transparent;
     background: rgba(255, 255, 255, 0.92);
     box-shadow: none;
-    backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
-    -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+    backdrop-filter: var(--liquid-filter-sm);
+    -webkit-backdrop-filter: var(--liquid-filter-sm);
 }
 
 .mac-window-controls {
@@ -1128,8 +1128,8 @@
     border-radius: 20px;
     background: rgba(255, 255, 255, 0.96);
     box-shadow: 0 22px 70px rgba(0, 0, 0, 0.18);
-    backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
-    -webkit-backdrop-filter: var(--liquid-filter, blur(28px) saturate(180%) brightness(1.02));
+    backdrop-filter: var(--liquid-filter);
+    -webkit-backdrop-filter: var(--liquid-filter);
 }
 
 .feature-menu-handle {

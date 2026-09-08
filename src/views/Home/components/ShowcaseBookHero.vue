@@ -455,8 +455,8 @@ const leaves = computed(() => Array.from({ length: 14 }, (_, i) => {
   background: rgba(255, 255, 255, .9);
   box-shadow: none;
   transform: translate(-50%, -50%);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
 }
 .showcase-hero.is-character-ring .showcase-stage {
   position: absolute;

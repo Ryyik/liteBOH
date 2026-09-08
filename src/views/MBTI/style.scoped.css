@@ -27,8 +27,8 @@
   right: 0;
   height: 80px;
   background: rgba(248, 249, 251, 0.7);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   display: flex;
   align-items: center;
   padding: 0 40px;

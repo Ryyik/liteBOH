@@ -78,8 +78,8 @@
   border-radius: 16px;
   background: var(--lottery-glass);
   box-shadow: 0 8px 24px rgba(29, 29, 31, 0.06);
-  backdrop-filter: blur(16px) saturate(150%);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
   flex-wrap: nowrap;
   overflow: visible;
 }
@@ -148,8 +148,8 @@
   letter-spacing: -0.02em;
   white-space: nowrap;
   cursor: pointer;
-  backdrop-filter: blur(12px) saturate(140%);
-  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
   transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 150ms ease;
   max-width: 132px;
 }
@@ -197,8 +197,8 @@
   border-radius: 12px;
   background: rgba(255,255,255,0.94);
   box-shadow: 0 10px 28px rgba(29,29,31,0.12), 0 1px 3px rgba(29,29,31,0.06);
-  backdrop-filter: blur(20px) saturate(170%);
-  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   display: grid;
   gap: 2px;
 }
@@ -312,8 +312,8 @@
   border-left: 1px solid rgba(255, 255, 255, 0.48);
   background: var(--lottery-glass-strong);
   box-shadow: -18px 0 42px rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(16px) saturate(145%);
-  -webkit-backdrop-filter: blur(16px) saturate(145%);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
 }
 
 .lottery-featured-card.no-cover .lottery-featured-content {
@@ -341,8 +341,8 @@
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.56);
   box-shadow: 0 6px 18px rgba(29, 29, 31, 0.06);
-  backdrop-filter: blur(14px) saturate(135%);
-  -webkit-backdrop-filter: blur(14px) saturate(135%);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
   transition: transform 220ms cubic-bezier(0.32,0.72,0,1), box-shadow 220ms ease, background-color 180ms ease, border-color 180ms ease;
 }
 
@@ -841,8 +841,8 @@
   background: rgba(28, 28, 30, 0.84);
   box-shadow: 0 14px 38px rgba(15, 23, 42, 0.2);
   color: #ffffff;
-  backdrop-filter: blur(16px) saturate(140%);
-  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
 }
 
 .lottery-toast strong {
@@ -883,8 +883,8 @@
   justify-content: center;
   padding: 24px;
   background: rgba(15, 18, 23, 0.34);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
 }
 
 .lottery-detail-modal {
@@ -897,8 +897,8 @@
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.82);
   box-shadow: 0 28px 80px rgba(15, 23, 42, 0.28);
-  backdrop-filter: blur(16px) saturate(150%);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
 }
 
 .lottery-detail-close {
@@ -1139,8 +1139,8 @@
     z-index: 5;
     min-height: 46px;
     padding: 5px 6px;
-    backdrop-filter: blur(20px) saturate(170%);
-    -webkit-backdrop-filter: blur(20px) saturate(170%);
+    backdrop-filter: var(--liquid-filter);
+    -webkit-backdrop-filter: var(--liquid-filter);
   }
 
   .lottery-pity-capsule-wrap { margin-bottom: 10px; }
@@ -1324,8 +1324,8 @@
     border-radius: 20px 20px 0 0;
     background: rgba(255, 255, 255, 0.68);
     box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.07);
-    backdrop-filter: blur(16px) saturate(150%);
-    -webkit-backdrop-filter: blur(16px) saturate(150%);
+    backdrop-filter: var(--liquid-filter-sm);
+    -webkit-backdrop-filter: var(--liquid-filter-sm);
   }
 
   .lottery-featured-card.no-cover .lottery-featured-content {
@@ -1671,8 +1671,8 @@
   letter-spacing: -0.02em;
   white-space: nowrap;
   cursor: pointer;
-  backdrop-filter: blur(16px) saturate(140%);
-  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
   transition: background-color 160ms ease, box-shadow 160ms ease, transform 150ms ease;
 }
 
@@ -1730,8 +1730,8 @@
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.76);
   box-shadow: 0 2px 12px rgba(29, 29, 31, 0.07), 0 1px 2px rgba(29,29,31,0.04);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   transition: background-color 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
 
@@ -1804,8 +1804,8 @@
   letter-spacing: -0.02em;
   white-space: nowrap;
   cursor: pointer;
-  backdrop-filter: blur(12px) saturate(140%);
-  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
   transition: background-color 160ms ease, box-shadow 160ms ease, transform 150ms ease, border-color 160ms ease;
 }
 .pity-unified-points:hover { background: rgba(255,255,255,0.92); border-color: rgba(29,29,31,0.12); box-shadow: 0 1px 6px rgba(29,29,31,0.06); }
@@ -1953,8 +1953,8 @@
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.72);
   box-shadow: 0 2px 10px rgba(29, 29, 31, 0.06);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   cursor: pointer;
   transition: background-color 180ms ease, box-shadow 180ms ease, transform 160ms var(--ease-out, cubic-bezier(0.32, 0.72, 0, 1));
 }
@@ -2070,8 +2070,8 @@
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 16px 40px rgba(29, 29, 31, 0.16), 0 1px 3px rgba(29, 29, 31, 0.08);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   transform-origin: top left;
 }
 

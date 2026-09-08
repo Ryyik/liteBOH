@@ -37,8 +37,8 @@ defineEmits(['click']);
     0 18px 36px rgba(15, 23, 42, 0.1),
     0 8px 18px rgba(132, 204, 154, 0.14),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(18px) saturate(160%);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
   transition: box-shadow 0.2s ease, transform 0.2s ease, background 0.2s ease;
 }
 

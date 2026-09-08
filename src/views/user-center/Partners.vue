@@ -573,7 +573,7 @@ onBeforeUnmount(() => {
   top: 72px;
   z-index: 100;
   background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  backdrop-filter: var(--liquid-filter-sm);
   border-bottom: 1px solid #eff3f4;
 }
 
@@ -677,10 +677,12 @@ onBeforeUnmount(() => {
 }
 
 .glass-container-light {
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.04);
-  border-radius: 32px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.04);
+  background: var(--liquid-bg);
+  border: 1px solid var(--liquid-border);
+  border-radius: var(--liquid-radius-lg);
+  box-shadow: var(--liquid-highlight), var(--liquid-shadow);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
 }
 
 .dashboard-header {
@@ -955,7 +957,7 @@ onBeforeUnmount(() => {
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  backdrop-filter: var(--liquid-filter-sm);
   z-index: 10000;
   display: flex;
   align-items: center;

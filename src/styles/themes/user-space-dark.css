@@ -24,8 +24,8 @@
 .user-space-page[data-theme="dark"] .bottom-nav-glass,
 [data-theme="dark"] .user-space-page .bottom-nav-glass {
   background: rgba(26, 26, 36, 0.85) !important;
-  backdrop-filter: blur(20px) !important;
-  -webkit-backdrop-filter: blur(20px) !important;
+  backdrop-filter: var(--liquid-filter) !important;
+  -webkit-backdrop-filter: var(--liquid-filter) !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
 }

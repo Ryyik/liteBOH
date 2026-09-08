@@ -32,7 +32,10 @@
   --liquid-bg: rgba(255, 255, 255, 0.72);
   --liquid-bg-strong: rgba(255, 255, 255, 0.84);
   --liquid-bg-subtle: rgba(255, 255, 255, 0.58);
+  --liquid-bg-nested: rgba(255, 255, 255, 0.42);
+  --liquid-bg-overlay: rgba(248, 250, 252, 0.62);
   --liquid-border: rgba(255, 255, 255, 0.65);
+  --liquid-border-strong: rgba(255, 255, 255, 0.82);
   --liquid-border-hairline: rgba(15, 23, 42, 0.06);
   --liquid-blur: 28px;
   --liquid-blur-sm: 18px;
@@ -46,6 +49,7 @@
   --liquid-highlight-subtle: inset 0 1px 0 rgba(255, 255, 255, 0.55);
   --liquid-shadow: 0 20px 60px rgba(15, 23, 42, 0.07), 0 1px 3px rgba(15, 23, 42, 0.06);
   --liquid-shadow-sm: 0 8px 24px rgba(15, 23, 42, 0.06);
+  --liquid-shadow-overlay: 0 24px 80px rgba(15, 23, 42, 0.14);
   --liquid-radius-lg: 28px;
   --liquid-radius-md: 16px;
   --liquid-radius-pill: 999px;
@@ -58,12 +62,16 @@
   --liquid-bg: rgba(28, 28, 36, 0.72);
   --liquid-bg-strong: rgba(40, 40, 52, 0.84);
   --liquid-bg-subtle: rgba(38, 38, 48, 0.58);
+  --liquid-bg-nested: rgba(38, 38, 48, 0.42);
+  --liquid-bg-overlay: rgba(18, 18, 26, 0.68);
   --liquid-border: rgba(255, 255, 255, 0.12);
+  --liquid-border-strong: rgba(255, 255, 255, 0.18);
   --liquid-border-hairline: rgba(255, 255, 255, 0.08);
   --liquid-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.12);
   --liquid-highlight-subtle: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   --liquid-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
   --liquid-shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.3);
+  --liquid-shadow-overlay: 0 24px 80px rgba(0, 0, 0, 0.42);
 }
 
 /* Liquid Glass 降级：不支持 backdrop-filter 或性能省电模式时回退为实色 */

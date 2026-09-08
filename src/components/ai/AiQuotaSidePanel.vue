@@ -172,8 +172,8 @@ const handleUpgrade = () => {
   justify-content: flex-end !important;
   padding: 12px !important;
     background: rgba(61, 57, 41, 0.22) !important;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
   isolation: isolate;
   will-change: transform;
 }

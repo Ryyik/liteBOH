@@ -461,8 +461,8 @@ onBeforeUnmount(() => window.removeEventListener('resize', syncViewportOrientati
   text-decoration: none;
   cursor: pointer;
   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.18), inset 0 1px rgba(255, 255, 255, 0.24);
-  backdrop-filter: blur(22px) saturate(180%);
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1), background-color 260ms ease, border-color 260ms ease;
 }
 

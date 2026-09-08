@@ -1533,8 +1533,8 @@
   color: var(--text-primary);
   cursor: pointer;
   text-align: left;
-  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
-  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
   transition: border-color 0.2s var(--ease-spring), background 0.2s var(--ease-spring),
     transform 0.2s var(--ease-spring), box-shadow 0.2s var(--ease-spring);
 }

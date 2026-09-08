@@ -68,8 +68,8 @@ const handleOverlayClick = () => {
   width: 100%;
   height: 100%;
   background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
   display: flex;
   align-items: center;
   justify-content: center;

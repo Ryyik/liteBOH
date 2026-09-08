@@ -38,8 +38,8 @@ defineEmits(['close']);
 /* 玻璃样式 - Figma现代风格 */
 .glass-card {
   background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 24px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
@@ -52,7 +52,7 @@ defineEmits(['close']);
   left: 0;
   width: 100%;
   height: 100%;
-  backdrop-filter: blur(8px);
+  backdrop-filter: var(--liquid-filter-sm);
   display: flex;
   align-items: center;
   justify-content: center;

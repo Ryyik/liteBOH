@@ -16,7 +16,7 @@
 .x-notifications-container[data-theme="dark"] .x-header {
   background: rgba(13, 13, 18, 0.95);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
+  backdrop-filter: var(--liquid-filter-sm);
 }
 
 .x-notifications-container[data-theme="dark"] .x-header-title {
@@ -406,7 +406,7 @@
    ============================================ */
 [data-theme="dark"] .x-detail-drawer-overlay {
   background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
+  backdrop-filter: var(--liquid-filter-sm);
 }
 
 [data-theme="dark"] .x-detail-drawer {

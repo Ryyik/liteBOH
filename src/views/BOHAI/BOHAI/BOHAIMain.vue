@@ -2216,8 +2216,8 @@ watch(() => messages.value.length, () => {
     padding: 16px 18px;
     border-radius: 14px;
     background: rgba(255, 255, 255, 0.55);
-    -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
-    backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%) brightness(1.02));
+    -webkit-backdrop-filter: var(--liquid-filter-sm);
+    backdrop-filter: var(--liquid-filter-sm);
     border: 1px solid rgba(255, 255, 255, 0.7);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
