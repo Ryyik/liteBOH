@@ -526,9 +526,9 @@ bagStore.loadShoppingBag();
 
 | 问题 | 位置 | 风险 | 修复建议 | 状态 |
 |------|------|------|----------|------|
-| **API Key 硬编码** | `useChatEngine.js:L7-9` | 密钥泄露风险 | 使用环境变量，立即轮换密钥 | ⏳ 待修复 |
-| **RLS 策略缺失** | 数据库表 | 数据越权访问 | 为所有表启用 RLS 策略 | ⏳ 待修复 |
-| **权限检查在客户端** | `forum-api.js` | 权限绕过 | 服务端验证用户角色 | ⏳ 待修复 |
+| **API Key 硬编码** | `src/views/BOHAI/composables/useChatEngine.js`（历史审计路径） | 密钥泄露风险 | 通过 `api-key-vault` Edge Function 代理，前端不持有第三方 Key | ✅ 已修复（2026-09-07 复核） |
+| **RLS 策略缺失** | 数据库表 | 数据越权访问 | 为所有表启用 RLS 策略 | ✅ 已修复（2026-09-08：migration 2026090803 列级加固，anon 探针全过） |
+| **权限检查在客户端** | `forum-api.js` | 权限绕过 | 服务端验证用户角色 | ✅ 已修复（2026-09-08：0907/0908 RPC 服务端判 admin + 090803 profiles 列级 update 白名单强制） |
 | **XSS 风险** | `Forum.vue:L181` | 脚本注入 | 使用 DOMPurify 净化内容 | ✅ 已修复 |
 | **经验值竞态条件** | `xp.js:L42-72` | 数据丢失 | 使用数据库原子操作 | ✅ 已修复 |
 
@@ -673,32 +673,17 @@ bagStore.loadShoppingBag();
   - 检查 `notificationsStore.resetState()` 是否停止了实时订阅
   - 清除 localStorage 中的 `boh_auth` 键
 
-### Q8: API Key 硬编码安全问题
+### Q8: API Key 硬编码安全问题（历史问题，已修复）
 
-- **原因**: AI 聊天组件中硬编码了 API Key。
-- **解决**:
-  - 立即将 API Key 移至 `.env` 文件
-  - 使用 `import.meta.env.VITE_XXX_API_KEY` 读取
-  - 在 `.env.example` 中添加示例配置
-  - **立即轮换已泄露的密钥**
+- **历史原因**: 旧版 AI 聊天组件曾在前端直接调用第三方模型。
+- **当前实现**: 前端通过 `api-key-vault` Edge Function 调用，完整 Key 仅存于加密 Vault 或服务端 Secrets；数据管理面板只显示脱敏值。
+- **复核结论**: 全仓未发现第三方 API Key 常量或 `VITE_*_API_KEY` 前端调用。`VITE_SUPABASE_ANON_KEY` 属于 Supabase 客户端公开配置，不属于该问题。
 
-### Q9: 权限绕过风险
+### Q9: 权限绕过风险（正在收敛）
 
-- **原因**: 论坛删除/编辑操作依赖客户端传入的 `userRole`。
-- **解决**:
-  - 在服务端查询用户角色进行验证
-  - 使用 Supabase RLS 策略进行权限控制
-  - 参考代码:
-    ```javascript
-    const { data: userProfile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', userId)
-      .single();
-    if (post.author_id !== userId && userProfile?.role !== 'admin') {
-      return { ok: false, error: '没有权限' };
-    }
-    ```
+- **历史原因**: 论坛 API 曾用调用方传入的 `userRole` 在客户端预判删除/编辑权限，并允许其影响帖子状态。
+- **当前修复**: 客户端不再依据 `userRole` 放行写操作，也不再用它把帖子提升为 `approved`；删除和更新交给 Supabase RLS 判定，失败时返回权限错误。
+- **剩余工作**: 对 `posts`、`comments`、`likes`、`forum_post_images` 及相关写入表做一次线上 RLS 策略清单复核，确认策略覆盖作者和管理员路径。
 
 ### Q10: 内存泄漏问题
 

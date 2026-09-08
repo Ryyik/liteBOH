@@ -628,10 +628,10 @@ const PROFILE_SELECT_COLUMNS = `
           // 注册后资料未落库时，在首次登录阶段进行一次自愈补建。
           if (!profileData) {
             const fallbackUsername = resolveFallbackUsername(u);
+            // 安全加固（2026090803）：email 只存 auth.users，profiles 已 drop 该列
             const bootstrapProfile = {
               id: u.id,
               username: fallbackUsername || String(u.id).slice(0, 8),
-              email: String(u.email || '').trim().toLowerCase() || null,
               join_date: new Date().toISOString().split('T')[0]
             };
 

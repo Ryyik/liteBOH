@@ -155,10 +155,10 @@ export async function signUp(username, email, password, metadata = {}) {
   // 仅同步安全字段，防止客户端通过 metadata 越权设置 role/points 等敏感字段。
   if (data?.user) {
     try {
+      // 安全加固（2026090803）：email 只存 auth.users，profiles 已 drop 该列
       const profileData = {
         id: data.user.id,
         username: safeUsername,
-        email: safeEmail,
         join_date: new Date().toISOString().split('T')[0]
       };
 
