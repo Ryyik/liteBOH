@@ -1,4 +1,5 @@
 import { normalizeDbError } from './request-core.js';
+import { logger } from './logger.js';
 import { supabase } from './supabase-client.js';
 import {
   CLOUD_UPLOAD_MAX_IMAGE_SIZE_BYTES,
@@ -72,7 +73,9 @@ function uploadFormDataWithProgress(url, formData, options = {}) {
         return;
       }
       if (request.status < 200 || request.status >= 300) {
-        reject(new Error(data?.error?.message || 'Cloudinary 上传失败'));
+        const error = new Error(data?.error?.message || 'Cloudinary 上传失败');
+        error.status = request.status;
+        reject(error);
         return;
       }
       resolve(data);
@@ -117,8 +120,39 @@ function isMissingPendingUploadStoreError(error = {}) {
 }
 
 async function getCurrentSupabaseUserId() {
+  // C1：getUser() 是一次 auth RTT，此前每张图上传要调 3 次（预检/uid/pending）。
+  // 短 TTL 缓存 + 登录态变化时失效，把每图省出 2 次串行网络往返。
+  const now = Date.now();
+  if (cachedUserId && now - cachedUserIdAt < USER_ID_CACHE_TTL_MS) return cachedUserId;
   const { data } = await supabase.auth.getUser();
-  return String(data?.user?.id || '').trim();
+  cachedUserId = String(data?.user?.id || '').trim();
+  cachedUserIdAt = now;
+  return cachedUserId;
+}
+
+const USER_ID_CACHE_TTL_MS = 60000;
+let cachedUserId = '';
+let cachedUserIdAt = 0;
+let authListenerAttached = false;
+function attachAuthCacheInvalidation() {
+  if (authListenerAttached || typeof supabase?.auth?.onAuthStateChange !== 'function') return;
+  authListenerAttached = true;
+  try {
+    supabase.auth.onAuthStateChange(() => {
+      cachedUserId = '';
+      cachedUserIdAt = 0;
+      uploadAllowCache.ts = 0;
+    });
+  } catch { /* 监听失败不影响主流程 */ }
+}
+
+// 仅测试使用：C1 缓存是模块级状态，跨用例会泄漏（userId/预检结果），
+// 单测 beforeEach 必须重置，否则「未登录/限流」等分支无法到达
+export function __resetCloudinaryUploadGuardsForTests() {
+  cachedUserId = '';
+  cachedUserIdAt = 0;
+  uploadAllowCache.ts = 0;
+  uploadAllowCache.promise = null;
 }
 
 export async function registerCloudinaryPendingUpload(uploaded = {}, options = {}) {
@@ -183,23 +217,43 @@ export async function markCloudinaryUploadsClaimed(publicIds = []) {
   }
 }
 
-export async function assertCloudinaryUploadAllowed(options = {}) {
-  try {
-    const userId = await getCurrentSupabaseUserId();
-    if (!userId) return;
+// C1：上传预检批缓存。此前逐图预检（每张一次 RPC RTT），N 张图多花 N-1 次
+// 串行往返。服务端预检本质是限频计数，客户端 60s 结果复用风险极低；
+// 仅缓存成功结果，失败（含限流）不缓存，in-flight 请求去重。
+const UPLOAD_ALLOW_TTL_MS = 60000;
+const uploadAllowCache = { ts: 0, promise: null };
 
+export async function assertCloudinaryUploadAllowed(options = {}) {
+  attachAuthCacheInvalidation();
+  const userId = await getCurrentSupabaseUserId();
+  if (!userId) return;
+
+  const now = Date.now();
+  if (now - uploadAllowCache.ts < UPLOAD_ALLOW_TTL_MS) return;
+  if (uploadAllowCache.promise) return uploadAllowCache.promise;
+
+  const request = (async () => {
     const { error } = await supabase.rpc('assert_cloudinary_upload_allowed', {
       p_source: String(options.source || 'generic').trim().slice(0, 40) || 'generic'
     });
 
-    if (!error) return;
+    if (!error) {
+      uploadAllowCache.ts = Date.now();
+      return;
+    }
     const message = String(error.message || '').toLowerCase();
     if (String(error.code || '').trim().toUpperCase() === 'PGRST202' || message.includes('could not find the function')) {
+      uploadAllowCache.ts = Date.now();
       return;
     }
     throw error;
-  } catch (error) {
-    throw normalizeDbError(error, '图片上传过于频繁，请稍后再试');
+  })();
+
+  uploadAllowCache.promise = request;
+  try {
+    await request;
+  } finally {
+    if (uploadAllowCache.promise === request) uploadAllowCache.promise = null;
   }
 }
 
@@ -327,18 +381,43 @@ export async function uploadImageToCloudinary(file, options = {}) {
       }
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data?.error?.message || 'Cloudinary 上传失败');
+        const error = new Error(data?.error?.message || 'Cloudinary 上传失败');
+        error.status = response.status;
+        throw error;
       }
       return data;
     };
 
+    // C3：网络类失败自动重试（瞬时抖动/5xx/超时），指数退避 500ms → 1500ms。
+    // 4xx（鉴权/参数错误）不重试；unsigned 上传可安全重发，孤儿图由 pending 兜底清理收口。
+    const isRetryableUploadError = (error) => {
+      const message = String(error?.message || '');
+      if (!error?.status) {
+        return /failed to fetch|network|超时|已取消/.test(message) || message === 'Cloudinary 上传失败';
+      }
+      return error.status >= 500;
+    };
+    const sendUploadRequestWithRetry = async (formData) => {
+      let lastError = null;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          return await sendUploadRequest(formData);
+        } catch (error) {
+          lastError = error;
+          if (!isRetryableUploadError(error) || attempt === 2) throw error;
+          await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 500 : 1500));
+        }
+      }
+      throw lastError;
+    };
+
     let data;
     try {
-      data = await sendUploadRequest(buildUploadFormData(true));
+      data = await sendUploadRequestWithRetry(buildUploadFormData(true));
     } catch (error) {
       // 降级保护：upload preset 不允许 context 参数时（如 unsigned 上传被拒），去掉 context 重试一次
       if (uploadUid && /context|not allowed|unsigned/i.test(String(error?.message || ''))) {
-        data = await sendUploadRequest(buildUploadFormData(false));
+        data = await sendUploadRequestWithRetry(buildUploadFormData(false));
       } else {
         throw error;
       }
@@ -360,13 +439,16 @@ export async function uploadImageToCloudinary(file, options = {}) {
 
     const pendingSource = String(options.pendingSource || '').trim();
     if (options.registerPendingUpload !== false && pendingSource) {
-      const pendingResult = await registerCloudinaryPendingUpload(uploaded, {
-        source: pendingSource,
-        folder
-      });
-      if (!pendingResult.ok) {
-        throw pendingResult.error || new Error('Cloudinary 上传归属记录失败，请稍后重试');
-      }
+      // C2：归属记账移出关键路径。此前 pending 登记（1 次 auth RTT + 1 次 upsert RTT）
+      // 失败会让整张上传报错——它只是兜底清理的记账，不该阻断。
+      // 并行执行不阻塞返回；登记通常在发帖 RPC 前完成，远早于兜底清理时限，误删风险可忽略。
+      void registerCloudinaryPendingUpload(uploaded, { source: pendingSource, folder })
+        .then((pendingResult) => {
+          if (!pendingResult?.ok) {
+            logger.warn('cloudinary', '上传归属登记失败（不阻断，由兜底清理覆盖）', pendingResult?.error);
+          }
+        })
+        .catch((error) => logger.warn('cloudinary', '上传归属登记异常（不阻断）', error));
     }
 
     return uploaded;

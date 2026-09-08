@@ -91,6 +91,7 @@ import {
   uploadImageToCloudinary,
   deleteCloudinaryAssetByToken,
   deleteCloudinaryAssetsByPublicIds,
+  __resetCloudinaryUploadGuardsForTests,
   CLOUD_UPLOAD_MAX_IMAGE_SIZE_BYTES
 } from '../../src/utils/cloudinary-client.js';
 
@@ -100,6 +101,10 @@ import {
 describe('cloudinary-client', () => {
   // Reset all mocks before each test
   beforeEach(() => {
+    // C1 缓存（userId / 上传预检）是模块级状态，必须逐用例重置，
+    // 否则「未登录 / 限流 / 预检调用」等分支被缓存短路无法到达
+    __resetCloudinaryUploadGuardsForTests();
+
     hoistedSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-abc' } }, error: null });
     hoistedSupabase.rpc.mockResolvedValue({ error: null });
     hoistedSupabase.functions.invoke.mockResolvedValue({
@@ -652,29 +657,56 @@ describe('cloudinary-client', () => {
       ).rejects.toThrow('Upload rejected');
     });
 
-    it('throws when Cloudinary returns non-ok with no error message', async () => {
-      hoistedFetch.mockResolvedValueOnce({
+    it('throws when Cloudinary returns non-ok with no error message (4xx not retried)', async () => {
+      hoistedFetch.mockResolvedValue({
         ok: false,
+        status: 400,
         json: () => Promise.resolve({})
       });
 
       await expect(
         uploadImageToCloudinary(fakeFile, { skipUploadPreflight: true })
       ).rejects.toThrow('Cloudinary 上传失败');
+      // 4xx 属参数/鉴权错误：不自动重试
+      expect(hoistedFetch).toHaveBeenCalledTimes(1);
     });
 
-    it('throws when pending upload registration fails', async () => {
+    it('retries network-class 5xx failures and succeeds on a later attempt (C3)', async () => {
+      hoistedFetch
+        .mockResolvedValueOnce({ ok: false, status: 503, json: () => Promise.resolve({}) })
+        .mockResolvedValueOnce({ ok: false, status: 503, json: () => Promise.resolve({}) })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({
+            secure_url: 'https://res.cloudinary.com/mycloud/image/upload/v123/folder/img.png',
+            public_id: 'folder/img',
+            delete_token: 'tok',
+            width: 800,
+            height: 600,
+            format: 'png',
+            original_filename: 'test'
+          })
+        });
+
+      const result = await uploadImageToCloudinary(fakeFile, { skipUploadPreflight: true });
+      expect(result.publicId).toBe('folder/img');
+      expect(hoistedFetch).toHaveBeenCalledTimes(3);
+    });
+
+    it('does not block upload when pending registration fails (C2: fire-and-forget)', async () => {
       const chain = hoistedSupabase.from();
-      chain.upsert.mockResolvedValueOnce({
+      chain.upsert.mockResolvedValue({
         error: { code: 'SOME_ERROR', message: 'db error' }
       });
 
-      await expect(
-        uploadImageToCloudinary(fakeFile, {
-          skipUploadPreflight: true,
-          pendingSource: 'forum'
-        })
-      ).rejects.toThrow();
+      const result = await uploadImageToCloudinary(fakeFile, {
+        skipUploadPreflight: true,
+        pendingSource: 'forum'
+      });
+      expect(result.publicId).toBe('boh-cloud-plus/test');
+      // 登记仍会尝试执行（失败仅告警），但不再阻断上传结果
+      expect(chain.upsert).toHaveBeenCalled();
     });
   });
 

@@ -20,6 +20,7 @@
       :style="{
         '--global-nav-status-duration': `${navStatus.duration}ms`,
         '--global-nav-status-card-height': `${navStatusCardHeight}px`,
+        '--global-nav-custom-card-height': `${customCardHeight}px`,
       }"
     >
     <div class="nav-container">
@@ -323,6 +324,7 @@ const navStatus = ref({
   reducedMotion: false
 });
 const navStatusCardHeight = ref(58);
+const customCardHeight = ref(0);
 const navStatusQueue = [];
 let navStatusDismissTimer = null;
 
@@ -450,6 +452,15 @@ const handleStatusCardResize = (height) => {
   }
 };
 
+// 自定义岛（showIsland.custom）高度：独立变量上报。
+// 不可写入 navStatusCardHeight —— 否则岛关闭后常驻状态卡会继承被撑大的高度，导航 surface 无法复原。
+const handleCustomCardResize = (height) => {
+  const nextHeight = Math.max(0, Math.ceil(Number(height) || 0));
+  if (Math.abs(nextHeight - customCardHeight.value) > 1) {
+    customCardHeight.value = nextHeight;
+  }
+};
+
 // ---- 任务岛（GlobalNavTaskCard）事件 ----
 
 const handleIslandTaskAction = (actionId) => {
@@ -485,12 +496,15 @@ const observeIslandCustomHost = async () => {
   if (!islandCustomHost.value) return;
   customHostResizeObserver = new ResizeObserver(() => {
     const height = islandCustomHost.value?.getBoundingClientRect().height;
-    if (height) handleStatusCardResize(height);
+    handleCustomCardResize(height);
   });
   customHostResizeObserver.observe(islandCustomHost.value);
 };
 
-watch(() => islandCustomSlot.component, observeIslandCustomHost);
+watch(() => islandCustomSlot.component, (component) => {
+  if (!component) customCardHeight.value = 0;
+  observeIslandCustomHost();
+});
 
 // ============================================
 // 滚动悬浮效果控制
@@ -584,7 +598,8 @@ const handleMyBlockClick = (event) => {
     }
     return;
   }
-  // 进入我的方块时触发智能概览灵动岛（会话内一次，无新内容不弹）
+  // 进入我的方块时触发智能概览灵动岛（天粒度「当日已读」游标去重：当天上线过不再自动推送，
+  // 仅当上次在线日的次日起有新内容才弹，详见 useOverviewIsland.js）
   maybeShowOverviewIsland({ currentPath: route.path });
 };
 

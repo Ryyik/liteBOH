@@ -13,7 +13,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import ActivitiesList from "@/views/activities/ActivitiesList.vue";
 import BlockWall from "@/views/BlockWall/index.vue";
@@ -65,6 +65,14 @@ const syncIslandProps = () => {
     loading: wallLoading.value
   });
 };
+
+// 活动详情岛（ActivitiesList 的 ContentDetailIsland）会临时占用自定义岛槽位，
+// 关闭后常驻岛句柄已失效，由详情卡 onClose 触发本回调重挂载。
+const remountWallIsland = () => {
+  islandHandle = null;
+  mountIsland();
+};
+provide("remountWallIsland", remountWallIsland);
 
 watch(activeTab, syncIslandProps);
 watch([wallCount, wallLoading], syncIslandProps);

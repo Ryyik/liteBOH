@@ -248,8 +248,8 @@ function onNewChat() {
   box-shadow:
     0 18px 48px rgba(15, 23, 42, 0.14),
     inset 0 1px 0 rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(22px) saturate(165%);
-  -webkit-backdrop-filter: blur(22px) saturate(165%);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   /* transition 沿用 surface 默认 500ms cubic-bezier(0.16,1,0.3,1)，
      与岛的 Vue Transition 严格同步，进出节奏一致 */
 }
@@ -282,8 +282,8 @@ function onNewChat() {
     0 14px 32px rgba(29, 41, 56, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.72),
     inset 0 -1px 0 rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(28px) saturate(175%);
-  -webkit-backdrop-filter: blur(28px) saturate(175%);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
   overflow: hidden;
   transform-origin: center top;
   will-change: transform, opacity;
@@ -504,7 +504,7 @@ function onNewChat() {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.42),
     0 4px 12px rgba(29, 41, 56, 0.045) !important;
-  backdrop-filter: blur(14px) saturate(145%) !important;
+  backdrop-filter: var(--liquid-filter-sm) !important;
 }
 
 :global(.bohai-island-chat .composer-textarea) {

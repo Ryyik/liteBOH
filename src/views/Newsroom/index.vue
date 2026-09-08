@@ -7,10 +7,16 @@
         <h1 class="news-title">新闻&amp;节目</h1>
         <p class="news-subtitle">记录方块之家的新闻与精彩节目</p>
       </div>
-      <div class="news-stats" aria-label="内容统计">
-        <span><strong>{{ feedData.length }}</strong> 条内容</span>
-        <span class="stats-divider" aria-hidden="true"></span>
-        <span>{{ newsCount }} 新闻 · {{ showCount }} 节目</span>
+      <div class="news-header-actions">
+        <button v-if="isAdmin" type="button" class="news-admin-publish-btn" @click="showPublishModal = true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>投稿新闻</span>
+        </button>
+        <div class="news-stats" aria-label="内容统计">
+          <span><strong>{{ feedData.length }}</strong> 条内容</span>
+          <span class="stats-divider" aria-hidden="true"></span>
+          <span>{{ newsCount }} 新闻 · {{ showCount }} 节目</span>
+        </div>
       </div>
     </header>
 
@@ -117,33 +123,8 @@
       </div>
     </div>
 
-    <!-- 新闻详情模态框：液态玻璃 Sheet（仅新闻，节目走外链） -->
-    <Teleport to="body">
-      <Transition name="news-modal-fade">
-        <div v-if="showNewsModal && selectedNews" class="news-modal" @click="closeModal" role="presentation">
-          <div class="modal-content" @click.stop role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-            <button ref="modalCloseRef" class="modal-close" type="button" aria-label="关闭新闻详情" @click="closeModal">&times;</button>
-            <div class="modal-header">
-              <h2 id="modalTitle" class="modal-title">{{ selectedNews.title }}</h2>
-              <div class="modal-meta">
-                <span id="modalDate">{{ formatDate(selectedNews.date) }}</span>
-                <span class="meta-divider" aria-hidden="true">·</span>
-                <span id="modalCategory">{{
-                  getCategoryName(selectedNews.category)
-                  }}</span>
-                <span class="meta-divider" aria-hidden="true">·</span>
-                <span id="modalAuthor">作者：{{ selectedNews.author }}</span>
-              </div>
-            </div>
-            <div class="modal-body">
-              <img v-if="getNewsImageUrl(selectedNews.image, 'modal')" :src="getNewsImageUrl(selectedNews.image, 'modal')" :alt="selectedNews.title" class="modal-image"
-                id="modalImage" loading="lazy" decoding="async" fetchpriority="low" />
-              <div class="modal-content-text" v-html="sanitizedNewsContent"></div>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
+    <!-- 管理员投稿新闻 -->
+    <AdminContentPublishModal :visible="showPublishModal" type="news" @close="showPublishModal = false" @published="loadNewsData" />
   </div>
 </template>
 
@@ -154,6 +135,10 @@ import { getImageUrl } from "../../utils/asset-helper.js";
 import { getCloudinaryTransformedUrl } from "@/utils/cloudinary-client.js";
 import DOMPurify from "@/utils/dompurify.js";
 import { showIsland } from "@/composables/useIsland.js";
+import { useAuthStore } from "@/stores/auth";
+import { storeToRefs } from "pinia";
+import AdminContentPublishModal from "@/components/AdminContentPublishModal.vue";
+import ContentDetailIsland from "@/components/UnifiedNavbar/ContentDetailIsland.vue";
 
 // 导入新闻 composable
 import { initNews, getAllNews, getCategoryName } from "../../composables/useNews";
@@ -294,10 +279,13 @@ const onScroll = () => {
 const kindCategoryLabel = (item) =>
   item?.kind === "show" ? `节目 · ${item.category}` : getCategoryName(item?.category);
 
-// 模态框相关（仅新闻）
-const showNewsModal = ref(false);
-const selectedNews = ref(null);
-const modalCloseRef = ref(null);
+// ========== 管理员「投稿新闻」= 发布新新闻（写 news 表，论坛官方帖自动同步） ==========
+const authStore = useAuthStore();
+const { isAdmin } = storeToRefs(authStore);
+const showPublishModal = ref(false);
+
+// 详情灵动岛：详情以导航栏延伸卡呈现（替代原页面内模态框）
+let newsDetailIsland = null;
 let lastFocusedEl = null;
 
 const NEWS_SANITIZE_OPTIONS = {
@@ -307,10 +295,6 @@ const NEWS_SANITIZE_OPTIONS = {
 const NEWS_CARD_IMAGE_TRANSFORM = 'f_auto,q_auto,c_fill,g_auto,w_900,h_540';
 const NEWS_MODAL_IMAGE_TRANSFORM = 'f_auto,q_auto,c_limit,w_1600';
 
-const sanitizedNewsContent = computed(() => {
-  const raw = selectedNews.value?.content || '';
-  return DOMPurify.sanitize(raw, NEWS_SANITIZE_OPTIONS);
-});
 
 // 引用
 const newsGrid = ref(null);
@@ -388,33 +372,29 @@ const openItem = (item) => {
   showModal(item);
 };
 
-// 显示模态框
+// 显示详情：挂到全局导航栏灵动岛（导航 surface 自动撑开，不会被导航遮挡）
 const showModal = (news) => {
+  if (!news) return;
   lastFocusedEl = document.activeElement;
-  selectedNews.value = news;
-  showNewsModal.value = true;
-  document.body.style.overflow = "hidden";
-  nextTick(() => {
-    modalCloseRef.value?.focus();
+  newsDetailIsland?.close();
+  newsDetailIsland = showIsland.custom(ContentDetailIsland, {
+    type: "news",
+    title: String(news.title || ""),
+    meta: `${formatDate(news.date)} · ${getCategoryName(news.category)} · 作者：${news.author || "官方"}`,
+    image: getNewsImageUrl(news.image, "modal"),
+    html: DOMPurify.sanitize(news.content || "", NEWS_SANITIZE_OPTIONS),
+    onClose: () => {
+      // × / Esc 都走这里：必须真正清掉岛槽位，仅置空句柄岛不会消失
+      newsDetailIsland?.close();
+      newsDetailIsland = null;
+      if (lastFocusedEl && lastFocusedEl.focus) {
+        lastFocusedEl.focus();
+      }
+      lastFocusedEl = null;
+    }
   });
 };
 
-// 关闭模态框
-const closeModal = () => {
-  showNewsModal.value = false;
-  selectedNews.value = null;
-  document.body.style.overflow = "";
-  if (lastFocusedEl && lastFocusedEl.focus) {
-    lastFocusedEl.focus();
-  }
-};
-
-// Esc 关闭新闻详情 + 焦点管理
-const onKeydown = (e) => {
-  if (e.key === "Escape") {
-    if (showNewsModal.value) closeModal();
-  }
-};
 
 // 格式化日期
 const formatDate = (dateStr) => {
@@ -530,12 +510,6 @@ const observeLoadMoreSentinel = () => {
   loadMoreObserver.observe(loadMoreSentinel.value);
 };
 
-// 点击外部关闭模态框（Teleport 后 overlay click 兜底）
-const handleClickOutside = (event) => {
-  if (showNewsModal.value && event.target.classList?.contains("news-modal")) {
-    closeModal();
-  }
-};
 
 onMounted(async () => {
   showIsland.notify({
@@ -556,13 +530,9 @@ onMounted(async () => {
 
   updateCondensed();
   window.addEventListener("scroll", onScroll, { passive: true });
-  document.addEventListener("keydown", onKeydown);
 
   // 从 Supabase 加载新闻数据
   await loadNewsData();
-
-  // 添加点击外部关闭的事件监听
-  document.addEventListener("click", handleClickOutside);
 });
 
 // 全局导航是 position:fixed，其实际高度与 --bohai-standalone-nav-height 声明值
@@ -594,6 +564,9 @@ const loadNewsData = async () => {
 
 onBeforeUnmount(() => {
   window.dispatchEvent(new CustomEvent("boh_global_nav_status_preview", { detail: { visible: false } }));
+  // 详情岛随页面卸载（showIsland.custom 约定：宿主必须负责 close）
+  newsDetailIsland?.close();
+  newsDetailIsland = null;
   // 取消观察
   if (observer) {
     observer.disconnect();
@@ -602,10 +575,6 @@ onBeforeUnmount(() => {
     loadMoreObserver.disconnect();
   }
   window.removeEventListener("scroll", onScroll);
-  document.removeEventListener("keydown", onKeydown);
-  // 移除事件监听
-  document.removeEventListener("click", handleClickOutside);
-  document.body.style.overflow = "";
 });
 </script>
 

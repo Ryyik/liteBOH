@@ -123,14 +123,18 @@ function normalizeCompressedFile(file, compressedBlob) {
 
 export async function compressImageFileToUploadLimit(file, plan = {}, options = {}) {
   const imageCompression = await loadImageCompression();
+  // A1 首击率调优：按原始体积分桶定首轮质量，绝大多数图 1~2 次编码即收敛到目标体积，
+  // 迭代上限 8→4。此前固定 0.85 起步，大图要 4~6 次重编码，单张压缩耗时 -30~50%。
+  const rawSizeMB = Number(file?.size || 0) / (1024 * 1024);
+  const bucketedInitialQuality = rawSizeMB >= 8 ? 0.78 : rawSizeMB >= 4 ? 0.82 : 0.85;
   // 统一输出 WebP：PNG 截图类图片体积可降 60%+，显著缩短上传时间；
   // 展示端 Cloudinary 走 f_auto 自动格式，源图格式无关紧要（动图 GIF 已在入口处被拒绝）
   const compressedBlob = await imageCompression(file, {
     maxSizeMB: Number(options.targetSizeMB || plan.targetSizeMB || DEFAULT_TARGET_SIZE_MB),
     maxWidthOrHeight: Number(options.maxWidthOrHeight || plan.maxWidthOrHeight || CLOUD_UPLOAD_MAX_DIMENSION),
     useWebWorker: true,
-    initialQuality: Number(options.initialQuality || 0.85),
-    maxIteration: Number(options.maxIteration || 8),
+    initialQuality: Number(options.initialQuality || bucketedInitialQuality),
+    maxIteration: Number(options.maxIteration || 4),
     fileType: 'image/webp',
     onProgress: typeof options.onProgress === 'function' ? options.onProgress : undefined,
     signal: options.signal
