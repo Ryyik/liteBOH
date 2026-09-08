@@ -1,9 +1,10 @@
 <template>
   <div class="activities-list-page">
-    <!-- 活动列表标题区域 -->
+    <!-- 活动列表标题区域（对齐 Newsroom 页头设计语言：kicker + 左对齐大标题 + 右下角动作区） -->
     <header class="activities-header">
       <div class="activities-header-copy">
-        <h1 class="page-title-text">方块之家活动列表</h1>
+        <p class="page-kicker">方块之家 · BOH EVENTS</p>
+        <h1 class="page-title-text">活动列表</h1>
         <p class="page-subtitle-text">回顾我们曾经举办的精彩活动</p>
       </div>
       <button v-if="isAdmin" type="button" class="activity-admin-publish-btn" @click="showPublishModal = true">
@@ -200,8 +201,25 @@ const loadActivities = async () => {
   loading.value = false;
 };
 
+// 全局导航是 position:fixed，其实际高度（灵动岛卡展开后会变高）与声明值不一致。
+// 实测导航真实高度写回页面根节点 --nav-h，页头 padding-top 用它做吸顶避让（Newsroom 先例）。
+let navResizeObserver = null;
+const syncNavHeight = () => {
+  const nav = document.getElementById("unified-nav-container");
+  const page = document.querySelector(".activities-list-page");
+  if (!nav || !page) return;
+  const h = nav.getBoundingClientRect().height;
+  if (h > 0) page.style.setProperty("--nav-h", `${Math.ceil(h)}px`);
+};
+
 onMounted(async () => {
   document.body.classList.add("is-loaded");
+  syncNavHeight();
+  const nav = document.getElementById("unified-nav-container");
+  if (nav && typeof ResizeObserver !== "undefined") {
+    navResizeObserver = new ResizeObserver(syncNavHeight);
+    navResizeObserver.observe(nav);
+  }
   await loadActivities();
   loadOngoingCampaigns();
 });
@@ -210,24 +228,39 @@ onBeforeUnmount(() => {
   // 详情岛随页面卸载（showIsland.custom 约定：宿主必须负责 close）
   detailIsland?.close();
   detailIsland = null;
+  navResizeObserver?.disconnect();
+  navResizeObserver = null;
 });
 </script>
 
 <style scoped>
-/* 页头：标题 + 管理员投稿按钮 */
+/* 页头：对齐 Newsroom 设计语言（kicker + 左对齐大标题 + 右下角投稿按钮） */
 .activities-header {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: calc(var(--nav-h, 64px) + 78px) 32px 26px;
   display: flex;
-  align-items: flex-end;
+  align-items: end;
   justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
+  gap: 24px;
+  text-align: left;
+}
+.activities-header-copy { min-width: 0; }
+.page-kicker {
+  margin: 0 0 12px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 .activity-admin-publish-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 38px;
+  height: 36px;
   padding: 0 18px;
+  flex-shrink: 0;
   border: 1px solid rgba(0, 113, 227, 0.35);
   border-radius: 999px;
   color: #0071e3;
@@ -354,6 +387,7 @@ html[data-theme="dark"] .activity-admin-publish-btn:hover {
 
 /* 页面基础样式 */
 .activities-list-page {
+  --nav-h: var(--bohai-standalone-nav-height, 64px);
   width: 100%;
   background: #ffffff;
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -361,29 +395,22 @@ html[data-theme="dark"] .activity-admin-publish-btn:hover {
   color: #1d1d1f;
 }
 
-.activities-header {
-  text-align: center;
-  padding: 160px 20px 100px;
-  max-width: 1000px;
-  margin: 0 auto;
-}
-
 .page-title-text {
-  font-size: 72px;
+  margin: 0 0 12px;
+  font-size: clamp(34px, 5vw, 48px);
   font-weight: 800;
-  margin-bottom: 24px;
-  letter-spacing: -0.03em;
-  color: #1d1d1f;
-  line-height: 1.05;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+  color: var(--text-1, #1d1d1f);
 }
 
 .page-subtitle-text {
-  font-size: 24px;
-  color: #86868b;
+  margin: 0;
+  font-size: 17px;
+  color: #667085;
   font-weight: 400;
-  line-height: 1.4;
+  line-height: 1.5;
   max-width: 600px;
-  margin: 0 auto;
 }
 
 .activities-container {
@@ -498,16 +525,17 @@ html[data-theme="dark"] .activity-admin-publish-btn:hover {
 
 @media (max-width: 768px) {
   .activities-header {
-    padding: 100px 20px 40px;
+    display: block;
+    padding: calc(var(--nav-h, 64px) + 48px) 20px 20px;
   }
 
-  .page-title-text {
-    font-size: 36px;
-    margin-bottom: 16px;
+  /* 移动端投稿按钮回流到标题下方（镜像 Newsroom 移动端行为） */
+  .activity-admin-publish-btn {
+    margin-top: 16px;
   }
 
   .page-subtitle-text {
-    font-size: 16px;
+    font-size: 15px;
   }
 
   .activities-container {

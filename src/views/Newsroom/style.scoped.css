@@ -31,7 +31,8 @@
 .news-header {
   max-width: 1180px;
   margin: 0 auto;
-  padding: 142px 32px 26px;
+  /* 顶部避让 = 实测导航高度（--nav-h，灵动岛展开会变高）+ 78px 呼吸区；静止态 ≈ 旧 142px */
+  padding: calc(var(--nav-h, 64px) + 78px) 32px 26px;
   display: flex;
   align-items: end;
   justify-content: space-between;
@@ -556,7 +557,7 @@
 
 /* ---------- 响应式：横屏/小屏 ---------- */
 @media (max-width: 900px) {
-  .news-header { padding: 126px 24px 22px; }
+  .news-header { padding: calc(var(--nav-h, 64px) + 62px) 24px 22px; }
   .filter-bar { width: calc(100% - 32px); }
   .filter-inner, .news-container { padding-left: 20px; padding-right: 20px; }
   .filter-controls { align-items: stretch; flex-direction: column; gap: 12px; }
@@ -570,7 +571,7 @@
 }
 
 @media (max-width: 600px) {
-  .news-header { display: block; padding: 112px 20px 20px; }
+  .news-header { display: block; padding: calc(var(--nav-h, 64px) + 48px) 20px 20px; }
   .news-subtitle { font-size: 15px; }
   .news-stats { margin-top: 18px; display: inline-flex; }
   .filter-bar { width: calc(100% - 24px); border-radius: 18px; top: calc(var(--nav-h) + 8px); }
@@ -593,7 +594,7 @@
 
 /* ---------- 竖屏专项优化（手机/平板 portrait）---------- */
 @media (orientation: portrait) and (max-width: 1024px) {
-  .news-header { padding-top: 120px; }
+  .news-header { padding-top: calc(var(--nav-h, 64px) + 56px); }
   .filter-bar { top: calc(var(--nav-h) + 8px); }
   .featured-layout { grid-template-columns: 1fr; gap: 16px; }
   .featured-card .news-image { aspect-ratio: 16 / 10; min-height: 220px; }
@@ -609,7 +610,7 @@
   .latest-news .news-image { aspect-ratio: 16 / 10; height: auto; min-height: 0; }
 }
 @media (orientation: portrait) and (max-width: 600px) {
-  .news-header { padding: 104px 20px 16px; }
+  .news-header { padding: calc(var(--nav-h, 64px) + 40px) 20px 16px; }
   .featured-card .news-image { aspect-ratio: 16 / 10; min-height: 200px; }
   .secondary-news-item { grid-template-columns: 96px minmax(0, 1fr); padding: 8px; }
   .secondary-thumb { aspect-ratio: 1 / 1; border-radius: 10px; }
