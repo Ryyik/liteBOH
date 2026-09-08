@@ -6,6 +6,25 @@
 
 ---
 
+## 📌 执行进度（2026-09-08 更新，含用户拍板的范围修订）
+
+| 事项 | 状态 |
+|---|---|
+| P0-0 玻璃修复 + 全站视觉回归 | ✅ 完成（token 链修复 + probe-glass-regression 四页全 PASS） |
+| 安全三项（API Key / RLS / 列级权限） | ✅ 完成（migration 2026090803，probe-rls-verify 9 项 PASS） |
+| P1-3 活动平台化核心 | ✅ 完成（campaigns/entries/rewards 三表 + DataAdmin 管理tab + 前台报名区块） |
+| P0-1 内容主干 | 🟡 半程（posts.source_* / 官方卡镜像 / 转帖 / 服务端类型筛选已上线；`useEngagement` / `useUnifiedFeed` 待抽） |
+| P0-2 商业化收口 | 🟡 **范围修订**：支付回调闭环**搁置**；积分账本（含用户可查的消费/获取记录）与权益层统一**保留** |
+| P1-3 剩余验证 | ⬜ 抽奖迁入 campaigns 做首个存量迁移验证 |
+| S4 本体 | ⬜ `/news/:slug` 独立路由 + OG/SEO |
+
+**用户拍板的范围修订（2026-09-08）：**
+1. **支付回调闭环暂缓**——个人开发者接不了真实支付回调，二维码人工兜底维持现状，不再作为 BETA 6 验收项。
+2. **新闻"讨论"入口取消**——论坛原生评论已够用，P0-1 验收只保留"活动沉淀 UGC"与互动内核抽取。
+3. **积分账本提升优先级**——`points_transactions` 不再只是对账底层，要做用户可查的消费/获取记录（账单感）。
+
+---
+
 ## 0. 核心判断
 
 先把结论摆在前面，避免后面六章失焦。
@@ -73,10 +92,10 @@ BETA 5 已经把"跑得稳"这件事做到了——`fx` 该修的都修了，路
 |---|---|---|
 | 给 `posts` 加来源字段 | `source_type (post/news/activity/hero)` + `source_id uuid`，并建索引 | 新 migration |
 | 抽互动内核 | 从 `ForumMain.vue`（4302 行）抽出 `useEngagement(targetType, targetId)`，统一 like / comment / collect / share | `src/composables/` |
-| 活动 / 新闻可落地 UGC | 活动投稿自动建 post；新闻支持"讨论"入口并关联 post | 各板块 API |
+| 活动 / 新闻可落地 UGC | 活动投稿自动建 post；~~新闻支持"讨论"入口~~ **（2026-09-08 取消：论坛原生评论已够用，不再给新闻加讨论入口）** | 各板块 API |
 | 统一 Feed 合成器 | `useUnifiedFeed()` 按 `source_type` 聚合，供首页与用户空间复用 | `src/composables/` |
 
-**验收口径**：一次活动结束后，参与者能在自己空间里看到它产生的帖子；任意一篇新闻有讨论数。
+**验收口径**（2026-09-08 修订）：一次活动结束后，参与者能在自己空间里看到它产生的帖子；互动内核（like / comment / collect / share）收敛为单一 `useEngagement`。
 
 ### P0-2 · 商业化收口：真实收银台 + 单一权益层 + 真实账本
 
@@ -86,11 +105,11 @@ BETA 5 已经把"跑得稳"这件事做到了——`fx` 该修的都修了，路
 2. **`subscribe_with_points` 不写 `points_transactions`** —— 表里明明预留了 `reason='subscription'` 却没用，即订阅扣减无流水。后果是账本与余额会漂移，用户会看到"积分莫名其妙少了"。
 3. **权益判断四套真相源** —— `utils/subscription-benefits.js` + `composables/useUserTier.js` 其实做得不错（5 分钟 TTL、in-flight 去重），但 `SubscriptionPlans.vue` 内部仍有本地 `TIER_RANK`、`ProfileMain.vue` 和 `Shop/index.vue` 各判各的。改一个权益要动四处。
 
-**做什么**：
+**做什么**（2026-09-08 修订：支付回调闭环搁置，账本与权益层保留）：
 
-- **支付闭环**：接入真实支付回调，生成待支付订单 → 回调 → 写 `user_subscriptions` + `points_transactions(reason='recharge')`。二维码降级为"人工兜底通道"，不再是主路径。
+- ~~**支付闭环**~~：**暂缓**（用户拍板：个人开发者无真实支付回调渠道，二维码人工兜底维持现状，不再是 BETA 6 验收项；将来若接入支付渠道再重启此节）。
+- **账本成为真相 + 账单感**（优先级提升）：`points_transactions` 作为唯一流水，`profiles.points` 降级为派生值。第一步先做"余额 = SUM"的对账任务 + 告警，第二步再把 RPC 改为单事务原子写（顺手修掉 `admin_grant_points` 先 UPDATE 后 INSERT 读余额的竞态）。**并且必须做用户可查的积分记录页**——用户能按时间看到每一笔获取/消费（来源、数量、余额快照），解决"积分莫名其妙少了"的投诉型问题。
 - **单一权益层**：废弃各处本地等级判断，统一走 `entitlements` 服务（`can('x')` / `quota('x')`），由 auth store 冷启动预取注入。
-- **账本成为真相**：`points_transactions` 作为唯一流水，`profiles.points` 降级为派生值。第一步先做"余额 = SUM"的对账任务 + 告警，第二步再把 RPC 改为单事务原子写，顺手修掉 `admin_grant_points` 先 UPDATE 后 INSERT 读余额的竞态。
 
 > 这一条做完，"订阅用户"才第一次成为可运营的对象：能自动开通、能看到完整账单、能按等级差异化展示。
 
@@ -221,7 +240,7 @@ BETA 5 已经把"跑得稳"这件事做到了——`fx` 该修的都修了，路
 
 | 权重 | 模块 | 核心交付 | 为什么是这个权重 |
 |---|---|---|---|
-| **35%** | **中台层**（content spine + entitlements + points ledger） | `posts.source_*`、`useEngagement`、`useUnifiedFeed`、entitlements 服务、支付回调、账本对账 | 是所有上层能力的地基，也是唯一能同时改善首页 / 活动 / 新闻 / 订阅四件事的工作 |
+| **30%** | **中台层**（content spine + entitlements + points ledger） | `posts.source_*`、`useEngagement`、`useUnifiedFeed`、entitlements 服务、账本对账 + 用户可查积分记录（~~支付回调~~ 2026-09-08 搁置） | 是所有上层能力的地基，也是唯一能同时改善首页 / 活动 / 新闻 / 订阅四件事的工作 |
 | **20%** | **首页与英雄区编排** | hero 定向投放、生命周期自动化、happening 头部、promo-modal 注册中心 | 全站流量入口，改造第一印象性价比最高；且 HeroConsole 基础设施已在，只需补编排能力 |
 | **15%** | **用户空间重构** | 面板上提、Profile/UserSpace 合流第一步、权益中心页 | 用户日均接触最多；也是"身份"的呈现载体，直接支撑订阅转化 |
 | **15%** | **活动平台化** | `activity_campaigns` / `entries` / `rewards` + 迁移抽奖验证 | 权重低于它看起来的应得份额，因为这是长期收益，先做最小跑通即可 |
@@ -240,10 +259,10 @@ BETA 5 已经把"跑得稳"这件事做到了——`fx` 该修的都修了，路
 
 跳出 BETA 6 单版本，看 BOHLITE 从"爱好者社区站"走向"可持续运营的产品"还缺什么。六项能力，前三项 BETA 6 就要启动。
 
-### C1 · 资金链闭环能力（BETA 6 启动）
+### C1 · 资金链闭环能力（~~BETA 6 启动~~ 2026-09-08 搁置）
 现状：subscription 半自动化（有 RPC、无回调）、shop 有 `create_shop_order_with_points`、充值二维码人工。
-要补：支付渠道 → 订单 → 回调 → 权益发放 → 退款/争议 → 凭证。
-**没有这一条，所有"做会员体系"的投入都会漏在漏斗最后一公里。**
+原计划：支付渠道 → 订单 → 回调 → 权益发放 → 退款/争议 → 凭证。
+**2026-09-08 用户拍板：个人开发者接不了真实支付回调，本能力整条搁置**；二维码人工兜底维持现状。积分账本（points_transactions + 用户可查记录）从本节拆出，提前至 BETA 6 单独交付。
 
 ### C2 · 运营自治能力（BETA 6 启动）
 现状：`DataManagement/DataAdmin.vue` 6043 行巨型后台，HeroConsole 另起炉灶，每做一次活动要新建页面。当前"做一次运营活动"的边际成本 ≈ 发一次版。
@@ -306,7 +325,7 @@ BETA 5 已经把"跑得稳"这件事做到了——`fx` 该修的都修了，路
 
 | 阶段 | 目标 | 关键交付 | 建议版本 |
 |---|---|---|---|
-| S1 | 基建 + 清安全债 | `posts.source_*` · entitlements 单一层 · 支付回调 · 三项高危清零 | `6.0.0-beta.6` |
+| S1 | 基建 + 清安全债 | `posts.source_*` · entitlements 单一层 · 积分账本（用户可查记录）· 三项高危清零（~~支付回调~~ 搁置） | `6.0.0-beta.6` |
 | S2 | 首页重生 | hero 定向投放 · happening 头部 · promo 注册中心 | `6.1.0` |
 | S3 | 用户空间重组 | 面板上提 · Profile/UserSpace 合流第一步 · 权益中心 | `6.2.0` |
 | S4 | 活动平台化 + 视觉收敛 | campaigns 迁移抽奖验证 · Hero 规范 · 暗色语义层 | `6.3.0` |
