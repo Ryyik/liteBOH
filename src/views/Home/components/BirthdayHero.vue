@@ -461,27 +461,27 @@ const greeting = computed(() => {
 }
 
 /* 暗色模式 */
-:global([data-theme="dark"]) .bh-card {
+:global([data-theme="dark"] .bh-card ){
   background: linear-gradient(145deg, #2a1f2d 0%, #2d2418 100%);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.4);
 }
 
-:global([data-theme="dark"]) .bh-title,
-:global([data-theme="dark"]) .bh-visual-eyebrow {
+:global([data-theme="dark"] .bh-title),
+:global([data-theme="dark"] .bh-visual-eyebrow ){
   color: #f4e8ee;
 }
 
-:global([data-theme="dark"]) .bh-subtitle,
-:global([data-theme="dark"]) .bh-others {
+:global([data-theme="dark"] .bh-subtitle),
+:global([data-theme="dark"] .bh-others ){
   color: #c4b3bd;
 }
 
-:global([data-theme="dark"]) .bh-others {
+:global([data-theme="dark"] .bh-others ){
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.1);
 }
 
-:global([data-theme="dark"]) .bh-avatar-fallback {
+:global([data-theme="dark"] .bh-avatar-fallback ){
   background: #2a1f2d;
   color: #ff9bb3;
 }

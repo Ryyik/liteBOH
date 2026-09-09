@@ -1,0 +1,51 @@
+/**
+ * ==============================================
+ * Hero Surface — 首页英雄区规范 V1（一规 · 三型 · 一基类）
+ * ==============================================
+ * 内容四层：eyebrow / headline（三档）/ sub / CTA（≤1 primary + ≤2 secondary）
+ * 三型版式：Feature（首屏专用，Beta6RenewalHero 为标杆）
+ *           Banner（AppleGridCard / AppleHeroBanner，Split = 2×S 档并排）
+ *           Overlay（HomeOverlayHero，全幅图 + scrim + 白字）
+ *
+ * 铁律：
+ * 1. 新 hero 的字号 / 颜色 / CTA 规格一律取本文件与 tokens.css 的 --liquid-*，
+ *    禁止组件内写死 —— 本文件是唯一来源。
+ * 2. 运营（HeroConsole / DynamicHomeHero）只配内容字段（文案/图/链接/排序/显隐），
+ *    样式字段永不进配置面。
+ * 3. 首屏只放 1 个主推 hero（负 sort_order 置顶）；同时在架 hero ≤ 5，超出归档进
+ *    Footer 历史区（homeHeroes store fetchArchived）。
+ *
+ * 暗色：玻璃类 token 由 tokens.css [data-theme="dark"] 自动翻转；
+ *       文字/品牌色的暗色值由各 hero 根元素局部覆写（--hero-text 等），
+ *       因为 tokens.css 暗色块未派生 --liquid-text-*。
+ */
+:root {
+  /* —— 品牌强调色（eyebrow / 主 CTA / 链接）—— */
+  --hero-accent: #0071e3;
+  --hero-accent-hover: #0077ed;
+  /* 深色表面上的强调色（variant-dark 卡片 / 图上 overlay，Apple 惯例蓝） */
+  --hero-accent-on-dark: #2997ff;
+
+  /* —— 文字色（浅色底）—— */
+  --hero-text: #1d1d1f;
+  --hero-text-secondary: #6e6e73;
+  --hero-text-muted: #86868b;
+  --hero-text-on-dark: #f5f5f7;
+
+  /* —— headline 三档字号 —— */
+  --hero-headline-l: clamp(44px, 6.5vw, 76px);  /* Feature 首屏（Beta6 标杆） */
+  --hero-headline-m: clamp(40px, 6vw, 64px);    /* Banner / Overlay（收敛目标） */
+  --hero-headline-s: clamp(28px, 4vw, 40px);    /* Split 双卡（AppleGridCard） */
+
+  /* —— eyebrow —— */
+  --hero-eyebrow-size: 17px;
+  --hero-eyebrow-tracking: 0.12em;
+
+  /* —— 正文 —— */
+  --hero-sub-size: clamp(18px, 2.1vw, 22px);
+  --hero-sub-measure: 560px;
+
+  /* —— CTA —— */
+  --hero-cta-height: 50px;
+  --hero-cta-font-size: 17px;
+}

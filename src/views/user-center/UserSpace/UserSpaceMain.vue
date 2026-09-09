@@ -1,9 +1,9 @@
 <template>
-  <div class="user-space-page" :class="{
+  <div ref="pageRootRef" class="user-space-page" :class="{
     'tab-transition-forward': tabTransitionDirection === 'forward',
     'tab-transition-back': tabTransitionDirection === 'back',
     'edge-swipe-active': isEdgeSwiping,
-    'community-tab-active': currentTab === 'community' || leavingTab === 'community'
+    'community-tab-active': currentTab === 'community' && !isForumCommunitySection
   }" :data-theme="currentTheme">
 
     <!-- 边缘滑动提示线 -->
@@ -15,151 +15,184 @@
     <input type="file" ref="pointsCardInputRef" class="hidden-file-input" accept="image/jpeg,image/png,image/webp"
       @change="handlePointsCardFileChange">
 
+    <!-- 社区：论坛默认视图 + 成员/收藏/印象（2026-09 IA） -->
+    <div v-show="currentTab === 'community' || leavingTab === 'community'"
+      :ref="(el) => setTabPageRef('community', el)" class="tab-page community-shell"
+      :class="{ 'is-leaving': leavingTab === 'community', 'feed-switching': feedSwitchPulse }">
+      <SegmentTabs :sections="COMMUNITY_SECTION_ITEMS" v-model="communitySection" aria-label="社区分区" />
+      <div v-show="isForumCommunitySection" class="community-forum-host">
+        <KeepAlive>
+          <AsyncForum v-if="currentTab === 'community' || leavingTab === 'community'" ref="forumViewRef"
+            :show-navbar="false" :show-header="false" :embedded="true"
+            :external-feed="communityExternalFeed"
+            @island-message="showTopNavStatus" />
+        </KeepAlive>
+      </div>
+      <template v-if="communitySection === 'members' || communitySection === 'impressions'">
+        <AsyncCommunity v-if="communitySection === 'members'"
+          @switch-tab="handleCommunitySwitchTab" @open-follow-modal="openUserFollowModal" />
+        <div v-else class="page-content community-list-content">
+          <ProfileImpressionsPanel v-if="communitySection === 'impressions'" :show-back="false"
+            :is-impressions-loading="dataState.impressions.loading" :impressions="profileImpressions"
+            :has-more="impressionsHasMore" :is-loading-more="isLoadingMoreImpressions"
+            @back="setCommunitySection('latest')" @delete-impression="handleDeleteProfileImpression"
+            @load-more-impressions="loadMoreProfileImpressions" />
+        </div>
+      </template>
+    </div>
+
+    <!-- 内容：身份卡 + 帖子/shows/草稿（2026-09 IA） -->
     <div v-show="currentTab === 'posts' || leavingTab === 'posts'"
-      :ref="(el) => setTabPageRef('posts', el)" class="tab-page posts-tab"
+      :ref="(el) => setTabPageRef('posts', el)" class="tab-page content-shell"
       :class="{ 'is-leaving': leavingTab === 'posts' }">
-      <KeepAlive>
-        <AsyncForum v-if="currentTab === 'posts' || leavingTab === 'posts'" ref="forumViewRef"
-          :show-navbar="false" :show-header="false" :embedded="true"
-          @island-message="showTopNavStatus" />
-      </KeepAlive>
+      <SegmentTabs :sections="CONTENT_SECTION_ITEMS" v-model="contentSection" aria-label="内容分区" />
+      <div v-show="contentSection === 'home'" class="profile-tab profile-home-active content-home-host">
+        <div class="profile-page-content">
+          <div v-if="!isLoggedIn" class="login-prompt">
+            <User class="login-prompt-icon" :size="34" :stroke-width="1.7" aria-hidden="true" />
+            <h3 class="login-prompt-title">登录以查看我的</h3>
+            <p class="login-prompt-desc">登录后可以访问我的空间和更多功能</p>
+            <button class="login-prompt-btn" @click="showLoginModal = true">立即登录</button>
+          </div>
+          <ProfileHomePanel v-else key="content-home" :profile="userInfo"
+            :avatar-url="avatarUrl" :profile-background-url="profileBackgroundUrl"
+            :profile-cover-style="profileCoverStyle" :is-uploading-profile-background="isUploadingProfileBackground"
+            :beta5="isBeta5"
+            :stats="userStats" :is-stats-loading="dataState.stats.loading" :cloud-plus-usage-text="cloudPlusUsageText"
+            :cloud-plus-usage-meter-style="cloudPlusUsageMeterStyle"
+            :subscription-summary-text="subscriptionSummaryText"
+            :is-content-loading="dataState.profile.loading"
+            :posts="profilePosts" :has-more-posts="hasMoreProfilePosts" :is-loading-more="isLoadingMoreProfilePosts"
+            @edit-profile="openEditProfileModal" @settings="openProfileSettings" @avatar-click="handleAvatarClick"
+            @background-click="handleProfileBackgroundClick"
+            @view-impressions="openProfileImpressions" @sponsor="openSponsorPage"
+            @data-management="openProfileDataManagement" @cloud-plus="openCloudPlusArea"
+            @assets="openAssetsHub"
+            @post-click="openProfilePost"
+            @switch-tab="switchTab"
+            @load-more="loadMoreProfilePosts" />
+        </div>
+      </div>
+      <div v-show="contentSection === 'cloud'" class="content-cloud-host">
+        <AsyncCloudPlus v-if="contentSection === 'cloud'" :embedded="true" />
+      </div>
     </div>
 
-    <div v-if="currentTab === 'community' || leavingTab === 'community'"
-      :ref="(el) => setTabPageRef('community', el)" class="tab-page community-tab"
-      :class="{ 'is-leaving': leavingTab === 'community' }">
-      <AsyncCommunity @switch-tab="switchTab" @open-follow-modal="openUserFollowModal" />
+    <!-- 资产：AssetsHubPanel 原样 + 赞助（2026-09 IA） -->
+    <div v-if="currentTab === 'assets' || leavingTab === 'assets'"
+      :ref="(el) => setTabPageRef('assets', el)" class="tab-page profile-tab assets-shell"
+      :class="{ 'is-leaving': leavingTab === 'assets' }">
+      <div v-if="!isLoggedIn" class="login-prompt">
+        <User class="login-prompt-icon" :size="34" :stroke-width="1.7" aria-hidden="true" />
+        <h3 class="login-prompt-title">登录以查看我的</h3>
+        <p class="login-prompt-desc">登录后可以访问我的空间和更多功能</p>
+        <button class="login-prompt-btn" @click="showLoginModal = true">立即登录</button>
+      </div>
+      <div v-else class="profile-page-content" :class="{ 'assets-active': assetsSection === 'hub' }">
+        <transition name="profile-panel-fade" mode="out-in">
+          <AssetsHubPanel v-if="assetsSection === 'hub'" key="assets-hub"
+            :show-back="false"
+            :initial-tab="assetsInitialTab" :beta5="isBeta5"
+            :points-card-presets="pointsCardPresets" :is-points-card-presets-loading="isPointsCardPresetsLoading"
+            :points-card-preset-capacity="pointsCardPresetQuota.capacity"
+            :is-points-card-preset-quota-loading="isPointsCardPresetQuotaLoading"
+            :points-card-cats-unlocked="isPointsCardCatsUnlocked"
+            :is-redeeming-points-card-cats="isRedeemingPointsCardCats"
+            @back="switchTab('posts')" @upload-points-card="handlePointsCardClick"
+            @set-points-card-skin="setPointsCardSkin" @select-points-card-preset="selectPointsCardPreset"
+            @delete-points-card-preset="deletePointsCardPreset"
+            @redeem-points-card-cats="redeemPointsCardCats" @load-points-card-data="loadPointsCardData"
+            @sponsor="openSponsorPage" />
+          <SponsorPanel v-else key="assets-sponsor"
+            :is-home-cat-active="isHomeCatActive" :sponsor-methods="sponsorMethods"
+            :sponsor-method="sponsorMethod" :sponsor-status-text="sponsorStatusText"
+            :sponsor-qr-visible="sponsorQrVisible" :sponsor-qr-load-failed="sponsorQrLoadFailed"
+            :sponsor-qr-loading="sponsorQrLoading" :sponsor-qr-image-url="sponsorQrImageUrl"
+            :sponsor-cat-burst-key="sponsorCatBurstKey"
+            @back="backToAssetsHub" @start-flow="startSponsorFlow"
+            @select-method="selectSponsorMethod" @show-qr="showSponsorQr"
+            @qr-load="handleSponsorQrLoad" @qr-error="handleSponsorQrError" />
+        </transition>
+      </div>
     </div>
 
-    <div v-if="currentTab === 'shows' || leavingTab === 'shows'"
-      :ref="(el) => setTabPageRef('shows', el)" class="tab-page shows-tab"
-      :class="{ 'is-leaving': leavingTab === 'shows' }">
-      <AsyncShows :embedded="true" />
-    </div>
-
-    <div v-if="currentTab === 'ai' || leavingTab === 'ai'"
-      :ref="(el) => setTabPageRef('ai', el)" class="tab-page ai-tab" :class="{ 'is-leaving': leavingTab === 'ai' }">
-      <section class="ai-workspace" aria-label="BOH AI 聊天">
-        <AsyncBOHAI :embedded="true" @island-message="showTopNavStatus" />
-      </section>
-    </div>
-
-    <div v-if="currentTab === 'messages' || leavingTab === 'messages'"
+    <!-- 消息：消息中心 + AI 助手（2026-09 IA） -->
+    <div v-show="currentTab === 'messages' || leavingTab === 'messages'"
       :ref="(el) => setTabPageRef('messages', el)" class="tab-page messages-tab"
       :class="{ 'is-leaving': leavingTab === 'messages' }">
       <HomeCatMascot v-if="isHomeCatActive" class="messages-tab-cat" pool="background" seed="messages-tab" size="lg"
         decorative />
-      <AsyncMessages :minimal="true" />
-    </div>
-
-    <div v-if="currentTab === 'profile' || leavingTab === 'profile'"
-      :ref="(el) => setTabPageRef('profile', el)" class="tab-page profile-tab"
-      :class="{ 'profile-home-active': profileSection === 'home', 'is-leaving': leavingTab === 'profile' }">
-      <div class="profile-page-content"
-        :class="{ 'assets-active': profileSection === 'assets' }">
-        <!-- ✅ 性能优化：静态内容使用 v-once，避免重复渲染 -->
-        <div v-if="!isLoggedIn" class="login-prompt" v-once>
-          <User class="login-prompt-icon" :size="34" :stroke-width="1.7" aria-hidden="true" />
-          <h3 class="login-prompt-title">登录以查看我的</h3>
-          <p class="login-prompt-desc">登录后可以访问我的空间和更多功能</p>
-          <button class="login-prompt-btn" @click="showLoginModal = true">立即登录</button>
-        </div>
-
-        <template v-else>
-          <transition name="profile-panel-fade" mode="out-in">
-            <ProfileHomePanel v-if="profileSection === 'home'" key="profile-home" :profile="userInfo"
-              :avatar-url="avatarUrl" :profile-background-url="profileBackgroundUrl"
-              :profile-cover-style="profileCoverStyle" :is-uploading-profile-background="isUploadingProfileBackground"
-              :beta5="isBeta5"
-              :stats="userStats" :is-stats-loading="dataState.stats.loading" :cloud-plus-usage-text="cloudPlusUsageText"
-              :cloud-plus-usage-meter-style="cloudPlusUsageMeterStyle"
-              :subscription-summary-text="subscriptionSummaryText"
-              :is-content-loading="dataState.profile.loading"
-              :posts="profilePosts" :has-more-posts="hasMoreProfilePosts" :is-loading-more="isLoadingMoreProfilePosts"
-              @edit-profile="openEditProfileModal" @settings="openProfileSettings" @avatar-click="handleAvatarClick"
-              @background-click="handleProfileBackgroundClick"
-              @view-impressions="openProfileImpressions" @sponsor="openSponsorPage"
-              @data-management="openProfileDataManagement" @cloud-plus="openCloudPlusArea"
-              @assets="openAssetsHub"
-              @post-click="openProfilePost"
-              @switch-tab="switchTab"
-              @load-more="loadMoreProfilePosts" />
-
-            <!-- ✅ 性能优化：使用 v-memo 基于 profileSection 和 isLoading 条件优化渲染 -->
-            <EditProfilePanel v-else-if="profileSection === 'edit-profile'" key="profile-edit" v-memo="[profileSection]"
-              :avatar-url="avatarUrl" :username="editProfileForm.username"
-              :bio="editProfileForm.bio" :join-year="editProfileForm.joinYear"
-              :join-month="editProfileForm.joinMonth" :join-day="editProfileForm.joinDay"
-              :birth-month="editProfileForm.birthMonth" :birth-day="editProfileForm.birthDay"
-              :join-date-years="joinDateYears" :months="months"
-              :days-for-edit-join-date="daysForEditJoinDate" :days-for-edit-profile="daysForEditProfile"
-              :is-submitting-profile-edit="isSubmittingProfileEdit"
-              @close="closeEditProfileModal" @avatar-click="handleAvatarClick"
-              @save="submitEditProfile"
-              @update-username="editProfileForm.username = $event"
-              @update-bio="editProfileForm.bio = $event"
-              @update-join-year="editProfileForm.joinYear = $event"
-              @update-join-month="editProfileForm.joinMonth = $event"
-              @update-join-day="editProfileForm.joinDay = $event"
-              @update-birth-month="editProfileForm.birthMonth = $event"
-              @update-birth-day="editProfileForm.birthDay = $event" />
-
-            <!-- ✅ 性能优化：赞助页面使用 v-memo -->
-            <SponsorPanel v-else-if="profileSection === 'sponsor'" key="profile-sponsor" v-memo="[profileSection, sponsorQrVisible, sponsorQrLoadFailed, sponsorQrLoading]"
-              :is-home-cat-active="isHomeCatActive" :sponsor-methods="sponsorMethods"
-              :sponsor-method="sponsorMethod" :sponsor-status-text="sponsorStatusText"
-              :sponsor-qr-visible="sponsorQrVisible" :sponsor-qr-load-failed="sponsorQrLoadFailed"
-              :sponsor-qr-loading="sponsorQrLoading" :sponsor-qr-image-url="sponsorQrImageUrl"
-              :sponsor-cat-burst-key="sponsorCatBurstKey"
-              @back="backToProfileHome" @start-flow="startSponsorFlow"
-              @select-method="selectSponsorMethod" @show-qr="showSponsorQr"
-              @qr-load="handleSponsorQrLoad" @qr-error="handleSponsorQrError" />
-
-            <ProfileSettingsPanel v-else-if="profileSection === 'settings'" key="profile-settings"
-              :pushplus-status-text="pushplusStatusText" :cloud-plus-usage-text="cloudPlusUsageText"
-              :subscription-summary-text="subscriptionSummaryText" :data-privacy-status-text="dataPrivacyStatusText"
-              :theme-display-text="themeDisplayText" :is-home-cat-active="isHomeCatActive" :current-theme="currentTheme"
-              :hide-online-status="hideOnlineStatus" :hide-follow-data="hideFollowData"
-              @back="backToProfileHome" @open-theme="openThemeModal"
-              @open-cloud="openCloudPlusArea"
-              @open-pushplus="router.push('/user-space/pushplus-settings?from=userspace-settings')"
-              @open-security="router.push('/user-space/account-security?from=userspace-settings')"
-              @open-version-settings="router.push('/user-space/settings/version')"
-              @open-data="openProfileDataManagement" @open-data-management="openProfileDataManagement"
-              @open-data-export="openProfileDataExport"
-              @logout="handleLogout" @toggle-hide-online="toggleHideOnlineStatus"
-              @toggle-hide-follow-data="toggleHideFollowData" />
-
-            <ProfileImpressionsPanel v-else-if="profileSection === 'impressions'" key="profile-impressions"
-              :is-impressions-loading="dataState.impressions.loading" :impressions="profileImpressions"
-              @back="backToProfileHome" @delete-impression="handleDeleteProfileImpression" />
-
-            <AssetsHubPanel v-else-if="profileSection === 'assets'" key="profile-assets"
-              :initial-tab="assetsInitialTab" :beta5="isBeta5"
-              :points-card-presets="pointsCardPresets" :is-points-card-presets-loading="isPointsCardPresetsLoading"
-              :points-card-preset-capacity="pointsCardPresetQuota.capacity"
-              :is-points-card-preset-quota-loading="isPointsCardPresetQuotaLoading"
-              :points-card-cats-unlocked="isPointsCardCatsUnlocked"
-              :is-redeeming-points-card-cats="isRedeemingPointsCardCats"
-              @back="backToProfileHome" @upload-points-card="handlePointsCardClick"
-              @set-points-card-skin="setPointsCardSkin" @select-points-card-preset="selectPointsCardPreset"
-              @delete-points-card-preset="deletePointsCardPreset"
-              @redeem-points-card-cats="redeemPointsCardCats" @load-points-card-data="loadPointsCardData"
-              @sponsor="openSponsorPage" />
-
-            <!-- ✅ 性能优化：静态子页面使用 v-memo -->
-            <DataExportPanel v-else-if="profileSection === 'data-export'" key="profile-data-export"
-              v-memo="[profileSection]" @back="backToProfileSettings" />
-
-            <DataPrivacyPanel v-else key="profile-data-management" v-memo="[profileSection, isAdmin]"
-              :is-admin="isAdmin" @back="backToProfileSettings"
-              @navigate="handleDataPrivacyNavigate" />
-          </transition>
-        </template>
+      <!-- 消息 tab：岛避让由页级 --userspace-messages-top-inset（实测岛高）负责，这里只留呼吸 -->
+      <SegmentTabs :sections="MESSAGE_SECTION_ITEMS" v-model="messagesSection" aria-label="消息分区"
+        style="--segment-tabs-inset: 4px;" />
+      <div v-show="messagesSection === 'inbox'" class="messages-host">
+        <AsyncMessages v-if="currentTab === 'messages' || leavingTab === 'messages'" :minimal="true" />
+      </div>
+      <div v-show="messagesSection === 'ai'" class="ai-host">
+        <section class="ai-workspace" aria-label="BOH AI 聊天">
+          <AsyncBOHAI v-if="bohaiActivatedOnVisit && (currentTab === 'messages' || leavingTab === 'messages')"
+            :embedded="true" @island-message="showTopNavStatus" />
+        </section>
       </div>
     </div>
 
-    <UserSpaceBottomNav :visible="!(currentTab === 'profile' && profileSection === 'edit-profile')"
+    <!-- 设置：偏好 + 资料编辑 + 数据管理/导出（2026-09 IA） -->
+    <div v-if="currentTab === 'settings' || leavingTab === 'settings'"
+      :ref="(el) => setTabPageRef('settings', el)" class="tab-page profile-tab settings-shell"
+      :class="{ 'is-leaving': leavingTab === 'settings' }">
+      <div v-if="!isLoggedIn" class="login-prompt">
+        <User class="login-prompt-icon" :size="34" :stroke-width="1.7" aria-hidden="true" />
+        <h3 class="login-prompt-title">登录以查看我的</h3>
+        <p class="login-prompt-desc">登录后可以访问我的空间和更多功能</p>
+        <button class="login-prompt-btn" @click="showLoginModal = true">立即登录</button>
+      </div>
+      <div v-else class="profile-page-content">
+        <transition name="profile-panel-fade" mode="out-in">
+          <ProfileSettingsPanel v-if="settingsSection === 'home'" key="settings-home" :show-back="false"
+            :user-email="userInfo?.email || ''"
+            :pushplus-status-text="pushplusStatusText" :cloud-plus-usage-text="cloudPlusUsageText"
+            :subscription-summary-text="subscriptionSummaryText" :data-privacy-status-text="dataPrivacyStatusText"
+            :theme-display-text="themeDisplayText" :is-home-cat-active="isHomeCatActive" :current-theme="currentTheme"
+            :hide-online-status="hideOnlineStatus" :hide-follow-data="hideFollowData"
+            @back="switchTab('posts')" @open-theme="openThemeModal"
+            @open-cloud="openCloudPlusArea"
+            @open-pushplus="router.push('/user-space/pushplus-settings?from=userspace-settings')"
+            @open-security="router.push('/user-space/account-security?from=userspace-settings')"
+            @open-version-settings="router.push('/user-space/settings/version')"
+            @open-data="openProfileDataManagement" @open-data-management="openProfileDataManagement"
+            @open-data-export="openProfileDataExport"
+            @logout="handleLogout" @toggle-hide-online="toggleHideOnlineStatus"
+            @toggle-hide-follow-data="toggleHideFollowData" />
+
+          <EditProfilePanel v-else-if="settingsSection === 'edit-profile'" key="settings-edit" v-memo="[settingsSection]"
+            :avatar-url="avatarUrl" :username="editProfileForm.username"
+            :bio="editProfileForm.bio" :join-year="editProfileForm.joinYear"
+            :join-month="editProfileForm.joinMonth" :join-day="editProfileForm.joinDay"
+            :birth-month="editProfileForm.birthMonth" :birth-day="editProfileForm.birthDay"
+            :join-date-years="joinDateYears" :months="months"
+            :days-for-edit-join-date="daysForEditJoinDate" :days-for-edit-profile="daysForEditProfile"
+            :is-submitting-profile-edit="isSubmittingProfileEdit"
+            @close="closeEditProfileModal" @avatar-click="handleAvatarClick"
+            @save="submitEditProfile"
+            @update-username="editProfileForm.username = $event"
+            @update-bio="editProfileForm.bio = $event"
+            @update-join-year="editProfileForm.joinYear = $event"
+            @update-join-month="editProfileForm.joinMonth = $event"
+            @update-join-day="editProfileForm.joinDay = $event"
+            @update-birth-month="editProfileForm.birthMonth = $event"
+            @update-birth-day="editProfileForm.birthDay = $event" />
+
+          <DataExportPanel v-else-if="settingsSection === 'data-export'" key="settings-data-export"
+            v-memo="[settingsSection]" @back="backToProfileSettings" />
+
+          <DataPrivacyPanel v-else key="settings-data-management" v-memo="[settingsSection, isAdmin]"
+            :is-admin="isAdmin" @back="backToProfileSettings"
+            @navigate="handleDataPrivacyNavigate" />
+        </transition>
+      </div>
+    </div>
+
+    <UserSpaceBottomNav :visible="!(currentTab === 'settings' && settingsSection === 'edit-profile')"
       :hidden="isBottomNavHidden" :ai-overlay-open="isAiOverlayOpen"
       :nav-items="navItems" :current-tab="currentTab" :nav-indicator-style="bottomNavIndicatorStyle"
       :has-unread-messages="hasUnreadMessages" :unread-count="unreadCount"
@@ -190,10 +223,10 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted, reactive, watch, shallowRef, shallowReactive, markRaw, defineAsyncComponent } from 'vue';
+import { ref, computed, nextTick, onActivated, onMounted, onUnmounted, reactive, watch, shallowRef, shallowReactive, markRaw, defineAsyncComponent } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import { Bot, MessageCircle, Newspaper, User, Users } from 'lucide-vue-next';
+import { MessageCircle, Settings, User, Users, Wallet } from 'lucide-vue-next';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
@@ -202,6 +235,7 @@ import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { useEdgeSwipeGesture } from '@/composables/useEdgeSwipeGesture';
 import { useDebounce } from '@/composables/useDebounceThrottle';
 import UserSpaceBottomNav from './components/UserSpaceBottomNav.vue';
+import SegmentTabs from './components/SegmentTabs.vue';
 const ProfileHomePanel = defineAsyncComponent(() => import('./components/ProfileHomePanel.vue'));
 const AvatarCropModal = defineAsyncComponent(() => import('@/components/AvatarCropModal.vue'));
 const ProfileImpressionsPanel = defineAsyncComponent(() => import('./components/ProfileImpressionsPanel.vue'));
@@ -223,15 +257,12 @@ import {
   AsyncCommunity,
   AsyncForum,
   AsyncMessages,
-  AsyncShows,
   clearIdlePreloadTasks,
   clearScheduledForumPreload,
   preloadBOHAIComponent,
-  preloadCommunityComponent,
   preloadForumComponent,
   preloadMessagesComponent,
   preloadProfileStyles,
-  preloadShowsComponent,
   scheduleForumPreload,
   scheduleIdleTask,
   setUserSpaceMountedForPreload
@@ -333,6 +364,12 @@ const lastFetchTime = reactive({
 // ✅ 性能优化：使用 shallowRef 优化非关键大数据
 const profilePosts = shallowRef([]);
 const profileImpressions = shallowRef([]);
+// ✅ 性能优化 P0-4：印象改为服务端分页（page 1 首屏 30 条 + 「加载更多」增量），
+// 不再无上限全量拉取/全量渲染；hasMore 以「整页返回」启发式判断。
+const IMPRESSIONS_PAGE_SIZE = 30;
+const impressionsPage = ref(1);
+const impressionsHasMore = ref(false);
+const isLoadingMoreImpressions = ref(false);
 
 const hideOnlineStatus = computed(() => userInfo.value?.hideOnlineStatus ?? false);
 const hideFollowData = computed(() => userInfo.value?.hideFollowData ?? false);
@@ -347,11 +384,11 @@ let userSpacePageEl = null;
 let latestTabScrollRestoreToken = 0;
 
 const navItems = [
-  { id: 'posts', label: '帖子', icon: Newspaper },
   { id: 'community', label: '社区', icon: Users },
-  { id: 'ai', label: 'AI', icon: Bot },
+  { id: 'posts', label: '我的', icon: User },
+  { id: 'assets', label: '资产', icon: Wallet },
   { id: 'messages', label: '消息', icon: MessageCircle },
-  { id: 'profile', label: '我的', icon: User }
+  { id: 'settings', label: '设置', icon: Settings }
 ];
 const { isBeta5 } = useAppMode();
 const { isOpen: isAiOverlayOpen, open: openGlobalAi, close: closeGlobalAi } = useGlobalAiOverlay();
@@ -365,31 +402,80 @@ const { isSwiping: isEdgeSwiping, edgeIndicatorVisible } = useEdgeSwipeGesture({
   onTrigger: openGlobalAi
 });
 
-const aiNavIndex = navItems.findIndex((item) => item.id === 'ai');
-const bottomNavIndicatorStyle = computed(() => {
-  if (!isAiOverlayOpen.value || aiNavIndex < 0) return navIndicatorStyle.value;
-  return {
-    '--active-nav-index': aiNavIndex,
-    '--active-nav-center': `${((aiNavIndex + 0.5) / navItems.length) * 100}%`,
-    '--nav-count': navItems.length
-  };
-});
+const bottomNavIndicatorStyle = computed(() => navIndicatorStyle.value);
 const validTabs = USER_SPACE_VALID_TABS;
-const initialUserSpaceTab = validTabs.includes(String(route.query.tab || ''))
-  ? String(route.query.tab)
-  : 'posts';
-if (initialUserSpaceTab === 'profile') {
+// 2026-09 IA：旧 tab 语义映射（profile=我的→内容、ai→消息、shows→内容）
+const LEGACY_TAB_MAP = { profile: 'posts', ai: 'messages', shows: 'posts' };
+const rawRequestedTab = String(route.query.tab || '');
+const legacyMappedTab = LEGACY_TAB_MAP[rawRequestedTab] || rawRequestedTab;
+const initialUserSpaceTab = validTabs.includes(legacyMappedTab)
+  ? legacyMappedTab
+  : 'community';
+if (initialUserSpaceTab === 'posts' || initialUserSpaceTab === 'assets' || initialUserSpaceTab === 'settings') {
   void preloadProfileStyles();
 }
-const validProfileSections = ['home', 'edit-profile', 'impressions', 'sponsor', 'settings', 'data-management', 'data-export', 'assets'];
+// tab 内段控 section（2026-09 IA：原 profile 二级面板拆平到各 tab）
+const pageRootRef = ref(null);
+const communitySection = ref('latest');
+const contentSection = ref('home');
+const messagesSection = ref('inbox');
+const settingsSection = ref('home');
+const assetsSection = ref('hub');
+const COMMUNITY_SECTIONS = ['latest', 'following', 'news', 'activity', 'members', 'impressions'];
+// 论坛承载的社区段（最新/关注/新闻/活动共用 ForumMain；成员/印象走独立面板）
+const FORUM_COMMUNITY_SECTIONS = ['latest', 'following', 'news', 'activity'];
+const isForumCommunitySection = computed(() => FORUM_COMMUNITY_SECTIONS.includes(communitySection.value));
+// 社区段控 → 论坛 externalFeed：新闻/活动直接作为内容类型下发（ForumMain 内一次同步、单次 fetch）
+const communityExternalFeed = computed(() => {
+  if (communitySection.value === 'following') return 'following';
+  if (communitySection.value === 'news') return 'news';
+  if (communitySection.value === 'activity') return 'activity';
+  return 'latest';
+});
+const CONTENT_SECTIONS = ['home', 'cloud'];
+const MESSAGES_SECTIONS = ['inbox', 'ai'];
+const SETTINGS_SECTIONS = ['home', 'edit-profile', 'data-management', 'data-export'];
+const ASSETS_SECTIONS = ['hub', 'sponsor'];
+const COMMUNITY_SECTION_ITEMS = [
+  { id: 'latest', label: '最新' },
+  { id: 'following', label: '关注' },
+  { id: 'news', label: '新闻' },
+  { id: 'activity', label: '活动' },
+  { id: 'members', label: '成员' },
+  { id: 'impressions', label: '印象' }
+];
+const CONTENT_SECTION_ITEMS = [
+  { id: 'home', label: '空间' },
+  { id: 'cloud', label: 'Cloud+' }
+];
+const MESSAGE_SECTION_ITEMS = [
+  { id: 'inbox', label: '消息' },
+  { id: 'ai', label: 'BOH AI' }
+];
+const SECTION_DEFAULTS = { community: 'latest', posts: 'home', messages: 'inbox', assets: 'hub', settings: 'home' };
+let pendingSectionTab = null;
 const tabTransitionDirection = ref('forward');
 const leavingTab = ref(null);
 const {
   currentTab,
-  profileSection,
   navIndicatorStyle,
   ensureTabMounted
 } = useUserSpaceTabs(navItems, initialUserSpaceTab);
+
+// ✅ 性能优化 P0-1：BOH AI 仅在用户真正切到 AI 分区后才挂载——进入消息 tab 默认
+// 不再预载 BOH AI 全依赖图（实测 69 个模块请求 + ~12MB 堆内存增量）。
+// 同一次消息 tab 访问内切回 inbox 不卸载（保留既有体验）；离开消息 tab 后
+// 由模板 v-if 的 (currentTab || leavingTab) 条件照常卸载。
+const bohaiActivatedOnVisit = ref(false);
+watch(messagesSection, (section) => {
+  if (section === 'ai' && currentTab.value === 'messages') bohaiActivatedOnVisit.value = true;
+});
+watch(currentTab, (tab, oldTab) => {
+  if (tab === 'messages' && oldTab !== 'messages') {
+    // 重新进入消息 tab：仅当分区本就是 ai 时延续挂载，否则回到「切到 AI 分区才挂载」
+    bohaiActivatedOnVisit.value = messagesSection.value === 'ai';
+  }
+}, { immediate: true });
 
 const getTabOrderIndex = (tabId) => {
   const index = navItems.findIndex((item) => item.id === tabId);
@@ -432,7 +518,7 @@ const restoreTabScrollPosition = async (tabId = currentTab.value) => {
       const tabEl = getTabPageEl(safeTab);
       if (!tabEl) return;
       tabEl.scrollTop = Math.max(0, Number(tabScrollPositions[safeTab] || 0));
-      if (safeTab === 'posts') {
+      if (safeTab === 'community' && isForumCommunitySection.value) {
         forumViewRef.value?.refreshEmbeddedScroll?.();
       }
     });
@@ -465,31 +551,43 @@ const sponsorMethods = [
 ];
 const sponsorStatusText = computed(() => (sponsorMethod.value === 'wechat' ? '可用' : '暂不支持'));
 
-const resolveProfileSectionFromRoute = () => {
-  if (currentTab.value !== 'profile') return;
+const resolveSectionFromRoute = () => {
   const requestedView = String(route.query.view || '').trim();
-  const nextSection = validProfileSections.includes(requestedView) ? requestedView : 'home';
-  profileSection.value = nextSection;
-  if (nextSection === 'settings') {
-    void fetchPushplusStatus();
-    void fetchCloudPlusUsage();
-  }
-  if (nextSection === 'edit-profile') {
-    prepareEditProfileForm();
+  if (currentTab.value === 'community') {
+    if (COMMUNITY_SECTIONS.includes(requestedView)) communitySection.value = requestedView;
+  } else if (currentTab.value === 'posts') {
+    if (CONTENT_SECTIONS.includes(requestedView)) contentSection.value = requestedView;
+  } else if (currentTab.value === 'messages') {
+    if (MESSAGES_SECTIONS.includes(requestedView)) messagesSection.value = requestedView;
+  } else if (currentTab.value === 'assets') {
+    if (ASSETS_SECTIONS.includes(requestedView)) assetsSection.value = requestedView;
+  } else if (currentTab.value === 'settings') {
+    if (SETTINGS_SECTIONS.includes(requestedView)) {
+      settingsSection.value = requestedView;
+    } else {
+      settingsSection.value = 'home';
+    }
+    if (settingsSection.value === 'home') {
+      void fetchPushplusStatus();
+      void fetchCloudPlusUsage();
+    }
+    if (settingsSection.value === 'edit-profile') {
+      prepareEditProfileForm();
+    }
   }
 };
 
 const openSettingsPanelFromRoute = async () => {
-  if (currentTab.value !== 'profile' || profileSection.value !== 'settings') return;
+  if (currentTab.value !== 'settings' || settingsSection.value !== 'home') return;
   if (String(route.query.setting || '').trim() !== 'theme') return;
 
   await nextTick();
   openThemeModal();
 };
 
-const setProfileSectionRoute = (section) => {
-  const nextQuery = { ...route.query, tab: 'profile' };
-  if (section === 'home') {
+const setSectionRoute = (tabId, section) => {
+  const nextQuery = { ...route.query, tab: tabId };
+  if (!section || section === SECTION_DEFAULTS[tabId]) {
     delete nextQuery.view;
     delete nextQuery.setting;
   } else {
@@ -497,6 +595,73 @@ const setProfileSectionRoute = (section) => {
   }
   router.replace({ query: nextQuery });
 };
+
+const jumpWithSection = (tabId, section) => {
+  if (tabId === 'community') communitySection.value = section;
+  else if (tabId === 'posts') contentSection.value = section;
+  else if (tabId === 'messages') messagesSection.value = section;
+  else if (tabId === 'assets') assetsSection.value = section;
+  else if (tabId === 'settings') settingsSection.value = section;
+  pendingSectionTab = tabId;
+  if (currentTab.value !== tabId) {
+    switchTab(tabId);
+  } else {
+    setSectionRoute(tabId, section);
+  }
+};
+
+const setCommunitySection = (section) => {
+  communitySection.value = section;
+  if (section === 'impressions') void fetchProfileImpressions();
+  setSectionRoute('community', section);
+};
+
+const setContentSection = (section) => {
+  contentSection.value = section;
+  setSectionRoute('posts', section);
+};
+
+const setMessagesSection = (section) => {
+  messagesSection.value = section;
+  if (section === 'ai') void preloadBOHAIComponent();
+  setSectionRoute('messages', section);
+};
+
+const handleCommunitySwitchTab = (tabId) => {
+  // shows 段已并入内容页签重构（空间/Cloud+），节目中心落点回「我的 · 空间」
+  if (tabId === 'shows') {
+    jumpWithSection('posts', 'home');
+    return;
+  }
+  switchTab(tabId);
+};
+
+// ---- 分区段控底栏浮舱（2026-09-09：段控沉到底栏上方，拇指直达、顶部零负担） ----
+// 抖音式文字页签（SegmentTabs）：v-model 绑当前档，切换动效 = 指示条滑动 + 内容 fade-up
+const feedSwitchPulse = ref(false);
+let feedPulseTimer = null;
+watch(communitySection, (id) => {
+  if (id === 'impressions') void fetchProfileImpressions();
+  // 最新/关注/新闻/活动互切：论坛内容做一次轻淡入脉冲（配合页签弹性指示条）
+  if (isForumCommunitySection.value) {
+    feedSwitchPulse.value = true;
+    if (feedPulseTimer) clearTimeout(feedPulseTimer);
+    feedPulseTimer = setTimeout(() => {
+      feedSwitchPulse.value = false;
+    }, 360);
+  }
+});
+
+watch(messagesSection, (id) => {
+  if (id === 'ai') void preloadBOHAIComponent();
+});
+
+// keepAlive 二次进入：无 view 参数时社区回到论坛默认档（「点我的空间第一眼是论坛」）
+onActivated(() => {
+  if (!route.query.view && currentTab.value === 'community') {
+    communitySection.value = 'latest';
+  }
+});
 
 const userBirthday = computed(() => {
   if (userInfo.value.birthMonth && userInfo.value.birthDay) {
@@ -626,7 +791,7 @@ const formatProfilePostDate = (post = {}) => {
 const openProfilePost = (postId) => {
   const safePostId = String(postId || '').trim();
   if (!safePostId) return;
-  router.push({ name: 'PostDetail', params: { id: safePostId }, query: { from: 'user-space', tab: 'profile' } });
+  router.push({ name: 'PostDetail', params: { id: safePostId }, query: { from: 'user-space', tab: 'posts' } });
 };
 
 // ✅ 性能优化：使用 AbortController 和 lastFetchTime 优化请求管理
@@ -726,21 +891,55 @@ const loadMoreProfilePosts = async () => {
 };
 
 // ✅ 性能优化：使用 AbortController 和 lastFetchTime 优化请求管理
-const fetchProfileImpressions = async ({ force = false } = {}) => {
+const fetchProfileImpressions = async ({ force = false, loadMore = false } = {}) => {
   const userId = String(userInfo.value.id || '').trim();
   if (!isLoggedIn.value || !userId) {
     profileImpressions.value = [];
+    impressionsHasMore.value = false;
     return;
   }
 
   const cacheKey = `profile-impressions:${userId}`;
   const now = Date.now();
 
+  // 「加载更多」：追加下一页，不读缓存、不受节流限制
+  if (loadMore) {
+    if (isLoadingMoreImpressions.value || !impressionsHasMore.value) return;
+    const loadMoreToken = ++latestProfileImpressionsFetchToken;
+    const loadMoreAbort = createAbortController('profile-impressions');
+    isLoadingMoreImpressions.value = true;
+    try {
+      const nextPage = impressionsPage.value + 1;
+      const { data, error } = await getUserImpressions(userId, {
+        signal: loadMoreAbort.signal,
+        page: nextPage,
+        pageSize: IMPRESSIONS_PAGE_SIZE
+      });
+      if (loadMoreToken !== latestProfileImpressionsFetchToken || loadMoreAbort.signal.aborted) return;
+      if (error) {
+        logger.warn('user-space', '加载更多印象失败:', error);
+        return;
+      }
+      const rows = data || [];
+      impressionsPage.value = nextPage;
+      profileImpressions.value = [...profileImpressions.value, ...rows];
+      impressionsHasMore.value = rows.length >= IMPRESSIONS_PAGE_SIZE;
+    } catch (error) {
+      if (error.name !== 'AbortError') logger.warn('user-space', '加载更多印象异常:', error);
+    } finally {
+      if (loadMoreToken === latestProfileImpressionsFetchToken) {
+        isLoadingMoreImpressions.value = false;
+      }
+    }
+    return;
+  }
+
   // ✅ 检查 lastFetchTime，避免频繁重复请求
   if (!force && (now - lastFetchTime.impressions < 5000)) {
     const cachedImpressions = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.impressions);
     if (cachedImpressions) {
       profileImpressions.value = cachedImpressions;
+      impressionsHasMore.value = cachedImpressions.length >= IMPRESSIONS_PAGE_SIZE;
       dataState.impressions.loading = false;
       return;
     }
@@ -750,6 +949,7 @@ const fetchProfileImpressions = async ({ force = false } = {}) => {
     const cachedImpressions = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.impressions);
     if (cachedImpressions) {
       profileImpressions.value = cachedImpressions;
+      impressionsHasMore.value = cachedImpressions.length >= IMPRESSIONS_PAGE_SIZE;
       dataState.impressions.loading = false;
       return;
     }
@@ -759,7 +959,11 @@ const fetchProfileImpressions = async ({ force = false } = {}) => {
   const abortController = createAbortController('profile-impressions');
   dataState.impressions.loading = true;
   try {
-    const { data, error } = await getUserImpressions(userId, { signal: abortController.signal });
+    const { data, error } = await getUserImpressions(userId, {
+      signal: abortController.signal,
+      page: 1,
+      pageSize: IMPRESSIONS_PAGE_SIZE
+    });
     if (fetchToken !== latestProfileImpressionsFetchToken || abortController.signal.aborted) return;
     if (error) {
       logger.warn('user-space', '读取我的印象失败:', error);
@@ -767,8 +971,11 @@ const fetchProfileImpressions = async ({ force = false } = {}) => {
       dataState.impressions.error = error;
       return;
     }
-    profileImpressions.value = data || [];
-    setUserSpaceCache(cacheKey, profileImpressions.value);
+    const rows = data || [];
+    profileImpressions.value = rows;
+    impressionsPage.value = 1;
+    impressionsHasMore.value = rows.length >= IMPRESSIONS_PAGE_SIZE;
+    setUserSpaceCache(cacheKey, rows);
     lastFetchTime.impressions = now;
     dataState.impressions.error = null;
   } catch (error) {
@@ -781,6 +988,10 @@ const fetchProfileImpressions = async ({ force = false } = {}) => {
       dataState.impressions.loading = false;
     }
   }
+};
+
+const loadMoreProfileImpressions = () => {
+  void fetchProfileImpressions({ loadMore: true });
 };
 
 const handleDeleteProfileImpression = async (impressionId) => {
@@ -1084,7 +1295,7 @@ const showTopNavStatus = (payload = {}) => {
 const isBottomNavForceVisible = computed(() => (
   !isBeta5.value ||
   isAiOverlayOpen.value ||
-  (currentTab.value === 'profile' && profileSection.value === 'edit-profile')
+  (currentTab.value === 'settings' && settingsSection.value === 'edit-profile')
 ));
 const { hidden: isBottomNavHidden, reset: resetBottomNavAutoHide } = useScrollDirectionHide({
   enabled: isBeta5,
@@ -1328,20 +1539,18 @@ const setThemePreference = (preference) => {
 };
 
 const openProfileSettings = () => {
-  profileSection.value = 'settings';
-  setProfileSectionRoute('settings');
   void fetchPushplusStatus();
   void fetchCloudPlusUsage();
+  jumpWithSection('settings', 'home');
 };
 
 const openSponsorPage = () => {
-  profileSection.value = 'sponsor';
-  setProfileSectionRoute('sponsor');
   sponsorMethod.value = 'wechat';
   sponsorQrVisible.value = false;
   sponsorQrLoadFailed.value = false;
   sponsorQrLoading.value = false;
   sponsorCatBurstKey.value += 1;
+  jumpWithSection('assets', 'sponsor');
 };
 
 const openAssetsHub = (initialTab = '') => {
@@ -1350,24 +1559,21 @@ const openAssetsHub = (initialTab = '') => {
   let nextTab = String(initialTab);
   if (isBeta5.value && ['orders', 'gifts'].includes(nextTab)) nextTab = 'fulfillment';
   assetsInitialTab.value = (isBeta5.value ? betaTabs : stableTabs).includes(nextTab) ? nextTab : '';
-  profileSection.value = 'assets';
-  setProfileSectionRoute('assets');
+  jumpWithSection('assets', 'hub');
 };
 
-const backToProfileHome = () => {
-  profileSection.value = 'home';
-  setProfileSectionRoute('home');
+const backToAssetsHub = () => {
+  assetsSection.value = 'hub';
   assetsInitialTab.value = '';
+  setSectionRoute('assets', 'hub');
 };
 
 const openProfileDataManagement = () => {
-  profileSection.value = 'data-management';
-  setProfileSectionRoute('data-management');
+  jumpWithSection('settings', 'data-management');
 };
 
 const openProfileDataExport = () => {
-  profileSection.value = 'data-export';
-  setProfileSectionRoute('data-export');
+  jumpWithSection('settings', 'data-export');
 };
 
 const handleDataPrivacyNavigate = (route) => {
@@ -1379,16 +1585,15 @@ const handleDataPrivacyNavigate = (route) => {
 };
 
 const backToProfileSettings = () => {
-  profileSection.value = 'settings';
-  setProfileSectionRoute('settings');
+  settingsSection.value = 'home';
+  setSectionRoute('settings', 'home');
   void fetchPushplusStatus();
   void fetchCloudPlusUsage();
 };
 
 const openProfileImpressions = () => {
-  profileSection.value = 'impressions';
-  setProfileSectionRoute('impressions');
   void fetchProfileImpressions();
+  jumpWithSection('community', 'impressions');
 };
 
 const selectSponsorMethod = (methodId) => {
@@ -1551,13 +1756,12 @@ const prepareEditProfileForm = () => {
 
 const openEditProfileModal = () => {
   prepareEditProfileForm();
-  profileSection.value = 'edit-profile';
-  setProfileSectionRoute('edit-profile');
+  jumpWithSection('settings', 'edit-profile');
 };
 
 const closeEditProfileModal = () => {
-  profileSection.value = 'home';
-  setProfileSectionRoute('home');
+  settingsSection.value = 'home';
+  setSectionRoute('settings', 'home');
 };
 
 const submitEditProfile = async () => {
@@ -1628,7 +1832,7 @@ const submitEditProfile = async () => {
       icon: 'success',
       type: 'success',
       actionLabel: '查看',
-      actionTab: 'profile',
+      actionTab: 'posts',
       durationMs: 4200
     });
     closeEditProfileModal();
@@ -1642,7 +1846,7 @@ const submitEditProfile = async () => {
 
 const openCloudPlusArea = (view = 'content') => {
   const safeView = ['content', 'settings'].includes(String(view)) ? String(view) : 'content';
-  const returnOrigin = profileSection.value === 'settings' ? 'userspace-settings' : 'userspace';
+  const returnOrigin = currentTab.value === 'settings' ? 'userspace-settings' : 'userspace';
   router.push({
     path: '/user-space/note',
     query: {
@@ -1715,21 +1919,20 @@ const handleFollowListLoadMore = () => {
 const preloadUserSpaceTab = (tabId) => {
   const safeTab = String(tabId || '');
   if (!validTabs.includes(safeTab)) return;
-  if (safeTab === 'posts') {
-    scheduleIdleTask('tab:posts', () => void preloadForumComponent());
-  } else if (safeTab === 'messages' && isLoggedIn.value) {
-    scheduleIdleTask('tab:messages', () => void preloadMessagesComponent());
-  } else if (safeTab === 'shows') {
-    scheduleIdleTask('tab:shows', () => void preloadShowsComponent());
-  } else if (safeTab === 'ai') {
-    scheduleIdleTask('tab:ai', () => void preloadBOHAIComponent());
-  } else if (safeTab === 'community') {
-    scheduleIdleTask('tab:community', () => void preloadCommunityComponent(), { timeout: 2400, fallbackDelay: 420 });
-  } else if (safeTab === 'profile' && isLoggedIn.value) {
-    scheduleIdleTask('tab:profile', () => {
+  if (safeTab === 'community') {
+    scheduleIdleTask('tab:community', () => void preloadForumComponent());
+  } else if (safeTab === 'posts' && isLoggedIn.value) {
+    scheduleIdleTask('tab:posts', () => {
       void preloadProfileStyles();
       scheduleUserSpaceWarmup();
     }, { timeout: 2400, fallbackDelay: 420 });
+  } else if (safeTab === 'messages' && isLoggedIn.value) {
+    // ✅ 性能优化 P0-1：hover/idle 预载只拉消息中心；BOH AI 全依赖图（dev 实测 69 模块、
+    // ~12MB 堆）改为用户切到 AI 分区时按需预载（setMessagesSection / messagesSection
+    // watcher），从未打开 AI 的用户不再为其支付网络与内存成本。
+    scheduleIdleTask('tab:messages', () => void preloadMessagesComponent());
+  } else if ((safeTab === 'assets' || safeTab === 'settings') && isLoggedIn.value) {
+    scheduleIdleTask(`tab:${safeTab}`, () => void preloadProfileStyles(), { timeout: 2400, fallbackDelay: 420 });
   }
 };
 
@@ -1739,7 +1942,7 @@ const resolveAccessibleTab = (tabId) => {
 
 const syncUserSpaceTabRoute = (tabId) => {
   const nextQuery = { ...route.query, tab: tabId };
-  if (tabId !== 'profile') {
+  if (tabId !== 'settings') {
     delete nextQuery.view;
     delete nextQuery.setting;
   }
@@ -1760,12 +1963,6 @@ const syncUserSpaceTabRoute = (tabId) => {
 };
 
 const handleBottomNavClick = (tabId) => {
-  if (tabId === 'ai') {
-    const nextQuery = { ...route.query, assistant: 'quick' };
-    void router.push({ path: '/user-space', query: nextQuery });
-    openGlobalAi();
-    return;
-  }
   closeGlobalAi();
   switchTab(tabId);
 };
@@ -1778,11 +1975,16 @@ const switchTab = (tabId) => {
   ensureTabMounted(tabId);
   const previousTab = currentTab.value;
   saveTabScrollPosition(previousTab);
-  if (tabId === 'profile') {
+  if (pendingSectionTab !== tabId) {
+    communitySection.value = SECTION_DEFAULTS.community;
+    contentSection.value = SECTION_DEFAULTS.posts;
+    messagesSection.value = SECTION_DEFAULTS.messages;
+    assetsSection.value = SECTION_DEFAULTS.assets;
+    settingsSection.value = SECTION_DEFAULTS.settings;
+  }
+  pendingSectionTab = null;
+  if (tabId === 'posts') {
     void preloadProfileStyles();
-    if (currentTab.value !== 'profile') {
-      profileSection.value = 'home';
-    }
     runProfileCriticalFetches();
   }
   if (clearLeavingTabTimer) {
@@ -1798,12 +2000,9 @@ const switchTab = (tabId) => {
     }
     clearLeavingTabTimer = null;
   }, TAB_LEAVE_CLEAR_DELAY_MS);
-  if (tabId === 'posts') {
+  if (tabId === 'community') {
     void preloadForumComponent();
     void activateForumTab();
-  }
-  if (tabId === 'ai') {
-    void preloadBOHAIComponent();
   }
 };
 
@@ -1912,7 +2111,7 @@ const uploadProfileBackgroundFile = async (file) => {
       icon: 'success',
       type: 'success',
       actionLabel: '查看',
-      actionTab: 'profile',
+      actionTab: 'posts',
       durationMs: 4200
     });
     return true;
@@ -2216,7 +2415,7 @@ const deletePointsCardPreset = async (presetId) => {
 };
 
 watch(
-  [profileSection, isBeta5, isLoggedIn],
+  [assetsSection, isBeta5, isLoggedIn],
   ([, , loggedIn]) => {
     if (!loggedIn) {
       pointsCardPresets.value = [];
@@ -2371,7 +2570,7 @@ const uploadToSupabase = async (file) => {
       icon: 'success',
       type: 'success',
       actionLabel: '查看',
-      actionTab: 'profile',
+      actionTab: 'posts',
       durationMs: 4200
     });
   } catch (error) {
@@ -2397,7 +2596,15 @@ const clearUserSpaceWarmup = () => {
   }
 };
 
+// ✅ 性能优化 P0-3：switchTab 直调与 route.query.tab watcher(flush:'sync') 会在同一次
+// 导航内先后各触发一次关键拉取（实测聚合 RPC ×2 + 2 个 in-flight 计数查询被 abort）。
+// 这里加 5s 合并窗口：窗口内的非 force 调用直接短路；force（如 userId 变化）不受影响。
+const PROFILE_CRITICAL_FETCH_DEDUPE_MS = 5000;
+let profileCriticalFetchesAt = 0;
 const runProfileCriticalFetches = ({ force = false } = {}) => {
+  const now = Date.now();
+  if (!force && now - profileCriticalFetchesAt < PROFILE_CRITICAL_FETCH_DEDUPE_MS) return;
+  profileCriticalFetchesAt = now;
   void fetchUserStats({ force });
   void fetchCloudPlusUsage({ force });
   void fetchProfileContent({ force, reset: force });
@@ -2409,11 +2616,15 @@ const scheduleUserSpaceWarmup = ({ force = false } = {}) => {
   userSpaceWarmupTimeoutId = window.setTimeout(() => {
     userSpaceWarmupTimeoutId = null;
     if (!isLoggedIn.value || !userInfo.value.id) return;
-    void fetchUserStats({ force });
-    if (currentTab.value === 'profile') {
-      void fetchCloudPlusUsage({ force });
+    if (currentTab.value === 'posts') {
+      // ✅ 性能优化 P0-3：posts tab 数据统一收口到 runProfileCriticalFetches（带 5s
+      // 合并窗口）。hover 预载也会走到这里，定时器晚于关键拉取触发时若再直拉会
+      // 重复请求（实测聚合 RPC ×2 + 计数 HEAD 被后到者 abort）。
+      runProfileCriticalFetches();
+      return;
     }
-  }, currentTab.value === 'profile' ? 120 : 900);
+    void fetchUserStats({ force });
+  }, currentTab.value === 'posts' ? 120 : 900);
 };
 
 // ✅ 性能优化：合并分散的 watch 为单个 watch，减少 Vue 内部开销
@@ -2433,12 +2644,12 @@ watch(
     if (userId !== oldVal?.userId) {
       if (userId) {
         await initUserData();
-        if (currentTab.value === 'profile') {
+        if (currentTab.value === 'posts') {
           runProfileCriticalFetches({ force: true });
         } else {
           scheduleUserSpaceWarmup({ force: true });
         }
-        if (currentTab.value === 'profile' && profileSection.value === 'settings') {
+        if (currentTab.value === 'settings' && settingsSection.value === 'home') {
           void fetchPushplusStatus({ force: true });
           void fetchCloudPlusUsage({ force: true });
         }
@@ -2483,7 +2694,27 @@ watch(
   { immediate: true }
 );
 
+/* ---------- 导航岛实测高度 → --userspace-nav-h ----------
+   SegmentTabs 顶部避让消费该变量（Newsroom --nav-h 先例）。
+   岛含状态卡时高度会变（78↔130+），静态 inset 必然一头空一头盖。 */
+let navIslandResizeObserver = null;
+
+const syncUserspaceNavHeight = () => {
+  const root = pageRootRef.value;
+  if (!root) return;
+  const island = document.getElementById('unified-nav-container');
+  if (!island) return;
+  const h = Math.ceil(island.getBoundingClientRect().height);
+  if (h > 0) root.style.setProperty('--userspace-nav-h', `${h}px`);
+};
+
 onMounted(() => {
+  void nextTick(syncUserspaceNavHeight);
+  const islandEl = document.getElementById('unified-nav-container');
+  if (islandEl && typeof ResizeObserver !== 'undefined') {
+    navIslandResizeObserver = new ResizeObserver(syncUserspaceNavHeight);
+    navIslandResizeObserver.observe(islandEl);
+  }
   setUserSpaceMountedForPreload(true);
   document.body.classList.add("is-loaded");
   // 初始化主题
@@ -2497,25 +2728,25 @@ onMounted(() => {
   if (route.query.tab && validTabs.includes(route.query.tab)) {
     currentTab.value = resolveAccessibleTab(route.query.tab, { promptLogin: true });
   }
-  resolveProfileSectionFromRoute();
+  resolveSectionFromRoute();
   void openSettingsPanelFromRoute();
   ensureTabMounted(currentTab.value);
   // 确保 URL 与当前 tab 同步，否则论坛嵌入式组件的 FAB 按钮检查 route.query.tab 会失败
   if (!route.query.tab || !validTabs.includes(route.query.tab)) {
     syncUserSpaceTabRoute(currentTab.value);
   }
-  if (currentTab.value === 'posts') {
+  if (currentTab.value === 'community') {
     scheduleForumPreload(currentTab.value);
   }
   void restoreTabScrollPosition(currentTab.value);
   if (isLoggedIn.value) {
     void initUserData();
-    if (currentTab.value === 'profile') {
+    if (currentTab.value === 'posts') {
       runProfileCriticalFetches();
     } else {
       scheduleUserSpaceWarmup();
     }
-    if (currentTab.value === 'profile' && profileSection.value === 'settings') {
+    if (currentTab.value === 'settings' && settingsSection.value === 'home') {
       void fetchPushplusStatus();
       void fetchCloudPlusUsage();
     }
@@ -2531,10 +2762,8 @@ onMounted(() => {
 });
 
 watch(() => route.query.tab, (newTab) => {
-  // 注意：本 watch 的兜底是 'profile'，但 onMounted 初始化路径 resolveAccessibleTab
-  // 的兜底是 'posts'（见上方 resolveAccessibleTab 定义与 onMounted 调用）。
-  // 二者不一致属已知历史遗留，待产品确认未登录/无 tab 时的默认页后统一。
-  const safeTab = validTabs.includes(newTab) ? newTab : 'profile';
+  const mappedTab = LEGACY_TAB_MAP[newTab] || newTab;
+  const safeTab = validTabs.includes(mappedTab) ? mappedTab : 'community';
   const nextTab = resolveAccessibleTab(safeTab, { promptLogin: true });
   if (currentTab.value === nextTab) return;
   updateTabTransitionDirection(nextTab);
@@ -2553,14 +2782,16 @@ watch(() => route.query.tab, (newTab) => {
     }
     clearLeavingTabTimer = null;
   }, 170);
-  resolveProfileSectionFromRoute();
-  if (nextTab === 'posts') {
+  resolveSectionFromRoute();
+  if (nextTab === 'community') {
     scheduleForumPreload(currentTab.value);
     void activateForumTab();
   }
-  if (nextTab === 'profile') {
+  if (nextTab === 'posts') {
     void preloadProfileStyles();
     runProfileCriticalFetches();
+  }
+  if (nextTab === 'settings') {
     void openSettingsPanelFromRoute();
   }
 }, { flush: 'sync' });
@@ -2581,7 +2812,7 @@ watch(isAiOverlayOpen, (open) => {
 });
 
 watch(() => route.query.view, () => {
-  resolveProfileSectionFromRoute();
+  resolveSectionFromRoute();
   void openSettingsPanelFromRoute();
 });
 
@@ -2591,18 +2822,20 @@ watch(() => route.query.setting, () => {
 
 watch(currentTab, (newTab, oldTab) => {
   resetBottomNavAutoHide();
-  if (newTab !== 'profile' || oldTab !== 'profile') {
-    profileSection.value = 'home';
-  }
-  resolveProfileSectionFromRoute();
-  if (oldTab === 'profile') {
+  resolveSectionFromRoute();
+  if (oldTab === 'posts') {
     scheduleUserSpaceWarmup();
   }
 });
 
 onUnmounted(() => {
+  if (feedPulseTimer) clearTimeout(feedPulseTimer);
   saveTabScrollPosition(currentTab.value);
   setUserSpaceMountedForPreload(false);
+  if (navIslandResizeObserver) {
+    navIslandResizeObserver.disconnect();
+    navIslandResizeObserver = null;
+  }
   // ✅ 性能优化：取消所有未完成的请求
   cleanupAbortControllers();
   latestUserStatsFetchToken += 1;

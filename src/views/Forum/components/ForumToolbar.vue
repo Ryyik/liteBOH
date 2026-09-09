@@ -9,7 +9,6 @@ const props = defineProps({
   hasSignedThisWeek: { type: Boolean, default: false },
   sortMode: { type: String, default: 'latest' },
   selectedTagFilter: { type: String, default: '' },
-  selectedContentType: { type: String, default: '' },
   isAiSearchEnabled: { type: Boolean, default: false },
   isAiSearchLoading: { type: Boolean, default: false },
   aiSearchHint: { type: String, default: '' }
@@ -21,8 +20,7 @@ const emit = defineEmits([
   'toggleAiSearch',
   'openWeeklyCheckin',
   'setSortMode',
-  'setTagFilter',
-  'setContentType'
+  'setTagFilter'
 ]);
 
 const isFilterOpen = ref(false);
@@ -32,8 +30,7 @@ const filterSummaryText = computed(() => {
   const sortLabel = props.sortMode === 'hottest' ? '最热' : '最新';
   const tagOption = FORUM_TAG_OPTIONS.find(t => t.value === props.selectedTagFilter);
   const tagLabel = tagOption ? tagOption.label : '全部标签';
-  const typeLabel = { news: '新闻', activity: '活动', post: '论坛' }[props.selectedContentType] || '全部内容';
-  return `${sortLabel} · ${typeLabel} · ${tagLabel}`;
+  return `${sortLabel} · ${tagLabel}`;
 });
 
 const toggleFilter = () => {
@@ -82,10 +79,6 @@ const onSetSortMode = (mode) => {
 
 const onSetTagFilter = (tag) => {
   emit('setTagFilter', tag);
-  closeFilter();
-};
-const onSetContentType = (type) => {
-  emit('setContentType', type);
   closeFilter();
 };
 </script>
@@ -165,16 +158,6 @@ const onSetContentType = (type) => {
                 :class="{ active: sortMode === 'hottest' }"
                 @click="onSetSortMode('hottest')"
               >最热</button>
-            </div>
-          </div>
-          <div class="filter-dropdown-divider"></div>
-          <div class="filter-dropdown-section">
-            <div class="filter-dropdown-label">内容类型</div>
-            <div class="filter-tag-row">
-              <button class="filter-tag-btn" :class="{ active: selectedContentType === '' }" @click="onSetContentType('')">全部内容</button>
-              <button class="filter-tag-btn" :class="{ active: selectedContentType === 'post' }" @click="onSetContentType('post')">论坛</button>
-              <button class="filter-tag-btn" :class="{ active: selectedContentType === 'news' }" @click="onSetContentType('news')">新闻</button>
-              <button class="filter-tag-btn" :class="{ active: selectedContentType === 'activity' }" @click="onSetContentType('activity')">活动</button>
             </div>
           </div>
           <div class="filter-dropdown-divider"></div>

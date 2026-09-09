@@ -1,0 +1,507 @@
+{
+  "stages": [
+    {
+      "label": "app-shell-load",
+      "count": 427,
+      "byKind": {
+        "other": 69,
+        "js": 91,
+        "css": 27,
+        "asset": 234,
+        "table": 6
+      },
+      "detail": {
+        "asset:Slkeswdr_grand_judge_style.webp": 4,
+        "other:/src/views/Forum/ForumMain.vue": 4,
+        "asset:ryyik.webp": 3,
+        "asset:thoik.webp": 3,
+        "asset:xiaoniu.webp": 3,
+        "asset:favicon.png": 3,
+        "other:/src/views/Forum/components/PostComposer.vue": 3,
+        "other:/src/views/Forum/components/PostCard.vue": 3,
+        "other:/src/App.vue": 2,
+        "other:/src/components/Footer.vue": 2,
+        "other:/src/components/HomeCatMascot.vue": 2,
+        "other:/src/components/UnifiedNavbar/GlobalNavStatusCard.vue": 2,
+        "other:/src/components/UnifiedNavbar/GlobalNavTaskCard.vue": 2,
+        "other:/src/components/UnifiedNavbar/BOHAIIsland.vue": 2,
+        "asset:Slkeswdr_new_style.webp": 2,
+        "asset:Slkeswdr_style.webp": 2,
+        "asset:baicheng.webp": 2,
+        "asset:baicheng_style.webp": 2,
+        "asset:baiye.webp": 2,
+        "asset:baiye_style.webp": 2,
+        "asset:chengzi.webp": 2,
+        "asset:chengzi_style.webp": 2,
+        "asset:eleven.webp": 2,
+        "asset:eleven_style.webp": 2,
+        "asset:end.webp": 2,
+        "asset:end_style.webp": 2,
+        "asset:fivege.webp": 2,
+        "asset:fivege_doubaostyle.webp": 2,
+        "asset:fivege_style2.webp": 2,
+        "asset:hamburger.webp": 2,
+        "asset:hamburger_style.webp": 2,
+        "asset:pufferfish.webp": 2,
+        "asset:pufferfish_style.webp": 2,
+        "asset:ryyik_style.webp": 2,
+        "asset:teacher-ding.webp": 2,
+        "asset:teacher-ding_style.webp": 2,
+        "asset:thoik_style.webp": 2,
+        "asset:91_poisoner_style.webp": 2,
+        "asset:baicheng_phantom_style.webp": 2,
+        "asset:baiye_bartender_style.webp": 2,
+        "asset:chengyan_spy_style.webp": 2,
+        "asset:chengzi_cultist_style.webp": 2,
+        "asset:eleven_mimic_style.webp": 2,
+        "asset:end_assassin_style.webp": 2,
+        "asset:fivege_retracer_style.webp": 2
+      }
+    },
+    {
+      "label": "community-cold-data",
+      "count": 24,
+      "byKind": {
+        "other": 3,
+        "table": 9,
+        "rpc": 5,
+        "image-cdn": 5,
+        "storage": 2
+      },
+      "detail": {
+        "table:profiles": 3,
+        "other:/src/views/user-center/UserSpace/components/ProfileHomePanel.vue": 2,
+        "table:forum_post_drafts": 2,
+        "image-cdn:nci9byjfsxec94ztgg9f.png": 2,
+        "image-cdn:etvmr2uoa06pua8be8cj.jpg": 2,
+        "table:user_follows": 2,
+        "other:/src/stores/notifications.ts": 1,
+        "rpc:get_weekly_checkin_status": 1,
+        "rpc:get_user_subscription_tier": 1,
+        "table:comments": 1,
+        "rpc:get_unread_notification_count": 1,
+        "storage:object/public/avatars/00ac36b4-6594-440f-a9c1-38b7bd47ee8b/a": 1,
+        "storage:object/public/avatars/e0a57a8d-7054-4fec-bccb-c784d56fa900/a": 1,
+        "image-cdn:qhieexfuqxbqlaxf0jq4.jpg": 1,
+        "rpc:get_user_subscription_tiers": 1,
+        "rpc:get_my_user_space_summary": 1,
+        "table:posts": 1
+      },
+      "heap": {
+        "usedMB": 28.8
+      },
+      "fcp": 0,
+      "lcp": 6464,
+      "navigation": {
+        "domContentLoaded": 159,
+        "load": 175
+      }
+    },
+    {
+      "label": "posts-tab",
+      "count": 21,
+      "byKind": {
+        "css": 3,
+        "rpc": 1,
+        "table": 3,
+        "asset": 3,
+        "image-cdn": 11
+      },
+      "detail": {
+        "asset:favicon.png": 3,
+        "css:profile-base.css": 1,
+        "css:profile-panels.css": 1,
+        "css:responsive-integrations.css": 1,
+        "rpc:get_my_user_space_summary": 1,
+        "table:posts": 1,
+        "table:user_subscriptions": 1,
+        "table:boh_cloud_entries": 1,
+        "image-cdn:nci9byjfsxec94ztgg9f.png": 1,
+        "image-cdn:qhieexfuqxbqlaxf0jq4.jpg": 1,
+        "image-cdn:s6nnkxcb5hf2jim745la.jpg": 1,
+        "image-cdn:r6gdqwiys3ohfv9hbfto.jpg": 1,
+        "image-cdn:wncumrcubqurpzvdirld.jpg": 1,
+        "image-cdn:d2gs5bs4if94jkt3hqwc.jpg": 1,
+        "image-cdn:ztirsdxhng7ftnv8vxyo.jpg": 1,
+        "image-cdn:fn0fytli140myefvmmyu.png": 1,
+        "image-cdn:pgu1nhr7m66dqxibmitr.jpg": 1,
+        "image-cdn:hm46sjxudrl6ypyolqp5.jpg": 1,
+        "image-cdn:vtdbuiyk45ouivswygdt.png": 1
+      },
+      "heap": {
+        "usedMB": 30.2
+      }
+    },
+    {
+      "label": "assets-tab",
+      "count": 24,
+      "byKind": {
+        "other": 11,
+        "asset": 3,
+        "js": 3,
+        "table": 5,
+        "rpc": 2
+      },
+      "detail": {
+        "asset:favicon.png": 3,
+        "other:/src/views/user-center/UserSpace/components/AssetsHubPanel.vue": 2,
+        "other:/src/components/UserCenterPageHeader.vue": 2,
+        "other:/src/components/SubscriptionPlans.vue": 2,
+        "other:/src/components/AddressManager.vue": 2,
+        "other:/src/components/UserCenterBackButton.vue": 2,
+        "other:/src/stores/products.ts": 1,
+        "js:gift-archive.js": 1,
+        "js:lottery-api.js": 1,
+        "js:bohai-model-config-api.js": 1,
+        "table:user_subscriptions": 1,
+        "rpc:get_my_lottery_pity_status": 1,
+        "table:shop_points_orders": 1,
+        "table:user_gifts": 1,
+        "table:user_addresses": 1,
+        "table:products": 1,
+        "rpc:get_my_user_space_summary": 1
+      },
+      "heap": {
+        "usedMB": 34.3
+      }
+    },
+    {
+      "label": "messages-tab",
+      "count": 9,
+      "byKind": {
+        "other": 4,
+        "asset": 3,
+        "js": 2
+      },
+      "detail": {
+        "asset:favicon.png": 3,
+        "other:/src/views/user-center/Messages/index.vue": 2,
+        "other:/src/components/ui/EmptyState.vue": 2,
+        "js:user-space-navigation.js": 1,
+        "js:@vueuse_core.js": 1
+      },
+      "heap": {
+        "usedMB": 33
+      }
+    },
+    {
+      "label": "ai-section",
+      "count": 84,
+      "byKind": {
+        "other": 9,
+        "js": 67,
+        "css": 6,
+        "rpc": 1,
+        "edge": 1
+      },
+      "detail": {
+        "other:/src/views/BOHAI/BOHAI/BOHAIMain.vue": 2,
+        "other:/src/views/BOHAI/BOHAI/components/BohaiSidebar.vue": 2,
+        "other:/src/views/BOHAI/BOHAI/components/BohaiSettingsPanel.vue": 2,
+        "other:/src/components/ai/AiQuotaSidePanel.vue": 2,
+        "js:useChatEngine.js": 1,
+        "js:marked.js": 1,
+        "js:bohai-observability.js": 1,
+        "js:highlight__js_lib_core.js": 1,
+        "js:highlight__js_lib_languages_javascript.js": 1,
+        "js:highlight__js_lib_languages_typescript.js": 1,
+        "js:highlight__js_lib_languages_json.js": 1,
+        "js:highlight__js_lib_languages_bash.js": 1,
+        "js:highlight__js_lib_languages_xml.js": 1,
+        "js:highlight__js_lib_languages_css.js": 1,
+        "js:highlight__js_lib_languages_markdown.js": 1,
+        "js:highlight__js_lib_languages_python.js": 1,
+        "css:github.css": 1,
+        "css:shell-header.css": 1,
+        "css:full-workspace.css": 1,
+        "css:messages.css": 1,
+        "css:adaptive-layout.css": 1,
+        "css:motion-system.css": 1,
+        "js:chunk-5T5XGYIS.js": 1,
+        "js:treehole-api.js": 1,
+        "js:ai-chat-grounding.js": 1,
+        "js:bohai-action-draft-intent.js": 1,
+        "js:bohai-auto-router.js": 1,
+        "js:bohai-auto-decision.js": 1,
+        "js:bohai-connectors.js": 1,
+        "js:useActionDraft.js": 1,
+        "js:useMemoryCapture.js": 1,
+        "js:useThinkingTimer.js": 1,
+        "js:useWebSearchLifecycle.js": 1,
+        "js:useRateLimiter.js": 1,
+        "js:useContextCompression.js": 1,
+        "js:useResourceSearch.js": 1,
+        "js:useIntentDetection.js": 1,
+        "js:ai-site-guide.js": 1,
+        "js:chatErrorMessages.js": 1,
+        "js:chat-engine-config.js": 1,
+        "js:useConversationManager.js": 1,
+        "js:useGenerationPipeline.js": 1,
+        "js:useModelConfig.js": 1,
+        "js:useMessageManager.js": 1,
+        "js:useKnowledgeRetrieval.js": 1
+      }
+    },
+    {
+      "label": "ai-back",
+      "count": 0,
+      "byKind": {},
+      "detail": {}
+    },
+    {
+      "label": "settings-tab",
+      "count": 10,
+      "byKind": {
+        "other": 4,
+        "rpc": 2,
+        "table": 1,
+        "asset": 3
+      },
+      "detail": {
+        "asset:favicon.png": 3,
+        "other:/src/views/user-center/UserSpace/components/ProfileSettingsPanel.vue": 2,
+        "other:/src/views/user-center/UserSpace/components/SettingToggle.vue": 2,
+        "rpc:get_my_sensitive_profile": 1,
+        "table:profiles": 1,
+        "rpc:get_my_user_space_summary": 1
+      },
+      "heap": {
+        "usedMB": 43
+      }
+    },
+    {
+      "label": "revisit-community",
+      "count": 3,
+      "byKind": {
+        "asset": 3
+      },
+      "detail": {
+        "asset:favicon.png": 3
+      },
+      "heap": {
+        "usedMB": 42.8
+      }
+    },
+    {
+      "label": "community-dwell-65s",
+      "count": 1,
+      "byKind": {
+        "rpc": 1
+      },
+      "detail": {
+        "rpc:get_unread_notification_count": 1
+      },
+      "heap": {
+        "usedMB": 42.8
+      }
+    }
+  ],
+  "hypotheses": {
+    "H1_forum_double_fetch": {
+      "list_forum_posts_calls": 0,
+      "list_forum_posts_aborted": 0
+    },
+    "H2_hydrate_queries": {
+      "posts": 1,
+      "news": 0,
+      "activities": 0
+    },
+    "H3_embedded_redundant": {
+      "weekly": 1,
+      "ads": 0,
+      "checkin": 1
+    },
+    "H4_posts_fetches": {
+      "summary_rpc": 1,
+      "posts_table": 1,
+      "profiles": 0,
+      "user_follows": 0,
+      "cloud_entries": 1
+    },
+    "H5_messages_tab": {
+      "notifications_get": 0,
+      "unread_rpc": 0,
+      "js_chunks": 2
+    },
+    "H6_bohai_interval": {
+      "active_1s_intervals_after_switch_back": []
+    },
+    "H8_revisit_cache": {
+      "list_forum_posts_calls": 0,
+      "total_db_requests": 0,
+      "detail": []
+    },
+    "H7_idle_polling": {
+      "db_requests_in_65s": 1,
+      "detail": [
+        "rpc:get_unread_notification_count"
+      ],
+      "all_active_intervals": [
+        {
+          "delay": 30000,
+          "stack": "Object.connect <- async Object.connect <- async Object.connect"
+        },
+        {
+          "delay": 60000,
+          "stack": "http://localhost:5173/src/components/UnifiedNavbar/index.vue?t=1788943955384:807:27 <- http://localhost:5173/node_modules/.vite/deps/chunk-J2D6M6DR.js?v=302a22ec:5255:40 <- callWithErrorHandling <- ca"
+        },
+        {
+          "delay": 30000,
+          "stack": "SupabaseAuthClient._startAutoRefresh"
+        },
+        {
+          "delay": 120000,
+          "stack": "ensureSessionHeartbeat <- Proxy.updateLocalState <- async initUserData <- async watch.immediate"
+        }
+      ]
+    }
+  },
+  "heapTrend": [
+    {
+      "stage": "community",
+      "usedMB": 28.8
+    },
+    {
+      "stage": "posts",
+      "usedMB": 30.2
+    },
+    {
+      "stage": "assets",
+      "usedMB": 34.3
+    },
+    {
+      "stage": "messages",
+      "usedMB": 33
+    },
+    {
+      "stage": "settings",
+      "usedMB": 43
+    },
+    {
+      "stage": "revisit-community",
+      "usedMB": 42.8
+    },
+    {
+      "stage": "community-dwell-65s",
+      "usedMB": 42.8
+    }
+  ],
+  "websockets": [],
+  "pageErrors": [],
+  "fcp": 0,
+  "lcp": 6464,
+  "concurrent": {
+    "maxConcurrentInflight": 185,
+    "maxConcurrentAtMs": 60,
+    "maxRequestsPerSecond": 250,
+    "resourceTotalKB": 3625,
+    "slowest": [
+      {
+        "name": "http://localhost:5173/src/assets/images/classroom-group-poster-v1.webp?import",
+        "start": 60,
+        "dur": 36,
+        "size": 805,
+        "type": "script"
+      },
+      {
+        "name": "http://localhost:5173/src/assets/images/bohbook.webp?import",
+        "start": 60,
+        "dur": 36,
+        "size": 699,
+        "type": "script"
+      },
+      {
+        "name": "http://localhost:5173/src/assets/images/bohschool.webp?import",
+        "start": 60,
+        "dur": 36,
+        "size": 705,
+        "type": "script"
+      },
+      {
+        "name": "http://localhost:5173/src/assets/images/classroom-group-v2.webp?import",
+        "start": 60,
+        "dur": 36,
+        "size": 766,
+        "type": "script"
+      },
+      {
+        "name": "http://localhost:5173/src/assets/images/classroom-group-v3.webp?import",
+        "start": 60,
+        "dur": 36,
+        "size": 766,
+        "type": "script"
+      },
+      {
+        "name": "http://localhost:5173/src/assets/images/classroom-group-v4.webp?import",
+        "start": 60,
+        "dur": 36,
+        "size": 766,
+        "type": "script"
+      },
+      {
+        "name": "http://localhost:5173/src/assets/images/cake202512.webp?import",
+        "start": 60,
+        "dur": 35,
+        "size": 710,
+        "type": "script"
+      },
+      {
+        "name": "http://localhost:5173/src/assets/images/boh-journey/2023-five.webp?import",
+        "start": 60,
+        "dur": 34,
+        "size": 773,
+        "type": "script"
+      },
+      {
+        "name": "http://localhost:5173/src/assets/images/boh-journey/2024-snow.webp?import",
+        "start": 60,
+        "dur": 34,
+        "size": 773,
+        "type": "script"
+      },
+      {
+        "name": "http://localhost:5173/src/assets/images/boh-journey/2024-playground.webp?import",
+        "start": 60,
+        "dur": 34,
+        "size": 795,
+        "type": "script"
+      },
+      {
+        "name": "http://localhost:5173/src/assets/images/boh-journey/2023-national.webp?import",
+        "start": 60,
+        "dur": 34,
+        "size": 789,
+        "type": "script"
+      },
+      {
+        "name": "http://localhost:5173/src/assets/images/boh-journey/2025-museum.webp?import",
+        "start": 60,
+        "dur": 34,
+        "size": 779,
+        "type": "script"
+      }
+    ]
+  },
+  "longTaskSummary": {
+    "count": 0,
+    "over200ms": 0,
+    "max": 0
+  },
+  "failed": [
+    {
+      "url": "https://nplnlefdwfgtyimfkyih.supabase.co/rest/v1/posts?select=id&or=%28author_id.eq.00ac36b4-6594-440f-a9c1-38b7bd47ee8b%2Cauthor_username.e",
+      "method": "HEAD",
+      "kind": "table",
+      "name": "posts",
+      "err": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://nplnlefdwfgtyimfkyih.supabase.co/rest/v1/profiles?select=id&points=gt.14",
+      "method": "HEAD",
+      "kind": "table",
+      "name": "profiles",
+      "err": "net::ERR_ABORTED"
+    }
+  ],
+  "totalRequests": 603
+}

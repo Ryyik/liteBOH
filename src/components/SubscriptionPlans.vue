@@ -735,6 +735,8 @@ onUnmounted(() => { revealObserver?.disconnect(); window.__subCleanup?.(); if (b
 [data-theme="dark"] .apple-pricing.v2 { background: #000; --ink: #f5f5f7; --muted: #a1a1a6; --subtle: #86868b; }
 [data-theme="dark"] .hero-cta { background: #fff; color: #000; box-shadow: none; }
 [data-theme="dark"] .seg { background: rgba(255,255,255,.12); } [data-theme="dark"] .seg-thumb { background: #2c2c2e; }
+[data-theme="dark"] .seg-btn em { color: #6cb2ff; }
+[data-theme="dark"] .save-badge { background: rgba(108,178,255,.16); color: #6cb2ff; }
 [data-theme="dark"] .seg-btn.active { color: #fff; }
 [data-theme="dark"] .toolbar-divider { background: rgba(255,255,255,.14); }
 [data-theme="dark"] .sub-pill { background: rgba(0,113,227,.18); border-color: rgba(0,113,227,.4); }

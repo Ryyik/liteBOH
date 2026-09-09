@@ -60,7 +60,7 @@
         <h2 class="overview-status-title">{{ emptyTitle }}</h2>
         <p class="overview-status-text">{{ emptyText }}</p>
         <div class="overview-status-actions">
-          <router-link class="overview-btn" to="/user-space?tab=posts">去论坛看看</router-link>
+          <router-link class="overview-btn" to="/user-space?tab=community">去论坛看看</router-link>
           <router-link class="overview-btn overview-btn-secondary" to="/newsroom">前往新闻中心</router-link>
         </div>
         <p class="overview-status-note">首次登录时会展示最近 7 天的公开内容</p>

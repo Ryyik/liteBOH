@@ -146,4 +146,12 @@ onBeforeUnmount(() => {
     padding: 36px 20px 28px;
   }
 }
+
+/* ---- 暗色主题（dark audit 2026-09-08） ---- */
+html[data-theme="dark"] .activities-wall-page {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(38, 52, 74, 0.4), transparent 42%),
+    radial-gradient(circle at 85% 8%, rgba(64, 50, 30, 0.32), transparent 38%),
+    linear-gradient(180deg, #0d0f14 0%, #12151c 100%);
+}
 </style>

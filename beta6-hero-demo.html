@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="3tPEwmqv5DLUDZlcGpEjhq">
+<head data-page-node-id="LVqX1iQiHXN5XHIFpn3AAJ">
+<meta charset="UTF-8" data-page-node-id="qhqtLogNCGoI99FBQhmuv9">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="liqvs5BUspfntdqTXnzgQx">
+<title>BOHLITE Beta 6 · 焕新 Hero 设计 Demo</title>
+<style>
+/* ============================================================
+   BOHLITE BETA 6 · Hero Surface Demo（单区块版）
+   纯白页面 + 漂浮色晕 + 一块毛玻璃托全部文案
+   设计语言：液态玻璃 / 纯白背景 / 无渐变 / SF Pro 栈
+   Token 与 src/styles/common/tokens.css --liquid-* 对齐
+   ============================================================ */
+
+:root {
+  /* —— 液态玻璃 token（对齐 tokens.css）—— */
+  --liquid-bg: rgba(255, 255, 255, 0.72);
+  --liquid-bg-strong: rgba(255, 255, 255, 0.84);
+  --liquid-border: rgba(255, 255, 255, 0.65);
+  --liquid-border-hairline: rgba(15, 23, 42, 0.06);
+  --liquid-blur: 28px;
+  --liquid-blur-lg: 36px;
+  --liquid-saturate: 180%;
+  --liquid-filter: blur(var(--liquid-blur)) saturate(var(--liquid-saturate)) brightness(1.02);
+  --liquid-filter-lg: blur(var(--liquid-blur-lg)) saturate(var(--liquid-saturate)) brightness(1.02);
+  --liquid-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  --liquid-shadow: 0 20px 60px rgba(15, 23, 42, 0.07), 0 1px 3px rgba(15, 23, 42, 0.06);
+  --liquid-radius-lg: 28px;
+  --liquid-radius-pill: 999px;
+
+  /* —— 文本与品牌 —— */
+  --text-primary: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --brand-blue: #0071e3;
+  --brand-blue-hover: #0077ed;
+  --page-bg: #ffffff;
+
+  --font-stack: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    "Helvetica Neue", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  font-family: var(--font-stack);
+  background: var(--page-bg);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+a { color: inherit; text-decoration: none; }
+
+/* ============ 玻璃导航（落地时由 UnifiedNavbar 承担） ============ */
+.glass-nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 max(24px, calc((100vw - 1200px) / 2));
+  background: var(--liquid-bg);
+  -webkit-backdrop-filter: var(--liquid-filter);
+  backdrop-filter: var(--liquid-filter);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 1px 0 var(--liquid-border-hairline);
+}
+
+.glass-nav .logo {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.glass-nav nav { display: flex; gap: 32px; }
+
+.glass-nav nav a {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: color 0.25s ease;
+}
+
+.glass-nav nav a:hover { color: var(--text-primary); }
+
+/* ============ Hero：单区块 ============ */
+.hero {
+  position: relative;
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 92px max(24px, calc((100vw - 1200px) / 2)) 64px;
+  overflow: hidden;
+}
+
+/* —— 漂浮色晕：纯色圆 + blur（非渐变），玻璃后方 + 页面边缘 —— */
+.blobs {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(72px);
+}
+
+/* 玻璃正后方：主折射源 */
+.blob-1 { width: 560px; height: 560px; background: #0071e3; top: 14%; left: 50%; margin-left: -400px; opacity: 0.5;  animation: drift1 16s ease-in-out infinite alternate; }
+.blob-2 { width: 440px; height: 440px; background: #5ac8fa; top: 6%;  right: 14%; opacity: 0.42; animation: drift2 13s ease-in-out infinite alternate; }
+
+/* 页面边缘：氛围色晕 */
+.blob-3 { width: 380px; height: 380px; background: #ffd60a; bottom: -6%; left: 4%;  opacity: 0.32; animation: drift3 18s ease-in-out infinite alternate; }
+.blob-4 { width: 300px; height: 300px; background: #34c759; bottom: 8%; right: 6%; opacity: 0.26; animation: drift2 15s ease-in-out infinite alternate-reverse; }
+.blob-5 { width: 260px; height: 260px; background: #ff9f0a; top: -8%; left: 22%; opacity: 0.24; animation: drift1 20s ease-in-out infinite alternate-reverse; }
+
+@keyframes drift1 { to { transform: translate(64px, 44px) scale(1.08); } }
+@keyframes drift2 { to { transform: translate(-54px, -34px) scale(0.94); } }
+@keyframes drift3 { to { transform: translate(46px, -50px) scale(1.06); } }
+
+/* —— 毛玻璃卡：托住全部 hero 文案 —— */
+.glass-card {
+  position: relative;
+  width: min(880px, 100%);
+  border-radius: var(--liquid-radius-lg);
+  background: var(--liquid-bg);
+  -webkit-backdrop-filter: var(--liquid-filter-lg);
+  backdrop-filter: var(--liquid-filter-lg);
+  box-shadow:
+    var(--liquid-highlight),
+    0 0 0 1px var(--liquid-border-hairline),
+    0 0 0 4px rgba(255, 255, 255, 0.32),
+    var(--liquid-shadow);
+  padding: clamp(44px, 7vh, 76px) clamp(32px, 6vw, 88px);
+  text-align: center;
+  animation: rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: box-shadow 0.4s ease;
+}
+
+.glass-card:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 0 0 1px var(--liquid-border-hairline),
+    0 0 0 4px rgba(255, 255, 255, 0.42),
+    0 28px 72px rgba(15, 23, 42, 0.10);
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(32px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* eyebrow */
+.eyebrow {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--brand-blue);
+  text-transform: uppercase;
+  margin-bottom: 22px;
+}
+
+/* headline —— Hero 规范 L 档 */
+.headline {
+  font-size: clamp(44px, 6.5vw, 76px);
+  line-height: 1.06;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--text-primary);
+  margin-bottom: 22px;
+}
+
+.headline .accent { color: var(--brand-blue); }
+
+/* 正文 */
+.sub {
+  font-size: clamp(18px, 2.1vw, 22px);
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--text-secondary);
+  max-width: 560px;
+  margin: 0 auto 38px;
+}
+
+/* 主从双 CTA */
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  flex-wrap: wrap;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  height: 50px;
+  padding: 0 30px;
+  border-radius: var(--liquid-radius-pill);
+  background: var(--brand-blue);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: background 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+  box-shadow: 0 8px 24px rgba(0, 113, 227, 0.28);
+}
+
+.btn-primary:hover {
+  background: var(--brand-blue-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 32px rgba(0, 113, 227, 0.34);
+}
+
+.btn-primary:active { transform: translateY(0) scale(0.98); }
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 50px;
+  padding: 0 8px;
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--brand-blue);
+  transition: opacity 0.25s ease;
+}
+
+.btn-ghost:hover { opacity: 0.72; }
+.btn-ghost .chev { transition: transform 0.25s ease; }
+.btn-ghost:hover .chev { transform: translateX(3px); }
+
+/* ============ 响应式 ============ */
+@media (max-width: 640px) {
+  .glass-nav nav { display: none; }
+  .sub { font-size: 17px; margin-bottom: 30px; }
+  .actions { flex-direction: column; gap: 14px; }
+  .btn-primary, .btn-ghost { height: 48px; }
+  .blob-1 { margin-left: -320px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body data-page-node-id="vwx2eDcML6S1x8WKxA9Vmc">
+
+<!-- 玻璃导航（演示层级关系，落地时由 UnifiedNavbar 承担） -->
+<header class="glass-nav" data-page-node-id="kEA7r0B2ERsE4CafRREZRm">
+  <span class="logo" data-page-node-id="A47Vr7qmAtlzULQLWEDjgF">BOHLITE</span>
+  <nav data-page-node-id="9YG20l5rJJsPNZtGG1UNFG">
+    <a href="#" data-page-node-id="wj5bguH2XoGFyyvuo49yeo">社区</a>
+    <a href="#" data-page-node-id="Xcc8LFAXsALbRyTDjU8Vdp">探索</a>
+    <a href="#" data-page-node-id="46eAHNzESffGUGBCkQYcJ2">商城</a>
+    <a href="#" data-page-node-id="33YCNEthrRuzDLjIHMwm7C">订阅</a>
+  </nav>
+</header>
+
+<main data-page-node-id="VLFfJU4Bw1gXH5WAGHzdvU">
+  <!-- ============ Hero：一屏，一卡，一件事 ============ -->
+  <section class="hero" data-page-node-id="akJr3lH6MCG1oG1NurBbHb">
+    <div class="blobs" id="blobs" data-page-node-id="DLBw6W9RnnZ95PcijwcOvX">
+      <div class="blob blob-1" data-page-node-id="EKaQuNHhEPKJ2wofhkQ0lu"></div>
+      <div class="blob blob-2" data-page-node-id="B8jdwTjTBAbwyN3Dw1DBdI"></div>
+      <div class="blob blob-3" data-page-node-id="knXY9EFq9YPIqqf8kONoOu"></div>
+      <div class="blob blob-4" data-page-node-id="bSsE9QuJZCUwARPNiDlM4O"></div>
+      <div class="blob blob-5" data-page-node-id="y4wZu6mhsmUpMe74xbDS2u"></div>
+    </div>
+
+    <article class="glass-card" data-page-node-id="3Bm3VgShKHoVXQZJCFFUd2">
+      <p class="eyebrow" data-page-node-id="ewxO0eoXxh48sJFNQ013vX">BOHLITE BETA 6 · 焕新体验</p>
+      <h1 class="headline" data-page-node-id="VCDALxG3kJWvP4sl22eRTB">焕然一新，<br data-page-node-id="i8nPUy3q532yr8AsR9jDRS">即刻相见<span class="accent" data-page-node-id="4qRLsfFD1wC1Ucr5cR8b1Q">。</span></h1>
+      <p class="sub" data-page-node-id="n6DSejl7ovjaZpsRtzuSqx">液态玻璃设计语言全面升级。界面更轻盈，账本更透明，社区体验更连贯。</p>
+      <div class="actions" data-page-node-id="OEKBZSkfw0dmdKqj2BTyIR">
+        <a class="btn-primary" href="#" data-page-node-id="EoCVqC5VJMCyqzH1Xoxew1">立即焕新体验</a>
+        <a class="btn-ghost" href="#" data-page-node-id="OyhAsoxkmYaHt9JTkUk4aX">了解焕新详情 <span class="chev" data-page-node-id="lvozhHFzc6OZrfsIfEjbql">›</span></a>
+      </div>
+    </article>
+  </section>
+</main>
+
+<script>
+// 鼠标视差：色晕层轻微跟随（液态感），lerp 平滑
+(() => {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const blobs = document.getElementById('blobs');
+  if (!blobs) return;
+  let tx = 0, ty = 0, cx = 0, cy = 0, raf = null;
+
+  const tick = () => {
+    cx += (tx - cx) * 0.06;
+    cy += (ty - cy) * 0.06;
+    blobs.style.transform = `translate(${cx.toFixed(2)}px, ${cy.toFixed(2)}px)`;
+    raf = Math.abs(tx - cx) + Math.abs(ty - cy) > 0.1
+      ? requestAnimationFrame(tick)
+      : null;
+  };
+
+  addEventListener('pointermove', (e) => {
+    tx = (e.clientX / innerWidth - 0.5) * 34;
+    ty = (e.clientY / innerHeight - 0.5) * 26;
+    if (!raf) raf = requestAnimationFrame(tick);
+  }, { passive: true });
+})();
+</script>
+
+</body>
+</html>

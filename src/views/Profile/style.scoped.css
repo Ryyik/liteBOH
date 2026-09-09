@@ -3685,3 +3685,246 @@
     transform: none !important;
   }
 }
+
+/* ============================================================
+   印象 tab 液态玻璃重设计（2026-09-09，与「我的印象」面板同语言）
+   放在文件末尾以赢得与历史重复规则的层叠
+   ============================================================ */
+
+/* 发布印象：玻璃卡 + 品牌蓝聚焦 */
+.add-impression-section {
+  padding: 16px;
+  background: var(--liquid-bg);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
+  border: 1px solid var(--liquid-border);
+  border-radius: 20px;
+  box-shadow: var(--liquid-shadow), var(--liquid-inner-highlight);
+  margin-bottom: 18px;
+}
+
+.add-impression-section textarea {
+  width: 100%;
+  border: 1px solid var(--liquid-border);
+  border-radius: 14px;
+  padding: 14px;
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 88px;
+  resize: vertical;
+  background: var(--liquid-bg-subtle);
+  color: var(--text-primary);
+  font-family: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.add-impression-section textarea::placeholder {
+  color: color-mix(in srgb, var(--text-secondary) 78%, transparent);
+}
+
+.add-impression-section textarea:focus {
+  outline: none;
+  border-color: rgba(0, 113, 227, 0.42);
+  box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.1);
+  background: var(--liquid-bg);
+}
+
+.add-imp-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.char-hint {
+  font-size: 12px;
+  font-weight: 650;
+  color: color-mix(in srgb, var(--text-secondary) 82%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+.submit-imp-btn {
+  min-height: 38px;
+  padding: 0 22px;
+  border: none;
+  border-radius: 999px;
+  background: #0071e3;
+  color: #ffffff;
+  font-size: 13.5px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(0, 113, 227, 0.24), var(--liquid-inner-highlight);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+}
+
+.submit-imp-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px rgba(0, 113, 227, 0.3), var(--liquid-inner-highlight);
+}
+
+.submit-imp-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.submit-imp-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* 印象墙：玻璃引用卡 */
+.impression-card-profile {
+  position: relative;
+  background: var(--liquid-bg);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
+  border: 1px solid var(--liquid-border);
+  border-radius: 20px;
+  padding: 18px 18px 14px;
+  box-shadow: var(--liquid-shadow), var(--liquid-inner-highlight);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+  animation: impression-profile-in 0.4s cubic-bezier(0.34, 1.2, 0.64, 1) both;
+  animation-delay: var(--stagger-delay, 0ms);
+}
+
+.impression-card-profile:hover {
+  transform: translateY(-2px);
+  border-color: var(--liquid-border);
+  box-shadow: var(--liquid-shadow), 0 12px 28px rgba(15, 23, 42, 0.08), var(--liquid-inner-highlight);
+}
+
+@keyframes impression-profile-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.imp-quote-mark {
+  position: absolute;
+  top: -14px;
+  right: 8px;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: 84px;
+  line-height: 1;
+  font-weight: 700;
+  color: color-mix(in srgb, #0071e3 12%, transparent);
+  pointer-events: none;
+  user-select: none;
+}
+
+.imp-text {
+  position: relative;
+  flex: 1;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--text-primary);
+  font-weight: 600;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.imp-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid color-mix(in srgb, currentColor 8%, transparent);
+}
+
+/* 署名 chip：头像 + 名字/日期双行（tier 配色类挂在 .imp-author 上不受影响） */
+.imp-author-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  cursor: pointer;
+  border-radius: 999px;
+}
+
+.imp-avatar {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: color-mix(in srgb, #0071e3 10%, var(--liquid-bg-subtle));
+  box-shadow: inset 0 0 0 1px var(--liquid-border);
+}
+
+.imp-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.imp-avatar i {
+  font-style: normal;
+  font-size: 13px;
+  font-weight: 800;
+  color: #0071e3;
+}
+
+.imp-author-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.imp-author {
+  font-weight: 750;
+  font-size: 12.5px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.imp-author-chip:hover .imp-author {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.imp-date {
+  color: color-mix(in srgb, var(--text-secondary) 72%, transparent);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* 删除：幽灵桶，hover 泛红 */
+.delete-imp-btn {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  color: color-mix(in srgb, var(--text-secondary) 78%, transparent);
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.delete-imp-btn:hover {
+  background: rgba(255, 59, 48, 0.09);
+  color: #ff3b30;
+}

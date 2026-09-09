@@ -1,0 +1,117 @@
+[
+  {
+    "name": "列表页可取到新闻 id",
+    "pass": true,
+    "detail": "20260212080"
+  },
+  {
+    "name": "点击卡片 → 详情岛出现",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "详情岛带标题",
+    "pass": true,
+    "detail": "BOH Beta 3 生态联动"
+  },
+  {
+    "name": "详情岛带「分享」按钮",
+    "pass": true,
+    "detail": "分享"
+  },
+  {
+    "name": "原生分享被调用且携带独立页链接",
+    "pass": true,
+    "detail": "http://localhost:5173/#/news/20260212080"
+  },
+  {
+    "name": "降级：剪贴板收到独立页链接",
+    "pass": true,
+    "detail": "http://localhost:5173/#/news/20260212080"
+  },
+  {
+    "name": "降级：按钮出现「链接已复制」反馈",
+    "pass": true,
+    "detail": "链接已复制"
+  },
+  {
+    "name": "岛内入口跳转 /news/:id",
+    "pass": true,
+    "detail": "#/news/20260212080"
+  },
+  {
+    "name": "独立页整页渲染",
+    "pass": true,
+    "detail": "BOH Beta 3 生态联动"
+  },
+  {
+    "name": "独立页结构完整（kicker/meta/正文/脚注）",
+    "pass": true,
+    "detail": "meta=2 rich=true foot=2"
+  },
+  {
+    "name": "document.title 含新闻标题",
+    "pass": true,
+    "detail": "BOH Beta 3 生态联动 · BOHLITE 新闻"
+  },
+  {
+    "name": "og:title 已注入",
+    "pass": true,
+    "detail": "BOH Beta 3 生态联动 · BOHLITE 新闻"
+  },
+  {
+    "name": "og:description 已注入",
+    "pass": true,
+    "detail": "体验BOH Beta3，社区AI串联生态。"
+  },
+  {
+    "name": "og:url 指向 /news/:id",
+    "pass": true,
+    "detail": "http://localhost:5173/#/news/20260212080"
+  },
+  {
+    "name": "twitter:card 已注入",
+    "pass": true,
+    "detail": "summary_large_image"
+  },
+  {
+    "name": "刷新后详情仍在（可分享 URL）",
+    "pass": true,
+    "detail": "BOH Beta 3 生态联动"
+  },
+  {
+    "name": "暗色详情页渲染 + data-theme",
+    "pass": true,
+    "detail": "dark bg=rgba(24, 28, 36, 0.72)"
+  },
+  {
+    "name": "暗色标题可读（亮色文字）",
+    "pass": true,
+    "detail": "rgb(29, 29, 31)"
+  },
+  {
+    "name": "404 → 空态文案",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "非数字 id → 空态文案",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "深链 /newsroom?news=<id> → 岛自动展开",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "移动端 375 不横向溢出",
+    "pass": true,
+    "detail": "cardW=351 vw=375"
+  },
+  {
+    "name": "零 pageerror",
+    "pass": true,
+    "detail": ""
+  }
+]

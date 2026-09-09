@@ -2937,6 +2937,9 @@ onBeforeUnmount(() => {
   font-size: 12px;
   flex-shrink: 0;
 }
+
+html[data-theme="dark"] .brand-mark { background: #0071e3; color: #ffffff; }
+
 .brand-text {
   min-width: 0;
   display: flex;
@@ -4355,4 +4358,20 @@ onBeforeUnmount(() => {
     height: 100%;
   }
 }
+
+/* ===== 暗色主题（dark audit 2026-09-08） ===== */
+html[data-theme="dark"] .lab-page {
+  --background: #12121a;
+  --foreground: #f5f5f7;
+  --muted: #1c1c22;
+  --muted-foreground: #a1a1a6;
+  --border: #2c2c30;
+  --border-light: #232328;
+  --accent: #409cff;
+  --accent-hover: #6cb2ff;
+  --accent-light: rgba(64, 156, 255, 0.16);
+  background: var(--background);
+  color: var(--foreground);
+}
+
 </style>

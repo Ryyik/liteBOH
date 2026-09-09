@@ -1,215 +1,229 @@
 <template>
   <div key="profile-settings" class="profile-subpage-shell">
-    <UserCenterPageHeader title="设置" back-label="返回我的" max-width="1200px" @back="$emit('back')" />
+    <UserCenterPageHeader title="设置" back-label="返回我的" max-width="1200px" :show-back="showBack" @back="$emit('back')" />
 
     <div class="profile-subpage-body">
       <HomeCatMascot v-if="isHomeCatActive" class="settings-page-cat" pool="background"
         seed="settings-page" size="lg" decorative />
-      <div class="apple-card settings-section-card">
-        <HomeCatMascot v-if="isHomeCatActive" class="settings-card-cat" pool="ambient"
-          seed="settings-appearance" size="sm" decorative />
-        <div class="group-header-title">外观与浏览</div>
-        <div class="apple-list-group">
-          <div class="apple-item clickable" @click="$emit('open-theme')">
-            <div class="item-left">
-              <div class="icon-wrapper" :class="currentTheme === 'dark' ? 'bg-purple' : 'bg-yellow'">
+
+      <!-- 单一液态玻璃连续面板：分组内连续行 + 发丝线分隔（2026-09-09 重构） -->
+      <div class="glass-settings">
+        <!-- 账户 -->
+        <section class="gs-group">
+          <div class="gs-group-title">账户</div>
+          <div class="gs-rows">
+            <button type="button" class="gs-row" @click="copyEmail">
+              <span class="gs-icon is-blue">
+                <Mail :size="16" :stroke-width="2" aria-hidden="true" />
+              </span>
+              <span class="gs-text">
+                <span class="gs-label">绑定邮箱</span>
+                <span class="gs-desc">{{ userEmail ? '用于登录与找回密码，点击复制' : '当前账号未绑定邮箱' }}</span>
+              </span>
+              <span class="gs-side">
+                <span class="gs-value">{{ emailDisplayText }}</span>
+              </span>
+            </button>
+          </div>
+        </section>
+
+        <!-- 外观与浏览 -->
+        <section class="gs-group">
+          <div class="gs-group-title">外观与浏览</div>
+          <div class="gs-rows">
+            <button type="button" class="gs-row" @click="$emit('open-theme')">
+              <span class="gs-icon" :class="currentTheme === 'dark' ? 'is-purple' : 'is-yellow'">
                 <Moon v-if="currentTheme === 'dark'" :size="16" :stroke-width="2" aria-hidden="true" />
                 <Sun v-else :size="16" :stroke-width="2" aria-hidden="true" />
-              </div>
-              <span class="setting-label-stack">
-                <span class="item-label">主题设置</span>
-                <span class="item-desc">选择浅色、深色或跟随系统</span>
               </span>
-            </div>
-            <div class="item-right">
-              <span class="text-secondary">{{ themeDisplayText }}</span>
-              <span class="chevron">›</span>
-            </div>
+              <span class="gs-text">
+                <span class="gs-label">主题设置</span>
+                <span class="gs-desc">选择浅色、深色或跟随系统</span>
+              </span>
+              <span class="gs-side">
+                <span class="gs-value">{{ themeDisplayText }}</span>
+                <ChevronRight class="gs-chevron" :size="16" :stroke-width="2" aria-hidden="true" />
+              </span>
+            </button>
           </div>
-        </div>
-      </div>
+        </section>
 
-      <div class="apple-card settings-section-card">
-        <div class="group-header-title">版本与回退</div>
-        <div class="apple-list-group">
-          <div class="apple-item clickable" @click="$emit('open-version-settings')">
-            <div class="item-left">
-              <div class="icon-wrapper bg-blue">
+        <!-- 通用 -->
+        <section class="gs-group">
+          <div class="gs-group-title">通用</div>
+          <div class="gs-rows">
+            <button type="button" class="gs-row" @click="$emit('open-version-settings')">
+              <span class="gs-icon is-blue">
                 <RotateCcw :size="16" :stroke-width="2" aria-hidden="true" />
-              </div>
-              <span class="setting-label-stack">
-                <span class="item-label">版本与回退</span>
-                <span class="item-desc">Beta 5 已默认启用，可临时回退到 4.9.1 兼容模式</span>
               </span>
-            </div>
-            <div class="item-right">
-              <span class="text-secondary">Beta 5</span>
-              <span class="chevron">›</span>
-            </div>
+              <span class="gs-text">
+                <span class="gs-label">版本与回退</span>
+                <span class="gs-desc">Beta 5 已默认启用，可临时回退到 4.9.1 兼容模式</span>
+              </span>
+              <span class="gs-side">
+                <span class="gs-value">Beta 5</span>
+                <ChevronRight class="gs-chevron" :size="16" :stroke-width="2" aria-hidden="true" />
+              </span>
+            </button>
           </div>
-        </div>
-      </div>
+        </section>
 
-      <div class="apple-card settings-section-card">
-        <HomeCatMascot v-if="isHomeCatActive" class="settings-card-cat alt" pool="ambient"
-          seed="settings-cloud" size="sm" decorative />
-        <div class="group-header-title">Cloud+</div>
-        <div class="apple-list-group">
-          <div class="apple-item clickable" @click="$emit('open-cloud', 'settings')">
-            <div class="item-left">
-              <div class="icon-wrapper bg-teal">
+        <!-- Cloud+ -->
+        <section class="gs-group">
+          <div class="gs-group-title">Cloud+</div>
+          <div class="gs-rows">
+            <button type="button" class="gs-row" @click="$emit('open-cloud', 'settings')">
+              <span class="gs-icon is-teal">
                 <MessagesSquare :size="16" :stroke-width="2" aria-hidden="true" />
-              </div>
-              <span class="setting-label-stack">
-                <span class="item-label">Cloud+ 页面</span>
-                <span class="item-desc">进入完整 Cloud+ 设置与管理页面</span>
               </span>
-            </div>
-            <div class="item-right">
-              <span class="text-secondary">{{ cloudPlusUsageText }}</span>
-              <span class="chevron">›</span>
-            </div>
+              <span class="gs-text">
+                <span class="gs-label">Cloud+ 页面</span>
+                <span class="gs-desc">进入完整 Cloud+ 设置与管理页面</span>
+              </span>
+              <span class="gs-side">
+                <span class="gs-value">{{ cloudPlusUsageText }}</span>
+                <ChevronRight class="gs-chevron" :size="16" :stroke-width="2" aria-hidden="true" />
+              </span>
+            </button>
           </div>
-        </div>
-      </div>
+        </section>
 
-      <div class="apple-card settings-section-card">
-        <div class="group-header-title">账户与安全</div>
-        <div class="apple-list-group">
-          <div class="apple-item clickable" @click="$emit('open-security')">
-            <div class="item-left">
-              <div class="icon-wrapper bg-blue">
+        <!-- 账户与安全 -->
+        <section class="gs-group">
+          <div class="gs-group-title">账户与安全</div>
+          <div class="gs-rows">
+            <button type="button" class="gs-row" @click="$emit('open-security')">
+              <span class="gs-icon is-blue">
                 <Shield :size="16" :stroke-width="2" aria-hidden="true" />
-              </div>
-              <span class="setting-label-stack">
-                <span class="item-label">账户安全</span>
-                <span class="item-desc">修改密码、管理登录安全</span>
               </span>
-            </div>
-            <div class="item-right">
-              <span class="text-secondary">密码与账号</span>
-              <span class="chevron">›</span>
-            </div>
+              <span class="gs-text">
+                <span class="gs-label">账户安全</span>
+                <span class="gs-desc">修改密码、管理登录安全</span>
+              </span>
+              <span class="gs-side">
+                <span class="gs-value">密码与账号</span>
+                <ChevronRight class="gs-chevron" :size="16" :stroke-width="2" aria-hidden="true" />
+              </span>
+            </button>
           </div>
-        </div>
-      </div>
+        </section>
 
-      <div class="apple-card settings-section-card">
-        <HomeCatMascot v-if="isHomeCatActive" class="settings-card-cat" pool="ambient"
-          seed="settings-notification" size="sm" decorative />
-        <div class="group-header-title">通知</div>
-        <div class="apple-list-group">
-          <div class="apple-item clickable" @click="$emit('open-pushplus')">
-            <div class="item-left">
-              <div class="icon-wrapper bg-blue">
+        <!-- 通知 -->
+        <section class="gs-group">
+          <div class="gs-group-title">通知</div>
+          <div class="gs-rows">
+            <button type="button" class="gs-row" @click="$emit('open-pushplus')">
+              <span class="gs-icon is-blue">
                 <Bell :size="16" :stroke-width="2" aria-hidden="true" />
-              </div>
-              <span class="setting-label-stack">
-                <span class="item-label">Pushplus 推送</span>
-                <span class="item-desc">离线时通过微信接收消息</span>
               </span>
-            </div>
-            <div class="item-right">
-              <span class="text-secondary">{{ pushplusStatusText }}</span>
-              <span class="chevron">›</span>
-            </div>
+              <span class="gs-text">
+                <span class="gs-label">Pushplus 推送</span>
+                <span class="gs-desc">离线时通过微信接收消息</span>
+              </span>
+              <span class="gs-side">
+                <span class="gs-value">{{ pushplusStatusText }}</span>
+                <ChevronRight class="gs-chevron" :size="16" :stroke-width="2" aria-hidden="true" />
+              </span>
+            </button>
           </div>
-        </div>
-      </div>
+        </section>
 
-      <div class="apple-card settings-section-card">
-        <div class="group-header-title">数据与隐私</div>
-        <div class="apple-list-group">
-          <div class="apple-item clickable" @click="$emit('toggle-hide-online')">
-            <div class="item-left">
-              <div class="icon-wrapper bg-indigo">
+        <!-- 数据与隐私 -->
+        <section class="gs-group">
+          <div class="gs-group-title">数据与隐私</div>
+          <div class="gs-rows">
+            <button type="button" class="gs-row" @click="$emit('toggle-hide-online')">
+              <span class="gs-icon is-indigo">
                 <EyeOff :size="16" :stroke-width="2" aria-hidden="true" />
-              </div>
-              <span class="setting-label-stack">
-                <span class="item-label">隐藏在线状态</span>
-                <span class="item-desc">开启后，他人将看不到你的在线状态，你也无法查看他人的在线状态</span>
               </span>
-            </div>
-            <div class="item-right">
-              <SettingToggle :model-value="hideOnlineStatus" label="隐藏在线状态"
-                @update:model-value="$emit('toggle-hide-online')" />
-            </div>
-          </div>
-          <div class="apple-item clickable" @click="$emit('toggle-hide-follow-data')">
-            <div class="item-left">
-              <div class="icon-wrapper bg-indigo">
+              <span class="gs-text">
+                <span class="gs-label">隐藏在线状态</span>
+                <span class="gs-desc">开启后，他人将看不到你的在线状态，你也无法查看他人的在线状态</span>
+              </span>
+              <span class="gs-side">
+                <SettingToggle :model-value="hideOnlineStatus" label="隐藏在线状态"
+                  @update:model-value="$emit('toggle-hide-online')" />
+              </span>
+            </button>
+            <button type="button" class="gs-row" @click="$emit('toggle-hide-follow-data')">
+              <span class="gs-icon is-indigo">
                 <Users :size="16" :stroke-width="2" aria-hidden="true" />
-              </div>
-              <span class="setting-label-stack">
-                <span class="item-label">隐藏关注数据</span>
-                <span class="item-desc">开启后，他人在你主页看不到你的详细关注列表和粉丝列表，但仍能看到数量</span>
               </span>
-            </div>
-            <div class="item-right">
-              <SettingToggle :model-value="hideFollowData" label="隐藏关注数据"
-                @update:model-value="$emit('toggle-hide-follow-data')" />
-            </div>
-          </div>
-          <div class="apple-item clickable" @click="$emit('open-data-management')">
-            <div class="item-left">
-              <div class="icon-wrapper bg-indigo">
+              <span class="gs-text">
+                <span class="gs-label">隐藏关注数据</span>
+                <span class="gs-desc">开启后，他人在你主页看不到你的详细关注列表和粉丝列表，但仍能看到数量</span>
+              </span>
+              <span class="gs-side">
+                <SettingToggle :model-value="hideFollowData" label="隐藏关注数据"
+                  @update:model-value="$emit('toggle-hide-follow-data')" />
+              </span>
+            </button>
+            <button type="button" class="gs-row" @click="$emit('open-data-management')">
+              <span class="gs-icon is-indigo">
                 <Database :size="16" :stroke-width="2" aria-hidden="true" />
-              </div>
-              <span class="setting-label-stack">
-                <span class="item-label">数据与隐私</span>
-                <span class="item-desc">公共记忆与管理工具</span>
               </span>
-            </div>
-            <div class="item-right">
-              <span class="text-secondary">{{ dataPrivacyStatusText }}</span>
-              <span class="chevron">›</span>
-            </div>
-          </div>
-          <div class="apple-item clickable" @click="$emit('open-data-export')">
-            <div class="item-left">
-              <div class="icon-wrapper bg-indigo">
+              <span class="gs-text">
+                <span class="gs-label">数据与隐私</span>
+                <span class="gs-desc">公共记忆与管理工具</span>
+              </span>
+              <span class="gs-side">
+                <span class="gs-value">{{ dataPrivacyStatusText }}</span>
+                <ChevronRight class="gs-chevron" :size="16" :stroke-width="2" aria-hidden="true" />
+              </span>
+            </button>
+            <button type="button" class="gs-row" @click="$emit('open-data-export')">
+              <span class="gs-icon is-indigo">
                 <Archive :size="16" :stroke-width="2" aria-hidden="true" />
-              </div>
-              <span class="setting-label-stack">
-                <span class="item-label">导出我的数据</span>
-                <span class="item-desc">打包个人资料、帖子、云空间等为 ZIP 下载</span>
               </span>
-            </div>
-            <div class="item-right">
-              <span class="text-secondary">ZIP 打包</span>
-              <span class="chevron">›</span>
-            </div>
+              <span class="gs-text">
+                <span class="gs-label">导出我的数据</span>
+                <span class="gs-desc">打包个人资料、帖子、云空间等为 ZIP 下载</span>
+              </span>
+              <span class="gs-side">
+                <span class="gs-value">ZIP 打包</span>
+                <ChevronRight class="gs-chevron" :size="16" :stroke-width="2" aria-hidden="true" />
+              </span>
+            </button>
           </div>
-        </div>
-      </div>
+        </section>
 
-      <div class="apple-card settings-section-card danger-section-card">
-        <div class="group-header-title">危险操作</div>
-        <div class="apple-list-group">
-          <div class="apple-item clickable" @click="$emit('logout')">
-            <div class="item-left">
-              <div class="icon-wrapper bg-red">
+        <!-- 危险操作 -->
+        <section class="gs-group gs-danger">
+          <div class="gs-rows">
+            <button type="button" class="gs-row" @click="$emit('logout')">
+              <span class="gs-icon is-red">
                 <LogOut :size="16" :stroke-width="2" aria-hidden="true" />
-              </div>
-              <span class="item-label text-danger">退出登录</span>
-            </div>
-            <div class="item-right">
-              <span class="chevron text-danger">›</span>
-            </div>
+              </span>
+              <span class="gs-text">
+                <span class="gs-label gs-label-danger">退出登录</span>
+              </span>
+              <span class="gs-side">
+                <ChevronRight class="gs-chevron gs-chevron-danger" :size="16" :stroke-width="2" aria-hidden="true" />
+              </span>
+            </button>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
+import { computed, ref } from 'vue';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
-import { Archive, Bell, Database, EyeOff, LogOut, MessagesSquare, Moon, RotateCcw, Shield, Sun, Users } from 'lucide-vue-next';
+import { Archive, Bell, ChevronRight, Database, EyeOff, LogOut, Mail, MessagesSquare, Moon, RotateCcw, Shield, Sun, Users } from 'lucide-vue-next';
 import SettingToggle from './SettingToggle.vue';
 
-defineProps({
+const props = defineProps({
+  showBack: {
+    type: Boolean,
+    default: true
+  },
+  userEmail: {
+    type: String,
+    default: ''
+  },
   pushplusStatusText: {
     type: String,
     default: ''
@@ -262,18 +276,51 @@ defineEmits([
   'toggle-hide-online',
   'toggle-hide-follow-data'
 ]);
+
+/* ---------- 绑定邮箱（点击复制） ---------- */
+const emailCopied = ref(false);
+let emailCopyTimer = null;
+
+const emailDisplayText = computed(() => {
+  if (emailCopied.value) return '已复制';
+  return props.userEmail || '未绑定';
+});
+
+const copyEmail = async () => {
+  const email = String(props.userEmail || '').trim();
+  if (!email) return;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(email);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = email;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    emailCopied.value = true;
+    clearTimeout(emailCopyTimer);
+    emailCopyTimer = setTimeout(() => {
+      emailCopied.value = false;
+    }, 1600);
+  } catch (_error) {
+    /* 复制失败静默：邮箱仍完整展示在值区 */
+  }
+};
 </script>
 
 <style scoped>
+@import '../styles/settings-glass.css';
+
 .profile-subpage-shell {
   padding-top: 0;
 }
 
-.settings-section-card {
-  overflow: hidden;
-  position: relative;
-}
-
+/* 猫咪彩蛋（保留） */
 .settings-page-cat {
   position: absolute;
   right: 18px;
@@ -284,45 +331,5 @@ defineEmits([
   transform: rotate(7deg);
   pointer-events: none;
   z-index: 0;
-}
-
-.settings-card-cat {
-  position: absolute;
-  right: 16px;
-  bottom: 10px;
-  width: 52px;
-  height: 44px;
-  opacity: 0.24;
-  transform: rotate(5deg);
-  pointer-events: none;
-}
-
-.settings-card-cat.alt {
-  top: 10px;
-  bottom: auto;
-  opacity: 0.28;
-  transform: rotate(-5deg);
-}
-
-.settings-section-card > :not(.settings-card-cat) {
-  position: relative;
-  z-index: 1;
-}
-
-.setting-label-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.group-header-title {
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 800;
-  padding: 16px 16px 10px;
-}
-
-.danger-section-card {
-  border: 1px solid rgba(255, 59, 48, 0.2);
 }
 </style>

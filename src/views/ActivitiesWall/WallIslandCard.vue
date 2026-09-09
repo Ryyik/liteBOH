@@ -115,6 +115,15 @@ defineProps({
   color: #1d1d1f;
 }
 
+/* 暗色：导航岛底转深后，tab 文字同步换浅色（dark audit 2026-09-08） */
+html[data-theme="dark"] .wi-switch button {
+  color: #8d99a8;
+}
+
+html[data-theme="dark"] .wi-switch button.active {
+  color: #f2f5f8;
+}
+
 .wi-switch button:focus-visible {
   outline: 2px solid #94a3b8;
   outline-offset: 2px;

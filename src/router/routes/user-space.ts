@@ -27,27 +27,27 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
   },
   {
     path: "/user-center/points",
-    redirect: redirectWithQuery("/user-space?tab=profile&view=assets"),
+    redirect: redirectWithQuery("/user-space?tab=assets"),
   },
   {
     path: "/user-center",
-    redirect: redirectWithQuery("/user-space/profile"),
+    redirect: redirectWithQuery("/user-space?tab=posts"),
   },
   {
     path: "/user-center-v2",
-    redirect: redirectWithQuery("/user-space/profile"),
+    redirect: redirectWithQuery("/user-space?tab=posts"),
   },
   {
     path: "/user-center/info",
-    redirect: redirectWithQuery("/user-space/profile"),
+    redirect: redirectWithQuery("/user-space?tab=posts"),
   },
   {
     path: "/user-center/subscriptions",
-    redirect: redirectWithQuery("/user-space?tab=profile&view=assets"),
+    redirect: redirectWithQuery("/user-space?tab=assets"),
   },
   {
     path: "/user-center/address",
-    redirect: redirectWithQuery("/user-space?tab=profile&view=assets"),
+    redirect: redirectWithQuery("/user-space?tab=assets"),
   },
   {
     path: "/user-center/messages",
@@ -104,19 +104,30 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
   },
   {
     path: "/user-space/profile",
-    redirect: redirectToUserSpaceTab("profile"),
-  },
-  {
-    path: "/user-space/posts",
     redirect: redirectToUserSpaceTab("posts"),
   },
   {
-    path: "/user-space/community",
+    path: "/user-space/posts",
+    // 2026-09 IA：旧 tab=posts 语义是「论坛」，论坛现居社区 tab
     redirect: redirectToUserSpaceTab("community"),
   },
   {
+    path: "/user-space/community",
+    // 旧 tab=community 语义是「关注/粉丝」，现随身份卡居内容 tab
+    redirect: redirectToUserSpaceTab("posts"),
+  },
+  {
     path: "/user-space/ai",
-    redirect: redirectToUserSpaceTab("ai"),
+    // AI 并入消息 tab
+    redirect: redirectToUserSpaceTab("messages"),
+  },
+  {
+    path: "/user-space/assets",
+    redirect: redirectToUserSpaceTab("assets"),
+  },
+  {
+    path: "/user-space/settings",
+    redirect: redirectToUserSpaceTab("settings"),
   },
   {
     path: "/user-space/account-security",

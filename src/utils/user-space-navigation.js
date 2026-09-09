@@ -1,5 +1,6 @@
 export const createUserSpaceProfileReturnLocation = () => ({
-  path: '/user-space/profile'
+  path: '/user-space',
+  query: { tab: 'posts' }
 });
 
 export const createUserSpaceMessagesLocation = (section = 'notifications', extraQuery = {}) => ({
@@ -13,15 +14,14 @@ export const createUserSpaceMessagesLocation = (section = 'notifications', extra
 export const createUserSpaceSettingsReturnLocation = () => ({
   path: '/user-space',
   query: {
-    tab: 'profile',
-    view: 'settings'
+    tab: 'settings'
   }
 });
 
 export const createUserSpaceDataManagementReturnLocation = () => ({
   path: '/user-space',
   query: {
-    tab: 'profile',
+    tab: 'settings',
     view: 'data-management'
   }
 });

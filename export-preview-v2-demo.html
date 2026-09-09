@@ -1,0 +1,963 @@
+<!doctype html>
+<html lang="zh-CN" data-page-node-id="nqNK6y46J9XGSsQDYXUI8Z">
+<head data-page-node-id="WjHDEN8KreEg52zn06QM9q">
+<meta charset="utf-8" data-page-node-id="YL6VYub5ADR0jyCGYTeABs">
+<meta name="viewport" content="width=device-width,initial-scale=1" data-page-node-id="J4ArWVbTm3EUdZNHEBPAmT">
+<title>BOH 数据导出预览 · 液态玻璃 Demo</title>
+<style>
+/* ============================================================
+   BOH 数据导出预览 — 设计 Demo
+   视觉基准：站点 tokens.css 的 --liquid-* 液态玻璃体系
+   结构基准：Forum/PostCard.vue 的卡片骨架
+   说明：最终版由 Edge Function 生成进 ZIP 内 index.html，
+        本文件的渲染逻辑与样式即未来 previewHtml 的蓝本。
+   ============================================================ */
+
+:root{
+  color-scheme:light dark;
+  /* —— 液态玻璃 token（与 src/styles/common/tokens.css 同源）—— */
+  --liquid-bg:rgba(255,255,255,.72);
+  --liquid-bg-strong:rgba(255,255,255,.84);
+  --liquid-bg-subtle:rgba(255,255,255,.58);
+  --liquid-bg-nested:rgba(255,255,255,.42);
+  --liquid-border:rgba(255,255,255,.65);
+  --liquid-border-strong:rgba(255,255,255,.82);
+  --liquid-border-hairline:rgba(15,23,42,.06);
+  --liquid-blur:28px;--liquid-blur-sm:18px;--liquid-blur-lg:36px;
+  --liquid-saturate:180%;
+  --liquid-filter:blur(var(--liquid-blur)) saturate(var(--liquid-saturate)) brightness(1.02);
+  --liquid-filter-sm:blur(var(--liquid-blur-sm)) saturate(var(--liquid-saturate)) brightness(1.02);
+  --liquid-highlight:inset 0 1px 0 rgba(255,255,255,.86);
+  --liquid-highlight-subtle:inset 0 1px 0 rgba(255,255,255,.55);
+  --liquid-shadow:0 20px 60px rgba(15,23,42,.07),0 1px 3px rgba(15,23,42,.06);
+  --liquid-shadow-sm:0 8px 24px rgba(15,23,42,.06);
+  --liquid-shadow-overlay:0 24px 80px rgba(15,23,42,.14);
+  --liquid-radius-lg:28px;--liquid-radius-md:16px;--liquid-radius-pill:999px;
+  --liquid-text-primary:#1d1d1f;
+  --liquid-text-secondary:#6e6e73;
+  --liquid-text-tertiary:#8b9098;
+
+  /* —— 页面级补充 token —— */
+  --ink:var(--liquid-text-primary);
+  --muted:var(--liquid-text-secondary);
+  --faint:var(--liquid-text-tertiary);
+  --accent:#0071e3;
+  --accent-soft:rgba(0,113,227,.12);
+  --like:#ff3b30;
+  --pos:#34c759;
+  --neg:#ff3b30;
+  --news:#ff3b30;
+  --activity:#ff9500;
+  --chip-bg:rgba(120,120,128,.10);
+  --chip-line:rgba(15,23,42,.07);
+  --hover:rgba(120,120,128,.08);
+  --r-lg:var(--liquid-radius-lg);
+  --r-md:var(--liquid-radius-md);
+  --ease:cubic-bezier(.23,1,.32,1);
+}
+:root[data-theme="dark"]{
+  --liquid-bg:rgba(28,28,36,.72);
+  --liquid-bg-strong:rgba(40,40,52,.84);
+  --liquid-bg-subtle:rgba(38,38,48,.58);
+  --liquid-bg-nested:rgba(38,38,48,.42);
+  --liquid-border:rgba(255,255,255,.12);
+  --liquid-border-strong:rgba(255,255,255,.18);
+  --liquid-border-hairline:rgba(255,255,255,.08);
+  --liquid-highlight:inset 0 1px 0 rgba(255,255,255,.12);
+  --liquid-highlight-subtle:inset 0 1px 0 rgba(255,255,255,.08);
+  --liquid-shadow:0 20px 60px rgba(0,0,0,.4),0 1px 3px rgba(0,0,0,.3);
+  --liquid-shadow-sm:0 8px 24px rgba(0,0,0,.3);
+  --liquid-shadow-overlay:0 24px 80px rgba(0,0,0,.42);
+  --liquid-text-primary:#f5f5f7;
+  --liquid-text-secondary:#a1a1a6;
+  --liquid-text-tertiary:#7c7c82;
+  --accent:#2997ff;
+  --accent-soft:rgba(41,151,255,.18);
+  --like:#ff453a;
+  --pos:#30d158;
+  --neg:#ff453a;
+  --news:#ff453a;
+  --activity:#ff9f0a;
+  --chip-bg:rgba(120,120,128,.18);
+  --chip-line:rgba(255,255,255,.09);
+  --hover:rgba(120,120,128,.16);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --liquid-bg:rgba(28,28,36,.72);
+    --liquid-bg-strong:rgba(40,40,52,.84);
+    --liquid-bg-subtle:rgba(38,38,48,.58);
+    --liquid-bg-nested:rgba(38,38,48,.42);
+    --liquid-border:rgba(255,255,255,.12);
+    --liquid-border-strong:rgba(255,255,255,.18);
+    --liquid-border-hairline:rgba(255,255,255,.08);
+    --liquid-highlight:inset 0 1px 0 rgba(255,255,255,.12);
+    --liquid-highlight-subtle:inset 0 1px 0 rgba(255,255,255,.08);
+    --liquid-shadow:0 20px 60px rgba(0,0,0,.4),0 1px 3px rgba(0,0,0,.3);
+    --liquid-shadow-sm:0 8px 24px rgba(0,0,0,.3);
+    --liquid-shadow-overlay:0 24px 80px rgba(0,0,0,.42);
+    --liquid-text-primary:#f5f5f7;
+    --liquid-text-secondary:#a1a1a6;
+    --liquid-text-tertiary:#7c7c82;
+    --accent:#2997ff;
+    --accent-soft:rgba(41,151,255,.18);
+    --like:#ff453a;
+    --pos:#30d158;
+    --neg:#ff453a;
+    --news:#ff453a;
+    --activity:#ff9f0a;
+    --chip-bg:rgba(120,120,128,.18);
+    --chip-line:rgba(255,255,255,.09);
+    --hover:rgba(120,120,128,.16);
+  }
+}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  :root{--liquid-bg:rgba(255,255,255,.96);--liquid-bg-strong:#fff;--liquid-bg-subtle:#f5f5f7}
+  :root[data-theme="dark"]{--liquid-bg:#1e1e2a;--liquid-bg-strong:#252532}
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;min-height:100vh;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  font-size:15px;line-height:1.6;color:var(--ink);
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+/* —— 背景光斑：给玻璃提供可折射的色彩 —— */
+.bg{position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(900px 620px at 12% -8%,rgba(0,113,227,.16),transparent 62%),
+    radial-gradient(820px 560px at 90% 8%,rgba(142,102,255,.13),transparent 60%),
+    radial-gradient(760px 560px at 52% 110%,rgba(255,149,0,.10),transparent 62%),
+    linear-gradient(180deg,#f7f8fa 0%,#eef0f4 100%);
+}
+:root[data-theme="dark"] .bg{
+  background:
+    radial-gradient(900px 620px at 12% -8%,rgba(41,151,255,.17),transparent 62%),
+    radial-gradient(820px 560px at 90% 8%,rgba(142,102,255,.14),transparent 60%),
+    radial-gradient(760px 560px at 52% 110%,rgba(255,159,10,.08),transparent 62%),
+    linear-gradient(180deg,#0c0d13 0%,#12131b 100%);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) .bg{
+    background:
+      radial-gradient(900px 620px at 12% -8%,rgba(41,151,255,.17),transparent 62%),
+      radial-gradient(820px 560px at 90% 8%,rgba(142,102,255,.14),transparent 60%),
+      radial-gradient(760px 560px at 52% 110%,rgba(255,159,10,.08),transparent 62%),
+      linear-gradient(180deg,#0c0d13 0%,#12131b 100%);
+  }
+}
+
+/* —— 玻璃基元 —— */
+.glass{
+  background:var(--liquid-bg);
+  backdrop-filter:var(--liquid-filter);
+  -webkit-backdrop-filter:var(--liquid-filter);
+  border:1px solid var(--liquid-border);
+  box-shadow:var(--liquid-shadow),var(--liquid-highlight);
+  border-radius:var(--r-lg);
+}
+.glass-sm{
+  background:var(--liquid-bg-subtle);
+  backdrop-filter:var(--liquid-filter-sm);
+  -webkit-backdrop-filter:var(--liquid-filter-sm);
+  border:1px solid var(--liquid-border);
+  box-shadow:var(--liquid-shadow-sm),var(--liquid-highlight-subtle);
+  border-radius:var(--r-md);
+}
+.nested{
+  background:var(--liquid-bg-nested);
+  border:1px solid var(--liquid-border-hairline);
+  border-radius:var(--r-md);
+}
+
+/* —— 顶栏 —— */
+.topbar{
+  position:fixed;top:12px;left:50%;transform:translateX(-50%);
+  width:min(920px,calc(100% - 24px));height:56px;z-index:100;
+  display:flex;align-items:center;gap:12px;padding:0 12px 0 18px;
+  background:var(--liquid-bg-strong);
+  backdrop-filter:var(--liquid-filter);
+  -webkit-backdrop-filter:var(--liquid-filter);
+  border:1px solid var(--liquid-border-strong);
+  box-shadow:var(--liquid-shadow-sm),var(--liquid-highlight);
+  border-radius:var(--liquid-radius-pill);
+}
+.brand{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.brand-dot{width:26px;height:26px;border-radius:9px;flex-shrink:0;
+  background:linear-gradient(135deg,#0071e3,#5e5ce6);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 4px 10px rgba(0,113,227,.35);
+  display:grid;place-items:center;color:#fff}
+.brand-dot svg{width:14px;height:14px}
+.brand-title{font-size:14.5px;font-weight:700;letter-spacing:.01em;white-space:nowrap}
+.brand-sub{font-size:11px;color:var(--faint);margin-top:-2px}
+.search-wrap{flex:1;min-width:0;display:flex;justify-content:flex-end}
+.search{
+  display:flex;align-items:center;gap:7px;width:min(260px,100%);
+  height:36px;padding:0 12px;border-radius:var(--liquid-radius-pill);
+  background:var(--chip-bg);border:1px solid var(--chip-line);
+  color:var(--muted);transition:background .18s var(--ease),border-color .18s var(--ease);
+}
+.search:focus-within{background:var(--liquid-bg-nested);border-color:var(--accent)}
+.search svg{width:14px;height:14px;flex-shrink:0;opacity:.7}
+.search input{
+  flex:1;min-width:0;border:0;outline:0;background:transparent;
+  font:inherit;font-size:13px;color:var(--ink);
+}
+.search input::placeholder{color:var(--faint)}
+.theme-btn{
+  flex-shrink:0;height:36px;padding:0 13px;border-radius:var(--liquid-radius-pill);
+  display:flex;align-items:center;gap:6px;cursor:pointer;
+  border:1px solid var(--chip-line);background:var(--chip-bg);
+  font:inherit;font-size:12.5px;font-weight:600;color:var(--muted);
+  transition:transform .16s var(--ease),background .18s var(--ease);
+}
+.theme-btn:hover{background:var(--hover)}
+.theme-btn:active{transform:scale(.95)}
+.theme-btn svg{width:14px;height:14px}
+
+/* —— 版心 —— */
+main{max-width:860px;margin:0 auto;padding:104px 20px 64px}
+.panel{margin-top:18px;padding:22px}
+
+/* —— Hero —— */
+.hero{display:flex;gap:16px;align-items:center}
+.hero-icon{width:52px;height:52px;border-radius:16px;flex-shrink:0;
+  background:linear-gradient(135deg,#0071e3,#5e5ce6);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 10px 24px rgba(0,113,227,.3);
+  display:grid;place-items:center;color:#fff}
+.hero-icon svg{width:24px;height:24px}
+.hero h1{margin:0;font-size:24px;font-weight:800;letter-spacing:-.01em}
+.hero .sub{color:var(--muted);font-size:13.5px;margin-top:3px}
+.hero .pill{margin-left:auto;flex-shrink:0;font-size:11.5px;font-weight:600;color:var(--muted);
+  padding:6px 12px;border-radius:var(--liquid-radius-pill);
+  background:var(--chip-bg);border:1px solid var(--chip-line);white-space:nowrap}
+
+/* —— 统计 —— */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.stat{padding:15px 17px}
+.stat b{display:block;font-size:25px;font-weight:800;letter-spacing:-.02em;line-height:1.2;
+  font-variant-numeric:tabular-nums}
+.stat span{color:var(--muted);font-size:12.5px}
+
+/* —— 标签页 —— */
+.tabs-sticky{position:sticky;top:84px;z-index:90;padding:6px;margin-bottom:2px;
+  border-radius:var(--liquid-radius-pill)}
+.tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{
+  flex-shrink:0;border:0;background:transparent;cursor:pointer;
+  font:inherit;font-size:13.5px;font-weight:600;color:var(--muted);
+  padding:9px 16px;border-radius:var(--liquid-radius-pill);
+  display:flex;align-items:center;gap:7px;white-space:nowrap;
+  transition:background .18s var(--ease),color .18s var(--ease);
+}
+.tab:hover{background:var(--hover)}
+.tab.active{background:var(--accent);color:#fff;box-shadow:0 6px 16px rgba(0,113,227,.3)}
+.tab .n{font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;
+  padding:1px 7px;border-radius:var(--liquid-radius-pill);
+  background:var(--chip-bg);color:var(--muted)}
+.tab.active .n{background:rgba(255,255,255,.24);color:#fff}
+.view{display:none;margin-top:16px}
+.view.active{display:block;animation:fadeUp .32s var(--ease)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.result-line{margin:0 2px 10px;font-size:12.5px;color:var(--faint)}
+
+/* —— 帖子卡（PostCard 同款骨架）—— */
+.post{
+  padding:18px 20px;margin-top:14px;cursor:default;
+  transition:transform .2s var(--ease),box-shadow .2s var(--ease);
+}
+.post:hover{transform:translateY(-2px);box-shadow:var(--liquid-shadow-overlay),var(--liquid-highlight)}
+.post-head{display:flex;align-items:center;gap:12px}
+.avatar{
+  width:42px;height:42px;border-radius:50%;flex-shrink:0;
+  display:grid;place-items:center;color:#fff;font-size:16px;font-weight:700;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 2px 6px rgba(0,0,0,.12);
+}
+.avatar.sm{width:28px;height:28px;font-size:12px}
+.author-info{display:flex;flex-direction:column;min-width:0}
+.author-name{font-size:14px;font-weight:700;line-height:1.35}
+.author-time{font-size:12px;color:var(--faint)}
+.kind-badge{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:var(--liquid-radius-pill);margin-left:8px;vertical-align:1px}
+.kind-badge.news{color:var(--news);background:rgba(255,59,48,.12)}
+.kind-badge.activity{color:var(--activity);background:rgba(255,149,0,.14)}
+.badge-self{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:var(--liquid-radius-pill);margin-left:6px;vertical-align:1px;
+  color:var(--accent);background:var(--accent-soft)}
+.post-title{margin:12px 0 0;font-size:17px;font-weight:700;letter-spacing:-.01em;line-height:1.45}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.tag{display:inline-flex;align-items:center;gap:4px;
+  font-size:12px;font-weight:600;color:var(--muted);
+  padding:3.5px 10px;border-radius:var(--liquid-radius-pill);
+  background:var(--chip-bg);border:1px solid var(--chip-line)}
+.tag svg{width:11px;height:11px}
+.post-text{margin-top:10px;font-size:14.5px;line-height:1.75;color:var(--ink);white-space:pre-wrap;word-break:break-word}
+.post-text.clamped{display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+.expand-btn{margin-top:6px;border:0;background:transparent;cursor:pointer;padding:2px 0;
+  font:inherit;font-size:13px;font-weight:600;color:var(--accent);display:inline-flex;align-items:center;gap:3px}
+.expand-btn svg{width:13px;height:13px;transition:transform .2s var(--ease)}
+.expand-btn.open svg{transform:rotate(180deg)}
+
+/* —— 图片九宫格 —— */
+.thumb-grid{display:grid;gap:8px;margin-top:12px}
+.thumb-grid.count-1{grid-template-columns:1fr}
+.thumb-grid.count-2{grid-template-columns:1fr 1fr}
+.thumb-grid.count-3{grid-template-columns:repeat(3,1fr)}
+.thumb{position:relative;overflow:hidden;border-radius:13px;cursor:zoom-in;
+  border:1px solid var(--liquid-border-hairline);background:var(--chip-bg);
+  box-shadow:0 2px 8px rgba(15,23,42,.06);padding:0}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .35s var(--ease)}
+.thumb:hover img{transform:scale(1.035)}
+.thumb-grid.count-1 .thumb{aspect-ratio:16/9}
+.thumb-grid.count-2 .thumb{aspect-ratio:4/3}
+.thumb-grid.count-3 .thumb{aspect-ratio:1/1}
+
+/* —— 互动行 —— */
+.post-foot{display:flex;align-items:center;gap:24px;margin-top:14px;padding-top:13px;
+  border-top:1px solid var(--liquid-border-hairline)}
+.act{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--muted)}
+.act svg{width:15px;height:15px}
+.act.liked{color:var(--like)}
+.act.archive{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--faint);gap:5px}
+.act.archive svg{width:11px;height:11px}
+
+/* —— 评论（挂回帖子）—— */
+.comments{margin-top:13px;padding-top:4px}
+.comments-head{font-size:12.5px;font-weight:700;color:var(--muted);margin-bottom:8px}
+.comment{display:flex;gap:9px;padding:7px 0}
+.comment.reply{margin-left:37px;position:relative}
+.comment.reply::before{content:"";position:absolute;left:-24px;top:14px;width:16px;height:1.5px;
+  background:var(--chip-line)}
+.comment-body{min-width:0;flex:1}
+.comment-head{display:flex;align-items:baseline;gap:8px}
+.comment-author{font-size:12.5px;font-weight:700}
+.comment-time{font-size:11px;color:var(--faint)}
+.comment-text{font-size:13.5px;line-height:1.6;margin-top:1px;word-break:break-word}
+
+/* —— Cloud+ / 树洞 / 记录行 —— */
+.entry{padding:18px 20px;margin-top:14px}
+.entry-head{display:flex;align-items:center;gap:10px}
+.entry-kind{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;
+  padding:3px 10px;border-radius:var(--liquid-radius-pill)}
+.entry-kind svg{width:11px;height:11px}
+.entry-kind.cloud{color:var(--accent);background:var(--accent-soft)}
+.entry-kind.hole{color:#bf5af2;background:rgba(191,90,242,.13)}
+.cover{margin-top:13px;border-radius:13px;overflow:hidden;cursor:zoom-in;
+  border:1px solid var(--liquid-border-hairline);box-shadow:0 2px 8px rgba(15,23,42,.06)}
+.cover img{width:100%;aspect-ratio:16/8;object-fit:cover;display:block}
+.record{display:flex;align-items:center;gap:13px;padding:13px 6px;
+  border-bottom:1px solid var(--liquid-border-hairline)}
+.record:last-child{border-bottom:0}
+.record-icon{width:36px;height:36px;border-radius:11px;flex-shrink:0;
+  display:grid;place-items:center}
+.record-icon svg{width:16px;height:16px}
+.ri-blue{color:var(--accent);background:var(--accent-soft)}
+.ri-green{color:var(--pos);background:rgba(52,199,89,.13)}
+.ri-orange{color:var(--activity);background:rgba(255,149,0,.13)}
+.ri-purple{color:#bf5af2;background:rgba(191,90,242,.12)}
+.ri-red{color:var(--neg);background:rgba(255,59,48,.11)}
+.record-body{flex:1;min-width:0}
+.record-title{font-size:13.5px;font-weight:650;line-height:1.4}
+.record-sub{font-size:12px;color:var(--faint);margin-top:1px}
+.record-side{flex-shrink:0;text-align:right}
+.record-amount{font-size:14.5px;font-weight:750;font-variant-numeric:tabular-nums}
+.record-time{font-size:11px;color:var(--faint);margin-top:1px}
+.mood-chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:650;
+  padding:3.5px 11px;border-radius:var(--liquid-radius-pill);
+  background:rgba(191,90,242,.12);color:#bf5af2}
+:root[data-theme="dark"] .mood-chip{color:#d899f5}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) .mood-chip{color:#d899f5}
+}
+
+/* —— 文件清单 —— */
+.files{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:4px}
+.file{display:flex;align-items:center;gap:9px;padding:10px 13px;text-decoration:none;
+  color:var(--ink);border-radius:12px;background:var(--chip-bg);
+  border:1px solid var(--chip-line);transition:background .18s var(--ease)}
+.file:hover{background:var(--hover)}
+.file svg{width:14px;height:14px;color:var(--accent);flex-shrink:0}
+.file-path{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-size{margin-left:auto;font-size:11px;color:var(--faint);flex-shrink:0;font-variant-numeric:tabular-nums}
+
+.foot-note{margin-top:26px;text-align:center;font-size:12px;color:var(--faint);line-height:1.8}
+
+/* —— 灯箱 —— */
+.lightbox{position:fixed;inset:0;z-index:200;display:none;cursor:zoom-out;
+  background:rgba(10,12,18,.58);backdrop-filter:blur(22px) saturate(140%);-webkit-backdrop-filter:blur(22px) saturate(140%)}
+.lightbox.open{display:grid;place-items:center;animation:lbIn .22s var(--ease)}
+@keyframes lbIn{from{opacity:0}to{opacity:1}}
+.lb-img{max-width:min(1000px,88vw);max-height:76vh;border-radius:18px;
+  border:1px solid rgba(255,255,255,.3);box-shadow:var(--liquid-shadow-overlay)}
+.lb-cap{position:absolute;bottom:34px;left:50%;transform:translateX(-50%);
+  max-width:80vw;padding:9px 18px;border-radius:var(--liquid-radius-pill);
+  background:rgba(30,30,38,.62);border:1px solid rgba(255,255,255,.16);
+  color:#fff;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.lb-nav{position:absolute;top:50%;transform:translateY(-50%);width:42px;height:42px;
+  border-radius:50%;border:1px solid rgba(255,255,255,.22);cursor:pointer;
+  background:rgba(30,30,38,.55);color:#fff;display:grid;place-items:center;
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);transition:background .18s}
+.lb-nav:hover{background:rgba(60,60,72,.7)}
+.lb-nav svg{width:18px;height:18px}
+.lb-prev{left:26px}.lb-next{right:26px}
+.lb-close{position:absolute;top:22px;right:24px;width:38px;height:38px;border-radius:50%;
+  border:1px solid rgba(255,255,255,.22);cursor:pointer;background:rgba(30,30,38,.55);color:#fff;
+  display:grid;place-items:center;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.lb-close svg{width:16px;height:16px}
+
+/* —— 响应式 —— */
+@media (max-width:640px){
+  main{padding:96px 14px 48px}
+  .brand-sub{display:none}
+  .search{width:120px}
+  .stats{grid-template-columns:1fr 1fr}
+  .hero h1{font-size:20px}
+  .hero .pill{display:none}
+  .files{grid-template-columns:1fr}
+  .thumb-grid.count-3{grid-template-columns:repeat(3,1fr)}
+  .lb-prev{left:10px}.lb-next{right:10px}
+}
+</style>
+</head>
+<body data-page-node-id="Lbmn3DuI5Im56PJVzNKg46">
+<div class="bg" aria-hidden="true" data-page-node-id="Favfik0GEiACfJoqcsm3HE"></div>
+
+<header class="topbar" data-page-node-id="0kie24phqrb0iGts4VCNyM">
+  <div class="brand" data-page-node-id="bblr6FHTDsBPNo03cm4BlE">
+    <div class="brand-dot" id="brandIcon" data-page-node-id="Cic4jrEVkFIbcmykciGvtK"></div>
+    <div data-page-node-id="7hntnR2T58qEk8QobKNKEg">
+      <div class="brand-title" data-page-node-id="y5nQt0KMBPCjKKsNCrtjBh">BOH 数据导出</div>
+      <div class="brand-sub" data-page-node-id="bk3lKOzVq4cjtqLLugnkKa">本地存档 · 离线可读</div>
+    </div>
+  </div>
+  <div class="search-wrap" data-page-node-id="ZS74votdgtsRsuD7s8zbjO">
+    <label class="search" data-page-node-id="XlXSxGfIy0T6CRzvFeGlk5">
+      <span id="searchIcon" data-page-node-id="ZbehHtOq1smVIZHWQqkhJg"></span>
+      <input id="searchInput" type="search" placeholder="搜索帖子与评论…" autocomplete="off" data-page-node-id="HxpFGCX64aD3ggiMe2Bjit">
+    </label>
+  </div>
+  <button class="theme-btn" id="themeBtn" type="button" data-page-node-id="BrkBVpHxxJLzF94QPXbtZ1"><span id="themeIcon" data-page-node-id="Vu1scrwlSJq7eEIk3wromD"></span><span id="themeLabel" data-page-node-id="7cF2LRe7JfwGt6urr7pTMC">自动</span></button>
+</header>
+
+<main data-page-node-id="0VBE9CN5BKmlxN0BaFUpY7">
+  <!-- Hero -->
+  <section class="glass panel hero" style="margin-top:0" data-page-node-id="ORtx6XQxuQFMSuPSpSUYgE">
+    <div class="hero-icon" id="heroIcon" data-page-node-id="hqmt8M3MXsZo7cogrOb27r"></div>
+    <div data-page-node-id="2NKMntQYlGwUS5tlF3vrlf">
+      <h1 data-page-node-id="TeH1HKJTNYC47k54X2NWML">你的数据副本</h1>
+      <div class="sub" data-page-node-id="0dF0h3t2dkW9ccBkhu8B0E">生成时间 <span id="exportDate" data-page-node-id="LBRRG1HKHAB43NG19KJR0W">—</span> · 双击任意图片可放大 · 支持浅色 / 深色</div>
+    </div>
+    <span class="pill" data-page-node-id="F8q9wibJwHZNsm57KkpOYK">Demo · 示例数据</span>
+  </section>
+
+  <!-- 统计 -->
+  <section class="stats" data-page-node-id="4QCHpCEj7fZa2NGvEls9cE">
+    <div class="glass-sm stat" data-page-node-id="D8fOpTpRxoMmqpkjxyPdCu"><b id="stRecords" data-page-node-id="HBln2Zg6wqYxWsf5U9C3GR">0</b><span data-page-node-id="e6CmPpNVs7kRufV46h4XNh">数据记录</span></div>
+    <div class="glass-sm stat" data-page-node-id="1Scd34fMR9YrjxiO8o6oIs"><b id="stImages" data-page-node-id="0FmUW0tBIcFLD3waNqAdPt">0</b><span data-page-node-id="PMim1n3MIJOzrgUGnjTOZ3">已打包图片</span></div>
+    <div class="glass-sm stat" data-page-node-id="DWoVO8Jh3PKNxo3BFjuUOq"><b id="stInteract" data-page-node-id="wHJE0mNGrh2500kEW62C3X">0</b><span data-page-node-id="0jSAZaQkBnL1RBsfZVlelE">论坛互动</span></div>
+    <div class="glass-sm stat" data-page-node-id="t0vAPFimaZkhNjYp7oLNPr"><b id="stFiles" data-page-node-id="aZELf9iI12QCRkgD6nNQew">0</b><span data-page-node-id="0x4W0u8aw7Cr1ZgnAriCDF">数据文件</span></div>
+  </section>
+
+  <!-- 标签页 -->
+  <div class="glass tabs-sticky" data-page-node-id="aBqTA5tan70wHQRQhLj9Bw">
+    <nav class="tabs" id="tabs" data-page-node-id="0SpeJaGj9WiMHJorXcxaUB"></nav>
+  </div>
+  <section class="view active" id="view-forum" data-page-node-id="C8V93jGBTgzvbaEXGzDE1M"></section>
+  <section class="view" id="view-cloud" data-page-node-id="D2tnSc3yDHmLJJOGNQqFAS"></section>
+  <section class="view" id="view-treehole" data-page-node-id="CkV73QqAMlnjvHG2M69T9R"></section>
+  <section class="view" id="view-activity" data-page-node-id="vMfLneQOiKsUP9Eh8Gmjmy"></section>
+  <section class="view" id="view-records" data-page-node-id="TYEdnBRp5W1JsGyc28zxA2"></section>
+  <section class="view" id="view-files" data-page-node-id="qOZtGA0yzH97YmNaOVLwlp"></section>
+
+  <p class="foot-note" data-page-node-id="KG5XI5ie1IEopyW6BtyeNE">
+    设计 Demo（示例数据）· 最终版由导出任务打包进 ZIP 内的 index.html，双击离线打开<br data-page-node-id="aMbJXlpX6nl03ZknpT0M4W">
+    视觉与站点论坛同源：液态玻璃 token · PostCard 卡片骨架 · 明暗双主题
+  </p>
+</main>
+
+<!-- 灯箱 -->
+<div class="lightbox" id="lightbox" data-page-node-id="o7LHdW4g6IhwGcJjjmmGjR">
+  <img class="lb-img" id="lbImg" alt="" data-page-node-id="ItWV8t438yzeBH1y4Cb0SL">
+  <button class="lb-close" id="lbClose" type="button" aria-label="关闭" data-page-node-id="t9GmIBB43bm7kon4Vw57po"></button>
+  <button class="lb-nav lb-prev" id="lbPrev" type="button" aria-label="上一张" data-page-node-id="TRpj9NCGzJsJ0PpZ3uRmXL"></button>
+  <button class="lb-nav lb-next" id="lbNext" type="button" aria-label="下一张" data-page-node-id="cOwralUACNnnYa1sH7mqL0"></button>
+  <div class="lb-cap" id="lbCap" data-page-node-id="MW9rHUvKJ71JWZx7vYmyBC"></div>
+</div>
+
+<script>
+/* ============================================================
+   图标（lucide 风格，stroke currentColor）
+   ============================================================ */
+const ICONS = {
+  archive:'<path d="M20 9v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9"/><path d="M2 5h20v4H2z"/><path d="M10 13h4"/>',
+  search:'<circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/>',
+  heart:'<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/>',
+  comment:'<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+  pin:'<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+  cloud:'<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>',
+  lock:'<rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  activity:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/>',
+  bell:'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+  sparkle:'<path d="m12 3 1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3Z"/>',
+  gift:'<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5"/>',
+  ticket:'<path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4Z"/>',
+  image:'<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-4.2-4.2a1.8 1.8 0 0 0-2.6 0L5 20"/>',
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  moon:'<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  auto:'<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18" fill="currentColor" stroke="none"/><path d="M12 3a9 9 0 0 1 0 18" fill="none"/>',
+  chevron:'<path d="m6 9 6 6 6-6"/>',
+  x:'<path d="M18 6 6 18M6 6l12 12"/>',
+  left:'<path d="m15 18-6-6 6-6"/>',
+  right:'<path d="m9 18 6-6-6-6"/>',
+  checkin:'<path d="M8 2v4M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="m9 14 2 2 4-4"/>'
+};
+const icon = (name, filled) =>
+  '<svg viewBox="0 0 24 24" fill="' + (filled ? 'currentColor' : 'none') +
+  '" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  ICONS[name] + '</svg>';
+
+/* ============================================================
+   示例图片：内联 SVG 渐变（最终版替换为 ZIP 内相对路径图片）
+   ============================================================ */
+const PH = [
+  ['#ffd3a5','#fd6585'],['#a1c4fd','#c2e9fb'],['#d4fc79','#96e6a1'],
+  ['#84fab0','#8fd3f4'],['#fbc2eb','#a6c1ee'],['#f6d365','#fda085'],
+  ['#5ee7df','#b490ca'],['#30cfd0','#330867'],['#e0c3fc','#8ec5fc'],
+  ['#f093fb','#f5576c'],['#4facfe','#00f2fe'],['#43e97b','#38f9d7']
+];
+const ph = (i) => {
+  const [a, b] = PH[i % PH.length];
+  const cx1 = 140 + (i * 97) % 520, cy1 = 120 + (i * 61) % 240;
+  const cx2 = 540 - (i * 37) % 300, cy2 = 350 - (i * 29) % 160;
+  const svg = "<svg xmlns='http://www.w3.org/2000/svg' width='800' height='500'>" +
+    "<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>" +
+    "<stop offset='0' stop-color='" + a + "'/><stop offset='1' stop-color='" + b + "'/>" +
+    "</linearGradient></defs>" +
+    "<rect width='800' height='500' fill='url(#g)'/>" +
+    "<circle cx='" + cx1 + "' cy='" + cy1 + "' r='" + (60 + (i * 23) % 80) + "' fill='#fff' opacity='.18'/>" +
+    "<circle cx='" + cx2 + "' cy='" + cy2 + "' r='" + (90 + (i * 17) % 60) + "' fill='#fff' opacity='.12'/>" +
+    "<path d='M0 400 Q 200 " + (330 + (i * 13) % 60) + " 400 400 T 800 400 V500 H0 Z' fill='#fff' opacity='.10'/>" +
+    "</svg>";
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+};
+
+/* ============================================================
+   示例数据 — 字段名与导出 JSON schema 一一对应
+   （posts/comments/likes/cloud/treehole/interactions/records）
+   ============================================================ */
+const AV_COLORS = ['#0071e3','#5e5ce6','#bf5af2','#ff9500','#34c759','#ff3b30','#64d2ff'];
+const avColor = (name) => AV_COLORS[[...String(name)].reduce((s, c) => s + c.charCodeAt(0), 0) % AV_COLORS.length];
+
+const DATA = {
+  exportedAt: '2026-09-09T11:30:00+08:00',
+  profile: { username: '瑞一颗', joined: '2024-03-12' },
+  files: {
+    'forum/posts.json': [
+      { id:'p1', author_username:'方块之家', author_avatar_url:null, post_kind:'news', created_at:'2026-09-05T10:00:00+08:00',
+        title:'Beta 6 更新说明：全新灵动岛与数据导出中心',
+        content:'本次更新带来全新灵动岛交互体系与数据导出中心。\n\n导出中心支持一键打包你的个人资料、论坛帖子与评论、Cloud+ 云空间、树洞记忆与互动记录，全部数据离线可读。', 
+        tag_label:'官方', location_name:null, like_count:128, comment_count:2, liked_by_me:false, images:[] },
+      { id:'p2', author_username:'方块之家', author_avatar_url:null, post_kind:'activity', created_at:'2026-09-01T09:00:00+08:00',
+        title:'九月社区摄影周开启报名',
+        content:'拍下你窗外的第一缕光。9 月 12 日 – 9 月 19 日，上传作品即可参与，入围作品将登上首页展览墙。',
+        tag_label:'活动', location_name:'线上', like_count:86, comment_count:1, liked_by_me:true, images:[] },
+      { id:'p3', author_username:'林间小屋', author_avatar_url:null, post_kind:null, created_at:'2026-08-28T21:14:00+08:00',
+        title:'把这一周的碎片整理成一封信',
+        content:'今天去了很久没去的公园，风很轻。\n\n把照片和当时写下的几句话一起保存在这里——原来一周真的可以做这么多小事：给阳台的薄荷换了盆、读完了一本搁置很久的书、在傍晚的天台看了十分钟云。',
+        tag_label:'生活记录', location_name:'杭州', like_count:24, comment_count:3, liked_by_me:true,
+        images:[{path:'forum/images/a1b2c3d4/img_001.jpg', demoSrc:ph(1)},{path:'forum/images/a1b2c3d4/img_002.jpg', demoSrc:ph(4)},{path:'forum/images/a1b2c3d4/img_003.jpg', demoSrc:ph(3)}] },
+      { id:'p4', author_username:'小满', author_avatar_url:null, post_kind:null, created_at:'2026-08-25T22:47:00+08:00',
+        title:'路灯下的猫好像也在加班',
+        content:'晚上回来路过便利店，看到它蹲在路灯下面盯着地面，特别认真。\n\n我蹲下来看了一会儿，原来是在看飞蛾。大家都各有各的 KPI。',
+        tag_label:'日常', location_name:null, like_count:18, comment_count:1, liked_by_me:false,
+        images:[{path:'forum/images/e5f6a7b8/img_001.jpg', demoSrc:ph(5)}] },
+      { id:'p5', author_username:'阿澈', author_avatar_url:null, post_kind:null, created_at:'2026-08-21T15:30:00+08:00',
+        title:'关于把房间改成工作室的 12 个决定',
+        content:'1. 桌子面向窗户，不面向墙。\n2. 灯光全部换成 4000K，晚上自动降亮度。\n3. 扔掉三年来没打开过的纸箱，真的一个都没打开过。\n4. 线材全部上墙，地面一根不留。\n5. 留一面空墙，什么都不挂，给眼睛休息。\n6. 白板只写本周的三件事，写不下就说明本周贪心了。\n7. 植物不超过三盆，好养活的优先。\n8. 建一个「随手扔」抽屉，杂物有地方去，桌面才守得住。\n9. 音箱放左边，右手留给咖啡。\n10. 椅子比桌子贵，这是原则。\n11. 早上先整理五分钟再开工，比咖啡管用。\n12. 最后一条：不要追求完美的工作室，能用起来才算数。',
+        tag_label:'长文', location_name:null, like_count:41, comment_count:1, liked_by_me:false, images:[] },
+      { id:'p6', author_username:'Momo', author_avatar_url:null, post_kind:null, created_at:'2026-08-17T18:02:00+08:00',
+        title:'周末去了海边，风比想象中温柔',
+        content:'临时起意的一趟旅行。高铁上一个半小时，出站走十分钟就听到海的声音。\n\n照片直出，没有调色。有些蓝色是滤镜给不了的。',
+        tag_label:'旅行', location_name:'青岛', like_count:33, comment_count:0, liked_by_me:true,
+        images:[{path:'forum/images/c9d0e1f2/img_001.jpg', demoSrc:ph(6)},{path:'forum/images/c9d0e1f2/img_002.jpg', demoSrc:ph(9)}] },
+      { id:'p7', author_username:'星野', author_avatar_url:null, post_kind:null, created_at:'2026-08-12T20:15:00+08:00',
+        title:'提问：大家怎么管理自己的灵感碎片？',
+        content:'我现在的流程是：想法先丢进备忘录，周末统一整理进 Cloud+，每个月再回顾一次。\n\n但经常丢进备忘录就再也想不起来了……想听听大家的做法。',
+        tag_label:'提问', location_name:null, like_count:12, comment_count:2, liked_by_me:false, images:[] }
+    ],
+    'forum/comments.json': [
+      { id:'c1', post_id:'p1', author_username:'星野', parent_id:null, created_at:'2026-09-05T11:02:00+08:00', content:'导出中心太好用了，打包完直接离线看，楼上的图片九宫格跟论坛一模一样。' },
+      { id:'c2', post_id:'p1', author_username:'Momo', parent_id:null, created_at:'2026-09-05T12:40:00+08:00', content:'树洞也能导出吗？想把这些年写给自己话都留着。' },
+      { id:'c3', post_id:'p2', author_username:'林间小屋', parent_id:null, created_at:'2026-09-01T10:12:00+08:00', content:'报名了！已经想好拍什么了。' },
+      { id:'c4', post_id:'p3', author_username:'小满', parent_id:null, created_at:'2026-08-29T08:20:00+08:00', content:'这段文字很喜欢，谢谢分享。' },
+      { id:'c5', post_id:'p3', author_username:'林间小屋', parent_id:'c4', created_at:'2026-08-29T09:05:00+08:00', content:'谢谢！下周继续写，感觉把小事写下来之后，一周都变得有分量了。' },
+      { id:'c6', post_id:'p3', author_username:'阿澈', parent_id:null, created_at:'2026-08-29T14:30:00+08:00', content:'「在傍晚的天台看了十分钟云」这句好棒，被治愈到了。' },
+      { id:'c7', post_id:'p4', author_username:'星野', parent_id:null, created_at:'2026-08-26T00:10:00+08:00', content:'哈哈它可能比我们都专注。' },
+      { id:'c8', post_id:'p5', author_username:'Momo', parent_id:null, created_at:'2026-08-21T20:44:00+08:00', content:'第 10 条真实名句：椅子比桌子贵。' },
+      { id:'c9', post_id:'p7', author_username:'小满', parent_id:null, created_at:'2026-08-12T21:30:00+08:00', content:'我的办法是给碎片加一个当天的天气标签，回顾的时候特别有画面感。' },
+      { id:'c10', post_id:'p7', author_username:'阿澈', parent_id:'c9', created_at:'2026-08-13T09:12:00+08:00', content:'学到了，我也试试。备忘录最大的问题是太「平等」，什么都记反而什么都不记得。' }
+    ],
+    'forum/likes.json': [
+      { post_id:'p2', created_at:'2026-09-01T10:15:00+08:00' },
+      { post_id:'p3', created_at:'2026-08-29T08:22:00+08:00' },
+      { post_id:'p6', created_at:'2026-08-17T19:00:00+08:00' }
+    ],
+    'cloud/entries.json': [
+      { id:'e1', created_at:'2026-09-06T17:20:00+08:00', title:'九月的第一片海',
+        content_blocks:[{type:'paragraph',text:'把周末的照片整理成一个小合集。海是那种很干净的蓝，风把云吹得很薄。\n\n回来路上想：所谓休息，大概就是允许自己什么都不产出地待一会儿。'}],
+        tags:['摄影','旅行'], cover_image_url:'PH:6' },
+      { id:'e2', created_at:'2026-08-30T22:05:00+08:00', title:'读书笔记：《夜晚的潜水艇》',
+        content_blocks:[{type:'paragraph',text:'「想象力能抵达的地方，现实未必需要抵达。」\n\n最喜欢《竹林里的大雄》那篇，把两个宇宙缝在一起的写法太妙了。摘了几段放进附件。'}],
+        tags:['读书'], cover_image_url:null },
+      { id:'e3', created_at:'2026-08-18T10:40:00+08:00', title:'灵感速记 · 液态玻璃的 12 种反光',
+        content_blocks:[{type:'paragraph',text:'边缘高光要细、要亮；底部阴影要大而柔。\n\n玻璃的「液态感」一半来自 blur，另一半来自 saturate——色彩被轻轻推浓的那一下，才是液体的错觉。'}],
+        tags:['设计','灵感'], cover_image_url:'PH:10' }
+    ],
+    'treehole/memories.json': [
+      { id:'m1', created_at:'2026-09-07T23:41:00+08:00', mood:'平静', content:'今天终于把那件拖了很久的事做完了。原来开始做只需要五分钟，焦虑却花掉了五个星期。' },
+      { id:'m2', created_at:'2026-08-30T00:12:00+08:00', mood:'满天星', content:'深夜的天台真的很好。城市把音量调小之后，自己的想法终于能被听见。' },
+      { id:'m3', created_at:'2026-08-14T19:26:00+08:00', mood:'雨', content:'下雨天适合原谅自己。今天什么都没做成，也没关系。' },
+      { id:'m4', created_at:'2026-07-30T21:58:00+08:00', mood:'晴', content:'把「以后再说」清单翻了一遍，划掉了三分之一。有些事根本不需要做。' }
+    ],
+    'interactions/notifications.json': [
+      { id:'n1', type:'like', created_at:'2026-09-05T11:05:00+08:00', title:'星野 赞了你的帖子「Beta 6 更新说明」', sub:'论坛 · 赞' },
+      { id:'n2', type:'comment', created_at:'2026-09-02T09:30:00+08:00', title:'林间小屋 评论了你的活动报名', sub:'论坛 · 评论' },
+      { id:'n3', type:'follow', created_at:'2026-08-29T15:00:00+08:00', title:'Momo 关注了你', sub:'社交 · 关注' },
+      { id:'n4', type:'checkin', created_at:'2026-08-25T08:00:00+08:00', title:'本周签到完成，连续 12 周', sub:'论坛 · 签到' },
+      { id:'n5', type:'system', created_at:'2026-08-20T10:00:00+08:00', title:'你的数据导出任务已完成，文件保留 7 天', sub:'系统通知' }
+    ],
+    'interactions/impressions_received.json': [
+      { id:'i1', created_at:'2026-08-28T12:00:00+08:00', tag:'温柔', author_username:'小满' },
+      { id:'i2', created_at:'2026-08-10T18:30:00+08:00', tag:'靠谱', author_username:'阿澈' },
+      { id:'i3', created_at:'2026-07-22T20:00:00+08:00', tag:'脑洞很大', author_username:'星野' }
+    ],
+    'interactions/impressions_authored.json': [
+      { id:'i4', created_at:'2026-08-25T21:00:00+08:00', tag:'认真生活的人', author_username:'瑞一颗', target_username:'林间小屋' }
+    ],
+    'interactions/block_wall_items.json': [
+      { id:'w1', created_at:'2026-08-29T10:00:00+08:00', author_username:'小满', content:'给未来的你：记得继续保持每周整理一次碎片！', image_url:null },
+      { id:'w2', created_at:'2026-08-15T16:20:00+08:00', author_username:'星野', content:'路过留言墙，留一张今天的天空。', image_url:'PH:1' }
+    ],
+    'records/points_transactions.json': [
+      { id:'t1', created_at:'2026-09-05T10:05:00+08:00', title:'发布帖子奖励', amount:20 },
+      { id:'t2', created_at:'2026-09-01T09:10:00+08:00', title:'活动报名奖励', amount:50 },
+      { id:'t3', created_at:'2026-08-25T08:01:00+08:00', title:'每日签到', amount:5 },
+      { id:'t4', created_at:'2026-08-20T14:22:00+08:00', title:'兑换头像框「液态玻璃」', amount:-30 },
+      { id:'t5', created_at:'2026-08-12T12:00:00+08:00', title:'收到 10 个赞奖励', amount:10 },
+      { id:'t6', created_at:'2026-08-01T09:00:00+08:00', title:'新手任务完成', amount:100 }
+    ],
+    'records/gifts.json': [
+      { id:'g1', created_at:'2026-08-29T08:25:00+08:00', title:'收到「小星星」× 2', sub:'来自 小满', direction:'in' },
+      { id:'g2', created_at:'2026-08-21T20:50:00+08:00', title:'送出「咖啡」× 1', sub:'送给 阿澈', direction:'out' },
+      { id:'g3', created_at:'2026-08-02T19:00:00+08:00', title:'收到「四叶草」× 1', sub:'来自 Momo', direction:'in' }
+    ],
+    'records/lottery_entries.json': [
+      { id:'l1', created_at:'2026-09-01T10:20:00+08:00', title:'九月社区摄影周', sub:'已报名' },
+      { id:'l2', created_at:'2026-08-08T11:00:00+08:00', title:'夏日限定抽奖', sub:'已报名 · 未中奖' }
+    ],
+    'records/poster_requests.json': [
+      { id:'pr1', created_at:'2026-08-26T15:00:00+08:00', title:'「液态玻璃」主题海报申请', sub:'审核通过' }
+    ]
+  }
+};
+
+/* ============================================================
+   工具
+   ============================================================ */
+const esc = (v) => String(v ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtDate = (v) => v ? new Date(v).toLocaleString('zh-CN', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
+const rows = (...names) => names.flatMap((n) => Array.isArray(DATA.files[n]) ? DATA.files[n] : []);
+const imgSrc = (img) => img.demoSrc || img.path;
+const avatarHtml = (name, sm) => {
+  const n = String(name || '?');
+  return '<div class="avatar' + (sm ? ' sm' : '') + '" style="background:linear-gradient(135deg,' +
+    avColor(n) + ',' + avColor(n.split('').reverse().join('')) + ')">' + esc(n.charAt(0).toUpperCase()) + '</div>';
+};
+
+/* ============================================================
+   渲染：论坛（PostCard 骨架）
+   ============================================================ */
+const commentsByPost = {};
+rows('forum/comments.json').forEach((c) => {
+  (commentsByPost[c.post_id] = commentsByPost[c.post_id] || []).push(c);
+});
+
+const commentHtml = (c, isReply) =>
+  '<div class="comment' + (isReply ? ' reply' : '') + '">' +
+    avatarHtml(c.author_username, true) +
+    '<div class="comment-body">' +
+      '<div class="comment-head"><span class="comment-author">@' + esc(c.author_username) + '</span>' +
+      '<span class="comment-time">' + esc(fmtDate(c.created_at)) + '</span></div>' +
+      '<div class="comment-text">' + esc(c.content) + '</div>' +
+    '</div>' +
+  '</div>';
+
+const postHtml = (p, expandable) => {
+  const comments = commentsByPost[p.id] || [];
+  const roots = comments.filter((c) => !c.parent_id);
+  const repliesByParent = {};
+  comments.filter((c) => c.parent_id).forEach((r) => {
+    (repliesByParent[r.parent_id] = repliesByParent[r.parent_id] || []).push(r);
+  });
+  const commentsHtml = roots.map((c) =>
+    commentHtml(c, false) + (repliesByParent[c.id] || []).map((r) => commentHtml(r, true)).join('')
+  ).join('');
+
+  const tags =
+    (p.tag_label ? '<span class="tag">' + esc(p.tag_label) + '</span>' : '') +
+    (p.location_name ? '<span class="tag">' + icon('pin') + esc(p.location_name) + '</span>' : '');
+
+  const grid = (p.images && p.images.length)
+    ? '<div class="thumb-grid count-' + Math.min(p.images.length, 3) + '">' +
+        p.images.map((img, i) =>
+          '<button class="thumb" type="button" data-lb="' + esc(p.title) + '" data-src="' + imgSrc(img) + '">' +
+          '<img src="' + imgSrc(img) + '" alt="图片 ' + (i + 1) + '" loading="lazy"></button>').join('') +
+      '</div>'
+    : '';
+
+  const long = expandable && String(p.content || '').length > 160;
+  const kindBadge = p.post_kind === 'news' ? '<span class="kind-badge news">新闻</span>'
+    : p.post_kind === 'activity' ? '<span class="kind-badge activity">活动</span>' : '';
+
+  return '<article class="glass-sm post" data-search="' + esc((p.title + ' ' + p.content + ' ' +
+      comments.map((c) => c.content).join(' ')).toLowerCase()) + '">' +
+    '<div class="post-head">' +
+      avatarHtml(p.author_username) +
+      '<div class="author-info">' +
+        '<span class="author-name">@' + esc(p.author_username) + kindBadge +
+          (p.liked_by_me ? '<span class="badge-self">你赞过</span>' : '') + '</span>' +
+        '<span class="author-time">' + esc(fmtDate(p.created_at)) + '</span>' +
+      '</div>' +
+    '</div>' +
+    (p.title ? '<h3 class="post-title">' + esc(p.title) + '</h3>' : '') +
+    (tags ? '<div class="tags">' + tags + '</div>' : '') +
+    grid +
+    '<div class="post-text' + (long ? ' clamped' : '') + '">' + esc(p.content) + '</div>' +
+    (long ? '<button class="expand-btn" type="button" data-expand>' + icon('chevron') + '<span>展开全文</span></button>' : '') +
+    '<div class="post-foot">' +
+      '<span class="act' + (p.liked_by_me ? ' liked' : '') + '">' + icon('heart', p.liked_by_me) + esc(p.like_count) + '</span>' +
+      '<span class="act">' + icon('comment') + esc(p.comment_count ?? comments.length) + '</span>' +
+      '<span class="act archive">' + icon('archive') + '存档自论坛</span>' +
+    '</div>' +
+    (commentsHtml ? '<div class="comments"><div class="comments-head">' + comments.length + ' 条评论</div>' + commentsHtml + '</div>' : '') +
+  '</article>';
+};
+
+/* ============================================================
+   渲染：Cloud+ / 树洞 / 互动 / 记录 / 文件
+   ============================================================ */
+const cloudHtml = rows('cloud/entries.json').map((e) => {
+  const paras = (e.content_blocks || []).filter((b) => b.type === 'paragraph').map((b) => b.text).join('\n\n');
+  const cover = e.cover_image_url
+    ? '<div class="cover"><button class="thumb" type="button" style="display:block;width:100%" data-lb="' + esc(e.title) + '" data-src="' + (e.demoSrc || (String(e.cover_image_url).startsWith('PH:') ? ph(Number(e.cover_image_url.slice(3))) : e.cover_image_url)) + '"><img src="' + (e.demoSrc || (String(e.cover_image_url).startsWith('PH:') ? ph(Number(e.cover_image_url.slice(3))) : e.cover_image_url)) + '" alt="封面" loading="lazy"></button></div>'
+    : '';
+  return '<article class="glass-sm entry">' +
+    '<div class="entry-head"><span class="entry-kind cloud">' + icon('cloud') + 'Cloud+</span>' +
+      '<span class="author-time">' + esc(fmtDate(e.created_at)) + '</span></div>' +
+    '<h3 class="post-title">' + esc(e.title) + '</h3>' +
+    (e.tags && e.tags.length ? '<div class="tags">' + e.tags.map((t) => '<span class="tag">' + esc(t) + '</span>').join('') + '</div>' : '') +
+    cover +
+    '<div class="post-text">' + esc(paras) + '</div>' +
+  '</article>';
+}).join('') || '<div class="glass-sm entry">暂无 Cloud+ 记录</div>';
+
+const treeholeHtml = rows('treehole/memories.json').map((m) =>
+  '<article class="glass-sm entry">' +
+    '<div class="entry-head"><span class="entry-kind hole">' + icon('lock') + '树洞 · 仅自己可见</span>' +
+      '<span class="author-time">' + esc(fmtDate(m.created_at)) + '</span>' +
+      '<span class="mood-chip" style="margin-left:auto">' + esc(m.mood) + '</span></div>' +
+    '<div class="post-text">' + esc(m.content) + '</div>' +
+  '</article>'
+).join('') || '<div class="glass-sm entry">暂无树洞记忆</div>';
+
+const RI = { like:['ri-red','heart'], comment:['ri-blue','comment'], follow:['ri-green','sparkle'],
+  checkin:['ri-orange','checkin'], system:['ri-purple','bell'], impression:['ri-purple','sparkle'],
+  wall:['ri-blue','image'], gift_in:['ri-green','gift'], gift_out:['ri-orange','gift'],
+  lottery:['ri-blue','ticket'], poster:['ri-purple','image'], points:['ri-green','sparkle'] };
+
+const recordRow = (kind, title, sub, side, time) => {
+  const [cls, ic] = RI[kind] || ['ri-blue','bell'];
+  return '<div class="record"><div class="record-icon ' + cls + '">' + icon(ic) + '</div>' +
+    '<div class="record-body"><div class="record-title">' + esc(title) + '</div>' +
+    '<div class="record-sub">' + esc(sub || '') + '</div></div>' +
+    '<div class="record-side">' + (side || '') + (time ? '<div class="record-time">' + esc(fmtDate(time)) + '</div>' : '') + '</div></div>';
+};
+
+const activityHtml =
+  rows('interactions/notifications.json').map((n) => recordRow(n.type, n.title, n.sub, '', n.created_at)).join('') +
+  '<div class="comments-head" style="margin:18px 0 2px">收到的印象</div>' +
+  rows('interactions/impressions_received.json').map((i) =>
+    recordRow('impression', '「' + i.tag + '」', '来自 @' + i.author_username, '', i.created_at)).join('') +
+  '<div class="comments-head" style="margin:18px 0 2px">留言墙</div>' +
+  rows('interactions/block_wall_items.json').map((w) => {
+    const img = w.image_url ? '<div class="cover" style="margin-top:8px"><img src="' + (w.demoSrc || (String(w.image_url).startsWith('PH:') ? ph(Number(w.image_url.slice(3))) : w.image_url)) + '" alt="留言图" loading="lazy" style="aspect-ratio:16/7"></div>' : '';
+    return recordRow('wall', w.content, '@' + w.author_username, '', w.created_at).replace('</div></div>', '</div></div>');
+  }).join('');
+
+const recordsHtml =
+  '<div class="comments-head" style="margin:0 0 2px">积分流水</div>' +
+  rows('records/points_transactions.json').map((t) =>
+    recordRow('points', t.title, '', '<div class="record-amount" style="color:var(' + (t.amount >= 0 ? '--pos' : '--neg') + ')">' + (t.amount >= 0 ? '+' : '') + t.amount + '</div>', t.created_at)).join('') +
+  '<div class="comments-head" style="margin:18px 0 2px">礼物</div>' +
+  rows('records/gifts.json').map((g) => recordRow(g.direction === 'in' ? 'gift_in' : 'gift_out', g.title, g.sub, '', g.created_at)).join('') +
+  '<div class="comments-head" style="margin:18px 0 2px">抽奖与申请</div>' +
+  rows('records/lottery_entries.json').map((l) => recordRow('lottery', l.title, l.sub, '', l.created_at)).join('') +
+  rows('records/poster_requests.json').map((r) => recordRow('poster', r.title, r.sub, '', r.created_at)).join('');
+
+const fakeSize = (n) => (n * 2.4 + 6).toFixed(1) + ' KB';
+const filesHtml = Object.keys(DATA.files).map((path, i) =>
+  '<a class="file" href="javascript:void(0)" onclick="return false"><span>' + icon('file') + '</span>' +
+  '<span class="file-path">' + esc(path) + '</span><span class="file-size">' + fakeSize(DATA.files[path].length) + '</span></a>'
+).join('') +
+  '<a class="file" href="javascript:void(0)" onclick="return false"><span>' + icon('image') + '</span>' +
+  '<span class="file-path">images/（帖子 · Cloud+ · 留言墙）</span><span class="file-size">' + totalImages() + ' 张</span></a>' +
+  '<a class="file" href="javascript:void(0)" onclick="return false"><span>' + icon('file') + '</span>' +
+  '<span class="file-path">manifest.json</span><span class="file-size">2.1 KB</span></a>' +
+  '<a class="file" href="javascript:void(0)" onclick="return false"><span>' + icon('file') + '</span>' +
+  '<span class="file-path">README.txt</span><span class="file-size">1.0 KB</span></a>';
+
+/* ============================================================
+   装配
+   ============================================================ */
+function totalImages() {
+  let n = 0;
+  rows('forum/posts.json').forEach((p) => { n += (p.images || []).length; });
+  rows('cloud/entries.json').forEach((e) => { if (e.cover_image_url) n += 1; });
+  rows('interactions/block_wall_items.json').forEach((w) => { if (w.image_url) n += 1; });
+  return n;
+}
+
+const TABS = [
+  ['forum','论坛', rows('forum/posts.json').length],
+  ['cloud','Cloud+', rows('cloud/entries.json').length],
+  ['treehole','树洞', rows('treehole/memories.json').length],
+  ['activity','互动记录', rows('interactions/notifications.json').length + rows('interactions/impressions_received.json').length + rows('interactions/block_wall_items.json').length],
+  ['records','文字记录', rows('records/points_transactions.json').length + rows('records/gifts.json').length + rows('records/lottery_entries.json').length],
+  ['files','数据文件', Object.keys(DATA.files).length]
+];
+
+document.getElementById('tabs').innerHTML = TABS.map(([id, label, n], i) =>
+  '<button class="tab' + (i === 0 ? ' active' : '') + '" type="button" data-tab="' + id + '">' + label +
+  '<span class="n">' + n + '</span></button>').join('');
+
+document.getElementById('view-forum').innerHTML =
+  rows('forum/posts.json').map((p) => postHtml(p, true)).join('');
+document.getElementById('view-cloud').innerHTML = cloudHtml;
+document.getElementById('view-treehole').innerHTML = treeholeHtml;
+document.getElementById('view-activity').innerHTML = '<div class="glass-sm entry">' + activityHtml + '</div>';
+document.getElementById('view-records').innerHTML = '<div class="glass-sm entry">' + recordsHtml + '</div>';
+document.getElementById('view-files').innerHTML =
+  '<div class="glass-sm panel" style="padding:16px"><div class="files">' + filesHtml + '</div></div>';
+
+/* 统计 */
+const totalRecords = Object.values(DATA.files).reduce((s, arr) => s + arr.length, 0);
+document.getElementById('stRecords').textContent = totalRecords;
+document.getElementById('stImages').textContent = totalImages();
+document.getElementById('stInteract').textContent =
+  rows('forum/likes.json').length + rows('forum/comments.json').length;
+document.getElementById('stFiles').textContent = Object.keys(DATA.files).length + 3;
+document.getElementById('exportDate').textContent = fmtDate(DATA.exportedAt);
+
+/* 顶栏图标 */
+document.getElementById('brandIcon').innerHTML = icon('archive');
+document.getElementById('searchIcon').innerHTML = icon('search');
+document.getElementById('heroIcon').innerHTML = icon('archive');
+document.getElementById('lbClose').innerHTML = icon('x');
+document.getElementById('lbPrev').innerHTML = icon('left');
+document.getElementById('lbNext').innerHTML = icon('right');
+
+/* ============================================================
+   交互：标签页 / 展开收起 / 搜索 / 灯箱 / 主题
+   ============================================================ */
+const switchTab = (id) => {
+  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === id));
+  document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === 'view-' + id));
+};
+document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => switchTab(t.dataset.tab)));
+
+/* 展开收起 */
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-expand]');
+  if (!btn) return;
+  const text = btn.parentElement.querySelector('.post-text');
+  const open = text.classList.toggle('clamped');
+  btn.classList.toggle('open', !open);
+  btn.querySelector('span').textContent = open ? '展开全文' : '收起';
+});
+
+/* 搜索：过滤论坛帖（含评论内容），自动跳到论坛页 */
+const searchInput = document.getElementById('searchInput');
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.trim().toLowerCase();
+  const posts = document.querySelectorAll('#view-forum .post');
+  let hits = 0;
+  posts.forEach((el) => {
+    const match = !q || (el.dataset.search || '').includes(q);
+    el.style.display = match ? '' : 'none';
+    if (match) hits++;
+  });
+  if (q) switchTab('forum');
+  let line = document.getElementById('searchLine');
+  if (!line) {
+    line = document.createElement('div');
+    line.id = 'searchLine';
+    line.className = 'result-line';
+    document.getElementById('view-forum').prepend(line);
+  }
+  line.textContent = q ? '找到 ' + hits + ' 条与「' + searchInput.value.trim() + '」相关的记录' : '';
+});
+
+/* 灯箱（含上一张 / 下一张） */
+const lbItems = [];
+document.querySelectorAll('[data-lb]').forEach((el) => {
+  lbItems.push({ src: el.dataset.src, cap: el.dataset.lb, el });
+});
+let lbIndex = -1;
+const lightbox = document.getElementById('lightbox');
+const showLb = (i) => {
+  lbIndex = (i + lbItems.length) % lbItems.length;
+  const item = lbItems[lbIndex];
+  document.getElementById('lbImg').src = item.src;
+  document.getElementById('lbCap').textContent = item.cap + (lbItems.length > 1 ? '　·　' + (lbIndex + 1) + '/' + lbItems.length : '');
+};
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-lb]');
+  if (t) { showLb(lbItems.findIndex((x) => x.el === t)); lightbox.classList.add('open'); }
+});
+lightbox.addEventListener('click', (e) => {
+  if (e.target.closest('.lb-prev')) return showLb(lbIndex - 1);
+  if (e.target.closest('.lb-next')) return showLb(lbIndex + 1);
+  if (!e.target.closest('.lb-img') || e.target === lightbox) lightbox.classList.remove('open');
+});
+document.addEventListener('keydown', (e) => {
+  if (!lightbox.classList.contains('open')) return;
+  if (e.key === 'Escape') lightbox.classList.remove('open');
+  if (e.key === 'ArrowLeft') showLb(lbIndex - 1);
+  if (e.key === 'ArrowRight') showLb(lbIndex + 1);
+});
+
+/* 主题：自动 → 浅色 → 深色 循环 */
+const THEME_KEY = 'boh-export-demo-theme';
+const themeBtn = document.getElementById('themeBtn');
+const applyTheme = (mode) => {
+  const root = document.documentElement;
+  if (mode === 'light') root.dataset.theme = 'light';
+  else if (mode === 'dark') root.dataset.theme = 'dark';
+  else delete root.dataset.theme;
+  const meta = { auto:['auto','自动'], light:['sun','浅色'], dark:['moon','深色'] }[mode];
+  document.getElementById('themeIcon').innerHTML = icon(meta[0]);
+  document.getElementById('themeLabel').textContent = meta[1];
+};
+let themeMode = localStorage.getItem(THEME_KEY) || 'auto';
+applyTheme(themeMode);
+themeBtn.addEventListener('click', () => {
+  themeMode = { auto:'light', light:'dark', dark:'auto' }[themeMode];
+  localStorage.setItem(THEME_KEY, themeMode);
+  applyTheme(themeMode);
+});
+</script>
+</body>
+</html>

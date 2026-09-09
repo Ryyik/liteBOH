@@ -1203,20 +1203,3 @@
   font-size: 14px;
 }
 
-.tab-page.ai-tab {
-  position: fixed;
-  top: var(--userspace-top-offset);
-  right: 0;
-  bottom: env(safe-area-inset-bottom, 0px);
-  left: 0;
-  height: auto;
-  min-height: 0;
-  padding: 0;
-  padding-bottom: var(--userspace-bottom-nav-offset);
-  overflow: hidden;
-}
-
-.user-space-page.ai-nav-collapsed .tab-page.ai-tab {
-  bottom: 0;
-  padding-bottom: 0;
-}

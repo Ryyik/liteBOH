@@ -955,7 +955,7 @@
   }
 
   .forum-page.embedded-mode .forum-container {
-    padding-bottom: calc(var(--forum-embedded-bottom-nav-space) + 72px);
+    padding-bottom: var(--forum-embedded-bottom-nav-space);
   }
 
   .forum-main-grid {
@@ -1576,7 +1576,7 @@
   }
 
   .forum-page.embedded-mode .forum-container {
-    padding-bottom: calc(var(--forum-embedded-bottom-nav-space) + 96px);
+    padding-bottom: var(--forum-embedded-bottom-nav-space);
   }
 }
 
@@ -1589,7 +1589,7 @@
   .forum-page.embedded-mode .forum-container {
     padding-left: 8px;
     padding-right: 8px;
-    padding-bottom: calc(var(--forum-embedded-bottom-nav-space) + 96px);
+    padding-bottom: var(--forum-embedded-bottom-nav-space);
   }
 
   .mobile-compose-fab.embedded-compose-fab {

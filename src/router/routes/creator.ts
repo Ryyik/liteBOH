@@ -4,6 +4,6 @@ export const creatorRoutes: RouteRecordRaw[] = [
   {
     path: "/creator-studio",
     name: "CreatorStudio",
-    redirect: "/user-space?tab=profile&view=settings",
+    redirect: "/user-space?tab=settings",
   },
 ]

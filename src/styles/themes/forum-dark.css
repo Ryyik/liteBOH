@@ -1089,6 +1089,10 @@
   color: #f2f5f8 !important;
 }
 
+[data-theme="dark"] .forum-page .feed-mode-tab-divider {
+  background: rgba(220, 235, 255, 0.16);
+}
+
 [data-theme="dark"] .forum-page input,
 [data-theme="dark"] .forum-page textarea,
 [data-theme="dark"] .forum-page select {
@@ -1139,4 +1143,18 @@
 [data-theme="dark"] .forum-page .tag-filter-btn.active {
   background: rgba(98, 176, 255, 0.18) !important;
   color: #ffffff !important;
+}
+
+/* ---- dark audit 2026-09-08：工具栏 BOHAI 按钮未随暗色翻转 ---- */
+.forum-page[data-theme="dark"] .toolbar-ai-btn,
+[data-theme="dark"] .forum-page .toolbar-ai-btn {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #b8c2cf !important;
+}
+
+.forum-page[data-theme="dark"] .toolbar-ai-btn.active,
+[data-theme="dark"] .forum-page .toolbar-ai-btn.active {
+  background: rgba(108, 178, 255, 0.18) !important;
+  color: #e8f1fb !important;
+  box-shadow: inset 0 0 0 1px rgba(108, 178, 255, 0.3) !important;
 }

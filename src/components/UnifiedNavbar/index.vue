@@ -114,7 +114,7 @@
           <span>岛</span>
         </button>
         <template v-if="isLoggedIn">
-          <router-link to="/user-space?tab=posts" class="nav-user-info nav-user-profile" id="nav-user-info" title="进入我的方块" @click="handleMyBlockClick">
+          <router-link to="/user-space" class="nav-user-info nav-user-profile" id="nav-user-info" title="进入我的方块" @click="handleMyBlockClick">
             <div class="nav-avatar">
               <img v-if="avatarUrl" :src="avatarUrl" alt="头像" class="nav-avatar-img" loading="lazy" decoding="async">
               <span v-else>{{ username ? username.charAt(0).toUpperCase() : 'U' }}</span>
@@ -571,8 +571,8 @@ const unreadCount = computed(() => notificationStoreRef.value?.unreadCount || 0)
 const route = useRoute();
 
 const isActive = (path) => {
-  if (path === '/user-space?tab=posts') {
-    return route.path === '/user-space' && String(route.query.tab || 'posts') === 'posts';
+  if (path === '/user-space?tab=community') {
+    return route.path === '/user-space' && String(route.query.tab || 'community') === 'community';
   }
   if (path === '/') {
     return route.path === '/';
@@ -583,14 +583,14 @@ const isActive = (path) => {
 
 // 处理"我的方块"按钮点击：如果在论坛页面，刷新并滚动到顶部
 const handleMyBlockClick = (event) => {
-  const isAlreadyInForum = route.path === '/user-space' && String(route.query.tab || 'posts') === 'posts';
+  const isAlreadyInForum = route.path === '/user-space' && String(route.query.tab || 'community') === 'community';
   if (isAlreadyInForum) {
     // 阻止路由跳转，触发刷新和滚动到顶部
     event.preventDefault();
     // 发送自定义事件，通知论坛组件刷新
     window.dispatchEvent(new CustomEvent('boh_forum_refresh_request'));
     // 滚动到顶部
-    const scrollContainer = document.querySelector('.tab-page.posts-tab') || window;
+    const scrollContainer = document.querySelector('.tab-page.community-shell') || window;
     if (scrollContainer !== window) {
       scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
@@ -625,7 +625,7 @@ const navMenuItems = [
     children: [
       { name: "smart-overview", path: "/overview", label: "智能概览" },
       { name: "news-shows", path: "/newsroom", label: "新闻&节目" },
-      { name: "forum", path: "/user-space?tab=posts", label: "论坛" },
+      { name: "forum", path: "/user-space?tab=community", label: "论坛" },
       { name: "activities-wall", path: "/activities-wall", label: "活动&方块墙" },
       { name: "lotteries", path: "/lotteries", label: "抽奖" }
     ]

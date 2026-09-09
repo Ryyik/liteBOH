@@ -13,6 +13,13 @@ export const communityRoutes: RouteRecordRaw[] = [
     component: () => import("../../views/Newsroom/index.vue"),
   },
   {
+    // 新闻独立详情页（BETA 6 / S4）：真实 URL，可分享/刷新/前进后退 + OG meta。
+    // news 表暂无 slug 列，参数用 id；将来加 slug 列后此参数天然兼容（按 id 查）。
+    path: "/news/:id",
+    name: "NewsDetail",
+    component: () => import("../../views/Newsroom/NewsDetailPage.vue"),
+  },
+  {
     // 活动与方块墙组合页（液态玻璃分段切换）
     path: "/activities-wall",
     name: "ActivitiesWall",

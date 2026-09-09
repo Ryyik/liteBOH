@@ -61,7 +61,7 @@ defineEmits(['click']);
   filter: drop-shadow(0 1px 1px rgba(255, 255, 255, 0.45));
 }
 
-:global([data-theme="dark"]) .user-center-back-btn {
+:global([data-theme="dark"] .user-center-back-btn ){
   --user-center-back-color: #ffffff;
   --user-center-back-border: rgba(255, 255, 255, 0.14);
   --user-center-back-focus-ring: rgba(103, 162, 255, 0.7);

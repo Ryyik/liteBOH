@@ -1,19 +1,17 @@
 import { computed, reactive, ref } from 'vue';
 
-export const USER_SPACE_VALID_TABS = ['posts', 'community', 'messages', 'profile', 'shows', 'ai'];
+// 2026-09 IA 重构：底栏 = 社区(论坛+成员+收藏+印象) / 内容(身份卡+帖子+shows+草稿) / 资产 / 消息(+AI) / 设置
+export const USER_SPACE_VALID_TABS = ['community', 'posts', 'assets', 'messages', 'settings'];
 
-export const useUserSpaceTabs = (navItems, initialTab = 'posts') => {
-  const safeInitialTab = USER_SPACE_VALID_TABS.includes(initialTab) ? initialTab : 'posts';
+export const useUserSpaceTabs = (navItems, initialTab = 'community') => {
+  const safeInitialTab = USER_SPACE_VALID_TABS.includes(initialTab) ? initialTab : 'community';
   const currentTab = ref(safeInitialTab);
-  const profileSection = ref('home');
-  const isAICollapsed = ref(true);
   const mountedTabs = reactive({
+    community: safeInitialTab === 'community',
     posts: safeInitialTab === 'posts',
-    community: false,
-    messages: false,
-    shows: false,
-    ai: false,
-    profile: safeInitialTab === 'profile'
+    assets: safeInitialTab === 'assets',
+    messages: safeInitialTab === 'messages',
+    settings: safeInitialTab === 'settings'
   });
   if (Object.prototype.hasOwnProperty.call(mountedTabs, safeInitialTab)) {
     mountedTabs[safeInitialTab] = true;
@@ -36,18 +34,11 @@ export const useUserSpaceTabs = (navItems, initialTab = 'posts') => {
     }
   };
 
-  const toggleAICollapsed = () => {
-    isAICollapsed.value = !isAICollapsed.value;
-  };
-
   return {
     currentTab,
-    profileSection,
-    isAICollapsed,
+    navIndicatorStyle,
     mountedTabs,
     activeNavIndex,
-    navIndicatorStyle,
-    ensureTabMounted,
-    toggleAICollapsed
+    ensureTabMounted
   };
 };

@@ -1,5 +1,5 @@
 <template>
-    <div class="bohai-page"
+    <div ref="bohaiPageRoot" class="bohai-page"
         :class="{ 'embedded-mode': props.embedded, 'overlay-mode': props.overlayMode, 'standalone-mode': isStandalone, 'empty-chat-mode': messages.length === 0, 'sidebar-open': isSidebarOpen, 'reduce-motion': !globalAiPreferences.animationsEnabled }"
         :data-ui-style="currentUiStyle" :data-theme="resolvedAiTheme"
         :data-density="globalAiPreferences.density" :data-font-scale="globalAiPreferences.fontScale">
@@ -553,6 +553,11 @@ const isStandalone = computed(() => !props.embedded && !props.overlayMode);
 const isSidebarOpen = ref(isStandalone.value && typeof window !== 'undefined' && window.innerWidth >= 1024);
 const isComponentVisible = ref(true);
 let visibilityObserver = null;
+// ✅ 性能优化 P0-2：可见性检测改用 ResizeObserver（display:none 折叠为 0 会触发回调），
+// 取代每秒 offsetHeight 轮询；仅古旧浏览器降级为低频轮询。
+const bohaiPageRoot = ref(null);
+let visibilityResizeObserver = null;
+let visibilityFallbackIntervalId = null;
 const showFeaturesMenu = ref(false);
 const currentUiStyle = ref(themeManager.getUiStyle?.() || 'glass');
 const currentSiteTheme = ref(themeManager.isDark?.() ? 'dark' : 'light');
@@ -2070,28 +2075,48 @@ onMounted(() => {
 
     // Detect component visibility for Teleported elements (sidebar/overlay).
     // When the parent tab switches away (v-show="false"), the .bohai-page
-    // becomes display:none and offsetHeight === 0. We poll this because
-    // IntersectionObserver doesn't fire for display:none elements.
-    const checkVisibility = () => {
-        const pageEl = document.querySelector('.bohai-page');
-        if (pageEl) {
-            const visible = pageEl.offsetHeight > 0;
+    // becomes display:none and its size collapses to 0. ResizeObserver fires
+    // exactly on that transition (IntersectionObserver does not fire for
+    // display:none elements), so we observe the page root directly instead of
+    // polling offsetHeight every second.
+    const pageEl = bohaiPageRoot.value || document.querySelector('.bohai-page');
+    const checkVisibility = (el) => {
+        const target = el || pageEl;
+        if (target) {
+            const visible = target.offsetHeight > 0;
             if (isComponentVisible.value !== visible) {
                 isComponentVisible.value = visible;
                 if (!visible) isSidebarOpen.value = false;
             }
         }
     };
-    // Check on visibility change (tab switch) and periodically
-    document.addEventListener('visibilitychange', checkVisibility);
-    const visInterval = setInterval(checkVisibility, 1000);
+    // OS/browser tab switches do not resize the element; keep the visibilitychange hook.
+    // Wrap in a stable arrow so the Event object is never mistaken for the target element.
+    const onVisibilityChange = () => checkVisibility();
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    if (pageEl && typeof ResizeObserver === 'function') {
+        visibilityResizeObserver = new ResizeObserver((entries) => {
+            checkVisibility(entries?.[0]?.target);
+        });
+        visibilityResizeObserver.observe(pageEl);
+    } else {
+        // Legacy fallback: lightweight poll only when ResizeObserver is unavailable
+        visibilityFallbackIntervalId = setInterval(() => checkVisibility(), 1000);
+    }
     checkVisibility();
 
     // Store cleanup references
     visibilityObserver = {
         cleanup: () => {
-            document.removeEventListener('visibilitychange', checkVisibility);
-            clearInterval(visInterval);
+            document.removeEventListener('visibilitychange', onVisibilityChange);
+            if (visibilityResizeObserver) {
+                visibilityResizeObserver.disconnect();
+                visibilityResizeObserver = null;
+            }
+            if (visibilityFallbackIntervalId) {
+                clearInterval(visibilityFallbackIntervalId);
+                visibilityFallbackIntervalId = null;
+            }
         }
     };
 });

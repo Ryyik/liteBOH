@@ -58,6 +58,7 @@ const createBuiltinFallback = (
 // 内置区块迁入数据库后，首次访问不能再以网络请求作为首屏渲染前提。
 // 远端配置到达后会覆盖此基线，管理员的排序与显隐设置仍然是最终来源。
 export const HOME_HERO_BASELINE: HomeHero[] = [
+  createBuiltinFallback('beta6-renewal', -10, '焕然一新，即刻相见', 'BOHLITE Beta 6 焕新体验'),
   createBuiltinFallback('mascot-new', 10, '全新吉祥物现已上线', '全新吉祥物现已上线'),
   createBuiltinFallback('agent-preview', 20, 'BOH Agent Preview', 'BOH Agent Preview'),
   createBuiltinFallback('birthday', 30, '今日生日', '今日生日'),

@@ -6,7 +6,8 @@
 .user-space-page {
   /* Community owns a scroll viewport between the two fixed navigation surfaces. */
   --userspace-community-top-inset: max(84px, calc(72px + env(safe-area-inset-top, 0px) + 12px));
-  --userspace-messages-top-inset: max(68px, calc(58px + env(safe-area-inset-top, 0px) + 4px));
+  /* 消息 tab 页级避让：吃导航岛实测高度（--userspace-nav-h 由 UserSpaceMain ResizeObserver 写入） */
+  --userspace-messages-top-inset: max(68px, calc(var(--userspace-nav-h, 78px) + env(safe-area-inset-top, 0px) + 4px));
   --userspace-community-bottom-inset: 108px;
   --userspace-community-inline-padding: clamp(16px, 3vw, 48px);
   --bg: #f5f5f7;
@@ -154,36 +155,17 @@
   gap: 16px;
 }
 
-.tab-page.community-tab .page-content {
-  flex: 0 0 auto;
-  min-height: 100%;
-  padding:
-    0
-    var(--userspace-community-inline-padding)
-    calc(var(--userspace-community-bottom-inset) + 16px);
-  align-content: start;
-}
-
-.tab-page.community-tab {
-  top: var(--userspace-community-top-inset);
-  bottom: 0;
-  height: auto;
-  min-height: 0;
-  scroll-padding-block:
-    20px;
-}
-
 @media (max-width: 768px) {
   .user-space-page {
     --userspace-community-top-inset: max(64px, calc(52px + env(safe-area-inset-top, 0px) + 8px));
-    --userspace-messages-top-inset: max(62px, calc(50px + env(safe-area-inset-top, 0px) + 4px));
+    --userspace-messages-top-inset: max(62px, calc(var(--userspace-nav-h, 74px) + env(safe-area-inset-top, 0px) + 4px));
     --userspace-community-bottom-inset: 84px;
   }
 }
 
 @media (orientation: landscape) and (max-width: 1024px) {
   .user-space-page {
-    --userspace-messages-top-inset: max(68px, calc(60px + env(safe-area-inset-top, 0px) + 4px));
+    --userspace-messages-top-inset: max(62px, calc(var(--userspace-nav-h, 74px) + env(safe-area-inset-top, 0px) + 2px));
   }
 }
 
@@ -191,50 +173,18 @@
   padding-bottom: 140px;
 }
 
-.tab-page.posts-tab {
-  padding: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
-}
-
-.tab-page.posts-tab .page-content {
-  padding: 0;
-  max-width: none;
-  height: 100%;
-}
-
 .tab-page.messages-tab {
   box-sizing: border-box;
   padding-top: var(--userspace-messages-top-inset);
 }
 
-.tab-page.shows-tab {
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
-  touch-action: pan-y;
-  scrollbar-gutter: stable;
-}
-
-.tab-page.ai-tab {
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-/* ---------- AI 工作区 ---------- */
+/* ---------- AI 工作区（消息 tab 内嵌：随 .ai-host 玻璃卡满屏，随内容滚走） ---------- */
 .ai-workspace {
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
-  max-width: 700px;
-  margin: 0 auto;
-  padding: 80px 20px 140px 20px;
   box-sizing: border-box;
   position: relative;
   z-index: 1;
@@ -369,9 +319,7 @@
     display: block;
   }
 
-  .tab-page,
-  .tab-page.posts-tab,
-  .tab-page.community-tab {
+  .tab-page {
     position: relative;
     inset: auto;
     width: 100%;
@@ -381,16 +329,6 @@
     -webkit-overflow-scrolling: auto;
     overscroll-behavior-y: auto;
     touch-action: pan-y;
-  }
-
-  /* Community's desktop safe viewport must not survive into document scrolling. */
-  .tab-page.community-tab {
-    scroll-padding-block: 0;
-  }
-
-  .tab-page.community-tab .page-content {
-    min-height: auto;
-    padding-top: var(--userspace-community-top-inset);
   }
 
   /* Keep the outgoing page layered during the short tab transition without
@@ -526,31 +464,32 @@
   }
 }
 
-/* ---------- Forum 嵌入样式 ---------- */
-.user-space-page :deep(.forum-page.embedded-mode) {
+/* ---------- Forum 嵌入样式（2026-09-09 修复：原 :deep() 在全局 CSS 中无效整条被丢弃，
+   论坛自带 80px padding-top 从未清掉 = 页签下大空隙主因；平铺为普通后代选择器激活） ---------- */
+.user-space-page .forum-page.embedded-mode {
   padding-top: 0 !important;
   padding-bottom: 0 !important;
   min-height: 100%;
   width: 100%;
 }
 
-.user-space-page :deep(.forum-page.embedded-mode .forum-content-area) {
-  padding-top: 16px !important;
+.user-space-page .forum-page.embedded-mode .forum-content-area {
+  padding-top: 8px !important;
 }
 
-.user-space-page :deep(.forum-page.embedded-mode .forum-feed) {
+.user-space-page .forum-page.embedded-mode .forum-feed {
   max-width: none !important;
 }
 
-.user-space-page :deep(.forum-page.embedded-mode .forum-header) {
+.user-space-page .forum-page.embedded-mode .forum-header {
   display: none !important;
 }
 
-.user-space-page :deep(.forum-page.embedded-mode .post-card) {
+.user-space-page .forum-page.embedded-mode .post-card {
   animation: forum-card-in 350ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.user-space-page :deep(.forum-page.embedded-mode .post-composer) {
+.user-space-page .forum-page.embedded-mode .post-composer {
   animation: forum-card-in 350ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -1853,10 +1792,6 @@
     gap: 12px;
   }
 
-  .ai-workspace {
-    padding: 80px 16px 140px 16px;
-  }
-
   /* 社区分页移动端 */
   .community-group {
     padding: 16px 18px;
@@ -1994,10 +1929,6 @@
     padding: 90px 16px 140px 16px;
   }
 
-  .ai-workspace {
-    padding: 90px 16px 140px 16px;
-  }
-
   .community-group {
     padding: 14px 16px;
   }
@@ -2041,11 +1972,7 @@
     padding: 80px 12px 140px 12px;
   }
 
-  .ai-workspace {
-    padding: 80px 12px 140px 12px;
-  }
-
-  .user-space-page :deep(.forum-page.embedded-mode .forum-feed) {
+  .user-space-page .forum-page.embedded-mode .forum-feed {
     padding: 0 12px;
   }
 }
@@ -2055,15 +1982,11 @@
     padding: 90px 16px 140px 16px;
   }
 
-  .ai-workspace {
-    padding: 90px 16px 140px 16px;
-  }
-
-  .user-space-page :deep(.forum-page.embedded-mode .forum-feed) {
+  .user-space-page .forum-page.embedded-mode .forum-feed {
     padding: 0 16px;
   }
 
-  .user-space-page :deep(.forum-page.embedded-mode .post-composer) {
+  .user-space-page .forum-page.embedded-mode .post-composer {
     padding: 14px;
   }
 }
@@ -2851,5 +2774,103 @@
     position: static;
     margin-left: auto;
     font-size: 12px;
+  }
+}
+
+/* 论坛宿主：嵌入论坛随社区 tab 铺满 */
+.community-forum-host {
+  display: contents;
+}
+
+/* 社区列表档（成员/印象）：顶栏避让由 SegmentTabs 的 inset 承担，这里只留呼吸 */
+.page-content.community-list-content {
+  padding-top: 10px;
+}
+
+/* 内容 tab 的 Cloud+ 宿主（组件自带 embedded 布局） */
+.content-cloud-host {
+  display: contents;
+}
+
+.messages-host {
+  display: contents;
+}
+
+/* AI 宿主：BOH AI 满屏玻璃卡（页签以下、底栏以上） */
+.ai-host {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* BOH AI 满屏工作区（2026-09-09）：页签以下、底栏以上整块卡片化，
+   显式限高让 BOHAI 内部滚动链（chat-container）在竖屏拿到确定边界 */
+.messages-tab .ai-host {
+  flex: 0 0 auto;
+  height: calc(100vh - var(--userspace-messages-top-inset, 62px) - 48px - 92px);
+  height: calc(100dvh - var(--userspace-messages-top-inset, 62px) - 48px - 92px);
+  margin: 2px 10px 12px;
+  border-radius: 24px;
+  border: 1px solid var(--liquid-border);
+  box-shadow: var(--liquid-shadow);
+}
+
+
+/* ---------- 2026-09 IA 反馈：横屏宽屏全宽布局 ---------- */
+@media (orientation: landscape) and (min-width: 900px) {
+  .user-space-page .tab-page .page-content {
+    max-width: 100%;
+    padding-left: clamp(24px, 4vw, 56px);
+    padding-right: clamp(24px, 4vw, 56px);
+  }
+
+  .user-space-page .profile-page-content,
+  .user-space-page .profile-page-content.assets-active {
+    max-width: 100%;
+    padding-left: clamp(24px, 4vw, 56px);
+    padding-right: clamp(24px, 4vw, 56px);
+  }
+
+}
+
+/* ---------- 2026-09-09：抖音式文字页签配套（切换动效） ---------- */
+/* v-show 重新显示时 CSS animation 自动重播 = 每次切档内容淡入上浮 */
+@keyframes seg-content-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-content.community-list-content,
+.content-home-host,
+.content-cloud-host .cloud-page,
+.ai-host {
+  animation: seg-content-in 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 最新/关注互切：论坛内容轻淡入脉冲（feed-switching 由 communitySection watch 短暂挂载） */
+.community-shell.feed-switching .forum-page.embedded-mode .forum-container {
+  animation: seg-content-in 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 空间（身份卡）页签切换后收紧页签下空隙：顶部避让已由 SegmentTabs 负责 */
+.user-space-page .tab-page .content-home-host.profile-tab {
+  padding-top: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-content.community-list-content,
+  .content-home-host,
+  .content-cloud-host .cloud-page,
+  .ai-host,
+  .community-shell.feed-switching .forum-page.embedded-mode .forum-container {
+    animation: none;
   }
 }

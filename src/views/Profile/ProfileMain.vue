@@ -267,7 +267,7 @@
             <h3>暂无发布过的帖子</h3>
             <p>发布的帖子会出现在这里。</p>
             <button v-if="isOwnProfile" class="empty-action-btn" @click="showPostModal = true">立即发帖</button>
-            <button v-else class="empty-action-btn" @click="router.push('/user-space?tab=posts')">去方块社区看看</button>
+            <button v-else class="empty-action-btn" @click="router.push('/user-space?tab=community')">去方块社区看看</button>
           </div>
           <div v-else class="profile-post-grid">
             <article v-for="(post, index) in posts" :key="post.id" class="profile-post-card"
@@ -321,7 +321,7 @@
           <div v-else-if="comments.length === 0" class="empty-list-state">
             <h3>暂无回复</h3>
             <p>对他人的回复会出现在这里。</p>
-            <button class="empty-action-btn" @click="router.push('/user-space?tab=posts')">去方块社区互动</button>
+            <button class="empty-action-btn" @click="router.push('/user-space?tab=community')">去方块社区互动</button>
           </div>
           <div v-else class="replies-list">
             <article v-for="comment in comments" :key="comment.id" class="feed-item reply-item">
@@ -378,20 +378,28 @@
             </div>
           </div>
           <div v-if="!isTabLoading.impressions && impressions.length === 0" class="empty-list-state">
-            <h3>暂无他人印象</h3>
-            <p>关于 {{ profile.username }} 的评价会出现在这里。</p>
+            <EmptyState variant="inbox" title="暂无他人印象" :description="`关于 ${profile.username} 的印象会出现在这里。`" />
           </div>
           <div v-if="impressions.length > 0" class="impressions-wall-profile">
-            <div v-for="imp in impressions" :key="imp.id" class="impression-card-profile">
+            <div v-for="(imp, index) in impressions" :key="imp.id" class="impression-card-profile"
+              :style="{ '--stagger-delay': `${Math.min(index, 8) * 55}ms` }">
+              <span class="imp-quote-mark" aria-hidden="true">"</span>
               <p class="imp-text">{{ imp.content }}</p>
               <div class="imp-footer">
-                <span class="imp-author" :class="impressionTierMap[imp.author_id]" @click="goToProfileRoute(imp.author?.username)">@{{ imp.author?.username || '匿名' }}</span>
-                <div class="imp-footer-right">
-                  <span class="imp-date">{{ formatTime(imp.created_at) }}</span>
-                  <button v-if="canDeleteImpression(imp)" class="delete-imp-btn" @click="handleDeleteImpression(imp)">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"></polyline><path d="M19,6v14a2,2 0,0,1,-2,2H7a2,2 0,0,1,-2,-2V6m3,0V4a2,2 0,0,1,2,-2h4a2,2 0,0,1,2,2v2"></path></svg>
-                  </button>
-                </div>
+                <span class="imp-author-chip" @click="goToProfileRoute(imp.author?.username)">
+                  <span class="imp-avatar" aria-hidden="true">
+                    <img v-if="getAvatarUrl(imp.author?.avatar_url, 'sm')" :src="getAvatarUrl(imp.author?.avatar_url, 'sm')"
+                      :alt="`${imp.author?.username || '匿名'} 的头像`" loading="lazy" decoding="async" />
+                    <i v-else>{{ (imp.author?.username || '匿').charAt(0).toUpperCase() }}</i>
+                  </span>
+                  <span class="imp-author-meta">
+                    <span class="imp-author" :class="impressionTierMap[imp.author_id]">@{{ imp.author?.username || '匿名' }}</span>
+                    <span class="imp-date">{{ formatTime(imp.created_at) }}</span>
+                  </span>
+                </span>
+                <button v-if="canDeleteImpression(imp)" class="delete-imp-btn" aria-label="删除这条印象" @click="handleDeleteImpression(imp)">
+                  <Trash2 :size="14" :stroke-width="2" />
+                </button>
               </div>
             </div>
           </div>
@@ -440,6 +448,9 @@ import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import AvatarCropModal from '@/components/AvatarCropModal.vue';
 import WordCloud from '@/components/WordCloud.vue';
+import EmptyState from '@/components/ui/EmptyState.vue';
+import { Trash2 } from 'lucide-vue-next';
+import { getAvatarUrl } from '@/utils/avatar.js';
 import ProfileEditModal from './components/ProfileEditModal.vue';
 import PostCreateModal from './components/PostCreateModal.vue';
 import PointsCard from '@/views/user-center/UserSpace/components/PointsCard.vue';
@@ -620,7 +631,7 @@ const pointsCardImageUrl = computed(() => {
 });
 const handlePointsCardClick = () => {
   if (isOwnProfile.value) {
-    router.push('/user-space?tab=profile&view=assets');
+    router.push('/user-space?tab=assets');
   }
 };
 watch(() => profile.value?.id, async (id) => {

@@ -64,15 +64,15 @@ const emit = defineEmits(['update:modelValue']);
   cursor: not-allowed;
 }
 
-:global([data-theme="dark"]) .setting-toggle:not(.on) {
+:global([data-theme="dark"] .setting-toggle:not(.on) ){
   background: rgba(255, 255, 255, 0.22);
 }
 
-:global([data-theme="dark"]) .setting-toggle.on {
+:global([data-theme="dark"] .setting-toggle.on ){
   background: #30d158;
 }
 
-:global([data-theme="dark"]) .setting-toggle-knob {
+:global([data-theme="dark"] .setting-toggle-knob ){
   background: #ffffff;
 }
 </style>

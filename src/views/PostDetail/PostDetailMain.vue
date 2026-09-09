@@ -1450,7 +1450,7 @@ const getQueryString = (value) => {
 const createForumHomeLocation = (query = {}) => ({
   path: '/user-space',
   query: {
-    tab: 'posts',
+    tab: 'community',
     ...query
   }
 });

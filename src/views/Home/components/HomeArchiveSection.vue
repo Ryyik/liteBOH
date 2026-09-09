@@ -117,24 +117,24 @@ defineProps({
 }
 
 /* ============ 深色模式 ============ */
-:global([data-theme="dark"]) .home-archive {
+:global([data-theme="dark"] .home-archive ){
   border-bottom-color: color-mix(in srgb, var(--background-50, #f5f5f7) 10%, transparent);
 }
 
-:global([data-theme="dark"]) .home-archive-toggle-title {
+:global([data-theme="dark"] .home-archive-toggle-title ){
   color: var(--background-50, #f5f5f7);
 }
 
-:global([data-theme="dark"]) .home-archive-toggle:hover .home-archive-toggle-title,
-:global([data-theme="dark"]) .home-archive-toggle:hover .home-archive-chevron {
+:global([data-theme="dark"] .home-archive-toggle:hover .home-archive-toggle-title),
+:global([data-theme="dark"] .home-archive-toggle:hover .home-archive-chevron ){
   color: var(--background-50, #f5f5f7);
 }
 
-:global([data-theme="dark"]) .home-archive-toggle-icon {
+:global([data-theme="dark"] .home-archive-toggle-icon ){
   background: color-mix(in srgb, var(--background-50, #f5f5f7) 8%, transparent);
 }
 
-:global([data-theme="dark"]) .home-archive-count {
+:global([data-theme="dark"] .home-archive-count ){
   color: var(--background-900, #1d1d1f);
   background: var(--background-50, #f5f5f7);
 }

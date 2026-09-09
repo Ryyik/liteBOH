@@ -1,0 +1,703 @@
+/* ================================================================
+   settings-glass.css —— 用户空间「设置」子页液态玻璃单一源
+   （2026-09-09 统一：ProfileSettingsPanel / PushplusSettings /
+    DataExportPanel / DataPrivacyPanel / AccountSecurity 共用）
+   依赖：src/styles/common/tokens.css 的 --liquid-* 全局 token；
+   品牌蓝 #0071e3（拍板），暗色链接蓝 #2997ff。
+   引入方式：<style scoped> 内 @import 本文件（规则会带 scoped 属性）。
+   ================================================================ */
+
+/* ---------- 独立路由页壳（pushplus / account-security 等） ---------- */
+.settings-page {
+  min-height: 100dvh;
+  background:
+    radial-gradient(620px 430px at 12% 6%, rgba(0, 113, 227, 0.07), transparent 66%),
+    radial-gradient(560px 420px at 90% 20%, rgba(94, 92, 230, 0.05), transparent 66%),
+    #f5f6f8;
+  color: var(--liquid-text-primary, #1d1d1f);
+}
+
+.settings-page-container {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 24px clamp(16px, 4vw, 24px) 60px;
+  box-sizing: border-box;
+}
+
+.settings-page-desc {
+  margin: 8px 0 20px;
+}
+
+.settings-page-desc p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--liquid-text-tertiary, #8b9098);
+}
+
+/* ---------- 单一液态玻璃连续面板 ---------- */
+.glass-settings {
+  position: relative;
+  z-index: 1;
+  background: var(--liquid-bg);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
+  border: 1px solid var(--liquid-border);
+  border-radius: var(--liquid-radius-lg);
+  box-shadow: var(--liquid-shadow), var(--liquid-highlight);
+  overflow: hidden;
+}
+
+.gs-group + .gs-group {
+  border-top: 1px solid var(--liquid-border-hairline);
+}
+
+.gs-group-title {
+  color: var(--liquid-text-secondary, #6e6e73);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 18px 18px 6px;
+}
+
+.gs-rows {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 6px;
+}
+
+/* ---------- 行 ---------- */
+.gs-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  min-height: 44px;
+  padding: 12px 18px;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease;
+}
+
+.gs-row:hover {
+  background: rgba(15, 23, 42, 0.035);
+}
+
+.gs-row:active {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.gs-row + .gs-row {
+  border-top: 1px solid var(--liquid-border-hairline);
+}
+
+/* 静态行（纯展示，不可点） */
+.gs-row.is-static {
+  cursor: default;
+}
+
+.gs-row.is-static:hover,
+.gs-row.is-static:active {
+  background: transparent;
+}
+
+/* ---------- 图标 ---------- */
+.gs-icon {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.gs-icon.is-yellow {
+  background: linear-gradient(135deg, #ffd60a, #ff9f0a);
+}
+
+.gs-icon.is-purple {
+  background: linear-gradient(135deg, #bf5af2, #8e44ec);
+}
+
+.gs-icon.is-blue {
+  background: linear-gradient(135deg, #0a84ff, #0066cc);
+}
+
+.gs-icon.is-teal {
+  background: linear-gradient(135deg, #64d2ff, #30b0c7);
+}
+
+.gs-icon.is-indigo {
+  background: linear-gradient(135deg, #5e5ce6, #3634a3);
+}
+
+.gs-icon.is-red {
+  background: linear-gradient(135deg, #ff453a, #d70015);
+}
+
+.gs-icon.is-green {
+  background: linear-gradient(135deg, #30d158, #1a9e45);
+}
+
+.gs-icon.is-gray {
+  background: linear-gradient(135deg, #8e8e93, #5c5c62);
+}
+
+/* ---------- 文本 ---------- */
+.gs-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.gs-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--liquid-text-primary, #1d1d1f);
+  overflow-wrap: anywhere;
+}
+
+.gs-desc {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--liquid-text-tertiary, #8b9098);
+}
+
+.gs-side {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.gs-value {
+  font-size: 13px;
+  color: var(--liquid-text-secondary, #6e6e73);
+  max-width: min(240px, 44vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gs-chevron {
+  color: var(--liquid-text-tertiary, rgba(15, 23, 42, 0.28));
+  flex-shrink: 0;
+}
+
+/* 危险行 */
+.gs-label-danger {
+  color: #ff3b30;
+}
+
+.gs-chevron-danger {
+  color: rgba(255, 59, 48, 0.55);
+}
+
+.gs-danger .gs-row:hover {
+  background: rgba(255, 59, 48, 0.05);
+}
+
+/* ---------- 分隔（"或者"） ---------- */
+.gs-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0;
+  color: var(--liquid-text-tertiary, #8b9098);
+  font-size: 12px;
+}
+
+.gs-divider::before,
+.gs-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--liquid-border-hairline);
+}
+
+/* ---------- 表单 ---------- */
+.gs-field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--liquid-text-secondary, #6e6e73);
+}
+
+.gs-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 4px 4px 12px;
+  background: var(--liquid-bg-nested);
+  border: 1px solid var(--liquid-border-hairline);
+  border-radius: 14px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.gs-input-wrap:focus-within {
+  background: var(--liquid-bg-strong);
+  border-color: rgba(0, 113, 227, 0.55);
+  box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.12);
+}
+
+.gs-input-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--liquid-text-tertiary, #8b9098);
+}
+
+.gs-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 40px;
+  border: 0;
+  background: transparent;
+  color: var(--liquid-text-primary, #1d1d1f);
+  font-family: inherit;
+  font-size: 15px;
+  outline: none;
+}
+
+.gs-input::placeholder {
+  color: var(--liquid-text-tertiary, #8b9098);
+}
+
+.gs-input:disabled {
+  opacity: 0.55;
+}
+
+.gs-input-action {
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 10px;
+  padding: 9px 12px;
+  background: rgba(0, 113, 227, 0.1);
+  color: #0071e3;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.gs-input-action:hover:not(:disabled) {
+  background: rgba(0, 113, 227, 0.18);
+}
+
+.gs-input-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.gs-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--liquid-text-tertiary, #8b9098);
+}
+
+.gs-hint svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ---------- 按钮 ---------- */
+.gs-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.gs-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 20px;
+  border: 0;
+  border-radius: 13px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, opacity 0.15s ease, transform 0.1s ease;
+}
+
+.gs-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.gs-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.gs-btn.primary {
+  background: #0071e3;
+  color: #fff;
+}
+
+.gs-btn.primary:hover:not(:disabled) {
+  background: #0077ed;
+}
+
+.gs-btn.ghost {
+  background: transparent;
+  color: #0071e3;
+  border: 1px solid rgba(0, 113, 227, 0.45);
+}
+
+.gs-btn.ghost:hover:not(:disabled) {
+  background: rgba(0, 113, 227, 0.07);
+}
+
+.gs-btn.ghost-danger {
+  background: transparent;
+  color: #ff3b30;
+  border: 1px solid rgba(255, 59, 48, 0.4);
+}
+
+.gs-btn.ghost-danger:hover:not(:disabled) {
+  background: rgba(255, 59, 48, 0.07);
+}
+
+.gs-btn.danger {
+  background: #ff3b30;
+  color: #fff;
+}
+
+.gs-btn.danger:hover:not(:disabled) {
+  background: #ff4f45;
+}
+
+.gs-btn.svg-16 svg {
+  width: 16px;
+  height: 16px;
+}
+
+.gs-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: gs-spin 0.8s linear infinite;
+}
+
+@keyframes gs-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- 横幅 / 提示 ---------- */
+.gs-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.gs-banner svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.gs-banner.info {
+  background: rgba(0, 113, 227, 0.09);
+  color: #0071e3;
+}
+
+.gs-banner.success {
+  background: rgba(52, 199, 89, 0.12);
+  color: #1a9e45;
+}
+
+.gs-banner.error {
+  background: rgba(255, 59, 48, 0.1);
+  color: #e02d24;
+}
+
+.gs-note {
+  color: var(--liquid-text-secondary, #6e6e73);
+  font-size: 13px;
+  line-height: 1.6;
+  background: var(--liquid-bg-nested);
+  border: 1px solid var(--liquid-border-hairline);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+/* ---------- 进度条（数据导出） ---------- */
+.gs-progress-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--liquid-bg-nested);
+  overflow: hidden;
+}
+
+.gs-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #0071e3;
+  transition: width 0.6s ease;
+}
+
+/* ---------- 暗色 ---------- */
+/* tokens.css dark 块未派生 --liquid-text-*，这里整组覆盖保证可读性 */
+[data-theme="dark"] .gs-group-title {
+  color: #8b9098;
+}
+
+[data-theme="dark"] .gs-label {
+  color: #f4f6f8;
+}
+
+[data-theme="dark"] .gs-desc {
+  color: #a7afba;
+}
+
+[data-theme="dark"] .gs-field-label {
+  color: #a1a1aa;
+}
+
+[data-theme="dark"] .gs-hint {
+  color: #8b9098;
+}
+
+[data-theme="dark"] .gs-note {
+  color: #a7afba;
+}
+
+[data-theme="dark"] .gs-input {
+  color: #f4f6f8;
+}
+
+[data-theme="dark"] .gs-input::placeholder {
+  color: #6b7280;
+}
+
+[data-theme="dark"] .gs-input-icon {
+  color: #8b9098;
+}
+
+[data-theme="dark"] .gs-row:hover {
+  background: rgba(255, 255, 255, 0.055);
+}
+
+[data-theme="dark"] .gs-row:active {
+  background: rgba(255, 255, 255, 0.085);
+}
+
+[data-theme="dark"] .gs-danger .gs-row:hover {
+  background: rgba(255, 59, 48, 0.12);
+}
+
+[data-theme="dark"] .gs-label-danger {
+  color: #ff6961;
+}
+
+[data-theme="dark"] .gs-chevron-danger {
+  color: rgba(255, 105, 97, 0.6);
+}
+
+[data-theme="dark"] .gs-value {
+  color: var(--liquid-text-secondary, #a1a1aa);
+}
+
+[data-theme="dark"] .gs-btn.primary {
+  background: #0071e3;
+}
+
+[data-theme="dark"] .gs-btn.primary:hover:not(:disabled) {
+  background: #0079ed;
+}
+
+[data-theme="dark"] .gs-btn.ghost {
+  color: #2997ff;
+  border-color: rgba(41, 151, 255, 0.5);
+}
+
+[data-theme="dark"] .gs-btn.ghost:hover:not(:disabled) {
+  background: rgba(41, 151, 255, 0.12);
+}
+
+[data-theme="dark"] .gs-btn.ghost-danger {
+  color: #ff6961;
+  border-color: rgba(255, 105, 97, 0.45);
+}
+
+[data-theme="dark"] .gs-btn.ghost-danger:hover:not(:disabled) {
+  background: rgba(255, 105, 97, 0.12);
+}
+
+[data-theme="dark"] .gs-input-wrap:focus-within {
+  border-color: rgba(41, 151, 255, 0.6);
+  box-shadow: 0 0 0 4px rgba(41, 151, 255, 0.14);
+}
+
+[data-theme="dark"] .gs-input-action {
+  background: rgba(41, 151, 255, 0.16);
+  color: #2997ff;
+}
+
+[data-theme="dark"] .gs-input-action:hover:not(:disabled) {
+  background: rgba(41, 151, 255, 0.26);
+}
+
+[data-theme="dark"] .gs-banner.info {
+  background: rgba(41, 151, 255, 0.14);
+  color: #7cc0ff;
+}
+
+[data-theme="dark"] .gs-banner.success {
+  background: rgba(48, 209, 88, 0.16);
+  color: #4ade80;
+}
+
+[data-theme="dark"] .gs-banner.error {
+  background: rgba(255, 105, 97, 0.14);
+  color: #ff8b85;
+}
+
+[data-theme="dark"] .gs-progress-fill {
+  background: #2997ff;
+}
+
+[data-theme="dark"] .settings-page {
+  background:
+    radial-gradient(620px 430px at 12% 6%, rgba(41, 151, 255, 0.08), transparent 66%),
+    radial-gradient(560px 420px at 90% 20%, rgba(94, 92, 230, 0.06), transparent 66%),
+    #101216;
+  color: #f4f6f8;
+}
+
+/* ---------- 竖屏窄手机 ---------- */
+@media (max-width: 520px) {
+  .settings-page-container {
+    padding: 16px 16px 48px;
+  }
+
+  .gs-group-title {
+    padding: 16px 14px 6px;
+  }
+
+  .gs-row {
+    padding: 11px 14px;
+    gap: 11px;
+  }
+
+  .gs-value {
+    max-width: 42vw;
+  }
+
+  .gs-actions {
+    flex-direction: column;
+  }
+
+  .gs-actions .gs-btn {
+    width: 100%;
+  }
+}
+
+/* ---------- 手机横屏（矮视口）：压缩纵向节奏 ---------- */
+@media (orientation: landscape) and (max-height: 520px) {
+  .settings-page-container {
+    padding: 12px clamp(16px, 4vw, 24px) 40px;
+  }
+
+  .settings-page-desc {
+    margin: 4px 0 12px;
+  }
+
+  .gs-group-title {
+    padding: 10px 16px 4px;
+    font-size: 12px;
+  }
+
+  .gs-rows {
+    padding-bottom: 4px;
+  }
+
+  .gs-row {
+    min-height: 40px;
+    padding: 7px 16px;
+    gap: 10px;
+  }
+
+  .gs-icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+  }
+
+  .gs-label {
+    font-size: 14px;
+  }
+
+  .gs-desc {
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  .gs-btn {
+    min-height: 40px;
+    padding: 8px 16px;
+    font-size: 14px;
+  }
+
+  .gs-input {
+    height: 36px;
+    font-size: 14px;
+  }
+
+  .gs-banner,
+  .gs-note {
+    padding: 9px 12px;
+    font-size: 12px;
+  }
+}
+
+/* ---------- 大屏横屏：表单类子页不无限拉伸 ---------- */
+@media (orientation: landscape) and (min-width: 900px) {
+  .gs-actions {
+    flex-direction: row;
+  }
+
+  .gs-actions .gs-btn {
+    width: auto;
+  }
+}
+
+/* ---------- 动效偏好 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .gs-row,
+  .gs-btn,
+  .gs-input-wrap,
+  .gs-progress-fill {
+    transition-duration: 1ms;
+  }
+}

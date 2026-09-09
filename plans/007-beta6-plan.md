@@ -1,12 +1,12 @@
-# BOHLITE BETA 6 产品与架构规划
+# BOHLITE BETA 6 · 焕新体验 — 产品与架构规划
 
 > 调研基准：2026-09-07 · 当前版本 `5.1.1`（BETA 5 已发布）· 基准 commit `840353a`
-> 适用范围：产品 / 前端 / 运营后台 · 目标版本：`6.0.0-beta.6`
+> 适用范围：产品 / 前端 / 运营后台 · 目标版本：`6.0.0-beta.6` · **发布主题：焕新体验（2026-09-08 用户拍板）**
 > 证据来源：全仓路由、store、Supabase migration、样式层与最近 100 条 commit 的实地摸底，非经验推断。
 
 ---
 
-## 📌 执行进度（2026-09-08 更新，含用户拍板的范围修订）
+## 📌 执行进度（2026-09-09 更新，含用户拍板的范围修订）
 
 | 事项 | 状态 |
 |---|---|
@@ -14,14 +14,19 @@
 | 安全三项（API Key / RLS / 列级权限） | ✅ 完成（migration 2026090803，probe-rls-verify 9 项 PASS） |
 | P1-3 活动平台化核心 | ✅ 完成（campaigns/entries/rewards 三表 + DataAdmin 管理tab + 前台报名区块） |
 | P0-1 内容主干 | 🟡 半程（posts.source_* / 官方卡镜像 / 转帖 / 服务端类型筛选已上线；`useEngagement` / `useUnifiedFeed` 待抽） |
-| P0-2 商业化收口 | 🟡 **范围修订**：支付回调闭环**搁置**；积分账本（含用户可查的消费/获取记录）与权益层统一**保留** |
+| P0-2 商业化收口 | 🟢 **账本补全完成（2026-09-08 晚）**：订阅扣分补写流水（0903）+ 发放函数批次恢复与原子快照（0903/0904）+ 对账 RPC + 商城兑换/周签到写流水与历史回填（0905/0906）+ 账单 UI 全量 reason 渲染（流水为唯一来源，无重建分支）；支付回调**搁置**（用户拍板） |
+| P0-2b 权益层统一 | 🟢 **核实后基本已是现状**（09-08 复核）：useUserTier/subscription-benefits 已被 9+ 处采用，ProfileMain 已接 composable、Shop 已无本地判断；仅 SubscriptionPlans.vue 本地 TIER_RANK（购买页升级排序的领域逻辑，非权益判断），低优先 |
 | P1-3 剩余验证 | ⬜ 抽奖迁入 campaigns 做首个存量迁移验证 |
-| S4 本体 | ⬜ `/news/:slug` 独立路由 + OG/SEO |
+| S4 本体 | 🟢 **完成（2026-09-09）**：`/news/:id` 独立路由 + `NewsDetailPage` 整页（news.id 为 bigint，暂以 id 作参数，slug 化为后续可选）+ `applySeoMeta` 动态注入 `<title>`/OG/Twitter meta（爬虫级 OG 需 Edge Function 输出 HTML，属 C3 后续）+ 详情岛「打开完整页面」入口 + `/newsroom?news=<id>` 深链保底 + 消毒白名单/封面变换收口 `news-shared.js`；probe-news-detail-route **20/20 PASS**，IA 52/52 回归无副作用 |
+| S3 面板上提 | 🟢 **提前完成（2026-09-09）**：UserSpace 收敛 5 tab × 分区段控（社区六档/内容两档/消息两档/资产/设置），profile 8 子面板拆平到各 tab，settings 单一玻璃面板；probe-user-space-ia 52 项全 PASS |
+| User Space 性能 | 🟢 **P0 四项落地（2026-09-09）**：BOH AI 挂载/预载按需化（messages tab 93→9 请求、堆 +12.2MB→≈0）、1s 轮询改 ResizeObserver、posts 关键拉取 5s 合并窗口（聚合 RPC ×2→×1）、印象 30 条/页+加载更多；报告 `user-space-perf-audit-report.html`，探针 `probe-user-space-perf.mjs` 可回归 |
+| V1 Hero 规范（代码统一层） | 🟢 **完成（2026-09-08 深夜）**：`src/styles/common/hero-surface.css` 落地（`--hero-*` 三档 headline/文字色/品牌蓝单源）+ Beta6RenewalHero 私有 `--b6-*` 全量迁到全局 token（13 处，数值逐一相等）+ AppleGridCard 收编 S 档（13 处）+ 删除 0 引用孤儿 `HeroSection.vue`；明暗双主题截图回归首屏 0.0000% 像素差（probe-hero-unify 14/14 PASS）。**范围注记：用户拍板"首屏设计满意，只做代码统一"——OHL/AHB 的字号收敛（92/80→M 档 64）与 birthday/agent-preview 渐变整改属视觉变更，留待下次视觉迭代，不在本次范围** |
 
 **用户拍板的范围修订（2026-09-08）：**
 1. **支付回调闭环暂缓**——个人开发者接不了真实支付回调，二维码人工兜底维持现状，不再作为 BETA 6 验收项。
 2. **新闻"讨论"入口取消**——论坛原生评论已够用，P0-1 验收只保留"活动沉淀 UGC"与互动内核抽取。
 3. **积分账本提升优先级**——`points_transactions` 不再只是对账底层，要做用户可查的消费/获取记录（账单感）。
+4. **首页理念（2026-09-08 晚）**——对标 Apple 官网：宣传首页是严格控制的**编辑品**（全员同序列、少而精、硬规范、按档期发布），**不做个性化分流**；P1-4 已据此校准（砍定向投放，happening 信息流改 QuickLinks 策展条）。
 
 ---
 
@@ -123,13 +128,16 @@ BETA 5 已经把"跑得稳"这件事做到了——`fx` 该修的都修了，路
 
 > **铁律：BETA 6 起不再新增一次性活动页面 / 表。**
 
-### P1-4 · 首页从「英雄列表」升级为「会看人的运营编排」
+### P1-4 · 首页从「英雄列表」升级为「严格控制的编辑式首页」（2026-09-08 按用户理念校准）
 
-`homeHeroes` store 底子已经很好（DB 驱动、draft/published 分离、`home_heroes_revisions` 快照、rollback/reorder、localStorage 24h 缓存）。下一步**不是再加 hero 组件**——已经有 11 个 builtin + `DynamicHomeHero`，够多了。缺的是让首页"会对不同的人说不同的话"：
+> **理念拍板（2026-09-08）：对标 Apple 官网——宣传首页是编辑品，不是分发系统。** Apple 的 hero 是严格控制的：同一时刻全员看同一序列、少而精、一套硬规范、按档期发布。BOHLITE 首页照此办理，**原"hero 定向投放 / audience 分流"方案作废**——那是算法分发思维，与编辑品理念相反。
 
-- **hero 定向投放**：新增 `audience` 字段，按会员等级 / 标签 / 新老用户 / 是否创作者分流
-- **生命周期自动化**：`start_at / end_at` 到期自动上下架，告别手动发布归档
-- **第一屏放 happening**：聚合 activities + news + 活动贴，让用户第一眼看到"这里有人在、这里在发生什么"。这才是首页该承担的角色，而不是公告栏
+`homeHeroes` store 底子已经很好（DB 驱动、draft/published 分离、`home_heroes_revisions` 快照、rollback/reorder、localStorage 24h 缓存）。下一步**不是再加 hero 组件**——已经有 11 个 builtin + `DynamicHomeHero`，够多了。缺的是"控制"：
+
+- **Hero 规范先行（V1 提前为 S2 的前置项）**：eyebrow / headline 三级字号 / 正文 / 主从双 CTA / 安全边距，出统一 `hero-surface` 基类强制继承；11 个 builtin 逐一按规范过审，不达标下架；`HeroSection.vue` 孤儿在此一并处置（删或收编为基类，不留孤儿）
+- **策展式英雄序列**：同时在架 hero 设上限（建议 3-5 个），顺序手动策展（现有 reorder 能力），没有算法插手
+- **生命周期自动化（严格排期）**：`start_at / end_at` 到期自动上下架——Apple 式发布都是排期的，这是"受控的灵活"，运营不用手忙脚乱抢下架
+- **第一屏只讲一件事 + QuickLinks 条**：第一屏 = 1 个当期主 hero；hero 序列下方放一行 QuickLinks（进行中活动 / 最新发布 / 商城精选），手动策展、最多 4 个、走同一套设计规范——替代原"happening 信息流"方案：信息存在，但不喧宾夺主
 - **收编硬编码弹窗**：`Home/index.vue` 里 4 个 Teleport 弹窗（遇见福州 / 八周年信件 / Cloud+ / 海报申请）改为统一的 `promo-modal` 注册中心，避免每次运营都改首页源码
 
 ---
@@ -241,7 +249,7 @@ BETA 5 已经把"跑得稳"这件事做到了——`fx` 该修的都修了，路
 | 权重 | 模块 | 核心交付 | 为什么是这个权重 |
 |---|---|---|---|
 | **30%** | **中台层**（content spine + entitlements + points ledger） | `posts.source_*`、`useEngagement`、`useUnifiedFeed`、entitlements 服务、账本对账 + 用户可查积分记录（~~支付回调~~ 2026-09-08 搁置） | 是所有上层能力的地基，也是唯一能同时改善首页 / 活动 / 新闻 / 订阅四件事的工作 |
-| **20%** | **首页与英雄区编排** | hero 定向投放、生命周期自动化、happening 头部、promo-modal 注册中心 | 全站流量入口，改造第一印象性价比最高；且 HeroConsole 基础设施已在，只需补编排能力 |
+| **20%** | **首页与英雄区编排** | Hero 规范 + 策展式序列（限量/排期/手动排序）、生命周期自动化、QuickLinks 条、promo-modal 注册中心（~~hero 定向投放~~ 2026-09-08 按用户理念砍掉） | 全站流量入口，改造第一印象性价比最高；且 HeroConsole 基础设施已在，只需补管控能力 |
 | **15%** | **用户空间重构** | 面板上提、Profile/UserSpace 合流第一步、权益中心页 | 用户日均接触最多；也是"身份"的呈现载体，直接支撑订阅转化 |
 | **15%** | **活动平台化** | `activity_campaigns` / `entries` / `rewards` + 迁移抽奖验证 | 权重低于它看起来的应得份额，因为这是长期收益，先做最小跑通即可 |
 | **10%** | **视觉与设计系统收敛** | Hero 规范、暗色语义层、token 合并、状态三件套 | 必须做，但可以随上述改造顺手做，不必独立排期 |
@@ -326,7 +334,7 @@ BETA 5 已经把"跑得稳"这件事做到了——`fx` 该修的都修了，路
 | 阶段 | 目标 | 关键交付 | 建议版本 |
 |---|---|---|---|
 | S1 | 基建 + 清安全债 | `posts.source_*` · entitlements 单一层 · 积分账本（用户可查记录）· 三项高危清零（~~支付回调~~ 搁置） | `6.0.0-beta.6` |
-| S2 | 首页重生 | hero 定向投放 · happening 头部 · promo 注册中心 | `6.1.0` |
+| S2 | 首页重生（编辑式） | Hero 规范落地 · 策展式序列（限量/排期/手动排序）· QuickLinks 条 · promo 注册中心 | `6.1.0` |
 | S3 | 用户空间重组 | 面板上提 · Profile/UserSpace 合流第一步 · 权益中心 | `6.2.0` |
 | S4 | 活动平台化 + 视觉收敛 | campaigns 迁移抽奖验证 · Hero 规范 · 暗色语义层 | `6.3.0` |
 

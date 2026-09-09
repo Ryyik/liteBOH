@@ -1,181 +1,147 @@
 <template>
   <div class="pushplus-settings">
-    <div class="settings-card">
-      <!-- 头部区域 -->
-      <div class="card-header">
-        <div class="header-icon">
-          <Bell :size="24" :stroke-width="2" aria-hidden="true" />
-        </div>
-        <div class="header-content">
-          <h3 class="settings-title">离线消息推送</h3>
-          <p class="settings-desc">绑定 Pushplus，离线时通过微信接收通知</p>
-        </div>
-      </div>
-
-      <!-- 状态卡片 -->
-      <div v-if="hasToken" class="status-card" :class="{ active: enabled }">
-        <div class="status-icon">
-          {{ enabled ? '✅' : '⏸️' }}
-        </div>
-        <div class="status-content">
-          <div class="status-title">{{ enabled ? '推送服务已启用' : '推送服务已暂停' }}</div>
-          <div class="status-desc">{{ enabled ? '离线时将通过微信接收消息' : '已暂停离线推送功能' }}</div>
-        </div>
-        <SettingToggle :model-value="enabled" :disabled="isLoading" label="离线消息推送"
-            @update:model-value="handleToggleUpdate" />
-      </div>
-
-      <!-- 引导关注公众号 -->
-      <div v-if="!hasToken" class="guide-section">
-        <div class="guide-card wechat-guide">
-          <div class="guide-icon">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path
-                d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 0 1 .213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 0 0 .167-.054l1.903-1.114a.864.864 0 0 1 .717-.098 10.16 10.16 0 0 0 2.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178A1.17 1.17 0 0 1 4.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178 1.17 1.17 0 0 1-1.162-1.178c0-.651.52-1.18 1.162-1.18zm5.34 2.867c-1.797-.052-3.746.512-5.28 1.786-1.72 1.428-2.687 3.72-1.78 6.22.942 2.453 3.666 4.229 6.884 4.229.826 0 1.622-.12 2.361-.336a.722.722 0 0 1 .598.082l1.584.926a.272.272 0 0 0 .14.047c.134 0 .24-.111.24-.247 0-.06-.023-.12-.038-.177l-.327-1.233a.582.582 0 0 1-.023-.156.49.49 0 0 1 .201-.398C23.024 18.48 24 16.82 24 14.98c0-3.21-2.931-5.837-6.656-6.088V8.89c-.135-.01-.27-.027-.407-.03zm-2.53 3.274c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.97-.982zm4.844 0c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.969-.982z" />
-            </svg>
+    <!-- 单一液态玻璃连续面板（与设置主页同一设计体系，2026-09-09） -->
+    <div class="glass-settings">
+      <!-- 推送状态 -->
+      <section class="gs-group">
+        <div class="gs-group-title">推送状态</div>
+        <div class="gs-rows">
+          <div class="gs-row is-static">
+            <span class="gs-icon is-blue">
+              <Bell :size="16" :stroke-width="2" aria-hidden="true" />
+            </span>
+            <span class="gs-text">
+              <span class="gs-label">离线消息推送</span>
+              <span class="gs-desc">绑定 Pushplus，离线时通过微信接收通知</span>
+            </span>
           </div>
-          <div class="guide-content">
-            <h4>一键关注服务号</h4>
-            <p>关注后自动收到 Token，复制即可使用</p>
+
+          <div v-if="hasToken" class="gs-row">
+            <span class="gs-icon" :class="enabled ? 'is-green' : 'is-yellow'">
+              <BellRing v-if="enabled" :size="16" :stroke-width="2" aria-hidden="true" />
+              <BellOff v-else :size="16" :stroke-width="2" aria-hidden="true" />
+            </span>
+            <span class="gs-text">
+              <span class="gs-label">{{ enabled ? '推送服务已启用' : '推送服务已暂停' }}</span>
+              <span class="gs-desc">{{ enabled ? '离线时将通过微信接收消息' : '已暂停离线推送功能' }}</span>
+            </span>
+            <span class="gs-side">
+              <SettingToggle :model-value="enabled" :disabled="isLoading" label="离线消息推送"
+                @update:model-value="handleToggleUpdate" />
+            </span>
           </div>
-          <button type="button" class="btn-wechat" @click="showWechatGuide">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M7 11v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3a4 4 0 0 0 4-4V6a2 2 0 0 1 4 0v5"></path>
-              <path d="M7 11h10"></path>
-              <path d="M17 11v8a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-7a1 1 0 0 0-1-1h-3a4 4 0 0 1-4-4V6a2 2 0 0 0-4 0v5">
-              </path>
-            </svg>
-            去关注
-          </button>
         </div>
+      </section>
 
-        <div class="divider">
-          <span>或者</span>
-        </div>
-      </div>
-
-      <!-- Token 输入区域 -->
-      <div class="form-section">
-        <div class="form-header">
-          <label class="form-label">{{ hasToken ? 'Pushplus Token' : '手动输入 Token' }}</label>
-          <a href="http://www.pushplus.plus/push1.html" target="_blank" class="help-link">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-              <line x1="12" y1="17" x2="12.01" y2="17"></line>
-            </svg>
-            {{ hasToken ? '如何获取？' : '查看教程' }}
-          </a>
-        </div>
-
-        <div class="input-wrapper" :class="{ 'has-token': hasToken }">
-          <div class="input-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-            </svg>
+      <!-- 绑定 Token -->
+      <section class="gs-group">
+        <div class="gs-group-title">Pushplus Token</div>
+        <div class="gs-rows">
+          <div v-if="!hasToken" class="gs-row">
+            <span class="gs-icon is-green">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path
+                  d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 0 1 .213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 0 0 .167-.054l1.903-1.114a.864.864 0 0 1 .717-.098 10.16 10.16 0 0 0 2.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178A1.17 1.17 0 0 1 4.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178 1.17 1.17 0 0 1-1.162-1.178c0-.651.52-1.18 1.162-1.18zm5.34 2.867c-1.797-.052-3.746.512-5.28 1.786-1.72 1.428-2.687 3.72-1.78 6.22.942 2.453 3.666 4.229 6.884 4.229.826 0 1.622-.12 2.361-.336a.722.722 0 0 1 .598.082l1.584.926a.272.272 0 0 0 .14.047c.134 0 .24-.111.24-.247 0-.06-.023-.12-.038-.177l-.327-1.233a.582.582 0 0 1-.023-.156.49.49 0 0 1 .201-.398C23.024 18.48 24 16.82 24 14.98c0-3.21-2.931-5.837-6.656-6.088V8.89c-.135-.01-.27-.027-.407-.03zm-2.53 3.274c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.97-.982zm4.844 0c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.969-.982z" />
+              </svg>
+            </span>
+            <span class="gs-text">
+              <span class="gs-label">一键关注服务号</span>
+              <span class="gs-desc">关注后自动收到 Token，复制即可使用</span>
+            </span>
+            <span class="gs-side">
+              <button type="button" class="pp-follow-btn" @click="showWechatGuide">
+                <HeartHandshake :size="15" :stroke-width="2" aria-hidden="true" />
+                去关注
+              </button>
+            </span>
           </div>
-          <input v-model="tokenInput" type="text" :placeholder="hasToken ? '••••••••••••••••' : '请输入你的 Pushplus Token'"
-            class="form-input" :disabled="isLoading" />
-          <button v-if="canUseClipboard && !hasToken" @click="pasteToken" class="btn-paste" :disabled="isLoading"
-            title="从剪贴板粘贴 Token">
-            粘贴
-          </button>
-          <button v-if="hasToken" @click="clearToken" class="btn-clear" :disabled="isLoading" title="清除配置">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-        </div>
 
-        <p class="input-hint">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-          </svg>
-          Token 仅保存在你的账户中，用于发送推送消息
-        </p>
-      </div>
+          <div class="pp-form">
+            <div class="pp-form-head">
+              <label class="gs-field-label" for="pp-token-input">{{ hasToken ? '当前 Token' : '手动输入 Token' }}</label>
+              <a href="http://www.pushplus.plus/push1.html" target="_blank" rel="noopener noreferrer" class="pp-help-link">
+                <HelpCircle :size="14" :stroke-width="2" aria-hidden="true" />
+                {{ hasToken ? '如何获取？' : '查看教程' }}
+              </a>
+            </div>
 
-      <!-- 操作按钮 -->
-      <div class="actions">
-        <button @click="saveToken" class="btn-primary"
-          :disabled="isLoading || !tokenInput.trim() || tokenInput.includes('****')">
-          <span v-if="isLoading" class="loading-spinner"></span>
-          <template v-else>
-            <svg v-if="hasToken" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-            </svg>
-            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-              <polyline points="22 4 12 14.01 9 11.01"></polyline>
-            </svg>
-            {{ hasToken ? '更新 Token' : '保存并验证' }}
-          </template>
-        </button>
+            <div class="gs-input-wrap" :class="{ 'has-token': hasToken }">
+              <span class="gs-input-icon">
+                <Lock :size="15" :stroke-width="2" aria-hidden="true" />
+              </span>
+              <input id="pp-token-input" v-model="tokenInput" type="text"
+                :placeholder="hasToken ? '••••••••••••••••' : '请输入你的 Pushplus Token'" class="gs-input"
+                :disabled="isLoading" autocomplete="off" spellcheck="false">
+              <button v-if="canUseClipboard && !hasToken" class="gs-input-action" :disabled="isLoading"
+                title="从剪贴板粘贴 Token" @click="pasteToken">
+                粘贴
+              </button>
+              <button v-if="hasToken" class="gs-input-action is-clear" :disabled="isLoading" title="清除配置"
+                @click="clearToken">
+                清除
+              </button>
+            </div>
 
-        <button v-if="hasToken && enabled" @click="testPush" class="btn-secondary" :disabled="isLoading">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path
-              d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z">
-            </path>
-          </svg>
-          发送测试消息
-        </button>
-      </div>
+            <p class="gs-hint">
+              <Shield :size="13" :stroke-width="2" aria-hidden="true" />
+              Token 仅保存在你的账户中，用于发送推送消息
+            </p>
 
-      <!-- 消息提示 -->
-      <transition name="fade">
-        <div v-if="message" :class="['message', messageType]">
-          <div class="message-icon">
-            <svg v-if="messageType === 'success'" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-              <polyline points="22 4 12 14.01 9 11.01"></polyline>
-            </svg>
-            <svg v-else-if="messageType === 'error'" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="15" y1="9" x2="9" y2="15"></line>
-              <line x1="9" y1="9" x2="15" y2="15"></line>
-            </svg>
-            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="12" y1="16" x2="12" y2="12"></line>
-              <line x1="12" y1="8" x2="12.01" y2="8"></line>
-            </svg>
+            <div class="gs-actions">
+              <button class="gs-btn primary" :disabled="isLoading || !tokenInput.trim() || tokenInput.includes('****')"
+                @click="saveToken">
+                <span v-if="isLoading" class="gs-spinner"></span>
+                <template v-else>{{ hasToken ? '更新 Token' : '保存并验证' }}</template>
+              </button>
+
+              <button v-if="hasToken && enabled" class="gs-btn ghost" :disabled="isLoading" @click="testPush">
+                发送测试消息
+              </button>
+            </div>
           </div>
-          <span>{{ message }}</span>
         </div>
+      </section>
+
+      <!-- 支持的通知类型 -->
+      <section class="gs-group">
+        <div class="gs-group-title">支持的通知类型</div>
+        <div class="gs-rows">
+          <div v-for="item in NOTIFY_TYPES" :key="item.label" class="gs-row is-static">
+            <span class="gs-icon" :class="item.tone">
+              <component :is="item.icon" :size="16" :stroke-width="2" aria-hidden="true" />
+            </span>
+            <span class="gs-text">
+              <span class="gs-label">{{ item.label }}</span>
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 消息横幅 -->
+      <transition name="pp-fade">
+        <section v-if="message" class="gs-group">
+          <div class="pp-banner-wrap">
+            <div class="gs-banner" :class="messageType">
+              <CheckCircle2 v-if="messageType === 'success'" :size="16" :stroke-width="2" aria-hidden="true" />
+              <AlertCircle v-else-if="messageType === 'error'" :size="16" :stroke-width="2" aria-hidden="true" />
+              <Info v-else :size="16" :stroke-width="2" aria-hidden="true" />
+              <span>{{ message }}</span>
+            </div>
+          </div>
+        </section>
       </transition>
-
-      <!-- 功能说明 -->
-      <div class="info-section">
-        <div class="info-header">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
-          </svg>
-          <span>支持的通知类型</span>
-        </div>
-        <ul class="feature-list">
-          <li>帖子被点赞</li>
-          <li>收到新评论</li>
-          <li>收到新印象</li>
-          <li>收到站内互动通知</li>
-        </ul>
-      </div>
     </div>
 
-    <transition name="fade">
-      <div v-if="showClearConfirm" class="confirm-overlay" @click.self="showClearConfirm = false">
-        <div class="confirm-card">
-          <div class="confirm-icon">!</div>
+    <!-- 清除确认弹层 -->
+    <transition name="pp-fade">
+      <div v-if="showClearConfirm" class="pp-confirm-overlay" @click.self="showClearConfirm = false">
+        <div class="pp-confirm-card">
+          <div class="pp-confirm-icon">!</div>
           <h4>清除 Pushplus 配置？</h4>
           <p>清除后将无法接收离线微信推送，可随时重新绑定 Token。</p>
-          <div class="confirm-actions">
-            <button type="button" class="confirm-cancel" @click="showClearConfirm = false">取消</button>
-            <button type="button" class="confirm-danger" @click="confirmClearToken" :disabled="isLoading">
+          <div class="pp-confirm-actions">
+            <button type="button" class="gs-btn ghost pp-confirm-btn" @click="showClearConfirm = false">取消</button>
+            <button type="button" class="gs-btn danger pp-confirm-btn" :disabled="isLoading" @click="confirmClearToken">
               {{ isLoading ? '清除中...' : '确认清除' }}
             </button>
           </div>
@@ -186,8 +152,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
-import { Bell } from 'lucide-vue-next';
+import { ref, onMounted, onUnmounted, markRaw } from 'vue';
+import { AlertCircle, Bell, BellOff, BellRing, CheckCircle2, HelpCircle, Heart, HeartHandshake, Inbox, Info, Lock, MessageCircle, Shield, Sparkles } from 'lucide-vue-next';
 import SettingToggle from '@/views/user-center/UserSpace/components/SettingToggle.vue';
 import { useAuthStore } from '@/stores/auth';
 import {
@@ -199,6 +165,13 @@ import {
 import { sendPushplusMessage } from '@/utils/pushplus.js';
 
 const authStore = useAuthStore();
+
+const NOTIFY_TYPES = [
+  { label: '帖子被点赞', icon: markRaw(Heart), tone: 'is-red' },
+  { label: '收到新评论', icon: markRaw(MessageCircle), tone: 'is-blue' },
+  { label: '收到新印象', icon: markRaw(Sparkles), tone: 'is-purple' },
+  { label: '收到站内互动通知', icon: markRaw(Inbox), tone: 'is-indigo' }
+];
 
 const tokenInput = ref('');
 const hasToken = ref(false);
@@ -390,5 +363,221 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-@import './style.scoped.css';
+@import '../../views/user-center/UserSpace/styles/settings-glass.css';
+
+.pushplus-settings {
+  width: 100%;
+}
+
+/* ---------- 表单块 ---------- */
+.pp-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 18px 16px;
+}
+
+.pp-form-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pp-help-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0071e3;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.pp-help-link:hover {
+  color: #0051bb;
+  text-decoration: underline;
+}
+
+/* 已绑定态的输入框着色 */
+.gs-input-wrap.has-token {
+  background: rgba(52, 199, 89, 0.08);
+  border-color: rgba(52, 199, 89, 0.25);
+}
+
+.gs-input-wrap.has-token .gs-input {
+  letter-spacing: 0.04em;
+}
+
+.gs-input-action.is-clear {
+  background: rgba(255, 59, 48, 0.1);
+  color: #e02d24;
+}
+
+.gs-input-action.is-clear:hover:not(:disabled) {
+  background: rgba(255, 59, 48, 0.18);
+}
+
+/* ---------- 微信关注按钮 ---------- */
+.pp-follow-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 11px;
+  background: #07c160;
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.pp-follow-btn:hover {
+  background: #06ad56;
+}
+
+.pp-follow-btn:active {
+  transform: scale(0.97);
+}
+
+/* ---------- 消息横幅 ---------- */
+.pp-banner-wrap {
+  padding: 14px 18px;
+}
+
+/* ---------- 确认弹层 ---------- */
+.pp-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 210000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.38);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
+}
+
+.pp-confirm-card {
+  width: 100%;
+  max-width: 360px;
+  padding: 28px 24px 24px;
+  border-radius: var(--liquid-radius-md);
+  background: var(--liquid-bg-strong);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
+  border: 1px solid var(--liquid-border);
+  box-shadow: var(--liquid-shadow-overlay), var(--liquid-highlight);
+  text-align: center;
+}
+
+.pp-confirm-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 14px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 59, 48, 0.12);
+  color: #ff3b30;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.pp-confirm-card h4 {
+  margin: 0 0 8px;
+  color: var(--liquid-text-primary, #1d1d1f);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.pp-confirm-card p {
+  margin: 0;
+  color: var(--liquid-text-secondary, #6e6e73);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.pp-confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.pp-confirm-btn {
+  min-height: 42px;
+  padding: 9px 14px;
+  font-size: 14px;
+}
+
+/* ---------- 过渡 ---------- */
+.pp-fade-enter-active,
+.pp-fade-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.pp-fade-enter-from,
+.pp-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+/* ---------- 暗色补充 ---------- */
+[data-theme="dark"] .pp-help-link {
+  color: #2997ff;
+}
+
+[data-theme="dark"] .pp-help-link:hover {
+  color: #66b5ff;
+}
+
+[data-theme="dark"] .gs-input-wrap.has-token {
+  background: rgba(48, 209, 88, 0.1);
+  border-color: rgba(48, 209, 88, 0.3);
+}
+
+[data-theme="dark"] .gs-input-action.is-clear {
+  background: rgba(255, 105, 97, 0.14);
+  color: #ff8b85;
+}
+
+[data-theme="dark"] .pp-confirm-icon {
+  background: rgba(255, 105, 97, 0.16);
+  color: #ff6961;
+}
+
+[data-theme="dark"] .pp-confirm-card h4 {
+  color: #f4f6f8;
+}
+
+[data-theme="dark"] .pp-confirm-card p {
+  color: #a7afba;
+}
+
+/* ---------- 手机横屏 ---------- */
+@media (orientation: landscape) and (max-height: 520px) {
+  .pp-form {
+    padding: 10px 16px 12px;
+    gap: 8px;
+  }
+
+  .pp-banner-wrap {
+    padding: 10px 16px;
+  }
+
+  .pp-follow-btn {
+    min-height: 32px;
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+}
 </style>

@@ -1,7 +1,7 @@
 <template>
   <header class="user-center-page-header">
     <div class="user-center-page-header-inner" :style="{ maxWidth }">
-      <div class="header-back">
+      <div v-if="showBack" class="header-back">
         <UserCenterBackButton :label="backLabel" @click="$emit('back', $event)" />
       </div>
       <h2 class="header-title">{{ title }}</h2>
@@ -23,6 +23,10 @@ defineProps({
   backLabel: {
     type: String,
     default: '返回'
+  },
+  showBack: {
+    type: Boolean,
+    default: true
   },
   maxWidth: {
     type: String,
@@ -101,11 +105,11 @@ defineEmits(['back']);
   min-width: 0;
 }
 
-:global([data-theme="dark"]) .user-center-page-header {
+:global([data-theme="dark"] .user-center-page-header ){
   background: transparent;
 }
 
-:global([data-theme="dark"]) .user-center-page-header::before {
+:global([data-theme="dark"] .user-center-page-header::before ){
   background:
     linear-gradient(
       180deg,
@@ -116,8 +120,15 @@ defineEmits(['back']);
     );
 }
 
-:global([data-theme="dark"]) .header-title {
+:global([data-theme="dark"] .header-title ){
   color: #ffffff;
+}
+
+/* 横屏宽屏：取消窄屏 max-width，全宽布局（2026-09 IA 反馈） */
+@media (orientation: landscape) and (min-width: 900px) {
+  .user-center-page-header-inner {
+    max-width: 100% !important;
+  }
 }
 
 @media (max-width: 480px) {

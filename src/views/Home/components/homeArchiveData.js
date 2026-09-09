@@ -20,6 +20,12 @@ import fuzhouImg from '@/assets/images/fuzhou.webp?url';
  * key 对应 home_heroes 表的 builtin_key 字段
  */
 export const homeArchiveMeta = {
+  'beta6-renewal': {
+    title: '焕然一新，即刻相见',
+    eyebrow: 'BOHLITE BETA 6 · 焕新体验',
+    date: '2026',
+    description: '新设计语言，来亮眼：液态玻璃全面焕新，社区体验更更更上一层楼。',
+  },
   'mascot-new': {
     title: '全新吉祥物',
     eyebrow: '全新上线',
@@ -102,6 +108,7 @@ export const homeArchiveMeta = {
  * 用于 HomeHeroRow 的 layout prop
  */
 export const builtinHeroLayout = {
+  'beta6-renewal': 'full',
   'mascot-new': 'full',
   'agent-preview': 'full',
   'birthday': 'full',

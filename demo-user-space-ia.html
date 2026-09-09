@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="K5UVgizAL1RWD5IbzmUpbq">
+<head data-page-node-id="MnU7MFIay4xkKj4Yg9pl5J">
+<meta charset="UTF-8" data-page-node-id="a7TzI7E6MElTntiCuCo6g4">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="6FBxMeyU7Aenx3UzISbaGi">
+<title>用户空间重组 Demo · 面板上提</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #f5f5f7; color: #1d1d1f;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  .stage { max-width: 1120px; margin: 0 auto; padding: 48px 24px 80px; }
+
+  .intro h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; }
+  .intro p.lead { margin-top: 10px; font-size: 14px; line-height: 1.7; color: #6e6e73; max-width: 640px; }
+  .intro p.lead b { color: #1d1d1f; font-weight: 500; }
+
+  .seg-wrap { margin-top: 22px; display: inline-flex; background: rgba(120,120,128,.12); border-radius: 10px; padding: 3px; }
+  .seg-btn { border: 0; background: transparent; padding: 7px 18px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    color: #6e6e73; cursor: pointer; font-family: inherit; transition: all .18s ease; }
+  .seg-btn.active { background: #ffffff; color: #1d1d1f; box-shadow: 0 1px 4px rgba(0,0,0,.10); }
+
+  .stats-row { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+  .stat-card { background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 14px; padding: 12px 18px;
+    font-size: 12px; color: #6e6e73; }
+  .stat-card b { display: block; font-size: 15px; color: #1d1d1f; font-weight: 600; margin-bottom: 2px; }
+
+  .layout { display: flex; gap: 48px; margin-top: 36px; align-items: flex-start; flex-wrap: wrap; }
+
+  /* ---------- phone ---------- */
+  .phone { width: 390px; height: 780px; background: #fff; border-radius: 46px; border: 1px solid rgba(0,0,0,.10);
+    box-shadow: 0 30px 70px rgba(0,0,0,.14); overflow: hidden; position: sticky; top: 32px; flex-shrink: 0; }
+  .screen { position: absolute; inset: 0; overflow-y: auto; background: #f5f5f7; padding: 24px 16px 96px;
+    scrollbar-width: none; }
+  .screen::-webkit-scrollbar { display: none; }
+
+  .screen-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; padding: 4px 4px 14px; }
+  .screen-title small { display: block; font-size: 12px; font-weight: 400; color: #86868b; margin-top: 3px; letter-spacing: 0; }
+
+  .glass { background: rgba(255,255,255,.72); backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%); border: 1px solid rgba(0,0,0,.05); }
+
+  .user-card { border-radius: 20px; padding: 18px; display: flex; align-items: center; gap: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 10px 28px rgba(0,0,0,.05); }
+  .avatar { width: 56px; height: 56px; border-radius: 50%; background: #0071e3; color: #fff; font-size: 22px;
+    font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .user-meta { flex: 1; min-width: 0; }
+  .user-name { font-size: 17px; font-weight: 600; }
+  .user-uid { font-size: 12px; color: #86868b; margin-top: 2px; }
+  .user-chips { display: flex; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
+  .uchip { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: rgba(0,113,227,.10); color: #0071e3; font-weight: 500; }
+
+  .stats-bar { display: flex; margin-top: 12px; border-radius: 16px; padding: 12px 0; }
+  .stat-item { flex: 1; text-align: center; cursor: pointer; }
+  .stat-item b { display: block; font-size: 17px; font-weight: 700; }
+  .stat-item span { font-size: 11px; color: #86868b; }
+
+  .seg2 { display: flex; background: rgba(120,120,128,.12); border-radius: 10px; padding: 3px; margin-top: 14px; }
+  .seg2 button { flex: 1; border: 0; background: transparent; border-radius: 8px; padding: 6px 0; font-size: 12px;
+    font-weight: 500; color: #6e6e73; cursor: pointer; font-family: inherit; transition: all .18s ease; }
+  .seg2 button.active { background: #fff; color: #1d1d1f; box-shadow: 0 1px 4px rgba(0,0,0,.10); }
+
+  .card { border-radius: 18px; padding: 16px; margin-top: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 8px 22px rgba(0,0,0,.05); }
+
+  /* target group cards */
+  .group-card { border-radius: 18px; margin-top: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 8px 22px rgba(0,0,0,.05); }
+  .group-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px 4px; }
+  .g-icon { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .g-icon svg { width: 18px; height: 18px; }
+  .g-title { font-size: 15px; font-weight: 600; }
+  .g-sub { font-size: 11px; color: #86868b; margin-top: 1px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 16px 16px; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 6px 12px; border-radius: 20px;
+    background: rgba(0,0,0,.045); color: #1d1d1f; cursor: pointer; transition: background .15s ease; font-weight: 500; }
+  .chip:hover { background: rgba(0,113,227,.12); color: #0071e3; }
+  .badge { font-size: 9px; padding: 1px 5px; border-radius: 4px; background: #ff9500; color: #fff; font-weight: 500; }
+
+  /* current grid */
+  .grid-wrap { border-radius: 18px; margin-top: 12px; padding: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 8px 22px rgba(0,0,0,.05); }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+  .grid-item { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 14px 4px 12px;
+    border-radius: 12px; cursor: pointer; transition: background .15s ease; }
+  .grid-item:hover { background: rgba(0,0,0,.03); }
+  .gi-icon { width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+  .gi-icon svg { width: 20px; height: 20px; }
+  .gi-label { font-size: 11px; color: #3a3a3c; font-weight: 500; }
+
+  /* detail page (current mode) */
+  .detail-bar { display: flex; align-items: center; gap: 10px; padding: 4px 4px 16px; }
+  .back-btn { width: 32px; height: 32px; border-radius: 50%; border: 0; background: rgba(0,0,0,.05); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; }
+  .back-btn svg { width: 16px; height: 16px; }
+  .detail-title { font-size: 18px; font-weight: 600; }
+  .skel { height: 64px; border-radius: 14px; background: rgba(0,0,0,.04); margin-top: 10px; }
+
+  /* list rows (settings etc.) */
+  .row-list { border-radius: 18px; margin-top: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 8px 22px rgba(0,0,0,.05); }
+  .row { display: flex; align-items: center; gap: 12px; padding: 13px 16px; cursor: pointer; transition: background .15s ease; }
+  .row:hover { background: rgba(0,0,0,.025); }
+  .row + .row { border-top: 1px solid rgba(0,0,0,.05); }
+  .row-icon { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .row-icon svg { width: 16px; height: 16px; }
+  .row-label { font-size: 14px; font-weight: 500; flex: 1; }
+  .row-note { font-size: 11px; color: #86868b; }
+  .chev { width: 14px; height: 14px; opacity: .25; }
+
+  .asset-hero { border-radius: 20px; padding: 20px; margin-top: 12px; color: #fff;
+    box-shadow: 0 10px 28px rgba(0,60,140,.22); }
+  .asset-hero .bal-label { font-size: 12px; opacity: .8; }
+  .asset-hero .bal { font-size: 34px; font-weight: 700; margin-top: 4px; letter-spacing: -0.02em; }
+  .asset-hero .bal-btn { margin-top: 14px; display: inline-flex; align-items: center; gap: 6px; border: 0; cursor: pointer;
+    background: rgba(255,255,255,.22); color: #fff; font-size: 12px; font-weight: 500; padding: 7px 14px; border-radius: 20px;
+    font-family: inherit; }
+
+  .empty { text-align: center; padding: 60px 20px 30px; color: #86868b; }
+  .empty svg { width: 44px; height: 44px; opacity: .35; }
+  .empty p { font-size: 13px; margin-top: 12px; line-height: 1.6; }
+
+  .tabbar { position: absolute; left: 0; right: 0; bottom: 0; height: 78px; display: flex; align-items: flex-start;
+    padding: 10px 8px 0; border-top: 1px solid rgba(0,0,0,.05); z-index: 5; }
+  .tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; padding: 4px 0; }
+  .tab svg { width: 23px; height: 23px; }
+  .tab span { font-size: 10px; font-weight: 500; color: #8e8e93; }
+  .tab.active svg { color: #0071e3; }
+  .tab.active span { color: #0071e3; }
+  .tab:not(.active) svg { color: #8e8e93; }
+
+  .toast { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%) translateY(8px); background: rgba(29,29,31,.9);
+    color: #fff; font-size: 12px; padding: 9px 16px; border-radius: 22px; opacity: 0; pointer-events: none;
+    transition: all .25s ease; max-width: 82%; text-align: center; z-index: 20; backdrop-filter: blur(8px); }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ---------- mapping table ---------- */
+  .side { flex: 1; min-width: 420px; }
+  .side h2 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .side .hint { font-size: 12px; color: #86868b; margin-bottom: 14px; }
+  .map-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 16px; overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 8px 22px rgba(0,0,0,.05); font-size: 12.5px; }
+  .map-table th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 600; color: #86868b;
+    background: rgba(0,0,0,.02); border-bottom: 1px solid rgba(0,0,0,.06); letter-spacing: .02em; }
+  .map-table td { padding: 9px 14px; border-bottom: 1px solid rgba(0,0,0,.045); vertical-align: top; }
+  .map-table tr:last-child td { border-bottom: 0; }
+  .map-table code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; background: rgba(0,0,0,.045);
+    padding: 2px 6px; border-radius: 5px; color: #1d1d1f; }
+  .dest { color: #0071e3; font-weight: 500; }
+  .note { color: #86868b; }
+  .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #ff9500; margin-right: 5px; }
+
+  .board-chips { display: flex; gap: 8px; overflow-x: auto; padding: 14px 2px 2px; scrollbar-width: none; }
+  .board-chips::-webkit-scrollbar { display: none; }
+  .b-chip { flex-shrink: 0; font-size: 12px; font-weight: 500; padding: 6px 14px; border-radius: 18px;
+    background: rgba(0,0,0,.045); color: #6e6e73; cursor: pointer; }
+  .b-chip.active { background: #0071e3; color: #fff; }
+  .post-card { border-radius: 18px; padding: 14px 16px; margin-top: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 8px 22px rgba(0,0,0,.05); }
+  .pc-head { display: flex; align-items: center; gap: 10px; }
+  .pc-avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 14px; font-weight: 600; flex-shrink: 0; }
+  .pc-name { font-size: 13px; font-weight: 600; }
+  .pc-time { font-size: 11px; color: #86868b; margin-top: 1px; }
+  .pc-body { font-size: 13.5px; line-height: 1.6; margin-top: 10px; color: #1d1d1f; }
+  .pc-img { height: 110px; border-radius: 12px; background: rgba(0,0,0,.045); margin-top: 10px;
+    display: flex; align-items: center; justify-content: center; color: #86868b; font-size: 11px; }
+  .pc-actions { display: flex; gap: 18px; margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(0,0,0,.05);
+    font-size: 11.5px; color: #86868b; }
+  .fab { position: absolute; right: 18px; bottom: 94px; width: 52px; height: 52px; border-radius: 50%; background: #0071e3;
+    color: #fff; display: none; align-items: center; justify-content: center; cursor: pointer; z-index: 8;
+    box-shadow: 0 8px 22px rgba(0,113,227,.35); }
+  .fab:active { transform: scale(.94); }
+  .fab svg { width: 22px; height: 22px; }
+
+  .member-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .member-card { border-radius: 16px; padding: 16px 10px 12px; display: flex; flex-direction: column; align-items: center;
+    gap: 5px; text-align: center; cursor: pointer; transition: background .15s ease; }
+  .member-card:hover { background: rgba(255,255,255,.92); }
+  .m-name { font-size: 13px; font-weight: 600; color: #1d1d1f; }
+  .m-tag { font-size: 10px; padding: 1px 7px; border-radius: 8px; background: rgba(0,113,227,.10); color: #0071e3; font-weight: 500; }
+  .m-bio { font-size: 11px; color: #86868b; line-height: 1.4; }
+  .m-follow { margin-top: 5px; font-size: 11.5px; font-weight: 600; color: #0071e3; padding: 4px 14px;
+    border: 1px solid rgba(0,113,227,.35); border-radius: 14px; }
+  .m-follow.done { color: #86868b; border-color: rgba(0,0,0,.12); }
+
+  .foot-note { margin-top: 16px; font-size: 12px; color: #86868b; line-height: 1.7; }
+</style>
+</head>
+<body data-page-node-id="xzwb2igNzZtBC76QFWw6De">
+<div class="stage" data-page-node-id="cvCT8GWAxcpxjrxEHGWQiR">
+  <div class="intro" data-page-node-id="uPdmHCvDhPJJOovYnF7XHu">
+    <h1 data-page-node-id="AcDFD1KmC6lTxNIaRDSOrx">用户空间重组 · 交互 Demo</h1>
+    <p class="lead" data-page-node-id="KS2SxeTEUxUD0i3g2QVjHZ">对应规划书 4.2「把 UserSpace 的两层压成一层」+ 你的拍板：<b>底栏重组为「社区 / 内容 / 资产 / 消息 / 设置」</b>，社区居第一位、<b>论坛以默认视图直接入驻社区 tab</b>；profile 8 个子面板拆平，AI 并入消息，shows 上提。<b>纯 UI 结构重组，面板内部逻辑与请求零改动</b>。左侧手机可交互：切换下方模式、点底栏、点任意条目。</p>
+    <div class="seg-wrap" id="modeSeg" data-page-node-id="WHibI6GCtuLBTSZxmoA7ED">
+      <button class="seg-btn active" data-act="mode" data-mode="current" data-page-node-id="btMjNXTxKkbso5v3DL1N1q">现状 · 两层嵌套</button>
+      <button class="seg-btn" data-act="mode" data-mode="target" data-page-node-id="2bKF8U5xqmk4HTRIIRFftU">目标 · 一层五组</button>
+    </div>
+    <div class="stats-row" data-page-node-id="ctIDAPe3n149YqHkknRvc5">
+      <div class="stat-card" data-page-node-id="QVMXc25qre6C7PqodVG0oO"><b data-page-node-id="BfYgRjI61M9PXvUBRItAPU">8 面板 → 拆平</b>profile 二级嵌套清零</div>
+      <div class="stat-card" data-page-node-id="9mOcX8YVV5xkJAxx93yE0j"><b data-page-node-id="dD5IVb3N32jqimXrFxTh66">AI 独立 tab → 并入消息</b>一级位让给「资产」</div>
+      <div class="stat-card" data-page-node-id="JtiHihnUADWXUxCzmAVIrD"><b data-page-node-id="SGpy37dDkbmFSbgbhEEMbB">shows 上提</b>顺手修 S6（有功能无入口）</div>
+      <div class="stat-card"><b>论坛不挪窝</b>原路由 + 顶部导航入口保留，默认视图入驻社区</div>
+      <div class="stat-card" data-page-node-id="F9iYXLA9IIWbRalg6WXh3Q"><b data-page-node-id="SkxZ3jupc1fPb5FA6PGv9D">≤ 2 次点击</b>改头像 / 查账本直达</div>
+    </div>
+  </div>
+
+  <div class="layout" data-page-node-id="yixHxaEYEYHBXDMXwUpTG0">
+    <div class="phone" data-page-node-id="W6N2dwa8z01GC4ImS6VMiW">
+      <div class="screen" id="screen" data-page-node-id="7TAHXtd9lTSEK2ZNrAPl5a"></div>
+      <div class="tabbar glass" id="tabbar" data-page-node-id="CJMyDRFfrTnJrILKeRUonz"></div>
+      <div class="toast" id="toast" data-page-node-id="xoyqY6UTRnT7rGLoxNZB1P"></div>
+      <div class="fab" id="fab" data-act="chip" data-label="发帖器 · 全局 teleport 组件，嵌入后照常唤起"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5l4 4L8 20l-4.6 1L4 16.5z"/><path d="M13 7l4 4"/></svg></div>
+    </div>
+
+    <div class="side" data-page-node-id="WUka6kXHq9QCHqG4ejK8Kw">
+      <h2 data-page-node-id="kAemBpyOt6GZQAcJdHwLSz">映射表 · 旧位置 → 新落位</h2>
+      <p class="hint" data-page-node-id="MqENoXGTvADCTZYRE31eJc"><span class="dot" data-page-node-id="Ba8JSfW8EBdDZPSFIXPCav"></span>橙色 = 归属待你拍板，Demo 暂按建议落位</p>
+      <table class="map-table" data-page-node-id="xVTRthmHyyZ2rSpewVJttD">
+        <thead data-page-node-id="IDTaUjp2SH6A1I7g0opTxB"><tr data-page-node-id="ouSF0HMB1vBvVGfgmZ99yH"><th data-page-node-id="Z2EJo0vnLgmxEfcRr7eZRv">旧位置</th><th data-page-node-id="yc4kltWfIYuGDUyVylN7Xq">新落位</th><th data-page-node-id="NVpOkmaJg0RgQpEJSkE4eR">说明</th></tr></thead>
+        <tbody data-page-node-id="SK7nWzgupy5MttviCTVGMb">
+          <tr data-page-node-id="Uy33UCaCDZ0Fh3o3rxjGwr"><td data-page-node-id="wlXMyceOmIh2DSpxGchAl9"><code data-page-node-id="Tur0bSekX0dR6gNN0DbRVn">posts</code> 底栏 tab</td><td class="dest" data-page-node-id="qF5ahP0SMhDNEuBjYdH6E7">内容</td><td class="note" data-page-node-id="lCw9gQTEoquoCDkcMI6ryr">第二位，身份卡 stats 点击看关注/粉丝（原设计保留）</td></tr>
+          <tr data-page-node-id="8utHJjvjYCXDZGoForNuBZ"><td data-page-node-id="0BXndmr6jRhKzg13R2O4Xy"><code data-page-node-id="CWXvHGEv8IXHaxWnLSR6Mj">shows</code>（有路由无入口）</td><td class="dest" data-page-node-id="BX7NcpZVrg71U9zG6MlDl2">内容</td><td class="note" data-page-node-id="HkXHiYvdQtbLKB82UEFDds">段控第二档，修 S6</td></tr>
+          <tr><td><code>community</code> tab</td><td class="dest">社区 · 第一位</td><td class="note">成员名册 + 收藏/印象收进段控；关注/粉丝不进段控</td></tr>
+          <tr><td><code>#/forum</code> 论坛页（全站）</td><td class="dest">社区 · 默认视图</td><td class="note">论坛组件复用嵌入，原路由与顶部导航入口保留</td></tr>
+          <tr data-page-node-id="NiB72xYHaIp2oi5LJLeYwn"><td data-page-node-id="i6G0Ap8kOC2lrLOORFCL74"><code data-page-node-id="MCYDaZX5xnEjajpYDYEg5l">ai</code> tab</td><td class="dest" data-page-node-id="ICBC39V3gM7n1wJpHRO2rO">消息</td><td class="note" data-page-node-id="AYK4ffGvBV3jetW5vU2OK8">并入为段控一档</td></tr>
+          <tr data-page-node-id="72pqeij7GCLMDvC1M6fG1D"><td data-page-node-id="TSFpHkHN6I6Y088H7dxVHT"><code data-page-node-id="9mF0ToFx044fXxQtpZJSiF">messages</code> tab</td><td class="dest" data-page-node-id="eVn5G1Hb1fs3FtdBVaBqOb">消息</td><td class="note" data-page-node-id="kmSESkJ0VAHq0jkDE5TiTr">段控含通知</td></tr>
+          <tr data-page-node-id="W5B9dZFjeVifwbEE0zEnjB"><td data-page-node-id="hnbQUPFYib0JwFy1GLHeEg"><code data-page-node-id="PzUYpps4FIPR67L0IB3CDF">profile · home</code> 面板</td><td class="dest" data-page-node-id="AvNywpCOGdyVsZEhN74l03">拆散</td><td class="note" data-page-node-id="pN5yH2wyEarX0JbqJvoLty">stats 入内容页头，云盘入资产</td></tr>
+          <tr data-page-node-id="rQlOfVc227YjtUj5j0jpS0"><td data-page-node-id="BmepxCyPBSRI18INK2ceIV"><code data-page-node-id="a90Png1rv8GDrNag5IzNdG">profile · assets</code></td><td class="dest" data-page-node-id="xQgHuRILNvSFOnR4akmsKF">资产</td><td class="note" data-page-node-id="dEmwfJiFlYM7izqE6Gq2Y6">积分账本 / 积分卡 / 云盘 / 权益中心</td></tr>
+          <tr data-page-node-id="bn6eAlFB1lCy7R8mQcvicR"><td data-page-node-id="zqalAT2P7GNmwAfjxleYBP"><code data-page-node-id="NTyO2jHH0FldolgM1iZVj4">profile · edit-profile</code></td><td class="dest" data-page-node-id="p5coEL2AQH3DMgP0drwRRY">设置</td><td class="note" data-page-node-id="HrsAzmgvAVPcFDrATcWAao">改头像 2 次可达</td></tr>
+          <tr data-page-node-id="QAGNObS89SbEHL1FwHimf1"><td data-page-node-id="aPTblJzrhWjA0qf8zc00ic"><code data-page-node-id="jsfnbhWc2t0Z2y8Cm1XCaA">profile · settings</code></td><td class="dest" data-page-node-id="oLg9oGU7AiTXbe0JElUQeY">设置</td><td class="note" data-page-node-id="mqozRBRcrBaH1C3XiXvuRo">偏好 / 隐私</td></tr>
+          <tr data-page-node-id="BecmgJlVxH5MlYz50GYi7j"><td data-page-node-id="kHewMgjnOJ8az25RVsOHHq"><code data-page-node-id="6WbVE9JQwNsYFlsrGvj7sI">profile · data-export</code></td><td class="dest" data-page-node-id="2DBu7wAiMWzesZ75IihOFt">设置</td><td class="note" data-page-node-id="6AOZKnwhOkqbaLGacitjav">与数据管理相邻</td></tr>
+          <tr data-page-node-id="F7KiyZ5pNnQeW6NShuG7xo"><td data-page-node-id="Q0TraqhU0Zn0aaK7hc7lD3"><code data-page-node-id="dtT1NIHXIhU20lDazMEjXV">profile · data-management</code></td><td class="dest" data-page-node-id="nzxjErl3q0v4CISBp55lHn">设置</td><td class="note" data-page-node-id="GPlvLFp0VUnhUk72krsvvX"><span class="dot" data-page-node-id="jZ1TO61abBefcBqrpox5rA"></span>待拍板（亦可并入资产）</td></tr>
+          <tr data-page-node-id="Qm52M5b2qHPtxAChKRhQqD"><td data-page-node-id="OEjwldy5GtOF7eCAD1oQuP"><code data-page-node-id="lbqlXsqKGKLUYRYK0eTvRI">profile · impressions</code></td><td class="dest" data-page-node-id="gWF3sjj0HJr6AMbFPM6UHR">社区</td><td class="note" data-page-node-id="63b6NbRNGOgsn3K0XEIzTx"><span class="dot" data-page-node-id="N0qrH8ymnaakKFC55TAiOl"></span>待拍板（亦可归内容）</td></tr>
+          <tr data-page-node-id="2jEoz01vS91o4v5z90kLOw"><td data-page-node-id="7DThpKXMw4cmHv7h1wFE7G"><code data-page-node-id="8qJQUTwVmKuJ8EO4kRqxao">profile · sponsor</code></td><td class="dest" data-page-node-id="V71zCufuW5H6QIHRjgkVh1">资产</td><td class="note" data-page-node-id="nZZuITbw9iiCeqGBMVKYfy"><span class="dot" data-page-node-id="3zgUq5DDToQL9vRbtmExzj"></span>待拍板（亦可归设置）</td></tr>
+        </tbody>
+      </table>
+      <p class="foot-note" data-page-node-id="p61ByUeS8oImho6g9ZdSoD">实现方式沿用 <code style="font-family:ui-monospace,Menlo,monospace;font-size:11px" data-page-node-id="lM4sVIdCrImIyQ3CxoIh77">user-space.ts</code> 既有 redirect 模式：
+        新五 tab 路由 + 旧 <code style="font-family:ui-monospace,Menlo,monospace;font-size:11px" data-page-node-id="puREikLAAUnJuJDxPgBEhJ">?tab=profile&view=xxx</code> 全量 301 保底一个版本周期。
+        底栏图标为占位示意，落地时复用现有图标体系。</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var state = { mode: 'current', tab: 'profile', seg: {}, view: 'home' };
+  var screen = document.getElementById('screen');
+  var tabbar = document.getElementById('tabbar');
+  var toastEl = document.getElementById('toast');
+  var toastTimer = null;
+  var fabEl = document.getElementById('fab');
+  function syncFab() {
+    if (!fabEl) return;
+    var on = state.mode === 'target' && state.tab === 'community' && (state.seg.community || 'forum') === 'forum';
+    fabEl.style.display = on ? 'flex' : 'none';
+  }
+
+  var I = {
+    posts: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2.5"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
+    users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.6 5.5-4.6s4.9 1.6 5.5 4.6"/><circle cx="17" cy="9" r="2.4"/><path d="M16 14.6c2.4.1 4 1.5 4.5 3.9"/></svg>',
+    wallet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="3"/><path d="M3 10h18"/><circle cx="16.5" cy="15" r="1.2" fill="currentColor" stroke="none"/></svg>',
+    msg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v8a2.5 2.5 0 0 1-2.5 2.5H9l-4.4 3.4c-.4.3-.6.1-.6-.4z"/></svg>',
+    gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3l1.2 2.4 2.6.5 1.9-1.4 1.8 1.8-1.4 1.9.5 2.6L21 12l-2.4 1.2-.5 2.6 1.4 1.9-1.8 1.8-1.9-1.4-2.6.5L12 21l-1.2-2.4-2.6-.5-1.9 1.4-1.8-1.8 1.4-1.9-.5-2.6L3 12l2.4-1.2.5-2.6L4.5 6.3l1.8-1.8 1.9 1.4 2.6-.5z"/></svg>',
+    layers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg>',
+    bot: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="8" width="14" height="11" rx="3"/><circle cx="9.5" cy="13" r="1.1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="13" r="1.1" fill="currentColor" stroke="none"/><path d="M12 8V4.5"/><circle cx="12" cy="3.5" r="1" fill="currentColor" stroke="none"/></svg>',
+    bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9.5a6 6 0 0 1 12 0c0 4 1.5 5.5 1.5 5.5h-15S6 13.5 6 9.5z"/><path d="M10 18.5a2 2 0 0 0 4 0"/></svg>',
+    card: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 9.5h18M7 15h4"/></svg>',
+    cloud: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4 4 0 0 1-.6-7.9A5.5 5.5 0 0 1 17 8.6 3.8 3.8 0 0 1 16.5 18z"/></svg>',
+    crown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8l4 4 4-6 4 6 4-4v9H4z"/></svg>',
+    heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 7.5 3c0 5.4-7.5 10-7.5 10z"/></svg>',
+    star: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.7l5.9-.9z"/></svg>',
+    tag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11V5a1 1 0 0 1 1-1h6l9 9-7 7-9-9z"/><circle cx="8.5" cy="8.5" r="1.3" fill="currentColor" stroke="none"/></svg>',
+    hand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12V5.5a1.5 1.5 0 0 1 3 0V12m0-3.5a1.5 1.5 0 0 1 3 0V13m0-2a1.5 1.5 0 0 1 3 0v4a6 6 0 0 1-6 6h-1a6 6 0 0 1-5.2-3L5 13.5a1.6 1.6 0 0 1 2.7-1.6L9 13.5V6a1.5 1.5 0 0 1 3 0"/></svg>',
+    edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5l4 4L8 20l-4.6 1L4 16.5z"/><path d="M13 7l4 4"/></svg>',
+    db: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"/></svg>',
+    out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h4a1.5 1.5 0 0 1 1.5 1.5v13A1.5 1.5 0 0 1 18 20h-4M9 8l-4 4 4 4M5 12h10"/></svg>',
+    chev: '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
+    back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 6l-6 6 6 6"/></svg>',
+    inbox: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13.5 6 5h12l2 8.5M4 13.5V18a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4.5M4 13.5h5l1 2h4l1-2h5"/></svg>'
+  };
+
+  var C = {
+    blue: '#0071e3', blueBg: 'rgba(0,113,227,.10)',
+    green: '#34c759', greenBg: 'rgba(52,199,89,.12)',
+    orange: '#ff9500', orangeBg: 'rgba(255,149,0,.12)',
+    purple: '#af52de', purpleBg: 'rgba(175,82,222,.12)',
+    gray: '#8e8e93', grayBg: 'rgba(142,142,147,.14)'
+  };
+
+  var CURRENT_TABS = [
+    { id: 'posts', label: '帖子', icon: I.posts },
+    { id: 'community', label: '社区', icon: I.users },
+    { id: 'ai', label: 'AI', icon: I.bot },
+    { id: 'messages', label: '消息', icon: I.msg },
+    { id: 'profile', label: '我的', icon: I.gear }
+  ];
+  var TARGET_TABS = [
+    { id: 'community', label: '社区', icon: I.users },
+    { id: 'content', label: '内容', icon: I.layers },
+    { id: 'assets', label: '资产', icon: I.wallet },
+    { id: 'messages', label: '消息', icon: I.msg },
+    { id: 'settings', label: '设置', icon: I.gear }
+  ];
+
+  var CURRENT_PANELS = [
+    { id: 'edit-profile', label: '编辑资料', icon: I.edit, color: C.blue, colorBg: C.blueBg },
+    { id: 'impressions', label: '印象', icon: I.heart, color: C.pink || '#ff375f', colorBg: 'rgba(255,55,95,.10)' },
+    { id: 'sponsor', label: '赞助', icon: I.hand, color: C.orange, colorBg: C.orangeBg },
+    { id: 'settings', label: '设置', icon: I.gear, color: C.gray, colorBg: C.grayBg },
+    { id: 'data-management', label: '数据管理', icon: I.db, color: C.purple, colorBg: C.purpleBg },
+    { id: 'data-export', label: '数据导出', icon: I.out, color: C.teal || '#30b0c7', colorBg: 'rgba(48,176,199,.12)' },
+    { id: 'assets', label: '资产', icon: I.wallet, color: C.green, colorBg: C.greenBg }
+  ];
+
+  function userCard(sub) {
+    return '<div class="user-card glass">' +
+      '<div class="avatar">瑞</div>' +
+      '<div class="user-meta"><div class="user-name">瑞一颗</div>' +
+      '<div class="user-uid">UID 10086 · ' + sub + '</div>' +
+      '<div class="user-chips"><span class="uchip">Pro 会员</span><span class="uchip">1,024 积分</span></div></div></div>';
+  }
+  function statsBar() {
+    return '<div class="stats-bar glass">' +
+      '<div class="stat-item" data-act="chip" data-label="我的帖子"><b>128</b><span>帖子</span></div>' +
+      '<div class="stat-item" data-act="chip" data-label="粉丝列表（身份卡 stats 点击进入，原设计保留）"><b>302</b><span>粉丝</span></div>' +
+      '<div class="stat-item" data-act="chip" data-label="关注列表（身份卡 stats 点击进入，原设计保留）"><b>56</b><span>关注</span></div>' +
+      '<div class="stat-item" data-act="chip" data-label="收到的赞"><b>1,892</b><span>获赞</span></div></div>';
+  }
+  function seg2(items, key) {
+    var cur = state.seg[key] || items[0].id;
+    var h = '<div class="seg2">';
+    items.forEach(function (it) {
+      h += '<button data-act="seg" data-key="' + key + '" data-seg="' + it.id + '"' +
+        (it.pend ? ' data-pend="1"' : '') + ' class="' + (cur === it.id ? 'active' : '') + '">' + it.label +
+        (it.pend ? ' <span class="badge">待</span>' : '') + '</button>';
+    });
+    return h + '</div>';
+  }
+  function skeletonCards(n, label) {
+    var h = '';
+    if (label) h += '<div style="text-align:center;font-size:11px;color:#86868b;margin-top:14px">' + label + '</div>';
+    for (var i = 0; i < n; i++) h += '<div class="skel"></div>';
+    return h;
+  }
+  function emptyState(line1, line2) {
+    return '<div class="empty">' + I.inbox + '<p>' + line1 + '<br>' + line2 + '</p></div>';
+  }
+
+  /* ---------- current mode ---------- */
+  function currentHome() {
+    var grid = '';
+    CURRENT_PANELS.forEach(function (p) {
+      grid += '<div class="grid-item" data-act="panel" data-panel="' + p.id + '">' +
+        '<div class="gi-icon" style="background:' + p.colorBg + ';color:' + p.color + '">' + p.icon + '</div>' +
+        '<div class="gi-label">' + p.label + '</div></div>';
+    });
+    return '<div class="screen-title">我的<small>现状 · home 面板 = 二级入口汇总（S2 病灶）</small></div>' +
+      userCard('home 面板并行请求 stats / cloud / posts') + statsBar() +
+      '<div class="grid-wrap glass"><div class="grid">' + grid + '</div></div>' +
+      emptyState('改头像：我的 → 网格「编辑资料」→ 表单', '查积分流水：我的 → 「资产」→ 再找账本 —— 目标埋在二级网格里');
+  }
+  function currentDetail(id) {
+    var p = CURRENT_PANELS.filter(function (x) { return x.id === id; })[0] || { label: id };
+    var extra = '';
+    if (id === 'assets') {
+      extra = '<div class="card glass"><div style="font-size:13px;font-weight:600;margin-bottom:10px">面板内部（原样保留）</div>' +
+        '<div class="chips" style="padding:0">' +
+        '<span class="chip" data-act="chip" data-label="积分卡">积分卡</span>' +
+        '<span class="chip" data-act="chip" data-label="云盘">云盘</span>' +
+        '<span class="chip" data-act="chip" data-label="积分流水">积分流水</span></div></div>';
+    }
+    return '<div class="detail-bar"><button class="back-btn" data-act="back">' + I.back + '</button>' +
+      '<div class="detail-title">' + p.label + '</div></div>' +
+      '<div style="font-size:11px;color:#86868b;padding:0 4px">这是 profile 下的二级面板 —— 目标模式里它被上提为一级组</div>' +
+      extra + skeletonCards(3, '面板内容占位（Demo 不复刻内部）');
+  }
+
+  /* ---------- target mode ---------- */
+  function targetContent() {
+    var cur = state.seg.content || 'posts';
+    var listLabel = cur === 'posts' ? '帖子列表占位（原 posts tab 内容原样迁入）' :
+      cur === 'shows' ? 'shows 作品列表占位（原「可达但无入口」，现正式上提）' : '草稿箱占位';
+    return '<div class="screen-title">内容<small>原 posts tab + shows 上提 + 草稿 · 身份卡挂页头（原 home 拆散）· stats 点击看关注/粉丝（原设计保留）</small></div>' +
+      userCard('身份卡 = 原 profile·home 的 stats 区') + statsBar() +
+      seg2([{ id: 'posts', label: '帖子' }, { id: 'shows', label: 'shows' }, { id: 'drafts', label: '草稿' }], 'content') +
+      skeletonCards(2, listLabel);
+  }
+  function postCard(av, avColor, name, time, body, img, likes, comments, collects) {
+    return '<div class="post-card glass">' +
+      '<div class="pc-head"><div class="pc-avatar" data-act="chip" data-label="进入 ' + name + ' 的公开主页（/profile/:username）→ 可关注" style="background:' + avColor + '">' + av + '</div>' +
+      '<div><div class="pc-name">' + name + '</div><div class="pc-time">' + time + '</div></div></div>' +
+      '<div class="pc-body">' + body + '</div>' +
+      (img ? '<div class="pc-img">' + img + '</div>' : '') +
+      '<div class="pc-actions"><span>&#9825; ' + likes + '</span><span>评论 ' + comments + '</span><span>&#9734; ' + collects + '</span></div></div>';
+  }
+  function mCard(av, color, name, tag, bio, followed) {
+    return '<div class="member-card glass" data-act="chip" data-label="进入 ' + name + ' 的公开主页 → 可关注">' +
+      '<div class="pc-avatar" style="background:' + color + '">' + av + '</div>' +
+      '<div class="m-name">' + name + '</div>' +
+      (tag ? '<div class="m-tag">' + tag + '</div>' : '') +
+      '<div class="m-bio">' + bio + '</div>' +
+      '<div class="m-follow' + (followed ? ' done' : '') + '">' + (followed ? '已关注' : '+ 关注') + '</div></div>';
+  }
+  function targetCommunity() {
+    var cur = state.seg.community || 'forum';
+    var seg = seg2([
+      { id: 'forum', label: '论坛' }, { id: 'members', label: '成员' },
+      { id: 'collect', label: '收藏' },
+      { id: 'impressions', label: '印象', pend: true }
+    ], 'community');
+    var title = '<div class="screen-title">社区<small>底栏第一位 · 论坛默认视图入驻，自带版面/关注筛选保留；原 #/forum 路由与导航入口不动</small></div>';
+    if (cur === 'members') {
+      var members = [
+        mCard('块', '#0071e3', '方块市民', '创作者', '红石自动化爱好者', true),
+        mCard('霜', '#34c759', '霜之使者', 'Pro', '玻璃材质调参狂魔', false),
+        mCard('云', '#af52de', '云上常客', '元老', '周年庆烟花负责人', true),
+        mCard('岩', '#ff9500', '岩石收藏家', '', '集齐 47 种石头', false),
+        mCard('萤', '#30b0c7', '萤火建造', '创作者', '夜景灯光设计师', false),
+        mCard('汐', '#534AB7', '汐行客', '', '潜得下最多的仔', false)
+      ];
+      return title + seg +
+        '<div style="text-align:center;font-size:11px;color:#86868b;margin-top:14px">全体成员可见 · 共 23 人 · 按活跃度排序</div>' +
+        '<div class="member-grid">' + members.join('') + '</div>';
+    }
+    if (cur !== 'forum') {
+      var lm = { collect: '收藏列表占位', impressions: '印象面板占位 —— 待拍板：亦可归「内容」' };
+      return title + seg + skeletonCards(3, lm[cur] || '列表占位');
+    }
+    var boards = ['全部', '新作发布', '教程分享', '问答', '闲聊'];
+    var bch = '<div class="board-chips">' + boards.map(function (b, i) {
+      return '<span class="b-chip' + (i === 0 ? ' active' : '') + '" data-act="chip" data-label="版面「' + b + '」筛选">' + b + '</span>';
+    }).join('') + '</div>';
+    return title + seg + bch +
+      postCard('块', '#0071e3', '方块市民', '12 分钟前', '新做的红石自动农场终于跑通了，收获启动那一刻整条流水线亮起来，太治愈了。', '图片占位 · 1 张', 128, 23, 45) +
+      postCard('霜', '#34c759', '霜之使者', '1 小时前', '【教程】液态玻璃三档 blur 实测对比，附完整参数。轻量档别再叠 saturate，会糊。', null, 89, 41, 132) +
+      postCard('云', '#af52de', '云上常客', '2 小时前', '今晚八点周年庆服务器见！老地方放烟花，来晚的自己看回放（不是）。', null, 256, 87, 19);
+  }
+  function targetAssets() {
+    return '<div class="screen-title">资产<small>原 profile·assets 上提 + 云盘（原 home 拆散）+ 权益中心（规划书新增）</small></div>' +
+      '<div class="asset-hero" style="background:#0071e3"><div class="bal-label">积分余额 · 流水为唯一真相源</div>' +
+      '<div class="bal">1,024</div><button class="bal-btn" data-act="chip" data-label="积分账本（账单 UI，0905 已全量）">查账本</button></div>' +
+      '<div class="row-list glass">' +
+      row(I.crown, C.orange, C.orangeBg, '权益中心', 'Pro 会员 · 3 项权益生效中', '新增（规划书 4.2）') +
+      row(I.card, C.blue, C.blueBg, '积分卡', '', '原 assets') +
+      row(I.cloud, C.teal || '#30b0c7', 'rgba(48,176,199,.12)', '云盘', '2.1 GB / 5 GB', '原 home·cloud 拆散归入') +
+      row(I.hand, C.purple, C.purpleBg, '赞助', '', '待拍板：亦可归设置', true) +
+      '</div>';
+  }
+  function targetMessages() {
+    var cur = state.seg.messages || 'inbox';
+    return '<div class="screen-title">消息<small>原 messages tab + AI 独立 tab 降级并入（一级位让给社区/内容）</small></div>' +
+      seg2([{ id: 'inbox', label: '消息中心' }, { id: 'ai', label: 'AI 助手' }, { id: 'notif', label: '通知' }], 'messages') +
+      skeletonCards(3, cur === 'ai' ? 'AI 会话占位（原 ai tab 内容迁入）' :
+        cur === 'notif' ? '通知列表占位' : '会话列表占位（原 messages 内容迁入）');
+  }
+  function targetSettings() {
+    return '<div class="screen-title">设置<small>原 profile 的 edit / settings / data-* 三个面板上提，一层直达</small></div>' +
+      '<div class="row-list glass">' +
+      row(I.edit, C.blue, C.blueBg, '资料编辑', '', '原 edit-profile · 改头像 2 次可达') +
+      row(I.gear, C.gray, C.grayBg, '偏好与隐私', '', '原 settings') +
+      row(I.db, C.purple, C.purpleBg, '数据管理', '', '待拍板：亦可并入资产', true) +
+      row(I.out, C.teal || '#30b0c7', 'rgba(48,176,199,.12)', '数据导出', '', '原 data-export') +
+      '</div>' +
+      '<div class="row-list glass">' +
+      row(I.gear, C.red || '#ff3b30', 'rgba(255,59,48,.10)', '退出登录', '', '') +
+      '</div>';
+  }
+  function row(icon, color, colorBg, label, note, src, pend) {
+    return '<div class="row" data-act="chip" data-label="' + label + (src ? '（' + src + '）' : '') + '">' +
+      '<div class="row-icon" style="background:' + colorBg + ';color:' + color + '">' + icon + '</div>' +
+      '<div class="row-label">' + label + (pend ? ' <span class="badge">待拍板</span>' : '') + '</div>' +
+      (note ? '<div class="row-note">' + note + '</div>' : '') + I.chev + '</div>';
+  }
+
+  /* ---------- render ---------- */
+  function tabs() { return state.mode === 'current' ? CURRENT_TABS : TARGET_TABS; }
+
+  function renderTabbar() {
+    var h = '';
+    tabs().forEach(function (t) {
+      h += '<div class="tab' + (state.tab === t.id ? ' active' : '') + '" data-act="tab" data-tab="' + t.id + '">' +
+        t.icon + '<span>' + t.label + '</span></div>';
+    });
+    tabbar.innerHTML = h;
+  }
+
+  function render() {
+    renderTabbar();
+    syncFab();
+    var t = state.tab;
+    if (state.mode === 'current') {
+      if (t === 'profile') { screen.innerHTML = state.view === 'home' ? currentHome() : currentDetail(state.view); return; }
+      if (t === 'posts') { screen.innerHTML = '<div class="screen-title">帖子</div>' + skeletonCards(3, '原样保留，Demo 略'); return; }
+      if (t === 'community') { screen.innerHTML = '<div class="screen-title">社区</div>' + skeletonCards(3, '原样保留，Demo 略'); return; }
+      if (t === 'ai') { screen.innerHTML = '<div class="screen-title">AI</div>' + skeletonCards(3, '独立 tab —— 目标模式里并入「消息」'); return; }
+      screen.innerHTML = '<div class="screen-title">消息</div>' + skeletonCards(3, '原样保留，Demo 略');
+      return;
+    }
+    if (t === 'content') { screen.innerHTML = targetContent(); return; }
+    if (t === 'community') { screen.innerHTML = targetCommunity(); return; }
+    if (t === 'assets') { screen.innerHTML = targetAssets(); return; }
+    if (t === 'messages') { screen.innerHTML = targetMessages(); return; }
+    screen.innerHTML = targetSettings();
+  }
+
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 2200);
+  }
+
+  document.getElementById('modeSeg').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-act="mode"]');
+    if (!btn) return;
+    state.mode = btn.dataset.mode;
+    state.tab = state.mode === 'current' ? 'profile' : 'community';
+    state.view = 'home';
+    document.querySelectorAll('#modeSeg .seg-btn').forEach(function (b) {
+      b.classList.toggle('active', b === btn);
+    });
+    render();
+  });
+
+  document.querySelector('.phone').addEventListener('click', function (e) {
+    var el = e.target.closest('[data-act]');
+    if (!el) return;
+    var act = el.dataset.act;
+    if (act === 'tab') {
+      state.tab = el.dataset.tab;
+      state.view = 'home';
+      render();
+      screen.scrollTop = 0;
+    } else if (act === 'seg') {
+      state.seg[el.dataset.key] = el.dataset.seg;
+      render();
+    } else if (act === 'panel') {
+      state.view = el.dataset.panel;
+      render();
+      screen.scrollTop = 0;
+    } else if (act === 'back') {
+      state.view = 'home';
+      render();
+    } else if (act === 'chip') {
+      toast('「' + el.dataset.label + '」— 面板内部原样保留，Demo 占位');
+    }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

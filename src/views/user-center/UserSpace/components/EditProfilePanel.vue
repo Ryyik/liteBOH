@@ -130,7 +130,7 @@ defineEmits(['close', 'avatar-click', 'save',
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: #2563eb;
+  background: #0071e3;
   color: #fff;
   display: flex;
   align-items: center;
@@ -143,7 +143,7 @@ defineEmits(['close', 'avatar-click', 'save',
   margin-top: 6px;
   font-size: 13px;
   font-weight: 700;
-  color: #2563eb;
+  color: #0071e3;
   background: none;
   border: 0;
   cursor: pointer;
@@ -163,7 +163,7 @@ defineEmits(['close', 'avatar-click', 'save',
 
 .profile-edit-save-btn {
   border: 0;
-  background: #2563eb;
+  background: #0071e3;
   color: #fff;
   font-size: 15px;
   font-weight: 700;
@@ -193,8 +193,8 @@ defineEmits(['close', 'avatar-click', 'save',
 }
 
 .edit-profile-input:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+  border-color: #0071e3;
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.18);
 }
 
 .user-space-page[data-theme="dark"] .edit-profile-input {

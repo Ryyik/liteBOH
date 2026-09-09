@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>暗色模式文字可读性审查报告 · BOHLITE</title>
+<style>
+  :root { --ink:#1d1d1f; --sub:#6e6e73; --line:#e8e8ed; --bg:#f5f5f7; --card:#ffffff; --red:#e02e2e; --orange:#c93400; --blue:#0071e3; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",sans-serif; background:var(--bg); color:var(--ink); line-height:1.6; }
+  .wrap { max-width:1080px; margin:0 auto; padding:40px 24px 80px; }
+  h1 { font-size:30px; letter-spacing:-.02em; margin:0 0 6px; }
+  .meta { color:var(--sub); font-size:13px; margin-bottom:28px; }
+  h2 { font-size:21px; letter-spacing:-.01em; margin:44px 0 12px; padding-top:18px; border-top:1px solid var(--line); }
+  h2 .n { display:inline-block; min-width:26px; height:26px; line-height:26px; text-align:center; border-radius:8px; background:var(--ink); color:#fff; font-size:14px; margin-right:8px; vertical-align:2px; }
+  h3 { font-size:16px; margin:22px 0 8px; }
+  p { margin:8px 0; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:18px 0; }
+  .stat { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; }
+  .stat b { display:block; font-size:26px; letter-spacing:-.02em; }
+  .stat span { font-size:12px; color:var(--sub); }
+  .stat.warn b { color:var(--red); }
+  .callout { background:#fff8e6; border:1px solid #f0dfa8; border-radius:12px; padding:14px 16px; font-size:14px; margin:14px 0; }
+  .callout.blue { background:#eef4ff; border-color:#c9dcff; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; font-size:13px; }
+  th,td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { background:#fafafa; font-size:12px; color:var(--sub); font-weight:600; white-space:nowrap; }
+  tr:last-child td { border-bottom:none; }
+  code { font-family:ui-monospace,SF Mono,Menlo,monospace; font-size:12px; background:#f2f2f5; border-radius:5px; padding:1px 6px; }
+  .sw { display:inline-flex; align-items:center; gap:5px; font-family:ui-monospace,SF Mono,Menlo,monospace; font-size:11.5px; }
+  .sw i { width:14px; height:14px; border-radius:4px; border:1px solid rgba(0,0,0,.15); display:inline-block; }
+  .ratio { display:inline-block; font-weight:700; border-radius:6px; padding:0 7px; font-size:12px; color:#fff; }
+  .r-bad { background:var(--red); } .r-mid { background:var(--orange); }
+  .tag { display:inline-block; font-size:11px; font-weight:600; border-radius:6px; padding:1px 8px; }
+  .t-p0 { background:#ffe5e5; color:#b00020; } .t-p1 { background:#ffedd5; color:#c93400; }
+  .t-p2 { background:#fef9c3; color:#a16207; } .t-ok { background:#e2f5e9; color:#15803d; }
+  .file { color:var(--sub); font-size:12px; font-family:ui-monospace,SF Mono,Menlo,monospace; }
+  ul { margin:6px 0; padding-left:20px; } li { margin:4px 0; }
+  .foot { margin-top:48px; color:var(--sub); font-size:12px; border-top:1px solid var(--line); padding-top:16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>暗色模式文字可读性审查报告</h1>
+  <div class="meta">生成时间 2026-09-08 20:55 · 探针 probe-dark-audit.mjs（v5）· 原始数据 dark-audit-results.json · 截图 debug-screenshots/dark-audit-*.png</div>
+
+  <div class="stats">
+    <div class="stat"><b>50</b><span>页面实测（public/community/user-space/admin/dev）</span></div>
+    <div class="stat warn"><b>~25 类</b><span>确认不可读问题（跨页去重后，P0）</span></div>
+    <div class="stat"><b>120</b><span>黑字黑底原始命中</span></div>
+    <div class="stat"><b>10</b><span>白字白底原始命中</span></div>
+    <div class="stat"><b>7</b><span>页面完全干净（home/shows/history 等）</span></div>
+  </div>
+
+  <div class="callout blue"><b>审查方法：</b>通过 <code>localStorage['boh-theme']=dark</code> 让 <code>themeManager</code> 在应用启动时原生进入暗色（触发 <code>ensureThemeCSS('dark')</code> 懒加载全部 9 个暗色样式表，页面容器 <code>data-theme</code> 由各组件 <code>:data-theme="currentTheme"</code> 自管理），随后逐页遍历所有含文本的可见元素，取计算样式前景色与「有效背景」（半透明层逐级合成、渐变取止点、被不透明层遮蔽的祖先背景剔除），按 WCAG 对比度分级：<b>&lt;3 严重</b>、3~4.5 偏低、≥4.5 通过。所有 P0 均经截图目检复核。</div>
+
+  <h2><span class="n">1</span>P0 · 暗色下黑字黑底（不可读）</h2>
+  <table>
+    <tr><th>页面</th><th>元素 / 示例文本</th><th>前景 ← 背景</th><th>对比度</th><th>源码定位</th></tr>
+    <tr><td><span class="tag t-p0">全局</span> Toast 通知</td><td><code>.toast-desc</code>「您没有权限访问该页面」</td><td><span class="sw"><i style="background:#166534"></i>#166534</span> ← <span class="sw"><i style="background:#0e261b"></i>#0e261b</span></td><td><span class="ratio r-bad">2.25</span></td><td class="file">App.vue:344（全局 toast 文字色未做暗色适配，任何页面弹 toast 都会触发）</td></tr>
+    <tr><td><span class="tag t-p0">社区</span> 论坛/用户空间 posts tab</td><td><code>.weekly-report-summary</code> 周报摘要段落</td><td><span class="sw"><i style="background:#515154"></i>#515154</span> ← <span class="sw"><i style="background:#181922"></i>#181922</span></td><td><span class="ratio r-bad">2.22</span></td><td class="file">views/Forum/styles/weekly-report.css:6 —— 整文件按浅色硬编码（#1d1d1f/#515154/#86868b + 白底 modal），暗色下周报卡全面破</td></tr>
+    <tr><td><span class="tag t-p0">社区</span> 周报卡指标</td><td><code>.weekly-report-metrics strong</code>「1」</td><td><span class="sw"><i style="background:#1d1d1f"></i>#1d1d1f</span> ← <span class="sw"><i style="background:#181922"></i>#181922</span></td><td><span class="ratio r-bad">1.04</span></td><td class="file">weekly-report.css:8（同上，整卡需补暗色规则）</td></tr>
+    <tr><td><span class="tag t-p0">社区</span> 帖子卡标签 chip</td><td>span「日常」</td><td><span class="sw"><i style="background:#1d1d1f"></i>#1d1d1f</span> ← <span class="sw"><i style="background:#21222c"></i>#21222c</span></td><td><span class="ratio r-bad">1.06</span></td><td class="file">PostCard 标签 chip 配色硬编码（论坛卡片暗色文字未跟随）</td></tr>
+    <tr><td><span class="tag t-p0">抽奖</span> /lotteries</td><td><code>.community-lottery-kicker</code>「COMMUNITY LOTTERY」</td><td><span class="sw"><i style="background:#515158"></i>#515158</span> ← <span class="sw"><i style="background:#252527"></i>#252527</span></td><td><span class="ratio r-bad">1.94</span></td><td class="file">CommunityLotteries/style.scoped.css:35 —— 注意 :1078 已有 dark 规则但实测未生效，需排查选择器/优先级</td></tr>
+    <tr><td><span class="tag t-p0">抽奖</span> 空状态</td><td>p「新的社区抽奖开放后会出现在这里…」</td><td><span class="sw"><i style="background:#636366"></i>#636366</span> ← <span class="sw"><i style="background:#252527"></i>#252527</span></td><td><span class="ratio r-bad">2.56</span></td><td class="file">CommunityLotteries 空态文案</td></tr>
+    <tr><td><span class="tag t-p0">抽奖</span> 保底岛卡</td><td><code>.pi-label</code>「保底」</td><td><span class="sw"><i style="background:#1d1d1f"></i>#1d1d1f</span> ← <span class="sw"><i style="background:#131923"></i>#131923</span></td><td><span class="ratio r-bad">1.05</span></td><td class="file">PityIslandCard.vue:405 已有 <code>:global(#unified-nav-container[data-theme=dark] …)</code> 修复规则，但实测仍为黑字 —— 该规则未命中，需复查（岛根 data-theme 挂载点或编译合并问题）</td></tr>
+    <tr><td><span class="tag t-p0">下载/教程</span> /download（/tutorial 重定向至此）</td><td><code>.hero-title</code>「资源中心」</td><td><span class="sw"><i style="background:#1d1d1f"></i>#1d1d1f</span> ← <span class="sw"><i style="background:#17171e"></i>#17171e</span></td><td><span class="ratio r-bad">1.06</span></td><td class="file">Download/index.vue:576</td></tr>
+    <tr><td><span class="tag t-p0">下载/教程</span></td><td><code>.hero-label</code>「RESOURCES」/ <code>.segment-btn</code>「教程中心」/ <code>.filter-tab</code>「客户端」</td><td>#98a2b3←#8b8b8f · #6e6e73←#97979a · #6e6e73←#919193</td><td><span class="ratio r-bad">1.32~1.73</span></td><td class="file">Download/index.vue:562 / 615 / 665（hero 区与分段按钮在暗色下灰上灰）</td></tr>
+    <tr><td><span class="tag t-p0">AI 对话</span> /ai-chat（BOHAI）</td><td>侧栏品牌标「BOH」/ 折叠钮「«」/「搜索」/ 档位「Fast」</td><td><span class="sw"><i style="background:#111111"></i>#111111</span> ← <span class="sw"><i style="background:#0e1322"></i>#0e1322</span></td><td><span class="ratio r-bad">1.01~1.31</span></td><td class="file">views/BOHAI/BOHAI/styles/adaptive-layout.css:239（.sidebar-mark）+ BohaiSidebar.vue（侧栏暗色缺字色规则，10 处命中）</td></tr>
+    <tr><td><span class="tag t-p0">Lab</span> /lab</td><td><code>.hero-title</code>「和 AI 一起创造任何内容」</td><td><span class="sw"><i style="background:#0d0d0d"></i>#0d0d0d</span> ← <span class="sw"><i style="background:#12121a"></i>#12121a</span></td><td><span class="ratio r-bad">1.04</span></td><td class="file">Lab/index.vue:155（hero 标题硬编码近黑）</td></tr>
+    <tr><td><span class="tag t-p0">AI 广场</span> /ai-intro</td><td><code>.prompt-text</code>「帮我理清这个问题…」</td><td><span class="sw"><i style="background:#3a3a3c"></i>#3a3a3c</span> ← <span class="sw"><i style="background:#7f7f86"></i>#7f7f86</span></td><td><span class="ratio r-bad">2.87</span></td><td class="file">AIPlaza/index.vue:418（提示词 chip 灰上灰）</td></tr>
+    <tr><td><span class="tag t-p0">健康</span> /health</td><td><code>.hk-chev</code>「›」/ <code>.hk-chip</code>「健康」/ <code>.hk-sheet-btn.done</code>「完成」/ <code>.hk-ring-val</code> /「清空全部健康数据」</td><td>#3c3c43←#202021 · #1a7f37←#375841 · #007aff←#38383a · #5e5ce6←#2c2c2e · #d70015←#2c2c2e</td><td><span class="ratio r-bad">1.49~2.91</span></td><td class="file">health.css:436 等；BMI chip 是 HkBmiCard.vue:5 / HkBodySheet.vue:70 内联 <code>:style="{background:tier.chipBg,color:tier.chipFg}"</code> —— JS 常量非主题感知，需按主题切换或改 token</td></tr>
+    <tr><td><span class="tag t-p1">订阅</span> /user-space/subscriptions</td><td>em「省 17%」</td><td><span class="sw"><i style="background:#0071e3"></i>#0071e3</span> ← <span class="sw"><i style="background:#303035"></i>#303035</span></td><td><span class="ratio r-bad">2.78</span></td><td class="file">SubscriptionPlans.vue:319 计费 tab 折扣徽标（品牌蓝压深灰）</td></tr>
+    <tr><td><span class="tag t-p1">用户空间</span> 底部 dock</td><td><code>.nav-label</code> 非激活项「帖子/消息/AI/我的」</td><td><span class="sw"><i style="background:#7a7a8a"></i>#7a7a8a</span> ← <span class="sw"><i style="background:#34343c"></i>#34343c</span></td><td><span class="ratio r-mid">2.93</span></td><td class="file">user-center/UserSpace/components/bottom-nav.css:269（非激活态刻意弱化，但低于 3:1，建议提到 #8e8e96+）</td></tr>
+    <tr><td><span class="tag t-p1">新闻</span> /newsroom（首屏外）</td><td>频道字母块「B」/ <code>.news-date</code> 日期 chip</td><td>#1d1d1f←#1c1c1e · #f5f5f7←#d6d6d7（白字配浅底）</td><td><span class="ratio r-bad">1.01 / 1.33</span></td><td class="file">Newsroom/style.scoped.css:408（暗色规则漏了这枚浅色 chip 的文字翻转）</td></tr>
+    <tr><td><span class="tag t-p2">Dev</span> /__dev/motion</td><td>strong「已完成」</td><td>#1d2938←#131923</td><td><span class="ratio r-bad">1.20</span></td><td class="file">Dev/MotionLab.vue（开发页，低优先）</td></tr>
+  </table>
+
+  <h2><span class="n">2</span>P1 · 暗色下白字白底 / 浅色残留上的浅字</h2>
+  <table>
+    <tr><th>页面</th><th>元素 / 示例文本</th><th>前景 ← 背景</th><th>对比度</th><th>说明</th></tr>
+    <tr><td><span class="tag t-p1">加入我们</span> /join</td><td><code>.input-suffix</code>「必填」/ <code>.apple-continue-btn</code>「继续」</td><td><span class="sw"><i style="background:#c7c7cc"></i>#c7c7cc</span> ← <span class="sw"><i style="background:#ffffff"></i>#ffffff</span></td><td><span class="ratio r-bad">1.55~1.68</span></td><td><b>浅色模式下同样不达标</b>（禁用态灰过灰），属双模式真实低对比，建议一并修</td></tr>
+    <tr><td><span class="tag t-p1">关于</span> /about</td><td>span「块」（标题装饰字）</td><td>#d7d7dc ← #ffffff</td><td><span class="ratio r-bad">1.43</span></td><td>装饰性文字，建议加深或去色</td></tr>
+    <tr><td><span class="tag t-p1">八周年</span> /boh-8-years-event</td><td><code>.footer-text</code> / <code>.step-completed</code>「已完成」</td><td>#c7c7cc←#ffffff · #34c759←#ffffff</td><td><span class="ratio r-bad">1.68 / 2.22</span></td><td>页面保持浅色但文字用了过浅的灰/绿</td></tr>
+    <tr><td><span class="tag t-p2">登录</span> /login</td><td>h1「方块之家」/ 副标题</td><td>#ffffff ← #ffffff</td><td><span class="ratio r-bad">1.00</span></td><td><b>目检为误报</b>：标题实际压在左侧照片上，视觉可读；但登录页整体未适配暗色（右面板保持白色自洽），列入待适配清单</td></tr>
+  </table>
+
+  <h2><span class="n">3</span>P2 · 页面未适配暗色（浅色残留，但深字浅底自洽可读）</h2>
+  <p>以下页面暗色下整页保持浅色，不存在「看不清」，但与全站暗色体验割裂，列入待适配：</p>
+  <ul>
+    <li><b>活动墙 /activities-wall</b>：奶油底 hero + 白卡，深字可读；<code>.page-kicker</code> #667085 灰字在浅底上 4.0 边缘。</li>
+    <li><b>商店 /shop、/shop/account</b>：<code>#aeaeaf</code> 灰字配白/浅灰底，对比度 2.04~2.22 —— <b>浅色模式下也不达标</b>（kicker、空态「暂无收货地址」等），属双模式低对比。</li>
+    <li><b>MBTI /mbti</b>：<code>#94a3b8</code> on #f8fafc（2.45），标签与版权行，双模式低对比。</li>
+    <li><b>生日 /birthday</b>：#ff453a on #f6e7e8（2.84），徽标类 10 处 warn。</li>
+    <li><b>角色册 /character-book</b>：dt「档案名」#94a3b8 on 白（2.36~2.56）。</li>
+  </ul>
+
+  <h2><span class="n">4</span>人工确认 / 设计意图（探针无法定判）</h2>
+  <ul>
+    <li>概览页 <code>.overview-btn</code>「重试」白字压 #409cff 蓝底（2.83）—— 品牌彩底按钮，建议白字加粗加深底色或换深字。</li>
+    <li>论坛彩虹昵称 <code>.nickname-rainbow</code>（渐变文字）—— 设计意图，忽略。</li>
+    <li>帖子详情 /forum/post/1：v4/v5 实测干净（仅空态一条 warn），暗色适配良好。</li>
+  </ul>
+
+  <h2><span class="n">5</span>静态扫描补充 · 完全没有暗色规则的文件</h2>
+  <p>源码含硬编码近黑文字且文件内 <b>0 条</b> dark 规则的文件（与上表互相印证，修复时优先核对；其中 history/shows 等实测正常，说明硬编码色恰好落在保持浅色的自洽面板上，以运行时实测为准）：</p>
+  <p class="file">components/AdminConfirmModal.vue · components/AppleGridCard.vue · components/AppleHeroBanner.vue · components/MemberDetailModal.vue · views/AiQuotaConfig/index.vue · views/BOH8YearsEvent/style.scoped.css · views/BOH8YearsJourney/style.scoped.css · views/BOHAI/BOHAI/BOHAIMain.vue · views/CharacterBook/style.scoped.css · views/Forum/components/ForumToolbar.vue · views/Forum/styles/feed.css · views/History/index.vue · views/Home/components/DynamicHomeHero.vue · views/Home/components/HomeOverlayHero.vue · views/Home/style.scoped.css · views/Join/index.vue · views/MBTI/style.scoped.css · views/PostDetail/components/CommentThread.vue · views/PostDetail/style.scoped.css · views/ResetPassword/index.vue · views/Tutorial/index.vue · views/user-center/Messages/style.scoped.css · views/user-center/UserSpace/styles/profile-panels.css · views/user-center/UserSpace/styles/responsive-integrations.css</p>
+
+  <h2><span class="n">6</span>未覆盖范围（后续需补测）</h2>
+  <ul>
+    <li><b>/admin/* 7 页</b>：管理员守卫需真实管理员会话（<code>ensureAdminAccess</code> 走数据库校验，伪造登录被拒重定向回首页）。用真实管理员账号切暗色后补测。</li>
+    <li><b>需交互打开的表层</b>：发帖浮层、评论框、抽屉、各弹窗、hover/active 态 —— 本次只审了页面默认渲染态。</li>
+    <li><b>/activities-wall/list、/activities-wall/photo-wall</b>：直接访问被重定向首页，需从页内 tab 进入后补测。</li>
+  </ul>
+
+  <h2><span class="n">7</span>修复优先级建议</h2>
+  <ul>
+    <li><b>第一优先（全局复用组件，改一处收益全站）</b>：① App.vue 全局 toast 暗色文字；② weekly-report.css 整文件补暗色规则（或改用 --liquid-* token）；③ PostCard 标签 chip；④ 底部 dock nav-label 提亮。</li>
+    <li><b>第二优先（整页级暗色规则缺失）</b>：Download/Tutorial hero 区、BOHAI 侧栏、Lab hero、AIPlaza 提示词 chip、Health（含 JS 内联 tier 配色改主题感知）、CommunityLotteries（排查 :1078 已有规则为何未命中 + PityIslandCard.vue:405 同类排查）。</li>
+    <li><b>第三优先（双模式低对比 + 浅色残留适配）</b>：Join/Shop/MBTI/Birthday/CharacterBook 的浅灰字、About/BOH8Years 装饰字，以及登录页、活动墙的整页暗色适配。</li>
+  </ul>
+
+  <div class="foot">探针：probe-dark-audit.mjs · 判级标准 WCAG 2.x（&lt;3 严重 / 3~4.5 偏低）· 有效背景 = 半透明层逐级合成 + 渐变止点 + 剔除被不透明层遮蔽的祖先背景 · DEV-TEST 元素（nav-dev-island-btn）已排除</div>
+</div>
+</body>
+</html>

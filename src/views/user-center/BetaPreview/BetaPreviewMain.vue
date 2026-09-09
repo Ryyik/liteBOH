@@ -107,7 +107,7 @@ const buildVersion = computed(() => (
 ));
 
 const backToSettings = () => {
-  void router.replace({ path: '/user-space', query: { tab: 'profile', view: 'settings' } });
+  void router.replace({ path: '/user-space', query: { tab: 'settings' } });
 };
 
 const toggleCompatibilityMode = () => {
@@ -366,16 +366,16 @@ onMounted(() => {
 .build-note { margin: 16px 8px 0; color: #7a828d; font-size: 12px; line-height: 1.5; }
 
 /* ---------- 暗色模式 ---------- */
-:global([data-theme="dark"]) .beta-preview-page { background: #101216; color: #f4f6f8; }
-:global([data-theme="dark"]) .beta-preview-backdrop {
+:global([data-theme="dark"] .beta-preview-page ){ background: #101216; color: #f4f6f8; }
+:global([data-theme="dark"] .beta-preview-backdrop ){
   background:
     radial-gradient(620px 430px at 12% 6%, rgba(59, 130, 246, 0.1), transparent 66%),
     radial-gradient(560px 420px at 90% 20%, rgba(147, 51, 234, 0.08), transparent 66%),
     radial-gradient(680px 520px at 50% 100%, rgba(14, 165, 233, 0.07), transparent 72%),
     #101216;
 }
-:global([data-theme="dark"]) .glass-bar,
-:global([data-theme="dark"]) .glass-card {
+:global([data-theme="dark"] .glass-bar),
+:global([data-theme="dark"] .glass-card ){
   border-color: rgba(255, 255, 255, 0.08);
   background: rgba(24, 26, 32, 0.46);
   box-shadow:
@@ -383,23 +383,23 @@ onMounted(() => {
     0 1px 2px rgba(0, 0, 0, 0.2),
     0 12px 32px rgba(0, 0, 0, 0.35);
 }
-:global([data-theme="dark"]) .bar-copy small,
-:global([data-theme="dark"]) .release-desc,
-:global([data-theme="dark"]) .beta-preview-heading p,
-:global([data-theme="dark"]) .build-note { color: #a7afba; }
-:global([data-theme="dark"]) .feature-list li { color: #e2e7ed; }
-:global([data-theme="dark"]) .feature-icon { color: #5da5ff; background: rgba(93, 165, 255, 0.12); }
-:global([data-theme="dark"]) .apple-switch { background: rgba(255, 255, 255, 0.22); }
-:global([data-theme="dark"]) .apple-switch.on { background: #30d158; }
-:global([data-theme="dark"]) .release-card:hover { border-color: rgba(93, 165, 255, 0.4); }
-:global([data-theme="dark"]) .version-pill { color: #6ee7b7; background: rgba(16, 185, 129, 0.14); }
-:global([data-theme="dark"]) .version-pill.preview { color: #93c5fd; background: rgba(59, 130, 246, 0.14); }
+:global([data-theme="dark"] .bar-copy small),
+:global([data-theme="dark"] .release-desc),
+:global([data-theme="dark"] .beta-preview-heading p),
+:global([data-theme="dark"] .build-note ){ color: #a7afba; }
+:global([data-theme="dark"] .feature-list li ){ color: #e2e7ed; }
+:global([data-theme="dark"] .feature-icon ){ color: #5da5ff; background: rgba(93, 165, 255, 0.12); }
+:global([data-theme="dark"] .apple-switch ){ background: rgba(255, 255, 255, 0.22); }
+:global([data-theme="dark"] .apple-switch.on ){ background: #30d158; }
+:global([data-theme="dark"] .release-card:hover ){ border-color: rgba(93, 165, 255, 0.4); }
+:global([data-theme="dark"] .version-pill ){ color: #6ee7b7; background: rgba(16, 185, 129, 0.14); }
+:global([data-theme="dark"] .version-pill.preview ){ color: #93c5fd; background: rgba(59, 130, 246, 0.14); }
 
 /* ---------- 不支持 backdrop-filter 的兜底 ---------- */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .glass-bar, .glass-card { background: rgba(255, 255, 255, 0.94); }
-  :global([data-theme="dark"]) .glass-bar,
-  :global([data-theme="dark"]) .glass-card { background: #1d2128; }
+  :global([data-theme="dark"] .glass-bar),
+  :global([data-theme="dark"] .glass-card ){ background: #1d2128; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -9,7 +9,8 @@
  * - type='activity'：调用方传 paragraphs（string[]），组件内渲染为段落。
  * 关闭统一走 onClose 回调（× / Esc），由宿主负责 close() 岛槽位。
  */
-import { onBeforeUnmount, onMounted } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { Check, Share2 } from 'lucide-vue-next';
 import { CalendarDays, Newspaper, X } from 'lucide-vue-next';
 
 const props = defineProps({
@@ -24,10 +25,53 @@ const props = defineProps({
   html: { type: String, default: '' },
   // 活动介绍：纯文本段落数组（activity 专用）
   paragraphs: { type: Array, default: () => [] },
+  // 分享落点路由（BETA 6 / S4，如 /news/:id）：传入则展示「分享」按钮，
+  // 一键分享该独立页链接（独立页承载逐篇 OG 分享卡）；降级为复制链接
+  pageRoute: { type: String, default: '' },
   onClose: { type: Function, default: null }
 });
 
 const requestClose = () => props.onClose?.();
+
+// ---- 分享（S4）：Web Share API 优先，降级复制链接 ----
+const shareState = ref('idle'); // idle | copied
+let shareResetTimer = null;
+
+const resolveShareUrl = () => {
+  if (typeof window === 'undefined') return '';
+  // hash 路由：绝对链接 = origin + pathname + '#<pageRoute>'
+  return `${window.location.origin}${window.location.pathname}#${props.pageRoute}`;
+};
+
+const showCopiedHint = () => {
+  shareState.value = 'copied';
+  if (shareResetTimer) clearTimeout(shareResetTimer);
+  shareResetTimer = setTimeout(() => {
+    shareState.value = 'idle';
+    shareResetTimer = null;
+  }, 2200);
+};
+
+const sharePage = async () => {
+  if (!props.pageRoute) return;
+  const url = resolveShareUrl();
+  const payload = { title: props.title || 'BOHLITE', text: props.title || '', url };
+  try {
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      await navigator.share(payload); // 用户手势内调用 ✓（按钮 click）
+      return; // 原生分享面板自行给出反馈
+    }
+  } catch (error) {
+    if (error?.name === 'AbortError') return; // 用户取消分享面板，不算失败
+    // 分享面板失败 → 落到复制降级
+  }
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url);
+      showCopiedHint();
+    }
+  } catch (_error) { /* 剪贴板不可用时静默（极旧浏览器） */ }
+};
 
 const onImageError = (event) => {
   if (event?.target) event.target.style.display = 'none';
@@ -72,6 +116,19 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
       <div v-else-if="paragraphs.length" class="cdi-content">
         <p v-for="(para, i) in paragraphs" :key="i">{{ para }}</p>
       </div>
+
+      <!-- 分享（S4）：一键分享独立页链接（原生分享面板 / 降级复制） -->
+      <button v-if="pageRoute" type="button" class="cdi-open-page" :class="{ 'is-copied': shareState === 'copied' }"
+        :aria-label="shareState === 'copied' ? '链接已复制' : '分享这篇新闻'" @click="sharePage">
+        <template v-if="shareState === 'copied'">
+          <Check :size="13" :stroke-width="2.4" aria-hidden="true" />
+          <span>链接已复制</span>
+        </template>
+        <template v-else>
+          <Share2 :size="13" :stroke-width="2.1" aria-hidden="true" />
+          <span>分享</span>
+        </template>
+      </button>
     </div>
   </div>
 </template>
@@ -291,6 +348,36 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
   .content-detail-island { max-height: 86dvh; padding: 10px 14px 12px; }
   .cdi-cover { max-height: 30dvh; }
   .cdi-head { padding-bottom: 7px; margin-bottom: 7px; }
+}
+
+/* ---- 分享按钮（S4） ---- */
+.cdi-open-page {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 8px 16px;
+  border: 1px solid rgba(0, 113, 227, 0.24);
+  border-radius: 999px;
+  background: rgba(0, 113, 227, 0.08);
+  color: #0071e3;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.18s ease;
+}
+
+.cdi-open-page:hover {
+  transform: translateY(-1px);
+  background: rgba(0, 113, 227, 0.14);
+}
+
+.cdi-open-page:active { transform: scale(0.98); }
+
+.cdi-open-page.is-copied {
+  border-color: rgba(52, 199, 89, 0.35);
+  background: rgba(52, 199, 89, 0.12);
+  color: #1f8a3d;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-page-node-id="379pEKG0xt2cwHbK4MZw43">
+<head data-page-node-id="VAKZ2IEwPw2g6uuFjbpDtT">
+<meta charset="UTF-8" data-page-node-id="1e51codA7bLPUc0sP8D3Am">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="KilawC0inb4qJo8BRRkj3s">
+<title>User Space 系统性性能审查报告</title>
+<style>
+  :root {
+    --liquid-text-primary: #1d1d1f;
+    --liquid-text-secondary: #6e6e73;
+    --liquid-text-tertiary: #86868b;
+    --liquid-bg-page: #f5f5f7;
+    --liquid-glass-bg: rgba(255, 255, 255, 0.72);
+    --liquid-glass-bg-strong: rgba(255, 255, 255, 0.88);
+    --liquid-glass-border: rgba(0, 0, 0, 0.08);
+    --liquid-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+    --liquid-brand: #0071e3;
+    --severe: #d70015;
+    --high: #e08600;
+    --medium: #0071e3;
+    --low: #86868b;
+    --ok: #34c759;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro SC", "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+    background: linear-gradient(160deg, #eef2f7 0%, #f5f5f7 40%, #eef4f0 100%);
+    color: var(--liquid-text-primary);
+    line-height: 1.65;
+    padding: 48px 24px 96px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 1080px; margin: 0 auto; }
+  .glass {
+    background: var(--liquid-glass-bg);
+    backdrop-filter: blur(24px) saturate(1.6);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    border: 1px solid var(--liquid-glass-border);
+    border-radius: 24px;
+    box-shadow: var(--liquid-shadow);
+    padding: 36px 40px;
+    margin-bottom: 28px;
+  }
+  header.hero { text-align: center; padding: 56px 40px 44px; }
+  .hero .eyebrow {
+    font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--liquid-brand); font-weight: 600; margin-bottom: 14px;
+  }
+  .hero h1 { font-size: clamp(30px, 4.5vw, 44px); font-weight: 700; letter-spacing: -0.02em; }
+  .hero .sub { color: var(--liquid-text-secondary); margin-top: 14px; font-size: 16px; }
+  h2 { font-size: 26px; font-weight: 700; letter-spacing: -0.015em; margin-bottom: 6px; }
+  h2 .num { color: var(--liquid-brand); margin-right: 10px; font-variant-numeric: tabular-nums; }
+  .h2-sub { color: var(--liquid-text-secondary); font-size: 14.5px; margin-bottom: 22px; }
+  h3 { font-size: 17px; font-weight: 650; margin: 26px 0 10px; }
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-top: 26px; }
+  .metric {
+    background: var(--liquid-glass-bg-strong);
+    border: 1px solid var(--liquid-glass-border);
+    border-radius: 18px; padding: 18px 20px;
+  }
+  .metric .v { font-size: 30px; font-weight: 750; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .metric .v small { font-size: 15px; font-weight: 600; color: var(--liquid-text-tertiary); margin-left: 2px; }
+  .metric .k { font-size: 12.5px; color: var(--liquid-text-secondary); margin-top: 2px; }
+  .metric.bad .v { color: var(--severe); }
+  .metric.warn .v { color: var(--high); }
+  .metric.good .v { color: var(--ok); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 14px 0 6px; }
+  th { text-align: left; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--liquid-text-tertiary); padding: 10px 12px; border-bottom: 1px solid var(--liquid-glass-border); font-weight: 650; }
+  td { padding: 12px; border-bottom: 1px solid rgba(0,0,0,0.05); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 0.88em; background: rgba(0, 113, 227, 0.07);
+    color: var(--liquid-brand); padding: 2px 7px; border-radius: 6px;
+  }
+  pre {
+    background: #1d1d1f; color: #e8e8ed; border-radius: 14px;
+    padding: 18px 22px; overflow-x: auto; font-size: 12.8px; line-height: 1.6;
+    margin: 12px 0; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  pre .c { color: #7f8c98; }
+  pre .k { color: #ff7ab2; }
+  pre .s { color: #a5d6ff; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; letter-spacing: 0.03em; vertical-align: middle; }
+  .tag.severe { background: rgba(215, 0, 21, 0.1); color: var(--severe); }
+  .tag.high { background: rgba(224, 134, 0, 0.12); color: var(--high); }
+  .tag.medium { background: rgba(0, 113, 227, 0.1); color: var(--medium); }
+  .tag.low { background: rgba(134, 134, 139, 0.14); color: var(--low); }
+  .tag.ok { background: rgba(52, 199, 89, 0.12); color: #248a3d; }
+  .tag.rt { background: rgba(88, 86, 214, 0.1); color: #5856d6; }
+  .tag.st { background: rgba(255, 149, 0, 0.1); color: #c93400; }
+  .issue {
+    background: var(--liquid-glass-bg-strong);
+    border: 1px solid var(--liquid-glass-border);
+    border-radius: 18px; padding: 22px 26px; margin: 16px 0;
+  }
+  .issue-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+  .issue-head .id { font-weight: 750; color: var(--liquid-brand); font-size: 15px; font-variant-numeric: tabular-nums; }
+  .issue-head .title { font-weight: 700; font-size: 16px; letter-spacing: -0.01em; }
+  .issue .evidence { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+  @media (max-width: 760px) { .issue .evidence { grid-template-columns: 1fr; } body { padding: 24px 12px 64px; } .glass { padding: 26px 22px; } }
+  .evi {
+    background: rgba(245, 245, 247, 0.8); border: 1px solid rgba(0,0,0,0.05);
+    border-radius: 12px; padding: 14px 16px; font-size: 13px;
+  }
+  .evi .evi-k { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; }
+  .evi.runtime .evi-k { color: #5856d6; }
+  .evi.static .evi-k { color: #c93400; }
+  .evi ul { padding-left: 18px; }
+  .evi li { margin: 4px 0; }
+  .fix {
+    background: rgba(52, 199, 89, 0.07); border: 1px solid rgba(52, 199, 89, 0.18);
+    border-radius: 12px; padding: 14px 16px; font-size: 13.5px; margin-top: 12px;
+  }
+  .fix b { color: #248a3d; }
+  .bar-chart { margin: 18px 0 6px; }
+  .bar-row { display: grid; grid-template-columns: 150px 1fr 90px; align-items: center; gap: 12px; margin: 9px 0; font-size: 13.5px; }
+  .bar-row .lbl { color: var(--liquid-text-secondary); text-align: right; }
+  .bar-track { background: rgba(0,0,0,0.05); border-radius: 8px; height: 26px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 8px; background: linear-gradient(90deg, #0071e3, #4d9de8); display: flex; align-items: center; }
+  .bar-fill.worst { background: linear-gradient(90deg, #d70015, #e8544f); }
+  .bar-row .val { font-variant-numeric: tabular-nums; font-weight: 650; }
+  .pill-flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; font-size: 13px; }
+  .pill { background: var(--liquid-glass-bg-strong); border: 1px solid var(--liquid-glass-border); border-radius: 999px; padding: 6px 14px; }
+  .pill.hot { border-color: rgba(215,0,21,0.4); color: var(--severe); font-weight: 650; }
+  .arr { color: var(--liquid-text-tertiary); }
+  .footnote { font-size: 12.5px; color: var(--liquid-text-tertiary); margin-top: 18px; }
+  .toc { columns: 2; font-size: 14.5px; margin-top: 10px; }
+  .toc a { color: var(--liquid-brand); text-decoration: none; display: block; padding: 3px 0; }
+  @media (max-width: 640px) { .toc { columns: 1; } }
+  .toc a:hover { text-decoration: underline; }
+</style>
+</head>
+<body data-page-node-id="OGePTF7IPilRR0jEf0A7Rs">
+<div class="container" data-page-node-id="IQ7NFf2jBW2UJKJpkvMgOI">
+
+  <header class="glass hero" data-page-node-id="2Kv33G5wXDjptGNks1I8AS">
+    <div class="eyebrow" data-page-node-id="bVHN8TUFQDzgenUt7fccna">Performance Audit · 2026-09-09</div>
+    <h1 data-page-node-id="iPLc6q1ETSDLBMBUnwRH0f">User Space 系统性性能审查报告</h1>
+    <p class="sub" data-page-node-id="98yVvBBgxX51SGNJdaeOJs">社区 / 内容 / 资产 / 消息 / 设置 五大区域 · 静态代码审查 + 运行时探针双重交叉验证<br data-page-node-id="q2M5VKJ1FE1KvCvNusVDhg">识别跨区域复合性能问题，输出可落地的优化方案</p>
+    <div class="metrics" data-page-node-id="b3CiMEAIJTUDPY9S9kzwsN">
+      <div class="metric bad" data-page-node-id="4nn6NEdUd2hj4HQj99ag3a"><div class="v" data-page-node-id="8l2wLtY86nHIRVaxUkCXir">93<small data-page-node-id="lyxt8w9oxFXJbOTXAHrJty"> 请求</small></div><div class="k" data-page-node-id="5Minm0WP1HyMNEpWK2f2Eq">messages tab 单次进入（dev 实测，含 69 个 JS 模块）</div></div>
+      <div class="metric warn" data-page-node-id="04PM5eX0JwT2GqQlPdEtZn"><div class="v" data-page-node-id="gb3L7H5fMZvjH8QVlw3bnx">+14.8<small data-page-node-id="zj9bR81CYgxfVq2JkfUm8M"> MB</small></div><div class="k" data-page-node-id="yR2oIoDE3BiD2CPTDeptdH">堆内存增量（28.7 → 43.5，全程未回落）</div></div>
+      <div class="metric warn" data-page-node-id="dcylxm1CMGIf8EVNfBvi8m"><div class="v" data-page-node-id="ckIgCYZ1IGNYpA3eF6CEjA">2<small data-page-node-id="rJVsuyetr32BTYovGqak7L"> 次</small></div><div class="k" data-page-node-id="gdsdLgZCrkjyQRBV2c5M3f">posts tab 聚合 RPC 重复调用（含 2 个被 abort 的查询）</div></div>
+      <div class="metric good" data-page-node-id="sdIVijv6YxDyRLfv5WYYl2"><div class="v" data-page-node-id="wn4umYTHkPUX3GNm4pR15u">0<small data-page-node-id="TIbpIyRVNcKeoD4MDn4Lt3"> 请求</small></div><div class="k" data-page-node-id="mrI8RugytljW4F5dtWOiJU">回访社区 DB 请求（TTL 缓存生效 ✓）</div></div>
+    </div>
+  </header>
+
+  <section class="glass" data-page-node-id="VNiREoFXArTvFrrgCHTKAR">
+    <h2 data-page-node-id="NEBkijQagtJAZJXp77SLe9"><span class="num" data-page-node-id="NHfoWEWoSgUfFo6gK3hocX">00</span>结论速览</h2>
+    <div class="h2-sub" data-page-node-id="whP5A1kBRI9PlibB7aAE9D">先说最重要的四条</div>
+    <p data-page-node-id="G9Jl0f6HhH5JaJgmfHu8Qa"><b data-page-node-id="fnST6bWp5EBwVKewjNuYr9">1. 交叉复合问题真实存在，且集中在「挂载条件 + 清理条件」两个缺口上。</b>BOH AI 因 <code data-page-node-id="U51X8f8qVlplraFVsOPflZ">v-if="currentTab === 'messages'"</code> 在进入消息 tab 时被整体挂载（而非切到 AI 分区才挂载），又因 1 秒轮询仅在 onUnmounted 清理，形成「一次进入 = 全量加载 + 永久轮询」的复合放大。</p>
+    <p data-page-node-id="lvpOrBPFNLOnYaCToLEfWR"><b data-page-node-id="OiaG4EV3RDBDiuEzqXy43H">2. posts tab 是请求浪费最重的区域。</b>双重触发路径（switchTab 直调 + sync 路由 watcher 重复调用）+ 聚合 RPC 失败无负缓存，导致每次进入都重复请求并走重型兜底（含 500 条全量云盘条目查询）。</p>
+    <p data-page-node-id="drSTAx0pF1JhDdCq28zEPR"><b data-page-node-id="Htyx5ClFVcLvLMQ4ld9B4O">3. 好消息：缓存体系与列表渲染基础扎实。</b>回访社区零 DB 请求、request-core 去重、共享懒加载 observer、消息虚拟列表均已生效，本报告不动这些。</p>
+    <p data-page-node-id="3U6CGQfsYHraMLaw11uDdT"><b data-page-node-id="CJ1HgB7lGb4UGH0TyqNuIM">4. 预期收益：</b>P0 四项落地后，messages tab 首进网络量约 <b data-page-node-id="R4kEjY3p0lRkp8M2SHa55H">-70%</b>、堆内存增量约 <b data-page-node-id="ov4pdEcrWkCnJPWNsVE4kr">-12MB</b>，posts tab 进入期 DB 往返约 <b data-page-node-id="Mi1j2nYwAm9ig0T0hqFDIC">-50%</b>，印象面板渲染从全量 O(n) 降为分页 20 条。</p>
+    <div class="toc" data-page-node-id="hpFj1mZG6u6j8W0YGJC4pE">
+      <a href="#method" data-page-node-id="zoDfC4lvt63lQIBI8yqmSD">01 · 审查方法与测量环境</a>
+      <a href="#area-loads" data-page-node-id="pur1Ow4EiwVxKojGxXXxvU">02 · 各区域实测画像</a>
+      <a href="#issues" data-page-node-id="aH0BGLRIavV3nLxHMuPLzs">03 · 确认的交叉复合问题（12 项）</a>
+      <a href="#plan" data-page-node-id="x2YkdkUIn5ZC0Zd3YM4JqB">04 · 四维度优化方案（P0/P1/P2）</a>
+      <a href="#positive" data-page-node-id="P8kGowABUqMMbd8NjCtPjA">05 · 正面确认清单（勿动）</a>
+      <a href="#appendix" data-page-node-id="ryeuNH4mYlelAeqYIDCJyJ">06 · 附录：探针与复现</a>
+    </div>
+  </section>
+
+  <section class="glass" id="method" data-page-node-id="MUEn3hud9boNW9WB8q5XVB">
+    <h2 data-page-node-id="EqmQePyCNm1Uq8jnXN6mDJ"><span class="num" data-page-node-id="NmC32BHS7qmxP7fmuVBWBK">01</span>审查方法与测量环境</h2>
+    <div class="h2-sub" data-page-node-id="ZWWvKhkYGFz4SmXiCx5LmK">双重验证：每一条结论都有「静态代码证据」与「运行时实测」两栏</div>
+    <table data-page-node-id="hJOKyS3oVJDnTXBvW6ff7Q">
+      <tr data-page-node-id="G0AbdGnZdIPruAkvZxD6n9"><th style="width:180px" data-page-node-id="LhwIhehHAoCzDXLdIcnXgM">维度</th><th data-page-node-id="d8pHDX8Euk89yH2K5Dc3e7">方法</th></tr>
+      <tr data-page-node-id="oJslyfzDgtUOqHYrRvhlGy"><td data-page-node-id="mRKXVF5WVyoYmDfczMx47e"><b data-page-node-id="oPEMYOPmtixThtHExXEymL">静态审查</b></td><td data-page-node-id="gHyEfGwHkH4XikTTCAaq1A">通读 UserSpaceMain.vue（2812 行）与 7 个区域主组件（合计 16844 行）；追踪 async-loaders 懒加载链、API 查询形态、watcher/监听器/定时器全生命周期</td></tr>
+      <tr data-page-node-id="6TdAuo5NhDyMDhX87MNChh"><td data-page-node-id="MkIqwpzpvu6WrdGlg7DdPi"><b data-page-node-id="Vg6qt2IRVDYWgBxAuRPNrC">运行时探针</b></td><td data-page-node-id="MRO7wBWq7Q1QEsTPmEz0Ar">Playwright + Chrome，伪造登录后按真实用户路径遍历：社区冷加载 → 逐 tab 切换 → AI 分区往返 → 回访社区 → 65 秒驻留。采集每阶段网络请求（分类计数 + 明细）、JS 堆内存、LCP/FCP、long task、<code data-page-node-id="Y6IKkJUiReCDN50ea5lNkV">setInterval</code> 全量登记（含堆栈归因）、websocket</td></tr>
+      <tr data-page-node-id="V5Ehe7k8f479oVtjKIuEd9"><td data-page-node-id="kaXZJFPGLaTaL5q3DMiDZN"><b data-page-node-id="NcvB2wQTGbDUbxgMoUxETP">环境说明</b></td><td data-page-node-id="pw9Pj54P3xS360LjDHZpIB">dev server（Vite 未打包，模块级请求被显著放大：app shell 424 请求属 dev 现象）；伪造会话无法建立 realtime websocket、无法通过需真实 JWT 的 RPC——这两类行为以静态证据为准并在文中标注</td></tr>
+    </table>
+  </section>
+
+  <section class="glass" id="area-loads" data-page-node-id="zLz39LDhecGGjGYXZ9yZUJ">
+    <h2 data-page-node-id="JBnQXVccaDDnCJjGytGeZG"><span class="num" data-page-node-id="0AMRw1W6C5jx1R9kEYogZ1">02</span>各区域实测画像</h2>
+    <div class="h2-sub" data-page-node-id="YCPIhjYIbYWi6mSe9M0mMo">登录态下逐区域进入时的网络请求计数（dev；相对比例比绝对值更有意义）</div>
+    <div class="bar-chart" data-page-node-id="pu2nrGzpLaBJKGHdCNaDXD">
+      <div class="bar-row" data-page-node-id="kenUAHeHEQjBxK8nC1grMv"><div class="lbl" data-page-node-id="GvmQkr1HVEdWzIJbOZvUWE">社区 · 冷加载</div><div class="bar-track" data-page-node-id="ZF7MW5LwgXIy7qJwNWR4I0"><div class="bar-fill" style="width:29%" data-page-node-id="EMt0z7xQ3dXUNfNNMleACl"></div></div><div class="val" data-page-node-id="DsTaci2YmoH9b0gC8B2Z1o">27 请求</div></div>
+      <div class="bar-row" data-page-node-id="Wd9JlUy0O1cllCKcK2Thrh"><div class="lbl" data-page-node-id="Jk61phnA2uqhGlc6QmHc2f">我的 · posts</div><div class="bar-track" data-page-node-id="8G58M2ZcjPt7GE6yX1fs7b"><div class="bar-fill" style="width:24%" data-page-node-id="ndC3ac1zKPFbB5TESU8iMt"></div></div><div class="val" data-page-node-id="j4PhL4NCALNKfmGjoYp6qp">22 请求</div></div>
+      <div class="bar-row" data-page-node-id="d3GA8cNODD977AtDg2IBfN"><div class="lbl" data-page-node-id="TGDSGJy0qJe6HuBjokaKrR">资产 · assets</div><div class="bar-track" data-page-node-id="mhtnIbZQyaWlrA64jezz4o"><div class="bar-fill" style="width:26%" data-page-node-id="DpbbAWKZMHXOemQGaKnIR4"></div></div><div class="val" data-page-node-id="mLIejqai69ptK413B8c742">24 请求</div></div>
+      <div class="bar-row" data-page-node-id="X8xpF6JZKpyklanRCHZJuO"><div class="lbl" data-page-node-id="5fPhEwV0bbHRNp8NVHp1iv">消息 · messages</div><div class="bar-track" data-page-node-id="F8CBrtmlAuiuCfGNEDIrHe"><div class="bar-fill worst" style="width:100%" data-page-node-id="onMaMECIFyi4PFYWJ0wGde"></div></div><div class="val" data-page-node-id="OAaXKmUbhpL9ZVDXfPO76z">93 请求</div></div>
+      <div class="bar-row" data-page-node-id="H9OczyvUfrG77hnnFE89HF"><div class="lbl" data-page-node-id="yA92uJRko8cFfCxcwwwohy">设置 · settings</div><div class="bar-track" data-page-node-id="OUtknA7pjysUBg1BbMm5NT"><div class="bar-fill" style="width:11%" data-page-node-id="tuzHHcGrINECiGYoUvnrRl"></div></div><div class="val" data-page-node-id="Cz8XL6LTjxIxRsSeRUuL8O">10 请求</div></div>
+      <div class="bar-row" data-page-node-id="SFbiZ2npJQaDxTVE2amTYn"><div class="lbl" data-page-node-id="1H4g47GWQ4BD5fvnDoVagK">回访社区</div><div class="bar-track" data-page-node-id="dEOSS0WaHjGQn3jkBejbg9"><div class="bar-fill" style="width:3.2%" data-page-node-id="xbFJk5PNcrx9FKFbu8rEy5"></div></div><div class="val" data-page-node-id="FDoSrNUCc3oN9z32DkHXrX">3 请求</div></div>
+      <div class="bar-row" data-page-node-id="Vl29tBAICR1OWg1pFmqg9o"><div class="lbl" data-page-node-id="FzUGe4ZGLRT6pTQFjAwNy7">社区驻留 65s</div><div class="bar-track" data-page-node-id="vUljvH5mjjKw4frkZpRHVe"><div class="bar-fill" style="width:1.1%" data-page-node-id="djMuG1rSyT2As2iUfW4poq"></div></div><div class="val" data-page-node-id="6r8DXcrg96lx4ENJai2xmq">1 请求</div></div>
+    </div>
+    <table data-page-node-id="h12OQt4oFWDu1oeilhvWgy">
+      <tr data-page-node-id="As0LEgC2QW9FleWAuwAjYL"><th data-page-node-id="2kpPPP0cGRM6BDlxef8XMT">阶段</th><th data-page-node-id="IfjvdoL0PqCUVr08K0hw8z">堆内存</th><th data-page-node-id="5K8QaJKA1MQyT99c2u3A0L">解读</th></tr>
+      <tr data-page-node-id="VAPv1coWxRyEsUniL5XAZY"><td data-page-node-id="DInN3XnlHEOXnuxriQFPyq">社区冷加载</td><td data-page-node-id="Q0aWvuDTMj7dHt4XzcEXLW">28.7 MB</td><td data-page-node-id="IbM7YJSmNqNTE4vfccCyZV">基线。含 12 个表查询 + 5 个 RPC（详见 §03-C）</td></tr>
+      <tr data-page-node-id="Df5ZGIDgniQhywbGLPFLSJ"><td data-page-node-id="iGtGBGlNSIZLVw0uHdSiQI">assets</td><td data-page-node-id="Y8oeGKUQD0g5oVPK5wrZm2">30.8 MB</td><td data-page-node-id="UOz1diG28b7fi0W4UC0lqb">温和：6 表 + 1 RPC + 6 个懒加载模块</td></tr>
+      <tr data-page-node-id="4UFF8yaK7BkGKiEwNf8cBa"><td data-page-node-id="KwjfEQ0WvHpIwu9L4REozp"><b data-page-node-id="3J8FYOxkI0bx5JZaY2BM5h">messages</b></td><td data-page-node-id="XvxloIhOPgEEwLuF0YlCqK"><b data-page-node-id="4JtYo4VZz9gPNtz77MF4on">43.0 MB</b></td><td data-page-node-id="DZe3b7GYHLwlIPIEsQQ2EK"><b data-page-node-id="JWp24Tjj3BXAWJEG996MuV">单跳 +12.2 MB</b>：BOH AI 全依赖图随 tab 进入被整体求值</td></tr>
+      <tr data-page-node-id="AjzxWwsMIAeMHTkdfxwU3z"><td data-page-node-id="jU06cAcbFbN5DA0u8zNpVz">settings → 驻留</td><td data-page-node-id="skokmBdZiTAv4YMztCzw7W">43.5 → 42.8 MB</td><td data-page-node-id="1t9wMWd6HUPhvtebKGb6w9">平台化，此后不再回落（BOH AI 常驻所致）</td></tr>
+    </table>
+    <p class="footnote" data-page-node-id="NAozS4PMdqoIH7a9j9GaGd">LCP 1760ms / FCP —（dev 模式）；无 &gt;200ms long task；并发峰值 181 in-flight（dev 模块洪峰，出现在首 64ms）。生产构建的 chunk 合并会显著压缩请求数，但「messages tab 拉满 BOH AI 依赖图」的相对关系不变。</p>
+  </section>
+
+  <section class="glass" id="issues" data-page-node-id="bEBgTxYHwGAtgVHL2rWrcv">
+    <h2 data-page-node-id="RwjaElh8fXJ7YA0fHAhJVz"><span class="num" data-page-node-id="vt471tqjNOMeSKKBGT6wzd">03</span>确认的交叉复合问题</h2>
+    <div class="h2-sub" data-page-node-id="ZwhCm6KbFqfMvUmPadvTuX">每项均给出静态证据（文件:行号）与运行时证据；<span class="tag rt" data-page-node-id="NKyyMiDEeTotuCcofABsQY">RT</span> = 探针实测确认，<span class="tag st" data-page-node-id="Q6ViHCvZtO3q9X7low8xS7">ST</span> = 静态确认</div>
+
+    <h3 data-page-node-id="tpMe0jjDMC9HbzBD98tkQ0">A · 加载速度 / 资源加载</h3>
+
+    <div class="issue" data-page-node-id="nAFdPzbJDlfM9TU3zMdiXS">
+      <div class="issue-head" data-page-node-id="198KDbsUQzMfOCuAAaNaG2"><span class="id" data-page-node-id="M0VLLfrTbvopZCmptHQCOh">P-01</span><span class="title" data-page-node-id="Bk56ZLHvHertdBjRv7odkR">进入消息 tab 即整体挂载 BOH AI，拉满整个依赖图</span><span class="tag severe" data-page-node-id="dFW5VNh7xZnTLLkCfql5th">严重</span><span class="tag rt" data-page-node-id="bAKF8VRgPQqb9kpC1KhkbN">RT</span><span class="tag st" data-page-node-id="nCTGJeYX2lWSi79WuYzhDm">ST</span></div>
+      <p data-page-node-id="xTK3MafnRBc6NNdlTdPtRw">UserSpaceMain 中 <code data-page-node-id="exBf2HtNVjKjJdr1cS3MJI">AsyncBOHAI v-if="currentTab === 'messages' || leavingTab === 'messages'"</code> ——挂载条件是 <b data-page-node-id="FaGL6ZdoUeKfCkpaSMx7q6">tab</b> 而非 <b data-page-node-id="AWZ0z8WWUravH7WhBBBQ6N">分区</b>。用户只想看消息列表（inbox），AI 的全部依赖却已加载求值。</p>
+      <div class="evidence" data-page-node-id="dUThSBJ5CA7BLzGcHdWfZm">
+        <div class="evi runtime" data-page-node-id="er0eS4SCkNU0nl3QycDFRZ"><div class="evi-k" data-page-node-id="BPUecuQPp6NzFV6SFH6yQC">运行时证据</div><ul data-page-node-id="Fyq7fBVTBVksKuXmrkpzAQ">
+          <li data-page-node-id="f4H05I3H6HXUMuTMzT3ZW2">messages tab 单次进入：<b data-page-node-id="Hly7QBlHnwzz73LXUrMHwR">93 个请求，其中 69 个 JS 模块</b>（marked、highlight.js core+8 语言、useChatEngine、bohai-auto-router、bohai-connectors、treehole-api…）</li>
+          <li data-page-node-id="3qOojE7tlpo0S9ISaTvea9">堆内存单跳 <b data-page-node-id="C9rOMReQ1XXItQ1uSnTend">+12.2 MB</b>（30.8 → 43.0），后续阶段不再回落</li>
+          <li data-page-node-id="asiNB3iRlIpo27GkF3iJLA">切到 AI 分区（ai-section 阶段）反而 <b data-page-node-id="99kUGAsyELCLHhs9gPJgWK">0 新请求</b>——该拉的早就拉完了</li>
+        </ul></div>
+        <div class="evi static" data-page-node-id="pmoDxOK6ifPxTQtZWrPcRF"><div class="evi-k" data-page-node-id="3JvUrThjDXOMZmGEAtmxZY">静态证据</div><ul data-page-node-id="E6byR6WUOPj3QG8GHDARk3">
+          <li data-page-node-id="wI9Yv33Cd5Te2e59XeuZ7i">UserSpaceMain.vue:129 — <code data-page-node-id="dADt7QnM9CC9I5yqEFxXGG">AsyncBOHAI v-if="currentTab === 'messages'…"</code></li>
+          <li data-page-node-id="A1fkcE0rE4TuIVA7xP3kOb">BOHAIMain.vue:514-530 — <code data-page-node-id="1Sow695t8yQJRhrAULcojv">marked</code> / <code data-page-node-id="STHBRVldW9WPU63cgKCvwj">DOMPurify</code> / <code data-page-node-id="EdFYVWJb1aUiYuS4zWMfcF">highlight.js/core + 8 语言 + github.css</code> 顶层静态 import</li>
+        </ul></div>
+      </div>
+      <div class="fix" data-page-node-id="8R3HDaGaAFVZmhqHCdvm1D"><b data-page-node-id="OPPebOWk4t8TA1cARJn2fb">修复：</b>① 挂载条件改为 <code data-page-node-id="BUuPrU6L14ZKjYN7vs98yf">messagesSection === 'ai'</code>（v-show 外壳保留，异步组件延迟到分区激活）；② <code data-page-node-id="YBW3llou4QoveLWGhB2743">marked</code>/<code data-page-node-id="KqAuEPIyN52zkmFvYccoHi">hljs</code> 改动态 import——首条 AI 消息渲染前再载入，或拆到「消息含 markdown 时」按需加载。两项合计可将 messages tab 首进网络量砍约 70%、堆增量砍约 12MB。</div>
+    </div>
+
+    <div class="issue" data-page-node-id="JrYHYeqN3fnZwnoKfvcTS3">
+      <div class="issue-head" data-page-node-id="HsuqmP8l1M1bFPjec37SXk"><span class="id" data-page-node-id="gAsD0Snw82KxEQgINdOZWB">P-02</span><span class="title" data-page-node-id="LVWMoLJ4q2VB7x83FWIdTC">embedded 论坛仍发独立页才需要的请求</span><span class="tag medium" data-page-node-id="xbaOCxyS6d8KItjCqSYDlp">中</span><span class="tag rt" data-page-node-id="0SIjElANDH0mqdYMYM4VDC">RT</span><span class="tag st" data-page-node-id="LxRuFtQc1fS20ZY5Mu3nrJ">ST</span></div>
+      <p data-page-node-id="8mpVyJ9Ir2UCZDDPqYpNn2">ForumMain 以 embedded 模式嵌入社区 tab，但 onMounted 仍执行整页逻辑：周报、签到状态、广告、NSFW 模型预载。</p>
+      <div class="evidence" data-page-node-id="ACXetYpe0kja0TzBdihixn">
+        <div class="evi runtime" data-page-node-id="hwzG86dD5UDpSUNG8haRaQ"><div class="evi-k" data-page-node-id="RniQkWMr2ZLC295NfZ7ILO">运行时证据</div><ul data-page-node-id="bzTpzFQrlLuKe2AByT9hDl">
+          <li data-page-node-id="7TRGL9biAsijfafAemp35z">社区冷加载期实测发出 <code data-page-node-id="SczW1zkd8UbmBBvA5nxrmx">get_weekly_checkin_status</code>（签到）与周报请求</li>
+          <li data-page-node-id="JBtCOEYhtT6WiseFFlL4lj">这些数据在嵌入式视图中无对应 UI 承载</li>
+        </ul></div>
+        <div class="evi static" data-page-node-id="XFoHGeNHW941Lk5I1Jl8qy"><div class="evi-k" data-page-node-id="VJbpyo5sFBe2rUSAKEQ8SC">静态证据</div><ul data-page-node-id="kxk0RW9Q3kvYpvjYce7L1s">
+          <li data-page-node-id="PBQoRfTKNy7Cg23xPsIjx5">ForumMain.vue:2182-2222 — onMounted 无条件调用 <code data-page-node-id="RFLzXgVwu0Dw8c3yeed8ed">loadForumWeeklyReport</code> / <code data-page-node-id="JKP8BQxRl1AVuluAlwe6he">loadActiveAds</code> / <code data-page-node-id="d7HbyrPEVETCWqgdPvnzWu">loadWeeklyCheckinStatus</code> / <code data-page-node-id="83uZ2rOkj8HWWCMxNeBlbT">scheduleForumImageModerationPreload</code>（NSFW 模型体积大）</li>
+        </ul></div>
+      </div>
+      <div class="fix" data-page-node-id="u1hJQ4xBxRUoIyE2DJJbUs"><b data-page-node-id="40wrCjT3LNneaNAl6hUQ1C">修复：</b>embedded 时跳过周报/广告/签到，NSFW 预载仅在「发帖器打开」时触发。社区冷加载可减 3~4 个请求 + 一段模型下载。</div>
+    </div>
+
+    <div class="issue" data-page-node-id="4HjITO5q79wJjp1Lo2OqfO">
+      <div class="issue-head" data-page-node-id="h1YAzlM6PFSe67qVNSlrzA"><span class="id" data-page-node-id="1FZGDziG969v6CXMrWYxrg">P-03</span><span class="title" data-page-node-id="LbBrVsxioOv1GLRheT1zzF">每次 feed 拉取附带 3 个类型探测查询（hydrate 三连查）</span><span class="tag medium" data-page-node-id="0jmdqlLn5CHzQ6DAIeJARw">中</span><span class="tag rt" data-page-node-id="1ySlTt2U8MqK7lxaRqA6AD">RT</span><span class="tag st" data-page-node-id="QFMXozx8jNRju9cyQeazfb">ST</span></div>
+      <div class="evidence" data-page-node-id="2Re0sRhrWdcf1Sz6QaVaY4">
+        <div class="evi runtime" data-page-node-id="Hj6ANG7WtAKleekEqPbFg5"><div class="evi-k" data-page-node-id="8PBYsgTCT5y7Db3kYk9cA6">运行时证据</div><ul data-page-node-id="dQ87FNtdHOX0HRXZy4icFa">
+          <li data-page-node-id="TbEtHk7FnFMNVwsNoaQ0Dl">社区冷加载：table <code data-page-node-id="LIgfgw9qMD5YSA9hsGN563">posts ×2、news ×1、activities ×1</code>，与 feed 拉取 1:1 伴随出现</li>
+        </ul></div>
+        <div class="evi static" data-page-node-id="cFeBFreJnBtPcbiugvEqCb"><div class="evi-k" data-page-node-id="mkSxmlv8aLQnMTDMHkPYNG">静态证据</div><ul data-page-node-id="tFdKf8VmMsGra6NerTepyd">
+          <li data-page-node-id="BNoUPAQIvOAD5JgKUqjlFQ">forum-api.js:520-547 — <code data-page-node-id="75UHZhh9gHY6fCEeDuyStx">hydrateOfficialPostKinds</code> 对每批帖子追加 posts/news/activities 三个 <code data-page-node-id="48xBDydvm8IAqVKBjkJcZX">select=id</code> 查询</li>
+          <li data-page-node-id="JhisrXozvi4aIjqTkNuOly">ForumMain.vue:3064 — 每次列表响应后调用</li>
+        </ul></div>
+      </div>
+      <div class="fix" data-page-node-id="AYkeVg2u7IRYGZ9PYdggNr"><b data-page-node-id="8QSVVRwhRC27lhWzDkkW0X">修复：</b>把类型判断下推进主查询（<code data-page-node-id="5DUTPjCNQOQcEB7RaVeEVR">list_forum_posts</code> RPC 直接返回 post_kind 列，与 posts 表 post_kind 字段对齐——记忆中该字段已存在），或对 hydrate 结果做 60s TTL 缓存（官方卡类型变化极慢）。</div>
+    </div>
+
+    <h3 data-page-node-id="1vNNRkB7CkGyGAEEdbc8cJ">B · 渲染效率</h3>
+
+    <div class="issue" data-page-node-id="8zG0XDjVbKx5nfBdEmodIO">
+      <div class="issue-head" data-page-node-id="tg35ZS0w06KDG8c23RkS0h"><span class="id" data-page-node-id="skgxSJZpLaOEJmjiOw2gdi">P-04</span><span class="title" data-page-node-id="ZzGFev4bNjoqH1zOsqUgA7">我的印象：无上限全量查询 + 全量渲染</span><span class="tag severe" data-page-node-id="0tFAukWnOvWMiHF2AnpLIS">严重</span><span class="tag st" data-page-node-id="9IomIJhPdqJmSv3eN6MM7K">ST</span></div>
+      <div class="evidence" data-page-node-id="Q7ssdKYnn96gY6rpBAvIZe">
+        <div class="evi runtime" data-page-node-id="i170tz5ZlLnsP2TAlAptI9"><div class="evi-k" data-page-node-id="ddZRK8Z0weLSU1b9XUuMGA">运行时证据</div><ul data-page-node-id="ntnCCl9Sam2kOkmDdAkh66">
+          <li data-page-node-id="T9pcnsGhp8bAYnZrbBEUfP">印象分区未在本次遍历中激活（无 URL 参数直达），以静态证据为准</li>
+        </ul></div>
+        <div class="evi static" data-page-node-id="jhdrxYJHDzoBLXnJ1G3PrW"><div class="evi-k" data-page-node-id="U37e3aiCYpoCSxc872JFMU">静态证据</div><ul data-page-node-id="QkSvYdQRt2q2hFfmF0y5Dv">
+          <li data-page-node-id="ZbL2A8wxwf9MiplgRDCeHQ">profile-api.js:26 — <code data-page-node-id="kHu0nKiuiMxxePYGiVtHBn">normalizePageArgs</code> 未收到分页参数时 <code data-page-node-id="RdL8gxMYnYgtCvWuUjqkri">enabled:false</code> → 不加 <code data-page-node-id="kDYAb0JQo6tDySnGkf1vtd">.range()</code>，一次返回该用户全部 user_impressions</li>
+          <li data-page-node-id="2n0Ovze9jndvPO3s1Ld5AV">UserSpaceMain.vue:900 — <code data-page-node-id="X7xD31px19pGjDtcj7mEqt">getUserImpressions(userId, { signal })</code> 调用确实未传分页</li>
+          <li data-page-node-id="MoJ3ko4tUEMotZXtY8QBHB">ProfileImpressionsPanel — <code data-page-node-id="47zpHIR5RR3ddxAhMl7UKi">v-for</code> 全量渲染，无虚拟化</li>
+        </ul></div>
+      </div>
+      <div class="fix" data-page-node-id="td2ClNcEm4xV6nOhlZK0dS"><b data-page-node-id="6tdzgKi7iz2YCXCYVzR2Yy">修复：</b>调用处传 <code data-page-node-id="0K20jHz8agSOThbAfHtKNH">{ page: 1, pageSize: 20 }</code> 即可启用既有分页管线（API 层已支持），配合「加载更多」。一行改动把 O(n) 降到常数。</div>
+    </div>
+
+    <div class="issue" data-page-node-id="QiKYRPcbIdbEBHBNSTcNBv">
+      <div class="issue-head" data-page-node-id="A7XargmfmvR7xC4nCP2wA0"><span class="id" data-page-node-id="M3cBAWrzNOFKLPTJCESouP">P-05</span><span class="title" data-page-node-id="bVAlT7fptzBUO6A1s9oyvQ">成员列表：100 条大池 + 30 秒强刷轮询</span><span class="tag medium" data-page-node-id="A9lBvQjiAmBd55QgsLzeGc">中</span><span class="tag st" data-page-node-id="mbHA663efz958EDoaA2oBR">ST</span></div>
+      <div class="evidence" data-page-node-id="qr10NmMcs2HuoEgHCFTnvn">
+        <div class="evi runtime" data-page-node-id="SB5F9BqWsO3mkm0yVp4nTW"><div class="evi-k" data-page-node-id="SJszqFSfrdz7myhrhL0M43">运行时证据</div><ul data-page-node-id="43RYFBvVsD7Tg2bH27iba8">
+          <li data-page-node-id="BWjsIvzQEVLV3XsE59OTLS">本次遍历未激活 members 分区，CommunityTab 未挂载；65 秒驻留期全局仅 1 次 DB 请求，说明轮询是组件级的（属实的坏事：只污染成员分区）</li>
+        </ul></div>
+        <div class="evi static" data-page-node-id="Fx304Zyp2a3De01dAPkIew"><div class="evi-k" data-page-node-id="H2DY3p3KUmzW2TGAWg96Qi">静态证据</div><ul data-page-node-id="WYUBSnjA13wZCxhFfAsSeS">
+          <li data-page-node-id="7a2dZLII1LRqJzZZ0vb16E">CommunityTab.vue:362 — <code data-page-node-id="EncuEk4gKOmbNzJEu50kUi">setInterval(…, 30_000)</code> 强制 <code data-page-node-id="DdyvxF6KeDHTkaPBgo3FkF">fetchCommunityUsers({force:true})</code>，文档可见即运行</li>
+          <li data-page-node-id="zZ1M4fimRDSvEl5ZIfNle7">CommunityTab.vue:526 — following/new 池 <code data-page-node-id="ocFnf2SYnTahC7IRAl0wqY">requestPageSize = 100</code>，客户端全量 <code data-page-node-id="6iaW2nM0hytgPkd9ixd2jI">v-for</code>，无虚拟滚动</li>
+        </ul></div>
+      </div>
+      <div class="fix" data-page-node-id="LmJIJYMxRNEoti5b361qzV"><b data-page-node-id="ho0yQC9DdnCYoRpUosnxcU">修复：</b>① 轮询改为 60~120s + <code data-page-node-id="2sWmvkkIo8IIWp0dE8I9il">document.hidden</code> 时暂停 + 随机抖动；② 100 条池改 20 条/页 + IntersectionObserver 增量；③ force 刷新仅于分区重新可见时触发一次。</div>
+    </div>
+
+    <h3 data-page-node-id="7uMakvjcr45xHTEzSC35LH">C · 资源调度 / 请求并发</h3>
+
+    <div class="issue" data-page-node-id="Dvq0yUx855yMJoEDhi6zdI">
+      <div class="issue-head" data-page-node-id="5KnYcAejEPOJtWnlbs2n9G"><span class="id" data-page-node-id="khScDnAZ7HKlnFmQp3xbU3">P-06</span><span class="title" data-page-node-id="NocQyr43moY8hjsuIXHZz7">posts tab 双重触发：sync 路由 watcher 与 switchTab 各跑一遍关键拉取</span><span class="tag severe" data-page-node-id="005ZCvCgF18XnGssMHIbEj">严重</span><span class="tag rt" data-page-node-id="4lLQzWuAESG92Truu1EhUQ">RT</span><span class="tag st" data-page-node-id="sDbKong8VwnXpgOTK67oLt">ST</span></div>
+      <p data-page-node-id="Ao7cN2YEc4WCBK2AqfzuUV">这是「渲染层事件重复 + 网络层重复」的交叉复合问题：一次点击产生两套并发数据流，互相 abort、互相作废。</p>
+      <div class="evidence" data-page-node-id="W7foA0OHAbNjo7YtOzWzMc">
+        <div class="evi runtime" data-page-node-id="9j5qtYliYVJRths6iEKETi"><div class="evi-k" data-page-node-id="P9eydQuyUJnSoPJ1F674PM">运行时证据</div><ul data-page-node-id="pgQuRcpbCi559WXageUnnR">
+          <li data-page-node-id="FxzQGzCQrwPYmOXBDSOtJz">posts tab 进入期实测：<code data-page-node-id="q5YR5MRdFSFwKuWhI6beHo">get_my_user_space_summary ×2</code></li>
+          <li data-page-node-id="8jiRSD2COr0J6WRfWgsmYp"><b data-page-node-id="XJi8yKxILQyek9MqlCgPom">2 个 HEAD 计数查询被 abort</b>（<code data-page-node-id="qWsIrU00mHDUcK0IhWaXCc">posts</code> 计数 + <code data-page-node-id="tagms2Oef1eV32pYXxSQDO">profiles</code> 排名，net::ERR_ABORTED）——第二套数据流启动时把第一套的 in-flight 查询掐掉</li>
+        </ul></div>
+        <div class="evi static" data-page-node-id="od07QdADpV4nIEcthQZEu1"><div class="evi-k" data-page-node-id="KoimiPEV4BHS4sHLOgQpjF">静态证据</div><ul data-page-node-id="AvIK2aKHEIFcyt3Ci38xaL">
+          <li data-page-node-id="tMCWNt6x4M2yphZe7OgNgq">UserSpaceMain.vue:1913 — <code data-page-node-id="sWkNGE9HB0N6AJGPLvpfdb">switchTab('posts')</code> 直调 <code data-page-node-id="HdaQ0MEyr7YxA4BPK9rUrC">runProfileCriticalFetches()</code></li>
+          <li data-page-node-id="MykoYj7JENS6nOZPGakGTZ">UserSpaceMain.vue:2659-2692 — <code data-page-node-id="ySAXUM8flOPGdhDWEIqZL1">watch(route.query.tab, …, { flush: 'sync' })</code> 在 <code data-page-node-id="2t9ZdnuurbLGouMFXBGavS">syncUserSpaceTabRoute</code> 的 router.replace 时<b data-page-node-id="wuBLLfHlYFkqAQczCtEhAg">同步再次</b>调用 <code data-page-node-id="AaLVnMrccaVCDdwtp7nHL3">runProfileCriticalFetches()</code></li>
+          <li data-page-node-id="06YY1Pq7XkrR2sEW0n3pQF">fetchUserStats 无 in-flight 合并（仅 token 作废机制，后到者 abort 先到者）</li>
+        </ul></div>
+      </div>
+      <div class="fix" data-page-node-id="Gz7NykvxLZiEFwlRYDf12I"><b data-page-node-id="zeqiKQM5aLEsPZCVBD6aY1">修复（三选一或组合）：</b>① 去掉 <code data-page-node-id="c5e3W3L7sylD8TqkP76YOG">flush: 'sync'</code>（改默认 pre，一次导航只触发一次）；② <code data-page-node-id="3AWgiCdh3durveA9j4Tptz">runProfileCriticalFetches</code> 加 5s in-flight 合并窗口；③ watcher 内改为只做 <code data-page-node-id="9bc3B5kaRV8deU10YehCLB">preloadProfileStyles()</code>，数据拉取统一收口到 switchTab。</div>
+    </div>
+
+    <div class="issue" data-page-node-id="Q5Tis9kBvGDSCdaTL8Fz62">
+      <div class="issue-head" data-page-node-id="Loj23hgQGAHRfuSsDSlBZX"><span class="id" data-page-node-id="TxjzhTivTCRpmpvQ1hGUso">P-07</span><span class="title" data-page-node-id="uuFbhyZgtbmmESII9X7zIx">聚合 RPC 失败无负缓存 → 每次进 tab 重试并滑向 500 条全量兜底</span><span class="tag severe" data-page-node-id="RqxolxVZNTU0zNWd15bwmL">严重</span><span class="tag rt" data-page-node-id="wVZU9sqCE7eByDnTL6njFG">RT</span><span class="tag st" data-page-node-id="mF7sMjdz0ZxDTGjudCxeRs">ST</span></div>
+      <p data-page-node-id="3m0dNVm9jY68zEBu3mLpN3"><code data-page-node-id="NpU6Ff2jo31txY2VbWNCL0">get_my_user_space_summary</code> 失败（或旧库未部署）时没有负面结果缓存，每个 tab 的每次进入都会：再试一次 RPC → 失败 → 走重型 legacy 兜底。兜底链里最重的一环是云盘用量统计。</p>
+      <div class="evidence" data-page-node-id="GlaKvylqO6lDiFEpxfSapw">
+        <div class="evi runtime" data-page-node-id="MYpHOx9dGn62hx9kMKjZB0"><div class="evi-k" data-page-node-id="nM9ebMlhM2iFE1SWxRmM4E">运行时证据</div><ul data-page-node-id="AVdArpmyWrB3if8KyhvBtw">
+          <li data-page-node-id="aJBkUUHbweO7zvtc5m7MZ7">实测 <code data-page-node-id="lxyOAyCzxDS1cmlO7Rz0Ml">get_my_user_space_summary</code> 在 community / posts / assets / settings 四个阶段各出现（共 5 次），从未写入成功缓存</li>
+          <li data-page-node-id="5FGekr3AdZs7M2LlFcVNVZ">posts tab 实测兜底链发出：<code data-page-node-id="k9A9PFOlRLIEwlEVwEImJq">user_subscriptions</code> + <code data-page-node-id="CIDYArbBJw2FR4LiToq5zA">boh_cloud_entries</code>（500 条全量）</li>
+        </ul></div>
+        <div class="evi static" data-page-node-id="AffqbKYV5DAg6IE4qBTcSJ"><div class="evi-k" data-page-node-id="j1fL8rmcHAeshCV7dGNHbE">静态证据</div><ul data-page-node-id="CO9UWk44BqYWF2fuJEpx68">
+          <li data-page-node-id="mocAHkWCumAwf2JcZn2yxS">UserSpaceMain.vue:1158-1199 — <code data-page-node-id="qJKbVWxuHk0GMDh1XWDrf6">fetchAggregatedUserSpaceSummary</code> 失败仅 <code data-page-node-id="Q0Im8wbLgFnizqub0Qe3ro">logger.warn</code>，<code data-page-node-id="LOFJq1vQtjqUK6LbD7Y2Bo">summaryRpcUnavailable</code> 只在「RPC 不存在」时置位；一般性失败（权限/网络）不置位 → 下次照试</li>
+          <li data-page-node-id="e6H0yHq3Mt7h3U24Em1aN7">UserSpaceMain.vue:1391 — 兜底 <code data-page-node-id="87OUTGJsuOELZNtqLNMvDc">listMyCloudEntries({ userId, limit: 500 })</code>，boh-cloud-api.js 返回 <code data-page-node-id="9qQMI7iuDDzrhx1UU5qIA1">CLOUD_COLUMNS</code> 全列（含 contentBlocks JSONB）</li>
+          <li data-page-node-id="kuVZG5KxZKilWQwo6NXuvL">前端只为数图片块：<code data-page-node-id="bYanXAKatN8pHE122FqV0V">contentBlocks.filter(type==='image').length</code>（UserSpaceMain.vue:1402-1407）——为计数拉全量正文</li>
+        </ul></div>
+      </div>
+      <div class="fix" data-page-node-id="OvVC1g2N6PSfk76HmTM1cu"><b data-page-node-id="DOXUGEM9qGDYYhmuutRIpT">修复：</b>① 失败时把负面结果也缓存 60s（<code data-page-node-id="ofHHPvbSJEypy1PiInFRXb">summaryRpcUnavailable</code> 扩展为带时间戳的软标记）；② 云盘用量兜底改窄查询：新建 <code data-page-node-id="B3KRm3BDAgRNBdHSTxfRXe">count_cloud_image_blocks</code> RPC 或 <code data-page-node-id="9gN52Bk0FBDMIlZIuK0kxW">select('content_blocks')</code> 仅当无法避免时限制 <code data-page-node-id="Y1SADtMUkG7M8gpfvp6yU5">limit: 50</code> + 计数上不封顶提示；③ RPC 部署校验脚本纳入 CI（db push --dry-run 查占用已有先例）。</div>
+    </div>
+
+    <div class="issue" data-page-node-id="qJ8P9dChoCGSSoFB66AFRH">
+      <div class="issue-head" data-page-node-id="7ar3nbnvTyTjIhymb7pyUM"><span class="id" data-page-node-id="qNAedqJNrXr7ofJeK9U58c">P-08</span><span class="title" data-page-node-id="egd9SuCE2ub2PaBwkO47rm">社区冷加载小额重复请求</span><span class="tag low" data-page-node-id="H78ulisYirUrUvgsSdUHnq">低</span><span class="tag rt" data-page-node-id="quyiFsFUTGNvQiLJC6XEFp">RT</span></div>
+      <div class="evidence" data-page-node-id="kWUh0Dem836YeG2oVlHual">
+        <div class="evi runtime" data-page-node-id="acKHyIcS31eQfYM6B5Df3Q"><div class="evi-k" data-page-node-id="tejlAP3voUMgExrFhDHQRk">运行时证据</div><ul data-page-node-id="4NfgUs2tT84I0zBNB4Qk4o">
+          <li data-page-node-id="KMbxmDCLKm7FqLIRcta2W7"><code data-page-node-id="S6Wk3LjZSlHUlGkzJ5cnuH">forum_post_drafts ×2</code>（草稿查询两路独立发起）</li>
+          <li data-page-node-id="GG9ts5XDtBcWMHe9SE6lOK">同头像图 ×2（<code data-page-node-id="ullDxgE4ILbYouMevToedT">nci9byj…png</code>、<code data-page-node-id="xpFnbviDKVYcFyEFH2g9tV">etvmr2u…jpg</code> 各请求两次）</li>
+        </ul></div>
+        <div class="evi static" data-page-node-id="zXxQZ0JCngRsjEN5Tn0x80"><div class="evi-k" data-page-node-id="794FTPNPA37HBMdlg3q9Qn">静态证据</div><ul data-page-node-id="7CsHxlnw1U1AfqqKxDObIH">
+          <li data-page-node-id="R2V9xzAxHILDqOO1mzrdgd">草稿：ForumMain 与内容区草稿逻辑各查一次（需合并收口）</li>
+          <li data-page-node-id="PzYAp4J7NfYuNzDCIBU1WJ">图片：SW 已对 Cloudinary 做 StaleWhileRevalidate，但同页面并发首刷时两请求都可落到网络</li>
+        </ul></div>
+      </div>
+      <div class="fix" data-page-node-id="AqgysMuODJLGDxtEytJzQB"><b data-page-node-id="4gLfuMGRLtCwZWJhv0fElB">修复：</b>drafts 查询收口到单一 composable + request-core in-flight；头像去重交给 SW（已在缓存名单内，预热后自然收敛），优先级低。</div>
+    </div>
+
+    <h3 data-page-node-id="LInnIfp40eoYLHlvAIaoGk">D · 内存占用</h3>
+
+    <div class="issue" data-page-node-id="0EP201C3hRhHY7ZqZ2mc07">
+      <div class="issue-head" data-page-node-id="dcjX182v05XtM52dhxCT8K"><span class="id" data-page-node-id="SBBuDerE76r5cYz90CmQIH">P-09</span><span class="title" data-page-node-id="2bjWTHeOjeAoJwUAaDEBc5">BOH AI 每秒轮询常驻：挂载后永不暂停</span><span class="tag severe" data-page-node-id="sWYJCx1xgTo9nmCUs0J4tv">严重</span><span class="tag rt" data-page-node-id="Ao3M7oUs01PDB3eEN8BwJC">RT</span><span class="tag st" data-page-node-id="wvoobyDONleUXqrlAzzDPM">ST</span></div>
+      <p data-page-node-id="1K6DrCNeyK4wv8smGaqEEV">与 P-01 构成同一复合问题的两面：加载时整体挂载（P-01），挂载后 1 秒轮询只在组件卸载时清理——而组件几乎不会被卸载。</p>
+      <div class="evidence" data-page-node-id="JhmVdudqJKUkURtfg6rZq9">
+        <div class="evi runtime" data-page-node-id="k97iBkVDsMRHgATkAT7WIT"><div class="evi-k" data-page-node-id="8sAU0UKqBT5VcSnA8I715i">运行时证据</div><ul data-page-node-id="qk37JSED90LO2JP2fnXVhP">
+          <li data-page-node-id="399e0qvqOJOhWASkMhc72V">探针堆栈归因实锤：<code data-page-node-id="HE82NnkmeJcle5ziO0fVAt">delay: 1000 → BOHAIMain.vue:1591</code></li>
+          <li data-page-node-id="iZVmYlbanHcg5vX3LPLx4R">切回 inbox、切到设置、回访社区、65 秒驻留后——该定时器全程活跃（最终存活定时器清单里始终在列）</li>
+        </ul></div>
+        <div class="evi static" data-page-node-id="S3YLbMcOK9aC8gS80G5C0R"><div class="evi-k" data-page-node-id="TNAqzpqZCzmLffCrxzq8ge">静态证据</div><ul data-page-node-id="nulR730UFkOjHnvHM8hx0B">
+          <li data-page-node-id="23ckaJdlTmpJ5V11GIUTyG">BOHAIMain.vue:1591 — <code data-page-node-id="YTf44OaVNUyynF6dkjeKak">setInterval(checkVisibility, 1000)</code>，仅 onUnmounted 清理</li>
+          <li data-page-node-id="nOOGnyuGzrqNMw1fwFz4GE">GlobalAiGlassOverlay.vue — <code data-page-node-id="D0PFzcyApHkqnM21xHx1lG">mountedOnce</code> 首开后置 true 永不复位 → overlay 关闭也不卸载</li>
+          <li data-page-node-id="MrucOAXodIkfIDI61DtS0x">messages tab 内 BOHAI 为 <code data-page-node-id="NWhII7RvRqOHkJmuHKQWgL">v-show</code> 隐藏而非卸载</li>
+        </ul></div>
+      </div>
+      <div class="fix" data-page-node-id="7SF3S3aSzArRnxd0uerLMS"><b data-page-node-id="mDfOjDk6od5AeUTWkVkTWj">修复：</b>① checkVisibility 改事件驱动：<code data-page-node-id="lrBN5F73QOIeDRsaeUKCKX">document.visibilitychange</code> + <code data-page-node-id="KKfkThWuG4ytkcGGfjziRg">IntersectionObserver</code>（宿主可见性变化本来就有事件）；② 至少在 <code data-page-node-id="nDA53OcPC2MtrJPzOcBuKf">messagesSection !== 'ai' && !overlayOpen</code> 时 clearInterval，回到 AI 时重建。</div>
+    </div>
+
+    <div class="issue" data-page-node-id="jJlSd80pXJiae0VhIa4Et0">
+      <div class="issue-head" data-page-node-id="YoLoDGhF7fdYuI50ecj4BO"><span class="id" data-page-node-id="UhP2DWbXCM5I5vGXVtVgaC">P-10</span><span class="title" data-page-node-id="GLANHq8kPMsfJElOOgjlid">堆内存平台化：+14.8MB 后全程不回落</span><span class="tag medium" data-page-node-id="tyn7wmOK4AES1ljwQAV0Hd">中</span><span class="tag rt" data-page-node-id="64JNRz78FVPPyH70BDPfpq">RT</span></div>
+      <div class="evidence" data-page-node-id="ysNQIaGPfL1G6x9B8BMDE8">
+        <div class="evi runtime" data-page-node-id="6AgU45H1nQUN4MgpxJ5N72"><div class="evi-k" data-page-node-id="OzUCNyLYRbHLindNrPC8L3">运行时证据</div><ul data-page-node-id="7YPLTiLLLEW9Jn2KmP5CnW">
+          <li data-page-node-id="YCYkoppVAgIABIJZYJRzAo">28.7 → 30.4 → 30.8 → <b data-page-node-id="5CCdA0reuXJ1uiCE8HVOO1">43.0</b> → 43.5 → 42.8 → 42.8 MB：messages 一跳 +12.2MB，此后平台化。不是泄漏型增长（无持续攀升），是「加载即持有」型</li>
+        </ul></div>
+        <div class="evi static" data-page-node-id="RSVnG9PoZLUmChyGxRDtJG"><div class="evi-k" data-page-node-id="c7RGyR2JozIDkK7vL4iciT">静态证据</div><ul data-page-node-id="ipqSFtEUDSaeHYLiZIWR5K">
+          <li data-page-node-id="0g8RQxrliKqziUhNf4q20G">主因即 P-01/P-09：依赖图求值 + 常驻组件 + 常驻定时器闭包</li>
+          <li data-page-node-id="bBtmfuDdA2gZiJhJ4uR4FP">Messages realtime 重连 <code data-page-node-id="4EOt5UnXrZflC4ZHed9QBT">setTimeout</code> 未入可取消集合（Messages/index.vue:1171-1175）——重连窗口期卸载可致孤儿 channel，属低概率长尾</li>
+        </ul></div>
+      </div>
+      <div class="fix" data-page-node-id="GfYhXeUMADhOFvE4KO9tcs"><b data-page-node-id="SZcYi7HC1db0mIJGuL7buW">修复：</b>P-01/P-09 落地后预期堆平台回到 ~31MB。重连定时器并入 <code data-page-node-id="mMtOGE0DVH0niBRxAH3KRY">realtimeTimers</code> 集合，onUnmounted 统一 clear。</div>
+    </div>
+
+    <h3 data-page-node-id="DJOnsgAbLmrIdgnra2kMHr">E · 事件与监听</h3>
+
+    <div class="issue" data-page-node-id="ttWMELE0gfH2CEat3Nd5DG">
+      <div class="issue-head" data-page-node-id="pzTikkX5AKEbaNcaQiTow1"><span class="id" data-page-node-id="A1nmirANoo9XaEj1CNckfF">P-11</span><span class="title" data-page-node-id="sdqLBZYEaHcR5MfbgmGuEJ">embedded ForumMain 的 window 级监听在 keep-alive 切走后仍活跃</span><span class="tag low" data-page-node-id="clKF6FchhLTUm07e6BfQCj">低</span><span class="tag st" data-page-node-id="A7HTvOkzmpwIRoVMmjQgo7">ST</span></div>
+      <div class="evidence" data-page-node-id="8EE1boMVyWNHy7Dell5LQ4">
+        <div class="evi runtime" data-page-node-id="gOdqEbZjWJlFTtZ04Tsrog"><div class="evi-k" data-page-node-id="P04L8YOP0yyDBqjBOctxV4">运行时证据</div><ul data-page-node-id="2gz0FNMx7ZoqCZvHmxATGM">
+          <li data-page-node-id="lF5CAeJiEzq7R4JhJRGzog">65s 驻留期未见由此产生的事件风暴（影响为低频空转）</li>
+        </ul></div>
+        <div class="evi static" data-page-node-id="GYmNi2wIqoda4mdE7DHyA2"><div class="evi-k" data-page-node-id="BdWxyQXwB1jizofDsmOCGq">静态证据</div><ul data-page-node-id="CgLzIVgTGlaZex5mI13Mr5">
+          <li data-page-node-id="AqDEoy5uCIi7yPNlTHK5Id">ForumMain.vue:2204-2261 — resize/orientationchange/click/beforeunload/online 等 window 监听仅 onUnmounted 移除；onDeactivated（keep-alive 切走）只断开 observer</li>
+        </ul></div>
+      </div>
+      <div class="fix" data-page-node-id="KTkyWEwqSe8Eei6ZzQdKri"><b data-page-node-id="GJgeahHFpsFGri0sxmYPUd">修复：</b>把 window 监听的挂载/移除搬进 onActivated/onDeactivated 对。</div>
+    </div>
+
+    <div class="issue" data-page-node-id="0G6key2y3EojGl82mDHU6Y">
+      <div class="issue-head" data-page-node-id="v5GoPqbH5SG9Jj57QQg6zf"><span class="id" data-page-node-id="IdVjHJk85Z0tsazeoZbDtn">P-12</span><span class="title" data-page-node-id="HnhAcH6yoBECsl1eVhX1Ae">favicon 每 tab 切换重复请求 ×3</span><span class="tag low" data-page-node-id="s50u1CjH2qUBa7G43X24fX">低</span><span class="tag rt" data-page-node-id="BL0zg5Dsl9UycO9wo8iZ0m">RT</span></div>
+      <div class="evidence" data-page-node-id="nbokzErvbYC9kdt3pBFyoh">
+        <div class="evi runtime" data-page-node-id="6KMIiyAVf1gduLBERvRm4F"><div class="evi-k" data-page-node-id="JlJ91phtT0qY0qIUD6edwj">运行时证据</div><ul data-page-node-id="sX9v7HZb4XqaXLuNDgEsu3">
+          <li data-page-node-id="isM8Y3OsihFPxeQoCFJLs2">posts / assets / settings 三个阶段各见 <code data-page-node-id="Rm2YfOZJ8izwS6KBTSrtwg">favicon.png ×3</code></li>
+        </ul></div>
+        <div class="evi static" data-page-node-id="HCzK0NPrXDXEWEpp4j1yHR"><div class="evi-k" data-page-node-id="0JswK0Ab1ATCdd0ehudddT">静态证据</div><ul data-page-node-id="rLlKhlNrXGYCuYUQLwB9PB">
+          <li data-page-node-id="cmcn0nOOxvEZJyWZ4ME9Eq">疑为动态标题/角标逻辑反复改 <code data-page-node-id="RcVDvF8WOnv1ZSlUTdZdlr">&lt;link rel="icon"&gt;</code> 触发重新拉取（未读数角标场景）</li>
+        </ul></div>
+      </div>
+      <div class="fix" data-page-node-id="JyoDQbuihZkg6FjHhd4ROi"><b data-page-node-id="lOCtIx3obF7Le7Xb2Ljwf5">修复：</b>定位后复用同一 dataURL/blob 更新，或仅在角标数值实际变化时更新。</div>
+    </div>
+  </section>
+
+  <section class="glass" id="plan" data-page-node-id="XKBF3grJa53UdFX4P2XYK7">
+    <h2 data-page-node-id="PD5jevp6f84JxzI5TReoIa"><span class="num" data-page-node-id="4oi7xLD67XoFRydn1uETMV">04</span>四维度优化方案</h2>
+    <div class="h2-sub" data-page-node-id="tAjnEPBs82NTo5XHf4xGzq">按「改动成本 × 收益」排序；P0 均为小改动、无视觉变化</div>
+
+    <h3 data-page-node-id="o1NB8ZjqMloDsUO5V2w4sd">P0 · 本周可落（4 项，预计合计收益最大）</h3>
+    <table data-page-node-id="yiAXOydhAcHhKra1hOcnBX">
+      <tr data-page-node-id="BNQSmamUB0MRi1hk4Ynztm"><th style="width:60px" data-page-node-id="z4jaAGp5lBTKb1YCjHvkYB">编号</th><th style="width:210px" data-page-node-id="iJIcuMN2ehmJ4tI4cPZUeH">改动</th><th data-page-node-id="v0IDJA9VSbY7j4I4KmSbxP">落地点</th><th style="width:250px" data-page-node-id="aMuDdTox8fzJ5ZfEVQak2e">预期收益</th></tr>
+      <tr data-page-node-id="FlG85cfKcNgFW4qys5WmCu">
+        <td data-page-node-id="Hatk14lLNFCO8VLAftMZQH"><span class="tag severe" data-page-node-id="Sf6n2xGBq0CaLJHv5cQtgP">P0-1</span></td>
+        <td data-page-node-id="BZyVENFUIhX8TJN7hRCBEb"><b data-page-node-id="rG93suRnCiY0a1AtyCCybg">BOH AI 挂载条件 tab → 分区</b></td>
+        <td data-page-node-id="xcoQJ8IIgrOG8BsRvWIXzm">UserSpaceMain.vue:129：<code data-page-node-id="8fwgaWeLQofmvIz0dHBYgE">v-if="currentTab === 'messages'…"</code> 改 <code data-page-node-id="1C1twm4ZI22N8lHLiG6j2T">v-if="messagesSection === 'ai' || (leavingTab === 'messages' &amp;&amp; messagesSection === 'ai')"</code>；保留 AI 分区切换时 <code data-page-node-id="NUcIxvKnCJkUw31rWiyD54">preloadBOHAIComponent()</code>（已有，UserSpaceMain.vue:599）实现预载不渲染</td>
+        <td data-page-node-id="CL4NF8d8teHMSF78hxpWVG">messages tab 首进网络 <b data-page-node-id="H6vljyAAFDitPoQRILsZGN">-70%</b>；堆 <b data-page-node-id="GXMTq1sR7rTKpXjlg9q30E">-12MB</b>；inbox 首屏 TTI 明显提前</td>
+      </tr>
+      <tr data-page-node-id="ZhHibGI3bRxNFpn1KCcdDQ">
+        <td data-page-node-id="ViB7GKScivP3SOCxE3Boij"><span class="tag severe" data-page-node-id="GHdzv1CcEIyJrKhzdxC5LK">P0-2</span></td>
+        <td data-page-node-id="jAYlQUDGO1TUiCShQU6yBy"><b data-page-node-id="hPtTHE68ccvbGV5Buk3I6k">BOH AI 1s 轮询改事件驱动</b></td>
+        <td data-page-node-id="zY4Ib7lEyR7BS8tj9wUNrs">BOHAIMain.vue:1591：换 <code data-page-node-id="1DFn2SRuXsfM5rl4oBOaGm">visibilitychange</code> + <code data-page-node-id="9E52C4pVgKZRiOAEUZklh3">IntersectionObserver</code>；或最小改动版——<code data-page-node-id="RJtop2koYBSBa1hyAfG3f4">messagesSection</code> 离开 AI + overlay 关闭时 clearInterval</td>
+        <td data-page-node-id="bCNJdBoeFtagtnip2CCtKv">消除每秒空转（CPU 唤醒 + 电量）；内存闭包可释放</td>
+      </tr>
+      <tr data-page-node-id="nDMeKasIRDYeFXPxPXZuTp">
+        <td data-page-node-id="EJSmEtUzp15WDEc39SRmEY"><span class="tag severe" data-page-node-id="p1kIr7QQTc7gIcBRkm3LAc">P0-3</span></td>
+        <td data-page-node-id="ecgwPE2fLw4ieDj195rnOm"><b data-page-node-id="mSSIgwxmGXPkTdRTbT6UXH">posts 关键拉取去重</b></td>
+        <td data-page-node-id="hnR7ZmZVpe5y4jF3KGA6hw">方案 A：删 route watcher 的 <code data-page-node-id="qeG690SjaMY6OIRnt7DAE9">flush:'sync'</code>（UserSpaceMain.vue:2692），数据拉取只留 switchTab 一条路；方案 B：<code data-page-node-id="Pp3BKguapwDKBGQHLBMlu2">runProfileCriticalFetches</code> 首行加 5s in-flight 窗口判断</td>
+        <td data-page-node-id="LYEKbUhONPPQMLFHAX0qVk">posts 进入期 DB 往返 <b data-page-node-id="4b8b2ZEAJXiZl837FuvxPh">-50%</b>；消灭 2 个 abort 白往返</td>
+      </tr>
+      <tr data-page-node-id="tNqFYXyxGJ7ORdNyVLSjPg">
+        <td data-page-node-id="o0uQUh6Qs4Z7uZ3ZLRIB7B"><span class="tag severe" data-page-node-id="jwLUYgB7hBJReIffwjCAyn">P0-4</span></td>
+        <td data-page-node-id="FaqE8DQt5FxEMo8kPEM17g"><b data-page-node-id="e4GlHyho5VMdtGL4oG9QKB">印象分页</b></td>
+        <td data-page-node-id="T4dHwRB1lTGlQk2Y0UWEgu">UserSpaceMain.vue:900：<code data-page-node-id="soqP3SbKczbmmWY2uScXBE">getUserImpressions(userId, { signal, page: 1, pageSize: 20 })</code> + 面板「加载更多」（API 层已支持，仅调用处未传）</td>
+        <td data-page-node-id="ueGBlc1IbvPS1e2BjllGS4">大数据量下渲染 O(n) → 20 条；内存峰值受控</td>
+      </tr>
+    </table>
+
+    <h3 data-page-node-id="g87fZLjeW21ZRyhOhC54Cc">P1 · 结构性优化（3 项）</h3>
+    <table data-page-node-id="A5x3iwKmTUyUD4MbJwTNAk">
+      <tr data-page-node-id="mKoBcCsvdwjBnD6E05euNY"><th style="width:60px" data-page-node-id="zwIRfnNvMdVm4ZLe2dXVFj">编号</th><th style="width:210px" data-page-node-id="IUVUH5qplcdZK43a6G5FWw">改动</th><th data-page-node-id="FsKrJ2OCEp7v88ruuM9r0J">落地点</th><th style="width:250px" data-page-node-id="JColYnh5mCjW72YcZ7DWSD">预期收益</th></tr>
+      <tr data-page-node-id="8bFRklCUJSLBU37BxcxRw0">
+        <td data-page-node-id="2xSDPlF98xXwIL3v7MIjPA"><span class="tag high" data-page-node-id="ax7byEc6ptCe3buD7SKmWk">P1-1</span></td>
+        <td data-page-node-id="UprQLGbCwlQ0go0FoVctlB"><b data-page-node-id="qnrzeft1S8FFeVnwcKI1oK">聚合摘要负缓存 + 云盘用量窄查询</b></td>
+        <td data-page-node-id="89rCuXGCr8xAM3CA4ZybpZ">UserSpaceMain.vue:1174-1190 失败分支写入 60s 软负缓存；:1391 兜底 <code data-page-node-id="K9BtfqClK7Rz9iabZeXYuu">limit: 500</code> 全列改专用计数 RPC（或 <code data-page-node-id="OwWUQHJFkn729Hd9VBGCde">limit:50</code> + 「50+」文案）</td>
+        <td data-page-node-id="26EfTAiKW5ahrmbEUlNHAb">RPC 异常场景下每 tab 进入省 5~6 个重型查询；避免 500 行 JSONB 传输</td>
+      </tr>
+      <tr data-page-node-id="MAeLZFGBHuxDvidq38BDNR">
+        <td data-page-node-id="s2ilMj5cuw0V6CAvW7aHpN"><span class="tag high" data-page-node-id="AsCIJ8On4MJRXFJhQWlAIB">P1-2</span></td>
+        <td data-page-node-id="TUYwPV6eVxbqSDzI3zCXrC"><b data-page-node-id="9IY4MG8uxXAH6sY5VYVB7W">embedded ForumMain 裁剪</b></td>
+        <td data-page-node-id="T3Ag4sPrZiozZrxHJ7ECF8">ForumMain.vue:2182-2222：以 <code data-page-node-id="8FKhEPcJ62jGXyKal4JC3r">props.embedded</code> 守卫周报/广告/签到；<code data-page-node-id="LROIRkFRdepKV51kMp0Fi6">scheduleForumImageModerationPreload</code> 移到发帖器打开时</td>
+        <td data-page-node-id="iWGIjMJsIwfvNdyrEcHSsr">社区冷加载 -3~4 请求；省 NSFW 模型下载（首刷带宽大头）</td>
+      </tr>
+      <tr data-page-node-id="dMoq8MYJm7EcUGB6HxKNv9">
+        <td data-page-node-id="gQzKyMpH8lgdsJnl2HkWoR"><span class="tag high" data-page-node-id="VAvBBkZSZf7eSETAr8KdQo">P1-3</span></td>
+        <td data-page-node-id="A3cPbjJ33ehRGvKRexNohh"><b data-page-node-id="cJQAg36JyDIrdFlYLo6Vnv">hydrate 三连查下推/缓存</b></td>
+        <td data-page-node-id="AJaxyJbaT3ZiI8Pafaz72i"><code data-page-node-id="tj6O6Ic41zRBOe3dAkM2l2">list_forum_posts</code> RPC 直接返回 <code data-page-node-id="S4NJ2eBRcv7PC5WLJCZSKA">post_kind</code>（posts 表已有该列）；过渡方案：hydrateOfficialPostKinds 结果 60s TTL</td>
+        <td data-page-node-id="dFeiQK7AjUFNkqk3FtIPwp">每次 feed 拉取 -3 查询；翻页场景收益翻倍</td>
+      </tr>
+    </table>
+
+    <h3 data-page-node-id="bu90n6baPdS5GEqDRfssfC">P2 · 打磨项（4 项）</h3>
+    <table data-page-node-id="60oxRqJqlEO4sQqGBBpUaT">
+      <tr data-page-node-id="DwF6WJYOnQnjNAKbmD3ZGf"><th style="width:60px" data-page-node-id="KWJ5jXQQvENN0QbVq4p0PF">编号</th><th style="width:210px" data-page-node-id="4nmXxUtjQuMaaKst5V7FYx">改动</th><th data-page-node-id="btzYrw1yf4AbRrHohcDPLD">落地点</th><th style="width:250px" data-page-node-id="Qyre0KYsJK8Mhdc6lqKV3D">预期收益</th></tr>
+      <tr data-page-node-id="1vVGRYvrsGRlSI9bxKMJGG"><td data-page-node-id="EwVffzJtq6LZGCxDFmu6GN"><span class="tag medium" data-page-node-id="SBfeuDACHEN7mMBlFCvAjR">P2-1</span></td><td data-page-node-id="cdXaSR0HFmqwkzOv4iWAuX">成员分区治理</td><td data-page-node-id="d0v9NT8goNOsTJ8rqXXoGB">CommunityTab.vue:362 轮询 60~120s + document.hidden 暂停 + 抖动；:526 池 100 → 20/页 + 增量渲染</td><td data-page-node-id="8Dru9FireUkkZG1qN1cZDH">成员分区 CPU/流量 -80%</td></tr>
+      <tr data-page-node-id="SpOaQ78dDm7GTwKXKUxHHs"><td data-page-node-id="YlYxS8FjWbLQBadATQphsi"><span class="tag medium" data-page-node-id="tPpZoBcdJywshs47GPkkXH">P2-2</span></td><td data-page-node-id="lqHftRldK83SnyKpRQXbFV">ForumMain window 监听随 keep-alive 休眠</td><td data-page-node-id="gCM4yqWoAKtKhUZYbC8OKJ">ForumMain.vue:2204-2261 挂载/移除搬入 onActivated/onDeactivated</td><td data-page-node-id="plXaFNCcZYtRCASV0TMMkS">切走社区后零空转</td></tr>
+      <tr data-page-node-id="Zso7FDjMnHO5RGaCZEONAc"><td data-page-node-id="d10rwaTQH30QIMCgHzjDjQ"><span class="tag medium" data-page-node-id="QL9Sv4dEboKD7at5e0bkdS">P2-3</span></td><td data-page-node-id="gwIcpfT5pA4h5Jntofo3NF">Messages 重连定时器入可取消集合</td><td data-page-node-id="LzGftvCySlRwBUft7GbcW7">Messages/index.vue:1171-1175 <code data-page-node-id="T9yQ7sy95vFybovRlPoorb">reconnectTimers[]</code>，onUnmounted 统一 clear</td><td data-page-node-id="y5hGi25Tme8JDknRujGLpA">消除孤儿 channel 长尾</td></tr>
+      <tr data-page-node-id="Ug4IMYHnSac7wWQSXYr7Ga"><td data-page-node-id="JWU4LTQi6QxIVUVhe6ZMkv"><span class="tag low" data-page-node-id="b48FtyLH3Ewrk6OIvXdau2">P2-4</span></td><td data-page-node-id="OvWuapY1ny7DX41XMkXEXY">favicon 重复请求收敛</td><td data-page-node-id="rhBGRWsg6qazj9RwAv0TQS">角标更新逻辑仅在值变化时改 link</td><td data-page-node-id="rlLArlNXmXcDd47KGk0iJo">减噪</td></tr>
+    </table>
+
+    <h3 data-page-node-id="tiGDFirqOub4eiTxGAFSUv">验证方式（与项目探针体系接轨）</h3>
+    <p data-page-node-id="BABSphynQUHCFG3vIC6Dws">本次交付的 <code data-page-node-id="kG7YuDF1YgUdtKeusA4e45">probe-user-space-perf.mjs</code> 即回归基线：P0 落地后重跑，应看到 messages-tab 阶段 js 请求数从 69 → 个位数、H6 堆栈归因中 1s 定时器消失、posts-tab 阶段 summary RPC ≤1 且无 ERR_ABORTED。建议与 <code data-page-node-id="XKoJYls5id1iiyIKIWaDNT">probe-forum-content-tabs.mjs</code> 一起作为 User Space 回归双件套。</p>
+
+    <h3>✅ P0 落地验证结果（2026-09-09 17:10，探针实测）</h3>
+    <div class="h2-sub">P0-1/2/3/4 已全部实施并回归通过；下表为优化前后对照（同探针、同环境）</div>
+    <table>
+      <tr><th>指标</th><th>优化前</th><th>优化后</th><th>验证方式</th></tr>
+      <tr><td><b>messages tab 进入请求</b></td><td>93（69 个 JS 模块）</td><td><b>9（2 个 JS 模块）</b></td><td>探针 stages：91→9；69 个模块转移至 ai-section 阶段（用户主动打开 AI 时才加载）</td></tr>
+      <tr><td><b>BOH AI 1s 轮询</b></td><td>常驻（切走后仍活跃）</td><td><b>0</b></td><td>H6 堆栈归因：[]——ResizeObserver 替代 offsetHeight 轮询</td></tr>
+      <tr><td><b>posts tab 聚合 RPC</b></td><td>×2</td><td><b>×1</b></td><td>H4_posts_fetches；hover 预载的 warmup 定时器改走 5s 合并窗口收口</td></tr>
+      <tr><td><b>messages 阶段堆增量</b></td><td>+12.2 MB</td><td><b>≈0（33.0 vs 34.3）</b></td><td>heapTrend；BOH AI 求值成本移至打开 AI 分区时（用者支付）</td></tr>
+      <tr><td>印象查询</td><td>无上限全量</td><td><b>30 条/页 + 加载更多</b></td><td>impressions 探针 18/18 PASS（面板新增分页 UI，既有功能零回退）</td></tr>
+      <tr><td>pageerror / long task</td><td>0 / 0</td><td>0 / 0</td><td>全程无新增错误</td></tr>
+    </table>
+    <p style="margin-top:10px"><b>回归测试结论</b>：probe-user-space-ia <b>52/52</b>、probe-forum-content-tabs <b>25/25</b>、probe-impressions-ui <b>18/18</b> 全部 PASS；ESLint 0 errors；设置玻璃冒烟探针通过。期间发现并修复 2 个问题：① 探针 3 条陈旧断言（社区「四档」vs 现行六档、「一键已读」主按钮 vs 现行「完成」）已校准到现行 IA；② 自查发现 visibilitychange 会把 Event 对象误传给检测函数，已改为稳定箭头包装。剩余 2 个 HEAD ERR_ABORTED 为探针伪会话下既有的 fetchUserStats 失败重试机制所致（真实会话不触发），非本次引入。</p>
+  </section>
+
+  <section class="glass" id="positive" data-page-node-id="UZGhgGasRn5Jm2Bi7Kpar5">
+    <h2 data-page-node-id="UGtRyFM7WrUg1xE3ZFlUO3"><span class="num" data-page-node-id="avRaE91ULZyYsJ2nfHejtB">05</span>正面确认清单（勿动）</h2>
+    <div class="h2-sub" data-page-node-id="J58vNzDFQzokvg3JidkaMJ">这些机制实测有效，优化时不要误伤</div>
+    <table data-page-node-id="w0fsoc04iJy4HfLB4l3Fd8">
+      <tr data-page-node-id="hf4OVTjr0A2tYQymMyLfNN"><th data-page-node-id="2HkDnxaT3kw6tE4uK5aOdn">机制</th><th data-page-node-id="kWO3NnFUCL9TolrXsiEEZ7">实测/静态证据</th></tr>
+      <tr data-page-node-id="tpZSZkRgJcINVgRuKNcvGE"><td data-page-node-id="mKkvnw2nfEb0ZyGJ9Z730L"><b data-page-node-id="geEhy1Jj2WO0Ycnq0A6cRI">TTL 内存缓存</b>（UserSpace 各区域 60s）</td><td data-page-node-id="gmlyFTnp3NpKG4ESGb6C3Q"><span class="tag ok" data-page-node-id="2rA3WTHR3zu87ISLmUgZcG">RT</span> 回访社区 0 DB 请求（65s 驻留期也仅 1 次心跳类请求）</td></tr>
+      <tr data-page-node-id="LjF5NJFM78LrMYVoxMiEUy"><td data-page-node-id="9u1laWAClesRqlR37e3LzZ"><b data-page-node-id="93fFPfDoKO2nR4lzVvLBjZ">request-core in-flight 去重 + LIST_DATA TTL</b></td><td data-page-node-id="VtOvFEQiMmetuP9KpC5oMN"><span class="tag ok" data-page-node-id="QFCdJ1eDQb094VhRy8CNN4">ST</span> request-core.js:4-5,217-245；重复键并发自动合并</td></tr>
+      <tr data-page-node-id="wem86Guo82LFGFV00y71FJ"><td data-page-node-id="bgxMXJyG5601Yj89RJF9mr"><b data-page-node-id="c9KVX1uH4J9mXsYCQJEgzi">PostCard 图片管线</b>（Cloudinary 变换 + srcset + LQIP）</td><td data-page-node-id="cGIpJcDh9Oo18rA6LLqC3a"><span class="tag ok" data-page-node-id="rsnpJIBCFFlSYfD9Rdq4h6">ST</span> 共享单例 <code data-page-node-id="GDA61Q5yFHMVpwI3wpR8d9">forumImageLazyObserver</code>，非每卡一个 IntersectionObserver</td></tr>
+      <tr data-page-node-id="Wztf2nbbCVXFmZ2iEon9Zb"><td data-page-node-id="bF8C01XFMXIyIfeFZOMtvg"><b data-page-node-id="WJEr5qwC3ZHJF11wfDtuUw">消息列表虚拟滚动</b>（&gt;100 条走 useVirtualList）</td><td data-page-node-id="XGNBzbKmJNpgV7mFOFeN35"><span class="tag ok" data-page-node-id="a4kTNCL4sJuKGEmkPwfNPL">ST</span> Messages/index.vue:687-700 + v-memo</td></tr>
+      <tr data-page-node-id="oHtrjF4xzCXTVqRWWEgmri"><td data-page-node-id="5r86LY83HbTiDMGZQ1Kbso"><b data-page-node-id="0JBGUTHa6PYLKjuF4Waj0f">空闲预载体系</b>（requestIdleCallback + 网络感知 + 卸载清理）</td><td data-page-node-id="OGKzrekzAGRySh7uvm2vAY"><span class="tag ok" data-page-node-id="HXRs4ubbtJrsluCvFyls0p">ST</span> async-loaders.js 全链路；onUnmounted 全清（探针确认无残留 preload 句柄）</td></tr>
+      <tr data-page-node-id="AAmK1MCsFrEJjCoRDDXvAN"><td data-page-node-id="blKWWkYhV7fNdCDl5MVaVV"><b data-page-node-id="5uhIsFbUh6kdjVGtfohn4f">空闲期轮询克制</b></td><td data-page-node-id="GgnGjPoaCrdEn5uQTwlxXh"><span class="tag ok" data-page-node-id="kwUKM5FavBf9lhOomjByfa">RT</span> 65s 驻留仅 1 次 unread RPC；30s×2（supabase auth/realtime）+ 60s（导航栏）+ 120s（会话心跳）均属正常心跳</td></tr>
+      <tr data-page-node-id="JFxGNwtqDQFDkWY7meyH9Y"><td data-page-node-id="Zp97xwjoFaZbGb0OoJT2VP"><b data-page-node-id="JV5P2QufhCAy9MaapGzI31">assets/settings 面板懒加载</b></td><td data-page-node-id="EZs4jj4lmRO68Rl5Mzp4Ph"><span class="tag ok" data-page-node-id="Wx08tAD9qE7gliDGvMgZtS">RT</span> settings 仅 10 请求、profile CSS 三件套按需拉取</td></tr>
+    </table>
+  </section>
+
+  <section class="glass" id="appendix" data-page-node-id="9AsFDpvwLwp65D7y8ttZBE">
+    <h2 data-page-node-id="C9v0i5YFyBTqKIl0A47LWh"><span class="num" data-page-node-id="AUJh4oBBZIhvyyNZ68ur9m">06</span>附录：探针与复现</h2>
+    <div class="h2-sub" data-page-node-id="Q1YAuT4aGkdbM0ScfjdXfn">审查工具已沉淀为项目探针，可随时重放</div>
+    <pre data-page-node-id="p5Dwlln5GAvenrkbwfc8cP"><span class="c" data-page-node-id="eIIZIQWGqlNKnHdEZWLjJI"># User Space 系统性性能探针（本次审查所用，约 2 分钟）</span>
+node probe-user-space-perf.mjs
+<span class="c" data-page-node-id="FbsO6dw2lklqwrGEaBX0ht"># 输出：debug-screenshots/user-space-perf-report.json（全量明细）</span>
+<span class="c" data-page-node-id="LhTb3rtDEpMBLeEZCGQZJV">#       debug-screenshots/user-space-perf-final.png（终态截图）</span>
+
+<span class="c" data-page-node-id="yzBO8xiuqGeG0zwDswC8nm"># 覆盖：五 tab 冷加载计数 / AI 分区往返 / 回访缓存命中 /</span>
+<span class="c" data-page-node-id="ZojZqFceLHp5fCAcxEWXiK">#       65s 驻留轮询观察 / setInterval 堆栈归因 / 堆内存趋势 / long task</span></pre>
+    <p class="footnote" data-page-node-id="Xu6iTkiw5hSAc3kU9DAmMV">数据环境：本地 dev server (5173) + 远程 Supabase；伪造会话经由 pinia 注入（userInfo 原地 Object.assign）。realtime websocket 与需真实 JWT 的 RPC 行为以静态证据为准。报告生成时间：2026-09-09 15:30 GMT+8。</p>
+  </section>
+
+</div>
+</body>
+</html>

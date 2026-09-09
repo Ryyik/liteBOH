@@ -1,10 +1,11 @@
 <template>
-  <div class="pushplus-settings-page" :style="{ '--user-center-nav-offset': isFromUserSpace ? '0px' : '72px', paddingTop: isFromUserSpace ? '0px' : '72px' }">
+  <div class="settings-page pushplus-settings-page"
+    :style="{ '--user-center-nav-offset': isFromUserSpace ? '0px' : '72px', paddingTop: isFromUserSpace ? '0px' : '72px' }">
 
-    <div class="page-container">
-      <UserCenterPageHeader v-if="isFromUserSpace" title="推送设置" max-width="1200px" @back="goBack" />
+    <div class="settings-page-container">
+      <UserCenterPageHeader v-if="isFromUserSpace" title="推送设置" max-width="680px" @back="goBack" />
 
-      <div class="page-description">
+      <div class="settings-page-desc">
         <p>配置离线消息推送，随时随地接收通知</p>
       </div>
 
@@ -14,7 +15,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import PushplusSettings from '@/components/PushplusSettings/index.vue';
@@ -30,37 +31,9 @@ const goBack = () => {
 </script>
 
 <style scoped>
+@import '../../views/user-center/UserSpace/styles/settings-glass.css';
+
 .pushplus-settings-page {
-  --user-center-nav-offset: 0px;
-  min-height: 100vh;
-  background-color: #f5f5f7;
-}
-
-:global([data-theme="dark"]) .pushplus-settings-page {
-  background-color: #181a20;
-}
-
-.page-container {
-  width: 100%;
-  max-width: 650px;
-  margin: 0 auto;
-  padding: 24px clamp(16px, 4vw, 24px) 60px;
-  box-sizing: border-box;
-}
-
-.page-description {
-  margin: 8px 0 20px;
-}
-
-.page-description p {
-  font-size: 14px;
-  color: #86868b;
-  margin: 0;
-}
-
-@media (max-width: 768px) {
-  .page-container {
-    padding: 16px 16px 40px;
-  }
+  /* 液态玻璃底色由 .settings-page 提供（settings-glass.css 单一源） */
 }
 </style>

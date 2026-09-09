@@ -421,26 +421,26 @@
 }
 
 /* 深色适配 - 跟随 data-theme */
-:global(html[data-theme="dark"]) .health-page {
+:global(html[data-theme="dark"] .health-page ){
   background: #0b0b0e;
   color: #f5f5f7;
 }
-:global(html[data-theme="dark"]) .glass-card {
+:global(html[data-theme="dark"] .glass-card ){
   background: linear-gradient(180deg, rgba(28,28,30,0.72) 0%, rgba(28,28,30,0.52) 100%);
   border-color: rgba(255,255,255,0.12);
   box-shadow: 0 20px 60px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.08);
 }
-:global(html[data-theme="dark"]) .health-topbar-inner {
+:global(html[data-theme="dark"] .health-topbar-inner ){
   background: linear-gradient(180deg, rgba(28,28,30,0.78) 0%, rgba(28,28,30,0.58) 100%);
   border-color: rgba(255,255,255,0.12);
 }
-:global(html[data-theme="dark"]) .glass-input,
-:global(html[data-theme="dark"]) .glass-select,
-:global(html[data-theme="dark"]) .ai-textarea,
-:global(html[data-theme="dark"]) .log-field,
-:global(html[data-theme="dark"]) .vault-item,
-:global(html[data-theme="dark"]) .weight-svg-wrap,
-:global(html[data-theme="dark"]) .ai-answer {
+:global(html[data-theme="dark"] .glass-input),
+:global(html[data-theme="dark"] .glass-select),
+:global(html[data-theme="dark"] .ai-textarea),
+:global(html[data-theme="dark"] .log-field),
+:global(html[data-theme="dark"] .vault-item),
+:global(html[data-theme="dark"] .weight-svg-wrap),
+:global(html[data-theme="dark"] .ai-answer ){
   background: rgba(44,44,46,0.72);
   border-color: rgba(255,255,255,0.1);
   color: #f5f5f7;

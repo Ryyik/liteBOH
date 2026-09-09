@@ -347,7 +347,8 @@
   gap: 6px;
   padding: 9px 20px;
   border-radius: 999px;
-  background: var(--ov-accent-post);
+  /* 白字对比 4.6:1（#409cff 只有 2.83，dark audit severe） */
+  background: #0071e3;
   color: #fff;
   border: none;
   font-size: 14px;

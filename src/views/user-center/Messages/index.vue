@@ -1,5 +1,5 @@
 <template>
-  <div class="x-notifications-container" :class="{ 'minimal-mode': minimal, 'detail-open': selectedMessage }" :style="{ '--user-center-nav-offset': isFromUserSpace ? '0px' : '72px', paddingTop: isFromUserSpace ? '0px' : '72px' }">
+  <div class="x-notifications-container" :class="{ 'minimal-mode': minimal, 'detail-open': selectedMessage, 'select-bar-open': isSelectMode && !selectedMessage }" :style="{ '--user-center-nav-offset': isFromUserSpace ? '0px' : '72px', paddingTop: isFromUserSpace ? '0px' : '72px' }">
     <div class="x-master-panel">
       <template v-if="!minimal">
         <UserCenterPageHeader title="消息中心" max-width="1200px" @back="goBack" />
@@ -71,13 +71,15 @@
               <div class="x-filter-section">
                 <button v-for="tab in typeFilterTabs" :key="tab.id" type="button" class="x-filter-option"
                   :class="{ active: currentTab === tab.id }" @click="setNotificationTab(tab.id); filterDropdownOpen = false">
-                  {{ tab.label }}
+                  <span>{{ tab.label }}</span>
+                  <span v-if="tab.id !== 'archived' && typeUnreadCounts[tab.id]" class="x-filter-count">{{ typeUnreadCounts[tab.id] }}</span>
                 </button>
               </div>
               <div class="x-filter-divider"></div>
               <div class="x-filter-section">
                 <button type="button" class="x-filter-option" :class="{ active: showUnreadOnly }" @click="showUnreadOnly = !showUnreadOnly; filterDropdownOpen = false">
-                  只看未读
+                  <span>只看未读</span>
+                  <span v-if="unreadTotalCount" class="x-filter-count">{{ unreadTotalCount }}</span>
                 </button>
               </div>
             </div>
@@ -119,13 +121,15 @@
                 <div class="x-filter-section">
                   <button v-for="tab in typeFilterTabs" :key="tab.id" type="button" class="x-filter-option"
                     :class="{ active: currentTab === tab.id }" @click="setNotificationTab(tab.id); filterDropdownOpen = false">
-                    {{ tab.label }}
+                    <span>{{ tab.label }}</span>
+                    <span v-if="tab.id !== 'archived' && typeUnreadCounts[tab.id]" class="x-filter-count">{{ typeUnreadCounts[tab.id] }}</span>
                   </button>
                 </div>
                 <div class="x-filter-divider"></div>
                 <div class="x-filter-section">
                   <button type="button" class="x-filter-option" :class="{ active: showUnreadOnly }" @click="showUnreadOnly = !showUnreadOnly; filterDropdownOpen = false">
-                    只看未读
+                    <span>只看未读</span>
+                    <span v-if="unreadTotalCount" class="x-filter-count">{{ unreadTotalCount }}</span>
                   </button>
                 </div>
               </div>
@@ -150,52 +154,40 @@
               已读{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
             </button>
           </div>
-          <div class="x-select-actions-dropdown-minimal">
-            <button type="button" class="x-mark-all-btn-minimal x-select-actions-trigger" :class="{ active: actionsDropdownOpen }" @click="toggleActionsDropdown">
-              操作
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" :class="{ open: actionsDropdownOpen }">
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
-            </button>
-            <div v-if="actionsDropdownOpen" class="x-select-actions-menu" @click.stop>
-              <button type="button" class="x-select-action-item" @click="toggleSelectMode(); toggleActionsDropdown()">
-                完成
-              </button>
-              <button v-if="currentTab !== 'archived'" type="button" class="x-select-action-item" :disabled="selectedMessageCount === 0" @click="archiveSelectedMessages(); toggleActionsDropdown()">
-                归档{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
-              </button>
-              <button v-else type="button" class="x-select-action-item" :disabled="selectedMessageCount === 0" @click="unarchiveSelectedMessages(); toggleActionsDropdown()">
-                取消归档{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
-              </button>
-              <button type="button" class="x-select-action-item" :disabled="selectedMessageCount === 0" @click="markSelectedMessagesAsRead(); toggleActionsDropdown()">
-                已读{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
-              </button>
-            </div>
-          </div>
         </template>
       </div>
     </header>
+
+    <!-- 选择模式：底部操作栏（完成为主按钮靠右，批量操作靠左） -->
+    <transition name="x-sab">
+      <div v-if="isSelectMode && !selectedMessage" class="x-select-action-bar" role="toolbar" aria-label="已选消息操作">
+        <button v-if="currentTab !== 'archived'" type="button" class="x-sab-btn" :disabled="selectedMessageCount === 0"
+          @click="archiveSelectedMessages">
+          归档{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
+        </button>
+        <button v-else type="button" class="x-sab-btn" :disabled="selectedMessageCount === 0"
+          @click="unarchiveSelectedMessages">
+          取消归档{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
+        </button>
+        <button type="button" class="x-sab-btn"
+          :disabled="selectedMessageCount === 0 && unreadTotalCount === 0"
+          @click="selectedMessageCount > 0 ? markSelectedMessagesAsRead() : markAllAsRead()">
+          已读{{ selectedMessageCount ? ` ${selectedMessageCount}` : '全部' }}
+        </button>
+        <button type="button" class="x-sab-btn x-sab-primary" @click="toggleSelectMode">完成</button>
+      </div>
+    </transition>
 
     <!-- Notifications List -->
     <div class="x-list">
       <!-- Error State (优先显示错误状态) -->
       <div v-if="!isLoggedIn" class="x-empty x-login-required">
-        <div class="x-empty-visual">
-          <UserRound class="empty-icon-circle" :size="44" :stroke-width="1.7" aria-hidden="true" />
-          <div class="empty-glow"></div>
-        </div>
-        <h3>登录以查看消息</h3>
-        <p>登录后可以接收回复、点赞和系统通知。</p>
-        <button class="refresh-btn" @click="showLoginModal = true">立即登录</button>
+        <EmptyState variant="inbox" title="登录以查看消息" description="登录后可以接收回复、点赞和系统通知。"
+          action-text="立即登录" @action="showLoginModal = true" />
       </div>
       <div v-else-if="notificationsLoadError" class="x-empty">
-        <div class="x-empty-visual">
-          <TriangleAlert class="empty-icon-circle" :size="44" :stroke-width="1.7" aria-hidden="true" />
-          <div class="empty-glow"></div>
-        </div>
-        <h3>通知加载失败</h3>
-        <p>{{ notificationsLoadError }}</p>
-        <button class="refresh-btn" @click="loadNotifications">点击重试</button>
+        <EmptyState variant="search" title="通知加载失败" :description="notificationsLoadError"
+          action-text="点击重试" @action="loadNotifications" />
       </div>
       <!-- Skeleton Loading — 1:1 复刻 P1 左列表 + 右详情 -->
       <div v-else-if="loading && currentTab !== 'archived'" class="x-skeleton-wrap">
@@ -255,8 +247,7 @@
               @click="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)"
               @keydown.enter="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)"
               @keydown.space.prevent="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)">
-              <span v-if="msg.status === 'unread' && !isSelectMode" class="x-unread-dot" aria-hidden="true"></span>
-              <!-- 左侧：头像或选择框 -->
+              <!-- 左侧：头像或选择框（未读蓝点叠在头像角标） -->
               <div v-if="isSelectMode" class="x-select-check" @click.stop="toggleMessageSelection(msg.id)">
                 <span class="x-checkbox" :class="{ checked: selectedMessageIds.has(msg.id) }">
                   <svg v-if="selectedMessageIds.has(msg.id)" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
@@ -267,25 +258,23 @@
               <div class="x-item-left">
                 <div class="x-avatar-wrapper">
                   <img v-if="msg.sender?.avatar_url" :src="msg.sender.avatar_url" class="x-avatar-img" alt="avatar" loading="lazy" />
-                  <div v-else class="x-avatar">
+                  <div v-else class="x-avatar" :style="avatarTone(msg.sender?.username)">
                     {{ msg.sender?.username?.charAt(0)?.toUpperCase?.() || 'S' }}
                   </div>
+                  <span v-if="msg.status === 'unread' && !isSelectMode" class="x-unread-dot" aria-hidden="true"></span>
                 </div>
               </div>
-              <!-- 中间：主要内容 -->
+              <!-- 中间：主要内容（两行制：身份行 + 内容行） -->
               <div class="x-item-main">
                 <div class="x-item-meta">
                   <div class="x-item-identity">
                     <span class="x-sender-name">{{ msg.sender?.username || '系统' }}</span>
-                    <span class="x-action-type">{{ msg._typeLabel }}</span>
+                    <span :class="['x-action-type', `x-t-${msg.type}`]">{{ msg._typeLabel }}</span>
                   </div>
                   <span class="x-date inline-date">{{ msg._formattedDate }}</span>
                 </div>
-                <div class="x-item-content">
-                  <span class="x-text">{{ msg._title }}</span>
-                </div>
-                <div v-if="msg._preview" class="x-preview-box">
-                  {{ msg._preview }}
+                <div v-if="msg._summary" class="x-item-content">
+                  <span class="x-text">{{ msg._summary }}</span>
                 </div>
               </div>
               <!-- 右侧：时间和状态 -->
@@ -303,8 +292,7 @@
             @click="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)"
             @keydown.enter="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)"
             @keydown.space.prevent="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)">
-            <span v-if="msg.status === 'unread' && !isSelectMode" class="x-unread-dot" aria-hidden="true"></span>
-            <!-- 左侧：头像或选择框 -->
+            <!-- 左侧：头像或选择框（未读蓝点叠在头像角标） -->
             <div v-if="isSelectMode" class="x-select-check" @click.stop="toggleMessageSelection(msg.id)">
               <span class="x-checkbox" :class="{ checked: selectedMessageIds.has(msg.id) }">
                 <svg v-if="selectedMessageIds.has(msg.id)" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
@@ -315,25 +303,23 @@
             <div class="x-item-left">
               <div class="x-avatar-wrapper">
                 <img v-if="msg.sender?.avatar_url" :src="msg.sender.avatar_url" class="x-avatar-img" alt="avatar" loading="lazy" />
-                <div v-else class="x-avatar">
+                <div v-else class="x-avatar" :style="avatarTone(msg.sender?.username)">
                   {{ msg.sender?.username?.charAt(0)?.toUpperCase?.() || 'S' }}
                 </div>
+                <span v-if="msg.status === 'unread' && !isSelectMode" class="x-unread-dot" aria-hidden="true"></span>
               </div>
             </div>
-            <!-- 中间：主要内容 -->
+            <!-- 中间：主要内容（两行制：身份行 + 内容行） -->
             <div class="x-item-main">
               <div class="x-item-meta">
                 <div class="x-item-identity">
                   <span class="x-sender-name">{{ msg.sender?.username || '系统' }}</span>
-                  <span class="x-action-type">{{ msg._typeLabel }}</span>
+                  <span :class="['x-action-type', `x-t-${msg.type}`]">{{ msg._typeLabel }}</span>
                 </div>
                 <span class="x-date inline-date">{{ msg._formattedDate }}</span>
               </div>
-              <div class="x-item-content">
-                <span class="x-text">{{ msg._title }}</span>
-              </div>
-              <div v-if="msg._preview" class="x-preview-box">
-                {{ msg._preview }}
+              <div v-if="msg._summary" class="x-item-content">
+                <span class="x-text">{{ msg._summary }}</span>
               </div>
             </div>
             <!-- 右侧：时间和状态 -->
@@ -378,25 +364,11 @@
         </div>
       </div>
       <div v-else-if="currentTab === 'archived'" class="x-empty">
-        <div class="x-empty-visual">
-          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="empty-icon-circle" aria-hidden="true">
-            <path d="M21 8v13H3V8"></path>
-            <path d="M1 3h22v5H1z"></path>
-            <line x1="10" y1="12" x2="14" y2="12"></line>
-          </svg>
-          <div class="empty-glow"></div>
-        </div>
-        <h3>{{ emptyStateTitle }}</h3>
-        <p>{{ emptyStateDescription }}</p>
+        <EmptyState variant="inbox" :title="emptyStateTitle" :description="emptyStateDescription" />
       </div>
       <div v-else-if="dataLoadedOnce" class="x-empty">
-        <div class="x-empty-visual">
-          <Bell class="empty-icon-circle" :size="44" :stroke-width="1.7" aria-hidden="true" />
-          <div class="empty-glow"></div>
-        </div>
-        <h3>{{ emptyStateTitle }}</h3>
-        <p>{{ emptyStateDescription }}</p>
-        <button class="refresh-btn" @click="loadNotifications">刷新试试</button>
+        <EmptyState variant="inbox" :title="emptyStateTitle" :description="emptyStateDescription"
+          action-text="刷新试试" @action="loadNotifications" />
       </div>
     </div>
     </div>
@@ -416,7 +388,7 @@
                   <div class="large-avatar-wrapper">
                     <img v-if="selectedMessage.sender?.avatar_url" :src="selectedMessage.sender.avatar_url"
                       class="large-avatar-img" alt="avatar"  loading="lazy" />
-                    <div v-else class="large-avatar">
+                    <div v-else class="large-avatar" :style="avatarTone(selectedMessage.sender?.username)">
                       {{ selectedMessage.sender?.username?.charAt(0)?.toUpperCase?.() || 'S' }}
                     </div>
                   </div>
@@ -522,7 +494,7 @@
 <script setup>
 import { ref, computed, onMounted, watch, onUnmounted, reactive, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { Bell, TriangleAlert, UserRound } from 'lucide-vue-next';
+import EmptyState from '@/components/ui/EmptyState.vue';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader';
@@ -618,7 +590,7 @@ const MAX_CACHE_SIZE = 200; // LRU 缓存上限
 const VIRTUAL_SCROLL_THRESHOLD = 100; // 虚拟滚动阈值
 const NOTIFICATION_TABS = [
   { id: 'all', label: '全部' },
-  { id: 'comment', label: '回复' },
+  { id: 'comment', label: '评论' },
   { id: 'like', label: '点赞' },
   { id: 'follow', label: '关注' },
   { id: 'impression', label: '印象' },
@@ -744,8 +716,9 @@ const retryingNotificationIds = reactive({});
 const retriedNotificationIdSet = ref(new Set());
 const showUnreadOnly = ref(false);
 const filterDropdownOpen = ref(false);
-const actionsDropdownOpen = ref(false);
 const isSelectMode = ref(false);
+// 非 minimal（独立通知页）头部下拉状态；minimal 模式已改用底部一键操作栏
+const actionsDropdownOpen = ref(false);
 const selectedMessageIds = ref(new Set());
 const selectFilterOpen = ref(false); // 预留：筛选下拉面板状态
 const selectStatusFilter = ref('all');
@@ -962,6 +935,7 @@ watch(filteredMessages, (newMessages) => {
 
 const typeFilterTabs = computed(() => NOTIFICATION_TABS);
 const selectedMessageCount = computed(() => selectedMessageIds.value.size);
+const unreadTotalCount = computed(() => messages.value.filter((m) => m.status === 'unread').length);
 const currentTabLabel = computed(() => NOTIFICATION_TABS.find((tab) => tab.id === currentTab.value)?.label || '全部');
 const filterSummaryText = computed(() => {
   const parts = [currentTabLabel.value];
@@ -1491,6 +1465,9 @@ const loadNotifications = async () => {
           dataLoadedOnce.value = true;
           hasMoreNotifications.value = Boolean(hasMore);
           notificationsCursor.value = nextCursor || null;
+        } else {
+          // 拿不到用户也必须落空态，否则列表/空态都不渲染（整页空白洞）
+          dataLoadedOnce.value = true;
         }
       }
     } catch (error) {
@@ -2004,15 +1981,15 @@ const markSelectedMessagesAsRead = async () => {
 
 // ─── 多选模式 ─────────────────────────────────────────────────────────────
 
+const toggleActionsDropdown = () => {
+  actionsDropdownOpen.value = !actionsDropdownOpen.value;
+};
+
 const toggleSelectMode = () => {
   isSelectMode.value = !isSelectMode.value;
   if (!isSelectMode.value) {
     selectedMessageIds.value = new Set();
   }
-};
-
-const toggleActionsDropdown = () => {
-  actionsDropdownOpen.value = !actionsDropdownOpen.value;
 };
 
 const toggleMessageSelection = (msgId) => {
@@ -2031,7 +2008,7 @@ const isAllFilteredSelected = computed(() => {
 });
 
 const closeSelectFilterDropdown = (e) => {
-  const wrap = e.target.closest('.x-filter-dropdown-wrap, .x-select-actions-dropdown, .x-select-actions-dropdown-minimal');
+  const wrap = e.target.closest('.x-filter-dropdown-wrap, .x-select-actions-dropdown');
   if (!wrap) {
     selectFilterOpen.value = false;
     filterDropdownOpen.value = false;
@@ -2256,7 +2233,7 @@ const retryRejectedPostFromNotification = async () => {
 const getTypeLabel = (type) => {
   const labels = {
     'like': '赞了你',
-    'comment': '回复了你',
+    'comment': '评论了你',
     'follow': '关注了你',
     'impression': '给你印象',
     [POST_REJECTED_NOTIFICATION_TYPE]: '审查通知',
@@ -2345,6 +2322,25 @@ const getNotificationPreview = (notification) => {
   return '查看详情';
 };
 
+// 列表第二行：只放真实内容（评论正文/帖子摘要/系统内容），没有就渲染单行
+const getNotificationSummary = (notification) => {
+  const socialTypes = ['like', 'comment', 'follow', 'impression'];
+  const isSocial = socialTypes.includes(notification.type);
+  if (isSocial) {
+    if (notification.comment?.content) {
+      const c = notification.comment.content.trim();
+      return c.substring(0, 50) + (c.length > 50 ? '...' : '');
+    }
+    if (notification.post) {
+      const excerpt = getForumPostExcerpt(notification.post, 50);
+      return excerpt || null;
+    }
+    return null;
+  }
+  // 系统/礼物/审查/中奖类：内容本身就是正文，缺省不渲染 filler
+  return String(notification.content || '').trim() || null;
+};
+
 // 获取通知完整内容
 const getNotificationContent = (notification) => {
   if (notification.type === 'impression') {
@@ -2416,10 +2412,42 @@ const formatDate = (dateString) => {
 const enrichMessage = (m) => ({
   ...m,
   _title: getNotificationTitle(m),
+  _summary: getNotificationSummary(m),
   _preview: getNotificationPreview(m),
   _typeLabel: getTypeLabel(m.type),
   _formattedDate: formatDate(m.created_at),
 });
+
+// 按类型统计未读数（筛选下拉徽标）
+const typeUnreadCounts = computed(() => {
+  const counts = {};
+  for (const m of messages.value) {
+    if (m.status === 'unread' && m.type) {
+      counts[m.type] = (counts[m.type] || 0) + 1;
+    }
+  }
+  return counts;
+});
+
+// 头像 fallback：按用户名 hash 从固定色板取色，替代千篇一律的蓝底
+const AVATAR_TONES = [
+  { bg: 'rgba(0, 113, 227, 0.14)', fg: '#0059b3' },
+  { bg: 'rgba(52, 199, 89, 0.16)', fg: '#1a7a38' },
+  { bg: 'rgba(255, 159, 10, 0.18)', fg: '#8a5300' },
+  { bg: 'rgba(191, 90, 242, 0.16)', fg: '#7a2ea0' },
+  { bg: 'rgba(255, 69, 58, 0.13)', fg: '#b3261e' },
+  { bg: 'rgba(100, 210, 255, 0.2)', fg: '#0a6a8a' }
+];
+const avatarTone = (username) => {
+  const name = String(username || '').trim();
+  if (!name) return { background: AVATAR_TONES[0].bg, color: AVATAR_TONES[0].fg };
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  }
+  const tone = AVATAR_TONES[hash % AVATAR_TONES.length];
+  return { background: tone.bg, color: tone.fg };
+};
 
 const loadMoreNotificationLabel = computed(() => {
   if (loadingMoreNotifications.value) return '加载中...';

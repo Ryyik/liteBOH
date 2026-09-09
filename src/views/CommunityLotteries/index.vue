@@ -1,5 +1,5 @@
 <template>
-  <div class="community-lottery-page">
+  <div ref="pageRef" class="community-lottery-page">
 
     <Transition name="lottery-toast">
       <div v-if="toast.show" class="lottery-toast" :class="`toast-${toast.type}`" role="status">
@@ -17,65 +17,7 @@
         </div>
       </header>
 
-      <section class="lottery-pity-capsule-wrap" aria-label="抽奖保底与积分">
-        <!-- 一体化保底+积分胶囊：进度条更明显，与积分融为一体 -->
-        <div class="lottery-pity-unified" :class="pityCapsuleVariantClass">
-          <div class="pity-unified-top">
-            <button
-              type="button"
-              class="pity-unified-main"
-              :aria-busy="pityLoading ? 'true' : 'false'"
-              :aria-label="pityCapsuleLabel"
-              @click="handlePityCapsuleClick"
-              @keydown.enter.prevent="handlePityCapsuleClick"
-              @keydown.space.prevent="handlePityCapsuleClick"
-            >
-              <span class="pity-capsule-dot" :class="pityDotClass" aria-hidden="true"></span>
-              <span class="pity-capsule-label">{{ pityCapsuleLabel }}</span>
-              <span v-if="pityCapsuleSub" class="pity-capsule-sub">{{ pityCapsuleSub }}</span>
-            </button>
-            <span class="pity-unified-divider" aria-hidden="true"></span>
-            <button v-if="isLoggedIn" type="button" class="pity-unified-points" aria-label="当前方块积分，去积分明细" @click="goToPoints">
-              <Coins :size="13" :stroke-width="2" aria-hidden="true" />
-              <span class="lottery-points-value">{{ userPointsDisplay }}</span>
-              <span class="lottery-points-sub">积分</span>
-              <span class="lottery-points-free">· 参与免费</span>
-            </button>
-            <button v-else type="button" class="pity-unified-points is-guest" @click="showLoginModal = true">
-              <Coins :size="13" :stroke-width="2" aria-hidden="true" />
-              <span>登录查看积分</span>
-            </button>
-            <button type="button" class="pity-capsule-help" :aria-label="showPityPopover ? '关闭保底说明' : '查看保底说明'" @click.stop="togglePityPopover">
-              <HelpCircle :size="14" :stroke-width="2" aria-hidden="true" />
-            </button>
-          </div>
-          <div v-if="pityShowTrack" class="pity-unified-track-wrap">
-            <div class="pity-unified-track" role="progressbar" :aria-valuenow="pityStatus?.consecutiveLosses || 0" :aria-valuemin="0" :aria-valuemax="pityStatus?.threshold || 1" aria-label="保底进度">
-              <div class="pity-unified-fill" :style="{ width: pityProgressPercent + '%' }"></div>
-            </div>
-            <span class="pity-unified-track-label" aria-hidden="true">{{ pityProgressPercent }}%</span>
-          </div>
-          <div v-else-if="!pityShowTrack && isLoggedIn && pityStatus && !pityStatus.eligible" class="pity-unified-hint">订阅后开启保底进度 · 当前 {{ userPointsDisplay }} 积分可用</div>
-        </div>
-        <!-- 弹窗使用 fixed 蒙层方式避免被工具栏/页面 clip 裁切；竖屏下全宽居中 -->
-        <Transition name="pity-popover">
-          <div v-if="showPityPopover" class="pity-popover" role="dialog" aria-label="保底规则说明" @click.stop>
-            <button class="pity-popover-close" type="button" aria-label="关闭保底说明" @click="showPityPopover = false"><X :size="14" aria-hidden="true" /></button>
-            <h4>保底规则</h4>
-            <p>仅「计入并兑现」与「仅计入」活动会累计连续未中奖场次；Free 账户不累计；中奖后清零，达到阈值后下一次参与「计入并兑现」活动可获得保底礼。</p>
-            <div class="pity-popover-meta"><span>阈值 · Plus 24 · Pro 18 · Max 12 · Ultra 8</span><span v-if="isLoggedIn" class="pity-popover-points">· 当前 {{ userPointsDisplay }} 积分</span></div>
-            <div v-if="pityStatus?.eligible" class="pity-popover-detail">
-              <span>当前 {{ pityStatus.consecutiveLosses }} / {{ pityStatus.threshold }} 场</span>
-              <span v-if="!pityStatus.isDue">还差 {{ pityStatus.remainingLosses }} 场</span>
-              <span v-else class="is-due">已就绪，下次可兑现</span>
-            </div>
-            <div v-else-if="isLoggedIn && pityStatus && !pityStatus.eligible" class="pity-popover-detail">
-              <span>Free 不累计进度</span>
-              <button type="button" class="pity-popover-link" @click="goToSubscription">查看会员方案 ›</button>
-            </div>
-          </div>
-        </Transition>
-      </section>
+      <!-- 保底进度与积分已由全局导航栏保底灵动岛（PityIslandCard）承载，页面不再重复展示 -->
 
       <div class="community-lottery-toolbar">
         <div class="community-lottery-tabs" role="tablist" aria-label="抽奖筛选">
@@ -445,15 +387,16 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import { ChevronDown, ChevronRight, Coins, HelpCircle, History, Info, Share2, Ticket, Trophy, Users, X } from 'lucide-vue-next';
+import { ChevronDown, ChevronRight, Coins, History, Info, Share2, Ticket, Trophy, Users, X } from 'lucide-vue-next';
 import { useAuthStore } from '@/stores/auth';
 import { getImageUrl } from '../../utils/asset-helper.js';
 import { getCommunityLotteries, joinCommunityLottery } from '../../utils/api/lottery-api.js';
 import { getMyLotteryPityStatus } from '../../utils/api/subscription-api.js';
 import { showIsland } from '@/composables/useIsland.js';
+import PityIslandCard from './PityIslandCard.vue';
 
 const authStore = useAuthStore();
 const { isLoggedIn, showLoginModal, userInfo } = storeToRefs(authStore);
@@ -463,7 +406,7 @@ const router = useRouter();
 const userPoints = computed(() => Number(userInfo.value?.points || 0));
 const userPointsDisplay = computed(() => userPoints.value.toLocaleString());
 const goToPoints = () => {
-  router.push('/user-space?tab=profile&view=assets').catch(() => router.push('/user-space').catch(()=>{}));
+  router.push('/user-space?tab=assets').catch(() => router.push('/user-space').catch(()=>{}));
 };
 
 const lotteries = ref([]);
@@ -514,7 +457,6 @@ const selectedLottery = ref(null);
 const pityStatus = ref(null);
 const pityLoading = ref(false);
 const pityError = ref('');
-const showPityPopover = ref(false);
 const toast = ref({
   show: false,
   type: 'info',
@@ -537,42 +479,6 @@ const historyLotteries = computed(() => lotteries.value.filter((lottery) => lott
 const primaryActiveLottery = computed(() => activeLotteries.value[0] || null);
 const secondaryActiveLotteries = computed(() => activeLotteries.value.slice(1));
 const totalEntryCount = computed(() => lotteries.value.reduce((total, lottery) => total + Number(lottery.entry_count || 0), 0));
-
-const pityProgressPercent = computed(() => {
-  if (!pityStatus.value?.eligible || !pityStatus.value.threshold) return 0;
-  return Math.min(100, Math.round((Number(pityStatus.value.consecutiveLosses || 0) / Number(pityStatus.value.threshold)) * 100));
-});
-const pityShowTrack = computed(() => Boolean(pityStatus.value?.eligible && pityStatus.value.threshold > 0));
-const pityCapsuleLabel = computed(() => {
-  if (pityLoading.value) return '正在读取保底';
-  if (!isLoggedIn.value) return '登录查看保底';
-  if (pityError.value) return '保底暂不可用';
-  if (!pityStatus.value) return '保底读取中';
-  if (!pityStatus.value.eligible) return '订阅后开启保底';
-  if (pityStatus.value.isDue) return `${pityStatus.value.consecutiveLosses}/${pityStatus.value.threshold} · 下次可兑现`;
-  return `${pityStatus.value.consecutiveLosses}/${pityStatus.value.threshold} · 还差${pityStatus.value.remainingLosses}场`;
-});
-const pityCapsuleSub = computed(() => {
-  if (pityLoading.value || !isLoggedIn.value || pityError.value || !pityStatus.value?.eligible) return '';
-  if (pityStatus.value.isDue) return '';
-  return '';
-});
-const pityCapsuleVariantClass = computed(() => {
-  if (!isLoggedIn.value) return 'variant-guest';
-  if (pityLoading.value) return 'variant-loading';
-  if (pityError.value || !pityStatus.value) return 'variant-error';
-  if (!pityStatus.value.eligible) return 'variant-free';
-  if (pityStatus.value.isDue) return 'variant-due';
-  return 'variant-progress';
-});
-const pityDotClass = computed(() => {
-  if (!isLoggedIn.value) return 'dot-guest';
-  if (pityLoading.value) return 'dot-loading';
-  if (pityError.value || !pityStatus.value) return 'dot-error';
-  if (!pityStatus.value.eligible) return 'dot-free';
-  if (pityStatus.value.isDue) return 'dot-due';
-  return 'dot-progress';
-});
 
 const visibleHistoryLotteries = computed(() => {
   const filtered = historyLotteries.value.filter((lottery) => (
@@ -681,21 +587,8 @@ const loadPityStatus = async () => {
   }
 };
 
-const togglePityPopover = () => {
-  showPityPopover.value = !showPityPopover.value;
-};
-
-const handlePityCapsuleClick = () => {
-  if (!isLoggedIn.value) {
-    showLoginModal.value = true;
-    return;
-  }
-  togglePityPopover();
-};
-
 const goToSubscription = () => {
-  showPityPopover.value = false;
-  router.push('/user-space?tab=profile&view=assets').catch(() => {
+  router.push('/user-space?tab=assets').catch(() => {
     router.push('/user-space/subscriptions').catch(() => {});
   });
 };
@@ -722,10 +615,6 @@ const getPityGhost = (lottery) => {
 
 const handlePityOutsideClick = (event) => {
   const target = event.target;
-  if (showPityPopover.value) {
-    const wrap = document.querySelector('.lottery-pity-capsule-wrap');
-    if (wrap && !wrap.contains(target)) showPityPopover.value = false;
-  }
   if (showStatusFilterMenu.value || showSortMenu.value) {
     const selects = document.querySelectorAll('.lottery-custom-select');
     let inside = false;
@@ -736,7 +625,6 @@ const handlePityOutsideClick = (event) => {
 
 const handleGlobalKeydown = (event) => {
   if (event.key === 'Escape') {
-    showPityPopover.value = false;
     closeFilterMenus();
   }
 };
@@ -1005,12 +893,72 @@ const handleVisibilityChange = () => {
   syncNowTimer();
 };
 
+// ============================================
+// 保底进度自定义岛（showIsland.custom 管线，同 WallIslandCard 先例）
+// 页面 pityStatus 是单一真相源，岛卡纯展示；动作回调复用页面已有方法
+// ============================================
+const pageRef = ref(null);
+let pityIslandHandle = null;
+let lotteryNavResizeObserver = null;
+
+const mountPityIsland = () => {
+  if (pityIslandHandle) return;
+  pityIslandHandle = showIsland.custom(PityIslandCard, {
+    status: pityStatus.value,
+    loading: pityLoading.value,
+    error: pityError.value,
+    isLoggedIn: isLoggedIn.value,
+    pointsDisplay: userPointsDisplay.value,
+    goPoints: goToPoints,
+    goSubscription: goToSubscription,
+    openLogin: () => { showLoginModal.value = true; },
+    retry: () => { void loadPityStatus(); }
+  });
+};
+
+const syncPityIsland = () => {
+  if (!pityIslandHandle) return;
+  pityIslandHandle.update({
+    status: pityStatus.value,
+    loading: pityLoading.value,
+    error: pityError.value,
+    isLoggedIn: isLoggedIn.value,
+    pointsDisplay: userPointsDisplay.value
+  });
+};
+
+watch([pityStatus, pityLoading, pityError, isLoggedIn, userPointsDisplay], syncPityIsland);
+
+// 预留槽位握手：将来页面内若挂 ContentDetailIsland 等临时卡占用自定义岛槽位，
+// 关闭后由其 onClose 调用 inject('remountPityIsland') 重挂常驻保底岛。
+const remountPityIsland = () => {
+  pityIslandHandle = null;
+  mountPityIsland();
+};
+provide('remountPityIsland', remountPityIsland);
+
+// ---- 导航栏实际高度同步：保底岛展开/收起、滚动收拢全程自适应避让（Newsroom/活动墙同款） ----
+const syncLotteryNavHeight = () => {
+  const nav = document.getElementById('unified-nav-container');
+  const page = pageRef.value;
+  if (!nav || !page) return;
+  const height = Math.ceil(nav.getBoundingClientRect().height);
+  if (height > 0) page.style.setProperty('--lottery-nav-h', `${height}px`);
+};
+
 onMounted(() => {
   document.addEventListener('visibilitychange', handleVisibilityChange);
   document.addEventListener('click', handlePityOutsideClick);
   document.addEventListener('keydown', handleGlobalKeydown);
   void loadLotteries();
   void loadPityStatus();
+  mountPityIsland();
+  syncLotteryNavHeight();
+  const nav = document.getElementById('unified-nav-container');
+  if (nav && typeof ResizeObserver !== 'undefined') {
+    lotteryNavResizeObserver = new ResizeObserver(syncLotteryNavHeight);
+    lotteryNavResizeObserver.observe(nav);
+  }
 });
 
 watch(
@@ -1034,6 +982,11 @@ onUnmounted(() => {
   document.removeEventListener('keydown', handleGlobalKeydown);
   stopNowTimer();
   if (toastTimer) window.clearTimeout(toastTimer);
+  lotteryNavResizeObserver?.disconnect();
+  lotteryNavResizeObserver = null;
+  // 先关岛再置空句柄（showIsland.custom 关闭按组件身份守卫，防跨页误关）
+  pityIslandHandle?.close();
+  pityIslandHandle = null;
 });
 </script>
 

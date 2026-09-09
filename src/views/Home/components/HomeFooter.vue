@@ -327,37 +327,37 @@ onBeforeUnmount(() => {
 }
 
 /* ============ 深色模式 ============ */
-:global([data-theme="dark"]) .home-footer {
+:global([data-theme="dark"] .home-footer ){
   background: var(--background-900, #1d1d1f);
   color: var(--text-500, #98989d);
 }
 
-:global([data-theme="dark"]) .home-footer-disclaimer,
-:global([data-theme="dark"]) .home-footer-columns {
+:global([data-theme="dark"] .home-footer-disclaimer),
+:global([data-theme="dark"] .home-footer-columns ){
   border-bottom-color: color-mix(in srgb, var(--background-50, #f5f5f7) 10%, transparent);
 }
 
-:global([data-theme="dark"]) .home-footer-link {
+:global([data-theme="dark"] .home-footer-link ){
   color: var(--text-500, #98989d);
 }
 
-:global([data-theme="dark"]) .home-footer-link:hover {
+:global([data-theme="dark"] .home-footer-link:hover ){
   color: var(--background-50, #f5f5f7);
 }
 
-:global([data-theme="dark"]) .home-footer-col h5 {
+:global([data-theme="dark"] .home-footer-col h5 ){
   color: var(--background-50, #f5f5f7);
 }
 
-:global([data-theme="dark"]) .home-footer-copyright {
+:global([data-theme="dark"] .home-footer-copyright ){
   color: var(--text-500, #98989d);
 }
 
-:global([data-theme="dark"]) .home-footer-locale {
+:global([data-theme="dark"] .home-footer-locale ){
   color: var(--text-500, #98989d);
 }
 
-:global([data-theme="dark"]) .home-footer-bottom-link-wrap:not(:last-child)::after {
+:global([data-theme="dark"] .home-footer-bottom-link-wrap:not(:last-child)::after ){
   background: color-mix(in srgb, var(--background-50, #f5f5f7) 18%, transparent);
 }
 </style>

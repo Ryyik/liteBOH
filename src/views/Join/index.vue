@@ -984,7 +984,7 @@ onUnmounted(() => {
   transform: translateY(-50%);
   font-size: 13px;
   font-weight: 600;
-  color: #c7c7cc;
+  color: #6e6e73;
   pointer-events: none;
   letter-spacing: 0.05em;
 }
@@ -1037,7 +1037,7 @@ onUnmounted(() => {
 .apple-continue-btn {
   width: 100%;
   background-color: #f5f5f7;
-  color: #c7c7cc;
+  color: #6e6e73;
   border: none;
   border-radius: 18px;
   /* Figma 圆角 */

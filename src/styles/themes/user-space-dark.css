@@ -806,3 +806,16 @@ html [data-theme="dark"] .user-space-page .profile-email,
 [data-theme="dark"] .user-space-page .profile-subpage-header button {
   color: #ffffff !important;
 }
+
+/* ---- dark audit 2026-09-08：底部导航文字未随暗色翻转 ---- */
+.user-space-page[data-theme="dark"] .nav-item,
+[data-theme="dark"] .user-space-page .nav-item {
+  color: #b8c2cf !important;
+}
+
+.user-space-page[data-theme="dark"] .nav-item.active,
+.user-space-page[data-theme="dark"] .nav-item.active .nav-label,
+[data-theme="dark"] .user-space-page .nav-item.active,
+[data-theme="dark"] .user-space-page .nav-item.active .nav-label {
+  color: #f5f5f7 !important;
+}

@@ -656,4 +656,25 @@ html[data-theme="dark"] .campaign-stage-chip[data-stage="judging"] { color: #ffd
 html[data-theme="dark"] .campaign-stage-chip[data-stage="result"] { color: #32d74b; background: rgba(50, 215, 75, 0.12); }
 html[data-theme="dark"] .campaign-signup-btn { background: #0a84ff; }
 
+/* ---- 暗色补齐（dark audit 2026-09-08）：页头与活动卡片 ---- */
+html[data-theme="dark"] .activities-list-page {
+  background: #0d0f14;
+  color: #f5f5f7;
+}
+html[data-theme="dark"] .page-kicker { color: #8d99a8; }
+html[data-theme="dark"] .page-title-text { color: #f5f5f7; }
+html[data-theme="dark"] .page-subtitle-text { color: #a1a1a6; }
+html[data-theme="dark"] .activity-card {
+  background: #161a22;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35);
+}
+html[data-theme="dark"] .activity-title { color: #f5f5f7; }
+html[data-theme="dark"] .activity-description { color: #a1a1a6; }
+html[data-theme="dark"] .activity-hint { color: #6e6e73; }
+html[data-theme="dark"] .activity-skeleton-block,
+html[data-theme="dark"] .activity-skeleton-image { background: #1a1e26; }
+html[data-theme="dark"] .activity-skeleton-block::after,
+html[data-theme="dark"] .activity-skeleton-image::after { background: rgba(28, 28, 30, 0.72); }
+
 </style>

@@ -673,6 +673,16 @@ html[data-theme="dark"] .no-results-card h3 { color: #f5f5f7; }
 html[data-theme="dark"] .reset-filters-btn { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.14); color: #f5f5f7; }
 html[data-theme="dark"] .news-image, html[data-theme="dark"] .secondary-thumb { background: #1c1c1e; }
 html[data-theme="dark"] .news-skeleton-block, html[data-theme="dark"] .news-skeleton-image { background: rgba(255,255,255,0.07); }
+html[data-theme="dark"] .news-image-fallback {
+  background: linear-gradient(135deg, #1c2430 0%, #232c3a 55%, #2a3444 100%);
+  color: rgba(245, 245, 247, 0.32);
+}
+html[data-theme="dark"] .news-date {
+  background: rgba(28, 28, 30, 0.78);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #f5f5f7;
+}
+html[data-theme="dark"] .secondary-copy time { color: #98989d; }
 
 /* ---------- 降级与减弱动效 ---------- */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {

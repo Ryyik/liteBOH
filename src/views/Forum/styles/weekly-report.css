@@ -46,3 +46,39 @@
   .weekly-report-metric-grid { grid-template-columns: repeat(2, 1fr); }
   .weekly-report-period { max-width: 110px; text-align: right; white-space: normal; }
 }
+
+/* ---- 暗色（dark audit 2026-09-08）：整文件原为浅色硬编码 ---- */
+html[data-theme="dark"] .weekly-report-kicker,
+html[data-theme="dark"] .weekly-report-open-btn,
+html[data-theme="dark"] .weekly-report-post-title button { color: #6cb2ff; }
+html[data-theme="dark"] .weekly-report-period,
+html[data-theme="dark"] .weekly-report-metrics,
+html[data-theme="dark"] .weekly-report-topic-title span,
+html[data-theme="dark"] .weekly-report-post-reason,
+html[data-theme="dark"] .weekly-report-empty { color: #98989d; }
+html[data-theme="dark"] .weekly-report-metrics { border-top-color: rgba(255,255,255,.08); border-bottom-color: rgba(255,255,255,.08); }
+html[data-theme="dark"] .weekly-report-summary,
+html[data-theme="dark"] .weekly-report-empty p,
+html[data-theme="dark"] .weekly-report-overview p,
+html[data-theme="dark"] .weekly-report-topic-detail p,
+html[data-theme="dark"] .weekly-report-post-detail p,
+html[data-theme="dark"] .weekly-report-questions { color: #a1a1a6; }
+html[data-theme="dark"] .weekly-report-metrics strong,
+html[data-theme="dark"] .weekly-report-modal-head h2,
+html[data-theme="dark"] .weekly-report-overview h3,
+html[data-theme="dark"] .weekly-report-section h3,
+html[data-theme="dark"] .weekly-report-metric-grid strong,
+html[data-theme="dark"] .weekly-report-topic-title strong,
+html[data-theme="dark"] .weekly-report-post-title strong { color: #f5f5f7; }
+html[data-theme="dark"] .weekly-report-topic { background: rgba(108,178,255,.14); color: #6cb2ff; }
+html[data-theme="dark"] .weekly-report-skeleton span { background: linear-gradient(90deg,#1f1f23,#2a2a2e,#1f1f23); background-size: 200% 100%; }
+html[data-theme="dark"] .weekly-report-overlay { background: rgba(0,0,0,.5); }
+html[data-theme="dark"] .weekly-report-modal { background: rgba(28,28,30,.97); border-color: rgba(255,255,255,.1); box-shadow: 0 24px 80px rgba(0,0,0,.5); }
+html[data-theme="dark"] .weekly-report-modal-head { border-bottom-color: rgba(255,255,255,.08); }
+html[data-theme="dark"] .weekly-report-modal-head p { color: #98989d; }
+html[data-theme="dark"] .weekly-report-close { background: #3a3a3c; color: #d6d6dc; }
+html[data-theme="dark"] .weekly-report-overview { border-bottom-color: rgba(255,255,255,.08); }
+html[data-theme="dark"] .weekly-report-metric-grid div { background: #2c2c2e; }
+html[data-theme="dark"] .weekly-report-metric-grid span { color: #98989d; }
+html[data-theme="dark"] .weekly-report-topic-detail,
+html[data-theme="dark"] .weekly-report-post-detail { border-top-color: rgba(255,255,255,.08); }

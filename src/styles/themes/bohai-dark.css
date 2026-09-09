@@ -1070,3 +1070,147 @@
   outline-color: #62b0ff !important;
   box-shadow: 0 0 0 3px rgba(98, 176, 255, 0.24) !important;
 }
+
+/* --- Sidebar readability pass (dark audit 2026-09-08):
+       adaptive-layout.css / BohaiSidebar.vue 硬编码近黑文字 + 白底 hover 在暗色下不可读 --- */
+.bohai-page[data-theme="dark"] .sidebar-mark,
+[data-theme="dark"] .bohai-page .sidebar-mark,
+.sidebar[data-theme="dark"] .sidebar-mark,
+[data-theme="dark"] .sidebar .sidebar-mark,
+.bohai-page[data-theme="dark"] .sidebar-nav-row,
+.bohai-page[data-theme="dark"] .sidebar-quick-action,
+.bohai-page[data-theme="dark"] .sidebar-section-title,
+.bohai-page[data-theme="dark"] .session-group-title,
+.bohai-page[data-theme="dark"] .session-title,
+.bohai-page[data-theme="dark"] .sidebar-search-row span,
+[data-theme="dark"] .bohai-page .sidebar-nav-row,
+[data-theme="dark"] .bohai-page .sidebar-quick-action,
+[data-theme="dark"] .bohai-page .sidebar-section-title,
+[data-theme="dark"] .bohai-page .session-group-title,
+[data-theme="dark"] .bohai-page .session-title {
+  color: #f2f5f8;
+}
+
+.bohai-page[data-theme="dark"] .quick-action-icon,
+[data-theme="dark"] .bohai-page .quick-action-icon {
+  color: #f2f5f8;
+}
+
+.bohai-page[data-theme="dark"] .sidebar-quick-action.secondary,
+.bohai-page[data-theme="dark"] .sidebar-quick-action.secondary .quick-action-icon,
+[data-theme="dark"] .bohai-page .sidebar-quick-action.secondary,
+[data-theme="dark"] .bohai-page .sidebar-quick-action.secondary .quick-action-icon {
+  color: #b8c2cf !important;
+}
+
+.bohai-page[data-theme="dark"] .sidebar-search-row,
+[data-theme="dark"] .bohai-page .sidebar-search-row {
+  background: #1b2430;
+  border-color: rgba(220, 235, 255, 0.12);
+}
+
+.bohai-page[data-theme="dark"] .sidebar-search-row input,
+[data-theme="dark"] .bohai-page .sidebar-search-row input {
+  background: transparent;
+  color: #f2f5f8;
+}
+
+.bohai-page[data-theme="dark"] .sidebar-search-row input::placeholder,
+[data-theme="dark"] .bohai-page .sidebar-search-row input::placeholder {
+  color: #8d99a8;
+}
+
+.bohai-page[data-theme="dark"] .sidebar-close-btn,
+[data-theme="dark"] .bohai-page .sidebar-close-btn {
+  color: rgba(242, 245, 248, 0.72);
+}
+
+.bohai-page[data-theme="dark"] .sidebar-close-btn:hover,
+[data-theme="dark"] .bohai-page .sidebar-close-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f2f5f8;
+}
+
+.bohai-page[data-theme="dark"] .session-item:hover,
+[data-theme="dark"] .bohai-page .session-item:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #f2f5f8 !important;
+}
+
+.bohai-page[data-theme="dark"] .session-item.active,
+[data-theme="dark"] .bohai-page .session-item.active {
+  background: #29405a !important;
+  color: #f2f5f8 !important;
+  border-color: rgba(98, 176, 255, 0.4) !important;
+  box-shadow: none !important;
+}
+
+.bohai-page[data-theme="dark"] .session-item:hover .delete-btn,
+.bohai-page[data-theme="dark"] .session-item.active .delete-btn,
+[data-theme="dark"] .bohai-page .session-item:hover .delete-btn,
+[data-theme="dark"] .bohai-page .session-item.active .delete-btn {
+  color: #b8c2cf !important;
+}
+
+.bohai-page[data-theme="dark"] .sidebar-footer strong,
+.bohai-page[data-theme="dark"] .sidebar-user-copy strong,
+[data-theme="dark"] .bohai-page .sidebar-footer strong,
+[data-theme="dark"] .bohai-page .sidebar-user-copy strong {
+  color: #f2f5f8;
+}
+
+.bohai-page[data-theme="dark"] .sidebar-footer small,
+.bohai-page[data-theme="dark"] .sidebar-user-copy small,
+.bohai-page[data-theme="dark"] .session-title-wrap small,
+.bohai-page[data-theme="dark"] .session-pin,
+[data-theme="dark"] .bohai-page .sidebar-footer small,
+[data-theme="dark"] .bohai-page .sidebar-user-copy small,
+[data-theme="dark"] .bohai-page .session-title-wrap small,
+[data-theme="dark"] .bohai-page .session-pin {
+  color: #8d99a8;
+}
+
+.bohai-page[data-theme="dark"] .session-temporary-badge,
+[data-theme="dark"] .bohai-page .session-temporary-badge {
+  background: #29405a;
+  color: #b8c2cf;
+}
+
+.bohai-page[data-theme="dark"] .session-rename-input,
+[data-theme="dark"] .bohai-page .session-rename-input {
+  background: #202b38;
+  border-color: rgba(220, 235, 255, 0.16);
+  color: #f2f5f8;
+}
+
+/* Teleport 到 body 的 sidebar（.bohai-page 祖先链断裂时的兜底组） */
+.sidebar[data-theme="dark"] .sidebar-nav-row,
+.sidebar[data-theme="dark"] .sidebar-quick-action,
+.sidebar[data-theme="dark"] .sidebar-section-title,
+.sidebar[data-theme="dark"] .session-group-title,
+.sidebar[data-theme="dark"] .session-title,
+.sidebar[data-theme="dark"] .sidebar-search-row span,
+.sidebar[data-theme="dark"] .quick-action-icon,
+.sidebar[data-theme="dark"] .sidebar-close-btn,
+.sidebar[data-theme="dark"] .sidebar-footer strong,
+.sidebar[data-theme="dark"] .sidebar-user-copy strong {
+  color: #f2f5f8 !important;
+}
+.sidebar[data-theme="dark"] .sidebar-quick-action.secondary,
+.sidebar[data-theme="dark"] .sidebar-quick-action.secondary .quick-action-icon {
+  color: #b8c2cf !important;
+}
+.sidebar[data-theme="dark"] .sidebar-search-row { background: #1b2430; border-color: rgba(220,235,255,0.12); }
+.sidebar[data-theme="dark"] .sidebar-search-row input { background: transparent; color: #f2f5f8; }
+.sidebar[data-theme="dark"] .sidebar-search-row input::placeholder { color: #8d99a8; }
+.sidebar[data-theme="dark"] .sidebar-close-btn:hover { background: rgba(255,255,255,0.08); color: #f2f5f8; }
+.sidebar[data-theme="dark"] .session-item:hover { background: rgba(255,255,255,0.08) !important; color: #f2f5f8 !important; }
+.sidebar[data-theme="dark"] .session-item.active { background: #29405a !important; color: #f2f5f8 !important; border-color: rgba(98,176,255,0.4) !important; box-shadow: none !important; }
+.sidebar[data-theme="dark"] .session-item:hover .delete-btn,
+.sidebar[data-theme="dark"] .session-item.active .delete-btn { color: #b8c2cf !important; }
+.sidebar[data-theme="dark"] .sidebar-footer small,
+.sidebar[data-theme="dark"] .sidebar-user-copy small,
+.sidebar[data-theme="dark"] .session-title-wrap small,
+.sidebar[data-theme="dark"] .session-pin { color: #8d99a8; }
+.sidebar[data-theme="dark"] .session-temporary-badge { background: #29405a; color: #b8c2cf; }
+.sidebar[data-theme="dark"] .session-rename-input { background: #202b38; border-color: rgba(220,235,255,0.16); color: #f2f5f8; }

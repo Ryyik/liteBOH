@@ -135,8 +135,8 @@ export const clearIdlePreloadTasks = () => {
   idlePreloadHandles.clear();
 };
 
-export const scheduleForumPreload = (currentTabValue = 'posts') => {
-  if (currentTabValue !== 'posts') return;
+export const scheduleForumPreload = (currentTabValue = 'community') => {
+  if (currentTabValue !== 'community') return;
   if (!canUseNetworkForForumPreload()) return;
   if (forumPreloadPromise || forumPreloadIdleId !== null || forumPreloadTimeoutId !== null) return;
   const run = () => {

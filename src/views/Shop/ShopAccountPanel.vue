@@ -135,9 +135,15 @@
           添加新地址
         </button>
 
-        <div v-if="!addresses.length && !isEditing && !loading" class="ap-empty">
-          暂无收货地址
-        </div>
+        <EmptyState
+          v-if="!addresses.length && !isEditing && !loading"
+          variant="inbox"
+          title="暂无收货地址"
+          description="添加地址后，积分兑换的商品就能一键填好收货信息"
+          action-text="添加新地址"
+          compact
+          @action="openCreateAddress"
+        />
       </div>
     </section>
   </div>
@@ -151,6 +157,7 @@ import { ChevronLeft, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/utils/supabase-client.js';
 import { logger } from '@/utils/logger.js';
+import EmptyState from '@/components/ui/EmptyState.vue';
 import { showIsland } from '@/composables/useIsland.js';
 
 defineProps({
@@ -792,5 +799,21 @@ onMounted(() => {
   .ap-header h1 { font-size: 28px; }
   .ap-form { padding: 18px; }
   .ap-form-grid { grid-template-columns: 1fr; }
+}
+/* ---- 暗色主题（dark audit 2026-09-08）：--ap-* 变量重定义 ---- */
+html[data-theme="dark"] .apple-panel {
+  --ap-bg: #1c1c1e;
+  --ap-text: #f5f5f7;
+  --ap-text-secondary: #a1a1a6;
+  --ap-text-tertiary: #8d8d93;
+  --ap-border: #38383c;
+  --ap-border-subtle: #2c2c2e;
+  --ap-fill: #2c2c2e;
+  --ap-fill-secondary: #232325;
+  --ap-blue: #409cff;
+}
+
+html[data-theme="dark"] .ap-eyebrow {
+  color: #98989d;
 }
 </style>

@@ -1477,4 +1477,68 @@ onBeforeUnmount(() => {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ============================================================
+   暗色主题（dark audit 2026-09-08）：
+   变量重定义 + 半透明白底/白色激活底逐一换暗色等价物。
+   整条 :global(html[data-theme="dark"] .class)，遵守 scoped 暗色铁律。
+   ============================================================ */
+:global(html[data-theme="dark"] .resources-page) {
+  --text-1: #f5f5f7;
+  --text-2: #a1a1a6;
+  --text-3: #8d8d93;
+  color: var(--text-1);
+}
+
+:global(html[data-theme="dark"] .resources-page .hero-label) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #a1a1a6;
+}
+
+:global(html[data-theme="dark"] .resources-page .segmented),
+:global(html[data-theme="dark"] .resources-page .filter-glass) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:global(html[data-theme="dark"] .resources-page .segment-thumb) {
+  background: #4a4a52;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+:global(html[data-theme="dark"] .resources-page .segment-btn.active) {
+  color: #f5f5f7;
+}
+
+:global(html[data-theme="dark"] .resources-page .filter-tab:hover) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+:global(html[data-theme="dark"] .resources-page .filter-tab.active) {
+  background: #4a4a52;
+  color: #f5f5f7;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+:global(html[data-theme="dark"] .resources-page .card-badge) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+:global(html[data-theme="dark"] .resources-page .card-top),
+:global(html[data-theme="dark"] .resources-page .card-footer) {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+:global(html[data-theme="dark"] .resources-page .search-result-item:hover) {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+:global(html[data-theme="dark"] .resources-page .block-label) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+:global(html[data-theme="dark"] .resources-page .supplementary) {
+  border-left-color: #f5f5f7;
+}
 </style>

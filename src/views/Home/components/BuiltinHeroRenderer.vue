@@ -1,6 +1,9 @@
 <template>
   <!-- 按 builtin_key 分发渲染对应的硬编码英雄区组件 -->
-  <MascotNewHero v-if="builtinKey === 'mascot-new'" :priority="priority" />
+  <!-- Beta6 焕新主视觉：序列首位（sort_order 5），单区块液态玻璃 -->
+  <Beta6RenewalHero v-if="builtinKey === 'beta6-renewal'" :priority="priority" />
+
+  <MascotNewHero v-else-if="builtinKey === 'mascot-new'" :priority="priority" />
 
   <AgentPreviewHero v-else-if="builtinKey === 'agent-preview'" />
 
@@ -55,7 +58,7 @@
       title="BOH X 小猫主题"
       subtitle="快来体验萌萌小猫～"
       variant="light"
-      :links="[{ text: '去设置', type: 'primary', to: '/user-space?tab=profile&view=settings&setting=theme' }]"
+      :links="[{ text: '去设置', type: 'primary', to: '/user-space?tab=settings&setting=theme' }]"
     >
       <HomeCatMascot class="cat-theme-main-cat" type="theme" size="lg" decorative />
     </AppleGridCard>
@@ -115,6 +118,7 @@ import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import AppleHeroBanner from '@/components/AppleHeroBanner.vue';
 import AppleGridCard from '@/components/AppleGridCard.vue';
 import HomeOverlayHero from './HomeOverlayHero.vue';
+import Beta6RenewalHero from './Beta6RenewalHero.vue';
 import AnniversaryHero from './AnniversaryHero.vue';
 import BlockWallHero from './BlockWallHero.vue';
 import MascotEvolutionHero from './MascotEvolutionHero.vue';

@@ -416,6 +416,7 @@ onUnmounted(() => observer?.disconnect())
 .prompt-bar { width: min(620px, 100%); display: grid; grid-template-columns: 34px 1fr 34px; align-items: center; gap: 10px; margin: 34px auto 0; padding: 8px 8px 8px 10px !important; border-radius: 980px !important; text-align: left; }
 .prompt-icon { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: linear-gradient(135deg, #0071e3, #0f8a6a); color: #fff; }
 .prompt-text { color: #3a3a3c; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html[data-theme="dark"] .prompt-bar .prompt-text { color: #f2f5f8; }
 .prompt-send { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: #1d1d1f; color: #fff; }
 .hero-meta { display: flex; justify-content: center; gap: 18px; margin-top: 22px; color: var(--muted); font-size: 13px; flex-wrap: wrap; }
 .hero-meta span { display: inline-flex; align-items: center; gap: 6px; }

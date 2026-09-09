@@ -139,6 +139,12 @@ import { useAuthStore } from "@/stores/auth";
 import { storeToRefs } from "pinia";
 import AdminContentPublishModal from "@/components/AdminContentPublishModal.vue";
 import ContentDetailIsland from "@/components/UnifiedNavbar/ContentDetailIsland.vue";
+// 消毒白名单与封面变换收口到 news-shared.js（详情岛 / 独立详情页共用，防两处漂移）
+import {
+  NEWS_SANITIZE_OPTIONS,
+  NEWS_CARD_IMAGE_TRANSFORM,
+  NEWS_DETAIL_IMAGE_TRANSFORM
+} from "./news-shared.js";
 
 // 导入新闻 composable
 import { initNews, getAllNews, getCategoryName } from "../../composables/useNews";
@@ -288,12 +294,7 @@ const showPublishModal = ref(false);
 let newsDetailIsland = null;
 let lastFocusedEl = null;
 
-const NEWS_SANITIZE_OPTIONS = {
-  ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'code', 'pre', 'blockquote', 'ul', 'ol', 'li', 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'span', 'b', 'i', 'u'],
-  ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'class']
-};
-const NEWS_CARD_IMAGE_TRANSFORM = 'f_auto,q_auto,c_fill,g_auto,w_900,h_540';
-const NEWS_MODAL_IMAGE_TRANSFORM = 'f_auto,q_auto,c_limit,w_1600';
+const NEWS_MODAL_IMAGE_TRANSFORM = NEWS_DETAIL_IMAGE_TRANSFORM;
 
 
 // 引用
@@ -383,6 +384,8 @@ const showModal = (news) => {
     meta: `${formatDate(news.date)} · ${getCategoryName(news.category)} · 作者：${news.author || "官方"}`,
     image: getNewsImageUrl(news.image, "modal"),
     html: DOMPurify.sanitize(news.content || "", NEWS_SANITIZE_OPTIONS),
+    // S4：新闻有独立页了，岛上给出「打开完整页面」入口（可分享/刷新的 URL）
+    pageRoute: `/news/${encodeURIComponent(String(news.id || ""))}`,
     onClose: () => {
       // × / Esc 都走这里：必须真正清掉岛槽位，仅置空句柄岛不会消失
       newsDetailIsland?.close();
@@ -533,6 +536,13 @@ onMounted(async () => {
 
   // 从 Supabase 加载新闻数据
   await loadNewsData();
+
+  // 深链保底（S4）：/newsroom?news=<id> 直接展开详情岛（旧式分享链接落点）
+  const deepLinkNewsId = typeof route.query.news === "string" ? route.query.news.trim() : "";
+  if (deepLinkNewsId) {
+    const target = newsData.value.find((n) => String(n.id) === deepLinkNewsId);
+    if (target) showModal(target);
+  }
 });
 
 // 全局导航是 position:fixed，其实际高度与 --bohai-standalone-nav-height 声明值

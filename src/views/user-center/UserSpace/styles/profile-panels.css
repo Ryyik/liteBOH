@@ -7,8 +7,8 @@
   }
 
   .messages-tab :deep(.x-header-minimal) {
-    padding: 4px 4px 8px;
-    margin: 0 0 8px;
+    padding: 0 12px 4px;
+    margin: 0 0 4px;
     border: 0;
     background: transparent;
     box-shadow: none;
@@ -18,9 +18,9 @@
   }
 
   .messages-tab :deep(.x-minimal-main) {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 9px;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
   }
 
   .messages-tab :deep(.minimal-filter-bar) {
@@ -42,10 +42,6 @@
     border-left: 0;
     border-right: 0;
     box-shadow: none;
-  }
-
-  .messages-tab :deep(.x-item.unread) {
-    border-left: 3px solid #007aff;
   }
 }
 

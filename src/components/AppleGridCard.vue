@@ -129,12 +129,12 @@ const stopImagePositionDrag = (event) => {
 
 .variant-dark {
   background: #000000;
-  color: #f5f5f7;
+  color: var(--hero-text-on-dark);
 }
 
 .variant-light {
   background: #ffffff;
-  color: #1d1d1f;
+  color: var(--hero-text);
   box-shadow: none;
   transition: none;
 }
@@ -150,15 +150,15 @@ const stopImagePositionDrag = (event) => {
 }
 
 .agc-title {
-  font-size: clamp(28px, 4vw, 40px);
+  font-size: var(--hero-headline-s);
   font-weight: 700;
   letter-spacing: -.01em;
   line-height: 1.1;
   margin: 0 0 8px;
 }
 
-.variant-dark .agc-title { color: #f5f5f7; }
-.variant-light .agc-title { color: #1d1d1f; }
+.variant-dark .agc-title { color: var(--hero-text-on-dark); }
+.variant-light .agc-title { color: var(--hero-text); }
 
 .agc-subtitle {
   font-size: clamp(14px, 2vw, 19px);
@@ -169,7 +169,7 @@ const stopImagePositionDrag = (event) => {
 }
 
 .variant-dark .agc-subtitle { color: color-mix(in srgb, #ffffff 70%, transparent); }
-.variant-light .agc-subtitle { color: #86868b; }
+.variant-light .agc-subtitle { color: var(--hero-text-muted); }
 
 .agc-links {
   display: flex;
@@ -182,7 +182,7 @@ const stopImagePositionDrag = (event) => {
   display: inline-flex;
   align-items: center;
   font-size: clamp(14px, 1.8vw, 17px);
-  color: #2997ff;
+  color: var(--hero-accent-on-dark);
   text-decoration: none;
   cursor: pointer;
   background: none;
@@ -190,13 +190,13 @@ const stopImagePositionDrag = (event) => {
   padding: 0;
   transition: color .3s ease;
 }
-.variant-light .agc-link { color: #0071e3; }
+.variant-light .agc-link { color: var(--hero-accent); }
 .agc-link:hover { text-decoration: underline; color: #64b5f6; }
 
 /* 胶囊按钮样式 */
 .agc-link-primary {
   padding: 12px 26px;
-  background: #2997ff;
+  background: var(--hero-accent-on-dark);
   color: #000000 !important;
   border-radius: 980px;
   font-size: 17px;
@@ -212,19 +212,19 @@ const stopImagePositionDrag = (event) => {
 }
 
 .variant-light .agc-link-primary {
-  background: #0071e3;
+  background: var(--hero-accent);
   color: #ffffff !important;
 }
 
 .variant-light .agc-link-primary:hover {
-  background: #0077ed;
+  background: var(--hero-accent-hover);
 }
 
 .agc-link-secondary {
   padding: 12px 26px;
   background: transparent;
-  color: #2997ff !important;
-  border: 1px solid #2997ff;
+  color: var(--hero-accent-on-dark) !important;
+  border: 1px solid var(--hero-accent-on-dark);
   border-radius: 980px;
   font-size: 17px;
   font-weight: 400;
@@ -239,8 +239,8 @@ const stopImagePositionDrag = (event) => {
 }
 
 .variant-light .agc-link-secondary {
-  color: #0071e3 !important;
-  border-color: #0071e3;
+  color: var(--hero-accent) !important;
+  border-color: var(--hero-accent);
 }
 
 .variant-light .agc-link-secondary:hover {

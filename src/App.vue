@@ -205,6 +205,13 @@ const showGlobalNavbar = computed(() => {
     route.query?.view &&
     route.query.view !== 'home'
   ) return false;
+  // 设置子页（数据导出/数据与隐私/编辑资料）：悬浮导航岛会盖住 sticky 头部的返回按钮
+  if (
+    route.path === '/user-space' &&
+    route.query?.tab === 'settings' &&
+    route.query?.view &&
+    route.query.view !== 'home'
+  ) return false;
   return true;
 });
 </script>
@@ -346,6 +353,18 @@ html {
   font-size: 13px;
   opacity: 0.9;
 }
+
+
+/* 暗色：绿色玻璃 toast 提亮（dark audit 2026-09-08） */
+html[data-theme="dark"] .toast-content {
+  background: rgba(52, 199, 89, 0.16);
+  border-color: rgba(52, 199, 89, 0.3);
+}
+
+html[data-theme="dark"] .toast-title,
+html[data-theme="dark"] .toast-close { color: #6ee7a0; }
+
+html[data-theme="dark"] .toast-desc { color: #b5f0c8; }
 
 .toast-close {
   background: none;

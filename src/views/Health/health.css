@@ -636,3 +636,8 @@ html[data-theme="dark"] .hk-sheet {
   html[data-theme="dark"] .hk-glass,
   html[data-theme="dark"] .hk-card { background: #1c1c1e; }
 }
+
+/* ---- dark audit 2026-09-08：healthkit 风格组件暗色提亮 ---- */
+html[data-theme="dark"] .hk-chev { color: rgba(235, 235, 245, 0.34); }
+html[data-theme="dark"] .hk-sheet-btn.done { color: #6cb2ff; }
+html[data-theme="dark"] .hk-chip { color: #4ecb71; }

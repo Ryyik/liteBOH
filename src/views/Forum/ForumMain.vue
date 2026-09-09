@@ -35,7 +35,9 @@ import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notifi
 // Props
 const props = defineProps({
   showHeader: { type: Boolean, default: true },
-  embedded: { type: Boolean, default: false }
+  embedded: { type: Boolean, default: false },
+  // 外部接管「最新/关注/新闻/活动」筛选（用户空间社区段控驱动）：非空时隐藏内部筛选钮并跟随
+  externalFeed: { type: String, default: '' }
 });
 const emit = defineEmits(['island-message']);
 
@@ -2095,7 +2097,7 @@ if (typeof window !== 'undefined') updateMobileStatus();
 const isForumComposerFabVisible = computed(() => {
   if (!isMobileComposerMode.value || feedMode.value !== 'posts') return false;
   if (!props.embedded) return true;
-  return route.path === '/user-space' && getQueryString(route.query.tab || 'profile') === 'posts';
+  return route.path === '/user-space' && getQueryString(route.query.tab || 'community') === 'community';
 });
 
 const openMobileComposer = () => {
@@ -2366,6 +2368,18 @@ watch(
   },
   { flush: 'post' }
 );
+
+// 外部 feed 接管（用户空间社区段控）：latest/following/news/activity → 关注态 + 内容类型一次同步（单次 fetch）
+watch(() => props.externalFeed, (val) => {
+  const nextFollowing = val === 'following';
+  const nextKind = (val === 'news' || val === 'activity') ? val : '';
+  if (nextFollowing && !isLoggedIn.value) return; // 与 setFeedMode 一致：关注流需登录
+  if (showFollowingOnly.value === nextFollowing && selectedContentType.value === nextKind) return;
+  showFollowingOnly.value = nextFollowing;
+  selectedContentType.value = nextKind;
+  feedMode.value = 'posts';
+  fetchForumData();
+}, { immediate: true });
 
 watch(showFollowingOnly, (val) => {
   if (val && viewMode.value === 'my') {
@@ -3943,7 +3957,7 @@ const openPostDetail = (postId) => {
   const returnKey = props.embedded ? 'user-space' : 'forum';
   saveForumReturnState(returnKey, buildForumReturnState(postId));
   const query = props.embedded
-    ? { from: 'user-space', tab: 'posts', returnKey }
+    ? { from: 'user-space', tab: 'community', returnKey }
     : { from: 'forum', returnKey };
 
   router.push({
@@ -4015,17 +4029,25 @@ const openPostDetail = (postId) => {
 
           <!-- 帖子列表 -->
           <section class="posts-feed fade-in-up" style="animation-delay: 0.2s;">
-            <div v-if="isLoggedIn" class="feed-mode-tabs">
-              <button class="feed-mode-tab" :class="{ active: !showFollowingOnly }" @click="setFeedMode('latest')">最新</button>
-              <button class="feed-mode-tab" :class="{ active: showFollowingOnly }" @click="setFeedMode('following')">关注</button>
+            <div v-if="!externalFeed" class="feed-mode-tabs">
+              <button class="feed-mode-tab" :class="{ active: selectedContentType === '' }" @click="setContentType('')">全部</button>
+              <button class="feed-mode-tab" :class="{ active: selectedContentType === 'post' }" @click="setContentType('post')">论坛</button>
+              <button class="feed-mode-tab" :class="{ active: selectedContentType === 'news' }" @click="setContentType('news')">新闻</button>
+              <button class="feed-mode-tab" :class="{ active: selectedContentType === 'activity' }" @click="setContentType('activity')">活动</button>
+              <template v-if="isLoggedIn">
+                <span class="feed-mode-tab-divider" aria-hidden="true"></span>
+                <button class="feed-mode-tab" :class="{ active: showFollowingOnly }"
+                  :title="showFollowingOnly ? '返回全部内容' : '只看关注的人的动态'"
+                  @click="setFeedMode(showFollowingOnly ? 'latest' : 'following')">关注</button>
+              </template>
             </div>
             <ForumToolbar v-model:searchQuery="searchQuery" :is-logged-in="isLoggedIn"
               :has-signed-this-week="weeklyCheckinStatus.hasSignedThisWeek" :sort-mode="sortMode"
-              :selected-tag-filter="selectedTagFilter" :selected-content-type="selectedContentType" :is-ai-search-enabled="isAiSearchEnabled"
+              :selected-tag-filter="selectedTagFilter" :is-ai-search-enabled="isAiSearchEnabled"
               :is-ai-search-loading="isAiSearchLoading" :ai-search-hint="aiSearchHint"
               @search-submit="handleSearchSubmit" @toggle-ai-search="toggleAiSearch"
               @open-weekly-checkin="openWeeklyCheckinCalendar" @set-sort-mode="setSortMode"
-              @set-tag-filter="setTagFilter" @set-content-type="setContentType" />
+              @set-tag-filter="setTagFilter" />
 
             <!-- 骨架屏加载状态 -->
             <div v-if="isLoading" class="skeleton-feed">

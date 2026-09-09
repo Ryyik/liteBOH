@@ -577,7 +577,7 @@ function onNewChat() {
 /* ============================================
    暗色模式
    ============================================ */
-:global(#unified-nav-container[data-theme="dark"]) .bohai-island {
+:global(#unified-nav-container[data-theme="dark"] .bohai-island ){
   color: #f8fafc;
   border-color: rgba(255, 255, 255, 0.12);
   background: linear-gradient(135deg, rgba(35, 39, 49, 0.78), rgba(22, 25, 33, 0.58));
@@ -586,68 +586,68 @@ function onNewChat() {
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
-:global(#unified-nav-container[data-theme="dark"]) .bohai-island-header {
+:global(#unified-nav-container[data-theme="dark"] .bohai-island-header ){
   border-bottom-color: rgba(255, 255, 255, 0.08);
   color: rgba(226, 232, 240, 0.86);
 }
 
-:global(#unified-nav-container[data-theme="dark"]) .bohai-island-header-text strong {
+:global(#unified-nav-container[data-theme="dark"] .bohai-island-header-text strong ){
   color: #f8fafc;
 }
 
-:global(#unified-nav-container[data-theme="dark"]) .bohai-island-header-icon {
+:global(#unified-nav-container[data-theme="dark"] .bohai-island-header-icon ){
   background: linear-gradient(135deg, rgba(109, 56, 200, 0.32), rgba(79, 70, 229, 0.22));
   color: #c4b5fd;
 }
 
-:global(#unified-nav-container[data-theme="dark"]) .bohai-island-icon-btn {
+:global(#unified-nav-container[data-theme="dark"] .bohai-island-icon-btn ){
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.1);
   color: rgba(226, 232, 240, 0.85);
 }
 
-:global(#unified-nav-container[data-theme="dark"]) .bohai-island-icon-btn:hover {
+:global(#unified-nav-container[data-theme="dark"] .bohai-island-icon-btn:hover ){
   background: rgba(255, 255, 255, 0.12);
   color: #f8fafc;
 }
 
-:global(#unified-nav-container[data-theme="dark"]) .bohai-island-chat .message.user {
+:global(#unified-nav-container[data-theme="dark"] .bohai-island-chat .message.user ){
   color: #f8fafc;
 }
 
-:global(#unified-nav-container[data-theme="dark"]) .bohai-island-chat .message.assistant {
+:global(#unified-nav-container[data-theme="dark"] .bohai-island-chat .message.assistant ){
   color: rgba(226, 232, 240, 0.86);
 }
 
-:global(#unified-nav-container[data-theme="dark"]) .bohai-island-chat .message-role {
+:global(#unified-nav-container[data-theme="dark"] .bohai-island-chat .message-role ){
   color: #c4b5fd !important;
 }
 
-:global(#unified-nav-container[data-theme="dark"]) .bohai-island-chat .composer-wrapper {
+:global(#unified-nav-container[data-theme="dark"] .bohai-island-chat .composer-wrapper ){
   border-top-color: rgba(255, 255, 255, 0.06) !important;
 }
 
-:global(#unified-nav-container[data-theme="dark"]) .bohai-island-chat .composer-input-wrapper {
+:global(#unified-nav-container[data-theme="dark"] .bohai-island-chat .composer-input-wrapper ){
   background: rgba(255, 255, 255, 0.06) !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
 }
 
-:global(#unified-nav-container[data-theme="dark"]) .bohai-island-chat .composer-textarea {
+:global(#unified-nav-container[data-theme="dark"] .bohai-island-chat .composer-textarea ){
   color: #f8fafc !important;
 }
 
-:global(#unified-nav-container[data-theme="dark"]) .bohai-island-chat .composer-textarea::placeholder {
+:global(#unified-nav-container[data-theme="dark"] .bohai-island-chat .composer-textarea::placeholder ){
   color: rgba(148, 163, 184, 0.7) !important;
 }
 
-:global(#unified-nav-container[data-theme="dark"]) .bohai-island-chat .composer-send-btn {
+:global(#unified-nav-container[data-theme="dark"] .bohai-island-chat .composer-send-btn ){
   background: linear-gradient(135deg, rgba(5, 120, 87, 0.4), rgba(5, 120, 87, 0.28)) !important;
   color: #6ee7b7 !important;
   border-color: rgba(255, 255, 255, 0.12) !important;
 }
 
-:global(#unified-nav-container[data-theme="dark"]) .bohai-island-chat .composer-send-btn:hover {
+:global(#unified-nav-container[data-theme="dark"] .bohai-island-chat .composer-send-btn:hover ){
   background: linear-gradient(135deg, rgba(5, 120, 87, 0.55), rgba(5, 120, 87, 0.4)) !important;
 }
 

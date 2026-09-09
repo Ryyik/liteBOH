@@ -69,10 +69,19 @@ const catSkinAssets = Object.entries(HOME_CAT_ASSETS).map(([id, src]) => ({ id, 
 .points-card-topline, .points-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; font-weight: 650; letter-spacing: -0.01em; }
 .points-card-points { margin-top: auto; font-size: clamp(28px, 8.5vw, 40px); font-weight: 780; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .points-card-label { margin-top: 4px; font-size: 11.5px; font-weight: 500; opacity: .62; }.points-card-footer { margin-top: auto; font-size: 11px; opacity: .62; }
-.points-card-footer-actions { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }.points-card-sponsor { min-height: auto; padding: 0; border: 0; border-radius: 0; background: transparent; color: #007aff; font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; text-underline-offset: 2px; }.points-card-sponsor:hover { text-decoration: underline; background: transparent; }.points-card.has-custom-image .points-card-sponsor { border: 0; background: transparent; color: #fff; opacity: 0.92; }.points-card.has-custom-image .points-card-sponsor:hover { background: transparent; opacity: 1; text-decoration: underline; }
+.points-card-footer-actions { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }.points-card-sponsor { min-height: auto; padding: 0; border: 0; border-radius: 0; background: transparent; color: #0071e3; font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; text-underline-offset: 2px; }.points-card-sponsor:hover { text-decoration: underline; background: transparent; }.points-card.has-custom-image .points-card-sponsor { border: 0; background: transparent; color: #fff; opacity: 0.92; }.points-card.has-custom-image .points-card-sponsor:hover { background: transparent; opacity: 1; text-decoration: underline; }
 .points-card.has-custom-image { color: #fff; border-color: rgba(255,255,255,.28); }.points-card.has-custom-image .points-card-label, .points-card.has-custom-image .points-card-footer { opacity: .84; }
-.points-card.is-interactive:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(27, 49, 69, .12); }.points-card.is-interactive:focus-visible { outline: 2px solid #007aff; outline-offset: 2px; }
+.points-card.is-interactive:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(27, 49, 69, .12); }.points-card.is-interactive:focus-visible { outline: 2px solid #0071e3; outline-offset: 2px; }
 .points-card.is-compact { max-width: 368px; aspect-ratio: 2.08 / 1; border-radius: 14px; }.points-card.is-compact .points-card-content { padding: 14px 16px; }.points-card.is-compact .points-card-points { font-size: 26px; }
 @media (max-width: 420px) { .points-card-cat:nth-child(3) { width: 19%; }.points-card-cat:nth-child(4) { width: 17%; }.points-card-cat:nth-child(9), .points-card-cat:nth-child(10) { width: 12%; }.points-card-footer-actions { gap: 6px; }.points-card-sponsor { padding: 0; } }
 @media (prefers-reduced-motion: reduce) { .points-card.is-interactive:hover { transform: none; } }
+
+/* 暗色：blank 皮肤转石墨玻璃卡面，避免暗环境刺眼（cats/custom 皮肤自带配色不动） */
+html[data-theme="dark"] .points-card.is-blank {
+  background: linear-gradient(150deg, #1f2937 0%, #171f2b 100%);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #eef4fa;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+html[data-theme="dark"] .points-card.is-interactive:focus-visible { outline-color: #2997ff; }
 </style>
