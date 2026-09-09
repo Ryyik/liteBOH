@@ -443,11 +443,11 @@ onUnmounted(() => {
   .beta6-hero-char,
   .beta6-hero-sub,
   .beta6-hero-actions,
-  .beta6-hero-btn-primary { animation: none !important; }
+  .beta6-hero-btn-primary { animation: none; }
   .beta6-hero-caret,
   .beta6-hero-card::after { display: none; }
   .beta6-hero-card,
   .beta6-hero-btn-primary,
-  .beta6-hero-btn-ghost { transition: none !important; }
+  .beta6-hero-btn-ghost { transition: none; }
 }
 </style>

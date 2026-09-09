@@ -1,6 +1,6 @@
 <template>
   <header class="user-center-page-header">
-    <div class="user-center-page-header-inner" :style="{ maxWidth }">
+    <div class="user-center-page-header-inner" :style="{ '--uch-max-width': maxWidth }">
       <div v-if="showBack" class="header-back">
         <UserCenterBackButton :label="backLabel" @click="$emit('back', $event)" />
       </div>
@@ -71,6 +71,7 @@ defineEmits(['back']);
   position: relative;
   z-index: 1;
   min-height: var(--user-center-page-header-height, 76px);
+  max-width: var(--uch-max-width, 1400px);
   margin: 0 auto;
   padding: 0 clamp(18px, 4vw, 40px);
   display: grid;
@@ -127,7 +128,7 @@ defineEmits(['back']);
 /* 横屏宽屏：取消窄屏 max-width，全宽布局（2026-09 IA 反馈） */
 @media (orientation: landscape) and (min-width: 900px) {
   .user-center-page-header-inner {
-    max-width: 100% !important;
+    max-width: 100%;
   }
 }
 

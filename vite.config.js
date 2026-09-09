@@ -67,12 +67,40 @@ function bohVersionPlugin() {
   }
 }
 
+// ============================================
+// NSFW 模型裁剪插件（B1 补丁，修复 bundle 体积闸门）
+// 业务仅加载 MobileNetV2（forum-image-moderation.js 默认模型），但 nsfwjs 的
+// default_models.js 静态注册全部三个模型，rollup 会把 inception_v3（约 30MB）与
+// mobilenet_v2_mid（约 5.7MB）的权重分片全量打进 dist，超出 check-bundle-size.sh
+// 的 30MB 总体积闸门——dist 磁盘大小与是否被浏览器加载无关。
+// 这里将两个未用模型的权重入口模块替换为空实现，使其权重分片不再产出；
+// 运行时行为不变（这两个模型本就不会被加载）。
+// 注意：若未来要启用 InceptionV3 / MobileNetV2Mid，需先移除此插件。
+// ============================================
+function nsfwjsTreeShakePlugin() {
+  const VIRTUAL_ID = '\0nsfwjs-unused-model-stub'
+  const UNUSED_MODEL_IMPORTS = /model_imports\/(inception_v3|mobilenet_v2_mid)\.js$/
+  return {
+    name: 'nsfwjs-tree-shake',
+    enforce: 'pre',
+    resolveId(source) {
+      if (UNUSED_MODEL_IMPORTS.test(source)) return VIRTUAL_ID
+      return null
+    },
+    load(id) {
+      if (id !== VIRTUAL_ID) return null
+      return 'export const modelJson = () => Promise.resolve({});\nexport const weightBundles = [];\n'
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   // 设置基础路径，使用相对路径 './' 以支持 Hash 路由和任意部署路径
   base: './',
 
   plugins: [
+    nsfwjsTreeShakePlugin(),
     vue({
       template: {
         compilerOptions: {
@@ -279,13 +307,10 @@ export default defineConfig({
           // ============================================
           // NSFW 检测模型链（模型本地化 B1/B2）
           // tfjs 运行时 / nsfwjs 运行时 / 包内权重脚本（UMD，由 nsfwjs 动态 import）
-          // 只固定 MobileNetV2 权重 chunk 名（默认模型）；inception/mid 权重保持
-          // rollup 自然分块（不被加载就不占带宽），避免三个模型合并成 39MB 大 chunk
+          // 只固定 MobileNetV2 权重 chunk 名（默认模型）；inception_v3 / mobilenet_v2_mid
+          // 的权重入口已被 nsfwjsTreeShakePlugin 替换为空实现，不会产出任何 chunk
           // ============================================
           if (id.includes('nsfwjs/dist/models/mobilenet_v2/')) return 'nsfw-weights';
-          // 其余模型权重（inception_v3 / mobilenet_v2_mid，约 36MB）不默认加载，
-          // 交给 rollup 自然分块为独立懒 chunk，避免被并进 nsfw-vendor
-          if (id.includes('nsfwjs/dist/models/')) return undefined;
           if (id.includes('node_modules/nsfwjs')) return 'nsfw-vendor';
           if (id.includes('node_modules/@tensorflow')) return 'tfjs-vendor';
 

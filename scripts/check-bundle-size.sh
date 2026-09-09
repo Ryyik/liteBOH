@@ -18,7 +18,10 @@ if [ "$TOTAL_KB" -gt "$MAX_TOTAL_KB" ]; then
   exit 1
 fi
 
-MAX_JS_KB=$(find "$DIST_DIR" -type f -name '*.js' -exec du -k {} + 2>/dev/null | awk 'BEGIN{m=0} {if ($1>m) m=$1} END{print m+0}')
+# NSFW 模型链（nsfw-weights 权重 / tfjs-vendor 运行时）为刻意的整块懒加载资源：
+# 权重不可再切分，且由 SW CacheFirst 永久缓存（见 vite.config.js B2 注释），
+# 不参与单文件闸门；其余 JS（应用代码）仍受 MAX_SINGLE_JS_KB 约束。
+MAX_JS_KB=$(find "$DIST_DIR" -type f -name '*.js' ! -name 'nsfw-weights-*' ! -name 'tfjs-vendor-*' -exec du -k {} + 2>/dev/null | awk 'BEGIN{m=0} {if ($1>m) m=$1} END{print m+0}')
 
 if [ "$MAX_JS_KB" -gt "$MAX_SINGLE_JS_KB" ]; then
   echo "[bundle-check] FAIL: largest JS chunk ${MAX_JS_KB}KB exceeds ${MAX_SINGLE_JS_KB}KB."
