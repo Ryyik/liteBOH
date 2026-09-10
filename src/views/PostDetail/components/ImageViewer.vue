@@ -369,6 +369,7 @@ onUnmounted(() => {
 
 .detail-image-viewer-nav {
   top: 50%;
+  z-index: 3;
   width: 52px;
   height: 52px;
   transform: translateY(-50%);

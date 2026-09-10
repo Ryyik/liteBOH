@@ -57,6 +57,9 @@
 - **supabase 路由 mock 分流**：同表多形态请求按 URL 特征精确区分（列表 select 宽、.single() 属主校验 select=`author_id,target_id` 窄列精确匹配、DELETE 记 id 回 204）；假数据行要带齐后端校验用的列（author_id/target_id）。
 - 组件 scoped 样式会压过全局 css 的 media 覆盖（同特异度看注入顺序）——响应式行为要写进组件自己的 scoped media。
 - 印象面板 probe-impressions-ui.mjs（18 项）可作"网络 mock + 两步交互 + alert 时序"探针模板。
+- **伪造登录 id 必须合法 UUID**（如 00000000-...-abcd）——假 id 进 posts 查询 `or(author_id.eq.假id)` 会 400（PG uuid 校验），表现为详情页卡 skeleton。
+- **chrome 探针网络**：系统代理可能只劫持部分域名（supabase.co 坏、baidu 通），`--no-proxy-server` 不够，须加 `--proxy-server=direct:// --proxy-bypass-list=*` 强制直连；数据落定用条件等待（skeleton 消失 + img naturalWidth>0），固定 sleep 冷连接必 flaky。
+- stacking context 陷阱：img/元素带 inline transform（缩放/平移样式）= z-index:0 绘制层，DOM 里排在前面的 z-auto fixed/absolute 按钮（无显式 z-index）会被它盖住 → "点左没反应点右可以"这类单向点击失效八成是这个。
 
 ## 性能审查基线（20260909，P0 已落地）
 - probe-user-space-perf.mjs = User Space 性能回归探针（五 tab 请求计数/setInterval 堆栈归因/堆趋势/索引切阶段）；报告 user-space-perf-audit-report.html。**P0 已全部实施（9/9）**：AsyncBOHAI 挂载靠 bohaiActivatedOnVisit（分区激活才置位）+ hover 预载已摘除 BOH AI、BOHAIMain 可见性=ResizeObserver（1s 轮询已删）、runProfileCriticalFetches 5s 合并窗口 + warmup 在 posts 收口、印象 30 条/页+加载更多。实测：messages tab 93→9 请求、1s 轮询 0、posts 聚合 RPC 2→1、堆增量 ≈0。**P1 待办**：聚合 RPC 失败负缓存 + 云盘用量 500 条兜底改窄查询、embedded ForumMain 裁剪（weekly/checkin/ads/NSFW 预载）、hydrate 三连查并入主 RPC；P2：成员分区 100 条池+30s 轮询治理。正面勿动：回访社区零请求 TTL 实锤。fetchUserStats 900ms 失败重试是既有设计（伪会话探针下会产生 2 个 HEAD abort，真实会话不触发，勿当回归）。

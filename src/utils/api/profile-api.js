@@ -211,25 +211,30 @@ export async function addUserImpression(authorId, targetId, content) {
     };
   }
 
+  // 表有 UNIQUE (author_id, target_id)：一人对同一目标仅一条印象。
+  // 重复填写 = 覆盖更新（upsert），并刷新 created_at 让新印象排序到最前；
+  // 通知触发器为 AFTER INSERT，冲突走 UPDATE 路径不会重复发通知。
+  const nowIso = new Date().toISOString();
   const enhancedPayload = [{
     author_id: authorId,
     target_id: targetId,
     content: safeContent,
     moderation_status: UNIFIED_APPROVED_STATUS,
-    moderation_reason: null
+    moderation_reason: null,
+    created_at: nowIso
   }];
-  const legacyPayload = [{ author_id: authorId, target_id: targetId, content: safeContent }];
+  const legacyPayload = [{ author_id: authorId, target_id: targetId, content: safeContent, created_at: nowIso }];
 
   let { data, error } = await supabase
     .from('user_impressions')
-    .insert(enhancedPayload)
+    .upsert(enhancedPayload, { onConflict: 'author_id,target_id' })
     .select();
 
   if (error && isMissingDbColumnError(error, 'moderation_status')) {
     logger.warn('profile-api', 'user_impressions 缺少审核列，写入降级为旧版兼容', { error });
     const fallbackResult = await supabase
       .from('user_impressions')
-      .insert(legacyPayload)
+      .upsert(legacyPayload, { onConflict: 'author_id,target_id' })
       .select();
     data = fallbackResult.data;
     error = fallbackResult.error;

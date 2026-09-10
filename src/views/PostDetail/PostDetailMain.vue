@@ -27,7 +27,7 @@ import {
 } from '../../utils/api/forum-api.js';
 import { uploadForumImage } from '../../utils/api/forum-images-api.js';
 import { FORUM_POST_IMAGE_MAX_COUNT, FORUM_TAG_OPTIONS } from '../Forum/forum-config.js';
-import { normalizeForumTag } from '../../utils/api/forum-format.js';
+import { normalizeForumTag, normalizeForumImage, resolveStoredCoverUrl } from '../../utils/api/forum-format.js';
 import { supabase } from '../../utils/supabase-client.js';
 import { formatSmartTime } from '../../utils/time.js';
 import { logger } from '@/utils/logger.js';
@@ -822,6 +822,20 @@ const handleCommentDeepLink = async () => {
   }
 };
 
+// 官方卡（新闻/活动镜像）的图只存在 posts.cover_image_url（forum_post_images 表无行），
+// 且老数据封面是 `@/assets/...` Vite 资源引用，须经 resolveStoredCoverUrl 解析（与列表页同链路）
+const buildCoverFallbackImage = (postData) => {
+  const rawCoverUrl = resolveStoredCoverUrl(postData?.cover_image_url || postData?.coverImageUrl || '');
+  if (!rawCoverUrl) return null;
+  return normalizeForumImage({
+    id: `${String(postData?.id || 'post').trim()}-cover-fallback`,
+    url: rawCoverUrl,
+    width: Number(postData?.cover_image_width || postData?.coverImageWidth || 0),
+    height: Number(postData?.cover_image_height || postData?.coverImageHeight || 0),
+    sortOrder: 0
+  }, { variant: 'detail' });
+};
+
 const fetchPostDetail = async () => {
   const requestSeq = ++detailFetchSeq;
   isLoading.value = true;
@@ -857,13 +871,18 @@ const fetchPostDetail = async () => {
 
       if (requestSeq !== detailFetchSeq) return;
 
+      // 图片：优先取 forum_post_images 表行；为空（官方卡新闻/活动）时用封面兜底，
+      // 避免列表有图、详情无图的不一致
+      const fetchedImages = imagesRes.ok ? imagesRes.data : [];
+      const coverFallback = fetchedImages.length ? null : buildCoverFallbackImage(data);
+
       post.value = {
         ...data,
         isLiked,
         comment_count: Number(data.comment_count || 0),
         like_count: Number(data.like_count || 0),
         author_avatar_url: data.author?.avatar_url,
-        images: imagesRes.ok ? imagesRes.data : []
+        images: coverFallback ? [coverFallback] : fetchedImages
       };
       detailImageIndex.value = 0;
       isLoading.value = false;
