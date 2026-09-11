@@ -2239,8 +2239,7 @@
 }
 
 .posts-list .public-profile-post-card {
-  content-visibility: auto;
-  contain-intrinsic-size: 0 360px;
+  /* 不用 content-visibility:auto（WebKit bug 321501 iOS 空白卡），列表本身分页 */
   padding: 24px;
   background: rgba(255, 255, 255, 0.86);
   margin-bottom: 16px;

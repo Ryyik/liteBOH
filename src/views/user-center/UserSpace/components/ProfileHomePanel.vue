@@ -142,23 +142,8 @@
           </svg>
         </span>
         <span class="profile-service-body">
-          <strong>{{ beta5 ? '方块积分' : '积分与礼物' }}</strong>
+          <strong>方块积分</strong>
           <small class="profile-service-hint">{{ formatPoints(stats.points) || '0' }} 积分 · {{ subscriptionSummaryText }}</small>
-        </span>
-        <span class="profile-action-chevron">›</span>
-      </button>
-
-      <button v-if="!beta5" type="button" class="profile-service-row" @click="$emit('sponsor')">
-        <span class="profile-service-icon bg-gold">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-            stroke-linejoin="round">
-            <path d="M12 2v20"></path>
-            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6"></path>
-          </svg>
-        </span>
-        <span class="profile-service-body">
-          <strong>赞助</strong>
-          <small>支持项目发展</small>
         </span>
         <span class="profile-action-chevron">›</span>
       </button>
@@ -290,6 +275,8 @@ import { computed, reactive, ref, watch, onMounted, onUnmounted } from 'vue';
 import FollowListModal from '@/components/FollowListModal.vue';
 import PointsCard from './PointsCard.vue';
 import { getCommentsByUsername, getFollowers, getFollowing, unfollowUser } from '@/utils/api/profile-api.js';
+import { fetchQuotedPostsByIds } from '@/utils/api/forum-api.js';
+import { resolveStoredCoverUrl } from '@/utils/api/forum-format.js';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { PLAN_DISPLAY_NAMES } from '@/utils/subscription-benefits.js';
 
@@ -398,10 +385,6 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
-  beta5: {
-    type: Boolean,
-    default: false
-  },
   stats: {
     type: Object,
     default: () => ({ posts: 0, points: 0, rank: 0 })
@@ -446,7 +429,6 @@ const emit = defineEmits([
   'avatar-click',
   'background-click',
   'view-impressions',
-  'sponsor',
   'assets',
   'data-management',
   'cloud-plus',
@@ -540,11 +522,54 @@ const normalizeProfileText = (value, fallback = '') => {
   return safeValue || fallback;
 };
 
-const getProfilePostTitle = (post = {}) => normalizeProfileText(post.title, '无标题');
+// —— 转发帖引用回源（个人/他人空间的帖子网格） ——
+// 转发帖只存转发留言，标题/封面/摘录取自被引用的原帖（批量回源 + 缓存在 _shared.js）
+const quotedPostsMap = ref({});
+
+watch(() => props.posts?.length, async () => {
+  const posts = Array.isArray(props.posts) ? props.posts : [];
+  const ids = posts
+    .filter((p) => p?.post_kind === 'repost' && p?.repost_of_post_id)
+    .map((p) => String(p.repost_of_post_id));
+  if (!ids.length) return;
+  const map = await fetchQuotedPostsByIds(ids);
+  if (!map.size) return;
+  quotedPostsMap.value = { ...quotedPostsMap.value, ...Object.fromEntries(map) };
+}, { immediate: true });
+
+const getQuotedPost = (post = {}) => quotedPostsMap.value[String(post?.repost_of_post_id || '')] || null;
+
+const getProfilePostTitle = (post = {}) => {
+  // 注意：无条件先读 quoted（依赖收集），否则回源完成后引用了 quoted 的分支
+  // 因 early return 不触发重渲染，网格卡永远停在兜底文案
+  const quoted = getQuotedPost(post);
+  // 转发帖：转发者附的话是主体（标题位），对方帖子内容以小字摘录跟在摘要位
+  if (post.post_kind === 'repost') {
+    const own = normalizeProfileText(post.body || post.content, '');
+    if (own) return own.length > 30 ? `${own.slice(0, 30)}…` : own;
+    return normalizeProfileText(quoted?.title, '转发动态');
+  }
+  return normalizeProfileText(post.title, '无标题');
+};
 
 const getProfilePostSummary = (post = {}) => {
+  const clip = (text) => (text.length > 46 ? `${text.slice(0, 46)}...` : text);
+  // 转发帖：小字摘要展示对方的帖子内容（带作者标记）。
+  // 纯标题原帖剥掉【】后正文为空，回退用其标题；原帖不可见时不重复转发文字。
+  if (post.post_kind === 'repost') {
+    const quoted = getQuotedPost(post);
+    const rawQuoted = normalizeProfileText(quoted?.body || quoted?.content, '');
+    const stripped = rawQuoted.replace(/【.*?】\n?/, '').trim();
+    const quotedTitle = normalizeProfileText(quoted?.title, '')
+      || (rawQuoted.match(/【(.*?)】/)?.[1] ?? '');
+    const quotedBody = stripped || quotedTitle;
+    const author = normalizeProfileText(quoted?.author_username, '');
+    if (quotedBody) return clip(`${author ? `@${author}：` : ''}${quotedBody}`);
+    const own = normalizeProfileText(post.body || post.content, '');
+    return own ? '🔁 转发的帖子' : '转发动态';
+  }
   const body = normalizeProfileText(post.body || post.content, '');
-  return body.length > 46 ? `${body.slice(0, 46)}...` : (body || '暂无正文');
+  return body ? clip(body) : '暂无正文';
 };
 
 const getProfilePostCover = (post = {}) => {
@@ -552,7 +577,14 @@ const getProfilePostCover = (post = {}) => {
   const firstImage = images[0] || null;
   const imageCover = String(firstImage?.url || firstImage?.thumbUrl || firstImage?.originalUrl || '').trim();
   if (imageCover) return imageCover;
-  return String(post.cover_image_url || '').trim();
+  const ownCover = String(post.cover_image_url || '').trim();
+  if (ownCover) return ownCover;
+  // 转发帖本身无图：借用被引用原帖的封面（老数据 @/assets 引用先解析）
+  if (post.post_kind === 'repost') {
+    const quotedCover = String(getQuotedPost(post)?.cover_image_url || '').trim();
+    if (quotedCover) return resolveStoredCoverUrl(quotedCover) || quotedCover;
+  }
+  return '';
 };
 
 const formatProfilePostDate = (post = {}) => {

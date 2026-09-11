@@ -419,7 +419,7 @@ export async function sendPushplusForNotification(notification = {}) {
 
   if (!recipientId || !type) return { success: false, message: '缺少通知关键信息', data: null };
   if (senderId && recipientId === senderId) return { success: false, message: '跳过自操作推送', data: null };
-  if (!['like', 'comment', 'impression'].includes(type)) {
+  if (!['like', 'comment', 'impression', 'repost'].includes(type)) {
     return { success: false, message: '当前通知类型不发送 Pushplus', data: null };
   }
 

@@ -62,21 +62,8 @@
   height: 100%;
 }
 
-#unified-nav-container.scrolled .unified-nav-surface {
-  --global-nav-rest-height: 58px;
-  --global-nav-status-top: 65px;
-  max-width: min(860px, calc(100% - 24px));
-  height: 58px;
-  transform: translateY(20px);
-  border: 1px solid rgba(255, 255, 255, 0.34);
-  border-radius: 100px;
-  background-color: rgba(255, 255, 255, 0.66);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-}
-
-/* Beta 5 keeps the floating material as persistent chrome. The stable scroll
-   state remains intact above so users can switch modes without a reload. */
-:global(html[data-boh-app-mode="beta5"] #unified-nav-container .unified-nav-surface) {
+/* Beta 6：导航为常驻悬浮岛（旧 stable 滚动收缩态与双模式切换已移除）。 */
+:global(#unified-nav-container .unified-nav-surface) {
   --global-nav-rest-height: 58px;
   --global-nav-status-top: 65px;
   max-width: min(860px, calc(100% - 24px));
@@ -178,11 +165,9 @@
   }
 }
 
-/* Beta 5 keeps its navigation in a floating island at rest, so the legacy
-   `.scrolled` submenu selector never applies. Give desktop menus the same
-   bounded, elevated surface instead of the original full-width sheet. */
+/* Beta 6：桌面下拉菜单为有界悬浮卡（旧 stable 全宽 sheet 与 .scrolled 触发已移除）。 */
 @media (min-width: 769px) {
-  :global(html[data-boh-app-mode="beta5"] #unified-nav-container .nav-submenu) {
+  :global(#unified-nav-container .nav-submenu) {
     top: 78px;
     left: 12px;
     right: 12px;
@@ -201,7 +186,7 @@
     transform-origin: top center;
   }
 
-  :global(html[data-boh-app-mode="beta5"] #unified-nav-container[data-theme="dark"] .nav-submenu) {
+  :global(#unified-nav-container[data-theme="dark"] .nav-submenu) {
     border-color: rgba(255, 255, 255, 0.14);
     background-color: rgba(28, 28, 30, 0.86) !important;
     box-shadow: 0 14px 36px rgba(0, 0, 0, 0.34);
@@ -209,13 +194,13 @@
 }
 
 @media (prefers-reduced-transparency: reduce) and (min-width: 769px) {
-  :global(html[data-boh-app-mode="beta5"] #unified-nav-container .nav-submenu) {
+  :global(#unified-nav-container .nav-submenu) {
     background-color: #ffffff !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }
 
-  :global(html[data-boh-app-mode="beta5"] #unified-nav-container[data-theme="dark"] .nav-submenu) {
+  :global(#unified-nav-container[data-theme="dark"] .nav-submenu) {
     background-color: #1c1c1e !important;
   }
 }
@@ -250,15 +235,7 @@
     --global-nav-status-bottom-gap: 7px;
   }
 
-  #unified-nav-container.scrolled .unified-nav-surface {
-    --global-nav-rest-height: 50px;
-    --global-nav-status-top: 57px;
-    max-width: calc(100% - 16px);
-    height: 50px;
-    transform: translateY(14px);
-  }
-
-  :global(html[data-boh-app-mode="beta5"] #unified-nav-container .unified-nav-surface) {
+  :global(#unified-nav-container .unified-nav-surface) {
     --global-nav-rest-height: 50px;
     --global-nav-status-top: 57px;
     max-width: calc(100% - 16px);
@@ -272,9 +249,8 @@
     border-radius: 24px !important;
   }
 
-  /* Beta 5 is permanently in the floating-nav state, so it needs its own
-     compact menu instead of relying on the stable mode's .scrolled selector. */
-  :global(html[data-boh-app-mode="beta5"] #unified-nav-container .nav-menu-mobile) {
+  /* Beta 6：常驻悬浮导航使用独立紧凑菜单。 */
+  :global(#unified-nav-container .nav-menu-mobile) {
     top: 66px;
     left: 8px;
     right: 8px;
@@ -290,7 +266,7 @@
     transform-origin: right top;
   }
 
-  :global(html[data-boh-app-mode="beta5"] #unified-nav-container .nav-menu-mobile-content) {
+  :global(#unified-nav-container .nav-menu-mobile-content) {
     height: auto;
     max-height: calc(100dvh - 98px);
     padding: 10px;
@@ -299,13 +275,13 @@
     overscroll-behavior: contain;
   }
 
-  :global(html[data-boh-app-mode="beta5"] #unified-nav-container .nav-mobile-link) {
+  :global(#unified-nav-container .nav-mobile-link) {
     min-height: 44px;
     padding: 11px 14px;
     border-radius: 12px;
   }
 
-  :global(html[data-boh-app-mode="beta5"] #unified-nav-container .nav-mobile-submenu-container) {
+  :global(#unified-nav-container .nav-mobile-submenu-container) {
     position: relative;
     top: auto;
     left: auto;
@@ -318,7 +294,7 @@
     -webkit-backdrop-filter: none !important;
   }
 
-  :global(html[data-boh-app-mode="beta5"] #unified-nav-container[data-theme="dark"] .nav-menu-mobile) {
+  :global(#unified-nav-container[data-theme="dark"] .nav-menu-mobile) {
     border-color: rgba(255, 255, 255, 0.14);
     background-color: rgba(28, 28, 30, 0.86) !important;
     box-shadow: 0 14px 36px rgba(0, 0, 0, 0.34);
@@ -385,7 +361,7 @@
 
 /* Beta 5 的浮岛规则优先级更高；登录展开时覆盖为与卡片相接的上半岛。 */
 @media (orientation: landscape) and (min-width: 769px) {
-  :global(html[data-boh-app-mode="beta5"] #unified-nav-container .unified-nav-surface.has-login-card) {
+  :global(#unified-nav-container .unified-nav-surface.has-login-card) {
     --global-nav-rest-height: 64px;
     width: min(860px, calc(100% - 24px));
     max-width: min(860px, calc(100% - 24px));
@@ -400,7 +376,7 @@
     -webkit-backdrop-filter: none;
   }
 
-  :global(html[data-boh-app-mode="beta5"] #unified-nav-container[data-theme="dark"] .unified-nav-surface.has-login-card) {
+  :global(#unified-nav-container[data-theme="dark"] .unified-nav-surface.has-login-card) {
     background-color: #1c1c1e;
     box-shadow: none;
   }

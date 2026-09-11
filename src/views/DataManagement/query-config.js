@@ -90,7 +90,7 @@ export const DATE_FILTER_FIELDS = {
 export const TAB_SELECT_COLUMNS = {
   // H-1 修复：profiles 敏感字段已通过列级权限收窄，
   // users tab 的 email/shipping_* 改由 fetchTabData 中调用 admin_list_users_with_sensitive RPC 获取
-  users: 'id, username, role, points, experience, join_date, bio, avatar_url, tags',
+  users: 'id, username, role, points, experience, join_date, bio, avatar_url, avatar_frame_url, tags',
   points: 'id, username, role, points, experience, join_date',
   subscriptions: `
     id,

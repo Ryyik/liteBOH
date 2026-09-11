@@ -725,7 +725,7 @@ const onReplyInput = (event) => {
   height: 30px;
   background: #f5f5f7;
   border: 1px solid rgba(0, 0, 0, 0.05);
-  border-radius: 9px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;

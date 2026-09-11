@@ -96,7 +96,7 @@
 .user-avatar {
   width: 48px;
   height: 48px;
-  border-radius: 16px;
+  border-radius: 50%;
   background: #1d1d1f;
   color: #fff;
   display: flex;

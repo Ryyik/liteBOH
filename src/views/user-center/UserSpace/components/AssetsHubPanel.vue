@@ -1,15 +1,14 @@
 <template>
   <div class="profile-subpage-shell">
-    <UserCenterPageHeader :title="beta5 ? '方块积分' : '积分与礼物'" back-label="返回我的" max-width="1200px" :show-back="showBack" @back="$emit('back')" />
+    <UserCenterPageHeader title="方块积分" back-label="返回我的" max-width="1200px" :show-back="showBack" @back="$emit('back')" />
 
     <div class="profile-subpage-body">
       <nav class="ah-hub-card">
         <div class="ah-top-row">
           <div class="ah-user-left">
-            <div v-if="avatarUrl" class="ah-avatar has-avatar">
-              <img :src="avatarUrl" alt="头像" class="ah-avatar-img" loading="lazy">
-            </div>
-            <div v-else class="ah-avatar">{{ displayInitial }}</div>
+            <FramedAvatar :src="avatarUrl" :initial="displayInitial" :size="52" alt="头像"
+              :frame-url="avatarFrame.url" :ring="avatarFrame.url ? '' : avatarFrame.ring"
+              :frame-scale="avatarFrame.scale || 0" />
             <div class="ah-user-info">
               <div class="ah-name-row">
                 <span class="ah-username">{{ displayName }}</span>
@@ -30,26 +29,8 @@
           </div>
         </div>
 
-        <div class="ah-tab-groups" ref="hubGroupsRef">
-          <div v-for="group in tabGroups" :key="group.label" class="ah-tab-group" role="tablist" :aria-label="group.label">
-            <span class="ah-tab-group-label">{{ group.label }}</span>
-            <div class="ah-hub-tabs">
-              <button
-                v-for="tab in group.tabs"
-                :key="tab.id"
-                type="button"
-                role="tab"
-                :aria-selected="activeTab === tab.id"
-                class="ah-tab"
-                :class="{ active: activeTab === tab.id }"
-                @click="activateTab(tab.id)"
-              >
-                <component :is="tab.icon" class="ah-tab-icon" :size="17" :stroke-width="1.9" aria-hidden="true" />
-                <span class="ah-tab-label">{{ tab.label }}</span>
-              </button>
-            </div>
-          </div>
-        </div>
+        <SegmentTabs class="ah-segment-tabs" :sections="hubSections" v-model="activeTabModel"
+          aria-label="资产中心分区" />
       </nav>
 
       <Transition name="ah-panel" mode="out-in">
@@ -75,11 +56,7 @@
               <div class="ah-skeleton-line w-80"></div>
             </div>
           </div>
-          <div v-if="beta5" class="ah-skeleton ah-skeleton-points-card is-centered"></div>
-          <div v-else class="ah-overview-insights">
-            <div class="ah-skeleton ah-skeleton-card-sm"></div>
-            <div class="ah-skeleton ah-skeleton-card-sm"></div>
-          </div>
+          <div class="ah-skeleton ah-skeleton-points-card is-centered"></div>
           <div class="ah-skeleton ah-skeleton-timeline"></div>
         </div>
         <template v-else>
@@ -101,7 +78,7 @@
           </span>
         </button>
 
-        <div v-if="beta5" class="ah-overview-points-wrap">
+        <div class="ah-overview-points-wrap">
           <PointsCard
             class="ah-overview-points-card"
             :points="userPoints"
@@ -111,36 +88,9 @@
             :image-url="userInfo?.pointsCardImageUrl"
             interactive
             :show-sponsor-action="false"
-            @click="activateTab('cards')"
+            @click="activateTab('decor')"
           />
         </div>
-
-        <div v-if="!beta5" class="ah-overview-insights">
-            <article class="ah-overview-primary">
-              <div class="ah-overview-card-icon is-blue"><Coins :size="19" :stroke-width="1.8" aria-hidden="true" /></div>
-              <div class="ah-overview-copy">
-                <span class="ah-overview-kicker">可用积分</span>
-                <strong>{{ pointsDisplay }}</strong>
-                <span>{{ pointsContextText }}</span>
-              </div>
-              <button type="button" class="ah-overview-link" @click="activateTab('points')">
-                明细
-                <ChevronRight :size="16" :stroke-width="2" aria-hidden="true" />
-              </button>
-            </article>
-
-            <article class="ah-overview-membership" :class="{ 'is-expiring': subscriptionExpiryDays !== null && subscriptionExpiryDays <= 30 }">
-              <div class="ah-overview-card-icon is-gold"><Crown :size="19" :stroke-width="1.8" aria-hidden="true" /></div>
-              <div>
-                <span>{{ subscriptionLoading ? '正在读取会员状态' : '当前会员' }}</span>
-                <strong>{{ subscriptionDisplayName }}</strong>
-                <p>{{ membershipContextText }}</p>
-              </div>
-              <button type="button" class="ah-icon-command" title="管理会员" aria-label="管理会员" @click="activateTab('subscription')">
-                <ChevronRight :size="18" :stroke-width="2" aria-hidden="true" />
-              </button>
-            </article>
-          </div>
 
         <div class="ah-smart-columns ah-single-timeline">
           <section class="ah-smart-section" aria-label="最近动态">
@@ -204,65 +154,6 @@
           </section>
         </div>
         </template>
-      </section>
-
-      <section v-else-if="activeTab === 'cards' && beta5" key="cards" class="ah-section ah-cards-section">
-        <div class="ah-cards-heading">
-          <div><span>积分卡</span><h2>展示你的方块积分</h2><p>选择空白卡、全员小猫主题，或上传自己的卡面。</p></div>
-        </div>
-        <PointsCard :points="userPoints" :username="displayName" :tier-label="tierDisplayName || 'BOH'"
-          :skin="userInfo?.pointsCardSkin" :image-url="userInfo?.pointsCardImageUrl" show-sponsor-action
-          @sponsor="$emit('sponsor')" />
-        <div class="ah-skin-grid" aria-label="积分卡皮肤">
-          <button type="button" class="ah-skin-option" :class="{ active: userInfo?.pointsCardSkin === 'blank' }" @click="$emit('set-points-card-skin', 'blank')">
-            <span class="ah-skin-preview is-blank"><Coins :size="18" :stroke-width="1.8" /></span><strong>空白卡</strong><small>默认样式</small>
-          </button>
-          <button type="button" class="ah-skin-option is-cats-skin" :class="{ active: pointsCardCatsUnlocked && userInfo?.pointsCardSkin === 'cats' }" :disabled="isRedeemingPointsCardCats" @click="handleCatsSkinClick">
-            <span class="ah-skin-preview is-cats"><img v-for="cat in catSkinPreviewAssets" :key="cat.id" :src="cat.src" alt=""></span><strong>全员小猫</strong><small>{{ isRedeemingPointsCardCats ? '兑换中' : (pointsCardCatsUnlocked ? '已兑换' : '3 积分兑换') }}</small>
-          </button>
-          <button type="button" class="ah-skin-option" :disabled="isPointsCardPresetQuotaLoading || !canAddPointsCardPreset" @click="$emit('upload-points-card')">
-            <span class="ah-skin-preview is-custom"><ImagePlus :size="18" :stroke-width="1.8" /></span><strong>添加卡面</strong><small>上传并裁切</small>
-          </button>
-        </div>
-
-        <section class="ah-card-presets" aria-label="自定义卡面预设">
-          <div class="ah-card-presets-heading">
-            <span>自定义预设</span>
-            <small v-if="!isPointsCardPresetsLoading">{{ pointsCardPresets.length }} / {{ pointsCardPresetCapacity }} 张</small>
-          </div>
-          <div v-if="isPointsCardPresetsLoading" class="ah-card-preset-grid" aria-hidden="true">
-            <div v-for="n in 3" :key="n" class="ah-skeleton ah-skeleton-preset"></div>
-          </div>
-          <div v-else-if="pointsCardPresets.length" class="ah-card-preset-grid">
-            <article
-              v-for="preset in pointsCardPresets"
-              :key="preset.id"
-              class="ah-card-preset"
-              :class="{ active: userInfo?.pointsCardSkin === 'custom' && userInfo?.pointsCardImageUrl === preset.imageUrl }"
-            >
-              <button
-                type="button"
-                class="ah-card-preset-select"
-                :aria-label="'使用自定义卡面预设'"
-                @click="$emit('select-points-card-preset', preset.id)"
-              >
-                <img :src="preset.imageUrl" alt="自定义卡面预设" loading="lazy">
-                <span>自定义卡面</span>
-              </button>
-              <button
-                type="button"
-                class="ah-card-preset-delete"
-                aria-label="删除此自定义卡面预设"
-                title="删除此预设"
-                @click="$emit('delete-points-card-preset', preset.id)"
-              >
-                <Trash2 :size="15" :stroke-width="2" aria-hidden="true" />
-              </button>
-            </article>
-          </div>
-          <div v-else class="ah-card-presets-empty">暂无自定义预设</div>
-          <p v-if="!isPointsCardPresetsLoading" class="ah-card-presets-retention">未启用的卡面超过 90 天会自动清理</p>
-        </section>
       </section>
 
       <section v-else-if="activeTab === 'points'" key="points" class="ah-section ah-points-section">
@@ -338,9 +229,9 @@
         </template>
       </section>
 
-      <section v-else-if="activeTab === 'fulfillment' && beta5" key="fulfillment" class="ah-section ah-fulfillment-section">
+      <section v-else-if="activeTab === 'fulfillment'" key="fulfillment" class="ah-section ah-fulfillment-section">
         <header class="ah-fulfillment-heading">
-          <div><span>服务</span><h2>礼物与订单</h2><p>正在处理的礼物和全部兑换记录都在这里。</p></div>
+          <div><span>服务</span><h2>订单</h2><p>礼物履约、商城兑换记录与收货地址都在这里。</p></div>
           <button type="button" class="ah-icon-command" title="刷新礼物与订单" aria-label="刷新礼物与订单" @click="refreshFulfillment">
             <RefreshCw :size="17" :stroke-width="2" aria-hidden="true" />
           </button>
@@ -373,156 +264,18 @@
           <div v-else class="ah-empty-state"><div class="ah-empty-icon"><Package :size="26" :stroke-width="1.5" /></div><h3>{{ recordFilter === 'gifts' ? '还没有历史礼物' : recordFilter === 'orders' ? '还没有商城订单' : '还没有礼物或订单记录' }}</h3><p v-if="recordFilter !== 'gifts'">商城兑换与已归档礼物会出现在这里。</p></div>
           <p v-if="giftsError || ordersError" class="ah-fulfillment-partial-error">部分记录暂时无法更新，刷新后重试。</p>
         </section>
-      </section>
 
-      <!-- 订单 Tab -->
-      <section v-else-if="activeTab === 'orders'" key="orders" class="ah-section">
-        <div v-if="ordersLoading" class="ah-order-skeleton">
-          <div v-for="n in 3" :key="n" class="ah-skeleton-block" />
-        </div>
-        <div v-else-if="ordersError" class="ah-empty-state">
-          <div class="ah-empty-icon"><Package :size="26" :stroke-width="1.5" /></div>
-          <h3>订单暂时无法加载</h3>
-          <button type="button" class="ah-shop-btn ah-shop-btn-ghost" @click="loadOrders">重试</button>
-        </div>
-        <div v-else-if="orders.length === 0" class="ah-empty-state">
-          <div class="ah-empty-icon">
-            <Package :size="26" :stroke-width="1.5" />
+        <section class="ah-fulfillment-address" aria-label="收货地址">
+          <div class="ah-fulfillment-address-head">
+            <span>收货地址</span>
+            <h3>管理你的收货地址</h3>
+            <p>礼物与实物兑换寄送时使用，建议至少保留一个有效地址。</p>
           </div>
-          <h3>暂无订单</h3>
-          <p>商城下单后，订单会出现在这里</p>
-          <button class="ah-shop-btn ah-shop-btn-ghost" @click="goToShop">去商城逛逛</button>
-        </div>
-        <div v-else class="ah-order-list">
-          <article v-for="order in orders" :key="order.id" class="ah-order-item">
-            <div class="ah-order-top">
-              <span class="ah-order-no">{{ order.order_no }}</span>
-              <span class="ah-order-date">{{ formatDate(order.created_at) }}</span>
-            </div>
-            <div class="ah-order-bottom">
-              <span class="ah-order-items">{{ order.item_count }} 件商品</span>
-              <span class="ah-order-points">-{{ order.total_points }} 积分</span>
-            </div>
-          </article>
-        </div>
+          <AddressManager variant="glass" :show-header="false" />
+        </section>
       </section>
 
-      <!-- 礼物 Tab：当前礼物 + 历史礼物列表 -->
-      <section v-else-if="activeTab === 'gifts'" key="gifts" class="ah-section">
-        <div v-if="giftsLoading" class="ah-order-skeleton">
-          <div v-for="n in 3" :key="n" class="ah-skeleton-block" />
-        </div>
-        <div v-else-if="giftsError" class="ah-empty-state">
-          <div class="ah-empty-icon"><Gift :size="26" :stroke-width="1.5" /></div>
-          <h3>礼物信息暂时无法加载</h3>
-          <button type="button" class="ah-shop-btn ah-shop-btn-ghost" @click="loadGifts">重试</button>
-        </div>
-        <template v-else>
-          <!-- 当前礼物卡片 -->
-          <div v-if="!currentGift" class="ah-empty-state">
-            <div class="ah-empty-icon">
-              <Gift :size="26" :stroke-width="1.5" />
-            </div>
-            <h3>还没有待收到的礼物</h3>
-            <p>积极参与社区活动来赢取吧，收到礼物后这里会及时更新状态。</p>
-          </div>
-          <article v-else class="ah-gift-card">
-            <header class="ah-gift-header">
-              <span class="ah-gift-eyebrow">
-                <PackageCheck :size="14" :stroke-width="2" aria-hidden="true" />
-                当前礼物
-              </span>
-              <span class="ah-gift-header-date">更新于 {{ giftStatusDate }}</span>
-            </header>
-
-            <div class="ah-gift-overview">
-              <div class="ah-gift-thumb" :class="{ 'has-image': currentGift.gift_image }">
-                <img v-if="currentGift.gift_image" :src="currentGift.gift_image" :alt="currentGift.gift_content" loading="lazy" />
-                <Gift v-else :size="30" :stroke-width="1.6" aria-hidden="true" />
-              </div>
-              <div class="ah-gift-headinfo">
-                <h3>{{ currentGift.gift_content || '待命中的礼物' }}</h3>
-                <div class="ah-gift-headsub">
-                  <span v-if="currentGift.gift_price" class="ah-gift-amount">RMB {{ currentGift.gift_price }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="ah-gift-status-panel" :class="currentGift.gift_status">
-              <div class="ah-gift-status-icon">
-                <PackageCheck :size="19" :stroke-width="1.8" aria-hidden="true" />
-              </div>
-              <div class="ah-gift-status-copy">
-                <strong>{{ giftStatusHeadline }}</strong>
-                <p>{{ giftStatusDesc }}</p>
-              </div>
-            </div>
-
-            <div v-if="currentGift.gift_no || currentGift.shipping_recipient || currentGift.shipping_address" class="ah-gift-details">
-              <div v-if="currentGift.gift_no" class="ah-gift-detail-row">
-                <div class="ah-gift-detail-icon"><PackageCheck :size="18" :stroke-width="1.8" aria-hidden="true" /></div>
-                <div class="ah-gift-detail-copy">
-                  <span>快递单号</span>
-                  <strong>{{ currentGift.gift_no }}</strong>
-                </div>
-                <button
-                  type="button"
-                  class="ah-gift-copy"
-                  :class="{ copied: expressCopied }"
-                  :aria-label="expressCopied ? '已复制快递单号' : '复制快递单号'"
-                  :title="expressCopied ? '已复制' : '复制快递单号'"
-                  @click="copyExpressNo(currentGift.gift_no)"
-                >
-                  <Transition name="ah-icon-swap" mode="out-in">
-                    <Check v-if="expressCopied" key="copied" :size="17" :stroke-width="2.4" aria-hidden="true" />
-                    <Copy v-else key="copy" :size="17" :stroke-width="2" aria-hidden="true" />
-                  </Transition>
-                </button>
-              </div>
-              <div v-if="currentGift.shipping_recipient || currentGift.shipping_address" class="ah-gift-detail-row">
-                <div class="ah-gift-detail-icon"><MapPin :size="18" :stroke-width="1.8" aria-hidden="true" /></div>
-                <div class="ah-gift-detail-copy">
-                  <span>收货信息</span>
-                  <strong>{{ currentGift.shipping_recipient || '收件人' }}<em v-if="currentGift.shipping_phone">{{ currentGift.shipping_phone }}</em></strong>
-                  <p>{{ currentGift.shipping_address || '暂无收货地址' }}</p>
-                </div>
-              </div>
-            </div>
-          </article>
-
-          <!-- 历史礼物列表 -->
-          <div v-if="historyGifts.length" class="ah-gift-history">
-            <div class="ah-gift-history-head">
-              <span>历史礼物</span>
-              <span class="ah-gift-history-count">{{ historyGifts.length }} 份</span>
-            </div>
-            <div class="ah-gift-history-list">
-              <article v-for="gift in historyGifts" :key="gift.id" class="ah-gift-history-item">
-                <div class="ah-gift-history-thumb" :class="{ 'has-image': gift.gift_image }">
-                  <img v-if="gift.gift_image" :src="gift.gift_image" :alt="gift.gift_content" loading="lazy" />
-                  <Gift v-else :size="18" :stroke-width="1.8" aria-hidden="true" />
-                </div>
-                <div class="ah-gift-history-main">
-                  <strong>{{ gift.gift_content || '未命名礼物' }}</strong>
-                  <span class="ah-gift-history-meta-line">
-                    <span v-if="gift.gift_no" class="ah-gift-history-no">{{ gift.gift_no }}</span>
-                    <span class="ah-gift-history-date">{{ formatDateShort(gift.created_at) }}</span>
-                  </span>
-                </div>
-                <div class="ah-gift-history-side">
-                  <span v-if="gift.gift_price" class="ah-gift-history-price">RMB {{ gift.gift_price }}</span>
-                  <span class="ah-gift-badge is-flat" :class="gift.gift_status">{{ getGiftStatusLabel(gift.gift_status) }}</span>
-                </div>
-              </article>
-            </div>
-          </div>
-        </template>
-      </section>
-
-      <!-- 收货地址 Tab -->
-      <section v-else-if="activeTab === 'addresses'" key="addresses" class="ah-section">
-        <AddressManager variant="glass" :show-header="false" />
-      </section>
+      <!-- 旧「订单 / 礼物 / 地址」独立 tab 已并入 fulfillment（2026-09 tab 合并），深链经 normalizeInitialTab 映射 -->
 
       <section v-else-if="activeTab === 'lottery'" key="lottery" class="ah-section ah-lottery-section">
         <div class="ah-lottery-hero">
@@ -610,13 +363,84 @@
           <button type="button" class="ah-shop-btn ah-shop-btn-ghost" @click="activateTab('overview')">返回概览</button>
         </div>
       </section>
+
+      <section v-else-if="activeTab === 'decor'" key="decor" class="ah-section ah-decor">
+        <header class="ah-overview-heading">
+          <div>
+            <span>个性化</span>
+            <h2>装扮</h2>
+            <p>选择你的头像框，佩戴后全站头像同步展示。更多装扮类型陆续上线。</p>
+          </div>
+        </header>
+        <AvatarFrameGrid :avatar-url="avatarUrl" :tier-code="tierCode" @unlock="activateTab('subscription')" />
+
+        <div class="ah-decor-subhead">
+          <h3>积分卡面</h3>
+          <p>选择空白卡、全员小猫主题，或上传自己的卡面。</p>
+        </div>
+        <div class="ah-cards-panel">
+          <PointsCard :points="userPoints" :username="displayName" :tier-label="tierDisplayName || 'BOH'"
+            :skin="userInfo?.pointsCardSkin" :image-url="userInfo?.pointsCardImageUrl" show-sponsor-action
+            @sponsor="$emit('sponsor')" />
+          <div class="ah-skin-grid" aria-label="积分卡皮肤">
+            <button type="button" class="ah-skin-option" :class="{ active: userInfo?.pointsCardSkin === 'blank' }" @click="$emit('set-points-card-skin', 'blank')">
+              <span class="ah-skin-preview is-blank"><Coins :size="18" :stroke-width="1.8" /></span><strong>空白卡</strong><small>默认样式</small>
+            </button>
+            <button type="button" class="ah-skin-option is-cats-skin" :class="{ active: pointsCardCatsUnlocked && userInfo?.pointsCardSkin === 'cats' }" :disabled="isRedeemingPointsCardCats" @click="handleCatsSkinClick">
+              <span class="ah-skin-preview is-cats"><img v-for="cat in catSkinPreviewAssets" :key="cat.id" :src="cat.src" alt=""></span><strong>全员小猫</strong><small>{{ isRedeemingPointsCardCats ? '兑换中' : (pointsCardCatsUnlocked ? '已兑换' : '3 积分兑换') }}</small>
+            </button>
+            <button type="button" class="ah-skin-option" :disabled="isPointsCardPresetQuotaLoading || !canAddPointsCardPreset" @click="$emit('upload-points-card')">
+              <span class="ah-skin-preview is-custom"><ImagePlus :size="18" :stroke-width="1.8" /></span><strong>添加卡面</strong><small>上传并裁切</small>
+            </button>
+          </div>
+
+          <section class="ah-card-presets" aria-label="自定义卡面预设">
+            <div class="ah-card-presets-heading">
+              <span>自定义预设</span>
+              <small v-if="!isPointsCardPresetsLoading">{{ pointsCardPresets.length }} / {{ pointsCardPresetCapacity }} 张</small>
+            </div>
+            <div v-if="isPointsCardPresetsLoading" class="ah-card-preset-grid" aria-hidden="true">
+              <div v-for="n in 3" :key="n" class="ah-skeleton ah-skeleton-preset"></div>
+            </div>
+            <div v-else-if="pointsCardPresets.length" class="ah-card-preset-grid">
+              <article
+                v-for="preset in pointsCardPresets"
+                :key="preset.id"
+                class="ah-card-preset"
+                :class="{ active: userInfo?.pointsCardSkin === 'custom' && userInfo?.pointsCardImageUrl === preset.imageUrl }"
+              >
+                <button
+                  type="button"
+                  class="ah-card-preset-select"
+                  :aria-label="'使用自定义卡面预设'"
+                  @click="$emit('select-points-card-preset', preset.id)"
+                >
+                  <img :src="preset.imageUrl" alt="自定义卡面预设" loading="lazy">
+                  <span>自定义卡面</span>
+                </button>
+                <button
+                  type="button"
+                  class="ah-card-preset-delete"
+                  aria-label="删除此自定义卡面预设"
+                  title="删除此预设"
+                  @click="$emit('delete-points-card-preset', preset.id)"
+                >
+                  <Trash2 :size="15" :stroke-width="2" aria-hidden="true" />
+                </button>
+              </article>
+            </div>
+            <div v-else class="ah-card-presets-empty">暂无自定义预设</div>
+            <p v-if="!isPointsCardPresetsLoading" class="ah-card-presets-retention">未启用的卡面超过 90 天会自动清理</p>
+          </section>
+        </div>
+      </section>
       </Transition>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import {
@@ -637,6 +461,10 @@ import { getMyLotteryPityStatus, getMySubscriptions } from '@/utils/api/subscrip
 import { getCommunityLotteries, joinCommunityLottery } from '@/utils/api/lottery-api.js';
 import { showIsland } from '@/composables/useIsland.js';
 import PointsCard from './PointsCard.vue';
+import SegmentTabs from './SegmentTabs.vue';
+import AvatarFrameGrid from './AvatarFrameGrid.vue';
+import FramedAvatar from './FramedAvatar.vue';
+import { useAvatarFrame } from '@/composables/useAvatarFrame.js';
 import { HOME_CAT_ASSETS } from '@/utils/home-cat-theme.js';
 
 const emit = defineEmits(['back', 'upload-points-card', 'set-points-card-skin', 'select-points-card-preset', 'delete-points-card-preset', 'redeem-points-card-cats', 'sponsor', 'load-points-card-data']);
@@ -644,7 +472,6 @@ const emit = defineEmits(['back', 'upload-points-card', 'set-points-card-skin', 
 const props = defineProps({
   showBack: { type: Boolean, default: true },
   initialTab: { type: String, default: '' },
-  beta5: { type: Boolean, default: false },
   pointsCardPresets: { type: Array, default: () => [] },
   isPointsCardPresetsLoading: { type: Boolean, default: false },
   pointsCardPresetCapacity: { type: Number, default: 3 },
@@ -673,46 +500,39 @@ const handleCatsSkinClick = () => {
   emit('redeem-points-card-cats');
 };
 
-const betaTabIds = new Set(['overview', 'cards', 'points', 'subscription', 'fulfillment', 'addresses', 'lottery', 'sponsor']);
-const stableTabIds = new Set(['overview', 'points', 'subscription', 'orders', 'gifts', 'addresses', 'lottery', 'sponsor']);
+const betaTabIds = new Set(['overview', 'decor', 'points', 'subscription', 'fulfillment', 'lottery', 'sponsor']);
 const normalizeInitialTab = () => {
   let tab = String(props.initialTab || '');
-  if (props.beta5 && ['orders', 'gifts'].includes(tab)) tab = 'fulfillment';
-  return (props.beta5 ? betaTabIds : stableTabIds).has(tab) ? tab : 'overview';
+  // 旧 tab 入口兼容映射：orders/gifts/addresses → fulfillment；cards → decor（2026-09 tab 合并）
+  if (['orders', 'gifts', 'addresses'].includes(tab)) tab = 'fulfillment';
+  if (tab === 'cards') tab = 'decor';
+  return betaTabIds.has(tab) ? tab : 'overview';
 };
 const activeTab = ref(normalizeInitialTab());
-const tabGroups = computed(() => props.beta5 ? [
-  { label: '账户', tabs: [
-    { id: 'overview', label: '概览', icon: LayoutDashboard },
-    { id: 'cards', label: '卡面', icon: ImagePlus },
-    { id: 'points', label: '积分', icon: ScrollText },
-    { id: 'subscription', label: '订阅', icon: Crown }
-  ] },
-  { label: '服务', tabs: [
-    { id: 'fulfillment', label: '礼物与订单', icon: Package },
-    { id: 'addresses', label: '地址', icon: MapPin },
-    { id: 'lottery', label: '抽奖', icon: Ticket },
-    { id: 'sponsor', label: '赞助', icon: Heart }
-  ] }
-] : [
-  { label: '账户', tabs: [
-    { id: 'overview', label: '概览', icon: LayoutDashboard },
-    { id: 'points', label: '积分', icon: ScrollText },
-    { id: 'subscription', label: '会员', icon: Crown }
-  ] },
-  { label: '服务', tabs: [
-    { id: 'orders', label: '订单', icon: Package },
-    { id: 'gifts', label: '礼物', icon: Gift },
-    { id: 'addresses', label: '地址', icon: MapPin },
-    { id: 'lottery', label: '抽奖', icon: Ticket },
-    { id: 'sponsor', label: '赞助', icon: Heart }
-  ] }
+// 2026-09-11 起换 SegmentTabs 纯文字单行平铺；icon 字段保留备用，当前不渲染
+const tabGroups = computed(() => [
+  { id: 'overview', label: '概览', icon: LayoutDashboard },
+  { id: 'decor', label: '装扮', icon: ImagePlus },
+  { id: 'points', label: '积分', icon: ScrollText },
+  { id: 'subscription', label: '订阅', icon: Crown },
+  { id: 'fulfillment', label: '订单', icon: Package },
+  { id: 'lottery', label: '抽奖', icon: Ticket },
+  { id: 'sponsor', label: '赞助', icon: Heart }
 ]);
+const hubSections = computed(() => tabGroups.value.map(({ id, label }) => ({ id, label })));
+
+const activeTabModel = computed({
+  get: () => activeTab.value,
+  set: (tabId) => activateTab(tabId)
+});
 
 const avatarUrl = computed(() => String(userInfo.value?.avatarUrl || '').trim());
 const displayName = computed(() => String(userInfo.value?.username || '').trim() || '未命名用户');
 const displayInitial = computed(() => displayName.value.charAt(0).toUpperCase());
 const uidShort = computed(() => String(userInfo.value?.id || '').slice(0, 8));
+
+// 顶卡头像戴框：状态单源 useAvatarFrame（装扮 tab 换框时此处实时同步）
+const { effectiveFrame: avatarFrame } = useAvatarFrame(tierCode);
 
 const ordersLoading = ref(false);
 const ordersLoaded = ref(false);
@@ -805,13 +625,6 @@ const pointsContextText = computed(() => {
     return `距离 ${nextRewardProduct.value.title} 还差 ${gap} 积分`;
   }
   return '积分可用于商城兑换';
-});
-
-const membershipContextText = computed(() => {
-  if (!activeSubscription.value) return '基础账户，可随时查看会员方案';
-  if (subscriptionExpiryDays.value !== null && subscriptionExpiryDays.value <= 30) return `还有 ${subscriptionExpiryDays.value} 天到期`;
-  if (subscriptionExpiryDays.value !== null) return `剩余 ${subscriptionExpiryDays.value} 天`;
-  return subscriptionExpiryText.value;
 });
 
 const filteredLedger = computed(() => {
@@ -1067,14 +880,12 @@ const loadSubscription = async () => {
 };
 
 const activateTab = (tabId) => {
-  if (!(props.beta5 ? betaTabIds : stableTabIds).has(tabId)) return;
+  if (!betaTabIds.has(tabId)) return;
   activeTab.value = tabId;
   if (tabId === 'overview') void loadOverview();
-  if (tabId === 'cards') emit('load-points-card-data');
+  if (tabId === 'decor') emit('load-points-card-data');
   if (tabId === 'points') void loadLedger();
   if (tabId === 'subscription') void loadSubscription();
-  if (tabId === 'orders') void loadOrders();
-  if (tabId === 'gifts') void loadGifts();
   if (tabId === 'lottery') void loadLotteries();
   if (tabId === 'fulfillment') {
     void loadOrders();
@@ -1236,7 +1047,7 @@ const overviewCandidates = computed(() => {
       detail: giftAlreadyShipped
         ? '礼物已寄出，请尽快补充地址以便后续服务联系。'
         : '礼物寄送前需要一个有效地址，补充后才能准确安排。',
-      action: 'addresses',
+      action: 'fulfillment',
       actionLabel: '添加地址',
       activityIds: [`gift-${gift.id}`],
       time: giftTime,
@@ -1490,7 +1301,7 @@ const upcomingItems = computed(() => {
 const handleSmartAction = (action) => {
   if (action === 'shop') { goToShop(); return; }
   if (action === 'lottery') { router.push('/lotteries').catch(()=>{}); return; }
-  activateTab(props.beta5 && ['orders', 'gifts'].includes(action) ? 'fulfillment' : (action || 'overview'));
+  activateTab(['orders', 'gifts'].includes(action) ? 'fulfillment' : (action || 'overview'));
 };
 
 const retryOverviewIssues = () => {
@@ -1554,59 +1365,6 @@ const formatDateShort = (dateStr) => {
   const date = new Date(dateStr);
   if (Number.isNaN(date.getTime())) return '';
   return `${date.getMonth() + 1}月 ${date.getDate()}日`;
-};
-
-const expressCopied = ref(false);
-let expressCopyTimer = null;
-const hubGroupsRef = ref(null);
-let hubOverflowObserver = null;
-const syncHubOverflow = () => {
-  const el = hubGroupsRef.value;
-  if (!el) return;
-  el.querySelectorAll('.ah-hub-tabs').forEach((list) => {
-    list.classList.toggle('has-overflow', list.scrollWidth > list.clientWidth + 1);
-  });
-};
-onMounted(() => {
-  const el = hubGroupsRef.value;
-  if (!el || typeof ResizeObserver === 'undefined') return;
-  hubOverflowObserver = new ResizeObserver(syncHubOverflow);
-  hubOverflowObserver.observe(el);
-  el.querySelectorAll('.ah-hub-tabs').forEach((list) => {
-    hubOverflowObserver.observe(list);
-    list.querySelectorAll('.ah-tab').forEach((tab) => hubOverflowObserver.observe(tab));
-  });
-  syncHubOverflow();
-});
-onUnmounted(() => {
-  if (expressCopyTimer) {
-    clearTimeout(expressCopyTimer);
-    expressCopyTimer = null;
-  }
-  hubOverflowObserver?.disconnect();
-  hubOverflowObserver = null;
-});
-const copyExpressNo = async (no) => {
-  if (!no) return;
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(String(no));
-    } else {
-      const ta = document.createElement('textarea');
-      ta.value = String(no);
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-    }
-    expressCopied.value = true;
-    if (expressCopyTimer) clearTimeout(expressCopyTimer);
-    expressCopyTimer = setTimeout(() => { expressCopied.value = false; }, 1800);
-  } catch (err) {
-    logger.warn('assets-hub', '复制快递单号失败:', err);
-  }
 };
 
 const loadGifts = async () => {
@@ -1728,8 +1486,6 @@ onMounted(() => {
 <style scoped>
 /* ─── 用户 + 积分 + Tab 合并大卡片 ─── */
 .ah-hub-card {
-  --ah-tab-count: 4;
-  --ah-active-center: 12.5%;
   --ah-ease: cubic-bezier(0.32, 0.72, 0, 1);
   display: flex;
   flex-direction: column;
@@ -1759,27 +1515,6 @@ onMounted(() => {
   align-items: center;
   gap: 14px;
   min-width: 0;
-}
-.ah-avatar {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  font-weight: 800;
-  color: #fff;
-  background: linear-gradient(135deg, #0071e3, #5856d6);
-  box-shadow: 0 6px 16px rgba(0, 113, 227, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.4);
-  flex-shrink: 0;
-  overflow: hidden;
-}
-.ah-avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 220ms var(--ah-ease);
 }
 .ah-user-info {
   display: flex;
@@ -1864,80 +1599,115 @@ onMounted(() => {
   line-height: 1;
 }
 
-/* Tab 区 · 底部导航栏同款 */
-.ah-hub-tabs {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(var(--ah-tab-count), minmax(0, 1fr));
-  align-items: center;
-  gap: 0;
-  padding-top: 8px;
+/* Tab 区 · SegmentTabs 纯文字单行（覆盖组件默认的吸顶 inset 与居中布局） */
+.ah-hub-card .ah-segment-tabs {
+  justify-content: flex-start;
+  gap: 20px;
+  padding: 10px 2px 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
-.ah-hub-tabs::before {
-  content: "";
-  position: absolute;
-  z-index: 0;
-  top: 12px;
-  bottom: 0;
-  left: var(--ah-active-center);
-  width: calc(100% / var(--ah-tab-count) - 8px);
-  border-radius: 999px;
-  background: rgba(0, 113, 227, 0.14);
-  box-shadow:
-    inset 0 0 0 1px rgba(0, 113, 227, 0.18),
-    0 6px 18px rgba(0, 113, 227, 0.12);
-  transform: translateX(-50%);
-  transition:
-    left 210ms var(--ah-ease),
-    transform 210ms var(--ah-ease);
+
+.ah-hub-card .ah-segment-tabs::-webkit-scrollbar {
+  display: none;
 }
-.ah-tab {
-  z-index: 1;
+
+.ah-hub-card .ah-segment-tabs :deep(.segment-tab) {
+  flex-shrink: 0;
+  font-size: 13px;
+  padding-bottom: 8px;
+}
+
+.ah-hub-card .ah-segment-tabs :deep(.segment-tab.active) {
+  font-size: 14px;
+}
+
+/* ─── 装扮 tab：头像框 + 积分卡面（2026-09 tab 合并）─── */
+.ah-decor {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
+  gap: 14px;
+  /* heading 与内容同宽对齐（下方头像框/卡面均为 620 居中） */
+  max-width: 620px;
   width: 100%;
-  min-width: 0;
-  min-height: 44px;
-  padding: 6px 12px;
-  border: none;
-  background: transparent;
-  border-radius: 999px;
-  cursor: pointer;
-  transition:
-    background-color 150ms ease,
-    color 150ms ease,
-    transform 130ms var(--ah-ease),
-    box-shadow 180ms ease;
-  color: var(--text-secondary);
-  position: relative;
-  overflow: hidden;
+  margin: 0 auto;
 }
-.ah-tab:hover {
-  background: rgba(15, 23, 42, 0.045);
-  color: var(--text-primary);
+
+.ah-decor-subhead {
+  margin-top: 16px;
+  padding-top: 18px;
+  border-top: 0.5px solid rgba(15, 23, 42, 0.08);
 }
-.ah-tab.active:hover { background: transparent; }
-.ah-tab:active { transform: translateY(0) scale(0.975); }
-.ah-tab.active { color: #1d1d1f; background: rgba(255,255,255,0.92); box-shadow: 0 1px 6px rgba(15,23,42,0.08); }
-.user-space-page[data-theme="dark"] .ah-tab.active { background: rgba(255,255,255,0.14); color: #f4f7f8; box-shadow: none; }
-.ah-tab-icon {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-  transition: transform 170ms var(--ah-ease), color 140ms ease;
+
+.ah-decor-subhead h3 {
+  margin: 0;
+  color: #1d1d1f;
+  font-size: 18px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
 }
-.ah-tab.active .ah-tab-icon { transform: translateY(-2px) scale(1.08); }
-.ah-tab-label {
+
+.ah-decor-subhead p {
+  margin: 5px 0 0;
+  color: #747b86;
   font-size: 12px;
-  letter-spacing: 0;
-  font-weight: 700;
-  white-space: nowrap;
-  transition: transform 170ms var(--ah-ease), font-weight 140ms ease;
+  line-height: 1.55;
 }
-.ah-tab.active .ah-tab-label { font-weight: 600; transform: translateY(-1px); }
+
+/* 卡面区恢复原 .ah-cards-section 的限宽约束，防止横屏下 PointsCard 拉满整行 */
+.ah-cards-panel {
+  display: grid;
+  gap: 18px;
+  max-width: 620px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* 订单 tab 内嵌收货地址区块 */
+.ah-fulfillment-address {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.ah-fulfillment-address-head span {
+  color: #377f76;
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.ah-fulfillment-address-head h3 {
+  margin: 4px 0 0;
+  color: #1d1d1f;
+  font-size: 16px;
+  font-weight: 760;
+}
+
+.ah-fulfillment-address-head p {
+  margin: 4px 0 0;
+  color: #68727b;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.user-space-page[data-theme="dark"] .ah-decor-subhead {
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+.user-space-page[data-theme="dark"] .ah-decor-subhead h3,
+.user-space-page[data-theme="dark"] .ah-fulfillment-address-head h3 {
+  color: #f5f5f7;
+}
+
+.user-space-page[data-theme="dark"] .ah-decor-subhead p,
+.user-space-page[data-theme="dark"] .ah-fulfillment-address-head p {
+  color: #a1a1a6;
+}
+
+.user-space-page[data-theme="dark"] .ah-fulfillment-address-head span {
+  color: #4d958a;
+}
 
 /* ─── Section 通用 + 骨架 ─── */
 .ah-section { transform-origin: 50% 0; min-height: 240px; }
@@ -1975,18 +1745,6 @@ onMounted(() => {
   border-color: rgba(255, 255, 255, 0.78);
   box-shadow: 0 22px 52px rgba(15, 23, 42, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
-.ah-tab-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.ah-tab-group { min-width: 0; }
-.ah-tab-group-label { display: block; margin: 0 0 5px 2px; color: #78808d; font-size: 11px; font-weight: 700; letter-spacing: 0.02em; }
-.ah-hub-tabs { display: flex; gap: 4px; padding: 4px; border: 0.5px solid rgba(255, 255, 255, 0.68); border-radius: 14px; background: rgba(255, 255, 255, 0.38); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7); }
-.ah-hub-tabs::before { content: none; }
-.ah-tab { flex: 1 1 0; min-width: 0; min-height: 36px; flex-direction: row; gap: 5px; padding: 6px 8px; border-radius: 10px; color: #78808d; white-space: nowrap; }
-.ah-tab:hover { background: rgba(255, 255, 255, 0.52); color: #1d1d1f; }
-.ah-tab.active { color: #1d1d1f; background: rgba(255, 255, 255, 0.82); box-shadow: 0 6px 16px rgba(15, 23, 42, 0.09), inset 0 1px 0 #fff; }
-.ah-tab-icon { width: 16px; height: 16px; transition: color 150ms ease; }
-.ah-tab.active .ah-tab-icon { transform: scale(1.08); color: #0071e3; }
-.ah-tab-label { font-size: 12px; font-weight: 600; transition: color 150ms ease; }
-.ah-tab.active .ah-tab-label { font-weight: 700; transform: none; }
 
 .ah-overview { display: flex; flex-direction: column; gap: 14px; }
 .ah-overview-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 4px 2px 0; }
@@ -2040,7 +1798,7 @@ onMounted(() => {
 .ah-smart-focus.tone-neutral .ah-smart-focus-icon { background: rgba(100, 116, 139, 0.12); color: #475569; }
 .ah-smart-focus:active { transform: scale(0.99); }
 .ah-smart-focus:disabled { cursor: default; opacity: 0.78; }
-.ah-overview { display: flex; flex-direction: column; gap: 24px; }
+.ah-overview { display: flex; flex-direction: column; gap: 24px; max-width: 760px; width: 100%; margin: 0 auto; }
 .ah-overview-points-wrap { display: flex; justify-content: center; margin: 0 auto; width: 100%; max-width: 360px; }
 .ah-overview-points-wrap .ah-overview-points-card { width: 100%; }
 .ah-overview-insights { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; }
@@ -2049,6 +1807,8 @@ onMounted(() => {
 .ah-skeleton-points-card.is-centered { max-width: 360px; margin: 0 auto; }
 .ah-skeleton-timeline { height: 180px; border-radius: 16px; }
 @media (orientation: landscape) and (min-width: 768px) {
+  /* 大屏放宽：与抽奖/赞助的 landscape 860 档同节奏 */
+  .ah-overview { max-width: 860px; }
   .ah-overview-points-wrap { justify-content: flex-start; margin: 0; max-width: 400px; }
   .ah-skeleton-points-card.is-centered { margin: 0; }
   /* 桌面端：最近动态 / 接下来 并排，消掉整页单列的空旷感 */
@@ -2143,12 +1903,9 @@ onMounted(() => {
 /* ─── 记录列表 ─── */
 .ah-ledger { gap: 20px; }
 .ah-ledger-group h2 { margin: 0 0 5px; color: #6b7280; font-size: 12px; font-weight: 750; }
-.ah-ledger-list,
-.ah-order-list { gap: 0; border-top: 1px solid rgba(15, 23, 42, 0.1); }
-.ah-ledger-item,
-.ah-order-item { padding: 13px 4px; border: 0; border-radius: 0; border-bottom: 1px solid rgba(15, 23, 42, 0.1); background: transparent; box-shadow: none; }
-.ah-ledger-item:hover,
-.ah-order-item:hover { transform: none; background: rgba(15, 23, 42, 0.025); box-shadow: none; }
+.ah-ledger-list { gap: 0; border-top: 1px solid rgba(15, 23, 42, 0.1); }
+.ah-ledger-item { padding: 13px 4px; border: 0; border-radius: 0; border-bottom: 1px solid rgba(15, 23, 42, 0.1); background: transparent; box-shadow: none; }
+.ah-ledger-item:hover { transform: none; background: rgba(15, 23, 42, 0.025); box-shadow: none; }
 
 /* ─── 积分明细流水 · 列表化 去卡片化 ─── */
 .ah-ledger {
@@ -2303,24 +2060,6 @@ onMounted(() => {
   animation: ah-skel 900ms ease-in-out infinite alternate;
 }
 @keyframes ah-skel { to { opacity: 0.52; } }
-.ah-order-list { display: flex; flex-direction: column; gap: 10px; }
-.ah-order-item {
-  padding: 16px 20px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.48);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.075), inset 0 1px 0 rgba(255, 255, 255, 0.86);
-  transition: transform 0.2s var(--ah-ease), box-shadow 0.2s ease;
-  animation: ah-materialize 220ms var(--ah-ease) both;
-}
-.ah-order-top { display: flex; justify-content: space-between; margin-bottom: 6px; }
-.ah-order-no { font-size: 12px; font-weight: 700; color: #1d1d1f; font-family: ui-monospace, "SF Mono", monospace; }
-.ah-order-date { font-size: 11px; color: #8e8e93; }
-.ah-order-bottom { display: flex; justify-content: space-between; }
-.ah-order-items { font-size: 12px; color: #6e6e73; }
-.ah-order-points { font-size: 12px; font-weight: 700; color: #ff3b30; }
 
 /* ─── 礼物 ─── */
 .ah-gift-card {
@@ -2455,164 +2194,20 @@ onMounted(() => {
 .ah-gift-status-panel.completed { border-color: rgba(52, 199, 89, 0.16); background: rgba(240, 253, 244, 0.5); }
 .ah-gift-status-panel.completed .ah-gift-status-icon { background: rgba(52, 199, 89, 0.13); color: #248a3d; }
 
-/* 订单与收货信息 */
-.ah-gift-details {
-  display: flex;
-  flex-direction: column;
-  padding: 2px 16px;
-}
-.ah-gift-detail-row {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  min-height: 62px;
-  padding: 12px 0;
-}
-.ah-gift-detail-row + .ah-gift-detail-row {
-  border-top: 1px solid rgba(15, 23, 42, 0.08);
-}
-.ah-gift-detail-icon {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  flex: 0 0 auto;
-  border-radius: 12px;
-  background: #eef5ff;
-  color: #0071e3;
-}
-.ah-gift-detail-copy { min-width: 0; flex: 1; }
-.ah-gift-detail-copy > span {
-  display: block;
-  color: #78808d;
-  font-size: 11px;
-  font-weight: 600;
-}
-.ah-gift-detail-copy strong {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-top: 2px;
-  color: #1d1d1f;
-  font-size: 13px;
-  font-weight: 700;
-  font-family: ui-monospace, "SF Mono", "JetBrains Mono", monospace;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ah-gift-detail-copy em { color: #78808d; font-size: 12px; font-style: normal; font-weight: 500; }
-.ah-gift-detail-copy p { margin: 3px 0 0; color: #6e6e73; font-size: 12px; line-height: 1.45; }
-.ah-gift-copy {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  padding: 0;
-  border: 1px solid rgba(0, 113, 227, 0.22);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.62);
-  color: #0071e3;
-  cursor: pointer;
-  transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1), background-color 150ms ease, border-color 150ms ease, color 150ms ease;
-  flex-shrink: 0;
-}
-.ah-gift-copy:active { transform: scale(0.95); }
-.ah-gift-copy.copied {
-  background: #ecfdf3;
-  border-color: #a7f3c6;
-  color: #15803d;
-}
-.ah-icon-swap-enter-active { transition: opacity 150ms var(--ah-ease), transform 150ms var(--ah-ease), filter 150ms ease; }
-.ah-icon-swap-leave-active { transition: opacity 90ms ease, transform 90ms ease, filter 90ms ease; }
-.ah-icon-swap-enter-from { opacity: 0; transform: scale(0.82) rotate(-10deg); filter: blur(1px); }
-.ah-icon-swap-leave-to { opacity: 0; transform: scale(0.9) rotate(8deg); filter: blur(1px); }
-
-/* ─── 历史礼物 ─── */
-.ah-gift-history { margin-top: 24px; display: flex; flex-direction: column; gap: 8px; }
-.ah-gift-history-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 4px;
-}
-.ah-gift-history-head span:first-child { font-size: 13px; font-weight: 750; color: #1d1d1f; letter-spacing: 0; }
-.ah-gift-history-count { font-size: 11px; color: #8e8e93; font-weight: 600; }
-.ah-gift-history-list { display: flex; flex-direction: column; border-top: 1px solid rgba(15, 23, 42, 0.1); }
-.ah-gift-history-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
-  padding: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.66);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.4);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.78);
-  transition: transform 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
-  animation: ah-materialize 220ms var(--ah-ease) both;
-}
-@media (hover: hover) and (pointer: fine) {
-  .ah-gift-history-item:hover { transform: translateY(-2px); background: rgba(255, 255, 255, 0.62); box-shadow: 0 16px 30px rgba(15, 23, 42, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.86); }
-}
-.ah-gift-history-thumb {
-  width: 42px;
-  height: 42px;
-  border-radius: 13px;
-  background: #fff4d8;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ff9500;
-  flex-shrink: 0;
-  overflow: hidden;
-}
-.ah-gift-history-thumb.has-image { background: rgba(15, 23, 42, 0.04); }
-.ah-gift-history-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.ah-gift-history-thumb { transition: transform 180ms var(--ah-ease); }
-.ah-gift-history-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.ah-gift-history-main strong {
-  font-size: 13.5px;
-  font-weight: 700;
-  color: #1d1d1f;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ah-gift-history-meta-line { display: flex; align-items: center; gap: 8px; }
+/* 快递/礼物单号（fulfillment 记录复用） */
 .ah-gift-history-no {
   font-size: 10.5px;
   color: #8e8e93;
   font-family: ui-monospace, "SF Mono", monospace;
   letter-spacing: 0.02em;
 }
-.ah-gift-history-date { font-size: 11px; color: #8e8e93; }
-.ah-gift-history-side {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-  flex-shrink: 0;
-}
-.ah-gift-history-price { font-size: 12px; font-weight: 700; color: #b45309; }
 
-.ah-ledger-item:nth-child(2),
-.ah-order-item:nth-child(2),
-.ah-gift-history-item:nth-child(2) { animation-delay: 25ms; }
-.ah-ledger-item:nth-child(3),
-.ah-order-item:nth-child(3),
-.ah-gift-history-item:nth-child(3) { animation-delay: 50ms; }
-.ah-ledger-item:nth-child(4),
-.ah-order-item:nth-child(4),
-.ah-gift-history-item:nth-child(4) { animation-delay: 75ms; }
-.ah-ledger-item:nth-child(5),
-.ah-order-item:nth-child(5),
-.ah-gift-history-item:nth-child(5) { animation-delay: 100ms; }
+.ah-ledger-item:nth-child(2) { animation-delay: 25ms; }
+.ah-ledger-item:nth-child(3) { animation-delay: 50ms; }
+.ah-ledger-item:nth-child(4) { animation-delay: 75ms; }
+.ah-ledger-item:nth-child(5) { animation-delay: 100ms; }
 
 @media (hover: hover) and (pointer: fine) {
-  .ah-avatar:hover .ah-avatar-img { transform: scale(1.045); }
   .ah-points-block:hover .ah-points-icon-wrap { transform: rotate(-5deg) scale(1.06); }
   .ah-overview-primary:hover,
   .ah-overview-membership:hover { transform: translateY(-3px); box-shadow: 0 26px 48px rgba(15, 23, 42, 0.13), inset 0 1px 0 rgba(255, 255, 255, 0.92); }
@@ -2632,12 +2227,9 @@ onMounted(() => {
   .ah-smart-next:hover { background: rgba(255, 255, 255, 0.34); }
   .ah-smart-section-head button:hover { background: rgba(255, 255, 255, 0.82); }
   .ah-ledger-item:hover .ah-ledger-icon { transform: scale(1.06); }
-  .ah-ledger-item:hover,
-  .ah-order-item:hover { transform: translateY(-3px); box-shadow: 0 22px 40px rgba(15, 23, 42, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.9); }
+  .ah-ledger-item:hover { transform: translateY(-3px); box-shadow: 0 22px 40px rgba(15, 23, 42, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.9); }
   .ah-shop-btn:hover { background: #000; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18); }
   .ah-shop-btn-ghost:hover { background: rgba(0, 113, 227, 0.2); color: #0071e3; }
-  .ah-gift-copy:hover { background: #eff6ff; border-color: rgba(0, 113, 227, 0.38); }
-  .ah-gift-history-item:hover .ah-gift-history-thumb { transform: scale(1.05); }
 }
 
 /* ─── 深色模式 ─── */
@@ -2652,27 +2244,15 @@ onMounted(() => {
 }
 .user-space-page[data-theme="dark"] .ah-username,
 .user-space-page[data-theme="dark"] .ah-points-value,
-.user-space-page[data-theme="dark"] .ah-tab.active,
 .user-space-page[data-theme="dark"] .ah-ledger-title {
   color: #f5f7fa;
 }
 .user-space-page[data-theme="dark"] .ah-uid,
-.user-space-page[data-theme="dark"] .ah-points-label,
-.user-space-page[data-theme="dark"] .ah-tab-label {
+.user-space-page[data-theme="dark"] .ah-points-label {
   color: #8b8e96;
 }
-.user-space-page[data-theme="dark"] .ah-hub-tabs::before {
-  background: rgba(41, 151, 255, 0.22);
-  box-shadow: inset 0 0 0 1px rgba(41, 151, 255, 0.28), 0 8px 22px rgba(0, 0, 0, 0.28);
-}
-.user-space-page[data-theme="dark"] .ah-tab:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-.user-space-page[data-theme="dark"] .ah-hub-tabs { background: rgba(255, 255, 255, 0.045); border-color: rgba(255, 255, 255, 0.1); }
-.user-space-page[data-theme="dark"] .ah-tab.active { background: rgba(255, 255, 255, 0.12); box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.1); }
 .user-space-page[data-theme="dark"] .ah-empty-state,
 .user-space-page[data-theme="dark"] .ah-shop-stat,
-.user-space-page[data-theme="dark"] .ah-order-item,
 .user-space-page[data-theme="dark"] .ah-ledger-item,
 .user-space-page[data-theme="dark"] .ah-gift-card,
 .user-space-page[data-theme="dark"] .ah-skeleton-block {
@@ -2682,28 +2262,17 @@ onMounted(() => {
 }
 .user-space-page[data-theme="dark"] .ah-empty-state h3,
 .user-space-page[data-theme="dark"] .ah-shop-stat-value,
-.user-space-page[data-theme="dark"] .ah-order-no,
 .user-space-page[data-theme="dark"] .ah-gift-headinfo h3,
-.user-space-page[data-theme="dark"] .ah-gift-history-main strong,
-.user-space-page[data-theme="dark"] .ah-gift-history-head span:first-child,
-.user-space-page[data-theme="dark"] .ah-gift-detail-copy strong,
 .user-space-page[data-theme="dark"] .ah-gift-status-copy strong {
   color: #f5f7fa;
 }
 .user-space-page[data-theme="dark"] .ah-empty-state p,
 .user-space-page[data-theme="dark"] .ah-shop-stat-label,
-.user-space-page[data-theme="dark"] .ah-order-date,
-.user-space-page[data-theme="dark"] .ah-order-items,
 .user-space-page[data-theme="dark"] .ah-ledger-remark,
 .user-space-page[data-theme="dark"] .ah-ledger-date,
 .user-space-page[data-theme="dark"] .ah-gift-header-date,
 .user-space-page[data-theme="dark"] .ah-gift-history-no,
-.user-space-page[data-theme="dark"] .ah-gift-history-count,
-.user-space-page[data-theme="dark"] .ah-gift-history-date,
 .user-space-page[data-theme="dark"] .ah-gift-status-copy p,
-.user-space-page[data-theme="dark"] .ah-gift-detail-copy > span,
-.user-space-page[data-theme="dark"] .ah-gift-detail-copy em,
-.user-space-page[data-theme="dark"] .ah-gift-detail-copy p,
 .user-space-page[data-theme="dark"] .ah-gift-eyebrow {
   color: #8b8e96;
 }
@@ -2711,38 +2280,10 @@ onMounted(() => {
   background: rgba(217, 119, 6, 0.16);
   color: #ffb340;
 }
-.user-space-page[data-theme="dark"] .ah-gift-history-thumb:not(.has-image) {
-  background: rgba(217, 119, 6, 0.16);
-  color: #ffb340;
-}
 .user-space-page[data-theme="dark"] .ah-gift-header {
   border-bottom-color: rgba(255, 255, 255, 0.08);
 }
-.user-space-page[data-theme="dark"] .ah-gift-detail-row + .ah-gift-detail-row {
-  border-top-color: rgba(255, 255, 255, 0.08);
-}
 .user-space-page[data-theme="dark"] .ah-gift-status-panel { background: rgba(255, 255, 255, 0.045); border-color: rgba(255, 255, 255, 0.08); }
-.user-space-page[data-theme="dark"] .ah-gift-copy {
-  background: rgba(41, 151, 255, 0.12);
-  border-color: rgba(41, 151, 255, 0.3);
-  color: #2997ff;
-}
-.user-space-page[data-theme="dark"] .ah-gift-copy:hover {
-  background: rgba(41, 151, 255, 0.24);
-}
-.user-space-page[data-theme="dark"] .ah-gift-copy.copied {
-  background: rgba(52, 199, 89, 0.14);
-  border-color: rgba(52, 199, 89, 0.28);
-  color: #30d158;
-}
-.user-space-page[data-theme="dark"] .ah-gift-detail-icon {
-  background: rgba(41, 151, 255, 0.14);
-  color: #2997ff;
-}
-.user-space-page[data-theme="dark"] .ah-gift-history-list,
-.user-space-page[data-theme="dark"] .ah-gift-history-item {
-  border-color: rgba(255, 255, 255, 0.1);
-}
 .user-space-page[data-theme="dark"] .ah-empty-icon {
   background: rgba(255, 255, 255, 0.06);
 }
@@ -2753,7 +2294,6 @@ onMounted(() => {
 .user-space-page[data-theme="dark"] .ah-shop-btn-ghost:hover {
   background: rgba(41, 151, 255, 0.26);
 }
-.user-space-page[data-theme="dark"] .ah-tab-group-label,
 .user-space-page[data-theme="dark"] .ah-overview-membership span,
 .user-space-page[data-theme="dark"] .ah-overview-membership p,
 .user-space-page[data-theme="dark"] .ah-membership-card-top,
@@ -2761,11 +2301,8 @@ onMounted(() => {
 .user-space-page[data-theme="dark"] .ah-ledger-group h2 {
   color: #a7acb5;
 }
-.user-space-page[data-theme="dark"] .ah-hub-tabs,
 .user-space-page[data-theme="dark"] .ah-ledger-list,
-.user-space-page[data-theme="dark"] .ah-order-list,
-.user-space-page[data-theme="dark"] .ah-ledger-item,
-.user-space-page[data-theme="dark"] .ah-order-item {
+.user-space-page[data-theme="dark"] .ah-ledger-item {
   border-color: rgba(255, 255, 255, 0.12);
 }
 .user-space-page[data-theme="dark"] .ah-overview-primary {
@@ -2812,11 +2349,8 @@ onMounted(() => {
 .user-space-page[data-theme="dark"] .ah-smart-next:hover,
 .user-space-page[data-theme="dark"] .ah-smart-section-head button:hover { background: rgba(255, 255, 255, 0.08); }
 .user-space-page[data-theme="dark"] .ah-icon-command { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.14); color: #f5f7fa; }
-.user-space-page[data-theme="dark"] .ah-ledger-item:hover,
-.user-space-page[data-theme="dark"] .ah-order-item:hover { background: rgba(255, 255, 255, 0.06); }
-.user-space-page[data-theme="dark"] .ah-ledger-item,
-.user-space-page[data-theme="dark"] .ah-order-item { background: rgba(24, 26, 32, 0.5); border-color: rgba(255, 255, 255, 0.11); box-shadow: 0 16px 34px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.07); }
-.user-space-page[data-theme="dark"] .ah-gift-history-item { background: rgba(24, 26, 32, 0.46); border-color: rgba(255, 255, 255, 0.1); box-shadow: 0 14px 28px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+.user-space-page[data-theme="dark"] .ah-ledger-item:hover { background: rgba(255, 255, 255, 0.06); }
+.user-space-page[data-theme="dark"] .ah-ledger-item { background: rgba(24, 26, 32, 0.5); border-color: rgba(255, 255, 255, 0.11); box-shadow: 0 16px 34px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.07); }
 .user-space-page[data-theme="dark"] .ah-membership-meta span { background: rgba(255, 255, 255, 0.08); color: #c5cad2; }
 .user-space-page[data-theme="dark"] .ah-pity-progress-head { color: #c5cad2; }
 .user-space-page[data-theme="dark"] .ah-pity-progress-head strong { color: #f5f7fa; }
@@ -2854,19 +2388,12 @@ onMounted(() => {
   .ah-hub-card { max-width: none; border-radius: 20px; padding: 14px 14px 10px; box-shadow: 0 6px 18px rgba(15,23,42,0.07); }
   .ah-top-row { gap: 8px; padding-bottom: 12px; }
   .ah-user-left { gap: 10px; }
-  .ah-avatar { width: 44px; height: 44px; font-size: 18px; }
   .ah-username { font-size: 17px; letter-spacing: -0.02em; }
   .ah-name-row { gap: 5px; }
   .ah-points-block { gap: 8px; padding: 6px 10px; border-radius: 999px; }
   .ah-points-icon-wrap { width: 26px; height: 26px; }
   .ah-points-label { display: none; }
   .ah-points-value { font-size: 18px; font-variant-numeric: tabular-nums; }
-  .ah-tab-groups { gap: 12px; }
-  .ah-tab-group-label { margin-bottom: 2px; font-size: 10px; letter-spacing: 0.06em; }
-  .ah-hub-tabs { gap: 2px; padding: 3px; border-radius: 14px; background: rgba(29,29,31,0.06); }
-  .ah-tab { min-height: 36px; padding: 6px 2px; border-radius: 10px; }
-  .ah-tab-icon { display: none; }
-  .ah-tab-label { font-size: 11px; font-weight: 650; white-space: nowrap; }
   .ah-overview { display: grid; gap: 16px; }
   .ah-overview-heading { align-items: flex-start; gap: 8px; }
   .ah-overview-heading h2 { font-size: 20px; line-height: 1.2; }
@@ -2904,35 +2431,11 @@ onMounted(() => {
   .ah-gift-headinfo h3 { font-size: 15px; }
   .ah-gift-badge { font-size: 10px; padding: 3px 8px; }
   .ah-gift-status-panel { margin: 0 14px 12px; padding: 12px; }
-  .ah-gift-details { padding: 2px 14px; }
-  .ah-gift-detail-row { min-height: 58px; }
-  .ah-gift-history-item { padding: 10px; border-radius: 16px; }
-  .ah-gift-history-thumb { width: 38px; height: 38px; }
-  .ah-gift-history-main strong { font-size: 13px; }
-  .ah-gift-history-side { gap: 3px; }
-  .ah-gift-history-price { font-size: 11px; }
 }
 
-/* ─── 竖屏端（≤767 portrait）：Tab 组改单列堆叠，加大可点性 ─── */
+/* ─── 竖屏端（≤767 portrait）─── */
 @media (max-width: 767px) and (orientation: portrait) {
-  /* 两组上下单列，每组 4 tab 满宽均分，无需缩写 */
-  .ah-tab-groups { grid-template-columns: 1fr; gap: 10px; }
-  /* 组内 tab：图上文下、更大触控区；active pill 保留白底 + 阴影 */
-  .ah-hub-tabs { gap: 6px; padding: 4px; }
-  .ah-tab { flex: 1 1 0; min-width: 72px; min-height: 44px; padding: 8px 6px; border-radius: 12px; flex-direction: column; gap: 3px; }
-  .ah-tab:hover { background: rgba(255, 255, 255, 0.52); color: #1d1d1f; }
-  .ah-tab.active { color: #1d1d1f; background: rgba(255, 255, 255, 0.92); box-shadow: 0 1px 6px rgba(15, 23, 42, 0.08); }
-  .ah-tab-icon { display: block; width: 16px; height: 16px; margin: 0 auto; }
-  .ah-tab-label { font-size: 12px; font-weight: 700; line-height: 1.15; white-space: nowrap; }
-
-  /* 兜底：组内 tab 超过一屏时才启用横向滚动（避免常态下裁掉 active 阴影）+ 首尾 fade 12px，不二次截断 */
-  .ah-hub-tabs.has-overflow { overflow-x: auto; scroll-snap-type: x mandatory; -ms-overflow-style: none; scrollbar-width: none; }
-  .ah-hub-tabs.has-overflow::-webkit-scrollbar { display: none; }
-  .ah-hub-tabs.has-overflow .ah-tab { scroll-snap-align: start; }
-  .ah-hub-tabs.has-overflow {
-    mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
-    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
-  }
+  /* 文字 tab 横向滚动已由 .ah-segment-tabs 基础样式承担 */
 }
 
 .ah-sponsor-section { display: grid; gap: 18px; max-width: 700px; width: 100%; margin: 0 auto; align-self: center; justify-items: stretch; animation: ah-materialize 260ms var(--ah-ease) both; }
@@ -3059,9 +2562,6 @@ onMounted(() => {
 @media (max-height: 560px) and (orientation: landscape) {
   .ah-hub-card { padding: 13px 16px 10px; }
   .ah-top-row { padding-bottom: 10px; }
-  .ah-avatar { width: 40px; height: 40px; font-size: 16px; }
-  .ah-tab-groups { gap: 14px; }
-  .ah-tab { min-height: 34px; }
   .ah-overview { gap: 10px; }
   .ah-overview-heading { padding-top: 0; }
   .ah-overview-heading h2 { font-size: 19px; }
@@ -3084,10 +2584,8 @@ onMounted(() => {
   .ah-membership-card,
   .ah-empty-state,
   .ah-ledger-item,
-  .ah-order-item,
   .ah-gift-card,
-  .ah-gift-status-panel,
-  .ah-gift-history-item {
+  .ah-gift-status-panel {
     background: rgba(255, 255, 255, 0.94);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
@@ -3099,13 +2597,10 @@ onMounted(() => {
   .user-space-page[data-theme="dark"] .ah-membership-card,
   .user-space-page[data-theme="dark"] .ah-empty-state,
   .user-space-page[data-theme="dark"] .ah-ledger-item,
-  .user-space-page[data-theme="dark"] .ah-order-item,
   .user-space-page[data-theme="dark"] .ah-gift-card,
-  .user-space-page[data-theme="dark"] .ah-gift-status-panel,
-  .user-space-page[data-theme="dark"] .ah-gift-history-item { background: #1c1e24; }
+  .user-space-page[data-theme="dark"] .ah-gift-status-panel { background: #1c1e24; }
 }
 
-.ah-cards-section { display: grid; gap: 18px; max-width: 620px; width: 100%; margin: 0 auto; }
 .ah-points-section { display: grid; gap: 18px; max-width: 760px; width: 100%; margin: 0 auto; }
 .ah-points-heading { padding: 4px 2px 0; }
 .ah-points-heading > span, .ah-points-detail-heading span { color: #6e6e73; font-size: 12px; font-weight: 700; }
@@ -3135,42 +2630,33 @@ onMounted(() => {
 .user-space-page[data-theme="dark"] .ah-points-heading h2, .user-space-page[data-theme="dark"] .ah-points-detail-heading h2, .user-space-page[data-theme="dark"] .ah-points-total strong, .user-space-page[data-theme="dark"] .ah-points-action-card, .user-space-page[data-theme="dark"] .ah-qr-modal h2 { color: #f4f7f8; }
 .user-space-page[data-theme="dark"] .ah-points-action-card.is-recharge { background: rgba(30,58,95,.56); }.user-space-page[data-theme="dark"] .ah-points-action-card.is-detail { background: rgba(22,75,55,.5); }.user-space-page[data-theme="dark"] .ah-points-filter button.active, .user-space-page[data-theme="dark"] .ah-points-back { background: rgba(255,255,255,.14); color: #f4f7f8; }.user-space-page[data-theme="dark"] .ah-qr-modal { background: rgba(28,30,36,.95); }
 @media (max-width: 560px) { .ah-points-action-grid { grid-template-columns: 1fr; }.ah-points-action-card { min-height: 104px; padding: 16px; }.ah-points-detail-heading h2 { font-size: 19px; }.ah-points-total strong { font-size: 21px; } }
-.ah-cards-heading span, .ah-fulfillment-heading span { color: #377f76; font-size: 12px; font-weight: 760; }.ah-cards-heading span { color: #b7667e; }
-.ah-cards-heading h2, .ah-fulfillment-heading h2 { margin: 5px 0 6px; color: #1d1d1f; font-size: 22px; letter-spacing: 0; }
-.ah-cards-heading p, .ah-fulfillment-heading p { margin: 0; color: #68727b; font-size: 13px; line-height: 1.6; }
+.ah-fulfillment-heading span { color: #377f76; font-size: 12px; font-weight: 760; }
+.ah-fulfillment-heading h2 { margin: 5px 0 6px; color: #1d1d1f; font-size: 22px; letter-spacing: 0; }
+.ah-fulfillment-heading p { margin: 0; color: #68727b; font-size: 13px; line-height: 1.6; }
 .ah-skin-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .ah-skin-option { min-height: 126px; padding: 12px; border: 1px solid rgba(23, 45, 59, .12); border-radius: 14px; background: rgba(255,255,255,.58); color: #1d1d1f; text-align: left; cursor: pointer; }.ah-skin-option:disabled { cursor: default; opacity: .72; }
 .ah-skin-option.active { border-color: #2f887a; box-shadow: 0 0 0 2px rgba(47,136,122,.16); }.ah-skin-option.is-cats-skin.active { border-color: #d77f96; box-shadow: 0 0 0 2px rgba(215,127,150,.18); }.ah-skin-option strong, .ah-skin-option small { display: block; }.ah-skin-option strong { margin-top: 11px; font-size: 13px; }.ah-skin-option small { margin-top: 3px; color: #75808a; font-size: 11px; }
 .ah-skin-preview { display: flex; align-items: center; justify-content: center; width: 100%; height: 45px; border-radius: 9px; overflow: hidden; }.ah-skin-preview.is-blank { background: #eaf0f1; color: #315b68; }.ah-skin-preview.is-cats { position: relative; background: #fff; }.ah-skin-preview.is-cats img { width: 28px; height: 28px; flex: 0 0 28px; object-fit: contain; margin-left: -13px; filter: drop-shadow(0 2px 2px rgba(113,65,77,.12)); }.ah-skin-preview.is-cats img:first-child { margin-left: 0; }.ah-skin-preview.is-custom { background: #e8ebf2; color: #526179; }
 .ah-card-presets { display: grid; gap: 10px; }.ah-card-presets-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #3d4852; font-size: 13px; font-weight: 760; }.ah-card-presets-heading small { color: #7a858e; font-size: 11px; font-weight: 650; }.ah-card-presets-loading, .ah-card-presets-empty { min-height: 76px; display: grid; place-items: center; border: 1px dashed rgba(23, 45, 59, .18); border-radius: 14px; color: #7a858e; font-size: 12px; }.ah-card-preset-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }.ah-card-preset { position: relative; min-width: 0; padding: 4px; border: 1px solid rgba(23, 45, 59, .13); border-radius: 14px; background: rgba(255,255,255,.58); }.ah-card-preset.active { border-color: #2f887a; box-shadow: 0 0 0 2px rgba(47,136,122,.16); }.ah-card-preset-select { display: grid; width: 100%; gap: 7px; padding: 0; border: 0; background: transparent; color: #26323b; cursor: pointer; text-align: left; font: inherit; font-size: 11px; font-weight: 700; }.ah-card-preset-select img { display: block; width: 100%; aspect-ratio: 8 / 5; border-radius: 10px; object-fit: cover; background: #e8ebf2; }.ah-card-preset-select > span { padding: 0 4px 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.ah-card-preset-delete { position: absolute; top: 10px; right: 10px; display: grid; width: 28px; height: 28px; place-items: center; padding: 0; border: 1px solid rgba(255,255,255,.78); border-radius: 10px; background: rgba(255,255,255,.84); color: #a24444; cursor: pointer; box-shadow: 0 5px 12px rgba(25,37,49,.14); }.ah-card-preset-delete:hover { background: #fff; }.ah-card-presets-retention { margin: 0; color: #7a858e; font-size: 11px; line-height: 1.5; }
-.ah-fulfillment-section { display: grid; gap: 15px; }.ah-current-gift-card { margin: 0; }.ah-fulfillment-records { padding: 16px; border: 1px solid rgba(18, 38, 50, .1); border-radius: 18px; background: rgba(255,255,255,.58); }.ah-fulfillment-records-head { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin-bottom: 12px; }.ah-fulfillment-records-head > div:first-child > span { color: #377f76; font-size: 12px; font-weight: 760; }.ah-fulfillment-records-head h3 { margin: 4px 0 0; color: #1d1d1f; font-size: 16px; font-weight: 760; }.ah-record-filter { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: rgba(18, 38, 50, .07); }.ah-record-filter button { min-width: 42px; min-height: 30px; padding: 0 9px; border: 0; border-radius: 8px; background: transparent; color: #68727b; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }.ah-record-filter button.active { background: rgba(255,255,255,.9); box-shadow: 0 1px 5px rgba(15, 23, 42, .12); color: #1d1d1f; }.ah-fulfillment-record-list { display: grid; }.ah-fulfillment-record { display: flex; align-items: center; gap: 11px; min-width: 0; padding: 12px 0; }.ah-fulfillment-record + .ah-fulfillment-record { border-top: 1px solid rgba(18, 38, 50, .08); }.ah-fulfillment-record-icon { display: grid; width: 34px; height: 34px; place-items: center; flex: 0 0 auto; border-radius: 12px; }.ah-fulfillment-record-icon.gift { background: rgba(183, 102, 126, .12); color: #ad526f; }.ah-fulfillment-record-icon.order { background: rgba(35, 121, 108, .12); color: #23796c; }.ah-fulfillment-record-copy { display: grid; min-width: 0; gap: 3px; flex: 1; }.ah-fulfillment-record-copy strong { overflow: hidden; color: #1d1d1f; font-size: 13px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }.ah-fulfillment-record-copy span, .ah-fulfillment-record-side > span:first-child { overflow: hidden; color: #78808d; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.ah-fulfillment-record-side { display: grid; justify-items: end; gap: 4px; min-width: 68px; }.ah-fulfillment-record-points { color: #b45309; font-size: 11px; font-weight: 750; white-space: nowrap; }.ah-fulfillment-partial-error { margin: 12px 0 0; color: #b45309; font-size: 12px; }.ah-fusion-block { padding: 15px; border: 1px solid rgba(18, 38, 50, .1); border-radius: 18px; background: rgba(255,255,255,.58); }.ah-fusion-block-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; color: #1d1d1f; font-weight: 760; }.ah-fusion-block-head > span { display: inline-flex; align-items: center; gap: 7px; }.ah-fusion-block-head button, .ah-inline-empty button { border: 0; background: transparent; color: #23796c; font: inherit; font-size: 12px; cursor: pointer; }.ah-inline-empty { padding: 16px 4px; color: #74808a; font-size: 13px; }
-.user-space-page[data-theme="dark"] .ah-cards-heading h2, .user-space-page[data-theme="dark"] .ah-fulfillment-heading h2, .user-space-page[data-theme="dark"] .ah-fulfillment-records-head h3, .user-space-page[data-theme="dark"] .ah-fulfillment-record-copy strong, .user-space-page[data-theme="dark"] .ah-skin-option, .user-space-page[data-theme="dark"] .ah-card-presets-heading, .user-space-page[data-theme="dark"] .ah-card-preset-select, .user-space-page[data-theme="dark"] .ah-fusion-block-head { color: #f4f7f8; }.ah-skin-option, .ah-card-preset, .ah-fusion-block { background: rgba(255,255,255,.58); }.user-space-page[data-theme="dark"] .ah-skin-option, .user-space-page[data-theme="dark"] .ah-card-preset, .user-space-page[data-theme="dark"] .ah-fusion-block, .user-space-page[data-theme="dark"] .ah-fulfillment-records { background: rgba(28,30,36,.72); border-color: rgba(255,255,255,.1); }.user-space-page[data-theme="dark"] .ah-record-filter { background: rgba(255,255,255,.1); }.user-space-page[data-theme="dark"] .ah-record-filter button { color: #a7acb5; }.user-space-page[data-theme="dark"] .ah-record-filter button.active { background: rgba(255,255,255,.14); color: #f4f7f8; box-shadow: none; }.user-space-page[data-theme="dark"] .ah-fulfillment-record + .ah-fulfillment-record { border-top-color: rgba(255,255,255,.09); }.user-space-page[data-theme="dark"] .ah-card-presets-loading, .user-space-page[data-theme="dark"] .ah-card-presets-empty { border-color: rgba(255,255,255,.18); color: #a7acb5; }.user-space-page[data-theme="dark"] .ah-card-preset-delete { border-color: rgba(255,255,255,.18); background: rgba(28,30,36,.9); color: #ff9ca9; }
+.ah-fulfillment-section { display: grid; gap: 15px; max-width: 720px; width: 100%; margin: 0 auto; }.ah-current-gift-card { margin: 0; }.ah-fulfillment-records { padding: 16px; border: 1px solid rgba(18, 38, 50, .1); border-radius: 18px; background: rgba(255,255,255,.58); }.ah-fulfillment-records-head { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin-bottom: 12px; }.ah-fulfillment-records-head > div:first-child > span { color: #377f76; font-size: 12px; font-weight: 760; }.ah-fulfillment-records-head h3 { margin: 4px 0 0; color: #1d1d1f; font-size: 16px; font-weight: 760; }.ah-record-filter { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: rgba(18, 38, 50, .07); }.ah-record-filter button { min-width: 42px; min-height: 30px; padding: 0 9px; border: 0; border-radius: 8px; background: transparent; color: #68727b; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }.ah-record-filter button.active { background: rgba(255,255,255,.9); box-shadow: 0 1px 5px rgba(15, 23, 42, .12); color: #1d1d1f; }.ah-fulfillment-record-list { display: grid; }.ah-fulfillment-record { display: flex; align-items: center; gap: 11px; min-width: 0; padding: 12px 0; }.ah-fulfillment-record + .ah-fulfillment-record { border-top: 1px solid rgba(18, 38, 50, .08); }.ah-fulfillment-record-icon { display: grid; width: 34px; height: 34px; place-items: center; flex: 0 0 auto; border-radius: 12px; }.ah-fulfillment-record-icon.gift { background: rgba(183, 102, 126, .12); color: #ad526f; }.ah-fulfillment-record-icon.order { background: rgba(35, 121, 108, .12); color: #23796c; }.ah-fulfillment-record-copy { display: grid; min-width: 0; gap: 3px; flex: 1; }.ah-fulfillment-record-copy strong { overflow: hidden; color: #1d1d1f; font-size: 13px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }.ah-fulfillment-record-copy span, .ah-fulfillment-record-side > span:first-child { overflow: hidden; color: #78808d; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.ah-fulfillment-record-side { display: grid; justify-items: end; gap: 4px; min-width: 68px; }.ah-fulfillment-record-points { color: #b45309; font-size: 11px; font-weight: 750; white-space: nowrap; }.ah-fulfillment-partial-error { margin: 12px 0 0; color: #b45309; font-size: 12px; }.ah-fusion-block { padding: 15px; border: 1px solid rgba(18, 38, 50, .1); border-radius: 18px; background: rgba(255,255,255,.58); }.ah-fusion-block-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; color: #1d1d1f; font-weight: 760; }.ah-fusion-block-head > span { display: inline-flex; align-items: center; gap: 7px; }.ah-fusion-block-head button, .ah-inline-empty button { border: 0; background: transparent; color: #23796c; font: inherit; font-size: 12px; cursor: pointer; }.ah-inline-empty { padding: 16px 4px; color: #74808a; font-size: 13px; }
+.user-space-page[data-theme="dark"] .ah-fulfillment-heading h2, .user-space-page[data-theme="dark"] .ah-fulfillment-records-head h3, .user-space-page[data-theme="dark"] .ah-fulfillment-record-copy strong, .user-space-page[data-theme="dark"] .ah-skin-option, .user-space-page[data-theme="dark"] .ah-card-presets-heading, .user-space-page[data-theme="dark"] .ah-card-preset-select, .user-space-page[data-theme="dark"] .ah-fusion-block-head { color: #f4f7f8; }.ah-skin-option, .ah-card-preset, .ah-fusion-block { background: rgba(255,255,255,.58); }.user-space-page[data-theme="dark"] .ah-skin-option, .user-space-page[data-theme="dark"] .ah-card-preset, .user-space-page[data-theme="dark"] .ah-fusion-block, .user-space-page[data-theme="dark"] .ah-fulfillment-records { background: rgba(28,30,36,.72); border-color: rgba(255,255,255,.1); }.user-space-page[data-theme="dark"] .ah-record-filter { background: rgba(255,255,255,.1); }.user-space-page[data-theme="dark"] .ah-record-filter button { color: #a7acb5; }.user-space-page[data-theme="dark"] .ah-record-filter button.active { background: rgba(255,255,255,.14); color: #f4f7f8; box-shadow: none; }.user-space-page[data-theme="dark"] .ah-fulfillment-record + .ah-fulfillment-record { border-top-color: rgba(255,255,255,.09); }.user-space-page[data-theme="dark"] .ah-card-presets-loading, .user-space-page[data-theme="dark"] .ah-card-presets-empty { border-color: rgba(255,255,255,.18); color: #a7acb5; }.user-space-page[data-theme="dark"] .ah-card-preset-delete { border-color: rgba(255,255,255,.18); background: rgba(28,30,36,.9); color: #ff9ca9; }
 @media (max-width: 560px) { .ah-skin-grid { grid-template-columns: 1fr; }.ah-skin-option { min-height: 82px; display: grid; grid-template-columns: 70px 1fr; align-content: center; column-gap: 12px; }.ah-skin-option strong, .ah-skin-option small { grid-column: 2; }.ah-skin-option strong { margin-top: 0; }.ah-skin-preview { grid-row: 1 / span 2; height: 50px; }.ah-card-preset-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 @media (prefers-reduced-motion: reduce) {
   .ah-panel-enter-active,
-  .ah-panel-leave-active,
-  .ah-icon-swap-enter-active,
-  .ah-icon-swap-leave-active {
+  .ah-panel-leave-active {
     transition: opacity 120ms ease !important;
   }
   .ah-panel-enter-from,
-  .ah-panel-leave-to,
-  .ah-icon-swap-enter-from,
-  .ah-icon-swap-leave-to {
+  .ah-panel-leave-to {
     filter: none !important;
     transform: none !important;
   }
   .ah-section,
   .ah-points-block,
-  .ah-tab,
-  .ah-tab-icon,
-  .ah-tab-label,
   .ah-gift-thumb,
   .ah-gift-status-icon,
-  .ah-gift-copy,
   .ah-gift-card,
-  .ah-gift-history-item,
   .ah-smart-focus,
   .ah-smart-focus-icon,
   .ah-smart-focus-action svg,
@@ -3181,8 +2667,7 @@ onMounted(() => {
   .ah-smart-next-icon,
   .ah-smart-next > svg,
   .ah-icon-command,
-  .ah-ledger-item,
-  .ah-order-item {
+  .ah-ledger-item {
     animation: none !important;
     transition: opacity 150ms ease, color 150ms ease, background-color 150ms ease !important;
     transform: none !important;

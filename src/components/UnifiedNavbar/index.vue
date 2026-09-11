@@ -1,7 +1,6 @@
 <template>
   <div id="unified-nav-container" class="unified-nav" :class="{
-    'mobile-menu-open': isMobileMenuOpen,
-    scrolled: isScrolled
+    'mobile-menu-open': isMobileMenuOpen
   }" data-theme>
     <div
       class="unified-nav-surface"
@@ -115,14 +114,19 @@
         </button>
         <template v-if="isLoggedIn">
           <router-link to="/user-space" class="nav-user-info nav-user-profile" id="nav-user-info" title="进入我的方块" @click="handleMyBlockClick">
-            <div class="nav-avatar">
-              <img v-if="avatarUrl" :src="avatarUrl" alt="头像" class="nav-avatar-img" loading="lazy" decoding="async">
-              <span v-else>{{ username ? username.charAt(0).toUpperCase() : 'U' }}</span>
-              <!-- 未读消息红点 -->
-              <div v-if="hasUnreadMessages" class="unread-badge-nav">
-                {{ unreadCount > 99 ? '99+' : unreadCount }}
+            <span class="boh-avatar-wrap">
+              <div class="nav-avatar">
+                <img v-if="avatarUrl" :src="avatarUrl" alt="头像" class="nav-avatar-img" loading="lazy" decoding="async">
+                <span v-else>{{ username ? username.charAt(0).toUpperCase() : 'U' }}</span>
+                <!-- 未读消息红点 -->
+                <div v-if="hasUnreadMessages" class="unread-badge-nav">
+                  {{ unreadCount > 99 ? '99+' : unreadCount }}
+                </div>
               </div>
-            </div>
+              <span v-if="navFrame" class="boh-avatar-frame"
+                :style="{ '--boh-avatar-frame-url': `url(${navFrame.url})`, '--boh-avatar-frame-scale': String(navFrame.scale) }"
+                aria-hidden="true"></span>
+            </span>
             <span class="nav-username">我的方块</span>
           </router-link>
         </template>
@@ -262,6 +266,7 @@ import { ref, computed, nextTick, onMounted, onUnmounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { getImageUrl } from "../../utils/asset-helper.js";
 import { useAuthStore } from "@/stores/auth";
+import { resolveFrameForAuthor } from "@/composables/useAvatarFrame.js";
 import { storeToRefs } from "pinia";
 import { loadNotificationStore, getNotificationStoreSync } from "@/stores/notification-loader";
 import { Bot } from "lucide-vue-next";
@@ -269,7 +274,6 @@ import HomeCatMascot from "@/components/HomeCatMascot.vue";
 import { themeManager } from "@/utils/theme-manager.js";
 import { isHomeCatTheme } from "@/utils/home-cat-theme.js";
 import { useConfirmDialog } from "@/composables/useConfirmDialog.js";
-import { useAppMode } from "@/composables/useAppMode.js";
 import { useVersionCheck } from "@/composables/useVersionCheck.js";
 import { useOverviewIsland } from "@/composables/useOverviewIsland.js";
 import { toggleHiagentChat } from "@/utils/hiagent-widget.js";
@@ -305,7 +309,6 @@ const isDevMode = import.meta.env.DEV;
 const notificationStoreRef = ref(getNotificationStoreSync());
 const { alert, confirm } = useConfirmDialog();
 const { checkForUpdate, applyUpdate, isChecking } = useVersionCheck();
-const { isBeta5 } = useAppMode();
 const router = useRouter();
 const currentTheme = ref(themeManager.getTheme());
 const currentThemePreference = ref(themeManager.getPreference?.() || currentTheme.value);
@@ -507,53 +510,11 @@ watch(() => islandCustomSlot.component, (component) => {
 });
 
 // ============================================
-// 滚动悬浮效果控制
+// 窗口缩放
 // ============================================
+// Beta 6 起导航为常驻悬浮岛，滚动收纳（stable .scrolled）机制已随 4.9.1 回退通道一并移除。
 
-const isScrolled = ref(false);
-const SCROLL_ENTER_THRESHOLD = 72;
-const SCROLL_EXIT_THRESHOLD = 32;
-
-let scrollRafId = null;
 let resizeRafId = null;
-let pendingScrollY = 0;
-
-const getUserSpaceScrollTarget = (target) => {
-  if (!target?.classList?.contains('tab-page')) return null;
-  return target.closest?.('.user-space-page') ? target : null;
-};
-
-const getCurrentScrollOffset = () => {
-  const activeUserSpaceTab = document.querySelector('.user-space-page .tab-page:not(.is-leaving)');
-  return activeUserSpaceTab ? activeUserSpaceTab.scrollTop : window.scrollY;
-};
-
-const updateScrolledState = (scrollTop) => {
-  isScrolled.value = isScrolled.value
-    ? scrollTop > SCROLL_EXIT_THRESHOLD
-    : scrollTop > SCROLL_ENTER_THRESHOLD;
-};
-
-const handleScroll = (event) => {
-  if (isBeta5.value) {
-    if (isScrolled.value) isScrolled.value = false;
-    return;
-  }
-
-  const target = event?.target;
-  const userSpaceScrollTarget = getUserSpaceScrollTarget(target);
-  const isPageScroll = !target || target === document || target === document.documentElement
-    || target === document.body || target === window;
-  // 用户空间桌面端由 tab-page 承担页面级滚动；其余嵌套容器（评论、代码块等）不应影响顶栏。
-  if (!isPageScroll && !userSpaceScrollTarget) return;
-  // 始终刷新为最新滚动源的位置，避免同一帧内读取到陈旧坐标。
-  pendingScrollY = userSpaceScrollTarget ? userSpaceScrollTarget.scrollTop : window.scrollY;
-  if (scrollRafId) return;
-  scrollRafId = requestAnimationFrame(() => {
-    updateScrolledState(pendingScrollY);
-    scrollRafId = null;
-  });
-};
 
 const ensureNotificationStore = async () => {
   if (notificationStoreRef.value) {
@@ -606,6 +567,7 @@ const handleMyBlockClick = (event) => {
 // 使用 store 中的状态
 const username = computed(() => authStore.userInfo.username);
 const avatarUrl = computed(() => authStore.userInfo.avatarUrl || '');
+const navFrame = computed(() => resolveFrameForAuthor('', authStore.userInfo?.id));
 
 // ============================================
 // 导航菜单配置
@@ -934,16 +896,8 @@ const toggleMobileMenu = () => {
     mobileMenuOpenCount.value += 1;
   }
 
-  // 检查是否为竖屏模式（高度大于宽度）
-  const isPortrait = window.innerHeight > window.innerWidth;
-
-  // 在竖屏模式下，始终允许页面滚动
-  if (isBeta5.value || isPortrait) {
-    document.body.style.overflow = "";
-  } else {
-    // 仅在非竖屏模式且移动端菜单打开时，才禁用滚动
-    document.body.style.overflow = isMobileMenuOpen.value ? "hidden" : "";
-  }
+  // Beta 6：常驻悬浮导航下移动端菜单始终允许页面滚动。
+  document.body.style.overflow = "";
 };
 
 /**
@@ -1013,20 +967,9 @@ const handleResize = () => {
   if (resizeRafId) return;
   resizeRafId = requestAnimationFrame(() => {
     resizeRafId = null;
-    // 检查是否为竖屏模式（高度大于宽度）
-    const isPortrait = window.innerHeight > window.innerWidth;
-
     // 当屏幕宽度大于768px时，关闭移动端菜单
     if (window.innerWidth > 768 && isMobileMenuOpen.value) {
       isMobileMenuOpen.value = false;
-    }
-
-    // 在竖屏模式下，始终允许页面滚动
-    if (isBeta5.value || isPortrait) {
-      document.body.style.overflow = "";
-    } else {
-      // 仅在非竖屏模式且移动端菜单打开时，才禁用滚动
-      document.body.style.overflow = isMobileMenuOpen.value ? "hidden" : "";
     }
   });
 };
@@ -1076,24 +1019,18 @@ onMounted(() => {
   themeManager.addListener(handleThemeChange);
   // 添加点击外部关闭下拉菜单的事件监听
   document.addEventListener("click", handleClickOutside);
-  // 滚动悬浮效果（capture 模式捕获嵌套滚动容器的 scroll 事件）
-  document.addEventListener("scroll", handleScroll, { passive: true, capture: true });
-  // 双层 requestAnimationFrame：确保首次浏览器绘制完成后再应用 scrolled 类
-  // 这样浏览器先绘制了无 scrolled 的基准状态，过渡才能正确触发
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      isScrolled.value = isBeta5.value ? false : getCurrentScrollOffset() > SCROLL_ENTER_THRESHOLD;
-    });
-  });
 });
 
-watch(isBeta5, (enabled) => {
-  if (enabled) {
-    isScrolled.value = false;
-    return;
+/**
+ * 监听移动菜单状态变化
+ */
+watch(
+  () => isMobileMenuOpen.value,
+  () => {
+    // Beta 6：常驻悬浮导航下移动端菜单始终允许页面滚动。
+    document.body.style.overflow = "";
   }
-  updateScrolledState(getCurrentScrollOffset());
-});
+);
 
 /**
  * 组件卸载时清理
@@ -1109,10 +1046,6 @@ onUnmounted(() => {
   if (unreadRefreshInterval) {
     clearInterval(unreadRefreshInterval);
   }
-  if (scrollRafId) {
-    cancelAnimationFrame(scrollRafId);
-    scrollRafId = null;
-  }
   if (resizeRafId) {
     cancelAnimationFrame(resizeRafId);
     resizeRafId = null;
@@ -1123,28 +1056,7 @@ onUnmounted(() => {
   themeManager.removeListener(handleThemeChange);
   // 移除点击外部关闭下拉菜单的事件监听
   document.removeEventListener("click", handleClickOutside);
-  // 移除滚动监听
-  document.removeEventListener("scroll", handleScroll, { capture: true });
 });
-
-/**
- * 监听移动菜单状态变化
- */
-watch(
-  () => isMobileMenuOpen.value,
-  (newValue) => {
-    // 检查是否为竖屏模式（高度大于宽度）
-    const isPortrait = window.innerHeight > window.innerWidth;
-
-    // 在竖屏模式下，始终允许页面滚动
-    if (isBeta5.value || isPortrait) {
-      document.body.style.overflow = "";
-    } else {
-      // 仅在非竖屏模式且移动端菜单打开时，才禁用滚动
-      document.body.style.overflow = newValue ? "hidden" : "";
-    }
-  }
-);
 
 watch(isLoggedIn, (loggedIn) => {
   if (loggedIn) {

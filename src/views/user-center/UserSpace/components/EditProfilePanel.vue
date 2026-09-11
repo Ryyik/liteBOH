@@ -26,9 +26,14 @@
         <div class="profile-edit-page-copy">
           <h3>{{ username || '我的资料' }}</h3>
           <p>更新会显示在“我的”页面顶部。</p>
-          <button type="button" class="profile-edit-avatar-action" @click="$emit('avatar-click')">
-            更换头像
-          </button>
+          <div class="profile-edit-avatar-actions">
+            <button type="button" class="profile-edit-avatar-action" @click="$emit('avatar-click')">
+              更换头像
+            </button>
+            <button type="button" class="profile-edit-avatar-action" @click="$emit('open-avatar-frames')">
+              头像框
+            </button>
+          </div>
         </div>
       </div>
 
@@ -112,7 +117,7 @@ defineProps({
   isSubmittingProfileEdit: { type: Boolean, default: false }
 });
 
-defineEmits(['close', 'avatar-click', 'save',
+defineEmits(['close', 'avatar-click', 'open-avatar-frames', 'save',
   'update-username', 'update-bio', 'update-join-year', 'update-join-month', 'update-join-day',
   'update-birth-month', 'update-birth-day'
 ]);
@@ -139,8 +144,14 @@ defineEmits(['close', 'avatar-click', 'save',
   z-index: 2;
 }
 
-.profile-edit-avatar-action {
+.profile-edit-avatar-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
   margin-top: 6px;
+}
+
+.profile-edit-avatar-action {
   font-size: 13px;
   font-weight: 700;
   color: #0071e3;

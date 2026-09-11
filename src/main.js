@@ -6,11 +6,11 @@ import { MotionPlugin } from "@vueuse/motion";
 // ============================================
 import "./styles/common/tokens.css";
 import "./styles/common/hero-surface.css";
+import "./styles/common/avatar-frame.css";
 
 // ============================================
 // 第三方库样式 (Vendor Styles)
 // ============================================
-import "./styles/vendor/fonts.css";
 import "./styles/vendor/unified-nav.css";
 
 // ============================================
@@ -23,8 +23,6 @@ import "./styles/common/animations.css";
 // ============================================
 // 辅助样式 (Helper Styles)
 // ============================================
-import "./styles/helpers/variabls.css";
-import "./styles/helpers/mixins.css";
 import "./styles/helpers/function.css";
 
 // ============================================
@@ -60,7 +58,6 @@ import { logger } from './utils/logger.js';
 import { setupVitePreloadErrorRecovery } from './utils/vite-preload-recovery.js';
 import { initImageOptimizer } from './utils/image-optimizer.js';
 import { initVersionChecker } from './utils/version-checker.js';
-import { initAppModeManager } from './utils/app-mode-manager.js';
 import { applyPerformanceProfile, watchPerformanceProfile } from './utils/performance-profile.js';
 
 const registerPwaServiceWorker = () => {
@@ -111,8 +108,6 @@ const scheduleDeferredGlobalStyles = () => {
 if (typeof window !== "undefined") {
   registerPwaServiceWorker();
 
-  // Apply the selected experience before Vue mounts so Beta 5 chrome never flashes as stable.
-  initAppModeManager();
   applyPerformanceProfile(window);
   watchPerformanceProfile(window);
   setupVitePreloadErrorRecovery();

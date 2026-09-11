@@ -8,11 +8,13 @@ export async function grantSubscriptions({
   billingCycle = 'monthly',
   pointsCost = 0,
   durationMonths = 1,
+  durationDays = 0,
   startedAt = null,
   expiresAt = null,
   status = 'active',
   skipExisting = false,
-  skipAnyTier = false
+  skipAnyTier = false,
+  notify = true
 } = {}) {
   const { data, error } = await supabase.rpc('admin_batch_grant_subscriptions', {
     p_user_ids: Array.isArray(userIds) && userIds.length > 0 ? userIds : null,
@@ -21,11 +23,13 @@ export async function grantSubscriptions({
     p_billing_cycle: String(billingCycle || 'monthly').trim(),
     p_points_cost: Number(pointsCost) || 0,
     p_duration_months: Number(durationMonths) || 1,
+    p_duration_days: Number(durationDays) || 0,
     p_started_at: startedAt || null,
     p_expires_at: expiresAt || null,
     p_status: String(status || 'active').trim(),
     p_skip_existing: Boolean(skipExisting),
-    p_skip_any_tier: Boolean(skipAnyTier)
+    p_skip_any_tier: Boolean(skipAnyTier),
+    p_notify: notify !== false
   });
   if (error) {
     throw new Error(normalizeDbError(error)?.message || error.message || '批量发放订阅失败');
@@ -61,10 +65,11 @@ export async function updateSubscription({
   return data;
 }
 
-export async function cancelSubscription({ subscriptionId }) {
+export async function cancelSubscription({ subscriptionId, cancelAllSamePlan = false }) {
   if (!subscriptionId) throw new Error('缺少订阅记录ID');
   const { data, error } = await supabase.rpc('admin_cancel_subscription', {
-    p_subscription_id: subscriptionId
+    p_subscription_id: subscriptionId,
+    p_all_active_same_plan: Boolean(cancelAllSamePlan)
   });
   if (error) {
     throw new Error(normalizeDbError(error)?.message || error.message || '撤销订阅失败');

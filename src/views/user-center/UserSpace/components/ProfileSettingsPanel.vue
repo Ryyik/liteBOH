@@ -54,14 +54,14 @@
           <div class="gs-rows">
             <button type="button" class="gs-row" @click="$emit('open-version-settings')">
               <span class="gs-icon is-blue">
-                <RotateCcw :size="16" :stroke-width="2" aria-hidden="true" />
+                <Info :size="16" :stroke-width="2" aria-hidden="true" />
               </span>
               <span class="gs-text">
-                <span class="gs-label">版本与回退</span>
-                <span class="gs-desc">Beta 5 已默认启用，可临时回退到 4.9.1 兼容模式</span>
+                <span class="gs-label">版本</span>
+                <span class="gs-desc">查看当前版本与 Beta 6 介绍</span>
               </span>
               <span class="gs-side">
-                <span class="gs-value">Beta 5</span>
+                <span class="gs-value">Beta 6</span>
                 <ChevronRight class="gs-chevron" :size="16" :stroke-width="2" aria-hidden="true" />
               </span>
             </button>
@@ -212,7 +212,7 @@
 import { computed, ref } from 'vue';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
-import { Archive, Bell, ChevronRight, Database, EyeOff, LogOut, Mail, MessagesSquare, Moon, RotateCcw, Shield, Sun, Users } from 'lucide-vue-next';
+import { Archive, Bell, ChevronRight, Database, EyeOff, Info, LogOut, Mail, MessagesSquare, Moon, Shield, Sun, Users } from 'lucide-vue-next';
 import SettingToggle from './SettingToggle.vue';
 
 const props = defineProps({

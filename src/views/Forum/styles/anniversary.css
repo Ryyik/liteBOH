@@ -510,20 +510,6 @@
   background: var(--mc-paper-deep);
 }
 
-.forum-page[data-anniversary-skin="active"] .floating-actions-container {
-  top: 28px;
-  right: 28px;
-  z-index: 4;
-}
-
-.forum-page[data-anniversary-skin="active"] .notification-fab {
-  border: 1px solid var(--mc-spruce);
-  border-radius: 4px;
-  color: #fff8e8;
-  background: var(--mc-spruce-soft);
-  box-shadow: inset 0 2px rgba(255, 255, 255, 0.16), 0 3px 0 #302923;
-}
-
 @media (max-width: 768px) {
   .forum-page[data-anniversary-skin="active"] .forum-header {
     min-height: 380px;
@@ -546,7 +532,6 @@
 
   .forum-page[data-anniversary-skin="active"] .anniversary-seal strong { font-size: 31px; }
   .forum-page[data-anniversary-skin="active"] .anniversary-seal span { font-size: 7px; }
-  .forum-page[data-anniversary-skin="active"] .floating-actions-container { top: 22px; right: 18px; }
   .forum-page[data-anniversary-skin="active"] .post-card-v2 { border-left-width: 4px !important; }
   .forum-page[data-anniversary-skin="active"] :deep(.action-item-v2) { min-width: 36px; padding: 0 9px; }
   .forum-page[data-anniversary-skin="active"] :deep(.icon-only-action-v2) { padding: 0; }

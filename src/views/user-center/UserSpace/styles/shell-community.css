@@ -24,7 +24,7 @@
   --shadow-lg: rgba(0, 0, 0, 0.08);
   --radius-group: 20px;
   --radius-item: 16px;
-  --radius-avatar: 14px;
+  --radius-avatar: 50%;
   --radius-pill: 999px;
   --radius-panel: 20px;
   --radius-card: 16px;
@@ -1821,7 +1821,7 @@
   .user-avatar {
     width: 40px;
     height: 40px;
-    border-radius: 12px;
+    border-radius: 50%;
     font-size: 15px;
   }
 
@@ -1948,7 +1948,7 @@
   .user-avatar {
     width: 36px;
     height: 36px;
-    border-radius: 10px;
+    border-radius: 50%;
     font-size: 14px;
   }
 
@@ -2164,7 +2164,7 @@
   .community-side-col .birthday-users-list .user-avatar {
     width: 34px;
     height: 34px;
-    border-radius: 10px;
+    border-radius: 50%;
     font-size: 14px;
   }
 
@@ -2442,7 +2442,7 @@
   .community-main-col .user-avatar {
     width: 38px;
     height: 38px;
-    border-radius: 11px;
+    border-radius: 50%;
     font-size: 14px;
   }
 

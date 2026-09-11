@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="iNlmpvZPsMoyB1ElTbBo18">
+<head data-page-node-id="Z88o5TFQ5C7Z2HTHIqPTcK">
+<meta charset="UTF-8" data-page-node-id="WbeAkOtnV7Ti3ocPXQvmeC">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="Gscje8xCiAWHlFDI8CWT5w">
+<title>BOH 头像框 · 绘制规格打样（1024×1024）</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+    background: #f5f5f7; color: #1d1d1f;
+    padding: 32px 20px 56px;
+    transition: background 0.25s ease;
+  }
+  body.clean { background: #ffffff; padding: 16px; }
+  .wrap { max-width: 780px; margin: 0 auto; }
+  .chrome h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+  .chrome .sub { color: #6e6e73; font-size: 14px; margin-top: 8px; line-height: 1.65; }
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin: 18px 0 14px; }
+  .btn {
+    cursor: pointer; border: 1px solid rgba(0,0,0,0.12); border-radius: 99px;
+    background: #fff; color: #1d1d1f; font-size: 13px; font-weight: 600;
+    padding: 9px 16px; transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+  .btn.primary { background: #0071e3; border-color: #0071e3; color: #fff; }
+  .canvas-card {
+    background: #fff; border: 1px solid rgba(0,0,0,0.08); border-radius: 18px;
+    padding: 14px; display: flex; justify-content: center;
+  }
+  body.clean .canvas-card { border: none; background: transparent; padding: 0; }
+  .canvas-shell {
+    width: 100%; max-width: 700px; aspect-ratio: 1 / 1; position: relative;
+    border-radius: 10px; overflow: hidden;
+    background: repeating-conic-gradient(#ececf0 0% 25%, #ffffff 0% 50%) 0 0 / 40px 40px;
+  }
+  body.clean .canvas-shell { max-width: min(94vw, 880px); }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .params { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 18px; }
+  @media (max-width: 640px) { .params { grid-template-columns: repeat(2, 1fr); } }
+  .param {
+    background: #fff; border: 1px solid rgba(0,0,0,0.08); border-radius: 14px; padding: 12px 14px;
+  }
+  .param b { display: block; font-size: 12px; color: #6e6e73; font-weight: 600; margin-bottom: 4px; }
+  .param span { font-size: 15px; font-weight: 700; }
+  .param small { display: block; color: #a1a1a6; font-size: 11px; margin-top: 3px; line-height: 1.45; }
+  .foot { margin-top: 18px; color: #a1a1a6; font-size: 12px; line-height: 1.7; }
+  body.clean .chrome, body.clean .params, body.clean .foot, body.clean .toolbar { display: none; }
+  .exit-clean {
+    display: none; position: fixed; top: 14px; right: 14px; z-index: 9;
+    cursor: pointer; border: 1px solid rgba(0,0,0,0.15); border-radius: 99px;
+    background: rgba(255,255,255,0.9); color: #1d1d1f; font-size: 12px; font-weight: 600;
+    padding: 7px 13px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  body.clean .exit-clean { display: block; }
+</style>
+</head>
+<body data-page-node-id="E7RPIONQCruQy0vFqhG2Oo">
+<div class="wrap" data-page-node-id="wfUpBHAUl3UJGSygjOueR9">
+  <div class="chrome" data-page-node-id="WguovwjRBL1Av379MCcXyt">
+    <h1 data-page-node-id="w8yQWDE0NnLk2CnmzQaQie">BOH 头像框 · 绘制规格打样</h1>
+    <p class="sub" data-page-node-id="xlRoTZ4kpNVcCMKp8EEIHa">把这张图直接发给画画的朋友：中间红色虚线圆以内是「头像露出区」（必须留空），圆环区域随便画。画完导出 1024×1024 透明 PNG 发回来，我直接接进全站。</p>
+    <div class="toolbar" data-page-node-id="An8FcK0EtV6F3NT5w35eiv">
+      <button class="btn primary" id="btnClean" type="button" data-page-node-id="WyrBpdIJclXEXMfxaDxZYo">🖥 干净模式（方便截图）</button>
+      <button class="btn" id="btnDownload" type="button" data-page-node-id="1g8wHz8TPIJiwgLtBoFfzM">⬇️ 下载模板 PNG（导入画图软件当底稿）</button>
+    </div>
+  </div>
+
+  <div class="canvas-card" data-page-node-id="3Xh8bcBhTife5jfGTV35QE">
+    <div class="canvas-shell" data-page-node-id="yIfrJNvCXf1VRUZ0mBXMGR">
+      <canvas id="tpl" width="1024" height="1024" data-page-node-id="KWIuhNIid2UTkxQ2FjgXbu"></canvas>
+    </div>
+  </div>
+
+  <div class="params" data-page-node-id="ozmcMbWcNgHZEYzX2m1U7E">
+    <div class="param" data-page-node-id="XogjnADViq5mGzUCP3dpwp"><b data-page-node-id="imVCXDJ9lWY5H9wfky0ApX">画布</b><span data-page-node-id="UFtgbq6xKnOul32H4ghvHA">1024 × 1024</span><small data-page-node-id="Aa9bdGbZCvICRRpsptkjgk">正方形 · PNG 透明底</small></div>
+    <div class="param" data-page-node-id="qDbUBqpoeiroBA8ZWPOADQ"><b data-page-node-id="24791L9o6GvGVEQp8rAPre">中心内孔</b><span data-page-node-id="jYJcLaXvN9E4O4FGl0YGoT">Ø 824 全透明</span><small data-page-node-id="GS2b58B2Qaa3fqQYITKk5o">直径 824，孔内不能画任何东西</small></div>
+    <div class="param" data-page-node-id="Uyptb3mbTkBRywWJ1UkDF4"><b data-page-node-id="0DgTCNhsr28OfqwSjYY9XA">装饰外沿</b><span data-page-node-id="cKWX8B7xAyd5HlAYJ6Wa1Q">≤ Ø 984</span><small data-page-node-id="52bv0NcXmPTq9oVRkOz8Ru">留 20 边距防裁切</small></div>
+    <div class="param" data-page-node-id="dChVUm4sqPhsUI3M7DLKmK"><b data-page-node-id="7V6rGEl7DgwzYlPlBzqePG">主环带厚度</b><span data-page-node-id="XBKuWsG1zCHf4bILBCPUXR">64 – 120</span><small data-page-node-id="fx6GU79XjeEwY7GabG3LBe">框的主体环</small></div>
+    <div class="param" data-page-node-id="hdvo2DqvPqYgdnBGUSm3Lz"><b data-page-node-id="CznXTQyqcZJ3aJ4DNJiimm">最细线条</b><span data-page-node-id="cMnvBhNW0SQMkSdpVHOaDz">≥ 24</span><small data-page-node-id="QNCaP0RBkFGbHkCd1D0LG6">更细会在小头像上消失</small></div>
+    <div class="param" data-page-node-id="ecefUST5RPMKSbK4nMPbh0"><b data-page-node-id="8F8XjGuWy1b99oig0plDkE">格式与体积</b><span data-page-node-id="GrGTogtYKQ1fJIyWSPNQ6t">PNG ≤ 400KB</span><small data-page-node-id="AKxInhXgK75HJ6kT7Gsu0j">白底黑底各检查一遍</small></div>
+  </div>
+
+  <p class="foot" data-page-node-id="mTCgL3wcGHqEhPplbhKPOP">说明：灰色棋盘格 = 透明区域（导出后不存在）。粉/红虚线圆以内 = 头像露出的地方；蓝色实线圆 = 装饰最大范围。下载的模板 PNG 是真透明底，可直接导入 Procreate / Photoshop / Figma 打底稿，画完只导出自己画的部分（或者整张发回来我处理）。</p>
+</div>
+<button class="exit-clean" id="btnExit" type="button" data-page-node-id="mqOnTaWizK5kAiRZDO5Ar6">退出干净模式 ✕</button>
+
+<script>
+  var canvas = document.getElementById('tpl');
+  var ctx = canvas.getContext('2d');
+  var C = 512, R_HOLE = 412, R_OUT = 492;
+  var RED = '#d5453c', BLUE = '#0071e3', INK = '#3a3a3c', FAINT = 'rgba(0,0,0,0.14)';
+
+  function draw() {
+    ctx.clearRect(0, 0, 1024, 1024);
+
+    // 中心十字轴（极浅，作对齐参考）
+    ctx.save();
+    ctx.strokeStyle = FAINT;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 10]);
+    ctx.beginPath();
+    ctx.moveTo(C, 24); ctx.lineTo(C, 1000);
+    ctx.moveTo(24, C); ctx.lineTo(1000, C);
+    ctx.stroke();
+    ctx.restore();
+
+    // 装饰外沿圆（蓝色实线）
+    ctx.save();
+    ctx.strokeStyle = BLUE;
+    ctx.globalAlpha = 0.7;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(C, C, R_OUT, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // 内孔圆（红色虚线 + 淡填充）
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(C, C, R_HOLE, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(213, 69, 60, 0.05)';
+    ctx.fill();
+    ctx.strokeStyle = RED;
+    ctx.lineWidth = 4;
+    ctx.setLineDash([18, 12]);
+    ctx.stroke();
+    ctx.restore();
+
+    // 内孔文字标注（画在孔中心）
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = RED;
+    ctx.font = '600 40px -apple-system, "PingFang SC", sans-serif';
+    ctx.fillText('头像露出区', C, C - 26);
+    ctx.font = '400 30px -apple-system, "PingFang SC", sans-serif';
+    ctx.fillText('内孔 Ø824 · 必须全透明', C, C + 28);
+    ctx.restore();
+
+    // 四角图例（避开圆环区域的角落口袋）
+    ctx.save();
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.font = '600 26px -apple-system, "PingFang SC", sans-serif';
+    var legend = [
+      // [textAlign, x, y, color, text]
+      ['left', 24, 44, INK, '画布 1024 × 1024'],
+      ['left', 24, 78, INK, 'PNG 透明底'],
+      ['right', 1000, 44, INK, '装饰外沿'],
+      ['right', 1000, 78, BLUE, '≤ Ø 984'],
+      ['left', 24, 950, INK, '主环带厚 64 – 120'],
+      ['left', 24, 984, INK, '最细线 ≥ 24'],
+      ['right', 1000, 950, INK, '格式 PNG-24 透明'],
+      ['right', 1000, 984, INK, '压缩 ≤ 400 KB']
+    ];
+    for (var i = 0; i < legend.length; i++) {
+      var L = legend[i];
+      ctx.textAlign = L[0];
+      ctx.strokeText(L[4], L[1], L[2]);
+      ctx.fillStyle = L[3];
+      ctx.fillText(L[4], L[1], L[2]);
+    }
+    ctx.restore();
+  }
+
+  draw();
+
+  // 干净模式
+  var body = document.body;
+  document.getElementById('btnClean').addEventListener('click', function () {
+    body.classList.add('clean');
+  });
+  document.getElementById('btnExit').addEventListener('click', function () {
+    body.classList.remove('clean');
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') body.classList.remove('clean');
+  });
+
+  // 下载模板 PNG（真透明底，可直接导入画图软件打底稿）
+  document.getElementById('btnDownload').addEventListener('click', function () {
+    canvas.toBlob(function (blob) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'BOH-avatar-frame-template-1024.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 3000);
+    }, 'image/png');
+  });
+</script>
+</body>
+</html>

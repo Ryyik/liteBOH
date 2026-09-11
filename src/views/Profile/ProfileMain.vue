@@ -54,27 +54,32 @@
         </div>
 
         <div class="profile-hero-body">
-          <div class="apple-avatar-wrapper profile-hero-avatar" :class="{ clickable: isOwnProfile }" @click="isOwnProfile && handleAvatarClick()">
-            <div v-if="profile.avatar_url" class="apple-avatar has-avatar">
-              <img :src="profile.avatar_url" alt="头像" class="avatar-img" loading="lazy">
-            </div>
-            <div v-else class="apple-avatar">{{ profile.username?.charAt(0)?.toUpperCase?.() || 'U' }}</div>
-            <div v-if="isOwnProfile && isUploadingAvatar" class="avatar-upload-spinner">
-              <div class="spinner-ring animate-upload-spin"></div>
-            </div>
-            <div v-if="isOwnProfile && showUploadSuccess" class="avatar-success-overlay">
-              <svg class="success-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-            </div>
-            <div v-if="isOwnProfile" class="avatar-edit-overlay">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                <circle cx="12" cy="13" r="4" />
-              </svg>
-            </div>
+          <span class="boh-avatar-wrap">
+            <div class="apple-avatar-wrapper profile-hero-avatar" :class="{ clickable: isOwnProfile }" @click="isOwnProfile && handleAvatarClick()">
+              <div v-if="profile.avatar_url" class="apple-avatar has-avatar">
+                <img :src="profile.avatar_url" alt="头像" class="avatar-img" loading="lazy">
+              </div>
+              <div v-else class="apple-avatar">{{ profile.username?.charAt(0)?.toUpperCase?.() || 'U' }}</div>
+              <div v-if="isOwnProfile && isUploadingAvatar" class="avatar-upload-spinner">
+                <div class="spinner-ring animate-upload-spin"></div>
+              </div>
+              <div v-if="isOwnProfile && showUploadSuccess" class="avatar-success-overlay">
+                <svg class="success-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </div>
+              <div v-if="isOwnProfile" class="avatar-edit-overlay">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                  <circle cx="12" cy="13" r="4" />
+                </svg>
+              </div>
             <span v-if="!isOwnProfile && profile.last_active_at && !profile.hide_online_status && !profile.hideOnlineStatus" class="avatar-online-indicator" :class="{ online: isUserOnline(profile) }" :title="formatOnlineStatusTooltip(profile)" aria-hidden="true"></span>
           </div>
+            <span v-if="ownFrame" class="boh-avatar-frame"
+              :style="{ '--boh-avatar-frame-url': `url(${ownFrame.url})`, '--boh-avatar-frame-scale': String(ownFrame.scale) }"
+              aria-hidden="true"></span>
+          </span>
 
           <div class="profile-hero-copy">
             <div class="name-row profile-hero-name-row">
@@ -438,6 +443,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { useUserTier } from '@/composables/useUserTier.js';
+import { resolveFrameForAuthor } from '@/composables/useAvatarFrame.js';
 import { useTierMap } from '@/composables/useTierMap.js';
 import { PLAN_DISPLAY_NAMES } from '@/utils/subscription-benefits.js';
 
@@ -611,6 +617,11 @@ const hasMoreImpressions = ref(true);
 const isOwnProfile = computed(() => {
   return isLoggedIn.value && userInfo.value.username === route.params.username;
 });
+
+// 主页大头像佩戴框：自己走本地佩戴状态（即换即见）；他人主页待 refreshProfileSummary 带出 frame 字段后接入
+const ownFrame = computed(() => (
+  isOwnProfile.value ? resolveFrameForAuthor('', userInfo.value?.id) : null
+));
 
 const profile = computed(() => {
   return isOwnProfile.value ? ownProfileSnapshot.value : fetchedProfile.value;

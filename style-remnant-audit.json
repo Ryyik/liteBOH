@@ -1,0 +1,2816 @@
+{
+  "generatedAt": "2026-09-10T07:53:24.282Z",
+  "summary": {
+    "cssFiles": 81,
+    "cssTotalLines": 71407,
+    "deadCssCount": 0,
+    "deadCssList": [],
+    "deadClassTotal": 1133,
+    "globalClassTotal": 3270,
+    "importantCount": 1390,
+    "importantThemes": 545,
+    "budgetBaseline": {
+      "total": 1396,
+      "files": {
+        "src/App.vue": 1,
+        "src/components/AiEdgeTrigger.vue": 2,
+        "src/components/AppleGridCard.vue": 8,
+        "src/components/AvatarCropModal.vue": 4,
+        "src/components/CommonAlertModal.vue": 1,
+        "src/components/GlobalAiGlassOverlay.vue": 36,
+        "src/components/SubscriptionPlans.vue": 31,
+        "src/components/UnifiedNavbar/BOHAIIsland.vue": 91,
+        "src/components/UnifiedNavbar/GlobalNavStatusCard.vue": 3,
+        "src/components/UnifiedNavbar/GlobalNavTaskCard.vue": 1,
+        "src/components/UnifiedNavbar/style.scoped.css": 46,
+        "src/components/WordCloud.vue": 3,
+        "src/components/ai/AiQuotaSidePanel.vue": 45,
+        "src/style.css": 6,
+        "src/styles/common/animations.css": 6,
+        "src/styles/common/glass-ui.css": 21,
+        "src/styles/common/liquid-glass.css": 7,
+        "src/styles/components/buttons.css": 1,
+        "src/styles/components/headings.css": 1,
+        "src/styles/components/page__animate.css": 2,
+        "src/styles/helpers/function.css": 12,
+        "src/styles/layouts/footer.css": 1,
+        "src/styles/pages/section__header.css": 10,
+        "src/styles/vendor/fonts.css": 2,
+        "src/styles/vendor/unified-nav.css": 157,
+        "src/views/AIPlaza/index.vue": 15,
+        "src/views/AnniversaryCafe/style.scoped.css": 6,
+        "src/views/BOH8YearsEvent/style.scoped.css": 18,
+        "src/views/BOH8YearsJourney/style.scoped.css": 10,
+        "src/views/BOHAI/BOHAI/components/BohaiSettingsPanel.vue": 56,
+        "src/views/BOHAI/BOHAI/components/BohaiSidebar.vue": 157,
+        "src/views/BOHAI/BOHAI/styles/adaptive-layout.css": 315,
+        "src/views/BOHAI/BOHAI/styles/embedded-animations.css": 1,
+        "src/views/BOHAI/BOHAI/styles/full-workspace.css": 6,
+        "src/views/BOHAI/BOHAI/styles/motion-system.css": 10,
+        "src/views/BOHAI/BOHAI/styles/responsive-layout.css": 3,
+        "src/views/BOHAI/BOHAI/styles/shell-header.css": 2,
+        "src/views/BlockWall/style.scoped.css": 3,
+        "src/views/DataManagement/components/PityGrantConsole.vue": 4,
+        "src/views/Download/index.vue": 6,
+        "src/views/Forum/ForumMain.vue": 1,
+        "src/views/Forum/styles/anniversary.css": 48,
+        "src/views/Forum/styles/base.css": 2,
+        "src/views/Forum/styles/composer.css": 2,
+        "src/views/Forum/styles/drawers-skeletons.css": 48,
+        "src/views/Forum/styles/feed.css": 14,
+        "src/views/Forum/styles/replies-responsive.css": 3,
+        "src/views/Gift/style.scoped.css": 7,
+        "src/views/Health/health.css": 2,
+        "src/views/Home/components/BirthdayHero.vue": 3,
+        "src/views/Home/style.global.css": 20,
+        "src/views/Lab/index.vue": 1,
+        "src/views/Login/index.vue": 5,
+        "src/views/MBTI/style.scoped.css": 2,
+        "src/views/Newsroom/style.scoped.css": 2,
+        "src/views/PostDetail/components/CommentThread.vue": 17,
+        "src/views/PostDetail/style.scoped.css": 24,
+        "src/views/Profile/style.scoped.css": 19,
+        "src/views/Shop/style.scoped.css": 4,
+        "src/views/ShopConsole/style.css": 3,
+        "src/views/Shows/style.scoped.css": 2,
+        "src/views/activities/ActivitiesPhotoWall.vue": 2,
+        "src/views/activities/index.vue": 7,
+        "src/views/user-center/Cloud+/style.scoped.css": 3,
+        "src/views/user-center/Messages/style.scoped.css": 5,
+        "src/views/user-center/UserSpace/components/AssetsHubPanel.vue": 9,
+        "src/views/user-center/UserSpace/components/bottom-nav.css": 3,
+        "src/views/user-center/UserSpace/styles/profile-panels.css": 7,
+        "src/views/user-center/UserSpace/styles/responsive-integrations.css": 14,
+        "src/views/user-center/UserSpace/styles/shell-community.css": 7
+      }
+    },
+    "scatteredBackdropTotal": 585,
+    "tailwindUtilityHits": 0,
+    "iconUses": [
+      "icon-btn",
+      "icon-wrapper",
+      "icon-button",
+      "icon-command",
+      "icon-action",
+      "icon-v2",
+      "icon-only-action-v2",
+      "icon-large",
+      "icon-small",
+      "icon-apple",
+      "icon--",
+      "icon--warning",
+      "icon--danger",
+      "icon-wrap",
+      "icon-info",
+      "icon-success",
+      "icon-warning",
+      "icon-error",
+      "icon-btn--warn",
+      "icon-btn-badge",
+      "icon-btn-wrap",
+      "icon-btn--active",
+      "icon-file",
+      "icon-modal",
+      "icon-swap",
+      "icon-swap-enter-active",
+      "icon-swap-leave-active",
+      "icon-swap-enter-from",
+      "icon-swap-leave-to",
+      "icon-circle"
+    ]
+  },
+  "deadCssDetails": [],
+  "multiScoped": [
+    {
+      "file": "src/views/DataManagement/styles/responsive.css",
+      "scopedImports": 6,
+      "importers": [
+        "src/views/DataManagement/DataAdmin.vue",
+        "src/views/DataManagement/components/ApiKeyConsole.vue",
+        "src/views/DataManagement/components/EditDrawer.vue",
+        "src/views/DataManagement/components/FreemodelsConfig.vue",
+        "src/views/DataManagement/components/LabAiModelConfig.vue",
+        "src/views/DataManagement/components/ModerationModelConfig.vue"
+      ],
+      "lines": 1671
+    },
+    {
+      "file": "src/views/DataManagement/styles/google-components.css",
+      "scopedImports": 7,
+      "importers": [
+        "src/views/DataManagement/DataAdmin.vue",
+        "src/views/DataManagement/components/AdminOverview.vue",
+        "src/views/DataManagement/components/AdminSidebar.vue",
+        "src/views/DataManagement/components/ApiKeyConsole.vue",
+        "src/views/DataManagement/components/FreemodelsConfig.vue",
+        "src/views/DataManagement/components/LabAiModelConfig.vue",
+        "src/views/DataManagement/components/ModerationModelConfig.vue"
+      ],
+      "lines": 1077
+    },
+    {
+      "file": "src/views/Forum/styles/composer.css",
+      "scopedImports": 3,
+      "importers": [
+        "src/views/Forum/ForumMain.vue",
+        "src/views/Forum/components/PostComposer.vue",
+        "src/views/Forum/components/WeeklyCheckinCalendar.vue"
+      ],
+      "lines": 1858
+    },
+    {
+      "file": "src/views/Forum/styles/replies-responsive.css",
+      "scopedImports": 3,
+      "importers": [
+        "src/views/Forum/ForumMain.vue",
+        "src/views/Forum/components/PostCard.vue",
+        "src/views/Forum/components/PostComposer.vue"
+      ],
+      "lines": 1808
+    },
+    {
+      "file": "src/views/DataManagement/styles/console.css",
+      "scopedImports": 2,
+      "importers": [
+        "src/views/DataManagement/DataAdmin.vue",
+        "src/views/DataManagement/components/EditDrawer.vue"
+      ],
+      "lines": 2251
+    },
+    {
+      "file": "src/views/user-center/UserSpace/styles/settings-glass.css",
+      "scopedImports": 6,
+      "importers": [
+        "src/components/PushplusSettings/index.vue",
+        "src/views/user-center/AccountSecurity/index.vue",
+        "src/views/user-center/PushplusSettingsPage.vue",
+        "src/views/user-center/UserSpace/components/DataExportPanel.vue",
+        "src/views/user-center/UserSpace/components/DataPrivacyPanel.vue",
+        "src/views/user-center/UserSpace/components/ProfileSettingsPanel.vue"
+      ],
+      "lines": 704
+    },
+    {
+      "file": "src/views/DataManagement/styles/base.css",
+      "scopedImports": 6,
+      "importers": [
+        "src/views/DataManagement/DataAdmin.vue",
+        "src/views/DataManagement/components/AdminOverview.vue",
+        "src/views/DataManagement/components/ApiKeyConsole.vue",
+        "src/views/DataManagement/components/FreemodelsConfig.vue",
+        "src/views/DataManagement/components/LabAiModelConfig.vue",
+        "src/views/DataManagement/components/ModerationModelConfig.vue"
+      ],
+      "lines": 607
+    },
+    {
+      "file": "src/views/Forum/styles/feed.css",
+      "scopedImports": 2,
+      "importers": [
+        "src/views/Forum/ForumMain.vue",
+        "src/views/Forum/components/PostCard.vue"
+      ],
+      "lines": 1262
+    },
+    {
+      "file": "src/views/Forum/styles/base.css",
+      "scopedImports": 3,
+      "importers": [
+        "src/views/Forum/ForumMain.vue",
+        "src/views/Forum/components/PostCard.vue",
+        "src/views/Forum/components/WeeklyCheckinCalendar.vue"
+      ],
+      "lines": 454
+    },
+    {
+      "file": "src/views/ShopConsole/style.css",
+      "scopedImports": 2,
+      "importers": [
+        "src/views/HeroConsole/index.vue",
+        "src/views/ShopConsole/index.vue"
+      ],
+      "lines": 242
+    }
+  ],
+  "tokenStats": {
+    "liquid": {
+      "defined": 27,
+      "used": 27,
+      "unusedDefs": [
+        "--liquid-border-strong"
+      ],
+      "unusedDefCount": 1,
+      "orphanUses": [
+        "--liquid-brand"
+      ],
+      "orphanUseCount": 1
+    },
+    "apple": {
+      "defined": 59,
+      "used": 21,
+      "unusedDefs": [
+        "--apple-brand-dark",
+        "--apple-bg-light",
+        "--apple-display-1",
+        "--apple-display-1-weight",
+        "--apple-display-1-ls",
+        "--apple-display-1-lh",
+        "--apple-display-2",
+        "--apple-display-2-weight",
+        "--apple-display-2-ls",
+        "--apple-display-2-lh",
+        "--apple-display-3",
+        "--apple-display-3-weight",
+        "--apple-display-3-ls",
+        "--apple-display-3-lh",
+        "--apple-copy",
+        "--apple-copy-lh",
+        "--apple-copy-ls",
+        "--apple-copy-sm",
+        "--apple-copy-sm-lh",
+        "--apple-copy-sm-ls",
+        "--apple-eyebrow",
+        "--apple-eyebrow-ls",
+        "--apple-section-padding-y",
+        "--apple-hero-padding-top",
+        "--apple-hero-padding-bottom",
+        "--apple-container-wide",
+        "--apple-visual-max-w",
+        "--apple-visual-radius",
+        "--apple-btn-height",
+        "--apple-btn-font",
+        "--apple-btn-radius",
+        "--apple-btn-padding-x",
+        "--apple-shadow-sm",
+        "--apple-shadow-md",
+        "--apple-shadow-lg",
+        "--apple-shadow-xl",
+        "--apple-duration-normal",
+        "--apple-duration-slow"
+      ],
+      "unusedDefCount": 38,
+      "orphanUses": [],
+      "orphanUseCount": 0
+    },
+    "boh": {
+      "defined": 21,
+      "used": 16,
+      "unusedDefs": [
+        "--boh-text-tertiary",
+        "--boh-border-secondary",
+        "--boh-divider",
+        "--boh-brand-blue",
+        "--boh-brand-blue-soft",
+        "--boh-brand-red",
+        "--boh-brand-green",
+        "--boh-shadow-sm",
+        "--boh-shadow-md"
+      ],
+      "unusedDefCount": 9,
+      "orphanUses": [
+        "--boh-drawer-muted",
+        "--boh-drawer-surface-hover",
+        "--boh-drawer-text",
+        "--boh-visual-height"
+      ],
+      "orphanUseCount": 4
+    },
+    "hero": {
+      "defined": 16,
+      "used": 9,
+      "unusedDefs": [
+        "--hero-headline-l",
+        "--hero-headline-m",
+        "--hero-eyebrow-size",
+        "--hero-eyebrow-tracking",
+        "--hero-sub-size",
+        "--hero-sub-measure",
+        "--hero-cta-height",
+        "--hero-cta-font-size"
+      ],
+      "unusedDefCount": 8,
+      "orphanUses": [
+        "--hero-preview-height"
+      ],
+      "orphanUseCount": 1
+    },
+    "shadcn": {
+      "defined": 35,
+      "used": 30,
+      "unusedDefs": [
+        "--popover-foreground",
+        "--accent-brown",
+        "--accent-green",
+        "--accent-warm",
+        "--border-medium",
+        "--destructive-foreground",
+        "--popover-solid",
+        "--ring-size",
+        "--accent-secondary"
+      ],
+      "unusedDefCount": 9,
+      "orphanUses": [
+        "--ring-x",
+        "--ring-y",
+        "--ring-scale",
+        "--ring-aspect"
+      ],
+      "orphanUseCount": 4
+    }
+  },
+  "fontStats": {
+    "Saira": {
+      "totalFiles": 2,
+      "total": 2,
+      "files": [
+        {
+          "file": "src/styles/components/buttons.css",
+          "count": 1
+        },
+        {
+          "file": "src/styles/components/headings.css",
+          "count": 1
+        }
+      ]
+    },
+    "Poppins": {
+      "totalFiles": 1,
+      "total": 1,
+      "files": [
+        {
+          "file": "src/styles/pages/globalpage.css",
+          "count": 1
+        }
+      ]
+    },
+    "icomoon": {
+      "totalFiles": 0,
+      "total": 0,
+      "files": []
+    },
+    "Inter": {
+      "totalFiles": 48,
+      "total": 199,
+      "files": [
+        {
+          "file": "src/views/BOHAI/composables/useChatEngine.js",
+          "count": 25
+        },
+        {
+          "file": "src/views/BOHAI/engine/bohai-auto-router.js",
+          "count": 17
+        },
+        {
+          "file": "src/views/Forum/ForumMain.vue",
+          "count": 13
+        },
+        {
+          "file": "src/views/DataManagement/DataAdmin.vue",
+          "count": 11
+        },
+        {
+          "file": "src/views/BOHAI/BOHAI/BOHAIMain.vue",
+          "count": 8
+        },
+        {
+          "file": "src/components/UnifiedNavbar/index.vue",
+          "count": 6
+        },
+        {
+          "file": "src/views/AnniversaryCafe/index.vue",
+          "count": 6
+        },
+        {
+          "file": "src/views/BOH8YearsJourney/index.vue",
+          "count": 6
+        },
+        {
+          "file": "src/views/BOHAI/composables/useGenerationPipeline.js",
+          "count": 6
+        },
+        {
+          "file": "src/views/Forum/composables/useForumVirtualFeed.js",
+          "count": 6
+        },
+        {
+          "file": "src/views/user-center/Messages/index.vue",
+          "count": 6
+        },
+        {
+          "file": "src/views/DataManagement/config/saveStrategies.js",
+          "count": 5
+        },
+        {
+          "file": "src/views/Home/index.vue",
+          "count": 5
+        },
+        {
+          "file": "src/views/Newsroom/index.vue",
+          "count": 5
+        },
+        {
+          "file": "src/views/user-center/UserSpace/components/CommunityTab.vue",
+          "count": 5
+        },
+        {
+          "file": "src/views/BOH8YearsEvent/index.vue",
+          "count": 4
+        },
+        {
+          "file": "src/views/BOHAI/engine/bohai-auto-decision.js",
+          "count": 4
+        },
+        {
+          "file": "src/components/SubscriptionPlans.vue",
+          "count": 3
+        },
+        {
+          "file": "src/stores/auth.ts",
+          "count": 3
+        },
+        {
+          "file": "src/utils/ai-chat-grounding.js",
+          "count": 3
+        },
+        {
+          "file": "src/views/AIPlaza/index.vue",
+          "count": 3
+        },
+        {
+          "file": "src/views/BOHAI/composables/useActionDraft.js",
+          "count": 3
+        },
+        {
+          "file": "src/views/BOHAI/composables/useMessageManager.js",
+          "count": 3
+        },
+        {
+          "file": "src/views/BOHAI/composables/useThinkingTimer.js",
+          "count": 3
+        },
+        {
+          "file": "src/views/Home/components/HomeFooter.vue",
+          "count": 3
+        }
+      ]
+    }
+  },
+  "scatteredBigBlur": [
+    {
+      "file": "src/views/Newsroom/style.scoped.css",
+      "count": 26,
+      "values": [
+        18,
+        18,
+        28,
+        28,
+        18,
+        18,
+        28,
+        28
+      ]
+    },
+    {
+      "file": "src/views/Forum/styles/composer.css",
+      "count": 24,
+      "values": [
+        18,
+        18,
+        18,
+        18,
+        18,
+        18,
+        28,
+        28
+      ]
+    },
+    {
+      "file": "src/views/Forum/styles/drawers-skeletons.css",
+      "count": 10,
+      "values": [
+        18,
+        18,
+        18,
+        18,
+        28,
+        28,
+        28,
+        28
+      ]
+    },
+    {
+      "file": "src/views/Forum/styles/base.css",
+      "count": 9,
+      "values": [
+        28,
+        18,
+        18,
+        18,
+        18,
+        18,
+        18,
+        18
+      ]
+    },
+    {
+      "file": "src/views/Forum/styles/replies-responsive.css",
+      "count": 8,
+      "values": [
+        18,
+        18,
+        18,
+        18,
+        18,
+        18,
+        28,
+        28
+      ]
+    },
+    {
+      "file": "src/views/Forum/styles/feed.css",
+      "count": 6,
+      "values": [
+        18,
+        18,
+        28,
+        28,
+        18,
+        18
+      ]
+    },
+    {
+      "file": "src/styles/themes/forum-dark.css",
+      "count": 4,
+      "values": [
+        28,
+        28,
+        18,
+        18
+      ]
+    },
+    {
+      "file": "src/views/user-center/UserSpace/styles/profile-panels.css",
+      "count": 3,
+      "values": [
+        12,
+        20,
+        20
+      ]
+    },
+    {
+      "file": "src/views/Shop/style.scoped.css",
+      "count": 2,
+      "values": [
+        6,
+        6
+      ]
+    },
+    {
+      "file": "src/views/user-center/UserSpace/styles/profile-base.css",
+      "count": 2,
+      "values": [
+        12,
+        12
+      ]
+    },
+    {
+      "file": "src/views/Forum/styles/weekly-report.css",
+      "count": 1,
+      "values": [
+        18
+      ]
+    }
+  ],
+  "remnantComponents": {
+    "HeroSection(已删)": [],
+    "Beta6Hero(旧)": [],
+    "LegacyHero": []
+  },
+  "themeMech": {
+    "dataTheme": {
+      "files": 85,
+      "count": 5785
+    },
+    "dataBohTheme": {
+      "files": 6,
+      "count": 91
+    },
+    "prefersColorScheme": [
+      {
+        "file": "src/styles/common/glass-ui.css",
+        "count": 2
+      },
+      {
+        "file": "src/utils/theme-manager.js",
+        "count": 2
+      },
+      {
+        "file": "src/views/DataManagement/styles/base.css",
+        "count": 2
+      },
+      {
+        "file": "src/components/AiChatLoadingSkeleton.vue",
+        "count": 1
+      },
+      {
+        "file": "src/styles/common/login-modal.css",
+        "count": 1
+      },
+      {
+        "file": "src/styles/vendor/unified-nav.css",
+        "count": 1
+      },
+      {
+        "file": "src/views/DataManagement/DataAdmin.vue",
+        "count": 1
+      },
+      {
+        "file": "src/views/DataManagement/styles/responsive.css",
+        "count": 1
+      },
+      {
+        "file": "src/views/HeroConsole/index.vue",
+        "count": 1
+      },
+      {
+        "file": "src/views/user-center/UserSpace/components/AiChatSkeleton.vue",
+        "count": 1
+      },
+      {
+        "file": "src/views/user-center/UserSpace/components/UserSpaceSkeleton.vue",
+        "count": 1
+      }
+    ]
+  },
+  "dupClasses": [
+    {
+      "name": "empty-state",
+      "files": [
+        "src/styles/themes/bohai-dark.css",
+        "src/styles/themes/dark-mode.css",
+        "src/styles/themes/post-detail-dark.css",
+        "src/styles/themes/user-center-dark.css",
+        "src/styles/themes/user-space-dark.css",
+        "src/views/BOHAI/BOHAI/styles/adaptive-layout.css",
+        "src/views/BOHAI/BOHAI/styles/messages.css",
+        "src/views/BOHAI/BOHAI/styles/motion-system.css",
+        "src/views/DataManagement/styles/console.css",
+        "src/views/DataManagement/styles/responsive.css",
+        "src/views/Forum/styles/drawers-skeletons.css",
+        "src/views/user-center/UserSpace/styles/shell-community.css"
+      ]
+    },
+    {
+      "name": "stat-value",
+      "files": [
+        "src/styles/themes/forum-dark.css",
+        "src/styles/themes/user-center-dark.css",
+        "src/styles/themes/user-space-dark.css",
+        "src/views/DataManagement/styles/base.css",
+        "src/views/DataManagement/styles/responsive.css",
+        "src/views/Forum/styles/composer.css",
+        "src/views/user-center/UserSpace/styles/profile-panels.css",
+        "src/views/user-center/UserSpace/styles/responsive-integrations.css"
+      ]
+    },
+    {
+      "name": "stat-label",
+      "files": [
+        "src/styles/themes/forum-dark.css",
+        "src/styles/themes/user-center-dark.css",
+        "src/styles/themes/user-space-dark.css",
+        "src/views/DataManagement/styles/base.css",
+        "src/views/DataManagement/styles/responsive.css",
+        "src/views/Forum/styles/composer.css",
+        "src/views/user-center/UserSpace/styles/profile-panels.css",
+        "src/views/user-center/UserSpace/styles/responsive-integrations.css"
+      ]
+    },
+    {
+      "name": "forum-page",
+      "files": [
+        "src/styles/themes/forum-dark.css",
+        "src/views/Forum/styles/anniversary.css",
+        "src/views/Forum/styles/base.css",
+        "src/views/Forum/styles/drawers-skeletons.css",
+        "src/views/Forum/styles/feed.css",
+        "src/views/Forum/styles/replies-responsive.css",
+        "src/views/user-center/UserSpace/styles/shell-community.css"
+      ]
+    },
+    {
+      "name": "section-title",
+      "files": [
+        "src/styles/components/headings.css",
+        "src/styles/components/page__animate.css",
+        "src/styles/themes/post-detail-dark.css",
+        "src/styles/themes/user-center-dark.css",
+        "src/views/DataManagement/styles/console.css",
+        "src/views/DataManagement/styles/responsive.css"
+      ]
+    },
+    {
+      "name": "back-btn",
+      "files": [
+        "src/styles/themes/boh-note-dark.css",
+        "src/styles/themes/forum-dark.css",
+        "src/styles/themes/post-detail-dark.css",
+        "src/views/DataManagement/styles/base.css",
+        "src/views/DataManagement/styles/responsive.css",
+        "src/views/Forum/styles/drawers-skeletons.css"
+      ]
+    },
+    {
+      "name": "editor-card",
+      "files": [
+        "src/styles/themes/boh-note-dark.css",
+        "src/styles/themes/forum-dark.css",
+        "src/views/Forum/styles/anniversary.css",
+        "src/views/Forum/styles/composer.css",
+        "src/views/Forum/styles/drawers-skeletons.css",
+        "src/views/Forum/styles/replies-responsive.css"
+      ]
+    },
+    {
+      "name": "bohai-page",
+      "files": [
+        "src/styles/themes/bohai-dark.css",
+        "src/views/BOHAI/BOHAI/styles/adaptive-layout.css",
+        "src/views/BOHAI/BOHAI/styles/full-workspace.css",
+        "src/views/BOHAI/BOHAI/styles/messages.css",
+        "src/views/BOHAI/BOHAI/styles/motion-system.css",
+        "src/views/BOHAI/BOHAI/styles/shell-header.css"
+      ]
+    },
+    {
+      "name": "header-title",
+      "files": [
+        "src/styles/themes/bohai-dark.css",
+        "src/styles/themes/forum-dark.css",
+        "src/views/BOHAI/BOHAI/styles/shell-header.css",
+        "src/views/Forum/styles/anniversary.css",
+        "src/views/Forum/styles/base.css",
+        "src/views/Forum/styles/replies-responsive.css"
+      ]
+    },
+    {
+      "name": "input-area",
+      "files": [
+        "src/styles/themes/bohai-dark.css",
+        "src/views/BOHAI/BOHAI/styles/adaptive-layout.css",
+        "src/views/BOHAI/BOHAI/styles/full-workspace.css",
+        "src/views/BOHAI/BOHAI/styles/messages.css",
+        "src/views/BOHAI/BOHAI/styles/motion-system.css",
+        "src/views/BOHAI/BOHAI/styles/shell-header.css"
+      ]
+    },
+    {
+      "name": "input-box",
+      "files": [
+        "src/styles/themes/bohai-dark.css",
+        "src/views/BOHAI/BOHAI/styles/adaptive-layout.css",
+        "src/views/BOHAI/BOHAI/styles/full-workspace.css",
+        "src/views/BOHAI/BOHAI/styles/messages.css",
+        "src/views/BOHAI/BOHAI/styles/motion-system.css",
+        "src/views/BOHAI/BOHAI/styles/shell-header.css"
+      ]
+    },
+    {
+      "name": "features-menu",
+      "files": [
+        "src/styles/themes/bohai-dark.css",
+        "src/views/BOHAI/BOHAI/styles/adaptive-layout.css",
+        "src/views/BOHAI/BOHAI/styles/full-workspace.css",
+        "src/views/BOHAI/BOHAI/styles/messages.css",
+        "src/views/BOHAI/BOHAI/styles/motion-system.css",
+        "src/views/BOHAI/BOHAI/styles/shell-header.css"
+      ]
+    },
+    {
+      "name": "post-card-v2",
+      "files": [
+        "src/styles/themes/forum-dark.css",
+        "src/views/Forum/styles/anniversary.css",
+        "src/views/Forum/styles/base.css",
+        "src/views/Forum/styles/drawers-skeletons.css",
+        "src/views/Forum/styles/feed.css",
+        "src/views/Forum/styles/replies-responsive.css"
+      ]
+    },
+    {
+      "name": "drawer-header",
+      "files": [
+        "src/styles/themes/forum-dark.css",
+        "src/styles/themes/messages-dark.css",
+        "src/views/DataManagement/styles/overlays.css",
+        "src/views/DataManagement/styles/responsive.css",
+        "src/views/Forum/styles/base.css",
+        "src/views/Forum/styles/drawers-skeletons.css"
+      ]
+    },
+    {
+      "name": "user-space-page",
+      "files": [
+        "src/styles/themes/user-space-dark.css",
+        "src/views/BOHAI/BOHAI/styles/adaptive-layout.css",
+        "src/views/BOHAI/BOHAI/styles/shell-header.css",
+        "src/views/user-center/UserSpace/styles/profile-base.css",
+        "src/views/user-center/UserSpace/styles/responsive-integrations.css",
+        "src/views/user-center/UserSpace/styles/shell-community.css"
+      ]
+    },
+    {
+      "name": "header-content",
+      "files": [
+        "src/styles/themes/bohai-dark.css",
+        "src/views/BOHAI/BOHAI/styles/shell-header.css",
+        "src/views/DataManagement/styles/base.css",
+        "src/views/DataManagement/styles/responsive.css",
+        "src/views/Forum/styles/anniversary.css"
+      ]
+    },
+    {
+      "name": "message-action-btn",
+      "files": [
+        "src/styles/themes/bohai-dark.css",
+        "src/views/BOHAI/BOHAI/styles/adaptive-layout.css",
+        "src/views/BOHAI/BOHAI/styles/messages.css",
+        "src/views/BOHAI/BOHAI/styles/motion-system.css",
+        "src/views/BOHAI/BOHAI/styles/shell-header.css"
+      ]
+    },
+    {
+      "name": "features-btn",
+      "files": [
+        "src/styles/themes/bohai-dark.css",
+        "src/views/BOHAI/BOHAI/styles/adaptive-layout.css",
+        "src/views/BOHAI/BOHAI/styles/messages.css",
+        "src/views/BOHAI/BOHAI/styles/motion-system.css",
+        "src/views/BOHAI/BOHAI/styles/shell-header.css"
+      ]
+    },
+    {
+      "name": "empty-subtitle",
+      "files": [
+        "src/styles/themes/bohai-dark.css",
+        "src/views/BOHAI/BOHAI/styles/adaptive-layout.css",
+        "src/views/BOHAI/BOHAI/styles/full-workspace.css",
+        "src/views/BOHAI/BOHAI/styles/messages.css",
+        "src/views/BOHAI/BOHAI/styles/motion-system.css"
+      ]
+    },
+    {
+      "name": "message-content",
+      "files": [
+        "src/styles/themes/bohai-dark.css",
+        "src/views/BOHAI/BOHAI/styles/adaptive-layout.css",
+        "src/views/BOHAI/BOHAI/styles/full-workspace.css",
+        "src/views/BOHAI/BOHAI/styles/messages.css",
+        "src/views/BOHAI/BOHAI/styles/shell-header.css"
+      ]
+    },
+    {
+      "name": "modal-overlay",
+      "files": [
+        "src/styles/themes/dark-mode.css",
+        "src/styles/themes/post-detail-dark.css",
+        "src/styles/themes/user-space-dark.css",
+        "src/views/user-center/UserSpace/styles/profile-panels.css",
+        "src/views/user-center/UserSpace/styles/responsive-integrations.css"
+      ]
+    },
+    {
+      "name": "loading-spinner",
+      "files": [
+        "src/styles/themes/dark-mode.css",
+        "src/styles/themes/post-detail-dark.css",
+        "src/styles/themes/user-space-dark.css",
+        "src/views/Forum/styles/replies-responsive.css",
+        "src/views/user-center/UserSpace/styles/shell-community.css"
+      ]
+    },
+    {
+      "name": "weekly-checkin-btn",
+      "files": [
+        "src/styles/themes/forum-dark.css",
+        "src/views/Forum/styles/anniversary.css",
+        "src/views/Forum/styles/composer.css",
+        "src/views/Forum/styles/drawers-skeletons.css",
+        "src/views/Forum/styles/replies-responsive.css"
+      ]
+    },
+    {
+      "name": "login-prompt-card",
+      "files": [
+        "src/styles/themes/forum-dark.css",
+        "src/views/Forum/styles/anniversary.css",
+        "src/views/Forum/styles/composer.css",
+        "src/views/Forum/styles/drawers-skeletons.css",
+        "src/views/Forum/styles/replies-responsive.css"
+      ]
+    },
+    {
+      "name": "weekly-checkin-mobile-card",
+      "files": [
+        "src/styles/themes/forum-dark.css",
+        "src/views/Forum/styles/anniversary.css",
+        "src/views/Forum/styles/composer.css",
+        "src/views/Forum/styles/drawers-skeletons.css",
+        "src/views/Forum/styles/replies-responsive.css"
+      ]
+    },
+    {
+      "name": "forum-header",
+      "files": [
+        "src/views/Forum/styles/anniversary.css",
+        "src/views/Forum/styles/base.css",
+        "src/views/Forum/styles/drawers-skeletons.css",
+        "src/views/Forum/styles/replies-responsive.css",
+        "src/views/user-center/UserSpace/styles/shell-community.css"
+      ]
+    },
+    {
+      "name": "glass-container-light",
+      "files": [
+        "src/styles/common/glass-ui.css",
+        "src/styles/common/liquid-glass.css",
+        "src/styles/themes/dark-mode.css",
+        "src/styles/themes/user-center-dark.css"
+      ]
+    },
+    {
+      "name": "glass-card",
+      "files": [
+        "src/styles/common/glass-ui.css",
+        "src/styles/themes/dark-mode.css",
+        "src/styles/themes/user-center-dark.css",
+        "src/views/user-center/UserSpace/styles/profile-panels.css"
+      ]
+    },
+    {
+      "name": "boh-perf-lite",
+      "files": [
+        "src/styles/common/glass-ui.css",
+        "src/styles/common/liquid-glass.css",
+        "src/styles/common/tokens.css",
+        "src/views/Forum/styles/composer.css"
+      ]
+    },
+    {
+      "name": "delete-btn",
+      "files": [
+        "src/styles/themes/boh-note-dark.css",
+        "src/styles/themes/bohai-dark.css",
+        "src/views/BOHAI/BOHAI/styles/adaptive-layout.css",
+        "src/views/BOHAI/BOHAI/styles/shell-header.css"
+      ]
+    },
+    {
+      "name": "bohai-container",
+      "files": [
+        "src/styles/themes/bohai-dark.css",
+        "src/views/BOHAI/BOHAI/styles/adaptive-layout.css",
+        "src/views/BOHAI/BOHAI/styles/full-workspace.css",
+        "src/views/BOHAI/BOHAI/styles/shell-header.css"
+      ]
+    },
+    {
+      "name": "main-content",
+      "files": [
+        "src/styles/themes/bohai-dark.css",
+        "src/views/BOHAI/BOHAI/styles/adaptive-layout.css",
+        "src/views/BOHAI/BOHAI/styles/full-workspace.css",
+        "src/views/BOHAI/BOHAI/styles/shell-header.css"
+      ]
+    },
+    {
+      "name": "chat-container",
+      "files": [
+        "src/styles/themes/bohai-dark.css",
+        "src/views/BOHAI/BOHAI/styles/adaptive-layout.css",
+        "src/views/BOHAI/BOHAI/styles/full-workspace.css",
+        "src/views/BOHAI/BOHAI/styles/messages.css"
+      ]
+    },
+    {
+      "name": "message",
+      "files": [
+        "src/styles/themes/bohai-dark.css",
+        "src/views/BOHAI/BOHAI/styles/adaptive-layout.css",
+        "src/views/BOHAI/BOHAI/styles/messages.css",
+        "src/views/BOHAI/BOHAI/styles/shell-header.css"
+      ]
+    },
+    {
+      "name": "send-btn",
+      "files": [
+        "src/styles/themes/bohai-dark.css",
+        "src/views/BOHAI/BOHAI/styles/adaptive-layout.css",
+        "src/views/BOHAI/BOHAI/styles/motion-system.css",
+        "src/views/BOHAI/BOHAI/styles/shell-header.css"
+      ]
+    },
+    {
+      "name": "stop-btn",
+      "files": [
+        "src/styles/themes/bohai-dark.css",
+        "src/views/BOHAI/BOHAI/styles/adaptive-layout.css",
+        "src/views/BOHAI/BOHAI/styles/motion-system.css",
+        "src/views/BOHAI/BOHAI/styles/shell-header.css"
+      ]
+    },
+    {
+      "name": "modal-card",
+      "files": [
+        "src/styles/themes/dark-mode.css",
+        "src/styles/themes/user-space-dark.css",
+        "src/views/user-center/UserSpace/styles/profile-panels.css",
+        "src/views/user-center/UserSpace/styles/responsive-integrations.css"
+      ]
+    },
+    {
+      "name": "clean-title",
+      "files": [
+        "src/styles/themes/dark-mode.css",
+        "src/styles/themes/user-space-dark.css",
+        "src/views/user-center/UserSpace/styles/profile-panels.css",
+        "src/views/user-center/UserSpace/styles/responsive-integrations.css"
+      ]
+    },
+    {
+      "name": "clean-desc",
+      "files": [
+        "src/styles/themes/dark-mode.css",
+        "src/styles/themes/user-space-dark.css",
+        "src/views/user-center/UserSpace/styles/profile-panels.css",
+        "src/views/user-center/UserSpace/styles/responsive-integrations.css"
+      ]
+    },
+    {
+      "name": "loading-text",
+      "files": [
+        "src/styles/themes/dark-mode.css",
+        "src/styles/themes/messages-dark.css",
+        "src/styles/themes/user-space-dark.css",
+        "src/views/user-center/UserSpace/styles/shell-community.css"
+      ]
+    },
+    {
+      "name": "header-subtitle",
+      "files": [
+        "src/styles/themes/forum-dark.css",
+        "src/views/DataManagement/styles/responsive.css",
+        "src/views/Forum/styles/anniversary.css",
+        "src/views/Forum/styles/base.css"
+      ]
+    },
+    {
+      "name": "glass-panel",
+      "files": [
+        "src/styles/themes/forum-dark.css",
+        "src/styles/themes/post-detail-dark.css",
+        "src/views/Forum/styles/base.css",
+        "src/views/Forum/styles/drawers-skeletons.css"
+      ]
+    },
+    {
+      "name": "post-title-input",
+      "files": [
+        "src/styles/themes/forum-dark.css",
+        "src/views/Forum/styles/composer.css",
+        "src/views/Forum/styles/drawers-skeletons.css",
+        "src/views/Forum/styles/replies-responsive.css"
+      ]
+    },
+    {
+      "name": "post-content-input",
+      "files": [
+        "src/styles/themes/forum-dark.css",
+        "src/views/Forum/styles/composer.css",
+        "src/views/Forum/styles/drawers-skeletons.css",
+        "src/views/Forum/styles/replies-responsive.css"
+      ]
+    },
+    {
+      "name": "mobile-composer-section",
+      "files": [
+        "src/styles/themes/forum-dark.css",
+        "src/views/Forum/styles/composer.css",
+        "src/views/Forum/styles/drawers-skeletons.css",
+        "src/views/Forum/styles/replies-responsive.css"
+      ]
+    },
+    {
+      "name": "post-btn",
+      "files": [
+        "src/styles/themes/forum-dark.css",
+        "src/views/Forum/styles/anniversary.css",
+        "src/views/Forum/styles/composer.css",
+        "src/views/Forum/styles/replies-responsive.css"
+      ]
+    },
+    {
+      "name": "hot-tags-card",
+      "files": [
+        "src/styles/themes/forum-dark.css",
+        "src/views/Forum/styles/anniversary.css",
+        "src/views/Forum/styles/composer.css",
+        "src/views/Forum/styles/drawers-skeletons.css"
+      ]
+    },
+    {
+      "name": "sidebar-header",
+      "files": [
+        "src/styles/themes/forum-dark.css",
+        "src/styles/themes/post-detail-dark.css",
+        "src/views/BOHAI/BOHAI/styles/adaptive-layout.css",
+        "src/views/BOHAI/BOHAI/styles/shell-header.css"
+      ]
+    },
+    {
+      "name": "stat-item",
+      "files": [
+        "src/styles/themes/forum-dark.css",
+        "src/views/Forum/styles/composer.css",
+        "src/views/user-center/UserSpace/styles/profile-panels.css",
+        "src/views/user-center/UserSpace/styles/responsive-integrations.css"
+      ]
+    },
+    {
+      "name": "search-input",
+      "files": [
+        "src/styles/themes/forum-dark.css",
+        "src/styles/themes/user-center-dark.css",
+        "src/views/Forum/styles/drawers-skeletons.css",
+        "src/views/Forum/styles/feed.css"
+      ]
+    }
+  ],
+  "deadClassesByFile": {
+    "src/styles/common/animations.css": {
+      "total": 28,
+      "dead": [
+        "animate-card-expand",
+        "animate-fade-in",
+        "animate-fade-in-down",
+        "animate-fade-in-up",
+        "animate-list-enter",
+        "animate-pulse",
+        "animate-skeleton-pulse",
+        "animate-slide-down",
+        "animate-spin",
+        "animate-tab-slide-left",
+        "animate-tab-slide-right",
+        "animate-zoom-in",
+        "hover-glow",
+        "hover-lift",
+        "hover-scale",
+        "no-press",
+        "press-feedback",
+        "press-feedback-sm",
+        "transition-all",
+        "transition-fast",
+        "transition-opacity",
+        "transition-slow",
+        "transition-transform",
+        "will-change-opacity",
+        "will-change-transform"
+      ],
+      "deadCount": 25
+    },
+    "src/styles/common/glass-ui.css": {
+      "total": 34,
+      "dead": [
+        "glass-bg-less-transparent",
+        "glass-bg-more-transparent",
+        "glass-border-bright",
+        "glass-button",
+        "glass-button-primary",
+        "glass-card-hover",
+        "glass-chat-header",
+        "glass-chat-input",
+        "glass-code-block",
+        "glass-container-medium",
+        "glass-input",
+        "glass-message-bubble",
+        "glass-modal-content",
+        "glass-modal-overlay-light",
+        "glass-navbar",
+        "glass-no-border",
+        "glass-overlay",
+        "glass-overlay-light",
+        "glass-rounded-full",
+        "glass-rounded-lg",
+        "glass-rounded-md",
+        "glass-rounded-sm",
+        "glass-rounded-xl",
+        "glass-sidebar",
+        "glass-toast",
+        "glass-user-bubble"
+      ],
+      "deadCount": 26
+    },
+    "src/styles/common/liquid-glass.css": {
+      "total": 12,
+      "dead": [
+        "glass-container-medium",
+        "liquid-glass--clear",
+        "liquid-glass--inset"
+      ],
+      "deadCount": 3
+    },
+    "src/styles/common/login-modal.css": {
+      "total": 19,
+      "dead": [
+        "boh-divider",
+        "boh-social-btn",
+        "boh-social-btns",
+        "boh-social-login"
+      ],
+      "deadCount": 4
+    },
+    "src/styles/components/close-button.css": {
+      "total": 4,
+      "dead": [
+        "btn-line",
+        "lightbox-close",
+        "lightbox-wrapper"
+      ],
+      "deadCount": 3
+    },
+    "src/styles/components/headings.css": {
+      "total": 4,
+      "dead": [
+        "descritipn-title",
+        "maintitle",
+        "separator"
+      ],
+      "deadCount": 3
+    },
+    "src/styles/components/overlay.css": {
+      "total": 1,
+      "dead": [
+        "overlay-effect"
+      ],
+      "deadCount": 1
+    },
+    "src/styles/components/page__animate.css": {
+      "total": 6,
+      "dead": [
+        "no-js",
+        "page__style",
+        "portfolio_fix_container"
+      ],
+      "deadCount": 3
+    },
+    "src/styles/layouts/footer.css": {
+      "total": 6,
+      "dead": [
+        "footer-home"
+      ],
+      "deadCount": 1
+    },
+    "src/styles/pages/section__header.css": {
+      "total": 43,
+      "dead": [
+        "background-absolute",
+        "c-header-home_buttons",
+        "c-header-home_controls",
+        "c-header-home_footer",
+        "fullheader",
+        "information-item",
+        "information-left",
+        "main-nav-column",
+        "main-nav-column-top",
+        "main-nav-container",
+        "menu-burger",
+        "mylogo",
+        "o-button",
+        "o-button_label",
+        "o-container",
+        "o-hsub",
+        "pagination__item",
+        "slideshow",
+        "slideshow__slide",
+        "slideshow__slide-background",
+        "slideshow__slide-background-load",
+        "slideshow__slide-background-load-wrap",
+        "slideshow__slide-background-parallax",
+        "slideshow__slide-background-wrap",
+        "slideshow__slide-caption",
+        "slideshow__slide-caption-subtitle",
+        "slideshow__slide-caption-subtitle-label",
+        "slideshow__slide-caption-text",
+        "slideshow__slide-caption-title",
+        "slideshow__slide-image",
+        "slideshow__slide-image-wrap",
+        "slideshow_container"
+      ],
+      "deadCount": 32
+    },
+    "src/styles/themes/boh-note-dark.css": {
+      "total": 57,
+      "dead": [
+        "brand-title",
+        "day-dot",
+        "editor-actions",
+        "editor-date",
+        "editor-section",
+        "editor-textarea",
+        "group-date",
+        "history-section",
+        "list-view",
+        "login-btn",
+        "month-card",
+        "month-count",
+        "month-day-card",
+        "month-day-empty",
+        "month-day-header",
+        "month-day-number",
+        "month-day-preview",
+        "month-name",
+        "month-note-badge",
+        "month-note-dot",
+        "month-selector",
+        "month-view",
+        "no-notes",
+        "note-content",
+        "note-count",
+        "note-footer",
+        "note-group",
+        "note-header",
+        "note-item",
+        "note-main",
+        "note-sidebar",
+        "note-text",
+        "note-time",
+        "sidebar-actions",
+        "sidebar-brand",
+        "today-badge",
+        "view-item",
+        "week-day-card",
+        "week-day-date",
+        "week-day-header"
+      ],
+      "deadCount": 47
+    },
+    "src/styles/themes/bohai-dark.css": {
+      "total": 138,
+      "dead": [
+        "action-draft-card",
+        "action-draft-title",
+        "agent-cluster-chip",
+        "agent-cluster-dock",
+        "agent-cluster-dock-copy",
+        "ai-setting-chevron",
+        "ai-setting-copy",
+        "ai-setting-icon",
+        "ai-setting-icon-danger",
+        "ai-setting-progress",
+        "ai-setting-progress-bar",
+        "ai-setting-row",
+        "ai-setting-row-danger",
+        "ai-setting-switch",
+        "ai-settings-back",
+        "ai-settings-close",
+        "ai-settings-kicker",
+        "ai-settings-section",
+        "ai-settings-version",
+        "ai-style-option",
+        "auto-routed-chip",
+        "boh-ai-settings-about",
+        "boh-ai-settings-choice",
+        "boh-ai-settings-header",
+        "boh-ai-settings-icon-btn",
+        "boh-ai-settings-kicker",
+        "boh-ai-settings-meter",
+        "boh-ai-settings-meter-track",
+        "boh-ai-settings-overlay",
+        "boh-ai-settings-panel",
+        "boh-ai-settings-row",
+        "boh-ai-settings-row-copy",
+        "boh-ai-settings-row-icon",
+        "boh-ai-settings-section",
+        "boh-ai-settings-switch",
+        "boh-ai-settings-tab",
+        "boh-ai-settings-tabs",
+        "chat-header",
+        "consent-card",
+        "consent-copy"
+      ],
+      "deadCount": 77
+    },
+    "src/styles/themes/dark-mode.css": {
+      "total": 17,
+      "dead": [
+        "feature-pill",
+        "glass-container-medium",
+        "glass-navbar",
+        "loading-text-v2"
+      ],
+      "deadCount": 4
+    },
+    "src/styles/themes/forum-dark.css": {
+      "total": 163,
+      "dead": [
+        "action-icon-v2",
+        "ai-search-btn-inner",
+        "checkin-progress-fill",
+        "checkin-progress-track",
+        "close-panel-btn",
+        "delete-btn-v2",
+        "delete-comment-btn",
+        "feed-title-v2",
+        "filter-btn-v2",
+        "filter-panel",
+        "filter-row-v2",
+        "hot-tag-count",
+        "hot-tag-item",
+        "hot-tags-card",
+        "loading-state-v2",
+        "loading-text-v2",
+        "mark-all-btn",
+        "mobile-news-toggle-btn",
+        "more-action-item",
+        "more-actions-btn-v2",
+        "more-actions-menu",
+        "my-posts-btn-v2",
+        "n-date",
+        "n-dot",
+        "n-icon",
+        "n-text",
+        "notification-item",
+        "notification-panel-portal",
+        "panel-header",
+        "post-composer",
+        "reply-author",
+        "reply-date",
+        "reply-text",
+        "search-btn-inner",
+        "sidebar-divider",
+        "sidebar-news-item",
+        "sidebar-tag",
+        "stat-item",
+        "stats-header",
+        "tag-filter-btn"
+      ],
+      "deadCount": 43
+    },
+    "src/styles/themes/messages-dark.css": {
+      "total": 100,
+      "dead": [
+        "compose-body",
+        "compose-btn",
+        "compose-btn-mini",
+        "compose-count",
+        "compose-field",
+        "compose-footer",
+        "compose-header",
+        "compose-modal-container",
+        "compose-modal-overlay",
+        "content-field",
+        "dropdown-item",
+        "dropdown-loading",
+        "empty-glow",
+        "empty-icon-circle",
+        "item-check",
+        "item-role",
+        "moderation-info",
+        "recipient-dropdown",
+        "recipient-input-wrapper",
+        "recipient-tag",
+        "spinner-mini",
+        "x-btn-primary",
+        "x-btn-secondary",
+        "x-delete-btn",
+        "x-empty-desc",
+        "x-empty-icon",
+        "x-empty-state",
+        "x-empty-title",
+        "x-header-subtitle",
+        "x-header-title",
+        "x-input",
+        "x-loading-spinner",
+        "x-loading-text",
+        "x-modal",
+        "x-modal-body",
+        "x-modal-close",
+        "x-modal-footer",
+        "x-modal-header",
+        "x-modal-overlay",
+        "x-modal-title"
+      ],
+      "deadCount": 52
+    },
+    "src/styles/themes/navbar-dark.css": {
+      "total": 24,
+      "dead": [
+        "nav-dropdown",
+        "nav-dropdown-item",
+        "nav-link",
+        "nav-modal",
+        "theme-toggle-btn",
+        "unread-dot-nav"
+      ],
+      "deadCount": 6
+    },
+    "src/styles/themes/post-detail-dark.css": {
+      "total": 86,
+      "dead": [
+        "child-empty-state",
+        "delete-cancel-btn",
+        "delete-confirm-btn",
+        "delete-confirm-message",
+        "delete-confirm-modal",
+        "delete-confirm-title",
+        "delete-post-btn",
+        "detail-error",
+        "detail-error-message",
+        "detail-loading",
+        "detail-loading-spinner",
+        "detail-nav",
+        "edit-modal",
+        "edit-post-btn",
+        "edit-textarea",
+        "nav-subtitle",
+        "post-actions",
+        "post-detail-author",
+        "post-detail-card",
+        "post-detail-content",
+        "post-detail-date",
+        "related-post-item",
+        "related-post-meta",
+        "related-post-title",
+        "reply-tag",
+        "reply-target",
+        "share-modal",
+        "share-modal-header",
+        "share-modal-title",
+        "sidebar-title"
+      ],
+      "deadCount": 30
+    },
+    "src/styles/themes/user-center-dark.css": {
+      "total": 133,
+      "dead": [
+        "active-period",
+        "address-section-bottom",
+        "admin-sidebar",
+        "ai-confirm-modal",
+        "apple-order-status",
+        "billing-desc",
+        "btn-clear",
+        "btn-disabled",
+        "btn-paste",
+        "btn-success",
+        "card-note",
+        "card-route",
+        "check-icon",
+        "collapse-toggle",
+        "confirm-cancel",
+        "confirm-card",
+        "confirm-danger",
+        "current-sub-banner",
+        "danger-entry-card",
+        "delete-account-input",
+        "detail-primary",
+        "entry-card",
+        "entry-kicker",
+        "feature-item",
+        "floating-note",
+        "form-help-text",
+        "gift-edit-modal",
+        "guide-card",
+        "guide-content",
+        "help-link",
+        "hero-card",
+        "history-empty-card",
+        "history-toggle-btn",
+        "index-header",
+        "index-section",
+        "music-stave-bg",
+        "nav-card",
+        "pag-btn",
+        "pag-info",
+        "period"
+      ],
+      "deadCount": 66
+    },
+    "src/styles/themes/user-space-dark.css": {
+      "total": 127,
+      "dead": [
+        "admin-badge-mini",
+        "apple-email",
+        "apple-item",
+        "apple-name",
+        "apple-page-container",
+        "avatar-edit-icon-mini",
+        "bg-green",
+        "chevron",
+        "cloud-quota-caption",
+        "cloud-quota-pill",
+        "community-page-info",
+        "community-search-input",
+        "community-toolbar-meta",
+        "current-device-pill",
+        "date-input",
+        "date-input-hint",
+        "date-input-icon",
+        "date-input-label",
+        "date-input-wrapper",
+        "date-sep",
+        "delete-account-email",
+        "delete-account-error",
+        "delete-account-header",
+        "delete-account-input",
+        "delete-account-item",
+        "delete-check-row",
+        "delete-risk-list",
+        "delete-step-label",
+        "feature-pill",
+        "gift-progress-tag",
+        "group-header-title",
+        "icon-wrapper",
+        "item-label",
+        "logout-card",
+        "mail-badge",
+        "mobile-mini-tag",
+        "mobile-more-tag",
+        "modal-selector",
+        "my-space-btn",
+        "profile-basic-label"
+      ],
+      "deadCount": 62
+    },
+    "src/styles/vendor/unified-nav.css": {
+      "total": 68,
+      "dead": [
+        "dropdown-arrow",
+        "dropdown-arrow-mobile",
+        "dropdown-icon",
+        "nav-auth-error",
+        "nav-drill-enter-active",
+        "nav-drill-enter-from",
+        "nav-drill-leave-active",
+        "nav-drill-leave-to",
+        "nav-dropdown",
+        "nav-dropdown-divider",
+        "nav-dropdown-item",
+        "nav-error-message",
+        "nav-form-btn",
+        "nav-form-group",
+        "nav-form-input",
+        "nav-form-label",
+        "nav-form-links",
+        "nav-login-container",
+        "nav-login-form",
+        "nav-login-logo",
+        "nav-login-modal-close",
+        "nav-login-modal-overlay",
+        "nav-modal",
+        "nav-modal-close",
+        "nav-modal-footer",
+        "nav-modal-header",
+        "nav-modal-overlay",
+        "nav-modal-title",
+        "nav-password-wrap",
+        "nav-toggle-password"
+      ],
+      "deadCount": 30
+    },
+    "src/views/BOHAI/BOHAI/styles/adaptive-layout.css": {
+      "total": 106,
+      "dead": [
+        "feature-menu-handle",
+        "mode-option-desc",
+        "sidebar-brand",
+        "sidebar-status",
+        "task-status-pill",
+        "task-status-pill-row"
+      ],
+      "deadCount": 6
+    },
+    "src/views/BOHAI/BOHAI/styles/messages.css": {
+      "total": 131,
+      "dead": [
+        "action-draft-card",
+        "action-draft-head",
+        "action-draft-subtitle",
+        "action-draft-title",
+        "code-textarea",
+        "consent-actions",
+        "consent-card",
+        "consent-card-head",
+        "consent-copy",
+        "draft-actions",
+        "draft-btn",
+        "draft-feedback",
+        "draft-field-label",
+        "draft-input",
+        "draft-textarea",
+        "empty-suggestion-card",
+        "empty-suggestion-category",
+        "empty-suggestion-copy",
+        "empty-suggestion-grid",
+        "empty-suggestion-icon",
+        "empty-suggestion-text",
+        "grok-dot-grid",
+        "grok-thinking-text",
+        "mic-btn",
+        "plan-modal",
+        "plan-modal-backdrop",
+        "plan-modal-body",
+        "plan-modal-close",
+        "plan-modal-footer",
+        "plan-modal-grid",
+        "plan-modal-header",
+        "plan-modal-kicker",
+        "plan-modal-section",
+        "plan-step-list",
+        "plan-step-row",
+        "plan-step-status",
+        "quick-note-card",
+        "quick-note-preview",
+        "quick-note-preview-label",
+        "quick-prompt-btn"
+      ],
+      "deadCount": 67
+    },
+    "src/views/BOHAI/BOHAI/styles/shell-header.css": {
+      "total": 75,
+      "dead": [
+        "action-draft-card",
+        "agent-cluster-chip",
+        "agent-cluster-chip-label",
+        "agent-cluster-chip-meta",
+        "agent-cluster-dock",
+        "agent-cluster-dock-badge",
+        "agent-cluster-dock-copy",
+        "agent-cluster-dock-head",
+        "agent-cluster-dock-icon",
+        "agent-cluster-dot",
+        "agent-cluster-strip",
+        "auto-routed-chip",
+        "chat-header",
+        "consent-card",
+        "context-budget-ring",
+        "context-budget-ring-label",
+        "context-budget-ring-progress",
+        "context-budget-ring-spinner",
+        "context-budget-ring-svg",
+        "context-budget-ring-track",
+        "control-dot",
+        "empty-suggestion-card",
+        "empty-suggestion-grid",
+        "header-icon-btn",
+        "header-left",
+        "header-mode-menu",
+        "header-mode-option",
+        "header-mode-picker",
+        "header-session",
+        "mac-window-controls",
+        "mic-btn",
+        "mode-option-desc",
+        "new-chat-btn",
+        "plan-dock-copy",
+        "plan-dock-head",
+        "plan-dock-icon",
+        "plan-dock-open",
+        "plan-header-btn",
+        "plan-progress-dock",
+        "plan-step-chip"
+      ],
+      "deadCount": 44
+    },
+    "src/views/DataManagement/styles/base.css": {
+      "total": 37,
+      "dead": [
+        "dm-header",
+        "dm-search",
+        "dm-stat-label-skeleton",
+        "dm-stat-value-skeleton",
+        "edit-dialog",
+        "freemodels-config-shell",
+        "header-left",
+        "header-title-group",
+        "mobile-tab-panel",
+        "overview-section",
+        "publish-btn",
+        "stat-icon",
+        "stat-news",
+        "stat-posts",
+        "stat-products",
+        "stat-trend",
+        "stat-users",
+        "stats-section",
+        "table-wrapper",
+        "theme-toggle-btn"
+      ],
+      "deadCount": 20
+    },
+    "src/views/DataManagement/styles/console.css": {
+      "total": 189,
+      "dead": [
+        "data-table",
+        "diagnostic-body",
+        "diagnostic-count",
+        "diagnostic-dot",
+        "diagnostic-empty",
+        "diagnostic-goto",
+        "diagnostic-row",
+        "dm-page-btn",
+        "dm-page-number",
+        "dm-page-numbers",
+        "dm-page-size-selector",
+        "dm-pagination",
+        "dm-pagination-controls",
+        "dm-pagination-info",
+        "lottery-scheduler-link",
+        "mobile-tab-option",
+        "mobile-tab-option-count",
+        "mobile-tab-option-icon",
+        "mobile-tab-option-label",
+        "mobile-tab-panel",
+        "mobile-tab-switcher",
+        "mobile-tab-toggle",
+        "mobile-tab-toggle-arrow",
+        "mobile-tab-toggle-current",
+        "mobile-tab-toggle-label",
+        "overview-diagnostics",
+        "overview-grid-2col",
+        "overview-recent",
+        "overview-refresh-btn",
+        "overview-section",
+        "overview-section-header",
+        "overview-status-bar",
+        "overview-table-card",
+        "overview-table-count",
+        "overview-table-grid",
+        "overview-table-label",
+        "page-number",
+        "page-numbers",
+        "page-size-selector",
+        "pagination-controls"
+      ],
+      "deadCount": 81
+    },
+    "src/views/DataManagement/styles/google-components.css": {
+      "total": 86,
+      "dead": [
+        "g-bar",
+        "g-bar-col",
+        "g-bar-grid",
+        "g-bar-label",
+        "g-btn-danger",
+        "g-btn-lg",
+        "g-chip",
+        "g-chip-dot",
+        "g-chips",
+        "g-mini-grid",
+        "g-mini-title",
+        "g-skeleton",
+        "g-table",
+        "g-table-head"
+      ],
+      "deadCount": 14
+    },
+    "src/views/DataManagement/styles/overlays.css": {
+      "total": 125,
+      "dead": [
+        "confirm-fade-enter-active",
+        "confirm-fade-leave-active",
+        "drawer-enter-active",
+        "drawer-enter-from",
+        "drawer-leave-active",
+        "drawer-leave-to",
+        "picker-enter-active",
+        "picker-enter-from",
+        "picker-leave-active",
+        "picker-leave-to",
+        "toast-enter-active",
+        "toast-enter-from",
+        "toast-error",
+        "toast-info",
+        "toast-leave-active",
+        "toast-leave-to",
+        "toast-success"
+      ],
+      "deadCount": 17
+    },
+    "src/views/DataManagement/styles/responsive.css": {
+      "total": 156,
+      "dead": [
+        "activity-dot",
+        "activity-item",
+        "activity-list",
+        "activity-panel",
+        "admin-sidebar",
+        "brand-subtitle",
+        "brand-title",
+        "dashboard-grid",
+        "dashboard-hero",
+        "data-table",
+        "dm-header",
+        "dm-page-btn",
+        "dm-page-number",
+        "dm-page-size-selector",
+        "dm-pagination",
+        "dm-pagination-controls",
+        "dm-pagination-info",
+        "header-eyebrow",
+        "header-title-group",
+        "hero-kicker",
+        "hero-status-card",
+        "hero-status-grid",
+        "live-dot",
+        "mobile-tab-option",
+        "mobile-tab-option-count",
+        "mobile-tab-panel",
+        "mobile-tab-toggle",
+        "operation-count",
+        "operation-item",
+        "operation-status",
+        "operations-list",
+        "overview-panel",
+        "page-number",
+        "page-size-selector",
+        "pagination-controls",
+        "pagination-info",
+        "publish-btn",
+        "sidebar-badge",
+        "sidebar-brand",
+        "sidebar-collapse-indicator"
+      ],
+      "deadCount": 67
+    },
+    "src/views/Forum/styles/anniversary.css": {
+      "total": 51,
+      "dead": [
+        "avatar-v2",
+        "calendar-submit-btn",
+        "feed-header-v2",
+        "hot-tag-count",
+        "hot-tag-item",
+        "hot-tags-card",
+        "post-avatar",
+        "post-tag-v2",
+        "weekly-checkin-mobile-card"
+      ],
+      "deadCount": 9
+    },
+    "src/views/Forum/styles/base.css": {
+      "total": 47,
+      "dead": [
+        "drawer-slide-enter-active",
+        "drawer-slide-enter-from",
+        "drawer-slide-leave-active",
+        "drawer-slide-leave-to",
+        "fade-enter-active",
+        "fade-enter-from",
+        "fade-leave-active",
+        "fade-leave-to",
+        "fade-slide-enter-active",
+        "fade-slide-enter-from",
+        "fade-slide-leave-active",
+        "fade-slide-leave-to"
+      ],
+      "deadCount": 12
+    },
+    "src/views/Forum/styles/composer.css": {
+      "total": 137,
+      "dead": [
+        "checkin-skeleton-progress",
+        "composer-mention-trigger",
+        "composer-preview-toggle",
+        "composer-preview-toolbar",
+        "desktop-draft-tool-btn",
+        "desktop-location-tool-btn",
+        "editor-actions",
+        "forum-image-add-btn",
+        "forum-image-add-count",
+        "forum-image-add-icon",
+        "forum-image-add-menu-wrap",
+        "forum-image-source-menu",
+        "forum-image-source-option",
+        "forum-image-tool-btn",
+        "hot-tag-count",
+        "hot-tag-item",
+        "hot-tags-card",
+        "hot-tags-list",
+        "post-submit-preview-btn",
+        "stat-item",
+        "stats-header",
+        "weekly-checkin-mobile-card",
+        "weekly-checkin-standalone-section"
+      ],
+      "deadCount": 23
+    },
+    "src/views/Forum/styles/drawers-skeletons.css": {
+      "total": 90,
+      "dead": [
+        "ai-search-status",
+        "calendar-submit-btn",
+        "checkin-calendar-close",
+        "checkin-calendar-modal",
+        "checkin-calendar-progress",
+        "checkin-cycle-panel",
+        "checkin-cycle-week",
+        "checkin-week-card",
+        "checkin-week-day",
+        "feed-header-v2",
+        "feed-title-v2",
+        "filter-btn-v2",
+        "filter-row-v2",
+        "forum-confirm-cat",
+        "forum-confirm-fade-enter-active",
+        "forum-confirm-fade-enter-from",
+        "forum-confirm-fade-leave-active",
+        "forum-confirm-fade-leave-to",
+        "hot-tags-card",
+        "skeleton-loading-more",
+        "slide-right-enter-active",
+        "slide-right-enter-from",
+        "slide-right-leave-active",
+        "slide-right-leave-to",
+        "stats-header",
+        "tag-filter-btn",
+        "weekly-checkin-mobile-card",
+        "weekly-checkin-trigger"
+      ],
+      "deadCount": 28
+    },
+    "src/views/Forum/styles/feed.css": {
+      "total": 85,
+      "dead": [
+        "action-icon-v2",
+        "ai-search-btn-inner",
+        "ai-search-loading-text",
+        "ai-search-spinner",
+        "ai-search-status",
+        "ai-search-switch-dot",
+        "ai-search-switch-label",
+        "expand-replies-enter-active",
+        "expand-replies-enter-from",
+        "expand-replies-leave-active",
+        "expand-replies-leave-to",
+        "feed-header-v2",
+        "feed-title-row",
+        "feed-title-v2",
+        "filter-btn-v2",
+        "filter-row-v2",
+        "forum-ai-search-status-enter-active",
+        "forum-ai-search-status-enter-from",
+        "forum-ai-search-status-leave-active",
+        "forum-ai-search-status-leave-to",
+        "forum-post-image",
+        "forum-post-image-grid",
+        "mobile-feed-gap-cat",
+        "search-action-group",
+        "search-btn-inner",
+        "search-input-wrapper",
+        "search-section",
+        "tag-filter-btn",
+        "tag-filter-row",
+        "weekly-checkin-trigger"
+      ],
+      "deadCount": 30
+    },
+    "src/views/Forum/styles/replies-responsive.css": {
+      "total": 161,
+      "dead": [
+        "action-icon-v2",
+        "checkin-progress-fill",
+        "checkin-progress-track",
+        "checkin-skeleton-progress",
+        "close-panel-btn",
+        "composer-preview-toolbar",
+        "delete-comment-btn",
+        "desktop-only",
+        "desktop-post-image-btn",
+        "feed-header-v2",
+        "forum-image-add-btn",
+        "forum-image-add-count",
+        "forum-image-add-icon",
+        "forum-image-tool-btn",
+        "forum-post-image",
+        "forum-post-image-grid",
+        "loading-state-v2",
+        "loading-text-v2",
+        "mark-all-btn",
+        "mobile-composer-enter-active",
+        "mobile-composer-enter-from",
+        "mobile-composer-leave-active",
+        "mobile-composer-leave-to",
+        "mobile-draft-panel-enter-active",
+        "mobile-draft-panel-enter-from",
+        "mobile-draft-panel-leave-active",
+        "mobile-draft-panel-leave-to",
+        "mobile-feed-gap-cat",
+        "mobile-post-image-btn",
+        "n-content",
+        "n-date",
+        "n-dot",
+        "n-icon",
+        "n-text",
+        "notification-item",
+        "notification-panel-portal",
+        "panel-header",
+        "reply-author",
+        "reply-date",
+        "reply-header"
+      ],
+      "deadCount": 43
+    },
+    "src/views/SmartOverview/styles/news-modal.css": {
+      "total": 20,
+      "dead": [
+        "news-modal-fade-enter-active",
+        "news-modal-fade-enter-from",
+        "news-modal-fade-leave-active",
+        "news-modal-fade-leave-to"
+      ],
+      "deadCount": 4
+    },
+    "src/views/SmartOverview/styles/overview.css": {
+      "total": 46,
+      "dead": [
+        "overview-card-news",
+        "overview-card-post"
+      ],
+      "deadCount": 2
+    },
+    "src/views/user-center/UserSpace/styles/profile-base.css": {
+      "total": 113,
+      "dead": [
+        "profile-action-copy",
+        "profile-action-icon",
+        "profile-action-row",
+        "profile-comment-list",
+        "profile-edit-page-header",
+        "profile-impressions-head",
+        "profile-impressions-panel",
+        "profile-panel-fade-enter-active",
+        "profile-panel-fade-enter-from",
+        "profile-panel-fade-leave-active",
+        "profile-panel-fade-leave-to",
+        "profile-service-divider",
+        "profile-service-grid",
+        "profile-service-grid-item",
+        "profile-subpage-header",
+        "profile-subpage-kicker",
+        "profile-subpage-title"
+      ],
+      "deadCount": 17
+    },
+    "src/views/user-center/UserSpace/styles/profile-panels.css": {
+      "total": 153,
+      "dead": [
+        "account-delete-modal",
+        "apple-header",
+        "apple-item",
+        "apple-list-group",
+        "beta-badge",
+        "bg-green",
+        "center-item",
+        "chevron",
+        "cloud-quota-caption",
+        "cloud-quota-pill",
+        "current-device-pill",
+        "date-input",
+        "date-input-container",
+        "date-input-hint",
+        "date-input-icon",
+        "date-input-label",
+        "date-input-wrapper",
+        "date-sep",
+        "delete-account-body",
+        "delete-account-email",
+        "delete-account-error",
+        "delete-account-header",
+        "delete-account-icon",
+        "delete-account-input",
+        "delete-account-item",
+        "delete-check-row",
+        "delete-risk-list",
+        "delete-step-label",
+        "feature-pill",
+        "feature-pills",
+        "gift-progress-badge",
+        "header-info",
+        "header-top-row",
+        "icon-wrapper",
+        "item-desc",
+        "item-label",
+        "item-label-row",
+        "item-left",
+        "item-right",
+        "logout-card"
+      ],
+      "deadCount": 71
+    },
+    "src/views/user-center/UserSpace/styles/responsive-integrations.css": {
+      "total": 149,
+      "dead": [
+        "apple-item",
+        "apple-name",
+        "apple-page-container",
+        "cloud-quota-caption",
+        "date-input-container",
+        "fade-enter-active",
+        "fade-enter-from",
+        "fade-leave-active",
+        "fade-leave-to",
+        "feature-pills",
+        "header-info",
+        "header-top-row",
+        "item-desc",
+        "item-label",
+        "item-right",
+        "my-space-btn",
+        "profile-action-copy",
+        "profile-action-icon",
+        "profile-action-panel",
+        "profile-action-row",
+        "profile-basic-row",
+        "profile-basic-value",
+        "profile-basics",
+        "profile-basics-head",
+        "profile-card",
+        "profile-chip",
+        "profile-chip-row",
+        "profile-cloud-embed",
+        "profile-comment-item",
+        "profile-comment-list",
+        "profile-edit-page-header",
+        "profile-header",
+        "profile-impressions-panel",
+        "profile-info",
+        "profile-main",
+        "profile-posts-area",
+        "profile-shortcut",
+        "profile-shortcut-strip",
+        "profile-subpage-header",
+        "profile-subpage-title"
+      ],
+      "deadCount": 43
+    },
+    "src/views/user-center/UserSpace/styles/settings-glass.css": {
+      "total": 32,
+      "dead": [
+        "gs-divider"
+      ],
+      "deadCount": 1
+    },
+    "src/views/user-center/UserSpace/styles/shell-community.css": {
+      "total": 117,
+      "dead": [
+        "bottom-nav-island",
+        "clickable-follow-count",
+        "community-toolbar-glass",
+        "community-toolbar-meta",
+        "community-user-card",
+        "expand-enter-active",
+        "expand-enter-from",
+        "expand-enter-to",
+        "expand-leave-active",
+        "expand-leave-from",
+        "expand-leave-to",
+        "forum-content-area",
+        "forum-feed",
+        "post-card",
+        "post-composer",
+        "user-space-bottom-nav"
+      ],
+      "deadCount": 16
+    }
+  },
+  "bodyPageSelectors": [
+    {
+      "file": "src/styles/vendor/unified-nav.css",
+      "count": 8,
+      "sample": [
+        "body.page-newsroom .unified-nav,\nbody.page-service",
+        "body.page-home .unified-nav",
+        "body.page-shop .unified-nav,\nbody.page-shop-user .",
+        "body.page-home .unified-nav .nav-logo,\nbody.page-h",
+        "body.page-newsroom .unified-nav .nav-username,\nbod"
+      ]
+    },
+    {
+      "file": "src/style.css",
+      "count": 6,
+      "sample": [
+        "body.page-aichat",
+        "body.page-aichat #app",
+        "body.page-aichat .bohai-page:not(.embedded-mode):n"
+      ]
+    }
+  ],
+  "zWar": {
+    "9000": 2,
+    "9500": 1,
+    "9998": 1,
+    "9999": 11,
+    "10000": 20,
+    "10001": 11,
+    "10002": 4,
+    "10010": 1,
+    "11000": 2,
+    "11050": 1,
+    "11060": 1,
+    "11080": 1,
+    "11200": 1,
+    "12000": 3,
+    "13000": 1,
+    "20000": 1,
+    "20001": 1,
+    "30000": 1,
+    "30010": 1,
+    "99999": 2,
+    "100000": 2,
+    "200050": 1,
+    "200100": 1,
+    "210000": 1,
+    "210100": 2,
+    "220100": 1,
+    "220101": 1,
+    "220200": 2,
+    "220300": 1,
+    "1000000000": 1,
+    "2147481600": 1,
+    "2147482050": 1,
+    "2147482100": 4,
+    "2147482200": 1,
+    "2147483000": 3,
+    "2147483050": 2,
+    "2147483400": 5,
+    "2147483450": 7,
+    "2147483600": 2,
+    "2147483645": 4,
+    "2147483647": 1
+  },
+  "whiteOverlay": [
+    {
+      "file": "src/views/user-center/UserSpace/components/AssetsHubPanel.vue",
+      "count": 37
+    },
+    {
+      "file": "src/views/BOHAI/BOHAI/styles/shell-header.css",
+      "count": 20
+    },
+    {
+      "file": "src/views/Forum/styles/composer.css",
+      "count": 19
+    },
+    {
+      "file": "src/views/Shop/style.scoped.css",
+      "count": 18
+    },
+    {
+      "file": "src/views/user-center/Messages/style.scoped.css",
+      "count": 18
+    },
+    {
+      "file": "src/styles/common/glass-ui.css",
+      "count": 17
+    },
+    {
+      "file": "src/views/user-center/UserSpace/styles/shell-community.css",
+      "count": 17
+    },
+    {
+      "file": "src/views/BOHAI/BOHAI/styles/messages.css",
+      "count": 16
+    },
+    {
+      "file": "src/views/CommunityLotteries/style.scoped.css",
+      "count": 15
+    },
+    {
+      "file": "src/views/Newsroom/style.scoped.css",
+      "count": 14
+    },
+    {
+      "file": "src/components/UnifiedNavbar/style.scoped.css",
+      "count": 12
+    },
+    {
+      "file": "src/styles/vendor/unified-nav.css",
+      "count": 12
+    },
+    {
+      "file": "src/views/Health/health.css",
+      "count": 12
+    },
+    {
+      "file": "src/views/BOHAI/BOHAI/styles/adaptive-layout.css",
+      "count": 11
+    },
+    {
+      "file": "src/views/Home/style.scoped.css",
+      "count": 10
+    },
+    {
+      "file": "src/views/PostDetail/style.scoped.css",
+      "count": 10
+    },
+    {
+      "file": "src/views/Forum/styles/feed.css",
+      "count": 8
+    },
+    {
+      "file": "src/views/Profile/style.scoped.css",
+      "count": 8
+    },
+    {
+      "file": "src/styles/common/liquid-glass.css",
+      "count": 7
+    },
+    {
+      "file": "src/views/Download/index.vue",
+      "count": 7
+    },
+    {
+      "file": "src/views/Forum/components/ForumToolbar.vue",
+      "count": 7
+    },
+    {
+      "file": "src/views/Forum/styles/replies-responsive.css",
+      "count": 7
+    },
+    {
+      "file": "src/views/user-center/Cloud+/style.scoped.css",
+      "count": 7
+    },
+    {
+      "file": "src/components/UnifiedNavbar/ShareIsland.vue",
+      "count": 6
+    },
+    {
+      "file": "src/views/Forum/components/PostComposer.vue",
+      "count": 6
+    }
+  ],
+  "styleCssInfo": {
+    "lines": 358,
+    "darkRules": 0,
+    "hasDarkComment": true
+  },
+  "cssInventory": [
+    {
+      "file": "src/views/Profile/style.scoped.css",
+      "lines": 3931,
+      "kb": 72.9,
+      "refs": 1,
+      "scopedRefs": 1
+    },
+    {
+      "file": "src/views/user-center/Cloud+/style.scoped.css",
+      "lines": 3184,
+      "kb": 55.5,
+      "refs": 1,
+      "scopedRefs": 1
+    },
+    {
+      "file": "src/views/user-center/UserSpace/styles/shell-community.css",
+      "lines": 2877,
+      "kb": 68.3,
+      "refs": 2,
+      "scopedRefs": 0
+    },
+    {
+      "file": "src/views/user-center/Messages/style.scoped.css",
+      "lines": 2823,
+      "kb": 53.6,
+      "refs": 1,
+      "scopedRefs": 1
+    },
+    {
+      "file": "src/views/DataManagement/styles/console.css",
+      "lines": 2251,
+      "kb": 40.7,
+      "refs": 2,
+      "scopedRefs": 2
+    },
+    {
+      "file": "src/styles/vendor/unified-nav.css",
+      "lines": 2037,
+      "kb": 49.2,
+      "refs": 1,
+      "scopedRefs": 0
+    },
+    {
+      "file": "src/views/BOHAI/BOHAI/styles/messages.css",
+      "lines": 1962,
+      "kb": 40.5,
+      "refs": 1,
+      "scopedRefs": 1
+    },
+    {
+      "file": "src/views/BOHAI/BOHAI/styles/adaptive-layout.css",
+      "lines": 1874,
+      "kb": 44.3,
+      "refs": 1,
+      "scopedRefs": 1
+    },
+    {
+      "file": "src/views/Forum/styles/composer.css",
+      "lines": 1858,
+      "kb": 39.9,
+      "refs": 3,
+      "scopedRefs": 3
+    },
+    {
+      "file": "src/views/Forum/styles/replies-responsive.css",
+      "lines": 1808,
+      "kb": 35.9,
+      "refs": 3,
+      "scopedRefs": 3
+    },
+    {
+      "file": "src/views/PostDetail/style.scoped.css",
+      "lines": 1765,
+      "kb": 34.3,
+      "refs": 1,
+      "scopedRefs": 1
+    },
+    {
+      "file": "src/views/CommunityLotteries/style.scoped.css",
+      "lines": 1757,
+      "kb": 38.5,
+      "refs": 1,
+      "scopedRefs": 1
+    },
+    {
+      "file": "src/views/user-center/UserSpace/styles/profile-panels.css",
+      "lines": 1726,
+      "kb": 29.5,
+      "refs": 2,
+      "scopedRefs": 0
+    },
+    {
+      "file": "src/views/BOH8YearsJourney/style.scoped.css",
+      "lines": 1672,
+      "kb": 46.2,
+      "refs": 1,
+      "scopedRefs": 1
+    },
+    {
+      "file": "src/views/DataManagement/styles/responsive.css",
+      "lines": 1671,
+      "kb": 29.5,
+      "refs": 6,
+      "scopedRefs": 6
+    },
+    {
+      "file": "src/views/user-center/UserSpace/styles/profile-base.css",
+      "lines": 1506,
+      "kb": 29.7,
+      "refs": 2,
+      "scopedRefs": 0
+    },
+    {
+      "file": "src/views/Shop/style.scoped.css",
+      "lines": 1341,
+      "kb": 33.4,
+      "refs": 1,
+      "scopedRefs": 1
+    },
+    {
+      "file": "src/views/Forum/styles/feed.css",
+      "lines": 1262,
+      "kb": 26.2,
+      "refs": 2,
+      "scopedRefs": 2
+    },
+    {
+      "file": "src/views/MBTI/style.scoped.css",
+      "lines": 1240,
+      "kb": 18.5,
+      "refs": 1,
+      "scopedRefs": 1
+    },
+    {
+      "file": "src/views/DataManagement/styles/overlays.css",
+      "lines": 1224,
+      "kb": 22.4,
+      "refs": 1,
+      "scopedRefs": 0
+    },
+    {
+      "file": "src/styles/themes/bohai-dark.css",
+      "lines": 1217,
+      "kb": 40.2,
+      "refs": 1,
+      "scopedRefs": 0
+    },
+    {
+      "file": "src/views/user-center/UserSpace/styles/responsive-integrations.css",
+      "lines": 1206,
+      "kb": 20.1,
+      "refs": 2,
+      "scopedRefs": 0
+    },
+    {
+      "file": "src/styles/themes/forum-dark.css",
+      "lines": 1161,
+      "kb": 33.5,
+      "refs": 1,
+      "scopedRefs": 0
+    },
+    {
+      "file": "src/views/BOHAI/BOHAI/styles/shell-header.css",
+      "lines": 1139,
+      "kb": 26.4,
+      "refs": 1,
+      "scopedRefs": 1
+    },
+    {
+      "file": "src/views/Home/style.scoped.css",
+      "lines": 1094,
+      "kb": 22.6,
+      "refs": 1,
+      "scopedRefs": 1
+    },
+    {
+      "file": "src/views/Birthday/style.scoped.css",
+      "lines": 1084,
+      "kb": 19.6,
+      "refs": 1,
+      "scopedRefs": 1
+    },
+    {
+      "file": "src/views/Gift/style.scoped.css",
+      "lines": 1082,
+      "kb": 17.4,
+      "refs": 1,
+      "scopedRefs": 1
+    },
+    {
+      "file": "src/views/DataManagement/styles/google-components.css",
+      "lines": 1077,
+      "kb": 29.1,
+      "refs": 8,
+      "scopedRefs": 7
+    },
+    {
+      "file": "src/styles/common/animations.css",
+      "lines": 1040,
+      "kb": 17.4,
+      "refs": 1,
+      "scopedRefs": 0
+    },
+    {
+      "file": "src/views/user-center/UserSpace/components/bottom-nav.css",
+      "lines": 961,
+      "kb": 20.8,
+      "refs": 1,
+      "scopedRefs": 0
+    },
+    {
+      "file": "src/views/BOH8YearsEvent/style.scoped.css",
+      "lines": 915,
+      "kb": 14.2,
+      "refs": 1,
+      "scopedRefs": 1
+    },
+    {
+      "file": "src/styles/pages/section__header.css",
+      "lines": 905,
+      "kb": 21.1,
+      "refs": 1,
+      "scopedRefs": 0
+    },
+    {
+      "file": "src/views/Forum/styles/drawers-skeletons.css",
+      "lines": 853,
+      "kb": 20.9,
+      "refs": 1,
+      "scopedRefs": 1
+    },
+    {
+      "file": "src/styles/themes/user-space-dark.css",
+      "lines": 822,
+      "kb": 20.9,
+      "refs": 1,
+      "scopedRefs": 0
+    },
+    {
+      "file": "src/views/user-center/Address/style.scoped.css",
+      "lines": 819,
+      "kb": 21.4,
+      "refs": 1,
+      "scopedRefs": 1
+    },
+    {
+      "file": "src/views/AlertStyleEditor/style.scoped.css",
+      "lines": 800,
+      "kb": 13.1,
+      "refs": 1,
+      "scopedRefs": 1
+    },
+    {
+      "file": "src/views/Newsroom/style.scoped.css",
+      "lines": 767,
+      "kb": 35.6,
+      "refs": 1,
+      "scopedRefs": 1
+    },
+    {
+      "file": "src/styles/common/glass-ui.css",
+      "lines": 751,
+      "kb": 18.8,
+      "refs": 2,
+      "scopedRefs": 1
+    },
+    {
+      "file": "src/components/UnifiedNavbar/style.scoped.css",
+      "lines": 735,
+      "kb": 26.6,
+      "refs": 1,
+      "scopedRefs": 1
+    },
+    {
+      "file": "src/views/Shows/style.scoped.css",
+      "lines": 715,
+      "kb": 13.6,
+      "refs": 1,
+      "scopedRefs": 1
+    },
+    {
+      "file": "src/views/user-center/UserSpace/styles/settings-glass.css",
+      "lines": 704,
+      "kb": 13.2,
+      "refs": 6,
+      "scopedRefs": 6
+    },
+    {
+      "file": "src/views/BlockWall/style.scoped.css",
+      "lines": 702,
+      "kb": 22.1,
+      "refs": 1,
+      "scopedRefs": 1
+    },
+    {
+      "file": "src/styles/themes/post-detail-dark.css",
+      "lines": 693,
+      "kb": 20.7,
+      "refs": 1,
+      "scopedRefs": 0
+    },
+    {
+      "file": "src/styles/themes/messages-dark.css",
+      "lines": 674,
+      "kb": 18.9,
+      "refs": 1,
+      "scopedRefs": 0
+    },
+    {
+      "file": "src/views/Health/health.css",
+      "lines": 644,
+      "kb": 18.3,
+      "refs": 1,
+      "scopedRefs": 0
+    }
+  ]
+}

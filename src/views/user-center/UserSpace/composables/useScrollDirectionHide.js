@@ -11,7 +11,7 @@ const getScrollContainer = (target) => {
   return document.scrollingElement || document.documentElement;
 };
 
-export const useScrollDirectionHide = ({ enabled, forceVisible }) => {
+export const useScrollDirectionHide = ({ forceVisible }) => {
   const hidden = ref(false);
   const positions = new WeakMap();
   let activeContainer = null;
@@ -26,7 +26,7 @@ export const useScrollDirectionHide = ({ enabled, forceVisible }) => {
 
   const evaluate = () => {
     frameId = 0;
-    if (!enabled.value || forceVisible.value || !pendingTarget) {
+    if (forceVisible.value || !pendingTarget) {
       reveal();
       return;
     }
@@ -73,8 +73,8 @@ export const useScrollDirectionHide = ({ enabled, forceVisible }) => {
     reveal();
   };
 
-  watch([enabled, forceVisible], () => {
-    if (!enabled.value || forceVisible.value) reset();
+  watch(forceVisible, () => {
+    if (forceVisible.value) reset();
   }, { immediate: true });
 
   onMounted(() => {

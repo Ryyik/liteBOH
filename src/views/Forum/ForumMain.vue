@@ -14,14 +14,13 @@ import {
 } from 'lucide-vue-next';
 import PostComposer from './components/PostComposer.vue';
 import PostCard from './components/PostCard.vue';
+import { resolveFrameForAuthor } from '@/composables/useAvatarFrame.js';
 import ShareIsland from '@/components/UnifiedNavbar/ShareIsland.vue';
 import AdSlot from './components/AdSlot.vue';
 import ForumToolbar from './components/ForumToolbar.vue';
 import ForumImageViewer from './components/ForumImageViewer.vue';
 import WeeklyCheckinCalendar from './components/WeeklyCheckinCalendar.vue';
-import NotificationDrawer from './components/NotificationDrawer.vue';
-import { useForumPublishQueueStore } from '@/stores/forumPublishQueue.js';
-import { useForumImageModerationPreload } from './composables/useForumImageModerationPreload.js';
+import { useForumPublishQueueStore } from '@/stores/forumPublishQueue.js';import { useForumImageModerationPreload } from './composables/useForumImageModerationPreload.js';
 import { useForumPostDraftStorage } from './composables/useForumPostDraftStorage.js';
 import { useForumVirtualFeed } from './composables/useForumVirtualFeed.js';
 import { useActiveAds } from './composables/useActiveAds.js';
@@ -47,7 +46,6 @@ const authStore = useAuthStore();
 const { isLoggedIn, showLoginModal } = storeToRefs(authStore);
 const { userInfo } = authStore;
 const notificationStoreRef = ref(getNotificationStoreSync());
-const unreadCount = computed(() => notificationStoreRef.value?.unreadCount || 0);
 const currentUiStyle = ref('glass');
 const currentTheme = ref(themeManager.getTheme());
 const isAnniversaryMcTheme = computed(() => currentTheme.value === 'anniversary-mc');
@@ -90,7 +88,6 @@ import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import {
   getPosts,
   createPost,
-  uploadForumImage,
   deleteUploadedForumImage,
   getComments,
   createComment,
@@ -100,7 +97,6 @@ import {
   deleteComment,
   getLatestForumWeeklyReport,
   getPostEngagementStats,
-  retryPostModeration,
   getWeeklyCheckinStatus,
   submitWeeklyCheckin,
   claimPostPublishReward,
@@ -108,28 +104,18 @@ import {
   upsertForumPostDraft,
   deleteForumPostDraft,
   moderateForumImage,
-  preloadForumImageModeration
+  preloadForumImageModeration,
+  getForumPostImages,
+  fetchQuotedPostsByIds
 } from '../../utils/api/forum-api.js';
 import { uploadApprovedForumImageQueued } from '../../utils/api/forum-api.js';
-import { useAppMode } from '@/composables/useAppMode.js';
 import { showIsland } from '@/composables/useIsland.js';
-import {
-  getUserNotifications,
-  markNotificationAsRead,
-  markAllNotificationsAsRead,
-  getUnreadNotificationCount
-} from '../../utils/api/notifications-api.js';
 import { getCloudinaryTransformedUrl } from '@/utils/cloudinary-client.js';
 import {
   compressImageFileToUploadLimit,
   formatImageFileSize,
   getImageCompressionPlan
 } from '@/utils/image-compression.js';
-import {
-  getForumPostBody,
-  getForumPostExcerpt,
-  getForumPostTitle
-} from '@/utils/forum-post-format.js';
 import {
   clearForumReturnState,
   getForumReturnKeyFromQuery,
@@ -147,20 +133,17 @@ import { supabase } from '../../utils/supabase-client.js';
 import { themeManager } from '@/utils/theme-manager.js';
 import { getHomeCatAsset, getHomeCatTypeBySeed, isHomeCatTheme } from '@/utils/home-cat-theme.js';
 import anniversaryForumImage from '@/assets/images/blockschool.webp';
-import { formatSmartTime } from '../../utils/time.js';
 import { addExperience, XP_REWARDS } from '../../utils/xp.js';
 import DOMPurify from '@/utils/dompurify.js';
 import { logger } from '@/utils/logger.js';
 import { getFollowing } from '@/utils/api/profile-api.js';
 import {
   AI_SEARCH_MODEL_ID,
-  FORUM_IMAGE_UPLOAD_CONCURRENCY,
   FORUM_DETAIL_IMAGE_TRANSFORM,
   FORUM_LIST_IMAGE_TRANSFORM,
   FORUM_LIST_IMAGE_TRANSFORM_MD,
   FORUM_LIST_IMAGE_TRANSFORM_SM,
   FORUM_LIST_LQIP_TRANSFORM,
-  FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT,
   FORUM_POST_DRAFT_PREFIX,
   FORUM_POST_DRAFT_VERSION_LIMIT,
   FORUM_POST_IMAGE_MAX_COUNT,
@@ -173,25 +156,10 @@ import {
   AUTO_SAVE_DRAFT_INTERVAL_MS
 } from './forum-config.js';
 import {
-  POST_REJECTED_NOTICE_TEXT,
-  POST_REJECTED_NOTIFICATION_TYPE,
-  POST_REPORT_LIMITED_NOTICE_TEXT,
-  POST_REPORT_LIMITED_NOTIFICATION_TYPE,
-  COMMENT_REJECTED_NOTICE_TEXT,
-  COMMENT_REJECTED_NOTIFICATION_TYPE,
-  canRetryModerationNotificationBySet,
-  loadRetriedNotificationIdSet,
-  markRetriedNotificationId,
-  persistRetriedNotificationIdSet
-} from '../../utils/moderation-retry-cache.js';
-import {
   callBohAIModel,
   extractBohAIJsonObject,
   getBohAIModelStatus
 } from '@/utils/bohai-model-client.js';
-
-// 别名方便使用
-const formatDate = formatSmartTime;
 
 // 论坛数据
 const forumData = shallowRef([]);
@@ -423,6 +391,7 @@ const initializeForumData = async () => {
       nextPageCursor.value = snapshot.nextPageCursor;
       hasMoreData.value = snapshot.hasMoreData;
       prefetchAuthorTiersFor(snapshot.posts);
+      void ensureQuotedPostsForReposts();
       isLoading.value = false;
       void fetchForumData(false, { background: true });
       return;
@@ -473,59 +442,13 @@ const forumMentionUsers = computed(() => {
   return users;
 });
 
-// 通知/消息中心相关
-const showNotifications = ref(false);
-const notifications = ref([]);
-const isNotificationsLoading = ref(false);
-const notificationTypeFilter = ref('all');
-const selectedMessage = ref(null);
-const retryingNotificationIds = ref({});
-const retriedNotificationIdSet = ref(new Set());
+// 本周签到 / AI 搜索状态
 const isWeeklyCheckinLoading = ref(false);
 const isWeeklyCheckinSubmitting = ref(false);
 const isWeeklyCheckinCalendarOpen = ref(false);
 const isAiSearchEnabled = ref(false);
 const isAiSearchLoading = ref(false);
 const aiSearchHint = ref('');
-const NOTIFICATION_FILTER_OPTIONS = [
-  { value: 'all', label: '全部' },
-  { value: 'interaction', label: '互动' },
-  { value: 'moderation', label: '审核' },
-  { value: 'system', label: '系统' }
-];
-const getNotificationFilterGroup = (type = '') => {
-  const safeType = String(type || '').trim();
-  if (['like', 'comment', 'follow', 'impression', 'gift'].includes(safeType)) return 'interaction';
-  if ([POST_REJECTED_NOTIFICATION_TYPE, COMMENT_REJECTED_NOTIFICATION_TYPE, POST_REPORT_LIMITED_NOTIFICATION_TYPE].includes(safeType)) return 'moderation';
-  return 'system';
-};
-const filteredNotifications = computed(() => {
-  if (notificationTypeFilter.value === 'all') return notifications.value;
-  return notifications.value.filter((notification) => getNotificationFilterGroup(notification?.type) === notificationTypeFilter.value);
-});
-
-const loadRetriedNotificationIds = () => {
-  retriedNotificationIdSet.value = loadRetriedNotificationIdSet();
-};
-
-const markNotificationRetried = (notificationId) => {
-  const marked = markRetriedNotificationId(retriedNotificationIdSet.value, notificationId);
-  if (!marked) return;
-  persistRetriedNotificationIdSet(retriedNotificationIdSet.value);
-};
-
-const canRetryModerationNotification = (notification) => {
-  return canRetryModerationNotificationBySet(
-    notification,
-    retriedNotificationIdSet.value,
-    POST_REJECTED_NOTIFICATION_TYPE
-  );
-};
-
-const isRetryingSelectedNotification = computed(() => {
-  const key = String(selectedMessage.value?.id || '');
-  return Boolean(key && retryingNotificationIds.value[key]);
-});
 
 const createDefaultWeeklyCheckinStatus = () => ({
   hasSignedThisWeek: false,
@@ -552,7 +475,6 @@ const postImages = ref([]);
 const postLocation = ref(null);
 const isUploadingPostImage = ref(false);
 const postImageUploadStatus = ref('');
-const { isBeta5 } = useAppMode();
 const createSubmissionId = () => (
   globalThis.crypto?.randomUUID?.()
   || `00000000-0000-4000-8000-${`${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`.slice(-12).padStart(12, '0')}`
@@ -648,7 +570,8 @@ onUnmounted(() => {
 });
 const buildOptimisticPost = (queueItem) => {
   const nowIso = new Date().toISOString();
-  const previewImages = (queueItem.images || []).slice(0, 6).map((img, idx) => ({
+  // 上传队列快照全量图（≤ FORUM_POST_IMAGE_MAX_COUNT=6），经 prepare 进入 allImages 单一来源
+  const queuedImages = (queueItem.images || []).slice(0, FORUM_POST_IMAGE_MAX_COUNT).map((img, idx) => ({
     id: img.uploadId || `optimistic-img-${queueItem.id}-${idx}`,
     url: img.localPreviewUrl || img.url || '',
     originalUrl: img.localPreviewUrl || img.url || '',
@@ -672,11 +595,12 @@ const buildOptimisticPost = (queueItem) => {
     author_id: queueItem.authorId,
     author_username: queueItem.authorUsername,
     author_avatar_url: rawAvatar,
+    author_avatar_frame_url: resolveFrameForAuthor('', queueItem.authorId)?.url || '',
     created_at: nowIso,
     tag: queueItem.tag,
     location_name: queueItem.location?.name || queueItem.location?.cityName || '',
-    images: previewImages,
-    cover_image_url: previewImages[0]?.url || '',
+    images: queuedImages,
+    cover_image_url: queuedImages[0]?.url || '',
     like_count: 0,
     comment_count: 0,
     isLiked: false,
@@ -710,7 +634,7 @@ const updateOptimisticPost = (queueId, patch={}) => {
   if (idx<0) return;
   const cur = forumData.value[idx];
   const next = { ...cur, ...patch, _queueId: queueId };
-  // 若传了 queueItem 整体则重建 previewImages 失败标记
+  // 若传了 queueItem 整体则重建 allImages 失败标记
   if (patch._publishState || patch._progress!==undefined || patch._failType!==undefined) {
     const q = publishQueueStore.items.find(i=>i.id===queueId);
     if (q) {
@@ -722,7 +646,11 @@ const updateOptimisticPost = (queueId, patch={}) => {
         _failType: q.failType,
         _failMessage: q.errorMessage || '',
         _failedImageIndex: q.failedImageIndex,
-        previewImages: rebuilt.previewImages
+        allImages: rebuilt.allImages,
+        hasImages: rebuilt.hasImages,
+        imageCount: rebuilt.imageCount,
+        hiddenImageCount: rebuilt.hiddenImageCount,
+        hasMultipleImages: rebuilt.hasMultipleImages
       });
     }
   }
@@ -1573,61 +1501,6 @@ const updatePendingPostImage = (uploadId, patch = {}) => {
   return next;
 };
 
-const replacePendingPostImage = (uploadId, image) => {
-  const index = postImages.value.findIndex((item) => item.uploadId === uploadId);
-  if (index < 0) return false;
-  revokePostImagePreview(postImages.value[index]);
-  const images = [...postImages.value];
-  images[index] = { ...image, uploadStatus: 'approved', sortOrder: index };
-  postImages.value = normalizePostImageSortState(images);
-  return true;
-};
-
-const runForumImageUploadQueue = async (items = [], onSettled = null) => {
-  const uploadResults = new Array(items.length);
-  let nextIndex = 0;
-  let completedCount = 0;
-  const totalCount = items.length;
-  const workerCount = Math.min(FORUM_IMAGE_UPLOAD_CONCURRENCY, totalCount);
-
-  const runWorker = async () => {
-    while (nextIndex < totalCount) {
-      const currentIndex = nextIndex;
-      nextIndex += 1;
-      const item = items[currentIndex];
-      const displayIndex = item.fileIndex + 1;
-      postImageUploadStatus.value = `正在检测并上传第 ${displayIndex}/${item.totalCount} 张图片...`;
-      try {
-        updatePendingPostImage(item.uploadId, {
-          uploadStatus: 'uploading',
-          uploadStatusLabel: '上传中'
-        });
-        const result = await uploadForumImage(item.file);
-        uploadResults[currentIndex] = { ...item, result };
-      } catch (error) {
-        uploadResults[currentIndex] = {
-          ...item,
-          result: {
-            ok: false,
-            error: {
-              message: error?.message || '图片上传或安全检测失败'
-            }
-          }
-        };
-      } finally {
-        if (typeof onSettled === 'function') {
-          onSettled(uploadResults[currentIndex]);
-        }
-        completedCount += 1;
-        postImageUploadStatus.value = `已处理 ${completedCount}/${totalCount} 张图片`;
-      }
-    }
-  };
-
-  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
-  return uploadResults;
-};
-
 const handlePostImageSelection = async (payload) => {
   const files = Array.from(payload?.files || payload?.event?.target?.files || payload?.target?.files || []);
   if (!files.length) return;
@@ -1656,112 +1529,27 @@ const handlePostImageSelection = async (payload) => {
       file,
       url: localPreviewUrl,
       localPreviewUrl,
-      uploadStatus: isBeta5.value ? 'staged' : 'preparing',
-      uploadStatusLabel: isBeta5.value ? '' : '准备中',
+      uploadStatus: 'staged',
+      uploadStatusLabel: '',
       sortOrder: postImages.value.length + fileIndex
     };
   });
   postImages.value = normalizePostImageSortState([...postImages.value, ...pendingImages]);
 
-  if (isBeta5.value) {
-    // Beta5：选图后立刻后台预热「压缩 → 检测(串行) → 上传(并发)」，点发布时多半已就绪
-    postImageUploadStatus.value = '';
-    // 模型预载与压缩并行（幂等），避免第一张图检测时阻塞等待 NSFW 模型 CDN 下载
-    scheduleForumImageModerationPreload({ immediate: true });
-    // D2：预热推迟 300ms 启动，躲开相册关闭动画与主线程峰值；批次内过滤已移除的图
-    if (draftPipelineDebounceTimer) clearTimeout(draftPipelineDebounceTimer);
-    const batchImages = pendingImages;
-    draftPipelineDebounceTimer = setTimeout(() => {
-      draftPipelineDebounceTimer = null;
-      batchImages.forEach((img, idx) => {
-        if (!postImages.value.some((x) => x.uploadId === img.uploadId)) return;
-        scheduleDraftImagePipeline(img, idx, batchImages.length);
-      });
-    }, 300);
-    return;
-  }
-
-  isUploadingPostImage.value = true;
-  const failures = [];
-  const uploadItems = [];
-  let successCount = 0;
-  try {
-    for (const [fileIndex, file] of selectedFiles.entries()) {
-      const fileName = String(file?.name || `第 ${fileIndex + 1} 张图片`).trim();
-      const uploadId = pendingImages[fileIndex].uploadId;
-      postImageUploadStatus.value = `正在准备第 ${fileIndex + 1}/${selectedFiles.length} 张图片...`;
-      let uploadFile;
-      try {
-        uploadFile = await prepareForumImageForUpload(file, fileIndex, selectedFiles.length, uploadId);
-      } catch (error) {
-        updatePendingPostImage(uploadId, {
-          uploadStatus: 'failed',
-          uploadStatusLabel: '失败',
-          uploadError: error?.message || '图片压缩处理失败'
-        });
-        failures.push({
-          name: fileName,
-          file,
-          message: error?.message || '图片压缩处理失败'
-        });
-        continue;
-      }
-      uploadItems.push({
-        file: uploadFile,
-        fileIndex,
-        fileName,
-        originalFile: file,
-        uploadId,
-        totalCount: selectedFiles.length
-      });
-    }
-
-    await runForumImageUploadQueue(uploadItems, (item) => {
-      if (!item) return;
-      const result = item.result;
-      if (!result.ok) {
-        applyImageUploadRateLimitCooldown(result.error);
-        updatePendingPostImage(item.uploadId, {
-          file: item.originalFile,
-          uploadStatus: 'failed',
-          uploadStatusLabel: '失败',
-          uploadError: result.error?.message || '图片上传或安全检测失败'
-        });
-        failures.push({
-          name: item.fileName,
-          file: item.originalFile,
-          message: result.error?.message || '图片上传或安全检测失败'
-        });
-        return;
-      }
-      if (replacePendingPostImage(item.uploadId, result.data)) {
-        successCount += 1;
-      }
+  // 选图后立刻后台预热「压缩 → 检测(串行) → 上传(并发)」，点发布时多半已就绪
+  postImageUploadStatus.value = '';
+  // 模型预载与压缩并行（幂等），避免第一张图检测时阻塞等待 NSFW 模型 CDN 下载
+  scheduleForumImageModerationPreload({ immediate: true });
+  // D2：预热推迟 300ms 启动，躲开相册关闭动画与主线程峰值；批次内过滤已移除的图
+  if (draftPipelineDebounceTimer) clearTimeout(draftPipelineDebounceTimer);
+  const batchImages = pendingImages;
+  draftPipelineDebounceTimer = setTimeout(() => {
+    draftPipelineDebounceTimer = null;
+    batchImages.forEach((img, idx) => {
+      if (!postImages.value.some((x) => x.uploadId === img.uploadId)) return;
+      scheduleDraftImagePipeline(img, idx, batchImages.length);
     });
-    if (successCount > 0) {
-      postImageUploadStatus.value = `已添加 ${successCount} 张图片`;
-    }
-
-    if (failures.length > 0) {
-      const firstFailure = failures[0];
-      const extraCount = failures.length - 1;
-      showModal(
-        successCount > 0 ? 'warning' : 'error',
-        successCount > 0 ? '部分图片未添加' : '图片无法发布',
-        `${firstFailure.name}：${firstFailure.message}${extraCount > 0 ? `；另有 ${extraCount} 张未通过` : ''}`
-      );
-    } else if (successCount > 0) {
-      postImageUploadStatus.value = '图片已通过检测并上传';
-    }
-  } catch (error) {
-    logger.error('forum', '论坛图片处理失败:', error);
-    showModal('error', '图片无法发布', error?.message || '图片上传或安全检测失败');
-  } finally {
-    isUploadingPostImage.value = false;
-    setTimeout(() => {
-      if (!isUploadingPostImage.value) postImageUploadStatus.value = '';
-    }, 1800);
-  }
+  }, 300);
 };
 
 const retryPostImageUpload = async (image, index) => {
@@ -2197,7 +1985,6 @@ onMounted(() => {
   } else {
     showAnniversaryBg.value = true;
   }
-  loadRetriedNotificationIds();
   restorePostDraft();
   // ✨ 移除：startAutoSaveDraftTimer()调用（改为手动保存）
   // startAutoSaveDraftTimer();
@@ -2310,15 +2097,6 @@ watch(isMobileComposerOpen, (isOpen) => {
   if (isOpen) scheduleForumImageModerationPreload({ immediate: true });
 });
 
-// 监听弹窗状态，控制 body 滚动
-watch(selectedMessage, (newVal) => {
-  if (newVal) {
-    document.body.style.overflow = 'hidden';
-  } else {
-    document.body.style.overflow = '';
-  }
-});
-
 watch(isLoggedIn, (loggedIn) => {
   if (postDraftSaveTimer) {
     clearTimeout(postDraftSaveTimer);
@@ -2396,218 +2174,6 @@ watch(
     activeForumWindowIndex.value = 0;
   }
 );
-
-// 加载通知
-const loadNotifications = async () => {
-  if (!isLoggedIn.value) return;
-  isNotificationsLoading.value = true;
-  try {
-    const { data, error } = await getUserNotifications(userInfo.id, { limit: 100 });
-    if (!error) {
-      notifications.value = data;
-      const { count } = await getUnreadNotificationCount(userInfo.id);
-      await setUnreadCount(count);
-    }
-  } catch (error) {
-    logger.error('forum', '加载通知失败:', error);
-  } finally {
-    isNotificationsLoading.value = false;
-  }
-};
-
-const toggleNotifications = () => {
-  showNotifications.value = !showNotifications.value;
-  if (showNotifications.value) {
-    loadNotifications();
-  }
-};
-
-// 显示详情并标记已读
-const showDetail = async (msg) => {
-  showNotifications.value = false;
-  selectedMessage.value = msg;
-
-  if (msg.status === 'unread') {
-    try {
-      await markNotificationAsRead(msg.id, userInfo.id);
-      msg.status = 'read';
-      // 从数据库刷新最新的未读计数
-      await refreshUnreadCount();
-      // 触发 localStorage 事件，通知其他组件刷新
-      localStorage.setItem('boh_unread_refresh', Date.now().toString());
-      setTimeout(() => {
-        localStorage.removeItem('boh_unread_refresh');
-      }, 100);
-    } catch (error) {
-      logger.error('forum', '标记已读失败:', error);
-    }
-  }
-};
-
-const handleNotificationItemClick = (notification, event) => {
-  const target = event?.target;
-  if (target?.closest?.('.clickable-username-inline')) {
-    return;
-  }
-  showDetail(notification);
-};
-
-const closeDetail = () => {
-  selectedMessage.value = null;
-};
-
-const canOpenNotificationSource = (notification) => {
-  const postId = notification?.post?.id || notification?.post_id;
-  return Boolean(postId);
-};
-
-const goToNotificationSource = () => {
-  if (!selectedMessage.value) return;
-  const postId = selectedMessage.value.post?.id || selectedMessage.value.post_id;
-  if (!postId) return;
-  const commentId = selectedMessage.value.comment?.id || selectedMessage.value.comment_id;
-  selectedMessage.value = null;
-  const query = commentId ? { comment: commentId } : {};
-  query.from = 'forum';
-  router.push({
-    name: 'PostDetail',
-    params: { id: postId },
-    query
-  });
-};
-
-const retryRejectedPostFromNotification = async () => {
-  if (!selectedMessage.value || !canRetryModerationNotification(selectedMessage.value)) {
-    return;
-  }
-
-  const notificationId = String(selectedMessage.value.id || '');
-  const postId = selectedMessage.value.post?.id || selectedMessage.value.post_id;
-  if (!notificationId || !postId) return;
-
-  retryingNotificationIds.value[notificationId] = true;
-  try {
-    const { ok, resultStatus, error } = await retryPostModeration(postId, userInfo.id);
-    if (!ok) {
-      showModal('error', '重试失败', error?.message || '请稍后重试');
-      return;
-    }
-
-    markNotificationRetried(notificationId);
-    if (resultStatus === 'approved') {
-      showModal('success', '重试通过', '帖子已恢复展示');
-      fetchForumData();
-    } else {
-      showModal('warning', '仍未通过', '本次重试后仍未通过审查，如有疑问请联系客服');
-    }
-  } catch (error) {
-    logger.error('forum', '帖子复审重试失败:', error);
-    showModal('error', '重试失败', '请稍后重试');
-  } finally {
-    retryingNotificationIds.value[notificationId] = false;
-  }
-};
-
-const handleMarkAllAsRead = async () => {
-  if (unreadCount.value === 0) return;
-  try {
-    await markAllNotificationsAsRead(userInfo.id);
-    notifications.value.forEach(n => n.status = 'read');
-    // 从数据库刷新最新的未读计数
-    await refreshUnreadCount();
-    // 触发 localStorage 事件，通知其他组件刷新
-    localStorage.setItem('boh_unread_refresh', Date.now().toString());
-    setTimeout(() => {
-      localStorage.removeItem('boh_unread_refresh');
-    }, 100);
-  } catch (error) {
-    logger.error('forum', '标记全部已读失败:', error);
-  }
-};
-
-// 获取通知类型标签
-const getNotificationTypeLabel = (type) => {
-  const labels = {
-    'like': '点赞通知',
-    'comment': '评论通知',
-    'follow': '关注通知',
-    'impression': '印象通知',
-    [POST_REJECTED_NOTIFICATION_TYPE]: '发帖审查',
-    [POST_REPORT_LIMITED_NOTIFICATION_TYPE]: '举报处理',
-    [COMMENT_REJECTED_NOTIFICATION_TYPE]: '评论审查',
-    'system': '系统通知',
-    'gift': '礼物通知'
-  };
-  return labels[type] || '消息';
-};
-
-// 获取通知标题
-const getNotificationTitle = (notification) => {
-  switch (notification.type) {
-    case 'like':
-      return `${notification.sender?.username || '有人'} 点赞了你的内容`;
-    case 'comment':
-      return `${notification.sender?.username || '有人'} 评论了你的内容`;
-    case 'follow':
-      return `${notification.sender?.username || '有人'} 关注了你`;
-    case 'impression':
-      return `${notification.sender?.username || '有人'} 对你发表了印象`;
-    case POST_REJECTED_NOTIFICATION_TYPE:
-      return '发帖审查未通过';
-    case POST_REPORT_LIMITED_NOTIFICATION_TYPE:
-      return '帖子已设为仅自己可见';
-    case COMMENT_REJECTED_NOTIFICATION_TYPE:
-      return '评论审查未通过';
-    case 'system':
-      return '系统通知';
-    case 'gift':
-      return '礼物进度更新';
-    default:
-      return '新消息';
-  }
-};
-
-// 获取通知完整内容
-const getNotificationContent = (notification) => {
-  if (notification.type === 'impression') {
-    return '有伙伴为您撰写了新的社区印象，快去个人中心查看吧！';
-  }
-  if (notification.type === 'gift') {
-    return notification.content || '您的礼物进度有更新，请前往礼物中心查看。';
-  }
-  if (notification.type === 'system') {
-    return notification.content || '系统消息';
-  }
-  if (notification.type === POST_REJECTED_NOTIFICATION_TYPE) {
-    return notification.content || POST_REJECTED_NOTICE_TEXT;
-  }
-  if (notification.type === POST_REPORT_LIMITED_NOTIFICATION_TYPE) {
-    return notification.content || POST_REPORT_LIMITED_NOTICE_TEXT;
-  }
-  if (notification.type === COMMENT_REJECTED_NOTIFICATION_TYPE) {
-    return notification.content || COMMENT_REJECTED_NOTICE_TEXT;
-  }
-  if (notification.comment?.content) {
-    return notification.comment.content;
-  }
-  if (notification.type === 'like' && notification.post) {
-    const title = getForumPostTitle(notification.post);
-    return title && title !== '无标题' ? `点赞了你的帖子《${title}》` : '点赞了你的帖子';
-  }
-  return '您收到了一条新通知';
-};
-
-const getNotificationSourceLabel = (notification) => {
-  if (notification?.type === 'comment') return '原帖内容：';
-  return '原文内容：';
-};
-
-const getNotificationSourceText = (notification) => {
-  if (notification?.post) {
-    return getForumPostBody(notification.post) || getForumPostTitle(notification.post);
-  }
-  return String(notification?.comment?.content || '').trim();
-};
 
 // 帖子列表预览：保留用户原始排版，溢出交给 CSS 控制。
 const LIST_BODY_PREVIEW_CHAR_LIMIT = 180;
@@ -2723,22 +2289,33 @@ const observeForumLazyImage = (el) => {
 const prepareForumPostForDisplay = (post, index = 0) => {
   const preparedPost = { ...post };
   const isEager = index < 1;
-  const images = getPostImages(preparedPost).slice(0, FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT).map((image, imageIndex) => ({
+  // 全量图列表（单一来源）：列表 RPC 最多只回 4 张（SQL limit 4），横向图片条
+  // 直接渲染它；滚近末尾/打开大图时经 ensureForumPostFullImages 按需补全剩余张数。
+  // eager 仅首帖首图，首屏外开销仍由 LQIP+lazy 承担。
+  const allImages = getPostImages(preparedPost).map((image, imageIndex) => ({
     ...image,
     eager: isEager && imageIndex === 0
   }));
-  const imageCount = Math.max(Number(preparedPost.image_count || 0), images.length);
+  const imageCount = Math.max(Number(preparedPost.image_count || 0), allImages.length);
 
-  preparedPost.displayTitle = extractPostTitle(preparedPost);
+  // 转发帖（post_kind=repost）只存转发留言，原帖经 repost_of_post_id 引用，
+  // 由 ensureQuotedPostsForReposts 回源后在卡片引用框展示；标题先兜底避免"无标题"
+  // （normalizePostListRecord 会把无【】的 content 拆出 title='无标题'，一并排除）
+  const preparedTitle = String(preparedPost.title || '').trim();
+  preparedPost.displayTitle = preparedPost.post_kind === 'repost' && (!preparedTitle || preparedTitle === '无标题')
+    ? '转发动态'
+    : extractPostTitle(preparedPost);
   preparedPost.displayBody = extractPostBody(preparedPost);
   preparedPost.isBodyOverflowLikely = isBodyPreviewOverflowLikely(preparedPost.displayBody);
   preparedPost.tag = normalizeForumTagValue(preparedPost.tag);
   preparedPost.tagLabel = ['news', 'activity'].includes(preparedPost.post_kind)
     ? ''
     : getForumTagLabel(preparedPost.tag);
-  preparedPost.previewImages = images;
-  preparedPost.hasImages = images.length > 0;
+  preparedPost.allImages = allImages;
+  preparedPost.hasImages = allImages.length > 0;
   preparedPost.imageCount = imageCount;
+  // hiddenImageCount = 尚未拉进 allImages 的张数（列表截断所致）；横条末尾"+N 张"占位卡用它
+  preparedPost.hiddenImageCount = Math.max(0, imageCount - allImages.length);
   preparedPost.hasMultipleImages = imageCount > 1;
   preparedPost.imageLoading = index < 1 ? 'eager' : 'lazy';
   return preparedPost;
@@ -2804,18 +2381,107 @@ const persistForumFeedSnapshot = () => {
   });
 };
 
+// 大图浏览器图片匹配键：以原图 URL 为准（列表预览与按需补全的 transforms 不同）
+const forumImageMatchKey = (image) => String(image?.originalUrl || image?.url || '').trim();
+
+const resolveForumViewerStartIndex = (images, target) => {
+  const wanted = forumImageMatchKey(target);
+  if (!wanted) return 0;
+  const at = images.findIndex((image) => forumImageMatchKey(image) === wanted);
+  return at >= 0 ? at : 0;
+};
+
+// 按需补全帖子全量图片（唯一入口，横向图片条滚近末尾与大图打开共用）：
+// 列表 RPC 只回 4 张，超过部分从 forum_post_images 表取。in-flight 去重防滚动抖动重复请求。
+const forumFullImagesInFlight = new Set();
+const ensureForumPostFullImages = async (post) => {
+  if (!post?.id || post?._optimistic) return null;
+  const loadedCount = Array.isArray(post?.allImages) ? post.allImages.length : 0;
+  if (!loadedCount || Number(post?.imageCount || 0) <= loadedCount) return null;
+  if (forumFullImagesInFlight.has(post.id)) return null;
+  forumFullImagesInFlight.add(post.id);
+  try {
+    const result = await getForumPostImages(post.id);
+    if (!result?.ok || !Array.isArray(result.data)) return null;
+    const fullImages = result.data.filter((image) => image?.url);
+    if (fullImages.length <= loadedCount) return null;
+    patchPostImageStats(post, fullImages);
+    return fullImages;
+  } finally {
+    forumFullImagesInFlight.delete(post.id);
+  }
+};
+
+// 横向图片条滚近末尾：补全剩余图片，占位"+N 张"卡随 hiddenImageCount 归零消失
+const handleStripLoadMore = (post) => {
+  void ensureForumPostFullImages(post);
+};
+
 const openForumImageViewer = (post, index = 0) => {
-  const images = Array.isArray(post?.previewImages)
-    ? post.previewImages.filter((image) => image?.url).slice(0, FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT)
-    : [];
-  if (!images.length) return;
-  forumImageViewerImages.value = images;
-  forumImageViewerIndex.value = Math.min(Math.max(Number(index || 0), 0), images.length - 1);
+  const baseImages = (Array.isArray(post?.allImages) ? post.allImages : []).filter((image) => image?.url);
+  if (!baseImages.length) return;
+  const clickedImage = baseImages[Math.min(Math.max(Number(index || 0), 0), baseImages.length - 1)] || null;
+  forumImageViewerImages.value = baseImages;
+  forumImageViewerIndex.value = resolveForumViewerStartIndex(baseImages, clickedImage);
   isForumImageViewerOpen.value = true;
+
+  // 打开时后台补全剩余图片（如有），保持当前查看的图片不动
+  void (async () => {
+    const fullImages = await ensureForumPostFullImages(post);
+    if (!fullImages || !isForumImageViewerOpen.value) return;
+    const current = forumImageViewerImages.value[forumImageViewerIndex.value] || null;
+    forumImageViewerImages.value = fullImages;
+    forumImageViewerIndex.value = resolveForumViewerStartIndex(fullImages, current);
+  })();
+};
+
+// 回填卡片图片统计：forumData 是 shallowRef 且元素为普通对象，
+// 原地改字段 + triggerRef 不会让持有同一引用的 PostCard 重渲染，
+// 必须整体替换数组元素（与 updateOptimisticPost 同款模式）
+const patchPostImageStats = (post, fullImages) => {
+  if (!post?.id || !Array.isArray(fullImages) || !fullImages.length) return;
+  const idx = forumData.value.findIndex((p) => p.id === post.id);
+  if (idx < 0) return;
+  const next = { ...forumData.value[idx] };
+  next.allImages = fullImages;
+  next.imageCount = Math.max(Number(next.imageCount || 0), fullImages.length);
+  next.hiddenImageCount = Math.max(0, next.imageCount - next.allImages.length);
+  const arr = [...forumData.value];
+  arr[idx] = next;
+  forumData.value = arr;
+  triggerRef(forumData);
 };
 
 const closeForumImageViewer = () => {
   isForumImageViewerOpen.value = false;
+};
+
+// —— 转发帖引用回源 ——
+// 转发帖只存转发留言，原帖靠 repost_of_post_id 引用；批量回源逻辑在
+// forum/_shared.js 的 fetchQuotedPostsByIds（与个人空间帖子网格共用，真相源单一）。
+// 这里只负责把回源结果 patch 进 forumData（shallowRef 须整体替换元素）。
+const ensureQuotedPostsForReposts = async () => {
+  const reposts = forumData.value.filter((p) => p.post_kind === 'repost'
+    && p.repost_of_post_id && !p.quotedPost);
+  if (!reposts.length) return;
+  const map = await fetchQuotedPostsByIds(reposts.map((p) => p.repost_of_post_id));
+  if (!map.size) return;
+
+  let dirty = false;
+  const arr = [...forumData.value];
+  forumData.value.forEach((post, idx) => {
+    if (post.post_kind === 'repost' && post.repost_of_post_id && !post.quotedPost) {
+      const row = map.get(String(post.repost_of_post_id));
+      if (row) {
+        arr[idx] = { ...post, quotedPost: row };
+        dirty = true;
+      }
+    }
+  });
+  if (dirty) {
+    forumData.value = arr;
+    triggerRef(forumData);
+  }
 };
 
 const renderSearchExcerpt = (excerpt) => {
@@ -3078,6 +2744,7 @@ const fetchForumData = async (isLoadMore = false, { background = false } = {}) =
         ];
         currentPage.value = pageToLoad;
         prefetchAuthorTiersFor(newPosts);
+        void ensureQuotedPostsForReposts();
       } else {
         // 保留乐观卡（正在后台发送的帖子）在列表顶部，避免刷新将其冲掉
         const optimisticPosts = forumData.value.filter(p=> p._optimistic);
@@ -3087,6 +2754,7 @@ const fetchForumData = async (isLoadMore = false, { background = false } = {}) =
         forumData.value = shouldShowOptimistic ? [...optimisticPosts, ...basePosts.filter(p=> !optimisticPosts.some(o=> o.id===p.id))] : basePosts;
         currentPage.value = 1;
         prefetchAuthorTiersFor(safeRows);
+        void ensureQuotedPostsForReposts();
       }
       nextPageCursor.value = hasNextCursor;
       forumLoadError.value = '';
@@ -3150,8 +2818,6 @@ const openReportPost = (postId) => {
   closeWeeklyReport();
   if (postId) openPostDetail(postId);
 };
-
-// formatDate 已由 formatSmartTime 提供
 
 const modalState = ref({ show: false, type: 'success', title: '', message: '' });
 const isHomeCatActive = computed(() => isHomeCatTheme(currentTheme.value));
@@ -3768,7 +3434,7 @@ const handleDeleteComment = async (comment, post) => {
 const buildPostShareTarget = (post) => ({
   title: String(post?.displayTitle || post?.title || '').replace(/\s+/g, ' ').trim().slice(0, 80),
   summary: String(post?.displayBody || post?.body || '').replace(/\s+/g, ' ').trim().slice(0, 120),
-  image: post?.previewImages?.[0]?.url || post?.cover_image_url || '',
+  image: post?.allImages?.[0]?.url || post?.cover_image_url || '',
   path: `/forum/post/${post.id}`,
   forward: post?.id ? { postId: post.id } : null
 });
@@ -3809,7 +3475,7 @@ const closeQuoteRepost = () => {
 const submitQuoteRepost = async () => {
   const { post, commentary } = quoteRepostState.value;
   if (!post?.id || !String(commentary || '').trim()) return;
-  const result = await createQuoteRepost(post.id, commentary);
+  const result = await createQuoteRepost(post.id, commentary, { senderId: userInfo.id });
   if (!result.ok) {
     showModal('error', '转发失败', result.error?.message || '请稍后重试');
     return;
@@ -3984,22 +3650,6 @@ const openPostDetail = (postId) => {
           <p class="header-subtitle">{{ isAnniversaryMcTheme ? '挖掘旧回忆，继续建造我们的第九年。' : '分享你的创意，连接方块世界。' }}</p>
         </div>
         <div v-if="isAnniversaryMcTheme" class="anniversary-seal" aria-hidden="true"><strong>8</strong><span>周年限定<br>方块主题</span></div>
-
-        <!-- 浮动操作按钮：消息通知 -->
-        <div v-if="isLoggedIn" class="floating-actions-container fade-in-up" style="animation-delay: 0.1s;">
-          <button class="notification-fab" :class="{ 'has-unread': unreadCount > 0 }" @click="toggleNotifications"
-            title="消息通知">
-            <span class="fab-icon">🔔</span>
-            <span v-if="unreadCount > 0" class="fab-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
-          </button>
-
-          <!-- 通知面板 -->
-          <NotificationDrawer v-model:open="showNotifications" :notifications="notifications"
-            :loading="isNotificationsLoading" :unread-count="unreadCount" v-model:type-filter="notificationTypeFilter"
-            :filter-options="NOTIFICATION_FILTER_OPTIONS" :selected-message="selectedMessage"
-            @close="showNotifications = false" @mark-all-read="handleMarkAllAsRead" @select="showDetail"
-            @filter-change="notificationTypeFilter = $event" />
-        </div>
       </header>
 
       <!-- 主要内容区 -->
@@ -4116,8 +3766,8 @@ const openPostDetail = (postId) => {
                     <div class="post-content-v2">
                       <h3 class="post-title-v2">{{ item.post.displayTitle }}</h3>
                       <div v-if="item.post.tagLabel" class="post-card-tags"><span class="post-card-tag">{{ item.post.tagLabel }}</span></div>
-                      <div v-if="item.post.previewImages && item.post.previewImages.length" class="image-post-thumb-grid" :class="['count-'+ Math.min(item.post.previewImages.length, 3)]">
-                        <div v-for="(img, idx) in item.post.previewImages" :key="img.id||img.url" class="image-post-thumb-shell is-loaded" :class="{ 'is-failed-mark': item.post._failedImageIndex===idx && item.post._publishState==='failed' && item.post._failType==='moderation' }">
+                      <div v-if="item.post.allImages && item.post.allImages.length" class="image-post-strip" :class="{ 'is-single': item.post.allImages.length === 1 }">
+                        <div v-for="(img, idx) in item.post.allImages" :key="img.id||img.url" class="image-post-thumb-shell is-loaded" :class="{ 'is-failed-mark': item.post._failedImageIndex===idx && item.post._publishState==='failed' && item.post._failType==='moderation' }">
                           <img :src="img.url" :alt="`图片 ${idx+1}`" class="image-post-thumb is-loaded" style="opacity:.92" />
                           <span v-if="item.post._failedImageIndex===idx && item.post._publishState==='failed' && item.post._failType==='moderation'" class="optimistic-fail-mark">审核未过</span>
                         </div>
@@ -4152,6 +3802,7 @@ const openPostDetail = (postId) => {
                     @open-image-viewer="openForumImageViewer" @update:reply-content="replyContent = $event"
                     @clear-reply-target="handlePostCardClearReplyTarget" @cancel-reply="handlePostCardCancelReply"
                     @image-loaded="markForumImageLoaded" @lazy-image-observe="observeForumLazyImage"
+                    @load-more-images="handleStripLoadMore"
                     @more-replies="openPostDetail" />
                 </div>
               </template>
@@ -4436,67 +4087,6 @@ const openPostDetail = (postId) => {
           </div>
         </section>
       </div>
-    </Teleport>
-
-    <!-- 消息详情抽屉 -->
-    <Teleport to="body">
-      <Transition name="slide-right">
-        <div v-if="selectedMessage" class="x-detail-drawer-overlay" @click="closeDetail">
-          <div class="x-detail-drawer glass-panel" @click.stop>
-            <div class="drawer-header">
-              <button class="back-btn" @click="closeDetail">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                  <line x1="19" y1="12" x2="5" y2="12"></line>
-                  <polyline points="12 19 5 12 12 5"></polyline>
-                </svg>
-              </button>
-              <h3>通知详情</h3>
-            </div>
-            <div class="drawer-content">
-              <div class="detail-user-card">
-                <div class="large-avatar-wrapper">
-                  <img v-if="selectedMessage.sender?.avatar_url" :src="selectedMessage.sender.avatar_url"
-                    class="large-avatar-img" alt="avatar" loading="lazy" />
-                  <div v-else class="large-avatar">
-                    {{ selectedMessage.sender?.username?.charAt(0)?.toUpperCase?.() || 'S' }}
-                  </div>
-                </div>
-                <div class="user-info">
-                  <span class="name">{{ selectedMessage.sender?.username || '系统' }}</span>
-                  <span class="type">{{ getNotificationTypeLabel(selectedMessage.type) }}</span>
-                </div>
-              </div>
-              <div class="detail-body">
-                <h2 class="detail-title">{{ getNotificationTitle(selectedMessage) }}</h2>
-                <p class="main-text">{{ getNotificationContent(selectedMessage) }}</p>
-                <div v-if="selectedMessage.type === 'comment' || selectedMessage.type === 'like'"
-                  class="source-content">
-                  <span class="source-label">{{ getNotificationSourceLabel(selectedMessage) }}</span>
-                  <p class="source-text">{{ getNotificationSourceText(selectedMessage) }}</p>
-                </div>
-                <span class="full-date">{{ new Date(selectedMessage.created_at).toLocaleString('zh-CN', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                }) }}</span>
-              </div>
-              <div v-if="canRetryModerationNotification(selectedMessage)" class="notification-actions">
-                <button class="notif-action-btn retry" @click="retryRejectedPostFromNotification"
-                  :disabled="isRetryingSelectedNotification">
-                  {{ isRetryingSelectedNotification ? '重试中...' : '重试一次' }}
-                </button>
-              </div>
-              <div v-if="canOpenNotificationSource(selectedMessage)" class="notification-actions">
-                <button class="notif-action-btn" @click="goToNotificationSource">
-                  查看原帖
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Transition>
     </Teleport>
   </div>
 </template>

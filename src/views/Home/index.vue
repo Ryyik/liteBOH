@@ -16,9 +16,7 @@
         <HomeHeroRow
           v-for="(hero, heroIndex) in visibleHeroes"
           :key="(hero.template === 'builtin' ? 'builtin:' + hero.builtin_key : hero.id) + ':' + hero.sort_order"
-          :eager="heroIndex === 0"
           :layout="heroLayout(hero)"
-          :intrinsic="heroIntrinsicKey(hero)"
           :aria-label="hero.aria_label || hero.label || hero.title"
           :id="hero.builtin_key === 'split-brand-letter' ? 'ryyik-letter' : undefined"
         >
@@ -424,12 +422,6 @@ const heroLayout = (hero) => {
   }
   return hero.template === 'split' ? 'split' : 'full';
 };
-
-// 行占位高度镜像 key：builtin 用 builtin_key，动态 hero 用 template。
-// HomeHeroRow.vue 内的 [data-intrinsic] 映射表按此 key 决定 --row-intrinsic。
-const heroIntrinsicKey = (hero) => (
-  hero.template === 'builtin' ? (hero.builtin_key || '') : (hero.template || '')
-);
 
 const formatAnniversaryExpiry = (value) => {
   const date = new Date(value || '');

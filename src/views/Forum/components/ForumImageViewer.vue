@@ -207,6 +207,21 @@ watch(() => props.initialIndex, (newIndex) => {
   currentIndex.value = Math.min(Math.max(Number(newIndex || 0), 0), Math.max(0, props.images.length - 1));
 });
 
+// 打开期间图片列表可能被按需补全（列表接口只回 4 张预览，翻页前补全量）：
+// 以原图 URL 对齐，保持当前查看的图片不动，仅更新索引与总张数
+watch(() => props.images, (next, prev) => {
+  if (!Array.isArray(next) || !next.length || next === prev) return;
+  const current = Array.isArray(prev) ? prev[currentIndex.value] : null;
+  const wanted = String(current?.originalUrl || current?.url || '').trim();
+  let at = -1;
+  if (wanted) {
+    at = next.findIndex((img) => String(img?.originalUrl || img?.url || '').trim() === wanted);
+  }
+  resetTransform();
+  isLoading.value = true;
+  currentIndex.value = at >= 0 ? at : Math.min(currentIndex.value, next.length - 1);
+});
+
 watch(() => props.open, (isOpen) => {
   if (isOpen) {
     document.body.style.overflow = 'hidden';

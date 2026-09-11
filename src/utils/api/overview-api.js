@@ -18,7 +18,13 @@ const normalizeItem = (raw) => {
     authorAvatar: raw.author_avatar || '',
     publishedAt: raw.published_at || null,
     image: raw.image || '',
-    category: String(raw.category ?? '').trim()
+    category: String(raw.category ?? '').trim(),
+    // 摘要卡排版（2026091103）：转发徽标 + 多图并排横排
+    isRepost: Boolean(raw.is_repost),
+    imageCount: Number(raw.image_count) || 0,
+    images: Array.isArray(raw.images)
+      ? raw.images.map((u) => String(u || '').trim()).filter(Boolean)
+      : []
   };
 };
 

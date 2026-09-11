@@ -735,6 +735,135 @@
   transform: translateY(-1px);
 }
 
+/* ===== 转发帖引用框（与 PostCard 的 quoted-post-box 同款设计） ===== */
+.quoted-post-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  width: 100%;
+  margin: 14px 0 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--detail-line);
+  border-radius: 14px;
+  background: var(--detail-soft, rgba(246, 248, 250, 0.88));
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease;
+}
+
+.quoted-post-box:hover {
+  border-color: rgba(0, 113, 227, 0.35);
+}
+
+.quoted-post-author {
+  font-size: 12.5px;
+  font-weight: 750;
+  color: var(--detail-muted, #687386);
+}
+
+.quoted-post-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--detail-ink, #111827);
+  line-height: 1.4;
+}
+
+.quoted-post-body {
+  font-size: 13.5px;
+  color: #4a5560;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 引用框随原帖作者订阅层级显示卡色（与帖子卡片 tier 微色调同源） */
+.quoted-post-box.tier-plus { background: rgba(245, 250, 255, 0.95); }
+.quoted-post-box.tier-pro { background: rgba(250, 248, 240, 0.95); }
+.quoted-post-box.tier-max { background: rgba(245, 246, 250, 0.95); }
+.quoted-post-box.tier-ultra { background: rgba(252, 245, 248, 0.95); }
+
+/* ===== 官方镜像卡完整正文（新闻富文本 / 活动段落） =====
+   排版口径与 ContentDetailIsland 的 cdi-rich 一致，字号沿用本页 .content-text 档 */
+.official-rich-content {
+  font-size: clamp(16px, 1.2vw, 18px);
+  line-height: 1.78;
+  color: #2f3745;
+  word-break: break-word;
+}
+
+.official-rich-content :deep(h1),
+.official-rich-content :deep(h2),
+.official-rich-content :deep(h3),
+.official-rich-content :deep(h4),
+.official-rich-content :deep(h5),
+.official-rich-content :deep(h6) {
+  margin: 1.15em 0 0.5em;
+  color: #111827;
+  line-height: 1.35;
+}
+
+.official-rich-content :deep(h1) { font-size: 1.3em; }
+.official-rich-content :deep(h2) { font-size: 1.18em; }
+.official-rich-content :deep(h3),
+.official-rich-content :deep(h4) { font-size: 1.06em; }
+
+.official-rich-content :deep(p) { margin: 0 0 0.9em; }
+.official-rich-content :deep(p:last-child) { margin-bottom: 0; }
+
+.official-rich-content :deep(ul),
+.official-rich-content :deep(ol) { margin: 0 0 0.9em; padding-left: 1.5em; }
+.official-rich-content :deep(li) { margin-bottom: 0.35em; }
+
+.official-rich-content :deep(blockquote) {
+  margin: 0.95em 0;
+  padding: 0.55em 0.95em;
+  border-left: 3px solid rgba(0, 113, 227, 0.35);
+  border-radius: 8px;
+  color: #475369;
+  background: rgba(0, 113, 227, 0.06);
+}
+
+.official-rich-content :deep(a) {
+  color: #0071e3;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.official-rich-content :deep(code) {
+  padding: 0.1em 0.4em;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.06);
+  font-size: 0.92em;
+}
+
+.official-rich-content :deep(pre) {
+  overflow-x: auto;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.official-rich-content :deep(pre code) { padding: 0; background: none; }
+
+.official-rich-content :deep(hr) {
+  margin: 1.15em 0;
+  border: none;
+  border-top: 1px solid rgba(100, 116, 139, 0.16);
+}
+
+.official-paragraph-content p {
+  margin: 0 0 0.9em;
+  font-size: clamp(17px, 1.28vw, 19px);
+  line-height: 1.82;
+  color: #2f3745;
+  white-space: pre-wrap;
+}
+
+.official-paragraph-content p:last-child { margin-bottom: 0; }
+
 .post-footer {
   max-width: 920px;
   border-top: 1px solid var(--detail-line);

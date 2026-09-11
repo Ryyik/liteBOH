@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { getImageUrl } from '@/utils/asset-helper.js';
+import { resolveFrameForAuthor } from '@/composables/useAvatarFrame.js';
 import { Check, Heart, Image as ImageIcon, MessageCircle, Share2 } from 'lucide-vue-next';
 import UserCenterPageHeader from '../../components/UserCenterPageHeader.vue';
 import CommentThread from './components/CommentThread.vue';
@@ -26,6 +27,8 @@ import {
   updateForumPostImages
 } from '../../utils/api/forum-api.js';
 import { uploadForumImage } from '../../utils/api/forum-images-api.js';
+import DOMPurify from '@/utils/dompurify.js';
+import { NEWS_SANITIZE_OPTIONS } from '../Newsroom/news-shared.js';
 import { FORUM_POST_IMAGE_MAX_COUNT, FORUM_TAG_OPTIONS } from '../Forum/forum-config.js';
 import { normalizeForumTag, normalizeForumImage, resolveStoredCoverUrl } from '../../utils/api/forum-format.js';
 import { supabase } from '../../utils/supabase-client.js';
@@ -51,6 +54,11 @@ const postId = computed(() => route.params.id);
 // const emit = defineEmits(['island-message']);
 
 const post = ref(null);
+// 官方镜像卡（新闻/活动）回源正文：posts.content 只存【标题】+摘要，
+// 完整原文在 news.content（富文本）/ activities.description（纯文本段落）
+const officialContent = ref({ type: '', html: '', paragraphs: [] });
+// 转发帖引用的原帖（repost_of_post_id 回源），渲染引用框
+const quotedPost = ref(null);
 // 官方卡（新闻/活动镜像）：作者「方块之家」无账号，头像用站点 logo
 const OFFICIAL_AUTHOR_NAME = '方块之家';
 const isOfficialCard = computed(() => {
@@ -62,6 +70,11 @@ const authorAvatarSrc = computed(() => (
   isOfficialCard.value && !post.value?.author_avatar_url
     ? getImageUrl('favicon.webp', { silent: true })
     : post.value?.author_avatar_url || ''
+));
+const authorFrame = computed(() => (
+  isOfficialCard.value
+    ? null
+    : resolveFrameForAuthor(post.value?.author_avatar_frame_url, post.value?.author_id)
 ));
 const isLoading = ref(true);
 const isReplySubmitting = ref(false);
@@ -200,7 +213,46 @@ const displayContent = computed(() => {
   if (!isContentLong.value || isExpanded.value) return bodyText;
   return bodyText.substring(0, CONTENT_LIMIT) + '...';
 });
-const postTitle = computed(() => extractPostTitle(post.value));
+const postTitle = computed(() => (
+  post.value?.post_kind === 'repost' && !String(post.value?.title || '').trim()
+    ? '转发动态'
+    : extractPostTitle(post.value)
+));
+// 被转发的原帖摘录（引用框用）
+const quotedTitle = computed(() => {
+  const q = quotedPost.value;
+  if (!q) return '';
+  return String(q.title || '').trim()
+    || String(q.content || '').trim().match(/【(.*?)】/)?.[1]
+    || '';
+});
+const quotedBody = computed(() => {
+  const q = quotedPost.value;
+  if (!q) return '';
+  // 只显示真正的正文：纯标题原帖剥空后不回退标题（标题行已展示，避免同文重复）
+  const raw = String(q.body || '').trim()
+    || String(q.content || '').trim();
+  const stripped = raw.replace(/【.*?】\n?/, '').trim();
+  if (!stripped) return '';
+  return stripped.length > 160 ? `${stripped.slice(0, 160)}…` : stripped;
+});
+const goToQuotedPost = () => {
+  const id = quotedPost.value?.id;
+  if (id) router.push(`/forum/post/${id}`);
+};
+// 引用框随原帖作者订阅层级显示卡色
+const quotedTierCode = ref('');
+const quotedNickClass = ref('');
+watch(() => quotedPost.value?.author_id, async (id) => {
+  if (!id) {
+    quotedTierCode.value = '';
+    quotedNickClass.value = '';
+    return;
+  }
+  const tier = await fetchUserTier(id);
+  quotedTierCode.value = ['plus', 'pro', 'max', 'ultra'].includes(tier) ? tier : '';
+  quotedNickClass.value = getNicknameClass(id);
+}, { immediate: true });
 const canManagePost = computed(() => Boolean(
   isLoggedIn.value
   && post.value
@@ -836,9 +888,81 @@ const buildCoverFallbackImage = (postData) => {
   }, { variant: 'detail' });
 };
 
+// ===== 官方镜像卡正文回源 =====
+// 论坛官方卡是新闻/活动的镜像帖，posts.content 只带摘要；
+// 详情页按 source_type + source_id 回原表取完整正文（缺 source_id 的旧卡按标题兜底，
+// 与 Forum 的 hydrateOfficialPostKinds 同口径）。
+const OFFICIAL_SOURCE_SELECTS = {
+  news: 'id, title, content, image',
+  activity: 'id, title, description, image'
+};
+
+const fetchOfficialSourceRow = async (sourceType, sourceId, title) => {
+  const table = sourceType === 'news' ? 'news' : 'activities';
+  const select = OFFICIAL_SOURCE_SELECTS[sourceType];
+  const safeSourceId = String(sourceId || '').trim();
+  if (safeSourceId) {
+    const { data } = await supabase.from(table).select(select).eq('id', safeSourceId).maybeSingle();
+    if (data) return data;
+  }
+  const safeTitle = String(title || '').trim();
+  if (safeTitle && safeTitle !== '无标题') {
+    const { data } = await supabase.from(table).select(select).eq('title', safeTitle).limit(1).maybeSingle();
+    if (data) return data;
+  }
+  return null;
+};
+
+const hydrateOfficialSourceContent = async (requestSeq, postRow) => {
+  try {
+    const sourceType = String(postRow?.source_type || '').trim().toLowerCase()
+      || String(postRow?.post_kind || '').trim().toLowerCase();
+    if (sourceType !== 'news' && sourceType !== 'activity') return;
+    const row = await fetchOfficialSourceRow(sourceType, postRow?.source_id, extractPostTitle(postRow));
+    if (requestSeq !== detailFetchSeq || !row) return;
+    if (sourceType === 'news') {
+      officialContent.value = {
+        type: 'news',
+        html: DOMPurify.sanitize(String(row.content || ''), NEWS_SANITIZE_OPTIONS),
+        paragraphs: []
+      };
+    } else {
+      officialContent.value = {
+        type: 'activity',
+        html: '',
+        paragraphs: String(row.description || '')
+          .split(/\r?\n+/)
+          .map((part) => part.trim())
+          .filter(Boolean)
+      };
+    }
+
+    // 官方卡封面回源：镜像帖缺 cover_image_url（或解析失败）时详情页图区为空，
+    // 用原表 image 补上（老数据是 @/assets 引用，须先解析成打包 URL）
+    const currentPost = post.value;
+    if (currentPost && requestSeq === detailFetchSeq
+      && !(Array.isArray(currentPost.images) && currentPost.images.length)) {
+      const rawCover = resolveStoredCoverUrl(row.image || '');
+      if (rawCover) {
+        currentPost.images = [normalizeForumImage({
+          id: `${String(currentPost.id || 'post').trim()}-official-cover`,
+          url: rawCover,
+          sortOrder: 0
+        }, { variant: 'detail' })];
+        detailImageIndex.value = 0;
+      }
+    }
+  } catch (error) {
+    // 回源失败降级为摘要展示，不打断详情页
+    logger.error('post-detail', '官方卡正文回源失败:', error);
+  }
+};
+
 const fetchPostDetail = async () => {
   const requestSeq = ++detailFetchSeq;
   isLoading.value = true;
+  officialContent.value = { type: '', html: '', paragraphs: [] };
+  quotedPost.value = null;
   try {
     const currentUserId = getCurrentUserId();
     const isAdmin = Boolean(isLoggedIn.value && userInfo.role === 'admin');
@@ -847,7 +971,7 @@ const fetchPostDetail = async () => {
       .from('posts')
       .select(`
         *,
-        author:author_id(avatar_url)
+        author:author_id(avatar_url, avatar_frame_url)
       `)
       .eq('id', postId.value);
 
@@ -882,10 +1006,32 @@ const fetchPostDetail = async () => {
         comment_count: Number(data.comment_count || 0),
         like_count: Number(data.like_count || 0),
         author_avatar_url: data.author?.avatar_url,
+        author_avatar_frame_url: data.author?.avatar_frame_url || null,
         images: coverFallback ? [coverFallback] : fetchedImages
       };
       detailImageIndex.value = 0;
       isLoading.value = false;
+
+      // 官方镜像卡：后台回源完整正文（不阻塞首屏，失败降级为摘要）
+      void hydrateOfficialSourceContent(requestSeq, post.value);
+
+      // 转发帖：回源被引用的原帖（引用框展示）
+      if (data.post_kind === 'repost' && data.repost_of_post_id) {
+        const quotedId = String(data.repost_of_post_id);
+        void (async () => {
+          try {
+            const { data: quotedRow } = await supabase
+              .from('posts')
+              .select('id, title, body, content, author_id, author_username, created_at')
+              .eq('id', quotedId)
+              .maybeSingle();
+            if (requestSeq !== detailFetchSeq || !quotedRow) return;
+            quotedPost.value = quotedRow;
+          } catch (error) {
+            logger.warn('post-detail', '转发原帖回源失败（引用框降级隐藏）', error);
+          }
+        })();
+      }
 
       resetCommentState();
       void (async () => {
@@ -941,10 +1087,12 @@ onUnmounted(() => {
   closeConfirm(false);
 });
 
-watch(
+  watch(
   () => route.params.id,
   () => {
     post.value = null;
+    officialContent.value = { type: '', html: '', paragraphs: [] };
+    quotedPost.value = null;
     activeReplyId.value = null;
     replyToUser.value = null;
     activeReplyQuote.value = '';
@@ -1641,11 +1789,16 @@ const handleChangeCommentSortMode = async (mode) => {
                 :seed="`${post.id}:detail`" size="md" decorative />
               <div class="post-header">
                 <div class="author-section" @click="isOfficialCard ? undefined : goToProfile(post.author_username)">
-                  <div class="author-avatar" :class="{ 'is-official': isOfficialCard }">
-                    <img v-if="authorAvatarSrc" :src="authorAvatarSrc" alt="作者头像" class="avatar-image"
-                      loading="lazy" />
-                    <span v-else>{{ post.author_username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
-                  </div>
+                  <span class="boh-avatar-wrap">
+                    <div class="author-avatar" :class="{ 'is-official': isOfficialCard }">
+                      <img v-if="authorAvatarSrc" :src="authorAvatarSrc" alt="作者头像" class="avatar-image"
+                        loading="lazy" />
+                      <span v-else>{{ post.author_username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
+                    </div>
+                    <span v-if="authorFrame" class="boh-avatar-frame"
+                      :style="{ '--boh-avatar-frame-url': `url(${authorFrame.url})`, '--boh-avatar-frame-scale': String(authorFrame.scale) }"
+                      aria-hidden="true"></span>
+                  </span>
                   <div class="author-meta">
                     <span class="author-name" :class="authorTierClass">@{{ post.author_username }}</span>
                     <span class="post-time">{{ formatDate(post.created_at) }}</span>
@@ -1686,11 +1839,32 @@ const handleChangeCommentSortMode = async (mode) => {
                   <span v-if="post.status === 'limited'" class="post-status-pill limited">仅自己可见</span>
                 </h2>
                 <div class="content-wrapper">
-                  <p class="content-text">{{ displayContent }}</p>
-                  <button v-if="isContentLong" class="expand-btn" @click="toggleExpand">
-                    {{ isExpanded ? '收起全文' : '展开全文' }}
-                  </button>
+                  <!-- 官方镜像卡（新闻/活动）：回源后渲染完整原文（新闻=富文本 / 活动=段落）；
+                       回源前与失败时降级为普通摘要展示 -->
+                  <div v-if="officialContent.type === 'news' && officialContent.html"
+                    class="official-rich-content" aria-label="新闻完整内容">
+                    <!-- eslint-disable-next-line vue/no-v-html -->
+                    <div v-html="officialContent.html"></div>
+                  </div>
+                  <div v-else-if="officialContent.type === 'activity' && officialContent.paragraphs.length"
+                    class="official-paragraph-content" aria-label="活动完整介绍">
+                    <p v-for="(para, paraIndex) in officialContent.paragraphs" :key="paraIndex">{{ para }}</p>
+                  </div>
+                  <template v-else>
+                    <p class="content-text">{{ displayContent }}</p>
+                    <button v-if="isContentLong" class="expand-btn" @click="toggleExpand">
+                      {{ isExpanded ? '收起全文' : '展开全文' }}
+                    </button>
+                  </template>
                 </div>
+                <!-- 转发帖引用框：点击进入被转发的原帖 -->
+                <button v-if="quotedPost" type="button" class="quoted-post-box"
+                  :class="[quotedTierCode ? `tier-${quotedTierCode}` : '']" aria-label="查看被转发的原帖"
+                  @click="goToQuotedPost">
+                  <span class="quoted-post-author" :class="quotedNickClass">@{{ quotedPost.author_username || '方块之家' }}</span>
+                  <span v-if="quotedTitle" class="quoted-post-title">{{ quotedTitle }}</span>
+                  <span v-if="quotedBody" class="quoted-post-body">{{ quotedBody }}</span>
+                </button>
                 <div v-if="detailImages.length" class="post-detail-image-carousel">
                   <div class="post-detail-image-stage">
                     <transition name="detail-image-fade" mode="out-in">

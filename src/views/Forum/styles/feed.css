@@ -364,9 +364,10 @@
 }
 
 /* Post Card V2 */
+/* 不用 content-visibility:auto：iOS Safari WebKit bug 321501 会让滚入视口的卡片
+   保持过期零高度布局（整卡空白不自愈），318216 造成反复重排卡顿。列表侧已有
+   虚拟窗口（useForumVirtualFeed）+ 分页兜底性能。 */
 .post-card-v2 {
-  content-visibility: auto;
-  contain-intrinsic-size: 0 360px;
   padding: 24px;
   background: rgba(255, 255, 255, 0.86);
   margin-bottom: 16px;
@@ -597,7 +598,9 @@
   flex: 1;
   min-height: 0;
   padding: 14px 0 0;
-  overflow: hidden;
+  /* 由 hidden 放开：横向图片条通栏贴卡片边（wrap 负 margin）会被 hidden 裁掉；
+     内容自身已有 min-width:0 + 行内截断兜底，不依赖裁剪 */
+  overflow: visible;
 }
 
 .image-post-card-v2 .post-title-v2,
@@ -611,73 +614,128 @@
   -webkit-line-clamp: 2;
 }
 
-.image-post-thumb-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 8px;
-  margin: 16px 0 18px;
-  width: min(100%, 620px);
-  min-width: 0;
-  max-width: 620px;
-  max-height: 420px;
+/* —— 帖子图片横向排列（strip）——
+   全部图片帖统一横向滚动排列（替代旧网格/双行）：
+   - 左侧留 14px 呼吸缝、右侧通栏贴卡片边（wrap 负 margin 抵消卡片 24px 内边距，
+     移动端 16px）——露出的下一张贴右缘，"往右还有"的信号 + 左侧呼吸感；
+   - 每张约 48% 宽、露出下一张约一半 —— 明确"可横滑"的信号；
+   - 上方分段横条指示器（小横条靠左）随滑动高亮，可点击跳转；右上角 n/N 胶囊；
+   - 末尾 hiddenImageCount>0 时渲染"+N 张"占位卡，滚近自动补全全量图。 */
+.image-post-strip-wrap {
   position: relative;
+  width: auto;
+  min-width: 0;
+  /* 左缝 14px：-(24-14)；右缘贴边：-24 */
+  margin: 16px -24px 18px -10px;
 }
 
-.image-post-thumb-grid.count-1 {
-  max-width: 560px;
-  max-height: 315px;
+.image-post-strip {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  /* 滚动条隐藏：滑动暗示由露边 + n/N 指示胶囊承担 */
+  scrollbar-width: none;
+}
+.image-post-strip::-webkit-scrollbar { display: none; }
+
+.image-post-strip .image-post-thumb-shell {
+  flex: 0 0 auto;
+  width: clamp(200px, 48%, 340px);
   aspect-ratio: 4 / 3;
-  grid-template-columns: minmax(0, 1fr);
+  height: auto;
+  scroll-snap-align: start;
+  z-index: auto;
 }
 
-.image-post-thumb-grid.count-2 {
-  max-width: 620px;
-  aspect-ratio: 4 / 3;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+/* 单图帖：保持接近旧 count-1 的全宽观感 */
+.image-post-strip.is-single {
+  scroll-snap-type: none;
+}
+.image-post-strip.is-single .image-post-thumb-shell {
+  width: 100%;
+  aspect-ratio: 16 / 9;
 }
 
-.image-post-thumb-grid.count-3 {
-  max-width: 620px;
-  aspect-ratio: 4 / 3;
-  grid-template-columns: 1.2fr 1fr;
-  grid-template-rows: repeat(2, minmax(0, 1fr));
+/* 分段横条位置指示（图条上方）：小横条靠左排列，随滑动高亮当前段，可点击跳转 */
+.image-strip-dots {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  margin-bottom: 8px;
 }
 
-.image-post-thumb-grid.count-4 {
-  max-width: 620px;
-  aspect-ratio: 16 / 10;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(2, minmax(0, 1fr));
+.image-strip-dot {
+  flex: none;
+  width: 16px;
+  height: 3px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.15);
+  cursor: pointer;
+  transition: background-color 0.2s ease;
 }
 
-.image-post-thumb-grid.is-multi-image {
-  padding-right: 0;
-  padding-bottom: 0;
+.image-strip-dot:hover {
+  background: rgba(15, 23, 42, 0.3);
 }
 
-.image-post-thumb-grid.is-multi-image::before,
-.image-post-thumb-grid.is-multi-image::after {
-  content: "";
+.image-strip-dot.is-active {
+  background: #1d1d1f;
+}
+
+/* n/N 位置指示胶囊：随横向滚动更新，弥补无滚动条的滑动暗示 */
+.image-strip-indicator {
   position: absolute;
-  inset: auto 0 0 12px;
-  height: calc(100% - 12px);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.84);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+  top: 10px;
+  right: 10px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.55);
+  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(12px));
+  backdrop-filter: var(--liquid-filter-sm, blur(12px));
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
   pointer-events: none;
-  display: none;
+  user-select: none;
 }
 
-.image-post-thumb-grid.is-multi-image::before {
-  z-index: 0;
-  transform: translate(6px, 6px);
+/* 末尾"+N 张"占位卡：与缩略图同宽，滚近时触发补全，补全后消失 */
+.image-post-strip-more {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: clamp(110px, 38%, 180px);
+  aspect-ratio: 4 / 3;
+  border-radius: 16px;
+  border: 1px dashed rgba(15, 23, 42, 0.18);
+  background: rgba(244, 247, 251, 0.72);
+  color: #5b6774;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1;
+  scroll-snap-align: start;
+  user-select: none;
 }
-
-.image-post-thumb-grid.is-multi-image::after {
-  z-index: 1;
-  transform: translate(12px, 12px);
-  opacity: 0.7;
+.image-post-strip-more .image-post-strip-more-num {
+  font-size: 22px;
+  font-weight: 850;
+  color: #2f3745;
 }
 
 .image-post-thumb-shell {
@@ -690,25 +748,8 @@
   background: #eef2f7;
   border: 1px solid rgba(15, 23, 42, 0.08);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
-  z-index: 2;
   padding: 0;
   cursor: zoom-in;
-}
-
-.image-post-thumb-grid.count-1 .image-post-thumb-shell {
-  aspect-ratio: 16 / 9;
-}
-
-.image-post-thumb-grid.count-2 .image-post-thumb-shell,
-.image-post-thumb-grid.count-3 .image-post-thumb-shell,
-.image-post-thumb-grid.count-4 .image-post-thumb-shell {
-  height: 100%;
-  min-height: 0;
-  aspect-ratio: auto;
-}
-
-.image-post-thumb-grid.count-3 .image-post-thumb-shell:first-child {
-  grid-row: span 2;
 }
 
 .image-post-thumb-shell::before {
@@ -793,27 +834,84 @@
   opacity: 0;
 }
 
-.image-post-count-badge {
-  position: absolute;
-  right: 22px;
-  bottom: 22px;
-  z-index: 4;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 30px;
-  min-height: 28px;
-  padding: 6px 8px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(15, 23, 42, 0.1);
-  color: #3f4a56;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1;
-  white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(15, 20, 25, 0.08);
+/* 转发帖引用框：转发文字在上，原帖（作者+标题+摘录）框式展示，点击进原帖 */
+.quoted-post-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  margin: 12px 0 2px;
+  padding: 10px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  background: rgba(246, 248, 250, 0.88);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease;
 }
+
+.quoted-post-box:hover {
+  background: rgba(238, 242, 247, 0.96);
+  border-color: rgba(15, 23, 42, 0.16);
+}
+
+.quoted-post-author {
+  font-size: 12px;
+  font-weight: 750;
+  color: #5b6774;
+}
+
+.quoted-post-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1d1d1f;
+  line-height: 1.4;
+}
+
+.quoted-post-body {
+  font-size: 13px;
+  color: #4a5560;
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+[data-theme="dark"] .quoted-post-box {
+  background: rgba(38, 42, 52, 0.6);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .quoted-post-box:hover {
+  background: rgba(48, 53, 65, 0.75);
+}
+
+[data-theme="dark"] .quoted-post-author {
+  color: #98a2ad;
+}
+
+[data-theme="dark"] .quoted-post-title {
+  color: #f2f4f7;
+}
+
+[data-theme="dark"] .quoted-post-body {
+  color: #c3cad2;
+}
+
+/* 引用框随原帖作者订阅层级显示卡色（与帖子卡片 tier 微色调同源） */
+.quoted-post-box.tier-plus { background: rgba(245, 250, 255, 0.95); }
+.quoted-post-box.tier-pro { background: rgba(250, 248, 240, 0.95); }
+.quoted-post-box.tier-max { background: rgba(245, 246, 250, 0.95); }
+.quoted-post-box.tier-ultra { background: rgba(252, 245, 248, 0.95); }
+
+[data-theme="dark"] .quoted-post-box.tier-plus { background: rgba(28, 42, 62, 0.6); }
+[data-theme="dark"] .quoted-post-box.tier-pro { background: rgba(60, 53, 30, 0.55); }
+[data-theme="dark"] .quoted-post-box.tier-max { background: rgba(32, 42, 62, 0.6); }
+[data-theme="dark"] .quoted-post-box.tier-ultra { background: rgba(60, 32, 45, 0.55); }
+
+/* 旧 count-badge 已随网格布局移除，统一由 .image-post-strip-more 承担 */
 
 @keyframes imageLoadingSpin {
   to {

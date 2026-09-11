@@ -34,7 +34,9 @@ let total = 0;
 for (const rel of files) {
   const norm = relative(ROOT, join(ROOT, rel)).replace(/\\/g, '/');
   if (WHITELIST.some((w) => norm.startsWith(w))) continue;
-  const text = readFileSync(join(ROOT, rel), 'utf-8');
+  const abs = join(ROOT, rel);
+  if (!existsSync(abs)) continue; // 文件已删除：视为削减，跳过
+  const text = readFileSync(abs, 'utf-8');
   const n = (text.match(/!important/g) || []).length;
   if (n > 0) {
     counts[norm] = n;

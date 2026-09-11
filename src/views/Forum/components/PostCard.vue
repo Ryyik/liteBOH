@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue';
 import { useUserTier } from '@/composables/useUserTier.js';
+import { resolveFrameForAuthor } from '@/composables/useAvatarFrame.js';
 import { useTierMap } from '@/composables/useTierMap.js';
 import {
   Check,
@@ -15,7 +16,6 @@ import { getHomeCatAsset, getHomeCatTypeBySeed } from '@/utils/home-cat-theme.js
 import { formatSmartTime } from '@/utils/time.js';
 import { getAvatarUrl } from '@/utils/avatar.js';
 import { getImageUrl } from '@/utils/asset-helper.js';
-import { FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT } from '../forum-config.js';
 
 const props = defineProps({
   post: { type: Object, required: true },
@@ -53,10 +53,31 @@ const emit = defineEmits([
   'cancel-reply',
   'image-loaded',
   'lazy-image-observe',
-  'more-replies'
+  'more-replies',
+  'load-more-images'
 ]);
 
 const formatDate = formatSmartTime;
+
+// 转发帖引用框：原帖标题/摘录（原帖数据由 ForumMain ensureQuotedPostsForReposts 回源注入）
+const quotedTitle = computed(() => {
+  const q = props.post?.quotedPost;
+  if (!q) return '';
+  return String(q.title || '').trim()
+    || String(q.content || '').trim().match(/【(.*?)】/)?.[1]
+    || '';
+});
+const quotedBody = computed(() => {
+  const q = props.post?.quotedPost;
+  if (!q) return '';
+  // 只显示真正的正文：纯标题原帖（body 空、content 只有【标题】行）剥空后
+  // 不回退标题——标题行已展示原帖标题，回退会造成同文重复
+  const raw = String(q.body || '').trim()
+    || String(q.content || '').trim();
+  const stripped = raw.replace(/【.*?】\n?/, '').trim();
+  if (!stripped) return '';
+  return stripped.length > 120 ? `${stripped.slice(0, 120)}…` : stripped;
+});
 
 // 官方卡（新闻/活动镜像）：author_id 为空、作者固定「方块之家」，头像用站点 logo
 const OFFICIAL_AUTHOR_NAME = '方块之家';
@@ -70,6 +91,20 @@ const authorAvatarSrc = computed(() => (
     ? getImageUrl('favicon.webp', { silent: true })
     : getAvatarUrl(props.post?.author_avatar_url, 'sm')
 ));
+
+// 头像框：官方卡不渲染；作者=自己时走本地佩戴状态，他人走数据字段（Phase 2）
+const authorFrame = computed(() => (
+  isOfficialCard.value
+    ? null
+    : resolveFrameForAuthor(props.post?.author_avatar_frame_url, props.post?.author_id)
+));
+const replyFrameMap = computed(() => {
+  const map = new Map();
+  for (const reply of (props.post?.replies || [])) {
+    map.set(reply.id, resolveFrameForAuthor(reply.author_avatar_frame_url, reply.author_id));
+  }
+  return map;
+});
 
 const escapeHtml = (value) => String(value || '')
   .replace(/&/g, '&amp;')
@@ -132,6 +167,83 @@ const onLazyImageRef = (el) => {
   if (el) nextTick(() => emit('lazy-image-observe', el));
 };
 
+// 横向图片条当前页序（n/N 指示胶囊用）
+const stripIndex = ref(0);
+// 点击分段横条时若图片尚未补全，先记下目标段，等 allImages 补全后统一滚动
+const pendingStripScrollIndex = ref(-1);
+
+// 点击跳转的高亮锁定：平滑滚动期间 scroll 折算与"到底修正"会瞬时覆盖目标段，
+// 锁定窗口（≥ smooth 滚动时长）内高亮恒为目标段
+let stripLockIndex = -1;
+let stripLockTimer = null;
+const lockStripIndex = (index) => {
+  stripLockIndex = index;
+  stripIndex.value = index;
+  if (stripLockTimer) clearTimeout(stripLockTimer);
+  stripLockTimer = setTimeout(() => {
+    stripLockIndex = -1;
+    stripLockTimer = null;
+  }, 900);
+};
+
+// 滚动跟随：更新分段横条页序；滚近右端（或整条即可见全量时）触发补全剩余图片，
+// 防抖由宿主 ForumMain 的 in-flight 去重承担
+const onStripScroll = (post, event) => {
+  const el = event?.target;
+  if (!el) return;
+  if (stripLockIndex >= 0) return;
+  const total = Math.max(1, Number(post?.imageCount || 1));
+  if (post?.hasMultipleImages) {
+    // 高亮跟随：按格折算（scrollLeft / 单张步长），但滚动上限 = 总宽 - 视口宽，
+    // 视口能同时容纳多张时按格折算永远到不了末段——所以"接近最右"时强制点亮末段。
+    const shell = el.querySelector('.image-post-thumb-shell');
+    const gap = parseFloat(getComputedStyle(el).columnGap) || 10;
+    const step = shell ? shell.offsetWidth + gap : 1;
+    let nextIndex = Math.round(el.scrollLeft / step);
+    if (el.scrollLeft + el.clientWidth >= el.scrollWidth - 8) {
+      nextIndex = total - 1;
+    }
+    nextIndex = Math.min(Math.max(nextIndex, 0), total - 1);
+    if (nextIndex !== stripIndex.value) stripIndex.value = nextIndex;
+  }
+  if (!post?.hiddenImageCount) return;
+  if (el.scrollLeft + el.clientWidth >= el.scrollWidth - 90) {
+    emit('load-more-images', post);
+  }
+};
+
+const scrollToStripIndex = (strip, targetIndex) => {
+  // 用目标 shell 的真实 offsetLeft（子项累计布局值），比 i*(w+gap) 推算更准
+  const target = strip.children[targetIndex];
+  if (!target) return;
+  strip.scrollTo({ left: Math.max(0, target.offsetLeft - strip.clientLeft), behavior: 'smooth' });
+};
+
+// 点击分段横条跳转到对应图；目标图尚未补全时先触发补全，完成后由 watch 接力滚动
+const goToStripIndex = (post, targetIndex, event) => {
+  const strip = event?.currentTarget?.closest?.('.image-post-strip-wrap')?.querySelector('.image-post-strip');
+  if (!strip) return;
+  // 高亮锁定目标段，滚动结束（窗口到期）后恢复折算跟随
+  lockStripIndex(targetIndex);
+  if (post?.hiddenImageCount > 0) {
+    pendingStripScrollIndex.value = targetIndex;
+    emit('load-more-images', post);
+    return;
+  }
+  scrollToStripIndex(strip, targetIndex);
+};
+
+watch(() => props.post?.allImages?.length, () => {
+  const target = pendingStripScrollIndex.value;
+  if (target < 0) return;
+  pendingStripScrollIndex.value = -1;
+  lockStripIndex(target);
+  nextTick(() => {
+    const strip = props.post ? document.querySelector(`[data-forum-post-id="${CSS.escape(String(props.post.id))}"] .image-post-strip`) : null;
+    if (strip) scrollToStripIndex(strip, target);
+  });
+});
+
 const { fetchUserTier, fetchUserTiersBatch, getNicknameClass } = useUserTier();
 const authorTierClass = ref('');
 const authorTierCode = ref('');
@@ -159,6 +271,20 @@ const replyTierMap = useTierMap(
   fetchUserTier,
   fetchUserTiersBatch
 );
+
+// 引用框随原帖作者订阅层级显示卡色（与帖子卡片 tier 微色调同源）
+const quotedTierCode = ref('');
+const quotedNickClass = ref('');
+watch(() => props.post?.quotedPost?.author_id, async (id) => {
+  if (!id) {
+    quotedTierCode.value = '';
+    quotedNickClass.value = '';
+    return;
+  }
+  const tier = await fetchUserTier(id);
+  quotedTierCode.value = ['plus', 'pro', 'max', 'ultra'].includes(tier) ? tier : '';
+  quotedNickClass.value = getNicknameClass(id);
+}, { immediate: true });
 </script>
 
 <template>
@@ -185,12 +311,17 @@ const replyTierMap = useTierMap(
     </figure>
     <div class="post-header-v2">
       <div class="post-author-section">
-        <div class="post-author-avatar" :class="{ 'is-official': isOfficialCard }">
-          <img v-if="authorAvatarSrc" :src="authorAvatarSrc" alt="作者头像"
-            class="avatar-image"  loading="lazy" />
-          <span v-else>{{ post.author_username ? post.author_username.charAt(0).toUpperCase() : 'U'
-          }}</span>
-        </div>
+        <span class="boh-avatar-wrap">
+          <div class="post-author-avatar" :class="{ 'is-official': isOfficialCard }">
+            <img v-if="authorAvatarSrc" :src="authorAvatarSrc" alt="作者头像"
+              class="avatar-image"  loading="lazy" />
+            <span v-else>{{ post.author_username ? post.author_username.charAt(0).toUpperCase() : 'U'
+            }}</span>
+          </div>
+          <span v-if="authorFrame" class="boh-avatar-frame"
+            :style="{ '--boh-avatar-frame-url': `url(${authorFrame.url})`, '--boh-avatar-frame-scale': String(authorFrame.scale) }"
+            aria-hidden="true"></span>
+        </span>
         <div class="post-author-info">
           <span class="post-author-v2" :class="authorTierClass"
             @click.stop="isOfficialCard ? undefined : emit('go-to-profile', post.author_username)">@{{
@@ -212,13 +343,24 @@ const replyTierMap = useTierMap(
         <span v-if="post.tagLabel" class="post-card-tag">{{ post.tagLabel }}</span>
         <span v-if="post.location_name" class="post-card-tag location-tag"><MapPin :size="12" :stroke-width="2.5" /> {{ post.location_name }}</span>
       </div>
-      <div v-if="post.hasImages" class="image-post-thumb-grid"
-        :class="[
-          `count-${Math.min(post.previewImages.length, FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT)}`,
-          { 'is-multi-image': post.hasMultipleImages }
-        ]"
-        :aria-label="post.hasMultipleImages ? `多图帖子，共 ${post.imageCount} 张图片` : '图片帖子'">
-        <button v-for="(image, index) in post.previewImages.slice(0, FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT)" :key="image.id || image.url"
+      <!-- wrap 不滚动：n/N 指示胶囊锚在可视区右上角，不会随内容滚走 -->
+      <div v-if="post.hasImages" class="image-post-strip-wrap">
+        <!-- 分段横条位置指示：随滑动高亮当前段，点击可跳转到对应图 -->
+        <div v-if="post.hasMultipleImages" class="image-strip-dots"
+          :aria-label="`图片位置指示，共 ${post.imageCount} 张`">
+          <button v-for="dotIndex in post.imageCount" :key="dotIndex" type="button"
+            class="image-strip-dot" :class="{ 'is-active': stripIndex === dotIndex - 1 }"
+            :aria-label="`查看第 ${dotIndex} 张图片`" :aria-current="stripIndex === dotIndex - 1"
+            @click.stop="goToStripIndex(post, dotIndex - 1, $event)"></button>
+        </div>
+        <span v-if="post.hasMultipleImages" class="image-strip-indicator" aria-hidden="true">
+          {{ stripIndex + 1 }} / {{ post.imageCount }}
+        </span>
+        <div class="image-post-strip"
+          :class="{ 'is-single': post.allImages.length === 1 }"
+          :aria-label="post.hasMultipleImages ? `多图帖子，共 ${post.imageCount} 张图片，可横向翻动` : '图片帖子'"
+          @scroll.passive="onStripScroll(post, $event)">
+        <button v-for="(image, index) in post.allImages" :key="image.id || image.url"
           type="button"
           class="image-post-thumb-shell"
           :class="{
@@ -262,7 +404,6 @@ const replyTierMap = useTierMap(
             sizes="(max-width: 420px) 160px, (max-width: 768px) 300px, 360px"
             :alt="`${post.displayTitle} 图片 ${index + 1}`"
             loading="lazy"
-            fetchpriority="low"
             decoding="async" class="image-post-thumb"
             :class="{ 'is-loaded': isForumImageLoaded(post.id, image.url) }"
             :width="image.width || undefined"
@@ -271,14 +412,26 @@ const replyTierMap = useTierMap(
             @load="onImageLoad(post.id, image.url)"
             @error="onImageError(post.id, image.url)" />
         </button>
-        <span v-if="post.hasMultipleImages" class="image-post-count-badge" aria-hidden="true">
-          +{{ Math.max(1, Number(post.imageCount || post.previewImages.length) - 1) }}
-        </span>
+        <!-- 末尾"+N 张"占位卡：列表数据尚未含全部图片时展示，滚近自动补全 -->
+        <div v-if="post.hiddenImageCount > 0" class="image-post-strip-more" aria-hidden="true">
+          <span class="image-post-strip-more-num">+{{ post.hiddenImageCount }}</span>
+          <span>张</span>
+        </div>
+        </div>
       </div>
       <p v-if="searchKeyword && post.search_excerpt" class="search-highlight-snippet"
         v-html="renderSearchExcerpt(post.search_excerpt)">
       </p>
       <p class="post-text-v2" :class="{ 'is-overflowing': post.isBodyOverflowLikely }">{{ post.displayBody }}</p>
+      <!-- 转发帖引用框：转发文字在上，原帖信息框在下，点击进原帖详情 -->
+      <button v-if="post.quotedPost" type="button" class="quoted-post-box"
+        :class="[quotedTierCode ? `tier-${quotedTierCode}` : '']"
+        aria-label="查看被转发的原帖"
+        @click.stop="emit('click', post.quotedPost.id)">
+        <span class="quoted-post-author" :class="quotedNickClass">@{{ post.quotedPost.author_username || '方块之家' }}</span>
+        <span v-if="quotedTitle" class="quoted-post-title">{{ quotedTitle }}</span>
+        <span v-if="quotedBody" class="quoted-post-body">{{ quotedBody }}</span>
+      </button>
     </div>
 
     <!-- 操作栏 -->
@@ -347,12 +500,17 @@ const replyTierMap = useTierMap(
         class="replies-list" @click.stop>
         <div v-for="reply in post.replies" :key="reply.id" class="reply-item-v2">
           <div class="reply-header-v2">
-            <div class="reply-avatar">
-              <img v-if="reply.author_avatar_url" :src="getAvatarUrl(reply.author_avatar_url, 'xs')" alt="回复者头像"
-                class="avatar-image"  loading="lazy" />
-              <span v-else>{{ reply.author_username ? reply.author_username.charAt(0).toUpperCase() : 'U'
-              }}</span>
-            </div>
+            <span class="boh-avatar-wrap">
+              <div class="reply-avatar">
+                <img v-if="reply.author_avatar_url" :src="getAvatarUrl(reply.author_avatar_url, 'xs')" alt="回复者头像"
+                  class="avatar-image"  loading="lazy" />
+                <span v-else>{{ reply.author_username ? reply.author_username.charAt(0).toUpperCase() : 'U'
+                }}</span>
+              </div>
+              <span v-if="replyFrameMap.get(reply.id)" class="boh-avatar-frame"
+                :style="{ '--boh-avatar-frame-url': `url(${replyFrameMap.get(reply.id).url})`, '--boh-avatar-frame-scale': String(replyFrameMap.get(reply.id).scale) }"
+                aria-hidden="true"></span>
+            </span>
             <div class="reply-content-wrapper">
               <div class="reply-user-info">
                 <span class="reply-author-v2" :class="replyTierMap[reply.author_id] || ''" @click="emit('go-to-profile', reply.author_username)">{{
@@ -423,7 +581,7 @@ const replyTierMap = useTierMap(
 .reply-avatar {
   width: 36px;
   height: 36px;
-  border-radius: 12px;
+  border-radius: 50%;
   background: #1d1d1f;
   color: #fff;
   display: flex;
@@ -447,7 +605,7 @@ const replyTierMap = useTierMap(
   .post-author-avatar {
     width: 40px;
     height: 40px;
-    border-radius: 12px;
+    border-radius: 50%;
   }
 }
 </style>

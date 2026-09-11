@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-page-node-id="I3wEQCTGkwiq6fCCQCIL2D">
+<head data-page-node-id="Kx4ZaGKg8ld585mtiRMYWS">
+<meta charset="UTF-8" data-page-node-id="GiEI4HRArtlZ0ARF80uucT">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="FSiHfLVzEbiDIznocSwRze">
+<title>BOH 头像框 Demo V2 · 毛孩俱乐部</title>
+<style>
+  :root {
+    --bg: #f5f5f7;
+    --card: rgba(255, 255, 255, 0.72);
+    --card-solid: #ffffff;
+    --text: #1d1d1f;
+    --text-2: #6e6e73;
+    --text-3: #a1a1a6;
+    --border: rgba(0, 0, 0, 0.08);
+    --brand: #0071e3;
+    --pill-bg: rgba(0, 113, 227, 0.1);
+    --nick-plus: #0071e3;
+    --nick-pro: #7d8794;
+    --nick-max: #b07508;
+    --fr-free: #8e8e93;
+    --fr-plus: #0071e3;
+    --fr-plus-dark: #005bb8;
+    --fr-pro: #9aa3b2;
+    --fr-pro-dark: #5f6b80;
+    --fr-max: #e8930c;
+    --fr-max-dark: #8a5506;
+    --fur: #faeeda;
+    --fur-gold: #fac775;
+    --fur-silver: #c9d2de;
+    --face-line: rgba(0, 0, 0, 0.05);
+  }
+  html[data-theme="dark"] {
+    --bg: #161617;
+    --card: rgba(28, 28, 30, 0.72);
+    --card-solid: #1c1c1e;
+    --text: #f5f5f7;
+    --text-2: #a1a1a6;
+    --text-3: #6e6e73;
+    --border: rgba(255, 255, 255, 0.12);
+    --brand: #2997ff;
+    --pill-bg: rgba(41, 151, 255, 0.16);
+    --nick-plus: #2997ff;
+    --nick-pro: #c7ceda;
+    --nick-max: #ffc53d;
+    --fr-free: #98989f;
+    --fr-plus: #2997ff;
+    --fr-plus-dark: #0a63c9;
+    --fr-pro: #b8c0ce;
+    --fr-pro-dark: #6d7a92;
+    --fr-max: #ffb340;
+    --fr-max-dark: #a3640a;
+    --fur: #f0e2c6;
+    --fur-gold: #ffc56e;
+    --fur-silver: #d3dbe6;
+    --face-line: rgba(255, 255, 255, 0.1);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    transition: background 0.35s ease, color 0.35s ease;
+    padding: 40px 24px 64px;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; }
+  .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+  h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+  h1 .pill {
+    display: inline-block; vertical-align: 4px; margin-left: 10px;
+    font-size: 12px; font-weight: 600; color: var(--brand);
+    background: var(--pill-bg); padding: 4px 10px; border-radius: 99px;
+  }
+  .sub { color: var(--text-2); font-size: 14px; margin-top: 8px; line-height: 1.6; }
+  .theme-btn {
+    flex-shrink: 0; cursor: pointer; border: 1px solid var(--border);
+    background: var(--card); color: var(--text);
+    font-size: 13px; font-weight: 500; padding: 8px 14px; border-radius: 99px;
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    transition: transform 0.15s ease;
+  }
+  .theme-btn:hover { transform: scale(1.04); }
+  .sec { margin-top: 44px; }
+  .sec-title { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+  .sec-desc { color: var(--text-2); font-size: 13px; margin-top: 4px; line-height: 1.6; }
+  .tier-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-top: 18px; }
+  @media (max-width: 1000px) { .tier-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); } }
+  .tier-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 18px;
+    padding: 22px 14px 18px; text-align: center; position: relative;
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .tier-card:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(0,0,0,0.10); }
+  .tier-card .frame-slot { width: 152px; height: 152px; margin: 0 auto; }
+  .tier-card .frame-slot svg { width: 100%; height: 100%; display: block; }
+  .tier-name { font-size: 15px; font-weight: 700; margin-top: 12px; }
+  .tier-pet { font-size: 12px; color: var(--text-2); margin-top: 3px; }
+  .tier-elem { font-size: 11px; color: var(--text-3); margin-top: 8px; line-height: 1.5; }
+  .tier-card .fix-note {
+    display: inline-block; margin-top: 8px; font-size: 10.5px; font-weight: 600;
+    color: #b0500e; background: rgba(232, 147, 12, 0.14);
+    padding: 3px 8px; border-radius: 6px; line-height: 1.4;
+  }
+  html[data-theme="dark"] .tier-card .fix-note { color: #ffb340; background: rgba(255, 179, 64, 0.14); }
+  .size-row {
+    margin-top: 18px; background: var(--card); border: 1px solid var(--border); border-radius: 18px;
+    padding: 26px 24px 18px; text-align: center;
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  }
+  .size-row + .size-row { margin-top: 12px; }
+  .size-row-title { font-size: 13px; font-weight: 600; color: var(--text-2); margin-bottom: 16px; }
+  .size-flex { display: flex; align-items: flex-end; justify-content: center; gap: 34px; flex-wrap: wrap; }
+  .size-item { text-align: center; }
+  .size-item .lbl { font-size: 11px; color: var(--text-3); margin-top: 10px; font-variant-numeric: tabular-nums; }
+  .scene-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 14px; margin-top: 18px; }
+  @media (max-width: 900px) { .scene-grid { grid-template-columns: 1fr; } }
+  .post-card, .comment-card, .profile-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 18px;
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  }
+  .stack { display: flex; flex-direction: column; gap: 14px; }
+  .post-card { padding: 18px; }
+  .post-head { display: flex; align-items: center; gap: 12px; }
+  .post-head .av { width: 44px; height: 44px; flex-shrink: 0; }
+  .post-head .av svg, .comment .av svg, .profile-card .av svg { width: 100%; height: 100%; display: block; }
+  .nick { font-size: 14px; font-weight: 600; }
+  .nick.plus { color: var(--nick-plus); }
+  .nick.pro { color: var(--nick-pro); }
+  .nick.max { color: var(--nick-max); }
+  .nick.rainbow {
+    background: linear-gradient(90deg, #f0997b, #ef9f27, #97c459, #378add, #afa9ec);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .meta { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+  .post-title { font-size: 15px; font-weight: 600; margin-top: 12px; line-height: 1.5; }
+  .post-body { font-size: 13px; color: var(--text-2); margin-top: 6px; line-height: 1.65; }
+  .post-actions { display: flex; gap: 22px; margin-top: 14px; color: var(--text-3); font-size: 12px; }
+  .post-actions span { display: inline-flex; align-items: center; gap: 5px; }
+  .post-actions svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .comment-card { padding: 16px 18px; }
+  .comment { display: flex; gap: 12px; padding: 10px 0; }
+  .comment + .comment { border-top: 1px solid var(--border); }
+  .comment .av { width: 36px; height: 36px; flex-shrink: 0; }
+  .comment .nick { font-size: 13px; }
+  .comment p { font-size: 13px; color: var(--text-2); line-height: 1.6; margin-top: 4px; }
+  .profile-card { margin-top: 14px; padding: 24px; display: flex; align-items: center; gap: 24px; }
+  .profile-card .av { width: 132px; height: 132px; flex-shrink: 0; }
+  .profile-name { font-size: 20px; font-weight: 700; }
+  .profile-badge {
+    display: inline-block; font-size: 11px; font-weight: 600; color: var(--brand);
+    background: var(--pill-bg); padding: 3px 9px; border-radius: 99px; margin-left: 8px; vertical-align: 3px;
+  }
+  .profile-bio { font-size: 13px; color: var(--text-2); margin-top: 8px; line-height: 1.65; }
+  .profile-btn {
+    display: inline-block; margin-top: 14px; font-size: 13px; font-weight: 600;
+    color: #fff; background: var(--brand); padding: 8px 16px; border-radius: 99px;
+  }
+  .frame-note { font-size: 11px; color: var(--text-3); margin-top: 6px; }
+  .foot { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--border); color: var(--text-3); font-size: 12px; line-height: 1.7; }
+  .hidden-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+</style>
+</head>
+<body data-page-node-id="IKRZgPXqWnE1tBSfqej4n2">
+<div class="wrap" data-page-node-id="NIPJRqzO4fBGvDnwgQBPCC">
+
+  <div class="top" data-page-node-id="cPz8LUsvrGg6QXAnNNVFTb">
+    <div data-page-node-id="uikJvsuHK7bKvyNqujXgtA">
+      <h1 data-page-node-id="tZBIHza4XYcsh9Fb9fu0wx">BOH 头像框 Demo V2<span class="pill" data-page-node-id="tDajT4AKJaiUXRD8X605ux">毛孩俱乐部 · 精修版</span></h1>
+      <p class="sub" data-page-node-id="TUb3JEAfNRCB8x4Nt5lTQY">V2 变更：头像放大至贴合环内缘（间隙 &lt;2%），白边感消除 · 金属渐变环 + 内圈阴影 + 高光/暗部弧 · 大眼睛双高光 + ω 嘴 + 胡须 + 狸花纹理 · Pro 定稿银色 · 右上角切换暗色</p>
+    </div>
+    <button class="theme-btn" id="themeBtn" type="button" data-page-node-id="xBv6zGpNVeMwZR1o6KsFpV">切换暗色 🌙</button>
+  </div>
+
+  <svg class="hidden-defs" aria-hidden="true" data-page-node-id="okIImebcBqaOyJIJMISmDD">
+    <defs data-page-node-id="wowswyJ0LmvctCeahA68dV">
+      <linearGradient id="rg" x1="0" y1="0" x2="1" y2="1" data-page-node-id="cHNwZtQ1kd1aHBPvglCDdE">
+        <stop offset="0" stop-color="#f0997b" data-page-node-id="oHMfuQm6waqMLhaOVNIFWh"/><stop offset="0.25" stop-color="#ef9f27" data-page-node-id="ywqYC3ihTlsNRhGT0UOYjS"/>
+        <stop offset="0.5" stop-color="#97c459" data-page-node-id="0rxUgfvLx04Qj935vje1el"/><stop offset="0.75" stop-color="#378add" data-page-node-id="0AoDz2s5k8V3RFBHgG3EHG"/>
+        <stop offset="1" stop-color="#afa9ec" data-page-node-id="ZXyyAS1CZCF5ouzKxVrPN0"/>
+      </linearGradient>
+      <linearGradient id="grad-silver" x1="0.1" y1="0" x2="0.9" y2="1" data-page-node-id="MIaJukF9hRVGIusw7j1bVu">
+        <stop offset="0" stop-color="#f4f7fb" data-page-node-id="YcxJxXHaidTd9p6pgygKOK"/><stop offset="0.25" stop-color="#c3cbd8" data-page-node-id="apTTPvwqIO6sWPtbxZ0Qsh"/>
+        <stop offset="0.5" stop-color="#96a0b2" data-page-node-id="TgUg345YGRRHmh21Apx40p"/><stop offset="0.75" stop-color="#e2e8f0" data-page-node-id="gK5941SPAIRIQhOPw1dYCe"/>
+        <stop offset="1" stop-color="#8f99ab" data-page-node-id="wSVxAvF3Algh7i8bq4cX5g"/>
+      </linearGradient>
+      <linearGradient id="grad-gold" x1="0.1" y1="0" x2="0.9" y2="1" data-page-node-id="qDGUQGX3gOM2F7YXNGSMMJ">
+        <stop offset="0" stop-color="#ffe09a" data-page-node-id="AIGahJblQpLbP4FPdtXeTI"/><stop offset="0.3" stop-color="#f2a91c" data-page-node-id="32VvXVVe4zBZus7JfpctkI"/>
+        <stop offset="0.55" stop-color="#c47f0a" data-page-node-id="W7QBkAi8WofqXKUwm20bw7"/><stop offset="0.8" stop-color="#ffd05e" data-page-node-id="31Yur6icOlIGvIPxjFkhDa"/>
+        <stop offset="1" stop-color="#d98a10" data-page-node-id="BcYbvgcoMXUCRu5oyw8fhn"/>
+      </linearGradient>
+      <linearGradient id="avb" x1="0" y1="0" x2="0" y2="1" data-page-node-id="lOMN4yeOdhmelnQrpYi74C">
+        <stop offset="0" stop-color="#5aa9f7" data-page-node-id="Lo7arT7gVZez4xoY9KXTBL"/><stop offset="1" stop-color="#2f6fe0" data-page-node-id="z0UYPpo3TVijvWkwOKiN5O"/>
+      </linearGradient>
+      <linearGradient id="avc" x1="0" y1="0" x2="0" y2="1" data-page-node-id="akXHkbBzuJyIqfoSD071Ha">
+        <stop offset="0" stop-color="#b39ddb" data-page-node-id="GMtHAomKamlOxKuvjUfsxd"/><stop offset="1" stop-color="#7e57c2" data-page-node-id="Doa6xZbIFoAaUiyKAxSvFs"/>
+      </linearGradient>
+
+      <!-- 占位头像 A：奶油猫脸（大眼双高光 + ω嘴 + 脸侧胡须 + 额头狸花纹理） -->
+      <symbol id="avatar-a" viewBox="0 0 240 240" data-page-node-id="tf7mTtYfLuWLn8Vf1B3DKV">
+        <circle cx="120" cy="120" r="96" fill="var(--fur)" stroke="var(--face-line)" stroke-width="1.5" data-page-node-id="dF6VcXpXD4Aghe8CmiRE9d"/>
+        <path d="M 62 70 L 74 38 L 96 58 Z" fill="#f5c4b3" opacity="0.85" data-page-node-id="bnFDWRzoS7UfFO4QWC78jT"/>
+        <path d="M 144 58 L 166 38 L 178 70 Z" fill="#f5c4b3" opacity="0.85" data-page-node-id="Pxs2OduBTpWqboAsSLw33U"/>
+        <path d="M 106 42 L 106 54 M 120 38 L 120 52 M 134 42 L 134 54" stroke="#e8cfa4" stroke-width="5" stroke-linecap="round" data-page-node-id="llsF6hnKuxXm6jJxypHPBU"/>
+        <ellipse cx="86" cy="112" rx="7.5" ry="11" fill="#3d3a35" data-page-node-id="KF0n1S35Gxx2kLg8QFQyBa"/>
+        <ellipse cx="154" cy="112" rx="7.5" ry="11" fill="#3d3a35" data-page-node-id="h5OsvtqCPBAZjH2hDaJyw9"/>
+        <circle cx="83" cy="106.5" r="3.4" fill="#ffffff" data-page-node-id="FmHNAlFi2PN3Ud0rgWXAlD"/>
+        <circle cx="89.5" cy="116" r="1.7" fill="#ffffff" opacity="0.85" data-page-node-id="PffsujN9nfgmTPmB9BACiB"/>
+        <circle cx="151" cy="106.5" r="3.4" fill="#ffffff" data-page-node-id="SLmwcdjxDMXhV1IRarAZec"/>
+        <circle cx="157" cy="116" r="1.7" fill="#ffffff" opacity="0.85" data-page-node-id="NnFdCap4vhBJfsUfFRBX3z"/>
+        <ellipse cx="64" cy="144" rx="12" ry="8" fill="#f5c4b3" opacity="0.75" data-page-node-id="K32dXC2VHsHxYleVL3CBE5"/>
+        <ellipse cx="176" cy="144" rx="12" ry="8" fill="#f5c4b3" opacity="0.75" data-page-node-id="C2XQhm9TC8nLmbPZF8A0eB"/>
+        <path d="M 114 134 L 126 134 L 120 142 Z" fill="#e8a0a0" data-page-node-id="b5KNNqbCtGISGXdY2cTPCw"/>
+        <path d="M 106 148 Q 113 156 120 149 Q 127 156 134 148" fill="none" stroke="#8c7a5b" stroke-width="3.2" stroke-linecap="round" data-page-node-id="8yRimqpLZIDt3AALzmCbCm"/>
+        <path d="M 54 114 L 30 108 M 54 126 L 32 130 M 186 114 L 210 108 M 186 126 L 208 130" stroke="#c9b795" stroke-width="2" stroke-linecap="round" opacity="0.8" data-page-node-id="beRm45fA3yyy14YxjRNwBK"/>
+      </symbol>
+      <symbol id="avatar-b" viewBox="0 0 240 240" data-page-node-id="AAQ3nLOJz2925yD9X4rzQa">
+        <circle cx="120" cy="120" r="96" fill="url(#avb)" data-page-node-id="hCHvBJWrl8k5bFqTJBdrQp"/>
+        <text x="120" y="124" text-anchor="middle" dominant-baseline="central" font-family="-apple-system, PingFang SC, sans-serif" font-size="80" font-weight="600" fill="#ffffff" data-page-node-id="zGDiHTeAAgpisOi80ce3dY">瑞</text>
+      </symbol>
+      <symbol id="avatar-c" viewBox="0 0 240 240" data-page-node-id="RnXlA05VrR5EJ3Zi6J3iSF">
+        <circle cx="120" cy="120" r="96" fill="url(#avc)" data-page-node-id="HlGyuyyUSsjwUV1qaMOntk"/>
+        <text x="120" y="124" text-anchor="middle" dominant-baseline="central" font-family="-apple-system, PingFang SC, sans-serif" font-size="80" font-weight="600" fill="#ffffff" data-page-node-id="z2ZxyGipQQKk9yUlTmQl1R">B</text>
+      </symbol>
+
+      <!-- Free：纸箱猫 · 双层灰环 + 内圈阴影 + 环侧胡须 + 底部纸箱（带爪印章） -->
+      <symbol id="frame-free" viewBox="0 0 240 240" data-page-node-id="EKDFKBP0cLAZWmnNur3VJr">
+        <circle cx="120" cy="120" r="110" fill="none" stroke="var(--fr-free)" stroke-width="1.5" opacity="0.3" data-page-node-id="17K4J3JCW4XFPe6dgcMgDk"/>
+        <path d="M 70 38 L 88 2 L 114 32 Z" fill="var(--fur)" stroke="var(--fr-free)" stroke-width="2.5" stroke-linejoin="round" data-page-node-id="cw4zdMDW5wPX0zuUguwgWH"/>
+        <path d="M 82 30 L 89 12 L 101 26 Z" fill="#f5c4b3" data-page-node-id="n4idh9JI7eaeistvD91Kr3"/>
+        <path d="M 126 32 L 152 2 L 170 38 Z" fill="var(--fur)" stroke="var(--fr-free)" stroke-width="2.5" stroke-linejoin="round" data-page-node-id="6Z1j5CaAuyvjUnI3HmsEl7"/>
+        <path d="M 139 26 L 151 12 L 158 30 Z" fill="#f5c4b3" data-page-node-id="GJzJr5F9swnWiODiEVTOYF"/>
+        <circle cx="120" cy="120" r="103" fill="none" stroke="var(--fr-free)" stroke-width="9" data-page-node-id="J8uQXJRbwXNEaKUta70OXj"/>
+        <circle cx="120" cy="120" r="97" fill="none" stroke="#000000" stroke-width="1.2" opacity="0.08" data-page-node-id="XJZriFhMtio6JKtVKNaVKv"/>
+        <path d="M 31 69 A 103 103 0 0 1 76 27" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" opacity="0.3" data-page-node-id="cAwgteSDqSyNeUO9JoCjo5"/>
+        <path d="M 26 100 L 4 94 M 23 113 L 2 113 M 26 126 L 4 132 M 214 100 L 236 94 M 217 113 L 238 113 M 214 126 L 236 132" stroke="#a3947a" stroke-width="2" stroke-linecap="round" opacity="0.7" data-page-node-id="0CfZaQjjFRkr3OvjHOG25E"/>
+        <g data-page-node-id="Ua5d5g1pKwvAGG7etBdXml">
+          <path d="M 94 201 L 74 188 L 112 196 Z" fill="#e8cfa0" stroke="#a98b5f" stroke-width="1.8" stroke-linejoin="round" data-page-node-id="6GxJI47Z5zvZBamJh3DTgB"/>
+          <path d="M 146 201 L 128 196 L 166 188 Z" fill="#d9bd8e" stroke="#a98b5f" stroke-width="1.8" stroke-linejoin="round" data-page-node-id="omW0HnR5GlOjVrBn7VTMBG"/>
+          <path d="M 94 201 L 146 201 L 152 230 L 88 230 Z" fill="#d9b98c" stroke="#a98b5f" stroke-width="2" stroke-linejoin="round" data-page-node-id="yZZ0A3tnezPl7msN0Q6lzf"/>
+          <path d="M 114 201 L 112 230 M 126 201 L 128 230" stroke="#c2a276" stroke-width="1.6" data-page-node-id="Fp8dF6WDsN8QhWLtZQwxlG"/>
+          <ellipse cx="120" cy="219" rx="5" ry="4" fill="#a98b5f" opacity="0.7" data-page-node-id="AR0XemeHiwtnNOc4K89Pyt"/>
+          <circle cx="112" cy="212" r="1.9" fill="#a98b5f" opacity="0.7" data-page-node-id="P7HkHB6NOpzvimBuWxsQOZ"/>
+          <circle cx="120" cy="210" r="1.9" fill="#a98b5f" opacity="0.7" data-page-node-id="ui9IFhrFXwsX39o68SXc5m"/>
+          <circle cx="128" cy="212" r="1.9" fill="#a98b5f" opacity="0.7" data-page-node-id="2N3a9PRuvtA0P9KzeTUYUD"/>
+        </g>
+      </symbol>
+
+      <!-- Plus：布偶猫 · 蓝环高光/暗部 + 环侧胡须 + 缝线项圈铆钉 + 真铃铛 -->
+      <symbol id="frame-plus" viewBox="0 0 240 240" data-page-node-id="xE8rHjr1h8VlW34D9BAqHe">
+        <circle cx="120" cy="120" r="110" fill="none" stroke="var(--fr-plus)" stroke-width="1.5" opacity="0.35" data-page-node-id="Imm9RMqzZFtkZmmT29tSCV"/>
+        <path d="M 70 38 L 88 2 L 114 32 Z" fill="var(--fur)" stroke="var(--fr-plus)" stroke-width="3" stroke-linejoin="round" data-page-node-id="85u9rUf6F4qnEGiCZZuF5e"/>
+        <path d="M 82 30 L 89 12 L 101 26 Z" fill="#f5c4b3" data-page-node-id="mvnch0wrtXDMdL1RUwjsRK"/>
+        <path d="M 126 32 L 152 2 L 170 38 Z" fill="var(--fur)" stroke="var(--fr-plus)" stroke-width="3" stroke-linejoin="round" data-page-node-id="fKOAB0REZ1H0TJeggV1zb5"/>
+        <path d="M 139 26 L 151 12 L 158 30 Z" fill="#f5c4b3" data-page-node-id="8YAMqet9bOaBdX4sLOBMLX"/>
+        <circle cx="120" cy="120" r="103" fill="none" stroke="var(--fr-plus)" stroke-width="9" data-page-node-id="YhzfydOtvIVcO6gTKzSTDG"/>
+        <circle cx="120" cy="120" r="97" fill="none" stroke="#000000" stroke-width="1.2" opacity="0.08" data-page-node-id="HRKxtEmo0588bFBJxXn4Ci"/>
+        <path d="M 31 69 A 103 103 0 0 1 76 27" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.55" data-page-node-id="Uj5a5K7QdYgnFLLFKw4vin"/>
+        <path d="M 209 171 A 103 103 0 0 1 164 213" fill="none" stroke="var(--fr-plus-dark)" stroke-width="3" stroke-linecap="round" opacity="0.4" data-page-node-id="jDUFIIbFKRjvNqtZexMqFP"/>
+        <path d="M 26 100 L 4 94 M 23 113 L 2 113 M 26 126 L 4 132 M 214 100 L 236 94 M 217 113 L 238 113 M 214 126 L 236 132" stroke="#a3947a" stroke-width="2" stroke-linecap="round" opacity="0.65" data-page-node-id="dzGJfSBKHGQZVvnuGXAoJD"/>
+        <path d="M 42 167 A 91 91 0 0 0 198 167" fill="none" stroke="var(--fr-plus)" stroke-width="9" stroke-linecap="round" data-page-node-id="rdUm4Pi8Il9rrLh1CMhGb9"/>
+        <path d="M 44 164 A 88 88 0 0 0 196 164" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.5" data-page-node-id="H0PYHxBMAGKLt8tvef7mkJ"/>
+        <circle cx="89" cy="205" r="1.8" fill="#ffffff" opacity="0.85" data-page-node-id="XCMMfneJWuOnpEIwbHr3Rq"/>
+        <circle cx="120" cy="211" r="1.8" fill="#ffffff" opacity="0.85" data-page-node-id="DphIGWbrJxBiTwWRGpC8mb"/>
+        <circle cx="151" cy="205" r="1.8" fill="#ffffff" opacity="0.85" data-page-node-id="CCrZqXRCVr19dcu3KTs0jB"/>
+        <g data-page-node-id="nTEOdgP6ClOFKpnAcpSjXe">
+          <circle cx="120" cy="203" r="3" fill="none" stroke="var(--fr-plus)" stroke-width="2.2" data-page-node-id="OAW0JCN4KcZaq6P4L0JGIh"/>
+          <path d="M 110 219 C 110 208.5 114 204.5 120 204.5 C 126 204.5 130 208.5 130 219 Z" fill="var(--fr-plus)" data-page-node-id="FKVRFVufcmS9jaC4Y1iQQP"/>
+          <path d="M 110 219 L 130 219" stroke="var(--fr-plus-dark)" stroke-width="1.6" stroke-linecap="round" data-page-node-id="snyBu3zXcETxAEOHymvNTl"/>
+          <circle cx="120" cy="220.5" r="2.4" fill="var(--fr-plus-dark)" data-page-node-id="3fo941luskYwyUzrlTV2Ac"/>
+          <circle cx="114.5" cy="210" r="1.8" fill="#ffffff" opacity="0.85" data-page-node-id="l5HWQwBI3D5YPv1Krvk4EV"/>
+        </g>
+      </symbol>
+
+      <!-- Pro：银渐层 · 金属拉丝银环 + 耳纹 + 星光 + 毛绒围脖 + 银铃铛（定稿银色） -->
+      <symbol id="frame-pro" viewBox="0 0 240 240" data-page-node-id="XS3fsYZQ9KEoFdyecv1B1E">
+        <circle cx="120" cy="120" r="110" fill="none" stroke="#9aa3b2" stroke-width="1.5" opacity="0.4" data-page-node-id="Ny2lb59HRfWS3I2G3QYQ9n"/>
+        <path d="M 70 38 L 88 2 L 114 32 Z" fill="var(--fur)" stroke="var(--fr-pro)" stroke-width="3" stroke-linejoin="round" data-page-node-id="jtrnAoU4ewdThxYtCLuAlf"/>
+        <path d="M 82 30 L 89 12 L 101 26 Z" fill="#f5c4b3" data-page-node-id="kiWBpXn3RiEmXQYJ9XxuPy"/>
+        <path d="M 87 12 L 90 24 M 97 16 L 100 26" stroke="#9aa3b2" stroke-width="2.5" stroke-linecap="round" opacity="0.45" data-page-node-id="IG2OwGDwdDUUDow1N3OxAY"/>
+        <path d="M 126 32 L 152 2 L 170 38 Z" fill="var(--fur)" stroke="var(--fr-pro)" stroke-width="3" stroke-linejoin="round" data-page-node-id="8HOKHCoHgxZhtuZB0ROACe"/>
+        <path d="M 139 26 L 151 12 L 158 30 Z" fill="#f5c4b3" data-page-node-id="CDhVsOgZocXxGNPMsKtqTa"/>
+        <path d="M 153 12 L 150 24 M 143 16 L 140 26" stroke="#9aa3b2" stroke-width="2.5" stroke-linecap="round" opacity="0.45" data-page-node-id="QtKkG1udtW9IHIoM5ExOpB"/>
+        <circle cx="120" cy="120" r="103" fill="none" stroke="url(#grad-silver)" stroke-width="9" data-page-node-id="U6LIhSmgwhuTE9kp25yfVZ"/>
+        <circle cx="120" cy="120" r="97" fill="none" stroke="#000000" stroke-width="1.2" opacity="0.08" data-page-node-id="lKSTOVxoD0ZoxqxaP7wecT"/>
+        <path d="M 31 69 A 103 103 0 0 1 76 27" fill="none" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" opacity="0.85" data-page-node-id="80r8F54vmYXnJYEdVIAWfp"/>
+        <path d="M 209 171 A 103 103 0 0 1 164 213" fill="none" stroke="var(--fr-pro-dark)" stroke-width="3" stroke-linecap="round" opacity="0.4" data-page-node-id="gC2MC4ezAgZvtHdwPPAKfk"/>
+        <path d="M 214 100 L 236 94 M 217 113 L 238 113 M 214 126 L 236 132" stroke="#9aa3b2" stroke-width="2" stroke-linecap="round" opacity="0.6" data-page-node-id="hMHuquQQ4AATFYTSw1DuJE"/>
+        <path d="M 42 167 A 91 91 0 0 0 198 167" fill="none" stroke="var(--fur-silver)" stroke-width="11" stroke-linecap="round" data-page-node-id="O4oSYL6USGHA7JfkcacewW"/>
+        <path d="M 56 184 Q 63 193 73 198 M 70 196 Q 82 203 95 205 M 84 204 Q 98 209 112 209 M 128 209 Q 142 209 156 204 M 148 203 Q 161 200 172 193 M 166 196 Q 176 190 184 182" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" opacity="0.75" data-page-node-id="NJHNc1BO1uQLlY8gcR7sxh"/>
+        <path d="M 0 -6 L 1.6 -1.6 L 6 0 L 1.6 1.6 L 0 6 L -1.6 1.6 L -6 0 L -1.6 -1.6 Z" transform="translate(185 55)" fill="#ffffff" opacity="0.95" data-page-node-id="BbQS3fTcyONfW35BbB1BBI"/>
+        <g data-page-node-id="Vh2Mo9gQFzayN9TbI0JTzG">
+          <circle cx="120" cy="203" r="3" fill="none" stroke="#8e97a8" stroke-width="2.2" data-page-node-id="koHtbXhHCUqQ1LEys6YbTC"/>
+          <path d="M 110 219 C 110 208.5 114 204.5 120 204.5 C 126 204.5 130 208.5 130 219 Z" fill="#aeb8c6" data-page-node-id="I7DCYl7FI0GHFameNVzgta"/>
+          <path d="M 110 219 L 130 219" stroke="#7e8798" stroke-width="1.6" stroke-linecap="round" data-page-node-id="r5HLFqTIqRGKJGHEjcPfZA"/>
+          <circle cx="120" cy="220.5" r="2.4" fill="#7e8798" data-page-node-id="gPAL2EvUzv8A5IANmL68am"/>
+          <circle cx="114.5" cy="210" r="1.8" fill="#ffffff" opacity="0.9" data-page-node-id="96eTREhFtMT16NREzUO6rR"/>
+        </g>
+      </symbol>
+
+      <!-- Max：金毛寻回犬 · 金属拉丝金环 + 双层垂耳 + 环上爪印 + 缝线项圈 + 骨头吊牌 -->
+      <symbol id="frame-max" viewBox="0 0 240 240" data-page-node-id="3LzRAjsTv5ohMe5iw5YH1X">
+        <circle cx="120" cy="120" r="110" fill="none" stroke="#e8930c" stroke-width="1.5" opacity="0.4" data-page-node-id="6L8tsP31GSWMKN0paHVHCN"/>
+        <g data-page-node-id="86neHH339jhzPBwrLveZLo">
+          <path d="M 40 54 C 14 60, 8 102, 28 124 C 44 110, 50 74, 40 54 Z" fill="var(--fur-gold)" stroke="var(--fr-max-dark)" stroke-width="2.5" stroke-linejoin="round" data-page-node-id="oj5lPHPgzgt1hdBdXFQkFR"/>
+          <path d="M 36 66 C 24 74, 22 96, 31 110 C 39 100, 42 80, 36 66 Z" fill="var(--fr-max-dark)" opacity="0.3" data-page-node-id="AxHx0fq4KgSUqCYXF1nBGC"/>
+          <path d="M 34 66 L 30 84 M 38 74 L 34 92" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" opacity="0.45" data-page-node-id="cdsuXtXu4iqMaaIpCbpUSY"/>
+          <path d="M 200 54 C 226 60, 232 102, 212 124 C 196 110, 190 74, 200 54 Z" fill="var(--fur-gold)" stroke="var(--fr-max-dark)" stroke-width="2.5" stroke-linejoin="round" data-page-node-id="iRxlYDjkxHR2cNQLCtUfgI"/>
+          <path d="M 204 66 C 216 74, 218 96, 209 110 C 201 100, 198 80, 204 66 Z" fill="var(--fr-max-dark)" opacity="0.3" data-page-node-id="4UKzEBRkvY4U3zS0bpz4mD"/>
+          <path d="M 206 66 L 210 84 M 202 74 L 206 92" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" opacity="0.45" data-page-node-id="nUpBF1kfCiocnAZQcVOdka"/>
+        </g>
+        <circle cx="120" cy="120" r="103" fill="none" stroke="url(#grad-gold)" stroke-width="9" data-page-node-id="ZdhX4B3qfTOzlt078hvBxM"/>
+        <circle cx="120" cy="120" r="97" fill="none" stroke="#000000" stroke-width="1.2" opacity="0.08" data-page-node-id="HyuNYWcc62vxFj1JWxJ7oO"/>
+        <path d="M 31 69 A 103 103 0 0 1 76 27" fill="none" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" opacity="0.8" data-page-node-id="q7kplpFbHaTItY4W1PfK82"/>
+        <path d="M 209 171 A 103 103 0 0 1 164 213" fill="none" stroke="var(--fr-max-dark)" stroke-width="3" stroke-linecap="round" opacity="0.35" data-page-node-id="gzryE4PZMeETWqqTmIEndk"/>
+        <g fill="#b8730a" opacity="0.5" data-page-node-id="uQsMieGmC1vEfD738y5lTP">
+          <ellipse cx="47" cy="197" rx="4.5" ry="3.5" data-page-node-id="xEKGiKOAQyIxQRGyREZUyU"/>
+          <circle cx="41.5" cy="190.5" r="1.7" data-page-node-id="3nJS8wLHVyoBDfzGezAfwV"/>
+          <circle cx="47" cy="188.5" r="1.7" data-page-node-id="OZPb1Eh7ixSuwnJJlMQRC8"/>
+          <circle cx="52.5" cy="190.5" r="1.7" data-page-node-id="CvnHtzyxHadwan9pQu8o2N"/>
+          <ellipse cx="193" cy="197" rx="4.5" ry="3.5" data-page-node-id="AE45hYdFwkMKixWEitCncJ"/>
+          <circle cx="187.5" cy="190.5" r="1.7" data-page-node-id="WbuhEI9NxW0ZRtT1aJRylP"/>
+          <circle cx="193" cy="188.5" r="1.7" data-page-node-id="s8sSHjsFydhRBXHk5EJwo9"/>
+          <circle cx="198.5" cy="190.5" r="1.7" data-page-node-id="CTXFEjDRI0X6uM7GOADui4"/>
+        </g>
+        <path d="M 42 167 A 91 91 0 0 0 198 167" fill="none" stroke="var(--fr-max)" stroke-width="9" stroke-linecap="round" data-page-node-id="TcRkJLCEJj6N9Cc3bYJeGq"/>
+        <path d="M 44 164 A 88 88 0 0 0 196 164" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.55" data-page-node-id="DDZm29HgPot4odnIIc98Q2"/>
+        <circle cx="89" cy="205" r="1.8" fill="#8a5506" opacity="0.7" data-page-node-id="Z9IUoCIjtEwHejcuRwEzWV"/>
+        <circle cx="120" cy="211" r="1.8" fill="#8a5506" opacity="0.7" data-page-node-id="v5Ilb9qNhIGuusJDGdDKFC"/>
+        <circle cx="151" cy="205" r="1.8" fill="#8a5506" opacity="0.7" data-page-node-id="9jVpkSS5EYHHB0FPM6lxxy"/>
+        <g data-page-node-id="Ak6h2YyuDufcYv5w50oWOL">
+          <rect x="108" y="211" width="24" height="8.5" rx="4" fill="var(--fur-gold)" stroke="var(--fr-max-dark)" stroke-width="2" data-page-node-id="GVSZnBeVkPAqRrrZPjRNmZ"/>
+          <circle cx="108" cy="211" r="5" fill="var(--fur-gold)" stroke="var(--fr-max-dark)" stroke-width="2" data-page-node-id="C8KMyU6x2Yf5Vs6c8IG4BU"/>
+          <circle cx="108" cy="219.5" r="5" fill="var(--fur-gold)" stroke="var(--fr-max-dark)" stroke-width="2" data-page-node-id="zXZUwV7LJF4LqBJg1Cpcc1"/>
+          <circle cx="132" cy="211" r="5" fill="var(--fur-gold)" stroke="var(--fr-max-dark)" stroke-width="2" data-page-node-id="l8ENGuiM6OvsQ3qq6krR3U"/>
+          <circle cx="132" cy="219.5" r="5" fill="var(--fur-gold)" stroke="var(--fr-max-dark)" stroke-width="2" data-page-node-id="yxqk1O2gGvwVfDztg9gtGW"/>
+        </g>
+      </symbol>
+
+      <!-- Ultra：三花 & 柴犬 · 彩虹双环 + 内圈阴影 + 双色耳 + 围巾流苏 + 五角星光 -->
+      <symbol id="frame-ultra" viewBox="0 0 240 240" data-page-node-id="gSme5bARAx4rr0ioUJATfF">
+        <circle cx="120" cy="120" r="110" fill="none" stroke="url(#rg)" stroke-width="2" opacity="0.55" data-page-node-id="uibS28GXRI1JnaUD3UtCgO"/>
+        <path d="M 70 38 L 88 2 L 114 32 Z" fill="#f5c4b3" stroke="#b4b2a9" stroke-width="2" stroke-linejoin="round" data-page-node-id="DzAqZp0Gb4R5TzxMijgmq4"/>
+        <path d="M 126 32 L 152 2 L 170 38 Z" fill="#9fe1cb" stroke="#b4b2a9" stroke-width="2" stroke-linejoin="round" data-page-node-id="YJMhelfD8AC5IcfApUqw3W"/>
+        <circle cx="120" cy="120" r="103" fill="none" stroke="url(#rg)" stroke-width="10" data-page-node-id="oOwT7jHStN4aYJqZGtVFVq"/>
+        <circle cx="120" cy="120" r="97" fill="none" stroke="#000000" stroke-width="1.2" opacity="0.08" data-page-node-id="A70S36GIUnUzDR3Hk3DBLj"/>
+        <path d="M 31 69 A 103 103 0 0 1 76 27" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.6" data-page-node-id="UCplBwRncnzA49X2ugFosj"/>
+        <path d="M 42 167 A 91 91 0 0 0 198 167" fill="none" stroke="url(#rg)" stroke-width="10" stroke-linecap="round" data-page-node-id="xjng64GRPphv1Ew5iAcXwV"/>
+        <path d="M 84 193 L 92 188 M 148 188 L 156 193" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" opacity="0.55" data-page-node-id="aVCtWpf7NFHTgTOwGogJVo"/>
+        <path d="M 110 214 L 110 224 M 120 216 L 120 226 M 130 214 L 130 224" stroke="url(#rg)" stroke-width="3.5" stroke-linecap="round" data-page-node-id="HSu3hvjD9B95Roklg9SuFX"/>
+        <path d="M 0 -6 L 1.6 -1.6 L 6 0 L 1.6 1.6 L 0 6 L -1.6 1.6 L -6 0 L -1.6 -1.6 Z" transform="translate(27 55)" fill="#f0997b" data-page-node-id="tDlNyHDOhG1xbmIzOmEiqW"/>
+        <path d="M 0 -6 L 1.6 -1.6 L 6 0 L 1.6 1.6 L 0 6 L -1.6 1.6 L -6 0 L -1.6 -1.6 Z" transform="translate(213 55)" fill="#ef9f27" data-page-node-id="Wggs6QZmOlS3HeIpSZluZF"/>
+        <path d="M 0 -6 L 1.6 -1.6 L 6 0 L 1.6 1.6 L 0 6 L -1.6 1.6 L -6 0 L -1.6 -1.6 Z" transform="translate(27 185)" fill="#97c459" data-page-node-id="hIf2VpbqU5cx0h6K808zH7"/>
+        <path d="M 0 -6 L 1.6 -1.6 L 6 0 L 1.6 1.6 L 0 6 L -1.6 1.6 L -6 0 L -1.6 -1.6 Z" transform="translate(213 185)" fill="#378add" data-page-node-id="ukJl2frNctu3aZmZXPKCN7"/>
+        <path d="M 0 -5 L 1.4 -1.4 L 5 0 L 1.4 1.4 L 0 5 L -1.4 1.4 L -5 0 L -1.4 -1.4 Z" transform="translate(120 14)" fill="#ffffff" opacity="0.95" data-page-node-id="ChO5RMAVCzAdpit9m9Skn5"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <!-- ========== 1. 五档全家福 ========== -->
+  <section class="sec" data-page-node-id="1DZ8qiU52fVhXNRFOB5h1M">
+    <div class="sec-title" data-page-node-id="QVGmNvQRkXTFKZw0PH2dIB">1 · 五档全家福（精修版 152px）</div>
+    <p class="sec-desc" data-page-node-id="iDyoGOed8JT0drShcHtHxi">V2 精修：金属拉丝环 / 内圈阴影 / 高光+暗部弧 / 缝线项圈+铆钉 / 真铃铛 / 骨头狗牌 / 纸箱爪印章 / 环侧胡须 / 星光。Pro 定稿银色。</p>
+    <div class="tier-grid" data-page-node-id="POQIq1MkRg3a2xYamJi9yi">
+      <div class="tier-card" data-page-node-id="83392dPYJy7BFOyLEJeRmp">
+        <div class="frame-slot" data-page-node-id="XL6AUhzQyviNcJSJo1VlGP"><svg viewBox="0 0 240 240" data-page-node-id="kfwCpvL5mSutRlNtQFUZgT"><use href="#avatar-a" data-page-node-id="uXoR5Hm1khuMNhNxdDWQ4u"/><use href="#frame-free" data-page-node-id="ZQy83D1QIoly8gBoqhqa75"/></svg></div>
+        <div class="tier-name" data-page-node-id="ajFG0uZSwkFdfWp1xUiaKI">Free</div>
+        <div class="tier-pet" data-page-node-id="YpWzgdKNBaoGjVzMC1sEZg">纸箱猫</div>
+        <div class="tier-elem" data-page-node-id="fTvISrNJylRpuSXebBWsTI">双层灰环 · 环侧胡须<br data-page-node-id="vud4DIUKoZIMQErF5H0jrB">底部纸箱 · 箱面爪印章</div>
+      </div>
+      <div class="tier-card" data-page-node-id="sqMprn3XfGfVgMvDhiU7R2">
+        <div class="frame-slot" data-page-node-id="ovIMcxMGFY8VcgDEtZSYTG"><svg viewBox="0 0 240 240" data-page-node-id="7Iyn9w1OhTE9VIqAsdDJGV"><use href="#avatar-b" data-page-node-id="GaV8jmmUaR90ZLMjgixiVZ"/><use href="#frame-plus" data-page-node-id="g1ys1RtP7TJDntjwN3SCBM"/></svg></div>
+        <div class="tier-name" style="color: var(--nick-plus);" data-page-node-id="W9a8lPHr3LFVUFUkWn1GWD">Plus</div>
+        <div class="tier-pet" data-page-node-id="fMfheKzjWqfeNwxQECmn4P">布偶猫</div>
+        <div class="tier-elem" data-page-node-id="soQPxUwiRxnpSCYBjWN5Vq">蓝环高光+暗部 · 胡须<br data-page-node-id="P9hDx1TXgI14xVbPGxKGub">缝线项圈+铆钉 · 真铃铛</div>
+      </div>
+      <div class="tier-card" data-page-node-id="JJiPwF8yQACqiEzRY1hZhe">
+        <div class="frame-slot" data-page-node-id="2qsGfEMoaSFSEGOBgULtCs"><svg viewBox="0 0 240 240" data-page-node-id="J4jJBtBfKFd3eoZEFeMf0Q"><use href="#avatar-c" data-page-node-id="rW9erCw9KM0Iu0QlgyIDqr"/><use href="#frame-pro" data-page-node-id="MJazh8bic5u1KQLcBPYcNK"/></svg></div>
+        <div class="tier-name" style="color: var(--nick-pro);" data-page-node-id="GDB7IFB5y0ona2zz5g4Ek2">Pro</div>
+        <div class="tier-pet" data-page-node-id="1DVLbgMrFTkNrPD8FFkE5E">银渐层</div>
+        <div class="tier-elem" data-page-node-id="SLQlsMSwqh8RwxrjUkeHsy">金属拉丝银环 · 耳纹+星光<br data-page-node-id="3KSrLq3KJu3IEAV4Qd6IDx">毛绒围脖 · 银铃铛</div>
+        <span class="fix-note" data-page-node-id="YWFH6M3iCSsl7ZfaTrw182">⚠ 订阅页文案待修：应为"银色昵称"</span>
+      </div>
+      <div class="tier-card" data-page-node-id="yBpGObpuo6xKkd3nAWq3tZ">
+        <div class="frame-slot" data-page-node-id="Gbq4731PHVcHmDTtnv2OJ6"><svg viewBox="0 0 240 240" data-page-node-id="VUh2QO006lwzyRFKSZEBJT"><use href="#avatar-a" data-page-node-id="dgbXkFNR6hoGJ98BIgBvzx"/><use href="#frame-max" data-page-node-id="2uvqlYiwZQ2GjCLimozpGq"/></svg></div>
+        <div class="tier-name" style="color: var(--nick-max);" data-page-node-id="bCvG2FJB2fwV6LtlfQAYHY">Max</div>
+        <div class="tier-pet" data-page-node-id="saSWFFJPutfYUsgIdf2WeE">金毛寻回犬</div>
+        <div class="tier-elem" data-page-node-id="8LAbUV9P8TH4Ipvvss15l7">金属拉丝金环 · 环上爪印<br data-page-node-id="7mmChiURXP2sr5Ccu41CnR">双层垂耳 · 骨头狗牌</div>
+      </div>
+      <div class="tier-card" data-page-node-id="M9HPYAhyuChnKcU1HpSmM9">
+        <div class="frame-slot" data-page-node-id="4M8tFp39O9SE5xQz3Ei5pz"><svg viewBox="0 0 240 240" data-page-node-id="6aWdnm23MXQ6JEYOnF8Rpo"><use href="#avatar-b" data-page-node-id="YIk88IBsXd1f9KBHy4jmPO"/><use href="#frame-ultra" data-page-node-id="ZPaV5mwrNsMhW6sDtNrUIk"/></svg></div>
+        <div class="tier-name nick rainbow" data-page-node-id="oobqkW4xYFxJfqbDyBSnUf">Ultra</div>
+        <div class="tier-pet" data-page-node-id="epRP04qPvC26QRHmsaYHZS">三花 &amp; 柴犬</div>
+        <div class="tier-elem" data-page-node-id="0YXaRkELwuamdbBr8dXQWD">彩虹双环 · 围巾流苏<br data-page-node-id="0DJ3tC56YdKOlU0yiCqHhQ">五处四角星光点缀</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 2. 小尺寸测试 ========== -->
+  <section class="sec" data-page-node-id="MiF2Tg9862oUmCop0KJwcE">
+    <div class="sec-title" data-page-node-id="Odg8dK8gwYvxjc8WlfATAg">2 · 小尺寸可辨识测试</div>
+    <p class="sec-desc" data-page-node-id="mX8yfNUwXwSEenjlgrQVuM">上排：细节最多的 Ultra（检验小尺寸是否糊）；下排：金属渐变的 Pro（检验银环小尺寸对比度）。24px 下允许细节弱化，主轮廓与档位色必须可辨。</p>
+    <div class="size-row" data-page-node-id="BhbFyR1Cv28wCYMpZhlzGW">
+      <div class="size-row-title" style="width: 100%;" data-page-node-id="TkdlqeYI93z2qistOa0kck">Ultra · 三花 &amp; 柴犬</div>
+      <div class="size-flex" id="sizeRowUltra" data-page-node-id="VhtSLn6AAwshRZAJoHjgvQ"></div>
+    </div>
+    <div class="size-row" data-page-node-id="VRf2HH1SVugZkd58ErDA99">
+      <div class="size-row-title" style="width: 100%;" data-page-node-id="kwrr9FU6e8pOHzIoFhwDyn">Pro · 银渐层</div>
+      <div class="size-flex" id="sizeRowPro" data-page-node-id="oeMu3N3b46CzdCDKmwXM5Z"></div>
+    </div>
+  </section>
+
+  <!-- ========== 3. 场景模拟 ========== -->
+  <section class="sec" data-page-node-id="sbiwHzIDiJD8TpZb4eHEmk">
+    <div class="sec-title" data-page-node-id="ZETfQyMEiqV46eE6vkrgfX">3 · 产品内场景模拟</div>
+    <p class="sec-desc" data-page-node-id="VtgKUlwshFWNrVe1UrChje">论坛帖子卡 / 评论楼层 / 个人主页。昵称色与头像框同源。</p>
+    <div class="scene-grid" data-page-node-id="jbNFdAWT0QG3LqMVW7NruA">
+      <div class="stack" data-page-node-id="CTpy26832YuGlc9NueXSPZ">
+        <div class="post-card" data-page-node-id="L4FX2261HvxJVMiMcf6SMP">
+          <div class="post-head" data-page-node-id="oUsfTm1Qe51189qensg9T7">
+            <div class="av" data-page-node-id="uJrN8Xxyf3az2UC7LKwV3d"><svg viewBox="0 0 240 240" data-page-node-id="BKO7mCiZ6yqsqCpqAxXatK"><use href="#avatar-b" data-page-node-id="TrunCBdOpAFCkxhM2FNvjx"/><use href="#frame-plus" data-page-node-id="7PndDUQDF2OaXQIka6WbRe"/></svg></div>
+            <div data-page-node-id="7aniXHcEcHoG59PFSSMi8Z">
+              <div class="nick plus" data-page-node-id="D23hRAaxlC28ezZkypuy19">奶油不加糖</div>
+              <div class="meta" data-page-node-id="awSy1MtOGUyvnqpsmSUzH5">2 小时前 · Plus</div>
+            </div>
+          </div>
+          <div class="post-title" data-page-node-id="K5jGZCmWZtwJ0IYza3ubvw">Cloud+ 又攒了一堆截图，Plus 的 300 张真的够用吗？</div>
+          <p class="post-body" data-page-node-id="RrPQ8htyGmjbxDTCQKnTov">如题，每天随手存截图，150 张的免费额度三天就满了。升级 Plus 之后 300 张，实测两周还没满，配合自动清理刚刚好。附我的整理工作流……</p>
+          <div class="post-actions" data-page-node-id="wvaUfW7P1H2imRzzsAKYy4">
+            <span data-page-node-id="Xi2AuDiVNgkHaEpCLkLwsc"><svg viewBox="0 0 24 24" data-page-node-id="FxF4CxWtb8ZGutI6pAe3qT"><path d="M12 21C5 14 2 10 2 6.5C2 3.5 4.5 2 7 2C9 2 11 3.5 12 5C13 3.5 15 2 17 2C19.5 2 22 3.5 22 6.5C22 10 19 14 12 21Z" data-page-node-id="cF4tReCOztPJa5LTHU0ntC"/></svg>128</span>
+            <span data-page-node-id="ODqOKYWFdtAbCr5XJxNHr5"><svg viewBox="0 0 24 24" data-page-node-id="2zmjOoPn7z5Mz8VZftSCTy"><path d="M4 5h16v11H10l-5 4v-4H4z" data-page-node-id="HVN7nbK2psRDFGBS71vaxn"/></svg>32</span>
+          </div>
+        </div>
+        <div class="post-card" data-page-node-id="LAmC2F2flrUaX2bU7cbdVt">
+          <div class="post-head" data-page-node-id="eWGfjjkZQrl4y6CLZemcwF">
+            <div class="av" data-page-node-id="SO0i9OpkQBbT2HWpWI1CGZ"><svg viewBox="0 0 240 240" data-page-node-id="cdCDg4kqARZFt2UADzbm5F"><use href="#avatar-a" data-page-node-id="Vq2NFNPPAwQqnOnvVULtV1"/><use href="#frame-max" data-page-node-id="YeOOQwBi0PPPxeTrmJkiPn"/></svg></div>
+            <div data-page-node-id="nXFAaCZn8x5FPuVC5NtX6I">
+              <div class="nick max" data-page-node-id="7YoiXSDW0YuzDDrToByKI1">金毛是这个金吗</div>
+              <div class="meta" data-page-node-id="nO18ERfDm4bEtqzlXk2RV0">昨天 · Max</div>
+            </div>
+          </div>
+          <div class="post-title" data-page-node-id="9VkbOCEpBKGl0rOAu9fBDj">Agent &amp; Plan 跑完一整周的实测报告</div>
+          <p class="post-body" data-page-node-id="mVZ6BBxfkhqEWTGc2u5M4g">Max 的 Agent 模式配 500 万 Token，我让它每天早上自动整理待办并生成计划。一周下来只翻车一次，翻车原因是我自己断网……</p>
+          <div class="post-actions" data-page-node-id="FRcqBUbkhB5o0gOIzHWCbX">
+            <span data-page-node-id="nNTu5wU03EX3VsSk4XAQyJ"><svg viewBox="0 0 24 24" data-page-node-id="7o0AoWf9gB3NAurLGZKjFG"><path d="M12 21C5 14 2 10 2 6.5C2 3.5 4.5 2 7 2C9 2 11 3.5 12 5C13 3.5 15 2 17 2C19.5 2 22 3.5 22 6.5C22 10 19 14 12 21Z" data-page-node-id="8T0mbfwa6RYKXe0iOyVIe9"/></svg>256</span>
+            <span data-page-node-id="p5GAhfPCzaTVVkHYVYMXGj"><svg viewBox="0 0 24 24" data-page-node-id="hFaTj3zMFWFleFD8kwhWXa"><path d="M4 5h16v11H10l-5 4v-4H4z" data-page-node-id="ZH95IiUVqJllkWrgNu7Fpo"/></svg>64</span>
+          </div>
+        </div>
+      </div>
+      <div class="stack" data-page-node-id="XTx59PoYCTqpJM99IhE6Ui">
+        <div class="comment-card" data-page-node-id="urXl89GLnECeI17IvbXFLg">
+          <div class="comment" data-page-node-id="QKaNnRJHKHkCxfBDHgtSXo">
+            <div class="av" data-page-node-id="vqflFhFGAxb3oNKE9MKqaO"><svg viewBox="0 0 240 240" data-page-node-id="ohDUdkqnlnD19X75Bk1TX0"><use href="#avatar-c" data-page-node-id="jHnDbumIcRhfyH1KTNfcTY"/><use href="#frame-ultra" data-page-node-id="FYDrjfM1w7C49CiuVln640"/></svg></div>
+            <div data-page-node-id="olnSCMau7pB8Fydj7mCmaz">
+              <div class="nick rainbow" data-page-node-id="a2zqlQ1hRBYq72W9SnIrnv">彩虹战士 Ultra</div>
+              <p data-page-node-id="mCjUhy4jT1fy5CaY44oBhx">铃铛会响的那种框什么时候出（不是</p>
+            </div>
+          </div>
+          <div class="comment" data-page-node-id="QhCqUutxycwSelbxTMaRIj">
+            <div class="av" data-page-node-id="d9upv95Yj9pgMWeYgxySIJ"><svg viewBox="0 0 240 240" data-page-node-id="qA6VZ7QU7hdtklonTVpgHW"><use href="#avatar-b" data-page-node-id="Cb8THS70AoE9XEbu7hjzec"/><use href="#frame-pro" data-page-node-id="GGs6Ac1mLbN1xw5NVROZQf"/></svg></div>
+            <div data-page-node-id="dGlASvY4RY4QOFO2v3Psy3">
+              <div class="nick pro" data-page-node-id="StRyGa5FHLGuSBZzqDyzaZ">银渐层铲屎官</div>
+              <p data-page-node-id="hPTFnz81wsTeug1395yCAH">Pro 的银环在暗色模式下亮度刚好，不会隐身，好评。</p>
+            </div>
+          </div>
+          <div class="comment" data-page-node-id="7y2hP2U2GYk6ZSu6YiHItu">
+            <div class="av" data-page-node-id="UAw8egPiFuXay83FBCEUbT"><svg viewBox="0 0 240 240" data-page-node-id="Kv890nmRWc0L8pKMvia6IA"><use href="#avatar-a" data-page-node-id="n4EDpNwE58LYWEtgCIaEmr"/><use href="#frame-free" data-page-node-id="NE3OZx5VIw793vJBsPkZEh"/></svg></div>
+            <div data-page-node-id="xZi9fcvRmMs9HAEAZulJXr">
+              <div class="nick" style="color: var(--text-2);" data-page-node-id="rAEcOUZP64lMKFqhJeKbbj">纸箱猫常驻居民</div>
+              <p data-page-node-id="cPILIgbFIKrL8uYOF2L7pM">免费用户的纸箱猫也蛮可爱的，蹲一个春节唐装限定。</p>
+            </div>
+          </div>
+        </div>
+        <div class="profile-card" data-page-node-id="b7BdEyUs008YtJeZxxZLX9">
+          <div class="av" data-page-node-id="ZbY5zBTmNoQWEWPJH07iB2"><svg viewBox="0 0 240 240" data-page-node-id="FIEWiKKsapHBOmSGCGvd28"><use href="#avatar-a" data-page-node-id="RTWvkF8rrdXyGlDGq0aycD"/><use href="#frame-ultra" data-page-node-id="QeXb3U4L2mvLMGIjQjFxSN"/></svg></div>
+          <div data-page-node-id="N1AFAEXpD5Ch0CpH0TAg1H">
+            <div data-page-node-id="pVFLFIupUt8oT7SaH9uFhJ"><span class="profile-name nick rainbow" data-page-node-id="PrqWyNA9W022v8v6fyL9SL">猫毛过敏但养猫</span><span class="profile-badge" data-page-node-id="PxkfGMbbg6bQqWLXkHCnsG">ULTRA</span></div>
+            <p class="profile-bio" data-page-node-id="PYQLGs7S8z29HxEjPzUrKA">研究级无限 · 彩虹昵称 · 头像框为 Ultra 专属「三花 &amp; 柴犬」。<br data-page-node-id="RFByGresv6iC8hGxrFxHLL">个人主页是唯一展示动效的位置（二期：眨眼 / 尾巴摆动）。</p>
+            <span class="profile-btn" data-page-node-id="YTEEJHAHsNXxWPA8aZd2vJ">更换头像框</span>
+            <div class="frame-note" data-page-node-id="xhpEAKoXNcgkZEkbbVMj3p">入口：用户空间 → 资产面板 · 订阅支付成功后自动点亮</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="foot" data-page-node-id="Fx4Ev5vFdMhNXuXwNvSLFd">
+    V2 实现说明：单文件静态 Demo，无外部依赖 · SVG symbol 单源复用 · 头像 r=96 贴合环内缘（环 r=103 / 线宽 9，内径 98.5），间隙 &lt;2% + 内圈阴影环，白边感消除 ·
+    Pro / Max 环用多段线性渐变模拟金属拉丝 + 白色高光弧 + 深色暗部弧 · Free / Plus 环主色随 html[data-theme] 亮暗切换（暗色提亮）·
+    一期全部静态，动效留二期。
+  </div>
+</div>
+
+<script>
+  var btn = document.getElementById('themeBtn');
+  var sizes = [128, 96, 64, 48, 32, 24];
+  function buildRow(rowId, frameId) {
+    var row = document.getElementById(rowId);
+    sizes.forEach(function (s) {
+      var item = document.createElement('div');
+      item.className = 'size-item';
+      var box = document.createElement('div');
+      box.style.margin = '0 auto';
+      box.innerHTML = '<svg viewBox="0 0 240 240" width="' + s + '" height="' + s + '"><use href="#avatar-a"/><use href="#' + frameId + '"/></svg>';
+      var lbl = document.createElement('div');
+      lbl.className = 'lbl';
+      lbl.textContent = s + 'px';
+      item.appendChild(box);
+      item.appendChild(lbl);
+      row.appendChild(item);
+    });
+  }
+  buildRow('sizeRowUltra', 'frame-ultra');
+  buildRow('sizeRowPro', 'frame-pro');
+  btn.addEventListener('click', function () {
+    var html = document.documentElement;
+    var dark = html.getAttribute('data-theme') === 'dark';
+    html.setAttribute('data-theme', dark ? 'light' : 'dark');
+    btn.textContent = dark ? '切换暗色 🌙' : '切换亮色 ☀️';
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="30PjcceID6O4ay9rpAD933">
+<head data-page-node-id="CkSSfQfeudzNP1OAzUQA6c">
+<meta charset="UTF-8" data-page-node-id="hqBp2ucHE8XnOTlbsfMFtW">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="g9pE6FuojFOXN7abtVCt9G">
+<title>灵动岛 · 智能摘要加载态 Demo</title>
+<style>
+  @property --spin {
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 0deg;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 44px;
+    background:
+      radial-gradient(80% 60% at 50% 0%, #ffffff 0%, #eef1f6 55%, #e6eaf1 100%);
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Helvetica Neue', sans-serif;
+    color: #1d1d1f;
+    overflow: hidden;
+  }
+
+  .page-title {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    color: #86868b;
+  }
+
+  /* ========== 灵动岛胶囊 ========== */
+
+  .island-halo {
+    position: relative;
+    isolation: isolate;               /* 光晕层锁在本组内，避免漏到背景后面 */
+    border-radius: 999px;
+    padding: 2px;                     /* 彩虹描边厚度 */
+    background: conic-gradient(
+      from var(--spin),
+      #ff5a5f, #ff9f43, #feca57,
+      #1dd1a1, #48dbfb, #5f6cf6,
+      #c56cf0, #ff5a5f
+    );
+    animation: spin 3.2s linear infinite;
+  }
+
+  /* 外发光：同款彩虹 conic，模糊后垫在胶囊底下 */
+  .island-halo::after {
+    content: '';
+    position: absolute;
+    inset: -10px;
+    z-index: -1;
+    border-radius: 999px;
+    background: conic-gradient(
+      from var(--spin),
+      #ff5a5f, #ff9f43, #feca57,
+      #1dd1a1, #48dbfb, #5f6cf6,
+      #c56cf0, #ff5a5f
+    );
+    filter: blur(16px);
+    opacity: .55;
+    animation: spin 3.2s linear infinite, breathe 2.4s ease-in-out infinite;
+  }
+
+  @keyframes spin { to { --spin: 360deg; } }
+  @keyframes breathe { 0%, 100% { opacity: .38; } 50% { opacity: .68; } }
+
+  .island-body {
+    border-radius: 999px;
+    background:
+      radial-gradient(130% 150% at 50% 0%, #1b1b21 0%, #050507 62%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, .09),
+      inset 0 0 18px rgba(0, 0, 0, .6);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px 32px 20px 22px;
+  }
+
+  /* ========== 依次发光的圆点 spinner ========== */
+
+  .spinner {
+    position: relative;
+    width: 54px;
+    height: 54px;
+    flex: none;
+  }
+
+  .spinner i {
+    --r: 20px;                        /* 圆周半径 */
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 9px;
+    height: 9px;
+    margin: -4.5px 0 0 -4.5px;
+    border-radius: 50%;
+    background: var(--c);
+    opacity: .16;
+    transform: rotate(var(--a)) translateY(calc(-1 * var(--r))) scale(.72);
+    animation: dot 1.8s ease-in-out infinite;
+    animation-delay: calc(var(--i) * 1.8s / 8);
+  }
+
+  @keyframes dot {
+    0%, 58%, 100% {
+      opacity: .16;
+      transform: rotate(var(--a)) translateY(calc(-1 * var(--r))) scale(.72);
+      box-shadow: 0 0 0 transparent;
+    }
+    16% {
+      opacity: 1;
+      transform: rotate(var(--a)) translateY(calc(-1 * var(--r))) scale(1.24);
+      box-shadow: 0 0 8px var(--c), 0 0 16px var(--c);
+    }
+  }
+
+  /* ========== 文字 shimmer ========== */
+
+  .island-text {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    white-space: nowrap;
+    background: linear-gradient(90deg, #7c7c82 0%, #ffffff 42%, #ffffff 58%, #7c7c82 100%);
+    background-size: 240% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer 2.6s linear infinite;
+  }
+
+  @keyframes shimmer {
+    from { background-position: 130% 0; }
+    to   { background-position: -130% 0; }
+  }
+
+  /* ========== 页脚规格说明 ========== */
+
+  .specs {
+    display: flex;
+    gap: 22px;
+    font-size: 12px;
+    color: #a1a1a6;
+  }
+  .specs b { color: #6e6e73; font-weight: 600; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .island-halo, .island-halo::after, .spinner i, .island-text { animation: none; }
+    .spinner i { opacity: .5; }
+  }
+</style>
+</head>
+<body data-page-node-id="QzNfvFC0Uhnf8a9yvICk3z">
+
+  <div class="page-title" data-page-node-id="SFCWPua8b5Suk2mFNXvsIi">灵动岛 · 智能摘要加载态</div>
+
+  <div class="island-halo" data-page-node-id="jL5OACj50parBVr5acf91a">
+    <div class="island-body" data-page-node-id="XVFLJ7gBmcLRB5XMHNZEAT">
+      <div class="spinner" aria-hidden="true" data-page-node-id="vXuiv3GWFRoxnSARrfOO2F">
+        <i style="--a:0deg;   --i:0; --c:#ff5a5f" data-page-node-id="f1KrAV08MGvgjPbGv0GJDv"></i>
+        <i style="--a:45deg;  --i:1; --c:#ff9f43" data-page-node-id="XEgWyIHoektb6KCBt9sZdL"></i>
+        <i style="--a:90deg;  --i:2; --c:#feca57" data-page-node-id="iPqCdDAvNtqWkUBwYKjPJA"></i>
+        <i style="--a:135deg; --i:3; --c:#1dd1a1" data-page-node-id="MpLFrAxl9jc6eOYbEoudWZ"></i>
+        <i style="--a:180deg; --i:4; --c:#48dbfb" data-page-node-id="ntxfGSsup7si7dxzvgz50D"></i>
+        <i style="--a:225deg; --i:5; --c:#5f6cf6" data-page-node-id="ImEykgJVhZ6PgOsKo70Yga"></i>
+        <i style="--a:270deg; --i:6; --c:#c56cf0" data-page-node-id="4q1xeUWeK0qKBszEJurwGG"></i>
+        <i style="--a:315deg; --i:7; --c:#ff6b81" data-page-node-id="wKhGn9hdZg7zd6wySkkEGr"></i>
+      </div>
+      <div class="island-text" data-page-node-id="NABBcdzA4OObGyiN7Z6na2">智能摘要正在生成中。</div>
+    </div>
+  </div>
+
+  <div class="specs" data-page-node-id="zEfhE8NqFvTddfZhpLTVCw">
+    <span data-page-node-id="KAT2RNnAKkYN7Wt5WrxFqc">描边 <b data-page-node-id="sU1ojnuntjQK2S8ijkjou8">2px 流动彩虹</b></span>
+    <span data-page-node-id="qkfQEQG29Z5nuJuqDZ918z">光晕 <b data-page-node-id="YBQQiy8tsa6XgiIgmYJsVt">blur 16px 呼吸</b></span>
+    <span data-page-node-id="Y9VBdjoqDgjqPDeLk016vH">圆点 <b data-page-node-id="0TEH8THKarPGe9VNpZNukV">8 点依次点亮 / 1.8s</b></span>
+    <span data-page-node-id="qJS8Hvj5SSllKV3svE8DzG">文字 <b data-page-node-id="mkh7KhKgRYe14gzVwzHbFS">shimmer 流光</b></span>
+  </div>
+
+</body>
+</html>

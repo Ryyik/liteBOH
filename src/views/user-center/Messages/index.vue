@@ -585,6 +585,7 @@ const hasMoreNotifications = ref(false);
 const currentUserId = ref(null);
 const currentTab = ref('all'); // 'all' | 'like' | 'comment' | 'impression' | 'system'
 const LOTTERY_WIN_NOTIFICATION_TYPE = 'lottery_win';
+const SUBSCRIPTION_NOTIFICATION_TYPE = 'subscription';
 const MESSAGE_PAGE_SIZE = 24;
 const MAX_CACHE_SIZE = 200; // LRU 缓存上限
 const VIRTUAL_SCROLL_THRESHOLD = 100; // 虚拟滚动阈值
@@ -898,7 +899,8 @@ const isSystemNotificationType = (type) => [
   LOTTERY_WIN_NOTIFICATION_TYPE,
   POST_REJECTED_NOTIFICATION_TYPE,
   POST_REPORT_LIMITED_NOTIFICATION_TYPE,
-  COMMENT_REJECTED_NOTIFICATION_TYPE
+  COMMENT_REJECTED_NOTIFICATION_TYPE,
+  SUBSCRIPTION_NOTIFICATION_TYPE
 ].includes(type);
 
 const filteredMessages = computed(() => {
@@ -1704,7 +1706,7 @@ const archiveCurrentTabMessages = async () => {
   if (currentTab.value === 'all') {
     targetType = null;
   } else if (currentTab.value === 'system') {
-    targetType = ['system', 'gift', LOTTERY_WIN_NOTIFICATION_TYPE, POST_REJECTED_NOTIFICATION_TYPE, POST_REPORT_LIMITED_NOTIFICATION_TYPE, COMMENT_REJECTED_NOTIFICATION_TYPE];
+    targetType = ['system', 'gift', LOTTERY_WIN_NOTIFICATION_TYPE, POST_REJECTED_NOTIFICATION_TYPE, POST_REPORT_LIMITED_NOTIFICATION_TYPE, COMMENT_REJECTED_NOTIFICATION_TYPE, SUBSCRIPTION_NOTIFICATION_TYPE];
   } else {
     targetType = [currentTab.value];
   }
@@ -2239,6 +2241,7 @@ const getTypeLabel = (type) => {
     [POST_REJECTED_NOTIFICATION_TYPE]: '审查通知',
     [COMMENT_REJECTED_NOTIFICATION_TYPE]: '审查通知',
     [LOTTERY_WIN_NOTIFICATION_TYPE]: '中奖通知',
+    [SUBSCRIPTION_NOTIFICATION_TYPE]: '订阅通知',
     'system': '系统消息',
     'gift': '礼物通知'
   };
@@ -2256,6 +2259,7 @@ const getNotificationTypeLabel = (type) => {
     [POST_REPORT_LIMITED_NOTIFICATION_TYPE]: '举报处理',
     [COMMENT_REJECTED_NOTIFICATION_TYPE]: '评论审查',
     [LOTTERY_WIN_NOTIFICATION_TYPE]: '中奖通知',
+    [SUBSCRIPTION_NOTIFICATION_TYPE]: '订阅通知',
     'system': '系统通知',
     'gift': '礼物通知'
   };
@@ -2281,6 +2285,8 @@ const getNotificationTitle = (notification) => {
       return '评论审查未通过';
     case LOTTERY_WIN_NOTIFICATION_TYPE:
       return '你中奖啦';
+    case SUBSCRIPTION_NOTIFICATION_TYPE:
+      return '您已获得订阅权益';
     case 'system':
       return '系统通知';
     case 'gift':
@@ -2312,6 +2318,9 @@ const getNotificationPreview = (notification) => {
   }
   if (notification.type === LOTTERY_WIN_NOTIFICATION_TYPE) {
     return notification.content || '你在 BOH 抽奖中中奖啦，请等待管理员联系。';
+  }
+  if (notification.type === SUBSCRIPTION_NOTIFICATION_TYPE) {
+    return notification.content || '您已获得新的订阅权益，快去查看吧。';
   }
   if (notification.comment?.content) {
     return notification.comment.content.substring(0, 50) + (notification.comment.content.length > 50 ? '...' : '');
@@ -2363,6 +2372,9 @@ const getNotificationContent = (notification) => {
   }
   if (notification.type === LOTTERY_WIN_NOTIFICATION_TYPE) {
     return notification.content || '你在 BOH 抽奖中中奖啦，请等待管理员联系。';
+  }
+  if (notification.type === SUBSCRIPTION_NOTIFICATION_TYPE) {
+    return notification.content || '您已获得新的订阅权益，快去查看吧。';
   }
   if (notification.comment?.content) {
     return notification.comment.content;
@@ -2452,6 +2464,12 @@ const avatarTone = (username) => {
 const loadMoreNotificationLabel = computed(() => {
   if (loadingMoreNotifications.value) return '加载中...';
   return hasMoreNotifications.value ? '加载更多通知' : '没有更多通知';
+});
+
+// 供宿主（UserSpaceMain 的智能建议岛）调用：一键全部已读走组件内完整闭环
+// （markAllNotificationsAsRead RPC + 本地列表翻转 + triggerUnreadRefresh + feedback）
+defineExpose({
+  markAllAsRead
 });
 </script>
 

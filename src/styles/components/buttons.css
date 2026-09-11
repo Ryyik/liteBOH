@@ -37,32 +37,10 @@
 /**************************
 * Box Shadow
 ***************************/
-.box-shadownone, .btn:hover,
+.btn:hover,
 .btn:focus {
   -webkit-box-shadow: none;
   box-shadow: none; }
-
-/************************** 
-* Box Sizing
-***************************/
-.box-sizing {
-  -moz-box-sizing: border-box;
-  -ms-box-sizing: border-box;
-  -o-box-sizing: border-box;
-  -webkit-box-sizing: border-box;
-  box-sizing: border-box; }
-
-/************************** 
-* Padding
-***************************/
-.padding {
-  padding: 30px 20px; }
-
-/************************** 
-* Boreder None
-***************************/
-.border-none {
-  border: none; }
 
 /************************** 
 * Media Queries

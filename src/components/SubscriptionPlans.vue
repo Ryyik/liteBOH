@@ -93,14 +93,13 @@
           <span v-if="plan.featured" class="recommended"><span class="rec-dot" aria-hidden="true" />最受欢迎</span>
           <div class="plan-head"><h2>{{ plan.name }}</h2><p>{{ resolvePlanPosition(plan.code) }}</p></div>
           <div class="price" aria-live="polite">
-            <span class="price-cny">￥</span>
             <Transition :name="priceDir >= 0 ? 'num-next' : 'num-prev'" mode="out-in">
               <strong :key="billingCycle + plan.code" class="price-num">{{ tweenedPrice(plan) }}</strong>
             </Transition>
-            <span class="price-per">/ {{ billingCycle === BILLING_YEARLY ? '年' : '月' }}</span>
+            <span class="price-per">积分 / {{ billingCycle === BILLING_YEARLY ? '年' : '月' }}</span>
           </div>
           <p class="price-note">
-            <span v-if="plan.monthlyCost && billingCycle === BILLING_YEARLY">相当于 ￥{{ Math.round(calculatePrice(plan) / 12) }} / 月 · </span>
+            <span v-if="plan.monthlyCost && billingCycle === BILLING_YEARLY">相当于 {{ Math.round(calculatePrice(plan) / 12) }} 积分 / 月 · </span>
             <span v-if="plan.monthlyCost && billingCycle === BILLING_YEARLY" :key="billingCycle" class="save-badge pop">省 {{ plan.monthlyCost * 2 }} 积分</span>
             <span v-else>&nbsp;</span>
           </p>
@@ -220,7 +219,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
-import { Check, ChevronDown, X, Zap, Cloud, Bot, FileText, Eye, Gift, Coins, ChevronRight, Crown, Sparkles } from 'lucide-vue-next';
+import { Check, ChevronDown, X, Zap, Cloud, FileText, Gift, Coins, ChevronRight, Crown, Sparkles } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
 import { getMySubscriptions, subscribeWithPoints, startSubscriptionTrial } from '@/utils/api/subscription-api.js';
@@ -281,17 +280,15 @@ const tweenedPrice = (plan) => displayPrices[plan.code] ?? calculatePrice(plan);
 
 const plans = [
   { code: 'free', name: 'Free', monthlyCost: 0, featured: false, alwaysActive: true, position: '日常使用', features: ['BOH AI 20 万 Token / 天', 'Cloud+ 150 张', '实验室 PPT / Word 10 次 / 月', '可参与抽奖'] },
-  { code: 'plus', name: 'Plus', monthlyCost: 8, featured: false, position: '效率升级', features: ['BOH AI 80 万 Token / 天', 'Cloud+ 300 张', '多模态交互', '实验室 PPT / Word 15 次 / 月', '抽奖保底累计 24 次（门槛较高）'] },
-  { code: 'pro', name: 'Pro', monthlyCost: 20, featured: true, position: '专业创作', features: ['BOH AI 200 万 Token / 天', 'Cloud+ 450 张', '多模态交互', '金色昵称', '实验室 PPT / Word 20 次 / 月', '抽奖保底累计 18 次（门槛中等）'] },
-  { code: 'max', name: 'Max', monthlyCost: 40, featured: false, position: '全能尊享', features: ['BOH AI 500 万 Token / 天', 'Cloud+ 900 张', 'Agent & Plan', '金色昵称', '实验室 PPT / Word 30 次 / 月', '抽奖保底累计 12 次（门槛较低）'] },
-  { code: 'ultra', name: 'Ultra', monthlyCost: 70, featured: false, position: '研究级无限', features: ['BOH AI 1000 万 Token / 天', 'Cloud+ 1200 张', 'Agent & Plan', '彩虹昵称', '实验室 PPT / Word 不限次数', '抽奖保底累计 8 次（门槛最低·最易保底）'] }
+  { code: 'plus', name: 'Plus', monthlyCost: 8, featured: false, position: '效率升级', features: ['BOH AI 80 万 Token / 天', 'Cloud+ 300 张', '实验室 PPT / Word 15 次 / 月', '蓝色昵称', '抽奖保底累计 24 次（门槛较高）'] },
+  { code: 'pro', name: 'Pro', monthlyCost: 20, featured: true, position: '专业创作', features: ['BOH AI 200 万 Token / 天', 'Cloud+ 450 张', '银色昵称', '实验室 PPT / Word 20 次 / 月', '抽奖保底累计 18 次（门槛中等）'] },
+  { code: 'max', name: 'Max', monthlyCost: 40, featured: false, position: '全能尊享', features: ['BOH AI 500 万 Token / 天', 'Cloud+ 900 张', '金色昵称', '实验室 PPT / Word 30 次 / 月', '抽奖保底累计 12 次（门槛较低）'] },
+  { code: 'ultra', name: 'Ultra', monthlyCost: 70, featured: false, position: '研究级无限', features: ['BOH AI 1000 万 Token / 天', 'Cloud+ 1200 张', '彩虹昵称', '实验室 PPT / Word 不限次数', '抽奖保底累计 8 次（门槛最低·最易保底）'] }
 ];
 const introFeatures = [
   { icon: Zap, title: '更快模型与 Token', copy: '解锁更快、更强的 AI 模型与每日 Token 额度，交流与创作效率大幅提升。' },
   { icon: Cloud, title: 'Cloud+ 存储空间', copy: '扩充云端存储，文档、PPT、Word 与素材随取随用，再多创作也装得下。' },
-  { icon: Bot, title: 'Agent 任务并行', copy: '支持多个并行 Agent 在后台同步推进，复杂任务一次完成不再等待。' },
   { icon: FileText, title: '实验室 PPT / Word', copy: '一键生成文档与演示，产出次数随档位升级，研究汇报十指飞快。' },
-  { icon: Eye, title: '多模态交互', copy: '融合视觉与语音的多模态能力，让交流更自然，想法落地更直观。' },
   { icon: Gift, title: '会员尊享与抽奖', copy: '专属昵称效果与抽奖保底累计，让每一次使用都更有归属感。' }
 ];
 const TIER_RANK = { free: 0, plus: 1, pro: 2, max: 3, ultra: 4 };
@@ -319,10 +316,8 @@ const displayPlans = computed(() => plans.map(withStatus));
 const billingTabs = [{ value: BILLING_MONTHLY, label: '单月' }, { value: BILLING_YEARLY, label: '单年', discount: '省 17%' }];
 const comparisonRows = [
   { label: 'BOH AI Token / 天', values: { free: '20 万', plus: '80 万', pro: '200 万', max: '500 万', ultra: '1000 万' } },
-  { label: 'Agent 任务并行', values: { free: '1 个任务', plus: '1 个任务', pro: '2 个任务', max: '4 个任务', ultra: '8 个任务' } },
   { label: 'Cloud+ 存储空间', values: { free: '150 张', plus: '300 张', pro: '450 张', max: '900 张', ultra: '1200 张' } },
-  { label: '多模态交互', values: { free: false, plus: true, pro: true, max: true, ultra: true } },
-  { label: 'Agent & Plan 工作流', values: { free: false, plus: false, pro: false, max: true, ultra: true } },
+  { label: '多模态交互', values: { free: true, plus: true, pro: true, max: true, ultra: true } },
   { label: '实验室 PPT / Word', values: { free: '10 次 / 月', plus: '15 次 / 月', pro: '20 次 / 月', max: '30 次 / 月', ultra: '不限次数' } },
   { label: '定制化看板', values: { free: true, plus: true, pro: true, max: true, ultra: true } },
   { label: '年度会员纪念徽章', values: { free: false, plus: true, pro: true, max: true, ultra: true } },
@@ -332,7 +327,7 @@ const faqList = [
   { q: '如何升级会员计划？', a: ['选择比当前更高级别的计划并点击“升级”，升级立即生效；已购订阅会按剩余天数折算成积分抵扣升级差额，不会浪费。'] },
   { q: '订阅快到期了怎么续费？', a: ['在订阅页选择你当前的档位并点击“续费”，新周期会在当前订阅到期后自动顺延，无需等待到期重买。'] },
   { q: '会员权益有效期多久？', a: ['单月订阅自开通日起 30 天有效；单年订阅自开通日起 365 天有效。'] },
-  { q: '积分不够怎么办？', a: ['完成每日签到、参与社区活动或邀请好友注册，可获得额外积分奖励。'] },
+  { q: '积分不够怎么办？', a: ['完成每周签到、参与社区活动，可获得额外积分奖励。'] },
   { q: '可以免费试用吗？', a: ['新用户可免费试用 Pro 3 天，每个账号限一次，无需消耗积分。试用期间享受 Pro 完整权益，到期前可随时升级为正式会员，升级后权益立即生效、无需等待试用结束。'] }
 ];
 
@@ -645,7 +640,6 @@ onUnmounted(() => { revealObserver?.disconnect(); window.__subCleanup?.(); if (b
 .plan-head h2 { margin: 0; font-size: 20px; font-weight: 700; }
 .plan-head p { margin: 6px 0 0; color: var(--muted); font-size: 13.5px; }
 .price { display: flex; align-items: baseline; gap: 3px; margin-top: 26px; min-height: 52px; }
-.price-cny { font-size: 19px; font-weight: 650; }
 .price-num { display: inline-block; font-size: 46px; line-height: 1; font-weight: 750; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; min-width: 2ch; }
 .price-per { color: var(--muted); font-size: 14px; }
 .price-note { min-height: 22px; margin: 8px 0 0; color: var(--subtle); font-size: 12.5px; }

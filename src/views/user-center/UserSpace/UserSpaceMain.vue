@@ -57,7 +57,6 @@
           <ProfileHomePanel v-else key="content-home" :profile="userInfo"
             :avatar-url="avatarUrl" :profile-background-url="profileBackgroundUrl"
             :profile-cover-style="profileCoverStyle" :is-uploading-profile-background="isUploadingProfileBackground"
-            :beta5="isBeta5"
             :stats="userStats" :is-stats-loading="dataState.stats.loading" :cloud-plus-usage-text="cloudPlusUsageText"
             :cloud-plus-usage-meter-style="cloudPlusUsageMeterStyle"
             :subscription-summary-text="subscriptionSummaryText"
@@ -92,7 +91,7 @@
         <transition name="profile-panel-fade" mode="out-in">
           <AssetsHubPanel v-if="assetsSection === 'hub'" key="assets-hub"
             :show-back="false"
-            :initial-tab="assetsInitialTab" :beta5="isBeta5"
+            :initial-tab="assetsInitialTab"
             :points-card-presets="pointsCardPresets" :is-points-card-presets-loading="isPointsCardPresetsLoading"
             :points-card-preset-capacity="pointsCardPresetQuota.capacity"
             :is-points-card-preset-quota-loading="isPointsCardPresetQuotaLoading"
@@ -126,7 +125,7 @@
       <SegmentTabs :sections="MESSAGE_SECTION_ITEMS" v-model="messagesSection" aria-label="消息分区"
         style="--segment-tabs-inset: 4px;" />
       <div v-show="messagesSection === 'inbox'" class="messages-host">
-        <AsyncMessages v-if="currentTab === 'messages' || leavingTab === 'messages'" :minimal="true" />
+        <AsyncMessages ref="messagesHostRef" v-if="currentTab === 'messages' || leavingTab === 'messages'" :minimal="true" />
       </div>
       <div v-show="messagesSection === 'ai'" class="ai-host">
         <section class="ai-workspace" aria-label="BOH AI 聊天">
@@ -173,6 +172,7 @@
             :days-for-edit-join-date="daysForEditJoinDate" :days-for-edit-profile="daysForEditProfile"
             :is-submitting-profile-edit="isSubmittingProfileEdit"
             @close="closeEditProfileModal" @avatar-click="handleAvatarClick"
+            @open-avatar-frames="openAvatarFrameModal"
             @save="submitEditProfile"
             @update-username="editProfileForm.username = $event"
             @update-bio="editProfileForm.bio = $event"
@@ -200,6 +200,9 @@
 
     <ThemeModal :open="showThemeModal" :current-theme-preference="currentThemePreference" @close="closeThemeModal"
       @select="setThemePreference" />
+
+    <AvatarFramePickerModal :open="showAvatarFrameModal" :avatar-url="avatarUrl"
+      @close="closeAvatarFrameModal" />
 
     <CommonAlertModal v-model:visible="alertState.visible" :type="alertState.type" :title="alertState.title"
       :message="alertState.message" />
@@ -230,7 +233,6 @@ import { MessageCircle, Settings, User, Users, Wallet } from 'lucide-vue-next';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
-import { useAppMode } from '@/composables/useAppMode.js';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { useEdgeSwipeGesture } from '@/composables/useEdgeSwipeGesture';
 import { useDebounce } from '@/composables/useDebounceThrottle';
@@ -241,12 +243,14 @@ const AvatarCropModal = defineAsyncComponent(() => import('@/components/AvatarCr
 const ProfileImpressionsPanel = defineAsyncComponent(() => import('./components/ProfileImpressionsPanel.vue'));
 const ProfileSettingsPanel = defineAsyncComponent(() => import('./components/ProfileSettingsPanel.vue'));
 const EditProfilePanel = defineAsyncComponent(() => import('./components/EditProfilePanel.vue'));
+const AvatarFramePickerModal = defineAsyncComponent(() => import('./components/AvatarFramePickerModal.vue'));
 const SponsorPanel = defineAsyncComponent(() => import('./components/SponsorPanel.vue'));
 const DataPrivacyPanel = defineAsyncComponent(() => import('./components/DataPrivacyPanel.vue'));
 const DataExportPanel = defineAsyncComponent(() => import('./components/DataExportPanel.vue'));
 const AssetsHubPanel = defineAsyncComponent(() => import('./components/AssetsHubPanel.vue'));
 import ThemeModal from './components/ThemeModal.vue';
-import { showIsland } from '@/composables/useIsland.js';
+import NotificationSuggestIsland from '@/components/UnifiedNavbar/NotificationSuggestIsland.vue';
+import { showIsland, islandTaskView } from '@/composables/useIsland.js';
 import { createMemoryTtlCache } from './composables/useMemoryTtlCache.js';
 import { useScrollDirectionHide } from './composables/useScrollDirectionHide.js';
 import { USER_SPACE_VALID_TABS, useUserSpaceTabs } from './composables/useUserSpaceTabs.js';
@@ -285,6 +289,7 @@ import {
 } from '@/utils/cloudinary-client.js';
 import sponsorQrImage from '@/assets/images/qrcode.webp';
 import { useAuthStore } from '@/stores/auth';
+import { syncAvatarFrameFromServer } from '@/composables/useAvatarFrame.js';
 import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader';
 import { themeManager } from '@/utils/theme-manager.js';
 import { isHomeCatTheme } from '@/utils/home-cat-theme.js';
@@ -390,7 +395,6 @@ const navItems = [
   { id: 'messages', label: '消息', icon: MessageCircle },
   { id: 'settings', label: '设置', icon: Settings }
 ];
-const { isBeta5 } = useAppMode();
 const { isOpen: isAiOverlayOpen, open: openGlobalAi, close: closeGlobalAi } = useGlobalAiOverlay();
 
 // 边缘滑动手势检测：从右侧边缘向左滑动唤起AI
@@ -1162,6 +1166,10 @@ const PROFILE_BACKGROUND_MAX_FILE_SIZE_BYTES = CLOUD_UPLOAD_MAX_IMAGE_SIZE_BYTES
 
 // 主题设置
 const showThemeModal = ref(false);
+// 头像框试戴弹层（编辑资料页入口；佩戴状态单源 useAvatarFrame）
+const showAvatarFrameModal = ref(false);
+const openAvatarFrameModal = () => { showAvatarFrameModal.value = true; };
+const closeAvatarFrameModal = () => { showAvatarFrameModal.value = false; };
 const currentTheme = ref(themeManager.getTheme());
 const currentThemePreference = ref(themeManager.getPreference?.() || currentTheme.value);
 const isHomeCatActive = computed(() => isHomeCatTheme(currentTheme.value) || isHomeCatTheme(currentThemePreference.value));
@@ -1293,12 +1301,10 @@ const showTopNavStatus = (payload = {}) => {
 };
 
 const isBottomNavForceVisible = computed(() => (
-  !isBeta5.value ||
   isAiOverlayOpen.value ||
   (currentTab.value === 'settings' && settingsSection.value === 'edit-profile')
 ));
 const { hidden: isBottomNavHidden, reset: resetBottomNavAutoHide } = useScrollDirectionHide({
-  enabled: isBeta5,
   forceVisible: isBottomNavForceVisible
 });
 
@@ -1555,10 +1561,10 @@ const openSponsorPage = () => {
 
 const openAssetsHub = (initialTab = '') => {
   const betaTabs = ['overview', 'cards', 'points', 'subscription', 'fulfillment', 'addresses'];
-  const stableTabs = ['overview', 'points', 'subscription', 'orders', 'gifts', 'addresses'];
   let nextTab = String(initialTab);
-  if (isBeta5.value && ['orders', 'gifts'].includes(nextTab)) nextTab = 'fulfillment';
-  assetsInitialTab.value = (isBeta5.value ? betaTabs : stableTabs).includes(nextTab) ? nextTab : '';
+  // 旧积分页 orders/gifts 入口统一落到 fulfillment（旧 4.9.1 tab 集已随回退通道移除）
+  if (['orders', 'gifts'].includes(nextTab)) nextTab = 'fulfillment';
+  assetsInitialTab.value = betaTabs.includes(nextTab) ? nextTab : '';
   jumpWithSection('assets', 'hub');
 };
 
@@ -2131,7 +2137,7 @@ const uploadProfileBackgroundFile = async (file) => {
 };
 
 const handlePointsCardClick = () => {
-  if (!isBeta5.value || isUploadingPointsCard.value) return;
+  if (isUploadingPointsCard.value) return;
   if (!isPointsCardPresetQuotaLoading.value && !pointsCardPresetQuota.value.canAdd) {
     showTopNavStatus({ title: '卡面已达上限', message: `当前会员最多保存 ${pointsCardPresetQuota.value.capacity} 张自定义卡面`, icon: 'warning', type: 'warning', durationMs: 3600 });
     return;
@@ -2188,7 +2194,7 @@ const normalizePointsCardPresetQuota = (quota = {}) => ({
 });
 
 const loadPointsCardPresetQuota = async () => {
-  if (!isBeta5.value || !userInfo.value?.id || isPointsCardPresetQuotaLoading.value) return pointsCardPresetQuota.value;
+  if (!userInfo.value?.id || isPointsCardPresetQuotaLoading.value) return pointsCardPresetQuota.value;
   isPointsCardPresetQuotaLoading.value = true;
   try {
     const { data, error } = await supabase.rpc('get_points_card_preset_quota');
@@ -2205,7 +2211,7 @@ const loadPointsCardPresetQuota = async () => {
 };
 
 const loadPointsCardPresets = async () => {
-  if (!isBeta5.value || !userInfo.value?.id || isPointsCardPresetsLoading.value) return;
+  if (!userInfo.value?.id || isPointsCardPresetsLoading.value) return;
   isPointsCardPresetsLoading.value = true;
   try {
     const { data, error } = await supabase
@@ -2227,7 +2233,7 @@ const loadPointsCardPresets = async () => {
 };
 
 const loadPointsCardCatsUnlock = async () => {
-  if (!isBeta5.value || !userInfo.value?.id) return;
+  if (!userInfo.value?.id) return;
   try {
     const { data, error } = await supabase
       .from('points_card_cats_unlocks')
@@ -2300,7 +2306,6 @@ const uploadPointsCardFile = async (file) => {
 };
 
 const selectPointsCardPreset = async (presetId) => {
-  if (!isBeta5.value) return;
   const preset = pointsCardPresets.value.find((item) => item.id === String(presetId || ''));
   if (!preset) return;
   const { data, error } = await supabase.rpc('use_points_card_preset', { p_preset_id: preset.id });
@@ -2314,7 +2319,7 @@ const selectPointsCardPreset = async (presetId) => {
 };
 
 const setPointsCardSkin = async (skin) => {
-  if (!isBeta5.value || !['blank', 'cats'].includes(String(skin))) return;
+  if (!['blank', 'cats'].includes(String(skin))) return;
   if (skin === 'cats' && !isPointsCardCatsUnlocked.value) {
     await redeemPointsCardCats();
     return;
@@ -2328,7 +2333,7 @@ const setPointsCardSkin = async (skin) => {
 };
 
 const redeemPointsCardCats = async () => {
-  if (!isBeta5.value || isRedeemingPointsCardCats.value) return;
+  if (isRedeemingPointsCardCats.value) return;
   if (isPointsCardCatsUnlocked.value) {
     await setPointsCardSkin('cats');
     return;
@@ -2381,7 +2386,6 @@ const redeemPointsCardCats = async () => {
 };
 
 const deletePointsCardPreset = async (presetId) => {
-  if (!isBeta5.value) return;
   const preset = pointsCardPresets.value.find((item) => item.id === String(presetId || ''));
   if (!preset) return;
 
@@ -2415,8 +2419,8 @@ const deletePointsCardPreset = async (presetId) => {
 };
 
 watch(
-  [assetsSection, isBeta5, isLoggedIn],
-  ([, , loggedIn]) => {
+  [assetsSection, isLoggedIn],
+  ([, loggedIn]) => {
     if (!loggedIn) {
       pointsCardPresets.value = [];
       pointsCardPresetQuota.value = { capacity: 3, currentCount: 0, tierCode: 'free', canAdd: true };
@@ -2710,6 +2714,8 @@ const syncUserspaceNavHeight = () => {
 
 onMounted(() => {
   void nextTick(syncUserspaceNavHeight);
+  // 佩戴框云同步：登录态下库↔本地对齐（多设备一致），失败静默
+  if (isLoggedIn.value) void syncAvatarFrameFromServer();
   const islandEl = document.getElementById('unified-nav-container');
   if (islandEl && typeof ResizeObserver !== 'undefined') {
     navIslandResizeObserver = new ResizeObserver(syncUserspaceNavHeight);
@@ -2829,6 +2835,7 @@ watch(currentTab, (newTab, oldTab) => {
 });
 
 onUnmounted(() => {
+  closeSuggestIsland(); // 建议岛是全局导航槽位，页面卸载必须收（项目规则）
   if (feedPulseTimer) clearTimeout(feedPulseTimer);
   saveTabScrollPosition(currentTab.value);
   setUserSpaceMountedForPreload(false);
@@ -2863,6 +2870,94 @@ const handleUnreadRefresh = (event) => {
     await showUnreadTopNavStatus(detail);
   })();
 };
+
+// ===== 消息中心智能建议岛：进入「消息 tab · 收件箱」且有未读时，导航岛自动弹「一键全部已读」 =====
+// actions 数组即「智能操作预测」插槽：本期只放 mark-all-read，后续动作往数组追加即可，卡片与调度不动。
+const SUGGEST_DISMISS_KEY = 'boh_notif_suggest_dismissed';
+const messagesHostRef = ref(null);
+let suggestIslandHandle = null;
+let suggestCloseTimer = null;
+
+const closeSuggestIsland = () => {
+  if (suggestCloseTimer) {
+    clearTimeout(suggestCloseTimer);
+    suggestCloseTimer = null;
+  }
+  if (suggestIslandHandle) {
+    suggestIslandHandle.close();
+    suggestIslandHandle = null;
+  }
+};
+
+let suggestActionRunning = false;
+const handleSuggestAction = async (actionId) => {
+  if (actionId !== 'mark-all-read' || !suggestIslandHandle) return;
+  suggestActionRunning = true;
+  suggestIslandHandle.update({ busy: true });
+  try {
+    // 走 Messages 组件内完整闭环：RPC + 本地列表翻转 + triggerUnreadRefresh + feedback
+    await messagesHostRef.value?.markAllAsRead?.();
+  } finally {
+    suggestActionRunning = false;
+    if (!suggestIslandHandle) return;
+    if (unreadCount.value === 0) {
+      // 成功态：卡片变「已全部标记为已读」，短暂停留后收起
+      suggestIslandHandle.update({ busy: false, done: true });
+      suggestCloseTimer = setTimeout(closeSuggestIsland, 1400);
+    } else {
+      // 未清零（请求失败等）：还原可点，等待重试或倒计时自动收
+      suggestIslandHandle.update({ busy: false });
+    }
+  }
+};
+
+const presentSuggestIsland = () => {
+  closeSuggestIsland();
+  if (!isLoggedIn.value || unreadCount.value <= 0) return;
+  // 同批次（未读数未增长）已被用户 × 掉过则不再打扰；未读有新增重新解锁
+  const dismissedAtCount = Number(sessionStorage.getItem(SUGGEST_DISMISS_KEY) || 0);
+  if (unreadCount.value <= dismissedAtCount) return;
+  // 任务岛（发帖/上传进度）在展示时让位，不抢导航 surface
+  if (islandTaskView.value) return;
+  suggestIslandHandle = showIsland.custom(NotificationSuggestIsland, {
+    unreadCount: unreadCount.value,
+    busy: false,
+    done: false,
+    actions: [{ id: 'mark-all-read', label: '全部已读' }],
+    lingerMs: 12000,
+    onAction: handleSuggestAction,
+    onDismiss: () => {
+      // × 掉或超时：记住当前未读批次，同批次本会话不再弹
+      sessionStorage.setItem(SUGGEST_DISMISS_KEY, String(unreadCount.value));
+      closeSuggestIsland();
+    }
+  });
+};
+
+// 用户「来看消息」= 消息 tab 且停在收件箱分区；切走 tab / 切到 AI 分区即收
+const isMessagesInboxActive = computed(() => currentTab.value === 'messages' && messagesSection.value === 'inbox');
+// 直达 ?tab=messages 时 notificationStoreRef 是 setup 期的 null 快照（mount 逻辑只在不为 messages
+// 的 tab 刷未读数），unreadCount computed 会恒 0 —— 建议岛不弹、底部导航徽标也丢。先确保 store 就位。
+void ensureNotificationStore();
+watch(isMessagesInboxActive, (active) => {
+  if (active) presentSuggestIsland();
+  else closeSuggestIsland();
+}, { immediate: true });
+
+// 未读数变化跟随刷新卡片文案；清零即收（覆盖列表内手动点已读的路径）。
+// 计数是异步到达的（直达 ?tab=messages 时 watch 首值可能仍是 0）：岛未展示且收件箱激活时补弹。
+// CTA 执行期间清零不立即收——把节奏让给 handleSuggestAction 展示成功态。
+watch(unreadCount, (count) => {
+  if (suggestIslandHandle) {
+    if (count <= 0) {
+      if (!suggestActionRunning) closeSuggestIsland();
+      return;
+    }
+    suggestIslandHandle.update({ unreadCount: count });
+    return;
+  }
+  if (isMessagesInboxActive.value && count > 0) presentSuggestIsland();
+});
 </script>
 
 <style src="./styles/shell-community.css"></style>

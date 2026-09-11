@@ -1,0 +1,52 @@
+/**
+ * 头像框全局叠加层（avatar frame）
+ *
+ * 用法：头像外包 .boh-avatar-wrap，内部追加一个空的 .boh-avatar-frame 兄弟层，
+ * 框图 URL 通过 CSS 变量 --boh-avatar-frame-url 注入（组件内联 style 或父级作用域均可）：
+ *
+ *   <span class="boh-avatar-wrap" :style="{ '--boh-avatar-frame-url': `url(${frameUrl})` }">
+ *     <img class="..." :src="avatarSrc" alt="" />
+ *     <span class="boh-avatar-frame" aria-hidden="true"></span>
+ *   </span>
+ *
+ * 设计规格（对应 plans/avatar-frame-integration-spec.md）：
+ * - 缩放按框配：--boh-avatar-frame-scale（数字，默认 1.24 = 线框版内孔 86-87% 的
+ *   实测适配值，用户确认档）；厚环白框（white-cat，内孔 67.5%）配 1.4，
+ *   由清单 scale 字段经 FramedAvatar 注入变量；新框按 106/(内孔占比) 估算
+ * - 圆形裁切始终在 img 自身（border-radius:50% + overflow:hidden），wrap 不裁剪溢出
+ * - frame 层 pointer-events:none 不拦截点击；z-index:3 位于头像之上、
+ *   在线绿点/编辑徽章等功能型叠加层（z-index:4+）之下
+ */
+
+.boh-avatar-wrap {
+  position: relative;
+  display: inline-block;
+  /* 关键：不能 overflow:hidden，否则框的溢出装饰（耳朵/流苏等）会被裁掉 */
+}
+
+.boh-avatar-frame {
+  --frame-scale: var(--boh-avatar-frame-scale, 1.24);
+  position: absolute;
+  top: calc((1 - var(--frame-scale)) / 2 * 100%);
+  left: calc((1 - var(--frame-scale)) / 2 * 100%);
+  width: calc(var(--frame-scale) * 100%);
+  height: calc(var(--frame-scale) * 100%);
+  background-image: var(--boh-avatar-frame-url);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* 未注入框 URL 时不渲染任何内容（background-image 为空自动不可见） */
+
+/* 暗色主题：框图不随主题切换，由绘制阶段双背景自测兜底；此处仅做轻微轮廓增强 */
+[data-theme="dark"] .boh-avatar-frame {
+  filter: drop-shadow(0 0 0.5px rgba(0, 0, 0, 0.35));
+}
+
+/* 活动皮肤优先：周年像素皮肤期间隐藏头像框（避免像素方头像与圆框打架） */
+[data-anniversary-skin="active"] .boh-avatar-frame {
+  display: none;
+}

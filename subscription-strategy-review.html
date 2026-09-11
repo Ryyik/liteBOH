@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="wb74g8fUTDWEnRj7JCVHN0">
+<head data-page-node-id="lRWOMwU8412KY4UI0KFyTt">
+<meta charset="UTF-8" data-page-node-id="fab5vlkG5qy9XMIawZmZo5" />
+<meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="ejUmtygSPooppWN9yghNyq" />
+<title>BOH 订阅体系诊断与优化方案 · 2026-09-10</title>
+<style>
+  :root{
+    --ink:#1d1d1f; --muted:#6e6e73; --subtle:#86868b; --line:#e5e5ea; --line-2:#f0f0f2;
+    --bg:#fbfbfd; --card:#fff; --blue:#0071e3; --blue-soft:rgba(0,113,227,.08);
+    --red:#d70015; --red-soft:#fdeded; --amber:#b25e00; --amber-soft:#fff6e8;
+    --green:#0f8a6a; --green-soft:#e9f7f2; --gray-soft:#f5f5f7;
+    --radius:18px; --radius-sm:12px;
+  }
+  *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Arial,sans-serif;
+    font-size:15px; line-height:1.7; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{width:min(1080px,calc(100% - 40px)); margin:0 auto; padding:56px 0 96px;}
+  h1,h2,h3,h4{margin:0; letter-spacing:-.02em; line-height:1.25; font-weight:700;}
+  h1{font-size:clamp(30px,4.4vw,42px);}
+  h2{font-size:clamp(22px,2.8vw,28px);}
+  h3{font-size:17px;}
+  h4{font-size:14.5px;}
+  p{margin:0;}
+  a{color:var(--blue);}
+  code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px;}
+
+  /* ---------- header ---------- */
+  .kicker{display:inline-block; font-size:12px; font-weight:700; letter-spacing:.08em; color:var(--blue);
+    background:var(--blue-soft); padding:5px 12px; border-radius:999px;}
+  header{padding-bottom:36px; border-bottom:1px solid var(--line);}
+  header h1{margin:16px 0 0;}
+  .lede{margin-top:16px; max-width:70ch; color:var(--muted); font-size:16.5px;}
+  .meta{margin-top:20px; display:flex; flex-wrap:wrap; gap:8px 22px; font-size:13px; color:var(--subtle);}
+  .meta b{font-weight:600; color:var(--muted);}
+
+  section{margin-top:64px;}
+  .sec-head{display:flex; align-items:baseline; gap:14px; margin-bottom:8px;}
+  .sec-no{font-size:12px; font-weight:700; color:var(--subtle); letter-spacing:.1em;}
+  .sec-sub{margin-top:10px; color:var(--muted); max-width:78ch;}
+  .hint{margin-top:10px; font-size:13px; color:var(--subtle);}
+
+  /* ---------- cards ---------- */
+  .card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:24px 26px;}
+  .card + .card{margin-top:14px;}
+  .grid{display:grid; gap:14px;}
+  .g2{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .g3{grid-template-columns:repeat(3,minmax(0,1fr));}
+  .g4{grid-template-columns:repeat(4,minmax(0,1fr));}
+
+  /* ---------- tldr ---------- */
+  .tldr{counter-reset:t; display:grid; gap:12px;}
+  .tldr .item{position:relative; background:var(--card); border:1px solid var(--line);
+    border-radius:var(--radius-sm); padding:18px 20px 18px 58px;}
+  .tldr .item::before{counter-increment:t; content:counter(t);
+    position:absolute; left:18px; top:17px; width:26px; height:26px; border-radius:50%;
+    background:var(--ink); color:#fff; font-size:12.5px; font-weight:700;
+    display:grid; place-items:center;}
+  .tldr strong{display:block; font-size:15px; margin-bottom:3px;}
+  .tldr span{color:var(--muted); font-size:14px;}
+
+  /* ---------- severity ---------- */
+  .tag{display:inline-block; font-size:11px; font-weight:700; letter-spacing:.04em;
+    padding:3px 9px; border-radius:999px; vertical-align:1px;}
+  .tag.p0{background:var(--red-soft); color:var(--red);}
+  .tag.p1{background:var(--amber-soft); color:var(--amber);}
+  .tag.p2{background:var(--gray-soft); color:var(--muted);}
+  .tag.ok{background:var(--green-soft); color:var(--green);}
+
+  /* ---------- finding ---------- */
+  .finding{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:22px 24px; margin-top:14px;}
+  .finding.crit{border-left:3px solid var(--red);}
+  .finding.warn{border-left:3px solid #e8a33d;}
+  .finding.info{border-left:3px solid #b4b2a9;}
+  .f-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .f-head h3{font-size:16px;}
+  .f-body{margin-top:12px; display:grid; gap:12px;}
+  .f-row{display:grid; grid-template-columns:86px minmax(0,1fr); gap:14px;}
+  .f-row dt{font-size:12.5px; font-weight:600; color:var(--subtle); padding-top:2px;}
+  .f-row dd{margin:0; font-size:14.5px; color:#3a3a3c;}
+  .ev{margin-top:2px; font-size:12.5px; color:var(--subtle); word-break:break-all;}
+  .ev code{background:var(--gray-soft); padding:1.5px 6px; border-radius:5px; color:#4b5563;}
+
+  /* ---------- table ---------- */
+  .t-scroll{overflow-x:auto; border:1px solid var(--line); border-radius:var(--radius); background:var(--card);}
+  table{width:100%; border-collapse:collapse; min-width:660px;}
+  th,td{padding:13px 16px; text-align:left; font-size:14px; border-bottom:1px solid var(--line-2); white-space:nowrap;}
+  thead th{background:var(--gray-soft); font-size:12.5px; font-weight:600; color:var(--muted);
+    position:sticky; top:0; border-bottom:1px solid var(--line);}
+  tbody tr:last-child td{border-bottom:0;}
+  td.num,th.num{text-align:right; font-variant-numeric:tabular-nums;}
+  tr.hl td{background:var(--blue-soft);}
+  .cell-bad{color:var(--red); font-weight:600;}
+  .cell-ok{color:var(--green);}
+  .dim{color:var(--subtle);}
+
+  /* ---------- bars ---------- */
+  .bar-row{display:grid; grid-template-columns:78px minmax(0,1fr) 96px; align-items:center; gap:14px; margin-top:10px;}
+  .bar-label{font-size:13.5px; font-weight:600;}
+  .bar-track{height:10px; border-radius:999px; background:var(--gray-soft); overflow:hidden;}
+  .bar-fill{height:100%; border-radius:999px; background:var(--blue);}
+  .bar-fill.bad{background:#e8a33d;}
+  .bar-val{font-size:13px; color:var(--muted); text-align:right; font-variant-numeric:tabular-nums;}
+
+  /* ---------- price cards mock ---------- */
+  .plans{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px;}
+  .plan{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:20px 18px; position:relative;}
+  .plan.featured{border:1.5px solid var(--blue);}
+  .plan .rec{position:absolute; top:14px; right:14px; font-size:10.5px; font-weight:700;
+    background:var(--blue); color:#fff; padding:3px 9px; border-radius:999px;}
+  .plan h4{font-size:16px;}
+  .plan .pos{font-size:12.5px; color:var(--subtle); margin-top:3px;}
+  .plan .price{margin-top:14px; font-size:26px; font-weight:700; letter-spacing:-.03em;}
+  .plan .price em{font-size:13px; font-weight:500; color:var(--muted); font-style:normal; margin-left:4px;}
+  .plan .unit{margin-top:2px; font-size:12px; color:var(--blue); font-weight:600;}
+  .plan ul{margin:14px 0 0; padding:14px 0 0; border-top:1px solid var(--line-2); list-style:none; display:grid; gap:7px;}
+  .plan li{font-size:13px; color:#3a3a3c; padding-left:16px; position:relative;}
+  .plan li::before{content:""; position:absolute; left:0; top:7px; width:6px; height:6px;
+    border-radius:50%; background:var(--blue-soft); box-shadow:inset 0 0 0 2px var(--blue);}
+  .plan li.new{color:var(--blue); font-weight:600;}
+
+  /* ---------- roadmap ---------- */
+  .phase{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:22px 24px;}
+  .phase + .phase{margin-top:14px;}
+  .phase-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px;}
+  .phase-head h3{font-size:16px;}
+  .phase .when{font-size:12.5px; color:var(--subtle); margin-left:auto;}
+  .tasks{list-style:none; margin:0; padding:0; display:grid; gap:11px;}
+  .tasks li{display:grid; grid-template-columns:20px minmax(0,1fr); gap:11px; font-size:14.5px;}
+  .box{width:15px; height:15px; margin-top:5px; border:1.5px solid #c7c7cc; border-radius:4px;}
+  .tasks b{font-weight:600;}
+  .tasks .path{display:block; font-size:12.5px; color:var(--subtle); margin-top:2px; word-break:break-all;}
+
+  /* ---------- decision ---------- */
+  .decision{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:22px 24px;}
+  .decision + .decision{margin-top:12px;}
+  .decision h4{font-size:15.5px;}
+  .q{margin-top:8px; color:var(--muted); font-size:14.5px;}
+  .opts{margin-top:12px; display:grid; gap:8px;}
+  .opt{display:flex; gap:11px; align-items:flex-start; background:var(--gray-soft); border-radius:var(--radius-sm); padding:11px 14px; font-size:14px;}
+  .opt .pick{flex:none; font-size:11.5px; font-weight:700; color:var(--blue); background:var(--blue-soft);
+    border-radius:999px; padding:2px 9px; margin-top:2px; white-space:nowrap;}
+  .opt .pick.alt{color:var(--muted); background:rgba(120,120,128,.12);}
+
+  .note{margin-top:16px; background:var(--gray-soft); border-radius:var(--radius-sm); padding:15px 18px; font-size:13.5px; color:var(--muted);}
+  .note b{color:var(--ink); font-weight:600;}
+  footer{margin-top:72px; padding-top:24px; border-top:1px solid var(--line); font-size:12.5px; color:var(--subtle);}
+
+  @media (max-width:900px){
+    .g3,.g4,.plans{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .g2{grid-template-columns:1fr;}
+  }
+  @media (max-width:620px){
+    .g3,.g4,.plans{grid-template-columns:1fr;}
+    .f-row{grid-template-columns:1fr; gap:4px;}
+    .wrap{padding:32px 0 64px;}
+    .card,.finding,.phase,.decision{padding:18px 18px;}
+    .bar-row{grid-template-columns:64px minmax(0,1fr) 84px;}
+  }
+</style>
+</head>
+<body data-page-node-id="by4alVaxs68fue8tmJ5ZN1">
+<div class="wrap" data-page-node-id="dMg0xlseV0x5aELsXzaT5h">
+
+<header data-page-node-id="h9MvHxR3Qpwfc8n8jXd6D0">
+  <span class="kicker" data-page-node-id="Flr6Sb8wvxAmJr2BKMS0MC">SUBSCRIPTION REVIEW</span>
+  <h1 data-page-node-id="08c08GePX3m2JzJPB03BBA">BOH 订阅体系诊断与优化方案</h1>
+  <p class="lede" data-page-node-id="Quz8YQQS9VmP9nNTqEWkjC">从代码与数据库实际生效口径出发，复盘现有五档订阅的定价结构、权益真相源与转化链路，给出分层可落地的优化建议。</p>
+  <div class="meta" data-page-node-id="PHY0VXiIFkaVsIIHBrDMvd">
+    <span data-page-node-id="YRm9G5YUXi753Fw3TY0c3u"><b data-page-node-id="xjvGJOUticx3Bs3sDwWLtx">调研基准</b> 2026-09-10 工作区代码 + migrations</span>
+    <span data-page-node-id="SDRdF4yVF4vDIrkdb6QutX"><b data-page-node-id="LrnkkxwFCR5GyhNgKjjglz">覆盖范围</b> 定价 / 权益 / 支付 / 试用 / 积分经济</span>
+    <span data-page-node-id="X5vlDYkdYfRD7wzAgLDKJW"><b data-page-node-id="ZLQHgHck4WPlAEzez4bjkx">结论</b> 4 项 P0 · 3 项 P1 · 4 项 P2</span>
+  </div>
+</header>
+
+<!-- ============ TL;DR ============ -->
+<section data-page-node-id="2yKqqVY2XtuD33ENgf21tg">
+  <div class="sec-head" data-page-node-id="H25FwDjLOZ8Bk7kfQ4Djmk"><span class="sec-no" data-page-node-id="2o6jssxIrsNTc04AF6AUpz">00</span><h2 data-page-node-id="AMPl2fiVvyyeHASIRnUc7d">先说结论</h2></div>
+  <p class="sec-sub" data-page-node-id="UeX6dOBDxjRfr5fhu9S9Wk">整体架构方向是对的（积分化 + 三态续费 + 试用转正），但存在 4 个会直接漏收入或伤害信任的硬问题，以及一个被忽略的定价结构缺陷。</p>
+  <div class="tldr" style="margin-top:20px;" data-page-node-id="rGYtVBc1fJHNbaMvrFPzvK">
+    <div class="item" data-page-node-id="xV3yYZjvCO8cLJ1Tj5xVQu">
+      <strong data-page-node-id="Af5PFFOpLCUWCxrZBVizpZ">服务端不校验价格，订阅可以 0 积分拿到</strong>
+      <span data-page-node-id="gLX3mf8pk4o7Uy5hHNtUc2"><code class="mono" data-page-node-id="Rio0q5hNubfM4bHb4HlCPo">subscribe_with_points</code> 完全信任前端传入的 <code class="mono" data-page-node-id="EZWMxOZkPj9qAwVYNIhhaJ">p_points_cost</code> 与 <code class="mono" data-page-node-id="M5POflLwY8KYLHRAxqFgwF">p_duration_months</code>，只拒绝负数。任何登录用户可直连 RPC 以 0 积分开通 120 个月 Ultra。试用 RPC 同理可改档改期。这是收入侧第一优先级。</span>
+    </div>
+    <div class="item" data-page-node-id="AO5GiPBqadaTqaAecUa6Dc">
+      <strong data-page-node-id="kA6IfGqaZ9LSdMyU8jJFOU">Plus → Pro 完全线性，主推档缺升级台阶</strong>
+      <span data-page-node-id="9EWF62lq9hGm08tu97X8ed">线上库（2026-09-11 核查）实际配置为 20/80/200/500/1000 万，与页面宣传一致——但迁移基线仍是 100/200/300/500/1000 万另一套数字，「靠人工改库对齐」正是缺单一真相源的实证。且 Plus → Pro 价格 ×2.5、Token ×2.5 完全线性，Token 上给不出升级激励。</span>
+    </div>
+    <div class="item" data-page-node-id="BRKthad3YTWNEfFvnArfNe">
+      <strong data-page-node-id="6RpsA47LmQKMRGBzZRGAPE">签到就能白拿 Pro，积分经济闭环是断的</strong>
+      <span data-page-node-id="p7hCVH1O0t6mCzpWSZcLsb">周签到 5 积分，一个月约 21.7 积分；Pro 月费 20 积分。也就是说「每周签到」这一条路径就能长期覆盖 Pro 的订阅成本，付费转化会被自身激励稀释。</span>
+    </div>
+    <div class="item" data-page-node-id="tFQhRXLqZ5mEbqbcEyDsO6">
+      <strong data-page-node-id="7bofoJgFgD9Ldv6MCSQsuZ">付费墙一半建在前端，可绕过</strong>
+      <span data-page-node-id="RvfDtCv73naDh5diK6LRG0">实验室 PPT/Word 月度次数仅在 <code class="mono" data-page-node-id="fiIS4JSAMK2QSwn1NgCeDA">useLabQuota.js</code> 前端判断，服务端 <code class="mono" data-page-node-id="PGaRWGCHwGCURqGBz3twuo">record_lab_usage</code> 只插入记录、不做任何限额校验。同时试用期不发放 Cloud+ 权益（服务端只认 <code class="mono" data-page-node-id="QKeVkc7eCZGQl6RzAxJVQP">status='active'</code>），与「完整体验 Pro」的承诺不符。</span>
+    </div>
+    <div class="item" data-page-node-id="Oyy9BbP9hTS29hkwuGMe5U">
+      <strong data-page-node-id="Lnf7Crm97i1DXmAg7Y4R67">订阅的「身份理由」缺失，权益只能靠功能堆量</strong>
+      <span data-page-node-id="IKGJj7dRvS3rcqqAO7usT4">可见收益只有昵称颜色、抽奖保底次数、Cloud+ 张数。头像框方案（<code class="mono" data-page-node-id="LgCEVyr2BZnIhBae1sJrZ2">plans/avatar-frame-design-plan.md</code>）已在规划，是补齐身份层最现成的抓手；而 Coding 附加包曾完整上线、却在 8/25 重构中被撤下——服务端至今仍在校验其门禁并发放额度加成，把入口补回来是最干净的新增收入来源。</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 1 现状 ============ -->
+<section data-page-node-id="fxU9kRnMFVPFKM4FyE8E7g">
+  <div class="sec-head" data-page-node-id="Vwzfhm6zZA5Ifj74P3MmjB"><span class="sec-no" data-page-node-id="TUhlZrJ9LA6aJ7h3lIYmZJ">01</span><h2 data-page-node-id="8z1CDOtaGlFpljObt7vd1Z">现状全景</h2></div>
+  <p class="sec-sub" data-page-node-id="wGeD1FTVYLLHn5STtp3qN3">五档订阅、纯积分扣费、月/年两周期（年付 = 10 个月价格）。续费三态由服务端 RPC 判定，权益散落在四处判定点。</p>
+
+  <div class="grid g3" style="margin-top:22px;" data-page-node-id="73rhmzmjW2ZxQPGNsCP0vN">
+    <div class="card" data-page-node-id="MERC8eA8oVtdMag9uHXXdz">
+      <h4 data-page-node-id="BoMvFUpJxqhCUU1FyicFkx">支付口径</h4>
+      <p style="margin-top:8px; font-size:14px; color:var(--muted);" data-page-node-id="ZCvMgjMmBhFHN641lghfew">页面以 <b data-page-node-id="G5QnwEsUIZtOyFinInPZKZ">￥</b> 展示价格，实际扣除的是 <b data-page-node-id="AstVFqFaNYsYcBk9C28vJd">积分</b>。充值走收款码 + UID + 管理员人工确认，无自动续费。</p>
+      <p class="ev" data-page-node-id="fl9AYCJkXEexFcuxmA1WhR"><code data-page-node-id="fQpl2kZAdkE3aVca8DO9NB">SubscriptionPlans.vue:100</code> <code data-page-node-id="5mqVN3gdoM1EJzGZ3DD7Y0">:193</code> <code data-page-node-id="iMyHLuRHATQCmXAZGGivwU">:207-217</code></p>
+    </div>
+    <div class="card" data-page-node-id="JfzUaYdXmwbEdonS41GGOr">
+      <h4 data-page-node-id="pcvO6ba8d4cEFSeI8uWwTG">续费三态</h4>
+      <p style="margin-top:8px; font-size:14px; color:var(--muted);" data-page-node-id="7GC4aPmnSm6WdW2WAuZGzL">无订阅→新建；同档→到期顺延；更高档→立即生效并按剩余天数折算抵扣；更低档→服务端直接拦截（<code class="mono" data-page-node-id="0FowfVOj9V4VjWLwdKJxGO">LOWER_TIER_NOT_SUPPORTED</code>）。</p>
+      <p class="ev" data-page-node-id="Jgi0w1iYkcKj0ttrVWzQbt"><code data-page-node-id="P8WT8n9i7CHntiGlRr6w6X">2026082609_subscription_trial_support.sql:236-491</code></p>
+    </div>
+    <div class="card" data-page-node-id="paKCze62ZCrJwVneaOA0KH">
+      <h4 data-page-node-id="cIsZObebvw6sF1Zlr10QE5">试用机制</h4>
+      <p style="margin-top:8px; font-size:14px; color:var(--muted);" data-page-node-id="rCq5fcEqZLwqj8ybhV5uSN">Pro 3 天，每账号一次（依据 metadata 中 <code class="mono" data-page-node-id="2f8klmeVU3t1JCYAIOBYaD">source='trial'</code> 的历史记录判定），到期不自动转正。</p>
+      <p class="ev" data-page-node-id="LI2UTMPC4zEgAgITDciC3N"><code data-page-node-id="rnJzfzzhQyNeiKXFqrSuHc">2026082609_subscription_trial_support.sql:31-137</code></p>
+    </div>
+  </div>
+
+  <h3 style="margin-top:36px;" data-page-node-id="pP5qMog13MXGOCVEYnD8IA">1.1 权益对照：页面宣传 vs 数据库实际</h3>
+  <p class="hint" data-page-node-id="N8kbWcw8DGSkKGBDa54sPf">「实际生效」为 2026-09-11 线上库核查值（<code class="mono">ai_quota_config</code> 实际配置，Edge Function 按此强制执行）。当日核查发现线上已被手动对齐页面口径；迁移基线与线上值不一致的问题由 P1 权益单一源解决。</p>
+  <div class="t-scroll" style="margin-top:14px;" data-page-node-id="qS8B7HLzRxEEOMwYPnbWs5">
+    <table data-page-node-id="AFkFUJPpzF5rxlVy3KDRSj">
+      <thead data-page-node-id="qUfKzWtLDETVJneKsfoibN">
+        <tr data-page-node-id="YKjxjFbTWDGA32fxIFz4KA">
+          <th data-page-node-id="aF4yD5WnAQztJOoQMSHMCQ">档位</th><th class="num" data-page-node-id="VHAjRyBA0gQNmDwGNxyvLR">月费<br  data-page-node-id="ZTRYe0F6zshiwM33H1xn29"/>(积分)</th><th class="num" data-page-node-id="7LCH4dTYi7lbeC1VD3aUFk">年费<br  data-page-node-id="5hN5XKuIquIzNnBZgF9ewR"/>(积分)</th>
+          <th class="num" data-page-node-id="XO6Vvjq0a80MmDYLlgfXpB">日 Token<br  data-page-node-id="Rw7ywqg5SXUQt1knbmU88F"/>宣传</th><th class="num" data-page-node-id="qm70uL8MeiHNE3ufIGtEpm">日 Token<br  data-page-node-id="g31AZPETkTJIeLWXyyYGF5"/>实际生效</th>
+          <th class="num" data-page-node-id="Al40c2QdDQUMpQCEAj0VAn">Cloud+<br  data-page-node-id="ut7AWMDtJA8XQb2BwgnM1B"/>(张)</th><th class="num" data-page-node-id="LjyRfJCKqUaMFNMKvEZ64h">实验室<br  data-page-node-id="f1MEtWyyaVOAwcZPPUauMb"/>(次/月)</th>
+          <th class="num" data-page-node-id="Rk7iLAJ1AQzpKgQIqanmln">抽奖保底<br  data-page-node-id="OLUhnQvOX7ry6ROIn8NJ5h"/>(次)</th><th data-page-node-id="iQ9YgOt48BemQdr3GJ68CW">昵称</th>
+        </tr>
+      </thead>
+      <tbody data-page-node-id="q7vCLJNEWwFsDCKfbgznJn">
+        <tr data-page-node-id="UKCSZNQOSMZVQpUD9TBqUD">
+          <td data-page-node-id="HYBoUdnJDcpSFvxsTbwCyB"><b data-page-node-id="KdIPJg4IgR9dUV8BJFWogX">Free</b></td><td class="num" data-page-node-id="eA6ZDWXKsg15EdsPGPrvtx">0</td><td class="num" data-page-node-id="1ORTuoDlJdkOwzg3N8xDpJ">0</td>
+          <td class="num dim" data-page-node-id="YwT50mSUDOxxQUVxJVQQe8">20 万</td><td class="num" data-page-node-id="41jZX0Rxq9u8ZqRRoElFmF">20 万</td>
+          <td class="num" data-page-node-id="dprHNjCi31ONgbhl7CmASy">150</td><td class="num" data-page-node-id="EwHb8DGNyLtMcD7Iy4NJIY">10</td><td class="num dim" data-page-node-id="q7GKgrRTl3dEsgj4ubv2eI">不参与</td><td class="dim" data-page-node-id="zihCWa4Nf5CaF65XyYMxDO">无</td>
+        </tr>
+        <tr data-page-node-id="FGExaEwD6qCYwX2tpUWl3K">
+          <td data-page-node-id="Q9aFwjYabW2z5Ww6oO4sxu"><b data-page-node-id="SmVTzYkQoodWtrTyzkyx3M">Plus</b></td><td class="num" data-page-node-id="j9lW3IRpHeVge9vrPNshIX">8</td><td class="num" data-page-node-id="7Ck94fLnJviw9sAnA52bJp">80</td>
+          <td class="num dim" data-page-node-id="Abso4ZWCOl6mTuAyJGnLRs">80 万</td><td class="num" data-page-node-id="OC13FG1a6nNkcJqAgfk2Ph">80 万</td>
+          <td class="num" data-page-node-id="JERokfj8k3nVOoFpz6GOmC">300</td><td class="num" data-page-node-id="DtgTwlhSKoBxFLRtvmOm5j">15</td><td class="num" data-page-node-id="NUV89fj03iKSeFJIFnDFPg">24</td><td data-page-node-id="drLqcpGQqE0CVfzXmXRZ2z">蓝</td>
+        </tr>
+        <tr class="hl" data-page-node-id="jqlDz1KkkcCGvC0PsBfv9a">
+          <td data-page-node-id="wTDbeRNO5CLuD2zMR4Fy1l"><b data-page-node-id="yeOGN2BtQySAF8jWfQH6Dw">Pro</b> <span class="tag" style="background:var(--blue);color:#fff;" data-page-node-id="KX1Ay7xhaSdNrssXG2EY59">主推</span></td><td class="num" data-page-node-id="RfiBseUcvC6PSx7bVwrpon">20</td><td class="num" data-page-node-id="8pmdkP6DeTEMMA2uY9fPAX">200</td>
+          <td class="num dim" data-page-node-id="kb47Mpgm1eB8KGa3Oq6SmY">200 万</td><td class="num" data-page-node-id="u97SnC6jhPMAwEH9udDzGN">200 万</td>
+          <td class="num" data-page-node-id="09Z7zDk1xhGDeWnCFHkjds">450</td><td class="num" data-page-node-id="PPTHain9zq06PivXsSzoGY">20</td><td class="num" data-page-node-id="LIzDiuZ5aVYO5nuW29HZ67">18</td><td class="cell-bad" data-page-node-id="m0R1ydrzQsBoJWmwLimd5u">银（文案写「金」）</td>
+        </tr>
+        <tr data-page-node-id="bibZRzbq1K4qGFJOnNyGmw">
+          <td data-page-node-id="Aba55DaWXJRtFYUfwiIb6A"><b data-page-node-id="jBEqMA2EuBt6SXdGtKp9nQ">Max</b></td><td class="num" data-page-node-id="QIM0Ijtr0QsvX29XHPpEkI">40</td><td class="num" data-page-node-id="FZELYvVubg8Or9btAxwwBQ">400</td>
+          <td class="num dim" data-page-node-id="PGCeUCm7aTYN43yZ0UbAWi">500 万</td><td class="num" data-page-node-id="XbXBd7JyvynkMMPDktaTP2">500 万</td>
+          <td class="num" data-page-node-id="ZM3mnRW5JUBSM6p6DGRWXQ">900</td><td class="num" data-page-node-id="q3tGkcwtTjB4ideWsebDKv">30</td><td class="num" data-page-node-id="ZEFIzku0GTNzk5BL4kZoys">12</td><td data-page-node-id="38xMRsEyLSvweI5LE7jwHI">金</td>
+        </tr>
+        <tr data-page-node-id="emvzWH9sW15OSRGIXHh8hQ">
+          <td data-page-node-id="71oeXTNbfV2R2t9oHBTv0l"><b data-page-node-id="nlecW9pmu0affgpffJddNK">Ultra</b></td><td class="num" data-page-node-id="giWJEua1bCItSeDsfaODfX">70</td><td class="num" data-page-node-id="yNGZNfO9sC04KF6zb6E8mQ">700</td>
+          <td class="num dim" data-page-node-id="zkgQlyudVr2MJSKyXnww8S">1000 万</td><td class="num" data-page-node-id="OMuuDqRfwwPZSV9eO8NDyd">1000 万</td>
+          <td class="num" data-page-node-id="dQFKQdvbrkxWKswDpN9zjy">1200</td><td class="num" data-page-node-id="i78BqD4EkQXcBD8cA1DmeN">不限</td><td class="num" data-page-node-id="NcNoN4Yrc6vDEwAhpkwccp">8</td><td data-page-node-id="GSGGZqwCMlCDOlsKnlDDtQ">彩虹</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="margin-top:34px;" data-page-node-id="EwpTFkUiXoW2bEVrj544Vw">1.2 单位价值：Plus → Pro 完全线性，升级没有台阶</h3>
+  <p class="hint" data-page-node-id="Nba7uM79AqwKSPyET2XEMY">订阅的阶梯应该满足「越往上，每 1 积分换到的资源越多」，否则升级缺乏动机。</p>
+  <div class="card" style="margin-top:14px;" data-page-node-id="GwKjl4YjLPTSB2sDLAEn1b">
+    <div class="bar-row" data-page-node-id="FJriKCMrgv3d5XSpcm571v">
+      <span class="bar-label" data-page-node-id="qBQiiazIVcZjiltI3gdPuv">Plus</span>
+      <span class="bar-track" data-page-node-id="JlKlVHiECQm3RNcHraPdug"><span class="bar-fill" style="width:70%;" data-page-node-id="016gt32R5Kt3n81s1cIAJt"></span></span>
+      <span class="bar-val" data-page-node-id="7yOdqAJn5F4Oxz4epKqfxN">10 万 / 积分</span>
+    </div>
+    <div class="bar-row" data-page-node-id="vYB1aWkkuTotfPmLKdQurH">
+      <span class="bar-label" data-page-node-id="oNF1PxdEa6yF0FkvWvn1bd">Pro</span>
+      <span class="bar-track" data-page-node-id="jdlqVlWMef1eYDYQILDwPN"><span class="bar-fill" style="width:70%;" data-page-node-id="4zVSMHzUIAOci9NcUzZTwz"></span></span>
+      <span class="bar-val" data-page-node-id="o8pLEbezYi4PYFHjssve4W">10 万 / 积分</span>
+    </div>
+    <div class="bar-row" data-page-node-id="oBdJ9guJSH516xDXTAD1Ps">
+      <span class="bar-label" data-page-node-id="AissBT3zJkKF1zHQwFACK1">Max</span>
+      <span class="bar-track" data-page-node-id="SMEFkvEN5fQ2vRBdBHutaL"><span class="bar-fill" style="width:88%;" data-page-node-id="9WbZ9eL7nRiFoi0QBoufPc"></span></span>
+      <span class="bar-val" data-page-node-id="gLXsRSZjeY0UaSZB4P0gVi">12.5 万 / 积分</span>
+    </div>
+    <div class="bar-row" data-page-node-id="8AFdxlZO3WhKPLVldqem78">
+      <span class="bar-label" data-page-node-id="XNfxa23jl4vVpeiFCtWbjG">Ultra</span>
+      <span class="bar-track" data-page-node-id="rP4bAZyGZznDbaT7Cr9jmN"><span class="bar-fill" style="width:100%;" data-page-node-id="6C45aDrBIwk6HjxJvyCaF1"></span></span>
+      <span class="bar-val" data-page-node-id="z6oFt5mwJhZHSYb5BuMt5m">14.3 万 / 积分</span>
+    </div>
+    <p class="note" style="margin-top:16px;" data-page-node-id="BXZlmHavRZVek60ZnkEx6D">
+      <b data-page-node-id="HwmNShmozXMl8c6okESAoD">前段完全线性，升级没有台阶。</b>Plus → Pro 价格 ×2.5（8 → 20），日 Token 也 ×2.5（80 万 → 200 万），每 1 积分换到的额度原地踏步（都是 10 万），直到 Max（12.5 万）与 Ultra（14.3 万）才真正拉开。Pro 作为主推档，在 Token 维度给不出升级理由，需要靠功能独占或重设增益台阶（见 3.2）。注：本节数值为 2026-09-11 线上库核查值；此前基于迁移基线得出的「Pro 凹点 / 阶梯倒挂」结论已据此修正——线上表现是「平坦」而非「倒挂」。
+    </p>
+  </div>
+</section>
+
+<!-- ============ 2 问题清单 ============ -->
+<section data-page-node-id="ueF86uHBEhZlU58XYNN7HE">
+  <div class="sec-head" data-page-node-id="WBieP9lqtOk9Tuk6WYvLrV"><span class="sec-no" data-page-node-id="kHMZNAEkN7hi2kAekvhfIe">02</span><h2 data-page-node-id="dS6EiL2LzV9KHUqH3XIEO3">问题清单</h2></div>
+  <p class="sec-sub" data-page-node-id="ZoFpYhw5CBIGMuRB3ZOzig">按「先止漏、再修身」排序。每条都标注了可核对的代码或迁移位置。</p>
+
+  <div class="finding crit" data-page-node-id="Z3Z7D67CRvq8pOJ4qERttV">
+    <div class="f-head" data-page-node-id="kRpBUGF77TUCQHv0NAFL15"><span class="tag p0" data-page-node-id="8VHA30rvAA1ptno3BGacNZ">P0 严重</span><h3 data-page-node-id="hOHtOnOCiUFOEYu76xGoK0">F1 · 服务端不校验价格与时长，订阅可被 0 积分获取</h3></div>
+    <div class="f-body" data-page-node-id="SD98PdUe38k0zCRpCeAgjM">
+      <div class="f-row" data-page-node-id="Bis89RXYdvBFJTfZHGKuRW"><dt data-page-node-id="mdcOZeNMxwLXmQjZJMVHwr">证据</dt><dd data-page-node-id="gvz858JwIBRQwCd186nAlG">RPC 只做 <code class="mono" data-page-node-id="A9Yd0FXQfCJbTOCzxcesEy">p_points_cost &lt; 0</code> 与 <code class="mono" data-page-node-id="QAfxqZw45mHKZM5FttRmOH">p_duration_months &gt; 120</code> 两项范围校验，价格与档位均取自调用方传参，没有任何白名单或价格表比对。
+        <span class="ev" data-page-node-id="DRkeBhycMz10ve2LVludgr"><code data-page-node-id="gqyJDH2HxIbskweSlC3UCG">2026090903_points_ledger_completion.sql:76-83</code> · <code data-page-node-id="BZ9frZJCNS4EUIkWEyjiRb">:175</code> · 授予 <code data-page-node-id="grY5YyxC9bII7poJxyzZH4">authenticated</code> 执行权见 <code data-page-node-id="tlkIKPAEzUIemSLFmoTQrV">2026082609_...:496-497</code></span></dd></div>
+      <div class="f-row" data-page-node-id="rRTjJsJsR6gQIXYN1jJoDo"><dt data-page-node-id="LznTueJoQSLzfNfLX6in5f">路径</dt><dd data-page-node-id="R5iEE7TDIePckOr5HTuFuc">前端调用是 <code class="mono" data-page-node-id="1HImIDnm1LCRO69RfFExI0">supabase.rpc('subscribe_with_points', { p_points_cost: price, ... })</code>，price 来自前端常量。<span class="ev" data-page-node-id="KEQUlxrmJ408tda5k7UET5"><code data-page-node-id="99soTpKmrNOWhixj0BgFYI">src/utils/api/subscription-api.js:100-107</code></span></dd></div>
+      <div class="f-row" data-page-node-id="sTVGepzbTb7jqxQGv9FYfA"><dt data-page-node-id="7IiOpMbLnvSjL4gmYBOXrl">影响</dt><dd data-page-node-id="Zn2F88leH9iGdNVONnzTA6">任何已登录用户绕过 UI 直连即可传 <code class="mono" data-page-node-id="pKROnG0Kx22FNVJdOXZYB0">p_plan_code='ultra'</code>、<code class="mono" data-page-node-id="UWr3BGw0UDbKdSryrb6Njt">p_points_cost=0</code>、<code class="mono" data-page-node-id="a5kRyJaDYJY6kjAyqzvnMO">p_duration_months=120</code>，以 0 积分获得 10 年 Ultra。同类问题存在于 <code class="mono" data-page-node-id="4TffMaLHRpIeV58Fjh5Ucq">start_subscription_trial</code>：档位与天数同样是调用方传参，可申请 90 天 Ultra 而非 3 天 Pro。</dd></div>
+      <div class="f-row" data-page-node-id="5TkMXAKF7r4eMDMws88ow5"><dt data-page-node-id="OK0F5puCTaTwDIHyk5EyRa">建议</dt><dd data-page-node-id="kyj0tFNG8EFbDcegKkBg5A">建一张服务端价格表（<code class="mono" data-page-node-id="atTwLlISPPQoiSuYfuroGg">subscription_plan_prices</code>：plan_code × billing_cycle → points_cost、duration_months），RPC 内按 <code class="mono" data-page-node-id="E7zr7rFj2Lowv20TgaCnz5">(plan_code, billing_cycle)</code> 查表取价，忽略调用方传参；试用 RPC 把档位与天数硬编码为常量。这是纯服务端修复，不涉及前端改动。</dd></div>
+    </div>
+  </div>
+
+  <div class="finding crit" data-page-node-id="gPYU4E6EOduaFyKl08Q6GH">
+    <div class="f-head" data-page-node-id="lNFXJytzQGc7Q9ppbcz82g"><span class="tag p0" data-page-node-id="zenm4HlbRhSwWzWnF8pG9E">P0 严重</span><h3 data-page-node-id="o8RRapejfTBACV37NkXdFo">F2 · 权益真相源分裂，宣传与执行已经对不上</h3></div>
+    <div class="f-body" data-page-node-id="6RQGM9F95UZ9qJHlE6S9xJ">
+      <div class="f-row" data-page-node-id="CPqzMaBLLCpWe6YTc2QWPE"><dt data-page-node-id="BSKpHfYUXSKJO9IWTr5e8f">证据</dt><dd data-page-node-id="OGdnd6ZsO4CmxWstxTyA5h">同一份权益在四个位置各写一遍：订阅页硬编码（<code class="mono" data-page-node-id="GcdvPHtDT70ar4lGgL8uiF">plans</code> / <code class="mono" data-page-node-id="zVi6xztTxqv18NwuZn7cjD">comparisonRows</code>）、AI 配额表 <code class="mono" data-page-node-id="KWqamn5wd1s3ubVGTTVwaS">ai_quota_config.daily_token_limit</code>、云盘限额函数 <code class="mono" data-page-node-id="WiIsvlTO7hVvUiKDTopWBE">boh_cloud_image_limit_for_user</code>、实验室次数 <code class="mono" data-page-node-id="wgaStkvtFf18Ht9iHWWwKr">TIER_QUOTA_MAP</code>。
+        <span class="ev" data-page-node-id="QGQFztKDo51RRWLp5hVPwm"><code data-page-node-id="xFTbhCV12bl7FOCQhcaXwM">SubscriptionPlans.vue:282-288</code> <code data-page-node-id="M7rQufxamZIA1SaTeBfTHJ">:320-330</code> · <code data-page-node-id="C461Gh8LDGL5Cs7nsnq0uj">2026071301_ai_token_quota.sql:8-19</code> · <code data-page-node-id="jNjCebqsNOxXoNI30VABGt">2026081903_cloud_plus_subscription_limits.sql:12-32</code> · <code data-page-node-id="kWttXAuWM91dLUKqg2jLPB">useLabQuota.js:10-17</code></span></dd></div>
+      <div class="f-row" data-page-node-id="r0IBWfa6XdHIF3FYvcoBH2"><dt data-page-node-id="syWNvBMTQUveTvbAlzfEMC">表现</dt><dd data-page-node-id="eKc0GE6wmpEzXFZ6GSKzZQ">Token 梯度：迁移基线（100/200/300/500/1000 万）与页面宣传（20/80/200/500/1000 万）两套数字并存；线上库实际配置已被人工改到与页面一致（2026-09-11 核查）——对齐靠手工改库完成，迁移文件沦为错误文档，这正是缺单一真相源的运行时代价。Pro 昵称色文案写「金色」但映射为银（此项 <code class="mono" data-page-node-id="WcqOQAdQuDXqEAZFmMY7xG">avatar-frame-design-plan.md:21</code> 已记录）；首页文案「强大 Pro 模型与多模态，Free 开放」与订阅页「多模态 Plus 起」矛盾，且线上模式表已无独立多模态模式、无任何档位门禁。
+        <span class="ev" data-page-node-id="OGGFVRfCowZGQ80F6CBE3D"><code data-page-node-id="QaI0HzzYHCQBEQXeTLYp0t">AgentPreviewHero.vue:6</code> · <code data-page-node-id="qDlEBpGokkzlPjfbR3rR8h">subscription-benefits.js:75-81</code></span></dd></div>
+      <div class="f-row" data-page-node-id="odkbA5nESjWZ9IoCgZkpq0"><dt data-page-node-id="AyvdSIPCceki36mVBrouyl">影响</dt><dd data-page-node-id="G8CYKMvGnGdEq69aYp4yy9">客服口径不可控；改一次权益要动 4 处，必然继续漂移；用户侧一旦发现宣传高于实际就是信任损失（当前是宣传低于实际，属于「白白少卖了差异化」）。</dd></div>
+      <div class="f-row" data-page-node-id="UfWuBtRFLPwZdWuwjLW0X9"><dt data-page-node-id="LOz9J7BFVUf3qnuH1uEJcv">建议</dt><dd data-page-node-id="xENzBuNpsg6VAwJwIo5ND3">抽出唯一权益源。两种做法：<b data-page-node-id="WNpK4O9Zmg2nTPMdiQ0SAi">(a)</b> 轻量版——新增 <code class="mono" data-page-node-id="B8fKyHlxtIC7NB7mFa8J0l">src/data/plan-entitlements.js</code> 作为前端唯一源，订阅页表格与对比表全部由它渲染，服务端配额表以 migration 对齐；<b data-page-node-id="wGwywYcwjnEcLBC9TjtJHY">(b)</b> 彻底版——建 <code class="mono" data-page-node-id="2D2lmFAkEn5tD2Zwi9cC2K">subscription_plan_entitlements</code> 表，前端拉取、服务端 RPC 同源读取。建议先做 (a)，与 F1 的价格表共用同一次 migration。</dd></div>
+    </div>
+  </div>
+
+  <div class="finding crit" data-page-node-id="TYZlacRFVe8Cb4fGIto70I">
+    <div class="f-head" data-page-node-id="3taHQ1mM1aoQsKHqoRqzUC"><span class="tag p0" data-page-node-id="5CH1Vp8tk316uoRxxsO3ro">P0 严重</span><h3 data-page-node-id="F7wlGdi4nmR5S8IgzW9kv8">F3 · 付费墙只在前端，实验室配额可绕过</h3></div>
+    <div class="f-body" data-page-node-id="oLocIBnHw4tPzNL2uj2hXN">
+      <div class="f-row" data-page-node-id="4hGGEIHSBYisxkaB2PQniw"><dt data-page-node-id="EPpeZjWhiivIR0YcHiEvZ1">证据</dt><dd data-page-node-id="fFhBa1x7WlzfKhFI8TXfnk">限额表与超限判断全在 <code class="mono" data-page-node-id="XdGaHdJlC9fe6wltXKw1uI">useLabQuota.js</code>；服务端 <code class="mono" data-page-node-id="10msjuKHDwkl9e0GlnlQ2i">record_lab_usage</code> 仅校验 <code class="mono" data-page-node-id="5Pnivc86FCg4d3oXG5j0F2">flow_type</code> 非空与「user_id / device_id 至少一个」，随后直接 insert，不做任何次数比对。
+        <span class="ev" data-page-node-id="Hqq2z9CJ5UhUf7bTLFwZ1h"><code data-page-node-id="cRJq4CaEpAPFCbfxLgfImp">useLabQuota.js:10-17</code> <code data-page-node-id="WAr9glozDIcOATQ0BED98l">:139-170</code> · <code data-page-node-id="AYTb150n5vKCuhe2H8LigA">2026070203_lab_usage_quota.sql:78-108</code></span></dd></div>
+      <div class="f-row" data-page-node-id="jDdzEtRty3CaBfTyKKjKZE"><dt data-page-node-id="AIFCz437fMg5X1tgJbIFOP">影响</dt><dd data-page-node-id="gGBRPBkTaCqMeGszq0LbF8">直连 RPC 或改写前端状态即可无限生成 PPT / Word / 代码，次数档位（10/15/20/30/不限）形同虚设。Ultra 之外的各档「实验室次数」是页面明确列出的付费理由之一，这条权益实际不可信。</dd></div>
+      <div class="f-row" data-page-node-id="fteG58W7XSAZOnWTPjzgjA"><dt data-page-node-id="XGvbw1fDJFG9w6rjfYex8C">建议</dt><dd data-page-node-id="8a6Hw1bfQxUeM9wdSuWUfN">把限额判定下沉到 RPC：以 <code class="mono" data-page-node-id="c9lrCoK3DonCYrm5H4HI9h">get_user_subscription_tier</code> 结果取当前月额度，事务内 <code class="mono" data-page-node-id="gTJyOFM2EE7C1rpyEGXLRt">count</code> 后超限即 raise；前端只负责展示与友好提示。顺带明确「PPT + Word + 代码」是共用同一个次数池还是各自计数——当前是共用，页面文案读起来像各自 10 次。</dd></div>
+    </div>
+  </div>
+
+  <div class="finding crit" data-page-node-id="y4Svu18geOHfsLJ6z9HL5S">
+    <div class="f-head" data-page-node-id="gXUyQaXnLNZp6ZWDIVf2Cv"><span class="tag p0" data-page-node-id="P0JNNCPkBk0WctdafcerTc">P0 严重</span><h3 data-page-node-id="nSv07SBFZRmAHe0vk8CYgo">F4 · 积分经济闭环断裂：签到即可覆盖 Pro 月费</h3></div>
+    <div class="f-body" data-page-node-id="5wePAivH0bLmPCi75YVDJA">
+      <div class="f-row" data-page-node-id="qDm8MCS8XeW6bmG3ogvHyF"><dt data-page-node-id="bkcd2FZpoxpcj9TXX7ZRLG">证据</dt><dd data-page-node-id="LfDnWUsRhKpkAWvxDykk6I">周签到固定奖励 5 积分，一个月约 4.33 周 ≈ 21.7 积分；Pro 月费 20 积分。
+        <span class="ev" data-page-node-id="QqgD6BI51iSDSYNmk5AVAi"><code data-page-node-id="kJEKdpCN6dbtYJQBeqotiI">2026090905_points_ledger_shop_checkin.sql:263-266</code> · 价格见 <code data-page-node-id="fRVQoIJtrCM3xNcPmCGpgx">SubscriptionPlans.vue:285</code></span></dd></div>
+      <div class="f-row" data-page-node-id="S6z8YCLIQmF8dp7tNoyCKw"><dt data-page-node-id="E24N4RwuOOtdtDYQj8d2jR">影响</dt><dd data-page-node-id="bt3BB2viIvdFlNmLeA2JER">「每周签到」这一条零门槛路径的月度收益足以长期覆盖 Pro。同时发帖有奖（<code class="mono" data-page-node-id="OWsfdjZdQVUPsntKJqzZhl">points_per_post</code> 由活动配置，日/月上限均可调）会进一步抬高免费积分水位。结果是订阅定价被自身激励体系稀释，付费转化率无法真实反映产品价值。</dd></div>
+      <div class="f-row" data-page-node-id="5EVD9DAB7btzppUM0DWWWB"><dt data-page-node-id="LbrjdPoQ3vcsE3MokMJpPS">建议</dt><dd data-page-node-id="yyjoVJDT6tRm8si8DixX5z">关键不是砍签到，而是让「免费积分」与「订阅支出」保持明确水位差。建议把免费积分对单档的覆盖率控制在 30–40%（例如签到降为 2 积分/周，或把 Pro 提高到 50 积分档），并把积分的主要出口引导到「加油包 / 装饰 / 徽章」等消耗型商品上——积分能买东西，才叫货币；只能买订阅，就是折扣券。</dd></div>
+    </div>
+  </div>
+
+  <div class="finding warn" data-page-node-id="LT4XPMZbqFMJrVgjmC0RbE">
+    <div class="f-head" data-page-node-id="qt3yE0mdWDLtoQHnLG7T6p"><span class="tag p1" data-page-node-id="M0i7F8AzTSRKbLYemrZWsv">P1 重要</span><h3 data-page-node-id="JbwP1cCru5r9x3csaWqmEH">F5 · 试用权益未对齐，且没有到期挽回链路</h3></div>
+    <div class="f-body" data-page-node-id="NmA7cGGGcpFdG07G3S161C">
+      <div class="f-row" data-page-node-id="fDXAf8rfd0ADECUOJYtwWG"><dt data-page-node-id="OSlggwGeC6AXNYTHHhYX8j">证据</dt><dd data-page-node-id="N7KSmMKxZF4y2tYfSEo7ER">试用记录的 <code class="mono" data-page-node-id="NtEXMhRjWf9Jmf2FV8i2oC">status='trial'</code> 已被 <code class="mono" data-page-node-id="B94Ddccm9bRiMUDMydpZ7s">get_user_subscription_tier</code>、批量版与 <code class="mono" data-page-node-id="KreNxyDaLz8aoPuny96qUE">subscribe_with_points</code> 三处纳入，但云盘限额函数仍只认 <code class="mono" data-page-node-id="5Tn8KOMepUcwxaZFGxaRah">status='active'</code>，试用户拿到的仍是 Free 的 150 张而不是 Pro 的 450 张。
+        <span class="ev" data-page-node-id="hHiXGtBSavcw95zB1iExH5"><code data-page-node-id="mJZcICDTgd5s3DL7ltunBx">2026081903_cloud_plus_subscription_limits.sql:27-30</code> vs <code data-page-node-id="tGrDxl0KhmiNzaQiImzil4">2026082609_...:159-181</code></span></dd></div>
+      <div class="f-row" data-page-node-id="tmijTqGc9ajS0rMQ27zmCT"><dt data-page-node-id="DIVOmELlDttqzGyGFG1BHc">影响</dt><dd data-page-node-id="DV1OPBvB0q6LixXUauVV3T">页面承诺「免费试用 Pro 3 天 · 完整体验 Pro 档权益」，但 Cloud+ 一项实际未发放，属于承诺未兑现。同时试用到期后没有任何提醒、优惠或挽留动作，3 天窗口白白流失。</dd></div>
+      <div class="f-row" data-page-node-id="SSzytABJALnwvwo7zUBTIG"><dt data-page-node-id="rgAucMOewue8OVCbfawvN3">建议</dt><dd data-page-node-id="NMhJh4Acoj5gpOiAhZpuDv">一，把 <code class="mono" data-page-node-id="SHGiKXODA0cwfr1jBndtHG">boh_cloud_image_limit_for_user</code> 的 <code class="mono" data-page-node-id="Y0aYLyQp7e20DeJBsLGw11">status='active'</code> 改为 <code class="mono" data-page-node-id="ik6O4KCQpiIJZ8JuORxivs">status in ('active','trial')</code>，与等级判定对齐——注意这个函数是云盘上传闸门的判定依据，改动后试用期第 151 张图才真正传得上去。二，补试用链路三件套：到期前 24 小时站内提醒（现有通知系统可复用）→ 到期当天推送「首月折扣 / 赠积分」→ 到期后 3 天内保留一次回归优惠。三，试用期是最高价值的埋点窗口，应记录用户触达了哪些 Pro 专属能力，作为后续转化话术依据。</dd></div>
+    </div>
+  </div>
+
+  <div class="finding warn" data-page-node-id="enU4gQ5xBdK5Aedaw9UG7H">
+    <div class="f-head" data-page-node-id="syKAf3DCGkQUHmgrIVKDVb"><span class="tag p1" data-page-node-id="r3bb0TCoBDe6O0sis95cPT">P1 重要</span><h3 data-page-node-id="mifsATAjnyccwYNsUzRitt">F6 · 存在无法验证的权益承诺</h3></div>
+    <div class="f-body" data-page-node-id="SLVMAEtE2rtGXOvSptoOra">
+      <div class="f-row" data-page-node-id="xpObQLb0jvPvOWL0s0LcY2"><dt data-page-node-id="FP3DA4yUlMm0P3j5rcTtFZ">证据</dt><dd data-page-node-id="qVo4T0AGXTpmcCaBhWHdJw">对比表列出「Agent 任务并行」1 / 1 / 2 / 4 / 8 个任务，但全仓没有任何并发数限制的实现（无 maxWorker / 档位并发上限，编排提示词对所有用户统一写着「可派 2~4 个 Worker 并行」）。
+        <span class="ev" data-page-node-id="eo877mD3kx9VFFEFRimrCd"><code data-page-node-id="EenOiVylfCvl7amCy2AOFm">SubscriptionPlans.vue:322</code> · <code data-page-node-id="bzcSVLtzjleDZQxHGiIagM">src/views/BOHAI/agents/prompts/orchestrator-prompt.js:40</code></span></dd></div>
+      <div class="f-row" data-page-node-id="XbGNotVAPNfIoN2LBAV8lg"><dt data-page-node-id="UfT0GZecXcBNBaAdjf4UAA">门禁核查</dt><dd data-page-node-id="AiEwRNYjrG6vvA3JcYugGG">更关键的是「多模态交互 Free 不支持」「Agent &amp; Plan 仅 Max/Ultra」这两条：模型门禁字段 <code class="mono" data-page-node-id="Sl6dn0qsVtSHfwroXrPsiA">min_tier</code> 建列时默认 <code class="mono" data-page-node-id="5MRhHIyk6yToFnayk5mPAU">'free'</code>，五种种子模式（fast/pro/multimodal/plan/agent-cluster）均未设置该字段，之后也没有任何 migration 调整过——即按仓库口径，这些模式对全部档位（含游客）开放，页面宣称的限制并不存在。唯一例外：门禁值可在管理后台运行时修改，若线上库已手动调高则另当别论，需以线上数据为准。
+        <span class="ev" data-page-node-id="gLEBHFp5ImPlPwzmbDmDHu"><code data-page-node-id="PygUryIwXntPHjTK6GqvBT">2026071401_ai_runtime_guardrails.sql:6</code>（default 'free'）· <code data-page-node-id="YaV1faysbt1THPS6axzfCh">2026061002_bohai_model_configs.sql:80-102</code>（种子未设 min_tier）</span></dd></div>
+      <div class="f-row" data-page-node-id="thZM97cRGDxmPOWNi78GX6"><dt data-page-node-id="OTbLxz5S6XHI6vuEsEV10x">影响</dt><dd data-page-node-id="BAxuA2ErzFbrFhfS3TEBX8">付费理由是「未来承诺」，也是最容易被用户当场证伪的一类。同类还有「客服优先级」——这是人工流程，建议保留但改为可感知表述（如「工单 4 小时内响应」）。</dd></div>
+      <div class="f-row" data-page-node-id="5QpxYGMgC1rknS0K8jTHTN"><dt data-page-node-id="4rNUjGxEz5y2i3t6DIZoRh">建议</dt><dd data-page-node-id="0DwHTlDe5o6b5ctdkNvGMq">两条路选一条：<b data-page-node-id="9UCweliFr9Vr8YBLEo6yTm">(a)</b> 真做出来——把并发上限做成服务端可配置值，按档位限制编排 fanout 数量，变更小、可信度高；<b data-page-node-id="Xex1r1dYLeCo2gq340zwSU">(b)</b> 先摘掉——从对比表移除，避免透支信任。建议走 (a)，因为这是少数「无需新增成本、只改一个判断」就能兑现的差异化。</dd></div>
+    </div>
+  </div>
+
+  <div class="finding warn" data-page-node-id="DwQYyzG6yF4zSoMF2IIOfs">
+    <div class="f-head" data-page-node-id="8N3On0Bp1JIHV4WVZcgSlX"><span class="tag p1" data-page-node-id="wBKZxCQV2fuB9R7JNBsUfT">P1 重要</span><h3 data-page-node-id="C4RWrIv5jnIgLTI4HmRi0k">F7 · 升级容易、降级无门，缺少自动续费</h3></div>
+    <div class="f-body" data-page-node-id="Ml09nbMOWVCFaW0qB2IMvP">
+      <div class="f-row" data-page-node-id="QvEUdWEDAieevPpUqxZNgN"><dt data-page-node-id="QQkTxZp2ytAW5ysDgg1p2n">证据</dt><dd data-page-node-id="ur0lpSh8Q78jD5FQKLZeFD">服务端对低档购买直接返回 <code class="mono" data-page-node-id="A8WA5AS096bmoaX4iBlAt6">LOWER_TIER_NOT_SUPPORTED</code>，前端也把低档按钮置灰为「已是更高级会员」。年付/月付均需手动续费，无扣款授权机制。
+        <span class="ev" data-page-node-id="cmNxh028S7a3l9NGolVLyp"><code data-page-node-id="pCwgdVsMe6iU6g5aUFLlGh">2026082609_...:347-355</code> · <code data-page-node-id="tDa3eZa55hbdmC3GOXxwA1">SubscriptionPlans.vue:304-317</code></span></dd></div>
+      <div class="f-row" data-page-node-id="cMTisM2Lzyg9mAMZv8lJNJ"><dt data-page-node-id="w5eOZ4sgO3d1kr27WxowWS">影响</dt><dd data-page-node-id="6G630DQoQtsNabf1QkTdYz">「只能升不能降」在用户侧等价于「选错档位就要一直付到到期」——这会显著压低第一次付费的意愿，尤其对 Pro 这个主推档。缺少自动续费则意味着每个月都要用户主动回来一次，续费率天然偏低。</dd></div>
+      <div class="f-row" data-page-node-id="f6vGhpqQwtW2hjV3gRF6X8"><dt data-page-node-id="EjWLMdnR8xgFzMoKlKhAj1">建议</dt><dd data-page-node-id="YRUiRU1E5Vdb9NRlbMHlz9">一，支持「到期降档」（scheduled downgrade）：到期前可预约下一周期降为目标档，当前周期权益不变。二，年付到期给 7 天宽限期而非立即失效。三，自动续费是真正提升 LTV 的动作，但它依赖真实收银台——这块与 <code class="mono" data-page-node-id="FHVf64Wgbk11Rwxx8ItNSD">plans/007-beta6-plan.md:109</code> 的判断一致（充值二维码是转化漏斗最大的漏水点），建议合并推进。</dd></div>
+    </div>
+  </div>
+
+  <div class="finding info" data-page-node-id="mC8RWqaC4HfDvylK1EuqQB">
+    <div class="f-head" data-page-node-id="535iYQAs0Ahe18rCBz9aAp"><span class="tag p2" data-page-node-id="bD4IbILN2CVjrcc3wFQ0mf">P2 机会</span><h3 data-page-node-id="fXBFZVN4FIQgBQMmmgkEkW">F8 · 两条现成但未启用的收入通道</h3></div>
+    <div class="f-body" data-page-node-id="xg8HHsB7zrC3tGxPGgAefI">
+      <div class="f-row" data-page-node-id="BUSKRpCn2hnakmi3ElWjIu"><dt data-page-node-id="sAXbCgGyK0TMGPmuyy79UT">Coding 附加包</dt><dd data-page-node-id="FD2wnU7geILNAo8DJJJX9D">这条已被 git 历史证实为「做完了又撤了」：订阅页曾有完整的 Coding 附加包售卖区（标题、卡片、按月/年计价），在 2026-08-25 的订阅页大重构（commit <code class="mono" data-page-node-id="347AkLEosXHcip1apsUCzY">5a0baa21</code>，文件从 ~2800 行裁到 ~900 行）中被整体删除。而服务端至今仍在生效：Edge Function 按 <code class="mono" data-page-node-id="ttGDVuQ6nSwZheYOGt694c">min_tier = coding-*</code> 做门禁校验，并按档位发放额度加成（Coding Lite +50 万 Token/日、+10 次联网，直至 Coding Ultra +600 万、+120 次）；管理端配置里也还留着 ¥5/¥12/¥20/¥35 的价格标签。
+        <span class="ev" data-page-node-id="yszBUAVptHnZiAGYpVuH9q"><code data-page-node-id="d00wZdAI194kQ4D5ahMqgL">2026080101_bohai_coding_mode_min_tier.sql</code> · <code data-page-node-id="FiWCFLrUk6GFTWMF89PUCy">api-key-vault/index.ts</code> CODING_PLAN_BONUSES · <code data-page-node-id="QcyxIFe5KtXFf1vljor0kl">fields.js:66-69</code> · 删除证据：<code data-page-node-id="ZgYkVasICRbpvNaY5l6aGX">git show 5a0baa21</code></span></dd></div>
+      <div class="f-row" data-page-node-id="H8vGX0SHFfeQeB6tfw880j"><dt data-page-node-id="bTACERJzEYwAJ1mSyA1MCg">额度加油包</dt><dd data-page-node-id="kfCoOKGCK4dEcdcb6EpaFC">日 Token 达到上限后当前行为是硬性阻断。对重度用户而言，这是一个「想付费却没有出口」的时刻，而现有积分体系本可以承接。</dd></div>
+      <div class="f-row" data-page-node-id="Q62GngEHiiDs2CmBYakTLQ"><dt data-page-node-id="Rb8uwK0T86JQwzhyD66W77">建议</dt><dd data-page-node-id="TX9tWixWpU3LEERy1NGhg2">两者都是新增收入且不动现有档位结构：Coding 附加包按月订阅叠加在任意付费档之上；加油包做成「积分兑换当日额度」一次性商品，让积分有消耗出口、让超额用户有继续付费的路径，而不是撞墙离开。</dd></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3 定价方案 ============ -->
+<section data-page-node-id="J7Zyh9dmuXk4EykowrGJRQ">
+  <div class="sec-head" data-page-node-id="xvoztXVHL0VQBBSTHR3T3H"><span class="sec-no" data-page-node-id="Kwg4hLYH8yLeUeUd1v2Bey">03</span><h2 data-page-node-id="MEd7VxcLnAD4Gp0rqXp2B3">定价方案建议</h2></div>
+  <p class="sec-sub" data-page-node-id="VrcnBipVzWpnbhPksJzeRx">分两层：先修口径与结构（不动价格，风险最低），再按需要调整价格锚点与商品形态。</p>
+
+  <h3 style="margin-top:28px;" data-page-node-id="F9I7nBuA1m2P1a2D5r2mAn">3.1 第一优先：统一计价口径</h3>
+  <div class="card" style="margin-top:12px;" data-page-node-id="ccJ6bMGBKAzKXLV7dGXLdG">
+    <p data-page-node-id="RyNgGKTah7DjCYrGaaWTc3">当前页面用 <b data-page-node-id="wQdlvSKnkBjvCg9Ej4Oe9B">￥</b> 展示、用 <b data-page-node-id="T5KspMzNkUK9gKalsHGofK">积分</b> 扣费，充值还要人工核对。用户的心理账本是「我付了多少钱」，系统的账本是「扣了多少积分」，两者之间没有明确锚点，这会产生典型的「我的钱去哪了」困惑。</p>
+    <div class="grid g2" style="margin-top:16px;" data-page-node-id="B4Him4R6TC54hQJmruB6YA">
+      <div style="background:var(--gray-soft); border-radius:var(--radius-sm); padding:16px 18px;" data-page-node-id="9q02eE9zzz75GaubY8R0qq">
+        <h4 data-page-node-id="LHEEYvmWDSzQCXJX5OqQcn">方案 A · 积分即主单位（推荐）</h4>
+        <p style="margin-top:8px; font-size:14px; color:var(--muted);" data-page-node-id="2Xw0B0EUVqA8zBwVlfGVLJ">页面价格直接写「20 积分 / 月」，去掉 ￥ 符号，计价与扣费同源、零歧义，与积分体系天然一体。不强调积分与人民币的兑换关系，为后续定价调整保留灵活度。</p>
+      </div>
+      <div style="background:var(--gray-soft); border-radius:var(--radius-sm); padding:16px 18px;" data-page-node-id="tbLrB1JNvhTpUE8FZKMLvr">
+        <h4 data-page-node-id="6ruaxZrkC3i2f7y62mHfT3">方案 B · 双单位并排</h4>
+        <p style="margin-top:8px; font-size:14px; color:var(--muted);" data-page-node-id="VOMactOLWeDc0IHsLIM5lE">主价显示 ￥，副标显示「= 20 积分」。用户知道要花多少积分，也知道折合多少钱。适合未来接入真实支付、需要保留货币锚点的路线。</p>
+      </div>
+    </div>
+    <p class="note" data-page-node-id="AwjPRFI8c7yopMzGfp10Ro"><b data-page-node-id="47S2HKEXMcLc8VomU28ROL">无论选哪个，年付折扣的表述都要统一。</b>当前 Tab 写「省 17%」，卡片写「省 40 积分」，两处单位不一致。建议统一为「年付 = 10 个月价格，多送 2 个月」——「送」比「省」的转化率通常更高。</p>
+  </div>
+
+  <h3 style="margin-top:32px;" data-page-node-id="SZs3A0RmDHxM7EDLqECukv">3.2 第二优先：把单位价值阶梯修正为单调上升</h3>
+  <p class="hint" data-page-node-id="pj1c6iC0GmHEysKFxsp7iE">价格保持不变（避免影响存量订阅），只修日 Token 梯度。「现日 Token」为 2026-09-11 线上库核查值（= 页面宣传口径）；下表为设计示例，具体数值需结合真实单 Token 成本复核。</p>
+  <div class="t-scroll" style="margin-top:14px;" data-page-node-id="DRlDl9gynfKjrTzmPOWOoJ">
+    <table data-page-node-id="Aj2l7mu55SyKMcbRCTH7k1">
+      <thead data-page-node-id="SUTkpPgAQlReG9E1tyh1Uf">
+        <tr data-page-node-id="eYRtwrwfrtqNhP8k3Ciqcf">
+          <th data-page-node-id="z2clZgwDWLD3R4znp8lBFy">档位</th><th class="num" data-page-node-id="OfzmAEfL5xCyvpvQhGvrYJ">月费</th><th class="num" data-page-node-id="YAqUprISCGRoCBs9eK2ou0">现日 Token</th><th class="num" data-page-node-id="1BpEKVF770PnIt1I4cLh8l">建议日 Token</th>
+          <th class="num" data-page-node-id="KwnYp5ZZFDHSqx41arn0Qm">单位价值</th><th class="num" data-page-node-id="6XlNO4iNoHuWKyXtaBUZGk">增量单价</th>
+        </tr>
+      </thead>
+      <tbody data-page-node-id="ysXGUM2UUtmaZgw6IsnVjk">
+        <tr data-page-node-id="btZ5gtwD66GUeCHlR7BOjh"><td data-page-node-id="06DymEJGvrs5TXZMZWyklC"><b data-page-node-id="OBuD9Ktg5tGxvCGJCq9moQ">Free</b></td><td class="num" data-page-node-id="w5dtplCi32IE3t53pYLEbz">0</td><td class="num dim" data-page-node-id="2FwAbaRcbVaiK1fJ24DGPc">20 万</td><td class="num" data-page-node-id="OGFmNNPftMGnX9mmLAzoXB">100 万</td><td class="num dim" data-page-node-id="Bo7Bl0tHwgDTRzFb3RzP73">—</td><td class="num dim" data-page-node-id="BFUaMM7aKkfq7TAzRq8vyT">—</td></tr>
+        <tr data-page-node-id="z2szDOAFKaJejGSFjLNbEX"><td data-page-node-id="e5A6DGEuefFzJoVUJU3hf1"><b data-page-node-id="WA2npWDxtbLkVoSFRBPzfE">Plus</b></td><td class="num" data-page-node-id="ccHwU7GgeXZ6ECzsGhWmHe">8</td><td class="num" data-page-node-id="AzEVusPriG9VQmYXuio2qq">80 万</td><td class="num" data-page-node-id="tnBUXiCHOT8YsSpqcQ0TSG">300 万</td><td class="num cell-ok" data-page-node-id="S3Iqxp7XOFw1TFTFsDtQfa">37.5 万 / 积分</td><td class="num dim" data-page-node-id="I7i3aGMq8W2Rj2nHI6jyI6">2.7 积分 / 百万</td></tr>
+        <tr class="hl" data-page-node-id="kARYZspdOwjwgNAxeaSpcP"><td data-page-node-id="HESHhO6JdpYZdC6WDu4ysI"><b data-page-node-id="V7ZrIOiLxIEMEhpI3ksC5s">Pro</b></td><td class="num" data-page-node-id="wysopPVBSNUpGTFfNeRjaC">20</td><td class="num" data-page-node-id="u3VcQ5iyJkBM3qALhjdyGZ">200 万</td><td class="num" data-page-node-id="nIbAyd95osmX2xHFs2Wfiy">800 万</td><td class="num cell-ok" data-page-node-id="ECRYMKT7eDQUCWMFJzMooc">40 万 / 积分</td><td class="num cell-ok" data-page-node-id="JrRECW8AqIFPB9DbahPrvy">2.4 积分 / 百万</td></tr>
+        <tr data-page-node-id="6podx8GhawOK8fiDu6ud3E"><td data-page-node-id="EOi2DeMn8KraXGAMCDKdT1"><b data-page-node-id="JtLr1d9CWq5IC90YIGuYli">Max</b></td><td class="num" data-page-node-id="wZpgvXRnDGDlAEh2VFBcch">40</td><td class="num" data-page-node-id="UFBPth8Hz2yGz47Kabk7TP">500 万</td><td class="num" data-page-node-id="3pcd5LgHFsydkyXKo1hhPQ">1600 万</td><td class="num cell-ok" data-page-node-id="GDVHA40m7OD5sqn30B7At0">40 万 / 积分</td><td class="num cell-ok" data-page-node-id="qI9qz8CBwNE43IlDpd8Bd0">2.5 积分 / 百万</td></tr>
+        <tr data-page-node-id="ak9iaEsCyHYrCxBuqYCaQA"><td data-page-node-id="ZaJqMQ6mJtLYHNfXrzSiBh"><b data-page-node-id="6uaFUMhq3FrMvrkAT0PhWK">Ultra</b></td><td class="num" data-page-node-id="f3EXtLp5hixP1kgFRBvoVQ">70</td><td class="num" data-page-node-id="7IyFhUCvZ7BohTpjIpIgJv">1000 万</td><td class="num" data-page-node-id="VDZj1x3SMSkNvY4m06rxtS">4000 万</td><td class="num cell-ok" data-page-node-id="RiAHZwQCOZBkVtHsOMKCGD">57.1 万 / 积分</td><td class="num cell-ok" data-page-node-id="WNtyGi2Aa5jI0AOp6QhCht">1.9 积分 / 百万</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note" data-page-node-id="du7NKbGYqpRp6wdPBr8soY"><b data-page-node-id="RVlJbIkOs8NuaXREFnLdnT">修正后每一档的增量单价都低于入口档自身单价</b>（Plus 2.7 → Pro 2.4 → Max 2.5 → Ultra 1.9 积分/百万），升级动作在数学上变成「越升越划算」，Plus → Pro 从「完全线性」变为有明确台阶。由于日 Token 是<b data-page-node-id="Q80ahZAAQXo419ppvFcbpH">额度上限</b>而非成本承诺，抬高峰值不会直接增加支出——真实成本由实际用量决定，所以成本控制应该做在「用量中位数」与超限后的降速策略上，而不是靠压低峰值额度。</p>
+
+  <h3 style="margin-top:32px;" data-page-node-id="BIRE37DsYSoMFu3DhhAHYx">3.3 建议版档位卡（示意）</h3>
+  <p class="hint" data-page-node-id="MrKL8Dq6XNtIMQPV4IHrhv">把「身份 + 独占能力」提到功能列表前部，Token 数值靠后。用户为身份付费，为功能找理由。</p>
+  <div class="plans" style="margin-top:14px;" data-page-node-id="ZyYxTAkjrcUeoMZ1lZ9kEL">
+    <div class="plan" data-page-node-id="kMSNSxLmnjE1cpQMbHU4nV">
+      <h4 data-page-node-id="Y6s8NN5nSsYXedcPwS5rev">Plus</h4><p class="pos" data-page-node-id="68MKjl9ImMgtfTtX1w6qkK">效率升级</p>
+      <div class="price" data-page-node-id="UO7ac5SD5cZzd6OvijICHT">8<em data-page-node-id="SRFYaojVnEwIDbgeacSESZ">积分 / 月</em></div>
+      <div class="unit" data-page-node-id="aPCsHVqbwT98bQs1s4PtEk">37.5 万 Token / 积分</div>
+      <ul data-page-node-id="WN7A7xOhLV5qum9o500MnB">
+        <li class="new" data-page-node-id="Qm5dMnak11Dy0psJQANddT">蓝色昵称 + 头像框</li>
+        <li data-page-node-id="7WT3FdZFMc0TtS8jFpvKOm">多模态交互</li>
+        <li data-page-node-id="HpdwOujDyvwJdW73t1erjB">Cloud+ 300 张</li>
+        <li data-page-node-id="weiQvRV7diHKncnTIZNUYo">实验室 15 次 / 月</li>
+        <li data-page-node-id="Ri9EiHzVCp6Yl93VxWGn7r">日 Token 300 万</li>
+      </ul>
+    </div>
+    <div class="plan featured" data-page-node-id="L4iJtQtBpEFRHCcQ3KNAIZ">
+      <span class="rec" data-page-node-id="LddAq4URX0vGteo9ROV8fs">最受欢迎</span>
+      <h4 data-page-node-id="TLq20tcuv6XVumYtu2P1xO">Pro</h4><p class="pos" data-page-node-id="8cPmSKyWLBZZslBUkxLuTR">专业创作</p>
+      <div class="price" data-page-node-id="IaguMZZKmf39thHhMTVqYS">20<em data-page-node-id="29EAE1oI63MduVTq4D5Hci">积分 / 月</em></div>
+      <div class="unit" data-page-node-id="ESHykeq3yF0a24r9GfCjKD">40 万 Token / 积分</div>
+      <ul data-page-node-id="SziEIl2jQjHJ8Yi9iKEdE9">
+        <li class="new" data-page-node-id="nTqykk5i2CsSB6zLq082xt">银色昵称 + 专属头像框</li>
+        <li class="new" data-page-node-id="CTNuQtMyINCjtpXJySD2Q8">Agent &amp; Plan 工作流</li>
+        <li class="new" data-page-node-id="8NveOFZDlPckupccLWVLvW">导出免水印</li>
+        <li data-page-node-id="uM8gGIVobSqEVWaN3S8Kc5">Cloud+ 450 张</li>
+        <li data-page-node-id="6zfD0TDEL4gPimwm1ehzyZ">实验室 20 次 / 月</li>
+        <li data-page-node-id="Bvw7AduTMI2vCBsNSBEcoU">日 Token 800 万</li>
+      </ul>
+    </div>
+    <div class="plan" data-page-node-id="DVSeoYjBcIiSuDo7FiWG7K">
+      <h4 data-page-node-id="zlIyMUd4NE1RDwFS1jDMyA">Max</h4><p class="pos" data-page-node-id="PTtBFuWn57cdL0Ipv69ELW">全能尊享</p>
+      <div class="price" data-page-node-id="NG6Bx45JX4Pu71CFQg1WTw">40<em data-page-node-id="efvnzFnQZZGVHuXBFkoQZZ">积分 / 月</em></div>
+      <div class="unit" data-page-node-id="GLjDDtKHYTP00J50NW4GDK">40 万 Token / 积分</div>
+      <ul data-page-node-id="9xie6NCJxvGfx98wKFm67d">
+        <li class="new" data-page-node-id="MCdNZKJltBap1HL8JEcQwU">金色昵称 + 动态头像框</li>
+        <li data-page-node-id="KOEYztwm9wWi1NDQO3KKjQ">Agent &amp; Plan 工作流</li>
+        <li class="new" data-page-node-id="IQdFuDuoe9RNjWfob4Up1b">4 路并行任务</li>
+        <li data-page-node-id="TV5DXN57nujRHcUNXTjmPL">Cloud+ 900 张</li>
+        <li data-page-node-id="e8Y6t2DKakEMrPStFoHzpI">实验室 30 次 / 月</li>
+        <li data-page-node-id="HYiPHGfaD6iSfRI8BmJNzW">日 Token 1600 万</li>
+      </ul>
+    </div>
+    <div class="plan" data-page-node-id="RItDNGrSNHRp7dFGXZCLyH">
+      <h4 data-page-node-id="iFAraXpZG7J6Emg6UNEDbC">Ultra</h4><p class="pos" data-page-node-id="6nbDmz1wHsyMYYtZ6VQzC5">研究级无限</p>
+      <div class="price" data-page-node-id="iEBN5RsV1iPZT3WgTKjgWX">70<em data-page-node-id="plWrEkBDSEWS72Lp0rUeoO">积分 / 月</em></div>
+      <div class="unit" data-page-node-id="Lnlf43Hgo2mXheZ9uMtUVP">57.1 万 Token / 积分</div>
+      <ul data-page-node-id="suP5rBHTYCFBqvMgEFKq24">
+        <li class="new" data-page-node-id="n0619rL1DgvMkDMOWDnrx3">彩虹昵称 + 星轨头像框</li>
+        <li data-page-node-id="cUUSDRzKePI0B8BUvYdwVZ">全部高级能力</li>
+        <li class="new" data-page-node-id="Vc3kgZZwBBaun6LgacMZtW">8 路并行任务</li>
+        <li data-page-node-id="EALASuNF55AkRcnN5Zkix8">Cloud+ 1200 张</li>
+        <li data-page-node-id="gah3LvlcVogEyMIdw03UAk">实验室不限次数</li>
+        <li data-page-node-id="rp7q0MW32Nske1aFHintOw">日 Token 4000 万</li>
+      </ul>
+    </div>
+  </div>
+  <p class="note" data-page-node-id="KTUGR6GELpBKSZ5RtR16Zp">标蓝项是相对现状的<b data-page-node-id="tHdIjCafbgxI6jpPjE8bCB">新增或下放</b>：Pro 拿到 Agent &amp; Plan 与免水印（当前 Agent &amp; Plan 在 Max 才有，导致 Pro 与 Plus 的功能差异极薄——只有昵称色和 Cloud+ 张数），并把头像框与各档绑定。这样 Pro 与 Plus 之间才有一个「非 Token」的、看得见的分界。</p>
+
+  <h3 style="margin-top:32px;" data-page-node-id="TiP5m4Khbpxy42KylK6HoD">3.4 第三优先：补上积分出口与附加包</h3>
+  <div class="grid g3" style="margin-top:12px;" data-page-node-id="8aGnBIXmQBKPsU6F30OG4a">
+    <div class="card" data-page-node-id="xFqMs0toSBtIyCKwp6o978">
+      <h4 data-page-node-id="C0HhsBvE42zpWNTxRSTLTC">额度加油包</h4>
+      <p style="margin-top:8px; font-size:14px; color:var(--muted);" data-page-node-id="uFNIpuEanEoNmXA0BABYGW">超限不硬断，改为「降速 / 降档模型」保底可用；同时提供一次性兑换（如 20 积分 = 当日 +500 万 Token）。把撞墙变成出口。</p>
+    </div>
+    <div class="card" data-page-node-id="aJMlHpukkeHXKADpERhWso">
+      <h4 data-page-node-id="K7APD7zxgFuBekuFyuXgCY">Coding 附加包</h4>
+      <p style="margin-top:8px; font-size:14px; color:var(--muted);" data-page-node-id="6ejHvti5MCxg1jlKlZzAuz">不是从零开发，是恢复上架：售卖区曾随 8/25 订阅页重构被删，但服务端门禁与额度加成至今仍在生效。管理端已留有 ¥5/¥12/¥20/¥35 的价格锚点，补回入口即可重新开卖。</p>
+    </div>
+    <div class="card" data-page-node-id="nBcIIJklN3dRPDp8ABNKZz">
+      <h4 data-page-node-id="6QvqNhgCgND3D00xhFuVrh">积分消耗面扩容</h4>
+      <p style="margin-top:8px; font-size:14px; color:var(--muted);" data-page-node-id="5T8kpvR2Tw4NBo5vpWqBlj">装饰、头像框、卡面槽位、加油包都应接受积分。积分能买东西，订阅定价才不会被签到收益稀释。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 4 内容方案 ============ -->
+<section data-page-node-id="NnP89iALqJGL6AoSazm9cl">
+  <div class="sec-head" data-page-node-id="CMHKCNEGxrEZ3bW3qoFhSG"><span class="sec-no" data-page-node-id="wnnJqAxWIoVO9h72SyIsaf">04</span><h2 data-page-node-id="jrpaWSjbd3vI4YWEAkgU4b">内容与权益方案建议</h2></div>
+  <p class="sec-sub" data-page-node-id="QNRtaMmYF9OYDf5cTMopoE">核心思路：订阅要卖「身份 + 独占能力」，Token 数量只是支撑，不是主角。</p>
+
+  <div class="grid g2" style="margin-top:22px;" data-page-node-id="YTOIYOFCSo2w4DYSxhB1Dr">
+    <div class="card" data-page-node-id="TFpMeQTx2iFx5JkVs27ioJ">
+      <h4 data-page-node-id="PYrBxOOf3fBWcniXeECCsS">4.1 权益单一源（对应 F2）</h4>
+      <p style="margin-top:8px; font-size:14px; color:var(--muted);" data-page-node-id="jE2fDEPkl5QLM2FqA9BHW9">新增 <code class="mono" data-page-node-id="dtkiCRZ7NGYLbo0k23iuUw">plan-entitlements.js</code> 或建配置表，把「档位 → 权益项 → 数值」集中一处。订阅页卡片、对比表、服务端配额校验全部从这里取。改权益只改一个地方，也不会再出现宣传与执行两套数字。</p>
+    </div>
+    <div class="card" data-page-node-id="z35jh7qTSG2U7cdn4XlESX">
+      <h4 data-page-node-id="opeXi2ShuwDi771Kemdv1R">4.2 重排权益矩阵，给 Pro 一个独占理由</h4>
+      <p style="margin-top:8px; font-size:14px; color:var(--muted);" data-page-node-id="xYSX5herWCAT02B0Leo2LX">现状 Pro 与 Plus 的差异只有昵称色 + 150 张 Cloud+ + 5 次实验室。建议把 <b data-page-node-id="qQxXjWF3ZQ8qRKntZ2uC2M">Agent &amp; Plan</b> 从 Max 下放到 Pro，并新增「导出免水印」「优先审核」两项零边际成本的独占权益。</p>
+    </div>
+    <div class="card" data-page-node-id="rzqUxENSBjjOo2rlN3F1Cj">
+      <h4 data-page-node-id="WBTXtJ7Q9QLc4XAtyEIAKE">4.3 用可交付的差异化替代功能堆量</h4>
+      <p style="margin-top:8px; font-size:14px; color:var(--muted);" data-page-node-id="6fER3ye6aVdQbmv4yIn5PE">真正能分层且已在服务端跑的锚点有两个现成的：单次输出上限（<code class="mono" data-page-node-id="1NJ68z4RIy7jJ5fMYXiOA2">TIER_MAX_OUTPUT_TOKENS</code>：Free 1200 / Plus 1800 / Pro 2400 / Max·Ultra 4096）和每日联网搜索次数（10/30/60/120/240），这两个是 Edge Function 里真实生效的阶梯，做权益单一源时应一并收编。可再扩展的锚点：模型档位（<code class="mono" data-page-node-id="kB0keGrpnndznxBqR3vqfd">bohai_model_configs.min_tier</code> 门禁机制真实存在，但需先把各模式的门禁值真正配置起来）、上下文长度、并发会话数、导出格式与去水印、Cloud+ 分享有效期、审核优先级。这些都比「Token 数字」更难被质疑。</p>
+    </div>
+    <div class="card" data-page-node-id="ein2rlOVvCwmeb8QREOHzE">
+      <h4 data-page-node-id="GWcPMlrVsYr4OnsvszPhVQ">4.4 身份层：与头像框方案合并推进</h4>
+      <p style="margin-top:8px; font-size:14px; color:var(--muted);" data-page-node-id="aIA82IRdaD5b0U3VNFaiYx">头像框是与订阅绑定性最好的身份物，且 <code class="mono" data-page-node-id="op14FVYWTrMUmMBIdcCwA7">avatar-frame-design-plan.md</code> 已做完设计与素材路线。建议订阅支付成功弹层直接提供「一键佩戴」，到期置灰但保留「曾经拥有」记录——回收动作本身就是续费钩子。</p>
+    </div>
+    <div class="card" data-page-node-id="ehCuM9HlgDXsL3664yyslY">
+      <h4 data-page-node-id="1PHMc8uFWGzaEA4wgZcHBJ">4.5 年度会员要给到「年度感」</h4>
+      <p style="margin-top:8px; font-size:14px; color:var(--muted);" data-page-node-id="rJiZRuy2krb2rm8QH9UMOC">现有年付权益只记一个「年度会员纪念徽章」标记。建议扩展为年度限定头像框 + 年度个人数据报告（用量、创作、社区贡献）+ 次年续费专属折扣，年付才有独立于月付的存在价值。</p>
+    </div>
+    <div class="card" data-page-node-id="JEvAVc9mpnF1Vc4votMfwl">
+      <h4 data-page-node-id="AEdcvdA1qGYe8JErZRJG4m">4.6 服务端权威化清单</h4>
+      <p style="margin-top:8px; font-size:14px; color:var(--muted);" data-page-node-id="SKhymHTx8rTPrUcaBtiQRX">三件事必须从前端搬到服务端：订阅价格（F1）、实验室次数（F3）、试用档位与天数（F1）。前端只做展示与预校验，判定权归服务端——这也是让权益矩阵可信的前提。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 5 路线图 ============ -->
+<section data-page-node-id="U7DfvNinkf8W5YTiHBSFHx">
+  <div class="sec-head" data-page-node-id="Ly4wFPdJ1y4BoRP5VfqVP6"><span class="sec-no" data-page-node-id="ZMyXBVunyK55EgfDXjIkfH">05</span><h2 data-page-node-id="uPmGfChFeNvex8z4fEADKF">落地路线图</h2></div>
+  <p class="sec-sub" data-page-node-id="dN9uxJZ4mRUVvhL878ms1C">P0 是止漏与一致性，基本上都是服务端与常量改动，不涉及 UI 重构，可以立即做。</p>
+
+  <div class="phase" style="margin-top:20px;" data-page-node-id="y4VYhFUtGUVXrurkGEjnnn">
+    <div class="phase-head" data-page-node-id="o9jA0TqCO9fu6BEJXlCij6"><span class="tag p0" data-page-node-id="ekSHeW447aicGJMMbLtQ4i">P0</span><h3 data-page-node-id="4mDfHADoVrlSH7riB2YTaJ">止漏与口径统一</h3><span class="when" data-page-node-id="TpybK3p8Pjnt2zdvFyYWnt">建议立即，一个迭代内</span></div>
+    <ul class="tasks" data-page-node-id="qOasKnsA1ApiaQT1kBDlQ8">
+      <li data-page-node-id="BrxzlFjj8O279smvF04eCY"><span class="box" data-page-node-id="kMsZjb8fGGfbD216UFpqim"></span><span data-page-node-id="h9ssgrASfuQehKcglcclY5"><b data-page-node-id="MTqhq2cCmzYdTGMX5oZKQA">服务端价格表 + RPC 取价校验。</b>新建价格表，<code class="mono" data-page-node-id="HLUUClgj8ROpwaJf4BsKFH">subscribe_with_points</code> 与 <code class="mono" data-page-node-id="bOIBbslb62tdi6CyasHk2n">start_subscription_trial</code> 改为查表取值，忽略调用方传参。
+        <span class="path" data-page-node-id="gm7FLg4qs7Yob1zfoB6j8O">supabase/migrations/ 新增 · 参照 2026090903 的 RPC 基线</span></span></li>
+      <li data-page-node-id="N84h4oO8YLl7zWIAtndQoe"><span class="box" data-page-node-id="IL5JgYESpwsgAvo4dgnh5H"></span><span data-page-node-id="h8Gx1uGAPovWVtpLO9BnVX"><b data-page-node-id="YFl1RSmCNcjhMGqsi9pysl">试用权益对齐。</b>云盘限额函数纳入 <code class="mono" data-page-node-id="8G0HAjDkSjQWis4Qoz5ArI">status='trial'</code>，兑现「完整体验 Pro」承诺。
+        <span class="path" data-page-node-id="LzxvuQ1bRcwrMUFAn2D8s1">2026081903_cloud_plus_subscription_limits.sql:27-30</span></span></li>
+      <li data-page-node-id="fnYJCvCvhh8gPR3cnJgZMl"><span class="box" data-page-node-id="UHUWvUWZRx4iMjPNeITNci"></span><span data-page-node-id="iAd92BCNfXC7kaTTULBJbQ"><b data-page-node-id="iQyCBhqpZuSAcJScH7mtpD">统一计价口径。</b>页面价格改为积分主单位（或双单位并排），去掉「￥ 展示 / 积分扣费」的歧义；年付表述统一为「多送 2 个月」。
+        <span class="path" data-page-node-id="dkL3yXHK8KaFz4VjJQ50lM">SubscriptionPlans.vue:95-106 · :319 · :40 · :104</span></span></li>
+      <li data-page-node-id="LDk84sruNuclx0dCvHUxIW"><span class="box" data-page-node-id="moVBlAUsp1BaobAHN50pUf"></span><span data-page-node-id="S5CDAHDKFyOewm1dBth5jn"><b data-page-node-id="IK8RKEZACkkbfYHzlLmKC9">修正文案与代码矛盾。</b>Pro 昵称色（金色 / 银色的二选一）、多模态对 Free 的口径（与首页文案统一）。
+        <span class="path" data-page-node-id="zr5NjgTuef5MgHoZkiFIXs">SubscriptionPlans.vue:285 · AgentPreviewHero.vue:6 · subscription-benefits.js:75-81</span></span></li>
+    </ul>
+  </div>
+
+  <div class="phase" data-page-node-id="GlZVZABEc0HIrlC3B0Iako">
+    <div class="phase-head" data-page-node-id="Of5Xz6eH5LmZBt1kLnP5I4"><span class="tag p1" data-page-node-id="i9wKs3GuGpKBrAk2OXW5Jf">P1</span><h3 data-page-node-id="YTEHLauwwK7mPpmlBdpnby">定价结构修正</h3><span class="when" data-page-node-id="OVHADwNCxq5qfJ80IQbwRc">2–3 周</span></div>
+    <ul class="tasks" data-page-node-id="AFsdjkARGOnU94rg4wRCAV">
+      <li data-page-node-id="JipYjPEBJRZwqSdcOxfFko"><span class="box" data-page-node-id="BNBie9pxduUFOelVnxDmqt"></span><span data-page-node-id="eMRE8GI7emWXpa213TS6EY"><b data-page-node-id="r9qDyaZ5RGYh4xkSC4TFvt">抽取权益单一源。</b><code class="mono" data-page-node-id="uJjvVfb83596E5L3gt6Pnz">plan-entitlements.js</code>，订阅页与对比表由它渲染，服务端配额表按同一次 migration 对齐。</span></li>
+      <li data-page-node-id="HFgDknTirNLTFRpFWEM57m"><span class="box" data-page-node-id="AAWHcTJKBuOOYISPrEwpZ7"></span><span data-page-node-id="2JfBRr7SVYCZZPZ92oKIj6"><b data-page-node-id="VcONZpCVWj6P8smLaPxVWu">Token 梯度单调化。</b>按 3.2 的设计修正配额表，并同步页面文案，消除「宣传 / 实际」双数字。
+        <span class="path" data-page-node-id="L4NBa4SDHzASX9d9F52tWW">2026071301_ai_token_quota.sql 的 values 为准，新增 migration 覆写</span></span></li>
+      <li data-page-node-id="8eF6P3IPe9tPg6AJQpnfBA"><span class="box" data-page-node-id="J31gMi3ftakj2McvazAM4k"></span><span data-page-node-id="7A3GAjr9pxmtzO0qhfee9D"><b data-page-node-id="Y8nG2XZzN77oM5Aa7oFLwE">实验室配额服务端强制。</b>限额判定下沉到 <code class="mono" data-page-node-id="lfVcGllZcklh2rhR8qNc1t">record_lab_usage</code>，并明确 PPT / Word / 代码是否共用次数池。
+        <span class="path" data-page-node-id="FIu30MeweSXmnTEpgo35Jh">2026070203_lab_usage_quota.sql:78-108 · useLabQuota.js:10-17</span></span></li>
+      <li data-page-node-id="EBH7ig0g5GX6UPlMLrDzcq"><span class="box" data-page-node-id="TfcOXXWjfdZu62NPCC5CsC"></span><span data-page-node-id="dP7u8cOwDaP56BwKCOu4yV"><b data-page-node-id="9Ulz5ZcD44zAHMDvlhfmDa">试用转化链路。</b>到期前提醒 → 首购优惠 → 到期后回归优惠；试用期记录 Pro 专属能力触达情况。</span></li>
+      <li data-page-node-id="426RIEObQL38A6DyHnCvQu"><span class="box" data-page-node-id="HGOmKruLqwxv4p5lkT0tNp"></span><span data-page-node-id="05359z0AUZ5JAfOOWzOubc"><b data-page-node-id="zqtTgyKEt0t3kPQ0wbFku7">积分经济再平衡。</b>把免费积分对单档的覆盖率压到 30–40%，同时扩充积分消耗面。</span></li>
+    </ul>
+  </div>
+
+  <div class="phase" data-page-node-id="qsUytQckIaA2GwuTIgy3W0">
+    <div class="phase-head" data-page-node-id="T0O2nyvj0bOZJCr3lUhPMb"><span class="tag p2" data-page-node-id="KHivX4SaiUkxkJIqQXkaDg">P2</span><h3 data-page-node-id="eWtR52vK6oa0JwPYgnHUmZ">增收与体验</h3><span class="when" data-page-node-id="nWUYdGobjsXWHFalFAOUk5">1–2 个月</span></div>
+    <ul class="tasks" data-page-node-id="Oalse0P4kOw9HlOX0aUASd">
+      <li data-page-node-id="Hics1iMvrY6GVLZiRgmqeE"><span class="box" data-page-node-id="CLH5N9dUOCcD2UfqPAFhRE"></span><span data-page-node-id="dR04tnLnzfNi4hLM7ecH1U"><b data-page-node-id="9vfJel4GqXlGlaGDnqYF1g">到期降档 + 宽限期。</b>支持预约下一周期降档，年付到期给 7 天宽限，降低首次付费心理门槛。</span></li>
+      <li data-page-node-id="tHO6vNxZbAsCnwatsylFzU"><span class="box" data-page-node-id="50f8qn7OZQvJCRWGQBdvS8"></span><span data-page-node-id="BlMFYIgjiMjTZ2EUyPti4T"><b data-page-node-id="nkV7FurHCN5r2BbYjx6EHh">额度加油包。</b>超限改降速保底，并提供积分兑换当日额度。</span></li>
+      <li data-page-node-id="JKAkLP0OvYiFYXDa6vqd0V"><span class="box" data-page-node-id="nTks3gXc2GcjtCmLGDjIxy"></span><span data-page-node-id="C1TKoxWxI5sZTOyqoU2AmA"><b data-page-node-id="h7mUddoEKgKthcrBXFfRMM">Coding 附加包恢复上架。</b>售卖区曾在 8/25 重构（<code class="mono" data-page-node-id="u8WFU2JpD44Ay0fuf4wNky">5a0baa21</code>）中随订阅页瘦身被删，服务端 min_tier 校验与额度加成仍在生效，补回前端入口即可。
+        <span class="path" data-page-node-id="Ch9wbsd1Ev4CFDmHYA5fjW">git show 5a0baa21 · 2026080101_bohai_coding_mode_min_tier.sql · api-key-vault/index.ts</span></span></li>
+      <li data-page-node-id="0JFi3j71GPHpC52fDLLyYH"><span class="box" data-page-node-id="sADPvOErPYAvLxqkj78NmW"></span><span data-page-node-id="N4WNg6JaTBAG5kYSHdLOe5"><b data-page-node-id="sARFhNpsV1hwR9LrODYawf">身份层落地。</b>头像框与各档绑定，支付成功弹层「一键佩戴」，到期置灰保留历史。
+        <span class="path" data-page-node-id="pn2zR7EtxJKAqfVYoLpfNu">plans/avatar-frame-design-plan.md</span></span></li>
+      <li data-page-node-id="9aHUFDZAXJcntfdlZLPxKP"><span class="box" data-page-node-id="YxPMgEdkCvZhA04fBhxPmX"></span><span data-page-node-id="kyhRNU1CChVtBdhxmgQF5S"><b data-page-node-id="Eas2XHDHFdhllUMoLk13Me">真实收银台 + 自动续费。</b>与 beta6 计划中的商业化收口合并推进，移除人工二维码链路。
+        <span class="path" data-page-node-id="g4vf009EPms7Y1MT0G4cC1">plans/007-beta6-plan.md:105-111</span></span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ 6 决策点 ============ -->
+<section data-page-node-id="TEXvP1Q5yyIFeyn1KN9g9b">
+  <div class="sec-head" data-page-node-id="zChCJhAEEoAHU6JDPewQzO"><span class="sec-no" data-page-node-id="EcNAgp56ieU2mj9yZEU2Um">06</span><h2 data-page-node-id="WbvrOQIw46aJhhAMUWJ6BB">需要拍板的三个方向</h2></div>
+  <p class="sec-sub" data-page-node-id="nQFCBPffEC4aaHzcamtaPO">下面三个选择会决定上面方案具体怎么落，建议先定方向再写 migration。</p>
+
+  <div class="decision" style="margin-top:20px;" data-page-node-id="RF6czLmYAzJVdC7JSPGpS1">
+    <h4 data-page-node-id="GeFfwD2u3jqjNJGTcBtd9p">决策一 · Pro 的定位是「走量主力」还是「分层第一档」？</h4>
+    <p class="q" data-page-node-id="1L9IGGhJaRmdcDynJ2zGIm">这决定了是下调 Pro 价格还是上调 Pro 配额。</p>
+    <div class="opts" data-page-node-id="hJRswHKEK6yxKHLy3sr737">
+      <div class="opt" data-page-node-id="52PF5hI5Orwqd3xPasXgKg"><span class="pick" data-page-node-id="96AxgnW60PgRt2LiFNLICA">推荐</span><span data-page-node-id="17fZ9u19FxOcYu2YD86hdr">走量主力：保持 20 积分不变，把日 Token 抬到 800 万并下放 Agent &amp; Plan，让 Pro 在功能与配额上都值得「最受欢迎」这个标签。</span></div>
+      <div class="opt" data-page-node-id="4siLZuqFJ6h0Shjf9MFES3"><span class="pick alt" data-page-node-id="p63q622wkQ86kDTRhUSbvk">备选</span><span data-page-node-id="zPXJrhCnDmh6nPQy5o7sSf">分层第一档：降价至 12–15 积分，作为 Plus 到 Max 之间的过渡档，靠 Max / Ultra 承担收入。</span></div>
+    </div>
+  </div>
+
+  <div class="decision" data-page-node-id="7i6dWVgbBnaI4nXqwz9K8w">
+    <h4 data-page-node-id="MFX4q7hvi0E9wWIGPNz3lT">决策二 · 页面价格以什么为主单位？</h4>
+    <p class="q" data-page-node-id="ckyA9JgZIKSds3sW1PrJ0r">这决定订阅页的计价口径，以及未来真实收银台怎么设计。</p>
+    <div class="opts" data-page-node-id="Rvd6QoS3fe1kADam1RZ4fQ">
+      <div class="opt" data-page-node-id="iOq1eO4QW1AIMa8ZiVb1o8"><span class="pick" data-page-node-id="rvI2THmYGWE22yvFqYhitV">推荐</span><span data-page-node-id="44JFoxI23EeZhoDSUBUWLG">以积分为主单位（去掉 ￥ 展示），计价与扣费同源。不强调积分与人民币的兑换关系，保留后续定价策略的灵活度。</span></div>
+      <div class="opt" data-page-node-id="JmVZc4TaTKb91DyUtiCkp1"><span class="pick alt" data-page-node-id="WCmBic7uEtQnYoelqGqoh9">备选</span><span data-page-node-id="A1ayKHDI1Mj8exhJ1JV7Po">双单位并排（￥ 主、积分副），适合未来接入真实支付、需要货币锚点的路线。<span class="dim" data-page-node-id="Re3Ct4wBGD28IOGG4GhsCH">（此路线对应 3.1 方案 B）</span></span></div>
+    </div>
+  </div>
+
+  <div class="decision" data-page-node-id="oiOJncTkk8p5BIQaGwsfq0">
+    <h4 data-page-node-id="DzW2DwcixebGPTCUKXoIxj">决策三 · 签到与社区贡献该不该覆盖订阅成本？</h4>
+    <p class="q" data-page-node-id="by3I6FlUdm7oPm0x0o6L9O">这是增长与收入的直接取舍，也决定 F4 怎么修。</p>
+    <div class="opts" data-page-node-id="j9J1O1rTw6ayS41xFN3Uv5">
+      <div class="opt" data-page-node-id="xecdG57BzFMFixkAWQOXiE"><span class="pick alt" data-page-node-id="2uHsEqikHuiCgGu8WCijJH">增长优先</span><span data-page-node-id="BjxfoN9H68DHl8MYBxirFG">允许免费积分覆盖一档订阅，把订阅当留存工具、把附加包与加油包当收入来源。前提是 F8 两条通道必须先跑起来。</span></div>
+      <div class="opt" data-page-node-id="7QtkY5F5hV7JXQE5FN3syq"><span class="pick" data-page-node-id="MczkiJmcozJzusuDGKDOgO">推荐</span><span data-page-node-id="zFftMNkc6dguhSGxQp4Kzj">收入优先：免费积分对单档覆盖率压到 30–40%，签到收益转向装饰 / 头像框 / 加油包等消耗型商品。订阅保持为「付费所得」的清晰属性。</span></div>
+    </div>
+  </div>
+</section>
+
+<footer data-page-node-id="Wkxb2yLN5L15GHY2tonq34">
+  <p data-page-node-id="PG2yz0ZV9nT1G9KdMPRHzJ">调研对象：<code class="mono" data-page-node-id="vdiC1KnSEJcC2evHCgXKK1">BOHLITEBeta2.5</code> 工作区 2026-09-10 快照。所有结论均可在标注的代码或 migration 位置核对。</p>
+  <p style="margin-top:6px;" data-page-node-id="C0XOrTy2fMcBadFiBdy7r3">全部结论已于 2026-09-10 晚逐条复核：核查了 0903 之后的全部迁移（0907/0908 为主视觉数据、0910 为敏感字段 RPC，均不触及订阅函数）、Edge Function <code class="mono" data-page-node-id="fWyNt1yxtJKkAhAK7ndpch">api-key-vault</code> 的配额与门禁实现、以及 git 历史中 Coding 附加包的下架记录。</p>
+  <p style="margin-top:6px;" data-page-node-id="wzuRq6X7eDaNyyIlaXVD59">权益数值取自配额表初始值与判定函数；<code class="mono" data-page-node-id="lShWJSCmkDxqEe97PgpciD">ai_quota_config</code>、<code class="mono" data-page-node-id="VjmC5om5l9OUStxUBfkLWB">bohai_model_configs.min_tier</code> 可被管理后台运行时改写，若线上库已调整，以线上实际值为准，但「宣传 / 执行两套数字」的结构性问题不受影响。</p>
+  <p style="margin-top:6px;" data-page-node-id="LIVE0911CHECK">2026-09-11 线上核查更新：<code class="mono" data-page-node-id="LVC2">ai_quota_config</code> 实际值已被手动对齐页面口径（Free 20 万 / Plus 80 万 / Pro 200 万 / Max 500 万 / Ultra 1000 万），正文「实际生效」相关数值已按线上值修正，1.2 的「Pro 凹点」结论修正为「Plus → Pro 完全线性、无升级台阶」；<code class="mono" data-page-node-id="LVC3">bohai_model_configs</code> 线上仅存 5 个模式（fast / Ultra / Air / Code / agent-cluster），无独立多模态与 plan 模式，agent-cluster 门槛 max 但处于停用状态，Code 模式的 coding-lite 门禁真实生效。另核实「邀请好友注册」全仓无实现。</p>
+</footer>
+
+</div>
+</body>
+</html>

@@ -6,7 +6,8 @@ import {
 } from '../forum-format.js';
 import {
   isMissingRpcFunctionError,
-  notifyPostAuthorForLike
+  notifyPostAuthorForLike,
+  notifyPostAuthorForRepost
 } from './_shared.js';
 
 export async function toggleLike(postId, userId) {
@@ -109,7 +110,7 @@ export async function checkIfLiked(postId, userId) {
   return !!data;
 }
 
-export async function createQuoteRepost(postId, commentary) {
+export async function createQuoteRepost(postId, commentary, { senderId } = {}) {
   const safePostId = String(postId || '').trim();
   const safeCommentary = String(commentary || '').trim();
   if (!safePostId || !safeCommentary) {
@@ -124,6 +125,8 @@ export async function createQuoteRepost(postId, commentary) {
     return { ok: false, data: null, error: normalizeDbError(error) };
   }
   invalidateByTags(['posts', 'notifications']);
+  // 通知行由 create_forum_quote_repost RPC 落库（migration 2026091101），这里补 Pushplus 推送
+  void notifyPostAuthorForRepost({ postId: safePostId, senderId });
   return { ok: true, data, error: null };
 }
 

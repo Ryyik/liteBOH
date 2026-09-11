@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>灵动岛 · 智能摘要完整流程 Demo</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 34px;
+    padding: 24px 14px;
+    background: #f5f5f7;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Helvetica Neue', sans-serif;
+    color: #1d1d1f;
+    overflow-x: hidden;
+    overflow-y: auto;
+    position: relative;
+  }
+
+  /* 氛围光斑（与智能概览页同款，极淡） */
+  .blob { position: absolute; border-radius: 50%; pointer-events: none; }
+  .blob-1 { width: 460px; height: 460px; top: -80px; left: -120px; background: radial-gradient(circle, rgba(0, 113, 227, .09) 0%, transparent 68%); }
+  .blob-2 { width: 420px; height: 420px; bottom: -100px; right: -110px; background: radial-gradient(circle, rgba(255, 159, 10, .1) 0%, transparent 68%); }
+
+  .page-title { font-size: 13px; font-weight: 600; letter-spacing: .1em; color: #86868b; }
+
+  /* ========== 灵动岛：白底胶囊，全程无彩虹边 ========== */
+
+  .island {
+    position: relative;
+    width: 470px;
+    max-width: 94vw;
+    height: 96px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #ffffff;
+    border: 1px solid #ececf1;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, .1);
+    transition: width .6s cubic-bezier(.32, .72, .28, 1), height .6s cubic-bezier(.32, .72, .28, 1), border-radius .6s cubic-bezier(.32, .72, .28, 1);
+  }
+
+  /* 就绪态：展开为圆角卡片（宽屏横屏下更宽） */
+  .island.flow-loaded { width: 720px; border-radius: 24px; }
+
+  /* ========== 两态内容层 ========== */
+
+  .layer {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .4s ease;
+  }
+  .layer.visible { opacity: 1; transition-delay: .22s; }
+
+  /* —— 加载态：发光的圆点转圈，依次点亮 —— */
+  .layer-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+  }
+
+  .spinner { position: relative; width: 54px; height: 54px; flex: none; }
+
+  .spinner i {
+    --r: 20px;
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 9px; height: 9px;
+    margin: -4.5px 0 0 -4.5px;
+    border-radius: 50%;
+    background: var(--c);
+    opacity: .25;
+    transform: rotate(var(--a)) translateY(calc(-1 * var(--r))) scale(.72);
+    animation: dot 1.8s ease-in-out infinite;
+    animation-delay: calc(var(--i) * 1.8s / 8);
+  }
+
+  @keyframes dot {
+    0%, 58%, 100% {
+      opacity: .25;
+      transform: rotate(var(--a)) translateY(calc(-1 * var(--r))) scale(.72);
+      box-shadow: 0 0 0 transparent;
+    }
+    16% {
+      opacity: 1;
+      transform: rotate(var(--a)) translateY(calc(-1 * var(--r))) scale(1.24);
+      box-shadow: 0 0 8px var(--c), 0 0 16px var(--c);
+    }
+  }
+
+  .island-text {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    white-space: nowrap;
+    background: linear-gradient(90deg, #a1a1a6 0%, #1d1d1f 42%, #1d1d1f 58%, #a1a1a6 100%);
+    background-size: 240% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer 2.6s linear infinite;
+  }
+
+  @keyframes shimmer {
+    from { background-position: 130% 0; }
+    to   { background-position: -130% 0; }
+  }
+
+  /* —— 摘要态：复刻智能概览页 OverviewCard 的排列 —— */
+  .layer-loaded {
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+    padding: 22px 20px 20px;
+  }
+
+  .loaded-head { padding: 0 2px; }
+  .loaded-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .12em;
+    color: #86868b;
+  }
+  .loaded-eyebrow svg { flex: none; }
+  .loaded-title { margin-top: 5px; font-size: 17px; font-weight: 700; letter-spacing: -.018em; color: #1d1d1f; }
+  .loaded-sub { margin-top: 3px; font-size: 13px; line-height: 1.5; color: #515154; }
+
+  .ov-stream { display: flex; flex-direction: column; gap: 12px; }
+
+  /* 水平卡：左文案（chip 行 + 标题 + 摘要 + 作者）右缩略图，同 OverviewCard */
+  .ov-card {
+    display: flex;
+    gap: 15px;
+    padding: 15px 17px;
+    background: #fafafa;
+    border: 1px solid #e8e8ed;
+    border-radius: 18px;
+    cursor: pointer;
+    animation: cardIn .45s cubic-bezier(.16, 1, .3, 1) backwards;
+    animation-delay: var(--enter-delay, 0ms);
+    transition: transform .25s cubic-bezier(.16, 1, .3, 1), box-shadow .25s ease, background .25s ease;
+  }
+  .ov-card:hover {
+    transform: translateY(-2px);
+    background: #fff;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, .1);
+  }
+
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .ov-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+  .ov-type-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
+  .ov-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    padding: 4px 9px;
+    border-radius: 999px;
+  }
+  .ov-chip svg { flex: none; }
+  .ov-card.is-post .ov-chip { color: #0071e3; background: rgba(0, 113, 227, .1); }
+  .ov-card.is-news .ov-chip { color: #b25000; background: rgba(255, 159, 10, .16); }
+
+  .ov-category { flex-shrink: 0; font-size: 11px; font-weight: 500; color: #86868b; white-space: nowrap; }
+  .ov-time { margin-left: auto; flex-shrink: 0; font-size: 11px; color: #86868b; white-space: nowrap; }
+
+  /* 标题/摘要过长：两行截断 + 省略号（同真实页 line-clamp 口径） */
+  .ov-title {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+    line-height: 1.4;
+    margin: 7px 0 3px;
+    color: #1d1d1f;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .ov-excerpt {
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: #515154;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* 作者行：真实头像（渐变彩底 + 首字母），与 OverviewCard 头像位同构 */
+  .ov-meta { display: flex; align-items: center; gap: 7px; margin-top: auto; padding-top: 7px; }
+  .ov-avatar {
+    width: 20px; height: 20px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    background: var(--av, rgba(0, 0, 0, .05));
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .35);
+  }
+  .ov-author { font-size: 11.5px; color: #515154; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ov-repost {
+    flex-shrink: 0;
+    font-size: 9.5px;
+    font-weight: 600;
+    color: #6e6e73;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, .05);
+  }
+  .ov-chev { margin-left: auto; flex-shrink: 0; color: #86868b; transition: transform .25s cubic-bezier(.16, 1, .3, 1); }
+  .ov-card:hover .ov-chev { transform: translateX(3px); }
+
+  /* 缩略图：单图 / 多图并排横排（最多 2 张等宽近方形，超出部分 +N 角标，同论坛口径） */
+  .ov-thumb {
+    flex-shrink: 0;
+    width: 92px; height: 68px;
+    min-width: 92px;
+    align-self: center;
+    border-radius: 11px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .16));
+  }
+  .ov-thumb.is-multi {
+    width: 98px;
+    gap: 3px;
+    background: transparent;
+    filter: none;
+  }
+  .ov-thumb.is-multi span {
+    flex: 1;
+    height: 100%;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    position: relative;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .16));
+  }
+  .ov-thumb.is-multi span .more {
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    font-style: normal;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: #fff;
+    background: rgba(0, 0, 0, .55);
+    padding: 1px 5px;
+    border-radius: 6px;
+  }
+
+  /* ========== 控制区 ========== */
+
+  .controls { display: flex; align-items: center; gap: 16px; }
+
+  button {
+    padding: 9px 22px;
+    border: 1px solid #d2d2d7;
+    border-radius: 999px;
+    background: #fff;
+    font: 600 13px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+    color: #1d1d1f;
+    cursor: pointer;
+    transition: box-shadow .2s, transform .15s;
+  }
+  button:hover { box-shadow: 0 4px 14px rgba(0, 0, 0, .1); }
+  button:active { transform: scale(.97); }
+
+  .hint { max-width: 640px; text-align: center; font-size: 12px; line-height: 1.7; color: #a1a1a6; }
+  .hint b { color: #6e6e73; }
+
+  /* ========== 横竖屏适配 ========== */
+
+  /* 竖屏窄窗：岛收窄、缩略图隐藏（对齐真实页 ≤560 无图口径）、字号收紧 */
+  @media (max-width: 560px) {
+    .island.flow-loaded { width: 100%; }
+    .layer-loaded { padding: 18px 14px 16px; gap: 10px; }
+    .ov-card { padding: 13px 14px; gap: 12px; }
+    .ov-thumb { display: none; }
+    .ov-title { font-size: 14px; }
+    .ov-excerpt { font-size: 12px; }
+    .island-text { font-size: 15px; }
+    .layer-loading { gap: 12px; }
+    .hint { display: none; }
+    body { gap: 22px; }
+  }
+
+  /* 横屏矮窗：收紧纵向间距，保证摘要卡完整可见 */
+  @media (max-height: 620px) {
+    body { gap: 14px; padding: 12px; justify-content: flex-start; }
+    .page-title { display: none; }
+    .hint { display: none; }
+  }
+
+  /* 宽屏横屏：就绪岛加宽，多图排布更从容 */
+  @media (min-width: 900px) and (orientation: landscape) {
+    .island.flow-loaded { width: 780px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .spinner i, .island-text, .ov-card { animation: none; }
+    .spinner i { opacity: .5; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+
+  <div class="page-title">灵动岛 · 智能摘要完整流程 Demo</div>
+
+  <div class="island" id="islandBody">
+
+    <div class="layer layer-loading visible" id="layerLoading">
+      <div class="spinner" aria-hidden="true">
+        <i style="--a:0deg;   --i:0; --c:#ff5a5f"></i>
+        <i style="--a:45deg;  --i:1; --c:#ff9f43"></i>
+        <i style="--a:90deg;  --i:2; --c:#feca57"></i>
+        <i style="--a:135deg; --i:3; --c:#1dd1a1"></i>
+        <i style="--a:180deg; --i:4; --c:#48dbfb"></i>
+        <i style="--a:225deg; --i:5; --c:#5f6cf6"></i>
+        <i style="--a:270deg; --i:6; --c:#c56cf0"></i>
+        <i style="--a:315deg; --i:7; --c:#ff6b81"></i>
+      </div>
+      <div class="island-text">智能摘要即将就绪</div>
+    </div>
+
+    <div class="layer layer-loaded" id="layerLoaded">
+      <div class="loaded-head">
+        <span class="loaded-eyebrow">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
+          BOH AI 智能概览
+        </span>
+        <div class="loaded-title">欢迎回来，瑞一颗</div>
+        <div class="loaded-sub">你离开了 3 天，这些内容是在此期间发布的</div>
+      </div>
+      <div class="ov-stream" id="ovStream"></div>
+    </div>
+
+  </div>
+
+  <div class="controls">
+    <button id="replay">重新播放</button>
+  </div>
+
+  <div class="hint">
+    进入用户空间 → 灵动岛<b>加载动画</b>（发光圆点转圈、依次点亮，全程无彩虹边）→ 摘要就绪后<b>白岛展开</b>。<br>
+    卡片：真实感头像 · 长文省略号 · 多图并排横排 · 他人转发保留（本人发的/本人转的不出现）· 横竖屏自适应。
+  </div>
+
+<script>
+  var LOADING_MS = 3200;
+  var islandBody = document.getElementById('islandBody');
+  var layerLoading = document.getElementById('layerLoading');
+  var layerLoaded = document.getElementById('layerLoaded');
+  var streamEl = document.getElementById('ovStream');
+
+  var ICON_POST = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+  var ICON_NEWS = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg>';
+  var ICON_CHEV = '<svg class="ov-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
+
+  // 头像渐变（模拟真实用户头像；真实页为 author_avatar 图片，无图时字母兜底）
+  var AV = {
+    official: 'linear-gradient(135deg,#48dbfb,#5f6cf6)',
+    ender:    'linear-gradient(135deg,#ff9f43,#ff5a5f)',
+    redstone: 'linear-gradient(135deg,#1dd1a1,#48dbfb)',
+    creeper:  'linear-gradient(135deg,#a29bfe,#48dbfb)'
+  };
+
+  // 与真实 get_offline_overview 返回结构对齐的 mock：
+  // 自帖/本人转发已排除；他人转发保留；官方镜像卡不与原新闻重复——每条内容只显示一次。
+  var items = [
+    {
+      type: 'news', category: '更新日志', title: '深空生存指南 V2.5 更新上线',
+      excerpt: '新增三大深空星域、量子背包与空间站建造系统，附完整迁移指南。',
+      author: '方块之家', avatar: AV.official, time: '2 小时前',
+      thumb: [{ emoji: '🚀', grad: 'linear-gradient(135deg,#48dbfb,#5f6cf6)' }]
+    },
+    {
+      type: 'post', category: '日常',
+      title: '下界合金装备全展示：从锻造模板获取、钻石到合金的升级路线，到全套附魔搭配与耐久实测的完整评测清单',
+      excerpt: '整理了锻造模板的七个刷点位置、升级保底消耗，以及耐久 III + 经验修补与锋利 V 的取舍建议，附背包实拍与 biome 对照表，看完直接抄作业。',
+      author: '末影小绿', avatar: AV.ender, time: '5 小时前',
+      thumb: [{ emoji: '⚔️', grad: 'linear-gradient(135deg,#ff9f43,#ff5a5f)' }]
+    },
+    {
+      type: 'post', category: '建筑', title: '全自动红石音乐厅建造实录',
+      excerpt: '用音符盒与侦测器搭建的可编程八音盒，附红石布线图纸讲解。',
+      author: '红石老哥', avatar: AV.redstone, time: '昨天',
+      thumb: [
+        { emoji: '🎵', grad: 'linear-gradient(135deg,#1dd1a1,#48dbfb)' },
+        { emoji: '🎛️', grad: 'linear-gradient(135deg,#a29bfe,#5f6cf6)' },
+        { emoji: '🧱', grad: 'linear-gradient(135deg,#feca57,#ff9f43)' }
+      ]
+    },
+    {
+      type: 'post', category: '日常', isRepost: true, title: '铁矿农场自动化改造实录',
+      excerpt: '把村里的旧铁农场上了一遍侦测器+漏斗矿车，产量翻了三倍。',
+      author: '苦力怕君', avatar: AV.creeper, time: '昨天',
+      thumb: [{ emoji: '⛏️', grad: 'linear-gradient(135deg,#8395a7,#576574)' }]
+    }
+  ];
+
+  function thumbHtml(item) {
+    var t = item.thumb || [];
+    if (t.length === 0) return '';
+    if (t.length === 1) {
+      return '<div class="ov-thumb" style="background:' + t[0].grad + '">' + t[0].emoji + '</div>';
+    }
+    // 多图：前 2 张并排横排（近方形比例），第 2 张上叠加 +N 角标
+    var hidden = t.length - 2;
+    var inner = t.slice(0, 2).map(function (img, i) {
+      var more = (i === 1 && hidden > 0) ? '<i class="more">+' + hidden + '</i>' : '';
+      return '<span style="background:' + img.grad + '">' + img.emoji + more + '</span>';
+    }).join('');
+    return '<div class="ov-thumb is-multi">' + inner + '</div>';
+  }
+
+  function cardHtml(item, index) {
+    var isNews = item.type === 'news';
+    var letter = (item.author || 'B').charAt(0);
+    return '<article class="ov-card is-' + item.type + '" style="--enter-delay:' + (index * 60) + 'ms">' +
+      '<div class="ov-body">' +
+        '<div class="ov-type-row">' +
+          '<span class="ov-chip">' + (isNews ? ICON_NEWS : ICON_POST) + (isNews ? '新闻' : '帖子') + '</span>' +
+          '<span class="ov-category">' + item.category + '</span>' +
+          '<span class="ov-time">' + item.time + '</span>' +
+        '</div>' +
+        '<h4 class="ov-title">' + item.title + '</h4>' +
+        '<p class="ov-excerpt">' + item.excerpt + '</p>' +
+        '<div class="ov-meta">' +
+          '<span class="ov-avatar" style="--av:' + (item.avatar || 'rgba(0,0,0,.05)') + '">' + letter + '</span>' +
+          '<span class="ov-author">' + item.author + '</span>' +
+          (item.isRepost ? '<span class="ov-repost">转发</span>' : '') +
+          ICON_CHEV +
+        '</div>' +
+      '</div>' +
+      thumbHtml(item) +
+    '</article>';
+  }
+
+  function renderCards() {
+    streamEl.innerHTML = items.map(cardHtml).join('');
+  }
+
+  var timer = null;
+
+  function start() {
+    clearTimeout(timer);
+    islandBody.classList.remove('flow-loaded');
+    islandBody.style.height = '';
+    layerLoaded.classList.remove('visible');
+    layerLoading.classList.add('visible');
+    timer = setTimeout(function () {
+      renderCards();
+      islandBody.classList.add('flow-loaded');
+      layerLoading.classList.remove('visible');
+      layerLoaded.classList.add('visible');
+      // 按摘要实际内容高度撑开岛体（从 96px 平滑过渡）
+      requestAnimationFrame(function () {
+        islandBody.style.height = layerLoaded.scrollHeight + 'px';
+      });
+    }, LOADING_MS);
+  }
+
+  document.getElementById('replay').addEventListener('click', start);
+
+  start();
+</script>
+</body>
+</html>

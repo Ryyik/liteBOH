@@ -1297,7 +1297,7 @@ onUnmounted(() => {
     transform: translateY(-50%);
   }
 
-  :global(html[data-boh-app-mode="beta5"] .boh-login-modal-container) {
+  :global(.boh-login-modal-container) {
     margin-top: 72px;
   }
 
@@ -1449,8 +1449,8 @@ onUnmounted(() => {
     -webkit-backdrop-filter: var(--liquid-filter-sm);
   }
 
-  /* Beta 5 导航本身是 64px 高并下移 10px，卡片必须以其真实底边为锚点。 */
-  :global(html[data-boh-app-mode="beta5"] .boh-login-modal-container) {
+  /* Beta 6 导航本身是 64px 高并下移 10px，卡片必须以其真实底边为锚点。 */
+  :global(.boh-login-modal-container) {
     width: min(860px, calc(100% - 24px));
     max-width: min(860px, calc(100% - 24px));
     margin-top: 72px;

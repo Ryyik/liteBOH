@@ -141,7 +141,7 @@
   height: 52px;
   background: linear-gradient(135deg, #1d9bf0 0%, #007aff 100%);
   color: #fff;
-  border-radius: 18px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1653,8 +1653,7 @@
   cursor: pointer;
   position: relative;
   transition: background 0.15s ease;
-  content-visibility: auto;
-  contain-intrinsic-size: 0 80px;
+  /* 不用 content-visibility:auto（WebKit bug 321501 iOS 滚动空白不自愈） */
 }
 
 .x-item:last-child {
@@ -1786,6 +1785,11 @@
 .x-action-type.x-t-lottery_win {
   background: rgba(255, 159, 10, 0.16);
   color: #9a6100;
+}
+
+.x-action-type.x-t-subscription {
+  background: rgba(94, 92, 230, 0.12);
+  color: #4b49c8;
 }
 
 .x-action-type.x-t-post_rejected,
@@ -2204,7 +2208,7 @@
   .x-avatar {
     width: 36px;
     height: 36px;
-    border-radius: 10px;
+    border-radius: 50%;
     font-size: 14px;
   }
 
@@ -2584,6 +2588,11 @@
 [data-theme="dark"] .x-action-type.x-t-lottery_win {
   background: rgba(255, 159, 10, 0.2);
   color: #ffc46b;
+}
+
+[data-theme="dark"] .x-action-type.x-t-subscription {
+  background: rgba(125, 123, 255, 0.2);
+  color: #b3b1fa;
 }
 
 [data-theme="dark"] .x-text {

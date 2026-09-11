@@ -2,6 +2,7 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { showIsland } from '@/composables/useIsland.js';
 import { fetchOfflineOverviewSummary } from '@/utils/api/overview-api.js';
+import OverviewIslandLoading from '@/components/UnifiedNavbar/OverviewIslandLoading.vue';
 import { getDayFrontierIso, getLocalDayKey, readLastOnlineDay, writeLastOnlineDay } from '@/utils/overview-day-marker.js';
 import { formatSmartTime } from '@/utils/time.js';
 import { logger } from '@/utils/logger.js';
@@ -14,6 +15,29 @@ const RECHECK_COOLDOWN_MS = 5 * 60 * 1000;
 let inFlight = false;
 let lastCheckedAt = 0;
 let lastCheckedUserId = '';
+
+// —— 加载岛（showIsland.custom）：覆盖摘要请求窗口，结果回来后由宿主关闭换卡 ——
+// 口径（20260911）：无新未看内容/异常时静默收掉加载岛，不弹任何引导。
+const LOADING_ISLAND_TIMEOUT_MS = 14000; // RPC 上限 12s（overview-api OVERVIEW_TIMEOUT_MS）+ 余量兜底
+let loadingIslandHandle = null;
+let loadingIslandTimer = null;
+
+const closeLoadingIsland = () => {
+  if (loadingIslandTimer) {
+    clearTimeout(loadingIslandTimer);
+    loadingIslandTimer = null;
+  }
+  if (loadingIslandHandle) {
+    loadingIslandHandle.close();
+    loadingIslandHandle = null;
+  }
+};
+
+const showLoadingIsland = () => {
+  closeLoadingIsland();
+  loadingIslandHandle = showIsland.custom(OverviewIslandLoading, {});
+  loadingIslandTimer = setTimeout(closeLoadingIsland, LOADING_ISLAND_TIMEOUT_MS);
+};
 
 const buildStatusPayload = ({ total, offlineDays, isFirstLogin, username }) => {
   if (isFirstLogin) {
@@ -155,9 +179,14 @@ export function useOverviewIsland() {
         return;
       }
 
+      // 先弹加载岛覆盖请求窗口：无新内容/异常时静默收掉，不弹引导（20260911 口径）
+      showLoadingIsland();
+
       const summary = await fetchOfflineOverviewSummary({ anchor: pushFrontier });
       lastCheckedAt = Date.now();
       lastCheckedUserId = checkedUserId;
+
+      closeLoadingIsland();
 
       if (!summary) return;
 
@@ -169,6 +198,7 @@ export function useOverviewIsland() {
 
       showIslandFromSummary(summary, { lastOnlineDay });
     } catch (error) {
+      closeLoadingIsland();
       logger.error('overview-island', '智能概览灵动岛检查失败', error);
     } finally {
       inFlight = false;
@@ -206,7 +236,12 @@ export function useOverviewIsland() {
         }
       }
 
+      // 测试按钮同样先看加载动画，再按结果换卡（有数据→摘要；无数据→连通提示）
+      showLoadingIsland();
+
       const summary = await fetchOfflineOverviewSummary({ anchor: authStore.offlineAnchorAt });
+      closeLoadingIsland();
+
       if (summary && summary.total > 0) {
         showIslandFromSummary(summary);
         return;
@@ -231,6 +266,7 @@ export function useOverviewIsland() {
         }
       });
     } catch (error) {
+      closeLoadingIsland();
       logger.error('overview-island', '（测试）强制触发失败', error);
       showIsland.notify({
         title: '（测试）灵动岛检查失败',

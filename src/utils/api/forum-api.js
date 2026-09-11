@@ -41,6 +41,7 @@ export {
 // Preserve original re-exports
 export { normalizeForumTag } from './forum-format.js';
 export { getLatestForumWeeklyReport, generateForumWeeklyReport } from './forum/forum-weekly-report-api.js';
+export { fetchQuotedPostsByIds, getCachedQuotedPost } from './forum/_shared.js';
 export {
   deleteUploadedForumImage,
   getForumPostImages,

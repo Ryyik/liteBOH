@@ -209,6 +209,7 @@ export const NOTIFICATION_TYPE_OPTIONS = [
   { value: 'follow', label: '关注' },
   { value: 'impression', label: '访客' },
   { value: 'lottery', label: '抽奖' },
+  { value: 'subscription', label: '订阅' },
   { value: 'system', label: '系统' }
 ];
 

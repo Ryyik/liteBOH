@@ -842,7 +842,7 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 18px;
+  border-radius: 50%;
 }
 
 .partner-avatar-text {
@@ -991,7 +991,7 @@ onBeforeUnmount(() => {
 .mini-avatar {
   width: 44px;
   height: 44px;
-  border-radius: 12px;
+  border-radius: 50%;
   background: #f5f5f7;
   display: flex;
   align-items: center;

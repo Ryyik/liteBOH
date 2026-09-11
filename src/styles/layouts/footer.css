@@ -36,33 +36,10 @@
     color 0.2s var(--ease-out),
     opacity 0.2s var(--ease-out) !important; }
 
-/**************************
-* Box Shadow
-***************************/
-.box-shadownone {
-  -webkit-box-shadow: none;
-  box-shadow: none; }
-
-/************************** 
-* Box Sizing
-***************************/
-.box-sizing {
-  -moz-box-sizing: border-box;
-  -ms-box-sizing: border-box;
-  -o-box-sizing: border-box;
-  -webkit-box-sizing: border-box;
-  box-sizing: border-box; }
-
-/************************** 
-* Padding
-***************************/
-.padding {
-  padding: 30px 20px; }
-
 /************************** 
 * Boreder None
 ***************************/
-.border-none, .footer-home .main-nav-bottom {
+.footer-home .main-nav-bottom {
   border: none; }
 
 /************************** 

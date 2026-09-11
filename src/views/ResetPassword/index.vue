@@ -297,36 +297,52 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* 局部语义 token：亮色默认值，暗色在下方平铺块重定义 */
 .reset-page {
+  --rp-brand: #0071e3;
+  --rp-brand-hover: #0077ed;
+  --rp-brand-ring: rgba(0, 113, 227, 0.16);
+  --rp-info: #1d4ed8;
+  --rp-error: #dc2626;
+  --rp-success: #059669;
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: #f5f7fb;
-  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  /* 光斑垫底：毛玻璃卡需要背景层次，纯 CSS 多层渐变，不加 DOM */
+  background:
+    radial-gradient(640px 420px at 12% 16%, rgba(0, 113, 227, 0.07), transparent 62%),
+    radial-gradient(520px 400px at 88% 84%, rgba(41, 151, 255, 0.06), transparent 62%),
+    #f5f7fb;
 }
 
 .reset-card {
   width: 100%;
   max-width: 460px;
-  background: #ffffff;
-  border-radius: 14px;
+  background: var(--liquid-bg-strong, rgba(255, 255, 255, 0.84));
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
+  backdrop-filter: var(--liquid-filter-sm);
+  border: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
+  border-radius: var(--liquid-radius-md, 16px);
   padding: 28px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  box-shadow:
+    var(--liquid-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.86)),
+    var(--liquid-shadow-sm, 0 8px 24px rgba(15, 23, 42, 0.06));
   display: flex;
   flex-direction: column;
   gap: 12px;
+  color: var(--liquid-text-primary, #1d1d1f);
 }
 
 h1 {
   font-size: 26px;
   line-height: 1.2;
-  color: #111827;
+  color: var(--liquid-text-primary, #1d1d1f);
 }
 
 .desc {
-  color: #4b5563;
+  color: var(--liquid-text-secondary, #6e6e73);
   font-size: 14px;
 }
 
@@ -338,36 +354,65 @@ form {
 }
 
 label {
-  color: #1f2937;
+  color: var(--liquid-text-primary, #1d1d1f);
   font-size: 14px;
   font-weight: 600;
 }
 
 input {
+  box-sizing: border-box;
   width: 100%;
   height: 42px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
+  border: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
+  border-radius: var(--liquid-radius-md, 16px);
   padding: 0 12px;
   font-size: 14px;
+  color: var(--liquid-text-primary, #1d1d1f);
+  background: var(--liquid-bg-nested, rgba(255, 255, 255, 0.42));
   outline: none;
+  transition:
+    border-color var(--duration-fast, 180ms) var(--ease-out),
+    box-shadow var(--duration-fast, 180ms) var(--ease-out),
+    background-color var(--duration-fast, 180ms) var(--ease-out);
+}
+
+input::placeholder {
+  color: var(--liquid-text-tertiary, #8b9098);
 }
 
 input:focus {
-  border-color: #0ea5e9;
-  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+  border-color: var(--rp-brand);
+  box-shadow: 0 0 0 3px var(--rp-brand-ring);
 }
 
 button {
+  box-sizing: border-box;
   margin-top: 8px;
   height: 42px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--liquid-radius-md, 16px);
   color: #ffffff;
-  background: #0284c7;
+  background: var(--rp-brand);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  transition:
+    background-color var(--duration-fast, 180ms) var(--ease-out),
+    opacity var(--duration-fast, 180ms) var(--ease-out),
+    transform var(--duration-press, 160ms) var(--ease-out);
+}
+
+button:not(.secondary):hover:not(:disabled) {
+  background: var(--rp-brand-hover);
+}
+
+button:not(.secondary):active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--rp-brand-ring);
 }
 
 button:disabled {
@@ -376,21 +421,45 @@ button:disabled {
 }
 
 .secondary {
-  background: #6b7280;
+  background: var(--liquid-bg-nested, rgba(255, 255, 255, 0.42));
+  color: var(--liquid-text-secondary, #6e6e73);
+  border: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
+}
+
+.secondary:hover:not(:disabled) {
+  background: var(--liquid-bg-subtle, rgba(255, 255, 255, 0.58));
 }
 
 .info {
-  color: #1d4ed8;
+  color: var(--rp-info);
   font-size: 14px;
 }
 
 .error {
-  color: #dc2626;
+  color: var(--rp-error);
   font-size: 14px;
 }
 
 .success {
-  color: #059669;
+  color: var(--rp-success);
   font-size: 14px;
+}
+
+/* 暗色：平铺覆盖（themeManager 把 data-theme 挂在 html 上）。
+   在页面根重定义文字/状态 token，后代理的 var() 引用自动跟随 */
+html[data-theme="dark"] .reset-page {
+  --rp-brand: #2997ff;
+  --rp-brand-hover: #4da3ff;
+  --rp-brand-ring: rgba(41, 151, 255, 0.24);
+  --rp-info: #8ab0ff;
+  --rp-error: #ff7a7a;
+  --rp-success: #38d39f;
+  --liquid-text-primary: #f5f5f7;
+  --liquid-text-secondary: #a1a1a6;
+  --liquid-text-tertiary: #7c7c82;
+  background:
+    radial-gradient(640px 420px at 12% 16%, rgba(41, 151, 255, 0.10), transparent 62%),
+    radial-gradient(520px 400px at 88% 84%, rgba(94, 92, 230, 0.08), transparent 62%),
+    #0e0e14;
 }
 </style>

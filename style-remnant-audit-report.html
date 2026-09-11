@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="lWgkb23vz0MyTGaqL44EMx">
+<head data-page-node-id="l3JXBUG9eB5LWXEWFHHghl">
+<meta charset="UTF-8" data-page-node-id="cCAYIC82gFKj8N2v64rn2o">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="AQAnBgc4MlHnjhEbxTYpNZ">
+<title>BOHLITE 旧样式残留审计报告 · 2026-09-10</title>
+<style>
+  :root {
+    --bg: #f5f5f7; --card: #ffffff; --ink: #1d1d1f; --ink-2: #6e6e73; --line: #e8e8ed;
+    --brand: #0071e3; --red: #d70015; --orange: #c93400; --green: #1d7a36; --purple: #8944ab;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif; background: var(--bg); color: var(--ink); line-height: 1.65; padding: 40px 20px 80px; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 30px; letter-spacing: -0.02em; margin-bottom: 6px; }
+  .sub { color: var(--ink-2); font-size: 14px; margin-bottom: 28px; }
+  h2 { font-size: 20px; margin: 42px 0 6px; letter-spacing: -0.01em; }
+  h2 .tag { font-size: 11px; font-weight: 700; vertical-align: 3px; margin-left: 8px; padding: 2px 8px; border-radius: 20px; color: #fff; }
+  .t-p1 { background: var(--red); } .t-p2 { background: var(--orange); } .t-p3 { background: var(--purple); } .t-ok { background: var(--green); }
+  .desc { color: var(--ink-2); font-size: 14px; margin-bottom: 14px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 22px 0 8px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+  .card .num { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+  .card .num small { font-size: 13px; font-weight: 500; color: var(--ink-2); }
+  .card .lbl { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
+  .num.r { color: var(--red); } .num.o { color: var(--orange); } .num.b { color: var(--brand); } .num.g { color: var(--green); }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; font-size: 13px; margin: 10px 0 6px; }
+  th { text-align: left; font-weight: 600; color: var(--ink-2); font-size: 12px; padding: 9px 12px; background: #fafafa; border-bottom: 1px solid var(--line); }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  code, .path { font-family: var(--mono); font-size: 12px; background: #f0f0f2; padding: 1px 5px; border-radius: 5px; word-break: break-all; }
+  .note { background: #eef4fb; border: 1px solid #d3e3f7; border-radius: 10px; padding: 10px 14px; font-size: 13px; margin: 10px 0; }
+  .warn { background: #fdf2f2; border: 1px solid #f5d4d4; }
+  .okbox { background: #f0f8f1; border: 1px solid #d3ecd8; }
+  .chip { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 20px; }
+  .c-r { background: #fbe5e7; color: var(--red); } .c-o { background: #fdeee2; color: var(--orange); }
+  .c-b { background: #e3effc; color: var(--brand); } .c-g { background: #e5f3e8; color: var(--green); } .c-p { background: #f3e8f7; color: var(--purple); }
+  .bar { height: 8px; border-radius: 6px; background: #ececf0; overflow: hidden; min-width: 90px; }
+  .bar i { display: block; height: 100%; background: linear-gradient(90deg, #ff9f0a, #d70015); }
+  ul.clean { list-style: none; }
+  ul.clean li { padding: 6px 0 6px 22px; position: relative; font-size: 14px; }
+  ul.clean li::before { content: "→"; position: absolute; left: 0; color: var(--brand); font-weight: 700; }
+  .sect { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; margin: 14px 0; }
+  .muted { color: var(--ink-2); font-size: 12.5px; }
+  .kv { font-size: 13px; } .kv b { font-weight: 650; }
+  footer { margin-top: 50px; color: var(--ink-2); font-size: 12px; border-top: 1px solid var(--line); padding-top: 16px; }
+</style>
+</head>
+<body data-page-node-id="Jq8i8rW45hq0uPFRBgOhkc">
+<div class="wrap" data-page-node-id="ewBcoKMmFOAmSHSoR7AIaX">
+
+<h1 data-page-node-id="N0V8lIrQvnr9lliGqCbwBS">旧样式残留审计报告</h1>
+<div class="sub" data-page-node-id="iNOj1v2ZwIVnbcO7hGrDna">BOHLITE Beta2.5 · 生成于 2026-09-10 · 工具：scripts/style-remnant-audit.mjs（引用链 + 全站语料分词 + 逐类反查，人工复核关键结论）</div>
+
+<div class="note okbox">
+<b>📌 执行记录（2026-09-10 下午，P1 已落地）</b><br>
+✅ 已删除：8 个死文件（4,918 行）+ fonts.css/icomoon.woff + mixins.css/variabls.css + main.js 三处 import + 10 个文件中的死工具类块（含 buttons/globalpage/footer 三处混血选择器的活部分保全）。<br>
+🚫 <b>一项误报已更正并取消执行</b>：原第九节"body.page-* 死选择器可整批删除"结论错误——App.vue:71-76 在路由切换时动态挂载 <code>page-${route.name}</code>（探针实测 body="page-home is-loaded" 实锤），这些规则是<b>活的</b>，已保留未动。<br>
+✅ 验证：重扫死文件 0 / vite build 17.2s 零错误 / !important 门禁 1390&lt;基线1396 / probe-nav-dark 四页 ALL PASS 零 JS 错误。净变更约 -5,416 行。<br>
+📊 清理后复扫：死类 1,372→1,133，重复类 261→188，散装 backdrop 650→585。
+</div>
+
+<div class="cards" data-page-node-id="AgK176T2B994OXDpHe2o9i">
+  <div class="card" data-page-node-id="ebWWeqArBqabOUNvrLG2z6"><div class="num r" data-page-node-id="6c0ccMbxkvHw6Zra92G1pK">8 <small data-page-node-id="cvEPId2Ugf8st3PXLmyN7K">个 / 4,918 行</small></div><div class="lbl" data-page-node-id="CRaGFoxvCW8ujNEtSJ2Dhs">死 CSS 文件（零引用）</div></div>
+  <div class="card" data-page-node-id="R8LpLPnM7JaKjI3IA9b4fo"><div class="num r" data-page-node-id="qdahGheCSORTsSiYi7Z9XX">1,372<small data-page-node-id="WzEimxhmGOS4q4uKjVWvyD">/3,658 · 37.5%</small></div><div class="lbl" data-page-node-id="JWeiaaGu65HSEMy93wVk5r">全局样式死类（定义无使用）</div></div>
+  <div class="card" data-page-node-id="OvRTfnTYgOKdZy8duxnjUB"><div class="num o" data-page-node-id="Eh1IHForqLRHh57pUmvyTd">47 <small data-page-node-id="UzQ85GYCYTRy49W6N4tpYa">个</small></div><div class="lbl" data-page-node-id="92Dw1baAsPXHnDRT2X4Zrr">死 token 定义（--apple-*/--boh-*/shadcn）</div></div>
+  <div class="card" data-page-node-id="Oc0QvV0nXgaSLLahAlJdQc"><div class="num o" data-page-node-id="3PFWkLKGOI8KfnmKF4scpI">0 <small data-page-node-id="waezqofhZwZxlO6mDNaOvy">处命中</small></div><div class="lbl" data-page-node-id="83ScWD75cnUC1t20GuG39v">Tailwind 工具类使用（引擎空转）</div></div>
+  <div class="card" data-page-node-id="2DAIGgbNyvc4hOaFDs6lbI"><div class="num g" data-page-node-id="AJQNuurSfrq5azuSzlAUYG">1,396 <small data-page-node-id="DYv7OCYGhLWBeMoSlD4tnp">= 基线</small></div><div class="lbl" data-page-node-id="3nAGiw2vWZsSUlCGFIUV3J">!important 现状（棘轮门禁通过）</div></div>
+  <div class="card" data-page-node-id="tZrKaUm2t5nw7xl29L05zU"><div class="num b" data-page-node-id="1y1Z0egYZrYEceW9sIBkLT">2 <small data-page-node-id="V6VXkT7bZUxA2Sq9LxkeUH">个</small></div><div class="lbl" data-page-node-id="6zcmXuLOMoTMwgp6Bxzqra">未定义 token 引用（孤儿变量）</div></div>
+</div>
+
+<!-- ================= P1 ================= -->
+<h2 data-page-node-id="fDbuieWmP0HbiVxjjAFiQB">一、死 CSS 文件（引用链零引用，可直接删）<span class="tag t-p1" data-page-node-id="QgDi5zL9cItpR1tQxVo1CF">P1</span></h2>
+<p class="desc" data-page-node-id="ghZLOUGAiLDqEdQGQiRzZ0">扫描覆盖 import/@import/dynamic import/<code data-page-node-id="DX31diVSsT9FTuOXD3NKKu">&lt;style src&gt;</code>/css→css 传递链四种形态，并人工复核。以下文件在全站任何入口都不可达。</p>
+<table data-page-node-id="OQLjqx7jNNrmxMv3WLRNXd">
+  <tr data-page-node-id="jbBmH6RZT2dHjL74SB4xEQ"><th data-page-node-id="DCV5HbVnGuv0tJ3rJWri8D">文件</th><th data-page-node-id="AME0HxgjTHrrquWh0iHi5D">行数</th><th data-page-node-id="BCKBV1HFe2ZksIHSRL2Kg7">体积</th><th data-page-node-id="Awdd1L3hkxCEjhSOpHLpv1">判定依据</th></tr>
+  <tr data-page-node-id="YV2BFON59GqgMjKA0QizXT"><td data-page-node-id="jteUQ2eiJnLqPLbezjPspj"><code data-page-node-id="GPVTVaDqoxugkDXxpmPV2N">src/views/BOHAI/BOHAI/styles/responsive-layout.css</code></td><td data-page-node-id="nJ1RY9ms0mmnjOgeZmsL46">2,154</td><td data-page-node-id="KYxJBX9KmRbCRD9Ou0LdGE">43.6 KB</td><td data-page-node-id="6ljZXxAcCqura9hM4eEFwl">BOHAIMain.vue 注释称"moved to styles/…"，但实际只引了 shell-header / full-workspace / messages / adaptive-layout / motion-system 五个，此文件被遗留</td></tr>
+  <tr data-page-node-id="pl1CK5agw5WtiNjdCYwKaY"><td data-page-node-id="JCiCz1CpfT11yA3jf347AX"><code data-page-node-id="hG6h4rOR4qDFOTnEiEAKq3">src/views/BOHAI/BOHAI/styles/compact-input.css</code></td><td data-page-node-id="u8qf2TOdM2yKtlyCNKrlzT">1,221</td><td data-page-node-id="DMkX5qu0xgDa0FA7vJn2h6">23.1 KB</td><td data-page-node-id="7iE2xKY87Y5OOV1JUsBY5q">同上（拆分迁移未删旧文件）</td></tr>
+  <tr data-page-node-id="HJn6xP1VQmQiJEtdD79UT0"><td data-page-node-id="7Sq4bp2b2jkvTaWBHLyqSn"><code data-page-node-id="HMEBrCfwvAHXoXQ11gKSrU">src/views/BOHAI/BOHAI/styles/embedded-animations.css</code></td><td data-page-node-id="okFkJvFTPSpxPB7GOu7JfE">734</td><td data-page-node-id="fuviRANxfiReS3lgRDqDBe">18.5 KB</td><td data-page-node-id="qHlFHGDDDBTp2JWHh949Yz">同上</td></tr>
+  <tr data-page-node-id="KYkUfUouWnFrMpCw8sRrlB"><td data-page-node-id="K60qGnb0ZBBadPnUT1DpYE"><code data-page-node-id="GDB9MIBh2CYGXppXXS1aIG">src/views/Health/style.scoped.css</code></td><td data-page-node-id="TlXdAMQJTUohkCgdn3lH9e">468</td><td data-page-node-id="XuVTJgvi5NsbUuKUEg1rno">15.8 KB</td><td data-page-node-id="lyZVaHYHGOmbXaHtAWW8vV">Health/index.vue 实际引 <code data-page-node-id="9FHIeG7mNlHpIYuS70pYRG">./health.css</code>，此文件是被替代的旧版</td></tr>
+  <tr data-page-node-id="0By0RehcTWgQz2NNxc6Gr1"><td data-page-node-id="1iAizyGooMJTbQefGGJFLH"><code data-page-node-id="U7G9bNFtnXOmGEKRi0HktW">src/views/DataManagement/components/freemodels-config.scoped.css</code></td><td data-page-node-id="GDOZwMLzfgaahn3yqWNDel">324</td><td data-page-node-id="8622VoPiQHMLLeuwczyeYm">5.2 KB</td><td data-page-node-id="1GBqPa0yymeO48fQYRm7kg">FreemodelsConfig.vue 已改用 styles/base+google-components+responsive 体系</td></tr>
+  <tr data-page-node-id="A93TuUMAvtLeKGbFRO06Qb"><td data-page-node-id="wHz4Y0Q7YIcwfLrW1U82Y4"><code data-page-node-id="rTVBfcyIiKoYgo9jRckpPZ">src/views/BOHAI/BOHAI/style.scoped.css</code> / <code data-page-node-id="vPUsjTGArpadQMJDzeLOca">src/views/Forum/style.scoped.css</code> / <code data-page-node-id="yHU9bCoDvh0Fx1D4Bk7xSY">src/views/user-center/UserSpace/style.scoped.css</code></td><td data-page-node-id="qV6mgyuCvdDcMId1NKp0BC">6/6/5</td><td data-page-node-id="YzNkpLyxuZTJ5IhyFWlKJl">~1 KB</td><td data-page-node-id="nVReq5AAbwjkZTjkKdF6G2">纯注释桩（内容只剩"已移动到 xxx"注释）</td></tr>
+</table>
+<div class="note okbox" data-page-node-id="HVKeTKeQlHZdlrfEMqe9N6">✅ 合计 <b data-page-node-id="MyKAn9F8SxXgu3BnP39im1">4,918 行 / ~107 KB 源码</b>可安全移除。删除 BOHAI 三个文件后请同步清掉 BOHAIMain.vue 头部"moved to"注释；回归探针建议跑 probe-bohai-mode-loading.mjs / probe-user-space-perf.mjs。</div>
+
+<h2 data-page-node-id="PejbuKMwKCfaengofXYO1T">二、icomoon 图标字体体系全死<span class="tag t-p1" data-page-node-id="kSNLD60R3ZHuCzAgJwMZq3">P1</span></h2>
+<div class="sect" data-page-node-id="Tb5ddLw77yxu7CiKR0zGw3">
+  <p class="kv" data-page-node-id="6pYWADp6jrjPazJDNXhyZv"><code data-page-node-id="YGNL5uDRUgW61qMBznOcyu">src/styles/vendor/fonts.css</code>（86 行，被 main.js 全局引入）+ <code data-page-node-id="G8tsnz4ZNrHz0CHajXUk8T">src/assets/fonts/icomoon.woff</code>（6.4 KB）</p>
+  <p class="desc" style="margin-top:8px" data-page-node-id="90cyuBrCgYw0SVpIODLykQ">fonts.css 整个文件只服务 icomoon：@font-face + 17 个 <code data-page-node-id="bH6o8bkQ1ITGkom08Kx3JV">.icon-*</code> 字形类（icon-paper-plane、icon-arrow-left、icon-instagram…）。全站模板/JS <b data-page-node-id="yscRP1jyyAwiFOU5L8KyUX">零使用</b>——现在代码里的 icon-btn、icon-button 等只是普通类名，并非 icomoon 字形。项目图标已全面转向 lucide-vue-next。</p>
+  <ul class="clean" data-page-node-id="cLMzueWiU9oEYId4jtqCze">
+    <li data-page-node-id="vzBaqvEMQBCVQ61iEzHr3E">删除 fonts.css 的 icomoon 全部内容 + <code data-page-node-id="ymlrbMEYB3ozXppRemZ72u">icomoon.woff</code> + main.js 中 <code data-page-node-id="mk7R1UAKBx6uHvEFKgSTo8">import "./styles/vendor/fonts.css"</code>（该 import 目前唯一作用就是加载死字体）</li>
+    <li data-page-node-id="F97eiIcnNAGv6ULpUDKBbv">连带收益：省一次字体请求 + 一段全局 <code data-page-node-id="w4MQZxk3D9HMESPJUSSudD">[class^="icon-"]</code> 通配规则（该规则会错误命中所有 icon-* 类名元素）</li>
+  </ul>
+</div>
+
+<h2 data-page-node-id="xihL7meJmpfqXLZtIX55HX">三、全局死类 1,372 个（37.5%）<span class="tag t-p1" data-page-node-id="Vyv2MB4IzeiNgJ2zqkeOkj">P1</span></h2>
+<p class="desc" data-page-node-id="bGtvQpQE3wRjHpS4lVpg9a">src/styles/** 中定义、且全站模板/JS 零命中的类（已剔除 .vue 的 style 块语料避免误判；动态拼接类名场景已抽查排除）。重灾区：</p>
+<table data-page-node-id="DdOc4ErmCgid1INylYSyGn">
+  <tr data-page-node-id="XaRIKbA6TH6BsvuYFSs5jS"><th data-page-node-id="eh7dCRfPlw7O2vbvXFz8pA">文件</th><th data-page-node-id="4tM12KwA3UDrUZRiNuL4b5">死类/总类</th><th data-page-node-id="zOZaChZ0XaLrGS6QlBlDcs">死类占比</th><th data-page-node-id="37LkmmwevqOmxKhfBb5R0g">性质</th></tr>
+  <tr data-page-node-id="qk7xs67KMFsJpnCxeSW0m2"><td data-page-node-id="5LLntBx2WlKn00pW8jkCGU"><code data-page-node-id="AZVUHGa6gmtVGkwGwfAM1c">src/views/DataManagement/styles/console.css</code></td><td data-page-node-id="IdQqK3YzwG4xEj99PGLI4N">81/189</td><td data-page-node-id="jKfDl13V5f27a59s8xHsJK"><div class="bar" data-page-node-id="IrAtG2G8sjzhFcvGUJNvXU"><i style="width:43%" data-page-node-id="7vRfqDAptVM9I7mwDFr8fa"></i></div></td><td data-page-node-id="TAasgn4vX7BbyX5hGnfSa1">diagnostic-*、dm-pagination 等旧控制台套件</td></tr>
+  <tr data-page-node-id="dgphUMdhUzfESKOiZymWis"><td data-page-node-id="NOrdrrrtqlUlwYR9dv4lYf"><code data-page-node-id="qg8DtfV5fgMTrgMuK9DHst">src/styles/themes/bohai-dark.css</code></td><td data-page-node-id="I9YwbwAIBPgoQtw7stJzAt">77/138</td><td data-page-node-id="UpaKie4H98hCAqgLEL9wA5"><div class="bar" data-page-node-id="TuUmSGc7h8x8sFT5o6M55j"><i style="width:56%" data-page-node-id="3WMBWRYBGeRk7HYAculNKr"></i></div></td><td data-page-node-id="0yb4hwEgzuTH2LJlOEGwAx">暗色层给死类做暗色规则——<b data-page-node-id="82pHXhnEsHmOxJOdfvcul3">死类的暗色也是死的</b>（agent-cluster-*、ai-setting-*）</td></tr>
+  <tr data-page-node-id="4f84yWcZA23dkmmybgLhBt"><td data-page-node-id="Osc6GJACTL9ESoB0hnwS7w"><code data-page-node-id="HNyaF7qRoISHBZse9GNjcL">src/views/user-center/UserSpace/styles/profile-panels.css</code></td><td data-page-node-id="cWuQbwxZjg4mFz3sDJdprA">71/153</td><td data-page-node-id="7wNJfUxqkLwPrOpG0fkjFB"><div class="bar" data-page-node-id="sRDNBkz3NfI8EeiZcAbcRN"><i style="width:46%" data-page-node-id="rqXa7yC4vdWNUSPFM1yTIB"></i></div></td><td data-page-node-id="Ft0yFT8L2NTdg07JUaACKK">旧面板套件</td></tr>
+  <tr data-page-node-id="tHS7kaf0Giw9NtoWfOpzTd"><td data-page-node-id="oG2u9LM2XmuPnF0dhiThoD"><code data-page-node-id="95GBRI23EE7E49dBlF84Nl">src/views/BOHAI/BOHAI/styles/messages.css</code></td><td data-page-node-id="iaOgADcyIWkFxWb0aB0ngG">67/131</td><td data-page-node-id="1d29iCmtWDv1ojOwj2AJCg"><div class="bar" data-page-node-id="FqSyDJeF0T2HWxqQ4hdxOd"><i style="width:51%" data-page-node-id="50AmfwDXrqcA7wYF1W5aFI"></i></div></td><td data-page-node-id="iWjkwHysdwZaH9gOuurs1Z">BOHAI 旧消息套件</td></tr>
+  <tr data-page-node-id="zxdxc8NJxAblDdHOOkuWa2"><td data-page-node-id="dyBtsU4HuLvX0hGGtjvjhq"><code data-page-node-id="zj1qGbQ4w86jwXsOC1obAr">src/views/DataManagement/styles/responsive.css</code></td><td data-page-node-id="9jwDMsAvcEaPEURd5jXA9j">67/156</td><td data-page-node-id="WuyNkiTANYcWtlS2Bb2h2C"><div class="bar" data-page-node-id="sn4lIHSt6fFoLkDW2tyK7f"><i style="width:43%" data-page-node-id="E37TFn8dq4DRVFF825VXgQ"></i></div></td><td data-page-node-id="GnOEyP3kgFuC2m0r77Vp5a">同上旧响应式层</td></tr>
+  <tr data-page-node-id="l0rElnFvpA1UfTKDvG2LAV"><td data-page-node-id="KB7u4Hls8cUNJYXVxcZbSA"><code data-page-node-id="WHogOKCyVoyKHOY58Ru3Bu">src/styles/themes/user-center-dark.css</code> / <code data-page-node-id="8Kr6jvY3854tlnZrpoyEt7">user-space-dark.css</code> / <code data-page-node-id="PHuGEMjD2uvASqWir9EEf8">messages-dark.css</code> / <code data-page-node-id="UmuyTdVtYcPPKhqBSnY3Ei">forum-dark.css</code> / <code data-page-node-id="qAj2hnz743peVBusYQjSMV">boh-note-dark.css</code></td><td data-page-node-id="sdvcH4Dj4Ao5D1UB3JGRz0">66+62+52+43+47</td><td data-page-node-id="GxoxSufG4wTgowRpXtJpnc"><div class="bar" data-page-node-id="NWyPV6ypYDebq1ELt3zXPs"><i style="width:47%" data-page-node-id="RibpmHeRBuOr5wR1DiMoFX"></i></div></td><td data-page-node-id="qtptrd3SwmcDmMftykMZTJ">暗色主题文件合计 <b data-page-node-id="JWpUpVgQIXCPBKkzvfd965">270 个死类</b>——清理活样式层后这些会跟着消失</td></tr>
+  <tr data-page-node-id="7TuOG0Zuq2BzC6eFutchDF"><td data-page-node-id="5D8iA462OOMEJBkG0Suu2n"><code data-page-node-id="zeFDh0XjfMXbneyst1cYGH">src/views/BOHAI/BOHAI/styles/responsive-layout.css</code> / <code data-page-node-id="WhzXXrHQbs7EwTt2JEinbV">compact-input.css</code> / <code data-page-node-id="utxau8bUQpJsbtGnUCL1x0">shell-header.css</code></td><td data-page-node-id="NiJssHVKDiIFDB8YM3nJC8">113+52+44</td><td data-page-node-id="6dlAu17oQAL7O3xkFFcIGF"><div class="bar" data-page-node-id="vpsy9NajyBwy3YAdxklBA1"><i style="width:64%" data-page-node-id="7JtYAaBNSBV4uzCuXrQ0MG"></i></div></td><td data-page-node-id="XyrwXCcv66dz36C2r6MWrv">其中 responsive-layout/compact-input 整文件已是死文件（见第一节）</td></tr>
+  <tr data-page-node-id="gbYuCedyVHfxYYdf6e8a9b"><td data-page-node-id="lHdPnsXTqM7yiJ8nGzMCQ5"><code data-page-node-id="fu4DMwmtFvRDMEU4RfxKfq">src/styles/pages/section__header.css</code>（937 行，被 main.js 全局引入）</td><td data-page-node-id="1SSKIoJp9rI8drB1RXCh4l">35/47</td><td data-page-node-id="CFB676mXHIi0Kmvk55P8No"><div class="bar" data-page-node-id="SZKgTxxG151KeHzCZfEb2q"><i style="width:74%" data-page-node-id="8A2CfRuyualO5atIDdkgzn"></i></div></td><td data-page-node-id="0Sh1OPaFSDSQ9rxGp2JdWr">旧模板 c-header-home_* 套件，74% 死类</td></tr>
+  <tr data-page-node-id="9AYMvSThSmR41TyEywANVH"><td data-page-node-id="npQppP2MyA41lQAf34CfcR"><code data-page-node-id="rdEAfkzoAmhjQSWolQxOPV">src/styles/common/glass-ui.css</code>（750 行，被 main.js 全局引入）</td><td data-page-node-id="cXA9sAb14QqR2l4BSWjdGA">26/34</td><td data-page-node-id="KzB6531QcHq2CTeNqDJDrj"><div class="bar" data-page-node-id="TXatzS4Uf26jWY4RaoKtmV"><i style="width:76%" data-page-node-id="Kry9DO08ZeE17VyiIWz00q"></i></div></td><td data-page-node-id="VnJLkqzbiZliNHjye06pgv"><b data-page-node-id="ZrfZeACt5htmri8DeTyxkA">liquid-glass 之前的旧玻璃层</b>：glass-card / glass-button / glass-overlay / glass-navbar / glass-sidebar 全套零使用，已被 tokens.css --liquid-* 取代</td></tr>
+  <tr data-page-node-id="5hGkOono9Msk0C3ZdmGl3u"><td data-page-node-id="wZgIeIjDQs0FKC6PrXR9Uq"><code data-page-node-id="Sm3BvLzijEI7JwsYwUMSCr">src/styles/common/animations.css</code>（1,039 行，被 main.js 全局引入）</td><td data-page-node-id="PiHSTz2KC38ync0X7JQgFy">25/28</td><td data-page-node-id="O8sAAYaQyx2wa4xocbnppG"><div class="bar" data-page-node-id="MfdDRrPjQ8GaI9PK3XF3k8"><i style="width:89%" data-page-node-id="WmQtcV4ivQlZKbojWs3iX4"></i></div></td><td data-page-node-id="IzBfofazrIb6Uxatq34Pt9">animate-fade-in / hover-lift / animate-spin 等 animate-* 工具几乎全死（动画已由 @vueuse/motion 接管）</td></tr>
+</table>
+<div class="note warn" data-page-node-id="m4UOFdVIEuHRKEm2NBiiBi">⚠️ glass-ui.css / animations.css / section__header.css 三个"大而半死"的文件仍被 main.js 全局加载。<b data-page-node-id="LRhsQY6dG64EJm0mscFZge">建议按类逐个确认后瘦身</b>（各自只剩 1-10 个活类），而不是整文件删——活类如 glass-ui 的 .transition-fast、animations 的个别 keyframes 可能被残留引用。清理时用本报告脚本重跑验证。</div>
+
+<h2 data-page-node-id="7Y6cebmFyz9TpsMN0WX6ST">四、旧模板工具类 kit：11 个文件重复定义且全死<span class="tag t-p1" data-page-node-id="pvycu8uj1ohMmYRYXEG6fF">P1</span></h2>
+<div class="sect" data-page-node-id="K8I4bcRSTPluzTIdH3CYuN">
+  <p class="kv" data-page-node-id="ssVGI7pHXYhZm5cmBVTiRu"><code data-page-node-id="FEy9JzTMzH0GTcvkco7LiQ">.box-shadownone</code> / <code data-page-node-id="Ha7BmrHaTVDCTADhFm5bBC">.box-sizing</code> / <code data-page-node-id="4lCvnDG05HOBCDYLC4axE5">.border-none</code> / <code data-page-node-id="gRQca4pzh6crwz63ccHRvZ">.padding</code> 这套旧模板工具类被<b data-page-node-id="eujfI3I1GpnVHNVylG69y0">原样复制进 11 个全局文件</b>：buttons.css、headings.css、cursor.css、close-button.css、link_underline.css、overlay.css、page__animate.css、globalpage.css、variabls.css、footer.css、section__header.css。</p>
+  <ul class="clean" data-page-node-id="6xsVSSkBsYIGurRbG9ebTt">
+    <li data-page-node-id="qWix2wvC0Ku5wl0VWMNSrt">全站无任何 <code data-page-node-id="FQVIzI0YF62F8HYoCrvgoH">class</code> 使用（"padding" 因 JS style 对象键假活，实查无 <code data-page-node-id="eQNRgqE1sldOJ1fNdtCucG">class="padding"</code>）</li>
+    <li data-page-node-id="X1wLBaga4U7dg90LU4PAYK">buttons.css 5 个类死 3、headings 8 死 6、close-button 8 死 6、overlay 5 死 4——这些文件本体就是旧模板时代的 utility 层</li>
+    <li data-page-node-id="zmVLBWZzBmAdIQuowGK941">一次性删净后，styles/components/ 目录只剩 headings 的标题排版等少量活规则，可考虑合并</li>
+  </ul>
+</div>
+
+<h2 data-page-node-id="vdiYjF5douY7o3Qw65Wb3Y">五、空文件与模板骨架残留<span class="tag t-p1" data-page-node-id="yGPaZyfydvFkkGHWWXCKw4">P1</span></h2>
+<table data-page-node-id="UqEJwwHOEoj6Z8Ed4mIfJn">
+  <tr data-page-node-id="pmYkojw5qrAARCaPgOhCqe"><th data-page-node-id="fRA5qf17j03OJwiX0U9Wff">文件</th><th data-page-node-id="xcSvS6WgN57mHuGn6804y9">现状</th><th data-page-node-id="51COczMyWG6qKlrfzPcvKQ">处理</th></tr>
+  <tr data-page-node-id="kvgrmMuyJGah49MAu6vA7b"><td data-page-node-id="ThbAMIKZ4MxJRYNABDWqyy"><code data-page-node-id="UzMWuYKwkiKFHMnZhpqTyD">src/styles/helpers/mixins.css</code></td><td data-page-node-id="KctF4umY2ShUMjgJsttlcJ">14 行，仅注释 + 指向<b data-page-node-id="aHkWD2dXIJFSeCPrn7l1E1">不存在</b>的 <code data-page-node-id="3BzWzoXD9lJjhtKjRtBSth">mixins.css.map</code> 的 sourceMappingURL；被 main.js 全局引入</td><td data-page-node-id="n8b9GWOIVYSQAee2SUHBNF">删文件 + 删 import</td></tr>
+  <tr data-page-node-id="wdxSrkjqvY0OFR2AsJdbuH"><td data-page-node-id="yzZQ6zKVb6DoazfIb3CDQZ"><code data-page-node-id="FI5flsh7fduj2zTUNSnU7t">src/styles/helpers/variabls.css</code></td><td data-page-node-id="BBzPhlsXAutk5gM0Gxv6Av">文件名拼错（variables），内容为同一旧模板 utility kit，仅剩死类；被 main.js 全局引入</td><td data-page-node-id="aMGklneIC8i6l8Mu3XZo3Z">删文件 + 删 import</td></tr>
+  <tr data-page-node-id="ZnRNBIzVP31EA4ckXTaHAK"><td data-page-node-id="RYHSqkRgjRD3h1HcfjQm9g"><code data-page-node-id="hRVbCwbtIGsq8n87D1Fbc4">src/styles/pages/globalpage.css</code></td><td data-page-node-id="3Z8qqzCZS6RmKoQHMyIMwP">95 行模板骨架（Poppins 字体声明 + body box-sizing + 死工具类）；被 main.js 全局引入</td><td data-page-node-id="dZDcpUcqwsNTnAcXyURMK9">逐条确认后删除（body box-sizing 需确认无依赖）</td></tr>
+</table>
+
+<!-- ================= P2 ================= -->
+<h2 data-page-node-id="XiaOAMzGjwc2oJQl3a7E5m">六、Tailwind v4 引擎空转<span class="tag t-p2" data-page-node-id="OjATRUWX2THtdmfAblMHvs">P2</span></h2>
+<div class="sect" data-page-node-id="oUEBV3PKryA8qG74oh0uhU">
+  <p class="kv" data-page-node-id="WEXGFoESSb4LOlCdCBzwOQ"><code data-page-node-id="zdM51MaKVq5C1Du3r8hsgM">src/style.css</code>（358 行）：第 1 行 <code data-page-node-id="yyC4tB0GedHB2LXJH8WHF0">@import "tailwindcss"</code>；全站模板命中 Tailwind 工具类 <b data-page-node-id="ZGnejbHejDS6Hyp3dfI4ZF">0 处</b>（基础类与 md:/lg: 响应式前缀均零命中）。</p>
+  <ul class="clean" data-page-node-id="HCg14yqbj1qAbkjSIJnMHo">
+    <li data-page-node-id="Z1VdC37YW3UmVqxeh6J02a">但文件内 @theme 定义的 shadcn <code data-page-node-id="5FHm5hFKknAeGxjLtaZC0n">--color-*</code>/<code data-page-node-id="yFZleFSx5zBXpWfojLKcgF">--radius-*</code> token 有 30 个仍在被引用，不能整文件删</li>
+    <li data-page-node-id="XgOOOV1SDnorLr5IwoqK5X">Tailwind preflight 仍在全局注入 reset 样式——直接移除 @import 会让全局基线样式变化，<b data-page-node-id="dKzBj0Lm4G6fpriEFQvQHS">需先做视觉回归再退场</b></li>
+    <li data-page-node-id="gNBDZJRd9uqIIvRAUnGNR5">建议路径：把在用的 30 个 shadcn token 迁入 tokens.css → 移除 tailwind 依赖与 @import → preflight 影响用 probe 全站对比验证</li>
+  </ul>
+</div>
+
+<h2 data-page-node-id="xkOk31mPRhufqFH1HZ4t80">七、Token 四套并行量化（收敛清单）<span class="tag t-p2" data-page-node-id="rOORGxQE3toAwXyWaVe78H">P2</span></h2>
+<table data-page-node-id="KujIpJ1Tq7ARAUpJVQmGhG">
+  <tr data-page-node-id="ixJpxHyH0dHFyK3QFyx8G1"><th data-page-node-id="Yr4Avl9uH8vYQn8kbuXXzk">家族</th><th data-page-node-id="79zl4z2FDE0KhAOkqV3iYN">定义</th><th data-page-node-id="4GrZocVy6TL3Whx8cKjHcq">在用</th><th data-page-node-id="AyudvaHyhZGBPhaE1jLjdk">死定义</th><th data-page-node-id="sdsZMmZWEBksr1Gp5PHoF0">说明</th></tr>
+  <tr data-page-node-id="NttvkG1BdHyXgc8WJiF22v"><td data-page-node-id="iSK5kaWL6AsyUPjHftabIX"><code data-page-node-id="sHirOAfxVg6ziECxNVrH2I">--liquid-*</code>（玻璃单源）</td><td data-page-node-id="pQwY4walVbl7R8B5casFOs">27</td><td data-page-node-id="JGQVEb2ZgQwkNFWF0jFAY4">27</td><td class="c-g" data-page-node-id="E9j5DQRPGtw4nu42Nr2slM">1</td><td data-page-node-id="3mmeFMGXVVrmq60RWgAY4X">✅ 健康。仅 --liquid-border-strong 未被消费</td></tr>
+  <tr data-page-node-id="9tLpg42MmISg7EzebquxLv"><td data-page-node-id="QAemq1KWd6MXC7gLTA2pq0"><code data-page-node-id="d1l69BYtfOai3HOpm0NJpD">--apple-*</code></td><td data-page-node-id="JfTmg5eO7STbXvIIzQdybj">59</td><td data-page-node-id="nat8xuFBFdNh2PXlGtbBmx">21</td><td class="c-r" data-page-node-id="QJRHMcqNLLyA6uIwsCTNG1">38</td><td data-page-node-id="dOsOA4FLneGZc2pqE5ZreQ">display-1/2/3 旧字号体系（size/weight/ls/lh 成组）+ brand-dark、bg-light 等全死，是最大的死 token 族</td></tr>
+  <tr data-page-node-id="oma4yLLlHDXvgLORCtqSj2"><td data-page-node-id="S153woULM66Z3ubAlZTfh3"><code data-page-node-id="H6LqaDa2MRHsQmBr6cd6QJ">--boh-*</code></td><td data-page-node-id="B2J0ACNCzwRCC2g1DPNYGf">30</td><td data-page-node-id="kDy4fzYoV42pTeUMxfw03f">22</td><td class="c-o" data-page-node-id="rdO8wo3ZuZWcrSM7jARIhw">9</td><td data-page-node-id="5ABDD4Qy7UHHBeoAS1gjG5">brand-blue/red/green、shadow-sm/md、divider 等未被消费</td></tr>
+  <tr data-page-node-id="vij1iH9zVeY4YvEQykwEGh"><td data-page-node-id="FSTZG5cYA95LEeh16sC3Ak">shadcn <code data-page-node-id="KW308I3zM3RxT9W7wiUTG8">--color-*/--radius-*</code></td><td data-page-node-id="8PaoyBEp7qbUA07wIpf7xY">35</td><td data-page-node-id="3iYyuGKr6zKR3pHNtZ1qby">30</td><td class="c-o" data-page-node-id="vJ8jiwHh2BpqshhmbzIxuO">9</td><td data-page-node-id="1FRWzBRfJAsx1bQWDaZUYl">死定义随第六节 tailwind 退场一并处理</td></tr>
+  <tr data-page-node-id="qikytvfoC2YKfyDmCjh9Hf"><td data-page-node-id="EAIUEq1uymQV2FP3NUzACz"><code data-page-node-id="yoIoMba306k9Pix3qDiGVW">--hero-*</code>（Hero 规范 V1 单源）</td><td data-page-node-id="kjCelPGiHHLUFk04a6vo9C">16</td><td data-page-node-id="fLOl37nGqvuCbFcrUn8Xf4">9</td><td class="c-g" data-page-node-id="Z0pVL1FHGJxOAm2qchj4zz">8（预留）</td><td data-page-node-id="KxOsse3JetOYUhzfIKIGdI">headline-l/m、cta-* 等 8 个是 V1 规范<b data-page-node-id="IxgUJz2dCD3oZ2AWAK4Io0">预留档位</b>，非残留，保留</td></tr>
+</table>
+<div class="note warn" data-page-node-id="zqQKhzgmUgsvrV2xcVTFqt">⚠️ <b data-page-node-id="wCqFfFTobKjcGaAVdqsee3">孤儿引用（用了但没定义，靠 fallback 活着）</b>：<br data-page-node-id="Uq57sFpPRYVsT3DUqGpHIF">
+① <code data-page-node-id="2YNTjd3BYJYqseXNXEVSn3">var(--liquid-brand, #0071e3)</code> — Newsroom/NewsDetailPage.vue 5 处。该 token 不存在于 tokens.css，应正式定义（值即拍板品牌蓝 #0071e3）或改用现有品牌 token；<br data-page-node-id="4gcvGeksm34e6jlhd6MGt5">
+② <code data-page-node-id="ekPosHMZsnS8H5eeRJxcKe">var(--hero-preview-height, 78svh)</code> — ShowcaseBookHero.vue 4 处，全站无定义、无 JS 注入，永远走 fallback，是个"看起来可调其实调不动"的死旋钮。<br data-page-node-id="TLQuZ49wikXbGZ84q1kfja">
+（--boh-visual-height、--ring-x/y/scale/aspect 为 JS 运行时注入变量，非孤儿，已排除。）</div>
+
+<h2 data-page-node-id="Eep9liIa3J9m1jZvI6FOXu">八、scoped 重复引入 → 打包重复<span class="tag t-p2" data-page-node-id="2UdsFtHe3eEB7N5pWFwTYl">P2</span></h2>
+<p class="desc" data-page-node-id="MYe1symMHUzKEsyyqyMC0d">同一 css 被 N 个组件在 <code data-page-node-id="TJwwOPFe166XiWxDHdX55N">&lt;style scoped&gt;</code> 里 @import 时，会随组件各打一份带 scoped 属性的副本：</p>
+<table data-page-node-id="YqGVn0GmXT4w88rvZ82SB0">
+  <tr data-page-node-id="VFluD8wqhqqgduLdcpUPdK"><th data-page-node-id="GIBOtflAwNbEDs9nz4yD9F">文件</th><th data-page-node-id="pG55kwNtHg4miqY6n2KpA2">scoped 引入次数</th><th data-page-node-id="VMLCwbXlwFTrj3GfDFvqlH">单份行数</th><th data-page-node-id="HF6CvwxnE4qA1YmbRzDLbR">重复体积（约）</th><th data-page-node-id="Ckx55MLuTwYX9ayOQDlXm3">备注</th></tr>
+  <tr data-page-node-id="8gUpqIzRZ3j0XvCRBwuLkp"><td data-page-node-id="dPe0SqGpAKYxtW25xPAb0K"><code data-page-node-id="RnoxRPMsfoWgmdy8aGKRWs">DataManagement/styles/google-components.css</code></td><td data-page-node-id="5TZUqNZ8EfpHFYb0XrhDFM">7</td><td data-page-node-id="7Cz0cjBzPrwkpBIKAdYuij">1,077</td><td data-page-node-id="hGslGbcOgfzwPYGUSv16lO">~6,400 行</td><td class="c-r" data-page-node-id="mlZnzbgSU376JDF08g2K0d">且 main.js 还<b data-page-node-id="mukqGXQT0i1iKuOiZE7lj4">全局延迟加载了一份</b>（双重引入，DataAdmin 0.2MB 的主因之一）</td></tr>
+  <tr data-page-node-id="fvhNRBZESPsnNs1iIAh1JA"><td data-page-node-id="Hg2pUMZ7A9PRVabDHZFoFx"><code data-page-node-id="A1ERnmwX8yrX8QUX8yvNwV">DataManagement/styles/responsive.css</code></td><td data-page-node-id="nVjMBMtB1uMtrSyBCHSMN7">6</td><td data-page-node-id="t1fNjRTVQ6sBggTnHiQUu7">1,671</td><td data-page-node-id="3BEPUo5NBM1G0GpXaXdg6h">~8,300 行</td><td data-page-node-id="GSLKGukOEO4ltQ1lyEWPHi"></td></tr>
+  <tr data-page-node-id="xN4lC8vWZNKvFvb3W6K3ag"><td data-page-node-id="fRa6zEhQ62fYGlMkLpMpy7"><code data-page-node-id="PYIzzEEakg135TUX1TxZtm">DataManagement/styles/base.css</code></td><td data-page-node-id="6mLlH8tBo55wrxYcSqocKx">6</td><td data-page-node-id="yzHiU5ge62dMYG4sUk5mMr">607</td><td data-page-node-id="BhVJXoy5uCdUC65p8qk0EH">~3,000 行</td><td data-page-node-id="a4AqeriE7vydMuALYrfn9g"></td></tr>
+  <tr data-page-node-id="ueOfGINm1i9hUVhQ7tb4Yi"><td data-page-node-id="fagDB9GEusXh1KBwpTSOeL"><code data-page-node-id="PNHLlgYvdF62onGG8O4rZR">UserSpace/styles/settings-glass.css</code></td><td data-page-node-id="CZN1xie6CdZb6lB79zyisU">6</td><td data-page-node-id="WSlRYHoLeIaq2mT1udBkcF">704</td><td data-page-node-id="AJ2jOKh45U054MAsX4SIUO">~3,500 行</td><td data-page-node-id="twnU7NqrFSMcDcaJZ1zLoX">按"新设置子页 @import 它"约定而来，属已知取舍；可改为挂载时动态注入一次</td></tr>
+  <tr data-page-node-id="QQgBBLMpimjhqfnNb3S59c"><td data-page-node-id="L7WKwC0SRl7JDRbhlEGrLE"><code data-page-node-id="wxUUXS1yS1lX7zOyMfjSBt">Forum/styles/composer.css</code> / <code data-page-node-id="1lYDvCkb4dCg8mBawGptKF">replies-responsive.css</code></td><td data-page-node-id="qEtlIkFHZDoPbUQ5vJiPx5">3+3</td><td data-page-node-id="MH4CCgeWwDNDZGeXwe7Q67">1,858+1,808</td><td data-page-node-id="3RRZxnWmSV22GXtcx9nyMr">~11,000 行</td><td data-page-node-id="lKpVIKVCN6gPQrRtfjgvut">ForumMain、PostComposer、WeeklyCheckinCalendar 各持一份</td></tr>
+  <tr data-page-node-id="Di9vyh4WhJdbpBq0wgBkc7"><td data-page-node-id="hPg8ecoCAG7Abrlolc6eAw"><code data-page-node-id="icA55KpID2OkYgLXx1QjJP">Forum/styles/base.css</code> / <code data-page-node-id="sONo5XyC6acM0orbytnSDp">feed.css</code></td><td data-page-node-id="l4SLGbD6ynFqXgJdnbDBcU">3+2</td><td data-page-node-id="kqvSCxEGNt3GSAKDIuHK0f">454+1,262</td><td data-page-node-id="ySDjiJMkZI5p7yFeu83jPY">~3,900 行</td><td data-page-node-id="vRKEoj5RGMPTCPRViBeQMd"></td></tr>
+</table>
+<div class="note" data-page-node-id="X9HM1ntXAZ6CmuCj0OOafi">建议：DataManagement 一族把 scoped @import 改为「全局引入一份 + 组件只写差异」；settings-glass 维持现状可接受（scoped 化是防污染的刻意设计）。</div>
+
+<h2 data-page-node-id="nOl1TyWTvq49KUJmuRqVNA">九、旧主题机制残留<span class="tag t-p2" data-page-node-id="9JR2VoeYcUb9HaTj9BuO7B">P2</span></h2>
+<ul class="clean" data-page-node-id="A6AyCppUxj9HIm49CmJ3n0">
+  <li data-page-node-id="a4ka5vCdm4YdaCRpacdRYF"><b data-page-node-id="FyNhI7JTztZPxshXp00Mzx">data-boh-theme 旧机制</b>：6 个文件共 91 处仍写 <code data-page-node-id="TfaCqT5oDgJMZRZH5LbvQZ">data-boh-theme</code> 选择器（与现行 <code data-page-node-id="JBqeiMdKuIEEQgLXlwknQE">[data-theme]</code> 双轨）。主机制 86 文件 5,805 处已成绝对主体，旧轨可择机清零</li>
+  <li data-page-node-id="KQGikx3vB3sJrrsSHfqsDq"><b data-page-node-id="3WVFWrjKtlIMI1Go8zXAs6">prefers-color-scheme 散装暗色</b>：11 个非 themes 文件仍在用系统偏好查询写暗色规则（glass-ui.css 2 处、unified-nav.css 1、DataManagement base/responsive/DataAdmin 4、login-modal 1、AiChatLoadingSkeleton 1 等）——绕过了 themeManager 的统一暗色加载，是"三机制并行"的最后残余</li>
+  <li data-page-node-id="vO5vXd8orp7hUYc8JmMNgK"><b data-page-node-id="DGq3oBInSafIaNj9vqRpRy">body.page-* 选择器 14 组【误报已更正，规则是活的】</b>：unified-nav.css 8 组 + style.css 6 组（body.page-home / page-shop / page-aichat…）。<b data-page-node-id="oxCWUOnq69g4KJ4PZUMUub">更正：App.vue:71-76 在路由切换时动态挂载 page-${route.name}，这些规则持续生效</b>（初版报告的字面量搜索漏掉了模板字符串挂载点；探针实测 body="page-home is-loaded" 实锤）。不得删除</li>
+</ul>
+
+<h2 data-page-node-id="rdnjRHnSInbXIqDefS4368">十、z-index 军备竞赛<span class="tag t-p2" data-page-node-id="bWxR6SmG4YHqnGL2ZAFyeR">P2</span></h2>
+<p class="desc" data-page-node-id="5BUYvXAPAMxDrBHv2cSamL">≥9000 的 z-index 共 100+ 处，层级严重碎片化：</p>
+<ul class="clean" data-page-node-id="pDJv9k2IihWSsiadZ1FdJY">
+  <li data-page-node-id="G8XHcFHpiXNa9HLAgVjMMx"><b data-page-node-id="mY5sNBNLg0y2YVFTpXkOwy">int32 天花板段（2147483600~2147483647）</b>：26 处——已经顶到 32 位上限，后续任何"盖上去"的需求都无法再叠</li>
+  <li data-page-node-id="KLo6rkLCERUB2FGl9ZFHJk"><b data-page-node-id="CagQN1nnCN9ibfqcwgo88l">200050/210000/220100/220300 段</b>：约 10 处，另一套私有的六位数体系</li>
+  <li data-page-node-id="F1bNCvnTSO2ApXDQrtFGaR"><b data-page-node-id="EefwBDaakGFOjHngM0Ztq8">1000000000</b>：1 处</li>
+  <li data-page-node-id="g6a1i6aqCFj8xbfH7wMBMM">与现行约定的 9999（导航岛）/10002（弹层盖岛）并存，三层体系互相不知情</li>
+  <li data-page-node-id="8hjz5oKdh0bnshrw2CZ0Ky">建议：建立 z-index 分层 token（如 --z-nav-island: 9999 / --z-island-modal: 10002 / --z-max: 2147483647 仅留一处），存量逐步归位；10000~13000 段的 40 处可先归并</li>
+</ul>
+
+<!-- ================= P3 ================= -->
+<h2 data-page-node-id="j8Qk2hpmBuTf8iYdjTHMnf">十一、打磨项<span class="tag t-p3" data-page-node-id="bAYAwWQDuXzEXF1INw5j6q">P3</span></h2>
+<ul class="clean" data-page-node-id="cuhnaQu0iZxHLFInOGNsDx">
+  <li data-page-node-id="xE2t6vSJRC7FlsxAvrbJv3"><b data-page-node-id="oEsbBlFJzc4Jsu0RObrinN">散装 backdrop-filter（≥6px，绕过玻璃 token）</b>：约 95 处。集中：Newsroom 26、Forum composer 24、drawers-skeletons 10、forum base 9、replies-responsive 8、feed 6、forum-dark 4——多为 blur(18px)/blur(28px)，应替换为 --liquid-* 对应档位</li>
+  <li data-page-node-id="AHrDIsq8CNprrS69Ad6S7S"><b data-page-node-id="ejdYL9M8NC1cSLcBXNUjVP">玻璃遮罩半透白叠加（违反"禁 rgba 白底叠加"令）</b>：AssetsHubPanel 37 处、BOHAI shell-header 20、composer 19、Shop 18、Messages 18、glass-ui 17、shell-community 17——其中 AssetsHubPanel 体量最大（注意：186 处暗色规则失效的 :global() 问题也在该文件，可一并重构）</li>
+  <li data-page-node-id="slf9KDkYtLEQU51TOAFiM4"><b data-page-node-id="txcjDKPjn5UziGKH07kEht">旧字体 Saira/Poppins</b>：Saira 仅存 buttons.css、headings.css 各 1 处；Poppins 仅存 globalpage.css 1 处——随第四节/第五节删除工具类与骨架后<b data-page-node-id="yxUI0umBKOMey70ynKDEL8">自动归零</b>，SF Pro 统一收尾</li>
+  <li data-page-node-id="59MhOahUxy8tKN8hI7NczN"><b data-page-node-id="KGHQkVKdnB1GltdkzJolLB">根目录 12 个临时 HTML</b>：avatar-frame-demo / demo-publish-island-airdrop / demo-publish-progress / demo-user-space-ia / post-ui-demo / boh-poster / beta6-hero-demo / export-preview-demo 等建议移入 docs/ 或删除（export-preview-v2-demo.html 与两份审计报告是活文档，保留）</li>
+</ul>
+
+<h2 data-page-node-id="Gg8erV6y2fXtc37j0Ikfu1">十二、健康的部分<span class="tag t-ok" data-page-node-id="AkkTzXgCdeuX4JN1sSEeST">无残留</span></h2>
+<ul class="clean" data-page-node-id="bO1SR05bCYB7vuwwxxz5Hm">
+  <li data-page-node-id="Yrw1GBuLHtb6F4RKDjqr76">✅ <b data-page-node-id="GJXvx5Q44ykYbZGW0h3ZU6">HeroSection 已删干净</b>：全站无 HeroSection/Beta6Hero/LegacyHero 任何引用（HistoryHeroSection 为另一在用组件）</li>
+  <li data-page-node-id="48yXOlxvnpvCXpnQHsn2xW">✅ <b data-page-node-id="PpkZ0Eo9xN1t1XoqApEADM">!important 棘轮门禁通过</b>：当前 1,396 = 基线 1,396（styles/themes 白名单另计 ~545），未失控</li>
+  <li data-page-node-id="byyx5xbeuJqyelNsBkfSgV">✅ <b data-page-node-id="Ol65U3WW9KDSH8Gk3kLhiu">--liquid-* token 体系健康</b>：27 定义 27 消费，无死 token</li>
+  <li data-page-node-id="H54Q8WKPTe8BdkvtdJ6ftB">✅ <b data-page-node-id="vJb33CyISk6NYVfyC2pM3k">style.css 暗色已迁移完成</b>：文件内 [data-theme="dark"] 规则为 0，与注释"已改为按需加载"一致</li>
+  <li data-page-node-id="BrRpHQyl1qwT8pVrFJr8Oc">✅ <b data-page-node-id="M0zTPtGZvkJ1xUHzRCQE4A">Inter 字体栈</b>（49 文件 200 处）为正常 font-family 后备，非残留</li>
+  <li data-page-node-id="NLTsaMgxBCWDCC7Z7I8lVg">✅ <code data-page-node-id="XnqVW33nzn9hegITxgKrPG">helper function.css</code>（nickname-gold/rainbow 徽章）与 <code data-page-node-id="XP6COaoBEGRKHNG2gEciaz">homepages.css</code> 全部在用</li>
+</ul>
+
+<h2 data-page-node-id="zWLCY7bW6jBFLq6XhlqpC1">十三、建议清理顺序</h2>
+<table data-page-node-id="PYHP08sJssq22HDd8bz1hZ">
+  <tr data-page-node-id="KCQzlSdAgmrZQKTyKraxuk"><th data-page-node-id="Tu6jvMe8fQZx4XkH8P0pNh">#</th><th data-page-node-id="NwCcfB1oaBXSFlSSe5pk8I">动作</th><th data-page-node-id="MjX4EdfUqBVBFEmpYHQUa7">风险</th><th data-page-node-id="prNT3aDpktBQduYilk3k86">验证</th></tr>
+  <tr data-page-node-id="1ojFitALJWDmm82khIDrqa"><td data-page-node-id="3fIuPO6WLSRZHcRbmgWHBs">1</td><td data-page-node-id="835R5Xd3kSYP2wkEWwlEiL">✅ 已完成：删 8 个死文件 + mixins/variabls + icomoon（fonts.css+woff+import）+ 10 文件死工具类（body.page-* 经复核为活规则，已从本项移除）</td><td class="c-g" data-page-node-id="oAApMz5xlsXNpFM5sQ3TZp">低（零引用）</td><td data-page-node-id="1G0HKJgJljewQlTCeUBduX">✅ 已验证：重扫死文件 0；vite build 零错误；probe-nav-dark ALL PASS</td></tr>
+  <tr data-page-node-id="F8RbQzIFQW8235vFWl2fPo"><td data-page-node-id="aEDjdT26C9mpTcUJh8vaI6">2</td><td data-page-node-id="0NHCeQu2tkcg7jVF9B9zF9">tokens.css 正式定义 --liquid-brand；清理 --hero-preview-height 死旋钮</td><td class="c-g" data-page-node-id="d2FCDLpXrya3QyuThIOcdT">低</td><td data-page-node-id="1wblJBpqlT9udHGkocXrax">Newsroom 页视觉对比</td></tr>
+  <tr data-page-node-id="0B5sB6elA76M963N92DL00"><td data-page-node-id="UzStzI18nzZFWtLhZDs7BK">3</td><td data-page-node-id="4cexhGwXBMW6qOEDwVEtvl">glass-ui / animations / section__header 逐类瘦身（main.js 全局层）</td><td class="c-o" data-page-node-id="1vpVEXnfOAWAbAVUQiXiSk">中</td><td data-page-node-id="CrMim0unPMAZjE7os01LOB">probe 全站关键页对比（首页/论坛/UserSpace）</td></tr>
+  <tr data-page-node-id="almVgvbORTAoHNCXdG2XJE"><td data-page-node-id="axG17MM6QvSvarD6n5EWP6">4</td><td data-page-node-id="CKjJVcxdOyBaILfedsFykl">DataManagement 族 scoped 重复引入改全局单份</td><td class="c-o" data-page-node-id="eotxFTHCz3uVGLRGQ0Xqqy">中</td><td data-page-node-id="OgIo94zGe6W8LmulRQit29">DataAdmin 页全功能走查 + 打包体积对比</td></tr>
+  <tr data-page-node-id="9cYrY5jDKOib7at4vJj137"><td data-page-node-id="V9Bdj1mA2b6XXf7oyNxcT8">5</td><td data-page-node-id="HmdAfc0d3FlSzkgt4I6TFT">Tailwind 退场三步走（迁 token → 摘引擎 → 视觉回归）</td><td class="c-r" data-page-node-id="hC8Ani5JcbH5GEvdDOjSCA">较高（preflight）</td><td data-page-node-id="z7e3HmQ99HeELiUWtI2tt8">probe-dark-audit + 首页像素对比</td></tr>
+  <tr data-page-node-id="Zjj0EpjxooMLgeRdhwCbuJ"><td data-page-node-id="MpOIElRbfGy9vEV9jiIOsH">6</td><td data-page-node-id="tdhD4wqx1bDbGKy1GQvoT0">z-index 分层 token 化 + data-boh-theme/prefers-color-scheme 归并</td><td class="c-o" data-page-node-id="tKt9VDwFcaGGQQyKtmHJzM">中</td><td data-page-node-id="YSA6QpkcYpAe7ANFyh4nDv">弹层压测：岛、抽屉、模态互相叠加场景</td></tr>
+</table>
+
+<footer data-page-node-id="53XnMYVq3kmnOFDfvjUgIw">
+  方法论：scripts/style-remnant-audit.mjs 扫描 src 全部 781 个文件（92 个 css / 76,768 行）。引用链覆盖 ESM import、动态 import、@import（含 url() 形态）、&lt;style src&gt;、css→css 传递可达；死类判定 = 全站模板/JS 语料（剔除 vue style 块）零命中，动态拼接类名与 JS 运行时注入变量已人工排除（--ring-*、--boh-visual-height）。原始数据：<code data-page-node-id="x8CxIYJDkESNBRmX3qfLDx">style-remnant-audit.json</code>。复跑：前置 CODEBUDDY_BROKERED_FS_HOOK_ENABLED=0 CODEBUDDY_SAFE_DELETE_SANDBOX=0 后 <code data-page-node-id="pfcYqAzt7O3KhbMSxJZWks">node scripts/style-remnant-audit.mjs</code>（沙箱 FS hook 会静默杀掉大量读文件的 node 进程，切记）。
+</footer>
+
+</div>
+</body>
+</html>

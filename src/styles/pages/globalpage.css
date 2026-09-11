@@ -27,34 +27,15 @@
 * （旧 .transition helper 已废弃 — 避免触发 layout/paint）
 ***************************/
 
-/**************************
-* Box Shadow
-***************************/
-.box-shadownone {
-  -webkit-box-shadow: none;
-  box-shadow: none; }
-
 /************************** 
 * Box Sizing
 ***************************/
-.box-sizing, body {
+body {
   -moz-box-sizing: border-box;
   -ms-box-sizing: border-box;
   -o-box-sizing: border-box;
   -webkit-box-sizing: border-box;
   box-sizing: border-box; }
-
-/************************** 
-* Padding
-***************************/
-.padding {
-  padding: 30px 20px; }
-
-/************************** 
-* Boreder None
-***************************/
-.border-none {
-  border: none; }
 
 /************************** 
 * Media Queries

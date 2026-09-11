@@ -75,6 +75,33 @@
           </div>
         </template>
 
+        <div class="grant-duration-block" role="group" aria-label="赠送时长">
+          <span class="grant-duration-label">赠送时长</span>
+          <div class="grant-duration-chips">
+            <button
+              v-for="opt in durationPresets"
+              :key="opt.value"
+              type="button"
+              :class="{ 'is-active': durationPreset === opt.value }"
+              @click="selectDurationPreset(opt.value)"
+            >{{ opt.label }}</button>
+          </div>
+          <div v-if="durationPreset === 'custom'" class="grant-duration-custom">
+            <input
+              v-model.number="customDurationValue"
+              type="number"
+              min="1"
+              :max="customDurationUnit === 'day' ? 3650 : 120"
+              step="1"
+              aria-label="自定义时长数值"
+            />
+            <div class="grant-scope-switch" role="tablist" aria-label="自定义时长单位">
+              <button type="button" :class="{ 'is-active': customDurationUnit === 'day' }" @click="switchCustomUnit('day')">天</button>
+              <button type="button" :class="{ 'is-active': customDurationUnit === 'month' }" @click="switchCustomUnit('month')">月</button>
+            </div>
+          </div>
+        </div>
+
         <div class="grant-fields">
           <label class="grant-field">
             <span>订阅层级</span>
@@ -85,16 +112,6 @@
           <label class="grant-field">
             <span>层级名称（展示名）</span>
             <input v-model="planName" type="text" maxlength="60" placeholder="例如：Pro" aria-label="层级名称" />
-          </label>
-          <label class="grant-field">
-            <span>订阅周期</span>
-            <select v-model="billingCycle" aria-label="订阅周期">
-              <option v-for="opt in billingOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-            </select>
-          </label>
-          <label class="grant-field">
-            <span>订阅月数</span>
-            <input v-model.number="durationMonths" type="number" :min="1" :max="120" step="1" placeholder="例如 1" aria-label="订阅月数" />
           </label>
           <label class="grant-field">
             <span>积分成本（仅记录，不扣减）</span>
@@ -111,7 +128,7 @@
             <input v-model="startedAt" type="datetime-local" aria-label="订阅时间" @change="onStartedAtChange" />
           </label>
           <label class="grant-field">
-            <span>到期时间</span>
+            <span>到期时间（可覆盖）</span>
             <input v-model="expiresAt" type="datetime-local" aria-label="到期时间" @change="onExpiresAtChange" />
           </label>
         </div>
@@ -133,7 +150,7 @@
         <div class="grant-submit-row">
           <span class="grant-summary">
             将为 <strong>{{ targetText }}</strong> 添加
-            <strong>{{ planName || planCode }}</strong> 订阅（{{ billingCycle === 'yearly' ? '年付' : '月付' }} {{ durationMonths }} 个月）
+            <strong>{{ planName || planCode }}</strong> 订阅（{{ durationText }}）
             <template v-if="expiresAtText">，至 {{ expiresAtText }} 到期</template>
             <template v-if="skipExisting && skipTargetTotal > 0">，跳过 {{ skipTargetTotal }} 位已有{{ skipScope === 'any' ? '任意层级' : '同层级' }}订阅用户</template>
           </span>
@@ -167,6 +184,7 @@
         <div v-for="sub in existingUsers" :key="sub.id" class="grant-existing-row">
           <span class="grant-existing-name">{{ sub.username || '未命名用户' }}</span>
           <span class="grant-existing-plan">{{ sub.plan_name || sub.plan_code }}</span>
+          <span v-if="sub.grantCount > 1" class="grant-existing-count">{{ sub.grantCount }} 条生效记录</span>
           <span class="grant-existing-period">{{ formatDate(sub.started_at) }} ~ {{ formatDate(sub.expires_at) }}</span>
           <span class="grant-batch-tag" :class="sub.status">{{ statusLabel(sub.status) }}</span>
           <div class="grant-row-actions">
@@ -198,7 +216,7 @@
             <div class="grant-batch-meta">
               <span class="grant-batch-time">{{ formatDate(batch.createdAt) }}</span>
               <span class="grant-batch-amount">{{ batch.planName }} × {{ batch.count }} 位用户</span>
-              <span class="grant-batch-sub">{{ batch.billingCycle === 'yearly' ? '年付' : '月付' }} {{ batch.durationMonths }} 个月</span>
+              <span class="grant-batch-sub">{{ batchDurationText(batch) }}</span>
               <span class="grant-batch-tag" :class="batch.status">{{ statusLabel(batch.status) }}</span>
             </div>
             <span class="grant-batch-period">
@@ -233,7 +251,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { Inbox, RefreshCw, Search, Send } from 'lucide-vue-next';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { invalidateByTags } from '@/utils/request-core.js';
@@ -248,7 +266,6 @@ import {
   searchSubscriptionTargetUsers
 } from '@/utils/api/subscription-admin-api.js';
 import {
-  SUBSCRIPTION_BILLING_OPTIONS,
   SUBSCRIPTION_PLAN_NAMES,
   SUBSCRIPTION_PLAN_OPTIONS,
   SUBSCRIPTION_STATUS_OPTIONS
@@ -267,13 +284,66 @@ const selectedUsers = ref([]);
 const allUserCount = ref(0);
 
 const planOptions = SUBSCRIPTION_PLAN_OPTIONS;
-const billingOptions = SUBSCRIPTION_BILLING_OPTIONS;
 const statusOptions = SUBSCRIPTION_STATUS_OPTIONS;
 
 const planCode = ref('pro');
 const planName = ref(SUBSCRIPTION_PLAN_NAMES.pro || 'Pro');
-const billingCycle = ref('monthly');
-const durationMonths = ref(1);
+
+// ─── 赠送时长：快捷芯片 + 自定义（天/月），真相源 = durationPreset/custom 组合 ───
+const durationPresets = [
+  { value: '1w', label: '1 周' },
+  { value: '1m', label: '1 个月' },
+  { value: '3m', label: '3 个月' },
+  { value: '1y', label: '1 年' },
+  { value: 'custom', label: '自定义' }
+];
+const DURATION_PRESET_MAP = {
+  '1w': { days: 7 },
+  '1m': { months: 1 },
+  '3m': { months: 3 },
+  '1y': { months: 12 }
+};
+const durationPreset = ref('1m');
+const customDurationValue = ref(7);
+const customDurationUnit = ref('day'); // 'day' | 'month'
+
+const durationDays = computed(() => {
+  if (durationPreset.value === '1w') return 7;
+  if (durationPreset.value === 'custom' && customDurationUnit.value === 'day') {
+    return Math.max(0, Math.trunc(Number(customDurationValue.value) || 0));
+  }
+  return 0;
+});
+const durationMonths = computed(() => {
+  const preset = DURATION_PRESET_MAP[durationPreset.value];
+  if (preset) return preset.months || 1;
+  if (durationPreset.value === 'custom' && customDurationUnit.value === 'month') {
+    return Math.max(0, Math.trunc(Number(customDurationValue.value) || 0));
+  }
+  return 1;
+});
+// billing_cycle 是库层枚举（monthly/yearly），由时长派生：1 年→yearly，其余→monthly
+const billingCycle = computed(() => (durationDays.value > 0 || durationMonths.value < 12 ? 'monthly' : 'yearly'));
+
+const durationText = computed(() => (
+  durationDays.value > 0
+    ? `赠送 ${durationDays.value} 天`
+    : `${billingCycle.value === 'yearly' ? '年付' : '月付'} ${durationMonths.value} 个月`
+));
+
+const selectDurationPreset = (value) => {
+  durationPreset.value = value;
+  if (value === 'custom') {
+    if (!Number.isFinite(Number(customDurationValue.value)) || Number(customDurationValue.value) <= 0) {
+      customDurationValue.value = 7;
+    }
+  }
+};
+
+const switchCustomUnit = (unit) => {
+  customDurationUnit.value = unit;
+};
+
 const pointsCost = ref(0);
 const status = ref('active');
 const startedAt = ref('');
@@ -345,7 +415,11 @@ const skipTargetTotal = computed(() => skipScope.value === 'any' ? existingAnyTo
 const canSubmit = computed(() => {
   if (!planCode.value || !String(planName.value || '').trim()) return false;
   if (mode.value === 'selected' && selectedUsers.value.length === 0) return false;
-  if (!Number.isInteger(durationMonths.value) || durationMonths.value <= 0 || durationMonths.value > 120) return false;
+  if (durationDays.value > 0) {
+    if (durationDays.value > 3650) return false;
+  } else if (!Number.isInteger(durationMonths.value) || durationMonths.value <= 0 || durationMonths.value > 120) {
+    return false;
+  }
   if (!Number.isFinite(pointsCost.value) || pointsCost.value < 0) return false;
   if (!toISO(startedAt.value)) return false;
   if (!toISO(expiresAt.value)) return false;
@@ -386,16 +460,25 @@ const onPlanCodeChange = () => {
 const computeExpiresAt = () => {
   const startIso = toISO(startedAt.value);
   if (!startIso) return;
-  const months = Number(durationMonths.value);
-  if (!Number.isInteger(months) || months <= 0) return;
   const end = new Date(startIso);
-  end.setUTCMonth(end.getUTCMonth() + months);
+  if (durationDays.value > 0) {
+    end.setUTCDate(end.getUTCDate() + durationDays.value);
+  } else {
+    const months = Number(durationMonths.value);
+    if (!Number.isInteger(months) || months <= 0) return;
+    end.setUTCMonth(end.getUTCMonth() + months);
+  }
   expiresAt.value = toDatetimeLocal(end);
 };
 
 const onStartedAtChange = () => {
   if (!expiresAtTouched) computeExpiresAt();
 };
+
+// 切换时长芯片/自定义值时联动到期时间（管理员手动改过到期时间则以手动为准）
+watch([durationPreset, customDurationValue, customDurationUnit], () => {
+  if (!expiresAtTouched) computeExpiresAt();
+});
 
 const onExpiresAtChange = () => {
   expiresAtTouched = true;
@@ -420,7 +503,10 @@ const loadExistingSubscribers = async () => {
   try {
     const result = await fetchExistingSubscribers(planCode.value, listScope.value === 'any');
     if (myRequestId !== existingRequestId) return;
-    existingUsers.value = Array.isArray(result.rows) ? result.rows : [];
+    existingUsers.value = (Array.isArray(result.rows) ? result.rows : []).map((row) => ({
+      ...row,
+      grantCount: Number(row.grant_count || 1)
+    }));
     existingTotal.value = Number(result.total || 0);
     existingSameTotal.value = Number(result.sameTotal || 0);
     existingAnyTotal.value = Number(result.anyTotal || 0);
@@ -454,17 +540,21 @@ const onSubscriptionEdited = () => {
 };
 
 const cancelOne = async (sub) => {
+  const countNote = sub.grantCount > 1
+    ? `该用户此层级共有 ${sub.grantCount} 条生效记录（多次续期台账），将一并撤销。`
+    : '';
   const accepted = await confirm({
     title: '撤销订阅',
-    message: `确定撤销「${sub.username || '未命名用户'}」的「${sub.plan_name || sub.plan_code}」订阅吗？撤销后该订阅立即失效（标记为已取消），记录保留可追溯。`,
+    message: `确定撤销「${sub.username || '未命名用户'}」的「${sub.plan_name || sub.plan_code}」订阅吗？${countNote}撤销后立即失效（标记为已取消），记录保留可追溯。`,
     confirmText: '确认撤销',
     tone: 'danger'
   });
   if (!accepted) return;
   try {
-    await cancelSubscription({ subscriptionId: sub.id });
+    const result = await cancelSubscription({ subscriptionId: sub.id, cancelAllSamePlan: true });
     if (sub.user_id) invalidateSubscriptionCache(sub.user_id);
-    notify('订阅已撤销');
+    const affected = Number(result?.affected || 0);
+    notify(affected > 1 ? `已撤销该用户 ${affected} 条生效订阅` : '订阅已撤销');
     void loadExistingSubscribers();
   } catch (error) {
     logger.error('SubscriptionGrantConsole', '撤销订阅失败:', error);
@@ -513,9 +603,13 @@ const submitGrant = async () => {
   const skipNote = skipExisting.value && skipTargetTotal.value > 0
     ? `，跳过 ${skipTargetTotal.value} 位已有${skipScope.value === 'any' ? '任意层级' : `「${planName.value || planCode.value}」`}生效订阅的用户`
     : '';
+  // 顺延提示：未手动覆盖到期时间且未勾选跳过时，已有同层级生效订阅的用户将自动接续
+  const extendNote = !expiresAtTouched && !skipExisting.value
+    ? '；已有同层级生效订阅的用户将自其现有到期时间顺延接续，不重叠浪费'
+    : '';
   const accepted = await confirm({
     title: '确认发放订阅',
-    message: `将向 ${targetCount} 添加「${planName.value || planCode.value}」订阅（${billingCycle.value === 'yearly' ? '年付' : '月付'} ${durationMonths.value} 个月），到期时间 ${expiresAtText.value}${skipNote}。该操作立即生效，不扣减用户积分。`,
+    message: `将向 ${targetCount} 添加「${planName.value || planCode.value}」订阅（${durationText.value}），到期时间 ${expiresAtText.value}${skipNote}${extendNote}。该操作立即生效，不扣减用户积分，用户将收到站内订阅通知。`,
     confirmText: '确认发放'
   });
   if (!accepted) return;
@@ -528,18 +622,24 @@ const submitGrant = async () => {
       planName: planName.value,
       billingCycle: billingCycle.value,
       pointsCost: pointsCost.value,
-      durationMonths: durationMonths.value,
+      durationMonths: durationDays.value > 0 ? 1 : durationMonths.value,
+      durationDays: durationDays.value,
       startedAt: toISO(startedAt.value),
-      expiresAt: toISO(expiresAt.value),
+      // 仅在管理员手动改过到期时间时传显式值（绝对时间语义，不触发服务端顺延）；
+      // 未改过则交给服务端按时长驱动计算，续发自动顺延
+      expiresAt: expiresAtTouched ? toISO(expiresAt.value) : null,
       status: status.value,
       skipExisting: skipExisting.value,
       skipAnyTier: skipScope.value === 'any'
     });
     const affected = result?.affected ?? 0;
     const skipped = Number(result?.skipped || 0);
+    const extended = Number(result?.extended || 0);
+    const notified = Number(result?.notified || 0);
+    const extendedNote = extended > 0 ? `，其中 ${extended} 人自现有到期日顺延接续` : '';
     const summary = skipped > 0
-      ? `已向 ${affected} 位用户发放「${result?.plan_name || planName.value}」订阅，跳过 ${skipped} 位已有订阅用户`
-      : `已向 ${affected} 位用户发放「${result?.plan_name || planName.value}」订阅`;
+      ? `已向 ${affected} 位用户发放「${result?.plan_name || planName.value}」订阅${extendedNote}，跳过 ${skipped} 位已有订阅用户${notified > 0 ? `，已发送 ${notified} 条订阅通知` : ''}`
+      : `已向 ${affected} 位用户发放「${result?.plan_name || planName.value}」订阅${extendedNote}${notified > 0 ? `，已发送 ${notified} 条订阅通知` : ''}`;
     notify(summary);
     invalidateByTags(['subscriptions']);
     selectedUsers.value = [];
@@ -566,6 +666,12 @@ const statusLabel = (s) => {
   return found ? found.label.replace(/（.*）/, '') : (s || '--');
 };
 
+const batchDurationText = (batch) => (
+  batch.durationDays > 0
+    ? `赠送 ${batch.durationDays} 天`
+    : `${batch.billingCycle === 'yearly' ? '年付' : '月付'} ${batch.durationMonths} 个月`
+);
+
 const loadRecent = async (page = recentPage.value) => {
   const myRequestId = ++recentRequestId;
   recentLoading.value = true;
@@ -587,6 +693,7 @@ const loadRecent = async (page = recentPage.value) => {
       planName: batch.plan_name,
       billingCycle: batch.billing_cycle,
       durationMonths: batch.duration_months,
+      durationDays: Number(batch.duration_days || 0),
       startedAt: batch.started_at,
       expiresAt: batch.expires_at,
       status: batch.status,
@@ -833,6 +940,67 @@ onMounted(() => {
 }
 .grant-chip button:hover { color: var(--foreground); }
 
+/* 赠送时长芯片组 */
+.grant-duration-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 13px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 14%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--muted) 40%, transparent);
+}
+.grant-duration-label {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 650;
+  flex-shrink: 0;
+}
+.grant-duration-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--muted);
+}
+.grant-duration-chips button {
+  border: none;
+  background: transparent;
+  padding: 8px 15px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.grant-duration-chips button:hover { color: var(--foreground); }
+.grant-duration-chips button.is-active {
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+.grant-duration-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.grant-duration-custom input {
+  width: 92px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--foreground);
+  outline: none;
+  box-sizing: border-box;
+  font-size: 13px;
+}
+.grant-duration-custom input:focus { border-color: var(--foreground); }
+
 .grant-fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 @media (max-width: 1080px) { .grant-fields { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 720px) { .grant-fields { grid-template-columns: 1fr; } }
@@ -899,6 +1067,15 @@ onMounted(() => {
 }
 .grant-existing-name { font-size: 13px; font-weight: 700; color: var(--foreground); min-width: 90px; }
 .grant-existing-plan { font-size: 12px; color: var(--muted-foreground); }
+.grant-existing-count {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
 .grant-existing-period { font-size: 12px; color: var(--muted-foreground); margin-left: auto; }
 .grant-edit-btn {
   border: 1px solid var(--border);

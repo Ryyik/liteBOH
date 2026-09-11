@@ -66,7 +66,7 @@
 .reply-avatar {
   width: 36px;
   height: 36px;
-  border-radius: 12px;
+  border-radius: 50%;
   background: #1d1d1f;
   color: #fff;
   display: flex;
@@ -925,11 +925,6 @@
     padding: 60px 0 40px 0;
   }
 
-  .floating-actions-container {
-    top: 20px;
-    right: 0;
-  }
-
   .mobile-compose-fab {
     right: 18px;
     bottom: calc(18px + env(safe-area-inset-bottom));
@@ -1326,7 +1321,7 @@
   .user-avatar {
     width: 50px;
     height: 50px;
-    border-radius: 16px;
+    border-radius: 50%;
     font-size: 20px;
   }
 
@@ -1424,51 +1419,39 @@
     -webkit-line-clamp: 2;
   }
 
-  .image-post-thumb-grid {
-    width: 100%;
-    max-width: 100%;
+  /* 横向图片条（strip）窄屏适配：左缝 14px、右缘贴边（抵消 16px 卡片内边距），
+     单张约 48% 宽露出下一张一半，明确可横滑 */
+  .image-post-strip-wrap {
+    /* 左缝 14px：-(16-14)=-2；右缘贴边：-16 */
+    margin: 12px -16px 14px -2px;
+  }
+
+  .image-post-strip {
     gap: 8px;
-    margin: 12px 0 14px;
   }
 
-  .image-post-thumb-grid.count-1 {
-    max-width: 100%;
-  }
-
-  .image-post-thumb-grid.count-2 {
-    max-width: 100%;
-    aspect-ratio: 4 / 3;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .image-post-thumb-grid.count-3 {
-    max-width: 100%;
-    aspect-ratio: 4 / 3;
-    grid-template-columns: 1.15fr 1fr;
-    grid-template-rows: repeat(2, minmax(0, 1fr));
-  }
-
-  .image-post-thumb-grid.count-4 {
-    max-width: 100%;
-    aspect-ratio: 1 / 1;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: repeat(2, minmax(0, 1fr));
-  }
-
-  .image-post-thumb-shell {
+  .image-post-strip .image-post-thumb-shell {
+    width: min(48%, 200px);
     border-radius: 10px;
   }
 
-  .image-post-thumb-grid.is-multi-image::before,
-  .image-post-thumb-grid.is-multi-image::after {
+  .image-post-strip-more {
+    width: min(36%, 130px);
     border-radius: 10px;
   }
 
-  .image-post-count-badge {
-    right: 18px;
-    bottom: 18px;
-    min-height: 30px;
-    min-width: 64px;
+  .image-strip-indicator {
+    top: 8px;
+    right: 8px;
+  }
+
+  .image-strip-dots {
+    gap: 5px;
+    margin-bottom: 7px;
+  }
+
+  .image-strip-dot {
+    width: 13px;
   }
 
   .image-post-card-v2 .search-highlight-snippet {
@@ -1497,7 +1480,7 @@
   .post-author-avatar {
     width: 40px;
     height: 40px;
-    border-radius: 12px;
+    border-radius: 50%;
   }
 
   .post-actions-v2 {
@@ -1577,6 +1560,24 @@
 
   .forum-page.embedded-mode .forum-container {
     padding-bottom: var(--forum-embedded-bottom-nav-space);
+  }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  /* 手机横屏矮窗：图片改 3:2 收扁、宽度上限收紧，避免单张吃掉过半屏高；
+     视口宽（≥769 时走桌面基础样式），负 margin 用桌面档的卡片 padding 折算 */
+  .image-post-strip-wrap {
+    margin: 14px -24px 16px -10px;
+  }
+
+  .image-post-strip .image-post-thumb-shell {
+    width: clamp(180px, 36%, 280px);
+    aspect-ratio: 3 / 2;
+  }
+
+  .image-post-strip-more {
+    width: min(26%, 110px);
+    aspect-ratio: 3 / 2;
   }
 }
 
@@ -1783,7 +1784,8 @@
     padding: 16px;
   }
 
-  .image-post-thumb-grid.count-1 .image-post-thumb-shell {
+  /* 超窄竖屏：单图帖仍用 4/3，避免 16/9 过扁 */
+  .image-post-strip.is-single .image-post-thumb-shell {
     aspect-ratio: 4 / 3;
   }
 

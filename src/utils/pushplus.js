@@ -174,6 +174,17 @@ export async function sendNotificationPush(token, type, data = {}) {
         <div style="font-size: 12px; color: #86868b; margin-top: 12px;">${new Date().toLocaleString('zh-CN')}</div>
       </div>`
     },
+    repost: {
+      title: `🔁 ${safeSenderName}转发了你的帖子`,
+      content: `<div style="padding: 16px; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+          <span style="font-size: 24px;">🔁</span>
+          <span style="font-size: 16px; font-weight: 600; color: #1d1d1f;">${safeSenderName}转发了你的帖子</span>
+        </div>
+        ${safePostContent ? `<div style="background: #f5f5f7; padding: 12px; border-radius: 8px; margin: 12px 0; color: #333; font-size: 14px; line-height: 1.5;">${safePostContent}${isPostTruncated ? '...' : ''}</div>` : ''}
+        <div style="font-size: 12px; color: #86868b; margin-top: 12px;">${new Date().toLocaleString('zh-CN')}</div>
+      </div>`
+    },
     impression: {
       title: `✨ ${safeSenderName}给你留下了印象`,
       content: `<div style="padding: 16px; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">

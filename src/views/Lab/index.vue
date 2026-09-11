@@ -3456,7 +3456,7 @@ html[data-theme="dark"] .brand-mark { background: #0071e3; color: #ffffff; }
 .message-avatar {
   width: 24px;
   height: 24px;
-  border-radius: var(--radius-sm);
+  border-radius: 50%;
   background: var(--muted);
   color: var(--foreground);
   display: inline-flex;

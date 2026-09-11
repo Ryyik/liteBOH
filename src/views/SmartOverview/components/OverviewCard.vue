@@ -29,13 +29,27 @@
         </span>
         <span v-else class="card-author-avatar card-author-letter" aria-hidden="true">{{ authorLetter }}</span>
         <span class="card-author">{{ item.author }}</span>
+        <span v-if="item.isRepost" class="card-repost">转发</span>
         <ChevronRight class="card-chevron" :size="16" :stroke-width="2" aria-hidden="true" />
       </div>
     </div>
 
-    <div v-if="hasThumb" class="card-thumb">
+    <div v-if="hasThumb" class="card-thumb" :class="{ 'is-multi': shownImages.length >= 2 }">
+      <template v-if="shownImages.length >= 2">
+        <span v-for="url in shownImages" :key="url" class="card-thumb-cell">
+          <img
+            :src="getOverviewCardImage(url)"
+            alt=""
+            loading="lazy"
+            decoding="async"
+            fetchpriority="low"
+            @error="onMultiImageError(url)"
+          />
+          <i v-if="url === shownImages[shownImages.length - 1] && hiddenImageCount > 0" class="card-thumb-more">+{{ hiddenImageCount }}</i>
+        </span>
+      </template>
       <img
-        v-if="!thumbFailed"
+        v-else-if="!thumbFailed"
         :src="cardImage"
         alt=""
         loading="lazy"
@@ -64,9 +78,28 @@ defineEmits(['open']);
 
 const thumbFailed = ref(false);
 const avatarFailed = ref(false);
+// 多图单张加载失败：剔除该 url 后自动重排（与单图 thumbFailed 同思路）
+const failedMultiUrls = ref(new Set());
 
 const typeIcon = computed(() => (props.item.type === 'news' ? Newspaper : MessageSquare));
 const typeLabel = computed(() => (props.item.type === 'news' ? '新闻' : '帖子'));
+
+// 多图并排横排：最多显示前 2 张，第 2 张叠「+N」角标（N 优先取 image_count，缺失回退 images 数）
+const multiImages = computed(() =>
+  (props.item.images || []).filter((u) => Boolean(u) && !failedMultiUrls.value.has(u))
+);
+const shownImages = computed(() => multiImages.value.slice(0, 2));
+const hiddenImageCount = computed(() => {
+  if (multiImages.value.length < 2) return 0;
+  const total = props.item.imageCount > 0 ? props.item.imageCount : multiImages.value.length;
+  return Math.max(0, total - 2);
+});
+
+const onMultiImageError = (url) => {
+  const next = new Set(failedMultiUrls.value);
+  next.add(url);
+  failedMultiUrls.value = next;
+};
 
 const categoryLabel = computed(() => {
   const { type, category } = props.item;
@@ -83,7 +116,7 @@ const formattedTime = computed(() => formatSmartTime(props.item.publishedAt));
 
 const authorLetter = computed(() => (props.item.author || 'B').charAt(0).toUpperCase());
 
-const hasThumb = computed(() => Boolean(props.item.image) && !thumbFailed.value);
+const hasThumb = computed(() => Boolean(props.item.image) || multiImages.value.length > 0);
 const cardImage = computed(() => getOverviewCardImage(props.item.image));
 const hasAvatar = computed(() => Boolean(props.item.authorAvatar) && !avatarFailed.value);
 // 与论坛 PostCard 同源：Cloudinary 头像走人脸聚焦方形裁剪，其余原样返回
