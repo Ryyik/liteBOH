@@ -3,7 +3,7 @@
     <DashboardHero
       eyebrow="Lab AI Models"
       title="实验室模型配置"
-      description="管理实验室文档、PPT 和论坛周报使用的 AI 模型，模型从免费模型库中选择。"
+      description="管理实验室文档、PPT、代码生成和论坛周报使用的 AI 模型，统一从 BOH AI 现有模型模式中选择，运行时由服务端按模式配置自动路由。"
     >
       <template #actions>
         <button type="button" class="g-btn g-btn-ghost" @click="loadAll" :disabled="isLoading">
@@ -20,9 +20,9 @@
       {{ successMessage }}
     </DashboardNotice>
 
-    <!-- 免费模型库为空时的提示 -->
-    <DashboardNotice v-if="!isLoadingFreemodels && freemodels.length === 0" tone="warn">
-      免费模型库为空，请先在「免费模型库」中添加模型。
+    <!-- BOH AI 模型库为空时的提示 -->
+    <DashboardNotice v-if="!isLoadingModels && bohaiModels.length === 0" tone="warn">
+      BOH AI 模型库为空，请先在「BOH AI 模型」中添加并启用模型模式。
     </DashboardNotice>
 
     <div v-if="isLoading && configs.length === 0" class="g-empty">
@@ -56,17 +56,17 @@
 
         <form class="g-lab-ai-form" @submit.prevent="handleSave(config)">
           <div class="g-field">
-            <label>模型（从免费模型库选择）</label>
-            <select v-model="config.model_id" class="g-select is-mono" :disabled="isLoadingFreemodels" required>
-              <option value="" disabled>{{ isLoadingFreemodels ? '加载中...' : '请选择模型' }}</option>
-              <option v-for="m in freemodels" :key="m.model_id" :value="m.model_id">
-                {{ m.name }} ({{ m.provider_label || m.provider }}) — {{ m.model_id }}
+            <label>模型（从 BOH AI 现有模型选择）</label>
+            <select v-model="config.model_id" class="g-select is-mono" :disabled="isLoadingModels" required>
+              <option value="" disabled>{{ isLoadingModels ? '加载中...' : '请选择模型模式' }}</option>
+              <option v-for="m in bohaiModels" :key="m.mode_id" :value="m.mode_id">
+                {{ m.display_name }} ({{ m.provider_label || m.provider }}){{ m.min_tier && m.min_tier !== 'free' ? ` · 需${m.min_tier}` : '' }} — {{ m.mode_id }}
               </option>
             </select>
           </div>
 
           <div class="g-field">
-            <label>API Key（从密钥库选择）</label>
+            <label>API Key 用途（仅论坛周报等服务端直连使用）</label>
             <select v-model="config.api_key_purpose" class="g-select" :disabled="isLoadingApiKeys" required>
               <option value="" disabled>{{ isLoadingApiKeys ? '加载中...' : '请选择 API Key' }}</option>
               <option v-for="k in getFilteredApiKeys(config.model_id)" :key="k.purpose" :value="k.purpose">
@@ -74,7 +74,7 @@
               </option>
             </select>
             <span v-if="config.model_id && getFilteredApiKeys(config.model_id).length === 0" class="g-field-hint" style="color: var(--chart-6);">
-              该模型平台暂无可用的 API Key，请先在「API Key」中添加
+              该模型平台暂无可用的 API Key；Lab 运行时由服务端自动匹配平台密钥，此项仅影响论坛周报。
             </span>
           </div>
 
@@ -121,10 +121,10 @@ import DashboardNotice from './shared/DashboardNotice.vue';
 const { confirm } = useConfirmDialog();
 
 const configs = ref([]);
-const freemodels = ref([]);
+const bohaiModels = ref([]);
 const apiKeys = ref([]);
 const isLoading = ref(false);
-const isLoadingFreemodels = ref(false);
+const isLoadingModels = ref(false);
 const isLoadingApiKeys = ref(false);
 const savingId = ref('');
 const generatingId = ref('');
@@ -154,20 +154,20 @@ const FEATURE_ICONS = {
 
 const getFeatureIcon = (key) => FEATURE_ICONS[key] || FileText;
 
-async function loadFreemodels() {
-  isLoadingFreemodels.value = true;
+async function loadBohaiModels() {
+  isLoadingModels.value = true;
   try {
     const { data, error: fetchError } = await supabase
-      .from('freemodels')
-      .select('model_id, name, family_label, provider, provider_label')
-      .eq('is_active', true)
+      .from('bohai_model_configs')
+      .select('mode_id, display_name, provider, provider_label, min_tier')
+      .eq('status', 'active')
       .order('sort_order', { ascending: true });
     if (fetchError) throw fetchError;
-    freemodels.value = data || [];
+    bohaiModels.value = data || [];
   } catch (e) {
-    errorMessage.value = `加载免费模型列表失败: ${e.message}`;
+    errorMessage.value = `加载 BOH AI 模型列表失败: ${e.message}`;
   } finally {
-    isLoadingFreemodels.value = false;
+    isLoadingModels.value = false;
   }
 }
 
@@ -184,8 +184,8 @@ async function loadApiKeys() {
   }
 }
 
-function getFilteredApiKeys(modelId) {
-  const model = freemodels.value.find(m => m.model_id === modelId);
+function getFilteredApiKeys(modeId) {
+  const model = bohaiModels.value.find(m => m.mode_id === modeId);
   const provider = model?.provider || 'siliconflow';
   return apiKeys.value.filter(k => k.provider === provider);
 }
@@ -208,7 +208,7 @@ async function loadConfigs() {
 }
 
 async function loadAll() {
-  await Promise.all([loadFreemodels(), loadApiKeys(), loadConfigs()]);
+  await Promise.all([loadBohaiModels(), loadApiKeys(), loadConfigs()]);
 }
 
 async function handleSave(config) {

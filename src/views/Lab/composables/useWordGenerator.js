@@ -6,7 +6,7 @@ import {
   WORD_OUTLINE_PROMPT, WORD_DETAIL_PROMPT, WORD_SCHEMA, extractJSON, FRONTEND_MAX_OUTPUT_TOKENS,
 } from '../config/ai-schemas.js'
 
-const API_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions'
+// model_id 存 bohai_model_configs.mode_id，调用时以 mode 传给 vault，由服务端按模式配置路由 provider/model/参数
 
 async function loadWordModelConfig() {
   try {
@@ -72,9 +72,8 @@ ${context ? `额外要求：${context}` : ''}
       if (onProgress) onProgress('outline', 30, 'BOH Agent正在为你生成Word大纲')
 
       const result = await callVaultSiliconChatStreamCollect({
-        provider: 'siliconflow',
+        mode: modelConfig.model,
         purpose: modelConfig.apiKeyPurpose,
-        apiUrl: API_URL,
         timeoutMs: 120000,
         signal,
         payload: {
@@ -145,9 +144,8 @@ ${JSON.stringify(WORD_SCHEMA, null, 2)}
       if (onProgress) onProgress('detail', 40, 'BOH Agent正在生成文档内容')
 
       const result = await callVaultSiliconChatStreamCollect({
-        provider: 'siliconflow',
+        mode: modelConfig.model,
         purpose: modelConfig.apiKeyPurpose,
-        apiUrl: API_URL,
         timeoutMs: 180000,
         signal,
         payload: {

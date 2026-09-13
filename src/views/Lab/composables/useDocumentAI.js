@@ -3,8 +3,8 @@ import { callVaultSiliconChatStreamCollect } from '@/utils/api/api-key-runtime-a
 import { supabase } from '@/utils/supabase-client.js'
 import { FRONTEND_MAX_OUTPUT_TOKENS } from '../config/ai-schemas.js'
 
-const API_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions'
-const FALLBACK_MODEL = 'Qwen/Qwen3-8B'
+// model_id 存 bohai_model_configs.mode_id，调用时以 mode 传给 vault，由服务端按模式配置路由 provider/model/参数
+const FALLBACK_MODEL = 'fast'
 
 // 从 lab_ai_model_configs 表读取文档排版的模型配置
 async function loadDocModelConfig() {
@@ -123,10 +123,9 @@ export function useDocumentAI() {
       ]
 
       const vaultResult = await callVaultSiliconChatStreamCollect({
-        provider: 'siliconflow',
+        mode: modelConfig.model,
         purpose: modelConfig.apiKeyPurpose,
         payload: { model: modelConfig.model, messages, stream: true, temperature: modelConfig.temperature, max_tokens: Math.min(modelConfig.max_tokens, FRONTEND_MAX_OUTPUT_TOKENS) },
-        apiUrl: API_URL,
         timeoutMs: 120000,
         signal,
       })

@@ -58,6 +58,10 @@ export async function buildPPT(data, presetId = 'boh', fileName = 'AI生成.pptx
       console.warn(`[PPT] 版式 ${slideData.type} 渲染失败，降级为内容页:`, e.message)
       await renderContent(slide, slideData, renderCtx, i, slides.length)
     }
+    // 演讲者备注
+    if (slideData.speakerNotes) {
+      slide.addNotes(String(slideData.speakerNotes))
+    }
     // 页脚页码（封面/结束页除外）
     if (slideData.type !== 'cover' && slideData.type !== 'end') {
       renderPageNumber(slide, renderCtx, i, slides.length)
@@ -102,6 +106,55 @@ function divider(slide, pptx, { x, y, w, color, width = 2, trans = 0 }) {
     x, y, w, h: 0,
     line: { color, width, transparency: trans },
   })
+}
+
+// 几何点缀装饰：圆点组（用于封面/章节页，提升设计感）
+function decoDots(slide, pptx, { cx, cy, accent, secondary, scale = 1 }) {
+  const s = (v) => v * scale
+  slide.addShape(pptx.ShapeType.ellipse, {
+    x: cx, y: cy, w: s(0.55), h: s(0.55),
+    fill: { color: accent, transparency: 20 },
+    line: { color: accent, width: 0 },
+  })
+  slide.addShape(pptx.ShapeType.ellipse, {
+    x: cx + s(0.5), y: cy + s(0.28), w: s(0.3), h: s(0.3),
+    fill: { color: secondary, transparency: 45 },
+    line: { color: secondary, width: 0 },
+  })
+  slide.addShape(pptx.ShapeType.ellipse, {
+    x: cx + s(0.28), y: cy + s(0.62), w: s(0.16), h: s(0.16),
+    fill: { color: secondary, transparency: 10 },
+    line: { color: secondary, width: 0 },
+  })
+}
+
+// 几何抽象插画：图文页无图时的兜底视觉（圆 + 斜块 + 点阵，按主题色组合）
+function decoAbstractArt(slide, pptx, { x, y, w, h, primary, secondary, accent }) {
+  // 底色框
+  decoRect(slide, pptx, {
+    x, y, w, h, fill: primary, line: primary, radius: 0.08, fillTrans: 88, lineTrans: 30,
+  })
+  // 大圆（右上）
+  slide.addShape(pptx.ShapeType.ellipse, {
+    x: x + w * 0.52, y: y + h * 0.08, w: w * 0.4, h: w * 0.4 * (h / w) * 1.4,
+    fill: { color: secondary, transparency: 65 },
+    line: { color: secondary, width: 0 },
+  })
+  // 斜切平行四边形（左下）
+  slide.addShape(pptx.ShapeType.parallelogram, {
+    x: x + w * 0.06, y: y + h * 0.52, w: w * 0.55, h: h * 0.34,
+    fill: { color: primary, transparency: 55 },
+    line: { color: primary, width: 0 },
+  })
+  // 撞色小圆
+  slide.addShape(pptx.ShapeType.ellipse, {
+    x: x + w * 0.68, y: y + h * 0.6, w: w * 0.16, h: w * 0.16 * (h / w) * 1.4,
+    fill: { color: accent, transparency: 25 },
+    line: { color: accent, width: 0 },
+  })
+  // 细线点缀
+  divider(slide, pptx, { x: x + w * 0.1, y: y + h * 0.28, w: w * 0.3, color: accent, width: 2.5, trans: 30 })
+  divider(slide, pptx, { x: x + w * 0.1, y: y + h * 0.36, w: w * 0.2, color: primary, width: 1.5, trans: 55 })
 }
 
 // 页脚页码
@@ -169,6 +222,18 @@ function renderCover(slide, data, ctx) {
   decoRect(slide, pptx, {
     x: 0, y: grid.canvas.height - 0.4, w: grid.canvas.width, h: 0.4,
     fill: primary, line: primary, radius: 0, fillTrans: 80, lineTrans: 0,
+  })
+
+  // 右上角几何点缀
+  decoDots(slide, pptx, {
+    cx: grid.canvas.width - 1.6, cy: 0.5,
+    accent: color(preset, 'accent'), secondary: color(preset, 'secondary'),
+  })
+  // 左下角镜像点缀（缩小）
+  decoDots(slide, pptx, {
+    cx: 0.45, cy: grid.canvas.height - 1.7,
+    accent: color(preset, 'accent'), secondary: color(preset, 'secondary'),
+    scale: 0.7,
   })
 }
 
@@ -262,6 +327,12 @@ function renderSection(slide, data, ctx) {
       fontFace: font(preset, 'body').ppt,
     })
   }
+
+  // 右下角几何点缀
+  decoDots(slide, pptx, {
+    cx: grid.canvas.width - 1.6, cy: grid.canvas.height - 1.5,
+    accent: color(preset, 'accent'), secondary: color(preset, 'secondary'),
+  })
 }
 
 // ===== 版式 4：内容页（标题 + 段落文本） =====
@@ -451,21 +522,15 @@ async function renderImageText(slide, data, ctx) {
   const bodyY = grid.margin.y + 1.6
   const bodyH = grid.contentH - 1.6
 
-  // 图片：优先用 AI 生成的图，否则用占位图框
+  // 图片：优先用 AI 生成的图，否则用几何抽象插画兜底（比空白占位更具设计感）
   const imgKey = data.imageKey || data.image
   const imgData = imgKey ? images.get(imgKey) : null
   if (imgData) {
     slide.addImage({ data: imgData, x: imgPos.x, y: bodyY, w: imgPos.w, h: bodyH, sizing: { type: 'cover', w: imgPos.w, h: bodyH } })
   } else {
-    // 占位图框
-    decoRect(slide, pptx, {
+    decoAbstractArt(slide, pptx, {
       x: imgPos.x, y: bodyY, w: imgPos.w, h: bodyH,
-      fill: primary, line: primary, radius: 0.08, fillTrans: 88, lineTrans: 30,
-    })
-    slide.addText('[ 图片 ]', {
-      x: imgPos.x, y: bodyY, w: imgPos.w, h: bodyH,
-      fontSize: 14, color: mutedC, align: 'center', valign: 'middle',
-      fontFace: font(preset, 'body').ppt,
+      primary, secondary: color(preset, 'secondary'), accent: color(preset, 'accent'),
     })
   }
 
@@ -533,6 +598,18 @@ function renderChart(slide, data, ctx) {
       labels: categories,
       values,
     }], { ...chartOpt, lineSize: 3, lineSmooth: true, lineDataSymbolSize: 8 })
+  } else if (chartType === 'area') {
+    slide.addChart(pptx.ChartType.area, [{
+      name: data.series || data.title || '趋势',
+      labels: categories,
+      values,
+    }], { ...chartOpt, chartColorsOpacity: 35 })
+  } else if (chartType === 'radar') {
+    slide.addChart(pptx.ChartType.radar, [{
+      name: data.series || data.title || '维度对比',
+      labels: categories,
+      values,
+    }], { ...chartOpt, radarStyle: 'standard', showValue: false })
   } else {
     // bar / column 默认柱状图
     slide.addChart(pptx.ChartType.bar, [{

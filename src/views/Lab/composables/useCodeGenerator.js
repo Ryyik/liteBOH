@@ -5,7 +5,7 @@ import { buildCodeZip, downloadZipBlob } from '../engine/html-renderer.js'
 import { CODE_OUTLINE_PROMPT, CODE_DETAIL_PROMPT } from '../config/code-prompts.js'
 import { extractJSON, buildThinkingInstruction, FRONTEND_MAX_OUTPUT_TOKENS } from '../config/ai-schemas.js'
 
-const API_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions'
+// model_id 存 bohai_model_configs.mode_id，调用时以 mode 传给 vault，由服务端按模式配置路由 provider/model/参数
 
 async function loadCodeModelConfig() {
   try {
@@ -71,9 +71,8 @@ ${context ? `额外要求：${context}` : ''}
       if (onProgress) onProgress('outline', 30, 'BOH Agent正在规划网页架构')
 
       const result = await callVaultSiliconChatStreamCollect({
-        provider: 'siliconflow',
+        mode: modelConfig.model,
         purpose: modelConfig.apiKeyPurpose,
-        apiUrl: API_URL,
         timeoutMs: 120000,
         signal,
         payload: {
@@ -138,9 +137,8 @@ ${JSON.stringify(useOutline, null, 2)}
 
       // 流式读取，通过 onChunk 实时推送到消息内容
       const response = await callVaultSiliconChatStream({
-        provider: 'siliconflow',
+        mode: modelConfig.model,
         purpose: modelConfig.apiKeyPurpose,
-        apiUrl: API_URL,
         timeoutMs: 240000,
         signal,
         payload: {

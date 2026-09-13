@@ -123,14 +123,15 @@ Deno.serve(async (request) => {
     if (configError) throw configError;
     if (!config?.is_active) throw new Error('论坛周报 AI 配置未启用。');
 
+    // model_id 存 bohai_model_configs.mode_id（BOH AI 现有模型模式），服务端按模式解析实际模型与平台
     const { data: model, error: modelError } = await client
-      .from('freemodels')
-      .select('model_id, provider, provider_label')
-      .eq('model_id', config.model_id)
-      .eq('is_active', true)
+      .from('bohai_model_configs')
+      .select('mode_id, provider, model_id, api_url')
+      .ilike('mode_id', safeText(config.model_id, 80))
+      .eq('status', 'active')
       .maybeSingle();
     if (modelError) throw modelError;
-    if (!model) throw new Error('周报配置的模型不在启用的免费模型库中。');
+    if (!model) throw new Error('周报配置的模型模式在 BOH AI 模型库中不存在或未启用。');
 
     const purpose = safeText(config.api_key_purpose || 'chat', 60).toLowerCase();
     const { data: keyRow, error: keyError } = await client
@@ -142,7 +143,7 @@ Deno.serve(async (request) => {
     if (keyError) throw keyError;
     if (!keyRow?.encrypted_value || keyRow.status !== 'active') throw new Error(`未找到启用的 ${model.provider}/${purpose} API Key。`);
     const apiKey = await decryptSecret(keyRow.encrypted_value);
-    const apiUrl = safeText(keyRow.metadata?.apiUrl, 240);
+    const apiUrl = safeText(model.api_url, 240) || safeText(keyRow.metadata?.apiUrl, 240);
 
     const { data: posts, error: postsError } = await client
       .from('posts')
@@ -178,7 +179,7 @@ Deno.serve(async (request) => {
     const prompt = `你是 BOH 社区编辑。请基于 ${weekStart} 至 ${weekEnd} 的论坛帖子，生成一份详细但易读的中文周报。必须只返回 JSON，不要 Markdown 代码围栏。\nJSON 结构：{\n  "summary": "120-220字总览",\n  "metrics": {"post_count": 0, "active_authors": 0, "comment_count": 0, "like_count": 0},\n  "topics": [{"name":"主题名","summary":"80-150字总结","post_count":0,"post_ids":[]}],\n  "featured_posts": [{"post_id":"原始id","title":"帖子标题","summary":"80-180字详细摘要","reason":"入选理由"}],\n  "open_questions": ["值得继续讨论的问题"]\n}\n要求：topics 最多 5 个，featured_posts 最多 6 个；帖子摘要要说明背景、关键观点和讨论价值，不要虚构原文没有的信息；优先覆盖不同主题。\n帖子数据：${JSON.stringify(postRows)}`;
 
     const content = await callProvider(String(model.provider), apiKey, apiUrl, {
-      model: config.model_id,
+      model: model.model_id,
       messages: [
         { role: 'system', content: '你是严谨的中文社区周报编辑。' },
         { role: 'user', content: prompt },

@@ -249,11 +249,13 @@
       @resize="handleStatusCardResize"
     />
     <div
+      v-show="!isTaskCardShown && !isBohaiIslandOpen"
       v-if="islandCustomSlot.component"
       :key="`island-custom-${islandCustomSlot.key}`"
       ref="islandCustomHost"
       class="island-custom-host"
     >
+      <!-- 仲裁：任务岛/AI 岛占用 surface 时自定义岛让位（v-show 保状态，隐藏后高度上报 0，收起后自动回归） -->
       <component :is="islandCustomSlot.component" v-bind="islandCustomSlot.props || {}" />
     </div>
     <BOHAIIsland />

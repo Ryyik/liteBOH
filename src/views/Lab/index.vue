@@ -1,120 +1,8 @@
 <template>
-  <main class="lab-page">
-    <!-- 顶栏：品牌 + 模式切换 + 文档工具 -->
-    <header class="lab-topbar">
-      <div class="brand">
-        <div class="brand-mark">B</div>
-        <div class="brand-text">
-          <div class="brand-name">BOH Agent Preview</div>
-          <div class="brand-sub">
-            更便捷的帮助你办公
-            <template v-if="!isUnlimited">
-              <span class="quota-badge" :class="{ exceeded: isExceeded }" @click.stop="handleUpgradeFromBadge">
-                <span class="quota-badge-dot"></span>
-                <span class="quota-badge-text">{{ remainingCount }}次剩余</span>
-                <span class="quota-badge-bar">
-                  <span class="quota-badge-fill" :style="{ width: usagePercent + '%' }"></span>
-                </span>
-              </span>
-              <button v-if="isExceeded" class="quota-upgrade-btn" @click.stop="handleUpgradeFromBadge">升级</button>
-            </template>
-            <span v-else class="quota-badge unlimited">
-              <span class="quota-badge-dot"></span>
-              无限生成
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div class="topbar-actions">
-        <!-- 上下文压缩 -->
-        <button
-          v-if="hasConversation && needsCompression(messages)"
-          class="icon-btn"
-          :class="{ 'icon-btn--warn': contextCompressing }"
-          title="压缩上下文释放 Token"
-          :disabled="contextCompressing"
-          @click="handleCompressContext"
-        >
-          <AppIcon name="text" size="small" weight="medium" />
-          <span v-if="contextCompressing" class="icon-btn-badge">...</span>
-        </button>
-        <!-- 撤销 -->
-        <button
-          v-if="canUndo"
-          class="icon-btn"
-          title="撤销"
-          @click="handleUndo"
-        >
-          <AppIcon name="undo" size="small" weight="medium" />
-        </button>
-        <!-- 重做 -->
-        <button
-          v-if="canRedo"
-          class="icon-btn"
-          title="重做"
-          @click="handleRedo"
-        >
-          <AppIcon name="redo" size="small" weight="medium" />
-        </button>
-        <!-- 对话树 -->
-        <div class="icon-btn-wrap">
-          <button
-            class="icon-btn"
-            :class="{ 'icon-btn--active': thinkingBudgetOpen }"
-            title="思考预算"
-            @click.stop="thinkingBudgetOpen = !thinkingBudgetOpen"
-          >
-            <AppIcon name="tuning" size="small" weight="medium" />
-          </button>
-          <Transition name="popover">
-            <div v-if="thinkingBudgetOpen" class="thinking-budget-popover" @click.stop>
-              <ThinkingBudgetSlider
-                v-model="thinkingBudgetValue"
-                :base-temperature="labModelConfig.temperature"
-                :base-top-p="0.7"
-                :base-max-tokens="labModelConfig.maxTokens"
-              />
-            </div>
-          </Transition>
-        </div>
-        <button
-          v-if="hasConversation"
-          class="icon-btn"
-          :class="{ 'icon-btn--active': rightPanelOpen && rightPanelTab === 'tree' }"
-           title="对话树"
-           @click="toggleTreePanel"
-        >
-          <AppIcon name="git-branch" size="small" weight="medium" />
-        </button>
-        <button
-          v-if="docData"
-          class="icon-btn"
-          title="文档工具"
-          @click="drawerOpen = true"
-        >
-          <AppIcon name="sidebar" size="small" weight="medium" />
-        </button>
-        <button
-          v-if="modifiedBlob"
-          class="icon-btn"
-          title="下载文档"
-          @click="downloadModified"
-        >
-          <AppIcon name="download" size="small" weight="medium" />
-        </button>
-        <button
-          v-if="hasConversation"
-          class="icon-btn"
-          title="新对话"
-          @click="resetConversation"
-        >
-          <AppIcon name="sparkles" size="small" weight="medium" />
-        </button>
-      </div>
-    </header>
-
+  <main ref="labPageRef" class="lab-page">
     <!-- 主体内容：sidebar + main + right panel -->
+    <!-- 旧顶栏（BOH Agent Preview 横条）已删除：品牌标识由导航栏灵动岛 Agent 卡承接，
+         工具按钮迁入底部对话框工具区（composer-left） -->
     <div class="lab-body">
       <!-- Sidebar -->
       <aside class="lab-sidebar" :class="{ collapsed: sidebarCollapsed }">
@@ -167,7 +55,7 @@
             :placeholder="composerPlaceholder"
             rows="3"
             :disabled="aiLoading"
-            @keydown.enter.exact.prevent="send"
+            @keydown.enter.exact.prevent="onComposerEnter"
             @input="autoGrow"
           />
           <div v-if="pendingFile" class="composer-chips">
@@ -181,28 +69,122 @@
           </div>
           <div class="composer-footer">
             <div class="composer-left">
-              <div class="plus-wrap">
+              <!-- + 直达上传（原 + 菜单与样式集弹窗已迁入导航栏灵动岛展开区） -->
+              <button class="plus-btn" title="上传 Word 文档" @click="chooseDoc">
+                <AppIcon name="plus" size="small" weight="medium" />
+              </button>
+              <!-- 思考预算列表框：本次生成的临时参数，五档带说明点选（与灵动岛·思考共享状态） -->
+              <div class="composer-pill-wrap">
                 <button
-                  class="plus-btn"
-                  :class="{ active: plusMenuOpen }"
-                  title="添加"
-                  @click.stop="plusMenuOpen = !plusMenuOpen"
+                  class="composer-pill"
+                  :class="{ active: thinkingMenuOpen }"
+                  title="思考预算：推理深度档位"
+                  @click.stop="thinkingMenuOpen = !thinkingMenuOpen; presetMenuOpen = false"
                 >
-                  <AppIcon name="plus" size="small" weight="medium" />
+                  <AppIcon name="tuning" size="small" weight="medium" />
+                  <span>思考 · {{ thinkingLevelLabel }}</span>
                 </button>
                 <Transition name="popover">
-                  <div v-if="plusMenuOpen" class="plus-menu" @click.stop>
-                    <button class="plus-item" @click="chooseDoc">
-                      <AppIcon name="upload" size="small" weight="medium" />
-                      <span>上传 Word 文档</span>
-                    </button>
-                    <button class="plus-item" @click="openPresetPicker">
-                      <AppIcon name="paintbrush" size="small" weight="medium" />
-                      <span>选择样式集</span>
+                  <div v-if="thinkingMenuOpen" class="pill-menu" role="listbox" aria-label="思考预算档位" @click.stop>
+                    <button
+                      v-for="lv in THINKING_LEVELS_UI"
+                      :key="lv.label"
+                      type="button"
+                      class="pill-menu-item"
+                      :class="{ active: thinkingLevelLabel === lv.label }"
+                      role="option"
+                      :aria-selected="thinkingLevelLabel === lv.label"
+                      @click="setThinkingLevel(lv.value)"
+                    >
+                      <span class="pill-menu-label">{{ lv.label }}</span>
+                      <span class="pill-menu-hint">{{ lv.hint }}</span>
                     </button>
                   </div>
                 </Transition>
               </div>
+              <!-- 样式集列表框：8 套点选，与灵动岛·样式共享状态 -->
+              <div class="composer-pill-wrap">
+                <button
+                  class="composer-pill"
+                  :class="{ active: presetMenuOpen }"
+                  :title="`样式集：${currentPresetName}`"
+                  @click.stop="presetMenuOpen = !presetMenuOpen; thinkingMenuOpen = false"
+                >
+                  <AppIcon name="paintbrush" size="small" weight="medium" />
+                  <span>{{ currentPresetName }}</span>
+                </button>
+                <Transition name="popover">
+                  <div v-if="presetMenuOpen" class="pill-menu pill-menu--grid" role="listbox" aria-label="选择样式集" @click.stop>
+                    <button
+                      v-for="p in STYLE_PRESETS"
+                      :key="p.id"
+                      type="button"
+                      class="pill-menu-item"
+                      :class="{ active: selectedPresetId === p.id }"
+                      role="option"
+                      :aria-selected="selectedPresetId === p.id"
+                      :title="p.description || p.name"
+                      @click="choosePreset(p.id)"
+                    >
+                      <span class="pill-menu-label">{{ p.name }}</span>
+                    </button>
+                  </div>
+                </Transition>
+              </div>
+              <!-- 工具组（原顶栏迁入）：压缩/撤销/重做/思考预算/对话树/文档工具/下载，条件类按钮自动隐藏 -->
+              <button
+                v-if="hasConversation && needsCompression(messages)"
+                class="icon-btn"
+                :class="{ 'icon-btn--warn': contextCompressing }"
+                title="压缩上下文释放 Token"
+                :disabled="contextCompressing"
+                @click="handleCompressContext"
+              >
+                <AppIcon name="text" size="small" weight="medium" />
+                <span v-if="contextCompressing" class="icon-btn-badge">...</span>
+              </button>
+              <button
+                v-if="canUndo"
+                class="icon-btn"
+                title="撤销"
+                @click="handleUndo"
+              >
+                <AppIcon name="undo" size="small" weight="medium" />
+              </button>
+              <button
+                v-if="canRedo"
+                class="icon-btn"
+                title="重做"
+                @click="handleRedo"
+              >
+                <AppIcon name="redo" size="small" weight="medium" />
+              </button>
+              <!-- 思考预算已迁入导航栏灵动岛展开区（五档点选） -->
+              <button
+                v-if="hasConversation"
+                class="icon-btn"
+                :class="{ 'icon-btn--active': rightPanelOpen && rightPanelTab === 'tree' }"
+                title="对话树"
+                @click="toggleTreePanel"
+              >
+                <AppIcon name="git-branch" size="small" weight="medium" />
+              </button>
+              <button
+                v-if="docData"
+                class="icon-btn"
+                title="文档工具"
+                @click="drawerOpen = true"
+              >
+                <AppIcon name="sidebar" size="small" weight="medium" />
+              </button>
+              <button
+                v-if="modifiedBlob"
+                class="icon-btn"
+                title="下载文档"
+                @click="downloadModified"
+              >
+                <AppIcon name="download" size="small" weight="medium" />
+              </button>
             </div>
             <button
               v-if="aiLoading"
@@ -415,7 +397,7 @@
             :placeholder="composerPlaceholder"
             rows="2"
             :disabled="aiLoading"
-            @keydown.enter.exact.prevent="send"
+            @keydown.enter.exact.prevent="onComposerEnter"
             @input="autoGrow"
           />
           <div v-if="pendingFile" class="composer-chips">
@@ -429,28 +411,122 @@
           </div>
           <div class="composer-footer">
             <div class="composer-left">
-              <div class="plus-wrap">
+              <!-- + 直达上传（原 + 菜单与样式集弹窗已迁入导航栏灵动岛展开区） -->
+              <button class="plus-btn" title="上传 Word 文档" @click="chooseDoc">
+                <AppIcon name="plus" size="small" weight="medium" />
+              </button>
+              <!-- 思考预算列表框：本次生成的临时参数，五档带说明点选（与灵动岛·思考共享状态） -->
+              <div class="composer-pill-wrap">
                 <button
-                  class="plus-btn"
-                  :class="{ active: plusMenuOpen }"
-                  title="添加"
-                  @click.stop="plusMenuOpen = !plusMenuOpen"
+                  class="composer-pill"
+                  :class="{ active: thinkingMenuOpen }"
+                  title="思考预算：推理深度档位"
+                  @click.stop="thinkingMenuOpen = !thinkingMenuOpen; presetMenuOpen = false"
                 >
-                  <AppIcon name="plus" size="small" weight="medium" />
+                  <AppIcon name="tuning" size="small" weight="medium" />
+                  <span>思考 · {{ thinkingLevelLabel }}</span>
                 </button>
                 <Transition name="popover">
-                  <div v-if="plusMenuOpen" class="plus-menu" @click.stop>
-                    <button class="plus-item" @click="chooseDoc">
-                      <AppIcon name="upload" size="small" weight="medium" />
-                      <span>上传 Word 文档</span>
-                    </button>
-                    <button class="plus-item" @click="openPresetPicker">
-                      <AppIcon name="paintbrush" size="small" weight="medium" />
-                      <span>选择样式集</span>
+                  <div v-if="thinkingMenuOpen" class="pill-menu" role="listbox" aria-label="思考预算档位" @click.stop>
+                    <button
+                      v-for="lv in THINKING_LEVELS_UI"
+                      :key="lv.label"
+                      type="button"
+                      class="pill-menu-item"
+                      :class="{ active: thinkingLevelLabel === lv.label }"
+                      role="option"
+                      :aria-selected="thinkingLevelLabel === lv.label"
+                      @click="setThinkingLevel(lv.value)"
+                    >
+                      <span class="pill-menu-label">{{ lv.label }}</span>
+                      <span class="pill-menu-hint">{{ lv.hint }}</span>
                     </button>
                   </div>
                 </Transition>
               </div>
+              <!-- 样式集列表框：8 套点选，与灵动岛·样式共享状态 -->
+              <div class="composer-pill-wrap">
+                <button
+                  class="composer-pill"
+                  :class="{ active: presetMenuOpen }"
+                  :title="`样式集：${currentPresetName}`"
+                  @click.stop="presetMenuOpen = !presetMenuOpen; thinkingMenuOpen = false"
+                >
+                  <AppIcon name="paintbrush" size="small" weight="medium" />
+                  <span>{{ currentPresetName }}</span>
+                </button>
+                <Transition name="popover">
+                  <div v-if="presetMenuOpen" class="pill-menu pill-menu--grid" role="listbox" aria-label="选择样式集" @click.stop>
+                    <button
+                      v-for="p in STYLE_PRESETS"
+                      :key="p.id"
+                      type="button"
+                      class="pill-menu-item"
+                      :class="{ active: selectedPresetId === p.id }"
+                      role="option"
+                      :aria-selected="selectedPresetId === p.id"
+                      :title="p.description || p.name"
+                      @click="choosePreset(p.id)"
+                    >
+                      <span class="pill-menu-label">{{ p.name }}</span>
+                    </button>
+                  </div>
+                </Transition>
+              </div>
+              <!-- 工具组（原顶栏迁入）：压缩/撤销/重做/思考预算/对话树/文档工具/下载，条件类按钮自动隐藏 -->
+              <button
+                v-if="hasConversation && needsCompression(messages)"
+                class="icon-btn"
+                :class="{ 'icon-btn--warn': contextCompressing }"
+                title="压缩上下文释放 Token"
+                :disabled="contextCompressing"
+                @click="handleCompressContext"
+              >
+                <AppIcon name="text" size="small" weight="medium" />
+                <span v-if="contextCompressing" class="icon-btn-badge">...</span>
+              </button>
+              <button
+                v-if="canUndo"
+                class="icon-btn"
+                title="撤销"
+                @click="handleUndo"
+              >
+                <AppIcon name="undo" size="small" weight="medium" />
+              </button>
+              <button
+                v-if="canRedo"
+                class="icon-btn"
+                title="重做"
+                @click="handleRedo"
+              >
+                <AppIcon name="redo" size="small" weight="medium" />
+              </button>
+              <!-- 思考预算已迁入导航栏灵动岛展开区（五档点选） -->
+              <button
+                v-if="hasConversation"
+                class="icon-btn"
+                :class="{ 'icon-btn--active': rightPanelOpen && rightPanelTab === 'tree' }"
+                title="对话树"
+                @click="toggleTreePanel"
+              >
+                <AppIcon name="git-branch" size="small" weight="medium" />
+              </button>
+              <button
+                v-if="docData"
+                class="icon-btn"
+                title="文档工具"
+                @click="drawerOpen = true"
+              >
+                <AppIcon name="sidebar" size="small" weight="medium" />
+              </button>
+              <button
+                v-if="modifiedBlob"
+                class="icon-btn"
+                title="下载文档"
+                @click="downloadModified"
+              >
+                <AppIcon name="download" size="small" weight="medium" />
+              </button>
             </div>
             <button
               v-if="aiLoading"
@@ -593,25 +669,6 @@
 
   </div><!-- .lab-body -->
 
-    <!-- 状态栏 -->
-    <footer class="lab-statusbar">
-      <div class="statusbar-left">
-        <span class="statusbar-model">{{ currentModelLabel }}</span>
-      </div>
-      <div class="statusbar-right">
-        <span class="statusbar-tokens">
-          Token:
-          <span class="statusbar-value">{{ tokenUsage.used }} / {{ tokenUsage.max }}</span>
-          <span class="statusbar-bar" :class="{ streaming: aiLoading && progressMsgIndex >= 0 }">
-            <span class="statusbar-fill" :style="{ width: tokenUsage.percent + '%' }"></span>
-          </span>
-        </span>
-        <span class="statusbar-thinking">
-          思考: <strong>{{ thinkingLevelLabel }}</strong>
-        </span>
-      </div>
-    </footer>
-
     <!-- 错误提示 -->
     <Transition name="toast">
       <div v-if="error" class="error-toast">
@@ -732,29 +789,7 @@
       </Transition>
     </Teleport>
 
-    <!-- 样式集选择模态框 -->
-    <Teleport to="body">
-      <Transition name="fade">
-        <div v-if="showPresetPicker" class="preset-mask" @click="showPresetPicker = false" />
-      </Transition>
-      <Transition name="modal">
-        <div v-if="showPresetPicker" class="preset-modal">
-          <div class="preset-modal-head">
-            <h3 class="preset-modal-title">选择样式集</h3>
-            <button class="preset-modal-close" @click="showPresetPicker = false">
-              <AppIcon name="close" size="small" />
-            </button>
-          </div>
-          <div class="preset-modal-body">
-            <StylePresetPicker v-model="selectedPresetId" />
-          </div>
-          <div class="preset-modal-foot">
-            <span class="preset-current">当前：{{ currentPresetName }}</span>
-            <button class="preset-confirm-btn" @click="showPresetPicker = false">确定</button>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
+    <!-- 样式集选择模态框已删除：样式集选择迁入导航栏灵动岛展开区 -->
 
     <!-- 命令面板 (Cmd+K) -->
     <CommandPalette
@@ -772,7 +807,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import DOMPurify from '@/utils/dompurify.js'
 import AppIcon from './components/AppIcon.vue'
@@ -782,7 +817,7 @@ import DocPreview from './components/DocPreview.vue'
 import StyleInspector from './components/StyleInspector.vue'
 import TemplatePanel from './components/TemplatePanel.vue'
 import HistoryTimeline from './components/HistoryTimeline.vue'
-import StylePresetPicker from './components/StylePresetPicker.vue'
+
 import CodePreview from './components/CodePreview.vue'
 import ErrorBoundary from './components/ErrorBoundary.vue'
 import DiffViewer from './components/DiffViewer.vue'
@@ -799,15 +834,17 @@ import { useUndoManager } from './composables/useUndoManager.js'
 import { useConversationTree } from './composables/useConversationTree.js'
 import { withRetry } from './utils/withRetry.js'
 import { callVaultSiliconChatStream } from '@/utils/api/api-key-runtime-api.js'
+import { listActiveBohaiModelConfigs, buildBohaiRuntimeModels } from '@/utils/api/bohai-model-config-api.js'
 const CHAT_API_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions'
 import { useLabQuota } from '@/composables/useLabQuota.js'
 import { BASE_SYSTEM_PROMPT } from '@/prompts/index.js'
 import { STYLE_PRESETS, DEFAULT_PRESET_ID, getPresetById } from './config/design-tokens.js'
 import { showIsland } from '@/composables/useIsland.js'
+import LabQuotaIsland from './components/LabQuotaIsland.vue'
 
 const router = useRouter()
 const { chat, aiLoading } = useDocumentAI()
-const { generatePPTStructure, generateOutline: generatePPTOutline, buildPPT, buildPPTFile } = usePPTGenerator()
+const { generateSlidesPageByPage, generateOutline: generatePPTOutline, buildPPT, buildPPTFile } = usePPTGenerator()
 const { generateDoc: generateWordDoc, generateOutline: generateWordOutline, buildWordFile } = useWordGenerator()
 
 const loadDocParser = () => import('./engine/docx-parser.js')
@@ -826,7 +863,6 @@ const {
   needsCompression,
   generateSummary,
   buildCompressedContext,
-  historyBudget,
 } = useContextManager()
 
 const {
@@ -849,14 +885,11 @@ const treeFork = treeState.fork
 const treeNavigateTo = treeState.navigateTo
 const treeGetMessages = treeState.getMessages
 
-// ===== 实验室使用限额 =====
+// ===== 实验室使用限额（配额展示由导航栏灵动岛 LabQuotaIsland 承接） =====
 const {
-  usageCount,
-  monthlyQuota,
   remainingCount,
   isExceeded,
   isUnlimited,
-  usagePercent,
   initialize: initializeQuota,
   recordUsage,
   preConsumeQuota,
@@ -868,7 +901,22 @@ const {
 } = useLabQuota()
 
 // ===== 顶层状态 =====
-const sidebarCollapsed = ref(false)
+// 会话侧栏可收起：默认收起给对话留宽度，折叠状态持久化（boh_lab_sidebar_collapsed）
+const SIDEBAR_COLLAPSED_KEY = 'boh_lab_sidebar_collapsed'
+const readSidebarCollapsed = () => {
+  try {
+    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1'
+  } catch {
+    return true
+  }
+}
+const sidebarCollapsed = ref(readSidebarCollapsed())
+watch(sidebarCollapsed, (val) => {
+  try {
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, val ? '1' : '0')
+  } catch { /* ignore */
+  }
+})
 const rightPanelOpen = ref(false)
 const rightPanelTab = ref('tasks')
 const rightPanelTabs = [
@@ -879,9 +927,7 @@ const rightPanelTabs = [
 ]
 const sessions = ref([])
 const currentSessionIndex = ref(0)
-const plusMenuOpen = ref(false) // + 菜单展开
-const thinkingBudgetOpen = ref(false)
-const thinkingBudgetValue = ref(0.5) // 0-1 滑块值
+const thinkingBudgetValue = ref(0.55) // 0-1，五档映射见岛卡（默认对齐「中」档位值，pill 循环切档体验顺滑）
 const labModelConfig = reactive({
   temperature: 0.5,
   maxTokens: 4096
@@ -925,6 +971,258 @@ const bottomTextareaRef = ref(null)
 const heroFileInput = ref(null)
 const bottomFileInput = ref(null)
 
+// ===== 灵动岛：配额 + 生成状态常驻岛（导航栏 custom 槽位，同 PityIslandCard 管线） =====
+// 页面 useLabQuota 是单一真相源，岛卡纯展示；顶栏配额徽章与底部状态栏横条已移除，由本岛承接。
+let quotaIslandHandle = null
+const genStatus = reactive({ running: false, label: '', stage: '', progress: null })
+
+const syncQuotaIsland = () => {
+  if (!quotaIslandHandle) return
+  quotaIslandHandle.update({
+    quota: quotaDisplayData.value,
+    gen: { ...genStatus },
+    models: islandModels(),
+    presets: islandPresets(),
+    thinking: thinkingBudgetValue.value,
+  })
+}
+
+const mountQuotaIsland = () => {
+  if (quotaIslandHandle) return
+  quotaIslandHandle = showIsland.custom(LabQuotaIsland, {
+    quota: quotaDisplayData.value,
+    gen: { ...genStatus },
+    models: islandModels(),
+    presets: islandPresets(),
+    thinking: thinkingBudgetValue.value,
+    loading: false,
+    goSubscription: handleUpgradeFromBadge,
+    onSelectModel: handleSelectModel,
+    onSelectPreset: handleSelectPreset,
+    onSetThinking: handleSetThinking,
+  })
+}
+
+// ===== 对话模型选择（BOHAI 模式，经 vault 按 mode 路由；任务生成模型仍走 lab_ai_model_configs） =====
+const LAB_MODE_SETTING_KEY = 'boh_lab_chat_mode'
+const TIER_RANK = { anonymous: 0, guest: 0, free: 0, plus: 1, pro: 2, max: 3, ultra: 4 }
+const MIN_TIER_LABEL = { plus: 'Plus', pro: 'Pro', max: 'Max', ultra: 'Ultra' }
+let bohaiRuntime = { availableModels: [], generationProfiles: {} }
+const bohaiChatModes = ref([])
+const bohaiModelsLoading = ref(false)
+const selectedBohaiModeId = ref('')
+
+const islandModels = () => ({
+  list: [
+    { id: '', name: '默认模型', tagline: 'Qwen 直连', tierTag: '', locked: false, mult: 0 },
+    ...bohaiChatModes.value.map((m) => {
+      const need = TIER_RANK[m.minTier] ?? 0
+      const own = TIER_RANK[effectiveTier.value] ?? 0
+      return {
+        id: m.id,
+        name: m.name,
+        tagline: m.tagline || '',
+        tierTag: need > 0 ? (MIN_TIER_LABEL[m.minTier] || m.minTier) : '',
+        locked: need > own,
+        mult: Number(m.quotaMultiplier) > 1 ? Number(m.quotaMultiplier) : 0,
+      }
+    }),
+  ],
+  selectedId: selectedBohaiModeId.value,
+  loading: bohaiModelsLoading.value,
+})
+
+// 样式集（原选择弹窗迁移到岛卡展开区）
+const islandPresets = () => ({
+  list: STYLE_PRESETS.map((p) => ({ id: p.id, name: p.name })),
+  selectedId: selectedPresetId.value,
+})
+
+function handleSelectPreset(presetId) {
+  selectedPresetId.value = String(presetId || DEFAULT_PRESET_ID)
+  syncQuotaIsland()
+}
+
+// 思考预算档位写入（岛卡五档点选回调；输入框列表框复用）
+function handleSetThinking(value) {
+  const v = Number(value)
+  if (Number.isFinite(v)) thinkingBudgetValue.value = Math.max(0, Math.min(1, v))
+  syncQuotaIsland()
+}
+
+// ===== 输入框参数列表框：思考预算（五档带说明）/ 样式集（8 套），与灵动岛共享状态 =====
+const THINKING_LEVELS_UI = [
+  { label: '低', value: 0.1, hint: '直接输出 · 最快最省' },
+  { label: '偏低', value: 0.35, hint: '简要思考 · 日常任务' },
+  { label: '中', value: 0.55, hint: '适度推理 · 均衡推荐' },
+  { label: '偏高', value: 0.75, hint: '多步推理 · 复杂结构' },
+  { label: '高', value: 0.95, hint: '深度推理 · 高难内容' },
+]
+const thinkingLevelLabel = computed(() => {
+  const v = thinkingBudgetValue.value
+  if (v < 0.25) return '低'
+  if (v < 0.45) return '偏低'
+  if (v < 0.65) return '中'
+  if (v < 0.85) return '偏高'
+  return '高'
+})
+
+const thinkingMenuOpen = ref(false)
+const presetMenuOpen = ref(false)
+
+function setThinkingLevel(value) {
+  handleSetThinking(value)
+  thinkingMenuOpen.value = false
+}
+
+function choosePreset(id) {
+  selectedPresetId.value = String(id || DEFAULT_PRESET_ID)
+  presetMenuOpen.value = false
+  syncQuotaIsland()
+}
+
+function closePillMenus() {
+  thinkingMenuOpen.value = false
+  presetMenuOpen.value = false
+}
+
+// 点击列表框外关闭（两处 composer 的 pill 菜单共用）
+function onDocClick(e) {
+  if (!e.target.closest('.composer-pill-wrap')) closePillMenus()
+}
+
+async function loadBohaiChatModes() {
+  if (bohaiModelsLoading.value || bohaiChatModes.value.length) return
+  bohaiModelsLoading.value = true
+  try {
+    const result = await listActiveBohaiModelConfigs()
+    const runtime = buildBohaiRuntimeModels(result?.data || [])
+    bohaiRuntime = {
+      availableModels: runtime.availableModels || [],
+      generationProfiles: runtime.generationProfiles || {},
+    }
+    bohaiChatModes.value = runtime.chatModes || []
+    // 恢复持久化选择；失效（模式下架）则回退默认直连
+    let saved = ''
+    try {
+      saved = localStorage.getItem(LAB_MODE_SETTING_KEY) || ''
+    } catch { /* ignore */ }
+    selectedBohaiModeId.value = saved && bohaiChatModes.value.some((m) => m.id === saved) ? saved : ''
+  } catch {
+    bohaiChatModes.value = []
+  } finally {
+    bohaiModelsLoading.value = false
+  }
+}
+
+function handleSelectModel(modeId) {
+  selectedBohaiModeId.value = String(modeId || '')
+  try {
+    localStorage.setItem(LAB_MODE_SETTING_KEY, selectedBohaiModeId.value)
+  } catch { /* ignore */ }
+  syncQuotaIsland()
+}
+
+/** 解析当前选中的 BOHAI 模式调用参数；未选/失效返回 null（走默认直连） */
+function resolveBohaiChatCall() {
+  const modeId = selectedBohaiModeId.value
+  if (!modeId) return null
+  const mode = bohaiChatModes.value.find((m) => m.id === modeId)
+  const runtimeModel = bohaiRuntime.availableModels.find((m) => m.id === mode?.model)
+  if (!mode || !runtimeModel) return null
+  return {
+    provider: runtimeModel.providerKey || 'boh',
+    mode: mode.id,
+    apiUrl: runtimeModel.url || '',
+    modelId: runtimeModel.id,
+    profile: bohaiRuntime.generationProfiles?.[mode.id] || null,
+  }
+}
+
+// ===== 灵动岛：生成任务卡（showIsland.task，进行中→成功/失败） =====
+let genTaskHandle = null
+// 预扣显性化：preConsumeQuota 在 AI 调用前扣 1 次（防并发刷量的 TOCTOU 设计，失败/取消自动退还），
+// 文案明确「已预扣」语义，消除「还没生成就扣了」的困惑
+const genTaskQuotaLine = () => {
+  if (isUnlimited.value) return '无限生成'
+  return isExceeded.value ? '本月配额已用完' : `本次已预扣 1 次（取消自动退还） · 剩余 ${remainingCount.value} 次`
+}
+
+/** 开启一张生成任务卡（重复调用先关闭旧卡），并点亮岛卡生成态 */
+function beginGenTask(label) {
+  closeGenTask()
+  genStatus.running = true
+  genStatus.label = label
+  genStatus.stage = '正在思考…'
+  genStatus.progress = null
+  try {
+    genTaskHandle = showIsland.task({
+      title: `正在生成${label}`,
+      message: genTaskQuotaLine(),
+      onAction: (actionId) => {
+        if (actionId === 'dismiss') closeGenTask()
+      },
+    })
+  } catch {
+    genTaskHandle = null
+  }
+}
+
+/** 更新任务卡进度（0-100）与阶段文案；同步点亮常驻岛卡的生成态 */
+function updateGenTask(progress, stage) {
+  genStatus.progress = progress
+  if (stage) genStatus.stage = stage
+  try {
+    genTaskHandle?.progress?.(progress, `${stage || genStatus.stage || '处理中'} · ${genTaskQuotaLine()}`)
+  } catch { /* ignore */ }
+}
+
+/** 无百分比流程的阶段推进（普通聊天流式开始、文档排版等） */
+function updateGenTaskStage(stage) {
+  genStatus.stage = stage
+  try {
+    genTaskHandle?.update?.({ message: `${stage} · ${genTaskQuotaLine()}` })
+  } catch { /* ignore */ }
+}
+
+/** 成功：进度环满格，短暂停留后自动收起 */
+function succeedGenTask(title, message) {
+  genStatus.running = false
+  genStatus.stage = ''
+  genStatus.progress = null
+  try {
+    genTaskHandle?.success?.({ title, message: `${message} · ${genTaskQuotaLine()}` })
+  } catch { /* ignore */ }
+  genTaskHandle = null
+}
+
+/** 失败：常驻卡 + 「知道了」按钮；tone: 'danger' | 'warning' */
+function failGenTask(title, message, tone = 'danger') {
+  genStatus.running = false
+  genStatus.stage = ''
+  genStatus.progress = null
+  try {
+    genTaskHandle?.fail?.({
+      title,
+      message,
+      tone,
+      actions: [{ id: 'dismiss', label: '知道了', kind: 'ghost' }],
+    })
+  } catch { /* ignore */ }
+  genTaskHandle = null
+}
+
+/** 手动收起（用户取消生成 / 页面卸载） */
+function closeGenTask() {
+  try {
+    genTaskHandle?.close?.()
+  } catch { /* ignore */ }
+  genTaskHandle = null
+  genStatus.running = false
+  genStatus.stage = ''
+  genStatus.progress = null
+}
+
 // 流式生成中的 token 实时计数（由 onChunk 更新）
 const streamingTokens = ref(0)
 
@@ -961,25 +1259,6 @@ const abortController = ref(null)
 const isAbortError = (e) => e?.name === 'AbortError' || e?.name === 'TimeoutError'
 
 // 布局 computed
-const tokenUsage = computed(() => {
-  const messagesTokens = messages.value.reduce((sum, m) => sum + estimateTokens(m.content || ''), 0)
-  const inputTokens = estimateTokens(text.value)
-  // 流式生成时用 streamingTokens 替代当前正在生成的 message token 数
-  const streamingExtra = (aiLoading.value && progressMsgIndex.value >= 0 && messages.value[progressMsgIndex.value])
-    ? Math.max(0, streamingTokens.value - estimateTokens(messages.value[progressMsgIndex.value].content || ''))
-    : 0
-  const total = messagesTokens + inputTokens + streamingExtra
-  return { used: total, max: historyBudget.value, percent: historyBudget.value > 0 ? Math.min(100, (total / historyBudget.value) * 100) : 0 }
-})
-const currentModelLabel = computed(() => 'Qwen/Qwen3-8B')
-const thinkingLevelLabel = computed(() => {
-  const v = thinkingBudgetValue.value
-  if (v < 0.2) return '低'
-  if (v < 0.45) return '偏低'
-  if (v < 0.65) return '中'
-  if (v < 0.85) return '偏高'
-  return '高'
-})
 const docOutlineItems = computed(() => {
   if (!docData.value) return []
   return docData.value.styles?.filter(s => s.type === 'heading').slice(0, 50) || []
@@ -1005,9 +1284,8 @@ const getCodeFileCount = (data) => {
   return count || 1
 }
 
-// 样式集
+// 样式集（选择入口已迁入导航栏灵动岛展开区）
 const selectedPresetId = ref(DEFAULT_PRESET_ID)
-const showPresetPicker = ref(false)
 
 // 文档相关
 const docData = ref(null)
@@ -1139,12 +1417,15 @@ function closeTaskPanel() {
 }
 
 /**
- * 进度回调函数 - 更新消息流中的进度卡片
+ * 进度回调函数 - 更新消息流中的进度卡片 + 灵动岛任务卡/常驻岛
  */
 function handleProgress(stage, progress, text) {
   if (progressMsgIndex.value >= 0 && messages.value[progressMsgIndex.value]) {
     messages.value[progressMsgIndex.value].progress = progress
     messages.value[progressMsgIndex.value].progressText = text
+  }
+  if (genStatus.running) {
+    updateGenTask(progress, text || '')
   }
 }
 
@@ -1243,14 +1524,8 @@ function autoGrow(e) {
 }
 
 function chooseDoc() {
-  plusMenuOpen.value = false
   const which = hasConversation.value ? 'bottom' : 'hero'
   nextTick(() => triggerUpload(which))
-}
-
-function openPresetPicker() {
-  plusMenuOpen.value = false
-  showPresetPicker.value = true
 }
 
 function clearFile() {
@@ -1274,7 +1549,8 @@ function resetConversation() {
   previewHtml.value = ''
   historyItems.value = []
   error.value = ''
-  plusMenuOpen.value = false
+  clarifyStage.value = 'none'
+  clarifyDetails.value = []
   lastPPTData.value = null
   lastWordData.value = null
   lastCodeData.value = null
@@ -1384,8 +1660,40 @@ function detectIntent(message) {
   return 'chat'
 }
 
-async function send(presetText) {
-  const content = (typeof presetText === 'string' ? presetText : text.value).trim()
+// ===== 生成前澄清 + 确认状态机：任务型意图（PPT/Word/网页）三段推进 =====
+// asked：命中意图 → AI 主动问关键细节（不预扣不生成）
+// confirm：用户补充后 → AI 汇总「已记录的要求」并主动询问是否可以开始
+// 用户回「开始生成」等确认词才真正预扣+生成；补充/修改会更新记录并再次确认（牢记提示词要求）
+const CLARIFY_PROMPTS = {
+  ppt: '好的，开始生成前先对齐几个细节，直接回复即可：\n1. 主题与受众（给谁看、讲什么）\n2. 大致页数（不说默认 10 页左右）\n3. 想重点强调的内容或数据\n回复后我会汇总确认，确认后才会开始生成（会消耗 1 次配额）。',
+  word: '好的，写文档前先对齐几点，直接回复即可：\n1. 文档类型与读者（方案/总结/说明，给谁看）\n2. 大致篇幅\n3. 必须覆盖的要点或结论\n回复后我会汇总确认，确认后才会开始生成（会消耗 1 次配额）。',
+  code: '好的，生成网页前先对齐几点，直接回复即可：\n1. 页面用途与风格倾向\n2. 单页还是多区块（首页/落地页/后台…）\n3. 有无参考网站或必须包含的模块\n回复后我会汇总确认，确认后才会开始生成（会消耗 1 次配额）。',
+}
+const clarifyStage = ref('none') // none | asked | confirm
+const clarifyFlow = ref('') // 待生成任务流（ppt/word/code）
+const clarifyIntentText = ref('') // 首轮意图原文
+const clarifyDetails = ref([]) // 用户补充的要求（牢记，生成时全部带入）
+
+function buildClarifySummary() {
+  const lines = [clarifyIntentText.value, ...clarifyDetails.value].map((t, i) => `${i + 1}. ${t}`)
+  return `已记录你的要求：\n${lines.join('\n')}\n\n确认无误请回复「开始生成」，我会按以上要求生成（消耗 1 次配额）；要补充或修改直接说。`
+}
+
+// 确认词判断：短消息 + 确认语义才视为「开始」（长消息一律当作继续补充，避免误触发扣费）
+function isAffirmative(text) {
+  const t = String(text || '').trim()
+  if (t.length > 10) return false
+  return /(开始|生成|确认|可以|没问题|好的?|ok|start|go)/i.test(t)
+}
+
+// 输入法守卫：中文输入法选词/确认候选的 Enter（isComposing/229）不触发发送，
+// 否则会出现「打字还没打完就莫名发送并开始生成」的误触
+function onComposerEnter(e) {
+  if (e?.isComposing || e?.keyCode === 229) return
+  send()
+}
+
+async function send(presetText) {  const content = (typeof presetText === 'string' ? presetText : text.value).trim()
   if (!content && !pendingFile.value) return
   // 安全守卫：如果 aiLoading/isLoading 卡在 true（HMR 残留/异常退出），强制重置而非静默返回
   if (aiLoading.value || isLoading.value) {
@@ -1405,7 +1713,7 @@ async function send(presetText) {
     if (bottomTextareaRef.value) bottomTextareaRef.value.style.height = 'auto'
   })
 
-  const userText = content || (pendingFile.value ? '帮我优化这份文档的排版' : '')
+  let userText = content || (pendingFile.value ? '帮我优化这份文档的排版' : '')
   if (userText) {
     messages.value.push({ id: genId(), role: 'user', content: userText, time: nowTime() })
     await scrollToBottom()
@@ -1416,11 +1724,49 @@ async function send(presetText) {
   const currentSignal = abortController.value.signal
 
   // 单一对话流：AI 自主识别意图，无需手动切换模式
+  // （detectIntent 用正则自动判断意图；不使用 LLM 分类器——P2-12 结论：误判率高且消耗 guest 配额）
   let flow = detectIntent(userText)
-  // 注：P2-12 的 confirmIntentWithLLM 已移除——LLM 意图分类器对技术问题误判率高
-  // （如"Vue 3 响应式原理"被误判为 code 生成），且额外消耗 guest tier 配额。
-  // detectIntent 正则已能覆盖明确生成指令（"做PPT"/"生成文档"/"写网页"），
-  // 未命中的统一走 sendGeneralChat，由用户在对话中自然表达需求。
+  const isTaskFlow = flow === 'ppt' || flow === 'word' || flow === 'code'
+
+  // ===== 生成前澄清 + 确认状态机 =====
+  if (clarifyStage.value === 'none' && isTaskFlow) {
+    // 第一段：命中任务意图 → 主动询问关键细节（零扣费、零 AI 调用）
+    clarifyStage.value = 'asked'
+    clarifyFlow.value = flow
+    clarifyIntentText.value = userText
+    clarifyDetails.value = []
+    messages.value.push({ id: genId(), role: 'assistant', content: CLARIFY_PROMPTS[flow] || CLARIFY_PROMPTS.ppt, time: nowTime() })
+    await scrollToBottom()
+    return
+  }
+
+  if (clarifyStage.value === 'asked') {
+    if (isTaskFlow) clarifyFlow.value = flow // 用户在补充时换意图（如改口写 Word），跟随更新
+    // 第二段：用户补充细节 → 记录（牢记）→ 汇总并主动询问是否可以开始
+    clarifyDetails.value.push(userText)
+    clarifyStage.value = 'confirm'
+    messages.value.push({ id: genId(), role: 'assistant', content: buildClarifySummary(), time: nowTime() })
+    await scrollToBottom()
+    return
+  }
+
+  if (clarifyStage.value === 'confirm') {
+    if (isTaskFlow) clarifyFlow.value = flow
+    if (isAffirmative(userText)) {
+      // 第三段：用户确认开始 → 牢记的全部要求拼入生成输入，清状态，进入真实生成（此时才预扣）
+      userText = [clarifyIntentText.value, ...clarifyDetails.value].filter(Boolean).join('\n')
+      flow = clarifyFlow.value || flow
+      clarifyStage.value = 'none'
+      clarifyDetails.value = []
+    } else {
+      // 继续补充/修改 → 更新记录，再次确认
+      clarifyDetails.value.push(userText)
+      messages.value.push({ id: genId(), role: 'assistant', content: buildClarifySummary(), time: nowTime() })
+      await scrollToBottom()
+      return
+    }
+  }
+
   try {
     if (flow === 'doc' && docData.value) {
       await sendDoc(userText, currentSignal)
@@ -1484,6 +1830,8 @@ async function sendGeneralChat(content, signal) {
   }
 
   aiLoading.value = true
+  // 灵动岛任务卡：普通聊天也接管生成状态（无固定进度，流式开始后转为阶段文案）
+  beginGenTask('回复')
   const msgIdx = messages.value.length
   messages.value.push({ id: genId(),
     role: 'assistant',
@@ -1493,29 +1841,53 @@ async function sendGeneralChat(content, signal) {
   await scrollToBottom()
 
   try {
-    const model = import.meta.env.VITE_BOHAI_DEFAULT_MODEL || ''
     // 取最近 20 轮对话作为上下文
     const history = messages.value
       .filter(m => m.role === 'user' || (m.role === 'assistant' && !m.code && !m.ppt && !m.word && !m.outline))
       .slice(-20)
       .map(m => ({ role: m.role, content: m.content || '' }))
 
+    // 模型分流：选中 BOHAI 模式走 vault mode 路由；未选/加载失败走默认 Qwen 直连
+    const bohaiCall = resolveBohaiChatCall()
+    const requestConfig = bohaiCall
+      ? {
+          provider: bohaiCall.provider,
+          purpose: 'chat',
+          mode: bohaiCall.mode,
+          apiUrl: bohaiCall.apiUrl,
+          payload: {
+            model: bohaiCall.modelId,
+            messages: [
+              { role: 'system', content: BASE_SYSTEM_PROMPT },
+              ...history,
+            ],
+            stream: true,
+            temperature: bohaiCall.profile?.temperature ?? 0.7,
+            ...(bohaiCall.profile?.top_p != null ? { top_p: bohaiCall.profile.top_p } : {}),
+            ...(bohaiCall.profile?.frequency_penalty != null ? { frequency_penalty: bohaiCall.profile.frequency_penalty } : {}),
+            max_tokens: bohaiCall.profile?.max_tokens ?? 4096,
+          },
+        }
+      : {
+          provider: 'siliconflow',
+          purpose: 'chat',
+          apiUrl: CHAT_API_URL,
+          payload: {
+            model: import.meta.env.VITE_BOHAI_DEFAULT_MODEL || '',
+            messages: [
+              { role: 'system', content: BASE_SYSTEM_PROMPT },
+              ...history,
+            ],
+            stream: true,
+            temperature: 0.7,
+            max_tokens: 4096,
+          },
+        }
+
     const response = await callVaultSiliconChatStream({
-      provider: 'siliconflow',
-      purpose: 'chat',
-      apiUrl: CHAT_API_URL,
+      ...requestConfig,
       timeoutMs: 120000,
       signal,
-      payload: {
-        model,
-        messages: [
-          { role: 'system', content: BASE_SYSTEM_PROMPT },
-          ...history,
-        ],
-        stream: true,
-        temperature: 0.7,
-        max_tokens: 4096,
-      },
     })
 
     const reader = response.body.getReader()
@@ -1558,6 +1930,9 @@ async function sendGeneralChat(content, signal) {
               if (messages.value[msgIdx]) {
                 scheduleStreamContent(msgIdx, fullContent)
                 streamingTokens.value = estimateTokens(fullContent)
+                if (genStatus.running && genStatus.stage !== '正在生成回复') {
+                  updateGenTaskStage('正在生成回复')
+                }
               }
             }
           } catch { /* skip non-JSON */ }
@@ -1570,11 +1945,13 @@ async function sendGeneralChat(content, signal) {
     if (!fullContent) {
       messages.value[msgIdx].content = '（AI 未返回有效回复，请稍后重试）'
     }
+    succeedGenTask('回复完成', fullContent ? '已输出至对话' : '未返回有效内容')
   } catch (e) {
     // P1-9: flush 确保 content 已落盘，避免取消时读到 rAF pending 的旧值
     flushStreamContent()
     // 用户主动取消：保留已生成的部分内容
     if (isAbortError(e)) {
+      closeGenTask()
       if (messages.value[msgIdx]) {
         if (messages.value[msgIdx].content) {
           // 已有部分内容，追加停止提示
@@ -1597,7 +1974,9 @@ async function sendGeneralChat(content, signal) {
       time: nowTime(),
     })
     if (isQuotaError) {
-      notifyLab('次数已达上限', getUpgradeHint(), 'warning')
+      failGenTask('次数已达上限', getUpgradeHint(), 'warning')
+    } else {
+      failGenTask('生成失败', e.message)
     }
   } finally {
     aiLoading.value = false
@@ -1637,6 +2016,8 @@ async function sendDoc(content, signal) {
       loadDocStyleEngine(),
       loadDocParser(),
     ])
+    // 灵动岛任务卡：文档排版也是生成流程（无固定进度，用不确定态）
+    beginGenTask('文档排版')
     const result = await chat(
       content,
       messages.value,
@@ -1666,16 +2047,21 @@ async function sendDoc(content, signal) {
       await rebuildAndPreview()
       error.value = ''
       addHistory('样式修改', `已修改 ${operations.length} 项样式`, 'style')
-      notifyLab('样式已更新', `共 ${operations.length} 项修改`, 'success')
+      succeedGenTask('样式已更新', `共 ${operations.length} 项修改`)
+    } else {
+      closeGenTask()
     }
   } catch (e) {
-    if (isAbortError(e)) return // 用户主动取消，静默处理
+    if (isAbortError(e)) {
+      closeGenTask() // 用户主动取消，静默处理
+      return
+    }
     messages.value.push({ id: genId(),
       role: 'assistant',
       content: `出错：${e.message}`,
       time: nowTime(),
     })
-    notifyLab('操作失败', e.message, 'error')
+    failGenTask('操作失败', e.message)
   }
   await scrollToBottom()
 }
@@ -1695,6 +2081,8 @@ async function sendPPT(content, signal) {
   }
 
   aiLoading.value = true
+  // 灵动岛任务卡：接管生成状态（进行中/成功/失败）
+  beginGenTask('PPT')
 
   // 初始化任务面板
   initTaskFlow('ppt', content)
@@ -1714,6 +2102,7 @@ async function sendPPT(content, signal) {
     const outlineData = await generatePPTOutline(content, '', handleProgress, signal)
     nextTask('outline')
     updateTask('detail', 'doing', '正在生成完整 PPT')
+    updateGenTaskStage('正在生成完整 PPT')
 
     // 展示大纲（只读，不再要求确认）
     messages.value.splice(progressMsgIndex.value, 1)
@@ -1737,7 +2126,7 @@ async function sendPPT(content, signal) {
       time: nowTime(),
     })
 
-    const data = await generatePPTStructure(content, '', outlineData, handleProgress, signal)
+    const data = await generateSlidesPageByPage(content, '', outlineData, handleProgress, signal)
     lastPPTData.value = data
 
     nextTask('detail')
@@ -1747,13 +2136,20 @@ async function sendPPT(content, signal) {
     messages.value.splice(progressMsgIndex.value, 1)
     progressMsgIndex.value = -1
 
+    // 质检摘要（逐页生成内置本地校验 + 修复回路）
+    const qa = data.qa || null
+    const qaText = qa && qa.degradedPages > 0
+      ? `质检发现 ${qa.degradedPages} 页未达标准已降级为内容页（${qa.degradedTitles.join('、')}），其余 ${data.slides.length - qa.degradedPages} 页通过校验。`
+      : '全部页面已通过质检校验。'
+
     messages.value.push({ id: genId(),
       role: 'assistant',
-      content: `已为你生成完整 PPT「${data.title}」，共 ${data.slides.length} 张幻灯片，样式集「${currentPresetName.value}」。可以下载查看，或告诉我要调整的地方。`,
+      content: `已为你生成完整 PPT「${data.title}」，共 ${data.slides.length} 张幻灯片，样式集「${currentPresetName.value}」。${qaText}可以下载查看，或告诉我要调整的地方。`,
       ppt: data,
+      artifact: { kind: 'ppt', data },
       time: nowTime(),
     })
-    notifyLab('PPT 生成成功', `${data.slides.length} 张幻灯片 · ${currentPresetName.value}`, 'success')
+    succeedGenTask('PPT 生成成功', `${data.slides.length} 张幻灯片 · ${currentPresetName.value}`)
   } catch (e) {
     // 用户主动取消：保留已生成的大纲信息，回退配额
     if (isAbortError(e)) {
@@ -1766,6 +2162,7 @@ async function sendPPT(content, signal) {
         content: '已停止 PPT 生成。',
         time: nowTime(),
       })
+      closeGenTask()
       await refundQuota('ppt')
       return
     }
@@ -1780,7 +2177,7 @@ async function sendPPT(content, signal) {
       content: `PPT 生成失败：${e.message}`,
       time: nowTime(),
     })
-    notifyLab('PPT 生成失败', e.message, 'error')
+    failGenTask('PPT 生成失败', e.message)
     // H-3 修复：AI 调用失败，回退预扣减的配额
     await refundQuota('ppt')
   } finally {
@@ -1804,6 +2201,8 @@ async function sendWord(content, signal) {
   }
 
   aiLoading.value = true
+  // 灵动岛任务卡：接管生成状态（进行中/成功/失败）
+  beginGenTask('Word')
 
   // 初始化任务面板
   initTaskFlow('word', content)
@@ -1823,6 +2222,7 @@ async function sendWord(content, signal) {
     const outlineData = await generateWordOutline(content, '', handleProgress, signal)
     nextTask('outline')
     updateTask('detail', 'doing', '正在生成完整文档')
+    updateGenTaskStage('正在生成完整 Word')
 
     // 展示大纲（只读，不再要求确认）
     messages.value.splice(progressMsgIndex.value, 1)
@@ -1863,7 +2263,7 @@ async function sendWord(content, signal) {
       word: data,
       time: nowTime(),
     })
-    notifyLab('Word 生成成功', `${blockCount} 个内容块 · ${currentPresetName.value}`, 'success')
+    succeedGenTask('Word 生成成功', `${blockCount} 个内容块 · ${currentPresetName.value}`)
   } catch (e) {
     // 用户主动取消：回退配额
     if (isAbortError(e)) {
@@ -1876,6 +2276,7 @@ async function sendWord(content, signal) {
         content: '已停止 Word 生成。',
         time: nowTime(),
       })
+      closeGenTask()
       await refundQuota('word')
       return
     }
@@ -1890,7 +2291,7 @@ async function sendWord(content, signal) {
       content: `Word 生成失败：${e.message}`,
       time: nowTime(),
     })
-    notifyLab('Word 生成失败', e.message, 'error')
+    failGenTask('Word 生成失败', e.message)
     // H-3 修复：AI 调用失败，回退预扣减的配额
     await refundQuota('word')
   } finally {
@@ -1915,6 +2316,8 @@ async function sendCode(content, signal) {
   }
 
   aiLoading.value = true
+  // 灵动岛任务卡：接管生成状态（进行中/成功/失败）
+  beginGenTask('网页')
   initTaskFlow('code', content)
 
   progressMsgIndex.value = messages.value.length
@@ -1931,6 +2334,7 @@ async function sendCode(content, signal) {
     const outlineData = await generateCodeOutline(content, '', handleProgress, thinkingBudgetValue.value, signal)
     nextTask('outline')
     updateTask('detail', 'doing', '正在编写网页代码')
+    updateGenTaskStage('正在编写网页代码')
 
     // 展示架构（只读，不再要求确认）
     messages.value.splice(progressMsgIndex.value, 1)
@@ -1982,7 +2386,7 @@ async function sendCode(content, signal) {
     })
     rightPanelOpen.value = true
     rightPanelTab.value = 'code'
-    notifyLab('网页生成成功', '点击右侧面板下载', 'success')
+    succeedGenTask('网页生成成功', '点击右侧面板下载 ZIP')
   } catch (e) {
     // P1-9: flush 确保 content 已落盘，避免取消时 partialContent 读到 rAF pending 的旧值
     flushStreamContent()
@@ -2010,6 +2414,7 @@ async function sendCode(content, signal) {
           })
         }
       }
+      closeGenTask()
       await refundQuota('code')
       return
     }
@@ -2023,7 +2428,7 @@ async function sendCode(content, signal) {
       content: `网页生成失败：${e.message}`,
       time: nowTime(),
     })
-    notifyLab('网页生成失败', e.message, 'error')
+    failGenTask('网页生成失败', e.message)
     // H-3 修复：AI 调用失败，回退预扣减的配额
     await refundQuota('code')
   } finally {
@@ -2197,12 +2602,6 @@ function handleUpgradeFromBadge() {
 function onHistoryRestore(index) {
   notifyLab('历史回滚', `已定位到第 ${index + 1} 步操作（完整回滚功能开发中）`, 'info')
   addHistory('回滚操作', `尝试回滚到步骤 ${index + 1}`, 'undo')
-}
-
-function onDocClick(e) {
-  if (plusMenuOpen.value && !e.target.closest('.plus-wrap')) {
-    plusMenuOpen.value = false
-  }
 }
 
 // ===== 上下文压缩 =====
@@ -2379,11 +2778,40 @@ function handleKeyboardShortcuts(e) {
   }
 }
 
+// 数据源变化 → 同步岛卡（配额/生成态/模型列表/样式集/思考预算）
+// 位置约束：所有被监听的 ref 必须已声明（避免 TDZ），故置于 setup 尾部
+watch(
+  [quotaDisplayData, genStatus, bohaiChatModes, bohaiModelsLoading, selectedBohaiModeId, effectiveTier, selectedPresetId, thinkingBudgetValue],
+  syncQuotaIsland
+)
+
+// ===== 导航高度同步：灵动岛展开撑高 surface 时页面自动下移留出安全距离（CommunityLotteries 先例） =====
+const labPageRef = ref(null)
+let labNavResizeObserver = null
+const syncLabNavHeight = () => {
+  const nav = document.getElementById('unified-nav-container')
+  const page = labPageRef.value
+  if (!nav || !page) return
+  const height = Math.ceil(nav.getBoundingClientRect().height)
+  if (height > 0) page.style.setProperty('--lab-nav-h', `${height + 12}px`)
+}
+
 onMounted(() => {
   document.addEventListener('click', onDocClick)
   document.addEventListener('keydown', handleKeyboardShortcuts)
   // 初始化实验室使用限额
   initializeQuota()
+  // 灵动岛：挂载配额 + 生成状态常驻岛（initializeQuota 完成后由 watch 自动同步数据）
+  mountQuotaIsland()
+  // 拉取 BOHAI 对话模型列表（岛卡展开区可切换；失败时岛卡显示默认模型兜底）
+  void loadBohaiChatModes()
+  // 导航高度安全距离：观察导航（灵动岛展开撑高时页面自动下移）
+  syncLabNavHeight()
+  const navEl = document.getElementById('unified-nav-container')
+  if (navEl && typeof ResizeObserver !== 'undefined') {
+    labNavResizeObserver = new ResizeObserver(syncLabNavHeight)
+    labNavResizeObserver.observe(navEl)
+  }
   // 安全重置：防止 HMR 热更新或路由切换后残留脏状态导致 send() 静默返回
   aiLoading.value = false
   isLoading.value = false
@@ -2393,6 +2821,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
   // 组件卸载时停止所有正在进行的 AI 生成，避免内存泄漏和后台流继续消耗 token
   stopGeneration()
+  // 同步收起灵动岛任务卡与常驻配额岛（showIsland.custom 约定：宿主必须负责 close）
+  closeGenTask()
+  quotaIslandHandle?.close()
+  quotaIslandHandle = null
   // 取消 pending 的 scroll rAF
   if (_scrollRafId !== null) {
     cancelAnimationFrame(_scrollRafId)
@@ -2408,34 +2840,51 @@ onBeforeUnmount(() => {
     clearTimeout(closeTaskPanelTimer)
     closeTaskPanelTimer = null
   }
+  // 灵动岛安全距离：导航高度观察器
+  labNavResizeObserver?.disconnect()
+  labNavResizeObserver = null
   document.removeEventListener('click', onDocClick)
   document.removeEventListener('keydown', handleKeyboardShortcuts)
 })
 </script>
 
 <style scoped>
-/* ===== Codex Desktop 设计令牌 ===== */
+/* ===== Liquid Glass 设计令牌（2026-09 UI 换新：液态玻璃 + 极简布局） ===== */
+/* 灰度变量映射到全站 --liquid-* 语义：主区透明化浮于环境底色之上，
+   --muted 即嵌套玻璃色块，--border 统一 hairline。 */
 .lab-page {
-  /* 冷调低饱和灰度配色 */
-  --background: #ffffff;
-  --foreground: #0d0d0d;
-  --muted: #f5f5f7;
+  /* 冷调低饱和灰度配色（玻璃语义） */
+  --background: transparent;
+  --surface-solid: #f7f7f8;
+  --foreground: #1d1d1f;
+  --foreground-inverse: #f7f7f8;
+  --muted: rgba(255, 255, 255, 0.52);            /* 嵌套玻璃：hover/小块 */
+  --muted-strong: rgba(255, 255, 255, 0.72);     /* 嵌套玻璃：略强 */
   --muted-foreground: #6e6e73;
-  --border: #e5e5ea;
-  --border-light: #f0f0f2;
+  --border: rgba(15, 23, 42, 0.07);              /* hairline */
+  --border-light: rgba(15, 23, 42, 0.045);
   --accent: #0071e3;
   --accent-hover: #0058b9;
-  --accent-light: #e8f1fd;
+  --accent-light: rgba(0, 113, 227, 0.12);
   --accent-foreground: #ffffff;
   --destructive: #ff3b30;
-  --destructive-light: #fff2f1;
-  --code-bg: #f5f5f7;
-  --code-border: #e5e5ea;
+  --destructive-light: rgba(255, 59, 48, 0.1);
+  --code-bg: rgba(15, 23, 42, 0.04);
+  --code-border: rgba(15, 23, 42, 0.07);
 
-  /* 圆角：统一 8px，仅输入框为 pill */
+  /* 玻璃表面成品（引用全站 token） */
+  --glass-panel: var(--liquid-bg);               /* 侧栏/右栏/顶栏 */
+  --glass-strong: var(--liquid-bg-strong);       /* composer/弹窗 */
+  --glass-filter: var(--liquid-filter);
+  --glass-filter-sm: var(--liquid-filter-sm);
+  --glass-highlight: var(--liquid-highlight-subtle);
+  --glass-shadow: var(--liquid-shadow-sm);
+  --glass-shadow-lg: var(--liquid-shadow);
+
+  /* 圆角：玻璃表面用大圆角，控件统一 8px，仅输入框为 pill */
   --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 10px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
   --radius-full: 9999px;
 
   /* 字体 */
@@ -2443,9 +2892,9 @@ onBeforeUnmount(() => {
   --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
 
   /* 阴影：极轻，几乎不可见 */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.03);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.06);
+  --shadow-sm: var(--liquid-shadow-sm);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.05);
+  --shadow-lg: var(--liquid-shadow);
 }
 
 /* ===== 页面骨架 ===== */
@@ -2454,10 +2903,14 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  /* 留出全局固定导航栏（#unified-nav-container, 72px）的空间，避免遮挡 */
-  padding-top: 72px;
+  /* 留出全局固定导航栏的空间（含灵动岛展开撑高的动态高度 + 12px 安全余量，脚本实时同步） */
+  padding-top: var(--lab-nav-h, 84px);
   box-sizing: border-box;
-  background: var(--background);
+  /* 环境底色：浅灰 + 两个柔和光斑，为液态玻璃提供可模糊的背景层次 */
+  background:
+    radial-gradient(52% 42% at 12% -6%, rgba(0, 113, 227, 0.07), transparent 68%),
+    radial-gradient(46% 40% at 92% 8%, rgba(52, 199, 89, 0.06), transparent 66%),
+    linear-gradient(180deg, #f6f6f8 0%, #eef0f3 100%);
   color: var(--foreground);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -2489,27 +2942,32 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  max-width: 780px;
+  max-width: 900px;
   width: 100%;
   margin: 0 auto;
-  padding: 24px 32px 0;
+  padding: 14px 20px 0;
   box-sizing: border-box;
   overflow: hidden;
 }
 
-/* ===== 左侧栏：Codex 风格窄侧边栏 ===== */
+/* ===== 左侧栏：液态玻璃浮岛 ===== */
 .lab-sidebar {
   width: 240px;
   flex-shrink: 0;
-  border-right: 1px solid var(--border);
-  background: var(--background);
+  margin: 10px 0 10px 10px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  background: var(--glass-panel);
+  backdrop-filter: var(--glass-filter-sm);
+  -webkit-backdrop-filter: var(--glass-filter-sm);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
   display: flex;
   flex-direction: column;
   transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
 }
 .lab-sidebar.collapsed {
-  width: 52px;
+  width: 62px;
 }
 .sidebar-head {
   display: flex;
@@ -2584,8 +3042,9 @@ onBeforeUnmount(() => {
   color: var(--foreground);
 }
 .sidebar-session.active {
-  background: var(--muted);
+  background: var(--muted-strong);
   color: var(--foreground);
+  box-shadow: var(--liquid-highlight-subtle);
 }
 .sidebar-session.active .session-title {
   font-weight: 500;
@@ -2612,12 +3071,17 @@ onBeforeUnmount(() => {
   opacity: 0.7;
 }
 
-/* ===== 右侧面板：Codex 风格可折叠预览面板 ===== */
+/* ===== 右侧面板：液态玻璃浮岛 ===== */
 .lab-right-panel {
   width: 320px;
   flex-shrink: 0;
-  border-left: 1px solid var(--border);
-  background: var(--background);
+  margin: 10px 10px 10px 0;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  background: var(--glass-panel);
+  backdrop-filter: var(--glass-filter-sm);
+  -webkit-backdrop-filter: var(--glass-filter-sm);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
   display: flex;
   flex-direction: column;
   transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -2626,7 +3090,8 @@ onBeforeUnmount(() => {
 }
 .lab-right-panel.collapsed {
   width: 0;
-  border-left: none;
+  margin-right: 0;
+  border: none;
 }
 .right-panel-tabs {
   display: flex;
@@ -2761,26 +3226,26 @@ onBeforeUnmount(() => {
   opacity: 0.85;
 }
 
-/* ===== 右侧面板任务项：Codex 风格 ===== */
+/* ===== 右侧面板任务项：嵌套玻璃 ===== */
 .task-item {
   display: flex;
   gap: 10px;
   padding: 10px 12px;
   border-radius: var(--radius-md);
-  background: var(--background);
-  border: 1px solid var(--border);
+  background: var(--muted);
+  border: 1px solid var(--border-light);
   transition: all 0.2s ease;
 }
 .task-item.task-done {
-  border-color: var(--border);
+  border-color: var(--border-light);
   opacity: 0.7;
 }
 .task-item.task-doing {
-  border-color: var(--accent);
+  border-color: rgba(0, 113, 227, 0.4);
   background: var(--accent-light);
 }
 .task-item.task-error {
-  border-color: var(--destructive);
+  border-color: rgba(255, 59, 48, 0.4);
   background: var(--destructive-light);
 }
 .task-item.task-pending {
@@ -2844,220 +3309,7 @@ onBeforeUnmount(() => {
   line-height: 1.4;
 }
 
-/* ===== 状态栏：Codex 风格极简细条 ===== */
-.lab-statusbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 16px;
-  border-top: 1px solid var(--border);
-  background: var(--background);
-  font-size: 11px;
-  color: var(--muted-foreground);
-  flex-shrink: 0;
-  height: 24px;
-  box-sizing: border-box;
-  font-family: var(--font-sans);
-}
-.statusbar-left,
-.statusbar-right {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.statusbar-model {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--muted-foreground);
-}
-.statusbar-tokens {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 10px;
-}
-.statusbar-value {
-  font-family: var(--font-mono);
-  font-weight: 500;
-  color: var(--foreground);
-}
-.statusbar-bar {
-  width: 48px;
-  height: 3px;
-  background: var(--border);
-  border-radius: 999px;
-  overflow: hidden;
-}
-.statusbar-fill {
-  height: 100%;
-  background: var(--muted-foreground);
-  border-radius: 999px;
-  transition: width 0.3s ease;
-}
-.statusbar-bar.streaming .statusbar-fill {
-  background: var(--accent);
-}
-.statusbar-thinking strong {
-  color: var(--foreground);
-  font-weight: 500;
-}
-
-/* ===== 顶栏：Codex 风格扁平细线 ===== */
-.lab-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--background);
-  z-index: 10;
-  flex-wrap: wrap;
-  flex-shrink: 0;
-  height: 44px;
-  box-sizing: border-box;
-}
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-.brand-mark {
-  width: 22px;
-  height: 22px;
-  border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: var(--accent-foreground);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-sans);
-  font-weight: 600;
-  font-size: 12px;
-  flex-shrink: 0;
-}
-
-html[data-theme="dark"] .brand-mark { background: #0071e3; color: #ffffff; }
-
-.brand-text {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.brand-name {
-  font-family: var(--font-sans);
-  font-weight: 500;
-  font-size: 13px;
-  letter-spacing: -0.01em;
-  color: var(--foreground);
-  line-height: 1.2;
-}
-.brand-sub {
-  font-family: var(--font-sans);
-  font-size: 10px;
-  color: var(--muted-foreground);
-  letter-spacing: 0;
-  margin-top: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.quota-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 2px 8px 2px 6px;
-  background: var(--muted);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-full);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--muted-foreground);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  vertical-align: middle;
-}
-.quota-badge:hover {
-  background: var(--border-light);
-  border-color: var(--border);
-}
-.quota-badge.exceeded {
-  color: var(--destructive);
-  border-color: var(--destructive);
-  background: var(--destructive-light);
-}
-.quota-badge.unlimited {
-  color: var(--muted-foreground);
-  border-color: var(--border);
-  background: var(--muted);
-  cursor: default;
-}
-.quota-badge-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--muted-foreground);
-  flex-shrink: 0;
-}
-.quota-badge.unlimited .quota-badge-dot {
-  background: #34c759;
-}
-.quota-badge.exceeded .quota-badge-dot {
-  background: var(--destructive);
-}
-.quota-badge-text {
-  line-height: 1;
-}
-.quota-badge-bar {
-  display: none;
-  width: 24px;
-  height: 3px;
-  background: var(--border);
-  border-radius: 2px;
-  overflow: hidden;
-}
-.quota-badge:hover .quota-badge-bar {
-  display: inline-block;
-}
-.quota-badge-fill {
-  height: 100%;
-  background: var(--accent);
-  border-radius: 2px;
-  transition: width 0.3s ease;
-}
-.quota-badge.exceeded .quota-badge-fill {
-  background: var(--destructive);
-}
-.quota-upgrade-btn {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 10px;
-  font-family: var(--font-sans);
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--accent-foreground);
-  background: var(--accent);
-  border: none;
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-  vertical-align: middle;
-  line-height: 1.6;
-}
-.quota-upgrade-btn:hover {
-  opacity: 0.85;
-}
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-/* ===== 图标按钮：扁平细线、8px 圆角 ===== */
+/* ===== 图标按钮：扁平细线、8px 圆角（composer 工具区） ===== */
 .icon-btn {
   display: inline-flex;
   align-items: center;
@@ -3087,16 +3339,6 @@ html[data-theme="dark"] .brand-mark { background: #0071e3; color: #ffffff; }
 .icon-btn--warn:hover {
   background: var(--muted);
 }
-.icon-btn-wrap {
-  position: relative;
-}
-.thinking-budget-popover {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 6px;
-  z-index: 200;
-}
 .icon-btn-badge {
   position: absolute;
   top: -2px;
@@ -3106,10 +3348,7 @@ html[data-theme="dark"] .brand-mark { background: #0071e3; color: #ffffff; }
   color: var(--muted-foreground);
 }
 
-/* ===== + 菜单：圆形按钮 + 玻璃弹层 ===== */
-.plus-wrap {
-  position: relative;
-}
+/* + 直达上传按钮（菜单与样式集弹窗已迁入导航栏灵动岛） */
 .plus-btn {
   display: inline-flex;
   align-items: center;
@@ -3124,54 +3363,161 @@ html[data-theme="dark"] .brand-mark { background: #0071e3; color: #ffffff; }
   transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
   flex-shrink: 0;
 }
-.plus-btn:hover,
-.plus-btn.active {
+.plus-btn:hover {
   background: var(--border);
   color: var(--foreground);
 }
 .plus-btn:active {
   transform: scale(0.94);
 }
-.plus-menu {
+
+/* ===== 输入框参数列表框：思考预算/样式集（实底弹层，防透明不可见） ===== */
+.composer-pill-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.composer-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.composer-pill:hover {
+  background: var(--border-light);
+  border-color: var(--border);
+  color: var(--foreground);
+}
+.composer-pill.active {
+  background: var(--border);
+  border-color: var(--border);
+  color: var(--foreground);
+}
+.composer-pill:active {
+  transform: scale(0.96);
+}
+
+/* 列表框弹层：高不透明实底 + blur，向上弹出（composer 位于页面底部） */
+.pill-menu {
   position: absolute;
   bottom: calc(100% + 8px);
   left: 0;
   min-width: 220px;
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: saturate(180%) blur(24px);
-  -webkit-backdrop-filter: saturate(180%) blur(24px);
-  border: 1px solid var(--border-light);
+  padding: 5px;
+  border: 1px solid var(--liquid-border, rgba(0, 0, 0, 0.1));
   border-radius: 14px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 12px 32px rgba(0, 0, 0, 0.06);
-  padding: 6px;
-  z-index: 20;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: var(--glass-filter, blur(18px));
+  -webkit-backdrop-filter: var(--glass-filter, blur(18px));
+  box-shadow: 0 18px 44px rgba(29, 41, 56, 0.18), 0 2px 8px rgba(29, 41, 56, 0.08);
+  z-index: 60;
 }
-.plus-item {
+.pill-menu--grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  min-width: 260px;
+}
+
+.pill-menu-item {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
   width: 100%;
-  padding: 9px 12px;
-  background: transparent;
+  padding: 7px 10px;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: 9px;
+  background: transparent;
   color: var(--foreground);
   font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
   text-align: left;
+  cursor: pointer;
   transition: background 0.12s ease;
 }
-.plus-item:hover {
+.pill-menu--grid .pill-menu-item {
+  justify-content: center;
+  padding: 7px 6px;
+}
+.pill-menu-item:hover {
   background: var(--muted);
 }
-.popover-enter-active, .popover-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s ease;
+.pill-menu-item.active {
+  background: rgba(0, 113, 227, 0.1);
+  color: #0071e3;
 }
-.popover-enter-from, .popover-leave-to {
+.pill-menu-item.active:hover {
+  background: rgba(0, 113, 227, 0.14);
+}
+
+.pill-menu-label {
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+.pill-menu--grid .pill-menu-label {
+  font-size: 12px;
+}
+.pill-menu-hint {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  line-height: 1.3;
+}
+.pill-menu-item.active .pill-menu-hint {
+  color: rgba(0, 113, 227, 0.75);
+}
+
+.pill-menu .popover-enter-active,
+.popover-enter-active,
+.popover-leave-active {
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+.popover-enter-from,
+.popover-leave-to {
   opacity: 0;
-  transform: translateY(4px);
+  transform: translateY(5px);
+}
+
+/* 暗色：实底深色玻璃 */
+html[data-theme="dark"] .pill-menu {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(30, 32, 38, 0.96);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+html[data-theme="dark"] .pill-menu-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+html[data-theme="dark"] .pill-menu-item.active {
+  background: rgba(41, 151, 255, 0.16);
+  color: #64b5ff;
+}
+html[data-theme="dark"] .pill-menu-item.active:hover {
+  background: rgba(41, 151, 255, 0.22);
+}
+
+/* 窄窗（横竖屏）：pill 退化为图标钮，保住工具区一行不溢出 */
+@media (max-width: 900px) {
+  .composer-pill span {
+    display: none;
+  }
+  .composer-pill {
+    padding: 0 8px;
+  }
+  .pill-menu--grid {
+    min-width: 220px;
+  }
 }
 
 /* ===== 附件标签：Apple 风格胶囊 ===== */
@@ -3257,21 +3603,23 @@ html[data-theme="dark"] .brand-mark { background: #0071e3; color: #ffffff; }
   margin-right: auto;
 }
 
-/* ===== 对话框（Composer）：Apple 风格大圆角 + 微阴影 ===== */
+/* ===== 对话框（Composer）：液态玻璃主面板 ===== */
 .composer {
   width: min(100%, 720px);
-  background: var(--background);
-  border: 1px solid var(--border);
+  background: var(--glass-strong);
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
+  border: 1px solid var(--liquid-border);
   border-radius: 24px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--glass-shadow-lg), var(--liquid-highlight);
   display: flex;
   flex-direction: column;
   overflow: visible;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .composer:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 4px var(--accent-light), 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 113, 227, 0.35);
+  box-shadow: 0 0 0 4px var(--accent-light), var(--glass-shadow-lg), var(--liquid-highlight);
 }
 .composer-input {
   width: 100%;
@@ -3475,7 +3823,7 @@ html[data-theme="dark"] .brand-mark { background: #0071e3; color: #ffffff; }
 }
 .message.assistant .message-avatar {
   background: var(--foreground);
-  color: var(--background);
+  color: var(--foreground-inverse);
 }
 .message-body {
   min-width: 0;
@@ -3575,15 +3923,17 @@ html[data-theme="dark"] .brand-mark { background: #0071e3; color: #ffffff; }
   text-decoration: underline;
 }
 
-/* ===== PPT 结果卡片：统一中度圆角，细线边框 ===== */
+/* ===== PPT 结果卡片：液态玻璃面板 ===== */
 .ppt-result-card {
   width: 100%;
   max-width: 560px;
-  background: var(--background);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  background: var(--glass-strong);
+  backdrop-filter: var(--glass-filter-sm);
+  -webkit-backdrop-filter: var(--glass-filter-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: none;
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
 }
 .ppt-result-head {
   display: flex;
@@ -3591,7 +3941,7 @@ html[data-theme="dark"] .brand-mark { background: #0071e3; color: #ffffff; }
   justify-content: space-between;
   gap: 12px;
   padding: 14px 16px 12px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-light);
 }
 .ppt-result-title {
   font-family: var(--font-sans);
@@ -3635,7 +3985,7 @@ html[data-theme="dark"] .brand-mark { background: #0071e3; color: #ffffff; }
 .ppt-slide-mini {
   padding: 10px;
   background: var(--muted);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
   font-family: var(--font-sans);
   position: relative;
@@ -3715,15 +4065,17 @@ html[data-theme="dark"] .brand-mark { background: #0071e3; color: #ffffff; }
   flex: 1;
 }
 
-/* ===== 进度卡片：极简，细进度条 ===== */
+/* ===== 进度卡片：液态玻璃 + 流光进度条 ===== */
 .progress-card {
   width: 100%;
   max-width: 480px;
-  background: var(--background);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  background: var(--glass-strong);
+  backdrop-filter: var(--glass-filter-sm);
+  -webkit-backdrop-filter: var(--glass-filter-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
   padding: 14px 16px;
-  box-shadow: none;
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
 }
 .progress-card-head {
   display: flex;
@@ -3775,15 +4127,17 @@ html[data-theme="dark"] .brand-mark { background: #0071e3; color: #ffffff; }
   text-align: right;
 }
 
-/* ===== 大纲预览卡片：极简，无色块 ===== */
+/* ===== 大纲预览卡片：液态玻璃面板 ===== */
 .outline-card {
   width: 100%;
   max-width: 560px;
-  background: var(--background);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  background: var(--glass-strong);
+  backdrop-filter: var(--glass-filter-sm);
+  -webkit-backdrop-filter: var(--glass-filter-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: none;
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
 }
 .outline-card-head {
   display: flex;
@@ -3791,7 +4145,7 @@ html[data-theme="dark"] .brand-mark { background: #0071e3; color: #ffffff; }
   justify-content: space-between;
   gap: 12px;
   padding: 14px 16px 12px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-light);
   background: transparent;
 }
 .outline-card-title {
@@ -3899,102 +4253,7 @@ html[data-theme="dark"] .brand-mark { background: #0071e3; color: #ffffff; }
   margin-top: 2px;
 }
 
-/* ===== 样式集选择模态框：窄边框、大面积留白 ===== */
-.preset-mask {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.3);
-  z-index: 200;
-}
-.preset-modal {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: min(720px, 92vw);
-  max-height: 86vh;
-  background: var(--background);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  z-index: 201;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.preset-modal-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px 16px;
-  border-bottom: 1px solid var(--border);
-}
-.preset-modal-title {
-  margin: 0;
-  font-family: var(--font-sans);
-  font-weight: 500;
-  font-size: 16px;
-  color: var(--foreground);
-}
-.preset-modal-close {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--foreground);
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-.preset-modal-close:hover {
-  background: var(--muted);
-}
-.preset-modal-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px 24px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.06) transparent;
-}
-.preset-modal-body::-webkit-scrollbar { width: 4px; }
-.preset-modal-body::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.06); border-radius: 2px; }
-.preset-modal-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 24px;
-  border-top: 1px solid var(--border);
-  background: transparent;
-}
-.preset-current {
-  font-family: var(--font-sans);
-  font-size: 12px;
-  color: var(--muted-foreground);
-}
-.preset-confirm-btn {
-  padding: 7px 18px;
-  background: var(--accent);
-  color: var(--accent-foreground);
-  border: none;
-  border-radius: var(--radius-sm);
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-}
-.preset-confirm-btn:hover {
-  opacity: 0.85;
-}
-.modal-enter-active, .modal-leave-active {
-  transition: opacity 0.2s ease;
-}
-.modal-enter-from, .modal-leave-to {
-  opacity: 0;
-}
+/* 样式集选择模态框样式已删除：样式集选择迁入导航栏灵动岛展开区 */
 
 /* ===== 思考动画：三点波浪 ===== */
 .thinking {
@@ -4018,19 +4277,19 @@ html[data-theme="dark"] .brand-mark { background: #0071e3; color: #ffffff; }
   30% { opacity: 1; transform: scale(1.1); }
 }
 
-/* ===== 底部对话框：毛玻璃 sticky ===== */
+/* ===== 底部对话框：液态玻璃 sticky ===== */
 .composer-bottom {
   position: sticky;
   bottom: 0;
   margin: 12px 0 0;
   padding: 8px 0 4px;
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  background: linear-gradient(180deg, transparent 0%, rgba(238, 240, 243, 0.55) 42%, rgba(238, 240, 243, 0.85) 100%);
+  backdrop-filter: var(--glass-filter-sm);
+  -webkit-backdrop-filter: var(--glass-filter-sm);
   z-index: 5;
 }
 
-/* ===== 错误提示：极简窄边框 ===== */
+/* ===== 错误提示：液态玻璃 toast ===== */
 .error-toast {
   position: fixed;
   bottom: 24px;
@@ -4040,14 +4299,16 @@ html[data-theme="dark"] .brand-mark { background: #0071e3; color: #ffffff; }
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  background: var(--background);
+  background: var(--glass-strong);
+  backdrop-filter: var(--glass-filter-sm);
+  -webkit-backdrop-filter: var(--glass-filter-sm);
   color: var(--destructive);
-  border: 1px solid var(--destructive);
-  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 59, 48, 0.35);
+  border-radius: var(--radius-full);
   font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 400;
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
   z-index: 50;
   max-width: 90vw;
 }
@@ -4075,11 +4336,13 @@ html[data-theme="dark"] .brand-mark { background: #0071e3; color: #ffffff; }
   opacity: 0;
 }
 
-/* ===== 抽屉：轻量窄边框 ===== */
+/* ===== 抽屉：液态玻璃侧滑面板 ===== */
 .drawer-mask {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(15, 23, 42, 0.18);
+  backdrop-filter: var(--glass-filter-sm);
+  -webkit-backdrop-filter: var(--glass-filter-sm);
   z-index: 100;
 }
 .drawer {
@@ -4088,9 +4351,11 @@ html[data-theme="dark"] .brand-mark { background: #0071e3; color: #ffffff; }
   right: 0;
   width: min(420px, 92vw);
   height: 100dvh;
-  background: var(--background);
-  border-left: 1px solid var(--border);
-  box-shadow: var(--shadow-lg);
+  background: var(--glass-strong);
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
+  border-left: 1px solid var(--liquid-border);
+  box-shadow: var(--liquid-shadow-overlay);
   z-index: 101;
   display: flex;
   flex-direction: column;
@@ -4199,15 +4464,17 @@ html[data-theme="dark"] .brand-mark { background: #0071e3; color: #ffffff; }
   opacity: 0;
 }
 
-/* ===== Code 结果卡片：浅灰背景容器 ===== */
+/* ===== Code 结果卡片：液态玻璃面板 ===== */
 .code-result-card {
   width: 100%;
   max-width: 580px;
-  background: var(--background);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  background: var(--glass-strong);
+  backdrop-filter: var(--glass-filter-sm);
+  -webkit-backdrop-filter: var(--glass-filter-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: none;
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
 }
 .code-result-head {
   display: flex;
@@ -4215,7 +4482,7 @@ html[data-theme="dark"] .brand-mark { background: #0071e3; color: #ffffff; }
   justify-content: space-between;
   gap: 12px;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-light);
   background: transparent;
 }
 .code-result-title {
@@ -4327,13 +4594,6 @@ html[data-theme="dark"] .brand-mark { background: #0071e3; color: #ffffff; }
 
 /* ===== 响应式 ===== */
 @media (max-width: 768px) {
-  .lab-topbar {
-    padding: 10px 14px;
-    gap: 10px;
-  }
-  .brand-text {
-    display: none;
-  }
   .empty-state {
     padding: 32px 16px 28px;
   }
@@ -4359,19 +4619,31 @@ html[data-theme="dark"] .brand-mark { background: #0071e3; color: #ffffff; }
   }
 }
 
-/* ===== 暗色主题（dark audit 2026-09-08） ===== */
+/* ===== 暗色主题（液态玻璃 audit 2026-09-12） ===== */
 html[data-theme="dark"] .lab-page {
-  --background: #12121a;
+  --background: transparent;
+  --surface-solid: #1a1a24;
   --foreground: #f5f5f7;
-  --muted: #1c1c22;
+  --foreground-inverse: #1a1a24;
+  --muted: rgba(255, 255, 255, 0.07);
+  --muted-strong: rgba(255, 255, 255, 0.11);
   --muted-foreground: #a1a1a6;
-  --border: #2c2c30;
-  --border-light: #232328;
+  --border: rgba(255, 255, 255, 0.09);
+  --border-light: rgba(255, 255, 255, 0.06);
   --accent: #409cff;
   --accent-hover: #6cb2ff;
   --accent-light: rgba(64, 156, 255, 0.16);
-  background: var(--background);
+  --destructive-light: rgba(255, 59, 48, 0.16);
+  --code-bg: rgba(255, 255, 255, 0.05);
+  --code-border: rgba(255, 255, 255, 0.09);
   color: var(--foreground);
+}
+html[data-theme="dark"] .lab-page {
+  /* 暗色环境底：深空灰 + 冷色光斑，玻璃浮岛自动从 --liquid-* 暗色 token 取值 */
+  background:
+    radial-gradient(52% 42% at 12% -6%, rgba(64, 156, 255, 0.1), transparent 68%),
+    radial-gradient(46% 40% at 92% 8%, rgba(52, 199, 89, 0.07), transparent 66%),
+    linear-gradient(180deg, #17171f 0%, #121218 100%);
 }
 
 </style>

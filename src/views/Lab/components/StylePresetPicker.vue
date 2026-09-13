@@ -27,6 +27,9 @@
         <div class="card-meta">
           <div class="card-name">{{ p.name }}</div>
           <div class="card-desc">{{ p.description }}</div>
+          <div v-if="p.tags?.length" class="card-tags">
+            <span v-for="t in p.tags" :key="t" class="card-tag">{{ t }}</span>
+          </div>
         </div>
         <div v-if="modelValue === p.id" class="card-check">
           <AppIcon name="check" size="small" weight="semibold" />
@@ -146,6 +149,21 @@ function thumbStyle(p) {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+.card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+.card-tag {
+  font-family: var(--font-sans);
+  font-size: 9px;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  color: var(--muted-foreground);
 }
 .card-check {
   position: absolute;

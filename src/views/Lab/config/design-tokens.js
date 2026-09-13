@@ -95,6 +95,7 @@ export const STYLE_PRESETS = [
     id: 'business',
     name: '商务简约',
     description: '深蓝主色，白底，适合商务汇报、年报',
+    tags: ['汇报', '年报', '通用'],
     tokens: {
       color: {
         primary: '1e40af',        // 深蓝
@@ -132,6 +133,7 @@ export const STYLE_PRESETS = [
     id: 'academic',
     name: '学术专业',
     description: '黑白灰，衬线字体，适合论文答辩、学术报告',
+    tags: ['答辩', '学术', '教育'],
     tokens: {
       color: {
         primary: '18181b',
@@ -169,6 +171,7 @@ export const STYLE_PRESETS = [
     id: 'minimal',
     name: '极简素雅',
     description: '大量留白，细线分隔，适合设计、品牌提案',
+    tags: ['设计', '品牌', '提案'],
     tokens: {
       color: {
         primary: '0f766e',        // 墨绿
@@ -206,6 +209,7 @@ export const STYLE_PRESETS = [
     id: 'tech',
     name: '科技深色',
     description: '深色背景，青色荧光，适合技术分享、产品发布',
+    tags: ['技术', '发布', '深色'],
     tokens: {
       color: {
         primary: '06b6d4',
@@ -243,6 +247,7 @@ export const STYLE_PRESETS = [
     id: 'guofeng',
     name: '国风典雅',
     description: '朱红墨黑，楷体衬线，适合文化、传统主题',
+    tags: ['文化', '传统', '人文'],
     tokens: {
       color: {
         primary: '9f1239',        // 朱红
@@ -280,6 +285,7 @@ export const STYLE_PRESETS = [
     id: 'boh',
     name: 'BOH 品牌',
     description: 'BOH 绿，团队内部汇报、分享',
+    tags: ['团队', '内部分享'],
     tokens: {
       color: {
         primary: '0f9f7a',
@@ -314,6 +320,82 @@ export const STYLE_PRESETS = [
       brand: {
         logo: 'BOH Agent',
         showOnSlides: true,
+      },
+    },
+  },
+  {
+    id: 'pitch',
+    name: '路演提案',
+    description: '靛蓝渐层感，撞色点缀，适合融资路演、商业计划',
+    tags: ['路演', '融资', 'BP'],
+    tokens: {
+      color: {
+        primary: '4f46e5',        // 靛蓝
+        primaryFg: 'ffffff',
+        secondary: '7c3aed',      // 紫
+        accent: 'f59e0b',         // 琥珀撞色
+        neutral: {
+          50: 'f5f5ff',
+          100: 'eef2ff',
+          200: 'e0e7ff',
+          500: '6366f1',
+          700: '312e81',
+          900: '1e1b4b',
+        },
+        bg: {
+          cover: '1e1b4b',
+          content: 'ffffff',
+          end: '1e1b4b',
+          muted: 'eef2ff',
+        },
+        text: {
+          onDark: 'eef2ff',
+          onLight: '1e1b4b',
+          muted: '6366f1',
+        },
+      },
+      font: {
+        title: FONT_STACKS.sansModern,
+        heading: FONT_STACKS.sansModern,
+        body: FONT_STACKS.sans,
+      },
+    },
+  },
+  {
+    id: 'finance',
+    name: '财务数据',
+    description: '深墨绿+鎏金，稳重克制，适合财务分析、数据报告',
+    tags: ['财务', '数据', '分析'],
+    tokens: {
+      color: {
+        primary: '065f46',        // 深墨绿
+        primaryFg: 'ffffff',
+        secondary: '047857',
+        accent: 'b45309',         // 鎏金
+        neutral: {
+          50: 'f8fafc',
+          100: 'f1f5f9',
+          200: 'e2e8f0',
+          500: '475569',
+          700: '1e293b',
+          900: '0f172a',
+        },
+        bg: {
+          cover: '0f172a',
+          content: 'ffffff',
+          end: '065f46',
+          muted: 'f8fafc',
+        },
+        text: {
+          onDark: 'ffffff',
+          onLight: '0f172a',
+          muted: '475569',
+        },
+      },
+      font: {
+        title: FONT_STACKS.serif,
+        heading: FONT_STACKS.sans,
+        body: FONT_STACKS.sans,
       },
     },
   },
