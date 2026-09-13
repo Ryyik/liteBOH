@@ -138,12 +138,17 @@
             <button v-for="(user, index) in visibleCommunityUsers" :key="user.id" type="button"
               class="user-item glass-user community-user-button" :style="{ '--item-index': index }"
               @click="goToProfile(user.username)">
-              <div class="user-avatar">
-                <img v-if="user.avatar_url" :src="user.avatar_url" alt="用户头像" class="avatar-image" loading="lazy"
-                  decoding="async" />
-                <span v-else>{{ user.username ? user.username.charAt(0).toUpperCase() : 'U' }}</span>
-                <span v-if="isUserOnline(user, hideOnlineStatus)" class="online-dot" aria-label="在线"></span>
-              </div>
+              <span class="boh-avatar-wrap">
+                <div class="user-avatar">
+                  <img v-if="user.avatar_url" :src="user.avatar_url" alt="用户头像" class="avatar-image" loading="lazy"
+                    decoding="async" />
+                  <span v-else>{{ user.username ? user.username.charAt(0).toUpperCase() : 'U' }}</span>
+                  <span v-if="isUserOnline(user, hideOnlineStatus)" class="online-dot" aria-label="在线"></span>
+                </div>
+                <span v-if="memberFrame(user)" class="boh-avatar-frame"
+                  :style="{ '--boh-avatar-frame-url': `url(${memberFrame(user).url})`, '--boh-avatar-frame-scale': String(memberFrame(user).scale || 1.24) }"
+                  aria-hidden="true"></span>
+              </span>
               <div class="user-info">
                 <div class="user-name-row">
                   <span class="user-name" :class="communityTierMap[user.id]">@{{ user.username }}</span>
@@ -301,6 +306,7 @@ import { themeManager } from '@/utils/theme-manager.js';
 import { isHomeCatTheme } from '@/utils/home-cat-theme.js';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { useTierMap } from '@/composables/useTierMap.js';
+import { resolveFrameForAuthor } from '@/composables/useAvatarFrame.js';
 
 const emit = defineEmits(['switch-tab', 'open-follow-modal']);
 
@@ -331,6 +337,11 @@ const isBirthdaysExpanded = ref(false);
 const communityUsers = ref([]);
 const communityFilter = ref('all');
 const followingIds = ref(new Set());
+
+// 成员头像佩戴框：自己（列表含本人）走本地佩戴即换即见，他人走 avatar_frame_url 数据反查
+const memberFrame = (user) => (
+  user?.id ? resolveFrameForAuthor(user.avatar_frame_url, user.id) : null
+);
 const isMobileLayout = ref(typeof window !== 'undefined' && window.innerWidth <= 768);
 const recentBirthdayUsers = ref([]);
 const communitySearchQuery = ref('');

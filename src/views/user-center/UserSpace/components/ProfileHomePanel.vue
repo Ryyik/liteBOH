@@ -24,18 +24,23 @@
 
       <div class="profile-identity-stack">
       <div class="profile-hero-body">
-        <div class="apple-avatar-wrapper profile-hero-avatar clickable" @click="$emit('avatar-click')">
-          <div v-if="avatarUrl" class="apple-avatar has-avatar">
-            <img :src="avatarUrl" alt="头像" class="avatar-img" loading="lazy">
+        <span class="boh-avatar-wrap">
+          <div class="apple-avatar-wrapper profile-hero-avatar clickable" @click="$emit('avatar-click')">
+            <div v-if="avatarUrl" class="apple-avatar has-avatar">
+              <img :src="avatarUrl" alt="头像" class="avatar-img" loading="lazy">
+            </div>
+            <div v-else class="apple-avatar">{{ displayInitial }}</div>
+            <div class="avatar-edit-overlay">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                <circle cx="12" cy="13" r="4" />
+              </svg>
+            </div>
           </div>
-          <div v-else class="apple-avatar">{{ displayInitial }}</div>
-          <div class="avatar-edit-overlay">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-              <circle cx="12" cy="13" r="4" />
-            </svg>
-          </div>
-        </div>
+          <span v-if="heroFrame?.url" class="boh-avatar-frame"
+            :style="{ '--boh-avatar-frame-url': `url(${heroFrame.url})`, '--boh-avatar-frame-scale': String(heroFrame.scale || 1.24) }"
+            aria-hidden="true"></span>
+        </span>
 
         <div class="profile-hero-copy">
           <div class="name-row profile-hero-name-row">
@@ -278,6 +283,7 @@ import { getCommentsByUsername, getFollowers, getFollowing, unfollowUser } from 
 import { fetchQuotedPostsByIds } from '@/utils/api/forum-api.js';
 import { resolveStoredCoverUrl } from '@/utils/api/forum-format.js';
 import { useUserTier } from '@/composables/useUserTier.js';
+import { useAvatarFrame } from '@/composables/useAvatarFrame.js';
 import { PLAN_DISPLAY_NAMES } from '@/utils/subscription-benefits.js';
 
 const followModal = reactive({
@@ -444,6 +450,8 @@ const { fetchUserTier, getNicknameClass, getUserTierCode } = useUserTier();
 const nicknameClass = ref('');
 const tierCode = ref('');
 const tierDisplayName = computed(() => PLAN_DISPLAY_NAMES[tierCode.value] || '');
+// 主页大头像佩戴框：自己=本地佩戴状态（即换即见），tier 跟昵称徽章同源
+const { effectiveFrame: heroFrame } = useAvatarFrame(tierCode);
 watch(profileId, async (id) => {
   if (id) {
     await fetchUserTier(id);
@@ -818,14 +826,14 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   margin-top: -36px;
 }
 
-.profile-hero-avatar {
+.profile-hero-body .boh-avatar-wrap {
   align-self: start;
 }
 
 .profile-hero-avatar .apple-avatar {
   width: 96px;
   height: 96px;
-  border-radius: 28px;
+  border-radius: 50%;
   border: 4px solid var(--surface);
   box-shadow: 0 14px 32px rgba(15, 23, 42, 0.2);
   transition: transform 180ms var(--ease-out), box-shadow 180ms var(--ease-out);

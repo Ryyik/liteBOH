@@ -3595,7 +3595,7 @@
   .profile-hero-avatar .apple-avatar {
     width: 82px;
     height: 82px;
-    border-radius: 24px;
+    border-radius: 50%;
   }
 
   .profile-hero-copy {

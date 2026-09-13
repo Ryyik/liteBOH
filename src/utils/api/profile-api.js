@@ -295,6 +295,7 @@ export async function getProfileByUsername(username) {
         username,
         bio,
         avatar_url,
+        avatar_frame_url,
         join_date,
         points,
         birth_month,

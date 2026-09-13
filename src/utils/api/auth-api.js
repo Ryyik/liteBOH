@@ -530,6 +530,7 @@ export async function getProfilesPage({ page = 1, pageSize = 10, search = '', co
           username,
           role,
           avatar_url,
+          avatar_frame_url,
           bio,
           join_date,
           birth_month,

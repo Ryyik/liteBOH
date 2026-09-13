@@ -4,25 +4,30 @@
 
     <section class="profile-edit-page-card">
       <div class="profile-edit-page-hero">
-        <div class="apple-avatar-wrapper profile-edit-page-avatar clickable" @click="$emit('avatar-click')">
-          <div v-if="avatarUrl" class="apple-avatar has-avatar">
-            <img :src="avatarUrl" alt="头像" class="avatar-img" loading="lazy">
+        <span class="boh-avatar-wrap">
+          <div class="apple-avatar-wrapper profile-edit-page-avatar clickable" @click="$emit('avatar-click')">
+            <div v-if="avatarUrl" class="apple-avatar has-avatar">
+              <img :src="avatarUrl" alt="头像" class="avatar-img" loading="lazy">
+            </div>
+            <div v-else class="apple-avatar">{{ (username || 'U').charAt(0).toUpperCase() }}</div>
+            <span class="profile-edit-avatar-badge" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"
+                stroke-linejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                <circle cx="12" cy="13" r="4" />
+              </svg>
+            </span>
+            <div class="avatar-edit-overlay">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                <circle cx="12" cy="13" r="4" />
+              </svg>
+            </div>
           </div>
-          <div v-else class="apple-avatar">{{ (username || 'U').charAt(0).toUpperCase() }}</div>
-          <span class="profile-edit-avatar-badge" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"
-              stroke-linejoin="round">
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-              <circle cx="12" cy="13" r="4" />
-            </svg>
-          </span>
-          <div class="avatar-edit-overlay">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-              <circle cx="12" cy="13" r="4" />
-            </svg>
-          </div>
-        </div>
+          <span v-if="editFrame?.url" class="boh-avatar-frame"
+            :style="{ '--boh-avatar-frame-url': `url(${editFrame.url})`, '--boh-avatar-frame-scale': String(editFrame.scale || 1.24) }"
+            aria-hidden="true"></span>
+        </span>
         <div class="profile-edit-page-copy">
           <h3>{{ username || '我的资料' }}</h3>
           <p>更新会显示在“我的”页面顶部。</p>
@@ -100,6 +105,7 @@
 
 <script setup>
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
+import { useAvatarFrame } from '@/composables/useAvatarFrame.js';
 
 defineProps({
   avatarUrl: { type: String, default: '' },
@@ -116,6 +122,9 @@ defineProps({
   daysForEditProfile: { type: Array, default: () => [] },
   isSubmittingProfileEdit: { type: Boolean, default: false }
 });
+
+// 编辑页大头像同步佩戴框（佩戴弹层换框后此处即时生效）
+const { effectiveFrame: editFrame } = useAvatarFrame();
 
 defineEmits(['close', 'avatar-click', 'open-avatar-frames', 'save',
   'update-username', 'update-bio', 'update-join-year', 'update-join-month', 'update-join-day',

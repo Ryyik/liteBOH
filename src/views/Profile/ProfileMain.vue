@@ -8,7 +8,7 @@
         <div class="profile-cover-band" style="height: 148px; background: linear-gradient(90deg, #eef2f7 25%, #e6ebf2 50%, #eef2f7 75%); background-size: 200% 100%;"></div>
         <div class="profile-hero-body" style="padding: 0 24px 18px; margin-top: -44px;">
           <div class="profile-hero-avatar">
-            <div class="apple-avatar skeleton-item" style="width: 96px; height: 96px; border-radius: 28px;"></div>
+            <div class="apple-avatar skeleton-item" style="width: 96px; height: 96px; border-radius: 50%;"></div>
           </div>
           <div class="profile-hero-copy" style="padding-top: 48px; gap: 10px;">
             <div class="skeleton-title skeleton-item" style="width: 140px; height: 22px; border-radius: 8px;"></div>
@@ -618,14 +618,16 @@ const isOwnProfile = computed(() => {
   return isLoggedIn.value && userInfo.value.username === route.params.username;
 });
 
-// 主页大头像佩戴框：自己走本地佩戴状态（即换即见）；他人主页待 refreshProfileSummary 带出 frame 字段后接入
-const ownFrame = computed(() => (
-  isOwnProfile.value ? resolveFrameForAuthor('', userInfo.value?.id) : null
-));
-
 const profile = computed(() => {
   return isOwnProfile.value ? ownProfileSnapshot.value : fetchedProfile.value;
 });
+
+// 主页大头像佩戴框：自己走本地佩戴状态（即换即见）；他人走 profiles.avatar_frame_url 数据反查
+const ownFrame = computed(() => (
+  isOwnProfile.value
+    ? resolveFrameForAuthor('', userInfo.value?.id)
+    : resolveFrameForAuthor(profile.value?.avatar_frame_url, profile.value?.id)
+));
 
 const { fetchUserTier, fetchUserTiersBatch, getNicknameClass, getUserTierCode } = useUserTier();
 const nicknameClass = ref('');

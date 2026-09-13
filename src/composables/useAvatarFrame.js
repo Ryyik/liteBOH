@@ -23,7 +23,9 @@ export const AVATAR_FRAMES = [
   { id: 'none', name: '无框', tier: 'free', ring: '', url: '', desc: '不佩戴任何头像框' },
   { id: 'orange-cat', name: '橙猫手绘', tier: 'free', ring: '#e8734a', url: '/avatars/frames/orange-cat-frame.png', desc: '手绘小猫环绕 · 全员可戴' },
   { id: 'blue-dog', name: '蓝狗手绘', tier: 'free', ring: '#4aa8e8', url: '/avatars/frames/blue-dog-frame.png', desc: '手绘小狗环绕 · 全员可戴' },
-  { id: 'white-cat', name: '白绒猫', tier: 'free', ring: '#f0e8e0', url: '/avatars/frames/white-cat-frame.png', scale: 1.4, desc: '白色毛绒厚环 · 深色主题尤其出彩' }
+  { id: 'white-cat', name: '白绒猫', tier: 'free', ring: '#f0e8e0', url: '/avatars/frames/white-cat-frame.png', scale: 1.4, desc: '白色毛绒厚环 · 深色主题尤其出彩' },
+  { id: 'hamster', name: '仓鼠瓜子', tier: 'free', ring: '#c9a06a', url: '/avatars/frames/hamster-frame.png?v=3', scale: 1.61, desc: '手绘仓鼠白盘嗑瓜子 · 全员可戴' },
+  { id: 'cow', name: '奶牛抱抱', tier: 'free', ring: '#cfcfd6', url: '/avatars/frames/cow-frame.png', scale: 1.6, desc: '手绘奶牛趴圈环抱 · 深色主题尤其出彩' }
   // ── 档位框候选（素材待定，取消注释即上架）──
   // { id: 'plus-ragdoll', name: '布偶蓝铃', tier: 'plus', ring: '#0071e3', url: '', desc: 'Plus 档专属 · 蓝色项圈小铃铛' },
   // { id: 'pro-silver', name: '银渐层', tier: 'pro', ring: '#9aa3b2', url: '', desc: 'Pro 档专属 · 银灰围脖猫爪' },
@@ -34,6 +36,9 @@ export const AVATAR_FRAMES = [
 
 /** 解锁档位排序（limit 限定不走 rank，一期 mock 默认已解锁，Phase 2 由服务端发放） */
 const TIER_RANK = { free: 0, plus: 1, pro: 2, max: 3, ultra: 4 };
+
+/** 素材 URL 去版本参数（?v=N）——库中存量 url 无 query，反查清单时按路径匹配 */
+const stripUrlQuery = (u) => String(u || '').split('?')[0];
 
 export function getFrameById(id) {
   return AVATAR_FRAMES.find((f) => f.id === id) || AVATAR_FRAMES[0];
@@ -121,7 +126,7 @@ export async function syncAvatarFrameFromServer() {
     if (error) throw error;
     const serverUrl = String(data?.avatar_frame_url || '').trim();
     if (serverUrl) {
-      const frame = AVATAR_FRAMES.find((f) => f.url === serverUrl);
+      const frame = AVATAR_FRAMES.find((f) => stripUrlQuery(f.url) === stripUrlQuery(serverUrl));
       const serverId = frame?.id || 'none';
       if (serverId !== equippedId.value) {
         equippedId.value = serverId;
@@ -154,8 +159,8 @@ export function resolveFrameForAuthor(frameUrl, authorId) {
     const frame = getFrameById(equippedId.value);
     return frame.url ? { url: frame.url, scale: frame.scale || 1.24 } : null;
   }
-  const url = String(frameUrl || '').trim();
-  if (!url) return null;
-  const known = AVATAR_FRAMES.find((f) => f.url === url);
-  return { url, scale: known?.scale || 1.24 };
+    const url = String(frameUrl || '').trim();
+    if (!url) return null;
+    const known = AVATAR_FRAMES.find((f) => stripUrlQuery(f.url) === stripUrlQuery(url));
+    return { url, scale: known?.scale || 1.24 };
 }
