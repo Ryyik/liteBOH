@@ -26,6 +26,9 @@
 - 消息中心真实入口=UserSpace messages tab 的 AsyncMessages（user-center/Messages/index.vue），非 ForumMain 的 NotificationDrawer（死 UI）。NotificationSuggestIsland（未读→导航岛）调度在 UserSpaceMain，须 ensureNotificationStore()（直达 ?tab=messages 时 unreadCount 快照为 null）；watch 清零抢先 done 态用 suggestActionRunning 锁。回归探针 probe-notification-suggest-island.mjs。
 - 论坛多图：横向 strip+分段指示器可点；全量图唯一入口 ensureForumPostFullImages（in-flight 去重）；shallowRef 元素改字段必须整体替换+triggerRef。官方卡详情按 source_type+source_id 回源+resolveStoredCoverUrl 封面。
 - 头像全圆化（0911）：改形状要 grep 所有断点覆盖。
+- 头像框清单（0912）：6+1 框全 free——无框/橙猫/蓝狗(1.24)/白绒猫(1.4)/仓鼠瓜子(1.43 白环盘)/奶牛抱抱(1.6)，单源 useAvatarFrame.js AVATAR_FRAMES，素材 public/avatars/frames/ 统一 1223×1223 PNG≤400KB。**新框接入流水线**：中心内切圆测量（white-cat 66.8% 校准基准）→散点构图勿机械 1/内孔，用 scale 矩阵目测定档→1223 缩放→清单注册→probe-avatar-frame-new.mjs 回归。仓鼠源图白底须 flood fill 抠（仓鼠身体近白，禁全局抠白）。
+- **手绘线稿框的白色填充**：「用户说的白色背景=白色底板」（白绒猫填充板同款：白色实心环+线稿元素），不是身体轮廓内部填充——仓鼠返工两轮才对齐：v6 身体填充被驳回→v10 白色圆环盘（内径 70% 贴头像边、外径 97%，scale=1/0.70=1.43）一次过。实现=v1 flood 抠底为基底 + 环带 mask∩被抠区填白 + 身体带列扫描填充（first dark(lum<190)+8 上缘，弧线点列下缘）。勿用闭运算/纯连通域（手绘元素间距密，≥21px 核全图闭死）；暗色验收必须垫暗底截图；目测图上读坐标不可靠（显示缩放误差），一切以像素扫描数据为准；采样验证点必须确认在目标区域（曾拿背景点当身体点连 FAIL 三轮）。**脚本写文件必须核对 OUT≠SRC**，处理用户素材先留副本（仓鼠.PNG 曾被覆盖，靠 /tmp 中间产物无损重建）。
+- 探针坑：SegmentTabs 按钮显式 role="tab"，getByRole('button') 匹配不到，用 getByRole('tab', {name})。装扮路径 /#/user-space?tab=assets→现注 pinia→点「装扮」tab（无 URL 直达）。
 
 ## 导出预览
 - user-data-export 内嵌 previewHtml=liquid-glass-v2；验证链 probe-export-v2-harness.mjs（改模板必跑）；大块改动用锚点拼接法，拼完查游离反引号/${。
