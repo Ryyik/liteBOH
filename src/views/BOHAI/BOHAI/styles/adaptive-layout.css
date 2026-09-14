@@ -125,26 +125,8 @@
     transform: translate(-50%, -50%) !important;
 }
 
-/* 注释掉这段样式，避免与GlobalAiGlassOverlay.vue中的样式冲突 */
-/*
-.bohai-page.overlay-mode .input-area,
-.bohai-page.overlay-mode.empty-chat-mode .input-area,
-.bohai-page.overlay-mode.embedded-mode.empty-chat-mode .input-area {
-    position: fixed !important;
-    left: 50% !important;
-    right: auto !important;
-    bottom: var(--boh-ai-bottom-nav-clearance) !important;
-    z-index: 2147482050 !important;
-    width: min(calc(100% - 32px), var(--bohai-composer)) !important;
-    max-width: var(--bohai-composer) !important;
-    margin: 0 !important;
-    padding: 8px 0 0 !important;
-    opacity: 1 !important;
-    visibility: visible !important;
-    transform: translateX(-50%) !important;
-    pointer-events: auto !important;
-}
-*/
+/* 2026-09-14：原此处有一段被注释的 .input-area 定位覆盖，因与 GlobalAiGlassOverlay
+   样式冲突而禁用；该组件已确认零挂载并删除，冲突方不复存在，故连注释块一并移除 */
 
 .bohai-page.overlay-mode .input-box,
 .bohai-page.overlay-mode[data-ui-style="glass"] .input-box,

@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import { filterRecentForumPosts, sortForumPostsByCreatedAtDesc } from '../../src/views/BOHAI/composables/useForumSummary.js';
 
 const sidebarPath = resolve(import.meta.dirname, '../../src/views/BOHAI/BOHAI/components/BohaiSidebar.vue');
-const overlayPath = resolve(import.meta.dirname, '../../src/components/GlobalAiGlassOverlay.vue');
 const mainPath = resolve(import.meta.dirname, '../../src/views/BOHAI/BOHAI/BOHAIMain.vue');
 const enginePath = resolve(import.meta.dirname, '../../src/views/BOHAI/composables/useChatEngine.js');
 const memoryCapturePath = resolve(import.meta.dirname, '../../src/views/BOHAI/composables/useMemoryCapture.js');
@@ -16,16 +15,6 @@ describe('BOH AI quick sidebar visibility', () => {
     const source = readFileSync(sidebarPath, 'utf8');
     expect(source).toContain('v-if="isComponentVisible && isOpen"');
     expect(source).not.toContain('v-show="isComponentVisible && (!overlayMode || isOpen)"');
-  });
-});
-
-describe('BOH AI portrait controls', () => {
-  it('keeps settings visible and exposes pointer drag plus fullscreen fallback', () => {
-    const source = readFileSync(overlayPath, 'utf8');
-    expect(source).toContain('@pointerdown="onHandlePointerDown"');
-    expect(source).toContain('global-ai-fullscreen-button');
-    expect(source).toContain('.global-ai-header-actions .global-ai-full-page-button { display: none; }');
-    expect(source).not.toContain('.global-ai-header-actions .global-ai-header-btn:nth-child(1) { display: none; }');
   });
 });
 
