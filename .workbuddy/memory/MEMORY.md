@@ -11,6 +11,14 @@
 ## 主题/样式
 - themeManager：localStorage boh-theme→html[data-theme]，暗色 css 懒加载。Vue 不支持 `:global()`、全局 css `:deep()` 静默失效；暗色=平铺选择器 `.page[data-theme="dark"] .child`。teleport 弹层只用全局 --liquid-* token+自写暗色文字覆盖。
 - 玻璃单一源 tokens.css --liquid-*；禁散装 backdrop-filter；品牌蓝 #0071e3（暗 #2997ff）。**全站禁用 content-visibility:auto**（WebKit bug 321501，程序化 scrollTo 不复现，真机才复现）。
+- **液态玻璃 token 速查（0914 复核）**：源文件 `src/styles/common/tokens.css`（26 个唯一 `--liquid-*`，`main.js:7` 全局加载），分 9 族——bg(5)/border(3)/blur(3)/filter(3)/highlight(2)/shadow(3)/radius(3)/text(3)/saturate(1)。消费方 3 个：`liquid-glass.css`（纯 CSS 类库，门禁唯一豁免裸写 backdrop-filter）、`glass-ui.css`（档位派生）、`hero-surface.css`（Hero 的 `--hero-*`）。门禁 `scripts/check-liquid-glass.mjs` 禁三类重复定义（`--glass-filter-*` 再派生 / 成品档字面量 `blur(28px) saturate(180%) brightness(1.02)` / `blur(NNpx)` 且 NN≥14）。
+- ✅ **已修（0914 ba873636）**：`tokens.css` 暗色块已补派生 `--liquid-text-*`（primary `#f5f5f7` / secondary `#a1a1a6` / tertiary `#8a919c`，三级在暗玻璃上对比度 15:1/6.4:1/4.6:1 均达 AA）。原先 5 个文件散着 9 个硬编码暗色文字值（ResetPassword / Forum 弹层 / settings-glass / DataExportPanel / Beta6 hero）已全部收敛：2 处字面量 token 重定义删除、settings-glass 删 10 条硬编码暗色规则、DataExportPanel 整段删除、`--hero-text*` 改为别名 `--liquid-text-*`（var() 在使用处解析 → hero 自动获得暗色，无需暗色块）。
+- **关键机制：项目有两套暗色选择器，都有效，别只查一套**
+  ① `theme-manager.js` 把 `data-theme` 挂到 html + **14 个具名容器**（`.forum-page`/`.post-detail-page`/`.user-space-page`/`.account-security-page`/`.address-page`/`.subscription-page`/`.note-page`/`.partners-container`/`.tags-impressions-page`/`.pushplus-settings-page`/`.shared-memory-page`/`#unified-nav-container`/`.bohai-page`/`.x-notifications-container`）→ 后代式 `[data-theme="dark"] .x` 生效（全站 2589 处用此式）。
+  ② **7 个组件自绑定** `:data-theme="currentTheme"` 在根元素上（Beta6RenewalHero / PostDetailMain / BetaPreviewMain / UserSpaceMain / NewsDetailPage / ForumMain / ProfileMain）→ 同元素式 `.x[data-theme="dark"]` 生效。
+  断言某段暗色 CSS 是死代码前，**两套机制都要查**，否则会误判（0914 踩过）。
+- ⚠️ **macOS BSD grep 两个沉默陷阱（导致过两次误判）**：`\s` 与 `\|` 交替**都不支持**，且**不报错、静默返回空**——空结果会被误读成"不存在"。正确写法：`[[:space:]]`、用内置 Grep 工具（ripgrep）或分开执行。`grep -n "a\|b"` / `grep -nE "^\s*--x"` 都是坑。
+- 文件头只写「Motion Tokens」但实际同时容纳动效 token（--ease-*/--duration-*）与液态玻璃 token，是"找不到液态玻璃 token 在哪"的主因；建议改标题或拆分。
 - !important 棘轮门禁 scripts/check-important-budget.mjs（基线 1396）进 build:ci。Hero 单源=styles/common/hero-surface.css。空态一律 EmptyState.vue。
 - 组件 scoped 压过全局 media——响应式写进组件自己的 scoped media。body.page-* 是活的（App.vue 动态挂 page-${route.name}），勿判死。
 
