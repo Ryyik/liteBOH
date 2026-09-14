@@ -8,6 +8,7 @@ import fs from 'node:fs';
 // 断言：
 //  1) 进入消息收件箱 → navbar 弹出 .notif-suggest-card，文案「3 条未读消息」+ CTA「全部已读」
 //  2) 点「全部已读」→ 卡片 done 态「已全部标记为已读」→ 自动收起 → 底部导航未读徽标消失
+//     去重守卫：成功反馈只由本岛 done 态呈现，不应再派发同义导航状态卡（否则 navbar 叠两张卡）
 //  3) × 掉后同批次（未读数未增长）切走再切回不弹；未读增长后新批次重新弹
 //  4) 切走 tab / AI 分区卡片跟随收起
 const BASE = 'http://localhost:5173';
@@ -112,6 +113,15 @@ if (card) {
 
 /* ---------- 2) 点「全部已读」→ done 态 → 自动收起 → 徽标消失 ---------- */
 if (card) {
+  // 监听导航状态卡事件（showIsland.notify → boh_global_nav_status）：
+  // 成功反馈只应由建议岛自己的 done 态呈现；若 Messages 的 showFeedback 再派发一条同义状态卡，
+  // 两者同处 navbar surface → 叠成两张卡 = 「灵动岛和提示重复」。事件计数不受出卡时序影响，比查 DOM 稳。
+  await page.evaluate(() => {
+    window.__navStatusEvents = [];
+    window.addEventListener('boh_global_nav_status', (e) => {
+      window.__navStatusEvents.push(String(e?.detail?.title || ''));
+    });
+  });
   await page.click('#unified-nav-container .notif-suggest-card .nsc-cta');
   let doneOk = true;
   try {
@@ -120,6 +130,12 @@ if (card) {
       null, { timeout: 6000 });
   } catch { doneOk = false; }
   check('点击后卡片进入成功态文案', doneOk);
+  // 去重守卫：1) 未派发同义导航状态卡  2) 未落页面内反馈 toast（showIsland 不可用时的降级通路）
+  const dupTitles = await page.evaluate(() =>
+    (window.__navStatusEvents || []).filter((t) => t.includes('已全部标记为已读')));
+  check('成功反馈不重复（未派发同义导航状态卡）', dupTitles.length === 0, dupTitles.join(' | '));
+  const toastDup = await page.evaluate(() => !!document.querySelector('.message-feedback-toast'));
+  check('成功反馈不重复（无页面内 feedback toast）', !toastDup);
   await page.screenshot({ path: `${OUT}/notif-suggest-island-done.png` });
   let autoClosed = true;
   try {

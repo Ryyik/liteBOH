@@ -2069,7 +2069,10 @@ const markAsRead = async (msg) => {
 };
 
 // 标记全部已读
-const markAllAsRead = async () => {
+// silent=true：宿主（UserSpaceMain 智能建议岛）调用时，成功反馈由灵动岛自己的 done 态
+// （「已全部标记为已读」）呈现，页面内不再叠一条同义 toast —— 否则同一结果岛 + 提示两处重复。
+// 失败仍照常提示：岛只会还原成「可重试」态，不足以说明失败原因。
+const markAllAsRead = async ({ silent = false } = {}) => {
   if (!currentUserId.value) {
     logger.debug('messages', '标记全部已读跳过：currentUserId 为空');
     return;
@@ -2080,7 +2083,7 @@ const markAllAsRead = async () => {
     messages.value.forEach(m => m.status = 'read');
     // 触发未读消息数量更新
     await triggerUnreadRefresh();
-    showFeedback('通知已全部标记为已读', 'success');
+    if (!silent) showFeedback('通知已全部标记为已读', 'success');
   } catch (error) {
     logger.error('messages', '标记全部已读失败', error);
     showFeedback(error?.message || '操作失败，请稍后重试', 'error');
@@ -2467,7 +2470,8 @@ const loadMoreNotificationLabel = computed(() => {
 });
 
 // 供宿主（UserSpaceMain 的智能建议岛）调用：一键全部已读走组件内完整闭环
-// （markAllNotificationsAsRead RPC + 本地列表翻转 + triggerUnreadRefresh + feedback）
+// （markAllNotificationsAsRead RPC + 本地列表翻转 + triggerUnreadRefresh）
+// 宿主必须传 { silent: true }：成功反馈归灵动岛，页面内不再重复弹 toast。
 defineExpose({
   markAllAsRead
 });

@@ -2895,8 +2895,9 @@ const handleSuggestAction = async (actionId) => {
   suggestActionRunning = true;
   suggestIslandHandle.update({ busy: true });
   try {
-    // 走 Messages 组件内完整闭环：RPC + 本地列表翻转 + triggerUnreadRefresh + feedback
-    await messagesHostRef.value?.markAllAsRead?.();
+    // 走 Messages 组件内完整闭环：RPC + 本地列表翻转 + triggerUnreadRefresh
+    // silent 让成功反馈只由本岛的 done 态呈现，页面内不再弹同义 toast（避免同一结果两处提示）
+    await messagesHostRef.value?.markAllAsRead?.({ silent: true });
   } finally {
     suggestActionRunning = false;
     if (!suggestIslandHandle) return;

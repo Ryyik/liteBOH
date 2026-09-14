@@ -39,6 +39,8 @@
 ## UserSpace / 论坛 / 消息
 - 论坛入口=/user-space?tab=community；内容 tab=SegmentTabs 六档（按钮 role="tab"，须 getByRole('tab',{name})）；externalFeed 握手 → ForumMain watcher 单次同步。恒 Beta 6 单轨。
 - 消息中心真实入口=UserSpace messages tab 的 AsyncMessages，非 ForumMain 的 NotificationDrawer（死 UI）。NotificationSuggestIsland 调度在 UserSpaceMain，须 ensureNotificationStore()。回归 probe-notification-suggest-island.mjs。
+- `Messages` 的 `showFeedback` 是「优先灵动岛」包装：先 `showIsland.notify()`（导航栏**状态卡**），`.message-feedback-toast`（右下角）只是 navbar 不可用时的降级通路 → 断言"某提示没出现"必须打在 `boh_global_nav_status` 事件上，查 toast DOM 会空跑。宿主调组件内闭环 API 时传 `{ silent: true }` 让成功反馈只归岛，避免同 surface 两张卡（0914 已修 markAllAsRead）。
+- useIsland「同一时刻 surface 只展示一张卡」**不含自定义岛**：`statusCardItem`/`handleGlobalNavStatus`/`flushNavStatusQueue` 只让位于 AI 岛与任务岛；自定义岛与 notify 状态卡**合法并存**（Lab 常驻配额岛 + showLabIsland 反馈依赖它），别去"补全仲裁"。
 - 论坛多图：strip+分段指示器；全量图唯一入口 ensureForumPostFullImages（in-flight 去重）；shallowRef 元素改字段须整体替换+triggerRef；官方卡按 source_type+source_id 回源。
 - 头像框：单源 useAvatarFrame.js AVATAR_FRAMES，素材 1223×1223 PNG≤400KB。新框流程：中心内切圆测量（white-cat 66.8% 基准）→散点构图勿机械 1/内孔→1223 缩放→清单注册→probe-avatar-frame-new.mjs。仓鼠白底须 flood fill 抠。暗色验收垫暗底截图；坐标以像素扫描为准。脚本写文件核对 OUT≠SRC，处理用户素材先留副本。
 - 装扮路径 /#/user-space?tab=assets→现注 pinia→点「装扮」tab（无 URL 直达）。
