@@ -1,6 +1,6 @@
 <script setup>
 import { watch, onMounted, onUnmounted, ref, computed, defineAsyncComponent } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import Footer from "./components/Footer.vue";
 import UnifiedNavbar from "@/components/UnifiedNavbar/index.vue";
 import { useAuthStore } from "@/stores/auth";
@@ -15,7 +15,49 @@ import PWAUpdateToast from "@/components/PWAUpdateToast/index.vue";
 import { useGlobalAiPreferences, matchesGlobalAiShortcut } from "@/composables/useGlobalAiPreferences.js";
 
 const route = useRoute();
+const router = useRouter();
 const authStore = useAuthStore();
+
+// ============================================
+// 首屏加载态
+// 说明：RouterView 在首屏导航确认之前不会渲染任何东西，而 vue-router 是在
+// 导航阶段就 await 懒加载组件的，所以 <Suspense> 的 fallback 永远不会进入
+// pending（实测 0 次）——主体区在那段时间是纯空白。
+// 这里改用 router.isReady() 显式描述这段窗口，并加超时出口。
+// 纯前端状态，骨架样式复用 index.html 的内联定义，零额外请求。
+// ============================================
+// 首屏加载态的两道超时（两处文案/机制刻意保持一致，见下）：
+// - index.html 内联脚本 12s：Vue 完全没挂载起来时的兜底（骨架还在 DOM 里）
+// - 本文件 10s：Vue 已挂载但首屏路由 chunk 没到位（骨架已被 mount 清空）
+// 两者不会同时生效：Vue 一挂载就清空 #app，内联定时器因 contains(boot) 为 false 失效。
+// 改文案或超时时长时务必同步另一处。
+const bootReady = ref(false);
+const bootTimedOut = ref(false);
+let bootTimeoutId = 0;
+
+router.isReady()
+  .then(() => {
+    bootReady.value = true;
+    window.clearTimeout(bootTimeoutId);
+  })
+  .catch(() => {
+    // 导航失败（如路由 chunk 拿不到）：保持加载态，交给下面的超时提示
+  });
+
+bootTimeoutId = window.setTimeout(() => {
+  if (!bootReady.value) bootTimedOut.value = true;
+}, 10000);
+
+onUnmounted(() => {
+  window.clearTimeout(bootTimeoutId);
+});
+
+// forceUpdate 会触发 index.html 内联脚本的 SW 注销 + 缓存清理流程
+const reloadWithFreshBuild = () => {
+  const url = new URL(window.location.href);
+  url.searchParams.set("forceUpdate", "true");
+  window.location.replace(url.href);
+};
 const { showLoginModal, isLoggedIn, isInitialized } = storeToRefs(authStore);
 const userInfo = authStore.userInfo;
 const notificationStoreRef = ref(getNotificationStoreSync());
@@ -218,7 +260,26 @@ const showGlobalNavbar = computed(() => {
 
 <template>
   <UnifiedNavbar v-if="showGlobalNavbar" />
-  <Suspense>
+
+  <!-- 首屏加载态：路由就绪前替代主体空白（骨架样式来自 index.html 内联样式） -->
+  <div
+    v-if="!bootReady"
+    class="boh-boot-body boh-boot-body--standalone"
+    role="status"
+    aria-live="polite"
+  >
+    <template v-if="!bootTimedOut">
+      <div class="boh-boot-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+      <p class="boh-boot-text">正在加载…</p>
+    </template>
+    <template v-else>
+      <!-- 文案与 index.html 内联的 12s 兜底保持一致：同一故障两种说法会让用户困惑 -->
+      <p class="boh-boot-text">加载超时，可能是网络不稳定或刚刚更新了版本</p>
+      <button class="boh-boot-retry" type="button" @click="reloadWithFreshBuild">重新加载</button>
+    </template>
+  </div>
+
+  <Suspense v-else>
     <template #default>
       <RouterView v-slot="{ Component, route: activeRoute }">
         <KeepAlive>
@@ -240,7 +301,7 @@ const showGlobalNavbar = computed(() => {
       </div>
     </template>
   </Suspense>
-  <Footer v-if="!route.meta?.hideFooter" />
+  <Footer v-if="bootReady && !route.meta?.hideFooter" />
 
   <!-- 全局登录模态框 -->
   <LoginView v-if="showLoginModal" :show="showLoginModal" :is-modal="true" @close="showLoginModal = false" />

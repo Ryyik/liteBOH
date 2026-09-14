@@ -2,6 +2,29 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
+    <!--
+      早期主题应用（必须早于骨架样式生效、早于任何模块脚本执行）
+      骨架的暗色分支与 body 兜底底色都依赖 html[data-theme]，而主题管理器
+      （src/utils/theme-manager.js）是在应用挂载之后才 init，暗色主题 CSS 更是
+      懒加载 —— 不提前设属性，暗色用户会先看到整屏白再切黑。
+      注意：VALID_THEMES 与 theme-manager.js 的同名常量重复（这里必须早于
+      模块执行，无法 import）。两处必须同步修改，由 scripts/check-first-paint.mjs 断言。
+    -->
+    <script>
+      (function () {
+        var VALID_THEMES = ['light', 'dark', 'system', 'home-cat', 'anniversary-mc'];
+        try {
+          var saved = localStorage.getItem('boh-theme');
+          var pref = VALID_THEMES.indexOf(saved) >= 0 ? saved : 'light';
+          var theme = pref === 'system'
+            ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+            : pref;
+          var root = document.documentElement;
+          root.setAttribute('data-theme', theme);
+          root.classList.toggle('dark', theme === 'dark');
+        } catch (e) { /* localStorage 不可用（隐私模式等）时按浅色默认走 */ }
+      })();
+    </script>
     <!-- 资源预取与预连接优化 (使用国内镜像加速) -->
     <link rel="preconnect" href="https://cdn.blockofhome.cn" crossorigin>
     <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin>
@@ -36,6 +59,95 @@
     <link rel="shortcut icon" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
     <title>Block of Home</title>
+
+    <!--
+      首屏启动骨架（纯内联，零额外请求）
+      背景：#app 原本是空的，应用壳（app-*.js + ui-components 等）下载执行期间，
+      导航栏所在 chunk 先到就先渲染，主体区则是一片空白。这段骨架把那段窗口
+      变成可见内容，并把首帧提前到 HTML 解析完成时（不等任何 JS）。
+      ⚠️ 刻意不画「假导航栏」：真实导航栏由 ui-components 提供且已在 SW 预缓存内
+      （实测约 90ms 就位），而假胶囊与真实导航栏（默认全宽白条 1280×72；滚动后
+      860×58 圆角玻璃）几何与视觉都对不上，反而制造一次形态跳变。骨架只负责主体区。
+      骨架阶段视口内没有导航栏，内容整屏居中；App.vue 的加载态因真实导航栏已存在，
+      改用 .boh-boot-body--standalone（60vh 居中），这是两者唯一的形态差异。
+      生命周期：Vue 挂载 #app 时会整体替换容器内容，骨架自动消失，无需关闭逻辑。
+    -->
+    <style>
+      /* 骨架期间的底色兜底：暗色主题 CSS（src/styles/themes/dark-mode.css）是
+         懒加载的，在它到位前 body 会沿用 src/style.css 的 #ffffff。这里用与
+         dark-mode.css 相同特异性的选择器先垫一层，应用 CSS 加载后由后者接管。
+         --boh-bg-primary 的暗色值即 #0a0a0f。 */
+      [data-theme="dark"] { background-color: #0a0a0f; }
+      [data-theme="dark"] body { background-color: #0a0a0f; }
+
+      .boh-boot {
+        box-sizing: border-box;
+        min-height: 100vh;
+        background: #ffffff;
+        display: flex;
+        flex-direction: column;
+      }
+      [data-theme="dark"] .boh-boot { background: #0a0a0f; }
+
+      .boh-boot-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        padding: 0 24px 12vh;
+      }
+      .boh-boot-body--standalone { min-height: 60vh; }
+
+      .boh-boot-dots { display: flex; gap: 7px; }
+      .boh-boot-dots span {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #c7c7cc;
+        animation: boh-boot-bounce 1.2s ease-in-out infinite;
+      }
+      [data-theme="dark"] .boh-boot-dots span { background: #5d5d67; }
+      .boh-boot-dots span:nth-child(2) { animation-delay: 0.15s; }
+      .boh-boot-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+      @keyframes boh-boot-bounce {
+        0%, 80%, 100% { transform: translateY(0); opacity: 0.45; }
+        40% { transform: translateY(-5px); opacity: 1; }
+      }
+
+      .boh-boot-text {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 14px;
+        line-height: 1.6;
+        color: #8b9098;
+      }
+      /* --liquid-text-tertiary：浅 #8b9098 / 暗 #8a919c（tokens.css） */
+      [data-theme="dark"] .boh-boot-text { color: #8a919c; }
+
+      .boh-boot-retry {
+        margin-top: 2px;
+        padding: 9px 22px;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.04);
+        color: #1d1d1f;
+        font-family: inherit;
+        font-size: 14px;
+        cursor: pointer;
+      }
+      [data-theme="dark"] .boh-boot-retry {
+        border-color: rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.08);
+        color: #f5f5f7;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .boh-boot-dots span { animation: none; opacity: 0.7; }
+      }
+    </style>
 
     <!-- 强制清除旧 Service Worker 的最早执行脚本 -->
     <script>
@@ -126,8 +238,46 @@
     </script>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <div class="boh-boot" id="boh-boot">
+        <div class="boh-boot-body">
+          <div class="boh-boot-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+          <p class="boh-boot-text" id="boh-boot-text">正在加载…</p>
+          <button class="boh-boot-retry" id="boh-boot-retry" type="button" hidden>重新加载</button>
+        </div>
+      </div>
+    </div>
     <!-- mcdmsc.js 已移除，BOH服务器端口号通过其他方式获取 -->
     <script type="module" src="src/main.js"></script>
+    <script>
+      // 启动骨架超时兜底：12s 后若 #app 仍未被 Vue 接管（骨架节点还在 DOM 里），
+      // 说明应用壳或路由 chunk 没到位（常见于刚发布后旧 hash 已 404），
+      // 给出一个可点的自救入口。纯内联、零网络请求；Vue 一旦挂载即自然失效。
+      // ⚠️ 这里是"Vue 完全没起来"的兜底；src/App.vue 另有一道 10s 兜底负责
+      // "Vue 已挂载但路由 chunk 没到位"。两处文案与超时长度必须同步修改。
+      (function () {
+        var boot = document.getElementById('boh-boot');
+        var retry = document.getElementById('boh-boot-retry');
+        var text = document.getElementById('boh-boot-text');
+        if (!boot || !retry) return;
+
+        var timer = window.setTimeout(function () {
+          if (!document.body.contains(boot)) return;
+          if (text) text.textContent = '加载超时，可能是网络不稳定或刚刚更新了版本';
+          retry.hidden = false;
+        }, 12000);
+
+        retry.addEventListener('click', function () {
+          if (retry.disabled) return;
+          retry.disabled = true;
+          // forceUpdate 会触发上方内联脚本的 SW 注销 + 缓存清理流程
+          var url = new URL(window.location.href);
+          url.searchParams.set('forceUpdate', 'true');
+          window.location.replace(url.href);
+        });
+
+        window.__bohBootSkeletonTimer = timer;
+      })();
+    </script>
   </body>
 </html>

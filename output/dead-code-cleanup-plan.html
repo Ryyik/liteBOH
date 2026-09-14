@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BOHLITE 死代码清理与维护性提升方案</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#ffffff; --ink:#1d1d1f; --ink2:#424245; --ink3:#6e6e73;
+    --line:#e3e4e8; --line2:#eef0f3;
+    --blue:#0071e3; --blue-bg:#eaf3fe;
+    --red:#c62828; --red-bg:#fdecec;
+    --amber:#8a5a00; --amber-bg:#fff6e5;
+    --green:#1a7f37; --green-bg:#e9f6ec;
+    --purple:#6b3fa0; --purple-bg:#f3edfb;
+    --mono:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.72 -apple-system,BlinkMacSystemFont,"SF Pro SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:40px 24px 96px}
+  header.top{background:linear-gradient(160deg,#fff 0%,#f0f4f9 100%);border:1px solid var(--line);
+    border-radius:20px;padding:34px 36px;margin-bottom:28px}
+  h1{margin:0 0 10px;font-size:29px;letter-spacing:-.4px;font-weight:650}
+  .sub{color:var(--ink3);font-size:14.5px;margin:0}
+  .meta{margin-top:18px;display:flex;flex-wrap:wrap;gap:8px}
+  .chip{font-size:12.5px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:4px 11px;color:var(--ink2)}
+  h2{font-size:20px;margin:44px 0 14px;font-weight:640;letter-spacing:-.2px;
+    padding-bottom:9px;border-bottom:1px solid var(--line)}
+  h3{font-size:16.5px;margin:26px 0 10px;font-weight:620}
+  h4{font-size:14.5px;margin:18px 0 8px;font-weight:620;color:var(--ink2)}
+  p{margin:10px 0}
+  ul,ol{margin:10px 0;padding-left:22px}
+  li{margin:5px 0}
+  code{font-family:var(--mono);font-size:12.6px;background:#f0f1f4;border-radius:5px;padding:1.5px 5px;color:#2c3038}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin:16px 0}
+  .grid{display:grid;gap:14px}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:820px){.g2,.g3,.g4{grid-template-columns:1fr}}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:15px 17px}
+  .stat .n{font-size:25px;font-weight:670;letter-spacing:-.5px;line-height:1.2}
+  .stat .l{font-size:12.5px;color:var(--ink3);margin-top:3px}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.8px;background:#fff;
+    border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line2);vertical-align:top}
+  th{background:#fafbfc;font-weight:620;font-size:12.8px;color:var(--ink2);letter-spacing:.2px}
+  tr:last-child td{border-bottom:none}
+  td code,th code{background:transparent;padding:0;font-size:12.4px}
+  .b{display:inline-block;font-size:11.5px;font-weight:620;border-radius:5px;padding:2px 7px;white-space:nowrap}
+  .b-ok{background:var(--green-bg);color:var(--green)}
+  .b-warn{background:var(--amber-bg);color:var(--amber)}
+  .b-no{background:var(--red-bg);color:var(--red)}
+  .b-info{background:var(--blue-bg);color:var(--blue)}
+  .b-mute{background:#f0f1f4;color:var(--ink3)}
+  .callout{border-left:3px solid var(--blue);background:var(--blue-bg);border-radius:0 11px 11px 0;
+    padding:13px 17px;margin:15px 0}
+  .callout.warn{border-color:#e0a030;background:var(--amber-bg)}
+  .callout.danger{border-color:#d0453f;background:var(--red-bg)}
+  .callout.tip{border-color:#2f9e44;background:var(--green-bg)}
+  .callout p:first-child{margin-top:0}
+  .callout p:last-child{margin-bottom:0}
+  .callout strong{font-weight:640}
+  pre{background:#1e1f24;color:#e6e8ec;border-radius:11px;padding:15px 17px;overflow-x:auto;
+    font-family:var(--mono);font-size:12.6px;line-height:1.68;margin:13px 0}
+  pre code{background:transparent;color:inherit;padding:0}
+  .c-cm{color:#8b93a7}
+  .c-s{color:#a5d6a7}
+  .c-k{color:#82b1ff}
+  .toc{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 22px}
+  .toc ol{margin:0;padding-left:20px;columns:2;column-gap:28px}
+  @media(max-width:820px){.toc ol{columns:1}}
+  .toc a{color:var(--ink2);text-decoration:none;border-bottom:1px solid transparent}
+  .toc a:hover{color:var(--blue);border-color:var(--blue)}
+  .kv{font-size:13.6px}
+  .kv td:first-child{width:180px;color:var(--ink3)}
+  .fl{font-family:var(--mono);font-size:12.4px;color:#2c3038}
+  hr{border:none;border-top:1px solid var(--line);margin:34px 0}
+  .foot{margin-top:40px;color:var(--ink3);font-size:12.8px;text-align:center}
+  .phase{display:flex;gap:13px;align-items:flex-start;margin:14px 0;
+    background:#fff;border:1px solid var(--line);border-radius:13px;padding:15px 18px}
+  .phase .tag{flex:0 0 54px;text-align:center;font-weight:670;font-size:13px;color:#fff;
+    background:var(--blue);border-radius:9px;padding:6px 0}
+  .phase.p0 .tag{background:#8e8e93}
+  .phase.p3 .tag{background:var(--purple)}
+  .phase.p4 .tag{background:#c25e00}
+  .phase .body{flex:1;min-width:0}
+  .phase .body h4{margin:0 0 5px;font-size:15px;color:var(--ink);font-weight:640}
+  .phase .body p{margin:5px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>BOHLITE 死代码清理与维护性提升方案</h1>
+  <p class="sub">基于全库依赖图、可达性、引用计数与测试基线扫描的清理方案 · 本次仅出方案，未改动任何代码</p>
+  <div class="meta">
+    <span class="chip">扫描日期 2026-09-14</span>
+    <span class="chip">工作区 BOHLITEBeta2.5</span>
+    <span class="chip">git HEAD ac7824ca（工作区干净）</span>
+    <span class="chip">扫描方式：自研静态分析脚本 × 3 轮 + eslint + vitest 基线</span>
+  </div>
+</header>
+
+<div class="toc">
+  <ol>
+    <li><a href="#s1">扫描口径与可信度分级</a></li>
+    <li><a href="#s2">项目结构与依赖关系</a></li>
+    <li><a href="#s3">死代码清单（按风险分级）</a></li>
+    <li><a href="#s4">为什么不能直接删：五类陷阱</a></li>
+    <li><a href="#s5">禁止删除清单（黑名单）</a></li>
+    <li><a href="#s6">安全删除流程（SOP）</a></li>
+    <li><a href="#s7">测试补强计划</a></li>
+    <li><a href="#s8">覆盖率门禁落地方案</a></li>
+    <li><a href="#s9">批次划分与验收命令</a></li>
+    <li><a href="#s10">风险控制矩阵</a></li>
+    <li><a href="#s11">工具链与长期防复发</a></li>
+    <li><a href="#s12">先决问题：9 个失败测试</a></li>
+  </ol>
+</div>
+
+<h2 id="s0">执行进度（2026-09-14 晚更新）</h2>
+
+<p>本方案编制于当日上午（口径 <code>git HEAD ac7824ca</code>）。当日晚间已执行前两批，
+<strong>第 3 节的死类数字为编制时口径，当前实际值以本区块为准</strong>——避免出现两套数字。</p>
+
+<table>
+  <tr><th>批次</th><th>内容</th><th>结果</th><th>状态</th></tr>
+  <tr>
+    <td>B0</td><td>修复失败测试（原为阻塞项）</td>
+    <td>6 失败 → <strong>0 失败</strong>（105 文件 / 1707 通过 / 1 skipped）。原 6 个<strong>全部为测试漂移，源码侧无 bug</strong>：断言已移除的实现 ×2、常量数组未同步 ×1、引用已删文件致整 suite 29 用例未收集 ×1、mock 未跟上 upsert 改造 ×1</td>
+    <td><span class="b b-ok">已完成</span></td>
+  </tr>
+  <tr>
+    <td>A1</td><td>删除已下线功能的 <code>boh-note-dark.css</code></td>
+    <td>整文件 592 行。<strong>未能整删的原因</strong>：108 个选择器多为无作用域裸规则（<code>[data-theme=dark] .save-btn</code> 等全站通用名）且位于 dark 组最后加载位；实测仅 <code>.nav-label</code> 真生效，已转正到通用层 <code>dark-mode.css</code>（它是全站底栏非激活色 <code>#7a7a8a</code> 的唯一来源）</td>
+    <td><span class="b b-ok">已完成</span></td>
+  </tr>
+  <tr>
+    <td>A2</td><td>7 个暗色主题文件死类清理</td>
+    <td>选择器 1391 → 902（删除 489 个），<strong>-1441 行</strong>，构建产物 -36KB。范围：bohai / user-center / messages / user-space / forum / post-detail / navbar-dark</td>
+    <td><span class="b b-ok">已完成</span></td>
+  </tr>
+</table>
+
+<table>
+  <tr><th>指标</th><th>方案编制时</th><th>当前</th></tr>
+  <tr><td>孤儿文件</td><td>27</td><td><strong>0</strong></td></tr>
+  <tr><td>CSS 死类</td><td>1667（高置信 1247）</td><td><strong>1493（高置信 1083 / 动态风险 410）</strong></td></tr>
+  <tr><td>测试失败</td><td>9</td><td><strong>0</strong></td></tr>
+  <tr><td>构建产物 dist</td><td>25220KB</td><td><strong>25168KB</strong></td></tr>
+</table>
+
+<h4>本次沉淀的两条关键判据（纠正了方案第 3 节的执行假设）</h4>
+<ol>
+  <li><strong>CSS 选择器是 AND 语义</strong>：只要选择器内存在一个"永不被任何元素使用"的类名，整条规则就永不匹配 → 可删。<em>不是</em>要求所有类名都死（作用域类通常活着）。</li>
+  <li><strong><code>:is()</code> / <code>:where()</code> 是 OR 语义</strong>：必须先展开为所有组合、要求<strong>每个组合都含死类</strong>才可删，否则会误删含活分支的规则（本批实测：某文件原判删 452 行，正确值 195 行）。另 <code>:not(...)</code> 内容须剔除出判定。</li>
+</ol>
+
+<p><strong>残留（后续可选）</strong>：<code>user-center-dark.css</code> 仍有 30 个死类名，全部位于"保留规则的 <code>:is()</code> 列表内"（死分支）——整条规则含活分支不可删，摘除死分支属选择器重写，收益仅数 KB 而风险更高，本轮不动。</p>
+
+<p><strong>仍待处理</strong>：三套并存的死类数字（<code>style-remnant-audit.mjs</code> 报 1133 / 本方案编制时 1667 / 当前 1493）建议合并为单一脚本单一产物。</p>
+
+<h2 id="s1">1. 扫描口径与可信度分级</h2>
+
+<p>死代码判定没有单一权威工具，不同口径的结论能差出几倍。本方案所有条目都标注了可信度，<strong>只有 A 级才允许进入自动删除流程</strong>。</p>
+
+<table>
+  <tr><th>等级</th><th>判定口径</th><th>可否直接删</th><th>验证方式</th></tr>
+  <tr>
+    <td><span class="b b-ok">A 级</span></td>
+    <td>从 <code>src/main.js</code> 出发的全库 import 图不可达，且文件名/导出名在全仓（含 tests、scripts、probe、配置文件）<strong>零字符串引用</strong></td>
+    <td>可以，走批次流程</td>
+    <td>构建 + 单测 + 探针冒烟</td>
+  </tr>
+  <tr>
+    <td><span class="b b-warn">B 级</span></td>
+    <td>文件可达（被 import），但内部导出/样式类/变量零外部引用</td>
+    <td>只能删「文件内片段」</td>
+    <td>文件级单测覆盖后再删</td>
+  </tr>
+  <tr>
+    <td><span class="b b-no">C 级</span></td>
+    <td>引用路径是动态的（<code>import.meta.glob</code>、数据库字段、字符串拼接、<code>getImageUrl(name)</code>）</td>
+    <td>禁止批量删</td>
+    <td>需运行时观测或后台数据核对</td>
+  </tr>
+</table>
+
+<div class="callout">
+  <p><strong>本次扫描范围与方法</strong></p>
+  <p>① 可达性分析：解析 <code>import / export from / import() / require()</code> 与 <code>&lt;style src&gt;</code>，支持 <code>@/</code> 别名与 <code>/src/</code> 绝对路径，多入口 BFS（入口 = <code>main.js</code> + <code>tests/</code> + <code>scripts/</code> + <code>probe-*.mjs</code> + 根级配置与 HTML）。</p>
+  <p>② 引用计数：导出名、CSS 类名、CSS 变量、<code>@keyframes</code>、图片文件名的词边界匹配，语料剔除了 <code>&lt;style&gt;</code> 块自匹配与<strong>生成产物</strong>（<code>stats.html</code>、<code>.compress-images-cache.json</code>、审计 JSON）——这一点很关键，否则几乎每张图片都会因缓存清单而被误判为「被引用」。</p>
+  <p>③ 基线：<code>eslint .</code> 全量 + <code>vitest run</code> 全量，用于判断「删除前是否已有失败」。</p>
+</div>
+
+<h2 id="s2">2. 项目结构与依赖关系</h2>
+
+<div class="grid g4">
+  <div class="stat"><div class="n">453</div><div class="l">src 下代码文件（209 .vue / 226 .js / 18 .ts）</div></div>
+  <div class="stat"><div class="n">88</div><div class="l">CSS/SCSS 样式文件</div></div>
+  <div class="stat"><div class="n">106</div><div class="l">测试文件（93 unit + 14 integration）</div></div>
+  <div class="stat"><div class="n">74</div><div class="l">根目录临时探针脚本（8518 行）</div></div>
+</div>
+
+<h3>2.1 依赖层级</h3>
+<pre><code>index.html
+└─ src/main.js                         <span class="c-cm">← 唯一构建入口</span>
+   ├─ src/router/index.ts               <span class="c-cm">← 汇总 6 个路由表</span>
+   │  └─ src/router/routes/{public,community,health,admin,creator,user-space}.ts
+   │     └─ () =&gt; import('../../views/X/index.vue')   <span class="c-cm">← 37 个路由组件（懒加载）</span>
+   ├─ src/App.vue → src/components/UnifiedNavbar/*      <span class="c-cm">← 全局壳</span>
+   ├─ src/stores/*（8 个 Pinia store）
+   ├─ src/styles/* + src/style.css                      <span class="c-cm">← 全局样式单一源</span>
+   └─ src/utils/theme-css-loader.js
+      └─ 动态 import 9 个暗色主题 CSS（仅 dark 一个 key 被注册）
+
+旁路入口（容易漏判的「活引用」）：
+  · src/utils/asset-helper.js  import.meta.glob('/src/assets/images/**/*.{webp,svg}', {eager:true})
+  · src/views/user-center/UserSpace/async-loaders.js  动态 import ForumMain.vue
+  · 数据库表 home_heroes / 后台 HeroConsole           按名称指定首页英雄区图片
+  · tests/unit/*.test.js 与 74 个 probe-*.mjs          以路径字符串读取源码做断言</code></pre>
+
+<h3>2.2 结构性异常（先于死代码处理）</h3>
+<table>
+  <tr><th>现象</th><th>数据</th><th>说明</th></tr>
+  <tr><td>多套别名只有一套在用</td><td><code>@components/ @views/ @data/ @utils/ @styles/</code> 全仓 <strong>0 次</strong>使用</td><td>却在 <code>vite.config.js</code> 与 <code>tsconfig.app.json</code> 里各定义了一遍，共 10 处冗余配置</td></tr>
+  <tr><td>空目录残留</td><td>3 个：<code>src/views/LithiumIron</code>（功能页 6-29 已删，目录没删）、<code>src/views/Lab/styles</code>、<code>src/views/Birthday/components</code></td><td>删除脚本只删文件未删目录</td></tr>
+  <tr><td>悬空引用</td><td><code>test-search.mjs</code> import 已被删除的 <code>src/utils/bohai-file-context.js</code></td><td>该脚本一执行即报错，无人在维护</td></tr>
+  <tr><td>测试漂移</td><td>9 个测试失败 / 7 个文件</td><td>见第 12 节</td></tr>
+  <tr><td>CI 无测试门禁</td><td><code>.github/workflows/ci.yml.disabled</code> 被禁用；<code>deploy.yml</code> 中 test 步骤被注释</td><td>当前只有 lint + type-check 在跑</td></tr>
+</table>
+
+<h2 id="s3">3. 死代码清单（按风险分级）</h2>
+
+<h3>3.1 A 级 — 零引用，可走标准删除流程</h3>
+
+<h4>3.1.1 孤儿文件 30 个（import 图不可达）</h4>
+<table>
+  <tr><th>分组</th><th>文件</th><th>判定依据</th></tr>
+  <tr>
+    <td><span class="b b-ok">Lab 组件</span><br>7 个</td>
+    <td class="fl">src/views/Lab/components/<br>├ PPTGenerator.vue (18K)<br>├ DocChat.vue<br>├ StylePresetPicker.vue<br>├ BottomSheet.vue<br>├ FileUploader.vue<br>├ Breadcrumbs.vue<br>└ FormatToolbar.vue</td>
+    <td>Lab 的 21 个组件里只有 14 个被 <code>Lab/index.vue</code> import；这 7 个全仓零引用。<br><strong>注意</strong>：<code>Lab/composables/usePPTGenerator.js</code> 是活的，PPT 功能没废，只是这套旧 UI 组件被替换了</td>
+  </tr>
+  <tr>
+    <td><span class="b b-ok">Dashboard 原子组件</span><br>6 个</td>
+    <td class="fl">src/views/DataManagement/components/shared/<br>├ DashboardCard.vue<br>├ DashboardRow.vue<br>├ DashboardToggle.vue<br>├ DashboardTooltip.vue<br>├ DashboardLineChart.vue<br>└ DashboardSearch.vue</td>
+    <td>同目录 14 个 Dashboard* 组件中 8 个在用、6 个从未被引用，是一套半成品设计系统</td>
+  </tr>
+  <tr>
+    <td><span class="b b-ok">已下线页面</span><br>3 个</td>
+    <td class="fl">src/views/Tutorial/index.vue<br>src/views/activities/index.vue<br>src/views/activities/ActivitiesPhotoWall.vue</td>
+    <td><code>/tutorial</code> 路由已改为 redirect → <code>/download</code>；<code>/activities/photo-wall</code> 已改为 redirect → <code>/activities-wall</code>。旧页面被彻底替代<br><strong>注</strong>：<code>community.ts</code> 里仍留着 <code>name:"ActivitiesPhotoWall"</code> 的 redirect 路由（深链兼容），路由本身不能删</td>
+  </tr>
+  <tr>
+    <td><span class="b b-ok">无用工具/配置</span><br>5 个</td>
+    <td class="fl">src/utils/page-context-extractor.js<br>src/utils/siliconflow-free-models.js<br>src/composables/useDelight.js<br>src/views/Lab/config/ppt-templates.js<br>src/views/DataManagement/config/debounce-config.js</td>
+    <td>零 import、零字符串引用。<code>siliconflow-free-models.js</code> 仅在 <code>tests/scripts/check-all-models.js</code> 的注释里被提到名字，非真实依赖</td>
+  </tr>
+  <tr>
+    <td><span class="b b-warn">需同批处理</span><br>1 个</td>
+    <td class="fl">src/components/GlobalAiGlassOverlay.vue (42K)</td>
+    <td>组件本身零挂载，<strong>但 <code>tests/unit/bohai-quick-sidebar.test.js</code> 会读取它的源码文本来断言样式字符串</strong>。删文件必须同批删掉那个 describe 块，否则测试直接崩</td>
+  </tr>
+  <tr>
+    <td><span class="b b-ok">其他孤立组件</span><br>7 个</td>
+    <td class="fl">src/components/MemberDetailModal.vue<br>src/components/LiquidGlass.vue<br>src/components/AiChatLoadingSkeleton.vue<br>src/components/AppleGridSection.vue<br>src/components/ui/LiquidGlass.vue<br>src/views/user-center/UserSpace/components/UserSpaceSkeleton.vue<br>src/views/DataManagement/components/shared/（已计）</td>
+    <td>零引用。空态已被 <code>EmptyState.vue</code> 统一、骨架屏也已换实现</td>
+  </tr>
+  <tr>
+    <td><span class="b b-mute">类型声明</span><br>3 个</td>
+    <td class="fl">src/env.d.ts<br>src/utils/auth.d.ts<br>src/types/pinia.d.ts</td>
+    <td><strong>不是死代码，是误报</strong>：由 <code>tsconfig.app.json</code> 的 <code>include: ["src/**/*.d.ts"]</code> 全局生效，不靠 import。<span class="b b-no">列入禁止删除</span></td>
+  </tr>
+</table>
+
+<h4>3.1.2 脏文件与残留 <span class="b b-ok">A 级</span></h4>
+<table>
+  <tr><th>类别</th><th>内容</th><th>处置</th></tr>
+  <tr><td>系统垃圾（5）</td><td class="fl">src/.DS_Store、src/views/.DS_Store、src/components/UnifiedNavbar/.DS_Store、src/views/Lab/.DS_Store、src/views/Lab/components/.DS_Store</td><td>已被 .gitignore 覆盖，直接删（不影响构建）</td></tr>
+  <tr><td>图片备份（3）</td><td class="fl">src/assets/images/mascot-new-landscape.webp.prevbak<br>src/assets/images/mascot-new-portrait.webp.bak2<br>src/assets/images/mascot-new-portrait.webp.prevbak</td><td>不以 .webp 结尾，<strong>不在 glob 范围内、不进构建</strong>，纯垃圾</td></tr>
+  <tr><td>中间产物图片（2）</td><td class="fl">mascot-new-portrait-orig.webp<br>mascot-new-portrait-prev.webp</td><td>会被 glob 打包但零业务引用，可删（属 C 级需确认，见 3.3）</td></tr>
+  <tr><td>空目录（3）</td><td class="fl">src/views/LithiumIron、src/views/Lab/styles、src/views/Birthday/components</td><td>直接删</td></tr>
+  <tr><td>无效配置别名（10）</td><td class="fl">vite.config.js 5 个 + tsconfig.app.json 5 个</td><td>保留 <code>@/</code>，删其余 5 组</td></tr>
+</table>
+
+<h4>3.1.3 未使用变量 356 条 / 88 文件 <span class="b b-warn">B 级</span></h4>
+<p>eslint 全量结果是 <strong>0 error / 357 warning</strong>，其中 356 条 <code>no-unused-vars</code>。分布在 88 个文件，头部集中：</p>
+<table>
+  <tr><th>文件</th><th>告警数</th><th>备注</th></tr>
+  <tr><td class="fl">src/views/BOHAI/composables/useChatEngine.js</td><td>106</td><td>单文件占 30%，建议单独评审（可能含被注释掉的旧实现残留）</td></tr>
+  <tr><td class="fl">src/views/DataManagement/DataAdmin.vue</td><td>50</td><td>后台大组件</td></tr>
+  <tr><td class="fl">src/views/Forum/ForumMain.vue</td><td>20</td><td>—</td></tr>
+  <tr><td class="fl">src/views/Lab/index.vue</td><td>18</td><td>与 3.1.1 的 Lab 组件删除有重叠</td></tr>
+  <tr><td class="fl">src/views/user-center/UserSpace/UserSpaceMain.vue</td><td>13</td><td>—</td></tr>
+  <tr><td class="fl">其余 83 个文件</td><td>149</td><td>平均 1.8 条/文件，可机械处理</td></tr>
+</table>
+<div class="callout warn">
+  <p><strong>不要直接 <code>eslint --fix</code> 全量清理。</strong><code>no-unused-vars</code> 会把「模板里才用到的 setup 变量」「为未来保留的解构占位」「<code>_</code> 前缀之外的语义化占位」一并报出。当前配置的 <code>argsIgnorePattern:'^_'</code> 只放过了下划线前缀。建议先跑 <code>eslint --fix</code> 到独立分支，逐文件 review diff，再合。</p>
+</div>
+
+<h3>3.2 B 级 — 文件可达但内容已死</h3>
+
+<h4>3.2.1 CSS 死类 1667 个（高置信 1247 / 动态前缀风险 420）</h4>
+
+<div class="callout danger">
+  <p><strong>口径更正（2026-09-14 复算，以本节为准）</strong></p>
+  <p>本节初版数字为 <strong>932</strong>（高置信 670 / 动态风险 262），是<strong>被生成产物污染后的低估结果</strong> —— 仓库根目录的 <code>stats.html</code>（rollup-plugin-visualizer 产物）内含全部模块名与类名，被扫描器当成了"使用语料"，于是把大量真死类"证明成活的"。</p>
+  <p>剔除生成产物（<code>stats.html</code>、<code>.compress-images-cache.json</code>、<code>*-audit*.json</code>、以及<strong>上一次审计产出的 <code>*-report.html</code></strong>）与设计稿目录（<code>Apple Style/</code>、<code>Claude Style/</code>、<code>Google Style/</code> 内含独立 HTML+CSS 套件）后，真值为 <strong>1667</strong>。下文表格与批次划分均以此为准。</p>
+</div>
+
+<p>全库 82 个样式文件共 <strong>7240</strong> 个类选择器定义，其中 <strong>1667 个</strong>在模板与脚本语料中零引用（占 23%）。分布高度集中在少数文件：</p>
+<table>
+  <tr><th>文件</th><th>死类（高置信）</th><th>文件</th><th>死类（高置信）</th></tr>
+  <tr><td class="fl">src/views/DataManagement/styles/console.css</td><td>83 (48)</td><td class="fl">src/styles/themes/user-space-dark.css</td><td>61 (50)</td></tr>
+  <tr><td class="fl">src/styles/themes/bohai-dark.css</td><td>79 (51)</td><td class="fl">src/styles/themes/messages-dark.css</td><td>52 (50)</td></tr>
+  <tr><td class="fl">src/views/Profile/style.scoped.css</td><td>77 (67)</td><td class="fl">src/views/BOHAI/BOHAI/styles/shell-header.css</td><td>50 (47)</td></tr>
+  <tr><td class="fl">src/views/BOHAI/BOHAI/styles/messages.css</td><td>73 (61)</td><td class="fl">src/styles/themes/boh-note-dark.css</td><td>48 (47)</td></tr>
+  <tr><td class="fl">src/views/user-center/UserSpace/styles/profile-panels.css</td><td>70 (57)</td><td class="fl">src/views/Forum/styles/replies-responsive.css</td><td>47 (17)</td></tr>
+  <tr><td class="fl">src/views/DataManagement/styles/responsive.css</td><td>66 (55)</td><td class="fl">src/styles/pages/section__header.css</td><td>42 (35)</td></tr>
+  <tr><td class="fl">src/styles/themes/user-center-dark.css</td><td>65 (57)</td><td class="fl">src/views/user-center/UserSpace/styles/responsive-integrations.css</td><td>41 (40)</td></tr>
+</table>
+
+<div class="callout">
+  <p><strong>值得注意的结构性信号</strong>：TOP 16 里有 <strong>5 个是 <code>src/styles/themes/*-dark.css</code></strong>（bohai-dark 79 / user-center-dark 65 / user-space-dark 61 / messages-dark 52 / boh-note-dark 48），合计 305 个死类，占全部死类的 18%。这说明<strong>暗色主题是重灾区</strong> —— 亮色侧的组件被重构或下线后，对应的暗色覆盖规则没有同步删除。这类清理的后验成本极低（暗色下逐页看一眼即可），但收益集中，建议作为 B3 的首批。其中 <code>boh-note-dark.css</code> 尤其可疑：它整文件服务一个已不存在的「BOH Note」功能，却仍被 <code>theme-css-loader.js</code> 的 <code>dark</code> 组动态加载，也就是<strong>每次切暗色都会白下载一个 48 类全死的样式文件</strong>。</p>
+</div>
+
+<p>已人工抽验的真实死类簇（新口径下复验仍全部为死，可放心删）：</p>
+<pre><code><span class="c-cm"># 导航搜索/筛选 UI 已被移除，样式残留 19 个类（全高置信）</span>
+src/components/UnifiedNavbar/style.scoped.css
+  .nav-search-btn .nav-search-panel .nav-search-input .nav-search-clear
+  .nav-filter-btn .nav-filter-panel .nav-filter-picker .nav-filter-menu
+  .nav-filter-group .nav-filter-group-label .nav-filter-option
+  .nav-search-expand-{enter,leave}-{active,from,to} ...
+
+<span class="c-cm"># 整体下线主题：BOH Note 功能已不存在，文件 48 个类全死</span>
+<span class="c-cm"># 但它仍被 theme-css-loader.js 的 dark 组动态加载 → 切暗色白下载</span>
+src/styles/themes/boh-note-dark.css
+  .year-view .year-selector .week-view .week-selector
+  .week-day-name .week-day-notes .has-notes .has-note ...
+
+<span class="c-cm"># Apple Style 参考稿残留（o-hsub 在全部 .vue 中 0 命中）</span>
+src/styles/pages/section__header.css
+  .o-hsub.-link .o-button.-white .o-button.-square</code></pre>
+
+<div class="callout danger">
+  <p><strong>CSS 删除的最大风险是动态类名。</strong>扫描发现 262 个类存在「前缀 + 变量」的构造风险，例如 <code>:class="`status-${s}`"</code>、<code>classList.add('toast-' + type)</code>。这批类虽然静态零引用，仍可能在运行时命中。它们必须进入人工复核队列，<strong>不得自动删</strong>。这也正是现有 <code>scripts/check-important-budget.mjs</code> 那类门禁脚本缺失的一环。</p>
+</div>
+
+<h4>3.2.2 其他样式残留</h4>
+<table>
+  <tr><th>维度</th><th>定义总数</th><th>零引用</th><th>说明</th></tr>
+  <tr><td><code>@keyframes</code></td><td>329</td><td>15</td><td>逐个复核过（脚本结论与人工逐条核对完全一致，可信度高）：<code>modalFadeIn · modalSlideUp · dotPulse · typing · blink-caret · tab-indicator-slide · upload-progress-flow · card-flip-y · button-loading-spin · button-ripple · button-success · grokDotPulse · aiBallPulse · userspace-tab-out · aiEdgePulse</code></td></tr>
+  <tr><td>CSS 自定义属性</td><td>656</td><td>167</td><td><span class="b b-warn">需复核</span>：变量可能被 JS 用 <code>getComputedStyle</code> / <code>style.setProperty</code> 消费，静态扫描看不到，且主题间存在同义覆盖（同一个 <code>--x</code> 在 <code>dark-mode.css</code> 与页面级 css 各定义一次）</td></tr>
+</table>
+
+<h4>3.2.3 未使用导出 215 个</h4>
+<table>
+  <tr><th>类型</th><th>数量</th><th>处置建议</th></tr>
+  <tr><td>仅声明、文件内也未使用<br><span class="b b-ok">可直接删</span></td><td>159</td><td>属于纯死函数/常量。头部集中文件：<br><span class="fl">bohai-engine-helpers.js (25) · treehole-helpers.js (23) · ai-chat-grounding.js (10) · resource-search-api.js (8) · agent-cluster-config.js (8) · Lab/utils/constants.js (8) · debounce-config.js (7)</span></td></tr>
+  <tr><td>仅文件内使用<br><span class="b b-warn">降级为非 export</span></td><td>56</td><td>去掉 <code>export</code> 关键字即可，让「对外契约」收敛到真实边界。收益是维护性，不影响运行</td></tr>
+</table>
+
+<h3>3.3 C 级 — 动态引用，禁止批量删</h3>
+
+<h4>3.3.1 图片 47 张「零业务引用」<span class="b b-no">仅 2 张可删</span></h4>
+<p>复算后总计 47 张：<strong>2 张属 A 级</strong>（不在 glob 覆盖路径下，可安全删）、<strong>45 张属 C 级</strong>（落在 <code>src/assets/images</code> 的 glob 覆盖内，禁止批量删）。</p>
+<p>这是本次扫描<strong>最危险的假阳性聚集地</strong>，三条独立原因叠加：</p>
+<ol>
+  <li><code>src/utils/asset-helper.js</code> 用 <code>import.meta.glob('/src/assets/images/**/*.{webp,svg}', {eager:true})</code> 把 <strong>230 个图片全部打进构建产物</strong>并预加载。所以「没被引用」≠「不在包里」，任何删除都会改变 bundle 与首屏预加载行为。</li>
+  <li>首页英雄区图片由数据库 <code>home_heroes</code> 表配置（<code>homeArchiveData.js</code> 注释明确写了显隐控制已统一到该表的 <code>is_archived</code> 字段）。后台 <code>HeroConsole</code> 按名称选图 → <strong>图片名活在数据库里，不在代码里</strong>。</li>
+  <li><code>getImageUrl(name)</code> 接受任意相对名并自动补 <code>/src/assets/images/</code> 前缀，字符串拼接即可命中。</li>
+</ol>
+<pre><code>零业务引用样本（45 张 C 级，仅供参考，<span class="c-k">不代表可删</span>）：
+  2025sleep · 2025winterQA · 26coffee2 · 26coffee3 · 26fanmao · 26hezhao2
+  26hezhaocamera · 26hezhaomodi · Bamboo_Sign · Commemorative-album · Writable_Book
+  baji · bingo · blockofhomepage · bohbook · bohschool · mascot-doll-store · new-project
+  toybeargift · toybreadproduct · winterhouse · wintertreejpg · xnbag-1 · xnbag-2 · zipai
+  classroom-group-v2 ~ v6（5 个迭代版本）· classroom-group-poster-v1
+  developer/xianyu · boh-journey/2024-playground · Skin/十一修正 · Skin/transparent/十一修正
+  mascot-new-portrait-orig · mascot-new-portrait-prev · mascot-new-landscape
+
+真正可安全删的只有这 2 张（A 级：不在 glob 覆盖路径 + 零引用）：
+  src/assets/home-hero/brand-logo.webp
+  src/assets/home-hero/toybreadproduct.webp   <span class="c-cm">← home-hero/ 不在 glob 路径下</span></code></pre>
+<div class="callout danger">
+  <p><strong>结论：图片清理不能靠静态扫描。</strong>正确做法是「先观测、后清理」——在 <code>getImageUrl / getImageUrlAsync / hasImage</code> 三个出口加一行使用埋点，跑一个版本周期，导出真实命中的路径集合，再与全量清单取差集。这条建议落在 <code>src/utils/asset-helper.js</code>（仅加日志，不改行为）。</p>
+</div>
+
+<h4>3.3.2 其他 C 级项</h4>
+<table>
+  <tr><th>项目</th><th>为什么不能按静态引用删</th></tr>
+  <tr><td>根目录 74 个 <code>probe-*.mjs</code>（8518 行）</td><td>它们以路径字符串读取源码断言，是<strong>当前事实上的回归测试体系</strong>（e2e 只有 1 个 spec）。直接删等于删掉安全网 → 必须先迁移成正式 e2e</td></tr>
+  <tr><td>18 个根目录 <code>*-demo.html</code></td><td>设计与验收资产的参考件，属产品资产而非代码，需产品确认</td></tr>
+  <tr><td><code>src/data/boh-knowledge-base.jsonl</code></td><td>由 <code>scripts/import-boh-knowledge-base.mjs</code> 导入数据库，文件名出现在 npm script 里，属于数据流水线资产</td></tr>
+  <tr><td><code>src/utils/*-free-models.js</code> 类白名单</td><td>模型白名单可能与数据库 <code>bohai_model_configs</code> 双向对齐（记忆：线上仅 5 个模式），删文件名前需核库</td></tr>
+</table>
+
+<h2 id="s4">4. 为什么不能直接删：五类陷阱</h2>
+<p>以下每一条都在本仓库中<strong>真实存在</strong>，也是「误删活跃代码」的主要来源。</p>
+
+<table>
+  <tr><th>#</th><th>陷阱</th><th>本仓库实例</th><th>规避手段</th></tr>
+  <tr>
+    <td>1</td>
+    <td><strong>glob 全量收集</strong></td>
+    <td><code>asset-helper.js</code> 的 <code>import.meta.glob(..., {eager:true})</code> 让 230 张图全部「被引用」</td>
+    <td>扫描时把 glob 覆盖路径整体列为 C 级；用运行时埋点代替静态判定</td>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td><strong>数据库驱动的资源名</strong></td>
+    <td><code>home_heroes</code> 表 + <code>HeroConsole</code> 后台按名选图</td>
+    <td>删资源前先 <code>select distinct image_path from home_heroes</code> 取白名单</td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td><strong>测试以源码文本做断言</strong></td>
+    <td><code>bohai-quick-sidebar.test.js</code> 读 <code>GlobalAiGlassOverlay.vue</code> 原文断言样式字符串</td>
+    <td>删文件前 grep 文件路径字符串；<strong>文件与测试必须同批删</strong></td>
+  </tr>
+  <tr>
+    <td>4</td>
+    <td><strong>路由 redirect 占位</strong></td>
+    <td><code>name:"ActivitiesPhotoWall"</code> 路由是深链兼容的 redirect，<em>名字相同</em>但组件已换</td>
+    <td>「路由名」与「组件文件」是两回事：删组件前只删 import，路由保留</td>
+  </tr>
+  <tr>
+    <td>5</td>
+    <td><strong>审计基线文件反向锁定</strong></td>
+    <td><code>scripts/important-budget.json</code> 按文件路径登记 <code>!important</code> 配额（基线 1396），含 <code>GlobalAiGlassOverlay.vue: 36</code></td>
+    <td>删文件后必须同步更新基线 JSON，否则 <code>build:ci</code> 的棘轮门禁失败</td>
+  </tr>
+</table>
+
+<h2 id="s5">5. 禁止删除清单（黑名单）</h2>
+<div class="callout danger">
+  <p>以下内容无论扫描结果如何，<strong>一律不得进入自动删除流程</strong>，需单独走人工评审。</p>
+</div>
+<table>
+  <tr><th>路径 / 类别</th><th>原因</th></tr>
+  <tr><td class="fl">public/.nojekyll · public/CNAME · public/_headers · public/404.html</td><td>GitHub Pages 部署必需，静态扫描会判定「零引用」</td></tr>
+  <tr><td class="fl">src/**/*.d.ts</td><td>由 tsconfig <code>include</code> 全局生效，非 import 引用（<code>env.d.ts</code>、<code>auth.d.ts</code>、<code>types/pinia.d.ts</code>）</td></tr>
+  <tr><td class="fl">supabase/migrations/**</td><td>迁移历史是数据库现状的唯一可重建来源，删任何一条都会破坏环境重建</td></tr>
+  <tr><td class="fl">src/utils/theme-css-loader.js 引用的 9 个主题 CSS</td><td>经动态 <code>import()</code> 加载，静态图不可达但运行时必需</td></tr>
+  <tr><td class="fl">src/utils/asset-helper.js glob 路径下的全部图片</td><td>C 级动态引用，见 3.3.1</td></tr>
+  <tr><td class="fl">src/router/routes/*.ts 中的 redirect 路由</td><td>深链兼容（<code>/tutorial</code>、<code>/activities/photo-wall</code>、<code>/forum</code> 等）</td></tr>
+  <tr><td class="fl">scripts/check-*.mjs · important-budget.json</td><td>构建门禁本体，是安全网而非死代码</td></tr>
+  <tr><td class="fl">scripts/regression/*.sql · scripts/loadtest/*.js</td><td>数据库回归与压测资产</td></tr>
+  <tr><td class="fl">tests/unit/project-structure.test.js</td><td>结构守卫测试，其 <code>./thing.js</code> 是刻意不存在的夹具，不是悬空引用</td></tr>
+  <tr><td class="fl">public/avatars/frames/*.png · src/composables/useAvatarFrame.js</td><td>由运行时配置（<code>AVATAR_FRAMES</code>）按 key 取用，属动态引用</td></tr>
+</table>
+
+<h2 id="s6">6. 安全删除流程（SOP）</h2>
+
+<div class="callout tip">
+  <p><strong>核心原则：一条删除 = 一个可 revert 的原子提交，且提交前必须能回答「谁在用这个文件」。</strong></p>
+</div>
+
+<h3>6.1 前置准备（一次性，必做）</h3>
+<pre><code><span class="c-cm"># 0. 确认基线干净</span>
+git status --short            <span class="c-cm"># 必须为空（当前为空 ✔）</span>
+git switch -c chore/deadcode-cleanup
+
+<span class="c-cm"># 1. 记录删除前基线快照，用于对比「删了不该删的」</span>
+npm run build:ci 2&gt;&amp;1 | tee /tmp/before-build.log
+npx vitest run --reporter=json --outputFile=/tmp/before-vitest.json
+node scripts/analyze-bundle.mjs &gt; /tmp/before-bundle.txt   <span class="c-cm"># 产物体积/模块清单</span>
+cp dist/sw.js /tmp/before-sw.js 2&gt;/dev/null || true
+
+<span class="c-cm"># 2. 打标签，作为回滚锚点</span>
+git tag deadcode-baseline-$(date +%Y%m%d)
+</code></pre>
+
+<h3>6.2 单个删除单元的标准动作</h3>
+<table>
+  <tr><th>步</th><th>动作</th><th>命令 / 判定</th></tr>
+  <tr><td>1</td><td>确认「零引用」</td><td><code>grep -rn "文件名" src tests scripts probe-*.mjs *.json *.mjs</code> + 检查 <code>scripts/important-budget.json</code> 与根级报告 JSON</td></tr>
+  <tr><td>2</td><td>确认「非动态路径」</td><td>检查是否落在 <code>import.meta.glob</code> 覆盖面、是否可能来自数据库字段</td></tr>
+  <tr><td>3</td><td>前置测试：<strong>先给待删文件补一个「存在性」测试或确认无测试依赖</strong></td><td>若无法明确「谁在用」，<strong>不删</strong>，标记为待观测</td></tr>
+  <tr><td>4</td><td>删除 + 同步所有关联物</td><td>关联物 = 单测断言 / 预算基线 JSON / 空目录 / 图标 import / 样式引用</td></tr>
+  <tr><td>5</td><td>验证三连</td><td><code>npm run build:ci</code> → <code>npx vitest run</code> → 相关 <code>probe-*.mjs</code> 冒烟</td></tr>
+  <tr><td>6</td><td>原子提交</td><td><code>git commit -m "chore(deadcode): remove X (zero-ref, verified)"</code></td></tr>
+  <tr><td>7</td><td>记录证据</td><td>提交信息里写清「检索命令 + 结果」，方便 review 与回溯</td></tr>
+</table>
+
+<h3>6.3 三阶段保险机制</h3>
+<table>
+  <tr><th>阶段</th><th>动作</th><th>观察期</th><th>适用对象</th></tr>
+  <tr><td><span class="b b-ok">直接删</span></td><td>批次内原子提交 + revert 兜底</td><td>不需要</td><td>A 级全部（孤儿文件、脏文件、无效别名）</td></tr>
+  <tr><td><span class="b b-warn">先下线后删</span></td><td>保留文件，注释 <code>&lt;script setup&gt;</code> 入口或标 <code>@deprecated</code> + 控制台 warn</td><td>1 个版本周期</td><td>B 级中体量大或有动态嫌疑的（大段 CSS、主题文件）</td></tr>
+  <tr><td><span class="b b-no">先观测后删</span></td><td>加运行时埋点收集真实命中，导出后取差集</td><td>≥ 2 周 / 1 个发布周期</td><td>C 级全部（图片、变量、动态类名）</td></tr>
+</table>
+
+<h3>6.4 归档式删除（推荐用于体量大的组件）</h3>
+<pre><code><span class="c-cm"># 不直接 git rm，而是移到废弃区并记录来源，保留一个版本的复活能力</span>
+mkdir -p _deprecated/2026-09/
+git mv src/components/GlobalAiGlassOverlay.vue _deprecated/2026-09/
+<span class="c-cm"># 追加 _deprecated/README.md：原路径 / 删除原因 / 检索命令 / 关联测试</span>
+<span class="c-cm"># _deprecated/ 加入 .eslintignore 与 tsconfig exclude，避免污染 lint/type-check</span>
+<span class="c-cm"># 下个版本确认无回滚需求后再 git rm -r _deprecated/2026-09/</span></code></pre>
+
+<h2 id="s7">7. 测试补强计划</h2>
+
+<h3>7.1 现状盘点</h3>
+<div class="grid g4">
+  <div class="stat"><div class="n">93</div><div class="l">tests/unit 单元测试</div></div>
+  <div class="stat"><div class="n">14</div><div class="l">tests/integration 接口集成</div></div>
+  <div class="stat"><div class="n">1</div><div class="l">tests/e2e（仅 forum-feed.spec.js）</div></div>
+  <div class="stat"><div class="n">0</div><div class="l">覆盖率报告（provider 未安装）</div></div>
+</div>
+
+<table class="kv">
+  <tr><td>当前测试规模</td><td>106 文件 / 1683 用例，<strong>1673 通过、9 失败、1 跳过</strong>，全量耗时约 20s（其中 <code>forum-post-api.test.js</code> 单文件占 20s）</td></tr>
+  <tr><td>已具备</td><td><code>vitest</code> + <code>tests/setup.js</code> + <code>tests/mock/</code> 伪造层；<code>playwright.config.js</code> 已配 desktop/mobile 双 project 与自动起 dev server</td></tr>
+  <tr><td>缺口</td><td>① 无覆盖率采集与阈值；② CI 未跑测试（<code>ci.yml</code> 被 <code>.disabled</code>，<code>deploy.yml</code> 注释掉 test 步骤）；③ 端到端只有 1 个 spec，真实回归依赖 74 个手写探针；④ 无「死代码/孤儿文件」守卫测试</td></tr>
+</table>
+
+<h3>7.2 分层补强方案</h3>
+
+<h4>P0 — 单元测试：为「待删边界」建立回归</h4>
+<p>目的不是提高总数，而是<strong>让删除动作可被证伪</strong>。删除前必须先有测试锁住「留存方的行为」。</p>
+<table>
+  <tr><th>补测对象</th><th>测试内容</th><th>为什么能防误删</th></tr>
+  <tr><td class="fl">src/router/routes/*.ts</td><td>遍历全部路由表断言：每个 <code>component</code> 的 lazy import 路径文件真实存在；每个 redirect 目标路径有对应路由</td><td>删掉仍被路由引用的组件会立刻红；也能反向发现「路由已死」的孤儿页</td></tr>
+  <tr><td class="fl">src/utils/asset-helper.js</td><td>断言 glob 命中集合包含白名单中的关键图；<code>getImageUrl</code> 对已知名、带 <code>?</code>、<code>@/</code> 前缀三类输入都返回非空</td><td>图片删除后此测试会红，防止批量删图把首页打空</td></tr>
+  <tr><td class="fl">src/styles/** 与全局 token</td><td>断言 <code>tokens.css</code> 中 <code>--liquid-*</code> 全部有引用；关键组件类名（如 <code>.empty-state</code>）存在</td><td>防止 CSS 清理误删设计系统底座</td></tr>
+  <tr><td class="fl">关键页面快照</td><td>对 Home / UserSpace / ForumMain 三处做 <code>renderToString</code> 结构快照（不比对像素）</td><td>大范围删样式/组件时能捕捉结构性破坏</td></tr>
+</table>
+
+<h4>P1 — 集成测试：锁定数据层契约</h4>
+<p>现有 14 个 <code>*.integration.test.js</code> 已覆盖 auth/forum/subscription 等 API，在删除时作为「后端契约不变」的保证。建议补：</p>
+<ul>
+  <li><strong>资源清单核对</strong>：读取 <code>src/assets/images</code> 实际清单 vs 代码引用集合，输出差集；把差集固化为 <code>tests/fixtures/known-unreferenced-assets.json</code> 白名单。<strong>新增未引用资源会报警，删除白名单内条目需显式改白名单</strong> —— 用「清单即契约」替代「靠扫描判断」。</li>
+  <li><strong>依赖清单核对</strong>：断言 <code>package.json</code> 的每个 dependency 在 src 中至少有一处 import（当前探测结果：全部有使用，此项作为长期门禁）。</li>
+</ul>
+
+<h4>P2 — 端到端测试：把探针收敛成正式 spec</h4>
+<p>当前 74 个 <code>probe-*.mjs</code> 承担了真实回归职责却不成体系。建议按「高频路径」收敛为 5 个 spec 放进 <code>tests/e2e/</code>：</p>
+<table>
+  <tr><th>spec</th><th>覆盖</th><th>来源探针</th></tr>
+  <tr><td><code>smoke-routes.spec.js</code></td><td>遍历 <code>src/router/routes</code> 全部路由，逐个访问断言「无白屏、无 console error、RouterView 有内容」</td><td>新增（性价比最高，一次性覆盖删组件的主要风险面）</td></tr>
+  <tr><td><code>nav-and-island.spec.js</code></td><td>导航栏、灵动岛、通知建议岛</td><td>probe-notification-suggest-island · probe-lab-island-fixes · probe-nav-dark</td></tr>
+  <tr><td><code>forum-flow.spec.js</code></td><td>已有 <code>forum-feed.spec.js</code> 扩展：发帖 → 列表 → 详情 → 评论</td><td>probe-forum-content-tabs · probe-post-detail-verify</td></tr>
+  <tr><td><code>user-space.spec.js</code></td><td>UserSpace 六个 tab + 资产/装扮面板</td><td>probe-user-space-ia · probe-assets-glass</td></tr>
+  <tr><td><code>theme-dark.spec.js</code></td><td>亮/暗切换后关键页面无样式塌陷</td><td>probe-dark-audit</td></tr>
+</table>
+<div class="callout">
+  <p><strong>落地要点（沿用本仓库已踩过的坑）</strong>：暗色测试必须用 <code>addInitScript</code> 预设 <code>boh-theme=dark</code>（CSS 懒加载，直接 <code>setAttribute</code> 会误报通过）；登录态用等 3s 后注入 Pinia <code>isLoggedIn + userInfo</code>（<code>userInfo</code> 是 reactive，需 <code>Object.assign</code> 原地改，且 id 必须是合法 UUID）；弹层断言要等 <code>overlay → 确认 → detached</code>。</p>
+</div>
+
+<h4>P3 — 死代码守卫测试（防复发）</h4>
+<p>这是本次方案<strong>最重要的长期收益</strong>：把一次性清理变成持续门禁。建议新增 <code>scripts/check-dead-code.mjs</code>（就是把本次扫描脚本固化）+ <code>tests/unit/dead-code-guard.test.js</code>：</p>
+<pre><code><span class="c-cm">// scripts/check-dead-code.mjs 的判定逻辑（已在本次扫描中验证可用）</span>
+1. 构建 import 图（支持 @/ 别名、import()、&lt;style src&gt;）
+2. 从 main.js + tests + scripts + probe + 配置做多入口 BFS
+3. 不可达文件 → 与 baseline 白名单比对：
+     · 不在白名单 → <span class="c-k">exit 1</span>「发现新的孤儿文件」
+     · 白名单内的文件已消失 → 提示同步收缩白名单
+4. 输出 JSON 报告供 CI 归档
+
+<span class="c-cm"># 白名单文件：scripts/dead-code-baseline.json（初始值为本次 30 个孤儿中尚未清理的部分）</span>
+<span class="c-cm"># 挂到 package.json："check:deadcode" → 并入 build:ci</span></code></pre>
+<div class="callout tip">
+  <p><strong>为什么必须有白名单而不是硬门禁</strong>：本仓库存在大量合理的一次性场景（demo 页、待接入组件、探针脚本）。白名单让「孤儿 = 例外」变成显式决策，而不是靠扫描误判。同时它天然与 <code>scripts/check-important-budget.mjs</code>（棘轮预算，基线 1396）风格一致，团队已有认知基础。</p>
+</div>
+
+<h2 id="s8">8. 覆盖率门禁落地方案</h2>
+
+<h3>8.1 现状：覆盖率采集能力缺失</h3>
+<pre><code>$ npx vitest run --coverage
+MISSING DEPENDENCY  Cannot find dependency '@vitest/coverage-v8'</code></pre>
+<p><code>vitest.config.js</code> 中没有任何 <code>coverage</code> 配置，<code>@vitest/coverage-v8</code> 未安装，<code>@vitest/mocker</code> 等子包在而 coverage 缺失。因此「用覆盖率验证删除安全性」目前是<strong>不可执行</strong>的，必须先补基础设施。</p>
+
+<h3>8.2 建议配置（分两步，避免一上来就卡住）</h3>
+<pre><code><span class="c-cm">// 步骤 1：安装（注意：会改动 package.json，须作为独立 PR）</span>
+npm i -D @vitest/coverage-v8
+
+<span class="c-cm">// 步骤 2：vitest.config.js 追加</span>
+test: {
+  environment: 'node',
+  include: ['tests/**/*.test.js'],
+  setupFiles: ['./tests/setup.js'],
+  coverage: {
+    provider: 'v8',
+    reporter: ['text-summary', 'json-summary', 'html'],
+    reportsDirectory: './coverage',
+    include: ['src/utils/**', 'src/composables/**', 'src/stores/**'],
+    exclude: [
+      'src/**/*.d.ts',
+      'src/data/**',              <span class="c-cm">// 静态数据</span>
+      'src/assets/**',
+      'src/views/**',             <span class="c-cm">// 视图暂不纳入（量大且以 e2e 覆盖为主）</span>
+      'src/utils/theme-css-loader.js'  <span class="c-cm">// 纯动态 import</span>
+    ],
+    thresholds: {                 <span class="c-cm">// 先设「不低于当前实际值」的棘轮，再逐步抬升</span>
+      lines: 60, functions: 55, branches: 50, statements: 60
+    }
+  }
+}</code></pre>
+
+<div class="callout warn">
+  <p><strong>阈值策略：棘轮（ratchet），不是目标。</strong>先跑一次记录实际值（预期 utils/composables 层已较高，因为 93 个单测大多打在这层），把阈值设成「当前值 − 2%」，写进 CI。之后每次提升 2–5%，<strong>永不降低</strong>。这与仓库既有的 <code>check-important-budget.mjs</code> 棘轮思路完全一致，可以直接复用那套「基线 JSON + 超标失败」的实现模式，降低维护成本。</p>
+</div>
+
+<h3>8.3 覆盖率如何具体为删除服务</h3>
+<table>
+  <tr><th>用途</th><th>操作</th><th>判据</th></tr>
+  <tr><td>删除前的安全网检查</td><td>对待删文件跑 <code>npx vitest run --coverage --coverage.include='&lt;待删文件路径&gt;'</code></td><td>覆盖率 &gt; 0% 说明有测试依赖它 → 必须先处理测试；覆盖率 = 0% 且无测试引用 → 可信度高</td></tr>
+  <tr><td>删除后的回归对比</td><td>对比删除前后 <code>coverage/coverage-summary.json</code></td><td>总覆盖率<strong>不应下降</strong>（删死代码后分母变小，覆盖率应上升或持平）。若下降说明删到了被测代码</td></tr>
+  <tr><td>识别「测试盲区 = 不可删区」</td><td>列出零覆盖且被引用的文件</td><td>这些正是「不能删但也没人验证」的高危区，清理时应先补测再动</td></tr>
+</table>
+
+<h3>8.4 CI 接入顺序</h3>
+<pre><code><span class="c-cm"># 现状：deploy.yml 中测试被注释「跳过测试（需要 Supabase 环境变量）」</span>
+<span class="c-cm"># 目标：分三步恢复测试门禁，避免一次性卡死流水线</span>
+
+Step 1  npm run test（仅 unit，不需 Supabase env）           <span class="c-cm">← 需先修好 9 个失败用例</span>
+Step 2  npm run test + --coverage（阈值 = 当前值 − 2%）      <span class="c-cm">← 棘轮启动</span>
+Step 3  npx playwright test tests/e2e/smoke-routes.spec.js   <span class="c-cm">← 路由冒烟，只需 dev server</span>
+
+<span class="c-cm"># 同时启用 ci.yml.disabled → ci.yml（去掉 .disabled 后缀）</span></code></pre>
+
+<h2 id="s9">9. 批次划分与验收命令</h2>
+
+<div class="phase p0">
+  <div class="tag">B0</div>
+  <div class="body">
+    <h4>修基线：让「绿色」成为可判定的前提</h4>
+    <p>修复 9 个失败测试（第 12 节）→ 补齐 <code>@vitest/coverage-v8</code> + 覆盖率配置 → 把 <code>test</code> 步骤接回 CI。此阶段<strong>不删任何代码</strong>。</p>
+    <p><span class="b b-no">阻塞项</span> 未完成 B0 之前，任何删除都无法用「测试全绿」作为安全依据。</p>
+  </div>
+</div>
+
+<div class="phase p0" style="border-color:#8e8e93">
+  <div class="tag" style="background:#8e8e93">B1</div>
+  <div class="body">
+    <h4>零风险清理：脏文件 / 空目录 / 无效配置</h4>
+    <p><strong>内容</strong>：5 个 <code>.DS_Store</code>、3 个 <code>.prevbak/.bak2</code>、3 个空目录、5 组无效别名（共 10 处）、<code>test-re.mjs</code>、<code>test-search.mjs</code>（悬空引用）、<code>test_dm_ui.py</code>。</p>
+    <p><strong>影响面</strong>：不影响任何构建产物与运行时行为。可合并为 2–3 个提交。</p>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="tag">B2</div>
+  <div class="body">
+    <h4>孤儿文件删除：30 个文件，分 4 组</h4>
+    <p>① Lab 旧组件 7 个 · ② Dashboard 原子组件 6 个 · ③ 下线页面 3 个 · ④ 工具/组件/配置 14 个（含 <code>GlobalAiGlassOverlay.vue</code> <strong>与 <code>bohai-quick-sidebar.test.js</code> 对应断言同批处理</strong>）</p>
+    <p><strong>每组独立提交</strong>，每组后跑 <code>build:ci</code> + <code>vitest</code> + <code>probe-user-space-ia.mjs</code> / <code>probe-lab-island-fixes.mjs</code>。</p>
+  </div>
+</div>
+
+<div class="phase p3">
+  <div class="tag" style="background:var(--purple)">B3</div>
+  <div class="body">
+    <h4>内容级清理：CSS 与导出</h4>
+    <p>① 1247 个高置信死类（按文件分组提交，<strong>首批优先 5 个暗色主题共 305 个死类</strong>，再处理 3.2.1 已人工抽验的三大簇：nav-search/filter 19 个、boh-note 主题 48 个、Apple Style 残留）→ ② 15 个死 <code>@keyframes</code> → ③ 159 个纯死导出 → ④ 56 个「仅文件内用」的导出降级</p>
+    <p><span class="b b-warn">门槛</span> 每个文件删类前，必须先 grep 该类的动态构造可能（<code>${</code>、<code>+</code>、<code>classList</code>）；262 个动态风险类一律走人工复核。</p>
+  </div>
+</div>
+
+<div class="phase p4">
+  <div class="tag" style="background:#c25e00">B4</div>
+  <div class="body">
+    <h4>需要观测的清理：资源 / 变量 / 探针收敛</h4>
+    <p>① 图片：先加运行时埋点 → 一个版本周期 → 取差集后再删（A 级 2 张可直接删，C 级 45 张必须观测）→ ② 167 个 CSS 变量：先确认无 JS 消费（<code>getComputedStyle</code>/<code>setProperty</code>）→ ③ 74 个探针迁移为 5 个 e2e spec 后归档 → ④ 根目录 18 个 demo HTML：交产品确认后移入 <code>docs/</code></p>
+    <p><span class="b b-mute">顺序要求</span> 必须最后执行。B0–B3 完成后才能进入。</p>
+  </div>
+</div>
+
+<h3>9.1 每批次验收命令</h3>
+<pre><code><span class="c-cm"># 快速档（每次提交前）</span>
+npm run check:structure &amp;&amp; npm run check:views &amp;&amp; npx vitest run
+
+<span class="c-cm"># 完整档（每个批次结束）</span>
+npm run build:ci                    <span class="c-cm"># check:views + check:structure + check:liquid-glass</span>
+                                    <span class="c-cm"># + check:important-budget + vite build + check-bundle-size</span>
+npx vitest run --coverage
+node probe-user-space-ia.mjs &amp;&amp; node probe-lab-island-fixes.mjs
+npx playwright test tests/e2e/smoke-routes.spec.js
+
+<span class="c-cm"># 对比档（判断是否误删）</span>
+node scripts/analyze-bundle.mjs &gt; /tmp/after-bundle.txt
+diff &lt;(sort /tmp/before-bundle.txt) &lt;(sort /tmp/after-bundle.txt) | head -40
+<span class="c-cm"># 预期：只减少条目，模块数量不应出现「新增又消失」的抖动</span></code></pre>
+
+<h2 id="s10">10. 风险控制矩阵</h2>
+<table>
+  <tr><th>风险</th><th>概率</th><th>影响</th><th>控制措施</th></tr>
+  <tr>
+    <td>删除动态引用资源（图片/主题/组件），线上页面白屏或样式塌陷</td>
+    <td><span class="b b-no">高</span></td><td><span class="b b-no">高</span></td>
+    <td>① C 级一律禁删；② 图片删除前加运行时埋点观测；③ 部署后对首页/UserSpace/Lab 做人工回归；④ 保留 <code>_deprecated/</code> 归档 + tag 兜底</td>
+  </tr>
+  <tr>
+    <td>删掉文件但漏删测试依赖，测试套件红掉无人修</td>
+    <td><span class="b b-warn">中</span></td><td><span class="b b-warn">中</span></td>
+    <td>删除前强制 <code>grep -rn "文件名" tests/ scripts/</code>；B2 阶段把测试断言与文件放同一提交</td>
+  </tr>
+  <tr>
+    <td>删 CSS 类后视觉回归（动态类名未识别）</td>
+    <td><span class="b b-no">高</span></td><td><span class="b b-warn">中</span></td>
+    <td>① 动态前缀 262 类排除在自动流程外；② 每批只处理 1–2 个文件；③ 暗色模式必须实测（用 <code>addInitScript</code> 预设主题的探针）</td>
+  </tr>
+  <tr>
+    <td>删文件后 <code>important-budget</code> 基线失配，<code>build:ci</code> 直接失败</td>
+    <td><span class="b b-ok">高（必然）</span></td><td><span class="b b-ok">低</span></td>
+    <td>每次删除后同步更新 <code>scripts/important-budget.json</code>，作为同提交的一部分；已知受影响：<code>GlobalAiGlassOverlay.vue(36)</code>、<code>ActivitiesPhotoWall.vue(2)</code></td>
+  </tr>
+  <tr>
+    <td>一次性大规模删除导致无法定位问题源</td>
+    <td><span class="b b-warn">中</span></td><td><span class="b b-no">高</span></td>
+    <td>原子提交纪律：1 组 = 1 提交，提交信息带检索证据；批次间保持可回滚</td>
+  </tr>
+  <tr>
+    <td>清理期间他人并行开发产生冲突</td>
+    <td><span class="b b-warn">中</span></td><td><span class="b b-warn">中</span></td>
+    <td>清理分支生命周期控制在 1 周内；每批完成后及时合并 main；避免长期挂起的巨型分支</td>
+  </tr>
+  <tr>
+    <td>误删 <code>.d.ts</code> 导致 type-check 静默失效</td>
+    <td><span class="b b-warn">中</span></td><td><span class="b b-warn">中</span></td>
+    <td>黑名单硬约束 + 每批跑 <code>npm run type-check</code>（若删了声明文件但类型检查仍通过，恰恰说明原先无效——需单独判断而非批量删）</td>
+  </tr>
+  <tr>
+    <td>删除后 bundle 变化引发 PWA 缓存异常</td>
+    <td><span class="b b-ok">低</span></td><td><span class="b b-no">高</span></td>
+    <td>仓库已有 <code>forceCleanAndReload</code> + 路由 chunk 加载失败自愈机制（<code>router/index.ts</code>），确认该机制在删除后仍生效；发版后观察 <code>ROUTE_CHUNK_RELOAD_KEY</code> 触发率</td>
+  </tr>
+</table>
+
+<h2 id="s11">11. 工具链与长期防复发</h2>
+
+<h3>11.1 为什么本次没直接用 knip / depcheck</h3>
+<p>仓库未安装任何现成死代码工具（<code>knip</code>、<code>depcheck</code>、<code>madge</code>、<code>ts-prune</code>、<code>unimported</code> 均不存在）。直接安装会改动 <code>package.json</code>，与「本次仅输出方案」冲突。同时现成工具在本仓库有两个已知水土不服：</p>
+<ul>
+  <li><strong>不理解本仓库的动态约定</strong>：<code>import.meta.glob</code> 的 eager 全量、数据库驱动的 hero 图片、主题 CSS 动态 import —— knip 会把它们判为未使用。</li>
+  <li><strong>无法识别项目自有门禁</strong>：<code>important-budget.json</code> 按路径登记配额、测试用源码文本断言，knip 都不感知。</li>
+</ul>
+<p>因此建议<strong>把本次已验证可用的扫描脚本固化</strong>（<code>scripts/check-dead-code.mjs</code>），配合白名单基线。若仍想引入 knip，应作为 B3 之后的独立评估项，且必须先配置 <code>ignore</code> 与 <code>entry</code> 覆盖上述动态约定。</p>
+
+<div class="callout tip">
+  <p><strong>已落地：扫描脚本已固化为可复用技能</strong></p>
+  <p>路径：<code>~/.workbuddy/skills/dead-code-safe-cleanup/</code>，包含</p>
+  <ul>
+    <li><code>scripts/dead-code-audit.mjs</code> — 只读分析器，一条命令输出 6 个维度（孤儿文件 / 未使用导出 / 死类 / 死 keyframes / 死 CSS 变量 / 未引用资源）。内置本仓库已知的动态约定识别，无需手工配 <code>ignore</code>。</li>
+    <li><code>SKILL.md</code> — 分级判据、删除 SOP、注释法 vs 直接删的决策表、禁止删除黑名单。</li>
+    <li><code>references/pitfalls.md</code> — 全部踩坑记录（含本节的口径污染事故）。</li>
+  </ul>
+  <p>用法：<code>node scripts/dead-code-audit.mjs &lt;项目根&gt; --out /tmp/audit.json</code>。<strong>迁移到 <code>scripts/</code> 时请只搬脚本、保留 <code>SKILL.md</code> 在技能目录</strong>，避免同一份判据出现两个版本。</p>
+</div>
+
+<div class="callout warn">
+  <p><strong>与既有结论的对齐</strong>：本项目早前的 <code>github-component-scout-report.html</code> 把 <code>knip</code> 列为 P0（「死代码，可挂进 build:ci 棘轮」）。二者方向一致（都要棘轮门禁），差异只在<strong>先自建还是先引入 knip</strong>。建议的合并路径是：B0–B3 用自建脚本完成清理（它已被本次扫描验证能正确处理本仓库的动态约定），B3 结束后再评估是否用 knip 替代自建脚本 —— 届时仓库里的动态引用已被理清，knip 的 <code>ignore</code> 配置成本会显著下降，也更容易验证它给出的结论是否可信。</p>
+</div>
+
+<h3>11.2 建议新增的 npm scripts（待 B0 阶段实施）</h3>
+<table>
+  <tr><th>script</th><th>作用</th><th>是否进门禁</th></tr>
+  <tr><td><code>check:deadcode</code></td><td>孤儿文件 + 白名单比对</td><td><span class="b b-ok">是（并入 build:ci）</span></td></tr>
+  <tr><td><code>check:assets</code></td><td>资源引用清单差集（对接 <code>known-unreferenced-assets.json</code>）</td><td><span class="b b-ok">是</span></td></tr>
+  <tr><td><code>check:unused-exports</code></td><td>新增未使用导出告警（仅报不拦，避免误伤）</td><td><span class="b b-warn">否（仅报告）</span></td></tr>
+  <tr><td><code>audit:deadcode</code></td><td>输出完整 JSON + HTML 报告到 <code>output/</code></td><td><span class="b b-mute">否（按需）</span></td></tr>
+  <tr><td><code>test:coverage</code></td><td><code>vitest run --coverage</code></td><td><span class="b b-ok">是（阈值棘轮）</span></td></tr>
+</table>
+
+<h3>11.3 与既有治理资产的关系</h3>
+<table>
+  <tr><th>既有资产</th><th>本次方案的关系</th></tr>
+  <tr><td><code>scripts/style-remnant-audit.mjs</code> + <code>style-remnant-audit.json</code>（summary: deadClassTotal 1133 / importantCount 1390 / budgetBaseline 1396）</td><td><strong>是本次样式扫描的上游，但口径与本次不同</strong>：它报 1133，本次复算报 1667（高置信 1247 + 动态风险 420）。差异来源是「语料边界」不同 —— 本次排除了生成产物（<code>stats.html</code> / 图片缓存 / 审计报告）与设计稿目录，并剔除了 <code>&lt;style&gt;</code> 块自匹配。<br><strong>此刻仓库里已经存在三套死类数字（1133 / 932 / 1667），这正是最该消除的状态。</strong>建议把三套合并为单一脚本 + 单一 JSON 产物，并在门禁里只认它。合并时以本次的 1667 为基线（口径可复现、且逐条人工核对过 keyframes 分支）。</td></tr>
+  <tr><td><code>style-remnant-audit-report.html</code>（13 节清理顺序）</td><td>其「清理顺序」章节应作为 B3 的执行顺序依据，与本文档不冲突</td></tr>
+  <tr><td><code>scripts/check-important-budget.mjs</code></td><td>删除的强制联动项（基线 JSON），也是覆盖率棘轮的<strong>实现范式参考</strong></td></tr>
+  <tr><td><code>docs/codebase-refactor-report-2026-06-29.md</code></td><td>上一轮已删 26 文件。<strong>本方案的 <code>src/views/LithiumIron</code> 空目录正是那轮遗漏的尾部</strong>，说明「删除后未清目录与配置引用」需要流程化（B1 已纳入）</td></tr>
+  <tr><td><code>tests/unit/project-structure.test.js</code></td><td>已有的结构守卫雏形，<code>check:deadcode</code> 应与它合并思路而非另起一套</td></tr>
+</table>
+
+<h2 id="s12">12. 先决问题：9 个失败测试（B0 阻塞项）</h2>
+<p>全量 <code>vitest run</code> 结果：<strong>Test Files 7 failed | 99 passed (106)，Tests 9 failed | 1673 passed | 1 skipped (1683)</strong>。这些失败必须在 B0 阶段处理完，否则「测试全绿」无法作为删除安全网。</p>
+
+<table>
+  <tr><th>测试文件</th><th>失败用例</th><th>性质判断</th></tr>
+  <tr>
+    <td class="fl">tests/unit/user-space-tabs.test.js</td>
+    <td>falls back to posts for an invalid initial tab<br>mounts the requested route tab on the first render</td>
+    <td><span class="b b-warn">测试漂移</span>：期望 <code>'posts'</code>，实际 <code>'community'</code>。UserSpace 的 IA 已改为社区优先，测试未同步。<strong>修测试，不改代码</strong></td>
+  </tr>
+  <tr>
+    <td class="fl">tests/unit/app-mode-manager.test.js</td>
+    <td>keeps a user-selected 4.9.1 fallback after the release migration<br>migrates legacy mode storage to the released Beta 5 default<br>persists a user-selected 4.9.1 fallback and notifies mounted consumers</td>
+    <td><span class="b b-warn">功能已废弃</span>：4.9.1 回退通道已拆、恒 Beta 6 单轨。这 3 个用例在测已不存在的兼容逻辑 → <strong>随测试一并清理</strong>（这是「测试即死代码」的典型）</td>
+  </tr>
+  <tr>
+    <td class="fl">tests/unit/home-heroes-baseline.test.js<br>tests/unit/home-heroes-partial-save-regression.test.js<br>tests/unit/frontend-performance.test.js</td>
+    <td>renders the published builtin heroes before the remote configuration returns<br>renders a row when it becomes the eager first hero after sorting<br>defers below-the-fold home hero component mounting</td>
+    <td><span class="b b-no">需逐个人工定位</span>：home hero 已重构（新增 MascotEvolutionHero / MascotNewHero / Beta6RenewalHero，移除 Beta6Hero 旧版），渲染时序与排序契约可能已变。<strong>删除 Hero 相关组件前必须先把这 3 个测试修绿</strong>，否则无法判断删除是否引入回归</td>
+  </tr>
+  <tr>
+    <td class="fl">tests/unit/security-xss-sanitization.test.js</td>
+    <td>整个文件级失败（无具体用例输出）</td>
+    <td><span class="b b-no">优先修</span>：安全测试属于最高优先级门禁，文件级失败可能是 setup / import 错误</td>
+  </tr>
+  <tr>
+    <td class="fl">tests/integration/profile-api.integration.test.js</td>
+    <td>addUserImpression &gt; inserts impression and returns ok</td>
+    <td><span class="b b-mute">环境相关</span>：集成测试可能依赖 Supabase 环境变量/mock 数据，需确认是否为环境问题而非逻辑问题</td>
+  </tr>
+</table>
+
+<div class="callout warn">
+  <p><strong>B0 的验收标准</strong>：<code>npx vitest run</code> 输出 <strong>0 failed</strong>，且失败用例的处理方式被显式记录（「修测试」还是「删测试」），不得用 <code>--exclude</code> 或 <code>skip</code> 掩盖。</p>
+</div>
+
+<hr>
+
+<h2>附：执行清单速查</h2>
+<table>
+  <tr><th>批次</th><th>内容</th><th>数量</th><th>风险</th><th>前置</th></tr>
+  <tr><td>B0</td><td>修 9 个失败测试 + 装 coverage provider + CI 接回 test</td><td>—</td><td><span class="b b-ok">低</span></td><td>无</td></tr>
+  <tr><td>B1</td><td>脏文件 / 空目录 / 无效别名 / 悬空脚本</td><td>~25 项</td><td><span class="b b-ok">极低</span></td><td>B0</td></tr>
+  <tr><td>B2</td><td>孤儿文件（含关联测试与预算基线）</td><td>30 文件</td><td><span class="b b-ok">低</span></td><td>B1</td></tr>
+  <tr><td>B3</td><td>高置信死类 + 死 keyframes + 死导出</td><td>1247 + 15 + 159</td><td><span class="b b-warn">中</span></td><td>B2</td></tr>
+  <tr><td>B4</td><td>图片 / CSS 变量 / 探针收敛 / demo 归档</td><td>47 + 167 + 74 + 18</td><td><span class="b b-no">高</span></td><td>B3 + 一个观测周期</td></tr>
+</table>
+
+<p class="foot">
+  本报告为方案文档，未修改任何项目代码。<br>
+  扫描脚本位于 <code>/tmp/deadcode/analyze{,2,3}.mjs</code>，原始数据 <code>/tmp/deadcode/report{,2,3}.json</code>。
+</p>
+
+</div>
+</body>
+</html>

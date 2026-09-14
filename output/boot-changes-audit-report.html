@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>工作区变更查错报告 · 首屏启动骨架 + 预缓存改动</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --ink: #1d1d1f;
+    --ink-2: #48484e;
+    --ink-3: #6e6e73;
+    --line: #e5e6ea;
+    --p1: #d93025;
+    --p1-bg: #fdecea;
+    --p2: #c25b00;
+    --p2-bg: #fff4e5;
+    --p3: #4b5563;
+    --p3-bg: #f0f1f4;
+    --ok: #1a7f37;
+    --ok-bg: #e9f6ec;
+    --code-bg: #f3f4f6;
+    --mono: "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 24px 80px;
+    background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 15px; line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; }
+  header.top { margin-bottom: 28px; }
+  .kicker { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+  h1 { font-size: 27px; line-height: 1.35; margin: 8px 0 10px; letter-spacing: -0.01em; }
+  .meta { color: var(--ink-3); font-size: 13.5px; }
+  .verdict {
+    margin-top: 18px; padding: 16px 20px; background: var(--card);
+    border: 1px solid var(--line); border-left: 4px solid var(--ink); border-radius: 12px;
+  }
+  .verdict strong { color: var(--ink); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 12px; margin: 22px 0 34px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .stat .n { font-size: 24px; font-weight: 700; line-height: 1.2; }
+  .stat .l { font-size: 12.5px; color: var(--ink-3); margin-top: 2px; }
+  .stat.p1 .n { color: var(--p1); } .stat.p2 .n { color: var(--p2); }
+  .stat.p3 .n { color: var(--p3); } .stat.ok .n { color: var(--ok); }
+  h2 { font-size: 19px; margin: 40px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  h2 .tag { font-size: 12px; font-weight: 600; color: var(--ink-3); margin-left: 8px; }
+  .item { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin-bottom: 14px; border-left-width: 4px; border-left-style: solid; }
+  .item.p1 { border-left-color: var(--p1); } .item.p2 { border-left-color: var(--p2); }
+  .item.p3 { border-left-color: var(--p3); } .item.ok { border-left-color: var(--ok); }
+  .item h3 { font-size: 16px; margin: 0 0 4px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .lv { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; letter-spacing: 0.02em; }
+  .lv.p1 { background: var(--p1-bg); color: var(--p1); }
+  .lv.p2 { background: var(--p2-bg); color: var(--p2); }
+  .lv.p3 { background: var(--p3-bg); color: var(--p3); }
+  .lv.ok { background: var(--ok-bg); color: var(--ok); }
+  .sec { margin-top: 12px; }
+  .sec .h { font-size: 12px; font-weight: 700; color: var(--ink-3); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 4px; }
+  .sec p { margin: 0 0 6px; color: var(--ink-2); }
+  ul { margin: 6px 0 0; padding-left: 20px; color: var(--ink-2); }
+  li { margin: 3px 0; }
+  code { font-family: var(--mono); font-size: 12.6px; background: var(--code-bg); padding: 1px 5px; border-radius: 5px; color: #24303f; }
+  pre { font-family: var(--mono); font-size: 12.4px; background: #f7f8fa; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; overflow-x: auto; margin: 8px 0 4px; line-height: 1.6; color: #24303f; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; font-size: 13.6px; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: #fafbfc; font-size: 12.5px; color: var(--ink-3); font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+  .fix { background: #f8fbf8; border: 1px solid #d8e8db; border-radius: 10px; padding: 12px 14px; margin-top: 10px; }
+  .fix .h { color: var(--ok); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+  .plan { counter-reset: step; list-style: none; padding: 0; margin: 0; }
+  .plan li { counter-increment: step; position: relative; padding: 12px 16px 12px 50px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 10px; color: var(--ink-2); }
+  .plan li::before { content: counter(step); position: absolute; left: 14px; top: 12px; width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 12.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .plan b { color: var(--ink); }
+  footer { margin-top: 44px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 12.5px; }
+  .mono { font-family: var(--mono); font-size: 12.6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="kicker">BOHLITE · 工作区变更审查</div>
+  <h1>首屏启动骨架 + SW 预缓存改动的查错报告</h1>
+  <div class="meta">审查时间 2026-09-14 · 范围：<code>git status</code> 全部变更（5 个已跟踪文件 + 8 项未跟踪新增）· 方法：源码全量读 + 构建产物侧断言 + 四项门禁 + eslint / vue-tsc + 逐帧浏览器实测</div>
+
+  <div class="verdict">
+    <strong>结论：</strong>本次改动的核心目标（补齐 <code>ui-sanitize</code> 预缓存、首屏空白期给出可见兜底）<strong>已验证成立</strong>，无功能性回归，四道门禁与类型检查全绿。
+    但发现 <strong>1 个 P1（临时构建产物未忽略）、5 个 P2、5 个 P3</strong>。其中影响面最大的是
+    <strong>骨架的暗色分支是永不生效的死规则，同时暗色用户首帧整屏白闪</strong>——根因是主题属性在 <code>app.mount</code> 之后才写入。
+    另有 <strong>1 个假设被实测推翻</strong>（加载态期间页脚错位），已如实记录以避免后续重复排查。
+  </div>
+</header>
+
+<div class="stats">
+  <div class="stat p1"><div class="n">1</div><div class="l">P1 高优先（已修）</div></div>
+  <div class="stat p2"><div class="n">5</div><div class="l">P2 应修</div></div>
+  <div class="stat p3"><div class="n">5</div><div class="l">P3 建议</div></div>
+  <div class="stat ok"><div class="n">6</div><div class="l">交叉验证通过</div></div>
+  <div class="stat"><div class="n">1</div><div class="l">假设被推翻</div></div>
+</div>
+
+<h2>修复状态总览 <span class="tag">截至 2026-09-14 10:5x</span></h2>
+<table>
+  <thead><tr><th>编号</th><th>问题</th><th>状态</th></tr></thead>
+  <tbody>
+    <tr><td>P1</td><td><code>dist-check/</code> 未进 .gitignore</td><td>✅ 已修（补 .gitignore + 删除 25MB 产物）</td></tr>
+    <tr><td>P2-1</td><td>骨架暗色分支是死规则 · 暗色首帧白闪</td><td>✅ 已修（index.html 早期主题脚本 + body 底色兜底），实测见第六章</td></tr>
+    <tr><td>P2-2</td><td>假导航胶囊与真实导航栏不一致</td><td>✅ 已修（按方案 A 删除假胶囊，骨架只负责主体区）</td></tr>
+    <tr><td>P2-3</td><td>骨架色值跨语义层 + 门禁盲区</td><td>✅ 已修（<code>#a1a1a6</code> → <code>#8a919c</code>）＋新增 <code>check:first-paint</code> 门禁</td></tr>
+    <tr><td>P2-4</td><td><code>static/fonts</code> glob 零匹配 → 构建 warning 噪音</td><td>✅ 已修（删除该 glob，重建后构建零 warning）</td></tr>
+    <tr><td>P2-5</td><td>SW 预缓存手写名单无校验（根因）</td><td>✅ 已修（新增 <code>check:shell-precache</code>，已反证有效）</td></tr>
+    <tr><td>P3-1</td><td>两套超时文案 / 实现重复</td><td>✅ 已修（文案统一 + 两侧注释互引）</td></tr>
+    <tr><td>P3-2</td><td><code>&lt;Footer&gt;</code> 未受 <code>bootReady</code> 约束</td><td>✅ 已修（加 <code>v-if="bootReady"</code> 防御）</td></tr>
+    <tr><td>P3-3</td><td>perf 探针口径缺陷 + 缺 try/finally</td><td>✅ 已修（拆为 FCP / Vue挂载 / 主体首帧 / 骨架可见时长四指标）</td></tr>
+    <tr><td>P3-4</td><td>审计报告落在仓库根目录</td><td>✅ 已修（两份 HTML 迁入 <code>output/</code>）</td></tr>
+    <tr><td>P3-5</td><td>记忆 3 处陈述失实</td><td>✅ 已修（并修正「13 个主题容器」，<code>.note-page</code> 已随 boh-note 下线）</td></tr>
+    <tr><td>P3-6</td><td>根目录 80 个 <code>probe-*.mjs</code>（归档建议）</td><td>✅ 已修（全部迁入 <code>scripts/probes/</code>，77 个走 git mv 保留历史）</td></tr>
+  </tbody>
+</table>
+
+<h2>一、审查范围</h2>
+<table>
+  <thead><tr><th>变更项</th><th>规模</th><th>审查结论</th></tr></thead>
+  <tbody>
+    <tr><td><code>vite.config.js</code></td><td>+9 −1</td><td>✅ 修复有效（产物侧已证实）</td></tr>
+    <tr><td><code>index.html</code></td><td>+125</td><td>⚠️ 3 处问题（P2-1 / P2-2 / P2-3）</td></tr>
+    <tr><td><code>src/App.vue</code></td><td>+59 −1</td><td>✅ 逻辑成立 · P3-1/P3-2 建议增强</td></tr>
+    <tr><td><code>.workbuddy/memory/MEMORY.md</code></td><td>+82 −46</td><td>⚠️ 3 处陈述与实测不符（P3-5，已更正并二次压缩）</td></tr>
+    <tr><td><code>.workbuddy/memory/2026-09-14.md</code></td><td>+37</td><td>⚠️ 「dist-check 已清」与事实不符（P1-1）</td></tr>
+    <tr><td><code>probe-blank-screen-diagnosis.mjs</code></td><td>新增 202 行</td><td>✅ 解析逻辑实测可用 · P3-4 建议改选择器</td></tr>
+    <tr><td><code>probe-boot-perf.mjs</code></td><td>新增 104 行</td><td>⚠️ 度量口径 + 缺 try/finally（P3-3）</td></tr>
+    <tr><td><code>output/blank-screen-*/</code>、<code>debug-screenshots/liquid-token-*.png</code></td><td>31 张截图</td><td>✅ 无代码风险</td></tr>
+    <tr><td><code>dead-code-cleanup-plan.html</code>、<code>github-component-scout-report.html</code></td><td>67KB + 70KB</td><td>⚠️ 落在仓库根目录（P3-5，违反既有约定）</td></tr>
+  </tbody>
+</table>
+
+<h2>二、问题清单</h2>
+
+<div class="item p1">
+  <h3><span class="lv p1">P1</span>临时构建产物 <code>dist-check/</code> 未进 .gitignore（已修）</h3>
+  <div class="sec"><div class="h">证据</div>
+    <ul>
+      <li><code>.gitignore</code> 只有 <code>dist</code> 与 <code>dist-ssr</code>，无 <code>dist-check</code>；<code>git check-ignore -q dist-check</code> 返回「未忽略」，而 <code>dist</code> 返回已忽略。</li>
+      <li>2026-09-14 日志写「临时产物已清：<code>dist-check/</code>」，但本轮实测该目录<strong>仍在工作区</strong>（140 个 JS + 98 个 CSS）。陈述与事实不符。</li>
+      <li>后果：执行 <code>git add .</code> 会把整份构建产物提交入库。</li>
+    </ul>
+  </div>
+  <div class="fix"><div class="h">已执行</div>
+    <p>① <code>.gitignore</code> 增加 <code>dist-check</code>（含用途注释）；② 本轮真正删除该目录。</p>
+    <p>注意：<code>probe-boot-perf.mjs</code> 依赖 dist / dist-check 两份产物对比，复跑前需先 <code>npx vite build --outDir dist-check</code>。</p>
+  </div>
+</div>
+
+<div class="item p2">
+  <h3><span class="lv p2">P2</span>骨架的暗色分支是死规则，且暗色用户首帧整屏白闪</h3>
+  <div class="sec"><div class="h">实地逐帧实测（<code>probe-verify-boot-changes.mjs</code>，暗色 boh-theme=dark）</div>
+<pre>首帧 t=41ms  : theme=null  bootBg=rgb(255,255,255)  bodyBg=rgb(255,255,255)  hasBoot=true
+t=87ms       : theme=dark  hasBoot=false（骨架已被 Vue 清空）
+骨架存活 2 帧，其中处于暗色主题的帧数 = 0</pre>
+  </div>
+  <div class="sec"><div class="h">根因</div>
+    <p><code>src/main.js:288</code> 先 <code>app.mount("#app")</code>，主题管理器 <code>themeManager.init()</code> 在 <code>src/main.js:310</code> 才执行；<code>src/utils/theme-manager.js:89</code> 此时才 <code>setAttribute('data-theme', theme)</code>。骨架 <code>&lt;style&gt;</code> 里的 4 条 <code>html[data-theme="dark"] …</code> 规则依赖该属性，因此在首帧必然拿不到。</p>
+  </div>
+  <div class="sec"><div class="h">影响</div>
+    <ul>
+      <li>暗色用户（<code>localStorage['boh-theme']='dark'</code>）在骨架窗口看到整屏 <code>#ffffff</code>，随后切黑 —— 骨架窗口越长（弱网正是骨架的目标场景）白闪越明显。</li>
+      <li>4 条暗色规则 <strong>从不生效</strong>，属死代码：后续维护者会误以为暗色已被处理。</li>
+    </ul>
+  </div>
+  <div class="fix"><div class="h">修复方案（推荐 A）</div>
+    <p><b>A（推荐，一处内联脚本，顺带修掉全站暗色 FOUC）</b>：在 <code>index.html</code> 的 <code>&lt;head&gt;</code> 最前、骨架 <code>&lt;style&gt;</code> 之前插入最小内联脚本：读 <code>localStorage.getItem('boh-theme')</code>，<code>'system'</code> 时用 <code>matchMedia('(prefers-color-scheme: dark)')</code> 解析，命中 <code>VALID_THEMES</code>（light / dark / home-cat / anniversary-mc）就用自身，然后立即 <code>document.documentElement.setAttribute('data-theme', t)</code>，并把 <code>html</code> 背景设成对应底色（#ffffff / #0a0a0f）。<code>themeManager.init()</code> 之后会用同一份 localStorage 再设一次，语义一致、无冲突。</p>
+    <p><b>B（兜底）</b>：若不想在 index.html 增加脚本，则删除骨架里 4 条暗色规则，明确「骨架恒为浅色」，至少不留死规则与误导。</p>
+    <p><b>验证</b>：<code>node probe-verify-boot-changes.mjs</code> → 首帧 <code>theme</code> 应为 <code>dark</code>、<code>bootBg</code> 应为 <code>rgb(10, 10, 15)</code>。</p>
+  </div>
+</div>
+
+<div class="item p2">
+  <h3><span class="lv p2">P2</span>骨架的「假导航胶囊」与真实导航栏几何、视觉都不一致</h3>
+  <div class="sec"><div class="h">实测对比</div>
+<pre>骨架 .boh-boot-nav   : 720 × 72 @ (left 280, top 10)  圆角 999px  背景 rgba(0,0,0,.05)
+真实导航栏(默认态)    : 1280 × 72 @ (0,0)              无圆角      白底 + 1px #f0f0f0 底边
+真实导航栏(滚动后)    : 860 × 58（unified-nav.css 的 .scrolled 规则，圆角玻璃胶囊）
+</pre>
+    <p>另外：正常网络下骨架只存在 <strong>2 帧（41→87ms）</strong>，说明真实导航栏（<code>ui-components</code> 在预缓存内）几乎与骨架同时到达 —— 假导航的"占位"作用非常有限。</p>
+  </div>
+  <div class="sec"><div class="h">影响</div>
+    <p>加载窗口出现「居中灰色胶囊 → 全宽白色条」的形态跳变；比起不画导航，一个与真实 UI 不一致的假控件反而更容易被用户察觉。</p>
+  </div>
+  <div class="fix"><div class="h">修复方案（需视觉拍板）</div>
+    <p><b>A（推荐）</b>：删除 <code>.boh-boot-nav</code> 及其 CSS，骨架只保留主体三点 spinner。导航栏交付给已有预缓存的 <code>ui-components</code>（实测 87ms 就位）。收益：少一个假控件、少 4 处需维护的几何常量。</p>
+    <p><b>B</b>：对齐默认态 —— 全宽、<code>height: 72px</code>、<code>border-bottom: 1px solid #f0f0f0</code>、无圆角、白底（暗色 <code>#0a0a0f</code> + 同亮度分隔线）。</p>
+    <p><b>验证</b>：<code>probe-verify-boot-changes.mjs</code> 输出的「→ 几何差」一行；方案 A 应打印 <code>null</code>，方案 B 宽度差应为 0。</p>
+  </div>
+</div>
+
+<div class="item p2">
+  <h3><span class="lv p2">P2</span>骨架文字色跨语义层混用；index.html 内联样式是门禁盲区</h3>
+  <div class="sec"><div class="h">证据</div>
+    <ul>
+      <li>骨架 <code>.boh-boot-text</code>：浅色 <code>#8b9098</code> = <code>--liquid-text-tertiary</code>（浅）；暗色 <code>#a1a1a6</code> = <code>--liquid-text-secondary</code>（暗）—— 而 tertiary 的暗色值是 <code>#8a919c</code>。同一元素明暗两档取了<strong>不同语义层</strong>，暗色偏亮一档。</li>
+      <li>骨架 <code>.boh-boot-retry</code>：浅 <code>#1d1d1f</code> / 暗 <code>#f5f5f7</code> = primary，两档一致 ✅</li>
+      <li><code>node scripts/check-liquid-glass.mjs</code> <strong>通过</strong> → 该门禁只扫 tokens 定义，<code>index.html</code> 内联样式不在校验范围，属盲区。</li>
+    </ul>
+  </div>
+  <div class="fix"><div class="h">修复方案</div>
+    <p>① 把 <code>#a1a1a6</code> 改为 <code>#8a919c</code>（与浅色档同为 tertiary）。</p>
+    <p>② 新增门禁 <code>scripts/check-boot-skeleton-tokens.mjs</code>：断言骨架里登记的色值 === tokens.css 对应 token 的值（同一份「色值 → token 名」映射表），并断言骨架 <code>&lt;style&gt;</code> 在文档中早于任何 <code>&lt;link rel="stylesheet"&gt;</code>（防止将来被挪到全局 CSS 之后而失效）。挂到 <code>build:ci</code>。</p>
+    <p><b>验证</b>：故意改错骨架一个色值 → 门禁必须报错。</p>
+  </div>
+</div>
+
+<div class="item p2">
+  <h3><span class="lv p2">P2</span><code>globPatterns</code> 中 <code>static/fonts/*.{woff,woff2}</code> 零匹配</h3>
+  <div class="sec"><div class="h">证据</div>
+<pre>vite build 输出（本轮 dist-check）:
+  precache  110 entries (3569.36 KiB)
+  warnings  One of the glob patterns doesn't match any files:
+            "globPattern": "static/fonts/*.{woff,woff2}"
+$ ls dist/static/   →  css  images  js      （无 fonts）
+index.html:10 注释  →  「首屏使用系统字体栈」</pre>
+  </div>
+  <div class="sec"><div class="h">影响</div>
+    <p>每次构建固定输出一条 warning → 训练团队习惯性忽略 warning。而"预缓存缺失"这类真问题恰恰只能靠 warning 暴露（<code>ui-sanitize</code> 漏配时<strong>连一条 warning 都没有</strong>）。</p>
+  </div>
+  <div class="fix"><div class="h">修复方案</div>
+    <p>删除该行。若将来引入自托管字体，再连同 <code>public/fonts</code> 一起加回，并同步下面的 <code>check-shell-precache.mjs</code> 资源断言。验证：重建后构建输出不再有 warning。</p>
+  </div>
+</div>
+
+<div class="item p2">
+  <h3><span class="lv p2">P2</span>SW 预缓存仍是手写白名单，缺机制化校验（本次事故的根因）</h3>
+  <div class="sec"><div class="h">证据</div>
+    <ul>
+      <li>本轮修复前后：预缓存 JS <strong>8 → 9</strong>、总条目 <strong>109 → 110</strong>；<code>ui-sanitize</code> 确实属于入口静态依赖（下文「验证通过」有产物侧证明）。</li>
+      <li>workbox 对手写名单里<strong>单个未命中的名字不告警</strong> —— 只对「整条 glob 零匹配」告警（如上面的 fonts）。这就是 <code>ui-sanitize</code> 漏配能静默存活的原因。</li>
+      <li><code>probe-blank-screen-diagnosis.mjs:53-54</code> 已经有现成断言（壳依赖 ⊆ 预缓存），但它只在人工跑探针时才执行。</li>
+    </ul>
+  </div>
+  <div class="fix"><div class="h">修复方案</div>
+    <p>抽成 <code>scripts/check-shell-precache.mjs</code>：读 <code>dist/static/js/app-*.js</code> 的静态 import 集合 + <code>dist/sw.js</code> 的 <code>precacheAndRoute</code> 列表，断言「壳依赖 ⊆ 预缓存 JS」，并顺带断言条目总数与 CSS/媒体条目存在。挂 <code>build:ci</code> 尾部（必须在 vite build 之后），失败 exit 1。</p>
+    <p><b>验证</b>：临时从 globPatterns 删掉 <code>ui-sanitize</code> → 门禁必须失败。</p>
+  </div>
+</div>
+
+<div class="item p3">
+  <h3><span class="lv p3">P3</span>两套超时兜底文案与实现重复</h3>
+  <div class="sec"><div class="h">证据</div>
+    <p><code>index.html:237-241</code> 12s →「加载超时，可能是网络不稳定或刚刚更新了版本」；<code>src/App.vue:42-44</code> 10s →「页面内容加载失败」。两处各自拼 <code>?forceUpdate=true</code> 并 <code>location.replace</code>。</p>
+    <p>实测两者<strong>不冲突</strong>：Vue 挂载会清空 <code>#app</code>，内联定时器因 <code>document.body.contains(boot) === false</code> 自然失效 —— 该判断正确。</p>
+  </div>
+  <div class="fix"><div class="h">修复方案</div>
+    <p>① 两处加互相引用的注释（避免后人只改一处）；② 措辞统一（同一故障两种说法会让用户困惑）：建议 App 层沿用「加载超时…刚刚更新了版本」。</p>
+  </div>
+</div>
+
+<div class="item p3">
+  <h3><span class="lv p3">P3</span><code>&lt;Footer&gt;</code> 不受 bootReady 约束（实测无害，建议一行防御）</h3>
+  <div class="sec"><div class="h">实测（懒加载 chunk 延迟 3s，1.2s 时采样）</div>
+<pre>appChildren: div.unified-nav / div.boh-boot-body / div.footer-pages / span
+footerPagesMounted: true   footerPagesHeight: 0   footerPagesVisible: false
+docHeight: 800 = innerHeight   scrollable: false</pre>
+    <p>页脚组件确实被挂载，但<strong>高度为 0</strong>，无错位、无滚动条 → <strong>当前不构成缺陷</strong>（详见「被推翻的假设」）。</p>
+  </div>
+  <div class="fix"><div class="h">修复方案</div>
+    <p>顺手加一行防御：<code>&lt;Footer v-if="bootReady &amp;&amp; !route.meta?.hideFooter" /&gt;</code>。零风险，覆盖"将来 Footer 变为同步渲染内容"的情形。</p>
+  </div>
+</div>
+
+<div class="item p3">
+  <h3><span class="lv p3">P3</span><code>probe-boot-perf.mjs</code> 度量口径不覆盖本次收益 + 缺 try/finally</h3>
+  <div class="sec"><div class="h">证据</div>
+    <ul>
+      <li><code>__bootAppReadyAt</code>（<code>probe-boot-perf.mjs:53-65</code>）的判据是 <code>#unified-nav-container</code> 高度 &gt; 0 → <strong>实测的是 Vue 挂载时刻</strong>，与骨架无关。</li>
+      <li>FCP 116 → 56ms 是"内联骨架提前画"的必然结果，<strong>不能解读为加载更快</strong>；本次改动的真实收益是"空白期有内容可看"，该指标量不到。</li>
+      <li><code>probe-blank-screen-diagnosis.mjs</code> 有 <code>try/finally</code> 关闭浏览器，perf 探针没有：4200 端口未起服务时 <code>page.goto</code> 抛错会留下僵尸浏览器进程。</li>
+    </ul>
+  </div>
+  <div class="fix"><div class="h">修复方案</div>
+    <p>① 补 <code>try/finally</code>；② 指标改为「首个 paint 的内容类型（骨架 / 主体）」+「<code>.boh-boot</code> 可见时长」+「主体首帧时间」；③ 脚本头注释写明需先 <code>npx vite build --outDir dist-check</code> 才有对比基线。</p>
+  </div>
+</div>
+
+<div class="item p3">
+  <h3><span class="lv p3">P3</span>审计报告落在仓库根目录（违反既有约定 + 污染下次审计语料）</h3>
+  <div class="sec"><div class="h">证据</div>
+    <p><code>dead-code-cleanup-plan.html</code>（67KB）、<code>github-component-scout-report.html</code>（70KB）为未跟踪文件且位于仓库根目录；项目已有约定「审计报告一律写到 <code>output/</code> 或仓库外」，且 <code>*-plan.html / *-report.html</code> 会列出全部死符号名，<strong>让下一次死代码扫描归零</strong>。</p>
+    <p>此项为上一批遗留，非本次骨架改动引入。</p>
+  </div>
+  <div class="fix"><div class="h">修复方案</div>
+    <p><code>git mv</code> 到 <code>output/</code>（或 <code>docs/reports/</code>），并把根目录 <code>*-plan.html</code> 加进审计语料的排除清单。</p>
+  </div>
+</div>
+
+<div class="item p3">
+  <h3><span class="lv p3">P3</span>记忆文件 3 处陈述与实测不符（已更正）</h3>
+  <div class="sec"><div class="h">证据</div>
+    <ul>
+      <li>MEMORY.md 记「!important 棘轮门禁基线 <strong>1396</strong>」→ 实测 <code>check-important-budget</code> 输出「当前 1332 / 基线 1332」。</li>
+      <li>MEMORY.md 仍以「8 个 JS 里缺 ui-sanitize」描述现状，与已修复的事实（9 个 / 110 项）矛盾。</li>
+      <li>2026-09-14.md 记「临时产物已清：<code>dist-check/</code>」→ 实测仍在（见 P1）。</li>
+    </ul>
+  </div>
+  <div class="fix"><div class="h">已执行</div>
+    <p>本轮更正以上三处；MEMORY.md 二次压缩（13818 → 8966 字节 / 5921 字符），并补入「骨架暗色死规则」「门禁盲区」「<code>querySelector('footer')</code> 误判」三条新知识。</p>
+  </div>
+</div>
+
+<h2>三、交叉验证通过项 <span class="tag">确认为不是问题</span></h2>
+
+<div class="item ok">
+  <h3><span class="lv ok">通过</span>补 <code>ui-sanitize</code> 是有效修复，且名单已完整</h3>
+  <div class="sec"><div class="h">产物侧独立复核（不依赖改动者的说法）</div>
+<pre>入口 dist/static/js/app-B2faD_40.js 的静态 import 实测 = 8 个：
+  auth-store / vue-vendor / vue-utils-vendor / ui-components /
+  state-vendor / ui-icons / supabase-vendor / ui-sanitize ← 含它
+dist-check/sw.js 的 precacheAndRoute = 9 个 JS（+ app 自身），逐项一致
+dist/index.html 的 modulepreload 名单 = 同 8 个，与 globPatterns 完全对应
+预缓存总条目 109 → 110（3569.36 KiB）</pre>
+    <p>结论：壳集合（9）与预缓存集合（9）双向一致，改动无遗漏、无多余。</p>
+  </div>
+</div>
+
+<div class="item ok">
+  <h3><span class="lv ok">通过</span>骨架的挂载/清理机制成立</h3>
+  <p><code>app.mount()</code> 对非 hydration 容器执行 <code>container.innerHTML = ''</code>，骨架随之消失；内联定时器的 <code>document.body.contains(boot)</code> 判断因此正确。实测 t=87ms 时 <code>hasBoot=false</code>，与预期一致。</p>
+</div>
+
+<div class="item ok">
+  <h3><span class="lv ok">通过</span><code>?forceUpdate=true</code> 不会造成"每次刷新都清缓存"的死循环</h3>
+  <p><code>index.html:136-138</code> 在清理动作开始前就 <code>searchParams.delete('forceUpdate') / delete('clearCache')</code>，清理完成后 <code>location.replace(cleanUrl.href)</code> 跳回干净 URL。散列路由的 <code>#/…</code> 由 <code>new URL(location.href)</code> 保留。</p>
+</div>
+
+<div class="item ok">
+  <h3><span class="lv ok">通过</span><code>router.isReady().catch()</code> 不是死代码</h3>
+  <p>vue-router 的 <code>pushWithRedirect</code> 在导航过程抛出非导航类异常时走 <code>triggerError</code> → <code>markAsReady(error)</code> → <code>readyHandlers</code> 全部 <code>reject</code>。即：懒加载 chunk 404 这类场景会真实进入 catch，保持加载态并交给 10s 超时兜底 —— 行为正确。</p>
+</div>
+
+<div class="item ok">
+  <h3><span class="lv ok">通过</span>门禁与静态检查全绿</h3>
+  <ul>
+    <li><code>check:views</code> / <code>check:structure</code> / <code>check:liquid-glass</code> / <code>check:important-budget</code>：全部通过（1332 / 1332）。</li>
+    <li><code>eslint src/App.vue vite.config.js</code>：新增代码 0 error 0 warning（2 个既有 warning 在 App.vue 62-64 行，与本次改动无关）。</li>
+    <li><code>vue-tsc --noEmit</code>：通过。</li>
+    <li><code>vite build</code>：成功（20s）。</li>
+  </ul>
+</div>
+
+<div class="item ok">
+  <h3><span class="lv ok">通过</span><code>&lt;Suspense v-else&gt;</code> 与中间注释节点安全</h3>
+  <p>Vue 3 的 <code>transformIf</code> 在匹配 <code>v-else</code> 时会跳过 COMMENT 兄弟节点；构建通过 + 运行时渲染正确，双重确认。</p>
+</div>
+
+<h2>四、被推翻的假设 <span class="tag">第一轮"看似成立"，第二轮实测否定</span></h2>
+
+<div class="item p3">
+  <h3><span class="lv p3">已否定</span>「加载态期间 Footer 与 60vh 加载态并存 → 页脚错位 / 出现滚动条」</h3>
+  <div class="sec"><div class="h">第一轮（错误结论）</div>
+    <p>探针用 <code>document.querySelector('footer')</code> 判定「页脚未挂载」，而 5.7s 后同一选择器又能命中 → 得出"加载窗口缺页脚、加载完成后才出现"的错误推论。</p>
+  </div>
+  <div class="sec"><div class="h">第二轮（实测否定）</div>
+<pre>Footer.vue 的模板根 = &lt;div class="footer-pages"&gt;   （不是 &lt;footer&gt; 标签）
+1.2s 采样: footerPagesMounted=true  height=0  top=0  visible=false
+           docHeight=800 = innerHeight   scrollable=false</pre>
+    <p>结论：页脚组件已被挂载但不占高度，<strong>无错位、无滚动条</strong>，不构成缺陷。误判根因是选择器用错 —— 已把这条陷阱写入项目记忆（P3-2 因此降级为"一行防御性建议"）。</p>
+  </div>
+</div>
+
+<h2>五、建议修复顺序</h2>
+<ol class="plan">
+  <li><b>P1 已完成</b>：补 <code>.gitignore</code> 的 <code>dist-check</code> 并删除该目录。<span class="mono">（本轮已做）</span></li>
+  <li><b>修暗色首帧（P2-1，收益最大）</b>：在 <code>index.html</code> 的 <code>&lt;head&gt;</code> 最前加"早期主题脚本"，让骨架暗色分支立刻生效，同时消掉全站暗色 FOUC。落点：<code>index.html</code> 一处。验证：<code>probe-verify-boot-changes.mjs</code> 首帧 <code>theme=dark</code>、<code>bootBg=rgb(10,10,15)</code>。</li>
+  <li><b>建防再犯门禁（P2-5）</b>：<code>scripts/check-shell-precache.mjs</code> + 挂 <code>build:ci</code> 尾部。落点：新脚本 + <code>package.json</code>。验证：删掉 <code>ui-sanitize</code> 后门禁失败。</li>
+  <li><b>骨架色值归位 + 门禁（P2-3）</b>：<code>#a1a1a6 → #8a919c</code>，新增 <code>check-boot-skeleton-tokens.mjs</code>。</li>
+  <li><b>删掉零匹配的 fonts glob（P2-4）</b>：<code>vite.config.js</code> 一行，让构建 warning 恢复信噪比。</li>
+  <li><b>假导航胶囊（P2-2，需你拍板 A/B）</b>：推荐 A（删掉假胶囊，只留 spinner）。</li>
+  <li><b>P3 批量</b>：<code>&lt;Footer&gt;</code> 加 <code>v-if="bootReady"</code>；perf 探针补 <code>try/finally</code> 与指标口径；两处超时注释互引；根目录两份 HTML 报告迁到 <code>output/</code>。</li>
+</ol>
+
+<h2>六、本轮已执行的修复与复验</h2>
+
+<div class="item ok">
+  <h3><span class="lv ok">改动</span>index.html — 暗色首帧 + 骨架形态</h3>
+  <ul>
+    <li><code>&lt;head&gt;</code> 最前新增早期主题脚本（内联）：读 <code>localStorage['boh-theme']</code> → 立即 <code>html[data-theme]</code> + <code>classList.toggle('dark')</code>；<code>system</code> 走 <code>matchMedia</code>；白名单与 <code>theme-manager.js</code> 一致。语义与 theme-manager 逐字对齐，只是把时机提前。</li>
+    <li>骨架 style：删除 <code>.boh-boot-nav</code> 的 2 条规则与对应 DOM 节点（假胶囊）；新增 <code>[data-theme="dark"]</code> 的 html / body 底色兜底（暗色主题 CSS 懒加载期间的过渡底色）；<code>.boh-boot-text</code> 暗色值 <code>#a1a1a6</code> → <code>#8a919c</code>（回到 tertiary）；4 处 <code>html[data-theme=…]</code> 统一为项目惯例的 <code>[data-theme=…]</code>。</li>
+    <li>注释补充：为何刻意不画假导航（含真实导航栏两态尺寸）、骨架与 App 层加载态唯一的形态差异、早期脚本白名单必须与 theme-manager 同步。</li>
+  </ul>
+</div>
+
+<div class="item ok">
+  <h3><span class="lv ok">改动</span>vite.config.js / package.json / .gitignore</h3>
+  <ul>
+    <li><code>vite.config.js</code>：删除 <code>static/fonts/*.{woff,woff2}</code>（零匹配，只制造 warning 噪音），并注明原因。</li>
+    <li><code>package.json</code>：新增 <code>check:first-paint</code>、<code>check:shell-precache</code>，并把前者接在 build 前、后者接在 build 后（<code>build:ci</code> 链路）。</li>
+    <li><code>.gitignore</code>：新增 <code>dist-check</code>（探针对比用的第二份产物）。</li>
+  </ul>
+</div>
+
+<div class="item ok">
+  <h3><span class="lv ok">新增</span>两道门禁 + 一个反证</h3>
+  <ul>
+    <li><code>scripts/check-first-paint.mjs</code>：断言 7 组「骨架色值 === 对应 token 值」（tokens.css / dark-mode.css）、骨架 <code>&lt;style&gt;</code> 早于 <code>&lt;/head&gt;</code> 且之前无样式表、index.html 内联 <code>VALID_THEMES</code> === theme-manager.js 的同名常量。</li>
+    <li><code>scripts/check-shell-precache.mjs</code>：从产物反推入口 <code>app-*.js</code> 的静态 import，断言其 ⊆ <code>sw.js</code> 的 <code>precacheAndRoute</code>；带非空断言防「正则失配 → 空集 → 全通过」的假绿；预缓存里多出的 JS 报 warning。</li>
+    <li>两道门禁都做了<strong>反证测试</strong>：故意把骨架暗色文字改回 <code>#a1a1a6</code> → 报错；临时从 theme-manager.js 删掉一个主题 → 报错；模拟 sw.js 少 <code>ui-sanitize</code> → 报错并精确指出缺失 chunk 名。三者都已恢复原状（<code>git diff</code> 干净）。</li>
+  </ul>
+</div>
+
+<div class="item ok">
+  <h3><span class="lv ok">复验</span>浏览器实测与全链路门禁</h3>
+<pre>【修复前】首帧 t=41ms  theme=null        骨架底色 rgb(255,255,255)  body 底色 rgb(255,255,255)
+           骨架存活 2 帧，其中处于暗色主题的帧 = 0
+【修复后】首帧 t=33ms  theme=dark        骨架底色 rgb(10,10,15)     body 底色 rgb(10,10,15)
+           骨架存活 1 帧，其中处于暗色主题的帧 = 1
+           慢启动场景（V3）：骨架存活 3 帧，底色恒为 rgb(10,10,15)，假导航 = null
+
+门禁：check:views / check:structure / check:liquid-glass / check:important-budget(1332/1332)
+      / check:first-paint / check:shell-precache 全绿
+构建：vite build 成功，预缓存 110 条（3571 KiB），**构建输出零 warning**
+lint：新增脚本 0 error 0 warning（App.vue 的 2 条为既有告警）</pre>
+  <p>回归探针 <code>probe-verify-boot-changes.mjs</code> 已扩为三场景：V1 暗色首帧、V2 慢懒加载布局、V3 暗色慢启动骨架底色。</p>
+</div>
+
+<h2>七、第三批清理（P3 全清 + 仓库整理）</h2>
+
+<div class="item ok">
+  <h3><span class="lv ok">改动</span>代码与流程</h3>
+  <ul>
+    <li>两处超时文案统一为「加载超时，可能是网络不稳定或刚刚更新了版本」；<code>index.html</code>（12s）与 <code>src/App.vue</code>（10s）各自加注释：负责哪个窗口、为何不会同时生效、改一处必须同步另一处。</li>
+    <li><code>&lt;Footer v-if="bootReady &amp;&amp; !route.meta?.hideFooter" /&gt;</code>（防御性；实测原本挂载但高度 0）。</li>
+    <li><code>scripts/probes/probe-boot-perf.mjs</code> 重写：补 <code>try/finally</code>（端口未起服务时不再遗留浏览器进程）；把口径错误的「首屏可交互」（判据是导航栏出现 → 实为 Vue mount 时刻）拆成 <strong>FCP / Vue挂载 / 主体首帧 / 骨架可见时长</strong> 四个互不混淆的指标。</li>
+    <li>两份审计报告迁入 <code>output/</code>（含本篇）。</li>
+    <li>80 个探针从根目录迁入 <code>scripts/probes/</code>（77 个已跟踪走 <code>git mv</code>，保留重命名历史）。<strong>意外收益</strong>：审计脚本的语料排除是目录<strong>前缀</strong>匹配（<code>^(tests?|scripts?|e2e|probe|tools?|sso|api)/</code>），根目录的 <code>probe-*.mjs</code> 其实一直是规则盲区 —— 归档后才被正确排除。</li>
+  </ul>
+</div>
+
+<div class="item ok">
+  <h3><span class="lv ok">复验</span></h3>
+<pre>check:first-paint     ✓  骨架色值 / 位置 / 主题白名单
+check:shell-precache  ✓  壳依赖 9 / 预缓存 JS 9 / 总条目 110
+vite build            ✓  110 entries / 3571 KiB / 零 warning
+探针（新路径 node scripts/probes/probe-verify-boot-changes.mjs）
+  V1  data-theme=dark、body 底色 rgb(10,10,15)、骨架 1 帧 100% 处于暗色
+  V3  骨架底色 rgb(10,10,15)、假导航 null
+截图仍写根 output/ —— 探针内的相对路径以 cwd（仓库根）为准，移动不影响</pre>
+</div>
+
+<div class="item p3">
+  <h3><span class="lv p3">仍未处理</span>需要独立排期的项</h3>
+  <p><strong>液态玻璃 token 内联副本漂移</strong>：<code>supabase/functions/user-data-export/index.ts</code> 与 <code>output/preview-html-v2.part.ts</code> 各内联 23 个 token（缺 <code>--liquid-bg-overlay</code> / <code>--liquid-blur-lg</code> / <code>--liquid-filter-lg</code>），暗色 tertiary 为 <code>#7c7c82</code>，权威值是 <code>#8a919c</code>。改导出模板时必须同批对齐，先跑 <code>probe-export-v2-harness.mjs</code>。</p>
+  <p>零散项：<code>App.vue:62-64</code> 两个未使用解构（既有 eslint warning）；<code>check-liquid-glass</code> 不扫 <code>index.html</code> 内联样式（骨架部分已由 <code>check:first-paint</code> 覆盖）。</p>
+</div>
+
+<footer>
+  证据链：<code>git diff</code> 全量 · <code>node_modules/vue-router/dist/vue-router.mjs:1440-1462</code> · <code>src/main.js:288,310</code> · <code>src/utils/theme-manager.js:30-49,84-90</code> · <code>src/styles/vendor/unified-nav.css</code>（.scrolled）· <code>src/styles/common/tokens.css:68-92</code> · <code>dist-check/sw.js</code> · <code>dist/static/js/app-B2faD_40.js</code> · 新探针 <code>probe-verify-boot-changes.mjs</code>（截图 output/verify-boot-changes/）。<br />
+  报告生成：BOAHI · 2026-09-14
+</footer>
+
+</div>
+</body>
+</html>

@@ -136,12 +136,20 @@ export default defineConfig({
         // 预缓存应用壳、首屏依赖和所有 CSS。发布会替换旧 hash 文件；若旧 SW
         // 仍提供旧 index.html/JS 而 CSS 未缓存，页面会退化为浏览器默认样式。
         // CSS 通常远小于图片和页面 JS，完整预缓存可保证应用壳版本一致。
+        //
+        // ⚠️ 这里的名单必须覆盖「入口 app-*.js 的全部静态 import（应用壳）」。
+        // 当前壳依赖共 9 个：app、vue-vendor、vue-utils-vendor、ui-icons、
+        // ui-components（导航栏/页脚）、supabase-vendor、state-vendor、auth-store、
+        // ui-sanitize。漏掉任何一个，旧壳在弱网/离线时都会因缺模块而整个起不来
+        // （表现为全白，连导航栏都没有）——ui-sanitize 就曾因后加入 manualChunks
+        // 而未同步到此名单。改动 manualChunks 后请同步核对本名单。
         globPatterns: [
           'index.html',
           'static/js/app-*.js',
-          'static/js/{vue-vendor,state-vendor,auth-store,ui-components,supabase-vendor,ui-icons,vue-utils-vendor}-*.js',
+          'static/js/{vue-vendor,state-vendor,auth-store,ui-components,supabase-vendor,ui-icons,vue-utils-vendor,ui-sanitize}-*.js',
           'static/css/*.css',
-          'static/fonts/*.{woff,woff2}',
+          // 无自托管字体（首屏走系统字体栈，见 index.html），故不列 static/fonts——
+          // 列了会匹配 0 文件，workbox 每次构建都吐一条 warning，掩盖真正的不匹配。
         ],
         cleanupOutdatedCaches: true,
         // 强制更新：新 Service Worker 立即激活，不等待旧页面关闭

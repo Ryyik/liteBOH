@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BOH 开源组件探查报告 · 2026-09-14</title>
+<style>
+  :root{
+    --bg:#f5f5f7; --card:#ffffff; --ink:#1d1d1f; --ink2:#6e6e73; --ink3:#8e8e93;
+    --line:#e3e3e8; --line2:#f0f0f3; --brand:#0071e3; --brand-soft:#eaf3fe;
+    --ok:#1a7f37; --ok-soft:#eaf6ec; --warn:#b25000; --warn-soft:#fdf3e7;
+    --grey-soft:#f0f0f3;
+    --radius:16px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro SC","PingFang SC","Helvetica Neue",Arial,sans-serif;
+    font-size:15px; line-height:1.7; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:48px 24px 96px}
+
+  /* ---------- header ---------- */
+  header.doc-head{margin-bottom:40px}
+  .eyebrow{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--brand);font-weight:600}
+  h1{font-size:34px;line-height:1.25;margin:10px 0 14px;letter-spacing:-.02em;font-weight:700}
+  .sub{color:var(--ink2);font-size:16px;max-width:760px}
+  .meta-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+  .meta-chip{
+    background:var(--card);border:1px solid var(--line);border-radius:999px;
+    padding:5px 13px;font-size:12.5px;color:var(--ink2)
+  }
+  .meta-chip b{color:var(--ink);font-weight:600}
+
+  /* ---------- sections ---------- */
+  section{margin-top:52px}
+  h2{font-size:22px;margin:0 0 6px;letter-spacing:-.01em;font-weight:650}
+  h2 .num{color:var(--ink3);font-weight:400;margin-right:8px;font-variant-numeric:tabular-nums}
+  .sec-note{color:var(--ink2);font-size:14.5px;margin:0 0 20px;max-width:820px}
+
+  /* ---------- summary cards ---------- */
+  .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:14px;margin-top:8px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px}
+  .stat .n{font-size:30px;font-weight:700;letter-spacing:-.03em;line-height:1.1;font-variant-numeric:tabular-nums}
+  .stat .n small{font-size:15px;font-weight:600;color:var(--ink2);margin-left:3px}
+  .stat .l{font-size:13px;color:var(--ink2);margin-top:6px}
+
+  /* ---------- tier ---------- */
+  .tier-head{display:flex;align-items:center;gap:12px;margin:34px 0 14px}
+  .tier-badge{
+    font-size:12.5px;font-weight:700;letter-spacing:.04em;padding:4px 11px;border-radius:7px;color:#fff
+  }
+  .t0{background:var(--brand)} .t1{background:#4a9bea} .t2{background:#9aa0a6}
+  .tier-head h3{margin:0;font-size:17px;font-weight:650}
+  .tier-head .cnt{color:var(--ink3);font-size:13.5px}
+
+  /* ---------- item card ---------- */
+  .item{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:22px 24px;margin-bottom:14px
+  }
+  .item-top{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap}
+  .item-name{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .item-name h4{margin:0;font-size:18.5px;font-weight:650;letter-spacing:-.01em}
+  .repo{
+    font-size:13px;color:var(--brand);text-decoration:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    background:var(--brand-soft);padding:2px 9px;border-radius:6px;white-space:nowrap
+  }
+  .repo:hover{text-decoration:underline}
+  .item-tag{
+    font-size:12px;color:var(--ink2);background:var(--grey-soft);padding:2px 9px;border-radius:6px;white-space:nowrap
+  }
+  .scores{display:flex;gap:18px;flex-shrink:0}
+  .score{text-align:right}
+  .score .sl{font-size:11.5px;color:var(--ink3);white-space:nowrap}
+  .score .sv{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+  .s-hi{color:var(--ok)} .s-mid{color:var(--warn)} .s-lo{color:var(--ink2)}
+
+  .metrics{display:flex;flex-wrap:wrap;gap:7px;margin:14px 0 18px}
+  .metric{
+    font-size:12.5px;color:var(--ink2);border:1px solid var(--line);border-radius:7px;
+    padding:3px 9px;background:#fbfbfd;font-variant-numeric:tabular-nums
+  }
+  .metric b{color:var(--ink);font-weight:600}
+
+  .kv{display:grid;grid-template-columns:132px 1fr;gap:8px 18px;font-size:14.5px}
+  .kv dt{color:var(--ink3);font-size:13.5px;padding-top:1px}
+  .kv dd{margin:0;color:var(--ink)}
+  .kv dd.strong{color:var(--ink);font-weight:500}
+  .kv .code{
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;
+    background:#f6f6f8;border:1px solid var(--line2);border-radius:5px;padding:1px 6px
+  }
+  .flag{
+    display:inline-block;font-size:12px;font-weight:600;border-radius:5px;padding:1px 7px;margin-right:6px
+  }
+  .flag-ok{background:var(--ok-soft);color:var(--ok)}
+  .flag-warn{background:var(--warn-soft);color:var(--warn)}
+
+  /* ---------- table ---------- */
+  table{width:100%;border-collapse:collapse;background:var(--card);border-radius:var(--radius);overflow:hidden;
+    border:1px solid var(--line);font-size:13.5px}
+  th,td{padding:11px 14px;text-align:left;border-bottom:1px solid var(--line2);vertical-align:top}
+  th{background:#fafafc;font-weight:600;color:var(--ink2);font-size:12.5px;letter-spacing:.02em;
+     text-transform:uppercase;white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  td.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;white-space:nowrap}
+  .pill{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:999px}
+  .p-hi{background:var(--ok-soft);color:var(--ok)}
+  .p-mid{background:var(--brand-soft);color:var(--brand)}
+  .p-lo{background:var(--grey-soft);color:var(--ink2)}
+  .p-warn{background:var(--warn-soft);color:var(--warn)}
+
+  /* ---------- callout ---------- */
+  .callout{
+    background:var(--card);border:1px solid var(--line);border-left:3px solid var(--brand);
+    border-radius:12px;padding:18px 22px;margin:16px 0
+  }
+  .callout.warn{border-left-color:var(--warn)}
+  .callout p{margin:0 0 10px}
+  .callout p:last-child{margin-bottom:0}
+  .callout h5{margin:0 0 8px;font-size:15px;font-weight:650}
+
+  ul.tight{margin:0;padding-left:20px}
+  ul.tight li{margin-bottom:7px}
+  ul.tight li:last-child{margin-bottom:0}
+
+  .foot{margin-top:56px;padding-top:22px;border-top:1px solid var(--line);color:var(--ink3);font-size:13px}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;background:#f6f6f8;
+    border:1px solid var(--line2);border-radius:4px;padding:1px 5px}
+  @media (max-width:720px){
+    .kv{grid-template-columns:1fr;gap:3px 0}
+    .kv dt{margin-top:8px}
+    .scores{gap:14px}
+    h1{font-size:27px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc-head">
+  <div class="eyebrow">Open Source Scout Report</div>
+  <h1>方块之家（BOH）开源组件探查报告</h1>
+  <p class="sub">
+    基于当前项目的技术栈与产品定位，从 GitHub / npm 生态中筛选可直接集成的开源组件与插件，
+    按推荐优先级分档，逐项给出仓库链接、核心能力、契合点、集成可行性、收益与替代方案。
+  </p>
+  <div class="meta-row">
+    <span class="meta-chip">采样日期 <b>2026-09-14</b></span>
+    <span class="meta-chip">评估候选 <b>46 个</b></span>
+    <span class="meta-chip">采纳推荐 <b>18 个</b></span>
+    <span class="meta-chip">数据源 <b>GitHub API · npm registry</b></span>
+    <span class="meta-chip">项目版本 <b>BOH Beta 6.1.1</b></span>
+  </div>
+</header>
+
+<!-- ============ 0. 摘要 ============ -->
+<section>
+  <h2><span class="num">01</span>结论摘要</h2>
+  <p class="sec-note">
+    扫描结果指向四类最值得投入的方向：<b>长列表性能</b>、<b>工程卫生自动化</b>、
+    <b>停更依赖替换</b>、<b>校验规则单一源化</b>。这四项的共同特征是——不需要改动架构，
+    但能同时缓解项目已知的历史痛点。
+  </p>
+  <div class="stat-grid">
+    <div class="stat"><div class="n">4<small> 项</small></div><div class="l">P0 · 直击痛点，低风险</div></div>
+    <div class="stat"><div class="n">6<small> 项</small></div><div class="l">P1 · 能力补强，需排期</div></div>
+    <div class="stat"><div class="n">8<small> 项</small></div><div class="l">P2 · 场景触发式引入</div></div>
+    <div class="stat"><div class="n">1<small> 项</small></div><div class="l">停更依赖需替换</div></div>
+  </div>
+
+  <div class="callout">
+    <h5>三个最关键的发现</h5>
+    <ul class="tight">
+      <li><b>全仓没有任何虚拟滚动实现</b>（0 处命中）。论坛、消息中心、活动墙都是「分页 + 全量渲染 DOM」，这是当前最明确且修复成本最低的性能缺口。</li>
+      <li><b><code>html2canvas@1.4.1</code> 已停更 4 年</b>（最后发布 2022-01-22），而它承载的是海报生成 / 分享卡这条传播链路——属于需要主动替换的技术债。</li>
+      <li><b>项目自建了 11+ 个弹层组件</b>且历史上出现过滚动锁残留、焦点回收、层叠顺序问题；无头原语库能把这一类问题整体消掉，同时不触碰现有视觉体系。</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ 1. 项目画像 ============ -->
+<section>
+  <h2><span class="num">02</span>项目画像与集成约束</h2>
+  <p class="sec-note">选型建议的边界条件——不满足这些前提的组件一律没有进入推荐清单。</p>
+
+  <table>
+    <thead><tr><th>维度</th><th>现状</th><th>对选型的影响</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>技术栈</b></td>
+        <td>Vue 3.5.24 · Vite 7 · Pinia 3 · Vue Router 4（hash）· Supabase · TS 渐进接入</td>
+        <td>必须原生支持 Vue 3.2+ 且提供 ESM / TS 类型；不支持 Vue 2 遗留方案</td>
+      </tr>
+      <tr>
+        <td><b>模块解析</b></td>
+        <td class="mono">moduleResolution: bundler</td>
+        <td>可用 <code>exports</code> 子路径（如 <code>virtua/vue</code>），不会被 node 模式卡住</td>
+      </tr>
+      <tr>
+        <td><b>包体积闸门</b></td>
+        <td>单 JS chunk ≤ <b>800KB</b>，dist 总计 ≤ <b>30MB</b>（<code>check-bundle-size.sh</code>）</td>
+        <td>图表 / 高亮 / 编辑器类必须按需引入 + 异步 chunk，禁止整包 import</td>
+      </tr>
+      <tr>
+        <td><b>样式体系</b></td>
+        <td>玻璃单一源 <code>--liquid-*</code>；组件 scoped；禁用 <code>:global()</code>／全局 <code>:deep()</code>；<code>!important</code> 有棘轮预算</td>
+        <td>优先「无头 / 无样式」库；自带整套皮肤的库接入成本会显著抬高</td>
+      </tr>
+      <tr>
+        <td><b>质量门禁</b></td>
+        <td><code>check:views</code> / <code>check:structure</code> / <code>check:liquid-glass</code> / <code>check:important-budget</code> 已进 <code>build:ci</code></td>
+        <td>新增工具应能挂进同一条门禁链，而不是另起一套流程</td>
+      </tr>
+      <tr>
+        <td><b>测试现状</b></td>
+        <td>E2E 探针（<code>probe-*.mjs</code>）极丰富，单测偏少</td>
+        <td>补测试类依赖的收益高于新增 E2E 能力</td>
+      </tr>
+      <tr>
+        <td><b>已有依赖</b></td>
+        <td>marked · dompurify · highlight.js · html2canvas · docx · pptxgenjs · nsfwjs · tfjs · altcha · VueUse · lucide · canvas-confetti · vue-advanced-cropper</td>
+        <td>避免功能重叠；重叠项须明确「替换」还是「不引入」</td>
+      </tr>
+      <tr>
+        <td><b>产品定位</b></td>
+        <td>方块游戏文化社区：论坛 / 新闻 / 活动 / 商城积分 / 订阅会员 / AI 助手 BOHAI / 管理后台 / PWA</td>
+        <td>优先级向「内容消费链路 + 运营后台 + 增长传播」倾斜</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============ P0 ============ -->
+<section>
+  <h2><span class="num">03</span>推荐清单</h2>
+  <p class="sec-note">
+    评分口径：<b>契合度</b>＝与产品定位及已知痛点的匹配程度（5 分制）；
+    <b>维护健康</b>＝综合 stars、最近提交、npm 发布节奏与周下载量的判断（5 分制）。
+    所有指标为 2026-09-14 实测值。
+  </p>
+
+  <div class="tier-head">
+    <span class="tier-badge t0">P0</span>
+    <h3>直击已知痛点 · 低风险 · 建议立即评估</h3>
+    <span class="cnt">4 项</span>
+  </div>
+
+  <article class="item">
+    <div class="item-top">
+      <div class="item-name">
+        <h4>virtua</h4>
+        <a class="repo" href="https://github.com/inokawa/virtua" target="_blank" rel="noopener noreferrer">inokawa/virtua</a>
+        <span class="item-tag">虚拟滚动</span>
+      </div>
+      <div class="scores">
+        <div class="score"><div class="sl">契合度</div><div class="sv s-hi">5.0</div></div>
+        <div class="score"><div class="sl">维护健康</div><div class="sv s-hi">4.5</div></div>
+        <div class="score"><div class="sl">集成成本</div><div class="sv s-hi">低</div></div>
+      </div>
+    </div>
+    <div class="metrics">
+      <span class="metric">★ <b>3,743</b></span>
+      <span class="metric">最近提交 <b>2026-09-12</b></span>
+      <span class="metric">npm <b>0.51.3</b>（2026-09-11）</span>
+      <span class="metric">周下载 <b>742,661</b></span>
+      <span class="metric">MIT</span>
+    </div>
+    <dl class="kv">
+      <dt>核心功能</dt>
+      <dd>零配置虚拟滚动：列表 / 网格 / 二维网格，自动测量动态行高，支持反向滚动、RTL、滚动位置恢复、无限滚动、窗口级虚拟化；单组件约 3kB gzip 且可 tree-shake。</dd>
+      <dt>适用场景</dt>
+      <dd>论坛信息流（<code>ForumMain.vue</code>）、消息中心（<code>user-center/Messages</code>）、活动墙（<code>ActivitiesWall</code>）、通知列表、管理后台长表。</dd>
+      <dt>契合点</dt>
+      <dd class="strong">全仓检索确认目前 <b>零虚拟滚动</b>。列表靠 keyset 分页 + 全量 DOM 渲染，而 <code>docs/userspace-performance-analysis-2026-06-29.md</code> 已指出 UserSpace 长列表是性能大头。虚拟化在不改动数据层（keyset 分页保持原样）的前提下削减 DOM 节点数。</dd>
+      <dt>集成可行性</dt>
+      <dd>入口 <code>import { VList } from "virtua/vue"</code>，要求 Vue ≥ 3.2（项目 3.5.24 ✓），且依赖 <code>moduleResolution: bundler</code> 解析子路径——项目 <code>tsconfig.app.json</code> 已满足。<span class="flag flag-ok">可直接单页灰度接入</span></dd>
+      <dt>潜在收益</dt>
+      <dd>首屏 DOM 数量从「随列表长度线性增长」变为「视口常量」；滚动帧率与内存占用同时改善；对消息中心与论坛这两个最重的页面收益最大。</dd>
+      <dt>替代 / 注意</dt>
+      <dd>
+        <b>替代方案：</b>① <code>@vueuse/core</code> 的 <code>useVirtualList</code>——项目已依赖，零新增，但只支持固定行高，论坛卡片高度不齐时会错位；② <code>vue-virtual-scroller</code>（10,796★，3.0.5，2026-08-12）Vue 3 可用，API 更重且需手写 itemSize。<br>
+        <b>注意事项：</b>key 必须唯一稳定（禁用 index）；未定高项需给 <code>min-height</code>，否则与懒加载图片互相触发重排；不要与列表级 FLIP 动画叠加使用。
+      </dd>
+    </dl>
+  </article>
+
+  <article class="item">
+    <div class="item-top">
+      <div class="item-name">
+        <h4>knip</h4>
+        <a class="repo" href="https://github.com/webpro-nl/knip" target="_blank" rel="noopener noreferrer">webpro-nl/knip</a>
+        <span class="item-tag">工程卫生 / 死代码</span>
+      </div>
+      <div class="scores">
+        <div class="score"><div class="sl">契合度</div><div class="sv s-hi">5.0</div></div>
+        <div class="score"><div class="sl">维护健康</div><div class="sv s-hi">5.0</div></div>
+        <div class="score"><div class="sl">集成成本</div><div class="sv s-hi">低</div></div>
+      </div>
+    </div>
+    <div class="metrics">
+      <span class="metric">★ <b>12,251</b></span>
+      <span class="metric">最近提交 <b>2026-09-13</b></span>
+      <span class="metric">npm <b>6.35.1</b>（2026-09-09）</span>
+      <span class="metric">周下载 <b>10,663,805</b></span>
+      <span class="metric">ISC</span>
+    </div>
+    <dl class="kv">
+      <dt>核心功能</dt>
+      <dd>静态分析出未使用的<b>文件</b>、<b>依赖</b>、<b>导出</b>、<b>类型</b>、<b>枚举</b>与重复导出，覆盖多包仓库与各类框架入口。</dd>
+      <dt>适用场景</dt>
+      <dd>工程卫生审计；直接对应项目「样式残留待清」清单——glass-ui 约 76% 死类、animations 约 89%、section__header 约 74%、<code>--apple-*</code> 38/59 已死、<code>data-boh-theme</code> 91 处残留。</dd>
+      <dt>契合点</dt>
+      <dd class="strong">项目已具备成熟的门禁链（<code>check:structure</code> / <code>check:views</code> / <code>check:important-budget</code> 均进 <code>build:ci</code>），但<b>缺「未使用代码」这一维度</b>。knip 能把靠人工审计得出的「76% 是死类」变成可回归的自动指标，直接服务于「同一规则只应有一处定义」的原则。</dd>
+      <dt>集成可行性</dt>
+      <dd>仅 devDependency，无运行时成本。建议先以 report 模式跑通、把 <code>probe-*.mjs</code>、<code>vite.config.js</code>、<code>supabase/functions</code> 入口写进 <code>entry</code>/<code>ignore</code>，设定基线后再加一个 <code>check:dead-code</code> 转 fail 模式，与 <code>check-important-budget</code> 的棘轮机制同构。<span class="flag flag-ok">零架构影响</span></dd>
+      <dt>潜在收益</dt>
+      <dd>删死代码直接作用于包体积闸门（单 chunk 800KB / dist 30MB）；降低新人理解成本；把定期人工盘点变成持续自动化。</dd>
+      <dt>替代 / 注意</dt>
+      <dd>
+        <b>替代方案：</b>PurgeCSS 8.0.0（8,048★，2026-08-20）可清 CSS 死类，但项目大量 <code>:class</code> 动态拼接 + Tailwind 4 preflight 生效中，误删风险高——<b>建议只在 knip 定位后定点清理，不做全量 PurgeCSS</b>。ESLint 的 <code>no-unused-vars</code> 只能覆盖局部变量，够不到文件/依赖级别。<br>
+        <b>注意事项：</b>首次运行噪声必然较大，不要直接接进 CI 卡门禁；动态调用（如字符串拼组件名）会产生误报，需白名单。
+      </dd>
+    </dl>
+  </article>
+
+  <article class="item">
+    <div class="item-top">
+      <div class="item-name">
+        <h4>@zumer/snapdom</h4>
+        <a class="repo" href="https://github.com/zumerlab/snapdom" target="_blank" rel="noopener noreferrer">zumerlab/snapdom</a>
+        <span class="item-tag">DOM 截图 / 替换停更依赖</span>
+      </div>
+      <div class="scores">
+        <div class="score"><div class="sl">契合度</div><div class="sv s-hi">4.5</div></div>
+        <div class="score"><div class="sl">维护健康</div><div class="sv s-hi">4.5</div></div>
+        <div class="score"><div class="sl">集成成本</div><div class="sv s-mid">中</div></div>
+      </div>
+    </div>
+    <div class="metrics">
+      <span class="metric">★ <b>8,109</b></span>
+      <span class="metric">最近提交 <b>2026-09-11</b></span>
+      <span class="metric">npm <b>2.24.18</b>（2026-09-11）</span>
+      <span class="metric">周下载 <b>389,359</b></span>
+      <span class="metric">MIT</span>
+    </div>
+    <dl class="kv">
+      <dt>核心功能</dt>
+      <dd>把 DOM 节点截取为 PNG / JPEG / WebP / SVG，支持选择器定位、CSS 变换、伪元素与阴影还原，输出可缩放。</dd>
+      <dt>适用场景</dt>
+      <dd>海报与分享卡生成、导出预览（<code>export-preview-v2</code>）、活动证书、MBTI 结果分享卡、八周年活动物料。</dd>
+      <dt>契合点</dt>
+      <dd class="strong">项目已依赖 <code>html2canvas@1.4.1</code>，其<b>最后一次发布为 2022-01-22，实质停更约 4 年</b>。而它承载的是分享传播这条增长链路，长期压在无维护的库上属于明确技术债，且对项目大量使用的毛玻璃 / 渐变 / 滤镜视觉还原度有限。</dd>
+      <dt>集成可行性</dt>
+      <dd>API 与 html2canvas 不同（<code>snapdom.toPng(el)</code>），需要改造调用点。建议先抽出 <code>src/utils/capture.js</code> 统一收口所有截图调用，再切换实现——这样回滚只需一次开关，风险可控。<span class="flag flag-warn">需改造调用点</span></dd>
+      <dt>潜在收益</dt>
+      <dd>体积更小、还原更准（尤其现代 CSS）；同时消掉一个四年无维护的依赖。</dd>
+      <dt>替代 / 注意</dt>
+      <dd>
+        <b>替代方案：</b><code>html-to-image</code>（7,236★，2026-05-28）走 SVG <code>foreignObject</code> 路线，是另一主流选择，复杂 CSS 支持略弱但足够通用；若截图需求极简单，继续留用 html2canvas 也可接受，但需自担「无安全补丁」的风险。<br>
+        <b>注意事项：</b>跨域图片必须 CORS 就绪——项目图片走 Cloudinary，需确认响应头；字体加载需 <code>document.fonts.ready</code> 后才截图，否则出现回退字体。
+      </dd>
+    </dl>
+  </article>
+
+  <article class="item">
+    <div class="item-top">
+      <div class="item-name">
+        <h4>zod</h4>
+        <a class="repo" href="https://github.com/colinhacks/zod" target="_blank" rel="noopener noreferrer">colinhacks/zod</a>
+        <span class="item-tag">Schema 校验单一源</span>
+      </div>
+      <div class="scores">
+        <div class="score"><div class="sl">契合度</div><div class="sv s-hi">4.5</div></div>
+        <div class="score"><div class="sl">维护健康</div><div class="sv s-hi">5.0</div></div>
+        <div class="score"><div class="sl">集成成本</div><div class="sv s-hi">低</div></div>
+      </div>
+    </div>
+    <div class="metrics">
+      <span class="metric">★ <b>43,931</b></span>
+      <span class="metric">最近提交 <b>2026-09-13</b></span>
+      <span class="metric">npm <b>4.6.5</b>（2026-09-13）</span>
+      <span class="metric">周下载 <b>209,218,437</b></span>
+      <span class="metric">MIT</span>
+    </div>
+    <dl class="kv">
+      <dt>核心功能</dt>
+      <dd>TypeScript-first 的 schema 声明与解析：一份定义同时产出<b>运行时校验</b>与<b>静态类型</b>，含转换、精炼、错误格式化。</dd>
+      <dt>适用场景</dt>
+      <dd>注册 / 登录表单、发布帖子、商城下单、地址管理、订阅参数、Supabase RPC 与 Edge Function 的入参出参校验。</dd>
+      <dt>契合点</dt>
+      <dd class="strong">项目的长期痛点是「同一规则多处定义」——订阅权益曾四处分裂（订阅页硬编码 / <code>ai_quota_config</code> / <code>boh_cloud_image_limit_for_user</code> / <code>useLabQuota</code>），价格与试用参数也曾前后端两套。zod 的价值不在「校验」本身，而在<b>让规则只写一遍</b>：一份 schema 同时喂给前端类型、表单校验与边缘函数入参校验。</dd>
+      <dt>集成可行性</dt>
+      <dd>放进 <code>dependencies</code>（运行时要执行）。零构建配置；<code>supabase/functions</code>（Deno）侧可共用同一份 schema 文件，需确认 import 路径写法。建议先在单模块（地址或下单）试点，不做一次性重构。<span class="flag flag-ok">可渐进</span></dd>
+      <dt>潜在收益</dt>
+      <dd>消灭「前端校验一套、后端校验一套、类型定义第三套」的三份重复；错误文案统一；配合 vee-validate 可做表单级联校验。</dd>
+      <dt>替代 / 注意</dt>
+      <dd>
+        <b>替代方案：</b><code>valibot</code> 体积显著小于 zod（对边缘函数与移动端友好，API 风格相近），若在意包体值得对比；<code>yup</code> 生态老但类型推导弱于 zod。<br>
+        <b>注意事项：</b>zod 4 与 3 存在破坏性差异（错误格式、解析行为），新引入直接用 4 并锁定版本；Deno 侧注意版本兼容。
+      </dd>
+    </dl>
+  </article>
+
+  <div class="tier-head">
+    <span class="tier-badge t1">P1</span>
+    <h3>能力补强 · 需要排期与试点</h3>
+    <span class="cnt">6 项</span>
+  </div>
+
+  <article class="item">
+    <div class="item-top">
+      <div class="item-name">
+        <h4>vue-echarts + echarts</h4>
+        <a class="repo" href="https://github.com/ecomfe/vue-echarts" target="_blank" rel="noopener noreferrer">ecomfe/vue-echarts</a>
+        <a class="repo" href="https://github.com/apache/echarts" target="_blank" rel="noopener noreferrer">apache/echarts</a>
+        <span class="item-tag">数据可视化</span>
+      </div>
+      <div class="scores">
+        <div class="score"><div class="sl">契合度</div><div class="sv s-hi">4.5</div></div>
+        <div class="score"><div class="sl">维护健康</div><div class="sv s-hi">5.0</div></div>
+        <div class="score"><div class="sl">集成成本</div><div class="sv s-mid">中</div></div>
+      </div>
+    </div>
+    <div class="metrics">
+      <span class="metric">echarts ★ <b>67,313</b> · 2026-09-12</span>
+      <span class="metric">vue-echarts ★ <b>10,754</b> · 2026-09-13</span>
+      <span class="metric">echarts 6.1.0 / vue-echarts 8.3.0</span>
+      <span class="metric">周下载 <b>3,725,913</b> + <b>310,918</b></span>
+      <span class="metric">Apache-2.0 / MIT</span>
+    </div>
+    <dl class="kv">
+      <dt>核心功能</dt>
+      <dd>ECharts 的 Vue 3 官方风格封装，保留全部图表类型、交互与主题能力；ECharts 本身提供折线 / 柱 / 饼 / 雷达 / 热力 / 地图等。</dd>
+      <dt>适用场景</dt>
+      <dd><code>DataManagement</code> 与 <code>AiQuotaConfig</code> 管理面板、<code>Lab</code> 用量、订阅与积分流水、<code>Health</code> 健康检查、活动数据复盘。</dd>
+      <dt>契合点</dt>
+      <dd class="strong">项目有一批后台页（<code>Health</code> / <code>DataManagement</code> / <code>AiQuotaConfig</code> / <code>ShopConsole</code> / <code>HeroConsole</code>）却<b>完全没有图表库</b>。而「AI 配额」「积分流水」「订阅转化」这类运营数据目前只能看表格，趋势不可读。ECharts 的中文文档与国内生态最成熟，与运营视角的后台定位匹配。</dd>
+      <dt>集成可行性</dt>
+      <dd><b>必须按需引入</b>（<code>echarts/core</code> + 显式注册 chart / component / renderer），否则整包约 1MB 会直接撞上 <code>MAX_SINGLE_JS_KB=800</code> 闸门。建议封装 <code>LazyECharts.vue</code>，用 <code>defineAsyncComponent</code> 落成独立 chunk。<span class="flag flag-warn">体积需分块</span></dd>
+      <dt>潜在收益</dt>
+      <dd>把配额 / 订阅 / 积分从「表格里的数字」升级为可读趋势；为后续运营看板打基础。</dd>
+      <dt>替代 / 注意</dt>
+      <dd>
+        <b>替代方案：</b>Chart.js + vue-chartjs 更轻（若只需折线 / 柱 / 饼且追求小体积），但地图、热力、大数据量场景弱；unovis 更现代但中文资料少。<br>
+        <b>注意事项：</b>涨跌配色须遵循国内习惯（<b>红涨绿跌</b>），ECharts 默认色板需显式覆盖；暗色需注册独立主题对象并跟随 <code>html[data-theme]</code>，不要写死颜色——这是项目暗色一致性上的老坑。
+      </dd>
+    </dl>
+  </article>
+
+  <article class="item">
+    <div class="item-top">
+      <div class="item-name">
+        <h4>reka-ui</h4>
+        <a class="repo" href="https://github.com/unovue/reka-ui" target="_blank" rel="noopener noreferrer">unovue/reka-ui</a>
+        <span class="item-tag">无头无障碍原语</span>
+      </div>
+      <div class="scores">
+        <div class="score"><div class="sl">契合度</div><div class="sv s-hi">4.5</div></div>
+        <div class="score"><div class="sl">维护健康</div><div class="sv s-mid">4.0</div></div>
+        <div class="score"><div class="sl">集成成本</div><div class="sv s-mid">中-高</div></div>
+      </div>
+    </div>
+    <div class="metrics">
+      <span class="metric">★ <b>6,791</b></span>
+      <span class="metric">最近提交 <b>2026-09-13</b></span>
+      <span class="metric">npm <b>2.10.4</b>（2026-08-25）</span>
+      <span class="metric">周下载 <b>1,324,844</b></span>
+      <span class="metric">MIT · open issues 319</span>
+    </div>
+    <dl class="kv">
+      <dt>核心功能</dt>
+      <dd>无头（零样式）且无障碍达标的 Vue 3 原语：Dialog、Popover、Dropdown、Combobox、Tooltip、Toast、Tabs，内置焦点陷阱、Esc / 遮罩关闭、滚动锁、层叠管理与 RTL。</dd>
+      <dt>适用场景</dt>
+      <dd>项目内 11+ 个自建弹层：<code>AdminConfirmModal</code>、<code>CommonAlertModal</code>、<code>AgreementModal</code>、<code>AddressManager</code>、<code>AiQuotaSidePanel</code>、<code>GlobalAiGlassOverlay</code>、<code>AdminContentPublishModal</code> 等。</dd>
+      <dt>契合点</dt>
+      <dd class="strong">项目历史上踩过弹窗滚动锁残留（<code>PROJECT_MANUAL</code> 明确记录过 <code>body.overflow</code> 未恢复导致路由切换后页面锁死）、焦点回收与 Teleport 层叠问题；且「overlay → 确认 → detached」是探针的高频回归断言点。把行为层交给成熟原语，能整体消掉这一类 bug，而视觉完全不受影响（无头 = 不侵入 <code>--liquid-*</code> 体系）。</dd>
+      <dt>集成可行性</dt>
+      <dd>只替换「行为层」，样式继续用现有 scoped CSS。建议先挑 1 个高风险弹层（如 <code>AddressManager</code>）试点，而不是全量迁移；同时梳理与自建 <code>useConfirmDialog</code> 的职责边界。<span class="flag flag-warn">需逐个试点</span></dd>
+      <dt>潜在收益</dt>
+      <dd>无障碍达标（键盘、读屏）；滚动锁与焦点回收统一；不再为每个弹层重复实现 Esc / 遮罩点击 / 层叠顺序。</dd>
+      <dt>替代 / 注意</dt>
+      <dd>
+        <b>替代方案：</b><code>shadcn-vue</code>（10,584★，2026-09-10）构建在 reka-ui 之上、可直接拷贝组件源码，省样式工作量，但偏向 Tailwind 使用习惯——项目 Tailwind 仅用 preflight，引入需谨慎评估；<code>headlessui</code>（28,743★）API 简洁，但仓库 2026-04-13 后无提交、Vue 侧迭代明显落后于 React 侧，<b>不建议作为新基座</b>。<br>
+        <b>注意事项：</b>reka-ui 当前 open issues 319 偏高，且处于 2.x 迭代期，升级需关注破坏性变更；不要与 floating-vue 并存（功能重叠会成为新的「多处定义」）。
+      </dd>
+    </dl>
+  </article>
+
+  <article class="item">
+    <div class="item-top">
+      <div class="item-name">
+        <h4>vue-draggable-plus</h4>
+        <a class="repo" href="https://github.com/Alfred-Skyblue/vue-draggable-plus" target="_blank" rel="noopener noreferrer">Alfred-Skyblue/vue-draggable-plus</a>
+        <span class="item-tag">拖拽排序</span>
+      </div>
+      <div class="scores">
+        <div class="score"><div class="sl">契合度</div><div class="sv">4.0</div></div>
+        <div class="score"><div class="sl">维护健康</div><div class="sv s-mid">3.5</div></div>
+        <div class="score"><div class="sl">集成成本</div><div class="sv s-hi">低</div></div>
+      </div>
+    </div>
+    <div class="metrics">
+      <span class="metric">★ <b>4,017</b></span>
+      <span class="metric">最近提交 <b>2026-03-13</b></span>
+      <span class="metric">npm <b>0.6.1</b>（2026-01-11）</span>
+      <span class="metric">周下载 <b>210,522</b></span>
+      <span class="metric">MIT · open issues 107</span>
+    </div>
+    <dl class="kv">
+      <dt>核心功能</dt>
+      <dd>基于 SortableJS 的 Vue 3 拖拽方案，同时提供组件式与指令式 API，支持列表 / 网格 / 多列表互拖，并可与虚拟列表协作。</dd>
+      <dt>适用场景</dt>
+      <dd><code>HeroConsole</code> 首页 Hero 排序、商品与装扮清单排序、论坛板块顺序、管理端内容置顶。</dd>
+      <dt>契合点</dt>
+      <dd class="strong">后台存在多处「顺序」语义（首页 Hero、商品、头像框清单），目前只能靠字段手填序号或上下移动按钮，运营效率低。</dd>
+      <dt>集成可行性</dt>
+      <dd><code>npm i vue-draggable-plus</code>，与 pinia 列表直接 <code>v-model</code>。落库时需「排序号字段 + 单次批量更新 RPC」，避免拖一次发 N 个请求。<span class="flag flag-ok">接入简单</span></dd>
+      <dt>潜在收益</dt>
+      <dd>运营侧顺序类字段从「填数字」变成「拖一下」；为后续内容编排留出交互基础。</dd>
+      <dt>替代 / 注意</dt>
+      <dd>
+        <b>替代方案：</b>原版 <code>vuedraggable</code> 的 Vue 3 适配长期滞后，不建议新用；裸用 SortableJS 也可以，但需要自己管理指令生命周期与卸载。<br>
+        <b>注意事项：</b>拖拽期间不要启用 <code>transition-all</code>，也不要为拖拽样式新增 <code>!important</code>（会撞 <code>check-important-budget</code> 棘轮）；触屏端需处理长按 vs 页面滚动冲突；与虚拟列表同用必须走官方虚拟列表模式。
+      </dd>
+    </dl>
+  </article>
+
+  <article class="item">
+    <div class="item-top">
+      <div class="item-name">
+        <h4>comlink</h4>
+        <a class="repo" href="https://github.com/GoogleChromeLabs/comlink" target="_blank" rel="noopener noreferrer">GoogleChromeLabs/comlink</a>
+        <span class="item-tag">Web Worker RPC</span>
+      </div>
+      <div class="scores">
+        <div class="score"><div class="sl">契合度</div><div class="sv">4.0</div></div>
+        <div class="score"><div class="sl">维护健康</div><div class="sv s-mid">3.5</div></div>
+        <div class="score"><div class="sl">集成成本</div><div class="sv s-mid">中</div></div>
+      </div>
+    </div>
+    <div class="metrics">
+      <span class="metric">★ <b>12,791</b></span>
+      <span class="metric">最近提交 <b>2026-09-05</b></span>
+      <span class="metric">npm <b>4.4.2</b>（2024-11-07）</span>
+      <span class="metric">周下载 <b>1,939,258</b></span>
+      <span class="metric">Apache-2.0</span>
+    </div>
+    <dl class="kv">
+      <dt>核心功能</dt>
+      <dd>把 Worker 通信包装成「像调用本地函数」，自动代理对象、回调与 Promise，免去手写 postMessage 协议。</dd>
+      <dt>适用场景</dt>
+      <dd>nsfwjs / tfjs 内容审核推理（权重已是独立懒加载 chunk）、批量图片压缩（<code>browser-image-compression</code>）、docx / pptxgenjs 大文档生成、长 Markdown 渲染。</dd>
+      <dt>契合点</dt>
+      <dd class="strong">项目已落地 tfjs + nsfwjs 做内容审核，并有专门的权重懒加载与 SW 缓存策略（<code>vite.config.js</code> B2 注释）。模型推理与批量压缩是否占主线程，直接决定发帖、滚动时是否卡顿——这正是「离线审核」体验的瓶颈所在。</dd>
+      <dt>集成可行性</dt>
+      <dd>Vite 原生支持 <code>new Worker(new URL('./x.worker.js', import.meta.url), { type: 'module' })</code>。npm 侧 4.4.2 停留在 2024-11，但 API 极小且稳定，属「低维护需求」而非「废弃」。建议只把最重的 1–2 处迁出（审核推理 / 批量压缩），不做整体 Worker 化架构。<span class="flag flag-warn">先试点单点</span></dd>
+      <dt>潜在收益</dt>
+      <dd>主线程解放，滚动与输入不再被推理阻塞；为后续更多本地 AI 能力预留结构。</dd>
+      <dt>替代 / 注意</dt>
+      <dd>
+        <b>替代方案：</b>手写 postMessage 零依赖，但消息协议与 transferable 管理容易出错，长期维护成本更高。<br>
+        <b>注意事项：</b>Worker 内无法访问 DOM 与 Supabase 客户端——数据须在主线程取好后传入；tfjs 在 Worker 内的后端需确认（WebGL 不可用时会回退 wasm / cpu，性能差异需实测）。
+      </dd>
+    </dl>
+  </article>
+
+  <article class="item">
+    <div class="item-top">
+      <div class="item-name">
+        <h4>web-vitals（+ @sentry/vue 备选）</h4>
+        <a class="repo" href="https://github.com/GoogleChrome/web-vitals" target="_blank" rel="noopener noreferrer">GoogleChrome/web-vitals</a>
+        <a class="repo" href="https://github.com/getsentry/sentry-javascript" target="_blank" rel="noopener noreferrer">getsentry/sentry-javascript</a>
+        <span class="item-tag">可观测性</span>
+      </div>
+      <div class="scores">
+        <div class="score"><div class="sl">契合度</div><div class="sv s-hi">4.5</div></div>
+        <div class="score"><div class="sl">维护健康</div><div class="sv s-hi">5.0</div></div>
+        <div class="score"><div class="sl">集成成本</div><div class="sv s-hi">低</div></div>
+      </div>
+    </div>
+    <div class="metrics">
+      <span class="metric">★ <b>8,608</b></span>
+      <span class="metric">最近提交 <b>2026-09-10</b></span>
+      <span class="metric">npm <b>6.2.1</b>（2026-08-26）</span>
+      <span class="metric">周下载 <b>29,799,294</b></span>
+      <span class="metric">Apache-2.0 / MIT</span>
+    </div>
+    <dl class="kv">
+      <dt>核心功能</dt>
+      <dd>web-vitals 采集真实用户的 LCP / INP / CLS / TTFB / FCP；Sentry 提供错误聚合、面包屑、性能追踪与会话回放。</dd>
+      <dt>适用场景</dt>
+      <dd>线上性能回归监控；替代「靠探针复现」处理线上偶发报错。</dd>
+      <dt>契合点</dt>
+      <dd class="strong">项目已有大量<b>离线</b>审查（<code>docs/性能审查报告-2026-08-25.md</code>、<code>site-stability-report</code>、<code>pwa-cache-fix</code>）与代码级闸门，唯独缺「线上真实用户指标」。而项目踩过的 WebKit 专属问题（<code>content-visibility</code> bug 321501 只能真机复现）恰好说明：<b>离线审计守不住真机</b>。Sentry 则能把线上偶发错误从「等用户反馈」变成「主动可见」。</dd>
+      <dt>集成可行性</dt>
+      <dd>web-vitals 极轻（约 2KB），上报端点可直接复用现有 supabase edge function；Sentry 需要 DSN，且<b>必须做隐私合规处理</b>（项目有《隐私政策》《用户协议》，须关闭默认 PII 采集并配置 <code>beforeSend</code> 脱敏）——建议 web-vitals 先上（零风险），Sentry 单独走一次评审。<span class="flag flag-ok">vitals 零风险</span></dd>
+      <dt>潜在收益</dt>
+      <dd>性能与错误从「事后靠用户反馈」转为「可观测 + 可回归」；为 PWA 缓存策略的实际效果提供量化依据。</dd>
+      <dt>替代 / 注意</dt>
+      <dd>
+        <b>替代方案：</b>先做极简自建（web-vitals 上报 + 轻量错误捕获），观察一版再加 Sentry；self-hosted Sentry 成本较高，SaaS 需评估数据出境合规。<br>
+        <b>注意事项：</b>自建上报需设采样率并给端点做限流，避免把 edge function 打爆；不要把同一指标同时上报到多个系统。
+      </dd>
+    </dl>
+  </article>
+
+  <article class="item">
+    <div class="item-top">
+      <div class="item-name">
+        <h4>@tanstack/vue-query</h4>
+        <a class="repo" href="https://github.com/TanStack/query" target="_blank" rel="noopener noreferrer">TanStack/query</a>
+        <span class="item-tag">服务端状态</span>
+      </div>
+      <div class="scores">
+        <div class="score"><div class="sl">契合度</div><div class="sv s-mid">3.5</div></div>
+        <div class="score"><div class="sl">维护健康</div><div class="sv s-hi">5.0</div></div>
+        <div class="score"><div class="sl">集成成本</div><div class="sv s-lo">高</div></div>
+      </div>
+    </div>
+    <div class="metrics">
+      <span class="metric">★ <b>50,285</b></span>
+      <span class="metric">最近提交 <b>2026-09-13</b></span>
+      <span class="metric">npm <b>5.102.8</b>（2026-08-27）</span>
+      <span class="metric">周下载 <b>542,975</b></span>
+      <span class="metric">MIT</span>
+    </div>
+    <dl class="kv">
+      <dt>核心功能</dt>
+      <dd>服务端状态管理：请求去重、缓存失效、后台刷新、重试、乐观更新、分页与无限查询、DevTools。</dd>
+      <dt>适用场景</dt>
+      <dd>论坛分页 / 无限滚动、消息中心轮询、商品缓存、所有 Supabase 读请求。</dd>
+      <dt>契合点</dt>
+      <dd class="strong">项目自建了 <code>LIST_DATA</code> TTL 缓存 + keyset 分页 + 类型筛选下推——逻辑本身正确，但缓存键、失效时机、重试策略分散在多处。「一处定义查什么、何时失效」正是 vue-query 的强项。</dd>
+      <dt>集成可行性</dt>
+      <dd><b>本清单中最需要克制的一项。</b>项目现有缓存语义是刻意设计（切 tab 零请求是特性而非 bug），迁移不当会破坏既有行为与探针预期。建议「共存观察」：新页面用 vue-query，老页面保持现状，验证一段时间后再评估是否统一；<b>不要一次性替换 <code>getPosts</code></b>。<span class="flag flag-warn">迁移成本高</span></dd>
+      <dt>潜在收益</dt>
+      <dd>重复请求自动去重；窗口聚焦自动刷新；失败重试；DevTools 可视化缓存状态，排查「数据不刷新」类问题更快。</dd>
+      <dt>替代 / 注意</dt>
+      <dd>
+        <b>替代方案：</b><code>swrv</code> 更轻但功能少；继续自建也行——把 TTL 缓存抽成通用 composable 即可获得一半收益。<br>
+        <b>注意事项：</b>必须明确它与 Supabase Realtime 订阅的分工——realtime 推送的变更要显式 <code>invalidateQueries</code>，否则「缓存 + 订阅」会变成两套真相源互相打架，这正是项目最忌讳的情况。
+      </dd>
+    </dl>
+  </article>
+
+  <div class="tier-head">
+    <span class="tier-badge t2">P2</span>
+    <h3>场景触发式 · 需要时再引入</h3>
+    <span class="cnt">8 项</span>
+  </div>
+
+  <div class="callout">
+    <p style="color:var(--ink2);font-size:14px;margin:0">
+      以下 8 项不建议主动排期，而是在对应需求出现时按此清单取用。共用一条硬约束：<b>任何一个都不允许把整包 import 进主 chunk</b>（单 chunk 闸门 800KB）。
+    </p>
+  </div>
+
+  <article class="item">
+    <div class="item-top">
+      <div class="item-name">
+        <h4>tiptap <span style="font-weight:400;color:var(--ink3)">或</span> md-editor-v3</h4>
+        <a class="repo" href="https://github.com/ueberdosis/tiptap" target="_blank" rel="noopener noreferrer">ueberdosis/tiptap</a>
+        <a class="repo" href="https://github.com/imzbf/md-editor-v3" target="_blank" rel="noopener noreferrer">imzbf/md-editor-v3</a>
+        <span class="item-tag">富文本 / Markdown 编辑器</span>
+      </div>
+      <div class="scores">
+        <div class="score"><div class="sl">契合度</div><div class="sv s-mid">3.5</div></div>
+        <div class="score"><div class="sl">维护健康</div><div class="sv s-hi">4.5</div></div>
+        <div class="score"><div class="sl">集成成本</div><div class="sv s-mid">中-高</div></div>
+      </div>
+    </div>
+    <div class="metrics">
+      <span class="metric">tiptap ★ <b>38,369</b> · @tiptap/vue-3 3.31.3 · 周下载 <b>1,176,869</b></span>
+      <span class="metric">md-editor-v3 ★ <b>2,588</b> · 6.5.6 · 周下载 <b>31,233</b></span>
+      <span class="metric">均为 MIT</span>
+    </div>
+    <dl class="kv">
+      <dt>核心功能</dt>
+      <dd><b>tiptap</b>：无头富文本框架，ProseMirror 内核，扩展体系强（提及、协作、自定义节点）。<b>md-editor-v3</b>：开箱即用的 Markdown 编辑器，内置预览、代码高亮、公式与表格。</dd>
+      <dt>适用场景</dt>
+      <dd>发帖编辑器、评论、官方内容发布（<code>AdminContentPublishModal</code>）。</dd>
+      <dt>契合点</dt>
+      <dd class="strong">项目内容管线是 Markdown 优先（<code>marked</code> 渲染 + <code>dompurify</code> 净化 + <code>highlight.js</code> 高亮），且已有专门的编辑器说明文档。若发帖仍以 Markdown 为主，<b>md-editor-v3 与现有渲染链天然一致</b>（同一份 Markdown 进出）；只有确实需要「所见即所得」才轮到 tiptap，代价是要处理 Markdown ↔ HTML 双向转换的一致性。</dd>
+      <dt>集成可行性</dt>
+      <dd>md-editor-v3 是独立 Vue 组件，接入快，但需注意其自带样式与项目 scoped 体系的隔离规则；tiptap 要自建工具栏与样式，工期显著更长。建议按「现有编辑器是否真有痛点」决定，<b>不要为换而换</b>。</dd>
+      <dt>潜在收益</dt>
+      <dd>发帖完成率与内容质量提升；图片粘贴上传、@提及、Emoji 可通过扩展补齐。</dd>
+      <dt>替代 / 注意</dt>
+      <dd>
+        <b>替代方案：</b>继续用现有 textarea + 工具栏最省；<code>milkdown</code> 更「Markdown 原生」但生态小。<br>
+        <b>注意事项：</b>任何编辑器输出都必须过 <code>dompurify</code>，并沿用统一 XSS 策略，否则等于新开一个注入面；tiptap open issues 846 偏高，扩展生态质量参差，选扩展要挑官方维护的。
+      </dd>
+    </dl>
+  </article>
+
+  <article class="item">
+    <div class="item-top">
+      <div class="item-name">
+        <h4>msw + happy-dom + @vue/test-utils</h4>
+        <a class="repo" href="https://github.com/mswjs/msw" target="_blank" rel="noopener noreferrer">mswjs/msw</a>
+        <a class="repo" href="https://github.com/capricorn86/happy-dom" target="_blank" rel="noopener noreferrer">capricorn86/happy-dom</a>
+        <a class="repo" href="https://github.com/vuejs/test-utils" target="_blank" rel="noopener noreferrer">vuejs/test-utils</a>
+        <span class="item-tag">测试能力补齐</span>
+      </div>
+      <div class="scores">
+        <div class="score"><div class="sl">契合度</div><div class="sv">4.0</div></div>
+        <div class="score"><div class="sl">维护健康</div><div class="sv s-hi">4.5</div></div>
+        <div class="score"><div class="sl">集成成本</div><div class="sv s-mid">中</div></div>
+      </div>
+    </div>
+    <div class="metrics">
+      <span class="metric">msw ★ <b>18,204</b> · 2.15.0 · 2026-09-10</span>
+      <span class="metric">happy-dom <b>20.14.5</b> · 2026-09-12</span>
+      <span class="metric">@vue/test-utils <b>2.5.0</b> · 2026-08-27</span>
+      <span class="metric">均为 MIT</span>
+    </div>
+    <dl class="kv">
+      <dt>核心功能</dt>
+      <dd><b>msw</b> 在网络层拦截请求返回测试数据（不 mock 客户端代码本身）；<b>happy-dom</b> 提供轻量 DOM 环境；<b>@vue/test-utils</b> 是 Vue 官方组件测试工具。</dd>
+      <dt>适用场景</dt>
+      <dd>单测补齐、组件行为回归、Supabase 请求层测试。</dd>
+      <dt>契合点</dt>
+      <dd class="strong">项目测试能力极不均衡：E2E 探针（<code>probe-*.mjs</code>）覆盖极广，单测却很少。而探针运行慢、依赖伪造登录态注入，适合回归但不适合高频迭代。把纯逻辑与组件行为下沉到 vitest + test-utils + msw，能把「回归」从分钟级压到秒级，与项目「门禁进 CI」的一贯风格一致。</dd>
+      <dt>集成可行性</dt>
+      <dd>纯 devDependency，不影响构建产物。msw 可直接 mock Supabase REST / Realtime 端点（项目已有「按 URL 特征分流」的 mock 经验，可直接复用思路）。<span class="flag flag-ok">零运行时成本</span></dd>
+      <dt>潜在收益</dt>
+      <dd>CI 更快、回归更早发现；降低对「伪造登录 + 浏览器探针」的强依赖。</dd>
+      <dt>替代 / 注意</dt>
+      <dd>
+        <b>替代方案：</b>happy-dom 比 jsdom 快但兼容面略窄，遇到缺失 API 可换回 jsdom；测试框架无需更换（vitest 3.2.4 已就位）。<br>
+        <b>注意事项：</b>避免把单测写成「实现细节的复制」；优先覆盖纯函数（如已有的 <code>mbti-scoring</code>）与用户可见行为。测试通过率应进 <code>build:ci</code> 才有意义。
+      </dd>
+    </dl>
+  </article>
+
+  <article class="item">
+    <div class="item-top">
+      <div class="item-name">
+        <h4>PapaParse</h4>
+        <a class="repo" href="https://github.com/mholt/PapaParse" target="_blank" rel="noopener noreferrer">mholt/PapaParse</a>
+        <span class="item-tag">CSV 导入导出</span>
+      </div>
+      <div class="scores">
+        <div class="score"><div class="sl">契合度</div><div class="sv s-mid">3.5</div></div>
+        <div class="score"><div class="sl">维护健康</div><div class="sv s-hi">4.5</div></div>
+        <div class="score"><div class="sl">集成成本</div><div class="sv s-hi">低</div></div>
+      </div>
+    </div>
+    <div class="metrics">
+      <span class="metric">★ <b>13,569</b></span>
+      <span class="metric">最近提交 <b>2026-09-01</b></span>
+      <span class="metric">npm <b>5.7.0</b>（2026-08-24）</span>
+      <span class="metric">周下载 <b>11,244,922</b></span>
+      <span class="metric">MIT</span>
+    </div>
+    <dl class="kv">
+      <dt>核心功能</dt>
+      <dd>CSV 解析与生成，支持流式处理、Worker 模式、大文件分片、类型自动转换。</dd>
+      <dt>适用场景</dt>
+      <dd>管理后台批量导入（用户、商品、活动名单）、数据导出、抽奖名单核对。</dd>
+      <dt>契合点</dt>
+      <dd class="strong">项目有 <code>DataManagement</code> 面板与大量运营活动，批量数据目前多靠手工或直接写 SQL。CSV 是运营同学最容易接受的格式，能显著减少「为一次性数据操作写迁移脚本」的情况。</dd>
+      <dt>集成可行性</dt>
+      <dd>零配置。建议配套 P0 的 zod 做「逐行 schema 校验后再入库」，两者组合正好解决脏数据问题。</dd>
+      <dt>潜在收益</dt>
+      <dd>运营自助能力提升；一次性数据操作不再侵入数据库迁移链路。</dd>
+      <dt>替代 / 注意</dt>
+      <dd>
+        <b>替代方案：</b>需要保留格式 / 多 sheet 的 Excel 场景用 <code>exceljs</code>（4.4.0，但 2024-12-20 后无发布，处于低维护状态）或走服务端生成。<br>
+        <b>注意事项：</b>中文场景的 GBK 编码与 BOM 是经典坑，导入需显式按 UTF-8 处理并容错 BOM；导入必须有「预校验 + 失败行回执」环节，不能静默丢弃。
+      </dd>
+    </dl>
+  </article>
+
+  <article class="item">
+    <div class="item-top">
+      <div class="item-name">
+        <h4>floating-vue</h4>
+        <a class="repo" href="https://github.com/Akryum/floating-vue" target="_blank" rel="noopener noreferrer">Akryum/floating-vue</a>
+        <span class="item-tag">Tooltip / Popover</span>
+      </div>
+      <div class="scores">
+        <div class="score"><div class="sl">契合度</div><div class="sv s-mid">3.5</div></div>
+        <div class="score"><div class="sl">维护健康</div><div class="sv s-hi">4.5</div></div>
+        <div class="score"><div class="sl">集成成本</div><div class="sv s-hi">低</div></div>
+      </div>
+    </div>
+    <div class="metrics">
+      <span class="metric">★ <b>3,462</b></span>
+      <span class="metric">最近提交 <b>2026-09-10</b></span>
+      <span class="metric">npm <b>5.4.0</b>（2026-09-10）</span>
+      <span class="metric">周下载 <b>421,258</b></span>
+      <span class="metric">MIT</span>
+    </div>
+    <dl class="kv">
+      <dt>核心功能</dt>
+      <dd>tooltip / popover / dropdown 的指令与组件，基于 Popper 定位，支持自动翻转与边界检测。</dd>
+      <dt>适用场景</dt>
+      <dd>图标按钮说明、积分与配额口径解释、后台字段释义、长文本 hover 展开。</dd>
+      <dt>契合点</dt>
+      <dd class="strong">项目以 <code>lucide-vue-next</code> 为图标体系，纯图标按钮密集（导航、后台、编辑器工具栏），但缺统一的浮层提示层；浮层定位本身易错（项目踩过 teleport 弹层的暗色与层叠问题）。</dd>
+      <dt>集成可行性</dt>
+      <dd><code>v-tooltip</code> 指令式接入成本极低。<b>但需先决策</b>：若采纳 reka-ui，其 Tooltip 原语已覆盖此需求，二者不应并存。<span class="flag flag-warn">与 reka-ui 二选一</span></dd>
+      <dt>潜在收益</dt>
+      <dd>图标按钮可发现性提升；减少重复手写绝对定位浮层。</dd>
+      <dt>替代 / 注意</dt>
+      <dd>
+        <b>替代方案：</b>reka-ui Tooltip（若已引入）；原生 <code>title</code> 属性最省但无样式控制。<br>
+        <b>注意事项：</b>暗色下 tooltip 必须跟随 <code>html[data-theme]</code>，不要写死颜色。
+      </dd>
+    </dl>
+  </article>
+
+  <article class="item">
+    <div class="item-top">
+      <div class="item-name">
+        <h4>@formkit/auto-animate</h4>
+        <a class="repo" href="https://github.com/formkit/auto-animate" target="_blank" rel="noopener noreferrer">formkit/auto-animate</a>
+        <span class="item-tag">列表动效</span>
+      </div>
+      <div class="scores">
+        <div class="score"><div class="sl">契合度</div><div class="sv s-mid">3.5</div></div>
+        <div class="score"><div class="sl">维护健康</div><div class="sv s-hi">4.5</div></div>
+        <div class="score"><div class="sl">集成成本</div><div class="sv s-hi">低</div></div>
+      </div>
+    </div>
+    <div class="metrics">
+      <span class="metric">★ <b>13,918</b></span>
+      <span class="metric">最近提交 <b>2026-07-10</b></span>
+      <span class="metric">npm <b>0.10.0</b>（2026-07-10）</span>
+      <span class="metric">周下载 <b>1,138,381</b></span>
+      <span class="metric">MIT</span>
+    </div>
+    <dl class="kv">
+      <dt>核心功能</dt>
+      <dd>一行指令给列表 / 容器加上增删移动动画（基于 FLIP），零配置。</dd>
+      <dt>适用场景</dt>
+      <dd>论坛列表插入新帖、消息列表、装扮清单筛选、后台表格行增删。</dd>
+      <dt>契合点</dt>
+      <dd class="strong">项目已有完整动效体系（<code>@vueuse/motion</code>、motion tokens、<code>prefers-reduced-motion</code> 规范，见 <code>plans/001-003</code>）。auto-animate 可作为<b>列表级</b>补充，但必须接入现有 reduced-motion 规范，不能绕过。</dd>
+      <dt>集成可行性</dt>
+      <dd><code>v-auto-animate</code> 指令，成本极低。<span class="flag flag-ok">一行接入</span></dd>
+      <dt>潜在收益</dt>
+      <dd>列表状态变化的连续感明显提升，成本近零。</dd>
+      <dt>替代 / 注意</dt>
+      <dd>
+        <b>替代方案：</b>用 <code>&lt;TransitionGroup&gt;</code> 手写（可控但样板多）。<br>
+        <b>注意事项：</b><b>与虚拟滚动存在冲突风险</b>——virtua 依赖绝对定位与尺寸测量，FLIP 的 transform 可能造成错位。若 P0 的 virtua 落地，请在<b>非虚拟化</b>列表（筛选结果、后台表格）使用。另：不要为动画新增 <code>!important</code>（<code>check-important-budget</code> 棘轮）。
+      </dd>
+    </dl>
+  </article>
+
+  <article class="item">
+    <div class="item-top">
+      <div class="item-name">
+        <h4>qrcode.vue</h4>
+        <a class="repo" href="https://github.com/scopewu/qrcode.vue" target="_blank" rel="noopener noreferrer">scopewu/qrcode.vue</a>
+        <span class="item-tag">二维码</span>
+      </div>
+      <div class="scores">
+        <div class="score"><div class="sl">契合度</div><div class="sv s-mid">3.5</div></div>
+        <div class="score"><div class="sl">维护健康</div><div class="sv">4.0</div></div>
+        <div class="score"><div class="sl">集成成本</div><div class="sv s-hi">低</div></div>
+      </div>
+    </div>
+    <div class="metrics">
+      <span class="metric">npm <b>3.11.0</b>（2026-09-07）</span>
+      <span class="metric">周下载 <b>185,389</b></span>
+      <span class="metric">MIT</span>
+      <span class="metric">★ 未采集（GitHub API 限速）</span>
+    </div>
+    <dl class="kv">
+      <dt>核心功能</dt>
+      <dd>Vue 3 二维码组件，输出 Canvas 或 SVG。</dd>
+      <dt>适用场景</dt>
+      <dd>帖子 / 活动分享、邀请注册、商城兑换码、线下物料（八周年活动）。</dd>
+      <dt>契合点</dt>
+      <dd class="strong">分享传播是社区产品的增长关键。项目有大量活动页与抽奖模块，但分享链路里没有二维码——尤其在微信生态分发时，二维码比长链接有效得多。</dd>
+      <dt>集成可行性</dt>
+      <dd>极小体积、零配置：<code>&lt;QrcodeVue :value="url" /&gt;</code>。若已有海报生成能力（截图链路），插入二维码属纯增量。</dd>
+      <dt>潜在收益</dt>
+      <dd>扫码引流；SVG 输出可无损印刷用于线下物料。</dd>
+      <dt>替代 / 注意</dt>
+      <dd>
+        <b>替代方案：</b><code>soldair/node-qrcode</code>（8,173★）是 Node 侧库，但最后发布 2024-08-23，浏览器端需自行包装。<br>
+        <b>注意事项：</b>二维码内容若涉及邀请码等敏感参数，应只编码不透明 token，不要把用户标识直接编进去；服务端生成可作为防爬备选。
+      </dd>
+    </dl>
+  </article>
+
+  <article class="item">
+    <div class="item-top">
+      <div class="item-name">
+        <h4>unplugin-vue-components</h4>
+        <a class="repo" href="https://github.com/unplugin/unplugin-vue-components" target="_blank" rel="noopener noreferrer">unplugin/unplugin-vue-components</a>
+        <span class="item-tag">按需自动导入</span>
+      </div>
+      <div class="scores">
+        <div class="score"><div class="sl">契合度</div><div class="sv s-mid">3.5</div></div>
+        <div class="score"><div class="sl">维护健康</div><div class="sv">4.0</div></div>
+        <div class="score"><div class="sl">集成成本</div><div class="sv s-hi">低</div></div>
+      </div>
+    </div>
+    <div class="metrics">
+      <span class="metric">★ <b>4,293</b></span>
+      <span class="metric">最近提交 <b>2026-05-20</b></span>
+      <span class="metric">npm <b>32.1.0</b>（2026-05-20）</span>
+      <span class="metric">周下载 <b>1,145,664</b></span>
+      <span class="metric">MIT</span>
+    </div>
+    <dl class="kv">
+      <dt>核心功能</dt>
+      <dd>自动按需导入组件（含自定义组件目录与 UI 库解析器），免手写 import，并天然利于 tree-shaking。</dd>
+      <dt>适用场景</dt>
+      <dd>全项目组件引用方式统一；配合后续引入的按需 UI 库（如 reka-ui、图表组件）。</dd>
+      <dt>契合点</dt>
+      <dd class="strong">项目已有 <code>check:structure</code> / <code>check:views</code> 结构门禁，说明重视目录职责清晰；自动导入能减少样板 import，并对单 chunk 800KB 闸门形成正向贡献。</dd>
+      <dt>集成可行性</dt>
+      <dd>改 <code>vite.config.js</code> + 生成 <code>components.d.ts</code>（项目 tsconfig 已含 <code>src/**/*.d.ts</code>，通常放开路径即可）。风险：隐藏 import 会让「组件从哪来」变模糊。<span class="flag flag-ok">分批可控</span></dd>
+      <dt>潜在收益</dt>
+      <dd>样板代码减少；按需引入减小包体。</dd>
+      <dt>替代 / 注意</dt>
+      <dd>
+        <b>替代方案：</b>不改也能活——项目已有明确路径别名（<code>@components/*</code>）。<br>
+        <b>注意事项：</b>若团队更看重「显式 import 便于全局检索」，建议<b>只对 UI 库启用解析器</b>，不做全局组件自动导入；<code>components.d.ts</code> 需提交或加入 lint 忽略，避免噪声 diff。
+      </dd>
+    </dl>
+  </article>
+
+  <article class="item">
+    <div class="item-top">
+      <div class="item-name">
+        <h4>shiki</h4>
+        <a class="repo" href="https://github.com/shikijs/shiki" target="_blank" rel="noopener noreferrer">shikijs/shiki</a>
+        <span class="item-tag">代码高亮（升级项）</span>
+      </div>
+      <div class="scores">
+        <div class="score"><div class="sl">契合度</div><div class="sv s-mid">3.0</div></div>
+        <div class="score"><div class="sl">维护健康</div><div class="sv s-hi">5.0</div></div>
+        <div class="score"><div class="sl">集成成本</div><div class="sv s-mid">中</div></div>
+      </div>
+    </div>
+    <div class="metrics">
+      <span class="metric">★ <b>13,799</b></span>
+      <span class="metric">最近提交 <b>2026-09-11</b></span>
+      <span class="metric">npm <b>4.4.3</b>（2026-08-10）</span>
+      <span class="metric">周下载 <b>17,232,833</b></span>
+      <span class="metric">MIT</span>
+    </div>
+    <dl class="kv">
+      <dt>核心功能</dt>
+      <dd>基于 TextMate 语法的代码高亮，支持 VS Code 主题、双主题同时输出，准确度远高于正则方案。</dd>
+      <dt>适用场景</dt>
+      <dd>BOHAI 的 Code 模式输出、帖子内代码块、教程内容。</dd>
+      <dt>契合点</dt>
+      <dd class="strong">项目 AI 有独立的 Code 模式（<code>coding-lite</code> 真门禁在跑），代码输出质量直接影响专业感；项目又是明暗双主题，shiki 的<b>双主题一次性输出</b>比 highlight.js 切主题重新高亮更顺，能减少切换闪烁与重复计算。</dd>
+      <dt>集成可行性</dt>
+      <dd><b>必须按需加载语言与主题</b>（<code>createHighlighter</code> 显式声明 langs / themes），否则体积爆炸并撞 800KB 闸门。建议放进 Worker 内做高亮，或预编译后缓存结果。</dd>
+      <dt>潜在收益</dt>
+      <dd>代码块观感与准确度提升（尤其 TS / JSX / 新语法）；主题切换零成本。</dd>
+      <dt>替代 / 注意</dt>
+      <dd>
+        <b>替代方案：</b><b><code>highlight.js</code> 已是现有依赖且更轻</b>——若只需支持 3–5 种语言，保留 hljs 是更理性的选择。shiki 的价值在「语言多 + 要求高保真」时才成立。<br>
+        <b>注意事项：</b>shiki 4.x 与 1.x API 完全不同，社区示例大量过时；<code>shiki/wasm</code> 引擎在部分环境有额外体积，需实测。
+      </dd>
+    </dl>
+  </article>
+
+</section>
+
+<!-- ============ 风险 ============ -->
+<section>
+  <h2><span class="num">04</span>选型注意事项汇总</h2>
+  <p class="sec-note">以下五点若不守住，前文所有收益都会被抵消。</p>
+
+  <div class="callout warn">
+    <h5>1. 体积：任何新库都不许进主 chunk</h5>
+    <p>单 JS chunk 闸门 800KB、dist 30MB 是硬约束。图表、高亮、编辑器、PDF 一律走 <code>defineAsyncComponent</code> + 动态 import；引入前先用 <code>rollup-plugin-visualizer</code>（已装）看清增量。</p>
+  </div>
+
+  <div class="callout warn">
+    <h5>2. 真相源：新库不能变成「第四处定义」</h5>
+    <p>这是本项目最容易踩的坑。具体红线：① zod schema 与现有手写校验并存 → 必须择一迁移；② vue-query 缓存与 Supabase Realtime 订阅并存 → 必须显式 invalidate；③ reka-ui 与 floating-vue 的 Tooltip 功能重叠 → 二选一；④ 可观测性不要同时上报两套系统。</p>
+  </div>
+
+  <div class="callout warn">
+    <h5>3. 样式：无头优先，别引入整套皮肤</h5>
+    <p>项目玻璃体系单一源 <code>--liquid-*</code>，且禁用 <code>:global()</code> / 全局 <code>:deep()</code>、<code>!important</code> 有棘轮预算。自带整套皮肤的库（Element Plus / PrimeVue / Vuetify 等）接入后会与现有体系正面冲突，本报告已全部排除；<code>shadcn-vue</code> 虽可用，但要注意其 Tailwind 使用习惯与项目「Tailwind 仅 preflight」的现状差异。</p>
+  </div>
+
+  <div class="callout warn">
+    <h5>4. 交互冲突：虚拟滚动 × 列表动画 × 拖拽</h5>
+    <p>virtua（绝对定位 + 尺寸测量）、auto-animate（FLIP transform）、vue-draggable-plus（DOM 重排）三者共用同一列表时会互相破坏定位。规则：<b>同一列表只选一种增强方式</b>；虚拟列表内不要叠加 FLIP 动画。</p>
+  </div>
+
+  <div class="callout warn">
+    <h5>5. 维护状态：区分「停更」与「稳定」</h5>
+    <p>npm 发布距今久 ≠ 不可用。<code>html2canvas</code>（2022 年停更、且还在被依赖）属于<b>需要替换</b>；<code>comlink</code>（2024 年停更但 API 极简稳定、周下载 190 万）属于<b>可接受</b>；<code>headlessui</code>（28.7k★ 但 Vue 侧停滞）、<code>exceljs</code>（2024-12 后无发布）属于<b>谨慎引入</b>。判断标准是「是否还有未修复的活跃缺陷」与「是否有同类活跃替代」。</p>
+  </div>
+</section>
+
+<!-- ============ 落地 ============ -->
+<section>
+  <h2><span class="num">05</span>建议落地批次</h2>
+  <p class="sec-note">按「风险从低到高、收益从快到慢」排布。前两批不需要动架构。</p>
+
+  <table>
+    <thead>
+      <tr><th>批次</th><th>内容</th><th>涉及文件</th><th>风险</th><th>可验证的收益</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>第 1 批</b><br><span class="pill p-hi">立即</span></td>
+        <td>接入 knip，先 report 模式建立死代码基线；抽出 <code>src/utils/capture.js</code> 收口全部截图调用，为 snapdom 切换做准备</td>
+        <td class="mono">package.json<br>vite.config.js<br>src/utils/capture.js</td>
+        <td><span class="pill p-hi">低</span></td>
+        <td>得到可复现的死代码清单；截图调用点收敛为单点</td>
+      </tr>
+      <tr>
+        <td><b>第 2 批</b><br><span class="pill p-mid">本迭代</span></td>
+        <td>virtua 单页试点（建议先消息中心，再论坛）；zod 在单模块（地址或下单）试点</td>
+        <td class="mono">src/views/user-center/Messages<br>src/views/Forum/ForumMain.vue<br>src/utils/validate.js</td>
+        <td><span class="pill p-mid">中低</span></td>
+        <td>列表 DOM 数降为视口常量；单模块规则从三份变一份</td>
+      </tr>
+      <tr>
+        <td><b>第 3 批</b><br><span class="pill p-mid">排期</span></td>
+        <td>web-vitals 上报（先零风险版）；reka-ui 挑 1 个高风险弹层试点；vue-draggable-plus 接入 HeroConsole</td>
+        <td class="mono">supabase/functions/<br>src/components/AddressManager.vue<br>src/views/HeroConsole</td>
+        <td><span class="pill p-mid">中</span></td>
+        <td>线上真实性能数据；弹层滚动锁 / 焦点类 bug 消除；运营排序效率提升</td>
+      </tr>
+      <tr>
+        <td><b>第 4 批</b><br><span class="pill p-lo">按需</span></td>
+        <td>vue-echarts 管理面板图表；comlink 迁移审核推理；测试三件套补单测</td>
+        <td class="mono">src/views/DataManagement<br>src/views/AiQuotaConfig<br>tests/unit</td>
+        <td><span class="pill p-lo">中</span></td>
+        <td>运营数据可读；主线程解放；回归从分钟级降到秒级</td>
+      </tr>
+      <tr>
+        <td><b>待评估</b><br><span class="pill p-warn">不建议现在做</span></td>
+        <td>@tanstack/vue-query 全量替换自建缓存；shiki 替换 highlight.js；tiptap 替换现有编辑器</td>
+        <td class="mono">src/utils/getPosts 相关</td>
+        <td><span class="pill p-warn">高</span></td>
+        <td>三项都属于「现有方案能跑」的类型，收益不确定而回归面大，建议等待明确痛点再启动</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============ 附录 ============ -->
+<section>
+  <h2><span class="num">06</span>附录：数据源与评分口径</h2>
+  <p class="sec-note">全部指标均为 2026-09-14 实测，可复核。</p>
+
+  <table>
+    <thead><tr><th>指标</th><th>来源</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>Stars / open issues / 许可证</td><td class="mono">api.github.com/repos/{owner}/{name}</td><td>GitHub REST API v3</td></tr>
+      <tr><td>最近提交时间</td><td class="mono">repository.pushed_at</td><td>含所有分支推送，比最后一次 release 更能反映活跃度</td></tr>
+      <tr><td>npm 版本 / 发布日期</td><td class="mono">registry.npmjs.org/{pkg}</td><td>取 <code>dist-tags.latest</code> 与 <code>time</code> 中最新的正式版本</td></tr>
+      <tr><td>周下载量</td><td class="mono">api.npmjs.org/downloads/point/last-week</td><td>反映真实采用度，比 stars 更抗刷</td></tr>
+      <tr><td>项目侧事实</td><td class="mono">本地代码库检索</td><td>虚拟滚动 0 命中、弹层组件 11+、<code>moduleResolution: bundler</code>、体积闸门 800KB/30MB 均为实测</td></tr>
+    </tbody>
+  </table>
+
+  <p class="sec-note" style="margin-top:16px">
+    <b>评分口径：</b>契合度 5.0 = 直接命中已确认的痛点且与定位强相关；4.0–4.5 = 明显补强但非阻塞；3.0–3.5 = 场景化，需要时再取。
+    维护健康 5.0 = 近一周内有提交 + 高下载量 + 活跃发布节奏；4.0–4.5 = 活跃或高采用度；3.5 及以下 = 发布放缓、issue 偏多或社区规模有限，引入前需评估替代方案。
+  </p>
+
+  <p class="sec-note" style="margin-top:12px">
+    <b>未纳入本报告的类别：</b>自建体系已覆盖且无明显缺口的领域（日期处理、图标、状态管理、PWA、图片裁剪压缩、验证码、Markdown 渲染、XSS 净化）未重复推荐；
+    自带整套 UI 皮肤的组件库（Element Plus / PrimeVue / Vuetify / Naive UI）因与现有 <code>--liquid-*</code> 玻璃体系冲突而整体排除。
+  </p>
+</section>
+
+<div class="foot">
+  报告生成时间 2026-09-14 · 数据采样 2026-09-14 · 对应项目版本 BOH Beta 6.1.1<br>
+  所有链接均指向官方仓库；评分与结论基于上述实测数据，落地前建议就具体模块再各做一次原型验证。
+</div>
+
+</div>
+</body>
+</html>

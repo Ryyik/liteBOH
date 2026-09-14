@@ -9,6 +9,8 @@ lerna-debug.log*
 
 node_modules
 dist
+# 探针对比用的第二份构建产物（probe-boot-perf.mjs 依赖，见 probe 脚本注释）
+dist-check
 dist-ssr
 *.local
 *.css.map
