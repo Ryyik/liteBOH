@@ -35,3 +35,10 @@
 
 ## 样式残留待清
 - glass-ui 76% 死类、animations 89%、section__header 74%；tailwind 引擎 0 使用但 preflight 生效；data-boh-theme 91 处+prefers-color-scheme 11 文件残留；--apple-* 38/59 死。清理顺序见 style-remnant-audit-report.html 十三节。SCSS 编译 css 是 CRLF 行尾，批量正则要 \r?\n。
+
+## 死代码审计（0914）
+- **口径三套并存待合并**：`style-remnant-audit.mjs`=1133 · 方案初版=932 · 复算真值=**1667**（高置信 1247+动态风险 420）。差异全在「语料边界」。**审计语料必须排除生成产物**（`stats.html`、`.compress-images-cache.json`、`*-audit/report/results.json`、**以及上一次审计产出的 `*-report.html`**——它列出全部死符号名会让下次扫描归零）与设计稿套件（`Apple Style/ Claude Style/ Google Style/` 内含独立 HTML+CSS 会同时污染定义集与使用集）。**审计报告一律写到 `output/` 或仓库外。**
+- 工具：用户级技能 `dead-code-safe-cleanup`（`~/.workbuddy/skills/`），脚本 `scripts/dead-code-audit.mjs` 单命令出 6 维度只读报告。孤儿 27 / 死类 1667 / 死 keyframes 15 / A 级可删资源 2。
+- **暗色主题是死类重灾区**：`src/styles/themes/*-dark.css` 5 个文件占 305 个死类（→ B3 首批）。`boh-note-dark.css` 整文件服务已不存在的 BOH Note，却仍被 theme-css-loader 的 dark 组动态加载。
+- **删除手法判据**：注释法只在 CSS 选择器块占优（构建不校验类名，唯一信号是视觉）；整文件一律 `git rm`+tag 回滚（注释后仍被 lint/tsc/glob/门禁扫到）；禁用试跑用 `git mv X X.disabled`。CSS 不能嵌套注释（块内已有 `/* */` 会提前闭合）。
+- 强耦合必查项：`scripts/important-budget.json`（按路径登记配额，删文件不同步改基线必挂 build:ci）· `check-project-structure.mjs`（`@styles` 别名断言、`.DS_Store` 告警）· 单测若以源码文本断言（`bohai-quick-sidebar.test.js` 读 `GlobalAiGlassOverlay.vue`）则文件与断言须同批删。删完务必 `find src -type d -empty`（0629 删 `LithiumIron/index.vue` 后空目录留了 3 个月）。
