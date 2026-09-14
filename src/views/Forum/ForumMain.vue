@@ -1316,10 +1316,7 @@ const draftPreviewText = computed(() => {
 const savedDraftTagLabel = computed(() => getForumTagLabel(savedPostDraft.value?.tag || '') || '#日常');
 
 const openMobileDraftPanel = async () => {
-  // ✨ 移除：自动保存草稿（改为手动保存）
-  // persistPostDraft();
-  // clearPostDraftSaveTimer();
-  // await savePostDraftToDatabase(savedPostDraft.value);
+  // 打开面板不触发自动保存（已改为手动保存，保存在 saveDraftManually 里）
   refreshPostDraftState();
   isMobileDraftPanelOpen.value = true;
 };
