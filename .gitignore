@@ -13,6 +13,16 @@ dist-ssr
 *.local
 *.css.map
 
+# 素材/文件的临时备份产物（曾误入库：mascot-new-*.webp.prevbak / .bak2）
+*.bak
+*.bak[0-9]
+*.prevbak
+*.orig
+*.old
+*.tmp
+*~
+
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
