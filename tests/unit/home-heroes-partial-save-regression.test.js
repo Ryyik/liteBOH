@@ -53,4 +53,29 @@ describe('home hero partial-save regression', () => {
     expect(source).not.toContain('is-deferred');
     expect(source).not.toMatch(/watch\(\(\) => props\.eager/);
   });
+
+  // 回归：「归档到历史区」勾选后被发布流程撤销。
+  // publishHero 曾把 is_archived 写死为 false（理由写作"发布即视为取消归档"），
+  // 而 HeroConsole 的发布按钮是「先保存草稿 → 再 publishHero」，于是用户刚勾的
+  // 归档立刻被覆盖，界面从「已归档」跳回「已发布」，Footer 历史回顾区也拿不到它
+  // （fetchArchivedHeroes 要求 status='published' + is_archived=true）。
+  // 归档只能由编辑面板的复选框决定，发布流程必须原样保留。
+  it('keeps the archived flag when publishing a hero', () => {
+    const source = stripCssComments(read('src/stores/homeHeroes.ts'));
+    const publishSource = source.slice(
+      source.indexOf('const publishHero ='),
+      source.indexOf('// 批量发布')
+    );
+
+    expect(publishSource).not.toBe('');
+    expect(publishSource).toContain('const keepArchived = Boolean(hero.is_archived)');
+    expect(publishSource).toContain('is_archived: keepArchived');
+    expect(publishSource).not.toMatch(/is_archived:\s*false/);
+  });
+
+  it('tells the operator that an archived publish will not show on the home page', () => {
+    const source = read('src/views/HeroConsole/index.vue');
+
+    expect(source).toContain('已发布到历史回顾区（归档中，不上首页）');
+  });
 });

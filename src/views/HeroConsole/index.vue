@@ -1290,7 +1290,11 @@ async function publishCurrent() {
     return;
   }
   const ok = await homeHeroesStore.publishHero(selectedId.value, authStore.userInfo?.id);
-  showToast(ok ? '已发布，首页即将生效' : '发布失败');
+  // 归档中的英雄区发布后进入 Footer 历史回顾区，不会上首页 —— 提示要与实际结果一致
+  const isArchived = Boolean(selectedHero.value?.is_archived);
+  showToast(ok
+    ? (isArchived ? '已发布到历史回顾区（归档中，不上首页）' : '已发布，首页即将生效')
+    : '发布失败');
 }
 
 async function deleteCurrent() {

@@ -547,6 +547,12 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
     try {
       const hero = allHeroes.value.find((h) => h.id === id)
       if (!hero) throw new Error('英雄区不存在')
+      // 归档状态由编辑面板的「归档到历史区」复选框决定，发布流程不得改写它。
+      // 归档的英雄区需要 status='published' + is_archived=true 才会进入 Footer
+      // 历史回顾区（见 fetchArchivedHeroes 的过滤条件）；此前这里写死
+      // is_archived=false，导致「勾选归档 → 点发布」后归档被撤销，界面从
+      // 「已归档」跳回「已发布」。
+      const keepArchived = Boolean(hero.is_archived)
       // 1. 写入历史快照
       const { data: revisionData, error: revError } = await supabase
         .from('home_heroes_revisions')
@@ -560,13 +566,13 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
       if (revError) throw revError
       const revisionId = revisionData?.id
       try {
-        // 2. 更新状态为 published（发布即视为取消归档，否则 fetchPublished 的
-        //    is_archived=false 过滤会让"已发布"的英雄永远不上首页）
+        // 2. 更新状态为 published（is_archived 保持原值：首页只渲染
+        //    status='published' 且 is_archived=false，所以归档项自然不会上首页）
         const { error: updateError } = await supabase
           .from('home_heroes')
           .update({
             status: 'published',
-            is_archived: false,
+            is_archived: keepArchived,
             published_at: new Date().toISOString(),
             published_by: userId || null,
             updated_at: new Date().toISOString()
@@ -580,13 +586,13 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
         }
         throw updateErr
       }
-      // 3. 同步本地
+      // 3. 同步本地（is_archived 与 DB 保持一致，勿写回 false）
       const idx = allHeroes.value.findIndex((h) => h.id === id)
       if (idx >= 0) {
         allHeroes.value[idx] = {
           ...allHeroes.value[idx],
           status: 'published',
-          is_archived: false,
+          is_archived: keepArchived,
           published_at: new Date().toISOString()
         }
       }
