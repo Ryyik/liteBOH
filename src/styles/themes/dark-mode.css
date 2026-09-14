@@ -230,6 +230,15 @@
   color: var(--boh-text-secondary);
 }
 
+/* 底栏导航标签（Shop / Forum / UserSpace 共用组件的非激活态文字色）。
+   来源迁移：该规则原定义在已下线的 boh-note-dark.css（BOH Note 功能不存在，
+   2026-09 清理），但它事实上是全站底栏标签在暗色下的唯一非激活色定义，
+   Shop / Forum 均依赖它。故按语义转正到通用组件层，而非随文件删除。
+   激活态由各页面主题文件覆盖（如 user-space-dark.css 以 !important 给 #f5f5f7）。 */
+[data-theme="dark"] .nav-label {
+  color: #7a7a8a;
+}
+
 /* ============================================
    焦点状态与无障碍
    ============================================ */

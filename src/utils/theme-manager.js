@@ -97,7 +97,6 @@ class ThemeManager {
       '.account-security-page',
       '.address-page',
       '.subscription-page',
-      '.note-page',
       '.partners-container',
       '.tags-impressions-page',
       '.pushplus-settings-page',

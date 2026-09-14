@@ -13,7 +13,6 @@ const THEME_CSS_MODULES = {
     () => import('@/styles/themes/user-center-dark.css'),
     () => import('@/styles/themes/bohai-dark.css'),
     () => import('@/styles/themes/messages-dark.css'),
-    () => import('@/styles/themes/boh-note-dark.css'),
   ],
 };
 
