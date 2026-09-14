@@ -93,17 +93,27 @@ describe('profile-api integration', () => {
 
   describe('addUserImpression', () => {
     it('inserts impression and returns ok', async () => {
-      const insertQuery = {
+      // user_impressions 有 UNIQUE (author_id, target_id)：同一人对同一目标仅一条印象，
+      // 重复填写走 upsert 覆盖更新并刷新 created_at（让新印象排到最前）；
+      // 通知触发器是 AFTER INSERT，冲突走 UPDATE 路径不会重复发通知。
+      // 故 mock 需提供 upsert 而非 insert。
+      const upsertQuery = {
         select: vi.fn(() => Promise.resolve({
           data: [{ id: 'new-imp', content: 'Hello', author_id: 'u1', target_id: 'u2' }],
           error: null,
         })),
       };
-      fm.fromMock.mockReturnValue({ insert: vi.fn(() => insertQuery) });
+      const upsertMock = vi.fn(() => upsertQuery);
+      fm.fromMock.mockReturnValue({ upsert: upsertMock });
 
       const result = await addUserImpression('u1', 'u2', 'Hello');
       expect(result.ok).toBe(true);
       expect(result.data).toBeDefined();
+      expect(fm.fromMock).toHaveBeenCalledWith('user_impressions');
+      expect(upsertMock).toHaveBeenCalledWith(
+        expect.any(Array),
+        { onConflict: 'author_id,target_id' }
+      );
     });
 
     it('blocks content that fails keyword check', async () => {

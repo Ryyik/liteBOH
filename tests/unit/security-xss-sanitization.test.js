@@ -22,8 +22,11 @@ const components = [
     path: 'src/components/AppleHeroBanner.vue'
   },
   {
-    name: 'HeroSection',
-    path: 'src/components/HeroSection.vue'
+    // HeroSection.vue 已于 Beta 6 焕新（36c9964d）删除。
+    // ShowcaseBookHero 承接同一守卫面：它是当前首页英雄区实际渲染
+    // v-html 标题的组件（经 DynamicHomeHero 在 hero 循环中挂载）。
+    name: 'ShowcaseBookHero',
+    path: 'src/views/Home/components/ShowcaseBookHero.vue'
   }
 ]
 

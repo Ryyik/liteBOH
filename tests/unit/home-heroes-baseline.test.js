@@ -4,6 +4,7 @@ import { HOME_HERO_BASELINE } from '../../src/stores/homeHeroes.ts';
 describe('home hero baseline', () => {
   it('renders the published builtin heroes before the remote configuration returns', () => {
     expect(HOME_HERO_BASELINE.map((hero) => hero.builtin_key)).toEqual([
+      'beta6-renewal',
       'mascot-new',
       'agent-preview',
       'birthday',

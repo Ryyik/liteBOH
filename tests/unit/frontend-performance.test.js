@@ -4,6 +4,9 @@ import { resolve } from 'node:path';
 
 const read = (file) => readFileSync(resolve(import.meta.dirname, `../../${file}`), 'utf8');
 
+// 源码文本型守卫必须先剥离块注释，只看生效代码
+const stripCssComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '');
+
 describe('frontend performance guardrails', () => {
   it('does not initialize the third-party AI SDK during app boot', () => {
     const source = read('src/main.js');
@@ -11,11 +14,17 @@ describe('frontend performance guardrails', () => {
     expect(read('src/utils/hiagent-widget.js')).toMatch(/首次打开时初始化|toggleHiagentChat/);
   });
 
-  it('defers below-the-fold home hero component mounting', () => {
-    expect(read('src/views/Home/index.vue')).toMatch(/:eager="heroIndex === 0"/);
-    expect(read('src/views/Home/components/HomeHeroRow.vue')).toMatch(/IntersectionObserver/);
-    expect(read('src/views/Home/components/HomeHeroRow.vue')).toMatch(/rootMargin: '800px 0px'/);
-    expect(read('src/views/Home/components/HomeHeroRow.vue')).toMatch(/min-height: min\(720px, 78vh\)/);
+  // 机制变更（2026-09）：行级延迟渲染已移除，首屏优先改为向下传 :priority 标记。
+  // 移除依据见 HomeHeroRow.vue 顶部注释：iOS Safari WebKit bug 321501
+  // （content-visibility:auto 令行保持过期的零高度布局，真实触摸滚动才复现）+ 318216。
+  // 此用例转为守卫：既验证首屏标记仍在，也禁止重新引入行级虚拟化。
+  // 注意：守卫必须先剥离注释，否则会匹配到"解释为什么不用它"的说明文字。
+  it('marks the first home hero row as priority without row-level virtualization', () => {
+    expect(read('src/views/Home/index.vue')).toMatch(/:priority="heroIndex === 0"/);
+
+    const rowSource = stripCssComments(read('src/views/Home/components/HomeHeroRow.vue'));
+    expect(rowSource).not.toContain('content-visibility');
+    expect(rowSource).not.toContain('IntersectionObserver');
   });
 
   it('keeps document and PPT engines behind user actions', () => {
