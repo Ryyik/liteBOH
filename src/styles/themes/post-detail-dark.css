@@ -42,9 +42,6 @@
 /* ============================================
    导航与头部
    ============================================ */
-.post-detail-page[data-theme="dark"] .detail-nav {
-  color: #f5f5f7;
-}
 
 .post-detail-page[data-theme="dark"] .back-btn {
   background: rgba(18, 18, 26, 0.8);
@@ -59,10 +56,6 @@
 
 .post-detail-page[data-theme="dark"] .nav-title {
   color: #f5f5f7;
-}
-
-.post-detail-page[data-theme="dark"] .nav-subtitle {
-  color: #71717a;
 }
 
 /* ============================================
@@ -194,8 +187,7 @@
   color: #f5f5f7;
 }
 
-.post-detail-page[data-theme="dark"] .child-replies-loading,
-.post-detail-page[data-theme="dark"] .child-empty-state {
+.post-detail-page[data-theme="dark"] .child-replies-loading {
   color: #71717a;
 }
 
@@ -276,58 +268,18 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.post-detail-page[data-theme="dark"] .x-side-column .sidebar-title,
-[data-theme="dark"] .post-detail-page .x-side-column .sidebar-title {
-  color: #f5f5f7 !important;
-}
-
 .post-detail-page[data-theme="dark"] .section-title,
 [data-theme="dark"] .post-detail-page .section-title {
   color: #f5f5f7 !important;
 }
 
-.post-detail-page[data-theme="dark"] .x-side-column .related-post-item,
-[data-theme="dark"] .post-detail-page .x-side-column .related-post-item {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-}
-
-.post-detail-page[data-theme="dark"] .x-side-column .related-post-item:hover,
-[data-theme="dark"] .post-detail-page .x-side-column .related-post-item:hover {
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.post-detail-page[data-theme="dark"] .x-side-column .related-post-title,
-[data-theme="dark"] .post-detail-page .x-side-column .related-post-title {
-  color: #f5f5f7 !important;
-}
-
-.post-detail-page[data-theme="dark"] .x-side-column .related-post-meta,
-[data-theme="dark"] .post-detail-page .x-side-column .related-post-meta {
-  color: #71717a !important;
-}
-
 /* ============================================
    加载状态
    ============================================ */
-.post-detail-page[data-theme="dark"] .detail-loading {
-  color: #71717a;
-}
-
-.post-detail-page[data-theme="dark"] .detail-loading-spinner {
-  border-color: rgba(255, 255, 255, 0.1);
-  border-top-color: #f5f5f7;
-}
 
 /* ============================================
    错误状态
    ============================================ */
-.post-detail-page[data-theme="dark"] .detail-error {
-  color: #ff5252;
-}
-
-.post-detail-page[data-theme="dark"] .detail-error-message {
-  color: #a1a1aa;
-}
 
 .post-detail-page[data-theme="dark"] .retry-btn {
   background: #1a1a25;
@@ -343,19 +295,6 @@
 /* ============================================
    分享弹窗
    ============================================ */
-.post-detail-page[data-theme="dark"] .share-modal {
-  background: #1a1a25;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-}
-
-.post-detail-page[data-theme="dark"] .share-modal-header {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.post-detail-page[data-theme="dark"] .share-modal-title {
-  color: #f5f5f7;
-}
 
 .post-detail-page[data-theme="dark"] .share-option {
   background: #12121a;
@@ -372,38 +311,6 @@
 /* ============================================
    删除确认弹窗
    ============================================ */
-.post-detail-page[data-theme="dark"] .delete-confirm-modal {
-  background: #1a1a25;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.post-detail-page[data-theme="dark"] .delete-confirm-title {
-  color: #f5f5f7;
-}
-
-.post-detail-page[data-theme="dark"] .delete-confirm-message {
-  color: #a1a1aa;
-}
-
-.post-detail-page[data-theme="dark"] .delete-confirm-btn {
-  background: #ff5252;
-  color: #fff;
-}
-
-.post-detail-page[data-theme="dark"] .delete-confirm-btn:hover {
-  background: #ff6b6b;
-}
-
-.post-detail-page[data-theme="dark"] .delete-cancel-btn {
-  background: #1a1a25;
-  color: #a1a1aa;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.post-detail-page[data-theme="dark"] .delete-cancel-btn:hover {
-  background: #222230;
-  color: #f5f5f7;
-}
 
 /* ============================================
    作者信息
@@ -452,15 +359,6 @@
 /* ============================================
    回复标签
    ============================================ */
-.post-detail-page[data-theme="dark"] .reply-tag,
-[data-theme="dark"] .post-detail-page .reply-tag {
-  color: #71717a !important;
-}
-
-.post-detail-page[data-theme="dark"] .reply-target,
-[data-theme="dark"] .post-detail-page .reply-target {
-  color: #3b82f6 !important;
-}
 
 /* ============================================
    空状态与加载状态
@@ -503,12 +401,6 @@
   background: rgba(0, 0, 0, 0.7) !important;
 }
 
-.post-detail-page[data-theme="dark"] .edit-modal,
-[data-theme="dark"] .post-detail-page .edit-modal {
-  background: #1a1a25 !important;
-  border: 1px solid rgba(255, 255, 255, 0.06) !important;
-}
-
 .post-detail-page[data-theme="dark"] .modal-header h3,
 [data-theme="dark"] .post-detail-page .modal-header h3 {
   color: #f5f5f7 !important;
@@ -523,19 +415,6 @@
 .post-detail-page[data-theme="dark"] .close-btn:hover,
 [data-theme="dark"] .post-detail-page .close-btn:hover {
   background: #222230 !important;
-}
-
-.post-detail-page[data-theme="dark"] .edit-textarea,
-[data-theme="dark"] .post-detail-page .edit-textarea {
-  background: #12121a !important;
-  border: 1px solid rgba(255, 255, 255, 0.06) !important;
-  color: #f5f5f7 !important;
-}
-
-.post-detail-page[data-theme="dark"] .edit-textarea:focus,
-[data-theme="dark"] .post-detail-page .edit-textarea:focus {
-  border-color: rgba(59, 130, 246, 0.4) !important;
-  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.1) !important;
 }
 
 .post-detail-page[data-theme="dark"] .modal-footer,
@@ -667,26 +546,3 @@
 /* ============================================
    编辑和删除帖子按钮
    ============================================ */
-.post-detail-page[data-theme="dark"] .edit-post-btn,
-[data-theme="dark"] .post-detail-page .edit-post-btn {
-  background: rgba(59, 130, 246, 0.1) !important;
-  color: #3b82f6 !important;
-}
-
-.post-detail-page[data-theme="dark"] .edit-post-btn:hover,
-[data-theme="dark"] .post-detail-page .edit-post-btn:hover {
-  background: #3b82f6 !important;
-  color: #fff !important;
-}
-
-.post-detail-page[data-theme="dark"] .delete-post-btn,
-[data-theme="dark"] .post-detail-page .delete-post-btn {
-  background: rgba(255, 82, 82, 0.1) !important;
-  color: #ff5252 !important;
-}
-
-.post-detail-page[data-theme="dark"] .delete-post-btn:hover,
-[data-theme="dark"] .post-detail-page .delete-post-btn:hover {
-  background: #ff5252 !important;
-  color: #fff !important;
-}

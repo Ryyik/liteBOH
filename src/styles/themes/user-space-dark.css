@@ -55,9 +55,6 @@
 /* ============================================
    Apple 风格卡片 - 提高对比度
    ============================================ */
-.user-space-page[data-theme="dark"] .apple-page-container {
-  background: transparent;
-}
 
 .user-space-page[data-theme="dark"] .apple-card,
 [data-theme="dark"] .user-space-page .apple-card {
@@ -73,32 +70,8 @@
 }
 
 /* 分组标题 */
-.user-space-page[data-theme="dark"] .group-header-title {
-  color: #a1a1aa !important;
-  font-weight: 600;
-}
 
 /* 列表项 */
-.user-space-page[data-theme="dark"] .apple-item {
-  background-color: transparent;
-}
-
-.user-space-page[data-theme="dark"] .apple-item.clickable:hover {
-  background-color: rgba(255, 255, 255, 0.05);
-}
-
-.user-space-page[data-theme="dark"] .apple-item:not(:last-child)::after {
-  background-color: rgba(255, 255, 255, 0.08);
-}
-
-.user-space-page[data-theme="dark"] .item-label {
-  color: #ffffff !important;
-  font-weight: 500;
-}
-
-.user-space-page[data-theme="dark"] .text-secondary {
-  color: #c4c4cc !important;
-}
 
 .user-space-page[data-theme="dark"] .chevron {
   color: #71717a !important;
@@ -123,14 +96,6 @@
 
 .user-space-page[data-theme="dark"] .bg-blue svg {
   stroke: #60a5fa;
-}
-
-.user-space-page[data-theme="dark"] .bg-green {
-  background-color: rgba(74, 222, 128, 0.2);
-}
-
-.user-space-page[data-theme="dark"] .bg-green svg {
-  stroke: #4ade80;
 }
 
 .user-space-page[data-theme="dark"] .bg-purple {
@@ -192,34 +157,19 @@
 /* ============================================
    个人资料卡片 - 提高可读性
    ============================================ */
-.user-space-page[data-theme="dark"] .profile-card {
-  background: #1a1a24 !important;
-}
 
 .user-space-page[data-theme="dark"] .apple-avatar {
   background: #2a2a3a;
   color: #ffffff;
 }
 
-.user-space-page[data-theme="dark"] .apple-name,
 .user-space-page[data-theme="dark"] .profile-name,
 [data-theme="dark"] .user-space-page .profile-name {
   color: #ffffff !important;
 }
 
 /* 用户邮箱 - 使用极高优先级选择器 */
-html body .user-space-page[data-theme="dark"] .apple-email,
-html body .user-space-page[data-theme="dark"] .profile-email,
-html [data-theme="dark"] .user-space-page .apple-email,
-html [data-theme="dark"] .user-space-page .profile-email,
-.user-space-page[data-theme="dark"] .profile-card .apple-email,
-.user-space-page[data-theme="dark"] .profile-card .profile-email,
-[data-theme="dark"] .user-space-page .profile-card .apple-email,
-[data-theme="dark"] .user-space-page .profile-card .profile-email {
-  color: #ffffff !important;
-}
 
-.user-space-page[data-theme="dark"] .admin-badge-mini,
 .user-space-page[data-theme="dark"] .admin-badge,
 [data-theme="dark"] .user-space-page .admin-badge {
   background: #ffffff;
@@ -243,43 +193,6 @@ html [data-theme="dark"] .user-space-page .profile-email,
   color: #c084d8;
 }
 
-.user-space-page[data-theme="dark"] .avatar-edit-icon-mini {
-  background-color: #ffffff;
-  border-color: #1e1e2a;
-}
-
-.user-space-page[data-theme="dark"] .my-space-btn {
-  background: linear-gradient(135deg, #ffffff, #d4d4d8);
-  color: #0d0d12;
-  box-shadow: 0 8px 16px rgba(255, 255, 255, 0.15);
-}
-
-.user-space-page[data-theme="dark"] .profile-basics-list,
-.user-space-page[data-theme="dark"] .profile-basic-row:not(:last-child) {
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-.user-space-page[data-theme="dark"] .profile-basics-title,
-.user-space-page[data-theme="dark"] .profile-basic-label,
-.user-space-page[data-theme="dark"] .profile-basic-value {
-  color: #ffffff;
-}
-
-.user-space-page[data-theme="dark"] .profile-basics-kicker,
-.user-space-page[data-theme="dark"] .profile-basic-value.empty {
-  color: #c4c4cc;
-}
-
-.user-space-page[data-theme="dark"] .profile-completion-pill {
-  background: rgba(96, 165, 250, 0.18);
-  color: #93c5fd;
-}
-
-.user-space-page[data-theme="dark"] .profile-completion-pill.complete {
-  background: rgba(74, 222, 128, 0.18);
-  color: #86efac;
-}
-
 /* 个人数据概览 */
 .user-space-page[data-theme="dark"] .profile-stats {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
@@ -291,10 +204,6 @@ html [data-theme="dark"] .user-space-page .profile-email,
 
 .user-space-page[data-theme="dark"] .stat-label {
   color: #a1a1aa !important;
-}
-
-.user-space-page[data-theme="dark"] .stat-divider {
-  background: rgba(255, 255, 255, 0.08);
 }
 
 /* ============================================
@@ -353,21 +262,6 @@ html [data-theme="dark"] .user-space-page .profile-email,
 }
 
 /* 搜索输入 */
-.user-space-page[data-theme="dark"] .community-search-input {
-  background: #1a1a24 !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  color: #ffffff !important;
-}
-
-.user-space-page[data-theme="dark"] .community-search-input:focus {
-  border-color: rgba(59, 130, 246, 0.4);
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
-  background: #1e1e2a !important;
-}
-
-.user-space-page[data-theme="dark"] .community-toolbar-meta {
-  color: #c4c4cc !important;
-}
 
 /* 分页按钮 */
 .user-space-page[data-theme="dark"] .community-page-btn {
@@ -378,10 +272,6 @@ html [data-theme="dark"] .user-space-page .profile-email,
 
 .user-space-page[data-theme="dark"] .community-page-btn:hover:not(:disabled) {
   background: #252532 !important;
-}
-
-.user-space-page[data-theme="dark"] .community-page-info {
-  color: #c4c4cc !important;
 }
 
 /* ============================================
@@ -426,10 +316,6 @@ html [data-theme="dark"] .user-space-page .profile-email,
 /* ============================================
    邮件徽章
    ============================================ */
-.user-space-page[data-theme="dark"] .mail-badge {
-  background: #ff5252;
-  color: #fff;
-}
 
 /* ============================================
    礼物进度标签
@@ -447,26 +333,11 @@ html [data-theme="dark"] .user-space-page .profile-email,
   color: #ff5252 !important;
 }
 
-.user-space-page[data-theme="dark"] .text-neutral-strong {
-  color: #ffffff !important;
-}
-
-.user-space-page[data-theme="dark"] .text-danger-strong {
-  color: #ff6b6b !important;
-}
-
 .user-space-page[data-theme="dark"] .highlight-1200 {
   color: #ffffff !important;
 }
 
 /* 注销卡片 */
-.user-space-page[data-theme="dark"] .logout-card .apple-item.clickable:hover {
-  background: rgba(255, 82, 82, 0.1);
-}
-
-.user-space-page[data-theme="dark"] .delete-account-item:hover {
-  background: rgba(255, 82, 82, 0.12) !important;
-}
 
 /* ============================================
    加载与空状态
@@ -528,11 +399,6 @@ html [data-theme="dark"] .user-space-page .profile-email,
   color: #a1a1aa !important;
 }
 
-.user-space-page[data-theme="dark"] .feature-pill {
-  background: #2a2a3a;
-  color: #c4c4cc;
-}
-
 /* 日期选择器 */
 .user-space-page[data-theme="dark"] .modal-selector {
   background: #2a2a3a;
@@ -577,84 +443,8 @@ html [data-theme="dark"] .user-space-page .profile-email,
 }
 
 /* 受信任设备 */
-.user-space-page[data-theme="dark"] .trusted-devices-header {
-  background: linear-gradient(180deg, #1a2d4a 0%, #252532 100%);
-}
-
-.user-space-page[data-theme="dark"] .trusted-devices-loading,
-.user-space-page[data-theme="dark"] .trusted-devices-empty {
-  background: #1e1e2a;
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #a1a1aa;
-}
-
-.user-space-page[data-theme="dark"] .trusted-device-row {
-  background: #1e1e2a;
-  border-color: rgba(255, 255, 255, 0.1);
-}
-
-.user-space-page[data-theme="dark"] .trusted-device-title {
-  color: #ffffff !important;
-}
-
-.user-space-page[data-theme="dark"] .current-device-pill {
-  background: rgba(59, 130, 246, 0.2);
-  color: #60a5fa;
-}
-
-.user-space-page[data-theme="dark"] .trusted-device-agent {
-  color: #c4c4cc;
-}
-
-.user-space-page[data-theme="dark"] .trusted-device-meta {
-  color: #a1a1aa;
-}
-
-.user-space-page[data-theme="dark"] .trusted-device-revoke-btn {
-  background: transparent;
-  border-color: rgba(255, 82, 82, 0.5);
-  color: #ff5252;
-}
-
-.user-space-page[data-theme="dark"] .trusted-device-revoke-btn:hover {
-  background: rgba(255, 82, 82, 0.15);
-}
 
 /* 删除账户 */
-.user-space-page[data-theme="dark"] .delete-account-header {
-  background: linear-gradient(180deg, #3a1a1a 0%, #252532 100%);
-}
-
-.user-space-page[data-theme="dark"] .delete-step-label {
-  color: #ff5252;
-}
-
-.user-space-page[data-theme="dark"] .delete-risk-list {
-  color: #c4c4cc;
-}
-
-.user-space-page[data-theme="dark"] .delete-check-row {
-  color: #c4c4cc;
-}
-
-.user-space-page[data-theme="dark"] .delete-account-input {
-  background: #1e1e2a;
-  border-color: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
-}
-
-.user-space-page[data-theme="dark"] .delete-account-input:focus {
-  border-color: rgba(255, 82, 82, 0.6);
-  box-shadow: 0 0 0 3px rgba(255, 82, 82, 0.15);
-}
-
-.user-space-page[data-theme="dark"] .delete-account-email {
-  color: #a1a1aa;
-}
-
-.user-space-page[data-theme="dark"] .delete-account-error {
-  color: #ff5252;
-}
 
 .user-space-page[data-theme="dark"] .danger-btn {
   background: #ff5252;
@@ -728,28 +518,6 @@ html [data-theme="dark"] .user-space-page .profile-email,
   color: #c4c4cc;
 }
 
-.user-space-page[data-theme="dark"] .bg-gold {
-  background-color: rgba(250, 204, 21, 0.14);
-}
-
-.user-space-page[data-theme="dark"] .bg-gold svg {
-  stroke: #fbbf24;
-}
-
-.user-space-page[data-theme="dark"] .cloud-quota-pill {
-  background: rgba(45, 212, 191, 0.14);
-  color: #5eead4;
-}
-
-.user-space-page[data-theme="dark"] .cloud-quota-pill.full {
-  background: rgba(248, 113, 113, 0.14);
-  color: #fca5a5;
-}
-
-.user-space-page[data-theme="dark"] .cloud-quota-caption {
-  color: #9ca3af;
-}
-
 /* ============================================
    主题设置模态框深色模式
    ============================================ */
@@ -794,18 +562,6 @@ html [data-theme="dark"] .user-space-page .profile-email,
 
 /* Settings subpage header: remove the light blurred gradient inherited from
    responsive-integrations.css. */
-[data-theme="dark"] .user-space-page .profile-subpage-header,
-[data-theme="dark"] .user-space-page .profile-subpage-header::before,
-[data-theme="dark"] .user-space-page .profile-subpage-header::after {
-  background: transparent !important;
-  background-image: none !important;
-  box-shadow: none !important;
-}
-
-[data-theme="dark"] .user-space-page .profile-subpage-title,
-[data-theme="dark"] .user-space-page .profile-subpage-header button {
-  color: #ffffff !important;
-}
 
 /* ---- dark audit 2026-09-08：底部导航文字未随暗色翻转 ---- */
 .user-space-page[data-theme="dark"] .nav-item,

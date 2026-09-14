@@ -20,21 +20,6 @@
 }
 
 /* 导航链接 */
-#unified-nav-container[data-theme="dark"] .nav-link,
-[data-theme="dark"] #unified-nav-container .nav-link {
-  color: #a1a1aa !important;
-}
-
-#unified-nav-container[data-theme="dark"] .nav-link:hover,
-[data-theme="dark"] #unified-nav-container .nav-link:hover {
-  color: #f5f5f7 !important;
-  background: rgba(255, 255, 255, 0.05) !important;
-}
-
-#unified-nav-container[data-theme="dark"] .nav-link.active,
-[data-theme="dark"] #unified-nav-container .nav-link.active {
-  color: #f5f5f7 !important;
-}
 
 /* 导航品牌/Logo */
 #unified-nav-container[data-theme="dark"] .nav-brand,
@@ -50,12 +35,6 @@
 }
 
 /* 未读消息红点 */
-#unified-nav-container[data-theme="dark"] .unread-dot-nav,
-[data-theme="dark"] #unified-nav-container .unread-dot-nav {
-  background-color: #ff5252 !important;
-  border-color: rgba(10, 10, 15, 0.8) !important;
-  box-shadow: 0 0 4px rgba(255, 82, 82, 0.4) !important;
-}
 
 /* 汉堡菜单按钮 */
 #unified-nav-container[data-theme="dark"] .nav-hamburger span,
@@ -70,18 +49,6 @@
   border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
-#unified-nav-container[data-theme="dark"] .nav-menu-mobile .nav-link,
-[data-theme="dark"] #unified-nav-container .nav-menu-mobile .nav-link {
-  color: #a1a1aa !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
-}
-
-#unified-nav-container[data-theme="dark"] .nav-menu-mobile .nav-link:hover,
-[data-theme="dark"] #unified-nav-container .nav-menu-mobile .nav-link:hover {
-  background: rgba(255, 255, 255, 0.05) !important;
-  color: #f5f5f7 !important;
-}
-
 /* 加载状态 */
 #unified-nav-container[data-theme="dark"] .nav-user-loading,
 [data-theme="dark"] #unified-nav-container .nav-user-loading {
@@ -89,16 +56,6 @@
 }
 
 /* 主题切换按钮（如果放在导航栏） */
-#unified-nav-container[data-theme="dark"] .theme-toggle-btn,
-[data-theme="dark"] #unified-nav-container .theme-toggle-btn {
-  color: #a1a1aa !important;
-}
-
-#unified-nav-container[data-theme="dark"] .theme-toggle-btn:hover,
-[data-theme="dark"] #unified-nav-container .theme-toggle-btn:hover {
-  color: #f5f5f7 !important;
-  background: rgba(255, 255, 255, 0.05) !important;
-}
 
 /* The vendor navbar uses different class names than the legacy theme rules
    above. Keep every readable label white in dark mode. */
@@ -135,15 +92,12 @@
   background: rgba(255, 255, 255, 0.1) !important;
 }
 
-[data-theme="dark"] #unified-nav-container .nav-dropdown,
-[data-theme="dark"] #unified-nav-container .nav-submenu,
-[data-theme="dark"] #unified-nav-container .nav-modal {
+[data-theme="dark"] #unified-nav-container .nav-submenu {
   background: #1b2430 !important;
   border-color: rgba(220, 235, 255, 0.16) !important;
   color: #ffffff !important;
 }
 
-[data-theme="dark"] #unified-nav-container .nav-dropdown-item,
 [data-theme="dark"] #unified-nav-container .nav-submenu a,
 [data-theme="dark"] #unified-nav-container .nav-submenu-group-title,
 [data-theme="dark"] #unified-nav-container .nav-mobile-link,
