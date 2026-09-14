@@ -18,6 +18,8 @@
   ② **7 个组件自绑定** `:data-theme="currentTheme"` 在根元素上（Beta6RenewalHero / PostDetailMain / BetaPreviewMain / UserSpaceMain / NewsDetailPage / ForumMain / ProfileMain）→ 同元素式 `.x[data-theme="dark"]` 生效。
   断言某段暗色 CSS 是死代码前，**两套机制都要查**，否则会误判（0914 踩过）。
 - ⚠️ **macOS BSD grep 两个沉默陷阱（导致过两次误判）**：`\s` 与 `\|` 交替**都不支持**，且**不报错、静默返回空**——空结果会被误读成"不存在"。正确写法：`[[:space:]]`、用内置 Grep 工具（ripgrep）或分开执行。`grep -n "a\|b"` / `grep -nE "^\s*--x"` 都是坑。
+- ⚠️ **只 grep `src/` 会漏掉真消费者（第二次误判）**：`--liquid-border-strong` 曾被判"全站零引用"，实际由 **`supabase/functions/user-data-export/index.ts:581`** 消费（导出 HTML 模板内联样式表）。**Edge Function / output / 根 demo 都在 `src/` 之外，却是真消费者**。断言"零引用"必须全仓检索（含 supabase/ 与根 html），不能只查 src。
+- **液态玻璃 token 有 3 份额外内联副本（已漂移）**：`supabase/functions/user-data-export/index.ts` 与 `output/preview-html-v2.part.ts` 各内联 **23 个**（源是 26 个，均缺 `--liquid-bg-overlay` / `--liquid-blur-lg` / `--liquid-filter-lg`）；`export-preview-v2-demo.html` 内联 24 个。两份 ts 内容一致、且**自带 `data-theme` 暗色块并已派生文字 token**（`#f5f5f7/#a1a1a6/#7c7c82`）—— 说明导出模板早就独立处理过这个缺口。**但它的 tertiary `#7c7c82` 与 app 现值 `#8a919c` 已漂移**；app 侧改用 `#8a919c` 是因为 `#7c7c82` 在暗玻璃上对比度仅约 4.1:1（低于 AA 4.5），而 `#8a919c` 约 5.1:1。改导出模板前需同批对齐（有 `probe-export-v2-harness.mjs` 验证链）。
 - 文件头只写「Motion Tokens」但实际同时容纳动效 token（--ease-*/--duration-*）与液态玻璃 token，是"找不到液态玻璃 token 在哪"的主因；建议改标题或拆分。
 - !important 棘轮门禁 scripts/check-important-budget.mjs（基线 1396）进 build:ci。Hero 单源=styles/common/hero-surface.css。空态一律 EmptyState.vue。
 - 组件 scoped 压过全局 media——响应式写进组件自己的 scoped media。body.page-* 是活的（App.vue 动态挂 page-${route.name}），勿判死。
