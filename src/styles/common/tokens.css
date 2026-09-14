@@ -1,14 +1,26 @@
 /**
  * ==============================================
- * Motion Tokens — 全站动效 token 单一来源
+ * Design Tokens — 全站单一来源
  * ==============================================
- * 与 BOHAI motion-system.css 命名对齐（--bohai-motion-*）
- * 但放在全局，供所有页面/组件引用。
- * 推荐自 AUDIT.md:
- *   --ease-out: cubic-bezier(0.23, 1, 0.32, 1)
- *   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1)
- * 项目既有（保持兼容）:
- *   cubic-bezier(0.16, 1, 0.3, 1)   ← BOHAI/CommonAlertModal/login-modal 已用
+ * 本文件收纳两族 token，都以 :root 全局生效（main.js 加载）：
+ *
+ * 1. Motion Tokens — 全站动效（--ease-* / --duration-*）
+ *    与 BOHAI motion-system.css 命名对齐（--bohai-motion-*），但放全局。
+ *    推荐自 AUDIT.md:
+ *      --ease-out: cubic-bezier(0.23, 1, 0.32, 1)
+ *      --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1)
+ *    项目既有（保持兼容）:
+ *      cubic-bezier(0.16, 1, 0.3, 1)   ← BOHAI/CommonAlertModal/login-modal 已用
+ *
+ * 2. Liquid Glass Tokens — iOS 26/27 液态玻璃（--liquid-*，共 26 个）
+ *    四层结构：:root 亮色 → [data-theme="dark"] 暗色 → @supports 无滤镜降级
+ *              → .boh-perf-lite 省电降档
+ *    消费方 3 个，全部派生自本文件，禁止各自写死：
+ *      · liquid-glass.css  纯 CSS 类库（唯一允许裸写 backdrop-filter，门禁豁免）
+ *      · glass-ui.css      档位派生
+ *      · hero-surface.css  Hero 专用 --hero-* 规格
+ *    门禁 scripts/check-liquid-glass.mjs 禁三类重复定义：
+ *      --glass-filter-* 再派生 / 成品档字面量 / blur(NNpx) 且 NN≥14
  * ==============================================
  */
 
@@ -72,6 +84,12 @@
   --liquid-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
   --liquid-shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.3);
   --liquid-shadow-overlay: 0 24px 80px rgba(0, 0, 0, 0.42);
+  /* 文字色必须派生：暗玻璃上的亮色文字若不翻转，会沿用 #1d1d1f 变成黑字压暗底。
+     primary 与 themes/dark-mode.css 的 --boh-text-primary 暗色值保持一致。
+     三级在暗玻璃(~#1c1c24)上的对比度分别约 15:1 / 6.4:1 / 4.6:1，均达 WCAG AA。 */
+  --liquid-text-primary: #f5f5f7;
+  --liquid-text-secondary: #a1a1a6;
+  --liquid-text-tertiary: #8a919c;
 }
 
 /* Liquid Glass 降级：不支持 backdrop-filter 或性能省电模式时回退为实色 */

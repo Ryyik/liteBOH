@@ -303,16 +303,8 @@ const handleDownload = async () => {
   }
 }
 
-/* 暗色（tokens.css dark 未派生 --liquid-text-*） */
-[data-theme="dark"] .export-loading {
-  color: #a7afba;
-}
-
-[data-theme="dark"] .export-stage {
-  color: #f4f6f8;
-}
-
-[data-theme="dark"] .export-percent {
-  color: #a1a1aa;
-}
+/* 暗色：本面板无需任何文字色覆盖。
+   export-loading / export-percent 用 secondary、export-stage 用 primary，
+   均可由 tokens.css 暗色块派生的 --liquid-text-* 自动翻转。
+   （原此处有 3 条硬编码暗色文字，是 tokens.css 缺口时期的补丁） */
 </style>

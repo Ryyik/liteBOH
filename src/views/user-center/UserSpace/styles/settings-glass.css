@@ -467,43 +467,13 @@
 }
 
 /* ---------- 暗色 ---------- */
-/* tokens.css dark 块未派生 --liquid-text-*，这里整组覆盖保证可读性 */
-[data-theme="dark"] .gs-group-title {
-  color: #8b9098;
-}
-
-[data-theme="dark"] .gs-label {
-  color: #f4f6f8;
-}
-
-[data-theme="dark"] .gs-desc {
-  color: #a7afba;
-}
-
-[data-theme="dark"] .gs-field-label {
-  color: #a1a1aa;
-}
-
-[data-theme="dark"] .gs-hint {
-  color: #8b9098;
-}
-
-[data-theme="dark"] .gs-note {
-  color: #a7afba;
-}
-
-[data-theme="dark"] .gs-input {
-  color: #f4f6f8;
-}
-
-[data-theme="dark"] .gs-input::placeholder {
-  color: #6b7280;
-}
-
-[data-theme="dark"] .gs-input-icon {
-  color: #8b9098;
-}
-
+/* 文字色不再本地覆盖：--liquid-text-* 已由 tokens.css 暗色块统一派生。
+   本文件亮色端本来就写的是 token（gs-label/gs-input = primary；
+   gs-group-title/gs-field-label/gs-note/gs-value = secondary；
+   gs-desc/gs-hint/gs-input-icon/::placeholder = tertiary），
+   删掉暗色硬编码后两个模式的角色完全一致，原先反而不一致
+   （如 gs-group-title 亮色是 secondary、暗色却写成了 tertiary 的值）。
+   此处仅保留语义不属文字 token 的规则：悬停底色与危险色。 */
 [data-theme="dark"] .gs-row:hover {
   background: rgba(255, 255, 255, 0.055);
 }
@@ -522,10 +492,6 @@
 
 [data-theme="dark"] .gs-chevron-danger {
   color: rgba(255, 105, 97, 0.6);
-}
-
-[data-theme="dark"] .gs-value {
-  color: var(--liquid-text-secondary, #a1a1aa);
 }
 
 [data-theme="dark"] .gs-btn.primary {

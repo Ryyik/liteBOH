@@ -402,10 +402,12 @@ onUnmounted(() => {
 .beta6-hero-btn-ghost:hover .beta6-hero-chev { transform: translateX(3px); }
 
 /* ============ 暗色覆盖（Beta6 铁律：新 UI 必须有暗色覆盖） ============ */
-/* 玻璃变量由 tokens.css [data-theme="dark"] 自动翻转；此处只补文字色与页面底色 */
+/* 玻璃变量由 tokens.css 自动翻转，文字变量由 hero-surface.css 的别名跟随
+   （--hero-text = var(--liquid-text-primary)），所以这里只需补页面底色。
+   注：本组选择器是同元素式 .beta6-hero[data-theme="dark"]，靠本组件根元素
+   自绑的 :data-theme="currentTheme" 命中 —— 这是全站 7 个组件的既有写法，
+   与「主题管理器把 data-theme 挂到 html」是两套并存机制，都有效。 */
 .beta6-hero[data-theme="dark"] {
-  --hero-text: #f5f5f7;
-  --hero-text-secondary: #a1a1a6;
   background: #0b0b10;
 }
 

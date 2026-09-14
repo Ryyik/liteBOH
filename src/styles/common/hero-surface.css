@@ -16,8 +16,8 @@
  *    Footer 历史区（homeHeroes store fetchArchived）。
  *
  * 暗色：玻璃类 token 由 tokens.css [data-theme="dark"] 自动翻转；
- *       文字/品牌色的暗色值由各 hero 根元素局部覆写（--hero-text 等），
- *       因为 tokens.css 暗色块未派生 --liquid-text-*。
+ *       文字色（--hero-text*）别名了 --liquid-text-*，同样自动翻转，
+ *       因此 hero 侧不需要任何暗色文字覆盖 —— 只处理页面底色等非 token 部分。
  */
 :root {
   /* —— 品牌强调色（eyebrow / 主 CTA / 链接）—— */
@@ -26,10 +26,15 @@
   /* 深色表面上的强调色（variant-dark 卡片 / 图上 overlay，Apple 惯例蓝） */
   --hero-accent-on-dark: #2997ff;
 
-  /* —— 文字色（浅色底）—— */
-  --hero-text: #1d1d1f;
-  --hero-text-secondary: #6e6e73;
-  --hero-text-muted: #86868b;
+  /* —— 文字色：别名 liquid 文字 token，不再重复定义字面量 ——
+     自定义属性里的 var() 在「使用处」解析，所以浅色/暗色会自动跟随
+     tokens.css [data-theme="dark"] 派生的 --liquid-text-*，
+     hero 侧无需再写任何暗色块（原先各 hero 的暗色文字覆盖已删除）。
+     原字面量：#1d1d1f / #6e6e73 / #86868b —— 与 liquid 亮色值一致或近似。 */
+  --hero-text: var(--liquid-text-primary);
+  --hero-text-secondary: var(--liquid-text-secondary);
+  --hero-text-muted: var(--liquid-text-tertiary);
+  /* 恒定浅色：用于图上 overlay / variant-dark 卡片，与当前主题无关 */
   --hero-text-on-dark: #f5f5f7;
 
   /* —— headline 三档字号 —— */

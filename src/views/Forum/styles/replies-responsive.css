@@ -567,10 +567,9 @@
 
 [data-theme="dark"] .mobile-composer-overlay {
   background: #16161e;
-  /* tokens.css 未派生文字类 token，弹层 Teleport 在 body 下、forum-dark 的 .forum-page 前缀规则够不到 → 此处局部补齐 */
-  --liquid-text-primary: #f2f4f7;
-  --liquid-text-secondary: #a6adb8;
-  --liquid-text-tertiary: #8a919c;
+  /* 文字色继承 tokens.css [data-theme="dark"] 派生的 --liquid-text-*：
+     自定义属性沿 DOM 继承，Teleport 到 body 的弹层同样拿得到，
+     故此处不再需要局部补齐（原先的局部覆盖是 tokens.css 缺口时期的补丁） */
   color: var(--liquid-text-primary);
 }
 

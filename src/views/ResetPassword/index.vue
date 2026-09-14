@@ -446,7 +446,8 @@ button:disabled {
 }
 
 /* 暗色：平铺覆盖（themeManager 把 data-theme 挂在 html 上）。
-   在页面根重定义文字/状态 token，后代理的 var() 引用自动跟随 */
+   只覆盖本页品牌色 —— 文字类 --liquid-text-* 已由 tokens.css 暗色块统一派生，
+   此处不再重复定义（原先的 #f5f5f7/#a1a1a6/#7c7c82 是从该缺口抄来的补丁） */
 html[data-theme="dark"] .reset-page {
   --rp-brand: #2997ff;
   --rp-brand-hover: #4da3ff;
@@ -454,9 +455,6 @@ html[data-theme="dark"] .reset-page {
   --rp-info: #8ab0ff;
   --rp-error: #ff7a7a;
   --rp-success: #38d39f;
-  --liquid-text-primary: #f5f5f7;
-  --liquid-text-secondary: #a1a1a6;
-  --liquid-text-tertiary: #7c7c82;
   background:
     radial-gradient(640px 420px at 12% 16%, rgba(41, 151, 255, 0.10), transparent 62%),
     radial-gradient(520px 400px at 88% 84%, rgba(94, 92, 230, 0.08), transparent 62%),
