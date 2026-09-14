@@ -8,7 +8,8 @@
  *   <div class="liquid-glass">外卡</div>
  *   <div class="liquid-glass liquid-glass--pill liquid-glass--subtle">工具栏</div>
  *   <div class="liquid-glass liquid-glass--inset">设置组</div>
- * Vue: <LiquidGlass variant="inset"><.../></LiquidGlass>
+ *   （原附带的 <LiquidGlass>  Vue 包装组件为设计系统半成品、零挂载，
+ *     已于 2026-09-14 清理；本文件为纯 CSS 封装，不依赖它）
  * ==============================================
  */
 
