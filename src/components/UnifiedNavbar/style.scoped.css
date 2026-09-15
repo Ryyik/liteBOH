@@ -139,7 +139,11 @@
 .nav-island-action.active { color: #fff; background: #1d1d1f; border-color: #1d1d1f; }
 
 /* 横屏登录：导航胶囊先收拢到浮岛宽度，登录卡片从它的底部延展出来。
-   登录组件本身在 App 层挂载，因此这里仅负责提供同宽的视觉锚点。 */
+   登录组件本身在 App 层挂载，因此这里仅负责提供同宽的视觉锚点。
+   ⚠️ 本块（选择器不含 ID）的宽度/高度/圆角/底色/transform 已被下方同名
+   `:global(#unified-nav-container …has-login-card)` 块整体压过（ID 选择器
+   权重更高），实际生效的是那一条；改形态请改那一条。此处仅暗色
+   border-color 仍生效（下方那条没声明它）。 */
 @media (orientation: landscape) and (min-width: 769px) {
   .unified-nav-surface.has-login-card {
     --global-nav-rest-height: 72px;
@@ -359,12 +363,14 @@
   }
 }
 
-/* Beta 5 的浮岛规则优先级更高；登录展开时覆盖为与卡片相接的上半岛。 */
+/* Beta 5 的浮岛规则优先级更高；登录展开时覆盖为与卡片相接的上半岛。
+   宽度走 --boh-login-island-width 单一源（tokens.css）：登录卡片是同宽的
+   下半岛，两侧写死同一个字面量会各自漂移。 */
 @media (orientation: landscape) and (min-width: 769px) {
   :global(#unified-nav-container .unified-nav-surface.has-login-card) {
     --global-nav-rest-height: 64px;
-    width: min(860px, calc(100% - 24px));
-    max-width: min(860px, calc(100% - 24px));
+    width: var(--boh-login-island-width);
+    max-width: var(--boh-login-island-width);
     height: 64px;
     transform: translateY(10px);
     border-bottom: 0;

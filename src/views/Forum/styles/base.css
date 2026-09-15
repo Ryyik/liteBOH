@@ -150,6 +150,35 @@
   align-items: start;
 }
 
+/* 桌面 / 横屏（≥993，即论坛原有的两栏档）：搜索工具栏跨栏独占一行，
+   第二行才是「帖子列表 + 周报」。单列档不设 areas，DOM 顺序已让工具栏在列表之前。 */
+@media (min-width: 993px) {
+  .forum-main-grid {
+    grid-template-areas:
+      "search search"
+      "main side";
+    /* 行距收窄：跨栏后搜索框与列表之间用 grid 行距，不再靠工具栏自身 margin */
+    row-gap: clamp(16px, 1.6vw, 24px);
+  }
+
+  .forum-main-grid > .forum-toolbar {
+    grid-area: search;
+    margin-bottom: 0;
+  }
+
+  .forum-main-grid > .forum-left-column {
+    grid-area: main;
+  }
+
+  .forum-main-grid > .forum-sidebar {
+    grid-area: side;
+  }
+
+  /* 搜索框的加高 / 居中不写在这里：base.css 是**以 scoped 方式引入**的（多个组件各引一份），
+     跨组件选择器会被附加父组件的 scope id，永远匹配不到 ForumToolbar 内部的 input。
+     那部分样式在 ForumToolbar.vue 的 scoped（@media (min-width: 993px)）里 */
+}
+
 @media (max-width: 1200px) {
   .forum-main-grid {
     grid-template-columns: minmax(0, 1fr) clamp(270px, 31vw, 330px);

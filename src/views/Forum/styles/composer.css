@@ -412,85 +412,88 @@
   gap: 10px;
 }
 
-/* 底部三行 iOS26 Inset Grouped — 液态玻璃，大圆角与顶栏同族 */
-.mobile-composer-setting-list {
-  display: grid;
+/* 底部一行工具 chips — 液态玻璃胶囊，与顶栏玻璃同族 */
+.mobile-composer-chip-row {
   grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   width: 100%;
-  margin-top: 20px;
-  border: 1px solid var(--liquid-border, rgba(255,255,255,0.62));
-  border-radius: 20px;
-  overflow: hidden;
-  background: var(--liquid-bg, rgba(255,255,255,0.72));
-  backdrop-filter: var(--glass-filter, blur(28px));
-  -webkit-backdrop-filter: var(--glass-filter, blur(28px));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.76), 0 8px 24px rgba(15,23,42,0.06);
+  margin-top: 16px;
+}
+
+.mobile-composer-chip {
+  /* 激活态三件套在元素上自洽定义：chips 所在的发布会话 overlay 被 Teleport 到 body，
+     继承不到 .forum-page 级变量；暗色值由 forum-dark.css 的 [data-theme="dark"] body 块覆盖 */
+  --chip-active-bg: rgba(0, 113, 227, 0.08);
+  --chip-active-border: rgba(0, 113, 227, 0.30);
+  --chip-active-text: #0071e3;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  max-width: 100%;
+  padding: 0 14px;
+  border: 1px solid var(--liquid-border, rgba(255, 255, 255, 0.65));
+  border-radius: 999px;
+  background: var(--liquid-bg, rgba(255, 255, 255, 0.72));
+  backdrop-filter: var(--glass-filter-sm, blur(18px));
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  color: var(--liquid-text-secondary, #6e6e73);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro SC", "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: -0.2px;
+  line-height: 1.25;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--duration-fast, 180ms) ease, border-color var(--duration-fast, 180ms) ease, color var(--duration-fast, 180ms) ease, transform var(--duration-fast, 180ms) ease;
 }
 @media (max-width: 768px) {
-  /* 移动端保留液态玻璃，仅降档模糊保性能（boh-perf-lite 会进一步降级） */
-  .mobile-composer-setting-list {
-    background: var(--liquid-bg-strong, rgba(255,255,255,0.84));
+  /* 移动端降档模糊保性能（boh-perf-lite 会进一步降级） */
+  .mobile-composer-chip {
+    background: var(--liquid-bg-strong, rgba(255, 255, 255, 0.84));
     backdrop-filter: var(--liquid-filter-sm);
     -webkit-backdrop-filter: var(--liquid-filter-sm);
   }
 }
-
-.mobile-composer-setting {
-  width: 100%;
-  box-sizing: border-box;
-  min-height: 52px;
-  display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) minmax(0, auto) 16px;
-  align-items: center;
-  gap: 12px;
-  padding: 0 16px;
-  border: 0;
-  border-bottom: 1px solid rgba(60,60,67,0.12);
-  background: transparent;
-  color: var(--liquid-text-primary, #1d1d1f);
-  text-align: left;
-  cursor: pointer;
-  transition: background-color var(--duration-fast, 180ms) ease;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro SC", "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", "Helvetica Neue", sans-serif;
-}
-.mobile-composer-setting:last-child { border-bottom: none; }
-.mobile-composer-setting:active { background: rgba(120,120,128,0.12); }
-.mobile-composer-setting:hover { background: var(--liquid-bg-subtle, rgba(255, 255, 255, 0.35)); }
-.mobile-composer-setting > svg:first-of-type {
-  color: var(--liquid-text-secondary, #6e6e73);
-  background: rgba(120,120,128,0.14);
-  border-radius: 7px;
-  padding: 4px;
-  width: 18px;
-  height: 18px;
-  box-sizing: content-box;
-}
-.mobile-composer-setting > span {
-  min-width: 0;
-  font-size: 17px;
-  font-weight: 400;
-  letter-spacing: -0.41px;
-  line-height: 1.25;
+.mobile-composer-chip:hover {
+  background: var(--liquid-bg-strong, rgba(255, 255, 255, 0.84));
+  border-color: var(--liquid-border-strong, rgba(255, 255, 255, 0.82));
   color: var(--liquid-text-primary, #1d1d1f);
 }
-.mobile-composer-setting > strong {
+.mobile-composer-chip:active { transform: scale(0.96); }
+.mobile-composer-chip:focus-visible {
+  outline: 2px solid var(--apple-blue, #0071e3);
+  outline-offset: 2px;
+}
+.mobile-composer-chip > span { min-width: 0; }
+.mobile-composer-chip > strong {
   min-width: 0;
-  justify-self: end;
-  color: var(--liquid-text-secondary, #8e8e93);
-  font-size: 15px;
-  font-weight: 400;
-  letter-spacing: -0.24px;
-  white-space: nowrap;
+  max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 160px;
+  white-space: nowrap;
+  color: var(--liquid-text-primary, #1d1d1f);
+  font-weight: 500;
 }
-.mobile-composer-setting > svg:last-child { justify-self: end; color: var(--liquid-text-tertiary, #c7c7cc); }
+.mobile-composer-chip.is-active,
+.mobile-composer-chip.is-active:hover {
+  background: var(--chip-active-bg);
+  border-color: var(--chip-active-border);
+  color: var(--chip-active-text);
+}
+.mobile-composer-chip.is-active > strong { color: inherit; }
 
-/* iOS 设置风格彩色功能图标：纯色圆角 chip + 白色图标（无渐变） */
-.mobile-composer-setting.is-location > svg:first-of-type { background: #34c759; color: #ffffff; }
-.mobile-composer-setting.is-draft > svg:first-of-type { background: #ff9500; color: #ffffff; }
-.mobile-composer-setting.is-tag > svg:first-of-type { background: var(--apple-blue, #0071e3); color: #ffffff; }
+/* 发布会话内移除移动端圆按钮工具横条（全宽度生效）：
+   标签入口已在上方 chips 行，加图/预览/草稿/更多由桌面工具条（editor-submit-group 内
+   desktop-post-tools）承载 —— 横屏右区、768-1023 中间尺寸、竖屏（原有 1179 规则）
+   三个区间行为统一，不再分断点各写一份 */
+.mobile-composer-overlay .mobile-post-image-toolbar {
+  display: none;
+}
 
 .mobile-composer-setting-menu {
   grid-column: 1 / -1;
@@ -529,13 +532,22 @@
   max-width: 440px;
 }
 
-/* 横屏去重：桌面端只保留工具栏 0/6 入口，隐藏网格内大卡片，避免两个图片上传；竖屏保留卡片 */
+/* 横屏去重：桌面端只保留工具栏 0/6 入口，隐藏网格内大卡片，避免两个图片上传；竖屏保留卡片。
+   实现要点：这两条都带「感叹号 important」，同属性之间只能靠顺序决胜 —— 原先是「保留」那条
+   无条件生效，而发布会话里的卡片同时命中 `.editor-card` 与 `.mobile-composer-overlay`，
+   于是「隐藏」被自己后面那条否掉（横屏依旧显示大卡片，注释的意图并未落地）。
+   这里把「保留」限定到「非 电脑/平板横屏」，隐藏那条才能真正接管。
+   条件 = (orientation:landscape) and (min-width:1024px) and (min-height:600px) 的取反，
+   写成逗号列表而不是 @media not(...)，兼容性更稳。感叹号 important 数量不变。
+   注：本文件内的注释不要写出该字面量 —— check-important-budget 是纯文本匹配，注释也算数 */
 .editor-card .post-image-add-more-card {
   display: none !important;
 }
-.mobile-composer-section .post-image-add-more-card,
-.mobile-composer-overlay .post-image-add-more-card {
-  display: flex !important;
+@media (orientation: portrait), (max-width: 1023px), (max-height: 599px) {
+  .mobile-composer-section .post-image-add-more-card,
+  .mobile-composer-overlay .post-image-add-more-card {
+    display: flex !important;
+  }
 }
 @media (min-width: 769px) {
   .post-image-preview-grid {

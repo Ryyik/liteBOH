@@ -3927,3 +3927,39 @@
   background: rgba(255, 59, 48, 0.09);
   color: #ff3b30;
 }
+
+/* ============================================================
+   横屏并排：积分卡 + 用户信息同一行（2026-09-15）
+   只在他人主页存在这两个区块（自己的空间 ProfileHomePanel 无此类名）。
+   窄屏/竖屏 display:contents —— 包装层在布局里完全隐形，原纵向节奏零变化。
+   ============================================================ */
+.profile-info-row {
+  display: contents;
+}
+
+/* 断点与 UserSpace 横屏左栏同一组（landscape + ≥1024 + ≥600 高），
+   天然排除全部手机横屏；768–1023 平板横屏维持原居中单列。 */
+@media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
+  .profile-info-row {
+    display: flex;
+    align-items: stretch;
+    gap: 20px;
+  }
+
+  /* 覆盖 profile-base.css 横屏段的 width:min(100%,430px) + align-self:center
+     （那里是 (0,1,0)，这里带 scope 属性 (0,2,1) 稳赢） */
+  .profile-info-row .profile-points-card-section {
+    flex: 0 0 430px;
+    width: auto;
+    align-self: stretch;
+  }
+
+  .profile-info-row .profile-service-panel {
+    flex: 1 1 auto;
+    min-width: 0;
+    /* 行数（3±1）比积分卡面板矮，等高后让行垂直居中，避免底部大片空白 */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+}

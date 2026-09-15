@@ -90,6 +90,8 @@
       </div>
     </section>
 
+    <ActivityHeatmap :payload="heatmap" :loading="isHeatmapLoading" @switch-tab="$emit('switch-tab', $event)" />
+
     <section class="profile-points-card-section is-own" aria-label="方块积分卡">
       <div class="profile-points-card-head">
         <span class="profile-points-card-kicker">
@@ -279,6 +281,7 @@
 import { computed, reactive, ref, watch, onMounted, onUnmounted } from 'vue';
 import FollowListModal from '@/components/FollowListModal.vue';
 import PointsCard from './PointsCard.vue';
+import ActivityHeatmap from './ActivityHeatmap.vue';
 import { getCommentsByUsername, getFollowers, getFollowing, unfollowUser } from '@/utils/api/profile-api.js';
 import { fetchQuotedPostsByIds } from '@/utils/api/forum-api.js';
 import { resolveStoredCoverUrl } from '@/utils/api/forum-format.js';
@@ -396,6 +399,16 @@ const props = defineProps({
     default: () => ({ posts: 0, points: 0, rank: 0 })
   },
   isStatsLoading: {
+    type: Boolean,
+    default: false
+  },
+  /** 活跃热力图：get_user_activity_heatmap RPC 的原始返回值，未就绪传 null */
+  heatmap: {
+    type: Object,
+    default: null
+  },
+  /** 热力图首次加载中（骨架态） */
+  isHeatmapLoading: {
     type: Boolean,
     default: false
   },

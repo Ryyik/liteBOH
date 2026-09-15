@@ -138,7 +138,11 @@
         </div>
       </section>
 
-      <section class="profile-points-card-section" :class="{ 'is-own': isOwnProfile }" aria-label="方块积分卡">
+      <ActivityHeatmap :payload="activityHeatmap" :loading="isHeatmapLoading" :is-owner="isOwnProfile" />
+
+      <!-- 横屏（≥1024）时积分卡与用户信息并排一行；窄屏 display:contents 布局隐形，节奏不变 -->
+      <div class="profile-info-row">
+        <section class="profile-points-card-section" :class="{ 'is-own': isOwnProfile }" aria-label="方块积分卡">
         <div class="profile-points-card-head">
           <span class="profile-points-card-kicker">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
@@ -166,8 +170,7 @@
         <p v-else class="profile-points-card-hint">做任务、发帖与签到可获得积分</p>
       </section>
 
-      <section class="profile-service-panel" aria-label="用户信息">
-        <button v-for="binding in creatorBindings" :key="binding.key" type="button" class="profile-service-row" @click="openCreatorBindingHomepage(binding)">
+      <section class="profile-service-panel" aria-label="用户信息">        <button v-for="binding in creatorBindings" :key="binding.key" type="button" class="profile-service-row" @click="openCreatorBindingHomepage(binding)">
           <span class="profile-service-icon bg-purple">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M14 3h7v7"></path>
@@ -226,6 +229,7 @@
           </span>
         </div>
       </section>
+      </div>
 
       <div class="profile-tabs" role="tablist" aria-label="内容分类">
         <button class="tab-item" :class="{ active: activeTab === 'posts' }" role="tab" :aria-selected="activeTab === 'posts'" @click="setActiveTab('posts')">
@@ -460,6 +464,7 @@ import { getAvatarUrl } from '@/utils/avatar.js';
 import ProfileEditModal from './components/ProfileEditModal.vue';
 import PostCreateModal from './components/PostCreateModal.vue';
 import PointsCard from '@/views/user-center/UserSpace/components/PointsCard.vue';
+import ActivityHeatmap from '@/views/user-center/UserSpace/components/ActivityHeatmap.vue';
 import { supabase } from '@/utils/supabase-client.js';
 import {
   getProfileByUsername,
@@ -607,6 +612,9 @@ const tabLoaded = reactive({
   replies: false,
   impressions: false
 });
+/** 活跃热力图原始 payload（RPC 返回值）；未就绪时保持 null，组件内部退化成空态 */
+const activityHeatmap = ref(null);
+const isHeatmapLoading = ref(false);
 const postsPage = ref(1);
 const commentsPage = ref(1);
 const impressionsPage = ref(1);
@@ -1190,7 +1198,44 @@ const resetProfileCollections = () => {
   comments.value = [];
   impressions.value = [];
   showcasePostsFetched.value = [];
+  activityHeatmap.value = null;
+  isHeatmapLoading.value = false;
   resetPagingState();
+};
+
+/**
+ * 活跃热力图：他人主页同样展示，因为是公开 participates 数据。
+ * 之所以必须传 p_user_id 而不是让 RPC 走默认 auth.uid()：默认分支取的是「当前登录者」，
+ * 在他人主页会渲染出访客自己的轨迹。
+ */
+const loadActivityHeatmap = async (targetUserId, fetchVersion = profileFetchVersion.value) => {
+  const safeUserId = String(targetUserId || '').trim();
+  if (!safeUserId) {
+    if (fetchVersion === profileFetchVersion.value) {
+      activityHeatmap.value = null;
+      isHeatmapLoading.value = false;
+    }
+    return;
+  }
+
+  isHeatmapLoading.value = true;
+  activityHeatmap.value = null;
+  try {
+    const { data, error } = await supabase.rpc('get_user_activity_heatmap', {
+      p_user_id: safeUserId
+    });
+    if (fetchVersion !== profileFetchVersion.value) return;
+    activityHeatmap.value = error ? null : (data || null);
+  } catch (err) {
+    if (fetchVersion === profileFetchVersion.value) {
+      activityHeatmap.value = null;
+    }
+    console.error('加载活跃轨迹失败:', err);
+  } finally {
+    if (fetchVersion === profileFetchVersion.value) {
+      isHeatmapLoading.value = false;
+    }
+  }
 };
 
 const resolveProfileQueryContext = () => {
@@ -1388,7 +1433,8 @@ const fetchProfileData = async (username) => {
         loadShowcasePostsForProfile(profileData, fetchVersion),
         ensureActiveTabData({ reset: true, fetchVersion }),
         loadFollowState(profileData.id),
-        fetchTotalPostCount(safeUsername, profileData.id)
+        fetchTotalPostCount(safeUsername, profileData.id),
+        loadActivityHeatmap(profileData.id, fetchVersion)
       ]);
     } catch (err) {
       if (fetchVersion !== profileFetchVersion.value) return;

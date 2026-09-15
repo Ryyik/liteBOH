@@ -2,7 +2,7 @@
  * ==============================================
  * Design Tokens — 全站单一来源
  * ==============================================
- * 本文件收纳两族 token，都以 :root 全局生效（main.js 加载）：
+ * 本文件收纳三族 token，都以 :root 全局生效（main.js 加载）：
  *
  * 1. Motion Tokens — 全站动效（--ease-* / --duration-*）
  *    与 BOHAI motion-system.css 命名对齐（--bohai-motion-*），但放全局。
@@ -21,6 +21,9 @@
  *      · hero-surface.css  Hero 专用 --hero-* 规格
  *    门禁 scripts/check-liquid-glass.mjs 禁三类重复定义：
  *      --glass-filter-* 再派生 / 成品档字面量 / blur(NNpx) 且 NN≥14
+ *
+ * 3. Layout Tokens — 跨组件必须一致、禁止各自写死的布局常量（--boh-*）
+ *    现有 1 个：--boh-login-island-width（横屏登录岛宽度，导航上半岛与登录卡片共用）
  * ==============================================
  */
 
@@ -39,6 +42,24 @@
   --duration-base: 240ms;      /* dropdown / popover */
   --duration-slow: 360ms;      /* modal / drawer */
   --duration-page: 500ms;      /* 整页过渡上限 */
+
+  /* Layout — 布局常量（跨组件必须一致、禁止各自写死的那类值）
+     横屏登录岛：导航上半岛（导航胶囊）与登录卡片（下半岛）共用同一个宽度，
+     两者拼成一张岛。改宽度只改这里一处。
+     消费方 2 个：components/UnifiedNavbar/style.scoped.css（导航上半岛）
+                  views/Login/index.vue（登录卡片，下半岛）
+     值里的 100% 在两侧都解析为视口宽度（overlay padding: 0 / 导航容器满宽），
+     因此两侧永远同宽。 */
+  --boh-login-island-width: min(860px, calc(100% - 24px));
+
+  /* Heatmap — 活跃热力图五档色阶（0=无活动 → 4=最活跃）
+     消费方：views/user-center/UserSpace/components/ActivityHeatmap.vue
+     暗色在 [data-theme="dark"] 内整体覆写，组件不得自行写死色值。 */
+  --boh-heat-0: #ebedf0;
+  --boh-heat-1: #9fe1cb;
+  --boh-heat-2: #5dcaa5;
+  --boh-heat-3: #1d9e75;
+  --boh-heat-4: #0f6e56;
 
   /* Liquid Glass — iOS 26/27 液态玻璃 token（纯 CSS backdrop-filter 实现） */
   --liquid-bg: rgba(255, 255, 255, 0.72);
@@ -90,6 +111,13 @@
   --liquid-text-primary: #f5f5f7;
   --liquid-text-secondary: #a1a1a6;
   --liquid-text-tertiary: #8a919c;
+
+  /* Heatmap 暗色：0 档必须能浮现在深底上（略高于面板底），1→4 走拾色变亮 */
+  --boh-heat-0: rgba(255, 255, 255, 0.07);
+  --boh-heat-1: #145246;
+  --boh-heat-2: #1d8a70;
+  --boh-heat-3: #26b894;
+  --boh-heat-4: #4fd8b3;
 }
 
 /* Liquid Glass 降级：不支持 backdrop-filter 或性能省电模式时回退为实色 */

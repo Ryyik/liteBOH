@@ -1,0 +1,182 @@
+/* ================================================================
+   UserSpace 横屏左右分栏 —— 页面级规则（左导 + 右内容区）
+   ================================================================
+   生效区间：电脑 + 平板横屏
+     · orientation: landscape  两者都成立；手机横屏也成立，靠下面两条排除
+     · min-width: 1024px       排除全部手机横屏（手机横屏最大宽 932px）
+     · min-height: 600px       兜掉超扁窗口；下界 = 最小平板横屏（1024×600）
+   该条件在本文件与 components/side-rail.css 中各出现一次，改动必须同步。
+
+   左栏自身造型见 components/side-rail.css。
+   删掉本文件 + side-rail.css + UserSpaceSideRail.vue 即完整回滚，
+   原有规则一行未改（全部为「域内覆盖」，且都带 .user-space-page 前缀）。
+   ================================================================ */
+
+@media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
+  /* ── tab 切换进场动效 ────────────────────────────────────────
+     .tab-page 是叠放层（display:none ↔ 显示），display 每次切换都会
+     重新触发 animation → 天然「只进场、无离场」，滚动位置不受影响；
+     只动 opacity / translateY，不改布局几何，探索针读 rect 不受影响 */
+  .user-space-page .tab-page {
+    animation: userspace-tab-enter 150ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+  }
+
+  /* ── 变量挂在 body 上而不是 .user-space-page：
+     发布会话 .mobile-composer-overlay 被 Teleport 到 body（ForumMain.vue:3937），
+     只有 body 级变量它能继承到；左栏等 .user-space-page 内的元素照旧继承 */
+  body.page-userspace {
+    /* 左栏宽度：窄档 88（图标）→ 宽档 240（图标 + 文字），宽档在文件末尾覆盖 */
+    --userspace-rail-w: 88px;
+    /* 内容与左栏 / 窗口边缘之间的统一间距（各 tab 最外层容器共用） */
+    --userspace-content-gutter: clamp(20px, 2.4vw, 40px);
+    /* 横屏已无底部胶囊：页级底部安全距与跨页偏移同步收紧。
+       --userspace-bottom-nav-offset 也被 BOHAI 面板消费（shell-header / BohaiSidebar），
+       只改值不删变量，避免 AI 面板底部留出底栏的空位 */
+    --userspace-community-bottom-inset: 32px;
+    --userspace-bottom-nav-offset: 8px;
+  }
+
+  /* ── 内容与左栏留出呼吸 ──────────────────────────────────────
+     右区的左边缘就是左栏右边缘，若内容容器自身左右 padding 为 0 就会贴栏：
+       · .forum-page.embedded-mode .forum-container → 被 embedded 规则清零
+       · .x-notifications-container.minimal-mode   → padding 走变量，userspace 内为 0
+     这里按 tab 的最外层可视容器统一补 gutter，其余容器本就带 padding，覆盖值即可 */
+  .user-space-page .tab-page .page-content,
+  .user-space-page .tab-page .profile-page-content,
+  .user-space-page .tab-page .forum-page.embedded-mode .forum-container,
+  .user-space-page .tab-page .x-notifications-container.minimal-mode {
+    padding-left: var(--userspace-content-gutter);
+    padding-right: var(--userspace-content-gutter);
+  }
+
+  /* AI 满屏卡：原 margin 左右各 10px，跟同样间距对齐 */
+  .user-space-page .messages-tab .ai-host {
+    margin-left: var(--userspace-content-gutter);
+    margin-right: var(--userspace-content-gutter);
+  }
+
+  /* ── 内容区让位 ──────────────────────────────────────────────
+     .tab-page 本就是 absolute 全屏叠放层（多个 tab 靠叠放 + z-index 共存），
+     这里只改 left / width 两条，top / height / overflow 一律不动：
+     滚动位置记忆与 tab 切换动效都依赖后者 */
+  .user-space-page .tab-page {
+    left: var(--userspace-rail-w);
+    width: calc(100% - var(--userspace-rail-w));
+  }
+
+  /* ── 底部固定胶囊隐藏（竖屏 / 手机横屏仍用它） ── */
+  .user-space-page .bottom-nav-glass {
+    display: none;
+  }
+
+  /* ── 底部留白收紧：原值都是给底栏留的 140 / 100px ── */
+  .user-space-page .tab-page .page-content {
+    padding-bottom: 32px;
+  }
+
+  .user-space-page .tab-page.messages-tab .page-content {
+    padding-bottom: 32px;
+  }
+
+  .user-space-page .profile-tab {
+    padding-bottom: 32px;
+  }
+
+  /* AI 满屏卡的高度算式里 92px 是底栏占位，横屏收成 24px */
+  .user-space-page .messages-tab .ai-host {
+    height: calc(100dvh - var(--userspace-messages-top-inset, 62px) - 48px - 24px);
+  }
+
+  /* ── 内容区内部的二次分栏 ────────────────────────────────────
+     右区变窄后，内部「主栏 + 侧栏」的侧栏若仍按 clamp(300px, 27vw, 380px)
+     取宽，主栏会被压到 600px 以下；这里把侧栏压窄以保住两栏结构
+     （240px 是帖子主栏不被压垮的下界）。仅作用 userspace 内嵌实例，
+     Forum 独立页不受影响 */
+  .user-space-page .forum-main-grid {
+    grid-template-columns: minmax(0, 1fr) clamp(240px, 22vw, 320px);
+    gap: clamp(20px, 2.4vw, 40px);
+  }
+
+  /* forum-container 的 max-width 含 100vw（视口宽）：分栏后视口宽 ≠ 可用宽，
+     改为纯上限，交由父容器（右区）决定实际宽度与居中 */
+  .user-space-page .forum-container {
+    max-width: min(1480px, 100%);
+  }
+
+  /* 内嵌论坛的发帖悬浮球：原 144px 是避让底栏，横屏底栏已隐藏 */
+  .user-space-page .mobile-compose-fab.embedded-compose-fab {
+    bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* ── 发布会话：只覆盖右区 + 横屏响应式适配，保留左栏 ──
+     论坛的 .mobile-composer-overlay 原本 inset:0 全视口（含左栏），
+     且它被 Teleport 到 body —— 必须用 body 级选择器才能改到。
+     分栏下收到右区：左栏保持可见可交互（左栏 z-index 高于内容层），
+     左侧两角做圆角，与左栏右侧圆角呼应成两块面板 */
+  body.page-userspace .mobile-composer-overlay {
+    left: var(--userspace-rail-w);
+    right: 0;
+    width: auto;
+    border-top-left-radius: 20px;
+    border-bottom-left-radius: 20px;
+  }
+
+  /* 注意：不要用 :has(.mobile-composer-overlay) 去收左栏顶隙 ——
+     那样一开发布会话左栏内容就整体上移，视觉跳变很明显。顶隙恒定。 */
+
+  /* 响应式适配：沿用手机端的单列结构（圆角玻璃顶栏 + 单列卡片），
+     只把顶栏与内容居中限宽 —— 手机端是窄屏所以贴边，宽右区贴边会显得
+     「编辑器挤在左边、右边空一片」。结构一行不动，只调宽度与居中 */
+  /* 顶栏是 overlay（flex column）的直接子项：用 align-self 居中，不能用 margin:auto
+     —— flex 子项的 auto margin 会吸收剩余空间，把宽度收缩成内容宽（实测只剩 187px） */
+  /* 全宽布局（用户要求）：不限宽、不居中，内容铺满右区 */
+  body.page-userspace .mobile-composer-overlay .mobile-composer-bar {
+    box-sizing: border-box;
+  }
+
+  /* 会话内移动端圆按钮横条已移除 —— 收敛为 composer.css 的通用规则
+     （.mobile-composer-overlay .mobile-post-image-toolbar，全宽度生效），
+     此处不再保留 UserSpace 专属版本 */
+
+  /* 去掉图片区那个「＋ 添加图片」大方框（用户要求）。
+     这里刻意不写规则：composer.css 的 `.editor-card .post-image-add-more-card
+     { display: none + 感叹号 important }` 语义上就该在横屏生效，只是被同文件后面那条
+     无条件 `display: flex + 感叹号 important` 否掉了 —— 已按注释原意把「保留」限定到竖屏。
+     页面级再加一条感叹号 important 才能压住它，会顶破 important 棘轮基线，故不这么做。
+     （注释避免写出该字面量：check-important-budget 是纯文本匹配，连注释一起算） */
+
+  /* 会话内不显示周签到面板（用户明确不要这个模块） */
+  body.page-userspace .mobile-composer-overlay .weekly-checkin-panel {
+    display: none;
+  }
+
+  /* 社区 tab 的内嵌发帖编辑器：发布会话已取代它，删除以免同屏两个发布入口。
+     仅在分栏区间生效 —— 768–1023 这类中间尺寸没有左栏「发布」按钮，
+     内嵌编辑器是那里的唯一入口，必须保留 */
+  .user-space-page .forum-page.embedded-mode .forum-left-column > .post-creation-section {
+    display: none;
+  }
+}
+
+@keyframes userspace-tab-enter {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+}
+
+@media (orientation: landscape) and (min-width: 1280px) and (min-height: 600px) {
+  /* 宽档：240px 完整栏。1280 − 240 = 1040px 右区才够撑住
+     Forum 自带的两栏（主栏 + 240~320 侧栏） */
+  body.page-userspace {
+    --userspace-rail-w: 240px;
+  }
+
+  /* 右区 ≥1040px：发布会话保持全宽（不再放宽限宽档） */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-space-page .tab-page {
+    animation-duration: 1ms;
+  }
+}

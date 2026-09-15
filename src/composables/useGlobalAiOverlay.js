@@ -9,6 +9,8 @@ const isDragging = ref(false)
 const openRequestId = ref(0)
 // Prompt passed by another view is held until the overlay has mounted its chat API.
 const pendingPrompt = ref('')
+// Seed 期望的模型模式（如论坛「问BOHAI」默认走 fast）：与 pendingPrompt 同生命周期
+const pendingMode = ref('')
 
 let resolveOverlayHeight = () => {
   if (typeof window !== 'undefined') return window.innerHeight
@@ -34,6 +36,7 @@ function useSharedState() {
     if (typeof options.prompt === 'string' && options.prompt.trim()) {
       pendingPrompt.value = options.prompt
     }
+    pendingMode.value = typeof options.mode === 'string' ? options.mode.trim() : ''
     cancelScheduledClose()
     isOpen.value = true
     dragProgress.value = Number(options.snap) === 2 ? 2 : 1
@@ -57,6 +60,13 @@ function useSharedState() {
     const prompt = pendingPrompt.value
     pendingPrompt.value = ''
     return prompt
+  }
+
+  /** 消费种子期望的模型模式（一次性，与 consumePendingPrompt 搭配使用） */
+  function consumePendingMode() {
+    const mode = pendingMode.value
+    pendingMode.value = ''
+    return mode
   }
 
   function syncTheme() {
@@ -125,7 +135,7 @@ function useSharedState() {
     pendingPrompt,
     open, close, toggle, syncTheme,
     setOverlayHeight, startDrag, moveDrag, endDrag,
-    consumePendingPrompt
+    consumePendingPrompt, consumePendingMode
   }
 }
 

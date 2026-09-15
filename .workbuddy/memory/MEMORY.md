@@ -1,55 +1,51 @@
-# BOHLITE 项目长期记忆（精简版；细节见 .workbuddy/memory/YYYY-MM-DD.md 与用户级技能）
+# BOHLITE 长期记忆（要点；细节见 .workbuddy/memory/YYYY-MM-DD.md 与用户级技能）
 
 ## 环境 / 探针
-- hash 路由；dev 5173。**探针统一放 `scripts/probes/`**（0914 从根目录归档，80 个），一律**从仓库根运行** `node scripts/probes/xxx.mjs`（脚本内的 `dist/`、`output/` 等相对路径以 cwd 为准，故不受影响）；chrome channel，截图 output/ 或 debug-screenshots/。审计脚本里的语料排除是 `^scripts/` 前缀 → 归档后探针被正确排除（此前根目录的 probe-*.mjs 反而是规则盲区）。
-- playwright 必加 args:['--no-proxy-server','--proxy-server=direct://','--proxy-bypass-list=*']；测暗色用 addInitScript 设 localStorage boh-theme=dark。静态服务必须 run_in_background。
-- 伪造登录：等 3s 现注 pinia isLoggedIn+userInfo（reactive({}) 须 Object.assign；id 须合法 UUID）；禁种 sb-*-auth-token；禁拦 /auth/v1/**；admin 需真实会话；注入前 waitForFunction 等 `#app.__vue_app__`。
-- 弹层断言：overlay→确认→detached；数据落定用条件等待。supabase mock 按 URL 分流，假行带齐 author_id/target_id。
-- **选择器陷阱**：`querySelector('footer')` 误判 —— Footer.vue 根是 `<div class="footer-pages">`。断言前先确认真实根元素。
-- 同一文件多处修改禁放同一并行 Edit 批次（静默丢改动）；重要编辑后 Grep 复核。**BSD grep 不支持 `\s`、`\|` 交替且不报错（静默空）** → 用 `[[:space:]]`、内置 Grep 或分开执行；空结果≠不存在；断言零引用须全仓检索（Edge Function / output / 根 html 都在 src/ 之外）。
-- 沙箱拦截前缀 `CODEBUDDY_BROKERED_FS_HOOK_ENABLED=0 CODEBUDDY_SAFE_DELETE_SANDBOX=0`；构建验证用 `npx vite build --outDir dist-check`（勿动 dist）。
+- hash 路由；dev 5173。探针在 `scripts/probes/`，**从仓库根** `node scripts/probes/xxx.mjs`；chrome channel；截图落 output/ 或 debug-screenshots/。
+- playwright 必加 `--no-proxy-server --proxy-server=direct:// --proxy-bypass-list=*`；暗色用 addInitScript 设 `localStorage boh-theme=dark`；静态服务 run_in_background。
+- 伪造登录：等 3s 现注 pinia isLoggedIn+userInfo（reactive({}) 须 Object.assign；id 须合法 UUID）；禁种 sb-*-auth-token、禁拦 /auth/v1/**；注入前等 `#app.__vue_app__`。
+- 弹层断言必须验计算样式/几何（只验 DOM 存在会漏裸奔）；数据落定用条件等待不用 sleep。
+- **「登录态就绪」≠「页面就绪」**：注入登录后还要等真实根元素（如 `.user-space-page`）出现，否则断言读到 index.html 骨架（rail/底栏全 ABSENT，一次十几条假红）。dev server 偶发模块请求失败会命中 index.html 内联 recovery → `?forceUpdate=true` 重载 → **注入的 pinia 登录态丢失**，探针要能自愈重注。
+- 叠放式 tab（`.tab-page`）切 tab 时离场页面的页签仍可见且可能排在更前 → 查页签必须锚定「**第一个**可见组」，不能用「任意一个」。
+- **`check:important-budget` 是纯文本匹配 `!important`（注释里的字面量也算），且只扫 `git ls-files`**（未跟踪的新文件不入库不报）→ 注释里要写这个词就用「感叹号 important」表述。
+- 同一文件多处修改禁放同一并行 Edit 批次（静默丢改动）；**BSD grep 不支持 `\s`/`\|` 且不报错（静默空）** → 用 `[[:space:]]` 或内置 Grep；零引用断言须全仓检索。
+- 沙箱前缀 `CODEBUDDY_BROKERED_FS_HOOK_ENABLED=0 CODEBUDDY_SAFE_DELETE_SANDBOX=0`；构建验证 `npx vite build --outDir dist-check`（勿动 dist）。
+- dev server 可能只听 IPv6 `::1`（Chromium 走 IPv4 会 ERR_CONNECTION_REFUSED）→ 探针 BASE 用 `http://[::1]:5173`。页面上下文 `import('/src/composables/useIsland.js')` 可直接调 `showIsland.ai()` 打开 AI 岛、`useGlobalAiOverlay().close()` 关闭（同 URL=同模块单例）；AI 岛几何验证探针 = `probe-ai-island-rail.mjs`。
 
-## 主题 / 样式
-- themeManager：localStorage boh-theme→html[data-theme]，暗色 css 懒加载（themes/ 下 8 个文件）。**init() 在 app.mount 之后**，所以 index.html 里另有一份内联「早期主题脚本」（0914 起）在 HTML 解析期就把 data-theme 设好 —— 否则骨架的 `[data-theme=dark]` 分支是死规则、暗色用户首帧整屏白闪（dark-mode.css 也是懒加载，body 底色同样滞后）。**两份 VALID_THEMES 必须同步**，由 `check:first-paint` 门禁断言。Vue 不支持 `:global()`；全局 css 里 `:deep()` 静默失效。
-- 两套暗色选择器都有效：① data-theme 挂 html + 13 个具名容器（theme-manager.js 的 applyTheme：.forum-page/.post-detail-page/.user-space-page/.account-security-page/.address-page/.subscription-page/.partners-container/.tags-impressions-page/.pushplus-settings-page/.shared-memory-page/#unified-nav-container/.bohai-page/.x-notifications-container；**.note-page 已随 boh-note 下线，勿再计入**）→ 后代式（2589 处）；② 7 个组件自绑定 `:data-theme="currentTheme"`。
-- 玻璃单一源 tokens.css `--liquid-*`（26 个）。`--liquid-text-*` 浅 #1d1d1f/#6e6e73/#8b9098，暗 #f5f5f7/#a1a1a6/#8a919c。门禁 check-liquid-glass.mjs **只扫 tokens 定义，index.html 内联样式是盲区**。
-- 3 份内联 token 副本已漂移：supabase/functions/user-data-export/index.ts、output/preview-html-v2.part.ts（各内联 23 个，暗 tertiary #7c7c82 仅 4.1:1）。改导出模板须同批对齐，验证链 probe-export-v2-harness.mjs。
-- !important 棘轮门禁 check-important-budget.mjs（**基线 1332**）进 build:ci。Hero 单源=hero-surface.css。空态一律 EmptyState.vue。**全站禁用 content-visibility:auto**（WebKit bug 321501）。
-- 组件 scoped 压过全局 media → 响应式写进组件自己的 scoped media。`body.page-*` 是活的（App.vue 挂 page-${route.name}）。
+## 样式 / 主题
+- **特异性优先**：`:global(.x)` 只输出 (0,1,0)，被同名 scoped `.x[data-v]` (0,2,0) 压过；覆盖用 `:not()` 提特异性，**勿新增 !important**（棘轮基线 1332）。
+- **base.css 是 scoped 引入的** → 跨组件选择器带父 scope id，永远匹配不到子组件内部；改子组件内部样式必须写进该组件自己的 scoped，或把元素提到 grid 层用 `>` 直系选择器。
+- 组件 scoped 压过全局 media → 响应式写进组件自己的 scoped media。玻璃/布局单一源 tokens.css（`--liquid-*` + `--boh-*`）；玻璃挂现成 `.liquid-glass` 只覆盖形态，禁裸写 `backdrop-filter: blur(NNpx)` NN≥14。
+- themeManager init() 在 app.mount 之后 → index.html 有内联早期主题脚本；两份 VALID_THEMES 必须同步。全站禁 `content-visibility:auto`。空态一律 EmptyState.vue。
+- **forum-dark.css 等主题 CSS 是 theme-css-loader 动态 import 的**（初始即暗色也会异步加载）→ 探针度量暗色样式前必须等含目标规则的样式表插入 styleSheets，否则读到亮色假象；暗色覆盖选择器要考虑 Teleport 到 body 的元素（继承不到 `.forum-page` 级变量，用 html 级 `[data-theme="dark"] …`）。
+- **GlassPillButton**（`src/components/ui/GlassPillButton.vue`）= 白玻璃胶囊操作按钮基件（42 高/14 圆角/tone light|soft），材质走 `--glass-pill-*` 变量、暗色在 forum-dark.css；散装玻璃胶囊一律收敛到它，业务差异用父前缀提特异性覆盖。forum 工具 chip（`mobile-composer-chip`）是带激活态的工具件，未收敛（组件加 active prop 后可收）。发布会话内 `mobile-post-image-toolbar` 已全宽度隐藏（composer.css `.mobile-composer-overlay` 前缀，真相源单一）。
+- 横屏登录岛：导航胶囊=上半岛、登录卡=下半岛，宽度单一源 `--boh-login-island-width`；navbar-dark 暗色 !important 已加 `:not(.has-login-card)` 放行。
 
 ## 首屏 / 发布
-- **壳 = 入口 app-*.js 的静态 import 9 个**（app、vue-vendor、vue-utils-vendor、ui-icons、ui-components、supabase-vendor、state-vendor、auth-store、ui-sanitize）；**懒加载 131 个**。壳集合可用 dist/index.html 的 modulepreload 名单复核。
-- sw.js 预缓存 **110 项 / 9 JS**（vite.config.js globPatterns **手写名单**）。workbox 对手写名单里单个未匹配名字**不告警**（只对整条 glob 零匹配告警）→ 漏配只在真白屏时暴露。**已由 `check:shell-precache` 门禁覆盖（0914，挂 build:ci 的 vite build 之后）**：从产物反推入口静态 import 并断言 ⊆ 预缓存，带非空断言防"正则失配→空集→假绿"。
-- `static/fonts/*.{woff,woff2}` glob 曾零匹配（dist/static 只有 css/images/js）→ **0914 已删**，重建后构建输出零 warning（warning 噪音会掩盖真正的不匹配）。
-- 白屏机理：导航栏所在 ui-components 在预缓存内秒出，131 个路由 chunk 走网络 → 中间窗口"导航栏+白屏"；发新版后旧 hash 删除 → 路由 chunk 404 不自愈。
-- 旧四层兜底全失效：Suspense fallback 永不 pending；内联 recovery 只听 link/script resource error（动态 import 失败不触发）；preload-recovery 撞 30s 冷却；terser drop_console → 线上零日志。
-- ✅ 0914 已实施：① index.html 内联启动骨架（导航栏胶囊+三点 spinner，浅 #ffffff/暗 #0a0a0f）+12s 超时「重新加载」（?forceUpdate=true，参数会被 delete 后 replace，无死循环）；Vue mount 执行 `container.innerHTML=''` 自动清空。② App.vue 用 router.isReady()（bootReady/bootTimedOut 10s）渲染加载态、`<Suspense>` 改 v-else。③ globPatterns 补 ui-sanitize（109→110）。
-- ✅ 0914 第二批修复：删掉骨架假导航胶囊（真实导航栏实测 ~90ms 就位；假胶囊 720×72 与真实默认全宽 1280×72 / scrolled 860×58 都不符，只会制造形态跳变）；骨架文字暗色 #a1a1a6→#8a919c（回到 tertiary 语义层）；新增早期主题脚本 + 暗色 body 底色兜底；删 fonts glob。**第三批**：两处超时文案统一为「加载超时，可能是网络不稳定或刚刚更新了版本」（index.html 12s / App.vue 10s，注释互引）；`<Footer v-if="bootReady && !route.meta?.hideFooter">` 防御；perf 探针补 try/finally 并把「首屏可交互」拆成 Vue挂载/主体首帧/骨架可见时长三个不混淆的指标；根目录两份审计 HTML 迁入 output/；80 个探针归档 scripts/probes/。
-- 性能口径：probe-boot-perf 的「首屏可交互」实测是 **Vue mount 时刻**（判据=导航栏出现），与骨架无关；FCP 116→56ms 是骨架内联提前画的必然，不能解读为加载更快。
-- 回归探针（都在 scripts/probes/）：probe-blank-screen-diagnosis.mjs（A正常/B延迟/C404/D壳404）、probe-verify-boot-changes.mjs（V1 暗色首帧 / V2 慢懒加载布局 / V3 暗色慢启动）、probe-boot-perf.mjs（FCP / Vue挂载 / 主体首帧 / 骨架可见时长四分指标，需 dist+dist-check 两份产物，带 try/finally）。
-- **首屏门禁（build:ci）**：`check:first-paint`（骨架 7 组色值 === tokens.css / dark-mode.css 对应 token、骨架 `<style>` 位置早于 `</head>` 与任何样式表、index.html 内联 VALID_THEMES === theme-manager.js）+ `check:shell-precache`（壳依赖 ⊆ 预缓存）。两者都做过反证测试（改错色值 / 删主题 / 删预缓存条目都会红）。**改 index.html 骨架或 manualChunks 后必须跑这两个。**
-- 发布形态：dist 顶层 404.html、CNAME、_headers、version.json + index.html meta boh-version/boh-build-id（bohVersionPlugin 注入，version-checker 比对 buildId）。
+- **壳 = 入口 app-*.js 的 9 个静态 import**（app/vue-vendor/vue-utils-vendor/ui-icons/ui-components/supabase-vendor/state-vendor/auth-store/ui-sanitize），懒加载 131。sw.js 预缓存手写名单，`check:shell-precache` 反推断言。
+- 白屏机理：ui-components 在预缓存内秒出 → 「导航栏+白屏」窗口；发新版后旧 hash 404 不自愈。probe-boot-perf 的「首屏可交互」= **Vue mount 时刻**，不是 FCP。
+- 改 index.html 骨架 / manualChunks 必跑 `check:first-paint`（骨架色值 === tokens.css、骨架 style 早于样式表、内联 VALID_THEMES === theme-manager.js）。
 
 ## 数据层 / 订阅
-- 类型筛选下推服务端；getPosts 走 LIST_DATA TTL 缓存，切 tab 零请求非 bug。db push 必须 --yes；迁移先 dry-run；孤儿行 migration repair --status reverted；迁移编号 YYYYMMDDNN。
-- 订阅 P0 已修（2026091001）：价格/时长/试用服务端权威化。遗留：权益四处分裂（订阅页硬编码/ai_quota_config/boh_cloud_image_limit_for_user/useLabQuota）；record_lab_usage 只 insert 不校验；周签到 5 分≈21.7/月 ≥ Pro 月费 20；无降档/自动续费。AI Token 配额是唯一真闸。
-- ai_quota_config 线上已手工对齐页面（20/80/200/500/1000 万）→ Plus=Pro=10 万/积分。bohai_model_configs 仅 5 模式（fast/Ultra/Air/Code/agent-cluster）。「邀请好友注册」全仓无实现。
-- 定价口径：以积分为展示单位，不强调 1 积分=1 元。钩子：Agent 重上线恢复宣传；Coding 附加包上架=价格表加种子。
+- 类型筛选下推服务端；getPosts 走 LIST_DATA TTL 缓存，切 tab 零请求非 bug。迁移 YYYYMMDDNN，先 dry-run，push 必 --yes。
+- 订阅 P0 已修（价格/时长/试用服务端权威化）。遗留：权益四处分裂；周签到 5 分 ≈ 21.7/月 ≥ Pro 月费 20；无降档/自动续费。AI Token 配额是唯一真闸。定价以积分为展示单位。
 
 ## UserSpace / 论坛 / 消息
-- 论坛入口=/user-space?tab=community；内容 tab=SegmentTabs 六档（按钮 role="tab"，须 getByRole('tab',{name})）；externalFeed 握手 → ForumMain watcher 单次同步。恒 Beta 6 单轨。
-- 消息中心真实入口=UserSpace messages tab 的 AsyncMessages，非 ForumMain 的 NotificationDrawer（死 UI）。NotificationSuggestIsland 调度在 UserSpaceMain，须 ensureNotificationStore()。回归 probe-notification-suggest-island.mjs。
-- `Messages` 的 `showFeedback` 是「优先灵动岛」包装：先 `showIsland.notify()`（导航栏**状态卡**），`.message-feedback-toast`（右下角）只是 navbar 不可用时的降级通路 → 断言"某提示没出现"必须打在 `boh_global_nav_status` 事件上，查 toast DOM 会空跑。宿主调组件内闭环 API 时传 `{ silent: true }` 让成功反馈只归岛，避免同 surface 两张卡（0914 已修 markAllAsRead）。
-- useIsland「同一时刻 surface 只展示一张卡」**不含自定义岛**：`statusCardItem`/`handleGlobalNavStatus`/`flushNavStatusQueue` 只让位于 AI 岛与任务岛；自定义岛与 notify 状态卡**合法并存**（Lab 常驻配额岛 + showLabIsland 反馈依赖它），别去"补全仲裁"。
-- 论坛多图：strip+分段指示器；全量图唯一入口 ensureForumPostFullImages（in-flight 去重）；shallowRef 元素改字段须整体替换+triggerRef；官方卡按 source_type+source_id 回源。
-- 头像框：单源 useAvatarFrame.js AVATAR_FRAMES，素材 1223×1223 PNG≤400KB。新框流程：中心内切圆测量（white-cat 66.8% 基准）→散点构图勿机械 1/内孔→1223 缩放→清单注册→probe-avatar-frame-new.mjs。仓鼠白底须 flood fill 抠。暗色验收垫暗底截图；坐标以像素扫描为准。脚本写文件核对 OUT≠SRC，处理用户素材先留副本。
-- 装扮路径 /#/user-space?tab=assets→现注 pinia→点「装扮」tab（无 URL 直达）。
+- `.tab-page` = `absolute; left:0; width:100%; height:100%` 靠 z-index 叠放 → **改宽/改位只覆盖 left/width**，别动 flex/grid/滚动链。顶隙 `--userspace-nav-h`（58 / 展开 130+）。左栏类改造用 absolute 而非 fixed（躲祖先 transform/backdrop-filter 改写包含块）。
+- 范围口径：「我的方块」= `UnifiedNavbar/index.vue:116` → `/user-space` = `UserSpaceMain.vue`；**他人空间 = `/profile/:username` = `views/Profile/ProfileMain.vue`**（两套平行视图，ProfileHomePanel 只属于前者；路由 `community.ts:88` 无 requiresAuth → 匿名可访问）。看**组件**不看 URL 前缀。
+- **跨宿主复用组件的检查清单**：① **同名 CSS 变量在不同宿主作用域里可能是不同类型的值**（`--shadow-sm` 在 user-space 是完整 shadow、`profile/style.scoped.css` 里只是 rgba 颜色 → `box-shadow: var(--shadow-sm)` 静默失效），跨页复用只取全局单一源 `--liquid-*`；② 暗色覆写别写死某个宿主 class，用 `html[data-theme="dark"]`（祖先选择器不带 scope 属性，不会跨组件失配）；③ 组件根加 `width:100%; min-width:0`，否则作为 flex/grid 子项时内部横向滚动区会把整页撑宽。
+- **横屏左栏（0915 落地）**：`UserSpaceSideRail.vue` + `side-rail.css` + `styles/landscape-rail.css`，UserSpaceMain 只加 1 组件 + 1 行 css。判据 `(orientation:landscape) and (min-width:1024px) and (min-height:600px)`（1024 天然排除全部手机横屏 ≤932）。宽度 88 / 240。10 项：主导航 5 + 便捷 2（发布/搜索）+ 工具 3（主题/首页/退出，退出仅登录态）；统一 `emit('action', id)` → `handleRailAction`。内层 `.userspace-rail-scroll` 承担滚动（玻璃层自己不滚）。
+- 分栏三陷阱：① 右区左边缘 = 左栏右边缘，embedded 论坛 `.forum-container` 与 `.x-notifications-container.minimal-mode` 左右 padding 都是 0 → 用 `--userspace-content-gutter` 补；② 内部二次分栏改「压窄侧栏」；③ `.forum-container` 的 `100vw` 分栏后失真，域内改 `%`。
+- 改横屏断点必须同步 3 处探针（probe-user-space-ia 横屏切 tab + 桌面居中以 `innerWidth/2` 为基准、probe-user-space-perf:99 clickNav×5）→ 用**双通道选择器**避免 if 分叉。
+- **发布（右区全屏编辑器）**：复用 `ForumMain.openMobileComposer()`（横屏 FAB 恒不可见，overlay 只看 `isMobileComposerOpen` 不看 mode）。`defineExpose` 有 **TDZ 坑** → 后段函数须箭头包装。**ForumMain 只在社区 tab 挂载** → 先 `switchTab('community')` 再轮询 `forumViewRef`。overlay 被 `<Teleport to="body">` → 收右区必须用 **body 级选择器 + body 级变量**。
+- **profile-\*.css 按需动态加载**（`preloadProfileStyles()`；仅初始 tab ∈ {posts,assets,settings} 预载）。**任何能在社区 tab 触发、却依赖 profile-*.css 的新入口必须先 `await preloadProfileStyles()`**，否则 UI 裸奔（实例：ThemeModal 的 `.modal-overlay` 退化成 static）。
+- **AI 岛会撑大导航实测高度**：`.unified-nav-surface.has-bohai-island` 高度 = 胶囊 + min(50vh,520px) + 12 → `--userspace-nav-h` 暴涨（页签/消息避让照常跟随）。左栏顶隙单独走 `--userspace-rail-top-h`（UserSpaceMain 在 `isAiIslandOpen` 期间冻结、收场 600ms 定时器后恢复写入；side-rail.css 消费）——AI 岛是浮层，左栏不让位。SegmentTabs 的避让是自身 padding-top，测几何要量 `.segment-tab` 而非容器。
+- 论坛入口 /user-space?tab=community。消息中心真实入口 = UserSpace messages tab 的 AsyncMessages（ForumMain 的 NotificationDrawer 是死 UI）；NotificationSuggestIsland 调度在 UserSpaceMain，须 ensureNotificationStore()。`Messages.showFeedback` 是「优先灵动岛」包装 → 断言提示要走 `boh_global_nav_status` 事件。useIsland「同一时刻只一张卡」不含自定义岛。
+- **论坛工具栏 hero（0915 落地）**：横屏 ≥993 = 大玻璃容器（输入区上 + 底栏 [签到][问BOHAI] 左 / 圆搜索钮右），移动端原结构不变 —— 双 DOM 块（`.toolbar-hero-bar` vs `.toolbar-mobile-row`+`.toolbar-search-actions`）CSS 互斥切换；AI 状态/提示是 toolbar 直系子级（横屏挂工具栏下方）。周年皮肤有守卫块恢复行内形态。**输入区透明裸坐容器上（容器即输入框，focus-within 落描边），文字左对齐；hero 白底胶囊按钮用户明确满意保留**。
+- **GlassPillButton（0915 封装）**：`src/components/ui/GlassPillButton.vue` = 白底玻璃胶囊通用按钮（`tone: light/soft`，class 透传承载业务态，`--liquid-inner-highlight` 带 fallback 可跨页用）。论坛 hero 签到/问BOHAI 已接；新页面要同款胶囊直接用它，别再复制样式。
+- **#标签筛选语法**：搜索框输 `#服务器/#question` = 标签筛选；`deriveTagFilterFromInput` 返回 null(无#不干预)/''(未匹配清除)/value；无#记号时**不重置**筛选（防打字清掉下拉/点选的选择）。解析单一源 `applySearchFromInput`（提交/回车/防抖共用），chip × 与下拉选择先 strip 输入记号。
+- **问BOHAI 链路**：`askBohai()` = getPosts 查相关帖(5条,hottest) → 拼 prompt → `showIsland.ai({ prompt, mode: 'fast' })` → 顶部 AI 岛自动发送回复；检索不耗额度、岛内回复耗用户额度。**AI 岛 mode 透传**：overlay `pendingMode`/`consumePendingMode()` → BOHAIIsland 消费后调 `bohaiMainRef.applySeedMode(mode)`（=selectMode 静默版，expose 自 BOHAIMain）。旧 BOHAI 搜索开关流（runAiSearch/isAiSearchEnabled）已删。
 
-## 导出预览
-- user-data-export 内嵌 previewHtml=liquid-glass-v2；改模板必跑 probe-export-v2-harness.mjs；大块改动用锚点拼接，拼完查游离反引号/${。
-
-## 死代码清理（细则见用户级技能 dead-code-safe-cleanup）
-- 待清：glass-ui 76%、animations 89%、section__header 74% 死类；tailwind 引擎 0 使用但 preflight 生效；data-boh-theme 91 处；--apple-* 38/59 死。SCSS 编译 css 是 CRLF。
-- 口径三套并存（1133/932/1493）待统一为单一脚本单一产物。工具：**用户级技能**里的 `~/.workbuddy/skills/dead-code-safe-cleanup/scripts/dead-code-audit.mjs`（6 维度只读报告；项目内 scripts/ 下并没有这个文件，别再找错）；它的语料排除按目录**前缀**匹配（tests/scripts/probe/tools/sso/api）。
-- **审计语料必须排除生成产物**（stats.html、*-audit/report/results.json、上一次的 *-report.html/*-plan.html）与设计稿套件（Apple/Claude/Google/Golden Time Style）。**报告一律写 output/ 或仓库外**（0914 已把根目录 6 份分析报告迁入 output/：dead-code-cleanup-plan / github-component-scout-report / dark-mode-audit-report / style-remnant-audit-report / subscription-strategy-review / user-space-perf-audit-report；根目录现在只剩入口 index.html、12 个 demo 资产与已忽略的 stats.html）。`dead-code-audit.mjs` 默认不落盘、需显式 `--out`；`style-remnant-audit.mjs` 仍硬编码把 json 写到仓库根（待改）。
-- 删除判据：选择器是 AND（some 即可删）；`:is()/:where()` 是 OR（须展开组合）；`:not()` 内容剔除。只删高置信死类。强耦合必查 important-budget.json、check-project-structure.mjs、以源码文本断言的单测。删完 find src -type d -empty。
+## 死代码清理
+- 细则见用户级技能 `dead-code-safe-cleanup`（脚本在 `~/.workbuddy/skills/`）。选择器：AND 型 some 即可删；`:is()/:where()` 是 OR 须展开；`:not()` 内容剔除。删前查 important-budget.json；报告写 output/ 或仓库外。
+- **同选择器多份定义 = 死规则温床**：改样式前先搜同选择器，用探针读 computedStyle 确认真生效的那条。

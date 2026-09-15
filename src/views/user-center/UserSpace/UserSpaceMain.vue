@@ -58,6 +58,7 @@
             :avatar-url="avatarUrl" :profile-background-url="profileBackgroundUrl"
             :profile-cover-style="profileCoverStyle" :is-uploading-profile-background="isUploadingProfileBackground"
             :stats="userStats" :is-stats-loading="dataState.stats.loading" :cloud-plus-usage-text="cloudPlusUsageText"
+            :heatmap="activityHeatmap" :is-heatmap-loading="dataState.heatmap.loading"
             :cloud-plus-usage-meter-style="cloudPlusUsageMeterStyle"
             :subscription-summary-text="subscriptionSummaryText"
             :is-content-loading="dataState.profile.loading"
@@ -192,6 +193,15 @@
       </div>
     </div>
 
+    <!-- 横屏左栏（电脑 + 平板横屏）：主导航与底栏共用同一份 navItems / 点击处理，
+         便捷与工具区统一走 handleRailAction 分发到已有 handler。
+         可见性由 side-rail.css 的媒体查询决定，竖屏 / 手机横屏下不渲染 -->
+    <UserSpaceSideRail :nav-items="navItems" :current-tab="currentTab"
+      :has-unread-messages="hasUnreadMessages" :unread-count="unreadCount"
+      :current-theme="currentTheme" :is-logged-in="isLoggedIn"
+      @preload-tab="preloadUserSpaceTab" @nav-click="handleBottomNavClick"
+      @action="handleRailAction" />
+
     <UserSpaceBottomNav :visible="!(currentTab === 'settings' && settingsSection === 'edit-profile')"
       :hidden="isBottomNavHidden" :ai-overlay-open="isAiOverlayOpen"
       :nav-items="navItems" :current-tab="currentTab" :nav-indicator-style="bottomNavIndicatorStyle"
@@ -237,6 +247,7 @@ import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { useEdgeSwipeGesture } from '@/composables/useEdgeSwipeGesture';
 import { useDebounce } from '@/composables/useDebounceThrottle';
 import UserSpaceBottomNav from './components/UserSpaceBottomNav.vue';
+import UserSpaceSideRail from './components/UserSpaceSideRail.vue';
 import SegmentTabs from './components/SegmentTabs.vue';
 const ProfileHomePanel = defineAsyncComponent(() => import('./components/ProfileHomePanel.vue'));
 const AvatarCropModal = defineAsyncComponent(() => import('@/components/AvatarCropModal.vue'));
@@ -328,7 +339,10 @@ const USERSPACE_CACHE_TTL = markRaw({
   cloudUsage: 60 * 1000,
   pushplus: 60 * 1000,
   profilePosts: 60 * 1000,
-  impressions: 60 * 1000
+  impressions: 60 * 1000,
+  // 热力图跨一年 371 天，服务端要扫 posts + comments 两张表；变化频率远低于
+  // 计数类数据，独立放宽到 5 分钟，避免每次进「内容」tab 都重算一次全窗口聚合。
+  heatmap: 5 * 60 * 1000
 });
 const userSpaceMemoryCache = createMemoryTtlCache();
 const getUserSpaceCache = (key, ttlMs) => userSpaceMemoryCache.get(key, ttlMs);
@@ -340,7 +354,8 @@ const dataState = reactive({
   cloud: { loading: false, error: null },
   pushplus: { loading: false, error: null },
   profile: { loading: false, error: null },
-  impressions: { loading: false, error: null }
+  impressions: { loading: false, error: null },
+  heatmap: { loading: false, error: null }
 });
 
 // ✅ 性能优化：添加 AbortController 管理，支持请求取消
@@ -363,7 +378,8 @@ const lastFetchTime = reactive({
   cloudUsage: 0,
   pushplus: 0,
   profilePosts: 0,
-  impressions: 0
+  impressions: 0,
+  heatmap: 0
 });
 
 // ✅ 性能优化：使用 shallowRef 优化非关键大数据
@@ -395,7 +411,9 @@ const navItems = [
   { id: 'messages', label: '消息', icon: MessageCircle },
   { id: 'settings', label: '设置', icon: Settings }
 ];
-const { isOpen: isAiOverlayOpen, open: openGlobalAi, close: closeGlobalAi } = useGlobalAiOverlay();
+const { isOpen: isAiOverlayOpen, canOpen: isAiOverlayAllowed, open: openGlobalAi, close: closeGlobalAi } = useGlobalAiOverlay();
+// 与 UnifiedNavbar 的 has-bohai-island 同源判定：岛展开时容器实测高度会被面板撑大
+const isAiIslandOpen = computed(() => isAiOverlayOpen.value && isAiOverlayAllowed.value);
 
 // 边缘滑动手势检测：从右侧边缘向左滑动唤起AI
 const { isSwiping: isEdgeSwiping, edgeIndicatorVisible } = useEdgeSwipeGesture({
@@ -1145,6 +1163,66 @@ const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
   } finally {
     if (fetchToken === latestUserStatsFetchToken) {
       dataState.stats.loading = false;
+    }
+  }
+};
+
+/**
+ * 活跃热力图 —— 服务端算，前端只负责铺格子。
+ *
+ * 为什么必须走 RPC（supabase/migrations/2026091501_user_activity_heatmap.sql）：
+ * PostgREST 表达不了「按自然日分组」的聚合，前端拉全量 posts/comments 自己 group by
+ * 则要付出全表扫描 + 全量传输的代价。RPC 按 Asia/Shanghai 分桶，一次往返即可。
+ *
+ * 注意这里没有用 createAbortController：supabase-js 的 rpc() 不透传 signal，
+ * 所以并发竞争一律靠 fetchToken 判定（与 fetchUserStats 同构）。
+ */
+const HEATMAP_WINDOW_DAYS = 371; // 53 周 + 当天，与 GitHub 口径一致
+const activityHeatmap = shallowRef(null);
+let latestHeatmapFetchToken = 0;
+
+const fetchActivityHeatmap = async ({ force = false } = {}) => {
+  const userId = String(userInfo.value.id || '').trim();
+  if (!isLoggedIn.value || !userId) return;
+
+  const cacheKey = `heatmap:${userId}:${HEATMAP_WINDOW_DAYS}`;
+  if (!force) {
+    const cached = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.heatmap);
+    if (cached) {
+      activityHeatmap.value = cached;
+      dataState.heatmap.loading = false;
+      return;
+    }
+    if (Date.now() - lastFetchTime.heatmap < 5000) return;
+  }
+
+  const fetchToken = ++latestHeatmapFetchToken;
+  const now = Date.now();
+  dataState.heatmap.loading = true;
+
+  try {
+    const { data, error } = await supabase.rpc('get_user_activity_heatmap', {
+      p_user_id: userId,
+      p_days: HEATMAP_WINDOW_DAYS
+    });
+    if (fetchToken !== latestHeatmapFetchToken) return;
+    if (error) throw error;
+
+    const payload = data && typeof data === 'object' ? data : null;
+    activityHeatmap.value = payload;
+    if (payload) setUserSpaceCache(cacheKey, payload);
+    lastFetchTime.heatmap = now;
+    dataState.heatmap.error = null;
+  } catch (error) {
+    logger.warn('user-space', '活跃热力图加载失败:', error);
+    if (fetchToken === latestHeatmapFetchToken) {
+      dataState.heatmap.error = error;
+      // RPC 缺失（迁移未上线）时保持 null，ActivityHeatmap 会退化为空态，不会白屏
+      activityHeatmap.value = null;
+    }
+  } finally {
+    if (fetchToken === latestHeatmapFetchToken) {
+      dataState.heatmap.loading = false;
     }
   }
 };
@@ -1970,7 +2048,7 @@ const syncUserSpaceTabRoute = (tabId) => {
 
 const handleBottomNavClick = (tabId) => {
   closeGlobalAi();
-  switchTab(tabId);
+  void dismissComposerSession().then(() => switchTab(tabId));
 };
 
 const switchTab = (tabId) => {
@@ -2021,6 +2099,65 @@ const goToProfile = (usernameVal) => {
 const handleLogout = () => {
   authStore.logout();
   router.push('/');
+};
+
+/* ---------- 横屏左栏动作分发（2026-09-15） ----------
+   发布 / 搜索落在社区 tab 的 ForumMain 上，而它只在社区 tab 挂载
+   （模板 v-if="currentTab === 'community' || leavingTab === 'community'"）：
+   先切回社区，再等 forumViewRef 就绪后调用 ForumMain 通过 defineExpose 暴露的方法。
+   其余动作全部复用已有 handler，不新增业务分支。 */
+const waitForForumView = async (methodName, timeoutMs = 4000) => {
+  if (currentTab.value !== 'community') switchTab('community');
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const view = forumViewRef.value;
+    if (view && typeof view[methodName] === 'function') return view;
+    await new Promise((resolve) => window.setTimeout(resolve, 60));
+  }
+  return null;
+};
+
+/* 发布会话（.mobile-composer-overlay）在横屏下只覆盖右区、且被 Teleport 到 body，
+   切 tab 不会自动收起它，会一直盖住新页面 → 任何导航动作前先请求关闭。
+   无改动内容时直接关；有内容时由论坛弹「保存草稿」确认，用户选完再继续。 */
+const dismissComposerSession = async () => {
+  const view = forumViewRef.value;
+  if (view && typeof view.closeComposer === 'function') {
+    await view.closeComposer();
+  }
+  // 社区 tab 未挂载时（ForumMain 不在 DOM）样式层不会有残留
+};
+
+const handleRailAction = async (actionId) => {
+  // 「发布」本身就是打开这个会话，其余动作都先收掉它
+  if (actionId !== 'compose') await dismissComposerSession();
+  switch (actionId) {
+    case 'compose': {
+      const view = await waitForForumView('openComposer');
+      view?.openComposer();
+      break;
+    }
+    case 'search': {
+      const view = await waitForForumView('focusSearch');
+      view?.focusSearch();
+      break;
+    }
+    case 'theme':
+      // 主题弹窗的 .modal-overlay / .modal-card 样式来自 profile-panels.css，
+      // 而它是按需动态加载的（初始 tab 为 posts/assets/settings 才预载）。
+      // 左栏按钮能在社区 tab 直接点开弹窗 → 先确保样式就绪，否则弹窗会裸奔
+      await preloadProfileStyles();
+      openThemeModal();
+      break;
+    case 'home':
+      router.push('/');
+      break;
+    case 'logout':
+      handleLogout();
+      break;
+    default:
+      break;
+  }
 };
 
 const toggleHideOnlineStatus = async () => {
@@ -2612,6 +2749,7 @@ const runProfileCriticalFetches = ({ force = false } = {}) => {
   void fetchUserStats({ force });
   void fetchCloudPlusUsage({ force });
   void fetchProfileContent({ force, reset: force });
+  void fetchActivityHeatmap({ force });
 };
 
 const scheduleUserSpaceWarmup = ({ force = false } = {}) => {
@@ -2660,7 +2798,11 @@ watch(
       } else {
         clearUserSpaceWarmup();
         latestUserStatsFetchToken += 1;
+        latestHeatmapFetchToken += 1;
         dataState.stats.loading = false;
+        dataState.heatmap.loading = false;
+        activityHeatmap.value = null;
+        dataState.heatmap.error = null;
         resetUserStats();
         pushplusStatus.loaded = false;
         pushplusStatus.hasToken = false;
@@ -2700,8 +2842,13 @@ watch(
 
 /* ---------- 导航岛实测高度 → --userspace-nav-h ----------
    SegmentTabs 顶部避让消费该变量（Newsroom --nav-h 先例）。
-   岛含状态卡时高度会变（78↔130+），静态 inset 必然一头空一头盖。 */
+   岛含状态卡时高度会变（78↔130+），静态 inset 必然一头空一头盖。
+   左栏另有 --userspace-rail-top-h：只避让导航胶囊本体。AI 岛展开面板是
+   surface 内的浮层、不与左侧栏重叠，展开期间顶隙冻结在展开前高度，
+   收场等 surface 500ms 高度过渡走完再恢复跟随（避免回落中间值写进去）。 */
 let navIslandResizeObserver = null;
+let railNavSyncHeld = false;
+let railNavSyncTimer = null;
 
 const syncUserspaceNavHeight = () => {
   const root = pageRootRef.value;
@@ -2710,7 +2857,28 @@ const syncUserspaceNavHeight = () => {
   if (!island) return;
   const h = Math.ceil(island.getBoundingClientRect().height);
   if (h > 0) root.style.setProperty('--userspace-nav-h', `${h}px`);
+  if (railNavSyncHeld) return;
+  if (h > 0) root.style.setProperty('--userspace-rail-top-h', `${h}px`);
 };
+
+watch(
+  isAiIslandOpen,
+  (open) => {
+    if (open) {
+      railNavSyncHeld = true;
+      return;
+    }
+    if (!railNavSyncHeld) return;
+    if (railNavSyncTimer) clearTimeout(railNavSyncTimer);
+    railNavSyncTimer = setTimeout(() => {
+      railNavSyncTimer = null;
+      if (isAiIslandOpen.value) return;
+      railNavSyncHeld = false;
+      syncUserspaceNavHeight();
+    }, 600);
+  },
+  { immediate: true }
+);
 
 onMounted(() => {
   void nextTick(syncUserspaceNavHeight);
@@ -2843,6 +3011,10 @@ onUnmounted(() => {
     navIslandResizeObserver.disconnect();
     navIslandResizeObserver = null;
   }
+  if (railNavSyncTimer) {
+    clearTimeout(railNavSyncTimer);
+    railNavSyncTimer = null;
+  }
   // ✅ 性能优化：取消所有未完成的请求
   cleanupAbortControllers();
   latestUserStatsFetchToken += 1;
@@ -2962,6 +3134,8 @@ watch(unreadCount, (count) => {
 </script>
 
 <style src="./styles/shell-community.css"></style>
+
+<style src="./styles/landscape-rail.css"></style>
 
 <style scoped>
 .hidden-file-input {

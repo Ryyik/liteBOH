@@ -96,7 +96,11 @@ const summarize = (label, reqs, extra = {}) => {
   return { label, count: reqs.length, byKind, detail: Object.fromEntries(Object.entries(detail).sort((a, b) => b[1] - a[1]).slice(0, 45)), ...extra };
 };
 const settle = (ms) => page.waitForTimeout(ms);
-const clickNav = async (label) => page.locator('.bottom-nav-glass .nav-item', { hasText: label }).first().click();
+// 双通道：≥1024 横屏（本探针 1280×900）走左侧栏，其余走底部胶囊 → 两种形态都能点
+const clickNav = async (label) => page
+  .locator('.userspace-rail-item:visible, .bottom-nav-glass .nav-item:visible', { hasText: label })
+  .first()
+  .click();
 const clickSegment = async (host, label) => page.locator(`${host} .segment-tab`, { hasText: label }).first().click();
 const countReqs = (reqs, fn) => reqs.filter(fn).length;
 

@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { CalendarDays, ChevronDown, Search } from 'lucide-vue-next';
+import { CalendarDays, ChevronDown, Search, Sparkles, X } from 'lucide-vue-next';
 import { FORUM_TAG_OPTIONS } from '../forum-config.js';
+import GlassPillButton from '@/components/ui/GlassPillButton.vue';
 
 const props = defineProps({
   searchQuery: { type: String, default: '' },
@@ -9,7 +10,6 @@ const props = defineProps({
   hasSignedThisWeek: { type: Boolean, default: false },
   sortMode: { type: String, default: 'latest' },
   selectedTagFilter: { type: String, default: '' },
-  isAiSearchEnabled: { type: Boolean, default: false },
   isAiSearchLoading: { type: Boolean, default: false },
   aiSearchHint: { type: String, default: '' }
 });
@@ -17,7 +17,8 @@ const props = defineProps({
 const emit = defineEmits([
   'update:searchQuery',
   'searchSubmit',
-  'toggleAiSearch',
+  'askBohai',
+  'clearTagFilter',
   'openWeeklyCheckin',
   'setSortMode',
   'setTagFilter'
@@ -31,6 +32,11 @@ const filterSummaryText = computed(() => {
   const tagOption = FORUM_TAG_OPTIONS.find(t => t.value === props.selectedTagFilter);
   const tagLabel = tagOption ? tagOption.label : '全部标签';
   return `${sortLabel} · ${tagLabel}`;
+});
+
+const activeTagLabel = computed(() => {
+  const option = FORUM_TAG_OPTIONS.find(t => t.value === props.selectedTagFilter);
+  return option ? option.label : `#${props.selectedTagFilter}`;
 });
 
 const toggleFilter = () => {
@@ -63,9 +69,13 @@ const onSearchSubmit = () => {
   emit('searchSubmit');
 };
 
-const onToggleAiSearch = () => {
+const onAskBohai = () => {
   if (props.isAiSearchLoading) return;
-  emit('toggleAiSearch');
+  emit('askBohai');
+};
+
+const onClearTagFilter = () => {
+  emit('clearTagFilter');
 };
 
 const onOpenWeeklyCheckin = () => {
@@ -90,96 +100,138 @@ const onSetTagFilter = (tag) => {
       <input
         type="text"
         class="toolbar-search-input"
-        placeholder="搜索帖子、内容或作者..."
+        :class="{ 'with-tag-chip': selectedTagFilter }"
+        placeholder="搜索帖子、作者，或输入 #标签 筛选..."
         :value="searchQuery"
         @input="onSearchInput"
         @keyup.enter="onSearchSubmit"
       />
+      <!-- 横屏：已激活的标签筛选 chip（点 × 清除；移动端隐藏，走筛选下拉） -->
+      <button
+        v-if="selectedTagFilter"
+        type="button"
+        class="toolbar-tag-chip"
+        :title="`清除标签筛选 ${activeTagLabel}`"
+        @click="onClearTagFilter"
+      >
+        <span class="tag-chip-label">{{ activeTagLabel }}</span>
+        <X :size="12" :stroke-width="2.4" class="tag-chip-clear" aria-hidden="true" />
+      </button>
+
+      <!-- 移动端：输入框内右侧操作（问BOHAI + 搜索）；横屏隐藏 -->
       <div class="toolbar-search-actions">
         <button
           type="button"
           class="toolbar-ai-btn"
-          :class="{ active: isAiSearchEnabled }"
           :disabled="isAiSearchLoading"
-          :aria-pressed="isAiSearchEnabled"
-          :title="isAiSearchEnabled ? '关闭 BOHAI 搜索' : '开启 BOHAI 搜索'"
-          @click="onToggleAiSearch"
+          title="BOHAI 检索论坛内容，并在顶部 AI 岛回答（消耗 AI 额度，Fast 模型）"
+          @click="onAskBohai"
         >
-          <span class="ai-label">BOHAI</span>
-          <span class="ai-switch-dot" aria-hidden="true"></span>
+          <span class="ai-label">问 BOHAI</span>
         </button>
-        <button type="button" class="toolbar-search-btn" @click="onSearchSubmit">
+        <button type="button" class="toolbar-search-btn" aria-label="搜索" @click="onSearchSubmit">
           <Search :size="18" :stroke-width="2.2" />
         </button>
       </div>
-      <Transition name="toolbar-ai-status">
-        <div v-if="isAiSearchLoading" class="toolbar-ai-status" aria-live="polite">
-          <span class="toolbar-ai-spinner" aria-hidden="true"></span>
-          <span class="toolbar-ai-loading-text">BOHAI 搜索中</span>
-        </div>
-      </Transition>
-      <div v-if="aiSearchHint && !isAiSearchLoading" class="toolbar-ai-hint">{{ aiSearchHint }}</div>
     </div>
 
-    <button
-      v-if="isLoggedIn"
-      type="button"
-      class="toolbar-checkin-btn"
-      :class="{ 'is-done': hasSignedThisWeek }"
-      @click="onOpenWeeklyCheckin"
-    >
-      <CalendarDays :size="18" :stroke-width="1.9" aria-hidden="true" />
-      <span>{{ hasSignedThisWeek ? '本周已签' : '签到' }}</span>
-    </button>
+    <!-- AI 状态 / 提示：挂在工具栏层（横屏时显示在整个工具栏下方） -->
+    <Transition name="toolbar-ai-status">
+      <div v-if="isAiSearchLoading" class="toolbar-ai-status" aria-live="polite">
+        <span class="toolbar-ai-spinner" aria-hidden="true"></span>
+        <span class="toolbar-ai-loading-text">BOHAI 检索中</span>
+      </div>
+    </Transition>
+    <div v-if="aiSearchHint && !isAiSearchLoading" class="toolbar-ai-hint">{{ aiSearchHint }}</div>
 
-    <div ref="filterRef" class="toolbar-filter-wrapper">
-      <button
-        type="button"
-        class="toolbar-filter-btn"
-        :class="{ open: isFilterOpen }"
-        @click="toggleFilter"
-      >
-        <span class="toolbar-filter-text">{{ filterSummaryText }}</span>
-        <ChevronDown :size="16" :stroke-width="2.2" class="toolbar-filter-chevron" />
+    <!-- 横屏 hero 底栏：签到 + 问BOHAI 在左，圆形搜索在右（移动端隐藏） -->
+    <div class="toolbar-hero-bar">
+      <div class="toolbar-hero-left">
+        <GlassPillButton
+          v-if="isLoggedIn"
+          class="toolbar-hero-pill"
+          :class="{ 'is-done': hasSignedThisWeek }"
+          @click="onOpenWeeklyCheckin"
+        >
+          <CalendarDays :size="17" :stroke-width="1.9" aria-hidden="true" />
+          <span>{{ hasSignedThisWeek ? '本周已签' : '签到' }}</span>
+        </GlassPillButton>
+        <GlassPillButton
+          class="toolbar-hero-pill"
+          tone="soft"
+          :disabled="isAiSearchLoading"
+          title="BOHAI 检索论坛内容，并在顶部 AI 岛回答（消耗 AI 额度，Fast 模型）"
+          @click="onAskBohai"
+        >
+          <Sparkles :size="16" :stroke-width="2" aria-hidden="true" />
+          <span>问 BOHAI</span>
+        </GlassPillButton>
+      </div>
+      <button type="button" class="toolbar-hero-search-btn" aria-label="搜索" @click="onSearchSubmit">
+        <Search :size="19" :stroke-width="2.3" />
       </button>
+    </div>
 
-      <Transition name="toolbar-filter-drop">
-        <div v-if="isFilterOpen" class="toolbar-filter-dropdown">
-          <div class="filter-dropdown-section">
-            <div class="filter-dropdown-label">排序方式</div>
-            <div class="filter-sort-row">
-              <button
-                class="filter-sort-btn"
-                :class="{ active: sortMode === 'latest' }"
-                @click="onSetSortMode('latest')"
-              >最新</button>
-              <button
-                class="filter-sort-btn"
-                :class="{ active: sortMode === 'hottest' }"
-                @click="onSetSortMode('hottest')"
-              >最热</button>
+    <!-- 移动端第二行：签到 + 筛选下拉；横屏隐藏 -->
+    <div class="toolbar-mobile-row">
+      <GlassPillButton
+        v-if="isLoggedIn"
+        class="toolbar-checkin-btn"
+        :class="{ 'is-done': hasSignedThisWeek }"
+        @click="onOpenWeeklyCheckin"
+      >
+        <CalendarDays :size="18" :stroke-width="1.9" aria-hidden="true" />
+        <span>{{ hasSignedThisWeek ? '本周已签' : '签到' }}</span>
+      </GlassPillButton>
+
+      <div ref="filterRef" class="toolbar-filter-wrapper">
+        <GlassPillButton
+          class="toolbar-filter-btn"
+          :class="{ open: isFilterOpen }"
+          @click="toggleFilter"
+        >
+          <span class="toolbar-filter-text">{{ filterSummaryText }}</span>
+          <ChevronDown :size="16" :stroke-width="2.2" class="toolbar-filter-chevron" />
+        </GlassPillButton>
+
+        <Transition name="toolbar-filter-drop">
+          <div v-if="isFilterOpen" class="toolbar-filter-dropdown">
+            <div class="filter-dropdown-section">
+              <div class="filter-dropdown-label">排序方式</div>
+              <div class="filter-sort-row">
+                <button
+                  class="filter-sort-btn"
+                  :class="{ active: sortMode === 'latest' }"
+                  @click="onSetSortMode('latest')"
+                >最新</button>
+                <button
+                  class="filter-sort-btn"
+                  :class="{ active: sortMode === 'hottest' }"
+                  @click="onSetSortMode('hottest')"
+                >最热</button>
+              </div>
+            </div>
+            <div class="filter-dropdown-divider"></div>
+            <div class="filter-dropdown-section">
+              <div class="filter-dropdown-label">标签筛选</div>
+              <div class="filter-tag-row">
+                <button
+                  class="filter-tag-btn"
+                  :class="{ active: selectedTagFilter === '' }"
+                  @click="onSetTagFilter('')"
+                >全部标签</button>
+                <button
+                  v-for="tag in FORUM_TAG_OPTIONS"
+                  :key="tag.value"
+                  class="filter-tag-btn"
+                  :class="{ active: selectedTagFilter === tag.value }"
+                  @click="onSetTagFilter(tag.value)"
+                >{{ tag.label }}</button>
+              </div>
             </div>
           </div>
-          <div class="filter-dropdown-divider"></div>
-          <div class="filter-dropdown-section">
-            <div class="filter-dropdown-label">标签筛选</div>
-            <div class="filter-tag-row">
-              <button
-                class="filter-tag-btn"
-                :class="{ active: selectedTagFilter === '' }"
-                @click="onSetTagFilter('')"
-              >全部标签</button>
-              <button
-                v-for="tag in FORUM_TAG_OPTIONS"
-                :key="tag.value"
-                class="filter-tag-btn"
-                :class="{ active: selectedTagFilter === tag.value }"
-                @click="onSetTagFilter(tag.value)"
-              >{{ tag.label }}</button>
-            </div>
-          </div>
-        </div>
-      </Transition>
+        </Transition>
+      </div>
     </div>
   </div>
 </template>
@@ -241,6 +293,11 @@ const onSetTagFilter = (tag) => {
   box-shadow: 0 0 0 1.5px rgba(0, 113, 227, 0.2);
 }
 
+/* 标签筛选 chip：默认隐藏（移动端走筛选下拉），横屏内显示 */
+.toolbar-tag-chip {
+  display: none;
+}
+
 .toolbar-search-actions {
   position: absolute;
   right: 4px;
@@ -268,10 +325,9 @@ const onSetTagFilter = (tag) => {
   white-space: nowrap;
 }
 
-.toolbar-ai-btn.active {
+.toolbar-ai-btn:hover:not(:disabled) {
   background: rgba(17, 24, 39, 0.08);
   color: #111827;
-  box-shadow: inset 0 0 0 1px rgba(17, 24, 39, 0.08), var(--liquid-inner-highlight);
 }
 
 .toolbar-ai-btn:disabled {
@@ -281,19 +337,6 @@ const onSetTagFilter = (tag) => {
 
 .toolbar-ai-btn .ai-label {
   line-height: 1;
-}
-
-.toolbar-ai-btn .ai-switch-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: rgba(148, 163, 184, 0.78);
-  transition: transform 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
-}
-
-.toolbar-ai-btn.active .ai-switch-dot {
-  background: #111827;
-  box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.08);
 }
 
 .toolbar-search-btn {
@@ -384,29 +427,24 @@ const onSetTagFilter = (tag) => {
   filter: blur(2px);
 }
 
-.toolbar-checkin-btn {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 38px;
-  padding: 0 16px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.62);
-  color: #111827;
-  font-size: 14px;
-  font-weight: 850;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(31, 41, 55, 0.06), var(--liquid-inner-highlight);
-  backdrop-filter: var(--liquid-filter-sm);
-  -webkit-backdrop-filter: var(--liquid-filter-sm);
-  transition: transform 0.2s, background-color 0.2s, box-shadow 0.2s;
+/* 横屏 hero 底栏：默认（移动端）隐藏 */
+.toolbar-hero-bar {
+  display: none;
 }
 
-.toolbar-checkin-btn:hover {
-  transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.82);
+/* 移动端第二行容器：769-992 档与输入框同行自然排列，≤768 才换行占满 */
+.toolbar-mobile-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* 形态已收敛到 ui/GlassPillButton.vue（玻璃底/描边/字重/hover 上浮均由组件承担），
+   这里只保留业务差异：紧凑高度、open 态背景、已签态文字色 */
+.toolbar-checkin-btn {
+  min-height: 38px;
 }
 
 .toolbar-checkin-btn.is-done {
@@ -415,32 +453,18 @@ const onSetTagFilter = (tag) => {
 
 .toolbar-filter-wrapper {
   position: relative;
-  flex-shrink: 0;
+  min-width: 0;
 }
 
 .toolbar-filter-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   min-height: 38px;
   padding: 0 14px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.62);
-  color: #111827;
   font-size: 13px;
   font-weight: 750;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(31, 41, 55, 0.06), var(--liquid-inner-highlight);
-  backdrop-filter: var(--liquid-filter-sm);
-  -webkit-backdrop-filter: var(--liquid-filter-sm);
-  transition: transform 0.2s, background-color 0.2s, box-shadow 0.2s;
-  white-space: nowrap;
 }
 
-.toolbar-filter-btn:hover,
-.toolbar-filter-btn.open {
-  background: rgba(255, 255, 255, 0.82);
+.toolbar-filter-wrapper .toolbar-filter-btn.open {
+  background: var(--glass-pill-bg-hover, rgba(255, 255, 255, 0.82));
 }
 
 .toolbar-filter-text {
@@ -578,15 +602,18 @@ const onSetTagFilter = (tag) => {
     font-size: 16px;
   }
 
-  .toolbar-checkin-btn {
+  .toolbar-mobile-row {
     order: 1;
+    flex: 1 1 100%;
+  }
+
+  .toolbar-checkin-btn {
     flex: 1;
     justify-content: center;
     min-height: 40px;
   }
 
   .toolbar-filter-wrapper {
-    order: 2;
     flex: 1;
   }
 
@@ -607,6 +634,210 @@ const onSetTagFilter = (tag) => {
   .toolbar-ai-hint {
     position: static;
     margin-top: 6px;
+  }
+}
+
+/* 桌面 / 横屏（≥993，工具栏由 base.css 的 grid-areas 跨栏独占一行）：
+   按草图重排为「大号液态玻璃搜索容器」——输入区在上，底部一行 [签到][问BOHAI] 左 + 圆形搜索钮右。
+   筛选下拉在横屏移除，标签筛选改由输入框内 #标签名 语法承担（chip 显示当前筛选）。
+   样式必须写在本组件 scoped —— base.css 是以 scoped 方式引入的，跨组件选择器匹配不到本组件内部 */
+@media (min-width: 993px) {
+  .forum-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    min-height: 152px;
+    padding: 20px 22px 16px;
+    border-radius: 28px;
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: var(--liquid-filter);
+    -webkit-backdrop-filter: var(--liquid-filter);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.07), var(--liquid-inner-highlight);
+  }
+
+  /* 容器即输入框：输入区裸坐在容器上（无内嵌白底），聚焦反馈落在容器描边 */
+  .forum-toolbar:focus-within {
+    border-color: rgba(0, 113, 227, 0.3);
+    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.07), 0 0 0 3px rgba(0, 113, 227, 0.07), var(--liquid-inner-highlight);
+  }
+
+  .toolbar-search-wrapper {
+    position: relative;
+    flex: none;
+  }
+
+  .toolbar-search-icon {
+    display: none;
+  }
+
+  .toolbar-search-input {
+    height: 56px;
+    padding: 0 28px;
+    font-size: 16px;
+    text-align: left;
+    background: transparent;
+  }
+
+  .toolbar-search-input:focus {
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .toolbar-search-input::placeholder {
+    text-align: left;
+    color: #9a9aa0;
+  }
+
+  .toolbar-search-input.with-tag-chip {
+    padding-left: 156px;
+  }
+
+  /* 横屏隐藏移动端专属块 */
+  .toolbar-search-actions,
+  .toolbar-mobile-row {
+    display: none;
+  }
+
+  /* 标签筛选 chip：贴输入行左侧 */
+  .toolbar-tag-chip {
+    position: absolute;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 128px;
+    height: 34px;
+    padding: 0 12px;
+    border: none;
+    border-radius: 999px;
+    background: #1d1d1f;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+    transition: transform 0.18s ease, opacity 0.18s ease;
+  }
+
+  .toolbar-tag-chip:hover {
+    transform: translateY(-50%) scale(1.03);
+    opacity: 0.92;
+  }
+
+  .tag-chip-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1;
+  }
+
+  .tag-chip-clear {
+    flex-shrink: 0;
+    opacity: 0.72;
+  }
+
+  /* hero 底栏：左双钮 + 右圆钮 */
+  .toolbar-hero-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: auto;
+    padding-top: 16px;
+  }
+
+  .toolbar-hero-left {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  /* 按钮形态已封装为 ui/GlassPillButton.vue（样式单一源）；
+     .toolbar-hero-pill 仅作布局锚点/探针标记 class 透传，这里只保留业务态配色 */
+  .toolbar-hero-pill.is-done {
+    color: #3f4a5a;
+  }
+
+  .toolbar-hero-search-btn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    border: none;
+    border-radius: 50%;
+    background: #1d1d1f;
+    color: #ffffff;
+    cursor: pointer;
+    box-shadow: 0 10px 24px rgba(17, 24, 39, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+  }
+
+  .toolbar-hero-search-btn:hover {
+    transform: translateY(-1px) scale(1.02);
+    background: #2b2b30;
+    box-shadow: 0 14px 30px rgba(17, 24, 39, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  }
+
+  .toolbar-hero-search-btn:active {
+    transform: scale(0.95);
+  }
+
+  /* AI 状态 / 提示：挂到整个工具栏之下，避免与 hero 按钮重叠
+    （此档位 wrapper 只包住输入行，绝对定位的包含块回落到 .forum-toolbar） */
+  .toolbar-ai-status {
+    bottom: auto;
+    top: calc(100% + 10px);
+    left: 28px;
+  }
+
+  .toolbar-ai-hint {
+    bottom: auto;
+    top: calc(100% + 12px);
+    left: 28px;
+  }
+
+  /* 周年皮肤：保持皮肤原有的行内工具栏形态（皮肤样式带感叹号 important，这里恢复结构与子件可见性） */
+  .forum-page[data-anniversary-skin="active"] .forum-toolbar {
+    flex-direction: row;
+    align-items: center;
+    min-height: 0;
+    padding: 9px;
+    gap: 8px;
+    background: rgba(251, 247, 233, 0.97);
+  }
+
+  .forum-page[data-anniversary-skin="active"] .toolbar-hero-bar {
+    display: none;
+  }
+
+  .forum-page[data-anniversary-skin="active"] .toolbar-search-actions {
+    display: inline-flex;
+  }
+
+  .forum-page[data-anniversary-skin="active"] .toolbar-mobile-row {
+    display: flex;
+    gap: 8px;
+    flex: 1 1 100%;
+  }
+
+  .forum-page[data-anniversary-skin="active"] .toolbar-search-icon {
+    display: block;
+  }
+
+  .forum-page[data-anniversary-skin="active"] .toolbar-search-input {
+    height: auto;
+    padding: 10px 120px 10px 36px;
+    text-align: center;
+  }
+
+  .forum-page[data-anniversary-skin="active"] .toolbar-search-input.with-tag-chip {
+    padding-left: 156px;
+    text-align: left;
   }
 }
 </style>

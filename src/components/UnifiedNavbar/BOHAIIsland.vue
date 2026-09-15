@@ -79,7 +79,7 @@ const route = useRoute()
 const router = useRouter()
 // 岛状态与开关逻辑（原 useBohaiIsland 薄包装，已内联）：
 // 完全复用 useGlobalAiOverlay 单例的 isOpen / open / close，零侵入
-const { isOpen, canOpen, close, consumePendingPrompt, pendingPrompt } = useGlobalAiOverlay()
+const { isOpen, canOpen, close, consumePendingPrompt, consumePendingMode, pendingPrompt } = useGlobalAiOverlay()
 
 // 岛"展开"的判定：overlay 打开 + 路由允许（避开 /ai-chat 避免双实例）
 const isExpanded = computed(() => isOpen.value && canOpen.value)
@@ -122,16 +122,25 @@ const waitForChatApi = async (timeoutMs = 5000) => {
   return Boolean(bohaiMainRef.value?.appendToComposer)
 }
 
-// 消费外部传入的种子 prompt（健康页「用 BOH AI 分析」等场景）。
+// 消费外部传入的种子 prompt（健康页「用 BOH AI 分析」、论坛「问BOHAI」等场景）。
 // 此前消费逻辑只存在于已无人挂载的 GlobalAiGlassOverlay 中，种子 prompt 永远丢失。
+// 种子可携带期望模型模式（mode）：发送前静默切换，不弹模式通知。
 const tryConsumeSeedPrompt = async () => {
   const prompt = consumePendingPrompt()
+  const mode = consumePendingMode()
   if (!prompt) return
+  const applySeedMode = () => {
+    if (mode && typeof bohaiMainRef.value?.applySeedMode === 'function') {
+      bohaiMainRef.value.applySeedMode(mode)
+    }
+  }
   const ready = await waitForChatApi()
   if (ready && typeof bohaiMainRef.value?.appendAndSend === 'function') {
+    applySeedMode()
     bohaiMainRef.value.appendAndSend(prompt)
   } else {
     // 降级：至少把内容填进输入框，用户可以手动点发送
+    applySeedMode()
     bohaiMainRef.value?.appendToComposer?.(prompt)
   }
 }

@@ -58,9 +58,13 @@
 /* 主题切换按钮（如果放在导航栏） */
 
 /* The vendor navbar uses different class names than the legacy theme rules
-   above. Keep every readable label white in dark mode. */
-[data-theme="dark"] #unified-nav-container .unified-nav-surface,
-#unified-nav-container[data-theme="dark"] .unified-nav-surface {
+   above. Keep every readable label white in dark mode.
+   :not(.has-login-card) —— 横屏登录展开时，导航胶囊变身为登录岛的上半岛，
+   必须与下半岛的实色 #1c1c1e 一致。这条 !important 会压过组件里
+   .has-login-card 的暗色底色（组件侧无 !important，赢不了），所以在此放行：
+   登录态交给组件自己定义。选择器权重靠 :not() 提高，!important 数量不变。 */
+[data-theme="dark"] #unified-nav-container .unified-nav-surface:not(.has-login-card),
+#unified-nav-container[data-theme="dark"] .unified-nav-surface:not(.has-login-card) {
   background: rgba(20, 27, 37, 0.9) !important;
   border-color: rgba(220, 235, 255, 0.16) !important;
 }

@@ -1,0 +1,41 @@
+{
+  "A_closed": {
+    "navH": "138px",
+    "railTopH": "138px",
+    "railPadTop": "152px",
+    "containerH": 138,
+    "hasBohaiIsland": false,
+    "railItemTop": 152,
+    "tabsTop": 142
+  },
+  "B_open": {
+    "navH": "527px",
+    "railTopH": "138px",
+    "railPadTop": "152px",
+    "containerH": 527,
+    "hasBohaiIsland": true,
+    "railItemTop": 152,
+    "tabsTop": 531
+  },
+  "C_reclosed": {
+    "navH": "138px",
+    "railTopH": "138px",
+    "railPadTop": "152px",
+    "containerH": 138,
+    "hasBohaiIsland": false,
+    "railItemTop": 152,
+    "tabsTop": 142
+  },
+  "openedViaShowIsland": true,
+  "checks": {
+    "B_island_open": true,
+    "B_container_grew": true,
+    "B_rail_holds": true,
+    "B_rail_var_frozen": true,
+    "B_tabs_still_avoid": true,
+    "C_rail_restored": true,
+    "C_container_restored": true
+  },
+  "pageErrors": [],
+  "pass": true
+}

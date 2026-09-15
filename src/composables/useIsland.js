@@ -189,7 +189,7 @@ export const showIsland = {
   },
 
   /**
-   * 打开 BOH AI 对话岛，可带种子 prompt。
+   * 打开 BOH AI 对话岛，可带种子 prompt 与期望模型模式（mode 如 'fast'，岛内在发送前静默切换）。
    * @returns {boolean} 成功交给 AI 岛返回 true；opener 未注册或当前路由不可开返回 false（调用方可自行降级，如跳 /ai-chat）
    */
   ai(options = {}) {

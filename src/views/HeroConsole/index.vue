@@ -270,7 +270,7 @@
             <span>图片配置</span>
             <div class="spec-heading-actions">
               <button type="button" class="text-button" @click="openDirectUpload(draftHero.template === 'responsive' ? 'landscape' : 'main')" :disabled="isUploading">
-                <Upload :size="14" /> 上传图片
+                <Upload :size="14" /> {{ uploadButtonLabel('上传图片') }}
               </button>
               <button type="button" class="text-button" @click="openCropper(draftHero.template === 'responsive' ? 'landscape' : 'main')">
                 <Crop :size="14" /> 裁切图片
@@ -301,7 +301,7 @@
             <details class="image-config-group">
               <summary>竖屏端（留空继承桌面端）</summary>
               <div class="spec-heading-actions image-group-actions">
-                <button type="button" class="text-button" @click="openDirectUpload('mobile')" :disabled="isUploading"><Upload :size="14" /> 上传竖屏图</button>
+                <button type="button" class="text-button" @click="openDirectUpload('mobile')" :disabled="isUploading"><Upload :size="14" /> {{ uploadButtonLabel('上传竖屏图') }}</button>
                 <button type="button" class="text-button" @click="openCropper('mobile')"><Crop :size="14" /> 裁切</button>
               </div>
               <label class="url-field"><span>独立图片链接</span><input v-model="draftHero.image_config.mobile_src" type="url" placeholder="留空继承桌面端" @input="markDirty(selectedHero.id)" /></label>
@@ -332,7 +332,7 @@
             <details class="image-config-group">
               <summary>竖屏端</summary>
               <div class="spec-heading-actions image-group-actions">
-                <button type="button" class="text-button" @click="openDirectUpload('portrait')" :disabled="isUploading"><Upload :size="14" /> 上传竖屏图</button>
+                <button type="button" class="text-button" @click="openDirectUpload('portrait')" :disabled="isUploading"><Upload :size="14" /> {{ uploadButtonLabel('上传竖屏图') }}</button>
                 <button type="button" class="text-button" @click="openCropper('portrait')"><Crop :size="14" /> 裁切</button>
               </div>
             <label class="url-field">
@@ -396,7 +396,7 @@
             </label>
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
               <button type="button" class="text-button" @click="openDirectUpload('split', idx)" :disabled="isUploading">
-                <Upload :size="14" /> 上传卡片 {{ idx + 1 }}
+                <Upload :size="14" /> {{ uploadButtonLabel(`上传卡片 ${idx + 1}`) }}
               </button>
               <button type="button" class="text-button" @click="openCropper('split', idx)">
                 <Crop :size="14" /> 裁切卡片 {{ idx + 1 }} 图片
@@ -438,7 +438,7 @@
             <span>书封</span>
             <div class="spec-heading-actions">
               <button type="button" class="text-button" @click="openDirectUpload('cover')" :disabled="isUploading">
-                <Upload :size="14" /> 上传书封
+                <Upload :size="14" /> {{ uploadButtonLabel('上传书封') }}
               </button>
               <button type="button" class="text-button" @click="openCropper('cover')">
                 <Crop :size="14" /> 裁切书封
@@ -493,7 +493,7 @@
               <span class="showcase-char-meta">{{ char.key ? '皮肤库' : '自定义' }} · 景深 {{ char.depth }}</span>
               <span class="showcase-char-actions">
                 <button type="button" class="text-button" @click="openDirectUpload('character', idx)" :disabled="isUploading">
-                  <Upload :size="13" /> 替换立绘
+                  <Upload :size="13" /> {{ uploadButtonLabel('替换立绘') }}
                 </button>
                 <button type="button" class="spec-remove" title="移除人物" @click="removeShowcaseCharacter(idx)">
                   <X :size="14" />
@@ -679,7 +679,7 @@ import { SKIN_LIBRARY, resolveSkinAsset, getSkinLibraryItem } from '@/data/skinL
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { useAuthStore } from '@/stores/auth';
 import { useHomeHeroesStore } from '@/stores/homeHeroes';
-import { uploadImageToCloudinary, isCloudinaryNoteUploadConfigured } from '@/utils/cloudinary-client.js';
+import { uploadImageToCloudinary, isCloudinaryNoteUploadConfigured, getCloudinaryDisplayUrl } from '@/utils/cloudinary-client.js';
 import {
   compressImageFileToUploadLimit,
   formatImageFileSize,
@@ -717,6 +717,25 @@ const cropVisible = ref(false);
 const cropSource = ref('');
 const cropTarget = ref({ type: 'main', splitIndex: -1 }); // main / split
 const isUploading = ref(false);
+// 上传进度（0-100）。null = 尚未拿到进度事件（预检/压缩阶段），按钮显示「上传中…」
+const uploadProgress = ref(null);
+
+const uploadButtonLabel = (baseLabel) => {
+  if (!isUploading.value) return baseLabel;
+  if (Number.isFinite(uploadProgress.value) && uploadProgress.value > 0) {
+    return `上传中 ${uploadProgress.value}%`;
+  }
+  return '上传中…';
+};
+
+const resetUploadProgress = () => {
+  uploadProgress.value = null;
+};
+
+const handleUploadProgress = (pct) => {
+  const value = Math.round(Number(pct) || 0);
+  if (value >= 0 && value <= 100) uploadProgress.value = value;
+};
 const HERO_COMPRESSION_SETTINGS_KEY = 'boh.hero-console.image-compression.v1';
 const savedCompressionSettings = (() => {
   try {
@@ -870,15 +889,17 @@ const heroStatus = (hero) => {
 };
 
 const getThumbUrl = (hero) => {
-  if (hero.template === 'responsive') return hero.image_config.landscapeSrc || hero.image_config.portraitSrc || '';
-  if (hero.template === 'split') return hero.split_cards?.[0]?.image_config?.src || '';
+  // 统一走 getCloudinaryDisplayUrl：res.cloudinary.com 原始地址会被转成 cdn.blockofhome.cn
+  // （与首页展示一致）；本地皮肤资产等非 Cloudinary URL 原样返回。
+  if (hero.template === 'responsive') return getCloudinaryDisplayUrl(hero.image_config.landscapeSrc || hero.image_config.portraitSrc || '');
+  if (hero.template === 'split') return getCloudinaryDisplayUrl(hero.split_cards?.[0]?.image_config?.src || '');
   if (hero.template === 'showcase') {
     const firstChar = hero.showcase_config?.characters?.[0];
-    return hero.showcase_config?.cover_src
+    return getCloudinaryDisplayUrl(hero.showcase_config?.cover_src
       || (firstChar ? resolveSkinAsset(firstChar.key, firstChar.src || '') : '')
-      || '';
+      || '');
   }
-  return hero.image_config.src || '';
+  return getCloudinaryDisplayUrl(hero.image_config.src || '');
 };
 
 const isDirty = (id) => dirtyIds.has(id);
@@ -1436,7 +1457,8 @@ async function openDirectUpload(type, index = -1) {
       const prepared = await prepareHeroImage(file);
       const uploaded = await uploadImageToCloudinary(prepared.file, {
         folder: 'boh-cloud-plus/admin-hero-console',
-        pendingSource: 'hero-console'
+        pendingSource: 'hero-console',
+        onProgress: handleUploadProgress
       });
       if (!uploaded.url) throw new Error('上传成功但未返回图片地址');
       if (type === 'split') {
@@ -1465,6 +1487,7 @@ async function openDirectUpload(type, index = -1) {
       showToast(`图片上传失败：${error?.message || '未知错误'}`);
     } finally {
       isUploading.value = false;
+      resetUploadProgress();
     }
   };
   input.click();
@@ -1481,7 +1504,8 @@ async function handleCropConfirm(blob) {
     const prepared = await prepareHeroImage(file);
     const uploaded = await uploadImageToCloudinary(prepared.file, {
       folder: 'boh-cloud-plus/admin-hero-console',
-      pendingSource: 'hero-console'
+      pendingSource: 'hero-console',
+      onProgress: handleUploadProgress
     });
     if (!uploaded.url) throw new Error('上传成功但未返回图片地址');
     const url = uploaded.url;
@@ -1521,6 +1545,7 @@ async function handleCropConfirm(blob) {
     showToast(`图片上传失败：${error?.message || '未知错误'}`);
   } finally {
     isUploading.value = false;
+    resetUploadProgress();
   }
 }
 

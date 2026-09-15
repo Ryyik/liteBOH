@@ -42,10 +42,30 @@ function stripFileExtension(name = '') {
   return String(name || '').replace(/\.[^.]+$/, '').trim();
 }
 
+// Supabase-js 的 fetch 默认无超时：预检/取 uid 若连接挂起，调用方会无限等待
+// （表现为上传按钮永久禁用、错误提示永不来）。race 一层超时兜底，孤儿请求完成后结果自然丢弃。
+const SUPABASE_PRECHECK_TIMEOUT_MS = 10000;
+
+function withTimeout(promise, timeoutMs, message) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+    Promise.resolve(promise).then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
+
 function uploadFormDataWithProgress(url, formData, options = {}) {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
-    const timeoutId = window.setTimeout(() => request.abort(), 60000);
+    const timeoutId = window.setTimeout(() => request.abort(), 30000);
     const signal = options.signal;
     let settled = false;
 
@@ -124,7 +144,11 @@ async function getCurrentSupabaseUserId() {
   // 短 TTL 缓存 + 登录态变化时失效，把每图省出 2 次串行网络往返。
   const now = Date.now();
   if (cachedUserId && now - cachedUserIdAt < USER_ID_CACHE_TTL_MS) return cachedUserId;
-  const { data } = await supabase.auth.getUser();
+  const { data } = await withTimeout(
+    supabase.auth.getUser(),
+    SUPABASE_PRECHECK_TIMEOUT_MS,
+    '登录状态获取超时，请检查网络后重试'
+  );
   cachedUserId = String(data?.user?.id || '').trim();
   cachedUserIdAt = now;
   return cachedUserId;
@@ -233,9 +257,13 @@ export async function assertCloudinaryUploadAllowed(options = {}) {
   if (uploadAllowCache.promise) return uploadAllowCache.promise;
 
   const request = (async () => {
-    const { error } = await supabase.rpc('assert_cloudinary_upload_allowed', {
-      p_source: String(options.source || 'generic').trim().slice(0, 40) || 'generic'
-    });
+    const { error } = await withTimeout(
+      supabase.rpc('assert_cloudinary_upload_allowed', {
+        p_source: String(options.source || 'generic').trim().slice(0, 40) || 'generic'
+      }),
+      SUPABASE_PRECHECK_TIMEOUT_MS,
+      '上传预检超时，请检查网络后重试'
+    );
 
     if (!error) {
       uploadAllowCache.ts = Date.now();
@@ -368,7 +396,7 @@ export async function uploadImageToCloudinary(file, options = {}) {
         return uploadFormDataWithProgress(resolveUploadUrl('image'), formData, options);
       }
       const uploadController = new AbortController();
-      const uploadTimeoutId = setTimeout(() => uploadController.abort(), 60000);
+      const uploadTimeoutId = setTimeout(() => uploadController.abort(), 30000);
       let response;
       try {
         response = await fetch(resolveUploadUrl('image'), {
@@ -388,7 +416,8 @@ export async function uploadImageToCloudinary(file, options = {}) {
       return data;
     };
 
-    // C3：网络类失败自动重试（瞬时抖动/5xx/超时），指数退避 500ms → 1500ms。
+    // C3：网络类失败自动重试（瞬时抖动/5xx/超时）。30s 超时 × 2 次尝试，
+    // 最坏 ~60s 出结果——此前 60s×3 会静默卡 3 分钟，用户全程无反馈。
     // 4xx（鉴权/参数错误）不重试；unsigned 上传可安全重发，孤儿图由 pending 兜底清理收口。
     const isRetryableUploadError = (error) => {
       const message = String(error?.message || '');
@@ -399,13 +428,13 @@ export async function uploadImageToCloudinary(file, options = {}) {
     };
     const sendUploadRequestWithRetry = async (formData) => {
       let lastError = null;
-      for (let attempt = 0; attempt < 3; attempt += 1) {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
           return await sendUploadRequest(formData);
         } catch (error) {
           lastError = error;
-          if (!isRetryableUploadError(error) || attempt === 2) throw error;
-          await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 500 : 1500));
+          if (!isRetryableUploadError(error) || attempt === 1) throw error;
+          await new Promise((resolve) => setTimeout(resolve, 500));
         }
       }
       throw lastError;

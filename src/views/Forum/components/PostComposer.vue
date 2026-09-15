@@ -1,11 +1,11 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import GlassPillButton from '@/components/ui/GlassPillButton.vue';
 import {
   ArrowLeft,
   ArrowRight,
   AtSign,
   Camera,
-  ChevronRight,
   Eye,
   FileText,
   GripVertical,
@@ -716,24 +716,22 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <div v-if="isMobileComposer" class="mobile-composer-setting-list">
-        <button type="button" class="mobile-composer-setting is-location" @click.stop="handleLocationClick">
-          <MapPin :size="20" :stroke-width="1.8" aria-hidden="true" />
+      <div v-if="isMobileComposer" class="mobile-composer-chip-row">
+        <button type="button" class="mobile-composer-chip" :class="{ 'is-active': postLocation }" @click.stop="handleLocationClick">
+          <MapPin :size="15" :stroke-width="1.8" aria-hidden="true" />
           <span>位置</span>
           <strong v-if="postLocation">{{ postLocation.name }}</strong>
-          <ChevronRight :size="18" :stroke-width="1.8" aria-hidden="true" />
         </button>
-        <button type="button" class="mobile-composer-setting is-draft" @click.stop="handleDraftOpen">
-          <FileText :size="20" :stroke-width="1.8" aria-hidden="true" />
-          <span>草稿</span>
-          <strong v-if="autoSaveDraftLabel">{{ autoSaveDraftLabel }}</strong>
-          <ChevronRight :size="18" :stroke-width="1.8" aria-hidden="true" />
-        </button>
-        <button type="button" class="mobile-composer-setting is-tag" @click.stop="showMobileTagMenu = !showMobileTagMenu">
-          <Hash :size="20" :stroke-width="1.8" aria-hidden="true" />
+        <button type="button" class="mobile-composer-chip" :class="{ 'is-active': Boolean(selectedTagLabel) }"
+          :aria-expanded="showMobileTagMenu" @click.stop="showMobileTagMenu = !showMobileTagMenu">
+          <Hash :size="15" :stroke-width="1.8" aria-hidden="true" />
           <span>标签</span>
           <strong v-if="selectedTagLabel">#{{ selectedTagLabel }}</strong>
-          <ChevronRight :size="18" :stroke-width="1.8" aria-hidden="true" />
+        </button>
+        <button type="button" class="mobile-composer-chip" @click.stop="handleDraftOpen">
+          <FileText :size="15" :stroke-width="1.8" aria-hidden="true" />
+          <span>草稿</span>
+          <strong v-if="autoSaveDraftLabel">{{ autoSaveDraftLabel }}</strong>
         </button>
       </div>
 
@@ -840,14 +838,14 @@ onUnmounted(() => {
               <ImageIcon :size="23" :stroke-width="1.8" aria-hidden="true" />
               <span class="desktop-image-count">{{ postImages.length }}/{{ maxPostImages }}</span>
             </button>
-            <!-- ✨ 新增：横屏保存草稿按钮 -->
-            <button v-if="!isEditMode" type="button" class="desktop-post-tool-btn desktop-save-draft-btn"
+            <!-- ✨ 横屏保存草稿按钮：形态收敛到 ui/GlassPillButton.vue -->
+            <GlassPillButton v-if="!isEditMode" class="desktop-save-draft-btn"
               :disabled="!hasPostContent || isPostBusy"
               :aria-label="`保存当前编辑内容为草稿`"
               @click="emit('save-draft')">
               <FileText :size="22" :stroke-width="2" aria-hidden="true" />
               <span>保存草稿</span>
-            </button>
+            </GlassPillButton>
             <div v-if="!isEditMode" class="desktop-more-tool-wrap">
               <button type="button" class="desktop-post-tool-btn desktop-more-tool-btn"
                 :class="{ active: showMoreMenu }" aria-label="更多选项"
@@ -1040,32 +1038,21 @@ onUnmounted(() => {
 }
 
 /* 横屏保存草稿按钮 — 液态玻璃 token + 蓝色描边，保持克制 */
-.desktop-save-draft-btn {
-  border-radius: var(--liquid-radius-pill, 999px);
-  padding: 0 14px;
+/* 保存草稿按钮形态已收敛到 ui/GlassPillButton.vue（玻璃底/内高光/hover 上浮由组件承担）；
+   保留业务差异：与同排透明工具按钮一致的紧凑胶囊 + 蓝描边蓝字。
+   前缀 .editor-submit-group 提特异性，稳压组件内同名属性 */
+.editor-submit-group .desktop-save-draft-btn {
   min-height: 36px;
-  background: var(--liquid-bg-strong, rgba(255,255,255,0.84));
-  backdrop-filter: var(--liquid-filter-sm);
-  -webkit-backdrop-filter: var(--liquid-filter-sm);
-  border: 1px solid rgba(0, 113, 227, 0.18);
+  padding: 0 14px;
+  border-radius: var(--liquid-radius-pill, 999px);
+  border-color: rgba(0, 113, 227, 0.18);
   color: var(--apple-blue, #0071e3);
   font-size: 13px;
   font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
 
-.desktop-save-draft-btn:hover:not(:disabled) {
-  background: #ffffff;
+.editor-submit-group .desktop-save-draft-btn:hover:not(:disabled) {
   border-color: rgba(0, 113, 227, 0.32);
-  transform: translateY(-1px);
-}
-
-.desktop-save-draft-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 /* 位置选择面板 */

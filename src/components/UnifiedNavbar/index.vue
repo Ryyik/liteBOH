@@ -300,10 +300,10 @@ const { maybeShowOverviewIsland, forceShowOverviewIsland } = useOverviewIsland()
 // （原 useBohaiIsland 薄包装已内联，状态统一来自 useGlobalAiOverlay 单例）
 const { isOpen: isBohaiOverlayOpen, canOpen: isBohaiIslandAllowed, open: openBohaiOverlay } = useGlobalAiOverlay();
 const isBohaiIslandOpen = computed(() => isBohaiOverlayOpen.value && isBohaiIslandAllowed.value);
-// 注册 AI 岛 opener：showIsland.ai() 由这里真正打开 BOH AI 岛（可带种子 prompt）
-registerIslandAiOpener(({ prompt } = {}) => {
+// 注册 AI 岛 opener：showIsland.ai() 由这里真正打开 BOH AI 岛（可带种子 prompt 与期望模型模式）
+registerIslandAiOpener(({ prompt, mode } = {}) => {
   if (!isBohaiIslandAllowed.value) return false;
-  openBohaiOverlay({ prompt });
+  openBohaiOverlay({ prompt, mode });
   return true;
 });
 // DEV-TEST：仅开发环境显示灵动岛测试按钮（与模板中 DEV-TEST 块一起删除）

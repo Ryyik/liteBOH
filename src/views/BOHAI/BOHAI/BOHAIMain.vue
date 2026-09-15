@@ -1828,6 +1828,17 @@ const selectMode = (modeId) => {
     });
 };
 
+// 外部种子提问（论坛问BOHAI等）指定的默认模型：静默切换，不弹模式通知。
+// 与 selectMode 的差异仅在无 UI 反馈 —— 岛刚被打开，用户没动过模式菜单。
+const applySeedMode = (modeId) => {
+    const mode = chatModes.value?.find((item) => item.id === modeId);
+    if (!mode || currentModeId.value === mode.id) {
+        return;
+    }
+    currentModeId.value = mode.id;
+    persistModeSetting();
+};
+
 const toggleSearch = () => {
     isSearching.value = !isSearching.value;
     if (isSearching.value) {
@@ -2201,6 +2212,7 @@ defineExpose({
     focusComposer,
     appendToComposer,
     appendAndSend,
+    applySeedMode,
     setAttachedContext,
     clearAttachedContext,
     handleEscapeLayer,

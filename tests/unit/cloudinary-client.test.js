@@ -674,7 +674,6 @@ describe('cloudinary-client', () => {
     it('retries network-class 5xx failures and succeeds on a later attempt (C3)', async () => {
       hoistedFetch
         .mockResolvedValueOnce({ ok: false, status: 503, json: () => Promise.resolve({}) })
-        .mockResolvedValueOnce({ ok: false, status: 503, json: () => Promise.resolve({}) })
         .mockResolvedValueOnce({
           ok: true,
           status: 200,
@@ -691,7 +690,16 @@ describe('cloudinary-client', () => {
 
       const result = await uploadImageToCloudinary(fakeFile, { skipUploadPreflight: true });
       expect(result.publicId).toBe('folder/img');
-      expect(hoistedFetch).toHaveBeenCalledTimes(3);
+      expect(hoistedFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('stops after 2 attempts total (30s timeout x 2, no 3-minute silent hang)', async () => {
+      hoistedFetch
+        .mockResolvedValue({ ok: false, status: 503, json: () => Promise.resolve({}) });
+
+      await expect(uploadImageToCloudinary(fakeFile, { skipUploadPreflight: true }))
+        .rejects.toThrow('Cloudinary 上传失败');
+      expect(hoistedFetch).toHaveBeenCalledTimes(2);
     });
 
     it('does not block upload when pending registration fails (C2: fire-and-forget)', async () => {

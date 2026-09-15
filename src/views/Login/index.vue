@@ -1213,15 +1213,19 @@ onUnmounted(() => {
     isolation: isolate;
   }
 
+  /* 下半岛：宽度必须与导航上半岛（.unified-nav-surface.has-login-card）同宽，
+     两者拼成一整张登录岛。宽度走 --boh-login-island-width 单一源（tokens.css）——
+     此处写 100% 或另写一份 min(860px,…) 都会让两个岛一宽一窄、岛形断裂。 */
   .boh-login-modal-container {
     position: relative;
-    width: 100%;
-    max-width: 100%;
+    width: var(--boh-login-island-width);
+    max-width: var(--boh-login-island-width);
     max-height: min(720px, calc(100dvh - 74px));
     min-height: 276px;
     /* Overlap the navigation by two pixels so two backdrop-filter surfaces
-       cannot leave a sampling seam at their shared edge. */
-    margin-top: 70px;
+       cannot leave a sampling seam at their shared edge.
+       导航上半岛：64px 高 + translateY(10px) → 底边 74px；故 72px 正好重叠 2px。 */
+    margin-top: 72px;
     padding: 30px clamp(28px, 5vw, 64px) 34px;
     border: 1px solid rgba(255, 255, 255, 0.62);
     border-top: 0;
@@ -1295,10 +1299,6 @@ onUnmounted(() => {
     margin: 0;
     gap: 14px;
     transform: translateY(-50%);
-  }
-
-  :global(.boh-login-modal-container) {
-    margin-top: 72px;
   }
 
   :global(html[data-theme="dark"] .boh-login-modal-container) {
@@ -1449,12 +1449,10 @@ onUnmounted(() => {
     -webkit-backdrop-filter: var(--liquid-filter-sm);
   }
 
-  /* Beta 6 导航本身是 64px 高并下移 10px，卡片必须以其真实底边为锚点。 */
-  :global(.boh-login-modal-container) {
-    width: min(860px, calc(100% - 24px));
-    max-width: min(860px, calc(100% - 24px));
-    margin-top: 72px;
-  }
+  /* Beta 6 导航本身是 64px 高并下移 10px，卡片必须以其真实底边为锚点。
+     宽度/上边距已在文件上方的 .boh-login-modal-container 里定义一次即可；
+     此处原先的 :global() 覆盖（宽度 860、margin-top 72px）因优先级低于
+     带 scoped 属性的同名规则而从未生效，已删除，避免出现第二份宽度定义。 */
 
   /* 点击“登录 BOH”后，仍在同一张岛卡内切换到完整表单。 */
   .boh-login-modal-overlay.mobile-form-open .boh-login-modal-container {

@@ -129,8 +129,6 @@
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
-.forum-page[data-theme="dark"] .mobile-composer-setting-list,
-[data-theme="dark"] .forum-page .mobile-composer-setting-list,
 .forum-page[data-theme="dark"] .mobile-composer-setting-menu,
 [data-theme="dark"] .forum-page .mobile-composer-setting-menu {
   background: rgba(40,40,52,0.84) !important;
@@ -609,6 +607,27 @@
   --glass-border: var(--liquid-border);
   background-color: #0d1117 !important;
   color: #f2f5f8 !important;
+}
+
+/* composer 工具 chips 激活态：发布会话 overlay 被 Teleport 到 body，
+   继承不到 .forum-page 级变量 → 用本选择器直接命中 chip 覆盖类内默认值
+   （特异性 (0,2,1) > composer.css 编译后的 .mobile-composer-chip[data-v-x] (0,2,0)，无需 important） */
+[data-theme="dark"] button.mobile-composer-chip {
+  --chip-active-bg: rgba(98, 176, 255, 0.16);
+  --chip-active-border: rgba(98, 176, 255, 0.42);
+  --chip-active-text: #62b0ff;
+}
+
+/* GlassPillButton（ui/GlassPillButton.vue）暗色材质：组件亮色为默认，
+   变量在组件内经 var(--glass-pill-*) 引用，这里按主题覆盖；
+   html 级选择器同时覆盖论坛页与 Teleport 到 body 的发布会话 */
+[data-theme="dark"] .glass-pill-btn {
+  --glass-pill-bg: rgba(40, 40, 52, 0.84);
+  --glass-pill-bg-hover: rgba(52, 52, 66, 0.92);
+  --glass-pill-border: rgba(255, 255, 255, 0.12);
+  --glass-pill-text: #f2f5f8;
+  --glass-pill-soft-bg: rgba(255, 255, 255, 0.06);
+  --glass-pill-soft-border: rgba(255, 255, 255, 0.08);
 }
 
 [data-theme="dark"] .forum-page .post-card-v2,
