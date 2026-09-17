@@ -1682,12 +1682,28 @@ const estimateTextTokens = (value: unknown): number => {
   return cjkCount + Math.ceil(otherCount / 4);
 };
 
+// 多模态消息（content 为部件数组）按部件估算：图片部件按固定开销计 ——
+// base64 dataURL 若按字符串估 token 会把配额预扣撑爆（一张 50KB 图 ≈ 1.2 万 token），
+// 实际视觉消耗与 224px 压缩图相符（Gemini 低分辨率媒体约 258 token）。
+const MULTIMODAL_IMAGE_PART_TOKENS = 300;
+
+const estimateContentPartsTokens = (content: unknown): number => {
+  if (!Array.isArray(content)) return estimateTextTokens(content || '');
+  return content.reduce((partSum: number, part: unknown) => {
+    const partRow = (part || {}) as Record<string, unknown>;
+    if (String(partRow.type || '') === 'image_url') {
+      return partSum + MULTIMODAL_IMAGE_PART_TOKENS;
+    }
+    return partSum + estimateTextTokens(partRow.text ?? partRow.content ?? '');
+  }, 0);
+};
+
 const estimatePromptTokens = (body: Record<string, unknown>): number => {
   const payload = (body.payload || {}) as Record<string, unknown>;
   const messages = Array.isArray(payload.messages) ? payload.messages : [];
   return messages.reduce((sum: number, message: unknown) => {
     const row = (message || {}) as Record<string, unknown>;
-    return sum + 4 + estimateTextTokens(row.content || '');
+    return sum + 4 + estimateContentPartsTokens(row.content);
   }, 2);
 };
 

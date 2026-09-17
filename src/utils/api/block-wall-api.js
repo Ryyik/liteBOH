@@ -1,7 +1,7 @@
 import { supabase } from '@/utils/supabase-client.js';
 import { normalizeDbError } from '@/utils/request-core.js';
 import { deleteCloudinaryAssetsByPublicIds, getCloudinaryTransformedUrl, markCloudinaryUploadsClaimed, uploadImageToCloudinary } from '@/utils/cloudinary-client.js';
-import { moderateForumImageFile } from '@/utils/forum-image-moderation.js';
+import { moderateImageWithFallback } from '@/utils/image-moderation-pipeline.js';
 import { runKeywordPrecheck, runSyncStrictModeration, UNIFIED_REJECTED_STATUS } from '@/utils/unified-content-moderation.js';
 
 const TABLE = 'block_wall_items';
@@ -70,7 +70,7 @@ export async function listBlockWallItems(page = 1, pageSize = 40) {
 }
 
 export async function uploadBlockWallImage(file) {
-  const moderation = await moderateForumImageFile(file);
+  const moderation = await moderateImageWithFallback(file);
   if (moderation.status !== 'approved') throw normalizeDbError({ message: moderation.reason || '图片未通过安全检测' });
   return uploadImageToCloudinary(file, { folder: 'boh-block-wall', pendingSource: 'block_wall' });
 }

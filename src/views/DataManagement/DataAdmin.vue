@@ -1254,7 +1254,12 @@ const goBack = () => {
 const dialog = useConfirmDialog();
 
 // ==================== 状态管理 ====================
-const currentTab = ref('users');
+// tab/section 持久化：变更写回 URL query（?section=..&tab=..），刷新后原位恢复。
+// 非法值（过期 tab id、乱写 URL）回退默认，防止 currentConfig 指向 undefined。
+const routeQuery = router.currentRoute.value?.query || {};
+const routeQueryTab = typeof routeQuery.tab === 'string' ? routeQuery.tab : '';
+const isValidAdminTab = (tabId) => tabs.some((tab) => tab.id === tabId);
+const currentTab = ref(isValidAdminTab(routeQueryTab) ? routeQueryTab : 'users');
 const isLoading = ref(false);
 const isFilterLoading = ref(false);
 const isRefreshing = ref(false);
@@ -1320,7 +1325,21 @@ watch(isSidebarCollapsed, (collapsed) => {
 // 侧栏模块筛选关键词（仅过滤导航，不过滤表格数据）
 const sidebarSearchQuery = ref('');
 const routeAdminSection = router.currentRoute.value?.meta?.adminSection;
-const activeAdminSection = ref(typeof routeAdminSection === 'string' && routeAdminSection ? routeAdminSection : 'overview');
+const routeQuerySection = typeof routeQuery.section === 'string' && /^[a-z][a-z-]{1,29}$/.test(routeQuery.section)
+  ? routeQuery.section
+  : '';
+// query.section 优先于路由 meta：用户在面板内切换 section 后，刷新应恢复"最后停留处"而非路由默认
+const activeAdminSection = ref(routeQuerySection
+  || (typeof routeAdminSection === 'string' && routeAdminSection ? routeAdminSection : 'overview'));
+
+// section/tab 变更统一写回 URL（replace 不堆积历史）：watch 收口所有变更路径
+// （switchTab / handleModuleClick / handleAdminNavClick / 占位页动作），无需逐处补 replace
+watch([activeAdminSection, currentTab], ([section, tab]) => {
+  const currentQuery = router.currentRoute.value?.query || {};
+  if (currentQuery.section === section && currentQuery.tab === tab) return;
+  router.replace({ query: { ...currentQuery, section, tab } }).catch(() => {});
+});
+// 反向同步（浏览器后退/前进）在下方 switchTab 定义之后挂载，需复用其完整状态重置逻辑
 const isDataTreeCollapsed = ref(false);
 // 移动端判定：窄屏，或粗指针+横屏矮视口（手机横屏按移动卡片走，不进桌面表格）
 const computeMobileView = () => {
@@ -5647,6 +5666,21 @@ const { getHighlightKeyword, highlightCellValue } = createHighlightHelpers({
 });
 
 const { getRelatedJump } = createRelatedJumpHelpers({ currentTabRef: currentTab });
+
+// 反向同步：浏览器后退/前进改变 URL query 时，UI 跟随回退。
+// tab 恢复走 switchTab（完整状态重置 + 数据重拉），与手动点击行为一致；
+// 相等守卫保证不会与上方正向写回 watcher 形成循环。
+watch(() => router.currentRoute.value?.query, (query) => {
+  const q = query || {};
+  const qTab = typeof q.tab === 'string' ? q.tab : '';
+  const qSection = typeof q.section === 'string' ? q.section : '';
+  if (qSection && qSection !== activeAdminSection.value) {
+    activeAdminSection.value = qSection;
+  }
+  if (qTab && isValidAdminTab(qTab) && qTab !== currentTab.value) {
+    switchTab(qTab);
+  }
+});
 
 const { isAnomalyRow, getAnomalyReason } = createAnomalyHelpers({ currentTabRef: currentTab });
 

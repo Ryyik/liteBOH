@@ -1,7 +1,15 @@
 import { callVaultSiliconChat } from './api/api-key-runtime-api.js';
+import {
+  isCloudModerationCoolingDown,
+  markCloudModerationSuccess,
+  markCloudModerationUnreachable
+} from './image-moderation-pipeline.js';
 
 const DEFAULT_SCENE = 'default';
 const MODERATION_API_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
+// 文字审核专用模式：vault 端按 bohai_model_configs 的 moderation-text 行裁决模型/上游。
+// 此前不传 mode 会落到 fast 行（payload.model 被覆盖、apiUrl 被忽略），后台配置从未生效。
+const MODERATION_TEXT_MODE = 'moderation-text';
 const QUICK_TIMEOUT_MS = 4000;
 const FULL_TIMEOUT_MS = 10000;
 const MODERATION_SERVICE_RETRY_DELAY_MS = 250;
@@ -419,6 +427,7 @@ async function callAIModeration(content, scene, timeoutMs, {
 
     const vaultResult = await callVaultSiliconChat({
       purpose: 'moderation',
+      mode: MODERATION_TEXT_MODE,
       payload,
       apiUrl: currentApiUrl,
       timeoutMs,
@@ -462,6 +471,36 @@ async function callAIModerationWithRetry(content, scene, timeoutMs, options = {}
   return secondAttempt || firstAttempt;
 }
 
+// 云端不可达的 source 集合：vault 层失败（未配置模式/限流/上游故障/超时/解析失败）。
+// 这些场景与图片审核共享同一个云端出口，冷却状态也共享（image-moderation-pipeline.js）。
+function isCloudUnreachableSource(source = '') {
+  return source === 'no_api_key'
+    || source === 'fallback_parse'
+    || source === 'fallback_error';
+}
+
+// 云端不可达时的降级结果：硬违规已在 quickLocalCheck 拦截，走到这里说明关键词检查
+// 已通过 —— 降级放行（fail-open），但标记 degraded 供 moderation_logs 审计抽查。
+// source='degraded_local' 刻意不以 fallback_ 开头：isSyntheticModerationSource 会
+// 跳过合成来源的审计，而降级放行恰恰是需要留痕待查的。
+function buildDegradedLocalResult(content, scene, currentModelId, { markReason = '' } = {}) {
+  if (markReason) {
+    markCloudModerationUnreachable(60000, markReason);
+  }
+  const localResult = buildLocalModerationResult(content, scene);
+  return {
+    status: localResult.status,
+    message: '云端审核暂不可用，已通过本地基础检查',
+    confidence: localResult.confidence,
+    reasonCode: 'CLOUD_UNAVAILABLE_LOCAL_FALLBACK',
+    reason: '云端审核暂不可用，已通过本地基础检查',
+    source: 'degraded_local',
+    scene,
+    model: currentModelId,
+    degraded: true
+  };
+}
+
 async function runModeration(content, scene, timeoutMs, options = {}) {
   const { failClosed = true } = options || {};
   const currentModelId = getActiveModerationModelId();
@@ -478,7 +517,22 @@ async function runModeration(content, scene, timeoutMs, options = {}) {
     return buildLocalModerationResult(content, scene);
   }
 
+  // 冷却期内（云端刚发生过不可达）直接走本地降级，不再等超时
+  if (isCloudModerationCoolingDown()) {
+    return buildDegradedLocalResult(content, scene, currentModelId);
+  }
+
   const firstPassResult = await callAIModerationWithRetry(content, scene, timeoutMs, { failClosed });
+
+  // 云端不可达：降级为本地关键词结果（不 fail-closed 拒绝发帖），标记冷却
+  if (isCloudUnreachableSource(firstPassResult.source)) {
+    return buildDegradedLocalResult(content, scene, currentModelId, {
+      markReason: `text:${firstPassResult.source}`
+    });
+  }
+
+  // 云端正常裁决
+  markCloudModerationSuccess();
   let finalResult = firstPassResult;
 
   const needsSecondPass = firstPassResult.status === MODERATION_STATUS_REJECTED

@@ -198,6 +198,16 @@ export function classifyNsfwPredictions(predictions = []) {
 let classifyMutex = Promise.resolve();
 let classifyBlockedError = null;
 
+// 导出供 image-moderation-pipeline.js 复用：云端审核同样以 224px 降采样图编码发送，
+// 体积（15-30KB jpeg）可控且与本地检测共用同一单一真相源的解码/降采样实现。
+export async function createImageElementForModeration(file) {
+  return createImageElement(file);
+}
+
+export function createModerationSurfaceForModeration(image) {
+  return createModerationSurface(image);
+}
+
 export async function moderateForumImageFile(file) {
   try {
     return await runForumImageModeration(file);

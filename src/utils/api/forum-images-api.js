@@ -38,6 +38,21 @@ async function loadForumImageModeration() {
   }
 }
 
+// 云端优先审核管线（Gemini 第一层，本地 nsfwjs 兜底）按需懒加载
+let moderationPipelineModulePromise = null;
+
+async function loadModerationPipeline() {
+  if (!moderationPipelineModulePromise) {
+    moderationPipelineModulePromise = import('../image-moderation-pipeline.js');
+  }
+  try {
+    return await moderationPipelineModulePromise;
+  } catch (error) {
+    moderationPipelineModulePromise = null;
+    throw error;
+  }
+}
+
 export async function preloadForumImageModeration() {
   try {
     const { preloadForumImageModerationModel } = await loadForumImageModeration();
@@ -68,8 +83,18 @@ const validateForumImageFile = (file) => {
 
 export async function moderateForumImage(file) {
   validateForumImageFile(file);
-  const { moderateForumImageFile } = await loadForumImageModeration();
-  return moderateForumImageFile(file);
+  const { moderateImageWithFallback } = await loadModerationPipeline();
+  return moderateImageWithFallback(file);
+}
+
+// 多图批量审核：合并为一次云端请求（省配额与限流计数），云端不可达时逐张本地兜底。
+// 返回数组顺序与入参一致。
+export async function moderateForumImages(files) {
+  const list = Array.isArray(files) ? files.filter(Boolean) : [];
+  if (list.length === 0) return [];
+  list.forEach(validateForumImageFile);
+  const { moderateImagesWithFallback } = await loadModerationPipeline();
+  return moderateImagesWithFallback(list);
 }
 
 export async function uploadApprovedForumImage(file, moderation = {}, options = {}) {
