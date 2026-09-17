@@ -1,0 +1,153 @@
+{
+  "checks": {
+    "A1 点击瞬间 like_count 已 ±1（RPC 仍在飞行）": true,
+    "A2 点击瞬间 isLiked 已翻转": true,
+    "A3 点击瞬间心跳类 is-pulsing 已加上": true,
+    "A4 RPC 返回后校准为服务端值（999）": true,
+    "B1 RPC 落地瞬间按钮即解锁（无 300ms 提交锁）": true,
+    "B2 落地后立即连点不被吞（isLiked 再次翻转）": true,
+    "C0 点击瞬间先出现乐观值（+1）": true,
+    "C1 失败后赞数回滚到点击前的值": true,
+    "C2 失败后 isLiked 回滚": true,
+    "C3 失败弹出 toast/弹窗": true,
+    "D0 找到需要真加载评论的帖子（其余为 RPC 内联预览）": true,
+    "D1 点击瞬间已展开（不等数据）": true,
+    "D2 点击瞬间渲染骨架占位": true,
+    "D3 等待期无真实回复列表（尚未加载）": true,
+    "D4 数据到达后骨架消失、真实回复渲染": true,
+    "E1 无 AbortError 类 console 输出": true,
+    "E2 取消不再走「加载论坛数据返回错误」分支": true,
+    "E3 无红色错误文案": true,
+    "E4 取消后列表正常渲染": true,
+    "F1 idle 预取生效：点开已预载帖子无骨架（直接出数据）": true,
+    "G1 mini 宽 168（内容 130 + 两条间隙各 9 + padding 20）": true,
+    "G2 头像胶囊与汉堡不重叠（>=8px 间隙）": true,
+    "G3 容器无横向溢出": true,
+    "G4 mini 态保留 logo 图标 / 隐藏 logo 文字": true,
+    "G5 点汉堡一步到位展开 + 菜单": true,
+    "G6 跳转后导航自动收起（菜单必收；无岛时回到 mini）": true,
+    "G7 >480 档 mini 宽 188 + 间隙 >=8 + 无溢出": true
+  },
+  "info": {
+    "like": {
+      "before": {
+        "ms": 0,
+        "liked": false,
+        "pulsing": false,
+        "disabled": false,
+        "count": 1
+      },
+      "instant": {
+        "ms": 19,
+        "liked": true,
+        "pulsing": true,
+        "disabled": true,
+        "count": 2
+      },
+      "samples": 58
+    },
+    "likeSettled": {
+      "last": {
+        "ms": 2920,
+        "liked": true,
+        "pulsing": false,
+        "disabled": false,
+        "count": 999
+      },
+      "calibratedAt": 1521
+    },
+    "rollback": {
+      "before": {
+        "ms": 0,
+        "liked": false,
+        "count": 1
+      },
+      "after": {
+        "ms": 3003,
+        "liked": false,
+        "count": 1
+      },
+      "optimisticSeen": true,
+      "samples": 60
+    },
+    "repliesTarget": {
+      "found": true,
+      "skipped": 0,
+      "id": "efbb7844-0449-4582-87a2-9842d0b446d5",
+      "comments": 2,
+      "instant": {
+        "elapsed": 29,
+        "expanded": true,
+        "skeleton": true,
+        "realList": false
+      }
+    },
+    "replyInstant": {
+      "elapsed": 29,
+      "expanded": true,
+      "skeleton": true,
+      "realList": false
+    },
+    "gateHeld": 2,
+    "replyLoaded": {
+      "done": true,
+      "skeleton": false,
+      "realList": true,
+      "replies": 2
+    },
+    "abortPostsReady": {
+      "done": true,
+      "posts": 10
+    },
+    "abortLogs": {
+      "noisy": [],
+      "forumErr": []
+    },
+    "abortUi": {
+      "redError": null,
+      "posts": 10
+    },
+    "prefetch": {
+      "candidates": 3
+    },
+    "prefetchClick": {
+      "skeleton": false
+    },
+    "mini": {
+      "width": 168,
+      "classes": "unified-nav-surface nav-mini-caps",
+      "user": {
+        "left": 161,
+        "right": 219,
+        "w": 58
+      },
+      "burger": {
+        "left": 232,
+        "right": 268,
+        "w": 36
+      },
+      "logoIconOpacity": "1",
+      "overlapPx": -13,
+      "overflowPx": 0,
+      "logoTextOpacity": "0"
+    },
+    "navOpened": {
+      "expanded": true,
+      "w": 374,
+      "menu": true
+    },
+    "navAfterRoute": {
+      "expanded": true,
+      "w": 374,
+      "menu": false,
+      "hash": "#/",
+      "island": true
+    },
+    "mini600": {
+      "width": 188,
+      "overlapPx": -12,
+      "overflowPx": 0
+    }
+  },
+  "pass": true
+}

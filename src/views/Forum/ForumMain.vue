@@ -2051,6 +2051,7 @@ onActivated(() => {
 
 onDeactivated(() => {
   if (!props.embedded) return;
+  cancelIdleReplyPrefetch();
   cleanupForumLoadMoreObserver();
   cleanupForumWindowObserver();
   clearForumImageModerationPreloadTask();
@@ -2067,6 +2068,7 @@ onDeactivated(() => {
 });
 
 onUnmounted(() => {
+  cancelIdleReplyPrefetch();
   stopForumVirtualFeed();
   anniversaryObserver?.disconnect();
   anniversaryObserver = null;
@@ -2744,6 +2746,10 @@ const fetchForumData = async (isLoadMore = false, { background = false } = {}) =
 
     if (requestSeq !== forumFetchSeq) return;
 
+    // 主动取消不是失败（request-core 归一为 aborted:true + code ABORTED）：
+    // 静默返回，避免把 `The operation was aborted` 渲染成论坛加载错误文案。
+    if (dataResult?.aborted || dataResult?.error?.code === 'ABORTED') return;
+
     if (!dataResult.error && dataResult.data) {
       let safeRows = Array.isArray(dataResult.data) ? dataResult.data : [];
       safeRows = await hydrateOfficialPostKinds(safeRows);
@@ -2779,6 +2785,8 @@ const fetchForumData = async (isLoadMore = false, { background = false } = {}) =
       forumLoadError.value = '';
       hasMoreData.value = hasNextPage;
       persistForumFeedSnapshot();
+      // 列表落地后再排空闲预取，避免和首屏渲染抢主线程
+      scheduleIdleReplyPrefetch();
     } else {
       const errorMessage = String(dataResult?.error?.message || '论坛数据加载失败，请稍后重试');
       forumLoadError.value = errorMessage;
@@ -2790,7 +2798,9 @@ const fetchForumData = async (isLoadMore = false, { background = false } = {}) =
       void refreshUnreadCount();
     }
   } catch (err) {
-    if (err?.name === 'AbortError') return;
+    // 取消语义兼容三种形态：DOMException(AbortError) / request-core 归一结果 / 旧文案
+    if (err?.name === 'AbortError' || err?.aborted || err?.code === 'ABORTED'
+      || String(err?.message || '') === '请求已被取消') return;
     if (requestSeq !== forumFetchSeq) return;
     logger.error('forum', '加载论坛数据失败:', err);
     forumLoadError.value = String(err?.message || '论坛数据加载失败，请稍后重试');
@@ -3167,24 +3177,29 @@ const handlePostCardCancelReply = () => {
   activeReplyTarget.value = null;
 };
 
+// 返回值语义：true = 已填充（含本就有数据/已预载），false = 本次加载失败。
+// 调用方据此决定「保留展开」还是「折叠回去」（失败不留空白展开区）。
 const loadPostReplyPreview = async (post) => {
-  if (!post?.id) return;
+  if (!post?.id) return true;
   const existingReplies = Array.isArray(post.replies) ? post.replies : [];
   if (existingReplies.length > 0 || post.replies_preloaded) {
     post.replies = existingReplies;
     post.replies_has_more = Boolean(
       post.replies_has_more || Number(post.comment_count || 0) > existingReplies.length
     );
-    return;
+    return true;
   }
 
   const currentUserId = isLoggedIn.value ? userInfo.id : null;
-  let { data, hasMore } = await getComments(post.id, currentUserId, {
+  const first = await getComments(post.id, currentUserId, {
     topLevelOnly: true,
     page: 1,
     pageSize: LIST_REPLY_PREVIEW_COUNT,
     order: 'desc'
   });
+  // 失败（含主动取消）：不写 replies_preloaded，下次点开还能重试
+  if (first?.ok === false && first?.error) return false;
+  let { data, hasMore } = first;
 
   if (shouldFallbackReplyPreview(data, post.comment_count)) {
     const fallbackOptions = buildFallbackReplyPreviewOptions({
@@ -3194,6 +3209,7 @@ const loadPostReplyPreview = async (post) => {
       order: 'desc'
     });
     const fallback = await getComments(post.id, currentUserId, fallbackOptions);
+    if (fallback?.ok === false && fallback?.error) return false;
     data = fallback.data;
     hasMore = fallback.hasMore;
   }
@@ -3202,6 +3218,7 @@ const loadPostReplyPreview = async (post) => {
   post.replies_has_more = Boolean(hasMore);
   post.replies_preloaded = true;
   triggerRef(forumData);
+  return true;
 };
 
 const refreshPostEngagementStats = async (post) => {
@@ -3214,17 +3231,81 @@ const refreshPostEngagementStats = async (post) => {
 };
 
 const toggleRepliesList = async (post) => {
+  if (!post?.id) return;
   if (expandedPostIds.value.has(post.id)) {
     expandedPostIds.value.delete(post.id);
-  } else {
-    await loadPostReplyPreview(post);
-    expandedPostIds.value.add(post.id);
+    return;
+  }
+
+  // 先展开再加载：点击瞬间即展开（PostCard 靠 is-expanded + _repliesLoading 渲染骨架），
+  // 数据回来填充，失败/无可展示回复则折叠回去。消除等待期的零反馈。
+  expandedPostIds.value.add(post.id);
+  const hasReplies = Array.isArray(post.replies) && post.replies.length > 0;
+  if (hasReplies || post.replies_preloaded) return;
+
+  post._repliesLoading = true;
+  triggerRef(forumData);
+  try {
+    const loaded = await loadPostReplyPreview(post);
+    if (!loaded || !(Array.isArray(post.replies) && post.replies.length)) {
+      expandedPostIds.value.delete(post.id);
+    }
+  } catch (error) {
+    logger.warn('forum', '加载回复预览失败:', error);
+    expandedPostIds.value.delete(post.id);
+  } finally {
+    post._repliesLoading = false;
+    triggerRef(forumData);
   }
 };
 
 const shouldShowMoreRepliesLink = (post) => {
   const previewCount = Array.isArray(post?.replies) ? post.replies.length : 0;
   return Boolean(post?.replies_has_more || Number(post?.comment_count || 0) > previewCount);
+};
+
+// ============================================
+// idle 预取未预载回复的帖子（可选优化）
+// 列表落地后在空闲时段串行预载当前视口内「未预载 + 有评论」的帖子回复，
+// 用户点开评论区时直接命中（loadPostReplyPreview 因 replies_preloaded 提前返回，
+// 不会二次请求），把等待期从「骨架 → 数据」压成「直接就是数据」。
+// ============================================
+const REPLY_PREFETCH_MAX_PER_PASS = 4;
+let idleReplyPrefetchHandle = null;
+let idleReplyPrefetchCancelled = false;
+
+const cancelIdleReplyPrefetch = () => {
+  idleReplyPrefetchCancelled = true;
+  if (idleReplyPrefetchHandle === null) return;
+  if (typeof cancelIdleCallback === 'function') cancelIdleCallback(idleReplyPrefetchHandle);
+  else clearTimeout(idleReplyPrefetchHandle);
+  idleReplyPrefetchHandle = null;
+};
+
+const scheduleIdleReplyPrefetch = () => {
+  cancelIdleReplyPrefetch();
+  idleReplyPrefetchCancelled = false;
+  const run = () => {
+    idleReplyPrefetchHandle = null;
+    if (idleReplyPrefetchCancelled) return;
+    const targets = visibleForumPosts.value
+      .filter((post) => post && post.id && !post._optimistic
+        && !post.replies_preloaded
+        && !(Array.isArray(post.replies) && post.replies.length)
+        && Number(post.comment_count || 0) > 0)
+      .slice(0, REPLY_PREFETCH_MAX_PER_PASS);
+    if (!targets.length) return;
+    // 串行：预取本身是低优先级任务，不与其他请求抢并发额度
+    void (async () => {
+      for (const target of targets) {
+        if (idleReplyPrefetchCancelled) return;
+        await loadPostReplyPreview(target);
+      }
+    })();
+  };
+  idleReplyPrefetchHandle = typeof requestIdleCallback === 'function'
+    ? requestIdleCallback(run, { timeout: 2500 })
+    : setTimeout(run, 1200);
 };
 
 const isLikeSubmitting = ref({});
@@ -3343,41 +3424,61 @@ const handleToggleLike = async (post) => {
     logger.error('forum', '无效的帖子数据');
     return;
   }
+  // in-flight 去重：同一帖未落地前不接受重复提交（防重复 RPC 造成计数漂移）。
+  // 这不是节流锁——请求一落地立即释放，不做 300ms 延迟，所以快速连点（赞↔取消）不会吞点击。
   if (isLikeSubmitting.value[post.id]) return;
 
+  const prevLiked = Boolean(post.isLiked);
+  const prevCount = Number(post.like_count || 0);
+  const optimisticAction = prevLiked ? 'unliked' : 'liked';
+
   isLikeSubmitting.value[post.id] = true;
+  // ① 乐观更新：点击瞬间翻转 isLiked、like_count±1 并触发心跳，感知延迟归零（不等 RPC）
+  post.isLiked = !prevLiked;
+  post.like_count = optimisticAction === 'liked' ? prevCount + 1 : Math.max(0, prevCount - 1);
+  addUiMarker(likePulsePostIds, post.id, 1900, 'like-pulse');
+  triggerRef(forumData);
+
+  // 失败回滚：两个字段一起还原回点击前的值
+  const rollback = () => {
+    post.isLiked = prevLiked;
+    post.like_count = prevCount;
+    triggerRef(forumData);
+  };
+
   try {
     const { action, data, error } = await toggleLike(post.id, userInfo.id);
 
     if (error) {
+      rollback();
       logger.error('forum', '点赞失败:', error);
       const toast = getLikeErrorToast(error);
       showModal('warning', toast.title, toast.message);
       return;
     }
 
-    if (action === 'liked') {
-      post.like_count = calculateOptimisticLikeCount(post.like_count, 'liked', data?.likeCount);
-      post.isLiked = true;
-      addExperience(supabase, userInfo.id, XP_REWARDS.LIKE);
-    } else if (action === 'unliked') {
-      post.like_count = calculateOptimisticLikeCount(post.like_count, 'unliked', data?.likeCount);
-      post.isLiked = false;
-    }
-    addUiMarker(likePulsePostIds, post.id, 1900, 'like-pulse');
-    triggerRef(forumData);
+    // ② 校准：以点击前的计数为基数 → 服务端给了准确计数就用它，没给则等价于保留乐观值
+    if (action === 'liked' || action === 'unliked') {
+      post.like_count = calculateOptimisticLikeCount(prevCount, action, data?.likeCount);
+      post.isLiked = action === 'liked';
+      if (action === 'liked') {
+        addExperience(supabase, userInfo.id, XP_REWARDS.LIKE);
+      }
+      triggerRef(forumData);
 
-    emitProfileSync({
-      userId: post.author_id,
-      username: post.author_username,
-      reason: action === 'liked' ? 'post_liked' : 'post_unliked'
-    });
+      emitProfileSync({
+        userId: post.author_id,
+        username: post.author_username,
+        reason: action === 'liked' ? 'post_liked' : 'post_unliked'
+      });
+    }
   } catch (error) {
+    rollback();
     logger.error('forum', '点赞异常', error);
+    const toast = getLikeErrorToast(error);
+    showModal('warning', toast.title, toast.message);
   } finally {
-    setTimeout(() => {
-      isLikeSubmitting.value[post.id] = false;
-    }, 300);
+    isLikeSubmitting.value[post.id] = false;
   }
 };
 
@@ -3829,6 +3930,7 @@ const openPostDetail = (postId) => {
                     :reply-content="replyContent" :is-reply-submitting="isReplySubmitting"
                     :reply-cooldown-seconds="replyCooldownSeconds" :reply-submit-label="replySubmitLabel"
                     :is-like-submitting="!!isLikeSubmitting[item.post.id]" :is-liked-pulsing="isPostLikePulsing(item.post.id)"
+                    :is-replies-loading="!!item.post._repliesLoading"
                     :is-share-copied="isPostShareCopied(item.post.id)" :is-highlighted="isPostHighlighted(item.post.id)"
                     :is-reply-success="hasUiMarker(replySuccessPostIds, item.post.id)" :search-keyword="searchKeyword"
                     :is-logged-in="isLoggedIn" :user-info="userInfo" :loaded-image-keys="loadedForumImageKeys"

@@ -2,35 +2,35 @@
   "results": {
     "A_mini": {
       "surface": {
-        "w": 140,
+        "w": 168,
         "h": 50,
         "top": 8,
-        "left": 125
+        "left": 111
       },
       "classes": "unified-nav-surface nav-mini-caps",
-      "surfaceMaxW": "140px",
+      "surfaceMaxW": "168px",
       "surfaceH": "50px",
-      "containerScrollW": 138,
-      "containerClientW": 138,
+      "containerScrollW": 166,
+      "containerClientW": 166,
       "logoTextOpacity": "0",
       "usernameOpacity": "0",
       "logoIcon": {
         "w": 26,
         "h": 26,
         "top": 20,
-        "left": 136
+        "left": 122
       },
       "avatar": {
         "w": 32,
         "h": 32,
         "top": 17,
-        "left": 175
+        "left": 174
       },
       "burger": {
-        "w": 32,
+        "w": 36,
         "h": 36,
         "top": 15,
-        "left": 228
+        "left": 232
       },
       "burgerRendered": true,
       "menuActive": false,
@@ -44,35 +44,35 @@
     },
     "A_afterLogoTap": {
       "surface": {
-        "w": 140,
+        "w": 168,
         "h": 50,
         "top": 8,
-        "left": 125
+        "left": 111
       },
       "classes": "unified-nav-surface nav-mini-caps",
-      "surfaceMaxW": "140px",
+      "surfaceMaxW": "168px",
       "surfaceH": "50px",
-      "containerScrollW": 138,
-      "containerClientW": 138,
+      "containerScrollW": 166,
+      "containerClientW": 166,
       "logoTextOpacity": "0",
       "usernameOpacity": "0",
       "logoIcon": {
         "w": 26,
         "h": 26,
         "top": 20,
-        "left": 136
+        "left": 122
       },
       "avatar": {
         "w": 32,
         "h": 32,
         "top": 17,
-        "left": 175
+        "left": 174
       },
       "burger": {
-        "w": 32,
+        "w": 36,
         "h": 36,
         "top": 15,
-        "left": 228
+        "left": 232
       },
       "burgerRendered": true,
       "menuActive": false,
@@ -128,35 +128,35 @@
     },
     "C_collapsed": {
       "surface": {
-        "w": 140,
+        "w": 168,
         "h": 50,
         "top": 8,
-        "left": 125
+        "left": 111
       },
       "classes": "unified-nav-surface nav-mini-caps",
-      "surfaceMaxW": "140px",
+      "surfaceMaxW": "168px",
       "surfaceH": "50px",
-      "containerScrollW": 138,
-      "containerClientW": 138,
+      "containerScrollW": 166,
+      "containerClientW": 166,
       "logoTextOpacity": "0",
       "usernameOpacity": "0",
       "logoIcon": {
         "w": 26,
         "h": 26,
         "top": 20,
-        "left": 136
+        "left": 122
       },
       "avatar": {
         "w": 32,
         "h": 32,
         "top": 17,
-        "left": 175
+        "left": 174
       },
       "burger": {
-        "w": 32,
+        "w": 36,
         "h": 36,
         "top": 15,
-        "left": 228
+        "left": 232
       },
       "burgerRendered": true,
       "menuActive": false,
@@ -217,35 +217,35 @@
     },
     "D_afterClose": {
       "surface": {
-        "w": 140,
+        "w": 168,
         "h": 50,
         "top": 8,
-        "left": 125
+        "left": 111
       },
       "classes": "unified-nav-surface nav-mini-caps",
-      "surfaceMaxW": "140px",
+      "surfaceMaxW": "168px",
       "surfaceH": "50px",
-      "containerScrollW": 138,
-      "containerClientW": 138,
+      "containerScrollW": 166,
+      "containerClientW": 166,
       "logoTextOpacity": "0",
       "usernameOpacity": "0",
       "logoIcon": {
         "w": 26,
         "h": 26,
         "top": 20,
-        "left": 136
+        "left": 122
       },
       "avatar": {
         "w": 32,
         "h": 32,
         "top": 17,
-        "left": 175
+        "left": 174
       },
       "burger": {
-        "w": 32,
+        "w": 36,
         "h": 36,
         "top": 15,
-        "left": 228
+        "left": 232
       },
       "burgerRendered": true,
       "menuActive": false,
@@ -258,15 +258,15 @@
       }
     },
     "E_track": {
-      "frames": 122,
-      "islandFrames": 70,
+      "frames": 124,
+      "islandFrames": 72,
       "minIslandW": 374,
-      "lastW": 140,
-      "islandSpan": 3551
+      "lastW": 168,
+      "islandSpan": 3550
     },
     "E_minIslandW": 374,
-    "E_lastW": 140,
-    "E_islandSpan": 3551,
+    "E_lastW": 168,
+    "E_islandSpan": 3550,
     "F_afterHScroll": {
       "surface": {
         "w": 374,
@@ -311,35 +311,35 @@
     },
     "F_afterVScroll": {
       "surface": {
-        "w": 140,
+        "w": 168,
         "h": 50,
         "top": 8,
-        "left": 125
+        "left": 111
       },
       "classes": "unified-nav-surface nav-mini-caps",
-      "surfaceMaxW": "140px",
+      "surfaceMaxW": "168px",
       "surfaceH": "50px",
-      "containerScrollW": 138,
-      "containerClientW": 138,
+      "containerScrollW": 166,
+      "containerClientW": 166,
       "logoTextOpacity": "0",
       "usernameOpacity": "0",
       "logoIcon": {
         "w": 26,
         "h": 26,
         "top": 20,
-        "left": 136
+        "left": 122
       },
       "avatar": {
         "w": 32,
         "h": 32,
         "top": 17,
-        "left": 175
+        "left": 174
       },
       "burger": {
-        "w": 32,
+        "w": 36,
         "h": 36,
         "top": 15,
-        "left": 228
+        "left": 232
       },
       "burgerRendered": true,
       "menuActive": false,
@@ -395,23 +395,23 @@
     },
     "H_portrait_mid": {
       "surface": {
-        "w": 164,
+        "w": 188,
         "h": 50,
         "top": 8,
-        "left": 218
+        "left": 206
       },
       "classes": "unified-nav-surface nav-mini-caps",
-      "surfaceMaxW": "164px",
+      "surfaceMaxW": "188px",
       "surfaceH": "50px",
-      "containerScrollW": 162,
-      "containerClientW": 162,
+      "containerScrollW": 186,
+      "containerClientW": 186,
       "logoTextOpacity": "0",
       "usernameOpacity": "0",
       "logoIcon": {
         "w": 32,
         "h": 32,
         "top": 17,
-        "left": 233
+        "left": 221
       },
       "avatar": {
         "w": 32,
@@ -423,7 +423,7 @@
         "w": 44,
         "h": 44,
         "top": 11,
-        "left": 331
+        "left": 335
       },
       "burgerRendered": true,
       "menuActive": false,
@@ -459,7 +459,7 @@
     "F_vscroll_collapses": true,
     "G_no_mini_class": true,
     "G_landscape_width_intact": true,
-    "H_mini_width_164": true,
+    "H_mini_width_188": true,
     "H_no_overflow": true
   },
   "pageErrors": [],

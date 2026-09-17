@@ -315,9 +315,12 @@
      岛态块（has-* 带 important 标记）优先级更高 → 岛唤起仍走自身 duration 体系；
      岛关闭后本条接管 → height 回落与 max-width 收缩同段动画直接回 mini（双轴 morph）。 */
   :global(#unified-nav-container .unified-nav-surface.nav-mini-caps) {
-    /* 实测内容宽 136（icon 32 + avatar 32 + burger 44 + padding 28），
-       内容实测 152（icon 32 + user-info 胶囊底 16 + avatar 32 + burger 44 + padding 28）+ 余量 12；142/156 两次都不够（漏算 user-info padding 16），勿再回退 */
-    --nav-mini-width: 164px;
+    /* >480 档（探针实测，padding 14+14）：内容实测 134 = icon 32 + user-info 58
+       〔边距 12+1 + avatar 32 + 1+12〕+ burger 44。164 时内容盒 136 已贴死
+       → 头像胶囊与汉堡右缘重叠 13px（"汉堡放不下"）。
+       188 = 134 + 两条间隙各 13 + padding 28（实测 12，亚像素取整）。
+       注意 user-info 的 58：收起的用户名用负 margin 抵消了 vendor 的 gap，详见下方。 */
+    --nav-mini-width: 188px;
     transition:
       max-width 500ms var(--ease-emphasized),
       height 500ms var(--ease-emphasized),
@@ -345,13 +348,20 @@
       transform 160ms ease;
   }
 
+  /* ⚠️ margin-left:-8px 是必须的：vendor `unified-nav.css:1532` 给 `.nav-user-info`
+     钉了 gap: 8px（带 important，且 1528 那条又重复一遍），用户名收起成 0 宽后
+     这 8px 仍然占位（胶囊底 66 = 12+1+8+32+0+1+12），把可见头像挤到胶囊中心左侧 9px。
+     用负 margin 抵消它，不新增 important（预算 1332 已满，注释里也别写该字面量）。
+     展开时本规则不命中，margin 自动回 0，文字与头像间恢复 8px 间距。 */
   :global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) .nav-username) {
     opacity: 0;
     max-width: 0;
+    margin-left: -8px;
     transform: translateX(-6px);
     transition:
       max-width 160ms ease,
       opacity 140ms ease,
+      margin-left 160ms ease,
       transform 160ms ease;
   }
 
@@ -372,6 +382,7 @@
     transition:
       max-width 220ms var(--ease-emphasized) 90ms,
       opacity 200ms ease 90ms,
+      margin-left 220ms var(--ease-emphasized) 90ms,
       transform 220ms var(--ease-emphasized) 90ms;
   }
 
@@ -412,9 +423,11 @@
     height: 54px;
   }
 
-  /* mini 档：≤480 内容实测 ~112（icon 26 / burger 32 / padding 10），内容实测 ~126（含 user-info 胶囊底 16）+ 余量 14 */
+  /* ≤480 档（探针实测，padding 10+10）：内容实测 122 = icon 26 + user-info 58 + burger 38，
+     140 时内容盒 120 < 122 → 同样贴死重叠。
+     168 = 122 + 两条间隙各 13 + padding 20（实测 13）。 */
   :global(#unified-nav-container .unified-nav-surface.nav-mini-caps) {
-    --nav-mini-width: 140px;
+    --nav-mini-width: 168px;
   }
 }
 

@@ -31,6 +31,11 @@
 ## UserSpace / 论坛
 - `/user-space` = UserSpaceMain.vue；他人 = `/profile/:username` = ProfileMain.vue。横屏左栏判据 landscape + ≥1024 + ≥600（改断点同步 3 处探针）。发布右区复用 `ForumMain.openMobileComposer()`，先 `switchTab('community')`；overlay Teleport 到 body。
 - `profile-*.css` 按需加载 → 社区 tab 触发的新入口先 `await preloadProfileStyles()`。消息中心入口 = UserSpace messages tab 的 AsyncMessages；提示断言听 `boh_global_nav_status`。
+- 竖屏导航 mini 胶囊宽（2026-09-17 探针实测校准）：**≤480 档 168 / >480 档 188**＝内容实测 122/134 + 两条间隙各 13 + padding 20/28。旧值 140/164 零余量 → 头像胶囊与汉堡右缘**重叠 13px**（用户说的"汉堡放不下"）。改宽必同步 `probe-nav-mini-bar.mjs`(24 项)、`probe-forum-ux-fixes.mjs` G 组、`probe-nav-optical-center.mjs`(20 项)。
+- **视觉居中 ≠ 几何居中**：外壳实测六档全部 Δ=0（边距相等、与内容列同心），但胶囊内**头像圆心偏左 9~10px** —— 根因 vendor `unified-nav.css:1532`（1528 重复一遍）给 `.nav-user-info` 钉了**带 important 的 `gap:8px`**，mini 态收起用户名后这 8px 仍占位（胶囊底 66 = 12+1+8+32+0+1+12）。修法：`:not(.nav-expanded)` 下 `.nav-username { margin-left:-8px }`（**不新增 important**）→ 胶囊底 58、偏心 −5/−6。残留 −5 来自 logo(26/32) 与汉堡(36/44) 的宽度差，属固有项不修（修了会让内容外框不对称）。
+- 主 feed 走 **keyset 游标直查 `posts`**（`list_forum_posts` RPC 在主列表不生效）→ 卡片 `replies` 不内联、`replies_preloaded` 恒 undefined → 回复预览必须懒加载 + idle 预取；只有 RPC 路径会内联 replies 预览。
+- **感知态必须走 prop**：`forumData` 是 shallowRef、元素是普通对象，父级 `triggerRef` 不会让 PostCard 重渲染（`is-expanded` 之类的 prop 变了才重渲染）→ 骨架/加载中/乐观值这类"要及时消失"的状态一律用 `:is-replies-loading="!!post._repliesLoading"` 形式下传。
+- 论坛交互验收探针 = `scripts/probes/probe-forum-ux-fixes.mjs`（27 项：点赞乐观更新+校准+回滚、评论先展开后加载+骨架、Abort 静默、idle 预取、竖屏导航），延迟/悬停用页内 50ms 采样轨迹断言"点击瞬间已反馈"。
 
 ## 活动 / 活动平台
 - 页面链：nav → `/activities-wall` → ActivitiesWall/index.vue → ActivitiesList.vue + BlockWall。旧深链全 302。
@@ -38,6 +43,9 @@
 - 管理员投稿弹窗双路径：报名活动写 campaigns（无 image 列、无论坛同步触发器）；往期活动写 activities（有封面、有 `trg_sync_activity_forum_card`）→ toast 不能说自动同步论坛。slug/datetime 归一单一源 = `src/utils/activity-campaign.js`。
 - 子组件禁写 `.x { --var: 40px }` 压父级继承，用 `var(--x, 40px)` fallback。重活串行——并行 build+vitest+探针会打断 dev server 假红。
 
-## 错误边界 / 反证
+## 错误边界 / 反证 / 取消语义
 - 全局兜底 GlobalErrorBoundary.vue 包在 Suspense 外。探针 mock Supabase 必发 `Access-Control-Expose-Headers: Content-Range`。
-- **改完必反证**：撤掉修复再跑探针确认会红，否则是假绿。
+- **改完必反证**：`git stash push -- src/`（探针脚本未跟踪不受影响）→ 跑探针记红项 → `stash pop` → 复跑全绿。
+- 请求取消单一出口 = `request-core.js` 的 `code:'ABORTED'`（`isAbortError/createAbortError/abortedResult`）。必须同时认出三种形态：DOMException(name AbortError)、**postgrest 转义的普通对象**（无 name，只有 `message:'AbortError: ...'` + `hint:'Request was aborted (timeout or manual cancellation)'`，且是 resolve 不是 reject）、内部文案「请求已被取消」。消费侧只判 `dataResult.aborted || error.code==='ABORTED'` 就静默跳过。
+- `executeRead(scope, params, fetcher, options)`：**options 是第 4 参**，插错位会得到用户可见红字 `fetcher is not a function`；要补 signal 就往已有 options 对象里加字段。retry 分支进入前必判 `signal.aborted`（否则"用户切页"会被重试放大成"加载失败"）。
+- Playwright 探针：**同页多次 `page.route` 后注册优先**，非命中分支写 `continue()` 会直接出网短路掉前面的 mock → 一条路由只注册一次 + 规则表匹配。

@@ -152,8 +152,76 @@ function buildRequestKey(scope, params = {}) {
   }
 }
 
+// ============================================
+// 取消（AbortController）语义
+// 「被主动取消」不是失败：它必须与真实错误区分开，否则上游会把
+// `AbortError: The operation was aborted` 当成加载失败渲染成红色错误态。
+// 统一出口只有一个码：ABORT_ERROR_CODE。
+// ============================================
+export const ABORT_ERROR_CODE = 'ABORTED';
+
+export function createAbortError(message = '请求已被取消') {
+  const error = new Error(message);
+  error.name = 'AbortError';
+  error.code = ABORT_ERROR_CODE;
+  error.aborted = true;
+  return error;
+}
+
+// 取消的三种真实形态都要认得：
+//   1. DOMException（原生 fetch 被 abort）—— name: 'AbortError'
+//   2. postgrest-js 转义后的普通对象 —— { message: 'AbortError: signal is aborted without
+//      reason' | 'The operation was aborted', code: '', hint: 'Request was aborted
+//      (timeout or manual cancellation)' }，**没有 name 字段**，只认 message/hint；
+//   3. 本模块内部文案 —— '请求已被取消'（withTimeout / 重试退避 / 队列取消）。
+export function isAbortError(error) {
+  if (!error) return false;
+  if (typeof error === 'string') {
+    return /请求已被取消|AbortError|aborted/i.test(error);
+  }
+  if (error.aborted) return true;
+  if (error.name === 'AbortError') return true;
+  if (error.code === ABORT_ERROR_CODE) return true;
+  if (error.code === 20) return true; // DOMException.ABORT_ERR
+  if (typeof error.hint === 'string' && /Request was aborted/i.test(error.hint)) return true;
+  const message = String(error.message || '');
+  return /请求已被取消/.test(message)
+    || /^AbortError\b/.test(message)
+    || /operation was aborted/i.test(message)
+    || /signal is aborted/i.test(message)
+    || /aborted without reason/i.test(message);
+}
+
+// 取消结果的统一形状：ok:false 但 aborted:true，调用方据此静默跳过
+export function abortedResult(data = null) {
+  return {
+    ok: false,
+    data,
+    error: {
+      message: '请求已取消',
+      code: ABORT_ERROR_CODE,
+      name: 'AbortError',
+      aborted: true,
+      details: null,
+      hint: null
+    },
+    aborted: true
+  };
+}
+
 export function normalizeDbError(error, fallbackMessage = '请求失败') {
   if (!error) return null;
+  // 取消先于字符串分支判定：字符串形态的取消同样要保留 code
+  if (isAbortError(error)) {
+    return {
+      message: '请求已取消',
+      code: ABORT_ERROR_CODE,
+      name: 'AbortError',
+      aborted: true,
+      details: null,
+      hint: null
+    };
+  }
   if (typeof error === 'string') {
     return { message: error, code: 'APP_ERROR', details: null, hint: null };
   }
@@ -255,7 +323,7 @@ function withTimeout(promise, timeoutMs, signal = null) {
     if (signal) {
       abortHandler = () => {
         clearTimeout(timer);
-        reject(new Error('请求已被取消'));
+        reject(createAbortError());
       };
       signal.addEventListener('abort', abortHandler);
     }
@@ -291,12 +359,19 @@ async function runWithRetry(task, options = {}) {
   while (true) {
     // 检查是否被取消
     if (signal && signal.aborted) {
-      throw new Error('请求已被取消');
+      throw createAbortError();
     }
 
     try {
       return await task();
     } catch (error) {
+      // 主动取消必须立即冒泡，绝不进入重试：
+      // 重试会拿同一个已 abort 的 signal 再发一次请求，底层 fetch 直接抛
+      // `AbortError: The operation was aborted`，把「用户切页/重新加载」
+      // 伪装成加载失败（论坛红色错误文案的根因）。
+      if (isAbortError(error) || (signal && signal.aborted)) {
+        throw createAbortError();
+      }
       if (attempt >= retry) {
         throw error;
       }
@@ -315,6 +390,12 @@ async function runWithRetry(task, options = {}) {
 
       logger.debug('request-core', `重试第${attempt}次，等待${Math.round(delayMs)}ms`);
 
+      // 退避等待前再确认一次：signal 在本次失败与等待之间被 abort 时，
+      // 已 abort 的 signal 不会再触发下面的 once 监听，会白等满整个退避时长。
+      if (signal && signal.aborted) {
+        throw createAbortError();
+      }
+
       await new Promise((resolve, reject) => {
         const timer = setTimeout(resolve, delayMs);
 
@@ -322,7 +403,7 @@ async function runWithRetry(task, options = {}) {
         if (signal) {
           const abortHandler = () => {
             clearTimeout(timer);
-            reject(new Error('请求已被取消'));
+            reject(createAbortError());
           };
           signal.addEventListener('abort', abortHandler, { once: true });
         }
@@ -440,15 +521,26 @@ export async function executeRead(scope, params, fetcher, options = {}) {
         ...extras
       };
 
+      // postgrest 把 abort 转义成普通 error 对象返回（不抛异常），
+      // 这里统一补上 aborted 标记，调用方一次判断即可静默跳过
+      if (response.error?.aborted) {
+        response.ok = false;
+        response.aborted = true;
+        logger.debug('request-core', `请求已取消: ${scope}`);
+        return response;
+      }
+
       if (!response.error) {
         setCache(key, response, ttlMs, tags);
       }
       return response;
     } catch (error) {
-      // 区分取消错误和其他错误
-      if (error.message === '请求已被取消') {
+      // 区分取消错误和其他错误：取消一律走 aborted 结果（ok:false + code ABORTED）
+      // 且不写 warn —— 否则「切页 / 重新加载 / 换筛选」触发的 abort 会在 console
+      // 留下 `AbortError: The operation was aborted`，被当成真的加载失败。
+      if (isAbortError(error)) {
         logger.debug('request-core', `请求已取消: ${scope}`);
-        return failResult(error);
+        return abortedResult();
       }
       logger.warn('request-core', `Read request failed: ${scope}`, error);
       return failResult(error);

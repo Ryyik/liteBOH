@@ -927,6 +927,17 @@ const closeMobileMenu = () => {
   document.body.style.overflow = "";
 };
 
+// 页面跳转后自动收起：菜单内链接各自 closeMobileMenu，但 logo / 头像这两个
+// 「直达」入口（stopPropagation 不触发展开）以及外部的程序化跳转、前进后退
+// 都不经过菜单回调 → 跳转后菜单滞留在展开态。统一按路由变化兜底。
+// 收起菜单即回到 mini（isExpandedLooking 是纯派生），无需额外处理形态。
+watch(
+  () => route.fullPath,
+  () => {
+    if (isMobileMenuOpen.value) closeMobileMenu();
+  }
+);
+
 // ============================================
 // 竖屏 Mini 形态（plans/009-portrait-nav-mini-bar.md）
 // 展开态是纯派生：非竖屏 / 菜单开 / 任意岛在 → 长条，其余为 mini。

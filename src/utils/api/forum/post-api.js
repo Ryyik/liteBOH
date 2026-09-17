@@ -1,5 +1,5 @@
 import { supabase } from '../../supabase-client.js';
-import { executeRead, normalizeDbError, invalidateByTags } from '../../request-core.js';
+import { executeRead, normalizeDbError, invalidateByTags, createAbortError } from '../../request-core.js';
 import { CACHE_TTL_LEVELS } from '../../cache-strategy.js';
 import { logger } from '../../logger.js';
 import { markCloudinaryUploadsClaimed } from '../../cloudinary-client.js';
@@ -89,6 +89,10 @@ function buildNextPostCursor(rows = [], hasMore = false) {
 
 function withAbortSignal(query, signal) {
   if (!signal || typeof query?.abortSignal !== 'function') return query;
+  // 已取消的信号不再发起请求：否则底层 postgrest 会用已 abort 的 signal 发出请求并抛
+  // `AbortError: The operation was aborted`，把「列表被新一轮加载取消」渲染成加载失败。
+  // 这里直接以取消错误拒绝，由 executeRead 归一为 aborted 结果（ok:false + code ABORTED）。
+  if (signal.aborted) return Promise.reject(createAbortError());
   return query.abortSignal(signal);
 }
 
@@ -671,7 +675,9 @@ export async function getPosts(userId = null, pagination = {}) {
       const nextCursor = buildNextPostCursor(normalizedRows, hasMore);
       return { data: normalizedRows, error: null, hasMore, nextCursor };
     },
-    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['posts'], timeoutMs: 8000, retry: 1 }
+    // options.signal 交给 request-core：队列里未发出的请求可直接丢弃，
+    // 重试前也会先判 signal.aborted（不拿已 abort 的 signal 再发一次）。
+    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['posts'], timeoutMs: 8000, retry: 1, signal: abortSignal }
   );
 }
 
@@ -1387,7 +1393,8 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
       const nextCursor = buildNextPostCursor(normalizedRows, hasMore);
       return { data: normalizedRows, error: null, hasMore, nextCursor };
     },
-    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['posts', `posts:user:${targetUserId}`], timeoutMs: 8000, retry: 1 }
+    // 同 getPosts：signal 交给 request-core 管队列与重试的取消
+    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['posts', `posts:user:${targetUserId}`], timeoutMs: 8000, retry: 1, signal: abortSignal }
   );
 }
 

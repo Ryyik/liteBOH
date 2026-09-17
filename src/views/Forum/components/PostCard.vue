@@ -29,6 +29,10 @@ const props = defineProps({
   replySubmitLabel: { type: String, default: '回复' },
   isLikeSubmitting: { type: Boolean, default: false },
   isLikedPulsing: { type: Boolean, default: false },
+  // 评论「先展开后加载」的进行中标记（骨架占位判据）。
+  // ⚠️ 必须走 prop：post 是普通对象、不在子组件渲染依赖里，父级 triggerRef
+  // 不会让本组件重渲染 → 骨架会在数据到达后残留。
+  isRepliesLoading: { type: Boolean, default: false },
   isShareCopied: { type: Boolean, default: false },
   isHighlighted: { type: Boolean, default: false },
   isReplySuccess: { type: Boolean, default: false },
@@ -536,6 +540,17 @@ watch(() => props.post?.quotedPost?.author_id, async (id) => {
           查看更多回复
         </button>
       </div>
+      <!-- 骨架占位：先展开后加载期间的即时反馈（数据回来即被上面的真实列表替换） -->
+      <div v-else-if="isExpanded && isRepliesLoading"
+        class="replies-list replies-skeleton" @click.stop aria-hidden="true">
+        <div v-for="n in 2" :key="n" class="reply-skeleton-item">
+          <span class="reply-skeleton-avatar"></span>
+          <span class="reply-skeleton-body">
+            <span class="reply-skeleton-line is-short"></span>
+            <span class="reply-skeleton-line is-long"></span>
+          </span>
+        </div>
+      </div>
     </transition>
   </article>
 </template>
@@ -599,6 +614,72 @@ watch(() => props.post?.quotedPost?.author_id, async (id) => {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+/* 评论区骨架占位（先展开后加载）：与列表同构，避免展开瞬间高度塌成 0。
+   中性灰 + alpha，浅色/深色主题都读得清；自身类名自成一套，不依赖 drawers-skeletons.css。 */
+.replies-skeleton {
+  /* 盒子（margin/padding/边框/圆角）复用 .replies-list，骨架与真实列表同形 */
+  display: block;
+}
+
+.reply-skeleton-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.reply-skeleton-item + .reply-skeleton-item {
+  border-top: 1px solid rgba(127, 140, 160, 0.14);
+}
+
+.reply-skeleton-avatar {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(127, 140, 160, 0.18);
+}
+
+.reply-skeleton-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+  min-width: 0;
+}
+
+.reply-skeleton-line {
+  display: block;
+  height: 10px;
+  border-radius: 5px;
+  background: rgba(127, 140, 160, 0.18);
+}
+
+.reply-skeleton-line.is-short {
+  width: 32%;
+}
+
+.reply-skeleton-line.is-long {
+  width: 78%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .reply-skeleton-avatar,
+  .reply-skeleton-line {
+    animation: replySkeletonPulse 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes replySkeletonPulse {
+  0%, 100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 @media (max-width: 768px) {
