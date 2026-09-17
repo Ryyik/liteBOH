@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>竖屏导航 Mini Bar · 形态交互 Demo</title>
+<style>
+  :root {
+    --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+    --liquid-filter: blur(18px) saturate(1.8) brightness(1.02);
+    --ink: #1d1d1f;
+    --ink-2: #526174;
+    --ink-3: #8a94a3;
+    --glass-bg: rgba(255, 255, 255, 0.66);
+    --glass-border: rgba(255, 255, 255, 0.34);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.10);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+    background: linear-gradient(160deg, #f6f7f9 0%, #eef1f5 100%);
+    color: var(--ink);
+    display: flex;
+    gap: 40px;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 40px 32px 64px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ============ 左侧：手机 ============ */
+  .stage { position: sticky; top: 40px; flex-shrink: 0; }
+  .phone {
+    width: 390px; height: 780px;
+    border-radius: 48px;
+    background: #0e0f12;
+    padding: 10px;
+    box-shadow: 0 30px 80px rgba(15, 23, 42, 0.28), inset 0 0 0 2px rgba(255,255,255,0.06);
+    position: relative;
+  }
+  .screen {
+    width: 100%; height: 100%;
+    border-radius: 40px;
+    overflow: hidden;
+    position: relative;
+    background:
+      radial-gradient(420px 300px at 85% -5%, rgba(255, 190, 210, 0.55), transparent 60%),
+      radial-gradient(380px 320px at -10% 30%, rgba(160, 210, 255, 0.5), transparent 60%),
+      radial-gradient(420px 360px at 70% 100%, rgba(255, 225, 170, 0.5), transparent 60%),
+      linear-gradient(170deg, #fafbfd 0%, #f2f5f9 100%);
+  }
+  .statusbar {
+    height: 44px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 26px; font-size: 13px; font-weight: 700; color: var(--ink);
+    position: relative; z-index: 3;
+  }
+  .statusbar .sb-right { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--ink-2); }
+
+  /* ============ 导航胶囊（被测对象） ============ */
+  .nav-layer { position: absolute; top: 44px; left: 0; right: 0; z-index: 20; }
+  .nav-surface {
+    position: absolute;
+    top: 8px; left: 50%;
+    transform: translateX(-50%);
+    height: 50px;
+    width: 158px;                             /* MINI：内容宽 */
+    border-radius: 100px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    backdrop-filter: var(--liquid-filter);
+    -webkit-backdrop-filter: var(--liquid-filter);
+    transition:
+      width 500ms var(--ease-emphasized),
+      background-color 300ms ease,
+      box-shadow 300ms ease;
+    cursor: pointer;
+    will-change: width;
+  }
+  .nav-surface.expanded { width: calc(100% - 16px); cursor: default; }
+  .nav-inner {
+    height: 100%;
+    display: flex; align-items: center;
+    gap: 8px;
+    padding: 0 9px 0 11px;
+  }
+  .nav-spacer { flex-grow: 0; height: 1px; transition: flex-grow 500ms var(--ease-emphasized); }
+  .nav-surface.expanded .nav-spacer { flex-grow: 1; }
+
+  /* 文本生长 */
+  .nav-txt {
+    display: inline-block;
+    max-width: 0; opacity: 0;
+    transform: translateX(-6px);
+    white-space: nowrap; overflow: hidden;
+    font-size: 14px; font-weight: 700; color: var(--ink);
+    letter-spacing: -0.01em;
+    transition:
+      max-width 420ms var(--ease-emphasized),
+      opacity 200ms ease,
+      transform 420ms var(--ease-emphasized);
+  }
+  .nav-surface.expanded .nav-txt {
+    max-width: 96px; opacity: 1; transform: translateX(0);
+    transition-delay: 90ms;                    /* 展开时文本稍后进场 */
+  }
+
+  .nav-logo {
+    display: flex; align-items: center; gap: 8px;
+    flex-shrink: 0; text-decoration: none; color: inherit;
+    height: 32px; border-radius: 10px;
+  }
+  .logo-cube {
+    width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
+    background: linear-gradient(145deg, #6ea8ff, #7c5cff);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 3px 10px rgba(94, 118, 255, 0.35);
+  }
+  .logo-cube svg { width: 15px; height: 15px; }
+
+  .nav-user {
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  }
+  .avatar {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: linear-gradient(145deg, #ffb56b, #ff7e8a);
+    color: #fff; font-size: 13px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    position: relative; flex-shrink: 0;
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.65);
+  }
+  .unread-dot {
+    position: absolute; top: -3px; right: -4px;
+    min-width: 16px; height: 16px; padding: 0 4px;
+    border-radius: 9px; background: #ff3b30;
+    border: 2px solid rgba(255,255,255,0.9);
+    color: #fff; font-size: 9px; font-weight: 800; line-height: 12px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .burger {
+    width: 34px; height: 34px; flex-shrink: 0;
+    border: 0; background: transparent; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    border-radius: 50%;
+    transition: background 200ms ease;
+  }
+  .burger:active { background: rgba(0,0,0,0.05); }
+  .burger span {
+    display: block; width: 17px; height: 2px; border-radius: 2px;
+    background: var(--ink);
+    transition: transform 300ms var(--ease-emphasized), opacity 200ms ease;
+  }
+  .nav-surface.menu-open .burger span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+  .nav-surface.menu-open .burger span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+  .nav-surface.menu-open .burger span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+  /* ============ 下拉菜单卡 ============ */
+  .menu-panel {
+    position: absolute; top: 66px; left: 8px; right: 8px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.14);
+    backdrop-filter: var(--liquid-filter);
+    -webkit-backdrop-filter: var(--liquid-filter);
+    padding: 10px;
+    opacity: 0; transform: translateY(-10px) scale(0.98);
+    transform-origin: right top;
+    pointer-events: none;
+    transition: opacity 260ms ease, transform 320ms var(--ease-emphasized);
+    z-index: 19;
+  }
+  .menu-panel.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+  .menu-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .menu-cell {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 10px 4px; border-radius: 12px; cursor: pointer;
+    font-size: 11px; font-weight: 600; color: var(--ink-2);
+    transition: background 180ms ease;
+  }
+  .menu-cell:hover { background: rgba(0,0,0,0.045); }
+  .menu-ic {
+    width: 34px; height: 34px; border-radius: 11px;
+    display: flex; align-items: center; justify-content: center; font-size: 16px;
+    background: rgba(255,255,255,0.7);
+    border: 1px solid rgba(255,255,255,0.6);
+    box-shadow: 0 2px 8px rgba(15,23,42,0.06);
+  }
+
+  /* ============ 通知岛卡 ============ */
+  .island-card {
+    position: absolute; top: 66px; left: 14px; right: 14px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
+    backdrop-filter: var(--liquid-filter);
+    -webkit-backdrop-filter: var(--liquid-filter);
+    padding: 13px 15px;
+    display: flex; align-items: center; gap: 11px;
+    opacity: 0; transform: translateY(-14px);
+    pointer-events: none;
+    transition: opacity 280ms ease, transform 420ms var(--ease-emphasized);
+    z-index: 21;
+  }
+  .island-card.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+  .island-ic {
+    width: 34px; height: 34px; border-radius: 11px; flex-shrink: 0;
+    background: linear-gradient(145deg, #34c77b, #2aa9f6);
+    display: flex; align-items: center; justify-content: center; font-size: 16px;
+  }
+  .island-tx { flex: 1; min-width: 0; }
+  .island-tx b { display: block; font-size: 13px; }
+  .island-tx i { display: block; font-style: normal; font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+
+  /* ============ 页面内容 ============ */
+  .feed {
+    position: absolute; inset: 0;
+    padding: 120px 16px 40px;
+    overflow-y: auto;
+    scrollbar-width: none;
+    z-index: 1;
+  }
+  .feed::-webkit-scrollbar { display: none; }
+  .card {
+    background: rgba(255,255,255,0.62);
+    border: 1px solid rgba(255,255,255,0.55);
+    border-radius: 18px;
+    padding: 14px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 18px rgba(15,23,42,0.05);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  .card .row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+  .card .avc { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; }
+  .c1 { background: linear-gradient(145deg, #8ec5ff, #6ea8ff); }
+  .c2 { background: linear-gradient(145deg, #ffd08e, #ff9e7a); }
+  .c3 { background: linear-gradient(145deg, #b7f0c2, #6fd6a0); }
+  .card .ln { height: 9px; border-radius: 5px; background: rgba(29,29,31,0.08); margin-bottom: 7px; }
+  .card .ln.w60 { width: 60%; } .card .ln.w90 { width: 90%; } .card .ln.w40 { width: 40%; }
+  .card .ph { height: 110px; border-radius: 12px; margin-top: 10px;
+    background: linear-gradient(145deg, rgba(110,168,255,0.25), rgba(124,92,255,0.18)); }
+
+  /* ============ Toast ============ */
+  .toast {
+    position: absolute; left: 50%; bottom: 46px;
+    transform: translateX(-50%) translateY(12px);
+    background: rgba(29, 29, 31, 0.88); color: #fff;
+    font-size: 12px; font-weight: 600;
+    padding: 9px 16px; border-radius: 100px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 240ms ease, transform 300ms var(--ease-emphasized);
+    z-index: 40; white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ============ 右侧说明面板 ============ */
+  .panel { max-width: 560px; padding-top: 6px; }
+  .panel h1 { font-size: 22px; letter-spacing: -0.02em; }
+  .panel .sub { color: var(--ink-3); font-size: 13px; margin-top: 6px; line-height: 1.6; }
+  .state-chips { display: flex; gap: 8px; margin: 18px 0 6px; align-items: center; flex-wrap: wrap; }
+  .chip {
+    font-size: 12px; font-weight: 700; padding: 6px 14px;
+    border-radius: 100px; border: 1.5px solid rgba(29,29,31,0.14);
+    color: var(--ink-3); background: #fff;
+    transition: all 250ms var(--ease-emphasized);
+  }
+  .chip.on { color: #fff; background: var(--ink); border-color: var(--ink);
+    box-shadow: 0 4px 14px rgba(29,29,31,0.25); }
+  .chip-arrow { color: var(--ink-3); font-size: 13px; }
+  .section {
+    background: #fff; border: 1px solid rgba(15,23,42,0.07);
+    border-radius: 16px; padding: 16px 18px; margin-top: 14px;
+    box-shadow: 0 2px 12px rgba(15,23,42,0.04);
+  }
+  .section h3 { font-size: 13px; color: var(--ink-3); font-weight: 800; letter-spacing: 0.04em; margin-bottom: 10px; }
+  .section ul { list-style: none; }
+  .section li { font-size: 13px; line-height: 1.7; color: var(--ink-2); padding-left: 16px; position: relative; }
+  .section li::before { content: ""; position: absolute; left: 2px; top: 0.72em;
+    width: 5px; height: 5px; border-radius: 50%; background: rgba(29,29,31,0.22); }
+  .section li b { color: var(--ink); }
+  .switch-row { display: flex; align-items: center; justify-content: space-between;
+    font-size: 13px; color: var(--ink-2); padding: 6px 0; }
+  .toggle { position: relative; width: 40px; height: 24px; flex-shrink: 0; cursor: pointer; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle i { position: absolute; inset: 0; border-radius: 100px; background: rgba(29,29,31,0.16); transition: background 200ms ease; }
+  .toggle i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
+    border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+    transition: transform 240ms var(--ease-emphasized); }
+  .toggle input:checked + i { background: #34c77b; }
+  .toggle input:checked + i::after { transform: translateX(16px); }
+  .btn {
+    border: 0; cursor: pointer; font: inherit;
+    font-size: 13px; font-weight: 700;
+    padding: 10px 18px; border-radius: 100px;
+    background: var(--ink); color: #fff;
+    box-shadow: 0 6px 18px rgba(29,29,31,0.28);
+    transition: transform 200ms var(--ease-emphasized), opacity 200ms;
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn.ghost { background: #fff; color: var(--ink); border: 1.5px solid rgba(29,29,31,0.14); box-shadow: none; }
+  .btn-row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .kbd {
+    font-family: ui-monospace, monospace; font-size: 11px;
+    background: rgba(29,29,31,0.06); padding: 2px 7px; border-radius: 6px; color: var(--ink);
+  }
+
+  @media (max-width: 1060px) {
+    body { flex-direction: column; align-items: center; }
+    .stage { position: relative; top: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="stage">
+    <div class="phone">
+      <div class="screen" id="screen">
+        <div class="statusbar">
+          <span>9:41</span>
+          <span class="sb-right">5G ▪ 100%</span>
+        </div>
+
+        <div class="nav-layer">
+          <!-- 导航胶囊：MINI ⇄ EXPANDED -->
+          <div class="nav-surface" id="navSurface">
+            <div class="nav-inner">
+              <a class="nav-logo" id="logoTap" href="javascript:;">
+                <span class="logo-cube">
+                  <svg viewBox="0 0 24 24" fill="none"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg>
+                </span>
+                <span class="nav-txt">方块之家</span>
+              </a>
+              <div class="nav-spacer"></div>
+              <div class="nav-user">
+                <span class="nav-txt">我的方块</span>
+                <div class="avatar" id="avatarTap">U<span class="unread-dot">3</span></div>
+              </div>
+              <button class="burger" id="burgerTap" aria-label="菜单">
+                <span></span><span></span><span></span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 下拉菜单 -->
+          <div class="menu-panel" id="menuPanel">
+            <div class="menu-grid">
+              <div class="menu-cell" data-nav="首页"><span class="menu-ic">🏠</span>首页</div>
+              <div class="menu-cell" data-nav="智能概览"><span class="menu-ic">🧠</span>概览</div>
+              <div class="menu-cell" data-nav="论坛"><span class="menu-ic">💬</span>论坛</div>
+              <div class="menu-cell" data-nav="活动"><span class="menu-ic">🎪</span>活动</div>
+              <div class="menu-cell" data-nav="AI 助手"><span class="menu-ic">🤖</span>AI</div>
+              <div class="menu-cell" data-nav="实验室"><span class="menu-ic">🧪</span>实验室</div>
+              <div class="menu-cell" data-nav="商城"><span class="menu-ic">🛍️</span>商城</div>
+              <div class="menu-cell" data-nav="订阅"><span class="menu-ic">💎</span>订阅</div>
+            </div>
+          </div>
+
+          <!-- 通知岛卡 -->
+          <div class="island-card" id="islandCard">
+            <span class="island-ic">✅</span>
+            <div class="island-tx">
+              <b>离线摘要已生成</b>
+              <i>你离开的 2 天里共 12 条新内容 · 点击查看</i>
+            </div>
+          </div>
+        </div>
+
+        <div class="feed" id="feed">
+          <div class="card"><div class="row"><span class="avc c1"></span><div style="flex:1"><div class="ln w40"></div></div></div><div class="ln w90"></div><div class="ln w60"></div><div class="ph"></div></div>
+          <div class="card"><div class="row"><span class="avc c2"></span><div style="flex:1"><div class="ln w40"></div></div></div><div class="ln w90"></div><div class="ln w60"></div></div>
+          <div class="card"><div class="row"><span class="avc c3"></span><div style="flex:1"><div class="ln w40"></div></div></div><div class="ln w90"></div><div class="ph" style="background:linear-gradient(145deg,rgba(111,214,160,0.25),rgba(42,169,246,0.18))"></div></div>
+          <div class="card"><div class="row"><span class="avc c1"></span><div style="flex:1"><div class="ln w40"></div></div></div><div class="ln w60"></div></div>
+        </div>
+
+        <div class="toast" id="toast"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h1>竖屏导航 · Mini Bar 形态方案</h1>
+    <p class="sub">默认 MINI 胶囊（logo + 头像 + 汉堡）⇄ 点击展开为现状长条。直接在左边手机上操作：点胶囊、点汉堡、滚动页面、点空白处。</p>
+
+    <div class="state-chips">
+      <span class="chip on" id="chipMini">MINI</span>
+      <span class="chip-arrow">⇄</span>
+      <span class="chip" id="chipExpanded">EXPANDED</span>
+      <span class="chip-arrow">+</span>
+      <span class="chip" id="chipMenu">MENU</span>
+      <span class="chip" id="chipIsland">ISLAND</span>
+    </div>
+
+    <div class="section">
+      <h3>操作入口</h3>
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn" id="btnIsland">⚡ 触发通知岛（强制展开）</button>
+        <button class="btn ghost" id="btnReset">重置</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>回缩策略（可开关，直接感受差别）</h3>
+      <label class="switch-row">点胶囊外部 / 点菜单项后收起
+        <span class="toggle"><input type="checkbox" id="optOutside" checked><i></i></span>
+      </label>
+      <label class="switch-row">页面滚动超过 140px 收起
+        <span class="toggle"><input type="checkbox" id="optScroll" checked><i></i></span>
+      </label>
+      <label class="switch-row">8 秒无操作自动收起
+        <span class="toggle"><input type="checkbox" id="optIdle" checked><i></i></span>
+      </label>
+    </div>
+
+    <div class="section">
+      <h3>交互规则</h3>
+      <ul>
+        <li><b>展开</b>：点 mini 胶囊任意空白处 / 点汉堡。logo 和头像保留<b>直达</b>（首页 / 我的方块），不触发展开——单手最常用的两个目标保持一步可达。</li>
+        <li><b>汉堡</b>：mini 态 = 仅展开长条；长条态 = 开菜单（备选：mini 态点汉堡直接展开+开菜单，一步到位，待拍板）。</li>
+        <li><b>锚点不动</b>：morph 中 logo icon 与头像位置恒定，只有中间文本「生长」，无元素跳位。</li>
+        <li><b>岛卡仲裁</b>：任意岛型弹出——通知卡 / 任务卡 / BOHAI AI 岛 / 自定义岛（详情卡、分享卡等）——一律<b>强制 EXPANDED</b>（岛需要全宽锚点）；岛收回后自动回 MINI（菜单开着则保持长条）。</li>
+        <li><b>未登录</b>：mini 态 = logo + 登录按钮 + 汉堡，规则不变。</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h3>动画规格</h3>
+      <ul>
+        <li>宽度 <span class="kbd">158px → calc(100% - 16px)</span>，500ms <span class="kbd">--ease-emphasized</span>（项目既有 token）；spacer <span class="kbd">flex-grow 0→1</span> 同曲线，天然可动画。</li>
+        <li>文本 <span class="kbd">max-width 0→96px + opacity</span>，展开延迟 90ms 进场、回缩即时先出；圆角恒 100px。</li>
+        <li>菜单/岛卡沿用现有玻璃卡规格（top 66px、radius 18-20px），只在展开态可开。</li>
+        <li><span class="kbd">prefers-reduced-motion</span> → 直切无动画。</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h3>实施落点（确认后）</h3>
+      <ul>
+        <li><span class="kbd">UnifiedNavbar/index.vue</span>：navMini 状态 + 竖屏 media query 监听 + 展开/回缩事件（外点/滚动/空闲定时器/岛卡联动）。</li>
+        <li><span class="kbd">UnifiedNavbar/style.scoped.css</span>：MINI 形态与 morph 动画；vendor <span class="kbd">unified-nav.css</span> 不动。</li>
+        <li>业务逻辑零改动（汉堡/菜单/头像跳转原样）；探针 + 反证验证（撤掉 mini class 确认断言变红）。</li>
+      </ul>
+    </div>
+  </div>
+
+<script>
+  const surface  = document.getElementById('navSurface');
+  const menu     = document.getElementById('menuPanel');
+  const island   = document.getElementById('islandCard');
+  const screenEl = document.getElementById('screen');
+  const feed     = document.getElementById('feed');
+  const toast    = document.getElementById('toast');
+
+  const optOutside = document.getElementById('optOutside');
+  const optScroll  = document.getElementById('optScroll');
+  const optIdle    = document.getElementById('optIdle');
+
+  const chipMini     = document.getElementById('chipMini');
+  const chipExpanded = document.getElementById('chipExpanded');
+  const chipMenu     = document.getElementById('chipMenu');
+  const chipIsland   = document.getElementById('chipIsland');
+
+  let expanded = false;
+  let menuOpen = false;
+  let islandOpen = false;
+  let islandTimer = null;
+  let idleTimer = null;
+  let toastTimer = null;
+
+  const isExpandedLooking = () => expanded || menuOpen || islandOpen;
+
+  function apply() {
+    surface.classList.toggle('expanded', isExpandedLooking());
+    surface.classList.toggle('menu-open', menuOpen);
+    menu.classList.toggle('open', menuOpen);
+    island.classList.toggle('show', islandOpen);
+    chipMini.classList.toggle('on', !isExpandedLooking());
+    chipExpanded.classList.toggle('on', expanded && !menuOpen && !islandOpen);
+    chipMenu.classList.toggle('on', menuOpen);
+    chipIsland.classList.toggle('on', islandOpen);
+    resetIdle();
+  }
+
+  function expand()  { if (!expanded) { expanded = true; apply(); } }
+  function collapse(opts = {}) {
+    if (menuOpen && !opts.forceMenu) return;         // 菜单开着不收
+    if (islandOpen) return;                          // 岛卡挂着不收
+    expanded = false; apply();
+  }
+  function closeMenu() { if (menuOpen) { menuOpen = false; apply(); } }
+
+  // ---- 触发：点胶囊 ----
+  surface.addEventListener('click', (e) => {
+    if (!expanded) expand();                          // mini 态：整条即展开热区
+  });
+
+  // ---- logo / 头像：直达，不展开 ----
+  document.getElementById('logoTap').addEventListener('click', (e) => {
+    e.stopPropagation();
+    showToast('直达 → 首页（不展开长条）');
+  });
+  document.getElementById('avatarTap').addEventListener('click', (e) => {
+    e.stopPropagation();
+    showToast('直达 → 我的方块（不展开长条）');
+  });
+
+  // ---- 汉堡：mini = 展开；长条 = 菜单 ----
+  document.getElementById('burgerTap').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!expanded) { expand(); showToast('已展开 · 再点汉堡打开菜单'); }
+    else { menuOpen = !menuOpen; apply(); }
+  });
+
+  // ---- 菜单项 ----
+  menu.querySelectorAll('.menu-cell').forEach(cell => {
+    cell.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showToast('→ ' + cell.dataset.nav);
+      closeMenu();
+      if (optOutside.checked) expanded = false;       // 菜单消费后回 mini
+      apply();
+    });
+  });
+
+  // ---- 点外部 ----
+  screenEl.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.nav-surface') || e.target.closest('.menu-panel')) return;
+    if (optOutside.checked) { closeMenu(); collapse(); }
+  });
+
+  // ---- 滚动回缩 ----
+  feed.addEventListener('scroll', () => {
+    if (optScroll.checked && feed.scrollTop > 140) { closeMenu(); collapse(); }
+    resetIdle();
+  }, { passive: true });
+
+  // ---- 空闲回缩 ----
+  function resetIdle() {
+    clearTimeout(idleTimer);
+    if (optIdle.checked) {
+      idleTimer = setTimeout(() => { closeMenu(); collapse(); }, 8000);
+    }
+  }
+  [optOutside, optScroll, optIdle].forEach(cb => cb.addEventListener('change', resetIdle));
+
+  // ---- 通知岛：强制展开 ----
+  document.getElementById('btnIsland').addEventListener('click', () => {
+    clearTimeout(islandTimer);
+    closeMenu();
+    islandOpen = true; expanded = true; apply();
+    islandTimer = setTimeout(() => {
+      islandOpen = false;
+      if (!menuOpen) expanded = false;                // 岛收回后回 mini
+      apply();
+    }, 4200);
+  });
+
+  // ---- 重置 ----
+  document.getElementById('btnReset').addEventListener('click', () => {
+    clearTimeout(islandTimer);
+    islandOpen = false; menuOpen = false; expanded = false;
+    feed.scrollTo({ top: 0 });
+    apply();
+  });
+
+  // ---- toast ----
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 1800);
+  }
+
+  apply();
+</script>
+</body>
+</html>

@@ -14,8 +14,12 @@
         // 新闻中心的搜索/筛选是从灵动导航栏向下衍生的扩展卡片，不占用导航文字行。
         'has-nav-island-panel': false,
         'has-nav-search-panel': false,
-        'has-nav-filter-menu': false
+        'has-nav-filter-menu': false,
+        // 竖屏 Mini 形态（plans/009）：nav-mini-caps = 机制生效，nav-expanded = 当前视觉长条
+        'nav-mini-caps': navMini,
+        'nav-expanded': isExpandedLooking
       }"
+      @click="handleSurfaceTap"
       :style="{
         '--global-nav-status-duration': `${navStatus.duration}ms`,
         '--global-nav-status-card-height': `${navStatusCardHeight}px`,
@@ -23,7 +27,7 @@
       }"
     >
     <div class="nav-container">
-      <router-link to="/" class="nav-logo">
+      <router-link to="/" class="nav-logo" @click.stop>
         <div class="nav-logo-icon">
           <img :src="getImageUrl('favicon.webp')" alt="Logo" style="width: 100%; height: 100%; object-fit: contain;">
         </div>
@@ -107,7 +111,7 @@
           type="button"
           class="nav-dev-island-btn"
           title="测试：模拟离线 30 天，用数据库真实内容强制触发智能概览灵动岛"
-          @click="forceShowOverviewIsland({ simulateDays: 30 })"
+          @click.stop="forceShowOverviewIsland({ simulateDays: 30 })"
         >
           <Bot :size="13" :stroke-width="2.2" aria-hidden="true" />
           <span>岛</span>
@@ -131,7 +135,7 @@
           </router-link>
         </template>
         <template v-else-if="isInitialized">
-          <button class="nav-login-btn" id="nav-login-btn" @click="showLoginModal = true">
+          <button class="nav-login-btn" id="nav-login-btn" @click.stop="showLoginModal = true">
             登录
           </button>
         </template>
@@ -144,7 +148,7 @@
       <button type="button" class="nav-hamburger" id="nav-hamburger"
         :class="{ active: isMobileMenuOpen }" :aria-expanded="isMobileMenuOpen"
         aria-controls="nav-menu-mobile" :aria-label="isMobileMenuOpen ? '关闭导航菜单' : '打开导航菜单'"
-        @click="toggleMobileMenu">
+        @click.stop="toggleMobileMenu">
         <span></span>
         <span></span>
         <span></span>
@@ -401,6 +405,13 @@ const presentNavStatus = (item) => {
   navStatus.value = item;
   if (item.persistent) return;
   navStatusDismissTimer = setTimeout(() => {
+    // 队列非空时无缝接管（不先置 visible=false）：若先摘 has-status-card，
+    // leave 动画期间展开态缺席 → mini 形态会启动回缩又被下一条拉回，出现半收闪断（plans/009 §3-1）
+    const next = navStatusQueue.shift();
+    if (next) {
+      presentNavStatus(next);
+      return;
+    }
     navStatus.value = { ...navStatus.value, visible: false };
   }, item.durationMs);
 };
@@ -546,6 +557,8 @@ const isActive = (path) => {
 
 // 处理"我的方块"按钮点击：如果在论坛页面，刷新并滚动到顶部
 const handleMyBlockClick = (event) => {
+  // mini 形态下头像保留直达，不冒泡到 surface 的展开热区（plans/009）
+  event.stopPropagation();
   const isAlreadyInForum = route.path === '/user-space' && String(route.query.tab || 'community') === 'community';
   if (isAlreadyInForum) {
     // 阻止路由跳转，触发刷新和滚动到顶部
@@ -913,6 +926,67 @@ const closeMobileMenu = () => {
   activeGroupParent.value = null;
   document.body.style.overflow = "";
 };
+
+// ============================================
+// 竖屏 Mini 形态（plans/009-portrait-nav-mini-bar.md）
+// 展开态是纯派生：非竖屏 / 菜单开 / 任意岛在 → 长条，其余为 mini。
+// 岛仲裁复用 statusCardItem / isTaskCardShown / isBohaiIslandOpen / islandCustomSlot，
+// 岛组件零改动。
+// ============================================
+
+const portraitMiniQuery = window.matchMedia('(orientation: portrait) and (max-width: 768px)');
+const navMini = ref(portraitMiniQuery.matches);
+const handlePortraitMiniChange = (event) => {
+  navMini.value = event.matches;
+};
+
+const isExpandedLooking = computed(() => (
+  !navMini.value
+  || isMobileMenuOpen.value
+  || statusCardItem.value.visible
+  || isTaskCardShown.value
+  || isBohaiIslandOpen.value
+  || !!islandCustomSlot.component
+));
+
+// 任意岛唤起时收起移动菜单（岛需要全宽 surface，菜单与岛互斥）
+watch(
+  () => statusCardItem.value.visible || isTaskCardShown.value || isBohaiIslandOpen.value || !!islandCustomSlot.component,
+  (anyIsland) => {
+    if (anyIsland && isMobileMenuOpen.value) closeMobileMenu();
+  }
+);
+
+// mini 态点胶囊空白 = 展开（logo/头像/汉堡/登录按钮已 stopPropagation，各自直达）
+const handleSurfaceTap = () => {
+  if (navMini.value && !isExpandedLooking.value) {
+    toggleMobileMenu();
+  }
+};
+
+// mini 态滚动回缩：capture 覆盖 window 与论坛等内部滚动容器，
+// 只认 scrollTop（横向轮播 scrollLeft 变化不触发回缩）
+const MINI_COLLAPSE_SCROLL_THRESHOLD = 140;
+let miniScrollRafId = null;
+
+const collapseMiniOnScroll = (target) => {
+  const scrollTop = target === document || target === document.documentElement || target === window
+    ? (window.scrollY || document.documentElement.scrollTop || 0)
+    : (target && typeof target.scrollTop === 'number' ? target.scrollTop : 0);
+  if (scrollTop > MINI_COLLAPSE_SCROLL_THRESHOLD) {
+    closeMobileMenu();
+  }
+};
+
+const handleMiniCollapseScroll = (event) => {
+  if (!navMini.value || miniScrollRafId) return;
+  const target = event.target;
+  miniScrollRafId = requestAnimationFrame(() => {
+    miniScrollRafId = null;
+    collapseMiniOnScroll(target);
+  });
+};
+
 /**
  * 点击外部关闭下拉菜单和二级菜单
  */
@@ -930,6 +1004,14 @@ const handleClickOutside = (event) => {
     !event.target.closest(".nav-mobile-submenu")
   ) {
     expandedMenu.value = null;
+  }
+  // 竖屏 Mini 形态（plans/009）：移动菜单点外部关闭 → 派生态自动回缩 mini
+  if (
+    isMobileMenuOpen.value &&
+    !event.target.closest(".unified-nav-surface") &&
+    !event.target.closest(".nav-menu-mobile")
+  ) {
+    closeMobileMenu();
   }
 };
 
@@ -1018,6 +1100,9 @@ onMounted(() => {
   window.addEventListener("resize", handleResize);
   window.addEventListener("storage", handleStorageChange);
   window.addEventListener("boh_unread_refresh", handleUnreadRefresh);
+  // 竖屏 Mini 形态（plans/009）：断点切换 + 滚动回缩
+  portraitMiniQuery.addEventListener('change', handlePortraitMiniChange);
+  window.addEventListener('scroll', handleMiniCollapseScroll, { capture: true, passive: true });
   themeManager.addListener(handleThemeChange);
   // 添加点击外部关闭下拉菜单的事件监听
   document.addEventListener("click", handleClickOutside);
@@ -1055,6 +1140,12 @@ onUnmounted(() => {
   window.removeEventListener("resize", handleResize);
   window.removeEventListener("storage", handleStorageChange);
   window.removeEventListener("boh_unread_refresh", handleUnreadRefresh);
+  portraitMiniQuery.removeEventListener('change', handlePortraitMiniChange);
+  window.removeEventListener('scroll', handleMiniCollapseScroll, { capture: true });
+  if (miniScrollRafId) {
+    cancelAnimationFrame(miniScrollRafId);
+    miniScrollRafId = null;
+  }
   themeManager.removeListener(handleThemeChange);
   // 移除点击外部关闭下拉菜单的事件监听
   document.removeEventListener("click", handleClickOutside);

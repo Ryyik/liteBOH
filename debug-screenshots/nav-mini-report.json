@@ -1,0 +1,467 @@
+{
+  "results": {
+    "A_mini": {
+      "surface": {
+        "w": 140,
+        "h": 50,
+        "top": 8,
+        "left": 125
+      },
+      "classes": "unified-nav-surface nav-mini-caps",
+      "surfaceMaxW": "140px",
+      "surfaceH": "50px",
+      "containerScrollW": 138,
+      "containerClientW": 138,
+      "logoTextOpacity": "0",
+      "usernameOpacity": "0",
+      "logoIcon": {
+        "w": 26,
+        "h": 26,
+        "top": 20,
+        "left": 136
+      },
+      "avatar": {
+        "w": 32,
+        "h": 32,
+        "top": 17,
+        "left": 175
+      },
+      "burger": {
+        "w": 32,
+        "h": 36,
+        "top": 15,
+        "left": 228
+      },
+      "burgerRendered": true,
+      "menuActive": false,
+      "menuDisplay": "none",
+      "statusCardRect": null,
+      "statusCardRendered": false,
+      "viewport": {
+        "w": 390,
+        "h": 844
+      }
+    },
+    "A_afterLogoTap": {
+      "surface": {
+        "w": 140,
+        "h": 50,
+        "top": 8,
+        "left": 125
+      },
+      "classes": "unified-nav-surface nav-mini-caps",
+      "surfaceMaxW": "140px",
+      "surfaceH": "50px",
+      "containerScrollW": 138,
+      "containerClientW": 138,
+      "logoTextOpacity": "0",
+      "usernameOpacity": "0",
+      "logoIcon": {
+        "w": 26,
+        "h": 26,
+        "top": 20,
+        "left": 136
+      },
+      "avatar": {
+        "w": 32,
+        "h": 32,
+        "top": 17,
+        "left": 175
+      },
+      "burger": {
+        "w": 32,
+        "h": 36,
+        "top": 15,
+        "left": 228
+      },
+      "burgerRendered": true,
+      "menuActive": false,
+      "menuDisplay": "none",
+      "statusCardRect": null,
+      "statusCardRendered": false,
+      "viewport": {
+        "w": 390,
+        "h": 844
+      }
+    },
+    "B_expanded": {
+      "surface": {
+        "w": 374,
+        "h": 50,
+        "top": 8,
+        "left": 8
+      },
+      "classes": "unified-nav-surface nav-mini-caps nav-expanded",
+      "surfaceMaxW": "calc(100% - 16px)",
+      "surfaceH": "50px",
+      "containerScrollW": 372,
+      "containerClientW": 372,
+      "logoTextOpacity": "1",
+      "usernameOpacity": "1",
+      "logoIcon": {
+        "w": 26,
+        "h": 26,
+        "top": 20,
+        "left": 19
+      },
+      "avatar": {
+        "w": 32,
+        "h": 32,
+        "top": 17,
+        "left": 212
+      },
+      "burger": {
+        "w": 36,
+        "h": 36,
+        "top": 15,
+        "left": 335
+      },
+      "burgerRendered": true,
+      "menuActive": true,
+      "menuDisplay": "flex",
+      "statusCardRect": null,
+      "statusCardRendered": false,
+      "viewport": {
+        "w": 390,
+        "h": 844
+      }
+    },
+    "C_collapsed": {
+      "surface": {
+        "w": 140,
+        "h": 50,
+        "top": 8,
+        "left": 125
+      },
+      "classes": "unified-nav-surface nav-mini-caps",
+      "surfaceMaxW": "140px",
+      "surfaceH": "50px",
+      "containerScrollW": 138,
+      "containerClientW": 138,
+      "logoTextOpacity": "0",
+      "usernameOpacity": "0",
+      "logoIcon": {
+        "w": 26,
+        "h": 26,
+        "top": 20,
+        "left": 136
+      },
+      "avatar": {
+        "w": 32,
+        "h": 32,
+        "top": 17,
+        "left": 175
+      },
+      "burger": {
+        "w": 32,
+        "h": 36,
+        "top": 15,
+        "left": 228
+      },
+      "burgerRendered": true,
+      "menuActive": false,
+      "menuDisplay": "none",
+      "statusCardRect": null,
+      "statusCardRendered": false,
+      "viewport": {
+        "w": 390,
+        "h": 844
+      }
+    },
+    "D_island": {
+      "surface": {
+        "w": 374,
+        "h": 130,
+        "top": 8,
+        "left": 8
+      },
+      "classes": "unified-nav-surface has-status-card nav-mini-caps nav-expanded",
+      "surfaceMaxW": "calc(100% - 16px)",
+      "surfaceH": "130px",
+      "containerScrollW": 372,
+      "containerClientW": 372,
+      "logoTextOpacity": "1",
+      "usernameOpacity": "1",
+      "logoIcon": {
+        "w": 26,
+        "h": 26,
+        "top": 21,
+        "left": 19
+      },
+      "avatar": {
+        "w": 32,
+        "h": 32,
+        "top": 18,
+        "left": 212
+      },
+      "burger": {
+        "w": 36,
+        "h": 36,
+        "top": 16,
+        "left": 335
+      },
+      "burgerRendered": true,
+      "menuActive": false,
+      "menuDisplay": "none",
+      "statusCardRect": {
+        "w": 362,
+        "h": 65,
+        "top": 66,
+        "left": 14
+      },
+      "statusCardRendered": true,
+      "viewport": {
+        "w": 390,
+        "h": 844
+      }
+    },
+    "D_afterClose": {
+      "surface": {
+        "w": 140,
+        "h": 50,
+        "top": 8,
+        "left": 125
+      },
+      "classes": "unified-nav-surface nav-mini-caps",
+      "surfaceMaxW": "140px",
+      "surfaceH": "50px",
+      "containerScrollW": 138,
+      "containerClientW": 138,
+      "logoTextOpacity": "0",
+      "usernameOpacity": "0",
+      "logoIcon": {
+        "w": 26,
+        "h": 26,
+        "top": 20,
+        "left": 136
+      },
+      "avatar": {
+        "w": 32,
+        "h": 32,
+        "top": 17,
+        "left": 175
+      },
+      "burger": {
+        "w": 32,
+        "h": 36,
+        "top": 15,
+        "left": 228
+      },
+      "burgerRendered": true,
+      "menuActive": false,
+      "menuDisplay": "none",
+      "statusCardRect": null,
+      "statusCardRendered": false,
+      "viewport": {
+        "w": 390,
+        "h": 844
+      }
+    },
+    "E_track": {
+      "frames": 122,
+      "islandFrames": 70,
+      "minIslandW": 374,
+      "lastW": 140,
+      "islandSpan": 3551
+    },
+    "E_minIslandW": 374,
+    "E_lastW": 140,
+    "E_islandSpan": 3551,
+    "F_afterHScroll": {
+      "surface": {
+        "w": 374,
+        "h": 50,
+        "top": 8,
+        "left": 8
+      },
+      "classes": "unified-nav-surface nav-mini-caps nav-expanded",
+      "surfaceMaxW": "calc(100% - 16px)",
+      "surfaceH": "50px",
+      "containerScrollW": 372,
+      "containerClientW": 372,
+      "logoTextOpacity": "1",
+      "usernameOpacity": "1",
+      "logoIcon": {
+        "w": 26,
+        "h": 26,
+        "top": 20,
+        "left": 19
+      },
+      "avatar": {
+        "w": 32,
+        "h": 32,
+        "top": 17,
+        "left": 212
+      },
+      "burger": {
+        "w": 36,
+        "h": 36,
+        "top": 15,
+        "left": 335
+      },
+      "burgerRendered": true,
+      "menuActive": true,
+      "menuDisplay": "flex",
+      "statusCardRect": null,
+      "statusCardRendered": false,
+      "viewport": {
+        "w": 390,
+        "h": 844
+      }
+    },
+    "F_afterVScroll": {
+      "surface": {
+        "w": 140,
+        "h": 50,
+        "top": 8,
+        "left": 125
+      },
+      "classes": "unified-nav-surface nav-mini-caps",
+      "surfaceMaxW": "140px",
+      "surfaceH": "50px",
+      "containerScrollW": 138,
+      "containerClientW": 138,
+      "logoTextOpacity": "0",
+      "usernameOpacity": "0",
+      "logoIcon": {
+        "w": 26,
+        "h": 26,
+        "top": 20,
+        "left": 136
+      },
+      "avatar": {
+        "w": 32,
+        "h": 32,
+        "top": 17,
+        "left": 175
+      },
+      "burger": {
+        "w": 32,
+        "h": 36,
+        "top": 15,
+        "left": 228
+      },
+      "burgerRendered": true,
+      "menuActive": false,
+      "menuDisplay": "none",
+      "statusCardRect": null,
+      "statusCardRendered": false,
+      "viewport": {
+        "w": 390,
+        "h": 844
+      }
+    },
+    "G_landscape": {
+      "surface": {
+        "w": 860,
+        "h": 58,
+        "top": 10,
+        "left": 270
+      },
+      "classes": "unified-nav-surface nav-expanded",
+      "surfaceMaxW": "min(860px, 100% - 24px)",
+      "surfaceH": "58px",
+      "containerScrollW": 858,
+      "containerClientW": 858,
+      "logoTextOpacity": "1",
+      "usernameOpacity": "1",
+      "logoIcon": {
+        "w": 32,
+        "h": 32,
+        "top": 23,
+        "left": 319
+      },
+      "avatar": {
+        "w": 32,
+        "h": 32,
+        "top": 23,
+        "left": 974
+      },
+      "burger": {
+        "w": 0,
+        "h": 0,
+        "top": 0,
+        "left": 0
+      },
+      "burgerRendered": false,
+      "menuActive": false,
+      "menuDisplay": "none",
+      "statusCardRect": null,
+      "statusCardRendered": false,
+      "viewport": {
+        "w": 1400,
+        "h": 900
+      }
+    },
+    "H_portrait_mid": {
+      "surface": {
+        "w": 164,
+        "h": 50,
+        "top": 8,
+        "left": 218
+      },
+      "classes": "unified-nav-surface nav-mini-caps",
+      "surfaceMaxW": "164px",
+      "surfaceH": "50px",
+      "containerScrollW": 162,
+      "containerClientW": 162,
+      "logoTextOpacity": "0",
+      "usernameOpacity": "0",
+      "logoIcon": {
+        "w": 32,
+        "h": 32,
+        "top": 17,
+        "left": 233
+      },
+      "avatar": {
+        "w": 32,
+        "h": 32,
+        "top": 17,
+        "left": 278
+      },
+      "burger": {
+        "w": 44,
+        "h": 44,
+        "top": 11,
+        "left": 331
+      },
+      "burgerRendered": true,
+      "menuActive": false,
+      "menuDisplay": "none",
+      "statusCardRect": null,
+      "statusCardRendered": false,
+      "viewport": {
+        "w": 600,
+        "h": 900
+      }
+    }
+  },
+  "checks": {
+    "A_mini_class": true,
+    "A_mini_width": true,
+    "A_no_overflow": true,
+    "A_texts_hidden": true,
+    "A_anchors_alive": true,
+    "A_logo_tap_no_expand": true,
+    "B_expanded_class": true,
+    "B_full_width": true,
+    "B_texts_shown": true,
+    "B_menu_open": true,
+    "C_collapsed_back": true,
+    "C_menu_closed": true,
+    "D_island_forced_expand": true,
+    "D_menu_auto_closed": true,
+    "D_island_attached": true,
+    "D_closed_back_to_mini": true,
+    "E_no_flash_gap": true,
+    "E_back_to_mini": true,
+    "F_hscroll_no_collapse": true,
+    "F_vscroll_collapses": true,
+    "G_no_mini_class": true,
+    "G_landscape_width_intact": true,
+    "H_mini_width_164": true,
+    "H_no_overflow": true
+  },
+  "pageErrors": [],
+  "pass": true
+}

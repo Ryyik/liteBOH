@@ -303,11 +303,118 @@
     background-color: rgba(28, 28, 30, 0.86) !important;
     box-shadow: 0 14px 36px rgba(0, 0, 0, 0.34);
   }
+
+  /* ============================================
+     竖屏 Mini 形态（plans/009-portrait-nav-mini-bar.md）
+     nav-mini-caps = 机制生效；nav-expanded = 当前视觉长条（纯派生类）。
+     展开态宽度无需声明：:not(.nav-expanded) 不命中时回落到上方
+     :global surface 块的 max-width: calc(100% - 16px)。
+     ============================================ */
+
+  /* Beta6 surface 块刻意冻结了 transition（常驻悬浮岛），mini 机制需重新开启。
+     岛态块（has-* 带 important 标记）优先级更高 → 岛唤起仍走自身 duration 体系；
+     岛关闭后本条接管 → height 回落与 max-width 收缩同段动画直接回 mini（双轴 morph）。 */
+  :global(#unified-nav-container .unified-nav-surface.nav-mini-caps) {
+    /* 实测内容宽 136（icon 32 + avatar 32 + burger 44 + padding 28），
+       内容实测 152（icon 32 + user-info 胶囊底 16 + avatar 32 + burger 44 + padding 28）+ 余量 12；142/156 两次都不够（漏算 user-info padding 16），勿再回退 */
+    --nav-mini-width: 164px;
+    transition:
+      max-width 500ms var(--ease-emphasized),
+      height 500ms var(--ease-emphasized),
+      border-radius 500ms var(--ease-emphasized),
+      background-color 300ms ease,
+      box-shadow 300ms ease;
+    will-change: max-width, height;
+  }
+
+  :global(#unified-nav-container .unified-nav-surface.nav-mini-caps:not(.nav-expanded)) {
+    max-width: var(--nav-mini-width);
+  }
+
+  /* 文本生长：morph 必守「展开=宽度先行内容后进（delay 90ms）；回缩=内容先出宽度后收」，
+     否则 14px 文本在收窄容器里被 overflow 生硬截断。
+     ⚠️ 所有规则必须整段 :global() 包裹——`:global(A) .b` 前缀式写法在本管线会丢掉后代
+     选择器，产物变成命中 surface 自身的 display:none/opacity:0（已踩坑，勿回退）。 */
+  :global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) .nav-logo-text) {
+    opacity: 0;
+    max-width: 0;
+    transform: translateX(-6px);
+    transition:
+      max-width 160ms ease,
+      opacity 140ms ease,
+      transform 160ms ease;
+  }
+
+  :global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) .nav-username) {
+    opacity: 0;
+    max-width: 0;
+    transform: translateX(-6px);
+    transition:
+      max-width 160ms ease,
+      opacity 140ms ease,
+      transform 160ms ease;
+  }
+
+  :global(#unified-nav-container .nav-mini-caps.nav-expanded .nav-logo-text) {
+    opacity: 1;
+    max-width: 96px;
+    transform: translateX(0);
+    transition:
+      max-width 220ms var(--ease-emphasized) 90ms,
+      opacity 200ms ease 90ms,
+      transform 220ms var(--ease-emphasized) 90ms;
+  }
+
+  :global(#unified-nav-container .nav-mini-caps.nav-expanded .nav-username) {
+    opacity: 1;
+    max-width: 96px;
+    transform: translateX(0);
+    transition:
+      max-width 220ms var(--ease-emphasized) 90ms,
+      opacity 200ms ease 90ms,
+      transform 220ms var(--ease-emphasized) 90ms;
+  }
+
+  /* 文本收起后归零组内 gap（icon|text、avatar|username），mini 三元素才贴得紧；
+     nowrap 防止过渡中途换行。 */
+  :global(#unified-nav-container .nav-mini-caps .nav-logo-text) {
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  :global(#unified-nav-container .nav-mini-caps .nav-username) {
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  :global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) .nav-logo) {
+    gap: 0;
+  }
+
+  :global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) .nav-user-info) {
+    gap: 0;
+  }
+
+  /* DEV 测试按钮会撑宽 mini 胶囊，mini 未展开态隐藏（横屏/展开态照旧） */
+  :global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) .nav-dev-island-btn) {
+    display: none;
+  }
+
+  /* 菜单卡：等胶囊宽度展开过半再落（slideDown keyframes 进场 + delay）。
+     出场维持现状 display 切换即收（与宽度收缩同时开始，视觉连续）。 */
+  :global(#unified-nav-container .nav-mini-caps .nav-menu-mobile.active) {
+    animation-delay: 180ms;
+  }
 }
 
 @media (orientation: portrait) and (max-width: 480px) {
   .unified-nav-surface {
     height: 54px;
+  }
+
+  /* mini 档：≤480 内容实测 ~112（icon 26 / burger 32 / padding 10），内容实测 ~126（含 user-info 胶囊底 16）+ 余量 14 */
+  :global(#unified-nav-container .unified-nav-surface.nav-mini-caps) {
+    --nav-mini-width: 140px;
   }
 }
 
@@ -360,6 +467,23 @@
 @media (prefers-reduced-motion: reduce) {
   .unified-nav-surface {
     transition: none;
+  }
+
+  /* mini 形态的 transition/animation 特异性高于上方 (0,1,0) 规则，需在此一并压平（plans/009） */
+  :global(#unified-nav-container .unified-nav-surface.nav-mini-caps) {
+    transition: none;
+  }
+
+  :global(#unified-nav-container .nav-mini-caps .nav-logo-text) {
+    transition: none;
+  }
+
+  :global(#unified-nav-container .nav-mini-caps .nav-username) {
+    transition: none;
+  }
+
+  :global(#unified-nav-container .nav-mini-caps .nav-menu-mobile.active) {
+    animation-delay: 0ms;
   }
 }
 
