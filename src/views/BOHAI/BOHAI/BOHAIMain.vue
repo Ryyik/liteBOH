@@ -397,6 +397,15 @@
                                         </span>
                                         <span v-if="isHealthAnalysisEnabled" class="feature-action-check"></span>
                                     </button>
+                                    <button type="button" class="feature-action-row" @click="startPsychAnalysis">
+                                        <span class="feature-action-icon">
+                                            <Brain size="16" />
+                                        </span>
+                                        <span class="feature-action-copy">
+                                            <strong>心理分析</strong>
+                                            <small>切换心理专家，由 AI 逐个提问陪你梳理</small>
+                                        </span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -503,8 +512,9 @@
 <script setup>
 import { ref, reactive, computed, onMounted, nextTick, watch, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
-import { Plus, Trash2, Square, Globe, Cloud, Search, X, ChevronDown, Copy, ThumbsUp, ThumbsDown, MoreHorizontal, ArrowUp, Check, CheckCircle2, LoaderCircle, Circle, PanelLeft, Settings2, AlertCircle, RotateCcw, Archive, FileText, HeartPulse } from 'lucide-vue-next';
+import { Plus, Trash2, Square, Globe, Cloud, Search, X, ChevronDown, Copy, ThumbsUp, ThumbsDown, MoreHorizontal, ArrowUp, Check, CheckCircle2, LoaderCircle, Circle, PanelLeft, Settings2, AlertCircle, RotateCcw, Archive, FileText, HeartPulse, Brain } from 'lucide-vue-next';
 import { useChatEngine } from '../composables/useChatEngine';
+import { createExpertState } from '../expert-roles/interview-engine.js';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import BohaiSidebar from './components/BohaiSidebar.vue';
@@ -1858,6 +1868,38 @@ const toggleHealthAnalysis = () => {
     closeFeaturesMenu();
 };
 
+/**
+ * 心理分析：加号 → 工具菜单里的一键入口。
+ *
+ * 做三件事：
+ * 1. 切到「心理专家」角色 —— 访谈协议、不给选项、认识论分层都挂在这个角色的提示附录里
+ *    （见 src/views/BOHAI/expert-roles/psychologist.js），不切角色就不会访谈。
+ * 2. 空会话时填入一句启动语，交给现有 sendMessage 链路发出去 —— 于是 AI 直接主动开口提问。
+ *    已有内容的会话只切角色、不代发，避免重复点击叠出多条「开始」。
+ * 3. 不新增任何 UI：入口复用加号菜单既有的 feature-action-row，输出复用消息渲染。
+ */
+const startPsychAnalysis = () => {
+    closeFeaturesMenu();
+    if (currentResponseStyleId.value !== 'psychologist') {
+        setResponseStyle('psychologist');
+    }
+    // 访谈是「多规则 + 精细追问」的任务，轻量模型跟不上这套协议（实测 fast 会退化成问卷）。
+    // 能升就升；未登录时 pro 不在可选列表里，保持原样不报错。
+    const strongerMode = chatModes.value?.find((item) => item.id === 'pro');
+    if (strongerMode && currentModeId.value === 'fast') {
+        selectMode('pro');
+    }
+    const session = chatSessions[currentSessionIndex.value];
+    const hasHistory = (session?.messages?.length || 0) > 0;
+    if (hasHistory) return;
+    // 初始化访谈状态。三件事全靠它：
+    // ① 封闭域判定（不读站内数据、不写记忆）② 每轮注入状态块 ③ 输出守门。
+    // 默认轨道用「人生模式审计」——用户没选轨道，AI 会在对话里自然聚焦方向。
+    session.expertState = createExpertState({ trackId: 'pattern' });
+    inputMessage.value = '我想做一次心理分析，你直接开始问我吧。';
+    Promise.resolve(sendMessage()).catch((err) => logger.error('bohai', 'Psych analysis start failed', err));
+};
+
 const slashQuery = computed(() => {
     const value = String(inputMessage.value || '');
     if (!value.startsWith('/') || value.includes('\n') || /\s/.test(value)) return null;
@@ -1923,7 +1965,6 @@ const runSlashCommand = async (command) => {
     }
     if (command.action === 'health') {
         isHealthAnalysisEnabled.value = true;
-        isHealthAnalysisDismissed.value = false;
         emitIslandMessage({
             title: '已开启健康分析',
             message: '接下来的回答会带上你的 BOH Health 数据，点输入框上的「健康分析」标签可关闭',

@@ -128,12 +128,18 @@ import {
   deleteSharedAIMemory
 } from '@/utils/api/treehole-api.js';
 import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';
+// 编辑/删除经全局确认弹窗（宿主为 App.vue 的 AdminConfirmModal），替换原生 prompt / confirm
+import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 
 const router = useRouter();
 const route = useRoute();
 const isFromUserSpace = computed(() => String(route.query.from || '').startsWith('userspace'));
 const authStore = useAuthStore();
 const { isLoggedIn, userInfo, showLoginModal } = storeToRefs(authStore);
+
+// 全局确认弹窗实例：editMemory / removeMemory 依赖它，缺失会导致点击后
+// 同步抛 ReferenceError、UI 完全无反应（N1）。此单例由 App.vue 渲染宿主。
+const dialog = useConfirmDialog();
 
 const goBack = () => {
   router.push(resolveSettingsBackLocation(route));
@@ -174,6 +180,42 @@ const notice = reactive({
   text: ''
 });
 let noticeTimer = null;
+
+// 写操作成功后的延迟静默刷新：句柄化，供卸载时清理（原为三处裸 setTimeout）
+let refreshTimer = null;
+
+const scheduleRefresh = () => {
+  if (refreshTimer) {
+    clearTimeout(refreshTimer);
+  }
+  refreshTimer = setTimeout(() => {
+    refreshTimer = null;
+    void fetchSharedMemories({ append: false, force: true });
+  }, 3000);
+};
+
+// useConfirmDialog 带互斥保护：弹窗已被占用时直接 reject（'Dialog is already open'）。
+// 只把这一类「预期内」的拒绝归一化为「用户取消」；其它异常（例如 dialog 未定义、
+// 组件内部抛错）必须原样冒泡，否则会被静默吞掉 —— 表现为「点了没反应」且监控收不到。
+const isDialogBusy = (err) => /already open/i.test(String(err?.message || err || ''));
+
+const safePrompt = async (options) => {
+  try {
+    return await dialog.prompt(options);
+  } catch (err) {
+    if (isDialogBusy(err)) return null;
+    throw err;
+  }
+};
+
+const safeConfirm = async (options) => {
+  try {
+    return await dialog.confirm(options);
+  } catch (err) {
+    if (isDialogBusy(err)) return false;
+    throw err;
+  }
+};
 
 const hasMore = computed(() => sharedMemories.value.length < Number(pager.total || 0));
 
@@ -290,11 +332,16 @@ const updateStatus = async (item, nextStatus, successText) => {
   runningAction.id = String(item.id);
   runningAction.type = 'status';
 
-  // 2. 发起更新请求
-  const result = await updateSharedAIMemoryStatus(String(userInfo.value.id || ''), String(item.id), nextStatus);
-
-  runningAction.id = '';
-  runningAction.type = '';
+  // 2. 发起更新请求。接口「抛异常」而非返回 ok:false 时，同样要复位按钮态并回滚乐观值。
+  let result;
+  try {
+    result = await updateSharedAIMemoryStatus(String(userInfo.value.id || ''), String(item.id), nextStatus);
+  } catch (err) {
+    result = { ok: false, error: err };
+  } finally {
+    runningAction.id = '';
+    runningAction.type = '';
+  }
 
   if (!result.ok) {
     // 如果更新失败，恢复状态
@@ -304,9 +351,7 @@ const updateStatus = async (item, nextStatus, successText) => {
   }
 
   // 3. 延迟静默刷新（3秒后执行）
-  setTimeout(() => {
-    fetchSharedMemories({ append: false, force: true });
-  }, 3000);
+  scheduleRefresh();
 };
 
 const archiveMemory = async (item) => {
@@ -321,7 +366,7 @@ const editMemory = async (item) => {
   if (!item?.id || !userInfo.value?.id) return;
 
   const original = String(item.content || '').trim();
-  const input = await dialog.prompt({
+  const input = await safePrompt({
     title: '编辑公共记忆',
     message: '请输入公共记忆内容（1-1200字）',
     placeholder: '1-1200 字',
@@ -351,13 +396,18 @@ const editMemory = async (item) => {
   runningAction.id = String(item.id);
   runningAction.type = 'edit';
 
-  // 2. 发起更新请求
-  const result = await updateSharedAIMemory(String(userInfo.value.id || ''), String(item.id), {
-    content: nextContent
-  });
-
-  runningAction.id = '';
-  runningAction.type = '';
+  // 2. 发起更新请求。抛异常路径同样要复位按钮态并回滚乐观值。
+  let result;
+  try {
+    result = await updateSharedAIMemory(String(userInfo.value.id || ''), String(item.id), {
+      content: nextContent
+    });
+  } catch (err) {
+    result = { ok: false, error: err };
+  } finally {
+    runningAction.id = '';
+    runningAction.type = '';
+  }
 
   if (!result.ok) {
     // 如果更新失败，恢复内容
@@ -367,15 +417,13 @@ const editMemory = async (item) => {
   }
 
   // 3. 延迟静默刷新（3秒后执行）
-  setTimeout(() => {
-    fetchSharedMemories({ append: false, force: true });
-  }, 3000);
+  scheduleRefresh();
 };
 
 const removeMemory = async (item) => {
   if (!item?.id || !userInfo.value?.id) return;
 
-  const confirmed = await dialog.confirm({
+  const confirmed = await safeConfirm({
     title: '删除公共记忆',
     message: '确认删除这条公共记忆吗？删除后不可恢复。',
     tone: 'danger',
@@ -397,11 +445,16 @@ const removeMemory = async (item) => {
   runningAction.id = String(item.id);
   runningAction.type = 'delete';
 
-  // 2. 发起删除请求
-  const result = await deleteSharedAIMemory(String(userInfo.value.id || ''), String(item.id));
-
-  runningAction.id = '';
-  runningAction.type = '';
+  // 2. 发起删除请求。抛异常路径同样要复位按钮态并恢复列表。
+  let result;
+  try {
+    result = await deleteSharedAIMemory(String(userInfo.value.id || ''), String(item.id));
+  } catch (err) {
+    result = { ok: false, error: err };
+  } finally {
+    runningAction.id = '';
+    runningAction.type = '';
+  }
 
   if (!result.ok) {
     // 如果删除失败，恢复数据
@@ -411,9 +464,7 @@ const removeMemory = async (item) => {
   }
 
   // 3. 延迟静默刷新（3秒后执行）
-  setTimeout(() => {
-    fetchSharedMemories({ append: false, force: true });
-  }, 3000);
+  scheduleRefresh();
 };
 
 watch(() => userInfo.value?.id || '', async (nextId, prevId) => {
@@ -435,6 +486,10 @@ onUnmounted(() => {
   if (noticeTimer) {
     clearTimeout(noticeTimer);
     noticeTimer = null;
+  }
+  if (refreshTimer) {
+    clearTimeout(refreshTimer);
+    refreshTimer = null;
   }
 });
 </script>

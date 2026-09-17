@@ -88,6 +88,7 @@ const route = useRoute();
 const isFromUserSpace = computed(() => String(route.query.from || '').startsWith('userspace'));
 const authStore = useAuthStore();
 const { userInfo } = storeToRefs(authStore);
+const dialog = useConfirmDialog();
 
 const goBack = () => {
   router.push(resolveSettingsBackLocation(route));

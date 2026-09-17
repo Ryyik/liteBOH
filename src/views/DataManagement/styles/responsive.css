@@ -1668,3 +1668,59 @@
 [data-theme="dark"] .data-management-page ::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.15);
 }
+
+/* 横屏矮视口（手机横屏 / 矮窗口）：压缩纵向占用，内容优先 */
+@media (orientation: landscape) and (max-height: 500px) {
+  .data-management-page {
+    --dm-nav-height: 52px;
+  }
+
+  .main-container {
+    padding: 10px 14px 20px;
+  }
+
+  .admin-breadcrumb {
+    padding-top: 8px;
+  }
+
+  /* hero 与标题/面包屑重复，矮屏下隐藏，标题行保留 */
+  .admin-section-hero {
+    display: none;
+  }
+
+  .toolbar-primary,
+  .toolbar-secondary {
+    padding: 8px 14px;
+  }
+
+  .data-content {
+    padding: 12px 14px;
+  }
+
+  .collection-overview {
+    padding: 8px 12px;
+    margin-bottom: 8px;
+  }
+
+  .g-todo-band,
+  .g-overview-stats,
+  .g-overview-grid,
+  .g-cloud-details {
+    margin-top: 8px;
+  }
+
+  .bulk-bar {
+    top: 60px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+  }
+
+  .drawer-header {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .field-group-body {
+    padding: 12px;
+  }
+}

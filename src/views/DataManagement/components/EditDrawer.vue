@@ -140,6 +140,15 @@
               </div>
             </div>
 
+            <!-- 分组工具条：计数 + 全部展开/收起（偏好按 tab 记忆） -->
+            <div v-if="fieldGroups.length > 1" class="field-groups-toolbar">
+              <span class="field-groups-count">{{ expandedGroupCount }}/{{ fieldGroups.length }} 组展开</span>
+              <div class="field-groups-actions">
+                <button type="button" @click="expandAllGroups">全部展开</button>
+                <button type="button" @click="collapseAllGroups">全部收起</button>
+              </div>
+            </div>
+
             <!-- 可折叠分组（accordion）-->
             <div v-for="group in fieldGroups" :key="group.key" class="field-group"
               :class="{ collapsed: isGroupCollapsed(group.key) }">
@@ -156,7 +165,7 @@
               </button>
               <div class="field-group-body">
                 <template v-for="field in group.fields" :key="field.key">
-                  <div v-if="isFieldVisible(field)" class="form-group" :class="[`field-${field.type}`, { 'full-width': isFullWidthField(field) }]">
+                  <div v-if="isFieldVisible(field)" class="form-group" :data-field-key="field.key" :class="[`field-${field.type}`, { 'full-width': isFullWidthField(field), 'field-flash': flashFieldKey === field.key }]">
                     <label class="form-label" :for="`f-${currentTab}-${field.key}`">
                       <span>{{ field.label }}</span>
                       <span v-if="field.required" class="required">*</span>
@@ -278,6 +287,24 @@
                       @input="setField(field.key, $event.target.value); $emit('clearFieldError', field.key)"
                       @blur="$emit('validateField', field.key)" />
 
+                    <!-- 活动日期：年月（type=month）+ 可选「日」 -->
+                    <div v-else-if="field.type === 'activity-date'" class="activity-date-field">
+                      <input :id="`f-${currentTab}-${field.key}`"
+                        :value="activityDateParts(field.key).month" type="month"
+                        class="form-input"
+                        :class="{ 'input-invalid': fieldErrors[field.key] }"
+                        :disabled="isFieldDisabled(field)" :required="field.required"
+                        @input="setActivityDate(field.key, 'month', $event.target.value); $emit('clearFieldError', field.key)"
+                        @blur="$emit('validateField', field.key)" />
+                      <input :value="activityDateParts(field.key).day" type="number" min="1" max="31"
+                        class="form-input activity-date-field__day"
+                        :disabled="isFieldDisabled(field)"
+                        placeholder="日"
+                        aria-label="日（可留空）"
+                        @input="setActivityDate(field.key, 'day', $event.target.value)" />
+                      <p class="activity-date-field__hint">「日」留空表示只精确到月，前台不会显示成 1 日。</p>
+                    </div>
+
                     <!-- 日期时间输入 -->
                     <input v-else-if="field.type === 'datetime'" :id="`f-${currentTab}-${field.key}`"
                       :value="editingItem[field.key]" type="datetime-local"
@@ -291,7 +318,7 @@
                       :value="editingItem[field.key]"
                       :class="['form-textarea', { 'input-invalid': fieldErrors[field.key] }]"
                       :placeholder="field.placeholder" :disabled="isFieldDisabled(field)" :required="field.required"
-                      :rows="field.rows || 4" :maxlength="field.maxLength"
+                      :rows="field.rows || 6" :maxlength="field.maxLength"
                       @input="setField(field.key, $event.target.value); $emit('clearFieldError', field.key)"
                       @blur="$emit('validateField', field.key)"></textarea>
 
@@ -327,7 +354,15 @@
                     </div>
 
                     <!-- 图片输入 -->
-                    <div v-else-if="field.type === 'image'" class="image-input">
+                    <div
+                      v-else-if="field.type === 'image'"
+                      class="image-input"
+                      :class="{ 'is-dragover': dragImageFieldKey === field.key }"
+                      @paste="onImagePaste(field, $event)"
+                      @dragover.prevent="onImageDragEnter(field)"
+                      @dragleave="onImageDragLeave(field)"
+                      @drop.prevent="onImageDrop(field, $event)"
+                    >
                       <div class="image-preview" v-if="editingItem[field.key]">
                         <img :src="getImageUrl(editingItem[field.key])" alt="Preview" loading="lazy" />
                         <button type="button" class="remove-image"
@@ -335,7 +370,7 @@
                       </div>
                       <div v-else class="image-placeholder">
                         <span>🖼️</span>
-                        <p>上传或粘贴图片</p>
+                        <p>上传、粘贴或拖拽图片到此处</p>
                       </div>
                       <div class="image-source-actions">
                         <label class="cloud-upload-btn"
@@ -394,7 +429,7 @@
                     <!-- JSON 输入 -->
                     <div v-else-if="field.type === 'json'" class="json-input">
                       <textarea :value="jsonBuffers[field.key]" @input="setJsonBuffer(field.key, $event.target.value)"
-                        class="form-textarea code-font" rows="6" placeholder="请输入有效的 JSON"></textarea>
+                        class="form-textarea code-font" rows="10" placeholder="请输入有效的 JSON"></textarea>
                     </div>
 
                     <span v-if="fieldErrors[field.key]" class="field-error">{{ fieldErrors[field.key] }}</span>
@@ -416,6 +451,22 @@
           </span>
           <div class="drawer-footer-actions">
             <button class="btn btn-secondary" @click="$emit('close')">取消</button>
+            <button
+              v-if="isEditing"
+              class="btn btn-secondary"
+              type="button"
+              :disabled="isSaving || !hasNextRecord"
+              title="保存当前并打开下一条（连续审核/录入）"
+              @click="$emit('save-and-next')"
+            >保存并下一条</button>
+            <button
+              v-else
+              class="btn btn-secondary"
+              type="button"
+              :disabled="isSaving"
+              title="保存后继续新建下一条"
+              @click="$emit('save-and-create')"
+            >保存并新建</button>
             <button class="btn btn-primary" @click="$emit('save')" :disabled="isSaving">
               {{ isSaving ? '保存中...' : '保存' }}
             </button>
@@ -479,6 +530,7 @@ import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue';
 import { getImageUrl } from '../../../utils/asset-helper';
 import { supabase } from '../../../utils/supabase-client.js';
 import { listApiKeys } from '../../../utils/api/api-key-vault-api.js';
+import { composeActivityDateInput, parseActivityDate } from '../../../utils/activity-date';
 
 // 异步选项缓存：key = optionsSource标识，value = 选项数组
 const asyncOptionsCache = ref({});
@@ -805,6 +857,8 @@ const props = defineProps({
 const emit = defineEmits([
   'close',
   'save',
+  'save-and-next',
+  'save-and-create',
   'saveGroup',
   'regenerateId',
   'regenerateNewsId',
@@ -843,8 +897,23 @@ const emit = defineEmits([
 // Reassign fieldGroups and related computeds/watches after defineProps
 fieldGroups = computed(() => ensureGroups(props.currentTab, props.currentFields || []));
 
-// 可折叠分组状态：默认第一个展开，其余折叠（仅多分组时）
+// 可折叠分组状态：按 tab 记忆到 localStorage，无记忆时默认仅第一组展开
+const DRAWER_GROUP_MEMORY_KEY = 'dm-drawer-groups-v1';
 const collapsedGroups = ref(new Set());
+const flashFieldKey = ref('');
+
+const readGroupMemory = () => {
+  try {
+    return JSON.parse(localStorage.getItem(DRAWER_GROUP_MEMORY_KEY) || '{}') || {};
+  } catch (e) { return {}; }
+};
+const persistGroupMemory = (tab) => {
+  try {
+    const all = readGroupMemory();
+    all[tab || props.currentTab] = [...collapsedGroups.value];
+    localStorage.setItem(DRAWER_GROUP_MEMORY_KEY, JSON.stringify(all));
+  } catch (e) { /* ignore */ }
+};
 
 const isGroupCollapsed = (key) => collapsedGroups.value.has(key);
 
@@ -856,13 +925,62 @@ const toggleGroup = (key) => {
     next.add(key);
   }
   collapsedGroups.value = next;
+  persistGroupMemory();
 };
 
+const expandedGroupCount = computed(
+  () => (fieldGroups.value || []).filter((g) => !isGroupCollapsed(g.key)).length
+);
+
+const expandAllGroups = () => {
+  collapsedGroups.value = new Set();
+  persistGroupMemory();
+};
+
+const collapseAllGroups = () => {
+  collapsedGroups.value = new Set((fieldGroups.value || []).map((g) => g.key));
+  persistGroupMemory();
+};
+
+// 外部直达字段：展开所在分组 → 滚动 → 高亮（行内铅笔/保存错误定位共用）
+let flashTimer = null;
+const revealField = (fieldKey) => {
+  if (!fieldKey) return;
+  const groups = fieldGroups.value || [];
+  const owner = groups.find((g) => (g.fields || []).some((f) => f.key === fieldKey));
+  if (owner && isGroupCollapsed(owner.key)) toggleGroup(owner.key);
+  nextTick(() => {
+    const root = overlayRef.value;
+    if (!root || typeof document === 'undefined') return;
+    let el = null;
+    try {
+      el = root.querySelector(`[data-field-key="${CSS.escape(fieldKey)}"]`)
+        || root.querySelector(`#f-${props.currentTab}-${fieldKey}`);
+    } catch (e) { el = null; }
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+    flashFieldKey.value = fieldKey;
+    if (flashTimer) clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => {
+      if (flashFieldKey.value === fieldKey) flashFieldKey.value = '';
+      flashTimer = null;
+    }, 1400);
+  });
+};
+
+defineExpose({ revealField, expandAllGroups, collapseAllGroups });
+
 watch(() => props.currentTab, () => {
-  // 切换 tab 时重置：仅展开第一组
+  // 切换 tab 时：有记忆用记忆，无记忆仅展开第一组
   const groups = fieldGroups.value;
   if (groups.length > 1) {
-    collapsedGroups.value = new Set(groups.slice(1).map(g => g.key));
+    const remembered = readGroupMemory()[props.currentTab];
+    collapsedGroups.value = new Set(
+      Array.isArray(remembered)
+        ? remembered.filter((k) => groups.some((g) => g.key === k))
+        : groups.slice(1).map(g => g.key)
+    );
   } else {
     collapsedGroups.value = new Set();
   }
@@ -934,6 +1052,36 @@ function setField(fieldKey, value) {
   emit('updateField', fieldKey, value);
 }
 
+// 活动日期是 varchar(50) 且历史上三种格式混录，其中 6 条只有年月。
+// 这里把「年月」和「日」拆成两个输入框：日留空 = 该记录只精确到月，
+// 存储写回 YYYY-MM 而不是补成 YYYY-MM-01（旧 toDateInputValue 会静默补 1 日，销毁精度）。
+const activityDateParts = (fieldKey) => {
+  const parsed = parseActivityDate(props.editingItem?.[fieldKey]);
+  if (!parsed.valid) return { month: '', day: '' };
+  return {
+    month: `${parsed.year}-${String(parsed.month).padStart(2, '0')}`,
+    day: parsed.hasDay ? String(parsed.day) : ''
+  };
+};
+
+const setActivityDate = (fieldKey, part, rawValue) => {
+  const { month, day } = activityDateParts(fieldKey);
+  if (part === 'month') {
+    const next = String(rawValue || '').trim();
+    if (!next) {
+      setField(fieldKey, '');
+      return;
+    }
+    const [year, monthValue] = next.split('-');
+    setField(fieldKey, composeActivityDateInput(year, monthValue, day));
+    return;
+  }
+  // 未选年月时忽略「日」的输入，避免产生半截日期
+  if (!month) return;
+  const [year, monthValue] = month.split('-');
+  setField(fieldKey, composeActivityDateInput(year, monthValue, rawValue));
+};
+
 function setJsonBuffer(fieldKey, value) {
   emit('updateJsonBuffer', fieldKey, value);
 }
@@ -942,15 +1090,78 @@ function setSpecField(fieldKey, index, prop, value) {
   emit('updateSpecField', fieldKey, index, prop, value);
 }
 
-const copyFieldValue = (fieldKey) => {
-  const val = props.editingItem?.[fieldKey];
+const copyFieldValue = (fieldKey) => {  const val = props.editingItem?.[fieldKey];
   if (val == null) return;
   if (!navigator.clipboard) return;
   navigator.clipboard.writeText(String(val)).catch(() => {});
+};
+
+// E5: 图片粘贴 / 拖拽上传 —— 复用父级 imageUpload 通道（构造类 input 事件）
+const dragImageFieldKey = ref('');
+const firstImageFile = (fileList) => {
+  const files = [...(fileList || [])];
+  return files.find((f) => String(f?.type || '').startsWith('image/')) || null;
+};
+const emitImageFile = (field, file) => {
+  if (!file) return;
+  emit('imageUpload', { target: { files: [file], value: '' } }, field);
+};
+const onImagePaste = (field, e) => {
+  const file = firstImageFile(e.clipboardData?.files);
+  if (file) {
+    e.preventDefault();
+    emitImageFile(field, file);
+  }
+};
+const onImageDragEnter = (field) => { dragImageFieldKey.value = field.key; };
+const onImageDragLeave = (field) => {
+  if (dragImageFieldKey.value === field.key) dragImageFieldKey.value = '';
+};
+const onImageDrop = (field, e) => {
+  dragImageFieldKey.value = '';
+  const file = firstImageFile(e.dataTransfer?.files);
+  if (file) emitImageFile(field, file);
 };
 </script>
 
 <style scoped>
 @import '../styles/console.css';
 @import '../styles/responsive.css';
+
+/* 活动日期双输入（年月 + 可选日） */
+.activity-date-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.activity-date-field .form-input {
+  width: auto;
+  min-width: 0;
+  flex: 1 1 148px;
+}
+
+.activity-date-field__day {
+  flex: 0 0 84px;
+}
+
+.activity-date-field__hint {
+  flex: 1 0 100%;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #8e8e93;
+}
+
+html[data-theme="dark"] .activity-date-field__hint {
+  color: #98989d;
+}
+
+/* E5: 图片拖拽悬停态 */
+.image-input.is-dragover {
+  outline: 2px dashed var(--primary);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
 </style>

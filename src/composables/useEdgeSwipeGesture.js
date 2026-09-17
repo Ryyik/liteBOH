@@ -31,7 +31,6 @@ export function useEdgeSwipeGesture(options = {}) {
 // 检查是否在右侧边缘区域内
     if (touch.clientX >= screenWidth - edgeWidth) {
       touchStartX = touch.clientX
-      touchStartY = touch.clientY
       touchStartTime = Date.now()
 
       startX.value = touch.clientX

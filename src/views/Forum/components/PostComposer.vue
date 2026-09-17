@@ -728,6 +728,16 @@ onUnmounted(() => {
           <span>标签</span>
           <strong v-if="selectedTagLabel">#{{ selectedTagLabel }}</strong>
         </button>
+        <!-- 图片 chip：只在「网格内 ＋添加图片 大卡片被隐藏」的电脑/平板横屏显示
+             （条件见 composer.css 的 .mobile-composer-chip--image，与卡片互为镜像） -->
+        <button type="button" class="mobile-composer-chip mobile-composer-chip--image"
+          :disabled="isPostBusy || postImages.length >= maxPostImages"
+          :aria-label="`添加图片，已添加 ${postImages.length} 张，最多 ${maxPostImages} 张`"
+          @click.stop="handleImagePickerRequest">
+          <ImageIcon :size="15" :stroke-width="1.8" aria-hidden="true" />
+          <span>图片</span>
+          <strong>{{ postImages.length }}/{{ maxPostImages }}</strong>
+        </button>
         <button type="button" class="mobile-composer-chip" @click.stop="handleDraftOpen">
           <FileText :size="15" :stroke-width="1.8" aria-hidden="true" />
           <span>草稿</span>

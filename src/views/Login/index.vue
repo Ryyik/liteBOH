@@ -397,8 +397,10 @@ onMounted(() => {
     loginForm.agreedToTerms = true;
   }
 
-  if (typeof AOS !== "undefined") {
-    AOS.init({
+  // AOS（Animate On Scroll）由外部脚本按需注入，项目内未引入 —— 用 window 前缀表达「可能不存在」，
+  // 也让 no-undef 不误判（typeof 对未声明标识符安全，属性访问不检查）。
+  if (typeof window.AOS !== "undefined") {
+    window.AOS.init({
       duration: 800,
     });
   }

@@ -3,6 +3,7 @@ import { watch, onMounted, onUnmounted, ref, computed, defineAsyncComponent } fr
 import { useRoute, useRouter } from "vue-router";
 import Footer from "./components/Footer.vue";
 import UnifiedNavbar from "@/components/UnifiedNavbar/index.vue";
+import GlobalErrorBoundary from "@/components/GlobalErrorBoundary.vue";
 import { useAuthStore } from "@/stores/auth";
 import { storeToRefs } from "pinia";
 import { loadNotificationStore, getNotificationStoreSync } from "@/stores/notification-loader";
@@ -57,6 +58,31 @@ const reloadWithFreshBuild = () => {
   const url = new URL(window.location.href);
   url.searchParams.set("forceUpdate", "true");
   window.location.replace(url.href);
+};
+
+// ============================================
+// 全局渲染错误边界
+// main.js 的 app.config.errorHandler 只负责「记录」：渲染管线抛错后组件树已经崩掉，
+// 界面不会自愈，用户看到的是纯白页且没有任何出口。这里为 RouterView 提供兜底 UI。
+// boundaryKey 在换路由时自增 → 重建边界、清掉 hasError，避免一次错误把后续页面
+// 也一并替换成提示卡。
+// ============================================
+const boundaryKey = ref(0);
+watch(
+  () => route.fullPath,
+  () => {
+    boundaryKey.value += 1;
+  }
+);
+
+// 错误已由边界接管并渲染提示卡，这里只负责留痕（monitoring 上报链路建立后会自动收走）
+const handleBoundaryError = ({ error, info } = {}) => {
+  logger.error("app", `渲染错误已被全局边界捕获（${info || "未知来源"}）`, error);
+};
+
+// 用户选择重试/回首页后重建子树：不重建的话出错的组件实例可能仍处于 errored 状态
+const handleBoundaryRecover = () => {
+  boundaryKey.value += 1;
 };
 const { showLoginModal, isLoggedIn, isInitialized } = storeToRefs(authStore);
 const userInfo = authStore.userInfo;
@@ -279,28 +305,36 @@ const showGlobalNavbar = computed(() => {
     </template>
   </div>
 
-  <Suspense v-else>
-    <template #default>
-      <RouterView v-slot="{ Component, route: activeRoute }">
-        <KeepAlive>
-          <component v-if="activeRoute.meta?.keepAlive" :is="Component" :key="activeRoute.name" />
-        </KeepAlive>
-        <component v-if="!activeRoute.meta?.keepAlive" :is="Component" :key="activeRoute.fullPath" />
-      </RouterView>
-    </template>
-    <template #fallback>
-      <div class="page-suspense-fallback">
-        <div class="suspense-skeleton">
-          <div class="suspense-skeleton-bar"></div>
-          <div class="suspense-skeleton-content">
-            <div class="suspense-skeleton-line w-60"></div>
-            <div class="suspense-skeleton-line w-80"></div>
-            <div class="suspense-skeleton-line w-40"></div>
+  <!-- 渲染期抛错的兜底：包住 Suspense/RouterView，避免整树崩掉后只剩白屏 -->
+  <GlobalErrorBoundary
+    v-else
+    :key="boundaryKey"
+    @error="handleBoundaryError"
+    @recover="handleBoundaryRecover"
+  >
+    <Suspense>
+      <template #default>
+        <RouterView v-slot="{ Component, route: activeRoute }">
+          <KeepAlive>
+            <component v-if="activeRoute.meta?.keepAlive" :is="Component" :key="activeRoute.name" />
+          </KeepAlive>
+          <component v-if="!activeRoute.meta?.keepAlive" :is="Component" :key="activeRoute.fullPath" />
+        </RouterView>
+      </template>
+      <template #fallback>
+        <div class="page-suspense-fallback">
+          <div class="suspense-skeleton">
+            <div class="suspense-skeleton-bar"></div>
+            <div class="suspense-skeleton-content">
+              <div class="suspense-skeleton-line w-60"></div>
+              <div class="suspense-skeleton-line w-80"></div>
+              <div class="suspense-skeleton-line w-40"></div>
+            </div>
           </div>
         </div>
-      </div>
-    </template>
-  </Suspense>
+      </template>
+    </Suspense>
+  </GlobalErrorBoundary>
   <Footer v-if="bootReady && !route.meta?.hideFooter" />
 
   <!-- 全局登录模态框 -->

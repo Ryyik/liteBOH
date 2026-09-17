@@ -1,0 +1,18 @@
+# Cloudflare Worker —— Gemini 反代（供 BOH `api-key-vault` 调用）
+#
+# 部署：npx wrangler deploy
+# 密钥（不要写进本文件，永远走 secret）：
+#   npx wrangler secret put GEMINI_API_KEY
+#   npx wrangler secret put PROXY_TOKEN
+# 可选变量：
+#   npx wrangler secret put GEMINI_REASONING_EFFORT   # 默认 low，设 off 则不注入
+
+name = "boh-gemini-proxy"
+main = "src/index.js"
+compatibility_date = "2026-09-17"
+
+# 走 workers.dev 子域；换自定义域请在 Cloudflare 后台加 route
+workers_dev = true
+
+[observability]
+enabled = true

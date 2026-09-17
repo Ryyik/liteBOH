@@ -54,7 +54,7 @@ const props = defineProps({
 const stats = computed(() => {
   let additions = 0
   let deletions = 0
-  for (const change of diff.value) {
+  for (const change of changes.value) {
     for (const line of change.lines) {
       if (line.type === 'add') additions++
       if (line.type === 'remove') deletions++

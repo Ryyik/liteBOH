@@ -1,0 +1,46 @@
+
+── T1-1 全局 ErrorBoundary（渲染期抛错不再白屏） ────────────────────────
+PASS  A1 畸形持久化数据确实触发了真实渲染错误（错误信息被边界接住） — Cannot read properties of null (reading 'heightCm')
+PASS  A2 抛错后渲染出错误边界提示卡（未白屏）
+PASS  A3 错误未冒泡到 window（onErrorCaptured 返回 false 生效）
+PASS  A4 页面有可见内容，不是白屏
+PASS  A5 提示卡尺寸正常 — 420×261
+PASS  A6 卡片背景不透明（玻璃材质已生效） — rgba(255, 255, 255, 0.84)
+PASS  A7 圆角生效（--liquid-radius-* 已解析，非 0） — 16px
+PASS  A8 卡片可见未隐藏
+PASS  A9 玻璃滤镜生效 — blur(18px) saturate(1.8) brightness(1.02)
+PASS  A10 标题有文案 — 页面出了点问题
+PASS  A11 正文有文案 — Cannot read properties of null (read
+PASS  A12 三个出口按钮均可见可点 — 重试 / 回到首页 / 清除缓存后重载
+PASS  A13 提供「清除缓存后重载」出口（chunk 404 自愈场景）
+PASS  A13a 暗色下标题文字翻转为亮色（token 自动翻转） — rgb(29, 29, 31) → rgb(245, 245, 247)
+PASS  A14 点「回到首页」后卡片消失
+PASS  A15 路由已回到首页 — #/
+PASS  A16 首页正常渲染（边界已复位）
+PASS  A17 换路由后边界自动复位（一次崩溃不污染后续页面）
+
+── T0-1 公共记忆编辑/删除（dialog 未定义修复） ────────────────────────────
+      （列表落定：cards · rest/v1 请求 1 条）
+      （GET https://nplnlefdwfgtyimfkyih.supabase.co/rest/v1/boh_ai_shared_memories?select=id%2Cowner_user_id%2C）
+PASS  B1 公共记忆页真实根元素已就绪
+PASS  B2 列表落定为卡片态 — cards
+PASS  B3 编辑入口已渲染 — 1 个
+PASS  B4 删除入口已渲染 — 1 个
+PASS  B5 点「编辑」后确认弹窗真实弹出（几何校验，非仅 DOM 存在）
+PASS  B6 编辑弹窗带输入框（prompt 模式）
+PASS  B7 输入框预填当前内容 — "探针假数据：用于验证编辑与删除入口"
+PASS  B8 弹窗材质与圆角生效 — rgb(255, 255, 255) / 12px
+PASS  B9 提交后弹窗关闭
+PASS  B10 写接口失败时乐观值已回滚（内容恢复原值） — 探针假数据：用于验证编辑与删除入口
+PASS  B11 失败后按钮可再次点击 — disabled=false
+PASS  B12 失败有可见提示 — 探针强制失败
+PASS  B13 编辑成功执行一次（卡片内容已更新） — 探针改写后的内容
+PASS  B14 点「删除」后确认弹窗真实弹出 — 440px
+PASS  B15 删除弹窗主按钮文案明确 — 删除
+      （删除请求响应：PATCH 500 content-range=(none) | PATCH 200 content-range=(none) | DELETE 200 content-range=0-0/1）
+PASS  B16 删除成功执行一次（卡片已从列表移除） — 剩 0 张 · notice="公共记忆已删除。"
+PASS  B17 删除后弹窗关闭
+
+── 汇总 ──────────────────────────────────────────────────────
+
+35 passed / 0 failed

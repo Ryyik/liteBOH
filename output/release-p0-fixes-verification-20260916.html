@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BOHLITE 批次 0 修复验收报告 · T0-1 + T1-1</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --border: #e3e6ea;
+    --text: #1d1d1f;
+    --muted: #6e6e73;
+    --faint: #8b9098;
+    --pass: #0f6e56;
+    --pass-bg: #e1f5ee;
+    --fail: #a32d2d;
+    --fail-bg: #fcebeb;
+    --warn: #854f0b;
+    --warn-bg: #faeeda;
+    --accent: #185fa5;
+    --accent-bg: #e6f1fb;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 20px 80px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", sans-serif;
+    font-size: 14px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; }
+  header { margin-bottom: 28px; }
+  .eyebrow {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--accent-bg);
+    color: var(--accent);
+    font-size: 12px;
+    margin-bottom: 10px;
+  }
+  h1 { margin: 0 0 8px; font-size: 24px; font-weight: 500; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0; }
+  h2 {
+    margin: 40px 0 14px;
+    font-size: 17px;
+    font-weight: 500;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 { margin: 24px 0 10px; font-size: 14px; font-weight: 500; }
+  p { margin: 0 0 12px; }
+  code {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    background: #f0f2f5;
+    padding: 1.5px 5px;
+    border-radius: 4px;
+  }
+  pre {
+    margin: 0 0 14px;
+    padding: 14px 16px;
+    background: #1d1d1f;
+    color: #e8e8ea;
+    border-radius: 10px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin: 0 0 20px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .card .k { color: var(--faint); font-size: 12px; margin-bottom: 5px; }
+  .card .v { font-size: 20px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .card .v small { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 4px; }
+  .card.ok .v { color: var(--pass); }
+  table { width: 100%; border-collapse: collapse; margin: 0 0 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; font-size: 13px; }
+  th { background: #fafbfc; color: var(--muted); font-weight: 500; font-size: 12px; }
+  tr:last-child td { border-bottom: none; }
+  td.file { font-family: var(--mono); font-size: 12px; color: var(--accent); white-space: nowrap; }
+  .badge {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .badge.pass { background: var(--pass-bg); color: var(--pass); }
+  .badge.fail { background: var(--fail-bg); color: var(--fail); }
+  .badge.warn { background: var(--warn-bg); color: var(--warn); }
+  .badge.info { background: var(--accent-bg); color: var(--accent); }
+  .note {
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    border-radius: 0 10px 10px 0;
+    padding: 14px 18px;
+    margin: 0 0 16px;
+  }
+  .note.warn { border-left-color: #ba7517; }
+  .note.danger { border-left-color: #a32d2d; }
+  .note strong { font-weight: 500; }
+  ul { margin: 0 0 14px; padding-left: 20px; }
+  li { margin-bottom: 6px; }
+  .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 0 0 16px; }
+  .shot { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .shot img { display: block; width: 100%; height: auto; border-bottom: 1px solid var(--border); }
+  .shot .cap { padding: 9px 13px; font-size: 12px; color: var(--muted); }
+  footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--border); color: var(--faint); font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="eyebrow">批次 0 · 放行前必做</span>
+  <h1>BOHLITE 批次 0 修复验收报告</h1>
+  <p class="sub">
+    对应 <code>output/release-assessment-20260915.txt</code>（V2 更正版）的 T0-1 与 T1-1<br>
+    修复 + 验证完成于 2026-09-16 · 改动文件 2 个 · 新增文件 4 个
+  </p>
+</header>
+
+<div class="cards">
+  <div class="card ok"><div class="k">端到端探针</div><div class="v">35<small>/35 通过</small></div></div>
+  <div class="card ok"><div class="k">单元测试（全量）</div><div class="v">1737<small>passed</small></div></div>
+  <div class="card ok"><div class="k">构建门禁</div><div class="v">8<small>/8 通过</small></div></div>
+  <div class="card ok"><div class="k">反证</div><div class="v">2<small>/2 已做</small></div></div>
+</div>
+
+<div class="note">
+  <strong>一句话结论：</strong>批次 0 里影响「功能可用性」的两条已清干净 ——
+  公共记忆的编辑/删除从「点了完全没反应」恢复为可用且失败可回滚；
+  渲染期抛错从「整页白屏、无出口」变成带三个出口的提示卡。
+  两处修复都做了反证：撤掉后对应断言确实转红，不是假绿。
+</div>
+
+<h2>一、修复清单</h2>
+
+<h3>T0-1 · 公共记忆编辑/删除抛 ReferenceError（N1 / S1 / S8）</h3>
+<table>
+  <tr><th style="width:130px">状态</th><td><span class="badge pass">已修复</span></td></tr>
+  <tr><th>落点</th><td class="file">src/views/user-center/SharedMemoryManagement.vue</td></tr>
+  <tr><th>根因</th><td>全文件既无 <code>useConfirmDialog</code> 导入也无实例，却在 <code>:324</code> / <code>:378</code> 调用 <code>dialog.prompt</code> / <code>dialog.confirm</code> → 点击同步抛 ReferenceError，UI 完全无反应</td></tr>
+  <tr><th>改动</th><td>
+    ① 补导入 + <code>const dialog = useConfirmDialog()</code>；<br>
+    ② 新增 <code>isDialogBusy</code> + <code>safePrompt</code> / <code>safeConfirm</code>：<strong>只吞「弹窗已被占用」这一类预期拒绝</strong>，其余 <code>throw err</code> 原样冒泡；<br>
+    ③ 三处写操作（改状态 / 改内容 / 删除）的 await 全部包 <code>try / catch(err→{ok:false}) / finally(复位 runningAction)</code> —— 接口「抛异常」而非返回 <code>ok:false</code> 时也能回滚乐观值；<br>
+    ④ 三处裸 <code>setTimeout</code> 收敛为 <code>scheduleRefresh()</code> + <code>refreshTimer</code> 句柄，<code>onUnmounted</code> 一并清理
+  </td></tr>
+</table>
+
+<h3>T1-1 · 全局 ErrorBoundary UI 缺失（S6）</h3>
+<table>
+  <tr><th style="width:130px">状态</th><td><span class="badge pass">已修复</span></td></tr>
+  <tr><th>落点</th><td class="file">src/components/GlobalErrorBoundary.vue（新建）<br>src/App.vue</td></tr>
+  <tr><th>根因</th><td><code>App.vue</code> 的 <code>&lt;Suspense&gt;</code> 内 <code>RouterView</code> 外侧没有任何边界；<code>ErrorBoundary.vue</code> 只存在于 <code>views/Lab/components/</code>，全仓唯一导入点是 Lab 页 → 其余 44 条路由裸跑。渲染期抛错后组件树已崩，而 <code>main.js:281</code> 的 <code>errorHandler</code> 只负责记录、界面不会自愈 → 用户只见白屏</td></tr>
+  <tr><th>改动</th><td>
+    ① 新建全局边界，App.vue 中包住整个 <code>&lt;Suspense&gt;</code>（<strong>必须在 Suspense 外</strong>，放里面捕获不到异步 chunk 失败）；<br>
+    ② 三个出口：<strong>重试</strong> / <strong>回到首页</strong> / <strong>清除缓存后重载</strong>（复用 <code>version-checker.js</code> 的 <code>forceCleanAndReload</code>，动态 import 以免在出错路径上再增加加载失败面）；<br>
+    ③ <code>watch(route.fullPath)</code> 自增 <code>boundaryKey</code> → 换路由自动复位，一次崩溃不污染后续页面
+  </td></tr>
+</table>
+
+<div class="note warn">
+  <strong>一个刻意不做的决定：没有上提 Lab 版 ErrorBoundary。</strong>
+  它的样式绑的是 Lab 作用域的局部变量（<code>--card</code> / <code>--foreground</code> / <code>--radius-sm</code>），
+  其中 <code>--radius-sm</code> 全站根本没有定义 —— 直接搬进全局会静默裸奔（圆角归零、背景透明），
+  而且搬走会连累 Lab 自己。因此新建的全局版只用全局单一源 <code>--liquid-*</code>，
+  暗色由 token 自动翻转，<strong>不认任何宿主 class</strong>；Lab 版保持原样不动。
+  两份并存是已知的重复，收敛留到后续（不在放行门槛内）。
+</div>
+
+<h2>二、验证证据</h2>
+
+<p>三层验证：单元层锁契约与错误分支，探针层验用户可见行为与计算样式，反证层验「测试本身有效」。</p>
+
+<table>
+  <tr><th style="width:180px">层次</th><th>内容</th><th style="width:110px">结果</th></tr>
+  <tr>
+    <td>单元 <span class="badge info">27 项</span></td>
+    <td><code>tests/unit/global-error-boundary.test.js</code>(14) + <code>tests/unit/shared-memory-dialog.test.js</code>(13)<br>
+        断言：边界在 Suspense 外、三出口存在、只消费 <code>--liquid-*</code>、暗色走 <code>data-theme</code>、safe 封装只吞互斥、三处 finally 复位、句柄化清理</td>
+    <td><span class="badge pass">全通过</span></td>
+  </tr>
+  <tr>
+    <td>端到端 <span class="badge info">35 项</span></td>
+    <td><code>scripts/probes/probe-release-p0-fixes.mjs</code>（从仓库根执行）<br>
+        A 组 17 项：真实崩溃 → 边界渲染 + 材质/圆角/几何 + 三出口 + 暗色翻转 + 换路由复位<br>
+        B 组 18 项：弹窗真实弹出（含预填与材质）+ 失败回滚 + 编辑/删除各成功执行一次</td>
+    <td><span class="badge pass">35 / 0</span></td>
+  </tr>
+  <tr>
+    <td>反证</td>
+    <td><code>git stash src/App.vue</code> → A1 / A2 / A4 / A17 转红（<strong>A2 即白屏</strong>）<br>
+        删掉 <code>const dialog</code> → B5 / B7 / B8 转红（弹窗完全不出现）</td>
+    <td><span class="badge pass">已转红</span></td>
+  </tr>
+</table>
+
+<h3>崩溃是怎么触发的（用真实数据，不篡改组件）</h3>
+<pre><code>// 探针在 addInitScript 里写入畸形的持久化数据
+localStorage['boh_health_persist'] = { profile: null, vaultRecords: null, ... }
+// → 打开 /#/health，模板读取已持久化的空 profile
+// → TypeError: Cannot read properties of null (reading 'heightCm')
+
+// 这条路径同时实证了两个隐患的交叉：
+//   S11 健康数据用固定 key 持久化且登出不清
+//   S16 模板深层解引用无兜底
+</code></pre>
+
+<h3>关键截图</h3>
+<div class="shots">
+  <div class="shot"><img src="probe-release-p0-fixes/boundary-light.png" alt="亮色下的错误边界提示卡"><div class="cap">亮色 · 渲染期抛错后不再是白屏，三个出口齐备</div></div>
+  <div class="shot"><img src="probe-release-p0-fixes/boundary-dark.png" alt="暗色下的错误边界提示卡"><div class="cap">暗色 · 标题 rgb(29,29,31) → rgb(245,245,247)，token 自动翻转</div></div>
+  <div class="shot"><img src="probe-release-p0-fixes/edit-dialog.png" alt="编辑弹窗"><div class="cap">编辑弹窗 · 真实弹出并预填当前内容（修复前此处无任何反应）</div></div>
+  <div class="shot"><img src="probe-release-p0-fixes/boundary-recovered.png" alt="点回到首页后恢复"><div class="cap">点「回到首页」后边界复位，首页正常渲染</div></div>
+</div>
+
+<h2>三、过程中纠正的两个假象</h2>
+
+<div class="note danger">
+  <strong>假象一：探针「全绿」，但其实两条断言永远不会红。</strong><br>
+  第一版把「未抛 ReferenceError」写成断言，撤掉修复后它照样通过 —— 因为那种写法把
+  ReferenceError 也一并吞掉了。两个教训：<br>
+  ① 无差别兜底 <code>catch { return null }</code> 会把编程错误一起吞掉，用户仍只见「点了没反应」且监控收不到；已改为按错误特征分流，其余 <code>throw err</code>。<br>
+  ② 断言「没有错误发生」远不如断言「行为正确」可靠，已把那两条换成报告真正要求的验收项（编辑/删除各成功执行一次、失败回滚）。
+</div>
+
+<div class="note danger">
+  <strong>假象二：删除接口「请求成功但列表不更新」。</strong><br>
+  排查后是探针自己的 mock 缺了一条响应头。<code>Content-Range</code> 不在 CORS 安全列表里，
+  跨域下浏览器不会把它交给脚本，supabase-js 的 <code>count</code> 恒为 null，
+  <code>delete({ count:'exact' })</code> 就被判成「不存在或无权限」而回滚。
+  更阴的是 <code>page.on('response')</code> 在 CDP 层看得到该头，日志一片正常。
+  修法是 mock 里加 <code>Access-Control-Expose-Headers: Content-Range</code>。
+</div>
+
+<h2>四、门禁结果</h2>
+
+<table>
+  <tr><th style="width:230px">检查项</th><th style="width:120px">结果</th><th>说明</th></tr>
+  <tr><td>eslint（改动文件）</td><td><span class="badge pass">0 error</span></td><td>2 个 warning 为既有未使用变量，非本次引入</td></tr>
+  <tr><td>vue-tsc 类型检查</td><td><span class="badge pass">通过</span></td><td>5s，无输出即无错误</td></tr>
+  <tr><td>vitest 全量</td><td><span class="badge pass">1737 passed</span></td><td>107 文件 / 1 skipped（基线 105 文件 1710 项，本次新增 2 文件 27 项）</td></tr>
+  <tr><td>check:views</td><td><span class="badge pass">通过</span></td><td>无 .vue 与同名目录冲突</td></tr>
+  <tr><td>check:structure</td><td><span class="badge pass">通过</span></td><td>仅既有超大文件告警</td></tr>
+  <tr><td>check:liquid-glass</td><td><span class="badge pass">通过</span></td><td>新组件挂现成 <code>.liquid-glass</code>，未裸写滤镜</td></tr>
+  <tr><td>check:important-budget</td><td><span class="badge pass">1332 / 1332</span></td><td>未新增，与基线持平</td></tr>
+  <tr><td>check:first-paint</td><td><span class="badge pass">通过</span></td><td>骨架色值 / 位置 / 主题白名单</td></tr>
+  <tr><td>vite build</td><td><span class="badge pass">20.23s</span></td><td>PWA 预缓存 110 → 111 项（新增边界组件 chunk）</td></tr>
+  <tr><td>check:shell-precache</td><td><span class="badge pass">9 / 9</span></td><td>应用壳预缓存覆盖完整</td></tr>
+  <tr><td>check:bundle</td><td><span class="badge pass">PASS</span></td><td>dist 25224 KB · largest-js 420 KB</td></tr>
+</table>
+
+<h2>五、批次 0 剩余项（本次未动）</h2>
+
+<table>
+  <tr><th style="width:90px">编号</th><th>内容</th><th style="width:150px">为什么还没做</th></tr>
+  <tr><td>T0-2</td><td>消息中心卸载竞态与重连泄漏（S2 / S3）</td><td rowspan="4">本轮集中清掉「功能整体不可用」与「白屏」两条最显性项；其余属稳定性加固，需要各自的探针分别验证</td></tr>
+  <tr><td>T0-3</td><td>可编辑列表改稳定 key（S4）<br><code>EditDrawer:365/376</code> 仍是 <code>:key="idx"</code>（已复核）</td></tr>
+  <tr><td>T0-4</td><td>首屏关键路径 loading 兜底（S5）</td></tr>
+  <tr><td>T0-5 / T0-6</td><td>三个 HIGH 安全项 + 验证码去留<br>A1 <code>2026090911:65</code> anon 授权仍在（已复核）</td></tr>
+</table>
+
+<div class="note">
+  <strong>下一批建议起点：</strong>T0-2（消息中心竞态）与 T0-5（安全三项）并行 ——
+  前者是本批里唯一需要仔细推演时序的，后者周期最长（要新迁移 + 用 anon key 在预发实测，
+  不能只看迁移文件）。T0-3 / T0-4 是纯前端小改，可随时穿插。
+</div>
+
+<h2>六、待跟进</h2>
+<ul>
+  <li><strong>S7 监控链路未接通</strong>：<code>VITE_MONITORING_ENDPOINT</code> 未配，边界捕获的错误目前只落本地 logger，不会上报。这是 T1-2，建议与本批的边界一起收尾。</li>
+  <li><strong>未查清</strong>：探针包装 <code>app.config.errorHandler</code> 后，仍未捕获到事件处理器里 rejected Promise 的错误对象。已确认「边界生效时 window 不会收到 pageerror」是正常行为，但该 rejection 的最终去向待查；不影响本轮结论（行为断言已覆盖）。</li>
+  <li><strong>两份 ErrorBoundary 并存</strong>：全局版与 Lab 版。待 Lab 局部变量收敛后合并，注意上面写的样式陷阱。</li>
+</ul>
+
+<footer>
+  证据文件：<code>output/probe-release-p0-fixes/report.txt</code>（35 项逐条结果）·
+  <code>scripts/probes/probe-release-p0-fixes.mjs</code><br>
+  改动：<code>src/App.vue</code> · <code>src/views/user-center/SharedMemoryManagement.vue</code> ·
+  新增 <code>src/components/GlobalErrorBoundary.vue</code> · <code>tests/unit/*.test.js</code> ×2 ·
+  <code>scripts/probes/probe-release-p0-fixes.mjs</code>
+</footer>
+
+</div>
+</body>
+</html>

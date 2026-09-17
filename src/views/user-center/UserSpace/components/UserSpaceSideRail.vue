@@ -117,6 +117,8 @@ const navGroupRef = ref(null);
 const indicatorStyle = ref({ transform: 'translateY(0px)', height: '56px', opacity: 0 });
 const indicatorSettled = ref(true);
 let resizeObserver = null;
+// onScrollSync 的 RAF 去重闸：0 = 当前无待执行帧回调（requestAnimationFrame 返回值恒为正数）
+let scrollRafId = 0;
 
 const syncIndicator = async () => {
   await nextTick();

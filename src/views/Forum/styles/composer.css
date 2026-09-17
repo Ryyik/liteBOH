@@ -486,12 +486,26 @@
   color: var(--chip-active-text);
 }
 .mobile-composer-chip.is-active > strong { color: inherit; }
+.mobile-composer-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 
-/* 发布会话内移除移动端圆按钮工具横条（全宽度生效）：
-   标签入口已在上方 chips 行，加图/预览/草稿/更多由桌面工具条（editor-submit-group 内
-   desktop-post-tools）承载 —— 横屏右区、768-1023 中间尺寸、竖屏（原有 1179 规则）
-   三个区间行为统一，不再分断点各写一份 */
+/* 发布会话内移除移动端圆按钮工具横条（全宽度生效）：标签入口在上方 chips 行，
+   图片入口是同一行的「图片」chip（媒体条件见下方 post-image-add-more-card 之后），
+   预览 / 更多随底部整条 footer 一并收敛 —— 会话内不再有第二条工具行 */
 .mobile-composer-overlay .mobile-post-image-toolbar {
+  display: none;
+}
+
+/* 发布会话内顶栏（取消 / 草稿 / 发布）已承担全部出口：整条底部工具条
+   （#标签 / 预览 / 图片计数 / 保存草稿 / 更多 / 黑发布按钮）在 ≤768px 已由
+   replies-responsive.css 的 `.mobile-composer-section .editor-footer` 隐藏，
+   但宽屏 / 横屏会整条重新出现 → 与上方顶栏重复（一屏两套出口）。
+   这里按会话收敛：整条隐藏，只保留上方顶栏 —— 与竖屏行为对齐。
+   注：帖子详情页编辑弹层（.post-edit-overlay）不在本选择器范围内，
+   其横屏无顶栏，footer 仍是唯一出口，故那条 ≤768 规则必须保留。 */
+.mobile-composer-overlay .editor-footer {
   display: none;
 }
 
@@ -532,7 +546,8 @@
   max-width: 440px;
 }
 
-/* 横屏去重：桌面端只保留工具栏 0/6 入口，隐藏网格内大卡片，避免两个图片上传；竖屏保留卡片。
+/* 横屏去重：电脑/平板横屏只保留 chips 行的「图片」chip 作发图入口，隐藏网格内大卡片；
+   竖屏 / 窄屏保留大卡片。
    实现要点：这两条都带「感叹号 important」，同属性之间只能靠顺序决胜 —— 原先是「保留」那条
    无条件生效，而发布会话里的卡片同时命中 `.editor-card` 与 `.mobile-composer-overlay`，
    于是「隐藏」被自己后面那条否掉（横屏依旧显示大卡片，注释的意图并未落地）。
@@ -547,6 +562,20 @@
   .mobile-composer-section .post-image-add-more-card,
   .mobile-composer-overlay .post-image-add-more-card {
     display: flex !important;
+  }
+}
+
+/* chips 行「图片」chip：只在「网格内 ＋添加图片 大卡片被隐藏」的区间出现，
+   即电脑/平板横屏（条件与上面那对互为镜像：一个是本卡片的取反，一个就是它本身）。
+   会话内底部的工具条整条已移除（.mobile-composer-overlay .editor-footer），
+   若不补这个 chip，横屏发布会话就一个发图入口都没有。
+   改上面那对条件时必须同时改这里 —— 否则横屏要么出现两个发图入口，要么一个都不剩。 */
+.mobile-composer-chip--image {
+  display: none;
+}
+@media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
+  .mobile-composer-chip--image {
+    display: inline-flex;
   }
 }
 @media (min-width: 769px) {

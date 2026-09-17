@@ -5,86 +5,140 @@
     <span class="g-overview-filter-text">{{ activeFilterSummary }}</span>
   </div>
 
-  <!-- Tabs (overview / cloud / activity) -->
-  <DashboardTabs
-    v-model="activeTab"
-    :tabs="tabItems"
-    aria-label="Overview sections"
-  />
-
-  <!-- Section: Overview (live status + recent) -->
-  <div v-show="activeTab === 'overview'">
-    <!-- Live status stats -->
-    <div class="g-overview-stats">
-      <DashboardStat
-        v-for="card in liveStatusCards"
-        :key="card.id"
-        :eyebrow="card.label"
-        :value="card.value"
-        :detail="card.detail"
-        interactive
-      />
+  <!-- 1. 待办事项：全宽置顶，点击直达对应表 -->
+  <section class="g-todo-band" aria-label="待办事项">
+    <div class="g-todo-head">
+      <div>
+        <div class="g-eyebrow">待办事项</div>
+        <strong>{{ pendingTodoCount > 0 ? `${pendingTodoCount} 项需要处理` : '全部处理完毕' }}</strong>
+      </div>
+      <span v-if="pendingTodoCount === 0" class="g-badge is-success">一切正常</span>
     </div>
-
-    <!-- Quick tools -->
-    <article class="g-card" style="margin-top: calc(var(--spacing) * 4);">
-      <div class="g-card-head">
-        <div>
-          <div class="g-eyebrow">快捷工具</div>
-          <strong>独立管理页</strong>
-        </div>
-        <span class="g-badge is-muted">2 项</span>
-      </div>
-      <button type="button" class="g-quick-tool" @click="goToShopConsole">
-        <StoreIcon :size="18" class="g-quick-tool-icon" />
-        <span class="g-quick-tool-copy">
-          <strong>商城装修</strong>
-          <small>可视化编辑商城商品与展示，保存即生效</small>
-        </span>
-        <span class="g-quick-tool-arrow">→</span>
+    <div v-if="pendingTodos.length" class="g-todo-grid">
+      <button
+        v-for="item in pendingTodos"
+        :key="item.id"
+        type="button"
+        :class="['g-todo-card', `is-${item.tone}`]"
+        @click="$emit('select-tab', item.tab)"
+      >
+        <strong>{{ item.count }}</strong>
+        <span class="g-todo-text"><b>{{ item.title }}</b><small>{{ item.description }}</small></span>
+        <span class="g-todo-go" aria-hidden="true">→</span>
       </button>
-      <button type="button" class="g-quick-tool" @click="goToHeroConsole">
-        <LayoutIcon :size="18" class="g-quick-tool-icon" />
-        <span class="g-quick-tool-copy">
-          <strong>首页装修</strong>
-          <small>可视化编辑首页英雄区，模板/预览/裁切/发布</small>
-        </span>
-        <span class="g-quick-tool-arrow">→</span>
-      </button>
-    </article>
-
-    <!-- Diagnostics -->
-    <article class="g-card" style="margin-top: calc(var(--spacing) * 5);">
-      <div class="g-card-head">
-        <div>
-          <div class="g-eyebrow">信号</div>
-          <strong>异常与待处理</strong>
-        </div>
-        <span class="g-badge is-muted">{{ activeDiagnostics.length }} 项</span>
-      </div>
-      <div v-if="activeDiagnostics.length" class="g-list">
-        <button
-          v-for="item in activeDiagnostics"
-          :key="item.id"
-          type="button"
-          :class="['g-diagnostic-row', `is-${item.tone}`]"
-          @click="$emit('select-tab', item.tab)"
-        >
-          <span class="g-diagnostic-dot" aria-hidden="true" />
-          <span class="g-diagnostic-text">
-            <strong>{{ item.title }}</strong>
-            <small>{{ item.description }}</small>
-          </span>
-          <span class="g-diagnostic-count">{{ item.count }}</span>
+    </div>
+    <div v-else class="g-todo-empty">无待办事项，站点运行良好</div>
+    <details v-if="settledTodos.length" class="g-todo-settled">
+      <summary>已处理完毕（{{ settledTodos.length }}）</summary>
+      <div class="g-todo-settled-list">
+        <button v-for="item in settledTodos" :key="item.id" type="button" @click="$emit('select-tab', item.tab)">
+          {{ item.title }} · {{ item.count }}
         </button>
       </div>
-      <div v-else class="g-empty">暂无待处理事项</div>
-    </article>
+    </details>
+  </section>
+
+  <!-- 2. 核心指标：可点击下钻 -->
+  <div class="g-overview-stats">
+    <DashboardStat
+      v-for="card in liveStatusCards"
+      :key="card.id"
+      :eyebrow="card.label"
+      :value="card.value"
+      :detail="card.detail"
+      :interactive="isStatClickable(card)"
+      @click="onStatClick(card)"
+    />
   </div>
 
-  <!-- Section: Cloud services (donut + line + cards) -->
-  <div v-show="activeTab === 'cloud'">
-    <div class="g-grid-2col" style="margin-top: calc(var(--spacing) * 4);">
+  <!-- 3. 双栏：快捷操作 + 动态 -->
+  <div class="g-overview-grid">
+    <article class="g-card">
+      <div class="g-card-head">
+        <div>
+          <div class="g-eyebrow">快捷操作</div>
+          <strong>常用入口</strong>
+        </div>
+      </div>
+      <div class="g-quick-grid">
+        <button type="button" class="g-quick-cell" @click="goToShopConsole">
+          <StoreIcon :size="18" />
+          <span><strong>商城装修</strong><small>商品与展示</small></span>
+        </button>
+        <button type="button" class="g-quick-cell" @click="goToHeroConsole">
+          <LayoutIcon :size="18" />
+          <span><strong>首页装修</strong><small>英雄区发布</small></span>
+        </button>
+        <button type="button" class="g-quick-cell" @click="$emit('quick-create', 'lotteries')">
+          <GiftIcon :size="18" />
+          <span><strong>发起抽奖</strong><small>新建抽奖</small></span>
+        </button>
+        <button type="button" class="g-quick-cell" @click="$emit('select-tab', 'reportedPosts')">
+          <FlagIcon :size="18" />
+          <span><strong>审核举报</strong><small>{{ reportPendingCount }} 条待审</small></span>
+        </button>
+      </div>
+    </article>
+
+    <div class="g-overview-side">
+      <article class="g-card">
+        <div class="g-card-head">
+          <div>
+            <div class="g-eyebrow">最近更新</div>
+            <strong>动态</strong>
+          </div>
+          <div class="g-card-head-actions">
+            <button class="g-icon-btn is-sm" type="button" @click="$emit('refresh-now')" :disabled="isRefreshing" title="刷新">
+              <RefreshCw :size="14" :class="{ 'g-spin': isRefreshing }" />
+            </button>
+          </div>
+        </div>
+        <div v-if="recentActivityItems.length" class="g-list">
+          <button
+            v-for="item in recentActivityItems.slice(0, 5)"
+            :key="item.id"
+            type="button"
+            class="g-list-item is-clickable"
+            @click="$emit('select-tab', item.id)"
+          >
+            <span class="g-list-text">
+              <strong>{{ item.title }}</strong>
+              <small>{{ item.meta }}</small>
+            </span>
+            <span class="g-list-meta">{{ item.timestamp }}</span>
+          </button>
+        </div>
+        <div v-else class="g-empty">暂无最近活动</div>
+      </article>
+
+      <article class="g-card g-health-strip">
+        <div class="g-health-row">
+          <span class="g-eyebrow">系统健康</span>
+          <span :class="['g-badge', supabaseBadgeTone]">
+            <span class="g-badge-dot" />
+            {{ supabaseStatusBadge }} · {{ supabaseHealthScore }}
+          </span>
+          <span :class="['g-badge', cloudinaryBadgeTone]">
+            <span class="g-badge-dot" />
+            媒体{{ cloudinaryStatusBadge }}
+          </span>
+          <button class="g-icon-btn is-sm" type="button" @click="refreshCloudStatus" :disabled="cloudStatusLoading" title="刷新云状态">
+            <RefreshCw :size="14" :class="{ 'g-spin': cloudStatusLoading }" />
+          </button>
+        </div>
+      </article>
+    </div>
+  </div>
+
+  <!-- 4. 云服务用量详情（折叠收纳，功能无损） -->
+  <details class="g-card g-cloud-details">
+    <summary class="g-cloud-summary">
+      <Cloud :size="15" />
+      <span>云服务用量详情</span>
+      <span :class="['g-badge', supabaseBadgeTone]">{{ supabaseStatusBadge }}</span>
+    </summary>
+
+    <div class="g-grid-2col">
       <article :class="['g-card', `is-${supabaseTone}`]">
         <div class="g-card-head">
           <div>
@@ -229,76 +283,13 @@
         </DashboardNotice>
       </article>
     </div>
-  </div>
-
-  <!-- Section: Data tree (using sheet for table summary) -->
-  <div v-show="activeTab === 'tables'">
-    <DashboardSheet
-      title="数据表概览"
-      :badge="`${tableSummaryCards.length} 张`"
-      :summary="`共 ${totalRecordCount} 条记录`"
-      style="margin-top: calc(var(--spacing) * 4);"
-    >
-      <table class="g-table-sheet">
-        <thead>
-          <tr>
-            <th>数据表</th>
-            <th>记录数</th>
-            <th>占比</th>
-            <th style="width: 80px;">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="table in tableSummaryCards" :key="table.id" :class="{ 'is-selected': currentTab === table.id }">
-            <td><strong>{{ table.label }}</strong></td>
-            <td class="is-mono">{{ table.count }}</td>
-            <td>
-              <DashboardProgress :value="totalRecordCount ? (table.count / totalRecordCount) * 100 : 0" :min-visible-width="3" />
-            </td>
-            <td>
-              <button class="g-btn g-btn-ghost g-btn-sm" type="button" @click="$emit('select-tab', table.id)">
-                打开
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </DashboardSheet>
-  </div>
-
-  <!-- Section: Activity (recent activity) -->
-  <div v-show="activeTab === 'activity'" style="margin-top: calc(var(--spacing) * 4);">
-    <article class="g-card">
-      <div class="g-card-head">
-        <div>
-          <div class="g-eyebrow">最近更新</div>
-          <strong>活动流</strong>
-        </div>
-        <div class="g-card-head-actions">
-          <span class="g-badge is-muted">{{ recentActivityItems.length }} 条</span>
-          <button class="g-icon-btn is-sm" type="button" @click="$emit('refresh-now')" :disabled="isRefreshing" title="刷新">
-            <RefreshCw :size="14" :class="{ 'g-spin': isRefreshing }" />
-          </button>
-        </div>
-      </div>
-      <div v-if="recentActivityItems.length" class="g-list">
-        <div v-for="item in recentActivityItems" :key="item.id" class="g-list-item">
-          <span class="g-list-text">
-            <strong>{{ item.title }}</strong>
-            <small>{{ item.meta }}</small>
-          </span>
-          <span class="g-list-meta">{{ item.timestamp }}</span>
-        </div>
-      </div>
-      <div v-else class="g-empty">暂无最近活动</div>
-    </article>
-  </div>
+  </details>
 </template>
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { Cloud, Layers, LoaderCircle, RefreshCw, Store as StoreIcon, Table as TableIcon, Activity as ActivityIcon, Home as HomeIcon, Layout as LayoutIcon } from 'lucide-vue-next';
+import { Cloud, Flag as FlagIcon, Gift as GiftIcon, LoaderCircle, RefreshCw, Store as StoreIcon, Layout as LayoutIcon } from 'lucide-vue-next';
 import {
   getSupabaseProjectStatus,
   getCloudinaryUsageStatus,
@@ -307,9 +298,7 @@ import {
 import DashboardStat from './shared/DashboardStat.vue';
 import DashboardProgress from './shared/DashboardProgress.vue';
 import DashboardNotice from './shared/DashboardNotice.vue';
-import DashboardTabs from './shared/DashboardTabs.vue';
 import DashboardDonut from './shared/DashboardDonut.vue';
-import DashboardSheet from './shared/DashboardSheet.vue';
 
 const props = defineProps({
   activeDiagnostics: { type: Array, required: true },
@@ -325,8 +314,6 @@ const props = defineProps({
   totalRecordCount: { type: Number, required: true }
 });
 
-defineEmits(['refresh-now', 'select-tab']);
-
 const router = useRouter();
 
 const goToShopConsole = () => {
@@ -337,14 +324,22 @@ const goToHeroConsole = () => {
   router.push('/admin/hero-console').catch(() => {});
 };
 
-// Tabs state
-const activeTab = ref('overview');
-const tabItems = computed(() => [
-  { value: 'overview', label: '概览', icon: HomeIcon, count: props.liveStatusCards.length },
-  { value: 'cloud', label: '云服务', icon: Cloud, count: 2 },
-  { value: 'tables', label: '数据表', icon: TableIcon, count: props.tableSummaryCards.length },
-  { value: 'activity', label: '活动流', icon: ActivityIcon, count: props.recentActivityItems.length }
-]);
+// 指挥舱：待办分流（有数置顶 / 归零折叠）与 KPI 下钻映射
+const pendingTodos = computed(() => props.activeDiagnostics.filter((d) => Number(d.count) > 0));
+const settledTodos = computed(() => props.activeDiagnostics.filter((d) => Number(d.count) <= 0));
+const pendingTodoCount = computed(() => pendingTodos.value.length);
+const reportPendingCount = computed(
+  () => props.activeDiagnostics.find((d) => d.id === 'reported-posts')?.count || 0
+);
+
+const emit = defineEmits(['refresh-now', 'select-tab', 'quick-create']);
+const STAT_TAB_TARGET = { pending: 'reportedPosts' };
+const isStatClickable = (card) =>
+  card.id === 'pending' || card.id === 'uptime' || card.id === 'refresh';
+const onStatClick = (card) => {
+  if (STAT_TAB_TARGET[card.id]) emit('select-tab', STAT_TAB_TARGET[card.id]);
+  else if (card.id === 'uptime' || card.id === 'refresh') emit('refresh-now');
+};
 
 // Cloud status
 const cloudStatusLoading = ref(false);
@@ -684,12 +679,164 @@ watch(() => props.isRefreshing, (newVal, oldVal) => {
   white-space: nowrap;
 }
 
+/* ---------- 指挥舱：待办事项带 ---------- */
+.g-todo-band {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  padding: calc(var(--spacing) * 4);
+  margin-top: calc(var(--spacing) * 4);
+  display: grid;
+  gap: calc(var(--spacing) * 3);
+}
+.g-todo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--spacing) * 3);
+}
+.g-todo-head > div { display: grid; gap: 2px; }
+.g-todo-head strong { font-size: 1rem; color: var(--foreground); }
+.g-todo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: calc(var(--spacing) * 3);
+}
+.g-todo-card {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 3);
+  padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4);
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: var(--radius);
+  background: var(--background);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.16s ease;
+}
+.g-todo-card:hover { background: var(--accent); }
+.g-todo-card:active { transform: scale(0.99); }
+.g-todo-card > strong {
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 2ch;
+  text-align: center;
+}
+.g-todo-card.is-warning { border-left-color: var(--chart-3); }
+.g-todo-card.is-warning > strong { color: var(--chart-3); }
+.g-todo-card.is-danger { border-left-color: var(--chart-2); }
+.g-todo-card.is-danger > strong { color: var(--chart-2); }
+.g-todo-card.is-success { border-left-color: var(--chart-5); }
+.g-todo-text { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.g-todo-text b { font-size: 0.86rem; color: var(--foreground); }
+.g-todo-text small { font-size: 0.74rem; color: var(--muted-foreground); }
+.g-todo-go { color: var(--muted-foreground); font-size: 1.1rem; }
+.g-todo-empty {
+  padding: calc(var(--spacing) * 4);
+  text-align: center;
+  color: var(--chart-5);
+  font-weight: 600;
+  font-size: 0.9rem;
+  background: color-mix(in srgb, var(--chart-5) 8%, transparent);
+  border-radius: var(--radius);
+}
+.g-todo-settled { font-size: 0.78rem; color: var(--muted-foreground); }
+.g-todo-settled summary { cursor: pointer; }
+.g-todo-settled-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--spacing) * 2);
+  margin-top: calc(var(--spacing) * 2);
+}
+.g-todo-settled-list button {
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--muted-foreground);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+.g-todo-settled-list button:hover { color: var(--foreground); border-color: var(--ring); }
+
+/* ---------- 指挥舱：双栏 ---------- */
+.g-overview-grid {
+  display: grid;
+  grid-template-columns: 7fr 5fr;
+  gap: calc(var(--spacing) * 4);
+  margin-top: calc(var(--spacing) * 4);
+}
+.g-overview-side { display: grid; gap: calc(var(--spacing) * 4); align-content: start; }
+.g-quick-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: calc(var(--spacing) * 3);
+}
+.g-quick-cell {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 3);
+  padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4);
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: var(--primary);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.g-quick-cell:hover { background: var(--accent); border-color: var(--ring); }
+.g-quick-cell > span { display: grid; gap: 2px; min-width: 0; }
+.g-quick-cell strong { font-size: 0.86rem; color: var(--foreground); }
+.g-quick-cell small { font-size: 0.72rem; color: var(--muted-foreground); }
+.g-health-strip { padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4); }
+.g-health-row {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 2);
+  flex-wrap: wrap;
+}
+.g-health-row .g-eyebrow { margin-right: auto; }
+.g-list-item.is-clickable {
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius);
+}
+.g-list-item.is-clickable:hover { background: var(--accent); }
+
+/* ---------- 云详情折叠 ---------- */
+.g-cloud-details { margin-top: calc(var(--spacing) * 4); }
+.g-cloud-summary {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 2);
+  padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4);
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--foreground);
+  list-style: none;
+}
+.g-cloud-summary::-webkit-details-marker { display: none; }
+.g-cloud-summary .g-badge { margin-left: auto; }
+.g-cloud-details .g-grid-2col { padding: 0 calc(var(--spacing) * 4) calc(var(--spacing) * 4); }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 1100px) {
   .g-grid-2col { grid-template-columns: 1fr; }
   .g-overview-mini-grid { grid-template-columns: 1fr 1fr; }
+  .g-overview-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 720px) {
   .g-overview-mini-grid { grid-template-columns: 1fr; }
+  .g-quick-grid { grid-template-columns: 1fr; }
 }
 </style>

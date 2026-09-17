@@ -1,6 +1,8 @@
 import { stripHtml, UUID_REGEX, EMAIL_REGEX, normalizeNewsContent } from '../composables/useDataAdminValidation.js';
 import { getDefaultApiUrlForBohaiProvider } from '@/utils/api/bohai-model-config-api.js';
 import { TAB_WRITABLE_FIELDS } from './index.js';
+import { normalizeActivityDateInput } from '@/utils/activity-date.js';
+import { normalizeCampaignSlug, toIsoOrNull, validateCampaignWindow } from '@/utils/activity-campaign.js';
 
 function toDateInputValue(dateValue) {
   if (!dateValue) return '';
@@ -386,7 +388,7 @@ export const SAVE_STRATEGIES = {
   campaigns: async ({ editingItem }) => {
     const normalizedTitle = String(editingItem.title || '').trim();
     if (!normalizedTitle) throw new Error('活动标题不能为空');
-    const normalizedSlug = String(editingItem.slug || '').trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+    const normalizedSlug = normalizeCampaignSlug(editingItem.slug);
     if (!normalizedSlug) throw new Error('slug 不能为空');
 
     let config = {};
@@ -402,23 +404,39 @@ export const SAVE_STRATEGIES = {
         }
       }
     }
-    const isoOrNull = (v) => (v === null || v === undefined || String(v).trim() === '' ? null : String(v).trim());
     const stage = String(editingItem.stage || 'draft').trim();
     if (!['draft', 'signup', 'submission', 'judging', 'result', 'fulfilled'].includes(stage)) {
       throw new Error('生命周期阶段无效');
     }
+
+    const signupStart = toIsoOrNull(editingItem.signup_start_at);
+    const signupEnd = toIsoOrNull(editingItem.signup_end_at);
+    const startAt = toIsoOrNull(editingItem.start_at);
+    const endAt = toIsoOrNull(editingItem.end_at);
+
+    const windowError = validateCampaignWindow({ signupStart, signupEnd, startAt, endAt });
+    if (windowError) throw new Error(windowError);
 
     return pickWritableFields('campaigns', {
       slug: normalizedSlug,
       title: normalizedTitle,
       description: String(editingItem.description || '').trim(),
       stage,
-      signup_start_at: isoOrNull(editingItem.signup_start_at),
-      signup_end_at: isoOrNull(editingItem.signup_end_at),
-      start_at: isoOrNull(editingItem.start_at),
-      end_at: isoOrNull(editingItem.end_at),
+      signup_start_at: signupStart,
+      signup_end_at: signupEnd,
+      start_at: startAt,
+      end_at: endAt,
       config
     });
+  },
+
+  // 报名明细只开放审核状态：campaign_id / user_id 由系统记录，改写会破坏报名归属。
+  campaignEntries: async ({ editingItem }) => {
+    const status = String(editingItem.status || '').trim();
+    if (!['pending', 'approved', 'rejected'].includes(status)) {
+      throw new Error('审核状态无效');
+    }
+    return pickWritableFields('campaignEntries', { status });
   },
 
   birthdayEvents: async ({ editingItem }) => {
@@ -501,10 +519,12 @@ export const SAVE_STRATEGIES = {
   activities: async ({ editingItem }) => {
     const normalizedId = Number(editingItem.id);
     const normalizedTitle = String(editingItem.title || '').trim();
-    const normalizedDate = toDateInputValue(editingItem.date);
+    // 刻意不用 toDateInputValue：它会把 '2025-10' / '2025/10' 一律补成 '2025-10-01'，
+    // 让「只精确到月」的记录凭空多出 1 日（历史 17 条里有 6 条是这种）。按原精度归一。
+    const normalizedDate = normalizeActivityDateInput(editingItem.date);
 
     if (!Number.isInteger(normalizedId) || normalizedId <= 0) throw new Error('活动 ID 必须是正整数');
-    if (!normalizedDate) throw new Error('活动日期不能为空');
+    if (!normalizedDate) throw new Error('活动日期不能为空，请至少选择年月');
 
     return pickWritableFields('activities', {
       id: normalizedId,

@@ -1,0 +1,258 @@
+{
+  "results": {
+    "A_portrait": {
+      "overlay": {
+        "position": "fixed",
+        "left": 0,
+        "top": 0,
+        "w": 420,
+        "h": 900
+      },
+      "bar": {
+        "found": true,
+        "display": "grid",
+        "visibility": "visible",
+        "w": 400,
+        "h": 60,
+        "rendered": true
+      },
+      "barCancel": {
+        "found": true,
+        "display": "flex",
+        "visibility": "visible",
+        "w": 248,
+        "h": 44,
+        "rendered": true
+      },
+      "barDraft": {
+        "found": true,
+        "display": "block",
+        "visibility": "visible",
+        "w": 32,
+        "h": 36,
+        "rendered": true
+      },
+      "barSubmit": {
+        "found": true,
+        "display": "block",
+        "visibility": "visible",
+        "w": 70,
+        "h": 40,
+        "rendered": true
+      },
+      "footer": {
+        "found": true,
+        "display": "none",
+        "visibility": "visible",
+        "w": 0,
+        "h": 0,
+        "rendered": false
+      },
+      "submitGroup": {
+        "found": true,
+        "display": "inline-flex",
+        "visibility": "visible",
+        "w": 0,
+        "h": 0,
+        "rendered": false
+      },
+      "desktopTools": {
+        "found": true,
+        "display": "flex",
+        "visibility": "visible",
+        "w": 0,
+        "h": 0,
+        "rendered": false
+      },
+      "footerPostBtn": {
+        "found": true,
+        "display": "none",
+        "visibility": "visible",
+        "w": 0,
+        "h": 0,
+        "rendered": false
+      },
+      "saveDraftBtn": {
+        "found": true,
+        "display": "flex",
+        "visibility": "visible",
+        "w": 0,
+        "h": 0,
+        "rendered": false
+      },
+      "chipRow": {
+        "found": true,
+        "display": "flex",
+        "visibility": "visible",
+        "w": 388,
+        "h": 36,
+        "rendered": true
+      },
+      "chipImage": {
+        "found": true,
+        "display": "none",
+        "visibility": "visible",
+        "w": 0,
+        "h": 0,
+        "rendered": false
+      },
+      "chipImageText": "图片0/6",
+      "addMoreCard": {
+        "found": true,
+        "display": "flex",
+        "visibility": "visible",
+        "w": 112,
+        "h": 112,
+        "rendered": true
+      }
+    },
+    "B_landscape": {
+      "overlay": {
+        "position": "fixed",
+        "left": 240,
+        "top": 0,
+        "w": 1160,
+        "h": 900
+      },
+      "bar": {
+        "found": true,
+        "display": "grid",
+        "visibility": "visible",
+        "w": 1140,
+        "h": 60,
+        "rendered": true
+      },
+      "barCancel": {
+        "found": true,
+        "display": "flex",
+        "visibility": "visible",
+        "w": 988,
+        "h": 44,
+        "rendered": true
+      },
+      "barDraft": {
+        "found": true,
+        "display": "block",
+        "visibility": "visible",
+        "w": 32,
+        "h": 36,
+        "rendered": true
+      },
+      "barSubmit": {
+        "found": true,
+        "display": "block",
+        "visibility": "visible",
+        "w": 70,
+        "h": 40,
+        "rendered": true
+      },
+      "footer": {
+        "found": true,
+        "display": "none",
+        "visibility": "visible",
+        "w": 0,
+        "h": 0,
+        "rendered": false
+      },
+      "submitGroup": {
+        "found": true,
+        "display": "inline-flex",
+        "visibility": "visible",
+        "w": 0,
+        "h": 0,
+        "rendered": false
+      },
+      "desktopTools": {
+        "found": true,
+        "display": "flex",
+        "visibility": "visible",
+        "w": 0,
+        "h": 0,
+        "rendered": false
+      },
+      "footerPostBtn": {
+        "found": true,
+        "display": "flex",
+        "visibility": "visible",
+        "w": 0,
+        "h": 0,
+        "rendered": false
+      },
+      "saveDraftBtn": {
+        "found": true,
+        "display": "flex",
+        "visibility": "visible",
+        "w": 0,
+        "h": 0,
+        "rendered": false
+      },
+      "chipRow": {
+        "found": true,
+        "display": "flex",
+        "visibility": "visible",
+        "w": 1094,
+        "h": 36,
+        "rendered": true
+      },
+      "chipImage": {
+        "found": true,
+        "display": "flex",
+        "visibility": "visible",
+        "w": 106,
+        "h": 36,
+        "rendered": true
+      },
+      "chipImageText": "图片0/6",
+      "addMoreCard": {
+        "found": true,
+        "display": "none",
+        "visibility": "visible",
+        "w": 0,
+        "h": 0,
+        "rendered": false
+      }
+    },
+    "B_picker": {
+      "chipVisible": true,
+      "fileChooserOpened": true,
+      "multiple": true
+    },
+    "C_midwidth_inline": {
+      "overlayOpen": false,
+      "inlineFooter": {
+        "display": "grid",
+        "w": 802,
+        "h": 73,
+        "rendered": true
+      },
+      "inlinePostBtn": {
+        "display": "flex",
+        "w": 148,
+        "h": 44,
+        "rendered": true
+      },
+      "inlineChipRow": false
+    }
+  },
+  "checks": {
+    "A_session_open": true,
+    "B_session_open": true,
+    "A_bar_intact": true,
+    "B_bar_intact": true,
+    "A_footer_row_removed": true,
+    "B_footer_row_removed": true,
+    "A_footer_children_gone": true,
+    "B_footer_children_gone": true,
+    "C_inline_session_closed": true,
+    "C_inline_footer_alive": true,
+    "C_inline_post_btn_alive": true,
+    "C_inline_has_no_chip_row": true,
+    "A_image_chip_hidden": true,
+    "A_add_card_alive": true,
+    "B_image_chip_visible": true,
+    "B_add_card_hidden": true,
+    "B_image_chip_opens_picker": true
+  },
+  "pageErrors": [],
+  "pass": true
+}

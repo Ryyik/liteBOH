@@ -6,6 +6,7 @@ export default [
   {
     ignores: [
       'dist/**',
+      'dist-check/**', // 构建校验产物（minified），不参与 lint —— 与 dist 同性质，漏配会让 no-undef 在压缩产物上爆出海量误报
       '.build-verify/**', // 构建校验产物（minified），不参与 lint
       'node_modules/**',
       'coverage/**'
@@ -29,6 +30,10 @@ export default [
       }
     },
     rules: {
+      // 未声明变量在 <script setup>（严格模式）里是运行时 ReferenceError，
+      // 而 tsconfig 的 checkJs:false 让 vue-tsc 对纯 JS SFC 跳过语义检查 —— 这是唯一能拦住它的关卡。
+      // 注意：仅对 js/vue 生效；.ts 走 vue-tsc 全量检查，开 no-undef 会误报类型名（如 _GettersTree）。
+      'no-undef': 'error',
       'no-unused-vars': ['warn', {
         argsIgnorePattern: '^_',
         varsIgnorePattern: '^_',
@@ -64,6 +69,18 @@ export default [
         caughtErrorsIgnorePattern: '^_'
       }],
       'no-unused-vars': 'off'
+    }
+  },
+  {
+    // k6 压测脚本：__ENV / __VU / __ITER / insecureSkipTLSVerify 由 k6 运行时注入，非 import
+    files: ['scripts/loadtest/**/*.js'],
+    languageOptions: {
+      globals: {
+        __ENV: 'readonly',
+        __VU: 'readonly',
+        __ITER: 'readonly',
+        insecureSkipTLSVerify: 'readonly'
+      }
     }
   }
 ];

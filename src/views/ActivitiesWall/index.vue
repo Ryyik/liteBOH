@@ -133,7 +133,7 @@ onBeforeUnmount(() => {
   padding: 52px 20px 40px;
 }
 
-.aw-pane--activities :deep(.activities-container) {
+.aw-pane--activities :deep(.activities-timeline) {
   padding-bottom: 96px;
 }
 

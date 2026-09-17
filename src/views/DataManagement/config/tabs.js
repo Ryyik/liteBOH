@@ -216,7 +216,7 @@ export const TABS_ACTIONS = {
   birthdayEvents: ['view', 'create', 'edit', 'delete'],
   birthdayWishes: ['view', 'edit'],
   campaigns: ['view', 'create', 'edit', 'delete'],
-  campaignEntries: ['view'],
+  campaignEntries: ['view', 'edit'],
   campaignRewards: ['view', 'edit'],
   reportedPosts: ['view', 'moderate'],
   reviewPosts: ['view', 'moderate'],

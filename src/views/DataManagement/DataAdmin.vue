@@ -4,12 +4,17 @@
     <div class="admin-shell">
       <AdminSidebar
         :active-module="activeModule"
+        :collapsed="isSidebarCollapsed"
+        :denied-ids="deniedModuleIds"
         :has-unmoderated="moderationPendingCount > 0"
         :is-open="isAdminSidebarOpen"
         :modules="sidebarModules"
-        @module-click="handleModuleClick"
+        :search-query="sidebarSearchQuery"
+        @denied-click="handleDeniedModuleClick"
+        @module-click="guardedModuleClick"
         @create-record="handleAdminCreate"
         @refresh-data="refreshAllData"
+        @update:searchQuery="sidebarSearchQuery = $event"
       />
 
       <div v-if="isAdminSidebarOpen" class="sidebar-scrim is-visible" @click="isAdminSidebarOpen = false"></div>
@@ -19,15 +24,39 @@
           :can-create="canCreateCurrentTab && !isModerationTab"
           :eyebrow="currentAdminPageMeta.eyebrow"
           :is-refreshing="isRefreshing"
-          :is-sidebar-open="isAdminSidebarOpen"
-          :searchable="false"
+          :is-sidebar-open="sidebarToggleOpen"
+          :notification-count="moderationPendingCount"
+          :searchable="true"
+          :search-placeholder="'全局搜索：用户 / 抽奖 / 帖子...'"
+          :search-value="globalSearchQuery"
           :theme="currentTheme"
           :title="currentAdminPageMeta.title"
+          :user-label="adminUserLabel"
+          :user-sub="adminUserSub"
+          :avatar-url="adminAvatarUrl"
           @create="handleAdminCreate"
           @refresh="refreshAllData"
-          @toggle-sidebar="isAdminSidebarOpen = !isAdminSidebarOpen"
+          @toggle-sidebar="toggleSidebar"
           @toggle-theme="() => toggleAdminTheme()"
+          @search="onHeaderGlobalSearch"
+          @update:searchValue="globalSearchQuery = $event"
+          @notify="goNotificationsTab"
+          @home="goSiteHome"
+          @logout="handleAdminLogout"
         />
+
+        <nav class="admin-breadcrumb" aria-label="面包屑导航">
+          <template v-for="(crumb, index) in adminBreadcrumbs" :key="`${crumb.label}-${index}`">
+            <span v-if="index > 0" class="admin-breadcrumb-sep" aria-hidden="true">/</span>
+            <button
+              v-if="!crumb.current"
+              type="button"
+              class="admin-breadcrumb-link"
+              @click="handleBreadcrumbClick(crumb)"
+            >{{ crumb.label }}</button>
+            <span v-else class="admin-breadcrumb-current" aria-current="page">{{ crumb.label }}</span>
+          </template>
+        </nav>
 
         <div class="main-container">
           <AdminOverview
@@ -45,6 +74,7 @@
             :total-record-count="totalRecordCount"
             @refresh-now="refreshAllData"
             @select-tab="handleOverviewTabClick"
+            @quick-create="quickCreateRecord"
           />
 
           <section v-if="activeAdminSection !== 'overview' && !isPlaceholderAdminSection && !isPageTab" class="admin-section-hero">
@@ -138,6 +168,10 @@
             <button v-if="!isModerationTab && canCreateCurrentTab" class="btn btn-primary" @click="openEditModal()">
               <Plus :size="16" />
               新增
+            </button>
+            <button class="btn btn-secondary" type="button" title="导出当前表" @click="exportData">
+              <Download :size="16" />
+              导出
             </button>
           </div>
         </div>
@@ -261,55 +295,50 @@
         </div>
 
         <!-- 数据表格区域 -->
-        <div class="data-content">
+        <div class="data-content" :data-density="density">
           <div class="content-toolbar">
             <div class="toolbar-right">
               <button class="btn btn-secondary" type="button" @click="showColumnPanel = !showColumnPanel">
                 列配置
               </button>
-              <button class="btn btn-secondary" type="button" @click="showChangeLogPanel = !showChangeLogPanel">
-                变更日志
-              </button>
-              <button v-if="currentTab === 'lotterySchedulerLogs'" class="btn btn-secondary" type="button" :disabled="isCleaningLogs" @click="cleanupSchedulerLogs">
-                {{ isCleaningLogs ? '清理中...' : '清理日志' }}
-              </button>
-              <button v-if="!selectAllResultsMode && totalRecordCount > paginatedData.length" class="btn btn-secondary" type="button" @click="selectAllResults">
-                全选所有结果 ({{ totalRecordCount }})
-              </button>
-              <button v-if="selectedItems.length > 0 && editableFields.length && canEditCurrentTab" class="btn btn-secondary" type="button" @click="showBatchEditPanel = !showBatchEditPanel">
-                批量编辑 ({{ selectedItems.length }})
-              </button>
-              <button v-if="selectedItems.length > 0 && !isModerationTab && canDeleteCurrentTab && !isProfileDerivedTab" class="btn btn-danger" @click="batchDelete">
-                <Trash2 :size="16" />
-                删除选中 ({{ selectedItems.length }})
-              </button>
-              <button class="btn btn-secondary" @click="exportData">
-                <Download :size="16" />
-                导出当前表
-              </button>
-              <button class="btn btn-secondary" :disabled="isExportingBackup" @click="exportBackupData">
-                <Database :size="16" />
-                {{ isExportingBackup ? '备份中' : '备份全部' }}
-              </button>
-              <button v-if="isLotteryOpsTab" class="btn btn-secondary" :disabled="lotteryDueDrawPending" @click="runDueLotteryDraws">
-                <RefreshCw :size="16" :class="{ spinning: lotteryDueDrawPending }" />
-                执行到期开奖
-              </button>
+              <RowActionMenu :items="toolbarMenuItems" title="更多表格操作" @open="openRowMenu" />
               <button class="btn btn-secondary" type="button" title="命令面板（⌘K / Ctrl+K）" @click="openCommandPalette">
                 命令 ⌘K
               </button>
             </div>
           </div>
 
-          <div v-if="selectAllResultsMode" class="selection-all-banner" role="status">
-            <span>已选择全部 <strong>{{ selectedItems.length }}</strong> 条结果（跨页）</span>
-            <button type="button" class="btn btn-secondary btn-sm" @click="clearAllSelection">清除选择</button>
-          </div>
-
-          <div class="table-mini-stats">
-            <div v-for="item in tableMiniStats" :key="item.label" class="table-mini-stat">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
+          <!-- 浮动批量操作条：选中后出现，替代常驻的批量按钮组 -->
+          <div v-if="selectedItems.length > 0" class="bulk-bar" role="status">
+            <span class="bulk-count">已选 <strong>{{ selectedItems.length }}</strong> 项<span v-if="selectAllResultsMode">（跨页全选）</span></span>
+            <div class="bulk-actions">
+              <button
+                v-if="!selectAllResultsMode && totalRecordCount > paginatedData.length"
+                type="button"
+                class="btn btn-secondary btn-sm"
+                @click="selectAllResults"
+              >
+                全选全部 {{ totalRecordCount }}
+              </button>
+              <button
+                v-if="editableFields.length && canEditCurrentTab"
+                type="button"
+                class="btn btn-secondary btn-sm"
+                @click="showBatchEditPanel = !showBatchEditPanel"
+              >
+                批量编辑
+              </button>
+              <button
+                v-if="!isModerationTab && canDeleteCurrentTab && !isProfileDerivedTab"
+                type="button"
+                class="btn btn-danger btn-sm"
+                @click="batchDelete"
+              >
+                删除
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" @click="clearAllSelection">
+                清除
+              </button>
             </div>
           </div>
 
@@ -429,7 +458,7 @@
 
           <!-- 移动端卡片 -->
           <div v-if="isMobileView" class="mobile-card-list">
-            <div v-for="item in paginatedData" :key="item.id || getRowIdentity(item)" class="mobile-card" :class="{ selected: isSelected(item), anomaly: isAnomalyRow(item) }">
+            <div v-for="item in paginatedData" :key="item.id || getRowIdentity(item)" class="mobile-card" :class="{ selected: isSelected(item), anomaly: isAnomalyRow(item), 'row-flash': flashRowId === String(item?.id) }">
               <div class="mobile-card-header">
                 <label class="checkbox-wrapper">
                   <input type="checkbox" :checked="isSelected(item)" @change="toggleSelect(item)" />
@@ -444,68 +473,19 @@
                 </div>
               </div>
               <div class="mobile-card-actions">
-                <template v-if="isModerationTab">
-                  <button
-                    type="button"
-                    class="review-btn approve"
-                    :disabled="isModerationActionPending(item.id)"
-                    @click="approveModerationItem(item)"
-                  >{{ isRejectedModerationRecord(item) ? '恢复' : '通过' }}</button>
-                  <button
-                    v-if="isMessageModerationTab && !isRejectedModerationRecord(item)"
-                    type="button"
-                    class="review-btn reject"
-                    :disabled="isModerationActionPending(item.id)"
-                    @click="rejectModerationItem(item)"
-                  >拒绝</button>
-                  <button
-                    v-if="isReportedPostModerationTab && !isRejectedModerationRecord(item)"
-                    type="button"
-                    class="review-btn reject"
-                    :disabled="isModerationActionPending(item.id)"
-                    @click="keepLimitedModerationItem(item)"
-                  >维持下架</button>
-                  <button
-                    v-if="isRejectedModerationRecord(item) || isMessageModerationTab"
-                    type="button"
-                    class="review-btn reject"
-                    :disabled="isModerationActionPending(item.id)"
-                    @click="deleteModerationItem(item)"
-                  >删除</button>
-                  <button
-                    v-else
-                    type="button"
-                    class="review-btn reject"
-                    :disabled="isModerationActionPending(item.id)"
-                    @click="rejectModerationItem(item)"
-                  >拒绝</button>
-                </template>
-                <template v-else>
-                  <button v-if="currentTab === 'lotteries' && item.status === 'open'" type="button" class="review-btn approve mobile-lottery-btn" :disabled="isLotteryActionPending(item.id)" @click="drawLotteryNow(item)">开奖</button>
-                  <button v-if="currentTab === 'lotteries' && item.status === 'drawn' && item.pity_mode === 'none'" type="button" class="review-btn approve mobile-lottery-btn" :disabled="isLotteryActionPending(item.id)" @click="redrawLottery(item)">重抽</button>
-                  <button v-if="currentTab === 'lotteries'" type="button" class="review-btn approve mobile-lottery-btn" @click="viewLotteryFulfillments(item)">履约</button>
-                  <button v-if="currentTab === 'lotteries'" type="button" class="review-btn approve mobile-lottery-btn" @click="viewLotteryEntries(item)">名单</button>
-                  <button v-if="currentTab === 'lotteries'" type="button" class="review-btn approve mobile-lottery-btn" @click="viewLotteryDrawLogs(item)">日志</button>
-                  <button v-if="currentTab === 'lotteries' && item.status !== 'closed'" type="button" class="review-btn reject mobile-lottery-btn" :disabled="isLotteryActionPending(item.id)" @click="closeLottery(item)">关闭</button>
-                  <button v-if="currentTab === 'lotteryFulfillments' && item.is_current && !['fulfilled', 'forfeited', 'voided'].includes(item.status)" type="button" class="review-btn approve mobile-lottery-btn" @click="advanceLotteryFulfillment(item)">推进</button>
-                  <button v-if="currentTab === 'lotteryFulfillments' && item.is_current && item.status !== 'fulfilled'" type="button" class="review-btn reject mobile-lottery-btn" @click="replaceLotteryWinner(item)">替补</button>
-                  <button v-if="currentTab === 'lotteryNotificationJobs' && item.status !== 'sent'" type="button" class="review-btn approve mobile-lottery-btn" @click="retryLotteryNotification(item)">重试</button>
-                  <template v-if="canBanMute">
-                    <button v-if="!item.is_banned" type="button" class="review-btn reject" @click="banUser(item)">封禁</button>
-                    <button v-else type="button" class="review-btn approve" @click="unbanUser(item)">解封</button>
-                    <button v-if="!item.is_muted" type="button" class="review-btn reject" @click="muteUser(item)">禁言</button>
-                    <button v-else type="button" class="review-btn approve" @click="unmuteUser(item)">解禁</button>
-                  </template>
-                </template>
-                <button v-if="relatedJumpsForItem(item).length" type="button" class="mobile-action-btn" @click="openRelatedPanel(item)" aria-label="关联记录">
-                  <Link :size="15" />
-                </button>
+                <button
+                  v-for="act in getRowActionModel(item).primary"
+                  :key="act.id"
+                  type="button"
+                  :class="['review-btn', act.tone]"
+                  :disabled="act.disabled"
+                  :title="act.title"
+                  @click="act.run"
+                >{{ act.label }}</button>
                 <button v-if="canEditCurrentTab" type="button" class="mobile-action-btn edit" @click="openEditModal(item)" aria-label="编辑">
                   <Pencil :size="16" />
                 </button>
-                <button v-if="canDeleteCurrentTab && !isProfileDerivedTab" type="button" class="mobile-action-btn delete" @click="deleteItem(item)" aria-label="删除">
-                  <Trash2 :size="16" />
-                </button>
+                <RowActionMenu :items="getRowActionModel(item).menu" @open="openRowMenu" />
               </div>
             </div>
           </div>
@@ -541,6 +521,22 @@
             style="position: relative;"
           >
             <template #actions>
+              <div class="density-toggle" role="group" aria-label="表格密度">
+                <button
+                  type="button"
+                  :class="{ 'is-active': density === 'compact' }"
+                  :aria-pressed="density === 'compact'"
+                  title="紧凑密度"
+                  @click="setDensity('compact')"
+                >紧凑</button>
+                <button
+                  type="button"
+                  :class="{ 'is-active': density === 'comfortable' }"
+                  :aria-pressed="density === 'comfortable'"
+                  title="舒适密度"
+                  @click="setDensity('comfortable')"
+                >舒适</button>
+              </div>
               <div v-if="availableViewModes.length > 1" class="view-mode-toggle" role="tablist" aria-label="视图模式">
                 <button
                   v-for="mode in availableViewModes"
@@ -744,7 +740,7 @@
               </thead>
               <TransitionGroup name="row-fade" tag="tbody">
                 <tr v-for="item in paginatedData" :key="item.id || getRowIdentity(item)"
-                  :class="{ selected: isSelected(item), anomaly: isAnomalyRow(item) }">
+                  :class="{ selected: isSelected(item), anomaly: isAnomalyRow(item), 'row-flash': flashRowId === String(item?.id) }">
                   <td class="checkbox-col">
                     <label class="checkbox-wrapper">
                       <input type="checkbox" :checked="isSelected(item)" @change="toggleSelect(item)" />
@@ -794,15 +790,15 @@
                         :tabindex="isInlineEditable(col, item) ? 0 : -1"
                         role="button"
                         :aria-label="`编辑 ${col.label}`"
-                        @dblclick="startInlineEdit(item, col)"
-                        @keydown.enter.prevent="startInlineEdit(item, col)"
-                        @keydown.space.prevent="startInlineEdit(item, col)"
+                        @dblclick="quickEditCell(item, col)"
+                        @keydown.enter.prevent="quickEditCell(item, col)"
+                        @keydown.space.prevent="quickEditCell(item, col)"
                       >
                         {{ col.key === 'is_banned' || col.key === 'is_muted'
                           ? (item[col.key] === true ? '是' : '否')
                           : (item[col.key] || '-') }}
                       </span>
-                      <button v-if="isInlineEditable(col, item) && !isInlineEditing(item, col)" type="button" class="cell-edit-trigger" :aria-label="`编辑 ${col.label}`" title="编辑" @click="startInlineEdit(item, col)">
+                      <button v-if="isCellEditable(col, item) && !isInlineEditing(item, col)" type="button" class="cell-edit-trigger" :aria-label="`编辑 ${col.label}`" title="编辑" @click="quickEditCell(item, col)">
                         <Pencil :size="12" />
                       </button>
                     </template>
@@ -816,11 +812,11 @@
                         :tabindex="isInlineEditable(col, item) ? 0 : -1"
                         role="button"
                         :aria-label="`编辑 ${col.label}`"
-                        @dblclick="startInlineEdit(item, col)"
-                        @keydown.enter.prevent="startInlineEdit(item, col)"
-                        @keydown.space.prevent="startInlineEdit(item, col)"
+                        @dblclick="quickEditCell(item, col)"
+                        @keydown.enter.prevent="quickEditCell(item, col)"
+                        @keydown.space.prevent="quickEditCell(item, col)"
                       >{{ item[col.key] || '-' }}</span>
-                      <button v-if="isInlineEditable(col, item) && !isInlineEditing(item, col)" type="button" class="cell-edit-trigger" :aria-label="`编辑 ${col.label}`" title="编辑" @click="startInlineEdit(item, col)">
+                      <button v-if="isCellEditable(col, item) && !isInlineEditing(item, col)" type="button" class="cell-edit-trigger" :aria-label="`编辑 ${col.label}`" title="编辑" @click="quickEditCell(item, col)">
                         <Pencil :size="12" />
                       </button>
                     </template>
@@ -829,11 +825,11 @@
                         :tabindex="isInlineEditable(col, item) ? 0 : -1"
                         role="button"
                         :aria-label="`编辑 ${col.label}`"
-                        @dblclick="startInlineEdit(item, col)"
-                        @keydown.enter.prevent="startInlineEdit(item, col)"
-                        @keydown.space.prevent="startInlineEdit(item, col)"
+                        @dblclick="quickEditCell(item, col)"
+                        @keydown.enter.prevent="quickEditCell(item, col)"
+                        @keydown.space.prevent="quickEditCell(item, col)"
                       >{{ formatDate(item[col.key]) }}</span>
-                      <button v-if="isInlineEditable(col, item) && !isInlineEditing(item, col)" type="button" class="cell-edit-trigger" :aria-label="`编辑 ${col.label}`" title="编辑" @click="startInlineEdit(item, col)">
+                      <button v-if="isCellEditable(col, item) && !isInlineEditing(item, col)" type="button" class="cell-edit-trigger" :aria-label="`编辑 ${col.label}`" title="编辑" @click="quickEditCell(item, col)">
                         <Pencil :size="12" />
                       </button>
                     </template>
@@ -842,11 +838,11 @@
                         :tabindex="isInlineEditable(col, item) ? 0 : -1"
                         role="button"
                         :aria-label="`编辑 ${col.label}`"
-                        @dblclick="startInlineEdit(item, col)"
-                        @keydown.enter.prevent="startInlineEdit(item, col)"
-                        @keydown.space.prevent="startInlineEdit(item, col)"
+                        @dblclick="quickEditCell(item, col)"
+                        @keydown.enter.prevent="quickEditCell(item, col)"
+                        @keydown.space.prevent="quickEditCell(item, col)"
                       >{{ formatDateTime(item[col.key]) }}</span>
-                      <button v-if="isInlineEditable(col, item) && !isInlineEditing(item, col)" type="button" class="cell-edit-trigger" :aria-label="`编辑 ${col.label}`" title="编辑" @click="startInlineEdit(item, col)">
+                      <button v-if="isCellEditable(col, item) && !isInlineEditing(item, col)" type="button" class="cell-edit-trigger" :aria-label="`编辑 ${col.label}`" title="编辑" @click="quickEditCell(item, col)">
                         <Pencil :size="12" />
                       </button>
                     </template>
@@ -873,185 +869,31 @@
                         role="button"
                         :aria-label="`编辑 ${col.label}`"
                         :title="`${item[col.key] || ''}${isAnomalyRow(item) && col.key === visibleCurrentColumns[0]?.key ? ` · ${getAnomalyReason(item)}` : ''}`"
-                        @dblclick="startInlineEdit(item, col)"
-                        @keydown.enter.prevent="startInlineEdit(item, col)"
-                        @keydown.space.prevent="startInlineEdit(item, col)"
+                        @dblclick="quickEditCell(item, col)"
+                        @keydown.enter.prevent="quickEditCell(item, col)"
+                        @keydown.space.prevent="quickEditCell(item, col)"
                         v-html="highlightCellValue(item[col.key], col.maxLength)"
                       ></span>
-                      <button v-if="isInlineEditable(col, item) && !isInlineEditing(item, col)" type="button" class="cell-edit-trigger" :aria-label="`编辑 ${col.label}`" title="编辑" @click="startInlineEdit(item, col)">
+                      <button v-if="isCellEditable(col, item) && !isInlineEditing(item, col)" type="button" class="cell-edit-trigger" :aria-label="`编辑 ${col.label}`" title="编辑" @click="quickEditCell(item, col)">
                         <Pencil :size="12" />
                       </button>
                     </template>
                   </td>
                   <td v-if="hasActionColumn" class="actions-col">
                     <div class="action-btns">
-                      <template v-if="isModerationTab">
-                        <button
-                          class="review-btn approve"
-                          :disabled="isModerationActionPending(item.id)"
-                          @click="approveModerationItem(item)"
-                          :title="isRejectedModerationRecord(item) ? '恢复为通过' : '审核通过'"
-                        >
-                          {{ isRejectedModerationRecord(item) ? '恢复' : '通过' }}
-                        </button>
-                        <button
-                          v-if="isMessageModerationTab && !isRejectedModerationRecord(item)"
-                          class="review-btn reject"
-                          :disabled="isModerationActionPending(item.id)"
-                          @click="rejectModerationItem(item)"
-                          title="拒绝并填写原因"
-                        >
-                          拒绝
-                        </button>
-                        <button
-                          v-if="isReportedPostModerationTab && !isRejectedModerationRecord(item)"
-                          class="review-btn reject"
-                          :disabled="isModerationActionPending(item.id)"
-                          @click="keepLimitedModerationItem(item)"
-                          title="维持仅作者可见并结案举报"
-                        >
-                          维持下架
-                        </button>
-                        <button
-                          v-if="isRejectedModerationRecord(item) || isMessageModerationTab"
-                          class="review-btn reject"
-                          :disabled="isModerationActionPending(item.id)"
-                          @click="deleteModerationItem(item)"
-                          title="删除该记录"
-                        >
-                          删除
-                        </button>
-                        <button
-                          v-else
-                          class="review-btn reject"
-                          :disabled="isModerationActionPending(item.id)"
-                          @click="rejectModerationItem(item)"
-                          title="拒绝并填写原因"
-                        >
-                          拒绝
-                        </button>
-                      </template>
-                      <template v-else>
-                        <button
-                          v-if="currentTab === 'lotteries' && item.status === 'open'"
-                          class="review-btn approve"
-                          :disabled="isLotteryActionPending(item.id)"
-                          @click="drawLotteryNow(item)"
-                          title="立即随机开奖"
-                        >
-                          开奖
-                        </button>
-                        <button
-                          v-if="currentTab === 'lotteries' && item.status === 'drawn' && item.pity_mode === 'none'"
-                          class="review-btn approve"
-                          :disabled="isLotteryActionPending(item.id)"
-                          @click="redrawLottery(item)"
-                          title="保留历史记录并重新随机开奖"
-                        >
-                          重抽
-                        </button>
-                        <button
-                          v-if="currentTab === 'lotteries'"
-                          class="review-btn approve"
-                          @click="viewLotteryFulfillments(item)"
-                          title="按中奖人处理联系、发货和替补"
-                        >
-                          履约
-                        </button>
-                        <button
-                          v-if="currentTab === 'lotteries'"
-                          class="review-btn approve"
-                          @click="viewLotteryEntries(item)"
-                          title="查看本次抽奖报名名单"
-                        >
-                          名单
-                        </button>
-                        <button
-                          v-if="currentTab === 'lotteries'"
-                          class="review-btn approve"
-                          @click="viewLotteryDrawLogs(item)"
-                          title="查看本次抽奖开奖日志"
-                        >
-                          日志
-                        </button>
-                        <button
-                          v-if="currentTab === 'lotteries' && item.status !== 'closed'"
-                          class="review-btn reject"
-                          :disabled="isLotteryActionPending(item.id)"
-                          @click="closeLottery(item)"
-                          title="关闭该抽奖"
-                        >
-                          关闭
-                        </button>
-                        <button
-                          v-if="currentTab === 'lotteryFulfillments' && item.is_current && !['fulfilled', 'forfeited', 'voided'].includes(item.status)"
-                          class="review-btn approve"
-                          @click="advanceLotteryFulfillment(item)"
-                          title="推进下一履约状态"
-                        >
-                          推进
-                        </button>
-                        <button
-                          v-if="currentTab === 'lotteryFulfillments' && item.is_current && item.status !== 'fulfilled'"
-                          class="review-btn reject"
-                          @click="replaceLotteryWinner(item)"
-                          title="取消当前资格并随机替补同一席位"
-                        >
-                          替补
-                        </button>
-                        <button
-                          v-if="currentTab === 'lotteryNotificationJobs' && item.status !== 'sent'"
-                          class="review-btn approve"
-                          @click="retryLotteryNotification(item)"
-                          title="重新发送中奖通知"
-                        >
-                          重试
-                        </button>
-                        <!-- 用户封禁/禁言操作按钮 -->
-                        <template v-if="canBanMute">
-                          <button
-                            v-if="!item.is_banned"
-                            class="review-btn reject"
-                            @click="banUser(item)"
-                            title="封禁用户（禁止登录）"
-                          >
-                            封禁
-                          </button>
-                          <button
-                            v-if="item.is_banned"
-                            class="review-btn approve"
-                            @click="unbanUser(item)"
-                            title="解封用户"
-                          >
-                            解封
-                          </button>
-                          <button
-                            v-if="!item.is_muted"
-                            class="review-btn reject"
-                            @click="muteUser(item)"
-                            title="禁言用户（禁止发言）"
-                          >
-                            禁言
-                          </button>
-                          <button
-                            v-if="item.is_muted"
-                            class="review-btn approve"
-                            @click="unmuteUser(item)"
-                            title="解除禁言"
-                          >
-                            解禁
-                          </button>
-                        </template>
-                      </template>
-                      <button v-if="relatedJumpsForItem(item).length" class="icon-btn" @click="openRelatedPanel(item)" title="关联记录" aria-label="关联记录">
-                        <Link :size="15" />
-                      </button>
+                      <button
+                        v-for="act in getRowActionModel(item).primary"
+                        :key="act.id"
+                        type="button"
+                        :class="['review-btn', act.tone]"
+                        :disabled="act.disabled"
+                        :title="act.title"
+                        @click="act.run"
+                      >{{ act.label }}</button>
                       <button v-if="canEditCurrentTab" class="icon-btn edit" @click="openEditModal(item)" title="编辑" aria-label="编辑">
-                        <Pencil :size="16" />
+                        <Pencil :size="14" />
                       </button>
-                      <button v-if="canDeleteCurrentTab && !isProfileDerivedTab" class="icon-btn delete" @click="deleteItem(item)" title="删除" aria-label="删除">
-                        <Trash2 :size="16" />
-                      </button>
+                      <RowActionMenu :items="getRowActionModel(item).menu" @open="openRowMenu" />
                     </div>
                   </td>
                 </tr>
@@ -1082,7 +924,26 @@
       </main>
     </div>
 
+    <!-- 行级 ⋯ 浮动菜单（fixed 定位，不被表格滚动裁剪） -->
+    <div
+      v-if="rowMenu"
+      class="row-float-menu"
+      role="menu"
+      :style="{ top: `${rowMenu.y}px`, left: `${rowMenu.x}px` }"
+    >
+      <button
+        v-for="m in rowMenu.items"
+        :key="m.id"
+        type="button"
+        role="menuitem"
+        :class="['row-float-item', { 'is-danger': m.tone === 'danger' }]"
+        :disabled="m.disabled"
+        @click="runRowMenuItem(m)"
+      >{{ m.label }}</button>
+    </div>
+
     <EditDrawer
+      ref="editDrawerRef"
       :show="showModal"
       :is-editing="isEditing"
       :editing-item="editingItem"
@@ -1123,6 +984,8 @@
       :record-nav-label="editDrawerNav.label"
       @close="closeModal"
       @save="saveData"
+      @save-and-next="saveAndEditNext"
+      @save-and-create="saveAndCreateNext"
       @prev-record="navigateEditRecord(-1)"
       @next-record="navigateEditRecord(1)"
       @regenerate-id="regenerateAutoIdForCurrentTab"
@@ -1213,6 +1076,7 @@
       >
         <span class="toast-icon" aria-hidden="true">{{ toast.type === 'success' ? '✓' : toast.type === 'error' ? '✗' : 'ℹ' }}</span>
         <span class="toast-message">{{ toast.message }}</span>
+        <button v-if="toast.action" class="toast-action" @click="runToastAction">{{ toast.action.label }}</button>
         <button v-if="toast.type === 'error'" class="toast-dismiss" @click="dismissToast" aria-label="关闭提示">
           <X :size="14" aria-hidden="true" />
         </button>
@@ -1239,7 +1103,6 @@ import {
   Home,
   Image,
   KeyRound,
-  Link,
   MessageSquare,
   Network,
   Pencil,
@@ -1269,6 +1132,7 @@ import SubscriptionGrantConsole from './components/SubscriptionGrantConsole.vue'
 import EditDrawer from './components/EditDrawer.vue';
 import DashboardSheet from './components/shared/DashboardSheet.vue';
 import DashboardPagination from './components/shared/DashboardPagination.vue';
+import RowActionMenu from './components/shared/RowActionMenu.vue';
 import { getImageUrl } from '../../utils/asset-helper';
 import { supabase } from '@/utils/supabase-client.js';
 import { invalidateByTags } from '@/utils/request-core.js';
@@ -1293,6 +1157,13 @@ import {
   tabs
 } from './config.js';
 import { tabModules } from './config/tabs.js';
+import {
+  canViewModule,
+  filterTabActionsByRole,
+  getDeniedModuleIds,
+  getRoleLabel,
+  getUserRole
+} from './config/rbac.js';
 import { BOHAI_MODEL_PROVIDER_OPTIONS } from './config/fields.js';
 import {
   ADMIN_SECTION_DEFAULT_TABS,
@@ -1422,16 +1293,51 @@ const productPickerProducts = ref([]);
 const selectedItems = ref([]);
 // 全选所有结果模式：为 true 时 selectedItems 代表跨页全选（Gmail 语义）
 const selectAllResultsMode = ref(false);
-const currentPage = ref(1);
-const pageSize = ref(20);
+  const currentPage = ref(1);
+  const pageSize = ref(20);
+  // 表格密度：compact 紧凑（默认）| comfortable 舒适，持久化到 localStorage
+  const density = ref((() => {
+    try { return localStorage.getItem('dm-density') || 'compact'; }
+    catch (e) { return 'compact'; }
+  })());
+  const setDensity = (mode) => {
+    density.value = mode;
+    try { localStorage.setItem('dm-density', mode); } catch (e) { /* ignore */ }
+  };
 const sortKey = ref('');
 const sortOrder = ref('asc');
 const isAdminSidebarOpen = ref(false);
+// 桌面端侧栏折叠（图标栏）；移动端抽屉仍由 isAdminSidebarOpen 控制
+// 偏好持久化，悬停 150ms 浮层展开（见 AdminSidebar 样式）
+const isSidebarCollapsed = ref((() => {
+  try { return localStorage.getItem('dm-sidebar-collapsed') === '1'; }
+  catch (e) { return false; }
+})());
+watch(isSidebarCollapsed, (collapsed) => {
+  try { localStorage.setItem('dm-sidebar-collapsed', collapsed ? '1' : '0'); }
+  catch (e) { /* ignore */ }
+});
+// 侧栏模块筛选关键词（仅过滤导航，不过滤表格数据）
+const sidebarSearchQuery = ref('');
 const routeAdminSection = router.currentRoute.value?.meta?.adminSection;
 const activeAdminSection = ref(typeof routeAdminSection === 'string' && routeAdminSection ? routeAdminSection : 'overview');
 const isDataTreeCollapsed = ref(false);
-const isMobileView = ref(window.innerWidth < 768);
-const handleResize = () => { isMobileView.value = window.innerWidth < 768; };
+// 移动端判定：窄屏，或粗指针+横屏矮视口（手机横屏按移动卡片走，不进桌面表格）
+const computeMobileView = () => {
+  if (typeof window === 'undefined') return false;
+  if (window.innerWidth < 768) return true;
+  const coarse = Boolean(window.matchMedia?.('(pointer: coarse)').matches);
+  return coarse && window.innerWidth < 950 && window.innerHeight < 550;
+};
+const isMobileView = ref(computeMobileView());
+const handleResize = () => { isMobileView.value = computeMobileView(); };
+
+// ==================== 当前表配置（前置声明） ====================
+// 视图形态区块的 immediate watcher 会在 setup 期立即求值 currentConfig，
+// 故在此提前声明；原位置保留引用注释。
+const currentConfig = computed(() => dataConfig[currentTab.value]);
+const currentColumns = computed(() => currentConfig.value?.columns || []);
+const currentFields = computed(() => currentConfig.value?.fields || []);
 
 // ==================== 通用视图形态：table | card | kanban | timeline ====================
 const VIEW_MODE_LABELS = { table: '表格', card: '卡片', kanban: '看板', timeline: '时间线' };
@@ -1696,31 +1602,41 @@ const autoRefreshInterval = ref(null);
 const secondsUntilRefresh = ref(30);
 const isAutoRefreshing = ref(false);
 
-// 提示消息
+// 提示消息（action 为可选操作按钮，如审核撤销）
 const toast = reactive({
   show: false,
   message: '',
   type: 'info',
-  timer: null
+  timer: null,
+  action: null
 });
 
 let toastTimer = null;
-const showToast = (message, type = 'info') => {
+const showToast = (message, type = 'info', action = null) => {
   if (toastTimer) clearTimeout(toastTimer);
   if (toast.timer) clearTimeout(toast.timer);
   toast.message = message;
   toast.type = type;
+  toast.action = action;
   toast.show = true;
   if (type !== 'error') {
     toastTimer = setTimeout(() => {
       toast.show = false;
+      toast.action = null;
       toastTimer = null;
-    }, 3000);
+    }, 4000);
   }
+};
+const runToastAction = () => {
+  const action = toast.action;
+  toast.show = false;
+  toast.action = null;
+  action?.run?.();
 };
 const dismissToast = () => {
   if (toastTimer) clearTimeout(toastTimer);
   toast.show = false;
+  toast.action = null;
 };
 
 const clearFieldErrors = () => {
@@ -1863,9 +1779,8 @@ const stats = reactive({
 
 // ==================== 标签页配置（已拆分） ====================
 // ==================== 计算属性 ====================
-const currentConfig = computed(() => dataConfig[currentTab.value]);
-const currentColumns = computed(() => currentConfig.value?.columns || []);
-const currentFields = computed(() => currentConfig.value?.fields || []);
+// NOTE: currentConfig/currentColumns/currentFields 已前移至视图形态区块之前声明
+//（immediate watcher 在 setup 期即求值，声明在后会触发 TDZ，见上方“当前表配置”）。
 const visibleCurrentColumns = computed(() => {
   const configured = columnSettings.value[currentTab.value];
   if (!configured || !Array.isArray(configured.visibleKeys)) return currentColumns.value;
@@ -1900,6 +1815,8 @@ const inlineEditableFieldKeys = computed(() => new Set(
 const currentTabLabel = computed(() => tabs.find(t => t.id === currentTab.value)?.label || '');
 const isNewsTab = computed(() => currentTab.value === 'news');
 const isCurrentUserAdmin = computed(() => String(userInfo.value?.role || '').trim() === 'admin');
+// RBAC：当前角色（admin 全量；moderator 受 MODULE_ALLOWED_ROLES 约束，见 config/rbac.js）
+const currentUserRole = computed(() => getUserRole(userInfo.value));
 const {
   lotteryOperationsSnapshot,
   refreshLotteryOperationsSnapshot
@@ -1910,7 +1827,7 @@ const canRegenerateAutoId = computed(() =>
 
 const currentTabActions = computed(() => {
   const actions = TABS_ACTIONS?.[currentTab.value];
-  return new Set(actions || []);
+  return filterTabActionsByRole(currentUserRole.value, actions);
 });
 const hasTabAction = (action) => currentTabActions.value.has(action);
 const canCreateCurrentTab = computed(() => hasTabAction('create'));
@@ -1993,13 +1910,6 @@ const isPlaceholderAdminSection = computed(() => PLACEHOLDER_ADMIN_SECTIONS.has(
 const lastRefreshLabel = computed(() =>
   lastRefreshedAt.value ? `刷新于 ${formatDateTime(lastRefreshedAt.value)}` : '尚未刷新'
 );
-const anomalyRows = computed(() => currentData.value.filter((item) => isAnomalyRow(item)));
-const tableMiniStats = computed(() => [
-  { label: '当前页', value: currentData.value.length },
-  { label: '已选中', value: selectedItems.value.length },
-  { label: '异常', value: anomalyRows.value.length },
-  { label: '列显示', value: `${visibleCurrentColumns.value.length}/${currentColumns.value.length}` }
-]);
 
 // 收集结果类 tab: 管理员查看用户提交的收集表数据 (当前为海报申请, 后续可扩展自建收集表)
 const COLLECTION_RESULT_TABS = new Set(['posterRequests']);
@@ -3885,6 +3795,359 @@ watch(activeModule, (moduleId) => {
   refreshLotteryOperationsSnapshot();
 }, { immediate: true });
 
+// ==================== RBAC：模块级隐藏/置灰 ====================
+// 路由门禁仍为 admin-only（见 router guard），此处为 UI 层执行器：
+// admin 全可见；其它角色按 MODULE_ALLOWED_ROLES 置灰禁用（denied-click 守卫 + 操作集过滤）。
+const deniedModuleIds = computed(() => getDeniedModuleIds(sidebarModules.value, currentUserRole.value));
+
+const guardedModuleClick = (mod) => {
+  if (mod && !canViewModule(currentUserRole.value, mod.id)) {
+    handleDeniedModuleClick(mod);
+    return;
+  }
+  handleModuleClick(mod);
+};
+
+const handleDeniedModuleClick = (mod) => {
+  showToast(`当前角色（${getRoleLabel(currentUserRole.value)}）无权访问「${mod?.label || mod?.id || '该模块'}」`, 'error');
+};
+
+// 角色切换时若正停留在无权模块，自动退回概览
+// （跳过用户信息水合前：此时 role 回落为 user，避免误触发）
+watch(currentUserRole, (role) => {
+  if (!userInfo.value?.id) return;
+  if (!canViewModule(role, activeModule.value)) {
+    guardedModuleClick({ id: 'overview', label: '概览' });
+  }
+});
+
+// 跨表搜索等直接 switchTab 的入口兜底：目标表所属模块无权则拦截
+watch(currentTab, (tabId) => {
+  if (!userInfo.value?.id) return;
+  const tabInfo = tabs.find((t) => t.id === tabId);
+  if (tabInfo?.module && !canViewModule(currentUserRole.value, tabInfo.module)) {
+    showToast(`当前角色（${getRoleLabel(currentUserRole.value)}）无权访问该数据表`, 'error');
+    guardedModuleClick({ id: 'overview', label: '概览' });
+  }
+});
+
+// ==================== 顶栏：折叠/搜索/通知/用户菜单 ====================
+// 桌面端折叠图标栏，移动端切换抽屉
+const sidebarToggleOpen = computed(() =>
+  isMobileView.value ? isAdminSidebarOpen.value : !isSidebarCollapsed.value
+);
+const toggleSidebar = () => {
+  if (isMobileView.value) {
+    isAdminSidebarOpen.value = !isAdminSidebarOpen.value;
+  } else {
+    isSidebarCollapsed.value = !isSidebarCollapsed.value;
+  }
+};
+
+const adminUserLabel = computed(() =>
+  userInfo.value?.username || userInfo.value?.email || '管理员'
+);
+const adminUserSub = computed(() => getRoleLabel(currentUserRole.value));
+const adminAvatarUrl = computed(() => String(userInfo.value?.avatarUrl || '').trim());
+
+// 顶栏全局搜索：复用跨表搜索通道
+const onHeaderGlobalSearch = (value) => {
+  if (typeof value === 'string') globalSearchQuery.value = value;
+  showGlobalSearchPanel.value = true;
+  runGlobalSearch();
+};
+
+// 通知铃铛：跳转到通知管理（无权则提示）
+const goNotificationsTab = () => {
+  if (!canViewModule(currentUserRole.value, 'moderation')) {
+    showToast(`当前角色（${getRoleLabel(currentUserRole.value)}）无权查看通知`, 'error');
+    return;
+  }
+  const moderationMod = (sidebarModules.value || []).find((m) => m.id === 'moderation');
+  if (moderationMod) handleModuleClick(moderationMod);
+  else activeModule.value = 'moderation';
+  switchTab('notifications');
+};
+
+const goSiteHome = () => {
+  router.push('/');
+};
+
+// 概览快捷创建：鉴权后切表并打开新增抽屉
+const quickCreateRecord = (tabId) => {
+  const allowed = filterTabActionsByRole(currentUserRole.value, TABS_ACTIONS?.[tabId] || []);
+  if (!allowed.has('create')) {
+    showToast(`当前角色（${getRoleLabel(currentUserRole.value)}）无权新建该内容`, 'error');
+    return;
+  }
+  const mod = (sidebarModules.value || []).find((m) => (m.tabIds || []).includes(tabId));
+  if (mod && !canViewModule(currentUserRole.value, mod.id)) {
+    showToast(`当前角色（${getRoleLabel(currentUserRole.value)}）无权访问该模块`, 'error');
+    return;
+  }
+  switchTab(tabId);
+  nextTick(() => openEditModal());
+};
+
+const handleAdminLogout = async () => {
+  try {
+    await authStore.logout();
+  } catch (error) {
+    logger.warn('data-admin', '退出登录失败:', error);
+  } finally {
+    router.push('/');
+  }
+};
+
+// ==================== 面包屑：首页 / 模块 / 子表 ====================
+const isOverviewSection = computed(() => activeAdminSection.value === 'overview');
+const adminBreadcrumbs = computed(() => {
+  const crumbs = [{ label: '首页', moduleId: 'overview' }];
+  if (isOverviewSection.value) {
+    crumbs.push({ label: currentAdminPageMeta.value?.title || '概览', current: true });
+    return crumbs;
+  }
+  crumbs.push({
+    label: currentModule.value?.label || '数据管理',
+    moduleId: currentModule.value?.id
+  });
+  if (isDataConsoleSection.value && currentTabLabel.value) {
+    crumbs.push({ label: currentTabLabel.value, current: true });
+  } else {
+    crumbs.push({ label: currentAdminPageMeta.value?.title || '', current: true });
+  }
+  return crumbs;
+});
+const handleBreadcrumbClick = (crumb) => {
+  if (crumb.current || !crumb.moduleId) return;
+  const mod = (sidebarModules.value || []).find((m) => m.id === crumb.moduleId);
+  guardedModuleClick(mod || { id: crumb.moduleId, label: crumb.label });
+};
+
+// ==================== 行动作模型：主操作 inline + 其余收进 ⋯ 菜单 ====================
+// 目标：操作列永远单行（通过/拒绝/封禁等高频保留，开奖/履约/删除等收进菜单），
+// 根治 112px 固定列 + 换行把行高撑到 200px 的问题。
+const getRowActionModel = (item) => {
+  const primary = [];
+  const menu = [];
+  if (isModerationTab.value) {
+    const rejected = isRejectedModerationRecord(item);
+    const pending = isModerationActionPending(item.id);
+    primary.push({
+      id: rejected ? 'restore' : 'approve',
+      label: rejected ? '恢复' : '通过',
+      tone: 'approve',
+      disabled: pending,
+      title: rejected ? '恢复为通过' : '审核通过',
+      run: () => moderateAndAdvance(item, 'approve')
+    });
+    if (!rejected) {
+      primary.push({
+        id: 'reject', label: '拒绝', tone: 'reject', disabled: pending,
+        title: '拒绝并填写原因', run: () => moderateAndAdvance(item, 'reject')
+      });
+      if (isReportedPostModerationTab.value) {
+        menu.push({
+          id: 'keep', label: '维持下架', disabled: pending,
+          run: () => keepLimitedModerationItem(item)
+        });
+      }
+    }
+    menu.push({
+      id: 'delete-mod', label: '删除', tone: 'danger', disabled: pending,
+      run: () => deleteModerationItem(item)
+    });
+    return { primary, menu };
+  }
+  if (currentTab.value === 'lotteries') {
+    const lotPending = isLotteryActionPending(item.id);
+    if (item.status === 'open') {
+      primary.push({
+        id: 'draw', label: '开奖', tone: 'approve', disabled: lotPending,
+        title: '立即随机开奖', run: () => drawLotteryNow(item)
+      });
+    }
+    if (item.status === 'drawn' && item.pity_mode === 'none') {
+      menu.push({
+        id: 'redraw', label: '重抽', disabled: lotPending,
+        run: () => redrawLottery(item)
+      });
+    }
+    menu.push(
+      { id: 'fulfill', label: '履约', run: () => viewLotteryFulfillments(item) },
+      { id: 'entries', label: '报名名单', run: () => viewLotteryEntries(item) },
+      { id: 'drawlogs', label: '开奖日志', run: () => viewLotteryDrawLogs(item) }
+    );
+    if (item.status !== 'closed') {
+      menu.push({
+        id: 'close', label: '关闭抽奖', tone: 'danger', disabled: lotPending,
+        run: () => closeLottery(item)
+      });
+    }
+  } else if (currentTab.value === 'lotteryFulfillments') {
+    if (item.is_current && !['fulfilled', 'forfeited', 'voided'].includes(item.status)) {
+      primary.push({
+        id: 'advance', label: '推进', tone: 'approve',
+        title: '推进下一履约状态', run: () => advanceLotteryFulfillment(item)
+      });
+    }
+    if (item.is_current && item.status !== 'fulfilled') {
+      menu.push({
+        id: 'replace', label: '替补中奖人',
+        run: () => replaceLotteryWinner(item)
+      });
+    }
+  } else if (currentTab.value === 'lotteryNotificationJobs' && item.status !== 'sent') {
+    menu.push({
+      id: 'retry-notify', label: '重新发送通知',
+      run: () => retryLotteryNotification(item)
+    });
+  }
+  if (canBanMute.value) {
+    primary.push(
+      item.is_banned
+        ? { id: 'unban', label: '解封', tone: 'approve', title: '解封用户', run: () => unbanUser(item) }
+        : { id: 'ban', label: '封禁', tone: 'reject', title: '封禁用户（禁止登录）', run: () => banUser(item) },
+      item.is_muted
+        ? { id: 'unmute', label: '解禁', tone: 'approve', title: '解除禁言', run: () => unmuteUser(item) }
+        : { id: 'mute', label: '禁言', tone: 'reject', title: '禁言用户（禁止发言）', run: () => muteUser(item) }
+    );
+  }
+  if (relatedJumpsForItem(item).length) {
+    menu.push({ id: 'related', label: '关联记录', run: () => openRelatedPanel(item) });
+  }
+  if (canDeleteCurrentTab.value && !isProfileDerivedTab.value) {
+    menu.push({ id: 'delete', label: '删除', tone: 'danger', run: () => deleteItem(item) });
+  }
+  return { primary, menu };
+};
+
+// 全局浮动行菜单（fixed 定位，避免被表格滚动容器裁剪）
+const rowMenu = ref(null);
+let rowMenuCleanup = null;
+const closeRowMenu = () => {
+  if (rowMenuCleanup) {
+    try { rowMenuCleanup(); } catch (e) { /* ignore */ }
+    rowMenuCleanup = null;
+  }
+  rowMenu.value = null;
+};
+const openRowMenu = ({ rect, items }) => {
+  closeRowMenu();
+  if (!items?.length || typeof window === 'undefined') return;
+  const MENU_W = 188;
+  const MENU_H = items.length * 36 + 12;
+  const openUp = rect.bottom + MENU_H + 8 > window.innerHeight;
+  rowMenu.value = {
+    items,
+    x: Math.max(8, Math.min(rect.right - MENU_W, window.innerWidth - MENU_W - 8)),
+    y: openUp
+      ? Math.max(8, rect.top - MENU_H - 6)
+      : Math.min(rect.bottom + 6, window.innerHeight - MENU_H - 8)
+  };
+  const scroller = document.querySelector('.g-sheet-table-scroll');
+  const onPointer = (e) => {
+    if (!e.target.closest('.row-float-menu') && !e.target.closest('.row-more-btn')) closeRowMenu();
+  };
+  const onKey = (e) => { if (e.key === 'Escape') closeRowMenu(); };
+  const onScroll = () => closeRowMenu();
+  document.addEventListener('pointerdown', onPointer, true);
+  document.addEventListener('keydown', onKey, true);
+  window.addEventListener('resize', onScroll);
+  scroller?.addEventListener('scroll', onScroll);
+  rowMenuCleanup = () => {
+    document.removeEventListener('pointerdown', onPointer, true);
+    document.removeEventListener('keydown', onKey, true);
+    window.removeEventListener('resize', onScroll);
+    scroller?.removeEventListener('scroll', onScroll);
+  };
+};
+const runRowMenuItem = (menuItem) => {
+  closeRowMenu();
+  menuItem.run?.();
+};
+
+// C2: 审核流水线 —— 通过/拒绝成功后自动高亮下一条待审 + toast 撤销
+const flashRowId = ref(null);
+let flashRowTimer = null;
+const moderateAndAdvance = async (item, kind) => {
+  const cfg = moderationTabConfig.value;
+  const prevStatus = cfg ? item?.[cfg.statusField] : undefined;
+  try {
+    if (kind === 'approve') await approveModerationItem(item);
+    else await rejectModerationItem(item);
+  } catch (e) { return; } // 取消/失败时工厂已提示，不推进
+  // 确认状态确已变更（排除原因弹窗取消等静默返回）
+  const after = (currentData.value || []).find((r) => String(r?.id) === String(item?.id));
+  const expected = kind === 'approve' ? cfg?.approveValue : cfg?.rejectValue;
+  if (!after || (expected != null && after[cfg.statusField] !== expected)) return;
+  const next = (currentData.value || []).find(
+    (r) => String(r?.id) !== String(item?.id) && !isRejectedModerationRecord(r)
+  );
+  if (next) {
+    flashRowId.value = String(next.id);
+    if (flashRowTimer) clearTimeout(flashRowTimer);
+    flashRowTimer = setTimeout(() => { flashRowId.value = null; flashRowTimer = null; }, 1800);
+  }
+  showToast(kind === 'approve' ? '审核通过已生效' : '已拒绝并记录原因', 'success', {
+    label: '撤销',
+    run: () => undoModeration({ id: item.id, status: prevStatus, tab: currentTab.value })
+  });
+};
+const undoModeration = async (snap) => {
+  try {
+    const cfg = moderationTabConfig.value;
+    if (!cfg || snap.tab !== currentTab.value) {
+      showToast('页面已切换，无法撤销', 'warning');
+      return;
+    }
+    const { error } = await supabase
+      .from(cfg.table)
+      .update({ [cfg.statusField]: snap.status })
+      .eq('id', snap.id);
+    if (error) throw error;
+    patchStoreRow(snap.tab, { id: snap.id, [cfg.statusField]: snap.status });
+    clearTabFetchCache(snap.tab);
+    showToast('已撤销本次审核', 'success');
+  } catch (e) {
+    showToast('撤销失败: ' + buildActionErrorMessage(e, '撤销失败'), 'error');
+  }
+};
+
+// 内容工具栏 ⋯ 菜单：低频操作收纳（变更日志/备份/清理/到期开奖/全选）
+const toolbarMenuItems = computed(() => {
+  const items = [
+    {
+      id: 'changelog',
+      label: '变更日志',
+      run: () => { showChangeLogPanel.value = !showChangeLogPanel.value; }
+    }
+  ];
+  if (currentTab.value === 'lotterySchedulerLogs') {
+    items.push({
+      id: 'clean-logs',
+      label: isCleaningLogs.value ? '清理中...' : '清理日志',
+      disabled: isCleaningLogs.value,
+      run: () => cleanupSchedulerLogs()
+    });
+  }
+  items.push({
+    id: 'backup',
+    label: isExportingBackup.value ? '备份中...' : '备份全部数据',
+    disabled: isExportingBackup.value,
+    run: () => exportBackupData()
+  });
+  if (isLotteryOpsTab.value) {
+    items.push({
+      id: 'due-draws',
+      label: '执行到期开奖',
+      disabled: lotteryDueDrawPending.value,
+      run: () => runDueLotteryDraws()
+    });
+  }
+  return items;
+});
+
 // ==================== 变更日志中心注入 ====================
 // 在 createNavigationCenter 之后注入, 因为需要 switchTab
 const {
@@ -3963,8 +4226,17 @@ const refreshCurrentViewAfterMutation = async () => {
   // 数据已变更, 敏感字段缓存立即失效, 下次查询拉取最新数据
   flushSensitiveUsersCache();
   clearTabFetchCache(currentTab.value);
+  // C1: 快照滚动位置，刷新后恢复（勾选按 id 比对，天然保留）
+  const scroller = typeof document !== 'undefined'
+    ? document.querySelector('.g-sheet-table-scroll')
+    : null;
+  const savedTop = scroller ? scroller.scrollTop : 0;
   await fetchTabData(currentTab.value);
   lastRefreshedAt.value = new Date().toISOString();
+  if (scroller) {
+    await nextTick();
+    try { scroller.scrollTop = savedTop; } catch (e) { /* ignore */ }
+  }
   runAfterFirstPaint(async () => {
     await fetchSecondaryData();
     lastRefreshedAt.value = new Date().toISOString();
@@ -4197,8 +4469,9 @@ const confirmPayloadDiffs = async (payload) => {
 // ==================== 编辑模态框 ====================
 const handleAdminCreate = () => openEditModal();
 
-const openEditModal = async (item = null) => {
+const openEditModal = async (item = null, opts = {}) => {
   try {
+    pendingFocusField = opts.focusField || '';
     jsonBuffers.value = {};
     clearFieldErrors();
     userPickerKeyword.value = '';
@@ -4426,6 +4699,12 @@ const openEditModal = async (item = null) => {
     }
     showModal.value = true;
     nextTick(maybeRestoreDraft);
+    // E4: 直达字段（行内铅笔）— 抽屉渲染后滚动定位并高亮
+    if (pendingFocusField) {
+      const target = pendingFocusField;
+      pendingFocusField = '';
+      nextTick(() => nextTick(() => editDrawerRef.value?.revealField?.(target)));
+    }
   } catch (error) {
     logger.error('data-admin', '打开编辑弹窗失败:', error);
     showToast('打开编辑弹窗失败: ' + buildActionErrorMessage(error, '请稍后重试'), 'error');
@@ -4750,11 +5029,42 @@ const clearAddressAiText = () => {
 let saveDataIdCounter = 0;
 const activeSaveDataId = ref(0);
 
-const saveData = async () => {
+const editDrawerRef = ref(null);
+
+// E4: 行内铅笔直达字段 —— 记录抽屉打开后要定位的字段 key，被 openEditModal 消费一次即清空。
+// 只做同步交接、不参与渲染，故用普通 let 而非 ref（与 editDrawerRef 同层声明）。
+let pendingFocusField = '';
+
+// C1: 写后单行 patch（命中当前页时跳过整表刷新，保留滚动与勾选）
+const patchStoreRow = (tabId, row) => {
+  if (!row || (row.id == null && row.id !== 0)) return false;
+  const rows = dataStore[tabId];
+  if (!Array.isArray(rows)) return false;
+  const idx = rows.findIndex((r) => String(r?.id) === String(row.id));
+  if (idx < 0) return false;
+  rows[idx] = { ...rows[idx], ...row };
+  return true;
+};
+
+// 保存失败时定位首个错误字段（展开分组 + 滚动 + 高亮）
+const revealFirstError = () => {
+  const key = (currentFields.value || []).map((f) => f.key).find((k) => fieldErrors[k]);
+  if (key) nextTick(() => editDrawerRef.value?.revealField?.(key));
+};
+
+// E3: 连续作业（保存并下一条 / 保存并新建）
+const saveAndEditNext = async () => {
+  if (await saveData({ keepOpen: true })) navigateEditRecord(1);
+};
+const saveAndCreateNext = async () => {
+  if (await saveData({ keepOpen: true })) openEditModal(null);
+};
+
+const saveData = async ({ keepOpen = false } = {}) => {
   // 先检查锁：防止计数器被篡改后导致 finally 永远不释放锁
   if (isSaving.value) {
     showToast('已有保存操作进行中，请稍候', 'warning');
-    return;
+    return false;
   }
   // 使用原子计数器防止竞态
   const currentSaveId = ++saveDataIdCounter;
@@ -4772,14 +5082,16 @@ const saveData = async () => {
     if (!validateRequiredFields()) {
       showToast('请先补全必填字段', 'error');
       isSaving.value = false;
-      return;
+      revealFirstError();
+      return false;
     }
 
     const hasInvalidField = currentFields.value.some((field) => !validateField(field.key));
     if (hasInvalidField) {
       showToast('请修复表单错误后再保存', 'error');
       isSaving.value = false;
-      return;
+      revealFirstError();
+      return false;
     }
 
     // 处理 JSON 字段
@@ -4790,7 +5102,8 @@ const saveData = async () => {
         } catch (_e) {
           showToast(`${field.label} JSON 格式错误`, 'error');
           isSaving.value = false;
-          return;
+          nextTick(() => editDrawerRef.value?.revealField?.(field.key));
+          return false;
         }
       }
     }
@@ -4800,7 +5113,7 @@ const saveData = async () => {
     if (!strategy) {
       showToast(`暂不支持保存 ${currentTabLabel.value}`, 'error');
       isSaving.value = false;
-      return;
+      return false;
     }
     const dataToSave = await strategy({
       editingItem: editingItem.value,
@@ -4816,15 +5129,16 @@ const saveData = async () => {
 
     if (!await confirmPayloadDiffs(dataToSave)) {
       isSaving.value = false;
-      return;
+      return false;
     }
 
+    let savedRowPatched = false;
     if (isEditing.value) {
       const { data, error } = await supabase
         .from(table)
         .update(dataToSave)
         .eq('id', editingItem.value.id)
-        .select('id');
+        .select();
       if (error) throw error;
       if (!Array.isArray(data) || data.length === 0) {
         throw new Error('保存失败：没有记录被更新，请检查管理员权限或记录是否存在');
@@ -4838,6 +5152,9 @@ const saveData = async () => {
       addChangeLogEntry('update', editingItem.value, {
         diffs: getPayloadDiffs(editingOriginalItem.value || {}, dataToSave).slice(0, 20)
       });
+      // C1: 命中当前页则单行 patch，跳过整表刷新（保留滚动与勾选）
+      savedRowPatched = patchStoreRow(currentTab.value, data[0]);
+      if (savedRowPatched) clearTabFetchCache(currentTab.value);
       showToast('数据更新成功', 'success');
     } else {
       if (currentTab.value === 'gifts' && dataToSave.is_active) {
@@ -4864,16 +5181,28 @@ const saveData = async () => {
     }
 
     clearCurrentDraft();
-    await refreshCurrentViewAfterMutation();
+    if (keepOpen) {
+      // 连续作业：不关抽屉，重锚定原始值避免误报未保存
+      editingOriginalItem.value = cloneComparable(editingItem.value);
+      if (savedRowPatched) lastRefreshedAt.value = new Date().toISOString();
+      return true;
+    }
+    if (!savedRowPatched) {
+      await refreshCurrentViewAfterMutation();
+    } else {
+      lastRefreshedAt.value = new Date().toISOString();
+    }
     await closeModal({ askDraft: false });
+    return true;
   } catch (error) {
     // P0 修复: 检查是否是当前保存请求，忽略过期的请求错误
     if (activeSaveDataId.value !== currentSaveId) {
       logger.warn('data-admin', '忽略过期的保存请求错误（已有新的保存请求）');
-      return;
+      return false;
     }
     logger.error('data-admin', '保存失败:', error);
     showToast('保存失败: ' + buildActionErrorMessage(error, '保存失败'), 'error');
+    return false;
   } finally {
     // P0 修复: 仅当是当前保存请求时才释放锁
     if (activeSaveDataId.value === currentSaveId) {
@@ -4937,6 +5266,22 @@ const startInlineEdit = (item, col) => {
   inlineEditState.rowId = getRowIdentity(item);
   inlineEditState.fieldKey = col.key;
   inlineEditState.value = item[col.key] ?? '';
+};
+
+// E4: 单元格快捷编辑 —— 行内支持的走行内（select/number/text…），
+// textarea/tags/json/image 等走抽屉并直达对应字段，铅笔不再是死按钮
+// （editDrawerRef / pendingFocusField 见 saveData 上方声明）
+const isDrawerEditable = (col, item) => {
+  if (!item?.id || isReadOnlyTab.value || isModerationTab.value) return false;
+  if (inlineEditableFieldKeys.value.has(col.key)) return false;
+  const field = getFieldByKey(col.key);
+  if (!field || field.disabled) return false;
+  return (TAB_WRITABLE_FIELDS[currentTab.value] || []).includes(col.key);
+};
+const isCellEditable = (col, item) => isInlineEditable(col, item) || isDrawerEditable(col, item);
+const quickEditCell = (item, col) => {
+  if (isInlineEditable(col, item)) startInlineEdit(item, col);
+  else if (isDrawerEditable(col, item)) openEditModal(item, { focusField: col.key });
 };
 
 const cancelInlineEdit = () => {
@@ -5154,7 +5499,8 @@ const commandPaletteItems = computed(() => {
   }
   if (Array.isArray(sidebarModules.value)) {
     for (const mod of sidebarModules.value) {
-      items.push({ id: `module-${mod.id}`, label: `切换到：${mod.label}`, hint: '', run: () => handleModuleClick(mod) });
+      if (!canViewModule(currentUserRole.value, mod.id)) continue;
+      items.push({ id: `module-${mod.id}`, label: `切换到：${mod.label}`, hint: '', run: () => guardedModuleClick(mod) });
     }
   }
   return items;
@@ -5404,6 +5750,30 @@ onUnmounted(() => {
   width: 100%;
   margin: 0 auto;
 }
+
+/* 面包屑：首页 / 模块 / 子表（标准后台定位路径） */
+.admin-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 2);
+  padding: calc(var(--spacing) * 3) calc(var(--spacing) * 8) 0;
+  max-width: 1320px;
+  width: 100%;
+  margin: 0 auto;
+  font-size: 0.78rem;
+  color: var(--muted-foreground);
+}
+.admin-breadcrumb-sep { opacity: 0.5; }
+.admin-breadcrumb-link {
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.admin-breadcrumb-link:hover { color: var(--primary); text-decoration: underline; }
+.admin-breadcrumb-current { color: var(--foreground); font-weight: 600; }
 
 @media (max-width: 768px) {
   .data-management-page {
@@ -6036,6 +6406,168 @@ onUnmounted(() => {
 @media (max-width: 720px) {
   .lottery-card-grid { grid-template-columns: 1fr; }
 }
+
+/* ==================== 密度优化：操作列单行 + 紧凑行高 ==================== */
+/* 操作列取消 112px 定宽，内容不换行（主操作 inline + 其余进 ⋯ 菜单） */
+.g-table-sheet .actions-col {
+  min-width: 0;
+  width: 1%;
+  white-space: nowrap;
+}
+/* 列 hug 内容：表格按内容撑宽，不把多余宽度摊进列间距 */
+.g-sheet-table-scroll > .g-table-sheet {
+  width: max-content;
+  min-width: 100%;
+}
+.g-table-sheet tbody td,
+.g-table-sheet thead th {
+  white-space: nowrap;
+}
+/* 例外：标签/JSON 单元格允许换行，避免被上面的一刀切 nowrap 撑爆 */
+.g-table-sheet td .cell-tags,
+.g-table-sheet td .cell-json {
+  white-space: normal;
+}
+.g-table-sheet td .cell-text {
+  max-width: 220px;
+}
+.action-btns {
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+/* 表格内按钮缩小：40px 大圆钮 → 30px */
+.action-btns .icon-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+.action-btns .review-btn {
+  min-width: 0;
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+  border-radius: 7px;
+}
+/* 行内编辑铅笔：平时隐藏，悬停/聚焦才显（触屏保持可见） */
+.cell-edit-trigger { opacity: 0; }
+.g-table-sheet tr:hover .cell-edit-trigger,
+.g-table-sheet tr:focus-within .cell-edit-trigger,
+.cell-edit-trigger:focus-visible {
+  opacity: 1;
+}
+@media (hover: none), (pointer: coarse) {
+  .cell-edit-trigger { opacity: 0.86; }
+}
+
+/* 密度：紧凑（默认）/ 舒适 */
+.data-content[data-density="compact"] .g-table-sheet tbody td {
+  padding: 8px 12px;
+}
+.data-content[data-density="compact"] .g-table-sheet thead th {
+  padding: 8px 12px;
+}
+.data-content[data-density="comfortable"] .g-table-sheet tbody td {
+  padding: 14px 16px;
+}
+.data-content[data-density="comfortable"] .g-table-sheet thead th {
+  padding: 12px 16px;
+}
+.density-toggle {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 9px;
+  background: var(--muted, #f1f5f9);
+  gap: 2px;
+}
+.density-toggle button {
+  border: none;
+  background: transparent;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted-foreground, #64748b);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.density-toggle button.is-active {
+  background: var(--card, #fff);
+  color: var(--foreground, #0f172a);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+/* 浮动批量操作条 */
+.bulk-bar {
+  position: sticky;
+  top: calc(var(--dm-nav-height, 60px) + 8px);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--primary) 7%, var(--card, #fff));
+  box-shadow: 0 6px 20px -12px rgba(0, 0, 0, 0.25);
+}
+.bulk-count { font-size: 0.82rem; color: var(--foreground); }
+.bulk-count strong { font-variant-numeric: tabular-nums; }
+.bulk-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* 行级 ⋯ 浮动菜单 */
+.row-float-menu {
+  position: fixed;
+  z-index: 2000;
+  width: 188px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--popover, var(--card, #fff));
+  box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.28);
+}
+.row-float-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+}
+.row-float-item:hover { background: var(--muted); }
+.row-float-item.is-danger { color: var(--destructive, #e5484d); }
+.row-float-item.is-danger:hover {
+  background: color-mix(in srgb, var(--destructive, #e5484d) 10%, transparent);
+}
+.row-float-item:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* 行高亮（审核流水线下一条定位） */
+.g-table-sheet tbody tr.row-flash,
+.mobile-card.row-flash {
+  animation: row-flash 1.8s ease;
+}
+@keyframes row-flash {
+  0%, 100% { background: transparent; }
+  15%, 55% { background: color-mix(in srgb, var(--primary) 14%, transparent); }
+}
+
+/* 模块 hero 瘦身：收紧内边距与标题字号，减少首屏占用 */
+.admin-section-hero {
+  padding: 14px 18px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+.admin-section-hero h2 { font-size: 19px; margin-bottom: 4px; }
+.admin-section-hero p { font-size: 13px; }
 </style>
 
 <style>

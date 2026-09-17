@@ -20,6 +20,9 @@ import {
   LOTTERY_PITY_MODE_OPTIONS,
   CAMPAIGN_STAGE_OPTIONS,
   CAMPAIGN_REWARD_STATUS_OPTIONS,
+  CAMPAIGN_ENTRY_KIND_OPTIONS,
+  CAMPAIGN_ENTRY_STATUS_OPTIONS,
+  CAMPAIGN_REWARD_TYPE_OPTIONS,
   NEWS_CATEGORY_OPTIONS,
   ORDER_STATUS_OPTIONS,
   ORDER_CONTACT_TYPE_OPTIONS,
@@ -28,6 +31,7 @@ import {
   BOOLEAN_DISPLAY_OPTIONS,
   POST_REWARD_STATUS_OPTIONS
 } from './fields.js';
+import { parseActivityDate } from '../../../utils/activity-date';
 
 export const PRODUCTS_CACHE_KEY = 'boh_products_cache_v1';
 
@@ -56,7 +60,7 @@ export const dataConfig = {
   users: {
     table: 'profiles',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 24 },
+      { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'username', label: '用户名' },
       { key: 'email', label: '邮箱' },
       { key: 'role', label: '角色', type: 'badge' },
@@ -120,7 +124,7 @@ export const dataConfig = {
   points: {
     table: 'profiles',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 24 },
+      { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'username', label: '用户名' },
       { key: 'role', label: '角色', type: 'badge' },
       { key: 'is_banned', label: '封禁', type: 'badge' },
@@ -141,7 +145,7 @@ export const dataConfig = {
   subscriptions: {
     table: 'user_subscriptions',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 24 },
+      { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'username', label: '用户名' },
       { key: 'email', label: '邮箱', maxLength: 22 },
       { key: 'plan_name', label: '订阅内容' },
@@ -470,7 +474,7 @@ export const dataConfig = {
   reportedPosts: {
     table: 'posts',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 24 },
+      { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'title', label: '标题', maxLength: 28 },
       { key: 'author_username', label: '作者' },
       { key: 'active_report_count', label: '举报数', type: 'number' },
@@ -513,7 +517,7 @@ export const dataConfig = {
   coreMemories: {
     table: 'boh_ai_core_memories',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 24 },
+      { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'title', label: '标题', maxLength: 32 },
       { key: 'category', label: '分类', type: 'badge' },
       { key: 'priority', label: '优先级', type: 'number' },
@@ -841,23 +845,35 @@ export const dataConfig = {
     columns: [
       { key: 'id', label: 'ID' },
       { key: 'title', label: '标题', maxLength: 25 },
-      { key: 'date', label: '日期', type: 'date' },
+      // date 是 varchar(50)，历史数据三种格式混录。这里刻意不挂 type: 'date'，
+      // 原样显示存储值，管理员一眼能看出哪条是 2025/10（缺「日」）哪条是 2026-08-10。
+      { key: 'date', label: '日期' },
+      { key: 'datePrecision', label: '精度', type: 'badge', virtual: true },
       { key: 'created_at', label: '创建时间', type: 'date' }
     ],
     fields: [
       { key: 'id', label: 'ID', type: 'number', disabled: true, hint: '新增活动自动生成 ID。', group: 'basic' },
       { key: 'title', label: '标题', type: 'text', required: true, maxLength: 255, group: 'basic' },
-      { key: 'date', label: '日期', type: 'date', required: true, group: 'basic' },
+      { key: 'date', label: '日期', type: 'activity-date', required: true, hint: '只记得月份的活动，把「日」留空即可。', group: 'basic' },
       { key: 'description', label: '描述', type: 'textarea', placeholder: '直接写活动介绍，不需要填写任何代码。', group: 'basic' },
       { key: 'image', label: '活动图', type: 'image', placeholder: '上传后自动填入，也可以粘贴 https:// 图片链接', hint: '推荐使用"上传到 Cloud"。', group: 'media' }
     ],
+    // 精度是派生展示（virtual，不入库）：让「只到月份」的记录在后台显性化，
+    // 而不是被静默当成 1 日。
+    rowDecorator: (row) => {
+      const parsed = parseActivityDate(row?.date);
+      return {
+        ...row,
+        datePrecision: parsed.valid ? (parsed.hasDay ? '精确到日' : '仅年月') : '无法识别',
+        dateLabel: parsed.valid ? parsed.dateLabel : ''
+      };
+    },
     cardView: {
       imageKey: 'image',
       placeholderIcon: '🎉',
       titleKey: 'title',
-      subtitleKey: 'date',
+      subtitleKey: 'dateLabel',
       subtitleLabel: '活动日期',
-      subtitleFormat: 'date',
       meta: [
         { label: '描述', key: 'description' }
       ]
@@ -962,7 +978,7 @@ export const dataConfig = {
   shopOrders: {
     table: 'shop_points_orders',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 24 },
+      { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'order_no', label: '订单号', maxLength: 20 },
       { key: 'username', label: '用户名' },
       { key: 'contact_type', label: '联系方式', type: 'badge' },
@@ -1019,7 +1035,7 @@ export const dataConfig = {
   pointsTransactions: {
     table: 'points_transactions',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 24 },
+      { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'username', label: '用户名' },
       { key: 'amount', label: '变动', type: 'number' },
       { key: 'balance_after', label: '变动后余额', type: 'number' },
@@ -1062,7 +1078,7 @@ export const dataConfig = {
   notifications: {
     table: 'notifications',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 24 },
+      { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'recipient_name', label: '接收人' },
       { key: 'sender_name', label: '发送人' },
       { key: 'type', label: '类型', type: 'badge' },
@@ -1098,7 +1114,7 @@ export const dataConfig = {
   moderationLogs: {
     table: 'moderation_logs',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 24 },
+      { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'target_type', label: '目标类型', type: 'badge' },
       { key: 'target_id', label: '目标ID', maxLength: 24 },
       { key: 'ai_result', label: 'AI结果', maxLength: 20 },
@@ -1112,7 +1128,7 @@ export const dataConfig = {
   forumPostReports: {
     table: 'forum_post_reports',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 24 },
+      { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'post_id', label: '帖子ID', maxLength: 24 },
       { key: 'reporter_name', label: '举报人' },
       { key: 'reason', label: '原因', type: 'badge' },
@@ -1150,7 +1166,7 @@ export const dataConfig = {
   forumWeeklyCheckins: {
     table: 'forum_weekly_checkins',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 24 },
+      { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'username', label: '用户名' },
       { key: 'week_start_date', label: '周起始', type: 'date' },
       { key: 'signed_at', label: '签到时间', type: 'datetime' },
@@ -1162,7 +1178,7 @@ export const dataConfig = {
   forumPostImages: {
     table: 'forum_post_images',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 24 },
+      { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'post_id', label: '帖子ID', maxLength: 24 },
       { key: 'username', label: '上传者' },
       { key: 'url', label: '图片', type: 'image' },
@@ -1202,7 +1218,7 @@ export const dataConfig = {
   cloudinaryUploads: {
     table: 'cloudinary_pending_uploads',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 24 },
+      { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'username', label: '用户名' },
       { key: 'status', label: '状态', type: 'badge' },
       { key: 'error_message', label: '错误', maxLength: 30 },
@@ -1216,7 +1232,7 @@ export const dataConfig = {
   apiKeyAuditLogs: {
     table: 'api_key_vault_audit_logs',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 24 },
+      { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'action', label: '操作', type: 'badge' },
       { key: 'provider', label: '供应商' },
       { key: 'purpose', label: '用途' },
@@ -1229,7 +1245,7 @@ export const dataConfig = {
   aiWebSearchLog: {
     table: 'ai_web_search_log',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 24 },
+      { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'username', label: '用户名' },
       { key: 'tier', label: '档位', type: 'badge' },
       { key: 'status', label: '状态', type: 'badge' },
@@ -1242,7 +1258,7 @@ export const dataConfig = {
   anniversaryClaims: {
     table: 'anniversary_subscription_claims',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 24 },
+      { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'username', label: '用户名' },
       { key: 'plan_code', label: '方案' },
       { key: 'started_at', label: '开始时间', type: 'datetime' },
@@ -1255,7 +1271,7 @@ export const dataConfig = {
   blockWallItems: {
     table: 'block_wall_items',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 24 },
+      { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'author_username', label: '作者' },
       { key: 'item_type', label: '类型', type: 'badge' },
       { key: 'content', label: '内容', maxLength: 24 },
@@ -1309,53 +1325,83 @@ export const dataConfig = {
       { key: 'slug', label: 'Slug' },
       { key: 'title', label: '活动标题' },
       { key: 'stage', label: '阶段', type: 'badge' },
-      { key: 'start_at', label: '开始', type: 'date' },
-      { key: 'end_at', label: '结束', type: 'date' },
+      { key: 'signupWindow', label: '报名窗口', virtual: true },
+      { key: 'start_at', label: '活动开始', type: 'datetime' },
+      { key: 'end_at', label: '活动结束', type: 'datetime' },
       { key: 'created_at', label: '创建时间', type: 'date' }
     ],
     fields: [
       { key: 'id', label: 'ID', type: 'text', disabled: true, hint: 'UUID 主键由系统生成，不可手动修改。', group: 'basic' },
-      { key: 'slug', label: 'Slug（URL 标识）', type: 'text', required: true, maxLength: 64, placeholder: 'boh-9th-birthday', group: 'basic' },
+      { key: 'slug', label: 'Slug（URL 标识）', type: 'text', required: true, maxLength: 64, placeholder: 'boh-9th-birthday', hint: '只允许小写字母、数字和连字符，保存时自动归一。', group: 'basic' },
       { key: 'title', label: '活动标题', type: 'text', required: true, maxLength: 80, group: 'basic' },
-      { key: 'description', label: '活动介绍', type: 'textarea', group: 'basic' },
-      { key: 'stage', label: '生命周期阶段', type: 'select', options: CAMPAIGN_STAGE_OPTIONS, group: 'basic' },
-      { key: 'signup_start_at', label: '报名开始（ISO 时间）', type: 'text', placeholder: '2026-09-10T00:00:00+08:00', group: 'time' },
-      { key: 'signup_end_at', label: '报名截止（ISO 时间）', type: 'text', placeholder: '留空表示不限', group: 'time' },
-      { key: 'start_at', label: '活动开始（ISO 时间）', type: 'text', group: 'time' },
-      { key: 'end_at', label: '活动结束（ISO 时间）', type: 'text', group: 'time' },
+      { key: 'description', label: '活动介绍', type: 'textarea', placeholder: '会展示在首页报名卡上的简介。', group: 'basic' },
+      { key: 'stage', label: '生命周期阶段', type: 'select', options: CAMPAIGN_STAGE_OPTIONS, hint: '只有「报名中 / 投稿中 / 评审中」会出现在前台报名区。', group: 'basic' },
+      // 时间字段用 datetime 选择器（此前是手填 ISO 字符串，管理员要自己写 2026-09-10T00:00:00+08:00）
+      { key: 'signup_start_at', label: '报名开始', type: 'datetime', group: 'time' },
+      { key: 'signup_end_at', label: '报名截止', type: 'datetime', hint: '留空表示不限截止时间。', group: 'time' },
+      { key: 'start_at', label: '活动开始', type: 'datetime', group: 'time' },
+      { key: 'end_at', label: '活动结束', type: 'datetime', group: 'time' },
       { key: 'config', label: '活动配置（JSON）', type: 'json', group: 'extra', hint: '报名表单字段、评审规则、文案等私有配置。' }
-    ]
+    ],
+    rowDecorator: (row) => {
+      const fmt = (iso) => {
+        if (!iso) return '';
+        const date = new Date(iso);
+        if (Number.isNaN(date.getTime())) return '';
+        return `${date.getMonth() + 1}.${date.getDate()}`;
+      };
+      const start = fmt(row?.signup_start_at);
+      const end = fmt(row?.signup_end_at);
+      return {
+        ...row,
+        signupWindow: start || end ? `${start || '…'} - ${end || '…'}` : '未设置'
+      };
+    }
   },
   campaignEntries: {
     table: 'activity_entries',
     columns: [
-      { key: 'created_at', label: '时间', type: 'date' },
-      { key: 'campaign_id', label: '活动ID' },
-      { key: 'user_id', label: '用户ID' },
+      { key: 'created_at', label: '报名时间', type: 'datetime' },
+      { key: 'campaign_id', label: '活动ID', maxLength: 12 },
+      { key: 'user_id', label: '用户ID', maxLength: 12 },
       { key: 'kind', label: '类型', type: 'badge' },
       { key: 'status', label: '状态', type: 'badge' }
     ],
-    fields: []
+    // 此前 fields 为空 + 不在 TAB_WRITABLE_FIELDS 里 → 报名明细在后台完全只读，
+    // 审核报名只能直连数据库改。这里开放 status 审核，其余字段保持只读以防改坏归属。
+    fields: [
+      { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic' },
+      { key: 'campaign_id', label: '活动 ID', type: 'text', disabled: true, hint: '归属由系统记录，不可修改。', group: 'basic' },
+      { key: 'user_id', label: '用户 ID', type: 'text', disabled: true, group: 'basic' },
+      { key: 'kind', label: '记录类型', type: 'select', disabled: true, options: CAMPAIGN_ENTRY_KIND_OPTIONS, group: 'basic' },
+      { key: 'status', label: '审核状态', type: 'select', options: CAMPAIGN_ENTRY_STATUS_OPTIONS, hint: '报名默认自动通过；需要人工复核的活动可改为待审核或拒绝。', group: 'basic' },
+      { key: 'payload', label: '报名内容', type: 'json', disabled: true, group: 'extra', hint: 'signup 阶段的表单填写内容 / submission 阶段的投稿正文。' },
+      { key: 'created_at', label: '提交时间', type: 'text', disabled: true, group: 'extra' }
+    ]
   },
   campaignRewards: {
     table: 'activity_rewards',
     columns: [
-      { key: 'created_at', label: '时间', type: 'date' },
-      { key: 'campaign_id', label: '活动ID' },
-      { key: 'user_id', label: '用户ID' },
+      { key: 'created_at', label: '发放时间', type: 'datetime' },
+      { key: 'campaign_id', label: '活动ID', maxLength: 12 },
+      { key: 'user_id', label: '用户ID', maxLength: 12 },
       { key: 'reward_type', label: '奖励类型', type: 'badge' },
       { key: 'amount', label: '数量', type: 'number' },
       { key: 'status', label: '状态', type: 'badge' }
     ],
     fields: [
       { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic' },
+      { key: 'campaign_id', label: '活动 ID', type: 'text', disabled: true, group: 'basic' },
+      { key: 'user_id', label: '用户 ID', type: 'text', disabled: true, group: 'basic' },
+      { key: 'reward_type', label: '奖励类型', type: 'select', disabled: true, options: CAMPAIGN_REWARD_TYPE_OPTIONS, hint: '只做发放台账，积分/券的入账走各自权益体系。', group: 'basic' },
+      { key: 'amount', label: '数量', type: 'number', disabled: true, min: 1, group: 'basic' },
       { key: 'status', label: '发放状态', type: 'select', options: CAMPAIGN_REWARD_STATUS_OPTIONS, group: 'basic' }
     ]
   },
   bohCreatorShows: {
     table: 'boh_creator_shows',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 24 },
+      { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'author_username', label: '作者' },
       { key: 'creator_platform', label: '平台', type: 'badge' },
       { key: 'title', label: '标题', maxLength: 24 },
@@ -1406,7 +1452,7 @@ export const dataConfig = {
   birthdayEvents: {
     table: 'birthday_events',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 24 },
+      { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'title', label: '标题', maxLength: 20 },
       { key: 'target_username', label: '寿星' },
       { key: 'celebration_date', label: '庆祝日期', type: 'date' },
@@ -1450,7 +1496,7 @@ export const dataConfig = {
   birthdayWishes: {
     table: 'birthday_wishes',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 24 },
+      { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'author_name', label: '作者' },
       { key: 'content', label: '内容', maxLength: 36 },
       { key: 'status', label: '状态', type: 'badge' },
@@ -1494,7 +1540,7 @@ export const dataConfig = {
   userFollows: {
     table: 'user_follows',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 24 },
+      { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'follower_name', label: '关注者' },
       { key: 'following_name', label: '被关注者' },
       { key: 'created_at', label: '关注时间', type: 'datetime' }
@@ -1505,7 +1551,7 @@ export const dataConfig = {
   userImpressions: {
     table: 'user_impressions',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 24 },
+      { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'author_name', label: '访客' },
       { key: 'target_name', label: '被访者' },
       { key: 'created_at', label: '时间', type: 'datetime' }
@@ -1516,7 +1562,7 @@ export const dataConfig = {
   labUsageRecords: {
     table: 'lab_usage_records',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 24 },
+      { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'username', label: '用户名' },
       { key: 'device_id', label: '设备ID', maxLength: 20 },
       { key: 'flow_type', label: '流程类型', type: 'badge' },

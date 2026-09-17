@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cloudflare 配置逻辑 · 可交互说明</title>
+<style>
+  :root {
+    --ink: #1f2430; --ink-2: #5a6377; --ink-3: #8a92a6;
+    --blue: #1459d9; --blue-soft: #eef4ff;
+    --green: #0f8a6a; --green-soft: rgba(15, 138, 106, .09);
+    --amber: #b45309; --amber-soft: rgba(180, 83, 9, .09);
+    --red: #b3261e; --red-soft: rgba(179, 38, 30, .08);
+    --violet: #7c3aed;
+    --line: rgba(31, 41, 66, .09);
+    --card: rgba(255, 255, 255, .82);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    color: var(--ink); min-height: 100%;
+    background:
+      radial-gradient(52rem 30rem at 10% -8%, rgba(20, 89, 217, .10), transparent 60%),
+      radial-gradient(44rem 28rem at 96% 8%, rgba(124, 58, 237, .08), transparent 60%),
+      radial-gradient(40rem 26rem at 46% 108%, rgba(15, 138, 106, .07), transparent 60%),
+      #f2f5fa;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 30px 18px 48px; -webkit-font-smoothing: antialiased;
+  }
+  .demo-head { width: 100%; max-width: 980px; margin-bottom: 16px; }
+  .demo-head h1 { font-size: 21px; font-weight: 700; letter-spacing: -.2px; }
+  .demo-head p { margin-top: 7px; font-size: 13px; color: var(--ink-2); line-height: 1.68; }
+  .demo-head p b { color: var(--ink); }
+  .demo-head .keyline {
+    margin-top: 11px; padding: 11px 15px; border-radius: 12px; font-size: 12.5px; line-height: 1.62;
+    background: rgba(20, 89, 217, .06); border: 1px solid rgba(20, 89, 217, .14); color: #20407e;
+  }
+  .demo-head .keyline b { color: var(--blue); }
+
+  .tabs { width: 100%; max-width: 980px; display: flex; gap: 8px; margin-bottom: 13px; }
+  .tab {
+    font-family: inherit; font-size: 13px; font-weight: 600; color: var(--ink-2);
+    padding: 8px 16px; border-radius: 999px; cursor: pointer; transition: .2s;
+    background: rgba(255, 255, 255, .55); border: 1px solid transparent;
+  }
+  .tab:hover { color: var(--ink); background: rgba(255, 255, 255, .85); }
+  .tab.on { color: var(--blue); background: var(--blue-soft); border-color: rgba(20, 89, 217, .18); }
+
+  .shell {
+    width: 100%; max-width: 980px; background: var(--card);
+    -webkit-backdrop-filter: blur(22px) saturate(1.5); backdrop-filter: blur(22px) saturate(1.5);
+    border: 1px solid rgba(255, 255, 255, .9); border-radius: 22px;
+    box-shadow: 0 22px 60px rgba(21, 42, 84, .11), 0 2px 10px rgba(21, 42, 84, .05);
+    overflow: hidden;
+  }
+  .panel { display: none; }
+  .panel.on { display: block; }
+
+  /* ===== 面板一：请求模拟器 ===== */
+  .sim { display: flex; min-height: 560px; }
+  .picker {
+    width: 288px; flex: none; border-right: 1px solid var(--line);
+    padding: 14px 10px 18px; overflow-y: auto; max-height: 620px;
+    background: rgba(255, 255, 255, .38);
+  }
+  .pg { margin-bottom: 13px; }
+  .pg-head {
+    font-size: 11px; font-weight: 700; letter-spacing: .3px; padding: 0 8px 6px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .pg-head .cnt { margin-left: auto; font-weight: 500; font-size: 10.5px; color: var(--ink-3); }
+  .ritem {
+    width: 100%; text-align: left; font-family: inherit; cursor: pointer;
+    border: 1px solid transparent; background: transparent; border-radius: 9px;
+    padding: 7px 9px; margin-bottom: 2px; transition: .16s; display: block;
+  }
+  .ritem:hover { background: rgba(255, 255, 255, .8); }
+  .ritem.on { background: #fff; border-color: rgba(20, 89, 217, .22); box-shadow: 0 2px 8px rgba(21, 42, 84, .07); }
+  .ritem .rp { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--ink); word-break: break-all; line-height: 1.45; }
+  .ritem .rt { font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+
+  .stage { flex: 1; min-width: 0; padding: 20px 22px 24px; }
+  .stage-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--ink-3); font-size: 13px; text-align: center; line-height: 1.8; }
+
+  .path { display: flex; align-items: stretch; margin-bottom: 8px; }
+  .node {
+    width: 158px; flex: none; border: 1px solid var(--line); border-radius: 12px;
+    padding: 11px 10px; background: rgba(255, 255, 255, .6); transition: .34s;
+    text-align: center; position: relative;
+  }
+  .node .nname { font-size: 12.5px; font-weight: 600; color: var(--ink-2); transition: .3s; }
+  .node .nsub { font-size: 10.5px; color: var(--ink-3); margin-top: 3px; line-height: 1.4; }
+  .node .nbadge {
+    margin-top: 7px; font-size: 10.5px; font-weight: 600; padding: 2px 8px;
+    border-radius: 999px; display: inline-block; opacity: 0; transition: .3s;
+  }
+  .node.on { background: #fff; border-color: rgba(20, 89, 217, .35); box-shadow: 0 4px 14px rgba(20, 89, 217, .11); }
+  .node.on .nname { color: var(--blue); }
+  .node.hit { border-color: rgba(15, 138, 106, .45); box-shadow: 0 4px 14px rgba(15, 138, 106, .13); }
+  .node.hit .nname { color: var(--green); }
+  .node.warn { border-color: rgba(180, 83, 9, .45); box-shadow: 0 4px 14px rgba(180, 83, 9, .12); }
+  .node.warn .nname { color: var(--amber); }
+  .node.stop { border-color: rgba(179, 38, 30, .4); box-shadow: 0 4px 14px rgba(179, 38, 30, .1); }
+  .node.stop .nname { color: var(--red); }
+  .link { flex: 1; min-width: 26px; position: relative; align-self: center; height: 2px; background: var(--line); overflow: hidden; border-radius: 2px; }
+  .link::after {
+    content: ''; position: absolute; inset: 0; transform: scaleX(0); transform-origin: left;
+    background: var(--blue); transition: transform .42s ease;
+  }
+  .link.on::after { transform: scaleX(1); }
+  .link.dash::after { background: repeating-linear-gradient(90deg, var(--amber) 0 5px, transparent 5px 10px); }
+
+  .pathnote { font-size: 11.5px; color: var(--ink-3); line-height: 1.6; margin-bottom: 16px; min-height: 19px; }
+  .pathnote b { color: var(--ink-2); }
+
+  .decision { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; margin-bottom: 15px; min-height: 30px; }
+  .q {
+    font-size: 11.5px; padding: 5px 11px; border-radius: 8px; background: rgba(255, 255, 255, .75);
+    border: 1px solid var(--line); color: var(--ink-2); opacity: 0; transform: translateY(4px); transition: .3s;
+  }
+  .q.on { opacity: 1; transform: none; }
+  .q .qa { color: var(--blue); font-weight: 700; }
+  .arrow { color: var(--ink-3); font-size: 12px; opacity: 0; transition: .3s; }
+  .arrow.on { opacity: 1; }
+
+  .verdict { border-radius: 13px; padding: 14px 16px; border: 1px solid; }
+  .verdict .vhead { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+  .vkind { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+  .vtitle { font-size: 14px; font-weight: 700; }
+  .vcode {
+    margin-top: 9px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px;
+    background: rgba(31, 41, 66, .05); border-radius: 7px; padding: 7px 10px; color: var(--ink-2);
+    word-break: break-all; line-height: 1.5;
+  }
+  .vwhy { margin-top: 10px; font-size: 12px; line-height: 1.7; color: var(--ink-2); }
+  .vwhy b { color: var(--ink); }
+  .risk {
+    margin-top: 10px; border-radius: 11px; padding: 11px 14px; font-size: 12px; line-height: 1.68;
+    background: var(--red-soft); border: 1px solid rgba(179, 38, 30, .17); color: #7d1a15;
+  }
+  .risk .rhead { font-weight: 700; font-size: 11.5px; margin-bottom: 4px; color: var(--red); }
+
+  /* ===== 面板二：搬迁对比 ===== */
+  .mig { padding: 22px 24px 26px; }
+  .seg { display: inline-flex; background: rgba(31, 41, 66, .05); border-radius: 999px; padding: 3px; margin-bottom: 18px; }
+  .seg button {
+    font-family: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-2); border: 0;
+    background: transparent; padding: 7px 17px; border-radius: 999px; cursor: pointer; transition: .2s;
+  }
+  .seg button.on { background: #fff; color: var(--blue); box-shadow: 0 2px 7px rgba(21, 42, 84, .1); }
+  .mig-note { font-size: 12.5px; color: var(--ink-2); line-height: 1.7; margin-bottom: 20px; padding: 12px 15px; border-radius: 12px; background: rgba(255, 255, 255, .6); border: 1px solid var(--line); }
+  .mig-note b { color: var(--ink); }
+  #migPath { margin-bottom: 10px; }
+  #migPath .node { width: 200px; }
+  .node.dimmed { opacity: .42; border-style: dashed; background: transparent; }
+  .node.dimmed .nname { color: var(--ink-3); }
+
+  .lat { margin: 20px 0 22px; }
+  .lat-row { margin-bottom: 13px; }
+  .lat-name { font-size: 11.5px; color: var(--ink-2); margin-bottom: 5px; }
+  .lat-bar { display: flex; align-items: center; gap: 9px; margin-bottom: 3px; }
+  .lat-tag {
+    width: 26px; flex: none; font-size: 10px; font-weight: 700; text-align: center;
+    border-radius: 5px; padding: 1px 0;
+  }
+  .lat-tag.gh { background: var(--amber-soft); color: var(--amber); }
+  .lat-tag.cf { background: var(--green-soft); color: var(--green); }
+  .lat-track { flex: 1; height: 15px; background: rgba(31, 41, 66, .05); border-radius: 5px; overflow: hidden; }
+  .lat-fill { height: 100%; width: 0; border-radius: 5px; transition: width .75s cubic-bezier(.3, .9, .3, 1); }
+  .lat-fill.good { background: linear-gradient(90deg, #16b189, #0f8a6a); }
+  .lat-fill.bad { background: linear-gradient(90deg, #e0a03c, #b45309); }
+  .lat-val { width: 62px; flex: none; font-size: 11.5px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+  .lat-val.good { color: var(--green); }
+  .lat-val.bad { color: var(--amber); }
+
+  table.cmp { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.cmp th, table.cmp td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.55; transition: background .25s; }
+  table.cmp th { font-size: 11px; font-weight: 700; color: var(--ink-3); letter-spacing: .3px; }
+  table.cmp td:first-child { color: var(--ink-2); width: 24%; }
+  table.cmp .y { color: var(--green); font-weight: 600; }
+  table.cmp .n { color: var(--amber); font-weight: 600; }
+  table.cmp col.hl { background: rgba(20, 89, 217, .045); }
+
+  /* ===== 面板三：开关清单 ===== */
+  .flags { padding: 22px 24px 26px; }
+  .flag {
+    display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: 12px;
+    border: 1px solid var(--line); background: rgba(255, 255, 255, .5); margin-bottom: 8px; transition: .2s;
+  }
+  .flag.clickable { cursor: pointer; }
+  .flag.clickable:hover { background: #fff; border-color: rgba(20, 89, 217, .2); }
+  .flag.checked { background: var(--green-soft); border-color: rgba(15, 138, 106, .25); }
+  .flag.checked .fname { color: var(--green); }
+  .fbox {
+    width: 19px; height: 19px; flex: none; border-radius: 6px; border: 1.5px solid var(--line);
+    display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;
+    color: transparent; transition: .2s; margin-top: 1px; background: #fff;
+  }
+  .flag.checked .fbox { background: var(--green); border-color: var(--green); color: #fff; }
+  .fbox.static { border-radius: 50%; border: 0; font-size: 13px; color: #fff; }
+  .flag.static-item { background: rgba(255, 255, 255, .34); }
+  .flag.static-item .fname { color: var(--ink-2); }
+  .fbody { flex: 1; min-width: 0; }
+  .fname { font-size: 13px; font-weight: 600; }
+  .fdesc { font-size: 11.5px; color: var(--ink-2); margin-top: 3px; line-height: 1.6; }
+  .fstatus { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; flex: none; margin-top: 2px; }
+  .st-on { background: var(--green-soft); color: var(--green); }
+  .st-auto { background: rgba(31, 41, 66, .06); color: var(--ink-2); }
+  .st-dead { background: var(--red-soft); color: var(--red); }
+  .st-paid { background: var(--amber-soft); color: var(--amber); }
+  .st-nope { background: var(--red-soft); color: var(--red); }
+  .fscore {
+    margin-top: 16px; padding: 14px 16px; border-radius: 13px; font-size: 12.5px; line-height: 1.7;
+    background: rgba(20, 89, 217, .06); border: 1px solid rgba(20, 89, 217, .15); color: #20407e;
+  }
+  .fscore b { color: var(--blue); font-size: 15px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  @media (max-width: 860px) {
+    .sim { flex-direction: column; }
+    .picker { width: 100%; max-height: 232px; border-right: 0; border-bottom: 1px solid var(--line); }
+    .node { width: 108px; }
+    #migPath .node { width: 108px; }
+    .node .nsub { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="demo-head">
+  <h1>Cloudflare 配置逻辑 · 可交互说明</h1>
+  <p>这套配置不是一堆开关的堆砌，而是同一条判断逻辑在三个层面的重复应用：<b>这个响应「对谁都一样」吗？会变吗？变的时候 URL 会变吗？</b></p>
+  <div class="keyline">
+    <b>一句话总纲：</b>一个请求到达 Cloudflare 边缘，只有三种命运 ——
+    <b>①</b> 边缘直接给（内容型资源，可以长缓存）、
+    <b>②</b> 回源确认再给（指路牌文件，必须每次校验）、
+    <b>③</b> 绝不缓存但照样加速（用户数据与密钥，只借网络不借缓存）。
+    分清这三条线，缓存规则 / 加速开关 / 安全边界就都自然落位了。
+  </div>
+</div>
+
+<nav class="tabs">
+  <button class="tab on" data-tab="sim">① 请求模拟器</button>
+  <button class="tab" data-tab="mig">② 搬迁前后对比</button>
+  <button class="tab" data-tab="flags">③ 开关清单</button>
+</nav>
+
+<div class="shell">
+  <section class="panel on" id="panel-sim">
+    <h2 class="sr-only">请求模拟器：点击任意请求路径，查看它在边缘的缓存决策与配错后果</h2>
+    <div class="sim">
+      <aside class="picker" id="picker"></aside>
+      <div class="stage" id="stage">
+        <div class="stage-empty" id="stageEmpty">← 点左侧任意一条请求<br>看它到达边缘后会发生什么</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-mig">
+    <h2 class="sr-only">搬迁前后对比：GitHub Pages 与 Cloudflare Pages 的请求链路与能力差异</h2>
+    <div class="mig">
+      <div class="seg" id="seg">
+        <button class="on" data-m="gh">现在 · GitHub Pages</button>
+        <button data-m="cf">搬到 · Cloudflare Pages</button>
+      </div>
+      <div class="mig-note" id="migNote"></div>
+      <div class="path" id="migPath"></div>
+      <div class="pathnote" id="migPathNote"></div>
+      <div class="lat" id="lat"></div>
+      <table class="cmp" id="cmpTable"></table>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-flags">
+    <h2 class="sr-only">加速开关清单：哪些该开、哪些已下线、哪些有坑</h2>
+    <div class="flags" id="flags"></div>
+  </section>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var GROUPS = [
+    { id: 'A', name: '内容型资源 · 可长缓存', color: 'var(--green)' },
+    { id: 'B', name: '指路牌文件 · 每次校验', color: 'var(--amber)' },
+    { id: 'C', name: '用户数据接口 · 绝不缓存', color: 'var(--red)' },
+    { id: 'D', name: '上传与密钥 · 红线区', color: 'var(--red)' },
+    { id: 'E', name: '第三方接口 · 可选短缓存', color: 'var(--blue)' }
+  ];
+
+  var KIND = {
+    long:       { label: '边缘长缓存',  cls: 'green', edge: 'hit',   badge: '缓存命中',       origin: false, note: '边缘直接返回，<b>0 次回源</b>' },
+    revalidate: { label: '每次校验',    cls: 'amber', edge: 'check', badge: '校验新鲜度',     origin: true,  note: '边缘向源站确认一次，<b>每次都回源</b>' },
+    never:      { label: '绝不缓存',    cls: 'red',   edge: 'pass',  badge: '放行 · 不落缓存', origin: true,  note: '边缘只做转发与加速，<b>响应不进缓存</b>' },
+    short:      { label: '可选短缓存',  cls: 'blue',  edge: 'kv',    badge: 'KV 短缓存',     origin: true,  note: '先查边缘 KV，未命中才回源并写入，<b>有效期 1 小时</b>' }
+  };
+
+  var RES = [
+    { g: 'A', kind: 'long', p: '/static/js/ForumMain-a1b2c3d4.js', t: '业务代码 chunk',
+      origin: 'Cloudflare Pages',
+      headers: 'cache-control: public, max-age=31536000, immutable',
+      vtitle: '边缘长缓存 365 天，永不过期',
+      qs: [['文件名里带内容 hash 吗？', '带'], ['内容改了呢？', '文件名跟着变']],
+      why: '文件名由<b>内容本身</b>算出来。代码一改，hash 就变，文件名就变，浏览器请求的是一个全新的 URL。<b>不存在「拿到旧文件」的可能</b>，所以可以放心缓存到极致。这是唯一可以无脑长缓存的一类。',
+      risk: '若误设成 no-cache：每次访问都要回源取一遍，边缘缓存形同虚设，上 Cloudflare 的收益全部归零。' },
+    { g: 'A', kind: 'long', p: '/static/css/index-9f8e7d6c.css', t: '构建产物样式',
+      origin: 'Cloudflare Pages',
+      headers: 'cache-control: public, max-age=31536000, immutable',
+      vtitle: '边缘长缓存 365 天，永不过期',
+      qs: [['是构建期产出的吗？', '是'], ['路径里带 hash 吗？', '带']],
+      why: '和 JS 同理：由构建工具生成、文件名含内容 hash。构建产物的特点是<b>「一旦生成就不再变化」</b>，这类资源天生适合长缓存。',
+      risk: '若被设成每次校验：样式表虽小，但每个页面都要校验一次，白白多一轮往返。' },
+    { g: 'A', kind: 'long', p: '/static/images/hero-7c1e2a.webp', t: '静态图片',
+      origin: 'Cloudflare Pages',
+      headers: 'cache-control: public, max-age=31536000, immutable',
+      vtitle: '边缘长缓存 365 天，永不过期',
+      qs: [['是用户上传的内容吗？', '不是，是打包进构建的'], ['带 hash 吗？', '带']],
+      why: '注意和「用户上传的图片」区分：这个走 Cloudinary，不在这里。打包进构建的图片是<b>只读的</b>，同样可以长缓存。体积大，长缓存的收益最明显。',
+      risk: '若每次回源：图片是大流量，回源成本直接反映在首屏时间上。' },
+
+    { g: 'B', kind: 'revalidate', p: '/index.html', t: '应用入口 · HTML 骨架',
+      origin: 'Cloudflare Pages',
+      headers: 'cache-control: public, no-cache',
+      vtitle: '每次回源校验，边缘不长期持有',
+      qs: [['路径里带 hash 吗？', '没有 → 永远是 /'], ['它里面写了什么？', '写的是这一版要加载哪些 hash 文件']],
+      why: 'index.html 是<b>指路牌</b>：它记录着当前版本对应哪些 hash 文件。如果它被缓存一年，用户会永远拿到旧版本，而去请求那些<b>已经被删掉的旧 hash 文件</b> —— 404、白屏。这是单页应用最典型的翻车方式。',
+      risk: '若误设长缓存：用户被锁死在某个旧版本，且指向已删除的旧资源 → 白屏，而且运营商/本地缓存还可能让你「清了 CF 也救不回来」。' },
+    { g: 'B', kind: 'revalidate', p: '/sw.js', t: 'Service Worker',
+      origin: 'Cloudflare Pages',
+      headers: 'cache-control: public, max-age=0, must-revalidate',
+      vtitle: '每次校验，永远给最新',
+      qs: [['它是控制缓存的吗？', '是 —— 它是全站发版总开关'], ['它自己能滞后吗？', '不能']],
+      why: 'Service Worker 本身就是「决定别的资源怎么缓存」的那一层。如果它自己都被缓存住了，等于<b>控制开关节点的信号被冻结</b>，新版本发不出去。所以它必须永远最新，并且要写死 must-revalidate。',
+      risk: '若被缓存：发版不生效，用户停在旧版本；更糟的是 SW 自身更新受阻，形成「卡版本」，只能靠用户手动清站点数据。' },
+    { g: 'B', kind: 'revalidate', p: '/version.json', t: '版本探测端点',
+      origin: 'Cloudflare Pages',
+      headers: '不缓存（Bypass）',
+      vtitle: '不缓存，永远回答真实版本号',
+      qs: [['它存在的意义是什么？', '告诉我现在最新是哪个版本'], ['缓存了还有意义吗？', '没有了']],
+      why: '这个接口的全部价值就是「如实回答」。一旦被缓存，它会永远回答同一个旧数字，<b>「发现新版本」的提示就永远不会出现</b> —— 而且这种故障非常隐蔽，因为表面上一切正常。',
+      risk: '若被缓存：用户永远收不到更新提示，静默停留在旧版本。' },
+    { g: 'B', kind: 'revalidate', p: '/manifest.webmanifest', t: 'PWA 应用清单',
+      origin: 'Cloudflare Pages',
+      headers: '不缓存（Bypass）',
+      vtitle: '不缓存，跟随入口一起更新',
+      qs: [['改它的频率高吗？', '不高'], ['改错了影响大吗？', '图标 / 主题色不生效，很难排查']],
+      why: '它和 index.html 是一组：都属于「低频修改但改了必须立刻生效」的文件。这类文件统一走 Bypass，规则简单，不需要为省一点点流量去赌缓存失效。',
+      risk: '若被缓存：换了图标、改了主题色，用户那边一直不生效。' },
+
+    { g: 'C', kind: 'never', p: '/rest/v1/posts?select=*', t: '帖子列表（GET）',
+      origin: 'Supabase',
+      headers: 'cache-control: no-store（源站下发）',
+      vtitle: '绝不缓存，但依然享受边缘加速',
+      qs: [['同一个 URL 对所有用户返回一样吗？', '不一样 → 带用户身份'], ['那能按 URL 缓存吗？', '不能']],
+      why: '答案取决于<b>「谁在问」</b>：同一条 URL，已登录 / 未登录 / 不同权限的用户看到的数据不同。而边缘缓存是<b>按 URL 做键</b>的 —— 一旦落缓存，就会把 A 看到的内容发给 B，也就是跨用户串数据。这类请求 CF 照样帮你加速（就近接入、HTTP/3、连接复用），但绝不落缓存。',
+      risk: '若误加缓存规则：张冠李戴，用户看到别人的内容。这是最严重的一类事故，且不报错，很难第一时间发现。' },
+    { g: 'C', kind: 'never', p: '/auth/v1/token（POST）', t: '登录换取令牌',
+      origin: 'Supabase Auth',
+      headers: '不缓存（Bypass）',
+      vtitle: '绝不缓存，且必须显式排除',
+      qs: [['是 POST 吗？', '是 —— HTTP 语义上本就不该缓存'], ['那就不用管了？', '不行，要显式排除']],
+      why: 'POST 确实不该进缓存，但这里的风险不是「HTTP 规范」，而是<b>有人图省事开了「Cache Everything」全站缓存</b>，把登录接口一起卷进去。所以安全边界必须<b>显式写死</b>，不能依赖「应该不会」。',
+      risk: '若被缓存：用户拿到别人的会话令牌 —— 直接越权登录，属于最高级别安全事故。' },
+    { g: 'C', kind: 'never', p: '/rest/v1/posts（POST 发帖）', t: '写操作',
+      origin: 'Supabase',
+      headers: '不缓存（Bypass）',
+      vtitle: '绝不缓存，边缘可顺手限流',
+      qs: [['是写操作吗？', '是'], ['写操作能被缓存吗？', '不能，且重复执行有副作用']],
+      why: '写操作一旦被缓存或重放，会产生<b>重复数据</b>（重复发帖）。除了不缓存，边缘还适合顺手做一层限流，挡住批量灌水 —— 这是把安全检查前移到边缘的价值。',
+      risk: '若被缓存 / 重放：同一条帖子出现多次，或者被批量灌水。' },
+    { g: 'C', kind: 'never', p: '/functions/v1/*', t: '边缘函数接口',
+      origin: 'Supabase Functions',
+      headers: '不缓存（Bypass）+ 来源限制',
+      vtitle: '绝不缓存，并限制调用来源',
+      qs: [['是公开只读的吗？', '不是'], ['能只放行自家前端吗？', '可以 —— 限制 Origin']],
+      why: '这类接口会被外部直接扫。除了不缓存，还应该<b>限制调用来源</b>（只有自家域名能调），否则别人可以直接拿你的接口刷资源、刷额度。',
+      risk: '若敞开：接口被外部直接调用，消耗你的配额与额度。' },
+
+    { g: 'D', kind: 'never', p: 'api.cloudinary.com/.../upload（POST）', t: '图片上传',
+      origin: 'Cloudinary（美国）',
+      headers: '不缓存（POST），可套 Worker 反代',
+      vtitle: '不缓存，但值得套一层 Worker 就近接入',
+      qs: [['响应能缓存吗？', '不能，是每个用户自己的上传结果'], ['那还优化什么？', '优化握手，不是优化缓存']],
+      why: '现在浏览器是<b>直连美国</b>的：DNS + TLS 握手就要先跑一趟地球半圈。加速点在<b>「握手」不在「缓存」</b> —— 用自己的域名套一层 Worker 反代，浏览器就近握手、连接复用、失败可重试，真实上游被藏在后面。',
+      risk: '若把上传响应缓存：串图，A 的上传结果发给 B。' },
+    { g: 'D', kind: 'never', p: 'api-key-vault（密钥库）', t: 'AI 供应商密钥',
+      origin: '自建服务',
+      headers: '不缓存（Bypass）+ 不落日志',
+      vtitle: '绝不缓存，且不进日志',
+      qs: [['返回内容含什么？', '各 AI 供应商的真实密钥'], ['能让第三方碰吗？', '一秒钟都不能']],
+      why: '这个接口背后是全站的 AI 密钥。要求比「不缓存」更严格：<b>不缓存 + 不落日志 + 不让第三方探针读到</b>。这是整个配置里唯一的真正红线区。',
+      risk: '若被缓存或记录：密钥泄露，可被直接盗刷，损失是真金白银。' },
+
+    { g: 'E', kind: 'short', p: 'api.siliconflow.cn/v1/embeddings', t: '向量化（读多写少）',
+      origin: '硅基流动',
+      headers: 'Worker + KV，TTL 1 小时',
+      vtitle: '可做 1 小时 KV 短缓存',
+      qs: [['相同输入会得到相同输出吗？', '会 —— 纯计算，不含用户身份'], ['所以能缓存吗？', '能，但键要算全']],
+      why: '这是少数<b>可以缓存</b>的上游调用：纯计算、无身份、输入相同则输出相同。同一段文本反复向量化时，用 Worker + KV 缓存一小时，能省掉计费调用和一次跨网延迟。',
+      risk: '缓存键必须包含<b>完整输入</b>（模型 + 文本）。键太粗会把 A 文本的向量发给 B → 检索结果错乱，且不报错，是典型的「假绿」。' },
+    { g: 'E', kind: 'never', p: 'api.openrouter.ai/v1/chat（流式）', t: '聊天流式输出',
+      origin: 'OpenRouter',
+      headers: '透传，不缓存',
+      vtitle: '流式响应不可缓存，但值得套 Worker',
+      qs: [['是流式（SSE）响应吗？', '是'], ['流式能缓存吗？', '不能，内容在持续产生']],
+      why: 'SSE 是持续输出的，缓存没有意义。但值得套一层 Worker 做两件事：<b>把密钥挪到边缘</b>（前端不再持有），以及<b>省掉浏览器的一次跨域预检</b>。',
+      risk: '若试图缓存：流式输出会被截断或错乱，表现为聊到一半卡住。' },
+    { g: 'E', kind: 'short', p: 'api.modrinth.com/v2/...', t: 'Mod 元数据（读多写少）',
+      origin: 'Modrinth',
+      headers: 'Worker + KV，TTL 1 小时',
+      vtitle: '可做 1 小时 KV 短缓存',
+      qs: [['数据变化快吗？', '很慢，几小时才可能变一次'], ['要实时吗？', '不需要']],
+      why: '第三方公开数据、变化很慢、对实时性要求低 —— 典型的短缓存对象。缓存一小时，既省流量又降低被限流的风险。',
+      risk: '若不做缓存：每次浏览都直连境外 API，慢且容易被限流。' }
+  ];
+
+  var KIND_STYLE = {
+    green: { bg: 'var(--green-soft)', bd: 'rgba(15,138,106,.25)', fg: 'var(--green)' },
+    amber: { bg: 'var(--amber-soft)', bd: 'rgba(180,83,9,.25)', fg: 'var(--amber)' },
+    red:   { bg: 'var(--red-soft)',   bd: 'rgba(179,38,30,.22)', fg: 'var(--red)' },
+    blue:  { bg: 'rgba(20,89,217,.07)', bd: 'rgba(20,89,217,.2)', fg: 'var(--blue)' }
+  };
+
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  var esc = function (s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+
+  /* ---------- 面板一：请求模拟器 ---------- */
+  var picker = $('#picker'), stage = $('#stage'), empty = $('#stageEmpty');
+  var runToken = 0;
+
+  function buildPicker() {
+    var html = '';
+    GROUPS.forEach(function (g) {
+      var items = RES.filter(function (r) { return r.g === g.id; });
+      html += '<div class="pg"><div class="pg-head" style="color:' + g.color + '">' +
+        '<span class="dot" style="background:' + g.color + '"></span>' + esc(g.name) +
+        '<span class="cnt">' + items.length + '</span></div>';
+      items.forEach(function (r, i) {
+        var idx = RES.indexOf(r);
+        html += '<button class="ritem" data-i="' + idx + '">' +
+          '<div class="rp">' + esc(r.p) + '</div>' +
+          '<div class="rt">' + esc(r.t) + '</div></button>';
+      });
+      html += '</div>';
+    });
+    picker.innerHTML = html;
+    $$('.ritem', picker).forEach(function (b) {
+      b.addEventListener('click', function () { select(parseInt(b.getAttribute('data-i'), 10)); });
+    });
+  }
+
+  function select(i) {
+    var r = RES[i];
+    $$('.ritem', picker).forEach(function (b) {
+      b.classList.toggle('on', b === picker.querySelector('[data-i="' + i + '"]'));
+    });
+    if (empty) { empty.style.display = 'none'; }
+    var k = KIND[r.kind], st = KIND_STYLE[k.cls];
+
+    if (!stage.querySelector('.path')) {
+      stage.innerHTML = '<div class="path">' +
+        '<div class="node" data-n="browser"><div class="nname">浏览器</div><div class="nsub">发起请求</div><div class="nbadge"></div></div>' +
+        '<div class="link" data-l="1"></div>' +
+        '<div class="node" data-n="edge"><div class="nname">Cloudflare 边缘</div><div class="nsub">缓存层</div><div class="nbadge"></div></div>' +
+        '<div class="link" data-l="2"></div>' +
+        '<div class="node" data-n="origin"><div class="nname">上游</div><div class="nsub"></div><div class="nbadge"></div></div>' +
+        '</div><div class="pathnote"></div><div class="decision"></div><div class="vbox"></div>';
+    }
+
+    var nB = $('[data-n="browser"]', stage), nE = $('[data-n="edge"]', stage), nO = $('[data-n="origin"]', stage);
+    var l1 = $('[data-l="1"]', stage), l2 = $('[data-l="2"]', stage);
+
+    [nB, nE, nO, l1, l2].forEach(function (el) {
+      el.classList.remove('on', 'hit', 'warn', 'stop', 'dash');
+      var bd = el.querySelector && el.querySelector('.nbadge');
+      if (bd) { bd.style.opacity = '0'; }
+    });
+    $('.pathnote', stage).innerHTML = '';
+    $('.decision', stage).innerHTML = '';
+    $('.vbox', stage).innerHTML = '';
+    $('[data-n="origin"] .nsub', stage).textContent = r.origin;
+
+    var token = ++runToken;
+    var btnStyle = k.edge === 'hit' ? 'hit' : (k.edge === 'pass' ? 'stop' : 'warn');
+    var idx = 0;
+
+    function step(fn, ms) {
+      return new Promise(function (res) {
+        setTimeout(function () { if (token === runToken) { fn(); } res(); }, ms);
+      });
+    }
+
+    (function run() {
+      return step(function () { nB.classList.add('on'); }, 40)
+        .then(function () { return step(function () { l1.classList.add('on'); if (k.edge === 'check') { l1.classList.add('dash'); } }, 330); })
+        .then(function () { return step(function () {
+            nE.classList.add('on', btnStyle);
+            var bd = $('.nbadge', nE);
+            bd.textContent = k.badge;
+            bd.style.cssText = 'opacity:1;background:' + st.bg + ';color:' + st.fg;
+          }, 300); })
+        .then(function () { return step(function () {
+            $('.pathnote', stage).innerHTML = k.note;
+            if (!k.origin) { return; }
+            l2.classList.add('on');
+            if (k.edge === 'check') { l2.classList.add('dash'); }
+          }, k.origin ? 260 : 120); })
+        .then(function () { return step(function () {
+            if (!k.origin) { return; }
+            nO.classList.add('on', 'warn');
+            var ob = $('.nbadge', nO);
+            ob.textContent = '回源处理';
+            ob.style.cssText = 'opacity:1;background:var(--amber-soft);color:var(--amber)';
+          }, 320); })
+        .then(function () { return step(function () { renderDecision(r, st); }, 180); });
+    })();
+  }
+
+  function renderDecision(r, st) {
+    var box = $('.decision', stage);
+    var html = '';
+    r.qs.forEach(function (pair, i) {
+      html += '<span class="q" data-q="' + i + '">' + esc(pair[0]) + ' <span class="qa">' + esc(pair[1]) + '</span></span>';
+      if (i < r.qs.length - 1) { html += '<span class="arrow" data-a="' + i + '">→</span>'; }
+    });
+    box.innerHTML = html;
+    var t = 0;
+    r.qs.forEach(function (pair, i) {
+      (function (i) {
+        setTimeout(function () { var e = box.querySelector('[data-q="' + i + '"]'); if (e) { e.classList.add('on'); } }, t);
+      })(i);
+      t += 210;
+      if (i < r.qs.length - 1) {
+        (function (i) {
+          setTimeout(function () { var e = box.querySelector('[data-a="' + i + '"]'); if (e) { e.classList.add('on'); } }, t);
+        })(i);
+        t += 130;
+      }
+    });
+    setTimeout(function () { renderVerdict(r, st); }, t + 90);
+  }
+
+  function renderVerdict(r, st) {
+    var k = KIND[r.kind];
+    $('.vbox', stage).innerHTML =
+      '<div class="verdict" style="background:' + st.bg + ';border-color:' + st.bd + '">' +
+        '<div class="vhead">' +
+          '<span class="vkind" style="background:' + st.fg + ';color:#fff">' + esc(k.label) + '</span>' +
+          '<span class="vtitle" style="color:' + st.fg + '">' + esc(r.vtitle) + '</span>' +
+        '</div>' +
+        '<div class="vcode">' + esc(r.headers) + '</div>' +
+        '<div class="vwhy">' + r.why + '</div>' +
+      '</div>' +
+      '<div class="risk"><div class="rhead">如果配错了</div>' + r.risk + '</div>';
+  }
+
+  buildPicker();
+  select(0);
+
+  /* ---------- 面板二：搬迁对比 ---------- */
+  var NODE_BADGE = {
+    green: 'background:var(--green-soft);color:var(--green)',
+    amber: 'background:var(--amber-soft);color:var(--amber)',
+    gray:  'background:rgba(31,41,66,.06);color:var(--ink-3)'
+  };
+
+  var MIG_STATE = {
+    gh: {
+      hl: 1,
+      note: '<b>现状：</b>域名已经走了 Cloudflare 代理，但内容还放在 GitHub Pages。边缘没命中就<b>跨洋回源美国</b>。最可惜的是仓库里那份 <b>public/_headers 完全不生效</b> —— GitHub Pages 不支持自定义 HTTP 头，写好的缓存策略一条都落不到线上，缓存实际上全靠 Service Worker 自己顶着。',
+      path: {
+        edge: { t: 'Cloudflare 边缘', s: '代理已开', b: '未命中 · _headers 不生效', tone: 'amber' },
+        tail: { t: 'GitHub Pages', s: '美国源站', b: '跨洋回源', tone: 'amber', dim: false },
+        links: [true, true],
+        note: '域名走了 Cloudflare，内容还在美国：每次都要<b>绕地球半圈</b>把内容取回来。'
+      }
+    },
+    cf: {
+      hl: 2,
+      note: '<b>搬迁后：</b>内容直接放在 Cloudflare 上，边缘命中就<b>原地返回</b>，跨洋回源这一整步被消掉。而且那份 <b>public/_headers 从此真正生效</b> —— 它的路径（<code>/static/js/*</code>、<code>/static/css/*</code>、<code>/static/images/*</code>）和构建产物的实际结构完全对得上，不是白写的。',
+      path: {
+        edge: { t: 'Cloudflare 边缘', s: '内容就在边缘', b: '命中 · _headers 生效', tone: 'green' },
+        tail: { t: '源站回源', s: '不再需要', b: '这一步消失了', tone: 'gray', dim: true },
+        links: [true, false],
+        note: '边缘本地就有内容，直接返回；<b>跨洋那一步整条链路消失</b>。'
+      }
+    }
+  };
+
+  var CMP_ROWS = [
+    ['托管位置', '<span class="n">美国源站</span>，国内用户跨洋取内容', '<span class="y">335+ 边缘节点</span>，就近返回'],
+    ['public/_headers', '<span class="n">平台不支持，写了不生效</span>', '<span class="y">原生支持，立即生效</span>'],
+    ['自定义响应头', '<span class="n">只能靠 Service Worker 绕</span>', '<span class="y">由边缘直接下发</span>'],
+    ['HTTP/3', '<span class="n">不支持</span>', '<span class="y">支持</span>'],
+    ['Early Hints', '<span class="n">不支持</span>', '<span class="y">支持</span>'],
+    ['Tiered Cache', '<span class="n">无</span>', '<span class="y">支持，提高命中率</span>'],
+    ['发布后清缓存', '<span class="n">手动 purge 固定几个文件</span>', '<span class="y">新部署自动生效，无需 purge</span>']
+  ];
+
+  var MIG_METRICS = [
+    { name: '静态资源加载（JS / CSS / 图片）', gh: 420, cf: 22, unit: 'ms' },
+    { name: '首页入口文件到达', gh: 380, cf: 60, unit: 'ms' },
+    { name: '未命中时的回源次数', gh: 1, cf: 0, unit: '次' }
+  ];
+  var LAT_MAX = 420;
+
+  var seg = $('#seg'), migNote = $('#migNote'), migPath = $('#migPath');
+  var migPathNote = $('#migPathNote'), lat = $('#lat'), cmpTable = $('#cmpTable');
+
+  function migNode(n) {
+    var cls = n.dim ? 'dimmed' : 'on ' + (n.tone === 'amber' ? 'warn' : n.tone === 'green' ? 'hit' : '');
+    return '<div class="node ' + cls + '">' +
+      '<div class="nname">' + n.t + '</div><div class="nsub">' + n.s + '</div>' +
+      '<div class="nbadge" style="opacity:1;' + NODE_BADGE[n.tone] + '">' + n.b + '</div></div>';
+  }
+
+  function migBar(tag, v, cls, m) {
+    var w = m.unit === '次' ? (v === 0 ? 2 : 100) : Math.max(4, Math.round(v / LAT_MAX * 100));
+    var val = v + ' ' + m.unit;
+    return '<div class="lat-bar"><span class="lat-tag ' + cls + '">' + tag + '</span>' +
+      '<div class="lat-track"><div class="lat-fill ' + cls + '" data-w="' + w + '" style="width:0"></div></div>' +
+      '<span class="lat-val ' + cls + '">' + val + '</span></div>';
+  }
+
+  function renderMig(m) {
+    var d = MIG_STATE[m];
+    migNote.innerHTML = d.note;
+
+    migPath.innerHTML =
+      migNode({ t: '浏览器', s: '发起请求', b: '起点', tone: 'gray', dim: false }) +
+      '<div class="link' + (d.path.links[0] ? ' on' : '') + '"></div>' +
+      migNode(d.path.edge) +
+      '<div class="link' + (d.path.links[1] ? ' on dash' : '') + '"></div>' +
+      migNode(d.path.tail);
+    $$('#migPath .node')[0].classList.remove('dimmed');
+    migPathNote.innerHTML = d.path.note;
+
+    lat.innerHTML = MIG_METRICS.map(function (mt) {
+      return '<div class="lat-row"><div class="lat-name">' + mt.name + '</div>' +
+        migBar('GH', mt.gh, 'bad', mt) + migBar('CF', mt.cf, 'good', mt) + '</div>';
+    }).join('');
+
+    cmpTable.innerHTML =
+      '<colgroup><col><col' + (d.hl === 1 ? ' class="hl"' : '') + '><col' + (d.hl === 2 ? ' class="hl"' : '') + '></colgroup>' +
+      '<tr><th>能力项</th><th>当前 · GitHub Pages</th><th>搬到 · Cloudflare Pages</th></tr>' +
+      CMP_ROWS.map(function (r) {
+        return '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[2] + '</td></tr>';
+      }).join('');
+
+    requestAnimationFrame(function () {
+      $$('#lat .lat-fill').forEach(function (f) {
+        f.style.width = (f.getAttribute('data-w') || 0) + '%';
+      });
+    });
+  }
+
+  $$('button', seg).forEach(function (b) {
+    b.addEventListener('click', function () {
+      $$('button', seg).forEach(function (x) { x.classList.remove('on'); });
+      b.classList.add('on');
+      renderMig(b.getAttribute('data-m'));
+    });
+  });
+  renderMig('gh');
+
+  /* ---------- 面板三：开关清单 ---------- */
+  var FLAGS = [
+    { n: 'HTTP/3', s: '建议开启', sc: 'st-on', on: true, d: '多路复用、弱网下显著更稳。免费。' },
+    { n: '0-RTT 连接恢复', s: '建议开启', sc: 'st-on', on: true, d: '重连时省掉一次握手往返，回访用户受益。免费。' },
+    { n: 'Early Hints', s: '建议开启', sc: 'st-on', on: true, d: '提前把关键资源名告诉浏览器，并行下载。免费。' },
+    { n: 'Tiered Cache 分层缓存', s: '建议开启', sc: 'st-on', on: true, d: '让上层节点也参与缓存，提高命中率。免费，默认关。' },
+    { n: 'Cache Rules 缓存规则', s: '建议配置', sc: 'st-on', on: true, d: '免费额度 10 条，本项目三条就够：长缓存 / 校验 / Bypass。' },
+    { n: 'Brotli 压缩', s: '已默认开启', sc: 'st-auto', on: false, d: '现在是默认行为，不需要手动开 —— 别去找这个开关了。' },
+    { n: 'Auto Minify 自动压缩', s: '已下线', sc: 'st-dead', on: false, d: '2024 弃用、2025 从面板移除，配不了也不用配（构建工具本来就压缩过）。' },
+    { n: 'Mirage 移动端图片优化', s: '已停服', sc: 'st-dead', on: false, d: '2025 年 9 月起停止提供，方案里这一条作废。' },
+    { n: 'Polish 图片优化', s: '需付费', sc: 'st-paid', on: false, d: '属于 Pro 计划（约 $20-25/月/域），免费版没有。省图片流量要靠图床本身。' },
+    { n: 'Image Transformations', s: '免费额度', sc: 'st-paid', on: false, d: '现在免费版可用，每月 5000 次唯一转换。但已有图床 CDN，重复建设，暂不启用。' },
+    { n: 'Rocket Loader', s: '不要开', sc: 'st-nope', on: false, d: '它会异步化脚本执行顺序，Vue 应用会因此出错，表现为随机白屏。' }
+  ];
+
+  var STATIC_GLYPH = { 'st-auto': '✓', 'st-dead': '×', 'st-paid': '¥', 'st-nope': '!' };
+  var STATIC_COLOR = { 'st-auto': '#8a92a6', 'st-dead': '#b3261e', 'st-paid': '#b45309', 'st-nope': '#b3261e' };
+
+  var flagsEl = $('#flags');
+  flagsEl.innerHTML = FLAGS.map(function (f, i) {
+    var clickable = f.sc === 'st-on';
+    var box = clickable
+      ? '<div class="fbox">✓</div>'
+      : '<div class="fbox static" style="background:' + STATIC_COLOR[f.sc] + '">' + STATIC_GLYPH[f.sc] + '</div>';
+    return '<div class="flag' + (clickable ? ' clickable' : ' static-item') + (f.on ? ' checked' : '') + '" data-f="' + i + '">' +
+      box +
+      '<div class="fbody"><div class="fname">' + esc(f.n) + '</div><div class="fdesc">' + f.d + '</div></div>' +
+      '<div class="fstatus ' + f.sc + '">' + f.s + '</div></div>';
+  }).join('') + '<div class="fscore" id="fscore"></div>';
+
+  function updScore() {
+    var total = FLAGS.filter(function (f) { return f.sc === 'st-on'; }).length;
+    var on = FLAGS.filter(function (f) { return f.sc === 'st-on' && f.on; }).length;
+    $('#fscore').innerHTML = '建议开启项已勾选 <b>' + on + ' / ' + total + '</b> —— ' +
+      '这 ' + total + ' 项的开关全部可以通过 API 批量打开，不需要逐个手点。' +
+      '剩下那些已下线 / 需付费的项，不要浪费时间去找开关。';
+  }
+  $$('.flag', flagsEl).forEach(function (el) {
+    el.addEventListener('click', function () {
+      var i = parseInt(el.getAttribute('data-f'), 10);
+      if (FLAGS[i].sc !== 'st-on') { return; }
+      FLAGS[i].on = !FLAGS[i].on;
+      el.classList.toggle('checked', FLAGS[i].on);
+      updScore();
+    });
+  });
+  updScore();
+
+  /* ---------- Tab 切换 ---------- */
+  $$('.tab').forEach(function (t) {
+    t.addEventListener('click', function () {
+      var name = t.getAttribute('data-tab');
+      $$('.tab').forEach(function (x) { x.classList.toggle('on', x === t); });
+      $$('.panel').forEach(function (p) { p.classList.toggle('on', p.id === 'panel-' + name); });
+    });
+  });
+})();
+</script>
+</body>
+</html>

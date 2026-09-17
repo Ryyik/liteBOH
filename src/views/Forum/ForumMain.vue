@@ -462,6 +462,18 @@ const createDefaultWeeklyCheckinStatus = () => ({
   currentWeekStart: null
 });
 const weeklyCheckinStatus = ref(createDefaultWeeklyCheckinStatus());
+
+// 当前轮内已连续周数（到 cycleSize 即触发奖励并重置，故上限为 cycleSize - 1）。
+// 上游缺失 cycleProgress 时从连签周数推导；定义曾在 5ee30b0c 重构中被误删，此处恢复。
+const getWeeklyCheckinCycleProgress = (status) => {
+  const cycleSize = Math.max(1, Number(status?.cycleSize || 4));
+  const explicitProgress = Number(status?.cycleProgress);
+  if (Number.isFinite(explicitProgress)) {
+    return Math.min(Math.max(0, explicitProgress), cycleSize - 1);
+  }
+  const normalizedStreak = Math.max(0, Number(status?.currentStreak || status?.streakTotal || 0));
+  return normalizedStreak === 0 ? 0 : ((normalizedStreak - 1) % cycleSize) + 1;
+};
 const weeklyCheckinCardPoints = computed(() => {
   const statusPoints = Number(weeklyCheckinStatus.value.currentPoints);
   return Number.isFinite(statusPoints) ? statusPoints : (Number(userInfo.points) || 0);

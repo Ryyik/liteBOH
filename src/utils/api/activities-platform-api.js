@@ -22,7 +22,15 @@ const normalizeCampaign = (row) => ({
   createdAt: row?.created_at || null
 });
 
-/** 活动列表（公开；includeDrafts=true 需管理员身份，由 RLS 兜底） */
+/**
+ * 活动列表（公开）。
+ *
+ * ⚠️ 草稿隔离靠的是这里的 API 层过滤，**不是 RLS**：
+ * 2026090802 迁移里 activity_campaigns_select 是 `using (true)`，
+ * anon 也可以直查 /rest/v1/activity_campaigns 拿到 stage='draft' 的行。
+ * 若要让数据库兜底，需另发迁移把 policy 收紧成
+ * `using (stage <> 'draft' or public.current_user_is_admin())`。
+ */
 export async function listActivityCampaigns({ stage = '', includeDrafts = false, limit = 50 } = {}) {
   try {
     let query = supabase
@@ -55,7 +63,7 @@ export async function getActivityCampaignBySlug(slug) {
   }
 }
 
-/** 我的报名/投稿记录 */
+/** 我的报名/投稿记录（单个活动） */
 export async function getMyCampaignEntries(campaignId, userId) {
   try {
     const { data, error } = await supabase
@@ -68,6 +76,27 @@ export async function getMyCampaignEntries(campaignId, userId) {
     return { ok: true, data: data || [] };
   } catch (error) {
     return { ok: false, data: [], error };
+  }
+}
+
+/**
+ * 批量取「我在这些活动下是否已报名」——一次往返替代逐活动 N+1。
+ * 返回的 Set 直接用于渲染报名按钮的已报名态。
+ */
+export async function getMyCampaignSignupIds(campaignIds = [], userId) {
+  const ids = (Array.isArray(campaignIds) ? campaignIds : []).filter(Boolean);
+  if (!ids.length || !userId) return { ok: true, data: new Set() };
+  try {
+    const { data, error } = await supabase
+      .from('activity_entries')
+      .select('campaign_id')
+      .in('campaign_id', ids)
+      .eq('user_id', userId)
+      .eq('kind', 'signup');
+    if (error) throw error;
+    return { ok: true, data: new Set((data || []).map((row) => row.campaign_id)) };
+  } catch (error) {
+    return { ok: false, data: new Set(), error };
   }
 }
 

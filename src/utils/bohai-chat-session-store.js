@@ -35,6 +35,31 @@ export const createBohAIChatSessionSanitizer = ({
             updatedAt: Number(session.contextSummary.updatedAt || 0)
           }
         : null,
+      // 心理访谈状态：会话级字段是显式白名单，不加进来会在保存时被静默丢弃
+      // （表现为刷新后访谈从头开始，且不报任何错）。
+      // 这里的 12 是「存储安全上限」，比 interview-engine.js 的 INTERVIEW_LIMITS.evidenceMax(8) 宽松，
+      // 目的是防 localStorage 膨胀，不参与业务截断 —— 两者不是同一条规则。
+      expertState: session.expertState && typeof session.expertState === 'object'
+        ? {
+            roleId: String(session.expertState.roleId || ''),
+            trackId: String(session.expertState.trackId || ''),
+            phase: String(session.expertState.phase || ''),
+            birthDateSource: String(session.expertState.birthDateSource || ''),
+            askedCount: Math.max(0, Math.trunc(Number(session.expertState.askedCount) || 0)),
+            ladderingDepth: Math.max(0, Math.trunc(Number(session.expertState.ladderingDepth) || 0)),
+            lastSummaryAt: Math.max(0, Math.trunc(Number(session.expertState.lastSummaryAt) || 0)),
+            shortReplyStreak: Math.max(0, Math.trunc(Number(session.expertState.shortReplyStreak) || 0)),
+            signals: Array.isArray(session.expertState.signals)
+              ? session.expertState.signals.map((item) => String(item || '')).filter(Boolean).slice(0, 24)
+              : [],
+            evidence: Array.isArray(session.expertState.evidence)
+              ? session.expertState.evidence.map((item) => normalizeText(item || '')).filter(Boolean).slice(0, 12)
+              : [],
+            lastUserText: normalizeText(session.expertState.lastUserText || '').slice(0, 200),
+            startedAt: Number(session.expertState.startedAt || 0),
+            finishedAt: Number(session.expertState.finishedAt || 0)
+          }
+        : null,
       isLoading: false,
       isThinking: false
     };

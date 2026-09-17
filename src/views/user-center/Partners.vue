@@ -203,7 +203,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onBeforeUnmount } from 'vue';
+import { ref, reactive, computed, watch, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { CalendarDays, Sparkles } from 'lucide-vue-next';
 import { getProfilesPage } from '@/utils/api/auth-api.js';
@@ -224,6 +224,7 @@ const route = useRoute();
 const isFromUserSpace = computed(() => String(route.query.from || '').startsWith('userspace'));
 const authStore = useAuthStore();
 const { isLoggedIn, userInfo } = storeToRefs(authStore);
+const dialog = useConfirmDialog();
 const hideOnlineStatus = computed(() => userInfo.value?.hideOnlineStatus ?? false);
 
 // Follow State

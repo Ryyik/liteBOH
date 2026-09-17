@@ -1,54 +1,64 @@
 <template>
-  <aside :class="['g-sidebar', { open: isOpen }]" :aria-label="'网站管理导航'">
-    <!-- Brand -->
-    <div class="g-sidebar-brand">
+  <aside
+    :class="['g-sidebar', { open: isOpen, 'is-collapsed': collapsed }]"
+    :aria-label="'网站管理导航'"
+  >
+    <!-- Brand：点击回到概览 -->
+    <button type="button" class="g-sidebar-brand is-clickable" title="回到站点概览" @click="goHome">
       <div class="g-sidebar-brand-mark" aria-hidden="true">B</div>
       <div class="g-sidebar-brand-copy">
         <strong>BOH Admin</strong>
         <span>站点数据工作台</span>
       </div>
-    </div>
+    </button>
 
-    <!-- Search pill -->
+    <!-- Search pill：真实过滤侧栏模块 -->
     <div class="g-sidebar-search">
       <SearchIcon :size="14" class="g-search-icon" />
       <input
         v-model="localSearchQuery"
         type="text"
-        placeholder="快速搜索..."
+        placeholder="筛选模块..."
         class="g-sidebar-search-input"
-        aria-label="快速搜索"
+        aria-label="筛选导航模块"
         @input="onSearchInput"
         @keydown.esc="clearSearch"
       />
       <button v-if="localSearchQuery" type="button" class="g-sidebar-search-clear" @click="clearSearch" aria-label="清除搜索">×</button>
     </div>
 
-    <div v-if="localSearchQuery" class="g-sidebar-search-status">
-      <LoaderCircle :size="13" class="g-spin" />
-      <span>正在搜索...</span>
+    <div v-if="normalizedQuery" class="g-sidebar-search-status" role="status">
+      <span v-if="matchCount > 0">找到 {{ matchCount }} 个模块</span>
+      <span v-else>无匹配模块</span>
     </div>
 
-    <!-- Navigation (flat, no groups) -->
+    <!-- Navigation (grouped by section) -->
     <nav class="g-sidebar-nav" aria-label="管理导航">
-      <template v-for="(mod, idx) in modules" :key="mod.id">
-        <button
-          type="button"
-          :class="['g-nav-btn', { 'is-active': isModuleActive(mod.id) }]"
-          @click="$emit('module-click', mod)"
-        >
-          <component :is="mod.icon" :size="16" class="g-nav-glyph" />
-          <span class="g-nav-label">{{ mod.label }}</span>
-          <span
-            v-if="mod.id === 'moderation' && hasUnmoderated"
-            class="g-nav-dot"
-            aria-hidden="true"
-          ></span>
-        </button>
-
-        <!-- Divider between modules (skip last) -->
-        <div v-if="idx < modules.length - 1" class="g-sidebar-divider" aria-hidden="true"></div>
+      <template v-for="group in groupedModules" :key="group.section">
+        <div v-if="group.items.length" class="g-sidebar-group">
+          <span class="g-sidebar-group-label">{{ group.label }}</span>
+          <button
+            v-for="mod in group.items"
+            :key="mod.id"
+            type="button"
+            :class="['g-nav-btn', { 'is-active': isModuleActive(mod.id), 'is-denied': mod.denied }]"
+            :aria-disabled="mod.denied"
+            :title="mod.denied ? `${mod.label}（当前角色无权限）` : mod.description || mod.label"
+            @click="selectModule(mod)"
+          >
+            <component :is="mod.icon" :size="16" class="g-nav-glyph" />
+            <span class="g-nav-label">{{ mod.label }}</span>
+            <Lock v-if="mod.denied" :size="12" class="g-nav-lock" aria-hidden="true" />
+            <span
+              v-else-if="mod.id === 'moderation' && hasUnmoderated"
+              class="g-nav-dot"
+              aria-hidden="true"
+            ></span>
+          </button>
+        </div>
       </template>
+      <p v-if="normalizedQuery && matchCount === 0" class="g-sidebar-empty">换个关键词试试</p>
+      <p v-if="!modules.length" class="g-sidebar-empty">暂无可用模块，请刷新重试</p>
     </nav>
 
     <!-- Quick actions -->
@@ -71,24 +81,32 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import {
-  LoaderCircle,
+  Lock,
   Plus,
   RefreshCw,
   Search as SearchIcon
 } from 'lucide-vue-next';
+import { SIDEBAR_SECTION_LABELS } from '../config/rbac.js';
+
+const SECTION_ORDER = ['overview', 'data', 'system'];
 
 const props = defineProps({
   activeModule: { type: String, required: true },
   modules: { type: Array, required: true },
+  /** 当前角色无权访问的模块 id（置灰禁用，不断层隐藏，便于审计） */
+  deniedIds: { type: Array, default: () => [] },
   isOpen: { type: Boolean, required: true },
+  /** 桌面端折叠为图标栏（移动端抽屉不受影响） */
+  collapsed: { type: Boolean, default: false },
   searchQuery: { type: String, default: '' },
   hasUnmoderated: { type: Boolean, default: false }
 });
 
 const emit = defineEmits([
   'module-click',
+  'denied-click',
   'update:searchQuery',
   'create-record',
   'refresh-data'
@@ -100,6 +118,28 @@ watch(() => props.searchQuery, (val) => {
   if (val !== localSearchQuery.value) localSearchQuery.value = val || '';
 });
 
+const deniedSet = computed(() => new Set(props.deniedIds || []));
+const normalizedQuery = computed(() => localSearchQuery.value.trim().toLowerCase());
+
+const filteredModules = computed(() => {
+  const q = normalizedQuery.value;
+  const list = Array.isArray(props.modules) ? props.modules : [];
+  const matched = q
+    ? list.filter((mod) => `${mod.label || ''}${mod.description || ''}`.toLowerCase().includes(q))
+    : list;
+  return matched.map((mod) => ({ ...mod, denied: deniedSet.value.has(mod.id) }));
+});
+
+const matchCount = computed(() => filteredModules.value.length);
+
+const groupedModules = computed(() =>
+  SECTION_ORDER.map((section) => ({
+    section,
+    label: SIDEBAR_SECTION_LABELS[section] || section,
+    items: filteredModules.value.filter((mod) => (mod.section || 'data') === section)
+  }))
+);
+
 const isModuleActive = (modId) => props.activeModule === modId;
 
 const onSearchInput = () => {
@@ -109,6 +149,19 @@ const onSearchInput = () => {
 const clearSearch = () => {
   localSearchQuery.value = '';
   emit('update:searchQuery', '');
+};
+
+const selectModule = (mod) => {
+  if (mod.denied) {
+    emit('denied-click', mod);
+    return;
+  }
+  emit('module-click', mod);
+};
+
+const goHome = () => {
+  const overview = (props.modules || []).find((mod) => mod.id === 'overview');
+  selectModule(overview || { id: 'overview', label: '概览' });
 };
 </script>
 
@@ -144,6 +197,17 @@ const clearSearch = () => {
   padding: calc(var(--spacing) * 1) 0 calc(var(--spacing) * 2);
   border-bottom: 1px solid var(--sidebar-border);
   flex: 0 0 auto;
+}
+.g-sidebar-brand.is-clickable {
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
 }
 .g-sidebar-brand-mark {
   width: 32px;
@@ -227,11 +291,11 @@ const clearSearch = () => {
   flex: 0 0 auto;
 }
 
-/* Nav list (flat) */
+/* Nav list (grouped) */
 .g-sidebar-nav {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--spacing) * 0.5);
+  gap: calc(var(--spacing) * 3);
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -239,6 +303,25 @@ const clearSearch = () => {
 }
 .g-sidebar-nav::-webkit-scrollbar { width: 3px; }
 .g-sidebar-nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+.g-sidebar-group {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--spacing) * 0.5);
+}
+.g-sidebar-group-label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-foreground);
+  padding: 0 calc(var(--spacing) * 3);
+}
+.g-sidebar-empty {
+  font-size: 0.76rem;
+  color: var(--muted-foreground);
+  padding: 0 calc(var(--spacing) * 3);
+  margin: 0;
+}
 
 .g-nav-btn {
   display: flex;
@@ -280,6 +363,12 @@ const clearSearch = () => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.g-nav-btn.is-denied {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.g-nav-btn.is-denied:hover { background: transparent; color: var(--sidebar-foreground); }
+.g-nav-lock { flex: 0 0 12px; }
 
 /* Status dot (for moderation) */
 .g-nav-dot {
@@ -293,14 +382,6 @@ const clearSearch = () => {
 .g-nav-btn.is-active .g-nav-dot {
   background: var(--sidebar-primary-foreground);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--sidebar-primary-foreground) 28%, transparent);
-}
-
-/* Module divider */
-.g-sidebar-divider {
-  height: 1px;
-  background: var(--sidebar-border);
-  margin: calc(var(--spacing) * 1.5) calc(var(--spacing) * 1);
-  flex: 0 0 auto;
 }
 
 /* Quick action row (bottom) */
@@ -339,13 +420,61 @@ const clearSearch = () => {
   flex: 0 0 6px;
 }
 
-/* Spinner */
-.g-spin { animation: g-spin 1s linear infinite; }
-@keyframes g-spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+/* Collapsed (desktop icon rail) */
+.g-sidebar.is-collapsed {
+  width: 64px;
+  flex-basis: 64px;
+  padding-left: calc(var(--spacing) * 2);
+  padding-right: calc(var(--spacing) * 2);
+}
+.g-sidebar.is-collapsed .g-sidebar-brand-copy,
+.g-sidebar.is-collapsed .g-sidebar-search,
+.g-sidebar.is-collapsed .g-sidebar-search-status,
+.g-sidebar.is-collapsed .g-sidebar-group-label,
+.g-sidebar.is-collapsed .g-nav-label,
+.g-sidebar.is-collapsed .g-nav-dot,
+.g-sidebar.is-collapsed .g-nav-lock,
+.g-sidebar.is-collapsed .g-sidebar-quick-label,
+.g-sidebar.is-collapsed .g-sidebar-foot span:last-child {
+  display: none;
+}
+.g-sidebar.is-collapsed .g-sidebar-brand { justify-content: center; padding-bottom: calc(var(--spacing) * 2); }
+.g-sidebar.is-collapsed .g-nav-btn { justify-content: center; padding-left: 0; padding-right: 0; }
+.g-sidebar.is-collapsed .g-sidebar-quick { justify-content: center; }
+.g-sidebar.is-collapsed .g-sidebar-foot { justify-content: center; }
+
+/* 折叠态悬停浮层展开（桌面端）：悬停 150ms 后恢复全宽，无需点顶栏按钮 */
+@media (min-width: 769px) {
+  .g-sidebar.is-collapsed:hover {
+    width: var(--dm-sidebar-width);
+    flex-basis: var(--dm-sidebar-width);
+    padding-left: calc(var(--spacing) * 4);
+    padding-right: calc(var(--spacing) * 4);
+    transition-delay: 0.15s;
+    box-shadow: 12px 0 32px -16px rgba(0, 0, 0, 0.25);
+  }
+  .g-sidebar.is-collapsed:hover .g-sidebar-brand-copy,
+  .g-sidebar.is-collapsed:hover .g-sidebar-search,
+  .g-sidebar.is-collapsed:hover .g-sidebar-search-status,
+  .g-sidebar.is-collapsed:hover .g-sidebar-group-label,
+  .g-sidebar.is-collapsed:hover .g-nav-label,
+  .g-sidebar.is-collapsed:hover .g-nav-dot,
+  .g-sidebar.is-collapsed:hover .g-nav-lock,
+  .g-sidebar.is-collapsed:hover .g-sidebar-quick-label,
+  .g-sidebar.is-collapsed:hover .g-sidebar-foot span:last-child {
+    display: revert;
+    transition-delay: 0.15s;
+  }
+  .g-sidebar.is-collapsed:hover .g-sidebar-brand { justify-content: flex-start; }
+  .g-sidebar.is-collapsed:hover .g-nav-btn { justify-content: flex-start; padding-left: calc(var(--spacing) * 3); padding-right: calc(var(--spacing) * 3); }
+  .g-sidebar.is-collapsed:hover .g-sidebar-quick { justify-content: flex-start; }
+  .g-sidebar.is-collapsed:hover .g-sidebar-foot { justify-content: flex-start; }
+}
 
 /* Responsive */
 @media (max-width: 1024px) {
   .g-sidebar { width: 220px; flex-basis: 220px; padding: calc(var(--spacing) * 3); }
+  .g-sidebar.is-collapsed { width: 64px; flex-basis: 64px; }
 }
 
 @media (max-width: 768px) {
@@ -362,5 +491,22 @@ const clearSearch = () => {
     overscroll-behavior: contain;
   }
   .g-sidebar.open { transform: translateX(0); }
+  /* 移动端抽屉内始终展开，不沿用桌面折叠态 */
+  .g-sidebar.is-collapsed {
+    width: min(86vw, 302px);
+    padding: calc(var(--spacing) * 3);
+  }
+  .g-sidebar.is-collapsed .g-sidebar-brand-copy,
+  .g-sidebar.is-collapsed .g-sidebar-search,
+  .g-sidebar.is-collapsed .g-sidebar-search-status,
+  .g-sidebar.is-collapsed .g-sidebar-group-label,
+  .g-sidebar.is-collapsed .g-nav-label,
+  .g-sidebar.is-collapsed .g-nav-dot,
+  .g-sidebar.is-collapsed .g-nav-lock,
+  .g-sidebar.is-collapsed .g-sidebar-quick-label,
+  .g-sidebar.is-collapsed .g-sidebar-foot span:last-child {
+    display: revert;
+  }
+  .g-sidebar.is-collapsed .g-nav-btn { justify-content: flex-start; }
 }
 </style>

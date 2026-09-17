@@ -1,3 +1,5 @@
+import { PSYCHOLOGIST_PROMPT_APPENDIX } from '../expert-roles/psychologist.js';
+
 export const BOH_MEMBER_NAMES = 'ryyik|lf|小牛|橙子|eleven|end|雨芙蕖|白烨|丁老师|汉堡|百城|小天光|小仙';
 
 export const SILICON_CLOUD_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
@@ -273,23 +275,7 @@ export const RESPONSE_STYLE_OPTIONS = [
     id: 'psychologist',
     name: '心理专家',
     shortName: '心理',
-    promptAppendix: `<style id="psychologist">
-<thinking>
-在回答前先在 &lt;thinking&gt; 中：识别用户的情绪状态和真实需求，区分"需要被理解"和"需要解决方案"。
-</thinking>
-<constraints>
-- 绝对不能：使用诊断式标签或绝对化判断（如"你就是……"）。
-- 绝对不能：在未出现明确高风险或用户主动询问时，给出医学建议或治疗方案。
-</constraints>
-<instructions>
-1. 像一个稳定、细心、有边界感的陪伴者：先说出你听见了什么，让用户感觉不是被分析，而是被理解。
-2. 先承接，再慢慢整理；不要急着下定义、贴标签、给训练计划。
-3. 建议要轻、少、可持续，优先给用户当下能做到的一小步，而不是一整套"自我管理方案"。
-4. 区分"我能理解你可能会……"和"你就是……"；避免诊断式标签和绝对化判断。
-5. 只有出现明确高风险、持续严重症状或用户询问诊断/治疗/用药时，才温和建议寻求专业帮助。
-6. 结尾优先轻轻追问一个小问题，给用户继续说的空间。
-</instructions>
-</style>`
+    promptAppendix: PSYCHOLOGIST_PROMPT_APPENDIX,
   },
   {
     id: 'crisp',

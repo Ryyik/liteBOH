@@ -20,6 +20,7 @@ export const TAB_WRITABLE_FIELDS = {
   blockWallItems: ['content', 'color', 'image_url', 'image_public_id', 'position_x', 'position_y', 'rotation', 'updated_at'],
   bohCreatorShows: ['title', 'description', 'video_url', 'creator_platform', 'creator_platform_id', 'updated_at'],
   campaigns: ['slug', 'title', 'description', 'stage', 'signup_start_at', 'signup_end_at', 'start_at', 'end_at', 'config'],
+  campaignEntries: ['status'],
   campaignRewards: ['status']
 };
 
@@ -256,4 +257,22 @@ export const CAMPAIGN_REWARD_STATUS_OPTIONS = [
   { value: 'granted', label: '已发放（granted）' },
   { value: 'fulfilled', label: '已履约（fulfilled）' },
   { value: 'cancelled', label: '已取消（cancelled）' }
+];
+
+export const CAMPAIGN_ENTRY_KIND_OPTIONS = [
+  { value: 'signup', label: '报名（signup）' },
+  { value: 'submission', label: '投稿（submission）' }
+];
+
+export const CAMPAIGN_ENTRY_STATUS_OPTIONS = [
+  { value: 'pending', label: '待审核（pending）' },
+  { value: 'approved', label: '已通过（approved）' },
+  { value: 'rejected', label: '已拒绝（rejected）' }
+];
+
+export const CAMPAIGN_REWARD_TYPE_OPTIONS = [
+  { value: 'points', label: '积分（points）' },
+  { value: 'lottery_ticket', label: '抽奖券（lottery_ticket）' },
+  { value: 'shop_coupon', label: '商城券（shop_coupon）' },
+  { value: 'custom', label: '自定义（custom）' }
 ];

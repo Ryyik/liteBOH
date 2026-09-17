@@ -1,4 +1,20 @@
 import { ref, computed, nextTick, watch, shallowRef, onScopeDispose } from 'vue';
+import {
+  isPsychInterviewState,
+  buildStateBlock,
+  buildAnchorBlock,
+  pickL2Rules,
+  recordUserTurn,
+  recordAssistantTurn,
+  findTrack
+} from '../expert-roles/interview-engine.js';
+import { PSYCH_L0_RULES, PSYCH_L1_RULES } from '../expert-roles/psychologist.js';
+import {
+  detectViolations,
+  shouldRewrite,
+  buildRewriteInstruction,
+  summarizeViolations
+} from '../expert-roles/guards.js';
 import { storeToRefs } from 'pinia';
 import { getPosts, getUserPosts } from '@/utils/api/forum-api.js';
 import {
@@ -739,6 +755,10 @@ export function useChatEngine() {
     const session = getSessionByIndex(sessionIndex);
     if (!session) return;
 
+    // 封闭域：心理访谈不写任何记忆。否则访谈内容会沉淀进公共记忆库
+    // （boh_ai_shared_memories）并被其他会话检索到 —— 这是访谈最不能破的一条线。
+    if (isPsychInterviewState(session.expertState)) return;
+
     const dialogueMessages = buildDialogueMessagesForMemoryCapture(session.messages);
     if (dialogueMessages.length < MEMORY_CAPTURE_MIN_DIALOGUE_ITEMS) return;
 
@@ -1060,7 +1080,13 @@ export function useChatEngine() {
     const sessionIndex = currentSessionIndex.value;
     const session = getSessionByIndex(sessionIndex);
     if (!session) return;
+    // 心理访谈 = 封闭域：不读站内数据、不写记忆。判定与状态都在 interview-engine.js。
+    const psychInterviewActive = isPsychInterviewState(session.expertState);
     const userText = inputMessage.value.trim();
+    // 推进访谈状态（轮次 / 短答连击 / 原话采集）—— 下一轮的状态块就会带上这些
+    if (psychInterviewActive) {
+        session.expertState = recordUserTurn(session.expertState, userText);
+    }
 
     if (await handlePendingCloudReferenceConsentReply(userText)) return;
     if (await handlePendingTreeholeCreationReply(userText)) return;
@@ -1458,7 +1484,7 @@ export function useChatEngine() {
       const webSearchSignal = typeof AbortSignal.any === 'function'
         ? AbortSignal.any([requestController.signal, AbortSignal.timeout(WEB_SEARCH_TIMEOUT_MS)])
         : requestController.signal;
-      const webSearchPromise = enableSearch
+      const webSearchPromise = (enableSearch && !psychInterviewActive)
         ? runWebSearch(webSearchQueryText || userText, webSearchSignal)
         : Promise.resolve({ ok: true, disabled: false, count: 0, context: '', results: [] });
 
@@ -1468,13 +1494,42 @@ export function useChatEngine() {
       }
 
       // C1 fix: 知识检索与联网搜索并行启动，减少串行等待时间
-      const knowledgePromise = (async () => {
+      // 心理访谈是封闭域：连检索都不启动（而不是「检索完再丢弃」）。
+      // 注意：上一版只把 routingPreview.plan 置 false —— 那只是给进度文案用的预览，
+      // 真正执行检索的是下面的 buildAutoKnowledgeContext，它内部会重算一次 plan，
+      // 所以健康/社区证据照样注入了。这是接线探针抓出来的 bug。
+      if (psychInterviewActive) {
+        // 访谈期间社区/联网搜索一律不参与，UI 也不显示「正在搜索…」
+        communitySearchActive.value = false;
+      }
+      const knowledgePromise = psychInterviewActive
+        ? Promise.resolve({
+            ok: true,
+            retrievalPlan: {},
+            routingReasons: [],
+            connectorResults: [],
+            retrievalTrace: null,
+            treeholeTotal: 0,
+            sharedMemoryTotal: 0,
+            userPrivateLabels: [],
+            evidenceRefs: [],
+            contextText: ''
+          })
+        : (async () => {
         communitySearchActive.value = Boolean(communityNeedsEvidence || isForumSearchEnabled.value);
         try {
           markGenerationProgress('正在判断需要查看哪些 BOH 资料...');
           const routingPreview = resolveKnowledgeRoutingPlan(routingQueryText);
           if (isForumSearchEnabled.value) {
             routingPreview.plan.forum = true;
+          }
+          // 心理访谈是封闭域：关掉全部站内检索与联网。
+          // 心理评估只应基于对话本身 —— 拉健康/记忆/私域数据既干扰访谈
+          // （实测气泡下方出现「来源 BOH Health 数据」），也没拿到用户授权。
+          if (psychInterviewActive) {
+            Object.keys(routingPreview.plan).forEach((key) => {
+              routingPreview.plan[key] = false;
+            });
           }
           const previewTargets = getRetrievalTargetLabels(routingPreview.plan);
           if (previewTargets.length > 0) {
@@ -1794,6 +1849,12 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         operationRules
       });
 
+      // 心理访谈：末尾锚定。finalPrompt 是 messages 数组里的最后一条，离生成最近、注意力最高，
+      // 把「本轮别跑偏」钉在这里 —— system 里的长规则负责怎么想，这里负责这一轮的行为底线。
+      if (psychInterviewActive) {
+        finalPrompt = `${finalPrompt}\n\n${buildAnchorBlock(session.expertState, findTrack(session.expertState.trackId))}`;
+      }
+
       const preferAccuracyModel = factualQuestion || operationQuestion || enableSearch || communityNeedsEvidence;
       const planMode = runtimeChatModes.value.find((m) => m.id === 'plan');
       const planModel = planMode?.model ? runtimeAvailableModels.value.find((m) => m.id === planMode.model) : null;
@@ -1844,11 +1905,28 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         .filter((s) => String(s || '').trim())
         .join('\n');
 
+      // 心理访谈：每轮重建注入「状态块 + 分层规则」。
+      // 模型数不准轮次、长对话里也会忘规则，所以不依赖它记 —— 每轮都重新喂（见方案 §16）。
+      const psychStateBlock = psychInterviewActive
+        ? buildStateBlock(session.expertState, findTrack(session.expertState.trackId))
+        : '';
+      const psychRulesBlock = psychInterviewActive
+        ? [
+            '<psych_interview_rules>',
+            ...PSYCH_L0_RULES.map((rule) => `- ${rule}`),
+            ...PSYCH_L1_RULES.map((rule) => `- ${rule}`),
+            ...pickL2Rules(session.expertState).map((rule) => `- 【本轮必须】${rule}`),
+            '</psych_interview_rules>'
+          ].join('\n')
+        : '';
+
       const systemPromptContent = [
         BASE_SYSTEM_PROMPT.replace(`\n${CONTEXT_PLACEHOLDER}\n`, contextBlock ? `\n${contextBlock}\n` : ''),
         structuredMemoryBlock,
         isPlanMode ? PLAN_MODE_PROMPT_APPENDIX : '',
         healthAnalysisActive ? HEALTH_ANALYSIS_PROMPT_APPENDIX : '',
+        psychStateBlock,
+        psychRulesBlock,
         stylePromptAppendix
       ].filter((section) => String(section || '').trim()).join('\n');
       const generationProfile = getGenerationProfile(activeModeId, {
@@ -1954,6 +2032,9 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
           ? '（联网搜索未返回可用结果，以下内容未经过实时网络验证。）\n\n'
           : '';
         if (noInternalEvidence && safeReply) {
+          // 心理访谈是封闭域：检索是被主动关闭的，不是「没找到资料」。
+          // 不加这句尾巴 —— 否则每轮回答后面都挂一句「未检索到相关站内资料」，很出戏。
+          if (psychInterviewActive) return realtimeVerificationNote + safeReply;
           return realtimeVerificationNote + safeReply + '\n\n（未检索到相关站内资料，以上回答基于通用知识）';
         }
         if (!safeReply) return realtimeVerificationNote.trim();
@@ -2134,6 +2215,60 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
       const sseError = sseParser.getError?.();
       if (sseError) {
         throw sseError;
+      }
+
+      // 心理访谈守门（prompt 是软约束，必须代码兜底）
+      // 模型在「助手惯性」下会持续给出选项、一轮多问、甚至替用户编造经历 —— 这些在 prompt 里
+      // 已明令禁止仍会复发。这里照 degenerate 修复的既有模式：检测到违规就用重写指令再生成一次
+      // 并替换消息内容。每轮最多重写一次（不递归），避免死循环和延迟叠加。
+      if (psychInterviewActive && !shouldRepairDegenerateStream) {
+        const psychDraft = cleanAssistantVisibleReply(filterThinkingContent(assistantMessage));
+        // 「上一问」= 当前 assistant 之前最近的那条 assistant（中间隔一条 user）
+        const previousAssistantReply = session.messages?.[messageIndex - 2]?.content || '';
+        // 「对方上一句」用于检测复述（把他的话重排一遍当接住）
+        const previousUserMessage = session.messages?.[messageIndex - 1]?.content || '';
+        const psychFindings = detectViolations(psychDraft, {
+          prevReply: previousAssistantReply,
+          prevUserText: previousUserMessage
+        });
+        if (shouldRewrite(psychFindings)) {
+          const rewritePrompt = appendPromptSection(
+            finalPrompt,
+            `\n${buildRewriteInstruction(psychFindings)}`,
+            MAX_FINAL_PROMPT_CHARS
+          );
+          const rewriteReply = await callModelInternal(
+            generationModel.id,
+            rewritePrompt,
+            systemPromptContent,
+            recentMessages,
+            requestController.signal,
+            0,
+            generationProfile
+          );
+          const rewriteFiltered = cleanAssistantVisibleReply(filterThinkingContent(rewriteReply));
+          if (String(rewriteFiltered || '').trim()) {
+            updateContent(rewriteFiltered);
+            nextTick(scrollToBottom);
+          }
+          const violationTarget = getSessionByIndex(sessionIndex);
+          if (violationTarget?.expertState) {
+            // 留痕：后续据此判断 prompt 是否需要继续加固
+            violationTarget.expertState = {
+              ...violationTarget.expertState,
+              lastViolations: summarizeViolations(psychFindings)
+            };
+          }
+        }
+      }
+
+      // 推进访谈状态（向下追问深度 / 小结点）—— 下一轮的状态块与 L2 规则据此计算
+      if (psychInterviewActive) {
+        const stateTarget = getSessionByIndex(sessionIndex);
+        if (stateTarget?.expertState) {
+          const finalReply = stateTarget.messages?.[messageIndex]?.content || '';
+          stateTarget.expertState = recordAssistantTurn(stateTarget.expertState, finalReply);
+        }
       }
 
       if (shouldRepairDegenerateStream) {

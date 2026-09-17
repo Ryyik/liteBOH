@@ -1,11 +1,11 @@
 <template>
   <div class="activities-list-page">
-    <!-- 活动列表标题区域（对齐 Newsroom 页头设计语言：kicker + 左对齐大标题 + 右下角动作区） -->
+    <!-- 页头（对齐 Newsroom 设计语言：kicker + 左对齐大标题 + 右下角动作区） -->
     <header class="activities-header">
       <div class="activities-header-copy">
         <p class="page-kicker">方块之家 · BOH EVENTS</p>
         <h1 class="page-title-text">活动列表</h1>
-        <p class="page-subtitle-text">回顾我们曾经举办的精彩活动</p>
+        <p class="page-subtitle-text">报名中的活动在最上方，往期活动按月份回看</p>
       </div>
       <button v-if="isAdmin" type="button" class="activity-admin-publish-btn" @click="showPublishModal = true">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -13,163 +13,88 @@
       </button>
     </header>
 
-    <!-- 进行中活动（活动平台 campaigns，BETA 6 P1-3） -->
-    <section v-if="ongoingCampaigns.length" class="campaign-section" aria-label="进行中活动">
-      <div class="campaign-section-head">
-        <h2 class="campaign-section-title">进行中活动</h2>
-        <span class="campaign-section-hint">来自活动平台 · 可直接报名</span>
-      </div>
-      <div class="campaign-grid">
-        <article v-for="camp in ongoingCampaigns" :key="camp.id" class="campaign-card liquid-glass">
-          <div class="campaign-card-top">
-            <span class="campaign-stage-chip" :data-stage="camp.stage">{{ campaignStageLabel(camp.stage) }}</span>
-            <span v-if="campaignWindow(camp)" class="campaign-window">{{ campaignWindow(camp) }}</span>
-          </div>
-          <h3 class="campaign-title">{{ camp.title }}</h3>
-          <p v-if="camp.description" class="campaign-desc">{{ camp.description }}</p>
-          <button type="button" class="campaign-signup-btn"
-            :disabled="camp.signingUp || camp.signedUp"
-            @click="signupCampaign(camp)">
-            {{ camp.signedUp ? '已报名' : (camp.signingUp ? '报名中…' : '立即报名') }}
-          </button>
-        </article>
-      </div>
-    </section>
+    <!-- ① 顶部活动报名卡（数据源 activity_campaigns，与下方历史区互不相干） -->
+    <ActivitySignupSection
+      :campaigns="campaigns"
+      :loading="campaignLoading"
+      :is-logged-in="authStore.isLoggedIn"
+      @signup="signupCampaign"
+    />
 
-    <!-- 活动列表容器 -->
-    <div class="activities-container">
-      <!-- 加载状态 -->
-      <template v-if="loading">
-        <div v-for="item in 6" :key="`activity-loading-${item}`" class="activity-card activity-card-skeleton liquid-glass"
-          aria-hidden="true">
-          <div class="activity-skeleton-image">
-            <div class="activity-skeleton-block activity-skeleton-date"></div>
-          </div>
-          <div class="activity-card-content">
-            <div class="activity-skeleton-block activity-skeleton-title"></div>
-            <div class="activity-skeleton-block activity-skeleton-line wide"></div>
-            <div class="activity-skeleton-block activity-skeleton-line"></div>
-          </div>
+    <!-- ② 按月份分组的历史活动，每月一条横向滚动轨道 -->
+    <div class="activities-timeline">
+      <div v-if="activitiesLoading" class="activities-skeleton" aria-hidden="true">
+        <div v-for="n in 3" :key="`sk-${n}`" class="activities-skeleton__group">
+          <div class="activities-skeleton__head"></div>
+          <div class="activities-skeleton__card"></div>
         </div>
-      </template>
-      <template v-else>
-        <!-- 活动卡片 -->
-        <div
-          v-for="activity in activities"
-          :key="activity.id"
-          class="activity-card"
-          @click="openDetail(activity)"
-        >
-          <!-- 活动图片 -->
-          <div class="activity-card-image">
-            <img :src="getImageUrl(activity.image)" :alt="activity.title" class="activity-image" width="400" height="280" loading="lazy" />
-            <div class="activity-date-badge">{{ activity.date }}</div>
-          </div>
+      </div>
 
-          <!-- 活动信息 -->
-          <div class="activity-card-content">
-            <h3 class="activity-title">{{ activity.title }}</h3>
-            <p class="activity-description clamp">{{ activity.description }}</p>
-            <span class="activity-hint">点击查看详情</span>
-          </div>
-        </div>
+      <template v-else-if="groups.length || undated.length">
+        <ActivityMonthRail
+          v-for="group in groups"
+          :key="group.monthKey"
+          :month-label="group.monthLabel"
+          :month-key="group.monthKey"
+          :items="group.items"
+          @open="openDetail"
+        />
+        <!-- 日期无法解析的记录不丢弃，单独成组垫底 -->
+        <ActivityMonthRail
+          v-if="undated.length"
+          month-label="未排期"
+          month-key="undated"
+          :items="undated"
+          @open="openDetail"
+        />
       </template>
+
+      <EmptyState
+        v-else
+        variant="inbox"
+        title="还没有活动记录"
+        description="往期活动会按月份归档在这里。"
+      />
     </div>
 
-    <!-- 管理员投稿活动 -->
-    <AdminContentPublishModal :visible="showPublishModal" type="activity" @close="showPublishModal = false" @published="loadActivities" />
+    <!-- 管理员投稿活动（可选「新建报名活动」或「新建活动」） -->
+    <AdminContentPublishModal
+      :visible="showPublishModal"
+      type="activity"
+      @close="showPublishModal = false"
+      @published="onPublished"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, inject, onMounted, onBeforeUnmount } from "vue";
-import { getImageUrl } from "@/utils/asset-helper.js";
-import { initActivities, getAllActivities } from "@/composables/useActivities";
-import { useAuthStore } from "@/stores/auth";
+import { computed, inject, onBeforeUnmount, onMounted, ref } from "vue";
 import { storeToRefs } from "pinia";
+import { getImageUrl } from "@/utils/asset-helper.js";
+import { formatActivityDate } from "@/utils/activity-date.js";
+import { groupedActivities, undatedActivities, initActivities, loading as activitiesLoading } from "@/composables/useActivities";
+import { useCampaigns } from "@/composables/useCampaigns.js";
+import { useAuthStore } from "@/stores/auth";
 import AdminContentPublishModal from "@/components/AdminContentPublishModal.vue";
-import { showIsland } from "@/composables/useIsland.js";
+import EmptyState from "@/components/ui/EmptyState.vue";
 import ContentDetailIsland from "@/components/UnifiedNavbar/ContentDetailIsland.vue";
-import { listActivityCampaigns, getMyCampaignEntries, signupCampaignEntry } from "@/utils/api/activities-platform-api.js";
+import { showIsland } from "@/composables/useIsland.js";
+import ActivitySignupSection from "./components/ActivitySignupSection.vue";
+import ActivityMonthRail from "./components/ActivityMonthRail.vue";
 
 const authStore = useAuthStore();
 const { isAdmin } = storeToRefs(authStore);
 const showPublishModal = ref(false);
 const remountWallIsland = inject("remountWallIsland", null);
 
-// ===== 进行中活动（campaigns） =====
-const ONGOING_STAGES = new Set(["signup", "submission", "judging"]);
-const CAMPAIGN_STAGE_LABELS = {
-  draft: "草稿", signup: "报名中", submission: "投稿中",
-  judging: "评审中", result: "结果公示", fulfilled: "已完结"
-};
-const ongoingCampaigns = ref([]);
+// ===== 报名区（activity_campaigns）=====
+const { campaigns, loading: campaignLoading, loadOngoingCampaigns, signupCampaign } = useCampaigns();
 
-const campaignStageLabel = (stage) => CAMPAIGN_STAGE_LABELS[stage] || stage;
+// ===== 历史活动（activities，按月分组）=====
+const groups = computed(() => groupedActivities.value);
+const undated = computed(() => undatedActivities.value);
 
-const campaignWindow = (camp) => {
-  const fmt = (iso) => {
-    if (!iso) return "";
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? "" : `${d.getMonth() + 1}.${d.getDate()}`;
-  };
-  const s = fmt(camp.startAt || camp.signupStartAt);
-  const e = fmt(camp.endAt || camp.signupEndAt);
-  if (!s && !e) return "";
-  return `${s || "…"} - ${e || "…"}`;
-};
-
-const loadOngoingCampaigns = async () => {
-  try {
-    const res = await listActivityCampaigns({ limit: 12 });
-    if (!res.ok) {
-      ongoingCampaigns.value = [];
-      return;
-    }
-    ongoingCampaigns.value = res.data.filter((camp) => ONGOING_STAGES.has(camp.stage));
-    // 登录用户标记已报名
-    const uid = authStore.userInfo?.id;
-    if (uid && ongoingCampaigns.value.length) {
-      await Promise.all(ongoingCampaigns.value.map(async (camp) => {
-        const mine = await getMyCampaignEntries(camp.id, uid);
-        camp.signedUp = mine.ok && mine.data.some((entry) => entry.kind === "signup");
-      }));
-    }
-  } catch {
-    ongoingCampaigns.value = [];
-  }
-};
-
-const signupCampaign = async (camp) => {
-  const uid = authStore.userInfo?.id;
-  if (!authStore.isLoggedIn || !uid) {
-    showIsland.notify({ title: "请先登录", message: "登录后即可报名活动", icon: "info" });
-    return;
-  }
-  if (camp.signingUp || camp.signedUp) return;
-  camp.signingUp = true;
-  try {
-    const res = await signupCampaignEntry(camp.id, uid);
-    if (!res.ok) {
-      const duplicated = String(res.error?.code || "") === "23505";
-      showIsland.notify({
-        title: duplicated ? "你已报名过啦" : "报名失败",
-        message: duplicated ? "无需重复报名" : (res.error?.message || "请稍后重试"),
-        icon: duplicated ? "info" : "warning"
-      });
-      if (duplicated) camp.signedUp = true;
-      return;
-    }
-    camp.signedUp = true;
-    showIsland.notify({ title: "报名成功", message: `已在「${camp.title}」为你登记`, icon: "success" });
-  } finally {
-    camp.signingUp = false;
-  }
-};
-
-const activities = ref([]);
-const loading = ref(true);
-// 详情灵动岛：详情以导航栏延伸卡呈现（替代原页面内模态框）
+// 详情灵动岛：详情以导航栏延伸卡呈现（替代页面内模态框）
 let detailIsland = null;
 
 const openDetail = (activity) => {
@@ -178,7 +103,8 @@ const openDetail = (activity) => {
   detailIsland = showIsland.custom(ContentDetailIsland, {
     type: "activity",
     title: String(activity.title || ""),
-    meta: String(activity.date || ""),
+    // 详情卡走 formatActivityDate：缺「日」的记录显示「2025年10月」而不是原始 '2025/10'
+    meta: formatActivityDate(activity.date),
     image: getImageUrl(activity.image),
     paragraphs: String(activity.description || "")
       .split(/\n+/)
@@ -195,10 +121,14 @@ const openDetail = (activity) => {
 };
 
 const loadActivities = async () => {
-  loading.value = true;
   await initActivities();
-  activities.value = getAllActivities();
-  loading.value = false;
+};
+
+// 投稿弹窗的两种活动写的是两张不同的表：报名活动 → activity_campaigns，
+// 往期活动 → activities。只刷新被写的那条链，不做无谓的全量重查。
+const onPublished = (payload) => {
+  if (payload?.kind === 'campaign') loadOngoingCampaigns();
+  else loadActivities();
 };
 
 // 全局导航是 position:fixed，其实际高度（灵动岛卡展开后会变高）与声明值不一致。
@@ -290,101 +220,6 @@ html[data-theme="dark"] .activity-admin-publish-btn:hover {
   background: #0a84ff;
 }
 
-
-/* 加载状态容器 */
-.loading-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 120px 20px;
-  min-height: 400px;
-  grid-column: 1 / -1;
-  width: 100%;
-}
-
-.loading-spinner {
-  width: 60px;
-  height: 60px;
-  border: 4px solid #f5f5f7;
-  border-top: 4px solid #1d1d1f;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.loading-text {
-  margin-top: 24px;
-  font-size: 16px;
-  color: #86868b;
-  font-weight: 500;
-}
-
-.activity-card-skeleton {
-  cursor: default;
-  pointer-events: none;
-}
-
-.activity-skeleton-block,
-.activity-skeleton-image {
-  position: relative;
-  overflow: hidden;
-  background: #edf0f4;
-}
-
-.activity-skeleton-block::after,
-.activity-skeleton-image::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.78), transparent);
-  animation: activitySkeletonShimmer 1.35s ease-in-out infinite;
-}
-
-.activity-skeleton-image {
-  width: 100%;
-  height: 280px;
-}
-
-.activity-skeleton-date {
-  position: absolute;
-  right: 24px;
-  bottom: 24px;
-  width: 112px;
-  height: 38px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.72);
-}
-
-.activity-skeleton-title {
-  width: 76%;
-  height: 28px;
-  border-radius: 12px;
-  margin-bottom: 18px;
-}
-
-.activity-skeleton-line {
-  width: 68%;
-  height: 15px;
-  border-radius: 999px;
-  margin-top: 12px;
-}
-
-.activity-skeleton-line.wide {
-  width: 100%;
-}
-
-@keyframes activitySkeletonShimmer {
-  100% {
-    transform: translateX(100%);
-  }
-}
-
 /* 页面基础样式 */
 .activities-list-page {
   --nav-h: var(--bohai-standalone-nav-height, 64px);
@@ -413,116 +248,34 @@ html[data-theme="dark"] .activity-admin-publish-btn:hover {
   max-width: 600px;
 }
 
-.activities-container {
-  max-width: 1400px;
+/* 月份轨道区：--activity-rail-gutter 必须等于本容器的水平 padding，
+   轨道靠它做负 margin 露边；两值不一致会让首卡与月份标题错位。 */
+.activities-timeline {
+  --activity-rail-gutter: 40px;
+  max-width: 1320px;
   margin: 0 auto;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-  gap: 48px;
-  padding: 0 40px 160px;
+  padding: 0 40px;
 }
 
-/* 活动卡片（液态玻璃外观由全局 .liquid-glass 提供） */
-.activity-card {
-  border-radius: 32px;
-  overflow: hidden;
-  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.04);
-  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  cursor: pointer;
+/* ---- 加载骨架 ---- */
+.activities-skeleton__group { margin-bottom: 34px; }
+
+.activities-skeleton__head {
+  width: 108px;
+  height: 18px;
+  margin-bottom: 14px;
+  border-radius: 8px;
+  background: #edf0f4;
 }
 
-.activity-card.activity-card-skeleton {
-  cursor: default;
-  pointer-events: none;
+.activities-skeleton__card {
+  width: clamp(230px, 27%, 300px);
+  height: 218px;
+  border-radius: 24px;
+  background: #edf0f4;
 }
 
-.activity-card:hover {
-  transform: translateY(-12px);
-  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.12);
-}
-
-.activity-card-image {
-  width: 100%;
-  height: 280px;
-  position: relative;
-  overflow: hidden;
-  background-color: #f5f5f7;
-}
-
-.activity-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.activity-card:hover .activity-image {
-  transform: scale(1.08);
-}
-
-.activity-date-badge {
-  position: absolute;
-  top: 24px;
-  left: 24px;
-  background-color: rgba(255, 255, 255, 0.95);
-  backdrop-filter: var(--liquid-filter-sm);
-  color: #1d1d1f;
-  padding: 10px 16px;
-  border-radius: 12px;
-  font-size: 13px;
-  font-weight: 700;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
-  letter-spacing: -0.01em;
-}
-
-.activity-card-content {
-  padding: 40px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.activity-title {
-  font-size: 24px;
-  font-weight: 800;
-  color: #1d1d1f;
-  margin-bottom: 16px;
-  line-height: 1.3;
-  letter-spacing: -0.02em;
-}
-
-.activity-description {
-  font-size: 16px;
-  color: #86868b;
-  line-height: 1.7;
-  flex: 1;
-  margin-bottom: 16px;
-}
-
-.activity-description.clamp {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.activity-hint {
-  font-size: 13px;
-  color: #aeaeaf;
-  font-weight: 500;
-}
 /* ===== 响应式 ===== */
-@media (max-width: 1200px) {
-  .activities-container {
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 32px;
-  }
-}
-
 @media (max-width: 768px) {
   .activities-header {
     display: block;
@@ -538,125 +291,13 @@ html[data-theme="dark"] .activity-admin-publish-btn:hover {
     font-size: 15px;
   }
 
-  .activities-container {
-    grid-template-columns: 1fr;
-    gap: 32px;
-    padding: 0 20px 80px;
+  .activities-timeline {
+    --activity-rail-gutter: 20px;
+    padding: 0 20px;
   }
+}
 
-  .activity-card-content {
-    padding: 24px;
-  }
-
-  .activity-card-image {
-    height: 240px;
-  }}
-
-/* ========== 进行中活动（campaigns，BETA 6 P1-3） ========== */
-.campaign-section {
-  margin: 0 0 30px;
-  padding: 22px 24px;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.66);
-  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%));
-  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%));
-  border: 1px solid rgba(0, 113, 227, 0.14);
-  box-shadow: 0 10px 34px rgba(0, 113, 227, 0.08);
-}
-.campaign-section-head {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-.campaign-section-title {
-  font-size: 19px;
-  font-weight: 700;
-  color: #1d1d1f;
-  margin: 0;
-}
-.campaign-section-hint {
-  font-size: 12px;
-  color: #86868b;
-}
-.campaign-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
-  gap: 14px;
-}
-.campaign-card {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 18px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.72);
-}
-.campaign-card-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.campaign-stage-chip {
-  display: inline-flex;
-  align-items: center;
-  height: 24px;
-  padding: 0 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #0071e3;
-  background: rgba(0, 113, 227, 0.1);
-}
-.campaign-stage-chip[data-stage="judging"] { color: #854f0b; background: rgba(250, 238, 218, 0.9); }
-.campaign-stage-chip[data-stage="result"] { color: #3b6d11; background: rgba(234, 243, 222, 0.9); }
-.campaign-window { font-size: 12px; color: #86868b; font-variant-numeric: tabular-nums; }
-.campaign-title { margin: 0; font-size: 16px; font-weight: 700; color: #1d1d1f; }
-.campaign-desc {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.55;
-  color: #515154;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.campaign-signup-btn {
-  margin-top: auto;
-  height: 36px;
-  border: none;
-  border-radius: 999px;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  color: #ffffff;
-  background: #0071e3;
-  cursor: pointer;
-  transition: transform 0.16s ease, background-color 0.16s ease, opacity 0.16s ease;
-}
-.campaign-signup-btn:hover:not(:disabled) { background: #0077ed; transform: translateY(-1px); }
-.campaign-signup-btn:active:not(:disabled) { transform: scale(0.97); }
-.campaign-signup-btn:disabled { opacity: 0.55; cursor: default; }
-
-html[data-theme="dark"] .campaign-section {
-  background: rgba(28, 28, 30, 0.62);
-  border-color: rgba(10, 132, 255, 0.22);
-  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.35);
-}
-html[data-theme="dark"] .campaign-card { background: rgba(44, 44, 46, 0.72); }
-html[data-theme="dark"] .campaign-section-title { color: #f5f5f7; }
-html[data-theme="dark"] .campaign-section-hint,
-html[data-theme="dark"] .campaign-window { color: #98989d; }
-html[data-theme="dark"] .campaign-title { color: #f5f5f7; }
-html[data-theme="dark"] .campaign-desc { color: #a1a1a6; }
-html[data-theme="dark"] .campaign-stage-chip { color: #6cb2ff; background: rgba(10, 132, 255, 0.16); }
-html[data-theme="dark"] .campaign-stage-chip[data-stage="judging"] { color: #ffd60a; background: rgba(255, 214, 10, 0.12); }
-html[data-theme="dark"] .campaign-stage-chip[data-stage="result"] { color: #32d74b; background: rgba(50, 215, 75, 0.12); }
-html[data-theme="dark"] .campaign-signup-btn { background: #0a84ff; }
-
-/* ---- 暗色补齐（dark audit 2026-09-08）：页头与活动卡片 ---- */
+/* ---- 暗色主题 ---- */
 html[data-theme="dark"] .activities-list-page {
   background: #0d0f14;
   color: #f5f5f7;
@@ -664,17 +305,6 @@ html[data-theme="dark"] .activities-list-page {
 html[data-theme="dark"] .page-kicker { color: #8d99a8; }
 html[data-theme="dark"] .page-title-text { color: #f5f5f7; }
 html[data-theme="dark"] .page-subtitle-text { color: #a1a1a6; }
-html[data-theme="dark"] .activity-card {
-  background: #161a22;
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35);
-}
-html[data-theme="dark"] .activity-title { color: #f5f5f7; }
-html[data-theme="dark"] .activity-description { color: #a1a1a6; }
-html[data-theme="dark"] .activity-hint { color: #6e6e73; }
-html[data-theme="dark"] .activity-skeleton-block,
-html[data-theme="dark"] .activity-skeleton-image { background: #1a1e26; }
-html[data-theme="dark"] .activity-skeleton-block::after,
-html[data-theme="dark"] .activity-skeleton-image::after { background: rgba(28, 28, 30, 0.72); }
-
+html[data-theme="dark"] .activities-skeleton__head,
+html[data-theme="dark"] .activities-skeleton__card { background: #1a1e26; }
 </style>
