@@ -92,6 +92,34 @@ jobs:
       - name: Install bubblewrap
         run: npm install -g @bubblewrap/cli@1.25.0
 
+      # runner 预装的 Android SDK 有两个地方不符合 bubblewrap 的假设，必须补齐：
+      # 1. AndroidSdkTools.validatePath 只认 SDK 根下的 `tools/` 或 `bin/` 目录，
+      #    而现代 SDK 是 `cmdline-tools/latest/bin` 布局 —— 直接抛
+      #    "The provided androidSdk isn't correct."；
+      # 2. bubblewrap 把 BUILD_TOOLS_VERSION 硬编码成 36.1.0，镜像里没有就让
+      #    sdkmanager 联网装，所以这里先把 `bin/sdkmanager` 接上并预装该版本。
+      - name: Prepare Android SDK for bubblewrap
+        run: |
+          set -e
+          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          echo "SDK: $SDK"
+          echo "--- build-tools ---"; ls "$SDK/build-tools" || true
+          echo "--- platforms ---"; ls "$SDK/platforms" || true
+
+          CMDBIN=$(ls -d "$SDK"/cmdline-tools/*/bin 2>/dev/null | sort -V | tail -1)
+          echo "cmdline-tools: $CMDBIN"
+          sudo mkdir -p "$SDK/bin" "$SDK/tools/bin"
+          sudo ln -sf "$CMDBIN/sdkmanager" "$SDK/bin/sdkmanager"
+          sudo ln -sf "$CMDBIN/sdkmanager" "$SDK/tools/bin/sdkmanager"
+          sudo chmod +x "$CMDBIN/sdkmanager"
+
+          if [ ! -d "$SDK/build-tools/36.1.0" ]; then
+            echo "预装 build-tools;36.1.0 …"
+            yes | "$CMDBIN/sdkmanager" --sdk_root="$SDK" --licenses > /dev/null 2>&1 || true
+            yes | "$CMDBIN/sdkmanager" --sdk_root="$SDK" "build-tools;36.1.0" "platform-tools" > /dev/null || true
+          fi
+          echo "--- 准备后 ---"; ls "$SDK/build-tools"
+
       # ⚠️ 必须直接写配置文件，不能用 `bubblewrap updateConfig`。
       # bubblewrap 在解析子命令**之前**（Cli.run 的第一步）就调用 loadOrCreateConfig：
       # ~/.bubblewrap/config.json 不存在时它会交互式问
@@ -103,7 +131,7 @@ jobs:
           set -e
           SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
           test -x "$JAVA_HOME/bin/java"
-          test -d "$SDK/build-tools"
+          test -d "$SDK/bin"
           mkdir -p ~/.bubblewrap
           printf '{"jdkPath":"%s","androidSdkPath":"%s"}' "$JAVA_HOME" "$SDK" > ~/.bubblewrap/config.json
           cat ~/.bubblewrap/config.json
