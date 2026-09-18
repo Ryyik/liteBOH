@@ -53,6 +53,15 @@ supabase/functions/.env
 auth.json
 secrets*.json
 
+# Android / TWA 打包（android-twa/ 只保留 twa-manifest.json 这一份真相源，
+# 其余 Android 工程与签名文件都由 CI 的 bubblewrap update 现场生成，不入库）
+android-twa/*
+!android-twa/twa-manifest.json
+*.keystore
+*.jks
+*.apk
+*.aab
+
 # Build reports
 stats.html
 

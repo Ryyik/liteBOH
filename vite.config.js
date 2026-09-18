@@ -190,22 +190,71 @@ export default defineConfig({
           },
         ],
       },
+      // ⚠️ 图标必须走 scripts/generate-app-icons.mjs 的产物，不要再指向 favicon.png：
+      // 那是 1024×1024 的透明底方图，图形本体只占中间 768×896，
+      // 声明成 192/512 属于谎报尺寸（桌面图标发虚），直接当 maskable 用
+      // 还会被系统裁圆切掉苹果的梗和底部。
       manifest: {
+        // id 用于在浏览器/系统里唯一标识这个已安装应用，改它会变成另一个应用
+        id: '/',
         name: 'Block of Home',
         short_name: 'BOH',
         description: 'Block of Home - 你的家居灵感社区',
+        lang: 'zh-CN',
+        dir: 'ltr',
+        start_url: './',
+        scope: './',
+        display: 'standalone',
+        display_override: ['standalone', 'minimal-ui'],
+        orientation: 'any',
         theme_color: '#79a947',
+        background_color: '#ffffff',
+        categories: ['social', 'lifestyle'],
         icons: [
           {
-            src: '/favicon.png',
+            src: '/icons/icon-192.png',
             sizes: '192x192',
             type: 'image/png',
+            purpose: 'any',
           },
           {
-            src: '/favicon.png',
+            src: '/icons/icon-512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable',
+            purpose: 'any',
+          },
+          {
+            src: '/icons/icon-maskable-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+          {
+            src: '/icons/icon-monochrome-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'monochrome',
+          },
+        ],
+        // 长按桌面图标弹出的快捷入口。hash 路由，所以是 /#/xxx。
+        shortcuts: [
+          {
+            name: '论坛',
+            short_name: '论坛',
+            url: '/#/forum',
+            icons: [{ src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
+          },
+          {
+            name: '活动',
+            short_name: '活动',
+            url: '/#/activities-wall',
+            icons: [{ src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
+          },
+          {
+            name: '消息',
+            short_name: '消息',
+            url: '/#/user-space/messages',
+            icons: [{ src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
           },
         ],
       },

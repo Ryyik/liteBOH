@@ -1,0 +1,63 @@
+{
+  "packageId": "cn.blockofhome.app",
+  "host": "www.blockofhome.cn",
+  "name": "Block of Home",
+  "launcherName": "BOH",
+  "display": "standalone",
+  "displayOverride": ["standalone", "minimal-ui"],
+  "themeColor": "#79a947",
+  "themeColorDark": "#0a0a0f",
+  "navigationColor": "#ffffff",
+  "navigationColorDark": "#0a0a0f",
+  "navigationDividerColor": "#ffffff",
+  "navigationDividerColorDark": "#0a0a0f",
+  "backgroundColor": "#ffffff",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://www.blockofhome.cn/icons/icon-512.png",
+  "maskableIconUrl": "https://www.blockofhome.cn/icons/icon-maskable-512.png",
+  "monochromeIconUrl": "https://www.blockofhome.cn/icons/icon-monochrome-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "boh"
+  },
+  "appVersion": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [
+    {
+      "name": "论坛",
+      "shortName": "论坛",
+      "url": "/#/forum",
+      "chosenIconUrl": "https://www.blockofhome.cn/icons/icon-192.png"
+    },
+    {
+      "name": "活动",
+      "shortName": "活动",
+      "url": "/#/activities-wall",
+      "chosenIconUrl": "https://www.blockofhome.cn/icons/icon-192.png"
+    },
+    {
+      "name": "消息",
+      "shortName": "消息",
+      "url": "/#/user-space/messages",
+      "chosenIconUrl": "https://www.blockofhome.cn/icons/icon-192.png"
+    }
+  ],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://www.blockofhome.cn/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://www.blockofhome.cn/",
+  "minSdkVersion": 21,
+  "orientation": "any",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": []
+}
