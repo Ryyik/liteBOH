@@ -1,5 +1,5 @@
 {
-  "total": 1326,
+  "total": 1327,
   "files": {
     "src/App.vue": 1,
     "src/components/AiEdgeTrigger.vue": 2,
@@ -34,6 +34,7 @@
     "src/views/BOHAI/BOHAI/styles/full-workspace.css": 6,
     "src/views/BOHAI/BOHAI/styles/motion-system.css": 10,
     "src/views/BOHAI/BOHAI/styles/shell-header.css": 2,
+    "src/views/BOHApp/style.scoped.css": 1,
     "src/views/BlockWall/style.scoped.css": 3,
     "src/views/DataManagement/components/PityGrantConsole.vue": 4,
     "src/views/Download/index.vue": 4,
