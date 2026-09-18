@@ -11,7 +11,8 @@ import {
   Layout,
   MessageCircle,
   Megaphone,
-  Activity
+  Activity,
+  Palette
 } from 'lucide-vue-next';
 
 export const tabs = [
@@ -139,6 +140,14 @@ export const tabModules = [
     section: 'data',
     type: 'page',
     description: '可视化编辑首页英雄区，支持模板/预览/裁切/发布'
+  },
+  {
+    id: 'avatar-console',
+    label: '头像框',
+    icon: Palette,
+    section: 'data',
+    type: 'page',
+    description: '上传 PNG、摆位并设定归属档位 / 限免 / 积分价后发布'
   },
   {
     id: 'moderation',

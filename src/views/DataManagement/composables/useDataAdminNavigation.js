@@ -18,7 +18,7 @@ const SECTION_TO_MODULE_MAP = {
 
 // 归属于 'data' section 的模块：保留用户已选模块，避免被 'data' → 'users' 覆盖
 const DATA_SECTION_MODULES = new Set([
-  'users', 'gifts', 'shop', 'community', 'operations', 'moderation', 'lottery', 'ai-config', 'logs', 'shop-console', 'hero-console'
+  'users', 'gifts', 'shop', 'community', 'operations', 'moderation', 'lottery', 'ai-config', 'logs', 'shop-console', 'hero-console', 'avatar-console'
 ]);
 
 const ROUTE_MAP = {
@@ -28,6 +28,7 @@ const ROUTE_MAP = {
     'lab-ai-model': '/admin/data-management',
     'shop-console': '/admin/shop-console',
     'hero-console': '/admin/hero-console',
+    'avatar-console': '/admin/avatar-console',
     data: '/admin/data-management',
     media: '/admin/data-management',
     settings: '/admin/data-management'

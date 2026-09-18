@@ -1,5 +1,5 @@
 <template>
-  <div class="data-management-page">
+  <div class="data-management-page" :data-theme="currentTheme">
 
     <div class="admin-shell">
       <AdminSidebar
@@ -1144,6 +1144,7 @@ import { getExpiredActiveGiftIds, markGiftsAsHistory } from '@/utils/gift-archiv
 import { getDefaultApiUrlForBohaiProvider, listActiveBohaiModelConfigs, buildBohaiRuntimeModels } from '@/utils/api/bohai-model-config-api.js';
 import { clearVaultModelCache, clearUserTierCache, callVaultSiliconChat } from '@/utils/api/api-key-runtime-api.js';
 import { logger } from '@/utils/logger.js';
+import { themeManager } from '@/utils/theme-manager.js';
 import {
   ADMIN_PAGE_META,
   NEWS_CATEGORY_VALUES,
@@ -1560,7 +1561,13 @@ const isCardFieldCopied = (meta, item) => {
   return copiedFieldKey.value === getCardFieldCopyKey(item, meta);
 };
 
-const currentTheme = ref('light');
+// 主题只认 dark / light：AdminHeader 的图标与 aria 只判这两个值，
+// 而 themeManager 还可能返回 home-cat / anniversary-mc 这类自定义主题。
+const normalizeTheme = (theme) => (theme === 'dark' ? 'dark' : 'light');
+// 本页根元素自绑 data-theme（与 ForumMain / UserSpaceMain 等组件同款写法），
+// 因此断言/样式都能直接依赖 .data-management-page[data-theme="dark"]，
+// 不再依赖 document 级旁路或 prefers-color-scheme 兜底。
+const currentTheme = ref(normalizeTheme(themeManager.getTheme()));
 const uploadingImageFields = ref([]);
 const tabTotals = reactive(tabs.reduce((acc, tab) => {
   acc[tab.id] = 0;
@@ -2836,22 +2843,18 @@ const toggleSelect = (item) => {
   }
 };
 
+// 主题切换统一走 themeManager（唯一写入点：html[data-theme] + html.dark + boh-theme）。
+// 这里曾经直写 documentElement 并把偏好另存到 localStorage['dm-theme']，形成第二套主题真相源，
+// 后果是"用户在站内显式选了浅色、系统是暗色时，后台仍变暗"。
 const toggleAdminTheme = (forced) => {
-  const html = document.documentElement;
-  const wasDark = html.getAttribute('data-theme') === 'dark';
-  const nextDark = typeof forced === 'boolean' ? forced : !wasDark;
-  html.setAttribute('data-theme', nextDark ? 'dark' : 'light');
-  const page = document.querySelector('.data-management-page');
-  if (page) {
-    page.classList.toggle('dark', nextDark);
-    page.setAttribute('data-theme', nextDark ? 'dark' : 'light');
-  }
-  currentTheme.value = nextDark ? 'dark' : 'light';
-  try {
-    localStorage.setItem('dm-theme', currentTheme.value);
-  } catch (e) {
-    /* storage may be unavailable in private mode */
-  }
+  const nextDark = typeof forced === 'boolean' ? forced : !themeManager.isDark();
+  themeManager.setTheme(nextDark ? 'dark' : 'light');
+  currentTheme.value = normalizeTheme(themeManager.getTheme());
+};
+
+// 站内其他地方切主题时同步本页（监听器在 onUnmounted 摘除）
+const handleThemeChange = (theme) => {
+  currentTheme.value = normalizeTheme(theme);
 };
 
 const handleQuickEdit = async (record) => {
@@ -5575,17 +5578,14 @@ onMounted(() => {
   document.addEventListener('keydown', handleGlobalShortcuts);
   document.addEventListener('keydown', handleCommandPaletteKey);
   document.addEventListener('visibilitychange', handleVisibilityChange);
-  // 初始化主题: 读取 localStorage 或跟随系统偏好
-  try {
-    const saved = localStorage.getItem('dm-theme');
-    const isDark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
-    toggleAdminTheme(isDark);
-  } catch (e) {
-    /* localStorage may be unavailable */
-  }
+  // 初始化主题：直接跟随全站主题（单一源 = themeManager，已由 main.js 初始化），
+  // 不再读 dm-theme / 不再自己判断系统偏好 —— 那正是"后台与全站主题不一致"的来源。
+  currentTheme.value = normalizeTheme(themeManager.getTheme());
+  themeManager.addListener(handleThemeChange);
 });
 onUnmounted(() => {
   stopAutoRefresh();
+  themeManager.removeListener(handleThemeChange);
   window.removeEventListener('resize', handleResize);
   document.removeEventListener('keydown', handleGlobalShortcuts);
   document.removeEventListener('keydown', handleCommandPaletteKey);

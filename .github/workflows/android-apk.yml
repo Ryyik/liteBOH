@@ -23,8 +23,9 @@ on:
       - '.github/workflows/android-apk.yml'
   workflow_dispatch:
 
+# 产物要发布到 Release 以拿到固定的免登录下载直链，需要写权限
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: android-apk-${{ github.ref }}
@@ -187,3 +188,36 @@ jobs:
             android-twa/*.aab
           retention-days: 30
           if-no-files-found: error
+
+      # 发布到固定 tag 的 Release —— 落地页 /app 引用的就是这个直链。
+      #
+      # 用 tag 直链而非 releases/latest/download：latest 是全局判定，
+      # 将来发别的 Release 会把它抢走，tag 直链不会。
+      # 每次都覆盖同一个 tag 的同一个文件名，于是链接永久有效、永远指向最新构建，
+      # 前端不需要跟着改（唯一真相源见 src/views/BOHApp/app-release.js）。
+      - name: Publish to Release (fixed download URL)
+        working-directory: android-twa
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          APK=$(ls app-release-signed.apk 2>/dev/null || ls *.apk | head -1)
+          # 文件名固定为 boh.apk：用户下载到的名字稳定，覆盖安装也不会变成两个应用
+          cp "$APK" boh.apk
+          ls -lh boh.apk
+
+          TAG=android-latest
+          NOTES=$(printf 'BOH Android 客户端（TWA 外壳）。\n\n构建：%s #%s\n提交：%s\n' \
+            "$GITHUB_SHA" "$GITHUB_RUN_NUMBER" "$GITHUB_SHA")
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$TAG" boh.apk --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" boh.apk \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "BOH Android 客户端（最新构建）" \
+              --notes "$NOTES" \
+              --latest
+          fi
+
+          echo "下载直链：https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/boh.apk"

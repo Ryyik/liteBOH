@@ -25,3 +25,10 @@
 # Service Worker：短缓存
 /sw.js
   Cache-Control: public, max-age=0, must-revalidate
+
+# Service Worker 的 importScripts 依赖：生成的 sw.js 里有一行 importScripts('/push-sw.js')，
+# 它在 SW 安装时被浏览器**按普通请求**拉取，所以不受 updateViaCache:'none' 保护。
+# 若这里或被 Cloudflare Cache Rules 缓存住，改了 push 处理器最多会延迟到缓存过期才生效
+# （与 sw.js 那个 4 小时问题是同一类坑）。因此与 sw.js 同策略。
+/push-sw.js
+  Cache-Control: public, max-age=0, must-revalidate

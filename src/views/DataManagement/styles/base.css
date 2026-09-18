@@ -159,71 +159,11 @@
   color: var(--foreground);
 }
 
-/* ==================== Auto Dark Mode (prefers-color-scheme) ==================== */
-/* 当用户没有显式设置 data-theme 时，自动跟随系统主题 */
-@media (prefers-color-scheme: dark) {
-  .data-management-page:not([data-theme="light"]) {
-    --primary: #fc2c50;
-    --primary-foreground: #ffffff;
-    --secondary: #383838;
-    --secondary-foreground: #e5e5e5;
-    --accent: #4a2026;
-    --accent-foreground: #fc2c50;
-    --destructive: #ef4444;
-    --destructive-foreground: #ffffff;
-
-    --background: #161616;
-    --foreground: #eff1f4;
-    --card: rgba(29, 29, 28, 0.66);
-    --card-solid: #1d1d1c;
-    --card-foreground: #eff1f4;
-    --popover: rgba(46, 46, 46, 0.92);
-    --popover-solid: #2e2e2e;
-    --popover-foreground: #e5e5e5;
-    --muted: #383838;
-    --muted-foreground: #949494;
-
-    /* Semantic status tokens (dark) */
-    --success: #22c55e;
-    --success-soft: rgba(34, 197, 94, 0.16);
-    --info: #3b82f6;
-    --info-soft: rgba(59, 130, 246, 0.16);
-    --warning: #f59e0b;
-    --warning-soft: rgba(245, 158, 11, 0.16);
-    --danger: #ef4444;
-    --danger-soft: rgba(239, 68, 68, 0.16);
-
-    --border: #1d1d1c;
-    --input: #000000;
-    --ring: #ffffff;
-
-    --chart-1: #2dccd3;
-    --chart-2: #f1204a;
-    --chart-3: #edbbe8;
-    --chart-4: #fbeb35;
-    --chart-5: #baf6f0;
-
-    --sidebar: #171717;
-    --sidebar-foreground: #e5e5e5;
-    --sidebar-primary: #0065fd;
-    --sidebar-primary-foreground: #ffffff;
-    --sidebar-accent: #00266b;
-    --sidebar-accent-foreground: #bfdbfe;
-    --sidebar-border: #404040;
-    --sidebar-ring: #00266b;
-
-    --dm-liquid-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-    --dm-liquid-bg: rgba(29, 29, 28, 0.72);
-    --dm-liquid-sidebar: rgba(23, 23, 23, 0.62);
-
-    background:
-      radial-gradient(1100px 720px at 10% -8%, rgba(66, 133, 244, 0.14), transparent 60%),
-      radial-gradient(900px 640px at 108% 12%, rgba(52, 168, 83, 0.09), transparent 58%),
-      radial-gradient(880px 640px at 50% 116%, rgba(234, 67, 53, 0.08), transparent 60%),
-      var(--background);
-    background-attachment: fixed;
-  }
-}
+/* 暗色只由 data-theme 驱动（单一源 = themeManager 写 html[data-theme]，
+   本页根元素在 DataAdmin.vue 上自绑 :data-theme）。
+   这里曾有一份 @media (prefers-color-scheme: dark) + :not([data-theme="light"]) 兜底，
+   与本文件上方的 [data-theme="dark"] 块逐字重复，且因为容器拿不到 data-theme 而永远命中 →
+   用户在站内显式选浅色、系统为暗色时后台仍变暗。已删除，不要再加回来。 */
 
 /* ==================== Header ==================== */
 .dm-header {
@@ -596,11 +536,5 @@
   .data-management-page.dark {
     --card: #1d1d1c;
     --popover: #2e2e2e;
-  }
-  @media (prefers-color-scheme: dark) {
-    .data-management-page:not([data-theme="light"]) {
-      --card: #1d1d1c;
-      --popover: #2e2e2e;
-    }
   }
 }

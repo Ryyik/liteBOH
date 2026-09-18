@@ -26,7 +26,7 @@ const props = defineProps({
   /** '' 无环 | 色值 | 'rainbow' */
   ring: { type: String, default: '' },
   /** 按框缩放倍数（框层边长 = 头像 × scale）；缺省走全局 1.24 */
-  scale: { type: Number, default: 0 }
+  frameScale: { type: Number, default: 0 }
 });
 
 const rootStyle = computed(() => ({
@@ -37,7 +37,7 @@ const rootStyle = computed(() => ({
 
 const frameStyle = computed(() => {
   const style = { '--boh-avatar-frame-url': `url(${props.frameUrl})` };
-  if (props.scale) style['--boh-avatar-frame-scale'] = String(props.scale);
+  if (props.frameScale) style['--boh-avatar-frame-scale'] = String(props.frameScale);
   return style;
 });
 </script>

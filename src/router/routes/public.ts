@@ -71,6 +71,11 @@ export const publicRoutes: RouteRecordRaw[] = [
     component: () => import("../../views/Download/index.vue"),
   },
   {
+    path: "/app",
+    name: "BOHApp",
+    component: () => import("../../views/BOHApp/index.vue"),
+  },
+  {
     path: "/tutorial",
     name: "Tutorial",
     // 教程中心已融合进资源中心（/download）

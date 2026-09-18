@@ -36,6 +36,20 @@
     --userspace-bottom-nav-offset: 8px;
   }
 
+  /* ── 顶部导航以内容区居中，而不是整页居中 ────────────────────
+     `.unified-nav-surface` 靠 margin:0 auto 在 fixed 满宽容器里居中，基准默认是整页。
+     左栏占掉 240px 后，导航条的视觉重心比内容区偏左 120px。
+     这里用 relative + left 把 surface 推到内容区中心：右移量 = 左栏宽 / 2
+     （1440×900 宽栏实测 290–1150 → 410–1270，与内容区 240–1440 同心；窄栏同理）。
+     两条替代路径都被否掉：
+       · 给 #unified-nav-container 加 padding-left → 被 UnifiedNavbar scoped 的
+         `padding: 0 !important` 压过（要赢就得也上 important，本目录不这么干）
+       · 给 surface 加 transform → 它带着状态卡动画用的 translateY，会打架
+     relative 的 left 不参与文档流、也不碰 transform，是这里唯一干净的杠杆。 */
+  body.page-userspace .unified-nav-surface {
+    left: calc(var(--userspace-rail-w, 88px) / 2);
+  }
+
   /* ── 内容与左栏留出呼吸 ──────────────────────────────────────
      右区的左边缘就是左栏右边缘，若内容容器自身左右 padding 为 0 就会贴栏：
        · .forum-page.embedded-mode .forum-container → 被 embedded 规则清零

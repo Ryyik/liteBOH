@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>横屏左栏改造 · 可交互评审稿</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --ink:#1f2430; --ink-2:#5a6377; --ink-3:#8a92a6;
+    --blue:#1459d9; --blue-soft:#eef4ff;
+    --green:#0f8a6a; --green-soft:rgba(15,138,106,.09);
+    --amber:#b45309; --amber-soft:rgba(180,83,9,.09);
+    --red:#b3261e;   --red-soft:rgba(179,38,30,.08);
+    --violet:#7c3aed;
+    --line:rgba(31,41,66,.09); --card:rgba(255,255,255,.82);
+  }
+  html, body {
+    background:
+      radial-gradient(1100px 600px at 12% -8%, rgba(20,89,217,.10), transparent 60%),
+      radial-gradient(900px 520px at 92% 4%, rgba(124,58,237,.08), transparent 62%),
+      radial-gradient(900px 620px at 60% 108%, rgba(15,138,106,.07), transparent 60%),
+      #f2f5fa;
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    font-size: 13px; line-height: 1.6;
+  }
+  .stage { max-width: 1000px; margin: 0 auto; padding: 40px 22px 72px; }
+
+  .demo-head h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.02em; }
+  .demo-head p.lead { margin-top: 9px; font-size: 13px; line-height: 1.75; color: var(--ink-2); max-width: 720px; }
+  .demo-head p.lead b { color: var(--ink); font-weight: 600; }
+  .keyline { margin-top: 16px; padding: 12px 16px; border-left: 3px solid var(--blue); border-radius: 0 12px 12px 0;
+    background: var(--blue-soft); font-size: 13.5px; font-weight: 500; color: #0d3a91; }
+
+  .tabs { margin-top: 22px; display: inline-flex; background: rgba(120,120,128,.12); border-radius: 11px; padding: 3px; }
+  .tabs button { border: 0; background: transparent; padding: 8px 18px; border-radius: 9px; font-size: 13px; font-weight: 500;
+    color: var(--ink-2); cursor: pointer; font-family: inherit; transition: background .18s ease, color .18s ease; }
+  .tabs button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+
+  .shell { margin-top: 16px; background: var(--card); backdrop-filter: blur(22px) saturate(1.5);
+    -webkit-backdrop-filter: blur(22px) saturate(1.5); border: 1px solid rgba(255,255,255,.7); border-radius: 24px;
+    box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 18px 46px rgba(16,24,40,.09); padding: 22px; }
+  .panel { display: none; }
+  .panel.on { display: block; }
+
+  h3.sec { font-size: 13px; font-weight: 600; color: var(--ink); letter-spacing: .01em; }
+  .hint { font-size: 12px; color: var(--ink-3); line-height: 1.7; }
+
+  .seg { display: inline-flex; background: rgba(120,120,128,.12); border-radius: 9px; padding: 2px; }
+  .seg button { border: 0; background: transparent; padding: 5px 11px; border-radius: 7px; font-size: 12px;
+    font-weight: 500; color: var(--ink-2); cursor: pointer; font-family: inherit; white-space: nowrap; transition: background .16s, color .16s; }
+  .seg button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+
+  .lab { display: grid; grid-template-columns: minmax(0,1fr) 372px; gap: 20px; align-items: start; }
+  .lab-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .lab-window { display: flex; height: 664px; border-radius: 16px; overflow: hidden;
+    border: 1px solid var(--line); background: #eef1f6; position: relative; }
+
+  .lab-rail { width: 240px; flex: 0 0 auto; position: relative; overflow-y: auto; overflow-x: hidden;
+    background: rgba(255,255,255,.72); backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    border-right: 1px solid var(--line);
+    scrollbar-width: thin; scrollbar-color: rgba(120,120,120,.24) transparent;
+    --rail-pill: rgba(15,23,42,.045);
+    --rail-ink: #1d1d1f; --rail-ink-2: #6e6e73;
+    padding: calc(var(--rail-top, 152px)) 12px 18px;
+    transition: width .22s cubic-bezier(.23,1,.32,1), padding .22s cubic-bezier(.23,1,.32,1), background .22s; }
+  .lab-rail.is-dark { background: rgba(28,28,30,.78); border-right-color: rgba(255,255,255,.12);
+    --rail-pill: rgba(255,255,255,.08);
+    --rail-ink: #f2f2f7; --rail-ink-2: #9a9aa2; }
+  .lab-rail.is-narrow { width: 88px; padding-left: 10px; padding-right: 10px; }
+
+  .rail-brand { position: absolute; left: 12px; right: 12px; top: 30px; display: none; align-items: center; gap: 10px; }
+  .is-narrow .rail-brand { left: 10px; right: 10px; justify-content: center; }
+  .lab-rail.brand-logo .rail-brand, .lab-rail.brand-profile .rail-brand { display: flex; }
+  .rail-brand .b-name { font-size: 14px; font-weight: 600; color: var(--rail-ink); white-space: nowrap; letter-spacing: -0.01em; }
+  .is-narrow .rail-brand .b-name { display: none; }
+  .rail-brand .b-ava { width: 30px; height: 30px; border-radius: 50%; background: var(--blue); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; flex: 0 0 auto; }
+  .rail-brand .b-meta { min-width: 0; }
+  .rail-brand .b-sub { font-size: 11px; color: var(--rail-ink-2); white-space: nowrap; }
+  .lab-rail.brand-empty .rail-brand { display: none; }
+  .rail-brand svg { flex: 0 0 auto; }
+  .lab-rail.brand-logo .b-ava { display: none; }
+  .lab-rail.brand-profile .b-logo { display: none; }
+
+  .rail-nav { position: relative; display: flex; flex-direction: column; gap: 6px; }
+  .lab-rail.is-legacy .rail-nav { position: static; }
+
+  .rail-ind { position: absolute; left: 0; right: 0; top: 0; z-index: 0; height: 47px; border-radius: 14px;
+    background: var(--rail-pill); pointer-events: none; opacity: 0;
+    transition: transform .24s cubic-bezier(.23,1,.32,1), opacity .16s ease, height .2s ease; }
+  .rail-ind.no-anim { transition: none; }
+  .lab-rail.is-select-strong { --rail-pill: rgba(15,23,42,.075); }
+  .lab-rail.is-dark.is-select-strong { --rail-pill: rgba(255,255,255,.12); }
+
+  .rail-sep { height: 1px; margin: 4px 6px; background: var(--line); }
+  .is-dark .rail-sep { background: rgba(255,255,255,.10); }
+  .is-group-space .rail-sep { display: none; }
+  .is-group-space .rail-sep + .rail-nav { margin-top: 14px; }
+
+  .rail-item { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; width: 100%;
+    height: 47px; padding: 10px 14px; border: 0; border-radius: 14px; background: transparent;
+    color: var(--rail-ink-2); font-family: inherit; font-size: 14px; font-weight: 500; text-align: left;
+    cursor: pointer; transition: background .16s ease, color .16s ease, transform .14s; }
+  .rail-item:hover { background: rgba(15,23,42,.05); }
+  .is-dark .rail-item:hover { background: rgba(255,255,255,.08); }
+  .rail-item:active { transform: scale(.98); }
+  .rail-item.is-active { color: var(--rail-ink); }
+  .rail-item.is-active .lbl { font-weight: 600; }
+  .rail-item svg { width: 20px; height: 20px; flex: 0 0 auto; stroke-width: 1.9; }
+  .rail-item.is-active .icn { stroke-width: 1.9; }
+  .is-select-strong .rail-item.is-active .icn { stroke-width: 2.5; }
+  .is-metrics-large .rail-item { height: 52px; gap: 14px; font-size: 15px; padding: 11px 14px; }
+  .is-metrics-large .rail-item svg { width: 22px; height: 22px; }
+
+  .rail-item--compose { color: var(--rail-ink-2); }
+  .lab-rail:not(.is-compose-solid) .rail-item--compose { color: var(--blue); }
+  .is-compose-solid .rail-item--compose { background: var(--blue); color: #fff; border-radius: 999px; justify-content: center; }
+  .is-compose-solid .rail-item--compose:hover { background: #0f4ec2; }
+  .rail-note { display: none; font-size: 11px; color: var(--rail-ink-2); padding: 4px 14px 0; }
+  .is-logout-menu .rail-item--logout { display: none; }
+  .is-logout-menu .rail-note { display: block; }
+  .rail-item--danger:hover { color: var(--red); }
+
+  .rail-badge { position: absolute; top: 5px; right: 8px; min-width: 16px; height: 16px; padding: 0 4px;
+    border-radius: 8px; background: #ff3b30; color: #fff; font-size: 10px; font-weight: 700; line-height: 16px;
+    text-align: center; border: 1px solid rgba(255,255,255,.8); }
+  .is-badge-inline .rail-badge { position: static; margin-left: auto; border: 0; }
+  .rail-ind-marker { position: absolute; inset: 0; border-radius: 14px; pointer-events: none; }
+
+  .is-narrow .rail-item { flex-direction: column; justify-content: center; gap: 4px; height: 59px; padding: 8px 2px; font-size: 11px; text-align: center; }
+  .is-narrow .rail-item svg { width: 18px; height: 18px; }
+  .is-narrow.is-metrics-large .rail-item { height: 62px; font-size: 12px; }
+  .is-narrow.is-metrics-large .rail-item svg { width: 20px; height: 20px; }
+  .is-narrow.is-compose-solid .rail-item--compose { width: 40px; height: 40px; margin: 4px auto; padding: 0; border-radius: 50%; }
+  .is-narrow.is-compose-solid .rail-item--compose .lbl { display: none; }
+  .is-narrow .rail-badge { position: absolute; top: 4px; right: 6px; margin-left: 0; }
+  .is-narrow .rail-note { text-align: center; padding: 4px 2px 0; }
+
+  .lab-main { flex: 1 1 auto; position: relative; min-width: 0; background: #f7f8fb; }
+  .lab-navbar { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); width: 74%; height: 46px;
+    border-radius: 16px; background: rgba(255,255,255,.9); border: 1px solid var(--line);
+    box-shadow: 0 6px 18px rgba(16,24,40,.07); display: flex; align-items: center; gap: 14px; padding: 0 16px; }
+  .lab-navbar i { display: block; height: 7px; border-radius: 4px; background: #d7dbe4; }
+  .lab-navbar .nb-logo { width: 22px; height: 22px; border-radius: 6px; background: #c9cfdb; }
+  .lab-card { border-radius: 16px; background: #fff; border: 1px solid var(--line); }
+  .lab-content { padding: 152px 20px 0; display: grid; gap: 12px; }
+  .lab-content .lab-card { height: 92px; }
+  .lab-content .lab-card.tall { height: 150px; }
+
+  .lab-foot { margin-top: 10px; }
+  .lab-metrics { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { font-size: 12px; padding: 6px 11px; border-radius: 9px; background: rgba(120,120,128,.10); color: var(--ink-2); }
+  .chip b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .chip.ok { background: var(--green-soft); color: var(--green); }
+  .chip.ok b { color: var(--green); }
+  .chip.bad { background: var(--red-soft); color: var(--red); }
+  .chip.bad b { color: var(--red); }
+
+  .lab-side h3.sec { margin-bottom: 10px; }
+  .togs { display: grid; gap: 10px; max-height: 620px; overflow-y: auto; padding-right: 4px;
+    scrollbar-width: thin; scrollbar-color: rgba(120,120,120,.24) transparent; }
+  .tog { border: 1px solid var(--line); border-radius: 14px; padding: 11px 12px; background: rgba(255,255,255,.6); }
+  .tog-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .tog-name { font-size: 13px; font-weight: 600; }
+  .tog-desc { margin-top: 7px; font-size: 12px; color: var(--ink-2); line-height: 1.6; }
+  .tog-desc em { font-style: normal; color: var(--ink-3); }
+  .tog-risk { margin-top: 8px; padding: 7px 9px; border-radius: 9px; background: var(--red-soft);
+    font-size: 11.5px; line-height: 1.6; color: #8c1f18; border-left: 2px solid var(--red); }
+  .tog-risk b { font-weight: 600; }
+
+  .cmp-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+  .metrics { display: grid; gap: 12px; }
+  .metric { display: grid; grid-template-columns: 150px 1fr; gap: 12px; align-items: center; }
+  .m-name { font-size: 12px; color: var(--ink-2); }
+  .m-bars { display: grid; gap: 5px; }
+  .m-row { display: flex; align-items: center; gap: 9px; }
+  .m-tag { font-size: 11px; color: var(--ink-3); width: 30px; flex: 0 0 auto; }
+  .m-track { flex: 1 1 auto; height: 9px; border-radius: 5px; background: rgba(120,120,128,.13); overflow: hidden; }
+  .m-fill { display: block; height: 100%; width: 0; min-width: 3px; border-radius: 5px; background: #b9c0cd;
+    transition: width .5s cubic-bezier(.23,1,.32,1); }
+  .m-row.tgt .m-fill { background: var(--blue); }
+  .m-val { font-size: 11.5px; font-weight: 600; width: 58px; text-align: right; flex: 0 0 auto;
+    font-variant-numeric: tabular-nums; color: var(--ink-2); }
+  .m-row.tgt .m-val { color: var(--blue); }
+
+  table.diff { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12.5px; }
+  table.diff th, table.diff td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.diff th { font-size: 11.5px; color: var(--ink-3); font-weight: 500; }
+  table.diff col.c-now { background: transparent; transition: background .2s; }
+  table.diff col.c-tgt { background: transparent; transition: background .2s; }
+  table.diff.mode-now col.c-now { background: rgba(120,120,128,.09); }
+  table.diff.mode-tgt col.c-tgt { background: var(--blue-soft); }
+  table.diff td.dim { color: var(--ink-2); }
+
+  .list { display: grid; gap: 18px; }
+  .grp h3.sec { margin-bottom: 9px; }
+  .item-row { display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px; border-radius: 11px;
+    border: 1px solid var(--line); background: rgba(255,255,255,.6); margin-bottom: 7px; }
+  .dot { width: 17px; height: 17px; border-radius: 50%; flex: 0 0 auto; margin-top: 1px; display: flex;
+    align-items: center; justify-content: center; font-size: 11px; font-weight: 600; }
+  .dot.done { background: var(--green-soft); color: var(--green); }
+  .dot.fix { background: var(--amber-soft); color: var(--amber); }
+  .dot.na { background: rgba(120,120,128,.13); color: var(--ink-3); }
+  .box { width: 17px; height: 17px; border-radius: 5px; border: 1.5px solid rgba(31,41,66,.24); flex: 0 0 auto;
+    margin-top: 1px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: transparent; background: #fff; transition: background .16s, border-color .16s; }
+  .box.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .row-body { min-width: 0; }
+  .row-title { font-size: 12.5px; font-weight: 500; }
+  .row-sub { font-size: 11.5px; color: var(--ink-2); margin-top: 2px; line-height: 1.6; }
+  .progress { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .progress .m-track { max-width: 180px; }
+  .progress b { font-size: 12px; font-variant-numeric: tabular-nums; }
+
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+  .legend span { font-size: 11.5px; color: var(--ink-2); display: flex; align-items: center; gap: 5px; }
+
+  .footnote { margin-top: 18px; font-size: 11.5px; color: var(--ink-3); line-height: 1.75; }
+  .footnote b { color: var(--ink-2); font-weight: 600; }
+
+  @media (max-width: 900px) {
+    .lab { grid-template-columns: 1fr; }
+    .togs { max-height: none; }
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <header class="demo-head">
+    <h1>横屏左栏改造 · 可交互评审稿</h1>
+    <p class="lead">参考小红书 PC 侧栏，对 <b>UserSpace 横屏左栏</b>（240px 宽栏 / 88px 窄栏两档）做改造评审。
+      左边的左栏是<b>按真实像素渲染</b>的，右边的开关会直接改它，改完立刻能看到后果 —— 包括选错那一边会付出什么代价。</p>
+    <div class="keyline">左栏只有三个决定：顶部给谁、选中怎么表达、低频操作去哪。</div>
+  </header>
+
+  <div class="tabs" id="tabs">
+    <button data-panel="lab" class="on">左栏实验室</button>
+    <button data-panel="compare">现状 vs 建议</button>
+    <button data-panel="list">改造清单</button>
+  </div>
+
+  <main class="shell">
+    <section class="panel on" data-panel="lab">
+      <div class="lab">
+        <div>
+          <div class="lab-bar">
+            <div class="seg" id="segWidth">
+              <button data-w="wide" class="on">宽栏 240</button><button data-w="narrow">窄栏 88</button>
+            </div>
+            <div class="seg" id="segPreset">
+              <button data-p="current" class="on">现状</button><button data-p="proposed">建议稿</button>
+            </div>
+            <div class="seg" id="segTheme">
+              <button data-t="light" class="on">明</button><button data-t="dark">暗</button>
+            </div>
+          </div>
+
+          <div class="lab-window">
+            <aside class="lab-rail brand-empty is-legacy" id="labRail">
+              <div class="rail-brand" id="railBrand"></div>
+              <nav class="rail-nav" id="railNav"></nav>
+              <div class="rail-sep"></div>
+              <nav class="rail-nav" id="railQuick"></nav>
+              <div class="rail-sep"></div>
+              <nav class="rail-nav" id="railFoot"></nav>
+              <div class="rail-note">退出登录已移入身份菜单</div>
+            </aside>
+            <div class="lab-main">
+              <div class="lab-navbar">
+                <i class="nb-logo"></i><i style="width:120px"></i><i style="width:44px"></i>
+                <i style="width:44px"></i><i style="width:38px"></i>
+              </div>
+              <div class="lab-content">
+                <div class="lab-card"></div>
+                <div class="lab-card tall"></div>
+                <div class="lab-card"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="lab-metrics">
+            <span class="chip">指示器 <b id="mIndW">-</b></span>
+            <span class="chip">条目 <b id="mItemW">-</b></span>
+            <span class="chip" id="mDeltaChip">宽度差 <b id="mDelta">-</b></span>
+          </div>
+          <p class="lab-foot hint">上方横条是全局导航的占位；左栏顶部那 152px 是为了跟内容区首屏对齐留出来的 —— 现状它整块空着。
+            窗口高 664px 低于真实视口，底部工具组需要滚动才看得到（1440×900 下窄栏内容 679px 刚好放得下）。</p>
+        </div>
+
+        <div class="lab-side">
+          <h3 class="sec">改造开关</h3>
+          <div class="togs" id="togs"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" data-panel="compare">
+      <div class="cmp-bar">
+        <div class="seg" id="segCmp">
+          <button data-m="now" class="on">现状</button><button data-m="tgt">建议</button>
+        </div>
+        <span class="hint">切换只高亮列，列序固定为「现状 | 建议」。</span>
+      </div>
+      <h3 class="sec">关键量对照</h3>
+      <div class="metrics" id="metrics" style="margin-top:12px"></div>
+      <h3 class="sec" style="margin-top:22px">逐项差异</h3>
+      <table class="diff mode-now" id="diffTable">
+        <colgroup><col><col class="c-now"><col class="c-tgt"></colgroup>
+        <thead><tr><th>维度</th><th>现状</th><th>建议</th></tr></thead>
+        <tbody id="diffBody"></tbody>
+      </table>
+    </section>
+
+    <section class="panel" data-panel="list">
+      <div class="legend">
+        <span><i class="dot done">✓</i>已完成并验证</span>
+        <span><i class="dot fix">→</i>待实施</span>
+        <span><i class="dot na">×</i>暂不做</span>
+      </div>
+      <div class="progress">
+        <span class="hint">已勾选</span>
+        <div class="m-track"><i class="m-fill" id="progFill" style="width:0;background:var(--blue)"></i></div>
+        <b id="progText">0 / 0</b>
+      </div>
+      <div class="list" id="listBody"></div>
+      <p class="footnote">
+        <b>关于已完成的两项：</b>它们不是视觉建议，是实测出来的缺陷 —— 滑动胶囊指示器比条目宽 24px、左偏 12px，
+        并且首屏还会整体上浮 56px（切一次页签自愈）。根因是承载指示器的那个分组容器是 <b>static</b> 定位，
+        于是指示器的定位基准落在了整栏的 padding 上而不是分组上。加一行 <b>position: relative</b> 后，
+        四档视口实测偏差全部归零，撤掉该行则全部复现（反证通过）。
+      </p>
+    </section>
+  </main>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var RAIL_TOP = 152;
+
+  var ICONS = {
+    users: '<circle cx="9" cy="7.6" r="3.3"/><path d="M2.8 20c0-3.4 2.7-5.9 6.2-5.9s6.2 2.5 6.2 5.9"/><path d="M16.4 5.2a3.3 3.3 0 0 1 0 4.8"/><path d="M17.6 14.6c2.2.7 3.7 2.6 3.7 5.4"/>',
+    user: '<circle cx="12" cy="8" r="3.6"/><path d="M4.8 20.4c0-3.7 3.2-6.4 7.2-6.4s7.2 2.7 7.2 6.4"/>',
+    wallet: '<rect x="3" y="6" width="18" height="13" rx="2.6"/><path d="M3 10.4h18"/><circle cx="16.6" cy="14.6" r="1.1"/>',
+    message: '<path d="M20.5 11.6c0 4.3-3.8 7.8-8.5 7.8-1 0-2-.2-2.9-.5L4.6 20l1.2-3.5A7.5 7.5 0 0 1 3.5 11.6c0-4.3 3.8-7.8 8.5-7.8s8.5 3.5 8.5 7.8z"/>',
+    settings: '<circle cx="12" cy="12" r="3.1"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.6 5.6l1.7 1.7M16.7 16.7l1.7 1.7M18.4 5.6l-1.7 1.7M7.3 16.7l-1.7 1.7"/>',
+    pen: '<path d="M12.5 20.2H21"/><path d="M16.6 3.5a2.2 2.2 0 0 1 3.1 3.1L7.4 18.9l-4.1 1 1-4.1z"/>',
+    search: '<circle cx="11" cy="11" r="6.2"/><path d="M20 20l-4.4-4.4"/>',
+    moon: '<path d="M21 12.9A8.6 8.6 0 1 1 11.1 3a6.7 6.7 0 0 0 9.9 9.9z"/>',
+    house: '<path d="M4 10.6 12 4l8 6.6V20a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/>',
+    logout: '<path d="M15 4.2h3.2a1 1 0 0 1 1 1v13.6a1 1 0 0 1-1 1H15"/><path d="M10 8.2 6 12l4 3.8"/><path d="M6 12h8.6"/>'
+  };
+
+  var NAV = [
+    { id: 'community', label: '社区', icon: 'users' },
+    { id: 'posts', label: '我的', icon: 'user' },
+    { id: 'assets', label: '资产', icon: 'wallet' },
+    { id: 'messages', label: '消息', icon: 'message', badge: 12 },
+    { id: 'settings', label: '设置', icon: 'settings' }
+  ];
+  var QUICK = [ { id: 'compose', label: '发布', icon: 'pen' }, { id: 'search', label: '搜索', icon: 'search' } ];
+  var FOOT = [
+    { id: 'theme', label: '主题', icon: 'moon' },
+    { id: 'home', label: '首页', icon: 'house' },
+    { id: 'logout', label: '退出登录', icon: 'logout', danger: true }
+  ];
+
+  var APPLE = '<svg viewBox="0 0 12 12" width="26" height="26" aria-hidden="true">' +
+    '<rect x="5" y="0" width="2" height="3" fill="#6b4a2f"/>' +
+    '<rect x="3" y="3" width="2" height="1" fill="#d9252a"/>' +
+    '<rect x="6" y="3" width="4" height="1" fill="#d9252a"/>' +
+    '<rect x="2" y="4" width="8" height="1" fill="#d9252a"/>' +
+    '<rect x="1" y="5" width="10" height="3" fill="#d9252a"/>' +
+    '<rect x="2" y="8" width="8" height="2" fill="#d9252a"/>' +
+    '<rect x="3" y="10" width="6" height="1" fill="#a81c22"/>' +
+    '<rect x="3" y="4" width="2" height="2" fill="#f4a9b0"/>' +
+  '</svg>';
+
+  var TOGGLES = [
+    { id: 'topline', name: '顶部位', def: 'empty',
+      opts: [ { v: 'empty', l: '空置' }, { v: 'logo', l: '品牌 logo' }, { v: 'profile', l: '身份卡' } ],
+      desc: '现状 152px 整块空置，只用来跟内容区首屏对齐。建议放品牌标 —— 占用的是这块既有空白，不增加内容高度。',
+      risk: '若把品牌位用正常文档流插进去（而不是利用这段空白），内容高 +44px，600px 高的窗口里底部工具组会被挤出可视区。' },
+    { id: 'select', name: '选中表达', def: 'weak',
+      opts: [ { v: 'weak', l: '淡染' }, { v: 'strong', l: '加强' } ],
+      desc: '现状底色 rgba(15,23,42,.045)、图标无变化，靠文字加粗区分。建议底色提到 .075 并让选中图标描边加粗，形成「底色 + 形态」双通道。',
+      risk: '底色一旦超过 .10，在玻璃底上会读成禁用态；图标若换 filled 变体需要两套图标资源，只调 stroke-width 零成本但对比更弱。' },
+    { id: 'metrics', name: '图标与字号', def: 'now',
+      opts: [ { v: 'now', l: '现行' }, { v: 'large', l: '加大' } ],
+      desc: '现状图标 20 / 字号 14 / 行高 47，参考对象是 24 / 16 / 56 的规格。建议宽栏先走到 22 / 15 / 52。',
+      risk: '这一项直接加高整栏：10 项从 679px 涨到约 740px，1024×600 与 1100×800 两档本来就要滚动，改完滚得更多。必须先解决矮窗紧凑档。' },
+    { id: 'grouping', name: '分组方式', def: 'line',
+      opts: [ { v: 'line', l: '分隔线' }, { v: 'space', l: '留白' } ],
+      desc: '现状用两条 1px 线硬切三组。建议删线、靠间距拉开，跟参考对象一致。',
+      risk: '留白过大时分组语义会消失，「发布」看起来会像主组的一员；留白过小则等于没分组。' },
+    { id: 'compose', name: '发布入口', def: 'tinted',
+      opts: [ { v: 'tinted', l: '涂蓝' }, { v: 'solid', l: '实心' } ],
+      desc: '现状把整个条目的文字与图标染成主题蓝，与「选中」的语义撞车。建议改为实心圆角按钮（窄栏下收成圆形加号）。',
+      risk: '只把蓝色加深、不换形态的话，混淆依旧；换成实心按钮会抢走视觉重心，需确认它是否仍是左栏第一顺位。' },
+    { id: 'logout', name: '退出登录', def: 'inline',
+      opts: [ { v: 'inline', l: '留在主列' }, { v: 'menu', l: '移入菜单' } ],
+      desc: '现状与「主题 / 首页」同级吸底，一个破坏性操作拿到了和常用操作一样的权重。建议移入身份菜单。',
+      risk: '移走后失去一键登出，共享设备、弱网处理异常账号的场景会多两步；这是可用性换安全权重的典型取舍。' },
+    { id: 'badge', name: '消息角标', def: 'float',
+      opts: [ { v: 'float', l: '浮标' }, { v: 'inline', l: '内联' } ],
+      desc: '现状浮在图标右上角，宽栏下与文字不在一条视觉线上。建议内联到文字右侧。',
+      risk: '窄栏没有文字，内联无处可放 —— 必须保留浮标回落，否则窄栏角标会直接消失。' }
+  ];
+
+  var PRESETS = {
+    current: { topline: 'empty', select: 'weak', metrics: 'now', grouping: 'line', compose: 'tinted', logout: 'inline', badge: 'float' },
+    proposed: { topline: 'logo', select: 'strong', metrics: 'large', grouping: 'space', compose: 'solid', logout: 'menu', badge: 'inline' }
+  };
+
+  var METRICS = [
+    { name: '顶部空间利用率', now: '0%', tgt: '100%', wn: 0, wt: 100 },
+    { name: '选中底色对比度', now: '.045', tgt: '.075', wn: 45, wt: 75 },
+    { name: '图标尺寸', now: '20px', tgt: '22px', wn: 71, wt: 79 },
+    { name: '文字大小', now: '14px', tgt: '15px', wn: 70, wt: 75 },
+    { name: '条目行高', now: '47px', tgt: '52px', wn: 72, wt: 80 },
+    { name: '分组分隔线', now: '2 条', tgt: '0 条', wn: 100, wt: 0 },
+    { name: '危险操作在主列', now: '1 个', tgt: '0 个', wn: 100, wt: 0 }
+  ];
+
+  var DIFF = [
+    ['顶部位', '152px 整块空置', '像素苹果标志 + 方块之家'],
+    ['选中表达', '淡染 .045，图标不变', '淡染 .075 + 选中图标描边加粗'],
+    ['条目规格', '图标 20 / 字 14 / 行高 47', '图标 22 / 字 15 / 行高 52'],
+    ['分组', '1px 分隔线 ×2', '删线，改用 14px 留白'],
+    ['发布入口', '整项涂成主题蓝', '实心圆角按钮（窄栏收成圆形）'],
+    ['退出登录', '与主题 / 首页同级吸底', '移入身份菜单'],
+    ['消息角标', '浮在图标右上角', '内联到文字右侧（窄栏回落浮标）'],
+    ['指示器几何', '239px vs 条目 215px，左偏 12px', '与条目等宽等高（已修）']
+  ];
+
+  var GROUPS = [
+    { title: 'A · 已修并验证', kind: 'done', items: [
+      { t: '指示器横向错位', s: '指示器 239×47 而条目 215×47，左偏 12px、宽 24px（窄栏 +20 / −10）。根因：承载它的分组容器是 static 定位。', st: 'done' },
+      { t: '指示器首屏上浮 56px', s: '同一处根因：读取位置早于顶部避让变量的更新，且监听的分组尺寸没变所以不重算；切一次页签自愈。', st: 'done' }
+    ]},
+    { title: 'B · 视觉建议（本次 demo 里的开关）', kind: 'pick', items: [
+      { t: '顶部位：品牌 logo', s: '占用既有 152px 空白，不增加内容高度', k: 'topline' },
+      { t: '选中表达加强', s: '底色 .045 → .075，选中图标描边加粗', k: 'select' },
+      { t: '图标与字号加大', s: '20 / 14 / 47 → 22 / 15 / 52', k: 'metrics' },
+      { t: '分组改留白', s: '删掉两条 1px 分隔线', k: 'grouping' },
+      { t: '发布入口改实心按钮', s: '不再与选中态抢语义', k: 'compose' },
+      { t: '退出登录移入身份菜单', s: '破坏性操作不再占用一级权重', k: 'logout' },
+      { t: '消息角标内联', s: '宽栏内联到文字右侧，窄栏回落浮标', k: 'badge' }
+    ]},
+    { title: 'C · 结构性（需要单独排期）', kind: 'pick', items: [
+      { t: '矮窗紧凑档', s: '600–700px 高度区间，10 项内容 679px 必然溢出，吸底同时失效，退出登录要滚动才可见', k: 'compact' },
+      { t: '导航条以内容区居中', s: '横屏实测导航中心 720（全页中心），内容区中心 840，视觉重心偏左 120px', k: 'navbar' },
+      { t: '顶部避让值固定化', s: '状态卡片出现 / 消失会让整栏上下跳 56px', k: 'topfix' }
+    ]}
+  ];
+
+  var state = {
+    panel: 'lab', width: 'wide', theme: 'light', active: 'community', cmp: 'now',
+    toggles: Object.assign({}, PRESETS.current),
+    picked: { topline: false, select: false, metrics: false, grouping: false, compose: false, logout: false, badge: false,
+      compact: false, navbar: false, topfix: false }
+  };
+
+  function $(sel, root) { return (root || document).querySelector(sel); }
+  function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+
+  function iconButton(item) {
+    var cls = 'rail-item' + (item.danger ? ' rail-item--danger' : '') +
+      (item.id === 'compose' ? ' rail-item--compose' : '') +
+      (item.id === 'logout' ? ' rail-item--logout' : '') +
+      (item.id === state.active ? ' is-active' : '');
+    var badge = item.badge ? '<span class="rail-badge">' + item.badge + '</span>' : '';
+    var attr = item.id === 'logout' ? ' data-action="logout"' : ' data-tab="' + item.id + '"';
+    return '<button type="button" class="' + cls + '"' + attr + '>' +
+      '<svg class="icn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[item.icon] + '</svg>' +
+      '<span class="lbl">' + item.label + '</span>' + badge + '</button>';
+  }
+
+  function renderRail() {
+    $('#railNav').innerHTML = '<span class="rail-ind" id="railInd"></span>' + NAV.map(iconButton).join('');
+    $('#railQuick').innerHTML = QUICK.map(iconButton).join('');
+    $('#railFoot').innerHTML = FOOT.map(iconButton).join('');
+    $('#railBrand').innerHTML = '<span class="b-logo">' + APPLE + '</span>' +
+      '<span class="b-ava">瑞</span>' +
+      '<div class="b-meta"><div class="b-name">方块之家</div><div class="b-sub"></div></div>';
+  }
+
+  function syncIndicator(animate) {
+    var nav = $('#railNav');
+    var ind = $('#railInd');
+    var active = nav ? nav.querySelector('.rail-item.is-active') : null;
+    if (!ind) return;
+    if (!active) { ind.style.opacity = '0'; updateMetrics(); return; }
+    if (animate === false) ind.classList.add('no-anim');
+    ind.style.transform = 'translateY(' + Math.round(active.offsetTop) + 'px)';
+    ind.style.height = Math.round(active.offsetHeight) + 'px';
+    ind.style.opacity = '1';
+    updateMetrics();
+    if (animate === false) {
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () { ind.classList.remove('no-anim'); });
+      });
+    }
+  }
+
+  function updateMetrics() {
+    var item = $('#railNav .rail-item.is-active');
+    var ind = $('#railInd');
+    if (!item || !ind) return;
+    var iw = Math.round(ind.getBoundingClientRect().width);
+    var aw = Math.round(item.getBoundingClientRect().width);
+    $('#mIndW').textContent = iw + 'px';
+    $('#mItemW').textContent = aw + 'px';
+    var d = iw - aw;
+    $('#mDelta').textContent = d === 0 ? '0px' : (d > 0 ? '+' : '') + d + 'px';
+    var chip = $('#mDeltaChip');
+    chip.classList.toggle('ok', d === 0);
+    chip.classList.toggle('bad', d !== 0);
+  }
+
+  function applyRail() {
+    var rail = $('#labRail');
+    var t = state.toggles;
+    rail.classList.toggle('is-narrow', state.width === 'narrow');
+    rail.classList.toggle('is-dark', state.theme === 'dark');
+    rail.classList.toggle('is-legacy', state.presetIsCurrent);
+    rail.classList.remove('brand-empty', 'brand-logo', 'brand-profile');
+    rail.classList.add('brand-' + t.topline);
+    rail.classList.toggle('is-select-strong', t.select === 'strong');
+    rail.classList.toggle('is-metrics-large', t.metrics === 'large');
+    rail.classList.toggle('is-group-space', t.grouping === 'space');
+    rail.classList.toggle('is-compose-solid', t.compose === 'solid');
+    rail.classList.toggle('is-logout-menu', t.logout === 'menu');
+    rail.classList.toggle('is-badge-inline', t.badge === 'inline');
+    var name = $('.rail-brand .b-name');
+    var sub = $('.rail-brand .b-sub');
+    var isProfile = t.topline === 'profile';
+    if (name) name.textContent = isProfile ? '瑞一颗' : '方块之家';
+    if (sub) sub.textContent = isProfile ? '积分 1,280' : '';
+    rail.style.setProperty('--rail-top', RAIL_TOP + 'px');
+    syncIndicator(false);
+  }
+
+  function markPreset() {
+    var cur = JSON.stringify(state.toggles) === JSON.stringify(PRESETS.current);
+    var pro = JSON.stringify(state.toggles) === JSON.stringify(PRESETS.proposed);
+    state.presetIsCurrent = cur;
+    $$('#segPreset button').forEach(function (b) {
+      b.classList.toggle('on', (b.getAttribute('data-p') === 'current' && cur) ||
+        (b.getAttribute('data-p') === 'proposed' && pro));
+    });
+  }
+
+  function renderToggles() {
+    $('#togs').innerHTML = TOGGLES.map(function (tg) {
+      var opts = tg.opts.map(function (o) {
+        var on = state.toggles[tg.id] === o.v ? ' class="on"' : '';
+        return '<button type="button" data-v="' + o.v + '"' + on + '>' + o.l + '</button>';
+      }).join('');
+      return '<div class="tog" data-tog="' + tg.id + '">' +
+        '<div class="tog-head"><span class="tog-name">' + tg.name + '</span>' +
+        '<div class="seg">' + opts + '</div></div>' +
+        '<p class="tog-desc">' + tg.desc + '</p>' +
+        '<p class="tog-risk"><b>改错了会怎样：</b>' + tg.risk + '</p></div>';
+    }).join('');
+
+    $$('#togs .tog').forEach(function (row) {
+      var id = row.getAttribute('data-tog');
+      row.addEventListener('click', function (e) {
+        var btn = e.target.closest('button[data-v]');
+        if (!btn) return;
+        state.toggles[id] = btn.getAttribute('data-v');
+        $$('button[data-v]', row).forEach(function (b) { b.classList.remove('on'); });
+        btn.classList.add('on');
+        markPreset();
+        applyRail();
+      });
+    });
+  }
+
+  function renderMetrics() {
+    $('#metrics').innerHTML = METRICS.map(function (m) {
+      return '<div class="metric"><span class="m-name">' + m.name + '</span>' +
+        '<div class="m-bars">' +
+        '<div class="m-row"><span class="m-tag">现状</span><div class="m-track"><i class="m-fill" data-w="' + m.wn + '"></i></div><span class="m-val">' + m.now + '</span></div>' +
+        '<div class="m-row tgt"><span class="m-tag">建议</span><div class="m-track"><i class="m-fill" data-w="' + m.wt + '"></i></div><span class="m-val">' + m.tgt + '</span></div>' +
+        '</div></div>';
+    }).join('');
+  }
+
+  function animateMetrics() {
+    $$('#metrics .m-fill').forEach(function (el) {
+      el.style.width = '0';
+    });
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        $$('#metrics .m-fill').forEach(function (el) {
+          el.style.width = el.getAttribute('data-w') + '%';
+        });
+      });
+    });
+  }
+
+  function renderDiff() {
+    $('#diffBody').innerHTML = DIFF.map(function (r) {
+      return '<tr><td><b>' + r[0] + '</b></td><td class="dim">' + r[1] + '</td><td>' + r[2] + '</td></tr>';
+    }).join('');
+  }
+
+  function renderList() {
+    $('#listBody').innerHTML = GROUPS.map(function (g) {
+      var rows = g.items.map(function (it) {
+        if (g.kind === 'done') {
+          var mark = it.st === 'done' ? '✓' : '→';
+          var cls = it.st === 'done' ? 'done' : 'fix';
+          return '<div class="item-row" data-pick="0" data-kind="done">' +
+            '<i class="dot ' + cls + '">' + mark + '</i>' +
+            '<div class="row-body"><div class="row-title">' + it.t + '</div>' +
+            '<div class="row-sub">' + it.s + '</div></div></div>';
+        }
+        var on = !!state.picked[it.k];
+        return '<div class="item-row" data-pick="' + it.k + '">' +
+          '<i class="box' + (on ? ' on' : '') + '" role="checkbox" aria-checked="' +
+          (on ? 'true' : 'false') + '">✓</i>' +
+          '<div class="row-body"><div class="row-title">' + it.t + '</div>' +
+          '<div class="row-sub">' + it.s + '</div></div></div>';
+      }).join('');
+      return '<div class="grp"><h3 class="sec">' + g.title + '</h3>' + rows + '</div>';
+    }).join('');
+
+    $$('#listBody .item-row[data-pick]:not([data-pick="0"])').forEach(function (row) {
+      row.addEventListener('click', function () {
+        var k = row.getAttribute('data-pick');
+        state.picked[k] = !state.picked[k];
+        var box = $('.box', row);
+        box.classList.toggle('on', state.picked[k]);
+        box.setAttribute('aria-checked', state.picked[k] ? 'true' : 'false');
+        if (Object.prototype.hasOwnProperty.call(PRESETS.proposed, k)) {
+          state.toggles[k] = state.picked[k] ? PRESETS.proposed[k] : PRESETS.current[k];
+          syncToggleUI();
+          markPreset();
+          applyRail();
+        }
+        updateProgress();
+      });
+    });
+    updateProgress();
+  }
+
+  function syncToggleUI() {
+    $$('#togs .tog').forEach(function (row) {
+      var id = row.getAttribute('data-tog');
+      $$('button[data-v]', row).forEach(function (x) {
+        x.classList.toggle('on', x.getAttribute('data-v') === state.toggles[id]);
+      });
+    });
+  }
+
+  function updateProgress() {
+    var keys = Object.keys(state.picked);
+    var total = keys.length;
+    var done = keys.filter(function (k) { return state.picked[k]; }).length;
+    $('#progFill').style.width = (total ? Math.round(done / total * 100) : 0) + '%';
+    $('#progText').textContent = done + ' / ' + total;
+  }
+
+  function switchPanel(name) {
+    state.panel = name;
+    $$('#tabs button').forEach(function (b) {
+      b.classList.toggle('on', b.getAttribute('data-panel') === name);
+    });
+    $$('.panel').forEach(function (p) {
+      p.classList.toggle('on', p.getAttribute('data-panel') === name);
+    });
+    if (name === 'compare') animateMetrics();
+    if (name === 'lab') syncIndicator(false);
+  }
+
+  function bind() {
+    $('#tabs').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-panel]');
+      if (b) switchPanel(b.getAttribute('data-panel'));
+    });
+
+    $('#segWidth').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-w]');
+      if (!b) return;
+      state.width = b.getAttribute('data-w');
+      $$('#segWidth button').forEach(function (x) { x.classList.remove('on'); });
+      b.classList.add('on');
+      applyRail();
+    });
+
+    $('#segTheme').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-t]');
+      if (!b) return;
+      state.theme = b.getAttribute('data-t');
+      $$('#segTheme button').forEach(function (x) { x.classList.remove('on'); });
+      b.classList.add('on');
+      applyRail();
+    });
+
+    $('#segPreset').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-p]');
+      if (!b) return;
+      var key = b.getAttribute('data-p');
+      state.toggles = Object.assign({}, PRESETS[key]);
+      syncToggleUI();
+      markPreset();
+      applyRail();
+    });
+
+    $('#segCmp').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-m]');
+      if (!b) return;
+      state.cmp = b.getAttribute('data-m');
+      $$('#segCmp button').forEach(function (x) { x.classList.remove('on'); });
+      b.classList.add('on');
+      var t = $('#diffTable');
+      t.classList.remove('mode-now', 'mode-tgt');
+      t.classList.add(state.cmp === 'now' ? 'mode-now' : 'mode-tgt');
+    });
+
+    $('#labRail').addEventListener('click', function (e) {
+      var btn = e.target.closest('.rail-item');
+      if (!btn) return;
+      if (btn.getAttribute('data-action') === 'logout') return;
+      var tab = btn.getAttribute('data-tab');
+      if (!tab) return;
+      state.active = tab;
+      $$('#railNav .rail-item').forEach(function (x) { x.classList.remove('is-active'); });
+      btn.classList.add('is-active');
+      syncIndicator(true);
+    });
+
+    window.addEventListener('resize', function () { syncIndicator(false); });
+  }
+
+  state.presetIsCurrent = true;
+  renderRail();
+  renderToggles();
+  renderMetrics();
+  renderDiff();
+  renderList();
+  bind();
+  markPreset();
+  applyRail();
+
+  window.__railDemo = {
+    state: state,
+    syncIndicator: syncIndicator,
+    applyRail: applyRail,
+    switchPanel: switchPanel,
+    metrics: updateMetrics
+  };
+})();
+</script>
+</body>
+</html>

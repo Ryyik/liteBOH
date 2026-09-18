@@ -522,10 +522,12 @@ check('右区让位：left = 88px', landRail.left === 88, `left=${landRail.left}
 check('右区宽度 = 视口 − 左栏', landRail.width === landRail.innerWidth - 88, `width=${landRail.width} inner=${landRail.innerWidth}`);
 check('左栏顶隙吃导航岛实测高度（不被浮岛压住）', landRail.railPadTop >= landRail.navH,
   `padTop=${landRail.railPadTop} navH=${landRail.navH}`);
-check('选中指示胶囊 = 问BOHAI 同款淡染材质（亮深染/暗白染）',
+// 浓度在 plans/011 里从 0.045/0.08 提到 0.075/0.12：
+// 原浓度在玻璃底上读不出「选中」，只能靠文字加粗兜底；超过 0.10 又会读成禁用态
+check('选中指示胶囊淡染浓度（亮 .075 / 暗 .12）',
   landRail.theme === 'dark'
-    ? landRail.indicatorBg === 'rgba(255, 255, 255, 0.08)'
-    : landRail.indicatorBg === 'rgba(15, 23, 42, 0.045)',
+    ? /rgba\(255, 255, 255, 0\.12\)/.test(landRail.indicatorBg)
+    : /rgba\(15, 23, 42, 0\.075\)/.test(landRail.indicatorBg),
   `${landRail.theme} ${landRail.indicatorBg}`);
 check('左栏材质为液态玻璃（backdrop-filter 非 none）',
   landRail.railDisplay !== 'ABSENT' && landRail.railBackdrop !== 'none',
@@ -544,12 +546,26 @@ check('左栏便捷组齐全（发布/搜索）',
 check('左栏不含「通知」（与消息 tab 的 inbox 分区重复，已删）',
   !railButtons.actions.includes('notifications'),
   railButtons.actions.join(','));
-check('左栏工具组齐全（主题/首页/退出登录）',
-  ['theme', 'home', 'logout'].every((id) => railButtons.actions.includes(id)),
+check('左栏工具组收敛为「首页」（主题/退出登录已移入更多菜单）',
+  railButtons.actions.includes('home') && !railButtons.actions.includes('logout'),
   railButtons.actions.join(','));
 
-// 主题 → 弹窗
-await landPage.click('[data-rail-action="theme"]');
+// 「更多」菜单：承载主题 / 退出登录（破坏性操作不再占一级权重）
+await landPage.click('.userspace-rail-more');
+let railMenuItems = [];
+let railMenuOpened = false;
+try {
+  await landPage.waitForSelector('.userspace-rail-menu', { timeout: 4000 });
+  railMenuOpened = true;
+  railMenuItems = await landPage.evaluate(() =>
+    Array.from(document.querySelectorAll('.userspace-rail-menu-item')).map((el) => el.dataset.railAction));
+} catch {}
+check('「更多」菜单可打开且含 主题 / 退出登录',
+  railMenuOpened && ['theme', 'logout'].every((id) => railMenuItems.includes(id)),
+  railMenuItems.join(','));
+
+// 主题 → 弹窗（入口已从一级导航挪进菜单）
+await landPage.click('.userspace-rail-menu-item[data-rail-action="theme"]');
 let themeOpened = false;
 try {
   await landPage.waitForSelector('.theme-modal-card', { timeout: 6000 });

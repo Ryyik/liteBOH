@@ -155,6 +155,21 @@ export default defineConfig({
         // 强制更新：新 Service Worker 立即激活，不等待旧页面关闭
         skipWaiting: true,
         clientsClaim: true,
+        // Web Push 的 push / notificationclick 处理器。
+        //
+        // generateSW 策略不给写自定义 SW 代码，importScripts 是唯一的注入入口：
+        // 生成器会在 sw.js 顶部加一行 importScripts('/push-sw.js')，浏览器安装
+        // SW 时按普通请求拉取该文件（所以它的缓存策略在 public/_headers 里单独钉住）。
+        //
+        // ⚠️ 这份文件同时是「删不得」的：删掉 public/push-sw.js 后线上 sw.js 会
+        //    importScripts 到一个 404，整个 SW 装不上 → PWA 直接失效（离线全白）。
+        //    要下线推送请改成空文件，不要删除。
+        //
+        // ⚠️ 改 push-sw.js 本身**不会触发 SW 更新**：浏览器靠比对 sw.js 的字节判断有没有
+        //    新版本，而 push-sw.js 只是它 importScripts 进来的运行时依赖 —— sw.js 字节
+        //    不变就永远不会重新安装。所以改完推送逻辑，必须让 sw.js 也产生一次变化
+        //    （例如在此处加一行注释、或调整任一 workbox 选项）再发布。
+        importScripts: ['push-sw.js'],
         // 运行时缓存策略
         runtimeCaching: [
           {

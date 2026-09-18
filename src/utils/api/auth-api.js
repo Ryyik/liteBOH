@@ -469,6 +469,16 @@ export async function deleteMyAccount(password, reason = '') {
 }
 
 export async function signOut() {
+  // 先解绑这台设备的 Web Push 订阅，再登出。
+  // 顺序不能反：解绑 RPC 内部用 auth.uid() 判定归属，登出后就没有身份了，
+  // 会留下一个「已登出但仍在收上一个账号推送」的设备。
+  try {
+    const { unbindDeviceOnLogout } = await import('./push-api.js');
+    await unbindDeviceOnLogout();
+  } catch (error) {
+    logger.warn('auth-api', '解绑推送设备失败（忽略）', error);
+  }
+
   const { error } = await supabase.auth.signOut();
   if (!error) {
     invalidateByTags(['auth', 'notifications', 'profiles', 'posts', 'comments', 'messages', 'weekly-checkin']);

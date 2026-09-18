@@ -306,6 +306,18 @@ authStore.initLoginState().catch(err => {
 });
 bagStore.loadShoppingBag();
 
+// 头像框清单：动态引入（不进首屏壳），DB 优先、失败回退内置清单，绝不阻塞首屏或佩戴
+const scheduleAvatarFrameLoad = () => {
+  void import('@/composables/useAvatarFrame.js')
+    .then((m) => m.loadAvatarFrameData())
+    .catch(() => { /* 离线/未登录：静默走内置清单 */ });
+};
+if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+  window.requestIdleCallback(scheduleAvatarFrameLoad, { timeout: 3000 });
+} else {
+  window.setTimeout(scheduleAvatarFrameLoad, 1200);
+}
+
 // 初始化主题管理器（在应用挂载后，确保 DOM 元素已存在）
 themeManager.init();
 

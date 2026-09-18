@@ -611,6 +611,7 @@ const navMenuItems = [
     name: "explore",
     label: "探索",
     children: [
+      { name: "boh-app", path: "/app", label: "BOH App" },
       {
         name: "ai-group",
         label: "AI 助手",

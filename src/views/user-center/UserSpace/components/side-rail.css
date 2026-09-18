@@ -47,11 +47,131 @@
     --rail-item-bg-active: rgba(15, 23, 42, 0.07);
   }
 
-  /* 选中态胶囊 = 搜索栏「问BOHAI」按钮同款材质（ForumToolbar .toolbar-ai-btn）：
-     中性淡染 rgba(15,23,42,0.045)、无边框、无滤镜——任何玻璃底上都稳定可见。
-     挂 .user-space-page 级（暗色在文件末尾翻转） */
+  /* 选中态胶囊：中性淡染、无边框、无滤镜——任何玻璃底上都稳定可见。
+     浓度从 0.045 提到 0.075：0.045 在玻璃底上几乎读不出「这一项被选中」，
+     只能靠文字加粗兜底；超过 0.10 又会读成禁用态，0.075 是这两者之间。
+     挂 .user-space-page 级（暗色在文件末尾翻转）。
+     另配「选中图标描边加粗」——底色 + 形态双通道，不依赖单一维度。 */
   .user-space-page {
-    --rail-pill-bg: rgba(15, 23, 42, 0.045);
+    --rail-pill-bg: rgba(15, 23, 42, 0.075);
+  }
+
+  /* ── 品牌位 ──────────────────────────────────────────────
+     绝对定位在「与内容区首屏对齐」留出的顶部空白里，不进文档流 ——
+     实测首项 top 与品牌位开/关无关（开=关），所以不会加重矮窗溢出。
+     右侧「更多」收纳低频偏好与破坏性操作（主题 / 退出登录）。 */
+  .userspace-rail-brand {
+    position: absolute;
+    top: 34px;
+    left: 12px;
+    right: 12px;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  /* 窄栏放不下字：只留品牌标（宽栏档在文件末尾恢复文字与左对齐） */
+  .userspace-rail-brand-name {
+    display: none;
+  }
+
+  .userspace-rail-brand-mark {
+    width: 26px;
+    height: 26px;
+    flex: 0 0 auto;
+    border-radius: 7px;
+    /* 像素风品牌标放大时保硬边，别被插值糊成色块 */
+    image-rendering: pixelated;
+  }
+
+  .userspace-rail-brand-name {
+    min-width: 0;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--liquid-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .userspace-rail-more {
+    margin-left: auto;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--liquid-text-secondary);
+    cursor: pointer;
+    transition: background-color 160ms ease, color 160ms ease;
+  }
+
+  .userspace-rail-more:hover {
+    background: var(--rail-item-bg-hover);
+    color: var(--liquid-text-primary);
+  }
+
+  .userspace-rail-more-icon {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+    stroke: none;
+  }
+
+  /* 浮层：右对齐到品牌行。窄栏下会溢出栏宽 —— 玻璃容器本身没有 overflow:hidden
+     （滚动只在内层 .userspace-rail-scroll），所以不会被裁掉。 */
+  .userspace-rail-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 4;
+    min-width: 172px;
+    padding: 5px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border: 1px solid var(--liquid-border);
+    border-radius: var(--liquid-radius-md, 16px);
+    background: var(--liquid-bg-strong);
+    backdrop-filter: var(--liquid-filter-sm);
+    -webkit-backdrop-filter: var(--liquid-filter-sm);
+    box-shadow: var(--liquid-shadow-sm);
+  }
+
+  .userspace-rail-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--liquid-text-primary);
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 500;
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+
+  .userspace-rail-menu-item:hover {
+    background: var(--rail-item-bg-hover);
+  }
+
+  .userspace-rail-menu-item.is-danger:hover {
+    background: rgba(255, 59, 48, 0.1);
+    color: #ff3b30;
   }
 
   /* 分组共 11 项，1024×600 这类矮平板放不下 → 内层滚动 */
@@ -77,7 +197,14 @@
     border-radius: 999px;
   }
 
+  /* position: relative 不只是层级需要 —— 它让「滑动胶囊指示器」的包含块落在
+     group 自身（而不是上溯到 .userspace-rail 的 padding box）：
+       · left/right:0 与 item 等宽（此前比条目宽 24px、左偏 12px）
+       · offsetTop 以 group 为基准，translateY 不再混入 rail 的 padding
+     同时指示器作为 group 子元素，会随 group 被顶部避让 padding 推下而同步下移，
+     首屏 --userspace-rail-top-h 由 82→138 的更新不再需要补一次手动同步。 */
   .userspace-rail-group {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -89,11 +216,13 @@
     padding-top: 6px;
   }
 
+  /* 分组靠留白、不靠线条：divider 从「发丝线」退化成纯间距占位。
+     保留元素与类名是为了不动 DOM —— 探针与回滚路径都认它。 */
   .userspace-rail-divider {
-    height: 1px;
     flex: 0 0 auto;
-    margin: 4px 6px;
-    background: var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
+    height: 0;
+    margin: 10px 0;
+    background: transparent;
   }
 
   .userspace-rail-item {
@@ -105,7 +234,9 @@
     gap: 4px;
     width: 100%;
     min-height: 56px;
-    padding: 8px 2px;
+    /* 8 → 6：给 label 12 → 13 的放大腾预算 —— 1100×800 的内容预算是
+       800 − 150(顶部避让) − 16(底距) = 634px，条目自然高每 +1px 全栏 +10px */
+    padding: 6px 2px;
     border: 0;
     border-radius: 14px;
     background: transparent;
@@ -166,10 +297,16 @@
    display 之外的方式污染布局。 */
 @media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
   .userspace-rail-icon {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     flex-shrink: 0;
     transition: transform 160ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+  }
+
+  /* 选中项图标描边加粗：与底色的淡染形成「底色 + 形态」双通道 ——
+     底色浓度本来就压着上限（超过 0.10 会读成禁用态），单靠它不够辨识 */
+  .userspace-rail-item.active .userspace-rail-icon {
+    stroke-width: 2.5;
   }
 
   .userspace-rail-item:hover .userspace-rail-icon {
@@ -180,14 +317,35 @@
     transform: scale(0.94);
   }
 
-  /* 便捷组「发布」= 主操作：图标点缀主题蓝（与 chips 激活态同色系） */
+  /* 便捷组「发布」= 主操作。原来是「整项涂主题蓝」—— 蓝字在左栏里与「选中」是同一个语义，
+     两者同屏时会误读成两个选中项。改成实心圆角按钮：形状主导，颜色只做辅助。
+     窄栏没有横向空间，收成圆形按钮、文字走 .userspace-rail-label 隐藏（宽栏档恢复文字）。 */
   .userspace-rail-item[data-rail-action="compose"] {
-    color: var(--apple-blue, #0071e3);
+    width: 40px;
+    min-height: 40px;
+    margin: 4px auto;
+    padding: 0;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--apple-blue, #0071e3);
+    color: #ffffff;
+  }
+
+  .userspace-rail-item[data-rail-action="compose"]:hover {
+    background: #0f5fc4;
+    color: #ffffff;
+  }
+
+  .userspace-rail-item[data-rail-action="compose"] .userspace-rail-label {
+    display: none;
   }
 
   .userspace-rail-label {
     max-width: 100%;
-    font-size: 11px;
+    font-size: 13px;
+    /* 收行高：body 的 1.9 会把窄栏条目（图标上文字下）顶到 61px，
+       1100×800 的预算（634px）就此告破；单行标签 1.3 足够 */
+    line-height: 1.3;
     font-weight: 500;
     letter-spacing: 0.01em;
     white-space: nowrap;
@@ -222,11 +380,12 @@
 }
 
 /* 暗色：只翻条目状态底色（玻璃与文字色都已由 token 自动切换）。
-   指示器淡染随主题翻转：暗底上用白染（等价 toolbar-ai-btn 的深染逻辑） */
+   指示器淡染随主题翻转：暗底上用白染（等价 toolbar-ai-btn 的深染逻辑）。
+   浓度跟亮色同步提到 0.12 —— 亮色 0.045→0.075，暗色 0.08→0.12，两边辨识度对齐 */
 .user-space-page[data-theme="dark"] {
   --rail-item-bg-hover: rgba(255, 255, 255, 0.08);
   --rail-item-bg-active: rgba(255, 255, 255, 0.12);
-  --rail-pill-bg: rgba(255, 255, 255, 0.08);
+  --rail-pill-bg: rgba(255, 255, 255, 0.12);
 }
 
 @keyframes rail-badge-pop {
@@ -236,39 +395,158 @@
   }
 }
 
-/* 宽栏档（≥1280）：图标在左、文字在右、整行左对齐，角标移到行尾 */
+/* 宽栏档（≥1280）：图标在左、文字在右、整行左对齐，角标内联到行尾 */
 @media (orientation: landscape) and (min-width: 1280px) and (min-height: 600px) {
   .userspace-rail.liquid-glass {
     padding: calc(var(--userspace-rail-top-h, var(--userspace-nav-h, 78px)) + 14px) 12px 18px;
   }
 
+  /* 视觉放大（用户反馈「侧边栏小、文字小」）：字 15 → 16、图标 22 → 24、行高 52 → 58（用户复核 17 偏大，回一档）。
+     栏宽保持 240 不动 —— 1280 − 240 = 1040px 是右区容纳 Forum 两栏（主栏 + 240~320 侧栏）
+     的下限，栏宽一加右区就跌破。放大靠元素不靠栏宽。
+     代价是内容变高（实测 730 → 约 790），1440×900 仍放得下，更矮的窗口走文件末尾紧凑档。 */
   .userspace-rail-item {
     flex-direction: row;
     justify-content: flex-start;
-    gap: 12px;
-    min-height: 46px;
-    padding: 10px 14px;
+    gap: 15px;
+    min-height: 58px;
+    padding: 13px 16px;
   }
 
   .userspace-rail-icon {
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
   }
 
   .userspace-rail-label {
-    font-size: 14px;
+    font-size: 16px;
   }
 
+  /* 发布：宽栏恢复胶囊形态（窄栏是圆形按钮） */
+  .userspace-rail-item[data-rail-action="compose"] {
+    width: 100%;
+    min-height: 48px;
+    margin: 2px 0;
+    padding: 12px 16px;
+    gap: 15px;
+    border-radius: var(--liquid-radius-pill, 999px);
+  }
+
+  .userspace-rail-item[data-rail-action="compose"] .userspace-rail-label {
+    display: inline;
+    font-size: 16px;
+  }
+
+  /* 角标内联到文字右侧：宽栏有文字，浮在图标角上会脱离文字的视觉线 */
   .userspace-rail-badge {
-    top: 50%;
-    right: 12px;
-    transform: translateY(-50%);
+    position: static;
+    margin-left: auto;
+    transform: none;
+  }
+
+  /* 品牌位恢复文字与左对齐（窄栏只留标），并跟着条目一起放大 */
+  .userspace-rail-brand {
+    justify-content: flex-start;
+    gap: 10px;
+    top: 36px;
+  }
+
+  .userspace-rail-brand-mark {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+  }
+
+  .userspace-rail-brand-name {
+    display: block;
+    font-size: 16px;
+  }
+
+  .userspace-rail-more {
+    width: 30px;
+    height: 30px;
+  }
+
+  .userspace-rail-more-icon {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* 窄栏档（1024–1279）：品牌位贴 10px，与条目左右边缘对齐（宽栏档是 12px） */
+@media (orientation: landscape) and (min-width: 1024px) and (max-width: 1279px) and (min-height: 600px) {
+  .userspace-rail-brand {
+    left: 10px;
+    right: 10px;
+  }
+}
+
+/* ── 矮窗紧凑档（两级）─────────────────────────────────────
+   什么时候需要紧凑：窗口高度 < 内容总高。实测内容总高
+   窄栏 ≈ 784px（避让 150 + 条目 618 + 底距 16）、宽栏 ≈ 710px（避让 152 + 条目 540 + 底距 18）
+   —— 宽栏条目虽大但项数相同、间距相同，反而更矮。
+   上一版的教训：阈值拍脑袋定 880，把 1366×858 这种放得下的笔记本窗口也压成 10px 小字；
+   用户看到的正是「只有发布按钮大（它自带更高的 min-height 没被压到），其他全小」。
+
+   一级（窄栏 ≤790 / 宽栏 ≤700）：条目 44 / 图标 18 / 字 14 —— 覆盖 648px 高的
+   常见半屏窗口，整栏放得下，字不再掉到 10px；
+   二级（≤640）：38 / 16 / 10 —— 1024×600 这类极矮窗的兜底，再大就真放不下了。
+   line-height 收到 1.1：窄栏条目是「图标上文字下」，标签的自然行高会把 44px 的
+   min-height 顶到 45px，10 项就是 10px 的差距。
+   位置必须在宽栏档之后：同特异性下靠加载顺序覆盖两套尺寸。 */
+@media (orientation: landscape) and (min-width: 1024px) and (max-width: 1279px) and (min-height: 600px) and (max-height: 790px),
+       (orientation: landscape) and (min-width: 1280px) and (min-height: 600px) and (max-height: 700px) {
+  .userspace-rail-group {
+    gap: 2px;
+  }
+
+  .userspace-rail-divider {
+    margin: 3px 0;
+  }
+
+  .userspace-rail-item {
+    min-height: 44px;
+    padding-top: 3px;
+    padding-bottom: 3px;
+  }
+
+  .userspace-rail-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .userspace-rail-label {
+    font-size: 13px;
+    line-height: 1.1;
+  }
+
+  /* 矮窗里顶部避让已经吃掉大半高度，品牌位再往下会让首项更挤 */
+  .userspace-rail-brand {
+    top: 22px;
+  }
+}
+
+/* 二级兜底（≤640）：1024×600 的下限场景。其余全部继承一级的分组间距 */
+@media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) and (max-height: 640px) {
+  .userspace-rail-item {
+    min-height: 38px;
+  }
+
+  .userspace-rail-icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  .userspace-rail-label {
+    font-size: 10px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .userspace-rail-item,
   .userspace-rail-icon,
+  .userspace-rail-more,
+  .userspace-rail-menu-item,
   .userspace-rail-indicator {
     transition-duration: 1ms;
   }

@@ -24,6 +24,18 @@ const WHITELIST = [
   'src/styles/themes/',
 ];
 
+/**
+ * 计数前必须剥掉注释。
+ * 否则"注释里提到过 !important"会被算成一处真实声明 —— 2026-09-18 就因此把
+ * landscape-rail.css 里一句解释性注释判成了新增（假红）。只剥整行 // 注释，
+ * 避免误伤 url(https://…) 这类正文里的 //。
+ */
+const stripComments = (text) =>
+  text
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/^[ \t]*\/\/.*$/gm, '');
+
 const files = execSync(
   'git ls-files "src/*.vue" "src/*.css" "src/**/*.vue" "src/**/*.css"',
   { cwd: ROOT, encoding: 'utf-8' }
@@ -36,7 +48,7 @@ for (const rel of files) {
   if (WHITELIST.some((w) => norm.startsWith(w))) continue;
   const abs = join(ROOT, rel);
   if (!existsSync(abs)) continue; // 文件已删除：视为削减，跳过
-  const text = readFileSync(abs, 'utf-8');
+  const text = stripComments(readFileSync(abs, 'utf-8'));
   const n = (text.match(/!important/g) || []).length;
   if (n > 0) {
     counts[norm] = n;

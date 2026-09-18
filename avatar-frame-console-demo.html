@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>头像框控制台 · 方案演示</title>
+<style>
+:root {
+  --ink:#1f2430; --ink-2:#5a6377; --ink-3:#8a92a6;
+  --blue:#1459d9; --blue-soft:#eef4ff;
+  --green:#0f8a6a; --green-soft:rgba(15,138,106,.09);
+  --amber:#b45309; --amber-soft:rgba(180,83,9,.09);
+  --red:#b3261e;   --red-soft:rgba(179,38,30,.08);
+  --violet:#7c3aed;
+  --line:rgba(31,41,66,.09); --card:rgba(255,255,255,.82);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 28px 16px 60px;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  color: var(--ink); font-size: 13px; line-height: 1.62;
+  background:
+    radial-gradient(1100px 600px at 12% -8%, rgba(20,89,217,.10), transparent 60%),
+    radial-gradient(900px 520px at 92% 4%, rgba(124,58,237,.08), transparent 62%),
+    radial-gradient(800px 500px at 50% 104%, rgba(15,138,106,.07), transparent 60%),
+    #f2f5fa;
+}
+.shell {
+  max-width: 980px; margin: 0 auto; padding: 26px 28px 32px;
+  background: var(--card); backdrop-filter: blur(22px) saturate(1.5);
+  border-radius: 24px; border: 1px solid rgba(255,255,255,.7);
+  box-shadow: 0 1px 2px rgba(31,41,66,.04), 0 18px 48px -18px rgba(31,41,66,.18);
+}
+.demo-head h1 { margin: 0 0 6px; font-size: 21px; font-weight: 700; letter-spacing: -.01em; }
+.demo-head p { margin: 0 0 12px; color: var(--ink-2); }
+.keyline {
+  padding: 11px 14px; border-radius: 12px; background: var(--blue-soft);
+  border: 1px solid rgba(20,89,217,.16); color: #16336e; font-weight: 600; margin-bottom: 18px;
+}
+.tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.tab {
+  padding: 7px 15px; border-radius: 999px; border: 1px solid var(--line);
+  background: rgba(255,255,255,.6); color: var(--ink-2); cursor: pointer;
+  font-size: 13px; font-family: inherit; transition: .16s;
+}
+.tab:hover { transform: translateY(-1px); }
+.tab.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.panel { display: none; }
+.panel.on { display: block; }
+h2.sec { font-size: 14px; font-weight: 700; margin: 20px 0 10px; }
+h2.sec:first-child { margin-top: 0; }
+.b { font-weight: 700; }
+
+/* ── 编辑器 ── */
+.editor { display: grid; grid-template-columns: 168px 1fr 232px; gap: 14px; align-items: start; }
+@media (max-width: 900px) { .editor { grid-template-columns: 1fr; } }
+.picker { display: flex; flex-direction: column; gap: 6px; }
+.picker-item {
+  display: flex; gap: 8px; align-items: center; padding: 8px 9px; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.6);
+  text-align: left; font-family: inherit; font-size: 12.5px; color: var(--ink); transition: .16s;
+}
+.picker-item:hover { transform: translateY(-1px); }
+.picker-item.on { border-color: var(--blue); background: var(--blue-soft); }
+.picker-item .sw { width: 26px; height: 26px; flex: 0 0 26px; border-radius: 7px; background-size: cover; background-position: center; border: 1px solid var(--line); }
+.picker-item .meta { min-width: 0; }
+.picker-item .meta b { display: block; font-size: 12.5px; }
+.picker-item .meta span { color: var(--ink-3); font-size: 11px; }
+
+.stagewrap { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.stage {
+  position: relative; width: 360px; height: 360px; flex: 0 0 360px;
+  border-radius: 14px; border: 1px dashed rgba(31,41,66,.18);
+  background:
+    linear-gradient(45deg, #eef1f6 25%, transparent 25%, transparent 75%, #eef1f6 75%) 0 0/18px 18px,
+    linear-gradient(45deg, #eef1f6 25%, transparent 25%, transparent 75%, #eef1f6 75%) 9px 9px/18px 18px,
+    #fafbff;
+  overflow: hidden; touch-action: none; cursor: grab;
+}
+.stage.grabbing { cursor: grabbing; }
+.layer {
+  position: absolute; left: 50%; top: 50%; width: 360px; height: 360px;
+  margin: -180px 0 0 -180px; transform-origin: center center; will-change: transform;
+}
+.layer svg { display: block; width: 100%; height: 100%; }
+.avatar-ring {
+  position: absolute; left: 50%; top: 50%; border-radius: 50%; transform: translate(-50%,-50%);
+  background: linear-gradient(135deg,#5b8ff0,#3f6fd8); color: #fff; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; z-index: 2;
+  font-size: 15px; box-shadow: 0 6px 18px rgba(31,41,66,.2); pointer-events: none;
+}
+.cross { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.cross::before, .cross::after { content: ''; position: absolute; background: rgba(20,89,217,.28); }
+.cross::before { left: 50%; top: 12px; bottom: 12px; width: 1px; }
+.cross::after { top: 50%; left: 12px; right: 12px; height: 1px; }
+.badge-zoom {
+  position: absolute; right: 8px; bottom: 8px; z-index: 4; padding: 2px 8px;
+  border-radius: 999px; background: rgba(31,41,66,.72); color: #fff; font-size: 11px;
+}
+
+.axes { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
+.slider { display: flex; align-items: center; gap: 8px; }
+.slider input[type=range] { width: 168px; accent-color: var(--blue); }
+.btn-ghost {
+  padding: 6px 13px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--card); color: var(--ink); cursor: pointer; font-size: 12.5px;
+  font-family: inherit; transition: .16s;
+}
+.btn-ghost:hover { transform: translateY(-1px); box-shadow: 0 6px 16px -8px rgba(31,41,66,.3); }
+.btn-ghost.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+.btn-ghost[disabled] { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.readout { display: flex; flex-direction: column; gap: 7px; }
+.kv {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 7px 10px; border-radius: 9px; background: rgba(255,255,255,.66); border: 1px solid var(--line);
+}
+.kv span { color: var(--ink-3); font-size: 11.5px; }
+.kv b { font-variant-numeric: tabular-nums; font-size: 13px; }
+.kv.good b { color: var(--green); }
+.kv.warn b { color: var(--amber); }
+.kv.bad b { color: var(--red); }
+
+.sizes { display: flex; gap: 8px; align-items: flex-end; }
+.sizebox { text-align: center; }
+.sizebox .box {
+  position: relative; border-radius: 8px; border: 1px solid var(--line);
+  background: rgba(255,255,255,.75); overflow: hidden; margin: 0 auto;
+}
+.sizebox .box .fr { position: absolute; left: 50%; top: 50%; border-radius: 50%; transform: translate(-50%,-50%); }
+.sizebox .box .av { position: absolute; left: 50%; top: 50%; border-radius: 50%; transform: translate(-50%,-50%); background: #3f6fd8; }
+.sizebox .cap { font-size: 10.5px; color: var(--ink-3); margin-top: 3px; }
+.sizebox.bad .box { border-color: var(--red); background: var(--red-soft); }
+.sizebox.warn .box { border-color: var(--amber); background: var(--amber-soft); }
+.sizebox.bad .cap { color: var(--red); font-weight: 700; }
+.sizebox.warn .cap { color: var(--amber); }
+.sizebox .cap { line-height: 1.35; }
+
+.alert { padding: 9px 11px; border-radius: 10px; font-size: 12.5px; border: 1px solid; margin-top: 8px; }
+.alert.ok { background: var(--green-soft); border-color: rgba(15,138,106,.2); color: #0b5f4a; }
+.alert.warn { background: var(--amber-soft); border-color: rgba(180,83,9,.22); color: #7c3d06; }
+.alert.bad { background: var(--red-soft); border-color: rgba(179,38,30,.22); color: #8c1d17; }
+.decision { margin-top: 10px; display: flex; flex-direction: column; gap: 5px; }
+.decision .row {
+  display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px;
+  padding: 6px 9px; border-radius: 8px; background: rgba(255,255,255,.6); border: 1px solid var(--line);
+}
+.decision .row .q { color: var(--ink-3); flex: 0 0 auto; }
+.decision .row .a { font-weight: 600; }
+.verdict {
+  margin-top: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid;
+  font-size: 12.5px;
+}
+.verdict.ok { background: var(--green-soft); border-color: rgba(15,138,106,.22); }
+.verdict.warn { background: var(--amber-soft); border-color: rgba(180,83,9,.22); }
+.verdict.bad { background: var(--red-soft); border-color: rgba(179,38,30,.22); }
+.verdict strong { display: block; font-size: 13px; margin-bottom: 3px; }
+.risk {
+  margin-top: 10px; padding: 11px 13px; border-radius: 12px;
+  background: var(--red-soft); border: 1px solid rgba(179,38,30,.22); color: #8c1d17; font-size: 12.5px;
+}
+.risk b { color: var(--red); }
+
+/* ── 对比 ── */
+.seg { display: inline-flex; padding: 3px; border-radius: 999px; background: rgba(31,41,66,.06); gap: 2px; margin-bottom: 14px; }
+.seg button {
+  padding: 6px 14px; border: 0; border-radius: 999px; background: transparent; cursor: pointer;
+  font-size: 12.5px; font-family: inherit; color: var(--ink-2);
+}
+.seg button.on { background: #fff; color: var(--ink); font-weight: 600; box-shadow: 0 1px 3px rgba(31,41,66,.12); }
+.bars { display: flex; flex-direction: column; gap: 10px; margin: 14px 0; }
+.barrow { display: grid; grid-template-columns: 96px 1fr 62px; gap: 10px; align-items: center; font-size: 12px; }
+.barrow .track { height: 9px; border-radius: 999px; background: rgba(31,41,66,.07); overflow: hidden; }
+.barrow .fill { height: 100%; border-radius: 999px; width: 0; transition: width .5s cubic-bezier(.32,.72,0,1); }
+.barrow .fill.a { background: linear-gradient(90deg,#e08a3c,#c2691c); }
+.barrow .fill.b { background: linear-gradient(90deg,#3aa981,#0f8a6a); }
+.barrow .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+table.diff { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12.5px; }
+table.diff th, table.diff td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+table.diff th { color: var(--ink-3); font-weight: 600; font-size: 11.5px; }
+table.diff td.hl { background: rgba(20,89,217,.06); font-weight: 600; }
+table.diff td:first-child { color: var(--ink-2); white-space: nowrap; }
+
+/* ── 清单 ── */
+.cl { display: flex; flex-direction: column; gap: 6px; }
+.cl-item {
+  display: flex; gap: 10px; align-items: flex-start; padding: 9px 11px;
+  border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.6);
+}
+.cl-item .mark {
+  flex: 0 0 17px; width: 17px; height: 17px; border-radius: 5px; border: 1.5px solid var(--ink-3);
+  cursor: pointer; margin-top: 2px; display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: #fff; user-select: none;
+}
+.cl-item .mark.on { background: var(--green); border-color: var(--green); }
+.cl-item.locked .mark { border-radius: 50%; border-color: var(--ink-3); background: transparent; cursor: default; color: var(--ink-3); }
+.cl-item .txt b { display: block; font-size: 12.5px; }
+.cl-item .txt span { color: var(--ink-2); font-size: 12px; }
+.cl-item.locked { opacity: .72; }
+.cl-sum { margin-top: 12px; font-size: 12.5px; color: var(--ink-2); }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="demo-head">
+    <h1>头像框控制台 · 方案演示</h1>
+    <p>把「做头像框」从改代码变成点鼠标：上传 PNG → 在固定头像上摆位 → 系统烘焙成品并算出 scale → 配归属与价格 → 发布。</p>
+    <div class="keyline">一句话总纲：<b>缩放决定 scale，平移决定孔心是否居中，工具栏决定归属；发布时把摆位烧进像素，所以渲染层一行都不用改。</b></div>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab on" data-tab="editor" role="tab">① 编辑器（可拖动缩放）</button>
+    <button class="tab" data-tab="compare" role="tab">② 手工 vs 控制台</button>
+    <button class="tab" data-tab="checklist" role="tab">③ 边界清单</button>
+  </div>
+
+  <!-- ═══════════ ① 编辑器 ═══════════ -->
+  <section class="panel on" data-panel="editor">
+    <h2 class="sec">选一个素材 → 拖动 / 滚轮缩放 → 看右侧读数与警告</h2>
+    <div class="editor">
+      <div class="picker" id="picker"></div>
+
+      <div class="stagewrap">
+        <div class="stage" id="stage">
+          <div class="layer" id="layer"></div>
+          <div class="avatar-ring" id="avatarRing">头像</div>
+          <div class="cross" aria-hidden="true"></div>
+          <div class="badge-zoom" id="badgeZoom">1.00×</div>
+        </div>
+        <div class="axes">
+          <div class="slider">
+            <span style="color:var(--ink-3);font-size:11.5px">缩放</span>
+            <input type="range" id="zoomRange" min="60" max="220" value="100">
+          </div>
+          <button class="btn-ghost" id="btnCenter">居中</button>
+          <button class="btn-ghost primary" id="btnAuto">一键自动适配</button>
+        </div>
+        <div class="sizes" id="sizes"></div>
+        <div id="alertBox"></div>
+      </div>
+
+      <div class="readout" id="readout"></div>
+    </div>
+
+    <div class="decision" id="decision"></div>
+    <div class="verdict" id="verdict"></div>
+    <div class="risk">
+      <b>如果不看这些读数就发布：</b>
+      <span id="riskText"></span>
+    </div>
+  </section>
+
+  <!-- ═══════════ ② 对比 ═══════════ -->
+  <section class="panel" data-panel="compare">
+    <h2 class="sec">同一次接入（菊花梨）的两条路径</h2>
+    <div class="seg" id="seg">
+      <button class="on" data-case="manual">手工流程（现状）</button>
+      <button data-case="console">控制台流程（目标）</button>
+    </div>
+    <div id="caseDesc" style="color:var(--ink-2);margin-bottom:6px"></div>
+    <div class="bars" id="bars"></div>
+    <table class="diff">
+      <thead><tr><th>维度</th><th>手工流程</th><th>控制台流程</th></tr></thead>
+      <tbody id="diffBody"></tbody>
+    </table>
+  </section>
+
+  <!-- ═══════════ ③ 清单 ═══════════ -->
+  <section class="panel" data-panel="checklist">
+    <h2 class="sec">边界处理清单（点方框勾选「已想清楚」）</h2>
+    <div class="cl" id="clist"></div>
+    <div class="cl-sum" id="clSum"></div>
+  </section>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ═════ 素材定义：ratio = 原图内孔内接圆直径 / 原图边长（今天实测值的模拟） ═════ */
+  const FRAMES = [
+    { id: 'flower',  name: '菊花梨',    ratio: 0.345, hasAlpha: true,  hue: '#e08a3c', accent: '#c2691c',
+      note: '装饰外扩大 · 自然占比仅 34.5%' },
+    { id: 'grass',   name: '奇丽草',    ratio: 0.403, hasAlpha: true,  hue: '#6aa84f', accent: '#3f7a2b',
+      note: '草环开口 · 自然占比 40.3%' },
+    { id: 'whitebg', name: '白底未抠图', ratio: 0.620, hasAlpha: false, hue: '#b98a4a', accent: '#8a5f28',
+      note: '无透明层 · 需先抠底' }
+  ];
+
+  const CANVAS = 1223;          // 成品逻辑边长（与存量素材同规格）
+  const STAGE_PX = 360;         // 画布显示尺寸
+  const AVATAR_MIN_SCALE = 1.20, AVATAR_MAX_SCALE = 2.20;
+  const CARD_LIMIT = 116;       // 装扮网格卡片宽（最紧横向约束）
+  const WARN_MARGIN = 6;        // 余量小于此值给黄条
+  const AUTO_MARGIN = 10;       // 一键适配预留的余量
+  // 每档预览各有自己的容器：36/42/52 出现在论坛卡片里（容器 = 卡片内宽），
+  // 96 出现在个人主页 hero（横向宽松）。拿卡片约束去卡 hero 档是错的 —— 会把好框判成溢出。
+  const SIZES = [
+    { px: 36, container: CARD_LIMIT, scene: '卡片' },
+    { px: 42, container: CARD_LIMIT, scene: '卡片' },
+    { px: 52, container: CARD_LIMIT, scene: '卡片' },
+    { px: 96, container: 260, scene: 'hero' }
+  ];
+
+  /* ── 状态 ── */
+  let cur = FRAMES[0];
+  let zoom = 1.0;               // 相对「原始铺满画布」的缩放
+  let off = { x: 0, y: 0 };     // 素材中心相对画布中心的偏移（逻辑 px）
+  let checked = new Set();
+
+  const $ = (id) => document.getElementById(id);
+
+  /* ═════ 几何模型 ═════
+     素材原始边长 = CANVAS（铺满画布时）
+     缩放后素材边长 L = CANVAS * zoom
+     内孔直径 H = CANVAS * ratio * zoom
+     内孔占比 = H / CANVAS = ratio * zoom
+     scale   = CANVAS / H = 1 / (ratio * zoom)
+     头像圆显示直径 = H（内孔正好套住头像 —— 这就是 scale 的定义）
+  */
+  function geom() {
+    const L = CANVAS * zoom;
+    const H = CANVAS * cur.ratio * zoom;
+    const shareRatio = H / CANVAS;
+    const scale = CANVAS / H;
+    const offsetPx = Math.hypot(off.x, off.y);
+    return { L, H, shareRatio, scale, offsetPx };
+  }
+
+  /* ═════ 素材 SVG ═════ */
+  function frameSVG(f, opts) {
+    opts = opts || {};
+    const cx = 500, cy = 500;
+    const rOuter = 500;
+    const rHole = 500 * f.ratio;
+    const ringW = rOuter - rHole;
+    let s = '';
+    if (!f.hasAlpha && !opts.done) s += `<rect x="0" y="0" width="1000" height="1000" fill="#ffffff"/>`;
+    // 环体
+    s += `<circle cx="${cx}" cy="${cy}" r="${(rOuter + rHole) / 2}" fill="none" stroke="${f.hue}" stroke-width="${ringW}" opacity="0.92"/>`;
+    s += `<circle cx="${cx}" cy="${cy}" r="${rHole}" fill="none" stroke="${f.accent}" stroke-width="5" opacity="0.55"/>`;
+    // 外挂装饰（左上花 / 右下小精灵）—— 比例固定，随素材一起缩放
+    s += `<g fill="${f.accent}" opacity="0.95">`;
+    s += `<circle cx="${rHole - 20}" cy="${rHole - 10}" r="${ringW * 0.40}"/>`;
+    s += `<circle cx="${rHole - 92}" cy="${rHole - 62}" r="${ringW * 0.28}"/>`;
+    s += `<circle cx="${1000 - rHole + 12}" cy="${1000 - rHole + 26}" r="${ringW * 0.34}"/>`;
+    s += `</g>`;
+    return `<svg viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg">${s}</svg>`;
+  }
+
+  function thumbSVG(f) {
+    const svg = frameSVG(f, {}).replace('<svg ', '<svg width="26" height="26" ');
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+  }
+
+  /* ═════ 渲染 ═════ */
+  function renderPicker() {
+    $('picker').innerHTML = FRAMES.map((f) => `
+      <button class="picker-item${f.id === cur.id ? ' on' : ''}" data-id="${f.id}">
+        <span class="sw" style="background-image:url('${thumbSVG(f)}')"></span>
+        <span class="meta"><b>${f.name}</b><span>${f.note}</span></span>
+      </button>`).join('');
+  }
+
+  function renderStage() {
+    const g = geom();
+    const layer = $('layer');
+    layer.innerHTML = frameSVG(cur, {});
+    layer.style.transform = `translate(${off.x / CANVAS * STAGE_PX}px, ${off.y / CANVAS * STAGE_PX}px) scale(${g.L / CANVAS})`;
+    $('badgeZoom').textContent = zoom.toFixed(2) + '×';
+    // 头像圆 = 内孔直径（显示尺度）
+    const avPx = Math.max(4, g.H / CANVAS * STAGE_PX);
+    const ring = $('avatarRing');
+    ring.style.width = avPx + 'px';
+    ring.style.height = avPx + 'px';
+    ring.style.fontSize = Math.max(8, avPx * 0.22) + 'px';
+    $('zoomRange').value = String(Math.round(zoom * 100));
+  }
+
+  function sizeState(s, g) {
+    const frameLayerPx = s.px * g.scale;        // 框层边长
+    const over = frameLayerPx - s.container;    // 在该档容器内的余量（负 = 装得下）
+    const base = { over, frameLayerPx, px: s.px, container: s.container, scene: s.scene };
+    if (over > 0) return Object.assign(base, { cls: 'bad' });
+    if (over > -WARN_MARGIN) return Object.assign(base, { cls: 'warn' });
+    return Object.assign(base, { cls: '' });
+  }
+  /** 最紧的一档 = 占容器比例最高的那个（不一定是 52，取决于容器与头像的相对尺寸） */
+  function worstSize(g) {
+    return SIZES.map((s) => sizeState(s, g)).reduce((a, b) =>
+      (b.over > a.over ? b : a));
+  }
+
+  function renderSizes() {
+    const g = geom();
+    const BOX = 54;
+    let html = '';
+    SIZES.forEach((s) => {
+      const st = sizeState(s, g);
+      // 每档各自适配到同一个盒子尺寸，看得出「框层相对头像多大」；超出盒子即被截断
+      const fit = BOX / Math.max(st.frameLayerPx, s.px);
+      const fr = st.frameLayerPx * fit;
+      const av = s.px * fit;
+      const capCls = st.cls === 'bad' ? 'bad' : (st.cls === 'warn' ? 'warn' : '');
+      html += `
+        <div class="sizebox ${st.cls}">
+          <div class="box" style="width:${BOX}px;height:${BOX}px">
+            <div class="fr" style="width:${fr}px;height:${fr}px;border:1.5px solid ${cur.hue};opacity:.85"></div>
+            <div class="av" style="width:${av}px;height:${av}px"></div>
+          </div>
+          <div class="cap ${capCls}">${s.px}px ${s.scene}<br>框层 ${Math.round(st.frameLayerPx)}</div>
+        </div>`;
+    });
+    $('sizes').innerHTML = html;
+
+    const worst = worstSize(g);
+    const alerts = [];
+    if (!cur.hasAlpha) {
+      alerts.push({ cls: 'warn', text: '检测不到透明区（PNG 但全图不透明）→ 应先走「自动抠白底」，否则深色主题下会显示白色方块。' });
+    }
+    if (worst.cls === 'bad') {
+      alerts.push({ cls: 'bad', text: `最紧档位 ${worst.px}px（容器 ${worst.container}px）下框层溢出 ${Math.round(worst.over)}px → 相邻元素会重叠。点「一键自动适配」按最紧档回算建议缩放。` });
+    } else if (worst.cls === 'warn') {
+      alerts.push({ cls: 'warn', text: `最紧档位 ${worst.px}px 只剩 ${Math.abs(Math.round(worst.over))}px 余量（<${WARN_MARGIN}px）→ 建议再放大一点，留出安全边距。` });
+    } else {
+      alerts.push({ cls: 'ok', text: `四档全部装得下；最紧的 ${worst.px}px 档（容器 ${worst.container}px）还余 ${Math.abs(Math.round(worst.over))}px。` });
+    }
+    if (g.offsetPx > 24) {
+      alerts.push({ cls: 'bad', text: `素材中心偏离画布中心 ${Math.round(g.offsetPx)}px → 烘焙后孔心不居中，佩戴时头像会整体错位。点「居中」。` });
+    }
+    $('alertBox').innerHTML = alerts.map((a) => `<div class="alert ${a.cls}">${a.text}</div>`).join('');
+  }
+
+  function renderReadout() {
+    const g = geom();
+    const worst = worstSize(g);
+    const scaleCls = g.scale > AVATAR_MAX_SCALE ? 'bad' : (g.scale < AVATAR_MIN_SCALE ? 'warn' : 'good');
+    const ratioCls = g.shareRatio < 0.45 ? 'bad' : 'good';
+    const offCls = g.offsetPx > 24 ? 'bad' : (g.offsetPx > 8 ? 'warn' : 'good');
+    const overCls = worst.cls === 'bad' ? 'bad' : (worst.cls === 'warn' ? 'warn' : 'good');
+    $('readout').innerHTML = `
+      <div class="kv ${scaleCls}"><span>scale（框层 / 头像）</span><b>${g.scale.toFixed(2)}</b></div>
+      <div class="kv ${ratioCls}"><span>内孔占比</span><b>${(g.shareRatio * 100).toFixed(1)}%</b></div>
+      <div class="kv ${overCls}"><span>最紧档余量（${worst.px}px/${worst.container}px）</span><b>${worst.over > 0 ? '−' : '+'}${Math.abs(Math.round(worst.over))}px</b></div>
+      <div class="kv ${offCls}"><span>孔心偏移</span><b>${Math.round(g.offsetPx)}px</b></div>
+      <div class="kv"><span>缩放系数</span><b>${zoom.toFixed(2)}×</b></div>`;
+  }
+
+  function renderDecision() {
+    const g = geom();
+    const worst = worstSize(g);
+    const rows = [
+      ['素材有透明通道吗？', cur.hasAlpha ? '有 → 直接进编辑器' : '没有 → 先抠白底，再进编辑器'],
+      ['内孔套住头像了吗？', `内孔 ${(g.shareRatio * 100).toFixed(1)}% → scale ${g.scale.toFixed(2)}（合理区间 ${AVATAR_MIN_SCALE}~${AVATAR_MAX_SCALE}）`],
+      ['最紧的容器装得下吗？', worst.over > 0 ? `装不下，溢出 ${Math.round(worst.over)}px → 必须放大素材` : '装得下'],
+      ['孔心对准画布中心了吗？', g.offsetPx <= 8 ? '对上了' : `偏 ${Math.round(g.offsetPx)}px → 必须居中后再烘焙`]
+    ];
+    $('decision').innerHTML = rows.map(([q, a]) => `<div class="row"><span class="q">${q}</span><span class="a">${a}</span></div>`).join('');
+  }
+
+  function renderVerdict() {
+    const g = geom();
+    const worst = worstSize(g);
+    const ok = worst.cls === '' && g.offsetPx <= 8 && g.scale >= AVATAR_MIN_SCALE && g.scale <= AVATAR_MAX_SCALE;
+    const v = $('verdict');
+    let cls = 'ok', title = '可以发布', body = '';
+    if (!ok) {
+      if (g.scale > AVATAR_MAX_SCALE) { cls = 'bad'; title = '不能发布：框层过大'; body = `scale ${g.scale.toFixed(2)} 超过上限 ${AVATAR_MAX_SCALE}，116px 卡片装不下。放大约 ${Math.round((g.scale / AVATAR_MAX_SCALE - 1) * 100)}% 即可回到范围内。`; }
+      else if (worst.cls === 'warn') { cls = 'warn'; title = '能发布，但不稳'; body = `卡片余量不足 12px，字体/缩放差异下可能贴边。再放大一点更保险。`; }
+      else if (g.offsetPx > 8) { cls = 'bad'; title = '不能发布：孔心未居中'; body = `偏 ${Math.round(g.offsetPx)}px。渲染层按图片中心对齐，不居中会导致头像偏移。`; }
+      else { cls = 'warn'; title = '能发布，但框几乎没有厚度'; body = `scale ${g.scale.toFixed(2)} 偏小，框会紧贴头像。`; }
+    } else {
+      body = `scale ${g.scale.toFixed(2)} · 内孔占比 ${(g.shareRatio * 100).toFixed(1)}% · 四档全部装得下 · 孔心居中。发布时系统会把摆位烘焙成孔心居中的 ${CANVAS}×${CANVAS} 成品图并压体积。`;
+    }
+    v.className = 'verdict ' + cls;
+    v.innerHTML = `<strong>${title}</strong>${body}`;
+
+    const riskMap = {
+      flower: '这个素材装饰外扩极大（自然占比 34.5%）。不放大就直接发，框层会是头像的 2.9 倍，在装扮网格里相邻卡片的装饰会叠在一起，运营会收到「框糊成一团」的反馈。',
+      grass: '奇丽草是开口环，内孔靠上下两条弧界定。若凭感觉缩放，内孔测出来偏大 → scale 偏小 → 头像会被草弧压住一圈。',
+      whitebg: '白底图不抠底直接发，浅色主题下看不出来，一切到深色主题就变成一个白色方块盖在头像上 —— 这是最容易漏测的一类。'
+    };
+    $('riskText').textContent = riskMap[cur.id] || '';
+  }
+
+  function renderAll() {
+    renderStage();
+    renderSizes();
+    renderReadout();
+    renderDecision();
+    renderVerdict();
+  }
+
+  /* ═════ 交互 ═════ */
+  $('picker').addEventListener('click', (e) => {
+    const btn = e.target.closest('.picker-item');
+    if (!btn) return;
+    const f = FRAMES.find((x) => x.id === btn.dataset.id);
+    if (!f || f.id === cur.id) return;
+    cur = f;
+    zoom = 1.0;
+    off = { x: 0, y: 0 };
+    renderPicker();
+    renderAll();
+  });
+
+  $('zoomRange').addEventListener('input', (e) => {
+    zoom = Number(e.target.value) / 100;
+    renderAll();
+  });
+
+  $('btnCenter').addEventListener('click', () => {
+    off = { x: 0, y: 0 };
+    renderAll();
+  });
+
+  // 一键自动适配：按最紧档（116px 卡片 / 52px 头像）回算目标 scale
+  $('btnAuto').addEventListener('click', () => {
+    const targetScale = (CARD_LIMIT - AUTO_MARGIN) / 52;   // 以 52px 头像 × 116px 卡片为准，预留余量
+    zoom = 1 / (cur.ratio * targetScale);
+    off = { x: 0, y: 0 };
+    renderAll();
+  });
+
+  // 拖动素材（指针捕获）
+  let dragging = null;
+  const stage = $('stage');
+  stage.addEventListener('pointerdown', (e) => {
+    dragging = { sx: e.clientX, sy: e.clientY, ox: off.x, oy: off.y };
+    stage.classList.add('grabbing');
+    stage.setPointerCapture(e.pointerId);
+  });
+  stage.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const dx = (e.clientX - dragging.sx) / STAGE_PX * CANVAS;
+    const dy = (e.clientY - dragging.sy) / STAGE_PX * CANVAS;
+    // 边界：至少保留 20% 面积在画布内
+    const lim = CANVAS * 0.4;
+    off = {
+      x: Math.max(-lim, Math.min(lim, dragging.ox + dx)),
+      y: Math.max(-lim, Math.min(lim, dragging.oy + dy))
+    };
+    renderAll();
+  });
+  const endDrag = () => { dragging = null; stage.classList.remove('grabbing'); };
+  stage.addEventListener('pointerup', endDrag);
+  stage.addEventListener('pointercancel', endDrag);
+
+  // 滚轮缩放（以指针为锚点）
+  stage.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const step = e.shiftKey ? 0.01 : 0.04;
+    zoom = Math.max(0.6, Math.min(2.2, zoom + (e.deltaY < 0 ? step : -step)));
+    renderAll();
+  }, { passive: false });
+
+  /* ═════ 面板切换 ═════ */
+  document.querySelectorAll('.tab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach((b) => b.classList.remove('on'));
+      document.querySelectorAll('.panel').forEach((p) => p.classList.remove('on'));
+      btn.classList.add('on');
+      document.querySelector(`[data-panel="${btn.dataset.tab}"]`).classList.add('on');
+    });
+  });
+
+  /* ═════ 对比面板 ═════ */
+  const CASES = {
+    manual: {
+      desc: '设计师给图 → 脚本测内孔 → 反推 scale → 手工裁切 → 改清单 → 构建部署。这是菊花梨今天真实走过的路径。',
+      bars: [['步骤数', 7, 3, '7 步', '3 步'], ['涉及改动文件', 4, 0, '4 个', '0 个'], ['出错点', 3, 0, '3 处', '0 处']],
+      rows: [
+        ['谁来做', '开发（要懂几何 + 会跑脚本）', '运营（点鼠标）'],
+        ['几何精度', '脚本测内接圆，误差靠人工判断留不留余量', '系统实时算，越界即红'],
+        ['素材不符预期', '重跑脚本 + 重裁 + 重新构建', '拖动重摆，立即看到'],
+        ['上架耗时', '含构建部署，分钟到小时级', '秒级，无需部署'],
+        ['归属手段', '只有订阅档（限免字段是临时加的）', '档位 / 限免 / 积分三者可叠加'],
+        ['可追溯', 'git 历史（但看不到视觉决策）', '变更日志 + 原图留档 + 参数快照']
+      ]
+    },
+    console: {
+      desc: '同一张图：上传 → 拖动缩放摆位 → 读数全绿 → 填名字/归属 → 发布。全程不碰代码、不走构建。',
+      bars: [['步骤数', 7, 3, '7 步', '3 步'], ['涉及改动文件', 4, 0, '4 个', '0 个'], ['出错点', 3, 0, '3 处', '0 处']],
+      rows: [
+        ['谁来做', '开发（要懂几何 + 会跑脚本）', '运营（点鼠标）'],
+        ['几何精度', '脚本测内接圆，误差靠人工判断留不留余量', '系统实时算，越界即红'],
+        ['素材不符预期', '重跑脚本 + 重裁 + 重新构建', '拖动重摆，立即看到'],
+        ['上架耗时', '含构建部署，分钟到小时级', '秒级，无需部署'],
+        ['归属手段', '只有订阅档（限免字段是临时加的）', '档位 / 限免 / 积分三者可叠加'],
+        ['可追溯', 'git 历史（但看不到视觉决策）', '变更日志 + 原图留档 + 参数快照']
+      ]
+    }
+  };
+  function renderCompare(which) {
+    const c = CASES[which];
+    $('caseDesc').textContent = c.desc;
+    const max = Math.max(...c.bars.map((b) => Math.max(b[1], b[2])));
+    $('bars').innerHTML = c.bars.map(([label, a, b, ta, tb], i) => `
+      <div class="barrow">
+        <span>${label}</span>
+        <div>
+          <div class="track" style="margin-bottom:4px"><div class="fill a" data-w="${a / max * 100}"></div></div>
+          <div class="track"><div class="fill b" data-w="${b / max * 100}"></div></div>
+        </div>
+        <span class="val">${ta} / ${tb}</span>
+      </div>`).join('');
+    requestAnimationFrame(() => {
+      document.querySelectorAll('#bars .fill').forEach((el) => { el.style.width = el.dataset.w + '%'; });
+    });
+    $('diffBody').innerHTML = c.rows.map(([k, m, n]) => `
+      <tr><td>${k}</td><td class="${which === 'manual' ? 'hl' : ''}">${m}</td><td class="${which === 'console' ? 'hl' : ''}">${n}</td></tr>`).join('');
+  }
+  document.querySelectorAll('#seg button').forEach((b) => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#seg button').forEach((x) => x.classList.remove('on'));
+      b.classList.add('on');
+      renderCompare(b.dataset.case);
+    });
+  });
+
+  /* ═════ 清单面板 ═════ */
+  const CHECKLIST = [
+    { t: 'PNG 无透明层', d: '按像素判定（不看扩展名）→ 自动抠白底 + 棋盘底预览要求确认；抠出内部空洞时给容差滑块并可回退到「直接叠加」', lock: false },
+    { t: '图超大 / 过小', d: '>4096 或 >8MB 先等比压到 2048；<512 允许但警告放大后模糊', lock: false },
+    { t: '素材拖出画布', d: '拖动时实时 clamp，保证至少 20% 面积可见，不允许完全拖丢', lock: false },
+    { t: '缩放后头像被压', d: '内孔内接圆 < 头像直径 → 黄条提示「头像会被压住 N%」+ 一键自动适配', lock: false },
+    { t: '框层超出卡片', d: '按 36/42/52/96 四档分别算余量，最紧档为负则红条并禁止发布', lock: false },
+    { t: '孔心未居中', d: '偏移 > 24px 红条并禁止发布（渲染层按图片中心对齐，偏了头像就歪）', lock: false },
+    { t: 'slug 重复 / 含中文', d: '前端即时查重 + 服务端唯一索引兜底；自动转写并提示；发布后 slug 与 url 永久锁定', lock: false },
+    { t: '名称长度按字素簇算', d: '避免 emoji 组合（👨‍👩‍👧‍👦）被算成 7 个字', lock: false },
+    { t: '限免日期已过期', d: '拒绝保存并提示改选未来日期或留空', lock: false },
+    { t: '限免期内又被购买', d: '按钮文案改「永久解锁（限免结束后仍可用）」，避免用户以为被收两次钱', lock: false },
+    { t: '并发购买 / 重复购买', d: 'RPC 内 select…for update 锁行；已购则幂等返回 already_owned 且不重复扣分', lock: false },
+    { t: '前端篡改价格', d: 'RPC 只收 frame_id，价格从 avatar_frames.points_price 读，前端传参一律忽略', lock: false },
+    { t: '佩戴者存在时下架', d: '禁止物理删除，只能 archived；佩戴者自动回落「无框」（与限免到期同一出口）', lock: false },
+    { t: '编辑期间他人改动', d: '乐观锁比对 updated_at，冲突则拒绝并提示刷新', lock: false },
+    { t: '烘焙失败 / 草稿丢失', d: 'toBlob 失败不清编辑器状态；草稿存 localStorage', lock: false },
+    { t: '素材误删导致老佩戴失效', d: '产品规则：素材永不物理删除；前端 url 反查失败时兜底 scale 1.24 且照常渲染', lock: false },
+    { t: '用户自定义上传头像框（UGC）', d: '明确不做 —— 审核成本远超收益', lock: true }
+  ];
+  function renderChecklist() {
+    $('clist').innerHTML = CHECKLIST.map((it, i) => {
+      const on = checked.has(i);
+      return `<div class="cl-item${it.lock ? ' locked' : ''}">
+        <span class="mark${on ? ' on' : ''}" data-i="${i}" data-lock="${it.lock ? 1 : 0}">${on ? '✓' : (it.lock ? '✕' : '')}</span>
+        <span class="txt"><b>${it.t}</b><span>${it.d}</span></span>
+      </div>`;
+    }).join('');
+    const open = CHECKLIST.filter((x, i) => !x.lock).length;
+    $('clSum').textContent = `已确认 ${checked.size} / ${open} 项（不打勾也不影响演示，这条只是提醒边界都得有处置）`;
+  }
+  $('clist').addEventListener('click', (e) => {
+    const m = e.target.closest('.mark');
+    if (!m || m.dataset.lock === '1') return;   // 不可操作项点不动
+    const i = Number(m.dataset.i);
+    if (checked.has(i)) checked.delete(i); else checked.add(i);
+    renderChecklist();
+  });
+
+  /* ═════ 初始化 ═════ */
+  renderPicker();
+  renderAll();
+  renderCompare('manual');
+  renderChecklist();
+})();
+</script>
+</body>
+</html>

@@ -21,6 +21,8 @@
     "check:structure": "node scripts/check-project-structure.mjs",
     "check:liquid-glass": "node scripts/check-liquid-glass.mjs",
     "check:important-budget": "node scripts/check-important-budget.mjs",
+    "check:dark-tokens": "node scripts/check-dark-tokens.mjs",
+    "check:dark-tokens:strict": "node scripts/check-dark-tokens.mjs --strict",
     "check:first-paint": "node scripts/check-first-paint.mjs",
     "check:shell-precache": "node scripts/check-shell-precache.mjs",
     "test": "vitest run",
@@ -29,7 +31,7 @@
     "test:watch": "vitest",
     "check:bundle": "bash scripts/check-bundle-size.sh",
     "import:boh-kb": "node scripts/import-boh-knowledge-base.mjs",
-    "build:ci": "npm run check:views && npm run check:structure && npm run check:liquid-glass && npm run check:important-budget && npm run check:first-paint && vite build && npm run check:shell-precache && bash scripts/check-bundle-size.sh"
+    "build:ci": "npm run check:views && npm run check:structure && npm run check:liquid-glass && npm run check:important-budget && npm run check:dark-tokens && npm run check:first-paint && vite build && npm run check:shell-precache && bash scripts/check-bundle-size.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.1",

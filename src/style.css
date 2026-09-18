@@ -355,3 +355,31 @@ html {
     font-size: 16px !important;
   }
 }
+
+/* ============================================
+   P0 · 原生控件主题化（color-scheme + accent-color）
+   ============================================
+   把滚动条 / 复选框 / 单选 / 滑块 / 日期选择器 / 自动填充底色交给浏览器
+   按 color-scheme 统一渲染，取代各页面零散的手写 webkit 与 accent-color 分支。
+
+   为什么必须写在静态入口：src/styles/themes/dark-mode.css 只在暗色主题激活后
+   由 theme-css-loader.js 按需注入，承担不了"首屏即正确"，本块因此成为与
+   themes/ 的唯一交叉点（不要再往 dark-mode.css 里补一份）。
+
+   品牌色单一源 = themes/dark-mode.css 的 --boh-brand-blue（亮 #0071e3 / 暗 #3b82f6）。
+   下面的 fallback 仅在该文件尚未注入时兜底（浅色主题下它根本不加载），不是第二个真相源。
+
+   局部有意保持浅色的表面（如登录模态的输入框）就地声明 color-scheme: light，
+   特异性高于这里，会正确覆盖，不要当成"反向 bug"删掉。
+   ============================================ */
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+input,
+textarea,
+select,
+progress,
+meter {
+  accent-color: var(--boh-brand-blue, #0071e3);
+}

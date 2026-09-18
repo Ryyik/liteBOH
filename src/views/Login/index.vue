@@ -1353,6 +1353,9 @@ onUnmounted(() => {
     border-radius: 16px;
     background: #ffffff;
     color: #1d1d1f;
+    /* 这个输入框的底色是无条件白，所以它必须显式声明浅色 color-scheme：
+       否则暗色主题下插字符/自动填充/日期选择器会按暗色渲染在白色面板上。
+       这是有意为之，不是"暗色未适配"，不要删（全局规则见 src/style.css 的 P0 段）。 */
     color-scheme: light;
     caret-color: #0071e3;
     box-shadow: inset 0 1px 2px rgba(29, 29, 31, 0.04), 0 1px 0 rgba(255, 255, 255, 0.72);

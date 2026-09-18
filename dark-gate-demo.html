@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>暗色裸色门禁 · 机制评审</title>
+<style>
+:root {
+  --ink:#1f2430; --ink-2:#5a6377; --ink-3:#8a92a6;
+  --blue:#1459d9; --blue-soft:#eef4ff;
+  --green:#0f8a6a; --green-soft:rgba(15,138,106,.09);
+  --amber:#b45309; --amber-soft:rgba(180,83,9,.09);
+  --red:#b3261e;   --red-soft:rgba(179,38,30,.08);
+  --violet:#7c3aed;
+  --line:rgba(31,41,66,.09); --card:rgba(255,255,255,.82);
+}
+* { box-sizing: border-box; }
+html, body { margin:0; padding:0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+  color: var(--ink);
+  line-height: 1.65; font-size: 13px;
+  background:
+    radial-gradient(900px 600px at 8% -10%, rgba(20,89,217,.10), transparent 60%),
+    radial-gradient(760px 520px at 100% 4%, rgba(124,58,237,.07), transparent 62%),
+    radial-gradient(820px 560px at 50% 108%, rgba(15,138,106,.08), transparent 60%),
+    #f2f5fa;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 980px; margin: 0 auto; padding: 30px 22px 90px; }
+
+.demo-head h1 { font-size: 21px; font-weight: 700; margin: 0 0 8px; letter-spacing: -.01em; }
+.demo-head p { margin: 0 0 10px; color: var(--ink-2); max-width: 860px; }
+.demo-head b { color: var(--ink); font-weight: 600; }
+.keyline {
+  margin: 14px 0 0; padding: 13px 16px; border-radius: 14px;
+  background: var(--blue-soft); border: 1px solid rgba(20,89,217,.18);
+  color: #12315f; font-size: 13.5px;
+}
+.keyline b { color: var(--blue); }
+
+.tabs { display: flex; gap: 8px; margin: 20px 0 14px; flex-wrap: wrap; }
+.tab {
+  border: 1px solid var(--line); background: var(--card); color: var(--ink-2);
+  border-radius: 999px; padding: 8px 16px; font: inherit; font-weight: 600;
+  cursor: pointer; transition: transform .16s cubic-bezier(.23,1,.32,1), color .16s, border-color .16s;
+}
+.tab:hover { transform: translateY(-1px); }
+.tab[aria-selected="true"] { color: var(--blue); border-color: rgba(20,89,217,.35); background: var(--blue-soft); }
+
+.shell {
+  background: var(--card); border: 1px solid var(--line); border-radius: 24px;
+  backdrop-filter: blur(22px) saturate(1.5); -webkit-backdrop-filter: blur(22px) saturate(1.5);
+  box-shadow: 0 1px 2px rgba(31,41,66,.04), 0 14px 44px -18px rgba(31,41,66,.20);
+  padding: 20px;
+}
+.panel { display: none; }
+.panel[data-on="1"] { display: block; }
+
+/* ---------- panel 1 ---------- */
+.modes { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.seg { display: inline-flex; background: #e8edf5; border-radius: 12px; padding: 3px; gap: 2px; }
+.seg button {
+  border: 0; background: transparent; padding: 7px 14px; border-radius: 9px;
+  font: inherit; font-weight: 600; color: var(--ink-2); cursor: pointer;
+}
+.seg button[aria-pressed="true"] { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(31,41,66,.14); }
+.mode-note { color: var(--ink-3); font-size: 12px; }
+
+.split { display: grid; grid-template-columns: 300px minmax(0,1fr); gap: 18px; }
+@media (max-width: 820px) { .split { grid-template-columns: 1fr; } }
+
+.picker { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: rgba(255,255,255,.6); }
+.picker .grp { padding: 9px 13px; font-size: 11.5px; color: var(--ink-3); font-weight: 600; letter-spacing: .04em; border-bottom: 1px solid var(--line); }
+.pick {
+  display: block; width: 100%; text-align: left; border: 0; background: transparent;
+  border-bottom: 1px solid var(--line); padding: 11px 13px; font: inherit; cursor: pointer;
+  transition: background .15s;
+}
+.pick:last-child { border-bottom: 0; }
+.pick:hover { background: rgba(20,89,217,.05); }
+.pick[aria-selected="true"] { background: var(--blue-soft); }
+.pick .t { display: block; font-weight: 600; }
+.pick .d { display: block; color: var(--ink-3); font-size: 12px; margin-top: 2px; line-height: 1.5; }
+
+.stage { min-width: 0; }
+.code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.8px; line-height: 1.7;
+  background: #fbfcfe; border: 1px solid var(--line); border-radius: 12px; padding: 11px 13px;
+  white-space: pre; overflow-x: auto; color: #2b3245;
+}
+.code .cmt { color: #8a92a6; }
+.code .lit { background: rgba(179,38,30,.10); border-radius: 3px; padding: 0 2px; }
+.code .ok { background: var(--green-soft); border-radius: 3px; padding: 0 2px; }
+
+.path { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 14px 0 6px; }
+.node {
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid var(--line); background: #fff; border-radius: 999px;
+  padding: 5px 12px; font-size: 12px; color: var(--ink-3);
+  transition: color .25s, border-color .25s, background .25s, opacity .25s;
+}
+.node .dot { width: 7px; height: 7px; border-radius: 50%; background: #cfd6e2; transition: background .25s; }
+.node.on { color: var(--ink); border-color: rgba(20,89,217,.35); background: var(--blue-soft); }
+.node.on .dot { background: var(--blue); }
+.node.ok.on { border-color: rgba(15,138,106,.35); background: var(--green-soft); }
+.node.ok.on .dot { background: var(--green); }
+.node.hit.on { border-color: rgba(180,83,9,.35); background: var(--amber-soft); }
+.node.hit.on .dot { background: var(--amber); }
+.arrow { color: #c3cbd8; font-size: 12px; }
+
+.pathnote { color: var(--ink-2); min-height: 20px; margin-bottom: 12px; }
+
+.decision { list-style: none; margin: 0 0 14px; padding: 0; }
+.decision li {
+  display: flex; align-items: baseline; gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--line);
+  opacity: 0; transform: translateY(4px); transition: opacity .3s, transform .3s;
+}
+.decision li.on { opacity: 1; transform: none; }
+.decision li:last-child { border-bottom: 0; }
+.decision .q { color: var(--ink-2); }
+.decision .a { font-weight: 600; }
+.decision .a.y { color: var(--green); }
+.decision .a.n { color: var(--amber); }
+
+.verdict, .risk {
+  border-radius: 14px; padding: 12px 15px; margin-bottom: 12px;
+  opacity: 0; transform: translateY(5px); transition: opacity .3s, transform .3s;
+}
+.verdict.on, .risk.on { opacity: 1; transform: none; }
+.verdict h4, .risk h4 { margin: 0 0 5px; font-size: 13px; font-weight: 700; }
+.verdict p, .risk p { margin: 0; color: var(--ink-2); }
+.verdict.g { background: var(--green-soft); border: 1px solid rgba(15,138,106,.25); }
+.verdict.g h4 { color: var(--green); }
+.verdict.a { background: var(--amber-soft); border: 1px solid rgba(180,83,9,.25); }
+.verdict.a h4 { color: var(--amber); }
+.risk { background: var(--red-soft); border: 1px solid rgba(179,38,30,.22); }
+.risk h4 { color: var(--red); }
+
+.buildrow { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; }
+.buildrow .lab { color: var(--ink-3); font-size: 12px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; border-radius: 999px;
+  padding: 5px 13px; font-weight: 600; font-size: 12.5px; border: 1px solid transparent;
+}
+.chip.pass { background: var(--green-soft); border-color: rgba(15,138,106,.28); color: var(--green); }
+.chip.warn { background: var(--amber-soft); border-color: rgba(180,83,9,.28); color: var(--amber); }
+.chip.fail { background: var(--red-soft); border-color: rgba(179,38,30,.28); color: var(--red); }
+
+/* ---------- panel 2 ---------- */
+.bars { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 6px 0 18px; }
+@media (max-width: 700px) { .bars { grid-template-columns: 1fr; } }
+.bar { border: 1px solid var(--line); border-radius: 14px; padding: 13px 15px; background: rgba(255,255,255,.62); }
+.bar h5 { margin: 0 0 3px; font-size: 13px; }
+.bar .sub { color: var(--ink-3); font-size: 12px; margin-bottom: 10px; }
+.metric { margin-bottom: 9px; }
+.metric .ml { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-2); }
+.metric .mt { height: 7px; border-radius: 999px; background: #e8edf5; overflow: hidden; margin-top: 4px; }
+.metric .mf { height: 100%; width: 0; border-radius: 999px; transition: width .5s cubic-bezier(.23,1,.32,1); }
+.mf.bad { background: var(--red); }
+.mf.mid { background: var(--amber); }
+.mf.good { background: var(--green); }
+
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+th, td { text-align: left; padding: 9px 11px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--ink-3); font-weight: 600; font-size: 12px; background: rgba(255,255,255,.5); }
+tr:last-child td { border-bottom: 0; }
+td.before { background: rgba(179,38,30,.045); }
+td.after { background: rgba(15,138,106,.05); }
+th.before { color: var(--red); }
+th.after { color: var(--green); }
+td.n, th.n { width: 108px; color: var(--ink-3); }
+
+/* ---------- panel 3 ---------- */
+.list { list-style: none; margin: 0; padding: 0; }
+.list li {
+  display: flex; gap: 11px; align-items: flex-start; padding: 11px 12px;
+  border: 1px solid var(--line); border-radius: 12px; margin-bottom: 9px; background: rgba(255,255,255,.62);
+}
+.list .box {
+  flex: 0 0 auto; width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid #b9c3d4;
+  margin-top: 2px; display: grid; place-items: center; font-size: 11px; color: transparent; background: #fff;
+}
+.list li[aria-checked="true"] .box { background: var(--green); border-color: var(--green); color: #fff; }
+.list .circ {
+  flex: 0 0 auto; width: 16px; height: 16px; border-radius: 50%; margin-top: 2px;
+  display: grid; place-items: center; font-size: 10px; color: #fff;
+}
+.list .circ.k { background: var(--amber); }
+.list .circ.w { background: var(--ink-3); }
+.list button.tog {
+  border: 0; background: transparent; padding: 0; font: inherit; text-align: left; cursor: pointer; color: inherit;
+}
+.list .t { font-weight: 600; }
+.list .d { color: var(--ink-2); font-size: 12.5px; }
+.list .d code { background: rgba(31,41,66,.06); border-radius: 4px; padding: 0 4px; font-size: 11.8px; }
+.legend { color: var(--ink-3); font-size: 12px; margin: 14px 0 0; }
+.note { margin-top: 16px; padding: 12px 15px; border-radius: 14px; background: var(--blue-soft); border: 1px solid rgba(20,89,217,.16); color: #12315f; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="demo-head">
+    <h1>暗色裸色门禁 · 机制评审</h1>
+    <p>这套东西要解决的只有一个问题：<b>暗色样式现在有 2790 个写死的颜色值，散在 89 个文件里</b>，所以每次调色都得改上千处。门禁的作用不是"立法禁止"，而是<b>把存量冻住，只允许它往下走</b>。</p>
+    <p>策略是<b>三档渐进</b>：牙齿只长在"已经干净的地方"。当前严格名单为空 ⇒ <b>今天它不会挡住任何一次构建</b>；等 P3 扫完一个页面，把那个文件登记进严格名单，它才开始在那里有牙齿。</p>
+    <div class="keyline"><b>一句话总纲：</b>扫描器把"注释剥掉、只认真正落在暗色规则块里的颜色字面量"数成一个总量，门禁拿它跟基线比 —— <b>总量不涨就放行，涨了就报告（默认）或拦下（严格模式），而"把样式从一个文件搬到另一个文件"永远不算涨</b>。</div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="1" aria-selected="true">① 判定台：五种改动 × 三档策略</button>
+    <button class="tab" role="tab" data-tab="2" aria-selected="false">② 改前 vs 改后</button>
+    <button class="tab" role="tab" data-tab="3" aria-selected="false">③ 采用清单</button>
+  </nav>
+
+  <div class="shell">
+
+    <!-- ============ panel 1 ============ -->
+    <section class="panel" data-tab="1" data-on="1">
+      <div class="modes">
+        <span class="mode-note">模式：</span>
+        <div class="seg" id="modeSeg">
+          <button data-mode="observe" aria-pressed="true">档1 观察（默认）</button>
+          <button data-mode="scoped" aria-pressed="false">档2 分区严格</button>
+          <button data-mode="strict" aria-pressed="false">档3 全局严格</button>
+        </div>
+        <span class="mode-note" id="modeNote"></span>
+      </div>
+
+      <div class="split">
+        <div class="picker" id="picker"></div>
+        <div class="stage">
+          <div class="code" id="snippet"></div>
+          <div class="path" id="path"></div>
+          <div class="pathnote" id="pathnote"></div>
+          <ul class="decision" id="decision"></ul>
+          <div class="buildrow">
+            <span class="lab">这次构建：</span>
+            <span class="chip" id="buildChip">–</span>
+          </div>
+          <div class="verdict" id="verdict"><h4></h4><p></p></div>
+          <div class="risk" id="risk"><h4>如果这次判错会怎样</h4><p></p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ panel 2 ============ -->
+    <section class="panel" data-tab="2" data-on="0">
+      <div class="bars">
+        <div class="bar">
+          <h5>改前（今天之前）</h5>
+          <div class="sub">纯文本计数 + 按文件棘轮 + 直接失败</div>
+          <div class="metric"><div class="ml"><span>今天实际发生的假红</span><span>1 次</span></div><div class="mt"><div class="mf bad" data-w="100"></div></div></div>
+          <div class="metric"><div class="ml"><span>正常重构被拦风险</span><span>高</span></div><div class="mt"><div class="mf bad" data-w="88"></div></div></div>
+          <div class="metric"><div class="ml"><span>挡住构建的几率</span><span>直接挡</span></div><div class="mt"><div class="mf bad" data-w="95"></div></div></div>
+          <div class="metric"><div class="ml"><span>扫描口径一致</span><span>各自一套</span></div><div class="mt"><div class="mf bad" data-w="25"></div></div></div>
+        </div>
+        <div class="bar">
+          <h5>改后（本次）</h5>
+          <div class="sub">剥注释计数 + 总量棘轮 + 默认只报告</div>
+          <div class="metric"><div class="ml"><span>今天实际发生的假红</span><span>0 次</span></div><div class="mt"><div class="mf good" data-w="0"></div></div></div>
+          <div class="metric"><div class="ml"><span>正常重构被拦风险</span><span>低</span></div><div class="mt"><div class="mf good" data-w="8"></div></div></div>
+          <div class="metric"><div class="ml"><span>挡住构建的几率</span><span>需显式开启</span></div><div class="mt"><div class="mf good" data-w="6"></div></div></div>
+          <div class="metric"><div class="ml"><span>扫描口径一致</span><span>共用一份</span></div><div class="mt"><div class="mf good" data-w="100"></div></div></div>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr><th class="n">维度</th><th class="before">改前</th><th class="after">改后</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="n">怎么数</td><td class="before">全文正则 <code>/!important/g</code>，注释里的字样照样算</td><td class="after">先剥注释，再按花括号深度判断"这条声明是否落在暗色规则块里"</td></tr>
+          <tr><td class="n">棘轮粒度</td><td class="before">按文件比基线 —— 把 2 处样式挪到另一个文件就判红</td><td class="after">只比总量 —— 搬移不算涨，单文件增长降级为定位提示</td></tr>
+          <tr><td class="n">失败后果</td><td class="before"><code>process.exit(1)</code>，构建/部署直接停</td><td class="after">默认出口码 0 只报告；<code>--strict</code> 才 exit 1</td></tr>
+          <tr><td class="n">实现在哪</td><td class="before">每个脚本各写一份正则，口径会漂</td><td class="after"><code>scripts/lib/dark-token-counter.mjs</code> 一处实现，出报告与门禁共用</td></tr>
+          <tr><td class="n">基线现状</td><td class="before">!important 全局 1332（含 6 处注释误计）</td><td class="after">!important 1326；暗色字面量 2790 / 89 文件</td></tr>
+          <tr><td class="n">可阻断范围</td><td class="before">全局一刀切 —— 要么全放要么全拦，假红只能靠 --update 冲掉</td><td class="after">按区域分级：<b>已清扫区严格 / 其余只报告</b>，严格名单为空时等于不阻断</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ============ panel 3 ============ -->
+    <section class="panel" data-tab="3" data-on="0">
+      <ul class="list" id="adopt">
+        <li aria-checked="true">
+          <span class="box">✓</span>
+          <button class="tog" type="button">
+            <span class="t">计数口径收成一份实现</span>
+            <span class="d">新增 <code>scripts/lib/dark-token-counter.mjs</code>：剥注释 + 括号深度判定暗色块。出报告的 <code>dark-token-scan.mjs</code> 与门禁共用它，两边永远是同一个数。</span>
+          </button>
+        </li>
+        <li aria-checked="true">
+          <span class="box">✓</span>
+          <button class="tog" type="button">
+            <span class="t">门禁落地为观察模式</span>
+            <span class="d"><code>scripts/check-dark-tokens.mjs</code>：总量上升只打印 ⚠️ 与增长文件，<b>出口码 0，不阻断构建</b>。已接进 <code>build:ci</code>，所以 CI 日志里会一直有这条数字。</span>
+          </button>
+        </li>
+        <li aria-checked="true">
+          <span class="box">✓</span>
+          <button class="tog" type="button">
+            <span class="t">基线已锁：2790 / 89 文件</span>
+            <span class="d"><code>scripts/dark-token-budget.json</code>，含逐文件分布用于定位。棘轮只降不升，<code>--update</code> 是唯一的登记口。</span>
+          </button>
+        </li>
+        <li aria-checked="true">
+          <span class="box">✓</span>
+          <button class="tog" type="button">
+            <span class="t">顺手修掉 !important 门禁的假红</span>
+            <span class="d">原来不剥注释，注释里写一句 <code>!important</code> 就算一处真实声明。今天它真的误伤了 <code>landscape-rail.css</code>。修完基线 1332 → 1326（少掉的 6 处全是注释）。</span>
+          </button>
+        </li>
+        <li aria-checked="true">
+          <span class="box">✓</span>
+          <button class="tog" type="button">
+            <span class="t">P0 主题归因修复 + 21 项验收探针</span>
+            <span class="d">后台不再自己管主题（收编到 themeManager），删掉 3 处「跟随系统」兜底块；<code>probe-dark-admin-theme.mjs</code> 含 2 条反证，21 PASS / 0 FAIL。</span>
+          </button>
+        </li>
+        <li aria-checked="true">
+          <span class="box">✓</span>
+          <button class="tog" type="button">
+            <span class="t">分区棘轮机制已落地（今天不阻断）</span>
+            <span class="d"><code>scripts/dark-gate-scopes.json</code> 的 strict 名单：列进去的区域表示"已清扫到 0 个裸色"，再出现即 exit 1（不受观察模式影响）。<b>名单当前为空，所以门禁今天不会让任何构建失败</b>。</span>
+          </button>
+        </li>
+        <li aria-checked="false">
+          <span class="circ k">?</span>
+          <button class="tog" type="button">
+            <span class="t">待你决定：往严格名单里加第一个文件</span>
+            <span class="d">建议时机 = P3 把某个页面扫到 0 裸色的当天，把它的路径加进 strict。这样牙齿随清扫进度长，永远不会误伤没做过的地方。实测：把 <code>src/views/Shop/**</code> 加进去会立刻红（该目录今天有 24 处裸色，分布在 3 个文件）。</span>
+          </button>
+        </li>
+        <li aria-checked="false">
+          <span class="circ k">?</span>
+          <button class="tog" type="button">
+            <span class="t">待你决定：是否切严格模式</span>
+            <span class="d">把 <code>build:ci</code> 里的 <code>check:dark-tokens</code> 换成 <code>check:dark-tokens:strict</code>，新裸色就会挡构建。建议等 P2/P3 把 token 补齐、存量压下来之后再说。</span>
+          </button>
+        </li>
+        <li aria-checked="false">
+          <span class="circ w">–</span>
+          <button class="tog" type="button">
+            <span class="t">待你决定：新文件策略</span>
+            <span class="d">默认新文件也在观察档（只报告）。可选收紧：新文件允许 ≤N 处裸色、超出才红（N=0 最严）。<b>代价</b>：新页面早期形态可能被拦，所以建议等 P2 的 <code>dark-2-tokens.css</code> 落地、token 真的够用了再收紧。</span>
+          </button>
+        </li>
+        <li aria-checked="false">
+          <span class="circ w">–</span>
+          <button class="tog" type="button">
+            <span class="t">待你决定：themes/ 移出 !important 白名单</span>
+            <span class="d">现在 <code>src/styles/themes/</code> 的 364 处 !important 不受任何棘轮约束。移出后全局基线会从 1326 涨到约 1690（只是把盲区纳入观测），之后可以逐档往下压。</span>
+          </button>
+        </li>
+        <li aria-checked="false">
+          <span class="circ w">–</span>
+          <button class="tog" type="button">
+            <span class="t">未做（下一阶段）：P2 token 落地 / P3 高杠杆清扫</span>
+            <span class="d">P2 新建 <code>dark-2-tokens.css</code> 把 11 套暗色族收敛到一条 ramp；P3 从 Shop 开始把绕过自己页面 token 的 ≥12 处 <code>rgba(255,255,255,…)</code> 换成 <code>var(--surface)</code>。</span>
+          </button>
+        </li>
+      </ul>
+      <p class="legend">方形勾选框 = 已落地（可点掉看它是否真的必要）；圆形状态点 = 已存在/待你拍板，不可勾选。</p>
+      <div class="note"><b>安全边界（这套东西不会碰的）：</b>不改任何页面视觉、不改业务逻辑、不动 <code>dist/</code>；观察模式下即使判红也只写日志。唯一有写权限的动作是 <code>--update</code>，且它必须由人显式执行。</div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------------- 数据 ---------------- */
+  var TOTAL = 2790, FILES = 89, IMPORTANT = 413;
+
+  var SCENARIOS = [
+    {
+      id: 'add1',
+      group: '真实新增',
+      label: '在既有暗色块里加 1 个裸色',
+      desc: '最常见的一种：改样式时顺手写了个 #hex',
+      snippet:
+        '<span class="cmt">/* dark-mode.css */</span>\n[data-theme=<span class="ok">"dark"</span>] {\n  --boh-brand-red: #ff5252;\n  <span class="lit">--boh-brand-red-hover: #ff6b6b;</span>   <span class="cmt">← 新写的</span>\n}',
+      nodes: [
+        { label: '剥注释', kind: 'plain' },
+        { label: '在暗色块内？', kind: 'plain' },
+        { label: '计入 +1', kind: 'hit' },
+        { label: '总量 2790 → 2791', kind: 'hit' },
+        { label: '与基线比较', kind: 'plain' }
+      ],
+      steps: [
+        { q: '这句在 /* 注释 */ 里吗？', a: '不是 → 继续', y: false },
+        { q: '它落在 [data-theme="dark"] 规则块内吗？', a: '是 → 计入', y: true },
+        { q: '总量超过基线 2790 了吗？', a: '超了，+1', y: false }
+      ],
+      note: '暗色块内 1 个颜色字面量 = 1 处债务。',
+      verdict: {
+        kind: 'warn',
+        title: '总量上涨，判为新增债务',
+        desc: '总量 2790 → 2791。增长明细会指名到文件：dark-mode.css 57 → 58 (+1)。'
+      },
+      tiers: {
+        observe: { chip: 'warn', text: '⚠️ 报告，但构建继续' },
+        scoped: { chip: 'warn', text: '⚠️ 报告（该文件不在严格名单里）' },
+        strict: { chip: 'fail', text: '❌ exit 1，构建失败' }
+      },
+      risk: '这就是门禁存在的理由：假如每次都放行，2790 会变成 3000、3500。总量每涨一点，"一处改全站"就远一点 —— 报告里 52 个各不相同的暗色表面值就是这么攒出来的。'
+    },
+    {
+      id: 'newfile',
+      group: '真实新增',
+      label: '新页面第一次提交，带 2 个裸色',
+      desc: '新页面容易从旁边复制一行，把裸值一起抄过来',
+      snippet:
+        '<span class="cmt">/* src/views/BOHApp/style.scoped.css（新文件）*/</span>\n[data-theme=<span class="ok">"dark"</span>] .app-hero {\n  <span class="lit">background: #0b0e14;</span>\n  <span class="lit">color: #eef0f4;</span>\n}',
+      nodes: [
+        { label: '新文件', kind: 'plain' },
+        { label: '在暗色块内？', kind: 'plain' },
+        { label: '计入 +2', kind: 'hit' },
+        { label: '总量 2790 → 2792', kind: 'hit' },
+        { label: '标记 [新文件]', kind: 'plain' }
+      ],
+      steps: [
+        { q: '文件在基线里出现过吗？', a: '没有 → 基线记 0', y: false },
+        { q: '这两条落在暗色块内吗？', a: '是 → 各计 1', y: true },
+        { q: '总量超过基线了吗？', a: '超了，+2', y: false }
+      ],
+      note: '新文件不需要"没写过的特权"，它的基线就是 0。',
+      verdict: {
+        kind: 'warn',
+        title: '总量上涨，且明细里带 [新文件]',
+        desc: '总量 2790 → 2792。报告会单独标出 [新文件] src/views/BOHApp/style.scoped.css: 0 → 2 (+2)，一眼看得出是新页面引入的。'
+      },
+      tiers: {
+        observe: { chip: 'warn', text: '⚠️ 报告，但构建继续' },
+        scoped: { chip: 'warn', text: '⚠️ 报告（该文件不在严格名单里）' },
+        strict: { chip: 'fail', text: '❌ exit 1，构建失败' }
+      },
+      risk: '反过来：如果新页面完全不管，一个新页面就能带进十几个裸值，P3 的清扫永远追不上新增。这也是"默认只报告"的代价 —— 得靠人看 CI 日志。'
+    },
+    {
+      id: 'move',
+      group: '不该判红',
+      label: '把 2 处裸色从 A 文件搬到 B 文件',
+      desc: '重构：拆文件、挪样式块、提取公共样式',
+      snippet:
+        '<span class="cmt">// dark-mode.css：删掉 2 行</span>\n<span class="cmt">// __new.css：多出同样的 2 行</span>\n<span class="cmt">// 债务没有变化，只是换了个地方</span>',
+      nodes: [
+        { label: 'A 文件 −2', kind: 'plain' },
+        { label: 'B 文件 +2', kind: 'plain' },
+        { label: '总量不变', kind: 'ok' },
+        { label: '与基线比较', kind: 'plain' },
+        { label: '放行', kind: 'ok' }
+      ],
+      steps: [
+        { q: 'A 文件少了吗？', a: '少了 2 处', y: true },
+        { q: '总量变了吗？', a: '没变，还是 2790', y: true },
+        { q: '要判红吗？', a: '不判，只提示搬移', y: true }
+      ],
+      note: '棘轮看总量，所以搬移天然不敏感；单文件增长只作为提示输出。',
+      verdict: {
+        kind: 'ok',
+        title: '通过（附一条搬移提示）',
+        desc: '输出「以下文件增长但总量未增（文件间搬移，不判红）」—— 有定位信息，但没有罪名。'
+      },
+      tiers: {
+        observe: { chip: 'pass', text: '✅ 通过' },
+        scoped: { chip: 'pass', text: '✅ 通过（不在严格名单里，天然放行）' },
+        strict: { chip: 'pass', text: '✅ 通过（严格模式同样放行）' }
+      },
+      risk: '这就是"门禁太严格"的真正来源：如果按文件比基线，这种纯重构会被判成新增债务并挡住构建。挡住好人的门禁，最后一定会被人绕过或关掉。'
+    },
+    {
+      id: 'comment',
+      group: '不该判红',
+      label: '注释里写了一句 !important',
+      desc: '今天真实发生过：一句解释性注释触发假红',
+      snippet:
+        '<span class="cmt">/* 它被 scoped 的 `padding: 0 <span class="lit">!important</span>` 压过</span>',
+      nodes: [
+        { label: '剥注释', kind: 'ok' },
+        { label: '注释整体丢弃', kind: 'ok' },
+        { label: '不计入', kind: 'ok' },
+        { label: '与基线比较', kind: 'plain' },
+        { label: '放行', kind: 'ok' }
+      ],
+      steps: [
+        { q: '先剥注释了吗？', a: '剥了（/* */ 与整行 //）', y: true },
+        { q: '剥完还剩 !important 吗？', a: '不剩，这句整个被丢掉', y: true },
+        { q: '要判红吗？', a: '不判', y: true }
+      ],
+      note: '计数必须在剥注释后的文本上做；这是精度问题，不是宽松问题。',
+      verdict: {
+        kind: 'ok',
+        title: '通过',
+        desc: '改前这条会红：landscape-rail.css 基线 0 → 1 (+1)。改后实测同一文件 0 → 0。'
+      },
+      tiers: {
+        observe: { chip: 'pass', text: '✅ 通过' },
+        scoped: { chip: 'pass', text: '✅ 通过（不在严格名单里，天然放行）' },
+        strict: { chip: 'pass', text: '✅ 通过（严格模式同样放行）' }
+      },
+      risk: '假红的代价比漏报大：一旦门禁误伤过一次，后面每次它变红，第一反应都会是"又误报了"，然后被 --update 顺手冲掉 —— 门禁就名存实亡了。'
+    },
+    {
+      id: 'regress',
+      group: '分区棘轮（牙齿长在哪）',
+      label: '在已清扫干净的页面里又写了一个裸色',
+      desc: '这块已经 token 化过，出现裸色基本只能是抄了旧写法',
+      snippet:
+        '<span class="cmt">/* P3 已清扫：该文件裸色已降到 0，并进了严格名单 */</span>\n' +
+        '[data-theme=<span class="ok">"dark"</span>] .shop-card {\n' +
+        '  <span class="lit">background: rgba(255, 255, 255, 0.6);</span>   <span class="cmt">← 回归</span>\n' +
+        '}',
+      nodes: [
+        { label: '命中严格名单', kind: 'plain' },
+        { label: '基线按 0 算', kind: 'plain' },
+        { label: '出现裸色 1 处', kind: 'hit' },
+        { label: '判红（与模式无关）', kind: 'hit' }
+      ],
+      steps: [
+        { q: '文件在 dark-gate-scopes.json 的 strict 名单里吗？', a: '在 → 基线按 0 算', y: true },
+        { q: '它现在有裸色吗？', a: '有 1 处', y: false },
+        { q: '观察模式能放行吗？', a: '不能 —— 这一档不受模式影响', y: false }
+      ],
+      note: '分区严格是唯一“可以进部署链”的一档：它只覆盖已经干净的地方。',
+      verdict: {
+        kind: 'warn',
+        title: 'exit 1（观察模式下也拦）',
+        desc: '已清扫区域本来就不该出现新裸色，这里的红几乎不可能是误报 —— 牙齿长在这样的地方，才不会被人用 --update 顺手冲掉。'
+      },
+      tiers: {
+        observe: { chip: 'warn', text: '⚠️ 报告（分区严格未启用）' },
+        scoped: { chip: 'fail', text: '❌ exit 1，构建失败（分区严格，不看模式）' },
+        strict: { chip: 'fail', text: '❌ exit 1，构建失败' }
+      },
+      risk: '反过来：如果连已清扫的地方也不拦，P3 做完的页面会在下一个人手里慢慢长回裸值 —— 清扫就变成一次性的、会退化的投入。'
+    }
+  ];
+  var MODE_NOTE = {
+    observe: '全局总量只报告，出口码 0 —— 今天不会挡住任何一次构建',
+    scoped: '全局只报告 + 已清扫区域严格；严格名单当前为空，所以实际效果同档1',
+    strict: '全局总量上升即 exit 1 —— 会挡住构建，需显式开启'
+  };
+
+  /* ---------------- 工具 ---------------- */
+  var $ = function (sel, root) { return (root || document).querySelector(sel); };
+  var runToken = 0;
+
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  /* ---------------- 面板切换 ---------------- */
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab'));
+  var panels = Array.prototype.slice.call(document.querySelectorAll('.panel'));
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () {
+      var id = t.getAttribute('data-tab');
+      tabs.forEach(function (x) { x.setAttribute('aria-selected', x === t ? 'true' : 'false'); });
+      panels.forEach(function (p) {
+        p.setAttribute('data-on', p.getAttribute('data-tab') === id ? '1' : '0');
+      });
+      if (id === '2') animateBars();
+    });
+  });
+
+  /* 指标条：插入时宽度为 0，rAF 里再写目标宽度，transition 才会动 */
+  var barsDone = false;
+  function animateBars() {
+    var fills = Array.prototype.slice.call(document.querySelectorAll('.mf[data-w]'));
+    requestAnimationFrame(function () {
+      fills.forEach(function (f, i) {
+        setTimeout(function () { f.style.width = f.getAttribute('data-w') + '%'; }, i * 55);
+      });
+    });
+    barsDone = true;
+  }
+  void barsDone;
+
+  /* ---------------- panel 1 ---------------- */
+  var mode = 'observe';
+  var current = SCENARIOS[0].id;
+
+  var picker = $('#picker');
+  function renderPicker() {
+    var html = '';
+    var lastGroup = '';
+    SCENARIOS.forEach(function (s) {
+      if (s.group !== lastGroup) {
+        html += '<div class="grp">' + s.group + '</div>';
+        lastGroup = s.group;
+      }
+      html += '<button class="pick" type="button" data-id="' + s.id + '" aria-selected="' +
+        (s.id === current ? 'true' : 'false') + '">' +
+        '<span class="t">' + s.label + '</span><span class="d">' + s.desc + '</span></button>';
+    });
+    picker.innerHTML = html;
+    Array.prototype.slice.call(picker.querySelectorAll('.pick')).forEach(function (b) {
+      b.addEventListener('click', function () { select(b.getAttribute('data-id')); });
+    });
+  }
+
+  var seg = $('#modeSeg');
+  Array.prototype.slice.call(seg.querySelectorAll('button')).forEach(function (b) {
+    b.addEventListener('click', function () {
+      mode = b.getAttribute('data-mode');
+      Array.prototype.slice.call(seg.querySelectorAll('button')).forEach(function (x) {
+        x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
+      });
+      $('#modeNote').textContent = MODE_NOTE[mode];
+      renderBuild(current);
+    });
+  });
+
+  function clearStages() {
+    /* 状态类卫生：所有状态类一起清，避免跨对象残留 */
+    Array.prototype.slice.call(document.querySelectorAll('.node')).forEach(function (n) {
+      n.classList.remove('on');
+    });
+    Array.prototype.slice.call(document.querySelectorAll('.decision li')).forEach(function (li) {
+      li.classList.remove('on');
+    });
+    var v = $('#verdict'), r = $('#risk');
+    v.classList.remove('on', 'g', 'a');
+    r.classList.remove('on');
+  }
+
+  function renderBuild(id) {
+    var s = SCENARIOS.filter(function (x) { return x.id === id; })[0];
+    if (!s) return;
+    var cfg = s.tiers[mode];
+    var chip = $('#buildChip');
+    chip.className = 'chip ' + cfg.chip;
+    chip.textContent = cfg.text;
+  }
+
+  function select(id) {
+    current = id;
+    Array.prototype.slice.call(picker.querySelectorAll('.pick')).forEach(function (b) {
+      b.setAttribute('aria-selected', b.getAttribute('data-id') === id ? 'true' : 'false');
+    });
+    run(id);
+  }
+
+  async function run(id) {
+    var token = ++runToken;
+    var s = SCENARIOS.filter(function (x) { return x.id === id; })[0];
+    if (!s) return;
+
+    $('#snippet').innerHTML = s.snippet;
+    $('#pathnote').textContent = '';
+    $('#path').innerHTML = s.nodes.map(function (n, i) {
+      return (i ? '<span class="arrow">→</span>' : '') +
+        '<span class="node ' + n.kind + '"><span class="dot"></span>' + n.label + '</span>';
+    }).join('');
+    $('#decision').innerHTML = s.steps.map(function (st) {
+      return '<li><span class="q">' + st.q + '</span><span class="a ' + (st.y ? 'y' : 'n') + '">' + st.a + '</span></li>';
+    }).join('');
+
+    var v = $('#verdict'), r = $('#risk');
+    $('h4', v).textContent = s.verdict.title;
+    $('p', v).textContent = s.verdict.desc;
+    $('p', r).textContent = s.risk;
+    clearStages();
+    renderBuild(id);
+
+    var nodes = Array.prototype.slice.call(document.querySelectorAll('#path .node'));
+    for (var i = 0; i < nodes.length; i++) {
+      await sleep(120);
+      if (token !== runToken) return;
+      nodes[i].classList.add('on');
+    }
+    await sleep(80);
+    if (token !== runToken) return;
+    $('#pathnote').textContent = s.note;
+
+    var lis = Array.prototype.slice.call(document.querySelectorAll('#decision li'));
+    for (var j = 0; j < lis.length; j++) {
+      await sleep(160);
+      if (token !== runToken) return;
+      lis[j].classList.add('on');
+    }
+    await sleep(120);
+    if (token !== runToken) return;
+
+    /* 逐个 add，不要写成 add('on', cond) —— 语法会炸、动画静默断链 */
+    if (s.verdict.kind === 'ok') v.classList.add('g');
+    else v.classList.add('a');
+    v.classList.add('on');
+    await sleep(140);
+    if (token !== runToken) return;
+    r.classList.add('on');
+  }
+
+  /* ---------------- panel 3 ---------------- */
+  Array.prototype.slice.call(document.querySelectorAll('#adopt li')).forEach(function (li) {
+    var inner = $('.tog', li);
+    if (!inner) return;
+    inner.addEventListener('click', function () {
+      /* 有勾选框的可切换；圆形状态点不可点 */
+      if (!$('.box', li)) return;
+      li.setAttribute('aria-checked', li.getAttribute('aria-checked') === 'true' ? 'false' : 'true');
+    });
+  });
+
+  /* ---------------- init ---------------- */
+  $('#modeNote').textContent = MODE_NOTE[mode];
+  renderPicker();
+  run(SCENARIOS[0].id);
+  window.__demo = {
+    total: TOTAL, files: FILES, important: IMPORTANT,
+    scenarios: SCENARIOS.map(function (s) { return s.id; })
+  };
+})();
+</script>
+</body>
+</html>

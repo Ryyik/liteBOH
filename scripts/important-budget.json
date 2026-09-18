@@ -1,5 +1,5 @@
 {
-  "total": 1332,
+  "total": 1326,
   "files": {
     "src/App.vue": 1,
     "src/components/AiEdgeTrigger.vue": 2,
@@ -10,7 +10,7 @@
     "src/components/UnifiedNavbar/BOHAIIsland.vue": 91,
     "src/components/UnifiedNavbar/GlobalNavStatusCard.vue": 3,
     "src/components/UnifiedNavbar/GlobalNavTaskCard.vue": 1,
-    "src/components/UnifiedNavbar/style.scoped.css": 46,
+    "src/components/UnifiedNavbar/style.scoped.css": 42,
     "src/components/WordCloud.vue": 3,
     "src/components/ai/AiQuotaSidePanel.vue": 45,
     "src/style.css": 6,
@@ -36,7 +36,7 @@
     "src/views/BOHAI/BOHAI/styles/shell-header.css": 2,
     "src/views/BlockWall/style.scoped.css": 3,
     "src/views/DataManagement/components/PityGrantConsole.vue": 4,
-    "src/views/Download/index.vue": 6,
+    "src/views/Download/index.vue": 4,
     "src/views/Forum/ForumMain.vue": 1,
     "src/views/Forum/styles/anniversary.css": 48,
     "src/views/Forum/styles/base.css": 2,

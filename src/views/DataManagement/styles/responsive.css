@@ -27,33 +27,8 @@
   color: var(--dm-text);
 }
 
-/* 系统暗黑模式自动跟随 (无显式 data-theme / .dark 时生效) */
-@media (prefers-color-scheme: dark) {
-  .data-management-page:not([data-theme="light"]):not(.dark) {
-    --dm-nav-height: 76px;
-    --dm-bg: #161616;
-    --dm-panel: #1d1d1c;
-    --dm-panel-2: #1d1d1c;
-    --dm-border: #1d1d1c;
-    --dm-border-strong: #404040;
-    --dm-text: #eff1f4;
-    --dm-muted: #949494;
-    --dm-soft: #383838;
-    --dm-accent: #fc2c50;
-    --dm-accent-strong: #fc2c50;
-    --dm-accent-surface: #4a2026;
-    --dm-danger: #ef4444;
-    --dm-success: #baf6f0;
-    --dm-warning: #fbeb35;
-    --dm-sidebar-bg: #171717;
-    --dm-sidebar-border: #404040;
-    --dm-sidebar-accent: #00266b;
-    --dm-sidebar-text: #bfdbfe;
-    --dm-input-bg: #000000;
-    --dm-popover: #2e2e2e;
-    --dm-secondary-fg: #e5e5e5;
-  }
-}
+/* 暗色不再跟随系统：由 html[data-theme] / 本页根元素 data-theme 决定。
+   此处原有的 @media (prefers-color-scheme: dark) 块是本文件上方 --dm-* 暗色块的逐字副本，已删除。 */
 
 .admin-shell {
   display: grid;

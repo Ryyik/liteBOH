@@ -2,6 +2,67 @@
   <div class="pushplus-settings">
     <!-- 单一液态玻璃连续面板（与设置主页同一设计体系，2026-09-09） -->
     <div class="glass-settings">
+      <!-- 应用内通知（Web Push）：无需第三方账号，是主通道 -->
+      <section class="gs-group">
+        <div class="gs-group-title">应用内通知</div>
+        <div class="gs-rows">
+          <div v-if="!pushLoaded" class="gs-row is-static">
+            <span class="gs-icon is-blue">
+              <Bell :size="16" :stroke-width="2" aria-hidden="true" />
+            </span>
+            <span class="gs-text">
+              <span class="gs-label">正在检查当前环境…</span>
+            </span>
+          </div>
+
+          <div v-else-if="!pushStatus.supported" class="gs-row is-static">
+            <span class="gs-icon is-yellow">
+              <BellOff :size="16" :stroke-width="2" aria-hidden="true" />
+            </span>
+            <span class="gs-text">
+              <span class="gs-label">当前环境不可用</span>
+              <span class="gs-desc">{{ pushStatus.reason }}</span>
+            </span>
+          </div>
+
+          <template v-else>
+            <div class="gs-row">
+              <span class="gs-icon" :class="pushEnabled ? 'is-green' : 'is-blue'">
+                <BellRing v-if="pushEnabled" :size="16" :stroke-width="2" aria-hidden="true" />
+                <Bell v-else :size="16" :stroke-width="2" aria-hidden="true" />
+              </span>
+              <span class="gs-text">
+                <span class="gs-label">{{ pushEnabled ? '通知已开启' : '开启浏览器通知' }}</span>
+                <span class="gs-desc">{{ pushEnabled ? '有新消息时在设备上提醒你' : pushHint }}</span>
+              </span>
+              <span class="gs-side">
+                <SettingToggle :model-value="pushEnabled" :disabled="isPushBusy || !pushStatus.configured"
+                  label="应用内通知" @update:model-value="handlePushToggle" />
+              </span>
+            </div>
+
+            <div v-if="pushEnabled" class="gs-row is-static">
+              <span class="gs-icon is-purple">
+                <Smartphone :size="16" :stroke-width="2" aria-hidden="true" />
+              </span>
+              <span class="gs-text">
+                <span class="gs-label">图标角标</span>
+                <span class="gs-desc">{{ pushBadgeHint }}</span>
+              </span>
+            </div>
+          </template>
+
+          <div v-if="pushLoaded && pushStatus.supported && pushEnabled" class="pp-form">
+            <div class="gs-actions">
+              <button class="gs-btn ghost" :disabled="isPushBusy" @click="testWebPush">
+                <span v-if="isPushBusy" class="gs-spinner"></span>
+                <template v-else>发送测试通知</template>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- 推送状态 -->
       <section class="gs-group">
         <div class="gs-group-title">推送状态</div>
@@ -152,8 +213,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, markRaw } from 'vue';
-import { AlertCircle, Bell, BellOff, BellRing, CheckCircle2, HelpCircle, Heart, HeartHandshake, Inbox, Info, Lock, MessageCircle, Shield, Sparkles } from 'lucide-vue-next';
+import { ref, computed, onMounted, onUnmounted, markRaw } from 'vue';
+import { AlertCircle, Bell, BellOff, BellRing, CheckCircle2, HelpCircle, Heart, HeartHandshake, Inbox, Info, Lock, MessageCircle, Shield, Smartphone, Sparkles } from 'lucide-vue-next';
 import SettingToggle from '@/views/user-center/UserSpace/components/SettingToggle.vue';
 import { useAuthStore } from '@/stores/auth';
 import {
@@ -163,6 +224,12 @@ import {
   deletePushplusToken
 } from '@/utils/api/pushplus-api.js';
 import { sendPushplusMessage } from '@/utils/pushplus.js';
+import {
+  getPushStatus,
+  enablePush,
+  disablePush,
+  sendTestPush
+} from '@/utils/api/push-api.js';
 
 const authStore = useAuthStore();
 
@@ -183,6 +250,80 @@ const originalToken = ref('');
 const canUseClipboard = ref(false);
 const showClearConfirm = ref(false);
 let messageTimer = null;
+
+// ---------- 应用内通知（Web Push）----------
+// 与 Pushplus 是两条独立通道：这条不需要任何第三方账号，权限由浏览器授予。
+const isPushBusy = ref(false);
+// 加载位：能力检测是同步的，但「服务端是否已配置」要等一次网络请求，
+// 不加这个位首帧会把「还没查完」误画成「当前环境不可用」
+const pushLoaded = ref(false);
+const pushStatus = ref({
+  supported: false,
+  reason: '',
+  configured: false,
+  permission: 'default',
+  enabled: false,
+  endpoint: ''
+});
+const pushEnabled = computed(() => Boolean(pushStatus.value.enabled));
+
+const pushHint = computed(() => {
+  const status = pushStatus.value;
+  if (!status.configured) return '服务端尚未开启推送功能';
+  if (status.permission === 'denied') return '通知权限已被浏览器拒绝，需在网站设置里允许';
+  return '有新消息时在设备上弹出提醒';
+});
+
+// 安卓拿不到数字角标（Chrome for Android 不支持 setAppBadge），如实说明，避免被当成 bug
+const pushBadgeHint = computed(() => {
+  const ua = typeof navigator !== 'undefined' ? String(navigator.userAgent || '') : '';
+  if (/Android/i.test(ua)) return '安卓由系统在有用未读通知时点亮圆点，不显示数字';
+  return '未读数量会显示在应用图标上';
+});
+
+const loadPushStatus = async () => {
+  if (!authStore.userInfo?.id) {
+    pushLoaded.value = true;
+    return;
+  }
+  try {
+    pushStatus.value = await getPushStatus(authStore.userInfo.id);
+  } catch (_error) {
+    // 状态读取失败不该影响设置页其它功能
+  } finally {
+    pushLoaded.value = true;
+  }
+};
+
+const handlePushToggle = async (value) => {
+  if (isPushBusy.value) return;
+  const userId = authStore.userInfo?.id;
+  if (!userId) {
+    showMessage('请先登录', 'error');
+    return;
+  }
+
+  isPushBusy.value = true;
+  try {
+    const result = value ? await enablePush(userId) : await disablePush(userId);
+    showMessage(result.message, result.success ? 'success' : 'error');
+  } finally {
+    isPushBusy.value = false;
+    await loadPushStatus();
+  }
+};
+
+const testWebPush = async () => {
+  isPushBusy.value = true;
+  try {
+    const result = await sendTestPush();
+    showMessage(result.ok ? '测试通知已发送，请查看设备通知' : (result.message || '发送失败'), result.ok ? 'success' : 'error');
+  } catch (error) {
+    showMessage(error?.message || '发送失败', 'error');
+  } finally {
+    isPushBusy.value = false;
+  }
+};
 
 const showMessage = (msg, type = 'info') => {
   message.value = msg;
@@ -355,6 +496,7 @@ const testPush = async () => {
 onMounted(() => {
   canUseClipboard.value = Boolean(navigator.clipboard?.readText);
   loadSettings();
+  loadPushStatus();
 });
 
 onUnmounted(() => {

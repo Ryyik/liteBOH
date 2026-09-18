@@ -1,5 +1,37 @@
 <template>
   <aside class="userspace-rail liquid-glass" aria-label="用户空间导航">
+    <!-- 品牌位：占进「与内容区首屏对齐」留出的顶部空白，绝对定位、不进文档流 ——
+         因此不增加内容高度、也不推挤首个条目（实测首项 top 不变）。
+         右侧「更多」承载低频偏好与破坏性操作：主题、退出登录。
+         退出登录原本与「首页」同级吸底，等于给破坏性操作发了常用操作的权重，
+         移进来后要两步才登出 —— 这是用一点点可用性换误触成本，取舍已确认。 -->
+    <div ref="brandRef" class="userspace-rail-brand">
+      <img class="userspace-rail-brand-mark" src="/favicon.png" alt="" width="26" height="26" aria-hidden="true" />
+      <span class="userspace-rail-brand-name">方块之家</span>
+      <button ref="moreBtnRef" type="button" class="userspace-rail-more" data-rail-action="more"
+        :aria-expanded="moreOpen ? 'true' : 'false'" aria-haspopup="menu" aria-label="更多"
+        @click.stop="toggleMore">
+        <svg class="userspace-rail-more-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="5" cy="12" r="1.5" />
+          <circle cx="12" cy="12" r="1.5" />
+          <circle cx="19" cy="12" r="1.5" />
+        </svg>
+      </button>
+      <div v-if="moreOpen" class="userspace-rail-menu" role="menu">
+        <button type="button" role="menuitem" class="userspace-rail-menu-item" data-rail-action="theme"
+          @click.stop="pickAction('theme')">
+          <component :is="currentTheme === 'dark' ? Sun : Moon" :size="16" :stroke-width="1.9" aria-hidden="true" />
+          <span>{{ currentTheme === 'dark' ? '浅色模式' : '深色模式' }}</span>
+        </button>
+        <button v-if="isLoggedIn" type="button" role="menuitem"
+          class="userspace-rail-menu-item is-danger" data-rail-action="logout"
+          @click.stop="pickAction('logout')">
+          <LogOut :size="16" :stroke-width="1.9" aria-hidden="true" />
+          <span>退出登录</span>
+        </button>
+      </div>
+    </div>
+
     <div class="userspace-rail-scroll">
       <nav ref="navGroupRef" class="userspace-rail-group" aria-label="主导航">
         <span
@@ -47,21 +79,10 @@
       <div class="userspace-rail-divider" aria-hidden="true"></div>
 
       <nav class="userspace-rail-group userspace-rail-group--footer" aria-label="工具">
-        <button type="button" class="userspace-rail-item" data-rail-action="theme"
-          @click.stop="$emit('action', 'theme')">
-          <component :is="currentTheme === 'dark' ? Sun : Moon" class="userspace-rail-icon" :size="18"
-            :stroke-width="1.9" aria-hidden="true" />
-          <span class="userspace-rail-label">主题</span>
-        </button>
         <button type="button" class="userspace-rail-item" data-rail-action="home"
           @click.stop="$emit('action', 'home')">
           <House class="userspace-rail-icon" :size="18" :stroke-width="1.9" aria-hidden="true" />
           <span class="userspace-rail-label">首页</span>
-        </button>
-        <button v-if="isLoggedIn" type="button" class="userspace-rail-item" data-rail-action="logout"
-          @click.stop="$emit('action', 'logout')">
-          <LogOut class="userspace-rail-icon" :size="18" :stroke-width="1.9" aria-hidden="true" />
-          <span class="userspace-rail-label">退出登录</span>
         </button>
       </nav>
     </div>
@@ -162,6 +183,9 @@ watch(() => props.currentTab, () => {
 
 onMounted(() => {
   syncIndicatorWithoutAnim();
+  // 捕获阶段监听：即便菜单项自身 stop 了冒泡，也能拿到最外层的 pointerdown
+  document.addEventListener('pointerdown', onDocPointerDown, true);
+  document.addEventListener('keydown', onDocKeydown);
   if (typeof ResizeObserver === 'function' && navGroupRef.value) {
     resizeObserver = new ResizeObserver(() => {
       indicatorSettled.value = false;
@@ -176,11 +200,40 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', onDocPointerDown, true);
+  document.removeEventListener('keydown', onDocKeydown);
   if (resizeObserver) {
     resizeObserver.disconnect();
     resizeObserver = null;
   }
 });
+
+/* 「更多」菜单（主题 / 退出登录）。
+   outside-click 判定用品牌位容器而不是按钮本身：菜单也挂在容器内，
+   否则 pointerdown 会先于 click 关掉菜单，菜单项永远点不到。 */
+const brandRef = ref(null);
+const moreBtnRef = ref(null);
+const moreOpen = ref(false);
+
+const toggleMore = () => {
+  moreOpen.value = !moreOpen.value;
+};
+
+const pickAction = (actionId) => {
+  moreOpen.value = false;
+  emit('action', actionId);
+};
+
+const onDocPointerDown = (event) => {
+  if (!moreOpen.value) return;
+  const root = brandRef.value;
+  if (root && event.target && root.contains(event.target)) return;
+  moreOpen.value = false;
+};
+
+const onDocKeydown = (event) => {
+  if (event.key === 'Escape' && moreOpen.value) moreOpen.value = false;
+};
 
 const handleNavClick = (itemId) => {
   emit('nav-click', itemId);
