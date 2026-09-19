@@ -432,7 +432,7 @@ const onSetTagFilter = (tag) => {
   display: none;
 }
 
-/* 移动端第二行容器：769-992 档与输入框同行自然排列，≤768 才换行占满 */
+/* 移动端第二行容器：769-1023 档与输入框同行自然排列，≤768 才换行占满 */
 .toolbar-mobile-row {
   display: flex;
   align-items: center;
@@ -637,11 +637,11 @@ const onSetTagFilter = (tag) => {
   }
 }
 
-/* 桌面 / 横屏（≥993，工具栏由 base.css 的 grid-areas 跨栏独占一行）：
+/* 桌面两栏档（≥1024，与 base.css 两栏档同阈值；工具栏由 grid-areas 跨栏独占一行）：
    按草图重排为「大号液态玻璃搜索容器」——输入区在上，底部一行 [签到][问BOHAI] 左 + 圆形搜索钮右。
    筛选下拉在横屏移除，标签筛选改由输入框内 #标签名 语法承担（chip 显示当前筛选）。
    样式必须写在本组件 scoped —— base.css 是以 scoped 方式引入的，跨组件选择器匹配不到本组件内部 */
-@media (min-width: 993px) {
+@media (min-width: 1024px) {
   .forum-toolbar {
     flex-direction: column;
     align-items: stretch;

@@ -110,6 +110,102 @@ export async function checkIfLiked(postId, userId) {
   return !!data;
 }
 
+/**
+ * 评论点赞切换：主通道 toggle_forum_comment_like RPC（原子返回 action/like_count/is_liked），
+ * RPC 缺失（42883）时降级直查/写 comment_likes 表 —— 与 toggleLike 同构。
+ */
+export async function toggleCommentLike(commentId, userId) {
+  const safeCommentId = String(commentId || '').trim();
+  if (!safeCommentId) return { ok: false, action: null, error: { message: '缺少评论 id' } };
+
+  try {
+    const { data: rpcData, error: rpcError } = await supabase.rpc('toggle_forum_comment_like', {
+      p_comment_id: safeCommentId
+    });
+
+    if (!rpcError) {
+      const resultRow = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+      const action = String(resultRow?.action || '').trim();
+      if (action) {
+        invalidateByTags(['comment_likes', 'comments']);
+        return {
+          ok: true,
+          action,
+          data: {
+            likeCount: Number(resultRow?.like_count || 0),
+            isLiked: Boolean(resultRow?.is_liked)
+          },
+          error: null
+        };
+      }
+    } else if (!isMissingRpcFunctionError(rpcError, 'toggle_forum_comment_like')) {
+      if (String(rpcError?.message || '').includes('NOT_AUTHENTICATED')) {
+        return { ok: false, action: null, error: { message: '请先登录', code: 'NOT_AUTHENTICATED' } };
+      }
+      logger.error('forum-api', 'toggle_forum_comment_like RPC 失败', rpcError);
+      return { ok: false, action: null, error: normalizeDbError(rpcError) };
+    }
+
+    // 降级：直查/写 comment_likes
+    const { data: existingLike, error: checkError } = await supabase
+      .from('comment_likes')
+      .select('id')
+      .eq('comment_id', safeCommentId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (checkError) {
+      logger.error('forum-api', '检查评论点赞状态失败', checkError);
+      return { ok: false, action: null, error: normalizeDbError(checkError) };
+    }
+
+    if (existingLike) {
+      const { error: deleteError } = await supabase
+        .from('comment_likes')
+        .delete()
+        .eq('id', existingLike.id);
+      if (!deleteError) invalidateByTags(['comment_likes', 'comments']);
+      return { ok: !deleteError, action: 'unliked', data: { likeCount: null, isLiked: false }, error: normalizeDbError(deleteError) };
+    }
+
+    const { error: insertError } = await supabase
+      .from('comment_likes')
+      .insert([{ comment_id: safeCommentId, user_id: userId }]);
+
+    if (!insertError) invalidateByTags(['comment_likes', 'comments']);
+    return {
+      ok: !insertError,
+      action: insertError ? null : 'liked',
+      data: { likeCount: null, isLiked: !insertError },
+      error: normalizeDbError(insertError)
+    };
+  } catch (error) {
+    logger.error('forum-api', 'toggleCommentLike 异常', error);
+    return { ok: false, action: null, error: normalizeDbError(error) };
+  }
+}
+
+/** 批量查询当前用户对一组评论的已赞 id 集合（顶层+楼中楼统一入口）。 */
+export async function getLikedCommentIds(commentIds, userId) {
+  const safeUserId = String(userId || '').trim();
+  const ids = (Array.isArray(commentIds) ? commentIds : [])
+    .map((id) => String(id || '').trim())
+    .filter(Boolean);
+  if (!safeUserId || !ids.length) return new Set();
+
+  const { data, error } = await supabase
+    .from('comment_likes')
+    .select('comment_id')
+    .eq('user_id', safeUserId)
+    .in('comment_id', ids);
+
+  if (error) {
+    logger.warn('forum-api', '批量查询评论点赞状态失败，按全部未赞处理', { error });
+    return new Set();
+  }
+  return new Set((data || []).map((row) => String(row.comment_id)));
+}
+
 export async function createQuoteRepost(postId, commentary, { senderId } = {}) {
   const safePostId = String(postId || '').trim();
   const safeCommentary = String(commentary || '').trim();

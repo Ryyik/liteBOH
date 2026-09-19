@@ -239,7 +239,6 @@
 import { ref, computed, nextTick, onActivated, onMounted, onUnmounted, reactive, watch, shallowRef, shallowReactive, markRaw, defineAsyncComponent } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import { MessageCircle, Settings, User, Users, Wallet } from 'lucide-vue-next';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
@@ -262,9 +261,11 @@ const AssetsHubPanel = defineAsyncComponent(() => import('./components/AssetsHub
 import ThemeModal from './components/ThemeModal.vue';
 import NotificationSuggestIsland from '@/components/UnifiedNavbar/NotificationSuggestIsland.vue';
 import { showIsland, islandTaskView } from '@/composables/useIsland.js';
+import { isForumLandscape } from '@/utils/forum-viewport.js';
+import { openForumPost } from '@/composables/usePostDetailModal.js';
 import { createMemoryTtlCache } from './composables/useMemoryTtlCache.js';
 import { useScrollDirectionHide } from './composables/useScrollDirectionHide.js';
-import { USER_SPACE_VALID_TABS, useUserSpaceTabs } from './composables/useUserSpaceTabs.js';
+import { USER_SPACE_VALID_TABS, useUserSpaceTabs, userSpaceNavItems } from './composables/useUserSpaceTabs.js';
 import { useImageCompressionLoader } from './composables/useImageCompressionLoader.js';
 import {
   AsyncBOHAI,
@@ -404,13 +405,7 @@ let userSpacePageEl = null;
 
 let latestTabScrollRestoreToken = 0;
 
-const navItems = [
-  { id: 'community', label: '社区', icon: Users },
-  { id: 'posts', label: '我的', icon: User },
-  { id: 'assets', label: '资产', icon: Wallet },
-  { id: 'messages', label: '消息', icon: MessageCircle },
-  { id: 'settings', label: '设置', icon: Settings }
-];
+const navItems = userSpaceNavItems;
 const { isOpen: isAiOverlayOpen, canOpen: isAiOverlayAllowed, open: openGlobalAi, close: closeGlobalAi } = useGlobalAiOverlay();
 // 与 UnifiedNavbar 的 has-bohai-island 同源判定：岛展开时容器实测高度会被面板撑大
 const isAiIslandOpen = computed(() => isAiOverlayOpen.value && isAiOverlayAllowed.value);
@@ -813,6 +808,11 @@ const formatProfilePostDate = (post = {}) => {
 const openProfilePost = (postId) => {
   const safePostId = String(postId || '').trim();
   if (!safePostId) return;
+  // 横屏（含桌面）：进详情弹窗；竖屏保持整页路由
+  if (isForumLandscape()) {
+    openForumPost({ router, postId: safePostId });
+    return;
+  }
   router.push({ name: 'PostDetail', params: { id: safePostId }, query: { from: 'user-space', tab: 'posts' } });
 };
 

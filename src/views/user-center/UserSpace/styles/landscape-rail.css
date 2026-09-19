@@ -189,6 +189,55 @@
   /* 右区 ≥1040px：发布会话保持全宽（不再放宽限宽档） */
 }
 
+/* ================================================================
+   他人空间（/profile/:username → body.page-userprofile）横屏同体系分栏
+   ================================================================
+   复用同一个 UserSpaceSideRail + 本文件，规则全部域内（.profile-page 前缀）：
+   · 内容右移走 .profile-page 的 padding-left —— 页面是普通文档流，
+     一条 padding 让 sticky 页头、margin:0 auto 的限宽容器全部改为
+     「相对右区居中」，与 UserSpace 的 .tab-page left/width 异曲同工
+   · rail 顶隙不覆写：他人空间无导航胶囊，但沿用默认 --userspace-nav-h
+     fallback（78px）让品牌位高度与我的空间一致，跨页跳转不跳变
+   · --rail-pill-bg（选中胶囊淡染）在 side-rail.css 挂在 .user-space-page，
+     他人空间没有该祖先 → 在此补挂；暗色与条目状态底色一并补齐
+   ================================================================ */
+
+@media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
+  body.page-userprofile {
+    --userspace-rail-w: 88px;
+  }
+
+  .profile-page {
+    /* rail 是 absolute（inset: 0 auto 0 0），包含块必须是页面根 */
+    position: relative;
+    padding-left: var(--userspace-rail-w);
+    --rail-item-bg-hover: rgba(15, 23, 42, 0.05);
+    --rail-item-bg-active: rgba(15, 23, 42, 0.07);
+    --rail-pill-bg: rgba(15, 23, 42, 0.075);
+  }
+
+  /* rail 锁视口：UserSpace 的页面容器高度=100dvh（滚动在 .tab-page 内部），
+     absolute 等效固定；他人空间是普通文档流长页，absolute 会把 rail 拉满
+     整个文档高度 —— 品牌位/导航组随页面滚出视口、首页按钮孤零零贴到
+     文档最底部（实测截图）。覆盖为 fixed 后相对视口定位，滚动不动。
+     特异性 0,3,0 压过 side-rail.css 的 0,2,0，inset/width 原样继承。 */
+  .profile-page .userspace-rail.liquid-glass {
+    position: fixed;
+  }
+
+  .profile-page[data-theme="dark"] {
+    --rail-item-bg-hover: rgba(255, 255, 255, 0.08);
+    --rail-item-bg-active: rgba(255, 255, 255, 0.12);
+    --rail-pill-bg: rgba(255, 255, 255, 0.12);
+  }
+}
+
+@media (orientation: landscape) and (min-width: 1280px) and (min-height: 600px) {
+  body.page-userprofile {
+    --userspace-rail-w: 240px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .user-space-page .tab-page {
     animation-duration: 1ms;

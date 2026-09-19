@@ -150,9 +150,12 @@
   align-items: start;
 }
 
-/* 桌面 / 横屏（≥993，即论坛原有的两栏档）：搜索工具栏跨栏独占一行，
-   第二行才是「帖子列表 + 周报」。单列档不设 areas，DOM 顺序已让工具栏在列表之前。 */
-@media (min-width: 993px) {
+/* 桌面两栏档（≥1024）：搜索工具栏跨栏独占一行，
+   第二行才是「帖子列表 + 周报」。单列档（≤1023，见下方第二处）不设 areas，
+   DOM 顺序已让工具栏在列表之前。
+   阈值对齐 forum-viewport.js 单源：≥1024（桌面）与 ≤1024（竖屏编辑器判据）在 1024 点互补，
+   不再保留旧的 993/992 —— 那 31px 会让布局（两栏）与 JS 行为（移动编辑器）错位。 */
+@media (min-width: 1024px) {
   .forum-main-grid {
     grid-template-areas:
       "search search"
@@ -176,7 +179,7 @@
 
   /* 搜索框的加高 / 居中不写在这里：base.css 是**以 scoped 方式引入**的（多个组件各引一份），
      跨组件选择器会被附加父组件的 scope id，永远匹配不到 ForumToolbar 内部的 input。
-     那部分样式在 ForumToolbar.vue 的 scoped（@media (min-width: 993px)）里 */
+     那部分样式在 ForumToolbar.vue 的 scoped（@media (min-width: 1024px)）里 */
 }
 
 @media (max-width: 1200px) {
@@ -185,7 +188,8 @@
   }
 }
 
-@media (max-width: 992px) {
+/* 单列档（≤1023）：与上面 ≥1024 两栏档互补，不留裂缝带 */
+@media (max-width: 1023px) {
   .forum-main-grid {
     grid-template-columns: 1fr;
     gap: 32px;

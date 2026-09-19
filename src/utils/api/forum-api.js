@@ -32,6 +32,8 @@ export {
 export {
   toggleLike,
   checkIfLiked,
+  toggleCommentLike,
+  getLikedCommentIds,
   createQuoteRepost,
   findQuoteRepostSourceId,
   publishOfficialForumCard,

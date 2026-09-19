@@ -13,6 +13,7 @@ const AiEdgeTrigger = defineAsyncComponent(() => import("@/components/AiEdgeTrig
 const AdminConfirmModal = defineAsyncComponent(() => import("@/components/AdminConfirmModal.vue"));
 import { useConfirmDialog } from "@/composables/useConfirmDialog.js";
 import PWAUpdateToast from "@/components/PWAUpdateToast/index.vue";
+import PostDetailModal from "./views/PostDetail/PostDetailModal.vue";
 import { useGlobalAiPreferences, matchesGlobalAiShortcut } from "@/composables/useGlobalAiPreferences.js";
 
 const route = useRoute();
@@ -339,6 +340,9 @@ const showGlobalNavbar = computed(() => {
 
   <!-- 全局登录模态框 -->
   <LoginView v-if="showLoginModal" :show="showLoginModal" :is-modal="true" @close="showLoginModal = false" />
+
+  <!-- 帖子详情弹窗宿主（横屏）：壳很轻可常驻；重的 PostDetailMain 在弹窗内异步加载 -->
+  <PostDetailModal />
 
   <!-- AI 边缘触发区（移动端侧拉唤起 BOHAI 灵动岛）；导航栏隐藏的路由上岛无宿主，一并隐藏 -->
   <AiEdgeTrigger

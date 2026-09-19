@@ -1,5 +1,12 @@
 <template>
   <div class="profile-page" :data-theme="currentTheme">
+    <!-- 横屏左栏（电脑 + 平板横屏）：与我的空间共用同一组件与 navItems 单源，
+         当前页无对应 tab → current-tab="others" 指示器隐藏；竖屏 / 手机横屏由
+         side-rail.css 的媒体查询隐藏，不渲染任何可见内容 -->
+    <UserSpaceSideRail :nav-items="userSpaceNavItems" current-tab="others"
+      :has-unread-messages="railUnreadCount > 0" :unread-count="railUnreadCount"
+      :current-theme="currentTheme" :is-logged-in="isLoggedIn"
+      @nav-click="handleRailNavClick" @action="handleRailAction" />
     <UserCenterPageHeader title="" @back="goBack" />
     <input type="file" ref="avatarInputRef" class="hidden-file-input" accept="image/*" @change="handleAvatarFileChange">
 
@@ -447,9 +454,14 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { useUserTier } from '@/composables/useUserTier.js';
+import { isForumLandscape } from '@/utils/forum-viewport.js';
+import { openForumPost } from '@/composables/usePostDetailModal.js';
 import { resolveFrameForAuthor } from '@/composables/useAvatarFrame.js';
 import { useTierMap } from '@/composables/useTierMap.js';
 import { PLAN_DISPLAY_NAMES } from '@/utils/subscription-benefits.js';
+import UserSpaceSideRail from '@/views/user-center/UserSpace/components/UserSpaceSideRail.vue';
+import { userSpaceNavItems } from '@/views/user-center/UserSpace/composables/useUserSpaceTabs.js';
+import { getNotificationStoreSync, loadNotificationStore } from '@/stores/notification-loader';
 
 const authStore = useAuthStore();
 const { isLoggedIn, userInfo } = storeToRefs(authStore);
@@ -941,6 +953,41 @@ const shouldShowPostBackgroundCat = (post, index) => {
 const onThemeChanged = (event) => {
   currentTheme.value = event.detail.theme;
   currentThemePreference.value = themeManager.getPreference?.() || currentTheme.value;
+};
+
+/* ---------- 横屏左栏（他人空间同体系分栏，2026-09-19） ----------
+   复用 UserSpaceSideRail + landscape-rail.css 的同一套横屏档。
+   当前页不属于五个 tab → current-tab 传 'others'，指示器自动隐藏（无高亮）。
+   可见性仍由 side-rail.css 的媒体查询决定，竖屏 / 手机横屏零副作用。 */
+const railNotificationStore = ref(getNotificationStoreSync());
+const railUnreadCount = computed(() => railNotificationStore.value?.unreadCount || 0);
+
+const handleRailNavClick = (tabId) => {
+  // 他人空间没有 tab 容器：左栏主导航语义 = 回到我的空间对应 tab
+  router.push(`/user-space?tab=${tabId}`);
+};
+
+const handleRailAction = (actionId) => {
+  switch (actionId) {
+    case 'compose':
+    case 'search':
+      // 发布 / 搜索的宿主是社区 tab 的内嵌 ForumMain，他人空间没有论坛实例 → 跳过去
+      router.push('/user-space?tab=community');
+      break;
+    case 'theme':
+      // applyTheme 内部派发 theme-changed，onThemeChanged 已监听并同步 ref
+      themeManager.toggle();
+      break;
+    case 'home':
+      router.push('/');
+      break;
+    case 'logout':
+      authStore.logout();
+      router.push('/');
+      break;
+    default:
+      break;
+  }
 };
 
 const { isUserOnline, formatUserOnlineStatus, formatOnlineStatusTooltip } = useUserOnlineStatus();
@@ -1569,6 +1616,11 @@ const calculateBlockAge = (dateStr) => {
 const navigateToPost = (postId) => {
   const safePostId = String(postId || '').trim();
   if (!safePostId) return;
+  // 横屏（含桌面）：进详情弹窗；竖屏保持整页路由
+  if (isForumLandscape()) {
+    openForumPost({ router, postId: safePostId });
+    return;
+  }
   const sourceUsername = String(profile.value?.username || route.params.username || '').trim();
   const origin = route.query.from || '';
   const query = sourceUsername
@@ -1910,6 +1962,12 @@ onMounted(() => {
   if (route.params.username) {
     fetchProfileData(route.params.username);
   }
+  // 横屏左栏消息角标：App.vue 登录后会把 store 装进单例，这里兜底补拉一次
+  if (!railNotificationStore.value && isLoggedIn.value) {
+    loadNotificationStore()
+      .then((store) => { railNotificationStore.value = store; })
+      .catch(() => {});
+  }
 });
 
 onUnmounted(() => {
@@ -1925,3 +1983,7 @@ onUnmounted(() => {
 @import './style.scoped.css';
 @import '@/styles/helpers/function.css';
 </style>
+
+<!-- 横屏左右分栏页面级规则（他人空间段落）：必须非 scoped —— body.page-userprofile
+     前缀的规则会被 scoped 属性选择器作废；与 UserSpaceMain 引入同一文件，判据单源 -->
+<style src="@/views/user-center/UserSpace/styles/landscape-rail.css"></style>

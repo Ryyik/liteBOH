@@ -16,7 +16,8 @@
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: 10000;
+  /* 高于帖子详情弹窗(2147482400)，低于 CommonAlertModal(2147483647) */
+  z-index: 2147483500;
   /* 更柔和的遮罩背景 */
   background-color: rgba(0, 0, 0, 0.4);
   backdrop-filter: var(--liquid-filter-sm);

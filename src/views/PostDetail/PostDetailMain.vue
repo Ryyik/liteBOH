@@ -19,6 +19,8 @@ import {
   toggleLike,
   reportPost,
   checkIfLiked,
+  toggleCommentLike,
+  getLikedCommentIds,
   deletePost,
   deleteComment,
   getPostEngagementStats,
@@ -38,17 +40,28 @@ import CommonAlertModal from '../../components/CommonAlertModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { getForumReturnKeyFromQuery, isSafePostDetailHistoryReturn } from '@/utils/forum-return-state.js';
 import { clearForumFeedSnapshots } from '@/utils/forum-feed-cache.js';
+import { isForumPortraitComposer, onForumPortraitComposerChange } from '@/utils/forum-viewport.js';
 import { getHomeCatAsset, isHomeCatTheme } from '@/utils/home-cat-theme.js';
 import { themeManager } from '@/utils/theme-manager.js';
 import { buildReplyDraft } from '@/utils/forum-helpers.js';
 import { useUserTier } from '@/composables/useUserTier.js';
+import { isFollowing, followUser, unfollowUser } from '../../utils/api/profile-api.js';
+import { isNarrowDetailViewport, onNarrowDetailChange } from '@/utils/forum-viewport.js';
 
 const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
 const { isLoggedIn, showLoginModal } = storeToRefs(authStore);
 const { userInfo } = authStore;
-const postId = computed(() => route.params.id);
+
+// 弹窗模式（横屏）：宿主 PostDetailModal 传入帖子 id；整页模式仍取路由参数。
+const props = defineProps({
+  postIdOverride: { type: [String, Number], default: '' },
+  modalMode: { type: Boolean, default: false }
+});
+const emit = defineEmits(['close', 'open-post']);
+
+const postId = computed(() => String(props.postIdOverride || route.params.id || ''));
 
 // ✨ 移除：emit定义（改为全局事件）
 // const emit = defineEmits(['island-message']);
@@ -95,6 +108,14 @@ const activeReplyQuote = ref('');
 const cooldownNow = ref(Date.now());
 const replyCooldownUntil = ref(0);
 const detailImageIndex = ref(0);
+// 弹窗模式（小红书式布局）：作者关注态 + 底部操作栏输入框引用
+const isFollowingAuthor = ref(false);
+const isFollowSubmitting = ref(false);
+const modalReplyField = ref(null);
+const detailPageRoot = ref(null);
+// 窄屏（≤1024）：竖屏 Threads 式排版（身份条/媒体贴边/底栏横排）
+const isNarrowDetail = ref(isNarrowDetailViewport());
+let narrowDetailOff = null;
 const currentTheme = ref(themeManager.getTheme());
 const isAnniversaryMcTheme = computed(() => currentTheme.value === 'anniversary-mc');
 let cooldownTimer = null;
@@ -112,13 +133,9 @@ const editRemovedExistingIds = ref(new Set());
 const isEditSubmitting = ref(false);
 const isEditUploadingPostImage = ref(false);
 const editImageUploadStatus = ref('');
-const isEditPortrait = ref(false);
-const PORTRAIT_EDITOR_BREAKPOINT = 1024;
-let editPortraitResizeHandler = null;
-const updateEditPortrait = () => {
-  const width = window.innerWidth;
-  isEditPortrait.value = width <= PORTRAIT_EDITOR_BREAKPOINT && window.innerHeight >= width;
-};
+// 竖屏编辑器形态：单源判据（与 ForumMain 的 isMobileComposerMode 同源），变化由订阅驱动
+const isEditPortrait = ref(typeof window !== 'undefined' ? isForumPortraitComposer() : false);
+let releaseEditPortraitWatch = null;
 const isReportModalOpen = ref(false);
 const reportForm = ref({
   reason: 'other',
@@ -238,7 +255,13 @@ const quotedBody = computed(() => {
 });
 const goToQuotedPost = () => {
   const id = quotedPost.value?.id;
-  if (id) router.push(`/forum/post/${id}`);
+  if (!id) return;
+  // 弹窗模式：原位切换弹窗内容（replace 历史条目）；整页模式：路由跳转。
+  if (props.modalMode) {
+    emit('open-post', id);
+    return;
+  }
+  router.push(`/forum/post/${id}`);
 };
 // 引用框随原帖作者订阅层级显示卡色
 const quotedTierCode = ref('');
@@ -420,7 +443,97 @@ const requestConfirm = ({ title, message, confirmText = '确定', cancelText = '
 const goToProfile = (usernameVal) => {
   const safeUsername = String(usernameVal || '').trim();
   if (!safeUsername) return;
+  // 弹窗模式：先关弹窗（不消费历史条目，后退落整页详情兜底），再跳主页。
+  if (props.modalMode) {
+    emit('close', { restoreHistory: false });
+  }
   router.push(`/profile/${encodeURIComponent(safeUsername)}?from=post-detail`);
+};
+
+// ─── 弹窗模式（小红书式布局）：媒体区条件 + 作者关注 ───
+// 只认正文图（forum_post_images）：cover fallback 不撑起媒体列，
+// 否则「无正文图但有封面字段」的帖会出现空白媒体列（用户视角的无图帖应单栏全宽）
+const hasMedia = computed(() => detailImages.value.some((image) => !image?.isCoverFallback));
+
+const canFollowAuthor = computed(() => Boolean(
+  (props.modalMode || isNarrowDetail.value)
+  && isLoggedIn.value
+  && !isOfficialCard.value
+  && post.value?.author_id
+  && String(post.value.author_id) !== String(userInfo.id || '')
+));
+
+const refreshFollowState = async () => {
+  if (!canFollowAuthor.value) {
+    isFollowingAuthor.value = false;
+    return;
+  }
+  const result = await isFollowing(userInfo.id, post.value.author_id);
+  isFollowingAuthor.value = Boolean(result?.data);
+};
+
+const handleFollowToggle = async () => {
+  if (!isLoggedIn.value) {
+    showLoginModal.value = true;
+    return;
+  }
+  if (!canFollowAuthor.value || isFollowSubmitting.value) return;
+  isFollowSubmitting.value = true;
+  try {
+    const authorId = post.value.author_id;
+    const wasFollowing = isFollowingAuthor.value;
+    const result = wasFollowing
+      ? await unfollowUser(userInfo.id, authorId)
+      : await followUser(userInfo.id, authorId);
+    if (!result?.ok) {
+      showModal('error', '操作失败', result?.error?.message || '请稍后重试');
+      return;
+    }
+    isFollowingAuthor.value = !wasFollowing;
+  } catch (error) {
+    logger.error('post-detail', '关注操作失败:', error);
+    showModal('error', '操作失败', '请稍后重试');
+  } finally {
+    isFollowSubmitting.value = false;
+  }
+};
+
+watch(() => ({ modal: props.modalMode, author: post.value?.author_id }), () => {
+  void refreshFollowState();
+});
+
+// 底部操作栏作为回复输入唯一入口：聚焦即视为主帖回复（弹窗与整页共用）
+const focusModalReply = () => {
+  if (!modalReplyField.value) return;
+  if (isLoggedIn.value && !activeReplyId.value) {
+    activeReplyId.value = post.value?.id || null;
+  }
+  nextTick(() => {
+    modalReplyField.value?.focus?.();
+  });
+};
+
+// 整页 fixed 底栏的键盘适配：键盘弹出时以 --pd-dock-inset 抬升到底部可视区上沿（iOS Safari 必需）
+let dockViewportHandler = null;
+const updatePageDockInset = () => {
+  if (props.modalMode) return;
+  const rootEl = detailPageRoot.value;
+  const vv = window.visualViewport;
+  if (!rootEl || !vv) return;
+  const inset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+  rootEl.style.setProperty('--pd-dock-inset', `${inset}px`);
+};
+
+const handleModalCommentClick = () => {
+  // 评论按钮：聚焦底栏输入框；若正在回复某条评论则保留上下文
+  focusModalReply();
+};
+
+// 底栏输入框回车提交（IME 组合中的回车不触发）
+const onModalReplyEnter = (event) => {
+  if (event?.isComposing) return;
+  event?.preventDefault?.();
+  submitReply();
 };
 
 const emitProfileSync = ({ userId, username, reason }) => {
@@ -480,12 +593,90 @@ const resetCommentState = () => {
   highlightedCommentId.value = '';
 };
 
+const dispatchPostUpdated = () => {
+  if (!post.value?.id) return;
+  window.dispatchEvent(new CustomEvent('boh:forum-post-updated', {
+    detail: { postId: post.value.id, post: post.value }
+  }));
+};
+
 const refreshPostStats = async () => {
   if (!post.value?.id) return;
   const statsRes = await getPostEngagementStats(post.value.id);
   if (statsRes.ok) {
     post.value.comment_count = Number(statsRes.data?.commentCount || 0);
     post.value.like_count = Number(statsRes.data?.likeCount || 0);
+    // 弹窗模式下列表原地挂载，靠事件同步卡片计数
+    dispatchPostUpdated();
+  }
+};
+
+// ─── 评论点赞（comment_likes + toggle_forum_comment_like） ───
+const markItemsLikeState = (items, likedIds) => (items || []).map((item) => (
+  toIdKey(item.id) && likedIds.has(toIdKey(item.id)) && !item.isLiked
+    ? { ...item, isLiked: true }
+    : item
+));
+
+const hydrateCommentLikeState = async () => {
+  if (!isLoggedIn.value || !getCurrentUserId()) return;
+  const childItems = Object.values(childRepliesMap.value).flatMap((state) => state?.items || []);
+  const ids = [...topComments.value, ...childItems].map((item) => toIdKey(item.id)).filter(Boolean);
+  if (!ids.length) return;
+  const likedIds = await getLikedCommentIds(ids, getCurrentUserId());
+  topComments.value = markItemsLikeState(topComments.value, likedIds);
+  const nextMap = {};
+  for (const [key, state] of Object.entries(childRepliesMap.value)) {
+    nextMap[key] = { ...state, items: markItemsLikeState(state?.items || [], likedIds) };
+  }
+  childRepliesMap.value = nextMap;
+};
+
+const handleToggleCommentLike = async ({ comment, parentId } = {}) => {
+  if (!isLoggedIn.value) {
+    showLoginModal.value = true;
+    return;
+  }
+  if (!comment?.id || comment.isLikeSubmitting) return;
+
+  const applyLikePatch = (item) => (toIdKey(item.id) === toIdKey(comment.id)
+    ? { ...item, ...comment._likePatch }
+    : item);
+
+  // 乐观更新（本地翻转），失败回滚
+  const optimistic = { isLiked: !comment.isLiked, like_count: Math.max(0, Number(comment.like_count || 0) + (comment.isLiked ? -1 : 1)), isLikeSubmitting: true };
+  comment._likePatch = optimistic;
+  topComments.value = topComments.value.map(applyLikePatch);
+  if (parentId) {
+    const state = getChildReplyState(parentId);
+    patchChildReplyState(parentId, { items: (state.items || []).map(applyLikePatch) });
+  }
+
+  try {
+    const result = await toggleCommentLike(comment.id, getCurrentUserId());
+    const finalPatch = result?.ok
+      ? { isLiked: Boolean(result.data?.isLiked), like_count: Number(result.data?.likeCount ?? optimistic.like_count), isLikeSubmitting: false }
+      : { isLiked: comment.isLiked, like_count: Number(comment.like_count || 0), isLikeSubmitting: false };
+    comment._likePatch = finalPatch;
+    topComments.value = topComments.value.map(applyLikePatch);
+    if (parentId) {
+      const state = getChildReplyState(parentId);
+      patchChildReplyState(parentId, { items: (state.items || []).map(applyLikePatch) });
+    }
+    if (!result?.ok) {
+      showModal('error', '操作失败', result?.error?.message || '请稍后重试');
+    }
+  } catch (error) {
+    logger.error('post-detail', '评论点赞失败:', error);
+    comment._likePatch = { isLiked: comment.isLiked, like_count: Number(comment.like_count || 0), isLikeSubmitting: false };
+    topComments.value = topComments.value.map(applyLikePatch);
+    if (parentId) {
+      const state = getChildReplyState(parentId);
+      patchChildReplyState(parentId, { items: (state.items || []).map(applyLikePatch) });
+    }
+    showModal('error', '操作失败', '请稍后重试');
+  } finally {
+    delete comment._likePatch;
   }
 };
 
@@ -519,6 +710,7 @@ const loadTopComments = async ({ reset = false } = {}) => {
 
     hasMoreTopComments.value = Boolean(result?.hasMore);
     topCommentsPage.value = pageToLoad + 1;
+    void hydrateCommentLikeState();
   } catch (error) {
     logger.error('post-detail', '加载顶层评论失败:', error);
   } finally {
@@ -691,6 +883,7 @@ const loadChildReplies = async (parentId, { reset = false, expand = false } = {}
       isLoading: false,
       expanded: Boolean(expand || state.expanded) && threadReplies.length > 0
     });
+    void hydrateCommentLikeState();
   } catch (error) {
     logger.error('post-detail', '加载楼中楼评论失败:', error);
     patchChildReplyState(rootId, { isLoading: false });
@@ -840,6 +1033,8 @@ const resolveRootCommentId = async (comment) => {
 };
 
 const handleCommentDeepLink = async () => {
+  // 弹窗模式无 URL query 深链，跳过
+  if (props.modalMode) return;
   const targetCommentId = String(route.query.comment || '').trim();
   if (!targetCommentId || !post.value?.id) return;
 
@@ -879,13 +1074,15 @@ const handleCommentDeepLink = async () => {
 const buildCoverFallbackImage = (postData) => {
   const rawCoverUrl = resolveStoredCoverUrl(postData?.cover_image_url || postData?.coverImageUrl || '');
   if (!rawCoverUrl) return null;
-  return normalizeForumImage({
+  const fallbackImage = normalizeForumImage({
     id: `${String(postData?.id || 'post').trim()}-cover-fallback`,
     url: rawCoverUrl,
     width: Number(postData?.cover_image_width || postData?.coverImageWidth || 0),
     height: Number(postData?.cover_image_height || postData?.coverImageHeight || 0),
     sortOrder: 0
   }, { variant: 'detail' });
+  // 标记 fallback 来源：hasMedia（弹窗媒体列）只认正文图，cover 不撑起媒体列
+  return fallbackImage ? { ...fallbackImage, isCoverFallback: true } : null;
 };
 
 // ===== 官方镜像卡正文回源 =====
@@ -1056,17 +1253,34 @@ onMounted(() => {
   themeManager.addListener(handleThemeChange);
   fetchPostDetail();
   document.addEventListener('click', handleDocumentClick);
-  updateEditPortrait();
-  editPortraitResizeHandler = () => updateEditPortrait();
-  window.addEventListener('resize', editPortraitResizeHandler);
+  releaseEditPortraitWatch = onForumPortraitComposerChange((matches) => {
+    isEditPortrait.value = matches;
+  });
+  if (typeof window !== 'undefined' && window.visualViewport) {
+    dockViewportHandler = updatePageDockInset;
+    window.visualViewport.addEventListener('resize', dockViewportHandler);
+    window.visualViewport.addEventListener('scroll', dockViewportHandler);
+    updatePageDockInset();
+  }
+  narrowDetailOff = onNarrowDetailChange((matches) => {
+    isNarrowDetail.value = matches;
+  });
+  isNarrowDetail.value = isNarrowDetailViewport();
 });
 
 onUnmounted(() => {
   themeManager.removeListener(handleThemeChange);
   document.removeEventListener('click', handleDocumentClick);
-  if (editPortraitResizeHandler) {
-    window.removeEventListener('resize', editPortraitResizeHandler);
-    editPortraitResizeHandler = null;
+  releaseEditPortraitWatch?.();
+  releaseEditPortraitWatch = null;
+  if (dockViewportHandler && window.visualViewport) {
+    window.visualViewport.removeEventListener('resize', dockViewportHandler);
+    window.visualViewport.removeEventListener('scroll', dockViewportHandler);
+  }
+  dockViewportHandler = null;
+  if (narrowDetailOff) {
+    narrowDetailOff();
+    narrowDetailOff = null;
   }
   if (cooldownTimer) {
     clearInterval(cooldownTimer);
@@ -1087,25 +1301,32 @@ onUnmounted(() => {
   closeConfirm(false);
 });
 
-  watch(
-  () => route.params.id,
+const resetDetailViewState = () => {
+  post.value = null;
+  officialContent.value = { type: '', html: '', paragraphs: [] };
+  quotedPost.value = null;
+  activeReplyId.value = null;
+  replyToUser.value = null;
+  activeReplyQuote.value = '';
+  replyContent.value = '';
+  isExpanded.value = false;
+  isLikePulsing.value = false;
+  isReplySuccessPopping.value = false;
+  isShareCopied.value = false;
+  isDetailImageViewerOpen.value = false;
+  closePostMenu();
+  detailImageIndex.value = 0;
+  resetCommentState();
+  resetEditState();
+};
+
+// 激活帖子 id：整页模式跟路由参数，弹窗模式跟宿主传入的 override。
+const activePostIdSource = computed(() => (props.modalMode ? props.postIdOverride : route.params.id));
+
+watch(
+  activePostIdSource,
   () => {
-    post.value = null;
-    officialContent.value = { type: '', html: '', paragraphs: [] };
-    quotedPost.value = null;
-    activeReplyId.value = null;
-    replyToUser.value = null;
-    activeReplyQuote.value = '';
-    replyContent.value = '';
-    isExpanded.value = false;
-    isLikePulsing.value = false;
-    isReplySuccessPopping.value = false;
-    isShareCopied.value = false;
-    isDetailImageViewerOpen.value = false;
-    closePostMenu();
-    detailImageIndex.value = 0;
-    resetCommentState();
-    resetEditState();
+    resetDetailViewState();
     fetchPostDetail();
   }
 );
@@ -1122,6 +1343,7 @@ watch(
 watch(
   () => route.query.comment,
   async () => {
+    if (props.modalMode) return;
     if (!post.value?.id || isLoading.value) return;
     await handleCommentDeepLink();
   }
@@ -1183,11 +1405,19 @@ const toggleReplyInput = (targetId = null, username = null, quotedContent = '') 
     replyToUser.value = null;
     activeReplyQuote.value = '';
     replyContent.value = '';
+    // 弹窗模式：取消回复后焦点回到底栏
+    if (props.modalMode) focusModalReply();
   } else {
     activeReplyId.value = replyTargetId;
     replyToUser.value = username;
     activeReplyQuote.value = '';
     replyContent.value = buildReplyDraft(username);
+
+    // 弹窗模式：底栏是唯一输入框，聚焦并把上下文同步到底栏
+    if (props.modalMode) {
+      focusModalReply();
+      return;
+    }
 
     setTimeout(() => {
       const element = document.querySelector('.x-reply-box, .reply-section');
@@ -1362,7 +1592,8 @@ const submitReportPost = async () => {
     if (result.data?.limited) {
       isReportModalOpen.value = false;
       showModal('success', '举报已提交', result.data?.message || '该帖子已因多人举报暂时设为仅作者可见');
-      router.push(createForumHomeLocation());
+      // goBack 在弹窗模式下等价于关闭弹窗
+      goBack();
       return;
     }
 
@@ -1392,7 +1623,8 @@ const startEditPost = () => {
   editRemovedExistingIds.value = new Set();
   editImageUploadStatus.value = '';
   isEditUploadingPostImage.value = false;
-  updateEditPortrait();
+  // 打开编辑时同步一次最新判据（订阅已实时维护，这里防御性刷新）
+  isEditPortrait.value = isForumPortraitComposer();
   isEditingPost.value = true;
 };
 
@@ -1593,9 +1825,7 @@ const submitEditPost = async () => {
       reason: 'post_updated'
     });
     clearForumFeedSnapshots();
-    window.dispatchEvent(new CustomEvent('boh:forum-post-updated', {
-      detail: { postId: post.value.id }
-    }));
+    dispatchPostUpdated();
     resetEditState();
     showModal('success', '保存成功', imgResult.ok ? '帖子已更新' : '帖子已更新，但图片同步失败，请稍后重试');
     await fetchPostDetail();
@@ -1623,6 +1853,11 @@ const createForumHomeLocation = (query = {}) => ({
 });
 
 const goBack = () => {
+  // 弹窗模式：返回 = 关闭弹窗（宿主消费打开时压入的历史条目）
+  if (props.modalMode) {
+    emit('close', { restoreHistory: true });
+    return;
+  }
   const source = getQueryString(route.query.from);
   const returnKey = getForumReturnKeyFromQuery(route.query, source === 'forum' ? 'forum' : 'user-space');
   const historyBack = typeof window !== 'undefined' ? getQueryString(window.history.state?.back) : '';
@@ -1665,7 +1900,10 @@ const goBack = () => {
 };
 
 const sharePost = async () => {
-  const shareUrl = window.location.href;
+  // 弹窗模式：pushState 已把地址栏同步为详情 URL，但仍显式构造，保证分享语义稳定
+  const shareUrl = props.modalMode && post.value?.id
+    ? `${window.location.origin}${window.location.pathname}#/forum/post/${post.value.id}`
+    : window.location.href;
   const shareContent = `【${post.value.author_username}的帖子】${shareUrl}`;
   try {
     await navigator.clipboard.writeText(shareContent);
@@ -1730,9 +1968,38 @@ const handleChangeCommentSortMode = async (mode) => {
 </script>
 
 <template>
-  <div class="post-detail-page" :data-theme="currentTheme"
+  <div ref="detailPageRoot" class="post-detail-page" :class="{ 'post-detail-page--modal': modalMode }" :data-theme="currentTheme"
     :data-anniversary-skin="isAnniversaryMcTheme ? 'active' : 'off'">
-    <UserCenterPageHeader title="帖子详情" max-width="1400px" @back="goBack" />
+    <!-- 整页页头：宽屏用通用页头；窄屏（竖屏 Threads 式）用作者身份条 -->
+    <UserCenterPageHeader v-if="!modalMode && !isNarrowDetail" title="帖子详情" max-width="1400px" @back="goBack" />
+    <div v-else-if="!modalMode" class="pd-author-bar">
+      <button type="button" class="pd-author-bar-back" aria-label="返回" @click="goBack">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" />
+        </svg>
+      </button>
+      <template v-if="post">
+        <div class="pd-author-bar-identity" @click="isOfficialCard ? undefined : goToProfile(post.author_username)">
+          <span class="boh-avatar-wrap pd-author-bar-avatar">
+            <div class="author-avatar" :class="{ 'is-official': isOfficialCard }">
+              <img v-if="authorAvatarSrc" :src="authorAvatarSrc" alt="作者头像" class="avatar-image" loading="lazy" />
+              <span v-else>{{ post.author_username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
+            </div>
+            <span v-if="authorFrame" class="boh-avatar-frame"
+              :style="{ '--boh-avatar-frame-url': `url(${authorFrame.url})`, '--boh-avatar-frame-scale': String(authorFrame.scale) }"
+              aria-hidden="true"></span>
+          </span>
+          <span class="pd-author-bar-name" :class="authorTierClass">{{ post.author_username }}</span>
+        </div>
+        <button v-if="canFollowAuthor" type="button" class="pd-author-bar-follow"
+          :class="{ 'is-following': isFollowingAuthor }" :disabled="isFollowSubmitting"
+          @click="handleFollowToggle">
+          {{ isFollowingAuthor ? '已关注' : '关注' }}
+        </button>
+      </template>
+      <span v-else class="pd-author-bar-name pd-author-bar-name--loading">加载中…</span>
+    </div>
 
     <div class="detail-container">
       <main class="detail-content fade-in-up" style="animation-delay: 0.1s;">
@@ -1774,7 +2041,176 @@ const handleChangeCommentSortMode = async (mode) => {
           <div class="empty-icon">🏜️</div>
           <h3>帖子已失效</h3>
           <p>抱歉，该帖子可能已被作者删除或链接有误。</p>
-          <button @click="router.push(createForumHomeLocation())" class="home-btn">返回方块社区</button>
+          <button @click="goBack" class="home-btn">{{ modalMode ? '关闭' : '返回方块社区' }}</button>
+        </div>
+
+        <div v-else-if="modalMode" class="pd-modal-body" :class="{ 'pd-modal-body--has-media': hasMedia }">
+          <div v-if="hasMedia" class="pd-modal-media">
+            <div class="pd-media-stage-wrap">
+              <transition name="detail-image-fade" mode="out-in">
+                <button :key="detailImageKey" type="button" class="pd-media-stage"
+                  :class="{ 'is-loaded': isDetailImageLoaded(detailImageKey), 'is-failed': isDetailImageFailed(detailImageKey) }"
+                  :aria-label="`查看${postTitle}第 ${detailImageIndex + 1} 张大图`"
+                  @click="openDetailImageViewer(detailImageIndex)">
+                  <div v-if="isDetailImageFailed(detailImageKey)" class="post-detail-image-failed-placeholder">
+                    <ImageIcon :size="48" :stroke-width="1.5" aria-hidden="true" />
+                    <span class="failed-text">图片加载失败</span>
+                  </div>
+                  <img v-else :src="currentDetailImage.url" :alt="`${postTitle} 图片 ${detailImageIndex + 1}`"
+                    loading="eager" decoding="async" fetchpriority="high" class="pd-media-img"
+                    :class="{ 'is-loaded': isDetailImageLoaded(detailImageKey) }"
+                    :width="currentDetailImage.width || undefined" :height="currentDetailImage.height || undefined"
+                    @load="markDetailImageLoaded(detailImageKey)" @error="markDetailImageFailed(detailImageKey)" />
+                </button>
+              </transition>
+              <button v-if="hasMultipleDetailImages" type="button" class="pd-media-nav prev" aria-label="上一张图片"
+                @click.stop="showPrevDetailImage">‹</button>
+              <button v-if="hasMultipleDetailImages" type="button" class="pd-media-nav next" aria-label="下一张图片"
+                @click.stop="showNextDetailImage">›</button>
+              <div v-if="hasMultipleDetailImages" class="pd-media-dots"
+                :aria-label="`共 ${detailImages.length} 张图片，当前第 ${detailImageIndex + 1} 张`">
+                <button v-for="(image, index) in detailImages" :key="image.id || image.url || index" type="button"
+                  class="pd-media-dot" :class="{ active: index === detailImageIndex }"
+                  :aria-label="`查看第 ${index + 1} 张图片`" @click.stop="goToDetailImage(index)"></button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pd-modal-info">
+            <div class="pd-author-row">
+              <div class="author-section" @click="isOfficialCard ? undefined : goToProfile(post.author_username)">
+                <span class="boh-avatar-wrap">
+                  <div class="author-avatar" :class="{ 'is-official': isOfficialCard }">
+                    <img v-if="authorAvatarSrc" :src="authorAvatarSrc" alt="作者头像" class="avatar-image"
+                      loading="lazy" />
+                    <span v-else>{{ post.author_username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
+                  </div>
+                  <span v-if="authorFrame" class="boh-avatar-frame"
+                    :style="{ '--boh-avatar-frame-url': `url(${authorFrame.url})`, '--boh-avatar-frame-scale': String(authorFrame.scale) }"
+                    aria-hidden="true"></span>
+                </span>
+                <div class="author-meta">
+                  <span class="author-name" :class="authorTierClass">@{{ post.author_username }}</span>
+                  <span class="post-time">{{ formatDate(post.created_at) }}</span>
+                  <span v-if="post.location_name" class="post-location-tag">📍 {{ post.location_name }}</span>
+                </div>
+              </div>
+              <button v-if="canFollowAuthor" type="button" class="pd-follow-btn"
+                :class="{ 'is-following': isFollowingAuthor }" :disabled="isFollowSubmitting"
+                @click.stop="handleFollowToggle">
+                {{ isFollowingAuthor ? '已关注' : '关注' }}
+              </button>
+              <div v-if="shouldShowPostMenu" class="post-menu-wrap" @click.stop>
+                <button type="button" class="post-menu-trigger" :class="{ active: isPostMenuOpen }" aria-label="帖子操作"
+                  :aria-expanded="isPostMenuOpen ? 'true' : 'false'" @click="togglePostMenu">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </button>
+                <transition name="post-menu">
+                  <div v-if="isPostMenuOpen" class="post-menu-panel">
+                    <button v-if="canManagePost" type="button" class="post-menu-item" @click="startEditPost">
+                      <span class="post-menu-icon">✎</span>
+                      <span>编辑</span>
+                    </button>
+                    <button v-if="canManagePost" type="button" class="post-menu-item danger" @click="handleDeletePost">
+                      <span class="post-menu-icon">×</span>
+                      <span>删除</span>
+                    </button>
+                    <button v-if="canReportPost" type="button" class="post-menu-item warning"
+                      :disabled="isReportSubmitting" @click="handleReportPost">
+                      <span class="post-menu-icon">!</span>
+                      <span>{{ isReportSubmitting ? '提交中' : '举报' }}</span>
+                    </button>
+                  </div>
+                </transition>
+              </div>
+            </div>
+
+            <div class="pd-info-scroll">
+              <h2 class="pd-title">
+                {{ postTitle }}
+                <span v-if="post.status === 'limited'" class="post-status-pill limited">仅自己可见</span>
+              </h2>
+
+              <div class="content-wrapper">
+                <div v-if="officialContent.type === 'news' && officialContent.html"
+                  class="official-rich-content" aria-label="新闻完整内容">
+                  <!-- eslint-disable-next-line vue/no-v-html -->
+                  <div v-html="officialContent.html"></div>
+                </div>
+                <div v-else-if="officialContent.type === 'activity' && officialContent.paragraphs.length"
+                  class="official-paragraph-content" aria-label="活动完整介绍">
+                  <p v-for="(para, paraIndex) in officialContent.paragraphs" :key="paraIndex">{{ para }}</p>
+                </div>
+                <template v-else>
+                  <p class="content-text">{{ displayContent }}</p>
+                  <button v-if="isContentLong" class="expand-btn" @click="toggleExpand">
+                    {{ isExpanded ? '收起全文' : '展开全文' }}
+                  </button>
+                </template>
+              </div>
+
+              <button v-if="quotedPost" type="button" class="quoted-post-box"
+                :class="[quotedTierCode ? `tier-${quotedTierCode}` : '']" aria-label="查看被转发的原帖"
+                @click="goToQuotedPost">
+                <span class="quoted-post-author" :class="quotedNickClass">@{{ quotedPost.author_username || '方块之家' }}</span>
+                <span v-if="quotedTitle" class="quoted-post-title">{{ quotedTitle }}</span>
+                <span v-if="quotedBody" class="quoted-post-body">{{ quotedBody }}</span>
+              </button>
+
+              <div class="pd-comments-head">共 {{ post.comment_count }} 条评论</div>
+              <CommentThread class="pd-comment-thread" :hide-composer="true" :comments="topComments"
+                :is-loading="isTopCommentsLoading" :has-more="hasMoreTopComments"
+                :is-logged-in="isLoggedIn" :current-user-id="userInfo.id" :current-user-role="userInfo.role"
+                :post-author-id="post.author_id" :post-comment-count="post.comment_count"
+                :is-home-cat-active="isHomeCatActive" :is-reply-success-popping="isReplySuccessPopping"
+                :active-reply-id="activeReplyId" :reply-to-user="replyToUser" :active-reply-quote="activeReplyQuote"
+                :reply-content="replyContent" :is-reply-submitting="isReplySubmitting"
+                :reply-cooldown-seconds="replyCooldownSeconds" :reply-submit-label="replySubmitLabel"
+                :child-replies-map="childRepliesMap" :highlighted-comment-id="highlightedCommentId"
+                :comment-sort-mode="commentSortMode"
+                @reply="({ targetId, username, content }) => toggleReplyInput(targetId, username, content)"
+                @submit-reply="submitReply"
+                @cancel-reply="activeReplyId = null; replyToUser = null; activeReplyQuote = ''; replyContent = ''"
+                @update:reply-content="replyContent = $event" @load-more-comments="loadTopComments({ reset: false })"
+                @toggle-child-replies="toggleChildReplies"
+                @load-child-replies="({ parentId, options }) => loadChildReplies(parentId, options)"
+                @delete-comment="({ comment, parentId }) => handleDeleteComment(comment, parentId)"
+                @go-to-profile="goToProfile" @change-sort-mode="handleChangeCommentSortMode"
+                @toggle-comment-like="handleToggleCommentLike" />
+            </div>
+
+            <div class="pd-actionbar">
+              <input v-if="isLoggedIn" ref="modalReplyField" v-model="replyContent" type="text" class="pd-reply-input"
+                :placeholder="replyToUser ? `回复 @${replyToUser}...` : '说点什么...'" maxlength="2000"
+                @focus="focusModalReply" @keydown.enter="onModalReplyEnter" />
+              <button v-else type="button" class="pd-reply-input pd-reply-input--guest" @click="showLoginModal = true">
+                说点什么...
+              </button>
+              <button type="button" class="pd-reply-send" v-if="isLoggedIn"
+                :disabled="isReplySubmitting || replyCooldownSeconds > 0 || !replyContent.trim()"
+                @click="submitReply">{{ isReplySubmitting ? '发送中' : '发送' }}</button>
+              <div class="pd-action-group">
+                <button class="pd-action-btn" :class="{ 'is-liked': post.isLiked }" :disabled="isLikeSubmitting"
+                  :aria-label="post.isLiked ? '取消点赞' : '点赞'" @click="handleToggleLike">
+                  <Heart class="action-svg" :size="20" :stroke-width="1.8"
+                    :fill="post.isLiked ? 'currentColor' : 'none'" aria-hidden="true" />
+                  <span class="pd-action-count">{{ post.like_count }}</span>
+                </button>
+                <button class="pd-action-btn" aria-label="写评论" @click="handleModalCommentClick">
+                  <MessageCircle class="action-svg" :size="20" :stroke-width="1.8" aria-hidden="true" />
+                  <span class="pd-action-count">{{ post.comment_count }}</span>
+                </button>
+                <button class="pd-action-btn" :class="{ 'is-copy-success': isShareCopied }" aria-label="分享"
+                  @click="sharePost">
+                  <Check v-if="isShareCopied" class="action-svg" :size="20" :stroke-width="2" aria-hidden="true" />
+                  <Share2 v-else class="action-svg" :size="20" :stroke-width="1.8" aria-hidden="true" />
+                  <span class="pd-action-count">{{ isShareCopied ? '已复制' : '分享' }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div v-else class="post-x-layout">
@@ -1785,6 +2221,50 @@ const handleChangeCommentSortMode = async (mode) => {
               'tier-max': authorTierCode === 'max',
               'tier-ultra': authorTierCode === 'ultra'
             }">
+              <!-- 媒体前置（图片在上文字在下）：整页模式 carousel 提为卡片直接子级，
+                   竖屏断点 order:-1 置顶贴边，横屏断点 order:3 保持「作者→正文→图片」原状 -->
+              <div v-if="detailImages.length" class="post-detail-image-carousel x-post-card-media">
+                <div class="post-detail-image-stage">
+                  <transition name="detail-image-fade" mode="out-in">
+                    <button :key="detailImageKey" type="button" class="post-detail-image-link"
+                      :class="{ 'is-loaded': isDetailImageLoaded(detailImageKey), 'is-failed': isDetailImageFailed(detailImageKey) }"
+                      :aria-label="`查看${postTitle}第 ${detailImageIndex + 1} 张大图`"
+                      @click="openDetailImageViewer(detailImageIndex)">
+                      <!-- ✨ 新增：图片加载失败时显示占位符 -->
+                      <div v-if="isDetailImageFailed(detailImageKey)" class="post-detail-image-failed-placeholder">
+                        <ImageIcon :size="48" :stroke-width="1.5" aria-hidden="true" />
+                        <span class="failed-text">图片加载失败</span>
+                      </div>
+                      <!-- 正常图片渲染 -->
+                      <img v-else :src="currentDetailImage.url" :alt="`${postTitle} 图片 ${detailImageIndex + 1}`"
+                        loading="eager" decoding="async" fetchpriority="high" class="post-detail-image"
+                        :class="{ 'is-loaded': isDetailImageLoaded(detailImageKey) }"
+                        :width="currentDetailImage.width || undefined"
+                        :height="currentDetailImage.height || undefined" @load="markDetailImageLoaded(detailImageKey)"
+                        @error="markDetailImageFailed(detailImageKey)" />
+                      <span
+                        v-if="currentDetailImage.width && currentDetailImage.height && !isDetailImageFailed(detailImageKey)"
+                        class="post-detail-image-meta">
+                        {{ currentDetailImage.width }} × {{ currentDetailImage.height }}
+                      </span>
+                    </button>
+                  </transition>
+                  <button v-if="hasMultipleDetailImages" type="button" class="post-detail-image-nav prev"
+                    aria-label="上一张图片" @click.stop="showPrevDetailImage">
+                    ‹
+                  </button>
+                  <button v-if="hasMultipleDetailImages" type="button" class="post-detail-image-nav next"
+                    aria-label="下一张图片" @click.stop="showNextDetailImage">
+                    ›
+                  </button>
+                </div>
+                <div v-if="hasMultipleDetailImages" class="post-detail-image-dots"
+                  :aria-label="`共 ${detailImages.length} 张图片，当前第 ${detailImageIndex + 1} 张`">
+                  <button v-for="(image, index) in detailImages" :key="image.id || image.url || index" type="button"
+                    class="post-detail-image-dot" :class="{ active: index === detailImageIndex }"
+                    :aria-label="`查看第 ${index + 1} 张图片`" @click.stop="goToDetailImage(index)"></button>
+                </div>
+              </div>
               <HomeCatMascot v-if="isHomeCatActive" class="detail-post-decor-cat" pool="card"
                 :seed="`${post.id}:detail`" size="md" decorative />
               <div class="post-header">
@@ -1865,80 +2345,14 @@ const handleChangeCommentSortMode = async (mode) => {
                   <span v-if="quotedTitle" class="quoted-post-title">{{ quotedTitle }}</span>
                   <span v-if="quotedBody" class="quoted-post-body">{{ quotedBody }}</span>
                 </button>
-                <div v-if="detailImages.length" class="post-detail-image-carousel">
-                  <div class="post-detail-image-stage">
-                    <transition name="detail-image-fade" mode="out-in">
-                      <button :key="detailImageKey" type="button" class="post-detail-image-link"
-                        :class="{ 'is-loaded': isDetailImageLoaded(detailImageKey), 'is-failed': isDetailImageFailed(detailImageKey) }"
-                        :aria-label="`查看${postTitle}第 ${detailImageIndex + 1} 张大图`"
-                        @click="openDetailImageViewer(detailImageIndex)">
-                        <!-- ✨ 新增：图片加载失败时显示占位符 -->
-                        <div v-if="isDetailImageFailed(detailImageKey)" class="post-detail-image-failed-placeholder">
-                          <ImageIcon :size="48" :stroke-width="1.5" aria-hidden="true" />
-                          <span class="failed-text">图片加载失败</span>
-                        </div>
-                        <!-- 正常图片渲染 -->
-                        <img v-else :src="currentDetailImage.url" :alt="`${postTitle} 图片 ${detailImageIndex + 1}`"
-                          loading="eager" decoding="async" fetchpriority="high" class="post-detail-image"
-                          :class="{ 'is-loaded': isDetailImageLoaded(detailImageKey) }"
-                          :width="currentDetailImage.width || undefined"
-                          :height="currentDetailImage.height || undefined" @load="markDetailImageLoaded(detailImageKey)"
-                          @error="markDetailImageFailed(detailImageKey)" />
-                        <span
-                          v-if="currentDetailImage.width && currentDetailImage.height && !isDetailImageFailed(detailImageKey)"
-                          class="post-detail-image-meta">
-                          {{ currentDetailImage.width }} × {{ currentDetailImage.height }}
-                        </span>
-                      </button>
-                    </transition>
-                    <button v-if="hasMultipleDetailImages" type="button" class="post-detail-image-nav prev"
-                      aria-label="上一张图片" @click.stop="showPrevDetailImage">
-                      ‹
-                    </button>
-                    <button v-if="hasMultipleDetailImages" type="button" class="post-detail-image-nav next"
-                      aria-label="下一张图片" @click.stop="showNextDetailImage">
-                      ›
-                    </button>
-                  </div>
-                  <div v-if="hasMultipleDetailImages" class="post-detail-image-dots"
-                    :aria-label="`共 ${detailImages.length} 张图片，当前第 ${detailImageIndex + 1} 张`">
-                    <button v-for="(image, index) in detailImages" :key="image.id || image.url || index" type="button"
-                      class="post-detail-image-dot" :class="{ active: index === detailImageIndex }"
-                      :aria-label="`查看第 ${index + 1} 张图片`" @click.stop="goToDetailImage(index)"></button>
-                  </div>
-                </div>
-              </div>
-
-              <div class="post-footer">
-                <div class="action-bar">
-                  <button class="action-btn like-btn" :class="{ 'is-liked': post.isLiked, 'is-pulsing': isLikePulsing }"
-                    @click="handleToggleLike" :disabled="isLikeSubmitting">
-                    <img v-if="isHomeCatActive && isLikePulsing" class="detail-like-pop-cat-img"
-                      :src="getHomeCatAsset('like')" alt="" draggable="false" loading="lazy" />
-                    <Heart class="action-svg" :size="18" :stroke-width="1.8"
-                      :fill="post.isLiked ? 'currentColor' : 'none'" aria-hidden="true" />
-                    <span class="action-count-bold">{{ post.like_count }}</span>
-                    <span class="action-label">点赞</span>
-                  </button>
-
-                  <button class="action-btn comment-btn" @click="toggleReplyInput()">
-                    <MessageCircle class="action-svg" :size="18" :stroke-width="1.8" aria-hidden="true" />
-                    <span class="action-count-bold">{{ post.comment_count }}</span>
-                    <span class="action-label">评论</span>
-                  </button>
-
-                  <button class="action-btn share-btn" :class="{ 'is-copy-success': isShareCopied }" @click="sharePost">
-                    <Check v-if="isShareCopied" class="action-svg" :size="18" :stroke-width="2" aria-hidden="true" />
-                    <Share2 v-else class="action-svg" :size="18" :stroke-width="1.8" aria-hidden="true" />
-                    <span class="action-label">{{ isShareCopied ? '已复制' : '分享' }}</span>
-                  </button>
-                </div>
               </div>
             </article>
           </div>
 
           <div class="x-side-column">
-            <CommentThread :comments="topComments" :is-loading="isTopCommentsLoading" :has-more="hasMoreTopComments"
+            <div class="pd-comments-head pd-comments-head--page">共 {{ post.comment_count }} 条评论</div>
+            <CommentThread :hide-composer="true" :comments="topComments" :is-loading="isTopCommentsLoading"
+              :has-more="hasMoreTopComments"
               :is-logged-in="isLoggedIn" :current-user-id="userInfo.id" :current-user-role="userInfo.role"
               :post-author-id="post.author_id" :post-comment-count="post.comment_count"
               :is-home-cat-active="isHomeCatActive" :is-reply-success-popping="isReplySuccessPopping"
@@ -1953,11 +2367,43 @@ const handleChangeCommentSortMode = async (mode) => {
               @update:reply-content="replyContent = $event" @load-more-comments="loadTopComments({ reset: false })"
               @toggle-child-replies="toggleChildReplies"
               @load-child-replies="({ parentId, options }) => loadChildReplies(parentId, options)"
-              @delete-comment="({ comment, parentId }) => handleDeleteComment(comment, parentId)"
-              @go-to-profile="goToProfile" @change-sort-mode="handleChangeCommentSortMode" />
+                @delete-comment="({ comment, parentId }) => handleDeleteComment(comment, parentId)"
+                @go-to-profile="goToProfile" @change-sort-mode="handleChangeCommentSortMode"
+                @toggle-comment-like="handleToggleCommentLike" />
           </div>
         </div>
       </main>
+    </div>
+
+    <!-- 整页模式底部固定操作栏（Threads/小红书式）：输入 + 点赞/评论/分享，卡内动作栏已移除 -->
+    <div v-if="!modalMode && post" class="pd-actionbar pd-actionbar--page">
+      <input v-if="isLoggedIn" ref="modalReplyField" v-model="replyContent" type="text" class="pd-reply-input"
+        :placeholder="replyToUser ? `回复 @${replyToUser}...` : '说点什么...'" maxlength="2000"
+        @focus="focusModalReply" @keydown.enter="onModalReplyEnter" />
+      <button v-else type="button" class="pd-reply-input pd-reply-input--guest" @click="showLoginModal = true">
+        说点什么...
+      </button>
+      <button type="button" class="pd-reply-send" v-if="isLoggedIn"
+        :disabled="isReplySubmitting || replyCooldownSeconds > 0 || !replyContent.trim()"
+        @click="submitReply">{{ isReplySubmitting ? '发送中' : '发送' }}</button>
+      <div class="pd-action-group">
+        <button class="pd-action-btn" :class="{ 'is-liked': post.isLiked }" :disabled="isLikeSubmitting"
+          :aria-label="post.isLiked ? '取消点赞' : '点赞'" @click="handleToggleLike">
+          <Heart class="action-svg" :size="20" :stroke-width="1.8"
+            :fill="post.isLiked ? 'currentColor' : 'none'" aria-hidden="true" />
+          <span class="pd-action-count">{{ post.like_count }}</span>
+        </button>
+        <button class="pd-action-btn" aria-label="写评论" @click="handleModalCommentClick">
+          <MessageCircle class="action-svg" :size="20" :stroke-width="1.8" aria-hidden="true" />
+          <span class="pd-action-count">{{ post.comment_count }}</span>
+        </button>
+        <button class="pd-action-btn" :class="{ 'is-copy-success': isShareCopied }" aria-label="分享"
+          @click="sharePost">
+          <Check v-if="isShareCopied" class="action-svg" :size="20" :stroke-width="2" aria-hidden="true" />
+          <Share2 v-else class="action-svg" :size="20" :stroke-width="1.8" aria-hidden="true" />
+          <span class="pd-action-count">{{ isShareCopied ? '已复制' : '分享' }}</span>
+        </button>
+      </div>
     </div>
 
     <Teleport to="body">
@@ -2061,6 +2507,7 @@ const handleChangeCommentSortMode = async (mode) => {
 
 <style scoped>
 @import './style.scoped.css';
+@import './modal-layout.css';
 </style>
 
 <style scoped>
@@ -2247,4 +2694,6 @@ const handleChangeCommentSortMode = async (mode) => {
 .edit-composer-fade-leave-from .post-edit-shell {
   transform: translateY(0) scale(1);
 }
+
+/* ---- 弹窗模式（横屏 PostDetailModal 宿主内）：小红书式布局，样式单源见 modal-layout.css（@import 在首个 style 块，须位于所有规则之前） ---- */
 </style>

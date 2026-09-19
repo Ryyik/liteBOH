@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue';
-import { Reply } from 'lucide-vue-next';
+import { Reply, Heart } from 'lucide-vue-next';
 import { useTierMap } from '@/composables/useTierMap.js';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { formatSmartTime } from '@/utils/time.js';
@@ -27,7 +27,9 @@ const props = defineProps({
   replySubmitLabel: { type: String, default: '发布' },
   childRepliesMap: { type: Object, default: () => ({}) },
   highlightedCommentId: { type: String, default: '' },
-  commentSortMode: { type: String, default: 'desc' }
+  commentSortMode: { type: String, default: 'desc' },
+  // 弹窗模式：底部操作栏是唯一输入框，抑制评论流内嵌输入框
+  hideComposer: { type: Boolean, default: false }
 });
 
 const emit = defineEmits([
@@ -40,8 +42,16 @@ const emit = defineEmits([
   'load-child-replies',
   'delete-comment',
   'go-to-profile',
-  'change-sort-mode'
+  'change-sort-mode',
+  'toggle-comment-like'
 ]);
+
+/** 删除权限：本人或 admin（「···」菜单入口）。 */
+const canDeleteComment = (comment) => Boolean(
+  props.isLoggedIn
+  && comment
+  && (String(comment.author_id || '') === String(props.currentUserId || '') || props.currentUserRole === 'admin')
+);
 
 const COMMENT_SORT_OPTIONS = [
   { value: 'desc', label: '最新' },
@@ -177,7 +187,7 @@ const onReplyInput = (event) => {
 <template>
   <div class="x-side-content glass-panel">
     <transition name="fade-slide">
-      <div v-if="activeReplyId" class="x-reply-box" :class="{ 'is-thread-reply': Boolean(replyToUser) }">
+      <div v-if="activeReplyId && !hideComposer" class="x-reply-box" :class="{ 'is-thread-reply': Boolean(replyToUser) }">
         <img v-if="isHomeCatActive && isReplySuccessPopping" class="detail-reply-success-cat-img"
           :src="successCatAsset" alt="" draggable="false"  loading="lazy" />
         <div class="reply-input-wrapper">
@@ -240,76 +250,114 @@ const onReplyInput = (event) => {
       <div v-else-if="comments.length > 0" class="comments-list custom-scrollbar">
         <div v-for="reply in comments" :key="reply.id" :id="`comment-${reply.id}`" class="comment-item-x"
           :class="{ 'is-highlighted': highlightedCommentId === String(reply.id) }">
-          <div class="comment-header">
-            <div class="comment-author-info" @click="$emit('go-to-profile', reply.author_username)">
-              <div class="mini-avatar">
-                <img v-if="reply.author_avatar_url" :src="reply.author_avatar_url" alt="回复者头像"
-                  class="avatar-image"  loading="lazy" />
-                <span v-else>{{ reply.author_username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
-              </div>
-              <div class="author-details">
+          <div class="ci-avatar-col">
+            <div class="mini-avatar" role="button" tabindex="0"
+              @click="$emit('go-to-profile', reply.author_username)">
+              <img v-if="reply.author_avatar_url" :src="reply.author_avatar_url" alt="回复者头像"
+                class="avatar-image" loading="lazy" />
+              <span v-else>{{ reply.author_username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
+            </div>
+          </div>
+          <div class="ci-body-col">
+            <div class="comment-header">
+              <div class="comment-author-info" @click="$emit('go-to-profile', reply.author_username)">
                 <span class="comment-author-name" :class="commentTierMap[reply.author_id] || ''">{{ reply.author_username }}</span>
-                <span class="comment-date">{{ formatDate(reply.created_at) }}</span>
                 <span v-if="String(reply.author_id || '') === String(postAuthorId || '')" class="comment-author-badge">楼主</span>
               </div>
+              <button v-if="canDeleteComment(reply)" class="comment-more-btn" aria-label="删除评论" title="删除评论"
+                @click="$emit('delete-comment', { comment: reply, parentId: null })">
+                <span></span><span></span><span></span>
+              </button>
             </div>
-          </div>
-          <div class="comment-content">
-            <p class="comment-text">{{ reply.content }}</p>
-          </div>
-          <div class="comment-footer-x">
-            <button class="comment-reply-btn-mini"
-              @click="$emit('reply', { targetId: reply.id, username: reply.author_username, content: reply.content })">
-              <Reply :size="14" :stroke-width="1.8" aria-hidden="true" />
-              回复
-            </button>
-            <button v-if="showExpandChildMap[reply.id]" class="comment-thread-btn-mini"
-              :disabled="childReplyStateMap[reply.id].isLoading" @click="$emit('toggle-child-replies', reply)">
-              {{ toggleLabelMap[reply.id] }}
-            </button>
-            <button v-if="isLoggedIn && (reply.author_id === currentUserId || currentUserRole === 'admin')"
-              class="del-comment-btn-mini" aria-label="删除评论" title="删除评论" @click="$emit('delete-comment', { comment: reply, parentId: null })">删除</button>
-          </div>
-
-          <div v-if="childReplyStateMap[reply.id].totalCount > 0 || childReplyStateMap[reply.id].isLoading"
-            class="child-replies-wrap">
-            <div
-              v-if="childReplyStateMap[reply.id].isLoading && visibleChildRepliesMap[reply.id].length === 0"
-              class="child-replies-loading" aria-hidden="true">
-              <div v-for="item in 2" :key="`child-reply-loading-${reply.id}-${item}`"
-                class="child-reply-skeleton-row">
-                <div class="detail-skeleton-block skeleton-line name"></div>
-                <div class="detail-skeleton-block skeleton-line wide"></div>
-              </div>
+            <div class="comment-content">
+              <p class="comment-text">{{ reply.content }}</p>
+            </div>
+            <div class="comment-meta-line">
+              <span class="comment-date">{{ formatDate(reply.created_at) }}</span>
+            </div>
+            <div class="comment-actions">
+              <button class="comment-like-btn" :class="{ 'is-liked': reply.isLiked }"
+                :disabled="reply.isLikeSubmitting" :aria-label="reply.isLiked ? '取消点赞' : '点赞'"
+                @click="$emit('toggle-comment-like', { comment: reply })">
+                <Heart :size="14" :stroke-width="1.8" :fill="reply.isLiked ? 'currentColor' : 'none'" aria-hidden="true" />
+                <span>赞</span>
+                <span v-if="Number(reply.like_count) > 0" class="comment-like-count">{{ reply.like_count }}</span>
+              </button>
+              <button class="comment-reply-btn-mini"
+                @click="$emit('reply', { targetId: reply.id, username: reply.author_username, content: reply.content })">
+                <Reply :size="14" :stroke-width="1.8" aria-hidden="true" />
+                回复
+              </button>
             </div>
 
-            <div v-for="child in visibleChildRepliesMap[reply.id]" :key="child.id" :id="`comment-${child.id}`"
-              class="child-reply-item"
-              :class="{ 'is-highlighted': highlightedCommentId === String(child.id) }">
-              <div class="child-reply-head" @click="$emit('go-to-profile', child.author_username)">
-                <span class="child-reply-author-wrap">
-                  <span class="child-reply-author" :class="commentTierMap[child.author_id] || ''">{{ child.author_username }}</span>
-                  <span v-if="String(child.author_id || '') === String(postAuthorId || '')" class="comment-author-badge compact">楼主</span>
-                  <span v-if="child.reply_to_username" class="child-reply-target">
-                    回复 @{{ child.reply_to_username }}
-                  </span>
-                </span>
-                <span class="child-reply-time">{{ formatDate(child.created_at) }}</span>
+            <div v-if="childReplyStateMap[reply.id].totalCount > 0 || childReplyStateMap[reply.id].isLoading"
+              class="child-replies-wrap">
+              <div
+                v-if="childReplyStateMap[reply.id].isLoading && visibleChildRepliesMap[reply.id].length === 0"
+                class="child-replies-loading" aria-hidden="true">
+                <div v-for="item in 2" :key="`child-reply-loading-${reply.id}-${item}`"
+                  class="child-reply-skeleton-row">
+                  <div class="detail-skeleton-block skeleton-line name"></div>
+                  <div class="detail-skeleton-block skeleton-line wide"></div>
+                </div>
               </div>
-              <p class="child-reply-content">{{ child.content }}</p>
-              <div class="child-reply-actions">
-                <button class="comment-reply-btn-mini"
-                  @click="$emit('reply', { targetId: reply.id, username: child.author_username, content: child.content })">回复</button>
-                <button v-if="isLoggedIn && (child.author_id === currentUserId || currentUserRole === 'admin')"
-                  class="del-comment-btn-mini" aria-label="删除回复" title="删除回复" @click="$emit('delete-comment', { comment: child, parentId: reply.id })">删除</button>
-              </div>
-            </div>
 
-            <button v-if="showLoadMoreMap[reply.id]" class="child-load-more-btn"
-              :disabled="childReplyStateMap[reply.id].isLoading"
-              @click="$emit('load-child-replies', { parentId: reply.id, options: { reset: false } })">
-              {{ loadMoreLabelMap[reply.id] }}
-            </button>
+              <div v-for="child in visibleChildRepliesMap[reply.id]" :key="child.id" :id="`comment-${child.id}`"
+                class="child-reply-item"
+                :class="{ 'is-highlighted': highlightedCommentId === String(child.id) }">
+                <div class="ci-avatar-col">
+                  <div class="mini-avatar small" role="button" tabindex="0"
+                    @click="$emit('go-to-profile', child.author_username)">
+                    <img v-if="child.author_avatar_url" :src="child.author_avatar_url" alt="回复者头像"
+                      class="avatar-image" loading="lazy" />
+                    <span v-else>{{ child.author_username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
+                  </div>
+                </div>
+                <div class="ci-body-col">
+                  <div class="comment-header">
+                    <div class="comment-author-info" @click="$emit('go-to-profile', child.author_username)">
+                      <span class="comment-author-name" :class="commentTierMap[child.author_id] || ''">{{ child.author_username }}</span>
+                      <span v-if="String(child.author_id || '') === String(postAuthorId || '')" class="comment-author-badge compact">楼主</span>
+                      <span v-if="child.reply_to_username" class="child-reply-target">
+                        回复 @{{ child.reply_to_username }}
+                      </span>
+                    </div>
+                    <button v-if="canDeleteComment(child)" class="comment-more-btn" aria-label="删除回复" title="删除回复"
+                      @click="$emit('delete-comment', { comment: child, parentId: reply.id })">
+                      <span></span><span></span><span></span>
+                    </button>
+                  </div>
+                  <div class="comment-content">
+                    <p class="child-reply-content">{{ child.content }}</p>
+                  </div>
+                  <div class="comment-meta-line">
+                    <span class="comment-date">{{ formatDate(child.created_at) }}</span>
+                  </div>
+                  <div class="comment-actions">
+                    <button class="comment-like-btn" :class="{ 'is-liked': child.isLiked }"
+                      :disabled="child.isLikeSubmitting" :aria-label="child.isLiked ? '取消点赞' : '点赞'"
+                      @click="$emit('toggle-comment-like', { comment: child, parentId: reply.id })">
+                      <Heart :size="14" :stroke-width="1.8" :fill="child.isLiked ? 'currentColor' : 'none'" aria-hidden="true" />
+                      <span>赞</span>
+                      <span v-if="Number(child.like_count) > 0" class="comment-like-count">{{ child.like_count }}</span>
+                    </button>
+                    <button class="comment-reply-btn-mini"
+                      @click="$emit('reply', { targetId: reply.id, username: child.author_username, content: child.content })">回复</button>
+                  </div>
+                </div>
+              </div>
+
+              <button v-if="showExpandChildMap[reply.id]" class="child-expand-link"
+                :disabled="childReplyStateMap[reply.id].isLoading" @click="$emit('toggle-child-replies', reply)">
+                {{ toggleLabelMap[reply.id] }}
+              </button>
+
+              <button v-if="showLoadMoreMap[reply.id]" class="child-load-more-btn"
+                :disabled="childReplyStateMap[reply.id].isLoading"
+                @click="$emit('load-child-replies', { parentId: reply.id, options: { reset: false } })">
+                {{ loadMoreLabelMap[reply.id] }}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -318,6 +366,10 @@ const onReplyInput = (event) => {
             @click="$emit('load-more-comments')">
             {{ isLoading ? '加载中...' : '加载更多评论' }}
           </button>
+        </div>
+
+        <div v-if="!hasMore && comments.length > 0 && !isLoading" class="comments-end-mark" aria-hidden="true">
+          - 到底啦 -
         </div>
       </div>
 
@@ -331,14 +383,15 @@ const onReplyInput = (event) => {
 </template>
 
 <style scoped>
-.x-side-content {
+/* 重复类名提特异性，稳压全局 .glass-panel（顺序无关，免 !important） */
+.x-side-content.x-side-content {
   height: 100%;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--detail-line, rgba(15, 23, 42, 0.07)) !important;
-  border-radius: 26px !important;
-  background: rgba(255, 255, 255, 0.64) !important;
-  box-shadow: 0 18px 55px rgba(15, 23, 42, 0.045) !important;
+  border: 1px solid var(--detail-line, rgba(15, 23, 42, 0.07));
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow: 0 18px 55px rgba(15, 23, 42, 0.045);
   min-height: 0;
   overflow: hidden;
 }
@@ -508,6 +561,18 @@ const onReplyInput = (event) => {
 .child-load-more-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+/* 评论区到底标记（Threads 式） */
+.comments-end-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 18px 0 6px;
+  color: var(--detail-muted, #687386);
+  font-size: 12px;
+  letter-spacing: 2px;
 }
 
 .del-comment-btn-mini:hover {
@@ -972,8 +1037,8 @@ const onReplyInput = (event) => {
 }
 
 @media (max-width: 1024px) {
-  .x-side-content {
-    background: rgba(255, 255, 255, 0.66) !important;
+  .x-side-content.x-side-content {
+    background: rgba(255, 255, 255, 0.66);
   }
 
   .comments-list {
@@ -1044,5 +1109,200 @@ const onReplyInput = (event) => {
   -webkit-text-fill-color: transparent !important;
   animation: none !important;
   font-weight: 700;
+}
+
+/* ---- Threads 式竖向引导线：评论头像中线连接到下一条评论 ---- */
+.comment-item-x {
+  position: relative;
+}
+
+.mini-avatar {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---- 小红书式评论条：左头像列 + 右内容列 ---- */
+.comment-item-x {
+  position: relative;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.comment-item-x > .ci-avatar-col .mini-avatar {
+  width: 48px;
+  height: 48px;
+  font-size: 20px;
+}
+
+.ci-avatar-col {
+  min-width: 0;
+}
+
+.ci-body-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.comment-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.comment-header .comment-author-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.comment-header .comment-author-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comment-more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--duration-fast, 180ms) ease;
+}
+
+.comment-more-btn span {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--detail-muted, #687386);
+}
+
+.comment-more-btn:hover {
+  background: rgba(15, 23, 42, 0.05);
+}
+
+.comment-meta-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.comment-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 2px;
+}
+
+.comment-like-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  color: var(--detail-muted, #687386);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color var(--duration-fast, 180ms) ease;
+}
+
+.comment-like-btn:hover:not(:disabled) {
+  color: #e0483f;
+}
+
+.comment-like-btn.is-liked {
+  color: #e0483f;
+}
+
+.comment-like-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.comment-like-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.comment-replies-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: var(--liquid-radius-pill, 999px);
+  background: rgba(15, 23, 42, 0.045);
+  color: var(--detail-muted, #687386);
+  font-size: 11px;
+}
+
+/* 楼中楼：小头像 + 同构两栏，整体缩进到顶层内容列 */
+/* 楼中楼容器：覆盖旧版 border-left 竖线与额外缩进，子回复缩进由两栏 grid 自然形成 */
+.child-replies-wrap {
+  position: relative;
+  margin: 6px 0 0;
+  margin-left: 0;
+  padding: 0;
+  border-left: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.child-reply-item {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.child-reply-item .mini-avatar.small {
+  width: 32px;
+  height: 32px;
+  font-size: 13px;
+}
+
+.child-expand-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 0;
+  margin-top: 6px;
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.child-expand-link:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.child-expand-link:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (max-width: 768px) {
+  .comment-item-x {
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .comment-item-x > .ci-avatar-col .mini-avatar {
+    width: 40px;
+    height: 40px;
+    font-size: 17px;
+  }
 }
 </style>

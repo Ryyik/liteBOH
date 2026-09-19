@@ -516,7 +516,8 @@ function updateMorePanelPosition() {
   const panelHeight = panelEl ? panelEl.offsetHeight : 200;
   const panelWidth = panelEl ? panelEl.offsetWidth : 280;
 
-  const isNarrowScreen = window.innerWidth <= 899;
+  // 窄屏档（≤900，与 UserSpace 的 900 全宽档对齐，收敛原 899 孤岛）
+  const isNarrowScreen = window.innerWidth <= 900;
 
   if (isNarrowScreen) {
     // 窄屏幕：面板从底部弹出（上拉菜单效果）
@@ -1292,7 +1293,7 @@ onUnmounted(() => {
   background: rgba(0, 113, 227, 0.12);
 }
 
-@media (max-width: 899px) {
+@media (max-width: 900px) {
   .location-panel-overlay {
     align-items: flex-end;
   }
@@ -1370,7 +1371,7 @@ onUnmounted(() => {
 }
 
 /* 移动端面板更宽 */
-@media (max-width: 899px) {
+@media (max-width: 900px) {
   .more-panel {
     width: calc(100vw - 24px);
     padding: 16px;

@@ -30,6 +30,8 @@ import { getImageUrl } from '@/utils/asset-helper.js';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader';
+import { isForumLandscape, isForumPortraitComposer, onForumPortraitComposerChange } from '@/utils/forum-viewport.js';
+import { openForumPost } from '@/composables/usePostDetailModal.js';
 
 // Props
 const props = defineProps({
@@ -1073,7 +1075,8 @@ const isForumImageViewerOpen = ref(false);
 const forumImageViewerImages = ref([]);
 const forumImageViewerIndex = ref(0);
 const showPostImageSourceMenu = ref(false);
-const isMobileComposerMode = ref(false);
+// 竖屏编辑器形态：单源判据初始化，变化由 onForumPortraitComposerChange 订阅驱动（见下方 updateMobileStatus 区块）
+const isMobileComposerMode = ref(typeof window !== 'undefined' ? isForumPortraitComposer() : false);
 const isMobileComposerOpen = ref(false);
 const isMobileDraftPanelOpen = ref(false);
 const savedPostDraft = ref(null);
@@ -1864,31 +1867,48 @@ const discardDraftPostImages = async ({ silent = true } = {}) => {
   clearPostImages({ cleanup: false });
 };
 
-// 移动端判断
+// 移动端判断（窄屏档；竖屏编辑器形态由 forum-viewport 单源判据驱动，不在此处手算）
 const MOBILE_BREAKPOINT = 768;
-const PORTRAIT_COMPOSER_BREAKPOINT = 1024;
-const isMobile = ref(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
+const isMobile = ref(typeof window !== 'undefined' ? window.innerWidth <= MOBILE_BREAKPOINT : false);
 let resizeRafId = null;
 const updateMobileStatus = () => {
   if (resizeRafId) return;
   resizeRafId = requestAnimationFrame(() => {
     resizeRafId = null;
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-    isMobile.value = width <= MOBILE_BREAKPOINT;
-
-    const prevComposerMode = isMobileComposerMode.value;
-    isMobileComposerMode.value = width <= PORTRAIT_COMPOSER_BREAKPOINT && height >= width;
-
-    // 如果从移动端编辑器模式切换到桌面端，且编辑器已打开，则关闭编辑器
-    // 防止横屏时出现竖屏样式的编辑器
-    if (prevComposerMode && !isMobileComposerMode.value && isMobileComposerOpen.value) {
-      isMobileComposerOpen.value = false;
-    }
+    isMobile.value = window.innerWidth <= MOBILE_BREAKPOINT;
   });
 };
 
-if (typeof window !== 'undefined') updateMobileStatus();
+// 离开竖屏编辑器（旋转/尺寸切换）时的安全关闭：
+// 不再直接置 isMobileComposerOpen=false（会绕过 closeMobileComposer 的保存确认链，
+// 且退出后 beforeunload 不再拦截），改为静默落草稿再关闭，不弹确认框。
+const leaveMobileComposerForViewportSwitch = () => {
+  if (hasUnsavedChanges()) {
+    persistPostDraft();
+    clearPostDraftSaveTimer();
+    void savePostDraftToDatabase(savedPostDraft.value);
+    logger.debug('forum', '视口切换：已静默保存发帖草稿');
+  }
+  closePostImageSourceMenu();
+  closeMobileDraftPanel();
+  isMobileComposerOpen.value = false;
+};
+
+// 竖屏编辑器形态切换（单源 matchMedia 驱动，旋转/窗口尺寸变化均会触发）
+let releaseComposerModeWatch = null;
+const handleComposerModeChange = (matches) => {
+  const prevComposerMode = isMobileComposerMode.value;
+  isMobileComposerMode.value = matches;
+  // 从竖屏编辑器切换到桌面形态时关闭全屏编辑器，防止横屏出现竖屏样式的编辑器
+  if (prevComposerMode && !matches && isMobileComposerOpen.value) {
+    leaveMobileComposerForViewportSwitch();
+  }
+};
+
+if (typeof window !== 'undefined') {
+  updateMobileStatus();
+  releaseComposerModeWatch = onForumPortraitComposerChange(handleComposerModeChange);
+}
 
 const isForumComposerFabVisible = computed(() => {
   if (!isMobileComposerMode.value || feedMode.value !== 'posts') return false;
@@ -1986,6 +2006,37 @@ const handleForumPostDeleted = (event) => {
   persistForumFeedSnapshot();
 };
 
+// 弹窗模式下列表不卸载：详情内编辑/点赞/评论后经此事件原地 patch 卡片（不可变更新触发 shallowRef）
+const handleForumPostUpdated = (event) => {
+  const detail = event?.detail || {};
+  const postId = String(detail.postId || '').trim();
+  const updated = detail.post;
+  if (!postId || !updated) return;
+
+  let patched = false;
+  const nextPosts = (forumData.value || []).map((item) => {
+    if (String(item?.id || '') !== postId) return item;
+    patched = true;
+    return {
+      ...item,
+      title: updated.title ?? item.title,
+      content: updated.content ?? item.content,
+      body: updated.body ?? item.body,
+      tag: updated.tag ?? item.tag,
+      location_name: updated.location_name ?? item.location_name,
+      status: updated.status ?? item.status,
+      like_count: Number(updated.like_count ?? item.like_count ?? 0),
+      comment_count: Number(updated.comment_count ?? item.comment_count ?? 0),
+      updated_at: updated.updated_at ?? item.updated_at
+    };
+  });
+
+  if (patched) {
+    forumData.value = nextPosts;
+    persistForumFeedSnapshot();
+  }
+};
+
 onMounted(() => {
   currentTheme.value = readActiveForumTheme();
   currentUiStyle.value = themeManager.getUiStyle?.() || 'glass';
@@ -2013,6 +2064,7 @@ onMounted(() => {
   // 监听刷新请求事件（从导航栏点击"我的方块"时触发）
   window.addEventListener('boh_forum_refresh_request', handleForumRefreshRequest);
   window.addEventListener('boh:forum-post-deleted', handleForumPostDeleted);
+  window.addEventListener('boh:forum-post-updated', handleForumPostUpdated);
   // ✨ 新增：beforeunload事件监听（刷新页面时提示保存草稿）
   window.addEventListener('beforeunload', handleBeforeUnload);
 
@@ -2078,10 +2130,13 @@ onUnmounted(() => {
   // clearAutoSaveDraftTimer();
   forumFetchAbortController?.abort?.();
   forumFetchAbortController = null;
+  releaseComposerModeWatch?.();
+  releaseComposerModeWatch = null;
   window.removeEventListener('resize', updateMobileStatus);
   window.removeEventListener('orientationchange', updateMobileStatus);
   window.removeEventListener('boh_forum_refresh_request', handleForumRefreshRequest);
   window.removeEventListener('boh:forum-post-deleted', handleForumPostDeleted);
+  window.removeEventListener('boh:forum-post-updated', handleForumPostUpdated);
   // ✨ 新增：移除beforeunload事件监听
   window.removeEventListener('beforeunload', handleBeforeUnload);
   if (resizeRafId) {
@@ -3754,6 +3809,11 @@ watch(searchQuery, () => {
 });
 
 const openPostDetail = (postId) => {
+  // 横屏（含桌面）：单源分流进详情弹窗，列表原地保留，无需 return state
+  if (isForumLandscape()) {
+    openForumPost({ router, postId });
+    return;
+  }
   const returnKey = props.embedded ? 'user-space' : 'forum';
   saveForumReturnState(returnKey, buildForumReturnState(postId));
   const query = props.embedded

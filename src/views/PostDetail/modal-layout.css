@@ -1,0 +1,437 @@
+/*
+ * 帖子详情弹窗（横屏 PostDetailModal）— 小红书式布局样式单源。
+ * 全部挂 .post-detail-page--modal 前缀，整页模式零污染。
+ * 结构：外层 16px 边距 → 左媒体区（可选，hasMedia）+ 右信息栏（内部滚动）
+ *       → 底部固定操作栏（输入框 + 点赞/评论/分享）。
+ */
+
+/* ── 壳：填满弹窗面板，禁止外层滚动（滚动在右栏内部） ── */
+.post-detail-page--modal {
+  min-height: auto;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+  background-color: transparent;
+  background-image: none;
+}
+
+.post-detail-page--modal .detail-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  max-width: none;
+  padding: 16px;
+  /* 历史样式 margin: 0 auto 在 flex 容器中会吸收剩余空间 → 容器收缩成内容宽并居中（无图帖内容挤在中间的根因） */
+  margin: 0;
+}
+
+.post-detail-page--modal .detail-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── 主体网格：有图 = 左媒体 + 右信息；无图 = 单栏信息 ── */
+.post-detail-page--modal .pd-modal-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+}
+
+.post-detail-page--modal .pd-modal-body--has-media {
+  grid-template-columns: minmax(0, 1.12fr) minmax(340px, 1fr);
+}
+
+/* 加载骨架撑满弹窗面板（列比例与正文布局对齐） */
+.post-detail-page--modal .post-detail-skeleton {
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1.12fr) minmax(340px, 1fr);
+  gap: 18px;
+}
+
+/* 弹窗内隐藏滚动条（滚动能力保留）：信息区 / 评论区 */
+.post-detail-page--modal .pd-info-scroll,
+.post-detail-page--modal .comments-list {
+  scrollbar-width: none;
+}
+
+.post-detail-page--modal .pd-info-scroll::-webkit-scrollbar,
+.post-detail-page--modal .comments-list::-webkit-scrollbar {
+  display: none;
+}
+
+.post-detail-page--modal .pd-info-scroll :deep(.comments-list) {
+  scrollbar-width: none;
+}
+
+.post-detail-page--modal .pd-info-scroll :deep(.comments-list)::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── 左：媒体区（16px 由外层提供，图片圆角 12px，箭头/点悬浮图上） ── */
+.post-detail-page--modal .pd-modal-media {
+  min-height: 0;
+  display: flex;
+}
+
+.post-detail-page--modal .pd-media-stage-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--liquid-bg-subtle, rgba(255, 255, 255, 0.58));
+  border: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
+}
+
+.post-detail-page--modal .pd-media-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.post-detail-page--modal .pd-media-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 12px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.post-detail-page--modal .pd-media-img.is-loaded {
+  opacity: 1;
+}
+
+.post-detail-page--modal .pd-media-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--liquid-radius-pill, 999px);
+  border: 1px solid var(--liquid-border, rgba(255, 255, 255, 0.65));
+  background: var(--liquid-bg, rgba(255, 255, 255, 0.72));
+  color: var(--liquid-text-secondary, #6e6e73);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%));
+  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%));
+  transition: background var(--duration-fast, 180ms) ease, color var(--duration-fast, 180ms) ease;
+}
+
+.post-detail-page--modal .pd-media-nav:hover {
+  background: var(--liquid-bg-strong, rgba(255, 255, 255, 0.84));
+  color: var(--liquid-text-primary, #1d1d1f);
+}
+
+.post-detail-page--modal .pd-media-nav.prev {
+  left: 10px;
+}
+
+.post-detail-page--modal .pd-media-nav.next {
+  right: 10px;
+}
+
+.post-detail-page--modal .pd-media-dots {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border-radius: var(--liquid-radius-pill, 999px);
+  background: var(--liquid-bg, rgba(255, 255, 255, 0.72));
+  border: 1px solid var(--liquid-border, rgba(255, 255, 255, 0.65));
+  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%));
+  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%));
+}
+
+.post-detail-page--modal .pd-media-dot {
+  width: 6px;
+  height: 6px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--liquid-text-tertiary, #8b9098);
+  opacity: 0.45;
+  cursor: pointer;
+  transition: opacity var(--duration-fast, 180ms) ease, transform var(--duration-fast, 180ms) ease;
+}
+
+.post-detail-page--modal .pd-media-dot.active {
+  opacity: 1;
+  transform: scale(1.15);
+}
+
+/* ── 右：信息栏（固定作者条 + 内部滚动内容 + 底部固定操作栏） ── */
+.post-detail-page--modal .pd-modal-info {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 作者行固定条：不随评论区滚动；顶部 48px 让位右上关闭钮，底部 hairline 与滚动内容分隔 */
+.post-detail-page--modal .pd-author-row {
+  flex: none;
+  padding: 48px 8px 12px 2px;
+  border-bottom: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
+  margin-bottom: 10px;
+}
+
+.post-detail-page--modal .pd-info-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px 8px 12px 2px;
+}
+
+.post-detail-page--modal .pd-author-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.post-detail-page--modal .pd-author-row .author-section {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.post-detail-page--modal .pd-follow-btn {
+  padding: 7px 18px;
+  border: 1px solid transparent;
+  border-radius: var(--liquid-radius-pill, 999px);
+  background: var(--liquid-text-primary, #1d1d1f);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--duration-fast, 180ms) ease, color var(--duration-fast, 180ms) ease,
+    border-color var(--duration-fast, 180ms) ease;
+}
+
+.post-detail-page--modal .pd-follow-btn:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.post-detail-page--modal .pd-follow-btn.is-following {
+  background: transparent;
+  border-color: var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
+  color: var(--liquid-text-secondary, #6e6e73);
+}
+
+.post-detail-page--modal .pd-follow-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.post-detail-page--modal .pd-title {
+  margin: 12px 0 6px;
+  font-size: 20px;
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--detail-ink, #111827);
+}
+
+.post-detail-page--modal .pd-comments-head {
+  margin: 14px 0 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--detail-line, rgba(15, 23, 42, 0.07));
+  font-size: 13px;
+  color: var(--detail-muted, #687386);
+}
+
+/* CommentThread 融入右栏：去玻璃卡壳（特异性 (0,3,0) 压过其自身 (0,2,0)，免 !important）；
+   计数由「共 N 条评论」承担，隐藏自带区块头 */
+.post-detail-page--modal .pd-comment-thread.x-side-content.x-side-content {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+.post-detail-page--modal .pd-comment-thread :deep(.section-header) {
+  display: none;
+}
+
+.post-detail-page--modal .pd-comment-thread :deep(.no-comments-state) {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+/* ── 底部操作栏（横屏弹窗内嵌 + 整页 fixed 两用，类名共享） ── */
+.pd-actionbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.post-detail-page--modal .pd-actionbar {
+  padding-top: 12px;
+  border-top: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
+}
+
+/* 整页（竖屏/横屏直链）固定底栏：键盘弹出时以 --pd-dock-inset 抬升到键盘上沿 */
+.post-detail-page .pd-actionbar--page {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--pd-dock-inset, 0px);
+  z-index: 2147481200;
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: var(--liquid-bg-strong, rgba(255, 255, 255, 0.84));
+  border-top: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
+  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%));
+  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%));
+}
+
+.pd-reply-input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
+  border-radius: var(--liquid-radius-pill, 999px);
+  background: var(--liquid-bg-subtle, rgba(255, 255, 255, 0.58));
+  color: var(--liquid-text-primary, #1d1d1f);
+  font-size: 13px;
+  outline: none;
+  transition: border-color var(--duration-fast, 180ms) ease, background var(--duration-fast, 180ms) ease;
+}
+
+.pd-reply-input::placeholder {
+  color: var(--liquid-text-tertiary, #8b9098);
+}
+
+.pd-reply-input:focus {
+  border-color: rgba(29, 29, 31, 0.22);
+  background: var(--liquid-bg, rgba(255, 255, 255, 0.72));
+}
+
+.pd-reply-input--guest {
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.pd-reply-send {
+  padding: 0 16px;
+  height: 40px;
+  border: none;
+  border-radius: var(--liquid-radius-pill, 999px);
+  background: var(--liquid-text-primary, #1d1d1f);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity var(--duration-fast, 180ms) ease;
+}
+
+.pd-reply-send:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.pd-reply-send:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.pd-action-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pd-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 52px;
+  padding: 4px 6px;
+  border: none;
+  border-radius: var(--liquid-radius-md, 16px);
+  background: transparent;
+  color: var(--liquid-text-secondary, #6e6e73);
+  cursor: pointer;
+  transition: color var(--duration-fast, 180ms) ease, background var(--duration-fast, 180ms) ease;
+}
+
+/* 竖屏整页底栏：图标+文字横排（Threads 式） */
+@media (max-width: 1024px) {
+  .pd-actionbar--page .pd-action-btn {
+    flex-direction: row;
+    gap: 6px;
+    min-width: 0;
+    padding: 6px 10px;
+  }
+}
+
+.pd-action-btn:hover:not(:disabled) {
+  background: var(--liquid-bg-subtle, rgba(255, 255, 255, 0.58));
+  color: var(--liquid-text-primary, #1d1d1f);
+}
+
+.pd-action-btn:disabled {
+  cursor: default;
+}
+
+.pd-action-btn.is-liked {
+  color: #e0483f;
+}
+
+.pd-action-btn.is-copy-success {
+  color: #059669;
+}
+
+.pd-action-count {
+  font-size: 11px;
+  line-height: 1.2;
+  max-width: 64px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 暗色主题派生（token 由 [data-theme="dark"] 覆写，这里只处理硬编码例外） */
+.pd-reply-input:focus {
+  border-color: var(--liquid-border-strong, rgba(255, 255, 255, 0.18));
+}
+
+/* 窄横屏（高度紧张）时压缩标题与操作栏 */
+@media (orientation: landscape) and (min-width: 1024px) and (max-height: 700px) {
+  .post-detail-page--modal .pd-title {
+    font-size: 17px;
+    margin: 8px 0 4px;
+  }
+
+  .post-detail-page--modal .pd-reply-input,
+  .post-detail-page--modal .pd-reply-send {
+    height: 34px;
+  }
+}

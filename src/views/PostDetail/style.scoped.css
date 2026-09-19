@@ -10,7 +10,7 @@
   background-image:
     radial-gradient(at 12% 0%, rgba(42, 131, 218, 0.055) 0px, transparent 42%),
     radial-gradient(at 100% 6%, rgba(122, 161, 255, 0.035) 0px, transparent 46%);
-  padding-bottom: 80px;
+  padding-bottom: calc(132px + env(safe-area-inset-bottom, 0px));
 }
 
 .post-detail-page[data-anniversary-skin="active"] {
@@ -187,12 +187,13 @@
   overflow: visible;
 }
 
-.x-post-card {
-  border: none !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  background: transparent !important;
-  padding: clamp(28px, 4vw, 56px) !important;
+/* 高特异性对拼 .glass-panel（顺序无关，免 !important） */
+.post-detail-page .x-post-card {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  padding: clamp(28px, 4vw, 56px);
   position: relative;
   overflow: hidden;
 }
@@ -238,18 +239,20 @@
   font-weight: 700;
 }
 
-/* 订阅等级帖子背景微色调 */
-.x-post-card.tier-plus {
-  background: rgba(245, 250, 255, 0.7) !important;
-}
-.x-post-card.tier-pro {
-  background: rgba(250, 248, 240, 0.7) !important;
-}
-.x-post-card.tier-max {
-  background: rgba(245, 246, 250, 0.7) !important;
-}
-.x-post-card.tier-ultra {
-  background: rgba(252, 245, 248, 0.7) !important;
+/* 订阅等级帖子背景微色调（仅横屏整页双栏；竖屏连续内容流由 1024 断点透明化接管） */
+@media (min-width: 1025px) {
+  .x-post-card.tier-plus {
+    background: rgba(245, 250, 255, 0.7) !important;
+  }
+  .x-post-card.tier-pro {
+    background: rgba(250, 248, 240, 0.7) !important;
+  }
+  .x-post-card.tier-max {
+    background: rgba(245, 246, 250, 0.7) !important;
+  }
+  .x-post-card.tier-ultra {
+    background: rgba(252, 245, 248, 0.7) !important;
+  }
 }
 
 .x-side-column {
@@ -503,9 +506,10 @@
 }
 
 .post-detail-image-carousel {
+  position: relative;
   display: grid;
   gap: 12px;
-  margin: 8px 0 30px;
+  margin: 8px 0 16px;
 }
 
 .post-detail-image-stage {
@@ -674,12 +678,23 @@
   right: 12px;
 }
 
+/* dots 悬浮贴图片下缘（Threads/小红书式玻璃胶囊） */
 .post-detail-image-dots {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  min-height: 22px;
+  gap: 6px;
+  min-height: 0;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: var(--liquid-bg, rgba(255, 255, 255, 0.72));
+  border: 1px solid var(--liquid-border, rgba(255, 255, 255, 0.65));
+  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%));
+  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%));
 }
 
 .post-detail-image-dot {
@@ -1306,7 +1321,7 @@
     grid-template-columns: 1fr;
     height: auto;
     min-height: 0;
-    gap: 18px;
+    gap: 0;
     border-radius: 0;
     border: none;
   }
@@ -1325,6 +1340,202 @@
     top: auto;
     overflow: visible;
   }
+
+  /* 竖屏连续内容：主帖与评论去掉玻璃卡分段，排成一条时间流（必须在上方旧规则之后，避免被覆盖） */
+  .x-main-column {
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  /* 特异性 (0,2,0) 与基础规则同、后定义者胜 → 免 !important */
+  .post-detail-page .x-post-card {
+    padding: 20px;
+  }
+
+  /* CommentThread 根玻璃壳透明化：特异性 (0,3,0) 压过其自身 (0,2,0) */
+  .post-detail-page .x-side-content.x-side-content {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 20px 20px 0;
+  }
+
+  /* ---- 竖屏 Threads 式排版 ---- */
+  /* 页面级左右距归零：贴边交给媒体，内容块各自保留 20px 内距（特异性压过 768 断点的 14px） */
+  .post-detail-page .detail-container {
+    padding-left: 0;
+    padding-right: 0;
+    /* 顶部补偿 fixed 身份条高度（头像 44 + 上下 padding + 框溢出余量） */
+    padding-top: 80px;
+  }
+
+  /* 媒体前置 + 全出血贴屏（抵消卡片 padding，去圆角） */
+  .post-detail-page .x-post-card {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .post-detail-page .x-post-card .post-detail-image-carousel.x-post-card-media {
+    order: -1;
+    margin: -20px -20px 14px;
+  }
+
+  .post-detail-page .x-post-card .post-detail-image-stage {
+    border-radius: 0;
+  }
+
+  /* 作者行精简：身份在头部身份条，内容区只留「···」菜单 */
+  .post-detail-page .x-post-card .author-section .boh-avatar-wrap,
+  .post-detail-page .x-post-card .author-section .author-meta {
+    display: none;
+  }
+
+  .post-detail-page .x-post-card .post-header {
+    margin-bottom: 4px;
+  }
+
+  /* 正文排版：竖屏加大字号与行距 */
+  .post-detail-page .content-text {
+    font-size: 17px;
+    line-height: 1.75;
+  }
+
+  /* 隐藏评论自带区块头（竖屏用「共 N 条评论」段头替代） */
+  .post-detail-page .x-side-content :deep(.section-header) {
+    display: none;
+  }
+
+  .pd-comments-head--page {
+    border-top: 1px solid var(--detail-line, rgba(15, 23, 42, 0.07));
+    margin: 8px 20px 8px;
+    padding: 14px 0 8px;
+    font-size: 13px;
+    color: var(--detail-muted, #687386);
+  }
+}
+
+/* 横屏整页：媒体保持「作者→正文→图片」原顺序（carousel 提为直接子级后用 order 归位） */
+@media (min-width: 1025px) {
+  .post-detail-page .x-post-card {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .post-detail-page .x-post-card .post-detail-image-carousel.x-post-card-media {
+    order: 3;
+  }
+}
+
+/* 横屏整页：媒体保持「作者→正文→图片」原顺序（carousel 提为直接子级后用 order 归位） */
+@media (min-width: 1025px) {
+  .post-detail-page .x-post-card {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .post-detail-page .x-post-card .post-detail-image-carousel.x-post-card-media {
+    order: 3;
+  }
+}
+
+/* ---- 窄屏作者身份条（Threads 式头部）：固定屏幕顶部，加大尺寸保证头像框完整显示 ---- */
+.pd-author-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2147481000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  /* 顶部 14px：给头像框向上溢出（scale 1.24+）留出完整显示空间 */
+  padding: 14px 16px 10px;
+  background: var(--liquid-bg-strong, rgba(255, 255, 255, 0.84));
+  border-bottom: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
+  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%));
+  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%));
+}
+
+.pd-author-bar-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border: none;
+  border-radius: var(--liquid-radius-pill, 999px);
+  background: transparent;
+  color: var(--detail-ink, #111827);
+  cursor: pointer;
+  transition: background var(--duration-fast, 180ms) ease;
+}
+
+.pd-author-bar-back:hover {
+  background: rgba(15, 23, 42, 0.05);
+}
+
+.pd-author-bar-identity {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+/* 头像 44px：框（scale 1.24 ≈ 55px）向四周溢出，wrap 不裁剪、横条留白足够 */
+.pd-author-bar-avatar .author-avatar {
+  width: 44px;
+  height: 44px;
+  font-size: 17px;
+}
+
+.pd-author-bar-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--detail-ink, #111827);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pd-author-bar-name--loading {
+  color: var(--detail-muted, #687386);
+}
+
+.pd-author-bar-follow {
+  flex: none;
+  padding: 6px 18px;
+  border: 1px solid #e0483f;
+  border-radius: var(--liquid-radius-pill, 999px);
+  background: transparent;
+  color: #e0483f;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--duration-fast, 180ms) ease, color var(--duration-fast, 180ms) ease,
+    border-color var(--duration-fast, 180ms) ease;
+}
+
+.pd-author-bar-follow:hover:not(:disabled) {
+  background: rgba(224, 72, 63, 0.06);
+}
+
+.pd-author-bar-follow.is-following {
+  border-color: var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
+  background: transparent;
+  color: var(--detail-muted, #687386);
+}
+
+.pd-author-bar-follow:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 @media (max-width: 768px) {
@@ -1704,7 +1915,8 @@
 .detail-confirm-overlay {
   position: fixed;
   inset: 0;
-  z-index: 210100;
+  /* Teleport 到 body：需高于帖子详情弹窗(2147482400)，低于 CommonAlertModal(2147483647) */
+  z-index: 2147483600;
   display: flex;
   align-items: center;
   justify-content: center;
