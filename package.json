@@ -1,7 +1,7 @@
 {
   "name": "bohvue",
   "private": true,
-  "version": "6.2.1",
+  "version": "6.3.1",
   "sideEffects": [
     "*.css",
     "*.vue",
@@ -25,6 +25,12 @@
     "check:dark-tokens:strict": "node scripts/check-dark-tokens.mjs --strict",
     "check:first-paint": "node scripts/check-first-paint.mjs",
     "check:shell-precache": "node scripts/check-shell-precache.mjs",
+    "check:route-css-runtime": "node scripts/check-route-css-runtime-cache.mjs",
+    "check:sw-upgrade": "node scripts/check-sw-upgrade-precache-gc.mjs",
+    "probe:ai-panels": "node scripts/probes/probe-ai-panels.mjs",
+    "probe:route-switch": "node scripts/probes/probe-route-switch.mjs",
+    "probe:userspace-switch": "node scripts/probes/probe-userspace-switch.mjs",
+    "probe:userspace-pages": "node scripts/probes/probe-userspace-pages.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "island:smoke": "node scripts/island-smoke.mjs",
