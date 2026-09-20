@@ -53,7 +53,7 @@
 - 框 scale ≈ 1/内孔占比，按孔心裁切，框层上限 116px；`frameScale` 写错静默回落 1.24。画布 `setPointerCapture` **必须 try/catch**（否则白屏）；手势只能用 CDP `Input.dispatchTouchEvent`。
 
 ## 其它单源 / 未部署
-- TWA：单源 `android-twa/twa-manifest.json`，APK 推 Release `android-latest`；**触发路径不含 src/ → 只改 src/ 不触发打包**；包名签名永久不可换；Pages 吞 `.well-known/` 靠 `.nojekyll`。
+- TWA：单源 `android-twa/twa-manifest.json`，APK 推 Release `android-latest`；**触发路径不含 src/ → 只改 src/ 不触发打包**，但**改 `vite.config.js` / `public/icons/**` / `.well-known` 也会触发 APK 构建**（2026-09-20 实证：只动 vite.config.js 的提交照样打了 APK）；包名签名永久不可换；Pages 吞 `.well-known/` 靠 `.nojekyll`。
 - Web Push（已实现未部署）：notifications 触发器 → push_outbox → `push-send` → FCM/APNs → `public/push-sw.js`（workbox.importScripts 注入，删了 SW 装不上）；决策出口 `boh_should_send_web_push()`；库必须 `jsr:@negrel/webpush`；VAPID 须 JWK；signOut 先解绑；与 Pushplus 会双发。
 
 ## PWA 版本更新（2026-09-20 修复「立即更新无效」）
