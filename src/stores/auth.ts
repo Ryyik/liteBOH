@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, ref, reactive } from 'vue';
 import { logger } from '@/utils/logger.js';
 import { notify } from '@/utils/notify.js';
+import { getLocalDayKey, writeLastOnlineDay } from '@/utils/overview-day-marker.js';
 import type { UserInfo, LoginResult, AsyncOpResult } from '@/types';
 import type * as AuthModule from '@/utils/auth.js';
 
@@ -170,6 +171,11 @@ export const useAuthStore = defineStore('auth', () => {
   // 会话级离线概览锚点：在首次刷新 last_active_at 前快照，避免离线期间内容被排除。
   // 不持久化（persist paths 只含 isLoggedIn/userInfo），每次会话重新捕获。
   const offlineAnchorAt = ref<string | null>(null);
+  // 跨设备天粒度标记（服务端 profiles.last_online_day / overview_checked_day，Asia/Shanghai 自然日）：
+  // 每次会话经 mark_overview_state 拉取；不持久化。
+  // 会话内「上次在线日」以首次取回的值为准——心跳/可见性刷新拿到的已是「今天」，
+  // 覆盖写会把真实的上次在线日抹成今天，长离线窗口随之塌成 0。
+  const overviewMarks = ref<{ today: string; previousOnlineDay: string; checkedDay: string } | null>(null);
 
   const isAdmin = computed(() => {
     if (!isInitialized.value) return false;
@@ -330,16 +336,30 @@ const PROFILE_SELECT_COLUMNS = `
       void updateOnlineStatus();
     };
 
+    // 会话结束（关闭标签 / 刷新 / 站外跳转）时把「上次在线日」游标推进到当天，语义=该日及之前已浏览。
+    // 时机必须是「离开时」而不能是在线中：上线就写会把当天的推送窗口掐掉
+    // （今天在线 ≠ 今天稍后发布的内容已读），灵动岛将永远弹不出来。
+    // 有了这条记录，长离线账号的「你离开了 N 天」不再依赖易失的秒级心跳锚点
+    // （profiles.last_active_at 会被登录与每次刷新后的会话顶成今天）。
+    const handlePageHide = () => {
+      if (!isLoggedIn.value) return;
+      const userId = userInfo.id;
+      if (!userId) return;
+      writeLastOnlineDay(userId, getLocalDayKey());
+    };
+
     window.addEventListener('visibilitychange', handlePageVisible);
     window.addEventListener('online', handleOnline);
+    window.addEventListener('pagehide', handlePageHide);
 
-    browserLifecycleHandlers = { handlePageVisible, handleOnline };
+    browserLifecycleHandlers = { handlePageVisible, handleOnline, handlePageHide };
   };
 
   const clearBrowserLifecycleSync = (): void => {
     if (!browserLifecycleHandlers) return;
     window.removeEventListener('visibilitychange', browserLifecycleHandlers.handlePageVisible);
     window.removeEventListener('online', browserLifecycleHandlers.handleOnline);
+    window.removeEventListener('pagehide', browserLifecycleHandlers.handlePageHide);
     browserLifecycleHandlers = null;
     browserLifecycleBound = false;
   };
@@ -835,6 +855,36 @@ const PROFILE_SELECT_COLUMNS = `
     }
   };
 
+  /**
+   * 同步跨设备天粒度标记（智能概览用）：
+   * mark_overview_state 一次往返完成「读旧值 + 写今天」——必须原子，先写后读窗口就没了。
+   * - 会话启动/在线心跳：p_checked=false，取回「上次在线日」；
+   * - 概览检查成功后：p_checked=true，额外把「当日已检查」推进到今天（跨设备同日去重）。
+   */
+  const refreshOverviewMarks = async ({ markChecked = false } = {}): Promise<typeof overviewMarks.value> => {
+    if (!isLoggedIn.value || !userInfo.id) return null;
+    try {
+      const { supabase } = await loadAuthApi();
+      const { data, error } = await supabase.rpc('mark_overview_state', { p_checked: markChecked });
+      if (error) throw error;
+      const payload = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
+      const today = String(payload.today || '');
+      const previousOnlineDay = String(payload.previous_online_day || '');
+      const checkedDay = String(payload.checked_day || '');
+      overviewMarks.value = {
+        today,
+        // 会话内首次值优先：后续调用返回的「上次在线日」已经是今天，不代表真实上次在线日
+        previousOnlineDay: overviewMarks.value?.previousOnlineDay || previousOnlineDay,
+        checkedDay: markChecked ? today : checkedDay || overviewMarks.value?.checkedDay || ''
+      };
+      return overviewMarks.value;
+    } catch (error) {
+      // 跨设备标记是增强项：失败时前端回落到本机 localStorage 游标与会话锚点
+      logger.warn('auth-store', '同步智能概览天粒度标记失败', error);
+      return null;
+    }
+  };
+
   const updateOnlineStatus = async () => {
     try {
       // 两阶段锚点：首次刷新前捕获 DB 中保存的旧活跃时间（syncAuthState 已写入 userInfo），
@@ -853,6 +903,8 @@ const PROFILE_SELECT_COLUMNS = `
       const { supabase } = await loadAuthApi();
       await supabase.rpc('update_last_active_at');
       userInfo.lastActiveAt = new Date().toISOString();
+      // 顺带同步跨设备天粒度标记（上次在线日 / 当日已检查），供智能概览的窗口与同日去重使用
+      void refreshOverviewMarks();
     } catch {
       // 非关键功能，静默处理
     }
@@ -916,6 +968,7 @@ const PROFILE_SELECT_COLUMNS = `
   const resetState = async (): Promise<void> => {
     isLoggedIn.value = false;
     offlineAnchorAt.value = null;
+    overviewMarks.value = null;
     clearSessionHeartbeat();
     clearBrowserLifecycleSync();
     authStateSubscription?.unsubscribe?.();
@@ -1072,6 +1125,8 @@ const PROFILE_SELECT_COLUMNS = `
     logout,
     initLoginState,
     offlineAnchorAt,
+    overviewMarks,
+    refreshOverviewMarks,
     refreshCurrentUserProfile,
     ensureAdminAccess,
     deductPoints,

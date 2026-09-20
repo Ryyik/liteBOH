@@ -575,6 +575,13 @@ export default defineConfig({
       '@supabase/supabase-js', '@vueuse/core', '@vueuse/motion',
       'marked', 'highlight.js', 'dompurify', 'lucide-vue-next',
     ],
+    // node-fetch 只出现在 @tensorflow/tfjs-core 的 Node 平台分支
+    // （platform.node.importFetch 里的惰性 require），浏览器永不执行；但预打包扫描
+    // 会按 module 字段进入它的 ESM 入口 lib/index.mjs，里面 `import https from 'https'`
+    // 在 platform=browser 下解析不了 node 内置模块，直接让 dev server 起不来
+    // （Failed to resolve entry for package "https"，依赖缓存一旦失效就必现）。
+    // 排除出预打包后扫描不再进入它；生产构建本就走 browser 字段拿到空实现，行为一致。
+    exclude: ['node-fetch'],
   },
 
   // 开发服务器配置

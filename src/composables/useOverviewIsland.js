@@ -3,7 +3,7 @@ import { useAuthStore } from '@/stores/auth';
 import { showIsland } from '@/composables/useIsland.js';
 import { fetchOfflineOverviewSummary } from '@/utils/api/overview-api.js';
 import OverviewIslandLoading from '@/components/UnifiedNavbar/OverviewIslandLoading.vue';
-import { getDayFrontierIso, getLocalDayKey, readLastOnlineDay, writeLastOnlineDay } from '@/utils/overview-day-marker.js';
+import { getDayFrontierIso, getLocalDayKey, readLastCheckedDay, readLastOnlineDay, writeLastCheckedDay, writeLastOnlineDay } from '@/utils/overview-day-marker.js';
 import { formatSmartTime } from '@/utils/time.js';
 import { logger } from '@/utils/logger.js';
 import { getOverviewCardImage } from '@/views/SmartOverview/utils/image.js';
@@ -62,10 +62,17 @@ const buildStatusPayload = ({ total, offlineDays, isFirstLogin, username }) => {
  * 智能概览灵动岛：登录用户点击「我的方块」进入用户空间时，
  * 通过导航栏全局状态卡（GlobalNavStatusCard）展示离线概览摘要。
  *
- * 自动推送采用天粒度「上次在线日」游标（localStorage 持久化，见 overview-day-marker.js）：
- * - 当天上过线 = 当日及之前全部内容默认已浏览，同日不再自动推送；
+ * 自动推送采用天粒度游标（本机 localStorage + 服务端跨设备标记，见 overview-day-marker.js 与
+ * profiles.last_online_day / overview_checked_day）：
+ * - 推送窗口 = 各来源里「不晚于昨天」的最新一天：「本机在线日」（会话结束 pagehide / 检查成功落盘）、
+ *   「服务端上次在线日」（跨设备，会话启动时由 mark_overview_state 取回）、「会话锚点日」（心跳快照兜底）；
+ *   当天活跃一律不取——今天在线 ≠ 当天稍后发布的内容已读，窗口要留给当天首次检查；
+ * - 同日去重看「当日已检查」：本机 key 或服务端标记任一为今天即短路（换设备后同一天不再重复推送）；
  * - 次日仅当存在上次在线日的次日零点之后新发布的内容才推送，无新一天内容不弹；
  * - 推送窗口与离线天数均按日历日计算，避免把上次在线日当晚的新帖当作「错过内容」重复推送。
+ * - 全都不可用（首次启用且无服务端记录）时退回会话锚点日，锚点已退化成今天（今天登录过又刷新过的
+ *   新会话）或锚点缺失（登录竞态）则按「昨天」起算，保证每天首次检查必有窗口。静默退出分支不写
+ *   任何游标——否则一次什么都没做的检查会把当天钉死，后续触发连加载岛都不会出现。
  */
 export function useOverviewIsland() {
   const authStore = useAuthStore();
@@ -157,27 +164,39 @@ export function useOverviewIsland() {
       const checkedUserId = authStore.userInfo?.id || userId;
       if (!checkedUserId) return;
 
-      // —— 天粒度「当日已读」守卫 ——
-      // 当天已成功检查过（无论是否推送过）→ 当日及之前内容视为已浏览，不再自动推送
+      // —— 天粒度守卫与推送窗口（本机两 key + 服务端跨设备标记，见 overview-day-marker.js）——
       const todayKey = getLocalDayKey();
-      let lastOnlineDay = readLastOnlineDay(checkedUserId);
-      if (lastOnlineDay && lastOnlineDay >= todayKey) return;
 
-      if (!lastOnlineDay) {
-        // 首次启用游标：以会话锚点所在日作为「上次在线日」（锚点缺失则视为今天），
-        // 保证首日推送窗口也是天粒度（仅推上次在线日次日起的新内容）
-        const anchorDay = authStore.offlineAnchorAt
-          ? getLocalDayKey(new Date(authStore.offlineAnchorAt))
-          : '';
-        lastOnlineDay = anchorDay || todayKey;
-      }
+      // 1) 同日去重：本机或服务端任一记录「今天已检查」→ 直接短路（换设备后同一天不再重复推送）
+      const serverCheckedDay = authStore.overviewMarks?.checkedDay || '';
+      const lastCheckedDay = readLastCheckedDay(checkedUserId);
+      if ((lastCheckedDay && lastCheckedDay >= todayKey) || (serverCheckedDay && serverCheckedDay >= todayKey)) return;
 
-      // 推送游标 = 上次在线日的次日零点；上次在线日就是今天（或时钟回拨/脏数据）则无「新一天」内容
-      const pushFrontier = lastOnlineDay < todayKey ? getDayFrontierIso(lastOnlineDay) : null;
-      if (!pushFrontier) {
-        writeLastOnlineDay(checkedUserId, todayKey);
-        return;
-      }
+      // 2) 窗口起点 = 各来源里「不晚于昨天」的最新一天，取最新（最接近今天）的那个：
+      //    - 本机在线日：会话结束（pagehide）/上次检查落盘；
+      //    - 服务端上次在线日：跨设备，会话启动时由 mark_overview_state 取回；
+      //    - 会话锚点日：profiles.last_active_at 心跳快照（兜底）。
+      //    当天活跃一律不取（今天在线 ≠ 今天稍后发布的内容已读），窗口要留给今天首次检查，
+      //    否则登录/心跳会把窗口掐成 0，连加载岛都不弹；全都不可用则退回昨天，保证必有窗口。
+      const anchorDay = authStore.offlineAnchorAt
+        ? getLocalDayKey(new Date(authStore.offlineAnchorAt))
+        : '';
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const lastOnlineDay = [
+        readLastOnlineDay(checkedUserId),
+        authStore.overviewMarks?.previousOnlineDay || '',
+        anchorDay
+      ]
+        .filter((day) => day && day < todayKey)
+        .sort()
+        .pop() || getLocalDayKey(yesterday);
+
+      // 推送游标 = 窗口起点（上次在线日）的次日零点；脏数据则本次不推（正常路径下不会走到）
+      const pushFrontier = getDayFrontierIso(lastOnlineDay);
+      // 无窗口时静默退出且**不写任何游标**：这次什么都没检查过，
+      // 写下去会把当天钉死，后续每次触发都被上方守卫短路（连加载岛都不会出现）
+      if (!pushFrontier) return;
 
       // 先弹加载岛覆盖请求窗口：无新内容/异常时静默收掉，不弹引导（20260911 口径）
       showLoadingIsland();
@@ -190,9 +209,10 @@ export function useOverviewIsland() {
 
       if (!summary) return;
 
-      // 检查成功即标记「今天已上线」：同日后续检查直接短路；
-      // 次日推送窗口自动从今天 24 点后起算（当天上线 = 默认已浏览当日及之前全部内容）
+      // 检查成功：本机记「当日已检查」+ 刷新「上次在线日」；服务端同步一份（跨设备同日去重）
+      writeLastCheckedDay(checkedUserId, todayKey);
       writeLastOnlineDay(checkedUserId, todayKey);
+      void authStore.refreshOverviewMarks({ markChecked: true });
 
       if (summary.total <= 0) return;
 
@@ -225,15 +245,19 @@ export function useOverviewIsland() {
 
       if (simulateDays > 0) {
         authStore.offlineAnchorAt = new Date(Date.now() - simulateDays * 86400000).toISOString();
-        // 同步把天粒度「上次在线日」游标拨回对应日期：
-        // 之后走真实自动检查（点击「我的方块」）即可复现「离开 N 天」的天粒度推送窗口
+        // 同步把天粒度游标一起拨回对应日期（本机在线日/检查日 + 服务端跨设备标记）：
+        // 只拨一处的话，其余来源（尤其是服务端上次在线日）会在窗口里取 max 把模拟窗口顶掉
         const simulatedUserId = authStore.userInfo?.id || '';
+        const simulatedDay = getLocalDayKey(new Date(Date.now() - simulateDays * 86400000));
         if (simulatedUserId) {
-          writeLastOnlineDay(
-            simulatedUserId,
-            getLocalDayKey(new Date(Date.now() - simulateDays * 86400000))
-          );
+          writeLastOnlineDay(simulatedUserId, simulatedDay);
+          writeLastCheckedDay(simulatedUserId, simulatedDay);
         }
+        authStore.overviewMarks = {
+          today: getLocalDayKey(),
+          previousOnlineDay: simulatedDay,
+          checkedDay: simulatedDay
+        };
       }
 
       // 测试按钮同样先看加载动画，再按结果换卡（有数据→摘要；无数据→连通提示）

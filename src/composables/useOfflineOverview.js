@@ -21,6 +21,23 @@ const loadedUserId = ref('');
 let requestSeq = 0;
 
 /**
+ * 查询锚点钳制：会话锚点是秒级心跳快照（profiles.last_active_at），同一天里任何一次刷新
+ * （HMR / PWA 接管 / F5）后的新会话都会拿到「几分钟前」的时间，窗口塌成几分钟 →
+ * 页面看着像「没有新内容」。这里把查询锚点下钳到不晚于「今日零点」，与灵动岛的天粒度对齐；
+ * 离线超过一天的真实锚点（昨天及更早）原样保留，不受影响。
+ * @param {string|null} anchor
+ * @returns {string|null}
+ */
+const resolveQueryAnchor = (anchor) => {
+  if (!anchor) return null;
+  const ts = new Date(anchor).getTime();
+  if (!Number.isFinite(ts)) return anchor;
+  const todayMidnight = new Date();
+  todayMidnight.setHours(0, 0, 0, 0);
+  return ts > todayMidnight.getTime() ? todayMidnight.toISOString() : anchor;
+};
+
+/**
  * 离线回顾智能概览
  * 锚点来源：authStore.offlineAnchorAt（updateOnlineStatus 首次刷新前的会话级快照）。
  * 首期无持久化阅读记录，点击过的卡片仅在当前会话内移除。
@@ -70,7 +87,7 @@ export function useOfflineOverview() {
       }
 
       const result = await fetchOfflineOverview({
-        anchor: authStore.offlineAnchorAt,
+        anchor: resolveQueryAnchor(authStore.offlineAnchorAt),
         limit: OVERVIEW_DEFAULT_LIMIT,
         offset
       });

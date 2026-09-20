@@ -1,10 +1,13 @@
-// 离线总结「当日已读」天粒度游标 — 纯函数单元验证（node probe-overview-day-marker.mjs）
+// 离线总结「上次在线日 / 当日已检查」天粒度游标 — 纯函数单元验证
+// 运行：node scripts/probes/probe-overview-day-marker.mjs
 import {
   getLocalDayKey,
   getDayFrontierIso,
   readLastOnlineDay,
-  writeLastOnlineDay
-} from './src/utils/overview-day-marker.js';
+  writeLastOnlineDay,
+  readLastCheckedDay,
+  writeLastCheckedDay
+} from '../../src/utils/overview-day-marker.js';
 
 let passed = 0;
 let failed = 0;
@@ -54,6 +57,16 @@ writeLastOnlineDay('user-a', 'garbage');
 assertEq(readLastOnlineDay('user-a'), '2026-09-06', '非法写入被忽略，保留原值');
 assertEq(readLastOnlineDay('user-never-seen'), '', '未记录用户返回空串');
 assertEq(readLastOnlineDay(''), '', '空 userId 返回空串');
+
+console.log('[3b] 两个游标互不干扰（在线日 / 当日已检查 分工）');
+writeLastCheckedDay('user-b', '2026-09-07');
+assertEq(readLastCheckedDay('user-b'), '2026-09-07', '检查日可读回');
+assertEq(readLastOnlineDay('user-b'), '', '写检查日不影响在线日');
+writeLastOnlineDay('user-b', '2026-09-06');
+assertEq(readLastOnlineDay('user-b'), '2026-09-06', '在线日可读回');
+assertEq(readLastCheckedDay('user-b'), '2026-09-07', '写在线日不影响检查日');
+assertEq(readLastOnlineDay('user-a'), '2026-09-06', '不同用户互不串号');
+assertEq(readLastCheckedDay('user-a'), '', '用户 a 未写过检查日');
 
 console.log('[4] 场景推演：26 号上线 → 27 号/29 号行为');
 const lastOnlineDay = '2026-09-06'; // 26 号（示例沿用用户描述）
