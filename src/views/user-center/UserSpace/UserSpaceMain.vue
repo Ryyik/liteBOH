@@ -78,8 +78,14 @@
       </div>
     </div>
 
-    <!-- 资产：AssetsHubPanel 原样 + 赞助（2026-09 IA） -->
-    <div v-if="currentTab === 'assets' || leavingTab === 'assets'"
+    <!-- 资产：AssetsHubPanel 原样 + 赞助（2026-09 IA）
+         「首次访问后保持挂载」由 useUserSpaceTabs 的 mountedTabs 闩锁提供，与其余三个分区
+         的 v-show 语义对齐：没访问过就不挂载（不为它提前付费），访问过一次就复用（切回
+         零重建、零取数）。直接改成裸 v-show 是错的 —— 那会让 AssetsHubPanel 在进入
+         UserSpace 时就挂载并跑 onMounted 取数（fetchUserTier / products / 抽奖 / 订阅）。
+         内层档位（AssetsHubPanel ↔ SponsorPanel）保持原有 <transition out-in> + v-if 不变。 -->
+    <div v-if="currentTab === 'assets' || leavingTab === 'assets' || mountedTabs.assets"
+      v-show="currentTab === 'assets' || leavingTab === 'assets'"
       :ref="(el) => setTabPageRef('assets', el)" class="tab-page profile-tab assets-shell"
       :class="{ 'is-leaving': leavingTab === 'assets' }">
       <div v-if="!isLoggedIn" class="login-prompt">
@@ -126,7 +132,11 @@
       <SegmentTabs :sections="MESSAGE_SECTION_ITEMS" v-model="messagesSection" aria-label="消息分区"
         style="--segment-tabs-inset: 4px;" />
       <div v-show="messagesSection === 'inbox'" class="messages-host">
-        <AsyncMessages ref="messagesHostRef" v-if="currentTab === 'messages' || leavingTab === 'messages'" :minimal="true" />
+        <!-- KeepAlive 与上方社区论坛宿主同样处理：离开分区时不销毁消息中心，
+             回来直接复用实例（实测「切回来」零数据请求、根节点不换新）。 -->
+        <KeepAlive>
+          <AsyncMessages ref="messagesHostRef" v-if="currentTab === 'messages' || leavingTab === 'messages'" :minimal="true" />
+        </KeepAlive>
       </div>
       <div v-show="messagesSection === 'ai'" class="ai-host">
         <section class="ai-workspace" aria-label="BOH AI 聊天">
@@ -136,8 +146,13 @@
       </div>
     </div>
 
-    <!-- 设置：偏好 + 资料编辑 + 数据管理/导出（2026-09 IA） -->
-    <div v-if="currentTab === 'settings' || leavingTab === 'settings'"
+    <!-- 设置：偏好 + 资料编辑 + 数据管理/导出（2026-09 IA）
+         同上：mountedTabs 闩锁 + v-show，切回设置零重建。
+         内层档位（主页 / 编辑资料 / 数据导出 / 数据与隐私）**保持 v-if 不动** ——
+         DataExportPanel 内有 pollTimer 轮询导出进度，常驻会变成后台轮询；
+         由 v-if 在离开档位时卸载，轮询随之停止。 -->
+    <div v-if="currentTab === 'settings' || leavingTab === 'settings' || mountedTabs.settings"
+      v-show="currentTab === 'settings' || leavingTab === 'settings'"
       :ref="(el) => setTabPageRef('settings', el)" class="tab-page profile-tab settings-shell"
       :class="{ 'is-leaving': leavingTab === 'settings' }">
       <div v-if="!isLoggedIn" class="login-prompt">
@@ -279,6 +294,7 @@ import {
   preloadForumComponent,
   preloadMessagesComponent,
   preloadProfileStyles,
+  preloadSettingsSubPanels,
   scheduleForumPreload,
   scheduleIdleTask,
   setUserSpaceMountedForPreload
@@ -476,7 +492,8 @@ const leavingTab = ref(null);
 const {
   currentTab,
   navIndicatorStyle,
-  ensureTabMounted
+  ensureTabMounted,
+  mountedTabs
 } = useUserSpaceTabs(navItems, initialUserSpaceTab);
 
 // ✅ 性能优化 P0-1：BOH AI 仅在用户真正切到 AI 分区后才挂载——进入消息 tab 默认
@@ -569,6 +586,10 @@ const sponsorMethods = [
 const sponsorStatusText = computed(() => (sponsorMethod.value === 'wechat' ? '可用' : '暂不支持'));
 
 const resolveSectionFromRoute = () => {
+  // URL 还停在旧 tab 时（jumpWithSection 后 router.replace 尚未落地 / watch(currentTab) 先烧），
+  // 按「无 view」重算分区会把刚设好的分区冲成默认值 —— 此时 URL 不代表当前 tab，直接不采信。
+  const routeTab = LEGACY_TAB_MAP[route.query.tab] || String(route.query.tab || '');
+  if (routeTab && validTabs.includes(routeTab) && routeTab !== currentTab.value) return;
   const requestedView = String(route.query.view || '').trim();
   if (currentTab.value === 'community') {
     if (COMMUNITY_SECTIONS.includes(requestedView)) communitySection.value = requestedView;
@@ -600,6 +621,24 @@ const openSettingsPanelFromRoute = async () => {
 
   await nextTick();
   openThemeModal();
+};
+
+/** tab → 分区内存单源：URL 的 view 一律由这里推导，别再各写一套 */
+const SECTION_REFS = {
+  community: communitySection,
+  posts: contentSection,
+  messages: messagesSection,
+  assets: assetsSection,
+  settings: settingsSection
+};
+
+/** 把某 tab 的当前分区按统一口径写进 query：等于默认值则删 view，否则写 view */
+const withSectionQuery = (baseQuery, tabId) => {
+  const nextQuery = { ...baseQuery };
+  const section = SECTION_REFS[tabId]?.value || '';
+  if (!section || section === SECTION_DEFAULTS[tabId]) delete nextQuery.view;
+  else nextQuery.view = section;
+  return nextQuery;
 };
 
 const setSectionRoute = (tabId, section) => {
@@ -2015,8 +2054,14 @@ const preloadUserSpaceTab = (tabId) => {
     // ~12MB 堆）改为用户切到 AI 分区时按需预载（setMessagesSection / messagesSection
     // watcher），从未打开 AI 的用户不再为其支付网络与内存成本。
     scheduleIdleTask('tab:messages', () => void preloadMessagesComponent());
-  } else if ((safeTab === 'assets' || safeTab === 'settings') && isLoggedIn.value) {
-    scheduleIdleTask(`tab:${safeTab}`, () => void preloadProfileStyles(), { timeout: 2400, fallbackDelay: 420 });
+  } else if (safeTab === 'assets' && isLoggedIn.value) {
+    scheduleIdleTask('tab:assets', () => void preloadProfileStyles(), { timeout: 2400, fallbackDelay: 420 });
+  } else if (safeTab === 'settings' && isLoggedIn.value) {
+    // 设置额外预载内部档位的面板 chunk：首次换档实测 291~313ms，其中一部分是 chunk 往返
+    scheduleIdleTask('tab:settings', () => {
+      void preloadProfileStyles();
+      void preloadSettingsSubPanels();
+    }, { timeout: 2400, fallbackDelay: 420 });
   }
 };
 
@@ -2025,11 +2070,10 @@ const resolveAccessibleTab = (tabId) => {
 };
 
 const syncUserSpaceTabRoute = (tabId) => {
-  const nextQuery = { ...route.query, tab: tabId };
-  if (tabId !== 'settings') {
-    delete nextQuery.view;
-    delete nextQuery.setting;
-  }
+  // 分区必须随 tab 一起落到 URL：jumpWithSection('settings','edit-profile') 这类
+  // 「切 tab + 带分区」的跳转，若 URL 只写 tab，随后 watch(currentTab) 的
+  // resolveSectionFromRoute() 会按「无 view」把分区回落成默认值（编辑资料跳转踩过）。
+  const nextQuery = withSectionQuery({ ...route.query, tab: tabId }, tabId);
   if (tabId !== 'messages') {
     delete nextQuery.section;
     delete nextQuery.to;
@@ -2041,7 +2085,9 @@ const syncUserSpaceTabRoute = (tabId) => {
   const currentRouteTab = String(route.query.tab || '');
   const currentSection = String(route.query.section || '');
   const nextSection = String(nextQuery.section || '');
-  if (currentRouteTab === tabId && currentSection === nextSection) return;
+  const currentView = String(route.query.view || '');
+  const nextView = String(nextQuery.view || '');
+  if (currentRouteTab === tabId && currentSection === nextSection && currentView === nextView) return;
 
   router.replace({ path: '/user-space', query: nextQuery });
 };
@@ -2070,6 +2116,10 @@ const switchTab = (tabId) => {
   if (tabId === 'posts') {
     void preloadProfileStyles();
     runProfileCriticalFetches();
+  }
+  if (tabId === 'settings') {
+    // 进入设置即开始预热内部档位面板：用户点「数据导出 / 数据与隐私」时通常已经到位
+    void preloadSettingsSubPanels();
   }
   if (clearLeavingTabTimer) {
     clearTimeout(clearLeavingTabTimer);
@@ -2966,6 +3016,7 @@ watch(() => route.query.tab, (newTab) => {
     runProfileCriticalFetches();
   }
   if (nextTab === 'settings') {
+    void preloadSettingsSubPanels();
     void openSettingsPanelFromRoute();
   }
 }, { flush: 'sync' });

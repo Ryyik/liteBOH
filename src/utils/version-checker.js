@@ -16,7 +16,9 @@ const VERSION_URL = './version.json'; // 相对路径，适配任意部署路径
 const RELOAD_TARGET_KEY = 'boh_version_reload_target';
 const UPDATE_QUERY_KEY = '__boh_update';
 const VERSION_REQUEST_TIMEOUT = 10_000;
-const SERVICE_WORKER_UPDATE_TIMEOUT = 1800;
+// 新 SW 必须下载完整新预缓存才能激活并接管页面，本地弱网下远超秒级，
+// 这里给足等待窗口；超时后走「注销旧 SW + 直连网络导航」的兜底（见 forceCleanAndReload）。
+const SERVICE_WORKER_UPDATE_TIMEOUT = 10_000;
 
 let intervalId = null;
 let visibilityHandler = null;
@@ -40,11 +42,15 @@ export const buildVersionReloadPath = (href, targetBuildId = '') => {
 
 // Safari 在注销仍控制当前页面的 SW 后立刻导航时，仍可能命中旧的 NavigationRoute
 // 缓存。更新时应先让新 SW 接管；其 cleanupOutdatedCaches 会负责移除旧预缓存。
+// 返回 true 表示「可以安全导航」：要么新 SW 已接管（其预缓存里有新 index.html），
+// 要么根本没有会拦截导航的 SW；返回 false 表示新 SW 未能及时接管，调用方必须
+// 先注销旧 SW 再导航（旧 SW 会用旧预缓存的 index.html 应答任何导航，
+// 查询串只影响 HTTP 缓存、影响不了 SW 预缓存 → 否则用户会看到一模一样的旧页面）。
 const updateServiceWorkerBeforeReload = async () => {
-  if (!('serviceWorker' in navigator)) return;
+  if (!('serviceWorker' in navigator)) return false;
 
   const registrations = await navigator.serviceWorker.getRegistrations();
-  if (!registrations.length) return;
+  if (!registrations.length) return false;
 
   let controllerChangeHandler = null;
   let timeoutId = null;
@@ -57,18 +63,57 @@ const updateServiceWorkerBeforeReload = async () => {
   });
 
   try {
-    const updateFinished = await Promise.race([
-      Promise.allSettled(registrations.map((registration) => registration.update())).then(() => true),
-      timeout,
-    ]);
-    if (updateFinished && navigator.serviceWorker.controller) {
-      await Promise.race([controllerChanged, timeout]);
-    }
+    // 先让浏览器重新拉取 sw.js（updateViaCache:'none'，只等脚本字节比对完成，
+    // 不等新 SW 的全量预缓存下载）。installing/waiting 一旦出现说明确有新版本。
+    // 整条链路（update + 等接管）与超时对跑：弱网下 update() 挂起时也能按时兜底。
+    const updatePromise = Promise.allSettled(registrations.map((registration) => registration.update()));
+    const flow = updatePromise.then(() => {
+      const hasPendingWorker = registrations.some((registration) => registration.installing || registration.waiting);
+      if (!hasPendingWorker) {
+        // 没有新 SW：当前活跃 SW 的预缓存清单已是最新，导航即可拿到新应用壳。
+        return true;
+      }
+      // 有新 SW：等它完成安装并 claim 页面（skipWaiting + clientsClaim 下接管
+      // 必然触发 controllerchange），新 SW 的预缓存里才有新的 index.html。
+      return controllerChanged;
+    });
+    return await Promise.race([flow, timeout]);
   } finally {
     if (timeoutId !== null) window.clearTimeout(timeoutId);
     if (controllerChangeHandler) {
       navigator.serviceWorker.removeEventListener('controllerchange', controllerChangeHandler);
     }
+  }
+};
+
+// 兜底：注销所有 SW 并清空 Cache Storage，让下一次导航直连网络。
+// 仅在新 SW 无法及时接管时使用。
+// ⚠️ 两个实测结论（scripts/probes/probe-version-update-click.mjs 抓到的）：
+// ① Chrome 在「有新 SW 正在安装」时，unregister() 的 promise 会拖到安装结束
+//    才 resolve（几十秒级），所以发起注销后只能给它一个短限时，不能 await 到底；
+// ② 就算旧 SW 因注册未及摘除而继续拦截导航，Cache Storage 已被清空 →
+//    workbox 的 NavigationRoute 预缓存未命中会回落到网络 fetch，
+//    照样拿到新的 index.html。两件事合起来保证兜底导航必然离开旧文档。
+const DISMANTLE_GRACE_MS = 1_000;
+
+const dismantleServiceWorkers = async () => {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    const unregisterPromise = Promise.allSettled(
+      registrations.map((registration) => registration.unregister())
+    );
+    if (typeof caches !== 'undefined') {
+      const keys = await caches.keys();
+      await Promise.allSettled(keys.map((key) => caches.delete(key)));
+    }
+    await Promise.race([
+      unregisterPromise,
+      new Promise((resolve) => window.setTimeout(resolve, DISMANTLE_GRACE_MS)),
+    ]);
+    logger.warn('version', '已注销旧 SW 并清空缓存，本次导航将直连网络');
+  } catch (err) {
+    logger.warn('version', '注销旧 Service Worker 失败，仍尝试导航', err);
   }
 };
 
@@ -170,17 +215,24 @@ export const forceCleanAndReload = async (targetBuildId = '') => {
     buildId: currentBuildId,
   });
 
+  let takeoverReady = false;
   try {
     if (safeTargetBuildId) {
       writeReloadTarget(safeTargetBuildId);
     }
 
     if ('serviceWorker' in navigator) {
-      await updateServiceWorkerBeforeReload();
+      takeoverReady = await updateServiceWorkerBeforeReload();
     }
   } catch (err) {
     logger.error('version', '强制更新流程出错', err);
   } finally {
+    // 只有「新 SW 已接管（预缓存里有新 index.html）」或「无 SW 拦截」时才能直接导航。
+    // 否则必须先注销旧 SW：旧 SW 的 NavigationRoute 会用旧预缓存的 index.html
+    // 应答任何带查询串的导航，用户点「立即更新」后会看到一模一样的旧页面。
+    if (!takeoverReady) {
+      await dismantleServiceWorkers();
+    }
     // 无论清理成功、失败或超时，都必须离开当前旧文档。查询参数同时
     // 绕过浏览器和 CDN 对 index.html 的缓存，并保留 Hash 路由。
     try {

@@ -94,7 +94,9 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
     path: "/user-space/partners",
     name: "Partners",
     component: () => import("../../views/user-center/Partners.vue"),
-    meta: { ...userSpaceMeta },
+    // keepAlive：这是「分页浏览社区成员」的目录页，缓存可保住当前页码与已加载列表，
+    // 返回时零重建零取数。目录内容更新频率低，短暂缓存不构成功能变化。
+    meta: { ...userSpaceMeta, keepAlive: true },
   },
   {
     path: "/user-space",
@@ -163,7 +165,8 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
     path: "/user-space/settings/version",
     name: "VersionSettings",
     component: () => import("../../views/user-center/BetaPreview/BetaPreviewMain.vue"),
-    meta: { ...userSpaceMeta, hideNavbar: true, hideFooter: true },
+    // keepAlive：版本/预览信息与当前构建绑定，在一次会话内不会变，缓存无新鲜度代价。
+    meta: { ...userSpaceMeta, hideNavbar: true, hideFooter: true, keepAlive: true },
   },
   {
     path: "/user-space/settings/beta-preview",

@@ -51,12 +51,16 @@
               class="afc-stage"
               :class="{ grabbing: dragging }"
               :style="{ width: STAGE + 'px', height: STAGE + 'px' }"
+              title="单指/鼠标拖动摆位 · 滚轮或双指捏合缩放素材"
               @pointerdown="onPointerDown" @pointermove="onPointerMove"
               @pointerup="endDrag" @pointercancel="endDrag" @wheel.prevent="onWheel">
               <img class="afc-layer" :src="source.url" alt="" draggable="false" :style="layerStyle">
               <div class="afc-avatar" :style="avatarStyle"><span>头像</span></div>
               <div class="afc-cross" aria-hidden="true" />
-              <div class="afc-badge">缩放 {{ view.zoom.toFixed(2) }}×</div>
+              <!-- 两个口径一起显示：zoom 是素材缩放，scale 是成品框层/头像比（与读数和落库值一致） -->
+              <div class="afc-badge">
+                缩放 {{ view.zoom.toFixed(2) }}× · scale {{ Number.isFinite(metrics.scale) ? metrics.scale.toFixed(2) : '—' }}
+              </div>
             </div>
 
             <div class="afc-readout">
@@ -290,11 +294,13 @@ function revokePrevObjectUrl() {
   if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
 }
 
-/** 素材就绪后的统一收尾：测内孔 → 若给了目标 scale 则反推 zoom */
-function applySource(loaded, { targetScale = null, url = '' } = {}) {
+/** 素材就绪后的统一收尾：测内孔 → 若给了目标 scale 则反推 zoom。
+ *  ownerId 记录「编辑器里这张图属于哪个 slug」——发布时用它拦住「素材与 slug 脱钩」：
+ *  一旦把 A 框的素材发到 B 框的 slug 上，渲染就会串图（cow 显示成猫就是这么来的）。 */
+function applySource(loaded, { targetScale = null, url = '', ownerId = '', ownerKind = 'upload' } = {}) {
   revokePrevObjectUrl();
   const hole = detectInnerHole(loaded.imageData, { sampleSize: DETECT_SAMPLE });
-  source.value = { ...loaded, hole, url, alphaStripped: false };
+  source.value = { ...loaded, hole, url, ownerId, ownerKind, alphaStripped: false };
   hasRealAlphaCached.value = hasRealAlpha(loaded.imageData);
   view.offsetX = 0;
   view.offsetY = 0;
@@ -318,15 +324,16 @@ async function onPickFile(e) {
   try {
     const loaded = await loadImageForEdit(file);
     const withAlpha = hasRealAlpha(loaded.imageData);
-    applySource(loaded, { url: URL.createObjectURL(file) });
     draft.id = draft.id || `frame-${Date.now().toString(36)}`;
+    // 归属先定：新上传的素材属于当前 slug（改 slug 后必须重新确认，见 save()）
+    applySource(loaded, { url: URL.createObjectURL(file), ownerId: draft.id });
     draft.status = 'draft';
     draft.url = '';
     draft.sourceUrl = '';
     if (!withAlpha) {
       notice.value = { cls: 'warn', text: '这张图没有透明层（按像素判定，不看扩展名）。点「自动抠白底」处理，否则深色主题下会显示成白色方块。' };
     } else {
-      notice.value = { cls: 'ok', text: '素材已就绪。拖动 / 滚轮调整摆位，让头像圆正好被内孔套住。' };
+      notice.value = { cls: 'ok', text: '素材已就绪。拖动 / 滚轮 / 双指捏合调整摆位，让头像圆正好被内孔套住。' };
     }
   } catch (err) {
     logger.error('avatar-console', '读取图片失败', err);
@@ -347,8 +354,8 @@ async function selectFrame(frame) {
   busy.value = true;
   try {
     const loaded = await loadBitmapFromUrl(frame.url);
-    // 反推 zoom，让编辑器里的摆位与线上一致
-    applySource(loaded, { targetScale: frame.scale, url: frame.url });
+    // 反推 zoom，让编辑器里的摆位与线上一致；素材归属该条目
+    applySource(loaded, { targetScale: frame.scale, url: frame.url, ownerId: frame.id, ownerKind: 'library' });
     hasRealAlphaCached.value = true;   // 线上素材必然已处理过
     notice.value = null;
   } catch (err) {
@@ -360,25 +367,91 @@ async function selectFrame(frame) {
   }
 }
 
-/* ───────── 交互 ───────── */
+/* ───────── 交互：单指平移 / 双指捏合缩放 ─────────
+ * 触屏（竖屏）用户的「缩放手势」是捏合，不是滚轮。旧实现不区分指针：
+ * 第二根手指落下的 pointerdown 会覆盖 dragState，于是捏合被当成单指拖动 ——
+ * 往外撑时素材整体跑偏（实测孔心偏移 0px → 502px），zoom 却一动不动，
+ * 手势方向与预期完全相反。这里按「活动指针数」分流，并保持缩放锚点仍是孔心
+ * （不变式：头像圆永远居中不动，靠 offset 归零保证成品孔心居中）。
+ */
+const ZOOM_MIN = 0.6;
+const ZOOM_MAX = 2.6;
+const activePointers = new Map();   // pointerId -> { x, y }
+let pinchState = null;              // { dist, zoom }：捏合起手的间距与当时的 zoom
+const clampZoom = (z) => Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+const pinchDistance = () => {
+  const [a, b] = [...activePointers.values()];
+  return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+};
+
+/** 单指：以这根手指为基准续接平移（捏合结束剩一指时也重建基准，避免跳变） */
+function beginPan(pointerId) {
+  const point = activePointers.get(pointerId);
+  if (!point) return;
+  dragging.value = true;
+  pinchState = null;
+  dragState = { pointerId, sx: point.x, sy: point.y, ox: view.offsetX, oy: view.offsetY };
+}
+
+/** 双指：记下起始间距与 zoom，捏合期间不再平移 */
+function beginPinch() {
+  dragging.value = false;
+  dragState = null;
+  const dist = pinchDistance();
+  pinchState = dist > 0 ? { dist, zoom: view.zoom } : null;
+}
+
 function onPointerDown(e) {
   if (!source.value) return;
-  dragging.value = true;
-  dragState = { sx: e.clientX, sy: e.clientY, ox: view.offsetX, oy: view.offsetY };
-  e.currentTarget.setPointerCapture?.(e.pointerId);
+  activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  // 指针可能已被浏览器释放（快速抬手 / 触控差异）→ 捕获失败不能冒泡成整页错误
+  try {
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  } catch (err) {
+    logger.warn('avatar-console', '指针捕获失败（忽略，不影响后续手势）:', err);
+  }
+  if (activePointers.size === 1) beginPan(e.pointerId);
+  else beginPinch();
 }
+
 function onPointerMove(e) {
+  if (!activePointers.has(e.pointerId)) return;
+  activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  if (activePointers.size >= 2) {
+    // 捏合：间距比 → zoom（张开=素材放大 / scale 变小），从起手基准乘性推进，避免累积漂移
+    if (!pinchState) beginPinch();
+    if (pinchState) view.zoom = clampZoom(pinchState.zoom * (pinchDistance() / pinchState.dist));
+    return;
+  }
+
+  if (!dragState || dragState.pointerId !== e.pointerId) beginPan(e.pointerId);
   if (!dragState) return;
   const toCanvas = CANVAS_SIZE / STAGE;
   const lim = CANVAS_SIZE * 0.45;
   view.offsetX = Math.max(-lim, Math.min(lim, dragState.ox + (e.clientX - dragState.sx) * toCanvas));
   view.offsetY = Math.max(-lim, Math.min(lim, dragState.oy + (e.clientY - dragState.sy) * toCanvas));
 }
-function endDrag() { dragging.value = false; dragState = null; }
+
+function endDrag(e) {
+  const pointerId = e?.pointerId;
+  if (pointerId !== undefined) activePointers.delete(pointerId);
+  if (activePointers.size === 1) {
+    beginPan([...activePointers.keys()][0]);
+    return;
+  }
+  if (activePointers.size === 0) {
+    dragging.value = false;
+    dragState = null;
+    pinchState = null;
+    return;
+  }
+  beginPinch();
+}
 function onWheel(e) {
   if (!source.value) return;
   const step = e.shiftKey ? 0.01 : 0.04;
-  view.zoom = Math.max(0.6, Math.min(2.6, view.zoom + (e.deltaY < 0 ? step : -step)));
+  view.zoom = clampZoom(view.zoom + (e.deltaY < 0 ? step : -step));
 }
 function onZoomInput(e) { view.zoom = Number(e.target.value) / 100; }
 function center() { view.offsetX = 0; view.offsetY = 0; }
@@ -423,6 +496,31 @@ async function stripBackground() {
 }
 
 /* ───────── 保存 / 发布 ───────── */
+/** 素材 URL 去 query（?v=3 之类），比对同一份素材用 */
+const stripQuery = (u) => String(u || '').split('?')[0];
+
+/**
+ * 发布前防「素材 ↔ slug 脱钩」：历史上 cow 的成品图被白绒猫那张顶掉过 ——
+ * 两个 slug 的 url / source_url 字节完全相同，前端 DB 优先合并后「奶牛抱抱」直接渲染成猫。
+ * 两道闸：①编辑器里的素材必须属于当前 slug；②同一份原图/成品图不能被两个 slug 共用。
+ * @returns {string} 非空 = 拦截原因
+ */
+function findMaterialConflict({ url, sourceUrl }) {
+  const owner = source.value?.ownerId || '';
+  // 只有「从框库选来的素材」才要求 slug 回指它自己：新上传的素材允许随后改 slug 命名
+  if (source.value && source.value.ownerKind === 'library' && owner && owner !== draft.id) {
+    return `编辑器里的素材是从「${owner}」选来的，当前 slug 是「${draft.id}」—— 直接发会把 ${owner} 的图案发到 ${draft.id} 上。请重新从左侧框库选 ${draft.id}，或点「上传 PNG 新建」重新给素材，再发布。`;
+  }
+  const bakedKey = stripQuery(url);
+  const sourceKey = stripQuery(sourceUrl);
+  const clash = frames.value.find((f) => f.id !== draft.id
+    && ((bakedKey && stripQuery(f.url) === bakedKey) || (sourceKey && f.sourceUrl && stripQuery(f.sourceUrl) === sourceKey)));
+  if (clash) {
+    return `这份素材已经用在「${clash.name || clash.id}」上了：一个素材不能同时占两个框（渲染会串图）。请换素材，或把它改回自己的 slug。`;
+  }
+  return '';
+}
+
 async function save(status) {
   if (!draft.id) { notice.value = { cls: 'bad', text: '请先填标识 slug。' }; return; }
   if (!/^[a-z0-9-]{3,32}$/.test(draft.id)) {
@@ -457,6 +555,9 @@ async function save(status) {
       if (!url) throw new Error('上传未返回 URL');
     }
     if (!url) { notice.value = { cls: 'bad', text: '没有素材 URL，无法保存。' }; return; }
+
+    const conflict = findMaterialConflict({ url, sourceUrl });
+    if (conflict) { notice.value = { cls: 'bad', text: conflict }; return; }
 
     const res = await upsertAvatarFrame({
       id: draft.id, name: draft.name, desc: draft.desc, url, sourceUrl,

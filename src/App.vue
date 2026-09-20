@@ -65,24 +65,45 @@ const reloadWithFreshBuild = () => {
 // 全局渲染错误边界
 // main.js 的 app.config.errorHandler 只负责「记录」：渲染管线抛错后组件树已经崩掉，
 // 界面不会自愈，用户看到的是纯白页且没有任何出口。这里为 RouterView 提供兜底 UI。
-// boundaryKey 在换路由时自增 → 重建边界、清掉 hasError，避免一次错误把后续页面
-// 也一并替换成提示卡。
+//
+// 「重置边界」与「重建页面树」是两件事，必须拆开：
+// · 换页面时把 hasError 清掉 —— 否则一次错误会把后续每个页面都替换成提示卡；
+// · 但**不重建页面树**，除非当前真的处于错误态。
+// key 挂在包住整个 RouterView 的边界上，自增一次 = 整棵页面树销毁重建（连带
+// 销毁路由级 <KeepAlive> 的缓存）。而「换页面」是最高频的操作 —— 每次重建等于让
+// 目的页面连同它的全部缓存重新开始。
+//
+// 实测（scripts/probes/probe-userspace-pages.mjs，限速 1.2Mbps）：
+//   从子页返回 /user-space 时，重建 vs 只清错误态 ——
+//   页面根节点跨路由复用 0/9 → 9/9；返回期间数据请求 188 → 13（−93%）；
+//   「数据就位」3240~4003ms → 579~1118ms（−72%~−82%）。
+//
+// ⚠️ 这里必须是 route.path，**不能是 route.fullPath**：fullPath 包含 query，
+// UserSpace 的分区切换（?tab=…&view=…）、论坛筛选等「同页换参数」都会改 fullPath。
+// 由 tests/unit/global-error-boundary.test.js 守两条不变量：粒度是 path、
+// 且**只有处于错误态才自增 key**；scripts/probes/probe-route-switch.mjs 做端到端兜底。
 // ============================================
 const boundaryKey = ref(0);
+// 「当前是否真的处于错误态」。换页面要不要重建树，取决于它，而不是取决于「换页了」这件事本身。
+const boundaryErrored = ref(false);
 watch(
-  () => route.fullPath,
+  () => route.path,
   () => {
+    if (!boundaryErrored.value) return;
+    boundaryErrored.value = false;
     boundaryKey.value += 1;
   }
 );
 
-// 错误已由边界接管并渲染提示卡，这里只负责留痕（monitoring 上报链路建立后会自动收走）
+// 错误已由边界接管并渲染提示卡，这里只负责留痕并标记错误态（monitoring 上报链路建立后会自动收走）
 const handleBoundaryError = ({ error, info } = {}) => {
+  boundaryErrored.value = true;
   logger.error("app", `渲染错误已被全局边界捕获（${info || "未知来源"}）`, error);
 };
 
 // 用户选择重试/回首页后重建子树：不重建的话出错的组件实例可能仍处于 errored 状态
 const handleBoundaryRecover = () => {
+  boundaryErrored.value = false;
   boundaryKey.value += 1;
 };
 const { showLoginModal, isLoggedIn, isInitialized } = storeToRefs(authStore);
@@ -316,6 +337,22 @@ const showGlobalNavbar = computed(() => {
     <Suspense>
       <template #default>
         <RouterView v-slot="{ Component, route: activeRoute }">
+          <!--
+            ⚠️ 这里**刻意没有**路由级 <Transition>，不要凭直觉加回来。
+            2026-09-20 试过一版「只做 enter、不做 leave」的实现（目的是避免 mode="out-in"
+            给每次切换硬加一段等待），但实测过渡类名从未被加上：MutationObserver 与 rAF
+            采样两种独立探测结论一致，且换最简结构（去掉 KeepAlive/key）同样不触发。
+            注意生产构建会剥掉 Vue 的开发告警，「没有告警」不能作为「结构合法」的证据。
+            剩下的怀疑点在外层 Suspense（它对 RouterView 的接管与 Transition 的解析顺序），
+            需专门一轮验证；在验证通过之前不该把这个改动留在最关键的壳层文件里。
+
+            与此无关、且**已经生效**的是分区/档位级过渡：见 shell-community.css 的
+            .tab-page / .is-leaving / .tab-transition-forward|back（280ms 进、250ms 出、
+            方向感知、reduced-motion 齐备）。
+
+            逐路由切换后的「主内容是否可见、是否卡在 opacity:0、有无报错」由
+            scripts/probes/probe-route-switch.mjs 巡检。
+          -->
           <KeepAlive>
             <component v-if="activeRoute.meta?.keepAlive" :is="Component" :key="activeRoute.name" />
           </KeepAlive>
@@ -560,4 +597,5 @@ html[data-theme="dark"] .toast-desc { color: #b5f0c8; }
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
+
 </style>

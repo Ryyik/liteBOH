@@ -49,7 +49,51 @@ describe('GlobalErrorBoundary wiring in App.vue', () => {
     expect(app).toMatch(/:key="boundaryKey"/);
     expect(app).toMatch(/boundaryKey\.value \+= 1;/);
     // 必须挂在路由变化上，而不是只挂在 recover 回调里
-    expect(app).toMatch(/watch\(\s*\n?\s*\(\) => route\.fullPath,/);
+    expect(app).toMatch(/watch\(\s*\n?\s*\(\) => route\.path,/);
+  });
+
+  it('rebuilds the page tree only while actually errored, not on every route change', () => {
+    // 2026-09-20 补的**语义**守卫。上一条只要求「换页面时边界被重置」，而「重置」有两种实现：
+    //   ① 清 hasError（便宜，不动 DOM 树）；
+    //   ② 重建整棵树（昂贵——key 挂在包住整个 RouterView 的边界上，自增一次会把**路由级
+    //      KeepAlive 的缓存一并销毁**，目的页面连同全部子组件重新挂载、重新取数）。
+    // 无条件自增 = 每次换页面都选 ②。实测（scripts/probes/probe-userspace-pages.mjs，
+    // 限速 1.2Mbps）从子页返回 /user-space：页面根节点复用 0/9 → 9/9、返回期间请求
+    // 188 → 13、「数据就位」3240~4003ms → 579~1118ms。所以无条件自增必须被拦住。
+    const watcherStart = app.indexOf('() => route.path,');
+    expect(watcherStart).toBeGreaterThan(-1);
+    const watcher = app.slice(watcherStart, watcherStart + 260);
+
+    const guardIdx = watcher.indexOf('boundaryErrored.value');
+    const bumpIdx = watcher.indexOf('boundaryKey.value += 1;');
+    expect(guardIdx).toBeGreaterThan(-1); // 必须先看错误态
+    expect(watcher).toMatch(/if \(!boundaryErrored\.value\) return;/);
+    expect(bumpIdx).toBeGreaterThan(guardIdx); // 自增只能在守卫之后
+
+    // 错误态必须真的会被置位 —— 否则守卫恒为假，等于「换页面永不重建」，
+    // 那是把「一次崩溃污染后续页面」的回归放回来（方向相反的错）。
+    expect(app).toMatch(/const boundaryErrored = ref\(false\);/);
+    const errorHandler = app.slice(
+      app.indexOf('const handleBoundaryError'),
+      app.indexOf('const handleBoundaryRecover'),
+    );
+    expect(errorHandler).toMatch(/boundaryErrored\.value = true;/);
+
+    // recover（重试 / 回首页）仍要重建，让出错的实例重新初始化 —— 原语义不变
+    const recoverHandler = app.slice(app.indexOf('const handleBoundaryRecover'));
+    expect(recoverHandler).toMatch(/boundaryErrored\.value = false;/);
+    expect(recoverHandler).toMatch(/boundaryKey\.value \+= 1;/);
+  });
+
+  it('does not key the boundary off route.fullPath (would rebuild the whole page tree per query change)', () => {
+    // boundaryKey 挂在包住整个 RouterView 的边界上，自增一次 = 整棵页面树销毁重建。
+    // fullPath 含 query，而 UserSpace 的分区切换（?tab=…&view=…）、论坛筛选等都只改 query：
+    // 用 fullPath 会让「同页换参数」也重建整页 —— 实测每切一次社区分区就重跑
+    // UserSpaceMain（1.2 万行 + 5 个面板）及其全部 onMounted 取数（14~28 个数据请求），
+    // 页面根节点每次都换新，路由级 KeepAlive 也随之失效。
+    // 用 path 作粒度既保住了「换页面即重置边界」的原意，又不会因同页改参数重建。
+    // 由 scripts/probes/probe-userspace-switch.mjs 的「逐层节点身份」做端到端兜底。
+    expect(app).not.toMatch(/\(\) => route\.fullPath,/);
   });
 
   it('ignores the boundary when the boot placeholder is still on screen', () => {

@@ -57,9 +57,10 @@ describe('version-checker behavior', () => {
 
   it('updates service workers before navigating without deleting the active app shell cache', async () => {
     const update = vi.fn(async () => undefined);
+    const unregister = vi.fn(async () => true);
     vi.stubGlobal('navigator', {
       serviceWorker: {
-        getRegistrations: vi.fn(async () => [{ update }]),
+        getRegistrations: vi.fn(async () => [{ update, unregister }]),
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
       },
@@ -69,27 +70,69 @@ describe('version-checker behavior', () => {
     await forceCleanAndReload('remote-build');
 
     expect(update).toHaveBeenCalledOnce();
+    // 无新 SW（installing/waiting 均无）→ 当前 SW 预缓存已是最新，直接导航、不注销
+    expect(unregister).not.toHaveBeenCalled();
     expect(window.location.replace).toHaveBeenCalledWith(
       '/app/?from=test&__boh_update=remote-build#/user-space'
     );
   });
 
-  it('continues navigation when service worker update exceeds the timeout', async () => {
-    vi.useFakeTimers();
+  it('navigates right after the new service worker takes control, without unregistering', async () => {
+    const addEventListener = vi.fn();
     vi.stubGlobal('navigator', {
       serviceWorker: {
-        getRegistrations: vi.fn(async () => [{ update: vi.fn(() => new Promise(() => {})) }]),
+        getRegistrations: vi.fn(async () => [{
+          update: vi.fn(async () => undefined),
+          unregister: vi.fn(async () => true),
+          installing: { state: 'installing' },
+        }]),
+        addEventListener,
+        removeEventListener: vi.fn(),
+      },
+    });
+    const { forceCleanAndReload } = await import('../../src/utils/version-checker.js');
+
+    const reloadPromise = forceCleanAndReload('remote-build');
+    await vi.waitFor(() => expect(addEventListener).toHaveBeenCalled());
+    // 模拟新 SW 完成安装并 claim 页面（skipWaiting + clientsClaim）
+    const controllerChangeHandler = addEventListener.mock.calls.find(([type]) => type === 'controllerchange')[1];
+    controllerChangeHandler();
+    await reloadPromise;
+
+    expect(window.location.replace).toHaveBeenCalledWith(
+      '/app/?from=test&__boh_update=remote-build#/user-space'
+    );
+  });
+
+  it('navigates within the dismantle grace even when unregister hangs on an in-flight install', async () => {
+    vi.useFakeTimers();
+    // Chrome 实测（见 probe-version-update-click.mjs）：有新 SW 正在安装时
+    // unregister() 的 promise 会拖到安装结束才 resolve，绝不能 await 到底
+    const unregister = vi.fn(() => new Promise(() => {}));
+    vi.stubGlobal('navigator', {
+      serviceWorker: {
+        getRegistrations: vi.fn(async () => [{
+          update: vi.fn(() => new Promise(() => {})),
+          unregister,
+          installing: { state: 'installing' },
+        }]),
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
       },
     });
     const { forceCleanAndReload } = await import('../../src/utils/version-checker.js');
 
-    const updatePromise = forceCleanAndReload('remote-build');
-    await vi.advanceTimersByTimeAsync(1800);
-    await updatePromise;
+    const reloadPromise = forceCleanAndReload('remote-build');
+    await vi.advanceTimersByTimeAsync(10_000); // 接管等待窗口超时
+    await vi.advanceTimersByTimeAsync(1_000); // 注销宽限期
+    await reloadPromise;
 
-    expect(window.location.replace).toHaveBeenCalledOnce();
+    // 关键：不能带着仍拦截导航的旧 SW 直接触发导航 —— 旧 SW 会用旧预缓存的
+    // index.html 应答这次导航，用户点了「立即更新」却拿回一模一样的旧页面。
+    expect(unregister).toHaveBeenCalledOnce();
+    expect(window.location.replace).toHaveBeenCalledWith(
+      '/app/?from=test&__boh_update=remote-build#/user-space'
+    );
   });
 
   it('treats a matching build as current when session storage is unavailable', async () => {

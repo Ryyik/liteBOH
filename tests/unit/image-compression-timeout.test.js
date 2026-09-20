@@ -42,13 +42,27 @@ describe('image-compression 超时兜底与 libURL 同源化', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // 先放行一轮真实事件循环，让上一个用例可能残留的异步续体在本用例的 spy 上结算完，
+    // 再恢复真实定时器。否则残留调用会被算进下一个用例的调用次数 —— 那正是本文件曾经
+    // 「一个用例偶发、相邻用例跟着报错」的级联来源。
+    await new Promise((resolve) => setImmediate(resolve));
     vi.useRealTimers();
   });
 
-  // 放行真实事件循环：确保动态 import settle、被测异步链推进到「已注册超时 timer」状态
-  const flushRealLoop = async () => {
-    for (let i = 0; i < 5; i += 1) {
+  // ⚠️ 不要退回「固定 tick 数放行事件循环」的写法（历史上是 for 5 × setImmediate）。
+  // setImmediate 属于事件循环的 check 阶段，可能**早于**动态 import 的真实 I/O 回调
+  // （模块图解析 / fs 读）完成：本文件单独跑时 5 个 tick 够用，但整套件 100+ 文件并行、
+  // 机器繁忙时就不够了。后果有两层：
+  //   ① 断言拿到 0 次调用而抛错；
+  //   ② 该用例里尚未 await 的 `pending` 把降级调用泄漏到下一个用例，
+  //      使它报「期望 2 次、实际 3 次」—— 看起来像两个 bug，实际只有一个。
+  // 因此统一改为「条件 + 真实时间上限」等待，与机器负载无关。
+  const waitUntil = async (predicate, describe, timeoutMs = 5000) => {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      if (predicate()) return;
+      if (Date.now() > deadline) throw new Error(`等待超时（${timeoutMs}ms）：${describe}`);
       await new Promise((resolve) => setImmediate(resolve));
     }
   };
@@ -77,8 +91,8 @@ describe('image-compression 超时兜底与 libURL 同源化', () => {
 
     const pending = module.compressImageFileToUploadLimit(makeFile(), { targetSizeMB: 9.6 });
 
-    // 放行 import 与 worker 调用发起
-    await flushRealLoop();
+    // 等被测异步链推进到「worker 调用已发起」——按条件等待，不依赖 tick 数
+    await waitUntil(() => mocks.compressionFn.mock.calls.length >= 1, 'worker 压缩调用未发起');
     expect(mocks.compressionFn).toHaveBeenCalledTimes(1);
 
     // 推进超过 60s 超时阈值，触发降级
@@ -114,7 +128,8 @@ describe('image-compression 超时兜底与 libURL 同源化', () => {
     const pending = hangingModule.compressImageFileToUploadLimit(makeFile(), { targetSizeMB: 9.6 });
     const assertion = expect(pending).rejects.toThrow('图片压缩库加载超时');
 
-    await flushRealLoop();
+    // 假定时器数量可直接观测：库加载超时 timer 注册完成后才推进时间
+    await waitUntil(() => vi.getTimerCount() >= 1, '库加载超时 timer 未注册');
     await vi.advanceTimersByTimeAsync(15000);
     await assertion;
 
@@ -130,7 +145,7 @@ describe('image-compression 超时兜底与 libURL 同源化', () => {
 
     const first = hangingModule.compressImageFileToUploadLimit(makeFile(), { targetSizeMB: 9.6 });
     const firstAssertion = expect(first).rejects.toThrow('图片压缩库加载超时');
-    await flushRealLoop();
+    await waitUntil(() => vi.getTimerCount() >= 1, '库加载超时 timer 未注册');
     await vi.advanceTimersByTimeAsync(15000);
     await firstAssertion;
 

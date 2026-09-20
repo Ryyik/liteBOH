@@ -94,6 +94,92 @@ function nsfwjsTreeShakePlugin() {
   }
 }
 
+// ============================================
+// 应用壳 chunk 名单（单一数据源）
+// ============================================
+// 这组名字同时被两个地方消费，必须保持一致：
+//   1. workbox.globPatterns → 决定哪些 chunk 进 SW 预缓存
+//   2. bohShellCssScopePlugin → 决定哪些 CSS 属于"壳样式"，从而留在预缓存里
+// 漏一个的后果不对称：漏进 globPatterns 是弱网/离线整站白屏（ui-sanitize 踩过），
+// 所以 scripts/check-shell-precache.mjs 会从产物反推并硬断言，不信任本名单。
+const SHELL_CHUNKS = [
+  'vue-vendor',
+  'state-vendor',
+  'auth-store',
+  'ui-components',
+  'supabase-vendor',
+  'ui-icons',
+  'vue-utils-vendor',
+  'ui-sanitize',
+];
+// 入口 chunk 的产物名由 entryFileNames 固定为 app-[hash].js
+const SHELL_CHUNKS_WITH_ENTRY = ['app', ...SHELL_CHUNKS];
+
+// ============================================
+// 壳样式预缓存收窄（P0-1，2026-09-20 加载性能审计）
+// ============================================
+// 背景：原 globPatterns 直接写 'static/css/*.css'，把全部 102 个 CSS（raw 2975KB /
+// gzip 535KB）都塞进 SW 预缓存。这是首屏（约 260KB gzip）的 3 倍，且其中约 100 个
+// 与当前访客无关 —— 匿名访客访问首页也会下载并落盘"DataAdmin.css"（89KB gzip，
+// 仅管理员使用）。实测首次访问总流量因此达到 1372KB。
+//
+// 但"全量预缓存 CSS"同时承担着第二个职责：保证任意路由在弱网/离线切换时样式在本地。
+// 所以这里不是简单删名单，而是按重要性分层：
+//
+//   壳样式（本插件放行）→ 留在预缓存。它是硬保证：SW 的 NavigationRoute 会把
+//     index.html 离线交给浏览器，若它引用的 <link rel=stylesheet> 没进预缓存，
+//     离线首屏就是"有 HTML、无样式"——这是绝对不能出现的状态。
+//   路由样式 → 移出预缓存，改由 runtimeCaching 的 /static/css/ CacheFirst 兜底。
+//     带 hash 的文件名内容不可变，一旦用户访问过某路由，其 CSS 就永久本地化。
+//     这与现有设计一致：路由 JS chunk 本来就不在预缓存里，离线切到未访问过的
+//     路由本来就不成立（router.onError 已覆盖该场景）。
+//
+// 实现方式：globPatterns 仍然保留 'static/css/*.css' 做"发现"，再由
+// manifestTransforms 按允许清单过滤。之所以要过滤而不是直接写 glob，是因为产物里
+// 路由 CSS 与入口 CSS 同样叫 "index-<hash>.css"，用 glob 无法区分二者。
+//
+// ⚠️ 本插件算出的允许清单若为空，transform 会 fail-safe 保留全部 CSS（宁可多缓存，
+//    也不能让壳样式掉出预缓存）。该退化由 check:shell-precache 的断言 A 兜底。
+const shellCssAllowScope = new Set();
+
+function bohShellCssScopePlugin() {
+  return {
+    name: 'boh-shell-css-scope',
+    apply: 'build',
+    // generateBundle 早于 vite-plugin-pwa 的 generateSW，故此处算出的清单一定就绪
+    generateBundle(_options, bundle) {
+      const chunks = Object.values(bundle).filter((item) => item.type === 'chunk');
+      const shellJs = new Set(chunks.filter((c) => c.isEntry).map((c) => c.fileName.split('/').pop()));
+      for (const name of SHELL_CHUNKS) {
+        const hit = chunks.find((c) => new RegExp(`/${name}-[A-Za-z0-9_-]+\\.js$`).test(c.fileName));
+        if (hit) shellJs.add(hit.fileName.split('/').pop());
+        else this.warn(`壳 chunk "${name}" 在产物里找不到 —— 请同步 SHELL_CHUNKS`);
+      }
+
+      const allow = new Set();
+      for (const chunk of chunks) {
+        if (!shellJs.has(chunk.fileName.split('/').pop())) continue;
+        const importedCss = chunk.viteMetadata?.importedCss;
+        if (importedCss) for (const href of importedCss) allow.add(href.split('/').pop());
+      }
+      // 第二来源：index.html 实际引用的样式表。与 check:shell-precache 的断言 A
+      // 同源，取并集可防止 viteMetadata 在某次升级后改形状导致清单静默变空。
+      const html = bundle['index.html'];
+      if (html && typeof html.source === 'string') {
+        for (const m of html.source.matchAll(/<link[^>]*rel="stylesheet"[^>]*href="\.\/static\/css\/([^"]+)"/g)) {
+          allow.add(m[1]);
+        }
+      }
+
+      shellCssAllowScope.clear();
+      for (const name of allow) shellCssAllowScope.add(name);
+      console.log(
+        `[boh-shell-css-scope] 壳样式允许清单 ${shellCssAllowScope.size} 个：${[...shellCssAllowScope].join(', ') || '(空)'}`
+      );
+    },
+  };
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   // 设置基础路径，使用相对路径 './' 以支持 Hash 路由和任意部署路径
@@ -101,6 +187,7 @@ export default defineConfig({
 
   plugins: [
     nsfwjsTreeShakePlugin(),
+    bohShellCssScopePlugin(),
     vue({
       template: {
         compilerOptions: {
@@ -133,23 +220,55 @@ export default defineConfig({
       workbox: {
         // 预缓存文件大小上限（4MB，避免大文件静默跳过）
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
-        // 预缓存应用壳、首屏依赖和所有 CSS。发布会替换旧 hash 文件；若旧 SW
-        // 仍提供旧 index.html/JS 而 CSS 未缓存，页面会退化为浏览器默认样式。
-        // CSS 通常远小于图片和页面 JS，完整预缓存可保证应用壳版本一致。
+        // ⚠️ 这里的 JS 名单必须覆盖「入口 app-*.js 的全部静态 import（应用壳）」。
+        // 名单由 SHELL_CHUNKS 常量统一生成（见文件顶部），漏一个的后果是
+        // 弱网/离线时应用壳缺模块、整站白屏（连导航栏都没有）——ui-sanitize 就曾因
+        // 后加入 manualChunks 而未同步到此名单。改动 manualChunks 后请核对 SHELL_CHUNKS。
         //
-        // ⚠️ 这里的名单必须覆盖「入口 app-*.js 的全部静态 import（应用壳）」。
-        // 当前壳依赖共 9 个：app、vue-vendor、vue-utils-vendor、ui-icons、
-        // ui-components（导航栏/页脚）、supabase-vendor、state-vendor、auth-store、
-        // ui-sanitize。漏掉任何一个，旧壳在弱网/离线时都会因缺模块而整个起不来
-        // （表现为全白，连导航栏都没有）——ui-sanitize 就曾因后加入 manualChunks
-        // 而未同步到此名单。改动 manualChunks 后请同步核对本名单。
+        // CSS 仍然写 'static/css/*.css' 作为"发现"入口：路由 CSS 与入口 CSS 在产物里
+        // 同名（都是 index-<hash>.css），glob 无法区分，所以真正的收窄放在
+        // manifestTransforms 里按壳样式允许清单过滤（见 bohShellCssScopePlugin）。
         globPatterns: [
           'index.html',
-          'static/js/app-*.js',
-          'static/js/{vue-vendor,state-vendor,auth-store,ui-components,supabase-vendor,ui-icons,vue-utils-vendor,ui-sanitize}-*.js',
+          `static/js/{${SHELL_CHUNKS_WITH_ENTRY.join(',')}}-*.js`,
           'static/css/*.css',
           // 无自托管字体（首屏走系统字体栈，见 index.html），故不列 static/fonts——
           // 列了会匹配 0 文件，workbox 每次构建都吐一条 warning，掩盖真正的不匹配。
+        ],
+        // ============================================
+        // 收窄预缓存的 CSS：只保留壳样式（P0-1）
+        // ============================================
+        // 被删掉的路由 CSS 由下面的 /static/css/ CacheFirst 兜底，两者是一对，
+        // 不可只改一处。删除清单由 bohShellCssScopePlugin 在 generateBundle 阶段算出。
+        // 契约（workbox-build/lib/transform-manifest.js）：入参是 {url,revision,size} 数组，
+        // 必须返回 { manifest, warnings }。
+        manifestTransforms: [
+          (entries) => {
+            // fail-safe：清单为空说明插件没跑或产物结构变了。此时宁可不收窄
+            // （退回旧的全量行为），也不能让壳样式掉出预缓存。
+            if (shellCssAllowScope.size === 0) {
+              console.warn('[boh-precache] 壳样式允许清单为空，已跳过 CSS 收窄（fail-safe，保留全部 CSS）');
+              return { manifest: entries, warnings: ['壳样式允许清单为空，CSS 收窄已跳过'] };
+            }
+            const kept = [];
+            let dropped = 0;
+            let droppedBytes = 0;
+            for (const entry of entries) {
+              const isCss = /(^|\/)static\/css\/[^/]+\.css$/.test(entry.url);
+              if (isCss && !shellCssAllowScope.has(entry.url.split('/').pop())) {
+                dropped += 1;
+                droppedBytes += entry.size || 0;
+                continue;
+              }
+              kept.push(entry);
+            }
+            const keptCss = kept.filter((e) => /\.css$/.test(e.url)).length;
+            console.log(
+              `[boh-precache] CSS 收窄完成：保留 ${keptCss} 个，移出预缓存 ${dropped} 个（raw ${(droppedBytes / 1024).toFixed(0)}KB）` +
+                `→ 转由运行时 /static/css/ CacheFirst 兜底`
+            );
+            return { manifest: kept, warnings: [] };
+          },
         ],
         cleanupOutdatedCaches: true,
         // 强制更新：新 Service Worker 立即激活，不等待旧页面关闭
@@ -172,6 +291,22 @@ export default defineConfig({
         importScripts: ['push-sw.js'],
         // 运行时缓存策略
         runtimeCaching: [
+          {
+            // P0-1：路由 CSS 的兜底。壳样式进了预缓存，其余约 100 个路由 CSS 被
+            // manifestTransforms 移出了预缓存 —— 它们必须在这里有归宿，否则弱网/离线
+            // 切到该路由会「有 HTML 无样式」。带 hash 的文件名内容不可变 → CacheFirst。
+            // 用户访问过的路由，其 CSS 从此永久本地化（二次访问零请求）。
+            // ⚠️ 本条与 manifestTransforms 的 CSS 收窄是一对，任一方被删都会破坏
+            //    样式安全；scripts/check-shell-precache.mjs 的断言 C 会拦住这种改动。
+            urlPattern: /\/static\/css\/[^/]+\.css$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'route-css',
+              // 全部 CSS 共 102 个，留出余量以免跨版本残留把在用条目挤掉
+              expiration: { maxEntries: 140, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
           {
             // M-5 修复：仅缓存 Supabase Storage 公开对象（图片等），
             // /auth/v1/ 和 /rest/v1/ 完全不缓存，防止跨用户数据泄露。

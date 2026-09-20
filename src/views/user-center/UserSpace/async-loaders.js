@@ -55,6 +55,27 @@ export const preloadBOHAIComponent = () => {
   return bohaiPreloadPromise;
 };
 
+/* 设置内部档位的面板 chunk（编辑资料 / 数据导出 / 数据与隐私）。
+   它们由 UserSpaceMain 的 defineAsyncComponent 按需加载，首次换档要等一次动态 import：
+   实测首次进入「数据导出」「数据与隐私」耗时 291~313ms（其中约 180ms 是 out-in 过渡，
+   其余是 chunk 往返）。三个 chunk 都很小（gzip 1.0~3.0KB），空闲预载性价比高。
+   ⚠️ 模块说明符必须与 UserSpaceMain 里的一致，否则会各自打出独立 chunk。 */
+const settingsSubPanelLoaders = [
+  () => import('./components/EditProfilePanel.vue'),
+  () => import('./components/DataExportPanel.vue'),
+  () => import('./components/DataPrivacyPanel.vue')
+];
+let settingsSubPanelsPromise = null;
+export const preloadSettingsSubPanels = () => {
+  if (!settingsSubPanelsPromise) {
+    settingsSubPanelsPromise = Promise.all(settingsSubPanelLoaders.map((load) => load())).catch(() => {
+      settingsSubPanelsPromise = null;
+      return null;
+    });
+  }
+  return settingsSubPanelsPromise;
+};
+
 export const preloadProfileStyles = () => {
   if (!profileStylesPromise) {
     profileStylesPromise = Promise.all([

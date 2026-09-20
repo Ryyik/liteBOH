@@ -37,8 +37,30 @@ describe('frontend performance guardrails', () => {
     const source = read('vite.config.js');
     // 离线白屏回归修复：main.js 静态依赖 @vueuse/motion 与首页 supabase，
     // 首屏依赖 chunk（supabase-vendor/ui-icons/vue-utils-vendor）必须随应用壳预缓存。
-    expect(source).toMatch(
-      /vue-vendor,state-vendor,auth-store,ui-components,supabase-vendor,ui-icons,vue-utils-vendor/,
-    );
+    //
+    // 2026-09-20（P0-1 加载性能审计）：名单由字面量收按到单一常量 SHELL_CHUNKS，
+    // globPatterns 改为消费该常量（CSS 部分另经 manifestTransforms 按壳样式收窄）。
+    // 本用例的意图不变 —— 仍是"这 8 个 chunk 一个都不能少"，只是改成校验常量内容，
+    // 这样以后调整 glob 写法不会再误报，而删掉任一 chunk 依然会红。
+    const block = source.match(/const\s+SHELL_CHUNKS\s*=\s*\[([\s\S]*?)\]/);
+    expect(block, 'vite.config.js 里找不到 SHELL_CHUNKS 常量').toBeTruthy();
+    const names = [...block[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+    for (const required of [
+      'vue-vendor',
+      'state-vendor',
+      'auth-store',
+      'ui-components',
+      'supabase-vendor',
+      'ui-icons',
+      'vue-utils-vendor',
+      'ui-sanitize',
+    ]) {
+      expect(names, `壳 chunk 名单缺少 ${required}`).toContain(required);
+    }
+
+    // 入口 chunk 固定产出为 app-[hash].js，且必须与上述名单一起进 globPatterns
+    expect(source).toMatch(/entryFileNames:\s*'static\/js\/app-\[hash\]\.js'/);
+    expect(source).toMatch(/SHELL_CHUNKS_WITH_ENTRY\s*=\s*\['app',\s*\.\.\.SHELL_CHUNKS\]/);
+    expect(source).toMatch(/\$\{SHELL_CHUNKS_WITH_ENTRY\.join\(','\)\}/);
   });
 });

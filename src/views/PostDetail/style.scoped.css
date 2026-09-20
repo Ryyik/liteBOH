@@ -1496,10 +1496,29 @@
   font-size: 17px;
 }
 
+.pd-author-bar-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+
 .pd-author-bar-name {
   font-size: 15px;
   font-weight: 500;
   color: var(--detail-ink, #111827);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 发帖时间：窄屏下内容区的 .author-meta（含 .post-time）被 display:none 精简，
+   时间必须由身份条承接，否则窄屏/竖屏详情页完全看不到发帖时间 */
+.pd-author-bar-time {
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--detail-muted, #687386);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

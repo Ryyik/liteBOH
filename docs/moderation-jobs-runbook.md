@@ -1,5 +1,22 @@
 # Moderation Jobs Runbook
 
+> **Retired on 2026-09-20 — this runbook is historical reference only.**
+> The queue was first disabled on 2026-05-08 (triggers dropped, jobs canceled,
+> `claim/complete/fail` revoked), then fully retired by
+> `supabase/migrations/2026092005_retire_moderation_jobs_queue.sql`, which
+> unscheduled the `invoke-moderation-worker` cron, dropped the orphan trigger on
+> `archive.moderation_jobs`, and dropped the 8 dead RPCs
+> (`claim_moderation_jobs`, `complete_moderation_job`, `fail_moderation_job`,
+> `enqueue_moderation_job`, `queue_post/comment/message_moderation_job`,
+> `touch_moderation_job_updated_at`). The `moderation-worker` Edge Function
+> source has been removed from this repo.
+>
+> **Do not re-deploy it.** Forum text moderation now runs through
+> `enqueue_forum_post_moderation` → `public.forum_async_jobs` → the
+> `forum-async-worker` Edge Function; forum images are moderated by the Gemini
+> first-layer pipeline (`src/utils/image-moderation-pipeline.js` →
+> `api-key-vault` runtime-chat). Neither path uses anything described below.
+
 > Deprecated on 2026-05-08. The app is currently using frontend local
 > keyword precheck plus browser-triggered SiliconFlow async AI review. Run
 > `supabase/migrations/20260508_zzzzzz_disable_moderation_jobs_queue.sql` and

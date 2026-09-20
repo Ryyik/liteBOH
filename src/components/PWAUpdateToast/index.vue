@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
+import { showIsland } from '@/composables/useIsland.js';
 import { forceCleanAndReload } from '@/utils/version-checker.js';
 import { logger } from '@/utils/logger.js';
 
@@ -34,6 +35,8 @@ const promptUpdate = async (detail) => {
     });
     if (shouldUpdate) {
       logger.info('pwa-update', '用户确认更新，开始清除缓存并刷新');
+      // 等 SW 接管（最长 10s）期间页面不会有其它动静，给一句可见反馈避免「点了没反应」
+      showIsland.notify({ title: '正在更新', message: '马上为你切换到最新版本…', icon: 'info', durationMs: 6000 });
       await forceCleanAndReload(detail?.remoteBuildId);
     } else {
       logger.info('pwa-update', '用户选择稍后更新');

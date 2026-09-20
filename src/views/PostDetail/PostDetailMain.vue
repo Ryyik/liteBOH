@@ -1990,7 +1990,11 @@ const handleChangeCommentSortMode = async (mode) => {
               :style="{ '--boh-avatar-frame-url': `url(${authorFrame.url})`, '--boh-avatar-frame-scale': String(authorFrame.scale) }"
               aria-hidden="true"></span>
           </span>
-          <span class="pd-author-bar-name" :class="authorTierClass">{{ post.author_username }}</span>
+          <span class="pd-author-bar-text">
+            <span class="pd-author-bar-name" :class="authorTierClass">{{ post.author_username }}</span>
+            <!-- 窄屏内容区作者行被精简（.author-meta 隐藏），发帖时间只能在这里露头 -->
+            <span class="pd-author-bar-time">{{ formatDate(post.created_at) }}</span>
+          </span>
         </div>
         <button v-if="canFollowAuthor" type="button" class="pd-author-bar-follow"
           :class="{ 'is-following': isFollowingAuthor }" :disabled="isFollowSubmitting"
