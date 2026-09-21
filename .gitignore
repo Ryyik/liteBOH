@@ -70,3 +70,7 @@ supabase/.temp/
 
 # 构建验证产物（构建站点快照，不应入库）
 .build-verify*/
+
+# Python 构建缓存
+__pycache__/
+*.pyc
