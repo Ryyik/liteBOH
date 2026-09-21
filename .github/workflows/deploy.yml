@@ -3,6 +3,11 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [ main ]
+  # 允许在 Actions 页面手动触发（Run workflow）。
+  # 用途：补完 Cloudflare token 权限、或想单独验证响应头步骤时，无需推空提交。
+  # 手动触发与 push 走完全相同的 job —— 本 workflow 不引用 github.event.head_commit，
+  # commitHash 由 `git rev-parse --short HEAD` 取得，故手动触发下同样有值。
+  workflow_dispatch:
 
 permissions:
   contents: read

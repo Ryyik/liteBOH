@@ -19,7 +19,7 @@
  *   node scripts/cloudflare-security-headers.mjs --remove         # 只删掉本脚本管理的规则
  *
  * 需要的环境变量：
- *   CLOUDFLARE_API_TOKEN  —— 需具备 Zone → Config（或 Transform Rules）→ Edit 权限
+ *   CLOUDFLARE_API_TOKEN  —— 需具备 Zone / Transform Rules / Edit 权限
  *                            ⚠️ 仅 Cache Purge 权限的 token 会 403，见文件末尾说明
  *   CLOUDFLARE_ZONE_ID
  *   SECURITY_HEADER_HOSTS —— 可选，逗号分隔；默认两个裸域/子域
@@ -126,7 +126,7 @@ const main = async () => {
     const detail = JSON.stringify(existing.payload?.errors || existing.payload).slice(0, 300);
     console.log(`::warning::security-headers 读取现有规则失败（HTTP ${existing.status}）：${detail}`);
     if (existing.status === 403) {
-      console.log('::warning::token 权限不足：需在 Cloudflare My Profile → API Tokens 追加 Zone → Config（Transform Rules）→ Edit；当前 token 仅 Cache Purge。');
+      console.log('::warning::token 权限不足：需在 Cloudflare My Profile → API Tokens 追加 Zone / Transform Rules / Edit；当前 token 仅 Cache Purge。');
     }
     return;
   }
