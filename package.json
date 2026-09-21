@@ -1,7 +1,7 @@
 {
   "name": "bohvue",
   "private": true,
-  "version": "6.3.2",
+  "version": "6.3.3",
   "sideEffects": [
     "*.css",
     "*.vue",
@@ -31,6 +31,7 @@
     "probe:route-switch": "node scripts/probes/probe-route-switch.mjs",
     "probe:userspace-switch": "node scripts/probes/probe-userspace-switch.mjs",
     "probe:userspace-pages": "node scripts/probes/probe-userspace-pages.mjs",
+    "probe:passkey": "node scripts/probes/probe-passkey-login.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "island:smoke": "node scripts/island-smoke.mjs",
@@ -46,7 +47,7 @@
     "security:setup:no-secret": "node scripts/cloudflare-setup.mjs --no-secret"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.99.1",
+    "@supabase/supabase-js": "^2.116.0",
     "@tensorflow/tfjs": "^4.22.0",
     "@vueuse/core": "^14.3.0",
     "@vueuse/motion": "^3.0.3",
