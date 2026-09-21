@@ -12,9 +12,23 @@
 
 ## Supabase
 - ref `nplnlefdwfgtyimfkyih`；迁移名 `YYYYMMDDNN_snake.sql`，结尾 `notify pgrst,'reload schema'`，`db push --linked --yes`（先 dry-run）。新表 revoke 后须**分别** grant anon + authenticated（漏 anon → 42501，mock 不暴露）；service_role 下 `auth.uid()` 为 NULL → security definer 拆内部函数。
+- ⚠️ **本机 `db push` 不可用**（5432 被阻断 `tls error EOF`）→ 走 Management API（`read_only:false`）应用语句 + 手工写 `supabase_migrations.schema_migrations`(`version/name/statements text[]`)，与语句同一事务（失败整体回滚）。
+- ⚠️ **撤 anon EXECUTE 必须 `from anon, public` 两个都撤**——函数 EXECUTE 同时有 PUBLIC 授权，anon 经 PUBLIC 继承，只撤 anon 时 `has_function_privilege` 仍为 `t`（已实测）。表级授权是对 anon 的显式 grant（无 PUBLIC 份额），撤 anon 即可。
+- ⚠️ **`current_user_is_admin` 不能撤 anon**：被 RLS 策略引用，策略按查询者角色求值 → 撤了游客查询直接 42501。
+- ⚠️ 改授权前必须先查**库内互相调用**：被普通用户路径调用（发帖/点赞/抽奖/评论）的函数只能撤权、**不能加 `auth.role()` 门**；且扫描要匹配裸调用名（不带 `public.` 前缀），否则漏判。
+- ⚠️ **CI 不部署 Edge Function**（`.github/workflows` 无 `functions deploy`）→ 改 EF 必须手工 `supabase functions deploy <name>`，前端发布顺序无关可用「降级兜底」保证。
 - `executeRead(scope, params, fetcher, options)`，**options 第 4 参**；**fetcher 必须返回 `{data,error}`**（返回数组 → data 恒 null 不报错）。
 - 取消唯一出口 request-core `code:'ABORTED'` 三形态（DOMException / postgrest 转义普通对象，resolve 非 reject / 文案「请求已被取消」）；消费侧判 `aborted || code==='ABORTED'`。
 - `clearAuthReadCache` 无人调用，logout 不清读缓存；getCache 命中不回插 → 注释写 LRU 实为 **FIFO**。
+
+## 安全基线（2026-09-21 复检；详见 docs/2026-09-21-安全审计报告核验与全量复检.md）
+- **唯一既有安全报告 = `docs/boh-full-health-check-2026-06-26.md` 第一章**（72/100）。其结论**主体已过期**：S-1 九项 8 修 1 废、S-2/3/4 已修、P0-3/P0-4 已执行。引用前必须按 `pg_policy` 现时点复核，别照抄。
+- ⚠️ **Supabase 默认给 public 下新建函数授 anon EXECUTE**（`revoke from public` 撤不掉）→ 存量 232 个 anon 可 EXECUTE / 149 个 SECURITY DEFINER / **33 个无守卫非触发器**。安全门**必须写在函数体内**（`auth.uid()` / `current_user_is_admin()` / `auth.role()<>'service_role'`），撤权后**分别** grant anon + authenticated。
+- ⚠️ **75/88 张 public 表仍给 anon 表级 INSERT/UPDATE/DELETE**，RLS 是唯一的门；新增表按表手工加固，没有 schema 级总闸。
+- ⚠️ `cron.job#8` **明文内嵌 41 字符 `sb_secret_`**（service_role 等价）；仓库与 Git 全历史已核干净 → 只泄露在库内 + `cron.job_run_details`（11,296 行）+ 备份。改法：`alter database postgres set "app.settings.service_role_key"` 后用 `current_setting` 读。
+- ⚠️ **线上零安全响应头**（实测无 CSP/HSTS/X-Content-Type/Referrer-Policy/X-Frame/Permissions-Policy）；GitHub Pages 不能加 → 只能经 Cloudflare Transform Rules 注入。与 session 存 localStorage 叠加 → XSS 无缓解层。
+- `resolve_email_for_login` anon 可达且**返回明文邮箱**；限流 10/分/IP 且 `X-Forwarded-For` **不可伪造**（A/B 对照实验证过，网关覆写）。Cloudinary `upload_preset` 无签名且内联进 dist → `assert_cloudinary_upload_allowed` 预检可绕。
+- 判现状**只能靠目录快照**：`has_function_privilege('anon',p.oid,'EXECUTE')` + `pg_get_functiondef` 文本搜门；`git ls-files`/`-S` 查密钥是否进仓。
 
 ## AI 出口（vault / Worker）
 - 浏览器 → EF `api-key-vault` → 上游；线上唯一生效字段 `bohai_model_configs.api_url`；vault 只说 OpenAI 协议（penalty/stream_options 必清洗，只解析 `choices[0]`）。CF Worker `cloudflare/gemini-proxy/`（改完 `npx wrangler deploy`）；Google 坑：frequency_penalty 400、reasoning_effort 仅 low 且不给 gemma、max_tokens≥512、错误是 JSON 数组。
