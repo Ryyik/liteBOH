@@ -102,6 +102,13 @@ jobs:
             echo "::warning::Cloudflare cache purge failed; GitHub Pages deployment will continue."
           fi
 
+      # ⚠️ 本 job 与上面两个 job 不同：它只跑 actions/deploy-pages，
+      #    工作目录里**没有源码**。所以必须先 checkout，否则 `node scripts/...`
+      #    会以 MODULE_NOT_FOUND 退出 1，把整个 run 染红。
+      #    （2026-09-21 踩过：Pages 部署本身已 success，却因这一步导致 run 显示 failure。）
+      - name: Checkout（下面一步需要 scripts/ 下的源码）
+        uses: actions/checkout@v5
+
       # GitHub Pages 无法下发安全响应头（public/_headers 线上不生效），
       # 只能由 Cloudflare 在边缘注入 Response Header Transform Rules。
       # 需要 token 具备 Zone -> Config（Transform Rules）-> Edit 权限；
