@@ -17,6 +17,11 @@ const isSubmitting = ref(false);
 const isReady = ref(false);
 const LOCK_ERROR_HINT = '检测到浏览器多标签会话冲突，请先关闭其他 Block of Home 标签页，再重新点击最新重置链接。';
 
+// 管理员代发的一次性登录 token（手动粘贴通道，无邮箱参与）
+const manualToken = ref('');
+const manualError = ref('');
+const isVerifyingManual = ref(false);
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const getErrorMessage = (errorLike) => {
@@ -207,6 +212,44 @@ const initRecovery = async () => {
   }
 };
 
+// 粘贴管理员签发的一次性 token → 直接建立会话。
+// 与邮件链接共用 verifyOtp({ type:'recovery', token_hash })，密码全程只有用户本人知道。
+const submitManualToken = async () => {
+  manualError.value = '';
+  const tokenHash = String(manualToken.value || '').trim();
+  if (!tokenHash) {
+    manualError.value = '请粘贴管理员提供的一次性登录 token。';
+    return;
+  }
+
+  isVerifyingManual.value = true;
+  try {
+    const verifyResult = await authStore.verifyPasswordRecovery(tokenHash);
+    if (!verifyResult.success) {
+      manualError.value = toFriendlyRecoveryError(verifyResult.message, 'token 无效或已过期，请联系管理员重新签发。');
+      return;
+    }
+
+    const session = await waitForSession();
+    if (!session?.user) {
+      manualError.value = '会话建立失败，请稍后重试。';
+      return;
+    }
+
+    await authStore.updateLocalState(session.user, { force: true });
+    isReady.value = true;
+    manualToken.value = '';
+    errorMessage.value = '';
+    if (typeof window !== 'undefined' && typeof window.history?.replaceState === 'function') {
+      window.history.replaceState({}, document.title, `${window.location.origin}/#/reset-password`);
+    }
+  } catch (error) {
+    manualError.value = toFriendlyRecoveryError(error, '验证 token 失败，请稍后重试。');
+  } finally {
+    isVerifyingManual.value = false;
+  }
+};
+
 const handleSubmit = async () => {
   errorMessage.value = '';
   successMessage.value = '';
@@ -282,7 +325,31 @@ onMounted(() => {
         <button type="submit" :disabled="isSubmitting">
           {{ isSubmitting ? '提交中...' : '确认修改密码' }}
         </button>
+
+        <button class="secondary skip" type="button" :disabled="isSubmitting" @click="router.replace('/')">
+          暂不修改，直接进入
+        </button>
       </form>
+
+      <!-- 管理员代发 token：手动粘贴通道（无邮箱参与，token 本身即定位用户） -->
+      <div v-if="!isPreparing && !isReady" class="manual-block">
+        <p class="manual-title">持有一次性登录 token？</p>
+        <p class="manual-desc">粘贴管理员签发的 token，验证后即可直接设置新密码。</p>
+        <input
+          v-model="manualToken"
+          type="text"
+          class="manual-input"
+          placeholder="粘贴一次性登录 token"
+          autocomplete="one-time-code"
+          spellcheck="false"
+          :disabled="isVerifyingManual"
+          @keyup.enter="submitManualToken"
+        >
+        <p v-if="manualError" class="error">{{ manualError }}</p>
+        <button type="button" :disabled="isVerifyingManual" @click="submitManualToken">
+          {{ isVerifyingManual ? '验证中...' : '验证 token 并登录' }}
+        </button>
+      </div>
 
       <button
         v-if="!isPreparing && !isReady"
@@ -433,6 +500,36 @@ button:disabled {
 .info {
   color: var(--rp-info);
   font-size: 14px;
+}
+
+/* 手动粘贴 token 通道（管理员代发）：复用输入框/按钮既有样式，仅补标题与间距 */
+.manual-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
+}
+
+.manual-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--liquid-text-primary, #1d1d1f);
+}
+
+.manual-desc {
+  font-size: 13px;
+  color: var(--liquid-text-secondary, #6e6e73);
+}
+
+.manual-block .manual-input {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+
+/* 表单内的次级动作（暂不修改直接进入） */
+button.skip {
+  margin-top: 0;
 }
 
 .error {

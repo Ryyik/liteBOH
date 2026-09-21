@@ -866,6 +866,82 @@ export const createMutationsCenter = (deps) => {
     }
   };
 
+  // 签发一次性登录 token（管理员代登录通道，应急用）。
+  // 安全语义：token 等同账号密码（一次性 + 限时），密码全程只有用户本人知道；
+  // 每次签发服务端强制写审计（actor/target/reason），审计写不进去会拒绝签发。
+  const issueLoginToken = async (item) => {
+    if (!item?.id) return;
+    if (!await dialog.confirm({
+      title: '签发一次性登录 token',
+      message: `将为用户「${item.username || item.id}」签发一次性登录 token：\n\n· token 等同账号密码，任何拿到它的人都能直接登录\n· 一次性有效，且限时（超时作废）\n· 仅限当面或私聊交付，勿发群聊\n\n继续吗？`,
+      tone: 'warning',
+      confirmText: '继续签发'
+    })) return;
+
+    const reason = await dialog.prompt({
+      title: '签发原因（必填）',
+      message: '签发原因将写入审计日志，请如实填写：',
+      placeholder: '例如：用户丢失邮箱访问，已当面核实身份',
+      defaultValue: '',
+      multiline: true
+    });
+    if (reason === null) return;
+    const trimmedReason = String(reason || '').trim();
+    if (!trimmedReason) {
+      showToast('必须填写签发原因（写入审计）', 'error');
+      return;
+    }
+
+    try {
+      assertAdminAction();
+      const { data, error } = await supabase.functions.invoke('admin-issue-login-token', {
+        body: { user_id: item.id, reason: trimmedReason }
+      });
+
+      if (error) {
+        // FunctionsHttpError：从响应体里取服务端给出的具体原因
+        let serverMessage = '';
+        try {
+          const payload = await error?.context?.json?.();
+          serverMessage = String(payload?.message || '');
+        } catch (parseErr) {
+          logger.warn('data-admin', '解析签发错误响应失败:', parseErr);
+        }
+        throw new Error(serverMessage || '签发失败');
+      }
+      if (!data?.ok) {
+        throw new Error(String(data?.message || '签发失败'));
+      }
+
+      // token 直接进剪贴板，不渲染到页面 —— 防截图/录屏泄漏；
+      // 剪贴板不可用（非安全上下文等）才回退到弹窗展示。
+      const token = String(data.token || '');
+      let copied = false;
+      try {
+        await navigator.clipboard.writeText(token);
+        copied = true;
+      } catch (copyErr) {
+        logger.warn('data-admin', 'token 写入剪贴板失败，回退到弹窗展示:', copyErr);
+      }
+
+      if (copied) {
+        showToast(`token 已复制到剪贴板，请当面/私聊交付给「${item.username || item.id}」（一次性、勿发群聊）`, 'success');
+      } else {
+        await dialog.prompt({
+          title: '一次性登录 token',
+          message: `剪贴板不可用，请手动复制以下 token 并私下交付给「${item.username || item.id}」（一次性、限时有效）：`,
+          defaultValue: token,
+          multiline: true
+        });
+      }
+
+      addChangeLogEntry('user_issue_login_token', item, { reason: trimmedReason });
+    } catch (err) {
+      logger.error('data-admin', '签发登录 token 失败:', err);
+      showToast('签发失败: ' + buildActionErrorMessage(err, '签发失败'), 'error');
+    }
+  };
+
   // ==================== 批量审核功能 ====================
 
   // 批量审核通过
@@ -1009,6 +1085,7 @@ export const createMutationsCenter = (deps) => {
     // 用户封禁/禁言
     banUser,
     unbanUser,
+    issueLoginToken,
     muteUser,
     unmuteUser,
     // 辅助

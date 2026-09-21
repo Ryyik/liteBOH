@@ -67,7 +67,9 @@
                 </span>
                 <span class="gs-text">
                   <span class="gs-label">修改密码</span>
-                  <span class="gs-desc">为安全起见，请先输入当前密码，再设置一个新的登录密码。</span>
+                  <span class="gs-desc">{{ tokenLoginActive
+                    ? '检测到你通过一次性 token 登录，本次可直接设置新密码。'
+                    : '为安全起见，请先输入当前密码，再设置一个新的登录密码。' }}</span>
                 </span>
               </div>
             </div>
@@ -75,14 +77,21 @@
 
           <section class="gs-group">
             <div class="sec-form">
-              <label class="gs-field-label" for="current-password">当前密码</label>
-              <div class="gs-input-wrap">
-                <span class="gs-input-icon">
-                  <Lock :size="15" :stroke-width="2" aria-hidden="true" />
-                </span>
-                <input id="current-password" v-model="passwordForm.currentPassword" type="password" class="gs-input"
-                  placeholder="请输入当前密码" autocomplete="current-password" :disabled="isUpdatingPassword">
+              <div v-if="tokenLoginActive" class="gs-banner info">
+                <Info :size="16" :stroke-width="2" aria-hidden="true" />
+                <span>检测到你刚通过一次性 token 登录（15 分钟内），本次修改无需输入当前密码。</span>
               </div>
+
+              <template v-if="!tokenLoginActive">
+                <label class="gs-field-label" for="current-password">当前密码</label>
+                <div class="gs-input-wrap">
+                  <span class="gs-input-icon">
+                    <Lock :size="15" :stroke-width="2" aria-hidden="true" />
+                  </span>
+                  <input id="current-password" v-model="passwordForm.currentPassword" type="password" class="gs-input"
+                    placeholder="请输入当前密码" autocomplete="current-password" :disabled="isUpdatingPassword">
+                </div>
+              </template>
 
               <label class="gs-field-label" for="new-password">新密码</label>
               <div class="gs-input-wrap">
@@ -224,6 +233,8 @@ import { AlertCircle, CheckCircle2, ChevronRight, Info, KeyRound, Keyboard, Lock
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import { useAuthStore } from '@/stores/auth';
+import { supabase } from '@/utils/supabase-client.js';
+import { isRecentTokenLogin } from '@/utils/recovery-access.js';
 import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';
 import { logger } from '@/utils/logger.js';
 
@@ -245,6 +256,22 @@ const passwordForm = reactive({
 const isUpdatingPassword = ref(false);
 const passwordUpdateError = ref('');
 const passwordUpdateSuccess = ref('');
+
+// 一次性 token 登录宽限窗（15 分钟内）：免当前密码直接改密。
+// 判定依据是 access_token 的 amr claim（GoTrue 服务端签发、客户端不可伪造）；
+// 不能用 localStorage 标志 —— 偷会话的攻击者也能写标志，这道检查防的正是这类人。
+// 过窗后恢复要求当前密码，把「刚建好的 token 会话被偷」的爆炸半径压到最小。
+const tokenLoginActive = ref(false);
+
+const refreshTokenLoginState = async () => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    tokenLoginActive.value = isRecentTokenLogin(session);
+  } catch (error) {
+    logger.warn('account-security', '读取会话判定 token 登录态失败:', error);
+    tokenLoginActive.value = false;
+  }
+};
 
 const deleteAccountStep = ref(1);
 const deleteRiskAccepted = ref(false);
@@ -299,6 +326,7 @@ const resetPasswordForm = () => {
 const openChangePasswordPanel = () => {
   resetPasswordForm();
   activePanel.value = 'password';
+  void refreshTokenLoginState();
 };
 
 const openDeleteAccountPanel = () => {
@@ -311,7 +339,9 @@ const validateNewPassword = () => {
   const newPassword = String(passwordForm.newPassword || '');
   const confirmPassword = String(passwordForm.confirmPassword || '');
 
-  if (currentPassword.length < 6) {
+  // token 登录宽限窗内：用户不知道当前密码（正因如此才有代发 token），跳过其校验；
+  // 「新旧密码相同」的比对也只对知道当前密码的人有意义。
+  if (!tokenLoginActive.value && currentPassword.length < 6) {
     return '请输入当前密码（至少 6 位）。';
   }
   if (newPassword.length < 8) {
@@ -323,7 +353,7 @@ const validateNewPassword = () => {
   if (newPassword !== confirmPassword) {
     return '两次输入的新密码不一致。';
   }
-  if (newPassword === currentPassword) {
+  if (!tokenLoginActive.value && newPassword === currentPassword) {
     return '新密码不能与当前密码相同。';
   }
   return '';
@@ -341,10 +371,14 @@ const submitPasswordChange = async () => {
 
   isUpdatingPassword.value = true;
   try {
-    const result = await authStore.updatePassword(
-      passwordForm.newPassword,
-      passwordForm.currentPassword
-    );
+    // token 登录宽限窗内不带当前密码（服务端 updatePassword 支持无 current 分支，
+    // 与 /reset-password 既有找回流程同一代码路径）。
+    const result = tokenLoginActive.value
+      ? await authStore.updatePassword(passwordForm.newPassword)
+      : await authStore.updatePassword(
+        passwordForm.newPassword,
+        passwordForm.currentPassword
+      );
 
     if (!result?.success) {
       passwordUpdateError.value = result?.message || '密码修改失败，请稍后重试。';

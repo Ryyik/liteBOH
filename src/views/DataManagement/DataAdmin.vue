@@ -4034,6 +4034,14 @@ const getRowActionModel = (item) => {
         ? { id: 'unmute', label: '解禁', tone: 'approve', title: '解除禁言', run: () => unmuteUser(item) }
         : { id: 'mute', label: '禁言', tone: 'reject', title: '禁言用户（禁止发言）', run: () => muteUser(item) }
     );
+    // 应急通道：为丢失邮箱/密码访问的用户签发一次性登录 token（服务端强制审计 + 限流）
+    if (currentTab.value === 'users' && !item.is_banned) {
+      menu.push({
+        id: 'issue-token', label: '签发登录token',
+        title: '为信任用户签发一次性登录 token（写入审计，token 直接进剪贴板）',
+        run: () => issueLoginToken(item)
+      });
+    }
   }
   if (relatedJumpsForItem(item).length) {
     menu.push({ id: 'related', label: '关联记录', run: () => openRelatedPanel(item) });
@@ -4294,6 +4302,7 @@ const {
   // 用户封禁/禁言
   banUser,
   unbanUser,
+  issueLoginToken,
   muteUser,
   unmuteUser,
   isMissingRpcFunctionError,
