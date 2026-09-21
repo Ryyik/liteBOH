@@ -41,7 +41,9 @@
     "security:headers:dry": "node scripts/cloudflare-security-headers.mjs --dry-run",
     "security:anon-check": "node scripts/check-anon-execute.mjs",
     "security:anon-check:update": "node scripts/check-anon-execute.mjs --update",
-    "build:ci": "npm run check:views && npm run check:structure && npm run check:liquid-glass && npm run check:important-budget && npm run check:dark-tokens && npm run check:first-paint && vite build && npm run check:shell-precache && bash scripts/check-bundle-size.sh"
+    "build:ci": "npm run check:views && npm run check:structure && npm run check:liquid-glass && npm run check:important-budget && npm run check:dark-tokens && npm run check:first-paint && vite build && npm run check:shell-precache && bash scripts/check-bundle-size.sh",
+    "security:setup": "node scripts/cloudflare-setup.mjs",
+    "security:setup:no-secret": "node scripts/cloudflare-setup.mjs --no-secret"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.1",
