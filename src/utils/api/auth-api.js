@@ -47,19 +47,18 @@ const isCaptchaVerificationFailure = (message = '') => {
  * 登录标识（方块 ID）→ 会话，全部在服务端完成。
  *
  * 为什么必须走 Edge Function：
- *   旧的 `resolve_email_for_login` RPC 会把邮箱**回传**给客户端，导致任何人（含未登录）
+ *   `resolve_email_for_login` RPC 会把邮箱**回传**给客户端，导致任何人（含未登录）
  *   都能用用户名反查邮箱。把「方块 ID → 邮箱 → 密码校验」整条链路放进
  *   `auth-login` EF（service_role 侧解析 auth.users.email），邮箱就不再离开服务端。
  *
- * 降级策略（部署顺序无关）：
- *   EF 尚未部署时 invoke 会得到 404 / 网络错误 → 返回 { unavailable: true }，
- *   调用方回落到旧的 RPC 路径，登录不会中断。
- *   ⚠️ EF 已部署并验证通过后，应连同 `resolve_email_for_login` 一起删除降级分支
- *      （见 LOGIN_LEGACY_RPC_FALLBACK 常量与 supabase 侧迁移）。
+ * 无降级（2026-09-21 收口）：
+ *   EF 已部署并验证通过，旧的 RPC 路径与降级开关已**彻底删除** —— 本文件不再出现
+ *   `resolve_email_for_login`（由 `tests/unit/auth-signin-edge-gateway.test.js` 的源码守卫断言）。
+ *   选择「宁可明确报错也不回落」的原因：回落到旧 RPC 等于把邮箱枚举面重新打开，
+ *   而这类回落只会在故障时静默发生 —— 安全性不能在故障路径上让步。
+ *   数据库侧的收权见 `supabase/migrations/2026092103_*.sql`。
  */
 const EDGE_FUNCTION_UNAVAILABLE_STATUSES = new Set([0, 404, 501]);
-
-export const LOGIN_LEGACY_RPC_FALLBACK = true;
 
 const invokeAuthLoginEdge = async (loginId, password) => {
   let response;
@@ -288,30 +287,19 @@ export async function signIn(loginId, password) {
     };
   }
 
-  let resolvedEmail = safeLoginId;
+  const resolvedEmail = safeLoginId;
 
-  // 方块 ID 登录：走 EF，邮箱不回传客户端
+  // 方块 ID 登录：只走 EF。邮箱不回传客户端，且**没有**降级路径
+  // （EF 不可用时明确报错，绝不静默回落 —— 回落会让邮箱枚举面复活）
   if (!safeLoginId.includes('@')) {
     const edge = await invokeAuthLoginEdge(safeLoginId, safePassword);
 
-    if (!edge.unavailable) {
-      const payload = edge.payload || {};
+    if (edge.unavailable) {
+      logger.warn('auth-api', 'auth-login EF 不可用', {
+        status: edge.status,
+        reason: edge.reason
+      });
 
-      if (payload.ok !== true) {
-        return {
-          ok: false,
-          data: null,
-          error: normalizeDbError({
-            code: payload.code || 'LOGIN_FAILED',
-            message: payload.message || '登录失败，请稍后再试。'
-          })
-        };
-      }
-
-      return adoptEdgeSession(payload);
-    }
-
-    if (!LOGIN_LEGACY_RPC_FALLBACK) {
       return {
         ok: false,
         data: null,
@@ -322,23 +310,20 @@ export async function signIn(loginId, password) {
       };
     }
 
-    logger.warn('auth-api', 'auth-login EF 不可用，降级到旧邮箱解析路径', {
-      status: edge.status,
-      reason: edge.reason
-    });
+    const payload = edge.payload || {};
 
-    const { data: rpcData, error: rpcError } = await supabase
-      .rpc('resolve_email_for_login', { p_username: safeLoginId });
-
-    if (rpcError || !rpcData) {
+    if (payload.ok !== true) {
       return {
         ok: false,
         data: null,
-        error: normalizeDbError({ code: 'INVALID_CREDENTIALS', message: '登录失败：账号或密码错误' })
+        error: normalizeDbError({
+          code: payload.code || 'LOGIN_FAILED',
+          message: payload.message || '登录失败，请稍后再试。'
+        })
       };
     }
 
-    resolvedEmail = String(rpcData || '').trim().toLowerCase();
+    return adoptEdgeSession(payload);
   }
 
   const { data, error } = await supabase.auth.signInWithPassword({

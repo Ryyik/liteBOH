@@ -9,12 +9,16 @@ const mocks = vi.hoisted(() => ({
   authUpdateUser: vi.fn(),
   authVerifyOtp: vi.fn(),
   authResetPasswordForEmail: vi.fn(),
+  authSetSession: vi.fn(),
+  invokeMock: vi.fn(),
   fromMock: vi.fn(),
   rpcMock: vi.fn(),
 }));
 
 vi.mock('../../src/utils/supabase-client.js', () => ({
   supabase: {
+    // 方块 ID 登录只走 auth-login Edge Function（降级路径已删除）
+    functions: { invoke: mocks.invokeMock },
     auth: {
       signUp: mocks.authSignUp,
       signInWithPassword: mocks.authSignInWithPassword,
@@ -24,6 +28,7 @@ vi.mock('../../src/utils/supabase-client.js', () => ({
       updateUser: mocks.authUpdateUser,
       verifyOtp: mocks.authVerifyOtp,
       resetPasswordForEmail: mocks.authResetPasswordForEmail,
+      setSession: mocks.authSetSession,
     },
     from: mocks.fromMock,
     rpc: mocks.rpcMock,
@@ -181,25 +186,40 @@ describe('auth-api integration: signIn', () => {
     });
   });
 
-  it('resolves username to email with profile lookup', async () => {
-    mocks.rpcMock.mockResolvedValue({ data: 'found@example.com', error: null });
-
-    mocks.authSignInWithPassword.mockResolvedValue({
-      data: { user: { id: 'u1' }, session: {} },
+  it('resolves username on the server via Edge Function, never calling the old RPC', async () => {
+    mocks.invokeMock.mockResolvedValue({
+      data: { ok: true, session: { access_token: 'at', refresh_token: 'rt' } },
+      error: null,
+    });
+    mocks.authSetSession.mockResolvedValue({
+      data: { user: { id: 'u1' }, session: { access_token: 'at', refresh_token: 'rt' } },
       error: null,
     });
 
     const result = await signIn('testuser', 'password123');
+
     expect(result.ok).toBe(true);
-    expect(mocks.rpcMock).toHaveBeenCalledWith('resolve_email_for_login', { p_username: 'testuser' });
+    expect(mocks.invokeMock).toHaveBeenCalledWith('auth-login', {
+      body: { loginId: 'testuser', password: 'password123' },
+    });
+    expect(mocks.rpcMock).not.toHaveBeenCalled();
   });
 
-  it('rejects unknown username', async () => {
-    mocks.rpcMock.mockResolvedValue({ data: null, error: null });
+  it('rejects unknown username reported by the Edge Function', async () => {
+    mocks.invokeMock.mockResolvedValue({
+      data: {
+        ok: false,
+        code: 'UNKNOWN_ACCOUNT',
+        message: '登录失败：未找到该方块 ID 对应的账号。',
+      },
+      error: null,
+    });
 
     const result = await signIn('unknown_user', 'password123');
+
     expect(result.ok).toBe(false);
-    expect(result.error.code).toBe('INVALID_CREDENTIALS');
+    expect(result.error.code).toBe('UNKNOWN_ACCOUNT');
+    expect(mocks.rpcMock).not.toHaveBeenCalled();
   });
 
   it('handles invalid credentials', async () => {

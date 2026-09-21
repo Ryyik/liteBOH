@@ -243,72 +243,60 @@ describe('signIn：方块 ID 登录走 EF，邮箱不再出服务端', () => {
   });
 });
 
-describe('signIn：EF 不可用时的窄降级（部署顺序无关）', () => {
-  it('EF 未部署（404）→ 降级到旧 RPC，登录仍能成功', async () => {
+describe('signIn：EF 不可用时明确报错（不再降级到旧 RPC）', () => {
+  it('EF 404 → 返回 LOGIN_GATEWAY_UNAVAILABLE，绝不调用 RPC', async () => {
     invokeMock.mockResolvedValue({ data: null, error: httpError(404, { message: 'Not Found' }) });
-    rpcMock.mockResolvedValue({ data: 'legacy@example.com', error: null });
-    signInWithPasswordMock.mockResolvedValue({
-      data: { user: { id: 'u1' }, session: { access_token: 'a', refresh_token: 'r' } },
-      error: null,
-    });
 
-    const result = await signIn('legacy_user', 'pw');
-
-    expect(rpcMock).toHaveBeenCalledWith('resolve_email_for_login', { p_username: 'legacy_user' });
-    expect(signInWithPasswordMock).toHaveBeenCalledWith({
-      email: 'legacy@example.com',
-      password: 'pw',
-    });
-    expect(result.ok).toBe(true);
-  });
-
-  it('invoke 抛异常（网络/relay 故障）→ 降级到旧 RPC', async () => {
-    invokeMock.mockRejectedValue(new Error('FunctionsFetchError: Failed to send a request'));
-    rpcMock.mockResolvedValue({ data: 'Legacy@Example.com', error: null });
-    signInWithPasswordMock.mockResolvedValue({ data: { session: { access_token: 'a' } }, error: null });
-
-    const result = await signIn('legacy_user', 'pw');
-
-    expect(rpcMock).toHaveBeenCalledTimes(1);
-    expect(signInWithPasswordMock).toHaveBeenCalledWith({
-      email: 'legacy@example.com',
-      password: 'pw',
-    });
-    expect(result.ok).toBe(true);
-  });
-
-  it('EF 501 → 视为不可用，降级', async () => {
-    invokeMock.mockResolvedValue({ data: null, error: httpError(501, { message: 'Not Implemented' }) });
-    rpcMock.mockResolvedValue({ data: 'legacy@example.com', error: null });
-    signInWithPasswordMock.mockResolvedValue({ data: { session: { access_token: 'a' } }, error: null });
-
-    await signIn('legacy_user', 'pw');
-
-    expect(rpcMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('降级路径下 RPC 找不到用户 → 返回统一的账号密码错误（不泄露账号是否存在）', async () => {
-    invokeMock.mockResolvedValue({ data: null, error: httpError(404, { message: 'Not Found' }) });
-    rpcMock.mockResolvedValue({ data: null, error: null });
-
-    const result = await signIn('ghost_user', 'pw');
+    const result = await signIn('some_user', 'pw');
 
     expect(result.ok).toBe(false);
-    expect(result.error.code).toBe('INVALID_CREDENTIALS');
-    expect(result.error.message).toBe('登录失败：账号或密码错误');
+    expect(result.error.code).toBe('LOGIN_GATEWAY_UNAVAILABLE');
+    expect(rpcMock).not.toHaveBeenCalled();
     expect(signInWithPasswordMock).not.toHaveBeenCalled();
   });
 
-  it('降级时会留下可观测告警（便于发现 EF 未部署）', async () => {
-    invokeMock.mockResolvedValue({ data: null, error: httpError(404, { message: 'Not Found' }) });
-    rpcMock.mockResolvedValue({ data: 'legacy@example.com', error: null });
-    signInWithPasswordMock.mockResolvedValue({ data: { session: { access_token: 'a' } }, error: null });
+  it('invoke 抛异常（网络/relay 故障）→ 同样明确报错，不回落', async () => {
+    invokeMock.mockRejectedValue(new Error('FunctionsFetchError: Failed to send a request'));
 
-    await signIn('legacy_user', 'pw');
+    const result = await signIn('some_user', 'pw');
+
+    expect(result.ok).toBe(false);
+    expect(result.error.code).toBe('LOGIN_GATEWAY_UNAVAILABLE');
+    expect(rpcMock).not.toHaveBeenCalled();
+    expect(signInWithPasswordMock).not.toHaveBeenCalled();
+  });
+
+  it('EF 501 → 视为不可用，明确报错', async () => {
+    invokeMock.mockResolvedValue({ data: null, error: httpError(501, { message: 'Not Implemented' }) });
+
+    const result = await signIn('some_user', 'pw');
+
+    expect(result.ok).toBe(false);
+    expect(result.error.code).toBe('LOGIN_GATEWAY_UNAVAILABLE');
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it('EF 5xx（非 0/404/501）→ 当作服务端拒绝原样上抛，也不回落', async () => {
+    invokeMock.mockResolvedValue({
+      data: null,
+      error: httpError(500, { message: 'Internal Server Error', code: 'EDGE_INTERNAL' }),
+    });
+
+    const result = await signIn('some_user', 'pw');
+
+    expect(result.ok).toBe(false);
+    expect(rpcMock).not.toHaveBeenCalled();
+    expect(signInWithPasswordMock).not.toHaveBeenCalled();
+  });
+
+  it('EF 不可用时留下可观测告警（便于发现 EF 掉线）', async () => {
+    invokeMock.mockResolvedValue({ data: null, error: httpError(404, { message: 'Not Found' }) });
+
+    await signIn('some_user', 'pw');
 
     expect(mockLogger.warn).toHaveBeenCalledWith(
       'auth-api',
-      'auth-login EF 不可用，降级到旧邮箱解析路径',
+      'auth-login EF 不可用',
       expect.objectContaining({ status: 404 })
     );
   });
@@ -378,22 +366,19 @@ describe('源码守卫：枚举入口已被移除', () => {
     expect(source).not.toContain('getEmailByUsername');
   });
 
-  it('resolve_email_for_login 只允许出现在降级分支里（在 invoke 之后）', async () => {
+  it('auth-api.js 中不再存在旧 RPC 调用点（降级路径已删除）', async () => {
     const source = await readFile('src/utils/api/auth-api.js', 'utf-8');
 
-    const invokeIndex = source.indexOf("functions.invoke('auth-login'");
-    const rpcIndex = source.indexOf("rpc('resolve_email_for_login'");
-
-    expect(invokeIndex).toBeGreaterThan(-1);
-    expect(rpcIndex).toBeGreaterThan(-1);
-    expect(rpcIndex).toBeGreaterThan(invokeIndex);
-    // 降级开关必须存在于源码中，且被显式判断
-    expect(source).toContain('LOGIN_LEGACY_RPC_FALLBACK');
+    // 断言「调用点」而非「字符串提及」：注释里保留删除原因说明是有价值的文档，
+    // 但绝不允许出现真正的调用
+    expect(source).not.toMatch(/\.rpc\(\s*['"]resolve_email_for_login/);
+    expect(source).not.toContain('LOGIN_LEGACY_RPC_FALLBACK');
   });
 
-  it('降级分支受开关保护：关闭开关时不会落到 RPC', async () => {
+  it('仍然保留 EF 不可用时的明确失败出口（而非静默降级）', async () => {
     const source = await readFile('src/utils/api/auth-api.js', 'utf-8');
-    expect(source).toMatch(/if \(!LOGIN_LEGACY_RPC_FALLBACK\)/);
+
+    expect(source).toContain("functions.invoke('auth-login'");
     expect(source).toContain('LOGIN_GATEWAY_UNAVAILABLE');
   });
 });
