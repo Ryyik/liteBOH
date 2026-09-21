@@ -37,6 +37,14 @@ const mockSupabase = {
   removeChannel: vi.fn()
 };
 
+// passkey 登录相关（store 经 loadAuthApi 解构使用，mock 必须齐备）
+const mockSignInWithPasskey = vi.fn();
+const mockToPasskeyLoginMessage = vi.fn((error) => {
+  const name = String(error?.name || '');
+  if (name === 'NotAllowedError') return '这台设备还没有本站的通行密钥，或验证未完成。请先用密码登录，然后在 设置 → 账户安全 中添加通行密钥。';
+  return error?.message || '通行密钥登录失败，请使用密码登录。';
+});
+
 vi.mock('@/utils/auth.js', () => ({
   supabase: mockSupabase,
   signIn: vi.fn(),
@@ -50,7 +58,9 @@ vi.mock('@/utils/auth.js', () => ({
   getUserNotifications: vi.fn(),
   getUnreadNotificationCount: vi.fn(),
   subscribeToNotifications: vi.fn(),
-  invalidateByTags: vi.fn()
+  invalidateByTags: vi.fn(),
+  signInWithPasskey: mockSignInWithPasskey,
+  toPasskeyLoginMessage: mockToPasskeyLoginMessage
 }));
 
 // Mock notification store
@@ -608,5 +618,100 @@ describe('auth store', () => {
       store.showLoginModal = true;
       expect(store.showLoginModal).toBe(true);
     });
+  });
+});
+// ============================================================
+// loginWithPasskey（通行密钥登录）—— 行为级测试
+// 关键不变量：成功路径必须经过 updateLocalState + checkBanAfterSignIn，
+// 封禁用户拿到的 passkey 会话必须被立即登出（防早退绕过）。
+// ============================================================
+
+const PASSKEY_USER = {
+  id: 'user-123',
+  email: 'test@example.com',
+  user_metadata: { username: 'TestUser' }
+};
+
+// 按查询形态路由：资料加载走 .maybeSingle()，封禁检查走 .single()。
+// 不用 mockReturnValueOnce 顺序槽位 —— updateLocalState 内部还有其他 from() 查询，
+// 顺序对位会被吃掉导致封禁检查落到空链（false 阴性）。
+function installProfileRouting({ banned, banReason = null, bannedUntil = null }) {
+  mockSupabase.from.mockImplementation(() => ({
+    select: vi.fn(() => ({
+      eq: vi.fn(() => ({
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: { id: 'user-123', username: 'TestUser', role: 'user' },
+          error: null
+        }),
+        single: vi.fn().mockResolvedValue({
+          data: { is_banned: banned, ban_reason: banReason, banned_until: bannedUntil },
+          error: null
+        })
+      }))
+    }))
+  }));
+}
+
+describe('auth store: loginWithPasskey', () => {
+  let store;
+
+  beforeEach(async () => {
+    // mockReset（而非 clearAllMocks）：清掉早前测试遗留的 from() once 队列，
+    // 否则旧队列会被本组用例的查询先消费，封禁检查拿到陈旧链路（false 阴性）。
+    mockSupabase.from.mockReset();
+    // 同理：logout 用例给 signOut 装过 mockRejectedValue('Network error')，
+    // 其实现会穿透到本组（clearAllMocks 不清实现），必须显式复位为成功。
+    const authApi = await import('@/utils/auth.js');
+    authApi.signOut.mockReset();
+    authApi.signOut.mockResolvedValue({ error: null });
+    store = createStore();
+  });
+
+  it('成功路径：采纳会话 → 通过封禁检查 → 不登出', async () => {
+    const authApi = await import('@/utils/auth.js');
+    mockSignInWithPasskey.mockResolvedValue({
+      data: { session: { user: PASSKEY_USER }, user: PASSKEY_USER },
+      error: null
+    });
+    installProfileRouting({ banned: false });
+
+    const result = await store.loginWithPasskey();
+
+    expect(result.success).toBe(true);
+    expect(store.isLoggedIn).toBe(true);
+    expect(mockSupabase.auth.signOut).not.toHaveBeenCalled();
+    expect(authApi.signOut).not.toHaveBeenCalled();
+  });
+
+  it('封禁用户：passkey 会话被立即登出并返回 USER_BANNED', async () => {
+    const authApi = await import('@/utils/auth.js');
+    mockSignInWithPasskey.mockResolvedValue({
+      data: { session: { user: PASSKEY_USER }, user: PASSKEY_USER },
+      error: null
+    });
+    installProfileRouting({ banned: true, banReason: '刷屏', bannedUntil: null });
+
+    const result = await store.loginWithPasskey();
+
+    expect(result.success).toBe(false);
+    expect(result.code).toBe('USER_BANNED');
+    expect(result.message).toContain('刷屏');
+    expect(authApi.signOut).toHaveBeenCalledTimes(1);
+    expect(store.isLoggedIn).toBe(false);
+  });
+
+  it('浏览器失败（NotAllowedError）→ 首次使用引导文案，不建立会话', async () => {
+    mockSignInWithPasskey.mockResolvedValue({
+      data: null,
+      error: { name: 'NotAllowedError', message: 'The operation either timed out or was not allowed.' }
+    });
+
+    const result = await store.loginWithPasskey();
+
+    expect(result.success).toBe(false);
+    expect(result.code).toBe('PASSKEY_LOGIN_FAILED');
+    expect(result.message).toContain('账户安全');
+    expect(store.isLoggedIn).toBe(false);
+    expect(mockToPasskeyLoginMessage).toHaveBeenCalled();
   });
 });

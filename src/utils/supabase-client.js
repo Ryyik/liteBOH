@@ -111,7 +111,12 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
     detectSessionInUrl: true,
     storage: authStorage,
     lock: appProcessLock,
-    lockAcquireTimeout: 15000
+    lockAcquireTimeout: 15000,
+    // 通行密钥（Passkey/WebAuthn）：线上 GoTrue 已开启 passkeys（rp_id=blockofhome.cn）。
+    // 开启后 supabase-js 暴露 auth.signInWithPasskey / auth.registerPasskey / auth.passkey.*。
+    experimental: {
+      passkey: true
+    }
   },
   db: {
     schema: 'public'

@@ -10,7 +10,9 @@ import DOMPurify from '@/utils/dompurify.js'; // 修复：添加 DOMPurify 防�
 import { getLoginDeviceIdHash } from '@/utils/device-trust.js';
 import { getAltchaChallengeUrl, isAltchaEnabled } from '@/utils/altcha.js';
 import { getImageUrl } from '@/utils/asset-helper.js';
+import { isPasskeySupported } from '@/utils/api/auth-api.js';
 import { logger } from '@/utils/logger.js';
+import { Fingerprint } from 'lucide-vue-next';
 import {
   normalizeLoginId,
   validateEmail,
@@ -70,6 +72,12 @@ let mobileClosingTimer = null;
 const loginButtonDisabled = computed(() => {
   return isSubmitting.value || !loginForm.agreedToTerms;
 });
+
+// 通行密钥（指纹/面容）登录入口：能力检测驱动 —— 支持的浏览器才显示，
+// 微信/QQ 内置浏览器（无 WebAuthn）整按钮隐藏而非置灰，避免「点了报错」。
+const passkeySupported = ref(false);
+const isPasskeySubmitting = ref(false);
+const passkeyError = ref('');
 
 // 协议弹窗状态
 const showAgreementModal = ref(false);
@@ -237,6 +245,21 @@ const finishLoginSuccess = () => {
   }
 };
 
+// 令牌登录成功：会话已由面板建立（面板 emit('success')），收尾统一在此处理 ——
+// 弹窗模式走与 finishLoginSuccess 同款链路（emit success + handleClose，后者
+// emit('close') → App 层置 showLoginModal=false 关闭弹窗并复位表单）；
+// 复位令牌面板开关；两种模式都导航到 /reset-password 引导设置新密码
+// （15 分钟宽限窗内免当前密码）。
+// ⚠️ 弹窗的关闭链路在父级（showLoginModal 挂在 App），面板自己关不掉它。
+const handleTokenLoginSuccess = () => {
+  tokenPanelOpen.value = false;
+  if (props.isModal) {
+    emit('success');
+    handleClose();
+  }
+  void router.replace('/reset-password');
+};
+
 const showMobileSuccess = () => {
   // Login is a frequent, functional action: acknowledge it with a quiet
   // success state, then return along the same path to the account island.
@@ -384,11 +407,40 @@ const handleRegister = () => {
   router.push('/join');
 };
 
+// 通行密钥登录：WebAuthn 仪式由 supabase-js 托管（无需输入用户名），
+// 成功后的会话采纳与封禁检查在 store 内与密码登录走同一条链。
+// 失败文案由 toPasskeyLoginMessage 统一给出 —— 首次使用会引导到 设置→账户安全 注册。
+const handlePasskeyLogin = async () => {
+  if (isPasskeySubmitting.value) return;
+  isPasskeySubmitting.value = true;
+  authError.value = '';
+  passkeyError.value = '';
+
+  try {
+    const result = await authStore.loginWithPasskey();
+    if (result.success) {
+      localStorage.setItem(REMEMBER_ME_STORAGE_KEY, '1');
+      showMobileSuccess();
+    } else {
+      passkeyError.value = result.message || '通行密钥登录失败，请使用密码登录。';
+    }
+  } catch (error) {
+    logger.error('login', 'Passkey login failed', error);
+    passkeyError.value = '通行密钥登录失败，请使用密码登录。';
+  } finally {
+    isPasskeySubmitting.value = false;
+  }
+};
+
 onMounted(() => {
   const rememberedFlag = localStorage.getItem(REMEMBER_ME_STORAGE_KEY);
   if (rememberedFlag === '1' || rememberedFlag === '0') {
     loginForm.rememberMe = rememberedFlag === '1';
   }
+
+  void isPasskeySupported().then((supported) => {
+    passkeySupported.value = supported;
+  });
 
   const rememberedEmail = localStorage.getItem('boh_remember_email');
   if (rememberedEmail && loginForm.rememberMe) {
@@ -583,9 +635,16 @@ onUnmounted(() => {
           <button type="submit" class="boh-login-btn" :disabled="loginButtonDisabled">
             {{ isSubmitting ? '登录中...' : '登录' }}
           </button>
+
+          <button v-if="passkeySupported" type="button" class="boh-passkey-btn"
+            :disabled="isPasskeySubmitting || isSubmitting" @click="handlePasskeyLogin">
+            <Fingerprint :size="16" :stroke-width="2" aria-hidden="true" />
+            <span>{{ isPasskeySubmitting ? '正在验证…' : '指纹 / 面容一键登录' }}</span>
+          </button>
+          <p v-if="passkeyError" class="boh-passkey-error">{{ passkeyError }}</p>
         </form>
 
-        <TokenLoginPanel v-if="tokenPanelOpen" />
+        <TokenLoginPanel v-if="tokenPanelOpen" @success="handleTokenLoginSuccess" />
       </div>
     </template>
 
@@ -709,9 +768,16 @@ onUnmounted(() => {
               <button type="submit" class="boh-login-btn" :disabled="loginButtonDisabled">
                 {{ isSubmitting ? '登录中...' : '登录' }}
               </button>
+
+              <button v-if="passkeySupported" type="button" class="boh-passkey-btn"
+                :disabled="isPasskeySubmitting || isSubmitting" @click="handlePasskeyLogin">
+                <Fingerprint :size="16" :stroke-width="2" aria-hidden="true" />
+                <span>{{ isPasskeySubmitting ? '正在验证…' : '指纹 / 面容一键登录' }}</span>
+              </button>
+              <p v-if="passkeyError" class="boh-passkey-error">{{ passkeyError }}</p>
             </form>
 
-            <TokenLoginPanel v-if="tokenPanelOpen" />
+            <TokenLoginPanel v-if="tokenPanelOpen" @success="handleTokenLoginSuccess" />
 
             <div class="login-footer">
               <p>还没有账号? <a href="/join" @click.prevent="handleRegister">立即注册</a></p>
@@ -1113,6 +1179,45 @@ onUnmounted(() => {
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
+}
+
+/* 通行密钥（指纹/面容）次要入口 —— 两套布局共用，能力检测通过才渲染 */
+.boh-passkey-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px;
+  margin-top: 10px;
+  background: rgba(0, 113, 227, 0.06);
+  border: 1px solid rgba(0, 113, 227, 0.35);
+  border-radius: 99px;
+  color: #0071e3;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.boh-passkey-btn:hover:not(:disabled) {
+  background: rgba(0, 113, 227, 0.12);
+}
+
+.boh-passkey-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.boh-passkey-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.boh-passkey-error {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #ff453a;
 }
 
 /* 页面模式下的表单链接 */
@@ -2049,31 +2154,32 @@ onUnmounted(() => {
     margin: 30px auto 0;
   }
 
+  /* 收起动画：纯 transform/opacity 合成器动画。
+     旧实现把 inset/width/height 直接切到岛屿尺寸 —— 这些属性不在容器的
+     transition-property 里，等于单帧瞬跳（竖屏“卡一下”的来源）；再叠加
+     容器与成功浮层两层层叠的 backdrop-filter，transform 期间逐帧重算模糊。
+     现改为：整卡以顶部岛屿中心（50%, 84px ≈ 12px 偏移 + 72px 半高）为 origin
+     做非等比 scale + 上移 + 渐隐，无布局属性参与；动画期间关闭两层
+     backdrop-filter（两层背景本就接近不透明白，视觉几乎无差）。 */
   .mobile-login-closing .boh-login-modal-container,
   .mobile-login-closing .login-split-container {
-    inset: calc(12px + env(safe-area-inset-top)) auto auto 50%;
-    width: min(310px, calc(100% - 32px));
-    height: 144px;
-    min-height: 144px;
-    padding: 18px 16px 14px;
-    border-radius: 26px;
-    transform: translateX(-50%) scale(0.98);
+    transform-origin: 50% 84px;
+    transform: translateY(-3vh) scale(0.82, 0.16);
+    border-radius: 64px;
+    opacity: 0;
+    pointer-events: none;
     overflow: hidden;
-    transition-duration: 760ms;
-  }
-
-  .boh-login-modal-overlay.mobile-login-closing .boh-login-modal-container,
-  .login-page.mobile-login-closing .login-split-container {
-    /* The compact state is positioned with left: 50%; retain its centering
-       transform during the exit so the logo cannot drift to the right. */
-    transform: translateX(-50%) scale(0.32) translateY(-42vh);
-    border-radius: 30px;
-    opacity: 0.92;
+    will-change: transform, opacity;
+    transition: transform 680ms cubic-bezier(0.32, 0.72, 0.28, 1), opacity 420ms ease 260ms;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   .mobile-login-closing .mobile-success-state {
     opacity: 0;
-    transition: opacity 180ms ease;
+    transition: opacity 260ms ease;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   /* 初始竖屏状态：品牌主视觉占屏，操作固定在底部 */

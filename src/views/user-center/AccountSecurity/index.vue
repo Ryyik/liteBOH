@@ -41,6 +41,19 @@
                 </span>
               </button>
 
+              <button v-if="passkeySupported" type="button" class="gs-row" @click="openPasskeyPanel">
+                <span class="gs-icon is-blue">
+                  <Fingerprint :size="16" :stroke-width="2" aria-hidden="true" />
+                </span>
+                <span class="gs-text">
+                  <span class="gs-label">通行密钥</span>
+                  <span class="gs-desc">用指纹 / 面容在本设备上快速登录，免输密码</span>
+                </span>
+                <span class="gs-side">
+                  <ChevronRight class="gs-chevron" :size="16" :stroke-width="2" aria-hidden="true" />
+                </span>
+              </button>
+
               <button type="button" class="gs-row" @click="openDeleteAccountPanel">
                 <span class="gs-icon is-red">
                   <TriangleAlert :size="16" :stroke-width="2" aria-hidden="true" />
@@ -131,6 +144,74 @@
                   {{ isUpdatingPassword ? '修改中...' : '确认修改密码' }}
                 </button>
               </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- 通行密钥 -->
+        <div v-else-if="activePanel === 'passkey'" key="passkey" class="glass-settings">
+          <section class="gs-group">
+            <div class="gs-rows">
+              <div class="gs-row is-static">
+                <span class="gs-icon is-blue">
+                  <Fingerprint :size="16" :stroke-width="2" aria-hidden="true" />
+                </span>
+                <span class="gs-text">
+                  <span class="gs-label">通行密钥</span>
+                  <span class="gs-desc">绑定在这台设备上，登录时用指纹 / 面容代替密码。凭据不会离开设备。</span>
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <section class="gs-group">
+            <div class="gs-group-title">已注册的通行密钥</div>
+            <div class="gs-rows">
+              <div v-if="isLoadingPasskeys" class="gs-row is-static">
+                <span class="gs-text"><span class="gs-desc">加载中...</span></span>
+              </div>
+              <div v-else-if="passkeyListError" class="gs-row is-static">
+                <span class="gs-text"><span class="gs-desc">{{ passkeyListError }}</span></span>
+              </div>
+              <div v-else-if="passkeyList.length === 0" class="gs-row is-static">
+                <span class="gs-text">
+                  <span class="gs-label">还没有注册通行密钥</span>
+                  <span class="gs-desc">点击下方按钮添加，之后登录本站可直接用指纹 / 面容</span>
+                </span>
+              </div>
+              <div v-for="item in passkeyList" :key="item.id" class="gs-row is-static">
+                <span class="gs-icon is-blue">
+                  <Fingerprint :size="16" :stroke-width="2" aria-hidden="true" />
+                </span>
+                <span class="gs-text">
+                  <span class="gs-label">{{ item.friendly_name || '本机设备' }}</span>
+                  <span class="gs-desc">添加于 {{ formatPasskeyDate(item.created_at) }}</span>
+                </span>
+                <span class="gs-side">
+                  <button type="button" class="gs-btn ghost" :disabled="isDeletingPasskey"
+                    @click="removePasskey(item)">
+                    {{ pendingDeletePasskeyId === item.id ? '确认删除' : '删除' }}
+                  </button>
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <div v-if="passkeyError" class="gs-banner error">
+            <AlertCircle :size="16" :stroke-width="2" aria-hidden="true" />
+            <span>{{ passkeyError }}</span>
+          </div>
+          <div v-if="passkeySuccess" class="gs-banner success">
+            <CheckCircle2 :size="16" :stroke-width="2" aria-hidden="true" />
+            <span>{{ passkeySuccess }}</span>
+          </div>
+
+          <section class="gs-group">
+            <div class="gs-actions sec-actions">
+              <button class="gs-btn ghost" @click="backToMenu">返回</button>
+              <button class="gs-btn primary" :disabled="isRegisteringPasskey" @click="addPasskey">
+                {{ isRegisteringPasskey ? '请在设备上完成验证…' : '添加通行密钥' }}
+              </button>
             </div>
           </section>
         </div>
@@ -229,12 +310,19 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import { AlertCircle, CheckCircle2, ChevronRight, Info, KeyRound, Keyboard, Lock, Mail, ShieldCheck, TriangleAlert } from 'lucide-vue-next';
+import { AlertCircle, CheckCircle2, ChevronRight, Fingerprint, Info, KeyRound, Keyboard, Lock, Mail, ShieldCheck, TriangleAlert } from 'lucide-vue-next';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/utils/supabase-client.js';
 import { isRecentTokenLogin } from '@/utils/recovery-access.js';
+import {
+  isPasskeySupported,
+  registerPasskey,
+  listPasskeys,
+  deletePasskey,
+  toPasskeyRegisterMessage
+} from '@/utils/api/auth-api.js';
 import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';
 import { logger } from '@/utils/logger.js';
 
@@ -270,6 +358,113 @@ const refreshTokenLoginState = async () => {
   } catch (error) {
     logger.warn('account-security', '读取会话判定 token 登录态失败:', error);
     tokenLoginActive.value = false;
+  }
+};
+
+// ---- 通行密钥（Passkey / WebAuthn）管理 ----
+// 能力检测通过才在菜单里出现；注册/列表/删除走 supabase-js 的 passkey API，
+// 凭据私钥留在设备（iCloud 钥匙串 / Google 密码管理器 / 平台安全芯片），服务端只存公钥。
+const passkeySupported = ref(false);
+const passkeyList = ref([]);
+const isLoadingPasskeys = ref(false);
+const passkeyListError = ref('');
+const isRegisteringPasskey = ref(false);
+const isDeletingPasskey = ref(false);
+const passkeyError = ref('');
+const passkeySuccess = ref('');
+const pendingDeletePasskeyId = ref('');
+let pendingDeletePasskeyTimer = null;
+
+const formatPasskeyDate = (value) => {
+  try {
+    return new Date(value).toLocaleDateString('zh-CN');
+  } catch {
+    return String(value || '');
+  }
+};
+
+const refreshPasskeyList = async () => {
+  isLoadingPasskeys.value = true;
+  passkeyListError.value = '';
+  try {
+    const { data, error } = await listPasskeys();
+    if (error) {
+      passkeyListError.value = error.message || '通行密钥列表读取失败。';
+      passkeyList.value = [];
+    } else {
+      passkeyList.value = Array.isArray(data) ? data : [];
+    }
+  } catch (error) {
+    logger.warn('account-security', '通行密钥列表读取失败:', error);
+    passkeyListError.value = '通行密钥列表读取失败，请稍后再试。';
+  } finally {
+    isLoadingPasskeys.value = false;
+  }
+};
+
+const openPasskeyPanel = () => {
+  passkeyError.value = '';
+  passkeySuccess.value = '';
+  pendingDeletePasskeyId.value = '';
+  activePanel.value = 'passkey';
+  void refreshPasskeyList();
+};
+
+const addPasskey = async () => {
+  if (isRegisteringPasskey.value) return;
+  isRegisteringPasskey.value = true;
+  passkeyError.value = '';
+  passkeySuccess.value = '';
+  try {
+    const { error } = await registerPasskey();
+    if (error) {
+      passkeyError.value = toPasskeyRegisterMessage(error);
+    } else {
+      passkeySuccess.value = '通行密钥已添加，下次登录可直接使用指纹 / 面容。';
+      await refreshPasskeyList();
+    }
+  } catch (error) {
+    logger.warn('account-security', '通行密钥注册失败:', error);
+    passkeyError.value = '通行密钥注册失败，请稍后再试。';
+  } finally {
+    isRegisteringPasskey.value = false;
+  }
+};
+
+// 删除是破坏性操作但影响小（可重新注册）：两次点击确认，3 秒内不确认自动复位。
+const removePasskey = async (item) => {
+  if (isDeletingPasskey.value) return;
+  if (pendingDeletePasskeyId.value !== item.id) {
+    pendingDeletePasskeyId.value = item.id;
+    if (pendingDeletePasskeyTimer) window.clearTimeout(pendingDeletePasskeyTimer);
+    pendingDeletePasskeyTimer = window.setTimeout(() => {
+      pendingDeletePasskeyId.value = '';
+      pendingDeletePasskeyTimer = null;
+    }, 3000);
+    return;
+  }
+
+  isDeletingPasskey.value = true;
+  passkeyError.value = '';
+  passkeySuccess.value = '';
+  pendingDeletePasskeyId.value = '';
+  if (pendingDeletePasskeyTimer) {
+    window.clearTimeout(pendingDeletePasskeyTimer);
+    pendingDeletePasskeyTimer = null;
+  }
+  try {
+    const { error } = await deletePasskey(item.id);
+    if (error) {
+      passkeyError.value = error.message || '删除失败，请稍后再试。';
+    } else {
+      passkeySuccess.value = '通行密钥已删除。';
+      await refreshPasskeyList();
+    }
+  } catch (error) {
+    logger.warn('account-security', '通行密钥删除失败:', error);
+    passkeyError.value = '删除失败，请稍后再试。';
+  } finally {
+    isDeletingPasskey.value = false;
   }
 };
 
@@ -466,6 +661,10 @@ onMounted(async () => {
     authStore.showLoginModal = true;
     return;
   }
+
+  void isPasskeySupported().then((supported) => {
+    passkeySupported.value = supported;
+  });
 
   activePanel.value = 'menu';
   resetPasswordForm();

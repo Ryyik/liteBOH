@@ -61,6 +61,19 @@ export function getProfilesPage(params?: { page?: number; limit?: number }): Pro
 
 export function getUserInfo(userId: string): Promise<AuthApiResult>
 
+// --- Passkey API（supabase-js ≥2.105 experimental） ---
+export function isPasskeySupported(): Promise<boolean>
+export function signInWithPasskey(): Promise<{
+  data: { session?: Record<string, unknown> | null; user?: Record<string, unknown> | null } | null
+  error: AuthApiError | null
+}>
+export function registerPasskey(): Promise<{ data: unknown; error: AuthApiError | null }>
+export function listPasskeys(): Promise<{ data: Array<{ id: string; friendly_name?: string; created_at: string }>; error: AuthApiError | null }>
+export function deletePasskey(passkeyId: string): Promise<{ error: AuthApiError | null }>
+export function renamePasskey(passkeyId: string, friendlyName: string): Promise<{ error: AuthApiError | null }>
+export function toPasskeyLoginMessage(error: unknown): string
+export function toPasskeyRegisterMessage(error: unknown): string
+
 // --- Forum API ---
 export function getPosts(params?: Record<string, unknown>): Promise<AuthApiResult>
 export function getPostsCount(params?: Record<string, unknown>): Promise<AuthApiResult>

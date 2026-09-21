@@ -231,11 +231,25 @@ describe('Login：token 登录入口（源码守卫）', () => {
     }
   });
 
-  it('面板复用 verifyPasswordRecovery，成功后引导到重置页设新密码', async () => {
-    const code = strip(await readFile(PANEL_VIEW, 'utf-8'));
-    expect(code).toMatch(/verifyPasswordRecovery\(tokenHash\)/);
-    expect(code).toMatch(/router\.replace\('\/reset-password'\)/);
-    expect(code).toMatch(/autocomplete="one-time-code"/);
+  it('面板复用 verifyPasswordRecovery；导航收尾在父级（面板 emit success）', async () => {
+    const panel = strip(await readFile(PANEL_VIEW, 'utf-8'));
+    expect(panel).toMatch(/verifyPasswordRecovery\(tokenHash\)/);
+    expect(panel).toMatch(/autocomplete="one-time-code"/);
+    // 面板自己不做路由跳转 —— 弹窗关闭链路（showLoginModal）在父级，
+    // 由 @success 统一收尾后导航到 /reset-password。
+    expect(panel).toMatch(/emit\('success'\)/);
+    const login = strip(await readFile(LOGIN_VIEW, 'utf-8'));
+    expect((login.match(/@success="handleTokenLoginSuccess"/g) || []).length).toBe(2);
+    expect(login).toMatch(/router\.replace\('\/reset-password'\)/);
+  });
+
+  it('父级 handler 必须调用 handleClose —— 否则弹窗盖在重置页上不消失（回归守卫）', async () => {
+    const login = strip(await readFile(LOGIN_VIEW, 'utf-8'));
+    const handler = fnBody(login, 'handleTokenLoginSuccess');
+    expect(handler).not.toBe('');
+    expect(handler).toMatch(/handleClose\(\)/);
+    expect(handler).toMatch(/tokenPanelOpen\.value = false/);
+    expect(handler).toMatch(/props\.isModal/);
   });
 
   it('面板有一键粘贴按钮：只填充不自动验证（令牌一次性，误触不烧凭证）', async () => {

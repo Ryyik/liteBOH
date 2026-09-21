@@ -18,7 +18,15 @@ export {
   getCurrentUser,
   getAllProfiles,
   getProfilesPage,
-  getUserInfo
+  getUserInfo,
+  isPasskeySupported,
+  signInWithPasskey,
+  registerPasskey,
+  listPasskeys,
+  deletePasskey,
+  renamePasskey,
+  toPasskeyLoginMessage,
+  toPasskeyRegisterMessage
 } from './api/auth-api.js';
 
 export {

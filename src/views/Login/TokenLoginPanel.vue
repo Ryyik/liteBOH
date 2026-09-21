@@ -1,16 +1,15 @@
 <script setup>
 import { ref } from 'vue';
-import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { readClipboardText } from '@/utils/recovery-access.js';
 
 // 登录页的一次性令牌登录面板（管理员代发通道的入口）。
 //
 // 与 /reset-password 页共用同一验证路径：verifyOtp({ type:'recovery', token_hash })。
-// 验证成功后跳转 /reset-password —— 该页检测到已有会话会直接显示密码表单，
-// 引导用户顺手设置新密码（也可「暂不修改，直接进入」）。令牌本身即定位用户，
-// 无需邮箱参与。
-const router = useRouter();
+// 验证成功后 emit('success')，由父组件（Login）收尾 —— 关闭弹窗/复位表单由父级
+// 统一处理（弹窗的关闭链路是 @close → showLoginModal=false，面板自己无法关闭它），
+// 然后父级导航到 /reset-password 引导设置新密码。令牌本身即定位用户，无需邮箱参与。
+const emit = defineEmits(['success']);
 const authStore = useAuthStore();
 
 const token = ref('');
@@ -35,7 +34,7 @@ const submitToken = async () => {
       return;
     }
     token.value = '';
-    await router.replace('/reset-password');
+    emit('success');
   } catch (error) {
     errorMessage.value = error?.message || '验证令牌失败，请稍后重试。';
   } finally {

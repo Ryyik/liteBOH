@@ -706,12 +706,64 @@ const PROFILE_SELECT_COLUMNS = `
     }
   };
 
+  /**
+   * 登录后的封禁检查（login / loginWithPasskey 共用）：
+   * 永久封禁或临时封禁未过期 → 立即登出并返回封禁文案；检查失败不阻止登录。
+   */
+  const checkBanAfterSignIn = async (): Promise<{ banned: boolean; message: string }> => {
+    const userId = userInfo.id;
+    if (!userId) return { banned: false, message: '' };
+    try {
+      const { supabase } = await loadAuthApi();
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('is_banned, ban_reason, banned_until')
+        .eq('id', userId)
+        .single();
+
+      if (profileError || profile?.is_banned !== true) {
+        return { banned: false, message: '' };
+      }
+
+      // 判断封禁是否有效：永久封禁或临时封禁未过期
+      const isPermanentBan = !profile.banned_until;
+      const isTempBanActive = profile.banned_until && new Date(profile.banned_until) > new Date();
+
+      if (!isPermanentBan && !isTempBanActive) {
+        // 临时封禁已过期，允许登录（后续会由cleanup函数清理数据库状态）
+        return { banned: false, message: '' };
+      }
+
+      // 用户确实被封禁（永久或临时封禁未过期），立即退出
+      const { signOut } = await loadAuthApi();
+      await signOut();
+      await resetState();
+
+      let banMessage = '您的账号已被封禁，无法登录。';
+      if (profile.ban_reason) {
+        banMessage += ` 原因：${profile.ban_reason}`;
+      }
+      if (profile.banned_until) {
+        const expiryDate = new Date(profile.banned_until);
+        banMessage += ` 解封时间：${expiryDate.toLocaleDateString('zh-CN')}`;
+      } else {
+        banMessage += '（永久封禁）';
+      }
+
+      return { banned: true, message: banMessage };
+    } catch (banCheckError) {
+      logger.warn('auth-store', '检查封禁状态失败', banCheckError);
+      // 封禁检查失败不阻止登录，继续流程
+      return { banned: false, message: '' };
+    }
+  };
+
   const login = async (
     loginId: string,
     password: string,
     rememberMe = false
   ): Promise<LoginResult> => {
-    const { signIn: loginWithEdgeGateway, supabase } = await loadAuthApi();
+    const { signIn: loginWithEdgeGateway } = await loadAuthApi();
     const normalizedLoginId = String(loginId || '').trim();
     if (!normalizedLoginId) {
       return { success: false, message: '登录失败：请输入方块 ID 或邮箱地址。' };
@@ -740,50 +792,37 @@ const PROFILE_SELECT_COLUMNS = `
     const authUser = data?.user || data?.session?.user || null;
     await updateLocalState(authUser, { force: true });
 
-    // 检查用户封禁状态
-    const userId = userInfo.id;
-    if (userId) {
-      try {
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('is_banned, ban_reason, banned_until')
-          .eq('id', userId)
-          .single();
+    const ban = await checkBanAfterSignIn();
+    if (ban.banned) {
+      return { success: false, message: ban.message, code: 'USER_BANNED' };
+    }
 
-        if (!profileError && profile?.is_banned === true) {
-          // 判断封禁是否有效：永久封禁或临时封禁未过期
-          const isPermanentBan = !profile.banned_until;
-          const isTempBanActive = profile.banned_until && new Date(profile.banned_until) > new Date();
+    return { success: true, message: '登录成功' };
+  };
 
-          if (isPermanentBan || isTempBanActive) {
-            // 用户确实被封禁（永久或临时封禁未过期），立即退出并返回错误
-            const { signOut } = await loadAuthApi();
-            await signOut();
-            await resetState();
+  /**
+   * 通行密钥（指纹/面容）登录：supabase-js 托管完整 WebAuthn 仪式，成功即得 session。
+   * 会话采纳、本地状态与封禁检查与密码登录（login）完全一致 —— 封禁用户拿到
+   * passkey 会话也会在这里被立即登出（服务端 RLS 写保护是第二道兜底）。
+   */
+  const loginWithPasskey = async (): Promise<LoginResult> => {
+    const { signInWithPasskey, toPasskeyLoginMessage } = await loadAuthApi();
+    const { data, error } = await signInWithPasskey();
 
-            let banMessage = '您的账号已被封禁，无法登录。';
-            if (profile.ban_reason) {
-              banMessage += ` 原因：${profile.ban_reason}`;
-            }
-            if (profile.banned_until) {
-              const expiryDate = new Date(profile.banned_until);
-              banMessage += ` 解封时间：${expiryDate.toLocaleDateString('zh-CN')}`;
-            } else {
-              banMessage += '（永久封禁）';
-            }
+    if (error) {
+      return {
+        success: false,
+        message: toPasskeyLoginMessage(error),
+        code: 'PASSKEY_LOGIN_FAILED',
+      };
+    }
 
-            return {
-              success: false,
-              message: banMessage,
-              code: 'USER_BANNED',
-            };
-          }
-          // 临时封禁已过期，允许登录（后续会由cleanup函数清理数据库状态）
-        }
-      } catch (banCheckError) {
-        logger.warn('auth-store', '检查封禁状态失败', banCheckError);
-        // 封禁检查失败不阻止登录，继续流程
-      }
+    const authUser = data?.user || data?.session?.user || null;
+    await updateLocalState(authUser, { force: true });
+
+    const ban = await checkBanAfterSignIn();
+    if (ban.banned) {
+      return { success: false, message: ban.message, code: 'USER_BANNED' };
     }
 
     return { success: true, message: '登录成功' };
@@ -1117,6 +1156,7 @@ const PROFILE_SELECT_COLUMNS = `
     isRefreshingToken,
     updateLocalState,
     login,
+    loginWithPasskey,
     loginWithOAuth,
     resetPassword,
     verifyPasswordRecovery,

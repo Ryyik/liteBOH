@@ -360,6 +360,78 @@ export async function signIn(loginId, password) {
   return { ok: true, data, error: null };
 }
 
+/**
+ * 通行密钥（Passkey / WebAuthn）—— supabase-js ≥2.105 的 experimental API。
+ * 线上 GoTrue 已开启 passkeys（rp_id=blockofhome.cn，origins=www/裸域，2026-09-21 经
+ * Management API PATCH config/auth 启用）。signInWithPasskey 由 supabase-js 托管
+ * 完整 WebAuthn 仪式（服务端挑战 → 浏览器生物识别 → 服务端验证），成功即返回
+ * 与密码登录同一机制的 session；无需邮箱/用户名参与（discoverable credential）。
+ */
+let passkeyCapabilityCache = null;
+
+/** 能力检测：仅当浏览器暴露 PublicKeyCredential 且平台认证器可用时返回 true。 */
+export async function isPasskeySupported() {
+  if (typeof window === 'undefined') return false;
+  if (!window.PublicKeyCredential) return false;
+  if (typeof window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable !== 'function') {
+    return false;
+  }
+  if (!passkeyCapabilityCache) {
+    passkeyCapabilityCache = window.PublicKeyCredential
+      .isUserVerifyingPlatformAuthenticatorAvailable()
+      .catch((error) => {
+        logger.warn('auth-api', '通行密钥能力检测失败', error);
+        return false;
+      });
+  }
+  return passkeyCapabilityCache;
+}
+
+export const signInWithPasskey = () => supabase.auth.signInWithPasskey();
+export const registerPasskey = () => supabase.auth.registerPasskey();
+export const listPasskeys = () => supabase.auth.passkey.list();
+export const deletePasskey = (passkeyId) => supabase.auth.passkey.delete({ passkeyId });
+export const renamePasskey = (passkeyId, friendlyName) =>
+  supabase.auth.passkey.update({ passkeyId, friendlyName });
+
+/** 通行密钥登录失败 → 用户可读文案（首次使用引导在这里给出） */
+export function toPasskeyLoginMessage(error) {
+  const name = String(error?.name || '');
+  const message = String(error?.message || '').toLowerCase();
+
+  if (name === 'NotAllowedError' || message.includes('not allowed') || message.includes('timed out')) {
+    // 浏览器端最常见的失败：用户取消 / 该设备没有本站通行密钥
+    return '这台设备还没有本站的通行密钥，或验证未完成。请先用密码登录，然后在 设置 → 账户安全 中添加通行密钥。';
+  }
+  if (name === 'SecurityError' || message.includes('secure context') || message.includes('rp.id')) {
+    return '当前环境不允许使用通行密钥（需 HTTPS 且域名匹配），请使用密码登录。';
+  }
+  if (name === 'NotSupportedError' || message.includes('not supported')) {
+    return '当前浏览器不支持通行密钥，请使用密码登录。';
+  }
+  if (message.includes('experimental')) {
+    return '通行密钥登录暂未启用，请使用密码登录。';
+  }
+  return error?.message || '通行密钥登录失败，请使用密码登录。';
+}
+
+/** 通行密钥注册失败 → 用户可读文案（设置面板用） */
+export function toPasskeyRegisterMessage(error) {
+  const name = String(error?.name || '');
+  const message = String(error?.message || '').toLowerCase();
+
+  if (name === 'InvalidStateError' || message.includes('already') || message.includes('invalid state')) {
+    return '这台设备上已经注册过通行密钥，无需重复添加。';
+  }
+  if (name === 'NotAllowedError' || message.includes('not allowed') || message.includes('timed out')) {
+    return '已取消注册，或设备验证未通过。';
+  }
+  if (name === 'SecurityError' || message.includes('secure context') || message.includes('rp.id')) {
+    return '当前环境不允许注册通行密钥（需 HTTPS 且域名匹配）。';
+  }
+  return error?.message || '通行密钥注册失败，请稍后再试。';
+}
+
 export async function resendSignupConfirmation(email) {
   const safeEmail = normalizeEmail(email);
   const emailValidationMessage = validateEmail(safeEmail);
