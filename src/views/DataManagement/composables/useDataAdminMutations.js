@@ -872,8 +872,8 @@ export const createMutationsCenter = (deps) => {
   const issueLoginToken = async (item) => {
     if (!item?.id) return;
     if (!await dialog.confirm({
-      title: '签发一次性登录 token',
-      message: `将为用户「${item.username || item.id}」签发一次性登录 token：\n\n· token 等同账号密码，任何拿到它的人都能直接登录\n· 一次性有效，且限时（超时作废）\n· 仅限当面或私聊交付，勿发群聊\n\n继续吗？`,
+      title: '签发一次性登录令牌',
+      message: `将为用户「${item.username || item.id}」签发一次性登录令牌：\n\n· 令牌等同账号密码，任何拿到它的人都能直接登录\n· 一次性有效，且限时（超时作废）\n· 仅限当面或私聊交付，勿发群聊\n\n继续吗？`,
       tone: 'warning',
       confirmText: '继续签发'
     })) return;
@@ -925,11 +925,11 @@ export const createMutationsCenter = (deps) => {
       }
 
       if (copied) {
-        showToast(`token 已复制到剪贴板，请当面/私聊交付给「${item.username || item.id}」（一次性、勿发群聊）`, 'success');
+        showToast(`令牌已复制到剪贴板，请当面/私聊交付给「${item.username || item.id}」（一次性、勿发群聊）`, 'success');
       } else {
         await dialog.prompt({
-          title: '一次性登录 token',
-          message: `剪贴板不可用，请手动复制以下 token 并私下交付给「${item.username || item.id}」（一次性、限时有效）：`,
+          title: '一次性登录令牌',
+          message: `剪贴板不可用，请手动复制以下令牌并私下交付给「${item.username || item.id}」（一次性、限时有效）：`,
           defaultValue: token,
           multiline: true
         });

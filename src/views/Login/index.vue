@@ -575,7 +575,7 @@ onUnmounted(() => {
             </label>
             <div class="boh-links-group">
               <a href="#" @click.prevent="handleForgotPassword">忘记密码？</a>
-              <a href="#" @click.prevent="tokenPanelOpen = !tokenPanelOpen">Token 登录</a>
+              <a href="#" @click.prevent="tokenPanelOpen = !tokenPanelOpen">令牌登录</a>
               <a href="/join" @click.prevent="handleRegister">注册 BOH ID</a>
             </div>
           </div>
@@ -702,7 +702,7 @@ onUnmounted(() => {
                 </label>
                 <div class="boh-links-group">
                   <a href="#" @click.prevent="handleForgotPassword">忘记密码？</a>
-                  <a href="#" @click.prevent="tokenPanelOpen = !tokenPanelOpen">Token 登录</a>
+                  <a href="#" @click.prevent="tokenPanelOpen = !tokenPanelOpen">令牌登录</a>
                 </div>
               </div>
 

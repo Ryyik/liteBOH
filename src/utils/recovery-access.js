@@ -69,3 +69,20 @@ export const isRecentTokenLogin = (sessionOrToken, nowMs = Date.now(), graceMs =
   const elapsed = nowMs - ts * 1000;
   return elapsed >= 0 && elapsed <= graceMs;
 };
+
+// 读取剪贴板文本（供「一键粘贴令牌」按钮使用）。
+// 约束与失败面：需要 https 安全上下文 + 用户手势 + 浏览器授权（Chrome 首次会弹权限框）；
+// Firefox 的 readText 长期不可用、权限被拒、非安全上下文 → 一律返回 null，
+// 由调用方给出「请手动粘贴」的降级提示。失败不抛错 —— 粘贴是便利功能，不该变成报错源。
+export const readClipboardText = async () => {
+  try {
+    if (typeof navigator === 'undefined' || !navigator.clipboard || typeof navigator.clipboard.readText !== 'function') {
+      return null;
+    }
+    const text = await navigator.clipboard.readText();
+    const trimmed = String(text || '').trim();
+    return trimmed || null;
+  } catch {
+    return null;
+  }
+};

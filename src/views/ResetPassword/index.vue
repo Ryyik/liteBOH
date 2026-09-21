@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/utils/supabase-client.js';
+import { readClipboardText } from '@/utils/recovery-access.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -17,10 +18,24 @@ const isSubmitting = ref(false);
 const isReady = ref(false);
 const LOCK_ERROR_HINT = '检测到浏览器多标签会话冲突，请先关闭其他 Block of Home 标签页，再重新点击最新重置链接。';
 
-// 管理员代发的一次性登录 token（手动粘贴通道，无邮箱参与）
+// 管理员代发的一次性登录令牌（手动粘贴通道，无邮箱参与）
 const manualToken = ref('');
 const manualError = ref('');
+const manualPasteHint = ref('');
 const isVerifyingManual = ref(false);
+
+// 一键粘贴：只填充输入框，**不自动验证** —— 令牌是一次性凭证，
+// 自动验证会在误触/剪贴板内容过期时把令牌烧掉（烧了就得请管理员重签）。
+const pasteManualToken = async () => {
+  manualError.value = '';
+  manualPasteHint.value = '';
+  const text = await readClipboardText();
+  if (!text) {
+    manualPasteHint.value = '无法读取剪贴板，请手动粘贴（Ctrl/Cmd + V）。';
+    return;
+  }
+  manualToken.value = text;
+};
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -218,7 +233,7 @@ const submitManualToken = async () => {
   manualError.value = '';
   const tokenHash = String(manualToken.value || '').trim();
   if (!tokenHash) {
-    manualError.value = '请粘贴管理员提供的一次性登录 token。';
+    manualError.value = '请粘贴管理员提供的一次性登录令牌。';
     return;
   }
 
@@ -226,7 +241,7 @@ const submitManualToken = async () => {
   try {
     const verifyResult = await authStore.verifyPasswordRecovery(tokenHash);
     if (!verifyResult.success) {
-      manualError.value = toFriendlyRecoveryError(verifyResult.message, 'token 无效或已过期，请联系管理员重新签发。');
+      manualError.value = toFriendlyRecoveryError(verifyResult.message, '令牌无效或已过期，请联系管理员重新签发。');
       return;
     }
 
@@ -331,23 +346,28 @@ onMounted(() => {
         </button>
       </form>
 
-      <!-- 管理员代发 token：手动粘贴通道（无邮箱参与，token 本身即定位用户） -->
+      <!-- 管理员代发令牌：手动粘贴通道（无邮箱参与，令牌本身即定位用户） -->
       <div v-if="!isPreparing && !isReady" class="manual-block">
-        <p class="manual-title">持有一次性登录 token？</p>
-        <p class="manual-desc">粘贴管理员签发的 token，验证后即可直接设置新密码。</p>
-        <input
-          v-model="manualToken"
-          type="text"
-          class="manual-input"
-          placeholder="粘贴一次性登录 token"
-          autocomplete="one-time-code"
-          spellcheck="false"
-          :disabled="isVerifyingManual"
-          @keyup.enter="submitManualToken"
-        >
+        <p class="manual-title">持有一次性登录令牌？</p>
+        <p class="manual-desc">粘贴管理员签发的令牌，验证后即可直接设置新密码。</p>
+        <div class="manual-input-row">
+          <input
+            v-model="manualToken"
+            type="text"
+            class="manual-input"
+            placeholder="粘贴一次性登录令牌"
+            autocomplete="one-time-code"
+            spellcheck="false"
+            :disabled="isVerifyingManual"
+            @keyup.enter="submitManualToken"
+          >
+          <button type="button" class="manual-paste-btn" :disabled="isVerifyingManual"
+            title="从剪贴板粘贴令牌" @click="pasteManualToken">粘贴</button>
+        </div>
         <p v-if="manualError" class="error">{{ manualError }}</p>
+        <p v-else-if="manualPasteHint" class="paste-hint">{{ manualPasteHint }}</p>
         <button type="button" :disabled="isVerifyingManual" @click="submitManualToken">
-          {{ isVerifyingManual ? '验证中...' : '验证 token 并登录' }}
+          {{ isVerifyingManual ? '验证中...' : '验证令牌并登录' }}
         </button>
       </div>
 
@@ -525,6 +545,50 @@ button:disabled {
 
 .manual-block .manual-input {
   font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+
+/* 一键粘贴：输入行 flex 布局，粘贴按钮复用页面既有输入框/次级按钮视觉 */
+.manual-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.manual-input-row .manual-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.manual-paste-btn {
+  flex-shrink: 0;
+  height: 42px;
+  padding: 0 16px;
+  border: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
+  border-radius: var(--liquid-radius-md, 16px);
+  background: var(--liquid-bg-nested, rgba(255, 255, 255, 0.42));
+  color: var(--liquid-text-primary, #1d1d1f);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 0;
+  transition:
+    border-color var(--duration-fast, 180ms) var(--ease-out),
+    background-color var(--duration-fast, 180ms) var(--ease-out);
+}
+
+.manual-paste-btn:hover:not(:disabled) {
+  border-color: var(--rp-brand);
+  background: var(--liquid-bg-subtle, rgba(255, 255, 255, 0.58));
+}
+
+.manual-paste-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.paste-hint {
+  color: var(--liquid-text-secondary, #6e6e73);
+  font-size: 13px;
 }
 
 /* 表单内的次级动作（暂不修改直接进入） */

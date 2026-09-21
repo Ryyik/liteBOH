@@ -21,8 +21,28 @@ const makeJwt = (payload) => {
 
 const secondsAgo = (seconds) => Math.floor((Date.now() - seconds * 1000) / 1000);
 
+// 源码守卫断言一律跑在「剥离注释后」的源码上：注释里的设计说明会让
+// indexOf 定位与「不包含」断言失真。
+const strip = (source) => source
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .split('\n')
+  .map((l) => l.replace(/(^|[^:])\/\/.*$/, '$1'))
+  .join('\n');
+
+// 提取单个箭头函数体（起于 `const <name>`，止于其后的第一个 `\n};`）。
+// 不能用「下一个函数的起点」做终点 —— 函数定义顺序不定，终点小于起点时
+// slice 返回空串，断言会对空串虚假通过（本文件踩过）。
+const fnBody = (code, name) => {
+  const start = code.indexOf(`const ${name}`);
+  if (start === -1) return '';
+  const end = code.indexOf('\n};', start);
+  return end === -1 ? '' : code.slice(start, end);
+};
+
 const RESET_VIEW = 'src/views/ResetPassword/index.vue';
 const ACCOUNT_VIEW = 'src/views/user-center/AccountSecurity/index.vue';
+const LOGIN_VIEW = 'src/views/Login/index.vue';
+const PANEL_VIEW = 'src/views/Login/TokenLoginPanel.vue';
 
 describe('recovery-access：isRecentTokenLogin 判定', () => {
   let mod;
@@ -86,6 +106,37 @@ describe('recovery-access：isRecentTokenLogin 判定', () => {
   });
 });
 
+describe('recovery-access：readClipboardText（一键粘贴）', () => {
+  let mod;
+  beforeEach(async () => {
+    vi.resetModules();
+    vi.unstubAllGlobals();
+    mod = await import('../../src/utils/recovery-access.js');
+  });
+
+  it('剪贴板有文本 → 返回 trim 后的内容', async () => {
+    vi.stubGlobal('navigator', { clipboard: { readText: vi.fn(async () => '  token-abc  ') } });
+    await expect(mod.readClipboardText()).resolves.toBe('token-abc');
+  });
+
+  it('剪贴板为空 → null（让调用方走手动粘贴提示）', async () => {
+    vi.stubGlobal('navigator', { clipboard: { readText: vi.fn(async () => '   ') } });
+    await expect(mod.readClipboardText()).resolves.toBeNull();
+  });
+
+  it('权限被拒 / 读取抛错 → null（不向调用方抛错）', async () => {
+    vi.stubGlobal('navigator', { clipboard: { readText: vi.fn(async () => { throw new Error('NotAllowedError'); }) } });
+    await expect(mod.readClipboardText()).resolves.toBeNull();
+  });
+
+  it('浏览器不支持 readText（如 Firefox）→ null', async () => {
+    vi.stubGlobal('navigator', { clipboard: {} });
+    await expect(mod.readClipboardText()).resolves.toBeNull();
+    vi.stubGlobal('navigator', {});
+    await expect(mod.readClipboardText()).resolves.toBeNull();
+  });
+});
+
 describe('AccountSecurity：token 登录宽限窗接入（源码守卫）', () => {
   let code = '';
   beforeEach(async () => {
@@ -141,21 +192,29 @@ describe('ResetPassword：粘贴 token 通道（源码守卫）', () => {
     expect(code).toMatch(/authStore\.updatePassword\(password\)/);
     expect(code).toContain('暂不修改，直接进入');
   });
+
+  it('有一键粘贴按钮：只填充不自动验证（令牌一次性，误触不烧凭证）', () => {
+    expect(code).toMatch(/readClipboardText\(\)/);
+    const pasteBody = fnBody(code, 'pasteManualToken');
+    expect(pasteBody).not.toBe('');
+    expect(pasteBody).toMatch(/readClipboardText/);
+    expect(pasteBody).not.toMatch(/submitManualToken|verifyPasswordRecovery/);
+    expect(code).toContain('粘贴');
+  });
+
+  it('用户可见文案统一为「令牌」', () => {
+    expect(code).toContain('持有一次性登录令牌？');
+    expect(code).toContain('验证令牌并登录');
+    expect(code).not.toContain('验证 token 并登录');
+  });
 });
 
 describe('Login：token 登录入口（源码守卫）', () => {
-  const LOGIN_VIEW = 'src/views/Login/index.vue';
-  const PANEL_VIEW = 'src/views/Login/TokenLoginPanel.vue';
-  const strip = (source) => source
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .split('\n')
-    .map((l) => l.replace(/(^|[^:])\/\/.*$/, '$1'))
-    .join('\n');
-
   it('登录页两套布局（移动浮层 + 桌面分栏）各有入口，面板各渲染一次', async () => {
     const code = strip(await readFile(LOGIN_VIEW, 'utf-8'));
-    expect((code.match(/Token 登录/g) || []).length).toBe(2);
+    expect((code.match(/令牌登录/g) || []).length).toBe(2);
     expect((code.match(/<TokenLoginPanel/g) || []).length).toBe(2);
+    expect(code).not.toContain('Token 登录');
   });
 
   it('面板必须在 </form> 之外 —— 否则 token 输入框的回车会触发密码登录表单', async () => {
@@ -177,5 +236,15 @@ describe('Login：token 登录入口（源码守卫）', () => {
     expect(code).toMatch(/verifyPasswordRecovery\(tokenHash\)/);
     expect(code).toMatch(/router\.replace\('\/reset-password'\)/);
     expect(code).toMatch(/autocomplete="one-time-code"/);
+  });
+
+  it('面板有一键粘贴按钮：只填充不自动验证（令牌一次性，误触不烧凭证）', async () => {
+    const code = strip(await readFile(PANEL_VIEW, 'utf-8'));
+    expect(code).toMatch(/readClipboardText\(\)/);
+    const pasteBody = fnBody(code, 'pasteToken');
+    expect(pasteBody).not.toBe('');
+    expect(pasteBody).toMatch(/readClipboardText/);
+    expect(pasteBody).not.toMatch(/submitToken|verifyPasswordRecovery/);
+    expect(code).toContain('粘贴');
   });
 });

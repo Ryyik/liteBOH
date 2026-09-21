@@ -128,7 +128,7 @@ Deno.serve(async (request) => {
     }
     if (profile.is_banned) {
       return jsonResponse(
-        { ok: false, code: 'TARGET_BANNED', message: '该用户已被封禁，不能签发登录 token。' },
+        { ok: false, code: 'TARGET_BANNED', message: '该用户已被封禁，不能签发登录令牌。' },
         403,
         origin,
       );
@@ -209,7 +209,7 @@ Deno.serve(async (request) => {
         ok: true,
         token: picked.token,
         username: String(profile.username || ''),
-        message: '一次性登录 token 已生成，请当面或私聊交付，勿发群聊。',
+        message: '一次性登录令牌已生成，请当面或私聊交付，勿发群聊。',
       },
       200,
       origin,

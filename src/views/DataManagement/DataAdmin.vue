@@ -4037,7 +4037,7 @@ const getRowActionModel = (item) => {
     // 应急通道：为丢失邮箱/密码访问的用户签发一次性登录 token（服务端强制审计 + 限流）
     if (currentTab.value === 'users' && !item.is_banned) {
       menu.push({
-        id: 'issue-token', label: '签发登录token',
+        id: 'issue-token', label: '签发登录令牌',
         title: '为信任用户签发一次性登录 token（写入审计，token 直接进剪贴板）',
         run: () => issueLoginToken(item)
       });
