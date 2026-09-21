@@ -1,0 +1,45 @@
+-- 2026092103_revoke_resolve_email_for_login.sql
+-- 目的：关闭 P0-1「匿名可枚举 用户名 → 邮箱」的最后一个入口。
+--
+-- 背景
+--   public.resolve_email_for_login(p_username text) 会把「方块 ID → 邮箱」的映射**返回给调用方**，
+--   而 anon 持 EXECUTE → 任何人（含未登录）都能用方块 ID 反查邮箱（PII 泄露）。
+--   生产实测：POST /rest/v1/rpc/resolve_email_for_login（仅 anon key）→ HTTP 200 + 明文邮箱。
+--
+-- 前端已不再调用它
+--   登录已改为走 auth-login Edge Function（经 auth.admin.getUserById 从 auth.users 取邮箱，
+--   邮箱不离开服务端），且**降级分支已彻底删除**（src/utils/api/auth-api.js；由
+--   tests/unit/auth-signin-edge-gateway.test.js 的源码守卫断言守住）。
+--
+-- 本迁移成立的前提（均已在本项目实测，不是推断）
+--   1) 无任何数据库对象依赖该函数 —— pg_depend 查询为空；
+--   2) 无任何库内函数调用它 —— 全库 pg_get_functiondef 文本扫描为空；
+--   3) 无任何 Edge Function 调用它 —— 仓库 grep 为空（仅注释提及）；
+--   4) 唯一调用者是前端降级分支，该分支已删除。
+--
+-- 为什么必须同时撤 `public`
+--   实测该函数的 ACL 为
+--     {=X/postgres, postgres=X/postgres, anon=X/postgres, authenticated=X/postgres, service_role=X/postgres}
+--   其中 `=X/postgres` 即 PUBLIC 的内建 EXECUTE 授权。
+--   **只撤 anon 无效** —— anon 仍经 PUBLIC 继承后保有执行权。
+--   这一机理在迁移 2026092101 中已用 A/B 实测确认过（只撤 anon → anon_can_execute=t；
+--   撤 anon+public → f 且 authenticated 不受影响）。
+--
+-- 为什么不直接 drop（分两步的理由）
+--   撤权对调用方的效果与 drop **完全相同**（旧路径一律失败），但撤权可以**一条 grant 秒级回滚**，
+--   而 drop 之后恢复需要重建函数体。因此：
+--     本迁移 = 撤权（可逆）→ 观察确认无兼容问题 → 再由后续迁移 drop（清理）。
+--
+-- 回滚（一条命令，立即恢复可调用）
+--   grant execute on function public.resolve_email_for_login(text) to anon, authenticated;
+--
+-- 验证（执行后匿名调用应转为 42501，而不是返回邮箱）
+--   curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+--     "$VITE_SUPABASE_URL/rest/v1/rpc/resolve_email_for_login" \
+--     -H "apikey: $VITE_SUPABASE_ANON_KEY" -H "Authorization: Bearer $VITE_SUPABASE_ANON_KEY" \
+--     -H 'Content-Type: application/json' -d '{"p_username":"any"}'
+--   期望：401（42501 permission denied），而不是 200 + 邮箱。
+
+revoke execute on function public.resolve_email_for_login(text) from anon, authenticated, public;
+
+notify pgrst, 'reload schema';
