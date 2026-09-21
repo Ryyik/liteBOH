@@ -1,5 +1,5 @@
 {
-  "total": 156,
+  "total": 155,
   "names": [
     "activity_platform_touch_updated_at",
     "apply_yearly_membership_gift",
@@ -107,7 +107,6 @@
     "record_lottery_auto_draw_failure",
     "redeem_points_card_cats",
     "refund_lab_usage",
-    "resolve_email_for_login",
     "round",
     "search_boh_ai_shared_memories",
     "set_bohai_model_configs_updated_at",
