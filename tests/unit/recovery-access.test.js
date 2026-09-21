@@ -142,3 +142,40 @@ describe('ResetPassword：粘贴 token 通道（源码守卫）', () => {
     expect(code).toContain('暂不修改，直接进入');
   });
 });
+
+describe('Login：token 登录入口（源码守卫）', () => {
+  const LOGIN_VIEW = 'src/views/Login/index.vue';
+  const PANEL_VIEW = 'src/views/Login/TokenLoginPanel.vue';
+  const strip = (source) => source
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .map((l) => l.replace(/(^|[^:])\/\/.*$/, '$1'))
+    .join('\n');
+
+  it('登录页两套布局（移动浮层 + 桌面分栏）各有入口，面板各渲染一次', async () => {
+    const code = strip(await readFile(LOGIN_VIEW, 'utf-8'));
+    expect((code.match(/Token 登录/g) || []).length).toBe(2);
+    expect((code.match(/<TokenLoginPanel/g) || []).length).toBe(2);
+  });
+
+  it('面板必须在 </form> 之外 —— 否则 token 输入框的回车会触发密码登录表单', async () => {
+    const code = strip(await readFile(LOGIN_VIEW, 'utf-8'));
+    const formEnds = [...code.matchAll(/<\/form>/g)].map((m) => m.index);
+    const panels = [...code.matchAll(/<TokenLoginPanel/g)].map((m) => m.index);
+    expect(panels.length).toBe(2);
+    for (const panelIndex of panels) {
+      const lastFormEndBefore = formEnds.filter((i) => i < panelIndex).pop();
+      expect(lastFormEndBefore).toBeDefined();
+      // 面板与上一个 </form> 之间不得再出现新的 <form（即没有嵌进任何表单）
+      const nextFormOpen = code.indexOf('<form', lastFormEndBefore);
+      expect(nextFormOpen === -1 || nextFormOpen > panelIndex).toBe(true);
+    }
+  });
+
+  it('面板复用 verifyPasswordRecovery，成功后引导到重置页设新密码', async () => {
+    const code = strip(await readFile(PANEL_VIEW, 'utf-8'));
+    expect(code).toMatch(/verifyPasswordRecovery\(tokenHash\)/);
+    expect(code).toMatch(/router\.replace\('\/reset-password'\)/);
+    expect(code).toMatch(/autocomplete="one-time-code"/);
+  });
+});

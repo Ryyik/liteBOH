@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import AltchaWidget from '@/components/AltchaWidget.vue';
 import AgreementModal from '@/components/AgreementModal.vue';
+import TokenLoginPanel from './TokenLoginPanel.vue';
 import { userAgreementContent, privacyPolicyContent } from '@/data/agreementData.js';
 import DOMPurify from '@/utils/dompurify.js'; // 修复：添加 DOMPurify 防止 XSS
 import { getLoginDeviceIdHash } from '@/utils/device-trust.js';
@@ -42,6 +43,9 @@ const loginForm = reactive({
   rememberMe: true,
   agreedToTerms: false
 });
+
+// 一次性 token 登录面板（管理员代发通道）：在两套布局的链接区各有一个入口
+const tokenPanelOpen = ref(false);
 
 const showPassword = ref(false);
 const isSubmitting = ref(false);
@@ -571,6 +575,7 @@ onUnmounted(() => {
             </label>
             <div class="boh-links-group">
               <a href="#" @click.prevent="handleForgotPassword">忘记密码？</a>
+              <a href="#" @click.prevent="tokenPanelOpen = !tokenPanelOpen">Token 登录</a>
               <a href="/join" @click.prevent="handleRegister">注册 BOH ID</a>
             </div>
           </div>
@@ -579,6 +584,8 @@ onUnmounted(() => {
             {{ isSubmitting ? '登录中...' : '登录' }}
           </button>
         </form>
+
+        <TokenLoginPanel v-if="tokenPanelOpen" />
       </div>
     </template>
 
@@ -695,6 +702,7 @@ onUnmounted(() => {
                 </label>
                 <div class="boh-links-group">
                   <a href="#" @click.prevent="handleForgotPassword">忘记密码？</a>
+                  <a href="#" @click.prevent="tokenPanelOpen = !tokenPanelOpen">Token 登录</a>
                 </div>
               </div>
 
@@ -702,6 +710,8 @@ onUnmounted(() => {
                 {{ isSubmitting ? '登录中...' : '登录' }}
               </button>
             </form>
+
+            <TokenLoginPanel v-if="tokenPanelOpen" />
 
             <div class="login-footer">
               <p>还没有账号? <a href="/join" @click.prevent="handleRegister">立即注册</a></p>
