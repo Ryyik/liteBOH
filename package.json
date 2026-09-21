@@ -37,6 +37,10 @@
     "test:watch": "vitest",
     "check:bundle": "bash scripts/check-bundle-size.sh",
     "import:boh-kb": "node scripts/import-boh-knowledge-base.mjs",
+    "security:headers": "node scripts/cloudflare-security-headers.mjs",
+    "security:headers:dry": "node scripts/cloudflare-security-headers.mjs --dry-run",
+    "security:anon-check": "node scripts/check-anon-execute.mjs",
+    "security:anon-check:update": "node scripts/check-anon-execute.mjs --update",
     "build:ci": "npm run check:views && npm run check:structure && npm run check:liquid-glass && npm run check:important-budget && npm run check:dark-tokens && npm run check:first-paint && vite build && npm run check:shell-precache && bash scripts/check-bundle-size.sh"
   },
   "dependencies": {

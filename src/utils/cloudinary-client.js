@@ -357,6 +357,67 @@ export function extractCloudinaryPublicIdFromUrl(url = '') {
   }
 }
 
+/**
+ * 向签名网关（cloudinary-sign-upload EF）索取上传参数。
+ *
+ * 三种结果，调用方必须区别对待：
+ *   - signed       → 用服务端下发的 params + signature + api_key 上传（参数一律以服务端为准）
+ *   - unsigned     → 沿用无签名上传（改造前的行为）
+ *   - unavailable  → **仅** EF 未部署 / 网络故障；此时回落无签名，保证前端可先于 EF 上线
+ *   - blocked      → EF 明确拒绝（未登录 401 / 额度 429 / 配置缺失 5xx）。
+ *                    ⚠️ 绝不静默回落：配额类拒绝若悄悄降级成无签名上传，等于把刚堵上的洞又打开。
+ */
+export async function resolveCloudinaryUploadSignParams({ source = 'generic', folder = '', includeContext = true } = {}) {
+  let response;
+  try {
+    response = await supabase.functions.invoke('cloudinary-sign-upload', {
+      body: { source, folder, includeContext: includeContext !== false }
+    });
+  } catch (invokeError) {
+    return { mode: 'unavailable', status: 0, reason: invokeError?.message || 'invoke_failed' };
+  }
+
+  const { data, error } = response || {};
+
+  if (error) {
+    const status = Number(error?.context?.status ?? error?.status ?? 0);
+    let payload = null;
+    try {
+      payload = await error.context.json();
+    } catch {
+      payload = null;
+    }
+
+    if (status === 0 || status === 404 || status === 501) {
+      return { mode: 'unavailable', status, reason: error?.message || 'edge_unavailable' };
+    }
+
+    return { mode: 'blocked', status, payload: payload || {} };
+  }
+
+  if (data?.mode === 'signed' && data?.signature && data?.params) {
+    return {
+      mode: 'signed',
+      signature: String(data.signature),
+      params: data.params,
+      apiKey: String(data.apiKey || ''),
+      cloudName: String(data.cloudName || CLOUDINARY_CLOUD_NAME)
+    };
+  }
+
+  return { mode: 'unsigned' };
+}
+
+const buildSignBlockedError = (payload = {}) => {
+  const error = new Error(String(payload.message || '图片上传暂不可用，请稍后再试。'));
+  error.code = String(payload.code || 'UPLOAD_NOT_ALLOWED');
+  error.status = 429;
+  if (payload.retryAfter) {
+    error.retryAfter = Number(payload.retryAfter);
+  }
+  return error;
+};
+
 export async function uploadImageToCloudinary(file, options = {}) {
   try {
     await validateImageFileBeforeUpload(file);
@@ -378,9 +439,53 @@ export async function uploadImageToCloudinary(file, options = {}) {
     // 防止删除他人上传的图片；未登录时不上传 context
     const uploadUid = await getCurrentSupabaseUserId();
 
-    const buildUploadFormData = (withContext) => {
+    const signSource = options.pendingSource || options.source || 'generic';
+
+    // 签名模式：由 EF 下发签名。未切换时 mode='unsigned'，行为与改造前逐字节一致。
+    const signRequest = await resolveCloudinaryUploadSignParams({
+      source: signSource,
+      folder,
+      includeContext: true
+    });
+
+    if (signRequest.mode === 'blocked') {
+      throw buildSignBlockedError(signRequest.payload);
+    }
+
+    const signedParams = signRequest.mode === 'signed' ? signRequest.params : null;
+    // 服务端额度预检在 EF 内执行；这里让下游校验用服务端认定的 folder
+    const effectiveFolder = String(signedParams?.folder || folder || '').trim();
+
+    const buildUploadFormData = async (withContext) => {
       const formData = new FormData();
       formData.append('file', file);
+
+      if (signedParams) {
+        let params = signedParams;
+        let signature = signRequest.signature;
+
+        // 签名必须与所发参数逐字对应：降级去掉 context 时必须重新取一次签名，
+        // 否则 signature 与 params 不匹配，Cloudinary 会拒。
+        if (!withContext && signedParams.context) {
+          const reFetched = await resolveCloudinaryUploadSignParams({
+            source: signSource,
+            folder,
+            includeContext: false
+          });
+          if (reFetched.mode === 'signed') {
+            params = reFetched.params;
+            signature = reFetched.signature;
+          }
+        }
+
+        Object.entries(params).forEach(([key, value]) => {
+          formData.append(key, String(value));
+        });
+        formData.append('api_key', signRequest.apiKey);
+        formData.append('signature', signature);
+        return formData;
+      }
+
       formData.append('upload_preset', uploadPreset);
       if (folder) {
         formData.append('folder', folder);
@@ -442,18 +547,18 @@ export async function uploadImageToCloudinary(file, options = {}) {
 
     let data;
     try {
-      data = await sendUploadRequestWithRetry(buildUploadFormData(true));
+      data = await sendUploadRequestWithRetry(await buildUploadFormData(true));
     } catch (error) {
       // 降级保护：upload preset 不允许 context 参数时（如 unsigned 上传被拒），去掉 context 重试一次
       if (uploadUid && /context|not allowed|unsigned/i.test(String(error?.message || ''))) {
-        data = await sendUploadRequestWithRetry(buildUploadFormData(false));
+        data = await sendUploadRequestWithRetry(await buildUploadFormData(false));
       } else {
         throw error;
       }
     }
     validateCloudinaryUploadResult(data, {
       cloudName: CLOUDINARY_CLOUD_NAME,
-      folder
+      folder: effectiveFolder
     });
 
     const uploaded = {

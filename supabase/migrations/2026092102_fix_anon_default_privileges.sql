@@ -1,0 +1,89 @@
+-- 2026092102_fix_anon_default_privileges.sql
+--
+-- 目的：补上 2026092101 里「防复发」语句的缺口。
+--
+-- 背景：
+--   2026092101 的原句是
+--     alter default privileges in schema public revoke execute on functions from anon;
+--   只撤了 anon —— **无效**。函数在 PostgreSQL 里默认对 PUBLIC 授予 EXECUTE，
+--   anon 经 PUBLIC 继承后照样能执行新建函数。2026092101 自己的实测（:9-13）已经
+--   证明过同一机理，只是那条防复发语句没跟上。
+--
+-- 后果（若不打这个补丁）：
+--   存量函数已被 2026092101 收紧，但**此后新建的任何一个 public 函数都会重新
+--   变成匿名可调** —— 修复会随时间衰减。这是「一次性修好、慢慢长回来」的典型形态。
+--
+-- 为什么必须单独一条迁移：
+--   2026092101 已在远端库执行过（并写入 supabase_migrations.schema_migrations），
+--   改它的文件内容**不会**重跑它。已生效的默认权限只能由新迁移覆盖。
+--
+-- 安全性：本语句幂等（无权限可撤时是 no-op），且只影响**将来**由 postgres 创建的函数，
+--   不会改动任何既有函数的授权（存量授权已由 2026092101 处理）。
+--   authenticated / service_role 的默认授权来自 Supabase 自身设置，**不受影响**。
+
+alter default privileges in schema public revoke execute on functions from anon, public;
+
+-- 表级默认权限同理补一次（表在 PostgreSQL 里默认不授 PUBLIC，故此处为防御性；
+-- Supabase 若曾对 anon 设过默认授权，这里一并撤掉）。
+alter default privileges in schema public revoke insert, update, delete, truncate on tables from anon, public;
+
+notify pgrst, 'reload schema';
+
+-- ================================================================
+-- ⚠️ 实测结果（2026-09-21，本迁移已 push）：**目标只达成一半，勿据文件名以为已防住**
+-- ================================================================
+-- 已生效：`defaclrole=postgres / public / functions` 的默认权限里 anon 与 PUBLIC 均已移除。
+--        实测该条目现为 {postgres=X, authenticated=X, service_role=X}。
+--
+-- ❌ 未达成：**新建函数仍可被 anon 执行。** 实测（建探针函数后读 proacl，事务已回滚）：
+--        新函数 ACL = {=X/postgres, postgres=X, authenticated=X, service_role=X}
+--        has_function_privilege('anon', …) = **t**
+--        即 `=X/postgres`（PUBLIC 的 EXECUTE）依然存在 → anon 经 PUBLIC 继承。
+--
+-- 已排除 / 已确认的原因：
+--   · 不是 `from public` 没写上 —— 该条目里 PUBLIC 确实已消失，但新函数仍带 PUBLIC；
+--   · 真正障碍：`defaclrole=supabase_admin / public / functions` 这条**也**存在，且
+--     尝试修改它会 42501 `permission denied to change default privileges`
+--     → 该条目我们**碰不到**，而新建函数实际落到哪条条目上不受我们控制。
+--   · 另注：全库 160 个 anon 可执行函数中，有 92 个同时带 PUBLIC 的 EXECUTE
+--     → 对它们**只撤显式 anon 授权是无效的**（必须连 public 一起撤），
+--     2026092101 的写法正是 `from anon, public`，故存量侧没问题。
+--
+-- 结论：**「默认权限」这条路在本环境无法保证增量安全。** 增量防护只能靠：
+--   ① 新增函数时逐条显式 `revoke execute ... from anon, public`（与 2026092101 同法），或
+--   ② 加一道**检测**（定期/发布前扫描 anon 可执行函数，超出白名单即告警）。
+--   用 pg_default_acl 相关语句**不要**再当作防复发手段。
+-- ================================================================
+
+-- ================================================================
+-- 观测 SQL（下面两条是**实测记录**，期望值已按真实结果标注，勿照旧注释里的乐观期望读）
+-- ================================================================
+-- ① 默认权限现状（实测输出）：
+--    defaclrole=postgres       / public / f → {postgres=X, authenticated=X, service_role=X}   ← anon/PUBLIC 已移除 ✅
+--    defaclrole=supabase_admin / public / f → {anon=X, authenticated=X, postgres=X, service_role=X} ← anon 仍在，且改不动 ❌
+-- select d.defaclobjtype, r.rolname owner_role,
+--        coalesce(a.grantee::regrole::text, '-') grantee, a.privilege_type
+--   from pg_default_acl d
+--   join pg_roles r on r.oid = d.defaclrole
+--   cross join lateral aclexplode(d.defaclacl) a
+--  where d.defaclnamespace = (select oid from pg_namespace where nspname = 'public')
+--    and d.defaclobjtype = 'f'
+--  order by 2, 1, 3;
+--
+-- ② 新建函数探针：**实测结果为 t（匿名仍可执行）**，即本迁移未达成的直接证据。
+--    保留此段作为**回归观测**：若某天变成 f，说明增量防护已真正到位。
+-- do $probe$
+-- declare v_anon boolean; v_acl text;
+-- begin
+--   execute $ddl$create function public._probe_new_fn() returns int language sql as 'select 1'$ddl$;
+--   select has_function_privilege('anon', 'public._probe_new_fn()', 'EXECUTE') into v_anon;
+--   select proacl::text into v_acl from pg_proc where proname = '_probe_new_fn' and pronamespace = 'public'::regnamespace;
+--   raise exception 'PROBE new_fn anon_can_execute=% | acl=%', v_anon, v_acl;
+-- end
+-- $probe$;
+--   实测输出：anon_can_execute=t | acl={=X/postgres,postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}
+--
+-- ================================================================
+-- 回滚
+-- ================================================================
+-- grant execute on functions to anon, public;   -- 仅恢复默认授权；存量授权回滚见 2026092101 附录
