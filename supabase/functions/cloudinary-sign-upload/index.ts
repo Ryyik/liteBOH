@@ -21,6 +21,10 @@ import {
  *      使 auth.uid() 生效），把原本可绕过的客户端预检变成真正的闸
  *   3. 按 CLOUDINARY_UPLOAD_MODE 决定下发签名；'unsigned'（默认）时行为与改造前完全一致
  *
+ * ⚠️ 注意：本项只加固「经由本项目前端的上传路径」。只要 Cloudinary 侧的 preset 仍是
+ *    unsigned，拿到内联在产物里的 cloud_name + preset 名的人仍可**绕过本函数**直传。
+ *    真正关闭漏洞还需要：preset 改 Signed + 配 API key/secret + CLOUDINARY_UPLOAD_MODE=signed。
+ *
  * 切换顺序（与前端部署顺序无关）：
  *   a. 部署本 EF 且 mode 默认 unsigned        → 线上行为不变
  *   b. 设置 CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET
@@ -31,12 +35,22 @@ import {
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 60;
 
-const CLOUDINARY_CLOUD_NAME = String(Deno.env.get('CLOUDINARY_CLOUD_NAME') || '').trim();
-const CLOUDINARY_UPLOAD_PRESET = String(Deno.env.get('CLOUDINARY_UPLOAD_PRESET') || '').trim();
-const CLOUDINARY_API_KEY = String(Deno.env.get('CLOUDINARY_API_KEY') || '').trim();
-const CLOUDINARY_API_SECRET = String(Deno.env.get('CLOUDINARY_API_SECRET') || '').trim();
-const CLOUDINARY_UPLOAD_MODE = resolveUploadMode(Deno.env.get('CLOUDINARY_UPLOAD_MODE'));
-const CLOUDINARY_DEFAULT_FOLDER = String(Deno.env.get('CLOUDINARY_DEFAULT_FOLDER') || 'boh-cloud-plus').trim();
+/**
+ * 环境变量必须**按请求读取**，不能提到模块顶层。
+ *
+ * Edge Function 的 isolate 会被复用：若在顶层 `Deno.env.get()` 成常量，
+ * 修改 secrets 后（如把 CLOUDINARY_UPLOAD_MODE 从 unsigned 改成 signed）
+ * 复用中的 isolate 仍持有旧值 → 切换「看起来没生效」，极易被误判成设置失败。
+ * （2026-09-21 发现，改动前先确认了这一点）
+ */
+const readCloudinaryEnv = () => ({
+  cloudName: String(Deno.env.get('CLOUDINARY_CLOUD_NAME') || '').trim(),
+  uploadPreset: String(Deno.env.get('CLOUDINARY_UPLOAD_PRESET') || '').trim(),
+  apiKey: String(Deno.env.get('CLOUDINARY_API_KEY') || '').trim(),
+  apiSecret: String(Deno.env.get('CLOUDINARY_API_SECRET') || '').trim(),
+  mode: resolveUploadMode(Deno.env.get('CLOUDINARY_UPLOAD_MODE')),
+  defaultFolder: String(Deno.env.get('CLOUDINARY_DEFAULT_FOLDER') || 'boh-cloud-plus').trim(),
+});
 
 type AuthenticatedUser = { ok: true; userId: string; token: string };
 type AuthError = { ok: false; status: number; code: string; message: string };
@@ -98,6 +112,9 @@ Deno.serve(async (request) => {
     return jsonResponse({ ok: false, code: 'METHOD_NOT_ALLOWED', message: '仅支持 POST 请求。' }, 405, origin);
   }
 
+  // 按请求读取，使 secrets 变更立即生效（见 readCloudinaryEnv 注释）
+  const env = readCloudinaryEnv();
+
   try {
     const auth = await verifyAuth(request);
     if (!auth.ok) {
@@ -128,7 +145,7 @@ Deno.serve(async (request) => {
 
     let folder = '';
     try {
-      folder = sanitizeCloudinaryFolder(body?.folder, CLOUDINARY_DEFAULT_FOLDER);
+      folder = sanitizeCloudinaryFolder(body?.folder, env.defaultFolder);
     } catch {
       return jsonResponse({ ok: false, code: 'INVALID_FOLDER', message: '上传目录不合法。' }, 400, origin);
     }
@@ -149,20 +166,20 @@ Deno.serve(async (request) => {
       );
     }
 
-    if (CLOUDINARY_UPLOAD_MODE === 'unsigned') {
+    if (env.mode === 'unsigned') {
       return jsonResponse(
         {
           ok: true,
           mode: 'unsigned',
-          cloudName: CLOUDINARY_CLOUD_NAME,
-          uploadPreset: CLOUDINARY_UPLOAD_PRESET,
+          cloudName: env.cloudName,
+          uploadPreset: env.uploadPreset,
         },
         200,
         origin,
       );
     }
 
-    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+    if (!env.cloudName || !env.uploadPreset || !env.apiKey || !env.apiSecret) {
       return jsonResponse(
         {
           ok: false,
@@ -176,21 +193,21 @@ Deno.serve(async (request) => {
 
     const signed = await signCloudinaryParams(
       {
-        upload_preset: CLOUDINARY_UPLOAD_PRESET,
+        upload_preset: env.uploadPreset,
         folder,
         // 归属标记由服务端生成，客户端无法伪造
         context: `uid=${auth.userId}`,
         timestamp: String(Math.floor(Date.now() / 1000)),
       },
-      CLOUDINARY_API_SECRET,
+      env.apiSecret,
     );
 
     return jsonResponse(
       {
         ok: true,
         mode: 'signed',
-        cloudName: CLOUDINARY_CLOUD_NAME,
-        apiKey: CLOUDINARY_API_KEY,
+        cloudName: env.cloudName,
+        apiKey: env.apiKey,
         signature: signed.signature,
         params: signed.params,
       },
