@@ -43,6 +43,91 @@ const isCaptchaVerificationFailure = (message = '') => {
     || normalized.includes('verification process failed');
 };
 
+/**
+ * 登录标识（方块 ID）→ 会话，全部在服务端完成。
+ *
+ * 为什么必须走 Edge Function：
+ *   旧的 `resolve_email_for_login` RPC 会把邮箱**回传**给客户端，导致任何人（含未登录）
+ *   都能用用户名反查邮箱。把「方块 ID → 邮箱 → 密码校验」整条链路放进
+ *   `auth-login` EF（service_role 侧解析 auth.users.email），邮箱就不再离开服务端。
+ *
+ * 降级策略（部署顺序无关）：
+ *   EF 尚未部署时 invoke 会得到 404 / 网络错误 → 返回 { unavailable: true }，
+ *   调用方回落到旧的 RPC 路径，登录不会中断。
+ *   ⚠️ EF 已部署并验证通过后，应连同 `resolve_email_for_login` 一起删除降级分支
+ *      （见 LOGIN_LEGACY_RPC_FALLBACK 常量与 supabase 侧迁移）。
+ */
+const EDGE_FUNCTION_UNAVAILABLE_STATUSES = new Set([0, 404, 501]);
+
+export const LOGIN_LEGACY_RPC_FALLBACK = true;
+
+const invokeAuthLoginEdge = async (loginId, password) => {
+  let response;
+  try {
+    response = await supabase.functions.invoke('auth-login', {
+      body: { loginId, password },
+    });
+  } catch (invokeError) {
+    // FunctionsFetchError / FunctionsRelayError / 网络中断
+    return { unavailable: true, status: 0, reason: invokeError?.message || 'invoke_failed' };
+  }
+
+  const { data, error } = response || {};
+
+  if (!error) {
+    return { unavailable: false, status: 200, payload: data || {} };
+  }
+
+  const status = Number(error?.context?.status ?? error?.status ?? 0);
+  let payload = null;
+  try {
+    payload = await error.context.json();
+  } catch {
+    payload = null;
+  }
+
+  if (EDGE_FUNCTION_UNAVAILABLE_STATUSES.has(status)) {
+    return { unavailable: true, status, reason: error?.message || 'edge_unavailable' };
+  }
+
+  return { unavailable: false, status, payload: payload || {} };
+};
+
+/** 用 EF 返回的 session 落本地登录态；失败则返回归一化错误 */
+const adoptEdgeSession = async (payload) => {
+  const session = payload?.session || null;
+  const accessToken = String(session?.access_token || '');
+  const refreshToken = String(session?.refresh_token || '');
+
+  if (!accessToken || !refreshToken) {
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({
+        code: 'LOGIN_FAILED',
+        message: payload?.message || '登录失败，请稍后再试。'
+      })
+    };
+  }
+
+  const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+    access_token: accessToken,
+    refresh_token: refreshToken
+  });
+
+  if (sessionError) {
+    return { ok: false, data: null, error: normalizeDbError(sessionError) };
+  }
+
+  invalidateByTags(['auth', 'weekly-checkin']);
+
+  return {
+    ok: true,
+    data: sessionData || { user: payload?.user || null, session },
+    error: null
+  };
+};
+
 const escapeLikePattern = (value = '') => String(value || '').replace(/[\\%_]/g, '\\$&');
 
 export async function signUp(username, email, password, metadata = {}) {
@@ -204,7 +289,44 @@ export async function signIn(loginId, password) {
   }
 
   let resolvedEmail = safeLoginId;
+
+  // 方块 ID 登录：走 EF，邮箱不回传客户端
   if (!safeLoginId.includes('@')) {
+    const edge = await invokeAuthLoginEdge(safeLoginId, safePassword);
+
+    if (!edge.unavailable) {
+      const payload = edge.payload || {};
+
+      if (payload.ok !== true) {
+        return {
+          ok: false,
+          data: null,
+          error: normalizeDbError({
+            code: payload.code || 'LOGIN_FAILED',
+            message: payload.message || '登录失败，请稍后再试。'
+          })
+        };
+      }
+
+      return adoptEdgeSession(payload);
+    }
+
+    if (!LOGIN_LEGACY_RPC_FALLBACK) {
+      return {
+        ok: false,
+        data: null,
+        error: normalizeDbError({
+          code: 'LOGIN_GATEWAY_UNAVAILABLE',
+          message: '登录服务暂不可用，请稍后再试。'
+        })
+      };
+    }
+
+    logger.warn('auth-api', 'auth-login EF 不可用，降级到旧邮箱解析路径', {
+      status: edge.status,
+      reason: edge.reason
+    });
+
     const { data: rpcData, error: rpcError } = await supabase
       .rpc('resolve_email_for_login', { p_username: safeLoginId });
 
@@ -619,9 +741,4 @@ export async function getUserInfo(userId) {
     async () => supabase.from('profiles').select(PROFILE_ALL_COLUMNS).eq('id', userId).single(),
     { ttlMs: CACHE_TTL_LEVELS.USER_DATA, tags: ['profiles', `profiles:user:${userId}`], timeoutMs: 8000, retry: 1 }
   );
-}
-
-export async function getEmailByUsername(username) {
-  const { data, error } = await supabase.rpc('resolve_email_for_login', { p_username: username });
-  return { ok: !error, email: data || null, data, error };
 }

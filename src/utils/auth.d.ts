@@ -61,8 +61,6 @@ export function getProfilesPage(params?: { page?: number; limit?: number }): Pro
 
 export function getUserInfo(userId: string): Promise<AuthApiResult>
 
-export function getEmailByUsername(username: string): Promise<AuthApiResult>
-
 // --- Forum API ---
 export function getPosts(params?: Record<string, unknown>): Promise<AuthApiResult>
 export function getPostsCount(params?: Record<string, unknown>): Promise<AuthApiResult>

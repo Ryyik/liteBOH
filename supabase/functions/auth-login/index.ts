@@ -2,44 +2,15 @@ import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { createAnonClient, createServiceClient } from '../_shared/supabase.ts';
 import { validateLoginId } from '../_shared/auth-validation.ts';
 import { checkRateLimitDb } from '../_shared/rate-limiter.ts';
+// 登录标识解析：邮箱唯一真源是 auth.users（profiles.email 已 drop）。
+// 抽到 _shared 是为了可被 vitest 覆盖（本文件含 Deno.serve，无法直接单测）。
+import { resolveEmailFromLoginId } from '../_shared/resolve-login-id.ts';
 
 const normalizeErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 
-const escapeLikePattern = (value = '') => String(value || '').replace(/[\\%_]/g, '\\$&');
-
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 10;
-
-const resolveEmailFromLoginId = async (serviceClient: ReturnType<typeof createServiceClient>, loginId: string) => {
-  const normalizedLoginId = String(loginId || '').trim();
-  if (normalizedLoginId.includes('@')) {
-    return { ok: true, email: normalizedLoginId.toLowerCase() };
-  }
-
-  const { data: profileRows, error: lookupError } = await serviceClient
-    .from('profiles')
-    .select('email, username')
-    .ilike('username', escapeLikePattern(normalizedLoginId))
-    .limit(10);
-
-  const exactProfileRows = Array.isArray(profileRows)
-    ? profileRows.filter((row) => String(row?.username || '').trim().toLowerCase() === normalizedLoginId.toLowerCase())
-    : [];
-
-  if (lookupError || exactProfileRows.length === 0 || !exactProfileRows[0]?.email) {
-    return { ok: false, code: 'UNKNOWN_ACCOUNT', message: '登录失败：未找到该方块 ID 对应的账号。' };
-  }
-
-  if (exactProfileRows.length > 1) {
-    return { ok: false, code: 'DUPLICATED_USERNAME', message: '登录失败：该方块 ID 存在重复记录，请联系管理员处理。' };
-  }
-
-  return {
-    ok: true,
-    email: String(exactProfileRows[0].email || '').trim().toLowerCase(),
-  };
-};
 
 Deno.serve(async (request) => {
   const origin = request.headers.get('origin');

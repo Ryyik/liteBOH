@@ -18,8 +18,7 @@ export {
   getCurrentUser,
   getAllProfiles,
   getProfilesPage,
-  getUserInfo,
-  getEmailByUsername
+  getUserInfo
 } from './api/auth-api.js';
 
 export {
