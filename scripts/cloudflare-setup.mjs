@@ -9,12 +9,13 @@
  *   ④ 抓线上响应头确认真的生效
  *
  * 凭据来源：~/.cloudflare-auto（不进对话、不进仓库）
- *     api_token=<Cloudflare API Token>
- *     zone_id=<Zone ID>
+ *     api_token=<Cloudflare API Token>   必填
+ *     zone_id=<Zone ID>                  可选 —— 省略时用 token 自动查出（更不容易抄错）
  *
  * 用法：
- *   node scripts/cloudflare-setup.mjs            # 全流程
- *   node scripts/cloudflare-setup.mjs --no-secret # 跳过写 GitHub Secret
+ *   npm run security:setup            # 全流程
+ *   npm run security:setup:no-secret  # 跳过写 GitHub Secret
+ *   CF_SETUP_CRED_FILE=/path node scripts/cloudflare-setup.mjs   # 指定凭据文件
  *
  * 为什么不用 wrangler 的 OAuth：其 scope 里 zone 级只有 zone:read，
  * 没有改 zone 配置的写权限 → 下发响应头会 403。
@@ -41,9 +42,9 @@ function loadCreds() {
     console.error('   请先创建：');
     console.error("   cat > ~/.cloudflare-auto <<'EOF'");
     console.error('   api_token=<你的 Cloudflare API Token>');
-    console.error('   zone_id=<你的 Zone ID>');
     console.error('   EOF');
     console.error('   chmod 600 ~/.cloudflare-auto');
+    console.error(dim('   （zone_id 可省略 —— 未提供时脚本会自动查出，反而更不容易抄错）'));
     process.exit(2);
   }
   const creds = {};
@@ -52,10 +53,11 @@ function loadCreds() {
     const i = line.indexOf('=');
     creds[line.slice(0, i).trim()] = line.slice(i + 1).trim();
   }
-  if (!creds.api_token || !creds.zone_id) {
-    console.error(bad('❌ 文件里缺少 api_token 或 zone_id'));
+  if (!creds.api_token) {
+    console.error(bad('❌ 文件里缺少 api_token'));
     process.exit(2);
   }
+  // zone_id 可选：未提供时由 resolveZone() 用 token 自动查
   return creds;
 }
 
@@ -77,7 +79,10 @@ function cfError(body) {
 }
 
 const { api_token, zone_id } = loadCreds();
-console.log(dim(`凭据文件已读取：token ${api_token.length} 字符，zone ${zone_id.slice(0, 8)}…`));
+console.log(dim(
+  `凭据文件已读取：api_token ${api_token.length} 字符`
+  + (zone_id ? `，zone_id ${zone_id.slice(0, 8)}…` : '（未提供 zone_id，将自动查）'),
+));
 console.log();
 
 // ── ① 验证 token ────────────────────────────────────────────────
@@ -91,15 +96,41 @@ if (verify.status === 200 && verify.body?.success) {
   process.exit(1);
 }
 
-// ── 读 zone（顺带证明 token 至少能访问该 zone）────────────────────
+// zone 解析：凭据文件里给了就直接用；没给就用 token 自动查（省去用户手动找 Zone ID）
+async function resolveZone(token, explicitId) {
+  const res = await cf('/zones?per_page=50', token);
+  const list = res.status === 200 && res.body?.success ? (res.body.result || []) : [];
+  if (explicitId) {
+    const hit = list.find((z) => z.id === explicitId);
+    return { id: explicitId, name: hit?.name || '(不在可见列表里，仍直接使用)', source: '来自凭据文件' };
+  }
+  const want = HOST.replace(/^www\./, '');
+  const named = list.find((z) => z.name === want);
+  const hit = named || (list.length === 1 ? list[0] : null);
+  if (!hit) {
+    const names = list.map((z) => z.name).join(', ') || '(token 看不到任何 zone)';
+    return { error: `无法确定 zone：token 可见 ${names}` };
+  }
+  return { id: hit.id, name: hit.name, source: named ? `按域名自动匹配（${want}）` : 'token 下唯一 zone' };
+}
+
+// ── ② 确定目标 zone ─────────────────────────────────────────────
 console.log();
-console.log('② 读目标 zone');
-const zone = await cf(`/zones/${zone_id}`, api_token);
+console.log('② 确定目标 zone');
+const resolved = await resolveZone(api_token, zone_id);
+if (resolved.error) {
+  console.log(`   ${bad('❌ ' + resolved.error)}`);
+  console.log(dim('   → 检查 token 的 Zone Resources 是否包含 blockofhome.cn'));
+  process.exit(1);
+}
+console.log(`   ${ok('✅')} ${resolved.name}   ${dim('(' + resolved.source + ')')}`);
+console.log(dim(`   zone_id = ${resolved.id}`));
+
+const zone = await cf(`/zones/${resolved.id}`, api_token);
 if (zone.status === 200 && zone.body?.success) {
-  console.log(`   ${ok('✅')} ${zone.body.result?.name}  (status=${zone.body.result?.status})`);
+  console.log(`   ${ok('✅')} zone 可访问  status=${zone.body.result?.status}`);
 } else {
   console.log(`   ${bad('❌ 读 zone 失败')}  HTTP ${zone.status}  ${cfError(zone.body)}`);
-  console.log(dim('   → zone_id 是否正确？token 的 Zone Resources 是否包含它？'));
   process.exit(1);
 }
 
@@ -109,7 +140,7 @@ console.log('③ 下发 6 个安全响应头（scripts/cloudflare-security-heade
 let headersApplied = false;
 try {
   const out = execFileSync('node', [resolve('scripts/cloudflare-security-headers.mjs')], {
-    env: { ...process.env, CLOUDFLARE_API_TOKEN: api_token, CLOUDFLARE_ZONE_ID: zone_id },
+    env: { ...process.env, CLOUDFLARE_API_TOKEN: api_token, CLOUDFLARE_ZONE_ID: resolved.id },
     encoding: 'utf-8',
   });
   console.log(out.trim().split('\n').map((l) => `   ${l}`).join('\n'));
