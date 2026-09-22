@@ -8,7 +8,11 @@
 - **改完必反证**：stash（带 pathspec，先看 `git stash list`）→ 记红 → pop → 复跑全绿。
 
 ## 网络 / 推送（本机长期限制）
-- ⚠️ **`github.com` HTTPS 被 SNI 阻断**（TCP 443 通、TLS 失败）→ `git push` 不可能成功，重试无意义。**用 `scripts/push-via-api.py`**（GitHub Git Data API 走可用的 `api.github.com`；复现 commit 元数据使 SHA 与本地一致；默认干跑，`--apply` 才推）。⚠️ **必须保留代理变量**：`env -u HTTP_PROXY …` 会让小 GET 仍 200 但脚本首个 API 调用 `RemoteDisconnected`（2026-09-22 实测），别据此判「网络没问题」。
+- ⚠️ **`github.com` HTTPS 被 SNI 阻断**（TCP 通、TLS 失败）→ **HTTPS 形式的 `git push` 无解**。但 **SSH 没有 SNI，`ssh.github.com:443` 通道实测可用**（`Permission denied (publickey)` = 通道 OK 只缺 key；对端指纹 `SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU` = GitHub 官方 ed25519）。
+  - **✅ 已闭环（2026-09-22）：`git push` / `git fetch` 原生可用，这是首选路径。** remote = `git@github.com:Ryyik/liteBOH.git`，`~/.ssh/config` 的 `Host github.com → ssh.github.com:443 + id_ed25519`，公钥指纹 `SHA256:Wuj7j4ATzCpwC6w4DXt5G2ljORvVqvdMfwEn8/ArpZ8` 已注册（`ssh -T git@github.com` → `Hi Ryyik!`）。
+    ⚠️ 注册这一步只能由**人**做：`gh ssh-key add` 需 `admin:public_key` scope（本机 token 没有），`gh auth refresh` 是开浏览器的交互流程 → 给人 `pbcopy < ~/.ssh/id_ed25519.pub` + 打开 https://github.com/settings/ssh/new 最快。
+    为什么它比 API 快：**一次 pack，成本与改动文件数无关**；API 是每文件一请求（实测单请求 0.61s、300KB blob 1.79s，51 文件 ≈ 54 请求）。
+  - 兜底 **`scripts/push-via-api.py`**（GitHub Git Data API 走可用的 `api.github.com`；复现 commit 元数据使 SHA 与本地一致；默认干跑，`--apply` 才推）。它认 https/git@ 三种 URL 前缀，**换 remote 不会破坏它**。⚠️ 用它时**必须保留代理变量**：`env -u HTTP_PROXY …` 会让小 GET 仍 200 但脚本首个 API 调用 `RemoteDisconnected`（2026-09-22 实测），别据此判「网络没问题」。
 - ⚠️ **Supabase 5432 时通时断**（`tls error EOF`）→ `db push` 不可靠。改走 Management API（`read_only:false`）执行语句 + 手工写 `supabase_migrations.schema_migrations`（`version/name/statements text[]`），与语句**同一事务**。
 - 日志端点 `…/analytics/endpoints/logs.all` 时间参数**必须 ISO8601**；⚠️ 其时间窗过滤结果自相矛盾（24h 4629 行、72h 0 行）→ **不可用于判断「是否调用过」**。
 - Management API 凭据在本机：钥匙串 `Supabase CLI` 条目 = `go-keyring-base64:` + base64(sbp_ PAT)，剥壳解码可直调 api.supabase.com；其 `webauthn_rp_origins` 要**逗号字符串**（数组 400）。
