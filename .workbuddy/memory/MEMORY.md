@@ -8,7 +8,7 @@
 - **改完必反证**：stash（带 pathspec，先看 `git stash list`）→ 记红 → pop → 复跑全绿。
 
 ## 网络 / 推送（本机长期限制）
-- ⚠️ **`github.com` HTTPS 被 SNI 阻断**（TCP 443 通、TLS 失败）→ `git push` 不可能成功，重试无意义。**用 `scripts/push-via-api.py`**（GitHub Git Data API 走可用的 `api.github.com`；复现 commit 元数据使 SHA 与本地一致；默认干跑，`--apply` 才推）。
+- ⚠️ **`github.com` HTTPS 被 SNI 阻断**（TCP 443 通、TLS 失败）→ `git push` 不可能成功，重试无意义。**用 `scripts/push-via-api.py`**（GitHub Git Data API 走可用的 `api.github.com`；复现 commit 元数据使 SHA 与本地一致；默认干跑，`--apply` 才推）。⚠️ **必须保留代理变量**：`env -u HTTP_PROXY …` 会让小 GET 仍 200 但脚本首个 API 调用 `RemoteDisconnected`（2026-09-22 实测），别据此判「网络没问题」。
 - ⚠️ **Supabase 5432 时通时断**（`tls error EOF`）→ `db push` 不可靠。改走 Management API（`read_only:false`）执行语句 + 手工写 `supabase_migrations.schema_migrations`（`version/name/statements text[]`），与语句**同一事务**。
 - 日志端点 `…/analytics/endpoints/logs.all` 时间参数**必须 ISO8601**；⚠️ 其时间窗过滤结果自相矛盾（24h 4629 行、72h 0 行）→ **不可用于判断「是否调用过」**。
 - Management API 凭据在本机：钥匙串 `Supabase CLI` 条目 = `go-keyring-base64:` + base64(sbp_ PAT)，剥壳解码可直调 api.supabase.com；其 `webauthn_rp_origins` 要**逗号字符串**（数组 400）。
@@ -32,7 +32,8 @@
 ## 安全现状（2026-09-22；详见 `docs/2026-09-21-安全审计报告核验与全量复检.md`）
 - **既有安全报告主体已过期**（`docs/boh-full-health-check-2026-06-26.md` 第一章 72/100）→ 引用前按 `pg_policy` 现时点复核。
 - ✅ 已修：`resolve_email_for_login` 去邮箱化（登录走 `auth-login` EF、**降级分支已彻底删除**、迁移 `2026092103` 撤权，匿名实测 **401 42501**）；anon 可执行函数 232→**155**、anon 可写表 75→**0**；Cloudinary 切**签名上传**（`BOHIMG_SIGNED`）。
-- ⬜ 待办：`cron.job#8` 明文内嵌 41 字符 `sb_secret_`（**唯一未开工 P0**，service_role 等价；改法 `alter database postgres set "app.settings.service_role_key"` + `current_setting`）；线上**零安全响应头**（Pages 加不了 → Cloudflare Transform Rules，脚本就绪但 token 缺 `Zone→Config→Edit`）；`resolve_email_for_login` 函数本体未 drop（刻意留回滚）；第二阶段 5 项公开页撤权（须先做匿名流量实测）。
+- ✅ 安全响应头**已上线（2026-09-22 实测）**：`deploy` job 的 `cloudflare-security-headers.mjs` 输出「已应用安全响应头规则」，线上 `www.blockofhome.cn` 实取到 HSTS / X-Content-Type-Options / X-Frame-Options DENY / CSP(report-only) / Permissions-Policy / Referrer-Policy —— token 已有 Zone→Config→Edit 权限，此前「零响应头」的结论作废。
+- ⬜ 待办：`cron.job#8` 明文内嵌 41 字符 `sb_secret_`（**唯一未开工 P0**，service_role 等价；改法 `alter database postgres set "app.settings.service_role_key"` + `current_setting`）；`resolve_email_for_login` 函数本体未 drop（刻意留回滚）；第二阶段 5 项公开页撤权（须先做匿名流量实测）；GoTrue `password_min_length` 仍是 6（8 位策略待前端发布后上调）。
 - 判授权现状**只能靠目录快照**：`has_function_privilege` + `pg_get_functiondef` 文本搜门 + `aclexplode` 看 PUBLIC 份额；`git ls-files`/`-S` 查密钥是否进仓。
 - ⚠️ 判「某函数是否还有人调用」用 **`pg_stat_statements`**（Supabase 默认启用）查 PostgREST 包装语句 `calls`：① 扣除自己的探针调用；② 窗口内无事件时「不增长」**不能证明**调用者消失；③ **不要用 `_rate_limits`**（实测不留键）。
 
