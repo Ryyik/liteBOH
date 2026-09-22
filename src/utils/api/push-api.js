@@ -65,13 +65,23 @@ const waitForServiceWorker = async (timeoutMs = SERVICE_WORKER_READY_TIMEOUT_MS)
  *    只按 UA 判会把 iPad 当成桌面 → 在标签页里直接调 Notification.requestPermission()，
  *    而 iOS 标签页内 Notification API 不可用，表现为「点了没反应 / 未获得权限」。
  *    唯一可靠的补充判据是触摸点数（桌面 Mac 恒为 0）。
+ *
+ * 导出给引导类 UI 复用（如 AccountBindPrompt 决定要不要走「添加到主屏幕」流程）——
+ * 判定只此一处，别在组件里再抄一份。
  */
-const isIosLike = () => {
+export const isIosLike = () => {
   if (typeof navigator === 'undefined') return false;
   const ua = String(navigator.userAgent || '');
   if (/iPhone|iPod/i.test(ua)) return true;
   if (/iPad/i.test(ua)) return true;
   return /Macintosh/i.test(ua) && Number(navigator.maxTouchPoints || 0) > 1;
+};
+
+/** 是否已以「独立应用」形态运行（已添加到主屏幕 / 已安装 PWA）。 */
+export const isStandaloneMode = () => {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia?.('(display-mode: standalone)').matches === true
+    || window.navigator?.standalone === true;
 };
 
 /** 把 base64url 的 applicationServerKey 转成 subscribe() 需要的 Uint8Array */
@@ -96,10 +106,7 @@ export const getPushCapability = () => {
   if (!('Notification' in window)) return { supported: false, reason: '当前浏览器不支持系统通知' };
 
   // iOS Safari 只有把站点「添加到主屏幕」后才允许 Web Push，标签页里拿不到权限
-  const isIos = isIosLike();
-  const isStandalone = window.matchMedia?.('(display-mode: standalone)').matches
-    || window.navigator.standalone === true;
-  if (isIos && !isStandalone) {
+  if (isIosLike() && !isStandaloneMode()) {
     return { supported: false, reason: 'iPhone / iPad 需先「添加到主屏幕」再开启' };
   }
 

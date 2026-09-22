@@ -437,6 +437,18 @@ export async function isPasskeySupported() {
   return passkeyCapabilityCache;
 }
 
+/**
+ * 注册入口是否真实可用：`registerPasskey` 是 supabase-js 2.105+ 才加入的 experimental API
+ * （本项目 2026-09-21 随 6.3.3 升级到 2.116.0 才具备），实例还必须以
+ * `auth: { experimental: { passkey: true } }` 创建（supabase-client.js 已开）。
+ *
+ * ⚠️ 浏览器若缓存了升级前的 Vite 预构建产物（deps 下发 immutable 强缓存头），
+ * 运行时方法会整个不存在 —— 此时引导毫无意义，必须在 UI 层降级，
+ * 而不是把「registerPasskey is not a function」的英文 TypeError 甩给用户。
+ */
+export const canRegisterPasskey = () =>
+  typeof supabase.auth?.registerPasskey === 'function';
+
 export const signInWithPasskey = () => supabase.auth.signInWithPasskey();
 export const registerPasskey = () => supabase.auth.registerPasskey();
 export const listPasskeys = () => supabase.auth.passkey.list();
@@ -470,6 +482,10 @@ export function toPasskeyRegisterMessage(error) {
   const name = String(error?.name || '');
   const message = String(error?.message || '').toLowerCase();
 
+  // supabase-js 无会话/会话过期（AuthSessionMissingError）——预览假登录态与登录过期都会走到这里
+  if (name === 'AuthSessionMissingError' || message.includes('session missing') || message.includes('not authenticated')) {
+    return '未检测到有效登录，请先登录后再开启。';
+  }
   if (name === 'InvalidStateError' || message.includes('already') || message.includes('invalid state')) {
     return '这台设备上已经注册过通行密钥，无需重复添加。';
   }

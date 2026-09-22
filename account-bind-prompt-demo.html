@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>账户绑定引导 · 预览</title>
+<style>
+  /* 预览页自己的壳：只负责「切换状态」，不含任何弹窗样式 ——
+     弹窗的样式全部来自真实组件与项目 token，避免预览与线上出现两套观感。 */
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #f4f5f7;
+    font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: #1f2937;
+  }
+
+  [data-theme="dark"] body {
+    background: #0f0f14;
+    color: #f3f4f6;
+  }
+
+  /* 刻意压在弹窗遮罩（z-index 10002）之上：切换按钮在任何状态下都要能点到 */
+  .preview-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10003;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.92);
+    border-bottom: 1px solid rgba(17, 24, 39, 0.08);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  [data-theme="dark"] .preview-bar {
+    background: rgba(20, 20, 26, 0.92);
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .preview-title {
+    margin-right: 4px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+  }
+
+  .preview-bar button {
+    padding: 6px 12px;
+    border: 1px solid rgba(17, 24, 39, 0.12);
+    border-radius: 999px;
+    background: #fff;
+    color: inherit;
+    font: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+
+  [data-theme="dark"] .preview-bar button {
+    border-color: rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.08);
+    color: #f3f4f6;
+  }
+
+  .preview-bar button[aria-current="true"] {
+    border-color: #111827;
+    background: #111827;
+    color: #fff;
+  }
+
+  [data-theme="dark"] .preview-bar button[aria-current="true"] {
+    border-color: #f3f4f6;
+    background: #f3f4f6;
+    color: #16161c;
+  }
+
+  .preview-note {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 78px 18px 40px;
+    font-size: 13px;
+    line-height: 1.75;
+    color: #4b5563;
+  }
+
+  [data-theme="dark"] .preview-note {
+    color: #9ca3af;
+  }
+
+  .preview-note code {
+    padding: 1px 5px;
+    border-radius: 5px;
+    background: rgba(17, 24, 39, 0.06);
+    font-size: 12px;
+  }
+
+  [data-theme="dark"] .preview-note code {
+    background: rgba(255, 255, 255, 0.1);
+  }
+</style>
+</head>
+<body>
+  <div class="preview-bar">
+    <span class="preview-title">账户绑定引导 · 预览</span>
+    <button type="button" data-variant="desktop">桌面（默认）</button>
+    <button type="button" data-variant="ios">iPhone（需添加到主屏幕）</button>
+    <button type="button" data-variant="dark">深色主题</button>
+  </div>
+
+  <div class="preview-note">
+    <p>
+      本页直接挂载真实组件 <code>src/components/AccountBindPrompt/index.vue</code>，并注入了预览用的登录态，
+      所以这里看到的布局、文案、动效与线上一致 —— 不是另写的一份仿制页面。
+    </p>
+    <p>
+      用 <code>?bindPrompt=1</code> 强制弹出，绕过了「必须尚未注册通行密钥」这个正常触发条件：
+      否则已经注册过通行密钥的人永远看不到这个弹窗。
+    </p>
+    <p>
+      提示：「iPhone」那一档会覆盖 <code>navigator.userAgent</code>，用来复现 iOS 未添加到主屏幕时
+      通知项渲染成的三步图文引导。
+    </p>
+  </div>
+
+  <div id="app"></div>
+
+  <script type="module">
+    import { createApp, h } from "vue";
+    import { createPinia } from "pinia";
+    // 只引组件真正需要的两个样式单源：token（--liquid-*）与玻璃类库
+    import "/src/styles/common/tokens.css";
+    import "/src/styles/common/liquid-glass.css";
+    import AccountBindPrompt from "/src/components/AccountBindPrompt/index.vue";
+    import { useAuthStore } from "/src/stores/auth";
+
+    const params = new URLSearchParams(window.location.search);
+    const variant = params.get("variant") || "desktop";
+
+    // 深色：真实主题由 theme-manager.js 管，预览页直接打标记即可
+    if (variant === "dark") {
+      document.documentElement.dataset.theme = "dark";
+    }
+
+    // iPhone：覆盖 UA，让组件内部 isIosLike() / isStandaloneMode() 走 iOS 分支
+    if (variant === "ios") {
+      Object.defineProperty(window.navigator, "userAgent", {
+        configurable: true,
+        get: () => "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) "
+          + "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.7 Mobile/15E148 Safari/604.1",
+      });
+    }
+
+    const pinia = createPinia();
+    const app = createApp({ render: () => h(AccountBindPrompt) });
+    app.use(pinia);
+
+    // 预览登录态：仅为了让弹窗满足「已登录」这一前置条件，不写任何真实凭据
+    const auth = useAuthStore(pinia);
+    auth.userInfo.id = "00000000-0000-4000-8000-0000000000ff";
+    auth.userInfo.username = "preview";
+
+    app.mount("#app");
+
+    document.querySelectorAll("[data-variant]").forEach((btn) => {
+      const current = btn.dataset.variant === variant;
+      btn.setAttribute("aria-current", current ? "true" : "false");
+      btn.addEventListener("click", () => {
+        const next = btn.dataset.variant;
+        const query = next === "desktop" ? "?bindPrompt=1" : `?bindPrompt=1&variant=${next}`;
+        window.location.href = `${window.location.pathname}${query}`;
+      });
+    });
+  </script>
+</body>
+</html>

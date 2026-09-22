@@ -11,6 +11,8 @@ import { logger } from "@/utils/logger.js";
 import { useGlobalAiOverlay } from "@/composables/useGlobalAiOverlay";
 const AiEdgeTrigger = defineAsyncComponent(() => import("@/components/AiEdgeTrigger.vue"));
 const AdminConfirmModal = defineAsyncComponent(() => import("@/components/AdminConfirmModal.vue"));
+// 账户绑定引导（通行密钥 + 消息通知）：异步加载，不进首屏壳；自身判定何时该弹
+const AccountBindPrompt = defineAsyncComponent(() => import("@/components/AccountBindPrompt/index.vue"));
 import { useConfirmDialog } from "@/composables/useConfirmDialog.js";
 import PWAUpdateToast from "@/components/PWAUpdateToast/index.vue";
 import PostDetailModal from "./views/PostDetail/PostDetailModal.vue";
@@ -412,6 +414,9 @@ const showGlobalNavbar = computed(() => {
 
   <!-- PWA 更新提示（非阻塞） -->
   <PWAUpdateToast />
+
+  <!-- 账户绑定引导（底部弹窗）：未注册通行密钥时首次进站提示，可「不再提醒」 -->
+  <AccountBindPrompt />
 
   <!-- 全局 confirm / prompt 弹窗 (供 useConfirmDialog 复用) -->
   <AdminConfirmModal
