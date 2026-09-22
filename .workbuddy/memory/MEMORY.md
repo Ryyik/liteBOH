@@ -9,9 +9,10 @@
 
 ## 网络 / 推送（本机长期限制）
 - ⚠️ **`github.com` HTTPS 被 SNI 阻断**（TCP 通、TLS 失败）→ **HTTPS 形式的 `git push` 无解**。但 **SSH 没有 SNI，`ssh.github.com:443` 通道实测可用**（`Permission denied (publickey)` = 通道 OK 只缺 key；对端指纹 `SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU` = GitHub 官方 ed25519）。
-  - **✅ 已闭环（2026-09-22）：`git push` / `git fetch` 原生可用，这是首选路径。** remote = `git@github.com:Ryyik/liteBOH.git`，`~/.ssh/config` 的 `Host github.com → ssh.github.com:443 + id_ed25519`，公钥指纹 `SHA256:Wuj7j4ATzCpwC6w4DXt5G2ljORvVqvdMfwEn8/ArpZ8` 已注册（`ssh -T git@github.com` → `Hi Ryyik!`）。
-    ⚠️ 注册这一步只能由**人**做：`gh ssh-key add` 需 `admin:public_key` scope（本机 token 没有），`gh auth refresh` 是开浏览器的交互流程 → 给人 `pbcopy < ~/.ssh/id_ed25519.pub` + 打开 https://github.com/settings/ssh/new 最快。
-    为什么它比 API 快：**一次 pack，成本与改动文件数无关**；API 是每文件一请求（实测单请求 0.61s、300KB blob 1.79s，51 文件 ≈ 54 请求）。
+  - **✅ 原生 push 已可用，但通道间歇抖动（2026-09-22 实测）**：公钥已注册（`ssh -T git@github.com` → `Hi Ryyik!`），remote = `git@github.com:Ryyik/liteBOH.git`，`git push` 实测 **5s 成功**。
+    ⚠️ **`ssh.github.com:443` 会成串超时：6 次采样 3 成功 / 3 失败**，而同期 `api.github.com` **3/3 正常**。**规则：改动文件多（含图片）先试 SSH，失败重试 1~2 次；只改 1~3 个小文件或要确定性 → 直接走 API 脚本。**
+    ⚠️ git 调 ssh **不带连接超时** → 抖动时白等 **75 秒**。已设仓库级 `core.sshCommand="ssh -o ConnectTimeout=15"`（压到 15s，不动用户全局配置）。
+    注册这一步只能由**人**做：`gh ssh-key add` 需 `admin:public_key` scope（本机 token 没有），`gh auth refresh` 是开浏览器交互流程 → 给人 `pbcopy < ~/.ssh/id_ed25519.pub` + `open https://github.com/settings/ssh/new` 最快（用系统浏览器，那里才有已登录会话）。
   - 兜底 **`scripts/push-via-api.py`**（GitHub Git Data API 走可用的 `api.github.com`；复现 commit 元数据使 SHA 与本地一致；默认干跑，`--apply` 才推）。它认 https/git@ 三种 URL 前缀，**换 remote 不会破坏它**。⚠️ 用它时**必须保留代理变量**：`env -u HTTP_PROXY …` 会让小 GET 仍 200 但脚本首个 API 调用 `RemoteDisconnected`（2026-09-22 实测），别据此判「网络没问题」。
 - ⚠️ **Supabase 5432 时通时断**（`tls error EOF`）→ `db push` 不可靠。改走 Management API（`read_only:false`）执行语句 + 手工写 `supabase_migrations.schema_migrations`（`version/name/statements text[]`），与语句**同一事务**。
 - 日志端点 `…/analytics/endpoints/logs.all` 时间参数**必须 ISO8601**；⚠️ 其时间窗过滤结果自相矛盾（24h 4629 行、72h 0 行）→ **不可用于判断「是否调用过」**。
