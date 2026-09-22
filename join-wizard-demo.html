@@ -1,0 +1,1379 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BOH 注册页改版 · 方案 B 三步向导</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+:root{
+  /* ===== Liquid Glass 材质层（逐字对齐 src/styles/common/tokens.css 的 --liquid-*）===== */
+  --liquid-bg:rgba(255,255,255,.72);
+  --liquid-bg-strong:rgba(255,255,255,.84);
+  --liquid-bg-subtle:rgba(255,255,255,.58);
+  --liquid-bg-nested:rgba(255,255,255,.42);
+  --liquid-bg-overlay:rgba(248,250,252,.62);
+  --liquid-border:rgba(255,255,255,.65);
+  --liquid-border-strong:rgba(255,255,255,.82);
+  --liquid-border-hairline:rgba(15,23,42,.06);
+  --liquid-blur:28px; --liquid-blur-sm:18px; --liquid-blur-lg:36px;
+  --liquid-saturate:180%;
+  --liquid-filter:blur(var(--liquid-blur)) saturate(var(--liquid-saturate)) brightness(1.02);
+  --liquid-filter-sm:blur(var(--liquid-blur-sm)) saturate(var(--liquid-saturate)) brightness(1.02);
+  --liquid-filter-lg:blur(var(--liquid-blur-lg)) saturate(var(--liquid-saturate)) brightness(1.02);
+  --liquid-highlight:inset 0 1px 0 rgba(255,255,255,.86);
+  --liquid-highlight-subtle:inset 0 1px 0 rgba(255,255,255,.55);
+  --liquid-shadow:0 20px 60px rgba(15,23,42,.07), 0 1px 3px rgba(15,23,42,.06);
+  --liquid-shadow-sm:0 8px 24px rgba(15,23,42,.06);
+  --liquid-shadow-overlay:0 24px 80px rgba(15,23,42,.14);
+  --liquid-radius-lg:28px; --liquid-radius-md:16px; --liquid-radius-pill:999px;
+
+  /* ===== 语义层：全部派生自上面的材质，改材质只改这一处 ===== */
+  --bg:#eef1f6;
+  --surface:var(--liquid-bg-strong);      /* 外卡 = 唯一的活跃模糊层 */
+  --surface-2:var(--liquid-bg-nested);    /* 嵌套控件 = 只上色不叠模糊 */
+  --surface-3:rgba(15,23,42,.05);
+  --aside-band:linear-gradient(180deg,rgba(15,23,42,.06),rgba(15,23,42,.015));
+  --panel-ink:#1d1d1f; --panel-ink-2:#5f5f66; --panel-ink-3:#6b6b70;
+  --radius-input:13px;
+  --page-scrim:linear-gradient(150deg,rgba(247,249,253,.66),rgba(238,243,250,.78));
+  --ink:#1d1d1f; --ink-2:#6e6e73; --ink-3:#6b6b70;
+  --line:rgba(0,0,0,.12); --line-2:rgba(0,0,0,.07);
+  --accent:#0071e3; --accent-ink:#fff; --accent-soft:rgba(0,113,227,.09);
+  --ok:#0f7b57; --ok-soft:rgba(15,123,87,.10);
+  --warn:#a15c07; --warn-soft:rgba(161,92,7,.10);
+  --err:#c8102e; --err-soft:rgba(200,16,46,.08);
+  --ring:0 0 0 3px rgba(0,113,227,.30);
+  --shadow:0 22px 60px -28px rgba(15,23,42,.34);
+}
+html[data-theme=dark]{
+  --liquid-bg:rgba(28,28,36,.72);
+  --liquid-bg-strong:rgba(40,40,52,.84);
+  --liquid-bg-subtle:rgba(38,38,48,.58);
+  --liquid-bg-nested:rgba(38,38,48,.42);
+  --liquid-bg-overlay:rgba(18,18,26,.68);
+  --liquid-border:rgba(255,255,255,.12);
+  --liquid-border-strong:rgba(255,255,255,.18);
+  --liquid-border-hairline:rgba(255,255,255,.08);
+  --liquid-highlight:inset 0 1px 0 rgba(255,255,255,.12);
+  --liquid-highlight-subtle:inset 0 1px 0 rgba(255,255,255,.08);
+  --liquid-shadow:0 20px 60px rgba(0,0,0,.4), 0 1px 3px rgba(0,0,0,.3);
+  --liquid-shadow-sm:0 8px 24px rgba(0,0,0,.3);
+  --liquid-shadow-overlay:0 24px 80px rgba(0,0,0,.42);
+  --liquid-text-primary:#f5f5f7; --liquid-text-secondary:#a1a1a6; --liquid-text-tertiary:#8a919c;
+
+  --bg:#0a0a11;
+  --surface:var(--liquid-bg-strong);
+  --surface-2:var(--liquid-bg-nested);
+  --surface-3:rgba(255,255,255,.07);
+  --aside-band:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.012));
+  --panel-ink:#f5f5f7; --panel-ink-2:#c7c7cc; --panel-ink-3:#9a9aa0;
+  --radius-input:13px;
+  --page-scrim:linear-gradient(150deg,rgba(14,16,24,.66),rgba(10,11,18,.8));
+  --ink:#f5f5f7; --ink-2:#a1a1a6; --ink-3:#a8a8ad;
+  --line:rgba(255,255,255,.16); --line-2:rgba(255,255,255,.09);
+  --accent:#0a84ff; --accent-ink:#fff; --accent-soft:rgba(10,132,255,.15);
+  --ok:#30d158; --ok-soft:rgba(48,209,88,.14);
+  --warn:#ffd60a; --warn-soft:rgba(255,214,10,.13);
+  --err:#ff6961; --err-soft:rgba(78,18,16,.58);
+  --ring:0 0 0 3px rgba(10,132,255,.42);
+  --shadow:0 26px 70px -30px rgba(0,0,0,.85);
+}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue","Microsoft YaHei",sans-serif;
+  color:var(--ink); -webkit-font-smoothing:antialiased;
+  /* 液态玻璃要有可模糊的内容 —— 品牌主图 + 浅遮罩。遮罩保证合成后底色仍浅，
+     这样玻璃上的深色文字对比度是可预期的（而不是被图片明暗带着走）。 */
+  background-color:var(--bg);
+  background-image:var(--page-scrim), url("src/assets/images/main1-1280.webp");
+  background-size:cover, cover;
+  background-position:center, center 42%;
+  background-repeat:no-repeat, no-repeat;
+  transition:background-color .22s ease,color .22s ease;
+}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+.demobar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;padding:11px 22px;
+  background:var(--surface);border-bottom:1px solid var(--line-2);position:relative;z-index:30}
+.db-title{font-size:13px;font-weight:600;letter-spacing:-.01em}
+.db-title span{font-weight:400;color:var(--ink-2)}
+.seg{display:flex;gap:3px;background:var(--surface-3);padding:3px;border-radius:999px}
+.db-btn{border:0;background:transparent;color:var(--ink-2);font:inherit;font-size:12px;
+  padding:5px 11px;border-radius:999px;cursor:pointer;transition:background .16s,color .16s;white-space:nowrap}
+.db-btn:hover{color:var(--ink)}
+.db-btn.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.14)}
+.db-btn.db-action{background:var(--surface-3)}
+.db-btn.db-action.on{background:var(--accent);color:var(--accent-ink);box-shadow:none}
+.db-hint{font-size:11px;color:var(--ink-3);margin-left:auto}
+
+.stage{display:flex;justify-content:center;padding:26px 20px 70px}
+/* 容器查询必须挂在 .jw 的祖先上 —— 元素无法查询自身，否则只有后代规则生效 */
+.jw-frame{container-type:inline-size;width:100%;max-width:1180px;transition:width .3s ease}
+#stage[data-vp=mobile] .jw-frame{width:390px}
+.jw{
+  width:100%;height:clamp(640px,calc(100vh - 210px),880px);
+  background:var(--liquid-bg-strong);
+  border:1px solid var(--liquid-border);
+  border-radius:var(--liquid-radius-lg);
+  box-shadow:var(--liquid-highlight), inset 0 -1px 0 rgba(255,255,255,.22), var(--liquid-shadow-overlay);
+  backdrop-filter:var(--liquid-filter-lg);
+  -webkit-backdrop-filter:var(--liquid-filter-lg);
+  isolation:isolate; contain:paint; overflow:hidden; position:relative;
+  display:grid;grid-template-columns:42% 58%;
+  transition:height .3s ease;
+}
+@supports (corner-shape:squircle){ .jw{corner-shape:squircle} }
+#stage[data-vp=mobile] .jw{height:min(796px,calc(100vh - 150px));border-radius:34px}
+/* 嵌套面一律只上色不叠模糊 —— 项目约束：一层活跃模糊（one active blur layer） */
+.jw-aside,.jw-main,.fld .ctrl input,.fld .ctrl select,.terms,.aside-panel,.altcha-idle,.altcha-box,
+.btn-ghost,.btn-mini,.suggest button,.state,.tag-req,.tag-opt,.meter i,.p-dot,.p-link,.avatar-drop,.seg,.switch-row,.pk-card{
+  backdrop-filter:none; -webkit-backdrop-filter:none;
+}
+
+.jw-aside{position:relative;overflow:hidden;background-image:var(--aside-band);
+  border-right:1px solid var(--liquid-border-hairline);
+  padding:34px 30px;display:flex;flex-direction:column}
+.aside-glow{position:absolute;inset:auto -30% -40% -30%;height:60%;pointer-events:none;
+  background:radial-gradient(60% 100% at 50% 100%,var(--accent-soft),transparent 70%)}
+/* 品牌文案坐在嵌套玻璃面板上：面板只上色不叠模糊，文字落在可预期的浅/深底上 */
+.aside-panel{margin:auto 0;position:relative;z-index:2;
+  background:var(--liquid-bg);border:1px solid var(--liquid-border);
+  border-radius:var(--liquid-radius-md);
+  box-shadow:var(--liquid-highlight-subtle), var(--liquid-shadow-sm);
+  padding:22px 22px 20px}
+.brand{display:flex;align-items:center;gap:11px;position:relative;z-index:2}
+.brand-mark{width:34px;height:34px;border-radius:10px;background:var(--accent);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;letter-spacing:.02em}
+.brand-name{font-size:15px;font-weight:600;letter-spacing:-.01em;color:var(--panel-ink)}
+.aside-hero{margin:0;position:relative;z-index:2}
+.aside-hero h1{margin:0 0 12px;font-size:29px;line-height:1.24;font-weight:700;letter-spacing:-.028em;
+  color:var(--panel-ink);transition:opacity .24s ease}
+.aside-hero p{margin:0;font-size:13.5px;line-height:1.62;color:var(--panel-ink-2);transition:opacity .24s ease}
+.aside-stats{margin-top:26px;display:flex;gap:22px;position:relative;z-index:2}
+.aside-stats b{display:block;font-size:16px;font-weight:600;letter-spacing:-.01em;color:var(--panel-ink)}
+.aside-stats i{display:block;font-style:normal;font-size:11px;color:var(--panel-ink-3);margin-top:3px}
+.aside-privacy{margin-top:20px;padding-top:16px;border-top:1px solid var(--liquid-border-hairline);
+  font-size:11.5px;line-height:1.6;color:var(--panel-ink-3);position:relative;z-index:2}
+
+.jw-main{display:flex;flex-direction:column;min-height:0;overflow-y:auto;overflow-x:hidden;
+  scrollbar-width:thin}
+.jw-main::-webkit-scrollbar{width:8px}
+.jw-main::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
+.jw-inner{width:100%;max-width:412px;margin:0 auto;padding:30px 40px 0;display:flex;flex-direction:column;flex:1 0 auto}
+
+.progress{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.progress-dots{display:flex;align-items:center;gap:0}
+.p-dot{width:9px;height:9px;border-radius:50%;background:var(--line);transition:background .3s,transform .3s}
+.p-dot.is-done{background:var(--accent);opacity:.45}
+.p-dot.now{background:var(--accent);transform:scale(1.35)}
+.p-link{width:26px;height:1.5px;background:var(--line);transition:background .3s}
+.p-link.is-done{background:var(--accent);opacity:.45}
+.progress-text{font-size:12px;color:var(--ink-2);margin-left:auto;font-variant-numeric:tabular-nums}
+
+.alerts{display:none;margin-bottom:16px;border:1px solid var(--err);background:var(--err-soft);
+  border-radius:var(--r-md);padding:11px 13px}
+.alerts.on{display:block}
+.alerts p{margin:0 0 6px;font-size:12px;font-weight:600;color:var(--err)}
+.alerts ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+.alerts button{border:0;background:transparent;padding:0;font:inherit;font-size:12px;color:var(--err);
+  text-align:left;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+
+.viewport{position:relative;overflow:hidden;transition:height .34s cubic-bezier(.32,.72,0,1)}
+.page{position:absolute;top:0;left:0;width:100%;opacity:0;pointer-events:none;
+  transform:translateX(20px);transition:opacity .32s ease,transform .32s cubic-bezier(.32,.72,0,1)}
+.page.active{opacity:1;pointer-events:auto;transform:none}
+.page.out-l{transform:translateX(-20px)}
+.page h2{margin:0 0 6px;font-size:20px;font-weight:600;letter-spacing:-.02em}
+.page .lead{margin:0 0 22px;font-size:13px;line-height:1.6;color:var(--ink-2)}
+
+.fld{margin-bottom:18px;position:relative}
+.fld-label{display:flex;align-items:baseline;gap:7px;font-size:12.5px;font-weight:600;
+  color:var(--ink);margin-bottom:7px;letter-spacing:-.005em}
+.tag-req{font-size:10.5px;font-weight:500;color:var(--err);background:var(--err-soft);
+  padding:2px 6px;border-radius:5px}
+.tag-opt{font-size:10.5px;font-weight:500;color:var(--ink-3);background:var(--surface-3);
+  padding:2px 6px;border-radius:5px}
+.ctrl{position:relative;display:flex;align-items:center}
+.ctrl input,.ctrl select{
+  width:100%;font:inherit;font-size:14.5px;color:var(--ink);background:var(--liquid-bg-nested);
+  border:1px solid var(--line);border-radius:var(--radius-input);padding:12px 13px;
+  transition:border-color .16s,box-shadow .16s,background .16s}
+.ctrl input::placeholder{color:var(--ink-3)}
+.ctrl input:hover,.ctrl select:hover{border-color:var(--line)}
+.ctrl input:focus,.ctrl select:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring);
+  background:var(--surface)}
+.ctrl.has-btn input{padding-right:64px}
+.pw-toggle{position:absolute;right:6px;border:0;background:transparent;color:var(--accent);
+  font:inherit;font-size:12px;font-weight:500;padding:7px 9px;border-radius:7px;cursor:pointer}
+.pw-toggle:hover{background:var(--accent-soft)}
+.fld.pw .ctrl{padding-right:0}
+.state{position:absolute;right:12px;font-size:11.5px;font-weight:500;pointer-events:none;
+  display:none;align-items:center;gap:5px}
+.state.on{display:flex}
+.state.checking{color:var(--ink-3)}
+.state.ok{color:var(--ok)}
+.state.err{color:var(--err)}
+.fld.pw .state,.fld.has-toggle .state{display:none!important}
+.msg{margin:6px 0 0;font-size:11.5px;line-height:1.5;min-height:0;display:none;color:var(--err)}
+.msg.on{display:block}
+.msg.ok{color:var(--ok)}
+.msg.warn{color:var(--warn)}
+.hint{margin:6px 0 0;font-size:11.5px;line-height:1.55;color:var(--ink-3)}
+.fld.invalid .ctrl input,.fld.invalid .ctrl select{border-color:var(--err)}
+.fld.valid .ctrl input,.fld.valid .ctrl select{border-color:var(--ok)}
+.suggest{margin:9px 0 0;display:none;flex-wrap:wrap;gap:6px;align-items:center}
+.suggest.on{display:flex}
+.suggest span{font-size:11.5px;color:var(--ink-2)}
+.suggest button{border:1px solid var(--line);background:var(--surface-2);color:var(--ink);
+  font:inherit;font-size:12px;padding:5px 10px;border-radius:999px;cursor:pointer}
+.suggest button:hover{border-color:var(--accent);color:var(--accent)}
+
+.meter{display:flex;gap:5px;margin-top:9px}
+.meter i{flex:1;height:4px;border-radius:2px;background:var(--line);transition:background .3s}
+.meter[data-lv="1"] i:nth-child(-n+1){background:var(--err)}
+.meter[data-lv="2"] i:nth-child(-n+2){background:var(--warn)}
+.meter[data-lv="3"] i{background:var(--ok)}
+.meter-label{font-size:11.5px;color:var(--ink-3);margin-top:6px}
+.rules{list-style:none;margin:11px 0 0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:5px 12px}
+.rules li{font-size:11.5px;color:var(--ink-3);display:flex;align-items:center;gap:6px;transition:color .2s}
+.rules li::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--line);flex:none;transition:background .2s}
+.rules li.hit{color:var(--ok)}
+.rules li.hit::before{background:var(--ok)}
+
+.birth{display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:9px}
+.birth select{width:100%}
+.avatar-row{display:flex;align-items:center;gap:15px}
+.avatar-drop{width:66px;height:66px;flex:none;border-radius:50%;background:var(--surface-3);
+  border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
+  overflow:hidden;font-size:11px;font-weight:600;color:var(--ink-3)}
+.avatar-drop img{width:100%;height:100%;object-fit:cover}
+.avatar-side{display:flex;flex-direction:column;align-items:flex-start;gap:7px}
+.btn-mini{border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:inherit;
+  font-size:12.5px;padding:7px 13px;border-radius:9px;cursor:pointer;transition:border-color .16s,color .16s}
+.btn-mini:hover{border-color:var(--accent);color:var(--accent)}
+
+/* 通行密钥：开关（原生 checkbox + role="switch"，保留键盘与读屏语义） */
+.switch-row{display:flex;align-items:flex-start;gap:12px;cursor:pointer;position:relative;
+  padding:14px 15px;border:1px solid var(--line);border-radius:var(--radius-input);
+  background:var(--liquid-bg-nested)}
+.switch-input{position:absolute;left:15px;top:16px;width:38px;height:22px;margin:0;opacity:0;cursor:pointer;z-index:2}
+.switch-track{width:38px;height:22px;border-radius:999px;background:var(--line);position:relative;
+  flex:none;transition:background .2s ease}
+.switch-knob{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.28);transition:transform .2s cubic-bezier(.32,.72,0,1)}
+.switch-input:checked + .switch-track{background:var(--accent)}
+.switch-input:checked + .switch-track .switch-knob{transform:translateX(16px)}
+.switch-input:focus-visible + .switch-track{box-shadow:var(--ring)}
+.switch-copy{display:flex;flex-direction:column;gap:3px;min-width:0}
+.switch-title{font-size:13px;font-weight:600;color:var(--ink)}
+.switch-desc{font-size:11.5px;line-height:1.55;color:var(--ink-3)}
+
+/* 通行密钥：成功页卡片 */
+.pk-card{margin-top:22px;width:100%;text-align:left;padding:16px;
+  border:1px solid var(--line);border-radius:var(--radius-input);background:var(--liquid-bg-nested)}
+.pk-head{display:flex;gap:11px;align-items:flex-start}
+.pk-ico{width:30px;height:30px;border-radius:9px;background:var(--accent-soft);flex:none;position:relative}
+.pk-ico::after{content:"";position:absolute;left:9px;top:7px;width:12px;height:14px;border-radius:6px 6px 3px 3px;
+  border:1.8px solid var(--accent);border-bottom-width:3px}
+.pk-title{font-size:13.5px;font-weight:600;color:var(--ink);display:block;margin-bottom:4px}
+.pk-desc{margin:0;font-size:11.5px;line-height:1.6;color:var(--ink-2)}
+.pk-actions{display:flex;gap:8px;margin-top:14px}
+.pk-actions .btn{flex:none;padding:11px 16px;font-size:13px;border-radius:11px}
+.pk-actions .btn-primary{flex:1}
+.pk-state{margin:11px 0 0;font-size:11.5px;line-height:1.55;color:var(--ink-3);min-height:0}
+.pk-state.on{display:block}
+.pk-state.ok{color:var(--ok)}
+.pk-state.err{color:var(--err)}
+.pk-done{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--ok);margin-top:14px}
+.pk-done .tick{width:16px;height:16px;border-radius:5px;background:var(--ok);position:relative;flex:none}
+.pk-done .tick::after{content:"";position:absolute;left:5.5px;top:2px;width:3px;height:7px;
+  border:solid #fff;border-width:0 1.6px 1.6px 0;transform:rotate(45deg)}
+.pk-hint{margin:22px 0 0;font-size:11.5px;line-height:1.6;color:var(--ink-3);text-align:center}
+
+.altcha-row{margin-top:4px}
+.altcha-idle{width:100%;display:flex;align-items:center;gap:10px;border:1px solid var(--line);
+  background:var(--surface-2);border-radius:var(--r-md);padding:11px 13px;font:inherit;font-size:13px;
+  color:var(--ink);cursor:pointer}
+.altcha-idle:hover{border-color:var(--accent)}
+.altcha-cb{width:15px;height:15px;border-radius:4px;border:1.5px solid var(--ink-3);flex:none}
+.altcha-brand{margin-left:auto;font-size:10.5px;color:var(--ink-3);letter-spacing:.04em}
+.altcha-box{display:flex;align-items:center;gap:10px;border:1px solid var(--line);
+  background:var(--surface-2);border-radius:var(--r-md);padding:11px 13px;font-size:13px;color:var(--ink-2)}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--accent);
+  animation:spin .8s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.altcha-done .tick{width:15px;height:15px;border-radius:4px;background:var(--ok);position:relative;flex:none}
+.altcha-done .tick::after{content:"";position:absolute;left:5px;top:1.5px;width:3px;height:7px;
+  border:solid #fff;border-width:0 1.5px 1.5px 0;transform:rotate(45deg)}
+.altcha-done{color:var(--ok)}
+
+.actions{display:flex;gap:10px;padding:24px 0 4px;align-items:center}
+.btn{font:inherit;font-size:14.5px;font-weight:600;border-radius:14px;cursor:pointer;
+  padding:13px 20px;transition:transform .16s,background .16s,color .16s,border-color .16s,opacity .16s}
+.btn-primary{flex:1;border:0;background:var(--accent);color:var(--accent-ink)}
+.btn-primary:hover{transform:translateY(-1px);filter:brightness(1.06)}
+.btn-primary:active{transform:translateY(0)}
+.btn-ghost{flex:none;border:1px solid var(--line);background:transparent;color:var(--ink)}
+.btn-ghost:hover{border-color:var(--ink-3)}
+.btn-ghost[hidden]{display:none}
+.btn:disabled{opacity:.42;cursor:not-allowed;transform:none;filter:none}
+
+.terms{position:sticky;bottom:0;margin-top:auto;background:var(--liquid-bg-strong);
+  border-top:1px solid var(--liquid-border-hairline);padding:13px 40px 16px}
+.terms-inner{max-width:412px;margin:0 auto;display:flex;flex-direction:column;gap:8px}
+.terms label{display:flex;align-items:flex-start;gap:9px;cursor:pointer;user-select:none}
+.terms input{width:17px;height:17px;margin:1px 0 0;accent-color:var(--accent);flex:none;cursor:pointer}
+.terms .t-text{font-size:11.5px;line-height:1.55;color:var(--ink-2)}
+.terms a{color:var(--accent);text-decoration:none;font-weight:500}
+.terms a:hover{text-decoration:underline}
+.terms .t-note{font-size:10.5px;color:var(--ink-3);display:flex;gap:6px;align-items:center}
+.terms.invalid .t-text{color:var(--err)}
+
+.done{display:flex;flex-direction:column;align-items:center;text-align:center;
+  padding:56px 40px;margin:auto 0;max-width:420px}
+.done-mark{width:64px;height:64px;border-radius:20px;background:var(--ok);position:relative;flex:none;margin-bottom:22px}
+.done-mark::after{content:"";position:absolute;left:23px;top:14px;width:14px;height:26px;
+  border:solid #fff;border-width:0 3px 3px 0;transform:rotate(45deg)}
+.done h2{margin:0 0 10px;font-size:23px;font-weight:600;letter-spacing:-.02em}
+.done p{margin:0 0 6px;font-size:13.5px;line-height:1.66;color:var(--ink-2)}
+.done p b{color:var(--ink);font-weight:600}
+.done-actions{margin-top:26px;display:flex;flex-direction:column;gap:9px;width:100%}
+/* 不要在这里写 display:block —— 特异性 (0,2,0) 会压过 [hidden]{display:none} 的 (0,1,0)，
+   「重新发送验证邮件」在直登模式下会照样显示出来。父容器已是 flex column，子项自然块级。 */
+.done-actions .btn{width:100%;border-radius:14px;text-align:center;text-decoration:none;
+  padding:13px 20px;font-size:14px}
+.done-resend{font-size:11.5px;color:var(--ink-3);text-align:center;margin-top:2px}
+.done-resend.ok{color:var(--ok)}
+
+/* 标注用独立浮层：挂在 .jw 上按目标矩形定位，
+   不能把 chip 塞进目标元素里 —— .viewport{overflow:hidden} 会把负偏移的 chip 整块裁掉 */
+.notes-layer{position:absolute;inset:0;pointer-events:none;z-index:25}
+.chip{position:absolute;width:19px;height:19px;border-radius:50%;
+  border:0;background:var(--accent);color:#fff;font:inherit;font-size:11px;font-weight:600;
+  line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;
+  pointer-events:auto;z-index:12;box-shadow:0 2px 8px rgba(0,113,227,.4)}
+.chip:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.pop{position:absolute;z-index:60;max-width:284px;background:#1d1d1f;color:#f5f5f7;
+  font-size:12px;line-height:1.6;padding:11px 13px;border-radius:11px;
+  box-shadow:0 14px 40px -12px rgba(0,0,0,.5);display:none}
+.pop.on{display:block}
+.pop b{color:#fff}
+html[data-theme=dark] .pop{background:#f5f5f7;color:#1d1d1f}
+html[data-theme=dark] .pop b{color:#000}
+
+@container (max-width:760px){
+  .jw{--liquid-blur:16px;--liquid-saturate:150%;grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  .jw-aside{border-right:0;border-bottom:1px solid var(--liquid-border-hairline);padding:20px 22px 18px}
+  /* 移动端内层全部落平（对齐 liquid-glass.css 的性能规则：层数 3→1） */
+  .aside-panel{background:transparent;border:0;box-shadow:none;padding:0;margin:14px 0 0}
+  .aside-glow{display:none}
+  .aside-hero{margin-top:18px}
+  .aside-hero h1{font-size:20px;margin-bottom:6px}
+  .aside-hero p{font-size:12.5px}
+  .aside-stats,.aside-privacy{display:none}
+  .jw-inner{padding:22px 22px 0;max-width:none}
+  .terms{padding:12px 22px 15px}
+  .terms-inner{max-width:none}
+  .page h2{font-size:18px}
+  .actions{position:static}
+}
+/* 降级 1：浏览器不支持 backdrop-filter（对齐 tokens.css 的同名降级块） */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root { --liquid-bg:rgba(255,255,255,.96); --liquid-bg-strong:#ffffff; --liquid-bg-subtle:#f5f5f7; --liquid-bg-nested:#f7f8fa; }
+  html[data-theme=dark] { --liquid-bg:#1e1e2a; --liquid-bg-strong:#252532; --liquid-bg-subtle:#232332; --liquid-bg-nested:#28283a; }
+}
+/* 降级 2：demo 控制条手动切（也是接入时「低端设备/省电模式」的落点） */
+html[data-material=flat]{
+  --liquid-bg:rgba(255,255,255,.97); --liquid-bg-strong:#ffffff;
+  --liquid-bg-subtle:#f5f5f7; --liquid-bg-nested:#f7f8fa;
+}
+html[data-theme=dark][data-material=flat]{
+  --liquid-bg:#1e1e2a; --liquid-bg-strong:#252532;
+  --liquid-bg-subtle:#232332; --liquid-bg-nested:#28283a;
+}
+html[data-material=flat] .jw{backdrop-filter:none;-webkit-backdrop-filter:none}
+
+@media (prefers-reduced-motion:no-preference){
+  .jw-viewport{scroll-behavior:smooth}
+}
+/* 放在所有 class 规则之后：class 里的 display 会盖掉 UA 的 [hidden]{display:none}。
+   不加 !important（仓库 CI 有 important 预算门禁），靠层叠顺序取胜。 */
+[hidden]{display:none}
+</style>
+</head>
+<body>
+<h1 class="sr-only">BOH 注册页改版方案 B —— 三步向导交互演示</h1>
+
+<div class="demobar">
+  <div class="db-title">方案 B · 三步向导 <span>— 可交互 demo</span></div>
+  <div class="seg" id="segTheme">
+    <button class="db-btn on" data-theme-set="light">浅色</button>
+    <button class="db-btn" data-theme-set="dark">深色</button>
+  </div>
+  <div class="seg" id="segVp">
+    <button class="db-btn on" data-vp="desktop">桌面</button>
+    <button class="db-btn" data-vp="mobile">移动</button>
+  </div>
+  <div class="seg" id="segJump">
+    <button class="db-btn" data-jump="1">第 1 步</button>
+    <button class="db-btn" data-jump="2">第 2 步</button>
+    <button class="db-btn" data-jump="3">第 3 步</button>
+    <button class="db-btn" data-jump="done">成功页</button>
+  </div>
+  <div class="seg" id="segMat">
+    <button class="db-btn on" data-mat="liquid">液态玻璃</button>
+    <button class="db-btn" data-mat="flat">降级实色</button>
+  </div>
+  <div class="seg" id="segPk">
+    <button class="db-btn on" data-pk="ok">通行密钥 可用</button>
+    <button class="db-btn" data-pk="unsupported">不支持</button>
+    <button class="db-btn" data-pk="fail">验证失败</button>
+  </div>
+  <div class="seg" id="segMail">
+    <button class="db-btn on" data-mail="direct">直登模式</button>
+    <button class="db-btn" data-mail="confirm">邮箱确认</button>
+  </div>
+  <button class="db-btn db-action" id="btnInject">注入错误态</button>
+  <button class="db-btn db-action on" id="btnNotes">修复标注 开</button>
+  <button class="db-btn db-action" id="btnReset">重置</button>
+  <div class="db-hint">点蓝色编号可看改动说明</div>
+</div>
+
+<div class="stage" id="stage" data-vp="desktop">
+  <div class="jw-frame" id="jwFrame">
+  <div class="jw" id="jw">
+    <aside class="jw-aside">
+      <div class="aside-glow"></div>
+      <div class="aside-panel">
+      <div class="brand">
+        <div class="brand-mark">BOH</div>
+        <div class="brand-name">方块之家</div>
+      </div>
+      <div class="aside-hero">
+        <h1 id="asideTitle">创建你的 BOH ID</h1>
+        <p id="asideDesc">一个账户，通行社区、商城与 AI。先设定身份与联系方式，再设密码，共三步。</p>
+      </div>
+      <div class="aside-stats">
+        <div><b>12.8 万</b><i>已发布方块</i></div>
+        <div><b>8 年</b><i>社区在营</i></div>
+        <div><b>3 步</b><i>平均 40 秒</i></div>
+      </div>
+      <div class="aside-privacy">你的资料全程加密传输，只有你能修改。我们不会把你的邮箱卖给任何人。</div>
+      </div>
+    </aside>
+
+    <main class="jw-main" id="jwMain">
+      <div class="jw-inner" id="jwInner">
+        <div class="progress" id="progress">
+          <div class="progress-dots">
+            <span class="p-dot is-now" data-dot="1"></span><span class="p-link" data-link="1"></span>
+            <span class="p-dot" data-dot="2"></span><span class="p-link" data-link="2"></span>
+            <span class="p-dot" data-dot="3"></span>
+          </div>
+          <div class="progress-text">第 1 步 / 共 3 步</div>
+        </div>
+
+        <div class="alerts" id="alerts" role="alert"><p>还有几处需要处理</p><ul id="alertsList"></ul></div>
+
+        <form id="form" novalidate autocomplete="on">
+          <div class="viewport" id="viewport">
+            <section class="page active" data-page="1">
+              <h2>账号信息</h2>
+              <p class="lead">这两项是你以后登录和找回密码的凭据，请用能长期使用的信息。</p>
+
+              <div class="fld" data-field="account">
+                <label class="fld-label" for="jwAccount">方块 ID<span class="tag-req">必填</span></label>
+                <div class="ctrl has-btn">
+                  <input id="jwAccount" name="username" type="text" autocomplete="username"
+                    placeholder="例如 bohai_2026" maxlength="20" aria-describedby="msgAccount hintAccount">
+                  <span class="state" data-state></span>
+                </div>
+                <div class="suggest" data-suggest><span>已被占用，试试：</span></div>
+                <p class="msg" data-msg id="msgAccount"></p>
+                <p class="hint" id="hintAccount">3–20 个字符，支持中英文、数字、下划线和连字符</p>
+              </div>
+
+              <div class="fld" data-field="email">
+                <label class="fld-label" for="jwEmail">电子邮件<span class="tag-req">必填</span></label>
+                <div class="ctrl has-btn">
+                  <input id="jwEmail" name="email" type="email" autocomplete="email"
+                    placeholder="you@example.com" aria-describedby="msgEmail hintEmail">
+                  <span class="state" data-state></span>
+                </div>
+                <p class="msg" data-msg id="msgEmail"></p>
+                <p class="hint" id="hintEmail">用于登录与找回密码，不会出现在你的公开主页上。</p>
+              </div>
+            </section>
+
+            <section class="page" data-page="2">
+              <h2>设置密码</h2>
+              <p class="lead">密码是找回账户的唯一凭据。这一步只有一项，设好就可以进入 BOH 了。</p>
+
+              <div class="fld pw has-toggle" data-field="password">
+                <label class="fld-label" for="jwPassword">密码<span class="tag-req">必填</span></label>
+                <div class="ctrl has-btn">
+                  <input id="jwPassword" name="password" type="password" autocomplete="new-password"
+                    placeholder="至少 8 位" aria-describedby="msgPassword rulesPassword">
+                  <button type="button" class="pw-toggle" data-pw-toggle="jwPassword">显示</button>
+                </div>
+                <div class="meter" data-meter data-lv="0"><i></i><i></i><i></i></div>
+                <div class="meter-label" data-meter-label>强度：待评估</div>
+                <ul class="rules" id="rulesPassword">
+                  <li data-rule="len">至少 8 个字符</li>
+                  <li data-rule="mix">包含字母和数字</li>
+                  <li data-rule="case">同时有大小写字母</li>
+                  <li data-rule="sym">包含一个符号</li>
+                </ul>
+                <p class="msg" data-msg id="msgPassword"></p>
+              </div>
+            </section>
+
+            <section class="page" data-page="3">
+              <h2>完善资料</h2>
+              <p class="lead">这两项都可以留空，之后在用户中心随时能补。填了会让你的 BOH 主页更完整。</p>
+
+              <div class="fld" data-field="birth">
+                <label class="fld-label" for="jwYear">生日<span class="tag-opt">选填</span></label>
+                <div class="birth">
+                  <select id="jwYear" name="birth_year" autocomplete="bday-year" aria-label="出生年份"></select>
+                  <select id="jwMonth" name="birth_month" autocomplete="bday-month" aria-label="出生月份"></select>
+                  <select id="jwDay" name="birth_day" autocomplete="bday-day" aria-label="出生日期"></select>
+                </div>
+                <p class="msg" data-msg></p>
+                <p class="hint">只用于生日祝福和年龄相关的内容推荐，不会公开展示。</p>
+              </div>
+
+              <div class="fld" data-field="avatar">
+                <label class="fld-label" for="avatarPick">头像<span class="tag-opt">选填</span></label>
+                <div class="avatar-row">
+                  <div class="avatar-drop" id="avatarDrop"><span id="avatarPh">未选择</span></div>
+                  <div class="avatar-side">
+                    <div style="display:flex;gap:7px">
+                      <button type="button" class="btn-mini" id="avatarPick">选择图片</button>
+                      <button type="button" class="btn-mini" id="avatarClear" hidden>移除</button>
+                    </div>
+                    <p class="hint" style="margin:0">选好后会弹出裁切框，拖动即可定圆心。</p>
+                  </div>
+                  <input type="file" id="avatarInput" accept="image/*" hidden>
+                </div>
+              </div>
+
+              <div class="fld" data-field="passkey" id="passkeyField">
+                <div class="fld-label">本机快速登录<span class="tag-opt">选填</span></div>
+                <label class="switch-row">
+                  <input type="checkbox" class="switch-input" id="passkeySwitch" role="switch"
+                    aria-describedby="passkeyHint">
+                  <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+                  <span class="switch-copy">
+                    <span class="switch-title">在这台设备上添加通行密钥</span>
+                    <span class="switch-desc">下次登录不用输密码，直接用指纹 / 面容。密钥只保存在本机，BOH 只拿到公钥。</span>
+                  </span>
+                </label>
+                <p class="hint" id="passkeyHint">注册完成后会让你确认一次。也可以稍后在 设置 → 账户安全 添加或删除。</p>
+              </div>
+
+              <div class="altcha-row" id="altchaRow">
+                <button type="button" class="altcha-idle" id="altchaIdle">
+                  <span class="altcha-cb" aria-hidden="true"></span>
+                  <span>我不是机器人</span>
+                  <span class="altcha-brand">ALTCHA</span>
+                </button>
+                <div class="altcha-box" id="altchaBox" hidden>
+                  <span class="spin" aria-hidden="true"></span><span id="altchaText">正在验证…</span>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div class="actions">
+            <button type="button" class="btn btn-ghost" id="btnBack" hidden>上一步</button>
+            <button type="submit" class="btn btn-primary" id="btnNext">下一步</button>
+            <button type="button" class="btn btn-ghost" id="btnSkip" hidden>稍后完善</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="terms" id="terms">
+        <div class="terms-inner">
+          <label>
+            <input type="checkbox" id="agreeBox">
+            <span class="t-text">我已阅读并同意 <a href="#" data-doc="user">用户服务协议</a> 和 <a href="#" data-doc="privacy">隐私政策</a></span>
+          </label>
+          <div class="t-note"><span aria-hidden="true">—</span><span id="termsNote">本次勾选只对当前这次注册有效，不会被带到其它页面。</span></div>
+        </div>
+      </div>
+
+      <div class="done" id="done" hidden>
+        <div class="done-mark" aria-hidden="true"></div>
+        <h2 id="doneTitle">注册成功</h2>
+        <p id="doneBody">欢迎加入方块之家！你的 BOH 身份已创建完成，现在可以直接登录。</p>
+        <div class="pk-card" id="pkCard" hidden>
+          <div class="pk-head">
+            <span class="pk-ico" aria-hidden="true"></span>
+            <div>
+              <strong class="pk-title">为这台设备添加通行密钥</strong>
+              <p class="pk-desc">这样下次登录不用输密码 —— 直接用指纹 / 面容。密钥只保存在本机，BOH 拿不到你的指纹数据。</p>
+            </div>
+          </div>
+          <div class="pk-actions" id="pkActions">
+            <button type="button" class="btn btn-primary" id="pkAdd">用指纹 / 面容添加</button>
+            <button type="button" class="btn btn-ghost" id="pkSkip">以后再说</button>
+          </div>
+          <div class="pk-done" id="pkDone" hidden><span class="tick" aria-hidden="true"></span><span>已添加，下次可以直接用指纹 / 面容登录。</span></div>
+          <p class="pk-state" id="pkState" aria-live="polite"></p>
+        </div>
+        <p class="pk-hint" id="pkDeferred" hidden>邮箱验证完成后，可以在这台设备上添加通行密钥，之后免密码登录（设置 → 账户安全）。</p>
+
+        <div class="done-actions">
+          <button type="button" class="btn btn-ghost" id="doneResend" hidden>没收到？重新发送验证邮件</button>
+          <button type="button" class="btn btn-primary" id="doneGo">去登录</button>
+        </div>
+        <p class="done-resend" id="doneResendNote"></p>
+      </div>
+    </main>
+    <div class="notes-layer" id="notesLayer"></div>
+  </div>
+  </div>
+</div>
+
+<div class="pop" id="pop" role="tooltip"></div>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(s,r){ return (r||document).querySelector(s); };
+  var $$ = function(s,r){ return Array.prototype.slice.call((r||document).querySelectorAll(s)); };
+
+  var RESERVED = ['admin','administrator','root','system','support','official','mod','moderator',
+    'api','www','mail','test','service','security','boh','bohai'];
+  var TAKEN = ['ryyik','cube','blockhome','fangkuai'];
+  var COPY = {
+    1:{t:'创建你的 BOH ID', d:'一个账户，通行社区、商城与 AI。先设定身份与联系方式，共三步。'},
+    2:{t:'设置一个安全的密码', d:'这一步只有一项。8 位以上、字母数字混合，最稳。'},
+    3:{t:'完善资料，或直接跳过', d:'生日与头像都能留空，之后在用户中心随时能补。'}
+  };
+
+  var state = { step:1, mail:'direct', agreed:false, altcha:'idle', avatarFile:null,
+    pkMode:'ok', pkOptIn:false, pkState:'idle' };
+
+  // ---------- 校验（与 src/utils/auth-validation.js 同口径） ----------
+  function chLen(s){ return Array.from(String(s||'')).length; }
+  function vUsername(v){
+    var s = String(v||'').trim();
+    if(!s) return '请输入方块 ID';
+    var n = chLen(s);
+    if(n < 3 || n > 20) return '方块 ID 需为 3-20 个字符。';
+    if(!/^[A-Za-z0-9_\-\u4e00-\u9fa5]+$/.test(s)) return '方块 ID 仅支持中英文、数字、下划线和连字符。';
+    if(/^[_-]|[_-]$/.test(s)) return '方块 ID 不能以下划线或连字符开头或结尾。';
+    if(/^\d+$/.test(s)) return '方块 ID 不能为纯数字。';
+    var lc = s.toLowerCase();
+    if(RESERVED.indexOf(s) >= 0 || RESERVED.indexOf(lc) >= 0) return '该方块 ID 为保留词，请更换后重试。';
+    return '';
+  }
+  function vEmail(v){
+    var s = String(v||'').trim().toLowerCase();
+    if(!s) return '请输入邮箱地址';
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) return '请输入有效的邮箱地址';
+    return '';
+  }
+  var PW_RULES = [
+    {k:'len', test:function(v){ return v.length >= 8; }},
+    {k:'mix', test:function(v){ return /[A-Za-z]/.test(v) && /\d/.test(v); }},
+    {k:'case',test:function(v){ return /[a-z]/.test(v) && /[A-Z]/.test(v); }},
+    {k:'sym', test:function(v){ return /[^A-Za-z0-9]/.test(v); }}
+  ];
+  function pwScore(v){
+    if(!v) return 0;
+    var hit = 0;
+    PW_RULES.forEach(function(r){ if(r.test(v)) hit++; });
+    if(v.length >= 12 && hit >= 3) return 3;
+    return Math.max(1, Math.min(3, hit));
+  }
+  function vPassword(v){
+    if(!v) return '请设置密码';
+    if(v.length < 8) return '密码至少需要 8 位（原来只要求 6 位）。';
+    return '';
+  }
+
+  // ---------- 字段渲染 ----------
+  function fld(name){ return $('.fld[data-field="'+name+'"]'); }
+  function setState(name, kind, text){
+    var el = fld(name); if(!el) return;
+    var st = $('[data-state]', el);
+    if(st){
+      st.className = 'state';
+      if(kind){ st.classList.add('on', kind); st.textContent = text || ''; }
+      else { st.textContent = ''; }
+    }
+    el.classList.remove('valid','invalid');
+    if(kind === 'ok') el.classList.add('valid');
+    if(kind === 'err') el.classList.add('invalid');
+  }
+  function setMsg(name, text, kind){
+    var el = fld(name); if(!el) return;
+    var m = $('[data-msg]', el); if(!m) return;
+    m.className = 'msg' + (text ? ' on' : '')
+      + (kind === 'ok' ? ' ok' : '') + (kind === 'warn' ? ' warn' : '');
+    m.textContent = text || '';
+  }
+  function clearField(name){ setState(name, null, ''); setMsg(name, ''); }
+
+  // ---------- 步骤 ----------
+  var viewport = $('#viewport');
+  function pageEl(n){ return $('.page[data-page="'+n+'"]'); }
+  function syncHeight(){
+    var p = pageEl(state.step);
+    if(p) viewport.style.height = p.offsetHeight + 'px';
+  }
+  function goStep(n, dir){
+    if(n === state.step) { syncHeight(); return; }
+    var prev = pageEl(state.step), next = pageEl(n);
+    if(!next) return;
+    var forward = (dir === undefined) ? (n > state.step) : (dir === 'fwd');
+    if(prev){ prev.classList.remove('active'); prev.classList.toggle('out-l', forward); prev.inert = true; }
+    next.classList.remove('out-l');
+    // eslint-disable-next-line no-unused-expressions
+    next.offsetHeight;
+    next.classList.add('active');
+    next.inert = false;
+    state.step = n;
+    $$('.page').forEach(function(p){ if(p !== next && p !== prev) p.inert = true; });
+    $('#btnBack').hidden = (n === 1);
+    $('#btnSkip').hidden = (n !== 3);
+    $('#btnNext').textContent = (n === 3) ? '创建账户' : '下一步';
+    $('#progress .progress-text').textContent = '第 ' + n + ' 步 / 共 3 步';
+    $$('[data-dot]').forEach(function(d){
+      var i = Number(d.getAttribute('data-dot'));
+      d.className = 'p-dot' + (i < n ? ' is-done' : '') + (i === n ? ' is-now' : '');
+    });
+    $$('[data-link]').forEach(function(l){
+      var i = Number(l.getAttribute('data-link'));
+      l.className = 'p-link' + (i < n ? ' is-done' : '');
+    });
+    var c = COPY[n];
+    if(c){ $('#asideTitle').textContent = c.t; $('#asideDesc').textContent = c.d; }
+    if($('#btnNotes').classList.contains('on')) paintNotes();
+    // 切换后重新测量（异步等字体/布局稳定）
+    requestAnimationFrame(syncHeight);
+    setTimeout(syncHeight, 60);
+    setTimeout(syncHeight, 340);
+    if(chips.length){ placeChips(); setTimeout(placeChips, 60); setTimeout(placeChips, 340); }
+    $('#jwMain').scrollTop = 0;
+    var first = next.querySelector('input,select,button');
+    if(first) first.focus({ preventScroll:true });
+  }
+
+  // ---------- 错误摘要 ----------
+  var ERR_LABEL = {account:'方块 ID', email:'电子邮件', password:'密码', birth:'生日'};
+  function renderAlerts(list){
+    var box = $('#alerts'), ul = $('#alertsList');
+    ul.innerHTML = '';
+    if(!list.length){ box.classList.remove('on'); return; }
+    list.forEach(function(item){
+      var li = document.createElement('li');
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = '· ' + item.text;
+      b.addEventListener('click', function(){
+        var el = fld(item.field);
+        var inp = el ? el.querySelector('input,select') : null;
+        if(inp) inp.focus();
+      });
+      li.appendChild(b);
+      ul.appendChild(li);
+    });
+    box.classList.add('on');
+  }
+
+  // ---------- 每步校验 ----------
+  function validateStep(n, opts){
+    opts = opts || {};
+    var errs = [];
+    if(n === 1){
+      var uVal = String($('#jwAccount').value||'').trim();
+      var uMsg = vUsername(uVal);
+      // 提交时以「占用」为准（async 查重只负责即时 UX）；
+      // vUsername 只管格式与保留词，与 src/utils/auth-validation.js 同口径。
+      if(!uMsg && TAKEN.indexOf(uVal.toLowerCase()) >= 0){
+        uMsg = '该方块 ID 已被注册，请更换后重试。';
+      }
+      if(uMsg){ setState('account','err','不可用'); setMsg('account', uMsg); errs.push({field:'account', text:ERR_LABEL.account + '：' + uMsg}); }
+      else { setState('account','ok','可用'); setMsg('account',''); }
+      var eMsg = vEmail($('#jwEmail').value);
+      if(eMsg){ setState('email','err',''); setMsg('email', eMsg); errs.push({field:'email', text:ERR_LABEL.email + '：' + eMsg}); }
+      else { setState('email','ok',''); setMsg('email',''); }
+    }
+    if(n === 2){
+      var pMsg = vPassword($('#jwPassword').value);
+      if(pMsg){ setState('password','err',''); setMsg('password', pMsg); errs.push({field:'password', text:ERR_LABEL.password + '：' + pMsg}); }
+      else { setMsg('password',''); }
+    }
+    if(n === 3){
+      var by = Number($('#jwYear').value) || 0;
+      var bm = Number($('#jwMonth').value) || 0;
+      var bd = Number($('#jwDay').value) || 0;
+      var partial = Boolean(by || bm || bd) && !(by && bm && bd);
+      if(partial){
+        // 选填项不拦截：只填了一半就整项跳过，给软提示而不是硬错误
+        setMsg('birth','年月日没填全，这项会先跳过（之后可在用户中心补）。','warn');
+      } else if(by && new Date(by, bm, 0).getDate() < bd){
+        setMsg('birth','这个日期不存在，请重新选择。');
+        errs.push({field:'birth', text:'生日：日期不存在'});
+      } else if(by && new Date(by, bm - 1, bd) > new Date()){
+        setMsg('birth','生日不能是未来的日期。');
+        errs.push({field:'birth', text:'生日：不能是未来日期'});
+      } else {
+        setMsg('birth','');
+      }
+    }
+    if(!opts.silent) renderAlerts(errs);
+    return errs;
+  }
+  function validateAll(){
+    var out = validateStep(1,{silent:true}).concat(validateStep(2,{silent:true}), validateStep(3,{silent:true}));
+    return out;
+  }
+
+  // ---------- ID 实时查重 ----------
+  var idTimer = null;
+  function suggestFor(name){
+    var base = String(name||'').trim().replace(/[_\-.]+$/,'') || 'boh';
+    var y = new Date().getFullYear();
+    return [base + '_' + y, base + '_boh', base + '2'].map(function(s){
+      return s.replace(/[^A-Za-z0-9_\-\u4e00-\u9fa5]/g,'').slice(0,20);
+    }).filter(function(s, i, a){ return s.length >= 3 && a.indexOf(s) === i && TAKEN.indexOf(s.toLowerCase()) < 0; });
+  }
+  function renderSuggest(name, list){
+    var box = $('.fld[data-field="account"] [data-suggest]');
+    if(!box) return;
+    $$('button', box).forEach(function(b){ b.remove(); });
+    if(!list.length){ box.classList.remove('on'); return; }
+    list.forEach(function(s){
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = s;
+      b.addEventListener('click', function(){
+        $('#jwAccount').value = s;
+        checkId(true);
+      });
+      box.appendChild(b);
+    });
+    box.classList.add('on');
+  }
+  function checkId(immediate){
+    var input = $('#jwAccount');
+    var val = String(input.value||'').trim();
+    if(idTimer) clearTimeout(idTimer);
+    if(!val){ setState('account', null, ''); setMsg('account',''); renderSuggest(val, []); return; }
+    var basic = vUsername(val);
+    if(basic){
+      // 保留词/格式错误：不做异步查重，直接给结论
+      setState('account','err','不可用'); setMsg('account', basic); renderSuggest(val, []);
+      return;
+    }
+    setState('account','checking','检查中…'); setMsg('account','');
+    var run = function(){
+      setState('account','checking','检查中…');
+      idTimer = setTimeout(function(){
+        var now = String(input.value||'').trim();
+        if(now.toLowerCase() !== val.toLowerCase()) return;
+        if(TAKEN.indexOf(val.toLowerCase()) >= 0){
+          setState('account','err','已占用');
+          setMsg('account','这个方块 ID 已经有人用了，换一个或者点下面的候选。');
+          renderSuggest(val, suggestFor(val));
+        } else {
+          setState('account','ok','可用');
+          setMsg('account','');
+          renderSuggest(val, []);
+        }
+      }, immediate ? 0 : 420);
+    };
+    run();
+  }
+
+  // ---------- 密码 ----------
+  function renderPw(){
+    var v = $('#jwPassword').value;
+    var hit = 0;
+    PW_RULES.forEach(function(r){
+      var li = $('#rulesPassword li[data-rule="'+r.k+'"]');
+      var ok = r.test(v);
+      if(ok) hit++;
+      if(li) li.classList.toggle('hit', ok);
+    });
+    var lv = pwScore(v);
+    var meter = $('[data-meter]');
+    meter.setAttribute('data-lv', String(lv));
+    var label = $('[data-meter-label]');
+    label.textContent = '强度：' + (lv === 0 ? '待评估' : lv === 1 ? '弱' : lv === 2 ? '中' : '强');
+  }
+
+  // ---------- 通行密钥（Passkey / WebAuthn）----------
+  // 接入要点（与 src/utils/api/auth-api.js 的 registerPasskey 对齐）：
+  //  · registerPasskey() 是 authenticated API —— 必须有已建立的会话。直登模式（autoconfirm=true）
+  //    signUp 直接返回 session ✓；邮箱确认模式无 session → 这里不给按钮，改为延后提示（否则必然失败）。
+  //  · WebAuthn 的 credentials.create() 需要瞬时用户激活（窗口约 5s）。提交点隔着一次 signUp
+  //    网络往返，激活可能已过期 → 仪式放在成功页由一个明确的按钮触发，失败可重试、可跳过。
+  //  · 能力检测沿用 isPasskeySupported() 的语义：不支持的浏览器整行隐藏，而不是置灰。
+  function renderPasskeyRow(){
+    var field = $('#passkeyField');
+    if(!field) return;
+    var usable = state.pkMode !== 'unsupported' && state.mail === 'direct';
+    field.hidden = !usable;
+    if(usable) $('#passkeySwitch').checked = Boolean(state.pkOptIn);
+  }
+  function resetPkCard(){
+    state.pkState = 'idle';
+    $('#pkActions').hidden = false;
+    $('#pkDone').hidden = true;
+    $('#pkAdd').disabled = false;
+    $('#pkAdd').textContent = '用指纹 / 面容添加';
+    $('#pkSkip').disabled = false;
+    var st = $('#pkState');
+    st.className = 'pk-state';
+    st.textContent = '';
+  }
+  function startPasskey(){
+    if(state.pkState === 'running' || state.pkState === 'ok') return;
+    state.pkState = 'running';
+    $('#pkDone').hidden = true;
+    $('#pkActions').hidden = false;
+    $('#pkAdd').disabled = true;
+    $('#pkAdd').textContent = '请在设备上完成验证…';
+    $('#pkSkip').disabled = true;
+    var st = $('#pkState');
+    st.className = 'pk-state on';
+    st.textContent = '正在等待设备验证…';
+    window.setTimeout(function(){
+      if(state.pkMode === 'fail'){
+        state.pkState = 'error';
+        $('#pkAdd').disabled = false;
+        $('#pkAdd').textContent = '重试';
+        $('#pkSkip').disabled = false;
+        st.className = 'pk-state on err';
+        st.textContent = '已取消注册，或设备验证未通过。可以直接重试，也可以稍后在 设置 → 账户安全 添加。';
+        return;
+      }
+      state.pkState = 'ok';
+      $('#pkActions').hidden = true;
+      $('#pkDone').hidden = false;
+      st.className = 'pk-state';
+      st.textContent = '';
+    }, 1300);
+  }
+
+  // ---------- 生日 ----------
+  function buildBirthday(){
+    var y = $('#jwYear'), m = $('#jwMonth'), d = $('#jwDay');
+    var now = new Date();
+    var top = now.getFullYear();
+    var opts = ['<option value="">年份</option>'];
+    for(var i = top; i >= top - 100; i--) opts.push('<option value="'+i+'">'+i+' 年</option>');
+    y.innerHTML = opts.join('');
+    var mo = ['<option value="">月份</option>'];
+    for(var k = 1; k <= 12; k++) mo.push('<option value="'+k+'">'+k+' 月</option>');
+    m.innerHTML = mo.join('');
+    fillDays();
+  }
+  function fillDays(){
+    var y = Number($('#jwYear').value) || new Date().getFullYear();
+    var m = Number($('#jwMonth').value);
+    var max = m ? new Date(y, m, 0).getDate() : 31;
+    var cur = Number($('#jwDay').value);
+    var out = ['<option value="">日期</option>'];
+    for(var i = 1; i <= max; i++) out.push('<option value="'+i+'">'+i+' 日</option>');
+    $('#jwDay').innerHTML = out.join('');
+    if(cur && cur <= max) $('#jwDay').value = String(cur);
+  }
+
+  // ---------- 成功页 ----------
+  function showDone(){
+    $('#jwInner').hidden = true;
+    $('#done').hidden = false;
+    var name = String($('#jwAccount').value||'').trim() || 'BOH';
+    if(state.mail === 'confirm'){
+      $('#doneTitle').textContent = '注册成功，还差一步';
+      $('#doneBody').innerHTML = '验证邮件已发送至 <b>' + (String($('#jwEmail').value||'').trim() || '你的邮箱') +
+        '</b>，请查收并点击邮件里的确认链接，然后回来登录。';
+      $('#doneResend').hidden = false;
+      $('#doneResend').disabled = false;
+      $('#doneResend').textContent = '没收到？重新发送验证邮件';
+      $('#doneResendNote').textContent = '';
+      $('#doneResendNote').className = 'done-resend';
+    } else {
+      $('#doneTitle').textContent = '注册成功';
+      $('#doneBody').innerHTML = '欢迎加入方块之家！你的 BOH 身份 <b>' + name + '</b> 已创建完成，现在可以直接登录。';
+      $('#doneResend').hidden = true;
+      $('#doneResendNote').textContent = '';
+      $('#doneResendNote').className = 'done-resend';
+    }
+    // 通行密钥：只有「用户勾了 + 本机可用 + 注册后已有会话」三者齐备才给卡片。
+    // 缺会话（邮箱确认模式）时给延后提示，而不是给一个点了必然失败的按钮。
+    var pkUsable = state.pkMode !== 'unsupported' && state.mail === 'direct';
+    $('#pkCard').hidden = !(pkUsable && state.pkOptIn);
+    $('#pkDeferred').hidden = !(state.pkMode !== 'unsupported' && state.mail === 'confirm');
+    if(!$('#pkCard').hidden) resetPkCard();
+    var skip = $('.actions'); if(skip) skip.style.display = 'none';
+    $('#terms').style.display = 'none';
+    $('#jwMain').scrollTop = 0;
+    if($('#btnNotes').classList.contains('on')) paintNotes();
+  }
+  function hideDone(){
+    $('#jwInner').hidden = false;
+    $('#done').hidden = true;
+    $('#pkCard').hidden = true;
+    $('#pkDeferred').hidden = true;
+    $('.actions').style.display = '';
+    $('#terms').style.display = '';
+    if($('#btnNotes').classList.contains('on')) paintNotes();
+  }
+
+  // ---------- 事件 ----------
+  $('#jwAccount').addEventListener('input', function(){ checkId(false); });
+  $('#jwAccount').addEventListener('blur', function(){
+    var v = String($('#jwAccount').value||'').trim();
+    if(v && !vUsername(v)) checkId(true);
+  });
+  $('#jwEmail').addEventListener('blur', function(){
+    var v = String($('#jwEmail').value||'').trim();
+    if(!v){ clearField('email'); return; }
+    var msg = vEmail(v);
+    if(msg){ setState('email','err',''); setMsg('email', msg); }
+    else { setState('email','ok',''); setMsg('email',''); }
+  });
+  $('#jwPassword').addEventListener('input', function(){
+    renderPw();
+    var v = $('#jwPassword').value;
+    var msg = vPassword(v);
+    if(msg && v){ setMsg('password', msg); }
+    else setMsg('password','');
+  });
+  $$('[data-pw-toggle]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var inp = document.getElementById(btn.getAttribute('data-pw-toggle'));
+      var show = inp.type === 'password';
+      inp.type = show ? 'text' : 'password';
+      btn.textContent = show ? '隐藏' : '显示';
+    });
+  });
+  ['#jwYear','#jwMonth'].forEach(function(sel){ $(sel).addEventListener('change', fillDays); });
+
+  $('#avatarPick').addEventListener('click', function(){ $('#avatarInput').click(); });
+  $('#avatarInput').addEventListener('change', function(e){
+    var f = e.target.files && e.target.files[0];
+    if(!f) return;
+    state.avatarFile = f;
+    var r = new FileReader();
+    r.onload = function(ev){
+      var drop = $('#avatarDrop');
+      drop.innerHTML = '';
+      var img = document.createElement('img');
+      img.src = String(ev.target.result);
+      img.alt = '头像预览';
+      drop.appendChild(img);
+      $('#avatarClear').hidden = false;
+    };
+    r.readAsDataURL(f);
+    e.target.value = '';
+  });
+  $('#avatarClear').addEventListener('click', function(){
+    state.avatarFile = null;
+    var drop = $('#avatarDrop');
+    drop.innerHTML = '<span id="avatarPh">未选择</span>';
+    $('#avatarClear').hidden = true;
+  });
+
+  $('#altchaIdle').addEventListener('click', function(){
+    if(state.altcha !== 'idle') return;
+    state.altcha = 'busy';
+    $('#altchaIdle').hidden = true;
+    var box = $('#altchaBox');
+    box.hidden = false;
+    box.className = 'altcha-box';
+    $('#altchaText').textContent = '正在验证…';
+    setTimeout(function(){
+      state.altcha = 'done';
+      box.className = 'altcha-box altcha-done';
+      box.innerHTML = '<span class="tick" aria-hidden="true"></span><span>已通过人机验证</span>';
+    }, 900);
+  });
+
+  $('#passkeySwitch').addEventListener('change', function(){
+    state.pkOptIn = $('#passkeySwitch').checked;
+  });
+  $('#pkAdd').addEventListener('click', startPasskey);
+  $('#pkSkip').addEventListener('click', function(){
+    // 跳过不是错误：静默收起卡片，不动其它成功页动作
+    $('#pkCard').hidden = true;
+  });
+
+  $('#agreeBox').addEventListener('change', function(){
+    state.agreed = $('#agreeBox').checked;
+    if(state.agreed){
+      $('#terms').classList.remove('invalid');
+      $('#termsNote').textContent = '本次勾选只对当前这次注册有效，不会被带到其它页面。';
+    }
+  });
+
+  $('#form').addEventListener('submit', function(e){
+    e.preventDefault();
+    if(state.step < 3){
+      var errs = validateStep(state.step);
+      if(errs.length){
+        renderAlerts(errs);
+        // ID 出错时刷新一次字段态与候选（async 查重可能还没跑完就被点了提交）
+        if(errs.some(function(e){ return e.field === 'account'; })) checkId(true);
+        return;
+      }
+      goStep(state.step + 1, 'fwd');
+      return;
+    }
+    // 最后一步
+    var all = validateAll();
+    if(all.length){
+      var firstStep = state.step;
+      var fieldName = all[0].field;
+      var target = (fieldName === 'account' || fieldName === 'email') ? 1 : (fieldName === 'password' ? 2 : 3);
+      goStep(target, 'back');
+      renderAlerts(all);
+      return;
+    }
+    if(!state.agreed){
+      // 不禁用主按钮：点了才告诉用户差什么（禁用会让人不知道按钮为什么不响应）
+      $('#terms').classList.add('invalid');
+      $('#termsNote').textContent = '需要先勾选协议才能创建账户。';
+      $('#agreeBox').focus();
+      renderAlerts([{field:'account', text:'协议：请勾选用户服务协议和隐私政策'}]);
+      return;
+    }
+    renderAlerts([]);
+    showDone();
+  });
+
+  $('#btnBack').addEventListener('click', function(){
+    renderAlerts([]);
+    goStep(Math.max(1, state.step - 1), 'back');
+  });
+  $('#btnSkip').addEventListener('click', function(){
+    if(!state.agreed){
+      $('#terms').classList.add('invalid');
+      $('#termsNote').textContent = '需要先勾选协议才能创建账户。';
+      $('#agreeBox').focus();
+      return;
+    }
+    $('#jwYear').value = ''; $('#jwMonth').value = ''; $('#jwDay').value = '';
+    fillDays();
+    $('#avatarClear').click();
+    renderAlerts([]);
+    showDone();
+  });
+  $('#doneGo').addEventListener('click', function(){ reset(); });
+  $('#doneResend').addEventListener('click', function(){
+    var btn = $('#doneResend'), n = 60;
+    btn.disabled = true;
+    btn.textContent = '重新发送（' + n + 's）';
+    var note = $('#doneResendNote');
+    note.textContent = '已重新发送，请查收（注意垃圾箱）。';
+    note.className = 'done-resend ok';
+    var t = setInterval(function(){
+      n--;
+      if(n <= 0){ clearInterval(t); btn.disabled = false; btn.textContent = '没收到？重新发送验证邮件'; return; }
+      btn.textContent = '重新发送（' + n + 's）';
+    }, 1000);
+  });
+
+  // ---------- demo 控件 ----------
+  function segPick(seg, btn){
+    $$('.db-btn', seg).forEach(function(b){ b.classList.remove('on'); });
+    btn.classList.add('on');
+  }
+  $('#segTheme').addEventListener('click', function(e){
+    var b = e.target.closest('[data-theme-set]'); if(!b) return;
+    document.documentElement.setAttribute('data-theme', b.getAttribute('data-theme-set'));
+    segPick($('#segTheme'), b);
+  });
+  $('#segMat').addEventListener('click', function(e){
+    var b = e.target.closest('[data-mat]'); if(!b) return;
+    document.documentElement.setAttribute('data-material', b.getAttribute('data-mat'));
+    segPick($('#segMat'), b);
+    setTimeout(function(){ if(chips.length) placeChips(); }, 30);
+  });
+  $('#segVp').addEventListener('click', function(e){
+    var b = e.target.closest('[data-vp]'); if(!b) return;
+    $('#stage').setAttribute('data-vp', b.getAttribute('data-vp'));
+    segPick($('#segVp'), b);
+    setTimeout(function(){ syncHeight(); if(chips.length) placeChips(); }, 340);
+  });
+  $('#segJump').addEventListener('click', function(e){
+    var b = e.target.closest('[data-jump]'); if(!b) return;
+    var v = b.getAttribute('data-jump');
+    if(v === 'done'){
+      if(!$('#jwAccount').value) $('#jwAccount').value = 'boh_newbie';
+      showDone();
+      return;
+    }
+    hideDone();
+    goStep(Number(v), 'fwd');
+  });
+  $('#segMail').addEventListener('click', function(e){
+    var b = e.target.closest('[data-mail]'); if(!b) return;
+    state.mail = b.getAttribute('data-mail');
+    segPick($('#segMail'), b);
+    renderPasskeyRow();
+    if(!$('#done').hidden) showDone();
+  });
+  $('#segPk').addEventListener('click', function(e){
+    var b = e.target.closest('[data-pk]'); if(!b) return;
+    state.pkMode = b.getAttribute('data-pk');
+    segPick($('#segPk'), b);
+    renderPasskeyRow();
+    if(!$('#done').hidden) showDone();
+  });
+  $('#btnInject').addEventListener('click', function(){
+    hideDone();
+    $('#jwAccount').value = 'ryyik';
+    $('#jwEmail').value = 'not-an-email';
+    $('#jwPassword').value = 'abc';
+    renderPw();
+    goStep(1, 'back');
+    checkId(true);
+    setTimeout(function(){
+      validateStep(1, {silent:true});
+      renderAlerts(validateAll());
+    }, 40);
+  });
+  $('#btnReset').addEventListener('click', reset);
+
+  // ---------- 修复标注 ----------
+  var NOTES = [
+    {sel:'.aside-stats', text:'<b>品牌面板</b>：桌面端左 42% 常驻，暗色下与右栏异色（浅色 #f4f5f7 / 暗色 #131316），是方案 B 的结构特征。'},
+    {sel:'.progress', text:'<b>进度可见</b>：3 步 +「第 N 步 / 共 3 步」。原页面没有第 2 步，按钮却写着「继续」，暗示还有下一步。', top:'-18px', right:'0px'},
+    {sel:'.fld[data-field="account"]', text:'<b>常驻 label</b>：不再让 placeholder 当标签（原来 6 个字段全无 label，且 placeholder 颜色与正文同为 #000000）。', top:'0px', left:'-22px'},
+    {sel:'.fld[data-field="account"] .ctrl', text:'<b>ID 实时查重</b>：输入后防抖 420ms 给结论，占用时直接给 3 个可用候选。原来只在提交时用一个远离字段的红条报错。', top:'-8px', right:'-4px'},
+    {sel:'.fld[data-field="email"]', text:'<b>字段级反馈</b>：错误贴在字段下方并用 aria-describedby 关联，失焦即校验。', top:'-8px', right:'-4px'},
+    {sel:'.fld[data-field="password"] .ctrl', text:'<b>原注册页没有「显示密码」</b>（只有登录页有），密码只能盲打；现在第 2 步的密码框右侧有切换开关。', top:'-8px', right:'-4px'},
+    {sel:'.meter', text:'<b>强度条 + 4 条要求实时打勾</b>：原来只判断「≥6 位」，也没有确认密码的实时一致性反馈。', top:'-6px', right:'-4px'},
+    {sel:'#viewport', text:'<b>错误摘要 + 可跳转</b>：原来 6 类错误全挤进同一个红条，位置在协议勾选上方、与出错字段不邻接；服务端错误还会直接 alert() 弹窗。', top:'-24px', left:'-22px'},
+    {sel:'.fld[data-field="birth"]', text:'<b>生日补全年月日</b>：日期随年月动态计算，不会再出现 2 月 31 日。原来只有月/日、没有年份，因此算不出年龄。', top:'-8px', right:'-4px'},
+    {sel:'#altchaRow', text:'<b>人机验证改为按需</b>：从「进页面即开始解题」变成点一下才验证。原实现让所有人在首屏无谓等待。'},
+    {sel:'.terms', text:'<b>协议勾选不再跨页持久化</b>：原实现把勾选状态写进 localStorage 且与登录页共用 key —— 在登录页勾过一次，之后进注册页就默认已勾选。', top:'-26px', right:'8px'},
+    {sel:'#passkeyField', text:'<b>通行密钥是可选的第 3 步一项</b>：默认关闭，不勾就没有任何额外系统弹窗。不支持的浏览器（微信/QQ 内置）整行隐藏而不是置灰 —— 与登录页的能力检测做法一致。', top:'-8px', right:'-4px'},
+    {sel:'.actions', text:'<b>按钮文案跟随步骤</b>：第 3 步是「创建账户」而不是「继续」；并给了「稍后完善」这条不阻塞的出口。'},
+    {sel:'#pkCard', text:'<b>仪式放在成功页</b>：WebAuthn 的 create() 需要瞬时用户激活（约 5 秒窗口），隔着一次 signUp 往返在提交时自动触发不可靠 → 用一个明确按钮启动，失败可重试、可跳过。'},
+    {sel:'.aside-privacy', text:'<b>已移除「填表不足 5 秒直接拒绝」</b>：那条客户端硬拒绝会让密码管理器/自动填充用户注册不了，而绕过成本为 0。风控改由服务端承担。', top:'-14px', right:'-8px'}
+  ];
+  var chips = [];
+  function clearNotes(){
+    chips.forEach(function(c){ c.remove(); });
+    chips = [];
+    $('#pop').classList.remove('on');
+  }
+  function placeChips(){
+    var jr = $('#jw').getBoundingClientRect();
+    chips.forEach(function(c){
+      var t = document.querySelector(c.getAttribute('data-sel'));
+      if(!t) return;
+      var r = t.getBoundingClientRect();
+      var off = c.getAttribute('data-off').split('|');
+      var top = parseFloat(off[0]);
+      var x;
+      if(off[1] !== ''){ x = r.left - jr.left + parseFloat(off[1]); }
+      else { x = r.right - jr.left - 19 - parseFloat(off[2]); }
+      c.style.left = Math.round(x) + 'px';
+      c.style.top = Math.round(r.top - jr.top + top) + 'px';
+    });
+  }
+  function paintNotes(){
+    clearNotes();
+    var layer = $('#notesLayer');
+    var activePage = document.querySelector('.page.active');
+    NOTES.forEach(function(n, i){
+      var el = document.querySelector(n.sel);
+      if(!el) return;
+      // 只标注当前步骤可见的目标 —— 标注随步骤切换而变，避免指到隐藏元素上
+      var host = el.closest ? el.closest('.page') : null;
+      if(host && host !== activePage) return;
+      if(el.getClientRects().length === 0) return; // display:none 的目标不标注
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip';
+      b.textContent = String(i + 1);
+      b.setAttribute('data-sel', n.sel);
+      b.setAttribute('data-off',
+        (n.top !== undefined ? n.top : '-9px') + '|'
+        + (n.left !== undefined ? n.left : '') + '|'
+        + (n.right !== undefined ? n.right : '-9px'));
+      b.addEventListener('click', function(ev){
+        ev.stopPropagation();
+        var pop = $('#pop');
+        if(pop.classList.contains('on') && pop.getAttribute('data-for') === String(i)){
+          pop.classList.remove('on'); return;
+        }
+        pop.innerHTML = n.text;
+        pop.setAttribute('data-for', String(i));
+        pop.classList.add('on');
+        var r = b.getBoundingClientRect();
+        var left = Math.min(window.innerWidth - 300, Math.max(12, r.left - 8));
+        pop.style.left = (left + window.scrollX) + 'px';
+        pop.style.top = (r.bottom + 10 + window.scrollY) + 'px';
+      });
+      layer.appendChild(b);
+      chips.push(b);
+    });
+    placeChips();
+  }
+  document.addEventListener('click', function(){
+    $('#pop').classList.remove('on');
+  });
+  $('#btnNotes').addEventListener('click', function(){
+    var on = this.classList.toggle('on');
+    this.textContent = '修复标注 ' + (on ? '开' : '关');
+    if(on) paintNotes(); else clearNotes();
+  });
+
+  // ---------- 重置 ----------
+  function reset(){
+    hideDone();
+    ['account','email','password','birth'].forEach(clearField);
+    $('#jwAccount').value = '';
+    $('#jwEmail').value = '';
+    $('#jwPassword').value = '';
+    $('#jwPassword').type = 'password';
+    var tg = $('[data-pw-toggle="jwPassword"]'); if(tg) tg.textContent = '显示';
+    renderPw();
+    $('#jwYear').value = ''; $('#jwMonth').value = ''; fillDays();
+    $('#avatarClear').click();
+    $('#agreeBox').checked = false;
+    state.agreed = false;
+    $('#terms').classList.remove('invalid');
+    $('#termsNote').textContent = '本次勾选只对当前这次注册有效，不会被带到其它页面。';
+    state.altcha = 'idle';
+    $('#altchaIdle').hidden = false;
+    var box = $('#altchaBox');
+    box.hidden = true;
+    box.className = 'altcha-box';
+    box.innerHTML = '<span class="spin" aria-hidden="true"></span><span id="altchaText">正在验证…</span>';
+    renderSuggest('', []);
+    renderAlerts([]);
+    state.pkOptIn = false;
+    $('#passkeySwitch').checked = false;
+    resetPkCard();
+    renderPasskeyRow();
+    goStep(1, 'back');
+    if($('#btnNotes').classList.contains('on')) paintNotes();
+  }
+
+  buildBirthday();
+  renderPasskeyRow();
+  renderPw();
+  pageEl(2).inert = true;
+  pageEl(3).inert = true;
+  syncHeight();
+  window.addEventListener('resize', function(){ syncHeight(); if(chips.length) placeChips(); });
+  $('#jwMain').addEventListener('scroll', function(){ if(chips.length) placeChips(); });
+  paintNotes();
+})();
+</script>
+</body>
+</html>

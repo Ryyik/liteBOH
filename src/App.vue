@@ -15,6 +15,7 @@ import { useConfirmDialog } from "@/composables/useConfirmDialog.js";
 import PWAUpdateToast from "@/components/PWAUpdateToast/index.vue";
 import PostDetailModal from "./views/PostDetail/PostDetailModal.vue";
 import { useGlobalAiPreferences, matchesGlobalAiShortcut } from "@/composables/useGlobalAiPreferences.js";
+import { consumeEmailConfirmationRedirect } from "@/composables/useSignupEmailConfirmation.js";
 
 const route = useRoute();
 const router = useRouter();
@@ -53,6 +54,10 @@ bootTimeoutId = window.setTimeout(() => {
 onUnmounted(() => {
   window.clearTimeout(bootTimeoutId);
 });
+
+// 邮箱验证回跳（?token_hash=...&type=signup|email_change）：在壳层一次性消费，
+// 确认成功即建立会话 / 刷新邮箱字段，用户无感落在首页（详见 useSignupEmailConfirmation.js）
+consumeEmailConfirmationRedirect();
 
 // forceUpdate 会触发 index.html 内联脚本的 SW 注销 + 缓存清理流程
 const reloadWithFreshBuild = () => {

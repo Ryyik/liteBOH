@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   authSignUp: vi.fn(),
@@ -64,6 +64,16 @@ function createQueryBuilder(result, calls = []) {
 }
 
 describe('auth-api integration: signUp', () => {
+  beforeAll(() => {
+    // signUp 用 window.location.origin 拼 emailRedirectTo（浏览器里必然存在）。
+    // node 测试环境没有 window —— 这里补一个最小实现，而不是给生产代码加环境分支。
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+  });
+
+  afterAll(() => {
+    vi.unstubAllGlobals();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     clearRequestCache();
@@ -241,7 +251,9 @@ describe('auth-api integration: signIn', () => {
 
     const result = await signIn('test@example.com', 'password123');
     expect(result.ok).toBe(false);
-    expect(result.error.code).toBe('401');
+    // signIn 把 GoTrue 的 401「Email not confirmed」归一化成 EMAIL_NOT_CONFIRMED，
+    // 前端才能给「去查收邮件 / 重发」的引导，而不是一句笼统的凭据无效
+    expect(result.error.code).toBe('EMAIL_NOT_CONFIRMED');
   });
 });
 

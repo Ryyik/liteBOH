@@ -591,7 +591,7 @@ onUnmounted(() => {
                 {{ showPassword ? '隐藏' : '显示' }}
               </button>
             </div>
-            <div class="boh-error-message">密码长度至少6位</div>
+            <div class="boh-error-message">请输入密码</div>
           </div>
 
           <div v-if="altchaEnabled && shouldShowAltcha" class="login-altcha-wrap">
@@ -725,7 +725,7 @@ onUnmounted(() => {
                     {{ showPassword ? '隐藏' : '显示' }}
                   </button>
                 </div>
-                <div class="boh-error-message">密码长度至少6位</div>
+                <div class="boh-error-message">请输入密码</div>
               </div>
 
               <div v-if="altchaEnabled && shouldShowAltcha" class="login-altcha-wrap">

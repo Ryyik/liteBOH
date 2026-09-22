@@ -62,10 +62,43 @@ export const validateEmail = (email) => {
   return '';
 };
 
+/**
+ * 新密码的强度下限 —— 全站唯一真源。
+ * 注册（auth-api#signUp）与改密码（auth-api#updatePassword）都从这里取，
+ * 不要再在调用方硬编码数字（历史上同一规则在 auth-api 里抄了三份，下限各不相同）。
+ */
+export const PASSWORD_MIN_LENGTH = 8;
+
+/**
+ * 历史上允许过的最小密码长度。
+ * 只用来给「当前密码」这类回填输入做便宜的前置拦截 —— 必须**刻意低于**
+ * PASSWORD_MIN_LENGTH，且绝不能跟着它一起上调：一旦上调，历史 6~7 位密码的
+ * 老用户就改不了邮箱、也删不了账号，强度策略变成锁死策略。
+ */
+export const PASSWORD_MIN_LENGTH_LEGACY = 6;
+
 export const validatePassword = (password) => {
   const safePassword = String(password || '');
-  if (safePassword.length < 6) {
-    return '密码长度至少为 6 位';
+  if (!safePassword) {
+    return '请设置密码';
+  }
+  if (safePassword.length < PASSWORD_MIN_LENGTH) {
+    return `密码长度至少为 ${PASSWORD_MIN_LENGTH} 位`;
+  }
+  return '';
+};
+
+/**
+ * 校验「当前密码」这类回填输入 —— 只做非空 + 历史下限的便宜拦截。
+ * 真正的判定永远由服务端做（密码正确与否这里判断不了）。
+ */
+export const validateCurrentPassword = (password) => {
+  const safePassword = String(password || '');
+  if (!safePassword) {
+    return '请输入当前账号密码';
+  }
+  if (safePassword.length < PASSWORD_MIN_LENGTH_LEGACY) {
+    return `请输入当前账号密码（至少 ${PASSWORD_MIN_LENGTH_LEGACY} 位）`;
   }
   return '';
 };

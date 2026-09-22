@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, ref, reactive } from 'vue';
 import { logger } from '@/utils/logger.js';
+import { validateCurrentPassword } from '@/utils/auth-validation.js';
 import { notify } from '@/utils/notify.js';
 import { getLocalDayKey, writeLastOnlineDay } from '@/utils/overview-day-marker.js';
 import type { UserInfo, LoginResult, AsyncOpResult } from '@/types';
@@ -599,6 +600,12 @@ const PROFILE_SELECT_COLUMNS = `
 
       const u = user as Record<string, unknown> | null;
       if (u) {
+        // 登录跃迁检测（false→true = 新登录，而非已登录态的常规刷新）：
+        // 令牌登录走 verifyOtp({type:'recovery'})，supabase-js 只发 PASSWORD_RECOVERY、
+        // 不发 SIGNED_IN → 挂在 SIGNED_IN 上的 updateOnlineStatus 不会触发，用户登录后
+        // 最长约 2 分钟（首个心跳 tick 前）不显示在线。在此统一兜底：所有登录入口
+        // 跃迁即写活跃时间。update_last_active_at 恒写 now，与 SIGNED_IN 路径重复调用幂等。
+        const wasLoggedIn = isLoggedIn.value;
         isLoggedIn.value = true;
         userInfo.id = String(u.id || '');
         userInfo.email = String(u.email || '');
@@ -615,6 +622,7 @@ const PROFILE_SELECT_COLUMNS = `
           // 快速路径：登录后先建立本地会话态，详细资料后台再拉取。
           profileCacheMeta.userId = String(u.id || '');
           profileCacheMeta.fetchedAt = 0;
+          if (!wasLoggedIn) void updateOnlineStatus();
           return;
         }
 
@@ -692,6 +700,10 @@ const PROFILE_SELECT_COLUMNS = `
         } catch (err) {
           logger.warn('auth-store', '无法获取用户详细配置', err);
         }
+
+        // 登录跃迁兜底：放在 profile 拉取之后，保证 updateOnlineStatus 的离线锚点
+        // 能读到 DB 旧 last_active_at（与 SIGNED_IN 事件路径的触发时序一致）。
+        if (!wasLoggedIn) void updateOnlineStatus();
       } else {
         isLoggedIn.value = false;
         clearSessionHeartbeat();
@@ -858,8 +870,12 @@ const PROFILE_SELECT_COLUMNS = `
 
   const deleteAccount = async (password: string): Promise<AsyncOpResult> => {
     const safePassword = String(password || '');
-    if (safePassword.length < 6) {
-      return { success: false, message: '请输入当前账号密码（至少 6 位）' };
+    // 便宜的前置拦截，避免拿明显不合法的输入去打网络；口径取自共用校验（原先硬编码 6）。
+    // ⚠️ 这里刻意用「当前密码」的下限，而不是新密码下限 —— 历史 6~7 位密码的老用户
+    //    必须还能注销账号，强度策略不能变成锁死策略。
+    const currentPasswordMessage = validateCurrentPassword(safePassword);
+    if (currentPasswordMessage) {
+      return { success: false, message: currentPasswordMessage };
     }
 
     try {

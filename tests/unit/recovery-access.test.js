@@ -154,7 +154,10 @@ describe('AccountSecurity：token 登录宽限窗接入（源码守卫）', () =
   });
 
   it('宽限窗内不要求当前密码（校验与提交双分支）', () => {
-    expect(code).toMatch(/!tokenLoginActive\.value && currentPassword\.length < 6/);
+    // 当前密码校验必须仍然落在 !tokenLoginActive.value 的守卫之内。
+    // 这里刻意不锚定具体的比较写法（原先锚的是 `currentPassword.length < 6`）——
+    // 长度口径已改为走共用的 validateCurrentPassword，锚死写法会在重构时误报。
+    expect(code).toMatch(/if\s*\(!tokenLoginActive\.value\)\s*\{[\s\S]{0,200}?validateCurrentPassword\(currentPassword\)/);
     expect(code).toMatch(/tokenLoginActive\.value\s*\n?\s*\?\s*await authStore\.updatePassword\(passwordForm\.newPassword\)/);
   });
 

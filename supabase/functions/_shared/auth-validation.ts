@@ -62,10 +62,19 @@ export const validateEmail = (email: string) => {
   return '';
 };
 
+// ⚠️ 必须与 src/utils/auth-validation.js 的 PASSWORD_MIN_LENGTH 保持一致。
+// 这两份是**独立副本**（Deno 不能直接 import src/），谁改都得同步改另一个；
+// 漂移过：前端提到 8 位后这里仍是 6，前端校验可被绕过，服务端形同虚设。
+// 由 scripts/check-auth-validation-parity.mjs 把关。
+const PASSWORD_MIN_LENGTH = 8;
+
 export const validatePassword = (password: string) => {
   const safePassword = String(password || '');
-  if (safePassword.length < 6) {
-    return '密码长度至少为 6 位';
+  if (!safePassword) {
+    return '请设置密码';
+  }
+  if (safePassword.length < PASSWORD_MIN_LENGTH) {
+    return `密码长度至少为 ${PASSWORD_MIN_LENGTH} 位`;
   }
   return '';
 };

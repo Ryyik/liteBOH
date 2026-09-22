@@ -34,6 +34,7 @@ const mockSupabase = {
       eq: vi.fn()
     }))
   })),
+  rpc: vi.fn(),
   removeChannel: vi.fn()
 };
 
@@ -713,5 +714,105 @@ describe('auth store: loginWithPasskey', () => {
     expect(result.message).toContain('账户安全');
     expect(store.isLoggedIn).toBe(false);
     expect(mockToPasskeyLoginMessage).toHaveBeenCalled();
+  });
+});
+
+// ============================================================
+// 登录跃迁写活跃时间（update_last_active_at）
+// 背景：令牌登录走 verifyOtp({type:'recovery'})，supabase-js 只发
+// PASSWORD_RECOVERY、不发 SIGNED_IN → 挂在 SIGNED_IN 上的 updateOnlineStatus
+// 对令牌登录不生效，用户登录后最长约 2 分钟（首个心跳 tick 前）不显示在线。
+// 修复：updateLocalState 内 isLoggedIn false→true 跃迁时兜底写活跃时间。
+// ============================================================
+
+const TOKEN_LOGIN_USER = {
+  id: 'user-123',
+  email: 'test@example.com',
+  user_metadata: { username: 'TestUser' }
+};
+
+function installProfileOnlyRouting() {
+  mockSupabase.from.mockImplementation(() => ({
+    select: vi.fn(() => ({
+      eq: vi.fn(() => ({
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: { id: 'user-123', username: 'TestUser', role: 'user', last_active_at: '2026-09-20T10:00:00Z' },
+          error: null
+        }),
+        single: vi.fn().mockResolvedValue({
+          data: { id: 'user-123', username: 'TestUser', role: 'user', last_active_at: '2026-09-20T10:00:00Z' },
+          error: null
+        })
+      }))
+    }))
+  }));
+}
+
+describe('auth store: 登录跃迁写活跃时间', () => {
+  let store;
+
+  beforeEach(() => {
+    // 同步完成 mock 复位与装实现：不留 await 缝隙，避免上一个用例的
+    // void 异步尾随（refreshOverviewMarks → mark_overview_state）插进
+    // reset 与装实现之间踩出「无实现窗口」（其 TypeError 被静默吞掉）。
+    mockSupabase.from.mockReset();
+    mockSupabase.rpc.mockReset();
+    mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
+    store = createStore();
+  });
+
+  const countUpdateCalls = () =>
+    mockSupabase.rpc.mock.calls.filter((c) => c[0] === 'update_last_active_at').length;
+
+  it('首次登录跃迁（false→true）立即写 last_active_at（令牌登录 PASSWORD_RECOVERY 兜底）', async () => {
+    installProfileOnlyRouting();
+    expect(mockSupabase.rpc).not.toHaveBeenCalled();
+
+    // 模拟令牌登录的收尾链路：verifyOtp 建会话后页面直接调 updateLocalState
+    await store.updateLocalState(TOKEN_LOGIN_USER, { force: true });
+
+    expect(store.isLoggedIn).toBe(true);
+    // updateOnlineStatus 是 void 异步调用（不 await），用条件等待而非固定 tick
+    await vi.waitFor(() => {
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('update_last_active_at');
+    }, { timeout: 5000 });
+  });
+
+  it('已登录态下常规刷新（TOKEN_REFRESHED/USER_UPDATED 场景）不重复写', async () => {
+    installProfileOnlyRouting();
+
+    await store.updateLocalState(TOKEN_LOGIN_USER, { force: true });
+    await vi.waitFor(() => {
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('update_last_active_at');
+    }, { timeout: 5000 });
+    // 排空本用例异步尾随（refreshOverviewMarks 等）后按函数名取基准——
+    // 不等 mark_overview_state：它是 void 尾随，落账时序不可靠，与被测行为无关
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const updateCallsBefore = countUpdateCalls();
+
+    // 已登录 → updateLocalState 只刷新本地态，跃迁写库不应再次触发
+    await store.updateLocalState(TOKEN_LOGIN_USER, { force: true });
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(countUpdateCalls()).toBe(updateCallsBefore);
+  });
+
+  it('登出后再登录，跃迁写库重新触发', async () => {
+    installProfileOnlyRouting();
+
+    await store.updateLocalState(TOKEN_LOGIN_USER, { force: true });
+    await vi.waitFor(() => {
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('update_last_active_at');
+    }, { timeout: 5000 });
+    const updateCallsAfterFirstLogin = countUpdateCalls();
+
+    await store.resetState();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    await store.updateLocalState(TOKEN_LOGIN_USER, { force: true });
+    await vi.waitFor(() => {
+      return expect(countUpdateCalls()).toBeGreaterThan(updateCallsAfterFirstLogin);
+    }, { timeout: 5000 });
   });
 });

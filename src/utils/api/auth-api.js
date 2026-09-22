@@ -10,6 +10,7 @@ import { clearSensitiveLocalStorage } from '../safe-storage.js';
 import {
   normalizeEmail,
   normalizeLoginId,
+  validateCurrentPassword,
   validateEmail,
   validatePassword,
   validateUsername,
@@ -129,6 +130,37 @@ const adoptEdgeSession = async (payload) => {
 
 const escapeLikePattern = (value = '') => String(value || '').replace(/[\\%_]/g, '\\$&');
 
+/**
+ * 方块 ID 是否可用。
+ * 注册页的实时查重与 signUp 的提交前预检**共用这一处**，避免「前端一套口径、
+ * 提交时另一套口径」。返回 { ok, available }：
+ *   ok=false 表示查询本身失败（网络 / 权限被 RLS 收紧），此时不要冒充
+ *   「可用」也不要冒充「不可用」—— 交给真正的提交去兜底（DB 的 unique 是最后一道）。
+ * 注意口径：这里用 ilike 做大小写不敏感比对，而唯一索引 profiles_username_key
+ * 是大小写敏感的 —— 有意偏严（宁可多拦，不给用户注册出两个只差大小写的 ID）。
+ */
+export async function isUsernameAvailable(username) {
+  const safeUsername = String(username || '').trim();
+  if (!safeUsername) return { ok: false, available: null };
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, username')
+      .ilike('username', escapeLikePattern(safeUsername))
+      .limit(5);
+    if (error) {
+      logger.warn('auth-api', 'Username availability check failed', error);
+      return { ok: false, available: null };
+    }
+    const taken = Array.isArray(data)
+      && data.some((row) => String(row?.username || '').trim().toLowerCase() === safeUsername.toLowerCase());
+    return { ok: true, available: !taken };
+  } catch (error) {
+    logger.warn('auth-api', 'Username availability check threw', error);
+    return { ok: false, available: null };
+  }
+}
+
 export async function signUp(username, email, password, metadata = {}) {
   const safeUsername = String(username || '').trim();
   const safeEmail = normalizeEmail(email);
@@ -143,11 +175,12 @@ export async function signUp(username, email, password, metadata = {}) {
     };
   }
 
-  if (safePassword.length < 6) {
+  const passwordValidationMessage = validatePassword(safePassword);
+  if (passwordValidationMessage) {
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ message: '密码长度至少为 6 位', code: 'INVALID_PASSWORD' })
+      error: normalizeDbError({ message: passwordValidationMessage, code: 'INVALID_PASSWORD' })
     };
   }
 
@@ -160,31 +193,23 @@ export async function signUp(username, email, password, metadata = {}) {
     };
   }
 
-  try {
-    const { data: usernameRows, error: usernameLookupError } = await supabase
-      .from('profiles')
-      .select('id, username')
-      .ilike('username', escapeLikePattern(safeUsername))
-      .limit(5);
-
-    const hasExactUsernameMatch = Array.isArray(usernameRows)
-      && usernameRows.some((row) => String(row?.username || '').trim().toLowerCase() === safeUsername.toLowerCase());
-
-    if (!usernameLookupError && hasExactUsernameMatch) {
-      return {
-        ok: false,
-        data: null,
-        error: normalizeDbError({ message: '该方块 ID 已被使用', code: 'USERNAME_TAKEN' })
-      };
-    }
-  } catch (usernameCheckError) {
-    logger.warn('auth-api', 'Username availability check failed', usernameCheckError);
+  const usernameAvailability = await isUsernameAvailable(safeUsername);
+  if (usernameAvailability.ok && usernameAvailability.available === false) {
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '该方块 ID 已被使用', code: 'USERNAME_TAKEN' })
+    };
   }
 
   const { data, error } = await supabase.auth.signUp({
     email: safeEmail,
     password: safePassword,
     options: {
+      // 邮箱验证开启（mailer_autoconfirm=false）后，确认链接回跳根路径：
+      // implicit flow 在其后追加 #access_token=...，supabase-js detectSessionInUrl
+      // 自动建会话并清理参数。未开启验证时该字段不被使用，无副作用。
+      emailRedirectTo: `${window.location.origin}/`,
       data: {
         ...metadata,
         username: safeUsername
@@ -313,6 +338,18 @@ export async function signIn(loginId, password) {
     const payload = edge.payload || {};
 
     if (payload.ok !== true) {
+      // 邮箱验证开启后，GoTrue 对未验证邮箱返回 "Email not confirmed"，EF 会透传
+      const edgeMessage = String(payload.message || '');
+      if (edgeMessage.toLowerCase().includes('email not confirmed')) {
+        return {
+          ok: false,
+          data: null,
+          error: normalizeDbError({
+            code: 'EMAIL_NOT_CONFIRMED',
+            message: '该邮箱尚未完成验证，请查收注册确认邮件（注意垃圾箱）后再登录；若未收到，可回到注册页重新发送。'
+          })
+        };
+      }
       return {
         ok: false,
         data: null,
@@ -338,6 +375,19 @@ export async function signIn(loginId, password) {
         ok: false,
         data: null,
         error: normalizeDbError({ ...error, code: 'INVALID_CREDENTIALS', message: '登录失败：账号或密码错误' })
+      };
+    }
+
+    // 邮箱验证开启后（mailer_autoconfirm=false），未验证邮箱登录被 GoTrue 拒绝
+    if (normalizedMessage.includes('email not confirmed')) {
+      return {
+        ok: false,
+        data: null,
+        error: normalizeDbError({
+          ...error,
+          code: 'EMAIL_NOT_CONFIRMED',
+          message: '该邮箱尚未完成验证，请查收注册确认邮件（注意垃圾箱）后再登录；若未收到，可回到注册页重新发送。'
+        })
       };
     }
 
@@ -432,8 +482,101 @@ export function toPasskeyRegisterMessage(error) {
   return error?.message || '通行密钥注册失败，请稍后再试。';
 }
 
-export async function resendSignupConfirmation(email) {
-  const safeEmail = normalizeEmail(email);
+// 更换账户邮箱：要求当前密码（防会话被劫持后直接改绑找回生命线）。
+// mailer_autoconfirm=false（当前配置）时 updateUser({email}) 自动进入验证流程：
+// secure email change（已开启）会给旧邮箱和新邮箱各发一封确认邮件，
+// 两边都完成确认后新邮箱才生效；若 autoconfirm=true 则直接生效（无邮件）。
+// changed=false 表示进入了待确认状态（邮件已发、邮箱尚未更换）。
+export async function updateUserEmail(newEmail, currentPassword) {
+  const safeEmail = normalizeEmail(newEmail);
+  const emailValidationMessage = validateEmail(safeEmail);
+  if (emailValidationMessage) {
+    return {
+      ok: false, data: null, changed: false, pendingEmail: '',
+      error: normalizeDbError({ message: emailValidationMessage, code: 'INVALID_EMAIL' })
+    };
+  }
+
+  const safePassword = String(currentPassword || '');
+  const currentPasswordMessage = validateCurrentPassword(safePassword);
+  if (currentPasswordMessage) {
+    return {
+      ok: false, data: null, changed: false, pendingEmail: '',
+      error: normalizeDbError({ message: currentPasswordMessage, code: 'INVALID_PASSWORD' })
+    };
+  }
+
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError || !authData?.user) {
+    return {
+      ok: false, data: null, changed: false, pendingEmail: '',
+      error: normalizeDbError({ message: '登录状态读取失败，请重新登录后再试。', code: 'SESSION_READ_FAILED' })
+    };
+  }
+
+  if (String(authData.user.email || '').toLowerCase() === safeEmail) {
+    return {
+      ok: false, data: null, changed: false, pendingEmail: '',
+      error: normalizeDbError({ message: '新邮箱与当前邮箱相同。', code: 'SAME_EMAIL' })
+    };
+  }
+
+  // 当前密码校验（与 updatePassword 的 verify 模式一致：确保操作者是账号主人）
+  const { error: verifyError } = await supabase.auth.signInWithPassword({
+    email: authData.user.email,
+    password: safePassword
+  });
+
+  if (verifyError) {
+    const message = String(verifyError.message || '') === 'Invalid login credentials'
+      ? '当前密码不正确，请重新输入。'
+      : (verifyError.message || '当前密码校验失败');
+    return {
+      ok: false, data: null, changed: false, pendingEmail: '',
+      error: normalizeDbError({ ...verifyError, message, code: verifyError.code || 'CURRENT_PASSWORD_VERIFY_FAILED' })
+    };
+  }
+
+  const { data, error } = await supabase.auth.updateUser({ email: safeEmail });
+
+  if (error) {
+    const normalizedMessage = String(error.message || '').toLowerCase();
+    if (normalizedMessage.includes('already') || normalizedMessage.includes('registered')) {
+      return {
+        ok: false, data: null, changed: false, pendingEmail: '',
+        error: normalizeDbError({ ...error, code: 'EMAIL_TAKEN', message: '该邮箱已被其他账号使用。' })
+      };
+    }
+    return { ok: false, data: null, changed: false, pendingEmail: '', error: normalizeDbError(error) };
+  }
+
+  // changed=false = 进入待确认状态：邮件已发、邮箱尚未更换（user.email 仍是旧值）
+  const changed = String(data?.user?.email || '').toLowerCase() === safeEmail;
+  return { ok: true, data, changed, pendingEmail: changed ? '' : safeEmail, error: null };
+}
+
+// 消费邮箱验证回跳里的 token_hash（GoTrue token-hash 型链接，注册/更换邮箱共用）：
+// verifyOtp({type, token_hash}) 成功 → supabase-js 保存会话并广播
+// SIGNED_IN / USER_UPDATED → auth store 的事件处理器自动接管本地状态。
+export async function verifyEmailTokenHash(tokenHash, type = 'signup') {
+  const safeTokenHash = String(tokenHash || '').trim();
+  const safeType = String(type || '').trim();
+  if (!safeTokenHash || !safeType) {
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '确认令牌无效', code: 'INVALID_TOKEN_HASH' })
+    };
+  }
+
+  const { data, error } = await supabase.auth.verifyOtp({
+    type: safeType,
+    token_hash: safeTokenHash
+  });
+  return { ok: !error, data, error: normalizeDbError(error) };
+}
+
+export async function resendSignupConfirmation(email) {  const safeEmail = normalizeEmail(email);
   const emailValidationMessage = validateEmail(safeEmail);
   if (emailValidationMessage) {
     return {
@@ -561,11 +704,12 @@ export async function updatePassword(newPassword, currentPassword = '') {
 
 export async function deleteMyAccount(password, reason = '') {
   const safePassword = String(password || '');
-  if (safePassword.length < 6) {
+  const currentPasswordMessage = validateCurrentPassword(safePassword);
+  if (currentPasswordMessage) {
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ message: '请输入当前账号密码（至少 6 位）', code: 'INVALID_PASSWORD' })
+      error: normalizeDbError({ message: currentPasswordMessage, code: 'INVALID_PASSWORD' })
     };
   }
 

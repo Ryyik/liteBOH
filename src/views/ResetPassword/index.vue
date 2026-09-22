@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/utils/supabase-client.js';
 import { readClipboardText } from '@/utils/recovery-access.js';
+import { PASSWORD_MIN_LENGTH, validatePassword } from '@/utils/auth-validation.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -272,8 +273,11 @@ const handleSubmit = async () => {
   const password = String(newPassword.value || '');
   const confirmedPassword = String(confirmPassword.value || '');
 
-  if (password.length < 6) {
-    errorMessage.value = '新密码长度至少为 6 位。';
+  // 走全站唯一真源（与注册、改密同一处口径）。这里原先只判 < 6，
+  // 等于给了一条绕过 8 位下限的路：注册要求 8 位，重置成 6 位即可。
+  const passwordValidationMessage = validatePassword(password);
+  if (passwordValidationMessage) {
+    errorMessage.value = `${passwordValidationMessage}。`;
     return;
   }
 
@@ -323,7 +327,7 @@ onMounted(() => {
           v-model="newPassword"
           type="password"
           autocomplete="new-password"
-          placeholder="至少 6 位"
+          :placeholder="`至少 ${PASSWORD_MIN_LENGTH} 位`"
           required
         />
 

@@ -10,18 +10,19 @@
           <section class="gs-group">
             <div class="gs-group-title">账户</div>
             <div class="gs-rows">
-              <div class="gs-row is-static">
+              <button type="button" class="gs-row" @click="openChangeEmailPanel">
                 <span class="gs-icon is-blue">
                   <Mail :size="16" :stroke-width="2" aria-hidden="true" />
                 </span>
                 <span class="gs-text">
                   <span class="gs-label">绑定邮箱</span>
-                  <span class="gs-desc">用于登录与找回密码</span>
+                  <span class="gs-desc">用于登录与找回密码，点击更换</span>
                 </span>
                 <span class="gs-side">
                   <span class="gs-value">{{ emailValue }}</span>
+                  <ChevronRight class="gs-chevron" :size="16" :stroke-width="2" aria-hidden="true" />
                 </span>
-              </div>
+              </button>
             </div>
           </section>
 
@@ -66,6 +67,66 @@
                   <ChevronRight class="gs-chevron gs-chevron-danger" :size="16" :stroke-width="2" aria-hidden="true" />
                 </span>
               </button>
+            </div>
+          </section>
+        </div>
+
+        <!-- 更换邮箱 -->
+        <div v-else-if="activePanel === 'email'" key="email" class="glass-settings">
+          <section class="gs-group">
+            <div class="gs-rows">
+              <div class="gs-row is-static">
+                <span class="gs-icon is-blue">
+                  <Mail :size="16" :stroke-width="2" aria-hidden="true" />
+                </span>
+                <span class="gs-text">
+                  <span class="gs-label">更换邮箱</span>
+                  <span class="gs-desc">当前绑定：{{ currentEmail }}</span>
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <section class="gs-group">
+            <div class="sec-form">
+              <div class="gs-banner info">
+                <Info :size="16" :stroke-width="2" aria-hidden="true" />
+                <span>为防止账号被盗，确认邮件会同时发送到当前邮箱和新邮箱：请先在当前邮箱完成确认，再到新邮箱确认，两边都完成后更换即生效。生效前旧邮箱仍可登录。</span>
+              </div>
+
+              <label class="gs-field-label" for="new-email">新邮箱</label>
+              <div class="gs-input-wrap">
+                <span class="gs-input-icon">
+                  <Mail :size="15" :stroke-width="2" aria-hidden="true" />
+                </span>
+                <input id="new-email" v-model.trim="emailForm.newEmail" type="email" class="gs-input"
+                  placeholder="请输入新邮箱地址" autocomplete="email" :disabled="isUpdatingEmail">
+              </div>
+
+              <label class="gs-field-label" for="email-current-password">当前密码</label>
+              <div class="gs-input-wrap">
+                <span class="gs-input-icon">
+                  <Lock :size="15" :stroke-width="2" aria-hidden="true" />
+                </span>
+                <input id="email-current-password" v-model="emailForm.currentPassword" type="password" class="gs-input"
+                  placeholder="请输入当前账号密码" autocomplete="current-password" :disabled="isUpdatingEmail">
+              </div>
+
+              <div v-if="emailUpdateError" class="gs-banner error">
+                <AlertCircle :size="16" :stroke-width="2" aria-hidden="true" />
+                <span>{{ emailUpdateError }}</span>
+              </div>
+              <div v-if="emailUpdateSuccess" class="gs-banner success">
+                <CheckCircle2 :size="16" :stroke-width="2" aria-hidden="true" />
+                <span>{{ emailUpdateSuccess }}</span>
+              </div>
+
+              <div class="gs-actions sec-actions">
+                <button class="gs-btn ghost" :disabled="isUpdatingEmail" @click="backToMenu">返回</button>
+                <button class="gs-btn primary" :disabled="isUpdatingEmail" @click="submitEmailChange">
+                  {{ isUpdatingEmail ? '提交中...' : '发送确认邮件' }}
+                </button>
+              </div>
             </div>
           </section>
         </div>
@@ -126,7 +187,7 @@
 
               <p class="gs-hint">
                 <Info :size="13" :stroke-width="2" aria-hidden="true" />
-                建议使用至少 8 位密码，并同时包含字母与数字。
+                建议使用至少 {{ PASSWORD_MIN_LENGTH }} 位密码，并同时包含字母与数字。
               </p>
 
               <div v-if="passwordUpdateError" class="gs-banner error">
@@ -321,9 +382,11 @@ import {
   registerPasskey,
   listPasskeys,
   deletePasskey,
-  toPasskeyRegisterMessage
+  toPasskeyRegisterMessage,
+  updateUserEmail
 } from '@/utils/api/auth-api.js';
 import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';
+import { PASSWORD_MIN_LENGTH, validateCurrentPassword, validatePassword } from '@/utils/auth-validation.js';
 import { logger } from '@/utils/logger.js';
 
 const DELETE_ACCOUNT_CONFIRM_TEXT = '确认注销';
@@ -505,7 +568,7 @@ const handleHeaderBack = () => {
 };
 
 const backToMenu = () => {
-  if (isDeletingAccount.value || isUpdatingPassword.value) return;
+  if (isDeletingAccount.value || isUpdatingPassword.value || isUpdatingEmail.value) return;
   activePanel.value = 'menu';
 };
 
@@ -524,6 +587,58 @@ const openChangePasswordPanel = () => {
   void refreshTokenLoginState();
 };
 
+// ---- 更换邮箱（双重确认：新旧邮箱各收一封确认邮件） ----
+const emailForm = reactive({
+  newEmail: '',
+  currentPassword: ''
+});
+const isUpdatingEmail = ref(false);
+const emailUpdateError = ref('');
+const emailUpdateSuccess = ref('');
+
+const resetEmailForm = () => {
+  emailForm.newEmail = '';
+  emailForm.currentPassword = '';
+  emailUpdateError.value = '';
+  emailUpdateSuccess.value = '';
+  isUpdatingEmail.value = false;
+};
+
+const openChangeEmailPanel = () => {
+  resetEmailForm();
+  activePanel.value = 'email';
+};
+
+const submitEmailChange = async () => {
+  emailUpdateError.value = '';
+  emailUpdateSuccess.value = '';
+
+  isUpdatingEmail.value = true;
+  try {
+    const result = await updateUserEmail(emailForm.newEmail, emailForm.currentPassword);
+
+    if (!result?.ok) {
+      emailUpdateError.value = result?.error?.message || '更换邮箱失败，请稍后重试。';
+      return;
+    }
+
+    if (result.changed) {
+      // 直接生效（仅 autoconfirm=true 时出现，当前配置不会走到）
+      emailUpdateSuccess.value = '邮箱已更新，下次登录请使用新邮箱。';
+      emailForm.newEmail = '';
+      emailForm.currentPassword = '';
+      return;
+    }
+
+    emailUpdateSuccess.value = `确认邮件已发送到 ${result.pendingEmail} 和当前邮箱：请先在当前邮箱完成确认，再到新邮箱确认，两边都完成后新邮箱即可登录。生效前旧邮箱仍可登录。`;
+    emailForm.currentPassword = '';
+  } catch (error) {
+    emailUpdateError.value = error?.message || '更换邮箱失败，请稍后再试。';
+  } finally {
+    isUpdatingEmail.value = false;
+  }
+};
+
 const openDeleteAccountPanel = () => {
   resetDeleteAccountState();
   activePanel.value = 'delete';
@@ -536,11 +651,16 @@ const validateNewPassword = () => {
 
   // token 登录宽限窗内：用户不知道当前密码（正因如此才有代发 token），跳过其校验；
   // 「新旧密码相同」的比对也只对知道当前密码的人有意义。
-  if (!tokenLoginActive.value && currentPassword.length < 6) {
-    return '请输入当前密码（至少 6 位）。';
+  if (!tokenLoginActive.value) {
+    const currentPasswordMessage = validateCurrentPassword(currentPassword);
+    if (currentPasswordMessage) {
+      return `${currentPasswordMessage}。`;
+    }
   }
-  if (newPassword.length < 8) {
-    return '新密码至少需要 8 位。';
+  // 长度下限走全站唯一真源（原先这里硬编码 8，和注册/重置各写各的）
+  const newPasswordMessage = validatePassword(newPassword);
+  if (newPasswordMessage) {
+    return `${newPasswordMessage}。`;
   }
   if (!/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) {
     return '新密码需同时包含字母和数字。';
@@ -630,8 +750,9 @@ const confirmDeleteAccount = async () => {
   }
 
   const safePassword = String(deletePassword.value || '');
-  if (safePassword.length < 6) {
-    deleteAccountError.value = '请输入当前账号密码（至少 6 位）。';
+  const deletePasswordMessage = validateCurrentPassword(safePassword);
+  if (deletePasswordMessage) {
+    deleteAccountError.value = `${deletePasswordMessage}。`;
     return;
   }
 
@@ -668,6 +789,7 @@ onMounted(async () => {
 
   activePanel.value = 'menu';
   resetPasswordForm();
+  resetEmailForm();
   resetDeleteAccountState();
 });
 </script>
