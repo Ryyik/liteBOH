@@ -19,6 +19,28 @@
 
 const DEFAULT_URL = '/#/user-space/messages';
 
+/**
+ * 归一化点击目标地址。
+ *
+ * Declarative Web Push 的 `notification.navigate` 是**绝对 URL**，而页面侧
+ * （stores/notifications.ts）只认以 `/#` 开头的相对路径才会走 hash 路由。
+ * 因此同源地址一律退化成 path+search+hash，避免「点了通知只聚焦、不跳转」。
+ */
+const normalizeTargetUrl = (raw) => {
+  const value = String(raw || '');
+  if (!value) return DEFAULT_URL;
+  try {
+    const parsed = new URL(value, self.location.origin);
+    if (parsed.origin === self.location.origin) {
+      const relative = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+      return relative && relative !== '/' ? relative : DEFAULT_URL;
+    }
+  } catch (_error) {
+    // 非法 URL：按原值交给浏览器处理
+  }
+  return value;
+};
+
 /** 通知小图标用 monochrome 素材：安卓状态栏只渲染单色剪影，彩色图会变成白块 */
 const NOTIFICATION_ICON = '/icons/icon-192.png';
 const NOTIFICATION_BADGE = '/icons/icon-monochrome-512.png';
@@ -65,9 +87,15 @@ const applyBadge = async (count) => {
 
 self.addEventListener('push', (event) => {
   const payload = readPayload(event);
-  const title = String(payload.title || '方块之家').slice(0, 80);
+  // 兼容 Declarative Web Push 载荷（顶层 web_push:8030 + notification{}）：
+  // Safari 18.4+ 会由浏览器自己渲染、根本不进这里；但若某端把该载荷转交给 SW，
+  // 也要能正确读出内容，而不是退化成默认文案。
+  const declarative = payload.notification && typeof payload.notification === 'object'
+    ? payload.notification
+    : null;
+  const title = String(payload.title || declarative?.title || '方块之家').slice(0, 80);
   const options = {
-    body: String(payload.body || '你有一条新消息').slice(0, 160),
+    body: String(payload.body || declarative?.body || '你有一条新消息').slice(0, 160),
     icon: NOTIFICATION_ICON,
     badge: NOTIFICATION_BADGE,
     // 每条通知独立 tag → 互不顶掉、每条都会单独响一次。
@@ -76,7 +104,7 @@ self.addEventListener('push', (event) => {
     //    若以后改成按类型合并 tag（同一 type 共用一个 tag），才需要把 renotify 打开。
     tag: String(payload.tag || 'boh-notification'),
     data: {
-      url: String(payload.url || DEFAULT_URL),
+      url: normalizeTargetUrl(payload.url || declarative?.navigate),
       notificationId: payload.notificationId || null,
     },
   };
@@ -91,7 +119,7 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = String(event.notification?.data?.url || DEFAULT_URL);
+  const targetUrl = normalizeTargetUrl(event.notification?.data?.url);
 
   event.waitUntil((async () => {
     const clientList = await self.clients.matchAll({

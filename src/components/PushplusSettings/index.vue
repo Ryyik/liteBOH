@@ -287,7 +287,8 @@ const loadPushStatus = async () => {
     return;
   }
   try {
-    pushStatus.value = await getPushStatus(authStore.userInfo.id);
+    // force：设置页是用户主动查看状态的地方，不能让 5 分钟缓存把「已配置」显示成「未配置」
+    pushStatus.value = await getPushStatus(authStore.userInfo.id, { force: true });
   } catch (_error) {
     // 状态读取失败不该影响设置页其它功能
   } finally {

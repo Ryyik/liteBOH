@@ -42,6 +42,21 @@ const RETRY_MIN_AGE_MS = 60_000;
 /** 点开通知后统一落到消息中心 —— 那里是查看通知的唯一去处 */
 const NOTIFICATION_ROUTE = '/#/user-space/messages';
 
+/**
+ * 站点绝对地址。
+ *
+ * ⚠️ Declarative Web Push 的 navigate 成员**必须是绝对 URL** —— 浏览器拿到 payload
+ *    后不经任何 JS 直接打开它，所以不能给 hash 相对路径。
+ *    本函数被 DB（触发器 / pg_cron）调用，请求里没有 Origin 头，因此不依赖请求头，
+ *    以 VITE_SITE_URL 为准（缺失时回落线上域名）。
+ */
+const SITE_ORIGIN = String(Deno.env.get('VITE_SITE_URL') || 'https://www.blockofhome.cn')
+  .trim()
+  .replace(/\/+$/, '');
+
+/** 通知图标（与 public/push-sw.js 用同一份素材） */
+const NOTIFICATION_ICON = `${SITE_ORIGIN}/icons/icon-192.png`;
+
 type AppServer = Awaited<ReturnType<typeof webpush.ApplicationServer.new>>;
 
 /** 带类型的动作 → 文案。sender 与帖子/评论内容在运行时拼。 */
@@ -174,6 +189,23 @@ const buildPayload = async (client: SupabaseClient, notification: NotificationRo
   }
 
   return {
+    // ------------------------------------------------------------------
+    // Declarative Web Push（Safari 18.4+ / iOS 18.4+，现已到 Safari 27）
+    // 浏览器看到顶层 web_push:8030 就自己渲染通知，**完全不唤醒 Service Worker**：
+    //   · 免掉 iOS 上长期不靠谱的 notificationclick 跳转（navigate 由浏览器直接执行）
+    //   · 不占用「静默推送」额度，也不依赖 SW 仍然存活
+    // 旧浏览器会忽略这些字段、回落到下面的扁平字段走经典 SW 路径 —— 一份 payload 两端通吃。
+    // ⚠️ navigate 必须是绝对 URL；app_badge 要求字符串。
+    // ------------------------------------------------------------------
+    web_push: 8030,
+    notification: {
+      title,
+      body,
+      navigate: `${SITE_ORIGIN}${NOTIFICATION_ROUTE}`,
+      icon: NOTIFICATION_ICON,
+      app_badge: String(badge),
+    },
+    // -------- 经典 Service Worker 路径（Chrome / Firefox / 旧 Safari）--------
     title,
     body,
     url: NOTIFICATION_ROUTE,
@@ -403,12 +435,24 @@ Deno.serve(async (request) => {
     }
 
     const badgeRes = await client.rpc('boh_count_unread_notifications', { p_recipient_id: auth.userId });
+    const testTitle = '方块之家 · 通知已开启';
+    const testBody = '这是一条测试消息，后续有新的互动会这样提醒你。';
+    const testBadge = Number((badgeRes as { data?: number | string | null }).data ?? 0) || 0;
+    // 与正式通知同一套双格式（理由见 buildPayload 注释）
     const payload = JSON.stringify({
-      title: '方块之家 · 通知已开启',
-      body: '这是一条测试消息，后续有新的互动会这样提醒你。',
+      web_push: 8030,
+      notification: {
+        title: testTitle,
+        body: testBody,
+        navigate: `${SITE_ORIGIN}${NOTIFICATION_ROUTE}`,
+        icon: NOTIFICATION_ICON,
+        app_badge: String(testBadge),
+      },
+      title: testTitle,
+      body: testBody,
       url: NOTIFICATION_ROUTE,
       tag: 'boh-test',
-      badge: Number((badgeRes as { data?: number | string | null }).data ?? 0) || 0,
+      badge: testBadge,
     });
 
     const appServer = await getAppServer();
@@ -435,10 +479,20 @@ Deno.serve(async (request) => {
     }, delivered > 0 ? 200 : 502, origin);
   }
 
-  // ---------- 服务端通道：需 service_role Bearer ----------
+  // ---------- 服务端通道：需专用投递凭证 Bearer ----------
+  // ⚠️ 为什么不直接用 SUPABASE_SERVICE_ROLE_KEY 比对：
+  //    1) 它的值由平台注入，DB 侧拿不到明文（secrets list 只给 sha256），两端根本无法对齐；
+  //    2) 它是 service_role 等价物，权限远大于「触发一次推送投递」，不该为了投递复制进 DB。
+  //    改用 BOH_PUSH_DISPATCH_KEY —— 专用凭证，与 vault 里 push_dispatch_key 同值，
+  //    权限面收敛到「只能调本函数的 send / retry」。同时仍兼容 SUPABASE_SERVICE_ROLE_KEY
+  //    作为人工排障入口。
+  // ⚠️ 必须在请求处理内读 env：模块顶层读会被复用的 isolate 缓存，改 secret 会「看起来没生效」。
+  const dispatchKey = String(Deno.env.get('BOH_PUSH_DISPATCH_KEY') || '').trim();
   const serviceRoleKey = String(Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '').trim();
+  const presentedAuth = String(request.headers.get('authorization') || '');
   const isServiceCall = Boolean(
-    serviceRoleKey && (request.headers.get('authorization') || '') === `Bearer ${serviceRoleKey}`,
+    (dispatchKey && presentedAuth === `Bearer ${dispatchKey}`)
+    || (serviceRoleKey && presentedAuth === `Bearer ${serviceRoleKey}`),
   );
   if (!isServiceCall) {
     return jsonResponse({ ok: false, code: 'UNAUTHORIZED', message: '无权调用' }, 401, origin);

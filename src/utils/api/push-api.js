@@ -25,6 +25,55 @@ const CONFIG_CACHE_TTL_MS = 5 * 60 * 1000;
 let configCache = null;
 let configFetchedAt = 0;
 
+/**
+ * 等待 Service Worker 就绪的超时上限（毫秒）。
+ *
+ * ⚠️ 为什么必须带超时：规范里 `navigator.serviceWorker.ready` 只在**存在 active
+ *    registration** 时才 resolve；若从未注册成功（隐私浏览被限制、扩展拦截、
+ *    注册异常），这个 Promise 会**永久 pending** —— 它不是 reject，try/catch 抓不到。
+ *    后果是任何 await 它的路径直接卡死：登出（signOut → unbindDeviceOnLogout）、
+ *    设置页 loading 不结束、开关按钮一直 busy。
+ *    `'serviceWorker' in navigator` 只说明 API 存在，不保证注册成功，
+ *    所以超时兜底是唯一可靠的防线。
+ */
+const SERVICE_WORKER_READY_TIMEOUT_MS = 3000;
+
+/** 等待 SW 就绪；超时或异常一律返回 null，绝不挂起调用方 */
+const waitForServiceWorker = async (timeoutMs = SERVICE_WORKER_READY_TIMEOUT_MS) => {
+  if (typeof navigator === 'undefined' || !navigator.serviceWorker) return null;
+  let timerId = null;
+  try {
+    return await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise((resolve) => {
+        timerId = setTimeout(() => resolve(null), timeoutMs);
+      }),
+    ]);
+  } catch (error) {
+    logger.warn('push-api', '等待 Service Worker 就绪失败', error);
+    return null;
+  } finally {
+    if (timerId) clearTimeout(timerId);
+  }
+};
+
+/**
+ * 是否属于 iOS / iPadOS 系（这类设备必须「添加到主屏幕」才允许 Web Push）。
+ *
+ * ⚠️ 不能只匹配 UA 里的 iPhone|iPad|iPod：iPadOS 13+ 的 Safari 以
+ *    「Macintosh; Intel Mac OS X」+ Mobile 上报，UA 里**根本没有 iPad 字样**。
+ *    只按 UA 判会把 iPad 当成桌面 → 在标签页里直接调 Notification.requestPermission()，
+ *    而 iOS 标签页内 Notification API 不可用，表现为「点了没反应 / 未获得权限」。
+ *    唯一可靠的补充判据是触摸点数（桌面 Mac 恒为 0）。
+ */
+const isIosLike = () => {
+  if (typeof navigator === 'undefined') return false;
+  const ua = String(navigator.userAgent || '');
+  if (/iPhone|iPod/i.test(ua)) return true;
+  if (/iPad/i.test(ua)) return true;
+  return /Macintosh/i.test(ua) && Number(navigator.maxTouchPoints || 0) > 1;
+};
+
 /** 把 base64url 的 applicationServerKey 转成 subscribe() 需要的 Uint8Array */
 const urlBase64ToUint8Array = (base64Url) => {
   const padding = '='.repeat((4 - (base64Url.length % 4)) % 4);
@@ -47,8 +96,7 @@ export const getPushCapability = () => {
   if (!('Notification' in window)) return { supported: false, reason: '当前浏览器不支持系统通知' };
 
   // iOS Safari 只有把站点「添加到主屏幕」后才允许 Web Push，标签页里拿不到权限
-  const ua = String(navigator.userAgent || '');
-  const isIos = /iPhone|iPad|iPod/i.test(ua);
+  const isIos = isIosLike();
   const isStandalone = window.matchMedia?.('(display-mode: standalone)').matches
     || window.navigator.standalone === true;
   if (isIos && !isStandalone) {
@@ -93,8 +141,10 @@ export const fetchPushConfig = async ({ force = false } = {}) => {
 /** 当前浏览器已有的推送订阅（没有则 null）。不触发任何权限请求。 */
 export const readLocalSubscription = async () => {
   if (!getPushCapability().supported) return null;
+  // 必须走带超时的等待：SW 未注册成功时 ready 会永久 pending（详见 waitForServiceWorker 注释）
+  const registration = await waitForServiceWorker();
+  if (!registration) return null;
   try {
-    const registration = await navigator.serviceWorker.ready;
     return await registration.pushManager.getSubscription();
   } catch (error) {
     logger.warn('push-api', '读取本地订阅失败', error);
@@ -106,8 +156,11 @@ export const readLocalSubscription = async () => {
  * 汇总设置页需要的状态。
  * enabled 的判定 = 权限已授予 + 本地有订阅 + 库里也存在这台设备的行
  * （只看本地不够：用户可能在另一端解绑过，或者换过账号）
+ *
+ * force=true 绕过 fetchPushConfig 的 5 分钟缓存 —— 设置页是用户主动查看的地方，
+ * 若服务端刚配好密钥而缓存还是「未配置」，用户会以为自己点错了。
  */
-export const getPushStatus = async (userId) => {
+export const getPushStatus = async (userId, { force = false } = {}) => {
   const capability = getPushCapability();
   const status = {
     supported: capability.supported,
@@ -119,7 +172,7 @@ export const getPushStatus = async (userId) => {
   };
   if (!capability.supported) return status;
 
-  const config = await fetchPushConfig();
+  const config = await fetchPushConfig({ force });
   status.configured = config.enabled;
   if (!config.enabled) return status;
 
@@ -180,7 +233,8 @@ export const enablePush = async (userId) => {
   const capability = getPushCapability();
   if (!capability.supported) return { success: false, message: capability.reason };
 
-  const config = await fetchPushConfig();
+  // force：刚在服务端配好密钥时，不能让 5 分钟缓存把开关挡回去
+  const config = await fetchPushConfig({ force: true });
   if (!config.enabled) {
     return { success: false, message: config.error || '推送服务尚未在服务端配置' };
   }
@@ -202,8 +256,11 @@ export const enablePush = async (userId) => {
   // 2) 浏览器订阅
   let subscription = await readLocalSubscription();
   if (!subscription) {
+    const registration = await waitForServiceWorker();
+    if (!registration) {
+      return { success: false, message: '通知服务尚未就绪，请稍后重试' };
+    }
     try {
-      const registration = await navigator.serviceWorker.ready;
       subscription = await registration.pushManager.subscribe({
         // 规范要求：收到推送必须展示可见通知（不允许静默推送）
         userVisibleOnly: true,
@@ -247,16 +304,15 @@ export const disablePush = async (userId) => {
       logger.error('push-api', '删除订阅记录失败', error);
       return { success: false, message: error.message || '关闭失败' };
     }
-  } else if (userId) {
-    // 本地已经没有订阅（例如被浏览器回收过）——兜底清掉这个账号下的失效行
-    const { error } = await supabase
-      .from('push_subscriptions')
-      .update({ disabled_at: new Date().toISOString() })
-      .eq('user_id', userId);
-    if (error) logger.warn('push-api', '清理失效订阅失败', error);
+    return { success: true, message: '已关闭通知' };
   }
 
-  return { success: true, message: '已关闭通知' };
+  // 本地已经没有订阅（例如被浏览器回收过）。
+  // ⚠️ 这里刻意**不**再顺手停用该账号的其它订阅行：push_subscriptions 是按设备一行的，
+  //    全量停用会让用户在手机 / 平板上的推送莫名失效，而用户本意只是关掉当前这台。
+  //    当前设备无订阅可解绑时，如实告知范围即可。
+  logger.warn('push-api', '当前设备无本地订阅，未改动其它设备的订阅', { userId });
+  return { success: true, message: '当前设备未开启通知，其它设备不受影响' };
 };
 
 /**
