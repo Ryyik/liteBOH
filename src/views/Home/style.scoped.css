@@ -166,14 +166,33 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .home-forum-open .home-gate,
-  .home-forum-entering .home-forum-stage {
+  /* 2026-09-24 晚修：原先 animation: none 让「滑进论坛」变成瞬跳 ——
+     这段过渡是流程反馈（发生了「从开场画到论坛」这件事），不是装饰。
+     reduce 下降级为纯 opacity 淡出/淡入：位移、缩放、模糊全砍，但过渡仍可感知。 */
+  .home-forum-open .home-gate.is-leaving {
+    animation: homeGateExitReduced 300ms ease both;
+  }
+
+  .home-forum-open .home-gate.is-leaving :deep(.street-hero-content) {
     animation: none;
+  }
+
+  .home-forum-entering .home-forum-stage {
+    animation: homeForumStageInReduced 300ms ease both;
   }
 
   .home-gate-enter {
     transition: none;
   }
+}
+
+/* reduce 降级 keyframes：opacity-only（scoped 编译会同名替换 hash，本文件内引用安全） */
+@keyframes homeGateExitReduced {
+  to { opacity: 0; }
+}
+
+@keyframes homeForumStageInReduced {
+  from { opacity: 0; }
 }
 
 /* ============================================

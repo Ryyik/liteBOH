@@ -968,7 +968,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bottom-nav-glass,
+  /* 2026-09-24 晚修：入场动画表达的是「底栏出现了」这一流程反馈，不砍成 none
+     （reduce 全关时用户感知为「底栏没有升起」）。降级为 opacity-only 淡入：
+     150px 位移全砍，但「浮现」这个事实仍可感知。其余装饰动画维持全关。 */
+  .bottom-nav-glass.is-entering {
+    animation: bottomNavFadeInReduced 300ms ease both !important;
+  }
+
   .bottom-nav-glass::before,
   .bottom-nav-island,
   .bottom-nav-island *,
@@ -981,4 +987,9 @@
     transition-duration: 0.12s !important;
     transition-delay: 0s !important;
   }
+}
+
+/* reduce 降级：纯 opacity 淡入（bottom-nav.css 非scoped，keyframes 名保持全局唯一前缀） */
+@keyframes bottomNavFadeInReduced {
+  from { opacity: 0; }
 }

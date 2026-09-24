@@ -72,11 +72,15 @@ const { isLoggedIn, userInfo } = storeToRefs(authStore);
 // ============================================
 // 开场层：一次性入场
 // ============================================
-/* 开场画「本会话看过一次就不再放」的标记。
+/* 开场画「看过一次就暂停一段时间」的标记。
    2026-09-24：key 带上构建指纹（生产构建注入的 <meta name="boh-build-id">；dev 不注入）——
    每次发布新版本，用户再访问就会重播一次开场画。
-   dev 下拿不到 meta → 退回不带后缀的 key，与开发时的既有行为一致（探针因此也稳定）。 */
+   dev 下拿不到 meta → 退回不带后缀的 key，与开发时的既有行为一致（探针因此也稳定）。
+   2026-09-24 晚再修：原 sessionStorage 语义在 iOS PWA / 长驻标签下「会话」能跨好几天，
+   标记一旦写入，开场画（连同滚动锁动画与底栏浮现）就再也不会播 —— 用户感知为
+   「首屏动画没了」。改 localStorage + 24h 时间窗：同构建 24h 内不重复打扰，跨天自动重播。 */
 const GATE_PASSED_KEY = "boh-home-gate-passed";
+const GATE_REPLAY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const resolveGateStorageKey = () => {
   if (typeof document === "undefined") return GATE_PASSED_KEY;
   const buildId = String(document.querySelector('meta[name="boh-build-id"]')?.content || "").trim();
@@ -118,7 +122,9 @@ let touchStartY = 0;
 
 const readGatePassed = () => {
   try {
-    return window.sessionStorage.getItem(GATE_STORAGE_KEY) === "1";
+    const seenAt = Number(window.localStorage.getItem(GATE_STORAGE_KEY));
+    if (!Number.isFinite(seenAt) || seenAt <= 0) return false;
+    return Date.now() - seenAt < GATE_REPLAY_WINDOW_MS;
   } catch {
     // 隐私模式 / storage 被禁：当作没通过，照常播开场画
     return false;
@@ -126,9 +132,9 @@ const readGatePassed = () => {
 };
 const markGatePassed = () => {
   try {
-    window.sessionStorage.setItem(GATE_STORAGE_KEY, "1");
+    window.localStorage.setItem(GATE_STORAGE_KEY, String(Date.now()));
   } catch {
-    // 存不住就算了，不影响本次会话
+    // 存不住就算了，下次照常播
   }
 };
 

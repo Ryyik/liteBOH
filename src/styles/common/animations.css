@@ -1036,4 +1036,15 @@ button.close-btn:not(.no-press):active,
     transition-delay: 0ms !important;
     scroll-behavior: auto !important;
   }
+
+  /* 2026-09-24 晚修：流程反馈类动画显式恢复 300ms 纯 opacity 淡入淡出 ——
+     上面 `*` 重置把它们也压成 0.001ms，用户感知为「滑进论坛瞬跳 / 底栏没有升起」。
+     这三条是「发生了状态切换」的反馈（开场画退场 / 论坛层落定 / 底栏浮现），
+     降级形态是 opacity-only（位移缩放模糊在各自 keyframes 里已砍），保留可感知的过渡。 */
+  .home-forum-open .home-gate.is-leaving,
+  .home-forum-entering .home-forum-stage,
+  .bottom-nav-glass.is-entering {
+    animation-duration: 300ms !important;
+    animation-delay: 0ms !important;
+  }
 }

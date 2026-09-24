@@ -226,17 +226,24 @@ import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { Archive, Bell, ChevronRight, Database, EyeOff, Info, LogOut, Mail, MessagesSquare, Moon, RotateCcw, Shield, Sun, Users } from 'lucide-vue-next';
 
-/* 重播首屏开场画（2026-09-24）：清除「本会话已看过」标记并整页回首页。
+/* 重播首屏开场画（2026-09-24）：清除「已看过」标记并整页回首页。
    ⚠️ 标记 key 带构建指纹（boh-home-gate-passed:<build-id>，生产构建注入），必须前缀匹配清除；
+   2026-09-24 晚：标记迁到 localStorage（24h 时间窗），同时兜底清一遍 sessionStorage 旧值；
    必须用 location.reload 而不是路由跳转 —— Home 组件要重新挂载才会重播开场画。 */
 const replayHomeGate = () => {
-  try {
+  const collectPrefixKeys = (storage) => {
     const keys = [];
-    for (let i = 0; i < sessionStorage.length; i += 1) {
-      const key = sessionStorage.key(i);
-      if (key && key.startsWith('boh-home-gate-passed')) keys.push(key);
-    }
-    keys.forEach((key) => sessionStorage.removeItem(key));
+    try {
+      for (let i = 0; i < storage.length; i += 1) {
+        const key = storage.key(i);
+        if (key && key.startsWith('boh-home-gate-passed')) keys.push(key);
+      }
+    } catch { /* ignore */ }
+    return keys;
+  };
+  try {
+    collectPrefixKeys(localStorage).forEach((key) => localStorage.removeItem(key));
+    collectPrefixKeys(sessionStorage).forEach((key) => sessionStorage.removeItem(key));
   } catch {
     /* storage 不可用时忽略 —— reload 后开场画由既有降级链决定 */
   }
