@@ -2,7 +2,7 @@
   <button
     type="button"
     class="setting-toggle"
-    :class="{ enabled: modelValue }"
+    :class="{ on: modelValue }"
     role="switch"
     :aria-checked="modelValue ? 'true' : 'false'"
     :aria-label="label"
@@ -35,8 +35,13 @@ const emit = defineEmits(['update:modelValue']);
   cursor: pointer;
   flex: 0 0 auto;
   display: inline-block;
-  transition: background-color 0.2s ease;
+  transition: background-color 180ms var(--ease-out, ease-out),
+    transform 160ms var(--ease-out, ease-out);
   -webkit-tap-highlight-color: transparent;
+}
+
+.setting-toggle:active:not(:disabled) {
+  transform: scale(0.96);
 }
 
 .setting-toggle-knob {
@@ -48,7 +53,7 @@ const emit = defineEmits(['update:modelValue']);
   border-radius: 50%;
   background: #ffffff;
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 220ms cubic-bezier(0.34, 1.3, 0.64, 1);
 }
 
 .setting-toggle.on {
@@ -74,5 +79,18 @@ const emit = defineEmits(['update:modelValue']);
 
 :global([data-theme="dark"] .setting-toggle-knob ){
   background: #ffffff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setting-toggle,
+  .setting-toggle-knob {
+    transition-duration: 1ms;
+  }
+
+  /* 必须与上面的按压规则同级（含 :not(:disabled)，特异性 0,3,0），
+     否则 .setting-toggle:active（0,2,0）压不住 scale(0.96)，reduce 下按压位移仍在。 */
+  .setting-toggle:active:not(:disabled) {
+    transform: none;
+  }
 }
 </style>

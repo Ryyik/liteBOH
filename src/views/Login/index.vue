@@ -570,6 +570,7 @@ onUnmounted(() => {
             <label for="loginId">邮箱 / 方块 ID</label>
             <div class="email-input-container">
               <input type="text" id="loginId" v-model="loginForm.loginId" placeholder="请输入邮箱或方块 ID" autocapitalize="off"
+                autocomplete="username" enterkeyhint="next"
                 autocorrect="off" spellcheck="false" :class="{ 'boh-invalid': emailInvalid }" @input="handleEmailInput"
                 @focus="handleEmailFocus" @focusin="handleMobileInputFocus" required />
               <div v-if="showEmailSuffixes && emailSuffixes.length > 0" class="email-suffixes">
@@ -586,7 +587,8 @@ onUnmounted(() => {
             <label for="password">密码</label>
             <div class="boh-password-wrap">
               <input :type="showPassword ? 'text' : 'password'" id="password" v-model="loginForm.password"
-                placeholder="请输入你的密码" :class="{ 'boh-invalid': passwordInvalid }" @focus="handleMobileInputFocus" required />
+                placeholder="请输入你的密码" autocomplete="current-password" enterkeyhint="done"
+                :class="{ 'boh-invalid': passwordInvalid }" @focus="handleMobileInputFocus" required />
               <button type="button" class="boh-toggle-password" @click="togglePassword">
                 {{ showPassword ? '隐藏' : '显示' }}
               </button>
@@ -704,7 +706,8 @@ onUnmounted(() => {
                 <label for="loginId">邮箱 / 方块 ID</label>
                 <div class="email-input-container">
                   <input type="text" id="loginId" v-model="loginForm.loginId" placeholder="请输入邮箱或方块 ID"
-                    autocapitalize="off" autocorrect="off" spellcheck="false" :class="{ 'boh-invalid': emailInvalid }"
+                    autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="username" enterkeyhint="next"
+                    :class="{ 'boh-invalid': emailInvalid }"
                     @input="handleEmailInput" @focus="handleEmailFocus" @focusin="handleMobileInputFocus" required />
                   <div v-if="showEmailSuffixes && emailSuffixes.length > 0" class="email-suffixes">
                     <button v-for="suffix in emailSuffixes" :key="suffix" class="email-suffix-btn"
@@ -720,7 +723,8 @@ onUnmounted(() => {
                 <label for="password">密码</label>
                 <div class="boh-password-wrap">
                   <input :type="showPassword ? 'text' : 'password'" id="password" v-model="loginForm.password"
-                    placeholder="请输入你的密码" :class="{ 'boh-invalid': passwordInvalid }" @focus="handleMobileInputFocus" required />
+                    placeholder="请输入你的密码" autocomplete="current-password" enterkeyhint="done"
+                    :class="{ 'boh-invalid': passwordInvalid }" @focus="handleMobileInputFocus" required />
                   <button type="button" class="boh-toggle-password" @click="togglePassword">
                     {{ showPassword ? '隐藏' : '显示' }}
                   </button>

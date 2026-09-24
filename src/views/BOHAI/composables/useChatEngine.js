@@ -8,12 +8,14 @@ import {
   recordAssistantTurn,
   findTrack
 } from '../expert-roles/interview-engine.js';
-import { PSYCH_L0_RULES, PSYCH_L1_RULES } from '../expert-roles/psychologist.js';
+import { PSYCH_L0_RULES, PSYCH_L1_RULES, PSYCH_INTERVIEW_APPENDIX } from '../expert-roles/psychologist.js';
 import {
   detectViolations,
   shouldRewrite,
   buildRewriteInstruction,
-  summarizeViolations
+  summarizeViolations,
+  shouldAdoptRewrite,
+  bumpGuardStats
 } from '../expert-roles/guards.js';
 import { storeToRefs } from 'pinia';
 import { getPosts, getUserPosts } from '@/utils/api/forum-api.js';
@@ -1905,8 +1907,13 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         .filter((s) => String(s || '').trim())
         .join('\n');
 
-      // 心理访谈：每轮重建注入「状态块 + 分层规则」。
+      // 心理访谈：每轮重建注入「访谈协议 + 状态块 + 分层规则」。
       // 模型数不准轮次、长对话里也会忘规则，所以不依赖它记 —— 每轮都重新喂（见方案 §16）。
+      //
+      // 访谈协议是**会话级**的（挂在 expertState 上），不是风格级的：风格是全局设置，
+      // 用户在设置里选了心理风格不代表他每个会话都在做访谈。旧版把协议写在风格附录里，
+      // 于是手动选风格那条路径也会拿到整套协议、模型照着自己切进访谈，却没有状态机与守门。
+      const psychInterviewProtocol = psychInterviewActive ? PSYCH_INTERVIEW_APPENDIX : '';
       const psychStateBlock = psychInterviewActive
         ? buildStateBlock(session.expertState, findTrack(session.expertState.trackId))
         : '';
@@ -1925,13 +1932,16 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         structuredMemoryBlock,
         isPlanMode ? PLAN_MODE_PROMPT_APPENDIX : '',
         healthAnalysisActive ? HEALTH_ANALYSIS_PROMPT_APPENDIX : '',
+        psychInterviewProtocol,
         psychStateBlock,
         psychRulesBlock,
         stylePromptAppendix
       ].filter((section) => String(section || '').trim()).join('\n');
+      // 访谈态单独一份生成参数（提温 + 略提 frequency_penalty），不共用 pro 的冷参数
       const generationProfile = getGenerationProfile(activeModeId, {
         factualQuestion: factualQuestion || communityNeedsEvidence,
-        operationQuestion
+        operationQuestion,
+        psychInterview: psychInterviewActive
       });
 
       const recentMessages = buildHistoryMessagesWithCachedSummary({
@@ -2231,7 +2241,10 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
           prevReply: previousAssistantReply,
           prevUserText: previousUserMessage
         });
-        if (shouldRewrite(psychFindings)) {
+        const guardTriggered = shouldRewrite(psychFindings);
+        let guardAdopted = false;
+
+        if (guardTriggered) {
           const rewritePrompt = appendPromptSection(
             finalPrompt,
             `\n${buildRewriteInstruction(psychFindings)}`,
@@ -2247,18 +2260,33 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
             generationProfile
           );
           const rewriteFiltered = cleanAssistantVisibleReply(filterThinkingContent(rewriteReply));
-          if (String(rewriteFiltered || '').trim()) {
+          // 只在重写稿严格更优时采纳（判据在 guards.js 的 shouldAdoptRewrite，纯函数、可测）。
+          // 原先只要非空就替换 —— 于是守门的误报会拿一版更拘谨的回答盖掉原本可用的回答，
+          // 而且全程不可见。约束系统不应有把输出改差的权限。
+          guardAdopted = shouldAdoptRewrite(psychFindings, rewriteFiltered, {
+            prevReply: previousAssistantReply,
+            prevUserText: previousUserMessage
+          });
+          if (guardAdopted) {
             updateContent(rewriteFiltered);
             nextTick(scrollToBottom);
           }
-          const violationTarget = getSessionByIndex(sessionIndex);
-          if (violationTarget?.expertState) {
-            // 留痕：后续据此判断 prompt 是否需要继续加固
-            violationTarget.expertState = {
-              ...violationTarget.expertState,
-              lastViolations: summarizeViolations(psychFindings)
-            };
-          }
+        }
+
+        // 留痕：触发率与采纳率是判断「prompt 规则够不够 / 守门有没有误报」的唯一依据。
+        // 注意：guardStats / lastViolations 必须同时登记进 bohai-chat-session-store 的白名单，
+        // 否则保存时会被静默丢弃（上一版的 lastViolations 就是这么失效的）。
+        const violationTarget = getSessionByIndex(sessionIndex);
+        if (violationTarget?.expertState) {
+          violationTarget.expertState = {
+            ...violationTarget.expertState,
+            lastViolations: summarizeViolations(psychFindings),
+            guardStats: bumpGuardStats(violationTarget.expertState.guardStats, {
+              triggered: guardTriggered,
+              adopted: guardAdopted,
+              types: psychFindings.map((finding) => finding.type)
+            })
+          };
         }
       }
 

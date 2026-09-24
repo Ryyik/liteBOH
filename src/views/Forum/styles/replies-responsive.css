@@ -551,7 +551,12 @@
   display: flex;
   flex-direction: column;
   width: 100vw;
-  height: 100dvh;
+  /* 键盘抬升（2026-09-24）：iOS 的 100dvh 不随软键盘收缩，叠加 overflow:hidden 后
+     底部 chips 行（位置/标签/图片/草稿）会被键盘永久盖住。
+     --kb-inset 由 composables/useKeyboardInset.js 在应用启动时写到 documentElement
+     （键盘弹起 = innerHeight - visualViewport.height - offsetTop，阈值 120px 滤掉地址栏噪声），
+     全站 CSS 直接消费，Teleport 到 body 同样沿 html 继承拿到。 */
+  height: calc(100dvh - var(--kb-inset, 0px));
   overflow: hidden;
   /* 纯白底：无渐变、无色斑；液态玻璃质感由圆角玻璃面板（顶栏/设置组/图片卡）提供 */
   background: #ffffff;

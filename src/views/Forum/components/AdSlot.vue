@@ -1,7 +1,8 @@
 <template>
   <a
     :href="ad.link_url || 'javascript:;'"
-    class="post-card-v2 glass-panel ad-slot"
+    :class="['post-card-v2', 'glass-panel', 'ad-slot', { 'ad-slot-fixed': hasFixedHeight }]"
+    :style="heightVars"
     :aria-label="`广告：${ad.title || '推广内容'}`"
     @click.prevent="handleClick"
   >
@@ -18,7 +19,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '../../../utils/supabase-client.js';
 
@@ -32,6 +33,33 @@ const imageFailed = ref(false);
 const onImageError = () => {
   imageFailed.value = true;
 };
+
+// 「帖子大小」档位的内置高度：前台实测帖子卡片高度（横屏 ≈ 536px / 竖屏 ≈ 400px）
+const POST_CARD_HEIGHT = { landscape: 520, portrait: 400 };
+
+// 自定义像素值：0/空/非法时沿用「帖子大小」档
+const resolveCustomHeight = (value, fallback) => {
+  const parsed = Math.round(Number(value));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+// card_size: 'post'（默认，帖子大小）/ 'custom'（自定义像素）/ 'auto'（跟随图片比例）
+const hasFixedHeight = computed(() => String(props.ad?.card_size || 'post') !== 'auto');
+
+const heightVars = computed(() => {
+  if (!hasFixedHeight.value) return null;
+  const isCustom = props.ad?.card_size === 'custom';
+  const landscape = isCustom
+    ? resolveCustomHeight(props.ad?.card_height_landscape, POST_CARD_HEIGHT.landscape)
+    : POST_CARD_HEIGHT.landscape;
+  const portrait = isCustom
+    ? resolveCustomHeight(props.ad?.card_height_portrait, POST_CARD_HEIGHT.portrait)
+    : POST_CARD_HEIGHT.portrait;
+  return {
+    '--ad-h-landscape': `${landscape}px`,
+    '--ad-h-portrait': `${portrait}px`
+  };
+});
 
 const isExternal = (url) => /^https?:\/\//i.test(url || '') || url?.startsWith('//');
 
@@ -59,6 +87,30 @@ const handleClick = () => {
   padding: 24px;
   text-decoration: none;
   position: relative;
+}
+/* 「帖子大小」/「自定义像素」档：卡片整体固定高度（横竖屏各取配置值，断点与
+   src/utils/forum-viewport.js 的横屏判据同组），媒体区自动填充剩余空间。 */
+.ad-slot-fixed {
+  display: flex;
+  flex-direction: column;
+  height: var(--ad-h-portrait, auto);
+}
+@media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
+  .ad-slot-fixed {
+    height: var(--ad-h-landscape, auto);
+  }
+}
+.ad-slot-fixed .ad-slot-media,
+.ad-slot-fixed .ad-slot-placeholder {
+  flex: 1 1 auto;
+  min-height: 0;
+  aspect-ratio: auto;
+}
+.ad-slot-fixed .ad-slot-media img {
+  height: 100%;
+}
+.ad-slot-fixed .ad-slot-body {
+  flex: 0 0 auto;
 }
 .ad-slot-media {
   width: 100%;

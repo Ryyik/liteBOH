@@ -1767,6 +1767,12 @@ onMounted(() => {
   padding: 18px;
   border: 1px solid rgba(255, 255, 255, 0.82);
   border-radius: 24px;
+  /* ⚠️ 必须用 backwards 而非 both：ah-materialize 的末帧含 transform，
+     `both`（含 forwards）会让动画结束后仍持续应用末帧值，而 CSS 动画声明的
+     优先级高于普通作者声明 —— 会把本元素的 transform 永久锁死，导致下方
+     `.ah-smart-focus:hover { transform: translateY(-3px) }` 与
+     `.ah-smart-focus:active { transform: scale(0.99) }` 全部失效。 */
+  animation: ah-materialize 260ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
   background: rgba(255, 255, 255, 0.56);
   backdrop-filter: var(--liquid-filter-lg);
   -webkit-backdrop-filter: var(--liquid-filter-lg);
@@ -2057,6 +2063,9 @@ onMounted(() => {
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.5);
+  /* 这是 alternate 的**透明度脉冲**（1 ↔ 0.52 往复），不是横向移动的渐变，
+     两端需要缓入缓出；linear 会让它变成匀速三角波、端点出现生硬折角。
+     （对照：真正移动的骨架渐变见 .ah-skeleton 的 ah-shimmer … linear） */
   animation: ah-skel 900ms ease-in-out infinite alternate;
 }
 @keyframes ah-skel { to { opacity: 0.52; } }
@@ -2449,14 +2458,18 @@ onMounted(() => {
   .ah-sponsor-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
   .ah-sponsor-card { position: relative; padding: 18px 16px 16px; border: 0.5px solid rgba(255,255,255,0.74); border-radius: 18px; background: rgba(255,255,255,0.68); backdrop-filter: var(--liquid-filter); -webkit-backdrop-filter: var(--liquid-filter); box-shadow: 0 10px 28px rgba(15,23,42,0.07), inset 0 1px 0 rgba(255,255,255,0.92); transition: transform 180ms var(--ah-ease), box-shadow 180ms ease, border-color 180ms ease, background-color 180ms ease; overflow: hidden; }
   .ah-sponsor-card::before { content:""; position: absolute; inset: 0; border-radius: 18px; background: radial-gradient(340px 140px at 50% 0%, rgba(255,255,255,0.58), transparent 72%); pointer-events: none; }
-  .ah-sponsor-card:hover { transform: translateY(-2px); box-shadow: 0 16px 36px rgba(15,23,42,0.10), inset 0 1px 0 rgba(255,255,255,0.98); border-color: rgba(255,255,255,0.86); }
+  @media (hover: hover) and (pointer: fine) {
+    .ah-sponsor-card:hover { transform: translateY(-2px); box-shadow: 0 16px 36px rgba(15,23,42,0.10), inset 0 1px 0 rgba(255,255,255,0.98); border-color: rgba(255,255,255,0.86); }
+    .ah-sponsor-card.is-muted:hover { transform: none; box-shadow: 0 10px 28px rgba(15,23,42,0.07); }
+  }
   .ah-sponsor-card.is-muted { opacity: 0.72; }
-  .ah-sponsor-card.is-muted:hover { transform: none; box-shadow: 0 10px 28px rgba(15,23,42,0.07); }
   .ah-sponsor-card h3 { position: relative; z-index: 1; margin: 0; font-size: 14.5px; font-weight: 800; color: #1d1d1f; display: flex; align-items: center; gap: 8px; letter-spacing: -0.01em; }
   .ah-sponsor-badge { position: relative; z-index: 1; display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); color: #fff; font-size: 11px; font-weight: 750; letter-spacing: 0.02em; box-shadow: 0 4px 12px rgba(225,29,72,0.28); }
   .ah-sponsor-card p { position: relative; z-index: 1; margin: 9px 0 0; font-size: 12.5px; color: #6e6e73; line-height: 1.65; }
   .ah-sponsor-qr-wrap { position: relative; z-index: 1; margin: 16px 0 12px; display: grid; place-items: center; padding: 0; background: transparent; border: none; border-radius: 14px; overflow: hidden; box-shadow: none; transition: transform 180ms var(--ah-ease); }
-  .ah-sponsor-card:hover .ah-sponsor-qr-wrap { transform: scale(1.02); }
+  @media (hover: hover) and (pointer: fine) {
+    .ah-sponsor-card:hover .ah-sponsor-qr-wrap { transform: scale(1.02); }
+  }
   .ah-sponsor-qr-wrap img { width: 100%; max-width: 280px; height: auto; object-fit: contain; display: block; border-radius: 14px; box-shadow: 0 8px 24px rgba(15,23,42,0.08); }
   .ah-sponsor-qr-wrap.is-placeholder { height: auto; min-height: 240px; aspect-ratio: 1 / 1; padding: 0; background: linear-gradient(180deg, rgba(15,23,42,0.03), rgba(15,23,42,0.02)); color: #a1a1aa; font-size: 28px; font-weight: 500; border: 1px dashed rgba(15,23,42,0.10); border-radius: 14px; box-shadow: none; }
   .ah-sponsor-card small { position: relative; z-index: 1; display: block; text-align: center; font-size: 11px; color: #8e8e93; font-weight: 600; letter-spacing: 0.01em; }
@@ -2475,13 +2488,18 @@ onMounted(() => {
 .ah-lottery-hero p { margin: 0; font-size: 13px; color: #6e6e73; line-height: 1.65; font-weight: 500; }
 .ah-lottery-hero span { font-size: 11px; font-weight: 750; color: #0071e3; letter-spacing: 0.06em; text-transform: uppercase; }
 .ah-lottery-hero-action { position: relative; z-index: 1; flex-shrink: 0; min-height: 36px; padding: 0 14px; border-radius: 999px; border: 0.5px solid rgba(37,99,235,0.18); background: rgba(255,255,255,0.82); color: #0071e3; font-size: 12px; font-weight: 750; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.10); transition: transform 150ms var(--ah-ease), background 150ms ease; }
-.ah-lottery-hero-action:hover { background: #fff; transform: translateY(-1px); } .ah-lottery-hero-action:active { transform: scale(0.98); }
+@media (hover: hover) and (pointer: fine) {
+  .ah-lottery-hero-action:hover { background: #fff; transform: translateY(-1px); }
+}
+.ah-lottery-hero-action:active { transform: scale(0.98); }
 .ah-lottery-pity-inline { display: grid; gap: 8px; padding: 14px 16px; border-radius: 16px; border: 0.5px solid rgba(255,255,255,0.72); background: rgba(255,255,255,0.58); backdrop-filter: var(--liquid-filter-sm); box-shadow: 0 8px 20px rgba(15,23,42,0.06); }
 .ah-lottery-pity-head { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; font-weight: 700; color: #4b5563; } .ah-lottery-pity-head strong { color: #1d1d1f; font-weight: 800; } .ah-lottery-pity-track { height: 6px; overflow: hidden; background: #e5e7eb; border-radius: 999px; } .ah-lottery-pity-fill { height: 100%; background: #0071e3; transition: width 240ms ease; } .ah-lottery-pity-inline.is-due .ah-lottery-pity-fill { background: #b7791f; } .ah-lottery-pity-inline.is-due .ah-lottery-pity-head strong { color: #9a6700; } .ah-lottery-pity-inline.is-unavailable .ah-lottery-pity-head strong { color: #6b7280; } .ah-lottery-pity-inline p { margin: 0; font-size: 12px; color: #6e6e73; line-height: 1.5; }
 .ah-lottery-skeleton { display: grid; gap: 12px; } .ah-skeleton-lottery { height: 132px; border-radius: 16px; }
 .ah-lottery-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
 .ah-lottery-card { position: relative; display: flex; flex-direction: column; overflow: hidden; border-radius: 18px; border: 0.5px solid rgba(255,255,255,0.74); background: rgba(255,255,255,0.68); backdrop-filter: var(--liquid-filter); -webkit-backdrop-filter: var(--liquid-filter); box-shadow: 0 10px 28px rgba(15,23,42,0.07), inset 0 1px 0 rgba(255,255,255,0.92); transition: transform 180ms var(--ah-ease), box-shadow 180ms ease; }
-.ah-lottery-card:hover { transform: translateY(-2px); box-shadow: 0 16px 36px rgba(15,23,42,0.10); }
+@media (hover: hover) and (pointer: fine) {
+  .ah-lottery-card:hover { transform: translateY(-2px); box-shadow: 0 16px 36px rgba(15,23,42,0.10); }
+}
 .ah-lottery-cover { height: 132px; background: linear-gradient(135deg, #dbeafe, #f3e8ff); display: grid; place-items: center; color: #0071e3; overflow: hidden; } .ah-lottery-cover img { width: 100%; height: 100%; object-fit: cover; display: block; } .ah-lottery-cover.is-empty { background: linear-gradient(135deg, #e0f2fe, #f5f3ff); }
 .ah-lottery-body { display: grid; gap: 8px; padding: 14px 14px 12px; flex: 1; }
 .ah-lottery-top { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; } .ah-lottery-status { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 750; background: rgba(37,99,235,0.12); color: #0071e3; } .ah-lottery-status.drawn { background: rgba(52,199,89,0.12); color: #15803d; } .ah-lottery-status.closed { background: rgba(142,142,147,0.12); color: #6b7280; } .ah-lottery-joined { display: inline-flex; height: 20px; padding: 0 8px; border-radius: 999px; background: #dcfce7; color: #15803d; font-size: 11px; font-weight: 700; } .ah-lottery-pity-badge { display: inline-flex; height: 20px; padding: 0 7px; border-radius: 999px; background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; font-size: 11px; font-weight: 750; box-shadow: 0 3px 8px rgba(217,119,6,0.24); }
@@ -2608,7 +2626,9 @@ onMounted(() => {
 .ah-points-heading p { margin: 0; color: #747b86; font-size: 13px; }
 .ah-points-action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .ah-points-action-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 13px; min-height: 132px; padding: 20px; border: 1px solid rgba(255,255,255,.78); border-radius: 22px; color: #1d1d1f; text-align: left; cursor: pointer; box-shadow: 0 18px 38px rgba(15,23,42,.08), inset 0 1px 0 rgba(255,255,255,.88); transition: transform 180ms var(--ah-ease), box-shadow 180ms ease; }
-.ah-points-action-card:hover { transform: translateY(-2px); box-shadow: 0 24px 46px rgba(15,23,42,.12), inset 0 1px 0 rgba(255,255,255,.92); }
+@media (hover: hover) and (pointer: fine) {
+  .ah-points-action-card:hover { transform: translateY(-2px); box-shadow: 0 24px 46px rgba(15,23,42,.12), inset 0 1px 0 rgba(255,255,255,.92); }
+}
 .ah-points-action-card:active { transform: scale(.985); }
 .ah-points-action-card.is-recharge { background: rgba(239,246,255,.72); border-color: rgba(191,219,254,.82); }
 .ah-points-action-card.is-detail { background: rgba(240,253,244,.68); border-color: rgba(187,247,208,.82); }
@@ -2671,6 +2691,17 @@ onMounted(() => {
     animation: none !important;
     transition: opacity 150ms ease, color 150ms ease, background-color 150ms ease !important;
     transform: none !important;
+  }
+
+  /* 无需 !important：本块位于文件末尾，与上方 @media (hover: hover) 内的同名
+     hover 规则特异性相同而源序更后，天然胜出。（!important 棘轮门禁禁止新增） */
+  .ah-lottery-hero-action:hover,
+  .ah-lottery-card:hover,
+  .ah-points-action-card:hover,
+  .ah-points-action-card:active,
+  .ah-sponsor-card:hover,
+  .ah-sponsor-card:hover .ah-sponsor-qr-wrap {
+    transform: none;
   }
 }
 </style>

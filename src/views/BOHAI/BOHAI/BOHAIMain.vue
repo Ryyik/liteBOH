@@ -1759,8 +1759,16 @@ const autoResize = () => {
     }
 };
 
+/* 回车语义（2026-09-24）：触屏键盘没有 Shift / Cmd / Ctrl，原逻辑在
+   enterToSend=true 时换行被物理封死、=false 时发送被物理封死（两条路必断一条）。
+   移动端固定「Enter 换行 + 发送按钮发送」，桌面行为不变。
+   短路即可：textarea 的 Enter 默认行为就是换行。 */
+const isCoarsePointer = typeof window !== 'undefined'
+    && Boolean(window.matchMedia?.('(pointer: coarse)')?.matches);
+
 const handleEnter = (e) => {
     if (e.isComposing || e.keyCode === 229) return;
+    if (isCoarsePointer) return;
     if (globalAiPreferences.enterToSend ? e.shiftKey : !(e.metaKey || e.ctrlKey)) return;
     e.preventDefault();
     sendMessage();

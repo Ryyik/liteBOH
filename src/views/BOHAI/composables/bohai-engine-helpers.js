@@ -19,7 +19,8 @@ import {
   MAX_HISTORY_MESSAGE_CHARS,
   MAX_PROMPT_EXTRA_CHARS,
   MAX_SEARCH_RESULT_CONTENT_CHARS,
-  MAX_USER_INPUT_CHARS
+  MAX_USER_INPUT_CHARS,
+  PSYCH_INTERVIEW_GENERATION_PROFILE
 } from './chat-engine-config.js';
 import { logger } from '@/utils/logger.js';
 import { EVIDENCE_SOURCE_WEIGHTS, RANKING_SCORE_WEIGHTS, KEYWORD_CACHE_MAX_SIZE } from '@/utils/bohai-constants.js';
@@ -1054,8 +1055,10 @@ const _generationProfileCache = new Map();
 const _GEN_PROFILE_CACHE_MAX = 32;
 const _GEN_PROFILE_CACHE_TTL_MS = 60_000;
 
-export const getGenerationProfile = (modeId, { factualQuestion = false, operationQuestion = false } = {}) => {
-  const cacheKey = `${modeId}|${factualQuestion}|${operationQuestion}`;
+export const getGenerationProfile = (modeId, { factualQuestion = false, operationQuestion = false, psychInterview = false } = {}) => {
+  // ⚠️ psychInterview 必须进 cacheKey：缓存按 key 命中，漏掉它会让访谈态拿到非访谈态的 profile
+  // （或反过来），而且这种错配是静默的 —— 表现只是"有时候像问卷腔"。
+  const cacheKey = `${modeId}|${factualQuestion}|${operationQuestion}|${psychInterview}`;
   const cached = _generationProfileCache.get(cacheKey);
   if (cached && (Date.now() - cached.timestamp) < _GEN_PROFILE_CACHE_TTL_MS) return cached.value;
   if (cached) _generationProfileCache.delete(cacheKey);
@@ -1067,6 +1070,13 @@ export const getGenerationProfile = (modeId, { factualQuestion = false, operatio
     profile.temperature = Math.min(profile.temperature, operationQuestion ? 0.14 : 0.16);
     profile.top_p = Math.min(profile.top_p, operationQuestion ? 0.68 : 0.72);
     profile.frequency_penalty = Math.min(profile.frequency_penalty, 0.08);
+  }
+
+  // 访谈态最后覆盖，且**有意放在上面的 clamp 之后**：
+  // 访谈中途用户难免问出"我该怎么办"这类操作/事实问句，若让 clamp 生效会把温度压到 0.14，
+  // 访谈立刻退回问卷腔。访谈要的是"像人"，不是"准确"，所以它优先级最高。
+  if (psychInterview) {
+    Object.assign(profile, PSYCH_INTERVIEW_GENERATION_PROFILE);
   }
 
   // LRU-style cache eviction

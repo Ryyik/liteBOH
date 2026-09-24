@@ -7,7 +7,9 @@
   }" :data-theme="currentTheme">
 
     <!-- 边缘滑动提示线 -->
-    <div v-if="edgeIndicatorVisible" class="edge-swipe-indicator"></div>
+    <transition name="edge-ind">
+      <div v-if="edgeIndicatorVisible" class="edge-swipe-indicator"></div>
+    </transition>
 
     <input type="file" ref="avatarInputRef" class="hidden-file-input" accept="image/*" @change="handleAvatarFileChange">
     <input type="file" ref="profileBackgroundInputRef" class="hidden-file-input" accept="image/*"
@@ -343,7 +345,7 @@ const refreshUnreadCount = async () => {
 
 const username = computed(() => userInfo.value.username);
 const assetsInitialTab = ref('');
-const TAB_LEAVE_CLEAR_DELAY_MS = 170;
+const TAB_LEAVE_CLEAR_DELAY_MS = 340;
 let userSpaceWarmupTimeoutId = null;
 // ✅ 性能优化：使用 markRaw 标记静态配置，避免不必要的响应式追踪
 const USERSPACE_CACHE_TTL = markRaw({
@@ -456,7 +458,7 @@ const MESSAGE_SECTION_ITEMS = [
 ];
 const SECTION_DEFAULTS = { community: 'latest', posts: 'home', messages: 'inbox', assets: 'hub', settings: 'home' };
 let pendingSectionTab = null;
-const tabTransitionDirection = ref('forward');
+const tabTransitionDirection = ref('');
 const leavingTab = ref(null);
 const {
   currentTab,
@@ -1962,6 +1964,7 @@ const switchTab = (tabId) => {
     if (leavingTab.value === previousTab) {
       leavingTab.value = null;
     }
+    tabTransitionDirection.value = '';
     clearLeavingTabTimer = null;
   }, TAB_LEAVE_CLEAR_DELAY_MS);
   if (tabId === 'community') {
@@ -3067,5 +3070,34 @@ watch(unreadCount, (count) => {
       rgba(80, 200, 255, 0.5) 50%,
       rgba(80, 200, 255, 0.3) 80%,
       rgba(80, 200, 255, 0.1) 100%);
+}
+
+/* 边缘滑动提示线进出场（从右缘生长） */
+.edge-ind-enter-active {
+  transition: opacity 200ms ease-out, transform 240ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.edge-ind-leave-active {
+  transition: opacity 240ms ease-out;
+}
+
+.edge-ind-enter-from {
+  opacity: 0;
+  transform: translateX(10px);
+}
+
+.edge-ind-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .edge-swipe-indicator {
+    animation: none;
+  }
+
+  .edge-ind-enter-active,
+  .edge-ind-leave-active {
+    transition-duration: 1ms;
+  }
 }
 </style>

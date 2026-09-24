@@ -101,7 +101,9 @@
         </div>
 
         <transition name="expand">
-          <div v-if="isCommunityExpanded" class="community-users-list">
+          <div v-if="isCommunityExpanded" class="expand-shell">
+            <div class="expand-clip">
+              <div class="community-users-list">
             <div class="community-search-bar-glass">
               <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="11" cy="11" r="8"></circle>
@@ -223,6 +225,8 @@
               {{ isLoadingCommunity ? '加载中...' : '加载更多伙伴' }}
             </button>
           </div>
+            </div>
+          </div>
         </transition>
       </section>
 
@@ -246,9 +250,13 @@
         </button>
 
         <transition name="expand">
-          <CommunityBirthdayList v-if="!isMobileLayout && isBirthdaysExpanded" :users="recentBirthdayUsers"
-            :is-loading="isLoadingBirthdays" :tier-map="birthdayTierMap"
-            :format-birthday-distance="formatBirthdayDistance" @open-profile="goToProfile" />
+          <div v-if="!isMobileLayout && isBirthdaysExpanded" class="expand-shell">
+            <div class="expand-clip">
+              <CommunityBirthdayList :users="recentBirthdayUsers"
+                :is-loading="isLoadingBirthdays" :tier-map="birthdayTierMap"
+                :format-birthday-distance="formatBirthdayDistance" @open-profile="goToProfile" />
+            </div>
+          </div>
         </transition>
 
         <button type="button" class="block-wall-entry" @click="router.push({ name: 'BlockWall' })">

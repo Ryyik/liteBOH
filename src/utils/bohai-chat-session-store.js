@@ -3,6 +3,29 @@ export const BOHAI_CHAT_SESSIONS_MAX_ITEMS = 20;
 
 const defaultNormalizeText = (value) => String(value || '');
 
+/** 守门统计的存储上限：只防 localStorage 膨胀，不参与业务截断 */
+const MAX_GUARD_STAT_TYPES = 12;
+
+/**
+ * 归一化守门统计。没有就返回 null（不写入字段），避免给非访谈会话塞空对象。
+ * 上一版只写了 lastViolations 却没登记白名单，保存时被静默丢弃 —— 这里一并补上。
+ */
+const sanitizeGuardStats = (value) => {
+  if (!value || typeof value !== 'object') return null;
+  const byTypeSource = value.byType && typeof value.byType === 'object' ? value.byType : {};
+  const byType = {};
+  Object.keys(byTypeSource).slice(0, MAX_GUARD_STAT_TYPES).forEach((key) => {
+    const count = Math.max(0, Math.trunc(Number(byTypeSource[key]) || 0));
+    if (count > 0) byType[String(key).slice(0, 32)] = count;
+  });
+  return {
+    checked: Math.max(0, Math.trunc(Number(value.checked) || 0)),
+    triggered: Math.max(0, Math.trunc(Number(value.triggered) || 0)),
+    adopted: Math.max(0, Math.trunc(Number(value.adopted) || 0)),
+    byType
+  };
+};
+
 export const createBohAIChatSessionSanitizer = ({
   normalizeText = defaultNormalizeText,
   maxSummaryChars = 900,
@@ -56,6 +79,9 @@ export const createBohAIChatSessionSanitizer = ({
               ? session.expertState.evidence.map((item) => normalizeText(item || '')).filter(Boolean).slice(0, 12)
               : [],
             lastUserText: normalizeText(session.expertState.lastUserText || '').slice(0, 200),
+            // 守门留痕：必须登记进白名单，否则保存时被静默丢弃（见 useChatEngine 守门段注释）
+            lastViolations: normalizeText(session.expertState.lastViolations || '').slice(0, 120),
+            guardStats: sanitizeGuardStats(session.expertState.guardStats),
             startedAt: Number(session.expertState.startedAt || 0),
             finishedAt: Number(session.expertState.finishedAt || 0)
           }

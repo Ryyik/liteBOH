@@ -2,9 +2,11 @@
   <span class="boh-avatar-wrap fa-root" :style="rootStyle">
     <img v-if="src" :src="src" :alt="alt" class="fa-img" loading="lazy">
     <span v-else class="fa-fallback" aria-hidden="true">{{ initial }}</span>
-    <span v-if="frameUrl" class="boh-avatar-frame" :style="frameStyle" aria-hidden="true"></span>
-    <span v-else-if="ring" class="fa-mock-ring" :class="{ 'is-rainbow': ring === 'rainbow' }"
-      :style="ring !== 'rainbow' ? { '--fa-ring-color': ring } : null" aria-hidden="true"></span>
+    <Transition name="fa-swap" mode="out-in">
+      <span v-if="frameUrl" key="frame" class="boh-avatar-frame" :style="frameStyle" aria-hidden="true"></span>
+      <span v-else-if="ring" key="ring" class="fa-mock-ring" :class="{ 'is-rainbow': ring === 'rainbow' }"
+        :style="ring !== 'rainbow' ? { '--fa-ring-color': ring } : null" aria-hidden="true"></span>
+    </Transition>
   </span>
 </template>
 
@@ -84,5 +86,34 @@ const frameStyle = computed(() => {
   background: conic-gradient(#f66 0 18%, #fa0 18% 36%, #fd3 36% 54%, #3c6 54% 72%, #29f 72% 88%, #a5f 88% 100%);
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - var(--fa-ring-w, 4px)), #000 calc(100% - var(--fa-ring-w, 4px) + 0.5px));
   mask: radial-gradient(farthest-side, transparent calc(100% - var(--fa-ring-w, 4px)), #000 calc(100% - var(--fa-ring-w, 4px) + 0.5px));
+}
+
+/* 框/环切换 crossfade（out-in：旧层快退、新层轻缩落定） */
+.fa-swap-enter-active {
+  transition: opacity 180ms ease-out, transform 180ms ease-out;
+}
+
+.fa-swap-enter-from {
+  opacity: 0;
+  transform: scale(1.04);
+}
+
+.fa-swap-leave-active {
+  transition: opacity 100ms ease-out;
+}
+
+.fa-swap-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fa-swap-enter-active,
+  .fa-swap-leave-active {
+    transition-duration: 1ms;
+  }
+
+  .fa-swap-enter-from {
+    transform: none;
+  }
 }
 </style>

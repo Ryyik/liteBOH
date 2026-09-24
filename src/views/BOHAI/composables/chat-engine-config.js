@@ -87,6 +87,25 @@ export const GENERATION_PROFILE_BY_MODE = {
   plan: { temperature: 0.08, top_p: 0.55, frequency_penalty: 0.04, max_tokens: 8192 },
   'agent-cluster': { temperature: 0.18, top_p: 0.7, frequency_penalty: 0.06, max_tokens: 1600 }
 };
+
+/**
+ * 心理访谈态专属生成参数（2026-09-24，方案 M6）。
+ *
+ * 为什么单独一份：访谈跑在 pro 上，temperature 只有 0.18。低温换稳定、高温换自然，
+ * 而访谈要的是"像人"而不是"准确"——0.18 配上大量否定式约束，很容易出问卷腔。
+ * 温度能给的自然度，不必用规则去规定；这是"参数替代规则"的一半。
+ *
+ * frequency_penalty 略高于 pro：repeat（换个说法问同一件事）是实测最主要的退化形态之一。
+ *
+ * ⚠️ 不能直接改 GENERATION_PROFILE_BY_MODE.pro —— 那张表是全局共享的，会影响所有 pro 会话。
+ * ⚠️ 数值是起点不是结论，需用 probe-psych-dialog-quality.mjs 对比后再定（见方案 M6 验证节）。
+ */
+export const PSYCH_INTERVIEW_GENERATION_PROFILE = {
+  temperature: 0.3,
+  top_p: 0.8,
+  frequency_penalty: 0.12
+};
+
 export const SHOW_INTERNAL_PROGRESS_NOTES = false;
 
 export const CONTEXT_PLACEHOLDER = '{{EVIDENCE_CONTEXT}}';

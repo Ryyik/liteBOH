@@ -251,11 +251,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
 }
 
 .afpm-fade-leave-active {
-  transition: opacity 160ms ease;
+  transition: opacity 200ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .afpm-fade-enter-active .afpm-card {
-  transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.afpm-fade-leave-active .afpm-card {
+  transition: transform 200ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .afpm-fade-enter-from,
@@ -265,6 +269,22 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
 
 .afpm-fade-enter-from .afpm-card {
   transform: translateY(14px) scale(0.975);
+}
+
+.afpm-fade-leave-to .afpm-card {
+  transform: translateY(8px) scale(0.985);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .afpm-fade-enter-active,
+  .afpm-fade-leave-active {
+    transition-duration: 1ms;
+  }
+
+  .afpm-fade-enter-from .afpm-card,
+  .afpm-fade-leave-to .afpm-card {
+    transform: none;
+  }
 }
 
 @media (max-width: 480px) {

@@ -709,7 +709,7 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   border: 1px solid var(--stroke);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
-  animation: userspace-panel-in 300ms var(--ease-out) both;
+  animation: userspace-panel-in 280ms cubic-bezier(0.23, 1, 0.32, 1) both;
 }
 
 .profile-cover-band {
@@ -820,9 +820,11 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   transition: transform 0.16s ease, background-color 0.16s ease;
 }
 
-.profile-settings-btn:hover {
-  transform: translateY(-1px);
-  background: #ffffff;
+@media (hover: hover) and (pointer: fine) {
+  .profile-settings-btn:hover {
+    transform: translateY(-1px);
+    background: #ffffff;
+  }
 }
 
 .profile-settings-btn svg {
@@ -852,9 +854,11 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   transition: transform 180ms var(--ease-out), box-shadow 180ms var(--ease-out);
 }
 
-.profile-hero-avatar:hover .apple-avatar {
-  transform: scale(1.025);
-  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.22);
+@media (hover: hover) and (pointer: fine) {
+  .profile-hero-avatar:hover .apple-avatar {
+    transform: scale(1.025);
+    box-shadow: 0 18px 38px rgba(15, 23, 42, 0.22);
+  }
 }
 
 .profile-hero-copy {
@@ -898,10 +902,25 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
   overflow: hidden;
+  animation: bio-clamp 150ms ease-out;
 }
 
 .profile-bio.expanded {
   display: block;
+  animation: bio-reveal 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@keyframes bio-reveal {
+  from {
+    opacity: 0.4;
+    transform: translateY(3px);
+  }
+}
+
+@keyframes bio-clamp {
+  from {
+    opacity: 0.4;
+  }
 }
 
 .profile-bio-toggle {
@@ -939,9 +958,11 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   transition: transform 160ms var(--ease-out), box-shadow 180ms var(--ease-out), background-color 180ms ease;
 }
 
-.profile-edit-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.18);
+@media (hover: hover) and (pointer: fine) {
+  .profile-edit-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.18);
+  }
 }
 
 .profile-edit-btn:active {
@@ -959,7 +980,7 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   border-radius: 20px;
   background: var(--surface);
   box-shadow: var(--shadow-sm);
-  animation: userspace-panel-in 320ms var(--ease-out) 50ms both;
+  animation: userspace-panel-in 280ms cubic-bezier(0.23, 1, 0.32, 1) 60ms both;
 }
 
 
@@ -1081,7 +1102,7 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   border-radius: 20px;
   background: var(--surface);
   box-shadow: var(--shadow-sm);
-  animation: userspace-panel-in 340ms var(--ease-out) 90ms both;
+  animation: userspace-panel-in 280ms cubic-bezier(0.23, 1, 0.32, 1) 120ms both;
 }
 
 .profile-post-grid {
@@ -1374,7 +1395,7 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   inset: 0;
   transform: translateX(-100%);
   background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0));
-  animation: userspace-stat-shimmer 1.15s ease-in-out infinite;
+  animation: userspace-stat-shimmer 1.15s linear infinite;
 }
 
 .user-space-page[data-theme="dark"] .profile-content-count-skeleton {
@@ -1386,6 +1407,18 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .profile-hero-panel,
+  .profile-service-panel,
+  .profile-content-panel {
+    animation-duration: 1ms;
+    animation-delay: 0ms;
+  }
+
+  .profile-bio.expanded,
+  .profile-bio.clamped {
+    animation: none;
+  }
+
   .profile-content-count-skeleton::after {
     animation: none;
   }

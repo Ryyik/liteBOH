@@ -35,6 +35,21 @@ function pickWritableFields(tabKey, payload) {
   return next;
 }
 
+// 广告自定义卡片高度：0 = 沿用「帖子大小」档；其余按像素使用（默认横屏 520 / 竖屏 400，取前台帖子卡片实测高度）
+function normalizeAdCardHeight(value, fallback, label) {
+  if (value === null || value === undefined || value === '') return fallback;
+  const parsed = Math.round(Number(value));
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1200) {
+    throw new Error(`${label}需为 0–1200 之间的数字（0 表示沿用「帖子大小」档）`);
+  }
+  if (parsed > 0 && parsed < 200) {
+    throw new Error(`${label}至少 200px，或填 0 沿用「帖子大小」档`);
+  }
+  return parsed;
+}
+
+const AD_CARD_SIZE_MODES = new Set(['post', 'auto', 'custom']);
+
 export const SAVE_STRATEGIES = {
   users: async ({ editingItem }) => {
     const dataToSave = pickWritableFields('users', { ...editingItem });
@@ -128,9 +143,15 @@ export const SAVE_STRATEGIES = {
     const normalizedPlacement = String(editingItem.placement || '').trim();
     const normalizedStatus = String(editingItem.status || 'inactive').trim() || 'inactive';
     const normalizedFeedInterval = Number(editingItem.feed_interval);
+    const normalizedCardSize = String(editingItem.card_size || 'post').trim();
+    const cardHeightLandscape = normalizeAdCardHeight(editingItem.card_height_landscape, 520, '自定义高度 · 横屏');
+    const cardHeightPortrait = normalizeAdCardHeight(editingItem.card_height_portrait, 400, '自定义高度 · 竖屏');
 
     if (!normalizedTitle) throw new Error('广告名称不能为空');
     if (!normalizedPlacement) throw new Error('请选择广告位');
+    if (!AD_CARD_SIZE_MODES.has(normalizedCardSize)) {
+      throw new Error('卡片高度档位不合法（可选：帖子大小 / 自适应 / 自定义像素）');
+    }
     if (Number.isInteger(normalizedFeedInterval) && normalizedFeedInterval < 2) {
       throw new Error('信息流间隔必须大于等于 2');
     }
@@ -141,6 +162,9 @@ export const SAVE_STRATEGIES = {
       status: normalizedStatus,
       image_url: String(editingItem.image_url || '').trim() || null,
       link_url: String(editingItem.link_url || '').trim() || null,
+      card_size: normalizedCardSize,
+      card_height_landscape: cardHeightLandscape,
+      card_height_portrait: cardHeightPortrait,
       sort_order: editingItem.sort_order != null ? Number(editingItem.sort_order) : 0,
       feed_interval: Number.isInteger(normalizedFeedInterval) ? normalizedFeedInterval : 5,
       updated_at: new Date().toISOString()

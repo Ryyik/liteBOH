@@ -16,6 +16,8 @@
       </figure>
     </section>
 
+    <GitHubHeatmap />
+
     <section ref="manifestoSection" class="manifesto-section" aria-label="方块之家宣言">
       <div class="manifesto-sticky">
         <p class="section-label">我们相信</p>
@@ -148,8 +150,9 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useElementBounding, usePreferredReducedMotion, useWindowSize } from '@vueuse/core';
+import GitHubHeatmap from '@/components/GitHubHeatmap.vue';
 
 import schoolImage from '@/assets/images/blockschool.webp';
 import winterImage from '@/assets/images/2025wintermap.webp';
@@ -158,6 +161,17 @@ import fuzhouImage from '@/assets/images/fuzhou.webp';
 import imgRyyik from '@/assets/images/developer/ryyik.webp';
 import imgXiaoniu from '@/assets/images/developer/xiaoniu.webp';
 import imgLF from '@/assets/images/developer/LF.webp';
+
+// ⚠️ sticky 滚动固定的前提：body 不能成为滚动容器。
+// 全局 style.css 有 body { overflow-x: hidden !important }，会把 body 变成滚动容器，
+// position: sticky 相对 body 定位而 body 不滚 → manifesto/chapters 永远钉不住。
+// 挂载时给 html 加类放开 body 的 overflow（BOHApp 页同口径），卸载时还原。
+onMounted(() => {
+  document.documentElement.classList.add('about-scroll');
+});
+onUnmounted(() => {
+  document.documentElement.classList.remove('about-scroll');
+});
 
 const clamp = (value, minimum = 0, maximum = 1) => Math.min(maximum, Math.max(minimum, value));
 const preferredMotion = usePreferredReducedMotion();

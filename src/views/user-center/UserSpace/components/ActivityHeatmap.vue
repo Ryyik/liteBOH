@@ -287,7 +287,7 @@ const tipText = computed(() => (hovered.value ? cellTitle(hovered.value) : ''));
   /* 不用 --shadow-sm：该变量在两个宿主里语义不一致（user-space 是完整 shadow，profile 只是个 rgba 颜色），
      跨页复用必须取全局单一源的 --liquid-shadow-sm。 */
   box-shadow: var(--liquid-shadow-sm);
-  animation: userspace-panel-in 330ms var(--ease-out) 70ms both;
+  animation: userspace-panel-in 280ms cubic-bezier(0.23, 1, 0.32, 1) 60ms both;
 }
 
 @keyframes userspace-panel-in {
@@ -300,6 +300,12 @@ const tipText = computed(() => (hovered.value ? cellTitle(hovered.value) : ''));
     opacity: 1;
     transform: translate3d(0, 0, 0);
   }
+}
+
+/* 骨架 → 数据到达：轻浮入（v-else 分支重挂载时自动播放一次） */
+.heatmap-metrics,
+.heatmap-scroll {
+  animation: userspace-panel-in 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
 }
 
 .heatmap-head {
@@ -338,7 +344,7 @@ const tipText = computed(() => (hovered.value ? cellTitle(hovered.value) : ''));
   border-radius: 10px;
   background: linear-gradient(90deg, rgba(15, 23, 42, 0.06) 25%, rgba(15, 23, 42, 0.11) 50%, rgba(15, 23, 42, 0.06) 75%);
   background-size: 200% 100%;
-  animation: heatmap-shimmer 1.4s ease-in-out infinite;
+  animation: heatmap-shimmer 1.4s linear infinite;
 }
 
 .heatmap-loading-bar.short {
@@ -450,7 +456,7 @@ const tipText = computed(() => (hovered.value ? cellTitle(hovered.value) : ''));
   height: 12px;
   border-radius: 3px;
   background: var(--boh-heat-0);
-  transition: transform 160ms var(--ease-out), outline-color 160ms ease;
+  transition: outline-color 160ms ease;
   outline: 1px solid rgba(15, 23, 42, 0.04);
   outline-offset: -1px;
 }
@@ -551,6 +557,11 @@ html[data-theme="dark"] .heatmap-cell.is-active:hover {
 @media (prefers-reduced-motion: reduce) {
   .profile-activity-heatmap {
     animation-duration: 1ms;
+  }
+
+  .heatmap-metrics,
+  .heatmap-scroll {
+    animation: none;
   }
 
   .heatmap-cell,

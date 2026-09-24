@@ -40,8 +40,9 @@
         <p class="section-sub center reveal">年付相当于 10 个月价格，直接省 2 个月。升级按剩余天数折算，不浪费。</p>
       </div>
 
-      <!-- sticky 状态条：去 reveal（transform 会破坏 sticky），只做 opacity 入场 -->
-      <div ref="toolbarRef" class="liquid-glass toolbar toolbar-in" :class="{ stuck: toolbarStuck }">
+      <!-- 计费周期条：滚出导航栏后由本组件收进灵动导航栏（见 evaluateToolbarAbsorb），
+           故自身不再 sticky；去 reveal（transform 会破坏入场），只做 opacity 入场 -->
+      <div ref="toolbarRef" class="liquid-glass toolbar toolbar-in" :class="{ absorbed: toolbarAbsorbed }">
         <div class="seg" role="tablist" aria-label="计费周期">
           <span
             class="seg-thumb" aria-hidden="true"
@@ -118,9 +119,10 @@
       <p class="kicker center reveal">对比</p>
       <h2 id="comparison-title" class="section-title center reveal">哪个计划更适合你</h2>
       <p class="section-sub center reveal">按使用频率选方案，再用权益表做最后确认。表格可横滑。</p>
+      <p class="comparison-note reveal">所有档位均包含 <b>多模态交互</b> 与 <b>定制化看板</b>。保底门槛按「连续未中奖场次」累计、中奖后清零，达标后可在计入并兑现的活动中领取保底礼。</p>
       <div class="liquid-glass table-scroll reveal">
         <table aria-describedby="comparison-title">
-          <thead><tr><th scope="col">订阅计划</th><th v-for="plan in displayPlans" :key="plan.code" scope="col" :class="{ hl: plan.featured }"><span>{{ plan.name }}</span><strong>{{ calculatePrice(plan) }}<small> / {{ billingCycle === BILLING_YEARLY ? '年' : '月' }}</small></strong></th></tr></thead>
+          <thead><tr><th scope="col">订阅计划</th><th v-for="plan in displayPlans" :key="plan.code" scope="col" :class="{ hl: plan.featured }"><span>{{ plan.name }}</span><strong>{{ calculatePrice(plan) }}<small> 积分 / {{ billingCycle === BILLING_YEARLY ? '年' : '月' }}</small></strong></th></tr></thead>
           <tbody>
             <tr v-for="row in comparisonRows" :key="row.label">
               <th scope="row">{{ row.label }}</th>
@@ -225,8 +227,10 @@ import { useAuthStore } from '@/stores/auth';
 import { getMySubscriptions, subscribeWithPoints, startSubscriptionTrial } from '@/utils/api/subscription-api.js';
 import { clearUserTierCache } from '@/utils/api/api-key-runtime-api.js';
 import { showIsland } from '@/composables/useIsland.js';
+import SubscriptionNavIsland from '@/components/SubscriptionNavIsland.vue';
 import PointsCard from '@/views/user-center/UserSpace/components/PointsCard.vue';
 import { logger } from '@/utils/logger.js';
+import { PLAN_AI_TOKENS, PLAN_CLOUD_IMAGE_LIMITS, PLAN_LAB_QUOTAS, PLAN_LOTTERY_PITY_THRESHOLDS, TIER_NICKNAME_COLORS } from '@/utils/subscription-benefits.js';
 import sponsorQrImage from '@/assets/images/qrcode.webp';
 
 const BILLING_MONTHLY = 'monthly';
@@ -238,7 +242,6 @@ const priceDir = ref(1);
 const pageMounted = ref(false);
 const plansSection = ref(null);
 const toolbarRef = ref(null);
-const toolbarStuck = ref(false);
 const pointsBump = ref(false);
 let bumpTimer = null;
 let scrollTick = false;
@@ -278,12 +281,39 @@ watch(billingCycle, (nv, ov) => {
 });
 const tweenedPrice = (plan) => displayPrices[plan.code] ?? calculatePrice(plan);
 
+/* ===== 权益单源：卡片 features 与对比表 rows 均由同一份档位权益配置生成 =====
+   数值全部来自 utils/subscription-benefits.js（与实际发放同源）：改一处，卡片与表格同步。
+   展示顺序：AI 额度 → 云盘 → 实验室 → 昵称 → 抽奖保底。
+   本组件只负责「数值 → 文案」的格式化，不再持有任何权益数值。
+   保底文案口径：连续未中奖场次累计、中奖清零、达标兑保底礼，避免「抽够 N 次必中」歧义；
+   Free 可参与抽奖但不计保底（保底进度需订阅开启）。 */
+const PLAN_CODES = Object.keys(PLAN_CLOUD_IMAGE_LIMITS);
+const NICKNAME_LABELS = { 'nickname-blue': '蓝色', 'nickname-silver': '银色', 'nickname-gold': '金色', 'nickname-rainbow': '彩虹' };
+const nicknameText = (code) => NICKNAME_LABELS[TIER_NICKNAME_COLORS[code]] || null;
+const pityThresholdText = (code) => {
+  const threshold = PLAN_LOTTERY_PITY_THRESHOLDS[code];
+  return threshold ? `连续 ${threshold} 场未中奖可兑保底礼` : '可参与抽奖（不计保底）';
+};
+const buildCardFeatures = (code) => {
+  const nickname = nicknameText(code);
+  return [
+    `BOH AI ${PLAN_AI_TOKENS[code]} Token / 天`,
+    `Cloud+ ${PLAN_CLOUD_IMAGE_LIMITS[code]} 张`,
+    `实验室 PPT / Word ${PLAN_LAB_QUOTAS[code]}`,
+    ...(nickname ? [`${nickname}昵称`] : []),
+    pityThresholdText(code)
+  ];
+};
+const buildBenefitRow = (label, format) => ({
+  label,
+  values: Object.fromEntries(PLAN_CODES.map((code) => [code, format(code)]))
+});
 const plans = [
-  { code: 'free', name: 'Free', monthlyCost: 0, featured: false, alwaysActive: true, position: '日常使用', features: ['BOH AI 20 万 Token / 天', 'Cloud+ 150 张', '实验室 PPT / Word 10 次 / 月', '可参与抽奖'] },
-  { code: 'plus', name: 'Plus', monthlyCost: 8, featured: false, position: '效率升级', features: ['BOH AI 80 万 Token / 天', 'Cloud+ 300 张', '实验室 PPT / Word 15 次 / 月', '蓝色昵称', '抽奖保底累计 24 次（门槛较高）'] },
-  { code: 'pro', name: 'Pro', monthlyCost: 20, featured: true, position: '专业创作', features: ['BOH AI 200 万 Token / 天', 'Cloud+ 450 张', '银色昵称', '实验室 PPT / Word 20 次 / 月', '抽奖保底累计 18 次（门槛中等）'] },
-  { code: 'max', name: 'Max', monthlyCost: 40, featured: false, position: '全能尊享', features: ['BOH AI 500 万 Token / 天', 'Cloud+ 900 张', '金色昵称', '实验室 PPT / Word 30 次 / 月', '抽奖保底累计 12 次（门槛较低）'] },
-  { code: 'ultra', name: 'Ultra', monthlyCost: 70, featured: false, position: '研究级无限', features: ['BOH AI 1000 万 Token / 天', 'Cloud+ 1200 张', '彩虹昵称', '实验室 PPT / Word 不限次数', '抽奖保底累计 8 次（门槛最低·最易保底）'] }
+  { code: 'free', name: 'Free', monthlyCost: 0, featured: false, alwaysActive: true, position: '日常使用', features: buildCardFeatures('free') },
+  { code: 'plus', name: 'Plus', monthlyCost: 8, featured: false, position: '效率升级', features: buildCardFeatures('plus') },
+  { code: 'pro', name: 'Pro', monthlyCost: 20, featured: true, position: '专业创作', features: buildCardFeatures('pro') },
+  { code: 'max', name: 'Max', monthlyCost: 40, featured: false, position: '全能尊享', features: buildCardFeatures('max') },
+  { code: 'ultra', name: 'Ultra', monthlyCost: 70, featured: false, position: '研究级无限', features: buildCardFeatures('ultra') }
 ];
 const introFeatures = [
   { icon: Zap, title: '更快模型与 Token', copy: '解锁更快、更强的 AI 模型与每日 Token 额度，交流与创作效率大幅提升。' },
@@ -314,12 +344,18 @@ const withStatus = (plan) => {
 };
 const displayPlans = computed(() => plans.map(withStatus));
 const billingTabs = [{ value: BILLING_MONTHLY, label: '单月' }, { value: BILLING_YEARLY, label: '单年', discount: '省 17%' }];
+/* 差异行顺序与卡片一致（AI 额度 → 云盘 → 实验室 → 昵称 → 保底），值全部由权益单源派生。
+   「多模态交互」「定制化看板」全档一致，移到表格上方公共权益说明，不再占行。
+   客服优先级 / 年度徽章仅此处出现，保留明确标注：无差别档写「普通」，不写空白。 */
 const comparisonRows = [
-  { label: 'BOH AI Token / 天', values: { free: '20 万', plus: '80 万', pro: '200 万', max: '500 万', ultra: '1000 万' } },
-  { label: 'Cloud+ 存储空间', values: { free: '150 张', plus: '300 张', pro: '450 张', max: '900 张', ultra: '1200 张' } },
-  { label: '多模态交互', values: { free: true, plus: true, pro: true, max: true, ultra: true } },
-  { label: '实验室 PPT / Word', values: { free: '10 次 / 月', plus: '15 次 / 月', pro: '20 次 / 月', max: '30 次 / 月', ultra: '不限次数' } },
-  { label: '定制化看板', values: { free: true, plus: true, pro: true, max: true, ultra: true } },
+  buildBenefitRow('BOH AI Token / 天', (code) => PLAN_AI_TOKENS[code]),
+  buildBenefitRow('Cloud+ 存储空间', (code) => `${PLAN_CLOUD_IMAGE_LIMITS[code]} 张`),
+  buildBenefitRow('实验室 PPT / Word', (code) => PLAN_LAB_QUOTAS[code]),
+  buildBenefitRow('昵称效果', (code) => nicknameText(code) || false),
+  buildBenefitRow('抽奖保底门槛', (code) => {
+    const threshold = PLAN_LOTTERY_PITY_THRESHOLDS[code];
+    return threshold ? `${threshold} 场` : false;
+  }),
   { label: '年度会员纪念徽章', values: { free: false, plus: true, pro: true, max: true, ultra: true } },
   { label: '客服优先级', values: { free: '普通', plus: '普通', pro: '普通', max: '优先', ultra: '最高优先级' } }
 ];
@@ -484,23 +520,104 @@ const confirmSubscribe = async () => {
 };
 const closeAllModals = () => { showModal.value = false; showConfirmModal.value = false; confirmPlan.value = null; };
 
+/* ===== 吸顶条融入灵动导航栏 =====
+   工具条不再自身 sticky：被导航栏吞没时，把「周期切换 + 当前订阅 + 积分/充值」
+   挂成导航栏的自定义岛（showIsland.custom）；滚回来露出时卸载，归还给页面工具条。
+   两阈值留滞回，避免在边界上自激抖动：
+   - 收：工具条顶边 <= 胶囊静止底边（工具条开始没入导航栏）
+   - 放：工具条顶边 >= 岛展开后的导航栏底边（工具条完整露在岛下方）
+   两条线都实测自导航栏本体，不写死像素（桌面与竖屏 mini 形态的岛起点不同）：
+   - 胶囊静止底边：岛关闭时 surface 的底边（此刻没有形态动画在跑，读数稳定）
+   - 岛展开底边：surface 顶 + --global-nav-status-top + 岛高 + 底部留白
+     岛高取 .sub-nav-island 实测高度 —— 它挂载即定值，不参与 surface 高度动画，读数稳定。 */
+const NAV_REST_BOTTOM_FALLBACK = 68;
+
+const navRestBottom = () => {
+  const surface = document.querySelector('#unified-nav-container .unified-nav-surface');
+  const rect = surface?.getBoundingClientRect?.();
+  return rect && rect.height > 0 ? rect.bottom : NAV_REST_BOTTOM_FALLBACK;
+};
+
+const navIslandBottom = () => {
+  const surface = document.querySelector('#unified-nav-container .unified-nav-surface');
+  const island = document.querySelector('.sub-nav-island');
+  if (!surface || !island) return null;
+  const islandHeight = island.getBoundingClientRect().height;
+  if (!(islandHeight > 0)) return null;
+  const cs = getComputedStyle(surface);
+  const statusTop = parseFloat(cs.getPropertyValue('--global-nav-status-top')) || 65;
+  const bottomGap = parseFloat(cs.getPropertyValue('--global-nav-status-bottom-gap')) || 7;
+  return surface.getBoundingClientRect().top + statusTop + islandHeight + bottomGap;
+};
+
+/* 工具条比导航 surface 宽（1160 vs 920），交接带里它的左右两端会露在胶囊两侧。
+   故收岛时同步淡出页面工具条，做成一次干净的交叉过渡。 */
+const toolbarAbsorbed = ref(false);
+let subscriptionIslandHandle = null;
+
+const subscriptionIslandProps = () => ({
+  billingCycle: billingCycle.value,
+  billingTabs,
+  plan: highestActivePlan.value
+    ? { name: highestActivePlan.value.name, expiresText: formatDateText(highestActivePlan.value.expiresAt) }
+    : null,
+  isTrial: topIsTrial.value,
+  points: currentPoints.value,
+  submitting: isSubmitting.value,
+  onSwitchCycle: (value) => { billingCycle.value = value; },
+  onRecharge: () => { showRechargeModal.value = true; }
+});
+
+const openSubscriptionIsland = () => {
+  if (subscriptionIslandHandle) return;
+  subscriptionIslandHandle = showIsland.custom(SubscriptionNavIsland, subscriptionIslandProps());
+};
+
+const closeSubscriptionIsland = () => {
+  if (!subscriptionIslandHandle) return;
+  subscriptionIslandHandle.close();
+  subscriptionIslandHandle = null;
+};
+
+const syncSubscriptionIsland = () => { subscriptionIslandHandle?.update(subscriptionIslandProps()); };
+
+const evaluateToolbarAbsorb = () => {
+  const el = toolbarRef.value;
+  if (!el) return;
+  const top = el.getBoundingClientRect().top;
+  if (!toolbarAbsorbed.value) {
+    if (top <= navRestBottom()) {
+      toolbarAbsorbed.value = true;
+      openSubscriptionIsland();
+    }
+    return;
+  }
+  // 岛刚挂载、宿主还没渲染出来时读不到高度：本 tick 不做放行判定，避免自激抖动
+  const islandBottom = navIslandBottom();
+  if (islandBottom !== null && top >= islandBottom) {
+    toolbarAbsorbed.value = false;
+    closeSubscriptionIsland();
+  }
+};
+
+/* 岛内展示的状态由宿主单一真相源驱动，任何一处变化都同步过去 */
+watch([billingCycle, currentPoints, highestActivePlan, topIsTrial, isSubmitting], syncSubscriptionIsland);
+
 onMounted(async () => {
   requestAnimationFrame(() => { pageMounted.value = true });
   await nextTick();
   const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  /* 滚动进度 + toolbar 吸顶阴影（rAF 节流） */
+  /* 工具条收放判定（rAF 节流，滚动与尺寸变化共用） */
   const onScroll = () => {
     if (scrollTick) return;
     scrollTick = true;
     requestAnimationFrame(() => {
       scrollTick = false;
-      if (toolbarRef.value) {
-        const r = toolbarRef.value.getBoundingClientRect();
-        toolbarStuck.value = r.top <= 84;
-      }
+      evaluateToolbarAbsorb();
     });
   };
   window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll, { passive: true });
   onScroll();
   /* 卡片 3D 轻倾斜（桌面 + 非 reduced-motion） */
   const canTilt = !reduceMotion && window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
@@ -522,6 +639,7 @@ onMounted(async () => {
   }
   window.__subCleanup = () => {
     window.removeEventListener('scroll', onScroll);
+    window.removeEventListener('resize', onScroll);
     tiltCards.forEach(([card, move, leave]) => { card.removeEventListener('mousemove', move); card.removeEventListener('mouseleave', leave) });
   };
   const els = document.querySelectorAll('.apple-pricing.v2 .reveal');
@@ -534,7 +652,14 @@ onMounted(async () => {
   }
   paidPlans.value.forEach((p) => { displayPrices[p.code] = calculatePrice(p) });
 });
-onUnmounted(() => { revealObserver?.disconnect(); window.__subCleanup?.(); if (bumpTimer) clearTimeout(bumpTimer); });
+onUnmounted(() => {
+  revealObserver?.disconnect();
+  window.__subCleanup?.();
+  // showIsland.custom 约定：宿主负责 close，否则离页后岛仍挂在导航栏
+  toolbarAbsorbed.value = false;
+  closeSubscriptionIsland();
+  if (bumpTimer) clearTimeout(bumpTimer);
+});
 </script>
 
 <style scoped>
@@ -586,10 +711,12 @@ onUnmounted(() => { revealObserver?.disconnect(); window.__subCleanup?.(); if (b
 .intro-card p { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.65; }
 
 .cards-wrap { padding-top: 56px; scroll-margin-top: 88px; }
-/* 状态条：sticky 不允许祖先 overflow 非 visible、不允许自身有 transform——故无 reveal、无 transform 过渡 */
-.toolbar { position: sticky; top: 76px; z-index: 20; display: flex; align-items: center; gap: 12px;
+/* 计费周期条：不再自身 sticky —— 滚出导航栏后由 SubscriptionNavIsland 承接（见 evaluateToolbarAbsorb）。
+   被收走时淡出（工具条比导航 surface 宽，避免两端露在胶囊外），入场只做 opacity、不做 transform。 */
+.toolbar { display: flex; align-items: center; gap: 12px;
   margin-bottom: 22px; padding: 10px !important; border-radius: 22px !important;
-  transition: box-shadow .35s, border-color .3s; will-change: box-shadow; }
+  transition: box-shadow .35s, border-color .3s, opacity .26s ease; }
+.toolbar.absorbed { opacity: 0; pointer-events: none; }
 .toolbar-in { animation: toolbarIn .7s cubic-bezier(0.16,1,0.3,1) backwards; animation-delay: .3s; }
 @keyframes toolbarIn { from { opacity: 0; } }
 .seg { position: relative; display: grid; grid-template-columns: 1fr 1fr; min-width: 250px; padding: 4px; border-radius: 980px; background: rgba(120,120,128,.16); }
@@ -660,6 +787,8 @@ onUnmounted(() => { revealObserver?.disconnect(); window.__subCleanup?.(); if (b
 .num-prev-enter-from { opacity: 0; transform: translateY(-14px); } .num-prev-leave-to { opacity: 0; transform: translateY(14px); }
 
 .comparison { margin-top: 80px; }
+.comparison-note { max-width: 680px; margin: 14px auto 0; color: var(--subtle); font-size: 13px; line-height: 1.7; text-align: center; }
+.comparison-note b { color: var(--muted); font-weight: 650; }
 .table-scroll { margin-top: 30px; overflow-x: auto; border-radius: 24px !important; }
 .table-scroll table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 640px; }
 .table-scroll th, .table-scroll td { border-bottom: 1px solid rgba(0,0,0,.07); padding: 16px; text-align: center; font-size: 14.5px; color: #48484a; }
@@ -754,7 +883,6 @@ onUnmounted(() => { revealObserver?.disconnect(); window.__subCleanup?.(); if (b
 @media (max-width: 900px) {
   .hero, .intro, .cards-wrap, .comparison, .faq, .closing { width: min(100% - 40px, 720px); }
   .intro-grid { grid-template-columns: repeat(2, 1fr); }
-  .toolbar { top: 64px; }
 }
 @media (max-width: 620px) {
   .apple-pricing.v2 { padding-top: 20px; }
@@ -791,10 +919,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--blue); outline-
 .intro-card:hover .intro-icon { transform: scale(1.08) rotate(-4deg); background: rgba(0,113,227,.16); }
 .intro-icon { transition: transform .3s cubic-bezier(0.34,1.56,0.64,1), background .3s; }
 
-/* 工具条吸顶 + 分段弹簧 */
-.toolbar { transition: box-shadow .35s, border-color .3s; }
-.toolbar.stuck { box-shadow: 0 16px 44px rgba(15,23,42,.12), var(--liquid-shadow, 0 8px 24px rgba(15,23,42,.06)) !important;
-  border-color: rgba(0,113,227,.22) !important; }
+/* 分段弹簧 + 积分数值 */
 .seg-thumb { transition: left .5s cubic-bezier(0.34,1.3,0.64,1); }
 .seg-btn { transition: color .25s, transform .15s; }
 .seg-btn:active { transform: scale(.96); }

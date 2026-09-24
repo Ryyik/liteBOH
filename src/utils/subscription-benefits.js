@@ -16,6 +16,37 @@ export const PLAN_CLOUD_IMAGE_LIMITS = {
   'ultra': 1200
 };
 
+/* ===== 档位权益展示单源 =====
+   订阅页卡片与对比表共用：改一处两处同步（展示格式化在 SubscriptionPlans.vue）。
+   - PLAN_AI_TOKENS：BOH AI 每日 Token 额度
+   - PLAN_LAB_QUOTAS：实验室 PPT / Word 产出次数
+   - PLAN_LOTTERY_PITY_THRESHOLDS：抽奖保底门槛，口径对齐 get_my_lottery_pity_status：
+     按「连续未中奖场次」累计、中奖清零、达标后兑保底礼；Free 不计保底（null）。
+     真实阈值以数据库 RPC 为准，此处为展示口径，改动需与 PityIslandCard 阈值文案同步核对。 */
+export const PLAN_AI_TOKENS = {
+  'free': '20 万',
+  'plus': '80 万',
+  'pro': '200 万',
+  'max': '500 万',
+  'ultra': '1000 万'
+};
+
+export const PLAN_LAB_QUOTAS = {
+  'free': '10 次 / 月',
+  'plus': '15 次 / 月',
+  'pro': '20 次 / 月',
+  'max': '30 次 / 月',
+  'ultra': '不限次数'
+};
+
+export const PLAN_LOTTERY_PITY_THRESHOLDS = {
+  'free': null,
+  'plus': 24,
+  'pro': 18,
+  'max': 12,
+  'ultra': 8
+};
+
 const PLAN_CODE_ALIASES = {
   'boh-ai-plus': 'plus',
   'boh-plus': 'plus',
@@ -72,7 +103,7 @@ export function resolveCloudBenefitFromSubscriptions(subscriptions = [], nowTs =
   return resolveCloudBenefitFromPlanCodes(activePlanCodes);
 }
 
-const TIER_NICKNAME_COLORS = {
+export const TIER_NICKNAME_COLORS = {
   'free': '',
   'plus': 'nickname-blue',
   'pro': 'nickname-silver',

@@ -548,6 +548,52 @@
   .editorial-header h2 { font-size: 40px; }
 }
 
+/* 横屏矮视口（手机横持 / 小窗）：纵向叙事段按高度压缩，sticky 舞台内容不越界 */
+@media (orientation: landscape) and (max-height: 500px) {
+  .about-hero {
+    min-height: calc(112svh - var(--about-nav-height));
+    padding: 56px 32px 44px;
+  }
+  .about-hero-copy { margin-bottom: 40px; }
+  .about-hero h1 { font-size: 60px; }
+  .about-hero-lead { font-size: 19px; }
+
+  .manifesto-sticky { padding: calc(var(--about-nav-height) + 20px) 40px 32px; }
+  .manifesto-copy { font-size: 32px; }
+  .manifesto-note { margin-top: 20px; font-size: 14px; }
+
+  .chapters-sticky { padding: calc(var(--about-nav-height) + 16px) 32px 24px; }
+  .chapters-header { margin-bottom: 16px; }
+  .chapter { gap: 40px; }
+  .chapter h2 { font-size: 34px; }
+  .chapter-number { margin-bottom: 12px; }
+  .chapter-copy p { margin-top: 14px; font-size: 15px; line-height: 1.5; }
+  .chapter-media img { height: min(54svh, 420px); }
+
+  .activities-section, .timeline-section, .people-section { padding: 76px 0; }
+  .editorial-header { margin-bottom: 44px; }
+  .editorial-header h2 { font-size: 40px; }
+  .editorial-header > p:last-child { font-size: 16px; }
+  .timeline-entry time { font-size: 28px; }
+
+  .about-cta { min-height: 70svh; padding: 56px 32px; }
+  .about-cta h2 { font-size: 48px; }
+}
+
+/* ⚠️ sticky 依赖（BOHApp 页同口径）：src/style.css 里
+   body { overflow-x: hidden !important; overflow-y: visible !important }
+   会让 body 的计算值变成 (hidden, auto) —— 即 body 自己成了滚动容器；而
+   position: sticky 相对「最近的滚动祖先」定位，body 自己不滚，
+   manifesto/chapters 的钉住段就永远粘不住。页面挂载时给 html 加 .about-scroll
+   把 body 的 overflow 还原成 visible，让滚动祖先重新落回视口。
+
+   横向裁剪不受影响、无需额外兜底：视口的 overflow 取自**根元素 html**
+   （src/style.css: html { overflow-x: hidden !important }），只有 html 的
+   overflow 为 visible 时才会回落到 body。因此放开 body 不会产生横向滚动条。 */
+html.about-scroll body {
+  overflow: visible !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .about-hero-copy,
   .manifesto-copy span,

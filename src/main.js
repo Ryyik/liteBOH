@@ -59,6 +59,7 @@ import { setupVitePreloadErrorRecovery } from './utils/vite-preload-recovery.js'
 import { initImageOptimizer } from './utils/image-optimizer.js';
 import { initVersionChecker } from './utils/version-checker.js';
 import { applyPerformanceProfile, watchPerformanceProfile } from './utils/performance-profile.js';
+import { initKeyboardInset } from './composables/useKeyboardInset.js';
 
 const registerPwaServiceWorker = () => {
   if (import.meta.env.DEV || !('serviceWorker' in navigator)) return;
@@ -267,6 +268,12 @@ if (typeof window !== "undefined") {
   window.addEventListener('orientationchange', scheduleViewportSync, { passive: true });
   window.addEventListener('pageshow', scheduleViewportSync, { passive: true });
   window.visualViewport?.addEventListener('resize', scheduleViewportSync, { passive: true });
+
+  // 键盘遮挡高度 → documentElement 的 --kb-inset（全站 CSS 用 var(--kb-inset, 0px) 消费）。
+  // 与上面的 syncViewportMetrics 是两件事：那一个负责「旋转/尺寸变化后取真实视口」，
+  // 本行负责「软键盘占掉的高度」。键盘弹起同样会触发 visualViewport resize，
+  // 但 --real-vh 语义上不该被键盘污染，故判据与变量都独立。
+  initKeyboardInset();
 }
 
 const app = createApp(App);

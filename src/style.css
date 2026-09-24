@@ -110,13 +110,17 @@ body.page-aichat {
 }
 
 body.page-aichat #app {
-  height: 100dvh;
+  /* --kb-inset：键盘遮挡高度（useKeyboardInset.js 写入 documentElement，阈值 120px）。
+     iOS 的 100dvh 不随软键盘收缩，不扣它则键盘盖住 BOHAI 输入区（2026-09-24 修复）。 */
+  height: calc(100dvh - var(--kb-inset, 0px));
   min-height: 0;
   overflow: hidden;
 }
 
 body.page-aichat .bohai-page:not(.embedded-mode):not(.overlay-mode) {
-  height: calc(100dvh - var(--bohai-standalone-nav-height));
+  /* 这条特异性高于 BOHAI styles 里 .bohai-page 的基础高度，是独立模式的真源；
+     扣 --kb-inset 与 #app 保持一致，margin-top 保留（顶部 fixed 导航不随键盘动）。 */
+  height: calc(100dvh - var(--bohai-standalone-nav-height) - var(--kb-inset, 0px));
   margin-top: var(--bohai-standalone-nav-height);
 }
 

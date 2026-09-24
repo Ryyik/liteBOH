@@ -14,7 +14,11 @@
     --bohai-rail: 760px;
     --bohai-composer: 760px;
     height: 100vh;
-    height: 100dvh;
+    /* 键盘抬升（2026-09-24）：iOS 的 100dvh 不随软键盘收缩，.input-area 是 grid
+       row 5 贴底布局，键盘弹起会把输入区盖住。--kb-inset 由 useKeyboardInset.js
+       写到 documentElement（阈值 120px），容器收缩后 grid 行高重算，输入区自然上沿。
+       注意只改全页模式；.embedded-mode / .overlay-mode 是 height:100%，由宿主容器决定。 */
+    height: calc(100dvh - var(--kb-inset, 0px));
     min-height: 0;
     background: var(--bohai-bg);
     color: var(--bohai-text);

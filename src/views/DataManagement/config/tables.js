@@ -419,7 +419,14 @@ export const dataConfig = {
         { value: 'active', label: '启用' },
         { value: 'inactive', label: '停用' }
       ], group: 'basic' },
-      { key: 'image_url', label: '广告图片', type: 'image', hint: '建议使用 16:9 或帖子同宽的横向图。', group: 'creative' },
+      { key: 'image_url', label: '广告图片', type: 'image', hint: '卡片高度固定时图片按居中裁切填充，不再撑高卡片；建议用 16:9 或帖子同宽的横向图。', group: 'creative' },
+      { key: 'card_size', label: '卡片高度', type: 'select', options: [
+        { value: 'post', label: '帖子大小（推荐）' },
+        { value: 'auto', label: '自适应（跟随图片比例）' },
+        { value: 'custom', label: '自定义像素' }
+      ], hint: '默认「帖子大小」：广告卡片与帖子卡片同高，横屏 520px、竖屏 400px 自动切换。', group: 'creative' },
+      { key: 'card_height_landscape', label: '自定义高度 · 横屏（px）', type: 'number', min: 0, max: 1200, visibleWhen: (item) => item.card_size === 'custom', hint: '默认 520（≈ 桌面端帖子卡片高度）；填 0 表示沿用「帖子大小」档。', group: 'creative' },
+      { key: 'card_height_portrait', label: '自定义高度 · 竖屏（px）', type: 'number', min: 0, max: 1200, visibleWhen: (item) => item.card_size === 'custom', hint: '默认 400（≈ 手机端帖子卡片高度）；填 0 表示沿用「帖子大小」档。', group: 'creative' },
       { key: 'link_url', label: '跳转链接', type: 'text', placeholder: '例如：/user-space/subscriptions', hint: '点击广告后跳转的地址，可填完整 URL 或站内路径。', group: 'creative' },
       { key: 'sort_order', label: '排序', type: 'number', min: 0, required: true, hint: '同广告位内展示顺序，越小越靠前。', group: 'target' },
       { key: 'feed_interval', label: '信息流间隔', type: 'number', min: 2, required: true, hint: '列表信息流中每隔多少条帖子插入一条广告，最小 2。', group: 'target' },
@@ -444,6 +451,7 @@ export const dataConfig = {
         } },
         { label: '排序', key: 'sort_order' },
         { label: '间隔', key: 'feed_interval' },
+        { label: '高度', key: 'card_size', values: { post: '帖子大小', auto: '自适应', custom: '自定义' } },
         { label: '点击', key: 'clicks' }
       ],
       meta: [

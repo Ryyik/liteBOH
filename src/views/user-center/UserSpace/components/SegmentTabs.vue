@@ -113,7 +113,10 @@ onUnmounted(() => {
   letter-spacing: 0.01em;
   color: var(--text-secondary, #6e6e73);
   cursor: pointer;
-  transition: color 0.2s ease, transform 0.16s ease;
+  transition:
+    color 180ms var(--ease-out, ease-out),
+    transform 240ms cubic-bezier(0.34, 1.3, 0.64, 1),
+    font-size 240ms cubic-bezier(0.34, 1.3, 0.64, 1);
 }
 
 .segment-tab:hover {
@@ -121,28 +124,13 @@ onUnmounted(() => {
 }
 
 .segment-tab:active {
-  transform: scale(0.88);
+  transform: scale(0.96);
 }
 
 .segment-tab.active {
   color: var(--text-primary, #1d1d1f);
   font-weight: 600;
   font-size: 15.5px;
-  animation: seg-tab-pop 0.34s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@keyframes seg-tab-pop {
-  0% {
-    transform: scale(0.82);
-  }
-
-  55% {
-    transform: scale(1.1);
-  }
-
-  100% {
-    transform: scale(1);
-  }
 }
 
 .segment-tab-indicator {
@@ -152,7 +140,7 @@ onUnmounted(() => {
   height: 3px;
   border-radius: 2px;
   background: var(--text-primary, #1d1d1f);
-  transition: transform 0.4s cubic-bezier(0.3, 1.3, 0.35, 1), width 0.4s cubic-bezier(0.3, 1.3, 0.35, 1);
+  transition: transform 300ms cubic-bezier(0.3, 1.15, 0.35, 1), width 300ms cubic-bezier(0.3, 1.15, 0.35, 1);
 }
 
 @media (max-width: 480px) {

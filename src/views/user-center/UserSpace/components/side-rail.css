@@ -249,8 +249,10 @@
       transform 140ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
   }
 
-  .userspace-rail-item:hover {
-    background: var(--rail-item-bg-hover);
+  @media (hover: hover) and (pointer: fine) {
+    .userspace-rail-item:hover {
+      background: var(--rail-item-bg-hover);
+    }
   }
 
   .userspace-rail-item:active {
@@ -309,8 +311,10 @@
     stroke-width: 2.5;
   }
 
-  .userspace-rail-item:hover .userspace-rail-icon {
-    transform: translateY(-1px) scale(1.06);
+  @media (hover: hover) and (pointer: fine) {
+    .userspace-rail-item:hover .userspace-rail-icon {
+      transform: translateY(-1px) scale(1.06);
+    }
   }
 
   .userspace-rail-item:active .userspace-rail-icon {

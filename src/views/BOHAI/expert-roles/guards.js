@@ -138,6 +138,39 @@ export const hasHardViolation = (findings = []) =>
 export const shouldRewrite = (findings = []) =>
   findings.some((finding) => Object.values(VIOLATION_TYPES).includes(finding.type));
 
+/**
+ * 违规加权分 —— 只用于「重写稿是否真的比原稿好」的比较，不对外展示。
+ *
+ * 权重直接由 HARD_VIOLATIONS 派生，不另建一张表：硬违规 3 分、其余 1 分。
+ * 为什么需要它：重写是「多花一次调用换一版」，如果新版未必更好就换，等于用约束去赌质量。
+ * 调用方（useChatEngine）只有在重写分严格更低时才采纳，否则保留原稿。
+ */
+export const HARD_VIOLATION_WEIGHT = 3;
+export const SOFT_VIOLATION_WEIGHT = 1;
+
+export const scoreViolations = (findings = []) =>
+  findings.reduce(
+    (sum, finding) =>
+      sum + (HARD_VIOLATIONS.includes(finding.type) ? HARD_VIOLATION_WEIGHT : SOFT_VIOLATION_WEIGHT),
+    0
+  );
+
+/**
+ * 是否采纳重写稿 —— 必须**严格更优**。
+ *
+ * 原先的判据是「非空即替换」，等于假定重写一定更好。但守门自身有误报
+ * （PARROT 0.75 / REPEAT 0.7 都是偏保守的阈值），一次误报就会用一版更拘谨的
+ * 回答盖掉原本可用的回答，且全程不可见。约束系统不应有把输出改差的权限。
+ *
+ * 空稿一律不采纳：拿不到可用内容时，保留原稿比清空更安全。
+ * 保持纯函数（只判定、不发起请求、不改消息），与 detectViolations 同分工。
+ */
+export const shouldAdoptRewrite = (originalFindings = [], rewriteText = '', context = {}) => {
+  const text = String(rewriteText || '').trim();
+  if (!text) return false;
+  return scoreViolations(detectViolations(text, context)) < scoreViolations(originalFindings);
+};
+
 const REWRITE_HINTS = Object.freeze({
   [VIOLATION_TYPES.OPTIONS]:
     '你上一轮的问题里塞了举例或选项。去掉所有「比如」「例如」「还是」「或者」，只留一个开放问题；要问细节就直接问，不要举例。',
@@ -171,3 +204,30 @@ export const buildRewriteInstruction = (findings = []) => {
 /** 供日志/观测用的一行摘要 */
 export const summarizeViolations = (findings = []) =>
   findings.map((finding) => finding.type).join(',') || 'none';
+
+/**
+ * 守门统计（纯函数）。目的：让「触发率 / 采纳率」变成可读的数字。
+ *
+ * 为什么需要：原先只往 expertState 写一个 lastViolations 字符串 —— 既没有任何地方读它，
+ * 也不在 bohai-chat-session-store 的显式白名单里（保存时被静默丢弃）。
+ * 于是「守门到底在起作用还是在帮倒忙」全都没有依据：
+ *   - triggered / checked 偏高 → prompt 里的规则没生效，靠代码兜底在扛
+ *   - adopted / triggered 偏低 → 守门在误报，重写稿普遍不如原稿
+ */
+export const createGuardStats = () => ({ checked: 0, triggered: 0, adopted: 0, byType: {} });
+
+export const bumpGuardStats = (stats = {}, { triggered = false, adopted = false, types = [] } = {}) => {
+  const base = stats && typeof stats === 'object' ? stats : {};
+  const byType = { ...(base.byType && typeof base.byType === 'object' ? base.byType : {}) };
+  (Array.isArray(types) ? types : []).forEach((type) => {
+    const key = String(type || '').trim();
+    if (!key) return;
+    byType[key] = (Number(byType[key]) || 0) + 1;
+  });
+  return {
+    checked: (Number(base.checked) || 0) + 1,
+    triggered: (Number(base.triggered) || 0) + (triggered ? 1 : 0),
+    adopted: (Number(base.adopted) || 0) + (adopted ? 1 : 0),
+    byType
+  };
+};

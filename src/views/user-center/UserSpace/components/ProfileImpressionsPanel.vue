@@ -206,13 +206,15 @@ const formatImpressionDate = (createdAt) => {
   box-shadow: var(--liquid-shadow), var(--liquid-inner-highlight);
   overflow: hidden;
   transition: transform 0.22s ease, box-shadow 0.22s ease;
-  animation: impression-card-in 0.4s cubic-bezier(0.34, 1.2, 0.64, 1) both;
+  animation: impression-card-in 280ms cubic-bezier(0.23, 1, 0.32, 1) both;
   animation-delay: var(--stagger-delay, 0ms);
 }
 
-.profile-impression-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--liquid-shadow), 0 12px 28px rgba(15, 23, 42, 0.07), var(--liquid-inner-highlight);
+@media (hover: hover) and (pointer: fine) {
+  .profile-impression-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--liquid-shadow), 0 12px 28px rgba(15, 23, 42, 0.07), var(--liquid-inner-highlight);
+  }
 }
 
 @keyframes impression-card-in {
@@ -376,7 +378,7 @@ const formatImpressionDate = (createdAt) => {
       color-mix(in srgb, var(--text-secondary) 18%, transparent) 50%,
       color-mix(in srgb, var(--text-secondary) 10%, transparent) 68%);
   background-size: 240% 100%;
-  animation: impression-shimmer 1.5s ease-in-out infinite;
+  animation: impression-shimmer 1.5s linear infinite;
 }
 
 .impression-skeleton-line.long {
@@ -414,7 +416,7 @@ const formatImpressionDate = (createdAt) => {
       color-mix(in srgb, var(--text-secondary) 18%, transparent) 50%,
       color-mix(in srgb, var(--text-secondary) 10%, transparent) 68%);
   background-size: 240% 100%;
-  animation: impression-shimmer 1.5s ease-in-out infinite;
+  animation: impression-shimmer 1.5s linear infinite;
 }
 
 .impression-skeleton-foot .impression-skeleton-line {
@@ -457,9 +459,11 @@ const formatImpressionDate = (createdAt) => {
   transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
 }
 
-.impression-load-more-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: var(--liquid-shadow), var(--liquid-inner-highlight);
+@media (hover: hover) and (pointer: fine) {
+  .impression-load-more-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: var(--liquid-shadow), var(--liquid-inner-highlight);
+  }
 }
 
 .impression-load-more-btn:active:not(:disabled) {
@@ -491,6 +495,11 @@ const formatImpressionDate = (createdAt) => {
 @media (prefers-reduced-motion: reduce) {
   .profile-impression-card {
     animation: none;
+  }
+
+  .profile-impression-card:hover,
+  .impression-load-more-btn:hover:not(:disabled) {
+    transform: none;
   }
 
   .impression-remove-btn.armed {

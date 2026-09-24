@@ -104,6 +104,16 @@ const submitButtonLabel = computed(() => {
 const postImageInputRef = ref(null);
 const postCameraInputRef = ref(null);
 const postContentInputRef = ref(null);
+
+/* 标题是单行字段：Enter（非 IME 组合中）直接跳到正文，与 enterkeyhint="next" 一致。
+   必须判 isComposing —— 中文输入法确认候选词的回车不能被拦。 */
+const handleTitleKeydown = (event) => {
+  if (event.key !== 'Enter') return;
+  if (event.isComposing || event.keyCode === 229) return;
+  event.preventDefault();
+  postContentInputRef.value?.focus?.();
+};
+
 const showMobileTagMenu = ref(false);
 const showMoreMenu = ref(false);
 const morePanelRef = ref(null);
@@ -591,8 +601,10 @@ onUnmounted(() => {
 
       <div class="input-group post-title-input-group">
         <textarea :value="newPost.title" ref="postTitleInputRef" rows="1" :maxlength="TITLE_MAX_LENGTH"
+          enterkeyhint="next"
           :placeholder="isEditMode ? '修改标题' : (isMobileComposer ? '标题' : '起个响亮的标题...')"
           class="post-title-input"
+          @keydown="handleTitleKeydown"
           @input="handleTitleInput"></textarea>
         <span v-if="titleCharCount > 0" class="composer-title-count"
           :class="{ 'is-near-limit': titleCharCount >= TITLE_MAX_LENGTH }">

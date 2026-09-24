@@ -22,7 +22,10 @@
         0 0 0 1px rgba(255, 255, 255, 0.38),
         0 14px 34px rgba(15, 23, 42, 0.06);
     height: 100vh;
-    height: 100dvh;
+    /* ⚠️ .bohai-page 在 adaptive-layout.css 也有一份完整定义（历史遗留的双源），
+       高度规则必须两处同步：iOS 的 100dvh 不随软键盘收缩，输入区贴底会被盖住。
+       --kb-inset 由 useKeyboardInset.js 写到 documentElement（阈值 120px）。 */
+    height: calc(100dvh - var(--kb-inset, 0px));
     min-height: 0;
     background: var(--bohai-bg);
     color: var(--bohai-text);

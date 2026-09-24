@@ -3,7 +3,7 @@
     v-if="visible"
     class="bottom-nav-glass"
     :class="{
-      'is-hidden': hidden,
+      'is-hidden': navHidden,
       'is-entering': isEntering,
       'ai-overlay-open': aiOverlayOpen
     }"
@@ -32,6 +32,12 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useKeyboardInset } from '@/composables/useKeyboardInset.js';
+
+/* 键盘态隐藏（2026-09-24）：iOS 上 position:fixed 元素锚定布局视口，软键盘弹起时
+   底栏不会消失、浮在键盘上方压住输入区。useKeyboardInset 不传 target = 纯判据、不写变量；
+   与滚动隐藏取 OR —— 键盘收起后自动回到原有滚动状态。 */
+const { isKeyboardOpen } = useKeyboardInset();
 
 /* 入场动画（2026-09-23 加，2026-09-24 调慢调柔）：底栏首次出现时从下方缓慢滑入 ——
    首页下滑进入论坛、UserSpace 首次进入都走这里。用 keyframes 而非 transition：
@@ -86,6 +92,8 @@ const props = defineProps({
 });
 
 const enterDurationMs = computed(() => (props.enterDuration > 0 ? props.enterDuration : BOTTOM_NAV_ENTER_MS));
+
+const navHidden = computed(() => props.hidden || isKeyboardOpen.value);
 
 onMounted(() => {
   enterTimer = window.setTimeout(() => {

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_CLOUD_IMAGE_LIMIT,
+  PLAN_AI_TOKENS,
+  PLAN_CLOUD_IMAGE_LIMITS,
+  PLAN_LAB_QUOTAS,
+  PLAN_LOTTERY_PITY_THRESHOLDS,
+  TIER_NICKNAME_COLORS,
   resolveCloudBenefitFromPlanCodes,
   resolveCloudBenefitFromSubscriptions
 } from '../../src/utils/subscription-benefits.js';
@@ -27,5 +32,37 @@ describe('subscription Cloud+ benefits', () => {
     ], nowTs);
 
     expect(benefit.cloudImageLimit).toBe(450);
+  });
+});
+
+describe('plan benefit showcase single source (订阅页卡片与对比表共用)', () => {
+  const SHOWCASE_PLAN_CODES = ['free', 'plus', 'pro', 'max', 'ultra'];
+
+  it('defines every showcase benefit for all five tiers (卡片/表格不会缺值)', () => {
+    SHOWCASE_PLAN_CODES.forEach((code) => {
+      expect(PLAN_AI_TOKENS[code]).toBeTruthy();
+      expect(PLAN_LAB_QUOTAS[code]).toBeTruthy();
+      expect(PLAN_CLOUD_IMAGE_LIMITS[code]).toBeGreaterThan(0);
+      expect(Object.prototype.hasOwnProperty.call(TIER_NICKNAME_COLORS, code)).toBe(true);
+      expect(Object.prototype.hasOwnProperty.call(PLAN_LOTTERY_PITY_THRESHOLDS, code)).toBe(true);
+    });
+  });
+
+  it('keeps Cloud+ showcase limits identical to granted quotas', () => {
+    expect(PLAN_CLOUD_IMAGE_LIMITS).toEqual({ free: 150, plus: 300, pro: 450, max: 900, ultra: 1200 });
+  });
+
+  it('keeps nickname showcase aligned with tier color classes', () => {
+    expect(TIER_NICKNAME_COLORS).toEqual({
+      free: '',
+      plus: 'nickname-blue',
+      pro: 'nickname-silver',
+      max: 'nickname-gold',
+      ultra: 'nickname-rainbow'
+    });
+  });
+
+  it('keeps lottery pity thresholds aligned with PityIslandCard copy (Plus 24 · Pro 18 · Max 12 · Ultra 8, 场)', () => {
+    expect(PLAN_LOTTERY_PITY_THRESHOLDS).toEqual({ free: null, plus: 24, pro: 18, max: 12, ultra: 8 });
   });
 });

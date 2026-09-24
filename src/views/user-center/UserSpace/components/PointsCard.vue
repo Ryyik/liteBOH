@@ -32,7 +32,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 import { Coins } from 'lucide-vue-next';
 import { HOME_CAT_ASSETS } from '@/utils/home-cat-theme.js';
 
@@ -50,12 +50,36 @@ const props = defineProps({
 defineEmits(['click', 'sponsor']);
 
 const resolvedSkin = computed(() => ['blank', 'cats', 'custom'].includes(props.skin) ? props.skin : 'blank');
-const pointsDisplay = computed(() => Math.max(0, Number(props.points) || 0).toLocaleString('zh-CN'));
+
+// 积分数字滚动：仅在数值变化时播放（初始挂载直接显示真实值），reduce 下瞬时跳变
+const displayPoints = ref(Math.max(0, Number(props.points) || 0));
+let rafId = 0;
+watch(() => props.points, (to) => {
+  const target = Math.max(0, Number(to) || 0);
+  if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    displayPoints.value = target;
+    return;
+  }
+  const from = displayPoints.value;
+  const start = performance.now();
+  const duration = 600;
+  cancelAnimationFrame(rafId);
+  const step = (now) => {
+    const t = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+    displayPoints.value = Math.round(from + (target - from) * eased);
+    if (t < 1) rafId = requestAnimationFrame(step);
+  };
+  rafId = requestAnimationFrame(step);
+});
+onUnmounted(() => cancelAnimationFrame(rafId));
+
+const pointsDisplay = computed(() => displayPoints.value.toLocaleString('zh-CN'));
 const catSkinAssets = Object.entries(HOME_CAT_ASSETS).map(([id, src]) => ({ id, src }));
 </script>
 
 <style scoped>
-.points-card { position: relative; isolation: isolate; display: block; width: 100%; aspect-ratio: 8 / 5; overflow: hidden; border: 0.5px solid rgba(18, 34, 51, .10); border-radius: 18px; background: #edf2f4; color: #122233; box-shadow: 0 8px 20px rgba(27, 49, 69, .08); text-align: left; }
+.points-card { position: relative; isolation: isolate; display: block; width: 100%; aspect-ratio: 8 / 5; overflow: hidden; border: 0.5px solid rgba(18, 34, 51, .10); border-radius: 18px; background: #edf2f4; color: #122233; box-shadow: 0 8px 20px rgba(27, 49, 69, .08); text-align: left; transition: transform 160ms var(--ease-out, ease-out), box-shadow 160ms var(--ease-out, ease-out); }
 .points-card.is-interactive { cursor: pointer; }
 .points-card.is-blank { background: #edf2f4; }
 .points-card.is-cats { background: #fff; border-color: rgba(181, 117, 135, .16); color: #3c3437; box-shadow: 0 8px 20px rgba(169, 104, 126, .08); }
@@ -71,10 +95,12 @@ const catSkinAssets = Object.entries(HOME_CAT_ASSETS).map(([id, src]) => ({ id, 
 .points-card-label { margin-top: 4px; font-size: 11.5px; font-weight: 500; opacity: .62; }.points-card-footer { margin-top: auto; font-size: 11px; opacity: .62; }
 .points-card-footer-actions { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }.points-card-sponsor { min-height: auto; padding: 0; border: 0; border-radius: 0; background: transparent; color: #0071e3; font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; text-underline-offset: 2px; }.points-card-sponsor:hover { text-decoration: underline; background: transparent; }.points-card.has-custom-image .points-card-sponsor { border: 0; background: transparent; color: #fff; opacity: 0.92; }.points-card.has-custom-image .points-card-sponsor:hover { background: transparent; opacity: 1; text-decoration: underline; }
 .points-card.has-custom-image { color: #fff; border-color: rgba(255,255,255,.28); }.points-card.has-custom-image .points-card-label, .points-card.has-custom-image .points-card-footer { opacity: .84; }
-.points-card.is-interactive:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(27, 49, 69, .12); }.points-card.is-interactive:focus-visible { outline: 2px solid #0071e3; outline-offset: 2px; }
+.points-card.is-interactive:active { transform: scale(0.98); }
+.points-card.is-interactive:focus-visible { outline: 2px solid #0071e3; outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .points-card.is-interactive:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(27, 49, 69, .12); } }
 .points-card.is-compact { max-width: 368px; aspect-ratio: 2.08 / 1; border-radius: 14px; }.points-card.is-compact .points-card-content { padding: 14px 16px; }.points-card.is-compact .points-card-points { font-size: 26px; }
 @media (max-width: 420px) { .points-card-cat:nth-child(3) { width: 19%; }.points-card-cat:nth-child(4) { width: 17%; }.points-card-cat:nth-child(9), .points-card-cat:nth-child(10) { width: 12%; }.points-card-footer-actions { gap: 6px; }.points-card-sponsor { padding: 0; } }
-@media (prefers-reduced-motion: reduce) { .points-card.is-interactive:hover { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .points-card.is-interactive:hover, .points-card.is-interactive:active { transform: none; } }
 
 /* 暗色：blank 皮肤转石墨玻璃卡面，避免暗环境刺眼（cats/custom 皮肤自带配色不动） */
 html[data-theme="dark"] .points-card.is-blank {

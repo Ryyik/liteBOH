@@ -27,8 +27,10 @@
                 </div>
               </div>
               <span class="theme-name">浅色模式</span>
-              <Check v-if="currentThemePreference === 'light'" class="theme-check" :size="16" :stroke-width="2.2"
-                aria-hidden="true" />
+              <Transition name="check-pop">
+                <Check v-if="currentThemePreference === 'light'" key="light" class="theme-check" :size="16" :stroke-width="2.2"
+                  aria-hidden="true" />
+              </Transition>
             </div>
 
             <div class="theme-option" :class="{ active: currentThemePreference === 'dark' }"
@@ -41,8 +43,10 @@
                 </div>
               </div>
               <span class="theme-name">深色模式</span>
-              <Check v-if="currentThemePreference === 'dark'" class="theme-check" :size="16" :stroke-width="2.2"
-                aria-hidden="true" />
+              <Transition name="check-pop">
+                <Check v-if="currentThemePreference === 'dark'" key="dark" class="theme-check" :size="16" :stroke-width="2.2"
+                  aria-hidden="true" />
+              </Transition>
             </div>
 
             <div class="theme-option" :class="{ active: currentThemePreference === 'system' }"
@@ -64,8 +68,10 @@
                 </div>
               </div>
               <span class="theme-name">跟随系统</span>
-              <Check v-if="currentThemePreference === 'system'" class="theme-check" :size="16" :stroke-width="2.2"
-                aria-hidden="true" />
+              <Transition name="check-pop">
+                <Check v-if="currentThemePreference === 'system'" key="system" class="theme-check" :size="16" :stroke-width="2.2"
+                  aria-hidden="true" />
+              </Transition>
             </div>
 
             <div class="theme-option home-cat-theme-option" :class="{ active: currentThemePreference === 'home-cat' }"
@@ -78,8 +84,10 @@
                 </div>
               </div>
               <span class="theme-name">方块小窝</span>
-              <Check v-if="currentThemePreference === 'home-cat'" class="theme-check" :size="16" :stroke-width="2.2"
-                aria-hidden="true" />
+              <Transition name="check-pop">
+                <Check v-if="currentThemePreference === 'home-cat'" key="home-cat" class="theme-check" :size="16" :stroke-width="2.2"
+                  aria-hidden="true" />
+              </Transition>
             </div>
 
             <div class="theme-option anniversary-mc-theme-option"
@@ -93,8 +101,10 @@
                 <span class="mc-preview-torch"></span>
               </div>
               <span class="theme-name">八周年 MC 限定</span>
-              <Check v-if="currentThemePreference === 'anniversary-mc'" class="theme-check" :size="16"
-                :stroke-width="2.2" aria-hidden="true" />
+              <Transition name="check-pop">
+                <Check v-if="currentThemePreference === 'anniversary-mc'" key="anniversary-mc" class="theme-check" :size="16"
+                  :stroke-width="2.2" aria-hidden="true" />
+              </Transition>
             </div>
           </div>
 

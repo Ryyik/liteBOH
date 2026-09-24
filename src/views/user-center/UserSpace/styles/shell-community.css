@@ -191,31 +191,9 @@
 }
 
 /* ---------- Tab 动画 ---------- */
-/* 基础进入动画（从右侧滑入） */
-@keyframes userspace-tab-in {
-  from {
-    opacity: 0;
-    transform: translate3d(34px, 0, 0) scale(0.982);
-  }
-
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-}
-
-/* 基础退出动画（向左侧滑出） */
-@keyframes userspace-tab-out {
-  from {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-
-  to {
-    opacity: 0;
-    transform: translate3d(-26px, 0, 0) scale(0.982);
-  }
-}
+/* 基础 userspace-tab-in / userspace-tab-out 已删除：基础规则现为
+   `.tab-page { animation: none }`，入场完全由方向类
+   （userspace-tab-in-forward / -back）驱动，这两个旧 keyframes 已无任何引用。 */
 
 /* 前进方向：新tab从右侧滑入，旧tab向左侧滑出 */
 @keyframes userspace-tab-in-forward {
@@ -233,10 +211,12 @@
   from {
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
   }
   to {
     opacity: 0;
-    transform: translate3d(-30px, 0, 0) scale(0.985);
+    transform: translate3d(-18px, 0, 0) scale(0.985);
+    filter: blur(3px);
   }
 }
 
@@ -256,36 +236,39 @@
   from {
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
   }
   to {
     opacity: 0;
-    transform: translate3d(30px, 0, 0) scale(0.985);
+    transform: translate3d(18px, 0, 0) scale(0.985);
+    filter: blur(3px);
   }
 }
 
+/* 方向类是唯一的入场驱动（方向复位后 animation-name 变 none，不重放） */
 .tab-page {
-  animation: userspace-tab-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: none;
 }
 
-/* 前进方向动画 */
+/* 前进方向动画：出场快（180ms ease-out 让位）、入场稳（300ms 落定），非对称节奏 */
 .user-space-page.tab-transition-forward .tab-page:not(.is-leaving) {
-  animation: userspace-tab-in-forward 280ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: userspace-tab-in-forward 300ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
   will-change: transform, opacity;
 }
 
 .user-space-page.tab-transition-forward .tab-page.is-leaving {
-  animation: userspace-tab-out-forward 250ms cubic-bezier(0.4, 0, 1, 1) forwards;
+  animation: userspace-tab-out-forward 180ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
   will-change: transform, opacity;
 }
 
 /* 后退方向动画 */
 .user-space-page.tab-transition-back .tab-page:not(.is-leaving) {
-  animation: userspace-tab-in-back 280ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: userspace-tab-in-back 300ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
   will-change: transform, opacity;
 }
 
 .user-space-page.tab-transition-back .tab-page.is-leaving {
-  animation: userspace-tab-out-back 250ms cubic-bezier(0.4, 0, 1, 1) forwards;
+  animation: userspace-tab-out-back 180ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
   will-change: transform, opacity;
 }
 
@@ -299,14 +282,9 @@
   z-index: 1;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .tab-page,
-  .tab-page.is-leaving,
-  .user-space-page.tab-transition-forward .tab-page,
-  .user-space-page.tab-transition-back .tab-page {
-    animation-duration: 1ms;
-  }
-}
+/* ⚠️ reduced-motion 基线统一放在**本文件末尾**（见文件最后一块）。
+   reduce 规则与目标动画规则同特异性时靠源序取胜：写在这里会被文件后半段的
+   动画规则（.skeleton-line:477、forum-card-in:533、.expand-* 等）反超而失效。 */
 
 /* iOS WebKit does not reliably scroll a nested, transformed 100dvh layer.
    Let the document own vertical scrolling on phones; the fixed bottom nav
@@ -343,12 +321,24 @@
   .user-space-page.tab-transition-forward .tab-page:not(.is-leaving),
   .user-space-page.tab-transition-back .tab-page:not(.is-leaving) {
     animation-name: userspace-tab-in-fade;
+    animation-duration: 240ms;
+    animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
     will-change: opacity;
+  }
+
+  .user-space-page.tab-transition-forward .tab-page.is-leaving,
+  .user-space-page.tab-transition-back .tab-page.is-leaving {
+    animation: userspace-tab-out-fade 160ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
   }
 
   @keyframes userspace-tab-in-fade {
     from { opacity: 0; }
     to { opacity: 1; }
+  }
+
+  @keyframes userspace-tab-out-fade {
+    from { opacity: 1; }
+    to { opacity: 0; }
   }
 }
 
@@ -431,7 +421,7 @@
 .skeleton-line {
   background: linear-gradient(90deg, var(--border-subtle) 25%, #f0f0f2 50%, var(--border-subtle) 75%);
   background-size: 200% 100%;
-  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  animation: skeleton-shimmer 1.4s linear infinite;
   border-radius: 8px;
 }
 
@@ -485,18 +475,15 @@
   display: none !important;
 }
 
-.user-space-page .forum-page.embedded-mode .post-card {
-  animation: forum-card-in 350ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
+.user-space-page .forum-page.embedded-mode .post-card,
 .user-space-page .forum-page.embedded-mode .post-composer {
-  animation: forum-card-in 350ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: forum-card-in 280ms cubic-bezier(0.23, 1, 0.32, 1) both;
 }
 
 @keyframes forum-card-in {
   from {
     opacity: 0;
-    transform: translateY(30px) scale(0.97);
+    transform: translateY(14px) scale(0.98);
     filter: blur(2px);
   }
 
@@ -587,11 +574,13 @@
   overflow: hidden;
 }
 
-.community-group:hover {
-  background: var(--glass-bg-elevated);
-  transform: translateY(-2px);
-  box-shadow: var(--glass-shadow-md), inset 0 1px 0 var(--glass-border-strong);
-  transition-duration: 0.25s;
+@media (hover: hover) and (pointer: fine) {
+  .community-group:hover {
+    background: var(--glass-bg-elevated);
+    transform: translateY(-2px);
+    box-shadow: var(--glass-shadow-md), inset 0 1px 0 var(--glass-border-strong);
+    transition-duration: 0.25s;
+  }
 }
 
 .community-group:active {
@@ -690,7 +679,7 @@
   inset: 0;
   background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.25) 50%, transparent 100%);
   background-size: 200% 100%;
-  animation: badge-shimmer 1.2s ease-in-out infinite;
+  animation: badge-shimmer 1.2s linear infinite;
   border-radius: inherit;
 }
 
@@ -778,27 +767,36 @@
   transform: rotate(-6deg);
 }
 
-/* ---------- 展开/收起动画 ---------- */
+/* ---------- 展开/收起动画（grid-template-rows 真实高度过渡，替代 max-height 3000px） ---------- */
+.expand-shell {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.expand-clip {
+  overflow: hidden;
+  min-height: 0;
+}
+
 .expand-enter-active,
 .expand-leave-active {
   transition:
-    opacity 220ms var(--ease-spring),
-    max-height 350ms var(--ease-spring),
-    transform 280ms var(--ease-spring);
-  overflow: hidden;
+    grid-template-rows 280ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 200ms ease-out,
+    transform 240ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .expand-enter-from,
 .expand-leave-to {
   opacity: 0;
-  max-height: 0;
-  transform: translateY(-8px);
+  grid-template-rows: 0fr;
+  transform: translateY(-6px);
 }
 
 .expand-enter-to,
 .expand-leave-from {
   opacity: 1;
-  max-height: 3000px;
+  grid-template-rows: 1fr;
   transform: translateY(0);
 }
 
@@ -2866,6 +2864,11 @@
   padding-top: 10px;
 }
 
+/* ================================================================
+   reduced-motion 基线 —— 必须留在**文件末尾**
+   reduce 规则与目标动画规则同特异性时靠源序取胜，前置会被本文件后半段的
+   动画规则反超而静默失效（.skeleton-line:477 / forum-card-in:533 / .expand-*:834）。
+   ================================================================ */
 @media (prefers-reduced-motion: reduce) {
   .page-content.community-list-content,
   .content-home-host,
@@ -2874,4 +2877,46 @@
   .community-shell.feed-switching .forum-page.embedded-mode .forum-container {
     animation: none;
   }
+
+  /* Tab 切换：方向规则含 :not(.is-leaving) 或 .is-leaving，特异性均为 0,4,0，
+     reduce 选择器必须**同级且更靠后**才压得住 —— 只写 `.… .tab-page`（0,3,0）不够。
+     同时需一并覆盖 ≤768px 媒体块里的同名方向规则（同样在本文件更靠前处）。 */
+  .tab-page,
+  .tab-page.is-leaving,
+  .user-space-page.tab-transition-forward .tab-page,
+  .user-space-page.tab-transition-back .tab-page,
+  .user-space-page.tab-transition-forward .tab-page:not(.is-leaving),
+  .user-space-page.tab-transition-back .tab-page:not(.is-leaving),
+  .user-space-page.tab-transition-forward .tab-page.is-leaving,
+  .user-space-page.tab-transition-back .tab-page.is-leaving {
+    animation: none;
+    will-change: auto;
+  }
+
+  /* 骨架 / 徽章 shimmer 静止（目标规则在 :477 / :735） */
+  .skeleton-block,
+  .skeleton-line,
+  .badge-loading::after {
+    animation: none;
+  }
+
+  /* 展开 / 收起瞬时（目标规则在 :834 附近） */
+  .expand-enter-active,
+  .expand-leave-active {
+    transition-duration: 1ms;
+  }
+
+  /* 列表入场：位移 / 缩放降级为纯淡入；--item-index stagger 延迟保持不变。
+     用 .user-item 而非 .community-users-list .user-item —— 生日列表等其他
+     消费方同样需要降级。 */
+  .user-space-page .forum-page.embedded-mode .post-card,
+  .user-space-page .forum-page.embedded-mode .post-composer,
+  .user-item {
+    animation-name: reduce-fade;
+    animation-duration: 150ms;
+  }
+}
+
+@keyframes reduce-fade {
+  from { opacity: 0; }
 }

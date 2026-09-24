@@ -354,9 +354,11 @@ async function confirmPurchase() {
   transition: transform 180ms cubic-bezier(0.32, 0.72, 0, 1), box-shadow 180ms ease, border-color 150ms ease, background-color 150ms ease;
 }
 
-.afg-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.09);
+@media (hover: hover) and (pointer: fine) {
+  .afg-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.09);
+  }
 }
 
 .afg-card:active {

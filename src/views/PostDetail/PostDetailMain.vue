@@ -514,6 +514,8 @@ const focusModalReply = () => {
 };
 
 // 整页 fixed 底栏的键盘适配：键盘弹出时以 --pd-dock-inset 抬升到底部可视区上沿（iOS Safari 必需）
+// ⚠️ 这是「连续跟随视觉视口」的 dock 语义（无阈值、resize+scroll 逐帧贴上沿），
+// 与 composables/useKeyboardInset.js 的「阈值化 --kb-inset（容器收缩类修复）」语义不同，勿互相替代。
 let dockViewportHandler = null;
 const updatePageDockInset = () => {
   if (props.modalMode) return;
@@ -2188,6 +2190,7 @@ const handleChangeCommentSortMode = async (mode) => {
             <div class="pd-actionbar">
               <input v-if="isLoggedIn" ref="modalReplyField" v-model="replyContent" type="text" class="pd-reply-input"
                 :placeholder="replyToUser ? `回复 @${replyToUser}...` : '说点什么...'" maxlength="2000"
+                enterkeyhint="send"
                 @focus="focusModalReply" @keydown.enter="onModalReplyEnter" />
               <button v-else type="button" class="pd-reply-input pd-reply-input--guest" @click="showLoginModal = true">
                 说点什么...
@@ -2383,6 +2386,7 @@ const handleChangeCommentSortMode = async (mode) => {
     <div v-if="!modalMode && post" class="pd-actionbar pd-actionbar--page">
       <input v-if="isLoggedIn" ref="modalReplyField" v-model="replyContent" type="text" class="pd-reply-input"
         :placeholder="replyToUser ? `回复 @${replyToUser}...` : '说点什么...'" maxlength="2000"
+        enterkeyhint="send"
         @focus="focusModalReply" @keydown.enter="onModalReplyEnter" />
       <button v-else type="button" class="pd-reply-input pd-reply-input--guest" @click="showLoginModal = true">
         说点什么...

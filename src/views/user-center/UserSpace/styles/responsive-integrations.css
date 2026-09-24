@@ -495,14 +495,49 @@
   }
 }
 
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
+/* ⚠️ `.fade` 是**全站共享**过渡名（18 处使用），其中包含 PostCreateModal /
+   ProfileEditModal 这类 `<Teleport to="body">` + `position: fixed; inset: 0`
+   的满屏遮罩。满屏元素上的任何 transform 都会在入场瞬间露出未被覆盖的
+   边缘（遮罩缩到 0.97 会留出约 1.5% 的缝），因此这里**只允许 opacity**。
+   弹窗的「浮入」手感由各自卡片自身的 `.modal-card { animation: modalIn }` 承担。
+   若确需给某个遮罩加位移，请另起独立的过渡名，勿改本规则。 */
+.fade-enter-active {
+  transition: opacity 220ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-.fade-enter-from,
+.fade-leave-active {
+  transition: opacity 160ms ease-out;
+}
+
+.fade-enter-from {
+  opacity: 0;
+}
+
 .fade-leave-to {
   opacity: 0;
+}
+
+/* 主题勾选弹入（svg 需声明 transform-box 才能绕自身中心缩放） */
+.check-pop-enter-active {
+  transition: transform 240ms cubic-bezier(0.34, 1.5, 0.64, 1), opacity 180ms ease-out;
+}
+
+.check-pop-enter-from {
+  opacity: 0;
+  transform: scale(0.5);
+}
+
+.check-pop-leave-active {
+  transition: opacity 100ms ease-out;
+}
+
+.check-pop-leave-to {
+  opacity: 0;
+}
+
+.theme-check {
+  transform-origin: center;
+  transform-box: fill-box;
 }
 
 /* ============================================
@@ -537,9 +572,11 @@
   position: relative;
 }
 
-.theme-option:hover {
-  background: #f1f5f9;
-  transform: translateY(-2px);
+@media (hover: hover) and (pointer: fine) {
+  .theme-option:hover {
+    background: #f1f5f9;
+    transform: translateY(-2px);
+  }
 }
 
 .theme-option.active {
@@ -1201,5 +1238,20 @@
   margin: 0;
   color: rgba(29, 29, 31, 0.62);
   font-size: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-enter-active,
+  .fade-leave-active,
+  .check-pop-enter-active,
+  .check-pop-leave-active {
+    transition-duration: 1ms;
+  }
+
+  /* .fade-enter-from 不再带 transform（见上方说明），故无需 transform 复位 */
+
+  .theme-option:hover {
+    transform: none;
+  }
 }
 
