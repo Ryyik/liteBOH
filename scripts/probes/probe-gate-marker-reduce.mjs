@@ -49,9 +49,7 @@ try {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
     const page = await ctx.newPage();
     await page.addInitScript(() => {
-      // 预置一个「1 小时前看过」的标记（窗口内）→ 应跳过
-      const key = `boh-home-gate-passed:${document.querySelector('meta[name="boh-build-id"]')?.content || 'x'}`;
-      // build-id 在 dev 为空 → key 不带后缀；直接按前缀写
+      // 预置一个「1 小时前看过」的标记（窗口内）→ 应跳过（dev 无 build-id → key 不带后缀）
       localStorage.setItem('boh-home-gate-passed', String(Date.now() - 3600_000));
     });
     await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
