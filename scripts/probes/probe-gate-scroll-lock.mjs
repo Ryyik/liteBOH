@@ -12,7 +12,7 @@
  */
 import { chromium } from 'playwright';
 
-const BASE = 'http://localhost:5173';
+const BASE = process.argv[2] || 'http://localhost:5173';
 const browser = await chromium.launch({
   channel: 'chrome',
   args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*']
