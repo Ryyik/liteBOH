@@ -67,12 +67,12 @@ export const dataConfig = {
       { key: 'is_banned', label: '封禁', type: 'badge' },
       { key: 'is_muted', label: '禁言', type: 'badge' },
       { key: 'points', label: '积分', type: 'number' },
-      { key: 'created_at', label: '注册时间', type: 'date' }
+      { key: 'join_date', label: '注册时间', type: 'date' }
     ],
     fields: [
       { key: 'id', label: '用户ID', type: 'text', disabled: true, hint: 'UUID 主键由系统生成，不可手动修改。', group: 'basic' },
       { key: 'username', label: '用户名', type: 'text', required: true, maxLength: 32, group: 'basic' },
-      { key: 'email', label: '邮箱', type: 'email', maxLength: 100, placeholder: 'example@domain.com', group: 'basic' },
+      { key: 'email', label: '邮箱', type: 'email', disabled: true, hint: '邮箱由认证服务持有（profiles 表无此列），后台只读；变更请走账号绑定流程。', group: 'basic' },
       { key: 'role', label: '角色', type: 'select', options: USER_ROLE_OPTIONS, group: 'basic' },
       { key: 'points', label: '积分', type: 'number', min: 0, group: 'stats' },
       { key: 'experience', label: '经验值', type: 'number', min: 0, group: 'stats' },
@@ -1215,19 +1215,14 @@ export const dataConfig = {
     }
   },
   // ========== Cloudinary 待上传 ==========
-  cloudinaryUploads: {
-    table: 'cloudinary_pending_uploads',
-    columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
-      { key: 'username', label: '用户名' },
-      { key: 'status', label: '状态', type: 'badge' },
-      { key: 'error_message', label: '错误', maxLength: 30 },
-      { key: 'retry_count', label: '重试次数', type: 'number' },
-      { key: 'created_at', label: '创建时间', type: 'datetime' },
-      { key: 'updated_at', label: '更新时间', type: 'datetime' }
-    ],
-    fields: []
-  },
+  // 注意：原 `cloudinaryUploads`（上传队列）页签已于 2026-09-24 摘除。
+  // 该表 cloudinary_pending_uploads 不是「上传队列」，而是「上传归属台账」
+  // （Edge Function cloudinary-delete 的归属校验依赖它），**表必须保留**；
+  // 但页签的列配置基于已废弃的重试队列语义（status/error_message/retry_count 均不存在），
+  // 且其 delete 动作是硬删台账行（不删 Cloudinary 文件、也不标 deleted_at），
+  // 会让用户此后无法删除自己的图片（EF 查不到归属 → 403），故页签一并摘除。
+  // 详见 docs/2026-09-24-数据管理面板列错误查错报告.md 第四节。
+
   // ========== API Key 审计日志 ==========
   apiKeyAuditLogs: {
     table: 'api_key_vault_audit_logs',
@@ -1236,7 +1231,7 @@ export const dataConfig = {
       { key: 'action', label: '操作', type: 'badge' },
       { key: 'provider', label: '供应商' },
       { key: 'purpose', label: '用途' },
-      { key: 'operator_name', label: '操作人' },
+      { key: 'actor_id', label: '操作人ID', maxLength: 24 },
       { key: 'created_at', label: '时间', type: 'datetime' }
     ],
     fields: []
@@ -1246,7 +1241,7 @@ export const dataConfig = {
     table: 'ai_web_search_log',
     columns: [
       { key: 'id', label: 'ID', maxLength: 12 },
-      { key: 'username', label: '用户名' },
+      { key: 'user_id', label: '用户ID', maxLength: 24 },
       { key: 'tier', label: '档位', type: 'badge' },
       { key: 'status', label: '状态', type: 'badge' },
       { key: 'settled_at', label: '结算时间', type: 'datetime' },
@@ -1260,7 +1255,7 @@ export const dataConfig = {
     columns: [
       { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'username', label: '用户名' },
-      { key: 'plan_code', label: '方案' },
+      { key: 'granted_plan_code', label: '方案' },
       { key: 'started_at', label: '开始时间', type: 'datetime' },
       { key: 'expires_at', label: '到期时间', type: 'datetime' },
       { key: 'created_at', label: '领取时间', type: 'datetime' }
@@ -1454,7 +1449,7 @@ export const dataConfig = {
     columns: [
       { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'title', label: '标题', maxLength: 20 },
-      { key: 'target_username', label: '寿星' },
+      { key: 'target_name', label: '寿星' },
       { key: 'celebration_date', label: '庆祝日期', type: 'date' },
       { key: 'is_active', label: '状态', type: 'badge' },
       { key: 'sort_order', label: '排序', type: 'number' },

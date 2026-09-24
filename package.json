@@ -1,7 +1,7 @@
 {
   "name": "bohvue",
   "private": true,
-  "version": "6.3.3",
+  "version": "6.4.1",
   "sideEffects": [
     "*.css",
     "*.vue",
@@ -30,6 +30,12 @@
     "check:sw-upgrade": "node scripts/check-sw-upgrade-precache-gc.mjs",
     "probe:ai-panels": "node scripts/probes/probe-ai-panels.mjs",
     "probe:route-switch": "node scripts/probes/probe-route-switch.mjs",
+    "probe:dm-errors": "node scripts/probes/probe-datamanagement-errors.mjs",
+    "audit:dm-columns": "node scripts/probes/audit-datamanagement-columns.mjs",
+    "audit:dm-columns:live": "node --env-file=.env scripts/probes/verify-datamanagement-columns-live.mjs",
+    "audit:dm-writable": "node scripts/probes/verify-datamanagement-writable-fields.mjs",
+    "audit:dm-schema-refresh": "python3 scripts/probes/fetch-db-schema.py",
+    "audit:dm": "npm run audit:dm-columns; npm run audit:dm-columns:live; npm run audit:dm-writable",
     "probe:userspace-switch": "node scripts/probes/probe-userspace-switch.mjs",
     "probe:userspace-pages": "node scripts/probes/probe-userspace-pages.mjs",
     "probe:passkey": "node scripts/probes/probe-passkey-login.mjs",

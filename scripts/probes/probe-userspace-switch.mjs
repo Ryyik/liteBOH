@@ -23,6 +23,12 @@ const OUT = process.argv[4] || '/tmp';
 const TAB_CONTAINER_SELECTORS = ['.userspace-rail', '.userspace-bottom-nav', '.user-space-page'];
 const TAB_ITEM_SELECTOR = '[data-tab], [data-userspace-tab]';
 
+/* 2026-09-22 首页社区化改版：底栏/左栏改为全站同源四席「方块 / 消息 / 设置 / 我的」，
+   其中「方块」是**跨模块导航**（回首页论坛），点它会离开 UserSpace —— 混在分区切换里测
+   会让后续测量全部落在首页（探针曾因此全线 —ms）。这里显式排除。
+   同时 UserSpace 已不再有 community 分区（论坛迁到首页）。 */
+const CROSS_MODULE_TAB_IDS = new Set(['blocks']);
+
 const browser = await chromium.launch({
   channel: 'chrome',
   args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*'],
@@ -120,7 +126,10 @@ try {
     console.log(`[us-switch] 未渲染 user-space-page；首屏文本：「${recon.text}」`);
   }
 
-  const tabs = recon.tabs;
+  const tabs = recon.tabs.filter((id) => !CROSS_MODULE_TAB_IDS.has(id));
+  if (recon.tabs.length !== tabs.length) {
+    console.log(`[us-switch] 跳过跨模块导航项：${recon.tabs.filter((id) => CROSS_MODULE_TAB_IDS.has(id)).join(', ')}（点击会离开 UserSpace，无法测量本页分区切换）`);
+  }
   if (tabs.length < 2) {
     console.log('[us-switch] 可切换分区不足 2 个，无法测量切换——请检查登录态或选择器');
     await page.screenshot({ path: `${OUT}/us-recon.png` });
@@ -210,7 +219,6 @@ try {
       ['panel', null],
     ];
     const PANEL_SEL = {
-      community: '.community-forum-host > *',
       posts: '.content-home-host > *',
       assets: '.assets-shell .profile-page-content > *',
       messages: '.messages-host > *',

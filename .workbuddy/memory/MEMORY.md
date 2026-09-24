@@ -1,105 +1,67 @@
 # BOHLITE 长期记忆（只放跨会话硬规则与易踩坑；细节见日期日志 / docs / plans）
 
 ## 环境 / 探针
-- hash 路由；dev 只听 IPv6 → `http://[::1]:5173`（preview `:4180`）。构建验证用 `vite build --outDir dist-check`（**勿动 dist**）。
-- playwright：必加 `--no-proxy-server --proxy-server=direct:// --proxy-bypass-list=*`；内核未装用 `channel:'chrome'`；一 browser + 每场景新 context；**同一 path 只注册一条 `page.route`**（后注册短路前序）；mock Supabase 必回 `Access-Control-Expose-Headers: Content-Range`。
-- 伪造登录：注 pinia（合法 UUID），**禁种 `sb-*-auth-token`**；切路由用 `location.hash`。`vite-error-overlay` 可能跨路由残留 → 截图前先点掉。
-- ⚠️ 本机 zsh：`grep` 多模式 `\|` **静默失效**（返回空不报错）、`--include` 报 no matches → 一律用专用搜索工具。
-- **改完必反证**：stash（带 pathspec，先看 `git stash list`）→ 记红 → pop → 复跑全绿。
+- hash 路由；dev 只听 IPv6 → `http://[::1]:5173`（preview `:4180`）。构建验证 `vite build --outDir dist-check`（**勿动 dist**）。
+- playwright：必加 `--no-proxy-server --proxy-server=direct:// --proxy-bypass-list=*`；内核未装用 `channel:'chrome'`；一 browser+每场景新 context；**同一 path 只注册一条 page.route**；mock Supabase 必回 `Access-Control-Expose-Headers: Content-Range`。
+- 伪造登录：注 pinia（合法 UUID），**禁种 `sb-*-auth-token`**；切路由用 `location.hash`；截图前点掉残留 `vite-error-overlay`。
+- ⚠️ 本机 zsh `grep` 多模式 `\|` 静默失效 → 一律用专用搜索工具。**改完必反证**：stash(pathspec)→记红→pop→复跑全绿。
 
-## 网络 / 推送（本机长期限制）
-- ⚠️ **`github.com` HTTPS 被 SNI 阻断**（TCP 通、TLS 失败）→ HTTPS 形式的 `git push` 无解；**SSH 无 SNI**，`ssh.github.com:443` 可用且**公钥已注册**（`ssh -T git@github.com` → `Hi Ryyik!`），remote = `git@github.com:Ryyik/liteBOH.git`。
-  - ⚠️ 该通道**间歇抖动**（2026-09-22 实测：6 次采样 3 成功），同期 `api.github.com` 3/3 正常。**规则：改动文件多（含图片）先试 SSH，失败重试 1~2 次；只改 1~3 个小文件或要确定性 → 直接走 API 脚本。**
-  - git 调 ssh **不带连接超时** → 抖动时白等 75s；已设仓库级 `core.sshCommand="ssh -o ConnectTimeout=15"`。
-  - 注册公钥只能由**人**做（`gh ssh-key add` 缺 `admin:public_key` scope）→ `pbcopy < ~/.ssh/id_ed25519.pub` + `open https://github.com/settings/ssh/new`。
-  - 兜底 **`scripts/push-via-api.py`**（GitHub Git Data API 走可用的 api.github.com；复现 commit 元数据使 SHA 与本地一致；默认干跑，`--apply` 才推；认 https/git@ 前缀，换 remote 不破坏）。⚠️ 用它时**必须保留代理变量**：`env -u HTTP_PROXY …` 会让首个 API 调用 `RemoteDisconnected`，别据此判「网络没问题」。
-- ⚠️ **Supabase 5432 时通时断**（`tls error EOF`）→ `db push` 不可靠；改走 Management API（`read_only:false`）执行语句 + 手工写 `supabase_migrations.schema_migrations`（`version/name/statements text[]`），与语句**同一事务**。
-- 日志端点 `…/analytics/endpoints/logs.all` 时间参数**必须 ISO8601**；⚠️ 其时间窗过滤自相矛盾（24h 4629 行、72h 0 行）→ **不可用于判断「是否调用过」**。
-- Management API 凭据：钥匙串 `Supabase CLI` 条目 = `go-keyring-base64:` + base64(sbp_ PAT)，剥壳解码可直调 api.supabase.com；其 `webauthn_rp_origins` 要**逗号字符串**（数组 400）。
-- ✅ Supabase CLI 本机已登录可用（`npx supabase functions list / secrets list / migration list` 实测均通）→ 查远端部署状态首选它，不必绕 Management API。
-- ⚠️ **本机 curl 到 `<ref>.supabase.co`（Edge Function 域名）不通**（HTTP 000；只回代理的 `200 Connection Established`），而 `api.supabase.com` 通 → **验证 EF 必须走 DB 侧**：`net.http_post(...)` 发起 + 查 `net._http_response`（含 status_code/content）看结果。这恰好是 cron 的真实路径，验证价值更高。
-- ⚠️ `supabase secrets set` **一次只能设一个 `KEY=value`**（多值会失败，且只提示 "Try rerunning with --debug"，无有效原因）。
-- ⚠️ 部署 EF 用 `--no-verify-jwt` 时需确认函数内部对每个 action 都自校验（本项目 push-send 已做到），否则等于对外开放。
+## 网络 / Supabase（本机长期限制）
+- `github.com` HTTPS 被 SNI 阻断 → push 走 **SSH**（`ssh.github.com:443`，公钥已注册，remote `git@github.com:Ryyik/liteBOH.git`，仓库级 `core.sshCommand` ConnectTimeout=15）；抖动重试 1~2 次；小改动/要确定性 → 兜底 `scripts/push-via-api.py`（默认干跑 `--apply` 才推；**必须保留代理变量**）。注册公钥只能人做。
+- Supabase 5432 时断 → 迁移走 Management API（`read_only:false`）+ 手写 `schema_migrations`（同事务）。CLI 本机已登录（查部署状态首选）。curl 到 `<ref>.supabase.co` 不通 → **验证 EF 走 DB 侧** `net.http_post` + 查 `net._http_response`。`secrets set` 一次一个；`secrets list` DIGEST=sha256(值)。
+- logs.all 时间窗自相矛盾 → 不可判断「是否调用过」；判调用用 `pg_stat_statements`（扣探针；无事件≠调用者消失；别用 `_rate_limits`）。Management API 凭据在钥匙串 `Supabase CLI`（go-keyring-base64 壳）。
 
-## CI 门禁
-- 链序：views → structure → liquid-glass → **important-budget** → dark-tokens(观察) → first-paint → build → shell-precache → bundle。CI 中途断则后续没跑 → 本地跑全链。
-- 新文件用 `!important` 须同步 `scripts/important-budget.json`（只查单文件超基线）。例外：`html.<页> body{overflow:visible!important}`。
-- ⚠️ 往 workflow 加步骤前**先确认该 job 有没有 checkout**：`deploy` job 只跑 `actions/deploy-pages`、无源码 → `node scripts/…` 会 `MODULE_NOT_FOUND` 染红整个 run（Pages 部署本身是成功的）。
-
-## Supabase 授权（安全核心 · 最易踩）
+## Supabase 授权（安全核心）
 - ref `nplnlefdwfgtyimfkyih`；迁移名 `YYYYMMDDNN_snake.sql`，结尾 `notify pgrst,'reload schema'`。
-- ⚠️ **撤 EXECUTE 必须 `from anon, authenticated, public`**：函数 EXECUTE 有 PUBLIC 内建授权，anon 经 PUBLIC 继承 → 只撤 anon 无效（实测）。表级授权是显式 grant 给 anon（无 PUBLIC 份额），撤 anon 即可；anon 另持 TRUNCATE（**不受 RLS 约束**）。
-- ⚠️ **`alter default privileges` 保证不了增量安全**：`pg_default_acl` 另有 `defaclrole=supabase_admin` 一条改不动（42501）→ 新建函数照样匿名可调。**增量护栏放仓库侧**：`scripts/check-anon-execute.mjs` + `anon-execute-baseline.json`（棘轮，超出即 exit 1，`--update` 只能下调）。**不接 `build:ci`**（CI 只有 anon key，接了 = 永远降级跳过 = 假门禁）。
-- ⚠️ **撤权前五项核查**：`pg_depend` / 全库 `pg_get_functiondef` 扫库内调用（**须匹配裸调用名**，漏 `public.` 前缀会漏判）/ EF 调用 / 前端调用点 / **是否被 RLS 策略引用**（策略按查询者角色求值 → `current_user_is_admin` 不能撤 anon，撤了游客查询 42501）。
-- **撤权优先于 drop**（效果相同，`revoke` 可一条 `grant` 秒回滚）。普通用户路径调用的函数（发帖/点赞/抽奖/评论）**只能撤权、不能加 `auth.role()` 门**。
-- 新表 revoke 后须**分别** grant anon + authenticated（漏 anon → 42501，mock 不暴露）；service_role 下 `auth.uid()` 为 NULL → security definer 拆内部函数。
-- `executeRead(scope, params, fetcher, options)`，**options 第 4 参**；**fetcher 必须返回 `{data,error}`**（返回数组 → data 恒 null 且不报错）。取消唯一出口 request-core `code:'ABORTED'`（消费侧判 `aborted || code==='ABORTED'`）。`clearAuthReadCache` 无人调用；getCache 命中不回插 → 注释写 LRU 实为 **FIFO**。
-- `supabase secrets list` 的 DIGEST = **`sha256(值)`（不含换行）** → 让用户自查 `printf '%s' '值' | shasum -a 256`。⚠️ 无创建时间/作者 → 「谁配的」只能反查代码。
-- ⚠️ **EF 必须在请求处理内读 `Deno.env.get()`**：模块顶层读会被复用 isolate 缓存 → 改 secret「看起来没生效」。
+- 撤 EXECUTE 必须 `from anon, authenticated, public`（PUBLIC 内建份额）；表级撤 anon 即可（anon 另持 TRUNCATE，不受 RLS 约束）。撤权优先于 drop。普通用户路径函数只能撤权、不能加 `auth.role()` 门。service_role 下 `auth.uid()` 为 NULL。
+- ⚠️ `alter default privileges` 管不住 supabase_admin 默认 ACL → 增量护栏在仓库侧：`scripts/check-anon-execute.mjs` + `anon-execute-baseline.json`（棘轮；**不接 build:ci**，CI 只有 anon key）。
+- 撤权前五项核查：pg_depend / 全库 `pg_get_functiondef` 扫调用（含裸名）/ EF / 前端调用点 / **RLS 策略是否引用**（`current_user_is_admin` 不能撤 anon）。新表 revoke 后分别 grant anon+authenticated（漏 anon→42501）。
+- `executeRead(scope,params,fetcher,options)`：options 第 4 参；fetcher 必须返回 `{data,error}`；取消唯一出口 `code:'ABORTED'`；authReadCache 实为 FIFO。
+- **凭据一律走 Vault**（`vault.create_secret` + 读 `vault.decrypted_secrets`）：`alter database set app.settings.*` 实测 42501 已证伪。EF 必须在请求处理内读 `Deno.env.get()`（顶层读被 isolate 缓存）。drop 列前全库 grep 触发器/函数/视图引用 + 迁移后真实冒烟。
 
-## 安全现状（2026-09-22；详见 `docs/2026-09-21-安全审计报告核验与全量复检.md`）
-- **既有安全报告主体已过期**（`docs/boh-full-health-check-2026-06-26.md` 第一章 72/100）→ 引用前按 `pg_policy` 现时点复核。
-- ✅ 已修：`resolve_email_for_login` 去邮箱化（登录走 `auth-login` EF、降级分支已删除、迁移 `2026092103` 撤权，匿名实测 **401 42501**）；anon 可执行函数 232→**155**、anon 可写表 75→**0**；Cloudinary 切**签名上传**（`BOHIMG_SIGNED`）。
-- ✅ 安全响应头**已上线（2026-09-22 实测）**：`deploy` job 的 `cloudflare-security-headers.mjs` 输出「已应用」，线上 `www.blockofhome.cn` 实取到 HSTS / X-Content-Type-Options / X-Frame-Options DENY / CSP(report-only) / Permissions-Policy / Referrer-Policy；token 已有 Zone→Config→Edit 权限。此前「零响应头」的结论作废。
-- ✅ **cron 明文密钥 P0 已解决（2026-09-22）**：`job#8`（论坛周报，原本明文密钥 + 硬编码 url）与推送重投 job 都改为从 **Supabase Vault** 读 → 全域 `cron.job.command` 实测已无 `sb_secret`。⚠️ 原记录的改法（`alter database postgres set app.settings.*` + `current_setting`）**已证伪**（42501，postgres 非 superuser），勿再照做。
-- ⬜ 待办：`resolve_email_for_login` 函数本体未 drop（刻意留回滚）；第二阶段 5 项公开页撤权（须先做匿名流量实测）；GoTrue `password_min_length` 仍是 6（8 位策略待前端发布后上调）；iOS「添加到主屏幕」引导 UX（推送转化的真正瓶颈）；国内 Android 通道决策（Pushplus 兜底 / Capacitor+厂商通道）。
-- 判授权现状**只能靠目录快照**：`has_function_privilege` + `pg_get_functiondef` 文本搜门 + `aclexplode` 看 PUBLIC 份额；`git ls-files`/`-S` 查密钥是否进仓。
-- ⚠️ 判「某函数是否还有人调用」用 **`pg_stat_statements`** 查 PostgREST 包装语句 `calls`：① 扣自己的探针调用；② 窗口内无事件时「不增长」**不能证明**调用者消失；③ **不要用 `_rate_limits`**（实测不留键）。
+## 安全现状（2026-09-22 复检；详见 `docs/2026-09-21-安全审计报告核验与全量复检.md`）
+- 旧健康检查报告（boh-full-health-check-2026-06-26）主体过期，引用前按 pg_policy 复核。
+- 已修：`resolve_email_for_login` 撤权（登录走 auth-login EF）；anon 可执行函数 232→155、anon 可写表 75→0；Cloudinary 签名上传；安全响应头经 CF 上线；cron 明文密钥 P0 改 Vault 读。
+- 待办：第二阶段 5 项公开页撤权（先匿名流量实测）；GoTrue `password_min_length` 仍 6；iOS「添加到主屏幕」引导 UX；国内 Android 推送通道决策。
 
-## 注册 / 认证链（`/join`、`/login`、`auth-login` EF）
-- **邮箱验证已生效（2026-09-22）**：`mailer_autoconfirm=false`（SMTP=Brevo，凭据在本机 Supabase CLI 钥匙串；模板已品牌化）。GoTrue 备忘：**gmail 规范化剥 +tag**（别名测试会撞已有账号）、signup 未确认响应 `{session:null,user:null}`（分流只能判 session）、未确认登录报 `invalid_credentials`（防枚举）。确认邮件为 **token_hash 型** → `origin/?token_hash=..&type=signup`，由 `composables/useSignupEmailConfirmation.js`（App.vue 挂载）消费 → verifyOtp → SIGNED_IN 接管。Brevo key **90 天不活跃过期** → 月度保活自动化已建。
-- **注册 500 已修（2026092201）**：`sync_profile_from_auth_user_insert()` 引用已 drop 的 `profiles.email`。教训：**drop 列前必须全库 grep 触发器/函数/视图引用**，迁移后跑真实注册冒烟。
-- 注册页 = `src/views/Join/index.vue`，**2026-09-22 整页重写为方案 B**（三步向导 + 左侧品牌图 `main1-1280.webp` + 液态玻璃外卡，协议条固定底部，按钮文案跟随步骤）。**导航让位靠 `onMounted` 实测 `.unified-nav` 高度写进 `--join-nav-h`**（写死会在导航改版后静默压内容）。
-- **密码下限 8 位，唯一真源 `src/utils/auth-validation.js#PASSWORD_MIN_LENGTH`**；「当前密码」走 `validateCurrentPassword`（`PASSWORD_MIN_LENGTH_LEGACY=6`，**刻意低于新密码下限**，追平会把历史短密码用户锁死）。⚠️ 服务端是**第二份副本** `supabase/functions/_shared/auth-validation.ts`（Deno 不能 import src）→ 门禁 `npm run check:auth-validation`（已接进 `build:ci`）锁两份一致 + 禁止真源之外硬编码。⚠️ **GoTrue `password_min_length` 实测仍 = 6**，8 位目前只是前端约束（`signUp` 走 `supabase.auth.signUp`，`auth-register` EF 前端根本没调用）。
-- 唯一性：实时查重与提交前预检**共用** `auth-api.js#isUsernameAvailable()`；口径刻意偏严（`ilike` 大小写不敏感，而 `profiles_username_key` 大小写敏感）。
-- 通行密钥：登录页已有；注册流程为「Step 3 可选开关收意图 + 完成页明确按钮执行仪式」（`registerPasskey` 需会话+瞬时用户激活）。**邮箱确认模式不给开关**（无 session 必 401），改给延后提示；挂载点 `useSignupEmailConfirmation.js`。
-- 仍未做：生日只有 `birth_month/birth_day`（**无 `birth_year`**，收年份需先加迁移）；第三方登录 `signInWithOAuth`+`loginWithOAuth` 已有但**无 UI 入口**；无邀请码/推荐码机制。
-- 头像：裁切(`AvatarCropModal`) → 压缩 → 直传 `avatars` bucket → 回写 `profiles.avatar_url`（失败回删，静默不阻断注册）。
+## 数据管理面板（/admin/data-management）
+- 表页签的列**全部声明在** `query-config.js`（TAB_SELECT_COLUMNS / STATUS_FILTER_FIELDS / DATE_FILTER_FIELDS / TAB_SORT_COLUMNS / TAB_SEARCH_FIELDS）+ `config/tables.js`（columns/fields）。列名一旦与 DB 漂移 → PostgREST 400 `42703 column X does not exist` → 前端弹「获取数据失败」。**点开即报 vs 用筛选才报是两套配置，改一处不等于全修**。
+- ⚠️ **`profiles` 表没有 `email` 列**（email 在 `auth.users`，前端靠 RPC `admin_list_users_with_sensitive` 补）。任何 `profile:user_id(username,email)` 内嵌必 400（报 `profiles_1.email does not exist`）。同理 `shipping_*` 也只有 RPC 路径。
+- ⚠️ FK 指向 **`auth.users`** 的列**不能被 PostgREST 内嵌**（跨 schema，报 `PGRST200 Could not find a relationship`）：`ai_web_search_log.user_id`、`api_key_vault_audit_logs.actor_id`、`profiles.banned_by/muted_by`。指向 `public.profiles` 的才可内嵌。
+- `TAB_SORT_COLUMNS` 的值是 **Set**（不是数组），`Object.keys()` 得 `[]` → 会整类漏检。
+- 一键查错四件套：`audit:dm-schema-refresh` / `audit:dm-columns`（静态，秒级离线）/ `audit:dm-columns:live`（真打决定性）/ `probe:dm-errors`（UI 逐页签）。真打**不能剥内嵌**，且必须重试（本机到 supabase 间歇 fetch failed，不重试会把失败误判为通过）。
+- 2026-09-24 首查：14 个页签点开即 400 + 20 处筛选/搜索报错，全部已定位未修，见 `docs/2026-09-24-数据管理面板列错误查错报告.md`。
 
-## 消息中心系统级通知（Web Push / Pushplus）
-- 链路：DB `notifications` AFTER INSERT 触发器 → `push_outbox` → pg_net 调 EF `push-send`(action=send) → 推送服务 → SW `public/push-sw.js` 弹通知；pg_cron 每 2 分钟兜底重投(action=retry)。前端 `src/utils/api/push-api.js` + `components/PushplusSettings`；TWA `enableNotifications:true`（通知委托）。
-- ⚠️ **VAPID 库必须 `jsr:@negrel/webpush`**（`npm:web-push` 依赖 node createECDH/PEM → Deno 报 `crypto.ECDH unimplemented`）。密钥只存 `VAPID_KEYS_JSON` 一个 secret（JWK），生成脚本 `scripts/generate-vapid-keys.mjs`；`VAPID_SUBJECT` 必须 `mailto:` 或 https URL（否则 Apple 403）。
-- ✅ **2026-09-22 已上线**：EF `push-send` 已部署（`--no-verify-jwt`，DB 用自定义凭证非 JWT；函数内逐 action 校验：config 公开 / test 需用户 JWT / send+retry 需 dispatch key）；secrets 有 `VAPID_KEYS_JSON`+`VAPID_SUBJECT`+`BOH_PUSH_DISPATCH_KEY`；触发器与两个 cron 已注册。实测 `config` → `enabled:true`、带凭证 202 / 无凭证 401、造真实通知 outbox 转 `skipped/attempts=1`（整链打通）。⚠️ 仍未验证：**真实设备收到通知**（订阅数为 0）。
-- ⚠️ **凭据一律走 Supabase Vault，不要用 `app.settings`**：`alter database postgres set app.settings.x` 在本项目**实测 42501**（托管环境 postgres 非 superuser）→ 这才是当年把密钥硬编码进 `cron.job` 的真实原因。正解 = `vault.create_secret(值,名,描述)` + 读 `vault.decrypted_secrets`，触发器/cron 都在执行时读，`job.command` 只留名字。凭据名：`supabase_url`、`push_dispatch_key`。
-- ⚠️ **不要试图比对 `SUPABASE_SERVICE_ROLE_KEY`**：其值由平台注入且拿不到明文（digest 与 legacy JWT、当前 sb_secret_ 都不匹配 = 手动设的自定义值）→ 已改用专用 `BOH_PUSH_DISPATCH_KEY`（EF env ↔ vault 同值，digest 两端一致）。ℹ️ digest 校验法：`secrets list` 的 DIGEST == `sha256(值)` 无换行；两端一致性用 DB 侧 `encode(sha256(convert_to(值,'UTF8')),'hex')` 比对。
-- 📦 payload 为 **Declarative 双格式**：顶层 `web_push:8030` + `notification{title,body,navigate,icon,app_badge}` **并保留**扁平字段；`navigate` 必须绝对 URL（用 `VITE_SITE_URL`）。SW 侧 `normalizeTargetUrl()` 把同源绝对地址退化成 `path+hash`，否则页面只 focus 不跳转。
-- ⚠️ **国内 Android 基本死路**：Chrome/TWA 的 Web Push 走 FCM，依赖 GMS（大陆 GMS 设备占比 <1%）→ 国行收不到，只能靠 Pushplus(微信) 兜底；iOS 走 APNs，国内可达。
-- ⚠️ iOS 规则：只在「添加到主屏幕」的 web app 内可订阅（标签页里 `Notification.requestPermission()` 静默失败）；权限必须在用户手势内请求；**绝不能在登出等自动路径 `unsubscribe()`**（Safari 之后拒绝无手势重订阅）；每条 push 必须 `showNotification`，静默推送会让 iOS 取消订阅。Safari 18.4+ 支持 **Declarative Web Push**（payload 顶层 `web_push:8030` + `notification{title,navigate,...}`，免唤醒 SW）。
+## Cloudinary 上传台账（cloudinary_pending_uploads）
+- ⚠️ 表**不是"上传队列"**，是「上传归属台账」：删图 EF 的 `filterOwnedCloudPublicIds`（`cloudinary-delete/index.ts:167`）第一道归属校验就查它 → **不能删表、不能硬删行**（硬删后用户删自己的图会 403「只能删除当前账号已保存的图片」）。
+- ⚠️ **`claimed_at is null` ≠ 可清理**：`markCloudinaryUploadsClaimed` 全仓只有 3 个调用点（`forum/post-api.js:924`、`block-wall-api.js:104`、`UserSpaceMain.vue:2301`），**装修台 HeroConsole/ShopConsole/AvatarConsole 没接** → 它们上传的线上素材永远停在"孤儿"态。实测 20 个"孤儿"里 8 个正被引用（hero 4 / shop 2 / avatar 2）。任何按 `claimed_at is null` 的批量清理都会误删线上素材。
+- 无任何 cron 清理此表；真该清的是 `source='forum' and claimed_at is null and created_at < now()-7d`，且必须走 EF 删 Cloudinary 文件 + 标 `deleted_at`，不能硬删行。
 
-## AI 出口（vault / Worker）
-- 浏览器 → EF `api-key-vault` → 上游；线上唯一生效字段 `bohai_model_configs.api_url`；vault 只说 OpenAI 协议（penalty/stream_options 必清洗，只解析 `choices[0]`）。CF Worker `cloudflare/gemini-proxy/`（改完 `npx wrangler deploy`）；Google 坑：frequency_penalty 400、reasoning_effort 仅 low 且不给 gemma、max_tokens≥512、错误是 JSON 数组。
-- ⚠️ vault `unique(provider,purpose)` 遮蔽自定义上游；localStorage 配置在 vault 端不生效；配额预扣 stringify/4；限流 10 次/分/用户。
-- ⚠️ **AI 面板不能「挂载即打开」**（焦点/取数挂 `watch(modelValue|visible)` 缺 `immediate`；补 `immediate` 也修不好）→ **先预热再打开**（await import → mounted → nextTick → 置 open）。改 AI 页必跑 `scripts/probes/probe-ai-panels.mjs`。
+## 注册 / 认证链（/join、/login、auth-login EF）
+- 邮箱验证已生效：`mailer_autoconfirm=false`（SMTP=Brevo，凭据在 CLI 钥匙串；key 90 天不活跃过期→月度保活已建）。确认邮件 token_hash 型 → `useSignupEmailConfirmation.js` 消费。
+- GoTrue 坑：gmail 剥 +tag；signup 未确认响应 `{session:null,user:null}`；未确认登录报 invalid_credentials；`verifyOtp({type:'recovery'})` 只发 PASSWORD_RECOVERY 不发 SIGNED_IN（已在 auth.ts `updateLocalState` 登录跃迁统一处理）。
+- 注册页 `src/views/Join/index.vue` = 三步向导方案 B（液态玻璃外卡；导航让位靠 onMounted 实测 `.unified-nav` 高度写 `--join-nav-h`）。
+- 密码下限 8 位唯一真源 `src/utils/auth-validation.js`；Deno 副本 `supabase/functions/_shared/auth-validation.ts` → 门禁 `check:auth-validation`（已接 build:ci）；LEGACY=6 刻意低（追平会锁死历史短密码用户）。
+- 查重共用 `auth-api.js#isUsernameAvailable()`（ilike 偏严）。通行密钥：注册=Step3 收意图+完成页执行；邮箱确认模式不给开关（无 session 必 401）。
+- 未做：birth_year（需迁移）；OAuth 登录无 UI 入口；无邀请码机制。头像：裁切→压缩→直传 avatars→回写（失败静默回删）。
 
-## 样式 / 主题
-- `:global(.x)` 被 scoped 压 → 用 `:not()` 提特异性，勿加 important；子组件禁压父级变量 → `var(--x,40px)`。玻璃单源 `tokens.css`（`--liquid-*`）；禁 `content-visibility:auto`；空态统一 `EmptyState.vue`；设置面板用 `settings-glass.css` 的 `gs-*`。
-- **sticky 坑**：全局 `body{overflow-x:hidden}` 使 body 成滚动容器 → sticky 永不吸附；修法：挂载时给 html 加类、卸载移除。暗色真源 `theme-manager.js` + 13 容器白名单。
-- 首屏壳 = `app-*.js` 9 个静态 import；改骨架必跑 first-paint + shell-precache。红线：入口 CSS 必须 render-blocking `<link>`。
+## 消息中心 / Web Push / AI 出口
+- 链路：notifications 触发器 → push_outbox → pg_net → EF `push-send` → 推送服务 → `push-sw.js`；cron 2 分钟重投。VAPID 库必须 `jsr:@negrel/webpush`；密钥单 secret `VAPID_KEYS_JSON`；SUBJECT 必须 mailto:。payload Declarative 双格式（顶层 web_push:8030 + notification，保留扁平字段）；`navigate` 绝对 URL（SW 侧退化成 path+hash）。
+- iOS：仅「添加到主屏幕」内可订阅；权限须用户手势；绝不在自动路径 unsubscribe；每条必须 showNotification。国内 Android 走 FCM 基本死路 → Pushplus(微信) 兜底。
+- AI：浏览器 → EF `api-key-vault` → 上游；唯一生效字段 `bohai_model_configs.api_url`；只说 OpenAI 协议（penalty/stream_options 清洗，只解析 choices[0]）。CF Worker `cloudflare/gemini-proxy/`（改完 wrangler deploy）。Google：frequency_penalty 400、reasoning_effort 仅 low、max_tokens≥512、错误是 JSON 数组。限流 10/分/用户。
+- 改 AI 页必跑 `scripts/probes/probe-ai-panels.mjs`；AI 面板「先预热再打开」（挂载即打开修不好）。
 
-## 性能 / 缓存 / PWA（`docs/2026-09-20-*`）
-- **SW 预缓存**：壳样式进预缓存，其余路由 CSS 由 `workbox.manifestTransforms` 移出 + CacheFirst —— **两半是一对**，删任一半会「有 HTML 无样式」，`check:shell-precache` 断言守。⚠️ manifestTransforms 入参是 `{url,revision,size}` 数组，须返回 `{manifest, warnings}`。
-- `public/_headers` 线上**完全不生效**（Pages + CNAME）→ 这是 version.json/forceUpdate 存在的理由。
-- 路由成本反解：扒 `app-*.js` 的 `__vite__mapDeps([...])`，扣 index.html preload 壳 = 增量。**依赖表看不见二级动态 import**。
-- 版本更新：`buildId = commit + timestamp` → `version-checker.js` 在 `visibilitychange`/路由跳转时**绕过 SW 直接 HTTP 拉** `version.json` 比对，不同即 `forceCleanAndReload`。⚠️ **有 SW 安装中时 `unregister()` 会拖到安装结束才 resolve**。
-- TWA：单源 `android-twa/twa-manifest.json`；**触发路径不含 src/**，但改 `vite.config.js` / `public/icons/**` / `.well-known` **也会触发 APK 构建**；包名签名永久不可换。`push-sw.js` 由 `workbox.importScripts` 拼进 generateSW 产物 → **必须是经典脚本**（不能 import/export），删掉会让线上 sw.js importScripts 404、整个 SW 装不上。
+## 样式 / 主题 / 性能 / PWA / CI
+- 玻璃单源 `tokens.css`（--liquid-*）；子组件禁压父级变量→`var(--x,40px)`；空态统一 EmptyState.vue；设置面板用 settings-glass.css。sticky 坑：全局 overflow-x:hidden 使 body 成滚动容器→挂载给 html 加类。暗色真源 theme-manager.js + 13 容器白名单。
+- 首屏壳 = app-*.js 9 个静态 import；改骨架必跑 first-paint + shell-precache；入口 CSS 必须 render-blocking link。**页面底色纯白**：`tokens.css --boh-page-bg` + `index.html` 骨架 `.boh-boot` + `Home/style.scoped.css` fallback **三处同步**（check:first-paint 断言）；暗色仍暖炭 #16120e。
+- 首页 `/` = **一次性街景开场层**（`.home-gate` 用 `position: fixed` 覆盖视口；标记 `sessionStorage['boh-home-gate-passed']`，删掉它刷新即可重看）→ 线性 1080ms 退出 → 方块论坛铺满，**不支持上滑回开场画**。⚠️ 不要为「锁开场画滚动」新增 `!important`：style.global.css 里 html/body/.home 都带 `!important`，覆盖必撞 important-budget 棘轮 —— fixed 覆盖层 + 进入瞬间 `window.scrollTo(0,0)` 即可。
+- SW 预缓存两半一对（壳样式预缓存 + manifestTransforms 移路由 CSS），删任一半「有 HTML 无样式」。`public/_headers` 线上不生效→靠 version-checker（visibilitychange/路由时绕 SW 拉 version.json）。`push-sw.js` 必须经典脚本（importScripts 拼接）。
+- TWA：单源 `android-twa/twa-manifest.json`；改 vite.config / public/icons / .well-known 也触发 APK 构建。
+- CI 链序 views→structure→liquid-glass→important-budget→dark-tokens→first-paint→build→shell-precache→bundle；新 `!important` 同步 important-budget.json（例外 html.<页> body overflow:visible）；deploy job 无 checkout，别往里加 node 脚本。
 
-## UserSpace / 切换（`docs/2026-09-20-*`）
-- ✅ `boundaryErrored` 只在**真错误态**自增 boundaryKey。⚠️ 只能挂 `route.path`，不能挂 `fullPath`。
-- 分区单源 = URL `view`；`resolveSectionFromRoute` 遇「URL tab ≠ 当前 tab」**拒采信**。forumData 是 shallowRef → 感知态走 prop；主 feed 走 keyset 直查 posts（RPC 主列表不生效）。
-- 探针坑：① 未过 `requiresLogin` 走 `next(false)`+弹登录岛、hash 不变 → 「主内容类名变化」会命中 `boh-login-modal-overlay`；伪造登录每次测量前**幂等补打**。② `.community-forum-host` 是 `display:contents`（0×0）→ 判据落真盒子根。③「返回耗时」测**数据就位**（在途请求落定 + 静默 500ms）。
-- 分区过渡已成熟（`userspace-tab-in/out-*`）**不要重造**；`preloadSettingsSubPanels()` 的**模块说明符必须与 defineAsyncComponent 一致**。**生产构建剥掉 Vue 告警，「没告警」不能当依据**。
-- 横屏左栏判据 landscape + ≥1024 + ≥600（3 处同步）；`probe-user-space-ia.mjs` 基线 79 PASS / 1 FAIL（既有）。`CommunityTab.vue` **30s 轮询**。
-
-## 活动 / 头像框
-- 日期单源 `utils/activity-date.js`（禁 `new Date` 宽松解析）；slug 单源 `activity-campaign.js`；**发布后 slug/url 永久不可变**。
-- 清单 **DB 优先合并**（DB 行覆盖同 id 内置行）→ DB 一行 url 写错就顶掉仓库素材且无告警。
-- 框 scale ≈ 1/内孔占比，按孔心裁切；`frameScale` 写错静默回落 1.24。画布 `setPointerCapture` **必须 try/catch**（否则白屏）；手势只能用 CDP `Input.dispatchTouchEvent`。
-
-## 测试约定（vitest）
-- ⚠️ 禁「固定 tick 数」放行事件循环（setImmediate 属 check 阶段）→ 用**条件 + 真实时间上限** `waitUntil(() => …, 5000)`；等假定时器用 `vi.getTimerCount() >= 1`。
-- ⚠️ 未 await 的 promise 会级联污染下一用例 → `afterEach` 先 `await setImmediate` 再 `useRealTimers()`。
-- ⚠️ **跨用例 void 异步尾随会插进下个用例 beforeEach 的 `mockReset()` 窗口**：rpc 无实现返回 undefined → 解构 TypeError 被 catch 静默吞 → 断言永不满足（超时假红）。对策：beforeEach 复位+装实现**同步一口气完成（不留 await 缝隙）**；断言只依赖被测行为本体。mock logger 里 Error `JSON.stringify` 是 `{}`，要看 `constructor.name + stack`。
-- 判「偶发」前先做**因果实验**（参数改极端 + 临时文件复跑），复现不出就别称根因。
-
-## Supabase 客户端（auth-js 行为）
-- ⚠️ **`verifyOtp({type:'recovery'})` 只发 `PASSWORD_RECOVERY`、不发 `SIGNED_IN`** → 挂在 SIGNED_IN 上的登录后置逻辑对令牌/邮件恢复登录**静默失效**。已修：`updateLocalState` 内 isLoggedIn false→true 跃迁统一调 `updateOnlineStatus()`（auth.ts），新增登录入口默认覆盖。
+## UserSpace / 活动 / 测试
+- 论坛 = 底栏第一席「**方块**」（`ForumSectionShell.vue`），**首页 `/` 与 UserSpace 方块分区共用同一份**；分区七席单源 `config/forum-sections.ts`（官方居首、默认落「最新」）。五席底栏 = 方块/我的/资产/消息/设置。首页要自己探测 `#unified-nav-container` 实测高度写 `--userspace-nav-h`（页签顶部避让；UserSpaceMain 有同口径逻辑，首页不经过它）—— 写死 inset 会被悬浮导航胶囊压住页签。
+- ⚠️ ForumMain 里 `watch(..., { immediate: true })` **不得同步调用在下方声明的 `const` 函数**：`fetchForumData` 在 800 行后声明，同步调 → TDZ ReferenceError → 点「关注/新闻/活动」整页被错误边界接管成「页面出了问题」。延迟用 `Promise.resolve().then(...)`；`probe-home-revamp.mjs` 的 C4 会逐分区点击做回归。
+- 分区单源 = URL `view`；`resolveSectionFromRoute` 遇 URL tab ≠ 当前 tab 拒采信。过渡已成熟（userspace-tab-in/out-*）勿重造；`preloadSettingsSubPanels` 模块说明符必须与 defineAsyncComponent 一致；CommunityTab 30s 轮询。生产构建剥 Vue 告警，「没告警」不能当依据。横屏左栏判据 landscape+≥1024+≥600（3 处同步）。
+- 活动：日期单源 `utils/activity-date.js`；slug 单源 activity-campaign.js，发布后永久不可变；清单 DB 优先合并（DB 行覆盖内置行，写错无告警）。框 scale≈1/内孔占比按孔心裁切；画布 setPointerCapture 必须 try/catch；手势用 CDP Input.dispatchTouchEvent。
+- vitest：禁固定 tick 放行 → `waitUntil(...,5000)`；等假定时器用 `vi.getTimerCount()`。afterEach 先 `await setImmediate` 再 useRealTimers。跨用例 void 异步尾随→假红：beforeEach 复位+装实现同步一口气完成。判「偶发」前先做因果实验。

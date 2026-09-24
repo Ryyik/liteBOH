@@ -63,7 +63,6 @@ export const tabs = [
   { id: 'aiWebSearchLog', label: '联网搜索日志', icon: '🔍', module: 'logs' },
   { id: 'apiKeyAuditLogs', label: 'Key审计日志', icon: '📜', module: 'logs' },
   { id: 'labUsageRecords', label: '实验室用量', icon: '🧪', module: 'logs' },
-  { id: 'cloudinaryUploads', label: '上传队列', icon: '☁️', module: 'logs' },
   { id: 'userFollows', label: '关注关系', icon: '👥', module: 'logs' },
   { id: 'userImpressions', label: '访客记录', icon: '👁️', module: 'logs' },
   { id: 'lotterySchedulerLogs', label: '抽奖调度', icon: '⚙️', module: 'logs' },
@@ -182,8 +181,8 @@ export const tabModules = [
     icon: Activity,
     section: 'data',
     defaultTab: 'aiWebSearchLog',
-    tabIds: ['aiWebSearchLog', 'apiKeyAuditLogs', 'labUsageRecords', 'cloudinaryUploads', 'userFollows', 'userImpressions', 'lotterySchedulerLogs', 'userDataExportJobs'],
-    description: 'AI搜索、Key审计、实验室、上传、关注、访客与抽奖调度日志'
+    tabIds: ['aiWebSearchLog', 'apiKeyAuditLogs', 'labUsageRecords', 'userFollows', 'userImpressions', 'lotterySchedulerLogs', 'userDataExportJobs'],
+    description: 'AI搜索、Key审计、实验室、关注、访客与抽奖调度日志'
   },
   {
     id: 'system',
@@ -250,7 +249,6 @@ export const TABS_ACTIONS = {
   'moderation-model': ['view', 'edit'],
   'lab-ai-model': ['view', 'edit'],
   labUsageRecords: ['view'],
-  cloudinaryUploads: ['view', 'delete'],
   userFollows: ['view'],
   userImpressions: ['view'],
   userDataExportJobs: ['view']
@@ -304,7 +302,7 @@ export const ADMIN_PAGE_META = {
   logs: {
     eyebrow: 'Logs',
     title: '日志监控',
-    description: '查看 AI 搜索、Key 审计、实验室用量、上传队列、关注关系和访客记录。',
+    description: '查看 AI 搜索、Key 审计、实验室用量、关注关系和访客记录。',
     icon: Activity
   },
   'shop-console': {

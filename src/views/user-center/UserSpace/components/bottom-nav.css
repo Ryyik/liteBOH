@@ -110,6 +110,36 @@
     box-shadow 220ms ease;
 }
 
+/* 入场：从下方缓慢滑入（2026-09-23 加，2026-09-24 调慢调柔）。
+   用在「首次出现」这一下：首页开场画退场后浮现、UserSpace 首次进入。
+   时长走 --bottom-nav-enter-duration（组件按 props.enterDuration 绑到根元素）——
+   首页要更慢（封面走了大半才浮上来），UserSpace 常显场景用默认 760ms。
+   ⚠️ 组件里的摘类计时（BOTTOM_NAV_ENTER_MS / enterDuration）必须与这里一致。
+   用 keyframes 而不是 transition：基类 transition 是 220ms 缓动（服务 island / 滚动隐藏），
+   入场要的是「浮上来」的柔和落定，两者不能共用一个 transition 声明。 */
+.bottom-nav-glass.is-entering {
+  /* 曲线与首页开场画同族（起步柔、收尾缓）—— 用 easeOutExpo 那类「前段冲出去」的
+     曲线实测看起来仍然像弹上来，和「自然浮现」不是一回事。 */
+  animation: bottomNavSlideIn var(--bottom-nav-enter-duration, 760ms) cubic-bezier(0.32, 0.06, 0.36, 1) both;
+}
+
+@keyframes bottomNavSlideIn {
+  /* ⚠️ 只动独立 translate 属性，绝不能动 transform ——
+     底栏有两套水平定位方案：桌面 left:50% + translateX(-50%)，
+     移动（<768px）left:16px/right:16px 拉伸式（transform 只有 scaleX）。
+     2026-09-24 修：旧 keyframes 在 transform 里写死 translateX(-50%)，
+     移动端上等于多平移半个身位（-195px），动画结束摘类瞬间猛跳回正 ——
+     这就是「底栏浮现位置偏移」。独立 translate 与 transform 互不覆盖，两套方案通吃。 */
+  from {
+    translate: 0 150px;
+    opacity: 0;
+  }
+  to {
+    translate: 0 0;
+    opacity: 1;
+  }
+}
+
 .nav-items {
   --nav-count: 5;
   --active-nav-index: 0;
@@ -258,6 +288,11 @@
   .nav-item,
   .nav-icon {
     transition-duration: 1ms;
+  }
+
+  /* 入场滑入也一并关掉：直接出现在最终位置 */
+  .bottom-nav-glass.is-entering {
+    animation: none;
   }
 
   .nav-item.active .nav-icon {

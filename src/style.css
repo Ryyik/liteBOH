@@ -69,7 +69,9 @@ body {
   margin: 0;
   padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Microsoft YaHei", "微软雅黑", sans-serif;
-  background-color: #ffffff;
+  /* 页面底色走 token（暖白）；暗色在 themes/dark-mode.css 覆写同一变量。
+     fallback #ffffff 仅当 tokens.css 尚未加载时兜底，避免白屏闪。 */
+  background-color: var(--boh-page-bg, #ffffff);
   color: #000000;
   min-height: 100vh;
 }

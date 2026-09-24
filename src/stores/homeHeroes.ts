@@ -73,7 +73,9 @@ export const HOME_HERO_BASELINE: HomeHero[] = [
 const HOME_HERO_SELECT_COLUMNS = [
   'id', 'sort_order', 'is_archived', 'template', 'variant', 'builtin_key',
   'eyebrow', 'title', 'subtitle', 'image_config', 'content_layout', 'links',
-  'split_cards', 'showcase_config', 'label', 'aria_label', 'status', 'published_at', 'published_by',
+  'split_cards', 'showcase_config', 'image_portrait', 'image_landscape',
+  'greeting_text', 'hint_text',
+  'label', 'aria_label', 'status', 'published_at', 'published_by',
   'created_at', 'updated_at', 'created_by', 'updated_by'
 ].join(',')
 
@@ -243,7 +245,7 @@ const normalizeHero = (item: Record<string, unknown>): HomeHero => ({
   id: String(item.id || ''),
   sort_order: Number(item.sort_order) || 0,
   is_archived: Boolean(item.is_archived),
-  template: (['standard', 'overlay', 'split', 'responsive', 'showcase', 'builtin'].includes(String(item.template))
+  template: (['standard', 'overlay', 'split', 'responsive', 'showcase', 'builtin', 'street-scene'].includes(String(item.template))
     ? String(item.template)
     : 'standard') as HomeHeroTemplate,
   variant: item.variant === 'dark' ? 'dark' : 'light',
@@ -256,6 +258,10 @@ const normalizeHero = (item: Record<string, unknown>): HomeHero => ({
   links: normalizeLinks(item.links),
   split_cards: normalizeSplitCards(item.split_cards),
   showcase_config: normalizeShowcaseConfig(item.showcase_config),
+  image_portrait: typeof item.image_portrait === 'string' && item.image_portrait ? item.image_portrait : null,
+  image_landscape: typeof item.image_landscape === 'string' && item.image_landscape ? item.image_landscape : null,
+  greeting_text: typeof item.greeting_text === 'string' && item.greeting_text ? item.greeting_text : null,
+  hint_text: typeof item.hint_text === 'string' && item.hint_text ? item.hint_text : null,
   label: typeof item.label === 'string' && item.label ? item.label : null,
   aria_label: typeof item.aria_label === 'string' && item.aria_label ? item.aria_label : null,
   status: item.status === 'published' ? 'published' : 'draft',
@@ -470,6 +476,10 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
         split_cards: payload.split_cards || null,
         // showcase_config 在迁移中是 NOT NULL；非 showcase 模板使用空对象。
         showcase_config: payload.showcase_config || {},
+        image_portrait: payload.image_portrait || null,
+        image_landscape: payload.image_landscape || null,
+        greeting_text: payload.greeting_text || null,
+        hint_text: payload.hint_text || null,
         label: payload.label || null,
         aria_label: payload.aria_label || null,
         status: 'draft'
@@ -502,7 +512,8 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
       const editableFields = [
         'sort_order', 'is_archived', 'template', 'variant', 'builtin_key', 'eyebrow',
         'title', 'subtitle', 'image_config', 'content_layout', 'links', 'split_cards',
-        'showcase_config', 'label', 'aria_label'
+        'showcase_config', 'image_portrait', 'image_landscape',
+        'greeting_text', 'hint_text', 'label', 'aria_label'
       ] as const
 
       for (const field of editableFields) {

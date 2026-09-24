@@ -1,5 +1,8 @@
 export const TAB_WRITABLE_FIELDS = {
-  users: ['username', 'email', 'role', 'points', 'experience', 'join_date', 'bio', 'avatar_url', 'tags', 'birth_month', 'birth_day', 'pushplus_enabled', 'is_boh_creator', 'creator_platform_ids', 'creator_platform_visibility', 'creator_platform_order', 'showcase_post_ids', 'profile_background_url', 'profile_background_public_id', 'hide_online_status', 'hide_follow_data'],
+  // ⚠️ 邮箱不在此列表：email 属于 auth.users，profiles 表根本没有 email 列
+  //    （后台展示的邮箱是 admin_list_users_with_sensitive RPC 补的，只读）。
+  //    放进来会让「编辑用户」每次都 400 column "email" does not exist。
+  users: ['username', 'role', 'points', 'experience', 'join_date', 'bio', 'avatar_url', 'tags', 'birth_month', 'birth_day', 'pushplus_enabled', 'is_boh_creator', 'creator_platform_ids', 'creator_platform_visibility', 'creator_platform_order', 'showcase_post_ids', 'profile_background_url', 'profile_background_public_id', 'hide_online_status', 'hide_follow_data'],
   points: ['role', 'points', 'experience', 'join_date'],
   subscriptions: ['user_id', 'plan_code', 'plan_name', 'billing_cycle', 'points_cost', 'duration_months', 'started_at', 'expires_at', 'status', 'metadata', 'updated_at'],
   gifts: ['user_id', 'gift_no', 'gift_content', 'gift_price', 'gift_points', 'gift_image', 'gift_status', 'is_active', 'address_id', 'completed_at', 'updated_at'],
@@ -16,7 +19,8 @@ export const TAB_WRITABLE_FIELDS = {
   products: ['id', 'title', 'category', 'description', 'points_cost', 'stock', 'image', 'specifications', 'is_active', 'is_purchasable', 'payment_mode', 'rmb_price'],
   shopOrders: ['status', 'updated_at'],
   birthdayEvents: ['title', 'subtitle', 'hero_quote', 'page_copy', 'celebration_date', 'is_active', 'sort_order', 'updated_at'],
-  birthdayWishes: ['status', 'is_featured', 'updated_at'],
+  // ⚠️ birthday_wishes 表没有 updated_at 列，写入会 400
+  birthdayWishes: ['status', 'is_featured'],
   blockWallItems: ['content', 'color', 'image_url', 'image_public_id', 'position_x', 'position_y', 'rotation', 'updated_at'],
   bohCreatorShows: ['title', 'description', 'video_url', 'creator_platform', 'creator_platform_id', 'updated_at'],
   campaigns: ['slug', 'title', 'description', 'stage', 'signup_start_at', 'signup_end_at', 'start_at', 'end_at', 'config'],

@@ -52,6 +52,14 @@
      因此两侧永远同宽。 */
   --boh-login-island-width: min(860px, calc(100% - 24px));
 
+  /* Page surface — 全站页面底色（2026-09-23：改回纯白）
+     只服务 body 底色一处消费（src/style.css），**不要**拿它当面板/卡片底色 ——
+     面板底仍走 themes/dark-mode.css 的 --boh-bg-* 族。
+     暗色值在 [data-theme="dark"] 内覆写（见下），组件不得自行写死。
+     ⚠️ 首屏骨架（index.html 内联 .boh-boot 底色）必须与本值一致，
+     由 scripts/check-first-paint.mjs 断言 —— 改这里就要同步改那里。 */
+  --boh-page-bg: #ffffff;
+
   /* Heatmap — 活跃热力图五档色阶（0=无活动 → 4=最活跃）
      消费方：views/user-center/UserSpace/components/ActivityHeatmap.vue
      暗色在 [data-theme="dark"] 内整体覆写，组件不得自行写死色值。 */

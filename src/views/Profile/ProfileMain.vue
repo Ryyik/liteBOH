@@ -962,17 +962,22 @@ const onThemeChanged = (event) => {
 const railNotificationStore = ref(getNotificationStoreSync());
 const railUnreadCount = computed(() => railNotificationStore.value?.unreadCount || 0);
 
-const handleRailNavClick = (tabId) => {
-  // 他人空间没有 tab 容器：左栏主导航语义 = 回到我的空间对应 tab
-  router.push(`/user-space?tab=${tabId}`);
+const handleRailNavClick = (itemId) => {
+  // 他人空间没有 tab 容器：左栏主导航语义 = 回到我的空间对应 tab。
+  // 2026-09-22 起 items 来自全站单源（@/config/bottom-nav），其中「方块」是跨模块导航
+  // （回首页论坛），不能再拼成 ?tab=blocks —— 一律按 item.route 跳。
+  const item = userSpaceNavItems.find((entry) => entry.id === itemId);
+  if (!item) return;
+  router.push(item.route);
 };
 
 const handleRailAction = (actionId) => {
   switch (actionId) {
     case 'compose':
     case 'search':
-      // 发布 / 搜索的宿主是社区 tab 的内嵌 ForumMain，他人空间没有论坛实例 → 跳过去
-      router.push('/user-space?tab=community');
+      // 发布 / 搜索的宿主是论坛，而论坛 2026-09-22 起挂在首页 → 带意图跳到首页论坛区，
+      // 由首页把 ?compose=1 / ?search=1 转交给 ForumMain（他人空间没有论坛实例）
+      router.push({ path: '/', query: { view: 'latest', [actionId]: '1' } });
       break;
     case 'theme':
       // applyTheme 内部派发 theme-changed，onThemeChanged 已监听并同步 ref

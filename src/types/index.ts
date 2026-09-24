@@ -119,7 +119,7 @@ export interface NotificationPayload {
 }
 
 // --- Home Heroes Store ---
-export type HomeHeroTemplate = 'standard' | 'overlay' | 'split' | 'responsive' | 'showcase' | 'builtin'
+export type HomeHeroTemplate = 'standard' | 'overlay' | 'split' | 'responsive' | 'showcase' | 'builtin' | 'street-scene'
 export type HomeHeroVariant = 'light' | 'dark'
 export type HomeHeroStatus = 'draft' | 'published'
 
@@ -214,6 +214,18 @@ export interface HomeHero {
   links: HeroLink[]
   split_cards?: SplitCardConfig[] | null
   showcase_config?: ShowcaseConfig | null
+  /** 仅 template='street-scene' 使用：竖屏构图图（1170x2532 WebP） */
+  image_portrait?: string | null
+  /** 仅 template='street-scene' 使用：横屏构图图（2560x1440 WebP） */
+  image_landscape?: string | null
+  /**
+   * 仅 template='street-scene' 使用：首屏问候语模板。
+   * 支持 {greeting} 占位符（运行时替换为时段词：早上好/中午好/下午好/晚上好）；
+   * 留空回落默认 '{greeting}，欢迎回到方块街'。
+   */
+  greeting_text?: string | null
+  /** 仅 template='street-scene' 使用：首屏底部提示文案（↓ 箭头为组件固定装饰）；留空回落「往下逛逛」 */
+  hint_text?: string | null
   label?: string | null
   aria_label?: string | null
   status: HomeHeroStatus

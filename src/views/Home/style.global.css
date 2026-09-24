@@ -29,6 +29,14 @@ body {
   width: 100% !important;
 }
 
+/* 论坛层的暗色面（2026-09-23）。
+   放在非 scoped 文件里是为了能挂 html 级主题属性；.home-forum-stage 是首页专有类名，
+   不会外溢到其它页面。色值走 dark-mode.css 的 token，不新增裸值。 */
+[data-theme="dark"] .home-forum-stage {
+  background-color: var(--boh-bg-secondary);
+  border-top-color: var(--boh-border-primary);
+}
+
 .modal-open {
   overflow: hidden !important;
 }

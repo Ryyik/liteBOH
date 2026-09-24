@@ -3,7 +3,7 @@
     'tab-transition-forward': tabTransitionDirection === 'forward',
     'tab-transition-back': tabTransitionDirection === 'back',
     'edge-swipe-active': isEdgeSwiping,
-    'community-tab-active': currentTab === 'community' && !isForumCommunitySection
+    'community-tab-active': currentTab === 'community' && !isForumFeedSection(communitySection)
   }" :data-theme="currentTheme">
 
     <!-- 边缘滑动提示线 -->
@@ -15,30 +15,19 @@
     <input type="file" ref="pointsCardInputRef" class="hidden-file-input" accept="image/jpeg,image/png,image/webp"
       @change="handlePointsCardFileChange">
 
-    <!-- 社区：论坛默认视图 + 成员/收藏/印象（2026-09 IA） -->
+    <!-- 方块（论坛）：官方 / 最新 / 关注 / 新闻 / 活动 / 成员 / 印象
+         分区壳 ForumSectionShell 与首页 `/` 的下滑直达共用同一份（2026-09-23 单源）。
+         默认落点仍是「最新」，「官方」只在切到它时才挂载英雄区渲染层。 -->
     <div v-show="currentTab === 'community' || leavingTab === 'community'"
       :ref="(el) => setTabPageRef('community', el)" class="tab-page community-shell"
-      :class="{ 'is-leaving': leavingTab === 'community', 'feed-switching': feedSwitchPulse }">
-      <SegmentTabs :sections="COMMUNITY_SECTION_ITEMS" v-model="communitySection" aria-label="社区分区" />
-      <div v-show="isForumCommunitySection" class="community-forum-host">
-        <KeepAlive>
-          <AsyncForum v-if="currentTab === 'community' || leavingTab === 'community'" ref="forumViewRef"
-            :show-navbar="false" :show-header="false" :embedded="true"
-            :external-feed="communityExternalFeed"
-            @island-message="showTopNavStatus" />
-        </KeepAlive>
-      </div>
-      <template v-if="communitySection === 'members' || communitySection === 'impressions'">
-        <AsyncCommunity v-if="communitySection === 'members'"
-          @switch-tab="handleCommunitySwitchTab" @open-follow-modal="openUserFollowModal" />
-        <div v-else class="page-content community-list-content">
-          <ProfileImpressionsPanel v-if="communitySection === 'impressions'" :show-back="false"
-            :is-impressions-loading="dataState.impressions.loading" :impressions="profileImpressions"
-            :has-more="impressionsHasMore" :is-loading-more="isLoadingMoreImpressions"
-            @back="setCommunitySection('latest')" @delete-impression="handleDeleteProfileImpression"
-            @load-more-impressions="loadMoreProfileImpressions" />
-        </div>
-      </template>
+      :class="{ 'is-leaving': leavingTab === 'community' }">
+      <ForumSectionShell ref="communityShellRef" v-model:section="communitySection"
+        @island-message="showTopNavStatus" @switch-tab="handleCommunitySwitchTab"
+        @open-follow-modal="openUserFollowModal">
+        <template #official>
+          <AsyncOfficialHeroStage />
+        </template>
+      </ForumSectionShell>
     </div>
 
     <!-- 内容：身份卡 + 帖子/shows/草稿（2026-09 IA） -->
@@ -252,6 +241,10 @@
 
 <script setup>
 import { ref, computed, nextTick, onActivated, onMounted, onUnmounted, reactive, watch, shallowRef, shallowReactive, markRaw, defineAsyncComponent } from 'vue';
+/* 未登录占位图标（方块 / 我的 / 设置三个 tab 的 login-prompt 都用它）。
+   2026-09-24 修：此前模板写了 <User> 但从未导入 —— Vue 解析失败退化为原生元素，
+   图标渲染不出来，控制台刷「Failed to resolve component: User」。 */
+import { User } from 'lucide-vue-next';
 import { useRouter, useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
@@ -263,9 +256,12 @@ import { useDebounce } from '@/composables/useDebounceThrottle';
 import UserSpaceBottomNav from './components/UserSpaceBottomNav.vue';
 import UserSpaceSideRail from './components/UserSpaceSideRail.vue';
 import SegmentTabs from './components/SegmentTabs.vue';
+// 方块（论坛）分区壳：与首页 `/` 下滑直达共用同一份（2026-09-23 单源）
+import ForumSectionShell from './components/ForumSectionShell.vue';
 const ProfileHomePanel = defineAsyncComponent(() => import('./components/ProfileHomePanel.vue'));
 const AvatarCropModal = defineAsyncComponent(() => import('@/components/AvatarCropModal.vue'));
-const ProfileImpressionsPanel = defineAsyncComponent(() => import('./components/ProfileImpressionsPanel.vue'));
+// 官方分区舞台（英雄区 + 各周年弹窗）：只在切到「官方」时才请求，不进 UserSpace 主 chunk
+const AsyncOfficialHeroStage = defineAsyncComponent(() => import('@/views/Home/components/OfficialHeroStage.vue'));
 const ProfileSettingsPanel = defineAsyncComponent(() => import('./components/ProfileSettingsPanel.vue'));
 const EditProfilePanel = defineAsyncComponent(() => import('./components/EditProfilePanel.vue'));
 const AvatarFramePickerModal = defineAsyncComponent(() => import('./components/AvatarFramePickerModal.vue'));
@@ -285,8 +281,6 @@ import { useImageCompressionLoader } from './composables/useImageCompressionLoad
 import {
   AsyncBOHAI,
   AsyncCloudPlus,
-  AsyncCommunity,
-  AsyncForum,
   AsyncMessages,
   clearIdlePreloadTasks,
   clearScheduledForumPreload,
@@ -299,8 +293,9 @@ import {
   scheduleIdleTask,
   setUserSpaceMountedForPreload
 } from './async-loaders.js';
+import { FORUM_DEFAULT_SECTION, isForumFeedSection, isForumSection } from '@/config/forum-sections';
 import { supabase } from '@/utils/supabase-client.js';
-import { deleteUserImpression, getPostsByUsername, getUserImpressions, updateProfileAvatar, getFollowers, getFollowing } from '@/utils/api/profile-api.js';
+import { getPostsByUsername, updateProfileAvatar, getFollowers, getFollowing } from '@/utils/api/profile-api.js';
 import FollowListModal from '@/components/FollowListModal.vue';
 import { getPushplusSettings } from '@/utils/api/pushplus-api.js';
 import { getMySubscriptions } from '@/utils/api/subscription-api.js';
@@ -356,7 +351,6 @@ const USERSPACE_CACHE_TTL = markRaw({
   cloudUsage: 60 * 1000,
   pushplus: 60 * 1000,
   profilePosts: 60 * 1000,
-  impressions: 60 * 1000,
   // 热力图跨一年 371 天，服务端要扫 posts + comments 两张表；变化频率远低于
   // 计数类数据，独立放宽到 5 分钟，避免每次进「内容」tab 都重算一次全窗口聚合。
   heatmap: 5 * 60 * 1000
@@ -371,7 +365,6 @@ const dataState = reactive({
   cloud: { loading: false, error: null },
   pushplus: { loading: false, error: null },
   profile: { loading: false, error: null },
-  impressions: { loading: false, error: null },
   heatmap: { loading: false, error: null }
 });
 
@@ -395,23 +388,16 @@ const lastFetchTime = reactive({
   cloudUsage: 0,
   pushplus: 0,
   profilePosts: 0,
-  impressions: 0,
   heatmap: 0
 });
 
 // ✅ 性能优化：使用 shallowRef 优化非关键大数据
 const profilePosts = shallowRef([]);
-const profileImpressions = shallowRef([]);
-// ✅ 性能优化 P0-4：印象改为服务端分页（page 1 首屏 30 条 + 「加载更多」增量），
-// 不再无上限全量拉取/全量渲染；hasMore 以「整页返回」启发式判断。
-const IMPRESSIONS_PAGE_SIZE = 30;
-const impressionsPage = ref(1);
-const impressionsHasMore = ref(false);
-const isLoadingMoreImpressions = ref(false);
 
 const hideOnlineStatus = computed(() => userInfo.value?.hideOnlineStatus ?? false);
 const hideFollowData = computed(() => userInfo.value?.hideFollowData ?? false);
-const forumViewRef = ref(null);
+// 方块（论坛）分区壳实例：内嵌论坛的滚动刷新与发布/搜索意图都经它转发
+const communityShellRef = ref(null);
 const tabPageRefs = new Map();
 const tabScrollPositions = reactive(Object.fromEntries(
   USER_SPACE_VALID_TABS.map((tab) => [tab, 0])
@@ -449,34 +435,17 @@ if (initialUserSpaceTab === 'posts' || initialUserSpaceTab === 'assets' || initi
 }
 // tab 内段控 section（2026-09 IA：原 profile 二级面板拆平到各 tab）
 const pageRootRef = ref(null);
-const communitySection = ref('latest');
+// 方块（论坛）分区：七席（官方/最新/关注/新闻/活动/成员/印象）单源在
+// @/config/forum-sections，默认落点仍是「最新」；分区壳本体见 ForumSectionShell.vue
+const communitySection = ref(FORUM_DEFAULT_SECTION);
 const contentSection = ref('home');
 const messagesSection = ref('inbox');
 const settingsSection = ref('home');
 const assetsSection = ref('hub');
-const COMMUNITY_SECTIONS = ['latest', 'following', 'news', 'activity', 'members', 'impressions'];
-// 论坛承载的社区段（最新/关注/新闻/活动共用 ForumMain；成员/印象走独立面板）
-const FORUM_COMMUNITY_SECTIONS = ['latest', 'following', 'news', 'activity'];
-const isForumCommunitySection = computed(() => FORUM_COMMUNITY_SECTIONS.includes(communitySection.value));
-// 社区段控 → 论坛 externalFeed：新闻/活动直接作为内容类型下发（ForumMain 内一次同步、单次 fetch）
-const communityExternalFeed = computed(() => {
-  if (communitySection.value === 'following') return 'following';
-  if (communitySection.value === 'news') return 'news';
-  if (communitySection.value === 'activity') return 'activity';
-  return 'latest';
-});
 const CONTENT_SECTIONS = ['home', 'cloud'];
 const MESSAGES_SECTIONS = ['inbox', 'ai'];
 const SETTINGS_SECTIONS = ['home', 'edit-profile', 'data-management', 'data-export'];
 const ASSETS_SECTIONS = ['hub', 'sponsor'];
-const COMMUNITY_SECTION_ITEMS = [
-  { id: 'latest', label: '最新' },
-  { id: 'following', label: '关注' },
-  { id: 'news', label: '新闻' },
-  { id: 'activity', label: '活动' },
-  { id: 'members', label: '成员' },
-  { id: 'impressions', label: '印象' }
-];
 const CONTENT_SECTION_ITEMS = [
   { id: 'home', label: '空间' },
   { id: 'cloud', label: 'Cloud+' }
@@ -552,8 +521,8 @@ const restoreTabScrollPosition = async (tabId = currentTab.value) => {
       const tabEl = getTabPageEl(safeTab);
       if (!tabEl) return;
       tabEl.scrollTop = Math.max(0, Number(tabScrollPositions[safeTab] || 0));
-      if (safeTab === 'community' && isForumCommunitySection.value) {
-        forumViewRef.value?.refreshEmbeddedScroll?.();
+      if (safeTab === 'community' && isForumFeedSection(communitySection.value)) {
+        communityShellRef.value?.refreshEmbeddedScroll?.();
       }
     });
   });
@@ -592,7 +561,7 @@ const resolveSectionFromRoute = () => {
   if (routeTab && validTabs.includes(routeTab) && routeTab !== currentTab.value) return;
   const requestedView = String(route.query.view || '').trim();
   if (currentTab.value === 'community') {
-    if (COMMUNITY_SECTIONS.includes(requestedView)) communitySection.value = requestedView;
+    if (isForumSection(requestedView)) communitySection.value = requestedView;
   } else if (currentTab.value === 'posts') {
     if (CONTENT_SECTIONS.includes(requestedView)) contentSection.value = requestedView;
   } else if (currentTab.value === 'messages') {
@@ -668,7 +637,7 @@ const jumpWithSection = (tabId, section) => {
 
 const setCommunitySection = (section) => {
   communitySection.value = section;
-  if (section === 'impressions') void fetchProfileImpressions();
+  // 印象分区的取数已随分区壳迁到 ForumSectionShell（自持缓存 / 取消 / 分页）
   setSectionRoute('community', section);
 };
 
@@ -692,30 +661,17 @@ const handleCommunitySwitchTab = (tabId) => {
   switchTab(tabId);
 };
 
-// ---- 分区段控底栏浮舱（2026-09-09：段控沉到底栏上方，拇指直达、顶部零负担） ----
+// ---- 分区段控的切换动效与取数都在 ForumSectionShell 内（2026-09-23 单源） ----
 // 抖音式文字页签（SegmentTabs）：v-model 绑当前档，切换动效 = 指示条滑动 + 内容 fade-up
-const feedSwitchPulse = ref(false);
-let feedPulseTimer = null;
-watch(communitySection, (id) => {
-  if (id === 'impressions') void fetchProfileImpressions();
-  // 最新/关注/新闻/活动互切：论坛内容做一次轻淡入脉冲（配合页签弹性指示条）
-  if (isForumCommunitySection.value) {
-    feedSwitchPulse.value = true;
-    if (feedPulseTimer) clearTimeout(feedPulseTimer);
-    feedPulseTimer = setTimeout(() => {
-      feedSwitchPulse.value = false;
-    }, 360);
-  }
-});
 
 watch(messagesSection, (id) => {
   if (id === 'ai') void preloadBOHAIComponent();
 });
 
-// keepAlive 二次进入：无 view 参数时社区回到论坛默认档（「点我的空间第一眼是论坛」）
+// keepAlive 二次进入：无 view 参数时方块（论坛）回到默认落点「最新」
 onActivated(() => {
   if (!route.query.view && currentTab.value === 'community') {
-    communitySection.value = 'latest';
+    communitySection.value = FORUM_DEFAULT_SECTION;
   }
 });
 
@@ -800,7 +756,6 @@ const hasMoreProfilePosts = ref(true);
 const profilePostsPage = ref(1);
 const isLoadingMoreProfilePosts = ref(false);
 let latestProfileContentFetchToken = 0;
-let latestProfileImpressionsFetchToken = 0;
 
 const normalizeStatInt = (value, fallback = 0) => {
   const normalized = Number(value);
@@ -948,131 +903,6 @@ const loadMoreProfilePosts = async () => {
     await fetchProfileContent({ force: true, reset: false });
   } finally {
     isLoadingMoreProfilePosts.value = false;
-  }
-};
-
-// ✅ 性能优化：使用 AbortController 和 lastFetchTime 优化请求管理
-const fetchProfileImpressions = async ({ force = false, loadMore = false } = {}) => {
-  const userId = String(userInfo.value.id || '').trim();
-  if (!isLoggedIn.value || !userId) {
-    profileImpressions.value = [];
-    impressionsHasMore.value = false;
-    return;
-  }
-
-  const cacheKey = `profile-impressions:${userId}`;
-  const now = Date.now();
-
-  // 「加载更多」：追加下一页，不读缓存、不受节流限制
-  if (loadMore) {
-    if (isLoadingMoreImpressions.value || !impressionsHasMore.value) return;
-    const loadMoreToken = ++latestProfileImpressionsFetchToken;
-    const loadMoreAbort = createAbortController('profile-impressions');
-    isLoadingMoreImpressions.value = true;
-    try {
-      const nextPage = impressionsPage.value + 1;
-      const { data, error } = await getUserImpressions(userId, {
-        signal: loadMoreAbort.signal,
-        page: nextPage,
-        pageSize: IMPRESSIONS_PAGE_SIZE
-      });
-      if (loadMoreToken !== latestProfileImpressionsFetchToken || loadMoreAbort.signal.aborted) return;
-      if (error) {
-        logger.warn('user-space', '加载更多印象失败:', error);
-        return;
-      }
-      const rows = data || [];
-      impressionsPage.value = nextPage;
-      profileImpressions.value = [...profileImpressions.value, ...rows];
-      impressionsHasMore.value = rows.length >= IMPRESSIONS_PAGE_SIZE;
-    } catch (error) {
-      if (error.name !== 'AbortError') logger.warn('user-space', '加载更多印象异常:', error);
-    } finally {
-      if (loadMoreToken === latestProfileImpressionsFetchToken) {
-        isLoadingMoreImpressions.value = false;
-      }
-    }
-    return;
-  }
-
-  // ✅ 检查 lastFetchTime，避免频繁重复请求
-  if (!force && (now - lastFetchTime.impressions < 5000)) {
-    const cachedImpressions = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.impressions);
-    if (cachedImpressions) {
-      profileImpressions.value = cachedImpressions;
-      impressionsHasMore.value = cachedImpressions.length >= IMPRESSIONS_PAGE_SIZE;
-      dataState.impressions.loading = false;
-      return;
-    }
-  }
-
-  if (!force) {
-    const cachedImpressions = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.impressions);
-    if (cachedImpressions) {
-      profileImpressions.value = cachedImpressions;
-      impressionsHasMore.value = cachedImpressions.length >= IMPRESSIONS_PAGE_SIZE;
-      dataState.impressions.loading = false;
-      return;
-    }
-  }
-
-  const fetchToken = ++latestProfileImpressionsFetchToken;
-  const abortController = createAbortController('profile-impressions');
-  dataState.impressions.loading = true;
-  try {
-    const { data, error } = await getUserImpressions(userId, {
-      signal: abortController.signal,
-      page: 1,
-      pageSize: IMPRESSIONS_PAGE_SIZE
-    });
-    if (fetchToken !== latestProfileImpressionsFetchToken || abortController.signal.aborted) return;
-    if (error) {
-      logger.warn('user-space', '读取我的印象失败:', error);
-      profileImpressions.value = [];
-      dataState.impressions.error = error;
-      return;
-    }
-    const rows = data || [];
-    profileImpressions.value = rows;
-    impressionsPage.value = 1;
-    impressionsHasMore.value = rows.length >= IMPRESSIONS_PAGE_SIZE;
-    setUserSpaceCache(cacheKey, rows);
-    lastFetchTime.impressions = now;
-    dataState.impressions.error = null;
-  } catch (error) {
-    if (error.name === 'AbortError') return;
-    logger.warn('user-space', '读取我的印象异常:', error);
-    profileImpressions.value = [];
-    dataState.impressions.error = error;
-  } finally {
-    if (fetchToken === latestProfileImpressionsFetchToken) {
-      dataState.impressions.loading = false;
-    }
-  }
-};
-
-const loadMoreProfileImpressions = () => {
-  void fetchProfileImpressions({ loadMore: true });
-};
-
-const handleDeleteProfileImpression = async (impressionId) => {
-  const userId = String(userInfo.value.id || '').trim();
-  if (!userId) {
-    showAlert('error', '删除失败', '当前登录状态异常，请刷新后重试');
-    return;
-  }
-  try {
-    const { error } = await deleteUserImpression(impressionId, userId);
-    if (error) {
-      showAlert('error', '删除失败', error.message || '请稍后重试');
-      return;
-    }
-    profileImpressions.value = profileImpressions.value.filter(imp => imp.id !== impressionId);
-    setUserSpaceCache(`profile-impressions:${userId}`, profileImpressions.value);
-    showAlert('success', '删除成功', '该印象已被移除');
-  } catch (error) {
-    logger.warn('user-space', '删除我的印象异常:', error);
-    showAlert('error', '删除失败', '网络错误');
   }
 };
 
@@ -1644,7 +1474,7 @@ const closeThemeModal = () => {
 
 const activateForumTab = async () => {
   await nextTick();
-  forumViewRef.value?.refreshEmbeddedScroll?.();
+  communityShellRef.value?.refreshEmbeddedScroll?.();
 };
 
 const setThemePreference = (preference) => {
@@ -1715,7 +1545,7 @@ const backToProfileSettings = () => {
 };
 
 const openProfileImpressions = () => {
-  void fetchProfileImpressions();
+  // 取数由 ForumSectionShell 在切到「印象」分区时自行触发（单源）
   jumpWithSection('community', 'impressions');
 };
 
@@ -2151,16 +1981,16 @@ const handleLogout = () => {
   router.push('/');
 };
 
-/* ---------- 横屏左栏动作分发（2026-09-15） ----------
-   发布 / 搜索落在社区 tab 的 ForumMain 上，而它只在社区 tab 挂载
-   （模板 v-if="currentTab === 'community' || leavingTab === 'community'"）：
-   先切回社区，再等 forumViewRef 就绪后调用 ForumMain 通过 defineExpose 暴露的方法。
+/* ---------- 横屏左栏动作分发（2026-09-15；2026-09-23 分区壳单源后调整） ----------
+   发布 / 搜索落在方块（论坛）分区的 ForumMain 上，而它只在分区壳挂载时存在
+   （模板 v-show="currentTab === 'community' || leavingTab === 'community'"）：
+   先切回方块，再等分区壳就绪后调用它透传出去的 ForumMain 方法。
    其余动作全部复用已有 handler，不新增业务分支。 */
 const waitForForumView = async (methodName, timeoutMs = 4000) => {
   if (currentTab.value !== 'community') switchTab('community');
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
-    const view = forumViewRef.value;
+    const view = communityShellRef.value;
     if (view && typeof view[methodName] === 'function') return view;
     await new Promise((resolve) => window.setTimeout(resolve, 60));
   }
@@ -2171,11 +2001,11 @@ const waitForForumView = async (methodName, timeoutMs = 4000) => {
    切 tab 不会自动收起它，会一直盖住新页面 → 任何导航动作前先请求关闭。
    无改动内容时直接关；有内容时由论坛弹「保存草稿」确认，用户选完再继续。 */
 const dismissComposerSession = async () => {
-  const view = forumViewRef.value;
+  const view = communityShellRef.value;
   if (view && typeof view.closeComposer === 'function') {
     await view.closeComposer();
   }
-  // 社区 tab 未挂载时（ForumMain 不在 DOM）样式层不会有残留
+  // 方块 tab 未挂载时（ForumMain 不在 DOM）样式层不会有残留
 };
 
 const handleRailAction = async (actionId) => {
@@ -3055,7 +2885,6 @@ watch(currentTab, (newTab, oldTab) => {
 
 onUnmounted(() => {
   closeSuggestIsland(); // 建议岛是全局导航槽位，页面卸载必须收（项目规则）
-  if (feedPulseTimer) clearTimeout(feedPulseTimer);
   saveTabScrollPosition(currentTab.value);
   setUserSpaceMountedForPreload(false);
   if (navIslandResizeObserver) {

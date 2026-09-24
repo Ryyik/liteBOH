@@ -42,6 +42,10 @@
   --boh-bg-secondary: #12121a;
   --boh-bg-tertiary: #1a1a25;
   --boh-bg-elevated: #222230;
+
+  /* 页面底色（暖炭色）——对应 tokens.css :root 的 --boh-page-bg。
+     刻意不复用 --boh-bg-primary（那个被大量面板/卡片消费，改它会波及全站）。 */
+  --boh-page-bg: #16120e;
   
   --boh-text-primary: #f5f5f7;
   --boh-text-secondary: #b8c2cf;
@@ -96,7 +100,7 @@
    全局深色模式基础样式
    ============================================ */
 [data-theme="dark"] body {
-  background-color: var(--boh-bg-primary);
+  background-color: var(--boh-page-bg);
   color: var(--boh-text-primary);
 }
 

@@ -16,7 +16,6 @@ function resolveTimeout(method, input) {
   return READ_METHODS.has(upper) ? SUPABASE_READ_TIMEOUT_MS : SUPABASE_WRITE_TIMEOUT_MS;
 }
 const authStorage = typeof window !== 'undefined' ? window.localStorage : undefined;
-const authLockQueues = new Map();
 
 function normalizeSupabaseImplicitHashCallback() {
   if (typeof window === 'undefined') return;
@@ -76,29 +75,6 @@ async function timeoutFetch(input, init = {}) {
   }
 }
 
-async function appProcessLock(name, _acquireTimeout, fn) {
-  const lockName = String(name || 'supabase-auth');
-  const previous = authLockQueues.get(lockName) || Promise.resolve();
-
-  let releaseCurrent;
-  const current = new Promise((resolve) => {
-    releaseCurrent = resolve;
-  });
-  const next = previous.catch(() => {}).then(() => current);
-  authLockQueues.set(lockName, next);
-
-  await previous.catch(() => {});
-
-  try {
-    return await fn();
-  } finally {
-    releaseCurrent();
-    if (authLockQueues.get(lockName) === next) {
-      authLockQueues.delete(lockName);
-    }
-  }
-}
-
 normalizeSupabaseImplicitHashCallback();
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
@@ -110,8 +86,10 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
     persistSession: true,
     detectSessionInUrl: true,
     storage: authStorage,
-    lock: appProcessLock,
-    lockAcquireTimeout: 15000,
+    // 2026-09-24：lock / lockAcquireTimeout 已移除 —— supabase-js ≥2.116 内置了
+    // 无锁的会话刷新协调，官方明确建议弃用自定义 lock（v3 将移除该选项，
+    // 继续传会一直打 deprecation 警告）。旧的自定义锁只是同页内存队列，
+    // 并不具备跨 tab 能力，删掉后行为由官方机制接管。
     // 通行密钥（Passkey/WebAuthn）：线上 GoTrue 已开启 passkeys（rp_id=blockofhome.cn）。
     // 开启后 supabase-js 暴露 auth.signInWithPasskey / auth.registerPasskey / auth.passkey.*。
     experimental: {

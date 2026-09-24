@@ -31,6 +31,7 @@ import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader';
 import { isForumLandscape, isForumPortraitComposer, onForumPortraitComposerChange } from '@/utils/forum-viewport.js';
+import { isForumFeedSection } from '@/config/forum-sections';
 import { openForumPost } from '@/composables/usePostDetailModal.js';
 
 // Props
@@ -1913,7 +1914,11 @@ if (typeof window !== 'undefined') {
 const isForumComposerFabVisible = computed(() => {
   if (!isMobileComposerMode.value || feedMode.value !== 'posts') return false;
   if (!props.embedded) return true;
-  return route.path === '/user-space' && getQueryString(route.query.tab || 'community') === 'community';
+  // 2026-09-22 首页社区化改版：嵌入式论坛的宿主是首页（UserSpace 不再有社区 tab）。
+  // 论坛在首页由 v-show 挂着，只有当前停在「最新/关注/新闻/活动」这类 feed 分区时才露 FAB。
+  if (route.path !== '/') return false;
+  const view = getQueryString(route.query.view);
+  return view === '' || isForumFeedSection(view);
 });
 
 const openMobileComposer = () => {
@@ -2232,7 +2237,12 @@ watch(() => props.externalFeed, (val) => {
   showFollowingOnly.value = nextFollowing;
   selectedContentType.value = nextKind;
   feedMode.value = 'posts';
-  fetchForumData();
+  /* ⚠️ 必须延到本组件 setup 跑完之后再取数（微任务即可）：
+     immediate 会在 setup 中途同步回调，而 fetchForumData 是下方才声明的 const
+     —— 直接调用就是 TDZ ReferenceError（Cannot access 'fetchForumData' before initialization）。
+     实测触发路径：点「关注 / 新闻 / 活动」→ 这里进不去前面的 early return → 整页被
+     全局错误边界接管成「页面出了问题」。状态同步赋值保持同步（首帧样式不吃延迟）。 */
+  void Promise.resolve().then(() => fetchForumData());
 }, { immediate: true });
 
 watch(showFollowingOnly, (val) => {

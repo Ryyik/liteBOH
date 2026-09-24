@@ -31,32 +31,66 @@
       <!-- 左侧：英雄区列表 -->
       <aside class="hero-sidebar glass-panel">
         <div class="sidebar-filters">
-          <label class="search-field">
-            <Search :size="17" aria-hidden="true" />
-            <input v-model.trim="searchQuery" type="search" placeholder="搜索英雄区" aria-label="搜索英雄区" />
-          </label>
-          <div class="filter-row">
-            <select v-model="statusFilter" aria-label="按状态筛选">
-              <option value="all">全部状态</option>
-              <option value="draft">草稿</option>
-              <option value="published">已发布</option>
-            </select>
-            <select v-model="archiveFilter" aria-label="按归档筛选">
-              <option value="all">全部</option>
-              <option value="active">首屏显示</option>
-              <option value="archived">已归档</option>
-            </select>
+          <div class="list-view-tabs" role="tablist" aria-label="列表视图">
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="listView === 'all'"
+              :class="{ active: listView === 'all' }"
+              @click="setListView('all')"
+            >全部英雄区</button>
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="listView === 'official'"
+              :class="{ active: listView === 'official' }"
+              @click="setListView('official')"
+            >官方 tab</button>
           </div>
+          <template v-if="listView === 'all'">
+            <label class="search-field">
+              <Search :size="17" aria-hidden="true" />
+              <input v-model.trim="searchQuery" type="search" placeholder="搜索英雄区" aria-label="搜索英雄区" />
+            </label>
+            <div class="filter-row">
+              <select v-model="statusFilter" aria-label="按状态筛选">
+                <option value="all">全部状态</option>
+                <option value="draft">草稿</option>
+                <option value="published">已发布</option>
+              </select>
+              <select v-model="archiveFilter" aria-label="按归档筛选">
+                <option value="all">全部</option>
+                <option value="active">首屏显示</option>
+                <option value="archived">已归档</option>
+              </select>
+            </div>
+          </template>
         </div>
 
         <div class="hero-list">
-          <button
-            v-for="hero in filteredHeroes"
+          <p v-if="listView === 'official'" class="official-list-hint">按 sort_order 展示官方 tab 实际排布，拖拽可调整位次</p>
+
+          <!-- 官方 tab 视图用 div 承载行：button 在 Safari 上拖拽起点不稳定 -->
+          <div
+            v-for="(hero, index) in displayHeroes"
             :key="hero.id"
-            type="button"
             class="hero-row"
-            :class="{ selected: selectedId === hero.id }"
+            :class="{
+              selected: selectedId === hero.id,
+              'is-drag-over': listView === 'official' && officialDragOverIndex === index,
+              'is-dragging': listView === 'official' && officialDragIndex === index
+            }"
+            role="button"
+            tabindex="0"
+            :draggable="listView === 'official'"
             @click="selectHero(hero)"
+            @keydown.enter.prevent="selectHero(hero)"
+            @keydown.space.prevent="selectHero(hero)"
+            @dragstart="onOfficialDragStart(index, $event)"
+            @dragover="onOfficialDragOver(index, $event)"
+            @dragleave="onOfficialDragLeave(index)"
+            @drop="onOfficialDrop(index, $event)"
+            @dragend="resetOfficialDrag"
           >
             <span class="row-thumb" :class="`thumb-${hero.template}`">
               <img v-if="getThumbUrl(hero)" :src="getThumbUrl(hero)" :alt="hero.title" />
@@ -66,13 +100,16 @@
               <strong>{{ hero.label || hero.title || '未命名' }}</strong>
               <small>{{ templateLabel(hero.template) }} · {{ hero.variant }}</small>
             </span>
+            <span v-if="officialRankMap.has(hero.id)" class="row-rank" :title="`官方 tab 位次 ${officialRankMap.get(hero.id)}`">
+              官方位次 {{ officialRankMap.get(hero.id) }}
+            </span>
             <span class="row-status" :class="heroStatus(hero).tone">{{ heroStatus(hero).label }}</span>
             <span v-if="isDirty(hero.id)" class="dirty-dot" title="未保存"></span>
-          </button>
+          </div>
 
-          <div v-if="!filteredHeroes.length" class="empty-list">
+          <div v-if="!displayHeroes.length" class="empty-list">
             <LayoutIcon :size="26" aria-hidden="true" />
-            <span>没有匹配的英雄区</span>
+            <span>{{ listView === 'official' ? '官方 tab 暂无已发布英雄区' : '没有匹配的英雄区' }}</span>
           </div>
         </div>
       </aside>
@@ -85,6 +122,22 @@
             <h2>{{ selectedHero.label || selectedHero.title || '新英雄区' }}</h2>
           </div>
           <div class="preview-toolbar">
+            <div class="list-view-tabs compact" role="tablist" aria-label="预览模式">
+              <button
+                type="button"
+                role="tab"
+                :aria-selected="previewMode === 'single'"
+                :class="{ active: previewMode === 'single' }"
+                @click="previewMode = 'single'"
+              >单条预览</button>
+              <button
+                type="button"
+                role="tab"
+                :aria-selected="previewMode === 'stack'"
+                :class="{ active: previewMode === 'stack' }"
+                @click="previewMode = 'stack'"
+              >官方 tab 堆叠</button>
+            </div>
             <button type="button" class="text-button" @click="moveHero(-1)" :disabled="!canMove(-1)">
               <ArrowUp :size="14" /> 上移
             </button>
@@ -94,44 +147,90 @@
           </div>
         </div>
 
-        <div ref="previewStage" class="preview-stage" :class="`device-${previewDevice}`">
-          <div
-            class="preview-canvas-shell"
-            :style="{
-              width: `${previewCanvas.width * previewScale}px`,
-              height: `${previewCanvas.height * previewScale}px`
-            }"
-          >
-            <div
-              class="preview-canvas"
-              :style="{
-                width: `${previewCanvas.width}px`,
-                height: `${previewCanvas.height}px`,
-              transform: `scale(${previewScale})`
-            }"
+        <!-- 官方 tab 堆叠预览：模拟首页官方分区的卡片堆叠顺序（按 sort_order） -->
+        <div v-if="previewMode === 'stack'" class="official-stack-preview">
+          <div class="official-stack-head">
+            <span class="eyebrow">官方 tab 堆叠预览</span>
+            <small>{{ officialOrder.length }} 张 · 自上而下 = 首页顺序</small>
+          </div>
+          <div class="official-stack-deck">
+            <button
+              v-for="(hero, index) in officialOrder"
+              :key="hero.id"
+              type="button"
+              class="official-stack-card"
+              :class="{ selected: selectedId === hero.id }"
+              @click="selectHero(hero)"
             >
-              <div v-if="!isBuiltin" class="preview-canvas-content">
-                <DynamicHomeHero
-                  :hero="draftHero"
-                  :preview-device="previewDevice"
-                  @link-click="() => {}"
-                  @image-position="updatePreviewImagePosition"
-                  @content-offset="updatePreviewContentOffset"
-                />
-              </div>
-              <div v-else class="builtin-preview-placeholder">
-                <LayoutIcon :size="32" aria-hidden="true" />
-                <p>内置英雄区暂不支持画布预览</p>
-                <small>请访问首页查看实际渲染效果</small>
-              </div>
-            </div>
+              <span class="stack-thumb" :class="`thumb-${hero.template}`">
+                <img v-if="getThumbUrl(hero)" :src="getThumbUrl(hero)" :alt="hero.label || hero.title" loading="lazy" />
+                <LayoutIcon v-else :size="16" aria-hidden="true" />
+              </span>
+              <span class="stack-copy">
+                <strong>{{ hero.label || hero.title || '未命名' }}</strong>
+                <small>{{ templateLabel(hero.template) }} · {{ hero.variant }}</small>
+              </span>
+              <span class="stack-rank">#{{ index + 1 }}</span>
+            </button>
+            <p v-if="!officialOrder.length" class="spec-empty">官方 tab 暂无已发布英雄区</p>
           </div>
         </div>
 
-        <div class="preview-device-switch">
-          <button type="button" :class="['device-btn', { active: previewDevice === 'desktop' }]" @click="setPreviewDevice('desktop')">桌面 1440 × 900</button>
-          <button type="button" :class="['device-btn', { active: previewDevice === 'mobile' }]" @click="setPreviewDevice('mobile')">竖屏 390 × 844</button>
-        </div>
+        <template v-else>
+          <div ref="previewStage" class="preview-stage" :class="`device-${previewDevice}`">
+            <div
+              class="preview-canvas-shell"
+              :style="{
+                width: `${previewCanvas.width * previewScale}px`,
+                height: `${previewCanvas.height * previewScale}px`
+              }"
+            >
+              <div
+                class="preview-canvas"
+                :style="{
+                  width: `${previewCanvas.width}px`,
+                  height: `${previewCanvas.height}px`,
+                transform: `scale(${previewScale})`
+              }"
+              >
+                <!-- 首屏街景：构图与 StreetSceneHero 一致（上 22% 问候 / 下 18% 提示 / 浅 scrim） -->
+                <div v-if="isStreetScene" class="street-scene-preview" :class="{ 'is-landscape': streetSceneOrientation === 'landscape' }">
+                  <img class="street-scene-preview-img" :src="streetScenePreviewSrc"
+                    :alt="draftHero.aria_label || draftHero.title || '首屏街景预览'" />
+                  <div class="street-scene-preview-scrim" aria-hidden="true"></div>
+                  <div class="street-scene-preview-content">
+                    <p class="street-scene-preview-greeting">{{ previewGreeting }}</p>
+                    <p class="street-scene-preview-hint"><span>{{ previewHint }}</span><span class="street-scene-preview-arrow">↓</span></p>
+                  </div>
+                  <span v-if="!streetSceneHasImage" class="street-scene-preview-fallback">未上传本方向构图，首页回落品牌图</span>
+                </div>
+                <div v-else-if="!isBuiltin" class="preview-canvas-content">
+                  <DynamicHomeHero
+                    :hero="draftHero"
+                    :preview-device="previewDevice"
+                    @link-click="() => {}"
+                    @image-position="updatePreviewImagePosition"
+                    @content-offset="updatePreviewContentOffset"
+                  />
+                </div>
+                <div v-else class="builtin-preview-placeholder">
+                  <LayoutIcon :size="32" aria-hidden="true" />
+                  <p>内置英雄区暂不支持画布预览</p>
+                  <small>请访问首页查看实际渲染效果</small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="isStreetScene" class="preview-device-switch">
+            <button type="button" :class="['device-btn', { active: streetSceneOrientation === 'portrait' }]" @click="setStreetSceneOrientation('portrait')">竖屏 1170 × 2532</button>
+            <button type="button" :class="['device-btn', { active: streetSceneOrientation === 'landscape' }]" @click="setStreetSceneOrientation('landscape')">横屏 2560 × 1440</button>
+          </div>
+          <div v-else class="preview-device-switch">
+            <button type="button" :class="['device-btn', { active: previewDevice === 'desktop' }]" @click="setPreviewDevice('desktop')">桌面 1440 × 900</button>
+            <button type="button" :class="['device-btn', { active: previewDevice === 'mobile' }]" @click="setPreviewDevice('mobile')">竖屏 390 × 844</button>
+          </div>
+        </template>
       </section>
 
       <!-- 右侧：编辑面板 -->
@@ -169,6 +268,7 @@
               <option value="split">分栏并排型</option>
               <option value="responsive">横竖屏适配型</option>
               <option value="showcase">设定集书页型</option>
+              <option value="street-scene">首屏街景</option>
             </select>
           </label>
           <label class="field">
@@ -205,7 +305,7 @@
           </label>
         </div>
 
-        <div class="spec-section content-layout-section" v-if="!isBuiltin && draftHero.template !== 'split'">
+        <div class="spec-section content-layout-section" v-if="!isBuiltin && !isStreetScene && draftHero.template !== 'split'">
           <div class="spec-heading"><span>标题文字位置</span></div>
           <div class="layout-device-tabs" role="tablist" aria-label="标题文字位置设备设置">
             <button type="button" :class="{ active: layoutDevice === 'desktop' }" @click="setPreviewDevice('desktop')">标题 · 桌面端</button>
@@ -254,7 +354,7 @@
         </div>
 
         <!-- 快捷填充：从抽奖活动选择 -->
-        <div class="spec-section quick-fill-section" v-if="!isBuiltin">
+        <div class="spec-section quick-fill-section" v-if="!isBuiltin && !isStreetScene">
           <div class="spec-heading">
             <span>快捷填充</span>
           </div>
@@ -265,7 +365,7 @@
         </div>
 
         <!-- 图片配置区：根据模板显示不同字段 -->
-        <div class="image-section" v-if="!isBuiltin && draftHero.template !== 'split' && draftHero.template !== 'showcase'">
+        <div class="image-section" v-if="!isBuiltin && !isStreetScene && draftHero.template !== 'split' && draftHero.template !== 'showcase'">
           <div class="spec-heading">
             <span>图片配置</span>
             <div class="spec-heading-actions">
@@ -352,6 +452,61 @@
               <input v-model="draftHero.image_config.alt" type="text" placeholder="如：吉祥物玩偶" @input="markDirty(selectedHero.id)" />
             </label>
           </template>
+        </div>
+
+        <!-- street-scene 模板：首屏双构图（写 image_portrait / image_landscape） -->
+        <div class="image-section" v-if="!isBuiltin && isStreetScene">
+          <div class="spec-heading">
+            <span>首屏双构图</span>
+          </div>
+          <details open class="image-config-group">
+            <summary>竖屏构图（image_portrait）</summary>
+            <div class="spec-heading-actions image-group-actions">
+              <button type="button" class="text-button" @click="openDirectUpload('street-portrait')" :disabled="isUploading">
+                <Upload :size="14" /> {{ uploadButtonLabel('上传竖屏图') }}
+              </button>
+            </div>
+            <label class="url-field">
+              <span>图片链接（1170 × 2532 · WebP ≤350KB）</span>
+              <input v-model="draftHero.image_portrait" type="url" placeholder="留空则回落品牌图" @input="markDirty(selectedHero.id)" />
+            </label>
+          </details>
+          <details class="image-config-group">
+            <summary>横屏构图（image_landscape）</summary>
+            <div class="spec-heading-actions image-group-actions">
+              <button type="button" class="text-button" @click="openDirectUpload('street-landscape')" :disabled="isUploading">
+                <Upload :size="14" /> {{ uploadButtonLabel('上传横屏图') }}
+              </button>
+            </div>
+            <label class="url-field">
+              <span>图片链接（2560 × 1440 · WebP ≤350KB）</span>
+              <input v-model="draftHero.image_landscape" type="url" placeholder="留空则回落品牌图" @input="markDirty(selectedHero.id)" />
+            </label>
+          </details>
+
+          <!-- 首屏文案（2026-09-24 起可配）：留空一律回落组件默认，见 StreetSceneHero.vue -->
+          <details open class="image-config-group">
+            <summary>首屏文案（问候语 / 底部提示）</summary>
+            <label class="url-field">
+              <span>问候语（{greeting} 会按访问时段替换 · 留空回落默认）</span>
+              <input v-model="draftHero.greeting_text" type="text" maxlength="60"
+                placeholder="{greeting}，欢迎回到方块街" @input="markDirty(selectedHero.id)" />
+            </label>
+            <label class="url-field">
+              <span>底部提示文案（留空回落「往下逛逛」，↓ 箭头固定）</span>
+              <input v-model="draftHero.hint_text" type="text" maxlength="20"
+                placeholder="往下逛逛" @input="markDirty(selectedHero.id)" />
+            </label>
+            <p class="quick-fill-hint">
+              填 <code>{'{greeting}'}</code> 会按访问时段变成「早上好 / 中午好 / 下午好 / 晚上好」；
+              不写占位符就是固定文案。两处都留空时与默认外观完全一致。
+            </p>
+          </details>
+
+          <p class="quick-fill-hint">
+            横竖同主题分别裁切，不要一张图硬拉两用；两个方向都留空时首页回落品牌图。
+            同一时刻只允许一条「已发布 + 未归档」的首屏街景。
+          </p>
         </div>
 
         <!-- split 模板：两张子卡片 -->
@@ -535,7 +690,7 @@
         </div>
 
         <!-- 按钮配置 -->
-        <div class="spec-section" v-if="!isBuiltin">
+        <div class="spec-section" v-if="!isBuiltin && !isStreetScene">
           <div class="spec-heading">
             <span>按钮配置</span>
             <button type="button" class="text-button" @click="addLink">
@@ -675,6 +830,8 @@ import {
 } from 'lucide-vue-next';
 import AvatarCropModal from '@/components/AvatarCropModal.vue';
 import DynamicHomeHero from '@/views/Home/components/DynamicHomeHero.vue';
+// 首屏街景缺省回落图：与 StreetSceneHero 的降级链同一张品牌图
+import brandHeroFallback from '@/assets/images/main1-1280.webp?url';
 import { SKIN_LIBRARY, resolveSkinAsset, getSkinLibraryItem } from '@/data/skinLibrary.js';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { useAuthStore } from '@/stores/auth';
@@ -688,6 +845,7 @@ import {
 import { CLOUD_UPLOAD_MAX_IMAGE_SIZE_BYTES } from '@/utils/cloud-upload-guard.js';
 import { supabase } from '@/utils/supabase-client.js';
 import { logger } from '@/utils/logger.js';
+import { resolveGreetingText, resolveHintText } from '@/utils/street-scene-copy.js';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -704,6 +862,14 @@ const selectedId = ref(null);
 const searchQuery = ref('');
 const statusFilter = ref('all');
 const archiveFilter = ref('all');
+// 左侧列表视图：all = 全部英雄区（原有筛选），official = 官方 tab 实际排布（可拖拽）
+const listView = ref('all');
+// 预览模式：single = 单条预览，stack = 官方 tab 堆叠预览
+const previewMode = ref('single');
+// 首屏街景预览方向（对齐 StreetSceneHero 的 matchMedia('(orientation: portrait)')）
+const streetSceneOrientation = ref('portrait');
+const officialDragIndex = ref(-1);
+const officialDragOverIndex = ref(-1);
 const previewDevice = ref('desktop');
 const layoutDevice = ref('desktop');
 const previewStage = ref(null);
@@ -769,6 +935,7 @@ const templateLabel = (t) => ({
   split: '分栏并排',
   responsive: '横竖屏',
   showcase: '设定集书页',
+  'street-scene': '首屏街景',
   builtin: '内置组件'
 })[t] || t;
 
@@ -853,15 +1020,24 @@ const draftHero = computed(() => selectedId.value === null ? null : drafts[selec
 const draftLinks = computed(() => draftHero.value?.links || []);
 const splitCardsDraft = computed(() => draftHero.value?.split_cards || []);
 const isBuiltin = computed(() => draftHero.value?.template === 'builtin');
+const isStreetScene = computed(() => draftHero.value?.template === 'street-scene');
 const defaultContentLayout = Object.freeze({ align: 'center', valign: 'bottom', text_align: 'center', max_width: 980, offset_x: 0, offset_y: 0 });
 const layoutPositions = Object.freeze([
   { align: 'left', valign: 'top', label: '左上' }, { align: 'center', valign: 'top', label: '上方居中' }, { align: 'right', valign: 'top', label: '右上' },
   { align: 'left', valign: 'center', label: '左侧居中' }, { align: 'center', valign: 'center', label: '正中' }, { align: 'right', valign: 'center', label: '右侧居中' },
   { align: 'left', valign: 'bottom', label: '左下' }, { align: 'center', valign: 'bottom', label: '下方居中' }, { align: 'right', valign: 'bottom', label: '右下' }
 ]);
-const previewCanvas = computed(() => previewDevice.value === 'mobile'
-  ? { width: 390, height: 844 }
-  : { width: 1440, height: 900 });
+const previewCanvas = computed(() => {
+  // 首屏街景用真实构图比例：竖 1170×2532（≈390×844）、横 2560×1440（16:9）
+  if (isStreetScene.value) {
+    return streetSceneOrientation.value === 'portrait'
+      ? { width: 390, height: 844 }
+      : { width: 1440, height: 810 };
+  }
+  return previewDevice.value === 'mobile'
+    ? { width: 390, height: 844 }
+    : { width: 1440, height: 900 };
+});
 const contentLayout = computed(() => {
   const raw = draftHero.value?.content_layout;
   const desktop = raw?.desktop || raw || {};
@@ -882,6 +1058,15 @@ const filteredHeroes = computed(() => {
   });
 });
 
+// 官方 tab = 首页「官方」分区的真实集合（已发布 + 未归档），按 sort_order 升序
+// （allHeroes 由 fetchAllForAdmin 按 sort_order 取回，顺序即首页顺序）
+const officialOrder = computed(() =>
+  heroes.value.filter((h) => h.status === 'published' && !h.is_archived)
+);
+// 行内「官方位次」标记：id -> 1 起算的位次
+const officialRankMap = computed(() => new Map(officialOrder.value.map((hero, index) => [hero.id, index + 1])));
+const displayHeroes = computed(() => (listView.value === 'official' ? officialOrder.value : filteredHeroes.value));
+
 const heroStatus = (hero) => {
   if (hero.is_archived) return { label: '已归档', tone: 'muted' };
   if (hero.status === 'published') return { label: '已发布', tone: 'success' };
@@ -891,6 +1076,7 @@ const heroStatus = (hero) => {
 const getThumbUrl = (hero) => {
   // 统一走 getCloudinaryDisplayUrl：res.cloudinary.com 原始地址会被转成 cdn.blockofhome.cn
   // （与首页展示一致）；本地皮肤资产等非 Cloudinary URL 原样返回。
+  if (hero.template === 'street-scene') return getCloudinaryDisplayUrl(hero.image_landscape || hero.image_portrait || '');
   if (hero.template === 'responsive') return getCloudinaryDisplayUrl(hero.image_config.landscapeSrc || hero.image_config.portraitSrc || '');
   if (hero.template === 'split') return getCloudinaryDisplayUrl(hero.split_cards?.[0]?.image_config?.src || '');
   if (hero.template === 'showcase') {
@@ -1047,6 +1233,120 @@ function updatePreviewScale() {
   previewScale.value = Math.max(0.1, Math.min(width / canvas.width, height / canvas.height));
 }
 
+// ===== 首屏街景（street-scene）=====
+function setStreetSceneOrientation(orientation) {
+  streetSceneOrientation.value = orientation;
+  // 复用预览缩放管线：竖屏对齐 390 宽画布，横屏对齐桌面画布
+  setPreviewDevice(orientation === 'portrait' ? 'mobile' : 'desktop');
+}
+
+const streetSceneHasImage = computed(() => {
+  const raw = streetSceneOrientation.value === 'portrait'
+    ? draftHero.value?.image_portrait
+    : draftHero.value?.image_landscape;
+  return Boolean(String(raw || '').trim());
+});
+
+// 与 StreetSceneHero 的降级链一致：本方向构图图 → 品牌图
+const streetScenePreviewSrc = computed(() => (streetSceneHasImage.value
+  ? getCloudinaryDisplayUrl(streetSceneOrientation.value === 'portrait'
+    ? draftHero.value.image_portrait
+    : draftHero.value.image_landscape)
+  : brandHeroFallback));
+
+// 首屏文案预览：与线上 StreetSceneHero 共用 utils/street-scene-copy.js，保证装修台所见即线上所得
+const previewGreeting = computed(() => resolveGreetingText(draftHero.value?.greeting_text));
+const previewHint = computed(() => resolveHintText(draftHero.value?.hint_text));
+
+// 单例语义：同一时刻只允许一条「已发布 + 未归档」的 street-scene。
+// DB 的 partial unique index 才是真防线，这里只做更好的提示。
+const STREET_SCENE_CONFLICT_MESSAGE = '已有一条已发布的首屏街景，请先归档或改为草稿';
+
+function findStreetSceneConflict({ id, isArchived, willBePublished }) {
+  if (!willBePublished || isArchived) return null;
+  return heroes.value.find((hero) => hero.id !== id
+    && hero.template === 'street-scene'
+    && hero.status === 'published'
+    && !hero.is_archived) || null;
+}
+
+// 把 DB 抛出的唯一约束冲突翻译成人话，避免原生 Postgres 报错直出
+function describeWriteFailure(fallbackMessage) {
+  const raw = String(homeHeroesStore.fetchError || '');
+  if (raw.includes('home_heroes_street_scene_singleton') || /duplicate key/i.test(raw)) {
+    return STREET_SCENE_CONFLICT_MESSAGE;
+  }
+  return fallbackMessage;
+}
+
+// ===== 官方 tab 列表视图 =====
+function setListView(view) {
+  listView.value = view;
+  // 切到官方 tab 时默认展示堆叠预览（该视图的重点就是整体排布）
+  previewMode.value = view === 'official' ? 'stack' : 'single';
+}
+
+function resetOfficialDrag() {
+  officialDragIndex.value = -1;
+  officialDragOverIndex.value = -1;
+}
+
+function onOfficialDragStart(index, event) {
+  if (listView.value !== 'official') return;
+  officialDragIndex.value = index;
+  if (event?.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(index));
+  }
+}
+
+function onOfficialDragOver(index, event) {
+  if (officialDragIndex.value < 0) return;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  officialDragOverIndex.value = index;
+}
+
+function onOfficialDragLeave(index) {
+  if (officialDragOverIndex.value === index) officialDragOverIndex.value = -1;
+}
+
+async function onOfficialDrop(index, event) {
+  event.preventDefault();
+  const from = officialDragIndex.value;
+  resetOfficialDrag();
+  if (from < 0 || from === index) return;
+  await reorderOfficialHero(from, index);
+}
+
+// 拖拽写回 sort_order：只置换官方行的相对次序，其余行（草稿/归档）保持原相对位置。
+// reorderHeroes 会按传入数组顺序把 sort_order 重排为 0..N-1，故必须传全量 id，
+// 否则未传入的行会被从 allHeroes 中剔除。
+async function reorderOfficialHero(from, to) {
+  const list = officialOrder.value;
+  if (from < 0 || to < 0 || from >= list.length || to >= list.length) return;
+  const moved = [...list];
+  const [item] = moved.splice(from, 1);
+  moved.splice(to, 0, item);
+  const anchorId = to > from ? moved[to - 1].id : moved[to + 1].id;
+  const without = heroes.value.map((hero) => hero.id).filter((id) => id !== item.id);
+  const anchorIndex = without.indexOf(anchorId);
+  if (anchorIndex < 0) return;
+  const nextOrder = [...without];
+  nextOrder.splice(to > from ? anchorIndex + 1 : anchorIndex, 0, item.id);
+  const ok = await homeHeroesStore.reorderHeroes(nextOrder);
+  if (!ok) {
+    showToast('调整官方位次失败');
+    return;
+  }
+  // 草稿列表刷新后会保留，同步其排序避免之后「保存草稿」写回旧顺序
+  nextOrder.forEach((id, order) => {
+    if (drafts[id]) drafts[id].sort_order = order;
+  });
+  await loadHeroes();
+  showToast('已调整官方位次');
+}
+
 function getCardContentLayout(card) {
   return { ...defaultContentLayout, ...(card.content_layout || {}) };
 }
@@ -1190,6 +1490,10 @@ function startNewHero() {
     title: '新英雄区',
     subtitle: null,
     image_config: { src: '', alt: '' },
+    image_portrait: null,
+    image_landscape: null,
+    greeting_text: null,
+    hint_text: null,
     content_layout: { desktop: { ...defaultContentLayout }, mobile: null },
     links: [],
     showcase_config: createDefaultShowcaseConfig(),
@@ -1260,6 +1564,15 @@ async function saveCurrent() {
     showToast('主标题不能为空');
     return;
   }
+  // 单例预检：保存不改 status，只有「当前已发布」的行才会占用首屏街景槽位
+  if (findStreetSceneConflict({
+    id: selectedId.value,
+    isArchived: draft.is_archived,
+    willBePublished: selectedHero.value.status === 'published'
+  })) {
+    showToast(STREET_SCENE_CONFLICT_MESSAGE);
+    return;
+  }
   const payload = {
     sort_order: draft.sort_order,
     is_archived: draft.is_archived,
@@ -1275,6 +1588,12 @@ async function saveCurrent() {
     split_cards: draft.template === 'split' ? draft.split_cards : null,
     // 数据库字段为 NOT NULL；非 showcase 模板保存为空对象而不是 null。
     showcase_config: draft.template === 'showcase' ? (draft.showcase_config || {}) : {},
+    // street-scene 双构图字段；切走该模板时清空，避免残留孤儿图
+    image_portrait: draft.template === 'street-scene' ? (draft.image_portrait || null) : null,
+    image_landscape: draft.template === 'street-scene' ? (draft.image_landscape || null) : null,
+    // 首屏文案：仅 street-scene 模板使用；切走该模板时清空，避免残留到别的模板上
+    greeting_text: draft.template === 'street-scene' ? (draft.greeting_text || null) : null,
+    hint_text: draft.template === 'street-scene' ? (draft.hint_text || null) : null,
     label: draft.label || null,
     aria_label: draft.aria_label || null
   };
@@ -1294,11 +1613,20 @@ async function saveCurrent() {
     ok = await homeHeroesStore.saveHero(selectedId.value, payload);
     if (ok) dirtyIds.delete(selectedId.value);
   }
-  showToast(ok ? '草稿已保存' : '保存失败');
+  showToast(ok ? '草稿已保存' : describeWriteFailure('保存失败'));
 }
 
 async function publishCurrent() {
   if (!draftHero.value || !selectedHero.value) return;
+  // 单例预检：发布后该行即占用首屏街景槽位（DB partial unique index 是最终防线）
+  if (findStreetSceneConflict({
+    id: selectedId.value,
+    isArchived: draftHero.value.is_archived,
+    willBePublished: true
+  })) {
+    showToast(STREET_SCENE_CONFLICT_MESSAGE);
+    return;
+  }
   // 先保存草稿
   const isTemp = String(selectedId.value).startsWith('temp-');
   if (isTemp || isDirty(selectedId.value)) {
@@ -1315,7 +1643,7 @@ async function publishCurrent() {
   const isArchived = Boolean(selectedHero.value?.is_archived);
   showToast(ok
     ? (isArchived ? '已发布到历史回顾区（归档中，不上首页）' : '已发布，首页即将生效')
-    : '发布失败');
+    : describeWriteFailure('发布失败'));
 }
 
 async function deleteCurrent() {
@@ -1458,6 +1786,8 @@ async function openDirectUpload(type, index = -1) {
       const uploaded = await uploadImageToCloudinary(prepared.file, {
         folder: 'boh-cloud-plus/admin-hero-console',
         pendingSource: 'hero-console',
+        // 装修台素材上传即投产，直接认领，避免永久停留在未归属状态
+        claimPendingUpload: true,
         onProgress: handleUploadProgress
       });
       if (!uploaded.url) throw new Error('上传成功但未返回图片地址');
@@ -1471,6 +1801,10 @@ async function openDirectUpload(type, index = -1) {
         draftHero.value.image_config.landscapeSrc = uploaded.url;
       } else if (type === 'portrait') {
         draftHero.value.image_config.portraitSrc = uploaded.url;
+      } else if (type === 'street-portrait') {
+        draftHero.value.image_portrait = uploaded.url;
+      } else if (type === 'street-landscape') {
+        draftHero.value.image_landscape = uploaded.url;
       } else if (type === 'cover') {
         const config = ensureShowcaseConfig();
         if (config) config.cover_src = uploaded.url;
@@ -1505,6 +1839,8 @@ async function handleCropConfirm(blob) {
     const uploaded = await uploadImageToCloudinary(prepared.file, {
       folder: 'boh-cloud-plus/admin-hero-console',
       pendingSource: 'hero-console',
+      // 装修台素材上传即投产，直接认领，避免永久停留在未归属状态
+      claimPendingUpload: true,
       onProgress: handleUploadProgress
     });
     if (!uploaded.url) throw new Error('上传成功但未返回图片地址');
@@ -1590,7 +1926,8 @@ async function rollbackTo(revisionId) {
     delete drafts[selectedId.value];
     showToast('已回滚，请检查后发布');
   } else {
-    showToast('回滚失败');
+    // 回滚可能把模板改回 street-scene 而撞上单例约束，同样翻译成人话
+    showToast(describeWriteFailure('回滚失败'));
   }
 }
 
@@ -1755,7 +2092,7 @@ onBeforeUnmount(() => {
   min-height: 62px;
   padding: 7px 8px;
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) auto;
+  grid-template-columns: 48px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 9px;
   border: 0;
@@ -1764,9 +2101,22 @@ onBeforeUnmount(() => {
   text-align: left;
   background: transparent;
   cursor: pointer;
+  user-select: none;
 }
 .hero-row:hover { background: rgba(118, 118, 128, 0.07); }
 .hero-row.selected { background: rgba(0, 122, 255, 0.11); }
+.hero-row:focus-visible { outline: 2px solid rgba(0, 122, 255, 0.6); outline-offset: 2px; }
+.hero-row.is-dragging { opacity: 0.5; }
+.hero-row.is-drag-over { box-shadow: inset 0 2px 0 var(--blue, #007aff); }
+.row-rank {
+  padding: 3px 6px;
+  border-radius: 6px;
+  color: #006aff;
+  background: rgba(0, 122, 255, 0.1);
+  font-size: 10px;
+  font-weight: 650;
+  white-space: nowrap;
+}
 
 .row-thumb {
   width: 48px;
@@ -1781,6 +2131,43 @@ onBeforeUnmount(() => {
 .row-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .thumb-overlay { aspect-ratio: 16 / 9; }
 .thumb-responsive { aspect-ratio: 1; }
+
+/* 列表视图 / 预览模式切换（分段控件） */
+.list-view-tabs {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 2px;
+  padding: 2px;
+  margin-bottom: 10px;
+  border-radius: 10px;
+  background: var(--fill);
+}
+.list-view-tabs.compact { margin-bottom: 0; }
+.list-view-tabs button {
+  min-height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--secondary);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.list-view-tabs button.active {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.official-list-hint {
+  margin: 10px 14px 6px;
+  color: var(--secondary);
+  font-size: 11px;
+  line-height: 1.5;
+}
 
 /* 预览区 */
 .preview-workspace {
@@ -1843,6 +2230,164 @@ onBeforeUnmount(() => {
   background: var(--fill);
   color: var(--text);
   font-weight: 600;
+}
+
+/* 官方 tab 堆叠预览：卡片相互叠压，DOM 顺序即首页顺序（后者压前者） */
+.official-stack-preview { min-height: 320px; }
+.official-stack-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.official-stack-head small { color: var(--secondary); font-size: 11px; }
+.official-stack-deck {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 8px;
+}
+.official-stack-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 58px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--text);
+  text-align: left;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 -10px 22px rgba(0, 0, 0, 0.09);
+  cursor: pointer;
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.official-stack-card + .official-stack-card { margin-top: -26px; }
+.official-stack-card.selected { border-color: rgba(0, 122, 255, 0.55); }
+.official-stack-card:hover,
+.official-stack-card:focus-visible {
+  z-index: 99;
+  transform: translateX(10px);
+}
+.stack-thumb {
+  width: 44px;
+  aspect-ratio: 4 / 3;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 8px;
+  color: #a1a1a6;
+  background: rgba(118, 118, 128, 0.09);
+}
+.stack-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.stack-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.stack-copy strong {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stack-copy small { color: var(--secondary); font-size: 11px; }
+.stack-rank {
+  color: var(--secondary);
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 首屏街景预览：构图 / scrim / 问候 / 呼吸提示与 StreetSceneHero 一致。
+   尺寸单位用 cq*（容器=画布），否则 vw/svh 会按浏览器窗口算而失真。 */
+.street-scene-preview {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  container-type: size;
+  background: #f3ece2;
+  font-family: -apple-system, "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", sans-serif;
+}
+.street-scene-preview-img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+.street-scene-preview-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to bottom,
+      rgba(0, 0, 0, 0.25) 0%,
+      rgba(0, 0, 0, 0.125) 12%,
+      rgba(0, 0, 0, 0) 22%),
+    linear-gradient(to top,
+      rgba(0, 0, 0, 0.25) 0%,
+      rgba(0, 0, 0, 0.125) 10%,
+      rgba(0, 0, 0, 0) 18%);
+}
+.street-scene-preview-content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: max(84px, 12cqh) clamp(20px, 5cqw, 56px) clamp(28px, 6cqh, 64px);
+  pointer-events: none;
+}
+.street-scene-preview-greeting {
+  align-self: flex-start;
+  max-width: min(100%, 22ch);
+  margin: 0;
+  color: #fff;
+  font-size: clamp(28px, 4.4cqw, 34px);
+  font-weight: 600;
+  line-height: 1.32;
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.street-scene-preview-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
+}
+.street-scene-preview-arrow {
+  display: inline-block;
+  animation: streetScenePreviewBreath 2s ease-in-out infinite;
+}
+@keyframes streetScenePreviewBreath {
+  0%, 100% { transform: translateY(0); opacity: 0.75; }
+  50% { transform: translateY(5px); opacity: 1; }
+}
+.street-scene-preview-fallback {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.42);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 /* 编辑面板：图片配置区 */

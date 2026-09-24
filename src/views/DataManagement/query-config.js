@@ -31,7 +31,6 @@ export const STATUS_FILTER_FIELDS = {
   moderationLogs: 'target_type',
   forumPostReports: 'status',
   forumPostImages: 'moderation_status',
-  cloudinaryUploads: 'status',
   birthdayEvents: 'is_active',
   campaigns: 'stage',
   birthdayWishes: 'status',
@@ -42,7 +41,7 @@ export const STATUS_FILTER_FIELDS = {
 };
 
 export const DATE_FILTER_FIELDS = {
-  users: 'created_at',
+  users: 'join_date',
   points: 'join_date',
   subscriptions: 'expires_at',
   gifts: 'created_at',
@@ -73,7 +72,6 @@ export const DATE_FILTER_FIELDS = {
   forumPostReports: 'created_at',
   forumWeeklyCheckins: 'signed_at',
   forumPostImages: 'created_at',
-  cloudinaryUploads: 'created_at',
   apiKeyAuditLogs: 'created_at',
   aiWebSearchLog: 'created_at',
   anniversaryClaims: 'created_at',
@@ -212,7 +210,7 @@ export const TAB_SELECT_COLUMNS = {
     created_at,
     updated_at,
     lottery:lottery_id(title),
-    profile:user_id(username, email)
+    profile:user_id(username)
   `,
   lotteryEntries: `
     id,
@@ -221,7 +219,7 @@ export const TAB_SELECT_COLUMNS = {
     username_snapshot,
     created_at,
     lottery:lottery_id(title),
-    profile:user_id(username, email, join_date)
+    profile:user_id(username, join_date)
   `,
   lotteryDrawLogs: `
     id,
@@ -235,7 +233,7 @@ export const TAB_SELECT_COLUMNS = {
     reason,
     created_at,
     lottery:lottery_id(title),
-    drawer:drawn_by(username, email)
+    drawer:drawn_by(username)
   `,
   lotteryFailureStats: 'id, user_id, username, total_participations, win_count, failure_count, current_failure_streak, failure_rate, last_result_label, last_participated_at, latest_lottery_id, latest_lottery_title',
   lotterySchedulerLogs: `
@@ -268,7 +266,7 @@ export const TAB_SELECT_COLUMNS = {
     created_at,
     updated_at,
     lottery:lottery_id(title),
-    profile:user_id(username, email)
+    profile:user_id(username)
   `,
   lotteryJoinAttempts: `
     id,
@@ -278,7 +276,7 @@ export const TAB_SELECT_COLUMNS = {
     message,
     created_at,
     lottery:lottery_id(title),
-    profile:user_id(username, email)
+    profile:user_id(username)
   `,
   lotteryAuditLogs: `
     id,
@@ -289,7 +287,7 @@ export const TAB_SELECT_COLUMNS = {
     detail,
     created_at,
     lottery:lottery_id(title),
-    actor:actor_id(username, email)
+    actor:actor_id(username)
   `,
   news: 'id, category, title, excerpt, date, author, image, content, created_at, updated_at',
   activities: 'id, title, date, image, description, created_at, updated_at',
@@ -353,7 +351,7 @@ export const TAB_SELECT_COLUMNS = {
     ai_result,
     ai_reason,
     moderator_id,
-    moderator_name,
+    moderator:moderator_id(username),
     created_at
   `,
 
@@ -398,26 +396,13 @@ export const TAB_SELECT_COLUMNS = {
     profile:user_id(username)
   `,
 
-  // ========== Cloudinary 待上传 ==========
-  cloudinaryUploads: `
-    id,
-    user_id,
-    status,
-    error_message,
-    retry_count,
-    created_at,
-    updated_at,
-    profile:user_id(username)
-  `,
-
   // ========== API Key 审计日志 ==========
   apiKeyAuditLogs: `
     id,
     action,
     provider,
     purpose,
-    operator_id,
-    operator_name,
+    actor_id,
     created_at
   `,
 
@@ -428,15 +413,14 @@ export const TAB_SELECT_COLUMNS = {
     tier,
     status,
     settled_at,
-    created_at,
-    profile:user_id(username)
+    created_at
   `,
 
   // ========== 周年订阅领取 ==========
   anniversaryClaims: `
     id,
     user_id,
-    plan_code,
+    granted_plan_code,
     started_at,
     expires_at,
     created_at,
@@ -493,7 +477,7 @@ export const TAB_SELECT_COLUMNS = {
   birthdayEvents: `
     id,
     target_user_id,
-    target_username,
+    target:target_user_id(username),
     title,
     subtitle,
     hero_quote,
@@ -514,8 +498,7 @@ export const TAB_SELECT_COLUMNS = {
     status,
     is_featured,
     likes,
-    created_at,
-    updated_at
+    created_at
   `,
 
   // ========== 用户关注关系 ==========
@@ -542,7 +525,6 @@ export const TAB_SELECT_COLUMNS = {
   labUsageRecords: `
     id,
     user_id,
-    username,
     device_id,
     flow_type,
     expires_at,
@@ -597,7 +579,6 @@ export const TAB_DEFAULT_SORT = {
   forumPostReports: { column: 'created_at', ascending: false },
   forumWeeklyCheckins: { column: 'signed_at', ascending: false },
   forumPostImages: { column: 'created_at', ascending: false },
-  cloudinaryUploads: { column: 'created_at', ascending: false },
   apiKeyAuditLogs: { column: 'created_at', ascending: false },
   aiWebSearchLog: { column: 'created_at', ascending: false },
   anniversaryClaims: { column: 'created_at', ascending: false },
@@ -612,7 +593,7 @@ export const TAB_DEFAULT_SORT = {
 };
 
 export const TAB_SORT_COLUMNS = {
-  users: new Set(['username', 'email', 'role', 'points', 'join_date']),
+  users: new Set(['username', 'role', 'points', 'join_date']),
   points: new Set(['username', 'role', 'points', 'experience', 'join_date']),
   subscriptions: new Set(['plan_code', 'billing_cycle', 'status', 'started_at', 'expires_at', 'points_cost']),
   gifts: new Set(['created_at', 'completed_at', 'gift_status', 'gift_price']),
@@ -644,7 +625,6 @@ export const TAB_SORT_COLUMNS = {
   forumPostReports: new Set(['created_at', 'status', 'reason']),
   forumWeeklyCheckins: new Set(['signed_at', 'week_start_date']),
   forumPostImages: new Set(['created_at', 'moderation_status']),
-  cloudinaryUploads: new Set(['created_at', 'status', 'retry_count']),
   apiKeyAuditLogs: new Set(['created_at', 'action', 'provider']),
   aiWebSearchLog: new Set(['created_at', 'status', 'tier']),
   anniversaryClaims: new Set(['created_at', 'expires_at']),
@@ -685,23 +665,22 @@ export const TAB_SEARCH_FIELDS = {
   activities: [{ column: 'id', type: 'number' }, { column: 'title', type: 'text' }, { column: 'date', type: 'text' }, { column: 'description', type: 'text' }],
   postReward: [{ column: 'id', type: 'number' }, { column: 'title', type: 'text' }, { column: 'status', type: 'text' }, { column: 'start_at', type: 'text' }, { column: 'end_at', type: 'text' }],
   products: [{ column: 'id', type: 'number' }, { column: 'title', type: 'text' }, { column: 'category', type: 'text' }, { column: 'description', type: 'text' }, { column: 'payment_mode', type: 'text' }],
-  shopOrders: [{ column: 'id', type: 'uuid' }, { column: 'order_no', type: 'text' }, { column: 'username', type: 'text' }, { column: 'contact_value', type: 'text' }, { column: 'status', type: 'text' }, { column: 'payment_mode', type: 'text' }],
-  pointsTransactions: [{ column: 'id', type: 'uuid' }, { column: 'username', type: 'text' }, { column: 'reason', type: 'text' }, { column: 'remark', type: 'text' }, { column: 'batch_id', type: 'uuid' }],
+  shopOrders: [{ column: 'id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'order_no', type: 'text' }, { column: 'contact_value', type: 'text' }, { column: 'status', type: 'text' }, { column: 'payment_mode', type: 'text' }],
+  pointsTransactions: [{ column: 'id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'reason', type: 'text' }, { column: 'remark', type: 'text' }, { column: 'batch_id', type: 'uuid' }],
   notifications: [{ column: 'id', type: 'uuid' }, { column: 'type', type: 'text' }, { column: 'content', type: 'text' }, { column: 'status', type: 'text' }],
-  moderationLogs: [{ column: 'id', type: 'uuid' }, { column: 'target_type', type: 'text' }, { column: 'target_id', type: 'uuid' }, { column: 'ai_result', type: 'text' }, { column: 'moderator_name', type: 'text' }],
+  moderationLogs: [{ column: 'id', type: 'uuid' }, { column: 'target_type', type: 'text' }, { column: 'target_id', type: 'uuid' }, { column: 'ai_result', type: 'text' }, { column: 'moderator_id', type: 'uuid' }],
   forumPostReports: [{ column: 'id', type: 'uuid' }, { column: 'post_id', type: 'uuid' }, { column: 'reason', type: 'text' }, { column: 'detail', type: 'text' }, { column: 'status', type: 'text' }],
-  forumWeeklyCheckins: [{ column: 'id', type: 'uuid' }, { column: 'username', type: 'text' }, { column: 'week_start_date', type: 'date' }],
-  forumPostImages: [{ column: 'id', type: 'uuid' }, { column: 'post_id', type: 'uuid' }, { column: 'username', type: 'text' }, { column: 'moderation_status', type: 'text' }],
-  cloudinaryUploads: [{ column: 'id', type: 'uuid' }, { column: 'username', type: 'text' }, { column: 'status', type: 'text' }, { column: 'error_message', type: 'text' }],
-  apiKeyAuditLogs: [{ column: 'id', type: 'uuid' }, { column: 'action', type: 'text' }, { column: 'provider', type: 'text' }, { column: 'operator_name', type: 'text' }],
-  aiWebSearchLog: [{ column: 'id', type: 'uuid' }, { column: 'username', type: 'text' }, { column: 'status', type: 'text' }, { column: 'tier', type: 'text' }],
-  anniversaryClaims: [{ column: 'id', type: 'uuid' }, { column: 'username', type: 'text' }, { column: 'plan_code', type: 'text' }],
+  forumWeeklyCheckins: [{ column: 'id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'week_start_date', type: 'date' }],
+  forumPostImages: [{ column: 'id', type: 'uuid' }, { column: 'post_id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'moderation_status', type: 'text' }],
+  apiKeyAuditLogs: [{ column: 'id', type: 'uuid' }, { column: 'action', type: 'text' }, { column: 'provider', type: 'text' }, { column: 'actor_id', type: 'uuid' }],
+  aiWebSearchLog: [{ column: 'id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'status', type: 'text' }, { column: 'tier', type: 'text' }],
+  anniversaryClaims: [{ column: 'id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'granted_plan_code', type: 'text' }],
   blockWallItems: [{ column: 'id', type: 'uuid' }, { column: 'author_username', type: 'text' }, { column: 'content', type: 'text' }, { column: 'item_type', type: 'text' }],
   bohCreatorShows: [{ column: 'id', type: 'uuid' }, { column: 'author_username', type: 'text' }, { column: 'title', type: 'text' }, { column: 'creator_platform', type: 'text' }],
-  birthdayEvents: [{ column: 'id', type: 'uuid' }, { column: 'title', type: 'text' }, { column: 'target_username', type: 'text' }],
+  birthdayEvents: [{ column: 'id', type: 'uuid' }, { column: 'title', type: 'text' }, { column: 'target_user_id', type: 'uuid' }],
   campaigns: [{ column: 'id', type: 'uuid' }, { column: 'slug', type: 'text' }, { column: 'title', type: 'text' }],
   birthdayWishes: [{ column: 'id', type: 'uuid' }, { column: 'author_name', type: 'text' }, { column: 'content', type: 'text' }, { column: 'status', type: 'text' }],
   userFollows: [{ column: 'id', type: 'uuid' }, { column: 'follower_id', type: 'uuid' }, { column: 'following_id', type: 'uuid' }],
   userImpressions: [{ column: 'id', type: 'uuid' }, { column: 'author_id', type: 'uuid' }, { column: 'target_id', type: 'uuid' }],
-  labUsageRecords: [{ column: 'id', type: 'uuid' }, { column: 'username', type: 'text' }, { column: 'device_id', type: 'text' }, { column: 'flow_type', type: 'text' }]
+  labUsageRecords: [{ column: 'id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'device_id', type: 'text' }, { column: 'flow_type', type: 'text' }]
 };

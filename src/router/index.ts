@@ -95,6 +95,7 @@ const isActiveBanned = (): boolean => {
 
 router.beforeEach(async (to, from, next) => {
   initAuthStore()
+
   if (!authStore) return next()
 
   const requiresLogin = to.matched.some((record) => record.meta?.requiresLogin)

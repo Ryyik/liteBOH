@@ -32,6 +32,9 @@
     <link rel="preconnect" href="https://agent.wzbc.edu.cn" crossorigin>
     <!-- 首屏使用系统字体栈；低优先级页面字体不得争抢首屏连接。 -->
     <!-- PWA 兼容性 -->
+    <!-- 2026-09-24：补 mobile-web-app-capable（新版 Chrome/Android 的标准名，消除弃用告警）；
+         apple-* 一条保留 —— 旧版 iOS Safari 仍只认它。 -->
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="BOH">
@@ -78,11 +81,14 @@
     -->
     <style>
       /* 骨架期间的底色兜底：暗色主题 CSS（src/styles/themes/dark-mode.css）是
-         懒加载的，在它到位前 body 会沿用 src/style.css 的 #ffffff。这里用与
+         懒加载的，在它到位前 body 会沿用 src/style.css 的兜底色。这里用与
          dark-mode.css 相同特异性的选择器先垫一层，应用 CSS 加载后由后者接管。
-         --boh-bg-primary 的暗色值即 #0a0a0f。 */
-      [data-theme="dark"] { background-color: #0a0a0f; }
-      [data-theme="dark"] body { background-color: #0a0a0f; }
+         2026-09-23：页面底色改回纯白（--boh-page-bg = #ffffff）；暗色仍是暖炭
+         #16120e。骨架必须跟同一 token 走，否则启动瞬间有一次底色跳变。
+         scripts/check-first-paint.mjs 会比对这里的值 === tokens.css / dark-mode.css
+         的 --boh-page-bg。 */
+      [data-theme="dark"] { background-color: #16120e; }
+      [data-theme="dark"] body { background-color: #16120e; }
 
       .boh-boot {
         box-sizing: border-box;
@@ -91,7 +97,7 @@
         display: flex;
         flex-direction: column;
       }
-      [data-theme="dark"] .boh-boot { background: #0a0a0f; }
+      [data-theme="dark"] .boh-boot { background: #16120e; }
 
       .boh-boot-body {
         flex: 1;

@@ -1,18 +1,15 @@
 import { computed, reactive, ref } from 'vue';
-import { MessageCircle, Settings, User, Users, Wallet } from 'lucide-vue-next';
+import { BOTTOM_NAV_ITEMS } from '@/config/bottom-nav';
 
-// 2026-09 IA 重构：底栏 = 社区(论坛+成员+收藏+印象) / 内容(身份卡+帖子+shows+草稿) / 资产 / 消息(+AI) / 设置
+// 2026-09-23 恢复五席：社区（现名「方块」）回到 UserSpace —— 论坛（官方 + 最新/关注/
+// 新闻/活动/成员/印象）重新由本页承载，首页 `/` 是它的下滑直达入口（同一套分区壳，单源复用）。
 export const USER_SPACE_VALID_TABS = ['community', 'posts', 'assets', 'messages', 'settings'];
 
 /* 用户空间主导航单源：底部胶囊（UserSpaceBottomNav）与横屏左栏（UserSpaceSideRail）
-   共用同一份；他人空间（ProfileMain）的横屏左栏也引用它 —— 改这里三处同步生效 */
-export const userSpaceNavItems = [
-  { id: 'community', label: '社区', icon: Users },
-  { id: 'posts', label: '我的', icon: User },
-  { id: 'assets', label: '资产', icon: Wallet },
-  { id: 'messages', label: '消息', icon: MessageCircle },
-  { id: 'settings', label: '设置', icon: Settings }
-];
+   共用同一份；他人空间（ProfileMain）的横屏左栏也引用它 —— 改这里三处同步生效。
+   2026-09-23：items 仍由 @/config/bottom-nav 注入（全站唯一一组：
+   方块 / 我的 / 资产 / 消息 / 设置），第一席「方块」就是论坛。 */
+export const userSpaceNavItems = BOTTOM_NAV_ITEMS;
 
 export const useUserSpaceTabs = (navItems, initialTab = 'community') => {
   const safeInitialTab = USER_SPACE_VALID_TABS.includes(initialTab) ? initialTab : 'community';

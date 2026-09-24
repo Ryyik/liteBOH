@@ -20,9 +20,13 @@
 
 /* ============================================
    底部导航
+   ⚠️ 选择器必须同时覆盖「页面容器带 data-theme」与「html 带 data-theme」两种情形：
+   2026-09-22 首页改版后底栏挂到首页（无 .user-space-page 祖先），
+   只认容器会让首页暗色下拿到亮色玻璃 —— 与 UserSpace 视觉不一致。
    ============================================ */
 .user-space-page[data-theme="dark"] .bottom-nav-glass,
-[data-theme="dark"] .user-space-page .bottom-nav-glass {
+[data-theme="dark"] .user-space-page .bottom-nav-glass,
+[data-theme="dark"] .bottom-nav-glass {
   background: rgba(26, 26, 36, 0.85) !important;
   backdrop-filter: var(--liquid-filter) !important;
   -webkit-backdrop-filter: var(--liquid-filter) !important;
@@ -31,22 +35,26 @@
 }
 
 .user-space-page[data-theme="dark"] .nav-item,
-[data-theme="dark"] .user-space-page .nav-item {
+[data-theme="dark"] .user-space-page .nav-item,
+[data-theme="dark"] .bottom-nav-glass .nav-item {
   color: #a1a1aa !important;
 }
 
-.user-space-page[data-theme="dark"] .nav-item:hover {
+.user-space-page[data-theme="dark"] .nav-item:hover,
+[data-theme="dark"] .bottom-nav-glass .nav-item:hover {
   background: rgba(255, 255, 255, 0.08);
   color: #e4e4e7 !important;
 }
 
-.user-space-page[data-theme="dark"] .nav-item.active {
+.user-space-page[data-theme="dark"] .nav-item.active,
+[data-theme="dark"] .bottom-nav-glass .nav-item.active {
   color: #ffffff !important;
   background: rgba(255, 255, 255, 0.12);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-.user-space-page[data-theme="dark"] .unread-badge {
+.user-space-page[data-theme="dark"] .unread-badge,
+[data-theme="dark"] .bottom-nav-glass .unread-badge {
   background: #ff5252;
   border-color: rgba(13, 13, 18, 0.5);
   box-shadow: 0 2px 6px rgba(255, 82, 82, 0.5);
@@ -565,13 +573,16 @@
 
 /* ---- dark audit 2026-09-08：底部导航文字未随暗色翻转 ---- */
 .user-space-page[data-theme="dark"] .nav-item,
-[data-theme="dark"] .user-space-page .nav-item {
+[data-theme="dark"] .user-space-page .nav-item,
+[data-theme="dark"] .bottom-nav-glass .nav-item {
   color: #b8c2cf !important;
 }
 
 .user-space-page[data-theme="dark"] .nav-item.active,
 .user-space-page[data-theme="dark"] .nav-item.active .nav-label,
 [data-theme="dark"] .user-space-page .nav-item.active,
-[data-theme="dark"] .user-space-page .nav-item.active .nav-label {
+[data-theme="dark"] .user-space-page .nav-item.active .nav-label,
+[data-theme="dark"] .bottom-nav-glass .nav-item.active,
+[data-theme="dark"] .bottom-nav-glass .nav-item.active .nav-label {
   color: #f5f5f7 !important;
 }

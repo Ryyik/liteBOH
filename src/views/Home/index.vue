@@ -1,605 +1,442 @@
 <template>
-  <div class="home">
-    <!-- 统一英雄区渲染：数据库驱动排序/显隐/归档，按 template 分流渲染 -->
-    <Transition name="home-hero-loading-fade" mode="out-in">
-      <section v-if="heroLoading" key="hero-loading" class="home-hero-loading" aria-label="正在加载首页内容">
-        <div class="home-hero-loading-visual">
-          <img :src="homeLogoImg" alt="方块之家" class="home-hero-loading-logo" width="240" height="240">
-        </div>
-        <div class="home-hero-loading-copy" aria-hidden="true">
-          <div class="home-hero-loading-line"></div>
-          <div class="home-hero-loading-line home-hero-loading-line-short"></div>
-          <div class="home-hero-loading-button"></div>
-        </div>
-      </section>
-      <div v-else key="hero-content" class="home-hero-content">
-        <HomeHeroRow
-          v-for="(hero, heroIndex) in visibleHeroes"
-          :key="(hero.template === 'builtin' ? 'builtin:' + hero.builtin_key : hero.id) + ':' + hero.sort_order"
-          :layout="heroLayout(hero)"
-          :aria-label="hero.aria_label || hero.label || hero.title"
-          :id="hero.builtin_key === 'split-brand-letter' ? 'ryyik-letter' : undefined"
-        >
-          <DynamicHomeHero
-            v-if="hero.template !== 'builtin'"
-            :hero="hero"
-            :priority="heroIndex === 0"
-            @link-click="handleDynamicLinkClick"
-          />
-          <BuiltinHeroRenderer
-            v-else
-            :hero="hero"
-            :priority="heroIndex === 0"
-            :birthday-people="birthdayPeople"
-            @poster="openPosterModal"
-            @birthday-more="onBirthdayMore"
-            @open-fuzhou="openFuzhouModal"
-            @open-cloud-plus="openCloudPlusModal"
-            @open-anniversary-letter="openAnniversaryLetter"
-          />
-        </HomeHeroRow>
-      </div>
-    </Transition>
+  <div ref="homeRootRef" class="home" :class="{ 'home-forum-open': forumOpen, 'home-forum-entering': forumEntering }">
 
-    <!-- 遇见福州 弹窗 -->
-    <Teleport to="body">
-      <Transition name="modal-fade">
-        <div v-if="showFuzhouModal" class="fuzhou-modal-overlay" @click.self="showFuzhouModal = false">
-          <div class="fuzhou-modal-card">
-            <button class="modal-close-btn" @click="closeFuzhouModal">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
-            <div class="fuzhou-modal-content">
-              <div class="fuzhou-modal-header">
-                <div class="fuzhou-modal-icon">🏮</div>
-                <h2 class="fuzhou-modal-title">遇见福州</h2>
-              </div>
-              <div class="fuzhou-modal-body">
-                <p class="fuzhou-modal-paragraph">方块之家遇见系列从7周年开始，现将来到福州。</p>
-                <p class="fuzhou-modal-paragraph">福州是一座被茉莉花香浸润的城市。三坊七巷的黛瓦白墙里藏着千年闽都的呼吸，闽江水穿城而过奔赴大海。古榕垂荫下的鱼丸汤冒着热气，石板路上回响着岁月的脚步——有福之州，正用它独有的温度，等待与方块之家的你相遇。</p>
-              </div>
-              <div class="fuzhou-modal-actions">
-                <button class="fuzhou-modal-close-btn" @click="closeFuzhouModal">
-                  了解了
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
+    <!-- 1. 开场层：满屏街景画（一次性）。
+         下滑 → 本层线性上移退出、论坛层随即铺满；退出后即卸载，不再支持上滑回到开场画。
+         普通文档流 + 固定覆盖层，不劫持滚动（过渡结束就是干净的文档流滚动）。 -->
+    <div v-if="!gateDismissed" ref="gateRef" class="home-gate" :class="{ 'is-leaving': gateLeaving }">
+      <StreetSceneHero :hero="streetSceneHero" />
+      <!-- 键盘 / 读屏用户的等价入口：视觉隐藏、聚焦时可见 -->
+      <button ref="gateEnterBtnRef" class="home-gate-enter" type="button" @click="enterForum">
+        进入方块论坛
+      </button>
+    </div>
 
-    <!-- 八周年信件弹窗 -->
-    <Teleport to="body">
-      <Transition name="modal-fade">
-        <div v-if="showAnniversaryLetter" class="anniversary-modal-overlay" @click.self="closeAnniversaryLetter">
-          <article class="anniversary-modal-card" role="dialog" aria-modal="true" aria-labelledby="anniversary-letter-title">
-            <button class="modal-close-btn" aria-label="关闭信件" @click="closeAnniversaryLetter">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
-            <div class="anniversary-letter-content">
-              <header class="letter-header">
-                <img :src="anniversaryTextImg" alt="方块之家八周年" class="letter-logo-img" width="768" height="512">
-                <h2 id="anniversary-letter-title" class="letter-title">来自 Ryyik 的一封信</h2>
-              </header>
-              <div class="letter-body">
-                <p class="letter-paragraph">TO：方块之家的各位</p>
-                <p class="letter-paragraph">祝方块之家八周年快乐！</p>
-                <p class="letter-paragraph">回望这一路，我总觉得不可思议：我们竟然真的从 2018 年，一起走到了 2026 年。</p>
-                <p class="letter-paragraph">这八年里，与你们共度的每一天，都构成了我青春中无比珍贵的一部分。因为有你们，才有了方块之家；也正因为有你们，我们才能一直走到今天。</p>
-                <p class="letter-paragraph">八年前，当我第一次遇见小天光时，我从未想过，后来会认识这么多人，会与大家共同写下这么多故事。因为你们，我们愿意笨拙地拍摄一部又一部纪念短片，搭建一张又一张周年庆地图，一遍遍设计和完善属于我们的角色。我们一起构建了一个很特别的社群——一个会认真庆祝周年、举办生日会，也会一起策划各种活动的社群。</p>
-                <p class="letter-paragraph">到了 2026 年，我又执着地想要建设一个能够承载我们共同回忆的网站。那些曾经觉得遥不可及的功能，竟然在短短几个月里一点点变成了现实。支撑我不断做下去的动力，是想到屏幕另一边还有你们，愿意成为这些故事的观众，也愿意继续参与其中。</p>
-                <p class="letter-paragraph">而事实证明，这一切都值得。</p>
-                <p class="letter-paragraph">因为有你们在，一切才有意义。</p>
-                <p class="letter-paragraph">这么多年，我们共同创造了许多地图。但最打动我的，始终是你们愿意一次又一次回到方块街。正是这种反复的归来，让我每一次登录，都像是回到了家。</p>
-                <p class="letter-paragraph">从最初那个尚且懵懂的“未开智”时期，到如今陆续步入大学，我们彼此包容，共同经历，也一起长大。我愿意把这段情谊称为我人生二十年来最美好的经历之一。</p>
-                <p class="letter-paragraph">最初遇见的小天光、小仙、3759、小牛、Zombater、AWGIU、厕所君、LF、好奇、橙子、百城、Daji、End、物理外挂……后来加入的汉堡、Eleven、丁老师、YUFUQU、黑白……以及许许多多陪伴过方块之家的群友们——每一个名字，都构成了这段漫长故事的一部分。</p>
-                <p class="letter-paragraph">后来，我第一次在现实中见到了百城、LF 和物理外挂。经过这么多年密切的交流，真正见到你们的那一刻，我由衷地感到开心。我没有想到，一段诞生于互联网的友谊，最终可以变得如此真实而具体。</p>
-                <p class="letter-paragraph">我也迫不及待地想要见到更多的各位。只是受限于眼下的条件，这个愿望还不能立刻实现。但我相信，未来还很长。愿我们有足够的时间，也有足够的缘分，在现实中的某一天真正相见。</p>
-                <p class="letter-paragraph">八年不是终点，而是我们共同故事中的又一个坐标。</p>
-                <p class="letter-paragraph">谢谢你们曾经来到这里，也谢谢你们愿意一直留在这里。因为有你们，方块之家才不只是一张地图、一个群聊或一个网站，而是一段真实发生过，并且仍在继续的共同经历。</p>
-                <p class="letter-paragraph">未来，我们或许会走向不同的地方，拥有各自新的生活，但我相信，这八年间共同创造的一切，都会成为我们记忆中无法替代的一部分。</p>
-                <p class="letter-paragraph">愿我们继续创造新的故事，也愿多年以后，当我们再次谈起方块之家时，依然会为曾经拥有这样一段时光而感到庆幸。</p>
-                <p class="letter-paragraph">祝方块之家八周年快乐！</p>
-                <p class="letter-paragraph">也祝方块之家的每一位，在各自的人生中平安顺遂，始终保有热爱，并继续成为自己想成为的人。</p>
-                <footer class="letter-signature">
-                  <p>Ryyik</p>
-                  <p class="letter-date">2026 年 7 月</p>
-                </footer>
-                <section class="anniversary-gift" aria-labelledby="anniversary-gift-title">
-                  <div class="anniversary-gift-copy">
-                    <h3 id="anniversary-gift-title">八周年订阅礼物</h3>
-                    <p>每个账号可免费领取一次 Max 订阅权益，有效期一个月。</p>
-                  </div>
-                  <label v-if="anniversaryHigherPlan" class="anniversary-upgrade-option">
-                    <input v-model="preferCurrentAnniversaryTier" type="checkbox">
-                    <span>升级为 {{ anniversaryHigherPlanName }}，为当前订阅续期一个月</span>
-                  </label>
-                  <button type="button" class="anniversary-claim-btn"
-                    :disabled="isAnniversaryGiftLoading || anniversaryGiftClaimed"
-                    :aria-busy="isAnniversaryGiftLoading" @click="claimAnniversaryGift">
-                    <Gift :size="17" :stroke-width="2" aria-hidden="true" />
-                    <span>免费领取订阅</span>
-                  </button>
-                  <p v-if="anniversaryGiftMessage" class="anniversary-gift-status"
-                    :class="{ success: anniversaryGiftClaimed, error: anniversaryGiftError }" role="status">
-                    {{ anniversaryGiftMessage }}
-                  </p>
-                </section>
-              </div>
-            </div>
-          </article>
-        </div>
-      </Transition>
-    </Teleport>
+    <!-- 2. 论坛层：方块（论坛）分区壳（官方 / 最新 / 关注 / 新闻 / 活动 / 成员 / 印象）
+         与 UserSpace 的「方块」分区共用同一份组件；归档区 + 页脚接在论坛流末尾。 -->
+    <div ref="forumStageRef" class="home-forum-stage">
+      <ForumSectionShell ref="forumShellRef" v-model:section="forumSection"
+        @island-message="handleIslandMessage">
+        <template #official>
+          <AsyncOfficialHeroStage />
+        </template>
+      </ForumSectionShell>
+      <HomeFooter />
+    </div>
 
-    <!-- BOH Cloud+ 联动功能弹窗 -->
-    <Teleport to="body">
-      <Transition name="modal-fade">
-        <div v-if="showCloudPlusModal" class="cloud-plus-modal-overlay" @click.self="closeCloudPlusModal">
-          <div class="cloud-plus-modal-card">
-            <button class="modal-close-btn" @click="closeCloudPlusModal">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
-            <div class="cloud-plus-modal-content">
-              <div class="cloud-plus-modal-header">
-                <div class="cloud-plus-modal-icon">☁️</div>
-                <h2 class="cloud-plus-modal-title">BOH Cloud+</h2>
-                <p class="cloud-plus-modal-subtitle">云端内容，随时可达</p>
-              </div>
-              <div class="cloud-plus-modal-body">
-                <div class="cloud-plus-feature">
-                  <div class="feature-icon">☁️</div>
-                  <div class="feature-content">
-                    <h3 class="feature-title">云端笔记</h3>
-                    <p class="feature-desc">记录社群灵感、活动想法和日常内容，跨设备保持同步</p>
-                  </div>
-                </div>
-                <div class="cloud-plus-feature">
-                  <div class="feature-icon">🗂️</div>
-                  <div class="feature-content">
-                    <h3 class="feature-title">内容整理</h3>
-                    <p class="feature-desc">把笔记、素材和个人内容集中管理，减少分散查找的麻烦</p>
-                  </div>
-                </div>
-                <div class="cloud-plus-feature">
-                  <div class="feature-icon">🔗</div>
-                  <div class="feature-content">
-                    <h3 class="feature-title">跨平台同步</h3>
-                    <p class="feature-desc">在不同设备间访问你的内容，保持 BOH 相关资料持续在线</p>
-                  </div>
-                </div>
-                <div class="cloud-plus-feature">
-                  <div class="feature-icon">📚</div>
-                  <div class="feature-content">
-                    <h3 class="feature-title">社群资料库</h3>
-                    <p class="feature-desc">沉淀值得保存的 BOH 资料，让重要内容不再散落各处</p>
-                  </div>
-                </div>
-              </div>
-              <div class="cloud-plus-modal-actions">
-                <router-link to="/user-space/note" class="cloud-plus-modal-primary-btn" @click="closeCloudPlusModal">
-                  立即体验
-                </router-link>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
-    <!-- 八周年纪念海报申请弹窗 -->
-    <Teleport to="body">
-      <Transition name="poster-fade">
-        <div v-if="showPosterModal" class="poster-modal-overlay" @click.self="closePosterModal">
-          <div class="poster-modal-card" role="dialog" aria-modal="true" aria-labelledby="poster-modal-title">
-            <span class="poster-modal-orb poster-orb-a" aria-hidden="true"></span>
-            <span class="poster-modal-orb poster-orb-b" aria-hidden="true"></span>
-            <button class="poster-close-btn" aria-label="关闭海报申请" @click="closePosterModal">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-                stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
-            <div class="poster-modal-content">
-              <div class="poster-modal-header">
-                <div class="poster-modal-icon">
-                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="4" width="18" height="16" rx="3"></rect>
-                    <circle cx="8.5" cy="9" r="1.6"></circle>
-                    <path d="M4 17l4.5-4.5c.8-.8 2.1-.8 2.9 0l3.2 3.2"></path>
-                    <path d="M17.5 15.5l-1.4-1.4c-.8-.8-2.1-.8-2.9 0L11 16"></path>
-                  </svg>
-                </div>
-                <h2 id="poster-modal-title" class="poster-modal-title">八周年纪念海报</h2>
-                <p class="poster-modal-subtitle">方块之家八周年 · 校园设定集纪念海报</p>
-              </div>
-              <div class="poster-modal-notice">
-                <p>海报采用实体印刷，提交申请后 <strong>5 天内送达</strong>。</p>
-                <p>每份海报需支付 <strong>5 RMB 物料费</strong>，运费由方块之家承担。</p>
-              </div>
-              <form class="poster-form" @submit.prevent="submitPosterApplication">
-                <div class="poster-form-grid">
-                  <div class="poster-input-group">
-                    <label for="poster-recipient">收件人姓名</label>
-                    <input id="poster-recipient" v-model="posterForm.recipient" type="text" maxlength="40"
-                      placeholder="请输入收件人姓名" autocomplete="name" :disabled="posterSubmitted">
-                  </div>
-                  <div class="poster-input-group">
-                    <label for="poster-phone">联系电话</label>
-                    <input id="poster-phone" v-model="posterForm.phone" type="tel" maxlength="20"
-                      placeholder="请输入联系电话" autocomplete="tel" :disabled="posterSubmitted">
-                  </div>
-                  <div class="poster-input-group poster-full-row">
-                    <label for="poster-address">详细收货地址</label>
-                    <textarea id="poster-address" v-model="posterForm.address" maxlength="200" rows="3"
-                      class="poster-textarea" placeholder="请输入省市区及详细地址" autocomplete="street-address"
-                      :disabled="posterSubmitted"></textarea>
-                  </div>
-                </div>
-                <p v-if="posterMessage" class="poster-status" :class="{ success: posterSuccess, error: posterError }"
-                  role="status">
-                  {{ posterMessage }}
-                </p>
-                <div class="poster-modal-actions">
-                  <button v-if="!posterSubmitted" type="submit" class="poster-primary-btn"
-                    :disabled="isPosterSubmitting" :aria-busy="isPosterSubmitting">
-                    {{ isPosterSubmitting ? '正在提交...' : '提交申请' }}
-                  </button>
-                  <button v-else type="button" class="poster-primary-btn" @click="closePosterModal">
-                    完成
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
-    <!-- 首屏页脚 — 仅 Home 显示 -->
-    <HomeFooter />
-
+    <!-- 3. 移动端底栏：开场画退掉大半后才从下方浮上来（v-if 由 bottomNavReady 控制，
+            不是 forumOpen —— 早挂载就会和封面同时抢镜）；此后随滚动方向隐藏 / 显现。
+         桌面 / 横屏整槽关掉（顶部 UnifiedNavbar 足够）。 -->
+    <div v-if="bottomNavReady" class="home-bottom-nav-slot">
+      <UserSpaceBottomNav :visible="true" :hidden="bottomNavHidden" :enter-duration="BOTTOM_NAV_ENTER_MS"
+        :nav-items="BOTTOM_NAV_ITEMS" :current-tab="activeBottomNavId"
+        :nav-indicator-style="bottomNavIndicatorStyle" :has-unread-messages="hasUnreadMessages"
+        :unread-count="unreadCount" @nav-click="handleBottomNavClick" />
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, nextTick, ref, onMounted, onUnmounted, watch } from "vue";
-import { Gift } from "lucide-vue-next";
+/* 首页（2026-09-23）
+   结构：满屏街景开场画（一次性）→ 线性滑出 → 方块论坛铺满 → 归档区 + 页脚 → 底栏。
+   - 开场画不是可滚动的第一屏，而是「过了就不再回来」的入场：下滑（滚轮 / 触摸 / 键盘）
+     即触发一次 720ms 线性过渡，开场画上移退出，论坛从下方就位。
+   - 论坛本体与 UserSpace 的「方块」分区共用 ForumSectionShell（单源），
+     分区七席、30s 轮询、分区过渡动画全部原样。
+   - 底栏五席来自 @/config/bottom-nav，进入论坛后滑入，随后由滚动方向驱动显隐。 */
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
-import HomeHeroRow from "./components/HomeHeroRow.vue";
-import HomeFooter from "./components/HomeFooter.vue";
-import DynamicHomeHero from "./components/DynamicHomeHero.vue";
-import BuiltinHeroRenderer from "./components/BuiltinHeroRenderer.vue";
-import { builtinHeroLayout } from "./components/homeArchiveData.js";
-import { useHomeHeroesStore } from "@/stores/homeHeroes";
-import { isBirthdayToday } from "@/utils/birthday.js";
 import { useRoute, useRouter } from "vue-router";
+import StreetSceneHero from "./components/StreetSceneHero.vue";
+import HomeFooter from "./components/HomeFooter.vue";
+import ForumSectionShell from "@/views/user-center/UserSpace/components/ForumSectionShell.vue";
+import UserSpaceBottomNav from "@/views/user-center/UserSpace/components/UserSpaceBottomNav.vue";
+import { useScrollDirectionHide } from "@/views/user-center/UserSpace/composables/useScrollDirectionHide.js";
+import { useHomeHeroesStore } from "@/stores/homeHeroes";
 import { useAuthStore } from "@/stores/auth";
-import {
-  claimAnniversarySubscription,
-  getAnniversarySubscriptionClaim,
-  getMySubscriptions
-} from "@/utils/api/subscription-api.js";
-import {
-  PLAN_DISPLAY_NAMES,
-  resolveHighestTierCode
-} from "@/utils/subscription-benefits.js";
-import { submitPosterRequest } from "@/utils/api/poster-api.js";
+import { FORUM_DEFAULT_SECTION, resolveForumSection } from "@/config/forum-sections";
+import { BOTTOM_NAV_ITEMS } from "@/config/bottom-nav";
+import { getNotificationStoreSync, loadNotificationStore } from "@/stores/notification-loader";
+import { showIsland } from "@/composables/useIsland.js";
 
-// 八周年信件弹窗用到的图片（仍在 Home 内使用）
-import anniversaryTextImg from "@/assets/images/8yearstext.webp?url";
-import homeLogoImg from "@/assets/images/favicon.webp?url";
+// 官方英雄区舞台（hero 流 + 四类周年弹窗）：独立 chunk，只在切到「官方」分区时才请求
+const AsyncOfficialHeroStage = defineAsyncComponent(
+  () => import("./components/OfficialHeroStage.vue")
+);
 
-// 路由相关
 const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
-const { isLoggedIn, userInfo, showLoginModal } = storeToRefs(authStore);
-
-const showAnniversaryLetter = ref(false);
-const showCloudPlusModal = ref(false);
+const { isLoggedIn, userInfo } = storeToRefs(authStore);
 
 // ============================================
-// 八周年纪念海报申请
+// 开场层：一次性入场
 // ============================================
-const showPosterModal = ref(false);
-const posterForm = ref({ recipient: '', phone: '', address: '' });
-const isPosterSubmitting = ref(false);
-const posterSubmitted = ref(false);
-const posterSuccess = ref(false);
-const posterError = ref(false);
-const posterMessage = ref('');
+/* 开场画「本会话看过一次就不再放」的标记。
+   2026-09-24：key 带上构建指纹（生产构建注入的 <meta name="boh-build-id">；dev 不注入）——
+   每次发布新版本，用户再访问就会重播一次开场画。
+   dev 下拿不到 meta → 退回不带后缀的 key，与开发时的既有行为一致（探针因此也稳定）。 */
+const GATE_PASSED_KEY = "boh-home-gate-passed";
+const resolveGateStorageKey = () => {
+  if (typeof document === "undefined") return GATE_PASSED_KEY;
+  const buildId = String(document.querySelector('meta[name="boh-build-id"]')?.content || "").trim();
+  return buildId ? `${GATE_PASSED_KEY}:${buildId}` : GATE_PASSED_KEY;
+};
+const GATE_STORAGE_KEY = resolveGateStorageKey();
+// 手势/滚轮累计位移阈值（px）：够小以保证「往下滑就进」，够大以避开误触
+const SWIPE_TRIGGER_DISTANCE = 28;
+// 开场层退出的时长（2026-09-24 二调：880ms 加速冲出，动态感增强）。
+// ⚠️ 必须与 style.scoped.css 的 --home-gate-duration 一致 —— 开场层卸载时机按它计时。
+const GATE_TRANSITION_MS = 880;
+// 论坛层落定的时长（比开场层多 100ms，形成「迟到」的余韵）。
+// ⚠️ 对应 style.scoped.css 的 --home-forum-duration；到时摘掉入场类。
+const FORUM_ENTER_MS = 980;
+/* 底栏浮现：等封面退场过半（约 64%）才起步，滑入用 900ms ——
+   「封面离开的同时导航栏自然浮现」，不是两边同时抢镜，也不是弹上来。
+   ⚠️ BOTTOM_NAV_ENTER_MS 会传给 UserSpaceBottomNav 的 enter-duration，
+   组件按它（而非内置 760ms）摘掉入场类，两边必须一致。 */
+const BOTTOM_NAV_REVEAL_DELAY_MS = 560;
+const BOTTOM_NAV_ENTER_MS = 900;
 
-const openPosterModal = () => {
-  showPosterModal.value = true;
-  document.body.style.overflow = 'hidden';
+const homeRootRef = ref(null);
+const gateRef = ref(null);
+const gateEnterBtnRef = ref(null);
+const forumStageRef = ref(null);
+const gateLeaving = ref(false);
+const gateDismissed = ref(false);
+const forumOpen = ref(false);
+// 论坛层是否正在「就位」（只在本会话真播了开场画时为 true，避免直接进论坛时空跑一次动画）
+const forumEntering = ref(false);
+/* 底栏是否该现身。刻意与 forumOpen 分开：底栏要在开场画退场的后半段才浮现，
+   所以它有一条独立的延迟；已通过过开场画的会话里直接就位。 */
+const bottomNavReady = ref(false);
+let gateUnmountTimer = null;
+let enterClassTimer = null;
+let bottomNavTimer = null;
+let swipeTravel = 0;
+let touchStartY = 0;
+
+const readGatePassed = () => {
+  try {
+    return window.sessionStorage.getItem(GATE_STORAGE_KEY) === "1";
+  } catch {
+    // 隐私模式 / storage 被禁：当作没通过，照常播开场画
+    return false;
+  }
+};
+const markGatePassed = () => {
+  try {
+    window.sessionStorage.setItem(GATE_STORAGE_KEY, "1");
+  } catch {
+    // 存不住就算了，不影响本次会话
+  }
 };
 
-const closePosterModal = () => {
-  showPosterModal.value = false;
-  document.body.style.overflow = '';
-  posterForm.value = { recipient: '', phone: '', address: '' };
-  isPosterSubmitting.value = false;
-  posterSubmitted.value = false;
-  posterSuccess.value = false;
-  posterError.value = false;
-  posterMessage.value = '';
+const teardownGateGesture = () => {
+  if (typeof window === "undefined") return;
+  window.removeEventListener("wheel", handleWheel);
+  window.removeEventListener("touchstart", handleTouchStart);
+  window.removeEventListener("touchmove", handleTouchMove);
+  window.removeEventListener("keydown", handleGateKeydown);
 };
 
-const submitPosterApplication = async () => {
-  posterError.value = false;
-  if (!isLoggedIn.value || !userInfo.value?.id) {
-    posterMessage.value = '请先登录，再提交海报申请。';
-    posterError.value = true;
-    showLoginModal.value = true;
+/* ---------- 过渡期滚动锁（2026-09-24）----------
+   「被带到下面」的确定性：触发进论坛后的 880ms 里，无论手势再滑多长、触控板惯性、
+   还是连滚几下，底层文档都不许动 —— 否则动画一结束 gate 卸载，落到的是已经滚过
+   几屏的论坛，「被带下去」就成了「掉到中间」。
+   ⚠️ 必须用 setProperty(..., 'important')：style.global.css 里 html/body 的 overflow
+   带 !important（棘轮基线），普通 inline style 会被样式表压掉。
+   ⚠️ 解锁必须双保险：论坛落定的计时器里 + 组件 onBeforeUnmount（防路由跳走时锁死）。 */
+const lockDocumentScroll = () => {
+  if (typeof document === "undefined") return;
+  document.documentElement.style.setProperty("overflow", "hidden", "important");
+  document.body.style.setProperty("overflow", "hidden", "important");
+};
+const unlockDocumentScroll = () => {
+  if (typeof document === "undefined") return;
+  document.documentElement.style.removeProperty("overflow");
+  document.body.style.removeProperty("overflow");
+};
+
+/** 进入论坛：开场层线性上移退出（论坛层同时从下方就位）→ 计时结束后卸载开场层 */
+const enterForum = () => {
+  if (gateLeaving.value || gateDismissed.value) return;
+  teardownGateGesture();
+  /* 开场层是 fixed 覆盖层，期间底层文档可能已被滚过一截（视觉上看不见）。
+     进入前把滚动位置归零，论坛必须从顶部开始。 */
+  window.scrollTo({ top: 0, behavior: "auto" });
+  // 过渡期滚动锁：从这一刻到论坛层落定，手势 / 惯性都带不动底层文档（见上方说明）
+  lockDocumentScroll();
+  gateLeaving.value = true;
+  forumOpen.value = true;
+  forumEntering.value = true;
+  markGatePassed();
+  gateUnmountTimer = window.setTimeout(() => {
+    gateUnmountTimer = null;
+    gateDismissed.value = true;
+  }, GATE_TRANSITION_MS);
+  enterClassTimer = window.setTimeout(() => {
+    enterClassTimer = null;
+    forumEntering.value = false;
+    // 论坛层已落定，交还滚动权（此后由滚动方向驱动底栏显隐）
+    unlockDocumentScroll();
+  }, FORUM_ENTER_MS);
+  // 底栏晚一步：开场画退掉大半后才开始从下方浮上来（挂载即播入场动画）
+  bottomNavTimer = window.setTimeout(() => {
+    bottomNavTimer = null;
+    bottomNavReady.value = true;
+  }, BOTTOM_NAV_REVEAL_DELAY_MS);
+};
+
+const handleWheel = (event) => {
+  // 只认「往下逛」的方向；反向滚动清零，避免来回抖动误触发
+  swipeTravel = event.deltaY > 0 ? swipeTravel + event.deltaY : 0;
+  if (swipeTravel >= SWIPE_TRIGGER_DISTANCE) enterForum();
+};
+
+const handleTouchStart = (event) => {
+  touchStartY = event.touches?.[0]?.clientY ?? 0;
+  swipeTravel = 0;
+};
+
+const handleTouchMove = (event) => {
+  const currentY = event.touches?.[0]?.clientY ?? 0;
+  // 手指上划 = 内容往下走 = 进入论坛
+  const delta = touchStartY - currentY;
+  swipeTravel = delta > 0 ? delta : 0;
+  if (swipeTravel >= SWIPE_TRIGGER_DISTANCE) enterForum();
+};
+
+let gateKeyTravel = 0;
+const handleGateKeydown = (event) => {
+  const scrollKeys = ["ArrowDown", "PageDown", " ", "Spacebar", "End"];
+  if (!scrollKeys.includes(event.key)) {
+    gateKeyTravel = 0;
     return;
   }
-  if (isPosterSubmitting.value || posterSubmitted.value) return;
+  event.preventDefault();
+  gateKeyTravel += 1;
+  if (gateKeyTravel >= 2) enterForum();
+};
 
-  const { recipient, phone, address } = posterForm.value;
-  if (!recipient.trim() || !phone.trim() || !address.trim()) {
-    posterMessage.value = '请填写完整的收件信息。';
-    posterError.value = true;
-    return;
-  }
-
-  isPosterSubmitting.value = true;
-  posterMessage.value = '';
-  const result = await submitPosterRequest({ recipient, phone, address });
-
-  if (result.ok) {
-    posterSubmitted.value = true;
-    posterSuccess.value = true;
-    posterMessage.value = '申请已提交，海报将在 5 天内送达（物料费 5 RMB）。详细内容请于“礼物”页面查看。';
-  } else {
-    posterError.value = true;
-    posterMessage.value = result.error?.message || '申请提交失败，请稍后重试。';
-  }
-  isPosterSubmitting.value = false;
+const setupGateGesture = () => {
+  if (typeof window === "undefined") return;
+  window.addEventListener("wheel", handleWheel, { passive: true });
+  window.addEventListener("touchstart", handleTouchStart, { passive: true });
+  window.addEventListener("touchmove", handleTouchMove, { passive: true });
+  window.addEventListener("keydown", handleGateKeydown);
 };
 
 // ============================================
-// 生日英雄区：仅在登录用户生日当天显示
+// 论坛分区：URL 的 view 是唯一真源（/?view=official 深链直达）
 // ============================================
-const birthdayPeople = computed(() => {
-  if (!isLoggedIn.value) return [];
-  const { birthMonth, birthDay, username, avatarUrl } = userInfo.value || {};
-  if (!isBirthdayToday(birthMonth, birthDay)) return [];
-  return [{ name: username || '你', avatarUrl: avatarUrl || '' }];
+const forumSection = ref(resolveForumSection(route.query.view));
+const forumShellRef = ref(null);
+
+watch(forumSection, (next) => {
+  const nextQuery = { ...route.query };
+  if (!next || next === FORUM_DEFAULT_SECTION) delete nextQuery.view;
+  else nextQuery.view = next;
+  if (String(route.query.view || "") === String(nextQuery.view || "")) return;
+  router.replace({ query: nextQuery });
 });
-const showBirthdayHero = computed(() => birthdayPeople.value.length > 0);
-const onBirthdayMore = () => {
-  router.push('/birthday');
-};
 
-const isAnniversaryGiftLoading = ref(false);
-const anniversaryGiftClaimed = ref(false);
-const anniversaryGiftError = ref(false);
-const anniversaryGiftMessage = ref('');
-const anniversaryHigherPlan = ref('');
-const preferCurrentAnniversaryTier = ref(true);
-const anniversaryHigherPlanName = computed(() => (
-  PLAN_DISPLAY_NAMES[anniversaryHigherPlan.value] || anniversaryHigherPlan.value
-));
+watch(() => route.query.view, (raw) => {
+  const next = resolveForumSection(raw);
+  if (next !== forumSection.value) forumSection.value = next;
+});
 
-// ============================================
-// 统一英雄区：数据库驱动排序/显隐/归档
-// builtin 类型按 builtin_key 分发到对应硬编码组件，其余走 DynamicHomeHero
-// ============================================
-const homeHeroesStore = useHomeHeroesStore();
-// store 已有数据（SPA 内返回首页）时跳过骨架屏，避免 1-2 帧闪现
-const heroLoading = ref(homeHeroesStore.publishedHeroes.length === 0);
-
-// 可见英雄区列表：已发布未归档，birthday 需额外检测今日是否有用户生日
-const visibleHeroes = computed(() =>
-  homeHeroesStore.publishedHeroes.filter((hero) => {
-    if (hero.template === 'builtin' && hero.builtin_key === 'birthday') {
-      return showBirthdayHero.value;
-    }
-    return true;
-  })
+// #ryyik-letter 深链：先落到「官方」分区（信件弹窗归官方舞台所有，挂载后自行消费 hash）
+watch(
+  () => route.hash,
+  (hash) => {
+    if (hash === "#ryyik-letter") forumSection.value = "official";
+  },
+  { immediate: true }
 );
 
-// 英雄区布局：builtin 类型查映射表，其余按 template 判断
-const heroLayout = (hero) => {
-  if (hero.template === 'builtin') {
-    return builtinHeroLayout[hero.builtin_key] || 'full';
+/* 一次性论坛意图（?compose=1 / ?search=1）：由 UserSpace / 他人空间的横屏左栏按钮带来，
+   这里把意图转交给分区壳（它透传 ForumMain 的 openComposer / focusSearch）。
+   分区壳是异步 chunk，首次到达时可能还没就绪 → 轮询等一小会儿。 */
+const consumeForumIntent = async () => {
+  const method = route.query.compose === "1"
+    ? "openComposer"
+    : (route.query.search === "1" ? "focusSearch" : "");
+  if (!method) return;
+  const nextQuery = { ...route.query };
+  delete nextQuery.compose;
+  delete nextQuery.search;
+  router.replace({ query: nextQuery });
+
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < 5000) {
+    const shell = forumShellRef.value;
+    if (shell && typeof shell[method] === "function" && shell[method]()) return;
+    await new Promise((resolve) => window.setTimeout(resolve, 80));
   }
-  return hero.template === 'split' ? 'split' : 'full';
-};
-
-const formatAnniversaryExpiry = (value) => {
-  const date = new Date(value || '');
-  if (Number.isNaN(date.getTime())) return '';
-  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
-};
-
-const loadAnniversaryGiftState = async () => {
-  anniversaryGiftError.value = false;
-  anniversaryHigherPlan.value = '';
-  preferCurrentAnniversaryTier.value = true;
-  if (!isLoggedIn.value || !userInfo.value?.id) {
-    anniversaryGiftClaimed.value = false;
-    anniversaryGiftMessage.value = '';
-    return;
-  }
-
-  isAnniversaryGiftLoading.value = true;
-  const [claimResult, subscriptionsResult] = await Promise.all([
-    getAnniversarySubscriptionClaim(userInfo.value.id),
-    getMySubscriptions(userInfo.value.id, { includeExpired: false })
-  ]);
-
-  if (claimResult.data) {
-    anniversaryGiftClaimed.value = true;
-    const expiry = formatAnniversaryExpiry(claimResult.data.expiresAt);
-    anniversaryGiftMessage.value = `已领取 ${claimResult.data.planName || 'Max'}${expiry ? `，有效期至 ${expiry}` : ''}`;
-  } else {
-    anniversaryGiftClaimed.value = false;
-    anniversaryGiftMessage.value = '';
-  }
-
-  const highestTier = subscriptionsResult.error
-    ? ''
-    : resolveHighestTierCode(subscriptionsResult.data || []);
-  if (['ultra'].includes(highestTier)) anniversaryHigherPlan.value = highestTier;
-  isAnniversaryGiftLoading.value = false;
-};
-
-const claimAnniversaryGift = async () => {
-  anniversaryGiftError.value = false;
-  if (!isLoggedIn.value || !userInfo.value?.id) {
-    anniversaryGiftMessage.value = '请先登录，再领取八周年订阅礼物。';
-    showLoginModal.value = true;
-    return;
-  }
-  if (isAnniversaryGiftLoading.value || anniversaryGiftClaimed.value) return;
-
-  isAnniversaryGiftLoading.value = true;
-  anniversaryGiftMessage.value = '';
-  const result = await claimAnniversarySubscription({
-    preferCurrentTier: Boolean(anniversaryHigherPlan.value && preferCurrentAnniversaryTier.value)
-  });
-  const claim = result.data;
-
-  if (result.ok || claim?.alreadyClaimed) {
-    anniversaryGiftClaimed.value = true;
-    const expiry = formatAnniversaryExpiry(claim?.expiresAt);
-    anniversaryGiftMessage.value = `${claim?.alreadyClaimed ? '你已经领取过' : '领取成功：'} ${claim?.planName || 'Max'}${expiry ? `，有效期至 ${expiry}` : ''}`;
-  } else {
-    anniversaryGiftError.value = true;
-    anniversaryGiftMessage.value = result.error?.message || '领取失败，请稍后重试。';
-  }
-  isAnniversaryGiftLoading.value = false;
-};
-
-const openAnniversaryLetter = () => {
-  showAnniversaryLetter.value = true;
-  document.body.style.overflow = 'hidden';
-  void loadAnniversaryGiftState();
-};
-
-const closeAnniversaryLetter = () => {
-  showAnniversaryLetter.value = false;
-  document.body.style.overflow = '';
 };
 
 watch(
-  () => route.hash,
-  async (hash) => {
-    if (hash !== '#ryyik-letter') return;
-    await nextTick();
-    openAnniversaryLetter();
-  },
-  { immediate: true },
+  () => [route.query.compose, route.query.search],
+  () => { void consumeForumIntent(); },
+  { immediate: true }
 );
 
-watch(isLoggedIn, () => {
-  if (showAnniversaryLetter.value) void loadAnniversaryGiftState();
+// ============================================
+// 底栏（五席）：进入论坛后滑入，此后随滚动方向隐藏 / 显现
+// ============================================
+const { hidden: bottomNavHidden } = useScrollDirectionHide({
+  // 底栏还没就位（开场画阶段 / 浮现延迟窗口内）不需要方向联动
+  forceVisible: computed(() => !bottomNavReady.value)
 });
 
-const openCloudPlusModal = () => {
-  showCloudPlusModal.value = true;
-  document.body.style.overflow = 'hidden';
-};
-
-const closeCloudPlusModal = () => {
-  showCloudPlusModal.value = false;
-  document.body.style.overflow = '';
-};
-
-// 遇见福州 弹窗
-const showFuzhouModal = ref(false);
-
-const openFuzhouModal = () => {
-  showFuzhouModal.value = true;
-  document.body.style.overflow = 'hidden';
-};
-
-const closeFuzhouModal = () => {
-  showFuzhouModal.value = false;
-  document.body.style.overflow = '';
-};
-
-// 处理动态英雄区按钮点击（onClick 字符串约定：'modal:<key>'）
-const handleDynamicLinkClick = (onClickStr) => {
-  if (!onClickStr) return;
-  const [type, key] = onClickStr.split(':');
-  if (type === 'modal') {
-    if (key === 'fuzhou') openFuzhouModal();
-    else if (key === 'cloud-plus') openCloudPlusModal();
-    else if (key === 'anniversary-letter') openAnniversaryLetter();
-  }
-};
-
-// 滚动触发的观察器逻辑
-let observer = null;
-
-const initIntersectionObserver = () => {
-  if (typeof window === "undefined" || !window.IntersectionObserver) return;
-
-  const options = {
-    root: null,
-    rootMargin: "0px 0px 200px 0px",
-    threshold: 0.05,
+// 首页 = 方块（论坛）这一席
+const activeBottomNavId = computed(() => "community");
+const bottomNavIndicatorStyle = computed(() => {
+  const index = Math.max(0, BOTTOM_NAV_ITEMS.findIndex((item) => item.id === activeBottomNavId.value));
+  return {
+    "--active-nav-index": index,
+    "--active-nav-center": `${((index + 0.5) / BOTTOM_NAV_ITEMS.length) * 100}%`,
+    "--nav-count": BOTTOM_NAV_ITEMS.length
   };
+});
 
-  observer = new IntersectionObserver((entries) => {
-    entries.forEach((entry) => {
-      if (entry.isIntersecting) {
-        if (entry.target.classList.contains("fade-section")) {
-          entry.target.classList.add("visible");
-        }
-        observer.unobserve(entry.target);
-      }
-    });
-  }, options);
-
-  const elementsToObserve = document.querySelectorAll(".fade-section");
-  elementsToObserve.forEach((el) => observer.observe(el));
-};
-
-const cleanupObserver = () => {
-  if (observer) {
-    observer.disconnect();
-    observer = null;
+const handleBottomNavClick = (itemId) => {
+  // 「方块」就是本页：已经在论坛了，回到论坛顶部即可，不做无谓跳转
+  if (itemId === activeBottomNavId.value) {
+    window.scrollTo({ top: 0, behavior: "auto" });
+    return;
   }
+  const item = BOTTOM_NAV_ITEMS.find((entry) => entry.id === itemId);
+  if (!item) return;
+  if (route.path === item.route) return;
+  router.push(item.route);
 };
+
+// 未读徽标：与 UserSpace 底栏同一 store，两处数字必然一致
+const notificationStoreRef = ref(getNotificationStoreSync());
+const unreadCount = computed(() => notificationStoreRef.value?.unreadCount || 0);
+const hasUnreadMessages = computed(() => unreadCount.value > 0);
+const ensureNotificationStore = async () => {
+  if (notificationStoreRef.value) return notificationStoreRef.value;
+  notificationStoreRef.value = await loadNotificationStore();
+  return notificationStoreRef.value;
+};
+
+// 论坛内嵌态的系统提示 → 统一走灵动岛
+const handleIslandMessage = (payload = {}) => {
+  if (!payload || typeof payload !== "object") return;
+  const title = String(payload.title || "").trim();
+  if (!title) return;
+  showIsland.notify({
+    title,
+    message: payload.message,
+    icon: payload.icon,
+    type: payload.type,
+    durationMs: payload.durationMs
+  });
+};
+
+// ============================================
+// 导航胶囊实测高度 → --userspace-nav-h
+// ============================================
+/* 分区页签（SegmentTabs）的顶部避让吃这个变量；导航岛含状态卡时高度会变
+   （78 ↔ 130+），写死必然一头空一头盖。口径与 UserSpaceMain 的
+   syncUserspaceNavHeight 一致：读 #unified-nav-container 的实测高度。
+   （首页不经过 UserSpaceMain，所以这里独立探测一次。） */
+let navIslandResizeObserver = null;
+let navProbeTimer = null;
+const syncNavIslandHeight = () => {
+  const root = homeRootRef.value;
+  if (!root) return;
+  const island = document.getElementById("unified-nav-container");
+  if (!island) return;
+  const height = Math.ceil(island.getBoundingClientRect().height);
+  if (height > 0) root.style.setProperty("--userspace-nav-h", `${height}px`);
+};
+
+/* 导航栏是壳层组件，首页 onMounted 时可能还没挂进 DOM → 短轮询等它就位再观察。
+   上限 50×60ms：拿不到就退回 SegmentTabs 的默认值（84px），不会卡住任何东西。 */
+const setupNavIslandProbe = () => {
+  if (typeof window === "undefined") return;
+  let tries = 0;
+  const attach = () => {
+    navProbeTimer = null;
+    const island = document.getElementById("unified-nav-container");
+    if (island) {
+      syncNavIslandHeight();
+      if (typeof window.ResizeObserver === "function") {
+        navIslandResizeObserver = new window.ResizeObserver(syncNavIslandHeight);
+        navIslandResizeObserver.observe(island);
+      }
+      return;
+    }
+    if (tries < 50) {
+      tries += 1;
+      navProbeTimer = window.setTimeout(attach, 60);
+    }
+  };
+  attach();
+};
+
+// ============================================
+// 开场画数据
+// ============================================
+const homeHeroesStore = useHomeHeroesStore();
+
+// 首屏唯一 street-scene 行（DB 单例约束保证至多一条已发布未归档）；无则 null → 组件回落品牌图
+const streetSceneHero = computed(() =>
+  homeHeroesStore.publishedHeroes.find((hero) => hero.template === "street-scene") || null
+);
 
 onMounted(async () => {
   document.body.classList.add("is-loaded");
 
-  initIntersectionObserver();
+  if (readGatePassed()) {
+    // 本次会话已经进过论坛：不重播开场画，直接落在论坛（底栏也就位，不补浮现动画）
+    gateDismissed.value = true;
+    forumOpen.value = true;
+    bottomNavReady.value = true;
+  } else {
+    setupGateGesture();
+  }
 
-  // 加载已发布动态英雄区（失败不影响首屏：fetchPublished 内部有缓存/baseline 兜底，
-  // 且带 6s 超时竞速，弱网下骨架屏最多停留 6 秒）
+  void ensureNotificationStore();
+  setupNavIslandProbe();
+
+  // 开场画与英雄区数据（失败不影响首屏：内部有缓存/baseline 兜底，且带超时竞速）
   try {
     await homeHeroesStore.fetchPublished();
   } catch {
     // 静默失败：动态英雄区是增量，表不存在时仅返回空数组
-  } finally {
-    heroLoading.value = false;
   }
 });
 
-onUnmounted(() => {
-  cleanupObserver();
-  document.body.style.overflow = '';
+onBeforeUnmount(() => {
+  teardownGateGesture();
+  if (gateUnmountTimer) {
+    window.clearTimeout(gateUnmountTimer);
+    gateUnmountTimer = null;
+  }
+  if (enterClassTimer) {
+    window.clearTimeout(enterClassTimer);
+    enterClassTimer = null;
+  }
+  if (bottomNavTimer) {
+    window.clearTimeout(bottomNavTimer);
+    bottomNavTimer = null;
+  }
+  if (navProbeTimer) {
+    window.clearTimeout(navProbeTimer);
+    navProbeTimer = null;
+  }
+  if (navIslandResizeObserver) {
+    navIslandResizeObserver.disconnect();
+    navIslandResizeObserver = null;
+  }
+  document.body.style.overflow = "";
+  // 过渡期滚动锁的兜底解锁：路由跳走时计时器已被清掉，不清会把文档永久锁死
+  unlockDocumentScroll();
 });
 </script>
 

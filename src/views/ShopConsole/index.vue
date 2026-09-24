@@ -418,7 +418,9 @@ async function handleDirectFileSelect(event) {
   try {
     const uploaded = await uploadImageToCloudinary(file, {
       folder: 'boh-cloud-plus/admin-shop-console',
-      pendingSource: 'shop-console'
+      pendingSource: 'shop-console',
+      // 装修台素材上传即投产，直接认领，避免永久停留在未归属状态
+      claimPendingUpload: true
     });
     if (!uploaded.url) throw new Error('上传成功但未返回图片地址');
     selectedProduct.value.image = uploaded.url;
@@ -466,7 +468,9 @@ async function handleCropConfirm(blob) {
     const file = new File([blob], `shop-product-${Date.now()}.webp`, { type: 'image/webp' });
     const uploaded = await uploadImageToCloudinary(file, {
       folder: 'boh-cloud-plus/admin-shop-console',
-      pendingSource: 'shop-console'
+      pendingSource: 'shop-console',
+      // 装修台素材上传即投产，直接认领，避免永久停留在未归属状态
+      claimPendingUpload: true
     });
     if (!uploaded.url) throw new Error('上传成功但未返回图片地址');
     selectedProduct.value.image = uploaded.url;

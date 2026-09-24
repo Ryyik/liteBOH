@@ -187,6 +187,12 @@ export async function registerCloudinaryPendingUpload(uploaded = {}, options = {
     const userId = await getCurrentSupabaseUserId();
     if (!userId) return { ok: true, skipped: true, error: null };
 
+    // options.claimed = true：上传即视为已投产（管理后台装修台场景）。
+    // 装修台上传的是平台素材，不存在「用户传了没发出去」的草稿语义；
+    // 不直接认领的话，hero/shop/avatar 的线上素材会永久停留在未归属状态，
+    // 导致 cloudinary_pending_uploads 里真假孤儿混在一起、无法安全清理。
+    const claimedAt = options.claimed ? new Date().toISOString() : null;
+
     const { error } = await supabase
       .from('cloudinary_pending_uploads')
       .upsert({
@@ -196,7 +202,7 @@ export async function registerCloudinaryPendingUpload(uploaded = {}, options = {
         resource_type: 'image',
         source: String(options.source || 'generic').trim().slice(0, 40) || 'generic',
         folder: String(options.folder || '').trim().slice(0, 255),
-        claimed_at: null,
+        claimed_at: claimedAt,
         deleted_at: null
       }, {
         onConflict: 'public_id'
@@ -576,7 +582,12 @@ export async function uploadImageToCloudinary(file, options = {}) {
       // C2：归属记账移出关键路径。此前 pending 登记（1 次 auth RTT + 1 次 upsert RTT）
       // 失败会让整张上传报错——它只是兜底清理的记账，不该阻断。
       // 并行执行不阻塞返回；登记通常在发帖 RPC 前完成，远早于兜底清理时限，误删风险可忽略。
-      void registerCloudinaryPendingUpload(uploaded, { source: pendingSource, folder })
+      void registerCloudinaryPendingUpload(uploaded, {
+        source: pendingSource,
+        folder,
+        // 管理后台（装修台）上传的素材上传即投产：直接写 claimed_at
+        claimed: options.claimPendingUpload === true
+      })
         .then((pendingResult) => {
           if (!pendingResult?.ok) {
             logger.warn('cloudinary', '上传归属登记失败（不阻断，由兜底清理覆盖）', pendingResult?.error);

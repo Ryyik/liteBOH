@@ -3572,7 +3572,7 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
         return {
           ...entry,
           lottery_title: lottery.title || '-',
-          username: entry.username_snapshot || profile.username || profile.email || '-',
+          username: entry.username_snapshot || profile.username || '-',
           user_created_at: profile.join_date || null,
           entry_number: offset + index + 1
         };
@@ -3587,7 +3587,7 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
         return {
           ...fulfillment,
           lottery_title: lottery.title || '-',
-          username: fulfillment.username_snapshot || profile.username || profile.email || '-',
+          username: fulfillment.username_snapshot || profile.username || '-',
           is_current_label: fulfillment.is_current ? '当前' : '历史'
         };
       }), count);
@@ -3601,7 +3601,7 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
         return {
           ...log,
           lottery_title: lottery.title || '-',
-          drawn_by_username: drawer.username || drawer.email || (log.drawn_by ? '管理员' : '系统')
+          drawn_by_username: drawer.username || (log.drawn_by ? '管理员' : '系统')
         };
       }), count);
       return;
@@ -3623,7 +3623,7 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
         return {
           ...job,
           lottery_title: lottery.title || '-',
-          username: profile.username || profile.email || '-'
+          username: profile.username || '-'
         };
       }), count);
       return;
@@ -3636,7 +3636,7 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
         return {
           ...attempt,
           lottery_title: lottery.title || '-',
-          username: profile.username || profile.email || '-'
+          username: profile.username || '-'
         };
       }), count);
       return;
@@ -3649,7 +3649,7 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
         return {
           ...audit,
           lottery_title: lottery.title || '-',
-          actor_username: actor.username || actor.email || (audit.actor_id ? '管理员' : '系统'),
+          actor_username: actor.username || (audit.actor_id ? '管理员' : '系统'),
           detail_preview: JSON.stringify(audit.detail || {})
         };
       }), count);
@@ -3667,10 +3667,13 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
       follower: 'follower_name',
       following: 'following_name',
       author: 'author_name',
-      target: 'target_name'
+      target: 'target_name',
+      // 2026-09-24：moderationLogs 的内嵌改为 moderator:moderator_id(username)
+      // （moderator_name 列并不存在），需把这层对象摊平成表格列用的 moderator_name
+      moderator: 'moderator_name'
     };
     const needsFlatten = ['forumPostImages', 'shopOrders', 'pointsTransactions', 'forumWeeklyCheckins',
-      'cloudinaryUploads', 'aiWebSearchLog', 'anniversaryClaims', 'forumPostReports',
+      'aiWebSearchLog', 'anniversaryClaims', 'forumPostReports', 'moderationLogs', 'birthdayEvents',
       'notifications', 'userFollows', 'userImpressions'].includes(tabId);
     if (needsFlatten) {
       rows = rows.map((row) => {

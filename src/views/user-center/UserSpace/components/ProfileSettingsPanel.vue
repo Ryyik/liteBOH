@@ -45,6 +45,18 @@
                 <ChevronRight class="gs-chevron" :size="16" :stroke-width="2" aria-hidden="true" />
               </span>
             </button>
+            <button type="button" class="gs-row" @click="replayHomeGate">
+              <span class="gs-icon is-blue">
+                <RotateCcw :size="16" :stroke-width="2" aria-hidden="true" />
+              </span>
+              <span class="gs-text">
+                <span class="gs-label">重播首屏开场画</span>
+                <span class="gs-desc">清除「已看过」标记，回到首屏再看一次</span>
+              </span>
+              <span class="gs-side">
+                <ChevronRight class="gs-chevron" :size="16" :stroke-width="2" aria-hidden="true" />
+              </span>
+            </button>
           </div>
         </section>
 
@@ -212,7 +224,25 @@
 import { computed, ref } from 'vue';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
-import { Archive, Bell, ChevronRight, Database, EyeOff, Info, LogOut, Mail, MessagesSquare, Moon, Shield, Sun, Users } from 'lucide-vue-next';
+import { Archive, Bell, ChevronRight, Database, EyeOff, Info, LogOut, Mail, MessagesSquare, Moon, RotateCcw, Shield, Sun, Users } from 'lucide-vue-next';
+
+/* 重播首屏开场画（2026-09-24）：清除「本会话已看过」标记并整页回首页。
+   ⚠️ 标记 key 带构建指纹（boh-home-gate-passed:<build-id>，生产构建注入），必须前缀匹配清除；
+   必须用 location.reload 而不是路由跳转 —— Home 组件要重新挂载才会重播开场画。 */
+const replayHomeGate = () => {
+  try {
+    const keys = [];
+    for (let i = 0; i < sessionStorage.length; i += 1) {
+      const key = sessionStorage.key(i);
+      if (key && key.startsWith('boh-home-gate-passed')) keys.push(key);
+    }
+    keys.forEach((key) => sessionStorage.removeItem(key));
+  } catch {
+    /* storage 不可用时忽略 —— reload 后开场画由既有降级链决定 */
+  }
+  window.location.hash = '#/';
+  window.location.reload();
+};
 import SettingToggle from './SettingToggle.vue';
 
 const props = defineProps({

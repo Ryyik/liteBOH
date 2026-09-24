@@ -546,11 +546,11 @@ async function save(status) {
       // 原图留档：只在首次上传时存一次，后续重摆位都从它重新烘焙
       if (!sourceUrl) {
         const rawFile = new File([await blobFromBitmap(source.value.bitmap)], `${draft.id}-source.png`, { type: 'image/png' });
-        const rawUp = await uploadImageToCloudinary(rawFile, { folder: `${folder}/source`, pendingSource: 'avatar-frames-source' });
+        const rawUp = await uploadImageToCloudinary(rawFile, { folder: `${folder}/source`, pendingSource: 'avatar-frames-source', claimPendingUpload: true });
         sourceUrl = rawUp.url || rawUp.secure_url || '';
       }
       const file = new File([baked.blob], `${draft.id}.png`, { type: 'image/png' });
-      const up = await uploadImageToCloudinary(file, { folder, pendingSource: 'avatar-frames' });
+      const up = await uploadImageToCloudinary(file, { folder, pendingSource: 'avatar-frames', claimPendingUpload: true });
       url = up.url || up.secure_url || '';
       if (!url) throw new Error('上传未返回 URL');
     }

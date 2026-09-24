@@ -93,27 +93,30 @@ if (styleAt === -1 || headEndAt === -1 || bodyAt === -1) {
 }
 
 // ---------- 1. 色值 ↔ token ----------
-const darkBgPrimary = pickVar(darkModeCss, '[data-theme="dark"]', "--boh-bg-primary");
-if (darkBgPrimary == null) fail(`${DARK_MODE_CSS} 里读不到 --boh-bg-primary（暗色）`);
+// 2026-09-22：页面底色改由 --boh-page-bg 承担（首页社区化改版暖化），
+// 骨架垫底的三个底色断言跟着换 token —— 否则门禁比对的是没人再消费的 --boh-bg-primary，
+// 漂移就静默放过了。
+const darkPageBg = pickVar(darkModeCss, '[data-theme="dark"]', "--boh-page-bg");
+if (darkPageBg == null) fail(`${DARK_MODE_CSS} 里读不到 --boh-page-bg（暗色）`);
 
 const pairs = [
   {
     label: "骨架底色（浅）",
     got: pickDecl(skeletonCss, ".boh-boot", "background"),
-    want: pickVar(darkModeCss, ":root", "--boh-bg-primary"),
-    token: "--boh-bg-primary",
+    want: pickVar(tokensCss, ":root", "--boh-page-bg"),
+    token: "--boh-page-bg",
   },
   {
     label: "骨架底色（暗）",
     got: pickDecl(skeletonCss, '[data-theme="dark"] .boh-boot', "background"),
-    want: darkBgPrimary,
-    token: "--boh-bg-primary",
+    want: darkPageBg,
+    token: "--boh-page-bg",
   },
   {
     label: "body 兜底底色（暗）",
     got: pickDecl(skeletonCss, '[data-theme="dark"] body', "background-color"),
-    want: darkBgPrimary,
-    token: "--boh-bg-primary",
+    want: darkPageBg,
+    token: "--boh-page-bg",
   },
   {
     label: "骨架文字（浅）",

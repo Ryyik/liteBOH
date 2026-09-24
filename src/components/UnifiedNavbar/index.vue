@@ -545,33 +545,31 @@ const unreadCount = computed(() => notificationStoreRef.value?.unreadCount || 0)
 const route = useRoute();
 
 const isActive = (path) => {
-  if (path === '/user-space?tab=community') {
-    return route.path === '/user-space' && String(route.query.tab || 'community') === 'community';
+  // 2026-09-22 首页社区化改版：论坛迁到首页（下滑直达），顶栏「论坛」与「首页」同指 `/`，
+  // 靠 view 参数区分当前意图 —— 带 view 视为「为论坛而来」，不带 view 视为首页。
+  if (path === '/?view=latest') {
+    return route.path === '/' && String(route.query.view || '') !== '';
   }
   if (path === '/') {
-    return route.path === '/';
+    return route.path === '/' && String(route.query.view || '') === '';
   }
   // 确保匹配完整路径或子路径，避免类似 /shop 匹配 /shopping 的情况
   return route.path === path || route.path.startsWith(path + '/');
 };
 
-// 处理"我的方块"按钮点击：如果在论坛页面，刷新并滚动到顶部
+// 处理"我的方块"按钮点击：如果在论坛页（2026-09-22 起论坛在首页），刷新并滚动到顶部
 const handleMyBlockClick = (event) => {
   // mini 形态下头像保留直达，不冒泡到 surface 的展开热区（plans/009）
   event.stopPropagation();
-  const isAlreadyInForum = route.path === '/user-space' && String(route.query.tab || 'community') === 'community';
+  // 首页带 view = 用户此刻在论坛分区（见 isActive 的口径）
+  const isAlreadyInForum = route.path === '/' && String(route.query.view || '') !== '';
   if (isAlreadyInForum) {
     // 阻止路由跳转，触发刷新和滚动到顶部
     event.preventDefault();
     // 发送自定义事件，通知论坛组件刷新
     window.dispatchEvent(new CustomEvent('boh_forum_refresh_request'));
-    // 滚动到顶部
-    const scrollContainer = document.querySelector('.tab-page.community-shell') || window;
-    if (scrollContainer !== window) {
-      scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    // 滚动到顶部：首页是文档流滚动（论坛不再是嵌套滚动容器）
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     return;
   }
   // 进入我的方块时触发智能概览灵动岛（天粒度「当日已读」游标去重：当天上线过不再自动推送，
@@ -602,7 +600,7 @@ const navMenuItems = [
     children: [
       { name: "smart-overview", path: "/overview", label: "智能概览" },
       { name: "news-shows", path: "/newsroom", label: "新闻&节目" },
-      { name: "forum", path: "/user-space?tab=community", label: "论坛" },
+      { name: "forum", path: "/?view=latest", label: "论坛" },
       { name: "activities-wall", path: "/activities-wall", label: "活动&方块墙" },
       { name: "lotteries", path: "/lotteries", label: "抽奖" }
     ]
