@@ -14,6 +14,15 @@ permissions:
   pages: write
   id-token: write
 
+# 并发保护：GitHub Pages 同一时刻只允许一个「进行中的部署」。
+# 缺这段时，两次 push 挨得太近（2026-09-25 实测相隔 27 秒）会让后一次运行的 deploy job 直接 400：
+#   Deployment request failed for <sha> due to in progress deployment
+# 那一步挂掉时 Lint / Build 都是绿的 —— 看起来像「构建失败」，其实是部署撞车。
+# cancel-in-progress: false = 后来的排队等前一次跑完（不取消，避免把正在发布的产物撤掉）。
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 jobs:
   # 静态检查 job：与 build 并行执行，不阻塞构建关键路径
   checks:

@@ -48,9 +48,10 @@
 - ⚠️ **降级必须档位感知**：模型绑定是收费承诺。候选须显式配置 + `tier_semantics`（equivalent 静默切 / temporary UI 明示）、按实际 `quota_multiplier` 扣、档位隔离（premium 禁混低档、free 永不升档）。默认空链 = 行为不变。
 
 ## 样式 / 主题 / 性能 / PWA / CI
-- 玻璃单源 `tokens.css`（`--liquid-*`）；子组件禁压父级变量 → `var(--x,40px)`；空态 `EmptyState.vue`。暗色真源 `theme-manager.js`（唯一写 `html[data-theme]`）+ 13 容器白名单；`check-dark-tokens` 是观察模式。
+- 玻璃单源 `tokens.css`（`--liquid-*`）；子组件禁压父级变量（用 `var(--x,40px)` 兜底）；空态 `EmptyState.vue`。暗色真源 `theme-manager.js` + 13 容器白名单，`check-dark-tokens` 观察模式。
 - 首屏壳 = app-*.js 9 个静态 import；底色纯白三处同步（`tokens.css --boh-page-bg` + `index.html .boh-boot` + `Home/style.scoped.css`，`check:first-paint` 断言）；暗色暖炭 `#16120e`。首页 `/` = 一次性街景开场层（`.home-gate`）。
 - 锁滚动别新增 `!important`（棘轮当前 1319/1319，新增要同步 `important-budget.json`）。CI 链序：views→structure→liquid-glass→important-budget→dark-tokens→first-paint→build→shell-precache→bundle。
+- ⚠️ CI 红了先分层：Lint/Build 绿、只有 deploy 秒挂（`due to in progress deployment`）= **Pages 部署撞车**（连推两提交造成），**不是构建失败** → `gh run rerun <id> --failed` 即转绿；已补 `concurrency: {group: pages, cancel-in-progress: false}`。本地验证要用 `npm run build:ci`（`vite build` 不含 lint/vue-tsc）。
 - SW 预缓存两半一对（壳样式 + manifestTransforms），删任一半「有 HTML 无样式」。TWA 单源 `android-twa/twa-manifest.json`。
 - ⚠️ `node-fetch` 必须留在 `vite.config.js` 的 `resolve.alias`（指向 `scripts/shims/node-fetch.browser.js` 空实现）：tfjs 的 Node 分支留着 `require('node-fetch')`，一被解析就进 `lib/index.mjs` 的 `import https from 'https'` → `Failed to resolve entry for package "https"` + **整页报错遮罩（吃掉所有点击）**，并拖死 tfjs chunk（图片审核不可用）。**只靠 `optimizeDeps.exclude` 不够**（实测真被 import 时返回 HTTP 500）。护栏 `probe-vite-dep-scan.mjs`（6 断言）。
 - sticky：全局 `body{overflow-x:hidden!important}` 使 body 成滚动容器致 sticky 全灭 → sticky 叙事页必须挂 `html.<页>-scroll body{overflow:visible!important}`。
