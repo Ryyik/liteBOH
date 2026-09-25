@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>首屏 Hero 字体 Demo · 霞鹜文楷</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-lite-webfont/style.css">
+<style>
+:root{
+  --bg:#F5F1EA; --panel:#FFFFFF; --ink:#1D1D1F; --ink-2:#6E6E73; --ink-3:#9A9AA0;
+  --accent:#D85A30; --accent-ink:#993C1D; --line:rgba(0,0,0,0.12);
+  --sky:#FAE8D4; --sun:#F5C4B3; --b1:#F0997B; --b2:#EF9F27; --b3:#E8C9A8; --b4:#DDA15E;
+  --display:'LXGW WenKai Lite','Kaiti SC','STKaiti','KaiTi',serif;
+  --system:-apple-system,'PingFang SC','HarmonyOS Sans SC','MiSans','Microsoft YaHei',sans-serif;
+}
+body.dark{
+  --bg:#232019; --panel:#2C2820; --ink:#F3EDE2; --ink-2:#B8B0A2; --ink-3:#8A8378;
+  --accent:#F0997B; --accent-ink:#F5C4B3; --line:rgba(255,255,255,0.14);
+  --sky:#3A3226; --sun:#C9A27E; --b1:#8A5A44; --b2:#9C7A3C; --b3:#6E5B44; --b4:#7C6248;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--system);padding:20px;transition:background .25s,color .25s}
+.controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.controls .group{display:flex;gap:6px;align-items:center;margin-right:14px}
+.controls .lbl{font-size:12px;color:var(--ink-3)}
+button{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit}
+button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.stage{display:flex;justify-content:center}
+.frame{position:relative;width:340px;aspect-ratio:9/19.5;border-radius:28px;overflow:hidden;border:1px solid var(--line);background:var(--sky);transition:width .3s,aspect-ratio .3s}
+.frame.landscape{width:min(760px,100%);aspect-ratio:16/9}
+.scene{position:absolute;inset:0}
+.sun{position:absolute;top:9%;right:12%;width:46px;height:46px;border-radius:50%;background:var(--sun)}
+.b{position:absolute;bottom:0}
+.b1{left:8%;width:17%;height:34%;background:var(--b1)}
+.b2{left:28%;width:12%;height:46%;background:var(--b2)}
+.b3{left:43%;width:22%;height:28%;background:var(--b3)}
+.b4{left:68%;width:15%;height:40%;background:var(--b4)}
+.b5{left:86%;width:12%;height:24%;background:var(--b1)}
+.win{position:absolute;background:rgba(255,255,255,0.55);width:14%;height:9%;border-radius:2px}
+.scrim-top{position:absolute;top:0;left:0;right:0;height:34%;background:linear-gradient(to bottom,rgba(0,0,0,.30),rgba(0,0,0,0))}
+.scrim-bottom{position:absolute;bottom:0;left:0;right:0;height:26%;background:linear-gradient(to top,rgba(0,0,0,.30),rgba(0,0,0,0))}
+.greet{position:absolute;top:7%;left:8%;color:#FFFDF8;font-family:var(--display);font-size:clamp(22px,4.2vmin,30px);line-height:1.55;text-shadow:0 1px 6px rgba(0,0,0,.25)}
+.greet .hi{font-size:.72em;opacity:.92;display:block}
+.hint{position:absolute;bottom:5.5%;left:0;right:0;text-align:center;color:#FFFDF8;font-family:var(--display);font-size:14px;letter-spacing:.08em;animation:breathe 2.2s ease-in-out infinite;text-shadow:0 1px 6px rgba(0,0,0,.3)}
+body.font-off .greet,body.font-off .hint{font-family:var(--system)}
+body.font-fail .greet,body.font-fail .hint{font-family:'XNoSuchFont',var(--system)}
+@keyframes breathe{0%,100%{opacity:.55;transform:translateY(0)}50%{opacity:1;transform:translateY(4px)}}
+@media (prefers-reduced-motion:reduce){.hint{animation:none;opacity:.9}}
+.section{max-width:820px;margin:28px auto 0;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px 22px}
+.section h2{font-size:14px;font-weight:600;margin-bottom:14px;color:var(--ink)}
+.row{display:flex;align-items:baseline;gap:14px;padding:12px 0;border-bottom:1px dashed var(--line)}
+.row:last-child{border-bottom:none}
+.row .tag{flex:0 0 168px;font-size:12px;color:var(--ink-2)}
+.row .sample{font-size:20px;color:var(--ink)}
+.row .sample.small{font-size:14px}
+.f-wenkai{font-family:var(--display)}
+.f-system{font-family:var(--system)}
+.f-fallback{font-family:'Kaiti SC','STKaiti','KaiTi',serif}
+.spec{font-size:13px;color:var(--ink-2);line-height:1.9}
+.spec code{background:rgba(0,0,0,0.06);padding:1px 6px;border-radius:6px;font-size:12px}
+body.dark .spec code{background:rgba(255,255,255,0.09)}
+.foot{max-width:820px;margin:14px auto 30px;font-size:12px;color:var(--ink-3);text-align:center}
+</style>
+</head>
+<body>
+  <div class="controls">
+    <div class="group"><span class="lbl">主题</span>
+      <button id="t-light" class="on">浅色</button><button id="t-dark">暗色</button>
+    </div>
+    <div class="group"><span class="lbl">构图</span>
+      <button id="o-p" class="on">竖屏 9:19.5</button><button id="o-l">横屏 16:9</button>
+    </div>
+    <div class="group"><span class="lbl">字体</span>
+      <button id="f-wk" class="on">霞鹜文楷</button><button id="f-sys">系统字体</button><button id="f-fail">模拟加载失败</button>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="frame" id="frame">
+      <div class="scene">
+        <div class="sun"></div>
+        <div class="b b1"></div><div class="b b2"></div><div class="b b3"></div><div class="b b4"></div><div class="b b5"></div>
+      </div>
+      <div class="scrim-top"></div><div class="scrim-bottom"></div>
+      <div class="greet"><span class="hi">晚上好，</span>欢迎回到方块街</div>
+      <div class="hint">往 街 里 逛 逛 ↓</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>字体对比（同一句话）</h2>
+    <div class="row"><span class="tag">霞鹜文楷 Lite · 展示层方案</span><span class="sample f-wenkai">晚上好，欢迎回到方块街</span></div>
+    <div class="row"><span class="tag">系统苹方 · 现状对照</span><span class="sample f-system">晚上好，欢迎回到方块街</span></div>
+    <div class="row"><span class="tag">楷体 SC · 加载失败回落</span><span class="sample f-fallback">晚上好，欢迎回到方块街</span></div>
+    <div class="row"><span class="tag">文楷 16px · 小字号表现</span><span class="sample small f-wenkai">往街里走走，灯还亮着。今天 3 条新帖 · 小天过生日 · 1 个活动</span></div>
+  </div>
+
+  <div class="section spec">
+    <h2>生产接入要点（与《实施交付说明》A2 一致）</h2>
+    <p>① <b>自托管</b>：<code>npm i lxgw-wenkai-lite-webfont</code>，把按 <code>unicode-range</code> 切分好的 woff2 + css 复制到 <code>public/fonts/lxgw/</code>（本 demo 走 jsdelivr 仅便于预览，生产不走第三方 CDN）。<br>
+    ② <b>加载纪律</b>：<code>font-display: swap</code>；字体 CSS 不得进入首屏 render-blocking 链；只 <code>preload</code> 问候语覆盖的 1~2 个分片。<br>
+    ③ <b>使用范围</b>：仅展示层（问候 / 下滑提示 / 官方 tab 海报标题）；正文一律系统栈，中文正文上 web 字体是包体灾难。<br>
+    ④ <b>失败兜底</b>：<code>'LXGW WenKai Lite','Kaiti SC','STKaiti','KaiTi',serif</code>——加载失败回落系统楷体，气质相近、页面完整（顶部第三个按钮可模拟）。<br>
+    ⑤ <b>可读性</b>：图上文字区加 scrim（黑 12%~25% 渐晕），对比度 ≥ 4.5:1；<code>prefers-reduced-motion</code> 下呼吸动画停用。</p>
+  </div>
+
+  <div class="foot">BOH 首页改版 · 首屏字体 Demo · 霞鹜文楷 Lite（OFL 开源可商用）· 2026-09-22</div>
+
+<script>
+(function(){
+  var body=document.body;
+  function bind(id,fn){var el=document.getElementById(id);if(el){el.addEventListener('click',function(){fn(el);});}}
+  function solo(ids,onId){ids.forEach(function(i){document.getElementById(i).classList.toggle('on',i===onId);});}
+  bind('t-light',function(el){body.classList.remove('dark');solo(['t-light','t-dark'],'t-light');});
+  bind('t-dark',function(el){body.classList.add('dark');solo(['t-light','t-dark'],'t-dark');});
+  bind('o-p',function(el){document.getElementById('frame').classList.remove('landscape');solo(['o-p','o-l'],'o-p');});
+  bind('o-l',function(el){document.getElementById('frame').classList.add('landscape');solo(['o-p','o-l'],'o-l');});
+  bind('f-wk',function(el){body.classList.remove('font-off','font-fail');solo(['f-wk','f-sys','f-fail'],'f-wk');});
+  bind('f-sys',function(el){body.classList.add('font-off');body.classList.remove('font-fail');solo(['f-wk','f-sys','f-fail'],'f-sys');});
+  bind('f-fail',function(el){body.classList.add('font-fail');body.classList.remove('font-off');solo(['f-wk','f-sys','f-fail'],'f-fail');});
+})();
+</script>
+</body>
+</html>

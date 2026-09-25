@@ -163,8 +163,40 @@ export function computeMetrics({ hole, imgW, imgH, zoom, offsetX = 0, offsetY = 
   };
 }
 
-/** 某一档的溢出判定（负 over = 装得下） */
-export function sizeState(preset, scale) {
+/**
+ * 素材对齐锚点（**唯一实现**，预览层与烘焙导出共用）。
+ *
+ * 有内孔 → 锚点就是孔心（成品图孔心居中的口径来源）。
+ * 测不出内孔 → 回退「图片自身中心」= 原图铺满画布。这个兜底不是可选项：
+ * 若照旧把 (0,0) 当孔心，预览会整张不可见、烘焙会只剩右下角一小块（2026-09-25 两处都踩过）。
+ */
+export function anchorPoint(hole, imgW, imgH) {
+  const hasHole = Number.isFinite(hole?.r) && hole.r > 0;
+  return hasHole ? { x: hole.hx, y: hole.hy, hasHole: true } : { x: imgW / 2, y: imgH / 2, hasHole: false };
+}
+
+/**
+ * 编辑器画布上「素材层」的最终变换（返回**舞台像素**，直接喂给 style）。
+ *
+ * 为什么这段必须收进纯模块：上一版是组件里手拼 left/top/width/height，
+ * 而组件在「未测出内孔」时提前返回了一个**没有 k 字段**的 metrics —— `k || 0` 取到 0，
+ * 于是图层塌成 0×0：上传白底素材后整张图凭空消失，运营看不见图、也就无从判断该不该抠底。
+ * （2026-09-25 实测：中秋特别.PNG 1400²、带 alpha 通道但 0 个透明像素 → r=0 → 预览全空。）
+ */
+export function layerTransform({ hole, imgW, imgH, zoom = 1, offsetX = 0, offsetY = 0, stage = CANVAS_SIZE }) {
+  const { k } = computeMetrics({ hole, imgW, imgH, zoom, offsetX, offsetY });
+  const toStage = stage / CANVAS_SIZE;
+  const anchor = anchorPoint(hole, imgW, imgH);
+  return {
+    k,
+    width: imgW * k * toStage,
+    height: imgH * k * toStage,
+    left: (CANVAS_SIZE / 2 - (anchor.x * k + offsetX)) * toStage,
+    top: (CANVAS_SIZE / 2 - (anchor.y * k + offsetY)) * toStage
+  };
+}
+
+/** 某一档的溢出判定（负 over = 装得下） */export function sizeState(preset, scale) {
   const frameLayerPx = preset.px * scale;
   const over = frameLayerPx - preset.container;
   const base = { ...preset, frameLayerPx, over };
@@ -294,8 +326,11 @@ export async function bakeFrame({ bitmap, hole, zoom, offsetX = 0, offsetY = 0, 
   const k = (size / Math.max(bitmap.width, bitmap.height)) * zoom;
   const dispW = bitmap.width * k;
   const dispH = bitmap.height * k;
-  const dx = size / 2 - hole.hx * k + offsetX;
-  const dy = size / 2 - hole.hy * k + offsetY;
+  // 锚点与预览层同一口径（见 anchorPoint）：测不出内孔就按图片自身中心对齐。
+  // 若照旧把 (0,0) 当孔心，导出的成品只剩右下角一小块、其余全透明 —— 那就是一张废图。
+  const anchor = anchorPoint(hole, bitmap.width, bitmap.height);
+  const dx = size / 2 - anchor.x * k + offsetX;
+  const dy = size / 2 - anchor.y * k + offsetY;
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(bitmap, dx, dy, dispW, dispH);

@@ -24,15 +24,29 @@
       <HomeFooter />
     </div>
 
-    <!-- 3. 移动端底栏：开场画退掉大半后才从下方浮上来（v-if 由 bottomNavReady 控制，
+    <!-- 3. 横屏左栏（电脑 + 平板横屏）：与 UserSpace 的横屏左栏是同一个组件、同一份
+            navItems（@/config/bottom-nav 单源）。论坛现在落在首页（顶栏「社区 → 论坛」
+            与底栏「方块」都指 `/?view=latest`），没有左栏就会出现「换个入口进论坛，
+            左右栏结构就没了」。可见性由 side-rail.css 的媒体查询决定（竖屏 / 窄窗零副作用），
+            内容让位与 fixed 定位见 landscape-rail.css 的 body.page-home 段。
+            首次进入的街景开场层是 fixed 覆盖层，左栏浮在其上，退场后自然落到论坛左侧。 -->
+    <UserSpaceSideRail :nav-items="BOTTOM_NAV_ITEMS" :current-tab="activeBottomNavId"
+      :has-unread-messages="hasUnreadMessages" :unread-count="unreadCount"
+      :current-theme="currentTheme" :is-logged-in="isLoggedIn"
+      @nav-click="handleBottomNavClick" @action="handleRailAction" />
+
+    <!-- 4. 移动端底栏：开场画退掉大半后才从下方浮上来（v-if 由 bottomNavReady 控制，
             不是 forumOpen —— 早挂载就会和封面同时抢镜）；此后随滚动方向隐藏 / 显现。
-         桌面 / 横屏整槽关掉（顶部 UnifiedNavbar 足够）。 -->
+         桌面 / 横屏整槽关掉（顶部 UnifiedNavbar + 横屏左栏足够）。 -->
     <div v-if="bottomNavReady" class="home-bottom-nav-slot">
       <UserSpaceBottomNav :visible="true" :hidden="bottomNavHidden" :enter-duration="BOTTOM_NAV_ENTER_MS"
         :nav-items="BOTTOM_NAV_ITEMS" :current-tab="activeBottomNavId"
         :nav-indicator-style="bottomNavIndicatorStyle" :has-unread-messages="hasUnreadMessages"
         :unread-count="unreadCount" @nav-click="handleBottomNavClick" />
     </div>
+
+    <ThemeModal :open="showThemeModal" :current-theme-preference="currentThemePreference"
+      @close="showThemeModal = false" @select="setThemePreference" />
   </div>
 </template>
 
@@ -51,6 +65,9 @@ import StreetSceneHero from "./components/StreetSceneHero.vue";
 import HomeFooter from "./components/HomeFooter.vue";
 import ForumSectionShell from "@/views/user-center/UserSpace/components/ForumSectionShell.vue";
 import UserSpaceBottomNav from "@/views/user-center/UserSpace/components/UserSpaceBottomNav.vue";
+import UserSpaceSideRail from "@/views/user-center/UserSpace/components/UserSpaceSideRail.vue";
+import ThemeModal from "@/views/user-center/UserSpace/components/ThemeModal.vue";
+import { preloadProfileStyles } from "@/views/user-center/UserSpace/async-loaders.js";
 import { useScrollDirectionHide } from "@/views/user-center/UserSpace/composables/useScrollDirectionHide.js";
 import { useHomeHeroesStore } from "@/stores/homeHeroes";
 import { useAuthStore } from "@/stores/auth";
@@ -58,6 +75,7 @@ import { FORUM_DEFAULT_SECTION, resolveForumSection } from "@/config/forum-secti
 import { BOTTOM_NAV_ITEMS } from "@/config/bottom-nav";
 import { getNotificationStoreSync, loadNotificationStore } from "@/stores/notification-loader";
 import { showIsland } from "@/composables/useIsland.js";
+import { themeManager } from "@/utils/theme-manager.js";
 
 // 官方英雄区舞台（hero 流 + 四类周年弹窗）：独立 chunk，只在切到「官方」分区时才请求
 const AsyncOfficialHeroStage = defineAsyncComponent(
@@ -261,9 +279,21 @@ watch(
   { immediate: true }
 );
 
+/* 分区壳（内含 AsyncForum）是异步 chunk，首帧不一定就绪 → 轮询等到它把
+   ForumMain 的 openComposer / focusSearch 暴露出来再调，上限 5s 不卡任何东西。
+   两处消费方共用这一条：?compose=1 / ?search=1 深链，以及横屏左栏的发布 / 搜索。 */
+const callForumShell = async (method, timeoutMs = 5000) => {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const shell = forumShellRef.value;
+    if (shell && typeof shell[method] === "function" && shell[method]()) return true;
+    await new Promise((resolve) => window.setTimeout(resolve, 80));
+  }
+  return false;
+};
+
 /* 一次性论坛意图（?compose=1 / ?search=1）：由 UserSpace / 他人空间的横屏左栏按钮带来，
-   这里把意图转交给分区壳（它透传 ForumMain 的 openComposer / focusSearch）。
-   分区壳是异步 chunk，首次到达时可能还没就绪 → 轮询等一小会儿。 */
+   这里把意图转交给分区壳（它透传 ForumMain 的 openComposer / focusSearch）。 */
 const consumeForumIntent = async () => {
   const method = route.query.compose === "1"
     ? "openComposer"
@@ -274,12 +304,7 @@ const consumeForumIntent = async () => {
   delete nextQuery.search;
   router.replace({ query: nextQuery });
 
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < 5000) {
-    const shell = forumShellRef.value;
-    if (shell && typeof shell[method] === "function" && shell[method]()) return;
-    await new Promise((resolve) => window.setTimeout(resolve, 80));
-  }
+  await callForumShell(method);
 };
 
 watch(
@@ -327,6 +352,54 @@ const ensureNotificationStore = async () => {
   if (notificationStoreRef.value) return notificationStoreRef.value;
   notificationStoreRef.value = await loadNotificationStore();
   return notificationStoreRef.value;
+};
+
+// ============================================
+// 横屏左栏的动作分发（与 UserSpaceMain.handleRailAction 同一套语义，
+// 只是落在首页自己的既有入口上；主导航那五席走 handleBottomNavClick）
+// ============================================
+// 主题：真源 = themeManager（与 UserSpace 同口径，只保留左栏「更多」菜单需要的两项状态）
+const showThemeModal = ref(false);
+const currentTheme = ref(themeManager.getTheme());
+const currentThemePreference = ref(themeManager.getPreference?.() || currentTheme.value);
+const handleThemeChange = (theme, preference = themeManager.getPreference?.() || theme) => {
+  currentTheme.value = theme;
+  currentThemePreference.value = preference;
+};
+const setThemePreference = (preference) => {
+  if (preference === "system") {
+    themeManager.resetToSystem();
+  } else {
+    themeManager.setTheme(preference);
+  }
+  currentTheme.value = themeManager.getTheme();
+  currentThemePreference.value = themeManager.getPreference?.() || preference;
+};
+
+const handleRailAction = async (actionId) => {
+  switch (actionId) {
+    case "compose":
+      await callForumShell("openComposer");
+      break;
+    case "search":
+      await callForumShell("focusSearch");
+      break;
+    case "theme":
+      // 主题弹窗的 .modal-overlay / .modal-card 样式来自按需加载的 profile-panels.css，
+      // 首页默认不预载 → 先确保样式就绪，否则弹窗裸奔（与 UserSpaceMain 同处理）
+      await preloadProfileStyles();
+      showThemeModal.value = true;
+      break;
+    case "home":
+      // 首页自己就是「首页」这一席：回到顶部即可，不做无谓跳转
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      break;
+    case "logout":
+      authStore.logout();
+      break;
+    default:
+      break;
+  }
 };
 
 // 论坛内嵌态的系统提示 → 统一走灵动岛
@@ -409,6 +482,8 @@ onMounted(async () => {
 
   void ensureNotificationStore();
   setupNavIslandProbe();
+  // 左栏「更多」菜单的主题按钮要跟着全站主题走（真源 themeManager）
+  themeManager.addListener(handleThemeChange);
 
   // 开场画与英雄区数据（失败不影响首屏：内部有缓存/baseline 兜底，且带超时竞速）
   try {
@@ -420,6 +495,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   teardownGateGesture();
+  themeManager.removeListener(handleThemeChange);
   if (gateUnmountTimer) {
     window.clearTimeout(gateUnmountTimer);
     gateUnmountTimer = null;
@@ -448,3 +524,6 @@ onBeforeUnmount(() => {
 
 <style scoped src="./style.scoped.css"></style>
 <style src="./style.global.css"></style>
+<!-- 横屏左栏的页面级规则（body.page-home 段）与 UserSpace / 他人空间共用同一份，
+     与 ProfileMain 的引入方式一致 —— 断点与栏宽档位只在这一个文件里定义 -->
+<style src="@/views/user-center/UserSpace/styles/landscape-rail.css"></style>

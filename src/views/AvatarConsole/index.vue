@@ -10,7 +10,7 @@
           上传 PNG 新建
           <input type="file" accept="image/png,image/jpeg,image/webp" hidden @change="onPickFile">
         </label>
-        <button type="button" class="btn" :disabled="!draft.id || busy" @click="save('draft')">存草稿</button>
+        <button type="button" class="btn" :disabled="!canSaveDraft" :title="saveDraftTitle" @click="save('draft')">存草稿</button>
         <button type="button" class="btn primary" :disabled="!canPublish" @click="save('published')">发布</button>
       </div>
     </header>
@@ -22,7 +22,7 @@
       <aside class="afc-lib">
         <div class="afc-lib-head">
           <span>框库</span>
-          <span class="muted">{{ frames.length }} 个</span>
+          <span class="muted">{{ frames.length }} 个<template v-if="draftCount"> · 草稿 {{ draftCount }}</template></span>
         </div>
         <div class="afc-lib-list">
           <button
@@ -55,7 +55,11 @@
               @pointerdown="onPointerDown" @pointermove="onPointerMove"
               @pointerup="endDrag" @pointercancel="endDrag" @wheel.prevent="onWheel">
               <img class="afc-layer" :src="source.url" alt="" draggable="false" :style="layerStyle">
-              <div class="afc-avatar" :style="avatarStyle"><span>头像</span></div>
+              <div v-if="holeKnown" class="afc-avatar" :style="avatarStyle"><span>头像</span></div>
+              <div v-else class="afc-no-hole">
+                <b>内孔未测出</b>
+                <span>头像圆画不出来（素材中心不是透明孔洞）—— 先点「自动抠白底」</span>
+              </div>
               <div class="afc-cross" aria-hidden="true" />
               <!-- 两个口径一起显示：zoom 是素材缩放，scale 是成品框层/头像比（与读数和落库值一致） -->
               <div class="afc-badge">
@@ -82,16 +86,19 @@
           </div>
 
           <div class="afc-sizes">
-            <div v-for="s in sizeStates.all" :key="s.px" class="sizebox" :class="s.cls">
+            <div v-for="s in sizeStates.all" :key="s.px" class="sizebox" :class="[s.cls, { unknown: !holeKnown }]">
               <div class="box" :style="{ width: BOX + 'px', height: BOX + 'px' }">
                 <div class="ring" :style="miniRingStyle(s)" />
                 <div class="av" :style="miniAvatarStyle(s)" />
               </div>
-              <div class="cap">{{ s.px }}px {{ s.scene }}<br>框层 {{ Math.round(s.frameLayerPx) }}</div>
+              <div class="cap">{{ s.px }}px {{ s.scene }}<br>{{ holeKnown ? `框层 ${Math.round(s.frameLayerPx)}` : '框层 —' }}</div>
             </div>
             <div class="afc-sizes-note muted">
-              最紧档 = {{ sizeStates.worst.px }}px（容器 {{ sizeStates.worst.container }}px）
-              <template v-if="sizeStates.worst.over > 0">，溢出 {{ Math.round(sizeStates.worst.over) }}px</template>
+              <template v-if="holeKnown">
+                最紧档 = {{ sizeStates.worst.px }}px（容器 {{ sizeStates.worst.container }}px）
+                <template v-if="sizeStates.worst.over > 0">，溢出 {{ Math.round(sizeStates.worst.over) }}px</template>
+              </template>
+              <template v-else>测出内孔后才有多尺寸溢出判定</template>
             </div>
           </div>
 
@@ -133,8 +140,12 @@
             <option value="pro">Pro 起</option>
             <option value="max">Max 起</option>
             <option value="ultra">Ultra 专属</option>
+            <option value="limit">活动限定（只发给指定用户）</option>
           </select>
         </label>
+        <p v-if="draft.tier === 'limit'" class="hint">
+          活动限定框不会按档位放开：只有下面「按人发放」过、或处于限免期内的用户能戴。
+        </p>
         <label class="field">
           <span>限时免费至</span>
           <input v-model="draft.freeUntil" type="date">
@@ -161,6 +172,50 @@
         <p v-if="draft.status === 'archived'" class="hint">
           下架不会删除素材：存量佩戴者的记录还指着这个 URL，删了会反查不到 scale。
         </p>
+
+        <h2>按人发放</h2>
+        <p class="hint">
+          抽奖专属 / 活动限定走这里：档位设「活动限定」后，只有发放过的用户能戴（幂等，可重复点）。
+          来源标签会记进台账，便于事后区分「积分买的」与「活动发的」。
+        </p>
+        <label class="field">
+          <span>发放给（搜用户名，或直接粘 UUID）</span>
+          <div class="afc-user-search">
+            <input
+              v-model.trim="grantTarget"
+              type="text"
+              placeholder="输入用户名搜索…"
+              autocomplete="off"
+              :disabled="busy"
+              @input="onGrantSearchInput"
+              @keydown.enter.prevent="pickFirstGrantUser"
+              @keydown.esc="closeGrantResults"
+            >
+            <span v-if="grantSearching" class="afc-user-flag">搜索中…</span>
+            <span v-else-if="grantPicked" class="afc-user-flag ok">已选中</span>
+          </div>
+        </label>
+        <ul v-if="grantResults.length" class="afc-user-list">
+          <li v-for="u in grantResults" :key="u.id">
+            <button type="button" class="afc-user-item" @click="pickGrantUser(u)">
+              <b>{{ u.username || '未命名用户' }}</b>
+              <code>{{ String(u.id).slice(0, 8) }}</code>
+              <span class="afc-user-points">{{ u.points ?? 0 }} 积分</span>
+            </button>
+          </li>
+        </ul>
+        <p v-if="grantSearchTip" class="hint">{{ grantSearchTip }}</p>
+        <label class="field">
+          <span>来源标签</span>
+          <input v-model="grantSource" type="text" placeholder="lottery / activity" :disabled="busy">
+        </label>
+        <button
+          type="button"
+          class="btn"
+          :disabled="busy || !grantTarget.trim() || !draft.id"
+          @click="doGrant"
+        >发放「{{ draft.name || draft.id || '未选择框' }}」</button>
+        <p v-if="lastGrant" class="hint">最近发放：{{ lastGrant }}</p>
       </aside>
     </div>
   </div>
@@ -179,10 +234,12 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { logger } from '@/utils/logger.js';
 import { uploadImageToCloudinary } from '@/utils/cloudinary-client.js';
-import { listAllAvatarFrames, upsertAvatarFrame } from '@/utils/api/avatar-frames-api.js';
+import { listAllAvatarFrames, upsertAvatarFrame, grantAvatarFrame, resolveGrantTarget } from '@/utils/api/avatar-frames-api.js';
+// 与数据面板「积分发放台」共用同一套用户搜索（同一份 profiles 查询口径，勿再写第二份）
+import { searchGrantTargetUsers } from '@/utils/api/points-admin-api.js';
 import {
   CANVAS_SIZE, DETECT_SAMPLE,
-  computeMetrics, sizeStates as computeSizeStates, suggestScale, reviewFrame,
+  computeMetrics, layerTransform, sizeStates as computeSizeStates, suggestScale, reviewFrame,
   loadImageForEdit, hasRealAlpha, detectInnerHole, resolveWhiteBackground, bakeFrame
 } from './frame-geometry.js';
 
@@ -210,13 +267,18 @@ const alphaFixable = computed(() => Boolean(source.value && !source.value.alphaS
 const alphaStripped = computed(() => Boolean(source.value?.alphaStripped));
 
 /* ───────── 几何 ───────── */
+/** 素材中心有没有测出孔洞 —— 测不出时读数只能是「测不出」，但素材本身**必须照常显示** */
+const holeKnown = computed(() => Boolean(source.value?.hole?.r > 0));
+
 const metrics = computed(() => {
-  if (!source.value || !source.value.hole?.r) return { scale: NaN, holeShare: 0, offset: 0 };
+  if (!source.value) return { k: 0, scale: NaN, holeShare: 0, offset: 0 };
   const m = computeMetrics({
     hole: source.value.hole, imgW: source.value.width, imgH: source.value.height,
     zoom: view.zoom, offsetX: view.offsetX, offsetY: view.offsetY
   });
-  return m;
+  // 测不出内孔时 scale 是 Infinity（读数是「测不出」），但 k 等字段必须照常带出去：
+  // 早期版本在这里提前 return 一个没有 k 的对象，图层随之塌成 0×0 —— 素材看不见了。
+  return holeKnown.value ? m : { ...m, scale: NaN, holeShare: 0 };
 });
 const sizeStates = computed(() => computeSizeStates(metrics.value.scale || 0));
 const review = computed(() => reviewFrame({
@@ -231,15 +293,31 @@ const canPublish = computed(() => Boolean(
   !busy.value && source.value && draft.id && draft.name && review.value.ok
 ));
 
+/**
+ * 保存用的 scale。
+ *  - 编辑器里载着素材 → 用实时算出的（测不出内孔就是 NaN，不许写库）
+ *  - 只改元数据（没载素材）→ **沿用该行已记的 scale**，重算只会得到 NaN
+ * scale 在库里是 not null 真实读数：以前没兜底，于是「内孔未测出时点存草稿」会拿 NaN 去写，
+ * 服务端 23502 直接拒（2026-09-25 实测：库里一条草稿都没有，就是这么丢的）。
+ */
+const draftRowScale = computed(() => frames.value.find((f) => f.id === draft.id)?.scale ?? null);
+const resolvedScale = computed(() => (source.value ? metrics.value.scale : draftRowScale.value));
+const canSaveDraft = computed(() => Boolean(!busy.value && draft.id && Number.isFinite(resolvedScale.value)));
+const saveDraftTitle = computed(() => {
+  if (canSaveDraft.value) return '存为草稿（用户端不可见）';
+  if (!draft.id) return '请先填标识 slug';
+  if (source.value && !holeKnown.value) return '还没测出内孔：先点「自动抠白底」—— scale 是必填的真实读数，测不出就存不了';
+  return '这个框还没有可用的 scale（素材没载入过）';
+});
+const draftCount = computed(() => frames.value.filter((f) => f.status === 'draft').length);
+
 const layerStyle = computed(() => {
   if (!source.value) return {};
-  const k = metrics.value.k || 0;
-  const toStage = STAGE / CANVAS_SIZE;
-  const dispW = source.value.width * k * toStage;
-  const dispH = source.value.height * k * toStage;
-  const left = (CANVAS_SIZE / 2 - (source.value.hole.hx * k + view.offsetX)) * toStage;
-  const top = (CANVAS_SIZE / 2 - (source.value.hole.hy * k + view.offsetY)) * toStage;
-  return { left: `${left}px`, top: `${top}px`, width: `${dispW}px`, height: `${dispH}px` };
+  const t = layerTransform({
+    hole: source.value.hole, imgW: source.value.width, imgH: source.value.height,
+    zoom: view.zoom, offsetX: view.offsetX, offsetY: view.offsetY, stage: STAGE
+  });
+  return { left: `${t.left}px`, top: `${t.top}px`, width: `${t.width}px`, height: `${t.height}px` };
 });
 
 /** 头像圆直径 = 内孔直径：这既是「头像要占的位置」，也是 scale 的定义式 */
@@ -273,7 +351,112 @@ const miniAvatarStyle = (s) => {
   return { width: `${px}px`, height: `${px}px` };
 };
 
-const tierText = (f) => ({ free: '全员可戴', plus: 'Plus 起', pro: 'Pro 起', max: 'Max 起', ultra: 'Ultra 专属' }[f.tier] || f.tier);
+const tierText = (f) => ({ free: '全员可戴', plus: 'Plus 起', pro: 'Pro 起', max: 'Max 起', ultra: 'Ultra 专属', limit: '活动限定' }[f.tier] || f.tier);
+
+/* ───────── 按人发放（抽奖专属 / 活动限定） ───────── */
+const grantTarget = ref('');
+const grantSource = ref('lottery');
+const lastGrant = ref('');
+const grantResults = ref([]);      // 用户搜索结果（profile 行）
+const grantSearching = ref(false);
+const grantPicked = ref(null);     // 从列表里点中的那个人（有它就不再靠用户名反查）
+const grantSearchTip = ref('');
+
+/** 300ms 防抖：每键入都打 profiles 没必要；另外只认最后一次结果，避免乱序覆盖 */
+let grantSearchTimer = null;
+const GRANT_PICK_LIMIT = 8;
+
+function closeGrantResults() {
+  clearTimeout(grantSearchTimer);
+  grantResults.value = [];
+  grantSearching.value = false;
+}
+
+function onGrantSearchInput() {
+  grantPicked.value = null;        // 手改了输入 → 之前的选中作废，避免"看着是 A 实际发 B"
+  grantSearchTip.value = '';
+  clearTimeout(grantSearchTimer);
+  const keyword = grantTarget.value.trim();
+  if (!keyword) { closeGrantResults(); return; }
+  grantSearchTimer = setTimeout(() => { void runGrantSearch(keyword); }, 300);
+}
+
+async function runGrantSearch(keyword) {
+  grantSearching.value = true;
+  try {
+    const rows = await searchGrantTargetUsers(keyword, GRANT_PICK_LIMIT);
+    if (grantTarget.value.trim() !== keyword) return;   // 输入又变了：丢弃这次
+    grantResults.value = rows;
+    if (!rows.length) grantSearchTip.value = '没搜到匹配的用户（用户名按片段匹配）。也可以直接粘用户 UUID。';
+  } catch (err) {
+    logger.error('avatar-console', '用户搜索失败', err);
+    grantResults.value = [];
+    notice.value = { cls: 'bad', text: `用户搜索失败：${err.message}` };
+  } finally {
+    grantSearching.value = false;
+  }
+}
+
+function pickGrantUser(user) {
+  grantPicked.value = user;
+  grantTarget.value = user.username || user.id;
+  grantResults.value = [];
+  grantSearchTip.value = '';
+}
+
+function pickFirstGrantUser() {
+  if (grantResults.value.length) pickGrantUser(grantResults.value[0]);
+}
+
+const GRANT_REASON_TEXT = {
+  EMPTY: '请输入用户名或用户 UUID。',
+  NOT_FOUND: '找不到这个用户名的用户，请确认昵称完全一致。',
+  QUERY_FAILED: '用户查询失败，请重试。'
+};
+const GRANT_FAIL_TEXT = {
+  NOT_ADMIN: '当前账号不是管理员，无权发放。',
+  FRAME_NOT_FOUND: '这个框不存在，可能已被删除。',
+  FRAME_NOT_PUBLISHED: '框还没发布：先「发布」再发放。',
+  PROFILE_NOT_FOUND: '目标用户资料不存在。',
+  MISSING_USER: '缺少目标用户。',
+  MISSING_FRAME: '缺少目标框。',
+  GRANT_FAILED: '发放失败，请稍后重试。'
+};
+
+async function doGrant() {
+  const frameId = String(draft.id || '').trim();
+  if (!frameId) { notice.value = { cls: 'bad', text: '请先在左侧选择一个框。' }; return; }
+
+  busy.value = true;
+  try {
+    // 从候选里点中的人直接用 id（不再按用户名反查 → 同名也不会发错）；手填的仍走解析
+    const target = grantPicked.value
+      ? { ok: true, userId: grantPicked.value.id, username: grantPicked.value.username || '' }
+      : await resolveGrantTarget(grantTarget.value);
+    if (!target.ok) {
+      notice.value = { cls: 'bad', text: GRANT_REASON_TEXT[target.reason] || '目标用户解析失败。' };
+      return;
+    }
+
+    const res = await grantAvatarFrame({ userId: target.userId, frameId, source: grantSource.value });
+    if (!res.ok) {
+      notice.value = { cls: 'bad', text: GRANT_FAIL_TEXT[res.message] || `发放失败：${res.message}` };
+      return;
+    }
+
+    lastGrant.value = `${target.username || target.userId} · ${res.source || 'activity'}`;
+    closeGrantResults();
+    notice.value = {
+      cls: 'ok',
+      text: `已发放给 ${target.username || target.userId}（来源 ${res.source || 'activity'}）。对方刷新即可佩戴。`
+    };
+  } catch (err) {
+    logger.error('avatar-console', '按人发放失败', err);
+    notice.value = { cls: 'bad', text: `发放失败：${err.message}` };
+  } finally {
+    busy.value = false;
+  }
+}
 
 /* ───────── 加载 ───────── */
 async function refreshList() {
@@ -331,7 +514,10 @@ async function onPickFile(e) {
     draft.url = '';
     draft.sourceUrl = '';
     if (!withAlpha) {
-      notice.value = { cls: 'warn', text: '这张图没有透明层（按像素判定，不看扩展名）。点「自动抠白底」处理，否则深色主题下会显示成白色方块。' };
+      notice.value = {
+        cls: 'warn',
+        text: '这张图没有一个真透明像素 —— 带 alpha 通道 ≠ 有透明区，这里按像素事实判定（白底存成 RGBA 的图很常见）。点「自动抠白底」把外部白底和中心白孔一起清掉，否则深色主题下会显示成白色方块。'
+      };
     } else {
       notice.value = { cls: 'ok', text: '素材已就绪。拖动 / 滚轮 / 双指捏合调整摆位，让头像圆正好被内孔套住。' };
     }
@@ -527,6 +713,16 @@ async function save(status) {
     notice.value = { cls: 'bad', text: 'slug 只允许小写字母、数字和短横线，长度 3~32。' };
     return;
   }
+  // scale 是库里的必填真实读数：测不出就别拿 NaN 去撞 not null（那样只会换来一条看不懂的 23502）
+  if (!Number.isFinite(resolvedScale.value)) {
+    notice.value = {
+      cls: 'bad',
+      text: source.value
+        ? '还没测出内孔，不能保存：scale 是必填的真实读数 —— 先点「自动抠白底」。'
+        : '这个框没有素材、也没有已记录的 scale，无法保存。'
+    };
+    return;
+  }
   if (status === 'published') {
     if (!review.value.ok) { notice.value = { cls: 'bad', text: '还有阻塞项没解决，不能发布。' }; return; }
     if (!source.value) { notice.value = { cls: 'bad', text: '没有素材，不能发布。' }; return; }
@@ -561,7 +757,7 @@ async function save(status) {
 
     const res = await upsertAvatarFrame({
       id: draft.id, name: draft.name, desc: draft.desc, url, sourceUrl,
-      scale: Number(metrics.value.scale.toFixed(2)),
+      scale: Number(resolvedScale.value.toFixed(2)),
       tier: draft.tier, freeUntil: draft.freeUntil || null,
       pointsPrice: draft.pointsPrice === '' || draft.pointsPrice === 0 ? null : draft.pointsPrice,
       sortOrder: draft.sortOrder, status, ring: draft.ring
@@ -658,6 +854,15 @@ onMounted(refreshList);
   box-shadow: 0 6px 18px rgba(31,41,66,.18);
 }
 .afc-cross { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+/* 测不出内孔时占位：明说「画不出来」而不是画一个 6px 的假头像圆 */
+.afc-no-hole {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2;
+  display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center;
+  max-width: 250px; padding: 10px 14px; border-radius: 12px; pointer-events: none;
+  background: rgba(255,255,255,.86); border: 1px dashed rgba(179,38,30,.45);
+}
+.afc-no-hole b { color: #b3261e; font-size: 12.5px; }
+.afc-no-hole span { color: #5a6377; font-size: 11.5px; line-height: 1.45; }
 .afc-cross::before, .afc-cross::after { content: ''; position: absolute; background: rgba(20,89,217,.25); }
 .afc-cross::before { left: 50%; top: 14px; bottom: 14px; width: 1px; }
 .afc-cross::after { top: 50%; left: 14px; right: 14px; height: 1px; }
@@ -682,6 +887,10 @@ onMounted(refreshList);
 .sizebox.bad .cap { color: #b3261e; font-weight: 700; }
 .sizebox.warn .box { border-color: #b45309; background: rgba(180,83,9,.07); }
 .sizebox.warn .cap { color: #b45309; }
+/* 没测出内孔：四档都无从判定，别用绿色「通过」骗人 */
+.sizebox.unknown .box { border-style: dashed; border-color: rgba(31,41,66,.12); }
+.sizebox.unknown .ring, .sizebox.unknown .av { opacity: .25; }
+.sizebox.unknown .cap { color: #8a92a6; }
 .afc-sizes-note { font-size: 11.5px; }
 
 .afc-alerts { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
@@ -700,4 +909,27 @@ onMounted(refreshList);
 }
 .field input:disabled { background: #f4f5f8; color: #8a92a6; }
 .hint { margin: -3px 0 9px; font-size: 11.5px; color: #8a92a6; line-height: 1.5; }
+
+/* 按人发放：用户搜索（与积分发放台同一套查询，这里只是换了皮） */
+.afc-user-search { position: relative; }
+.afc-user-search input { width: 100%; box-sizing: border-box; padding-right: 58px; }
+.afc-user-flag {
+  position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
+  font-size: 10.5px; color: #8a92a6; pointer-events: none;
+}
+.afc-user-flag.ok { color: #0f8a6a; font-weight: 650; }
+.afc-user-list {
+  list-style: none; margin: -3px 0 9px; padding: 4px; max-height: 196px; overflow: auto;
+  display: flex; flex-direction: column; gap: 2px;
+  border: 1px solid rgba(31,41,66,.12); border-radius: 10px; background: #fff;
+}
+.afc-user-item {
+  display: flex; align-items: center; gap: 6px; width: 100%; padding: 6px 8px;
+  border: 0; border-radius: 7px; background: transparent; font-family: inherit;
+  font-size: 12.5px; color: inherit; cursor: pointer; text-align: left;
+}
+.afc-user-item:hover { background: #eef4ff; }
+.afc-user-item b { flex: 1; min-width: 0; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.afc-user-item code { font-size: 10.5px; color: #8a92a6; }
+.afc-user-points { font-size: 10.5px; color: #8a92a6; }
 </style>

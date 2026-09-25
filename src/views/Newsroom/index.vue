@@ -264,6 +264,20 @@ watch(
   }
 );
 
+// 路由 ?news= 变化 → 展开该条详情岛（深链语义）。
+// 组件级 key 已从 route.fullPath 改为 route.path（同页换参数不再销毁重建组件），
+// 因此不能再依赖 onMounted 里那一次性消费 —— 否则「已在 /newsroom 再改 ?news=」不会生效。
+// onMounted 里的消费保留，负责首次进入 / 刷新时的落点。
+watch(
+  () => route.query.news,
+  (raw) => {
+    const id = typeof raw === "string" ? raw.trim() : "";
+    if (!id) return;
+    const target = newsData.value.find((n) => String(n.id) === id);
+    if (target) showModal(target);
+  }
+);
+
 // 液态玻璃筛选栏：滚动收缩
 const isCondensed = ref(false);
 let scrollTicking = false;

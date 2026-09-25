@@ -5,6 +5,8 @@ import {
   AVATAR_MIN_SCALE,
   SIZE_PRESETS,
   computeMetrics,
+  anchorPoint,
+  layerTransform,
   sizeState,
   sizeStates,
   suggestScale,
@@ -61,8 +63,76 @@ describe('computeMetrics · scale = 画布边长 / 内孔直径', () => {
   });
 });
 
-describe('sizeState / sizeStates · 每档各有自己的容器', () => {
-  const byPx = (states, px) => states.find((s) => s.px === px);
+/**
+ * 回归：真实事故 2026-09-25。
+ * 中秋特别.PNG：1400²、带 alpha 通道但 196 万像素全是 255，中心是纯白不是孔洞
+ * → hasRealAlpha=false、detectInnerHole r=0。此时组件若拿不到有效 k，
+ * 素材层就会塌成 0×0 —— 上传完「什么都看不见」，运营连图长什么样都不知道。
+ */
+describe('layerTransform · 素材层变换（测不出内孔也必须看得见素材）', () => {
+  const STAGE = 380;
+  const toStage = STAGE / CANVAS_SIZE;
+  const noHole = { hx: 0, hy: 0, r: 0, ratio: 0 };
+
+  it('未测出内孔时仍给出有效尺寸（不是 0×0）', () => {
+    const t = layerTransform({ hole: noHole, imgW: 1400, imgH: 1400, zoom: 1, stage: STAGE });
+    expect(Number.isFinite(t.width)).toBe(true);
+    expect(Number.isFinite(t.height)).toBe(true);
+    expect(t.width).toBeGreaterThan(50);
+    expect(t.height).toBeGreaterThan(50);
+  });
+
+  it('未测出内孔时按图片中心对齐 = 原图铺满画布（1400² @zoom=1）', () => {
+    const t = layerTransform({ hole: noHole, imgW: 1400, imgH: 1400, zoom: 1, stage: STAGE });
+    expect(t.width).toBeCloseTo(STAGE, 6);
+    expect(t.height).toBeCloseTo(STAGE, 6);
+    expect(t.left).toBeCloseTo(0, 6);
+    expect(t.top).toBeCloseTo(0, 6);
+  });
+
+  it('未测出内孔的非方图按长边铺满画布并居中（上下对称留白）', () => {
+    const t = layerTransform({ hole: noHole, imgW: 1600, imgH: 800, zoom: 1, stage: STAGE });
+    expect(t.width).toBeCloseTo(STAGE, 6);
+    expect(t.height).toBeCloseTo(STAGE / 2, 6);
+    expect(t.left).toBeCloseTo(0, 6);
+    expect(t.top).toBeCloseTo(STAGE / 4, 6);
+  });
+
+  it('测出内孔时孔心落在画布正中心（这条不变式决定 scale 口径）', () => {
+    const hole = { hx: 1024, hy: 1024, r: 353 };
+    const t = layerTransform({ hole, imgW: 2048, imgH: 2048, zoom: 1.394, stage: STAGE });
+    expect(t.k).toBeCloseTo((CANVAS_SIZE / 2048) * 1.394, 6);
+    expect(t.width).toBeCloseTo(2048 * t.k * toStage, 6);
+    expect(hole.hx * t.k + t.left / toStage).toBeCloseTo(CANVAS_SIZE / 2, 6);
+    expect(hole.hy * t.k + t.top / toStage).toBeCloseTo(CANVAS_SIZE / 2, 6);
+  });
+
+  it('孔心偏移落到 left/top 上（拖动摆位真的会动，offset 是画布像素不带 k）', () => {
+    const hole = { hx: 1024, hy: 1024, r: 353 };
+    const base = layerTransform({ hole, imgW: 2048, imgH: 2048, zoom: 1, stage: STAGE });
+    const moved = layerTransform({ hole, imgW: 2048, imgH: 2048, zoom: 1, offsetX: 100, offsetY: -60, stage: STAGE });
+    expect(moved.left).toBeCloseTo(base.left - 100 * toStage, 6);
+    expect(moved.top).toBeCloseTo(base.top + 60 * toStage, 6);
+  });
+});
+
+describe('anchorPoint · 预览与烘焙共用的对齐锚点', () => {
+  it('有内孔时锚点 = 孔心', () => {
+    expect(anchorPoint({ hx: 1024, hy: 980, r: 353 }, 2048, 2048)).toEqual({ x: 1024, y: 980, hasHole: true });
+  });
+
+  it('测不出内孔（r=0 / 缺失）时回退图片自身中心', () => {
+    expect(anchorPoint({ hx: 0, hy: 0, r: 0 }, 1400, 1400)).toEqual({ x: 700, y: 700, hasHole: false });
+    expect(anchorPoint(undefined, 1600, 800)).toEqual({ x: 800, y: 400, hasHole: false });
+  });
+
+  it('非方图也按自身中心（不是画布中心）', () => {
+    expect(anchorPoint({ hx: 0, hy: 0, r: 0 }, 1600, 800).x).toBe(800);
+    expect(anchorPoint({ hx: 0, hy: 0, r: 0 }, 1600, 800).y).toBe(400);
+  });
+});
+
+describe('sizeState / sizeStates · 每档各有自己的容器', () => {  const byPx = (states, px) => states.find((s) => s.px === px);
 
   it('scale 2.90 时最紧档是 52px 卡片并判溢出', () => {
     const { worst } = sizeStates(2.9);

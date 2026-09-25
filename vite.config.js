@@ -429,6 +429,12 @@ export default defineConfig({
       '@data': resolve(__dirname, 'src/data'),
       '@utils': resolve(__dirname, 'src/utils'),
       '@styles': resolve(__dirname, 'src/styles'),
+      // node-fetch 只出现在 tfjs 的 Node 平台分支（`importFetch: () => require('node-fetch')`），
+      // 浏览器永不执行，但它一被解析就进 lib/index.mjs 的 `import https from 'https'`
+      // → 浏览器端没有 https 这个包，Vite 抛「Failed to resolve entry for package "https"」
+      //   并弹整页报错遮罩（点击全被吃掉），那一次加载失败还会拖死 tfjs chunk（图片审核不可用）。
+      // 指到空实现：解析不再进入 node-fetch 包，浏览器侧行为不变（详见 scripts/shims/node-fetch.browser.js）。
+      'node-fetch': resolve(__dirname, 'scripts/shims/node-fetch.browser.js'),
     }
   },
 
@@ -575,12 +581,11 @@ export default defineConfig({
       '@supabase/supabase-js', '@vueuse/core', '@vueuse/motion',
       'marked', 'highlight.js', 'dompurify', 'lucide-vue-next',
     ],
-    // node-fetch 只出现在 @tensorflow/tfjs-core 的 Node 平台分支
-    // （platform.node.importFetch 里的惰性 require），浏览器永不执行；但预打包扫描
-    // 会按 module 字段进入它的 ESM 入口 lib/index.mjs，里面 `import https from 'https'`
-    // 在 platform=browser 下解析不了 node 内置模块，直接让 dev server 起不来
-    // （Failed to resolve entry for package "https"，依赖缓存一旦失效就必现）。
-    // 排除出预打包后扫描不再进入它；生产构建本就走 browser 字段拿到空实现，行为一致。
+    // node-fetch 见上面 resolve.alias：只残留 tfjs 的 Node 分支（platform.node.importFetch 的惰性
+    // require），浏览器永不执行；但预打包扫描会按 module 字段进它的 ESM 入口 lib/index.mjs，
+    // 那里 `import https from 'https'` 在 platform=browser 下解析不了 node 内置模块，
+    // 直接让 dev server 起不来（Failed to resolve entry for package "https"，依赖缓存一旦失效就必现）。
+    // 排除出预打包 + 上面的空实现别名，两条路（扫描 / 真被 import）一起堵住。
     exclude: ['node-fetch'],
   },
 

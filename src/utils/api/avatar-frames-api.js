@@ -133,3 +133,52 @@ export async function purchaseAvatarFrame(frameId) {
     error: null
   };
 }
+
+/**
+ * 按人发放（抽奖专属 / 活动限定）
+ *
+ * 服务端唯一写入口：user_avatar_frames 的 RLS 只开 SELECT，客户端无法直接插；
+ * grant_avatar_frame 内部校验管理员，幂等（已持有则不动，不会抹掉积分购买凭证）。
+ * source 由调用方声明，与积分解锁的 'points' 区分开，便于事后审计。
+ */
+export async function grantAvatarFrame({ userId, frameId, source = 'activity' } = {}) {
+  const pUserId = String(userId || '').trim();
+  const pFrameId = String(frameId || '').trim();
+  if (!pUserId || !pFrameId) {
+    return { ok: false, message: 'MISSING_ARGS', error: null };
+  }
+  const { data, error } = await supabase.rpc('grant_avatar_frame', {
+    p_user_id: pUserId,
+    p_frame_id: pFrameId,
+    p_source: String(source || 'activity').trim() || 'activity'
+  });
+  if (error) return { ok: false, message: error.message, error: normalizeDbError(error) };
+
+  const safe = Array.isArray(data) ? (data[0] || {}) : (data || {});
+  return {
+    ok: safe.ok !== false,
+    message: String(safe.message || ''),
+    source: String(safe.source || ''),
+    error: null
+  };
+}
+
+// 仅用于区分「输入的是 UUID 还是用户名」，不是业务规则
+const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** 用户名或 UUID → 用户 id（发放前的解析；用户名走 profiles 精确匹配） */
+export async function resolveGrantTarget(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return { ok: false, reason: 'EMPTY' };
+  if (UUID_LIKE.test(value)) return { ok: true, userId: value, username: '' };
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, username')
+    .eq('username', value)
+    .maybeSingle();
+
+  if (error) return { ok: false, reason: 'QUERY_FAILED' };
+  if (!data?.id) return { ok: false, reason: 'NOT_FOUND' };
+  return { ok: true, userId: data.id, username: String(data.username || '') };
+}

@@ -1234,6 +1234,7 @@ import { createExportCenter } from './composables/useDataAdminExport.js';
 import { createGlobalSearchCenter } from './composables/useDataAdminGlobalSearch.js';
 import { createShortcutsCenter } from './composables/useDataAdminShortcuts.js';
 import { createNavigationCenter } from './composables/useDataAdminNavigation.js';
+import { consumeAdminTabJumpSearch } from './composables/useAdminTabIntent.js';
 
 const CACHE_TTL = 45_000;
 
@@ -1283,7 +1284,10 @@ const editingItem = ref({});
 const editingOriginalItem = ref(null);
 const jsonBuffers = ref({});
 const fieldErrors = reactive({});
-const searchQuery = ref('');
+// 初值消费「跳转意图」：switchTab 把 tab 写回 URL query 时，本组件会因 key=fullPath
+// 被销毁重建，组件内关键词会归零。跳转携带的关键词经模块级暂存跨过重建，
+// 保证重建后 onMounted 的 fetchData 仍按目标关键词查询（否则退回全量列表）。
+const searchQuery = ref(consumeAdminTabJumpSearch());
 // globalSearchQuery / globalSearchResults / isGlobalSearching / showGlobalSearchPanel
 // 由下方 createGlobalSearchCenter 工厂注入
 const statusFilter = ref('');
@@ -1573,6 +1577,11 @@ const tabTotals = reactive(tabs.reduce((acc, tab) => {
   acc[tab.id] = 0;
   return acc;
 }, {}));
+// 列表分页专用计数：只承载「当前列表查询（含关键词/筛选）返回的 count」。
+// 与 tabTotals 严格分开 —— 后者是全表计数（概览 RPC admin_data_management_counts
+// 写入，供侧栏/概览展示），它在首屏后二次加载时会把筛选结果数覆盖成全表条数，
+// 造成「跳转带关键词后分页总数仍是全表条数、翻到后面全是空页」。
+const tabQueryTotals = reactive({});
 const activeFetchId = ref(0);
 const searchDebounceTimer = ref(null);
 const suppressNextPageFetch = ref(false);
@@ -2321,7 +2330,13 @@ const recentActivityItems = computed(() => {
 // handleModuleClick / handleAdminNavClick / getTabsByGroup / handleOverviewTabClick /
 // handleSidebarTabClick / handlePlaceholderAction 已迁移至 useDataAdminNavigation.js
 
-const totalRecordCount = computed(() => tabTotals[currentTab.value] || currentData.value.length || 0);
+// 分页总数只认「当前列表查询（含筛选）的 count」；全表计数（tabTotals）不参与分页。
+// 分页总数只认「当前列表查询（含筛选）的 count」；全表计数（tabTotals）不参与分页。
+const totalRecordCount = computed(() => {
+  const queryTotal = Number(tabQueryTotals[currentTab.value]);
+  if (Number.isFinite(queryTotal)) return queryTotal;
+  return currentData.value.length || 0;
+});
 const totalCountAllTables = computed(() =>
   tabs.reduce((sum, tab) => sum + getTabCount(tab.id), 0)
 );
@@ -3057,7 +3072,8 @@ const getDurationLabel = (durationMs) => {
 };
 
 const updateCountsForTab = (tabId, total) => {
-  setTabTotal(tabId, total);
+  // 列表查询结果数：写入查询专用槽位，不污染全表计数 tabTotals
+  tabQueryTotals[tabId] = Math.max(0, Number(total) || 0);
 };
 
 const getTabFetchCacheKey = (tabId = currentTab.value) => JSON.stringify({
@@ -3245,7 +3261,7 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
   const cached = options.useCache ? tabFetchCache[cacheKey] : null;
   if (cached && Date.now() - Number(cached.cachedAt || 0) < CACHE_TTL) {
     dataStore[tabId] = [...cached.rows];
-    setTabTotal(tabId, cached.total);
+    updateCountsForTab(tabId, cached.total);
     return;
   }
 

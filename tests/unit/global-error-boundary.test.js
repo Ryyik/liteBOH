@@ -96,6 +96,19 @@ describe('GlobalErrorBoundary wiring in App.vue', () => {
     expect(app).not.toMatch(/\(\) => route\.fullPath,/);
   });
 
+  it('keys the route component by path, not fullPath (the other half of the same trap)', () => {
+    // 组件级 key 与 boundaryKey 是同一个坑的两半。用 fullPath 时，任何「同页换参数」
+    // （数据管理面板 ?section=&tab=、新闻列表 ?q=&filter=、活动墙 ?tab=、首页 ?view=）
+    // 都会销毁重建整个路由组件：组件内状态（关键词/勾选/页码）归零，onMounted 还会
+    // 补发一次取数把带条件的结果覆盖成全量 —— 2026-09-25「抽奖名单」跳转失效即此因。
+    //
+    // 也不能用 name：/news/1 → /news/2 的 name 相同，而 NewsDetailPage 只靠 onMounted
+    // 取数、没有 watch(params)，用 name 会在切换新闻时显示上一条。path 对 params 变化
+    // 敏感，正好保住「换页面即重建」的原意。
+    expect(appTemplate).toContain(':key="activeRoute.path"');
+    expect(appTemplate).not.toContain(':key="activeRoute.fullPath"');
+  });
+
   it('ignores the boundary when the boot placeholder is still on screen', () => {
     // v-else 链：!bootReady 时走骨架，bootReady 后才可能进入边界
     expect(app).toMatch(/<GlobalErrorBoundary\s*\n?\s*v-else/);

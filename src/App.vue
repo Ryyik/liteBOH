@@ -360,10 +360,27 @@ const showGlobalNavbar = computed(() => {
             逐路由切换后的「主内容是否可见、是否卡在 opacity:0、有无报错」由
             scripts/probes/probe-route-switch.mjs 巡检。
           -->
+          <!--
+            ⚠️ 组件级 key 用 route.path，**不能用 fullPath、也不能用 name**：
+
+            · 不能用 fullPath：它含 query，而「同页换参数」是高频动作 ——
+              数据管理面板（?section=…&tab=…）、新闻列表（?q=…&filter=…）、
+              活动墙（?tab=wall）、首页（?view=…）都只改 query。用 fullPath 会让
+              每次换参数都销毁重建整个路由组件：组件内状态（关键词/勾选/页码）归零，
+              且 onMounted 会补发一次取数，把带条件的结果覆盖成全量
+              （2026-09-25「抽奖名单」跳转失效的根因，实测切表列表请求 2 次 → 1 次）。
+
+            · 不能用 name：/news/1 → /news/2 的 name 相同，而 NewsDetailPage 只靠
+              onMounted 取数、没有 watch(params)，用 name 会在切换新闻时显示上一条。
+              path 对 params 变化是敏感的，正好保住「换页面即重建」的原意。
+
+            守：tests/unit/global-error-boundary.test.js（源码级不变量）+
+                scripts/probes/probe-dm-lottery-entries-jump.mjs（切表只发 1 次列表请求）。
+          -->
           <KeepAlive>
             <component v-if="activeRoute.meta?.keepAlive" :is="Component" :key="activeRoute.name" />
           </KeepAlive>
-          <component v-if="!activeRoute.meta?.keepAlive" :is="Component" :key="activeRoute.fullPath" />
+          <component v-if="!activeRoute.meta?.keepAlive" :is="Component" :key="activeRoute.path" />
         </RouterView>
       </template>
       <template #fallback>

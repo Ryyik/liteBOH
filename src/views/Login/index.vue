@@ -1638,20 +1638,47 @@ onUnmounted(() => {
     font-weight: 700;
   }
 
+  /* 收起（回收）：整卡缩进导航灵动岛。整卡从 860×276 收拢成 241×77 并落在
+     导航胶囊那一条上（origin 50% 0 + translateY(-62px)）。
+
+     ⚠️ 必须用 animation 而不是 transition，也不能只写 `animation: none` + transform：
+     该卡的 transform / border-radius / opacity 在展开态是「入场动画
+     landscapeLoginIslandIn 用 fill-mode both 停住的值」。浏览器在
+     「移除动画 + 同帧改该属性」时**不会**为这次变化启动过渡 —— 属性值一帧直接
+     跳到终值（实测 1440×900：加类瞬间即 matrix(0.28,0,0,0.28,0,-62)、opacity 0，
+     860×276@290,72 → 241×77@600,10，中间零帧；另一条 760ms 的 transition 声明
+     在这里形同虚设）。显式关键帧动画不受此限制，且优先级高于任何普通声明。 */
   .boh-login-modal-overlay.mobile-login-closing .boh-login-modal-container {
-    animation: none;
+    animation: landscapeLoginIslandOut 760ms cubic-bezier(0.22, 1, 0.36, 1) both;
     pointer-events: none;
     transform-origin: 50% 0;
-    transform: translateY(-62px) scale(0.28);
-    opacity: 0;
-    border-radius: 30px;
-    transition: transform 760ms cubic-bezier(0.22, 1, 0.36, 1), opacity 760ms ease;
   }
 
+  /* 成功浮层同理：它的透明度由 loginSuccessReveal（fill-mode both）停住，
+     写 opacity: 0 + transition 同样只会闪断 */
   .boh-login-modal-overlay.mobile-login-closing .mobile-success-state {
-    opacity: 0;
-    transition: opacity 260ms ease;
+    animation: loginSuccessFade 260ms ease both;
   }
+}
+
+/* 横屏登录岛回收：展开位 → 导航胶囊位（与 navbar 的浮岛断点同款终态） */
+@keyframes landscapeLoginIslandOut {
+  from {
+    transform: none;
+    border-radius: 0 0 30px 30px;
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-62px) scale(0.28);
+    border-radius: 30px;
+    opacity: 0;
+  }
+}
+
+/* 登录成功浮层淡出（横竖屏共用） */
+@keyframes loginSuccessFade {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
 @keyframes landscapeLoginIslandIn {
@@ -2158,30 +2185,33 @@ onUnmounted(() => {
     margin: 30px auto 0;
   }
 
-  /* 收起动画：纯 transform/opacity 合成器动画。
-     旧实现把 inset/width/height 直接切到岛屿尺寸 —— 这些属性不在容器的
-     transition-property 里，等于单帧瞬跳（竖屏“卡一下”的来源）；再叠加
-     容器与成功浮层两层层叠的 backdrop-filter，transform 期间逐帧重算模糊。
-     现改为：整卡以顶部岛屿中心（50%, 84px ≈ 12px 偏移 + 72px 半高）为 origin
-     做非等比 scale + 上移 + 渐隐，无布局属性参与；动画期间关闭两层
-     backdrop-filter（两层背景本就接近不透明白，视觉几乎无差）。 */
+  /* 收起（回收）动画：整卡缩回顶部灵动岛并淡出。
+     只动 transform / opacity / border-radius（合成器属性），不碰 inset/width/height
+     这类布局属性（旧实现直接切布局尺寸 = 单帧瞬跳，也是「卡一下」的来源）；
+     动画期间关掉两层叠加的 backdrop-filter，避免逐帧重算模糊。
+
+     ⚠️ 必须用 animation，不能写成 `animation: none` + transform + transition：
+     展开态这张卡的 transform / border-radius / opacity 是「入场动画
+     mobileIslandAppear 用 fill-mode both 停住的值」。浏览器在「移除动画 + 同帧改
+     该属性」时不会为这次变化启动过渡 —— 值一帧直接跳到终值，中间没有任何帧
+     （实测 390×844：加类瞬间即 matrix(0.86,0,0,1,0,-694) / opacity 0，
+     随后 720ms 静止不动，到点整块消失，观感就是「啪地闪掉」）。
+     显式关键帧动画不受此限制，且优先级高于一切普通声明。 */
   .mobile-login-closing .boh-login-modal-container,
   .mobile-login-closing .login-split-container {
+    animation: mobileIslandRetract 680ms cubic-bezier(0.32, 0.72, 0.28, 1) both;
     transform-origin: 50% 84px;
-    transform: translateY(-3vh) scale(0.82, 0.16);
-    border-radius: 64px;
-    opacity: 0;
     pointer-events: none;
     overflow: hidden;
     will-change: transform, opacity;
-    transition: transform 680ms cubic-bezier(0.32, 0.72, 0.28, 1), opacity 420ms ease 260ms;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
 
+  /* 成功浮层同理：它的透明度由 mobileSuccessIn（fill-mode both）停住，
+     写 opacity: 0 + transition 同样只会闪断 */
   .mobile-login-closing .mobile-success-state {
-    opacity: 0;
-    transition: opacity 260ms ease;
+    animation: loginSuccessFade 260ms ease both;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
@@ -2288,12 +2318,10 @@ onUnmounted(() => {
     font-size: 30px;
   }
 
-  .mobile-login-closing .boh-login-modal-container,
-  .mobile-login-closing .login-split-container {
-    transform: translateX(-50%) scale(0.32) translateY(-42vh);
-    border-radius: 30px;
-    opacity: 0.92;
-  }
+  /* ⚠️ 这里曾有一条同名规则（transform: translateX(-50%) scale(0.32) translateY(-42vh)），
+     是 2026-09-04 那版回收动画的残留。它与文件上方那条同特异性但源序更后，静默压掉后者，
+     同时 translateX(-50%) 在基础盒（inset:0 / width:100%）上等于左移半个视口 →
+     就算生效也是朝左上角飞出屏幕，而不是收进顶部灵动岛。已删除，回收只保留上方一处定义。 */
 
   .mobile-keyboard-open .boh-login-modal-container,
   .mobile-keyboard-open .login-split-container {
@@ -2344,6 +2372,23 @@ onUnmounted(() => {
   }
 }
 
+/* 竖屏登录回收：整屏卡 → 顶部灵动岛带状（origin 50% 84px = 顶隙 12px + 岛半高 72px）。
+   0.82 × 0.16 的非等比缩放是按 390×844 反推的收拢终态：宽 320（≈岛宽 310）
+   / 高 135（≈岛高 144）；-6vh 上移后终态中心 ≈ 84px = 岛中心，与岛重合
+   （等比缩放只会缩成一块方块，读不出「收进岛里」）。 */
+@keyframes mobileIslandRetract {
+  from {
+    transform: none;
+    border-radius: 0;
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-6vh) scale(0.82, 0.16);
+    border-radius: 64px;
+    opacity: 0;
+  }
+}
+
 @keyframes mobileIslandButtonExit {
   from { opacity: 1; transform: translateY(0) scale(1); }
   45% { opacity: 1; transform: translateY(-8px) scale(0.98); }
@@ -2380,6 +2425,16 @@ onUnmounted(() => {
     transition: opacity 180ms ease !important;
     animation: none !important;
     transform: none !important;
+  }
+
+  /* 回收态在 reduce 下退化为「只淡出」——上面的 !important 已经把 animation 与
+     transform 锁死，两个回收关键帧都不会跑；这里补终值，让 close 仍是一次可见的
+     渐隐而不是到点消失。（opacity 不在上面那份 !important 列表里，能正常生效；
+     用 !important 会顶破 important-budget 棘轮，故不加。） */
+  .mobile-login-closing .boh-login-modal-container,
+  .mobile-login-closing .login-split-container,
+  .mobile-login-closing .mobile-success-state {
+    opacity: 0;
   }
 }
 

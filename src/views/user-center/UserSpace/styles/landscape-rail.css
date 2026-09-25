@@ -127,7 +127,9 @@
      且它被 Teleport 到 body —— 必须用 body 级选择器才能改到。
      分栏下收到右区：左栏保持可见可交互（左栏 z-index 高于内容层），
      左侧两角做圆角，与左栏右侧圆角呼应成两块面板 */
-  body.page-userspace .mobile-composer-overlay {
+  /* 首页论坛层（body.page-home）与 UserSpace 共用这一条：发布/搜索已收到左栏 */
+  body.page-userspace .mobile-composer-overlay,
+  body.page-home .mobile-composer-overlay {
     left: var(--userspace-rail-w);
     right: 0;
     width: auto;
@@ -160,14 +162,17 @@
      （注释避免写出该字面量：check-important-budget 是纯文本匹配，连注释一起算） */
 
   /* 会话内不显示周签到面板（用户明确不要这个模块） */
-  body.page-userspace .mobile-composer-overlay .weekly-checkin-panel {
+  body.page-userspace .mobile-composer-overlay .weekly-checkin-panel,
+  body.page-home .mobile-composer-overlay .weekly-checkin-panel {
     display: none;
   }
 
-  /* 社区 tab 的内嵌发帖编辑器：发布会话已取代它，删除以免同屏两个发布入口。
+  /* 内嵌发帖编辑器：发布会话（左栏「发布」）已取代它，删除以免同屏两个发布入口。
      仅在分栏区间生效 —— 768–1023 这类中间尺寸没有左栏「发布」按钮，
-     内嵌编辑器是那里的唯一入口，必须保留 */
-  .user-space-page .forum-page.embedded-mode .forum-left-column > .post-creation-section {
+     内嵌编辑器是那里的唯一入口，必须保留。
+     首页论坛层同理：左栏「发布」在，内嵌编辑器就不要了 */
+  .user-space-page .forum-page.embedded-mode .forum-left-column > .post-creation-section,
+  body.page-home .home-forum-stage .forum-page.embedded-mode .forum-left-column > .post-creation-section {
     display: none;
   }
 }
@@ -241,5 +246,72 @@
 @media (prefers-reduced-motion: reduce) {
   .user-space-page .tab-page {
     animation-duration: 1ms;
+  }
+}
+
+/* ================================================================
+   首页（论坛层）横屏同体系左栏
+   ================================================================
+   背景：2026-09-23 首页社区化改版后，论坛本体落在首页 `/`（顶栏「社区 → 论坛」与
+   底栏「方块」都指 `/?view=latest`），而左栏当时只做在 UserSpace —— 于是同一个论坛
+   「从 /user-space 进有左栏、从首页进没有」，横屏电脑上看着就是左右栏结构消失。
+   这里把同一份 UserSpaceSideRail 挂到首页，规则与上面 UserSpace / 他人空间同构：
+     · 断点、栏宽档位（88 / 240）与 side-rail.css 完全一致，三处同步
+     · 首页是普通长文档流（不是 100dvh 叠放层），故 rail 必须 fixed ——
+       absolute 会被拉满整个文档高度，品牌位与工具组随页面滚出视口
+     · 内容让位用 .home-forum-stage 的 padding-left（白底仍满宽，与 UserSpace 观感一致）
+     · --userspace-nav-h 首页已自行实测写入（index.vue 的 syncNavIslandHeight），
+       rail 顶隙因此与分区页签避让同一口径，无需另接
+   ================================================================ */
+
+@media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
+  body.page-home {
+    --userspace-rail-w: 88px;
+  }
+
+  /* --rail-* 条目状态底色：side-rail.css 把亮色挂在 .user-space-page、
+     本文件把他人空间的挂在 .profile-page —— 首页没有那两类祖先，
+     照他人空间的做法在本页根元素上补挂一份（亮色 + 暗色）。 */
+  body.page-home {
+    --rail-item-bg-hover: rgba(15, 23, 42, 0.05);
+    --rail-item-bg-active: rgba(15, 23, 42, 0.07);
+    --rail-pill-bg: rgba(15, 23, 42, 0.075);
+  }
+
+  /* 首页是普通文档流长页，rail 同样必须 fixed（与 .profile-page 同一处理） */
+  body.page-home .userspace-rail.liquid-glass {
+    position: fixed;
+  }
+
+  body.page-home .home-forum-stage {
+    padding-left: var(--userspace-rail-w);
+  }
+
+  /* 顶部导航以内容区居中而不是整页居中：与 UserSpace 同一条杠杆
+     （.unified-nav-surface 靠 margin auto 在满宽容器里居中，基准默认是整页） */
+  body.page-home .unified-nav-surface {
+    left: calc(var(--userspace-rail-w, 88px) / 2);
+  }
+
+  /* 开场画（一次性街景层）在时先不显左栏：它是 inset:0 的满屏封面，
+     左栏浮上去会压住左上角问候语。用的是 :has()——退场即自动出现，
+     不需要为它加任何 JS 状态；不支持 :has 的浏览器退化为「左栏浮在封面上」，
+     不影响功能。 */
+  body.page-home:has(.home-gate) .userspace-rail.liquid-glass {
+    display: none;
+  }
+
+  /* 暗色：主题挂在 html 上（theme-manager 是唯一写入点），
+     与 .profile-page[data-theme="dark"] 同值 */
+  html[data-theme="dark"] body.page-home {
+    --rail-item-bg-hover: rgba(255, 255, 255, 0.08);
+    --rail-item-bg-active: rgba(255, 255, 255, 0.12);
+    --rail-pill-bg: rgba(255, 255, 255, 0.12);
+  }
+}
+
+@media (orientation: landscape) and (min-width: 1280px) and (min-height: 600px) {
+  body.page-home {
+    --userspace-rail-w: 240px;
   }
 }

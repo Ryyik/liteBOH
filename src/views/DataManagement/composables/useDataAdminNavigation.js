@@ -3,6 +3,7 @@ import { useRouter } from 'vue-router';
 import { tabModules } from '../config/tabs.js';
 import { tabs, ADMIN_PAGE_META } from '../config.js';
 import { ADMIN_SECTION_DEFAULT_TABS } from '../query-config.js';
+import { setAdminTabJumpSearch } from './useAdminTabIntent.js';
 
 // section -> module 映射
 const SECTION_TO_MODULE_MAP = {
@@ -206,6 +207,10 @@ export const createNavigationCenter = ({
     }
     selectedItemsRef.value = [];
     searchQueryRef.value = options.search || '';
+    // 跳转携带的关键词必须能活过「写 URL query → 组件重建」这一跳：
+    // 组件 key 为 fullPath，重建后 searchQuery 归零，onMounted 的 fetchData 会用
+    // 空关键词覆盖掉带过滤的查询（名单跳转失效的根因）。
+    setAdminTabJumpSearch(options.search || '');
     resetFiltersForTab();
     userPickerKeywordRef.value = '';
     showUserPickerModalRef.value = false;

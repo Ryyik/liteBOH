@@ -13,6 +13,7 @@ const OUT = 'debug-screenshots';
 fs.mkdirSync(OUT, { recursive: true });
 
 const results = [];
+const overlayLog = [];   // 运行期间被自动清掉的 vite-error-overlay 文案（真出错就看这里）
 const check = (name, pass, detail = '') => {
   results.push({ name, pass, detail });
   console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? '  -- ' + detail : ''}`);
@@ -85,6 +86,20 @@ async function newCtx(state, { dark = false, frames = [FRAME_ROW] } = {}) {
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e.message || e).slice(0, 160)));
+  page.on('console', (m) => { if (m.text().includes('[vite-overlay]')) overlayLog.push(m.text().slice(0, 200)); });
+  // 本机并行开发时 Vite HMR 会往页里插 vite-error-overlay，它会拦掉所有点击（已知抖动）。
+  // 这里持续清掉，并把它的文案记到 window.__overlayMsgs —— 若真出错，下面会连文案一起报出来。
+  await page.addInitScript(() => {
+    window.__overlayMsgs = [];
+    setInterval(() => {
+      document.querySelectorAll('vite-error-overlay').forEach((el) => {
+        const msg = (el.shadowRoot?.querySelector('.message')?.textContent || el.shadowRoot?.textContent || '')
+          .slice(0, 200).replace(/\s+/g, ' ').trim();
+        if (msg) { window.__overlayMsgs.push(msg); console.error('[vite-overlay] ' + msg); }
+        el.remove();
+      });
+    }, 250);
+  });
   await page.route('**/rest/v1/**', makeRouter(state, frames));
   return { context, page, errors };
 }
@@ -201,6 +216,99 @@ async function uploadSyntheticFrame(page) {
 
   await page.screenshot({ path: `${OUT}/avatar-console-admin-ready.png` });
   check('管理端无 JS 错误', errors.length === 0, errors.join(' | '));
+  await context.close();
+}
+
+/* ══════════ A2. 白底无透明层素材（中秋特别.PNG 那一类）══════════
+ * 真实事故（2026-09-25）：1400² 的 RGBA PNG，alpha 通道齐全但 **196 万像素全是 255**，
+ * 中心是纯白不是孔洞 → hasRealAlpha=false、detectInnerHole r=0。
+ * 此时编辑器必须仍然把素材画出来（运营要看见图才能决定抠不抠），
+ * 而上一版 metrics 在 r=0 时提前返回、丢了 k → 图层塌成 0×0，整张图凭空消失。
+ */
+async function uploadOpaqueWhiteFrame(page) {
+  await page.evaluate(() => new Promise((resolve) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 800; canvas.height = 800;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 800, 800);            // 白底：alpha 仍是 255，不是透明区
+    ctx.beginPath(); ctx.arc(400, 400, 380, 0, Math.PI * 2);
+    ctx.lineWidth = 200; ctx.strokeStyle = '#c94f36'; ctx.stroke();      // 环体，中心自然留出白孔
+    canvas.toBlob((blob) => {
+      const input = document.querySelector('.afc input[type=file]');
+      const dt = new DataTransfer();
+      dt.items.add(new File([blob], 'probe-opaque-white.png', { type: 'image/png' }));
+      input.files = dt.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      resolve(true);
+    }, 'image/png');
+  }));
+}
+
+{
+  const state = { isAdmin: true, tier: 'ultra', points: 500, purchaseResult: { ok: false, message: 'NOT_PURCHASABLE' } };
+  const { context, page, errors } = await newCtx(state);
+  await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, { timeout: 30000 });
+  await page.waitForTimeout(3000);
+  await injectLogin(page, state);
+  await page.evaluate(() => { location.hash = '#/admin/avatar-console'; });
+  await page.waitForSelector('.afc', { timeout: 30000 });
+  await page.waitForTimeout(1200);
+
+  /** 素材层的实际渲染尺寸 —— 0×0 就是「看不见」 */
+  const layerBox = () => page.evaluate(() => {
+    const el = document.querySelector('.afc-layer');
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { w: Math.round(r.width), h: Math.round(r.height), left: Math.round(r.left - el.parentElement.getBoundingClientRect().left), top: Math.round(r.top - el.parentElement.getBoundingClientRect().top) };
+  });
+  const editorState = () => page.evaluate(() => ({
+    notice: document.querySelector('.afc-notice')?.textContent.trim() || '',
+    blockers: [...document.querySelectorAll('.afc-alerts .alert.bad')].map((e) => e.textContent.trim()),
+    avatarPx: (() => { const el = document.querySelector('.afc-avatar'); return el ? Math.round(el.getBoundingClientRect().width) : null; })(),
+    noHoleHint: Boolean(document.querySelector('.afc-no-hole')),
+    scale: (() => { const rows = [...document.querySelectorAll('.afc-readout .kv')]; return (rows.find((r) => r.querySelector('span')?.textContent.includes('scale'))?.querySelector('b')?.textContent || '').trim(); })()
+  }));
+
+  await uploadOpaqueWhiteFrame(page);
+  await page.waitForTimeout(2500);
+  const st = await editorState();
+  const box = await layerBox();
+
+  check('白底无透明层图上传后有明确提示', /透明/.test(st.notice), st.notice.slice(0, 40));
+  check('【回归】未测出内孔时素材层仍可见（非 0×0）', Boolean(box) && box.w > 50 && box.h > 50,
+    JSON.stringify(box));
+  check('未测出内孔时素材按画布铺满（铺满边长 ≈ 380px 舞台）', Boolean(box) && Math.abs(box.w - 380) <= 2,
+    `w=${box?.w} left=${box?.left} top=${box?.top}`);
+  check('两条阻塞项都在（无透明通道 + 未测出内孔）',
+    st.blockers.some((b) => b.includes('透明通道')) && st.blockers.some((b) => b.includes('未能测出内孔')),
+    JSON.stringify(st.blockers));
+  check('未测出内孔时不给 6px 假头像圆，改为显式提示', st.noHoleHint === true && st.avatarPx === null,
+    `hint=${st.noHoleHint} avatar=${st.avatarPx}`);
+
+  // 未测出内孔 ⇒ scale 是 NaN ⇒ 库里 scale 是 not null，存了必炸 23502。
+  // 所以「存草稿」在这个状态必须禁用（以前只校验 draft.id，点下去必然失败，草稿凭空消失）。
+  const saveDraftBtn = page.locator('.afc-actions .btn', { hasText: '存草稿' });
+  const draftDisabled = await saveDraftBtn.isDisabled();
+  const draftTitle = await saveDraftBtn.getAttribute('title');
+  check('未测出内孔时「存草稿」禁用', draftDisabled === true, `disabled=${draftDisabled}`);
+  check('禁用原因写在按钮 title 上（指向抠白底）', /抠白底/.test(draftTitle || ''), draftTitle || '');
+  await page.screenshot({ path: `${OUT}/avatar-console-opaque-white.png` });
+
+  // 抠底后：透明通道回来、内孔测出、素材仍可见
+  await page.locator('.afc-tools .btn', { hasText: '自动抠白底' }).click();
+  await page.waitForTimeout(1500);
+  const st2 = await editorState();
+  const box2 = await layerBox();
+  check('抠白底后测出内孔并给出 scale', /^\d+\.\d{2}$/.test(st2.scale), `scale=${st2.scale}`);
+  check('抠白底后「无透明通道」阻塞项消失', !st2.blockers.some((b) => b.includes('透明通道')),
+    JSON.stringify(st2.blockers));
+  check('抠白底后素材层仍可见且有合理尺寸', Boolean(box2) && box2.w > 50 && box2.h > 50, JSON.stringify(box2));
+  check('抠白底后头像圆按真实内孔尺寸渲染', typeof st2.avatarPx === 'number' && st2.avatarPx > 100 && st2.avatarPx < 380,
+    `avatar=${st2.avatarPx}px`);
+  check('抠白底后「存草稿」解禁（scale 已可算）', (await saveDraftBtn.isDisabled()) === false,
+    await saveDraftBtn.getAttribute('title'));
+  check('白底素材场景无 JS 错误', errors.length === 0, errors.join(' | '));
   await context.close();
 }
 
@@ -348,4 +456,5 @@ await browser.close();
 const failed = results.filter((r) => !r.pass);
 console.log(`\n==== ${results.length - failed.length}/${results.length} PASS ====`);
 if (failed.length) console.log('失败项:\n' + failed.map((f) => `  - ${f.name}  ${f.detail}`).join('\n'));
+if (overlayLog.length) console.log('（运行期间自动清掉的 vite overlay，非本页断言失败）:\n' + [...new Set(overlayLog)].map((m) => '  · ' + m).join('\n'));
 process.exit(failed.length ? 1 : 0);
