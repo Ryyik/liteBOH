@@ -35,6 +35,8 @@
 - 注册=三步向导；密码下限 8 位唯一真源 `src/utils/auth-validation.js`（Deno 副本 → 门禁 `check:auth-validation`）。通行密钥：注册 Step3 收意图+完成页执行。
 - Push 链路：notifications 触发器 → push_outbox → pg_net → EF `push-send` → `push-sw.js`。VAPID 必 `jsr:@negrel/webpush`；单 secret `VAPID_KEYS_JSON`；SUBJECT 必须 mailto:；Declarative 双格式；`navigate` 绝对 URL。iOS 仅 PWA 内可订阅；绝不自动 unsubscribe。
 - AI：EF `api-key-vault` → 上游；唯一生效字段 `bohai_model_configs.api_url`；只说 OpenAI 协议（只解析 choices[0]）。Google：frequency_penalty 400、reasoning_effort 仅 low、错误是 JSON 数组。限流 10/分/用户。改 AI 页必跑 `scripts/probes/probe-ai-panels.mjs`。
+- **上游是多平台各一把 key**（siliconflow/zhipu/openrouter/custom 中转站，`api_keys` onConflict provider+purpose → 无同平台 key 池；解析链 DB→env 兜底，`index.ts:864`）。自建 one-api/new-api 不对口。09-24 调研 v2 定调：**P0 = EF 内跨平台候选链**（`bohai_model_configs` 加 `fallback_chain` jsonb；失败重试限 429/5xx/超时且首 chunk 前，复用 metaFlushed；前置重构=清洗收敛成声明式规则表）+ openrouter mode 叠加 `models` 数组；Portkey Workers = P1 兜底。ApiKeyConsole 已有测试+模型发现，缺能力标记声明化。详见 `docs/2026-09-24-BOHAI-AI配置开源方案调研.md`。
+- **⚠️ 降级必须档位感知（09-25 用户确认的商业约束）**：不同平台模型 = 不同订阅档位体验（min_tier + quota_multiplier），模型绑定是收费承诺。fallback_chain 候选须显式配置+tier_semantics（equivalent 静默切 / temporary UI 明示），候选自带 quota_multiplier 按实际扣，档位隔离（premium 链禁混低档、free 永不升档）。任何「自动跨平台降级」提议都先过这条。
 
 ## 样式 / 主题 / 性能 / PWA / CI
 - 玻璃单源 `tokens.css`（--liquid-*）；子组件禁压父级变量→`var(--x,40px)`；空态 EmptyState.vue。暗色真源 theme-manager.js + 13 容器白名单。
