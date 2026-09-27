@@ -42,7 +42,8 @@ describe('UserSpaceMain 把 mountedTabs 闩锁接到模板上', () => {
     // 每次切回都重建组件并重跑 onMounted 取数（实测切回资产稳定打 5 个数据请求）。
     // 接上闩锁后降到 0。这条守卫防的是「闩锁又被当成无用字段删掉」。
     expect(mainSource).toMatch(
-      /ensureTabMounted,\s*\n\s*mountedTabs\s*\n\}\s*=\s*useUserSpaceTabs\(/,
+      // 空白宽容：prettier 可能把解构重排为单行/加尾逗号，只守卫「mountedTabs 被解构消费」语义
+      /const\s*\{[^}]*ensureTabMounted[^}]*mountedTabs[^}]*\}\s*=\s*useUserSpaceTabs\(/,
     );
   });
 
@@ -66,7 +67,9 @@ describe('UserSpaceMain 把 mountedTabs 闩锁接到模板上', () => {
     // community / posts / messages 本来就是常驻 + v-show；被加上闩锁条件也不会更差，
     // 但如果反过来被改成 v-if，就会退回「离开即销毁」。方向性守卫。
     for (const tab of ['community', 'posts', 'messages']) {
-      expect(mainSource).toMatch(new RegExp(`<div v-show="currentTab === '${tab}'`));
+      // 空白宽容：prettier 会把 <div v-show="…"> 的属性折行，不再锚定 <div 前缀，
+      // 只守卫「这三个分区保持 v-show 常驻、不退回 v-if」的方向性。
+      expect(mainSource).toMatch(new RegExp(`v-show="currentTab === '${tab}'`));
     }
   });
 
