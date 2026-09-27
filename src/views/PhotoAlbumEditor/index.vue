@@ -83,8 +83,6 @@ import { logAlbumExport, updateAlbum } from '@/utils/api/photo-albums-api.js';
 import { checkExportQuota, photosQuotaFor, fetchMyTier } from '@/utils/photo-albums/quota.js';
 import { exportAlbumOffline } from '@/utils/photo-albums/offline-export.js';
 import { recheckAlbumForShare } from '@/utils/photo-albums/share-moderation.js';
-import { compressImageFileToUploadLimit, getImageCompressionPlan } from '@/utils/image-compression.js';
-import { uploadImageToCloudinary } from '@/utils/cloudinary-client.js';
 import { normalizeDbError } from '@/utils/request-core.js';
 
 const route = useRoute();
@@ -442,7 +440,7 @@ onBeforeUnmount(() => {
   gap: 12px;
   padding: 12px 20px;
   background: color-mix(in srgb, var(--surface-primary, #fff) 88%, transparent);
-  backdrop-filter: blur(16px);
+  backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-color, rgba(0, 0, 0, 0.06));
 }
 

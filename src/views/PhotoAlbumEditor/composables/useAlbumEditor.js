@@ -189,7 +189,7 @@ export function useAlbumEditor() {
       }
 
       if (uploadedRows.length) {
-        report('入库中');
+        options.onProgress?.(total, total, '入库中');
         const insertResult = await addAlbumPhotos(album.value.id, uploadedRows);
         if (!insertResult.ok) return { ok: false, added: 0, error: insertResult.error };
 

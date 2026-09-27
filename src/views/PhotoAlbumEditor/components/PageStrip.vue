@@ -6,10 +6,10 @@
         dragging: dragIndex === index,
         'drop-before': dropIndex === index && dropSide === 'before',
         'drop-after': dropIndex === index && dropSide === 'after'
-      }" draggable="canDrag(page)" role="button" :aria-label="`第 ${index + 1} 页 · ${pageLabel(page)}`"
+      }" :draggable="canDrag(page)" role="button" :aria-label="`第 ${index + 1} 页 · ${pageLabel(page)}`"
         :aria-current="index === currentIndex ? 'true' : undefined" @click="$emit('select', index)"
         @dragstart="onDragStart(index, $event)" @dragover.prevent="onDragOver(index, $event)"
-        @dragend="onDragEnd" @drop.prevent="onDrop(index)">
+        @dragend="onDragEnd" @drop.prevent="onDrop()">
         <span class="strip-thumb">
           <img v-if="thumbUrl(page)" :src="thumbUrl(page)" alt="" loading="lazy" decoding="async" />
           <span v-else-if="page.pageType === 'cover'" class="strip-glyph">封面</span>
@@ -90,7 +90,7 @@ function onDragOver(index, event) {
   dropIndex.value = index;
 }
 
-function onDrop(index) {
+function onDrop() {
   if (dragIndex.value < 0 || dropIndex.value < 0) return;
   let target = dropIndex.value + (dropSide.value === 'after' ? 1 : 0);
   // 计算移除原位置后的目标下标
