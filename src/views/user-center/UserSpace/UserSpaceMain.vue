@@ -59,6 +59,7 @@
             @view-impressions="openProfileImpressions" @sponsor="openSponsorPage"
             @data-management="openProfileDataManagement" @cloud-plus="openCloudPlusArea"
             @assets="openAssetsHub"
+            @photo-albums="openPhotoAlbums"
             @post-click="openProfilePost"
             @switch-tab="switchTab"
             @load-more="loadMoreProfilePosts" />
@@ -1506,6 +1507,10 @@ const openSponsorPage = () => {
   sponsorQrLoading.value = false;
   sponsorCatBurstKey.value += 1;
   jumpWithSection('assets', 'sponsor');
+};
+
+const openPhotoAlbums = () => {
+  router.push('/user-space/albums');
 };
 
 const openAssetsHub = (initialTab = '') => {

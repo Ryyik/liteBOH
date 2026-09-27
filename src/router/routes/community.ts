@@ -78,6 +78,25 @@ export const communityRoutes: RouteRecordRaw[] = [
     }),
   },
   {
+    // 摄影集：社区影集区（封面入口卡网格，仅 published+shared，RLS 兜底）
+    path: "/albums",
+    name: "CommunityAlbums",
+    component: () => import("../../views/CommunityAlbums/index.vue"),
+  },
+  {
+    // 摄影集：阅读页（公开可访问；未公开影集仅作者可见，由 RLS 保证）
+    path: "/albums/:id",
+    name: "PhotoAlbumReader",
+    component: () => import("../../views/PhotoAlbumReader/index.vue"),
+  },
+  {
+    // 摄影集：编辑器（仅作者本人，未登录走全局登录拦截）
+    path: "/studio/albums/:id",
+    name: "PhotoAlbumEditor",
+    meta: { requiresLogin: true },
+    component: () => import("../../views/PhotoAlbumEditor/index.vue"),
+  },
+  {
     path: "/forum/post/:id",
     name: "PostDetail",
     meta: { hideNavbar: true },

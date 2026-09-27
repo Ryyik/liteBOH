@@ -3690,7 +3690,7 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
     };
     const needsFlatten = ['forumPostImages', 'shopOrders', 'pointsTransactions', 'forumWeeklyCheckins',
       'aiWebSearchLog', 'anniversaryClaims', 'forumPostReports', 'moderationLogs', 'birthdayEvents',
-      'notifications', 'userFollows', 'userImpressions'].includes(tabId);
+      'notifications', 'userFollows', 'userImpressions', 'photoAlbums'].includes(tabId);
     if (needsFlatten) {
       rows = rows.map((row) => {
         const flat = { ...row };

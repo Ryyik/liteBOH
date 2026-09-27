@@ -132,6 +132,13 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
     redirect: redirectToUserSpaceTab("settings"),
   },
   {
+    // 摄影集：我的影集列表（创建/编辑/阅读/导出/分享入口）
+    path: "/user-space/albums",
+    name: "PhotoAlbums",
+    component: () => import("../../views/PhotoAlbums/index.vue"),
+    meta: { ...userSpaceMeta },
+  },
+  {
     path: "/user-space/account-security",
     name: "AccountSecurity",
     component: () => import("../../views/user-center/AccountSecurity/index.vue"),

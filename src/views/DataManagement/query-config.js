@@ -173,6 +173,19 @@ export const TAB_SELECT_COLUMNS = {
     created_at,
     updated_at
   `,
+  photoAlbums: `
+    id,
+    user_id,
+    title,
+    subtitle,
+    cover_url,
+    status,
+    shared_to_community,
+    photo_count,
+    created_at,
+    updated_at,
+    profile:user_id(username)
+  `,
   reportedPosts: `
     id,
     content,

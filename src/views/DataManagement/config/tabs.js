@@ -33,6 +33,7 @@ export const tabs = [
   { id: 'forumPostImages', label: '图片审核', icon: '🖼️', module: 'community' },
   { id: 'forumPostReports', label: '举报明细', icon: '🚩', module: 'community' },
   { id: 'blockWallItems', label: '方块墙', icon: '🧱', module: 'community' },
+  { id: 'photoAlbums', label: '摄影集', icon: '📷', module: 'community' },
   { id: 'news', label: '新闻管理', icon: '📰', module: 'operations' },
   { id: 'activities', label: '活动管理', icon: '🎉', module: 'operations' },
   { id: 'postReward', label: '发帖有奖', icon: '🎁', module: 'operations' },
@@ -112,8 +113,8 @@ export const tabModules = [
     icon: MessageCircle,
     section: 'data',
     defaultTab: 'forum',
-    tabIds: ['forum', 'ads', 'forumWeeklyCheckins', 'forumPostImages', 'forumPostReports', 'blockWallItems'],
-    description: '论坛、签到、图片审核、举报和方块墙'
+    tabIds: ['forum', 'ads', 'forumWeeklyCheckins', 'forumPostImages', 'forumPostReports', 'blockWallItems', 'photoAlbums'],
+    description: '论坛、签到、图片审核、举报、方块墙和摄影集'
   },
   {
     id: 'operations',
@@ -220,6 +221,7 @@ export const TABS_ACTIONS = {
   products: ['view', 'create', 'edit', 'delete'],
   coreMemories: ['view', 'create', 'edit', 'delete'],
   blockWallItems: ['view', 'create', 'edit', 'delete'],
+  photoAlbums: ['view', 'edit', 'delete'],
   bohCreatorShows: ['view', 'create', 'edit', 'delete'],
   birthdayEvents: ['view', 'create', 'edit', 'delete'],
   birthdayWishes: ['view', 'edit'],

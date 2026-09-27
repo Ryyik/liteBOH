@@ -1222,6 +1222,60 @@ export const dataConfig = {
       ]
     }
   },
+  // ========== 摄影集 ==========
+  photoAlbums: {
+    table: 'photo_albums',
+    columns: [
+      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'username', label: '作者' },
+      { key: 'title', label: '标题', maxLength: 20 },
+      { key: 'subtitle', label: '副标题', maxLength: 16 },
+      { key: 'status', label: '状态', type: 'badge' },
+      { key: 'shared_to_community', label: '社区分享', type: 'badge' },
+      { key: 'photo_count', label: '照片数', type: 'number' },
+      { key: 'updated_at', label: '更新时间', type: 'datetime' },
+      { key: 'created_at', label: '创建时间', type: 'datetime' }
+    ],
+    fields: [
+      { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic' },
+      { key: 'user_id', label: '作者ID', type: 'text', disabled: true, group: 'basic' },
+      { key: 'username', label: '作者', type: 'text', disabled: true, group: 'basic' },
+      { key: 'title', label: '标题', type: 'text', required: true, maxLength: 80, group: 'basic' },
+      { key: 'subtitle', label: '副标题', type: 'text', maxLength: 120, group: 'basic' },
+      { key: 'status', label: '状态', type: 'select', options: [
+        { value: 'draft', label: '草稿' },
+        { value: 'published', label: '已发布' }
+      ], group: 'basic' },
+      { key: 'shared_to_community', label: '分享到社区', type: 'select', options: [
+        { value: true, label: '已分享' },
+        { value: false, label: '未分享' }
+      ], group: 'basic' },
+      { key: 'cover_url', label: '封面图', type: 'image', group: 'media' },
+      { key: 'photo_count', label: '照片数', type: 'number', disabled: true, hint: '由照片表统计自动维护，手动修改无效。', group: 'media' }
+    ],
+    cardView: {
+      imageKey: 'cover_url',
+      placeholderIcon: '📷',
+      titleKey: 'title',
+      titleLabel: '标题',
+      subtitleKey: 'username',
+      statusKey: 'status',
+      statusMeta: {
+        draft: { label: '草稿', tone: 'info' },
+        published: { label: '已发布', tone: 'success' }
+      },
+      stats: [
+        { label: '作者', key: 'username' },
+        { label: '照片', key: 'photo_count' }
+      ],
+      meta: [
+        { label: '副标题', key: 'subtitle' },
+        { label: '社区分享', key: 'shared_to_community', format: 'badge', values: { true: '已分享', false: '未分享' } },
+        { label: '更新时间', key: 'updated_at', format: 'datetime' },
+        { label: '创建时间', key: 'created_at', format: 'datetime' }
+      ]
+    }
+  },
   // ========== Cloudinary 待上传 ==========
   // 注意：原 `cloudinaryUploads`（上传队列）页签已于 2026-09-24 摘除。
   // 该表 cloudinary_pending_uploads 不是「上传队列」，而是「上传归属台账」

@@ -154,6 +154,21 @@
         </span>
         <span class="profile-action-chevron">›</span>
       </button>
+
+      <button type="button" class="profile-service-row" @click="$emit('photo-albums')">
+        <span class="profile-service-icon bg-pink">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
+            <circle cx="12" cy="13" r="3"></circle>
+          </svg>
+        </span>
+        <span class="profile-service-body">
+          <strong>摄影集</strong>
+          <small class="profile-service-hint">上传照片自动排版，装帧一本可翻阅、可带走的影集</small>
+        </span>
+        <span class="profile-action-chevron">›</span>
+      </button>
     </section>
 
     <section class="profile-content-panel">
@@ -451,6 +466,7 @@ const emit = defineEmits([
   'assets',
   'data-management',
   'cloud-plus',
+  'photo-albums',
   'post-click',
   'switch-tab',
   'load-more'
